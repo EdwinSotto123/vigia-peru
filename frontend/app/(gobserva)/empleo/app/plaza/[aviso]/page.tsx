@@ -1,19 +1,17 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import type { ReactNode } from "react";
-import { ArrowLeft, ArrowUpRight, BellRing, Bot, Building2, CircleCheckBig, Clock, Eye, FileText, Lock, MapPin, MessageSquareText, ScrollText, ShieldCheck, Users } from "lucide-react";
-import { LoEsencial } from "@/components/empleo/LoEsencial";
+import { ArrowLeft, ArrowUpRight, BellRing, Building2, CircleCheckBig, Clock, Eye, Lock, MapPin, MessageSquareText, Users } from "lucide-react";
 import { LasBases } from "@/components/empleo/LasBases";
+import { PuedesPostular } from "@/components/empleo/PuedesPostular";
+import { QueHacer } from "@/components/empleo/QueHacer";
+import { BotonVerBases } from "@/components/empleo/VisorBases";
 import { CLASE_ENLACE_PIE, Caja, ESPACIO_CAJAS, Pagina } from "@/components/gobserva/app/Caja";
-import { CumplesRequisitos, type Requisito } from "@/components/empleo/CumplesRequisitos";
 import { RangoSueldo, fraseSueldo } from "@/components/empleo/RangoSueldo";
 import { CopiarEnlace } from "@/components/licitaciones-app/detalle/CopiarEnlace";
 import { SeguirConEtapa } from "@/components/licitaciones-app/seguimiento/BotonSeguir";
 import { Insignia } from "@/components/licitaciones-app/ui/Insignia";
-import {
-  aniosCorto, claseRequisito, diasParaCierre, entidadNombre, enumerar, fechaDia, lugar, puesto, textoCierre, tipoContrato,
-} from "@/lib/empleo";
+import { aniosCorto, diasParaCierre, entidadNombre, fechaDia, lugar, puesto, textoCierre, tipoContrato } from "@/lib/empleo";
 import { numero, soles } from "@/lib/formato";
 import { palabrasClave, rutaEn } from "@/lib/gobserva";
 import { baseProducto } from "@/lib/gobserva-servidor";
@@ -27,8 +25,6 @@ const SERVIR = "https://app.servir.gob.pe/DifusionOfertasExterno/faces/consultas
 
 type Props = { params: { aviso: string }; searchParams: Record<string, string | string[] | undefined> };
 
-/** Un texto de SERVIR que no dice nada («.», «-», vacío) no es un requisito. */
-const conTexto = (t: string | null | undefined) => (t && t.replace(/[^\p{L}\p{N}]/gu, "").length >= 3 ? t.trim() : null);
 /** SERVIR escribe los requisitos en mayúsculas con viñetas sueltas: en oración, cada viñeta en su línea. */
 const legible = (t: string) => puesto(t.replace(/\s*[•▪●]\s*/g, "\n").replace(/^\n+/, ""));
 
@@ -39,10 +35,16 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 }
 
 /**
- * La ficha de una plaza CAS dentro de la app de Empleo (2026-11-07), como la ficha de una licitación: arriba el puesto, la
- * entidad, guardarla con su etapa (el tablero de postulaciones), postular y copiar el enlace; cuatro cifras (sueldo,
- * cierre, experiencia, vacantes); y en cajas, si cumples los requisitos, lo que pagan otras entidades, lo que nadie te
- * dice, cómo postular y la misma plaza en esta entidad. «Plazas» vuelve a la lista con los filtros (?volver=).
+ * La ficha de una plaza CAS dentro de la app de Empleo. Ordenada para decidir y actuar (2026-11-08, el usuario: «sigue
+ * apilado, sin saber si cumples o no, sin decirte qué tienes que hacer exactamente, sin botón de previsualizar bases»):
+ *
+ *   1. Arriba el puesto, la entidad y las acciones: postular, VER LAS BASES (en un panel, sin salir), guardar y copiar.
+ *   2. ¿Puedes postular?: cada requisito contra tu perfil, con el veredicto y por qué (PuedesPostular).
+ *   3. Qué tienes que hacer: los pasos con las fechas de las bases, los documentos para ir marcando y por dónde (QueHacer).
+ *   4. Las bases: los documentos para verlos o bajarlos, y en pestañas el cronograma, la evaluación y el puesto.
+ *
+ * Al costado, lo que ayuda a decidir: lo que nadie te dice, lo que pagan otras entidades, el asistente, la misma plaza
+ * en esta entidad y las parecidas. «Plazas» vuelve a la lista con los filtros (?volver=).
  */
 export default async function DetallePlaza({ params, searchParams }: Props) {
   const d = await getFichaPlaza(params.aviso);
@@ -66,24 +68,6 @@ export default async function DetallePlaza({ params, searchParams }: Props) {
   const palabras = palabrasClave(p.titulo) || titulo.slice(0, 40);
   const parecidas = rutaEn(base, `/app/plazas?${new URLSearchParams({ q: palabras, ...(regionSlug ? { region: regionSlug } : {}) })}`);
 
-  const campos = [
-    { clave: "formacion", nombre: "formación", titulo: "Formación", valor: p.formacion, resumen: undefined },
-    { clave: "experiencia", nombre: "experiencia", titulo: "Experiencia", valor: p.experiencia, resumen: expCorta ?? undefined },
-    { clave: "especializacion", nombre: "cursos o especialización", titulo: "Cursos o especialización", valor: p.especializacion, resumen: undefined },
-    { clave: "conocimiento", nombre: "conocimientos", titulo: "Conocimientos", valor: p.conocimiento, resumen: undefined },
-  ];
-  const requisitos: Requisito[] = [];
-  const enBases: string[] = [];
-  const noPide: string[] = [];
-  for (const c of campos) {
-    const t = conTexto(c.valor);
-    if (!t) continue;
-    const clase = claseRequisito(t);
-    if (clase === "en_bases") enBases.push(c.nombre);
-    else if (clase === "no_pide") noPide.push(c.nombre);
-    else requisitos.push({ clave: c.clave, titulo: c.titulo, resumen: c.resumen, texto: legible(t) });
-  }
-
   const boton = "inline-flex min-h-10 items-center gap-1.5 rounded-lg border border-line bg-caja px-3.5 text-dato font-semibold text-ink transition-colors duration-rapido hover:border-ink/20";
 
   return (
@@ -92,31 +76,20 @@ export default async function DetallePlaza({ params, searchParams }: Props) {
         <Link href={volver} className="inline-flex min-h-9 items-center gap-1.5 rounded-lg text-dato font-semibold text-inkSoft underline-offset-4 hover:text-ink hover:underline">
           <ArrowLeft size={16} aria-hidden /> Plazas
         </Link>
-        <div className="mt-3 flex flex-col-reverse gap-3 xl:flex-row xl:items-start xl:justify-between">
-          <div className="flex min-w-0 flex-wrap items-center gap-1.5 xl:pt-2.5">
-            <span className="font-mono text-meta font-semibold text-inkSoft">Aviso {p.aviso}</span>
-            <Insignia>Plaza CAS</Insignia>
-            {contrato.temporal != null && <Insignia>{contrato.temporal ? "Temporal" : "A plazo indeterminado"}</Insignia>}
-            {cerrada ? (
-              <Insignia tono="aviso" Icono={Lock}>Ya cerró</Insignia>
-            ) : (
-              <Insignia tono="acento">Recibe postulaciones</Insignia>
-            )}
-            {p.senales?.length ? <Insignia tono="aviso" Icono={Eye}>{p.senales.length === 1 ? "1 cosa que saber" : `${p.senales.length} cosas que saber`}</Insignia> : null}
-          </div>
-          <div className="flex min-w-0 flex-wrap items-center gap-2 xl:justify-end">
-            <SeguirConEtapa id={String(p.aviso)} codigo={null} titulo={titulo} tipo="plaza" />
-            {!cerrada && p.detalleUrl && (
-              <a href={p.detalleUrl} target="_blank" rel="noopener noreferrer" className={boton}>
-                Postular en la entidad <ArrowUpRight size={15} aria-hidden />
-                <span className="sr-only"> (se abre en otra pestaña)</span>
-              </a>
-            )}
-            <Link href={rutaEn(base, `/app/asistente?pregunta=${encodeURIComponent(`Explícame la plaza ${p.aviso} (${titulo} en ${entidad}): qué piden, si me conviene y qué documentos preparo.`)}`)} className={boton}>
-              <Bot size={15} aria-hidden /> Preguntarle al asistente
-            </Link>
-            <CopiarEnlace />
-          </div>
+        <div className="mt-3 flex min-w-0 flex-wrap items-center gap-1.5">
+          <span className="font-mono text-meta font-semibold text-inkSoft">Aviso {p.aviso}</span>
+          <Insignia>Plaza CAS</Insignia>
+          {contrato.temporal != null && <Insignia>{contrato.temporal ? "Temporal" : "A plazo indeterminado"}</Insignia>}
+          {cerrada ? (
+            <Insignia tono="aviso" Icono={Lock}>Ya cerró</Insignia>
+          ) : (
+            <Insignia tono="acento">Recibe postulaciones</Insignia>
+          )}
+          {p.senales?.length ? (
+            <a href="#saber" className="rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-granate">
+              <Insignia tono="aviso" Icono={Eye}>{p.senales.length === 1 ? "1 cosa que saber" : `${p.senales.length} cosas que saber`}</Insignia>
+            </a>
+          ) : null}
         </div>
         <div className="mt-3 min-w-0">
           <h1 className="max-w-[80ch] text-pretty font-display text-bloque font-bold leading-snug tracking-tight text-ink sm:text-seccion">{titulo}</h1>
@@ -134,6 +107,22 @@ export default async function DetallePlaza({ params, searchParams }: Props) {
               {vacantes === 1 ? "1 vacante" : `${numero(vacantes)} vacantes`}
             </span>
           </p>
+        </div>
+        <div className="mt-4 flex min-w-0 flex-wrap items-center gap-2">
+          {!cerrada && (
+            <a
+              href={p.detalleUrl ?? SERVIR}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex min-h-10 items-center gap-1.5 rounded-lg bg-granate px-3.5 text-dato font-semibold text-paper transition-colors duration-rapido hover:bg-granate-deep"
+            >
+              {p.detalleUrl ? "Postular en la entidad" : "Verla en SERVIR"} <ArrowUpRight size={15} aria-hidden />
+              <span className="sr-only"> (se abre en otra pestaña)</span>
+            </a>
+          )}
+          <BotonVerBases aviso={p.aviso} className={boton} />
+          <SeguirConEtapa id={String(p.aviso)} codigo={null} titulo={titulo} tipo="plaza" />
+          <CopiarEnlace />
         </div>
 
         <dl className="mt-5 grid grid-cols-2 gap-px overflow-hidden rounded-2xl border border-line bg-line shadow-caja lg:grid-cols-4">
@@ -164,35 +153,25 @@ export default async function DetallePlaza({ params, searchParams }: Props) {
 
       <div className={cn("grid grid-cols-[minmax(0,1fr)] items-start xl:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]", ESPACIO_CAJAS)}>
         <div className={cn("grid grid-cols-[minmax(0,1fr)]", ESPACIO_CAJAS)}>
-          <LoEsencial aviso={p.aviso} />
-          <LasBases aviso={p.aviso} numero={p.numero} />
-          <Caja
-            id="cumples"
-            titulo="¿Cumples los requisitos?"
-            descripcion={
-              requisitos.length > 0
-                ? "Marca lo que ya tienes. Es lo que pide la entidad en su aviso; las bases completas están en su publicación."
-                : "El aviso no trae requisitos para marcar: están en las bases de la convocatoria."
-            }
-          >
-            <div className="space-y-3">
-              {requisitos.length > 0 && <CumplesRequisitos aviso={p.aviso} requisitos={requisitos} postular={p.detalleUrl} servir={SERVIR} cerrada={cerrada} />}
-              {enBases.length > 0 && (
-                <Nota icono={<ScrollText size={15} aria-hidden />}>El aviso no detalla {enumerar(enBases)}: remite a las bases de la convocatoria. Revísalas antes de postular.</Nota>
-              )}
-              {noPide.length > 0 && <Nota icono={<CircleCheckBig size={15} aria-hidden />}>No pide {enumerar(noPide, "ni")}.</Nota>}
-              {requisitos.length === 0 && enBases.length === 0 && noPide.length === 0 && (
-                <Nota icono={<ScrollText size={15} aria-hidden />}>Revisa las bases en la web de la entidad o en SERVIR.</Nota>
-              )}
-            </div>
-          </Caja>
+          <PuedesPostular
+            base={base}
+            cerrada={cerrada}
+            plaza={{
+              aviso: p.aviso,
+              formacion: p.formacion,
+              experiencia: p.experiencia,
+              especializacion: p.especializacion,
+              conocimiento: p.conocimiento,
+              expGeneral: p.expGeneral,
+              region: regionSlug,
+              remuneracion: p.remuneracion,
+            }}
+          />
+          <QueHacer aviso={p.aviso} numero={p.numero} fechaFin={p.fechaFin} postular={p.detalleUrl} servir={SERVIR} cerrada={cerrada} parecidas={parecidas} />
+          <LasBases aviso={p.aviso} numero={p.numero} web={p.detalleUrl} servir={SERVIR} />
+        </div>
 
-          {comparada && (
-            <Caja id="sueldo" titulo="Lo que pagan otras entidades por este puesto" descripcion={`${numero(comparada.plazas)} plazas parecidas en ${numero(comparada.entidades)} entidades.`}>
-              <RangoSueldo sueldo={p.remuneracion} p25={comparada.p25} mediana={comparada.mediana} p75={comparada.p75} plazas={comparada.plazas} entidades={comparada.entidades} />
-            </Caja>
-          )}
-
+        <div className={cn("grid grid-cols-[minmax(0,1fr)]", ESPACIO_CAJAS)}>
           <Caja id="saber" titulo="Lo que nadie te dice" descripcion="Datos públicos cruzados por Vigía. No prueban que la plaza esté arreglada: te ayudan a decidir dónde pones tu esfuerzo.">
             {p.senales?.length ? (
               <ul className="space-y-3">
@@ -226,63 +205,12 @@ export default async function DetallePlaza({ params, searchParams }: Props) {
               </ul>
             )}
           </Caja>
-        </div>
 
-        <div className={cn("grid grid-cols-[minmax(0,1fr)]", ESPACIO_CAJAS)}>
-          <Caja
-            id="postular"
-            titulo={cerrada ? "Esta plaza ya cerró" : "Cómo postular"}
-            pie={
-              <span className="flex flex-wrap gap-x-4 gap-y-1">
-                {p.detalleUrl && (
-                  <a href={p.detalleUrl} target="_blank" rel="noopener noreferrer" className={CLASE_ENLACE_PIE}>
-                    Web de la entidad <ArrowUpRight size={14} aria-hidden />
-                    <span className="sr-only"> (se abre en otra pestaña)</span>
-                  </a>
-                )}
-                <a href={SERVIR} target="_blank" rel="noopener noreferrer" className={CLASE_ENLACE_PIE}>
-                  <FileText size={14} aria-hidden /> Buscarla en SERVIR <span className="sr-only">(aviso {p.aviso}, se abre en otra pestaña)</span>
-                </a>
-              </span>
-            }
-          >
-            {cerrada ? (
-              <p className="text-dato leading-relaxed text-inkSoft">
-                Ya no recibe postulaciones. Puede haber otras iguales abiertas hoy:{" "}
-                <Link href={parecidas} className="font-semibold text-granate underline-offset-4 hover:underline">ver plazas parecidas</Link>.
-              </p>
-            ) : (
-              <>
-              <ol className="space-y-4">
-                <Paso n={1} titulo="Junta tus documentos">
-                  Tu CV documentado: una copia simple de cada título, certificado y constancia que pruebe lo que piden (la experiencia, con fechas de
-                  inicio y fin). Tu DNI y las declaraciones juradas, en los formatos de las bases.
-                </Paso>
-                <Paso n={2} titulo="Revisa las bases">
-                  Si las encontramos, están arriba en «Las bases, leídas»: el cronograma, cómo te evalúan, qué presentar y por dónde se postula. Si no,{" "}
-                  {p.numero ? <>busca la convocatoria <b className="font-semibold text-ink">{p.numero}</b> en la web de la entidad.</> : <>busca el aviso <b className="font-mono font-semibold text-ink">{p.aviso}</b> en SERVIR.</>}
-                </Paso>
-                <Paso n={3} titulo="Postula antes del cierre">
-                  {p.fechaFin ? `Tienes hasta el ${fechaDia(p.fechaFin).replace(/\.$/, "")}. ` : ""}Es gratis: nadie puede cobrarte por una plaza del Estado. Con «Guardar» la llevas en tu
-                  tablero y en tu calendario, y te avisamos antes de que cierre.
-                </Paso>
-                <Paso n={4} titulo="Las etapas">
-                  Primero revisan tu CV contra el perfil; quien pasa va a una entrevista. Algunas entidades suman un examen de conocimientos. Los resultados
-                  se publican en la web de la entidad, en las fechas del cronograma.
-                </Paso>
-              </ol>
-              <p className="mt-4 rounded-lg bg-granate-50/60 px-3 py-2.5 text-meta leading-relaxed text-inkSoft">
-                <b className="font-semibold text-ink">Puntaje extra por ley.</b> Si tienes una discapacidad acreditada (15%), eres licenciado de las Fuerzas Armadas
-                (10%) o deportista calificado, decláralo y adjunta el documento que lo prueba.
-              </p>
-              </>
-            )}
-            <p className="mt-4 flex items-start gap-2 rounded-lg bg-ink/[0.035] px-3 py-2.5 text-meta leading-relaxed text-inkSoft">
-              <ShieldCheck size={15} aria-hidden className="mt-0.5 shrink-0 text-mossTexto" />
-              Postular es siempre en la entidad. Gobserva no recibe postulaciones.
-            </p>
-          </Caja>
-
+          {comparada && (
+            <Caja id="sueldo" titulo="Lo que pagan otras entidades por este puesto" descripcion={`${numero(comparada.plazas)} plazas parecidas en ${numero(comparada.entidades)} entidades.`}>
+              <RangoSueldo sueldo={p.remuneracion} p25={comparada.p25} mediana={comparada.mediana} p75={comparada.p75} plazas={comparada.plazas} entidades={comparada.entidades} />
+            </Caja>
+          )}
           {!cerrada && (
             <Caja id="asistente" titulo="Pregúntale al asistente" descripcion="Conoce esta plaza y tu perfil. Cada pregunta usa 5 créditos de tu plan.">
               <ul className="space-y-2">
@@ -363,27 +291,6 @@ function Cifra({ etiqueta, valor, detalle }: { etiqueta: string; valor: string; 
       <dd className="mt-2 truncate font-display text-bloque font-bold leading-tight tabular-nums text-ink sm:text-seccion">{valor}</dd>
       <dd className="mt-1.5 text-meta text-mute">{detalle}</dd>
     </div>
-  );
-}
-
-function Nota({ icono, children }: { icono: ReactNode; children: ReactNode }) {
-  return (
-    <p className="flex items-start gap-2 rounded-lg bg-ink/[0.035] px-3 py-2.5 text-dato leading-relaxed text-inkSoft">
-      <span className="mt-0.5 shrink-0 text-mute">{icono}</span>
-      <span className="min-w-0">{children}</span>
-    </p>
-  );
-}
-
-function Paso({ n, titulo, children }: { n: number; titulo: string; children: ReactNode }) {
-  return (
-    <li className="flex gap-3">
-      <span aria-hidden className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-granate font-mono text-meta font-bold text-paper">{n}</span>
-      <div className="min-w-0 pt-1">
-        <p className="text-dato font-semibold leading-snug text-ink">{titulo}</p>
-        <p className="mt-0.5 text-dato leading-relaxed text-inkSoft">{children}</p>
-      </div>
-    </li>
   );
 }
 
