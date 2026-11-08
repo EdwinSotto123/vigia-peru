@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { bytesDeBase64, interpretarCv } from "../src/lib/cv.js";
+import { bytesDeBase64, interpretarCv, perfilDeRespuesta } from "../src/lib/cv.js";
 
 // Leer el CV (2026-11-08): sólo las claves del perfil, validadas, y nada que parezca un dato personal.
 
@@ -19,4 +19,18 @@ test("interpretarCv: lo raro se descarta; lo que parece un DNI o un correo no pa
 
 test("bytesDeBase64", () => {
   assert.equal(bytesDeBase64(btoa("hola mundo")), 10);
+});
+
+test("perfilDeRespuesta: la herramienta forzada manda; sin ella, el JSON del texto; es_cv false = no es un CV", () => {
+  const r = perfilDeRespuesta({ content: [{ type: "tool_use", name: "perfil", input: { es_cv: true, carreras: ["Contabilidad"], estudios: "titulo", anosExperiencia: 4, puestos: ["Contador"], region: "arequipa" } }] });
+  assert.notEqual(r, "no_es_cv");
+  if (r !== "no_es_cv") {
+    assert.deepEqual(r.carreras, ["Contabilidad"]);
+    assert.equal(r.estudios, "titulo");
+    assert.deepEqual(r.puestos, ["contador"]);
+  }
+  assert.equal(perfilDeRespuesta({ content: [{ type: "tool_use", name: "perfil", input: { es_cv: false, carreras: [], puestos: [] } }] }), "no_es_cv");
+  const texto = perfilDeRespuesta({ content: [{ type: "text", text: '{"carreras":["Derecho"],"estudios":"titulo"}' }] });
+  assert.notEqual(texto, "no_es_cv");
+  assert.throws(() => perfilDeRespuesta({ content: [{ type: "text", text: "Lo siento, no puedo." }] }));
 });
