@@ -92,8 +92,10 @@ const GUARDADO = "X-Vigia-Guardado";
  * "75": Gobserva (2026-11-02): la lista de Obras trae cuántos hay en cada pestaña (`pestanas`), Licitaciones ordena por
  *       el plazo de consultas y Empleo filtra por los estudios de quien busca (`tengo`); vacantes de SERVIR corregidas.
  * "76": las compras sin repetidas (2026-11-03, migración 240): los conteos de la entidad traen `compras` (GET /compras).
+ * "88": Empleo (2026-11-08): /empleo/calce trae por qué calza cada plaza (`motivo`), los puestos reales (`sugeridos`) y
+ *       el orden «Más afines» que premia lo específico (las respuestas guardadas antes no los tenían).
  */
-const VERSION_CACHE = "87";
+const VERSION_CACHE = "88";
 
 function cacheable(req: Request): boolean {
   if (req.method !== "GET") return false;
