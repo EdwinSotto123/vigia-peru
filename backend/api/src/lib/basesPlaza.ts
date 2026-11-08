@@ -26,6 +26,8 @@ export interface PlazaParaBases {
   numero: string | null;
   detalle_url: string | null;
   fecha_inicio: string | null;
+  /** «PIURA - SULLANA»: el departamento y la provincia o el distrito (para la corte del Poder Judicial). */
+  ubicacion?: string | null;
 }
 
 export interface Enlace {
@@ -214,12 +216,22 @@ const UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML,
 type Pedir = (url: string) => Promise<{ status: number; html: string; final: string } | null>;
 
 /** Un GET de HTML con tiempo límite; un reintento si la CDN responde 5xx (la de gob.pe da 530 a veces). */
-export function pedidor(tope = 9, f: typeof fetch = fetch): { pedir: Pedir; usados: () => number } {
+export function pedidor(tope = 9, f: typeof fetch = fetch, relay?: Relay): { pedir: Pedir; usados: () => number } {
   let usados = 0;
   const pedir: Pedir = async (url) => {
     for (let intento = 0; intento < 2; intento++) {
       if (usados >= tope) return null;
       usados++;
+      // Lo que sólo responde desde el Perú va por el relay de Lima; si el relay no está, es un error (se reintenta luego),
+      // no un «no encontradas».
+      if (necesitaPeru(url)) {
+        const r = await porRelay(relay, url, 25_000);
+        if (r.status >= 500 && intento === 0) continue;
+        const tipo = r.headers.get("content-type") ?? "";
+        const final = r.headers.get("x-relay-url") || url;
+        if (!r.ok || !/html|xml|text\/plain/i.test(tipo)) return { status: r.status, html: "", final };
+        return { status: r.status, html: (await r.text()).slice(0, 1_500_000), final };
+      }
       try {
         const r = await f(url, { headers: { "user-agent": UA, accept: "text/html,application/xhtml+xml" }, redirect: "follow", signal: AbortSignal.timeout(12_000) });
         if (r.status >= 500 && intento === 0) continue;
@@ -240,6 +252,8 @@ export interface Hallazgo {
   pagina: string;
   documentos: Enlace[];
   via: "documento" | "pagina_proceso" | "lista";
+  /** Otro proceso que empató (se lee si el modelo dice que éste no es de la plaza). */
+  alternativa?: Hallazgo;
 }
 
 /** Busca los documentos del proceso desde la página que SERVIR enlaza. null si no los encuentra. */
@@ -249,6 +263,11 @@ export async function buscarBases(p: PlazaParaBases, pedir: Pedir): Promise<Hall
   const palabras = palabrasPuesto(p.titulo);
   const urls = (p.detalle_url ?? "").split(/[;\s]+/).filter((u) => /^https?:\/\//i.test(u) && !/facebook\.com|talentosperu\.servir|servir\.gob\.pe\/?$/i.test(u)).slice(0, 2);
   for (const inicio of urls) {
+    if (esPoderJudicial(inicio)) {
+      const h = await buscarPoderJudicial(p, pedir);
+      if (h) return h;
+      continue;
+    }
     if (esDocumento(inicio)) return { pagina: inicio, documentos: [{ url: inicio, texto: "" }], via: "documento" };
     if (esProcesoGobPe(inicio)) {
       const r = await pedir(inicio);
@@ -300,6 +319,136 @@ export async function buscarBases(p: PlazaParaBases, pedir: Pedir): Promise<Hall
   return null;
 }
 
+// ─── El relay de Lima y el Poder Judicial ──────────────────────────────────────────────────────────
+
+/** Un pedido por el relay de Lima (POST /raw del relay, backend/relay-lima/relay.py). */
+export type Relay = (url: string, timeoutMs: number) => Promise<Response>;
+
+/** El relay no está (la PC apagada) o rechazó el pedido: la búsqueda queda en «error» y se reintenta en 2 horas. */
+export class SinRelay extends Error {}
+
+/** Lo que sólo responde a IPs del Perú (desde Cloudflare da 403): el Poder Judicial. */
+const SOLO_PERU = /(^|\.)pj\.gob\.pe$/i;
+export function necesitaPeru(url: string): boolean {
+  try {
+    return SOLO_PERU.test(new URL(url).hostname);
+  } catch {
+    return false;
+  }
+}
+
+async function porRelay(relay: Relay | undefined, url: string, ms: number): Promise<Response> {
+  if (!relay) throw new SinRelay("sin_relay");
+  let r: Response;
+  try {
+    r = await relay(url, ms);
+  } catch (e) {
+    throw new SinRelay(`relay_lima: ${(e as Error).message.slice(0, 80)}`);
+  }
+  // Sin x-relay-status el error es del relay (401 por el token, 502 si no llegó al origen), no del sitio.
+  if (!r.headers.get("x-relay-status")) throw new SinRelay(`relay_lima_${r.status}`);
+  return r;
+}
+
+/** El relay de Lima de la API: el binding de Workers VPC `RELAY_LIMA` (wrangler.jsonc) con su token. */
+export function relayDe(env: { RELAY_LIMA?: { fetch(input: string, init?: RequestInit): Promise<Response> }; RELAY_LIMA_TOKEN?: string }): Relay | undefined {
+  const servicio = env.RELAY_LIMA;
+  if (!servicio) return undefined;
+  return (url, ms) =>
+    servicio.fetch("http://127.0.0.1:8080/raw", {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-vigia-token": (env.RELAY_LIMA_TOKEN ?? "").trim() },
+      body: JSON.stringify({ url, cabeceras: { "User-Agent": UA, Accept: "text/html,application/pdf,*/*" } }),
+      signal: AbortSignal.timeout(ms),
+    });
+}
+
+export const esPoderJudicial = (u: string) => /^https?:\/\/aplicativo\.pj\.gob\.pe\/psep\b/i.test(u);
+
+const PJ = "https://aplicativo.pj.gob.pe";
+
+/** Los procesos de una lista del Poder Judicial: el combo `ddl_OrgDepV` (id → «… SUPLENCIA N° 010-2026-UE-PIURA (PIURA)»). */
+export function procesosPoderJudicial(html: string): { id: string; texto: string }[] {
+  const combo = /<select[^>]*name="[^"]*ddl_OrgDepV"[^>]*>([\s\S]*?)<\/select>/i.exec(html)?.[1] ?? "";
+  return [...combo.matchAll(/<option[^>]*value="(\d+)"[^>]*>([^<]+)<\/option>/gi)]
+    .filter((m) => m[1] !== "0") // «--Seleccione--»
+    .map((m) => ({ id: m[1], texto: desescapar(m[2]).trim() }));
+}
+
+/** Distritos de Lima y provincias con corte propia (la plaza dice «LIMA - ATE»; la lista, «(LIMA ESTE)»). */
+const CORTE_POR_LUGAR: Record<string, string> = {
+  "villa maria del triunfo": "lima sur", "san juan de miraflores": "lima sur", "villa el salvador": "lima sur", chorrillos: "lima sur",
+  lurin: "lima sur", pachacamac: "lima sur", pucusana: "lima sur", "punta hermosa": "lima sur", "punta negra": "lima sur",
+  "san bartolo": "lima sur", "santa maria del mar": "lima sur",
+  ate: "lima este", "santa anita": "lima este", "el agustino": "lima este", "la molina": "lima este", chaclacayo: "lima este",
+  lurigancho: "lima este", cieneguilla: "lima este", "san juan de lurigancho": "lima este",
+  comas: "lima norte", carabayllo: "lima norte", independencia: "lima norte", "los olivos": "lima norte", "san martin de porres": "lima norte",
+  "puente piedra": "puente piedra", ancon: "lima norte", "santa rosa": "lima norte", ventanilla: "ventanilla", "mi peru": "ventanilla",
+  sullana: "sullana", santa: "santa", chimbote: "santa", "nuevo chimbote": "santa", huaura: "huaura", huacho: "huaura", barranca: "huaura",
+  huaral: "huaura", canete: "canete", "san vicente de canete": "canete", chanchamayo: "selva central", satipo: "selva central",
+  oxapampa: "selva central",
+};
+
+/** Las claves de la corte de la plaza, con su peso: la corte del nombre o del lugar (5), el departamento (2). */
+export function cortesDePlaza(p: Pick<PlazaParaBases, "entidad" | "ubicacion">): { clave: string; peso: number }[] {
+  const out: { clave: string; peso: number }[] = [];
+  const ent = normalizar(p.entidad ?? "");
+  const corte = /corte superior (?:nacional )?de justicia (?:de |del )?(?:la )?(.+)$/.exec(ent)?.[1]?.trim();
+  if (corte) out.push({ clave: corte, peso: 5 });
+  // Primero se separa y después se normaliza (normalizar convierte los guiones en espacios).
+  const [dep = "", lugar = ""] = (p.ubicacion ?? "").split(/\s+-\s+/).map((x) => normalizar(x));
+  if (CORTE_POR_LUGAR[lugar]) out.push({ clave: CORTE_POR_LUGAR[lugar], peso: 5 });
+  if (dep) out.push({ clave: dep, peso: 2 });
+  return out;
+}
+
+/** Si el texto del proceso nombra la corte (sin que «lima» calce con «lima sur»). */
+function nombraCorte(t: string, clave: string): boolean {
+  const c = clave.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return new RegExp(`\\b${c}\\b(?! (sur|este|norte|centro))`).test(t);
+}
+
+/**
+ * El Poder Judicial (aplicativo.pj.gob.pe/psep, sólo desde el Perú): sus listas son un formulario ASP.NET con un combo de
+ * procesos, pero los documentos de cada uno tienen dirección fija (`repositoriopsep/<id>_AnuncioConvocatoria.pdf`,
+ * `_Cronograma.pdf`, `_BasesConcurso.pdf`). Se elige el proceso por el régimen (728 → listas E; CAS → listas C), el número,
+ * el año y la corte (del nombre de la entidad o del lugar de la plaza). Si dos empatan y ninguno nombra la corte, nada.
+ */
+export async function buscarPoderJudicial(p: PlazaParaBases, pedir: Pedir): Promise<Hallazgo | null> {
+  const n = numeroProceso(p.numero);
+  if (n == null) return null;
+  const anio = Number.parseInt((p.fecha_inicio ?? "").slice(0, 4), 10) || new Date().getFullYear();
+  const regimen = /1057|\bcas\b/i.test(p.numero ?? "") ? "C" : "E";
+  const cortes = cortesDePlaza(p);
+  const numeroYAnio = new RegExp(`(?<![0-9])0*${n} ${anio}\\b`);
+  const candidatos: { id: string; p: number; lista: string }[] = [];
+  for (const [orden, pagina] of (["V", "P"] as const).entries()) {
+    const lista = `${PJ}/psep/wfrmConvocatorias${pagina}.aspx?TCon=${regimen}`;
+    const r = await pedir(lista);
+    if (!r?.html) continue;
+    for (const proc of procesosPoderJudicial(r.html)) {
+      const t = normalizar(proc.texto);
+      if (!numeroYAnio.test(t)) continue;
+      const peso = Math.max(0, ...cortes.filter((c) => nombraCorte(t, c.clave)).map((c) => c.peso));
+      if (!peso) continue;
+      // Las vigentes antes que las «en proceso»; entre iguales, la más nueva (id mayor).
+      candidatos.push({ id: proc.id, p: peso * 10 - orden, lista });
+    }
+  }
+  if (!candidatos.length) return null;
+  candidatos.sort((a, b) => b.p - a.p || Number(b.id) - Number(a.id));
+  const hallazgo = (c: { id: string; lista: string }): Hallazgo => {
+    const doc = (archivo: string, texto: string) => ({ url: `${PJ}/repositoriopsep/${c.id}_${archivo}.pdf`, texto });
+    return {
+      pagina: c.lista,
+      documentos: [doc("AnuncioConvocatoria", "Aviso de convocatoria (perfil y plazas)"), doc("Cronograma", "Cronograma"), doc("BasesConcurso", "Bases del concurso")],
+      via: "pagina_proceso",
+    };
+  };
+  const [primero, segundo] = candidatos;
+  return { ...hallazgo(primero), ...(segundo && segundo.p === primero.p && segundo.id !== primero.id ? { alternativa: hallazgo(segundo) } : {}) };
+}
+
 // ─── Bajar los PDF ──────────────────────────────────────────────────────────────────────────────────
 
 export const TOPE_PDF = 10 * 1024 * 1024;
@@ -314,10 +463,12 @@ export function paginasPdf(bytes: Uint8Array): number {
 export const claveDocumento = (url: string) => createHash("sha256").update(url).digest("hex").slice(0, 24);
 
 /** Baja un PDF (hasta 10 MB). null si no es un PDF o es muy grande. */
-export async function bajarPdf(url: string, f: typeof fetch = fetch): Promise<Uint8Array | null> {
+export async function bajarPdf(url: string, f: typeof fetch = fetch, relay?: Relay): Promise<Uint8Array | null> {
   for (let intento = 0; intento < 2; intento++) {
     try {
-      const r = await f(url, { headers: { "user-agent": UA, accept: "application/pdf,*/*" }, redirect: "follow", signal: AbortSignal.timeout(25_000) });
+      const r = necesitaPeru(url)
+        ? await porRelay(relay, url, 60_000)
+        : await f(url, { headers: { "user-agent": UA, accept: "application/pdf,*/*" }, redirect: "follow", signal: AbortSignal.timeout(25_000) });
       if (r.status >= 500 && intento === 0) continue;
       if (!r.ok) return null;
       const largo = Number(r.headers.get("content-length") ?? "0");
@@ -326,7 +477,8 @@ export async function bajarPdf(url: string, f: typeof fetch = fetch): Promise<Ui
       if (b.byteLength > TOPE_PDF || b.byteLength < 500) return null;
       if (!(b[0] === 0x25 && b[1] === 0x50 && b[2] === 0x44 && b[3] === 0x46)) return null; // %PDF
       return b;
-    } catch {
+    } catch (e) {
+      if (e instanceof SinRelay) throw e;
       if (intento === 1) return null;
     }
   }
@@ -468,16 +620,41 @@ export interface ResultadoBases {
 export async function procesarBases(
   env: EnvLlm & { DOCUMENTOS?: BucketEscritura },
   p: PlazaParaBases & { datosServir: string },
-  opciones: { puedeLeer: boolean; pedir?: Pedir; bajar?: (url: string) => Promise<Uint8Array | null> },
+  opciones: { puedeLeer: boolean; pedir?: Pedir; bajar?: (url: string) => Promise<Uint8Array | null>; relay?: Relay },
 ): Promise<ResultadoBases> {
-  const pedir = opciones.pedir ?? pedidor(9).pedir;
-  const bajar = opciones.bajar ?? ((u: string) => bajarPdf(u));
+  const pedir = opciones.pedir ?? pedidor(9, fetch, opciones.relay).pedir;
+  const bajar = opciones.bajar ?? ((u: string) => bajarPdf(u, fetch, opciones.relay));
   const hallazgo = await buscarBases(p, pedir);
   if (!hallazgo) return { estado: "no_encontradas", pagina: null, documentos: [], lectura: null };
+  const r = await leerHallazgo(env, p, hallazgo, bajar, opciones.puedeLeer);
+  // Si el modelo dijo que no son de esta plaza y había otro proceso empatado (Poder Judicial: «N° 003-2026» de suplencia
+  // y de servicio específico en la misma corte), se lee ése.
+  if (r.estado === "no_encontradas" && r.tokens && hallazgo.alternativa) {
+    const r2 = await leerHallazgo(env, p, hallazgo.alternativa, bajar, opciones.puedeLeer);
+    const t2 = r2.tokens ?? { entrada: 0, salida: 0 };
+    return { ...r2, tokens: { entrada: r.tokens.entrada + t2.entrada, salida: r.tokens.salida + t2.salida } };
+  }
+  return r;
+}
+
+async function leerHallazgo(
+  env: EnvLlm & { DOCUMENTOS?: BucketEscritura },
+  p: PlazaParaBases & { datosServir: string },
+  hallazgo: Hallazgo,
+  bajar: (url: string) => Promise<Uint8Array | null>,
+  puedeLeer: boolean,
+): Promise<ResultadoBases> {
   const documentos: DocumentoBase[] = hallazgo.documentos.map((e) => ({ titulo: tituloDocumento(e), url: e.url }));
-  // Los dos primeros PDF (las bases y el perfil o el cronograma): se bajan, se guardan en R2 y se leen.
-  const aLeer = documentos.filter((d) => esPdf(d.url)).slice(0, 2);
-  const bajados = (await Promise.all(aLeer.map(async (d) => ({ d, bytes: await bajar(d.url).catch(() => null) })))).filter(
+  // Los tres primeros PDF (las bases, el perfil, el cronograma): se bajan, se guardan en R2 y se leen dentro del tope de
+  // páginas (el Poder Judicial reparte la convocatoria en tres: el aviso, el cronograma y las bases generales).
+  const aLeer = documentos.filter((d) => esPdf(d.url)).slice(0, 3);
+  const bajados = (await Promise.all(aLeer.map(async (d) => ({
+    d,
+    bytes: await bajar(d.url).catch((e) => {
+      if (e instanceof SinRelay) throw e;
+      return null;
+    }),
+  })))).filter(
     (x): x is { d: DocumentoBase; bytes: Uint8Array } => x.bytes != null,
   );
   if (env.DOCUMENTOS) {
@@ -493,12 +670,13 @@ export async function procesarBases(
   }
   const base: ResultadoBases = { estado: "encontradas", pagina: hallazgo.pagina, documentos, lectura: null };
   if (!bajados.length) return { ...base, sin_lectura: "sin_pdf" };
-  if (!opciones.puedeLeer) return { ...base, sin_lectura: "tope" };
+  if (!puedeLeer) return { ...base, sin_lectura: "tope" };
   // Dentro del tope de páginas: las bases primero; el segundo documento sólo si entra.
   const leer: typeof bajados = [];
   let paginas = 0;
   for (const x of bajados) {
-    const n = paginasPdf(x.bytes) || Math.ceil(x.bytes.byteLength / 150_000);
+    // Sin el conteo (páginas en objetos comprimidos): ~45 KB por página, lo que pesan estos PDF.
+    const n = paginasPdf(x.bytes) || Math.ceil(x.bytes.byteLength / 45_000);
     if (paginas + n > TOPE_PAGINAS) continue;
     paginas += n;
     leer.push(x);

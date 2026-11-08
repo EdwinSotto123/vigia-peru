@@ -16,6 +16,10 @@ export interface Env {
   PRIVADO?: R2Bucket;
   /** El bucket viejo de documentos (vigia-peru-documentos, antes en GCS): comprobantes con la ruta de antes. */
   DOCUMENTOS_VIEJOS?: R2Bucket;
+  /** Relay de Lima por Workers VPC (backend/relay-lima): las bases del Poder Judicial (lib/basesPlaza.ts, `relayDe`). */
+  RELAY_LIMA?: Fetcher;
+  /** X-Vigia-Token del relay de Lima (SSM /vigia/relay-lima/token, en us-east-2). */
+  RELAY_LIMA_TOKEN?: string;
 
   // vars
   FIREBASE_PROJECT_ID?: string;

@@ -93,7 +93,8 @@ export function LasBases({ aviso, numero }: { aviso: number; numero: string | nu
     };
   }, [isLoading]);
 
-  if (!isLoading && (!data || data.estado === "cerrada")) return null;
+  // «error»: no pudimos buscar (la web de la entidad o el relay de Lima no respondieron); se reintenta en 2 horas.
+  if (!isLoading && (!data || data.estado === "cerrada" || data.estado === "error")) return null;
 
   if (isLoading || !data) {
     return (

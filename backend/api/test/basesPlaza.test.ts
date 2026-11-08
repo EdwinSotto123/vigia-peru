@@ -144,3 +144,87 @@ test("todo junto: la lectura válida queda con los documentos leídos", async ()
   assert.equal(r.lectura?.como_postular?.detalle, "Por MINEDU en línea, hasta las 23:59");
   assert.ok(r.leida_at);
 });
+
+// ─── Poder Judicial (por el relay de Lima) ──────────────────────────────────────────────────────────
+import { SinRelay, buscarPoderJudicial, cortesDePlaza, pedidor, procesosPoderJudicial } from "../src/lib/basesPlaza.js";
+
+const COMBO = (opciones: string) =>
+  `<select name="ctl00$ContentPlaceHolder1$ddl_Periodo"><option value="2026">2026</option></select>
+   <select name="ctl00$ContentPlaceHolder1$ddl_OrgDepV" id="x"><option value="0">--Seleccione--</option>${opciones}</select>`;
+const PJ_VC = "https://aplicativo.pj.gob.pe/psep/wfrmConvocatoriasV.aspx?TCon=C";
+const PJ_PC = "https://aplicativo.pj.gob.pe/psep/wfrmConvocatoriasP.aspx?TCon=C";
+const PJ_VE = "https://aplicativo.pj.gob.pe/psep/wfrmConvocatoriasV.aspx?TCon=E";
+const PJ_PE = "https://aplicativo.pj.gob.pe/psep/wfrmConvocatoriasP.aspx?TCon=E";
+const listasPj: Record<string, string> = {
+  [PJ_VC]: COMBO(`<option value="15390">PROCESO SELECCION PERSONAL CAS 022-2026-UE AREQUIPA (NECESIDADES TRANSITORIAS) (AREQUIPA)</option>
+    <option value="15504">PROCESO SELECCI&#211;N PERSONAL CAS TRANSITORIO N&#176; 022-2026-HUANCAVELICA (HUANCAVELICA)</option>
+    <option value="15391">PROCESO DE SELECCI&#211;N CAS TRANSITORIO N&#176; 033-2026-UE-LIMASUR (LIMA SUR)</option>
+    <option value="15489">PROCESO DE SELECCI&#211;N DE PERSONAL N&#176; 033-2026-UE-LIMA ESTE D. LEG. N&#176; 1057 (LIMA ESTE)</option>`),
+  [PJ_PC]: COMBO(`<option value="14000">PROCESO SELECCION PERSONAL CAS 022-2025-UE AREQUIPA (AREQUIPA)</option>`),
+  [PJ_VE]: COMBO(`<option value="15401">PROCESO DE SELECCION DE PERSONAL SUPLENCIA N&#176; 003-2026-UE-PUNO (PUNO)</option>
+    <option value="15400">PROCESO DE SELECCION DE PERSONAL SERVICIO ESPECIFICO N&#176; 003-2026-UE-PUNO (PUNO)</option>`),
+  [PJ_PE]: COMBO(""),
+};
+const pedirPj = async (u: string) => (u in listasPj ? { status: 200, html: listasPj[u], final: u } : null);
+const plazaPj = (numero: string, entidad: string, ubicacion: string) => ({
+  aviso: 9, titulo: "ASISTENTE JUDICIAL", entidad, ubicacion, numero, fecha_inicio: "2026-10-27",
+  detalle_url: "https://aplicativo.pj.gob.pe/psep/wfrmConvocatoriasV.aspx?TCon=E",
+});
+
+test("Poder Judicial: los procesos salen del combo ddl_OrgDepV (no de los otros)", () => {
+  const ps = procesosPoderJudicial(listasPj[PJ_VE]);
+  assert.deepEqual(ps.map((p) => p.id), ["15401", "15400"]);
+  assert.match(ps[0].texto, /SUPLENCIA N° 003-2026-UE-PUNO \(PUNO\)/);
+});
+
+test("Poder Judicial: la corte sale del nombre de la entidad o del distrito («LIMA - ATE» → lima este)", () => {
+  assert.deepEqual(cortesDePlaza({ entidad: "CORTE SUPERIOR DE JUSTICIA DE PIURA", ubicacion: "PIURA - SULLANA" }).map((c) => c.clave), ["piura", "sullana", "piura"]);
+  assert.deepEqual(cortesDePlaza({ entidad: "PODER JUDICIAL", ubicacion: "LIMA - ATE" }).map((c) => c.clave), ["lima este", "lima"]);
+});
+
+test("Poder Judicial: CAS va a las listas C, empareja número, año y corte; «lima» no calza con «lima sur»", async () => {
+  const h = await buscarPoderJudicial(plazaPj("D.LEG 1057 - DETERMINADO (NECESIDAD TRANSITORIA)-022", "PODER JUDICIAL", "AREQUIPA - AREQUIPA"), pedirPj);
+  assert.equal(h?.documentos[0].url, "https://aplicativo.pj.gob.pe/repositoriopsep/15390_AnuncioConvocatoria.pdf");
+  assert.deepEqual(h?.documentos.map((d) => d.url.split("_").pop()), ["AnuncioConvocatoria.pdf", "Cronograma.pdf", "BasesConcurso.pdf"]);
+  const sur = await buscarPoderJudicial(plazaPj("D.LEG 1057 - DETERMINADO (NECESIDAD TRANSITORIA)-033", "PODER JUDICIAL", "LIMA - VILLA MARIA DEL TRIUNFO"), pedirPj);
+  assert.match(sur?.documentos[0].url ?? "", /15391_/);
+  assert.equal(await buscarPoderJudicial(plazaPj("D.LEG 1057 - DETERMINADO (NECESIDAD TRANSITORIA)-033", "PODER JUDICIAL", "LIMA - LIMA"), pedirPj), null);
+});
+
+test("Poder Judicial: dos procesos empatados (Puno 003): el más nuevo y el otro de alternativa", async () => {
+  const h = await buscarPoderJudicial(plazaPj("728-003", "PODER JUDICIAL", "PUNO - PUNO"), pedirPj);
+  assert.match(h?.documentos[0].url ?? "", /15401_/);
+  assert.match(h?.alternativa?.documentos[0].url ?? "", /15400_/);
+});
+
+test("sin relay, lo del Poder Judicial es un error (se reintenta), no «no encontradas»", async () => {
+  const { pedir } = pedidor(9);
+  await assert.rejects(() => pedir(PJ_VC), SinRelay);
+  const relayCaido = async () => new Response("bad gateway", { status: 502 });
+  await assert.rejects(() => pedidor(9, fetch, relayCaido).pedir(PJ_VC), SinRelay);
+  const relayBien = async () => new Response(listasPj[PJ_VC], { status: 200, headers: { "x-relay-status": "200", "content-type": "text/html" } });
+  const r = await pedidor(9, fetch, relayBien).pedir(PJ_VC);
+  assert.equal(procesosPoderJudicial(r?.html ?? "").length, 4);
+});
+
+test("si el modelo dice que el primero no es de la plaza, se lee la alternativa", async () => {
+  let llamadas = 0;
+  const llm = {
+    fetch: async () => {
+      llamadas++;
+      const input = llamadas === 1
+        ? { corresponde: false, funciones: [], requisitos_extra: [], cronograma: [], evaluacion: [], documentos: [], condiciones: [], ojo: [] }
+        : { corresponde: true, funciones: ["Notificar resoluciones."], requisitos_extra: [], cronograma: [], evaluacion: [], documentos: [], condiciones: [], ojo: [] };
+      return new Response(JSON.stringify({ content: [{ type: "tool_use", name: "bases", input }], usage: { input_tokens: 100, output_tokens: 10 } }));
+    },
+  };
+  const r = await procesarBases(
+    { LLM: llm, LLM_TOKEN: "t" },
+    { ...plazaPj("728-003", "PODER JUDICIAL", "PUNO - PUNO"), datosServir: "Puesto: x" },
+    { puedeLeer: true, pedir: pedirPj, bajar: async () => PDF },
+  );
+  assert.equal(llamadas, 2);
+  assert.equal(r.estado, "encontradas");
+  assert.match(r.documentos[0].url, /15400_/);
+  assert.deepEqual(r.tokens, { entrada: 200, salida: 20 });
+});

@@ -36,6 +36,10 @@
     // Chat del panel (routes/admin_chat.ts): el modelo y las herramientas del MCP v2.
     { "binding": "LLM", "service": "vigia-llm" }, { "binding": "MCP", "service": "vigia-mcp" }],
 
+  // Relay de Lima (backend/relay-lima, la PC del usuario o la EC2 de respaldo): las bases del Poder Judicial sólo responden
+  // a IPs del Perú (lib/basesPlaza.ts, `relayDe`). Secreto RELAY_LIMA_TOKEN = SSM /vigia/relay-lima/token.
+  "vpc_services": [{ "binding": "RELAY_LIMA", "service_id": "01a19301-c78c-7f60-87a2-5b912c63b387" }],
+
   // Por IP (lib/antibots.ts): escrituras públicas 10 por minuto y ruta (además del captcha, Turnstile); lecturas 120 por
   // minuto y búsquedas de texto 30. Lo que piden nuestros Workers (la web desde su servidor) no cuenta: WORKERS_PROPIOS.
   // Cuenta un Durable Object por clave (workers/limitador.ts): los bindings de Rate Limiting dejaban pasar casi todo con
@@ -95,6 +99,7 @@
         { "binding": "DOCUMENTOS_VIEJOS", "bucket_name": "vigia-peru-documentos" }
       ],
       "services": [{ "binding": "SEACE_ZRH", "service": "vigia-seace-zrh" }, { "binding": "LLM", "service": "vigia-llm" }, { "binding": "MCP", "service": "vigia-mcp-dev" }],
+      "vpc_services": [{ "binding": "RELAY_LIMA", "service_id": "01a19301-c78c-7f60-87a2-5b912c63b387" }],
       "durable_objects": { "bindings": [{ "name": "LIMITADOR", "class_name": "Limitador" }, { "name": "CHAT_INFORME", "class_name": "ChatInforme" }] },
       "migrations": [{ "tag": "limitador-v1", "new_sqlite_classes": ["Limitador"] }, { "tag": "chat-informe-v1", "new_sqlite_classes": ["ChatInforme"] }],
       "ai": { "binding": "AI" },

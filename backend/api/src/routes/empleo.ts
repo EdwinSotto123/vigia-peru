@@ -7,7 +7,7 @@ import { publicar } from "../lib/privacidad.js";
 import { palabrasBusqueda } from "./personas.js";
 import { PARTES_FORMACION, SUGERIDOS_SQL, clavePuesto, condicionesCalce, leerCarreras, puestoDeTitulo } from "../lib/calceEmpleo.js";
 import { huellaPlaza, resumirPlaza, textoPlaza, type PlazaParaResumen } from "../lib/resumenPlaza.js";
-import { procesarBases, type ResultadoBases } from "../lib/basesPlaza.js";
+import { procesarBases, relayDe, type ResultadoBases } from "../lib/basesPlaza.js";
 import { limiteLectura } from "../lib/antibots.js";
 import { registrar } from "../lib/registro.js";
 
@@ -426,7 +426,10 @@ empleoRouter.get("/plazas/:aviso/bases", limiteLectura, async (c) => {
     tarea = (async () => {
       const leidas = (await pool.query<{ n: number }>(
         `SELECT count(*)::int AS n FROM servir_resumen WHERE bases_at > now() - interval '1 day' AND bases->>'leida_at' IS NOT NULL`)).rows[0]?.n ?? 0;
-      const r = await procesarBases(c.env as Parameters<typeof procesarBases>[0], { ...fila, datosServir: textoPlaza(fila) }, { puedeLeer: leidas < TOPE_LECTURAS_DIA });
+      const r = await procesarBases(c.env as Parameters<typeof procesarBases>[0], { ...fila, datosServir: textoPlaza(fila) }, {
+        puedeLeer: leidas < TOPE_LECTURAS_DIA,
+        relay: relayDe(c.env as Parameters<typeof relayDe>[0]),
+      });
       const { tokens, ...guardar } = r;
       if (tokens) registrar("INFO", `[empleo] bases de la plaza ${aviso}: ${r.estado}, ${tokens.entrada} tokens de entrada y ${tokens.salida} de salida`);
       await pool.query(
