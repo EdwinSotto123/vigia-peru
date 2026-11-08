@@ -262,6 +262,28 @@ guardadas con su sueldo, su región y los plazos «Abre la postulación» y «Ci
 23:59 de Lima). Sin migraciones: el perfil es una búsqueda guardada (migración 266) y las etapas usan los estados que
 los guardados ya tenían.
 
+## Cuentas separadas por app (2026-11-07, AWS Cognito)
+
+Antes, Empleo, Licitaciones y Obras compartían una cuenta (el Firebase de Vigía): el mismo correo y contraseña servían
+en las tres, el perfil era uno solo y «Borrar mi cuenta» en una borraba las tres. Ahora cada app tiene su propio grupo
+de usuarios en Cognito (`infrastructure/aws/cognito_gobserva.py`, us-east-2): **Empleo** y **Licitaciones** (Obras usa la
+de Licitaciones: es una sola suscripción). Una cuenta de una app no entra a la otra; el mismo correo puede tener una
+cuenta en cada una, con otra contraseña. Vigía y su MCP siguen con Firebase.
+
+- **Web:** `lib/cognito.ts` habla directo con Cognito (sin SDK) y guarda la sesión de cada app aparte;
+  `components/auth/AuthProvider.tsx` la usa en los sitios de las apps (`lib/apps-gobserva.ts → appDelSitio`). Crear la
+  cuenta pide confirmar el correo con un código de 6 dígitos; «¿La olvidaste?» manda otro código; la contraseña se
+  cambia en Perfil (pide la de ahora); «Borrar esta cuenta» borra sólo la de esa app. Dentro de `/app` sin sesión, a
+  entrar con la vuelta.
+- **API:** `lib/cognito.ts` verifica el token (firma con el JWKS del grupo, emisor, cliente, `token_use: id`) y
+  `lib/cuentasApps.ts` deja a cada cuenta sólo en su app (403 `otra_app`: el producto del pedido, por `?producto=`, el
+  cuerpo o la ruta, tiene que ser el de la cuenta). `COGNITO_GOBSERVA` en wrangler.jsonc; `GOBSERVA_CUENTAS_VIGIA`
+  dice qué puede una cuenta de Firebase en `/gobserva/cuenta` (`planes`: sólo leer sus planes, para el MCP).
+- **Correos:** los manda Cognito (COGNITO_DEFAULT, hasta 50 al día) mientras SES siga en sandbox. Entrar con Google no
+  está en las apps: hace falta un cliente de Google para Cognito.
+- **Cuentas de antes:** la única activa se pasó al grupo de su app con sus datos (mismo correo, uid nuevo); elige su
+  contraseña con «¿La olvidaste?».
+
 ## Verificación de cada etapa
 
 - `npx tsc --noEmit -p .`

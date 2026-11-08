@@ -3,7 +3,6 @@
 import { Caja, ESPACIO_CAJAS } from "@/components/gobserva/app/Caja";
 import { cn } from "@/lib/utils";
 import { useState, type FormEvent } from "react";
-import { useRouter } from "next/navigation";
 import { KeyRound, Loader2, LogOut, ShieldAlert } from "lucide-react";
 import { claseAccion } from "@/components/ui/EnlaceAccion";
 import { rutaEn, type Producto } from "@/lib/gobserva";
@@ -11,7 +10,6 @@ import { ErrorCuenta, borrarCuenta, guardarPerfil, type Me } from "@/lib/gobserv
 import { CAMPO, ETIQUETA } from "./comun";
 
 export function PanelPerfil({ producto, base, me, onCambio }: { producto: Producto; base: string; me: Me; onCambio: () => void }) {
-  const router = useRouter();
   const c = me.cuenta;
   const [f, setF] = useState({
     nombre: c.nombre ?? "",
@@ -71,7 +69,7 @@ export function PanelPerfil({ producto, base, me, onCambio }: { producto: Produc
   async function salirDe() {
     const { salir } = await import("@/lib/gobserva-auth");
     await salir();
-    router.replace(rutaEn(base, "/"));
+    window.location.assign(rutaEn(base, "/"));
   }
 
   async function borrarTodo() {
@@ -81,7 +79,7 @@ export function PanelPerfil({ producto, base, me, onCambio }: { producto: Produc
       // Después de sus datos, la cuenta misma (en el Cognito de esta app; la otra app no se toca).
       const { borrarUsuario } = await import("@/lib/gobserva-auth");
       await borrarUsuario();
-      router.replace(rutaEn(base, "/"));
+      window.location.assign(rutaEn(base, "/"));
     } catch (e) {
       setNota({ tono: "error", texto: e instanceof ErrorCuenta ? e.message : "No pudimos borrar tu cuenta. Escríbenos a hello@gobserva.cloud." });
       setBorrando(false);

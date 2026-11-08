@@ -9,6 +9,16 @@ import {
   ErrorCognito, borrarUsuario as borrarDeCognito, cambiarContrasena, confirmar, crear, entrar, nuevaContrasena, olvide, reenviarCodigo as reenviar,
   salir as salirDeCognito, tokenActual, usuarioActual, type UsuarioApp,
 } from "./cognito";
+import { COOKIE_SESION } from "./gobserva";
+
+/** Quita ya la marca de sesión que lee el middleware: si no, la portada todavía mandaría a la cuenta al salir. */
+function sinMarca() {
+  try {
+    document.cookie = `${COOKIE_SESION}=; Path=/; Max-Age=0; SameSite=Lax${window.location.protocol === "https:" ? "; Secure" : ""}`;
+  } catch {
+    // Sin cookies: no hay marca que quitar.
+  }
+}
 
 export const entrarConCorreo = (email: string, clave: string): Promise<UsuarioApp> => entrar(email, clave);
 
@@ -26,9 +36,15 @@ export const elegirClave = (email: string, codigo: string, nueva: string): Promi
 
 export const cambiarClave = (actual: string, nueva: string) => cambiarContrasena(actual, nueva);
 
-export const salir = () => salirDeCognito();
+export async function salir(): Promise<void> {
+  sinMarca();
+  await salirDeCognito();
+}
 
-export const borrarUsuario = () => borrarDeCognito();
+export async function borrarUsuario(): Promise<void> {
+  await borrarDeCognito();
+  sinMarca();
+}
 
 /** En Cognito el correo ya se confirmó al crear la cuenta: no hay nada que reenviar. */
 export async function reenviarVerificacion(_volver?: string): Promise<void> {}
