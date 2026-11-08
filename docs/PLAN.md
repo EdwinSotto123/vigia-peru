@@ -246,8 +246,8 @@ seguimiento, la campana y las notificaciones leen de qué producto son.
 
 | Ruta | Qué es |
 |---|---|
-| `/app/bienvenida` | La entrevista de Empleo (`components/empleo-app/Entrevista.tsx`): qué trabajo buscas (12 áreas o texto), palabras, estudios, experiencia, dónde, sueldo mínimo y avisos. Guarda la búsqueda «Mi perfil» y la alerta |
-| `/app/para-ti` | Las plazas abiertas que calzan con el perfil (`GET /empleo/calce`): filtro por palabra, orden y página en la URL; cada una con su estrella |
+| `/app/bienvenida` | La entrevista de Empleo (`components/empleo-app/Entrevista.tsx`): tu CV (opcional), carrera (18 del catálogo o escrita, hasta 3), grado, experiencia, puestos, dónde, sueldo mínimo y avisos. Guarda la búsqueda «Mi perfil» y la alerta |
+| `/app/para-ti` | Las plazas abiertas que piden tu carrera (`GET /empleo/calce`), primero las más afines: filtro por carrera o puesto, orden y página en la URL; cada una con su estrella |
 | `/app/plazas` | La lista con los filtros de la portada (texto, región, estudios, sueldo, experiencia, cierre), chips que se quitan, orden, alerta y Excel |
 | `/app/plaza/[aviso]` | La ficha: guardar con su etapa, postular, SERVIR, cuatro cifras, «¿Cumples?», lo que pagan otras, lo que nadie te dice, cómo postular (`?volver=` conserva los filtros) |
 | `/app/notificaciones` | Las plazas guardadas que cierran pronto y lo nuevo de tus alertas |
@@ -256,11 +256,30 @@ seguimiento, la campana y las notificaciones leen de qué producto son.
 Con la sesión abierta, `/plazas` y `/plaza/:aviso` llevan a la app (los filtros pasan tal cual) y `/para-ti` a
 `/app/para-ti`. Quien crea su cuenta en Empleo llega a la entrevista.
 
-API: `GET /empleo/calce` (palabras del perfil, sugeridas que sólo se cuentan, región, estudios, sueldo y experiencia;
-total, conteo por palabra y la página de plazas) y `GET /gobserva/cuenta/seguimiento?producto=empleo` (las plazas
+API: `GET /empleo/calce` (carreras, puestos, sugeridos y carreras que sólo se cuentan, filtro por puesto, región,
+estudios, sueldo y experiencia; total, conteo por carrera y por puesto, y la página de plazas), `POST /gobserva/cuenta/cv`
+(lee el CV, ver abajo) y `GET /gobserva/cuenta/seguimiento?producto=empleo` (las plazas
 guardadas con su sueldo, su región y los plazos «Abre la postulación» y «Cierra la postulación», el último día a las
 23:59 de Lima). Sin migraciones: el perfil es una búsqueda guardada (migración 266) y las etapas usan los estados que
 los guardados ya tenían.
+
+### Carrera y CV (2026-11-08)
+
+El usuario armó su perfil con el área «Ingeniería y obras» y la primera plaza fue «Analista en arquitectura Java II»: la
+palabra «arquitecto» se buscaba como texto suelto en el título y en la formación. Ahora el calce
+(`backend/api/src/lib/calceEmpleo.ts`) separa dos cosas:
+- **La carrera decide si calza.** Se busca en la FORMACIÓN que pide la plaza, por la raíz de cada palabra al comienzo de
+  una palabra («ARQUITECT» calza «ARQUITECTO» y «ARQUITECTURA»). Cada carrera del catálogo tiene sus variantes («Contabilidad»
+  o «Contador»).
+- **Los puestos sólo ordenan.** Se buscan en el TÍTULO como palabra entera, con femenino y plural («ARQUITECTO» nunca
+  calza «ARQUITECTURA»). Orden «Más afines»: carrera y puesto, después sólo carrera, y dentro por cierre.
+- Un perfil de antes (sin carrera) sigue funcionando: calza el puesto en el título o su raíz en la formación, y «Para ti»
+  le pide sumar la carrera.
+
+**CV** (`backend/api/src/lib/cv.ts`): la entrevista empieza ofreciendo leerlo. Haiku 5.5 (por vigia-llm, `/nativo`) lee
+el PDF o la foto y devuelve sólo carreras, grado, años de experiencia (total y en el Estado), puestos y región. El archivo
+no se guarda ni se registra; el modelo tiene prohibido devolver datos personales y la API descarta lo que parezca un DNI
+o un correo. Las preguntas que el CV respondió quedan como respuestas con «Cambiar».
 
 ## Cuentas separadas por app (2026-11-07, AWS Cognito)
 

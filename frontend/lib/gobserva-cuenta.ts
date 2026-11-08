@@ -4,6 +4,7 @@
  * componentes que viven en todas las páginas de los productos (el menú de la cuenta).
  */
 import { authFetch } from "./cuentas";
+import type { CvLeido } from "./empleo-app/entrevista";
 import { PUBLIC_API_BASE } from "./auditoria";
 import type { Producto } from "./gobserva";
 
@@ -234,6 +235,9 @@ export const probarAlerta = (producto: Producto, filtros: Alerta["filtros"]) =>
   api<{ total: number; items: ItemAviso[] }>("/alertas/probar", { method: "POST", ...cuerpo({ producto, filtros }) });
 export const enviarAlertaAhora = (id: number) => api<{ ok: true; conNovedades: number; correos: number; enLaWeb: number }>(`/alertas/${id}/enviar`, { method: "POST" });
 export const cargarBandeja = (producto: Producto) => api<{ data: Envio[] }>(`/bandeja?producto=${producto}`);
+
+/** Lee el CV (en base64) para proponer el perfil de Empleo. No se guarda (backend/api/src/lib/cv.ts). */
+export const leerCvEmpleo = (b: { archivo: string; tipo: string }) => api<{ ok: true; cv: CvLeido }>("/cv", { method: "POST", ...cuerpo(b) });
 
 // ─── Líneas de negocio y «Para ti» (Licitaciones, migración 264) ────────────────────────────────────────────────────
 

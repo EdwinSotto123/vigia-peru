@@ -31,6 +31,7 @@ test("appDelProducto y appDeRuta: Obras va con Licitaciones; líneas y Para ti s
   assert.equal(appDeRuta("/gobserva/cuenta/lineas/3"), "licitaciones");
   assert.equal(appDeRuta("/v1/gobserva/cuenta/para-ti"), "licitaciones");
   assert.equal(appDeRuta("/gobserva/cuenta/alertas"), null);
+  assert.equal(appDeRuta("/v1/gobserva/cuenta/cv"), "empleo");
 });
 
 test("revisarApp: cada cuenta en su app; la de Vigía sólo en la transición o para leer sus planes", () => {

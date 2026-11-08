@@ -44,7 +44,7 @@ export function InicioEmpleo({ base, me, onCambio, irA }: { base: string; me: Me
           <VacioCaja
             Icono={UserRoundSearch}
             titulo="Cuéntanos qué trabajo buscas"
-            texto="Son siete preguntas rápidas en un chat. Con eso te mostramos aquí cuántas plazas calzan contigo y cuáles cierran primero."
+            texto="Sube tu CV o responde unas preguntas rápidas en un chat. Con eso te mostramos aquí cuántas plazas piden tu carrera y cuáles te calzan mejor."
             accion={
               <Link href={rutaEn(base, "/app/bienvenida")} className={claseAccion("primario")}>
                 <Sparkles size={15} aria-hidden /> Armar mi perfil (2 minutos)

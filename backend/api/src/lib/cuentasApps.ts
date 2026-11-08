@@ -64,7 +64,9 @@ export function appDelProducto(p: unknown): AppCuenta | null {
 
 /** Las rutas de la cuenta que son de una sola app aunque no digan el producto. */
 export function appDeRuta(ruta: string): AppCuenta | null {
-  return /\/(lineas|para-ti|asistente|checklist)(\/|$)/.test(ruta) ? "licitaciones" : null;
+  if (/\/(lineas|para-ti|asistente|checklist)(\/|$)/.test(ruta)) return "licitaciones";
+  if (/\/cv(\/|$)/.test(ruta)) return "empleo";
+  return null;
 }
 
 export const NOMBRE_APP: Record<AppCuenta, string> = { empleo: "Gobserva Empleo", licitaciones: "Gobserva Licitaciones" };

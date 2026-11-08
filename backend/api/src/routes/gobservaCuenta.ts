@@ -3,6 +3,7 @@ import { z } from "zod";
 import { pool, poolAdmin } from "../lib/db.js";
 import { requireAuth, type AuthedUser } from "../lib/auth.js";
 import { appDeRuta, appDelProducto, revisarApp } from "../lib/cuentasApps.js";
+import { MAX_CV_BYTES, TIPOS_CV, bytesDeBase64, leerCv } from "../lib/cv.js";
 import { limiteEscritura } from "../lib/antibots.js";
 import { SIN_CACHE } from "../lib/http.js";
 import { registrar } from "../lib/registro.js";
@@ -568,6 +569,28 @@ gobservaCuentaRouter.put("/checklist", limiteEscritura, async (c) => {
     [u.uid, p.data.ref, hechos],
   );
   return c.json({ ok: true, hechos });
+});
+
+// ─── El CV de quien busca trabajo (Empleo) ────────────────────────────────────────────────────────────────────────
+
+const CvBody = z.object({ archivo: z.string().min(100).max(6_000_000), tipo: z.enum(TIPOS_CV) });
+
+/**
+ * Lee el CV para proponer el perfil de la entrevista de Empleo (lib/cv.ts): devuelve carreras, grado, experiencia,
+ * puestos y región. El archivo no se guarda ni se registra su contenido.
+ */
+gobservaCuentaRouter.post("/cv", limiteEscritura, async (c) => {
+  const p = CvBody.safeParse(await c.req.json().catch(() => null));
+  const malo = { error: "invalid_body", detail: "Sube tu CV en PDF o como foto (JPG o PNG), de hasta 4 MB." };
+  if (!p.success || bytesDeBase64(p.data.archivo) > MAX_CV_BYTES) return c.json(malo, 400);
+  try {
+    const cv = await leerCv(c.env as Parameters<typeof leerCv>[0], p.data.archivo, p.data.tipo);
+    if (cv === "no_es_cv") return c.json({ error: "no_es_cv", detail: "Ese archivo no parece un CV. Prueba con otro o responde tú las preguntas." }, 422);
+    return c.json({ ok: true, cv });
+  } catch (e) {
+    registrar("WARNING", `[gobserva] no se pudo leer un CV: ${(e as Error).message.slice(0, 60)}`);
+    return c.json({ error: "cv_no_disponible", detail: "No pudimos leer tu CV ahora. Responde las preguntas y listo." }, 503);
+  }
 });
 
 // ─── Asistente de un proceso ───────────────────────────────────────────────────────────────────────────────────────

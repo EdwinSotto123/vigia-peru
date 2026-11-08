@@ -5,11 +5,16 @@ import { useSesion } from "@/components/gobserva/cuenta/comun";
 import { API_PUBLICA } from "@/lib/api-client";
 import { cargarBusquedas } from "@/lib/gobserva-cuenta";
 import type { PlazaEmpleo } from "@/lib/empleo";
-import { NOMBRE_PERFIL, dePerfilQuery, paramsCalce, type PerfilEmpleo } from "@/lib/empleo-app/entrevista";
+import { NOMBRE_PERFIL, conQueBuscar, dePerfilQuery, paramsCalce, type PerfilEmpleo } from "@/lib/empleo-app/entrevista";
 
 /** Lo que devuelve GET /empleo/calce (backend/api/src/routes/empleo.ts). */
 export interface CalceEmpleo {
   total: number;
+  /** Cuántas plazas abiertas piden cada carrera del perfil (con los filtros). */
+  porCarrera: { variantes: string[]; n: number }[];
+  /** Lo mismo para las carreras que sólo se cuentan (`contar`). */
+  otrasCarreras: { variantes: string[]; n: number }[];
+  /** Cuántas tienen cada puesto en el título (entre las de tu carrera, si hay). */
   porPalabra: { palabra: string; n: number }[];
   page: number;
   size: number;
@@ -38,8 +43,8 @@ export function usePerfilEmpleo(activo = true) {
   };
 }
 
-/** Las plazas que calzan con un perfil (una página, por cierre, sueldo o recientes). */
+/** Las plazas que calzan con un perfil (una página: las más afines, por cierre, sueldo o recientes). */
 export function useCalceEmpleo(perfil: PerfilEmpleo | null, extra: Record<string, string | number> = {}) {
-  const q = perfil && perfil.palabras.length ? paramsCalce(perfil, [], extra).toString() : null;
+  const q = perfil && conQueBuscar(perfil) ? paramsCalce(perfil, [], extra).toString() : null;
   return useSWR<CalceEmpleo>(q ? ["empleo-calce", q] : null, () => pedirCalce(q!), { keepPreviousData: true, revalidateOnFocus: false, shouldRetryOnError: false });
 }

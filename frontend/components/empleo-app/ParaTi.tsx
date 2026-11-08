@@ -2,22 +2,24 @@
 
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { ArrowDownUp, Loader2, PencilLine, Search, Sparkles, UserRoundSearch } from "lucide-react";
+import { ArrowDownUp, GraduationCap, Loader2, PencilLine, Search, Sparkles, UserRoundSearch } from "lucide-react";
 import { CabeceraPagina, Caja, Pagina, VacioCaja } from "@/components/gobserva/app/Caja";
 import { TarjetaPlaza } from "@/components/empleo/TarjetaPlaza";
 import { EstrellaSeguir } from "@/components/licitaciones-app/seguimiento/BotonSeguir";
 import { EstadoError, Bloque } from "@/components/licitaciones-app/ui/Estados";
 import { Paginacion } from "@/components/licitaciones-app/ui/Paginacion";
+import { Nota } from "@/components/patrones/Estructura";
 import { claseAccion } from "@/components/ui/EnlaceAccion";
 import { nombreRegion, puesto } from "@/lib/empleo";
 import { numero } from "@/lib/formato";
 import { rutaEn } from "@/lib/gobserva";
-import { textoRespuestaEmpleo, type PerfilEmpleo } from "@/lib/empleo-app/entrevista";
+import { igualEmpleo, textoRespuestaEmpleo, variantesDe, type PerfilEmpleo } from "@/lib/empleo-app/entrevista";
 import { cn } from "@/lib/utils";
 import { useCalceEmpleo, usePerfilEmpleo } from "./usePerfilEmpleo";
 
 const POR_PAGINA = 20;
 const ORDENES = [
+  { v: "calce", e: "Más afines" },
   { v: "cierre", e: "Cierran primero" },
   { v: "sueldo", e: "Mejor pagadas" },
   { v: "reciente", e: "Más recientes" },
@@ -26,28 +28,32 @@ type Orden = (typeof ORDENES)[number]["v"];
 const regionDeSlug = (slug: string) => nombreRegion(slug.replace(/-/g, " ").toUpperCase());
 
 /**
- * «Para ti» de Gobserva Empleo (2026-11-07): las plazas abiertas que calzan con tu perfil (la búsqueda «Mi perfil» que
- * arma el onboarding), con alguna de tus palabras y tus filtros (estudios, experiencia, región, sueldo). Se filtra por
- * una palabra, se ordena (cierre, sueldo, recientes) y se pagina; todo en la URL. Cada plaza se guarda con la estrella
- * (entra a tu tablero de postulaciones y a tu calendario).
+ * «Para ti» de Gobserva Empleo (2026-11-07; con carrera el 2026-11-08): las plazas abiertas que calzan con tu perfil (la
+ * búsqueda «Mi perfil» que arma el onboarding): las que piden tu carrera en su formación (o, en un perfil de antes, con
+ * alguna de tus palabras) y tus filtros (estudios, experiencia, región, sueldo). Primero las más afines (tu carrera y uno
+ * de tus puestos en el título); se filtra por una carrera o un puesto, se ordena y se pagina; todo en la URL. Cada plaza
+ * se guarda con la estrella (entra a tu tablero de postulaciones y a tu calendario).
  */
 export function ParaTiEmpleo({ base }: { base: string }) {
   const { perfil, cargando, error } = usePerfilEmpleo();
   const sp = useSearchParams();
   const router = useRouter();
   const ruta = usePathname();
-  const orden = (ORDENES.find((o) => o.v === sp.get("orden"))?.v ?? "cierre") as Orden;
+  const orden = (ORDENES.find((o) => o.v === sp.get("orden"))?.v ?? "calce") as Orden;
   const pag = Math.max(1, Number(sp.get("pag")) || 1);
   const palabra = perfil?.palabras.includes(sp.get("palabra") ?? "") ? sp.get("palabra") : null;
-  const filtrado: PerfilEmpleo | null = perfil ? (palabra ? { ...perfil, palabras: [palabra] } : perfil) : null;
-  const calce = useCalceEmpleo(filtrado, { size: POR_PAGINA, page: pag, orden });
-  // Los conteos de cada palabra salen de la consulta con TODAS las palabras (la de la primera página).
+  const carrera = perfil?.carreras.find((c) => igualEmpleo(c, sp.get("carrera") ?? "")) ?? null;
+  // Por carrera: sólo esa (los puestos siguen ordenando). Por puesto: las que tienen ese puesto en el título.
+  const filtrado: PerfilEmpleo | null = perfil ? (carrera ? { ...perfil, carreras: [carrera] } : perfil) : null;
+  const calce = useCalceEmpleo(filtrado, { size: POR_PAGINA, page: pag, orden, ...(palabra ? { puesto: palabra } : {}) });
+  // Los conteos de cada carrera y de cada puesto salen de la consulta con el perfil entero.
   const todas = useCalceEmpleo(perfil, { size: 1 });
+  const nCarrera = (c: string) => todas.data?.porCarrera.find((x) => igualEmpleo(x.variantes[0] ?? "", variantesDe(c)[0]))?.n;
 
   const href = (cambios: Record<string, string | number | null>) => {
     const q = new URLSearchParams(sp.toString());
     for (const [k, v] of Object.entries(cambios)) {
-      if (v == null || v === "" || (k === "pag" && v === 1) || (k === "orden" && v === "cierre")) q.delete(k);
+      if (v == null || v === "" || (k === "pag" && v === 1) || (k === "orden" && v === "calce")) q.delete(k);
       else q.set(k, String(v));
     }
     return `${ruta}${q.size ? `?${q}` : ""}`;
@@ -70,12 +76,12 @@ export function ParaTiEmpleo({ base }: { base: string }) {
   if (error || !perfil) {
     return (
       <Pagina>
-        <CabeceraPagina titulo="Para ti" bajada="Las plazas del Estado que calzan contigo, de las que cierran primero a las últimas." />
+        <CabeceraPagina titulo="Para ti" bajada="Las plazas del Estado que piden tu carrera, primero las más afines a ti." />
         <Caja id="perfil" titulo="Arma tu perfil">
           <VacioCaja
             Icono={UserRoundSearch}
             titulo={error ? "No pudimos leer tu perfil" : "Todavía no armaste tu perfil"}
-            texto="Son siete preguntas rápidas (qué trabajo buscas, tus estudios, tu experiencia, dónde y desde qué sueldo) y aquí te mostramos las plazas que calzan."
+            texto="Sube tu CV o responde unas preguntas rápidas (tu carrera, tus estudios, tu experiencia, dónde y desde qué sueldo) y aquí te mostramos las plazas a las que puedes postular."
             accion={
               <div className="flex flex-wrap justify-center gap-2">
                 <Link href={rutaEn(base, "/app/bienvenida")} className={claseAccion("primario")}>
@@ -96,11 +102,13 @@ export function ParaTiEmpleo({ base }: { base: string }) {
   const paginas = total ? Math.max(1, Math.ceil(total / POR_PAGINA)) : 1;
   // El perfil en cuatro datos con su nombre (sin filtro, «cualquiera»).
   const resumen = [
-    { q: "estudios", nombre: "Estudios", texto: perfil.tengo ? textoRespuestaEmpleo("estudios", perfil, regionDeSlug, null, "") : "cualquiera" },
-    { q: "experiencia", nombre: "Experiencia", texto: textoRespuestaEmpleo("experiencia", perfil, regionDeSlug, null, "") },
-    { q: "lugar", nombre: "Dónde", texto: textoRespuestaEmpleo("lugar", perfil, regionDeSlug, null, "") },
-    { q: "sueldo", nombre: "Sueldo", texto: perfil.sueldo == null ? "cualquiera" : textoRespuestaEmpleo("sueldo", perfil, regionDeSlug, null, "").replace(/^Desde/, "desde") },
+    { q: "estudios", nombre: "Estudios", texto: perfil.tengo ? textoRespuestaEmpleo("estudios", perfil, regionDeSlug, false) : "cualquiera" },
+    { q: "experiencia", nombre: "Experiencia", texto: textoRespuestaEmpleo("experiencia", perfil, regionDeSlug, false) },
+    { q: "lugar", nombre: "Dónde", texto: textoRespuestaEmpleo("lugar", perfil, regionDeSlug, false) },
+    { q: "sueldo", nombre: "Sueldo", texto: perfil.sueldo == null ? "cualquiera" : textoRespuestaEmpleo("sueldo", perfil, regionDeSlug, false).replace(/^Desde/, "desde") },
   ];
+  if (perfil.carreras.length) resumen.unshift({ q: "carrera", nombre: perfil.carreras.length > 1 ? "Carreras" : "Carrera", texto: textoRespuestaEmpleo("carrera", perfil, regionDeSlug, false) });
+  const deAntes = perfil.carreras.length === 0;
 
   return (
     <Pagina>
@@ -153,12 +161,24 @@ export function ParaTiEmpleo({ base }: { base: string }) {
           </label>
         }
       >
-        <div className="flex flex-wrap gap-2 px-4 py-4 sm:px-5" role="group" aria-label="Filtrar por palabra">
-          <FiltroPalabra href={href({ palabra: null, pag: 1 })} activa={!palabra} etiqueta="Todas" n={todas.data?.total} />
+        <div className="flex flex-wrap gap-2 px-4 py-4 sm:px-5" role="group" aria-label="Filtrar por carrera o puesto">
+          <FiltroPalabra href={href({ palabra: null, carrera: null, pag: 1 })} activa={!palabra && !carrera} etiqueta="Todas" n={todas.data?.total} />
+          {perfil.carreras.length > 1 &&
+            perfil.carreras.map((c) => (
+              <FiltroPalabra key={`c-${c}`} href={href({ carrera: c, palabra: null, pag: 1 })} activa={carrera === c} etiqueta={c} n={nCarrera(c)} icono />
+            ))}
           {perfil.palabras.map((w) => (
-            <FiltroPalabra key={w} href={href({ palabra: w, pag: 1 })} activa={palabra === w} etiqueta={w} n={todas.data?.porPalabra.find((x) => x.palabra === w)?.n} />
+            <FiltroPalabra key={w} href={href({ palabra: w, carrera: null, pag: 1 })} activa={palabra === w} etiqueta={w} n={todas.data?.porPalabra.find((x) => x.palabra === w)?.n} />
           ))}
         </div>
+        {deAntes && (
+          <div className="px-4 pb-4 sm:px-5">
+            <Nota icono={<GraduationCap size={15} aria-hidden />}>
+              Tu perfil es de antes y busca sólo por palabras, así que pueden colarse plazas de otra carrera.{" "}
+              <Link href={rutaEn(base, "/app/bienvenida")} className="font-semibold text-ink underline underline-offset-2">Suma tu carrera</Link> (o sube tu CV) para ver sólo las plazas a las que puedes postular.
+            </Nota>
+          </div>
+        )}
       </Caja>
 
       <div className="mt-4 sm:mt-6">
@@ -177,7 +197,7 @@ export function ParaTiEmpleo({ base }: { base: string }) {
             <VacioCaja
               Icono={UserRoundSearch}
               titulo="Hoy no hay plazas abiertas que calcen"
-              texto="Cada día se publican plazas nuevas y tu alerta te avisa. Mientras, prueba con otras palabras o un sueldo mínimo más bajo en tu perfil."
+              texto="Salen plazas nuevas cada semana y tu alerta te avisa. Mientras, prueba con otra carrera afín o un sueldo mínimo más bajo en tu perfil."
               accion={<Link href={rutaEn(base, "/app/bienvenida")} className={claseAccion("primario")}>Editar mi perfil</Link>}
             />
           </Caja>
@@ -205,7 +225,7 @@ export function ParaTiEmpleo({ base }: { base: string }) {
   );
 }
 
-function FiltroPalabra({ href, activa, etiqueta, n }: { href: string; activa: boolean; etiqueta: string; n: number | undefined }) {
+function FiltroPalabra({ href, activa, etiqueta, n, icono }: { href: string; activa: boolean; etiqueta: string; n: number | undefined; icono?: boolean }) {
   return (
     <Link
       href={href}
@@ -216,6 +236,7 @@ function FiltroPalabra({ href, activa, etiqueta, n }: { href: string; activa: bo
         activa ? "border-granate bg-granate-50 text-ink" : "border-line bg-caja text-inkSoft hover:border-granate/50 hover:text-ink",
       )}
     >
+      {icono && <GraduationCap size={14} aria-hidden className="text-mute" />}
       {etiqueta}
       {n != null && <span className="tabular-nums text-mute">{numero(n)}</span>}
     </Link>
