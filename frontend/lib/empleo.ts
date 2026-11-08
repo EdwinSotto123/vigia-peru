@@ -30,6 +30,8 @@ export interface PlazaEmpleo {
   colegiatura: boolean;
   tipos: SenalEmpleo[];
   nSenales: number;
+  /** Con el perfil puesto («Para ti»): por qué calza (las carreras, por su primera variante, y los puestos tuyos que tiene). */
+  motivo?: { carreras: string[]; puestos: string[] };
 }
 
 export interface Conteo {
@@ -85,7 +87,16 @@ export interface FiltrosEmpleo {
   senal?: SenalEmpleo;
   /** El RUC de la entidad que convoca. */
   entidad?: string;
-  orden?: "cierre" | "sueldo" | "reciente" | "vacantes";
+  /**
+   * El perfil de la app como filtro («Para ti», 2026-11-08: dejó de ser una página aparte): las carreras (grupos «|»,
+   * variantes «;») y los puestos («|»), como en GET /empleo/calce.
+   */
+  carreras?: string;
+  palabras?: string;
+  /** «ti»: la lista con tu perfil puesto. Sin carreras ni puestos en la URL, la página los pone al leer tu perfil. */
+  para?: "ti";
+  /** «calce»: las más afines primero (sólo con el perfil puesto). */
+  orden?: "cierre" | "sueldo" | "reciente" | "vacantes" | "calce";
   page?: number;
 }
 
@@ -348,7 +359,13 @@ export function filtrosDeUrl(sp: Record<string, string | string[] | undefined> |
   const cierra = uno("cierra");
   const senal = uno("senal") as SenalEmpleo | undefined;
   const orden = uno("orden");
+  const carreras = uno("carreras")?.slice(0, 600);
+  const palabras = uno("palabras")?.slice(0, 600);
+  const conPerfil = !!(carreras || palabras);
   return {
+    carreras,
+    palabras,
+    para: uno("para") === "ti" ? "ti" : undefined,
     q: q && q.length >= 2 ? q.slice(0, 80) : undefined,
     region: region && /^[a-z-]{3,30}$/.test(region) ? region : undefined,
     nivel: nivel && nivel in NIVEL ? nivel : undefined,
@@ -358,7 +375,10 @@ export function filtrosDeUrl(sp: Record<string, string | string[] | undefined> |
     exp: num("exp", 30),
     cierra: cierra === "hoy" || cierra === "2dias" || cierra === "semana" ? cierra : undefined,
     senal: senal && ["pide_experiencia_propia", "pide_poco", "plazo_corto", "ya_hay_locadores", "gestion_saliente"].includes(senal) ? senal : undefined,
-    orden: orden === "sueldo" || orden === "reciente" || orden === "vacantes" ? orden : "cierre",
+    orden: orden === "sueldo" || orden === "reciente" || orden === "vacantes" || (orden === "calce" && conPerfil) ? orden : "cierre",
     page: Math.max(1, Math.min(300, Math.floor(num("page", 300) ?? 1))) || 1,
   };
 }
+
+/** «Para ti» de la app: la lista de plazas con tu perfil puesto (antes /app/para-ti, una página aparte). */
+export const RUTA_PARA_TI = "/app/plazas?para=ti";

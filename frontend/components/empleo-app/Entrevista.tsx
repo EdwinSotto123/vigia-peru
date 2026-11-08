@@ -20,6 +20,7 @@ import {
 } from "@/lib/empleo-app/entrevista";
 import { cn } from "@/lib/utils";
 import { pedirCalce, usePerfilEmpleo, type CalceEmpleo } from "./usePerfilEmpleo";
+import { RUTA_PARA_TI } from "@/lib/empleo";
 
 const ICONO: Record<PreguntaEmpleo, typeof Bell> = {
   cv: FileUp, carrera: GraduationCap, estudios: School, experiencia: Timer, puestos: BriefcaseBusiness, lugar: MapPin, sueldo: Wallet, avisos: Bell,
@@ -223,7 +224,7 @@ export function EntrevistaEmpleo({ base }: { base: string }) {
     }
     setEstado("listo");
     void perfilGuardado.mutate();
-    window.setTimeout(() => window.location.assign(rutaEn(base, "/app/para-ti")), menos ? 0 : 900);
+    window.setTimeout(() => window.location.assign(rutaEn(base, RUTA_PARA_TI)), menos ? 0 : 900);
   }
 
   const textoDe = (q: PreguntaEmpleo) => textoRespuestaEmpleo(q, p, regionDeSlug, conCv);
@@ -504,7 +505,7 @@ export function EntrevistaEmpleo({ base }: { base: string }) {
                 </MensajeBot>
                 <Respuestas etiqueta="Qué quieres hacer">
                   <div className="flex flex-wrap gap-2">
-                    <Link href={rutaEn(base, "/app/para-ti")} className="inline-flex min-h-10 items-center gap-2 rounded-full border border-granate bg-granate px-4 text-dato font-semibold text-paper hover:bg-granate-deep">
+                    <Link href={rutaEn(base, RUTA_PARA_TI)} className="inline-flex min-h-10 items-center gap-2 rounded-full border border-granate bg-granate px-4 text-dato font-semibold text-paper hover:bg-granate-deep">
                       Ver mis plazas <ArrowRight size={15} aria-hidden />
                     </Link>
                     <Opcion onClick={() => setRehacer(true)} icono={<RotateCcw size={15} aria-hidden className="text-inkSoft" />}>Rehacer mi perfil</Opcion>

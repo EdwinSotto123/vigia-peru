@@ -12,7 +12,7 @@ import { baseProducto } from "@/lib/gobserva-servidor";
 export default function LayoutApp({ children }: { children: ReactNode }) {
   if (cookies().get(COOKIE_SESION)?.value !== "1") {
     const base = baseProducto("empleo");
-    const ruta = headers().get("x-gobserva-ruta") ?? "/app/para-ti";
+    const ruta = headers().get("x-gobserva-ruta") ?? "/app/plazas";
     redirect(rutaEn(base, `/entrar?next=${encodeURIComponent(ruta)}`));
   }
   return children;

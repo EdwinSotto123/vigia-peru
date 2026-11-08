@@ -23,6 +23,7 @@ import { PanelSeguimiento } from "./PanelSeguimiento";
 import { PanelCalendario } from "./PanelCalendario";
 import { useEnApp } from "../app/contexto";
 import { CabeceraPagina, Pagina } from "../app/Caja";
+import { AVISOS, POSTULACIONES, Vistas } from "../app/Vistas";
 
 export type Seccion = "resumen" | "para-ti" | "seguimiento" | "calendario" | "alertas" | "guardados" | "pagos" | "perfil";
 
@@ -146,13 +147,18 @@ export function Cuenta({ producto, base, catalogo }: { producto: Producto; base:
   // Dentro de la app (MarcoApp), la página lleva su cabecera con las acciones y el panel apoya sus cajas en el lienzo.
   if (enApp) {
     const primerNombre = nombre.trim().split(/\s+/)[0] || nombre;
+    // Empleo junta secciones (2026-11-08): el tablero y el calendario son Postulaciones; tus alertas, Avisos.
+    const seccion =
+      producto === "empleo" ? (tab === "seguimiento" || tab === "calendario" ? POSTULACIONES : tab === "alertas" ? AVISOS : null) : null;
     return (
       <Pagina>
         <CabeceraPagina
-          titulo={tab === "resumen" ? `${saludo()}, ${primerNombre}` : info.etiqueta}
-          bajada={tab === "resumen" ? `${hoyLargo()}. ${info.bajada}` : info.bajada}
+          titulo={tab === "resumen" ? `${saludo()}, ${primerNombre}` : (seccion?.titulo ?? info.etiqueta)}
+          bajada={tab === "resumen" ? `${hoyLargo()}. ${info.bajada}` : (seccion?.bajada ?? info.bajada)}
           acciones={<AccionesPagina tab={tab} base={base} ir={ir} producto={producto} />}
-        />
+        >
+          {seccion && <Vistas base={base} vistas={seccion.vistas} actual={tab} etiqueta={seccion.etiqueta} />}
+        </CabeceraPagina>
         {!me.cuenta.emailVerificado && tab !== "resumen" && <VerificarCorreo email={me.cuenta.email} onListo={onCambio} className="mb-6 mt-0" />}
         {panel}
       </Pagina>

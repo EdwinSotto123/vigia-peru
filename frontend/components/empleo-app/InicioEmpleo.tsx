@@ -15,6 +15,7 @@ import type { Me } from "@/lib/gobserva-cuenta";
 import { useSeguimiento } from "@/lib/licitaciones-app/useSeguimiento";
 import { cn } from "@/lib/utils";
 import { useCalceEmpleo, usePerfilEmpleo } from "./usePerfilEmpleo";
+import { RUTA_PARA_TI } from "@/lib/empleo";
 
 /**
  * El inicio de la app de Gobserva Empleo (2026-11-07), como el de Licitaciones: lo que falta para empezar, cuatro cifras
@@ -61,7 +62,7 @@ export function InicioEmpleo({ base, me, onCambio, irA }: { base: string; me: Me
           relleno={false}
         >
           <div className="grid grid-cols-2 gap-px overflow-hidden rounded-b-2xl bg-line lg:grid-cols-4">
-            <Cifra Icono={Target} etiqueta="Calzan contigo" valor={calce.data ? numero(calce.data.total) : null} detalle="Plazas abiertas hoy" href={rutaEn(base, "/app/para-ti")} />
+            <Cifra Icono={Target} etiqueta="Calzan contigo" valor={calce.data ? numero(calce.data.total) : null} detalle="Plazas abiertas hoy" href={rutaEn(base, RUTA_PARA_TI)} />
             <Cifra Icono={BriefcaseBusiness} etiqueta="Guardadas" valor={seg.data ? numero(items.length) : null} detalle={`${numero(items.filter((i) => i.etapa === "abierta").length)} siguen abiertas`} onClick={() => irA("seguimiento")} />
             <Cifra Icono={Send} etiqueta="Postulaste" valor={seg.data ? numero(postulaste) : null} detalle={entrevistas ? `${numero(entrevistas)} con entrevista` : "Muévelas en tu tablero"} onClick={() => irA("seguimiento")} />
             <Cifra
@@ -81,7 +82,7 @@ export function InicioEmpleo({ base, me, onCambio, irA }: { base: string; me: Me
           id="para-ti"
           titulo="Para ti, las que cierran primero"
           relleno={false}
-          pie={perfil ? <Link href={rutaEn(base, "/app/para-ti")} className={CLASE_ENLACE_PIE}>Ver todas{calce.data ? ` (${numero(calce.data.total)})` : ""}</Link> : undefined}
+          pie={perfil ? <Link href={rutaEn(base, RUTA_PARA_TI)} className={CLASE_ENLACE_PIE}>Ver todas{calce.data ? ` (${numero(calce.data.total)})` : ""}</Link> : undefined}
         >
           {!perfil ? (
             <VacioCaja Icono={Sparkles} titulo="Aquí van tus plazas" texto="Arma tu perfil y aquí verás las plazas que calzan contigo, de las que cierran primero a las últimas." />

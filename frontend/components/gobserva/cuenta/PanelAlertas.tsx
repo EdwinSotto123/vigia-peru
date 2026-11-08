@@ -14,6 +14,7 @@ import {
 import { cn } from "@/lib/utils";
 import { Aviso, CAMPO, COSAS, ETIQUETA, FILTROS, chipsFiltros, nombreSugerido } from "./comun";
 import { Notificaciones } from "./Notificaciones";
+import { RUTA_PARA_TI } from "@/lib/empleo";
 
 export function PanelAlertas({ producto, base, me, onCambio }: { producto: Producto; base: string; me: Me; onCambio: () => void }) {
   const { data, mutate, isLoading } = useSWR(["gobserva-alertas", producto], () => cargarAlertas(producto));
@@ -164,7 +165,7 @@ function FilaAlerta({ a, producto, base, onEditar, onCambio }: { a: Alerta; prod
   // La alerta de «Mi perfil» de Empleo calza como «Para ti»: la lista pública de plazas no sabe de carreras.
   const dePerfil = producto === "empleo" && (!!a.filtros.carreras || !!a.filtros.palabras);
   const qs = dePerfil ? "" : new URLSearchParams(Object.entries(a.filtros).filter(([k]) => k !== "bandeja").map(([k, v]) => [k, String(v)])).toString();
-  const lista = deBandeja ? "/app/bandeja" : dePerfil ? "/app/para-ti" : COSAS[producto].lista;
+  const lista = deBandeja ? "/app/bandeja" : dePerfil ? RUTA_PARA_TI : COSAS[producto].lista;
 
   async function hacer(que: "activa" | "enviar" | "borrar") {
     setNota(null);

@@ -1,10 +1,12 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Suspense } from "react";
-import { BellRing, RotateCcw, SearchX, Sparkles, X } from "lucide-react";
+import { BellRing, RotateCcw, SearchX, X } from "lucide-react";
 import { CabeceraPagina, Caja, Pagina, VacioCaja } from "@/components/gobserva/app/Caja";
 import { FiltrosPlazas, OrdenPlazas } from "@/components/empleo/FiltrosPlazas";
 import { TarjetaPlaza } from "@/components/empleo/TarjetaPlaza";
+import { AplicarPerfil, SelectorParaTi } from "@/components/empleo-app/SelectorParaTi";
+import { carrerasDeAlerta, textosMotivo } from "@/lib/empleo-app/entrevista";
 import { AccionesBusqueda } from "@/components/gobserva/cuenta/AccionesBusqueda";
 import { EstrellaSeguir } from "@/components/licitaciones-app/seguimiento/BotonSeguir";
 import { EstadoError } from "@/components/licitaciones-app/ui/Estados";
@@ -33,7 +35,11 @@ type Props = { searchParams?: Record<string, string | string[] | undefined> };
 export default async function PlazasApp({ searchParams }: Props) {
   const base = baseProducto("empleo");
   const f = filtrosDeUrl(searchParams);
-  const d = await getPlazasEmpleo(f, POR_PAGINA);
+  // «Para ti» desde un enlace (?para=ti, sin el perfil en la URL): la lista espera a que el navegador lea el perfil.
+  const esperandoPerfil = f.para === "ti" && !f.carreras && !f.palabras;
+  const conPerfil = !!(f.carreras || f.palabras);
+  const d = esperandoPerfil ? null : await getPlazasEmpleo(f, POR_PAGINA);
+  const carrerasPerfil = conPerfil ? carrerasDeAlerta(f.carreras ?? "") : [];
   const lista = rutaEn(base, "/app/plazas");
   const sin = (k: keyof FiltrosEmpleo) => `${lista}${qsEmpleo({ ...f, [k]: undefined, page: undefined })}`;
   const paginas = d ? Math.max(1, Math.min(MAX_PAGINAS, Math.ceil(d.total / POR_PAGINA))) : 1;
@@ -56,9 +62,14 @@ export default async function PlazasApp({ searchParams }: Props) {
   return (
     <Pagina>
       <CabeceraPagina
-        titulo="Plazas abiertas"
+        titulo={conPerfil || esperandoPerfil ? "Plazas para ti" : "Plazas abiertas"}
         bajada={
-          d ? (
+          d && conPerfil ? (
+            <>
+              <b className="font-semibold tabular-nums text-ink">{numero(d.total)}</b> {d.total === 1 ? "plaza abierta calza" : "plazas abiertas calzan"} con tu perfil, con{" "}
+              <b className="font-semibold tabular-nums text-ink">{numero(d.vacantes)}</b> {d.vacantes === 1 ? "vacante" : "vacantes"}. Piden tu carrera; primero las más afines.
+            </>
+          ) : d ? (
             <>
               <b className="font-semibold tabular-nums text-ink">{numero(d.total)}</b> {d.total === 1 ? "plaza" : "plazas"} con{" "}
               <b className="font-semibold tabular-nums text-ink">{numero(d.vacantes)}</b> {d.vacantes === 1 ? "vacante" : "vacantes"}
@@ -74,14 +85,9 @@ export default async function PlazasApp({ searchParams }: Props) {
           )
         }
         acciones={
-          <>
-            <Link href={rutaEn(base, "/app/para-ti")} className={claseAccion("secundario")}>
-              <Sparkles size={15} aria-hidden /> Para ti
-            </Link>
-            <Suspense>
-              <AccionesBusqueda producto="empleo" base={base} variante="barra" resumen={false} />
-            </Suspense>
-          </>
+          <Suspense>
+            <AccionesBusqueda producto="empleo" base={base} variante="barra" resumen={false} />
+          </Suspense>
         }
       />
 
@@ -89,6 +95,10 @@ export default async function PlazasApp({ searchParams }: Props) {
         <FiltrosPlazas key={qsEmpleo({ ...f, page: undefined, orden: undefined })} base={base} filtros={f} facetas={d?.facetas ?? { region: [], nivel: [] }} ruta="/app/plazas" />
 
         <div className="min-w-0">
+          <div className="mb-3 flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
+            <SelectorParaTi base={base} filtros={f} total={d?.total ?? null} />
+            {!esperandoPerfil && <OrdenPlazas key={f.orden ?? "cierre"} base={base} filtros={f} ruta="/app/plazas" />}
+          </div>
           <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
             {puestos.length > 0 ? (
               <ul className="flex min-w-0 flex-wrap items-center gap-2" aria-label="Filtros puestos">
@@ -103,7 +113,10 @@ export default async function PlazasApp({ searchParams }: Props) {
                 ))}
                 {puestos.length > 1 && (
                   <li>
-                    <Link href={lista} className="inline-flex min-h-10 items-center px-2 text-meta font-semibold text-granate underline-offset-4 hover:underline">
+                    <Link
+                      href={conPerfil ? `${lista}${qsEmpleo({ carreras: f.carreras, palabras: f.palabras, para: f.para, orden: f.orden })}` : lista}
+                      className="inline-flex min-h-10 items-center px-2 text-meta font-semibold text-granate underline-offset-4 hover:underline"
+                    >
                       Quitar todos
                     </Link>
                   </li>
@@ -112,10 +125,11 @@ export default async function PlazasApp({ searchParams }: Props) {
             ) : (
               <p className="text-meta text-mute">{d && d.total > 0 ? `Página ${numero(pagina)} de ${numero(paginas)}` : ""}</p>
             )}
-            <OrdenPlazas key={f.orden ?? "cierre"} base={base} filtros={f} ruta="/app/plazas" />
           </div>
 
-          {!d ? (
+          {esperandoPerfil ? (
+            <AplicarPerfil base={base} filtros={f} />
+          ) : !d ? (
             <Caja className="mt-4">
               <EstadoError
                 titulo="No pudimos leer las plazas ahora"
@@ -161,6 +175,7 @@ export default async function PlazasApp({ searchParams }: Props) {
                       ruta="/app/plaza"
                       enApp
                       volver={volver}
+                      motivo={conPerfil ? textosMotivo(p.motivo, carrerasPerfil) : undefined}
                       accion={<EstrellaSeguir id={String(p.aviso)} codigo={null} titulo={puesto(p.titulo)} tipo="plaza" />}
                     />
                   </li>

@@ -1,15 +1,12 @@
-import type { Metadata } from "next";
-import { Suspense } from "react";
-import { ParaTiEmpleo } from "@/components/empleo-app/ParaTi";
+import { redirect } from "next/navigation";
+import { RUTA_PARA_TI } from "@/lib/empleo";
+import { rutaEn } from "@/lib/gobserva";
 import { baseProducto } from "@/lib/gobserva-servidor";
 
-export const metadata: Metadata = { title: "Para ti", robots: { index: false, follow: false } };
-
-/** «Para ti» de Empleo: las plazas abiertas que calzan con tu perfil (el del onboarding). */
+/**
+ * «Para ti» dejó de ser una página aparte (2026-11-08): es el filtro «Para ti» de la lista de plazas. Los enlaces de
+ * antes (correos, avisos, marcadores) llevan ahí.
+ */
 export default function Page() {
-  return (
-    <Suspense>
-      <ParaTiEmpleo base={baseProducto("empleo")} />
-    </Suspense>
-  );
+  redirect(rutaEn(baseProducto("empleo"), RUTA_PARA_TI));
 }

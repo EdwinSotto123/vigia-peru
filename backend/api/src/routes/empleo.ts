@@ -122,7 +122,8 @@ const Lista = z.object({
    */
   carreras: z.string().max(600).optional(),
   palabras: z.string().max(600).optional(),
-  orden: z.enum(["cierre", "sueldo", "reciente", "vacantes"]).default("cierre"),
+  /** «calce»: las más afines primero (sólo con `carreras` o `palabras`; sin ellas, como «cierre»). */
+  orden: z.enum(["cierre", "sueldo", "reciente", "vacantes", "calce"]).default("cierre"),
   page: z.coerce.number().int().min(1).max(300).default(1),
   size: z.coerce.number().int().min(1).max(30).default(12),
 });
@@ -180,7 +181,7 @@ const puestosDe = (t: string | undefined) => [...new Set((t ?? "").split("|").ma
  */
 export async function filasPlazas(q: FiltrosPlazas, limite: number, nuevasDesde?: Date): Promise<Record<string, unknown>[]> {
   const { conds, vals, rc, nc } = condicionesPlazas(q, nuevasDesde);
-  const orden = nuevasDesde ? ORDEN.reciente : ORDEN[q.orden];
+  const orden = nuevasDesde ? ORDEN.reciente : ORDEN[q.orden === "calce" ? "cierre" : q.orden];
   const tope = Math.max(1, Math.min(5000, Math.floor(limite)));
   const carreras = leerCarreras(q.carreras);
   const puestos = puestosDe(q.palabras);
@@ -209,15 +210,27 @@ empleoRouter.get("/plazas", async (c) => {
   const q = p.data;
   const cuerpo = await memo.obtener(`plazas:${JSON.stringify(q)}`, async () => {
     const { conds, vals, rc, nc } = condicionesPlazas(q);
+    // «Para ti» es un filtro de la lista (2026-11-08, el usuario: «Para ti no tiene sentido, puede ser un botón de
+    // filtro»): con la carrera y los puestos del perfil, sólo las plazas que calzan (lib/calceEmpleo.ts), las más afines
+    // primero con «calce», y el porqué de cada una (`motivo`), como en /empleo/calce.
+    const carreras = leerCarreras(q.carreras);
+    const puestos = puestosDe(q.palabras);
+    const k = carreras.length || puestos.length ? condicionesCalce({ carreras, puestos, otros: [] }, vals) : null;
+    const orden = q.orden === "calce" ? (k ? `puntaje DESC, ${ORDEN.cierre}` : ORDEN.cierre) : ORDEN[q.orden];
+    const base = k
+      ? `base0 AS MATERIALIZED (SELECT ${FILA}, mef_norm(s.formacion) AS fo, mef_norm(s.titulo) AS ti, ${PARTES_FORMACION} AS es
+                                ${DESDE} WHERE ${conds.join(" AND ")}),
+         base AS MATERIALIZED (SELECT base0.*, ${k.puntaje} AS puntaje, ${k.motivo} FROM base0 WHERE ${k.calza})`
+      : `base AS MATERIALIZED (SELECT ${FILA} ${DESDE} WHERE ${conds.join(" AND ")})`;
     const r = await pool.query(
-      `WITH base AS MATERIALIZED (SELECT ${FILA} ${DESDE} WHERE ${conds.join(" AND ")})
+      `WITH ${base}
        SELECT (SELECT count(*) FROM base WHERE ${rc} AND ${nc})::int AS total,
               (SELECT COALESCE(sum(vacantes), 0) FROM base WHERE ${rc} AND ${nc})::int AS vacantes,
               (SELECT percentile_cont(0.5) WITHIN GROUP (ORDER BY remuneracion) FROM base WHERE ${rc} AND ${nc} AND remuneracion > 0)::float AS "medianaSueldo",
               COALESCE((SELECT json_agg(f ORDER BY f.n DESC, f.clave) FROM (SELECT region AS clave, count(*)::int AS n FROM base WHERE region IS NOT NULL AND ${nc} GROUP BY 1) f), '[]') AS "porRegion",
               COALESCE((SELECT json_agg(f ORDER BY f.n DESC) FROM (SELECT nivel AS clave, count(*)::int AS n FROM base WHERE ${rc} GROUP BY 1) f), '[]') AS "porNivel",
               COALESCE((SELECT json_agg(d ORDER BY d.pos) FROM (
-                SELECT b.*, row_number() OVER (ORDER BY ${ORDEN[q.orden]}) AS pos FROM base b WHERE ${rc} AND ${nc}
+                SELECT b.*, row_number() OVER (ORDER BY ${orden}) AS pos FROM base b WHERE ${rc} AND ${nc}
                  ORDER BY pos LIMIT ${q.size} OFFSET ${(q.page - 1) * q.size}) d), '[]') AS data`,
       vals,
     );
@@ -229,7 +242,17 @@ empleoRouter.get("/plazas", async (c) => {
       vacantes: f.vacantes,
       medianaSueldo: f.medianaSueldo,
       facetas: { region: f.porRegion, nivel: f.porNivel },
-      data: f.data.map(({ pos: _p, ...d }) => d),
+      data: f.data.map(({ pos: _p, fo: _f, ti: _t, es: _e, puntaje: _s, mc, mp, ...d }) =>
+        k
+          ? {
+              ...d,
+              motivo: {
+                carreras: carreras.filter((_, i) => (mc as boolean[] | null)?.[i]).map((v) => v[0]),
+                puestos: puestos.filter((_, i) => (mp as boolean[] | null)?.[i]),
+              },
+            }
+          : d,
+      ),
     });
   });
   c.header("Cache-Control", CACHE);

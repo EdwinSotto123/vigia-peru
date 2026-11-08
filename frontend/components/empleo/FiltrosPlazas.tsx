@@ -39,6 +39,7 @@ const CIERRE = [
   { v: "semana", e: "Esta semana" },
 ];
 const ORDENES: { v: NonNullable<FiltrosEmpleo["orden"]>; e: string }[] = [
+  { v: "calce", e: "Más afines" },
   { v: "cierre", e: "Cierran primero" },
   { v: "sueldo", e: "Mejor pagadas" },
   { v: "reciente", e: "Más recientes" },
@@ -88,7 +89,8 @@ export function FiltrosPlazas({
   const porRegion = new Map(facetas.region.map((f) => [f.clave, f.n]));
   const conFacetas = facetas.region.length > 0;
   const n = filtrosPuestos(filtros);
-  const sinFiltros = `${lista}${qsEmpleo({ q: filtros.q, orden: filtros.orden })}`;
+  // «Quitar los filtros» deja la búsqueda, el orden y tu perfil («Para ti» es un modo de la lista, no un filtro más).
+  const sinFiltros = `${lista}${qsEmpleo({ q: filtros.q, orden: filtros.orden, carreras: filtros.carreras, palabras: filtros.palabras, para: filtros.para })}`;
 
   const aplicar = (e?: FormEvent<HTMLFormElement>) => {
     e?.preventDefault();
@@ -107,6 +109,9 @@ export function FiltrosPlazas({
       exp: exp != null ? Number(exp) : undefined,
       cierra: v("cierra") as FiltrosEmpleo["cierra"],
       senal: filtros.senal,
+      carreras: filtros.carreras,
+      palabras: filtros.palabras,
+      para: filtros.para,
       orden: filtros.orden ?? "cierre",
     };
     iniciar(() => router.push(`${lista}${qsEmpleo(f)}`));
@@ -134,6 +139,9 @@ export function FiltrosPlazas({
       {filtros.nivel && <input type="hidden" name="nivel" value={filtros.nivel} />}
       {filtros.entidad && <input type="hidden" name="entidad" value={filtros.entidad} />}
       {filtros.orden && filtros.orden !== "cierre" && <input type="hidden" name="orden" value={filtros.orden} />}
+      {filtros.carreras && <input type="hidden" name="carreras" value={filtros.carreras} />}
+      {filtros.palabras && <input type="hidden" name="palabras" value={filtros.palabras} />}
+      {filtros.para && <input type="hidden" name="para" value={filtros.para} />}
 
       <div className="mb-3 hidden items-center justify-between gap-2 lg:flex">
         <h2 className="font-display text-bloque font-bold leading-tight text-ink">Filtrar plazas</h2>
@@ -267,7 +275,7 @@ export function OrdenPlazas({ base, filtros, ruta = "/plazas" }: { base: string;
         }}
         className="h-11 min-w-0 rounded-xl border border-line bg-paper pl-3 pr-8 text-destacado font-medium text-ink focus:border-granate focus:outline-none focus:ring-2 focus:ring-granate/30 sm:text-dato"
       >
-        {ORDENES.map((o) => (
+        {ORDENES.filter((o) => o.v !== "calce" || filtros.carreras || filtros.palabras).map((o) => (
           <option key={o.v} value={o.v}>
             {o.e}
           </option>

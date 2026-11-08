@@ -25,6 +25,8 @@ interface ItemApp {
   corto?: string;
   /** Otras rutas en las que también se marca (el detalle de un proceso marca la bandeja). */
   tambien?: string[];
+  /** Otras pestañas de /cuenta en las que también se marca (Postulaciones, en el calendario; Avisos, en tus alertas). */
+  tabs?: string[];
 }
 
 /** Un grupo de la barra lateral: lo de hoy (sin nombre), lo que se busca y lo que se organiza. */
@@ -68,28 +70,22 @@ const APP: Partial<Record<Producto, { grupos: GrupoApp[]; cuenta: ItemApp[] }>> 
       { ruta: "/cuenta?tab=perfil", etiqueta: "Perfil", Icono: UserRound },
     ],
   },
+  // Empleo, ordenado (2026-11-08, el usuario: «falta ordenar mejor; Para ti puede ser un botón de filtro»): de ocho entradas
+  // a cinco. «Para ti» es el filtro de Plazas; el calendario es una vista de Postulaciones; tus alertas, una de Avisos.
   empleo: {
     grupos: [
       {
         items: [
           { ruta: "/cuenta", etiqueta: "Inicio", Icono: House, abajo: true },
-          { ruta: "/app/para-ti", etiqueta: "Para ti", Icono: Sparkles, abajo: true },
+          { ruta: "/app/plazas", etiqueta: "Plazas", Icono: BriefcaseBusiness, abajo: true, tambien: ["/app/plaza/", "/app/para-ti"] },
+          { ruta: "/app/asistente", etiqueta: "Asistente", Icono: Bot, abajo: true },
         ],
       },
       {
-        titulo: "Buscar",
+        titulo: "Lo tuyo",
         items: [
-          { ruta: "/app/plazas", etiqueta: "Plazas", Icono: BriefcaseBusiness, abajo: true, tambien: ["/app/plaza/"] },
-          { ruta: "/app/asistente", etiqueta: "Asistente", Icono: Bot },
-        ],
-      },
-      {
-        titulo: "Organizar",
-        items: [
-          { ruta: "/cuenta?tab=seguimiento", etiqueta: "Postulaciones", Icono: KanbanSquare, abajo: true, corto: "Tablero" },
-          { ruta: "/cuenta?tab=calendario", etiqueta: "Calendario", Icono: CalendarDays },
-          { ruta: "/app/notificaciones", etiqueta: "Notificaciones", Icono: Bell },
-          { ruta: "/cuenta?tab=alertas", etiqueta: "Mis alertas", Icono: BellPlus },
+          { ruta: "/cuenta?tab=seguimiento", etiqueta: "Postulaciones", Icono: KanbanSquare, abajo: true, corto: "Tablero", tabs: ["calendario"] },
+          { ruta: "/app/notificaciones", etiqueta: "Avisos", Icono: Bell, tabs: ["alertas"] },
         ],
       },
     ],
@@ -114,9 +110,10 @@ function useUbicacion(): { camino: string; tab: string | null } | null {
   return u;
 }
 
-function esActual(u: { camino: string; tab: string | null } | null, href: string, tambien: string[] = []): boolean {
+function esActual(u: { camino: string; tab: string | null } | null, href: string, tambien: string[] = [], tabs: string[] = []): boolean {
   if (!u || externa(href)) return false;
   if (tambien.some((t) => u.camino.includes(t))) return true;
+  if (tabs.length && u.camino.endsWith("/cuenta") && tabs.includes(u.tab ?? "")) return true;
   const [camino, query] = href.split("?");
   const tab = new URLSearchParams(query ?? "").get("tab");
   if (camino.endsWith("/cuenta")) {
@@ -322,7 +319,7 @@ export function LateralApp({ producto, base }: { producto: Producto; base: strin
             <ul className="space-y-0.5">
               {g.items.map((item) => (
                 <li key={item.ruta}>
-                  <Enlace item={item} base={base} actual={esActual(u, rutaEn(base, item.ruta), item.tambien)} />
+                  <Enlace item={item} base={base} actual={esActual(u, rutaEn(base, item.ruta), item.tambien, item.tabs)} />
                 </li>
               ))}
             </ul>
@@ -359,7 +356,7 @@ export function BarraApp({ producto, base }: { producto: Producto; base: string 
     ...app.grupos.map((g) => ({ titulo: g.titulo, items: g.items.filter((i) => !i.abajo) })).filter((g) => g.items.length > 0),
     { titulo: "Tu cuenta", items: app.cuenta },
   ];
-  const enResto = gruposMas.some((g) => g.items.some((i) => esActual(u, rutaEn(base, i.ruta))));
+  const enResto = gruposMas.some((g) => g.items.some((i) => esActual(u, rutaEn(base, i.ruta), i.tambien, i.tabs)));
 
   return (
     <>
@@ -367,7 +364,7 @@ export function BarraApp({ producto, base }: { producto: Producto; base: string 
         <ul className="grid grid-cols-5">
           {abajo.map((item) => {
             const href = rutaEn(base, item.ruta);
-            const actual = esActual(u, href);
+            const actual = esActual(u, href, item.tambien, item.tabs);
             const { Icono } = item;
             return (
               <li key={item.ruta}>
@@ -423,7 +420,7 @@ export function BarraApp({ producto, base }: { producto: Producto; base: string 
                 <ul className="space-y-0.5">
                   {g.items.map((item) => (
                     <li key={item.ruta}>
-                      <Enlace item={item} base={base} actual={esActual(u, rutaEn(base, item.ruta), item.tambien)} grande onClick={() => setMas(false)} />
+                      <Enlace item={item} base={base} actual={esActual(u, rutaEn(base, item.ruta), item.tambien, item.tabs)} grande onClick={() => setMas(false)} />
                     </li>
                   ))}
                 </ul>
