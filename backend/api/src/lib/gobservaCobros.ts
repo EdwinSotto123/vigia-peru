@@ -210,14 +210,19 @@ export async function rechazarCobroManual(numero: string, actor: string, motivo:
 export async function darCortesia(a: { email?: string; uid?: string; producto: ProductoPago; plan: string; meses: number; actor: string }): Promise<{ codigo: string; numero: string }> {
   let uid: string | null = null;
   if (a.uid) {
-    const existe = await poolAdmin.query(
-      `SELECT 1 FROM gobserva_cuentas WHERE firebase_uid = $1 AND baja_at IS NULL UNION ALL SELECT 1 FROM usuarios WHERE firebase_uid = $1 LIMIT 1`, [a.uid]);
+    // Una cuenta de Vigía no tiene fila en gobserva_cuentas (los planes la exigen): se crea con su correo de Vigía.
+    await poolAdmin.query(
+      `INSERT INTO gobserva_cuentas (firebase_uid, email)
+       SELECT firebase_uid, lower(correo) FROM usuarios WHERE firebase_uid = $1 AND correo ~ '@' AND correo !~* '@vigia[.]local$'
+       ON CONFLICT (firebase_uid) DO NOTHING`, [a.uid]);
+    const existe = await poolAdmin.query(`SELECT 1 FROM gobserva_cuentas WHERE firebase_uid = $1 AND baja_at IS NULL`, [a.uid]);
     if (existe.rowCount) uid = a.uid;
   } else if (a.email) {
     const app = a.producto === "empleo" ? "empleo" : "licitaciones";
     uid = (await poolAdmin.query<{ uid: string }>(
       `SELECT firebase_uid AS uid FROM gobserva_cuentas WHERE lower(email) = lower($1) AND baja_at IS NULL
-        ORDER BY (CASE WHEN producto_origen = 'obras' THEN 'licitaciones' ELSE producto_origen END = $2) DESC, ultimo_ingreso_at DESC NULLS LAST
+        ORDER BY COALESCE(CASE WHEN producto_origen = 'obras' THEN 'licitaciones' ELSE producto_origen END = $2, false) DESC,
+                 ultimo_ingreso_at DESC NULLS LAST
         LIMIT 1`,
       [a.email.trim(), app])).rows[0]?.uid ?? null;
   }
