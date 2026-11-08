@@ -214,8 +214,10 @@ def reglas_propias():
          "action_parameters": {"phases": ["http_request_sbfm"]},
          "expression": f'(not {SIN_CLAVE}) or ({_alguno("http.user_agent", UA_VISTAS_PREVIAS)}) or '
                        + " or ".join(f'starts_with(http.user_agent, "{u}")' for u in UA_PROPIOS)},
+        # robots.txt queda abierto (2026-11-07): con un 403 ahí, un rastreador lo toma como «sin reglas» (RFC 9309) y
+        # sigue intentando todo el sitio (ClaudeBot: ~60 mil bloqueos al día en obras). Leyendo «Disallow: /» se va.
         {"description": "Rastreadores de entrenamiento de IA, por nombre", "action": "block",
-         "expression": f'{FUERA_PROGRAMAS} and ({_alguno("http.user_agent", UA_ENTRENAMIENTO)})'},
+         "expression": f'{FUERA_PROGRAMAS} and (http.request.uri.path ne "/robots.txt") and ({_alguno("http.user_agent", UA_ENTRENAMIENTO)})'},
         {"description": "Clientes de scripts sin navegador (los bots verificados pasan)", "action": "managed_challenge",
          "expression": f'{FUERA_PROGRAMAS} and ((not cf.client.bot) and {DESAFIABLE} and ((http.user_agent eq "") or {_alguno("http.user_agent", UA_SCRIPTS)}))'},
         {"description": "Redes de nubes y hosting: desafio (los bots verificados pasan)", "action": "managed_challenge",

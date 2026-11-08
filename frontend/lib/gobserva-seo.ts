@@ -19,6 +19,14 @@ export function robotsDe(producto: Producto): Response {
     "Allow: /",
     "Disallow: /api/",
     "Disallow: /v1/",
+    // Las listas con filtros son infinitas (cada combinación es una URL) y su canónica es sin consulta: las fichas van
+    // en el sitemap. Claude-SearchBot recorría /proyectos?… a ~70 mil páginas al día (2026-11-07).
+    "Disallow: /*?",
+    "Disallow: /app/",
+    "Disallow: /cuenta",
+    "Disallow: /entrar",
+    "Disallow: /checkout",
+    "Disallow: /pausar",
     "",
     `Sitemap: ${urlCanonica(producto, "/sitemap.xml")}`,
     "",
