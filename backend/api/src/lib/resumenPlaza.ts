@@ -27,12 +27,36 @@ export interface PlazaParaResumen {
 
 const TIPOS = ["formacion", "experiencia", "curso", "conocimiento", "otro"] as const;
 
+/** Corta en la última palabra entera que entra (con «…»). */
+export function recortar(s: string, max: number): string {
+  if (s.length <= max) return s;
+  const corte = s.slice(0, max - 1);
+  return `${corte.replace(/\s+\S*$/, "") || corte}…`;
+}
+
+/**
+ * Un texto del modelo: se recorta en vez de rechazarse. Con un tope estricto, una plaza con una formación larga hacía que
+ * el modelo escribiera 640 caracteres en «a quién buscan» y todo el resumen caía (503 en PROD, 2026-11-08).
+ */
+export const texto = (min: number, max: number) => z.string().trim().min(min).transform((s) => recortar(s, max));
+
+/** Una lista del modelo: se quedan los elementos válidos (hasta `max`) y se descartan los demás. */
+export function lista<T extends z.ZodTypeAny>(item: T, max: number) {
+  return z
+    .array(z.unknown())
+    .transform((xs): z.output<T>[] => xs.flatMap((x) => {
+      const r = item.safeParse(x);
+      return r.success ? [r.data] : [];
+    }).slice(0, max))
+    .catch([]);
+}
+
 export const Resumen = z.object({
-  en_una_frase: z.string().trim().min(10).max(320),
-  a_quien_buscan: z.string().trim().min(10).max(600),
-  requisitos: z.array(z.object({ que: z.string().trim().min(3).max(260), tipo: z.enum(TIPOS).catch("otro") })).max(10).catch([]),
-  competencias: z.array(z.string().trim().min(2).max(60)).max(10).catch([]),
-  ojo: z.array(z.string().trim().min(5).max(260)).max(4).catch([]),
+  en_una_frase: texto(10, 320),
+  a_quien_buscan: texto(10, 600),
+  requisitos: lista(z.object({ que: texto(3, 260), tipo: z.enum(TIPOS).catch("otro") }), 10),
+  competencias: lista(texto(2, 60), 10),
+  ojo: lista(texto(5, 260), 4),
 });
 export type ResumenPlaza = z.infer<typeof Resumen>;
 

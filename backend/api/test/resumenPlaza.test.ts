@@ -25,3 +25,13 @@ test("el resumen se valida: lo raro se descarta sin romper", () => {
   assert.equal(r.requisitos[0].tipo, "otro");
   assert.deepEqual(r.competencias, []);
 });
+
+test("un texto largo del modelo se recorta en vez de tumbar el resumen (503 en PROD)", () => {
+  const largo = "Buscan un profesional titulado en educación con experiencia en gestión pedagógica ".repeat(10);
+  const r = Resumen.parse({ en_una_frase: "Especialista en una UGEL de Lima por S/ 5,500.", a_quien_buscan: largo,
+    requisitos: [{ que: "x", tipo: "curso" }, { que: "Título en educación", tipo: "formacion" }], competencias: ["Orden", "Liderazgo"], ojo: ["Prueba la experiencia con fechas."] });
+  assert.ok(r.a_quien_buscan.length <= 600);
+  assert.ok(r.a_quien_buscan.endsWith("…"));
+  assert.deepEqual(r.requisitos, [{ que: "Título en educación", tipo: "formacion" }]);
+  assert.deepEqual(r.competencias, ["Orden", "Liderazgo"]);
+});
