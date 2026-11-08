@@ -6,7 +6,8 @@ import { cachePublico, parametros } from "../lib/http.js";
 import { publicar } from "../lib/privacidad.js";
 import { palabrasBusqueda } from "./personas.js";
 import { PARTES_FORMACION, SUGERIDOS_SQL, clavePuesto, condicionesCalce, leerCarreras, puestoDeTitulo } from "../lib/calceEmpleo.js";
-import { huellaPlaza, resumirPlaza, type PlazaParaResumen } from "../lib/resumenPlaza.js";
+import { huellaPlaza, resumirPlaza, textoPlaza, type PlazaParaResumen } from "../lib/resumenPlaza.js";
+import { procesarBases, type ResultadoBases } from "../lib/basesPlaza.js";
 import { limiteLectura } from "../lib/antibots.js";
 import { registrar } from "../lib/registro.js";
 
@@ -372,6 +373,100 @@ empleoRouter.get("/plazas/:aviso/resumen", limiteLectura, async (c) => {
     c.header("Cache-Control", "no-store");
     return c.json({ error: "sin_resumen", detail: "No pudimos armar el resumen ahora." }, 503);
   }
+});
+
+// ─── GET /empleo/plazas/:aviso/bases ─────────────────────────────────────────────────────────────
+
+/** Lecturas de bases por día como mucho (cada una ~USD 0,006; las muy largas, hasta ~0,08). */
+const TOPE_LECTURAS_DIA = 300;
+
+/**
+ * Las bases de la plaza, buscadas en la web de la entidad y leídas por Haiku (lib/basesPlaza.ts, columnas `bases*` de
+ * servir_resumen). Lo guardado vale: con lectura, siempre; encontradas sin lectura, 6 horas; no encontradas, 3 días;
+ * error, 2 horas. Sólo se buscan para plazas abiertas. Dos pedidos a la vez de la misma plaza esperan la misma búsqueda.
+ */
+const buscandoBases = new Map<number, Promise<ResultadoBases>>();
+empleoRouter.get("/plazas/:aviso/bases", limiteLectura, async (c) => {
+  const aviso = Number.parseInt(c.req.param("aviso"), 10);
+  if (!Number.isInteger(aviso) || aviso <= 0) return c.json({ error: "no_encontrado" }, 404);
+  const fila = (await pool.query<PlazaParaResumen & { detalle_url: string | null; fecha_inicio: string | null; abierta: boolean }>(
+    `SELECT aviso, titulo, entidad, ubicacion, numero, vacantes, remuneracion::float AS remuneracion, to_char(fecha_fin, 'YYYY-MM-DD') AS fecha_fin,
+            to_char(fecha_inicio, 'YYYY-MM-DD') AS fecha_inicio, detalle_url,
+            experiencia, formacion, especializacion, conocimiento, competencias, (fecha_fin >= ${HOY}) AS abierta
+       FROM servir_convocatoria WHERE aviso = $1`, [aviso])).rows[0];
+  if (!fila) return c.json({ error: "no_encontrado" }, 404);
+  const guardado = (await pool.query<{ bases: Omit<ResultadoBases, "estado"> | null; bases_estado: string; bases_at: string; vigente: boolean }>(
+    `SELECT bases, bases_estado, bases_at,
+            CASE WHEN bases_estado = 'encontradas' AND jsonb_typeof(bases->'lectura') = 'object' THEN true
+                 WHEN bases_estado = 'encontradas' THEN bases_at > now() - interval '6 hours'
+                 WHEN bases_estado = 'no_encontradas' THEN bases_at > now() - interval '3 days'
+                 WHEN bases_estado = 'error' THEN bases_at > now() - interval '2 hours'
+                 ELSE false END AS vigente
+       FROM servir_resumen WHERE aviso = $1 AND bases_estado IS NOT NULL`, [aviso])).rows[0];
+  const responder = (estado: string, b: Partial<ResultadoBases> | null, buscado: string | null) =>
+    c.json({
+      aviso,
+      estado,
+      pagina: b?.pagina ?? null,
+      documentos: (b?.documentos ?? []).map((d) => ({ titulo: d.titulo, url: d.url, copia: d.clave ? `/empleo/bases/${d.clave}` : null, leido: !!d.leido })),
+      lectura: b?.lectura ?? null,
+      sin_lectura: b?.sin_lectura ?? null,
+      buscado_at: buscado,
+    });
+  if (guardado && (guardado.vigente || !fila.abierta)) {
+    c.header("Cache-Control", "public, max-age=600, s-maxage=3600");
+    return responder(guardado.bases_estado, guardado.bases, guardado.bases_at);
+  }
+  if (!fila.abierta) {
+    c.header("Cache-Control", "public, max-age=600, s-maxage=3600");
+    return responder("cerrada", null, null);
+  }
+  let tarea = buscandoBases.get(aviso);
+  if (!tarea) {
+    tarea = (async () => {
+      const leidas = (await pool.query<{ n: number }>(
+        `SELECT count(*)::int AS n FROM servir_resumen WHERE bases_at > now() - interval '1 day' AND bases->>'leida_at' IS NOT NULL`)).rows[0]?.n ?? 0;
+      const r = await procesarBases(c.env as Parameters<typeof procesarBases>[0], { ...fila, datosServir: textoPlaza(fila) }, { puedeLeer: leidas < TOPE_LECTURAS_DIA });
+      const { tokens, ...guardar } = r;
+      if (tokens) registrar("INFO", `[empleo] bases de la plaza ${aviso}: ${r.estado}, ${tokens.entrada} tokens de entrada y ${tokens.salida} de salida`);
+      await pool.query(
+        `INSERT INTO servir_resumen (aviso, huella, modelo, bases, bases_estado, bases_at) VALUES ($1, '', 'claude-haiku-5-5', $2::jsonb, $3, now())
+         ON CONFLICT (aviso) DO UPDATE SET bases = EXCLUDED.bases, bases_estado = EXCLUDED.bases_estado, bases_at = now()`,
+        [aviso, JSON.stringify(guardar), r.estado]);
+      return r;
+    })().finally(() => buscandoBases.delete(aviso));
+    buscandoBases.set(aviso, tarea);
+  }
+  try {
+    const r = await tarea;
+    c.header("Cache-Control", r.lectura || r.estado === "no_encontradas" ? "public, max-age=600, s-maxage=3600" : "no-store");
+    return responder(r.estado, r, new Date().toISOString());
+  } catch (e) {
+    registrar("WARNING", `[empleo] sin bases de la plaza ${aviso}: ${(e as Error).message.slice(0, 120)}`);
+    await pool.query(
+      `INSERT INTO servir_resumen (aviso, huella, modelo, bases_estado, bases_at) VALUES ($1, '', 'claude-haiku-5-5', 'error', now())
+       ON CONFLICT (aviso) DO UPDATE SET bases_estado = 'error', bases_at = now()`, [aviso]).catch(() => undefined);
+    c.header("Cache-Control", "no-store");
+    return c.json({ error: "sin_bases", detail: "No pudimos buscar las bases ahora." }, 503);
+  }
+});
+
+// ─── GET /empleo/bases/:clave: la copia que guardamos del PDF (R2) ───────────────────────────────
+type BucketLectura = { get(key: string): Promise<{ body: ReadableStream | null } | null> };
+empleoRouter.get("/bases/:clave", limiteLectura, async (c) => {
+  const clave = c.req.param("clave");
+  if (!/^[0-9a-f]{24}$/.test(clave)) return c.json({ error: "no_encontrado" }, 404);
+  const bucket = (c.env as { DOCUMENTOS?: BucketLectura } | undefined)?.DOCUMENTOS;
+  const obj = bucket ? await bucket.get(`servir/bases/${clave}.pdf`) : null;
+  if (!obj?.body) return c.json({ error: "no_encontrado" }, 404);
+  return new Response(obj.body, {
+    headers: {
+      "Content-Type": "application/pdf",
+      "Content-Disposition": `inline; filename="bases-${clave.slice(0, 8)}.pdf"`,
+      "Cache-Control": "public, max-age=86400, s-maxage=604800",
+      "X-Content-Type-Options": "nosniff",
+    },
+  });
 });
 
 // ─── GET /empleo/sitemap ─────────────────────────────────────────────────────────────────────────

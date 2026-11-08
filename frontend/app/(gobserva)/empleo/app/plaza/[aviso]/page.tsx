@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import type { ReactNode } from "react";
 import { ArrowLeft, ArrowUpRight, BellRing, Bot, Building2, CircleCheckBig, Clock, Eye, FileText, Lock, MapPin, MessageSquareText, ScrollText, ShieldCheck, Users } from "lucide-react";
 import { LoEsencial } from "@/components/empleo/LoEsencial";
+import { LasBases } from "@/components/empleo/LasBases";
 import { CLASE_ENLACE_PIE, Caja, ESPACIO_CAJAS, Pagina } from "@/components/gobserva/app/Caja";
 import { CumplesRequisitos, type Requisito } from "@/components/empleo/CumplesRequisitos";
 import { RangoSueldo, fraseSueldo } from "@/components/empleo/RangoSueldo";
@@ -164,6 +165,7 @@ export default async function DetallePlaza({ params, searchParams }: Props) {
       <div className={cn("grid grid-cols-[minmax(0,1fr)] items-start xl:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]", ESPACIO_CAJAS)}>
         <div className={cn("grid grid-cols-[minmax(0,1fr)]", ESPACIO_CAJAS)}>
           <LoEsencial aviso={p.aviso} />
+          <LasBases aviso={p.aviso} numero={p.numero} />
           <Caja
             id="cumples"
             titulo="¿Cumples los requisitos?"
@@ -257,8 +259,8 @@ export default async function DetallePlaza({ params, searchParams }: Props) {
                   inicio y fin). Tu DNI y las declaraciones juradas, en los formatos de las bases.
                 </Paso>
                 <Paso n={2} titulo="Revisa las bases">
-                  {p.numero ? <>Busca la convocatoria <b className="font-semibold text-ink">{p.numero}</b> en la web de la entidad: </> : <>Busca el aviso <b className="font-mono font-semibold text-ink">{p.aviso}</b>: </>}
-                  ahí están el cronograma, las funciones y si se postula en línea, por correo o en mesa de partes.
+                  Si las encontramos, están arriba en «Las bases, leídas»: el cronograma, cómo te evalúan, qué presentar y por dónde se postula. Si no,{" "}
+                  {p.numero ? <>busca la convocatoria <b className="font-semibold text-ink">{p.numero}</b> en la web de la entidad.</> : <>busca el aviso <b className="font-mono font-semibold text-ink">{p.aviso}</b> en SERVIR.</>}
                 </Paso>
                 <Paso n={3} titulo="Postula antes del cierre">
                   {p.fechaFin ? `Tienes hasta el ${fechaDia(p.fechaFin).replace(/\.$/, "")}. ` : ""}Es gratis: nadie puede cobrarte por una plaza del Estado. Con «Guardar» la llevas en tu
