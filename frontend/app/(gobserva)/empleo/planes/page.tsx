@@ -1,13 +1,14 @@
 import type { Metadata } from "next";
 import { BellRing, Briefcase, GraduationCap, HandCoins, Sparkles, Timer } from "lucide-react";
 import { AvisoPlanes, ComoFunciona } from "@/components/gobserva/ComoFunciona";
-import { Planes, type Plan } from "@/components/gobserva/Planes";
+import { Planes } from "@/components/gobserva/Planes";
+import { planesEmpleo } from "@/components/empleo/planes";
 import { Preguntas } from "@/components/empleo/Piezas";
 import { Beneficios } from "@/components/patrones/Franja";
-import { canalAlertas, getResumenEmpleo } from "@/lib/empleo";
+import { getResumenEmpleo } from "@/lib/empleo";
 import { numero } from "@/lib/formato";
-import { rutaEn, urlCanonica } from "@/lib/gobserva";
-import { entero, planesServidor, precioCorto, precioDe, precioHoy } from "@/lib/gobserva-planes";
+import { urlCanonica } from "@/lib/gobserva";
+import { planesServidor } from "@/lib/gobserva-planes";
 import { baseProducto } from "@/lib/gobserva-servidor";
 
 export const metadata: Metadata = {
@@ -27,69 +28,7 @@ export const metadata: Metadata = {
 export default async function PlanesEmpleo() {
   const base = baseProducto("empleo");
   const [cat, r] = await Promise.all([planesServidor("empleo"), getResumenEmpleo()]);
-  const alertas = cat.planes.find((p) => p.id === "alertas");
-  const inst = cat.planes.find((p) => p.id === "institucional");
-  const crear = rutaEn(base, `/entrar?crear=1&next=${encodeURIComponent("/plazas")}`);
-  const pagar = (id: string) => rutaEn(base, `/checkout?plan=${id}`);
-  const g = cat.gratis;
-
-  const planes: Plan[] = [
-    {
-      id: "gratis",
-      nombre: "Gratis",
-      para: "Para buscar y postular hoy.",
-      precio: "S/ 0",
-      periodo: "siempre",
-      incluye: [
-        "Todas las plazas CAS abiertas del país, con filtros",
-        "Fichas con requisitos y «¿Cumples?»",
-        "Lo que pagan otras entidades por el mismo puesto",
-        `${g.alertas === 1 ? "1 alerta" : `${g.alertas} alertas`} cada semana, ${canalAlertas(cat.correoActivo)}`,
-        `Guarda hasta ${entero(g.guardados)} plazas y sigue tus postulaciones`,
-        "Recordatorio 2 días antes de que cierre una plaza guardada",
-        "Consultas por MCP desde tu asistente de IA (beta)",
-      ],
-      accion: { href: crear, etiqueta: "Crear mi cuenta gratis" },
-    },
-  ];
-  if (alertas) {
-    planes.push({
-      id: "alertas",
-      nombre: alertas.nombre,
-      para: "Para no perderte ninguna plaza que calce contigo.",
-      ...precioDe(alertas),
-      destacado: true,
-      incluye: [
-        "Todo lo del plan gratis",
-        `Hasta ${alertas.limites.alertas} alertas, cada mañana o cada semana`,
-        `Guarda hasta ${entero(alertas.limites.guardados)} plazas`,
-        `Descarga tus búsquedas en Excel, hasta ${entero(alertas.limites.filasCsv)} filas`,
-      ],
-      pronto: ["Historial de lo que pagaba cada puesto"],
-      accion: { href: pagar("alertas"), etiqueta: `Empezar por ${precioHoy(alertas)}` },
-    });
-  }
-  if (inst) {
-    planes.push({
-      id: "institucional",
-      nombre: inst.nombre,
-      para: "Para universidades, institutos, colegios profesionales y bolsas de empleo.",
-      precio: precioCorto(inst.precio),
-      periodo: "al mes",
-      incluye: [
-        "Todo lo del plan Alertas",
-        `Hasta ${inst.limites.alertas} alertas, una por carrera o por región`,
-        `Descargas de hasta ${entero(inst.limites.filasCsv)} filas`,
-      ],
-      pronto: [
-        "API con todas las plazas y sus requisitos",
-        "MCP con más consultas para tu equipo",
-        "Widget de plazas para tu web, con tu marca",
-        "Reporte mensual de lo que pide el Estado por carrera",
-      ],
-      accion: { href: pagar("institucional"), etiqueta: "Contratar el plan" },
-    });
-  }
+  const planes = planesEmpleo(base, cat);
 
   return (
     <div className="container-page space-y-14 py-10 sm:space-y-16 sm:py-14">

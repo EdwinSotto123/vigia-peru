@@ -1,443 +1,307 @@
 import type { Metadata } from "next";
+import type { ReactNode } from "react";
 import Link from "next/link";
-import { Bookmark, Briefcase, CalendarClock, Clock, Coins, Eye, FileSpreadsheet, GraduationCap, Landmark, MapPin, Sparkles, Timer, Users } from "lucide-react";
+import { ArrowRight, Bot, CalendarDays, Check, EyeOff, Map, Search, Sparkles, Timer } from "lucide-react";
 import { BloqueMCP } from "@/components/gobserva/BloqueMCP";
-import { BarrasEnlace, Buscador, CLASE_VER_TODAS, CifraEmpleo, Preguntas } from "@/components/empleo/Piezas";
-import { TarjetaPlaza } from "@/components/empleo/TarjetaPlaza";
+import { Planes } from "@/components/gobserva/Planes";
+import { AvisosDeLaManana } from "@/components/empleo/portada/AvisosDeLaManana";
+import { MaquetaAviso, MaquetaEntrevista, MaquetaFicha, MaquetaParaTi, MaquetaTablero } from "@/components/empleo/portada/Maquetas";
+import { planesEmpleo } from "@/components/empleo/planes";
+import { Faq } from "@/components/licitaciones/Faq";
 import { claseAccion } from "@/components/ui/EnlaceAccion";
-import {
-  NIVEL, NIVELES_ORDEN, canalAlertas, entidadNombre, getResumenEmpleo, nombreRegion, plazasHasta, qsEmpleo, slugRegion, type ResumenEmpleo, type SenalEmpleo,
-} from "@/lib/empleo";
-import { numero, soles } from "@/lib/formato";
 import { rutaEn, urlCanonica } from "@/lib/gobserva";
-import { planesServidor, precioDe, type PlanesServidor } from "@/lib/gobserva-planes";
+import { planesServidor } from "@/lib/gobserva-planes";
 import { baseProducto } from "@/lib/gobserva-servidor";
-import { SENAL_PLAZA } from "@/lib/planilla";
-import { cn } from "@/lib/utils";
 
 export const metadata: Metadata = {
-  title: { absolute: "Gobserva Empleo: todas las plazas CAS del Estado peruano, en un solo lugar" },
+  title: { absolute: "Gobserva Empleo: las plazas CAS del Estado que calzan contigo, antes de que cierren" },
   description:
-    "Las convocatorias CAS abiertas hoy en todo el Perú: cuánto pagan, qué piden, cuándo cierran y lo que nadie te dice de cada plaza. Gratis, con alertas y para tu asistente de IA.",
+    "Gobserva Empleo lee cada día todas las convocatorias CAS de SERVIR, te muestra las que puedes postular según tus estudios, tu experiencia y dónde quieres trabajar, y te avisa antes de que cierren. Gratis.",
   alternates: { canonical: urlCanonica("empleo", "/") },
 };
 
-/** Las señales de Vigía que se explican en la portada, en este orden (las que más ayudan a quien postula). */
-const SENALES_PORTADA: SenalEmpleo[] = ["pide_experiencia_propia", "ya_hay_locadores", "gestion_saliente"];
-
-/** En el celular, cada muestra («Cierran pronto», «Las mejor pagadas») enseña 4 plazas; el botón de abajo dice cuántas hay. */
-const MUESTRA_CELULAR = 4;
-
-const fechaHora = (iso: string | null) => {
-  if (!iso) return null;
-  const d = new Date(`${iso}:00-05:00`);
-  return Number.isNaN(d.getTime())
-    ? null
-    : new Intl.DateTimeFormat("es-PE", { day: "numeric", month: "long", hour: "2-digit", minute: "2-digit", timeZone: "America/Lima" }).format(d);
-};
-
-type ArmaUrl = (f: Parameters<typeof qsEmpleo>[0]) => string;
-
 /**
- * La portada de Gobserva Empleo (empleo.gobserva.cloud), en modo «persuadir»: quien busca trabajo en el Estado llega,
- * busca y ve de un vistazo qué hay hoy. En este orden: el titular, el buscador con lo que hay hoy (y cuándo se leyó) y
- * los atajos con cuántas plazas tiene cada uno; las cifras del día; lo que cierra primero y lo mejor pagado (con el botón
- * a la lista entera y cuántas son); dónde hay plazas y qué estudios piden; lo que nadie te dice (las señales de Vigía);
- * quién convoca (cada entidad abre sus plazas); las alertas; el MCP y las preguntas. GET /empleo/resumen (5 min en caché).
+ * Portada de Gobserva Empleo (rehecha el 2026-11-08: el usuario, «se ve horrible, no comunica, no dice nada»; antes era un
+ * tablero de cifras y listas). Un relato, como la de Licitaciones y sin buscador ni cifras vivas: la oferta con lo
+ * memorable (el celular al que le llegan las plazas a las 7:00), el problema de buscar trabajo en el Estado, cómo
+ * funciona en cuatro pasos con su maqueta, el tablero de postulaciones, los planes, la IA, las preguntas y el cierre.
+ * Las búsquedas y los datos viven en Plazas y en la app. Lo único que pide a la API son los planes.
  */
 export default async function InicioEmpleo() {
   const base = baseProducto("empleo");
-  const [r, cat] = await Promise.all([getResumenEmpleo(), planesServidor("empleo")]);
-  const plazas: ArmaUrl = (f) => `${rutaEn(base, "/plazas")}${qsEmpleo(f)}`;
+  const cat = await planesServidor("empleo");
+  const ruta = (p: string) => rutaEn(base, p);
+  // Crear la cuenta lleva a la entrevista (el onboarding de la app), y de ahí a «Para ti».
+  const crear = ruta("/entrar?crear=1");
 
   return (
     <>
-      <Heroe base={base} r={r} plazas={plazas} />
-      {!r ? (
-        <div className="container-page py-12">
-          <div role="alert" className="rounded-2xl border border-line bg-paper p-6">
-            <p className="font-display text-bloque font-bold text-ink">No pudimos leer las plazas ahora</p>
-            <p className="mt-1 text-dato text-inkSoft">Vuelve a intentarlo en un momento. Mientras tanto, la lista completa sigue abierta.</p>
-            <Link href={rutaEn(base, "/plazas")} className={claseAccion("primario", "mt-4 min-h-11")}>
-              Ver las plazas abiertas
-            </Link>
-          </div>
-        </div>
-      ) : (
-        <div className="container-page space-y-16 py-12 sm:py-16">
-          <section aria-label="Las plazas de hoy en cifras" className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-            <CifraEmpleo icono={<Briefcase size={15} aria-hidden />} valor={numero(r.abiertas)} etiqueta="plazas abiertas hoy" contexto={`en ${numero(r.entidades)} entidades del Estado`} tono="acento" />
-            <CifraEmpleo icono={<Users size={15} aria-hidden />} valor={numero(r.vacantes)} etiqueta="vacantes" contexto="una plaza puede tener varias" />
-            <CifraEmpleo icono={<Coins size={15} aria-hidden />} valor={soles(r.medianaSueldo)} etiqueta="sueldo mediano" contexto="la mitad paga más que esto" />
-            <CifraEmpleo
-              icono={<CalendarClock size={15} aria-hidden />}
-              valor={numero(r.cierranSemana)}
-              etiqueta="cierran esta semana"
-              contexto={r.cierran2dias ? `${numero(r.cierran2dias)} en los próximos 2 días` : "ninguna en los próximos 2 días"}
-              tono="urgente"
-            />
-          </section>
-
-          <div className="grid grid-cols-1 gap-12 lg:grid-cols-2 lg:gap-10">
-            <ListaCorta
-              id="cierran-t"
-              icono={<CalendarClock size={20} aria-hidden />}
-              titulo="Cierran pronto"
-              bajada="Las que vencen primero: si te interesa una, no la dejes para mañana."
-              muestra={r.cierranPronto}
-              base={base}
-              mas={
-                r.cierranSemana > 0
-                  ? { href: plazas({ cierra: "semana" }), texto: `Ver las ${numero(r.cierranSemana)} que cierran esta semana` }
-                  : { href: plazas({ orden: "cierre" }), texto: "Ver todas por fecha de cierre" }
-              }
-            />
-            <ListaCorta
-              id="pagadas-t"
-              icono={<Coins size={20} aria-hidden />}
-              titulo="Las mejor pagadas"
-              bajada="Lo que más paga hoy, con lo que pide cada una."
-              muestra={r.mejorPagadas}
-              base={base}
-              mas={
-                r.mas5000 > 0
-                  ? { href: plazas({ sueldo: 5000, orden: "sueldo" }), texto: `Ver las ${numero(r.mas5000)} que pagan desde ${soles(5000)}` }
-                  : { href: plazas({ orden: "sueldo" }), texto: "Ver todas por sueldo" }
-              }
-            />
-          </div>
-
-          <div className="grid grid-cols-1 gap-12 lg:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)] lg:gap-10">
-            <section aria-labelledby="regiones-t" className="min-w-0">
-              <Titulo id="regiones-t" icono={<MapPin size={20} aria-hidden />} titulo="Dónde hay plazas" bajada="Toca tu región para ver sus plazas; debajo de cada una, su sueldo mediano." />
-              <div className="mt-5 rounded-2xl border border-line bg-paper p-4 sm:p-5">
-                <BarrasEnlace
-                  etiqueta="Plazas abiertas por región"
-                  columnas={2}
-                  columnasCelular={2}
-                  filas={r.porRegion.map((x) => ({
-                    clave: x.clave,
-                    nombre: nombreRegion(x.clave),
-                    n: x.n,
-                    href: plazas({ region: slugRegion(x.clave) }),
-                    detalle: x.mediana ? `Mediana ${soles(x.mediana)}` : undefined,
-                  }))}
-                />
-              </div>
-            </section>
-            <section aria-labelledby="niveles-t" className="min-w-0">
-              <Titulo id="niveles-t" icono={<GraduationCap size={20} aria-hidden />} titulo="Qué estudios piden" bajada="El nivel mínimo que acepta cada plaza, y lo que paga en la mediana." />
-              <div className="mt-5 rounded-2xl border border-line bg-paper p-4 sm:p-5">
-                <BarrasEnlace
-                  etiqueta="Plazas abiertas por estudios"
-                  filas={NIVELES_ORDEN.flatMap((n) => {
-                    const x = r.porNivel.find((y) => y.clave === n);
-                    return x ? [{ clave: n, nombre: NIVEL[n].largo, n: x.n, href: plazas({ nivel: n }), detalle: x.mediana ? `Sueldo mediano ${soles(x.mediana)}` : undefined }] : [];
-                  })}
-                />
-              </div>
-            </section>
-          </div>
-
-          <NadieTeDice r={r} plazas={plazas} />
-
-          <section aria-labelledby="entidades-t">
-            <Titulo id="entidades-t" icono={<Landmark size={20} aria-hidden />} titulo="Quién está convocando" bajada="Las entidades con más plazas abiertas hoy. Toca una para ver las suyas." />
-            <div className="mt-5 rounded-2xl border border-line bg-paper p-4 sm:p-5">
-              <BarrasEnlace
-                etiqueta="Entidades con más plazas abiertas"
-                columnas={2}
-                filas={r.entidadesTop.map((e, i) => ({
-                  clave: `${e.entidad}-${i}`,
-                  nombre: entidadNombre(e.entidad),
-                  n: e.n,
-                  // Por su RUC, la cifra exacta (el nombre como texto también traía plazas de otras entidades).
-                  href: e.ruc ? plazas({ entidad: e.ruc }) : plazas({ q: entidadNombre(e.entidad).slice(0, 80) }),
-                  detalle: `${numero(e.vacantes)} ${e.vacantes === 1 ? "vacante" : "vacantes"}`,
-                }))}
-              />
+      {/* ── 1. La oferta ─────────────────────────────────────────────────────── */}
+      <section className="sobre-oscuro relative overflow-hidden bg-ink text-paper">
+        <div aria-hidden className="fondo-puntos pointer-events-none absolute inset-0 opacity-40" />
+        <div className="container-page relative grid gap-12 py-14 sm:py-20 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)] lg:items-center lg:gap-16 lg:py-24">
+          <div className="min-w-0">
+            <h1 className="max-w-[17ch] text-balance font-display text-portada font-bold leading-[1.04] tracking-[-0.025em] sm:text-cartel">
+              Postula a las plazas del Estado antes de que cierren.
+            </h1>
+            <p className="mt-6 max-w-[54ch] text-pretty text-bloque leading-relaxed text-paper/80">
+              Gobserva Empleo lee cada día todas las convocatorias CAS del Perú, te muestra las que puedes postular según tus estudios y tu experiencia,
+              y te avisa a tiempo. Gratis.
+            </p>
+            <div className="mt-8 flex flex-col gap-3 sm:flex-row">
+              <Link href={crear} className={claseAccion("oscuro", "", "lg")}>
+                Crear mi cuenta gratis <ArrowRight size={18} aria-hidden />
+              </Link>
+              <Link href={ruta("/plazas")} className={claseAccion("contornoOscuro", "", "lg")}>
+                Ver las plazas abiertas
+              </Link>
             </div>
-          </section>
-
-          <Alertas base={base} cat={cat} />
-
-          <BloqueMCP
-            id="mcp"
-            titulo="Busca trabajo hablando con tu IA"
-            bajada="Conecta Claude, ChatGPT o Cursor a Gobserva y pregúntale por plazas en tus palabras: te responde con las convocatorias abiertas de hoy, lo que pagan y el enlace oficial de cada una. Es el estándar MCP (Model Context Protocol): tu asistente consulta los datos en vivo en vez de inventarlos."
-            ejemplos={[
-              "¿Qué plazas CAS de abogado hay abiertas en Cusco que paguen más de S/ 4,000?",
-              "Soy técnica en enfermería con un año de experiencia: ¿a qué puedo postular esta semana en Lima?",
-              "¿Cuáles cierran mañana y no piden estudios universitarios?",
-              "Compárame lo que pagan las plazas de contador en Arequipa y en Lima.",
-            ]}
-            herramientas={[
-              { nombre: "buscar_plazas_cas", descripcion: "Las plazas abiertas con filtros: puesto, región, sueldo, estudios, experiencia y cierre." },
-              { nombre: "ficha_plaza_cas", descripcion: "Una plaza completa: requisitos, sueldo frente a otras entidades, señales y enlace oficial." },
-            ]}
-          />
-
-          <Preguntas
-            items={[
-              {
-                p: "¿Qué es una plaza CAS?",
-                r: "Un puesto en el Estado con Contrato Administrativo de Servicios: sueldo mensual, vacaciones, aguinaldo y seguro. Cada entidad publica sus convocatorias en SERVIR y elige por concurso: evaluación curricular, examen y entrevista.",
-              },
-              {
-                p: "¿Cómo postulo a una plaza?",
-                r: "Abre la plaza, revisa si cumples los requisitos y toca «Postular en la entidad»: te lleva a la web de la entidad, donde están las bases, el cronograma y cómo se presenta la postulación. También puedes buscarla en SERVIR con su número de aviso, que está en cada ficha.",
-              },
-              {
-                p: "¿Gobserva cobra por postular o elige a alguien?",
-                r: "No. Postulas siempre en la web de la entidad o en SERVIR, gratis. Gobserva sólo ordena lo que el Estado publica y te avisa a tiempo. Nadie te puede cobrar por una plaza del Estado.",
-              },
-              {
-                p: "¿De dónde salen las plazas y cada cuánto se actualizan?",
-                r: (
-                  <>
-                    De las ofertas laborales que las entidades publican en SERVIR, que Gobserva lee todos los días.
-                    {r.actualizado ? ` La última lectura fue el ${fechaHora(r.actualizado)}.` : ""} Cada plaza enlaza a su publicación oficial: ahí están las bases completas.
-                  </>
-                ),
-              },
-              {
-                p: "¿Qué significa «Lo que nadie te dice» en una plaza?",
-                r: "Son las señales de Vigía, el proyecto cívico de Gobserva: un dato público que conviene saber antes de postular, como que la plaza pide experiencia en la misma entidad o que ya hay personas haciendo ese trabajo por órdenes de servicio. No prueba que la plaza esté arreglada: te ayuda a decidir dónde pones tu esfuerzo.",
-              },
-              {
-                p: "¿Qué hacen con mis datos si me anoto a las alertas?",
-                r: "Sólo te escribimos sobre las plazas que pediste. No vendemos ni compartimos tus datos, y puedes pedir que los borremos cuando quieras.",
-              },
-            ]}
-          />
+            <ul className="mt-8 grid gap-2.5 text-dato text-paper/80 sm:grid-cols-2">
+              {["Gratis y sin tarjeta", "Todas las convocatorias CAS de SERVIR", "Avisos por correo y en tu celular", "Postulas en la entidad, como siempre"].map((x) => (
+                <li key={x} className="flex items-center gap-2">
+                  <Check size={16} aria-hidden className="shrink-0 text-maiz" /> {x}
+                </li>
+              ))}
+            </ul>
+          </div>
+          <AvisosDeLaManana />
         </div>
-      )}
+      </section>
+
+      <div className="container-page space-y-24 pb-14 pt-16 sm:space-y-32 sm:pb-16 sm:pt-24">
+        {/* ── 2. El problema ─────────────────────────────────────────────────── */}
+        <section aria-labelledby="problema-t" className="grid gap-10 lg:grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)] lg:gap-16">
+          <div className="min-w-0">
+            <h2 id="problema-t" className="text-balance font-display text-titulo font-bold leading-[1.08] tracking-[-0.02em] text-ink sm:text-vitrina">
+              Buscar trabajo en el Estado no debería ser otro trabajo
+            </h2>
+            <p className="mt-5 max-w-[48ch] text-pretty text-cuerpo leading-relaxed text-inkSoft">
+              Las plazas son públicas y el concurso es abierto. Enterarte a tiempo de la que es para ti, y saber si vale la pena, es lo difícil.
+            </p>
+          </div>
+          <ul className="min-w-0 divide-y divide-line border-y border-line">
+            <Problema Icono={Map} titulo="Las plazas están regadas">
+              Cada entidad publica sus convocatorias en su web y en SERVIR. Revisar cientos de entidades cada día no es posible, y la plaza que era
+              para ti pasa de largo.
+            </Problema>
+            <Problema Icono={Timer} titulo="Cierran en pocos días">
+              Una convocatoria CAS recibe postulaciones por unos pocos días. Si te enteras el último, ya no alcanzas a juntar tus papeles.
+            </Problema>
+            <Problema Icono={EyeOff} titulo="Postulas sin saber lo que pasa adentro">
+              No sabes si cumples lo que piden, si el sueldo es bueno para ese puesto ni si la plaza ya tiene a alguien de la casa esperándola.
+            </Problema>
+          </ul>
+        </section>
+
+        {/* ── 3. Cómo funciona ───────────────────────────────────────────────── */}
+        <section aria-labelledby="como-t">
+          <Cabecera id="como-t" titulo="Cómo funciona" bajada="Lo primero lo haces tú, una sola vez y en dos minutos. Lo demás corre solo todos los días." />
+          <ol className="relative mt-12 space-y-14 sm:space-y-20">
+            <Paso n={1} titulo="Cuéntanos qué buscas" maqueta={<MaquetaEntrevista />}>
+              Siete preguntas en un chat: qué trabajo buscas, hasta dónde estudiaste, cuánta experiencia tienes, dónde quieres trabajar y desde qué
+              sueldo. Tocas las respuestas o las escribes.
+            </Paso>
+            <Paso n={2} titulo="Te mostramos las plazas para ti" maqueta={<MaquetaParaTi />}>
+              En «Para ti» están solo las plazas abiertas que puedes postular, de las que cierran primero a las últimas, con lo que pagan y lo que
+              piden. Guardas las que te interesan con una estrella.
+            </Paso>
+            <Paso n={3} titulo="Te avisamos a tiempo" maqueta={<MaquetaAviso correo={cat.correoActivo} />}>
+              Cuando sale una plaza nueva que calza contigo, te llega {cat.correoActivo ? "a tu correo" : "a tu cuenta"} y a tu celular: cada semana
+              con la cuenta gratis, cada mañana con un plan. Y 2 días antes de que cierre una plaza que guardaste, te lo recordamos.
+            </Paso>
+            <Paso n={4} titulo="Postulas sabiendo lo que nadie te dice" maqueta={<MaquetaFicha />} ultimo>
+              Cada plaza te dice si cumples sus requisitos, cuánto pagan otras entidades por el mismo puesto y lo que conviene saber antes de postular:
+              si pide experiencia en la misma entidad o si ya hay alguien haciendo ese trabajo por órdenes de servicio.
+            </Paso>
+          </ol>
+        </section>
+
+        {/* ── 4. Tus postulaciones y lo que trae la cuenta ───────────────────── */}
+        <section aria-labelledby="cuenta-t">
+          <Cabecera id="cuenta-t" titulo="Tu búsqueda, ordenada" bajada="Todo lo que necesitas para postular, en una cuenta gratis." />
+          <div className="mt-10 grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)]">
+            <div className="sobre-oscuro relative flex min-w-0 flex-col overflow-hidden rounded-3xl border border-paper/10 bg-ink p-6 text-paper sm:p-8">
+              <div aria-hidden className="fondo-puntos pointer-events-none absolute inset-0 opacity-30" />
+              <h3 className="relative text-balance font-display text-seccion font-bold leading-tight sm:text-titulo">Tus postulaciones en un tablero</h3>
+              <p className="relative mt-3 max-w-[46ch] text-dato leading-relaxed text-paper/80">
+                Lleva cada plaza de guardada a postulé, a entrevista y a «me eligieron», con una nota y el día en que cierra. Nada se te queda en un
+                papel.
+              </p>
+              <div className="relative mt-6">
+                <MaquetaTablero />
+              </div>
+            </div>
+            <ul className="min-w-0 divide-y divide-line overflow-hidden rounded-3xl border border-line bg-paper">
+              <Incluye href={crear} Icono={Sparkles} titulo="«Para ti»">
+                Las plazas que calzan con tu perfil, sin buscarlas.
+              </Incluye>
+              <Incluye href={ruta("/plazas")} Icono={Search} titulo="Todas las plazas, con filtros">
+                Por puesto, región, tus estudios, tu experiencia, el sueldo y cuándo cierran.
+              </Incluye>
+              <Incluye href={crear} Icono={CalendarDays} titulo="Tu calendario">
+                Los días en que cierran tus plazas guardadas, para bajarlos a Google Calendar o a tu celular.
+              </Incluye>
+              <Incluye href={ruta("/#mcp")} Icono={Bot} titulo="Tu IA, conectada">
+                Pregúntale a Claude o a ChatGPT por plazas en tus palabras, con el servidor MCP de Gobserva.
+              </Incluye>
+            </ul>
+          </div>
+        </section>
+
+        {/* ── 5. Planes ──────────────────────────────────────────────────────── */}
+        <section aria-labelledby="planes-t">
+          <Cabecera
+            id="planes-t"
+            titulo="Buscar es gratis. Que te avisen, casi."
+            bajada="Todas las plazas, sus requisitos y lo que nadie te dice son gratis y lo seguirán siendo. Con tu cuenta gratis te avisamos cada semana; con Alertas, cada mañana, para postular antes que nadie."
+            accion={{ href: ruta("/planes"), etiqueta: "Ver los planes" }}
+          />
+          <Planes className="mt-8" planes={planesEmpleo(base, cat)} />
+        </section>
+
+        {/* ── 6. MCP ─────────────────────────────────────────────────────────── */}
+        <BloqueMCP
+          id="mcp"
+          titulo="Busca trabajo hablando con tu IA"
+          bajada="Conecta Claude, ChatGPT o Cursor a Gobserva y pregúntale por plazas en tus palabras: te responde con las convocatorias abiertas de hoy, lo que pagan y el enlace oficial de cada una. Tu asistente consulta los datos en vivo en vez de inventarlos."
+          ejemplos={[
+            "¿Qué plazas CAS de abogado hay abiertas en Cusco que paguen más de S/ 4,000?",
+            "Soy técnica en enfermería con un año de experiencia: ¿a qué puedo postular esta semana en Lima?",
+            "¿Cuáles cierran mañana y no piden estudios universitarios?",
+          ]}
+          herramientas={[
+            { nombre: "buscar_plazas_cas", descripcion: "Las plazas abiertas con filtros: puesto, región, sueldo, estudios, experiencia y cierre." },
+            { nombre: "ficha_plaza_cas", descripcion: "Una plaza completa: requisitos, sueldo frente a otras entidades, señales y enlace oficial." },
+          ]}
+        />
+
+        {/* ── 7. Preguntas ───────────────────────────────────────────────────── */}
+        <Faq
+          preguntas={[
+            {
+              p: "¿Qué es una plaza CAS?",
+              r: "Un puesto en el Estado con Contrato Administrativo de Servicios: sueldo mensual, vacaciones, aguinaldo y seguro. Cada entidad publica sus convocatorias en SERVIR y elige por concurso: evaluación curricular, examen y entrevista.",
+            },
+            {
+              p: "¿Gobserva cobra por postular o elige a alguien?",
+              r: "No. Postulas siempre en la web de la entidad o en SERVIR, gratis. Gobserva ordena lo que el Estado publica y te avisa a tiempo. Nadie te puede cobrar por una plaza del Estado.",
+            },
+            {
+              p: "¿De dónde salen las plazas?",
+              r: "De las ofertas laborales que las entidades publican en SERVIR, que Gobserva lee todos los días. Cada plaza enlaza a su publicación oficial, donde están las bases completas.",
+            },
+            {
+              p: "¿Qué significa «lo que nadie te dice»?",
+              r: "Son datos públicos que Vigía, el proyecto cívico de Gobserva, cruza con cada plaza: por ejemplo, que pide experiencia en la misma entidad o que ya hay personas haciendo ese trabajo por órdenes de servicio. No prueban que la plaza esté arreglada: te ayudan a decidir dónde pones tu esfuerzo.",
+            },
+            {
+              p: "¿Mi cuenta de Empleo sirve en Licitaciones?",
+              r: "No. Cada app de Gobserva tiene su propia cuenta, con su correo y su contraseña. Así lo tuyo como postulante queda aparte.",
+            },
+            {
+              p: "¿Qué hacen con mis datos?",
+              r: "Los usamos sólo para tu cuenta y tus avisos. Nunca los vendemos, y puedes borrar tu cuenta tú mismo desde tu perfil.",
+            },
+          ]}
+        />
+
+        {/* ── 8. El cierre ───────────────────────────────────────────────────── */}
+        <section aria-labelledby="cierre-t" className="sobre-oscuro relative overflow-hidden rounded-3xl border border-paper/10 bg-ink px-6 py-12 text-paper sm:px-12 sm:py-16">
+          <div aria-hidden className="fondo-puntos pointer-events-none absolute inset-0 opacity-40" />
+          <div className="relative grid gap-8 lg:grid-cols-[minmax(0,1.4fr)_auto] lg:items-end">
+            <div className="min-w-0">
+              <h2 id="cierre-t" className="max-w-[20ch] text-balance font-display text-titulo font-bold leading-[1.08] tracking-[-0.02em] sm:text-vitrina">
+                La próxima plaza para ti puede cerrar esta semana
+              </h2>
+              <p className="mt-4 max-w-[52ch] text-pretty text-cuerpo leading-relaxed text-paper/80">
+                Crea tu cuenta, cuéntanos qué buscas y mira hoy mismo las plazas que puedes postular. Gratis y sin tarjeta.
+              </p>
+            </div>
+            <div className="flex flex-col gap-3 sm:flex-row lg:flex-col">
+              <Link href={crear} className={claseAccion("oscuro", "", "lg")}>
+                Crear mi cuenta gratis <ArrowRight size={18} aria-hidden />
+              </Link>
+              <Link href={ruta("/plazas")} className={claseAccion("contornoOscuro", "", "lg")}>
+                Ver las plazas abiertas
+              </Link>
+            </div>
+          </div>
+        </section>
+      </div>
     </>
   );
 }
 
-function Titulo({ id, icono, titulo, bajada }: { id: string; icono: React.ReactNode; titulo: string; bajada?: string }) {
+function Cabecera({ id, titulo, bajada, accion }: { id: string; titulo: string; bajada?: string; accion?: { href: string; etiqueta: string } }) {
   return (
-    <div>
-      <h2 id={id} className="flex items-center gap-2 font-display text-seccion font-bold leading-tight text-ink">
-        <span className="shrink-0 text-granate">{icono}</span>
-        {titulo}
-      </h2>
-      {bajada && <p className="mt-1.5 max-w-[70ch] text-dato leading-relaxed text-inkSoft">{bajada}</p>}
+    <div className="flex flex-wrap items-end justify-between gap-x-8 gap-y-4">
+      <div className="min-w-0 max-w-3xl">
+        <h2 id={id} className="text-balance font-display text-titulo font-bold leading-[1.08] tracking-[-0.02em] text-ink sm:text-vitrina">
+          {titulo}
+        </h2>
+        {bajada && <p className="mt-4 max-w-[62ch] text-pretty text-cuerpo leading-relaxed text-inkSoft">{bajada}</p>}
+      </div>
+      {accion && (
+        <Link href={accion.href} className="inline-flex min-h-11 shrink-0 items-center gap-1 text-dato font-semibold text-granate underline-offset-4 hover:underline">
+          {accion.etiqueta} <ArrowRight size={15} aria-hidden />
+        </Link>
+      )}
     </div>
   );
 }
 
-/**
- * El héroe: el titular, lo que hay hoy (cuántas plazas abiertas y cuándo se leyó SERVIR, como dato y no como etiqueta
- * encima del título), el buscador y los atajos con cuántas plazas hay en cada uno: en el celular, de a dos por fila (en
- * píldoras sueltas ocupaban una fila cada una).
- */
-function Heroe({ base, r, plazas }: { base: string; r: ResumenEmpleo | null; plazas: ArmaUrl }) {
-  const atajos = r
-    ? [
-        { texto: "Hasta 1 año de experiencia", n: r.hasta1Anio, href: plazas({ exp: 1 }) },
-        // Lo que puede postular quien tiene esos estudios: su nivel y los de abajo (un técnico también a las de secundaria).
-        { texto: "Con secundaria completa", n: plazasHasta(r.porNivel, "secundaria"), href: plazas({ tengo: "secundaria" }) },
-        { texto: "Con estudios técnicos", n: plazasHasta(r.porNivel, "tecnica"), href: plazas({ tengo: "tecnica" }) },
-        { texto: `Desde ${soles(5000)}`, n: r.mas5000, href: plazas({ sueldo: 5000, orden: "sueldo" }) },
-        { texto: "Cierran en 2 días", n: r.cierran2dias, href: plazas({ cierra: "2dias" }) },
-        { texto: "En Lima", n: r.porRegion.find((x) => x.clave === "LIMA")?.n ?? 0, href: plazas({ region: "lima" }) },
-      ].filter((a) => a.n > 0)
-    : [];
-  const leido = r ? fechaHora(r.actualizado) : null;
+/** Un problema de hoy: el título fuerte a la izquierda y la explicación al lado (desde sm), separados por filetes. */
+function Problema({ Icono, titulo, children }: { Icono: typeof Timer; titulo: string; children: ReactNode }) {
   return (
-    <section className="sobre-oscuro relative overflow-hidden bg-ink text-paper" aria-labelledby="heroe-t">
-      <div aria-hidden className="fondo-puntos-tenue pointer-events-none absolute inset-0" />
-      <div aria-hidden className="pointer-events-none absolute -right-24 -top-24 h-96 w-96 rounded-full bg-maiz/10 blur-3xl" />
-      <div className="container-page relative py-12 sm:py-20">
-        <h1 id="heroe-t" className="max-w-[18ch] text-balance font-display text-portada font-bold leading-[1.05] sm:text-cartel">
-          Trabajo en el Estado, sin perderte ninguna plaza.
-        </h1>
-        <p className="mt-5 max-w-[62ch] text-pretty text-cuerpo leading-relaxed text-paper/80 sm:text-bloque">
-          Todas las convocatorias CAS del Perú en un solo lugar: lo que pagan, lo que piden, cuándo cierran y lo que nadie te dice de cada una. Gratis.
-        </p>
-        {r && (
-          <ul className="mt-5 flex flex-wrap gap-x-5 gap-y-1.5 text-meta text-paper/75" aria-label="Lo que hay hoy">
-            <li className="inline-flex items-center gap-2">
-              <span aria-hidden className="relative inline-flex h-2 w-2 shrink-0">
-                <span className="absolute inset-0 rounded-full bg-maiz opacity-60 motion-safe:animate-ping" />
-                <span className="relative h-2 w-2 rounded-full bg-maiz" />
-              </span>
-              <span>
-                <b className="font-semibold tabular-nums text-maiz">{numero(r.abiertas)}</b> plazas abiertas hoy en {numero(r.porRegion.length)} regiones
-              </span>
-            </li>
-            {leido && (
-              <li className="inline-flex items-center gap-1.5">
-                <Clock size={13} aria-hidden className="shrink-0" />
-                Leídas de SERVIR el {leido}
-              </li>
-            )}
-          </ul>
-        )}
-        <Buscador accion={rutaEn(base, "/plazas")} oscuro className="mt-6 max-w-3xl" />
-        {atajos.length > 0 && (
-          <ul className="mt-4 grid grid-cols-2 gap-2 max-sm:[&>li:last-child:nth-child(odd)]:col-span-2 sm:flex sm:flex-wrap" aria-label="Atajos">
-            {atajos.map((a) => (
-              <li key={a.texto} className="min-w-0">
-                <Link
-                  href={a.href}
-                  className="flex h-full min-h-12 items-center justify-between gap-2 rounded-2xl border border-paper/20 bg-paper/5 px-3 py-2 text-dato leading-snug text-paper/90 transition-colors duration-rapido hover:border-maiz/60 hover:bg-paper/10 sm:min-h-11 sm:rounded-full sm:px-4 sm:py-0"
-                >
-                  <span className="min-w-0">{a.texto}</span>
-                  <span className="shrink-0 rounded-full bg-paper/10 px-2 py-0.5 font-mono text-rotulo tabular-nums text-maiz">{numero(a.n)}</span>
-                </Link>
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
-    </section>
+    <li className="grid gap-3 py-6 sm:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)] sm:gap-8 sm:py-8">
+      <h3 className="flex items-start gap-3 font-display text-bloque font-bold leading-snug text-ink">
+        <Icono size={20} aria-hidden className="mt-0.5 shrink-0 text-granate" />
+        {titulo}
+      </h3>
+      <p className="text-pretty text-dato leading-relaxed text-inkSoft">{children}</p>
+    </li>
   );
 }
 
-/**
- * Una muestra de plazas (cierran pronto, mejor pagadas) con su botón a la lista entera, que dice cuántas son. En el
- * celular enseña las primeras cuatro (el botón lleva a todas).
- */
-function ListaCorta({
-  id,
-  icono,
-  titulo,
-  bajada,
-  muestra,
-  base,
-  mas,
-}: {
-  id: string;
-  icono: React.ReactNode;
-  titulo: string;
-  bajada: string;
-  muestra: ResumenEmpleo["cierranPronto"];
-  base: string;
-  mas: { href: string; texto: string };
-}) {
+/** Un paso de «Cómo funciona»: el número sobre una línea que baja al siguiente, el título, una frase y su maqueta al lado. */
+function Paso({ n, titulo, children, maqueta, ultimo = false }: { n: number; titulo: string; children: ReactNode; maqueta: ReactNode; ultimo?: boolean }) {
   return (
-    <section aria-labelledby={id} className="min-w-0">
-      <Titulo id={id} icono={icono} titulo={titulo} bajada={bajada} />
-      <ul className="mt-5 grid grid-cols-1 gap-3">
-        {muestra.map((p, i) => (
-          <li key={p.aviso} className={cn("min-w-0", i >= MUESTRA_CELULAR && "max-sm:hidden")}>
-            <TarjetaPlaza p={p} base={base} compacta />
-          </li>
-        ))}
-      </ul>
-      <Link href={mas.href} className={cn(CLASE_VER_TODAS, "mt-4")}>
-        {mas.texto}
+    <li className="relative grid gap-6 pl-14 sm:pl-16 lg:grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)] lg:items-start lg:gap-14">
+      <span
+        aria-hidden
+        className="absolute left-0 top-0 grid h-10 w-10 place-items-center rounded-full bg-granate font-display text-cuerpo font-bold tabular-nums text-paper sm:h-11 sm:w-11"
+      >
+        {n}
+      </span>
+      {!ultimo && <span aria-hidden className="absolute bottom-[-3.5rem] left-5 top-12 w-px bg-line sm:bottom-[-5rem] sm:left-[1.375rem] sm:top-14" />}
+      <div className="min-w-0 pt-1.5 lg:pt-2">
+        <h3 className="font-display text-seccion font-bold leading-tight text-ink sm:text-cifra">
+          <span className="sr-only">Paso {n}: </span>
+          {titulo}
+        </h3>
+        <p className="mt-3 max-w-[50ch] text-pretty text-cuerpo leading-relaxed text-inkSoft">{children}</p>
+      </div>
+      <div className="min-w-0">{maqueta}</div>
+    </li>
+  );
+}
+
+/** Lo que trae la cuenta: una fila que enlaza, con su ícono, su título y una frase. */
+function Incluye({ href, Icono, titulo, children }: { href: string; Icono: typeof Timer; titulo: string; children: ReactNode }) {
+  return (
+    <li>
+      <Link href={href} className="group flex items-start gap-4 p-5 transition-colors duration-rapido hover:bg-paperSoft sm:p-6">
+        <span aria-hidden className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-granate-50 text-granate">
+          <Icono size={20} />
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="flex items-center justify-between gap-3 font-display text-bloque font-bold text-ink">
+            {titulo}
+            <ArrowRight size={17} aria-hidden className="shrink-0 text-mute transition-transform duration-rapido group-hover:translate-x-0.5 group-hover:text-granate" />
+          </span>
+          <span className="mt-1 block text-dato leading-relaxed text-inkSoft">{children}</span>
+        </span>
       </Link>
-    </section>
-  );
-}
-
-/** Lo que nadie te dice: las señales de Vigía en las plazas abiertas, explicadas, con cuántas hay y su lista. */
-function NadieTeDice({ r, plazas }: { r: ResumenEmpleo; plazas: ArmaUrl }) {
-  const n = (t: SenalEmpleo) => r.porSenal.find((s) => s.tipo === t)?.n ?? 0;
-  return (
-    <section aria-labelledby="nadie-t" className="rounded-3xl border border-amber/30 bg-amber-soft/40 p-5 sm:p-10">
-      <div className="max-w-3xl">
-        <h2 id="nadie-t" className="flex items-center gap-2 font-display text-seccion font-bold leading-tight text-ink sm:text-titulo">
-          <Eye size={24} aria-hidden className="shrink-0 text-amberTexto" />
-          Lo que nadie te dice
-        </h2>
-        <p className="mt-2 text-cuerpo leading-relaxed text-inkSoft">
-          Gobserva cruza cada plaza con lo que la entidad ya pagaba y con quién gobierna: <b className="font-semibold text-ink">{numero(r.conSenales)}</b> de las{" "}
-          {numero(r.abiertas)} plazas abiertas tienen algo que conviene saber antes de postular. No prueba que estén arregladas: te ayuda a decidir dónde pones tu
-          esfuerzo.
-        </p>
-      </div>
-      <ul className="mt-6 grid grid-cols-1 gap-3 sm:mt-8 md:grid-cols-3 md:gap-4">
-        {SENALES_PORTADA.map((t) => (
-          <li key={t} className="flex min-w-0 flex-col rounded-2xl border border-line bg-paper p-4 sm:p-5">
-            <p className="flex items-baseline gap-2">
-              <span className="font-display text-cifra font-bold leading-none tabular-nums text-amberTexto">{numero(n(t))}</span>
-              <span className="text-meta text-mute">{n(t) === 1 ? "plaza" : "plazas"}</span>
-            </p>
-            <p className="mt-2 text-cuerpo font-semibold leading-snug text-ink">{SENAL_PLAZA[t].titulo}</p>
-            <p className="mt-2 flex-1 text-meta leading-relaxed text-inkSoft">{SENAL_PLAZA[t].explica}</p>
-            {n(t) > 0 && (
-              <Link href={plazas({ senal: t })} className="mt-3 inline-flex min-h-11 items-center text-dato font-semibold text-granate underline-offset-4 hover:underline">
-                {n(t) === 1 ? "Ver esa plaza" : `Ver las ${numero(n(t))} plazas`}
-              </Link>
-            )}
-          </li>
-        ))}
-      </ul>
-    </section>
-  );
-}
-
-/**
- * La invitación a las alertas: lo que llega (con un ícono por cosa) y por dónde llega hoy (sin prometer el correo mientras
- * no sale), cuánto cuesta (el catálogo de la API, con el precio de fundador junto al precio y no como etiqueta encima del
- * título) y el camino gratis.
- */
-function Alertas({ base, cat }: { base: string; cat: PlanesServidor }) {
-  const plan = cat.planes.find((p) => p.id === "alertas");
-  const precio = plan ? precioDe(plan) : null;
-  const canal = canalAlertas(cat.correoActivo);
-  const gratis = cat.gratis.alertas === 1 ? "1 alerta" : `${numero(cat.gratis.alertas)} alertas`;
-  const incluye = [
-    { Icono: CalendarClock, t: "Lo nuevo cada mañana, con tus filtros" },
-    { Icono: Timer, t: "Aviso 2 días antes de que cierre una plaza guardada" },
-    { Icono: Bookmark, t: "Tus plazas guardadas y tus postulaciones al día" },
-    { Icono: FileSpreadsheet, t: "Tus búsquedas en Excel" },
-  ];
-  return (
-    <section aria-labelledby="alertas-t" className="overflow-hidden rounded-3xl border border-granate/30 bg-granate-50">
-      <div className="grid gap-8 p-5 sm:p-10 lg:grid-cols-[1.25fr_1fr] lg:items-center lg:gap-12">
-        <div className="min-w-0">
-          <h2 id="alertas-t" className="text-balance font-display text-titulo font-bold leading-tight text-ink sm:text-vitrina">
-            Que las plazas te busquen a ti.
-          </h2>
-          <p className="mt-3 max-w-[56ch] text-cuerpo leading-relaxed text-inkSoft">
-            Guarda tu búsqueda (qué puesto, en qué región, desde cuánto sueldo) y te avisamos {canal} de lo nuevo que calza contigo. Gratis una vez por semana;
-            cada mañana con Alertas.
-          </p>
-          <ul className="mt-6 grid gap-3 sm:grid-cols-2">
-            {incluye.map(({ Icono, t }) => (
-              <li key={t} className="flex items-start gap-2.5 text-dato leading-snug text-ink">
-                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-paper text-granate">
-                  <Icono size={16} aria-hidden />
-                </span>
-                <span className="min-w-0 pt-1.5">{t}</span>
-              </li>
-            ))}
-          </ul>
-        </div>
-        <div className="min-w-0 space-y-3">
-          {precio && (
-            <>
-              <p className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
-                <span className="font-display text-cifra font-bold leading-none tracking-tight tabular-nums text-ink">{precio.precio}</span>
-                <span className="text-dato text-inkSoft">{precio.periodo}</span>
-                {precio.antes && <span className="text-dato text-mute line-through">{precio.antes}</span>}
-              </p>
-              {precio.nota && (
-                <p className="flex items-center gap-1.5 text-meta font-semibold text-granate">
-                  <Sparkles size={14} aria-hidden className="shrink-0" />
-                  {precio.nota}
-                  {precio.antes ? `; después, ${precio.antes} al mes` : ""}
-                </p>
-              )}
-              <Link href={rutaEn(base, "/checkout?plan=alertas")} className={claseAccion("primario", "w-full", "md")}>
-                Quiero mis alertas
-              </Link>
-            </>
-          )}
-          <Link href={rutaEn(base, `/entrar?crear=1&next=${encodeURIComponent("/plazas")}`)} className={claseAccion("secundario", "w-full", "md")}>
-            Empezar gratis
-          </Link>
-          <p className="text-center text-meta text-mute">
-            Gratis: {gratis} por semana.{precio ? " El plan Alertas se cancela cuando quieras." : ""}
-          </p>
-        </div>
-      </div>
-    </section>
+    </li>
   );
 }
