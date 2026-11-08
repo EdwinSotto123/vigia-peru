@@ -341,7 +341,7 @@ export const LecturaBases = z.object({
   corresponde: z.boolean().catch(false),
   funciones: lista(texto(5, 240), 8),
   requisitos_extra: lista(texto(5, 240), 6),
-  cronograma: lista(z.object({ etapa: texto(3, 120), fecha: texto(3, 90) }), 12),
+  cronograma: lista(z.object({ etapa: texto(3, 120), fecha: texto(3, 90), postulas: z.boolean().optional().catch(undefined) }), 12),
   evaluacion: lista(z.object({ etapa: texto(3, 100), como: texto(3, 240) }), 6),
   documentos: lista(texto(3, 220), 12),
   como_postular: z.object({ medio: z.enum(MEDIOS_POSTULACION).catch("otro"), detalle: texto(5, 420) }).nullable().catch(null),
@@ -358,7 +358,7 @@ Reglas:
 - Nunca escribas nombres de personas (ni de la comisión ni de nadie), DNI, teléfonos ni firmas. Un correo o una dirección web institucional para postular sí.
 - "funciones": lo que hará en el puesto, de 3 a 8, cada una en una frase corta.
 - "requisitos_extra": lo que las bases piden y no está en los datos de SERVIR que te paso (colegiatura y habilitación, SERUMS, licencia de conducir, una especialidad). Vacío si no agregan nada.
-- "cronograma": cada etapa con su fecha o rango, tal como lo dicen las bases (la postulación, la evaluación curricular, la entrevista, los resultados, la firma del contrato).
+- "cronograma": cada etapa con su fecha o rango, tal como lo dicen las bases (la postulación, la evaluación curricular, la entrevista, los resultados, la firma del contrato). Marca "postulas": true SOLO en la etapa en que la persona presenta su postulación (registra su hoja de vida o su ficha, envía o presenta su expediente o su CV); en las demás, false.
 - "evaluacion": cada etapa de la evaluación con cómo se califica (puntaje mínimo y máximo, peso, si es eliminatoria).
 - "documentos": lo que hay que presentar para postular (CV documentado, anexos y declaraciones juradas con su número, copia del DNI, constancias), cada uno por separado.
 - "como_postular": por dónde se postula (en_linea: un formulario o sistema; correo; mesa_de_partes: física o virtual; plataforma: Talento Perú u otra) y el detalle: la dirección web o el correo, el horario y cómo nombrar el archivo si lo dicen.
@@ -376,7 +376,7 @@ const HERRAMIENTA = {
       corresponde: { type: "boolean" },
       funciones: { ...ESQUEMA_TEXTOS, maxItems: 8 },
       requisitos_extra: { ...ESQUEMA_TEXTOS, maxItems: 6 },
-      cronograma: { type: "array", maxItems: 12, items: { type: "object", properties: { etapa: { type: "string" }, fecha: { type: "string" } }, required: ["etapa", "fecha"] } },
+      cronograma: { type: "array", maxItems: 12, items: { type: "object", properties: { etapa: { type: "string" }, fecha: { type: "string" }, postulas: { type: "boolean" } }, required: ["etapa", "fecha", "postulas"] } },
       evaluacion: { type: "array", maxItems: 6, items: { type: "object", properties: { etapa: { type: "string" }, como: { type: "string" } }, required: ["etapa", "como"] } },
       documentos: { ...ESQUEMA_TEXTOS, maxItems: 12 },
       como_postular: { type: "object", properties: { medio: { type: "string", enum: [...MEDIOS_POSTULACION] }, detalle: { type: "string" } }, required: ["medio", "detalle"] },
@@ -435,7 +435,7 @@ export async function leerBases(
     ...l,
     funciones: l.funciones.map(sinPunto),
     requisitos_extra: l.requisitos_extra.map(sinPunto),
-    cronograma: l.cronograma.map((x) => ({ etapa: sinPunto(x.etapa), fecha: sinPunto(x.fecha) })),
+    cronograma: l.cronograma.map((x) => ({ etapa: sinPunto(x.etapa), fecha: sinPunto(x.fecha), ...(x.postulas ? { postulas: true } : {}) })),
     evaluacion: l.evaluacion.map((x) => ({ etapa: sinPunto(x.etapa), como: sinPunto(x.como) })),
     documentos: l.documentos.map(sinPunto),
     como_postular: l.como_postular ? { ...l.como_postular, detalle: sinPunto(l.como_postular.detalle) } : null,

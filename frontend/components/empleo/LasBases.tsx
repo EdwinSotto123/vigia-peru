@@ -14,7 +14,7 @@ type Medio = "en_linea" | "correo" | "mesa_de_partes" | "plataforma" | "otro";
 interface Lectura {
   funciones: string[];
   requisitos_extra: string[];
-  cronograma: { etapa: string; fecha: string }[];
+  cronograma: { etapa: string; fecha: string; postulas?: boolean }[];
   evaluacion: { etapa: string; como: string }[];
   documentos: string[];
   como_postular: { medio: Medio; detalle: string } | null;
@@ -69,7 +69,8 @@ function enlazar(texto: string): ReactNode[] {
   });
 }
 
-const POSTULACION = /postula|presentaci[oó]n (del |de )?(expediente|cv|hoja|documentos|propuesta)|expediente virtual|inscripci[oó]n|recepci[oó]n de (expedientes|documentos|cv)/i;
+const POSTULACION =
+  /postula|presentaci[oó]n (del |de (la )?)?(expediente|cv|hoja|ficha|documentos|propuesta)|expediente virtual|inscripci[oó]n|recepci[oó]n de (expedientes|documentos|cv|hojas?)|registro de (la )?(hoja de vida|ficha|cv|postulantes?)|env[ií]o (del |de (la )?)?(cv|expediente|hoja|ficha|documentos)/i;
 
 const PASOS_ESPERA = ["Buscando la convocatoria en la web de la entidad…", "Bajando las bases…", "Leyéndolas: toma unos segundos más…"];
 
@@ -282,7 +283,9 @@ function Pestanas({ lectura: l }: { lectura: Lectura }) {
 }
 
 function Cronograma({ filas }: { filas: Lectura["cronograma"] }) {
-  const iPostula = filas.findIndex((f) => POSTULACION.test(f.etapa));
+  // La etapa que marcó el modelo; en las lecturas de antes (sin `postulas`), la que lo dice con palabras.
+  const marcada = filas.findIndex((f) => f.postulas);
+  const iPostula = marcada >= 0 ? marcada : filas.findIndex((f) => POSTULACION.test(f.etapa));
   return (
     <ol className="relative space-y-0">
       {filas.map((f, i) => {
