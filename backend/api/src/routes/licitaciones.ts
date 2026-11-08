@@ -312,6 +312,8 @@ licitacionesRouter.get("/bandeja/calce", async (c) => {
   const cuerpo = await memo.obtener(`calce:${JSON.stringify([q, elegidas, otras])}`, async () => {
     if (!todas.length) return { total: 0, porPalabra: [], vistazo: [] };
     const { base, porFrase, alguna, vals } = sqlCalce(q, todas.map((w) => palabrasBusqueda(w)), elegidas.length);
+    // El vistazo con SUS parámetros (sólo las elegidas): un parámetro que la consulta no usa es un error de Postgres.
+    const v = sqlCalce(q, elegidas.map((w) => palabrasBusqueda(w)));
     const [conteo, vistazo] = await Promise.all([
       pool.query(
         `WITH b AS MATERIALIZED (${base})
@@ -320,10 +322,10 @@ licitacionesRouter.get("/bandeja/calce", async (c) => {
       ),
       elegidas.length
         ? pool.query(
-            `WITH b AS MATERIALIZED (${base})
+            `WITH b AS MATERIALIZED (${v.base})
              SELECT ${COLS_OPORTUNIDAD} FROM b JOIN convocatorias c ON c.ocid = b.ocid LEFT JOIN entidades e ON e.ruc = c.entidad_ruc
-              WHERE ${alguna} ORDER BY ${ordenBandeja("vence")} LIMIT 3`,
-            vals,
+              WHERE ${v.alguna} ORDER BY ${ordenBandeja("vence")} LIMIT 3`,
+            v.vals,
           )
         : Promise.resolve({ rows: [] }),
     ]);

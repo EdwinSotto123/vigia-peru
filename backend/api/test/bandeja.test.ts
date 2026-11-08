@@ -56,3 +56,10 @@ test("sqlCalce: los filtros del perfil una vez, cada palabra sobre el texto leí
   // Las sugeridas (después de las del perfil) se cuentan pero no entran en «alguna».
   assert.equal(sqlCalce(q, [["TONER"], ["CARTUCHOS"]], 1).alguna, "(b.t LIKE $5)");
 });
+
+test("sqlCalce: cada parámetro se usa en la consulta (Postgres rechaza uno que no se usa)", () => {
+  const q = leerBandeja({ tipo: "bienes" })!;
+  const s = sqlCalce(q, [["TONER"], ["PAPEL", "BOND"]]);
+  const usados = new Set([...`${s.base} ${s.alguna}`.matchAll(/\$(\d+)/g)].map((m) => Number(m[1])));
+  assert.equal(usados.size, s.vals.length);
+});

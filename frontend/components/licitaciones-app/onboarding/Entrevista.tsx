@@ -589,7 +589,7 @@ const Final = forwardRef<HTMLDivElement, {
           <span className="inline-flex items-center gap-2 text-inkSoft"><Loader2 size={15} aria-hidden className="animate-spin" /> Buscando lo que calza contigo…</span>
         ) : total > 0 ? (
           <>
-            <strong className="font-semibold">Listo.</strong> Con tu perfil hoy calzan <strong className="font-semibold tabular-nums">{numero(total)}</strong> convocatorias abiertas. Estas cierran consultas primero:
+            <strong className="font-semibold">Listo.</strong> Con tu perfil hoy calzan <strong className="font-semibold tabular-nums">{numero(total)}</strong> convocatorias abiertas. Mira algunas:
           </>
         ) : (
           <>
