@@ -48,7 +48,10 @@ export function AvisosDeLaManana({ className }: { className?: string }) {
               >
                 <p className="flex items-center justify-between gap-3 text-rotulo text-mute">
                   <span className="flex min-w-0 items-center gap-1.5 font-semibold text-inkSoft">
-                    <IsotipoGobserva tamano={15} />
+                    {/* El ícono de la app, como en una notificación de verdad: la lupa sobre su cuadro oscuro. */}
+                    <span aria-hidden className="grid h-5 w-5 shrink-0 place-items-center rounded-md bg-ink">
+                      <IsotipoGobserva tamano={14} />
+                    </span>
                     <span className="truncate">Gobserva Empleo</span>
                   </span>
                   <span className="shrink-0">{cuando}</span>

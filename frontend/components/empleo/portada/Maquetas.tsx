@@ -184,18 +184,19 @@ export function MaquetaFicha() {
 export function MaquetaTablero() {
   const columnas = [
     { t: "Guardada", tarjetas: ["Contador", "Analista de presupuesto"] },
-    { t: "Postulé", tarjetas: ["Especialista en tesorería"] },
+    { t: "Postulé", tarjetas: ["Especialista en tesorería", "Auxiliar contable"] },
     { t: "Entrevista", tarjetas: ["Asistente contable"] },
+    { t: "Me eligieron", tarjetas: ["Contador general"] },
   ];
   return (
     <figure className="min-w-0">
-      <div className="grid grid-cols-3 gap-2">
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
         {columnas.map((c) => (
           <div key={c.t} className="min-w-0 rounded-xl border border-paper/15 bg-paper/[0.06] p-2">
             <p className="truncate px-1 pb-1.5 text-rotulo font-semibold text-paper/80">{c.t}</p>
             <ul className="space-y-1.5">
               {c.tarjetas.map((x) => (
-                <li key={x} className="rounded-lg bg-paper px-2 py-1.5 text-rotulo font-semibold leading-snug text-ink">
+                <li key={x} className="rounded-lg bg-paper px-2 py-1.5 text-rotulo font-semibold leading-snug text-ink [overflow-wrap:anywhere]">
                   {x}
                 </li>
               ))}

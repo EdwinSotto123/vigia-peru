@@ -16,7 +16,7 @@ import { baseProducto } from "@/lib/gobserva-servidor";
 export const metadata: Metadata = {
   title: { absolute: "Gobserva Empleo: las plazas CAS del Estado que calzan contigo, antes de que cierren" },
   description:
-    "Gobserva Empleo lee cada día todas las convocatorias CAS de SERVIR, te muestra las que puedes postular según tus estudios, tu experiencia y dónde quieres trabajar, y te avisa antes de que cierren. Gratis.",
+    "Gobserva Empleo reúne las convocatorias CAS que el Estado publica en SERVIR, te muestra las que puedes postular según tus estudios, tu experiencia y dónde quieres trabajar, y te avisa antes de que cierren. Gratis.",
   alternates: { canonical: urlCanonica("empleo", "/") },
 };
 
@@ -45,8 +45,8 @@ export default async function InicioEmpleo() {
               Postula a las plazas del Estado antes de que cierren.
             </h1>
             <p className="mt-6 max-w-[54ch] text-pretty text-bloque leading-relaxed text-paper/80">
-              Gobserva Empleo lee cada día todas las convocatorias CAS del Perú, te muestra las que puedes postular según tus estudios y tu experiencia,
-              y te avisa a tiempo. Gratis.
+              Gobserva Empleo reúne las convocatorias CAS que el Estado publica en SERVIR, te muestra las que puedes postular según tus estudios y tu
+              experiencia, y te avisa a tiempo. Gratis.
             </p>
             <div className="mt-8 flex flex-col gap-3 sm:flex-row">
               <Link href={crear} className={claseAccion("oscuro", "", "lg")}>
@@ -95,7 +95,7 @@ export default async function InicioEmpleo() {
 
         {/* ── 3. Cómo funciona ───────────────────────────────────────────────── */}
         <section aria-labelledby="como-t">
-          <Cabecera id="como-t" titulo="Cómo funciona" bajada="Lo primero lo haces tú, una sola vez y en dos minutos. Lo demás corre solo todos los días." />
+          <Cabecera id="como-t" titulo="Cómo funciona" bajada="Lo primero lo haces tú, una sola vez y en dos minutos. Lo demás corre solo." />
           <ol className="relative mt-12 space-y-14 sm:space-y-20">
             <Paso n={1} titulo="Cuéntanos qué buscas" maqueta={<MaquetaEntrevista />}>
               Siete preguntas en un chat: qué trabajo buscas, hasta dónde estudiaste, cuánta experiencia tienes, dónde quieres trabajar y desde qué
@@ -127,7 +127,7 @@ export default async function InicioEmpleo() {
                 Lleva cada plaza de guardada a postulé, a entrevista y a «me eligieron», con una nota y el día en que cierra. Nada se te queda en un
                 papel.
               </p>
-              <div className="relative mt-6">
+              <div className="relative mt-6 lg:mt-auto lg:pt-8">
                 <MaquetaTablero />
               </div>
             </div>
@@ -188,7 +188,7 @@ export default async function InicioEmpleo() {
             },
             {
               p: "¿De dónde salen las plazas?",
-              r: "De las ofertas laborales que las entidades publican en SERVIR, que Gobserva lee todos los días. Cada plaza enlaza a su publicación oficial, donde están las bases completas.",
+              r: "De las ofertas laborales que las entidades publican en SERVIR, que Gobserva lee cada semana. Cada plaza enlaza a su publicación oficial, donde están las bases completas.",
             },
             {
               p: "¿Qué significa «lo que nadie te dice»?",
@@ -275,7 +275,7 @@ function Paso({ n, titulo, children, maqueta, ultimo = false }: { n: number; tit
       </span>
       {!ultimo && <span aria-hidden className="absolute bottom-[-3.5rem] left-5 top-12 w-px bg-line sm:bottom-[-5rem] sm:left-[1.375rem] sm:top-14" />}
       <div className="min-w-0 pt-1.5 lg:pt-2">
-        <h3 className="font-display text-seccion font-bold leading-tight text-ink sm:text-cifra">
+        <h3 className="text-balance font-display text-seccion font-bold leading-tight text-ink sm:text-cifra">
           <span className="sr-only">Paso {n}: </span>
           {titulo}
         </h3>
