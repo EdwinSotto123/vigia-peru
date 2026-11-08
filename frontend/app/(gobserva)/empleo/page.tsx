@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { ArrowRight, Bot, CalendarDays, Check, EyeOff, Map, Search, Sparkles, Timer } from "lucide-react";
+import { BloqueAsistente } from "@/components/gobserva/BloqueAsistente";
 import { BloqueMCP } from "@/components/gobserva/BloqueMCP";
 import { Planes } from "@/components/gobserva/Planes";
 import { AvisosDeLaManana } from "@/components/empleo/portada/AvisosDeLaManana";
@@ -159,7 +160,22 @@ export default async function InicioEmpleo() {
           <Planes className="mt-8" planes={planesEmpleo(base, cat)} />
         </section>
 
-        {/* ── 6. MCP ─────────────────────────────────────────────────────────── */}
+        {/* ── 6. El asistente (con un plan) ──────────────────────────────────── */}
+        <BloqueAsistente
+          titulo="Pregúntale a tu asistente"
+          bajada="Dentro de la app, un asistente con IA busca por ti en las plazas abiertas de hoy. Le cuentas tu carrera, tu experiencia y dónde quieres trabajar, y te responde con las que te calzan, lo que piden y el enlace para postular."
+          pregunta="Soy contadora con 3 años de experiencia: ¿a qué puedo postular en Arequipa?"
+          respuesta="Hay 4 plazas que te calzan. La primera cierra en 2 días:"
+          filas={[
+            { titulo: "Contador", quien: "Una UGEL de Arequipa", cifra: "S/ 3,200", nota: "Cierra en 2 días" },
+            { titulo: "Analista en presupuesto", quien: "Un gobierno regional", cifra: "S/ 3,500", nota: "Cierra en 5 días" },
+            { titulo: "Asistente contable", quien: "Una municipalidad", cifra: "S/ 2,600", nota: "Cierra en 6 días" },
+          ]}
+          creditos="300 créditos al mes con Alertas"
+          planes={ruta("/planes")}
+        />
+
+        {/* ── 7. MCP ─────────────────────────────────────────────────────────── */}
         <BloqueMCP
           id="mcp"
           titulo="Busca trabajo hablando con tu IA"
@@ -177,7 +193,7 @@ export default async function InicioEmpleo() {
           ]}
         />
 
-        {/* ── 7. Preguntas ───────────────────────────────────────────────────── */}
+        {/* ── 8. Preguntas ───────────────────────────────────────────────────── */}
         <Faq
           preguntas={[
             {
@@ -207,7 +223,7 @@ export default async function InicioEmpleo() {
           ]}
         />
 
-        {/* ── 8. El cierre ───────────────────────────────────────────────────── */}
+        {/* ── 9. El cierre ───────────────────────────────────────────────────── */}
         <section aria-labelledby="cierre-t" className="sobre-oscuro relative overflow-hidden rounded-3xl border border-paper/10 bg-ink px-6 py-12 text-paper sm:px-12 sm:py-16">
           <div aria-hidden className="fondo-puntos pointer-events-none absolute inset-0 opacity-40" />
           <div className="relative grid gap-8 lg:grid-cols-[minmax(0,1.4fr)_auto] lg:items-end">

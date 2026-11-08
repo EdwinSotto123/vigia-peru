@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { ArrowRight, Bot, Check, EyeOff, HardHat, Landmark, LineChart, Megaphone, Timer } from "lucide-react";
+import { BloqueAsistente } from "@/components/gobserva/BloqueAsistente";
 import { BloqueMCP } from "@/components/gobserva/BloqueMCP";
 import { Planes } from "@/components/gobserva/Planes";
 import { Faq } from "@/components/licitaciones/Faq";
@@ -171,7 +172,23 @@ export default async function InicioLicitaciones() {
           <Planes className="mt-8" planes={planesLicitaciones(base, cat)} />
         </section>
 
-        {/* ── 6. MCP ─────────────────────────────────────────────────────────── */}
+        {/* ── 6. El asistente (con un plan) ──────────────────────────────────── */}
+        <BloqueAsistente
+          titulo="Pregúntale a tu asistente"
+          bajada="Dentro de la app, un asistente con IA busca licitaciones, contratos menores y obras, lee las bases y te dice quién compra, quién gana y a qué precio. Le preguntas como a un colega."
+          pregunta="¿Qué licitaciones de uniformes hay esta semana en Cusco y quién suele ganarlas?"
+          respuesta="Hay 3 convocatorias abiertas. La primera cierra consultas el jueves:"
+          filas={[
+            { titulo: "Uniformes para el personal", quien: "Una municipalidad de Cusco", cifra: "S/ 180,000", nota: "Consultas hasta el jueves" },
+            { titulo: "Vestuario institucional", quien: "Un hospital regional", cifra: "S/ 95,400", nota: "Consultas hasta el lunes" },
+            { titulo: "Ropa de trabajo", quien: "Una unidad ejecutora", cifra: "S/ 62,000", nota: "Cotiza en 5 días" },
+          ]}
+          creditos="1,500 créditos al mes con Inicia"
+          descargas
+          planes={ruta("/planes#comparar")}
+        />
+
+        {/* ── 7. MCP ─────────────────────────────────────────────────────────── */}
         <BloqueMCP
           id="mcp"
           titulo="Pregúntale a tu IA por las licitaciones del día"
@@ -189,7 +206,7 @@ export default async function InicioLicitaciones() {
           ]}
         />
 
-        {/* ── 7. Preguntas ───────────────────────────────────────────────────── */}
+        {/* ── 8. Preguntas ───────────────────────────────────────────────────── */}
         <Faq
           preguntas={[
             {
@@ -209,7 +226,7 @@ export default async function InicioLicitaciones() {
           ]}
         />
 
-        {/* ── 8. El cierre ───────────────────────────────────────────────────── */}
+        {/* ── 9. El cierre ───────────────────────────────────────────────────── */}
         <section aria-labelledby="cierre-t" className="sobre-oscuro relative overflow-hidden rounded-3xl border border-paper/10 bg-ink px-6 py-12 text-paper sm:px-12 sm:py-16">
           <div aria-hidden className="fondo-puntos pointer-events-none absolute inset-0 opacity-40" />
           <div className="relative grid gap-8 lg:grid-cols-[minmax(0,1.4fr)_auto] lg:items-end">

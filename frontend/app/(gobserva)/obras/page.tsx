@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { ArrowRight, ArrowUpRight, BellRing, Building2, ChartNoAxesCombined, ClipboardList, Compass, HardHat, Landmark, Megaphone, PackageSearch, Ruler, Search, Sparkles, Truck } from "lucide-react";
+import { BloqueAsistente } from "@/components/gobserva/BloqueAsistente";
 import { BloqueMCP } from "@/components/gobserva/BloqueMCP";
 import { Planes } from "@/components/gobserva/Planes";
 import { BarrasDobles, CaminoObra, type PasoCamino } from "@/components/gobserva-obras/Graficas";
@@ -437,6 +438,22 @@ export default async function InicioObras() {
           />
           <p className="mt-2 text-meta text-mute md:hidden">Desliza para ver los planes, o compáralos en la página de planes.</p>
         </section>
+
+        {/* ── El asistente (con un plan de Licitaciones) ─────────────────────── */}
+        <BloqueAsistente
+          titulo="Pregúntale a tu asistente"
+          bajada="Con un plan de Licitaciones, que trae Obras, un asistente con IA te dice qué obras se vienen, cuánto cuestan, cómo avanzan y quién las gana. Le preguntas como a un colega."
+          pregunta="¿Qué obras de agua potable de más de S/ 5 millones se vienen en Puno?"
+          respuesta="Hay 3 con expediente técnico que todavía no se licitan:"
+          filas={[
+            { titulo: "Agua potable y alcantarillado", quien: "Una municipalidad provincial", cifra: "S/ 12.4 M", nota: "Con expediente" },
+            { titulo: "Mejoramiento del servicio de agua", quien: "Una municipalidad distrital", cifra: "S/ 7.9 M", nota: "Con expediente" },
+            { titulo: "Saneamiento rural", quien: "Un gobierno regional", cifra: "S/ 5.6 M", nota: "Viable" },
+          ]}
+          creditos="1,500 créditos al mes con Inicia"
+          descargas
+          planes={ruta("/planes")}
+        />
 
         {/* ── MCP ─────────────────────────────────────────────────────────────── */}
         <BloqueMCP
