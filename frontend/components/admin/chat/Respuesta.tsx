@@ -92,7 +92,8 @@ function componentes(enlacesPorRevisar: Map<string, string>): Components {
     h4: ({ node, ...props }) => <h6 {...props} />,
     // Una tabla ancha no empuja la página: se desliza dentro de su caja.
     table: ({ node, ...props }) => (
-      <div className="scrollbar-warm my-3 max-w-full overflow-x-auto">
+      // relative: el texto para lector de pantalla de los enlaces (sr-only, absoluto) se queda dentro y no ensancha la página.
+      <div className="scrollbar-warm relative my-3 max-w-full overflow-x-auto">
         <table {...props} />
       </div>
     ),
