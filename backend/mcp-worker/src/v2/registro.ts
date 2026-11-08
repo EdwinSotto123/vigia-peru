@@ -6,7 +6,7 @@ import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
 import { ErrorApi } from "./api";
 import { revisarPlan } from "./acceso";
-import { pasarCupo } from "./cupos";
+import { cobrar, filasDe, pasarCupo } from "./cupos";
 import type { EnvV2, Usuario } from "./entorno";
 import { ErrorSesion } from "./firebase";
 import { ErrorUsuario, fallo, resultado } from "./formato";
@@ -60,13 +60,17 @@ export function registrar(server: McpServer, h: Herramienta, cx: Contexto): void
       const inicio = Date.now();
       let ok = false;
       try {
-        const sinPlan = await revisarPlan(cx.env, cx.usuario, h.producto);
-        if (sinPlan) return fallo(sinPlan);
-        const sinCupo = await pasarCupo(cx.env, cx.ip, cx.usuario, h.nombre);
+        const acceso = await revisarPlan(cx.env, cx.usuario, h.producto);
+        if ("error" in acceso) return fallo(acceso.error);
+        const sinCupo = await pasarCupo(cx.env, cx.ip, cx.usuario, h.nombre, acceso.mcp);
         if (sinCupo) return fallo(sinCupo);
         const r = await h.ejecutar(args as never, cx);
         ok = true;
-        return esResultado(r) ? r : resultado(r);
+        const salida = esResultado(r) ? r : resultado(r);
+        // Se cobra sólo lo que salió bien (una consulta que falla o se corta no descuenta créditos).
+        const aviso = await cobrar(cx.env, cx.usuario, h.nombre, acceso.mcp, esResultado(r) ? 0 : filasDe(r));
+        if (aviso) salida.content.push({ type: "text", text: aviso });
+        return salida;
       } catch (e) {
         if (e instanceof ErrorUsuario) return fallo(e.message);
         if (e instanceof ErrorApi) return fallo(e.message);

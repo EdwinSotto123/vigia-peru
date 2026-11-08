@@ -6,7 +6,13 @@
 //   · sin cuenta y desde Anthropic: un tope total por minuto para todo ese tráfico anónimo;
 //   · sin cuenta y desde otro lado (Claude Code, otros clientes): por IP (una IPv6 por su /64).
 // Si el limitador falla, se atiende: mejor eso que dejar el MCP caído.
-import { esDePago, type EnvV2, type Usuario } from "./entorno";
+//
+// Créditos (2026-11-08, el usuario: «limitar el uso del MCP por nivel de cuenta»): cada plan trae créditos al mes (la API
+// los manda con los planes: backend/api/src/lib/creditosMcp.ts) y cada llamada descuenta lo que pesa su herramienta
+// (PESOS). Topes internos: en un día, a lo más la quinta parte del mes; filas por día contra quien quiera copiarse la base;
+// 60 llamadas por minuto. Sólo se cobra lo que salió bien (registro.ts → cobrar). El contador vive en el Durable Object
+// `Limitador` de vigia-api (clave `mcp2|u|<uid>|creditos`, una suma por mes y por día).
+import { esDePago, type EnvV2, type TopesMcp, type Usuario } from "./entorno";
 
 export const CUPOS = {
   anonimoAnthropicPorMinuto: 600,
@@ -61,8 +67,51 @@ async function contar(env: EnvV2, clave: string, tope: number, ventanaMs: number
 
 export const HERRAMIENTAS_DE_DATOS = new Set(["consultar_datos"]);
 
-/** null si la llamada entra; si no, el mensaje que verá quien pregunta. */
-export async function pasarCupo(env: EnvV2, ip: string | null, usuario: Usuario | null, herramienta: string): Promise<string | null> {
+/**
+ * Lo que descuenta cada herramienta. 0: lo de la cuenta. 1: búsquedas y fichas. 3: análisis (mercado, gasto, red,
+ * historia, hallazgos, documentos, planilla, visitas). 10: la consulta libre de cifras y el ZIP de documentos.
+ */
+export const PESOS: Record<string, number> = {
+  seguir: 0, dejar_de_seguir: 0, mis_seguimientos: 0, mi_cupo: 0, estado_fuentes: 0,
+  mercado_rubro: 3, mercado_obras: 3, gasto_entidad: 3, gasto_por_concepto: 3, red_empresa: 3, historia: 3, hallazgos_entidad: 3,
+  ranking_entidades: 3, buscar_documentos: 3, planilla_entidad: 3, visitas_entidad: 3, informes_control: 3,
+  consultar_datos: 10, documentos_zip: 10,
+};
+export const pesoDe = (herramienta: string) => PESOS[herramienta] ?? 1;
+
+const NUM = new Intl.NumberFormat("es-PE");
+const MESES = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "setiembre", "octubre", "noviembre", "diciembre"];
+const lima = () => new Date(Date.now() - 5 * 3_600_000).toISOString();
+export const mesLima = () => lima().slice(0, 7);
+export const diaLima = () => lima().slice(0, 10);
+/** «el 1 de diciembre». */
+export function renuevan(mes = mesLima()): string {
+  const m = Number(mes.slice(5, 7));
+  return `el 1 de ${MESES[m % 12]}`;
+}
+
+interface UsoMcp {
+  mes: number;
+  dia: number;
+  filas: number;
+}
+type ContadorCreditos = {
+  creditos(mes: string, dia: string): Promise<UsoMcp>;
+  gastar(mes: string, dia: string, creditos: number, filas: number): Promise<UsoMcp>;
+};
+const contadorDe = (env: EnvV2, uid: string) =>
+  env.LIMITADOR!.get(env.LIMITADOR!.idFromName(`mcp2|u|${uid}|creditos`)) as unknown as ContadorCreditos;
+
+const planesUrl = (u: Usuario) => (u.app === "empleo" ? "https://empleo.gobserva.cloud/planes" : "https://licitaciones.gobserva.cloud/planes");
+
+/** Cuántas filas trajo una respuesta: los largos de sus listas de primer nivel (lo que sirve para copiarse la base). */
+export function filasDe(r: unknown): number {
+  if (!r || typeof r !== "object" || Array.isArray(r)) return Array.isArray(r) ? r.length : 0;
+  return Object.values(r as Record<string, unknown>).reduce<number>((n, v) => n + (Array.isArray(v) ? v.length : 0), 0);
+}
+
+/** null si la llamada entra; si no, el mensaje que verá quien pregunta. `mcp`: los créditos de su plan. */
+export async function pasarCupo(env: EnvV2, ip: string | null, usuario: Usuario | null, herramienta: string, mcp?: TopesMcp | null): Promise<string | null> {
   if (!usuario) {
     if (esDeAnthropic(ip)) {
       return (await contar(env, "mcp2|anthropic", CUPOS.anonimoAnthropicPorMinuto, MINUTO))
@@ -75,20 +124,64 @@ export async function pasarCupo(env: EnvV2, ip: string | null, usuario: Usuario 
       : `Sin cuenta el tope es de ${CUPOS.anonimoIpPorMinuto} llamadas por minuto. Espera un minuto o conecta tu cuenta de Gobserva.`;
   }
   if (usuario.planes.includes("interno")) return null; // el chat del panel
-  const pago = esDePago(usuario);
   if (!(await contar(env, `mcp2|u|${usuario.uid}|min`, CUPOS.cuentaPorMinuto, MINUTO))) {
     return `Son más de ${CUPOS.cuentaPorMinuto} llamadas en un minuto: espera un momento.`;
   }
+  const peso = pesoDe(herramienta);
+  if (peso === 0) return null;
+  if (!mcp || !env.LIMITADOR) return cupoDiarioDeAntes(env, usuario, herramienta);
+  let uso: UsoMcp;
+  try {
+    uso = await contadorDe(env, usuario.uid).creditos(mesLima(), diaLima());
+  } catch {
+    return null;
+  }
+  const quedan = Math.max(0, mcp.creditos - uso.mes);
+  if (peso > quedan) {
+    return quedan > 0
+      ? `Esta consulta usa ${peso} créditos del MCP y te quedan ${NUM.format(quedan)} de ${NUM.format(mcp.creditos)} este mes. Se renuevan ${renuevan()}; para más, sube de plan en ${planesUrl(usuario)}.`
+      : `Usaste los ${NUM.format(mcp.creditos)} créditos del MCP de este mes. Se renuevan ${renuevan()}; para más, sube de plan en ${planesUrl(usuario)}.`;
+  }
+  if (uso.dia + peso > mcp.topeDia) {
+    return `Hoy ya usaste ${NUM.format(uso.dia)} créditos del MCP: en un día se puede usar hasta la quinta parte del mes (${NUM.format(mcp.topeDia)}). Mañana sigues.`;
+  }
+  if (uso.filas >= mcp.topeFilasDia) {
+    return `Hoy ya trajiste ${NUM.format(uso.filas)} filas, el tope de un día: el MCP es para preguntar, no para copiar la base. Para bajar listas completas está la descarga en Excel de tu plan. Mañana sigues.`;
+  }
+  return null;
+}
+
+/**
+ * Descuenta lo que gastó una llamada que salió bien. Devuelve un aviso cuando queda poco (el 10 % o menos del mes), para
+ * que la IA se lo diga a quien pregunta.
+ */
+export async function cobrar(env: EnvV2, usuario: Usuario | null, herramienta: string, mcp: TopesMcp | null | undefined, filas: number): Promise<string | null> {
+  if (!usuario || usuario.planes.includes("interno") || !mcp || !env.LIMITADOR) return null;
+  const peso = pesoDe(herramienta);
+  if (peso === 0 && filas === 0) return null;
+  try {
+    const uso = await contadorDe(env, usuario.uid).gastar(mesLima(), diaLima(), peso, filas);
+    const quedan = Math.max(0, mcp.creditos - uso.mes);
+    if (peso > 0 && quedan <= mcp.creditos * 0.1) {
+      return `Aviso de Gobserva: te quedan ${NUM.format(quedan)} de ${NUM.format(mcp.creditos)} créditos del MCP este mes (se renuevan ${renuevan()}).`;
+    }
+  } catch {
+    // Si el contador falla, la respuesta igual sale.
+  }
+  return null;
+}
+
+/** El cupo de antes (por llamadas en 24 horas), para una cuenta cuyo token no trae créditos. */
+async function cupoDiarioDeAntes(env: EnvV2, usuario: Usuario, herramienta: string): Promise<string | null> {
+  const pago = esDePago(usuario);
   const porDia = pago ? CUPOS.pagoPorDia : CUPOS.gratisPorDia;
   if (!(await contar(env, `mcp2|u|${usuario.uid}|dia`, porDia, DIA, true))) {
-    return pago
-      ? `Llegaste al cupo de ${porDia} llamadas en 24 horas. Si necesitas más, escribe a Gobserva por el plan Institucional.`
-      : `Llegaste al cupo gratis de ${porDia} llamadas en 24 horas. Los planes de Gobserva (gobserva.cloud) suben el cupo a ${CUPOS.pagoPorDia}.`;
+    return `Llegaste al cupo de ${porDia} llamadas en 24 horas. Si necesitas más, escribe a Gobserva por el plan Institucional.`;
   }
   if (HERRAMIENTAS_DE_DATOS.has(herramienta)) {
     const datos = pago ? CUPOS.datosPagoPorDia : CUPOS.datosGratisPorDia;
     if (!(await contar(env, `mcp2|u|${usuario.uid}|datos`, datos, DIA, true))) {
-      return `Llegaste al cupo de ${datos} consultas de cifras en 24 horas.${pago ? "" : " Con un plan de Gobserva son " + CUPOS.datosPagoPorDia + "."}`;
+      return `Llegaste al cupo de ${datos} consultas de cifras en 24 horas.`;
     }
   }
   return null;

@@ -4,16 +4,26 @@
 // acaba de contratar no tiene que reconectar.
 import { api } from "./api";
 import { leerCognito, NOMBRE_APP, renovarCognito } from "./cognito";
-import { tienePlanPara, type EnvV2, type Usuario } from "./entorno";
+import { tienePlanPara, type EnvV2, type TopesMcp, type Usuario } from "./entorno";
 import { ErrorSesion, renovarIdToken } from "./firebase";
 
-/** Los planes activos de la cuenta («licitaciones:pro»); si la ruta no está o falla, ninguno. */
-export async function planesDe(env: EnvV2, idToken: string): Promise<string[]> {
+export interface CuentaMcp {
+  /** «licitaciones:pro», … */
+  planes: string[];
+  /** Sus créditos (null si la API no los mandó: se usa el cupo diario de antes). */
+  mcp: TopesMcp | null;
+}
+
+/** Los planes activos de la cuenta y sus créditos del MCP; si la ruta no está o falla, ninguno. */
+export async function planesDe(env: EnvV2, idToken: string): Promise<CuentaMcp> {
   try {
-    const r = await api<{ planes?: { producto?: string; plan?: string }[] }>(env, "/gobserva/cuenta/planes", {}, { token: idToken });
-    return (r.planes ?? []).filter((p) => p.plan && p.plan !== "gratis").map((p) => `${p.producto}:${p.plan}`);
+    const r = await api<{ planes?: { producto?: string; plan?: string }[]; mcp?: TopesMcp }>(env, "/gobserva/cuenta/planes", {}, { token: idToken });
+    return {
+      planes: (r.planes ?? []).filter((p) => p.plan && p.plan !== "gratis").map((p) => `${p.producto}:${p.plan}`),
+      mcp: r.mcp && typeof r.mcp.creditos === "number" ? r.mcp : null,
+    };
   } catch {
-    return [];
+    return { planes: [], mcp: null };
   }
 }
 
@@ -29,35 +39,43 @@ export async function idTokenDe(env: EnvV2, u: Pick<Usuario, "app" | "crt" | "fr
 }
 
 const RELEER_MS = 60_000;
-const memoria = new Map<string, { planes: string[]; al: number }>();
+const memoria = new Map<string, CuentaMcp & { al: number }>();
 
-/** Los planes de la cuenta: los del token o, si no alcanzan para `producto`, los de hoy (releídos a lo más cada minuto). */
-async function planesVigentes(env: EnvV2, u: Usuario, producto: "empleo" | "licitaciones" | undefined): Promise<string[]> {
-  if (tienePlanPara(u.planes, producto)) return u.planes;
+/**
+ * Los planes y créditos de la cuenta: los del token o, si no alcanzan para `producto` (o el token es de antes de los
+ * créditos), los de hoy, releídos a lo más cada minuto.
+ */
+async function vigente(env: EnvV2, u: Usuario, producto: "empleo" | "licitaciones" | undefined): Promise<CuentaMcp> {
+  if (tienePlanPara(u.planes, producto) && (u.mcp || u.planes.includes("interno"))) return { planes: u.planes, mcp: u.mcp ?? null };
   const m = memoria.get(u.uid);
-  if (m && Date.now() - m.al < RELEER_MS) return m.planes;
-  if (Date.now() - u.planesAl < RELEER_MS) return u.planes;
-  const planes = await planesDe(env, await idTokenDe(env, u));
-  memoria.set(u.uid, { planes, al: Date.now() });
+  if (m && Date.now() - m.al < RELEER_MS) return m;
+  if (Date.now() - u.planesAl < RELEER_MS) return { planes: u.planes, mcp: u.mcp ?? null };
+  const c = await planesDe(env, await idTokenDe(env, u));
+  memoria.set(u.uid, { ...c, al: Date.now() });
   if (memoria.size > 500) memoria.delete(memoria.keys().next().value as string);
-  return planes;
+  return c;
 }
 
 const PLANES_EMPLEO = "https://empleo.gobserva.cloud/planes";
 const PLANES_LICITACIONES = "https://licitaciones.gobserva.cloud/planes";
 
-/** null si puede; si no, lo que verá quien pregunta (qué plan le falta, dónde se adquiere y con qué cuenta conectar). */
-export async function revisarPlan(env: EnvV2, u: Usuario | null, producto: "empleo" | "licitaciones" | undefined): Promise<string | null> {
-  if (!u) return "El MCP de Gobserva viene con los planes de pago: conecta tu cuenta de Gobserva Empleo o Gobserva Licitaciones en la configuración del conector.";
-  if (tienePlanPara(await planesVigentes(env, u, producto), producto)) return null;
+/**
+ * `{ mcp }` (sus créditos) si puede; si no, `{ error }`: lo que verá quien pregunta (qué plan le falta, dónde se
+ * adquiere y con qué cuenta conectar).
+ */
+export async function revisarPlan(env: EnvV2, u: Usuario | null, producto: "empleo" | "licitaciones" | undefined): Promise<{ error: string } | { mcp: TopesMcp | null }> {
+  const no = (error: string) => ({ error });
+  if (!u) return no("El MCP de Gobserva viene con los planes de pago: conecta tu cuenta de Gobserva Empleo o Gobserva Licitaciones en la configuración del conector.");
+  const c = await vigente(env, u, producto);
+  if (tienePlanPara(c.planes, producto)) return { mcp: c.mcp };
   const cuenta = u.app
     ? `Conectaste tu cuenta de ${NOMBRE_APP[u.app]}`
     : "Conectaste una cuenta de Vigía, que no tiene plan: desconecta el conector y vuelve a conectarlo con tu cuenta de Gobserva Empleo o Gobserva Licitaciones";
   if (producto === "empleo") {
-    return `Esta herramienta (plazas CAS) es del plan de Gobserva Empleo. ${cuenta}. Adquiere un plan en ${PLANES_EMPLEO} y vuelve a preguntar.`;
+    return no(`Esta herramienta (plazas CAS) es del plan de Gobserva Empleo. ${cuenta}. Adquiere un plan en ${PLANES_EMPLEO} y vuelve a preguntar.`);
   }
   if (producto === "licitaciones") {
-    return `Esta herramienta (licitaciones, obras y mercado) es de los planes de Gobserva Licitaciones. ${cuenta}. Adquiere un plan en ${PLANES_LICITACIONES} y vuelve a preguntar.`;
+    return no(`Esta herramienta (licitaciones, obras y mercado) es de los planes de Gobserva Licitaciones. ${cuenta}. Adquiere un plan en ${PLANES_LICITACIONES} y vuelve a preguntar.`);
   }
-  return `El MCP de Gobserva viene con los planes de pago. ${cuenta}, sin un plan vigente. Adquiere uno en ${PLANES_EMPLEO} o en ${PLANES_LICITACIONES} y vuelve a preguntar.`;
+  return no(`El MCP de Gobserva viene con los planes de pago. ${cuenta}, sin un plan vigente. Adquiere uno en ${PLANES_EMPLEO} o en ${PLANES_LICITACIONES} y vuelve a preguntar.`);
 }

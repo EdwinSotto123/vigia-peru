@@ -98,4 +98,32 @@ export const misSeguimientos = definir({
   },
 });
 
-export const HERRAMIENTAS_CUENTA = [seguir, dejarDeSeguir, misSeguimientos];
+const miCupo = definir({
+  nombre: "mi_cupo",
+  titulo: "Mis créditos del MCP",
+  descripcion:
+    "Cuántos créditos del MCP le quedan este mes a la cuenta conectada, cuántos usó hoy, cuándo se renuevan y cuánto " +
+    "descuenta cada herramienta. No descuenta créditos. Úsala si quien pregunta quiere saber su cupo o antes de una tarea larga.",
+  cuenta: true,
+  entrada: {},
+  async ejecutar(_a, cx) {
+    const d = await api<Fila>(cx.env, "/gobserva/cuenta/mcp", {}, { token: await tokenDe(cx) });
+    return {
+      planes: cx.usuario?.planes ?? [],
+      creditos_al_mes: d.creditos,
+      usados_este_mes: d.usados,
+      quedan: Math.max(0, Number(d.creditos ?? 0) - Number(d.usados ?? 0)),
+      se_renuevan: d.renueva,
+      hoy: { usados: d.usadosHoy, tope: d.topeDia },
+      filas_hoy: { traidas: d.filasHoy, tope: d.topeFilasDia },
+      cuanto_descuenta: {
+        "0": "mi_cupo, estado_fuentes, seguir, dejar_de_seguir y mis_seguimientos",
+        "1": "las búsquedas y las fichas (plazas, licitaciones, contratos, empresas, entidades, proyectos, señales, dictamen)",
+        "3": "los análisis: mercado, gasto, red de una empresa, historia, hallazgos, ranking, documentos, planilla, visitas, informes",
+        "10": "consultar_datos y documentos_zip",
+      },
+    };
+  },
+});
+
+export const HERRAMIENTAS_CUENTA = [seguir, dejarDeSeguir, misSeguimientos, miCupo];

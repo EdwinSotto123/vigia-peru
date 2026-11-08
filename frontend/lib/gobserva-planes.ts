@@ -18,24 +18,24 @@ export const precioCorto = (n: number) => (Number.isInteger(n) ? `S/\u00a0${n}` 
 export const entero = (n: number) => ENTERO.format(n);
 
 export const LIMITES_GRATIS: Limites = { alertas: 1, frecuencias: ["semanal"], guardados: 30, csv: false, filasCsv: 0, recordatorios: true };
-const PRO = (alertas: number, guardados: number, filasCsv: number): Limites => ({
-  alertas, frecuencias: ["diaria", "semanal"], guardados, csv: true, filasCsv, recordatorios: true,
+const PRO = (alertas: number, guardados: number, filasCsv: number, mcp: number): Limites => ({
+  alertas, frecuencias: ["diaria", "semanal"], guardados, csv: true, filasCsv, recordatorios: true, mcp,
 });
+/** Los de quien le vende al Estado (Licitaciones; Obras es el mismo plan). */
+const PROVEEDOR: PlanCatalogo[] = [
+  { id: "inicia", nombre: "Inicia", precio: 99, fundador: { precio: 49, cupo: 50, libres: null }, limites: PRO(3, 300, 500, 1500) },
+  { id: "crece", nombre: "Crece", precio: 199, fundador: { precio: 99, cupo: 50, libres: null }, limites: PRO(15, 1000, 2000, 5000) },
+  { id: "pro", nombre: "Pro", precio: 349, fundador: { precio: 179, cupo: 50, libres: null }, limites: PRO(50, 3000, 5000, 15000) },
+];
 
 /** El catálogo por defecto (el mismo de la API), para cuando la API no responde. */
 const RESPALDO: Record<Producto, PlanCatalogo[]> = {
   empleo: [
-    { id: "alertas", nombre: "Alertas", precio: 9.9, fundador: { precio: 4.9, meses: 3, libres: null }, limites: PRO(5, 300, 500) },
-    { id: "institucional", nombre: "Bolsas de trabajo e institutos", precio: 149, fundador: null, limites: PRO(50, 3000, 2000) },
+    { id: "alertas", nombre: "Alertas", precio: 9.9, fundador: { precio: 4.9, meses: 3, libres: null }, limites: PRO(5, 300, 500, 300) },
+    { id: "institucional", nombre: "Bolsas de trabajo e institutos", precio: 149, fundador: null, limites: PRO(50, 3000, 2000, 5000) },
   ],
-  licitaciones: [
-    { id: "pro", nombre: "Pro", precio: 79, fundador: { precio: 39, cupo: 50, libres: null }, limites: PRO(10, 500, 1000) },
-    { id: "empresa", nombre: "Empresa", precio: 149, fundador: null, limites: PRO(50, 3000, 3000) },
-  ],
-  obras: [
-    { id: "pro", nombre: "Pro", precio: 99, fundador: { precio: 49, cupo: 50, libres: null }, limites: PRO(10, 500, 1000) },
-    { id: "empresa", nombre: "Empresa", precio: 199, fundador: null, limites: PRO(50, 3000, 3000) },
-  ],
+  licitaciones: PROVEEDOR,
+  obras: PROVEEDOR,
 };
 
 export interface PlanesServidor {

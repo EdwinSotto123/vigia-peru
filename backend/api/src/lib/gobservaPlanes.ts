@@ -42,6 +42,8 @@ export interface Limites {
   /** Líneas de negocio para «Para ti» (Licitaciones, migración 264): cuántas, y cuántas oportunidades se muestran. */
   lineas: number;
   paraTi: number;
+  /** Créditos del MCP al mes (2026-11-08; 0: sin MCP). Cuánto descuenta cada herramienta: mcp-worker/src/v2/cupos.ts. */
+  mcp: number;
 }
 
 export interface Fundador {
@@ -61,24 +63,24 @@ interface PlanBase {
   activo: boolean;
 }
 
-export const LIMITES_GRATIS: Limites = { alertas: 1, frecuencias: ["semanal"], guardados: 30, csv: false, filasCsv: 0, recordatorios: true, lineas: 1, paraTi: 10 };
+export const LIMITES_GRATIS: Limites = { alertas: 1, frecuencias: ["semanal"], guardados: 30, csv: false, filasCsv: 0, recordatorios: true, lineas: 1, paraTi: 10, mcp: 0 };
 
-const PRO = (alertas: number, guardados: number, filasCsv: number, lineas = 1): Limites => ({
-  alertas, frecuencias: ["diaria", "semanal"], guardados, csv: true, filasCsv, recordatorios: true, lineas, paraTi: 50,
+const PRO = (alertas: number, guardados: number, filasCsv: number, mcp: number, lineas = 1): Limites => ({
+  alertas, frecuencias: ["diaria", "semanal"], guardados, csv: true, filasCsv, recordatorios: true, lineas, paraTi: 50, mcp,
 });
 
 /** Los planes para quien le vende al Estado: los de Licitaciones (que se venden) y su espejo en Obras (que no). */
 const PLANES_PROVEEDOR = (activo: boolean): Record<string, PlanBase> => ({
-  inicia: { nombre: "Inicia", precio: 99, fundador: { precio: 49, cupo: 50 }, limites: PRO(3, 300, 500, 1), activo },
-  crece: { nombre: "Crece", precio: 199, fundador: { precio: 99, cupo: 50 }, limites: PRO(15, 1000, 2000, 3), activo },
-  pro: { nombre: "Pro", precio: 349, fundador: { precio: 179, cupo: 50 }, limites: PRO(50, 3000, 5000, 10), activo },
+  inicia: { nombre: "Inicia", precio: 99, fundador: { precio: 49, cupo: 50 }, limites: PRO(3, 300, 500, 1500, 1), activo },
+  crece: { nombre: "Crece", precio: 199, fundador: { precio: 99, cupo: 50 }, limites: PRO(15, 1000, 2000, 5000, 3), activo },
+  pro: { nombre: "Pro", precio: 349, fundador: { precio: 179, cupo: 50 }, limites: PRO(50, 3000, 5000, 15000, 10), activo },
 });
 
 /** Los planes que se pagan. Gratis no está: es la ausencia de plan. «Institucional» se conversa (no se vende acá). */
 const CATALOGO: Record<ProductoPago, Record<string, PlanBase>> = {
   empleo: {
-    alertas: { nombre: "Alertas", precio: 9.9, fundador: { precio: 4.9, meses: 3 }, limites: PRO(5, 300, 500), activo: true },
-    institucional: { nombre: "Bolsas de trabajo e institutos", precio: 149, limites: PRO(50, 3000, 2000), activo: true },
+    alertas: { nombre: "Alertas", precio: 9.9, fundador: { precio: 4.9, meses: 3 }, limites: PRO(5, 300, 500, 300), activo: true },
+    institucional: { nombre: "Bolsas de trabajo e institutos", precio: 149, limites: PRO(50, 3000, 2000, 5000), activo: true },
   },
   // Una sola plataforma para quien le vende al Estado (2026-11-07): Licitaciones trae Obras, los contratos menores
   // abiertos y el mercado. Precios por debajo de LicitaLAB Perú (S/ 240, 325 y 480) y de fundador para las primeras 50

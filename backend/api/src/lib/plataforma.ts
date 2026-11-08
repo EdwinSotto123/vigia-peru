@@ -97,6 +97,8 @@ export interface AmbitoPedido {
   limitador?(): {
     contar(clave: string, tope: number, ventanaS: number, persistente?: boolean): Promise<boolean>;
     cuantas(clave: string, ventanaS: number, persistente?: boolean): Promise<number>;
+    /** Lo usado del MCP por una cuenta en el mes y el día de Lima (workers/limitador.ts). */
+    usoMcp?(uid: string, mes: string, dia: string): Promise<{ mes: number; dia: number; filas: number }>;
   } | undefined;
 }
 

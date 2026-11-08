@@ -3,11 +3,11 @@
 import { useState, type ReactNode } from "react";
 import Link from "next/link";
 import useSWR from "swr";
-import { ArrowRight, ArrowUpRight, Bell, Bookmark, CalendarClock, Check, Download, Inbox, Loader2, QrCode, Sparkles } from "lucide-react";
+import { ArrowRight, ArrowUpRight, Bell, Bookmark, Bot, CalendarClock, Check, Download, Inbox, Loader2, QrCode, Sparkles } from "lucide-react";
 import { claseAccion } from "@/components/ui/EnlaceAccion";
 import { PRODUCTOS, rutaEn, type Producto } from "@/lib/gobserva";
 import {
-  ESTADO_PLAN, NOMBRE_MEDIO, cargarBandeja, cargarLineas, enviarOperacion, fechaLarga, precioCorto, type Me, type PlanCliente,
+  ESTADO_PLAN, NOMBRE_MEDIO, cargarBandeja, cargarLineas, cargarUsoMcp, enviarOperacion, fechaLarga, precioCorto, type Me, type PlanCliente,
 } from "@/lib/gobserva-cuenta";
 import { cn } from "@/lib/utils";
 import { usePerfilEmpleo } from "@/components/empleo-app/usePerfilEmpleo";
@@ -28,7 +28,7 @@ function Uso({ Icono, etiqueta, usado, tope }: { Icono: typeof Bell; etiqueta: s
           <Icono size={15} aria-hidden className="text-granate" /> {etiqueta}
         </span>
         <span className="tabular-nums text-inkSoft">
-          <b className="font-bold text-ink">{usado}</b> de {tope}
+          <b className="font-bold text-ink">{usado.toLocaleString("es-PE")}</b> de {tope.toLocaleString("es-PE")}
         </span>
       </p>
       <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-ink/10" role="progressbar" aria-valuenow={usado} aria-valuemin={0} aria-valuemax={tope} aria-label={etiqueta}>
@@ -106,6 +106,8 @@ export function CajaPlan({ producto, base, me, irA, angosta = false }: { product
   const lim = me.producto?.limites;
   const usados = me.producto?.usados ?? { alertas: 0, guardados: 0 };
   const cosas = COSAS[producto];
+  // Los créditos del MCP del mes (sólo con un plan que los trae).
+  const mcp = useSWR(plan && lim?.mcp ? ["gobserva-mcp", producto] : null, () => cargarUsoMcp(producto));
   return (
     <Caja
       id="plan"
@@ -171,6 +173,7 @@ export function CajaPlan({ producto, base, me, irA, angosta = false }: { product
           <div className={cn("min-w-0 space-y-4 border-t border-line pt-5", !angosta && "md:border-l md:border-t-0 md:pl-8 md:pt-0")}>
             <Uso Icono={Bell} etiqueta="Alertas" usado={usados.alertas} tope={lim.alertas} />
             <Uso Icono={Bookmark} etiqueta="Guardados" usado={usados.guardados} tope={lim.guardados} />
+            {mcp.data && mcp.data.creditos > 0 && <Uso Icono={Bot} etiqueta="Créditos del MCP este mes" usado={mcp.data.usados} tope={mcp.data.creditos} />}
             <ul className="space-y-2">
               <li className="flex items-start gap-2 text-meta leading-relaxed text-inkSoft">
                 <CalendarClock size={15} aria-hidden className="mt-0.5 shrink-0 text-granate" />
@@ -179,6 +182,12 @@ export function CajaPlan({ producto, base, me, irA, angosta = false }: { product
               <li className="flex items-start gap-2 text-meta leading-relaxed text-inkSoft">
                 <Download size={15} aria-hidden className="mt-0.5 shrink-0 text-granate" />
                 {lim.csv ? `Descargas en Excel hasta ${lim.filasCsv.toLocaleString("es-PE")} filas por búsqueda.` : "La descarga en Excel viene con un plan de pago."}
+              </li>
+              <li className="flex items-start gap-2 text-meta leading-relaxed text-inkSoft">
+                <Bot size={15} aria-hidden className="mt-0.5 shrink-0 text-granate" />
+                {lim.mcp
+                  ? `Tu MCP trae ${lim.mcp.toLocaleString("es-PE")} créditos al mes${mcp.data ? `, se renuevan el ${fechaLarga(mcp.data.renueva)}` : ""}: una búsqueda o una ficha usa 1, un análisis 3.`
+                  : "El MCP para preguntarle a tu IA viene con un plan de pago."}
               </li>
             </ul>
           </div>

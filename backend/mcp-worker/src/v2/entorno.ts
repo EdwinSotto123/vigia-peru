@@ -25,6 +25,13 @@ export interface EnvV2 extends Env {
   COGNITO_GOBSERVA?: string;
 }
 
+/** Créditos al mes, lo más que se gasta en un día y las filas que se pueden traer en un día. */
+export interface TopesMcp {
+  creditos: number;
+  topeDia: number;
+  topeFilasDia: number;
+}
+
 /** Lo que guarda la autorización (props cifradas por la librería) y lee cada herramienta. */
 export interface PropsCuenta {
   uid: string;
@@ -37,6 +44,8 @@ export interface PropsCuenta {
   crt?: string;
   /** Planes activos de Gobserva («licitaciones:pro», …); vacío = sin plan (desde 2026-11-08 no usa el MCP). */
   planes: string[];
+  /** Los créditos del MCP de sus planes y sus topes (los calcula la API: backend/api/src/lib/creditosMcp.ts). */
+  mcp?: TopesMcp;
   planesAl: number;
 }
 

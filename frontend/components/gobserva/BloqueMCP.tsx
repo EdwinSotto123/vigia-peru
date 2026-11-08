@@ -48,7 +48,7 @@ export function BloqueMCP({
           </p>
           <ol className="mt-6 space-y-4">
             <Paso n={1} titulo="Adquiere un plan">
-              Con cualquier plan de pago de {cuenta} se activa tu MCP.{" "}
+              Con cualquier plan de pago de {cuenta} se activa tu MCP, con créditos al mes según el plan.{" "}
               <a href={planes} className="font-semibold text-maiz underline underline-offset-2 hover:text-paper">
                 Ver los planes
               </a>

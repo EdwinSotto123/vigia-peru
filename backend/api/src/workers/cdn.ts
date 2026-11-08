@@ -94,8 +94,9 @@ const GUARDADO = "X-Vigia-Guardado";
  * "76": las compras sin repetidas (2026-11-03, migración 240): los conteos de la entidad traen `compras` (GET /compras).
  * "88": Empleo (2026-11-08): /empleo/calce trae por qué calza cada plaza (`motivo`), los puestos reales (`sugeridos`) y
  *       el orden «Más afines» que premia lo específico (las respuestas guardadas antes no los tenían).
+ * "89": los planes de Gobserva traen los créditos del MCP al mes (`limites.mcp`, 2026-11-08).
  */
-const VERSION_CACHE = "88";
+const VERSION_CACHE = "89";
 
 function cacheable(req: Request): boolean {
   if (req.method !== "GET") return false;

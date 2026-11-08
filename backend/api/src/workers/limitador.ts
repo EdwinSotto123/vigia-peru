@@ -16,6 +16,13 @@ import { DurableObject } from "cloudflare:workers";
 
 export type Paso = "ok" | "lleno" | "vetado";
 
+/** Lo usado del MCP: créditos del mes y del día, y filas del día. */
+export interface UsoMcp {
+  mes: number;
+  dia: number;
+  filas: number;
+}
+
 export class Limitador extends DurableObject {
   private marcas: number[] = [];
   /** Las marcas persistentes ya se leyeron del disco. */
@@ -55,6 +62,27 @@ export class Limitador extends DurableObject {
     if (this.vetadoHasta === undefined) this.vetadoHasta = (await this.ctx.storage.get<number>("vetadoHasta")) ?? 0;
     if (this.vetadoHasta > Date.now()) return "vetado";
     return (await this.contar(tope, ventanaMs)) ? "ok" : "lleno";
+  }
+
+  /**
+   * Los créditos del MCP de una cuenta (2026-11-08): lo gastado en el mes y en el día de Lima, y las filas que trajo hoy.
+   * Son sumas (no una marca por llamada: un plan Pro gasta miles al mes) guardadas en disco.
+   */
+  async creditos(mes: string, dia: string): Promise<UsoMcp> {
+    const v = await this.ctx.storage.get<number>([`c:${mes}`, `d:${dia}`, `f:${dia}`]);
+    return { mes: v.get(`c:${mes}`) ?? 0, dia: v.get(`d:${dia}`) ?? 0, filas: v.get(`f:${dia}`) ?? 0 };
+  }
+
+  /** Suma lo que gastó una llamada y devuelve lo usado. Al cambiar de día borra las cuentas del día anterior. */
+  async gastar(mes: string, dia: string, creditos: number, filas: number): Promise<UsoMcp> {
+    const uso = await this.creditos(mes, dia);
+    uso.mes += creditos;
+    uso.dia += creditos;
+    uso.filas += filas;
+    const anterior = await this.ctx.storage.get<string>("dia");
+    if (anterior && anterior !== dia) await this.ctx.storage.delete([`d:${anterior}`, `f:${anterior}`]);
+    await this.ctx.storage.put({ [`c:${mes}`]: uso.mes, [`d:${dia}`]: uso.dia, [`f:${dia}`]: uso.filas, dia });
+    return uso;
   }
 
   /** Veta la clave por `ms`. */

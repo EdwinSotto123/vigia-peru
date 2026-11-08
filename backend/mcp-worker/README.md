@@ -14,6 +14,15 @@ está el plan (AWS Cognito, `src/v2/cognito.ts`, `COGNITO_GOBSERVA` en `wrangler
 plegada, con la de Vigía (Firebase) si tiene un plan (cortesía por uid desde el panel: `POST /admin/gobserva/cortesia`
 con `uid`). initialize, tools/list, los recursos y los prompts siguen abiertos.
 
+**Créditos (2026-11-08):** cada plan trae créditos al mes (`limites.mcp` en backend/api/src/lib/gobservaPlanes.ts: Empleo
+Alertas 300, Institucional 5 000; Licitaciones Inicia 1 500, Crece 5 000, Pro 15 000) y cada llamada que sale bien descuenta
+lo que pesa su herramienta (`PESOS` en `src/v2/cupos.ts`: 0 lo de la cuenta y `mi_cupo`, 1 búsquedas y fichas, 3 análisis,
+10 `consultar_datos` y `documentos_zip`). Topes internos: la quinta parte del mes por día, filas por día (el doble de los
+créditos, al menos 2 000) y 60 llamadas por minuto. El contador es una suma por mes y por día en el Durable Object
+`Limitador` de vigia-api (`creditos`/`gastar`, clave `mcp2|u|<uid>|creditos`); la API manda los topes con los planes
+(`GET /gobserva/cuenta/planes` → `mcp`) y la cuenta muestra el uso (`GET /gobserva/cuenta/mcp`). Con el 10 % o menos, la
+respuesta trae un aviso de lo que queda.
+
 El MCP para conectar Vigía a claude.ai (conector personalizado), Claude Desktop, el celular, Cowork y Claude Code
 (`claude mcp add --transport http vigia https://mcp.gobserva.cloud/mcp`). En DEV: `https://vigia-mcp-dev.vigiaperu.workers.dev/mcp`
 (`bash infrastructure/deploy/dev.sh mcp`).

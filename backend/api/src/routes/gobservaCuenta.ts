@@ -22,6 +22,8 @@ import { embeberLinea, paraTi } from "../lib/afinidad.js";
 import { seguimiento } from "../lib/seguimiento.js";
 import type { IaWorkers } from "../lib/rag.js";
 import { ENDPOINT_PUSH, pushConfigurado } from "../lib/webpush.js";
+import { diaLima, mesLima, renuevaMcp, topesMcp, type TopesMcp } from "../lib/creditosMcp.js";
+import { ambitoPedido } from "../lib/plataforma.js";
 
 /**
  * La cuenta de Gobserva (2026-11-01): una persona de Firebase con su correo real, para los tres productos. Todo lo de
@@ -163,12 +165,33 @@ gobservaCuentaRouter.get("/me", async (c) => {
  * `planVigente`). Sin crear la cuenta ni exigir correo: lo pregunta el MCP de Gobserva para saber qué cupo le toca, y una
  * cuenta sin plan recibe la lista vacía.
  */
-gobservaCuentaRouter.get("/planes", async (c) => {
-  const u = c.get("user");
-  const vigentes = await Promise.all(PRODUCTOS_PAGO.map(async (producto) => ({ producto, v: await planVigente(u.uid, producto) })));
-  return c.json({
+/** Los créditos del MCP de una cuenta: los de sus planes vigentes, sumados (Obras sale del plan de Licitaciones: una vez). */
+async function topesDeCuenta(uid: string): Promise<{ planes: { producto: ProductoPago; plan: string; vigenteHasta: string | null }[]; mcp: TopesMcp }> {
+  const vigentes = await Promise.all(PRODUCTOS_PAGO.map(async (producto) => ({ producto, v: await planVigente(uid, producto) })));
+  const contados = new Set<string>();
+  let creditos = 0;
+  for (const { producto, v } of vigentes) {
+    if (!v || contados.has(v.codigo)) continue;
+    contados.add(v.codigo);
+    creditos += (await limitesDe(producto, v.plan)).mcp ?? 0;
+  }
+  return {
     planes: vigentes.flatMap(({ producto, v }) => (v ? [{ producto, plan: v.plan, vigenteHasta: v.vigenteHasta }] : [])),
-  });
+    mcp: topesMcp(creditos),
+  };
+}
+
+gobservaCuentaRouter.get("/planes", async (c) => {
+  return c.json(await topesDeCuenta(c.get("user").uid));
+});
+
+/** Lo usado del MCP este mes (la cuenta lo muestra): créditos del mes y de hoy, filas de hoy y cuándo se renuevan. */
+gobservaCuentaRouter.get("/mcp", async (c) => {
+  const u = c.get("user");
+  const { mcp } = await topesDeCuenta(u.uid);
+  const mes = mesLima();
+  const uso = await (ambitoPedido.getStore()?.limitador?.()?.usoMcp?.(u.uid, mes, diaLima()) ?? Promise.resolve(null)).catch(() => null);
+  return c.json({ ...mcp, mes, renueva: renuevaMcp(mes), usados: uso?.mes ?? 0, usadosHoy: uso?.dia ?? 0, filasHoy: uso?.filas ?? 0, medido: !!uso });
 });
 
 const Ruc = z.preprocess(vacio, z.string().regex(/^(10|15|17|20)\d{9}$/, "RUC de 11 dígitos").optional());

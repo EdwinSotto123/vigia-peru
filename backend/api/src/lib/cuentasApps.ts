@@ -83,7 +83,7 @@ export function revisarApp(
 ): { error: string; detail: string } | null {
   if (cuenta === null) {
     if (o.vigia === "todas") return null;
-    if (o.metodo === "GET" && /\/planes$/.test(o.ruta)) return null;
+    if (o.metodo === "GET" && /\/(planes|mcp)$/.test(o.ruta)) return null;
     return { error: "cuenta_vigia", detail: "Esa es una cuenta de Vigía. Cada app de Gobserva tiene su propia cuenta: créala o entra en esta app." };
   }
   if (pedida && pedida !== cuenta) {

@@ -42,6 +42,8 @@ test("revisarApp: cada cuenta en su app; la de Vigía sólo en la transición o 
   assert.match(revisarApp("empleo", "licitaciones", o)!.detail, /cuenta de Gobserva Empleo.*Gobserva Licitaciones tiene su propia cuenta/);
   assert.equal(revisarApp(null, "empleo", o)?.error, "cuenta_vigia");
   assert.equal(revisarApp(null, null, { ...o, ruta: "/gobserva/cuenta/planes" }), null);
+  // y su uso del MCP (mi_cupo).
+  assert.equal(revisarApp(null, null, { ...o, ruta: "/gobserva/cuenta/mcp" }), null);
   assert.equal(revisarApp(null, null, { ...o, metodo: "POST", ruta: "/gobserva/cuenta/planes" })?.error, "cuenta_vigia");
   assert.equal(revisarApp(null, "empleo", { ...o, vigia: "todas" }), null);
 });

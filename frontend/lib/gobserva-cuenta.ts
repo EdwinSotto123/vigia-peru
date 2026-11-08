@@ -18,6 +18,21 @@ export interface Limites {
   csv: boolean;
   filasCsv: number;
   recordatorios: boolean;
+  /** Créditos del MCP al mes (0 o sin dato: sin MCP). */
+  mcp?: number;
+}
+
+/** Lo usado del MCP este mes (GET /gobserva/cuenta/mcp). */
+export interface UsoMcp {
+  creditos: number;
+  topeDia: number;
+  topeFilasDia: number;
+  mes: string;
+  /** El día en que se renuevan («2026-12-01»). */
+  renueva: string;
+  usados: number;
+  usadosHoy: number;
+  filasHoy: number;
 }
 
 export interface PlanCatalogo {
@@ -225,6 +240,7 @@ export const cancelarPlan = (codigo: string, motivo?: string) =>
 export const cargarCobros = () => api<{ data: Cobro[] }>("/cobros");
 export const cargarRecibo = (numero: string) => api<Recibo>(`/cobros/${encodeURIComponent(numero)}`);
 
+export const cargarUsoMcp = (producto: Producto) => api<UsoMcp>(`/mcp?producto=${producto}`);
 export const cargarAlertas = (producto: Producto) => api<{ data: Alerta[] }>(`/alertas?producto=${producto}`);
 export const crearAlerta = (b: { producto: Producto; nombre: string; filtros: Alerta["filtros"]; frecuencia: Frecuencia }) =>
   api<{ ok: true; id: number }>("/alertas", { method: "POST", ...cuerpo(b) });

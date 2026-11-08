@@ -200,13 +200,13 @@ async function autorizar(request: Request, env: EnvV2): Promise<Response> {
     } catch {
       return paginaError("No pudimos verificar tu sesión de Gobserva.");
     }
-    const planes = await planesDe(env, idToken);
+    const { planes, mcp } = await planesDe(env, idToken);
     if (!planes.length) return paginaSinPlan(grupo?.app ?? null);
     const elegidos = form.getAll("scope").map(String).filter((s) => SCOPES.includes(s));
     const aprobado = await oauth.approveConsent(request, handle, { scope: elegidos.length ? elegidos : ["datos"] });
     const props: PropsCuenta = grupo
-      ? { uid, app: grupo.app, crt: refresco || undefined, planes, planesAl: Date.now() }
-      : { uid, nombre, frt: refresco || undefined, planes, planesAl: Date.now() };
+      ? { uid, app: grupo.app, crt: refresco || undefined, planes, mcp: mcp ?? undefined, planesAl: Date.now() }
+      : { uid, nombre, frt: refresco || undefined, planes, mcp: mcp ?? undefined, planesAl: Date.now() };
     const { redirectTo } = await oauth.completeAuthorization({
       request: aprobado.request,
       userId: uid,
@@ -277,10 +277,12 @@ export function proveedorOAuth(env: EnvV2, conCuenta: Manejador): OAuthProvider<
         let nuevas: PropsCuenta;
         if (actual.app) {
           // Cognito no rota el token de refresco: queda el mismo.
-          nuevas = { ...actual, planes: await planesDe(e as EnvV2, await idTokenDe(e as EnvV2, actual)), planesAl: Date.now() };
+          const c = await planesDe(e as EnvV2, await idTokenDe(e as EnvV2, actual));
+          nuevas = { ...actual, planes: c.planes, mcp: c.mcp ?? undefined, planesAl: Date.now() };
         } else {
           const { idToken, frt } = await renovarIdToken(e as EnvV2, actual.frt!);
-          nuevas = { ...actual, frt, planes: await planesDe(e as EnvV2, idToken), planesAl: Date.now() };
+          const c = await planesDe(e as EnvV2, idToken);
+          nuevas = { ...actual, frt, planes: c.planes, mcp: c.mcp ?? undefined, planesAl: Date.now() };
         }
         return { newProps: nuevas, accessTokenProps: nuevas };
       } catch (err) {
