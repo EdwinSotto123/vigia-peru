@@ -95,6 +95,28 @@ export function condicionesBandeja(q: QBandeja, palabras: string[], sin?: "tipo"
   return { conds, vals };
 }
 
+/** Hasta cuántas palabras cuenta el calce del onboarding: las 10 del perfil (MAX_PALABRAS del front) y 6 sugeridas. */
+export const MAX_FRASES_CALCE = 16;
+
+/**
+ * El calce del onboarding (GET /licitaciones/bandeja/calce): las abiertas con los filtros del perfil (tipos, regiones,
+ * montos) leídas UNA vez con su texto (`t`), y por cada palabra su condición sobre ese texto (una frase pide todas sus
+ * palabras). `alguna`: calza con cualquiera de las `delPerfil` primeras (las elegidas, como ordena «Para ti»); las demás
+ * (sugeridas, aún sin elegir) sólo se cuentan. Sin palabras del perfil, nada calza.
+ */
+export function sqlCalce(q: QBandeja, frases: string[][], delPerfil = frases.length) {
+  const { conds, vals } = condicionesBandeja(q, []);
+  const poner = (v: unknown) => {
+    vals.push(v);
+    return `$${vals.length}`;
+  };
+  const porFrase = frases.slice(0, MAX_FRASES_CALCE).map((ws) => (ws.length ? ws.map((w) => `b.t LIKE ${poner(`%${w}%`)}`).join(" AND ") : "false"));
+  const elegidas = porFrase.slice(0, delPerfil);
+  const alguna = elegidas.length ? elegidas.map((x) => `(${x})`).join(" OR ") : "false";
+  const base = `SELECT c.ocid, ${TEXTO_BANDEJA} AS t FROM convocatorias c LEFT JOIN entidades e ON e.ruc = c.entidad_ruc WHERE ${conds.join(" AND ")}`;
+  return { base, porFrase, alguna, vals };
+}
+
 /** El orden: siempre con desempate, para que una página no repita ni salte filas. */
 export function ordenBandeja(o: QBandeja["orden"]): string {
   const desempate = `c.fecha_convocatoria DESC, c.ocid DESC`;

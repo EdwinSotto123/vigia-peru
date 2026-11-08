@@ -1,9 +1,9 @@
 import { FILTROS_POR_DEFECTO, aParams, normalizar, type TipoProceso } from "./filtros.ts";
 
 /**
- * El onboarding de la app (al estilo de LicitaLAB): cuatro pasos para que la cuenta sepa qué vende la empresa, dónde, qué
- * contratos le interesan y cómo avisarle. Aquí, lo puro: sugerir palabras clave desde lo que escribió, validar cada paso
- * y convertir el perfil en una línea de negocio («Para ti»), una búsqueda de la bandeja y una alerta.
+ * El perfil de la empresa que arma el onboarding (la entrevista de entrevista.ts): qué vende, dónde, qué contratos le
+ * interesan y cómo avisarle. Aquí, lo puro: sugerir palabras clave desde lo que escribió y convertir el perfil en una
+ * línea de negocio («Para ti»), una búsqueda de la bandeja y una alerta.
  */
 
 export interface PerfilEmpresa {
@@ -21,9 +21,6 @@ export interface PerfilEmpresa {
 }
 
 export const PERFIL_VACIO: PerfilEmpresa = { nombre: "", descripcion: "", palabras: [], regiones: [], tipos: [], min: null, max: null, alerta: true, frecuencia: "semanal" };
-
-export const PASOS = ["empresa", "lugar", "contratos", "avisos"] as const;
-export type Paso = (typeof PASOS)[number];
 
 export const MAX_PALABRAS = 10;
 
@@ -57,19 +54,6 @@ export function agregarPalabras(actuales: string[], texto: string): string[] {
     r.push(w);
   }
   return r;
-}
-
-/** Qué falta en un paso (null: se puede seguir). */
-export function validarPaso(paso: Paso, p: PerfilEmpresa): string | null {
-  if (paso === "empresa") {
-    if (p.nombre.trim().length < 2) return "Ponle un nombre corto a lo que vendes (por ejemplo, «Útiles de oficina»).";
-    if (p.descripcion.trim().length < 10) return "Cuéntanos qué vendes en una frase: con eso ordenamos las oportunidades.";
-    if (p.palabras.length === 0) return "Agrega al menos una palabra clave (las sugeridas se agregan con un clic).";
-  }
-  if (paso === "contratos") {
-    if (p.min != null && p.max != null && p.min > p.max) return "El «desde» no puede ser mayor que el «hasta».";
-  }
-  return null;
 }
 
 /** El perfil como búsqueda de la bandeja (lo que se guarda en «Mis búsquedas»): tipos, regiones y montos. */

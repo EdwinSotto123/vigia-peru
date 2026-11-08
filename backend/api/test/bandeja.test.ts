@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { condicionesBandeja, leerBandeja, ordenBandeja } from "../src/lib/bandeja.js";
+import { condicionesBandeja, leerBandeja, ordenBandeja, sqlCalce } from "../src/lib/bandeja.js";
 
 // La bandeja de la app (GET /licitaciones/bandeja): los filtros de la URL de la app, validados y en SQL.
 
@@ -42,4 +42,17 @@ test("filtrosBandejaAlerta: con `bandeja`, listas y plazo; sin la marca, null", 
   assert.equal(f.cons, "7d");
   assert.equal(f.max, 100000);
   assert.equal(filtrosBandejaAlerta({ q: "toner" }), null);
+});
+
+test("sqlCalce: los filtros del perfil una vez, cada palabra sobre el texto leído y «alguna» con OR", () => {
+  const q = leerBandeja({ tipo: "bienes", region: "15", max: "100000" })!;
+  const s = sqlCalce(q, [["TONER"], ["PAPEL", "BOND"], []]);
+  assert.ok(s.base.includes("AS t FROM convocatorias c"));
+  assert.ok(!s.base.includes("LIKE"));
+  assert.deepEqual(s.porFrase, ["b.t LIKE $5", "b.t LIKE $6 AND b.t LIKE $7", "false"]);
+  assert.equal(s.alguna, "(b.t LIKE $5) OR (b.t LIKE $6 AND b.t LIKE $7) OR (false)");
+  assert.deepEqual(s.vals, [30, ["bienes"], ["15"], 100000, "%TONER%", "%PAPEL%", "%BOND%"]);
+  assert.equal(sqlCalce(q, []).alguna, "false");
+  // Las sugeridas (después de las del perfil) se cuentan pero no entran en «alguna».
+  assert.equal(sqlCalce(q, [["TONER"], ["CARTUCHOS"]], 1).alguna, "(b.t LIKE $5)");
 });

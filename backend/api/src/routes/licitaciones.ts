@@ -6,7 +6,7 @@ import { cachePublico, parametros } from "../lib/http.js";
 import { publicar } from "../lib/privacidad.js";
 import { busquedaOece, procesoOece } from "../lib/fuentes.js";
 import { palabrasBusqueda } from "./personas.js";
-import { PROC_BANDEJA, condicionesBandeja, leerBandeja, ordenBandeja, FIN_CONSULTAS as FIN_BANDEJA, HOY_TEXTO as HOY_BANDEJA, type QBandeja } from "../lib/bandeja.js";
+import { MAX_FRASES_CALCE, PROC_BANDEJA, condicionesBandeja, leerBandeja, ordenBandeja, sqlCalce, FIN_CONSULTAS as FIN_BANDEJA, HOY_TEXTO as HOY_BANDEJA, type QBandeja } from "../lib/bandeja.js";
 
 /**
  * licitaciones.gobserva.cloud (Gobserva Licitaciones, 2026-11-01): las convocatorias del SEACE para quien le vende al
@@ -288,6 +288,50 @@ licitacionesRouter.get("/bandeja", async (c) => {
       resumen: r,
       data,
       facetas: { tipo: porTipo.rows, region: porRegion.rows, proc: porProc.rows },
+    });
+  });
+  c.header("Cache-Control", CACHE);
+  return c.json(cuerpo);
+});
+
+// ─── GET /licitaciones/bandeja/calce ─────────────────────────────────────────
+/**
+ * El onboarding de la app (2026-11-07, la entrevista): con las palabras clave del perfil (`palabras`, separadas por «|»)
+ * y sus filtros (tipo, region, min, max, como la bandeja), cuántas abiertas calzan con cada palabra, cuántas con alguna
+ * y las tres que cierran consultas primero. `otras` (las sugeridas aún sin elegir) sólo se cuentan, una por una. UNA consulta por respuesta (antes, una por palabra: el límite por IP saltaba
+ * a mitad de la entrevista).
+ */
+licitacionesRouter.get("/bandeja/calce", async (c) => {
+  const p = parametros(c) as Record<string, string | undefined>;
+  const q = leerBandeja({ tipo: p.tipo, region: p.region, min: p.min, max: p.max });
+  if (!q) return c.json({ error: "invalid_query" }, 400);
+  const separar = (t: string | undefined) => (t ?? "").split("|").map((x) => x.trim().slice(0, 40)).filter(Boolean);
+  const elegidas = [...new Set(separar(p.palabras))].slice(0, 10);
+  const otras = [...new Set(separar(p.otras))].filter((w) => !elegidas.includes(w)).slice(0, MAX_FRASES_CALCE - elegidas.length);
+  const todas = [...elegidas, ...otras];
+  const cuerpo = await memo.obtener(`calce:${JSON.stringify([q, elegidas, otras])}`, async () => {
+    if (!todas.length) return { total: 0, porPalabra: [], vistazo: [] };
+    const { base, porFrase, alguna, vals } = sqlCalce(q, todas.map((w) => palabrasBusqueda(w)), elegidas.length);
+    const [conteo, vistazo] = await Promise.all([
+      pool.query(
+        `WITH b AS MATERIALIZED (${base})
+         SELECT count(*) FILTER (WHERE ${alguna})::int AS total, ${porFrase.map((x, i) => `count(*) FILTER (WHERE ${x})::int AS f${i}`).join(", ")} FROM b`,
+        vals,
+      ),
+      elegidas.length
+        ? pool.query(
+            `WITH b AS MATERIALIZED (${base})
+             SELECT ${COLS_OPORTUNIDAD} FROM b JOIN convocatorias c ON c.ocid = b.ocid LEFT JOIN entidades e ON e.ruc = c.entidad_ruc
+              WHERE ${alguna} ORDER BY ${ordenBandeja("vence")} LIMIT 3`,
+            vals,
+          )
+        : Promise.resolve({ rows: [] }),
+    ]);
+    const r = conteo.rows[0] ?? {};
+    return publicar({
+      total: r.total ?? 0,
+      porPalabra: todas.map((palabra, i) => ({ palabra, n: r[`f${i}`] ?? 0 })),
+      vistazo: vistazo.rows,
     });
   });
   c.header("Cache-Control", CACHE);
