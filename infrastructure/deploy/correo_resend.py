@@ -107,6 +107,7 @@ def secreto_worker(nombre: str, valor: str) -> None:
 
 def main() -> None:
     sys.stdout.reconfigure(encoding="utf-8")
+    sys.stderr.reconfigure(encoding="utf-8")
     llave = secreto("RESEND_API_KEY")
     if not llave:
         sys.exit("Falta RESEND_API_KEY en ~/.simplia/secretos.env (créala en https://resend.com/api-keys, «Full access»).")
