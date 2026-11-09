@@ -188,3 +188,9 @@ test("un «no corresponde» leyendo sólo la resolución con texto: antes de des
   assert.deepEqual(pedidos, ["texto"]);
   assert.equal(r2.lectura.corresponde, false);
 });
+
+test("el texto de toMarkdown va a su PDF por nombre aunque vuelva en otro orden", async () => {
+  const al_reves = { toMarkdown: async (docs: { name: string }[]) => docs.map((d, i) => ({ name: d.name, format: "markdown", data: i === 0 ? "uno" : "dos" })).reverse() };
+  const t = await textoDePdfs({ AI: al_reves } as never, [{ titulo: "A", bytes: new Uint8Array([1]) }, { titulo: "B", bytes: new Uint8Array([2]) }]);
+  assert.deepEqual(t.map((x) => x.texto), ["uno", "dos"]);
+});

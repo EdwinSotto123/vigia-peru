@@ -809,8 +809,11 @@ export async function textoDePdfs(env: EnvLlm, pdfs: { titulo: string; bytes: Ui
   try {
     const r = await env.AI.toMarkdown(pdfs.map((d, i) => ({ name: `documento-${i + 1}.pdf`, blob: new Blob([d.bytes as Uint8Array<ArrayBuffer>], { type: "application/pdf" }) })));
     const lista = Array.isArray(r) ? r : [r];
+    // Por nombre (documento-N.pdf), no por posición: si vuelven en otro orden, el texto de la resolución quedaba pegado
+    // a las bases escaneadas y éstas nunca se miraban como imagen.
+    const porNombre = new Map(lista.map((x) => [(x as { name?: string }).name ?? "", x]));
     return pdfs.map((d, i) => {
-      const x = lista[i];
+      const x = porNombre.get(`documento-${i + 1}.pdf`) ?? lista[i];
       const texto = x && x.format !== "error" && typeof x.data === "string" ? x.data : "";
       return { titulo: d.titulo, texto: contenidoMarkdown(texto) };
     });
@@ -972,7 +975,7 @@ export async function leerBases(
       const leida = { lectura: r.lectura, entrada: r.entrada, salida: r.salida, modelo: r.quien };
       if (r.lectura.corresponde && !lecturaVacia(r.lectura)) return leida;
       if (!r.lectura.corresponde) {
-        if (!escaneados.length) return leida;
+        if (!pdfs.some((d) => jpegsDePdf(d.bytes, 1).length)) return leida;
         negativo = leida;
       }
       // GLM respondió pero sin nada que mostrar (algo de texto suelto en un escaneo): se lee como escaneo.
@@ -980,8 +983,9 @@ export async function leerBases(
       fallo = e as Error;
     }
   }
-  // Escaneo: las páginas JPEG de cada PDF (después de un «no», sólo de los escaneados), en orden, hasta 24.
-  const paginas = (negativo ? escaneados : pdfs).flatMap((d) => jpegsDePdf(d.bytes)).slice(0, MAX_PAGINAS_IMAGEN);
+  // Escaneo: las páginas JPEG de cada PDF (después de un «no», primero las de los escaneados), en orden, hasta 24.
+  const orden = negativo ? [...escaneados, ...pdfs.filter((d) => !escaneados.includes(d))] : pdfs;
+  const paginas = orden.flatMap((d) => jpegsDePdf(d.bytes)).slice(0, MAX_PAGINAS_IMAGEN);
   if (paginas.length) {
     try {
       const r = await leerBasesImagenes(env, p, paginas);
