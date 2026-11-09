@@ -359,6 +359,68 @@ Tablas: `gobserva_planes_cliente` (plan vigente: `producto = 'empleo'`, `estado`
 
 ---
 
+## 10b. Estado al 2026-11-09: los sitios que ya leemos
+
+El recolector (`lib/empleoRecolector.ts`, cron de la madrugada y `POST /admin/empleo/recolectar`) prueba primero el
+adaptador del sitio (`lib/empleoAdaptadores.ts` y `lib/adaptadores/*.ts`, 85 dominios) y, si no, el buscador genérico.
+Baja hasta 3 PDF por plaza (25 MB cada uno, 35 MB por plaza), los copia a R2 y los lee GLM 5.3 flash: el texto, o las
+páginas escaneadas como imágenes (también JPEG guardados con Flate). Haiku sólo de respaldo y con tope.
+
+**Con adaptador probado** (bases de la plaza correcta, sin listas de resultados):
+
+- **Ola 1:** el Poder Judicial; MINJUS; MINEDU (postulacioncas y www); SUNAFIL; JUNTOS; MINSA; INS; INABIF; PromPerú;
+  DIRESA Callao; las Redes de Salud Cusco Sur y Tacna; UNICA; UNAH; las UGEL 03, 06, 07 y Santa; la DRE Cajamarca; y los
+  Gobiernos Regionales de Cajamarca (dos aplicativos), Piura y Amazonas. gob.pe va por su búsqueda pública
+  (`busquedas.json`).
+- **Ola 2, salud:** INEN; los Hospitales Regionales de Ayacucho (TLS vencido, por el relay) y Hermilio Valdizán; la Red de
+  Salud Huamanga; los Hospitales Demarini, Daniel A. Carrión de Huancayo, de Ventanilla y Dos de Mayo; la Red de Salud
+  Otuzco; la Red Huaylas Norte; y la DIRESA Huánuco (por su API).
+- **Ola 2, educación:** UNAS; DRE Áncash; UGEL 02; UGEL Tacna (Drive); UGEL 04 (por IP); UNHEVAL; y el Colegio Militar
+  Bolognesi (Blogger: la convocatoria es una imagen).
+- **Ola 2, nacionales:** INPE; Indecopi; SMV; PGE (el PDF viene dentro del visor); ATU; COFOPRI; SUTRAN; Osinergmin;
+  MINEM (Laserfiche); SENAMHI; MINAM.
+- **Ola 2, especiales:**
+  - carpetas y archivos de Google Drive (`embeddedfolderview`) y los enlaces `share.google`;
+  - la OECE (descarga por POST: `…#post`);
+  - el MIDIS y Provías Nacional, detectados por el nombre de la entidad;
+  - Agua Cañete, DRTC Ayacucho, Municipalidad de La Perla y Municipalidad de Pachitea.
+- **Por el relay de Lima** (no responden a Cloudflare o tienen el TLS roto): Poder Judicial, MINJUS, INS, INABIF, SUNAFIL,
+  Gobierno Regional de Piura, OECE, COFOPRI, HR Ayacucho, INPE, MIDIS, PGE y MINEM.
+
+**Entidades sin enlace o sólo con Facebook:** `lib/empleoEnlaces.ts` dice dónde publican 29 de ellas, probadas una por
+una. Por ejemplo Cuna Más, UNTELS, SENACE, la JNJ, Migraciones, La Molina y varias UGEL y municipalidades en gob.pe. Para
+hallar el slug de gob.pe de una institución: `busquedas.json?contenido[]=instituciones&term=<nombre>`, y su «Trabaja con
+nosotros» lleva a su portal.
+
+**Falta (por valor):**
+
+1. **Ministerio Público** (`portal.mpfn.gob.pe`, unas 180 plazas): tiene un captcha de Radware. No se salta.
+2. **DRELM:** un desafío de Cloudflare, también desde el Perú.
+3. **MTPE:** API JSON pública; el PDF llega en base64.
+4. **PRODUCE:** el PDF sólo sale de un postback ASP.NET con la fila elegida.
+5. **SERNANP y PRONIED:** listas por POST.
+6. **Cuna Más:** los procesos viejos salen por un POST paginado.
+7. **Sin nada en línea:** unas 27 entidades que sólo usan Facebook o tienen la web caída. Ejemplos: UE 412 Salud Virú,
+   la RIS Santiago de Chuco y la GSR Castrovirreyna.
+8. **Sitios que el lector no confirma:** Demarini (la suplencia de SERVIR no calza con la web) y la carpeta de Drive de
+   Cutervo (la plaza es un centro de salud que no sale en las primeras 24 páginas).
+9. **Red de Salud Chepén y UGEL Casma:** no publican estos procesos en su web.
+
+**Plazas de prueba de la ola 2** (desde Cloudflare, el 2026-11-09):
+
+| Plaza | Entidad | Lo que se obtuvo |
+|---|---|---|
+| 825059 | INPE | bases, cómo postular y 10 etapas |
+| 824710 | OECE | bases y perfil por POST, cómo postular y 8 etapas |
+| 824338 | MIDIS | bases, cómo postular y 8 etapas |
+| 825137 | Provías | bases, cómo postular y 12 etapas |
+| 820232 | PGE | bases, cómo postular y 7 etapas |
+| 825315 | MINEM | bases, cómo postular y 11 etapas |
+| 824601 | UNHEVAL | escaneo de 18 páginas leído como imágenes, con 11 etapas |
+| 824378 | COFOPRI | bases y cronograma |
+
+---
+
 ## 11. Fuentes consultadas
 
 - SERVIR, Talento Perú: `app.servir.gob.pe/DifusionOfertasExterno/faces/consultas/` (los cuatro listados, abiertos desde
