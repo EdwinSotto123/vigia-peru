@@ -122,7 +122,7 @@ test("todo junto: si el modelo dice que no son de esta plaza, no se muestran", a
     fetch: async () =>
       new Response(JSON.stringify({ content: [{ type: "tool_use", name: "bases", input: { corresponde: false, funciones: [], requisitos_extra: [], cronograma: [], evaluacion: [], documentos: [], condiciones: [], ojo: [] } }], usage: { input_tokens: 9, output_tokens: 3 } })),
   };
-  const r = await procesarBases({ LLM: llm, LLM_TOKEN: "t" }, { ...plaza, datosServir: "Puesto: x" }, { puedeLeer: true, pedir: pedirFalso, bajar: async () => PDF });
+  const r = await procesarBases({ LLM: llm, LLM_TOKEN: "t" }, { ...plaza, datosServir: "Puesto: x" }, { puedeLeer: true, puedeHaiku: true, pedir: pedirFalso, bajar: async () => PDF });
   assert.equal(r.estado, "no_encontradas");
   assert.deepEqual(r.documentos, []);
 });
@@ -138,7 +138,7 @@ test("todo junto: la lectura válida queda con los documentos leídos", async ()
         usage: { input_tokens: 44135, output_tokens: 2381 },
       })),
   };
-  const r = await procesarBases({ LLM: llm, LLM_TOKEN: "t" }, { ...plaza, datosServir: "Puesto: x" }, { puedeLeer: true, pedir: pedirFalso, bajar: async () => PDF });
+  const r = await procesarBases({ LLM: llm, LLM_TOKEN: "t" }, { ...plaza, datosServir: "Puesto: x" }, { puedeLeer: true, puedeHaiku: true, pedir: pedirFalso, bajar: async () => PDF });
   assert.equal(r.estado, "encontradas");
   assert.equal(r.documentos[0].leido, true);
   assert.equal(r.lectura?.como_postular?.detalle, "Por MINEDU en línea, hasta las 23:59");
@@ -221,7 +221,7 @@ test("si el modelo dice que el primero no es de la plaza, se lee la alternativa"
   const r = await procesarBases(
     { LLM: llm, LLM_TOKEN: "t" },
     { ...plazaPj("728-003", "PODER JUDICIAL", "PUNO - PUNO"), datosServir: "Puesto: x" },
-    { puedeLeer: true, pedir: pedirPj, bajar: async () => PDF },
+    { puedeLeer: true, puedeHaiku: true, pedir: pedirPj, bajar: async () => PDF },
   );
   assert.equal(llamadas, 2);
   assert.equal(r.estado, "encontradas");

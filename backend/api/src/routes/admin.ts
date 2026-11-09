@@ -54,6 +54,7 @@ import { adminFuentesRouter } from "./admin_fuentes.js";
 import { adminEquipoRouter } from "./admin_equipo.js";
 import { adminPrivacidadRouter } from "./admin_privacidad.js";
 import { adminGobservaRouter } from "./admin_gobserva.js";
+import { adminEmpleoRouter } from "./admin_empleo.js";
 import { adminChatRouter } from "./admin_chat.js";
 import { adminRagRouter, iaDe } from "./admin_rag.js";
 import { indexarRag } from "../lib/rag.js";
@@ -95,6 +96,7 @@ adminRouter.route("/", adminEquipoRouter);
 adminRouter.route("/", adminPrivacidadRouter);
 // Gobserva: clientes, cobros, configuración de los planes y tareas de las alertas (admin_gobserva.ts, migración 230).
 adminRouter.route("/", adminGobservaRouter);
+adminRouter.route("/", adminEmpleoRouter);
 // RAG de documentos: POST /rag/indexar y GET /rag/estado (admin_rag.ts, migración 258).
 adminRouter.route("/", adminRagRouter);
 

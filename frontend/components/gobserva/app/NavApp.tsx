@@ -5,7 +5,7 @@ import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import useSWR from "swr";
 import {
-  ArrowUpRight, Bell, BellPlus, Bot, BriefcaseBusiness, CalendarDays, Inbox, LifeBuoy, ChartNoAxesColumn, ChevronsUpDown, CreditCard, HardHat, House, KanbanSquare, Loader2, LogOut, Menu,
+  ArrowUpRight, Bell, BellPlus, Bot, BriefcaseBusiness, CalendarDays, Inbox, LifeBuoy, ChartNoAxesColumn, ChevronsUpDown, CreditCard, GraduationCap, HardHat, House, KanbanSquare, Loader2, LogOut, Menu,
   Sparkles, Timer, UserRound, X,
 } from "lucide-react";
 import { CORREO_GOBSERVA, rutaEn, urlCanonica, type Producto } from "@/lib/gobserva";
@@ -78,6 +78,8 @@ const APP: Partial<Record<Producto, { grupos: GrupoApp[]; cuenta: ItemApp[] }>> 
         items: [
           { ruta: "/cuenta", etiqueta: "Inicio", Icono: House, abajo: true },
           { ruta: "/app/plazas", etiqueta: "Plazas", Icono: BriefcaseBusiness, abajo: true, tambien: ["/app/plaza/", "/app/para-ti"] },
+          // Las prácticas de Talento Perú (2026-11-08): para estudiantes y egresados; en el celular, dentro de «Más».
+          { ruta: "/app/practicas", etiqueta: "Prácticas", Icono: GraduationCap, tambien: ["/app/practica/"] },
           { ruta: "/app/asistente", etiqueta: "Asistente", Icono: Bot, abajo: true },
         ],
       },

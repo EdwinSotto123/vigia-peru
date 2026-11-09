@@ -6,7 +6,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
-import { CRON_DATOS, CRON_DIARIO, CRON_DOCUMENTOS, fuentesDelCron } from "../src/calendario.ts";
+import { CRON_DATOS, CRON_DIARIO, CRON_DOCUMENTOS, CRON_PRACTICAS, fuentesDelCron } from "../src/calendario.ts";
 import { CortadorCsv, decodificarCp1252 } from "../src/csv.ts";
 import { comoPython } from "../src/fuentes/pnda_dji.ts";
 import { desescaparHtml, desescaparUrl, recursosDeDatos } from "../src/pnda.ts";
@@ -48,6 +48,7 @@ test("cp1252 con errors='replace' igual que Python en los 256 bytes", () => {
 test("calendario: mismas agendas que Cloud Scheduler (hora de Lima)", () => {
   const en = (iso: string) => Date.parse(iso);
   assert.deepEqual(fuentesDelCron(CRON_DIARIO, en("2026-10-14T11:00:00Z")), ["oece_ocds"]);
+  assert.deepEqual(fuentesDelCron(CRON_PRACTICAS, en("2026-11-09T14:00:00Z")), ["servir_practicas"]);  // las prácticas, a diario 09:00
   assert.deepEqual(fuentesDelCron(CRON_DATOS, en("2026-10-14T13:00:00Z")), ["onpe_claridad", "onpe_gastos", "servir_convocatorias"]);  // miércoles 14
   assert.deepEqual(fuentesDelCron(CRON_DATOS, en("2026-10-13T13:00:00Z")), ["mef_opds_etes", "sunat_padron", "servir_convocatorias"]);  // martes 13 (migraciones 152 y 224)
   assert.deepEqual(fuentesDelCron(CRON_DATOS, en("2026-10-19T13:00:00Z")), ["mef_presupuesto", "servir_convocatorias"]);     // lunes 19

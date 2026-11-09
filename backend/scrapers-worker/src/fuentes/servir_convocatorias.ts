@@ -141,17 +141,20 @@ export function viewState(h: string): string | null {
   return m ? m[1] : null;
 }
 
-/** `campos()`: los campos del formulario (texto, ocultos y selects), sin los botones. */
-export function campos(h: string): Record<string, string> {
+/**
+ * `campos()`: los campos del formulario (texto, ocultos y selects), sin los botones. `form` es el formulario de la
+ * fuente: `frmLstOfertsLabo` en las ofertas laborales y `frmLstModFormativas` en las prácticas.
+ */
+export function campos(h: string, form: string = FORM): Record<string, string> {
   const f: Record<string, string> = {};
   for (const m of h.matchAll(/<input\b[^>]*>/g)) {
     const etiqueta = m[0];
     const n = /name="([^"]+)"/.exec(etiqueta);
-    if (!n || !n[1].startsWith(FORM) || /type="(submit|button)"/.test(etiqueta)) continue;
+    if (!n || !n[1].startsWith(form) || /type="(submit|button)"/.test(etiqueta)) continue;
     const v = /value="([^"]*)"/.exec(etiqueta);
     f[n[1]] = v ? desescapar(v[1]) : "";
   }
-  for (const m of h.matchAll(new RegExp(`<select\\b[^>]*name="(${FORM}[^"]*)"`, "g"))) if (!Object.hasOwn(f, m[1])) f[m[1]] = "";
+  for (const m of h.matchAll(new RegExp(`<select\\b[^>]*name="(${form}[^"]*)"`, "g"))) if (!Object.hasOwn(f, m[1])) f[m[1]] = "";
   return f;
 }
 
@@ -159,17 +162,17 @@ export function campos(h: string): Record<string, string> {
 export type Boton = "primero" | "atras" | "siguiente" | "ultimo";
 const TEXTO_BOTON: Record<Boton, string> = { primero: "Primero", atras: "Atras", siguiente: "Sig\\.", ultimo: ".ltimo" };
 
-export function boton(h: string, b: Boton): string | null {
-  const m = new RegExp(`<button id="(${FORM}:j_idt\\d+)"(?:(?!</button>).)*?>${TEXTO_BOTON[b]}</span>`, "s").exec(h);
+export function boton(h: string, b: Boton, form: string = FORM): string | null {
+  const m = new RegExp(`<button id="(${form}:j_idt\\d+)"(?:(?!</button>).)*?>${TEXTO_BOTON[b]}</span>`, "s").exec(h);
   return m ? m[1] : null;
 }
 
 /** `boton_siguiente()`. */
-export const botonSiguiente = (h: string) => boton(h, "siguiente");
+export const botonSiguiente = (h: string, form: string = FORM) => boton(h, "siguiente", form);
 
 /** `botones_ver_mas()`: los «¡Ver más!» de la página, en orden. */
-export function botonesVerMas(h: string): string[] {
-  return [...h.matchAll(new RegExp(`<button id="(${FORM}:idPnlRepeatPuestos:\\d+:j_idt\\d+)"[^>]*title="[^"]*Ver m`, "g"))].map((m) => m[1]);
+export function botonesVerMas(h: string, form: string = FORM): string[] {
+  return [...h.matchAll(new RegExp(`<button id="(${form}:idPnlRepeatPuestos:\\d+:j_idt\\d+)"[^>]*title="[^"]*Ver m`, "g"))].map((m) => m[1]);
 }
 
 /** `pagina_de()`: «Página 3 de 330» → [3, 330]. */
@@ -366,26 +369,63 @@ export interface Listado {
   botones: Partial<Record<Boton, string>>;
   /** «3299 puesto(s) encontrado(s) en total.»: sólo lo trae el GET. */
   puestos: number | null;
+  /** La página tal como llegó: cada fuente la vuelve a leer con su propio parser (las prácticas, por ejemplo). */
+  html: string;
 }
 
 /** Una página del listado (la de un GET o la armada con paginaParcial); null si no es el listado. */
-export function parsearListado(h: string): Listado | null {
+export function parsearListado(h: string, form: string = FORM): Listado | null {
   const pg = paginaDe(h);
   const vista = viewState(h);
-  if (!pg || !vista || !h.includes(`id="${FORM}"`)) return null;
+  if (!pg || !vista || !h.includes(`id="${form}"`)) return null;
   const botones: Partial<Record<Boton, string>> = {};
   for (const b of ["primero", "atras", "siguiente", "ultimo"] as Boton[]) {
-    const id = boton(h, b);
+    const id = boton(h, b, form);
     if (id) botones[b] = id;
   }
   const puestos = /(\d+) puesto\(s\) encontrado\(s\)/.exec(h);
   return {
-    pagina: pg[0], paginas: pg[1], vista, campos: campos(h), verMas: botonesVerMas(h), ubicaciones: ubicacionesDelListado(h),
+    pagina: pg[0], paginas: pg[1], vista, campos: campos(h, form), verMas: botonesVerMas(h, form), ubicaciones: ubicacionesDelListado(h),
     titulos: [...h.matchAll(/titulo-vacante[^>]*><label>(.*?)<\/label>/gs)].map((m) => limpio(m[1])), botones,
     huellas: filasDelListado(h).map(huellaFila),
-    puestos: puestos ? Number(puestos[1]) : null,
+    puestos: puestos ? Number(puestos[1]) : null, html: h,
   };
 }
+
+/**
+ * Lo que cambia de una fuente JSF a otra (las ofertas laborales y las prácticas comparten motor): el formulario, la
+ * dirección, la marca del detalle y sus parsers. `FUENTE_CAS` es la de siempre; `servir_practicas.ts` trae la suya.
+ */
+export interface ConfigJsf<T> {
+  form: string;
+  url: string;
+  origen: string;
+  /** Un fragmento de la URL final del detalle («detalle_ofertas_laborales»). */
+  marcaUrl: string;
+  /** Un fragmento del HTML del detalle («frmDetaOferLabo»). */
+  marcaHtml: string;
+  /** El parser del listado; por defecto, `parsearListado` con el `form` de esta fuente. */
+  parsearListado?: (h: string) => Listado | null;
+  parsearDetalle: (h: string) => T | null;
+  /** El título que el listado tiene en la fila del botón (para comprobar que el detalle es el de esa fila). */
+  tituloListado: (l: Listado, fila: number) => string | null;
+  /** El título del detalle. */
+  tituloDetalle: (d: T) => string;
+  /** Ajusta el detalle con lo que sólo trae el listado (la ubicación, por ejemplo). */
+  completar?: (d: T, l: Listado, k: number) => void;
+}
+
+/** La fuente de las ofertas laborales (CAS) de Talento Perú. */
+export const FUENTE_CAS: ConfigJsf<Plaza> = {
+  form: FORM, url: URL_SERVIR, origen: ORIGEN, marcaUrl: "detalle_ofertas_laborales", marcaHtml: "frmDetaOferLabo",
+  parsearListado: (h) => parsearListado(h, FORM),
+  parsearDetalle,
+  tituloListado: (l, fila) => l.titulos[fila] ?? null,
+  tituloDetalle: (d) => d.titulo,
+  completar: (d, l, k) => {
+    if (!d.ubicacion && k < l.ubicaciones.length) d.ubicacion = l.ubicaciones[k];
+  },
+};
 
 /**
  * Qué botón acerca más a la página `n` desde la `m` (de `y`), entre los que trae la página: Sig. o Atras de a una, o
@@ -474,7 +514,7 @@ export interface OpcionesSesion {
  * Una sesión con SERVIR: las cookies (JSESSIONID y las de Imperva) y la última página del listado. Todo lo que hace falta
  * para seguir en otro paso son las cookies (`cookies`) y el número de página.
  */
-export class SesionServir {
+export class SesionServir<T = Plaza> {
   cookies: Record<string, string>;
   listado: Listado | null = null;
   pedidos = 0;
@@ -486,12 +526,14 @@ export class SesionServir {
   private readonly pedir: Transporte;
   private readonly pausaMs: number;
   private readonly limite: number;
+  private readonly fuente: ConfigJsf<T>;
 
-  constructor(pedir: Transporte, cookies: Record<string, string> = {}, op: OpcionesSesion = {}) {
+  constructor(pedir: Transporte, cookies: Record<string, string> = {}, op: OpcionesSesion & { fuente?: ConfigJsf<T> } = {}) {
     this.pedir = pedir;
     this.cookies = { ...cookies };
     this.pausaMs = op.pausaMs ?? PAUSA_MS;
     this.limite = Date.now() + (op.limiteMs ?? LIMITE_TANDA_MS);
+    this.fuente = op.fuente ?? (FUENTE_CAS as unknown as ConfigJsf<T>);
   }
 
   private async pedido(metodo: "GET" | "POST", cuerpo?: string, ajax = false): Promise<RespuestaServir> {
@@ -504,10 +546,10 @@ export class SesionServir {
     };
     const galletas = Object.entries(this.cookies).map(([k, v]) => `${k}=${v}`).join("; ");
     if (galletas) cabeceras.Cookie = galletas;
-    if (metodo === "POST") Object.assign(cabeceras, { "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8", Origin: ORIGEN, Referer: URL_SERVIR });
+    if (metodo === "POST") Object.assign(cabeceras, { "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8", Origin: this.fuente.origen, Referer: this.fuente.url });
     if (ajax) Object.assign(cabeceras, { "Faces-Request": "partial/ajax", "X-Requested-With": "XMLHttpRequest" });
     // «Sig.» y los demás botones del paginador mueven la página de la sesión: no se repiten a ciegas (irA comprueba).
-    const r = await this.pedir({ url: URL_SERVIR, metodo, cabeceras, ...(cuerpo === undefined ? {} : { cuerpo }), ...(ajax ? { sinReintentos: true } : {}) });
+    const r = await this.pedir({ url: this.fuente.url, metodo, cabeceras, ...(cuerpo === undefined ? {} : { cuerpo }), ...(ajax ? { sinReintentos: true } : {}) });
     Object.assign(this.cookies, r.cookies);
     return r;
   }
@@ -515,7 +557,8 @@ export class SesionServir {
   /** GET del listado: la página donde va la sesión en el servidor (la 1 si es nueva o venció), con un ViewState nuevo. */
   async abrir(): Promise<Listado> {
     const r = await this.pedido("GET");
-    const l = r.status === 200 ? parsearListado(r.texto) : null;
+    const parser = this.fuente.parsearListado ?? ((h: string) => parsearListado(h, this.fuente.form));
+    const l = r.status === 200 ? parser(r.texto) : null;
     if (!l) {
       throw new Error(`SERVIR no devolvió el listado (${r.status === null ? "el relay de Lima no llegó" : `HTTP ${r.status}`}): ${resumirTexto(r.texto)}`);
     }
@@ -528,12 +571,14 @@ export class SesionServir {
     const l = this.listado!;
     const id = l.botones[b];
     if (!id) return null;
+    const form = this.fuente.form;
     const r = await this.pedido("POST", formulario({
       "javax.faces.partial.ajax": "true", "javax.faces.source": id, "javax.faces.partial.execute": "@all",
-      "javax.faces.partial.render": `${FORM}:mensaje ${FORM}`, [id]: id, [FORM]: FORM, ...l.campos, "javax.faces.ViewState": l.vista,
+      "javax.faces.partial.render": `${form}:mensaje ${form}`, [id]: id, [form]: form, ...l.campos, "javax.faces.ViewState": l.vista,
     }), true);
     if (r.status !== 200) throw new Error(`«${b}» de SERVIR: ${r.status === null ? "el relay de Lima no llegó" : `HTTP ${r.status}`}`);
-    return parsearListado(paginaParcial(r.texto, l.vista));
+    const parser = this.fuente.parsearListado ?? ((h: string) => parsearListado(h, form));
+    return parser(paginaParcial(r.texto, l.vista));
   }
 
   /**
@@ -571,7 +616,7 @@ export class SesionServir {
    * Python, se salta; tres seguidas cortan: es que SERVIR o el relay no responden). Si no llega al detalle (ViewState o
    * sesión vencidos) o llega el de otra fila, se reabre la sesión, se vuelve a la página y se pide otra vez.
    */
-  async plaza(k: number): Promise<Plaza | null> {
+  async plaza(k: number): Promise<T | null> {
     let cortes = 0;
     let reaperturas = 0;
     for (;;) {
@@ -580,7 +625,7 @@ export class SesionServir {
       let r: RespuestaServir | null = null;
       let problema = "";
       try {
-        r = await this.pedido("POST", formulario({ [FORM]: FORM, ...l.campos, [l.verMas[k]]: "", "javax.faces.ViewState": l.vista }));
+        r = await this.pedido("POST", formulario({ [this.fuente.form]: this.fuente.form, ...l.campos, [l.verMas[k]]: "", "javax.faces.ViewState": l.vista }));
       } catch (e) {
         if (e instanceof TiempoAgotado) throw e;
         problema = String((e as Error)?.message ?? e);
@@ -597,17 +642,18 @@ export class SesionServir {
         registrar("WARNING", `   SERVIR, plaza ${k + 1} de la página ${l.pagina}: ${problema.slice(0, 160)}; se salta`, { fuente: FUENTE });
         return null;
       }
-      if (r && r.url.includes("detalle_ofertas_laborales") && r.texto.includes("frmDetaOferLabo")) {
+      if (r && r.url.includes(this.fuente.marcaUrl) && r.texto.includes(this.fuente.marcaHtml)) {
         this.fallidas = 0;
-        const d = parsearDetalle(r.texto);
+        const d = this.fuente.parsearDetalle(r.texto);
         if (!d) return null;
-        if (!d.ubicacion && k < l.ubicaciones.length) d.ubicacion = l.ubicaciones[k];
+        this.fuente.completar?.(d, l, k);
         // La fila del botón (idPnlRepeatPuestos:<fila>:…): el título de esa fila tiene que ser el del detalle.
         const fila = Number(/:idPnlRepeatPuestos:(\d+):/.exec(l.verMas[k])?.[1] ?? k);
-        const esperado = l.titulos[fila];
-        if (!esperado || mismoTitulo(esperado, d.titulo)) return d;
+        const esperado = this.fuente.tituloListado(l, fila);
+        const titulo = this.fuente.tituloDetalle(d);
+        if (!esperado || mismoTitulo(esperado, titulo)) return d;
         if (reaperturas > 0) {
-          registrar("WARNING", `   SERVIR, página ${l.pagina} fila ${fila + 1}: el listado dice «${esperado.slice(0, 80)}» y el detalle «${d.titulo.slice(0, 80)}»; se guarda el detalle`, { fuente: FUENTE });
+          registrar("WARNING", `   SERVIR, página ${l.pagina} fila ${fila + 1}: el listado dice «${esperado.slice(0, 80)}» y el detalle «${titulo.slice(0, 80)}»; se guarda el detalle`, { fuente: FUENTE });
           return d;
         }
       }

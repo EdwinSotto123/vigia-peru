@@ -11,7 +11,7 @@
   "placement": { "region": "aws:us-east-2" },
   // Asignación de aportes cada 10 min y las tareas de Gobserva a las 7:00 de Lima (src/worker.ts → scheduled); el
   // Scheduler de GCP quedó pausado.
-  "triggers": { "crons": ["*/10 * * * *", "0 12 * * *"] },
+  "triggers": { "crons": ["*/10 * * * *", "0 12 * * *", "*/20 5-10 * * *"] },
 
   // Postgres detrás de Hyperdrive (reparte en modo transacción, como PgBouncer). Crear ambos con
   // el caché de consultas apagado (CLOUDFLARE.md). Local: CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_<BINDING>.

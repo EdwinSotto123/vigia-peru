@@ -81,6 +81,8 @@ export const CATALOGO: FuenteCatalogo[] = [
     que: "Proyectos de inversión por CUI (DETALLE e CIERRE_INVERSIONES del MEF); después refrescar_obras()." },
   { fuente: "servir_convocatorias", nombre: "Plazas CAS (SERVIR)", donde: "lima", agenda: "Diario, 08:00 (~20 min; jueves completa, ~1,5 h)", cadaDias: 3,
     que: "Convocatorias CAS con requisitos y sueldo. Cada día sólo abre las plazas nuevas o cambiadas; el jueves, todas. SERVIR responde 403 fuera del Perú: sale por el relay de Lima." },
+  { fuente: "servir_practicas", nombre: "Prácticas (SERVIR)", donde: "lima", agenda: "Diario, 09:00 (~3 min)", cadaDias: 3,
+    que: "Prácticas preprofesionales y profesionales de Talento Perú (modalidades formativas): subvención, duración, requisitos, cronograma y el correo institucional por el que se postula. Sale por el relay de Lima." },
   { fuente: "portal_visitas_nacional", nombre: "Visitas: plataforma nacional (PCM)", donde: "pc", agenda: "Mensual, a mano", cadaDias: 35,
     que: "Visitas de todas las entidades. Tu Chrome con el Turnstile del portal (backend/scrapers-pc/visitas_pcm) y carga por túnel." },
   { fuente: "sunat_padron", nombre: "Padrón reducido de SUNAT (empresas)", donde: "cloudflare", agenda: "Martes, 08:00", cadaDias: 7,

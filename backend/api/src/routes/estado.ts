@@ -57,6 +57,8 @@ const FUENTES: Fuente[] = [
     hasta: `SELECT to_char(max(fecha_emision), 'YYYY-MM-DD') AS v FROM informes_control WHERE fecha_emision <= current_date` },
   { clave: "plazas", nombre: "Plazas CAS", que: "Convocatorias CAS (SERVIR Talento Perú).", cada: 3, cadencia: "Diaria", corridas: ["servir_convocatorias"],
     hasta: `SELECT to_char(max(ultima_vez), 'YYYY-MM-DD') AS v FROM servir_convocatoria` },
+  { clave: "practicas", nombre: "Prácticas", que: "Prácticas preprofesionales y profesionales (SERVIR Talento Perú).", cada: 3, cadencia: "Diaria", corridas: ["servir_practicas"],
+    hasta: `SELECT to_char(max(ultima_vez), 'YYYY-MM-DD') AS v FROM servir_practica` },
   { clave: "obras", nombre: "Obras e inversiones", que: "Obras (INFOBRAS) y proyectos de inversión (Invierte.pe).", cada: 10, cadencia: "Semanal", corridas: ["invierte_pe", "infobras"],
     // El día del archivo del MEF con que se escribió cada inversión (no `cargado_at`, que sólo cambia con un CUI nuevo).
     hasta: `SELECT to_char(max(dataset_fecha), 'YYYY-MM-DD') AS v FROM inversion_mef` },

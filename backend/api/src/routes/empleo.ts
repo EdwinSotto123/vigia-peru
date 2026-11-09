@@ -8,6 +8,7 @@ import { palabrasBusqueda } from "./personas.js";
 import { PARTES_FORMACION, SUGERIDOS_SQL, clavePuesto, condicionesCalce, leerCarreras, puestoDeTitulo } from "../lib/calceEmpleo.js";
 import { huellaPlaza, resumirPlaza, textoPlaza, type PlazaParaResumen } from "../lib/resumenPlaza.js";
 import { procesarBases, relayDe, type ResultadoBases } from "../lib/basesPlaza.js";
+import { TOPE_HAIKU_DIA, TOPE_LECTURAS_DIA, guardarBases, guardarError, haikuHoy, leidasHoy } from "../lib/empleoRecolector.js";
 import { limiteLectura } from "../lib/antibots.js";
 import { registrar } from "../lib/registro.js";
 
@@ -400,9 +401,6 @@ empleoRouter.get("/plazas/:aviso/resumen", limiteLectura, async (c) => {
 
 // ─── GET /empleo/plazas/:aviso/bases ─────────────────────────────────────────────────────────────
 
-/** Lecturas de bases por día como mucho (cada una ~USD 0,006; las muy largas, hasta ~0,08). */
-const TOPE_LECTURAS_DIA = 300;
-
 /**
  * Las bases de la plaza, buscadas en la web de la entidad y leídas por Haiku (lib/basesPlaza.ts, columnas `bases*` de
  * servir_resumen). Lo guardado vale: con lectura, siempre; encontradas sin lectura, 6 horas; no encontradas, 3 días;
@@ -447,18 +445,16 @@ empleoRouter.get("/plazas/:aviso/bases", limiteLectura, async (c) => {
   let tarea = buscandoBases.get(aviso);
   if (!tarea) {
     tarea = (async () => {
-      const leidas = (await pool.query<{ n: number }>(
-        `SELECT count(*)::int AS n FROM servir_resumen WHERE bases_at > now() - interval '1 day' AND bases->>'leida_at' IS NOT NULL`)).rows[0]?.n ?? 0;
+      const [leidas, haiku] = await Promise.all([leidasHoy(), haikuHoy()]);
       const r = await procesarBases(c.env as Parameters<typeof procesarBases>[0], { ...fila, datosServir: textoPlaza(fila) }, {
         puedeLeer: leidas < TOPE_LECTURAS_DIA,
+        // Las escaneadas: Haiku, si alguien abrió la ficha y queda tope del día.
+        puedeHaiku: haiku < TOPE_HAIKU_DIA,
         relay: relayDe(c.env as Parameters<typeof relayDe>[0]),
       });
-      const { tokens, ...guardar } = r;
-      if (tokens) registrar("INFO", `[empleo] bases de la plaza ${aviso}: ${r.estado}, ${tokens.entrada} tokens de entrada y ${tokens.salida} de salida`);
-      await pool.query(
-        `INSERT INTO servir_resumen (aviso, huella, modelo, bases, bases_estado, bases_at) VALUES ($1, '', 'claude-haiku-5-5', $2::jsonb, $3, now())
-         ON CONFLICT (aviso) DO UPDATE SET bases = EXCLUDED.bases, bases_estado = EXCLUDED.bases_estado, bases_at = now()`,
-        [aviso, JSON.stringify(guardar), r.estado]);
+      if (r.tokens) registrar("INFO", `[empleo] bases de la plaza ${aviso}: ${r.estado} (${r.modelo ?? "sin modelo"}), ${r.tokens.entrada} tokens de entrada y ${r.tokens.salida} de salida`);
+      // servir_resumen y, además, la fuente, los documentos y los eventos (lib/empleoRecolector.ts, migración 271).
+      await guardarBases(fila, r);
       return r;
     })().finally(() => buscandoBases.delete(aviso));
     buscandoBases.set(aviso, tarea);
@@ -469,12 +465,80 @@ empleoRouter.get("/plazas/:aviso/bases", limiteLectura, async (c) => {
     return responder(r.estado, r, new Date().toISOString());
   } catch (e) {
     registrar("WARNING", `[empleo] sin bases de la plaza ${aviso}: ${(e as Error).message.slice(0, 120)}`);
-    await pool.query(
-      `INSERT INTO servir_resumen (aviso, huella, modelo, bases_estado, bases_at) VALUES ($1, '', 'claude-haiku-5-5', 'error', now())
-       ON CONFLICT (aviso) DO UPDATE SET bases_estado = 'error', bases_at = now()`, [aviso]).catch(() => undefined);
+    await guardarError(fila, (e as Error).message).catch(() => undefined);
     c.header("Cache-Control", "no-store");
     return c.json({ error: "sin_bases", detail: "No pudimos buscar las bases ahora." }, 503);
   }
+});
+
+// ─── GET /empleo/practicas y /empleo/practicas/:id (migración 271) ───────────────────────────────
+/**
+ * Las prácticas preprofesionales y profesionales de Talento Perú (servir_practica, src/fuentes/servir_practicas.ts del
+ * Worker de scrapers): la lista con filtros (texto, región, modalidad) y la ficha. El id es corto y estable: los 16
+ * primeros hex del md5 de la clave (entidad + número + año + título + unidad). La subvención menor a S/ 300 es un error de
+ * tipeo de la entidad (se publicó «S/ 001.00»): sale como sin dato.
+ */
+const MODALIDADES_PRACTICA = ["practica_pre", "practica_pro"] as const;
+const ListaPracticas = z.object({
+  q: z.string().trim().min(2).max(80).optional(),
+  region: z.string().regex(/^[a-z-]{3,30}$/).optional(),
+  modalidad: z.enum(MODALIDADES_PRACTICA).optional(),
+  page: z.coerce.number().int().min(1).max(200).default(1),
+  size: z.coerce.number().int().min(1).max(50).default(20),
+});
+const REGION_PRACTICA = `NULLIF(mef_norm(split_part(p.ubicacion, ' - ', 1)), '')`;
+const FILA_PRACTICA = `left(md5(p.clave), 16) AS id, p.titulo, p.entidad, p.modalidad, p.tipo_modalidad AS "tipoModalidad", p.ubicacion,
+  ${REGION_PRACTICA} AS region, p.numero, p.vacantes, CASE WHEN p.subvencion >= 300 THEN p.subvencion::float END AS subvencion,
+  p.duracion_meses AS "duracionMeses", p.jornada_horas::float AS "jornadaHoras", to_char(p.fecha_inicio, 'YYYY-MM-DD') AS "fechaInicio",
+  to_char(p.fecha_fin, 'YYYY-MM-DD') AS "fechaFin", p.unidad_organica AS "unidadOrganica", p.requerimientos`;
+const PRACTICA_ABIERTA = `p.fecha_fin >= ${HOY}`;
+
+empleoRouter.get("/practicas", async (c) => {
+  const p = ListaPracticas.safeParse(Object.fromEntries(Object.entries(parametros(c)).filter(([, v]) => v !== "" && v != null)));
+  if (!p.success) return c.json({ error: "invalid_query", issues: p.error.issues }, 400);
+  const f = p.data;
+  const cuerpo = await memo.obtener(`practicas:${JSON.stringify(f)}`, async () => {
+    const vals: unknown[] = [];
+    const poner = (v: unknown) => {
+      vals.push(v);
+      return `$${vals.length}`;
+    };
+    const texto = f.q
+      ? `mef_norm(concat_ws(' ', p.titulo, p.entidad, p.unidad_organica, p.requerimientos::text)) LIKE '%' || mef_norm(${poner(f.q)}) || '%'`
+      : "true";
+    const region = f.region ? `p.reg = mef_norm(replace(${poner(f.region)}, '-', ' '))` : "true";
+    const modalidad = f.modalidad ? `p.modalidad = ${poner(f.modalidad)}` : "true";
+    const r = await pool.query(
+      `WITH base AS MATERIALIZED (SELECT p.*, ${REGION_PRACTICA} AS reg FROM servir_practica p WHERE ${PRACTICA_ABIERTA} AND ${texto}),
+            pagina AS (
+              SELECT ${FILA_PRACTICA}, count(*) OVER () AS total FROM base p
+               WHERE ${region} AND ${modalidad}
+               ORDER BY p.fecha_fin, p.subvencion DESC NULLS LAST, p.clave
+               LIMIT ${poner(f.size)} OFFSET ${poner((f.page - 1) * f.size)})
+       SELECT COALESCE((SELECT json_agg(x) FROM pagina x), '[]') AS data,
+              COALESCE((SELECT max(total) FROM pagina), 0)::int AS total,
+              COALESCE((SELECT json_agg(m ORDER BY m.n DESC) FROM (SELECT p.modalidad AS clave, count(*)::int AS n FROM base p WHERE ${region} GROUP BY 1) m), '[]') AS "porModalidad",
+              COALESCE((SELECT json_agg(g ORDER BY g.n DESC, g.clave) FROM (SELECT p.reg AS clave, count(*)::int AS n FROM base p WHERE ${modalidad} AND p.reg IS NOT NULL GROUP BY 1) g), '[]') AS "porRegion",
+              (SELECT to_char(max(ultima_vez) AT TIME ZONE 'America/Lima', 'YYYY-MM-DD"T"HH24:MI') FROM servir_practica) AS actualizado`,
+      vals,
+    );
+    const fila = r.rows[0] as { data: Record<string, unknown>[]; total: number };
+    return publicar({ ...fila, data: fila.data.map(({ total: _t, ...x }) => x), page: f.page, size: f.size });
+  });
+  c.header("Cache-Control", CACHE);
+  return c.json(cuerpo);
+});
+
+empleoRouter.get("/practicas/:id", async (c) => {
+  const id = c.req.param("id");
+  if (!/^[0-9a-f]{16}$/.test(id)) return c.json({ error: "no_encontrado" }, 404);
+  const r = await pool.query(
+    `SELECT ${FILA_PRACTICA}, p.direccion, p.actividades, p.conocimientos, p.beneficios, p.cronograma, p.correo, p.web,
+            p.detalle_url AS "detalleUrl", (${PRACTICA_ABIERTA}) AS abierta
+       FROM servir_practica p WHERE left(md5(p.clave), 16) = $1`, [id]);
+  if (!r.rows[0]) return c.json({ error: "no_encontrado" }, 404);
+  c.header("Cache-Control", CACHE);
+  return c.json(publicar(r.rows[0]));
 });
 
 // ─── GET /empleo/bases/:clave: la copia que guardamos del PDF (R2) ───────────────────────────────

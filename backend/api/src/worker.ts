@@ -21,6 +21,8 @@ export { ChatInforme } from "./workers/chatInforme.js";
 
 /** El cron diario de Gobserva (wrangler.jsonc). */
 const CRON_GOBSERVA = "0 12 * * *";
+/** El recolector de bases de empleo, de madrugada (00:00 a 05:40 de Lima; routes/admin_empleo.ts). */
+const CRON_EMPLEO = "*/20 5-10 * * *";
 
 export default {
   fetch(request, env, ctx) {
@@ -35,13 +37,15 @@ export default {
   // Reemplaza al Cloud Scheduler `vigia-financiamiento-asignar` (pausado desde 2026-09-27): mismo
   // POST /admin/asignar, por dentro, con el mismo token de servicio.
   // Todos los días a las 12:00 UTC (7:00 en Lima): las tareas de Gobserva (alertas, recordatorios y vencimientos).
+  // De madrugada (CRON_EMPLEO): el recolector de bases de las plazas CAS.
   async scheduled(evento, env, ctx) {
     const gobserva = evento.cron === CRON_GOBSERVA;
-    const pedido = new Request(`https://vigia-api.interno/admin/${gobserva ? "gobserva/tareas" : "asignar"}`, {
+    const ruta = evento.cron === CRON_EMPLEO ? "empleo/noche" : gobserva ? "gobserva/tareas" : "asignar";
+    const pedido = new Request(`https://vigia-api.interno/admin/${ruta}`, {
       method: "POST",
       headers: { "x-admin-token": env.ADMIN_TOKEN ?? "", "x-admin-actor": "cron-cloudflare" },
     });
     const r = await atenderConAmbito(env, ctx, () => app.fetch(pedido, env, ctx));
-    console.log(JSON.stringify({ severity: r.ok ? "INFO" : "ERROR", message: `[cron] ${gobserva ? "gobserva" : "asignar"} → HTTP ${r.status}`, cuerpo: (await r.text()).slice(0, 300) }));
+    console.log(JSON.stringify({ severity: r.ok ? "INFO" : "ERROR", message: `[cron] ${ruta} → HTTP ${r.status}`, cuerpo: (await r.text()).slice(0, 300) }));
   },
 } satisfies ExportedHandler<Env>;

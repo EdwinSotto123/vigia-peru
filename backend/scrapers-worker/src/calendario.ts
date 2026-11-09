@@ -37,6 +37,11 @@
  *                      de las plazas nuevas o cambiadas); los jueves, la lectura completa (~1,5 h: ~1,7 s por plaza, medido
  *                      en PROD el 31-oct). Respaldo: backend/scripts/cargar_servir_convocatorias.py.
  *
+ *   servir_practicas   TODOS LOS DÍAS 09:00 (desde el 2026-11-08) → cron "0 14 * * *": las prácticas preprofesionales y
+ *                      profesionales de Talento Perú (`modalidades_formativas`, migración 271), enteras (~10 páginas,
+ *                      ~110 pedidos). Cron propio, una hora después de las plazas CAS, para no pedirle a SERVIR el doble a
+ *                      la vez por el mismo relay.
+ *
  *   infobras           jueves 08:00: las obras de INFOBRAS (Contraloría), por el relay de Lima (522 fuera del Perú). No el
  *                      viernes de invierte_pe (las dos terminan en refrescar_obras) ni el miércoles (la cadena de cruces de
  *                      onpe_gastos rehace también las banderas de obras). Respaldo: backend/scripts/cargar_obras.py.
@@ -66,6 +71,8 @@ export const CRON_DOCUMENTOS = "40 * * * *";
 // minuto 40) ni con los otros de las 06:00/08:00. Semanal: los menores nuevos son pocos. OJO: en los crons de Cloudflare el
 // día de la semana va de 1 (domingo) a 7, así que "2" es LUNES 05:00 Lima (10:00 UTC): corrió el lunes 2026-10-26.
 export const CRON_MENORES = "0 10 * * 2";
+// Las prácticas de SERVIR: 09:00 Lima, después de las plazas CAS de las 08:00 (mismo relay, mismo sitio).
+export const CRON_PRACTICAS = "0 14 * * *";
 
 /** Fuentes que corren en `cron` (expresión de wrangler.jsonc) en el instante `ms`. */
 export function fuentesDelCron(cron: string, ms: number): string[] {
@@ -73,6 +80,7 @@ export function fuentesDelCron(cron: string, ms: number): string[] {
   // Cada hora también las contrataciones menores abiertas (seace_cotizaciones): sus ventanas duran horas.
   if (cron === CRON_DOCUMENTOS) return new Date(ms - 5 * 3600 * 1000).getUTCHours() === 12 ? ["documentos", "salud_lima", "seace_cotizaciones"] : ["documentos", "seace_cotizaciones"];
   if (cron === CRON_MENORES) return ["seace_menores"];
+  if (cron === CRON_PRACTICAS) return ["servir_practicas"];
   if (cron !== CRON_DATOS) return [];
   const lima = new Date(ms - 5 * 3600 * 1000);
   const dia = lima.getUTCDate();

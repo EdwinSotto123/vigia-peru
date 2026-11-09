@@ -7,9 +7,12 @@
  *   1. buscarBases: abre esa página y busca el enlace de ESTE proceso por su número (el final de `numero`: «…-108» es el
  *      «CAS N° 108-2026»). Si el enlace es un documento, ése es; si es una página (la del proceso), la abre y toma sus
  *      documentos. En gob.pe recorre las hojas de la colección (?sheet=2…). Como mucho 9 pedidos.
- *   2. leerBases: Haiku 5.5 (vigia-llm, /nativo) lee los PDF y responde con una herramienta forzada: si los documentos son
- *      de esta plaza (`corresponde`), qué hará, el cronograma, cómo evalúan, qué presentar, cómo se postula y qué deja fuera
- *      a la gente. Las bases traen a veces varias plazas: lee sólo la de este puesto y lo común. Nunca escribe nombres.
+ *   2. leerBases (2026-11-08, el usuario: «para las lecturas usa GLM 5.3 flash de Workers AI»): el texto de los PDF sale
+ *      de Workers AI (`AI.toMarkdown`, gratis) y lo lee GLM 5.3 flash (vigia-llm, /v1/chat/completions; ~265 neuronas,
+ *      ~USD 0,003 unas bases de 14 páginas) con una herramienta forzada: si los documentos son de esta plaza
+ *      (`corresponde`), qué hará, el cronograma, cómo evalúan, qué presentar, cómo se postula y qué deja fuera a la gente.
+ *      Las bases escaneadas (sin texto) las lee Haiku 5.5 (vigia-llm, /nativo, el PDF como documento), con su tope diario.
+ *      Las bases traen a veces varias plazas: lee sólo la de este puesto y lo común. Nunca escribe nombres.
  *
  * Cubre gob.pe y los sitios que enlazan sus documentos en el HTML (el Poder Judicial, el Ministerio Público o la DRELM
  * bloquean a Cloudflare, y otros son aplicaciones con formulario: ahí queda «no encontradas» y el enlace de siempre).
@@ -18,6 +21,7 @@ import { createHash } from "node:crypto";
 import { z } from "zod";
 import { MODELO_ASISTENTE } from "./asistente.js";
 import { lista, texto } from "./resumenPlaza.js";
+import { soloEnlace } from "./empleoFuentes.js";
 
 export interface PlazaParaBases {
   aviso: number;
@@ -539,10 +543,28 @@ const HERRAMIENTA = {
   },
 } as const;
 
+/** Lo que devuelve `AI.toMarkdown` por documento (la forma nueva trae `format`; la vieja, sólo `data`). */
+interface Conversion {
+  name?: string;
+  format?: string;
+  data?: string;
+  error?: string;
+}
+
 interface EnvLlm {
   LLM?: { fetch(input: Request | string, init?: RequestInit): Promise<Response> };
   LLM_TOKEN?: string;
+  /** Workers AI: el texto de los PDF (`toMarkdown`). */
+  AI?: { toMarkdown(docs: { name: string; blob: Blob }[]): Promise<Conversion[] | Conversion> };
 }
+
+/** El modelo que lee las bases con texto (Workers AI, por vigia-llm). */
+export const MODELO_BASES = "@cf/zai-org/glm-5.3-flash";
+export const NOMBRE_MODELO_BASES = "glm-5.3-flash";
+/** Menos texto que esto en todos los PDF: son escaneos (imágenes), sin texto que leer. */
+export const MIN_TEXTO = 600;
+/** Lo que se le pasa al modelo como mucho (~25 mil tokens). */
+export const MAX_TEXTO = 90_000;
 
 /** Base64 de bytes (en trozos: String.fromCharCode con 10 MB de argumentos revienta la pila). */
 export function aBase64(b: Uint8Array): string {
@@ -553,8 +575,101 @@ export function aBase64(b: Uint8Array): string {
 
 const sinPunto = (t: string) => t.replace(/\s*·\s*/g, ", ");
 
-/** Lee los PDF con Haiku. Devuelve la lectura y los tokens usados. Tira "sin_modelo", "modelo_<status>" o "sin_lectura". */
-export async function leerBases(
+/** La lectura validada y sin «·» (lo que devuelvan Haiku o GLM). */
+export function limpiarLectura(entrada: unknown): LecturaBasesT {
+  const l = LecturaBases.parse(entrada);
+  return {
+    ...l,
+    funciones: l.funciones.map(sinPunto),
+    requisitos_extra: l.requisitos_extra.map(sinPunto),
+    cronograma: l.cronograma.map((x) => ({ etapa: sinPunto(x.etapa), fecha: sinPunto(x.fecha), ...(x.postulas ? { postulas: true } : {}) })),
+    evaluacion: l.evaluacion.map((x) => ({ etapa: sinPunto(x.etapa), como: sinPunto(x.como) })),
+    documentos: l.documentos.map(sinPunto),
+    como_postular: l.como_postular ? { ...l.como_postular, detalle: sinPunto(l.como_postular.detalle) } : null,
+    condiciones: l.condiciones.map(sinPunto),
+    ojo: l.ojo.map(sinPunto),
+  };
+}
+
+/** El texto de cada PDF por Workers AI (`toMarkdown`). Vacío si no hay binding o el PDF es un escaneo. */
+export async function textoDePdfs(env: EnvLlm, pdfs: { titulo: string; bytes: Uint8Array }[]): Promise<{ titulo: string; texto: string }[]> {
+  if (!env.AI || !pdfs.length) return pdfs.map((d) => ({ titulo: d.titulo, texto: "" }));
+  try {
+    const r = await env.AI.toMarkdown(pdfs.map((d, i) => ({ name: `documento-${i + 1}.pdf`, blob: new Blob([d.bytes as Uint8Array<ArrayBuffer>], { type: "application/pdf" }) })));
+    const lista = Array.isArray(r) ? r : [r];
+    return pdfs.map((d, i) => {
+      const x = lista[i];
+      const texto = x && x.format !== "error" && typeof x.data === "string" ? x.data : "";
+      return { titulo: d.titulo, texto: texto.replace(/[ \t]+\n/g, "\n").replace(/\n{3,}/g, "\n\n").trim() };
+    });
+  } catch {
+    return pdfs.map((d) => ({ titulo: d.titulo, texto: "" }));
+  }
+}
+
+/** Los argumentos de la herramienta en una respuesta de chat/completions (o un JSON suelto en el texto, si no la usó). */
+export function argumentosHerramienta(j: unknown): unknown {
+  const m = (j as { choices?: { message?: { content?: unknown; tool_calls?: { function?: { name?: string; arguments?: unknown } }[] } }[] })?.choices?.[0]?.message;
+  const llamada = (m?.tool_calls ?? []).find((t) => t.function?.name === "bases") ?? m?.tool_calls?.[0];
+  const args = llamada?.function?.arguments;
+  if (args && typeof args === "object") return args;
+  const crudo = typeof args === "string" ? args : typeof m?.content === "string" ? m.content : "";
+  const i = crudo.indexOf("{");
+  const k = crudo.lastIndexOf("}");
+  if (i < 0 || k <= i) return null;
+  try {
+    return JSON.parse(crudo.slice(i, k + 1));
+  } catch {
+    return null;
+  }
+}
+
+const HERRAMIENTA_OPENAI = {
+  type: "function",
+  function: { name: HERRAMIENTA.name, description: HERRAMIENTA.description, parameters: HERRAMIENTA.input_schema },
+} as const;
+
+/** Lee el TEXTO de los documentos con GLM 5.3 flash (Workers AI por vigia-llm). Tira "sin_modelo", "modelo_<status>" o "sin_lectura". */
+export async function leerBasesGlm(
+  env: EnvLlm,
+  p: PlazaParaBases & { datosServir: string },
+  textos: { titulo: string; texto: string }[],
+): Promise<{ lectura: LecturaBasesT; entrada: number; salida: number }> {
+  if (!env.LLM || !env.LLM_TOKEN) throw new Error("sin_modelo");
+  let resto = MAX_TEXTO;
+  const partes: string[] = [];
+  for (const t of textos) {
+    if (resto <= 0 || !t.texto) continue;
+    const cuerpo = t.texto.slice(0, resto);
+    resto -= cuerpo.length;
+    partes.push(`<documento titulo="${t.titulo.replace(/"/g, "'").slice(0, 200)}">\n${cuerpo}\n</documento>`);
+  }
+  const r = await env.LLM.fetch(
+    new Request("https://vigia-llm.interno/v1/chat/completions", {
+      method: "POST",
+      headers: { "content-type": "application/json", authorization: `Bearer ${env.LLM_TOKEN}` },
+      body: JSON.stringify({
+        model: MODELO_BASES,
+        messages: [
+          { role: "system", content: SISTEMA },
+          { role: "user", content: `La plaza (datos de SERVIR):\n${p.datosServir}\n\nEl texto de los documentos:\n${partes.join("\n\n")}\n\nLee los documentos y responde con la herramienta «bases».` },
+        ],
+        tools: [HERRAMIENTA_OPENAI],
+        tool_choice: { type: "function", function: { name: HERRAMIENTA.name } },
+        reasoning_effort: "low",
+        max_tokens: 6000,
+      }),
+    }),
+  );
+  if (!r.ok) throw new Error(`modelo_${r.status}`);
+  const j = (await r.json()) as { usage?: { prompt_tokens?: number; completion_tokens?: number } };
+  const args = argumentosHerramienta(j);
+  if (!args) throw new Error("sin_lectura");
+  return { lectura: limpiarLectura(args), entrada: j.usage?.prompt_tokens ?? 0, salida: j.usage?.completion_tokens ?? 0 };
+}
+
+/** Lee los PDF con Haiku (el PDF entero como documento: sirve para escaneos). Tira "sin_modelo", "modelo_<status>" o "sin_lectura". */
+export async function leerBasesHaiku(
   env: EnvLlm,
   p: PlazaParaBases & { datosServir: string },
   pdfs: { titulo: string; bytes: Uint8Array }[],
@@ -582,19 +697,30 @@ export async function leerBases(
   const j = (await r.json()) as { content?: { type: string; name?: string; input?: unknown }[]; usage?: { input_tokens?: number; output_tokens?: number } };
   const uso = (j.content ?? []).find((b) => b.type === "tool_use" && b.name === "bases");
   if (!uso?.input) throw new Error("sin_lectura");
-  const l = LecturaBases.parse(uso.input);
-  const lectura: LecturaBasesT = {
-    ...l,
-    funciones: l.funciones.map(sinPunto),
-    requisitos_extra: l.requisitos_extra.map(sinPunto),
-    cronograma: l.cronograma.map((x) => ({ etapa: sinPunto(x.etapa), fecha: sinPunto(x.fecha), ...(x.postulas ? { postulas: true } : {}) })),
-    evaluacion: l.evaluacion.map((x) => ({ etapa: sinPunto(x.etapa), como: sinPunto(x.como) })),
-    documentos: l.documentos.map(sinPunto),
-    como_postular: l.como_postular ? { ...l.como_postular, detalle: sinPunto(l.como_postular.detalle) } : null,
-    condiciones: l.condiciones.map(sinPunto),
-    ojo: l.ojo.map(sinPunto),
-  };
-  return { lectura, entrada: j.usage?.input_tokens ?? 0, salida: j.usage?.output_tokens ?? 0 };
+  return { lectura: limpiarLectura(uso.input), entrada: j.usage?.input_tokens ?? 0, salida: j.usage?.output_tokens ?? 0 };
+}
+
+/**
+ * Lee las bases: con texto, GLM 5.3 flash; escaneadas (o si GLM falla), Haiku si `puedeHaiku`. Devuelve quién leyó.
+ * Tira "escaneadas" si no hay texto y Haiku no puede, o el error del modelo.
+ */
+export async function leerBases(
+  env: EnvLlm,
+  p: PlazaParaBases & { datosServir: string },
+  pdfs: { titulo: string; bytes: Uint8Array }[],
+  puedeHaiku: boolean,
+): Promise<{ lectura: LecturaBasesT; entrada: number; salida: number; modelo: string }> {
+  const textos = await textoDePdfs(env, pdfs);
+  const largo = textos.reduce((a, t) => a + t.texto.length, 0);
+  if (largo >= MIN_TEXTO) {
+    try {
+      return { ...(await leerBasesGlm(env, p, textos)), modelo: NOMBRE_MODELO_BASES };
+    } catch (e) {
+      if (!puedeHaiku) throw e;
+    }
+  }
+  if (!puedeHaiku) throw new Error("escaneadas");
+  return { ...(await leerBasesHaiku(env, p, pdfs)), modelo: MODELO_ASISTENTE };
 }
 
 // ─── Todo junto: buscar, bajar, guardar la copia y leer ─────────────────────────────────────────────
@@ -614,23 +740,26 @@ export interface ResultadoBases {
   /** Por qué no hay lectura: "tope" (del día), "largas", "sin_pdf", "error". */
   sin_lectura?: "tope" | "largas" | "sin_pdf" | "error";
   leida_at?: string;
+  /** Quién leyó: «glm-5.3-flash» o «claude-haiku-5-5» (las escaneadas). */
+  modelo?: string;
   tokens?: { entrada: number; salida: number };
 }
 
 export async function procesarBases(
   env: EnvLlm & { DOCUMENTOS?: BucketEscritura },
   p: PlazaParaBases & { datosServir: string },
-  opciones: { puedeLeer: boolean; pedir?: Pedir; bajar?: (url: string) => Promise<Uint8Array | null>; relay?: Relay },
+  opciones: { puedeLeer: boolean; puedeHaiku?: boolean; pedir?: Pedir; bajar?: (url: string) => Promise<Uint8Array | null>; relay?: Relay },
 ): Promise<ResultadoBases> {
   const pedir = opciones.pedir ?? pedidor(9, fetch, opciones.relay).pedir;
   const bajar = opciones.bajar ?? ((u: string) => bajarPdf(u, fetch, opciones.relay));
   const hallazgo = await buscarBases(p, pedir);
   if (!hallazgo) return { estado: "no_encontradas", pagina: null, documentos: [], lectura: null };
-  const r = await leerHallazgo(env, p, hallazgo, bajar, opciones.puedeLeer);
+  const haiku = opciones.puedeHaiku ?? false;
+  const r = await leerHallazgo(env, p, hallazgo, bajar, opciones.puedeLeer, haiku);
   // Si el modelo dijo que no son de esta plaza y había otro proceso empatado (Poder Judicial: «N° 003-2026» de suplencia
   // y de servicio específico en la misma corte), se lee ése.
   if (r.estado === "no_encontradas" && r.tokens && hallazgo.alternativa) {
-    const r2 = await leerHallazgo(env, p, hallazgo.alternativa, bajar, opciones.puedeLeer);
+    const r2 = await leerHallazgo(env, p, hallazgo.alternativa, bajar, opciones.puedeLeer, haiku);
     const t2 = r2.tokens ?? { entrada: 0, salida: 0 };
     return { ...r2, tokens: { entrada: r.tokens.entrada + t2.entrada, salida: r.tokens.salida + t2.salida } };
   }
@@ -643,11 +772,13 @@ async function leerHallazgo(
   hallazgo: Hallazgo,
   bajar: (url: string) => Promise<Uint8Array | null>,
   puedeLeer: boolean,
+  puedeHaiku: boolean,
 ): Promise<ResultadoBases> {
   const documentos: DocumentoBase[] = hallazgo.documentos.map((e) => ({ titulo: tituloDocumento(e), url: e.url }));
   // Los tres primeros PDF (las bases, el perfil, el cronograma): se bajan, se guardan en R2 y se leen dentro del tope de
   // páginas (el Poder Judicial reparte la convocatoria en tres: el aviso, el cronograma y las bases generales).
-  const aLeer = documentos.filter((d) => esPdf(d.url)).slice(0, 3);
+  // Nunca los de resultados (aptos, ganadores, puntajes): traen nombres y DNI; de ellos sólo queda el enlace.
+  const aLeer = documentos.filter((d) => esPdf(d.url) && !soloEnlace(d.titulo, d.url)).slice(0, 3);
   const bajados = (await Promise.all(aLeer.map(async (d) => ({
     d,
     bytes: await bajar(d.url).catch((e) => {
@@ -683,11 +814,12 @@ async function leerHallazgo(
   }
   if (!leer.length) return { ...base, sin_lectura: "largas" };
   try {
-    const { lectura, entrada, salida } = await leerBases(env, p, leer.map(({ d, bytes }) => ({ titulo: d.titulo, bytes })));
-    if (!lectura.corresponde) return { estado: "no_encontradas", pagina: null, documentos: [], lectura: null, tokens: { entrada, salida } };
+    const { lectura, entrada, salida, modelo } = await leerBases(env, p, leer.map(({ d, bytes }) => ({ titulo: d.titulo, bytes })), puedeHaiku);
+    if (!lectura.corresponde) return { estado: "no_encontradas", pagina: null, documentos: [], lectura: null, modelo, tokens: { entrada, salida } };
     for (const { d } of leer) d.leido = true;
-    return { ...base, lectura, leida_at: new Date().toISOString(), tokens: { entrada, salida } };
-  } catch {
-    return { ...base, sin_lectura: "error" };
+    return { ...base, lectura, leida_at: new Date().toISOString(), modelo, tokens: { entrada, salida } };
+  } catch (e) {
+    // Escaneadas y sin Haiku hoy (su tope): se leen otro día; para la ficha es como el tope.
+    return { ...base, sin_lectura: (e as Error).message === "escaneadas" ? "tope" : "error" };
   }
 }

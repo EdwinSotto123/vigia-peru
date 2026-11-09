@@ -33,6 +33,7 @@ import { correrOeceEntidades } from "./fuentes/oece_entidades.ts";
 import { correrSunatPadron } from "./fuentes/sunat_padron.ts";
 import { correrInviertePe } from "./fuentes/invierte_pe.ts";
 import { correrServir } from "./fuentes/servir_convocatorias.ts";
+import { correrPracticas } from "./fuentes/servir_practicas.ts";
 import { correrInfobras } from "./fuentes/infobras.ts";
 import { correrSaludLima } from "./fuentes/salud_lima.ts";
 import { conDb } from "./db.ts";
@@ -61,6 +62,7 @@ export const FUENTES: Record<string, Corredor> = {
   sunat_padron: correrSunatPadron,
   invierte_pe: correrInviertePe,
   servir_convocatorias: correrServir,
+  servir_practicas: correrPracticas,
   infobras: correrInfobras,
   salud_lima: correrSaludLima,
   onpe_gastos: correrGastos,
