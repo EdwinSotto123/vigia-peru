@@ -8,6 +8,7 @@ import { palabrasBusqueda } from "./personas.js";
 import { PARTES_FORMACION, SUGERIDOS_SQL, clavePuesto, condicionesCalce, leerCarreras, puestoDeTitulo } from "../lib/calceEmpleo.js";
 import { huellaPlaza, resumirPlaza, textoPlaza, type PlazaParaResumen } from "../lib/resumenPlaza.js";
 import { procesarBases, relayDe, type ResultadoBases } from "../lib/basesPlaza.js";
+import { relayCompletoDe } from "../lib/empleoHttp.js";
 import { TOPE_HAIKU_DIA, TOPE_LECTURAS_DIA, guardarBases, guardarError, haikuHoy, leidasHoy } from "../lib/empleoRecolector.js";
 import { correoDeOficina } from "../lib/empleoFuentes.js";
 import { limiteLectura } from "../lib/antibots.js";
@@ -452,6 +453,7 @@ empleoRouter.get("/plazas/:aviso/bases", limiteLectura, async (c) => {
         // Las escaneadas: Haiku, si alguien abrió la ficha y queda tope del día.
         puedeHaiku: haiku < TOPE_HAIKU_DIA,
         relay: relayDe(c.env as Parameters<typeof relayDe>[0]),
+        relayCompleto: relayCompletoDe(c.env as Parameters<typeof relayCompletoDe>[0]),
       });
       if (r.tokens) registrar("INFO", `[empleo] bases de la plaza ${aviso}: ${r.estado} (${r.modelo ?? "sin modelo"}), ${r.tokens.entrada} tokens de entrada y ${r.tokens.salida} de salida`);
       // servir_resumen y, además, la fuente, los documentos y los eventos (lib/empleoRecolector.ts, migración 271).

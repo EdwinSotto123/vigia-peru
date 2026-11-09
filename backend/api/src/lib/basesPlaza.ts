@@ -25,6 +25,8 @@ import { z } from "zod";
 import { MODELO_ASISTENTE } from "./asistente.js";
 import { lista, texto } from "./resumenPlaza.js";
 import { soloEnlace } from "./empleoFuentes.js";
+import { adaptadorDe } from "./empleoAdaptadores.js";
+import { SinRelayHttp, clienteHttp, type Http, type RelayCompleto } from "./empleoHttp.js";
 
 export interface PlazaParaBases {
   aviso: number;
@@ -104,8 +106,29 @@ export function enlaces(html: string, base: string): Enlace[] {
 /** Si el enlace es un documento (PDF, Word, ZIP o un archivo de gob.pe), no una página. */
 export function esDocumento(url: string): boolean {
   if (/\/preview_[^/]*\.(jpe?g|png)(\?|$)/i.test(url)) return false;
-  return /\.(pdf|docx?|zip|rar)(\?|$)/i.test(url) || /cdn\.www\.gob\.pe\/uploads\/document\/file\//i.test(url);
+  return /\.(pdf|docx?|zip|rar)(\?|$)/i.test(url) || /cdn\.www\.gob\.pe\/uploads\/document\/file\//i.test(url) || esDrive(url) || DESCARGAS.test(url);
 }
+
+/**
+ * Descargas sin «.pdf» en la URL de los aplicativos que leen los adaptadores (lib/empleoAdaptadores.ts): el visor de
+ * MINJUS, las bases y el TDR de MINEDU, JUNTOS, MINSA y la API de Amazonas. Se confirma que es PDF al bajarlo.
+ */
+const DESCARGAS = /\/convocatoria\/Preview\?file=|\/Descargar_(Bases|Tdr)\?idReq=|\/DescargarArchivo(Bases|PorId)\/|\/GetBaseConvocatoria\?|\/api\/Archivo\/\d+\/(descargar|ver)/i;
+
+/** Un archivo de Google Drive (`/file/d/<id>/view`, `uc?id=`, `open?id=`): muchas entidades suben ahí sus bases. */
+export const esDrive = (url: string) => /drive\.google\.com\/(file\/d\/[\w-]{10,}|uc\?|open\?id=)|docs\.google\.com\/(document|uc)/i.test(url);
+
+/** La URL que baja el archivo (la de Drive es la de descarga directa; las demás, tal cual). */
+export function urlDescarga(url: string): string {
+  const id = /drive\.google\.com\/file\/d\/([\w-]{10,})/i.exec(url)?.[1] ?? /[?&]id=([\w-]{10,})/i.exec(url)?.[1];
+  if (id && /drive\.google\.com/i.test(url)) return `https://drive.google.com/uc?export=download&id=${id}`;
+  const doc = /docs\.google\.com\/document\/d\/([\w-]{10,})/i.exec(url)?.[1];
+  if (doc) return `https://docs.google.com/document/d/${doc}/export?format=pdf`;
+  return url;
+}
+
+/** Un documento que puede ser un PDF para leer: termina en .pdf, es de gob.pe o está en Drive (se confirma al bajarlo). */
+export const quizasPdf = (url: string) => esPdf(url) || esDrive(url) || DESCARGAS.test(url) || /cdn\.www\.gob\.pe\/uploads\/document\/file\/.*\.pdf/i.test(url);
 
 export const esPdf = (url: string) => /\.pdf(\?|$)/i.test(url);
 
@@ -240,7 +263,8 @@ export function pedidor(tope = 9, f: typeof fetch = fetch, relay?: Relay): { ped
         return { status: r.status, html: (await r.text()).slice(0, 1_500_000), final };
       }
       try {
-        const r = await f(url, { headers: { "user-agent": UA, accept: "text/html,application/xhtml+xml" }, redirect: "follow", signal: AbortSignal.timeout(12_000) });
+        // 25 s: hay servidores del Estado que tardan 4 a 11 s en responder (el INS).
+        const r = await f(url, { headers: { "user-agent": UA, accept: "text/html,application/xhtml+xml" }, redirect: "follow", signal: AbortSignal.timeout(25_000) });
         if (r.status >= 500 && intento === 0) continue;
         const tipo = r.headers.get("content-type") ?? "";
         if (!r.ok || !/html|xml|text\/plain/i.test(tipo)) return { status: r.status, html: "", final: r.url || url };
@@ -263,8 +287,21 @@ export interface Hallazgo {
   alternativa?: Hallazgo;
 }
 
-/** Busca los documentos del proceso desde la página que SERVIR enlaza. null si no los encuentra. */
-export async function buscarBases(p: PlazaParaBases, pedir: Pedir): Promise<Hallazgo | null> {
+/**
+ * Busca los documentos del proceso desde la página que SERVIR enlaza. Primero el adaptador del dominio, si hay
+ * (lib/empleoAdaptadores.ts, con su cliente HTTP); si no encuentra, el buscador genérico. null si no los encuentra.
+ */
+export async function buscarBases(p: PlazaParaBases, pedir: Pedir, http?: Http): Promise<Hallazgo | null> {
+  const adaptador = http ? adaptadorDe(p.detalle_url) : null;
+  if (adaptador && http) {
+    try {
+      const h = await adaptador(p, http);
+      if (h) return h;
+    } catch (e) {
+      if (e instanceof SinRelayHttp) throw new SinRelay(e.message);
+      /* el genérico, por si acaso */
+    }
+  }
   const n = numeroProceso(p.numero);
   const anio = Number.parseInt((p.fecha_inicio ?? "").slice(0, 4), 10) || new Date().getFullYear();
   const palabras = palabrasPuesto(p.titulo);
@@ -334,8 +371,8 @@ export type Relay = (url: string, timeoutMs: number) => Promise<Response>;
 /** El relay no está (la PC apagada) o rechazó el pedido: la búsqueda queda en «error» y se reintenta en 2 horas. */
 export class SinRelay extends Error {}
 
-/** Lo que sólo responde a IPs del Perú (desde Cloudflare da 403): el Poder Judicial. */
-const SOLO_PERU = /(^|\.)pj\.gob\.pe$/i;
+/** Lo que sólo responde a IPs del Perú (desde Cloudflare da 403 o se cuelga): el Poder Judicial y la DRELM. */
+const SOLO_PERU = /(^|\.)(pj\.gob\.pe|drelm\.gob\.pe)$/i;
 export function necesitaPeru(url: string): boolean {
   try {
     return SOLO_PERU.test(new URL(url).hostname);
@@ -458,7 +495,9 @@ export async function buscarPoderJudicial(p: PlazaParaBases, pedir: Pedir): Prom
 
 // ─── Bajar los PDF ──────────────────────────────────────────────────────────────────────────────────
 
-export const TOPE_PDF = 10 * 1024 * 1024;
+/** Hasta 50 MB (hay bases de 21, 23 y 44 MB: escaneos de muchas páginas). Haiku sólo recibe las de hasta 15 MB. */
+export const TOPE_PDF = 50 * 1024 * 1024;
+export const TOPE_PDF_HAIKU = 15 * 1024 * 1024;
 
 /** Cuántas páginas tiene un PDF, aproximado (los /Type /Page sin comprimir); 0 si no se sabe. */
 export function paginasPdf(bytes: Uint8Array): number {
@@ -471,11 +510,12 @@ export const claveDocumento = (url: string) => createHash("sha256").update(url).
 
 /** Baja un PDF (hasta 10 MB). null si no es un PDF o es muy grande. */
 export async function bajarPdf(url: string, f: typeof fetch = fetch, relay?: Relay): Promise<Uint8Array | null> {
+  const destino = urlDescarga(url);
   for (let intento = 0; intento < 2; intento++) {
     try {
-      const r = necesitaPeru(url)
-        ? await porRelay(relay, url, 60_000)
-        : await f(url, { headers: { "user-agent": UA, accept: "application/pdf,*/*" }, redirect: "follow", signal: AbortSignal.timeout(25_000) });
+      const r = necesitaPeru(destino)
+        ? await porRelay(relay, destino, 90_000)
+        : await f(destino, { headers: { "user-agent": UA, accept: "application/pdf,*/*" }, redirect: "follow", signal: AbortSignal.timeout(60_000) });
       if (r.status >= 500 && intento === 0) continue;
       if (!r.ok) return null;
       const largo = Number(r.headers.get("content-length") ?? "0");
@@ -869,7 +909,27 @@ export async function leerBases(
     }
   }
   if (!puedeHaiku) throw fallo;
-  return { ...(await leerBasesHaiku(env, p, pdfs)), modelo: MODELO_ASISTENTE };
+  const paraHaiku = elegirParaHaiku(pdfs);
+  if (!paraHaiku.length) throw new Error("largas");
+  return { ...(await leerBasesHaiku(env, p, paraHaiku)), modelo: MODELO_ASISTENTE };
+}
+
+/**
+ * Lo que se le manda a Haiku (el PDF entero, en base64): hasta TOPE_PAGINAS páginas y PDF de hasta 15 MB, las bases
+ * primero.
+ */
+export function elegirParaHaiku<T extends { bytes: Uint8Array }>(pdfs: T[]): T[] {
+  const out: T[] = [];
+  let paginas = 0;
+  for (const x of pdfs) {
+    if (x.bytes.byteLength > TOPE_PDF_HAIKU) continue;
+    // Sin el conteo (páginas en objetos comprimidos): ~45 KB por página, lo que pesan estos PDF.
+    const n = paginasPdf(x.bytes) || Math.ceil(x.bytes.byteLength / 45_000);
+    if (paginas + n > TOPE_PAGINAS) continue;
+    paginas += n;
+    out.push(x);
+  }
+  return out;
 }
 
 // ─── Todo junto: buscar, bajar, guardar la copia y leer ─────────────────────────────────────────────
@@ -897,11 +957,21 @@ export interface ResultadoBases {
 export async function procesarBases(
   env: EnvLlm & { DOCUMENTOS?: BucketEscritura },
   p: PlazaParaBases & { datosServir: string },
-  opciones: { puedeLeer: boolean; puedeHaiku?: boolean; pedir?: Pedir; bajar?: (url: string) => Promise<Uint8Array | null>; relay?: Relay },
+  opciones: {
+    puedeLeer: boolean;
+    puedeHaiku?: boolean;
+    pedir?: Pedir;
+    http?: Http;
+    bajar?: (url: string) => Promise<Uint8Array | null>;
+    relay?: Relay;
+    relayCompleto?: RelayCompleto;
+  },
 ): Promise<ResultadoBases> {
   const pedir = opciones.pedir ?? pedidor(9, fetch, opciones.relay).pedir;
+  // Los adaptadores (formularios, APIs) usan su cliente: hasta 20 pedidos, con cookies y el relay de Lima.
+  const http = opciones.http ?? (opciones.pedir ? undefined : clienteHttp(20, fetch, opciones.relayCompleto));
   const bajar = opciones.bajar ?? ((u: string) => bajarPdf(u, fetch, opciones.relay));
-  const hallazgo = await buscarBases(p, pedir);
+  const hallazgo = await buscarBases(p, pedir, http);
   if (!hallazgo) return { estado: "no_encontradas", pagina: null, documentos: [], lectura: null };
   const haiku = opciones.puedeHaiku ?? false;
   const r = await leerHallazgo(env, p, hallazgo, bajar, opciones.puedeLeer, haiku);
@@ -927,7 +997,7 @@ async function leerHallazgo(
   // Los tres primeros PDF (las bases, el perfil, el cronograma): se bajan, se guardan en R2 y se leen dentro del tope de
   // páginas (el Poder Judicial reparte la convocatoria en tres: el aviso, el cronograma y las bases generales).
   // Nunca los de resultados (aptos, ganadores, puntajes): traen nombres y DNI; de ellos sólo queda el enlace.
-  const aLeer = documentos.filter((d) => esPdf(d.url) && !soloEnlace(d.titulo, d.url)).slice(0, 3);
+  const aLeer = documentos.filter((d) => quizasPdf(d.url) && !soloEnlace(d.titulo, d.url)).slice(0, 3);
   const bajados = (await Promise.all(aLeer.map(async (d) => ({
     d,
     bytes: await bajar(d.url).catch((e) => {
@@ -951,17 +1021,8 @@ async function leerHallazgo(
   const base: ResultadoBases = { estado: "encontradas", pagina: hallazgo.pagina, documentos, lectura: null };
   if (!bajados.length) return { ...base, sin_lectura: "sin_pdf" };
   if (!puedeLeer) return { ...base, sin_lectura: "tope" };
-  // Dentro del tope de páginas: las bases primero; el segundo documento sólo si entra.
-  const leer: typeof bajados = [];
-  let paginas = 0;
-  for (const x of bajados) {
-    // Sin el conteo (páginas en objetos comprimidos): ~45 KB por página, lo que pesan estos PDF.
-    const n = paginasPdf(x.bytes) || Math.ceil(x.bytes.byteLength / 45_000);
-    if (paginas + n > TOPE_PAGINAS) continue;
-    paginas += n;
-    leer.push(x);
-  }
-  if (!leer.length) return { ...base, sin_lectura: "largas" };
+  // GLM lee todos (el texto se recorta y las imágenes van hasta 24 páginas); el tope de páginas es de Haiku (paraHaiku).
+  const leer = bajados;
   try {
     const { lectura, entrada, salida, modelo } = await leerBases(env, p, leer.map(({ d, bytes }) => ({ titulo: d.titulo, bytes })), puedeHaiku);
     if (!lectura.corresponde) return { estado: "no_encontradas", pagina: null, documentos: [], lectura: null, modelo, tokens: { entrada, salida } };
@@ -969,6 +1030,7 @@ async function leerHallazgo(
     return { ...base, lectura, leida_at: new Date().toISOString(), modelo, tokens: { entrada, salida } };
   } catch (e) {
     // Escaneadas y sin Haiku hoy (su tope): se leen otro día; para la ficha es como el tope.
-    return { ...base, sin_lectura: (e as Error).message === "escaneadas" ? "tope" : "error" };
+    const m = (e as Error).message;
+    return { ...base, sin_lectura: m === "escaneadas" ? "tope" : m === "largas" ? "largas" : "error" };
   }
 }

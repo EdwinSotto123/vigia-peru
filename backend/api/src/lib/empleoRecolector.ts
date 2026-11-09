@@ -23,6 +23,7 @@
  */
 import { pool } from "./db.js";
 import { buscarBases, pedidor, procesarBases, relayDe, tituloDocumento, type DocumentoBase, type ResultadoBases } from "./basesPlaza.js";
+import { clienteHttp, relayCompletoDe } from "./empleoHttp.js";
 import { textoPlaza, type PlazaParaResumen } from "./resumenPlaza.js";
 import { cambiosCronograma, eventoDeDocumento, fuenteDe, huellaEvento, intercalarPorDominio, soloEnlace, tipoDocumento, type Fuente } from "./empleoFuentes.js";
 import { registrar } from "./registro.js";
@@ -237,6 +238,7 @@ export async function recolectar(env: EnvRecolector, op: OpcionesLote): Promise<
   const candidatas = (await pool.query<FilaPlaza & { prioridad: number }>(sqlCandidatas(op.modo), [Math.max(1, op.limite) * 3])).rows;
   const lista = intercalarPorDominio(candidatas, (x) => fuenteDe(x.detalle_url).dominio).slice(0, op.limite);
   const relay = relayDe(env);
+  const relayCompleto = relayCompletoDe(env);
   let leidas = op.leer ? await leidasHoy() : TOPE_LECTURAS_DIA;
   let haiku = op.leer ? await haikuHoy() : TOPE_HAIKU_DIA;
   const res: ResumenLote = {
@@ -264,7 +266,7 @@ export async function recolectar(env: EnvRecolector, op: OpcionesLote): Promise<
     try {
       if (op.modo === "vigilar") {
         // Sólo la página del proceso: los documentos que aparecieron (comunicados, resultados), sin bajar ni leer.
-        const h = await buscarBases(fila, pedidor(9, fetch, relay).pedir);
+        const h = await buscarBases(fila, pedidor(9, fetch, relay).pedir, clienteHttp(20, fetch, relayCompleto));
         const docs: DocumentoBase[] = (h?.documentos ?? []).map((e) => ({ titulo: tituloDocumento(e), url: e.url }));
         const fuenteId = await registrarFuente(f, fila.entidad, h ? "ok" : null);
         const d = await guardarDocumentos(fila.aviso, fuenteId, docs);
@@ -279,7 +281,7 @@ export async function recolectar(env: EnvRecolector, op: OpcionesLote): Promise<
       }
       const puedeLeer = op.leer && leidas < TOPE_LECTURAS_DIA;
       const puedeHaiku = puedeLeer && fila.prioridad >= 2 && haiku < TOPE_HAIKU_DIA;
-      const r = await procesarBases(env, { ...fila, datosServir: textoPlaza(fila) }, { puedeLeer, puedeHaiku, relay });
+      const r = await procesarBases(env, { ...fila, datosServir: textoPlaza(fila) }, { puedeLeer, puedeHaiku, relay, relayCompleto });
       if (r.tokens) {
         leidas++;
         res.leidas++;

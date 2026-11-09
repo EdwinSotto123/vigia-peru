@@ -53,8 +53,9 @@ export const APLICATIVOS: Record<string, string> = {
   "app.hrayacucho.gob.pe": "hr_ayacucho",
 };
 
-/** Con captcha (no se resuelven): el Ministerio Público. */
-const CAPTCHA = new Set(["portal.mpfn.gob.pe"]);
+/** Con captcha o desafío anti-bots (no se resuelven): el Ministerio Público y la DRELM. */
+// La DRELM puso un desafío de Cloudflare (2026-11-09: «Just a moment…» aun desde el Perú): fuera, como el captcha.
+const CAPTCHA = new Set(["portal.mpfn.gob.pe", "www.drelm.gob.pe"]);
 /** Bloquean a Cloudflare pero responden al Perú (medido): el Poder Judicial y la DRELM. */
 const SOLO_PERU = /(^|\.)(pj\.gob\.pe|drelm\.gob\.pe|servir\.gob\.pe)$/i;
 /** Plataformas de un gobierno regional que publican varias entidades (convocatorias.regionpiura.gob.pe…). */
