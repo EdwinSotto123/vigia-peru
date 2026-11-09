@@ -23,28 +23,30 @@ export interface PlazaParaCumplir {
   remuneracion: number | null;
 }
 
-const NINGUNO: ReadonlySet<string> = new Set();
+const NINGUNO: string[] = [];
 
-function leerMarcados(clave: string): Set<string> {
+function leerMarcados(clave: string): string[] {
   try {
     const v = JSON.parse(window.localStorage.getItem(clave) ?? "[]");
-    return new Set(Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : []);
+    return Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : [];
   } catch {
-    return new Set();
+    return [];
   }
 }
 
-/** Lo marcado en esta plaza («lo tengo»), en este navegador. Compartido: marcar abajo cambia el veredicto de arriba. */
+/**
+ * Lo marcado en esta plaza («lo tengo»), en este navegador. Compartido: marcar abajo cambia el veredicto de arriba. En
+ * SWR va como lista: su comparación toma dos Set cualesquiera por iguales (no tienen claves) y no avisaría el cambio.
+ */
 export function useMarcados(aviso: number) {
   const clave = `gobserva-empleo:cumplo:${aviso}`;
   const { data, mutate } = useSWR(["empleo-cumplo-marcados", aviso], () => leerMarcados(clave), { revalidateOnFocus: false, revalidateIfStale: false });
-  const marcados: ReadonlySet<string> = data ?? NINGUNO;
+  const lista = data ?? NINGUNO;
+  const marcados = useMemo<ReadonlySet<string>>(() => new Set(lista), [lista]);
   const alternar = (k: string) => {
-    const n = new Set(marcados);
-    if (n.has(k)) n.delete(k);
-    else n.add(k);
+    const n = lista.includes(k) ? lista.filter((x) => x !== k) : [...lista, k];
     try {
-      window.localStorage.setItem(clave, JSON.stringify([...n]));
+      window.localStorage.setItem(clave, JSON.stringify(n));
     } catch {
       /* sin almacenamiento: se marca igual, sin recordarlo */
     }
@@ -75,7 +77,7 @@ export function useCumplo(plaza: PlazaParaCumplir) {
     listo: !cargando && !resumen.isLoading,
     resumen: resumen.data ?? null,
     juicios,
-    v: veredicto(juicios, new Set(marcados)),
+    v: veredicto(juicios, marcados),
     marcados,
     alternar,
   };

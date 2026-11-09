@@ -268,7 +268,7 @@ function ElPuesto({ lectura: l }: { lectura: LecturaBases }) {
           <h3 className="text-cuerpo font-semibold text-ink">Condiciones</h3>
           <ul className="mt-2 flex flex-wrap gap-1.5">
             {l.condiciones.map((c) => (
-              <li key={c} className="rounded-full border border-line bg-paper px-3 py-1 text-meta text-inkSoft">{c}</li>
+              <li key={c} className="rounded-lg border border-line bg-paper px-3 py-1.5 text-meta leading-snug text-inkSoft">{c}</li>
             ))}
           </ul>
         </div>

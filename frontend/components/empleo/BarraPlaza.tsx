@@ -105,7 +105,7 @@ function Chip({ href, clase, Icono, largo, corto, pulso }: { href: string; clase
     <a
       href={href}
       className={cn(
-        "inline-flex min-h-8 max-w-full items-center gap-1.5 rounded-full px-2.5 text-meta font-semibold transition-opacity duration-rapido hover:opacity-85 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-granate",
+        "inline-flex min-h-8 max-w-full items-center gap-1 rounded-full px-2 text-rotulo font-semibold transition-opacity sm:gap-1.5 sm:px-2.5 sm:text-meta duration-rapido hover:opacity-85 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-granate",
         clase,
       )}
     >
