@@ -962,17 +962,26 @@ export async function leerBases(
   const largo = textos.reduce((a, t) => a + letras(t.texto), 0);
   // Lo que falló, para decirlo si al final nadie pudo leer (un GLM caído es un error; un escaneo sin JPEG, «escaneadas»).
   let fallo: Error = new Error("escaneadas");
+  // «No es de esta plaza» dicho leyendo sólo los PDF con texto (la resolución que aprueba, un anexo) cuando las bases son
+  // un escaneo (UNHEVAL, 2026-11-09): antes de descartar se miran las páginas escaneadas; si tampoco, vale el «no».
+  let negativo: { lectura: LecturaBasesT; entrada: number; salida: number; modelo: string } | null = null;
+  const escaneados = pdfs.filter((_, i) => letras(textos[i]?.texto ?? "") < MIN_TEXTO);
   if (largo >= MIN_TEXTO) {
     try {
       const r = await leerBasesGlm(env, p, textos);
+      const leida = { lectura: r.lectura, entrada: r.entrada, salida: r.salida, modelo: r.quien };
+      if (r.lectura.corresponde && !lecturaVacia(r.lectura)) return leida;
+      if (!r.lectura.corresponde) {
+        if (!escaneados.length) return leida;
+        negativo = leida;
+      }
       // GLM respondió pero sin nada que mostrar (algo de texto suelto en un escaneo): se lee como escaneo.
-      if (!r.lectura.corresponde || !lecturaVacia(r.lectura)) return { lectura: r.lectura, entrada: r.entrada, salida: r.salida, modelo: r.quien };
     } catch (e) {
       fallo = e as Error;
     }
   }
-  // Escaneo: las páginas JPEG de cada PDF, en orden, hasta 24.
-  const paginas = pdfs.flatMap((d) => jpegsDePdf(d.bytes)).slice(0, MAX_PAGINAS_IMAGEN);
+  // Escaneo: las páginas JPEG de cada PDF (después de un «no», sólo de los escaneados), en orden, hasta 24.
+  const paginas = (negativo ? escaneados : pdfs).flatMap((d) => jpegsDePdf(d.bytes)).slice(0, MAX_PAGINAS_IMAGEN);
   if (paginas.length) {
     try {
       const r = await leerBasesImagenes(env, p, paginas);
@@ -981,6 +990,7 @@ export async function leerBases(
       fallo = e as Error;
     }
   }
+  if (negativo) return negativo;
   if (!puedeHaiku) throw fallo;
   const paraHaiku = elegirParaHaiku(pdfs);
   if (!paraHaiku.length) throw new Error("largas");

@@ -267,7 +267,7 @@ test("el PDF que viene dentro de la página del visor (PGE) se saca de su base64
   assert.equal(pdfIncrustado(new TextEncoder().encode(html))?.byteLength, 900);
   assert.equal(pdfIncrustado(new TextEncoder().encode("<html>nada</html>")), null);
   const falso = (async () => new Response(html, { status: 200, headers: { "content-type": "text/html" } })) as typeof fetch;
-  assert.equal((await bajarPdf("https://convocas.pge.gob.pe/serviceView/viewPdfModalPublic?idFile=12", falso))?.byteLength, 900);
+  assert.equal((await bajarPdf("https://visor.example.com/serviceView/viewPdfModalPublic?idFile=12", falso))?.byteLength, 900);
 });
 
 test("un PDF más grande que el tope se corta mientras baja, sin content-length", async () => {

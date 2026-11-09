@@ -160,3 +160,31 @@ test("un escaneo con JPEG lo lee GLM con imágenes, de a 8 páginas por pedido; 
   assert.deepEqual(imagenes, [8, 8, 2]);
   assert.deepEqual([r.entrada, r.salida], [3 * 13381, 3 * 1814]);
 });
+
+test("un «no corresponde» leyendo sólo la resolución con texto: antes de descartar se miran las bases escaneadas (UNHEVAL)", async () => {
+  const pedidos: string[] = [];
+  const env = {
+    LLM_TOKEN: "t",
+    AI: { toMarkdown: async (docs: { name: string }[]) => docs.map((d, i) => ({ name: d.name, format: "markdown", data: i === 0 ? "x".repeat(MIN_TEXTO + 10) : "" })) },
+    LLM: {
+      async fetch(req: Request | string) {
+        const cuerpo = (await (req as Request).json()) as { messages: { content: unknown }[] };
+        const conImagen = JSON.stringify(cuerpo.messages).includes("image_url");
+        pedidos.push(conImagen ? "imagen" : "texto");
+        const lectura = conImagen ? LECTURA : { ...LECTURA, corresponde: false };
+        return Response.json({ choices: [{ message: { tool_calls: [{ function: { name: "bases", arguments: JSON.stringify(lectura) } }] } }], usage: { prompt_tokens: 10, completion_tokens: 5 } });
+      },
+    },
+  };
+  const docs = [{ titulo: "Resolución que aprueba", bytes: new Uint8Array([37, 80, 68, 70]) }, { titulo: "Bases", bytes: pdfEscaneado(3) }];
+  const r = await leerBases(env, PLAZA, docs, false);
+  assert.deepEqual(pedidos, ["texto", "imagen"]);
+  assert.equal(r.lectura.corresponde, true);
+  assert.equal(r.modelo, "glm-5.3-flash-imagen");
+  // Si todo tiene texto, el «no» vale de una.
+  pedidos.length = 0;
+  const soloTexto = { ...env, AI: ai("x".repeat(MIN_TEXTO + 10)) };
+  const r2 = await leerBases(soloTexto, PLAZA, [docs[0], docs[0]], false);
+  assert.deepEqual(pedidos, ["texto"]);
+  assert.equal(r2.lectura.corresponde, false);
+});
