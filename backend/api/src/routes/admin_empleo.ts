@@ -27,12 +27,16 @@ const Lote = z.object({
   limite: z.coerce.number().int().min(1).max(500).default(20),
   leer: z.enum(["0", "1"]).default("0"),
   segundos: z.coerce.number().int().min(10).max(840).default(600),
+  /** Varios lotes a la vez: parte k de n (aviso % n = k). */
+  parte: z.coerce.number().int().min(0).max(31).optional(),
+  partes: z.coerce.number().int().min(1).max(32).optional(),
 });
 
 adminEmpleoRouter.post("/empleo/recolectar", async (c) => {
   const q = Lote.safeParse(c.req.query());
   if (!q.success) return c.json({ error: "parametros", detail: q.error.issues[0]?.message }, 400);
-  const r = await recolectar(c.env as EnvRecolector, { modo: q.data.modo as ModoLote, limite: q.data.limite, leer: q.data.leer === "1", segundos: q.data.segundos });
+  const particion: [number, number] | undefined = q.data.partes && q.data.partes > 1 ? [(q.data.parte ?? 0) % q.data.partes, q.data.partes] : undefined;
+  const r = await recolectar(c.env as EnvRecolector, { modo: q.data.modo as ModoLote, limite: q.data.limite, leer: q.data.leer === "1", segundos: q.data.segundos, particion });
   return c.json(r);
 });
 

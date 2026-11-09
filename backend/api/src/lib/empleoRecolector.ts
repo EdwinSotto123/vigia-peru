@@ -168,6 +168,8 @@ export interface OpcionesLote {
   segundos: number;
   /** Pausa entre dos plazas seguidas del mismo sitio. */
   pausaMs?: number;
+  /** Para correr varios lotes a la vez sin pisarse: [k, n] toma sólo las plazas con aviso % n = k. */
+  particion?: [number, number];
 }
 
 export interface ResumenLote {
@@ -205,7 +207,8 @@ const ORDEN: Record<ModoLote, string> = {
 };
 
 /** Las plazas abiertas que tocan, con su prioridad para quienes pagan. */
-export function sqlCandidatas(modo: ModoLote): string {
+export function sqlCandidatas(modo: ModoLote, particion?: [number, number]): string {
+  const parte = particion && particion[1] > 1 ? ` AND s.aviso % ${Math.trunc(particion[1])} = ${Math.trunc(particion[0])}` : "";
   return `
     WITH pagadores AS (
       SELECT DISTINCT firebase_uid FROM gobserva_planes_cliente WHERE producto = 'empleo' AND estado = 'activa'),
@@ -223,7 +226,7 @@ export function sqlCandidatas(modo: ModoLote): string {
       FROM servir_convocatoria s
       LEFT JOIN guardadas g ON g.ref = s.aviso::text
       LEFT JOIN servir_resumen r ON r.aviso = s.aviso
-     WHERE s.fecha_fin >= ${HOY} AND ${CONDICION[modo]}
+     WHERE s.fecha_fin >= ${HOY} AND ${CONDICION[modo]}${parte}
      ORDER BY ${ORDEN[modo]}
      LIMIT $1`;
 }
@@ -235,7 +238,7 @@ export async function recolectar(env: EnvRecolector, op: OpcionesLote): Promise<
   const inicio = Date.now();
   const fin = inicio + op.segundos * 1000;
   const pausa = op.pausaMs ?? 1500;
-  const candidatas = (await pool.query<FilaPlaza & { prioridad: number }>(sqlCandidatas(op.modo), [Math.max(1, op.limite) * 3])).rows;
+  const candidatas = (await pool.query<FilaPlaza & { prioridad: number }>(sqlCandidatas(op.modo, op.particion), [Math.max(1, op.limite) * 3])).rows;
   const lista = intercalarPorDominio(candidatas, (x) => fuenteDe(x.detalle_url).dominio).slice(0, op.limite);
   const relay = relayDe(env);
   const relayCompleto = relayCompletoDe(env);
