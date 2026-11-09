@@ -1,6 +1,5 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import {
   AlertTriangle, ArrowRight, Award, BadgeCheck, BookOpen, Briefcase, CheckCircle2, CircleDashed, GraduationCap, ListChecks, MapPin, PencilLine, ScrollText, Sparkles,
@@ -10,24 +9,14 @@ import { Caja } from "@/components/gobserva/app/Caja";
 import { claseAccion } from "@/components/ui/EnlaceAccion";
 import { usePerfilEmpleo } from "@/components/empleo-app/usePerfilEmpleo";
 import { RUTA_PARA_TI, nombreRegion } from "@/lib/empleo";
-import { juzgar, requisitosDeServir, veredicto, type EstadoRequisito, type Juicio, type TipoRequisito } from "@/lib/empleo-app/cumplo";
-import type { PerfilEmpleo } from "@/lib/empleo-app/entrevista";
+import type { EstadoRequisito, Juicio, TipoRequisito } from "@/lib/empleo-app/cumplo";
+import { ESTUDIOS, EXPERIENCIAS, SUELDOS, listaNaturalEmpleo, type PerfilEmpleo } from "@/lib/empleo-app/entrevista";
 import { soles } from "@/lib/formato";
 import { rutaEn } from "@/lib/gobserva";
 import { cn } from "@/lib/utils";
-import { useBasesPlaza, useResumenPlaza } from "./datosPlaza";
+import { useCumplo, type PlazaParaCumplir } from "./usePlaza";
 
-export interface PlazaParaCumplir {
-  aviso: number;
-  formacion: string | null;
-  experiencia: string | null;
-  especializacion: string | null;
-  conocimiento: string | null;
-  expGeneral: number | null;
-  /** La región de la plaza como la URL («la-libertad»). */
-  region: string | null;
-  remuneracion: number | null;
-}
+export type { PlazaParaCumplir };
 
 const GRUPOS: { tipo: TipoRequisito; titulo: string; Icono: LucideIcon }[] = [
   { tipo: "formacion", titulo: "Estudios", Icono: GraduationCap },
@@ -40,33 +29,6 @@ const GRUPOS: { tipo: TipoRequisito; titulo: string; Icono: LucideIcon }[] = [
 
 const regionDeSlug = (slug: string) => nombreRegion(slug.replace(/-/g, " ").toUpperCase());
 
-/** Lo marcado en esta plaza («lo tengo»), en este navegador. */
-function useMarcados(aviso: number) {
-  const clave = `gobserva-empleo:cumplo:${aviso}`;
-  const [marcados, setMarcados] = useState<Set<string>>(() => new Set());
-  useEffect(() => {
-    try {
-      const v = JSON.parse(window.localStorage.getItem(clave) ?? "[]");
-      if (Array.isArray(v)) setMarcados(new Set(v.filter((x) => typeof x === "string")));
-    } catch {
-      /* sin almacenamiento, se marca igual sin recordar */
-    }
-  }, [clave]);
-  const alternar = (k: string) =>
-    setMarcados((m) => {
-      const n = new Set(m);
-      if (n.has(k)) n.delete(k);
-      else n.add(k);
-      try {
-        window.localStorage.setItem(clave, JSON.stringify([...n]));
-      } catch {
-        /* igual */
-      }
-      return n;
-    });
-  return { marcados, alternar };
-}
-
 /**
  * «¿Puedes postular?» (2026-11-08, el usuario: «sin saber si cumples o no»): lo primero de la ficha. Cada requisito
  * (los de «Lo esencial», o los del aviso si la IA no los leyó) contra tu perfil: lo que tu perfil prueba, lo que lo
@@ -74,36 +36,11 @@ function useMarcados(aviso: number) {
  * contra lo que buscas; abajo lo que suele dejar fuera a la gente y las competencias de la entrevista.
  */
 export function PuedesPostular({ base, plaza, cerrada }: { base: string; plaza: PlazaParaCumplir; cerrada: boolean }) {
-  const { perfil, cargando } = usePerfilEmpleo();
-  const resumen = useResumenPlaza(plaza.aviso);
-  const bases = useBasesPlaza(plaza.aviso);
-  const { marcados, alternar } = useMarcados(plaza.aviso);
-  const listo = !cargando && !resumen.isLoading;
-  // Los del aviso (ordenados por la IA, o tal cual) y, cuando llegan, lo que las bases piden además.
-  const extra = bases.data?.estado === "encontradas" ? (bases.data.lectura?.requisitos_extra ?? []) : [];
-  const requisitos = useMemo(
-    () => [
-      ...(resumen.data?.requisitos?.length ? resumen.data.requisitos : requisitosDeServir(plaza)),
-      ...extra.map((que) => ({ que, tipo: "bases" as const })),
-    ],
-    [resumen.data, plaza, extra.join("|")],
-  );
-  const juicios = useMemo(() => juzgar(requisitos, perfil, { expGeneral: plaza.expGeneral }), [requisitos, perfil, plaza.expGeneral]);
-  const v = veredicto(juicios, marcados);
+  const { perfil, listo, resumen, juicios, v, marcados, alternar } = useCumplo(plaza);
   const editar = rutaEn(base, "/app/bienvenida");
 
   return (
-    <Caja
-      id="cumples"
-      titulo="¿Puedes postular?"
-      accion={
-        perfil ? (
-          <Link href={editar} className="inline-flex min-h-9 items-center gap-1.5 text-meta font-semibold text-inkSoft underline-offset-4 hover:text-ink hover:underline">
-            <PencilLine size={13} aria-hidden /> Editar mi perfil
-          </Link>
-        ) : undefined
-      }
-    >
+    <Caja id="cumples" titulo="¿Puedes postular?">
       {!listo ? (
         <div aria-busy="true" aria-label="Revisando los requisitos">
           <p className="flex items-center gap-2 text-meta text-inkSoft">
@@ -117,11 +54,13 @@ export function PuedesPostular({ base, plaza, cerrada }: { base: string; plaza: 
           </div>
         </div>
       ) : juicios.length === 0 ? (
-        <p className="text-dato leading-relaxed text-inkSoft">El aviso no trae requisitos para revisar: están en las bases de la convocatoria. Ábrelas abajo, en «Las bases».</p>
+        <p className="text-dato leading-relaxed text-inkSoft">El aviso no trae requisitos para revisar: están en las bases de la convocatoria. Ábrelas en la pestaña{" "}
+          <a href="#bases" className="font-semibold text-granate underline-offset-4 hover:underline">Bases</a>.</p>
       ) : (
         <div className="space-y-5">
           <Veredicto v={v} juicios={juicios} perfil={perfil} plaza={plaza} cerrada={cerrada} editar={editar} paraTi={rutaEn(base, RUTA_PARA_TI)} />
-          <div className="space-y-4">
+          {/* Los grupos en dos columnas desde lg, sin cortar ninguno entre columnas. */}
+          <div className="lg:columns-2 lg:gap-6 [&>*]:mb-4 [&>*]:break-inside-avoid">
             {GRUPOS.map((g) => {
               const filas = juicios.filter((j) => j.tipo === g.tipo);
               if (!filas.length) return null;
@@ -139,29 +78,29 @@ export function PuedesPostular({ base, plaza, cerrada }: { base: string; plaza: 
               );
             })}
           </div>
-          {!!resumen.data?.ojo.length && (
+          {!!resumen?.ojo.length && (
             <div className="rounded-xl border border-amber/30 bg-amber-soft/40 p-4">
               <h3 className="flex items-center gap-2 text-cuerpo font-semibold text-ink">
                 <AlertTriangle size={16} aria-hidden className="text-amberTexto" /> Lo que suele dejar fuera a la gente
               </h3>
               <ul className="mt-2 space-y-1.5">
-                {resumen.data.ojo.map((o) => (
+                {resumen.ojo.map((o) => (
                   <li key={o} className="text-dato leading-relaxed text-inkSoft">{o}</li>
                 ))}
               </ul>
             </div>
           )}
-          {!!resumen.data?.competencias.length && (
+          {!!resumen?.competencias.length && (
             <div>
               <h3 className="text-cuerpo font-semibold text-ink">En la entrevista evalúan</h3>
               <ul className="mt-2 flex flex-wrap gap-1.5">
-                {resumen.data.competencias.map((c) => (
+                {resumen.competencias.map((c) => (
                   <li key={c} className="rounded-full border border-line bg-paper px-3 py-1 text-meta text-inkSoft">{c}</li>
                 ))}
               </ul>
             </div>
           )}
-          {resumen.data && <p className="text-rotulo text-mute">Los requisitos los ordena una IA a partir del aviso de SERVIR: lo que vale es lo que dicen las bases.</p>}
+          {resumen && <p className="text-rotulo text-mute">Los requisitos los ordena una IA a partir del aviso de SERVIR: lo que vale es lo que dicen las bases.</p>}
         </div>
       )}
     </Caja>
@@ -177,7 +116,7 @@ const TONO: Record<EstadoRequisito, { caja: string; texto: string; Icono: Lucide
 function Veredicto({
   v, juicios, perfil, plaza, cerrada, editar, paraTi,
 }: {
-  v: ReturnType<typeof veredicto>;
+  v: ReturnType<typeof useCumplo>["v"];
   juicios: Juicio[];
   perfil: PerfilEmpleo | null;
   plaza: PlazaParaCumplir;
@@ -236,7 +175,14 @@ function Veredicto({
             </p>
           ) : (
             <p className="mt-1 text-pretty text-dato leading-relaxed text-inkSoft">
-              {cerrada ? "Pero esta plaza ya cerró." : "Ahora prepara tus documentos y postula a tiempo: los pasos están abajo."}
+              {cerrada ? (
+                "Pero esta plaza ya cerró."
+              ) : (
+                <>
+                  Ahora prepara tus documentos y postula a tiempo: los pasos están en{" "}
+                  <a href="#postular" className="font-semibold text-granate underline-offset-4 hover:underline">Cómo postular</a>.
+                </>
+              )}
             </p>
           )}
           {encaje.length > 0 && (
@@ -340,5 +286,66 @@ function Fila({ j, marcado, alternar }: { j: Juicio; marcado: boolean; alternar:
         {j.porque && <span className={cn("mt-1 block text-meta font-medium leading-snug", t.texto)}>{j.porque}.</span>}
       </span>
     </li>
+  );
+}
+
+/**
+ * «Con qué comparamos»: los datos de tu perfil que usa el veredicto (carrera, estudios, años, dónde buscas y sueldo),
+ * para que veas por qué dice lo que dice y lo corrijas si cambió.
+ */
+export function TuPerfil({ base }: { base: string }) {
+  const { perfil, cargando } = usePerfilEmpleo();
+  const editar = rutaEn(base, "/app/bienvenida");
+  const filas: { Icono: LucideIcon; que: string; valor: string }[] = perfil
+    ? [
+        { Icono: GraduationCap, que: perfil.carreras.length > 1 ? "Tus carreras" : "Tu carrera", valor: perfil.carreras.length ? listaNaturalEmpleo(perfil.carreras) : "Sin carrera" },
+        { Icono: Award, que: "Tus estudios", valor: ESTUDIOS.find((e) => e.valor === perfil.tengo)?.etiqueta ?? "Sin dato" },
+        { Icono: Briefcase, que: "Tu experiencia", valor: EXPERIENCIAS.find((e) => e.valor === perfil.exp)?.etiqueta ?? "5 años o más" },
+        { Icono: MapPin, que: "Dónde buscas", valor: perfil.region ? regionDeSlug(perfil.region) : "Todo el país" },
+        { Icono: Wallet, que: "Sueldo que buscas", valor: SUELDOS.find((e) => e.valor === perfil.sueldo)?.etiqueta ?? (perfil.sueldo ? `Desde ${soles(perfil.sueldo)}` : "Cualquier sueldo") },
+      ]
+    : [];
+  return (
+    <Caja
+      id="tu-perfil"
+      titulo="Con qué comparamos"
+      descripcion="Los datos de tu perfil que usamos para decirte si cumples."
+      accion={
+        perfil ? (
+          <Link href={editar} className="inline-flex min-h-9 items-center gap-1.5 text-meta font-semibold text-inkSoft underline-offset-4 hover:text-ink hover:underline">
+            <PencilLine size={13} aria-hidden /> Editar
+          </Link>
+        ) : undefined
+      }
+    >
+      {cargando ? (
+        <div aria-hidden className="space-y-2">
+          {[0, 1, 2, 3].map((i) => (
+            <span key={i} className="block h-9 animate-pulse rounded-lg bg-ink/[0.05]" />
+          ))}
+        </div>
+      ) : !perfil ? (
+        <div>
+          <p className="text-pretty text-dato leading-relaxed text-inkSoft">
+            Todavía no armas tu perfil. Con tu carrera, tus estudios y tus años de experiencia te decimos qué cumples en cada plaza.
+          </p>
+          <Link href={editar} className={cn(claseAccion("primario"), "mt-3")}>
+            <UserRoundSearch size={15} aria-hidden /> Armar mi perfil
+          </Link>
+        </div>
+      ) : (
+        <dl className="divide-y divide-line">
+          {filas.map((f) => (
+            <div key={f.que} className="flex items-start gap-3 py-2.5 first:pt-0 last:pb-0">
+              <f.Icono size={16} aria-hidden className="mt-0.5 shrink-0 text-mute" />
+              <div className="min-w-0">
+                <dt className="text-meta text-inkSoft">{f.que}</dt>
+                <dd className="text-dato font-semibold leading-snug text-ink">{f.valor}</dd>
+              </div>
+            </div>
+          ))}
+        </dl>
+      )}
+    </Caja>
   );
 }

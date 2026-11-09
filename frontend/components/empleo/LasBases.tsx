@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useRef, useState, type KeyboardEvent } from "react";
+import { useEffect, useState } from "react";
 import { ArrowUpRight, CheckCircle2, Copy, Download, Eye, FileSearch, FileText, Sparkles } from "lucide-react";
 import { Caja } from "@/components/gobserva/app/Caja";
 import { cn } from "@/lib/utils";
@@ -18,10 +18,10 @@ const PASOS_ESPERA = ["Buscando la convocatoria en la web de la entidad…", "Ba
 
 /**
  * «Las bases» (2026-11-08): las buscamos en la web de la entidad, las guardamos y una IA las lee (GET
- * /empleo/plazas/:aviso/bases, lib/basesPlaza.ts). Cada documento se ve aquí mismo (VisorBases) o se descarga; en
- * pestañas, cómo te evalúan y el puesto. Lo que hay que hacer (el cronograma, por dónde se postula, qué presentar, lo
- * que te deja fuera) va arriba, en «Qué tienes que hacer». Sin bases,
- * el número para buscarlas (con botón para copiarlo) y la web de la entidad.
+ * /empleo/plazas/:aviso/bases, lib/basesPlaza.ts). Cada documento se ve aquí mismo (VisorBases) o se descarga; al lado,
+ * cómo te evalúan y el puesto (cajas, no pestañas dentro de la pestaña). Lo que hay que hacer (el cronograma, por dónde
+ * se postula, qué presentar, lo que te deja fuera) está en «Cómo postular». Sin bases, el número para buscarlas (con
+ * botón para copiarlo) y la web de la entidad.
  */
 export function LasBases({ aviso, numero, web, servir }: { aviso: number; numero: string | null; web: string | null; servir: string }) {
   const { data, isLoading } = useBasesPlaza(aviso);
@@ -37,7 +37,20 @@ export function LasBases({ aviso, numero, web, servir }: { aviso: number; numero
     };
   }, [isLoading]);
 
-  if (!isLoading && data?.estado === "cerrada") return null;
+  if (!isLoading && data?.estado === "cerrada") {
+    return (
+      <Caja id="bases" titulo="Las bases">
+        <p className="text-pretty text-dato leading-relaxed text-inkSoft">
+          Esta plaza ya cerró: ya no buscamos sus bases. Si las necesitas, están en la web de la entidad o en{" "}
+          <a href={servir} target="_blank" rel="noopener noreferrer" className="font-semibold text-granate underline-offset-4 hover:underline">
+            SERVIR
+            <span className="sr-only"> (se abre en otra pestaña)</span>
+          </a>
+          .
+        </p>
+      </Caja>
+    );
+  }
 
   if (isLoading) {
     return (
@@ -66,10 +79,12 @@ export function LasBases({ aviso, numero, web, servir }: { aviso: number; numero
 
   const l = data.lectura;
   const docs = data.documentos;
+  const delPuesto = l ? l.funciones.length + l.requisitos_extra.length + l.condiciones.length : 0;
   return (
+    <div className="grid grid-cols-[minmax(0,1fr)] gap-4 sm:gap-6">
     <Caja
       id="bases"
-      titulo="Las bases"
+      titulo={docs.length === 1 ? "El documento" : `Los ${docs.length} documentos`}
       descripcion={l ? "Las encontramos en la web de la entidad y las leímos por ti." : "Las encontramos en la web de la entidad."}
       pie={
         data.pagina ? (
@@ -81,7 +96,7 @@ export function LasBases({ aviso, numero, web, servir }: { aviso: number; numero
       }
     >
       <div className="space-y-5">
-        <ul className="grid gap-2" aria-label="Documentos de la convocatoria">
+        <ul className={cn("grid gap-2", docs.length > 1 && "lg:grid-cols-2")} aria-label="Documentos de la convocatoria">
           {docs.map((d, i) => (
             <li key={d.url} className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-2 rounded-xl border border-line bg-paper px-3 py-2.5">
               <span aria-hidden className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-granate-50 text-granate">
@@ -125,10 +140,24 @@ export function LasBases({ aviso, numero, web, servir }: { aviso: number; numero
           ))}
         </ul>
         {!l && data.sin_lectura && <p className="text-pretty text-dato leading-relaxed text-inkSoft">{SIN_LECTURA[data.sin_lectura]}</p>}
-        {l && <Pestanas lectura={l} />}
       </div>
       <VisorBases documentos={docs} inicial={visor.i} abierto={visor.abierto} onCerrar={() => setVisor((v) => ({ ...v, abierto: false }))} />
     </Caja>
+    {l && (l.evaluacion.length > 0 || delPuesto > 0) && (
+      <div className="grid grid-cols-[minmax(0,1fr)] items-start gap-4 sm:gap-6 xl:grid-cols-2">
+        {l.evaluacion.length > 0 && (
+          <Caja id="evaluacion" titulo="Cómo te evalúan" descripcion="Las etapas y lo que mira cada una, según las bases.">
+            <Evaluacion filas={l.evaluacion} />
+          </Caja>
+        )}
+        {delPuesto > 0 && (
+          <Caja id="puesto" titulo="El puesto" descripcion="Lo que harás y las condiciones, según las bases.">
+            <ElPuesto lectura={l} />
+          </Caja>
+        )}
+      </div>
+    )}
+    </div>
   );
 }
 
@@ -195,71 +224,11 @@ function SinBases({ numero, web, servir, aviso, error }: { numero: string | null
   );
 }
 
-function Pestanas({ lectura: l }: { lectura: LecturaBases }) {
-  const id = useId();
-  const pestanas = [
-    { clave: "evaluacion", titulo: "Cómo te evalúan", n: l.evaluacion.length, contenido: <Evaluacion filas={l.evaluacion} /> },
-    {
-      clave: "puesto",
-      titulo: "El puesto",
-      n: l.funciones.length + l.requisitos_extra.length + l.condiciones.length,
-      contenido: <ElPuesto lectura={l} />,
-    },
-  ].filter((p) => p.n > 0);
-  const [elegida, setElegida] = useState(pestanas[0]?.clave);
-  const botones = useRef<(HTMLButtonElement | null)[]>([]);
-  if (!pestanas.length) return null;
-  const actual = pestanas.find((p) => p.clave === elegida) ?? pestanas[0];
-  const mover = (e: KeyboardEvent, i: number) => {
-    const destino = e.key === "ArrowRight" ? i + 1 : e.key === "ArrowLeft" ? i - 1 : e.key === "Home" ? 0 : e.key === "End" ? pestanas.length - 1 : null;
-    if (destino == null) return;
-    e.preventDefault();
-    const j = (destino + pestanas.length) % pestanas.length;
-    setElegida(pestanas[j].clave);
-    botones.current[j]?.focus();
-  };
-  return (
-    <div>
-      <div role="tablist" aria-label="Lo que dicen las bases" className="flex gap-1 overflow-x-auto rounded-lg bg-ink/[0.06] p-1 [scrollbar-width:none]">
-        {pestanas.map((p, i) => {
-          const activa = p.clave === actual.clave;
-          return (
-            <button
-              key={p.clave}
-              ref={(el) => {
-                botones.current[i] = el;
-              }}
-              type="button"
-              role="tab"
-              id={`${id}-t-${p.clave}`}
-              aria-selected={activa}
-              aria-controls={`${id}-p-${p.clave}`}
-              tabIndex={activa ? 0 : -1}
-              onClick={() => setElegida(p.clave)}
-              onKeyDown={(e) => mover(e, i)}
-              className={cn(
-                "inline-flex min-h-9 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md px-3 text-meta font-semibold transition-colors duration-rapido",
-                activa ? "bg-caja text-ink shadow-[0_1px_3px_rgb(0_0_0/0.12)]" : "text-inkSoft hover:text-ink",
-              )}
-            >
-              {p.titulo}
-              <span className={cn("rounded-full px-1.5 text-rotulo tabular-nums", activa ? "bg-granate-50 text-granate" : "bg-ink/[0.06] text-mute")}>{p.n}</span>
-            </button>
-          );
-        })}
-      </div>
-      <div role="tabpanel" id={`${id}-p-${actual.clave}`} aria-labelledby={`${id}-t-${actual.clave}`} tabIndex={0} className="mt-4 focus-visible:outline-none">
-        {actual.contenido}
-      </div>
-    </div>
-  );
-}
-
 function Evaluacion({ filas }: { filas: LecturaBases["evaluacion"] }) {
   return (
     <ul className="divide-y divide-line rounded-xl border border-line">
       {filas.map((f) => (
-        <li key={f.etapa} className="grid gap-1 px-3.5 py-3 sm:grid-cols-[minmax(0,14rem)_minmax(0,1fr)] sm:gap-4">
+        <li key={f.etapa} className="grid gap-1 px-3.5 py-3 sm:grid-cols-[minmax(0,12rem)_minmax(0,1fr)] sm:gap-4">
           <p className="text-dato font-semibold leading-snug text-ink">{f.etapa}</p>
           <p className="text-pretty text-dato leading-relaxed text-inkSoft">{f.como}</p>
         </li>
