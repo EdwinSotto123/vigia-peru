@@ -687,15 +687,17 @@ export const MAX_PAGINAS_IMAGEN = 24;
  * Las páginas de un escaneo como JPEG: las imágenes /DCTDecode del PDF, en el orden en que aparecen (el de las páginas en
  * lo que sale de un escáner). Las chicas (logos, sellos: menos de 12 KB) no cuentan. Vacío si el escaneo usa otro formato.
  */
-export function jpegsDePdf(bytes: Uint8Array, max = MAX_PAGINAS_IMAGEN): Uint8Array[] {
-  const out: Uint8Array[] = [];
+/** Los streams de imagen JPEG del PDF, en orden: sus bytes y si además vienen con Flate (`[/FlateDecode /DCTDecode]`). */
+function streamsDct(bytes: Uint8Array): { datos: Uint8Array; flate: boolean }[] {
+  const out: { datos: Uint8Array; flate: boolean }[] = [];
   const DCT = bytesDe("/DCTDecode");
   const STREAM = bytesDe("stream");
   const FIN = bytesDe("endstream");
   let desde = 0;
-  while (out.length < max) {
+  for (;;) {
     const m = buscarBytes(bytes, DCT, desde);
     if (m < 0) break;
+    const antes = new TextDecoder("latin1").decode(bytes.subarray(Math.max(0, m - 40), m));
     let i = buscarBytes(bytes, STREAM, m);
     if (i < 0) break;
     i += STREAM.length;
@@ -704,8 +706,45 @@ export function jpegsDePdf(bytes: Uint8Array, max = MAX_PAGINAS_IMAGEN): Uint8Ar
     if (j < 0) break;
     let k = j;
     while (k > i && (bytes[k - 1] === 0x0d || bytes[k - 1] === 0x0a)) k--;
-    if (bytes[i] === 0xff && bytes[i + 1] === 0xd8 && k - i >= 12_000) out.push(bytes.slice(i, k));
+    out.push({ datos: bytes.subarray(i, k), flate: /\/FlateDecode\s*$/.test(antes) });
     desde = j + FIN.length;
+  }
+  return out;
+}
+
+/** Un JPEG que vale como página: empieza con FFD8 y pesa 12 KB o más (sin logos ni sellos chicos). */
+const esPaginaJpeg = (x: Uint8Array) => x[0] === 0xff && x[1] === 0xd8 && x.byteLength >= 12_000;
+
+/** Las páginas JPEG de un PDF escaneado (sólo las sin Flate; `paginasJpeg` también infla las otras). */
+export function jpegsDePdf(bytes: Uint8Array, max = MAX_PAGINAS_IMAGEN): Uint8Array[] {
+  const out: Uint8Array[] = [];
+  for (const s of streamsDct(bytes)) {
+    if (out.length >= max) break;
+    if (!s.flate && esPaginaJpeg(s.datos)) out.push(s.datos.slice());
+  }
+  return out;
+}
+
+/** Infla un stream Flate (zlib) con DecompressionStream, hasta `tope` bytes. null si no se puede. */
+async function inflar(b: Uint8Array, tope = 8 * 1024 * 1024): Promise<Uint8Array | null> {
+  try {
+    const flujo = new Blob([b as Uint8Array<ArrayBuffer>]).stream().pipeThrough(new DecompressionStream("deflate"));
+    return await cuerpoConTope(new Response(flujo), tope);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Las páginas JPEG de un PDF escaneado, también las que el escáner guardó además con Flate (`/Filter [/FlateDecode
+ * /DCTDecode]`: las bases de UNHEVAL, 2026-11-09), que se inflan para mandarlas como imagen.
+ */
+export async function paginasJpeg(bytes: Uint8Array, max = MAX_PAGINAS_IMAGEN): Promise<Uint8Array[]> {
+  const out: Uint8Array[] = [];
+  for (const s of streamsDct(bytes)) {
+    if (out.length >= max) break;
+    const x = s.flate ? await inflar(s.datos) : s.datos.slice();
+    if (x && esPaginaJpeg(x)) out.push(x);
   }
   return out;
 }
@@ -975,7 +1014,9 @@ export async function leerBases(
       const leida = { lectura: r.lectura, entrada: r.entrada, salida: r.salida, modelo: r.quien };
       if (r.lectura.corresponde && !lecturaVacia(r.lectura)) return leida;
       if (!r.lectura.corresponde) {
-        if (!pdfs.some((d) => jpegsDePdf(d.bytes, 1).length)) return leida;
+        let conImagenes = false;
+        for (const d of pdfs) if ((conImagenes = (await paginasJpeg(d.bytes, 1)).length > 0)) break;
+        if (!conImagenes) return leida;
         negativo = leida;
       }
       // GLM respondió pero sin nada que mostrar (algo de texto suelto en un escaneo): se lee como escaneo.
@@ -985,7 +1026,11 @@ export async function leerBases(
   }
   // Escaneo: las páginas JPEG de cada PDF (después de un «no», primero las de los escaneados), en orden, hasta 24.
   const orden = negativo ? [...escaneados, ...pdfs.filter((d) => !escaneados.includes(d))] : pdfs;
-  const paginas = orden.flatMap((d) => jpegsDePdf(d.bytes)).slice(0, MAX_PAGINAS_IMAGEN);
+  const paginas: Uint8Array[] = [];
+  for (const d of orden) {
+    if (paginas.length >= MAX_PAGINAS_IMAGEN) break;
+    paginas.push(...(await paginasJpeg(d.bytes, MAX_PAGINAS_IMAGEN - paginas.length)));
+  }
   if (paginas.length) {
     try {
       const r = await leerBasesImagenes(env, p, paginas);

@@ -194,3 +194,20 @@ test("el texto de toMarkdown va a su PDF por nombre aunque vuelva en otro orden"
   const t = await textoDePdfs({ AI: al_reves } as never, [{ titulo: "A", bytes: new Uint8Array([1]) }, { titulo: "B", bytes: new Uint8Array([2]) }]);
   assert.deepEqual(t.map((x) => x.texto), ["uno", "dos"]);
 });
+
+test("las páginas JPEG que el escáner guardó además con Flate se inflan (UNHEVAL)", async () => {
+  const { deflateSync } = await import("node:zlib");
+  const { paginasJpeg } = await import("../src/lib/basesPlaza.js");
+  const jpeg = new Uint8Array(20_000).fill(7);
+  jpeg.set([0xff, 0xd8]);
+  const enc = new TextEncoder();
+  const flate = deflateSync(jpeg);
+  const pdf = new Uint8Array([
+    ...enc.encode("%PDF-1.7\n1 0 obj\n<< /Subtype /Image /Filter [/FlateDecode /DCTDecode] /Length 1 >>\nstream\n"), ...flate, ...enc.encode("\nendstream\nendobj\n"),
+    ...enc.encode("2 0 obj\n<< /Subtype /Image /Filter /DCTDecode >>\nstream\n"), ...jpeg, ...enc.encode("\nendstream\nendobj\n"),
+  ]);
+  assert.equal(jpegsDePdf(pdf).length, 1);
+  const p = await paginasJpeg(pdf);
+  assert.equal(p.length, 2);
+  assert.deepEqual([p[0].byteLength, p[0][0], p[0][1]], [20_000, 0xff, 0xd8]);
+});
