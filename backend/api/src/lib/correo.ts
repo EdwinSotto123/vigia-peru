@@ -1,5 +1,10 @@
 /**
- * Correo de Gobserva (2026-11-01): alertas, recordatorios y recibos, desde alertas@gobserva.cloud por Amazon SES.
+ * Correo de Gobserva (2026-11-01): alertas, recordatorios y recibos, desde alertas@gobserva.cloud.
+ *
+ * Desde el 2026-11-08 sale por RESEND cuando el Worker tiene `RESEND_API_KEY` (el dueño eligió Resend porque AWS negó
+ * sacar a SES del sandbox). La llave la pone infrastructure/deploy/correo_resend.py sólo después de verificar el
+ * dominio en Resend (DKIM y SPF en Cloudflare), así que con la llave puesta el correo llega a cualquiera. Sin ella,
+ * queda el camino de antes por SES, que en sandbox sólo llega a @gobserva.cloud:
  *
  * La API no tiene llaves de AWS: le pide cada envío a la Lambda `vigia-gobserva-correo` (infrastructure/aws/
  * correo_gobserva), cuyo rol sólo puede mandar desde @gobserva.cloud. El dominio está verificado en SES (us-east-2) con
@@ -12,8 +17,12 @@
 import { Memo } from "./cache.js";
 
 export const RESPONDER_A = "hello@gobserva.cloud";
+export const REMITENTE = "Gobserva <alertas@gobserva.cloud>";
 
-export const correoConfigurado = () => Boolean(process.env.CORREO_URL && process.env.CORREO_TOKEN);
+/** Resend (https://resend.com/docs/api-reference/emails/send-email): manda sobre SES cuando está. */
+const conResend = () => Boolean(process.env.RESEND_API_KEY);
+
+export const correoConfigurado = () => conResend() || Boolean(process.env.CORREO_URL && process.env.CORREO_TOKEN);
 
 export interface Correo {
   para: string;
@@ -49,6 +58,7 @@ const llamar = (metodo: "GET" | "POST", cuerpo?: string) =>
 
 /** Si el correo está configurado y si SES ya salió del sandbox (diez minutos en memoria). */
 export function estadoCorreo(): Promise<EstadoCorreo> {
+  if (conResend()) return Promise.resolve({ configurado: true, produccion: true, revision: "resend" });
   if (!correoConfigurado()) return Promise.resolve({ configurado: false, produccion: false, revision: null });
   return memoEstado.obtener("estado", async () => {
     try {
@@ -70,8 +80,33 @@ export async function llegaCorreo(email: string): Promise<boolean> {
   return e.configurado && (e.produccion || email.toLowerCase().endsWith("@gobserva.cloud"));
 }
 
-/** Envía un correo. Devuelve el id del mensaje de SES; lanza ErrorCorreo si no se pudo. */
+/** El cuerpo del envío en Resend: con respuesta a hello@ y la baja de un clic (RFC 8058) si la hay. */
+export function cuerpoResend(c: Correo): Record<string, unknown> {
+  return {
+    from: REMITENTE,
+    to: [c.para],
+    reply_to: RESPONDER_A,
+    subject: c.asunto,
+    html: c.html,
+    text: c.texto,
+    ...(c.baja ? { headers: { "List-Unsubscribe": `<${c.baja}>`, "List-Unsubscribe-Post": "List-Unsubscribe=One-Click" } } : {}),
+  };
+}
+
+async function enviarResend(c: Correo): Promise<string> {
+  const r = await fetch("https://api.resend.com/emails", {
+    method: "POST",
+    headers: { authorization: `Bearer ${process.env.RESEND_API_KEY}`, "content-type": "application/json" },
+    body: JSON.stringify(cuerpoResend(c)),
+  });
+  const j = (await r.json().catch(() => null)) as { id?: string; message?: string; name?: string } | null;
+  if (!r.ok || !j?.id) throw new ErrorCorreo(r.status, (j?.message || j?.name || `Resend respondió ${r.status}`).slice(0, 300));
+  return j.id;
+}
+
+/** Envía un correo (Resend o, sin él, SES). Devuelve el id del mensaje; lanza ErrorCorreo si no se pudo. */
 export async function enviarCorreo(c: Correo): Promise<string> {
+  if (conResend()) return enviarResend(c);
   if (!correoConfigurado()) throw new ErrorCorreo(503, "correo_sin_configurar");
   const r = await llamar("POST", JSON.stringify({ para: c.para, asunto: c.asunto, html: c.html, texto: c.texto, baja: c.baja }));
   const j = (await r.json().catch(() => null)) as { ok?: boolean; id?: string; error?: string; detail?: string } | null;

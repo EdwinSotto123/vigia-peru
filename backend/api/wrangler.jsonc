@@ -78,8 +78,9 @@
     // "Correr el dispatcher ahora" (lib/dispatcher.ts): POST /ejecutar del Worker, con el secreto DISPATCHER_TOKEN.
     "DISPATCHER_URL": "https://vigia-dispatcher.vigiaperu.workers.dev",
     // Notificaciones de Gobserva (lib/webpush.ts): la llave pública VAPID; la privada es el secreto VAPID_PRIVATE_KEY
-    // (copia en SSM /vigia/gobserva/vapid-privada). El correo va por la Lambda vigia-gobserva-correo (secretos
-    // CORREO_URL y CORREO_TOKEN, infrastructure/aws/correo_gobserva).
+    // (copia en SSM /vigia/gobserva/vapid-privada). El correo va por Resend con el secreto RESEND_API_KEY
+    // (infrastructure/deploy/correo_resend.py, lib/correo.ts); sin él, por la Lambda vigia-gobserva-correo (secretos
+    // CORREO_URL y CORREO_TOKEN, infrastructure/aws/correo_gobserva), que en sandbox sólo llega a @gobserva.cloud.
     "VAPID_PUBLIC_KEY": "BLyYkP_h9_YFRVMIEoBpSAebunN_-kPsaqwQvZ5VnebZ_5sF80jlKd_q6vjhNStTYyKq1uqRWWK9azHqNPJtWHY"
   },
 
