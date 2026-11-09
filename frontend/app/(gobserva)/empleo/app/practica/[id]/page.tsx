@@ -37,6 +37,8 @@ export default async function FichaPracticaPage({ params }: Props) {
   const r = leerRequerimientos(p.requerimientos);
   const m = MODALIDAD[p.modalidad] ?? MODALIDAD.otra;
   const hoy = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Lima" }).format(new Date());
+  // El correo llega tapado (a***@entidad.gob.pe) si es de una persona: sin botón para escribirle.
+  const correo = p.correo && !p.correo.includes("*") ? p.correo : null;
   const horario = p.beneficios?.horario_ingreso && p.beneficios?.horario_salida ? `de ${p.beneficios.horario_ingreso} a ${p.beneficios.horario_salida}` : null;
 
   return (
@@ -57,8 +59,10 @@ export default async function FichaPracticaPage({ params }: Props) {
         <p className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-dato text-inkSoft">
           <span className="inline-flex min-w-0 items-center gap-1.5">
             <Building2 size={15} aria-hidden className="shrink-0 text-mute" />
-            {entidadNombre(p.entidad)}
-            {p.unidadOrganica ? <span className="text-mute">, {puesto(p.unidadOrganica)}</span> : null}
+            <span className="min-w-0">
+              {entidadNombre(p.entidad)}
+              {p.unidadOrganica ? <span className="text-mute">, {puesto(p.unidadOrganica)}</span> : null}
+            </span>
           </span>
           {p.ubicacion && (
             <span className="inline-flex items-center gap-1.5">
@@ -116,7 +120,7 @@ export default async function FichaPracticaPage({ params }: Props) {
                   )}
                 </li>
               )}
-              {p.conocimientos && <Requisito titulo="Conocimientos" texto={p.conocimientos} Icono={BookOpen} />}
+              {p.conocimientos && <Requisito titulo="Conocimientos" texto={sinVineta(p.conocimientos)} Icono={BookOpen} />}
             </ul>
           </Caja>
 
@@ -126,7 +130,7 @@ export default async function FichaPracticaPage({ params }: Props) {
                 {p.actividades.map((a) => (
                   <li key={a} className="flex items-start gap-2.5 text-dato leading-snug text-ink">
                     <CheckCircle2 size={16} aria-hidden className="mt-0.5 shrink-0 text-granate" />
-                    <span className="min-w-0">{a}</span>
+                    <span className="min-w-0">{sinVineta(a)}</span>
                   </li>
                 ))}
               </ul>
@@ -161,7 +165,13 @@ export default async function FichaPracticaPage({ params }: Props) {
                 </li>
                 <li>
                   <b className="font-semibold text-ink">3. Postula antes del {p.fechaFin ? fechaDia(p.fechaFin) : "cierre"}</b>
-                  {p.correo ? <>, por el canal que digan las bases. El correo de la entidad para esta convocatoria es <b className="font-semibold text-ink [overflow-wrap:anywhere]">{p.correo}</b>.</> : ", por el canal que digan las bases."}
+                  {correo ? (
+                    <>, por el canal que digan las bases. El correo de la entidad para esta convocatoria es <b className="font-semibold text-ink [overflow-wrap:anywhere]">{correo}</b>.</>
+                  ) : p.correo ? (
+                    ", por el canal que digan las bases. El correo de contacto está en el aviso de Talento Perú."
+                  ) : (
+                    ", por el canal que digan las bases."
+                  )}
                 </li>
               </ol>
             )}
@@ -173,8 +183,8 @@ export default async function FichaPracticaPage({ params }: Props) {
                     <span className="sr-only"> (se abre en otra pestaña)</span>
                   </a>
                 )}
-                {p.correo && (
-                  <a href={`mailto:${p.correo}?subject=${encodeURIComponent(`Convocatoria ${p.numero ?? ""}: ${puesto(p.titulo)}`)}`} className={claseAccion(p.web ? "secundario" : "primario")}>
+                {correo && (
+                  <a href={`mailto:${correo}?subject=${encodeURIComponent(`Convocatoria ${p.numero ?? ""}: ${puesto(p.titulo)}`)}`} className={claseAccion(p.web ? "secundario" : "primario")}>
                     <Mail size={15} aria-hidden /> Escribir a la entidad
                   </a>
                 )}
@@ -221,6 +231,9 @@ export default async function FichaPracticaPage({ params }: Props) {
     </Pagina>
   );
 }
+
+/** SERVIR escribe las viñetas dentro del texto («• Apoyar en…»): fuera, que la lista ya pone su ícono. */
+const sinVineta = (t: string) => t.replace(/^[\s•·▪●\-–]+/, "").replace(/\s*[•▪●]\s*/g, ", ").trim();
 
 function Cifra({ etiqueta, valor, detalle }: { etiqueta: string; valor: string; detalle: string }) {
   return (

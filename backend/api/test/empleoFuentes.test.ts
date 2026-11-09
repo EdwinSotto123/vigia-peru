@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
-  SIN_ENLACE, cambiosCronograma, eventoDeDocumento, fuenteDe, huellaEvento, intercalarPorDominio, soloEnlace, tipoDocumento, urlPrincipal,
+  SIN_ENLACE, cambiosCronograma, correoDeOficina, eventoDeDocumento, fuenteDe, huellaEvento, intercalarPorDominio, soloEnlace, tipoDocumento, urlPrincipal,
 } from "../src/lib/empleoFuentes.js";
 import { agruparCobertura, sqlCandidatas } from "../src/lib/empleoRecolector.js";
 
@@ -98,4 +98,13 @@ test("las candidatas: abiertas, con la prioridad de quienes pagan y la condició
   }
   assert.match(sqlCandidatas("medir"), /r\.bases_estado IS NULL\s+ORDER BY prioridad DESC, random\(\)/);
   assert.match(sqlCandidatas("vigilar"), /g\.ref IS NOT NULL AND r\.bases_estado = 'encontradas'/);
+});
+
+test("el correo de oficina se muestra entero; el de una persona, no", () => {
+  for (const c of ["seleccion@indecopi.gob.pe", "convocatoriaspracticantes_lima@sunarp.gob.pe", "convocatorias_moyob@sunarp.gob.pe", "rrhh@unsa.edu.pe", "mesadepartes@minsa.gob.pe"]) {
+    assert.equal(correoDeOficina(c), true, c);
+  }
+  for (const c of ["nancy.narvaez@ugel02.gob.pe", "lcastillo@minedu.gob.pe", "seleccion@gmail.com", null, ""]) {
+    assert.equal(correoDeOficina(c), false, String(c));
+  }
 });

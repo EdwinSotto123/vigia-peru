@@ -94,6 +94,16 @@ export function fuenteDe(detalleUrl: string | null | undefined): Fuente {
   return f("D", "generico");
 }
 
+/**
+ * Un correo de OFICINA (selección, convocatorias, recursos humanos, mesa de partes…): se muestra entero porque es el canal
+ * de postulación. Uno con el nombre de una persona (nombre.apellido@entidad.gob.pe) queda tapado, como todo correo.
+ */
+export function correoDeOficina(c: string | null | undefined): boolean {
+  const m = /^([a-z0-9._%+-]+)@[a-z0-9.-]+\.(gob|edu)\.pe$/i.exec((c ?? "").trim());
+  if (!m) return false;
+  return /(seleccion|convocatoria|practica|practicante|rrhh|recursos|humanos|personal|mesadepartes|mesa_de_partes|mesa\.partes|tramite|talento|reclut|postula|secigra|ogrh|oficina)/i.test(m[1]);
+}
+
 /** Minúsculas, sin tildes, sin signos: para clasificar títulos de documentos. */
 export function plano(s: string): string {
   let t = s;

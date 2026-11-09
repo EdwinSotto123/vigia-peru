@@ -9,6 +9,7 @@ import { PARTES_FORMACION, SUGERIDOS_SQL, clavePuesto, condicionesCalce, leerCar
 import { huellaPlaza, resumirPlaza, textoPlaza, type PlazaParaResumen } from "../lib/resumenPlaza.js";
 import { procesarBases, relayDe, type ResultadoBases } from "../lib/basesPlaza.js";
 import { TOPE_HAIKU_DIA, TOPE_LECTURAS_DIA, guardarBases, guardarError, haikuHoy, leidasHoy } from "../lib/empleoRecolector.js";
+import { correoDeOficina } from "../lib/empleoFuentes.js";
 import { limiteLectura } from "../lib/antibots.js";
 import { registrar } from "../lib/registro.js";
 
@@ -538,7 +539,11 @@ empleoRouter.get("/practicas/:id", async (c) => {
        FROM servir_practica p WHERE left(md5(p.clave), 16) = $1`, [id]);
   if (!r.rows[0]) return c.json({ error: "no_encontrado" }, 404);
   c.header("Cache-Control", CACHE);
-  return c.json(publicar(r.rows[0]));
+  // El correo de oficina es el canal de postulación: entero. El de una persona queda tapado (publicar).
+  const original = r.rows[0].correo as string | null;
+  const fila = publicar(r.rows[0]) as Record<string, unknown>;
+  if (correoDeOficina(original)) fila.correo = original;
+  return c.json(fila);
 });
 
 // ─── GET /empleo/bases/:clave: la copia que guardamos del PDF (R2) ───────────────────────────────
