@@ -7,7 +7,9 @@
  * Reglas de todos: pocos pedidos (el tope del cliente), sin captchas, sin cuentas, y de los resultados (nombres y DNI) sólo
  * el enlace: lo filtra `soloEnlace` aguas abajo.
  */
-import { buscarBases, enlaces, esDocumento, normalizar, numeroProceso, palabrasPuesto, type Enlace, type Hallazgo, type PlazaParaBases } from "./basesPlaza.js";
+import {
+  buscarBases, documentosDePagina, enlaces, esDocumento, esProcesoGobPe, normalizar, numeroProceso, palabrasPuesto, type Enlace, type Hallazgo, type PlazaParaBases,
+} from "./basesPlaza.js";
 import type { Http } from "./empleoHttp.js";
 
 export type Adaptador = (p: PlazaParaBases, http: Http) => Promise<Hallazgo | null>;
@@ -874,3 +876,202 @@ Object.assign(ADAPTADORES, {
   "convocatorias.regionamazonas.gob.pe": amazonas,
   "www.educacioncajamarca.gob.pe": dreCajamarca,
 } satisfies Record<string, Adaptador>);
+
+// ─── gob.pe: la búsqueda pública (busquedas.json) ─────────────────────────────────────────────────
+
+/**
+ * gob.pe (1 303 plazas en 90 días): en vez de recorrer la página que enlaza SERVIR (una portada, una página de servicio,
+ * una colección con hojas), se busca en `busquedas.json` por institución y ventana de fechas: el número, luego lo más
+ * nuevo, luego el régimen (276/728) y luego las palabras del puesto. Medido el 2026-11-09 sobre 81 plazas: mismo hallazgo
+ * en 38, 12 nuevos y 3 publicaciones equivocadas corregidas, con 2,6 pedidos en promedio. Los enlaces directos a una
+ * publicación siguen con el genérico (ya funcionan).
+ */
+const NO_INSTITUCION = new Set(["", "estado", "busquedas", "tema", "funcionariospublicos", "redessociales", "establecimientosdesalud", "aeropuertosperu", "institucion", "es", "normas-legales", "noticias"]);
+const NORMAS_GOBPE = /\b(resolucion|directiva|decreto|ley\b|oficio|informe|memorando|ordenanza|acuerdo|convenio|cuadro multianual|rendicion)/;
+const RESULTADOS_GOBPE = /\b(resultado|comunicado|actas?\b|fe de errata|puntaje|aptos?\b|ganador|entrevista|evaluacion curricular|rectificacion|postergacion|cancelacion|desiert|concurso interno|ascenso|cambio de grupo ocupacional|reasignacion|nombramiento)/;
+
+const corrido = (iso: string, d: number) => {
+  const t = new Date(`${iso}T12:00:00Z`);
+  t.setUTCDate(t.getUTCDate() + d);
+  return t.toISOString().slice(0, 10);
+};
+
+interface ResultadoGobPe { titulo: string; href: string; doc: string | null; pub: string | null; texto: string }
+
+async function slugsGobPe(inicio: string, http: Http): Promise<string[]> {
+  let m = /^https:\/\/www\.gob\.pe\/institucion\/([^/?#]+)/i.exec(inicio);
+  if (m) return [m[1].toLowerCase()];
+  m = /^https:\/\/www\.gob\.pe\/([a-z][a-z0-9-]*)\/?$/i.exec(inicio);
+  if (m && !NO_INSTITUCION.has(m[1].toLowerCase())) return [m[1].toLowerCase()];
+  const r = await http.get(inicio);
+  if (!r) return [];
+  m = /^https:\/\/www\.gob\.pe\/institucion\/([^/?#]+)/i.exec(r.final);
+  if (m) return [m[1].toLowerCase()];
+  const out: string[] = [];
+  for (const e of enlaces(r.texto, r.final)) {
+    const k = /^https:\/\/www\.gob\.pe\/([a-z][a-z0-9-]*)\/?$/i.exec(e.url)?.[1]?.toLowerCase();
+    if (k && !NO_INSTITUCION.has(k) && !out.includes(k)) out.push(k);
+  }
+  return out.slice(0, 3);
+}
+
+async function buscarGobPe(http: Http, slugs: string[], term: string, desde: string, hasta: string, orden: "none" | "recent"): Promise<{ total: number; res: ResultadoGobPe[] }> {
+  const q = new URLSearchParams();
+  q.append("contenido[]", "publicaciones");
+  q.append("contenido[]", "campañas");
+  for (const s of slugs) q.append("institucion[]", s);
+  q.set("term", term);
+  q.set("sort_by", orden);
+  q.set("desde", desde);
+  q.set("hasta", hasta);
+  q.set("sheet", "1");
+  const j = await http.json<{ data?: { attributes?: { total_count?: number; results?: Record<string, unknown>[] } } }>(`https://www.gob.pe/busquedas.json?${q}`);
+  if (!j) return { total: -1, res: [] };
+  const a = j.data?.attributes ?? {};
+  const res: ResultadoGobPe[] = [];
+  for (const x of a.results ?? []) {
+    const url = String(x.url ?? "");
+    const href = /href="([^"]+)"/.exec(url)?.[1];
+    if (!href || !slugs.some((s) => href.toLowerCase().startsWith(`/institucion/${s}/`))) continue;
+    if (!/\/(informes-publicaciones|campa%C3%B1as|campañas)\/\d+/i.test(href)) continue;
+    const titulo = textoPlano(url);
+    const doc = typeof x.action_url === "string" ? x.action_url : null;
+    const archivo = (doc ?? "").split("/").pop()?.split("?")[0] ?? "";
+    res.push({ titulo, href: `https://www.gob.pe${href}`, doc, pub: fechaEs(String(x.publication ?? "")), texto: `${titulo} ${textoPlano(String(x.content ?? ""))} ${archivo} ${href.split("/").pop()}` });
+  }
+  return { total: a.total_count ?? 0, res };
+}
+
+function otroNumero(t: string, n: number | null): boolean {
+  if (n == null) return false;
+  for (const m of t.matchAll(/\b(?:cas|proceso|convocatoria|concurso)\s+(?:temporal\s+|transitorio\s+)?(?:n\s+|nro\s+)?0*(\d{1,4})\s+(?:20\d\d)?/g)) if (Number(m[1]) !== n) return true;
+  return false;
+}
+
+/** El puntaje de un resultado de la búsqueda para la plaza (reglas medidas sobre 81 casos; ver la cabecera). */
+export function puntajeGobPe(
+  x: Pick<ResultadoGobPe, "titulo" | "texto" | "doc" | "pub">, p: Pick<PlazaParaBases, "fecha_inicio">, n: number | null, anio: number, palabras: string[], regimen: string | null, lugar: string[],
+) {
+  const t = normalizar(x.texto).replace(/\//g, " ");
+  const tt = normalizar(x.titulo);
+  let pt = 0;
+  // «CAS N° 007-2026» o el par número-año («Provisión Externa 007-2026»), sin el «n» suelto («Cas. Unión, Lote N° 1» es un caserío).
+  const num = n != null && (
+    new RegExp(`\\b(?:cas|proceso|convocatoria|concurso|seleccion|cap)(?: (?:temporal|transitorio|por suplencia temporal))?[ .:]{0,3}(?:n|nro|no)?[ .:]{0,3}0*${n}(?![0-9])`).test(t)
+    || new RegExp(`(?<![0-9])0*${n} (${anio}|${anio + 1})\\b`).test(t));
+  const otro = !num && otroNumero(t, n);
+  if (num) pt += 5;
+  if (otro) pt -= 6;
+  if (NORMAS_GOBPE.test(tt)) pt -= 1;
+  if (RESULTADOS_GOBPE.test(tt)) pt -= 4;
+  if (/\b(bases|convocatoria|perfil|terminos de referencia|tdr)\b/.test(`${tt} ${normalizar((x.doc ?? "").split("/").pop() ?? "")}`)) pt += 1;
+  if (/\b(anexos?|formatos?|fichas?)\b/.test(tt) && !/\bbases\b/.test(tt)) pt -= 1;
+  if (t.includes(String(anio)) || t.includes(String(anio + 1))) pt += 1;
+  else if (/20\d\d/.test(t)) pt -= 2;
+  const tit = palabras.filter((w) => t.includes(w.slice(0, Math.max(5, Math.min(w.length, 7))))).length;
+  pt += Math.min(3, tit);
+  const reg = !!regimen && new RegExp(`\\b${regimen}\\b`).test(t);
+  if (reg) pt += 2;
+  // Otro régimen: una plaza 276/728 no es un «CAS» (1057), y una CAS no es una «276»/«728».
+  if (regimen && !reg && /\b(cas|1057)\b/.test(t)) pt -= 4;
+  if (!regimen && /\b(d l|d leg|decreto legislativo|regimen laboral)\s*(n\s*)?(276|728)\b/.test(t) && !/\b(cas|1057)\b/.test(t)) pt -= 4;
+  const enLugar = lugar.some((l) => l.length >= 4 && t.includes(l));
+  if (enLugar) pt += 1;
+  const conv = /\b(convocatoria|proceso|seleccion|concurso|cas|bases|contratacion|personal|plazas?|puestos?|perfil|tdr|terminos de referencia)\b/.test(t);
+  if (conv) pt += 1;
+  const cerca = !!x.pub && !!p.fecha_inicio && x.pub >= corrido(p.fecha_inicio, -12) && x.pub <= corrido(p.fecha_inicio, 2);
+  if (cerca) pt += 1;
+  const malo = !conv || RESULTADOS_GOBPE.test(tt) || otro || (!!regimen && !reg && /\b(cas|1057)\b/.test(t))
+    || /^[^a-z]*(resolucion|directiva|decreto|ley|oficio|informe|memorando|ordenanza|acuerdo|convenio|modificacion|aprobacion|aprobar|constancia|aviso de inscripcion)\b/.test(tt);
+  // Sin número: que sea de personal y no una compra u obra («Proceso de Selección N° PRO-001-2026-MVCS/HUALLANCA-OxI»).
+  const personal = /\b(cas|1057|276|728|contratacion administrativa de servicios|personal|puesto|plaza|perfil|terminos de referencia)\b/.test(t)
+    && !/\b(oxi|obra|obras|bienes|consultoria|adquisicion|licitacion|expediente tecnico|contratacion directa|subasta)\b/.test(t);
+  const ok = !malo && ((num && pt >= 6) || (!num && personal && reg && (enLugar || tit >= 1 || cerca) && pt >= 5) || (!num && personal && tit >= Math.min(2, palabras.length) && pt >= 5));
+  return { p: pt, num, tit, ok, malo };
+}
+
+const cuerpoNormal = (html: string) => normalizar(html.replace(/<script[\s\S]*?<\/script>/gi, " ").replace(/<[^>]+>/g, " "));
+
+const gobpe: Adaptador = async (p, http) => {
+  const crudo = (p.detalle_url ?? "").split(/[;\s]+/).map((u) => u.replace(/[,.;]+$/, "")).find((u) => /^https:\/\/www\.gob\.pe\//i.test(u));
+  if (!crudo || !p.fecha_inicio) return null;
+  // La vista previa del panel de gob.pe (pide sesión) → el enlace público corto.
+  const inicio = crudo.replace(/^https:\/\/www\.gob\.pe\/admin2\/informes-publicaciones\/(\d+)-[^?#]*.*$/i, "https://www.gob.pe/es/i/$1");
+  // Un enlace directo a la publicación: lo resuelve el genérico (ya lo hacía bien).
+  if (esProcesoGobPe(inicio)) return null;
+  const n = numeroProceso(p.numero);
+  const anio = anioDe(p);
+  const palabras = palabrasPuesto(p.titulo);
+  const regimen = /^(276|728)\b/.exec(p.numero ?? "")?.[1] ?? null;
+  const lugar = (p.ubicacion ?? "").split(/\s+-\s+/).map((s) => normalizar(s));
+  let slugs = await slugsGobPe(inicio, http);
+  if (!slugs.length) return null;
+  const desde = corrido(p.fecha_inicio, -45);
+  const hasta = corrido(p.fecha_inicio, 5);
+  let mejor: { x: ResultadoGobPe; p: number } | null = null;
+  let empatados: ResultadoGobPe[] = [];
+  const evaluar = (rs: ResultadoGobPe[]) => {
+    for (const x of rs) {
+      const k = puntajeGobPe(x, p, n, anio, palabras, regimen, lugar);
+      if (!k.ok) continue;
+      if (!mejor || k.p > mejor.p) {
+        mejor = { x, p: k.p };
+        empatados = [x];
+      } else if (k.p === mejor.p && x.href !== mejor.x.href) empatados.push(x);
+    }
+  };
+  // 1. El número solo (gob.pe ignora los ceros: 3 = 03 = 003).
+  if (n != null) {
+    let a = await buscarGobPe(http, slugs, String(n), desde, hasta, "none");
+    if (a.total < 0) {
+      // Institución renombrada (/drscy → /sbscy): la búsqueda da 404; la portada redirige al nombre nuevo.
+      const r = await http.get(inicio);
+      const k = r ? /^https:\/\/www\.gob\.pe\/(?:institucion\/)?([a-z][a-z0-9-]*)/i.exec(r.final)?.[1]?.toLowerCase() : null;
+      if (k && !slugs.includes(k)) slugs = [k];
+      a = await buscarGobPe(http, slugs, String(n), desde, hasta, "none");
+    }
+    evaluar(a.res);
+  }
+  // 2. Lo más nuevo de la ventana (el número sólo en la descripción o en el archivo).
+  if (!mejor) evaluar((await buscarGobPe(http, slugs, "", desde, hasta, "recent")).res);
+  // 3. 276/728: el régimen (la convocatoria anual de la UGEL no lleva el número de la plaza).
+  if (!mejor && regimen) evaluar((await buscarGobPe(http, slugs, regimen, desde, hasta, "recent")).res);
+  // 4. Las palabras del puesto (una campaña que reúne varios puestos): si hay pocas, se abre y se verifica el puesto.
+  if (!mejor && palabras.length) {
+    const b = await buscarGobPe(http, slugs, palabras.slice(0, 4).join(" "), desde, hasta, "none");
+    evaluar(b.res);
+    const q3 = !mejor && b.total > 0 && b.total <= 3 ? b.res.filter((x) => !puntajeGobPe(x, p, n, anio, palabras, regimen, lugar).malo) : [];
+    if (q3.length) {
+      const r = await http.get(q3[0].href);
+      const cuerpo = cuerpoNormal(r?.texto ?? "");
+      const enCuerpo = palabras.filter((w) => cuerpo.includes(w.slice(0, Math.max(5, Math.min(w.length, 7))))).length;
+      if (r && enCuerpo >= Math.min(2, palabras.length)) return hallazgo(q3[0].href, documentosDePagina(enlaces(r.texto, r.final), n, anio, true));
+    }
+  }
+  if (!mejor) return null;
+  const elegido = mejor as { x: ResultadoGobPe; p: number };
+  let pagina = elegido.x.href;
+  let html: { texto: string; final: string } | null = null;
+  if (empatados.length > 1) {
+    // Varias unidades con el mismo número (FAP: «Nº002-2026 - AGRAJ», «- GRUP7»…): la que nombra el puesto o el lugar.
+    let mejorEmpate: { href: string; puntos: number; texto: string; final: string } | null = null;
+    for (const x of empatados.slice(0, 3)) {
+      const r = await http.get(x.href);
+      if (!r) continue;
+      const cuerpo = cuerpoNormal(r.texto);
+      const puntos = palabras.filter((w) => cuerpo.includes(w.slice(0, Math.max(5, Math.min(w.length, 7))))).length + lugar.filter((l) => l.length >= 4 && cuerpo.includes(l)).length;
+      if (!mejorEmpate || puntos > mejorEmpate.puntos) mejorEmpate = { href: x.href, puntos, texto: r.texto, final: r.final };
+    }
+    if (!mejorEmpate || mejorEmpate.puntos === 0) return null;
+    pagina = mejorEmpate.href;
+    html = mejorEmpate;
+  }
+  if (!html) {
+    const r = await http.get(pagina);
+    if (r) html = r;
+  }
+  const docs = html ? documentosDePagina(enlaces(html.texto, html.final), n, anio, true) : [];
+  return hallazgo(pagina, docs.length ? docs : elegido.x.doc ? [{ url: elegido.x.doc, texto: elegido.x.titulo }] : []);
+};
+
+Object.assign(ADAPTADORES, { "www.gob.pe": gobpe, "gob.pe": gobpe } satisfies Record<string, Adaptador>);
