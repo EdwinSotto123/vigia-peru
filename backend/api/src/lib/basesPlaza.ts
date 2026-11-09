@@ -11,7 +11,10 @@
  *      de Workers AI (`AI.toMarkdown`, gratis) y lo lee GLM 5.3 flash (vigia-llm, /v1/chat/completions; ~265 neuronas,
  *      ~USD 0,003 unas bases de 14 páginas) con una herramienta forzada: si los documentos son de esta plaza
  *      (`corresponde`), qué hará, el cronograma, cómo evalúan, qué presentar, cómo se postula y qué deja fuera a la gente.
- *      Las bases escaneadas (sin texto) las lee Haiku 5.5 (vigia-llm, /nativo, el PDF como documento), con su tope diario.
+ *      Las escaneadas también las lee GLM (es multimodal): cada página de un escaneo es un JPEG dentro del PDF (/DCTDecode)
+ *      que se saca tal cual y va como imagen, de a 8 páginas por pedido (Workers AI no pasa de ~45 mil tokens; con 12
+ *      páginas falla), en paralelo y hasta 24 páginas, y las lecturas se juntan. Haiku 5.5 (vigia-llm, /nativo, el PDF
+ *      como documento) queda para los escaneos sin JPEG (CCITT, JBIG2) o si GLM falla, con su tope diario.
  *      Las bases traen a veces varias plazas: lee sólo la de este puesto y lo común. Nunca escribe nombres.
  *
  * Cubre gob.pe y los sitios que enlazan sus documentos en el HTML (el Poder Judicial, el Ministerio Público o la DRELM
@@ -563,6 +566,81 @@ export const MODELO_BASES = "@cf/zai-org/glm-5.3-flash";
 export const NOMBRE_MODELO_BASES = "glm-5.3-flash";
 /** Menos letras que esto en todos los PDF: son escaneos (imágenes), sin texto que leer. */
 export const MIN_TEXTO = 600;
+/** Páginas escaneadas por pedido a GLM (8 páginas ≈ 42 mil tokens: entra; 12 ya no) y como mucho por lectura. */
+export const PAGINAS_POR_PEDIDO = 8;
+export const MAX_PAGINAS_IMAGEN = 24;
+
+/**
+ * Las páginas de un escaneo como JPEG: las imágenes /DCTDecode del PDF, en el orden en que aparecen (el de las páginas en
+ * lo que sale de un escáner). Las chicas (logos, sellos: menos de 12 KB) no cuentan. Vacío si el escaneo usa otro formato.
+ */
+export function jpegsDePdf(bytes: Uint8Array, max = MAX_PAGINAS_IMAGEN): Uint8Array[] {
+  const out: Uint8Array[] = [];
+  const DCT = bytesDe("/DCTDecode");
+  const STREAM = bytesDe("stream");
+  const FIN = bytesDe("endstream");
+  let desde = 0;
+  while (out.length < max) {
+    const m = buscarBytes(bytes, DCT, desde);
+    if (m < 0) break;
+    let i = buscarBytes(bytes, STREAM, m);
+    if (i < 0) break;
+    i += STREAM.length;
+    while (bytes[i] === 0x0d || bytes[i] === 0x0a) i++;
+    const j = buscarBytes(bytes, FIN, i);
+    if (j < 0) break;
+    let k = j;
+    while (k > i && (bytes[k - 1] === 0x0d || bytes[k - 1] === 0x0a)) k--;
+    if (bytes[i] === 0xff && bytes[i + 1] === 0xd8 && k - i >= 12_000) out.push(bytes.slice(i, k));
+    desde = j + FIN.length;
+  }
+  return out;
+}
+
+const bytesDe = (t: string) => Uint8Array.from(t, (c) => c.charCodeAt(0));
+
+/** La primera posición de `patron` en `b` desde `desde` (-1 si no está). */
+export function buscarBytes(b: Uint8Array, patron: Uint8Array, desde = 0): number {
+  const primero = patron[0];
+  for (let i = b.indexOf(primero, desde); i >= 0 && i <= b.length - patron.length; i = b.indexOf(primero, i + 1)) {
+    let k = 1;
+    while (k < patron.length && b[i + k] === patron[k]) k++;
+    if (k === patron.length) return i;
+  }
+  return -1;
+}
+
+/** Junta las lecturas de varios pedidos (de a 8 páginas): listas sin repetir, el cronograma con más fechas, un solo medio. */
+export function juntarLecturas(ls: LecturaBasesT[]): LecturaBasesT {
+  const unir = (xs: string[][], max: number) => {
+    const vistos = new Set<string>();
+    const out: string[] = [];
+    for (const x of xs.flat()) {
+      const k = x.toLowerCase().replace(/\s+/g, " ").trim();
+      if (!vistos.has(k)) {
+        vistos.add(k);
+        out.push(x);
+      }
+    }
+    return out.slice(0, max);
+  };
+  const conFecha = (l: LecturaBasesT) => l.cronograma.filter((x) => /\d/.test(x.fecha)).length;
+  const cronograma = [...ls].sort((a, b) => conFecha(b) - conFecha(a) || b.cronograma.length - a.cronograma.length)[0]?.cronograma ?? [];
+  const evaluacion = [...ls].sort((a, b) => b.evaluacion.length - a.evaluacion.length)[0]?.evaluacion ?? [];
+  const medios = ls.map((l) => l.como_postular).filter((x): x is NonNullable<LecturaBasesT["como_postular"]> => !!x);
+  const como_postular = medios.find((x) => x.medio !== "otro") ?? medios[0] ?? null;
+  return {
+    corresponde: ls.some((l) => l.corresponde),
+    funciones: unir(ls.map((l) => l.funciones), 8),
+    requisitos_extra: unir(ls.map((l) => l.requisitos_extra), 6),
+    cronograma,
+    evaluacion,
+    documentos: unir(ls.map((l) => l.documentos), 12),
+    como_postular,
+    condiciones: unir(ls.map((l) => l.condiciones), 5),
+    ojo: unir(ls.map((l) => l.ojo), 5),
+  };
+}
 /** Lo que se le pasa al modelo como mucho (~25 mil tokens). */
 export const MAX_TEXTO = 90_000;
 
@@ -655,7 +733,7 @@ export async function leerBasesGlm(
   env: EnvLlm,
   p: PlazaParaBases & { datosServir: string },
   textos: { titulo: string; texto: string }[],
-): Promise<{ lectura: LecturaBasesT; entrada: number; salida: number }> {
+): Promise<{ lectura: LecturaBasesT; entrada: number; salida: number; quien: string }> {
   if (!env.LLM || !env.LLM_TOKEN) throw new Error("sin_modelo");
   let resto = MAX_TEXTO;
   const partes: string[] = [];
@@ -665,16 +743,22 @@ export async function leerBasesGlm(
     resto -= cuerpo.length;
     partes.push(`<documento titulo="${t.titulo.replace(/"/g, "'").slice(0, 200)}">\n${cuerpo}\n</documento>`);
   }
+  return pedirGlm(env, `La plaza (datos de SERVIR):\n${p.datosServir}\n\nEl texto de los documentos:\n${partes.join("\n\n")}\n\nLee los documentos y responde con la herramienta «bases».`);
+}
+
+/** Un pedido a GLM 5.3 flash con la herramienta forzada. `quien`: lo que dice vigia-llm (Workers AI o su respaldo). */
+async function pedirGlm(
+  env: EnvLlm,
+  contenido: string | ({ type: "text"; text: string } | { type: "image_url"; image_url: { url: string } })[],
+): Promise<{ lectura: LecturaBasesT; entrada: number; salida: number; quien: string }> {
+  if (!env.LLM || !env.LLM_TOKEN) throw new Error("sin_modelo");
   const r = await env.LLM.fetch(
     new Request("https://vigia-llm.interno/v1/chat/completions", {
       method: "POST",
       headers: { "content-type": "application/json", authorization: `Bearer ${env.LLM_TOKEN}` },
       body: JSON.stringify({
         model: MODELO_BASES,
-        messages: [
-          { role: "system", content: SISTEMA },
-          { role: "user", content: `La plaza (datos de SERVIR):\n${p.datosServir}\n\nEl texto de los documentos:\n${partes.join("\n\n")}\n\nLee los documentos y responde con la herramienta «bases».` },
-        ],
+        messages: [{ role: "system", content: SISTEMA }, { role: "user", content: contenido }],
         tools: [HERRAMIENTA_OPENAI],
         tool_choice: { type: "function", function: { name: HERRAMIENTA.name } },
         reasoning_effort: "low",
@@ -686,7 +770,37 @@ export async function leerBasesGlm(
   const j = (await r.json()) as { usage?: { prompt_tokens?: number; completion_tokens?: number } };
   const args = argumentosHerramienta(j);
   if (!args) throw new Error("sin_lectura");
-  return { lectura: limpiarLectura(args), entrada: j.usage?.prompt_tokens ?? 0, salida: j.usage?.completion_tokens ?? 0 };
+  const quien = (r.headers.get("x-vigia-modelo") ?? "").startsWith("respaldo") ? "respaldo" : NOMBRE_MODELO_BASES;
+  return { lectura: limpiarLectura(args), entrada: j.usage?.prompt_tokens ?? 0, salida: j.usage?.completion_tokens ?? 0, quien };
+}
+
+/** Lee las PÁGINAS de un escaneo con GLM (imágenes JPEG), de a 8 por pedido y en paralelo, y junta las lecturas. */
+export async function leerBasesImagenes(
+  env: EnvLlm,
+  p: PlazaParaBases & { datosServir: string },
+  paginas: Uint8Array[],
+): Promise<{ lectura: LecturaBasesT; entrada: number; salida: number; quien: string }> {
+  const tandas: Uint8Array[][] = [];
+  for (let i = 0; i < paginas.length; i += PAGINAS_POR_PEDIDO) tandas.push(paginas.slice(i, i + PAGINAS_POR_PEDIDO));
+  const rs = await Promise.all(
+    tandas.map((t, k) =>
+      pedirGlm(env, [
+        {
+          type: "text",
+          text: `La plaza (datos de SERVIR):\n${p.datosServir}\n\nLas bases están escaneadas: van como imágenes las páginas ${k * PAGINAS_POR_PEDIDO + 1} a ${k * PAGINAS_POR_PEDIDO + t.length} (de ${paginas.length}), en orden. Usa sólo lo que se lee en ellas; lo que no está en estas páginas déjalo vacío. Responde con la herramienta «bases».`,
+        },
+        ...t.map((b) => ({ type: "image_url" as const, image_url: { url: `data:image/jpeg;base64,${aBase64(b)}` } })),
+      ]).catch(() => null),
+    ),
+  );
+  const buenas = rs.filter((x): x is NonNullable<typeof x> => !!x);
+  if (!buenas.length) throw new Error("sin_lectura");
+  return {
+    lectura: juntarLecturas(buenas.map((x) => x.lectura)),
+    entrada: buenas.reduce((a, x) => a + x.entrada, 0),
+    salida: buenas.reduce((a, x) => a + x.salida, 0),
+    quien: buenas.some((x) => x.quien === "respaldo") ? "respaldo" : `${NOMBRE_MODELO_BASES}-imagen`,
+  };
 }
 
 /** Lee los PDF con Haiku (el PDF entero como documento: sirve para escaneos). Tira "sin_modelo", "modelo_<status>" o "sin_lectura". */
@@ -722,8 +836,8 @@ export async function leerBasesHaiku(
 }
 
 /**
- * Lee las bases: con texto, GLM 5.3 flash; escaneadas (o si GLM falla), Haiku si `puedeHaiku`. Devuelve quién leyó.
- * Tira "escaneadas" si no hay texto y Haiku no puede, o el error del modelo.
+ * Lee las bases: con texto, GLM 5.3 flash; escaneadas, GLM con las páginas como imágenes; si no hay JPEG o GLM falla,
+ * Haiku si `puedeHaiku`. Devuelve quién leyó. Tira "escaneadas" si nada de eso se pudo, o el error del modelo.
  */
 export async function leerBases(
   env: EnvLlm,
@@ -733,17 +847,28 @@ export async function leerBases(
 ): Promise<{ lectura: LecturaBasesT; entrada: number; salida: number; modelo: string }> {
   const textos = await textoDePdfs(env, pdfs);
   const largo = textos.reduce((a, t) => a + letras(t.texto), 0);
+  // Lo que falló, para decirlo si al final nadie pudo leer (un GLM caído es un error; un escaneo sin JPEG, «escaneadas»).
+  let fallo: Error = new Error("escaneadas");
   if (largo >= MIN_TEXTO) {
     try {
       const r = await leerBasesGlm(env, p, textos);
-      // GLM respondió pero sin nada que mostrar (algo de texto suelto en un escaneo): como un escaneo.
-      if (!r.lectura.corresponde || !lecturaVacia(r.lectura)) return { ...r, modelo: NOMBRE_MODELO_BASES };
-      if (!puedeHaiku) throw new Error("escaneadas");
+      // GLM respondió pero sin nada que mostrar (algo de texto suelto en un escaneo): se lee como escaneo.
+      if (!r.lectura.corresponde || !lecturaVacia(r.lectura)) return { lectura: r.lectura, entrada: r.entrada, salida: r.salida, modelo: r.quien };
     } catch (e) {
-      if (!puedeHaiku) throw e;
+      fallo = e as Error;
     }
   }
-  if (!puedeHaiku) throw new Error("escaneadas");
+  // Escaneo: las páginas JPEG de cada PDF, en orden, hasta 24.
+  const paginas = pdfs.flatMap((d) => jpegsDePdf(d.bytes)).slice(0, MAX_PAGINAS_IMAGEN);
+  if (paginas.length) {
+    try {
+      const r = await leerBasesImagenes(env, p, paginas);
+      if (!r.lectura.corresponde || !lecturaVacia(r.lectura)) return { lectura: r.lectura, entrada: r.entrada, salida: r.salida, modelo: r.quien };
+    } catch (e) {
+      fallo = e as Error;
+    }
+  }
+  if (!puedeHaiku) throw fallo;
   return { ...(await leerBasesHaiku(env, p, pdfs)), modelo: MODELO_ASISTENTE };
 }
 

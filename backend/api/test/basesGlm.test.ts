@@ -1,6 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { MIN_TEXTO, argumentosHerramienta, contenidoMarkdown, leerBases, letras, limpiarLectura, textoDePdfs } from "../src/lib/basesPlaza.js";
+import {
+  MIN_TEXTO, argumentosHerramienta, buscarBytes, contenidoMarkdown, jpegsDePdf, juntarLecturas, leerBases, letras, limpiarLectura, textoDePdfs,
+} from "../src/lib/basesPlaza.js";
 
 const LECTURA = {
   corresponde: true,
@@ -114,4 +116,47 @@ test("si GLM no encuentra nada que mostrar (escaneo con algo de texto): Haiku si
   assert.equal(r.modelo, "claude-haiku-5-5");
   assert.deepEqual(env.rutas, ["/v1/chat/completions", "/nativo/v1/messages"]);
   await assert.rejects(leerBases({ ...llm({ glmVacia: true }), AI: ai("x".repeat(MIN_TEXTO + 10)) }, PLAZA, [PDF], false), /escaneadas/);
+});
+
+/** Un PDF de mentira con páginas escaneadas: cada una un objeto /DCTDecode con un JPEG (FF D8 … FF D9) de `kb` KB. */
+function pdfEscaneado(paginas: number, kb = 20): Uint8Array {
+  const partes: number[] = [...new TextEncoder().encode("%PDF-1.7\n")];
+  for (let i = 0; i < paginas; i++) {
+    partes.push(...new TextEncoder().encode(`${i + 1} 0 obj\n<< /Type /XObject /Subtype /Image /Filter /DCTDecode >>\nstream\r\n`));
+    const jpeg = new Uint8Array(kb * 1024).fill(i + 1);
+    jpeg[0] = 0xff; jpeg[1] = 0xd8; jpeg[jpeg.length - 2] = 0xff; jpeg[jpeg.length - 1] = 0xd9;
+    partes.push(...jpeg, ...new TextEncoder().encode("\r\nendstream\nendobj\n"));
+  }
+  return new Uint8Array(partes);
+}
+
+test("las páginas de un escaneo: los JPEG del PDF, en orden, sin logos chicos y con tope", () => {
+  const xs = jpegsDePdf(pdfEscaneado(3));
+  assert.equal(xs.length, 3);
+  assert.deepEqual([xs[0][0], xs[0][1], xs[0][2], xs[2][2]], [0xff, 0xd8, 1, 3]);
+  assert.deepEqual([xs[0][xs[0].length - 2], xs[0][xs[0].length - 1]], [0xff, 0xd9]);
+  assert.equal(jpegsDePdf(pdfEscaneado(3, 4)).length, 0, "un logo de 4 KB no es una página");
+  assert.equal(jpegsDePdf(pdfEscaneado(30)).length, 24, "hasta 24 páginas");
+  assert.equal(jpegsDePdf(new TextEncoder().encode("%PDF-1.7 sin imágenes")).length, 0);
+  assert.equal(buscarBytes(new TextEncoder().encode("abcabd"), new TextEncoder().encode("abd")), 3);
+});
+
+test("juntar las lecturas de varios pedidos: listas sin repetir, el cronograma con fechas, el medio que no es «otro»", () => {
+  const a = limpiarLectura({ ...LECTURA, cronograma: [{ etapa: "Postulación", fecha: "Según cronograma", postulas: true }], documentos: ["Anexo 02-A", "DNI"], como_postular: { medio: "otro", detalle: "Ver bases" } });
+  const b = limpiarLectura({ ...LECTURA, corresponde: false, documentos: ["DNI", "CV documentado"], como_postular: { medio: "mesa_de_partes", detalle: "Mesa de partes, sobre cerrado" } });
+  const j = juntarLecturas([a, b]);
+  assert.equal(j.corresponde, true);
+  assert.deepEqual(j.documentos, ["Anexo 02-A", "DNI", "CV documentado"]);
+  assert.equal(j.cronograma[0].fecha, "19 de noviembre de 2026");
+  assert.equal(j.como_postular?.medio, "mesa_de_partes");
+});
+
+test("un escaneo con JPEG lo lee GLM con imágenes, de a 8 páginas por pedido; Haiku no se usa", async () => {
+  const env = { ...llm(), AI: ai("") };
+  const r = await leerBases(env, PLAZA, [{ titulo: "Bases", bytes: pdfEscaneado(18) }], true);
+  assert.equal(r.modelo, "glm-5.3-flash-imagen");
+  assert.deepEqual(env.rutas, ["/v1/chat/completions", "/v1/chat/completions", "/v1/chat/completions"]);
+  const imagenes = env.cuerpos.map((c) => ((c as { messages: { content: { type: string }[] }[] }).messages[1].content).filter((x) => x.type === "image_url").length);
+  assert.deepEqual(imagenes, [8, 8, 2]);
+  assert.deepEqual([r.entrada, r.salida], [3 * 13381, 3 * 1814]);
 });
