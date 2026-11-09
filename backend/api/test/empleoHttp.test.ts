@@ -19,8 +19,8 @@ const html = (cuerpo: string, extra: Record<string, string> = {}) => new Respons
 test("las cookies de la sesión van en el pedido siguiente; el POST manda el formulario", async () => {
   const s = sitio([() => html("<form>", { "set-cookie": "JSESSIONID=abc; Path=/; HttpOnly" }), () => html("<ok>")]);
   const http = clienteHttp(5, s.f);
-  await http.get("https://convocatoria.minjus.gob.pe/convocatoria/public/index.xhtml");
-  const r = await http.post("https://convocatoria.minjus.gob.pe/convocatoria/public/index.xhtml", { "javax.faces.ViewState": "v1", pagina: "2" });
+  await http.get("https://cas.promperu.gob.pe/");
+  const r = await http.post("https://cas.promperu.gob.pe/", { "javax.faces.ViewState": "v1", pagina: "2" });
   assert.equal(r?.texto, "<ok>");
   const h = s.pedidos[1].init.headers as Record<string, string>;
   assert.equal(h.cookie, "JSESSIONID=abc");
@@ -59,5 +59,7 @@ test("lo que sólo responde al Perú va por el relay de Lima, con método, cuerp
   assert.equal(pedidos[1].cabeceras.cookie, "PHPSESSID=z9");
   assert.equal(soloPeru("https://aplicativo.pj.gob.pe/psep/"), true);
   assert.equal(soloPeru("https://www.gob.pe/mef"), false);
+  // Los que no responden a Cloudflare o tienen el TLS roto (2026-11-09).
+  for (const u of ["https://convocatoria.minjus.gob.pe/x", "https://www.ins.gob.pe/cas/", "https://contenidos.regionpiura.gob.pe/convocatoria/a.pdf", "https://aplicativosweb2.sunafil.gob.pe/"]) assert.equal(soloPeru(u), true, u);
   await assert.rejects(clienteHttp(5, fetch).get("https://www.drelm.gob.pe/"), SinRelayHttp);
 });

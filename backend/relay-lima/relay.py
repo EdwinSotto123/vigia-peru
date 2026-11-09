@@ -27,6 +27,7 @@ import ipaddress
 import json
 import os
 import socket
+import ssl
 import sys
 import time
 import urllib.error
@@ -41,6 +42,19 @@ PUERTO = int(os.environ.get("RELAY_PUERTO", "8080"))
 TOKEN = os.environ.get("RELAY_TOKEN", "").strip()
 # Lo que tarda como mucho cada operación de red con el origen (conectar, o esperar el siguiente pedazo de la respuesta).
 ESPERA_S = 120
+
+# Webs del Estado con el TLS roto (2026-11-09, docs/automatizacion_cas.md): Piura manda el certificado sin el intermedio,
+# SUNAFIL sólo acepta un cifrado viejo (AES128-SHA) y la OECE tiene la cadena de otro emisor. Son páginas públicas que
+# sólo se leen: con ellas no se verifica el certificado ni se exige un cifrado moderno. Cualquier otro sitio, estricto.
+TLS_TOLERANTE = {"convocatorias.regionpiura.gob.pe", "contenidos.regionpiura.gob.pe", "aplicativosweb2.sunafil.gob.pe", "caspublico.oece.gob.pe"}
+
+
+def contexto_tolerante() -> ssl.SSLContext:
+    ctx = ssl.create_default_context()
+    ctx.check_hostname = False
+    ctx.verify_mode = ssl.CERT_NONE
+    ctx.set_ciphers("DEFAULT:@SECLEVEL=0")
+    return ctx
 TROZO = 64 * 1024
 # UA de navegador real: casi todo .gob.pe responde 403 a un cliente «robot».
 UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36"
@@ -169,7 +183,10 @@ class Relay(BaseHTTPRequestHandler):
         cuerpo = pedido.get("cuerpo")
         datos = cuerpo.encode() if isinstance(cuerpo, str) and metodo == "POST" else None
         frasco = CookieJar()
-        abridor = urllib.request.build_opener(Redirecciones(), urllib.request.HTTPCookieProcessor(frasco))
+        manejadores = [Redirecciones(), urllib.request.HTTPCookieProcessor(frasco)]
+        if (destino.hostname or "").lower() in TLS_TOLERANTE:
+            manejadores.append(urllib.request.HTTPSHandler(context=contexto_tolerante()))
+        abridor = urllib.request.build_opener(*manejadores)
         req = urllib.request.Request(url, data=datos, method=metodo, headers=cabeceras)
         try:
             r = abridor.open(req, timeout=ESPERA_S)

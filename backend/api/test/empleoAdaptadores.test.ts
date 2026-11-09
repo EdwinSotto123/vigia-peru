@@ -60,7 +60,8 @@ test("descargas sin .pdf y archivos de Drive cuentan como documentos", () => {
 test("el adaptador va por el dominio del enlace de SERVIR (la web, no el Facebook)", () => {
   assert.equal(dominioDe("https://www.facebook.com/x https://www.ugel07.gob.pe/convocatoria-cas/"), "www.ugel07.gob.pe");
   assert.equal(adaptadorDe("https://www.ins.gob.pe/cas/consulta_cas/"), ADAPTADORES["www.ins.gob.pe"]);
-  assert.equal(adaptadorDe("https://www.gob.pe/mef"), null);
+  assert.equal(adaptadorDe("https://www.gob.pe/mef"), ADAPTADORES["www.gob.pe"]);
+  assert.equal(adaptadorDe("https://www.municipalidad-sin-adaptador.gob.pe/"), null);
   // Los dos dominios de Cajamarca son la misma aplicación.
   assert.equal(ADAPTADORES["convocatoriasgrc.regioncajamarca.gob.pe"], ADAPTADORES["convocatorias.regioncajamarca.gob.pe"]);
   assert.ok(Object.keys(ADAPTADORES).length >= 20);
@@ -83,7 +84,12 @@ test("INS: la fila del proceso (por número y año) y sólo la celda de las base
   const html = `<table><tr class="x"><td>1.-</td><td>02/11/2026</td><td> CAS-003-2026 <br></td><td>RO</td><td>Analista…</td><td>OGRH</td>
     <td><a href="../Archivos/BASES PROCESO CAS N 03-2026-INS.pdf"><img></a></td><td><a href="../Archivos/RESULTADOS CAS 03.pdf">r</a></td></tr></table>`;
   const s = sitio({ "https://www.ins.gob.pe/cas/consulta_cas/index.asp": html });
-  const h = await ADAPTADORES["www.ins.gob.pe"](PLAZA, clienteHttp(5, s.f));
+  // El INS no responde a Cloudflare: va por el relay de Lima (aquí, el mismo sitio de mentira).
+  const relay = async (p: { url: string }) => {
+    const r = await s.f(p.url);
+    return new Response(await r.text(), { status: r.status, headers: { "content-type": r.headers.get("content-type") ?? "text/html", "x-relay-status": String(r.status), "x-relay-url": p.url } });
+  };
+  const h = await ADAPTADORES["www.ins.gob.pe"](PLAZA, clienteHttp(5, (() => assert.fail("no va directo")) as unknown as typeof fetch, relay));
   assert.match(s.pedidos[0], /anio=2026&convocatoria=003/);
   assert.deepEqual(h?.documentos.map((d) => d.url), ["https://www.ins.gob.pe/cas/Archivos/BASES%20PROCESO%20CAS%20N%2003-2026-INS.pdf"]);
 });

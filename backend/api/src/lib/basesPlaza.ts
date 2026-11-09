@@ -26,7 +26,7 @@ import { MODELO_ASISTENTE } from "./asistente.js";
 import { lista, texto } from "./resumenPlaza.js";
 import { soloEnlace } from "./empleoFuentes.js";
 import { adaptadorDe } from "./empleoAdaptadores.js";
-import { SinRelayHttp, clienteHttp, type Http, type RelayCompleto } from "./empleoHttp.js";
+import { SinRelayHttp, clienteHttp, soloPeru, type Http, type RelayCompleto } from "./empleoHttp.js";
 
 export interface PlazaParaBases {
   aviso: number;
@@ -371,15 +371,8 @@ export type Relay = (url: string, timeoutMs: number) => Promise<Response>;
 /** El relay no está (la PC apagada) o rechazó el pedido: la búsqueda queda en «error» y se reintenta en 2 horas. */
 export class SinRelay extends Error {}
 
-/** Lo que sólo responde a IPs del Perú (desde Cloudflare da 403 o se cuelga): el Poder Judicial y la DRELM. */
-const SOLO_PERU = /(^|\.)(pj\.gob\.pe|drelm\.gob\.pe)$/i;
-export function necesitaPeru(url: string): boolean {
-  try {
-    return SOLO_PERU.test(new URL(url).hostname);
-  } catch {
-    return false;
-  }
-}
+/** Lo que sólo se lee por el relay de Lima: la misma lista de los adaptadores (lib/empleoHttp.ts). */
+export const necesitaPeru = (url: string): boolean => soloPeru(url);
 
 async function porRelay(relay: Relay | undefined, url: string, ms: number): Promise<Response> {
   if (!relay) throw new SinRelay("sin_relay");
