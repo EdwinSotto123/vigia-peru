@@ -27,6 +27,7 @@ import { clienteHttp, relayCompletoDe } from "./empleoHttp.js";
 import { textoPlaza, type PlazaParaResumen } from "./resumenPlaza.js";
 import { cambiosCronograma, eventoDeDocumento, fuenteDe, huellaEvento, intercalarPorDominio, soloEnlace, tipoDocumento, type Fuente } from "./empleoFuentes.js";
 import { registrar } from "./registro.js";
+import { conEnlace } from "./empleoEnlaces.js";
 
 /** Lo que el lote necesita del Worker: el modelo, R2 (DOCUMENTOS) y el relay de Lima. */
 export type EnvRecolector = Parameters<typeof procesarBases>[0] & Parameters<typeof relayDe>[0];
@@ -147,6 +148,15 @@ export async function guardarBases(fila: Pick<FilaPlaza, "aviso" | "entidad" | "
   }
 }
 
+/** Antes de procesar una plaza: un intento más (ver ESPERA_INTENTOS). guardarBases lo borra al guardar. */
+export async function marcarIntento(aviso: number): Promise<void> {
+  await pool.query(
+    `INSERT INTO servir_resumen (aviso, huella, modelo, bases, bases_at) VALUES ($1, '', 'claude-haiku-5-5', '{"intentos": 1}'::jsonb, now())
+     ON CONFLICT (aviso) DO UPDATE SET bases_at = now(),
+       bases = COALESCE(servir_resumen.bases, '{}'::jsonb) || jsonb_build_object('intentos', COALESCE((servir_resumen.bases->>'intentos')::int, 0) + 1)`,
+    [aviso]);
+}
+
 /** Una búsqueda que falló (el sitio no respondió, el relay estaba apagado): se reintenta en 2 horas. */
 export async function guardarError(fila: Pick<FilaPlaza, "aviso" | "entidad" | "detalle_url">, mensaje: string): Promise<void> {
   await pool.query(
@@ -190,9 +200,17 @@ export interface ResumenLote {
   segundos: number;
 }
 
+/**
+ * Cada vez que el lote toma una plaza le suma un intento (marcarIntento) y lo borra al guardar lo que encontró. Si el
+ * Worker se cae en ella (una plaza «venenosa»: el 2026-11-09, unas bases de 47 MB), queda con el intento anotado y espera
+ * 2, 4, 8… horas (hasta 128) antes de volver: no traba la cola ni el cron de la madrugada.
+ */
+const ESPERA_INTENTOS = `(COALESCE((r.bases->>'intentos')::int, 0) = 0
+     OR r.bases_at < now() - interval '1 hour' * power(2, least(COALESCE((r.bases->>'intentos')::int, 0), 7)))`;
+
 const CONDICION: Record<ModoLote, string> = {
-  medir: `r.bases_estado IS NULL`,
-  recolectar: `(r.bases_estado IS NULL
+  medir: `r.bases_estado IS NULL AND ${ESPERA_INTENTOS}`,
+  recolectar: `${ESPERA_INTENTOS} AND (r.bases_estado IS NULL
      OR (r.bases_estado = 'error' AND r.bases_at < now() - interval '2 hours')
      OR (r.bases_estado = 'no_encontradas' AND r.bases_at < now() - interval '3 days')
      OR (r.bases_estado = 'encontradas' AND jsonb_typeof(r.bases->'lectura') IS DISTINCT FROM 'object' AND r.bases_at < now() - interval '6 hours'))`,
@@ -238,7 +256,8 @@ export async function recolectar(env: EnvRecolector, op: OpcionesLote): Promise<
   const inicio = Date.now();
   const fin = inicio + op.segundos * 1000;
   const pausa = op.pausaMs ?? 1500;
-  const candidatas = (await pool.query<FilaPlaza & { prioridad: number }>(sqlCandidatas(op.modo, op.particion), [Math.max(1, op.limite) * 3])).rows;
+  // Las de entidades sin enlace (o sólo Facebook) cuyo sitio ya conocemos van con ese enlace (lib/empleoEnlaces.ts).
+  const candidatas = (await pool.query<FilaPlaza & { prioridad: number }>(sqlCandidatas(op.modo, op.particion), [Math.max(1, op.limite) * 3])).rows.map(conEnlace);
   const lista = intercalarPorDominio(candidatas, (x) => fuenteDe(x.detalle_url).dominio).slice(0, op.limite);
   const relay = relayDe(env);
   const relayCompleto = relayCompletoDe(env);
@@ -282,6 +301,7 @@ export async function recolectar(env: EnvRecolector, op: OpcionesLote): Promise<
         }
         continue;
       }
+      await marcarIntento(fila.aviso);
       const puedeLeer = op.leer && leidas < TOPE_LECTURAS_DIA;
       const puedeHaiku = puedeLeer && fila.prioridad >= 2 && haiku < TOPE_HAIKU_DIA;
       const r = await procesarBases(env, { ...fila, datosServir: textoPlaza(fila) }, { puedeLeer, puedeHaiku, relay, relayCompleto });
@@ -328,11 +348,11 @@ export interface CoberturaFuente {
 
 /** Agrupa las plazas de los últimos 90 días por fuente (puro, para las pruebas). */
 export function agruparCobertura(
-  filas: { entidad: string | null; detalle_url: string | null; abierta: boolean; bases_estado: string | null; con_lectura: boolean }[],
+  filas: { entidad: string | null; ubicacion?: string | null; detalle_url: string | null; abierta: boolean; bases_estado: string | null; con_lectura: boolean }[],
 ): CoberturaFuente[] {
   const m = new Map<string, CoberturaFuente & { _ent: Set<string> }>();
   for (const x of filas) {
-    const f = fuenteDe(x.detalle_url);
+    const f = fuenteDe(conEnlace(x).detalle_url);
     let c = m.get(f.dominio);
     if (!c) {
       c = { dominio: f.dominio, familia: f.familia, estado: f.estado, adaptador: f.adaptador, necesita_lima: f.necesitaLima, entidades: [],
@@ -354,8 +374,8 @@ export function agruparCobertura(
 
 /** Mide la cobertura de hoy: llena el registro de fuentes con todas las que publican y anota `empleo_cobertura`. */
 export async function medirCobertura(): Promise<{ fuentes: number; abiertas: number; con_documentos: number; con_lectura: number; por_familia: Record<string, { fuentes: number; abiertas: number; con_documentos: number; con_lectura: number }> }> {
-  const filas = (await pool.query<{ entidad: string | null; detalle_url: string | null; abierta: boolean; bases_estado: string | null; con_lectura: boolean }>(
-    `SELECT s.entidad, s.detalle_url, (s.fecha_fin >= ${HOY}) AS abierta, r.bases_estado,
+  const filas = (await pool.query<{ entidad: string | null; ubicacion: string | null; detalle_url: string | null; abierta: boolean; bases_estado: string | null; con_lectura: boolean }>(
+    `SELECT s.entidad, s.ubicacion, s.detalle_url, (s.fecha_fin >= ${HOY}) AS abierta, r.bases_estado,
             COALESCE(jsonb_typeof(r.bases->'lectura') = 'object', false) AS con_lectura
        FROM servir_convocatoria s LEFT JOIN servir_resumen r ON r.aviso = s.aviso
       WHERE s.fecha_inicio >= ${HOY} - 90 OR s.fecha_fin >= ${HOY}`)).rows;

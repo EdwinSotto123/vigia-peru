@@ -8,6 +8,7 @@ import { palabrasBusqueda } from "./personas.js";
 import { PARTES_FORMACION, SUGERIDOS_SQL, clavePuesto, condicionesCalce, leerCarreras, puestoDeTitulo } from "../lib/calceEmpleo.js";
 import { huellaPlaza, resumirPlaza, textoPlaza, type PlazaParaResumen } from "../lib/resumenPlaza.js";
 import { procesarBases, relayDe, type ResultadoBases } from "../lib/basesPlaza.js";
+import { conEnlace } from "../lib/empleoEnlaces.js";
 import { relayCompletoDe } from "../lib/empleoHttp.js";
 import { TOPE_HAIKU_DIA, TOPE_LECTURAS_DIA, guardarBases, guardarError, haikuHoy, leidasHoy } from "../lib/empleoRecolector.js";
 import { correoDeOficina } from "../lib/empleoFuentes.js";
@@ -416,7 +417,7 @@ empleoRouter.get("/plazas/:aviso/bases", limiteLectura, async (c) => {
     `SELECT aviso, titulo, entidad, ubicacion, numero, vacantes, remuneracion::float AS remuneracion, to_char(fecha_fin, 'YYYY-MM-DD') AS fecha_fin,
             to_char(fecha_inicio, 'YYYY-MM-DD') AS fecha_inicio, detalle_url,
             experiencia, formacion, especializacion, conocimiento, competencias, (fecha_fin >= ${HOY}) AS abierta
-       FROM servir_convocatoria WHERE aviso = $1`, [aviso])).rows[0];
+       FROM servir_convocatoria WHERE aviso = $1`, [aviso])).rows.map(conEnlace)[0];
   if (!fila) return c.json({ error: "no_encontrado" }, 404);
   const guardado = (await pool.query<{ bases: Omit<ResultadoBases, "estado"> | null; bases_estado: string; bases_at: string; vigente: boolean }>(
     `SELECT bases, bases_estado, bases_at,

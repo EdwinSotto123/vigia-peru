@@ -96,7 +96,9 @@ test("las candidatas: abiertas, con la prioridad de quienes pagan y la condició
     assert.match(q, /producto = 'empleo' AND estado = 'activa'/);
     assert.match(q, /WHEN g\.de_pagador THEN 3/);
   }
-  assert.match(sqlCandidatas("medir"), /r\.bases_estado IS NULL\s+ORDER BY prioridad DESC, random\(\)/);
+  assert.match(sqlCandidatas("medir"), /r\.bases_estado IS NULL AND \(COALESCE\(\(r\.bases->>'intentos'\)::int, 0\) = 0[\s\S]+ORDER BY prioridad DESC, random\(\)/);
+  // Una plaza que tumbó el Worker espera 2, 4, 8… horas (marcarIntento).
+  assert.match(sqlCandidatas("recolectar"), /interval '1 hour' \* power\(2, least\(COALESCE\(\(r\.bases->>'intentos'\)::int, 0\), 7\)\)/);
   assert.match(sqlCandidatas("vigilar"), /g\.ref IS NOT NULL AND r\.bases_estado = 'encontradas'/);
 });
 

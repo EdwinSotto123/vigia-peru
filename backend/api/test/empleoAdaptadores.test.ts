@@ -105,3 +105,19 @@ test("Red de Salud Tacna: la pestaña del régimen, el número y año del títul
   assert.equal(h?.pagina, "https://www.redsaludtacna.gob.pe/convocatorias/375");
   assert.deepEqual(h?.documentos.map((d) => [d.texto, d.url]), [["Bases", "https://www.redsaludtacna.gob.pe/storage/convocatoria/375/abc.pdf"]]);
 });
+
+test("la ola 2: salud, educación, nacionales y especiales quedan registrados; MIDIS y Provías van por la entidad", async () => {
+  const { dominiosConAdaptador, adaptadorDe, adaptadorDePlaza } = await import("../src/lib/empleoAdaptadores.js");
+  const d = dominiosConAdaptador();
+  for (const x of ["portal.inen.sld.pe", "www.hdosdemayo.gob.pe", "portalweb.unas.edu.pe", "38.187.4.52", "www.inpe.gob.pe", "pad2.minem.gob.pe",
+    "caspublico.oece.gob.pe", "drive.google.com", "share.google", "aguacanete.com", "www.gob.pe"]) {
+    assert.ok(d.includes(x), x);
+  }
+  const gobpe = adaptadorDe("https://www.gob.pe/institucion/midis/campañas/1");
+  const midis = adaptadorDePlaza({ entidad: "MINISTERIO DE DESARROLLO E INCLUSION SOCIAL", detalle_url: "https://www.gob.pe/institucion/midis/campañas/1" });
+  assert.ok(midis && midis !== gobpe);
+  const provias = adaptadorDePlaza({ entidad: "PROYECTO ESPECIAL DE INFRAESTRUCTURA DE TRANSPORTE NACIONAL - PROVIAS NACIONAL", detalle_url: "https://www.gob.pe/provias" });
+  assert.ok(provias && provias !== gobpe);
+  // JUNTOS (un programa del MIDIS) sigue con su propio adaptador.
+  assert.equal(adaptadorDePlaza({ entidad: "PROGRAMA NACIONAL DE APOYO DIRECTO A LOS MAS POBRES - JUNTOS", detalle_url: "https://convocatoria.juntos.gob.pe/x" }), adaptadorDe("https://convocatoria.juntos.gob.pe/x"));
+});

@@ -228,3 +228,61 @@ test("si el modelo dice que el primero no es de la plaza, se lee la alternativa"
   assert.match(r.documentos[0].url, /15400_/);
   assert.deepEqual(r.tokens, { entrada: 200, salida: 20 });
 });
+
+test("las descargas de OECE van por POST con su id como formulario", async () => {
+  const { pedidoDescarga, bajarPdf } = await import("../src/lib/basesPlaza.js");
+  const u = "https://caspublico.oece.gob.pe/Convocatoria/ConsultarArchivo?id=1AbCdEfGhIjKlMn#post";
+  assert.equal(esDocumento(u), true);
+  assert.deepEqual(pedidoDescarga(u), { url: "https://caspublico.oece.gob.pe/Convocatoria/ConsultarArchivo", metodo: "POST", cuerpo: "id=1AbCdEfGhIjKlMn" });
+  assert.deepEqual(pedidoDescarga("https://x.gob.pe/a.pdf"), { url: "https://x.gob.pe/a.pdf", metodo: "GET" });
+  const pdf = new Uint8Array(800).fill(32);
+  pdf.set([0x25, 0x50, 0x44, 0x46]);
+  // La OECE tiene el TLS roto: va por el relay de Lima, con el método y el formulario.
+  let visto: { url?: string; metodo?: string; cuerpo?: string; tipo?: string } = {};
+  const relay = async (url: string, _ms: number, extra?: { metodo?: string; cuerpo?: string; cabeceras?: Record<string, string> }) => {
+    visto = { url, metodo: extra?.metodo, cuerpo: extra?.cuerpo, tipo: extra?.cabeceras?.["Content-Type"] };
+    return new Response(pdf, { status: 200, headers: { "x-relay-status": "200" } });
+  };
+  const b = await bajarPdf(u, fetch, relay);
+  assert.equal(b?.byteLength, 800);
+  assert.equal(visto.url, "https://caspublico.oece.gob.pe/Convocatoria/ConsultarArchivo");
+  assert.equal(visto.metodo, "POST");
+  assert.equal(visto.cuerpo, "id=1AbCdEfGhIjKlMn");
+  assert.match(visto.tipo ?? "", /x-www-form-urlencoded/);
+  // Uno que no es del Perú va directo, también por POST.
+  let directo: { metodo?: string; cuerpo?: unknown } = {};
+  const falso = (async (_url: string, init?: RequestInit) => {
+    directo = { metodo: init?.method, cuerpo: init?.body };
+    return new Response(pdf, { status: 200 });
+  }) as typeof fetch;
+  assert.equal((await bajarPdf("https://x.com/Convocatoria/ConsultarArchivo?id=1AbCdEfGhIjKlMn#post", falso))?.byteLength, 800);
+  assert.deepEqual(directo, { metodo: "POST", cuerpo: "id=1AbCdEfGhIjKlMn" });
+});
+
+test("el PDF que viene dentro de la página del visor (PGE) se saca de su base64", async () => {
+  const { pdfIncrustado, bajarPdf } = await import("../src/lib/basesPlaza.js");
+  const pdf = new Uint8Array(900).fill(65);
+  pdf.set([0x25, 0x50, 0x44, 0x46]);
+  const html = `<html><iframe src="data:application/pdf;base64,${Buffer.from(pdf).toString("base64")}"></iframe></html>`;
+  assert.equal(pdfIncrustado(new TextEncoder().encode(html))?.byteLength, 900);
+  assert.equal(pdfIncrustado(new TextEncoder().encode("<html>nada</html>")), null);
+  const falso = (async () => new Response(html, { status: 200, headers: { "content-type": "text/html" } })) as typeof fetch;
+  assert.equal((await bajarPdf("https://convocas.pge.gob.pe/serviceView/viewPdfModalPublic?idFile=12", falso))?.byteLength, 900);
+});
+
+test("un PDF más grande que el tope se corta mientras baja, sin content-length", async () => {
+  const { cuerpoConTope, bajarPdf } = await import("../src/lib/basesPlaza.js");
+  const trozo = new Uint8Array(1000).fill(65);
+  trozo.set([0x25, 0x50, 0x44, 0x46]);
+  const flujo = (n: number) => new ReadableStream<Uint8Array>({
+    start(c) {
+      for (let i = 0; i < n; i++) c.enqueue(trozo.slice());
+      c.close();
+    },
+  });
+  assert.equal((await cuerpoConTope(new Response(flujo(3)), 5000))?.byteLength, 3000);
+  assert.equal(await cuerpoConTope(new Response(flujo(10)), 5000), null);
+  const falso = (async () => new Response(flujo(10), { status: 200 })) as typeof fetch;
+  assert.equal(await bajarPdf("https://x.com/a.pdf", falso, undefined, 5000), null);
+  assert.equal((await bajarPdf("https://x.com/a.pdf", falso, undefined, 20_000))?.byteLength, 10_000);
+});

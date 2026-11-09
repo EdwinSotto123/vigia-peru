@@ -20,12 +20,13 @@
  * Cubre gob.pe y los sitios que enlazan sus documentos en el HTML (el Poder Judicial, el Ministerio Público o la DRELM
  * bloquean a Cloudflare, y otros son aplicaciones con formulario: ahí queda «no encontradas» y el enlace de siempre).
  */
+import { Buffer } from "node:buffer";
 import { createHash } from "node:crypto";
 import { z } from "zod";
 import { MODELO_ASISTENTE } from "./asistente.js";
 import { lista, texto } from "./resumenPlaza.js";
 import { soloEnlace } from "./empleoFuentes.js";
-import { adaptadorDe } from "./empleoAdaptadores.js";
+import { adaptadorDePlaza } from "./empleoAdaptadores.js";
 import { SinRelayHttp, clienteHttp, soloPeru, type Http, type RelayCompleto } from "./empleoHttp.js";
 
 export interface PlazaParaBases {
@@ -88,6 +89,9 @@ const desescapar = (s: string) =>
 /** Los enlaces de una página (absolutos, sin repetir, sin anclas ni javascript:). */
 export function enlaces(html: string, base: string): Enlace[] {
   const vistos = new Map<string, Enlace>();
+  // Sin los comentarios: un <a> comentado (sin su </a>) se tragaba el enlace real que venía después (La Perla), y otros
+  // esconden documentos de otro proceso (DRTC Ayacucho).
+  html = html.replace(/<!--[\s\S]*?-->/g, " ");
   for (const m of html.matchAll(/<a\b[^>]*?\bhref\s*=\s*["']([^"'#][^"']*)["'][^>]*>([\s\S]*?)<\/a>/gi)) {
     let url: string;
     try {
@@ -110,10 +114,12 @@ export function esDocumento(url: string): boolean {
 }
 
 /**
- * Descargas sin «.pdf» en la URL de los aplicativos que leen los adaptadores (lib/empleoAdaptadores.ts): el visor de
- * MINJUS, las bases y el TDR de MINEDU, JUNTOS, MINSA y la API de Amazonas. Se confirma que es PDF al bajarlo.
+ * Descargas sin «.pdf» en la URL de los aplicativos que leen los adaptadores (lib/empleoAdaptadores*.ts): el visor de
+ * MINJUS, las bases y el TDR de MINEDU, JUNTOS y MIDIS, MINSA, la API de Amazonas, la OECE (por POST), Provías (ASP), el
+ * DOCman del INPE, la SMV, la PGE (el PDF viene dentro de una página), el Laserfiche del MINEM y el SENAMHI. Se confirma
+ * que es PDF al bajarlo.
  */
-const DESCARGAS = /\/convocatoria\/Preview\?file=|\/Descargar_(Bases|Tdr)\?idReq=|\/DescargarArchivo(Bases|PorId)\/|\/GetBaseConvocatoria\?|\/api\/Archivo\/\d+\/(descargar|ver)/i;
+const DESCARGAS = /\/convocatoria\/Preview\?file=|\/Descargar_(Bases|Tdr)\?idReq=|\/DescargarArchivo(Bases|PorId)\/|\/GetBaseConvocatoria\?|\/api\/Archivo\/\d+\/(descargar|ver)|\/Convocatoria\/ConsultarArchivo\?id=|\/descargaArchivoConvoca\.asp\?PK_eRecord=\d+|\/documentos\/\d+-[^/]+\/file\.html|\/ConsultasP8\/documento\.aspx\?vidDoc=|\/serviceView\/viewPdfModalPublic\?idFile=\d+|\/Laserfiche\/Descargar\?token=|\/include\/convocatorias_ver\.php\?ide_convo=\d+/i;
 
 /** Un archivo de Google Drive (`/file/d/<id>/view`, `uc?id=`, `open?id=`): muchas entidades suben ahí sus bases. */
 export const esDrive = (url: string) => /drive\.google\.com\/(file\/d\/[\w-]{10,}|uc\?|open\?id=)|docs\.google\.com\/(document|uc)/i.test(url);
@@ -126,6 +132,19 @@ export function urlDescarga(url: string): string {
   if (doc) return `https://docs.google.com/document/d/${doc}/export?format=pdf`;
   return url;
 }
+
+/**
+ * Cómo se baja un documento. Casi todos con GET; los que sólo responden a POST (OECE: `/Convocatoria/ConsultarArchivo`
+ * con `id=<id de Drive>`, el GET da 405) los marca el adaptador con `#post` al final, y su consulta va como formulario.
+ */
+export function pedidoDescarga(url: string): { url: string; metodo: "GET" | "POST"; cuerpo?: string } {
+  if (!/#post$/i.test(url)) return { url: urlDescarga(url), metodo: "GET" };
+  const sin = url.replace(/#post$/i, "");
+  const i = sin.indexOf("?");
+  return i < 0 ? { url: sin, metodo: "POST", cuerpo: "" } : { url: sin.slice(0, i), metodo: "POST", cuerpo: sin.slice(i + 1) };
+}
+
+const FORMULARIO = "application/x-www-form-urlencoded; charset=UTF-8";
 
 /** Un documento que puede ser un PDF para leer: termina en .pdf, es de gob.pe o está en Drive (se confirma al bajarlo). */
 export const quizasPdf = (url: string) => esPdf(url) || esDrive(url) || DESCARGAS.test(url) || /cdn\.www\.gob\.pe\/uploads\/document\/file\/.*\.pdf/i.test(url);
@@ -292,7 +311,7 @@ export interface Hallazgo {
  * (lib/empleoAdaptadores.ts, con su cliente HTTP); si no encuentra, el buscador genérico. null si no los encuentra.
  */
 export async function buscarBases(p: PlazaParaBases, pedir: Pedir, http?: Http): Promise<Hallazgo | null> {
-  const adaptador = http ? adaptadorDe(p.detalle_url) : null;
+  const adaptador = http ? adaptadorDePlaza(p) : null;
   if (adaptador && http) {
     try {
       const h = await adaptador(p, http);
@@ -366,7 +385,7 @@ export async function buscarBases(p: PlazaParaBases, pedir: Pedir, http?: Http):
 // ─── El relay de Lima y el Poder Judicial ──────────────────────────────────────────────────────────
 
 /** Un pedido por el relay de Lima (POST /raw del relay, backend/relay-lima/relay.py). */
-export type Relay = (url: string, timeoutMs: number) => Promise<Response>;
+export type Relay = (url: string, timeoutMs: number, extra?: { metodo?: "GET" | "POST"; cuerpo?: string; cabeceras?: Record<string, string> }) => Promise<Response>;
 
 /** El relay no está (la PC apagada) o rechazó el pedido: la búsqueda queda en «error» y se reintenta en 2 horas. */
 export class SinRelay extends Error {}
@@ -374,11 +393,11 @@ export class SinRelay extends Error {}
 /** Lo que sólo se lee por el relay de Lima: la misma lista de los adaptadores (lib/empleoHttp.ts). */
 export const necesitaPeru = (url: string): boolean => soloPeru(url);
 
-async function porRelay(relay: Relay | undefined, url: string, ms: number): Promise<Response> {
+async function porRelay(relay: Relay | undefined, url: string, ms: number, extra?: Parameters<Relay>[2]): Promise<Response> {
   if (!relay) throw new SinRelay("sin_relay");
   let r: Response;
   try {
-    r = await relay(url, ms);
+    r = await relay(url, ms, extra);
   } catch (e) {
     throw new SinRelay(`relay_lima: ${(e as Error).message.slice(0, 80)}`);
   }
@@ -391,11 +410,16 @@ async function porRelay(relay: Relay | undefined, url: string, ms: number): Prom
 export function relayDe(env: { RELAY_LIMA?: { fetch(input: string, init?: RequestInit): Promise<Response> }; RELAY_LIMA_TOKEN?: string }): Relay | undefined {
   const servicio = env.RELAY_LIMA;
   if (!servicio) return undefined;
-  return (url, ms) =>
+  return (url, ms, extra) =>
     servicio.fetch("http://127.0.0.1:8080/raw", {
       method: "POST",
       headers: { "content-type": "application/json", "x-vigia-token": (env.RELAY_LIMA_TOKEN ?? "").trim() },
-      body: JSON.stringify({ url, cabeceras: { "User-Agent": UA, Accept: "text/html,application/pdf,*/*" } }),
+      body: JSON.stringify({
+        url,
+        metodo: extra?.metodo ?? "GET",
+        cabeceras: { "User-Agent": UA, Accept: "text/html,application/pdf,*/*", ...extra?.cabeceras },
+        ...(extra?.metodo === "POST" ? { cuerpo: extra.cuerpo ?? "" } : {}),
+      }),
       signal: AbortSignal.timeout(ms),
     });
 }
@@ -488,8 +512,14 @@ export async function buscarPoderJudicial(p: PlazaParaBases, pedir: Pedir): Prom
 
 // ─── Bajar los PDF ──────────────────────────────────────────────────────────────────────────────────
 
-/** Hasta 50 MB (hay bases de 21, 23 y 44 MB: escaneos de muchas páginas). Haiku sólo recibe las de hasta 15 MB. */
-export const TOPE_PDF = 50 * 1024 * 1024;
+/**
+ * Hasta 25 MB por documento y 35 MB por plaza: el Worker tiene 128 MB y los pedidos que corren a la vez los comparten.
+ * El 2026-11-09 unas bases de 47,6 MB del HR Eleazar Guzmán Barrón (bajadas a la vez con otro PDF de 9,5 MB, copiadas a
+ * R2 y a toMarkdown) tumbaban el Worker antes de guardar, y como la plaza seguía primera en la cola, cada lote se caía en
+ * ella. Las más grandes quedan con su enlace. Haiku sólo recibe las de hasta 15 MB.
+ */
+export const TOPE_PDF = 25 * 1024 * 1024;
+export const TOPE_PDF_PLAZA = 35 * 1024 * 1024;
 export const TOPE_PDF_HAIKU = 15 * 1024 * 1024;
 
 /** Cuántas páginas tiene un PDF, aproximado (los /Type /Page sin comprimir); 0 si no se sabe. */
@@ -501,21 +531,71 @@ export function paginasPdf(bytes: Uint8Array): number {
 /** La clave del documento en R2: los primeros 24 hex del sha256 de su dirección. */
 export const claveDocumento = (url: string) => createHash("sha256").update(url).digest("hex").slice(0, 24);
 
-/** Baja un PDF (hasta 10 MB). null si no es un PDF o es muy grande. */
-export async function bajarPdf(url: string, f: typeof fetch = fetch, relay?: Relay): Promise<Uint8Array | null> {
-  const destino = urlDescarga(url);
+const empiezaConPdf = (b: Uint8Array) => b[0] === 0x25 && b[1] === 0x50 && b[2] === 0x44 && b[3] === 0x46; // %PDF
+
+/**
+ * El PDF que viene DENTRO de una página como `data:application/pdf;base64,…` (el visor público de la PGE: su única
+ * dirección estable; la descarga directa lleva un token que vence en minutos). null si la página no trae uno.
+ */
+export function pdfIncrustado(b: Uint8Array): Uint8Array | null {
+  const s = new TextDecoder("latin1").decode(b);
+  const m = /data:application\/pdf;base64,([A-Za-z0-9+/=\s]{400,})/.exec(s);
+  if (!m) return null;
+  const pdf = new Uint8Array(Buffer.from(m[1].replace(/\s+/g, ""), "base64"));
+  return empiezaConPdf(pdf) ? pdf : null;
+}
+
+/** El cuerpo de una respuesta por pedazos, cortando apenas pasa el tope (sin content-length no se sabe antes). */
+export async function cuerpoConTope(r: Response, tope: number): Promise<Uint8Array | null> {
+  const lector = r.body?.getReader();
+  if (!lector) return null;
+  const partes: Uint8Array[] = [];
+  let total = 0;
+  for (;;) {
+    const { done, value } = await lector.read();
+    if (done) break;
+    total += value.byteLength;
+    if (total > tope) {
+      await lector.cancel().catch(() => undefined);
+      return null;
+    }
+    partes.push(value);
+  }
+  const out = new Uint8Array(total);
+  let i = 0;
+  for (const p of partes) {
+    out.set(p, i);
+    i += p.byteLength;
+  }
+  return out;
+}
+
+/** Baja un PDF (hasta `tope`, 25 MB por defecto). null si no es un PDF o es más grande. */
+export async function bajarPdf(url: string, f: typeof fetch = fetch, relay?: Relay, tope = TOPE_PDF): Promise<Uint8Array | null> {
+  const { url: destino, metodo, cuerpo } = pedidoDescarga(url);
+  const post = metodo === "POST" ? { cuerpo, cabeceras: { "Content-Type": FORMULARIO } } : null;
   for (let intento = 0; intento < 2; intento++) {
     try {
       const r = necesitaPeru(destino)
-        ? await porRelay(relay, destino, 90_000)
-        : await f(destino, { headers: { "user-agent": UA, accept: "application/pdf,*/*" }, redirect: "follow", signal: AbortSignal.timeout(60_000) });
+        ? await porRelay(relay, destino, 90_000, post ? { metodo: "POST", ...post } : undefined)
+        : await f(destino, {
+            method: metodo,
+            headers: { "user-agent": UA, accept: "application/pdf,*/*", ...(post ? { "content-type": FORMULARIO } : {}) },
+            ...(post ? { body: cuerpo ?? "" } : {}),
+            redirect: "follow",
+            signal: AbortSignal.timeout(60_000),
+          });
       if (r.status >= 500 && intento === 0) continue;
       if (!r.ok) return null;
       const largo = Number(r.headers.get("content-length") ?? "0");
-      if (largo > TOPE_PDF) return null;
-      const b = new Uint8Array(await r.arrayBuffer());
-      if (b.byteLength > TOPE_PDF || b.byteLength < 500) return null;
-      if (!(b[0] === 0x25 && b[1] === 0x50 && b[2] === 0x44 && b[3] === 0x46)) return null; // %PDF
+      if (largo > tope) {
+        await r.body?.cancel().catch(() => undefined);
+        return null;
+      }
+      let b = await cuerpoConTope(r, tope);
+      if (!b) return null;
+      if (!empiezaConPdf(b)) b = pdfIncrustado(b) ?? b;
+      if (b.byteLength > tope || b.byteLength < 500 || !empiezaConPdf(b)) return null;
       return b;
     } catch (e) {
       if (e instanceof SinRelay) throw e;
@@ -955,7 +1035,7 @@ export async function procesarBases(
     puedeHaiku?: boolean;
     pedir?: Pedir;
     http?: Http;
-    bajar?: (url: string) => Promise<Uint8Array | null>;
+    bajar?: (url: string, tope?: number) => Promise<Uint8Array | null>;
     relay?: Relay;
     relayCompleto?: RelayCompleto;
   },
@@ -963,7 +1043,7 @@ export async function procesarBases(
   const pedir = opciones.pedir ?? pedidor(9, fetch, opciones.relay).pedir;
   // Los adaptadores (formularios, APIs) usan su cliente: hasta 20 pedidos, con cookies y el relay de Lima.
   const http = opciones.http ?? (opciones.pedir ? undefined : clienteHttp(20, fetch, opciones.relayCompleto));
-  const bajar = opciones.bajar ?? ((u: string) => bajarPdf(u, fetch, opciones.relay));
+  const bajar = opciones.bajar ?? ((u: string, tope?: number) => bajarPdf(u, fetch, opciones.relay, tope));
   const hallazgo = await buscarBases(p, pedir, http);
   if (!hallazgo) return { estado: "no_encontradas", pagina: null, documentos: [], lectura: null };
   const haiku = opciones.puedeHaiku ?? false;
@@ -982,7 +1062,7 @@ async function leerHallazgo(
   env: EnvLlm & { DOCUMENTOS?: BucketEscritura },
   p: PlazaParaBases & { datosServir: string },
   hallazgo: Hallazgo,
-  bajar: (url: string) => Promise<Uint8Array | null>,
+  bajar: (url: string, tope?: number) => Promise<Uint8Array | null>,
   puedeLeer: boolean,
   puedeHaiku: boolean,
 ): Promise<ResultadoBases> {
@@ -991,15 +1071,20 @@ async function leerHallazgo(
   // páginas (el Poder Judicial reparte la convocatoria en tres: el aviso, el cronograma y las bases generales).
   // Nunca los de resultados (aptos, ganadores, puntajes): traen nombres y DNI; de ellos sólo queda el enlace.
   const aLeer = documentos.filter((d) => quizasPdf(d.url) && !soloEnlace(d.titulo, d.url)).slice(0, 3);
-  const bajados = (await Promise.all(aLeer.map(async (d) => ({
-    d,
-    bytes: await bajar(d.url).catch((e) => {
+  // De a uno y con un tope por plaza (TOPE_PDF_PLAZA): todos a la vez llegaban a tumbar el Worker por memoria.
+  const bajados: { d: DocumentoBase; bytes: Uint8Array }[] = [];
+  let usados = 0;
+  for (const d of aLeer) {
+    const queda = Math.min(TOPE_PDF, TOPE_PDF_PLAZA - usados);
+    if (queda < 500) break;
+    const bytes = await bajar(d.url, queda).catch((e) => {
       if (e instanceof SinRelay) throw e;
       return null;
-    }),
-  })))).filter(
-    (x): x is { d: DocumentoBase; bytes: Uint8Array } => x.bytes != null,
-  );
+    });
+    if (!bytes) continue;
+    usados += bytes.byteLength;
+    bajados.push({ d, bytes });
+  }
   if (env.DOCUMENTOS) {
     await Promise.all(bajados.map(async ({ d, bytes }) => {
       const clave = claveDocumento(d.url);

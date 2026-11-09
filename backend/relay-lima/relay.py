@@ -46,7 +46,8 @@ ESPERA_S = 120
 # Webs del Estado con el TLS roto (2026-11-09, docs/automatizacion_cas.md): Piura manda el certificado sin el intermedio,
 # SUNAFIL sólo acepta un cifrado viejo (AES128-SHA) y la OECE tiene la cadena de otro emisor. Son páginas públicas que
 # sólo se leen: con ellas no se verifica el certificado ni se exige un cifrado moderno. Cualquier otro sitio, estricto.
-TLS_TOLERANTE = {"convocatorias.regionpiura.gob.pe", "contenidos.regionpiura.gob.pe", "aplicativosweb2.sunafil.gob.pe", "caspublico.oece.gob.pe"}
+TLS_TOLERANTE = {"convocatorias.regionpiura.gob.pe", "contenidos.regionpiura.gob.pe", "aplicativosweb2.sunafil.gob.pe", "caspublico.oece.gob.pe",
+                 "app.hrayacucho.gob.pe", "www.hrayacucho.gob.pe", "hrayacucho.gob.pe", "convocatorias.cofopri.gob.pe"}
 
 
 def contexto_tolerante() -> ssl.SSLContext:

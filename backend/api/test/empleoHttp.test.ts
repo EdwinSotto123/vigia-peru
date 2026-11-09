@@ -63,3 +63,20 @@ test("lo que sólo responde al Perú va por el relay de Lima, con método, cuerp
   for (const u of ["https://convocatoria.minjus.gob.pe/x", "https://www.ins.gob.pe/cas/", "https://contenidos.regionpiura.gob.pe/convocatoria/a.pdf", "https://aplicativosweb2.sunafil.gob.pe/"]) assert.equal(soloPeru(u), true, u);
   await assert.rejects(clienteHttp(5, fetch).get("https://www.drelm.gob.pe/"), SinRelayHttp);
 });
+
+test("las páginas en windows-1252 se leen bien (Provías) y las UTF-8 quedan igual", async () => {
+  const { decodificar } = await import("../src/lib/empleoHttp.js");
+  const cp = new Uint8Array([0x4e, 0xb0, 0x20, 0x30, 0x35, 0x20, 0x44, 0x49, 0x52, 0x45, 0x43, 0x43, 0x49, 0xd3, 0x4e, 0x20, 0x96, 0x20, 0x93, 0x41, 0x94]);
+  assert.equal(decodificar(cp, "text/html; charset=windows-1252"), "N° 05 DIRECCIÓN – “A”");
+  const meta = new TextEncoder().encode('<meta charset="iso-8859-1">');
+  const conMeta = new Uint8Array([...meta, 0xe1]);
+  assert.equal(decodificar(conMeta, "text/html"), '<meta charset="iso-8859-1">á');
+  assert.equal(decodificar(new TextEncoder().encode("Dirección N° 5"), "text/html; charset=utf-8"), "Dirección N° 5");
+  assert.equal(decodificar(new TextEncoder().encode("Dirección"), ""), "Dirección");
+});
+
+test("los comentarios HTML no se tragan los enlaces", async () => {
+  const { enlaces } = await import("../src/lib/basesPlaza.js");
+  const html = '<!-- <a href="/viejo.pdf">viejo --> <a href="/bases.pdf">Bases</a>';
+  assert.deepEqual(enlaces(html, "https://x.gob.pe/").map((e) => e.url), ["https://x.gob.pe/bases.pdf"]);
+});

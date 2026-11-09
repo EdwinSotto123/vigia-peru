@@ -9,10 +9,11 @@ const UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML,
 
 /**
  * Lo que sólo se lee por el relay de Lima (medido desde Cloudflare el 2026-11-09): el Poder Judicial, MINJUS, el INS y el
- * INABIF no responden a Cloudflare (403 o se cuelgan), y Piura y SUNAFIL tienen el TLS roto (cadena incompleta, cifrado
- * viejo), que el relay tolera para ellos (TLS_TOLERANTE en backend/relay-lima/relay.py). También para bajar sus PDF.
+ * INABIF no responden a Cloudflare (403 o se cuelgan), y Piura, SUNAFIL, la OECE, COFOPRI y el HR de Ayacucho tienen el TLS roto
+ * (cadena incompleta, cifrado viejo, certificado vencido), que el relay tolera para ellos (TLS_TOLERANTE en
+ * backend/relay-lima/relay.py). También para bajar sus PDF.
  */
-const SOLO_PERU = /(^|\.)(pj\.gob\.pe|drelm\.gob\.pe|convocatoria\.minjus\.gob\.pe|ins\.gob\.pe|inabif\.gob\.pe|aplicativosweb2\.sunafil\.gob\.pe|regionpiura\.gob\.pe)$/i;
+const SOLO_PERU = /(^|\.)(pj\.gob\.pe|drelm\.gob\.pe|convocatoria\.minjus\.gob\.pe|ins\.gob\.pe|inabif\.gob\.pe|aplicativosweb2\.sunafil\.gob\.pe|regionpiura\.gob\.pe|caspublico\.oece\.gob\.pe|hrayacucho\.gob\.pe|convocatorias\.cofopri\.gob\.pe)$/i;
 export function soloPeru(url: string): boolean {
   try {
     return SOLO_PERU.test(new URL(url).hostname);
@@ -55,6 +56,26 @@ export function relayCompletoDe(env: { RELAY_LIMA?: { fetch(input: string, init?
 }
 
 export class SinRelayHttp extends Error {}
+
+/** Windows-1252 de 0x80 a 0x9F (comillas, guiones, €); el resto de 0xA0 a 0xFF es Latin-1 tal cual. */
+const CP1252 = "€\u0081‚ƒ„…†‡ˆ‰Š‹Œ\u008DŽ\u008F\u0090‘’“”•–—˜™š›œ\u009DžŸ";
+
+/**
+ * El texto de una página en su codificación: UTF-8 casi siempre, pero los sitios viejos (ASP clásico de Provías, PHP)
+ * vienen en windows-1252 o ISO-8859-1, y como UTF-8 «N°» y «Ó» salían rotos. Se mira el charset de la cabecera y, si
+ * no hay, el <meta charset> del inicio.
+ */
+export function decodificar(bytes: Uint8Array, tipo: string): string {
+  const inicio = new TextDecoder("utf-8").decode(bytes.subarray(0, 2048));
+  const charset = (/charset\s*=\s*["']?([\w-]+)/i.exec(tipo)?.[1] ?? /<meta[^>]+charset\s*=\s*["']?([\w-]+)/i.exec(inicio)?.[1] ?? "utf-8").toLowerCase();
+  if (!/^(windows-1252|cp1252|iso-8859-1|iso8859-1|latin-?1|us-ascii)$/.test(charset)) return new TextDecoder("utf-8").decode(bytes);
+  let s = "";
+  for (let i = 0; i < bytes.length; i += 8192) {
+    const trozo = bytes.subarray(i, i + 8192);
+    s += Array.from(trozo, (b) => (b >= 0x80 && b < 0xa0 ? CP1252[b - 0x80] : String.fromCharCode(b))).join("");
+  }
+  return s;
+}
 
 export interface Http {
   pedir(url: string, p?: PedidoHttp): Promise<RespuestaHttp | null>;
@@ -128,7 +149,7 @@ export function clienteHttp(tope = 15, f: typeof fetch = fetch, relay?: RelayCom
         }
         if (r.status >= 500 && intento === 0) continue;
         const tipo = r.headers.get("content-type") ?? "";
-        const texto = esTexto(tipo) || !tipo ? (await r.text()).slice(0, 2_000_000) : "";
+        const texto = esTexto(tipo) || !tipo ? decodificar(new Uint8Array(await r.arrayBuffer()), tipo).slice(0, 2_000_000) : "";
         if (!texto) await r.body?.cancel().catch(() => undefined);
         return { status: r.status, texto, final, tipo };
       } catch (e) {
@@ -147,7 +168,7 @@ export function clienteHttp(tope = 15, f: typeof fetch = fetch, relay?: RelayCom
       const r = await pedir(url, { ...p, cabeceras: { accept: "application/json, text/plain, */*", ...(p.cabeceras ?? {}) } });
       if (!r || r.status >= 400 || !r.texto) return null;
       try {
-        return JSON.parse(r.texto) as T;
+        return JSON.parse(r.texto.replace(/^\uFEFF/, "")) as T; // con BOM (el INEN)
       } catch {
         return null;
       }

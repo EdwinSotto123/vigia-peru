@@ -11,11 +11,35 @@ import {
   buscarBases, documentosDePagina, enlaces, esDocumento, esProcesoGobPe, normalizar, numeroProceso, palabrasPuesto, type Enlace, type Hallazgo, type PlazaParaBases,
 } from "./basesPlaza.js";
 import type { Http } from "./empleoHttp.js";
+import { ADAPTADORES_SALUD } from "./adaptadores/salud.js";
+import { ADAPTADORES_NACIONALES } from "./adaptadores/nacionales.js";
+import { ADAPTADORES_EDUCACION } from "./adaptadores/educacion.js";
+import { ADAPTADORES_ESPECIALES, esMidis, esProvias, midis, provias } from "./adaptadores/especiales.js";
 
 export type Adaptador = (p: PlazaParaBases, http: Http) => Promise<Hallazgo | null>;
 
 /** Los adaptadores por dominio (en minúsculas). */
 export const ADAPTADORES: Record<string, Adaptador> = {};
+
+/**
+ * La ola 2 (2026-11-09), en lib/adaptadores/: salud, educación, entidades nacionales y casos especiales (Drive, share.google, OECE,
+ * MIDIS, Provías). Se suman la primera vez que se buscan, no al cargar: esos módulos usan este, y en el ciclo de imports
+ * todavía no existirían.
+ */
+let olaRegistrada = false;
+function registrarOla2(): void {
+  if (olaRegistrada) return;
+  olaRegistrada = true;
+  for (const grupo of [ADAPTADORES_SALUD, ADAPTADORES_EDUCACION, ADAPTADORES_NACIONALES, ADAPTADORES_ESPECIALES]) {
+    for (const [dominio, a] of Object.entries(grupo)) ADAPTADORES[dominio] ??= a;
+  }
+}
+
+/** Todos los dominios con adaptador (para medir y para las pruebas). */
+export function dominiosConAdaptador(): string[] {
+  registrarOla2();
+  return Object.keys(ADAPTADORES).sort();
+}
 
 /** El dominio de la primera URL de `detalle_url` que no es Facebook. */
 export function dominioDe(detalleUrl: string | null | undefined): string | null {
@@ -30,9 +54,20 @@ export function dominioDe(detalleUrl: string | null | undefined): string | null 
 }
 
 export const adaptadorDe = (detalleUrl: string | null | undefined): Adaptador | null => {
+  registrarOla2();
   const d = dominioDe(detalleUrl);
   return d ? (ADAPTADORES[d] ?? null) : null;
 };
+
+/**
+ * El adaptador de una plaza: primero las entidades que SERVIR enlaza a una página de gob.pe pero publican sus procesos
+ * en su propio aplicativo (MIDIS, Provías Nacional), por el nombre de la entidad; si no, el del dominio de su enlace.
+ */
+export function adaptadorDePlaza(p: Pick<PlazaParaBases, "entidad" | "detalle_url">): Adaptador | null {
+  if (esMidis(p)) return midis;
+  if (esProvias(p)) return provias;
+  return adaptadorDe(p.detalle_url);
+}
 
 /**
  * Qué tan útil es un documento para leer la convocatoria (menos es primero): se leen los 3 primeros PDF, así que las bases,
