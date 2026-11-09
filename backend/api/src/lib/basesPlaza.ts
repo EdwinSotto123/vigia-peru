@@ -561,7 +561,7 @@ interface EnvLlm {
 /** El modelo que lee las bases con texto (Workers AI, por vigia-llm). */
 export const MODELO_BASES = "@cf/zai-org/glm-5.3-flash";
 export const NOMBRE_MODELO_BASES = "glm-5.3-flash";
-/** Menos texto que esto en todos los PDF: son escaneos (imágenes), sin texto que leer. */
+/** Menos letras que esto en todos los PDF: son escaneos (imágenes), sin texto que leer. */
 export const MIN_TEXTO = 600;
 /** Lo que se le pasa al modelo como mucho (~25 mil tokens). */
 export const MAX_TEXTO = 90_000;
@@ -591,6 +591,27 @@ export function limpiarLectura(entrada: unknown): LecturaBasesT {
   };
 }
 
+/**
+ * El contenido de lo que devuelve `toMarkdown` de un PDF: sin el bloque de metadatos (versión, productor, fechas: también
+ * lo trae un escaneo) ni los títulos «Page N».
+ */
+export function contenidoMarkdown(md: string): string {
+  const i = md.search(/^#{1,3}\s*Contents\s*$/im);
+  const cuerpo = i >= 0 ? md.slice(i).replace(/^#{1,3}\s*Contents\s*$/im, "") : md.replace(/^#{1,3}\s*Metadata\s*$[\s\S]*?(?=^#{1,3}\s|(?![\s\S]))/im, "");
+  return cuerpo
+    .replace(/^#{1,4}\s*(Page|Página)\s*\d+\s*$/gim, "")
+    .replace(/^#\s*documento-\d+\.pdf\s*$/gim, "")
+    .replace(/[ \t]+\n/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
+/** Cuántas letras tiene un texto (lo que de verdad se puede leer). */
+export const letras = (t: string) => (t.match(/[A-Za-zÁÉÍÓÚáéíóúÑñ]/g) ?? []).length;
+
+/** Una lectura sin nada que mostrar (el modelo no pudo leer: un escaneo con algo de texto, un documento ilegible). */
+export const lecturaVacia = (l: LecturaBasesT) => !l.cronograma.length && !l.documentos.length && !l.funciones.length && !l.evaluacion.length;
+
 /** El texto de cada PDF por Workers AI (`toMarkdown`). Vacío si no hay binding o el PDF es un escaneo. */
 export async function textoDePdfs(env: EnvLlm, pdfs: { titulo: string; bytes: Uint8Array }[]): Promise<{ titulo: string; texto: string }[]> {
   if (!env.AI || !pdfs.length) return pdfs.map((d) => ({ titulo: d.titulo, texto: "" }));
@@ -600,7 +621,7 @@ export async function textoDePdfs(env: EnvLlm, pdfs: { titulo: string; bytes: Ui
     return pdfs.map((d, i) => {
       const x = lista[i];
       const texto = x && x.format !== "error" && typeof x.data === "string" ? x.data : "";
-      return { titulo: d.titulo, texto: texto.replace(/[ \t]+\n/g, "\n").replace(/\n{3,}/g, "\n\n").trim() };
+      return { titulo: d.titulo, texto: contenidoMarkdown(texto) };
     });
   } catch {
     return pdfs.map((d) => ({ titulo: d.titulo, texto: "" }));
@@ -711,10 +732,13 @@ export async function leerBases(
   puedeHaiku: boolean,
 ): Promise<{ lectura: LecturaBasesT; entrada: number; salida: number; modelo: string }> {
   const textos = await textoDePdfs(env, pdfs);
-  const largo = textos.reduce((a, t) => a + t.texto.length, 0);
+  const largo = textos.reduce((a, t) => a + letras(t.texto), 0);
   if (largo >= MIN_TEXTO) {
     try {
-      return { ...(await leerBasesGlm(env, p, textos)), modelo: NOMBRE_MODELO_BASES };
+      const r = await leerBasesGlm(env, p, textos);
+      // GLM respondió pero sin nada que mostrar (algo de texto suelto en un escaneo): como un escaneo.
+      if (!r.lectura.corresponde || !lecturaVacia(r.lectura)) return { ...r, modelo: NOMBRE_MODELO_BASES };
+      if (!puedeHaiku) throw new Error("escaneadas");
     } catch (e) {
       if (!puedeHaiku) throw e;
     }

@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { MIN_TEXTO, argumentosHerramienta, leerBases, limpiarLectura, textoDePdfs } from "../src/lib/basesPlaza.js";
+import { MIN_TEXTO, argumentosHerramienta, contenidoMarkdown, leerBases, letras, limpiarLectura, textoDePdfs } from "../src/lib/basesPlaza.js";
 
 const LECTURA = {
   corresponde: true,
@@ -17,7 +17,7 @@ const PLAZA = { aviso: 1, titulo: "Especialista", entidad: "UGEL 01", numero: "C
 const PDF = { titulo: "Bases", bytes: new Uint8Array([37, 80, 68, 70]) };
 
 /** Un vigia-llm de mentira: anota a qué ruta fue cada pedido y responde como GLM (chat/completions) o como Haiku (messages). */
-function llm(opciones: { glmFalla?: boolean } = {}) {
+function llm(opciones: { glmFalla?: boolean; glmVacia?: boolean } = {}) {
   const rutas: string[] = [];
   const cuerpos: Record<string, unknown>[] = [];
   return {
@@ -32,8 +32,9 @@ function llm(opciones: { glmFalla?: boolean } = {}) {
         cuerpos.push((await r.json()) as Record<string, unknown>);
         if (ruta === "/v1/chat/completions") {
           if (opciones.glmFalla) return new Response("{}", { status: 502 });
+          const vacia = { ...LECTURA, funciones: [], cronograma: [], evaluacion: [], documentos: [], como_postular: { medio: "otro", detalle: "El PDF es un documento escaneado sin texto legible" } };
           return Response.json({
-            choices: [{ message: { content: null, tool_calls: [{ type: "function", function: { name: "bases", arguments: JSON.stringify(LECTURA) } }] } }],
+            choices: [{ message: { content: null, tool_calls: [{ type: "function", function: { name: "bases", arguments: JSON.stringify(opciones.glmVacia ? vacia : LECTURA) } }] } }],
             usage: { prompt_tokens: 13381, completion_tokens: 1814 },
           });
         }
@@ -92,4 +93,25 @@ test("si GLM falla con texto: Haiku si puede, si no el error", async () => {
   assert.equal(r.modelo, "claude-haiku-5-5");
   assert.deepEqual(env.rutas, ["/v1/chat/completions", "/nativo/v1/messages"]);
   await assert.rejects(leerBases({ ...llm({ glmFalla: true }), AI: ai("x".repeat(MIN_TEXTO + 10)) }, PLAZA, [PDF], false), /modelo_502/);
+});
+
+test("el contenido de toMarkdown: sin metadatos ni «Page N» (un escaneo trae metadatos y nada más)", () => {
+  const escaneo = [
+    "# documento-1.pdf", "## Metadata", "- PDFFormatVersion=1.7", "- Producer=Canon iR-ADV C5535 PDF", "- CreationDate=D:20261105",
+    "- Title=Bases del proceso CAS de la municipalidad", "## Contents", "### Page 1", "", "### Page 2", "",
+  ].join("\n");
+  assert.equal(contenidoMarkdown(escaneo), "");
+  assert.equal(letras(contenidoMarkdown(escaneo)), 0);
+  const conTexto = ["# documento-1.pdf", "## Metadata", "- Producer=Word", "## Contents", "### Page 1", "BASES DEL PROCESO CAS N° 108-2026", "### Page 2", "Cronograma"].join("\n");
+  assert.equal(contenidoMarkdown(conTexto), ["BASES DEL PROCESO CAS N° 108-2026", "", "Cronograma"].join("\n"));
+  assert.equal(contenidoMarkdown("Sólo texto, sin bloques"), "Sólo texto, sin bloques");
+  assert.equal(letras("N° 108-2026, ñandú"), 6);
+});
+
+test("si GLM no encuentra nada que mostrar (escaneo con algo de texto): Haiku si puede, si no «escaneadas»", async () => {
+  const env = { ...llm({ glmVacia: true }), AI: ai("x".repeat(MIN_TEXTO + 10)) };
+  const r = await leerBases(env, PLAZA, [PDF], true);
+  assert.equal(r.modelo, "claude-haiku-5-5");
+  assert.deepEqual(env.rutas, ["/v1/chat/completions", "/nativo/v1/messages"]);
+  await assert.rejects(leerBases({ ...llm({ glmVacia: true }), AI: ai("x".repeat(MIN_TEXTO + 10)) }, PLAZA, [PDF], false), /escaneadas/);
 });
