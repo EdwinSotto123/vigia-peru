@@ -735,7 +735,7 @@ def test_firmante_del_propio_ganador_no_es_vinculo():
                                               {"nombre_completo": "Ana Ruiz", "entidad": "MINISTERIO X"}]},
           "person_network": {"cruce_firmantes_ganador": [
               {"firmante": "JUAN PEREZ SOTO", "tipo_relacion": "codireccion_empresa", "severidad": "alta",
-               "confianza_match": "alta", "fuente_url": "https://x.pe/a"}]}}
+               "confianza_match": "alta", "fuente_url": "https://x.pe/a", "persona_proveedor": "LUIS GOMEZ (socio)"}]}}
     assert rn.check_recurrencia_firmante_rule("1", types.SimpleNamespace(state=st))["triggered"] is False
     st["person_network"]["cruce_firmantes_ganador"][0]["firmante"] = "ANA RUIZ"
     assert rn.check_recurrencia_firmante_rule("1", types.SimpleNamespace(state=st))["triggered"] is True

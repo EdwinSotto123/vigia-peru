@@ -252,6 +252,26 @@ def test_firmante_vinculado_exige_fuente_y_confianza_alta():
     assert r2["triggered"] is True and st2["pending_flags"][0]["fuente_url"] == "https://x.gob.pe/1"
 
 
+def test_firmante_con_empresa_propia_no_es_vinculo_con_el_ganador():
+    """Prueba de oro 1228871: el modelo marcó «cargo público compartido» a un firmante con empresa PROPIA (otro RUC),
+    con persona_proveedor = la razón social del ganador y una URL de SUNAT en .gob.cr. Sin una persona del ganador
+    o su RUC no hay vínculo que verificar."""
+    ocds = {"awards": [{"suppliers": [{"id": "PE-RUC-20601252318", "name": "SERCEPA S.A.C."}]}]}
+    cruce = {"firmante": "A", "cargo_firmante": "Funcionario", "persona_proveedor": "SERCEPA S.A.C.",
+             "tipo_relacion": "cargo_publico_compartido", "severidad": "alta", "confianza_match": "alta",
+             "fuente_url": "https://e-consultaruc.sunat.gob.pe", "evidencia": [{"cita": "ruc_empresa 20601463742, roles SOCIO"}]}
+    st = {"ocds": ocds, "person_network": {"cruce_firmantes_ganador": [dict(cruce)]}}
+    r = cr.check_recurrencia_firmante_rule(OCID, _Ctx(st))
+    assert r["triggered"] is False and "sin_persona_del_ganador" in r["cruces_no_verificables"][0]["_no_verificable_por"]
+    # Con el RUC del ganador en la evidencia sí cuenta; con un dominio de gobierno que no es del Perú, no.
+    st2 = {"ocds": ocds, "person_network": {"cruce_firmantes_ganador": [
+        dict(cruce, evidencia=[{"cita": "socio de 20601252318 desde 2016"}])]}}
+    assert cr.check_recurrencia_firmante_rule(OCID, _Ctx(st2))["triggered"] is True
+    st3 = {"ocds": ocds, "person_network": {"cruce_firmantes_ganador": [
+        dict(cruce, evidencia=[{"cita": "socio de 20601252318"}], fuente_url="https://e-consultaruc.sunat.gob.cr")]}}
+    assert cr.check_recurrencia_firmante_rule(OCID, _Ctx(st3))["triggered"] is False
+
+
 # ─── inconsistencia_doc_vs_ocds ──────────────────────────────────────────────
 
 def test_inconsistencia_cuenta_solo_items_raiz_y_sin_manipulacion():

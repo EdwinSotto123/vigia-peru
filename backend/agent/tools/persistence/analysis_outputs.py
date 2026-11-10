@@ -358,6 +358,7 @@ def persist_analysis_outputs(alerta_codigo: str, tool_context: ToolContext) -> d
                     cur.execute("DELETE FROM banderas WHERE alerta_id=%s AND agente_origen IN "
                                 "('document_parser_agent','document_legal_analyst_agent')", (alerta_id,))
                 for rf in pending_doc:
+                    puntua = not (isinstance(rf, dict) and rf.get("_puntua") is False)
                     norm = _normalizar_red_flag(rf)
                     if not norm:
                         continue
@@ -370,7 +371,7 @@ def persist_analysis_outputs(alerta_codigo: str, tool_context: ToolContext) -> d
                         n_pending_descartadas += 1
                         continue
                     _insert_bandera(cur, alerta_id, "red_flag_documental", sev, descr, norma_final,
-                                    _fuente_proc, "document_legal_analyst_agent", flag.get("verificacion"))
+                                    _fuente_proc, "document_legal_analyst_agent", flag.get("verificacion"), puntua=puntua)
                     n_pending_inserted += 1
                 if pending_market:
                     cur.execute("DELETE FROM banderas WHERE alerta_id=%s AND agente_origen='market_price_agent'",

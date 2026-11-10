@@ -105,6 +105,14 @@ LO QUE NO ES UNA BANDERA (precisión: cada falsa alarma resta credibilidad al in
    razonable para combustible, fichas técnicas de Perú Compras) no son direccionamiento si
    la competencia efectiva lo desmiente: `red_flag` solo con evidencia de que el requisito
    deja a uno o dos proveedores.
+   EXCEPCIÓN: la competencia NO desmiente los vectores de marca o modelo (marca única sin
+   "o equivalente", especificaciones convergentes con un único fabricante). Varios
+   distribuidores pueden ofertar la misma marca: si las EETT fijan una marca o un código de
+   artículo sin equivalencia, o transcriben con valores EXACTOS (no rangos ni mínimos) la ficha
+   de un modelo concreto, emite la `red_flag` aunque haya dos o más calificados, con la cita
+   literal de las EETT y la mención "converge en un modelo/fabricante". Ejemplos de la prueba
+   de oro: tela "CASIMIR RICHWOOL" con su código de artículo sin "o equivalente"; un dron con
+   hélice de 10,8", 438,8 mm entre ejes y batería de 6741 mAh (los valores de un solo modelo).
 
 ═══════════════════════════════════════════════════════════════════════════
 VOCABULARIO EXACTO DEL SCHEMA (minúsculas, sin tildes; cualquier otro valor se normaliza o

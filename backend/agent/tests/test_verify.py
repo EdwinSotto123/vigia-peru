@@ -261,11 +261,12 @@ class _FakeCursor:
             aid, regla, sev, ev, norma, fuente, agente, ver, *_extra = p
             self.db.banderas.append({"alerta_id": aid, "regla": regla, "severidad": sev, "evidencia": ev,
                                      "norma": norma, "fuente_url": fuente, "agente_origen": agente,
-                                     "verificacion": json.loads(ver) if ver else None})
+                                     "verificacion": json.loads(ver) if ver else None,
+                                     "puntua": bool(_extra[0]) if _extra else True})
             return
         if s.startswith("select regla, severidad, evidencia, norma, fuente_url, agente_origen, verificacion, puntua from banderas"):
             self._rows = [(b["regla"], b["severidad"], b["evidencia"], b["norma"], b["fuente_url"],
-                           b["agente_origen"], b["verificacion"], True) for b in self.db.banderas if b["alerta_id"] == p[0]]
+                           b["agente_origen"], b["verificacion"], b.get("puntua", True)) for b in self.db.banderas if b["alerta_id"] == p[0]]
             return
         if s.startswith("update alertas set score"):
             score, reglas, aid = p
@@ -378,6 +379,24 @@ def test_persist_analysis_outputs_consume_pending_market_y_doc_flags(monkeypatch
     # output no parseable → sin_dato + warn, nunca texto crudo
     assert any("news_research" in w for w in res["warns"])
     assert any(d.get("agente") == "news_research" for d in st["descartes"])
+
+
+def test_hallazgo_de_contexto_del_legal_se_publica_sin_puntaje(monkeypatch):
+    """depurar_banderas_legales deja en `hallazgos_contexto` lo que no apunta a un solo proveedor: se publica como
+    red_flag_documental con puntua=false y no cambia el puntaje (prueba de oro 2026-11-10)."""
+    db = _FakeDB()
+    db.alertas["OECE-1216608"] = {"id": "A1", "score": 0, "codigo": "OECE-1216608"}
+    monkeypatch.setattr(persistence.analysis_outputs, "_pg", lambda: db)
+    st = _state(
+        pending_doc_flags=[{"descripcion": "Marca única exigida en EETT", "severidad": "alta", "norma_citada": "Art. 16"},
+                           {"descripcion": "Empate de ofertas resuelto con un criterio no previsto", "severidad": "media",
+                            "_puntua": False}],
+        final_dictamen="## Dictamen\nok",
+    )
+    persistence.persist_analysis_outputs("OECE-1216608", _Ctx(st))
+    doc = [b for b in db.banderas if b["agente_origen"] == "document_legal_analyst_agent"]
+    assert sorted(b["puntua"] for b in doc) == [False, True]
+    assert db.alertas["OECE-1216608"]["score"] == 25
 
 
 # ─── Contexto del dictamen ───────────────────────────────────────────────────

@@ -67,7 +67,7 @@ import re as _re
 
 # Lo que ya emiten las reglas de código: repetirlo como bandera documental duplica el puntaje (5 falsas alarmas).
 _RE_DUPLICA_REGLA = _re.compile(
-    r"[uú]nic[oa]\s+(postor|oferta|ofertante)|oferta\s+[uú]nica|postor\s+[uú]nico|sin\s+competencia\s+efectiva|"
+    r"[uú]nic[oa]\s+(postor|oferta|ofertante|oferente)|oferta\s+[uú]nica|postor\s+[uú]nico|sin\s+competencia\s+efectiva|"
     r"igual\s+al?\s+(100\s*%\s+del\s+)?valor\s+(referencial|estimado)|100\s*%\s+del\s+valor", _re.I)
 # Un puntaje sobre 100 por las bonificaciones de ley (MYPE 5 %, colindancia o provincia 10 %) es lo normal (3).
 _RE_BONIFICACION = _re.compile(r"bonificaci[oó]n|(puntaje|puntos).{0,80}(super|por\s+encima|exce|mayor).{0,30}\b100\b", _re.I)
@@ -93,6 +93,18 @@ _RE_FIANZA = _re.compile(r"carta\s+fianza|garant[ií]a\s+de\s+fiel", _re.I)
 _RE_VIGENCIA = _re.compile(r"\bvence|vencimiento|vigencia|renov", _re.I)
 # Una bandera que afirma que sólo uno o dos podían cumplir (ésa sí puede ser direccionamiento aunque hubiera otros).
 _RE_UNICO = _re.compile(r"[uú]nico\s+proveedor|s[oó]lo\s+(un|uno|dos)\b|exclusiv|marca", _re.I)
+# Lo que converge en una marca o un modelo aunque varios distribuidores lo vendan (prueba de oro: 1226255 tela por
+# marca y código de artículo sin «o equivalente», 1228062 la ficha de un dron con valores exactos; ambas con 2 y 3
+# calificados y SÍ son requisito dirigido).
+_RE_CONVERGE = _re.compile(
+    r"[uú]nico\s+proveedor|s[oó]lo\s+(un|uno|dos)\b|exclusiv|marca|\bmodelo\b|fabricante|c[oó]digo\s+de\s+art[ií]culo|"
+    r"o\s+equivalente|valores\s+exactos|patentad|distribuidor\s+(autorizado|exclusivo)", _re.I)
+# Lo que habla de un requisito, una especificación o un criterio de evaluación (el objeto de la bandera documental).
+_RE_SOBRE_REQUISITO = _re.compile(
+    r"requisit|especificaci|certificad|exig|criterio|muestra|ficha|marca|modelo|experiencia|t[eé]rminos\s+de\s+referencia|"
+    r"\btdr\b|plazo\s+de\s+entrega|factor(es)?\s+de\s+evaluaci|homolog|penalidad|garant[ií]a|admit|calific", _re.I)
+# Lo que pasó en una convocatoria anterior (desierta, nulidad): no es un hecho de este proceso (regla 10 del prompt).
+_RE_CONV_ANTERIOR = _re.compile(r"(primera|anterior|previa)\s+convocatoria|convocatoria\s+(anterior|previa|desierta)|declarad[ao]\s+desiert", _re.I)
 
 
 def _competencia_efectiva(state: dict) -> int:
@@ -122,7 +134,7 @@ def depurar_banderas_legales(state: dict) -> list[dict]:
             return []
     if not isinstance(la, dict):
         return []
-    quedan, fuera = [], []
+    quedan, fuera, contexto = [], [], []
     calificados = _competencia_efectiva(state)
     for rf in la.get("red_flags_documentales") or []:
         if not isinstance(rf, dict):
@@ -131,6 +143,7 @@ def depurar_banderas_legales(state: dict) -> list[dict]:
         texto = " ".join(str(rf.get(k) or "") for k in ("descripcion", "hallazgo", "titulo"))
         vector = str(rf.get("vector") or "").lower()
         motivo = None
+        motivo_contexto = None
         if vector == "procedimiento" and _RE_DUPLICA_REGLA.search(texto):
             motivo = "repite una regla de código (único postor / oferta igual al referencial)"
         elif _RE_BONIFICACION.search(texto):
@@ -151,12 +164,32 @@ def depurar_banderas_legales(state: dict) -> list[dict]:
             motivo = f"requisito con competencia efectiva: el acta tiene {calificados} postores calificados"
         elif _RE_OMISION.search(texto) and _RE_GARANTIA.search(texto) and _RE_REMITE_LEY.search(texto):
             motivo = "omisión del contrato que cubre la ley (la cláusula remite a la norma)"
+        elif _RE_CONV_ANTERIOR.search(texto) and _RE_DUPLICA_REGLA.search(texto) and not _RE_CONVERGE.search(texto):
+            # 1225299: «el mismo postor fue único oferente de la primera convocatoria, declarada desierta, y vuelve a ser
+            # el único»: repite las reglas de único postor con hechos de otra convocatoria.
+            motivo_contexto = "repite el único postor (reglas de código) con hechos de una convocatoria anterior"
+        elif calificados >= 2 and not _RE_CONVERGE.search(texto):
+            # Con dos o más ofertas calificadas de distinto postor no hay evidencia de que el expediente converja en un
+            # solo proveedor (prueba de oro 2026-11-10: 1226350, 1226611, 1228943, 1242917, 1223907). El hallazgo
+            # puede ser cierto (un empate mal resuelto, actas que no cuadran): se publica, pero sin puntaje.
+            motivo_contexto = f"competencia efectiva: el acta tiene {calificados} postores calificados y nada converge en una marca o modelo"
+        elif vector in ("procedimiento", "comite", "otro", "") and not _RE_SOBRE_REQUISITO.search(texto):
+            # Una irregularidad del trámite (negociación, desierta, justificación del procedimiento) que no toca ningún
+            # requisito ni especificación: no es un requisito dirigido (1225299: el mismo postor de la convocatoria desierta).
+            motivo_contexto = "irregularidad del trámite que no toca un requisito ni una especificación"
         if motivo:
             fuera.append({"vector": vector, "descripcion": texto[:200], "motivo": motivo})
+        elif motivo_contexto:
+            contexto.append({**rf, "motivo_contexto": motivo_contexto})
         else:
             quedan.append(rf)
-    if fuera:
+    if fuera or contexto:
         la["red_flags_documentales"] = quedan
-        la["descartes_depuracion"] = fuera
+        if fuera:
+            la["descartes_depuracion"] = fuera
+        if contexto:
+            # Se publican como «hecho de contexto» (bandera con puntua=false: se ve en la ficha y no suma al puntaje).
+            la["hallazgos_contexto"] = contexto
         state["legal_analysis"] = _json.dumps(la, ensure_ascii=False) if era_str else la
-    return fuera
+    return fuera + [{"vector": c.get("vector"), "descripcion": str(c.get("descripcion"))[:200],
+                     "motivo": "contexto: " + c["motivo_contexto"]} for c in contexto]

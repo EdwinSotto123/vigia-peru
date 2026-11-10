@@ -112,6 +112,38 @@ def _firmantes_del_ganador(state: dict) -> set[str]:
     return out
 
 
+def _url_plausible(url: str) -> bool:
+    """Una URL que puede existir: http(s), con dominio, y si es de un gobierno, del Perú (el modelo escribió
+    «e-consultaruc.sunat.gob.cr» en la prueba de oro, 1228871)."""
+    m = re.match(r"https?://([^/\s:]+)", url or "", re.I)
+    if not m or "." not in m.group(1):
+        return False
+    host = m.group(1).lower()
+    return not (("gob." in host or "sunat" in host or "osce" in host or "seace" in host) and not host.endswith(".pe"))
+
+
+def _cruce_nombra_al_ganador(c: dict, state: dict) -> bool:
+    """¿El cruce nombra a alguien del ganador (una persona, no sólo la razón social) o su RUC? Un firmante con
+    cargo público y empresa PROPIA no es un vínculo con el proveedor (1228871: el modelo lo marcó «cargo público
+    compartido» con persona_proveedor = la razón social del ganador y el RUC de otra empresa)."""
+    ocds = state.get("ocds") or state.get("ocds_preloaded") or {}
+    rucs: set[str] = set()
+    ruc_g, nombre_g = _ganador_ocds(ocds)
+    if ruc_g:
+        rucs.add(ruc_g)
+    texto = json.dumps([c.get("evidencia"), c.get("descripcion"), c.get("persona_proveedor")], ensure_ascii=False, default=str)
+    if any(r and r in texto for r in rucs):
+        return True
+    pp = str(c.get("persona_proveedor") or "").strip()
+    if not pp:
+        return False
+    gan = _norm_razon_cr(nombre_g or "")
+    # Sólo la razón social (o una empresa: S.A.C., E.I.R.L.…) no es una persona del ganador.
+    if gan and (_norm_razon_cr(pp) == gan or gan in _norm_razon_cr(pp)):
+        return False
+    return not re.search(r"\b(s\.?\s?a\.?\s?c|s\.?\s?a|e\.?\s?i\.?\s?r\.?\s?l|s\.?\s?r\.?\s?l|s\.?\s?c\.?\s?r\.?\s?l|consorcio)\b\.?", pp, re.I)
+
+
 def check_recurrencia_firmante_rule(ocid: str, tool_context: ToolContext,
                                     reglas_activas: frozenset[str] | None = None,
                                     topes_uit: dict | None = None) -> dict:
@@ -148,12 +180,15 @@ def check_recurrencia_firmante_rule(ocid: str, tool_context: ToolContext,
             continue
         fuente = str(c.get("fuente_url") or "").strip()
         conf = str(c.get("confianza_match") or c.get("confianza") or "").strip().lower()
-        if fuente.startswith("http") and conf == "alta":
+        nombra = _cruce_nombra_al_ganador(c, tool_context.state)
+        if _url_plausible(fuente) and conf == "alta" and nombra:
             relevantes.append(c)
         else:
             falta = []
-            if not fuente.startswith("http"):
+            if not _url_plausible(fuente):
                 falta.append("fuente_url")
+            if not nombra:
+                falta.append("sin_persona_del_ganador")
             if conf != "alta":
                 falta.append(f"confianza_match={conf or 'ausente'}")
             no_verificables.append({**c, "_no_verificable_por": falta})

@@ -28,6 +28,8 @@ def persist_doc_flags_as_banderas(alerta_codigo: str, tool_context: ToolContext)
     if not isinstance(legal, dict):
         legal = {}
     red_flags = legal.get("red_flags_documentales") or []
+    # Hallazgos sin puntaje (depurar_banderas_legales: no apuntan a un solo proveedor): se publican con puntua=false.
+    contexto = [{**c, "_puntua": False} for c in (legal.get("hallazgos_contexto") or []) if isinstance(c, dict)]
 
     # Las banderas documentales vienen SOLO del document_legal_analyst (grounded en
     # los ítems reales + cita norma/opinión OECE). Se ELIMINÓ el fallback al
@@ -35,7 +37,7 @@ def persist_doc_flags_as_banderas(alerta_codigo: str, tool_context: ToolContext)
     # emitía red_flags ALUCINABA (ej. "ítem 3 SOFTWARE DE OFIMÁTICA / Microsoft Office",
     # "ISO 19798 impresora" en un contrato de equipos de laboratorio). Si el legal no
     # produjo banderas, no se persiste ninguna documental.
-    if not red_flags:
+    if not red_flags and not contexto:
         # El legal corrió y no halló nada: limpiar las banderas documentales de la corrida anterior.
         lim = _limpiar_banderas_agente(alerta_codigo, "document_legal_analyst_agent", state) if state.get("legal_analysis") else {}
         return {"persistidas": 0, "mensaje": "Sin red_flags del legal_analyst en state", **lim}
@@ -56,7 +58,7 @@ def persist_doc_flags_as_banderas(alerta_codigo: str, tool_context: ToolContext)
         if not row:
             # No hay alerta todavía — guardamos los flags en state para que
             # persist_analysis_outputs los anexe cuando cree la alerta stub.
-            tool_context.state["pending_doc_flags"] = red_flags
+            tool_context.state["pending_doc_flags"] = list(red_flags) + contexto
             return {
                 "persistidas": 0,
                 "skipped": True,
@@ -80,7 +82,8 @@ def persist_doc_flags_as_banderas(alerta_codigo: str, tool_context: ToolContext)
 
         persistidas = []
         descartadas = 0
-        for rf in red_flags:
+        for rf in list(red_flags) + contexto:
+            puntua = not (isinstance(rf, dict) and rf.get("_puntua") is False)
             norm = _normalizar_red_flag(rf)
             if not norm:
                 continue
@@ -97,8 +100,8 @@ def persist_doc_flags_as_banderas(alerta_codigo: str, tool_context: ToolContext)
                 descartadas += 1
                 continue
             _insert_bandera(cur, alerta_id, "red_flag_documental", sev, descr, norma_final,
-                            _fuente_oficial, "document_legal_analyst_agent", flag.get("verificacion"))
-            persistidas.append({"severidad": sev, "evidencia": descr[:200], "norma": norma_final})
+                            _fuente_oficial, "document_legal_analyst_agent", flag.get("verificacion"), puntua=puntua)
+            persistidas.append({"severidad": sev, "evidencia": descr[:200], "norma": norma_final, "puntua": puntua})
 
         # Score con TODAS las banderas de la alerta (no incremental: idempotente en reruns).
         new_score, _ = _recalcular_score(cur, alerta_id, state)
