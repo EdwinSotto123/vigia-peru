@@ -117,6 +117,29 @@ def _converge(texto: str) -> bool:
 _RE_CERCANIA = _re.compile(
     r"a\s+(no\s+)?m[aá]s\s+de\s+\d+([.,]\d+)?\s*(km|kil[oó]metros?)|radio\s+(m[aá]ximo\s+)?de\s+\d+|"
     r"restricci[oó]n\s+geogr[aá]fica|cercan[ií]a\s+(a|al|de)\s+(la\s+)?(sede|local|entidad)", _re.I)
+# «El requisito dejó fuera a los demás y quedó uno»: es el resultado que ya cuentan las reglas de código (única oferta
+# válida, único postor). Sin una marca, un modelo o un valor exacto que sólo uno cumple, no prueba que el requisito
+# apunte a un proveedor (prueba de oro de servicios 2026-11-10: 1229450, 1230693, 1232139, 1227094, 1230847).
+_RE_EXCLUSION = _re.compile(
+    r"excluy|descalific|dej[oó]\s+fuera|dej[oó]\s+como\s+[uú]nic|dejando\s+(como\s+)?(un\s+solo|al?\s+[uú]nic|[uú]nic)|"
+    r"qued[oó]\s+(como\s+)?(el\s+)?[uú]nic|s[oó]lo\s+qued|[uú]nic[oa]\s+(postor\s+|oferta\s+)?(calificad|competidor)|"
+    r"un\s+solo\s+(competidor|postor|calificad)", _re.I)
+# Lo que sí es una falta del comité: calificar lo que no cumplía o descalificar con un requisito que no estaba en las
+# bases (1231453: «pese a que el propio acta reconoce que acreditó 40 horas cuando las bases exigían 60»).
+_RE_FALTA_COMITE = _re.compile(
+    r"pese\s+a\s+que|a\s+pesar\s+de\s+que|indebid|sin\s+sustento|incumpl|arbitrari|contradic|incongru|err[oó]ne|"
+    r"no\s+correspond|no\s+(lo\s+)?exig[ií]an?|no\s+(estaba|figura|aparec)\w*\s+en\s+las\s+bases|trato\s+desigual|"
+    # Descalificar por un formalismo (consultoría 1228202: «por diferencias de céntimos entre el desglose 90 %/10 %»).
+    r"c[eé]ntimos|diferencias?\s+m[ií]nimas?|formalism|subsanable", _re.I)
+# La bandera habla de un requisito de calificación o un factor de evaluación (no de cómo se trató una oferta).
+_RE_REQ_CALIFICACION = _re.compile(
+    r"requisit|exig|experiencia|personal\s+clave|certificad|equipamiento|especificaci|factor(es)?\s+(de\s+evaluaci|t[eé]cnic)|"
+    r"evaluaci[oó]n\s+t[eé]cnica|servicios?\s+similar|obras?\s+similar", _re.I)
+# Un grado académico exigido al personal clave sí puede ser el requisito dirigido aunque la bandera sólo cuente quién quedó
+# fuera (obras 1228272: «magíster en geotecnia y transportes» para una obra de servicios higiénicos).
+_RE_GRADO = _re.compile(r"mag[ií]ster|maestr[ií]a|doctorad|posgrado|segunda\s+especialidad", _re.I)
+# Prohibir la subcontratación no cambia quién puede ofertar (1229450).
+_RE_SUBCONTRATACION = _re.compile(r"prohib\w*.{0,40}subcontrat|subcontrat\w*.{0,40}prohib", _re.I)
 # Lo que habla de un requisito, una especificación o un criterio de evaluación (el objeto de la bandera documental).
 _RE_SOBRE_REQUISITO = _re.compile(
     r"requisit|especificaci|certificad|exig|criterio|muestra|ficha|marca|modelo|experiencia|t[eé]rminos\s+de\s+referencia|"
@@ -131,7 +154,11 @@ def _competencia_efectiva(state: dict) -> int:
     postores = acta.get("postores") if isinstance(acta, dict) else None
     if not isinstance(postores, list):
         return 0
-    return sum(1 for p in postores if isinstance(p, dict) and (p.get("calificada") is True or p.get("ganador") is True))
+    from tools.compliance_rules._base import _quedo_fuera
+    # Calificada en lo técnico pero descalificada después (la oferta económica, consultoría 1228202: «descalificada por
+    # no cumplir el 90 % / 10 %») no compite: no cuenta.
+    return sum(1 for p in postores if isinstance(p, dict) and (
+        p.get("ganador") is True or (p.get("calificada") is True and not _quedo_fuera(p.get("motivo_fuera")))))
 
 
 # Errores materiales: fechas, cronograma o transcripción que no cambian quién compite (regla 7 del prompt; 6).
@@ -193,6 +220,13 @@ def depurar_banderas_legales(state: dict) -> list[dict]:
             motivo_contexto = f"competencia efectiva: el acta tiene {calificados} postores calificados y nada converge en una marca o modelo"
         elif vector in ("otro", "requisito", "requisito_a_la_medida", "") and _RE_CERCANIA.search(texto) and not _converge(texto):
             motivo_contexto = "requisito de cercanía: reduce el universo de postores, pero nada indica que apunte a uno solo"
+        elif (vector in ("otro", "requisito", "requisito_a_la_medida", "personal_clave_sobreexigido", "experiencia", "")
+              and _RE_EXCLUSION.search(texto) and _RE_REQ_CALIFICACION.search(texto) and not _converge(texto)
+              and not _RE_FALTA_COMITE.search(texto) and not _RE_GRADO.search(texto)):
+            motivo_contexto = ("el requisito dejó fuera a los demás postores (lo cuentan única oferta válida y único postor), "
+                               "pero nada converge en una marca, un modelo o un valor exacto")
+        elif (vector == "subcontratacion_prohibida" or _RE_SUBCONTRATACION.search(texto)) and not _converge(texto):
+            motivo_contexto = "prohibir la subcontratación no cambia quién puede ofertar"
         elif vector in ("procedimiento", "comite", "otro", "") and not _RE_SOBRE_REQUISITO.search(texto) and not _converge(texto):
             # Una irregularidad del trámite (negociación, desierta, justificación del procedimiento) que no toca ningún
             # requisito ni especificación: no es un requisito dirigido (1225299: el mismo postor de la convocatoria desierta).

@@ -48,9 +48,12 @@ _RUC_RE = re.compile(r"(?<!\d)(?:10|15|16|17|20)\d{9}(?!\d)")
 # DNI solo con contexto explícito: un 8-dígitos suelto suele ser un N° de resolución,
 # teléfono o parte de un monto. "DNI 12345678", "D.N.I. N° 12345678", "DNI: 12345678".
 _DNI_CTX_RE = re.compile(r"\bD\.?\s?N\.?\s?I\.?\s*(?:N[°º\.]?\s*)?:?\s*(\d{8})(?!\d)", re.I)
+# Un número con miles separados por espacio («S/ 63 500», como escriben las actas y los modelos) se leía como 63 y la
+# bandera se descartaba por monto no respaldado (prueba de oro de servicios 2026-11-10, 1231453).
+_NUM = r"(\d{1,3}(?:[   ]\d{3})+(?:[.,]\d{1,2})?(?!\d)|\d[\d.,]*)"
 _MONTO_RE = re.compile(
-    r"(?<![A-Za-z])S/\.?\s*(\d[\d.,]*)"           # S/. 1,234.56  ·  S/ 1234 (no "…publicaciones/6444155")
-    r"|(\d[\d.,]*)\s*(?:nuevos\s+)?soles\b",     # 1234.56 soles
+    r"(?<![A-Za-z])S/\.?\s*" + _NUM +              # S/. 1,234.56  ·  S/ 1234  ·  S/ 63 500 (no "…publicaciones/6444155")
+    r"|" + _NUM + r"\s*(?:nuevos\s+)?soles\b",     # 1234.56 soles
     re.I,
 )
 _URL_RE = re.compile(r"https?://[^\s)\]>\"'`]+")
@@ -119,7 +122,7 @@ _bd_cache: dict[str, bool] = {}
 def _parse_monto(raw: str) -> list[float]:
     """Devuelve las interpretaciones plausibles de un monto escrito ('1,234.56',
     '1.234,56', '12,500', '1.234'). Ambigüedades → varias candidatas."""
-    s = (raw or "").strip().rstrip(".,")
+    s = re.sub(r"[   ]", "", (raw or "").strip()).rstrip(".,")
     if not s:
         return []
     out: set[float] = set()
