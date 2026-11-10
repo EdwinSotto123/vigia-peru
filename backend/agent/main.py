@@ -51,6 +51,15 @@ import json
 import os
 from typing import Any
 
+# Pocas arenas de malloc antes de que arranquen los hilos: con una por hilo, la memoria de leer documentos grandes queda
+# fragmentada y retenida en el contenedor de Lambda (MALLOC_ARENA_MAX=2 del Dockerfile.lambda sólo llega al rehacer la
+# base). M_ARENA_MAX = -8 en glibc.
+try:
+    import ctypes as _ctypes
+    _ctypes.CDLL("libc.so.6").mallopt(-8, int(os.getenv("MALLOC_ARENA_MAX", "2")))
+except (OSError, AttributeError, ValueError):
+    pass
+
 import functions_framework
 
 from main_stream import _run, _run_streaming
