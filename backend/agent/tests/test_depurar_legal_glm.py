@@ -100,3 +100,35 @@ def test_negociacion_del_precio_sin_requisito_pasa_a_contexto():
                  calificados=1)
     quitadas = depurar_banderas_legales(st)
     assert quitadas and quitadas[0]["motivo"] == "contexto: irregularidad del trámite que no toca un requisito ni una especificación"
+
+
+def test_marca_modelo_generico_no_es_convergencia_con_competencia():
+    # 1223907 y 1226350 (prueba de oro 2026-11-10): «ficha técnica del modelo/marca» y «sin especificar marca/modelo»
+    # nombran la categoría, no una marca; con 2+ calificados no hay convergencia.
+    st = _estado([
+        {"vector": "otro", "descripcion": "El certificado ANSI y la ficha técnica del modelo/marca con materiales cerradas fueron el factor de exclusión."},
+        {"vector": "specs_convergentes", "descripcion": "Las bases exigen un envase con boca compatible con las lavadoras de la Entidad sin especificar marca/modelo."},
+    ], calificados=2)
+    quitadas = depurar_banderas_legales(st)
+    assert len(quitadas) == 2 and all(q["motivo"].startswith("contexto: competencia efectiva") for q in quitadas)
+
+
+def test_marca_nombrada_sigue_aunque_haya_competencia():
+    st = _estado([{"vector": "specs_convergentes",
+                   "descripcion": "El esquema de las bases rotula 'POZO DE LODOS NICOLL' y converge en un fabricante/modelo específico."}],
+                 calificados=2)
+    assert depurar_banderas_legales(st) == []
+    assert len(st["legal_analysis"]["red_flags_documentales"]) == 1
+
+
+def test_requisito_de_cercania_sin_convergencia_pasa_a_contexto():
+    # 1225299: grifo a no más de 5 km de la sede, un solo postor; en Lima no apunta a un proveedor.
+    st = _estado([{"vector": "otro", "descripcion": "Requisito de suministro desde un grifo a no más de 5 km del local de la entidad como restricción geográfica."}],
+                 calificados=1)
+    quitadas = depurar_banderas_legales(st)
+    assert quitadas and quitadas[0]["motivo"].startswith("contexto: requisito de cercanía")
+
+
+def test_cercania_con_un_solo_establecimiento_sigue():
+    st = _estado([{"vector": "otro", "descripcion": "El radio de 2 km deja sólo un grifo en el distrito: el del ganador."}], calificados=1)
+    assert depurar_banderas_legales(st) == []

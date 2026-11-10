@@ -212,7 +212,10 @@ def _sin_oferta(estado) -> bool:
 
 
 _RE_FUERA = re.compile(r"descalific|rechaz|no\s+admit|inadmit|no\s+cumpl|no\s+alcanz|puntaje\s+t[eé]cnico\s+m[ií]nimo|"
-                       r"puntaje\s+m[ií]nimo|excluid|desestim|no\s+coincid|inconsistenc|no\s+v[aá]lid", re.I)
+                       r"puntaje\s+m[ií]nimo|excluid|desestim|no\s+coincid|inconsistenc|incongruenc|no\s+v[aá]lid|"
+                       # 1226572: «No se indica motivo de no calificación…» (KEPAL), «Comprobante de pago no sustentado
+                       # con voucher…» (MSK, descalificado por experiencia): el lector dejó calificada=None/True.
+                       r"no\s+calificaci|no\s+(lo\s+)?sustent", re.I)
 _RE_NO_FUERA = re.compile(r"no\s+(fue|qued[oó]|resulta)\s+(descalific|rechaz|excluid)|sin\s+ser\s+descalific", re.I)
 
 

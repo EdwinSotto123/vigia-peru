@@ -149,6 +149,19 @@ def reglas_de_corrida(r: dict, catalogo: set[str]) -> tuple[set[str], float | No
             ids.add(tag)
     if (x.get("sobreprecio") or 0) >= 30 or str(x.get("veredicto_mercado") or "").lower().startswith("sobreprecio"):
         ids.add("sobreprecio_elevado")
+    if not persistida:
+        mk = st.get("market_analysis")
+        if isinstance(mk, str):
+            try:
+                mk = json.loads(mk)
+            except ValueError:
+                mk = {}
+        for f in (mk or {}).get("findings") or [] if isinstance(mk, dict) else []:
+            if isinstance(f, dict) and str(f.get("veredicto") or "").lower() in ("elevado", "muy_elevado"):
+                b = {"regla": "sobreprecio_" + str(f["veredicto"]).lower(), "severidad": "media",
+                     "evidencia": f"Ítem '{str(f.get('item_descripcion') or '')[:80]}': {f.get('diff_pct')}% sobre la mediana"}
+                if _pasa(b, st):
+                    ids.add("sobreprecio_elevado")
     score = st.get("score")
     return ids & catalogo, (float(score) if isinstance(score, (int, float)) else None), x
 

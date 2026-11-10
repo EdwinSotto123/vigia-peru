@@ -206,15 +206,34 @@ def check_postor_unico_mayoritario_rule(ocid: str, tool_context: ToolContext,
     conn = _pg()
     try:
         cur = conn.cursor()
-        cur.execute(
-            """SELECT i.numero_item, COUNT(DISTINCT o.postor_id) AS n_postores
-                 FROM convocatoria_items i
-                 LEFT JOIN ofertas o ON o.item_id = i.id
-                WHERE i.ocid = %s
-                GROUP BY i.numero_item""",
-            (ocid,),
-        )
-        items = cur.fetchall()
+        # Ofertas por ítem: CONOSCE (`conosce_postores`, quién presentó propuesta en cada ítem). La tabla `ofertas`
+        # copia a TODOS los participantes registrados en cada ítem (1228470: 20 por ítem, cuando los ítems 1, 3 y 4
+        # tuvieron una sola oferta), así que sólo sirve de respaldo. Con CONOSCE la regla coincide con la prueba de oro
+        # en los 30 contratos (2026-11-10).
+        fuente = "conosce_postores"
+        try:
+            cur.execute(
+                """SELECT n_item, COUNT(DISTINCT ruc_postor) AS n_postores
+                     FROM conosce_postores
+                    WHERE codigo_convocatoria = %s
+                    GROUP BY n_item""",
+                (str(ocid).strip(),),
+            )
+            items = cur.fetchall()
+        except Exception:  # noqa: BLE001  (tabla ausente en un entorno de prueba)
+            conn.rollback()
+            items = []
+        if not items:
+            fuente = "ofertas"
+            cur.execute(
+                """SELECT i.numero_item, COUNT(DISTINCT o.postor_id) AS n_postores
+                     FROM convocatoria_items i
+                     LEFT JOIN ofertas o ON o.item_id = i.id
+                    WHERE i.ocid = %s
+                    GROUP BY i.numero_item""",
+                (ocid,),
+            )
+            items = cur.fetchall()
         if not items:
             return {"regla": "postor_unico_mayoritario", "triggered": False,
                     "motivo": "sin items en BD"}
@@ -223,7 +242,7 @@ def check_postor_unico_mayoritario_rule(ocid: str, tool_context: ToolContext,
         n_unicos = sum(1 for _, n in items if (n or 0) == 1)
         pct = (n_unicos / n_total) * 100 if n_total else 0
 
-        result = {"regla": "postor_unico_mayoritario",
+        result = {"regla": "postor_unico_mayoritario", "fuente_postores": fuente,
                   "n_items": n_total, "n_items_un_solo_postor": n_unicos,
                   "pct_items_sin_competencia": round(pct, 1),
                   "triggered": pct >= 70 and n_unicos < n_total}

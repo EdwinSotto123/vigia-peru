@@ -99,6 +99,24 @@ _RE_UNICO = _re.compile(r"[uú]nico\s+proveedor|s[oó]lo\s+(un|uno|dos)\b|exclus
 _RE_CONVERGE = _re.compile(
     r"[uú]nico\s+proveedor|s[oó]lo\s+(un|uno|dos)\b|exclusiv|marca|\bmodelo\b|fabricante|c[oó]digo\s+de\s+art[ií]culo|"
     r"o\s+equivalente|valores\s+exactos|patentad|distribuidor\s+(autorizado|exclusivo)", _re.I)
+# «marca/modelo» como categoría y no como una marca dada: «ficha técnica del modelo/marca» (1223907), «sin especificar
+# marca/modelo» (1226350). Se quita antes de buscar convergencia; «un único modelo», «marca NICOLL» siguen contando.
+_RE_MARCA_GENERICA = _re.compile(
+    r"(sin\s+(especificar|indicar|precisar|mencionar|consignar|exigir)\s+(una\s+|la\s+|el\s+)?)?"
+    r"\b(marca|modelo)\s*(/|,|\by\b|\bo\b|\bni\b)\s*(la\s+|el\s+)?(marca|modelo)\b|"
+    r"sin\s+(especificar|indicar|precisar|mencionar|consignar|exigir)\s+(una\s+|la\s+|el\s+)?(marca|modelo)\b", _re.I)
+
+
+def _converge(texto: str) -> bool:
+    """¿El hallazgo dice que el requisito converge en un proveedor, una marca o un modelo?"""
+    return bool(_RE_CONVERGE.search(_RE_MARCA_GENERICA.sub(" ", texto or "")))
+
+
+# Requisito de cercanía (grifo, almacén o taller a N km de la sede): reduce el universo, pero en una ciudad no apunta por
+# sí solo a un proveedor (1225299, golden: «en Lima no apunta por sí sola a un único proveedor»).
+_RE_CERCANIA = _re.compile(
+    r"a\s+(no\s+)?m[aá]s\s+de\s+\d+([.,]\d+)?\s*(km|kil[oó]metros?)|radio\s+(m[aá]ximo\s+)?de\s+\d+|"
+    r"restricci[oó]n\s+geogr[aá]fica|cercan[ií]a\s+(a|al|de)\s+(la\s+)?(sede|local|entidad)", _re.I)
 # Lo que habla de un requisito, una especificación o un criterio de evaluación (el objeto de la bandera documental).
 _RE_SOBRE_REQUISITO = _re.compile(
     r"requisit|especificaci|certificad|exig|criterio|muestra|ficha|marca|modelo|experiencia|t[eé]rminos\s+de\s+referencia|"
@@ -164,16 +182,18 @@ def depurar_banderas_legales(state: dict) -> list[dict]:
             motivo = f"requisito con competencia efectiva: el acta tiene {calificados} postores calificados"
         elif _RE_OMISION.search(texto) and _RE_GARANTIA.search(texto) and _RE_REMITE_LEY.search(texto):
             motivo = "omisión del contrato que cubre la ley (la cláusula remite a la norma)"
-        elif _RE_CONV_ANTERIOR.search(texto) and _RE_DUPLICA_REGLA.search(texto) and not _RE_CONVERGE.search(texto):
+        elif _RE_CONV_ANTERIOR.search(texto) and _RE_DUPLICA_REGLA.search(texto) and not _converge(texto):
             # 1225299: «el mismo postor fue único oferente de la primera convocatoria, declarada desierta, y vuelve a ser
             # el único»: repite las reglas de único postor con hechos de otra convocatoria.
             motivo_contexto = "repite el único postor (reglas de código) con hechos de una convocatoria anterior"
-        elif calificados >= 2 and not _RE_CONVERGE.search(texto):
+        elif calificados >= 2 and not _converge(texto):
             # Con dos o más ofertas calificadas de distinto postor no hay evidencia de que el expediente converja en un
             # solo proveedor (prueba de oro 2026-11-10: 1226350, 1226611, 1228943, 1242917, 1223907). El hallazgo
             # puede ser cierto (un empate mal resuelto, actas que no cuadran): se publica, pero sin puntaje.
             motivo_contexto = f"competencia efectiva: el acta tiene {calificados} postores calificados y nada converge en una marca o modelo"
-        elif vector in ("procedimiento", "comite", "otro", "") and not _RE_SOBRE_REQUISITO.search(texto):
+        elif vector in ("otro", "requisito", "requisito_a_la_medida", "") and _RE_CERCANIA.search(texto) and not _converge(texto):
+            motivo_contexto = "requisito de cercanía: reduce el universo de postores, pero nada indica que apunte a uno solo"
+        elif vector in ("procedimiento", "comite", "otro", "") and not _RE_SOBRE_REQUISITO.search(texto) and not _converge(texto):
             # Una irregularidad del trámite (negociación, desierta, justificación del procedimiento) que no toca ningún
             # requisito ni especificación: no es un requisito dirigido (1225299: el mismo postor de la convocatoria desierta).
             motivo_contexto = "irregularidad del trámite que no toca un requisito ni una especificación"
