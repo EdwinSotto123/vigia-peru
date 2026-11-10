@@ -105,6 +105,33 @@ def _ndjson_con_latidos(fuente, latido_s: float | None = None):
             yield json.dumps({"kind": "error", "detail": str(ex)[:200]}) + "\n"
 
 
+def _rss_mb() -> int:
+    try:
+        with open("/proc/self/status", encoding="ascii") as f:
+            for linea in f:
+                if linea.startswith("VmRSS:"):
+                    return int(linea.split()[1]) // 1024
+    except (OSError, ValueError):
+        pass
+    return -1
+
+
+def _liberar_memoria(etiqueta: str) -> None:
+    """Devuelve al sistema la memoria del análisis que terminó. En Lambda el contenedor se reusa y el pico de leer
+    documentos grandes quedaba retenido: 2026-11-10 obras llegó a 3 004 de 3 008 MB y el análisis siguiente murió
+    con Runtime.OutOfMemory. Corre después del último evento, antes de cerrar la respuesta."""
+    import gc
+    antes = _rss_mb()
+    gc.collect()
+    try:
+        import ctypes
+        ctypes.CDLL("libc.so.6").malloc_trim(0)
+    except (OSError, AttributeError):
+        pass
+    print(json.dumps({"_vigia": True, "kind": "memoria", "ocid": str(etiqueta)[:40], "rss_antes_mb": antes,
+                      "rss_despues_mb": _rss_mb()}), flush=True)
+
+
 @functions_framework.http
 def orchestrate(request):
     cors = {
@@ -242,6 +269,7 @@ def orchestrate(request):
         def _generate():
             yield from _ndjson_con_latidos(
                 lambda: _run_streaming(input_str, ocds_p, docs_b64_p, doc_urls_p, clas_p, doc_ids_p))
+            _liberar_memoria(input_str)
 
         from flask import Response  # type: ignore
         return Response(
