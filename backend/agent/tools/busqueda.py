@@ -8,7 +8,8 @@ donde las lee `verify.py` para dar por respaldada una URL (el modelo nunca las i
 Tiene el MISMO nombre que la herramienta de Gemini a propósito: los prompts de los agentes dicen "tu única herramienta es
 `google_search`". `herramienta_busqueda()` elige cuál usar (env `BUSQUEDA_WEB=google|anthropic`, default google).
 
-Proveedor (env BUSQUEDA_PROVEEDOR): `anthropic` (default; web_search de Anthropic, ~US$0,01 por búsqueda + los tokens de los resultados),
+Proveedor (env BUSQUEDA_PROVEEDOR): `libre` (default desde 2026-11-10: gratis y sin claves, DuckDuckGo HTML + Bing News RSS,
+tools/busqueda_libre.py), `anthropic` (web_search de Anthropic, ~US$0,01 por búsqueda + los tokens de los resultados),
 `serper` (SERPER_API_KEY, resultados de Google, ~US$0,001), `brave` (BRAVE_API_KEY) o `tavily` (TAVILY_API_KEY). Los externos devuelven
 los resultados (título, URL, extracto) sin llamar a ningún LLM: el agente que llama a la herramienta es quien los lee.
 
@@ -113,7 +114,23 @@ async def google_search(consulta: str, tool_context=None) -> dict:
     Usa consultas concretas (nombre completo, RUC, entidad, año). Solo las URLs de `fuentes` existen."""
     import httpx
 
-    proveedor = os.getenv("BUSQUEDA_PROVEEDOR", "anthropic").strip().lower()
+    proveedor = os.getenv("BUSQUEDA_PROVEEDOR", "libre").strip().lower()
+    if proveedor == "libre":
+        from tools import busqueda_libre
+        try:
+            r = await busqueda_libre.buscar(consulta)
+        except Exception as e:  # noqa: BLE001
+            return {"error": f"búsqueda falló: {type(e).__name__}: {str(e)[:200]}", "resumen": "", "fuentes": [], "citas": []}
+        res = r["resultados"]
+        out = {"resumen": "\n".join(f"- {x['titulo']}{' (' + x['fecha'] + ')' if x.get('fecha') else ''}: {x['extracto']} ({x['url']})" for x in res),
+               "fuentes": [{"titulo": x["titulo"], "url": x["url"], "fecha": x.get("fecha")} for x in res], "citas": [],
+               "resultados": res, "buscadores": r["fuentes_usadas"]}
+        if r["avisos"]:
+            out["avisos"] = r["avisos"]
+        if not res:
+            out["resumen"] = "Sin resultados."
+        _publicar(getattr(tool_context, "state", None), out["fuentes"])
+        return out
     if proveedor in ("serper", "brave", "tavily"):
         if not os.getenv(f"{proveedor.upper()}_API_KEY"):
             return {"error": f"búsqueda web no configurada (falta {proveedor.upper()}_API_KEY)", "resumen": "", "fuentes": [], "citas": []}

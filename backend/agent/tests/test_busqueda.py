@@ -31,6 +31,8 @@ def test_publicar_en_grounding_sin_duplicar():
 
 
 def test_sin_clave_no_revienta(monkeypatch):
+    # El proveedor de Anthropic sin su clave (el de defecto ya es «libre», sin claves: tests/test_busqueda_libre.py).
+    monkeypatch.setenv("BUSQUEDA_PROVEEDOR", "anthropic")
     monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
     r = asyncio.run(busqueda.google_search("x"))
     assert "error" in r and r["fuentes"] == []

@@ -98,6 +98,26 @@ def _rss(cli, consulta: str) -> list[dict]:
     return notas
 
 
+def _rss_bing(cli, consulta: str) -> list[dict]:
+    """Bing News RSS, cuando Google News no responde o no trae nada (Google bloquea a Cloudflare; Bing responde desde
+    servidores). Mismas claves que _rss; el enlace ya es la URL real del medio."""
+    from tools.busqueda_libre import BING_NOTICIAS, UA, parsear_rss_bing
+    r = cli.get(BING_NOTICIAS, params={"q": consulta.replace('"', ""), "format": "rss", "cc": "PE", "setlang": "es", "mkt": "es-PE"}, headers=UA)
+    if r.status_code >= 400 or not r.content:
+        return []
+    notas = []
+    for x in parsear_rss_bing(r.content):
+        ts = None
+        if x.get("fecha"):
+            try:
+                ts = time.mktime(time.strptime(x["fecha"], "%Y-%m-%d"))
+            except ValueError:
+                pass
+        notas.append({"titulo": x["titulo"], "medio": x.get("medio") or "", "fecha_ts": ts, "enlace": x["url"],
+                      "extracto": x.get("extracto", "")[:300], "via": "bing_news_rss"})
+    return notas
+
+
 def _plano(s: str) -> str:
     return re.sub(r"[^a-z0-9ñ]+", " ", _sin_tildes(s).lower()).strip()
 
@@ -182,6 +202,7 @@ def precargar(razon: str, entidad: str, personas: list[str] | None = None) -> di
     t0 = time.monotonic()
     qs = consultas(razon, entidad, personas)
     candidatas: dict[str, dict] = {}
+    fuentes_usadas: set[str] = set()
     limite = time.time() - PRENSA_ANIOS * 31_557_600
     with httpx.Client(headers=_UA, timeout=PRENSA_TIMEOUT_S, follow_redirects=True) as cli:
         pendientes = list(qs)
@@ -191,6 +212,15 @@ def precargar(razon: str, entidad: str, personas: list[str] | None = None) -> di
                 notas = _rss(cli, q)
             except Exception:  # noqa: BLE001
                 notas = []
+            if not notas:
+                try:
+                    notas = _rss_bing(cli, q)
+                    if notas:
+                        fuentes_usadas.add("bing_news_rss")
+                except Exception:  # noqa: BLE001
+                    notas = []
+            else:
+                fuentes_usadas.add("google_news_rss")
             for n in notas:
                 if n.get("fecha_ts") and n["fecha_ts"] < limite:
                     continue
@@ -225,7 +255,7 @@ def precargar(razon: str, entidad: str, personas: list[str] | None = None) -> di
         leidas.append({"titulo": n["titulo"], "medio": n["medio"], "fecha": fecha, "url": l.get("url") or n["enlace"],
                        "consulta": n["consulta"], "tipo": n["tipo"], "texto": l.get("texto") or "",
                        **({"error_lectura": l["error"]} if l.get("error") else {})})
-    return {"fuente": "google_news_rss", "consultas": [q for q, _, _ in qs], "candidatas": len(candidatas),
+    return {"fuente": "+".join(sorted(fuentes_usadas)) or "google_news_rss", "consultas": [q for q, _, _ in qs], "candidatas": len(candidatas),
             "leidas": leidas, "otras_titulares": [{"titulo": n["titulo"], "medio": n["medio"]} for n in ordenadas if n not in elegidas][:15],
             "segundos": round(time.monotonic() - t0, 1), "costo_usd": 0.0,
             "nota": "Notas ya buscadas y LEÍDAS (texto extraído). Cita solo estas URLs; busca por tu cuenta solo si falta algo puntual."}
