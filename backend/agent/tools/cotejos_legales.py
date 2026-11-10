@@ -71,6 +71,29 @@ _RE_DUPLICA_REGLA = _re.compile(
     r"igual\s+al?\s+(100\s*%\s+del\s+)?valor\s+(referencial|estimado)|100\s*%\s+del\s+valor", _re.I)
 # Un puntaje sobre 100 por las bonificaciones de ley (MYPE 5 %, colindancia o provincia 10 %) es lo normal (3).
 _RE_BONIFICACION = _re.compile(r"bonificaci[oó]n|(puntaje|puntos).{0,80}(super|por\s+encima|exce|mayor).{0,30}\b100\b", _re.I)
+# «dejó fuera 6 de 10 ofertas»: si quedaron 3 o más, el requisito no direccionó (regla 11 del prompt del analista).
+_RE_DEJO_FUERA = _re.compile(r"dej[oó]\s+fuera\s+(?:a\s+)?(\d+)\s+de\s+(?:las\s+|los\s+)?(\d+)", _re.I)
+# Un requisito, certificado o experiencia exigida (para contar la competencia efectiva en el acta).
+_RE_REQUISITO = _re.compile(r"requisit|certificad|exig", _re.I)
+# Una descalificación o una contradicción entre actas no es «un requisito que direccionó»: esas no se tocan aquí.
+_RE_NO_REQUISITO = _re.compile(r"descalific|incongru|contradic|anul|no\s+admit", _re.I)
+# Lo que el contrato «no fija» (garantía, penalidad) cuando la cláusula remite a la ley: la ley lo exige igual.
+_RE_OMISION = _re.compile(r"no\s+(fija|establece|precisa|define|consigna|indica|determina)|omite|sin\s+(definir|fijar|precisar)", _re.I)
+_RE_GARANTIA = _re.compile(r"garant[ií]a|penalidad", _re.I)
+_RE_REMITE_LEY = _re.compile(r"(remite|de\s+corresponder|conforme\s+a|seg[uú]n|de\s+acuerdo\s+(con|a)).{0,80}(ley|reglamento|lgcp|lcp)", _re.I)
+# Una bandera que afirma que sólo uno o dos podían cumplir (ésa sí puede ser direccionamiento aunque hubiera otros).
+_RE_UNICO = _re.compile(r"[uú]nico\s+proveedor|s[oó]lo\s+(un|uno|dos)\b|exclusiv|marca", _re.I)
+
+
+def _competencia_efectiva(state: dict) -> int:
+    """Cuántos postores quedaron calificados (o ganaron) según el acta leída (lecturas_legal.acta), 0 si no se sabe."""
+    acta = ((state.get("lecturas_legal") or {}) if isinstance(state.get("lecturas_legal"), dict) else {}).get("acta") or {}
+    postores = acta.get("postores") if isinstance(acta, dict) else None
+    if not isinstance(postores, list):
+        return 0
+    return sum(1 for p in postores if isinstance(p, dict) and (p.get("calificada") is True or p.get("ganador") is True))
+
+
 # Errores materiales: fechas, cronograma o transcripción que no cambian quién compite (regla 7 del prompt; 6).
 _RE_ERROR_MATERIAL = _re.compile(r"^\W*incoherencia|error\s+(de\s+)?transcripci|error\s+material|podr[ií]a\s+ser\s+un\s+error", _re.I)
 
@@ -90,6 +113,7 @@ def depurar_banderas_legales(state: dict) -> list[dict]:
     if not isinstance(la, dict):
         return []
     quedan, fuera = [], []
+    calificados = _competencia_efectiva(state)
     for rf in la.get("red_flags_documentales") or []:
         if not isinstance(rf, dict):
             quedan.append(rf)
@@ -103,6 +127,13 @@ def depurar_banderas_legales(state: dict) -> list[dict]:
             motivo = "puntaje sobre 100 por bonificaciones de ley"
         elif vector in ("otro", "procedimiento", "") and _RE_ERROR_MATERIAL.search(texto.strip()):
             motivo = "error material sin efecto en la competencia"
+        elif (m := _RE_DEJO_FUERA.search(texto)) and int(m.group(2)) - int(m.group(1)) >= 3 and not _RE_UNICO.search(texto):
+            motivo = f"requisito con competencia efectiva: quedaron {int(m.group(2)) - int(m.group(1))} ofertas"
+        elif (_RE_REQUISITO.search(texto) and calificados >= 3 and not _RE_UNICO.search(texto) and not _RE_NO_REQUISITO.search(texto)
+              and vector in ("requisito_a_la_medida", "direccionamiento", "requisito", "otro", "")):
+            motivo = f"requisito con competencia efectiva: el acta tiene {calificados} postores calificados"
+        elif _RE_OMISION.search(texto) and _RE_GARANTIA.search(texto) and _RE_REMITE_LEY.search(texto):
+            motivo = "omisión del contrato que cubre la ley (la cláusula remite a la norma)"
         if motivo:
             fuera.append({"vector": vector, "descripcion": texto[:200], "motivo": motivo})
         else:
