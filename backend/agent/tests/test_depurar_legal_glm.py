@@ -32,3 +32,21 @@ def test_quedan_las_de_marca_unico_proveedor_y_descalificacion():
     st = _estado(banderas, calificados=5)
     assert depurar_banderas_legales(st) == []
     assert len(st["legal_analysis"]["red_flags_documentales"]) == 3
+
+
+def test_glm53_comite_ausente_fianza_y_n_de_m_no_admitidas():
+    st = _estado([
+        {"vector": "otro", "descripcion": "Requisito técnico-documental restrictivo (certificado ANSI vigente) resultó decisivo: 6 de 10 ofertas fueron no admitidas por esos literales."},
+        {"vector": "comite", "descripcion": "Licitación Pública Abreviada sin comité de selección identificado en el documento: la buena pro aparece suscrita por un Oficial de Compra."},
+        {"vector": "otro", "descripcion": "La carta fianza de fiel cumplimiento vence el 20/08/2026, cuando el contrato exige que la garantía se mantenga vigente hasta la conformidad."},
+    ])
+    assert len(depurar_banderas_legales(st)) == 3
+
+
+def test_quedan_la_incongruencia_y_lo_que_hizo_el_comite():
+    banderas = [
+        {"vector": "otro", "descripcion": "Incongruencia interna: el acta de admisión declaró NO ADMITIDAS a tres postores que el acta de calificación declara calificados."},
+        {"vector": "otro", "descripcion": "El propio comité reconoció que evaluó las muestras con criterios no previstos en las bases."},
+    ]
+    st = _estado(banderas)
+    assert depurar_banderas_legales(st) == []

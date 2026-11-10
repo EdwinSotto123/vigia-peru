@@ -81,6 +81,16 @@ _RE_NO_REQUISITO = _re.compile(r"descalific|incongru|contradic|anul|no\s+admit",
 _RE_OMISION = _re.compile(r"no\s+(fija|establece|precisa|define|consigna|indica|determina)|omite|sin\s+(definir|fijar|precisar)", _re.I)
 _RE_GARANTIA = _re.compile(r"garant[ií]a|penalidad", _re.I)
 _RE_REMITE_LEY = _re.compile(r"(remite|de\s+corresponder|conforme\s+a|seg[uú]n|de\s+acuerdo\s+(con|a)).{0,80}(ley|reglamento|lgcp|lcp)", _re.I)
+# «6 de 10 ofertas fueron no admitidas»: la misma cuenta dicha al revés que «dejó fuera».
+_RE_N_DE_M_FUERA = _re.compile(r"(\d+)\s+de\s+(?:las\s+|los\s+)?(\d+)\s+(?:ofertas|postores|propuestas)\s+(?:fueron\s+|quedaron\s+|resultaron\s+)?"
+                               r"(?:no\s+admitid|descalificad|excluid|fuera|rechazad)", _re.I)
+# «Sin comité de selección identificado»: con la Ley 32069 el oficial de compra o los evaluadores conducen varios
+# procedimientos, y el expediente que se lee no siempre trae la designación (falsa alarma en la prueba de oro).
+_RE_COMITE = _re.compile(r"comit[eé]\s+de\s+selecci[oó]n|\bcomit[eé]\b", _re.I)
+_RE_AUSENTE = _re.compile(r"(sin|ausencia\s+de(l)?)\s+(un\s+)?comit|no\s+se\s+(identific|design|acredit|encontr)\w*\s+(el\s+|un\s+|ning[uú]n\s+|al\s+)?(comit|evaluador)|comit[eé]\s+de\s+selecci[oó]n\s+(no\s+)?(identificad|designad)", _re.I)
+# La vigencia de una carta fianza o garantía (vence antes de la conformidad): se renueva en la ejecución.
+_RE_FIANZA = _re.compile(r"carta\s+fianza|garant[ií]a\s+de\s+fiel", _re.I)
+_RE_VIGENCIA = _re.compile(r"\bvence|vencimiento|vigencia|renov", _re.I)
 # Una bandera que afirma que sólo uno o dos podían cumplir (ésa sí puede ser direccionamiento aunque hubiera otros).
 _RE_UNICO = _re.compile(r"[uú]nico\s+proveedor|s[oó]lo\s+(un|uno|dos)\b|exclusiv|marca", _re.I)
 
@@ -129,6 +139,13 @@ def depurar_banderas_legales(state: dict) -> list[dict]:
             motivo = "error material sin efecto en la competencia"
         elif (m := _RE_DEJO_FUERA.search(texto)) and int(m.group(2)) - int(m.group(1)) >= 3 and not _RE_UNICO.search(texto):
             motivo = f"requisito con competencia efectiva: quedaron {int(m.group(2)) - int(m.group(1))} ofertas"
+        elif ((m2 := _RE_N_DE_M_FUERA.search(texto)) and int(m2.group(2)) - int(m2.group(1)) >= 3 and not _RE_UNICO.search(texto)
+              and _RE_REQUISITO.search(texto)):
+            motivo = f"requisito con competencia efectiva: quedaron {int(m2.group(2)) - int(m2.group(1))} ofertas"
+        elif (vector == "comite" or _RE_COMITE.search(texto)) and _RE_AUSENTE.search(texto):
+            motivo = "comité no identificado en el expediente leído (con la Ley 32069 puede conducir el oficial de compra)"
+        elif _RE_FIANZA.search(texto) and _RE_VIGENCIA.search(texto):
+            motivo = "vigencia de la garantía: se renueva durante la ejecución, no es una bandera de la contratación"
         elif (_RE_REQUISITO.search(texto) and calificados >= 3 and not _RE_UNICO.search(texto) and not _RE_NO_REQUISITO.search(texto)
               and vector in ("requisito_a_la_medida", "direccionamiento", "requisito", "otro", "")):
             motivo = f"requisito con competencia efectiva: el acta tiene {calificados} postores calificados"

@@ -42,9 +42,15 @@ e = {
     "OECE_EN_VIVO": "0",
     # El modelo, por el Worker vigia-llm (su alias "respaldo"); GOOGLE_CLOUD_PROJECT=no-gcp: nada de Vertex.
     "USAR_WORKERS_AI": "1", "WORKERS_AI_URL": "https://vigia-llm.vigiaperu.workers.dev/v1", "WORKERS_AI_TOKEN": os.environ["LLM_T"],
-    "WORKERS_AI_MODEL": os.environ.get("MODELO", "respaldo"), "WORKERS_AI_REASONING": "low", "WORKERS_AI_TIMEOUT_S": "150",
+    # Sólo modelos abiertos de Workers AI (2026-11-10): GLM 5.3 flash para todo y GLM 5.3 para los agentes de juicio
+    # complejo (redactor, analista legal, red de personas). Prueba de oro (10 contratos): F1 0,90 frente a 0,84 de Haiku,
+    # 404 s por contrato; DeepSeek V4 Pro pasaba los 900 s de la Lambda.
+    "WORKERS_AI_MODEL": os.environ.get("MODELO", "@cf/zai-org/glm-5.3-flash"), "WORKERS_AI_REASONING": "low", "WORKERS_AI_TIMEOUT_S": "150",
+    "WORKERS_AI_MODEL_SMART": os.environ.get("MODELO_SMART", "@cf/zai-org/glm-5.3"), "WORKERS_AI_SIN_RESPALDO": "1",
+    "LLM_COMPAT_MODEL": "@cf/zai-org/glm-5.3-flash",
     "LLM_BACKEND": "compatible", "LLM_COMPAT_TIMEOUT_S": "150", "GOOGLE_CLOUD_PROJECT": "no-gcp",
-    "BUSQUEDA_WEB": "propia", "BUSQUEDA_PROVEEDOR": "tavily", "TAVILY_API_KEY": os.environ["TV_K"],
+    # Búsqueda gratis y sin claves (tools/busqueda_libre.py: DuckDuckGo + Bing News); Tavily queda sólo si se pide.
+    "BUSQUEDA_WEB": "propia", "BUSQUEDA_PROVEEDOR": os.environ.get("BUSQUEDA", "libre"), "TAVILY_API_KEY": os.environ["TV_K"],
     "LEGAL_RAG_BACKEND": "chroma", "CHROMA_API_KEY": os.environ["CH_K"], "CHROMA_DATABASE": "simplia-vect",
     "ALMACEN_DOCS": "r2", "R2_LECTOR_URL": "https://vigia-r2-sync.vigiaperu.workers.dev", "R2_LECTOR_TOKEN": os.environ["R2_T"],
     "PARSE_GLOBAL_BUDGET_S": "500", "MARKET_TIMEOUT_S": "240", "AGENTE_TOKEN": os.environ["AG_T"], "TARIFA_RESPALDO": "0.10,0.50",
