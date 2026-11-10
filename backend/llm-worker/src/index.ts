@@ -14,6 +14,7 @@
  * (Bearer), RESPALDO_MODELO y, si el proveedor las pide, RESPALDO_CABECERAS (JSON). Sin esos secretos no hay respaldo y el error se devuelve como antes. La cabecera
  * `x-vigia-modelo` de la respuesta dice quién contestó (`workers-ai:<id>` o `respaldo`); `x-vigia-respaldo:
  * forzar` en la petición, o `model: "respaldo"`, salta Workers AI y usa sólo el respaldo.
+ * `x-vigia-respaldo: nunca` hace lo contrario: si Workers AI falla, devuelve el error en vez de ir al respaldo.
  *
  * No registra el contenido de los mensajes (pueden traer datos de contratos).
  */
@@ -147,7 +148,8 @@ export default {
     } catch (e) {
       falla = (e as Error).message ?? "error de Workers AI";
     }
-    if (hayRespaldo(env)) {
+    // `x-vigia-respaldo: nunca`: el que llama prefiere el error (los lectores en lote de Workers AI: el respaldo cobra aparte).
+    if (hayRespaldo(env) && req.headers.get("x-vigia-respaldo") !== "nunca") {
       console.warn(`vigia-llm: ${modelo} falló (${falla.slice(0, 160)}); va al respaldo`);
       return respaldo(env, cuerpo);
     }

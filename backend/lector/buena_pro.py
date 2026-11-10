@@ -105,6 +105,19 @@ BANDERAS = ["postor_unico", "solo_queda_el_ganador", "descalificados_por_formali
 BANDERAS_A_CONFIRMAR = ["solo_queda_el_ganador", "descalificados_por_formalidad", "oferta_mas_baja_descartada"]
 
 
+def normalizar(salida: dict) -> dict:
+    """Un consorcio no tiene RUC propio en el acta: si el modelo le puso uno (GLM lo hace a veces), pasa a sus
+    integrantes. Lo llama el motor de Workers AI (motor_workers.py) antes de calcular las banderas."""
+    for p in salida.get("postores") or []:
+        consorcio = p.get("es_consorcio") or str(p.get("nombre") or "").strip().upper().startswith("CONSORCIO")
+        if consorcio and p.get("ruc"):
+            integrantes = list(p.get("integrantes_ruc") or [])
+            if p["ruc"] not in integrantes:
+                integrantes.append(p["ruc"])
+            p["integrantes_ruc"], p["ruc"], p["es_consorcio"] = integrantes, None, True
+    return salida
+
+
 def fuera(p: dict) -> bool:
     return not p.get("ganador") and (p.get("admitida") is False or p.get("calificada") is False)
 

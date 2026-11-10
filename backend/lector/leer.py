@@ -3,6 +3,11 @@
 
   python -X utf8 backend/lector/leer.py prod --clase buena_pro --tope-usd 40
   python -X utf8 backend/lector/leer.py prod --clase buena_pro --limite 20          # una prueba
+  python -X utf8 backend/lector/leer.py prod --clase buena_pro --motor workers --tope-usd 30   # con GLM 5.3 flash
+
+`--motor workers` lee con un modelo de Workers AI (lector/motor_workers.py; `--modelo` para otro que el de defecto): el
+texto de cada página y las escaneadas como imagen, sin caer en el respaldo de Claude. Guarda la misma versión del
+lector (el campo `modelo` dice quién leyó).
 
 Por cada contrato con documentos de la clase (lector/<clase>.py → TIPOS_DOC), del de mayor monto al de menor:
   1. baja sus documentos del R2 y saca los PDF (los ZIP, en memoria), hasta TOPE_PAGINAS (un PDF más largo se corta);
@@ -60,6 +65,27 @@ ON CONFLICT (ocid, clase, version) DO UPDATE SET
   salida = EXCLUDED.salida, banderas = EXCLUDED.banderas, tokens_in = EXCLUDED.tokens_in, tokens_out = EXCLUDED.tokens_out,
   costo_usd = EXCLUDED.costo_usd, detalle = EXCLUDED.detalle, leido_at = now()
 """
+
+
+class MotorClaude:
+    """Claude por vigia-llm /nativo: cuenta los tokens gratis y pide la salida con el esquema del lector."""
+
+    tope_tokens = TOPE_TOKENS
+
+    def __init__(self, cliente=None):
+        self.cliente = cliente or cliente_claude()
+        self.nombre = MODELO
+
+    def tokens(self, lector, pdfs) -> int:
+        return _tokens(self.cliente, lector, pdfs)
+
+    def llamar(self, lector, pdfs) -> dict:
+        return _llamar(self.cliente, lector, pdfs)
+
+
+def motor_de(m):
+    """Un motor (MotorClaude o MotorWorkers) o, como antes, el cliente de Anthropic (menores.py)."""
+    return m if hasattr(m, "llamar") and hasattr(m, "tokens") else MotorClaude(m)
 
 
 class _Segunda:
@@ -128,8 +154,10 @@ def recortar(b: bytes, n: int) -> bytes:
 
 def leer_contrato(claude, lector, ocid: str, ids: list[int], urls: list[str], formatos: list[str], bajar=None) -> dict:
     """`bajar(url) -> bytes`: de dónde sale cada documento (por defecto el R2 de documentos_gcs; los contratos menores
-    traen el suyo, lector/menores.py)."""
-    fila = {"ocid": ocid, "clase": lector.CLASE, "version": lector.VERSION, "modelo": MODELO, "documentos": [],
+    traen el suyo, lector/menores.py). `claude`: un motor (MotorClaude, MotorWorkers) o el cliente de Anthropic."""
+    motor = motor_de(claude)
+    tope_tokens = getattr(motor, "tope_tokens", TOPE_TOKENS)
+    fila = {"ocid": ocid, "clase": lector.CLASE, "version": lector.VERSION, "modelo": motor.nombre, "documentos": [],
             "paginas": 0, "estado": "sin_pdf", "salida": None, "banderas": [], "tokens_in": None, "tokens_out": None,
             "costo_usd": 0, "detalle": None}
     pdfs: list[tuple[str, bytes]] = []
@@ -170,17 +198,17 @@ def leer_contrato(claude, lector, ocid: str, ids: list[int], urls: list[str], fo
     if not pdfs:
         return fila
     while True:
-        n_in = _tokens(claude, lector, pdfs)
-        if n_in <= TOPE_TOKENS or len(pdfs) == 1:
+        n_in = motor.tokens(lector, pdfs)
+        if n_in <= tope_tokens or len(pdfs) == 1:
             break
         pdfs.pop()
     tramos = [pdfs]
-    if n_in > TOPE_TOKENS:
+    if n_in > tope_tokens:
         # Un solo PDF que no cabe: por encima de 100 k tokens Haiku cobra 5 veces más. Con `juntar` (consultas) se lee
         # en tramos de páginas que caben y se juntan las salidas; sin él, sólo las primeras páginas que caben.
         nombre, b = pdfs[0]
         n_pag = paginas_de(b)
-        por = max(1, int(n_pag * TOPE_TOKENS * 0.85 / n_in))
+        por = max(1, int(n_pag * tope_tokens * 0.85 / n_in))
         if hasattr(lector, "juntar"):
             tramos = [[(f"{nombre}, páginas {i + 1} a {min(i + por, n_pag)}", paginas(b, list(range(i, min(i + por, n_pag)))))]
                       for i in range(0, n_pag, por)]
@@ -190,11 +218,11 @@ def leer_contrato(claude, lector, ocid: str, ids: list[int], urls: list[str], fo
         if len(tramos) > TOPE_TRAMOS:
             return {**fila, "estado": "grande", "detalle": f"{n_in} tokens: serían {len(tramos)} tramos"}
         for t in tramos:  # una página puede pesar más que el promedio
-            if (nt := _tokens(claude, lector, t)) > TOPE_TOKENS:
+            if (nt := motor.tokens(lector, t)) > tope_tokens:
                 return {**fila, "estado": "grande", "detalle": f"un tramo de {nt} tokens"}
         fila["detalle"] = (f"{n_in} tokens: leído en {len(tramos)} tramos" if len(tramos) > 1
                            else f"{n_in} tokens: sólo las primeras {por} páginas")
-    resultados = [_llamar(claude, lector, t) for t in tramos]
+    resultados = [motor.llamar(lector, t) for t in tramos]
     fila.update(modelo=resultados[0]["modelo"], tokens_in=sum(r["tokens_in"] for r in resultados),
                 tokens_out=sum(r["tokens_out"] for r in resultados),
                 costo_usd=round(sum(r["costo_usd"] for r in resultados), 6))
@@ -244,6 +272,9 @@ def main() -> None:
     ap.add_argument("--solo-con-banderas", action="store_true",
                     help="con --segunda: sólo los contratos cuya primera lectura encontró alguna bandera (lo único que la "
                          "segunda confirma)")
+    ap.add_argument("--motor", choices=["claude", "workers"], default="claude",
+                    help="claude (Haiku por vigia-llm) o workers (un modelo de Workers AI, GLM 5.3 flash por defecto)")
+    ap.add_argument("--modelo", default=None, help="con --motor workers: el modelo (@cf/…)")
     ap.add_argument("--rehacer-grandes", action="store_true",
                     help="vuelve a leer los que quedaron como «grande» (ahora por tramos o recortados)")
     a = ap.parse_args()
@@ -271,7 +302,12 @@ def main() -> None:
     if a.limite:
         pendientes = pendientes[: a.limite]
     print(f"{a.entorno}: {len(pendientes)} contratos por leer ({lector.CLASE} {lector.VERSION}, tope USD {a.tope_usd})", flush=True)
-    claude = cliente_claude()
+    if a.motor == "workers":
+        from lector.motor_workers import MODELO_DEFECTO, MotorWorkers
+        claude = MotorWorkers(a.modelo or MODELO_DEFECTO)
+    else:
+        claude = MotorClaude()
+    print(f"motor: {claude.nombre}", flush=True)
     gastado, hechos, t0 = 0.0, 0, time.time()
     cuenta: dict[str, int] = {}
     candado = threading.Lock()
@@ -281,7 +317,7 @@ def main() -> None:
         try:
             return leer_contrato(claude, lector, ocid, list(ids), list(urls), list(formatos))
         except Exception as e:  # noqa: BLE001 — se guarda como error y se reintenta en la próxima corrida
-            return {"ocid": ocid, "clase": lector.CLASE, "version": lector.VERSION, "modelo": MODELO, "documentos": [],
+            return {"ocid": ocid, "clase": lector.CLASE, "version": lector.VERSION, "modelo": claude.nombre, "documentos": [],
                     "paginas": None, "estado": "error", "salida": None, "banderas": [], "tokens_in": None,
                     "tokens_out": None, "costo_usd": 0, "detalle": f"{type(e).__name__}: {str(e)[:300]}"}
 
