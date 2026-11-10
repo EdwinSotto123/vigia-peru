@@ -489,6 +489,31 @@ def _texto_bandera(flag: dict) -> str:
     return "\n".join(parts)
 
 
+def _topes_legales(flag: dict) -> set[float]:
+    """Los montos que son topes de la ley (no salen de los documentos ni del OCDS): los que la propia regla anotó en
+    `topes_soles` / `topes_uit` (los UIT también en soles) y los de la Ley 32069. Antes el verificador rechazaba como
+    «no respaldado» el umbral de S/ 485 000 de `tipo_proceso_vs_monto` y la bandera nunca se contaba (prueba de oro,
+    1225299: Licitación Pública Abreviada de S/ 2,6 millones)."""
+    out: set[float] = set()
+    ts = flag.get("topes_soles")
+    if isinstance(ts, dict):
+        out |= {float(v) for v in ts.values() if isinstance(v, (int, float))}
+    tu = flag.get("topes_uit")
+    if isinstance(tu, dict):
+        uit = float(tu.get("uit_soles") or tu.get("uit") or 0) or None
+        for v in tu.values():
+            if isinstance(v, (int, float)):
+                out.add(float(v))
+                if uit:
+                    out.add(float(v) * uit)
+    try:
+        from tools.compliance_rules._rules_montos import _TOPES_LEY_32069
+        out |= {float(v) for v in _TOPES_LEY_32069.values() if isinstance(v, (int, float))}
+    except Exception:  # noqa: BLE001
+        pass
+    return out
+
+
 def verificar_bandera(flag: dict, state: dict) -> dict:
     """Coteja RUC/DNI/montos/fechas/URLs de la bandera contra las fuentes deterministas
     del state. Escribe y devuelve flag["verificacion"] = {ok, motivos, n_checks}."""
@@ -548,6 +573,8 @@ def verificar_bandera(flag: dict, state: dict) -> dict:
             motivos.append(f"monto:{raw}:parser")
         elif any(_monto_en_texto(t, cands) for t in textos.values()):
             motivos.append(f"monto:{raw}:documentos_texto")
+        elif _monto_en(_topes_legales(flag), cands):
+            motivos.append(f"monto:{raw}:tope_legal")
         else:
             ok = False
             motivos.append(f"monto:{raw}:no_respaldado")
