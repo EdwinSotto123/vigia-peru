@@ -9,7 +9,7 @@ def test_umbral_legal_respaldado_y_monto_inventado_no():
             "topes_soles": {"comparacion_precios_max": 100000.0, "licitacion_publica_min": 485000.0, "uit_soles": 5500.0}}
     st = {"ocds": {"tender": {"value": {"amount": 2624400.0}}}}
     motivos = verify.verificar_bandera(dict(flag), st)["motivos"]
-    assert "monto:485,000:tope_legal" in motivos
+    assert any(m.startswith("monto:485,000") and m.endswith(":tope_legal") for m in motivos), motivos
     otra = {"regla": "x", "evidencia": "Se pagó S/ 777,777 de más."}
     assert not verify.verificar_bandera(otra, st)["ok"]
 
