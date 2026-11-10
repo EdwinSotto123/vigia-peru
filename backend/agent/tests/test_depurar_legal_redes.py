@@ -56,6 +56,28 @@ def test_prohibir_la_subcontratacion_pasa_a_contexto():
     assert [m for m in _motivos(st) if "subcontratación" in m]
 
 
+def test_observaciones_no_acogidas_y_unico_postor_pasan_a_contexto():
+    st = _estado([
+        {"vector": "otro", "descripcion": "Tres observaciones de participantes pidiendo flexibilizar requisitos de calificación no fueron "
+                                          "acogidas, y ambos participantes terminaron sin presentar oferta, quedando un único postor."},
+        {"vector": "otro", "descripcion": "Requisitos de calificación y de personal clave restrictivos: 8 observaciones de participantes "
+                                          "pidieron flexibilizarlos y el comité no acogió ninguna; el proceso terminó con un único postor."},
+    ], postores=[{"calificada": True, "ganador": True}])
+    motivos = _motivos(st)
+    assert len(motivos) == 2 and all("observaciones no acogidas" in m for m in motivos)
+
+
+def test_observacion_no_acogida_con_restriccion_concreta_sigue():
+    st = _estado([{"vector": "otro", "descripcion": "Entre las observaciones no acogidas están requisitos que dos participantes llamaron "
+                                                    "'direccionados': el especialista debía ser solo Ingeniero de Energía."}],
+                 postores=[{"calificada": True, "ganador": True}])
+    assert _motivos(st) == []
+    st = _estado([{"vector": "otro", "descripcion": "Múltiples observaciones NO acogidas pedían flexibilizar la experiencia del personal clave; dos "
+                                                    "participantes denunciaron explícitamente direccionamiento y quedó un único postor."}],
+                 postores=[{"calificada": True, "ganador": True}])
+    assert _motivos(st) == []
+
+
 def test_calificada_y_luego_descalificada_no_cuenta_como_competencia():
     postores = [{"calificada": True, "ganador": True},
                 {"calificada": True, "ganador": False, "motivo_tipo": "precio",

@@ -138,6 +138,16 @@ _RE_REQ_CALIFICACION = _re.compile(
 # Un grado académico exigido al personal clave sí puede ser el requisito dirigido aunque la bandera sólo cuente quién quedó
 # fuera (obras 1228272: «magíster en geotecnia y transportes» para una obra de servicios higiénicos).
 _RE_GRADO = _re.compile(r"mag[ií]ster|maestr[ií]a|doctorad|posgrado|segunda\s+especialidad", _re.I)
+# «Los participantes observaron y el comité no acogió; quedó un único postor»: que no se acojan observaciones no prueba
+# que el requisito apunte a alguien, y el desenlace ya lo cuentan las reglas de único postor (obras 1228283, 1229610,
+# 1231217 con modelos abiertos, 2026-11-10). Sigue si nombra la restricción concreta (sólo una profesión, sin equivalente,
+# lo que los participantes llamaron «direccionado»: obras 1227946).
+_RE_OBSERVACIONES = _re.compile(r"observaci|consultas?\b|pedidos?\s+de\s+(los\s+)?participantes", _re.I)
+_RE_NO_ACOGIDA = _re.compile(r"no\s+(fueron\s+|han\s+sido\s+|se\s+|las\s+|los\s+)?acog|no\s+acogi[oó]|desestim", _re.I)
+_RE_RESTRICCION_CONCRETA = _re.compile(
+    r"direccion(ad|amient)|sin\s+equivalen|s[oó]lo\s+(el\s+|la\s+|al?\s+|un\s+|una\s+)?(ingenier|arquitect|licenciad|profesi[oó]n|t[ií]tulo|carrera)|"
+    r"[uú]nicamente\s+(el\s+|la\s+|al?\s+)?(ingenier|arquitect|licenciad|profesi[oó]n|t[ií]tulo|carrera)|"
+    r"(una\s+sola|[uú]nica)\s+(profesi[oó]n|carrera|especialidad\s+profesional)", _re.I)
 # Prohibir la subcontratación no cambia quién puede ofertar (1229450).
 _RE_SUBCONTRATACION = _re.compile(r"prohib\w*.{0,40}subcontrat|subcontrat\w*.{0,40}prohib", _re.I)
 # Lo que habla de un requisito, una especificación o un criterio de evaluación (el objeto de la bandera documental).
@@ -231,6 +241,11 @@ def depurar_banderas_legales(state: dict) -> list[dict]:
                                "pero nada converge en una marca, un modelo o un valor exacto")
         elif (vector == "subcontratacion_prohibida" or _RE_SUBCONTRATACION.search(texto)) and not _converge(texto):
             motivo_contexto = "prohibir la subcontratación no cambia quién puede ofertar"
+        elif (vector in ("otro", "requisito", "requisito_a_la_medida", "personal_clave_sobreexigido", "experiencia", "procedimiento", "")
+              and _RE_OBSERVACIONES.search(texto) and _RE_NO_ACOGIDA.search(texto) and not _converge(texto)
+              and not _RE_FALTA_COMITE.search(texto) and not _RE_GRADO.search(texto) and not _RE_RESTRICCION_CONCRETA.search(texto)):
+            motivo_contexto = ("observaciones no acogidas: no prueban por sí solas que el requisito apunte a un postor y el "
+                               "desenlace (único postor) ya lo cuentan las reglas de código")
         elif vector in ("procedimiento", "comite", "otro", "") and not _RE_SOBRE_REQUISITO.search(texto) and not _converge(texto):
             # Una irregularidad del trámite (negociación, desierta, justificación del procedimiento) que no toca ningún
             # requisito ni especificación: no es un requisito dirigido (1225299: el mismo postor de la convocatoria desierta).
