@@ -154,7 +154,7 @@ test("MTPE: la lista por número, el visor público y los comunicados que no son
     ...PLAZA, titulo: "UN/A ESPECIALISTA LEGAL", entidad: "MINISTERIO DE TRABAJO Y PROMOCIÓN DEL EMPLEO",
     numero: "D.LEG 1057 - DETERMINADO (SUPLENCIA)-182", detalle_url: "https://convocatoriasmtpe.trabajo.gob.pe/convocatorias/",
     fecha_inicio: "2026-11-09", ubicacion: "LIMA - LIMA",
-  }, clienteHttp(5, f));
+  }, clienteHttp(5, f, porRelayDe(f)));
   assert.equal(pedidos.length, 1);
   assert.match(pedidos[0].url, /\/convocatoriasback\/api\/convocatoria\/lista$/);
   assert.equal((JSON.parse(pedidos[0].cuerpo) as { dato: { numAnio: number } }).dato.numAnio, 2026);
@@ -190,7 +190,7 @@ test("SERNANP: la sede del departamento, el grupo del puesto y sin evaluaciones 
     ...PLAZA, titulo: "ANALISTA EN RECURSOS NATURALES", entidad: "SERVICIO NACIONAL DE ÁREAS NATURALES PROTEGIDAS POR EL ESTADO",
     numero: "CAS N° 06-2026-SERNANP", detalle_url: "https://www.sernanp.gob.pe/convocatorias/",
     fecha_inicio: "2026-09-25", ubicacion: "MADRE DE DIOS - TAMBOPATA",
-  }, clienteHttp(6, f));
+  }, clienteHttp(6, f, porRelayDe(f)));
   assert.ok(pedidos.some((u) => /tp=1&an=2026&ls=195190&dt=301/.test(u)));
   assert.deepEqual(h?.documentos.map((d) => d.url), [
     "https://www.sernanp.gob.pe/download/base-analista",
@@ -227,7 +227,12 @@ test("MTPE: bajarPdf reconoce el visor y pide el PDF en base64 a la API", async 
     assert.deepEqual(JSON.parse(String(init?.body)), { dato: { tipodoc: "convoc", numdoc: "27601794253397467.pdf" } });
     return new Response(JSON.stringify({ dato: Buffer.from(pdf).toString("base64") }), { headers: { "content-type": "application/json" } });
   }) as unknown as typeof fetch;
-  const b = await bajarPdf("https://convocatoriasmtpe.trabajo.gob.pe/convocatorias/#/principal/fileconvocatorias/convoc/27601794253397467.pdf", f);
+  // El MTPE no responde a Cloudflare: va por el relay de Lima (aquí, un relay de mentira que llama a `f`).
+  const relay = async (url: string, _ms: number, extra?: { metodo?: string; cuerpo?: string }) => {
+    const r = await f(url, { method: extra?.metodo, body: extra?.cuerpo });
+    return new Response(await r.arrayBuffer(), { status: r.status, headers: { "x-relay-status": String(r.status) } });
+  };
+  const b = await bajarPdf("https://convocatoriasmtpe.trabajo.gob.pe/convocatorias/#/principal/fileconvocatorias/convoc/27601794253397467.pdf", f, relay);
   assert.deepEqual([...b!.slice(0, 4)], [0x25, 0x50, 0x44, 0x46]);
 });
 
@@ -239,7 +244,11 @@ test("SERNANP: el PDF llega detrás de un script y bajarPdf lo recorta", async (
   cuerpo.set(prefijo);
   cuerpo.set(pdf, prefijo.byteLength);
   const f = (async () => new Response(cuerpo, { headers: { "content-type": "application/force-download" } })) as unknown as typeof fetch;
-  const b = await bajarPdf("https://www.sernanp.gob.pe/download/9fdde8ac-b8e4-11f1-ac71-005056bd93da", f);
+  const relay = async (url: string) => {
+    const r = await f(url);
+    return new Response(await r.arrayBuffer(), { status: r.status, headers: { "x-relay-status": String(r.status) } });
+  };
+  const b = await bajarPdf("https://www.sernanp.gob.pe/download/9fdde8ac-b8e4-11f1-ac71-005056bd93da", f, relay);
   assert.deepEqual([...b!.slice(0, 5)], [0x25, 0x50, 0x44, 0x46, 0x2d]);
 });
 
@@ -258,3 +267,11 @@ test("por la entidad, con su nombre exacto: el MTPE sí, la Gerencia Regional de
     assert.match(conEnlace({ entidad, detalle_url: null }).detalle_url ?? "", /^https?:\/\//, entidad);
   }
 });
+
+/** Un relay de Lima de mentira que pasa el pedido al sitio de mentira `f` (los sitios que sólo responden desde el Perú). */
+function porRelayDe(f: typeof fetch) {
+  return async (pedido: { url: string; metodo: string; cabeceras: Record<string, string>; cuerpo?: string }) => {
+    const r = await f(pedido.url, { method: pedido.metodo, headers: pedido.cabeceras, body: pedido.cuerpo });
+    return new Response(await r.text(), { status: r.status, headers: { "x-relay-status": String(r.status), "content-type": r.headers.get("content-type") ?? "text/html" } });
+  };
+}
