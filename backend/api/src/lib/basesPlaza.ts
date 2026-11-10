@@ -116,10 +116,10 @@ export function esDocumento(url: string): boolean {
 /**
  * Descargas sin «.pdf» en la URL de los aplicativos que leen los adaptadores (lib/empleoAdaptadores*.ts): el visor de
  * MINJUS, las bases y el TDR de MINEDU, JUNTOS, MIDIS y PRONIED, MINSA, la API de Amazonas, la OECE (por POST), Provías (ASP), el
- * DOCman del INPE, la SMV, la PGE (el PDF viene dentro de una página), el Laserfiche del MINEM y el SENAMHI. Se confirma
+ * DOCman del INPE, la SMV, la PGE (el PDF viene dentro de una página), el Laserfiche del MINEM, el SENAMHI y SERNANP. Se confirma
  * que es PDF al bajarlo.
  */
-const DESCARGAS = /\/convocatoria\/Preview\?file=|\/Descargar_(Bases|Tdr|base|tdr)\?idReq=|\/DescargarArchivo(Bases|PorId)\/|\/GetBaseConvocatoria\?|\/api\/Archivo\/\d+\/(descargar|ver)|\/Convocatoria\/ConsultarArchivo\?id=|\/descargaArchivoConvoca\.asp\?PK_eRecord=\d+|\/documentos\/\d+-[^/]+\/file\.html|\/ConsultasP8\/documento\.aspx\?vidDoc=|\/serviceView\/viewPdfModalPublic\?idFile=\d+|\/Laserfiche\/Descargar\?token=|\/include\/convocatorias_ver\.php\?ide_convo=\d+/i;
+const DESCARGAS = /\/convocatoria\/Preview\?file=|\/Descargar_(Bases|Tdr|base|tdr)\?idReq=|\/DescargarArchivo(Bases|PorId)\/|\/GetBaseConvocatoria\?|\/api\/Archivo\/\d+\/(descargar|ver)|\/Convocatoria\/ConsultarArchivo\?id=|\/descargaArchivoConvoca\.asp\?PK_eRecord=\d+|\/documentos\/\d+-[^/]+\/file\.html|\/ConsultasP8\/documento\.aspx\?vidDoc=|\/serviceView\/viewPdfModalPublic\?idFile=\d+|\/Laserfiche\/Descargar\?token=|\/include\/convocatorias_ver\.php\?ide_convo=\d+|sernanp\.gob\.pe\/download\/[0-9a-f-]{36}/i;
 
 /** Un archivo de Google Drive (`/file/d/<id>/view`, `uc?id=`, `open?id=`): muchas entidades suben ahí sus bases. */
 export const esDrive = (url: string) => /drive\.google\.com\/(file\/d\/[\w-]{10,}|uc\?|open\?id=)|docs\.google\.com\/(document|uc)/i.test(url);

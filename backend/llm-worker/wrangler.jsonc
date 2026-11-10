@@ -15,6 +15,6 @@
     "REASONING_EFFORT_DEFECTO": "low",
     "MAX_TOKENS_DEFECTO": "16000",
     // Modelos permitidos (lista blanca): evita que un token filtrado gaste en cualquier modelo.
-    "MODELOS_PERMITIDOS": "@cf/zai-org/glm-5.3-flash,@cf/deepseek-ai/deepseek-v4.1-flash-1017,@cf/google/gemma-4-26b-a4b-it,@cf/moonshotai/kimi-k2.6,@cf/zai-org/glm-5.3,@cf/zai-org/glm-5.2,@cf/zai-org/glm-4.7-flash,@cf/openai/gpt-oss-120b,@cf/meta/llama-3.3-70b-instruct-fp8-fast,@cf/qwen/qwen3-30b-a3b-fp8"
+    "MODELOS_PERMITIDOS": "@cf/zai-org/glm-5.3-flash,@cf/deepseek-ai/deepseek-v4-pro-0813,@cf/nvidia/nemotron-3-120b-a12b,@cf/qwen/qwen3.8-27b,@cf/deepseek-ai/deepseek-v4.1-flash-1017,@cf/google/gemma-4-26b-a4b-it,@cf/moonshotai/kimi-k2.6,@cf/zai-org/glm-5.3,@cf/zai-org/glm-5.2,@cf/zai-org/glm-4.7-flash,@cf/openai/gpt-oss-120b,@cf/meta/llama-3.3-70b-instruct-fp8-fast,@cf/qwen/qwen3-30b-a3b-fp8"
   }
 }

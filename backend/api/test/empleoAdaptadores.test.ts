@@ -275,3 +275,10 @@ function porRelayDe(f: typeof fetch) {
     return new Response(await r.text(), { status: r.status, headers: { "x-relay-status": String(r.status), "content-type": r.headers.get("content-type") ?? "text/html" } });
   };
 }
+
+test("las descargas de SERNANP (/download/<uuid>) se reconocen como documento para leer", async () => {
+  const { esDocumento, quizasPdf } = await import("../src/lib/basesPlaza.js");
+  const u = "https://www.sernanp.gob.pe/download/2de02a91-dc41-11f1-ac71-005056bd93da";
+  assert.equal(esDocumento(u), true);
+  assert.equal(quizasPdf(u), true);
+});
