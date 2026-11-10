@@ -24,7 +24,7 @@ test("VTEX: precio vigente con stock; lo que no tiene forma se omite", () => {
   assert.equal(p.length, 1);
   assert.deepEqual({ ...p[0] }, {
     tienda: "promart.pe", producto: "Cemento Sol 42.5 kg", marca: "Sol", sku: "1", precio: 30.9, precio_lista: 32,
-    unidad_medida: "un", multiplicador: 1, url: "https://www.promart.pe/cemento-sol/p",
+    unidad_medida: "un", multiplicador: 1, vendedor: null, patrocinado: false, url: "https://www.promart.pe/cemento-sol/p",
   });
   assert.deepEqual(normalizarVtex({ error: "x" }, T), []);
 });

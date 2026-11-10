@@ -1,0 +1,76 @@
+{
+ "products": [
+  {
+   "productName": "Hp Laptop 15-Fd0152La 15.6 \" Intel Core I5 512Gb Ssd Ps29305727",
+   "brand": "HP",
+   "linkText": "hp-laptop-15-fd0152la-156--intel-core-i5-512gb-ssd-ps29305727314089",
+   "link": "/hp-laptop-15-fd0152la-156--intel-core-i5-512gb-ssd-ps29305727314089/p",
+   "items": [
+    {
+     "itemId": "380880",
+     "measurementUnit": "un",
+     "unitMultiplier": 1,
+     "sellers": [
+      {
+       "sellerId": "1",
+       "sellerName": "ESTILOS PERU",
+       "sellerDefault": true,
+       "commertialOffer": {
+        "Price": 2499,
+        "ListPrice": 2999,
+        "AvailableQuantity": 10000
+       }
+      }
+     ]
+    }
+   ],
+   "priceRange": {
+    "sellingPrice": {
+     "highPrice": 2999,
+     "lowPrice": 2999
+    },
+    "listPrice": {
+     "highPrice": 2999,
+     "lowPrice": 2999
+    }
+   }
+  },
+  {
+   "productName": "Hp Laptop 15-fd0257la Intel Core I5-1334",
+   "brand": "HP",
+   "linkText": "hp-laptop-15-fd0257la-intel-core-i5-1334296319",
+   "link": "/hp-laptop-15-fd0257la-intel-core-i5-1334296319/p",
+   "items": [
+    {
+     "itemId": "316934",
+     "measurementUnit": "un",
+     "unitMultiplier": 1,
+     "sellers": [
+      {
+       "sellerId": "1",
+       "sellerName": "ESTILOS PERU",
+       "sellerDefault": false,
+       "commertialOffer": {
+        "Price": 2299,
+        "ListPrice": 2299,
+        "AvailableQuantity": 0
+       }
+      }
+     ]
+    }
+   ],
+   "priceRange": {
+    "sellingPrice": {
+     "highPrice": 0,
+     "lowPrice": null
+    },
+    "listPrice": {
+     "highPrice": 0,
+     "lowPrice": null
+    }
+   }
+  }
+ ],
+ "recordsFiltered": 7,
+ "operator": "and"
+}

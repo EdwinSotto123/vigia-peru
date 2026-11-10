@@ -1,0 +1,86 @@
+{
+ "products": [
+  {
+   "productName": "Laptop HP 15-FD0152LA 15.6\" Intel Core i5-1334U 512GB SSD 8GB FreeDOS Dorado",
+   "brand": "HP",
+   "linkText": "laptop-hp-15-fd0152la-15-6--intel-core-i5-1334u-512gb-ssd-8gb-freedos-dorado-9369",
+   "link": "/laptop-hp-15-fd0152la-15-6--intel-core-i5-1334u-512gb-ssd-8gb-freedos-dorado-9369/p",
+   "items": [
+    {
+     "itemId": "9559",
+     "measurementUnit": "un",
+     "unitMultiplier": 1,
+     "sellers": [
+      {
+       "sellerId": "1",
+       "sellerName": "Carsa",
+       "sellerDefault": false,
+       "commertialOffer": {
+        "Price": 0,
+        "ListPrice": 0,
+        "AvailableQuantity": 0
+       }
+      },
+      {
+       "sellerId": "perusmart332",
+       "sellerName": "Perú smart",
+       "sellerDefault": true,
+       "commertialOffer": {
+        "Price": 2418,
+        "ListPrice": 3139,
+        "AvailableQuantity": 10000
+       }
+      }
+     ]
+    }
+   ],
+   "priceRange": {
+    "sellingPrice": {
+     "highPrice": 2418,
+     "lowPrice": 2418
+    },
+    "listPrice": {
+     "highPrice": 3139,
+     "lowPrice": 3139
+    }
+   }
+  },
+  {
+   "productName": "Laptop gamer HP Victus 15-FA0021LA 15.6\" Intel Core-i5 512GB SSD 8GB RAM NVIDIA RTX 3050 Windows 11 azul",
+   "brand": "HP",
+   "linkText": "laptop-gaming-victus-15-fa0021la-i5-12450h-156-8gb-512gb-rtx3050-4gb-w11-198122718245",
+   "link": "/laptop-gaming-victus-15-fa0021la-i5-12450h-156-8gb-512gb-rtx3050-4gb-w11-198122718245/p",
+   "items": [
+    {
+     "itemId": "1641",
+     "measurementUnit": "un",
+     "unitMultiplier": 1,
+     "sellers": [
+      {
+       "sellerId": "1",
+       "sellerName": "Carsa",
+       "sellerDefault": false,
+       "commertialOffer": {
+        "Price": 3139,
+        "ListPrice": 4579,
+        "AvailableQuantity": 0
+       }
+      }
+     ]
+    }
+   ],
+   "priceRange": {
+    "sellingPrice": {
+     "highPrice": 0,
+     "lowPrice": null
+    },
+    "listPrice": {
+     "highPrice": 0,
+     "lowPrice": null
+    }
+   }
+  }
+ ],
+ "recordsFiltered": 4,
+ "operator": "and"
+}

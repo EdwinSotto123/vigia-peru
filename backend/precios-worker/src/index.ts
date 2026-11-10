@@ -2,7 +2,9 @@
  * vigia-precios — precios de referencia propios para el análisis de mercado (bienes).
  *
  *   GET  /salud                                   sin auth: estado de la base y de cada tienda
- *   GET  /tiendas/buscar?q=<término>&n=4          productos con precio de los catálogos de tiendas (caché 7 días)
+ *   GET  /tiendas/buscar?q=<término>&n=4[&tiendas=<id>,<id>]
+ *                                                 productos con precio de las tiendas (caché 7 días); `tiendas` limita
+ *                                                 la búsqueda a esas (los `id` de TIENDAS en tiendas.ts)
  *   GET  /combustible?producto=&departamento=&dias=120
  *                                                 precios oficiales de Osinergmin (distribuidores minoristas)
  *   GET  /historial?q=<término>&dias=180          precios vistos antes (canasta semanal + búsquedas)
@@ -11,16 +13,17 @@
  *   POST /admin/actualizar?que=combustible|canasta|mayorista[&desde=&hasta=]   corre ya lo que hace el cron
  *
  * Auth: `Authorization: Bearer <PRECIOS_TOKEN>`. Crons: combustible a diario, canasta los lunes.
- * Las tiendas no ofrecen su API a terceros (tiendas.ts): caché, una consulta a la vez por tienda en el cron,
- * User-Agent propio y pausa automática de la tienda que falla.
+ * Las tiendas no ofrecen su API a terceros (tiendas.ts): caché, un pedido por segundo como máximo a cada tienda,
+ * una consulta a la vez por tienda en el cron, tope de tamaño de cada respuesta y pausa automática de la tienda que
+ * falla.
  */
 import { CANASTA } from "./canasta.ts";
 import { URL_DATOS, URL_FORMULARIO, URL_PUBLICA, codigosDelFormulario, coincide, cuerpoConsulta, parsearReporte } from "./mayorista.ts";
 import { URL_DMIN, decodificar, estadistica, parsearDmin, percentil, productoDeConsulta } from "./combustible.ts";
 import {
-  type EstadoTienda, type Producto, type Tienda, TIENDAS, USER_AGENT, bloqueada, estadoTrasExito, estadoTrasFallo,
-  normalizarSodimac,
-  normalizarTermino, normalizarVtex, urlBusqueda,
+  type EstadoTienda, type Plataforma, type Producto, type Tienda, N_MAX, TIENDAS, TOPE_BYTES, USER_AGENT, bloqueada,
+  estadoTrasExito, estadoTrasFallo, leerCuerpo, leerProductos, normalizarTermino, pedidoBusqueda, plataformaDe,
+  reservarTurno,
 } from "./tiendas.ts";
 
 interface Env {
@@ -68,7 +71,35 @@ async function guardarObservados(env: Env, termino: string, productos: Producto[
   await env.DB.batch(productos.map((p) => st.bind(f, termino, p.tienda, p.sku, p.producto, p.marca, p.precio, p.precio_lista, p.url, origen)));
 }
 
-type Resultado = { productos: Producto[]; fuente: "cache" | "tienda" | "pausada" | "error"; error?: string };
+type Resultado = { productos: Producto[]; fuente: "cache" | "tienda" | "pausada" | "ocupada" | "error"; error?: string };
+
+/** Turnos por tienda en este isolate: ≥ 1 s entre pedidos a la misma tienda, aun con varias búsquedas a la vez. */
+const TURNOS = new Map<string, number>();
+
+class FalloTienda extends Error {
+  status: number;
+  constructor(mensaje: string, status = 0) {
+    super(mensaje);
+    this.status = status;
+  }
+}
+
+/** Un pedido a la tienda: espera su turno, lee con tope de tamaño y devuelve los productos (o lanza FalloTienda). */
+async function pedirATienda(t: Tienda, termino: string, n: number, p: Plataforma): Promise<Producto[] | "ocupada"> {
+  const espera = reservarTurno(TURNOS, t.id, Date.now());
+  if (espera < 0) return "ocupada";
+  if (espera > 0) await dormir(espera);
+  const ped = pedidoBusqueda(t, termino, n, p);
+  const r = await fetch(ped.url, { ...ped.init, signal: AbortSignal.timeout(ped.tipo === "html" ? 15_000 : 10_000) });
+  if (r.status >= 400) {
+    await r.body?.cancel();
+    throw new FalloTienda(`HTTP ${r.status}`, r.status);
+  }
+  // Una página trae todos sus resultados: se leen hasta N_MAX (la caché sirve después a un `n` mayor).
+  const productos = leerProductos(t, await leerCuerpo(r, TOPE_BYTES[ped.tipo]), ped.tipo === "html" ? N_MAX : n, p);
+  if (!productos) throw new FalloTienda("respuesta sin la forma esperada (bloqueo o cambio de la web)");
+  return productos;
+}
 
 /** Una tienda, un término: caché (salvo `fresco`) → si la tienda no está en pausa, la consulta. */
 async function buscarEnTienda(env: Env, t: Tienda, termino: string, n: number, origen: string, fresco = false): Promise<Resultado> {
@@ -77,41 +108,43 @@ async function buscarEnTienda(env: Env, t: Tienda, termino: string, n: number, o
   if (!fresco) {
     const c = await env.DB.prepare("SELECT respuesta, creado FROM cache_busqueda WHERE clave = ?").bind(clave)
       .first<{ respuesta: string; creado: number }>();
-    if (c && Date.now() - c.creado < ttl) return { productos: (JSON.parse(c.respuesta) as Producto[]).slice(0, n), fuente: "cache" };
+    if (c && Date.now() - c.creado < ttl) {
+      // Lo guardado antes de 2026-11 no trae `vendedor` ni `patrocinado`.
+      const guardados = (JSON.parse(c.respuesta) as Producto[]).map((p) => ({ ...p, vendedor: p.vendedor ?? null, patrocinado: false }));
+      return { productos: guardados.slice(0, n), fuente: "cache" };
+    }
   }
   const ahora = Date.now();
   const est = await estadoDe(env, t.id);
   if (bloqueada(est, ahora)) return { productos: [], fuente: "pausada" };
   try {
-    const r = await fetch(urlBusqueda(t, termino, n), {
-      headers: { "user-agent": USER_AGENT, accept: t.plataforma === "sodimac" ? "text/html" : "application/json" },
-      signal: AbortSignal.timeout(t.plataforma === "sodimac" ? 15_000 : 10_000),
-    });
-    if (r.status >= 400) {
-      await guardarEstado(env, t.id, estadoTrasFallo(est, ahora, r.status), `HTTP ${r.status}`);
-      return { productos: [], fuente: "error", error: `HTTP ${r.status}` };
-    }
-    const productos = t.plataforma === "sodimac" ? normalizarSodimac(await r.text(), t, n) : normalizarVtex(await r.json(), t);
+    let productos = await pedirATienda(t, termino, n, plataformaDe(t));
+    // Intelligent Search busca con todas las palabras y a veces no devuelve nada: entonces, la búsqueda clásica.
+    if (Array.isArray(productos) && !productos.length && plataformaDe(t) === "vtex_is") productos = await pedirATienda(t, termino, n, "vtex");
+    if (productos === "ocupada") return { productos: [], fuente: "ocupada" };
     await env.DB.prepare("INSERT OR REPLACE INTO cache_busqueda (clave, respuesta, creado) VALUES (?, ?, ?)")
       .bind(clave, JSON.stringify(productos), Date.now()).run();
     await guardarObservados(env, termino, productos, origen);
     if (est?.errores) await guardarEstado(env, t.id, estadoTrasExito(), null);
-    return { productos, fuente: "tienda" };
+    return { productos: productos.slice(0, n), fuente: "tienda" };
   } catch (e) {
     const msg = (e as Error).message?.slice(0, 160) ?? "error";
-    await guardarEstado(env, t.id, estadoTrasFallo(est, ahora), msg);
+    await guardarEstado(env, t.id, estadoTrasFallo(est, ahora, e instanceof FalloTienda ? e.status : 0), msg);
     return { productos: [], fuente: "error", error: msg };
   }
 }
 
-async function buscar(env: Env, q: string, n: number) {
+async function buscar(env: Env, q: string, n: number, filtro: string | null) {
   const termino = normalizarTermino(q);
   if (!termino) return json({ error: "falta q" }, 400);
-  const res = await Promise.all(TIENDAS.map((t) => buscarEnTienda(env, t, termino, n, "busqueda")));
+  const ids = (filtro ?? "").split(",").map((x) => x.trim()).filter(Boolean);
+  const tiendas = ids.length ? TIENDAS.filter((t) => ids.includes(t.id)) : TIENDAS;
+  if (!tiendas.length) return json({ error: "tiendas desconocidas", validas: TIENDAS.map((t) => t.id) }, 400);
+  const res = await Promise.all(tiendas.map((t) => buscarEnTienda(env, t, termino, n, "busqueda")));
   return json({
     termino,
     productos: res.flatMap((r) => r.productos),
-    tiendas: Object.fromEntries(TIENDAS.map((t, i) => [t.id, { fuente: res[i].fuente, n: res[i].productos.length, ...(res[i].error ? { error: res[i].error } : {}) }])),
+    tiendas: Object.fromEntries(tiendas.map((t, i) => [t.id, { fuente: res[i].fuente, n: res[i].productos.length, ...(res[i].error ? { error: res[i].error } : {}) }])),
   });
 }
 
@@ -287,7 +320,7 @@ export default {
     }
     if (!autorizado(req, env)) return json({ error: "no autorizado" }, 401);
     const p = url.searchParams;
-    if (url.pathname === "/tiendas/buscar" && req.method === "GET") return buscar(env, p.get("q") ?? "", Math.min(Number(p.get("n") ?? 4) || 4, 10));
+    if (url.pathname === "/tiendas/buscar" && req.method === "GET") return buscar(env, p.get("q") ?? "", Math.min(Number(p.get("n") ?? 4) || 4, N_MAX), p.get("tiendas"));
     if (url.pathname === "/combustible" && req.method === "GET")
       return combustible(env, p.get("producto") ?? "", p.get("departamento") ?? "", Math.min(Number(p.get("dias") ?? 120) || 120, 400), p.get("hasta"));
     if (url.pathname === "/mayorista" && req.method === "GET") return mayorista(env, p.get("q") ?? "", Math.min(Number(p.get("dias") ?? 30) || 30, 5000), p.get("hasta"));

@@ -1,0 +1,84 @@
+{
+ "data": {
+  "products": {
+   "items": [
+    {
+     "__typename": "SimpleProduct",
+     "name": "Toner HP 154X Negro",
+     "sku": "131892",
+     "url_key": "toner-hp-154x-negro",
+     "url_suffix": "",
+     "stock_status": "IN_STOCK",
+     "price_range": {
+      "minimum_price": {
+       "final_price": {
+        "value": 89.9,
+        "currency": "PEN"
+       },
+       "regular_price": {
+        "value": 89.9
+       }
+      }
+     }
+    },
+    {
+     "__typename": "SimpleProduct",
+     "name": "Tóner HP 215A Amarillo Laserjet Original (W2312A) Para HP Color LJ Pro MFP M182nw (all), M183fw (Club), HP Color LJ Pro MFP M182nw (all), M183fw (Club)",
+     "sku": "122623",
+     "url_key": "toner-hp-laserjet-original-w2312a-amarillo",
+     "url_suffix": "",
+     "stock_status": "IN_STOCK",
+     "price_range": {
+      "minimum_price": {
+       "final_price": {
+        "value": 239,
+        "currency": "PEN"
+       },
+       "regular_price": {
+        "value": 239
+       }
+      }
+     }
+    },
+    {
+     "__typename": "SimpleProduct",
+     "name": "Cartucho Tóner HP Laserjet 150A Negro W1500A                                                          ",
+     "sku": "133013",
+     "url_key": "cartucho-toner-hp-laserjet-150a-negro-w1500a",
+     "url_suffix": "",
+     "stock_status": "IN_STOCK",
+     "price_range": {
+      "minimum_price": {
+       "final_price": {
+        "value": 249,
+        "currency": "PEN"
+       },
+       "regular_price": {
+        "value": 249
+       }
+      }
+     }
+    },
+    {
+     "__typename": "SimpleProduct",
+     "name": "Tóner Brother Monocromático TN416BK",
+     "sku": "110956",
+     "url_key": "toner-brother-monocromatico-tn416bk",
+     "url_suffix": "",
+     "stock_status": "IN_STOCK",
+     "price_range": {
+      "minimum_price": {
+       "final_price": {
+        "value": 362,
+        "currency": "PEN"
+       },
+       "regular_price": {
+        "value": 362
+       }
+      }
+     }
+    }
+   ]
+  }
+ }
+}

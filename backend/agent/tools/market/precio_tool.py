@@ -14,7 +14,8 @@ import os
 
 def consultar_precios_referencia(producto: str, tool_context=None) -> dict:
     """Busca el precio vigente de un producto en catálogos de supermercados y tiendas del Perú (Plaza Vea, Metro, Wong,
-    Promart, Oechsle, Cassinelli, Coolbox) y lo ya visto antes. Devuelve productos con precio, tienda y URL; si se vende por peso
+    Promart, Oechsle, Cassinelli, Coolbox, Sodimac, Falabella, Ripley, Shopstar, Estilos, Carsa, Hiraoka, Tai Loy) y lo
+    ya visto antes. Devuelve productos con precio, tienda, vendedor (en los marketplaces) y URL; si se vende por peso
     (`unidad_medida` "kg") el `precio` es por kilo. Usa términos cortos ("limon x kg", "papaya", "choclo x und");
     si salen productos de otro rubro, reintenta con otro término.
 
@@ -31,8 +32,8 @@ def consultar_precios_referencia(producto: str, tool_context=None) -> dict:
     productos = [{
         "tienda": p.get("tienda"), "producto": p.get("producto"), "marca": p.get("marca"), "precio": p.get("precio"),
         "unidad_medida": p.get("unidad_medida"), "por_peso": (p.get("unidad_medida") or "").lower() == "kg",
-        "url": p.get("url"),
-    } for p in d.get("productos") or [] if p.get("precio")]
+        "vendedor": p.get("vendedor"), "url": p.get("url"),
+    } for p in d.get("productos") or [] if p.get("precio") and not p.get("patrocinado")]
     try:   # las URLs que el agente vea quedan como respaldadas para el verificador
         from tools.busqueda import _publicar
         _publicar(getattr(tool_context, "state", None), [{"url": p["url"]} for p in productos if p.get("url")])

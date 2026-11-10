@@ -1,0 +1,158 @@
+{
+ "products": [
+  {
+   "productName": "Toner HP 85A Negro LaserJet Original CE285A",
+   "brand": "Hp",
+   "linkText": "toner-hp-85a-negro-laserjet-original-ce285a-1547263",
+   "link": "/toner-hp-85a-negro-laserjet-original-ce285a-1547263/p",
+   "items": [
+    {
+     "itemId": "1465755",
+     "measurementUnit": "un",
+     "unitMultiplier": 1,
+     "sellers": [
+      {
+       "sellerId": "1",
+       "sellerName": "Mercury",
+       "sellerDefault": false,
+       "commertialOffer": {
+        "Price": 0,
+        "ListPrice": 0,
+        "AvailableQuantity": 0
+       }
+      }
+     ]
+    },
+    {
+     "itemId": "1465782",
+     "measurementUnit": "un",
+     "unitMultiplier": 1,
+     "sellers": [
+      {
+       "sellerId": "1",
+       "sellerName": "Mercury",
+       "sellerDefault": false,
+       "commertialOffer": {
+        "Price": 0,
+        "ListPrice": 0,
+        "AvailableQuantity": 0
+       }
+      },
+      {
+       "sellerId": "shpseller625",
+       "sellerName": "Sell Y Trade SAC",
+       "sellerDefault": true,
+       "commertialOffer": {
+        "Price": 429,
+        "ListPrice": 569,
+        "AvailableQuantity": 10000
+       }
+      }
+     ]
+    }
+   ],
+   "priceRange": {
+    "sellingPrice": {
+     "highPrice": 429,
+     "lowPrice": 429
+    },
+    "listPrice": {
+     "highPrice": 569,
+     "lowPrice": 569
+    }
+   }
+  },
+  {
+   "productName": "Pack dos Toner HP 85A Negro LaserJet Original CE285AD",
+   "brand": "Hp",
+   "linkText": "pack-dos-toner-hp-85a-negro-laserjet-original-ce285ad-521978-1451",
+   "link": "/pack-dos-toner-hp-85a-negro-laserjet-original-ce285ad-521978-1451/p",
+   "items": [
+    {
+     "itemId": "1465759",
+     "measurementUnit": "un",
+     "unitMultiplier": 1,
+     "sellers": [
+      {
+       "sellerId": "1",
+       "sellerName": "Mercury",
+       "sellerDefault": false,
+       "commertialOffer": {
+        "Price": 0,
+        "ListPrice": 0,
+        "AvailableQuantity": 0
+       }
+      },
+      {
+       "sellerId": "shpseller625",
+       "sellerName": "Sell Y Trade SAC",
+       "sellerDefault": true,
+       "commertialOffer": {
+        "Price": 599,
+        "ListPrice": 999,
+        "AvailableQuantity": 10000
+       }
+      }
+     ]
+    }
+   ],
+   "priceRange": {
+    "sellingPrice": {
+     "highPrice": 599,
+     "lowPrice": 599
+    },
+    "listPrice": {
+     "highPrice": 999,
+     "lowPrice": 999
+    }
+   }
+  },
+  {
+   "productName": "Tóner Compatible HP 85A CE285A – 1600 Páginas P1102 / M1132 / M1212",
+   "brand": "Bit4id",
+   "linkText": "toner-compatible-hp-85a-ce285a-–-1600-paginas-p1102---m1132---m1212-16825293",
+   "link": "/toner-compatible-hp-85a-ce285a-–-1600-paginas-p1102---m1132---m1212-16825293/p",
+   "items": [
+    {
+     "itemId": "2432415",
+     "measurementUnit": "un",
+     "unitMultiplier": 1,
+     "sellers": [
+      {
+       "sellerId": "1",
+       "sellerName": "Mercury",
+       "sellerDefault": false,
+       "commertialOffer": {
+        "Price": 0,
+        "ListPrice": 0,
+        "AvailableQuantity": 0
+       }
+      },
+      {
+       "sellerId": "shpseller897",
+       "sellerName": "GREEN DATA",
+       "sellerDefault": true,
+       "commertialOffer": {
+        "Price": 49,
+        "ListPrice": 99,
+        "AvailableQuantity": 10000
+       }
+      }
+     ]
+    }
+   ],
+   "priceRange": {
+    "sellingPrice": {
+     "highPrice": 49,
+     "lowPrice": 49
+    },
+    "listPrice": {
+     "highPrice": 99,
+     "lowPrice": 99
+    }
+   }
+  }
+ ],
+ "recordsFiltered": 3,
+ "operator": "and"
+}

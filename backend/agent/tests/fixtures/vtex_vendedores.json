@@ -1,0 +1,169 @@
+[
+ {
+  "productName": "TONER HP 85A CE285A L.J. P1102 NEGRO 1600PG",
+  "brand": "HP",
+  "linkText": "toner-hp-85a-ce285a-l-j-p1102-negro-1600pg-102157291",
+  "link": "/toner-hp-85a-ce285a-l-j-p1102-negro-1600pg-102157291/p",
+  "items": [
+   {
+    "itemId": "12455456",
+    "measurementUnit": "un",
+    "unitMultiplier": 1,
+    "sellers": [
+     {
+      "sellerId": "1",
+      "sellerName": "Plaza Vea",
+      "sellerDefault": false,
+      "commertialOffer": {
+       "Price": 0,
+       "ListPrice": 0,
+       "AvailableQuantity": 0
+      }
+     },
+     {
+      "sellerId": "GRUPOTECH",
+      "sellerName": "GRUPO TECH",
+      "sellerDefault": true,
+      "commertialOffer": {
+       "Price": 265,
+       "ListPrice": 265,
+       "AvailableQuantity": 10000
+      }
+     }
+    ]
+   }
+  ],
+  "priceRange": {
+   "sellingPrice": {
+    "highPrice": 265,
+    "lowPrice": 265
+   },
+   "listPrice": {
+    "highPrice": 265,
+    "lowPrice": 265
+   }
+  }
+ },
+ {
+  "productName": "Toner HP 85A Negro LaserJet Original CE285A",
+  "brand": "Hp",
+  "linkText": "toner-hp-85a-negro-laserjet-original-ce285a-1547263",
+  "link": "/toner-hp-85a-negro-laserjet-original-ce285a-1547263/p",
+  "items": [
+   {
+    "itemId": "1465755",
+    "measurementUnit": "un",
+    "unitMultiplier": 1,
+    "sellers": [
+     {
+      "sellerId": "1",
+      "sellerName": "Mercury",
+      "sellerDefault": false,
+      "commertialOffer": {
+       "Price": 0,
+       "ListPrice": 0,
+       "AvailableQuantity": 0
+      }
+     }
+    ]
+   },
+   {
+    "itemId": "1465782",
+    "measurementUnit": "un",
+    "unitMultiplier": 1,
+    "sellers": [
+     {
+      "sellerId": "1",
+      "sellerName": "Mercury",
+      "sellerDefault": false,
+      "commertialOffer": {
+       "Price": 0,
+       "ListPrice": 0,
+       "AvailableQuantity": 0
+      }
+     },
+     {
+      "sellerId": "shpseller625",
+      "sellerName": "Sell Y Trade SAC",
+      "sellerDefault": true,
+      "commertialOffer": {
+       "Price": 429,
+       "ListPrice": 569,
+       "AvailableQuantity": 10000
+      }
+     }
+    ]
+   }
+  ],
+  "priceRange": {
+   "sellingPrice": {
+    "highPrice": 429,
+    "lowPrice": 429
+   },
+   "listPrice": {
+    "highPrice": 569,
+    "lowPrice": 569
+   }
+  }
+ },
+ {
+  "productName": "Papel Hoja Bond Fotocopia x500 hojas A4 210mm x 297mm 75 g/m² Millenium",
+  "brand": "MILLENIUM",
+  "linkText": "papel-hoja-bond-fotocopia-x500-hojas-a4-210mm-x-297mm-75-g-m-millenium-102200646",
+  "link": "https://www.plazavea.com.pe/papel-hoja-bond-fotocopia-x500-hojas-a4-210mm-x-297mm-75-g-m-millenium-102200646/p",
+  "items": [
+   {
+    "itemId": "12486073",
+    "measurementUnit": "un",
+    "unitMultiplier": 1.0,
+    "sellers": [
+     {
+      "sellerId": "FENIXIMPORTPERU",
+      "sellerName": "FENIX IMPORT PERU",
+      "sellerDefault": true,
+      "commertialOffer": {
+       "Price": 30.0,
+       "ListPrice": 42.0,
+       "AvailableQuantity": 26
+      }
+     },
+     {
+      "sellerId": "1",
+      "sellerName": "Plaza Vea",
+      "sellerDefault": false,
+      "commertialOffer": {
+       "Price": 0.0,
+       "ListPrice": 0.0,
+       "AvailableQuantity": 0
+      }
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "productName": "Resma Papel Bond Xerox A4 de 75g - 500h",
+  "brand": "XEROX",
+  "linkText": "resma-papel-bond-xerox-a4-de-75g-500h-100456457",
+  "link": "https://www.plazavea.com.pe/resma-papel-bond-xerox-a4-de-75g-500h-100456457/p",
+  "items": [
+   {
+    "itemId": "10654936",
+    "measurementUnit": "un",
+    "unitMultiplier": 1.0,
+    "sellers": [
+     {
+      "sellerId": "1",
+      "sellerName": "Plaza Vea",
+      "sellerDefault": true,
+      "commertialOffer": {
+       "Price": 0.0,
+       "ListPrice": 0.0,
+       "AvailableQuantity": 0
+      }
+     }
+    ]
+   }
+  ]
+ }
+]

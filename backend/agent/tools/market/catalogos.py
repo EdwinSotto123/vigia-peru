@@ -7,10 +7,11 @@ Las tiendas con plataforma VTEX publican su catálogo con precio vigente en una 
      presentación comparable (el texto de búsqueda trae ruido: "cemento" también devuelve fragua);
   3. los ítems con ≥ MARKET_MIN_PRECIOS precios elegidos ya no van a la búsqueda web pagada.
 Medido 2026-10-17: Promart, Plaza Vea, Oechsle, Metro y Wong responden; Sodimac, Tottus y las farmacias no.
-2026-10-18: también Cassinelli (ferretería) y Coolbox (tecnología).
+2026-10-18: también Cassinelli (ferretería) y Coolbox (tecnología). 2026-11-10: Shopstar, Estilos y Carsa (VTEX).
 
 Con PRECIOS_URL + PRECIOS_TOKEN las consultas van al Worker vigia-precios (backend/precios-worker): caché de 7 días,
-pausa automática de la tienda que falla e historial propio. Sin ellas, directo a las tiendas.
+pausa automática de la tienda que falla e historial propio, y además las tiendas que no son VTEX (Sodimac, Falabella,
+Ripley, Hiraoka, Tai Loy). Sin ellas, directo a las tiendas VTEX.
 Combustibles: precios oficiales de Osinergmin vía el mismo Worker (`precios_combustible`).
 """
 from __future__ import annotations
@@ -25,12 +26,16 @@ from urllib.parse import quote
 TIENDAS = tuple(t.strip() for t in os.getenv(
     "CATALOGO_TIENDAS",
     "https://www.promart.pe,https://www.plazavea.com.pe,https://www.oechsle.pe,https://www.metro.pe,https://www.wong.pe,"
-    "https://www.cassinelli.com,https://www.coolbox.pe",
+    "https://www.cassinelli.com,https://www.coolbox.pe,https://www.shopstar.pe,https://www.estilos.com.pe,https://www.carsa.pe",
 ).split(",") if t.strip())
 CATALOGO_POR_TIENDA = int(os.getenv("CATALOGO_POR_TIENDA", "4"))
 CATALOGO_MAX_ITEMS = int(os.getenv("CATALOGO_MAX_ITEMS", "15"))
 CATALOGO_TIMEOUT_S = float(os.getenv("CATALOGO_TIMEOUT_S", "12"))
 _UA = {"User-Agent": "Mozilla/5.0 (compatible; VigiaPeru/1.0; +https://vigia-web.vigiaperu.workers.dev)"}
+# A las tiendas, como un navegador común (algunas rechazan los User-Agent que no lo son).
+_UA_TIENDA = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) "
+                            "Chrome/130.0.0.0 Safari/537.36",
+              "Accept": "application/json", "Accept-Language": "es-PE,es;q=0.9"}
 
 _RUIDO = re.compile(r"\b(de|del|la|el|los|las|para|con|y|o|en|x|por|tipo|marca|modelo|similar|equivalente|unidad|und|"
                     r"un|una|incluye|segun|según|especificaciones|tecnicas|técnicas)\b", re.I)
@@ -46,36 +51,75 @@ def termino_busqueda(descripcion: str, max_palabras: int = 5) -> str:
     return " ".join(palabras[:max_palabras])
 
 
+def _numero(x) -> float:
+    try:
+        return float(x or 0)
+    except (TypeError, ValueError):
+        return 0.0
+
+
+def oferta_vtex(p: dict) -> tuple[float, dict, str | None] | None:
+    """(precio, SKU, vendedor) de un producto VTEX: el primer SKU con algún vendedor con stock y, en ese SKU, el menor
+    precio. En Plaza Vea, Shopstar o Carsa el primer vendedor suele ser la tienda misma, con precio 0 y sin stock,
+    mientras un vendedor del marketplace tiene el precio real (leer solo `sellers[0]` perdía esos productos). Sin
+    ofertas por vendedor (Intelligent Search puede omitirlas), el rango de precios del producto."""
+    items = [it for it in (p.get("items") or []) if isinstance(it, dict)]
+    con_vendedores = False
+    for it in items:
+        mejor = None
+        for s in it.get("sellers") or []:
+            con_vendedores = True
+            s = s if isinstance(s, dict) else {}
+            o = s.get("commertialOffer") or {}
+            precio = _numero(o.get("Price"))
+            if precio <= 0 or ("AvailableQuantity" in o and _numero(o.get("AvailableQuantity")) <= 0):
+                continue
+            if mejor is None or precio < mejor[0]:
+                mejor = (precio, it, s.get("sellerName"))
+        if mejor:
+            return mejor
+    if con_vendedores or not items:
+        return None
+    bajo = _numero(((p.get("priceRange") or {}).get("sellingPrice") or {}).get("lowPrice"))
+    return (bajo, items[0], None) if bajo > 0 else None
+
+
+def productos_vtex(datos, base: str) -> list[dict]:
+    """Respuesta VTEX (catálogo: lista; Intelligent Search: {"products": [...]}) → candidatos con precio y stock."""
+    lista = datos.get("products") if isinstance(datos, dict) else datos
+    out = []
+    for p in lista if isinstance(lista, list) else []:
+        if not isinstance(p, dict) or p.get("advertisement"):      # `advertisement`: patrocinado (VTEX Ads)
+            continue
+        oferta = oferta_vtex(p)
+        if not oferta:
+            continue
+        precio, it, vendedor = oferta
+        link = p.get("link") or f"/{p.get('linkText')}/p"
+        out.append({
+            "producto": str(p.get("productName") or "")[:200],
+            "marca": p.get("brand"),
+            "precio": precio,
+            "unidad_medida": it.get("measurementUnit"),
+            "multiplicador": it.get("unitMultiplier"),
+            "vendedor": vendedor,
+            "tienda": base.split("//")[-1].removeprefix("www."),
+            "url": base + link if link.startswith("/") else link,
+        })
+    return out
+
+
 def _de_tienda(base: str, termino: str) -> list[dict]:
     import httpx
+    # quote() deja los espacios como %20: el firewall de VTEX rechaza "+".
     url = f"{base}/api/catalog_system/pub/products/search?ft={quote(termino)}&_from=0&_to={CATALOGO_POR_TIENDA - 1}"
     try:
-        r = httpx.get(url, headers=_UA, timeout=CATALOGO_TIMEOUT_S)
+        r = httpx.get(url, headers=_UA_TIENDA, timeout=CATALOGO_TIMEOUT_S)
         if r.status_code >= 400:
             return []
-        datos = r.json()
-    except Exception:
+        return productos_vtex(r.json(), base)
+    except Exception:  # noqa: BLE001  (una tienda caída no deja sin candidatos a las demás)
         return []
-    out = []
-    for p in datos if isinstance(datos, list) else []:
-        try:
-            it = p["items"][0]
-            oferta = it["sellers"][0]["commertialOffer"]
-            precio = float(oferta.get("Price") or 0)
-            if precio <= 0 or not oferta.get("AvailableQuantity", 1):
-                continue
-            out.append({
-                "producto": str(p.get("productName") or "")[:200],
-                "marca": p.get("brand"),
-                "precio": precio,
-                "unidad_medida": it.get("measurementUnit"),
-                "multiplicador": it.get("unitMultiplier"),
-                "tienda": base.split("//")[-1].removeprefix("www."),
-                "url": p.get("link") or f"{base}/{p.get('linkText')}/p",
-            })
-        except (KeyError, IndexError, TypeError, ValueError):
-            continue
-    return out
 
 
 def _worker(ruta: str, params: dict) -> dict | None:
@@ -99,7 +143,8 @@ def candidatos(termino: str) -> list[dict]:
     if d is not None:
         return [{"producto": p["producto"], "marca": p.get("marca"), "precio": float(p["precio"]),
                  "unidad_medida": p.get("unidad_medida"), "multiplicador": p.get("multiplicador"),
-                 "tienda": p["tienda"], "url": p["url"]} for p in d.get("productos") or [] if p.get("precio")]
+                 "vendedor": p.get("vendedor"), "tienda": p["tienda"], "url": p["url"]}
+                for p in d.get("productos") or [] if p.get("precio") and not p.get("patrocinado")]
     with concurrent.futures.ThreadPoolExecutor(max_workers=len(TIENDAS) or 1) as ex:
         listas = list(ex.map(lambda b: _de_tienda(b, termino), TIENDAS))
     return [c for lista in listas for c in lista]
@@ -134,7 +179,8 @@ def _juzgar(items: list[dict], cands: dict[str, list[dict]]) -> dict[str, list[t
                                        "precio": c["precio"]} for i, c in enumerate(lista)]})
     if not entrada:
         return {}
-    cfg = types.GenerateContentConfig(temperature=0, max_output_tokens=4000, response_mime_type="application/json",
+    # 15 tiendas × CATALOGO_POR_TIENDA candidatos por ítem: con 4000 la respuesta podía cortarse (JSON roto = ningún precio).
+    cfg = types.GenerateContentConfig(temperature=0, max_output_tokens=8000, response_mime_type="application/json",
                                       labels={"etapa": "mercado_catalogo"})
     resp = _gemini_client().models.generate_content(
         model=os.getenv("CATALOGO_MODELO_JUEZ", os.getenv("MARKET_JUDGE_MODEL", "gemini-3.5-flash-lite")),
