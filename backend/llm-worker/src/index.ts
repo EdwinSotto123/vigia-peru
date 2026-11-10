@@ -45,6 +45,8 @@ interface Env extends EnvNativo {
   RESPALDO_APAGADO?: string;
   /** "1": `/nativo/v1/messages` lo responde Workers AI, traducido (src/nativoWorkers.ts). */
   NATIVO_EN_WORKERS_AI?: string;
+  /** JSON id → [ids]: a quién pasar el pedido si el modelo está en su tope por minuto (correrConHermanos). */
+  MODELOS_HERMANOS?: string;
 }
 
 /** `/nativo/v1/messages` (y count_tokens) con Workers AI, en el mismo formato. */
@@ -58,15 +60,13 @@ async function nativoEnWorkersAI(req: Request, env: Env, url: URL): Promise<Resp
   if (ruta.endsWith("/count_tokens")) return json({ input_tokens: await contarTokens(env, cuerpo) });
   if (cuerpo.stream) return json({ type: "error", error: { type: "invalid_request_error", message: "sin streaming en Workers AI" } }, 400);
   const { modelo, entrada, salidaJson } = await pedidoWorkers(env, cuerpo);
-  const quien = { "x-vigia-modelo": `workers-ai:${modelo}` };
-  try {
-    const salida = await env.AI.run(modelo, entrada);
-    if (vacia(salida)) return json({ type: "error", error: { type: "api_error", message: "respuesta vacía de Workers AI" } }, 502, quien);
-    return json(respuestaNativa(salida, String(cuerpo.model ?? modelo), salidaJson), 200, quien);
-  } catch (e) {
-    const m = (e as Error).message ?? "error de Workers AI";
-    return json({ type: "error", error: { type: "api_error", message: m.slice(0, 300) } }, /3046|timeout/i.test(m) ? 504 : 502, quien);
+  const r = await correrConHermanos(env, modelo, entrada);
+  const quien = { "x-vigia-modelo": `workers-ai:${r.quien}` };
+  if (r.falla) {
+    return json({ type: "error", error: { type: SATURADO.test(r.falla) ? "rate_limit_error" : "api_error", message: r.falla.slice(0, 300) } },
+      SATURADO.test(r.falla) ? 429 : /3046|timeout/i.test(r.falla) ? 504 : 502, quien);
   }
+  return json(respuestaNativa(r.salida, String(cuerpo.model ?? modelo), salidaJson), 200, quien);
 }
 
 /**
@@ -93,6 +93,47 @@ async function nativo(req: Request, env: Env, url: URL): Promise<Response> {
   const out = new Headers(r.headers);
   out.set("x-vigia-modelo", "respaldo-nativo");
   return new Response(r.body, { status: r.status, headers: out });
+}
+
+/**
+ * Los modelos «hermanos» de cada uno (MODELOS_HERMANOS, JSON id → [ids]): si el pedido choca con el tope por minuto
+ * del modelo (3021) o su capacidad (3040), se prueba el siguiente hermano antes de fallar. Medido 2026-11-10: los
+ * agentes y los lectores en paralelo pasaban el tope de GLM 5.3 flash y el 10 % de los pedidos fallaba. Con imágenes,
+ * sólo los hermanos que las leen.
+ */
+const VISION_HERMANOS = /glm-5\.3-flash|deepseek-v4\.1-flash|kimi-k2\.6|qwen3\.8|llama-4-scout|mistral-small-3\.1/;
+const SATURADO = /3021|3040|rate limit|capacity|too many requests/i;
+
+function hermanos(env: Env, modelo: string, conImagenes: boolean): string[] {
+  let mapa: Record<string, string[]> = {};
+  try {
+    mapa = JSON.parse(env.MODELOS_HERMANOS ?? "{}");
+  } catch {
+    /* sin hermanos */
+  }
+  return (mapa[modelo] ?? []).filter((m) => m !== modelo && (!conImagenes || VISION_HERMANOS.test(m)));
+}
+
+const tieneImagenes = (entrada: Record<string, any>) =>
+  JSON.stringify(entrada.messages ?? []).includes('"image_url"');
+
+/** Corre el pedido en el modelo y, si está saturado, en sus hermanos. Devuelve quién contestó o el último error. */
+export async function correrConHermanos(env: Env, modelo: string, entrada: Record<string, any>): Promise<{ salida?: unknown; quien: string; falla?: string }> {
+  const lista = [modelo, ...hermanos(env, modelo, tieneImagenes(entrada))];
+  let falla = "";
+  for (const m of lista) {
+    try {
+      const salida = await env.AI.run(m, entrada);
+      if (!vacia(salida) || (entrada.stream && salida instanceof ReadableStream)) return { salida, quien: m };
+      falla = "respuesta vacía de Workers AI";
+      return { quien: m, falla };
+    } catch (e) {
+      falla = (e as Error).message ?? "error de Workers AI";
+      if (!SATURADO.test(falla)) return { quien: m, falla };
+      console.warn(`vigia-llm: ${m} saturado (${falla.slice(0, 80)}); pruebo el siguiente hermano`);
+    }
+  }
+  return { quien: lista[lista.length - 1], falla };
 }
 
 const json = (cuerpo: unknown, status = 200, extra: Record<string, string> = {}) =>
@@ -172,23 +213,21 @@ export default {
     // GLM razona de más: sin límite gasta todo el presupuesto pensando y Workers AI corta la petición (error 3046).
     if (entrada.reasoning_effort === undefined && env.REASONING_EFFORT_DEFECTO) entrada.reasoning_effort = env.REASONING_EFFORT_DEFECTO;
     if (entrada.max_tokens === undefined && entrada.max_completion_tokens === undefined) entrada.max_tokens = Number(env.MAX_TOKENS_DEFECTO ?? 16000);
-    const quien = { "x-vigia-modelo": `workers-ai:${modelo}` };
-    let falla: string;
-    try {
-      const salida = await env.AI.run(modelo, entrada);
-      if (cuerpo.stream && salida instanceof ReadableStream) {
-        return new Response(salida, { headers: { "content-type": "text/event-stream", "cache-control": "no-store", ...quien } });
+    const r = await correrConHermanos(env, modelo, entrada);
+    const quien = { "x-vigia-modelo": `workers-ai:${r.quien}` };
+    if (!r.falla) {
+      if (cuerpo.stream && r.salida instanceof ReadableStream) {
+        return new Response(r.salida, { headers: { "content-type": "text/event-stream", "cache-control": "no-store", ...quien } });
       }
-      if (!vacia(salida)) return json(salida, 200, quien);
-      falla = "respuesta vacía de Workers AI";
-    } catch (e) {
-      falla = (e as Error).message ?? "error de Workers AI";
+      return json(r.salida, 200, quien);
     }
+    const falla = r.falla;
     // `x-vigia-respaldo: nunca`: el que llama prefiere el error (los lectores en lote de Workers AI: el respaldo cobra aparte).
     if (hayRespaldo(env) && req.headers.get("x-vigia-respaldo") !== "nunca") {
       console.warn(`vigia-llm: ${modelo} falló (${falla.slice(0, 160)}); va al respaldo`);
       return respaldo(env, cuerpo);
     }
-    return json({ error: { message: falla } }, /3046|timeout/i.test(falla) ? 504 : 502);
+    // Saturado (todos los hermanos en su tope): 429, para que el cliente espere y reintente.
+    return json({ error: { message: falla } }, SATURADO.test(falla) ? 429 : /3046|timeout/i.test(falla) ? 504 : 502, quien);
   },
 };
