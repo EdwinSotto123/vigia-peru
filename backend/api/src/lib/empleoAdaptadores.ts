@@ -60,12 +60,30 @@ export const adaptadorDe = (detalleUrl: string | null | undefined): Adaptador | 
 };
 
 /**
- * El adaptador de una plaza: primero las entidades que SERVIR enlaza a una página de gob.pe pero publican sus procesos
- * en su propio aplicativo (MIDIS, Provías Nacional), por el nombre de la entidad; si no, el del dominio de su enlace.
+ * Entidades que SERVIR deja sin enlace (o enlaza a gob.pe) pero publican en su propio aplicativo: MTPE, SERNANP y
+ * PRONIED. Se reconocen por el nombre normalizado de la entidad; el dominio sólo sirve para encontrar el adaptador.
+ */
+const ADAPTADOR_POR_ENTIDAD: [RegExp, string][] = [
+  // Sólo el ministerio: la «Gerencia Regional de Trabajo y Promoción del Empleo» de Arequipa tiene su propia web.
+  [/^minist(erio|\.)? de trabajo y promocion del empleo/, "convocatoriasmtpe.trabajo.gob.pe"],
+  [/sernanp|servicio nacional de areas naturales protegidas/, "www.sernanp.gob.pe"],
+  [/pronied|programa nacional de infraestructura educativa/, "convocatorias.pronied.gob.pe"],
+  [/^programa nacional cuna mas/, "extranet.cunamas.gob.pe"],
+];
+
+/**
+ * El adaptador de una plaza: primero las entidades que publican en su propio aplicativo aunque SERVIR las enlace a
+ * gob.pe o no traiga enlace (MIDIS, Provías Nacional, MTPE, SERNANP y PRONIED), por el nombre de la entidad; si no, el
+ * del dominio de su enlace.
  */
 export function adaptadorDePlaza(p: Pick<PlazaParaBases, "entidad" | "detalle_url">): Adaptador | null {
   if (esMidis(p)) return midis;
   if (esProvias(p)) return provias;
+  registrarOla2();
+  const entidad = normalizar(p.entidad ?? "");
+  for (const [re, dominio] of ADAPTADOR_POR_ENTIDAD) {
+    if (re.test(entidad)) return ADAPTADORES[dominio] ?? adaptadorDe(p.detalle_url);
+  }
   return adaptadorDe(p.detalle_url);
 }
 

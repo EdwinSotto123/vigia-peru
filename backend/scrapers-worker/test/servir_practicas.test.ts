@@ -142,6 +142,8 @@ const URL_DETALLE = "https://app.servir.gob.pe/DifusionOfertasExterno/faces/cons
 const tituloDe = (n: number, k: number) => `PRACTICA P${n} F${k}`;
 const numeroDe = (n: number, k: number) => `0${n}${k} - 2026`;
 const unidadDe = (n: number, k: number) => `UNIDAD P${n} F${k}`;
+/** Las vacantes que dice el listado de prueba: la página 1 trae 1 y 2; la 2, una. */
+const vacantesDe = (n: number, k: number) => (n === 1 ? [1, 2][k] : 1);
 const claveDe = (n: number, k: number) => `INDECOPI|0${n}${k} 2026|2026|${tituloDe(n, k)}|${unidadDe(n, k)}`;
 
 /** La página va en la sesión (JSESSIONID); cada GET crea una vista nueva; una vista que no existe no da error. */
@@ -185,7 +187,8 @@ class PracticasSimuladas {
   private detalle(n: number, k: number): string {
     return DETALLE.replaceAll("PRACTICANTE PROFESIONAL", tituloDe(n, k))
       .replace("092 - 2026", numeroDe(n, k))
-      .replace("OFICINA DE TECNOLOGIAS DE LA INFORMACIÓN", unidadDe(n, k));
+      .replace("OFICINA DE TECNOLOGIAS DE LA INFORMACIÓN", unidadDe(n, k))
+      .replace(/(Número de Vacante:<\/div>\s*<div class="col-sm-7 detalle-sp">)\d+/, `$1${vacantesDe(n, k)}`);
   }
 
   responder(p: PedidoLima): RespuestaServir {

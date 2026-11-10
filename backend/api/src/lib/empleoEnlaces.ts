@@ -42,6 +42,10 @@ const ENLACES: Record<string, Enlace> = {
   "UNIVERSIDAD NACIONAL AGRARIA LA MOLINA": { url: "http://agraria.lamolina.edu.pe/oficinas/administrativas/personal/personalunalm/index.php" },
   "UNIDAD EJECUTORA 405 RED DE SALUD ANGARAES": { url: "https://www.gob.pe/rsa" },
   "UNIDAD EJECUTORA 303 EDUCACION PISCO": { url: "https://www.gob.pe/ugelpisco" },
+  // Aplicativos propios con adaptador (lib/adaptadores/nacionales.ts), 2026-11-10.
+  "MINIST. DE TRABAJO Y PROMOCION DEL EMPLEO": { url: "https://convocatoriasmtpe.trabajo.gob.pe/convocatorias/" },
+  "SERVICIO NACIONAL DE AREAS NATURALES PROTEGIDAS POR EL ESTADO - SERNANP": { url: "https://www.sernanp.gob.pe/convocatorias" },
+  "UNIDAD EJECUTORA 108 PROGRAMA NACIONAL DE INFRAESTRUCTURA EDUCATIVA": { url: "https://convocatorias.pronied.gob.pe:9595/caspostulacion" },
   // Con adaptador propio (lib/adaptadores/): el de Huancayo y la carpeta de Drive que la DISA pone en sus otros avisos.
   "HOSPITAL DANIEL ALCIDES CARRION": { url: "https://hdachyo.gob.pe/index.php/gestion/convocatoria-personal", ubicacion: /JUNIN/ },
   "DIRECCION SUB REGIONAL DE SALUD CUTERVO": { url: "https://drive.google.com/drive/folders/1F4KwRUessgyP_eCvGtmGHv1plEOCeWm4" },

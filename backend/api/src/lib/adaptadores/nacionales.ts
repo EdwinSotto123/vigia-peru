@@ -537,7 +537,246 @@ const minam: Adaptador = async (p, http) => {
   return mejor ? hallazgo(mejor.url, mejor.docs) : null;
 };
 
+// ─── MTPE: API JSON pública (la lista por año y el PDF en base64) ─────────────────────────────────
+
+/** El número y el año del proceso: el de SERVIR o el que viene en el texto («CAS N° 06-2026-SERNANP»). */
+function numeroYAnioDe(p: { numero: string | null; fecha_inicio: string | null }): { n: number; anio: number } | null {
+  const enTexto = numeroYAnio(p.numero ?? "");
+  const n = numeroProceso(p.numero) ?? enTexto?.n ?? null;
+  if (n == null) return null;
+  const anio = enTexto?.anio ?? (Number.parseInt((p.fecha_inicio ?? "").slice(0, 4), 10) || new Date().getFullYear());
+  return { n, anio };
+}
+
+interface ComunicadoMtpe {
+  desCatProceso?: string;
+  desCatTipo?: string;
+  urlArchivo?: string | null;
+  fecRegistro?: string;
+}
+
+interface FilaMtpe {
+  numConvoc?: number;
+  numAnio?: number;
+  desCargo?: string;
+  desUniOrg?: string;
+  fecPubli?: string;
+  urlBases?: string | null;
+  desCatEst?: string;
+  listaComunicado?: ComunicadoMtpe[];
+}
+
+/**
+ * La URL pública de un archivo de MTPE: el JSON de la API todavía apunta al host de pruebas
+ * (apptest.trabajo.gob.pe:8080) y su visor Angular es la dirección estable. `bajarPdf` reconoce esta ruta y pide el PDF
+ * en base64 a /convocatoriasback/api/fileconvocatorias/buscar.
+ */
+function urlMtpe(u: string | null | undefined): string | null {
+  if (!u) return null;
+  const m = /fileconvocatorias\/([^/]+)\/([^/?#]+\.pdf)/i.exec(u);
+  if (m) return `https://convocatoriasmtpe.trabajo.gob.pe/convocatorias/#/principal/fileconvocatorias/${m[1]}/${m[2]}`;
+  return /\.pdf(?:$|[?#])/i.test(u) ? u : null;
+}
+
+/**
+ * MTPE (convocatoriasmtpe.trabajo.gob.pe): POST /convocatoriasback/api/convocatoria/lista con el año devuelve los
+ * procesos (numConvoc, cargo, unidad, fechas, estado y urlBases). El número de SERVIR es el numConvoc; si no, se empata
+ * por cargo y fecha. La urlBases del JSON apunta a apptest; se reescribe al visor público. Los comunicados que no son
+ * resultados se suman como enlaces. Un pedido.
+ */
+const mtpe: Adaptador = async (p, http) => {
+  const na = numeroYAnioDe(p);
+  if (!na) return null;
+  const { n, anio } = na;
+  const base = "https://convocatoriasmtpe.trabajo.gob.pe";
+  const j = await http.json<{ dato?: FilaMtpe[] }>(`${base}/convocatoriasback/api/convocatoria/lista`, {
+    cuerpo: JSON.stringify({ dato: { id: null, codConvoc: null, numConvoc: null, numAnio: anio, numMes: null, codCatest: null, descargo: null, numPag: 1, totFilasxPag: 100 } }),
+    cabeceras: { "content-type": "application/json", accept: "application/json, text/plain, */*" },
+  });
+  const filas = (j?.dato ?? []).filter((f) => Number(f.numAnio) === anio);
+  const depto = normalizar((p.ubicacion ?? "").split(" - ")[0] ?? "");
+  let mejor: { f: FilaMtpe; puntaje: number } | null = null;
+  for (const f of filas) {
+    const exacto = Number(f.numConvoc) === n;
+    const parecido = parecidoPuesto(p.titulo, f.desCargo ?? "");
+    if (!exacto && parecido < 0.5) continue;
+    let puntaje = 3 * parecido + (exacto ? 3 : 0) + (/vigente/i.test(f.desCatEst ?? "") ? 0.5 : 0);
+    if (depto.length >= 3 && normalizar(f.desUniOrg ?? "").includes(depto)) puntaje += 0.5;
+    const fecha = isoDe(f.fecPubli);
+    if (fecha && p.fecha_inicio) {
+      const d = Math.abs(dias(fecha, p.fecha_inicio));
+      puntaje += d <= 3 ? 1 : -Math.min(2, d / 30);
+    }
+    if (!mejor || puntaje > mejor.puntaje) mejor = { f, puntaje };
+  }
+  if (!mejor) return null;
+  const f = mejor.f;
+  const docs: Enlace[] = [];
+  const bases = urlMtpe(f.urlBases);
+  if (bases) docs.push({ url: bases, texto: "Bases de la convocatoria" });
+  let comunicados = 0;
+  for (const c of f.listaComunicado ?? []) {
+    if (comunicados >= 3) break;
+    const texto = `${c.desCatProceso ?? ""} ${c.desCatTipo ?? ""}`;
+    if (ES_RESULTADO.test(texto) || CON_NOMBRES.test(texto)) continue;
+    const url = urlMtpe(c.urlArchivo);
+    if (!url) continue;
+    docs.push({ url, texto: `Comunicado: ${oracion(c.desCatTipo || c.desCatProceso || "Comunicado")}` });
+    comunicados++;
+  }
+  return hallazgo(`${base}/convocatorias/`, docs);
+};
+
+// ─── SERNANP: wp-ws.php (listas y documentos por POST JSON) ───────────────────────────────────────
+
+type JsonSernanp = { rpta?: number; result?: string };
+const SERNANP_RESULTADO = /^(?:ev\.?\s*(?:curricular|conoc)|resultado|apto|ganador|puntaje|entrevista|cuadro|declaraci[oó]n)/i;
+
+/**
+ * SERNANP (www.sernanp.gob.pe/convocatorias/): la lista sale de un POST a wp-ws.php con tp=1&an=0 (vigentes) o
+ * tp=2&an=<año> (concluidas). Cada proceso se abre con fn_getlist(t,a,ls,0), que devuelve sus sedes; la sede se elige
+ * por el departamento de SERVIR y fn_getdetail(t,a,ls,dt) devuelve sus documentos (BASES, EV. CURRICULAR, RESULTADO…).
+ * Se queda con el grupo del puesto que calza con el título y descarta las evaluaciones y los resultados. Tres pedidos.
+ */
+const sernanp: Adaptador = async (p, http) => {
+  const na = numeroYAnioDe(p);
+  if (!na) return null;
+  const { n, anio } = na;
+  const base = "https://www.sernanp.gob.pe";
+  const pedir = async (tp: number, an: number, ls: number, dt: number): Promise<string | null> => {
+    const url = `${base}/wp-ws.php?tp=${tp}&an=${an}&ls=${ls}&dt=${dt}&cn=0&ur=${encodeURIComponent(base)}`;
+    const r = await http.pedir(url, { metodo: "POST", cuerpo: "", cabeceras: { "content-type": "application/json", accept: "application/json" } });
+    if (!r?.texto) return null;
+    try {
+      const x = JSON.parse(r.texto) as JsonSernanp | string;
+      const obj = typeof x === "string" ? (JSON.parse(x) as JsonSernanp) : x;
+      return typeof obj?.result === "string" ? obj.result : null;
+    } catch {
+      return null;
+    }
+  };
+  let proceso: { t: number; an: number; ls: number } | null = null;
+  for (const [tp, an] of [[1, 0], [2, anio]] as const) {
+    const html = await pedir(tp, an, 0, 0);
+    if (!html) continue;
+    for (const m of html.matchAll(/fn_getlist\((\d+),(\d+),(\d+),(\d+)\)[^>]*>([\s\S]*?)<\/a>/gi)) {
+      const texto = textoPlano(m[5]);
+      if (!/^\s*CAS\s*N/i.test(texto)) continue;
+      const delTexto = numeroYAnio(texto);
+      if (delTexto?.n === n && delTexto.anio === anio) {
+        proceso = { t: Number(m[1]), an: Number(m[2]), ls: Number(m[3]) };
+        break;
+      }
+    }
+    if (proceso) break;
+  }
+  if (!proceso) return null;
+  const sedesHtml = await pedir(proceso.t, proceso.an, proceso.ls, 0);
+  if (!sedesHtml) return null;
+  const sedes: { t: number; an: number; ls: number; dt: number; texto: string }[] = [];
+  for (const m of sedesHtml.matchAll(/fn_getdetail\((\d+),(\d+),(\d+),(\d+)\)[^>]*>([\s\S]*?)<\/a>/gi)) {
+    sedes.push({ t: Number(m[1]), an: Number(m[2]), ls: Number(m[3]), dt: Number(m[4]), texto: textoPlano(m[5]) });
+  }
+  const depto = normalizar((p.ubicacion ?? "").split(" - ")[0] ?? "");
+  const sede = sedes.find((s) => depto.length >= 3 && normalizar(s.texto).includes(depto)) ?? sedes[0];
+  const detalle = sede ? await pedir(sede.t, sede.an, sede.ls, sede.dt) : sedesHtml;
+  if (!detalle) return null;
+  const docs: { url: string; texto: string; grupo: string }[] = [];
+  for (const bloque of detalle.split(/class="contenedor-documentos"/i).slice(1)) {
+    const nombre = textoPlano(/class="nombre"[^>]*>([\s\S]*?)<\/p>/i.exec(bloque)?.[1] ?? "");
+    const href = /href="([^"]*\/download\/[^"]+)"/i.exec(bloque)?.[1];
+    if (!nombre || !href) continue;
+    const etiqueta = nombre.split("_")[0] ?? nombre;
+    if (ES_RESULTADO.test(nombre) || SERNANP_RESULTADO.test(etiqueta) || CON_NOMBRES.test(nombre)) continue;
+    let url: string;
+    try {
+      url = new URL(href.replace(/&amp;/g, "&"), base).toString();
+    } catch {
+      continue;
+    }
+    docs.push({ url, texto: oracion(etiqueta), grupo: nombre.includes("_") ? nombre.slice(nombre.indexOf("_") + 1).trim() : nombre });
+  }
+  if (!docs.length) return null;
+  const grupos = [...new Set(docs.map((d) => d.grupo))];
+  const elegido = grupos.map((g) => ({ g, s: parecidoPuesto(p.titulo, g) })).sort((a, b) => b.s - a.s)[0];
+  const utiles = elegido && elegido.s > 0 ? docs.filter((d) => d.grupo === elegido.g) : docs;
+  const finales = (utiles.length ? utiles : docs).map(({ url, texto }) => ({ url, texto }));
+  return hallazgo(`${base}/convocatorias/`, finales);
+};
+
+// ─── PRONIED: la tabla de su aplicativo CAS (bases por Descargar_base) ─────────────────────────────
+
+/**
+ * PRONIED (convocatorias.pronied.gob.pe:9595/casPostulacion): la tabla de vigentes trae «0036-2026 | puesto | fecha de
+ * publicación | inicio | fin | BASES (Postulacion/Descargar_base?idReq=…) | …». La de «En Proceso» trae el mismo
+ * correlativo y el puesto, sin fechas, más los enlaces de resultados (que no se tocan). El correlativo suele ser el
+ * número de SERVIR; si no, se empata por puesto y fecha. Dos pedidos como mucho.
+ */
+const pronied: Adaptador = async (p, http) => {
+  const na = numeroYAnioDe(p);
+  if (!na) return null;
+  const { n, anio } = na;
+  const base = "https://convocatorias.pronied.gob.pe:9595";
+  let mejor: { docs: Enlace[]; pagina: string; puntaje: number } | null = null;
+  for (const ruta of ["/casPostulacion/", "/casPostulacion/Home/En_Proceso"]) {
+    const url = `${base}${ruta}`;
+    const r = await http.get(url);
+    if (!r?.texto) continue;
+    for (const fila of r.texto.split(/<tr\b/i).slice(1)) {
+      const cs = celdas(fila);
+      if (cs.length < 3) continue;
+      const numero = numeroYAnio(textoPlano(cs[0] ?? ""));
+      const titulo = textoPlano(cs[1] ?? "");
+      const bases = enlaces(fila, r.final).find((e) => /\/Descargar_base\?idReq=\d+/i.test(e.url));
+      if (!bases) continue;
+      const exacto = numero?.n === n && numero.anio === anio;
+      const parecido = parecidoPuesto(p.titulo, titulo);
+      if (!exacto && parecido < 0.5) continue;
+      const fecha = isoDe(cs.map((c) => textoPlano(c)).find((t) => /\d{2}\/\d{2}\/\d{4}/.test(t)));
+      let puntaje = 3 * parecido + (exacto ? 3 : 0);
+      if (fecha && p.fecha_inicio) {
+        const d = Math.abs(dias(fecha, p.fecha_inicio));
+        puntaje += d <= 3 ? 1 : -Math.min(2, d / 30);
+      }
+      if (!mejor || puntaje > mejor.puntaje) mejor = { docs: [{ url: bases.url, texto: "Bases de la convocatoria" }], pagina: url, puntaje };
+    }
+  }
+  return mejor ? hallazgo(mejor.pagina, mejor.docs) : null;
+};
+
 // ─── El registro ─────────────────────────────────────────────────────────────────────────────────────────────────
+
+// ─── Cuna Más (MIDIS) ─────────────────────────────────────────────────────────────────────────────────────────────
+
+/** Lo que nunca se baja de Cuna Más: resultados y listas con nombres. */
+const RESULTADO_CUNA = /resultado|apto|puntaje|ganador|merito|m%C3%A9rito|entrevista|evaluaci/i;
+
+/**
+ * Cuna Más publica en su portal CAS (Odoo), que sólo muestra los 10 últimos procesos; cada número se busca con
+ * `POST /jobs/page` (page, cas, position_id=-1, state), que devuelve ese número en todos los años, un panel por proceso.
+ * Del panel de la plaza (mismo número y año): las bases (`attach_base`) y los comunicados (`hr.job.notices`), nunca
+ * resultados. Sólo responde desde el Perú (relay). Medido el 2026-11-10: «PROCESO CAS N° 502-2026-MIDIS-PNCM».
+ */
+const cunaMas: Adaptador = async (p, http) => {
+  const base = "http://extranet.cunamas.gob.pe";
+  const n = numeroProceso(p.numero);
+  if (!n) return null;
+  const anio = Number.parseInt((p.fecha_inicio ?? "").slice(0, 4), 10) || new Date().getFullYear();
+  const r = await http.post(`${base}/jobs/page`, { page: "1", cas: String(n), position_id: "-1", state: "" });
+  if (!r || r.status >= 400 || !r.texto) return null;
+  for (const panel of r.texto.split(/<div class="panel panel-primary">/).slice(1)) {
+    const cabeza = /<div class="panel-heading[\s\S]*?<\/div>/.exec(panel)?.[0] ?? "";
+    const m = /N\s*[°º]?\s*0*(\d{1,4})\s*-\s*(20\d{2})/i.exec(textoPlano(cabeza));
+    if (!m || Number(m[1]) !== n || Number(m[2]) !== anio) continue;
+    const docs = enlaces(panel, base)
+      .filter((e) => /\/web\/content\/hr\.job(\.notices)?\/\d+\//.test(e.url) && !RESULTADO_CUNA.test(`${e.url} ${e.texto}`))
+      .map((e) => (/\/attach_base\//.test(e.url) ? { ...e, texto: "Bases del proceso" } : e));
+    if (!docs.length) continue;
+    const apply = /href="(\/jobs\/apply\/[^"]+)"/.exec(panel)?.[1];
+    return hallazgo(apply ? `${base}${apply}` : `${base}/jobs`, docs);
+  }
+  return null;
+};
 
 export const ADAPTADORES_NACIONALES: Record<string, Adaptador> = {
   "www.inpe.gob.pe": inpe,
@@ -554,5 +793,10 @@ export const ADAPTADORES_NACIONALES: Record<string, Adaptador> = {
   "pad2.minem.gob.pe": minem,
   "www.senamhi.gob.pe": senamhi,
   "www.minam.gob.pe": minam,
+  "convocatoriasmtpe.trabajo.gob.pe": mtpe,
+  "www.sernanp.gob.pe": sernanp,
+  "sernanp.gob.pe": sernanp,
+  "convocatorias.pronied.gob.pe": pronied,
+  "extranet.cunamas.gob.pe": cunaMas,
 };
 

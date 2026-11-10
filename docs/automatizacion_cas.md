@@ -378,7 +378,7 @@ páginas escaneadas como imágenes (también JPEG guardados con Flate). Haiku s�
 - **Ola 2, educación:** UNAS; DRE Áncash; UGEL 02; UGEL Tacna (Drive); UGEL 04 (por IP); UNHEVAL; y el Colegio Militar
   Bolognesi (Blogger: la convocatoria es una imagen).
 - **Ola 2, nacionales:** INPE; Indecopi; SMV; PGE (el PDF viene dentro del visor); ATU; COFOPRI; SUTRAN; Osinergmin;
-  MINEM (Laserfiche); SENAMHI; MINAM.
+  MINEM (Laserfiche); SENAMHI; MINAM; MTPE (API JSON, PDF en base64); SERNANP (wp-ws.php); PRONIED (Descargar_base).
 - **Ola 2, especiales:**
   - carpetas y archivos de Google Drive (`embeddedfolderview`) y los enlaces `share.google`;
   - la OECE (descarga por POST: `…#post`);
@@ -396,15 +396,16 @@ nosotros» lleva a su portal.
 
 1. **Ministerio Público** (`portal.mpfn.gob.pe`, unas 180 plazas): tiene un captcha de Radware. No se salta.
 2. **DRELM:** un desafío de Cloudflare, también desde el Perú.
-3. **MTPE:** API JSON pública; el PDF llega en base64.
-4. **PRODUCE:** el PDF sólo sale de un postback ASP.NET con la fila elegida.
-5. **SERNANP y PRONIED:** listas por POST.
-6. **Cuna Más:** los procesos viejos salen por un POST paginado.
-7. **Sin nada en línea:** unas 27 entidades que sólo usan Facebook o tienen la web caída. Ejemplos: UE 412 Salud Virú,
+3. **PRODUCE:** el PDF sólo sale de un postback ASP.NET con la fila elegida.
+4. **Cuna Más:** los procesos viejos salen por un POST paginado; su WAF bloquea esta red y hace falta el relay de Lima.
+5. **Sin nada en línea:** unas 27 entidades que sólo usan Facebook o tienen la web caída. Ejemplos: UE 412 Salud Virú,
    la RIS Santiago de Chuco y la GSR Castrovirreyna.
-8. **Sitios que el lector no confirma:** Demarini (la suplencia de SERVIR no calza con la web) y la carpeta de Drive de
+6. **Sitios que el lector no confirma:** Demarini (la suplencia de SERVIR no calza con la web) y la carpeta de Drive de
    Cutervo (la plaza es un centro de salud que no sale en las primeras 24 páginas).
-9. **Red de Salud Chepén y UGEL Casma:** no publican estos procesos en su web.
+7. **Red de Salud Chepén y UGEL Casma:** no publican estos procesos en su web.
+
+MTPE, SERNANP y PRONIED ya tienen adaptador y pruebas con fixtures; los tres se probaron contra sus sitios el 09/11/2026
+(bases de 518, 552 y 476 KB). Falta una pasada de producción para medirlos como las demás plazas de la ola 2.
 
 **Plazas de prueba de la ola 2** (desde Cloudflare, el 2026-11-09):
 
@@ -418,6 +419,9 @@ nosotros» lleva a su portal.
 | 825315 | MINEM | bases, cómo postular y 11 etapas |
 | 824601 | UNHEVAL | escaneo de 18 páginas leído como imágenes, con 11 etapas |
 | 824378 | COFOPRI | bases y cronograma |
+
+MTPE, SERNANP y PRONIED no están en la tabla: se probaron desde el Perú el 09/11/2026 (bases de 518, 552 y 476 KB),
+pero todavía no pasaron por Cloudflare.
 
 ---
 

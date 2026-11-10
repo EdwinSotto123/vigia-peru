@@ -9,11 +9,12 @@ const UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML,
 
 /**
  * Lo que sólo se lee por el relay de Lima (medido desde Cloudflare el 2026-11-09): el Poder Judicial, MINJUS, el INS, el
- * INABIF, el INPE, el aplicativo del MIDIS, la PGE y el MINEM no responden a Cloudflare (403 o se cuelgan), y Piura, SUNAFIL, la OECE, COFOPRI y el HR de Ayacucho tienen el TLS roto
+ * INABIF, el INPE, el aplicativo del MIDIS, la PGE, el MINEM y Cuna Más no responden a Cloudflare (403 o se cuelgan),
+ * PRONIED está en el puerto 9595 (un Worker sólo sale por los puertos estándar), y Piura, SUNAFIL, la OECE, COFOPRI y el HR de Ayacucho tienen el TLS roto
  * (cadena incompleta, cifrado viejo, certificado vencido), que el relay tolera para ellos (TLS_TOLERANTE en
  * backend/relay-lima/relay.py). También para bajar sus PDF.
  */
-const SOLO_PERU = /(^|\.)(pj\.gob\.pe|drelm\.gob\.pe|convocatoria\.minjus\.gob\.pe|ins\.gob\.pe|inabif\.gob\.pe|aplicativosweb2\.sunafil\.gob\.pe|regionpiura\.gob\.pe|caspublico\.oece\.gob\.pe|hrayacucho\.gob\.pe|convocatorias\.cofopri\.gob\.pe|inpe\.gob\.pe|app\.midis\.gob\.pe|convocas\.pge\.gob\.pe|pad2\.minem\.gob\.pe)$/i;
+const SOLO_PERU = /(^|\.)(pj\.gob\.pe|drelm\.gob\.pe|convocatoria\.minjus\.gob\.pe|ins\.gob\.pe|inabif\.gob\.pe|aplicativosweb2\.sunafil\.gob\.pe|regionpiura\.gob\.pe|caspublico\.oece\.gob\.pe|hrayacucho\.gob\.pe|convocatorias\.cofopri\.gob\.pe|inpe\.gob\.pe|app\.midis\.gob\.pe|convocas\.pge\.gob\.pe|pad2\.minem\.gob\.pe|convocatorias\.pronied\.gob\.pe|extranet\.cunamas\.gob\.pe)$/i;
 export function soloPeru(url: string): boolean {
   try {
     return SOLO_PERU.test(new URL(url).hostname);

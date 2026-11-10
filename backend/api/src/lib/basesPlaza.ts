@@ -115,11 +115,11 @@ export function esDocumento(url: string): boolean {
 
 /**
  * Descargas sin «.pdf» en la URL de los aplicativos que leen los adaptadores (lib/empleoAdaptadores*.ts): el visor de
- * MINJUS, las bases y el TDR de MINEDU, JUNTOS y MIDIS, MINSA, la API de Amazonas, la OECE (por POST), Provías (ASP), el
+ * MINJUS, las bases y el TDR de MINEDU, JUNTOS, MIDIS y PRONIED, MINSA, la API de Amazonas, la OECE (por POST), Provías (ASP), el
  * DOCman del INPE, la SMV, la PGE (el PDF viene dentro de una página), el Laserfiche del MINEM y el SENAMHI. Se confirma
  * que es PDF al bajarlo.
  */
-const DESCARGAS = /\/convocatoria\/Preview\?file=|\/Descargar_(Bases|Tdr)\?idReq=|\/DescargarArchivo(Bases|PorId)\/|\/GetBaseConvocatoria\?|\/api\/Archivo\/\d+\/(descargar|ver)|\/Convocatoria\/ConsultarArchivo\?id=|\/descargaArchivoConvoca\.asp\?PK_eRecord=\d+|\/documentos\/\d+-[^/]+\/file\.html|\/ConsultasP8\/documento\.aspx\?vidDoc=|\/serviceView\/viewPdfModalPublic\?idFile=\d+|\/Laserfiche\/Descargar\?token=|\/include\/convocatorias_ver\.php\?ide_convo=\d+/i;
+const DESCARGAS = /\/convocatoria\/Preview\?file=|\/Descargar_(Bases|Tdr|base|tdr)\?idReq=|\/DescargarArchivo(Bases|PorId)\/|\/GetBaseConvocatoria\?|\/api\/Archivo\/\d+\/(descargar|ver)|\/Convocatoria\/ConsultarArchivo\?id=|\/descargaArchivoConvoca\.asp\?PK_eRecord=\d+|\/documentos\/\d+-[^/]+\/file\.html|\/ConsultasP8\/documento\.aspx\?vidDoc=|\/serviceView\/viewPdfModalPublic\?idFile=\d+|\/Laserfiche\/Descargar\?token=|\/include\/convocatorias_ver\.php\?ide_convo=\d+/i;
 
 /** Un archivo de Google Drive (`/file/d/<id>/view`, `uc?id=`, `open?id=`): muchas entidades suben ahí sus bases. */
 export const esDrive = (url: string) => /drive\.google\.com\/(file\/d\/[\w-]{10,}|uc\?|open\?id=)|docs\.google\.com\/(document|uc)/i.test(url);
@@ -545,6 +545,18 @@ export function pdfIncrustado(b: Uint8Array): Uint8Array | null {
   return empiezaConPdf(pdf) ? pdf : null;
 }
 
+/**
+ * Algunos sitios anteponen un script o una redirección al PDF (SERNANP: «<script>alert(2026); </script>https://…pdf»
+ * y después el archivo). Si el `%PDF-` está en los primeros 2 KB, se recorta desde ahí.
+ */
+function pdfConPrefijo(b: Uint8Array): Uint8Array | null {
+  const limite = Math.min(b.byteLength, 2048);
+  for (let i = 0; i + 5 <= limite; i++) {
+    if (b[i] === 0x25 && b[i + 1] === 0x50 && b[i + 2] === 0x44 && b[i + 3] === 0x46 && b[i + 4] === 0x2d) return b.slice(i);
+  }
+  return null;
+}
+
 /** El cuerpo de una respuesta por pedazos, cortando apenas pasa el tope (sin content-length no se sabe antes). */
 export async function cuerpoConTope(r: Response, tope: number): Promise<Uint8Array | null> {
   const lector = r.body?.getReader();
@@ -570,8 +582,51 @@ export async function cuerpoConTope(r: Response, tope: number): Promise<Uint8Arr
   return out;
 }
 
+/**
+ * El visor Angular de MTPE: su URL es la única dirección pública del archivo; el PDF sólo lo entrega su API JSON en
+ * base64. Se reconoce aquí para que el enlace que ve la persona siga siendo el del visor.
+ */
+const MTPE_PDF = /(?:convocatoriasmtpe\.trabajo\.gob\.pe|apptest\.trabajo\.gob\.pe(?::\d+)?)\/convocatorias\/#\/principal\/fileconvocatorias\/([^/]+)\/([^/?#]+\.pdf)/i;
+
+async function bajarPdfMtpe(tipo: string, archivo: string, f: typeof fetch, tope: number, relay?: Relay): Promise<Uint8Array | null> {
+  const destino = "https://convocatoriasmtpe.trabajo.gob.pe/convocatoriasback/api/fileconvocatorias/buscar";
+  const cuerpo = JSON.stringify({ dato: { tipodoc: tipo, numdoc: archivo } });
+  for (let intento = 0; intento < 2; intento++) {
+    try {
+      const r = necesitaPeru(destino)
+        ? await porRelay(relay, destino, 90_000, { metodo: "POST", cuerpo, cabeceras: { "Content-Type": "application/json", Accept: "application/json, text/plain, */*" } })
+        : await f(destino, {
+            method: "POST",
+            headers: { "user-agent": UA, "content-type": "application/json", accept: "application/json, text/plain, */*" },
+            body: cuerpo,
+            signal: AbortSignal.timeout(60_000),
+          });
+      if (r.status >= 500 && intento === 0) continue;
+      if (!r.ok) return null;
+      // El JSON trae el PDF en base64: el cuerpo es ~1,4 veces el PDF.
+      const b = await cuerpoConTope(r, Math.ceil(tope * 1.4) + 4096);
+      if (!b) return null;
+      let j: { dato?: string | null };
+      try {
+        j = JSON.parse(new TextDecoder().decode(b)) as { dato?: string | null };
+      } catch {
+        return null;
+      }
+      if (!j.dato) return null;
+      const pdf = new Uint8Array(Buffer.from(j.dato, "base64"));
+      if (pdf.byteLength > tope || pdf.byteLength < 500 || !empiezaConPdf(pdf)) return null;
+      return pdf;
+    } catch {
+      if (intento === 1) return null;
+    }
+  }
+  return null;
+}
+
 /** Baja un PDF (hasta `tope`, 25 MB por defecto). null si no es un PDF o es más grande. */
 export async function bajarPdf(url: string, f: typeof fetch = fetch, relay?: Relay, tope = TOPE_PDF): Promise<Uint8Array | null> {
+  const mtpe = MTPE_PDF.exec(url);
+  if (mtpe) return bajarPdfMtpe(mtpe[1], mtpe[2], f, tope, relay);
   const { url: destino, metodo, cuerpo } = pedidoDescarga(url);
   const post = metodo === "POST" ? { cuerpo, cabeceras: { "Content-Type": FORMULARIO } } : null;
   for (let intento = 0; intento < 2; intento++) {
@@ -594,7 +649,7 @@ export async function bajarPdf(url: string, f: typeof fetch = fetch, relay?: Rel
       }
       let b = await cuerpoConTope(r, tope);
       if (!b) return null;
-      if (!empiezaConPdf(b)) b = pdfIncrustado(b) ?? b;
+      if (!empiezaConPdf(b)) b = pdfIncrustado(b) ?? pdfConPrefijo(b) ?? b;
       if (b.byteLength > tope || b.byteLength < 500 || !empiezaConPdf(b)) return null;
       return b;
     } catch (e) {
