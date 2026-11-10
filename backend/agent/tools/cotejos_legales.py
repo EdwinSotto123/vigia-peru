@@ -155,10 +155,14 @@ def _competencia_efectiva(state: dict) -> int:
     if not isinstance(postores, list):
         return 0
     from tools.compliance_rules._base import _quedo_fuera
-    # Calificada en lo técnico pero descalificada después (la oferta económica, consultoría 1228202: «descalificada por
-    # no cumplir el 90 % / 10 %») no compite: no cuenta.
+    # Calificada en lo técnico pero descalificada después en la etapa económica (consultoría 1228202: «descalificada por
+    # no cumplir el 90 % / 10 %») no compite: no cuenta. Un motivo técnico con calificada=true es otra cosa: actas de
+    # admisión y de calificación que no cuadran (bienes 1223907, tres ofertas válidas para la prueba de oro).
+    def _fuera_por_precio(p: dict) -> bool:
+        return str(p.get("motivo_tipo") or "").lower() == "precio" and _quedo_fuera(p.get("motivo_fuera"))
+
     return sum(1 for p in postores if isinstance(p, dict) and (
-        p.get("ganador") is True or (p.get("calificada") is True and not _quedo_fuera(p.get("motivo_fuera")))))
+        p.get("ganador") is True or (p.get("calificada") is True and not _fuera_por_precio(p))))
 
 
 # Errores materiales: fechas, cronograma o transcripción que no cambian quién compite (regla 7 del prompt; 6).

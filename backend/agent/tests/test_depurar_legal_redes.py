@@ -58,9 +58,13 @@ def test_prohibir_la_subcontratacion_pasa_a_contexto():
 
 def test_calificada_y_luego_descalificada_no_cuenta_como_competencia():
     postores = [{"calificada": True, "ganador": True},
-                {"calificada": True, "ganador": False, "motivo_fuera": "Oferta económica descalificada por no cumplir el 90 % / 10 %"},
-                {"calificada": True, "ganador": False, "motivo_fuera": "Bonificación MYPE no otorgada; no fue descalificado"}]
-    assert _competencia_efectiva({"lecturas_legal": {"acta": {"postores": postores}}}) == 2
+                {"calificada": True, "ganador": False, "motivo_tipo": "precio",
+                 "motivo_fuera": "Oferta económica descalificada por no cumplir el 90 % / 10 %"},
+                {"calificada": True, "ganador": False, "motivo_fuera": "Bonificación MYPE no otorgada; no fue descalificado"},
+                # 1223907: actas de admisión y de calificación que no cuadran; para la prueba de oro es válida.
+                {"calificada": True, "ganador": False, "motivo_tipo": "tecnico",
+                 "motivo_fuera": "No admitida en la admisión; el acta de calificación la declara admitida y calificada"}]
+    assert _competencia_efectiva({"lecturas_legal": {"acta": {"postores": postores}}}) == 3
 
 
 def test_monto_con_miles_separados_por_espacio():
