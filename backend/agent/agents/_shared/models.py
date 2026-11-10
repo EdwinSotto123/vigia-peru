@@ -24,6 +24,13 @@ Proveedor (interruptores booleanos, ver `proveedor_para`): por defecto TODO va a
   · USAR_ANTHROPIC=1 / USAR_ANTHROPIC_<AGENTE>=1/0 → Claude (API de Anthropic vía LiteLLM); ANTHROPIC_API_KEY, ANTHROPIC_WORKSPACE_ID,
     ANTHROPIC_MODEL (default claude-haiku-5-5), ANTHROPIC_MAX_TOKENS (32000), ANTHROPIC_REASONING (low|medium|high; vacío = sin parámetro).
   · WORKERS_AI_MODEL / WORKERS_AI_MODEL_FAST (ids `@cf/...`), WORKERS_AI_URL + WORKERS_AI_TOKEN (Worker vigia-llm).
+  · WORKERS_AI_MODEL_SMART: el de los agentes de juicio complejo (WORKERS_AI_AGENTES_SMART, por defecto el redactor del
+    dictamen, el analista legal de los documentos y la red de personas), p. ej. @cf/deepseek-ai/deepseek-v4-pro-0813;
+    sin él, el mismo WORKERS_AI_MODEL. Medido 2026-11-10 (scratchpad modelos/probar_modelos.py): GLM 5.3 flash y
+    DeepSeek V4 Pro aciertan la extracción de un acta, el juicio y el uso de herramientas; gpt-oss-120b y Gemma 4 fallan
+    la extracción.
+  · WORKERS_AI_SIN_RESPALDO=1 (por defecto): si Workers AI falla, el error (cabecera `x-vigia-respaldo: nunca`), nunca
+    el proveedor de respaldo de vigia-llm.
   · WORKERS_AI_REASONING=low|medium|high (default low): GLM razona sin parar y Workers AI corta con error 3046 (medido 2026-10-12).
 
 Overrides por env: `THINKING_<AGENTE>` (p. ej. THINKING_REPORT_WRITER=medium),
@@ -42,6 +49,9 @@ _MODEL_JUDGE = os.getenv("GEMINI_MODEL_JUDGE", "gemini-3.5-flash-lite")
 _VERDADERO = ("1", "true", "yes", "si", "sí", "on")
 WORKERS_AI_MODEL = os.getenv("WORKERS_AI_MODEL", "@cf/zai-org/glm-5.3-flash")  # verificado 2026-10-12: ~9x más barato que glm-5.3
 WORKERS_AI_MODEL_FAST = os.getenv("WORKERS_AI_MODEL_FAST", WORKERS_AI_MODEL)
+WORKERS_AI_MODEL_SMART = os.getenv("WORKERS_AI_MODEL_SMART", WORKERS_AI_MODEL)
+_AGENTES_SMART = {a.strip() for a in os.getenv(
+    "WORKERS_AI_AGENTES_SMART", "report_writer_agent,document_legal_analyst_agent,person_network_agent").split(",") if a.strip()}
 WORKERS_AI_URL = os.getenv("WORKERS_AI_URL", "")     # base OpenAI-compatible, p. ej. https://vigia-llm.<cuenta>.workers.dev/v1
 ANTHROPIC_MODEL = os.getenv("ANTHROPIC_MODEL", "claude-haiku-5-5")
 _SOLO_GEMINI = ("google_search", "url_context", "google_maps", "code_execution", "vertex_ai_search")
@@ -105,11 +115,23 @@ def resolver_modelo(modelo, agente: str, tools=None):
             extra["extra_headers"] = {"anthropic-workspace-id": ws}
         return _litellm_con_log()(model=f"anthropic/{ANTHROPIC_MODEL}", api_key=os.environ["ANTHROPIC_API_KEY"],
                                   timeout=float(os.getenv("ANTHROPIC_TIMEOUT_S", "240")), **extra)
-    rapido = modelo in (_MODEL_FAST, _MODEL_JUDGE)
-    cf = WORKERS_AI_MODEL_FAST if rapido else WORKERS_AI_MODEL
+    cf = modelo_workers(modelo, agente)
+    extra = {}
+    if (_bool_env("WORKERS_AI_SIN_RESPALDO") is not False):
+        extra["extra_headers"] = {"x-vigia-respaldo": "nunca"}
     return _litellm_con_log()(model=f"openai/{cf}", api_base=WORKERS_AI_URL, api_key=os.getenv("WORKERS_AI_TOKEN", "sin-token"),
                               timeout=float(os.getenv("WORKERS_AI_TIMEOUT_S", "240")),
-                              reasoning_effort=os.getenv("WORKERS_AI_REASONING", "low"))
+                              reasoning_effort=os.getenv("WORKERS_AI_REASONING", "low"), **extra)
+
+
+def modelo_workers(modelo, agente: str) -> str:
+    """El id de Workers AI para ese agente: el rápido para los modelos FAST/JUDGE, el SMART para los agentes de juicio
+    complejo (_AGENTES_SMART) y el de siempre para los demás."""
+    if modelo in (_MODEL_FAST, _MODEL_JUDGE):
+        return WORKERS_AI_MODEL_FAST
+    if agente in _AGENTES_SMART:
+        return WORKERS_AI_MODEL_SMART
+    return WORKERS_AI_MODEL
 
 
 _LITELLM_LOG = []
@@ -255,4 +277,5 @@ def modelos_activos() -> dict:
     return {"smart": _MODEL_SMART, "default": _MODEL_DEFAULT, "fast": _MODEL_FAST,
             "judge": _MODEL_JUDGE, "output_schema_nativo": OUTPUT_SCHEMA_NATIVO,
             "workers_ai": {"url": bool(WORKERS_AI_URL), "modelo": WORKERS_AI_MODEL, "modelo_fast": WORKERS_AI_MODEL_FAST,
+                           "modelo_smart": WORKERS_AI_MODEL_SMART, "agentes_smart": sorted(_AGENTES_SMART),
                            "global": bool(_bool_env("USAR_WORKERS_AI"))}}

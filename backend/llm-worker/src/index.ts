@@ -16,10 +16,15 @@
  * forzar` en la petición, o `model: "respaldo"`, salta Workers AI y usa sólo el respaldo.
  * `x-vigia-respaldo: nunca` hace lo contrario: si Workers AI falla, devuelve el error en vez de ir al respaldo.
  *
+ * Sólo modelos abiertos (2026-11-10, pedido del usuario): RESPALDO_APAGADO=1 quita el respaldo (y `model: "respaldo"`
+ * va al modelo por defecto de Workers AI) y NATIVO_EN_WORKERS_AI=1 sirve `/nativo/v1/messages` con Workers AI
+ * (src/nativoWorkers.ts: el mismo formato, traducido), con el modelo de NATIVO_MODELOS.
+ *
  * No registra el contenido de los mensajes (pueden traer datos de contratos).
  */
-interface Env {
-  AI: { run(model: string, input: unknown, opts?: unknown): Promise<unknown> };
+import { contarTokens, pedidoWorkers, respuestaNativa, type EnvNativo } from "./nativoWorkers";
+
+interface Env extends EnvNativo {
   LLM_TOKEN?: string;
   MODELOS_PERMITIDOS: string;
   MODELO_DEFECTO?: string;
@@ -36,6 +41,32 @@ interface Env {
   RESPALDO_NATIVO_URL?: string;
   /** Cabecera donde la API nativa espera la clave (por defecto `authorization: Bearer`). */
   RESPALDO_NATIVO_CABECERA?: string;
+  /** "1": sin respaldo nunca (sólo Workers AI). */
+  RESPALDO_APAGADO?: string;
+  /** "1": `/nativo/v1/messages` lo responde Workers AI, traducido (src/nativoWorkers.ts). */
+  NATIVO_EN_WORKERS_AI?: string;
+}
+
+/** `/nativo/v1/messages` (y count_tokens) con Workers AI, en el mismo formato. */
+async function nativoEnWorkersAI(req: Request, env: Env, url: URL): Promise<Response> {
+  const ruta = url.pathname.slice("/nativo".length);
+  if (req.method !== "POST" || !/^\/v1\/messages(\/count_tokens)?$/.test(ruta)) {
+    return json({ type: "error", error: { type: "not_found_error", message: `sin equivalente en Workers AI: ${ruta}` } }, 404);
+  }
+  const cuerpo = (await req.json().catch(() => null)) as Record<string, any> | null;
+  if (!cuerpo || !Array.isArray(cuerpo.messages)) return json({ type: "error", error: { type: "invalid_request_error", message: "falta messages" } }, 400);
+  if (ruta.endsWith("/count_tokens")) return json({ input_tokens: await contarTokens(env, cuerpo) });
+  if (cuerpo.stream) return json({ type: "error", error: { type: "invalid_request_error", message: "sin streaming en Workers AI" } }, 400);
+  const { modelo, entrada, salidaJson } = await pedidoWorkers(env, cuerpo);
+  const quien = { "x-vigia-modelo": `workers-ai:${modelo}` };
+  try {
+    const salida = await env.AI.run(modelo, entrada);
+    if (vacia(salida)) return json({ type: "error", error: { type: "api_error", message: "respuesta vacía de Workers AI" } }, 502, quien);
+    return json(respuestaNativa(salida, String(cuerpo.model ?? modelo), salidaJson), 200, quien);
+  } catch (e) {
+    const m = (e as Error).message ?? "error de Workers AI";
+    return json({ type: "error", error: { type: "api_error", message: m.slice(0, 300) } }, /3046|timeout/i.test(m) ? 504 : 502, quien);
+  }
 }
 
 /**
@@ -44,6 +75,9 @@ interface Env {
  * formato tipo OpenAI: así la clave del proveedor sigue viviendo solo aquí.
  */
 async function nativo(req: Request, env: Env, url: URL): Promise<Response> {
+  // `x-vigia-nativo: workers` lo pide para una sola petición (para probar antes de encenderlo para todos).
+  if (env.NATIVO_EN_WORKERS_AI === "1" || req.headers.get("x-vigia-nativo") === "workers") return nativoEnWorkersAI(req, env, url);
+  if (env.RESPALDO_APAGADO === "1") return json({ error: { message: "respaldo apagado: sólo Workers AI" } }, 503);
   if (!env.RESPALDO_NATIVO_URL || !env.RESPALDO_TOKEN) return json({ error: { message: "sin API nativa configurada" } }, 503);
   const destino = env.RESPALDO_NATIVO_URL.replace(/\/+$/, "") + url.pathname.slice("/nativo".length) + url.search;
   const h = new Headers();
@@ -81,7 +115,7 @@ export function vacia(salida: unknown): boolean {
   return !texto && !(Array.isArray(m?.tool_calls) && m!.tool_calls!.length);
 }
 
-const hayRespaldo = (env: Env) => !!(env.RESPALDO_URL && env.RESPALDO_TOKEN && env.RESPALDO_MODELO);
+const hayRespaldo = (env: Env) => env.RESPALDO_APAGADO !== "1" && !!(env.RESPALDO_URL && env.RESPALDO_TOKEN && env.RESPALDO_MODELO);
 
 function extras(env: Env): Record<string, string> {
   try {
@@ -125,6 +159,8 @@ export default {
     if (!cuerpo || !Array.isArray(cuerpo.messages)) return json({ error: { message: "falta messages" } }, 400);
     let modelo = String(cuerpo.model ?? "").replace(/^openai\//, "");
     if (!modelo || modelo === "default") modelo = env.MODELO_DEFECTO ?? permitidos[0];
+    // Sin respaldo, quien pide «respaldo» (p. ej. la Lambda de agentes con WORKERS_AI_MODEL=respaldo) va al de defecto.
+    if (modelo === "respaldo" && env.RESPALDO_APAGADO === "1") modelo = env.MODELO_DEFECTO ?? permitidos[0];
     // model "respaldo" = lo mismo que la cabecera de forzar, para clientes que no pueden poner cabeceras (litellm).
     if (modelo !== "respaldo" && !permitidos.includes(modelo)) return json({ error: { message: `modelo no permitido: ${modelo}` } }, 400);
 

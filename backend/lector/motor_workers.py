@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import base64
 import json
+import random
 import re
 import time
 import urllib.error
@@ -107,7 +108,7 @@ class MotorWorkers:
         datos = json.dumps(cuerpo).encode()
         res = {"modelo": self.modelo, "tokens_in": 0, "tokens_out": 0, "costo_usd": 0.0, "salida": None, "detalle": None}
         ultimo = ""
-        for intento in range(4):
+        for intento in range(7):
             req = urllib.request.Request(URL, data=datos, method="POST", headers={
                 "authorization": f"Bearer {self.token}", "content-type": "application/json", "user-agent": CLIENTE,
                 "x-vigia-respaldo": "nunca"})
@@ -122,7 +123,12 @@ class MotorWorkers:
                     return {**res, "estado": "error", "detalle": ultimo}
             except Exception as e:  # noqa: BLE001 — la red: se reintenta
                 ultimo = f"{type(e).__name__}: {str(e)[:200]}"
-            time.sleep(10 * (intento + 1))
+            # El tope de pedidos por minuto del modelo (Workers AI, error 3021): esperar a que pase el minuto, con azar
+            # para que los hilos no vuelvan todos juntos.
+            if "3021" in ultimo or "rate limit" in ultimo.lower() or "HTTP 429" in ultimo:
+                time.sleep(45 + random.random() * 45)
+            else:
+                time.sleep(10 * (intento + 1))
         else:
             return {**res, "estado": "error", "detalle": ultimo[:300]}
         if quien and not quien.startswith("workers-ai:"):

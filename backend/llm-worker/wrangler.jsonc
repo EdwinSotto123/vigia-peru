@@ -14,6 +14,14 @@
     "MODELO_DEFECTO": "@cf/zai-org/glm-5.3-flash",
     "REASONING_EFFORT_DEFECTO": "low",
     "MAX_TOKENS_DEFECTO": "16000",
+    // /nativo/v1/messages servido por Workers AI (NATIVO_EN_WORKERS_AI=1, o la cabecera x-vigia-nativo: workers):
+    // el modelo pedido → el de Workers AI. Haiku → GLM 5.3 flash; Sonnet y Opus (juicio complejo) → DeepSeek V4 Pro.
+    "NATIVO_MODELOS": "{\"claude-haiku-5-5\":\"@cf/zai-org/glm-5.3-flash\",\"claude-sonnet-5-5\":\"@cf/deepseek-ai/deepseek-v4-pro-0813\",\"claude-opus-5-5\":\"@cf/deepseek-ai/deepseek-v4-pro-0813\",\"*\":\"@cf/zai-org/glm-5.3-flash\"}",
+    "NATIVO_MODELO_VISION": "@cf/zai-org/glm-5.3-flash",
+    // Sólo modelos abiertos de Workers AI (2026-11-10, pedido del usuario: «no usaremos Haiku ni nada de Claude»):
+    // /nativo lo responde Workers AI y el respaldo queda apagado. Para volver: "0" en las dos.
+    "NATIVO_EN_WORKERS_AI": "1",
+    "RESPALDO_APAGADO": "1",
     // Modelos permitidos (lista blanca): evita que un token filtrado gaste en cualquier modelo.
     "MODELOS_PERMITIDOS": "@cf/zai-org/glm-5.3-flash,@cf/deepseek-ai/deepseek-v4-pro-0813,@cf/nvidia/nemotron-3-120b-a12b,@cf/qwen/qwen3.8-27b,@cf/deepseek-ai/deepseek-v4.1-flash-1017,@cf/google/gemma-4-26b-a4b-it,@cf/moonshotai/kimi-k2.6,@cf/zai-org/glm-5.3,@cf/zai-org/glm-5.2,@cf/zai-org/glm-4.7-flash,@cf/openai/gpt-oss-120b,@cf/meta/llama-3.3-70b-instruct-fp8-fast,@cf/qwen/qwen3-30b-a3b-fp8"
   }

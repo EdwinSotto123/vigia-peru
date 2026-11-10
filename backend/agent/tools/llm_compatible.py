@@ -231,6 +231,9 @@ def _llamar(mensajes: list[dict], tope: int, config, intentos: int = 3) -> tuple
         cuerpo["reasoning_effort"] = os.environ["WORKERS_AI_REASONING"]
     token = os.getenv("LLM_COMPAT_TOKEN") or os.getenv("WORKERS_AI_TOKEN") or ""
     headers = {"authorization": f"Bearer {token}", "content-type": "application/json"}
+    # Sin respaldo (WORKERS_AI_SIN_RESPALDO, por defecto sí): si Workers AI falla, el error, nunca el proveedor de respaldo.
+    if os.getenv("WORKERS_AI_SIN_RESPALDO", "1").strip().lower() not in ("0", "false", "no", "off"):
+        headers["x-vigia-respaldo"] = "nunca"
     espera = 2.0
     for i in range(intentos):
         r = requests.post(_url(), headers=headers, json=cuerpo, timeout=float(os.getenv("LLM_COMPAT_TIMEOUT_S", "180")))
