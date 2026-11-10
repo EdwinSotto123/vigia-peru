@@ -62,6 +62,48 @@ from agents._shared.models import modelos_activos
 
 PROFILE = get_profile()
 
+# Cada cuánto se escribe un `{"kind": "latido"}` si la corrida no emitió nada: el analista legal o el escritor pasan
+# minutos sin eventos, y en la prueba de oro del 2026-11-10 dos corridas terminaron bien en la Lambda (574 s) pero el
+# cliente nunca recibió el `final` y esperó 40 min. El dispatcher y ab_modelos ignoran los tipos que no conocen.
+LATIDO_S = float(os.getenv("STREAM_LATIDO_S", "20"))
+
+
+def _ndjson_con_latidos(fuente, latido_s: float | None = None):
+    """Corre el generador asíncrono `fuente()` en un hilo y devuelve sus eventos como líneas NDJSON, con un latido
+    cada `latido_s` segundos de silencio."""
+    import queue as _queue
+    import threading
+    import time as _time
+
+    espera = LATIDO_S if latido_s is None else latido_s
+    q: "_queue.Queue[Any]" = _queue.Queue(maxsize=512)
+    fin = object()
+
+    def _worker():
+        async def _async():
+            try:
+                async for ev in fuente():
+                    q.put(ev)
+            except Exception as ex:  # noqa: BLE001
+                q.put({"kind": "error", "detail": str(ex)[:400]})
+            finally:
+                q.put(fin)
+        asyncio.run(_async())
+
+    threading.Thread(target=_worker, daemon=True).start()
+    while True:
+        try:
+            ev = q.get(timeout=espera) if espera and espera > 0 else q.get()
+        except _queue.Empty:
+            yield json.dumps({"kind": "latido", "ts": round(_time.time(), 1)}) + "\n"
+            continue
+        if ev is fin:
+            break
+        try:
+            yield json.dumps(ev, ensure_ascii=False, default=str) + "\n"
+        except Exception as ex:  # noqa: BLE001
+            yield json.dumps({"kind": "error", "detail": str(ex)[:200]}) + "\n"
+
 
 @functions_framework.http
 def orchestrate(request):
@@ -198,32 +240,8 @@ def orchestrate(request):
         doc_ids_p = body.get("doc_ids")
 
         def _generate():
-            import queue as _queue
-            import threading
-            q: "_queue.Queue[Any]" = _queue.Queue(maxsize=512)
-            SENTINEL = object()
-
-            def _worker():
-                async def _async():
-                    try:
-                        async for ev in _run_streaming(input_str, ocds_p, docs_b64_p, doc_urls_p, clas_p, doc_ids_p):
-                            q.put(ev)
-                    except Exception as ex:
-                        q.put({"kind": "error", "detail": str(ex)[:400]})
-                    finally:
-                        q.put(SENTINEL)
-                asyncio.run(_async())
-
-            threading.Thread(target=_worker, daemon=True).start()
-
-            while True:
-                ev = q.get()
-                if ev is SENTINEL:
-                    break
-                try:
-                    yield json.dumps(ev, ensure_ascii=False, default=str) + "\n"
-                except Exception as ex:
-                    yield json.dumps({"kind": "error", "detail": str(ex)[:200]}) + "\n"
+            yield from _ndjson_con_latidos(
+                lambda: _run_streaming(input_str, ocds_p, docs_b64_p, doc_urls_p, clas_p, doc_ids_p))
 
         from flask import Response  # type: ignore
         return Response(
