@@ -99,7 +99,17 @@ def token_vigente(url: str = "") -> str:
 
 
 def correr_uno(url: str, token: str, cuerpo_json: dict) -> dict:
-    """POST ?stream=1 y lee el NDJSON hasta el evento `final`. Devuelve eventos + estado final + tiempos."""
+    """POST ?stream=1 y lee el NDJSON hasta el evento `final`. Una respuesta vacía al instante (sin eventos ni error;
+    2026-11-10, 1226228: invocación de 0 s de la Lambda) se reintenta dos veces."""
+    for intento in range(3):
+        r = _correr_una_vez(url, token, cuerpo_json)
+        if r["final"] or r["error"] or r["n_eventos"] or intento == 2:
+            return r
+        time.sleep(15)
+    return r
+
+
+def _correr_una_vez(url: str, token: str, cuerpo_json: dict) -> dict:
     t0 = time.time()
     req = urllib.request.Request(f"{url}?stream=1", data=json.dumps(cuerpo_json).encode(),
                                  headers={"Content-Type": "application/json", "Authorization": f"Bearer {token}"})
