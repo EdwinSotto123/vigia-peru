@@ -217,11 +217,40 @@ export async function limitesDe(producto: ProductoPago, plan: string | null): Pr
   return (await planDe(producto, plan))?.limites ?? LIMITES_GRATIS;
 }
 
+/** El plan del equipo en cada producto (migración 273): el más alto. Obras viene con el de Licitaciones. */
+export const PLAN_EQUIPO: Record<ProductoPago, string> = { empleo: "institucional", licitaciones: "pro", obras: "pro" };
+/** El código del plan del equipo: uno por producto que se vende (Obras usa el de Licitaciones, así sus créditos no se suman dos veces). */
+export const codigoEquipo = (producto: ProductoPago) => `EQUIPO-${producto === "obras" ? "LICITACIONES" : producto.toUpperCase()}`;
+
+const memoEquipo = new Memo<boolean>({ nombre: "gobserva-equipo", ttlMs: 60_000, staleMs: 300_000, max: 2000 });
+
+/**
+ * ¿La cuenta es del equipo? (migración 273: gobserva_equipo por correo exacto o «@dominio», más los administradores del
+ * panel). Sólo con correo VERIFICADO: el del token si lo hay; si no (las alertas, que sólo tienen el uid), el que guardó
+ * la cuenta.
+ */
+export function esEquipo(uid: string, correoVerificado?: string | null): Promise<boolean> {
+  const correo = correoVerificado?.trim().toLowerCase() || null;
+  return memoEquipo.obtener(`${uid}|${correo ?? ""}`, async () => {
+    const r = await pool.query<{ si: boolean }>(
+      `WITH c AS (SELECT coalesce($2::text, (SELECT lower(email) FROM gobserva_cuentas WHERE firebase_uid = $1 AND email_verificado)) AS correo)
+       SELECT EXISTS (SELECT 1 FROM c JOIN gobserva_equipo e
+                        ON e.patron = c.correo OR (left(e.patron, 1) = '@' AND right(c.correo, length(e.patron)) = e.patron))
+           OR EXISTS (SELECT 1 FROM c JOIN equipo q ON q.correo = c.correo AND q.activo AND q.rol = 'admin') AS si`,
+      [uid, correo]);
+    return r.rows[0]?.si === true;
+  });
+}
+
+/** El correo de la sesión, si quien la abrió lo verificó (para `planVigente` y `esEquipo`). */
+export const correoVerificado = (u: { email: string | null; emailVerificado: boolean }) => (u.emailVerificado ? u.email : null);
+
 /**
  * El plan vigente de una persona en un producto: activo y pagado (con 3 días de gracia: un cobro mensual puede llegar
- * un poco tarde). null = gratis.
+ * un poco tarde). null = gratis. El equipo (`esEquipo`) tiene siempre el más alto, sin fila ni vencimiento.
  */
-export async function planVigente(uid: string, producto: ProductoPago): Promise<{ codigo: string; plan: string; vigenteHasta: string | null } | null> {
+export async function planVigente(uid: string, producto: ProductoPago, correo?: string | null): Promise<{ codigo: string; plan: string; vigenteHasta: string | null } | null> {
+  if (await esEquipo(uid, correo).catch(() => false)) return { codigo: codigoEquipo(producto), plan: PLAN_EQUIPO[producto], vigenteHasta: null };
   // Obras viene con Licitaciones (2026-11-07): un plan de cualquiera de los dos vale para Obras.
   const productos = producto === "obras" ? ["obras", "licitaciones"] : [producto];
   const r = await pool.query<{ codigo: string; plan: string; vigenteHasta: string | null }>(

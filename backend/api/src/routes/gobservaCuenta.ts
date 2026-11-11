@@ -11,7 +11,8 @@ import { mpConfigurado } from "../lib/mercadopago.js";
 import { correoAbierto } from "../lib/correo.js";
 import { getPagosConfig } from "./contribuciones.js";
 import {
-  HOST_PRODUCTO, LIMITES_GRATIS, NOMBRE_PRODUCTO, PRODUCTOS_PAGO, esProductoPago, leerConfig, limitesDe, planDe, planVigente, type ProductoPago,
+  HOST_PRODUCTO, LIMITES_GRATIS, NOMBRE_PRODUCTO, PLAN_EQUIPO, PRODUCTOS_PAGO, codigoEquipo, correoVerificado, esEquipo, esProductoPago, leerConfig,
+  limitesDe, planDe, planVigente, type ProductoPago,
 } from "../lib/gobservaPlanes.js";
 import { ErrorCobro, cancelarPlan, checkoutManual, checkoutTarjeta, registrarOperacion } from "../lib/gobservaCobros.js";
 import { enviarAlertas, exportarCsv, probarAlerta, productoConAlertas, validarFiltros } from "../lib/gobservaAlertas.js";
@@ -145,11 +146,19 @@ gobservaCuentaRouter.get("/me", async (c) => {
          FROM gobserva_cobros k JOIN gobserva_planes_cliente p ON p.id = k.plan_id
         WHERE k.firebase_uid = $1 AND k.estado = 'pendiente' ORDER BY k.creado_at DESC`, [u.uid]),
   ]);
+  // El equipo (migración 273) tiene el plan más alto de Empleo y de Licitaciones (que trae Obras), sin fila ni cobro.
+  if (await esEquipo(u.uid, correoVerificado(u)).catch(() => false)) {
+    const hoy = new Date().toISOString().slice(0, 10);
+    planes.rows.unshift(...(["empleo", "licitaciones"] as const).map((p) => ({
+      codigo: codigoEquipo(p), producto: p, plan: PLAN_EQUIPO[p], medio: "cortesia", estado: "activa", monto: 0, regular: 0, fundador: false,
+      mesesFundador: null, cobros: 0, renovar: false, estadoMp: null, vigenteHasta: null, creado: hoy,
+    })));
+  }
   const nombres = Object.fromEntries(
     await Promise.all(planes.rows.map(async (p) => [`${p.producto}:${p.plan}`, (await planDe(p.producto, p.plan))?.nombre ?? p.plan])));
   let delProducto: Record<string, unknown> | null = null;
   if (producto) {
-    const vigente = await planVigente(u.uid, producto);
+    const vigente = await planVigente(u.uid, producto, correoVerificado(u));
     const limites = await limitesDe(producto, vigente?.plan ?? null);
     const usados = (await pool.query<{ alertas: number; guardados: number }>(
       `SELECT (SELECT count(*) FROM gobserva_alertas WHERE firebase_uid = $1 AND producto = $2)::int AS alertas,
@@ -174,8 +183,8 @@ gobservaCuentaRouter.get("/me", async (c) => {
  * cuenta sin plan recibe la lista vacía.
  */
 /** Los créditos del MCP de una cuenta: los de sus planes vigentes, sumados (Obras sale del plan de Licitaciones: una vez). */
-async function topesDeCuenta(uid: string): Promise<{ planes: { producto: ProductoPago; plan: string; vigenteHasta: string | null }[]; mcp: TopesMcp }> {
-  const vigentes = await Promise.all(PRODUCTOS_PAGO.map(async (producto) => ({ producto, v: await planVigente(uid, producto) })));
+async function topesDeCuenta(u: AuthedUser): Promise<{ planes: { producto: ProductoPago; plan: string; vigenteHasta: string | null }[]; mcp: TopesMcp }> {
+  const vigentes = await Promise.all(PRODUCTOS_PAGO.map(async (producto) => ({ producto, v: await planVigente(u.uid, producto, correoVerificado(u)) })));
   const contados = new Set<string>();
   let creditos = 0;
   for (const { producto, v } of vigentes) {
@@ -190,7 +199,7 @@ async function topesDeCuenta(uid: string): Promise<{ planes: { producto: Product
 }
 
 gobservaCuentaRouter.get("/planes", async (c) => {
-  return c.json(await topesDeCuenta(c.get("user").uid));
+  return c.json(await topesDeCuenta(c.get("user")));
 });
 
 // ─── El asistente de cada app (lib/chatApp.ts) ────────────────────────────────────────────────────────────────────────
@@ -220,10 +229,10 @@ gobservaCuentaRouter.post("/chat", async (c) => {
   }
   const app = producto === "empleo" ? "empleo" : "licitaciones";
   if (!MODOS_APP[app].includes(modo)) return c.json({ error: "modo_no_disponible", detail: "Ese modo no está en este asistente." }, 400);
-  if (!(await planVigente(u.uid, producto))) {
+  if (!(await planVigente(u.uid, producto, correoVerificado(u)))) {
     return c.json({ error: "sin_plan", detail: "El asistente viene con los planes de pago: adquiere uno para preguntarle." }, 402);
   }
-  const { mcp: topes } = await topesDeCuenta(u.uid);
+  const { mcp: topes } = await topesDeCuenta(u);
   const lim = ambitoPedido.getStore()?.limitador?.();
   const mes = mesLima();
   const dia = diaLima();
@@ -350,7 +359,7 @@ gobservaCuentaRouter.get("/uso", async (c) => {
 /** Lo usado del MCP este mes (la cuenta lo muestra): créditos del mes y de hoy, filas de hoy y cuándo se renuevan. */
 gobservaCuentaRouter.get("/mcp", async (c) => {
   const u = c.get("user");
-  const { mcp } = await topesDeCuenta(u.uid);
+  const { mcp } = await topesDeCuenta(u);
   const mes = mesLima();
   const uso = await (ambitoPedido.getStore()?.limitador?.()?.usoMcp?.(u.uid, mes, diaLima()) ?? Promise.resolve(null)).catch(() => null);
   return c.json({ ...mcp, mes, renueva: renuevaMcp(mes), usados: uso?.mes ?? 0, usadosHoy: uso?.dia ?? 0, filasHoy: uso?.filas ?? 0, medido: !!uso });
@@ -534,7 +543,7 @@ const AlertaCambio = z.object({
 const tokenPausa = () => Array.from(crypto.getRandomValues(new Uint8Array(24)), (b) => b.toString(16).padStart(2, "0")).join("");
 
 async function revisarLimites(u: AuthedUser, producto: ProductoPago, frecuencia: "diaria" | "semanal" | undefined, nueva: boolean): Promise<{ error: string; detail: string } | null> {
-  const vigente = await planVigente(u.uid, producto);
+  const vigente = await planVigente(u.uid, producto, correoVerificado(u));
   const limites = vigente ? await limitesDe(producto, vigente.plan) : LIMITES_GRATIS;
   if (frecuencia && !limites.frecuencias.includes(frecuencia)) {
     return { error: "plan_requerido", detail: "Las alertas diarias son de los planes de pago. Con el plan gratis llegan una vez por semana." };
@@ -623,8 +632,8 @@ const LineaBody = z.object({
 });
 
 /** Cuántas líneas y cuántas oportunidades le tocan según su plan de Licitaciones (Obras viene con él). */
-async function limitesLineas(uid: string): Promise<{ lineas: number; paraTi: number; plan: string | null }> {
-  const vigente = await planVigente(uid, "licitaciones");
+async function limitesLineas(u: AuthedUser): Promise<{ lineas: number; paraTi: number; plan: string | null }> {
+  const vigente = await planVigente(u.uid, "licitaciones", correoVerificado(u));
   const l = await limitesDe("licitaciones", vigente?.plan ?? null);
   return { lineas: l.lineas, paraTi: l.paraTi, plan: vigente?.plan ?? null };
 }
@@ -637,7 +646,7 @@ gobservaCuentaRouter.get("/lineas", async (c) => {
               embedding IS NOT NULL AS lista, to_char(actualizado_at AT TIME ZONE 'America/Lima', 'YYYY-MM-DD') AS actualizada
          FROM gobserva_lineas WHERE firebase_uid = $1 ORDER BY creado_at`,
       [u.uid]),
-    limitesLineas(u.uid),
+    limitesLineas(u),
   ]);
   return c.json({ data: r.rows, limites });
 });
@@ -653,7 +662,7 @@ async function guardarLinea(c: Context, id: number | null): Promise<Response> {
   if (!ia) return c.json({ error: "sin_ia", detail: "No pudimos guardar tu línea ahora. Vuelve a intentarlo en un momento." }, 503);
   await asegurarCuenta(u, "licitaciones");
   if (id == null) {
-    const lim = await limitesLineas(u.uid);
+    const lim = await limitesLineas(u);
     const n = (await pool.query<{ n: number }>(`SELECT count(*)::int AS n FROM gobserva_lineas WHERE firebase_uid = $1`, [u.uid])).rows[0].n;
     if (n >= lim.lineas) {
       return c.json({ error: "limite", detail: `Tu plan permite ${lim.lineas === 1 ? "1 línea de negocio" : `${lim.lineas} líneas de negocio`}. Con un plan mayor puedes sumar más.` }, 402);
@@ -812,7 +821,7 @@ gobservaCuentaRouter.get("/para-ti", async (c) => {
   const u = c.get("user");
   const linea = Number(c.req.query("linea"));
   if (!Number.isInteger(linea) || linea <= 0) return c.json({ error: "invalid_query" }, 400);
-  const lim = await limitesLineas(u.uid);
+  const lim = await limitesLineas(u);
   const r = await paraTi(u.uid, linea, lim.paraTi);
   if (!r) return c.json({ error: "no_encontrado" }, 404);
   return c.json({ ...r, limite: lim.paraTi, plan: lim.plan });
@@ -951,7 +960,7 @@ gobservaCuentaRouter.put("/guardados", limiteEscritura, async (c) => {
   await asegurarCuenta(u, b.producto);
   const existe = (await pool.query(`SELECT 1 FROM gobserva_guardados WHERE firebase_uid = $1 AND producto = $2 AND tipo = $3 AND ref = $4`, [u.uid, b.producto, b.tipo, b.ref])).rows.length > 0;
   if (!existe) {
-    const vigente = await planVigente(u.uid, b.producto);
+    const vigente = await planVigente(u.uid, b.producto, correoVerificado(u));
     const limites = await limitesDe(b.producto, vigente?.plan ?? null);
     const n = (await pool.query<{ n: number }>(`SELECT count(*)::int AS n FROM gobserva_guardados WHERE firebase_uid = $1 AND producto = $2`, [u.uid, b.producto])).rows[0].n;
     if (n >= limites.guardados) {
@@ -986,7 +995,7 @@ gobservaCuentaRouter.get("/exportar", async (c) => {
   const u = c.get("user");
   const producto = productoDe(c);
   if (!producto) return c.json({ error: "invalid_query" }, 400);
-  const vigente = await planVigente(u.uid, producto);
+  const vigente = await planVigente(u.uid, producto, correoVerificado(u));
   const limites = await limitesDe(producto, vigente?.plan ?? null);
   if (!limites.csv) return c.json({ error: "plan_requerido", detail: "La descarga en CSV es de los planes de pago." }, 402);
   const { producto: _p, ...filtros } = c.req.query();
