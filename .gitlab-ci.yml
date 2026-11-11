@@ -118,7 +118,9 @@ scrape:dji:
 # túnel de Session Manager que usa la PC (infrastructure/aws/tunel_rds.py), con el token OIDC del rol
 # vigia-gitlab-agentes (sólo desde main) y su política vigia-ci-base: abrir el túnel al proxy vigia-db-proxy y leer 4
 # claves de SSM. A la base entran como `vigia_ci`, miembro de vigia_jobs (los permisos del Worker de scrapers), nunca
-# como postgres. Manuales (▶) o por horario: cada horario lleva la variable TAREA con el nombre de su job.
+# como postgres. Manuales (▶) o por horario. Cada horario se reconoce por su DESCRIPCIÓN, que empieza con el nombre
+# del job y dos puntos («menores-detalle: …»): el proyecto no deja variables en los horarios
+# (ci_pipeline_variables_minimum_override_role = no_one_allowed) y hasta el 2026-11-11 ninguno corría su tarea.
 .tarea_con_base: &tarea_con_base
   stage: test
   needs: []
@@ -149,7 +151,7 @@ tarea:menores-detalle:
     - timeout 160m python -X utf8 backend/scripts/menores_detalle.py prod --detalle --directo --hilos 1 --pausa 2 || echo "cortado por tiempo o por el WAF; el siguiente retoma"
     - python -X utf8 backend/scripts/tareas_ci.py prod refrescar-menores
   rules:
-    - if: '$CI_PIPELINE_SOURCE == "schedule" && $TAREA == "menores-detalle"'
+    - if: '$CI_PIPELINE_SOURCE == "schedule" && ($TAREA == "menores-detalle" || $CI_PIPELINE_SCHEDULE_DESCRIPTION =~ /^menores-detalle:/)'
     - if: '$CI_COMMIT_BRANCH == "main" && $CI_PIPELINE_SOURCE != "schedule"'
       when: manual
       allow_failure: true
@@ -161,7 +163,7 @@ tarea:ordenes-anual:
   script:
     - python -X utf8 backend/scripts/tareas_ci.py prod ordenes-anual
   rules:
-    - if: '$CI_PIPELINE_SOURCE == "schedule" && $TAREA == "ordenes-anual"'
+    - if: '$CI_PIPELINE_SOURCE == "schedule" && ($TAREA == "ordenes-anual" || $CI_PIPELINE_SCHEDULE_DESCRIPTION =~ /^ordenes-anual:/)'
     - if: '$CI_COMMIT_BRANCH == "main" && $CI_PIPELINE_SOURCE != "schedule"'
       when: manual
       allow_failure: true
@@ -172,22 +174,22 @@ tarea:lector-menores:
   script:
     - bash backend/lector/cadena_menores.sh prod 15 8
   rules:
-    - if: '$CI_PIPELINE_SOURCE == "schedule" && $TAREA == "lector-menores"'
+    - if: '$CI_PIPELINE_SOURCE == "schedule" && ($TAREA == "lector-menores" || $CI_PIPELINE_SCHEDULE_DESCRIPTION =~ /^lector-menores:/)'
     - if: '$CI_COMMIT_BRANCH == "main" && $CI_PIPELINE_SOURCE != "schedule"'
       when: manual
       allow_failure: true
 
 # Análisis masivo de contratos 2026 con las Lambdas de agentes de producción (Workers AI), con tope de gasto en el libro
 # de la base (agente_masivo, migración 272). Lanza durante 155 min y deja terminar lo que está en vuelo; el horario lo
-# repite cada 3 h hasta llegar al tope. Tope (US$ acumulados) y reparto en variables del horario: MASIVO_TOPE (obligatoria)
-# y MASIVO_PLAN. Un job a la vez (resource_group); ≤ 9 análisis a la vez en total (límite de Workers AI).
+# repite cada 3 h hasta llegar al tope. Tope (US$ acumulados) en la variable del proyecto MASIVO_TOPE (obligatoria);
+# reparto en MASIVO_PLAN (opcional). Un job a la vez (resource_group); ≤ 9 análisis a la vez en total (límite de Workers AI).
 tarea:masivo-agentes:
   <<: *tarea_con_base
   resource_group: masivo-agentes
   script:
     - timeout 175m python -X utf8 backend/scripts/masivo_agentes.py prod --plan "${MASIVO_PLAN:-bienes=2 servicios,consultoria=2 obras=5}" --tope "${MASIVO_TOPE:?falta MASIVO_TOPE}" --minutos 155
   rules:
-    - if: '$CI_PIPELINE_SOURCE == "schedule" && $TAREA == "masivo-agentes"'
+    - if: '$CI_PIPELINE_SOURCE == "schedule" && ($TAREA == "masivo-agentes" || $CI_PIPELINE_SCHEDULE_DESCRIPTION =~ /^masivo-agentes:/)'
     - if: '$CI_COMMIT_BRANCH == "main" && $CI_PIPELINE_SOURCE != "schedule"'
       when: manual
       allow_failure: true
@@ -226,6 +228,8 @@ build:agente:
     - ./crane append --platform linux/arm64 --base "$REPO:$AGENTE_BASE" --new_layer /tmp/app.tar --new_tag "$REPO:$CI_COMMIT_SHORT_SHA-sdk"
     - echo "imagen $REPO:$CI_COMMIT_SHORT_SHA-sdk"
   rules:
+    - if: '$CI_PIPELINE_SOURCE == "schedule"'
+      when: never
     - if: '$CI_COMMIT_BRANCH == "main"'
       changes: [backend/agent/**/*]
     - if: '$CI_COMMIT_BRANCH == "main"'
@@ -246,6 +250,8 @@ deploy:agentes:prod:
   environment:
     name: production
   rules:
+    - if: '$CI_PIPELINE_SOURCE == "schedule"'
+      when: never
     - if: '$CI_COMMIT_BRANCH == "main"'
       when: manual
 
@@ -301,6 +307,8 @@ deploy:api:prod:
     name: production
     url: https://vigia-api.vigiaperu.workers.dev
   rules:
+    - if: '$CI_PIPELINE_SOURCE == "schedule"'
+      when: never
     - if: '$CI_COMMIT_BRANCH == "main"'
       when: manual
 
@@ -318,5 +326,7 @@ deploy:web:prod:
     name: production
     url: https://vigia.gobserva.cloud
   rules:
+    - if: '$CI_PIPELINE_SOURCE == "schedule"'
+      when: never
     - if: '$CI_COMMIT_BRANCH == "main"'
       when: manual
