@@ -157,26 +157,57 @@ export function confirmarEnTexto(precio: number, visible: string): boolean {
   return [...formas].some((f) => new RegExp(`(^|[^\\d.,])${f.replace(/[.]/g, "\\.")}(?![\\d])`).test(limpio));
 }
 
-/** ¿El robots.txt deja leer esta ruta a cualquier agente? Reglas de `User-agent: *` (Allow gana si es más largo). */
-export function robotsPermite(robots: string, ruta: string): boolean {
-  let enGrupo = false, vioAgente = false;
-  const reglas: { permitir: boolean; prefijo: string }[] = [];
+/** ¿La ruta calza con el patrón de robots.txt? `*` = cualquier cosa, `$` al final = ahí termina (RFC 9309). */
+function calzaPatron(patron: string, ruta: string): boolean {
+  const fin = patron.endsWith("$");
+  const cuerpo = (fin ? patron.slice(0, -1) : patron)
+    .split("*")
+    .map((s) => s.replace(/[.+?^${}()|[\]\\]/g, "\\$&"))
+    .join(".*");
+  return new RegExp(`^${cuerpo}${fin ? "$" : ""}`).test(ruta);
+}
+
+/**
+ * ¿El robots.txt deja leer esta ruta? (RFC 9309) Se usa el grupo que nombra a este agente o, si no hay, el de `*`; entre
+ * las reglas que calzan gana la del patrón más largo y, empatadas, Allow. Sin reglas que calcen, se puede.
+ */
+export function robotsPermite(robots: string, ruta: string, agente = "vigiaperu-precioslab"): boolean {
+  interface Grupo {
+    agentes: string[];
+    reglas: { permitir: boolean; patron: string }[];
+  }
+  const grupos: Grupo[] = [];
+  let actual: Grupo | null = null;
+  let conReglas = false;
   for (const cruda of robots.split(/\r?\n/)) {
     const linea = cruda.replace(/#.*/, "").trim();
-    if (!linea) continue;
-    const [k, ...resto] = linea.split(":");
-    const clave = k.trim().toLowerCase(), valor = resto.join(":").trim();
+    const i = linea.indexOf(":");
+    if (i < 0) continue;
+    const clave = linea.slice(0, i).trim().toLowerCase();
+    const valor = linea.slice(i + 1).trim();
     if (clave === "user-agent") {
-      if (vioAgente && !enGrupo) enGrupo = false;
-      enGrupo = valor === "*" ? true : enGrupo && !vioAgente;
-      vioAgente = false;
-    } else if (enGrupo && (clave === "disallow" || clave === "allow")) {
-      vioAgente = true;
-      if (valor) reglas.push({ permitir: clave === "allow", prefijo: valor.replace(/\*.*$/, "") });
+      if (!actual || conReglas) {
+        actual = { agentes: [], reglas: [] };
+        grupos.push(actual);
+        conReglas = false;
+      }
+      actual.agentes.push(valor.toLowerCase());
+    } else if (actual && (clave === "allow" || clave === "disallow")) {
+      conReglas = true;
+      if (valor) actual.reglas.push({ permitir: clave === "allow", patron: valor });
+    } else if (actual && clave === "crawl-delay") {
+      conReglas = true;
     }
   }
-  let mejor: { permitir: boolean; prefijo: string } | null = null;
-  for (const r of reglas) if (ruta.startsWith(r.prefijo) && (!mejor || r.prefijo.length > mejor.prefijo.length)) mejor = r;
+  const propios = grupos.filter((g) => g.agentes.some((a) => a !== "*" && agente.toLowerCase().includes(a)));
+  const aplican = propios.length ? propios : grupos.filter((g) => g.agentes.includes("*"));
+  let mejor: { permitir: boolean; largo: number } | null = null;
+  for (const g of aplican) {
+    for (const r of g.reglas) {
+      if (!calzaPatron(r.patron, ruta)) continue;
+      if (!mejor || r.patron.length > mejor.largo || (r.patron.length === mejor.largo && r.permitir)) mejor = { permitir: r.permitir, largo: r.patron.length };
+    }
+  }
   return mejor ? mejor.permitir : true;
 }
 

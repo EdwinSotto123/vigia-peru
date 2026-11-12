@@ -70,3 +70,15 @@ test("DuckDuckGo HTML: resultados sin anuncios y con la URL real", () => {
   assert.equal(r[0].titulo, "Papel bond A4");
   assert.equal(r[0].extracto, "S/ 21.90 el paquete");
 });
+
+test("robots.txt con comodines, $ y grupos de otros agentes (caso MercadoLibre)", () => {
+  const r = `User-agent: ClaudeBot\nUser-agent: GPTBot\nDisallow: /\n\nUser-agent: Bingbot\nCrawl-delay: 5\nDisallow: /HOME/\n\nUser-agent: *\nDisallow: /*www.siteinfo.cf\nDisallow: /*itemid\nDisallow: /recommendations*\nDisallow: /*.pdf$\nAllow: /p/\nSitemap: https://x/sitemap.xml\n`;
+  assert.ok(robotsPermite(r, "/papel-bond-a4/p/MPE38627756"));
+  assert.ok(robotsPermite(r, "/papel-bond-a4-75-gr"));
+  assert.ok(!robotsPermite(r, "/algo/www.siteinfo.cf"));
+  assert.ok(!robotsPermite(r, "/x?itemid=12"));
+  assert.ok(!robotsPermite(r, "/recommendations/abc"));
+  assert.ok(!robotsPermite(r, "/ficha.pdf"));
+  assert.ok(robotsPermite(r, "/ficha.pdf?v=1"));
+  assert.ok(!robotsPermite(r, "/p/x", "ClaudeBot"));
+});
