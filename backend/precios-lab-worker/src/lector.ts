@@ -19,18 +19,26 @@ interface EnvContenedor {
   CRAWL4AI_TOKEN?: string;
 }
 
+/**
+ * Cómo arranca Crawl4AI. Diagnóstico del 2026-11-12:
+ *   - Sin CRAWL4AI_API_TOKEN, su entrypoint.sh solo escucha en 127.0.0.1 y el Worker no lo alcanza en 10.0.0.1:11235.
+ *   - La imagen solo trae `CMD ["bash", "entrypoint.sh"]` (sin ENTRYPOINT, relativo a /app): en Cloudflare salía con
+ *     código 0 sin levantar nada. Con el comando explícito escucha en ~2 s.
+ */
+export const arranque = (token: string) => ({
+  entrypoint: ["bash", "-c", "cd /app && exec bash entrypoint.sh"],
+  envVars: { CRAWL4AI_ALLOW_DEEP_CRAWL: "false", CRAWL4AI_API_TOKEN: token, GUNICORN_BIND: "0.0.0.0:11235" },
+});
+
 export class Lector extends Container<EnvContenedor> {
   defaultPort = 11235;
   sleepAfter = "5m";
 
   constructor(ctx: DurableObjectState<{}>, env: EnvContenedor) {
     super(ctx, env);
-    // Crawl4AI 0.9.4 solo escucha fuera de su propio loopback si tiene token (entrypoint.sh); sin él, el Worker no
-    // lo alcanza en 10.0.0.1:11235. Cada pedido lleva el token (rendir).
-    this.envVars = { CRAWL4AI_ALLOW_DEEP_CRAWL: "false", CRAWL4AI_API_TOKEN: env.CRAWL4AI_TOKEN ?? "", GUNICORN_BIND: "0.0.0.0:11235" };
-    // La imagen solo trae `CMD ["bash", "entrypoint.sh"]` (sin ENTRYPOINT, relativo a /app): en Cloudflare salía con
-    // código 0 sin levantar nada. Con el comando explícito arranca en ~2 s (diagnóstico del 2026-11-12).
-    this.entrypoint = ["bash", "-c", "cd /app && exec bash entrypoint.sh"];
+    const a = arranque(env.CRAWL4AI_TOKEN ?? "");
+    this.envVars = a.envVars;
+    this.entrypoint = a.entrypoint;
   }
 
   override onStop(p: { exitCode?: number; reason?: string }) {
@@ -81,10 +89,23 @@ export async function rendir(env: EnvLector, gasto: Gasto, url: string, agente: 
   // Solo se cuenta el tiempo si el contenedor respondió: si no llegó a arrancar, Cloudflare no lo cobra.
   let respondio = false;
   try {
-    const lector = getContainer(env.LECTOR, "lector");
-    // Crawl4AI levanta Redis, su servidor y Chromium antes de abrir el puerto: tarda más que los 20 s que espera
-    // `fetch` por defecto («not listening in the TCP address 10.0.0.1:11235», 2026-11-12).
-    await lector.startAndWaitForPorts({ ports: 11235, cancellationOptions: { instanceGetTimeoutMS: 60_000, portReadyTimeoutMS: 150_000, waitInterval: 1_000 } });
+    // Instancia nueva («lector» quedó con un contenedor arrancado por el CMD de la imagen, que no escuchaba).
+    const lector = getContainer(env.LECTOR, "crawl4ai");
+    // La primera vez en una máquina baja la imagen (1,7 GB): se espera hasta 150 s a que abra el puerto. El arranque
+    // va explícito (comando y variables) para no depender del estado que guarde el Durable Object.
+    try {
+      await lector.startAndWaitForPorts({
+        ports: 11235,
+        startOptions: arranque(env.CRAWL4AI_TOKEN),
+        cancellationOptions: { instanceGetTimeoutMS: 90_000, portReadyTimeoutMS: 150_000, waitInterval: 1_000 },
+      });
+    } catch (e) {
+      // Si no abrió el puerto, se destruye para que el próximo pedido arranque de cero.
+      const estado = await lector.getState().catch(() => null);
+      console.warn("crawl4ai no arrancó", JSON.stringify(estado), String((e as Error)?.message ?? e).slice(0, 200));
+      await lector.destroy().catch(() => undefined);
+      return null;
+    }
     const r = await lector.fetch(
       new Request("http://lector/crawl", {
         method: "POST",
