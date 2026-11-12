@@ -39,6 +39,7 @@ const Pedido = z.object({
   ocid: z.string().trim().regex(/^[A-Za-z0-9-]{3,80}$/).optional(),
   item: z.number().int().min(0).max(100_000).optional(),
   web: z.boolean().optional(),
+  urls: z.array(z.string().trim().url().max(500)).max(10).optional(),
 });
 
 interface Referencia {

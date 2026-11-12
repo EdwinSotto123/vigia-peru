@@ -50,6 +50,9 @@ export function limpiarEntrada(b: Record<string, unknown> | null): Entrada | nul
     ocid: corto(b.ocid, 80),
     item: numero(b.item),
     web: b.web === false ? false : undefined,
+    urls: Array.isArray(b.urls)
+      ? [...new Set(b.urls.filter((u): u is string => typeof u === "string" && /^https?:\/\/[^\s]{4,500}$/.test(u.trim())).map((u) => u.trim()))].slice(0, 10)
+      : undefined,
     autor: corto(b.autor, 120),
   };
 }

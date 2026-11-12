@@ -18,6 +18,8 @@ export interface Entrada {
   item?: number;
   /** Buscar también en la web abierta (Tavily). Por defecto sí. */
   web?: boolean;
+  /** Páginas que quien investiga ya encontró: se leen como las de la web (hasta 10). */
+  urls?: string[];
   /** Quién la pidió (correo del panel), para la bitácora. */
   autor?: string;
 }

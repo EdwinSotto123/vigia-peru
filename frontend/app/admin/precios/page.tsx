@@ -157,7 +157,8 @@ function detallePaso(d: unknown): string {
   for (const [k, v] of Object.entries(o)) {
     if (k === "busquedas" && Array.isArray(v)) partes.push(`busca ${v.map((x) => `«${x}»`).join(", ")}`);
     else if (k === "unidad") partes.push(`por ${v}`);
-    else if (k === "via") partes.push(v === "duckduckgo" ? "por DuckDuckGo" : "por Tavily");
+    else if (k === "via") partes.push(`de ${String(v).replace("pegadas", "las que pegaste").replace("duckduckgo", "DuckDuckGo").replace("tavily", "Tavily")}`);
+    else if (k === "nota") partes.push(String(v));
     else if (k === "veredicto") partes.push(String(v));
     else if (k === "tiendas" && v && typeof v === "object") partes.push(`${Object.values(v as Record<string, string>).filter((x) => /productos/.test(x)).length} tiendas con resultados`);
     else if (typeof v === "number" && nombres[k]) partes.push(`${NUM.format(v)} ${nombres[k]}`);
@@ -182,6 +183,7 @@ function Formulario({ onCreada }: { onCreada: (id: string) => void }) {
   const [ocid, setOcid] = useState("");
   const [item, setItem] = useState("");
   const [web, setWeb] = useState(true);
+  const [enlaces, setEnlaces] = useState("");
   const [enviando, setEnviando] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -201,6 +203,9 @@ function Formulario({ onCreada }: { onCreada: (id: string) => void }) {
     if (unidad.trim()) cuerpo.unidad = unidad.trim();
     const p = Number(precio.replace(",", "."));
     if (precio.trim() && p > 0) cuerpo.precioReferencia = p;
+    const urls = enlaces.split(/\s+/).map((u) => u.trim()).filter((u) => /^https?:\/\//.test(u));
+    if (urls.length > 10) return setError("Pega como mucho 10 enlaces.");
+    if (urls.length) cuerpo.urls = urls;
     setEnviando(true);
     try {
       const r = await adminFetch<{ id: string }>("/precios-lab", { method: "POST", body: JSON.stringify(cuerpo) });
@@ -208,6 +213,7 @@ function Formulario({ onCreada }: { onCreada: (id: string) => void }) {
       setConsulta("");
       setEspecificacion("");
       setPrecio("");
+      setEnlaces("");
     } catch (err) {
       setError(mensajeError(err));
     } finally {
@@ -255,7 +261,7 @@ function Formulario({ onCreada }: { onCreada: (id: string) => void }) {
             placeholder="Papel bond A4 75 g, paquete de 500 hojas"
           />
         </label>
-        <Expandable resumen="Especificación, unidad y precio a comparar" variante="caja">
+        <Expandable resumen="Especificación, unidad, precio a comparar y páginas" variante="caja">
           <div className="space-y-3 pt-1">
             <label className="block space-y-1">
               <span className="text-meta text-mute">Especificación técnica (lo que piden las bases)</span>
@@ -271,6 +277,15 @@ function Formulario({ onCreada }: { onCreada: (id: string) => void }) {
                 <input className={campo} value={precio} onChange={(e) => setPrecio(e.target.value)} placeholder="25.90" inputMode="decimal" />
               </label>
             </div>
+            <label className="block space-y-1">
+              <span className="text-meta text-mute">Páginas que ya encontraste (una por línea, hasta 10): se leen siempre</span>
+              <textarea
+                className={`${campo} min-h-[72px] py-2 font-mono text-meta`}
+                value={enlaces}
+                onChange={(e) => setEnlaces(e.target.value)}
+                placeholder="https://www.tienda.pe/producto"
+              />
+            </label>
           </div>
         </Expandable>
         <label className="flex items-center gap-2 text-dato text-ink">

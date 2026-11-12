@@ -126,9 +126,11 @@ export class Investigacion extends WorkflowEntrypoint<Env, { id: string }> {
 
     // ── web ──
     const web = await step.do("web", CONFIG, async (): Promise<ResultadoWeb[]> => {
+      // Las páginas que pegó quien investiga van primero y se leen siempre.
+      const propias: ResultadoWeb[] = (entrada.urls ?? []).map((url) => ({ titulo: "", url, extracto: "" }));
       if (entrada.web === false) {
-        await marcar(env, id, "web", "saltado", "no se pidió");
-        return [];
+        await marcar(env, id, "web", propias.length ? "listo" : "saltado", propias.length ? { paginas: propias.length, via: "pegadas" } : "no se pidió");
+        return propias;
       }
       await marcar(env, id, "web", "corriendo");
       // La web es un extra: si no responde, la investigación sigue con las tiendas.
@@ -153,12 +155,18 @@ export class Investigacion extends WorkflowEntrypoint<Env, { id: string }> {
         }
       }
       await sumarGasto(env, id, g);
-      if (!r.length) {
+      const vistas = new Set(propias.map((p) => p.url));
+      const todas = [...propias, ...r.filter((x) => !vistas.has(x.url))].slice(0, MAX_PAGINAS_WEB);
+      if (!todas.length) {
         await marcar(env, id, "web", "saltado", fallas.length ? `sin resultados (${fallas.join("; ")})` : "sin resultados");
         return [];
       }
-      await marcar(env, id, "web", "listo", { paginas: Math.min(r.length, MAX_PAGINAS_WEB), via });
-      return r.slice(0, MAX_PAGINAS_WEB);
+      await marcar(env, id, "web", "listo", {
+        paginas: todas.length,
+        via: r.length ? (propias.length ? `pegadas y ${via}` : via) : "pegadas",
+        ...(fallas.length && !r.length ? { nota: fallas.join("; ") } : {}),
+      });
+      return todas;
     });
 
     // ── leer ──
