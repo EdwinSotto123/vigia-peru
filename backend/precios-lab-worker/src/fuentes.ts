@@ -66,14 +66,17 @@ export async function buscarWeb(env: EnvFuentes, gasto: Gasto, consulta: string,
   if (c && Date.now() - c.creado < 3 * 86_400_000) {
     resultados = JSON.parse(c.valor) as ResultadoWeb[];
   } else {
+    // 432 = cupo de la cuenta agotado (y 401/403, clave inválida): no se vuelve a pedir hasta mañana.
+    if (await enPausa(env, "tavily|sin_cupo", 86_400_000)) throw new Error("Tavily sin cupo (en pausa hasta mañana)");
     const r = await fetch("https://api.tavily.com/search", {
       method: "POST",
       headers: { "content-type": "application/json", authorization: `Bearer ${env.TAVILY_API_KEY}` },
       body: JSON.stringify({ query: consulta, search_depth: "basic", max_results: 12, country: "peru", include_answer: false }),
     });
+    if ([401, 403, 432, 433].includes(r.status)) await pausar(env, "tavily|sin_cupo");
+    if (!r.ok) throw new Error(`Tavily respondió ${r.status}`);
     gasto.busquedasWeb += 1;
     gasto.costoWeb += COSTO_TAVILY;
-    if (!r.ok) throw new Error(`tavily ${r.status}`);
     const j = (await r.json()) as { results?: { title?: string; url?: string; content?: string }[] };
     resultados = (j.results ?? [])
       .filter((x) => x.url && /^https?:\/\//.test(x.url))
@@ -84,8 +87,18 @@ export async function buscarWeb(env: EnvFuentes, gasto: Gasto, consulta: string,
   return resultados.filter((x) => !fuera.has(dominioDe(x.url)));
 }
 
-/** DuckDuckGo HTML (gratis): un pedido cada 8 s para todo el laboratorio; si pide pausa, devuelve vacío. */
+async function enPausa(env: EnvFuentes, clave: string, ms: number): Promise<boolean> {
+  const c = await env.DB.prepare("SELECT creado FROM cache_busqueda WHERE clave = ?").bind(clave).first<{ creado: number }>();
+  return !!c && Date.now() - c.creado < ms;
+}
+
+async function pausar(env: EnvFuentes, clave: string): Promise<void> {
+  await env.DB.prepare("INSERT OR REPLACE INTO cache_busqueda (clave, valor, creado) VALUES (?, '1', ?)").bind(clave, Date.now()).run();
+}
+
+/** DuckDuckGo HTML (gratis): un pedido cada 8 s para todo el laboratorio; si pide pausa (202), 10 minutos sin pedir. */
 export async function buscarLibre(env: EnvFuentes, consulta: string, excluirDominios: string[]): Promise<ResultadoWeb[]> {
+  if (await enPausa(env, "ddg|pausa", 600_000)) throw new Error("DuckDuckGo en pausa (pidió esperar)");
   await esperarTurno(env, "duckduckgo.com", 8_000);
   const r = await fetch("https://html.duckduckgo.com/html/", {
     method: "POST",
@@ -94,7 +107,10 @@ export async function buscarLibre(env: EnvFuentes, consulta: string, excluirDomi
     signal: AbortSignal.timeout(20_000),
   });
   const texto = await r.text();
-  if (r.status !== 200 || texto.slice(0, 3000).includes("bots use DuckDuckGo")) throw new Error(`DuckDuckGo respondió ${r.status}`);
+  if (r.status !== 200 || texto.slice(0, 3000).includes("bots use DuckDuckGo")) {
+    if (r.status === 202 || r.status === 403 || r.status === 429 || r.status === 200) await pausar(env, "ddg|pausa");
+    throw new Error(`DuckDuckGo respondió ${r.status}`);
+  }
   const fuera = new Set(excluirDominios.map((d) => d.replace(/^www\./, "")));
   return parsearDdg(texto).filter((x) => !fuera.has(dominioDe(x.url)));
 }
