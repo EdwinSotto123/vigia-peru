@@ -126,7 +126,9 @@ export interface PaginaLeida {
 async function conNavegador(env: EnvFuentes, gasto: Gasto, url: string): Promise<string | null> {
   if (!env.BROWSER) return null;
   const t0 = Date.now();
-  const nav = await puppeteer.launch(env.BROWSER);
+  // Sin navegador disponible (límite de sesiones, cuenta sin Browser Run) la página queda «sin precio», sin tumbar el paso.
+  const nav = await puppeteer.launch(env.BROWSER).catch(() => null);
+  if (!nav) return null;
   try {
     const p = await nav.newPage();
     await p.setUserAgent(USER_AGENT);
