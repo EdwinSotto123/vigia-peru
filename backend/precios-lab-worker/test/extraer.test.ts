@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { confirmarEnTexto, leerJsonLd, parsearDdg, leerMicrodatos, leerOpenGraph, leerPagina, numeroPrecio, robotsPermite, textoVisible } from "../src/extraer.ts";
+import { confirmarEnTexto, leerJsonLd, leerListadoJsonLd, parsearDdg, leerMicrodatos, leerOpenGraph, leerPagina, numeroPrecio, robotsNiegaIa, robotsPermite, textoVisible } from "../src/extraer.ts";
 
 test("numeroPrecio lee los formatos de las tiendas", () => {
   assert.equal(numeroPrecio("S/ 1,299.90"), 1299.9);
@@ -81,4 +81,27 @@ test("robots.txt con comodines, $ y grupos de otros agentes (caso MercadoLibre)"
   assert.ok(!robotsPermite(r, "/ficha.pdf"));
   assert.ok(robotsPermite(r, "/ficha.pdf?v=1"));
   assert.ok(!robotsPermite(r, "/p/x", "ClaudeBot"));
+});
+
+test("Content-Signal: ai-input=no se respeta; sin la señal o solo ai-train=no, se puede", () => {
+  const cf = "User-agent: *\nContent-Signal: search=yes, ai-train=no\nAllow: /\n";
+  assert.ok(!robotsNiegaIa(cf));
+  assert.ok(robotsPermite(cf, "/buscar?q=x"));
+  assert.ok(robotsNiegaIa("User-Agent: *\nContent-signal: search=yes,ai-input=no\nDisallow: /privado\n"));
+  assert.ok(!robotsNiegaIa("User-agent: GPTBot\nContent-Signal: ai-input=no\n\nUser-agent: *\nAllow: /\n"));
+  assert.ok(!robotsNiegaIa(""));
+});
+
+test("listado JSON-LD: ItemList de Product con enlaces relativos, sin repetir", () => {
+  const html = `<script type="application/ld+json">{"@context":"https://schema.org","@type":"ItemList","itemListElement":[
+    {"@type":"ListItem","position":1,"item":{"@type":"Product","name":"Paracetamol 500 mg x 100","url":"/paracetamol-500/p",
+      "brand":{"@type":"Brand","name":"Genfar"},"offers":{"@type":"Offer","price":"12.90","priceCurrency":"PEN"}}},
+    {"@type":"ListItem","position":2,"item":{"@type":"Product","name":"Paracetamol 500 mg x 100","url":"/paracetamol-500/p",
+      "offers":{"@type":"Offer","price":"12.90","priceCurrency":"PEN"}}},
+    {"@type":"ListItem","position":3,"item":{"@type":"Product","name":"Sin precio"}}]}</script>`;
+  const l = leerListadoJsonLd(html, "https://inkafarma.pe/buscador?keyword=paracetamol");
+  assert.equal(l.length, 1);
+  assert.equal(l[0].precio, 12.9);
+  assert.equal(l[0].marca, "Genfar");
+  assert.equal(l[0].url, "https://inkafarma.pe/paracetamol-500/p");
 });

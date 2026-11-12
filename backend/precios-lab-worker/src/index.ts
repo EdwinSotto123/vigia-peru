@@ -20,6 +20,7 @@ import type { Entrada } from "./tipos.ts";
 
 export { Investigacion };
 export { Turnos } from "./turnos.ts";
+export { Lector } from "./lector.ts";
 
 const json = (cuerpo: unknown, status = 200) =>
   new Response(JSON.stringify(cuerpo), { status, headers: { "content-type": "application/json; charset=utf-8" } });
@@ -79,7 +80,7 @@ async function crear(env: Env, req: Request): Promise<Response> {
   return json({ id }, 202);
 }
 
-const COSTO = "costo_modelo + costo_web";
+const COSTO = "costo_modelo + costo_web + costo_contenedor";
 
 async function lista(env: Env, limite: number) {
   const r = await env.DB.prepare(
@@ -95,7 +96,7 @@ async function lista(env: Env, limite: number) {
 async function detalle(env: Env, id: string) {
   const inv = await env.DB.prepare(
     `SELECT id, estado, paso, consulta, entrada, ficha, resumen, error, creado, terminado, tokens_entrada, tokens_salida, costo_modelo, busquedas_web,
-            costo_web, segundos_navegador FROM investigacion WHERE id = ?`,
+            costo_web, segundos_navegador, segundos_contenedor, costo_contenedor FROM investigacion WHERE id = ?`,
   ).bind(id).first<Record<string, unknown>>();
   if (!inv) return json({ error: "no encontrada" }, 404);
   const pasos = await env.DB.prepare("SELECT nombre, estado, detalle, inicio, fin FROM paso WHERE investigacion = ? ORDER BY inicio").bind(id).all();
@@ -126,7 +127,7 @@ async function resultados(env: Env, id: string) {
 }
 
 async function evidencia(env: Env, id: string, archivo: string) {
-  if (!/^[0-9a-f-]{36}$/.test(id) || !/^(tiendas|web-\d{1,2})\.json$/.test(archivo)) return json({ error: "no encontrada" }, 404);
+  if (!/^[0-9a-f-]{36}$/.test(id) || !/^(tiendas|buscador-\d{1,2}|web-\d{1,2})\.json$/.test(archivo)) return json({ error: "no encontrada" }, 404);
   const o = await env.EVIDENCIAS.get(`lab/${id}/${archivo}`);
   if (!o) return json({ error: "no encontrada" }, 404);
   return new Response(o.body, { headers: { "content-type": "application/json; charset=utf-8" } });
@@ -137,7 +138,7 @@ export default {
     const url = new URL(req.url);
     const partes = url.pathname.split("/").filter(Boolean);
     try {
-      if (url.pathname === "/salud") return json({ ok: true, web: !!env.TAVILY_API_KEY, navegador: !!env.BROWSER });
+      if (url.pathname === "/salud") return json({ ok: true, web: !!env.TAVILY_API_KEY, navegador: !!env.BROWSER, contenedor: !!env.LECTOR });
       if (url.pathname === "/research" && req.method === "POST") return await crear(env, req);
       if (partes[0] === "jobs" && req.method === "GET") {
         if (partes.length === 1) return await lista(env, Math.min(100, Math.max(1, Number(url.searchParams.get("limite")) || 30)));

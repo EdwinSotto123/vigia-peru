@@ -87,6 +87,69 @@ export function leerJsonLd(html: string): Lectura | null {
   return null;
 }
 
+/** Todos los objetos de un JSON (los listados anidan Product dentro de ItemList → ListItem → item). */
+function* todos(x: unknown, hondo = 0): Generator<Record<string, unknown>> {
+  if (hondo > 8) return;
+  if (Array.isArray(x)) {
+    for (const y of x) yield* todos(y, hondo + 1);
+  } else if (x && typeof x === "object") {
+    const o = x as Record<string, unknown>;
+    yield o;
+    for (const v of Object.values(o)) if (v && typeof v === "object") yield* todos(v, hondo + 1);
+  }
+}
+
+export interface ItemListado {
+  titulo: string;
+  marca: string | null;
+  precio: number;
+  moneda: string | null;
+  url: string | null;
+  fragmento: string;
+}
+
+/** Los productos con precio que el buscador de una tienda publica en JSON-LD (ItemList de Product). */
+export function leerListadoJsonLd(html: string, base: string, tope = 40): ItemListado[] {
+  const salida: ItemListado[] = [];
+  const vistos = new Set<string>();
+  for (const m of html.matchAll(RE_JSONLD)) {
+    let datos: unknown;
+    try {
+      datos = JSON.parse(m[1].trim().replace(/^<!--|-->$/g, ""));
+    } catch {
+      continue;
+    }
+    for (const o of todos(datos)) {
+      if (!esTipo(o, "Product") || !texto(o.name)) continue;
+      for (const of of nodos(o.offers)) {
+        const precio = numeroPrecio(of.price ?? of.lowPrice);
+        if (precio == null) continue;
+        let url: string | null = null;
+        try {
+          const u = texto(o.url) ?? texto(of.url);
+          url = u ? new URL(u, base).toString() : null;
+        } catch {
+          url = null;
+        }
+        const clave = `${url ?? texto(o.name)}|${precio}`;
+        if (vistos.has(clave)) break;
+        vistos.add(clave);
+        salida.push({
+          titulo: texto(o.name)!.slice(0, 240),
+          marca: texto(o.brand),
+          precio,
+          moneda: texto(of.priceCurrency)?.toUpperCase() ?? null,
+          url,
+          fragmento: JSON.stringify({ name: o.name, url: o.url, offers: of }).slice(0, 600),
+        });
+        break;
+      }
+      if (salida.length >= tope) return salida;
+    }
+  }
+  return salida;
+}
+
 const atributo = (etiqueta: string, nombre: string) => new RegExp(`${nombre}\\s*=\\s*["']([^"']*)["']`, "i").exec(etiqueta)?.[1] ?? null;
 
 /** `itemprop="price"` (con `content` o el texto de la etiqueta) y su moneda. */
@@ -167,17 +230,16 @@ function calzaPatron(patron: string, ruta: string): boolean {
   return new RegExp(`^${cuerpo}${fin ? "$" : ""}`).test(ruta);
 }
 
-/**
- * ¿El robots.txt deja leer esta ruta? (RFC 9309) Se usa el grupo que nombra a este agente o, si no hay, el de `*`; entre
- * las reglas que calzan gana la del patrón más largo y, empatadas, Allow. Sin reglas que calcen, se puede.
- */
-export function robotsPermite(robots: string, ruta: string, agente = "vigiaperu-precioslab"): boolean {
-  interface Grupo {
-    agentes: string[];
-    reglas: { permitir: boolean; patron: string }[];
-  }
-  const grupos: Grupo[] = [];
-  let actual: Grupo | null = null;
+interface GrupoRobots {
+  agentes: string[];
+  reglas: { permitir: boolean; patron: string }[];
+  senales: string[];
+}
+
+/** Los grupos de robots.txt que aplican a este agente: el que lo nombra o, si no hay, el de `*` (RFC 9309). */
+function gruposQueAplican(robots: string, agente: string): GrupoRobots[] {
+  const grupos: GrupoRobots[] = [];
+  let actual: GrupoRobots | null = null;
   let conReglas = false;
   for (const cruda of robots.split(/\r?\n/)) {
     const linea = cruda.replace(/#.*/, "").trim();
@@ -187,7 +249,7 @@ export function robotsPermite(robots: string, ruta: string, agente = "vigiaperu-
     const valor = linea.slice(i + 1).trim();
     if (clave === "user-agent") {
       if (!actual || conReglas) {
-        actual = { agentes: [], reglas: [] };
+        actual = { agentes: [], reglas: [], senales: [] };
         grupos.push(actual);
         conReglas = false;
       }
@@ -197,18 +259,37 @@ export function robotsPermite(robots: string, ruta: string, agente = "vigiaperu-
       if (valor) actual.reglas.push({ permitir: clave === "allow", patron: valor });
     } else if (actual && clave === "crawl-delay") {
       conReglas = true;
+    } else if (actual && clave === "content-signal") {
+      conReglas = true;
+      actual.senales.push(valor.toLowerCase());
     }
   }
   const propios = grupos.filter((g) => g.agentes.some((a) => a !== "*" && agente.toLowerCase().includes(a)));
-  const aplican = propios.length ? propios : grupos.filter((g) => g.agentes.includes("*"));
+  return propios.length ? propios : grupos.filter((g) => g.agentes.includes("*"));
+}
+
+/**
+ * ¿El robots.txt deja leer esta ruta? (RFC 9309) Se usa el grupo que nombra a este agente o, si no hay, el de `*`; entre
+ * las reglas que calzan gana la del patrón más largo y, empatadas, Allow. Sin reglas que calcen, se puede.
+ */
+export function robotsPermite(robots: string, ruta: string, agente = "vigiaperu-precioslab"): boolean {
   let mejor: { permitir: boolean; largo: number } | null = null;
-  for (const g of aplican) {
+  for (const g of gruposQueAplican(robots, agente)) {
     for (const r of g.reglas) {
       if (!calzaPatron(r.patron, ruta)) continue;
       if (!mejor || r.patron.length > mejor.largo || (r.patron.length === mejor.largo && r.permitir)) mejor = { permitir: r.permitir, largo: r.patron.length };
     }
   }
   return mejor ? mejor.permitir : true;
+}
+
+/**
+ * Content Signals (contentsignals.org, los pone Cloudflare en su robots.txt administrado): ¿el sitio dice
+ * `ai-input=no`? Leer el precio pasa la página por un modelo (el juicio, la lectura con IA), así que se respeta igual
+ * que un Disallow. Sin la señal, ni sí ni no: se puede.
+ */
+export function robotsNiegaIa(robots: string, agente = "vigiaperu-precioslab"): boolean {
+  return gruposQueAplican(robots, agente).some((g) => g.senales.some((s) => /(^|[\s,])ai-input\s*=\s*no\b/.test(s)));
 }
 
 export interface ResultadoWeb {

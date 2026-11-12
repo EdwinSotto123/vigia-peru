@@ -211,6 +211,71 @@ export async function leerConModelo(env: EnvModelo, gasto: Gasto, url: string, t
   return { titulo: String(r.titulo ?? "").slice(0, 200), marca: r.marca ? String(r.marca).slice(0, 80) : null, precio: Number(r.precio), moneda: String(r.moneda ?? "PEN").toUpperCase().slice(0, 3) };
 }
 
+// ─── leer el listado de un buscador de tienda ────────────────────────────────
+const H_LISTADO: Herramienta = {
+  name: "listado",
+  description: "Los productos en venta que muestra el listado, en el orden de la página.",
+  parameters: {
+    type: "object",
+    properties: {
+      productos: {
+        type: "array",
+        items: {
+          type: "object",
+          properties: {
+            titulo: { type: "string" },
+            marca: { type: "string" },
+            precio: { type: "number" },
+            moneda: { type: "string" },
+            url: { type: "string" },
+            presentacion: { type: "string" },
+          },
+          required: ["titulo", "precio"],
+        },
+      },
+    },
+    required: ["productos"],
+  },
+};
+
+export interface ProductoListado {
+  titulo: string;
+  marca: string | null;
+  precio: number;
+  moneda: string;
+  url: string | null;
+  presentacion: string | null;
+}
+
+/**
+ * El listado de resultados del buscador de una tienda, en Markdown (Crawl4AI), sin datos estructurados. El modelo
+ * solo copia lo que ve: cada precio se confirma después en el mismo texto y cada enlace tiene que estar en la página.
+ */
+export async function leerListadoConModelo(env: EnvModelo, gasto: Gasto, url: string, markdown: string, tope = 24): Promise<ProductoListado[]> {
+  const r = await pedir<{ productos?: { titulo?: string; marca?: string; precio?: number; moneda?: string; url?: string; presentacion?: string }[] }>(
+    env,
+    gasto,
+    `Lees la página de resultados del buscador de una tienda peruana. Copia los productos que aparecen en venta, hasta ${tope},
+en el orden de la página: título tal cual, marca si se ve, el precio actual (no el tachado ni el precio por unidad de
+medida), moneda (PEN si dice S/), el enlace a su ficha (tal cual aparece en el texto) y la presentación si el título no
+la dice («x 100 tabletas», «caja x 12»). No inventes productos, precios ni enlaces; si no hay resultados, lista vacía.`,
+    `URL: ${url}\n\nPágina en Markdown (recortada):\n${markdown.slice(0, 24000)}`,
+    H_LISTADO,
+    5000,
+  );
+  return (r.productos ?? [])
+    .filter((p) => p.titulo && Number(p.precio) > 0)
+    .slice(0, tope)
+    .map((p) => ({
+      titulo: String(p.titulo).slice(0, 240),
+      marca: p.marca ? String(p.marca).slice(0, 80) : null,
+      precio: Number(p.precio),
+      moneda: String(p.moneda || "PEN").toUpperCase().replace("S/", "PEN").slice(0, 3),
+      url: p.url ? String(p.url).slice(0, 500) : null,
+      presentacion: p.presentacion ? String(p.presentacion).slice(0, 80) : null,
+    }));
+}
+
 // ─── parecido (embeddings) ───────────────────────────────────────────────────
 const coseno = (a: number[], b: number[]) => {
   let p = 0, na = 0, nb = 0;

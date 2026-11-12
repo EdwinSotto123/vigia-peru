@@ -4,9 +4,12 @@
  *
  *   entender   GLM 5.3 flash convierte el pedido en una ficha: nombre, atributos obligatorios, unidad y búsquedas.
  *   tiendas    las búsquedas en 15 tiendas peruanas (vigia-precios), con precio estructurado.
+ *   buscadores el buscador propio de tiendas armadas con JavaScript (farmacias, Real Plaza, Makro), abierto con
+ *              Crawl4AI en un contenedor de Cloudflare; los productos salen del JSON-LD del listado o, si no hay, GLM
+ *              los copia del Markdown (cada precio se confirma en el mismo texto).
  *   web        Tavily: páginas de venta en el Perú fuera de esas tiendas.
  *   leer       cada página: robots.txt, turno por dominio, schema.org (JSON-LD, microdatos, Open Graph); si no hay,
- *              un navegador de Cloudflare y, al final, GLM sobre el texto. El precio se confirma en el texto visible.
+ *              Crawl4AI (o Browser Run si el contenedor no responde) y, al final, GLM sobre el texto. El precio se confirma en el texto visible.
  *   emparejar  reglas (palabras que delatan otro producto) + parecido (bge-m3) + el juicio de GLM: ¿es el mismo
  *              producto o uno equivalente?, ¿cuántas unidades trae?
  *   resumir    validar (moneda, unidades, confirmación, extremos) y la estadística frente a la referencia.
@@ -14,9 +17,10 @@
  * Cada paso guarda su avance en D1 (tabla paso) para que el panel lo muestre mientras corre, y la evidencia en R2.
  */
 import { WorkflowEntrypoint, type WorkflowEvent, type WorkflowStep } from "cloudflare:workers";
-import { confirmarEnTexto } from "./extraer.ts";
-import { buscarLibre, buscarTiendas, buscarWeb, dominioDe, leerUrl, type EnvFuentes, type ResultadoWeb } from "./fuentes.ts";
-import { entender, juzgar, leerConModelo, parecido, type EnvModelo } from "./modelo.ts";
+import { confirmarEnTexto, leerListadoJsonLd, textoVisible } from "./extraer.ts";
+import { abrirBuscador, BUSCADORES, buscarLibre, buscarTiendas, buscarWeb, dominioDe, esSalud, leerUrl, type Buscador, type EnvFuentes, type ResultadoWeb } from "./fuentes.ts";
+import { COSTO_SEGUNDO_CONTENEDOR } from "./lector.ts";
+import { entender, juzgar, leerConModelo, leerListadoConModelo, parecido, type EnvModelo } from "./modelo.ts";
 import { resumir, validar } from "./estadistica.ts";
 import { gastoVacio, type Entrada, type Ficha, type Gasto, type Oferta } from "./tipos.ts";
 
@@ -27,7 +31,10 @@ export interface Env extends EnvFuentes, EnvModelo {
 
 const MAX_OFERTAS_TIENDA = 60;
 const MAX_PAGINAS_WEB = 10;
-const MAX_NAVEGADOR = 3;
+/** Páginas de la web que se arman con Crawl4AI (o Browser Run) por investigación. */
+const MAX_ARMAR = 8;
+const MAX_OFERTAS_BUSCADOR = 15;
+const MAX_LISTADOS_IA = 4;
 const MAX_LECTURAS_IA = 5;
 const MAX_JUZGAR = 40;
 const LOTE_JUICIO = 20;
@@ -49,8 +56,10 @@ async function marcar(env: Env, id: string, paso: string, estado: "corriendo" | 
 async function sumarGasto(env: Env, id: string, g: Gasto) {
   await env.DB.prepare(
     `UPDATE investigacion SET tokens_entrada = tokens_entrada + ?, tokens_salida = tokens_salida + ?, costo_modelo = costo_modelo + ?,
-       busquedas_web = busquedas_web + ?, costo_web = costo_web + ?, segundos_navegador = segundos_navegador + ? WHERE id = ?`,
-  ).bind(g.tokensEntrada, g.tokensSalida, g.costoModelo, g.busquedasWeb, g.costoWeb, g.segundosNavegador, id).run();
+       busquedas_web = busquedas_web + ?, costo_web = costo_web + ?, segundos_navegador = segundos_navegador + ?,
+       segundos_contenedor = segundos_contenedor + ?, costo_contenedor = costo_contenedor + ? WHERE id = ?`,
+  ).bind(g.tokensEntrada, g.tokensSalida, g.costoModelo, g.busquedasWeb, g.costoWeb, g.segundosNavegador, g.segundosContenedor,
+    g.segundosContenedor * COSTO_SEGUNDO_CONTENEDOR, id).run();
 }
 
 const CONFIG = { retries: { limit: 2, delay: "15 seconds" as const, backoff: "exponential" as const }, timeout: "10 minutes" as const };
@@ -124,6 +133,102 @@ export class Investigacion extends WorkflowEntrypoint<Env, { id: string }> {
       return { ofertas, dominios: Object.keys(estado) };
     });
 
+    // ── buscadores ──
+    const buscadores = await step.do("buscadores", { ...CONFIG, timeout: "15 minutes" }, async () => {
+      const salud = esSalud(`${ficha.nombre} ${ficha.categoria} ${entrada.consulta}`);
+      const lista = BUSCADORES.filter((b) => !b.salud || salud);
+      if (!env.LECTOR) {
+        await marcar(env, id, "buscadores", "saltado", "el contenedor de Crawl4AI no está conectado");
+        return [] as Oferta[];
+      }
+      await marcar(env, id, "buscadores", "corriendo");
+      const g = gastoVacio();
+      const estado: Record<string, string> = {};
+      const ofertas: Oferta[] = [];
+      let ia = 0;
+      const porTienda = async (b: Buscador, i: number) => {
+        for (const termino of ficha.busquedas.slice(0, 2)) {
+          const p = await abrirBuscador(env, g, b, termino);
+          // Si el sitio dice que no (robots, 403, desafío) o falla, no se insiste con otro término.
+          if (p.estado !== "ok" || !p.rendida) {
+            estado[b.id] = p.detalle ?? p.estado;
+            return;
+          }
+          const r = p.rendida;
+          let metodo: Oferta["extraccion"] = "listado_json_ld";
+          let productos: { titulo: string; marca: string | null; precio: number; moneda: string | null; url: string | null; presentacion: string | null }[] =
+            leerListadoJsonLd(r.html, p.url).map((x) => ({ ...x, presentacion: null }));
+          if (productos.length < 3 && r.markdown.length > 300 && ia < MAX_LISTADOS_IA) {
+            ia++;
+            const m = await leerListadoConModelo(env, g, p.url, r.markdown).catch(() => []);
+            if (m.length > productos.length) {
+              productos = m;
+              metodo = "listado_ia";
+            }
+          }
+          const visible = `${textoVisible(r.html)} ${r.markdown}`;
+          const enlaces = new Set(r.enlaces);
+          const propias: Oferta[] = [];
+          const vistas = new Set<string>();
+          for (const x of productos.slice(0, MAX_OFERTAS_BUSCADOR)) {
+            // El enlace que da el modelo vale solo si está en la página; si no, la evidencia es el listado mismo.
+            let url = p.url;
+            try {
+              const abs = x.url ? new URL(x.url, p.url).toString() : null;
+              if (abs && (metodo === "listado_json_ld" || enlaces.has(abs) || r.markdown.includes(x.url!))) url = abs;
+            } catch {
+              /* enlace roto: queda el del listado */
+            }
+            const clave = `${url}|${x.titulo}|${x.precio}`;
+            if (vistas.has(clave)) continue;
+            vistas.add(clave);
+            propias.push({
+              n: 0,
+              fuente: "buscador",
+              tienda: b.id,
+              titulo: x.titulo,
+              marca: x.marca,
+              url,
+              precio: x.precio,
+              moneda: x.moneda ?? "PEN",
+              disponibilidad: null,
+              extraccion: metodo,
+              confirmado: confirmarEnTexto(x.precio, visible),
+              vendedor: null,
+              presentacion: x.presentacion,
+              evidencia: `lab/${id}/buscador-${i}.json`,
+            });
+          }
+          await env.EVIDENCIAS.put(
+            `lab/${id}/buscador-${i}.json`,
+            JSON.stringify({
+              url: p.url,
+              tienda: b.id,
+              termino,
+              leido: ahora(),
+              metodo,
+              productos: propias.map(({ titulo, precio, url, confirmado }) => ({ titulo, precio, url, confirmado })),
+              extracto: r.markdown.slice(0, 4000),
+            }),
+            { httpMetadata: { contentType: "application/json" } },
+          );
+          estado[b.id] = propias.length ? `${propias.length} productos` : "sin resultados";
+          if (propias.length) {
+            ofertas.push(...propias);
+            return;
+          }
+        }
+      };
+      await Promise.all(lista.map((b, i) => porTienda(b, i).catch((e) => void (estado[b.id] = String((e as Error).message ?? e).slice(0, 80)))));
+      await sumarGasto(env, id, g);
+      await marcar(env, id, "buscadores", "listo", {
+        ofertas: ofertas.length,
+        tiendas: estado,
+        ...(salud ? {} : { nota: "las farmacias solo para productos de salud" }),
+      });
+      return ofertas;
+    });
+
     // ── web ──
     const web = await step.do("web", CONFIG, async (): Promise<ResultadoWeb[]> => {
       // Las páginas que pegó quien investiga van primero y se leen siempre.
@@ -179,18 +284,20 @@ export class Investigacion extends WorkflowEntrypoint<Env, { id: string }> {
       const g = gastoVacio();
       const ofertas: Oferta[] = [];
       const cuenta: Record<string, number> = {};
-      let navegador = 0, ia = 0;
+      let armadas = 0, ia = 0;
       for (const [i, w] of web.entries()) {
-        const p = await leerUrl(env, g, w.url, navegador < MAX_NAVEGADOR);
-        if (p.navegador) navegador++;
+        const p = await leerUrl(env, g, w.url, armadas < MAX_ARMAR);
+        if (p.via !== "html") armadas++;
         let lectura = p.lectura;
-        let metodo: Oferta["extraccion"] | null = lectura ? (p.navegador ? "navegador_json_ld" : (lectura.metodo as Oferta["extraccion"])) : null;
+        let metodo: Oferta["extraccion"] | null = lectura
+          ? p.via === "contenedor" ? "contenedor_json_ld" : p.via === "navegador" ? "navegador_json_ld" : (lectura.metodo as Oferta["extraccion"])
+          : null;
         if (!lectura && p.estado === "sin_precio" && p.visible.length > 400 && ia < MAX_LECTURAS_IA) {
           ia++;
           const m = await leerConModelo(env, g, w.url, p.visible).catch(() => null);
           if (m) {
             lectura = { titulo: m.titulo, marca: m.marca, precio: m.precio, moneda: m.moneda, disponibilidad: null, metodo: null, fragmento: null };
-            metodo = p.navegador ? "navegador_ia" : "ia";
+            metodo = p.via === "contenedor" ? "contenedor_ia" : p.via === "navegador" ? "navegador_ia" : "ia";
           }
         }
         const estado = lectura ? "ok" : p.estado;
@@ -222,7 +329,7 @@ export class Investigacion extends WorkflowEntrypoint<Env, { id: string }> {
         }
       }
       await sumarGasto(env, id, g);
-      await marcar(env, id, "leer", "listo", { ...cuenta, navegador, ia });
+      await marcar(env, id, "leer", "listo", { ...cuenta, armadas, ia });
       return ofertas;
     });
 
@@ -230,7 +337,7 @@ export class Investigacion extends WorkflowEntrypoint<Env, { id: string }> {
     const juzgadas = await step.do("emparejar", CONFIG, async () => {
       await marcar(env, id, "emparejar", "corriendo");
       const g = gastoVacio();
-      const todas = [...tiendas.ofertas, ...leidas].map((o, i) => ({ ...o, n: i + 1 }));
+      const todas = [...tiendas.ofertas, ...buscadores, ...leidas].map((o, i) => ({ ...o, n: i + 1 }));
       const sim = await parecido(env, ficha, todas.map((o) => o.titulo)).catch(() => todas.map(() => null));
       const excluir = ficha.excluir.map((x) => x.toLowerCase()).filter((x) => x.length > 2);
       for (const [i, o] of todas.entries()) {

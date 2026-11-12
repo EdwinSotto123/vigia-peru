@@ -17,6 +17,8 @@ CREATE TABLE IF NOT EXISTS investigacion (
   busquedas_web       INTEGER NOT NULL DEFAULT 0,
   costo_web           REAL NOT NULL DEFAULT 0,  -- US$ de Tavily
   segundos_navegador  REAL NOT NULL DEFAULT 0,  -- Browser Run
+  segundos_contenedor REAL NOT NULL DEFAULT 0,  -- Crawl4AI en el contenedor de Cloudflare
+  costo_contenedor    REAL NOT NULL DEFAULT 0,  -- US$ estimados (standard-1 mientras corre)
   creado              TEXT NOT NULL,
   terminado           TEXT
 );
@@ -63,3 +65,7 @@ CREATE TABLE IF NOT EXISTS cache_busqueda (
   valor   TEXT NOT NULL,
   creado  INTEGER NOT NULL
 );
+
+-- 2026-11-12 (Crawl4AI en contenedor), para la base ya creada:
+--   ALTER TABLE investigacion ADD COLUMN segundos_contenedor REAL NOT NULL DEFAULT 0;
+--   ALTER TABLE investigacion ADD COLUMN costo_contenedor REAL NOT NULL DEFAULT 0;

@@ -143,6 +143,6 @@ adminPreciosRouter.get("/precios-lab/:id", async (c) => {
 
 adminPreciosRouter.get("/precios-lab/:id/evidencia/:archivo", (c) => {
   const { id, archivo } = c.req.param();
-  if (!/^[0-9a-f-]{36}$/.test(id) || !/^(tiendas|web-\d{1,2})\.json$/.test(archivo)) return c.json({ error: "not_found" }, 404);
+  if (!/^[0-9a-f-]{36}$/.test(id) || !/^(tiendas|buscador-\d{1,2}|web-\d{1,2})\.json$/.test(archivo)) return c.json({ error: "not_found" }, 404);
   return alLab(c, `/evidencia/${id}/${archivo}`);
 });

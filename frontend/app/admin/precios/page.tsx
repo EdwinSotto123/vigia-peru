@@ -54,7 +54,7 @@ interface Referencia {
 }
 interface Oferta {
   n: number;
-  fuente: "tienda" | "web";
+  fuente: "tienda" | "buscador" | "web";
   tienda: string;
   titulo: string;
   marca: string | null;
@@ -102,6 +102,8 @@ interface Detalle {
   busquedas_web: number;
   costo_web: number;
   segundos_navegador: number;
+  segundos_contenedor?: number;
+  costo_contenedor?: number;
   pasos: Paso[];
   ofertas: Oferta[];
 }
@@ -120,8 +122,9 @@ const ESTADO: Record<Estado, { texto: string; tono: Tone }> = {
 const PASOS: { clave: string; titulo: string; que: string }[] = [
   { clave: "entender", titulo: "Entender", que: "GLM 5.3 flash arma la ficha del producto y las búsquedas" },
   { clave: "tiendas", titulo: "Tiendas", que: "15 tiendas peruanas por su propia búsqueda" },
+  { clave: "buscadores", titulo: "Buscadores", que: "Farmacias, Real Plaza y Makro, abiertas con Crawl4AI" },
   { clave: "web", titulo: "Web", que: "Páginas de venta en el Perú (Tavily)" },
-  { clave: "leer", titulo: "Leer páginas", que: "schema.org, navegador de Cloudflare o GLM sobre el texto" },
+  { clave: "leer", titulo: "Leer páginas", que: "schema.org, Crawl4AI o GLM sobre el texto" },
   { clave: "emparejar", titulo: "Emparejar", que: "¿Mismo producto? ¿Cuántas unidades trae?" },
   { clave: "resumir", titulo: "Resumir", que: "Validar y comparar con la referencia" },
 ];
@@ -139,6 +142,10 @@ const LECTURA: Record<string, string> = {
   ia: "GLM sobre el texto",
   navegador_json_ld: "Navegador y schema.org",
   navegador_ia: "Navegador y GLM",
+  contenedor_json_ld: "Crawl4AI y schema.org",
+  contenedor_ia: "Crawl4AI y GLM",
+  listado_json_ld: "Buscador de la tienda (schema.org)",
+  listado_ia: "Buscador de la tienda, leído por GLM",
 };
 const tonoVeredicto = (v: string): Tone => (/muy por encima/i.test(v) ? "danger" : /por encima/i.test(v) ? "warn" : /en línea|por debajo|encontrado/i.test(v) ? "ok" : "muted");
 
@@ -151,7 +158,7 @@ function detallePaso(d: unknown): string {
   const partes: string[] = [];
   const nombres: Record<string, string> = {
     ofertas: "ofertas", paginas: "páginas", ok: "con precio", sin_precio: "sin precio", robots: "no permitidas por robots.txt", rechazo: "rechazaron la lectura",
-    error: "con error", navegador: "abiertas con navegador", ia: "leídas por GLM", exactas: "mismo producto", equivalentes: "equivalentes", distintas: "otro producto",
+    error: "con error", navegador: "abiertas con navegador", armadas: "abiertas con Crawl4AI", ia: "leídas por GLM", exactas: "mismo producto", equivalentes: "equivalentes", distintas: "otro producto",
     sinJuicio: "sin juicio", validas: "válidas",
   };
   for (const [k, v] of Object.entries(o)) {
@@ -311,7 +318,7 @@ function VistaDetalle({ id }: { id: string }) {
   const r = data.resumen;
   const pasos = new Map(data.pasos.map((p) => [p.nombre, p]));
   const ofertas = verTodas ? data.ofertas : data.ofertas.filter((o) => o.valida || o.coincidencia === "exacta" || o.coincidencia === "equivalente");
-  const costo = data.costo_modelo + data.costo_web;
+  const costo = data.costo_modelo + data.costo_web + (data.costo_contenedor ?? 0);
   const refs = data.entrada.referencias ?? [];
 
   const columnas: Columna<Oferta>[] = [
@@ -458,7 +465,8 @@ function VistaDetalle({ id }: { id: string }) {
       <p className="text-meta text-mute">
         Gasto: {usd(costo)} ({NUM.format(data.tokens_entrada + data.tokens_salida)} tokens de GLM 5.3 flash
         {data.busquedas_web ? `, ${data.busquedas_web} búsqueda web` : ""}
-        {data.segundos_navegador ? `, ${Math.round(data.segundos_navegador)} s de navegador` : ""}).
+        {data.segundos_navegador ? `, ${Math.round(data.segundos_navegador)} s de navegador` : ""}
+        {data.segundos_contenedor ? `, ${Math.round(data.segundos_contenedor)} s de Crawl4AI` : ""}).
       </p>
     </div>
   );
@@ -485,7 +493,7 @@ function Laboratorio() {
   ];
 
   return (
-    <AdminShell title="Laboratorio de precios" subtitle="Precio de mercado de un producto: tiendas peruanas, la web y lo que pagó el Estado, con GLM 5.3 flash">
+    <AdminShell title="Laboratorio de precios" subtitle="Precio de mercado de un producto: tiendas peruanas, sus buscadores con Crawl4AI, la web y lo que pagó el Estado, con GLM 5.3 flash">
       <div className="space-y-6">
         <div className="grid gap-6 lg:grid-cols-[minmax(0,26rem)_minmax(0,1fr)]">
           <Formulario

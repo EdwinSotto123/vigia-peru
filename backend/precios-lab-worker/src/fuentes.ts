@@ -9,13 +9,18 @@
  *             (tools/busqueda_libre.py): un pedido cada 8 s para todo el laboratorio y, si pide pausa, nada.
  *             Cada página se lee después (`leerUrl`).
  *
- * `leerUrl` lee una página con cortesía: respeta robots.txt, espera su turno por dominio (≤ 1 pedido por segundo),
- * se presenta con su nombre (sin hacerse pasar por un navegador), corta las respuestas grandes y no insiste si el sitio
- * dice que no (403, 429, desafío). Si la página no trae el precio en el HTML (tiendas armadas con JavaScript), puede
- * abrirla un navegador de Cloudflare (Browser Run), con tope por investigación.
+ *   buscadores  el buscador propio de tiendas que arman la página con JavaScript y que no están en vigia-precios
+ *             (farmacias, Real Plaza, Makro), abierto con Crawl4AI en un contenedor de Cloudflare (lector.ts).
+ *
+ * `leerUrl` lee una página con cortesía: respeta robots.txt (también `Content-Signal: ai-input=no`), espera su turno
+ * por dominio (≤ 1 pedido por segundo), se presenta con su nombre (sin hacerse pasar por un navegador), corta las
+ * respuestas grandes y no insiste si el sitio dice que no (403, 429, desafío, inicio de sesión). Si la página no trae
+ * el precio en el HTML (tiendas armadas con JavaScript), la abre Crawl4AI y, si el contenedor no responde, un
+ * navegador de Cloudflare (Browser Run).
  */
 import puppeteer from "@cloudflare/puppeteer";
-import { leerPagina, parsearDdg, robotsPermite, textoVisible, type ResultadoWeb } from "./extraer.ts";
+import { leerPagina, parsearDdg, robotsNiegaIa, robotsPermite, textoVisible, type ResultadoWeb } from "./extraer.ts";
+import { rendir, type EnvLector, type Rendida } from "./lector.ts";
 import { esperarTurno, type EnvTurnos } from "./turnos.ts";
 import type { Gasto, Lectura } from "./tipos.ts";
 
@@ -23,7 +28,7 @@ export const USER_AGENT = "VigiaPeru-PreciosLab/0.1 (+https://vigia.gobserva.clo
 const TOPE_BYTES = 4_000_000;
 const COSTO_TAVILY = 0.008;
 
-export interface EnvFuentes extends EnvTurnos {
+export interface EnvFuentes extends EnvTurnos, EnvLector {
   DB: D1Database;
   PRECIOS: Fetcher;
   PRECIOS_TOKEN: string;
@@ -123,8 +128,11 @@ export const dominioDe = (url: string) => {
   }
 };
 
-/** robots.txt del sitio (caché de 1 día en D1). Sin robots, se puede. */
-async function permitido(env: EnvFuentes, url: URL): Promise<boolean> {
+/**
+ * ¿Se puede leer? robots.txt del sitio (caché de 1 día en D1): la ruta, y que no diga `ai-input=no` (el precio pasa
+ * por un modelo). Sin robots, se puede. Devuelve el motivo si no.
+ */
+async function permitido(env: EnvFuentes, url: URL): Promise<string | null> {
   const clave = `robots|${url.host}`;
   const c = await env.DB.prepare("SELECT valor, creado FROM cache_busqueda WHERE clave = ?").bind(clave).first<{ valor: string; creado: number }>();
   let texto: string;
@@ -140,8 +148,18 @@ async function permitido(env: EnvFuentes, url: URL): Promise<boolean> {
     }
     await env.DB.prepare("INSERT OR REPLACE INTO cache_busqueda (clave, valor, creado) VALUES (?, ?, ?)").bind(clave, texto, Date.now()).run();
   }
-  return robotsPermite(texto, url.pathname + url.search);
+  if (!robotsPermite(texto, url.pathname + url.search)) return "robots.txt no permite leerla";
+  if (robotsNiegaIa(texto)) return "el sitio pide no pasar su contenido por modelos de IA (Content-Signal)";
+  return null;
 }
+
+/** Una página de desafío (Cloudflare, captcha): no se intenta pasar. */
+const esDesafio = (html: string) =>
+  /<title>\s*(just a moment|attention required|access denied)/i.test(html.slice(0, 5_000)) || (html.length < 80_000 && /challenge-platform|cf-chl-|g-recaptcha|h-captcha/i.test(html));
+
+/** Un muro de inicio de sesión (MercadoLibre, 2026-11-12): nunca se entra con una cuenta. */
+const esMuroSesion = (visible: string) =>
+  visible.length < 3000 && /ingresa a tu cuenta|inicia sesi[oó]n para continuar|para continuar, (ingresa|inicia)|account-verification/i.test(visible);
 
 export interface PaginaLeida {
   url: string;
@@ -149,7 +167,8 @@ export interface PaginaLeida {
   detalle: string | null;
   lectura: Lectura | null;
   visible: string;
-  navegador: boolean;
+  /** Quién armó la página: el HTML tal cual, Crawl4AI (contenedor) o Browser Run. */
+  via: "html" | "contenedor" | "navegador";
 }
 
 async function conNavegador(env: EnvFuentes, gasto: Gasto, url: string): Promise<string | null> {
@@ -171,15 +190,20 @@ async function conNavegador(env: EnvFuentes, gasto: Gasto, url: string): Promise
   }
 }
 
-/** Lee una página con cortesía. `navegador`: si el HTML no trae precio, ¿se abre con Browser Run? */
-export async function leerUrl(env: EnvFuentes, gasto: Gasto, direccion: string, navegador: boolean): Promise<PaginaLeida> {
+/**
+ * Lee una página con cortesía. `armar`: si el HTML no trae precio (página armada con JavaScript), ¿se abre con
+ * Crawl4AI (y, si el contenedor no responde, con Browser Run)?
+ */
+export async function leerUrl(env: EnvFuentes, gasto: Gasto, direccion: string, armar: boolean): Promise<PaginaLeida> {
+  const fin = (estado: PaginaLeida["estado"], detalle: string | null): PaginaLeida => ({ url: direccion, estado, detalle, lectura: null, visible: "", via: "html" });
   let url: URL;
   try {
     url = new URL(direccion);
   } catch {
-    return { url: direccion, estado: "error", detalle: "URL inválida", lectura: null, visible: "", navegador: false };
+    return fin("error", "URL inválida");
   }
-  if (!(await permitido(env, url))) return { url: direccion, estado: "robots", detalle: "robots.txt no permite leerla", lectura: null, visible: "", navegador: false };
+  const no = await permitido(env, url);
+  if (no) return fin("robots", no);
   await esperarTurno(env, url.hostname);
   let html = "";
   try {
@@ -188,33 +212,81 @@ export async function leerUrl(env: EnvFuentes, gasto: Gasto, direccion: string, 
       redirect: "follow",
       signal: AbortSignal.timeout(20_000),
     });
-    if (r.status === 403 || r.status === 429 || r.status === 401) {
-      return { url: direccion, estado: "rechazo", detalle: `el sitio respondió ${r.status}`, lectura: null, visible: "", navegador: false };
-    }
-    if (!r.ok) return { url: direccion, estado: "error", detalle: `HTTP ${r.status}`, lectura: null, visible: "", navegador: false };
-    if (!/html|xml/i.test(r.headers.get("content-type") ?? "")) return { url: direccion, estado: "error", detalle: "no es una página", lectura: null, visible: "", navegador: false };
+    if (r.status === 403 || r.status === 429 || r.status === 401) return fin("rechazo", `el sitio respondió ${r.status}`);
+    if (!r.ok) return fin("error", `HTTP ${r.status}`);
+    if (!/html|xml/i.test(r.headers.get("content-type") ?? "")) return fin("error", "no es una página");
     html = (await r.text()).slice(0, TOPE_BYTES);
   } catch (e) {
-    return { url: direccion, estado: "error", detalle: String((e as Error).message ?? e).slice(0, 120), lectura: null, visible: "", navegador: false };
+    return fin("error", String((e as Error).message ?? e).slice(0, 120));
   }
-  // Una página de desafío (Cloudflare, captcha) no se intenta pasar.
-  if (/<title>\s*(just a moment|attention required|access denied)/i.test(html.slice(0, 5_000)) || (html.length < 80_000 && /challenge-platform|cf-chl-|g-recaptcha|h-captcha/i.test(html))) {
-    return { url: direccion, estado: "rechazo", detalle: "el sitio pide verificar que eres humano", lectura: null, visible: "", navegador: false };
-  }
+  if (esDesafio(html)) return fin("rechazo", "el sitio pide verificar que eres humano");
   let lectura = leerPagina(html);
   let visible = textoVisible(html);
-  // Un muro de inicio de sesión (MercadoLibre, 2026-11-12) no se pasa: nunca se entra con una cuenta.
-  if (!lectura && visible.length < 3000 && /ingresa a tu cuenta|inicia sesi[oó]n para continuar|para continuar, (ingresa|inicia)/i.test(visible)) {
-    return { url: direccion, estado: "rechazo", detalle: "pide iniciar sesión para ver el producto", lectura: null, visible: "", navegador: false };
-  }
-  let usoNavegador = false;
-  if (!lectura && navegador) {
-    const rendido = await conNavegador(env, gasto, url.toString());
-    if (rendido) {
-      usoNavegador = true;
-      lectura = leerPagina(rendido);
-      visible = textoVisible(rendido);
+  if (!lectura && esMuroSesion(visible)) return fin("rechazo", "pide iniciar sesión para ver el producto");
+  let via: PaginaLeida["via"] = "html";
+  if (!lectura && armar) {
+    await esperarTurno(env, url.hostname);
+    const c = await rendir(env, gasto, url.toString(), USER_AGENT);
+    const armada = c?.html ?? (await conNavegador(env, gasto, url.toString()));
+    if (armada) {
+      if (esDesafio(armada)) return fin("rechazo", "el sitio pide verificar que eres humano");
+      via = c ? "contenedor" : "navegador";
+      lectura = leerPagina(armada);
+      visible = textoVisible(armada);
+      if (!lectura && esMuroSesion(visible)) return fin("rechazo", "pide iniciar sesión para ver el producto");
     }
   }
-  return { url: direccion, estado: lectura ? "ok" : "sin_precio", detalle: null, lectura, visible, navegador: usoNavegador };
+  return { url: direccion, estado: lectura ? "ok" : "sin_precio", detalle: null, lectura, visible, via };
+}
+
+// ─── buscadores de tiendas (Crawl4AI) ────────────────────────────────────────
+
+export interface Buscador {
+  id: string;
+  /** La página de resultados del buscador de la tienda para un término. */
+  url: (q: string) => string;
+  /** Solo para productos de salud (las farmacias). */
+  salud?: boolean;
+}
+
+const q = encodeURIComponent;
+
+/**
+ * Tiendas peruanas que no están en vigia-precios y cuyo buscador permite robots.txt (revisado el 2026-11-12). Fuera:
+ * MercadoLibre (manda a verificar la cuenta), Memory Kings e Impacto (robots prohíbe su buscador), Dimerc y Sercoplus
+ * (nos responden 403), La Curacao y Efe (robots prohíbe /catalogsearch/ y /search/), Crisol (prohíbe `/*?`).
+ */
+export const BUSCADORES: Buscador[] = [
+  { id: "inkafarma.pe", url: (t) => `https://inkafarma.pe/buscador?keyword=${q(t)}`, salud: true },
+  { id: "mifarma.com.pe", url: (t) => `https://www.mifarma.com.pe/buscador?keyword=${q(t)}`, salud: true },
+  { id: "realplaza.com", url: (t) => `https://www.realplaza.com/${q(t)}?_q=${q(t)}&map=ft` },
+  { id: "makro.plazavea.com.pe", url: (t) => `https://www.makro.plazavea.com.pe/search/?_query=${q(t)}` },
+];
+
+/** ¿Es un producto de salud? (para preguntar en las farmacias). */
+export const esSalud = (texto: string) =>
+  /medic|f[aá]rmac|tableta|c[aá]psula|jarabe|inyect|ampoll|vial|suero|vacuna|vitamin|antibi[oó]t|analg[eé]s|paracetamol|ibuprofeno|amoxicilina|insulina|jeringa|guante|mascarilla|barbijo|gasa|ap[oó]sito|venda|alcohol|antis[eé]pt|desinfect|cl[oó]rhexidina|yodo|term[oó]metro|tensi[oó]metro|ox[ií]metro|preservativo|pa[nñ]al/i.test(texto);
+
+export interface PaginaBuscador {
+  url: string;
+  estado: "ok" | "robots" | "rechazo" | "error" | "sin_resultados" | "sin_contenedor";
+  detalle: string | null;
+  rendida: Rendida | null;
+}
+
+/** Abre la página de resultados del buscador con Crawl4AI, con la misma cortesía que `leerUrl`. */
+export async function abrirBuscador(env: EnvFuentes, gasto: Gasto, b: Buscador, termino: string): Promise<PaginaBuscador> {
+  const direccion = b.url(termino);
+  const fin = (estado: PaginaBuscador["estado"], detalle: string | null, rendida: Rendida | null = null): PaginaBuscador => ({ url: direccion, estado, detalle, rendida });
+  if (!env.LECTOR) return fin("sin_contenedor", "el contenedor de Crawl4AI no está conectado");
+  const url = new URL(direccion);
+  const no = await permitido(env, url);
+  if (no) return fin("robots", no);
+  await esperarTurno(env, url.hostname);
+  const r = await rendir(env, gasto, direccion, USER_AGENT, 4);
+  if (!r) return fin("error", "Crawl4AI no pudo abrirla");
+  if (r.estado === 403 || r.estado === 429 || r.estado === 401) return fin("rechazo", `el sitio respondió ${r.estado}`);
+  if (esDesafio(r.html)) return fin("rechazo", "el sitio pide verificar que eres humano");
+  if (esMuroSesion(textoVisible(r.html))) return fin("rechazo", "pide iniciar sesión");
+  return fin("ok", null, r);
 }

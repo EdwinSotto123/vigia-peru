@@ -13,14 +13,28 @@
   "d1_databases": [{ "binding": "DB", "database_name": "vigia-precios-lab", "database_id": "2eb6599d-8e42-436e-b1a4-70ef557c7bae" }],
   "r2_buckets": [{ "binding": "EVIDENCIAS", "bucket_name": "vigia-precios-lab" }],
   "workflows": [{ "name": "vigia-precios-lab-investigacion", "binding": "INVESTIGACION", "class_name": "Investigacion" }],
-  "durable_objects": { "bindings": [{ "name": "TURNOS", "class_name": "Turnos" }] },
-  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["Turnos"] }],
+  "durable_objects": {
+    "bindings": [
+      { "name": "TURNOS", "class_name": "Turnos" },
+      { "name": "LECTOR", "class_name": "Lector" }
+    ]
+  },
+  "migrations": [
+    { "tag": "v1", "new_sqlite_classes": ["Turnos"] },
+    { "tag": "v2", "new_sqlite_classes": ["Lector"] }
+  ],
+  // Crawl4AI (Apache 2.0) en un contenedor de Cloudflare, la imagen tal cual de Docker Hub (sin Docker local). El
+  // usuario, 2026-11-12: «Crawl4AI integra… usa contenedor en Cloudflare». standard-1 = ½ vCPU, 4 GiB (Chromium pide
+  // 4 GiB), 8 GB de disco; se duerme a los 5 minutos sin uso (lector.ts).
+  "containers": [
+    { "class_name": "Lector", "image": "docker.io/unclecode/crawl4ai:0.9.4", "instance_type": "standard-1", "max_instances": 2 }
+  ],
   "services": [
     { "binding": "PRECIOS", "service": "vigia-precios" },
     { "binding": "LLM", "service": "vigia-llm" }
   ],
   "ai": { "binding": "AI" },
-  // Browser Run: solo para páginas que arman el precio con JavaScript, como mucho 3 por investigación.
+  // Browser Run: respaldo de Crawl4AI para páginas que arman el precio con JavaScript.
   "browser": { "binding": "BROWSER" },
 
   "vars": {

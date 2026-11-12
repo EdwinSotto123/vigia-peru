@@ -45,8 +45,20 @@ export interface Ficha {
   excluir: string[];
 }
 
-export type Fuente = "tienda" | "web";
-export type Extraccion = "api_tienda" | "json_ld" | "microdatos" | "open_graph" | "ia" | "navegador_json_ld" | "navegador_ia";
+export type Fuente = "tienda" | "buscador" | "web";
+export type Extraccion =
+  | "api_tienda"
+  | "json_ld"
+  | "microdatos"
+  | "open_graph"
+  | "ia"
+  | "navegador_json_ld"
+  | "navegador_ia"
+  // Crawl4AI en el contenedor: una ficha de producto armada con JavaScript, o el buscador de una tienda.
+  | "contenedor_json_ld"
+  | "contenedor_ia"
+  | "listado_json_ld"
+  | "listado_ia";
 export type Coincidencia = "exacta" | "equivalente" | "distinta" | "sin_juicio";
 
 /** Una oferta encontrada, antes y después de juzgarla. */
@@ -111,6 +123,8 @@ export interface Gasto {
   busquedasWeb: number;
   costoWeb: number;
   segundosNavegador: number;
+  /** Crawl4AI en el contenedor de Cloudflare (lector.ts). */
+  segundosContenedor: number;
 }
 
-export const gastoVacio = (): Gasto => ({ tokensEntrada: 0, tokensSalida: 0, costoModelo: 0, busquedasWeb: 0, costoWeb: 0, segundosNavegador: 0 });
+export const gastoVacio = (): Gasto => ({ tokensEntrada: 0, tokensSalida: 0, costoModelo: 0, busquedasWeb: 0, costoWeb: 0, segundosNavegador: 0, segundosContenedor: 0 });
