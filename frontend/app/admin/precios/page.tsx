@@ -122,7 +122,7 @@ const ESTADO: Record<Estado, { texto: string; tono: Tone }> = {
 const PASOS: { clave: string; titulo: string; que: string }[] = [
   { clave: "entender", titulo: "Entender", que: "GLM 5.3 flash arma la ficha del producto y las búsquedas" },
   { clave: "tiendas", titulo: "Tiendas", que: "15 tiendas peruanas por su propia búsqueda" },
-  { clave: "buscadores", titulo: "Buscadores", que: "Inkafarma, Mifarma y Makro, abiertas con Crawl4AI" },
+  { clave: "buscadores", titulo: "Buscadores", que: "Inkafarma y Mifarma (productos de salud), abiertas con Crawl4AI" },
   { clave: "web", titulo: "Web", que: "Páginas de venta en el Perú (Tavily)" },
   { clave: "leer", titulo: "Leer páginas", que: "schema.org, Crawl4AI o GLM sobre el texto" },
   { clave: "emparejar", titulo: "Emparejar", que: "¿Mismo producto? ¿Cuántas unidades trae?" },

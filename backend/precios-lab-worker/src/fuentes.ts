@@ -10,7 +10,7 @@
  *             Cada página se lee después (`leerUrl`).
  *
  *   buscadores  el buscador propio de tiendas que arman la página con JavaScript y que no están en vigia-precios
- *             (farmacias, Makro), abierto con Crawl4AI en un contenedor de Cloudflare (lector.ts).
+ *             (Inkafarma y Mifarma), abierto con Crawl4AI en un contenedor de Cloudflare (lector.ts).
  *
  * `leerUrl` lee una página con cortesía: respeta robots.txt (también `Content-Signal: ai-input=no`), espera su turno
  * por dominio (≤ 1 pedido por segundo), se presenta con su nombre (sin hacerse pasar por un navegador), corta las
@@ -255,12 +255,12 @@ const q = encodeURIComponent;
  * Tiendas peruanas que no están en vigia-precios y cuyo buscador permite robots.txt (revisado el 2026-11-12). Fuera:
  * MercadoLibre (manda a verificar la cuenta), Memory Kings e Impacto (robots prohíbe su buscador), Dimerc y Sercoplus
  * (nos responden 403), La Curacao y Efe (robots prohíbe /catalogsearch/ y /search/), Crisol (prohíbe `/*?`), Real Plaza
- * (realplaza.com ya es solo la web del centro comercial).
+ * (realplaza.com ya es solo la web del centro comercial) y Makro (su listado no muestra precios sin elegir tienda; su API
+ * VTEX sí los da, así que le toca a vigia-precios).
  */
 export const BUSCADORES: Buscador[] = [
   { id: "inkafarma.pe", url: (t) => `https://inkafarma.pe/buscador?keyword=${q(t)}`, salud: true },
   { id: "mifarma.com.pe", url: (t) => `https://www.mifarma.com.pe/buscador?keyword=${q(t)}`, salud: true },
-  { id: "makro.plazavea.com.pe", url: (t) => `https://www.makro.plazavea.com.pe/search/?_query=${q(t)}` },
 ];
 
 /** ¿Es un producto de salud? (para preguntar en las farmacias). */

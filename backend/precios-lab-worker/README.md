@@ -10,7 +10,7 @@ en el Perú, juzga si cada oferta es el mismo producto y lo compara con lo que p
 |---|---|---|
 | entender | Arma la ficha: nombre, atributos obligatorios, unidad de comparación y búsquedas | GLM 5.3 flash (vigia-llm) |
 | tiendas | Busca en 15 tiendas peruanas con precio estructurado | vigia-precios (service binding) |
-| buscadores | Abre el buscador de tiendas armadas con JavaScript (Inkafarma y Mifarma solo para salud, Makro); los productos salen del JSON-LD del listado o GLM los copia del Markdown | Crawl4AI en contenedor, GLM |
+| buscadores | Abre el buscador de tiendas armadas con JavaScript (Inkafarma y Mifarma, solo para productos de salud); los productos salen del JSON-LD del listado o GLM los copia del Markdown | Crawl4AI en contenedor, GLM |
 | web | Busca páginas de venta en el Perú fuera de esas tiendas | Tavily |
 | leer | Lee cada página: robots.txt, turno por dominio, schema.org; si falta, Crawl4AI (Browser Run de respaldo) y luego GLM | `fetch`, Crawl4AI, GLM |
 | emparejar | Reglas, parecido (bge-m3) y juicio de GLM: ¿mismo producto?, ¿cuántas unidades trae? | Workers AI |
@@ -36,7 +36,8 @@ Se presenta con su nombre (`VigiaPeru-PreciosLab/0.1`), también dentro de Crawl
 iniciar sesión. Los captchas no se intentan pasar: Crawl4AI corre sin `magic`, `simulate_user` ni `override_navigator`.
 
 Buscadores revisados el 2026-11-12 y dejados fuera: MercadoLibre (manda a verificar la cuenta), Memory Kings e Impacto
-(robots prohíbe su buscador), Dimerc y Sercoplus (responden 403), La Curacao y Efe (robots prohíbe `/search/`), Crisol, Real Plaza (ya no vende en línea).
+(robots prohíbe su buscador), Dimerc y Sercoplus (responden 403), La Curacao y Efe (robots prohíbe `/search/`), Crisol, Real Plaza (ya no vende en línea), Makro (su listado no muestra precios sin elegir tienda; su API VTEX
+sí, así que le corresponde a vigia-precios).
 
 ## API (solo por service binding; sin dirección pública)
 

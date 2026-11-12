@@ -4,7 +4,7 @@
  *
  *   entender   GLM 5.3 flash convierte el pedido en una ficha: nombre, atributos obligatorios, unidad y búsquedas.
  *   tiendas    las búsquedas en 15 tiendas peruanas (vigia-precios), con precio estructurado.
- *   buscadores el buscador propio de tiendas armadas con JavaScript (farmacias, Makro), abierto con
+ *   buscadores el buscador propio de tiendas armadas con JavaScript (Inkafarma y Mifarma), abierto con
  *              Crawl4AI en un contenedor de Cloudflare; los productos salen del JSON-LD del listado o, si no hay, GLM
  *              los copia del Markdown (cada precio se confirma en el mismo texto).
  *   web        Tavily: páginas de venta en el Perú fuera de esas tiendas.
@@ -141,6 +141,10 @@ export class Investigacion extends WorkflowEntrypoint<Env, { id: string }> {
         await marcar(env, id, "buscadores", "saltado", "el contenedor de Crawl4AI no está conectado");
         return [] as Oferta[];
       }
+      if (!lista.length) {
+        await marcar(env, id, "buscadores", "saltado", "las farmacias solo se consultan para productos de salud");
+        return [] as Oferta[];
+      }
       await marcar(env, id, "buscadores", "corriendo");
       const g = gastoVacio();
       const estado: Record<string, string> = {};
@@ -231,7 +235,6 @@ export class Investigacion extends WorkflowEntrypoint<Env, { id: string }> {
       await marcar(env, id, "buscadores", "listo", {
         ofertas: ofertas.length,
         tiendas: estado,
-        ...(salud ? {} : { nota: "las farmacias solo para productos de salud" }),
       });
       return ofertas;
     });
