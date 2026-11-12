@@ -3,7 +3,7 @@
 # sale lo commiteado: si la carpeta del Worker tiene cambios sin commitear, se niega. DEV, en cambio, despliega la copia
 # de trabajo (deploy/dev.sh).
 #
-#   bash infrastructure/deploy/cloudflare/worker.sh api|mcp|scrapers|llm|precios|relay|r2-sync|dispatcher
+#   bash infrastructure/deploy/cloudflare/worker.sh api|mcp|scrapers|llm|precios|relay|r2-sync|dispatcher|precios-lab
 #
 # La API va por versiones (sube, activa al 100 % y deja la anterior para volver con
 # `npx wrangler versions deploy <id>@100% -y` en backend/api).
@@ -13,7 +13,7 @@ RAIZ="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 declare -A CARPETA=(
   [api]=backend/api [mcp]=backend/mcp-worker [scrapers]=backend/scrapers-worker [llm]=backend/llm-worker
   [precios]=backend/precios-worker [relay]=backend/relay-worker [r2-sync]=backend/r2-sync-worker
-  [dispatcher]=backend/dispatcher-worker
+  [dispatcher]=backend/dispatcher-worker [precios-lab]=backend/precios-lab-worker
 )
 nombre="${1:-}"
 carpeta="${CARPETA[$nombre]:-}"

@@ -34,7 +34,7 @@ export const esRol = (x: unknown): x is Rol => x === "admin" || x === "revisor";
 // Privacidad: los pedidos llevan el correo y el mensaje de una persona (Ley 29733).
 // Gobserva: los inscritos en los productos dejan su correo y, si quieren, su WhatsApp.
 // Chat de investigación: cada pregunta se paga al modelo (US$ por turno). El proxy ya frena el POST /chat del revisor.
-const SOLO_ADMIN_SECCIONES = ["/admin/contribuciones", "/admin/financiadores", "/admin/pagos", "/admin/equipo", "/admin/privacidad", "/admin/gobserva", "/admin/chat"];
+const SOLO_ADMIN_SECCIONES = ["/admin/contribuciones", "/admin/financiadores", "/admin/pagos", "/admin/equipo", "/admin/privacidad", "/admin/gobserva", "/admin/chat", "/admin/precios"];
 
 export function puedeVerSeccion(rol: Rol, pathname: string): boolean {
   if (rol === "admin") return true;
@@ -47,7 +47,7 @@ export function puedeVerSeccion(rol: Rol, pathname: string): boolean {
  * escribir umbrales o el alcance del procesamiento, y el equipo.
  */
 const REVISOR_API: [metodo: string, ruta: RegExp][] = [
-  ["GET", /^\/(ping|resumen|operacion|salud|log|procesamientos|pedidos|cobertura|cobertura\/progreso|clasificacion\/resumen|fuentes)$/],
+  ["GET", /^\/(ping|resumen|operacion|salud|log|procesamientos|pedidos|cobertura|cobertura\/progreso|clasificacion\/resumen|fuentes|masivo)$/],
   ["GET", /^\/revision$/],
   ["GET", /^\/revision\/[^/]+$/],
   ["GET", /^\/revision\/[^/]+\/informe$/],

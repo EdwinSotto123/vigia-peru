@@ -57,6 +57,7 @@ import { adminGobservaRouter } from "./admin_gobserva.js";
 import { adminEmpleoRouter } from "./admin_empleo.js";
 import { adminChatRouter } from "./admin_chat.js";
 import { adminRagRouter, iaDe } from "./admin_rag.js";
+import { adminPreciosRouter } from "./admin_precios.js";
 import { indexarRag } from "../lib/rag.js";
 import { indexarOportunidades } from "../lib/afinidad.js";
 
@@ -99,6 +100,8 @@ adminRouter.route("/", adminGobservaRouter);
 adminRouter.route("/", adminEmpleoRouter);
 // RAG de documentos: POST /rag/indexar y GET /rag/estado (admin_rag.ts, migración 258).
 adminRouter.route("/", adminRagRouter);
+// Laboratorio de precios: investigaciones en el Worker vigia-precios-lab (admin_precios.ts).
+adminRouter.route("/", adminPreciosRouter);
 
 // ─── Resumen ─────────────────────────────────────────────────────────────────
 adminRouter.get("/resumen", async (c) => {

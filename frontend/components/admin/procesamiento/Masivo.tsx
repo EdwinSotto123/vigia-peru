@@ -92,6 +92,7 @@ const jobDe = (origen: string) => /^gitlab-(\d+)$/.exec(origen)?.[1] ?? null;
 export function Masivo() {
   const { data, error, isLoading, mutate } = useAdmin<RespuestaMasivo>("/masivo", { refreshInterval: 60_000 });
   const redes = (data?.redes ?? []).filter((r) => r.red !== "externo");
+  const contado = !!data?.tandas.length;
   const faltan = data ? suma(data.pendientes) : 0;
   const esperan = data ? suma(data.sinInfo) : 0;
   const alto = redes.reduce((a, r) => a + r.alto, 0);
@@ -196,8 +197,8 @@ export function Masivo() {
         />
         <StatCard
           etiqueta="Faltan"
-          valor={data ? NUM.format(faltan) : null}
-          pista={data ? `con información bastante, unos ${usd(data.faltanUsd, 0)}; ${NUM.format(esperan)} esperan que se lean más documentos` : undefined}
+          valor={data ? (contado ? NUM.format(faltan) : "Sin contar") : null}
+          pista={data ? (contado ? `con información bastante, unos ${usd(data.faltanUsd, 0)}; ${NUM.format(esperan)} esperan que se lean más documentos` : "Se cuentan al empezar cada tanda (cada 3 horas)") : undefined}
           cargando={isLoading}
         />
         <StatCard

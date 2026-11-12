@@ -3,7 +3,7 @@
 import { useEffect, useRef } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, Receipt, Users, Wallet, ScrollText, LogOut, ExternalLink, ShieldCheck, UserRound, FlaskConical, Grid3x3, Database, Activity, Eye, KeyRound, Lock, Workflow, Rocket, MessagesSquare } from "lucide-react";
+import { LayoutDashboard, Receipt, Users, Wallet, ScrollText, LogOut, ExternalLink, ShieldCheck, UserRound, FlaskConical, Grid3x3, Database, Activity, Eye, KeyRound, Lock, Workflow, Rocket, MessagesSquare, Tags } from "lucide-react";
 import { FranjaTextil, Marca } from "@/components/marca";
 import { precargarAdmin, useAdmin } from "@/lib/useAdmin";
 import type { Operacion } from "@/lib/admin";
@@ -38,6 +38,8 @@ const NAV: { grupo: string; items: ItemNav[] }[] = [
       { href: "/admin/analisis", label: "Análisis a demanda", icon: FlaskConical },
       // Sólo admin (lib/permisos.ts) y sin precarga: su único pedido es el POST de cada pregunta.
       { href: "/admin/chat", label: "Chat de investigación", icon: MessagesSquare },
+      // Sólo admin: cada investigación paga GLM 5.3 flash y una búsqueda web.
+      { href: "/admin/precios", label: "Laboratorio de precios", icon: Tags, precargar: ["/precios-lab"] },
     ],
   },
   {

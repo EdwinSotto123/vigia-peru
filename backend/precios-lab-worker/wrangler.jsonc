@@ -1,0 +1,33 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "vigia-precios-lab",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-09-01",
+  "compatibility_flags": ["nodejs_compat"],
+  // Sin dirección pública: solo la API de Vigía lo llama (service binding PRECIOS_LAB), desde el panel.
+  "workers_dev": false,
+  "preview_urls": false,
+  "observability": { "enabled": true },
+  "limits": { "cpu_ms": 60000 },
+
+  "d1_databases": [{ "binding": "DB", "database_name": "vigia-precios-lab", "database_id": "2eb6599d-8e42-436e-b1a4-70ef557c7bae" }],
+  "r2_buckets": [{ "binding": "EVIDENCIAS", "bucket_name": "vigia-precios-lab" }],
+  "workflows": [{ "name": "vigia-precios-lab-investigacion", "binding": "INVESTIGACION", "class_name": "Investigacion" }],
+  "durable_objects": { "bindings": [{ "name": "TURNOS", "class_name": "Turnos" }] },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["Turnos"] }],
+  "services": [
+    { "binding": "PRECIOS", "service": "vigia-precios" },
+    { "binding": "LLM", "service": "vigia-llm" }
+  ],
+  "ai": { "binding": "AI" },
+  // Browser Run: solo para páginas que arman el precio con JavaScript, como mucho 3 por investigación.
+  "browser": { "binding": "BROWSER" },
+
+  "vars": {
+    // El usuario, 2026-11-12: «usando modelos de GLM 5.3 FLASH para el agente de precios».
+    "MODELO": "@cf/zai-org/glm-5.3-flash",
+    "EMBEDDINGS": "@cf/baai/bge-m3"
+  }
+  // Secretos (wrangler secret put): LLM_TOKEN (= /vigia/llm/token), PRECIOS_TOKEN (= /vigia/precios/token),
+  // TAVILY_API_KEY (= /vigia/tavily/api-key).
+}

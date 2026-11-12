@@ -34,7 +34,8 @@
   // SEACE_ZRH: los reportes «ongei» del SEACE por Zúrich (backend/seace-zrh-worker), para el expediente SIAF a pedido.
   "services": [{ "binding": "DISPATCHER", "service": "vigia-dispatcher" }, { "binding": "SEACE_ZRH", "service": "vigia-seace-zrh" },
     // Chat del panel (routes/admin_chat.ts): el modelo y las herramientas del MCP v2.
-    { "binding": "LLM", "service": "vigia-llm" }, { "binding": "MCP", "service": "vigia-mcp" }],
+    { "binding": "LLM", "service": "vigia-llm" }, { "binding": "MCP", "service": "vigia-mcp" },
+    { "binding": "PRECIOS_LAB", "service": "vigia-precios-lab" }],
 
   // Relay de Lima (backend/relay-lima, la PC del usuario o la EC2 de respaldo): las bases del Poder Judicial sólo responden
   // a IPs del Perú (lib/basesPlaza.ts, `relayDe`). Secreto RELAY_LIMA_TOKEN = SSM /vigia/relay-lima/token.
