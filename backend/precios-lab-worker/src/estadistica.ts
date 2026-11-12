@@ -30,26 +30,25 @@ export function validar(ofertas: Oferta[]): Oferta[] {
   const med = percentil(precios, 0.5);
   if (med == null || precios.length < 3) return marcadas;
   // Muchas farmacias dan el precio de UNA tableta aunque el nombre diga «x 100» (Novafarma: «Paracetamol 500 mg x 100
-  // tab» a S/ 0,10, 2026-11-12). Una oferta de varias unidades se puede leer de dos formas: precio del paquete
-  // (dividido) o precio por unidad (tal cual). Se busca el grupo de precios donde calzan más ofertas (a menos de 4 veces)
-  // y, a igualdad, el más cercano a la mediana; cada oferta se lee como calce en ese grupo. El centro del grupo es
-  // siempre la lectura «del paquete» de alguna oferta: si no, el precio de una caja entera (S/ 10 la de 100) armaría
-  // su propio grupo con otras cajas y pasaría por precio unitario.
-  const lecturas = (o: Oferta) => ((o.unidades ?? 1) > 1 ? [o.precioUnitario!, o.precio!] : [o.precioUnitario!]);
-  const validas = marcadas.filter((o) => o.valida);
+  // tab» a S/ 0,10, 2026-11-12). Solo se rescata la oferta que, dividida, queda lejísimos POR DEBAJO de la mediana y
+  // cuyo precio tal cual sí calza con ella. Se probó también buscar el «grupo» donde caben más ofertas leyendo cada una
+  // de las dos formas, y fallaba: toda oferta de varias unidades gana una segunda lectura más alta y el grupo se corría
+  // hacia arriba (un blíster de 10 a S/ 1 pasaba por S/ 1 la tableta).
+  // Se repite con la mediana nueva (hasta 3 veces): las mal leídas bajan la mediana y pueden esconder a otras.
   const en = (m: number, p: number) => p <= m * 4 && p >= m / 4;
-  let grupo = med, calces = -1;
-  for (const m of [...new Set(validas.map((o) => o.precioUnitario!))].filter((m) => m > 0)) {
-    const c = validas.filter((o) => lecturas(o).some((p) => en(m, p))).length;
-    if (c > calces || (c === calces && Math.abs(Math.log(m / med)) < Math.abs(Math.log(grupo / med)))) [grupo, calces] = [m, c];
+  const mediana = (os: Oferta[]) => percentil(os.filter((o) => o.valida).map((o) => o.precioUnitario!).sort((a, b) => a - b), 0.5)!;
+  let leidas = marcadas;
+  for (let vuelta = 0, m = med; vuelta < 3; vuelta++, m = mediana(leidas)) {
+    let cambio = false;
+    leidas = leidas.map((o): Oferta => {
+      if (!(o.valida && o.precioUnitario! < m / 4 && (o.unidades ?? 1) > 1 && en(m, o.precio!))) return o;
+      cambio = true;
+      return { ...o, precioUnitario: redondo(o.precio!), motivo: "la tienda da el precio por unidad" };
+    });
+    if (!cambio) break;
   }
-  const leidas = marcadas.map((o): Oferta => {
-    if (!o.valida || en(grupo, o.precioUnitario!)) return o;
-    if ((o.unidades ?? 1) > 1 && en(grupo, o.precio!)) return { ...o, precioUnitario: redondo(o.precio!), motivo: "la tienda da el precio por unidad" };
-    return o;
-  });
   // Y con esa lectura, fuera lo que queda lejísimos de la mediana (más de 4 veces o menos de un cuarto).
-  const final = percentil(leidas.filter((o) => o.valida).map((o) => o.precioUnitario!).sort((a, b) => a - b), 0.5)!;
+  const final = mediana(leidas);
   return leidas.map((o) => (o.valida && !en(final, o.precioUnitario!) ? { ...o, valida: false, motivo: "muy lejos de las demás" } : o));
 }
 

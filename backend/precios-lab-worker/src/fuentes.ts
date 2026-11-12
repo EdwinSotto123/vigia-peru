@@ -202,6 +202,10 @@ export async function buscarEnTienda(env: EnvFuentes, gasto: Gasto, t: TiendaDir
   const url = new URL(p.url);
   const no = await permitido(env, url);
   if (no) return fin("robots", no);
+  // Si la tienda pidió esperar (429), no se le vuelve a preguntar en 30 minutos (Shopify lo hace con Cloudflare).
+  const pausa = `pausa|${url.host}`;
+  const c = await env.DB.prepare("SELECT creado FROM cache_busqueda WHERE clave = ?").bind(pausa).first<{ creado: number }>();
+  if (c && Date.now() - c.creado < 30 * 60_000) return fin("rechazo", "la tienda pidió esperar (429); en pausa 30 minutos");
   await esperarTurno(env, url.hostname);
   let texto: string;
   try {
@@ -212,6 +216,7 @@ export async function buscarEnTienda(env: EnvFuentes, gasto: Gasto, t: TiendaDir
       redirect: "follow",
       signal: AbortSignal.timeout(20_000),
     });
+    if (r.status === 429) await env.DB.prepare("INSERT OR REPLACE INTO cache_busqueda (clave, valor, creado) VALUES (?, '1', ?)").bind(pausa, Date.now()).run();
     if (r.status === 403 || r.status === 429 || r.status === 401) return fin("rechazo", `la tienda respondió ${r.status}`);
     if (!r.ok) return fin("error", `HTTP ${r.status}`);
     texto = (await r.text()).slice(0, TOPE_BYTES);

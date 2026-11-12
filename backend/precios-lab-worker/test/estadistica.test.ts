@@ -38,6 +38,7 @@ test("validar: la farmacia que da el precio de una tableta aunque diga «x 100»
   const v = validar([
     oferta(1, 10, { unidades: 100 }),
     oferta(2, 10, { unidades: 100 }),
+    oferta(6, 1, { unidades: 10 }),
     oferta(3, 0.1, { unidades: 100 }),
     oferta(4, 0.15, { unidades: 10 }),
     oferta(5, 1, { unidades: 100 }),
@@ -47,7 +48,21 @@ test("validar: la farmacia que da el precio de una tableta aunque diga «x 100»
   assert.ok(por[3].valida);
   assert.equal(por[3].motivo, "la tienda da el precio por unidad");
   assert.ok(por[4].valida);
+  assert.equal(por[6].precioUnitario, 0.1);
+  assert.equal(por[6].motivo, null);
   assert.equal(por[5].motivo, "muy lejos de las demás");
+});
+
+test("validar: el segundo caso real (2026-11-12): blísteres de 10 a S/ 1 y Panadol, sin Inkafarma", () => {
+  const v = validar([
+    oferta(1, 12.1, { unidades: 16 }), oferta(2, 12.1, { unidades: 16 }), // Panadol
+    oferta(3, 1, { unidades: 100 }), oferta(4, 0.1, { unidades: 100 }), // Novafarma
+    oferta(5, 1, { unidades: 10 }), oferta(6, 1, { unidades: 10 }), oferta(7, 1.5, { unidades: 10 }), // Farmacia Universal
+    oferta(8, 0.15, { unidades: 10 }), // Botifarma
+  ]);
+  const r = resumir(v, 0.12);
+  assert.equal(r.mediana, 0.1);
+  assert.equal(r.veredicto, "Por encima del mercado");
 });
 
 test("validar: el caso real del paracetamol (2026-11-12): genérico por caja y por tableta, Panadol de marca", () => {
