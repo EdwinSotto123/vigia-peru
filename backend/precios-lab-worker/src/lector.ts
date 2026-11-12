@@ -55,6 +55,8 @@ const TOPE_HTML = 4_000_000;
 export async function rendir(env: EnvLector, gasto: Gasto, url: string, agente: string, esperar = 2): Promise<Rendida | null> {
   if (!env.LECTOR) return null;
   const t0 = Date.now();
+  // Solo se cuenta el tiempo si el contenedor respondió: si no llegó a arrancar, Cloudflare no lo cobra.
+  let respondio = false;
   try {
     const r = await getContainer(env.LECTOR, "lector").fetch(
       new Request("http://lector/crawl", {
@@ -80,16 +82,21 @@ export async function rendir(env: EnvLector, gasto: Gasto, url: string, agente: 
         signal: AbortSignal.timeout(90_000),
       }),
     );
-    if (!r.ok) return null;
+    respondio = r.status < 500;
+    if (!r.ok) {
+      console.warn("crawl4ai", r.status, (await r.text().catch(() => "")).slice(0, 300));
+      return null;
+    }
     const j = (await r.json()) as RespuestaCrawl;
     const x = j.results?.[0];
     if (!x || x.success === false || !x.html) return null;
     const md = typeof x.markdown === "string" ? x.markdown : (x.markdown?.raw_markdown ?? "");
     const enlaces = [...(x.links?.internal ?? []), ...(x.links?.external ?? [])].map((l) => l.href ?? "").filter((h) => /^https?:\/\//.test(h));
     return { html: x.html.slice(0, TOPE_HTML), markdown: md.slice(0, 400_000), estado: x.status_code ?? null, enlaces: [...new Set(enlaces)].slice(0, 2000) };
-  } catch {
+  } catch (e) {
+    console.warn("crawl4ai", String((e as Error)?.message ?? e).slice(0, 300));
     return null;
   } finally {
-    gasto.segundosContenedor += (Date.now() - t0) / 1000;
+    if (respondio) gasto.segundosContenedor += (Date.now() - t0) / 1000;
   }
 }
