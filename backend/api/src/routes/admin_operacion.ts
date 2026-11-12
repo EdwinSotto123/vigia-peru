@@ -9,6 +9,8 @@
  *                                                 409 si hay un procesamiento activo (Cloud Run devuelve 429 al 2.º request)
  *   GET  /admin/cobertura/progreso                lote nocturno de documentos: descargados vs publicados, ritmo, estimación,
  *                                                 últimos errores por ítem
+ *   GET  /admin/masivo                            análisis masivo (migr. 272 y 274): gasto frente al tope, por red, por
+ *                                                 día, tandas de GitLab y últimos contratos
  *
  * Los servicios de agentes se consultan SIEMPRE desde la API (nunca desde el navegador): son URLs
  * internas y el health de Cloud Run tarda si la instancia arranca en frío.
@@ -136,5 +138,61 @@ adminOperacionRouter.get("/cobertura/progreso", async (c) => {
     generadoAt: new Date().toISOString(),
   };
   progresoCache = { at: Date.now(), body };
+  return c.json(body);
+});
+
+// ─── GET /masivo ─────────────────────────────────────────────────────────────
+/**
+ * Análisis masivo con las Lambdas de agentes (migraciones 272 y 274): cuánto se gastó frente al tope, lo hecho y lo que
+ * falta por red, el gasto por día, las tandas de GitLab y los últimos contratos. Los pendientes son los que contó la
+ * última tanda (contarlos en vivo es caro). El usuario, 2026-11-12: «que salga en la plataforma cuánto hemos gastado».
+ */
+let masivoCache: { at: number; body: unknown } | null = null;
+adminOperacionRouter.get("/masivo", async (c) => {
+  if (masivoCache && Date.now() - masivoCache.at < 30_000) return c.json(masivoCache.body);
+  const [redes, dias, tandas, ultimos] = await Promise.all([
+    pool.query(`SELECT red, count(*) FILTER (WHERE estado = 'ok')::int AS hechos, count(*) FILTER (WHERE estado = 'error')::int AS errores,
+                       count(*) FILTER (WHERE estado = 'en_vuelo')::int AS "enVuelo", COALESCE(sum(costo), 0)::float AS costo,
+                       (avg(costo) FILTER (WHERE estado = 'ok' AND costo_medido))::float AS medio,
+                       (avg(segundos) FILTER (WHERE estado = 'ok'))::float AS segundos,
+                       count(*) FILTER (WHERE estado = 'ok' AND score >= 70)::int AS alto
+                  FROM agente_masivo GROUP BY red ORDER BY red`).then((q) => q.rows),
+    pool.query(`SELECT to_char((COALESCE(terminado_en, creado_en) AT TIME ZONE 'America/Lima')::date, 'YYYY-MM-DD') AS dia,
+                       count(*) FILTER (WHERE estado = 'ok')::int AS hechos, count(*) FILTER (WHERE estado = 'error')::int AS errores,
+                       COALESCE(sum(costo), 0)::float AS costo
+                  FROM agente_masivo GROUP BY 1 ORDER BY 1 DESC LIMIT 30`).then((q) => q.rows),
+    pool.query(`SELECT origen, inicio, fin, tope::float, plan, filtro, pendientes, sin_info AS "sinInfo", gastado_al_inicio::float AS "gastadoAlInicio",
+                       ok, errores, costo::float
+                  FROM agente_masivo_tanda ORDER BY inicio DESC LIMIT 24`).then((q) => q.rows).catch(() => []),
+    pool.query(`SELECT ocid, red, estado, costo::float, segundos::float, score, left(error, 160) AS error, terminado_en AS "terminadoEn"
+                  FROM agente_masivo WHERE ocid IS NOT NULL AND estado <> 'en_vuelo'
+                 ORDER BY terminado_en DESC NULLS LAST LIMIT 40`).then((q) => q.rows),
+  ]);
+  const gastado = redes.reduce((a, r) => a + Number(r.costo), 0);
+  const ultima = tandas[0] ?? null;
+  const pendientes: Record<string, number> = ultima?.pendientes ?? {};
+  const sinInfo: Record<string, number> = ultima?.sinInfo ?? {};
+  const hechos = redes.reduce((a, r) => a + Number(r.hechos), 0);
+  const medioGlobal = (() => {
+    const conMedio = redes.filter((r) => r.medio != null && r.hechos > 0);
+    const n = conMedio.reduce((a, r) => a + Number(r.hechos), 0);
+    return n ? conMedio.reduce((a, r) => a + Number(r.medio) * Number(r.hechos), 0) / n : null;
+  })();
+  const faltanUsd = Object.entries(pendientes).reduce((a, [red, n]) => {
+    const medio = redes.find((r) => r.red === red)?.medio ?? medioGlobal ?? 0.2;
+    return a + n * Number(medio);
+  }, 0);
+  const tope = ultima?.tope ?? null;
+  const body = {
+    gastado, tope, hechos, medioGlobal,
+    errores: redes.reduce((a, r) => a + Number(r.errores), 0),
+    enVuelo: redes.reduce((a, r) => a + Number(r.enVuelo), 0),
+    pendientes, sinInfo, faltanUsd,
+    alcanzaPara: tope != null && medioGlobal ? Math.max(0, Math.floor((tope - gastado) / medioGlobal)) : null,
+    filtro: ultima?.filtro ?? null,
+    redes, dias, tandas, ultimos,
+    generadoAt: new Date().toISOString(),
+  };
+  masivoCache = { at: Date.now(), body };
   return c.json(body);
 });

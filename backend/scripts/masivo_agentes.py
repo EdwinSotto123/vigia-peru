@@ -8,9 +8,13 @@ cada 3 h) para no depender de la PC.
   python -X utf8 backend/scripts/masivo_agentes.py prod --anotar 0.75 --motivo "prueba de oro de obras"
   python -X utf8 backend/scripts/masivo_agentes.py prod --plan "obras=1" --tope 544 --seco   # sólo cuenta
 
-Contratos: 2026, con el acta de buena pro y las bases ya leídas (documento_lectura ok), procesables y SIN alerta, lo más
-riesgoso primero (riesgo_contrato, luego cuantía). Cada grupo de redes tiene sus hilos, para que ninguna acapare el
-reparto. Van directo a las Lambdas (la Lambda escribe la alerta con vigia_agentes); no pasan por `procesamientos`.
+Contratos: 2026, procesables y SIN alerta, con «información bastante» (el usuario, 2026-11-12: «sólo quiero procesar en
+la cual tengamos información bastante»): el acta de buena pro y las bases ya leídas (documento_lectura ok) y además el
+contrato o las consultas. Primero los que tienen las cuatro lecturas, luego lo más riesgoso (riesgo_contrato, cuantía).
+Lo que sólo tiene acta y bases espera a que los lectores lean más (cuenta como `sin_info`). Cada grupo de redes tiene
+sus hilos, para que ninguna acapare el reparto. Van directo a las Lambdas (la Lambda escribe la alerta con
+vigia_agentes); no pasan por `procesamientos`. Cada job anota su tanda en agente_masivo_tanda (migración 274) para el
+panel (Procesamientos → Masivo).
 
 El libro es la tabla agente_masivo (migración 272): cada contrato se reserva antes de lanzarlo (dos jobs o dos hilos no
 lanzan el mismo), y al terminar queda con su costo medido por el agente. No lanza uno nuevo si lo gastado + lo que está
@@ -20,6 +24,7 @@ sigue). Límite de Workers AI: ≤ 9 análisis a la vez en total (con ~13 salen 
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import re
 import subprocess
@@ -126,26 +131,53 @@ def cerrar(cu, rid: int, **c) -> None:
                (c["estado"], c["costo"], c["costo_medido"], c["segundos"], c["score"], c["error"], rid))
 
 
-def candidatos(cu, redes: list[str]) -> list[tuple[str, str]]:
-    """Lo pendiente de esas redes, lo más riesgoso primero. Fuera: con alerta, hecho o en vuelo en el libro, y lo que ya
-    falló dos veces (no se reintenta para siempre)."""
-    tipos = [t for r in redes for t in TIPOS[r]]
-    red_de = {t: r for r in redes for t in TIPOS[r]}
-    cu.execute("""
-        WITH leidos AS (
-          SELECT ocid FROM documento_lectura GROUP BY ocid
+FILTRO = "acta y bases leídas, más el contrato o las consultas"
+# Las lecturas de cada contrato: `docs` = cuántas clases leídas (3 o 4) y `rico` = tiene información bastante.
+_LEIDOS = """
+        leidos AS (
+          SELECT ocid, count(DISTINCT clase) FILTER (WHERE estado = 'ok') AS docs,
+                 bool_or(clase = 'contrato' AND estado = 'ok') OR bool_or(clase = 'consultas' AND estado = 'ok') AS rico
+            FROM documento_lectura GROUP BY ocid
           HAVING bool_or(clase = 'buena_pro' AND estado = 'ok') AND bool_or(clase = 'bases' AND estado = 'ok')),
         libro AS (
           SELECT ocid, bool_or(estado IN ('ok', 'en_vuelo')) AS tomado, count(*) FILTER (WHERE estado = 'error') AS fallas
-            FROM agente_masivo WHERE ocid IS NOT NULL GROUP BY ocid)
-        SELECT cv.ocid, lower(cv.tipo_contratacion)
-          FROM convocatorias cv JOIN leidos l ON l.ocid = cv.ocid
-          LEFT JOIN libro m ON m.ocid = cv.ocid
+            FROM agente_masivo WHERE ocid IS NOT NULL GROUP BY ocid)"""
+_PENDIENTE = """
          WHERE cv.procesable AND lower(cv.tipo_contratacion) = ANY(%s)
            AND NOT EXISTS (SELECT 1 FROM alertas a WHERE a.codigo = 'OECE-' || cv.ocid)
-           AND NOT COALESCE(m.tomado, false) AND COALESCE(m.fallas, 0) < 2
-         ORDER BY riesgo_contrato(cv.ocid) DESC NULLS LAST, cv.cuantia_referencial DESC NULLS LAST""", (tipos,))
+           AND NOT COALESCE(m.tomado, false) AND COALESCE(m.fallas, 0) < 2"""
+
+
+def candidatos(cu, redes: list[str]) -> list[tuple[str, str]]:
+    """Lo pendiente de esas redes con información bastante: primero los de 4 lecturas, luego lo más riesgoso. Fuera: con
+    alerta, hecho o en vuelo en el libro, y lo que ya falló dos veces (no se reintenta para siempre)."""
+    tipos = [t for r in redes for t in TIPOS[r]]
+    red_de = {t: r for r in redes for t in TIPOS[r]}
+    cu.execute(f"""
+        WITH {_LEIDOS}
+        SELECT cv.ocid, lower(cv.tipo_contratacion)
+          FROM convocatorias cv JOIN leidos l ON l.ocid = cv.ocid AND l.rico
+          LEFT JOIN libro m ON m.ocid = cv.ocid {_PENDIENTE}
+         ORDER BY l.docs DESC, riesgo_contrato(cv.ocid) DESC NULLS LAST, cv.cuantia_referencial DESC NULLS LAST""", (tipos,))
     return [(o, red_de[t]) for o, t in cu.fetchall()]
+
+
+def conteo(cu, redes: list[str]) -> tuple[dict[str, int], dict[str, int]]:
+    """Por red: cuántos pendientes tienen información bastante y cuántos esperan más lecturas (sin ordenar: barato)."""
+    tipos = [t for r in redes for t in TIPOS[r]]
+    red_de = {t: r for r in redes for t in TIPOS[r]}
+    cu.execute(f"""
+        WITH {_LEIDOS}
+        SELECT lower(cv.tipo_contratacion), count(*) FILTER (WHERE l.rico), count(*) FILTER (WHERE NOT l.rico)
+          FROM convocatorias cv JOIN leidos l ON l.ocid = cv.ocid
+          LEFT JOIN libro m ON m.ocid = cv.ocid {_PENDIENTE}
+         GROUP BY 1""", (tipos,))
+    ricos: dict[str, int] = {}
+    pobres: dict[str, int] = {}
+    for t, a, b in cu.fetchall():
+        ricos[red_de[t]] = ricos.get(red_de[t], 0) + a
+        pobres[red_de[t]] = pobres.get(red_de[t], 0) + b
+    return ricos, pobres
 
 
 # ── Lambdas ──
@@ -182,19 +214,18 @@ def estado() -> None:
                              count(*) FILTER (WHERE estado = 'en_vuelo')
                         FROM agente_masivo GROUP BY red ORDER BY red""")
         filas = cu.fetchall()
-        faltan: dict[str, int] = {}
-        for _, red in candidatos(cu, list(TIPOS)):
-            faltan[red] = faltan.get(red, 0) + 1
-        return filas, faltan, gasto(cu)
-    filas, faltan, (g, n) = base(leer, 900)
-    print(f"{'red':12} {'hechos':>7} {'gasto':>8} {'medio':>6} {'en vuelo':>8} {'faltan':>7} {'para terminar':>13}")
-    total_f = total_p = 0.0
+        faltan, esperan = conteo(cu, list(TIPOS))
+        return filas, faltan, esperan, gasto(cu)
+    filas, faltan, esperan, (g, n) = base(leer, 900)
+    print(f"{'red':12} {'hechos':>7} {'gasto':>8} {'medio':>6} {'en vuelo':>8} {'faltan':>7} {'para terminar':>13} {'esperan':>8}")
+    total_f = total_p = total_e = 0.0
     for red, ok, suma, medio, vuelo in filas:
-        f = faltan.get(red, 0)
+        f, e = faltan.get(red, 0), esperan.get(red, 0)
         p = f * float(medio or 0.2)
-        total_f, total_p = total_f + f, total_p + p
-        print(f"{red:12} {ok:7} {float(suma):8.2f} {float(medio or 0):6.3f} {vuelo:8} {f:7} {p:13.2f}")
-    print(f"TOTAL gastado {g:.2f} (en vuelo {n}); faltan {int(total_f)}; terminar todo ≈ US$ {total_p:.0f}")
+        total_f, total_p, total_e = total_f + f, total_p + p, total_e + e
+        print(f"{red:12} {ok:7} {float(suma):8.2f} {float(medio or 0):6.3f} {vuelo:8} {f:7} {p:13.2f} {e:8}")
+    print(f"TOTAL gastado {g:.2f} (en vuelo {n}); faltan {int(total_f)} con información bastante; terminar ≈ US$ "
+          f"{total_p:.0f}; esperan más lecturas {int(total_e)}")
 
 
 def anotar(usd: float, motivo: str) -> None:
@@ -205,7 +236,30 @@ def anotar(usd: float, motivo: str) -> None:
     print("gastado:", base(ins)[0])
 
 
-def correr(grupos: list[tuple[list[str], int]], tope: float, minutos: float, maximo: int, seco: bool) -> None:
+def tanda(cu, **c) -> None:
+    """Abre (con `tope`) o cierra (con `ok`) la fila de este job en agente_masivo_tanda (migración 274), para el panel."""
+    if "tope" in c:
+        cu.execute("""INSERT INTO agente_masivo_tanda (origen, tope, plan, filtro, pendientes, sin_info, gastado_al_inicio)
+                      VALUES (%s, %s, %s, %s, %s::jsonb, %s::jsonb, %s)
+                      ON CONFLICT (origen) DO UPDATE SET inicio = now(), tope = EXCLUDED.tope, plan = EXCLUDED.plan,
+                        filtro = EXCLUDED.filtro, pendientes = EXCLUDED.pendientes, sin_info = EXCLUDED.sin_info,
+                        gastado_al_inicio = EXCLUDED.gastado_al_inicio""",
+                   (ORIGEN, c["tope"], c["plan"], FILTRO, json.dumps(c["pendientes"]), json.dumps(c["sin_info"]), c["gastado"]))
+    else:
+        cu.execute("UPDATE agente_masivo_tanda SET fin = now(), ok = %s, errores = %s, costo = %s WHERE origen = %s",
+                   (c["ok"], c["errores"], c["costo"], ORIGEN))
+
+
+def anotar_tanda(**c) -> None:
+    """La tanda es para mirar: si falla (p. ej. sin la migración 274), el masivo sigue igual."""
+    try:
+        base(lambda cu: tanda(cu, **c))
+    except Exception as e:  # noqa: BLE001
+        log(f"[EXC] no pude anotar la tanda: {str(e)[:150]}")
+
+
+def correr(grupos: list[tuple[list[str], int]], tope: float, minutos: float, maximo: int, seco: bool,
+           plan_txt: str = "") -> None:
     t0 = time.time()
     todas = sorted({r for redes, _ in grupos for r in redes})
     lista = base(lambda cu: candidatos(cu, todas), 900)
@@ -215,9 +269,15 @@ def correr(grupos: list[tuple[list[str], int]], tope: float, minutos: float, max
         colas[",".join(redes)] = {"cola": iter(cola[:maximo] if maximo else cola), "hilos": hilos, "n": len(cola)}
     g, n = base(gasto)
     log(f"inicio ({ORIGEN}): " + "; ".join(f"{k} {v['n']} pendientes, {v['hilos']} hilos" for k, v in colas.items())
-        + f"; gastado {g:.2f} (en vuelo {n}) de {tope:.2f}; lanza hasta {minutos:.0f} min")
+        + f"; gastado {g:.2f} (en vuelo {n}) de {tope:.2f}; lanza hasta {minutos:.0f} min; filtro: {FILTRO}")
     if seco:
         return
+    try:
+        ricos, pobres = base(lambda cu: conteo(cu, list(TIPOS)), 600)
+    except Exception as e:  # noqa: BLE001
+        log(f"[EXC] no pude contar los pendientes: {str(e)[:150]}")
+        ricos, pobres = {}, {}
+    anotar_tanda(tope=tope, plan=plan_txt, pendientes=ricos, sin_info=pobres, gastado=g)
     por_red, tok = urls(), token()
     parar = threading.Event()
     hechos = {"ok": 0, "error": 0, "costo": 0.0}
@@ -289,6 +349,7 @@ def correr(grupos: list[tuple[list[str], int]], tope: float, minutos: float, max
             for _ in range(v["hilos"]):
                 ex.submit(hilo, clave)
     g, n = base(gasto)
+    anotar_tanda(ok=hechos["ok"], errores=hechos["error"], costo=round(hechos["costo"], 4))
     log(f"fin ({ORIGEN}): {hechos['ok']} ok y {hechos['error']} con error en este job, USD {hechos['costo']:.2f}; "
         f"gastado {g:.2f} de {tope:.2f}")
 
@@ -314,7 +375,7 @@ def main() -> None:
         else:
             if a.tope is None:
                 raise SystemExit("falta --tope (US$)")
-            correr(plan(a.plan), a.tope, a.minutos, a.max, a.seco)
+            correr(plan(a.plan), a.tope, a.minutos, a.max, a.seco, a.plan)
     finally:
         if _db["cm"] is not None:
             try:

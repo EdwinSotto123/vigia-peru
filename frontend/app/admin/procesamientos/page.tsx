@@ -36,6 +36,7 @@ import { faseLabel, TOTAL_FASES } from "@/lib/auditoria";
 import { AvisoDetenidos } from "@/components/admin/procesamiento/AvisoDetenidos";
 import { Flujo } from "@/components/admin/procesamiento/Flujo";
 import { agruparLotes, Lotes } from "@/components/admin/procesamiento/Lotes";
+import { Masivo } from "@/components/admin/procesamiento/Masivo";
 import { PedidosDescarga, usePedidos } from "@/components/admin/procesamiento/PedidosDescarga";
 import { ProcesarLote } from "@/components/admin/procesamiento/ProcesarLote";
 import { Partes } from "@/components/ui/Partes";
@@ -101,10 +102,10 @@ export default function AdminProcesamientosPage() {
   );
 }
 
-type Tab = "contratos" | "lotes" | "descargas";
+type Tab = "contratos" | "lotes" | "masivo" | "descargas";
 /** Arreglos fijos, no armados en cada render: usePestana los usa como dependencia. */
-const PESTANAS: readonly Tab[] = ["contratos", "lotes"];
-const PESTANAS_CON_DESCARGAS: readonly Tab[] = ["contratos", "lotes", "descargas"];
+const PESTANAS: readonly Tab[] = ["contratos", "lotes", "masivo"];
+const PESTANAS_CON_DESCARGAS: readonly Tab[] = ["contratos", "lotes", "masivo", "descargas"];
 
 function Procesamientos() {
   const procQ = useAdmin<{ data?: any[] } | any[]>("/procesamientos", { refreshInterval: 15_000 });
@@ -273,6 +274,7 @@ function Procesamientos() {
   const pestanas: PestanaPanel<Tab>[] = [
     { clave: "contratos", etiqueta: "Contratos" },
     { clave: "lotes", etiqueta: "Lotes", conteo: rows ? lotes.length : null },
+    { clave: "masivo", etiqueta: "Masivo" },
     ...(hayDescargas
       ? [
           {
@@ -440,6 +442,8 @@ function Procesamientos() {
           <PanelPestana clave={tab}>
             {tab === "lotes" ? (
               <Lotes lotes={rows === null ? null : lotes} activo={lote} incompletos={capada} onElegir={(c) => filtrar({ lote: c, estado: "todos", tab: null })} />
+            ) : tab === "masivo" ? (
+              <Masivo />
             ) : tab === "descargas" ? (
               <PedidosDescarga onChange={load} />
             ) : (
