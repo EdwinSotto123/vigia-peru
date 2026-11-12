@@ -78,6 +78,8 @@ interface RespuestaCrawl {
 }
 
 const TOPE_HTML = 4_000_000;
+/** Instancias de las pruebas del 2026-11-12 que quedaron prendidas («lector» con el CMD de la imagen, «diagnostico»). */
+const INSTANCIAS_VIEJAS = ["lector", "diagnostico"];
 
 /**
  * Abre una página con Crawl4AI. null si no hay contenedor o no respondió (la página queda «sin precio», no tumba el
@@ -93,11 +95,18 @@ export async function rendir(env: EnvLector, gasto: Gasto, url: string, agente: 
     const lector = getContainer(env.LECTOR, "crawl4ai");
     // La primera vez en una máquina baja la imagen (1,7 GB): se espera hasta 150 s a que abra el puerto. El arranque
     // va explícito (comando y variables) para no depender del estado que guarde el Durable Object.
-    try {
-      await lector.startAndWaitForPorts({
+    const arrancar = () =>
+      lector.startAndWaitForPorts({
         ports: 11235,
-        startOptions: arranque(env.CRAWL4AI_TOKEN),
+        startOptions: arranque(env.CRAWL4AI_TOKEN!),
         cancellationOptions: { instanceGetTimeoutMS: 90_000, portReadyTimeoutMS: 150_000, waitInterval: 1_000 },
+      });
+    try {
+      await arrancar().catch(async (e: unknown) => {
+        // Sin cupo (max_instances): se apagan las instancias viejas que quedaron prendidas y se intenta una vez más.
+        if (!/Maximum number of running container instances/i.test(String((e as Error)?.message ?? e))) throw e;
+        await Promise.all(INSTANCIAS_VIEJAS.map((n) => getContainer(env.LECTOR!, n).destroy().catch(() => undefined)));
+        await arrancar();
       });
     } catch (e) {
       // Si no abrió el puerto, se destruye para que el próximo pedido arranque de cero.
