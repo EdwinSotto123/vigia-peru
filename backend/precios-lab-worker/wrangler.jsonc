@@ -43,5 +43,6 @@
     "EMBEDDINGS": "@cf/baai/bge-m3"
   }
   // Secretos (wrangler secret put): LLM_TOKEN (= /vigia/llm/token), PRECIOS_TOKEN (= /vigia/precios/token),
-  // TAVILY_API_KEY (= /vigia/tavily/api-key).
+  // TAVILY_API_KEY (= /vigia/tavily/api-key), CRAWL4AI_TOKEN (= /vigia/precios-lab/crawl4ai-token: sin token Crawl4AI solo
+  // escucha en su loopback).
 }

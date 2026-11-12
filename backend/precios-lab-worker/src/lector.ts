@@ -14,13 +14,33 @@
 import { Container, getContainer } from "@cloudflare/containers";
 import type { Gasto } from "./tipos.ts";
 
-export class Lector extends Container {
-  defaultPort = 11235;
-  sleepAfter = "5m";
-  envVars = { CRAWL4AI_ALLOW_DEEP_CRAWL: "false" };
+interface EnvContenedor {
+  /** Token de Crawl4AI (secreto del Worker = SSM /vigia/precios-lab/crawl4ai-token). */
+  CRAWL4AI_TOKEN?: string;
 }
 
-export interface EnvLector {
+export class Lector extends Container<EnvContenedor> {
+  defaultPort = 11235;
+  sleepAfter = "5m";
+
+  constructor(ctx: DurableObjectState<{}>, env: EnvContenedor) {
+    super(ctx, env);
+    // Crawl4AI 0.9.4 solo escucha fuera de su propio loopback si tiene token (entrypoint.sh); sin él, el Worker no
+    // lo alcanza en 10.0.0.1:11235. Cada pedido lleva el token (rendir).
+    this.envVars = { CRAWL4AI_ALLOW_DEEP_CRAWL: "false", CRAWL4AI_API_TOKEN: env.CRAWL4AI_TOKEN ?? "", GUNICORN_BIND: "0.0.0.0:11235" };
+  }
+
+  override onStop(p: { exitCode?: number; reason?: string }) {
+    console.warn("crawl4ai se detuvo", JSON.stringify(p));
+  }
+
+  override onError(e: unknown) {
+    console.warn("crawl4ai falló", String((e as Error)?.message ?? e).slice(0, 500));
+    return super.onError(e);
+  }
+}
+
+export interface EnvLector extends EnvContenedor {
   LECTOR?: DurableObjectNamespace<Lector>;
 }
 
@@ -53,7 +73,7 @@ const TOPE_HTML = 4_000_000;
  * paso). `agente` es nuestro User-Agent.
  */
 export async function rendir(env: EnvLector, gasto: Gasto, url: string, agente: string, esperar = 2): Promise<Rendida | null> {
-  if (!env.LECTOR) return null;
+  if (!env.LECTOR || !env.CRAWL4AI_TOKEN) return null;
   const t0 = Date.now();
   // Solo se cuenta el tiempo si el contenedor respondió: si no llegó a arrancar, Cloudflare no lo cobra.
   let respondio = false;
@@ -65,7 +85,7 @@ export async function rendir(env: EnvLector, gasto: Gasto, url: string, agente: 
     const r = await lector.fetch(
       new Request("http://lector/crawl", {
         method: "POST",
-        headers: { "content-type": "application/json" },
+        headers: { "content-type": "application/json", authorization: `Bearer ${env.CRAWL4AI_TOKEN}` },
         body: JSON.stringify({
           urls: [url],
           browser_config: { type: "BrowserConfig", params: { headless: true, user_agent: agente, text_mode: true, light_mode: true } },

@@ -49,7 +49,8 @@ el pedido desde un contrato (`ocid` + `item`) y suma lo que pagó el Estado por 
 ```bash
 npx wrangler d1 execute vigia-precios-lab --remote --file schema.sql   # una vez
 bash infrastructure/deploy/cloudflare/worker.sh precios-lab
-# secretos: LLM_TOKEN (/vigia/llm/token), PRECIOS_TOKEN (/vigia/precios/token), TAVILY_API_KEY (/vigia/tavily/api-key)
+# secretos: LLM_TOKEN (/vigia/llm/token), PRECIOS_TOKEN (/vigia/precios/token), TAVILY_API_KEY (/vigia/tavily/api-key),
+#   CRAWL4AI_TOKEN (/vigia/precios-lab/crawl4ai-token): Crawl4AI 0.9.4 sin token solo escucha en 127.0.0.1 y el Worker no lo alcanza
 npm test && npx tsc --noEmit
 ```
 
