@@ -157,6 +157,7 @@ function detallePaso(d: unknown): string {
   for (const [k, v] of Object.entries(o)) {
     if (k === "busquedas" && Array.isArray(v)) partes.push(`busca ${v.map((x) => `«${x}»`).join(", ")}`);
     else if (k === "unidad") partes.push(`por ${v}`);
+    else if (k === "via") partes.push(v === "duckduckgo" ? "por DuckDuckGo" : "por Tavily");
     else if (k === "veredicto") partes.push(String(v));
     else if (k === "tiendas" && v && typeof v === "object") partes.push(`${Object.values(v as Record<string, string>).filter((x) => /productos/.test(x)).length} tiendas con resultados`);
     else if (typeof v === "number" && nombres[k]) partes.push(`${NUM.format(v)} ${nombres[k]}`);

@@ -10,10 +10,10 @@ export class Turnos extends DurableObject {
   private siguiente = 0;
 
   /** Cuántos ms debe esperar quien pide; el turno ya queda reservado. */
-  async turno(): Promise<number> {
+  async turno(intervalo = INTERVALO_MS): Promise<number> {
     const ahora = Date.now();
     const toca = Math.max(ahora, this.siguiente);
-    this.siguiente = toca + INTERVALO_MS;
+    this.siguiente = toca + intervalo;
     return toca - ahora;
   }
 }
@@ -25,8 +25,8 @@ export interface EnvTurnos {
 const dormir = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 /** Espera su turno para ese dominio (www. y sin www. son el mismo sitio). */
-export async function esperarTurno(env: EnvTurnos, dominio: string): Promise<void> {
+export async function esperarTurno(env: EnvTurnos, dominio: string, intervalo = INTERVALO_MS): Promise<void> {
   const id = env.TURNOS.idFromName(dominio.replace(/^www\./, ""));
-  const ms = await env.TURNOS.get(id).turno();
-  if (ms > 0) await dormir(Math.min(ms, 30_000));
+  const ms = await env.TURNOS.get(id).turno(intervalo);
+  if (ms > 0) await dormir(Math.min(ms, 60_000));
 }

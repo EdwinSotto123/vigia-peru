@@ -5,7 +5,9 @@
  *             7 días, un pedido por segundo a cada tienda y pausa de la que falla. Precio estructurado (no hay que leer
  *             la página).
  *   web       Tavily (búsqueda web con clave propia, ~US$ 0,008 por búsqueda): páginas de venta en el Perú que no son
- *             esas tiendas. Cada página se lee después (`leerUrl`).
+ *             esas tiendas. Si Tavily falla (p. ej. 432: cupo agotado), DuckDuckGo HTML como los agentes
+ *             (tools/busqueda_libre.py): un pedido cada 8 s para todo el laboratorio y, si pide pausa, nada.
+ *             Cada página se lee después (`leerUrl`).
  *
  * `leerUrl` lee una página con cortesía: respeta robots.txt, espera su turno por dominio (≤ 1 pedido por segundo),
  * se presenta con su nombre (sin hacerse pasar por un navegador), corta las respuestas grandes y no insiste si el sitio
@@ -13,7 +15,7 @@
  * abrirla un navegador de Cloudflare (Browser Run), con tope por investigación.
  */
 import puppeteer from "@cloudflare/puppeteer";
-import { leerPagina, robotsPermite, textoVisible } from "./extraer.ts";
+import { leerPagina, parsearDdg, robotsPermite, textoVisible, type ResultadoWeb } from "./extraer.ts";
 import { esperarTurno, type EnvTurnos } from "./turnos.ts";
 import type { Gasto, Lectura } from "./tipos.ts";
 
@@ -53,11 +55,7 @@ export async function buscarTiendas(env: EnvFuentes, termino: string, n = 4): Pr
   return { productos: j.productos ?? [], tiendas: j.tiendas ?? {} };
 }
 
-export interface ResultadoWeb {
-  titulo: string;
-  url: string;
-  extracto: string;
-}
+export type { ResultadoWeb };
 
 /** Tavily: páginas en el Perú (caché de 3 días en D1 por la misma búsqueda). */
 export async function buscarWeb(env: EnvFuentes, gasto: Gasto, consulta: string, excluirDominios: string[]): Promise<ResultadoWeb[]> {
@@ -84,6 +82,21 @@ export async function buscarWeb(env: EnvFuentes, gasto: Gasto, consulta: string,
   }
   const fuera = new Set(excluirDominios.map((d) => d.replace(/^www\./, "")));
   return resultados.filter((x) => !fuera.has(dominioDe(x.url)));
+}
+
+/** DuckDuckGo HTML (gratis): un pedido cada 8 s para todo el laboratorio; si pide pausa, devuelve vacío. */
+export async function buscarLibre(env: EnvFuentes, consulta: string, excluirDominios: string[]): Promise<ResultadoWeb[]> {
+  await esperarTurno(env, "duckduckgo.com", 8_000);
+  const r = await fetch("https://html.duckduckgo.com/html/", {
+    method: "POST",
+    headers: { "content-type": "application/x-www-form-urlencoded", "user-agent": USER_AGENT, "accept-language": "es-PE,es;q=0.9" },
+    body: new URLSearchParams({ q: consulta, kl: "pe-es" }).toString(),
+    signal: AbortSignal.timeout(20_000),
+  });
+  const texto = await r.text();
+  if (r.status !== 200 || texto.slice(0, 3000).includes("bots use DuckDuckGo")) throw new Error(`DuckDuckGo respondió ${r.status}`);
+  const fuera = new Set(excluirDominios.map((d) => d.replace(/^www\./, "")));
+  return parsearDdg(texto).filter((x) => !fuera.has(dominioDe(x.url)));
 }
 
 export const dominioDe = (url: string) => {

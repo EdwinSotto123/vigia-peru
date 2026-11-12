@@ -179,3 +179,35 @@ export function robotsPermite(robots: string, ruta: string): boolean {
   for (const r of reglas) if (ruta.startsWith(r.prefijo) && (!mejor || r.prefijo.length > mejor.prefijo.length)) mejor = r;
   return mejor ? mejor.permitir : true;
 }
+
+export interface ResultadoWeb {
+  titulo: string;
+  url: string;
+  extracto: string;
+}
+
+const sinEtiquetas = (s: string) =>
+  s.replace(/<[^>]+>/g, " ").replace(/&amp;/g, "&").replace(/&quot;/g, '"').replace(/&#x27;|&#39;/g, "'").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/\s+/g, " ").trim();
+
+/** La página de resultados de DuckDuckGo HTML → resultados (sin anuncios). Mismo criterio que busqueda_libre.py. */
+export function parsearDdg(texto: string): ResultadoWeb[] {
+  const out: ResultadoWeb[] = [];
+  for (const blk of texto.split('<div class="result results_links').slice(1)) {
+    if (blk.slice(0, 200).includes("result--ad")) continue;
+    const a = /class="result__a" href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/.exec(blk);
+    if (!a) continue;
+    let url = a[1].replace(/&amp;/g, "&");
+    if (url.includes("duckduckgo.com/l/?")) {
+      try {
+        url = new URL(url.startsWith("http") ? url : `https:${url}`).searchParams.get("uddg") ?? url;
+      } catch {
+        continue;
+      }
+    }
+    if (url.includes("duckduckgo.com/y.js") || !/^https?:\/\//.test(url)) continue;
+    const sn = /class="result__snippet"[^>]*>([\s\S]*?)<\/a>/.exec(blk);
+    out.push({ titulo: sinEtiquetas(a[2]).slice(0, 200), url, extracto: sn ? sinEtiquetas(sn[1]).slice(0, 400) : "" });
+  }
+  return out;
+}
+

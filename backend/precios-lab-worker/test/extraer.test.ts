@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { confirmarEnTexto, leerJsonLd, leerMicrodatos, leerOpenGraph, leerPagina, numeroPrecio, robotsPermite, textoVisible } from "../src/extraer.ts";
+import { confirmarEnTexto, leerJsonLd, parsearDdg, leerMicrodatos, leerOpenGraph, leerPagina, numeroPrecio, robotsPermite, textoVisible } from "../src/extraer.ts";
 
 test("numeroPrecio lee los formatos de las tiendas", () => {
   assert.equal(numeroPrecio("S/ 1,299.90"), 1299.9);
@@ -58,4 +58,15 @@ test("robots.txt: reglas de User-agent *", () => {
   assert.ok(robotsPermite(r, "/buscar/ayuda"));
   assert.ok(robotsPermite("", "/x"));
   assert.ok(!robotsPermite("User-agent: *\nDisallow: /", "/x"));
+});
+
+test("DuckDuckGo HTML: resultados sin anuncios y con la URL real", () => {
+  const html = `<div class="result results_links result--ad"><a class="result__a" href="https://anuncio">Anuncio</a></div>
+    <div class="result results_links results_links_deep web-result"><h2><a rel="nofollow" class="result__a" href="//duckduckgo.com/l/?uddg=https%3A%2F%2Fwww.tienda.pe%2Fpapel&amp;rut=x">Papel <b>bond</b> A4</a></h2>
+    <a class="result__snippet" href="x">S/ 21.90 el paquete</a></div>`;
+  const r = parsearDdg(html);
+  assert.equal(r.length, 1);
+  assert.equal(r[0].url, "https://www.tienda.pe/papel");
+  assert.equal(r[0].titulo, "Papel bond A4");
+  assert.equal(r[0].extracto, "S/ 21.90 el paquete");
 });

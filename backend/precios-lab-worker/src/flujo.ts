@@ -15,7 +15,7 @@
  */
 import { WorkflowEntrypoint, type WorkflowEvent, type WorkflowStep } from "cloudflare:workers";
 import { confirmarEnTexto } from "./extraer.ts";
-import { buscarTiendas, buscarWeb, dominioDe, leerUrl, type EnvFuentes, type ResultadoWeb } from "./fuentes.ts";
+import { buscarLibre, buscarTiendas, buscarWeb, dominioDe, leerUrl, type EnvFuentes, type ResultadoWeb } from "./fuentes.ts";
 import { entender, juzgar, leerConModelo, parecido, type EnvModelo } from "./modelo.ts";
 import { resumir, validar } from "./estadistica.ts";
 import { gastoVacio, type Entrada, type Ficha, type Gasto, type Oferta } from "./tipos.ts";
@@ -126,15 +126,38 @@ export class Investigacion extends WorkflowEntrypoint<Env, { id: string }> {
 
     // ── web ──
     const web = await step.do("web", CONFIG, async (): Promise<ResultadoWeb[]> => {
-      if (entrada.web === false || !env.TAVILY_API_KEY) {
-        await marcar(env, id, "web", "saltado", entrada.web === false ? "no se pidió" : "sin clave de búsqueda web");
+      if (entrada.web === false) {
+        await marcar(env, id, "web", "saltado", "no se pidió");
         return [];
       }
       await marcar(env, id, "web", "corriendo");
+      // La web es un extra: si no responde, la investigación sigue con las tiendas.
       const g = gastoVacio();
-      const r = await buscarWeb(env, g, `${ficha.busqueda_web} precio`, tiendas.dominios);
+      const consulta = `${ficha.busqueda_web} precio`;
+      const fallas: string[] = [];
+      let r: ResultadoWeb[] = [];
+      let via = "tavily";
+      if (env.TAVILY_API_KEY) {
+        try {
+          r = await buscarWeb(env, g, consulta, tiendas.dominios);
+        } catch (e) {
+          fallas.push(`Tavily: ${String((e as Error).message ?? e).slice(0, 80)}`);
+        }
+      }
+      if (!r.length) {
+        via = "duckduckgo";
+        try {
+          r = await buscarLibre(env, consulta, tiendas.dominios);
+        } catch (e) {
+          fallas.push(String((e as Error).message ?? e).slice(0, 80));
+        }
+      }
       await sumarGasto(env, id, g);
-      await marcar(env, id, "web", "listo", { paginas: r.length });
+      if (!r.length) {
+        await marcar(env, id, "web", "saltado", fallas.length ? `sin resultados (${fallas.join("; ")})` : "sin resultados");
+        return [];
+      }
+      await marcar(env, id, "web", "listo", { paginas: Math.min(r.length, MAX_PAGINAS_WEB), via });
       return r.slice(0, MAX_PAGINAS_WEB);
     });
 
