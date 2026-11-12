@@ -58,7 +58,11 @@ export async function rendir(env: EnvLector, gasto: Gasto, url: string, agente: 
   // Solo se cuenta el tiempo si el contenedor respondió: si no llegó a arrancar, Cloudflare no lo cobra.
   let respondio = false;
   try {
-    const r = await getContainer(env.LECTOR, "lector").fetch(
+    const lector = getContainer(env.LECTOR, "lector");
+    // Crawl4AI levanta Redis, su servidor y Chromium antes de abrir el puerto: tarda más que los 20 s que espera
+    // `fetch` por defecto («not listening in the TCP address 10.0.0.1:11235», 2026-11-12).
+    await lector.startAndWaitForPorts({ ports: 11235, cancellationOptions: { instanceGetTimeoutMS: 60_000, portReadyTimeoutMS: 150_000, waitInterval: 1_000 } });
+    const r = await lector.fetch(
       new Request("http://lector/crawl", {
         method: "POST",
         headers: { "content-type": "application/json" },
