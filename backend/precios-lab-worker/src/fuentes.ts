@@ -203,6 +203,10 @@ export async function leerUrl(env: EnvFuentes, gasto: Gasto, direccion: string, 
   }
   let lectura = leerPagina(html);
   let visible = textoVisible(html);
+  // Un muro de inicio de sesión (MercadoLibre, 2026-11-12) no se pasa: nunca se entra con una cuenta.
+  if (!lectura && visible.length < 3000 && /ingresa a tu cuenta|inicia sesi[oó]n para continuar|para continuar, (ingresa|inicia)/i.test(visible)) {
+    return { url: direccion, estado: "rechazo", detalle: "pide iniciar sesión para ver el producto", lectura: null, visible: "", navegador: false };
+  }
   let usoNavegador = false;
   if (!lectura && navegador) {
     const rendido = await conNavegador(env, gasto, url.toString());
