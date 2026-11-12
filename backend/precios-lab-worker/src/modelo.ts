@@ -5,6 +5,7 @@
  *
  * Precio medido (backend/agent/tools/costo_llm.py): US$ 0,15 por millón de tokens de entrada y 0,50 de salida.
  */
+import { RUBROS, rubrosDe } from "./directorio.ts";
 import type { Coincidencia, Entrada, Ficha, Gasto } from "./tipos.ts";
 
 export interface EnvModelo {
@@ -75,6 +76,10 @@ compró una entidad del Estado. Lo conviertes en una ficha para buscar su precio
   precisa a la más general. Sin marcas si no son obligatorias. En español del Perú.
 - busqueda_web: una búsqueda para Google que encuentre páginas de venta en el Perú.
 - excluir: palabras que delatan otro producto (repuesto, funda, usado, alquiler...).
+- rubros: 1 o 2 rubros de tienda donde se vende: farmacia (medicamentos), medico (insumos y equipos médicos o de
+  laboratorio), oficina (útiles, papel, tóner), computo (equipos y accesorios), ferreteria (construcción, electricidad,
+  herramientas), limpieza (limpieza e higiene), alimentos, hogar (muebles, electrodomésticos, menaje), seguridad (EPP,
+  señalización, extintores), automotriz (llantas, lubricantes, repuestos).
 Usa solo lo que dicen la consulta y la especificación; no inventes atributos.`;
 
 const H_FICHA: Herramienta = {
@@ -93,8 +98,9 @@ const H_FICHA: Herramienta = {
       busquedas: { type: "array", items: { type: "string" } },
       busqueda_web: { type: "string" },
       excluir: { type: "array", items: { type: "string" } },
+      rubros: { type: "array", items: { type: "string", enum: RUBROS } },
     },
-    required: ["nombre", "categoria", "atributos", "unidad_base", "busquedas", "busqueda_web", "excluir"],
+    required: ["nombre", "categoria", "atributos", "unidad_base", "busquedas", "busqueda_web", "excluir", "rubros"],
   },
 };
 
@@ -115,6 +121,7 @@ export async function entender(env: EnvModelo, gasto: Gasto, e: Entrada): Promis
     busquedas,
     busqueda_web: corta(f.busqueda_web) || busquedas[0],
     excluir: (Array.isArray(f.excluir) ? f.excluir : []).map(corta).filter(Boolean).slice(0, 15),
+    rubros: rubrosDe(f.rubros, `${f.nombre ?? ""} ${f.categoria ?? ""} ${e.consulta}`).slice(0, 3),
   };
 }
 

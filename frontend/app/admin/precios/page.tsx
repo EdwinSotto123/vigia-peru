@@ -82,7 +82,7 @@ interface Detalle {
   creado: string;
   terminado: string | null;
   entrada: { consulta: string; unidad?: string; cantidad?: number; precioReferencia?: number; referencias?: Referencia[]; ocid?: string; item?: number };
-  ficha: { nombre: string; unidad_base: string; atributos: { nombre: string; valor: string; obligatorio: boolean }[]; busquedas: string[]; busqueda_web: string } | null;
+  ficha: { nombre: string; unidad_base: string; atributos: { nombre: string; valor: string; obligatorio: boolean }[]; busquedas: string[]; busqueda_web: string; rubros?: string[] } | null;
   resumen: {
     n: number;
     validas: number;
@@ -122,8 +122,8 @@ const ESTADO: Record<Estado, { texto: string; tono: Tone }> = {
 const PASOS: { clave: string; titulo: string; que: string }[] = [
   { clave: "entender", titulo: "Entender", que: "GLM 5.3 flash arma la ficha del producto y las búsquedas" },
   { clave: "tiendas", titulo: "Tiendas", que: "15 tiendas peruanas por su propia búsqueda" },
-  { clave: "buscadores", titulo: "Buscadores", que: "Inkafarma y Mifarma (productos de salud), abiertas con Crawl4AI" },
-  { clave: "web", titulo: "Web", que: "Páginas de venta en el Perú (Tavily)" },
+  { clave: "buscadores", titulo: "Buscadores", que: "El buscador propio de las tiendas del rubro (directorio abierto; Crawl4AI si se arman con JavaScript)" },
+  { clave: "web", titulo: "Páginas pegadas", que: "Las páginas de venta que pegaste" },
   { clave: "leer", titulo: "Leer páginas", que: "schema.org, Crawl4AI o GLM sobre el texto" },
   { clave: "emparejar", titulo: "Emparejar", que: "¿Mismo producto? ¿Cuántas unidades trae?" },
   { clave: "resumir", titulo: "Resumir", que: "Validar y comparar con la referencia" },
@@ -149,6 +149,12 @@ const LECTURA: Record<string, string> = {
 };
 const tonoVeredicto = (v: string): Tone => (/muy por encima/i.test(v) ? "danger" : /por encima/i.test(v) ? "warn" : /en línea|por debajo|encontrado/i.test(v) ? "ok" : "muted");
 
+/** Los rubros del directorio de tiendas (backend/precios-lab-worker/src/directorio.ts). */
+const RUBRO: Record<string, string> = {
+  farmacia: "farmacia", medico: "insumos médicos", oficina: "oficina", computo: "cómputo", ferreteria: "ferretería",
+  limpieza: "limpieza", alimentos: "alimentos", hogar: "hogar", seguridad: "seguridad", automotriz: "automotriz",
+};
+
 /** El detalle de un paso, en palabras («12 ofertas», «3 sin precio»). */
 function detallePaso(d: unknown): string {
   if (d == null) return "";
@@ -159,10 +165,11 @@ function detallePaso(d: unknown): string {
   const nombres: Record<string, string> = {
     ofertas: "ofertas", paginas: "páginas", ok: "con precio", sin_precio: "sin precio", robots: "no permitidas por robots.txt", rechazo: "rechazaron la lectura",
     error: "con error", navegador: "abiertas con navegador", armadas: "abiertas con Crawl4AI", ia: "leídas por GLM", exactas: "mismo producto", equivalentes: "equivalentes", distintas: "otro producto",
-    sinJuicio: "sin juicio", validas: "válidas",
+    sinJuicio: "sin juicio", validas: "válidas", tiendas: "tiendas por consultar",
   };
   for (const [k, v] of Object.entries(o)) {
     if (k === "busquedas" && Array.isArray(v)) partes.push(`busca ${v.map((x) => `«${x}»`).join(", ")}`);
+    else if (k === "rubros" && Array.isArray(v)) partes.push(v.length ? `rubro ${v.map((x) => RUBRO[String(x)] ?? String(x)).join(", ")}` : "sin rubro");
     else if (k === "unidad") partes.push(`por ${v}`);
     else if (k === "via") partes.push(`de ${String(v).replace("pegadas", "las que pegaste").replace("duckduckgo", "DuckDuckGo").replace("tavily", "Tavily")}`);
     else if (k === "nota") partes.push(String(v));
@@ -230,7 +237,7 @@ function Formulario({ onCreada }: { onCreada: (id: string) => void }) {
 
   const campo = "min-h-[38px] w-full rounded-lg border border-line bg-paperDeep px-3 text-dato text-ink placeholder:text-mute focus:border-granate/60";
   return (
-    <Panel titulo="Nueva investigación" descripcion="Cada una cuesta centavos: GLM 5.3 flash y, si la dejas, una búsqueda web.">
+    <Panel titulo="Nueva investigación" descripcion="Cada una cuesta centavos: GLM 5.3 flash y el contenedor de Crawl4AI mientras abre páginas.">
       <form onSubmit={enviar} className="space-y-3">
         <div role="radiogroup" aria-label="De dónde sale el producto" className="flex flex-wrap gap-2">
           {(["texto", "contrato"] as const).map((m) => (
@@ -297,7 +304,7 @@ function Formulario({ onCreada }: { onCreada: (id: string) => void }) {
         </Expandable>
         <label className="flex items-center gap-2 text-dato text-ink">
           <input type="checkbox" checked={web} onChange={(e) => setWeb(e.target.checked)} className="h-4 w-4 accent-granate" />
-          Buscar también en la web (unos US$ 0,008 por búsqueda)
+          Preguntar también a las tiendas del directorio (por rubro)
         </label>
         {error && <p className="text-meta text-crimsonTexto">{error}</p>}
         <button type="submit" disabled={enviando} className={claseBoton("primario", "md")}>
@@ -444,7 +451,9 @@ function VistaDetalle({ id }: { id: string }) {
               { etiqueta: "Se compara por", valor: data.ficha.unidad_base },
               { etiqueta: "Atributos", valor: data.ficha.atributos.map((a) => `${a.nombre}: ${a.valor}${a.obligatorio ? " (obligatorio)" : ""}`).join("; "), completo: true },
               { etiqueta: "Búsquedas en tiendas", valor: data.ficha.busquedas.map((b) => `«${b}»`).join(", "), completo: true },
-              { etiqueta: "Búsqueda web", valor: data.ficha.busqueda_web, completo: true },
+              data.ficha.rubros
+                ? { etiqueta: "Rubros", valor: data.ficha.rubros.length ? data.ficha.rubros.map((r) => RUBRO[r] ?? r).join(", ") : "ninguno", completo: true }
+                : { etiqueta: "Búsqueda web", valor: data.ficha.busqueda_web, completo: true },
             ]}
           />
         </Expandable>
@@ -493,7 +502,7 @@ function Laboratorio() {
   ];
 
   return (
-    <AdminShell title="Laboratorio de precios" subtitle="Precio de mercado de un producto: tiendas peruanas, sus buscadores con Crawl4AI, la web y lo que pagó el Estado, con GLM 5.3 flash">
+    <AdminShell title="Laboratorio de precios" subtitle="Precio de mercado de un producto: tiendas peruanas, el buscador propio de cada tienda del rubro y lo que pagó el Estado, con GLM 5.3 flash y Crawl4AI">
       <div className="space-y-6">
         <div className="grid gap-6 lg:grid-cols-[minmax(0,26rem)_minmax(0,1fr)]">
           <Formulario

@@ -1,4 +1,5 @@
 /** Tipos compartidos del laboratorio de precios (vigia-precios-lab). */
+import type { Rubro } from "./directorio.ts";
 
 /** Lo que pide quien investiga (el panel, por la API). */
 export interface Entrada {
@@ -16,7 +17,8 @@ export interface Entrada {
   /** El contrato e ítem de donde sale (para enlazar). */
   ocid?: string;
   item?: number;
-  /** Buscar también en la web abierta (Tavily). Por defecto sí. */
+  /** Preguntar también a las tiendas del directorio (paso «buscadores»). Por defecto sí. Se llama `web` porque antes
+   * era la búsqueda web (Tavily), que el directorio reemplazó el 2026-11-12. */
   web?: boolean;
   /** Páginas que quien investiga ya encontró: se leen como las de la web (hasta 10). */
   urls?: string[];
@@ -43,6 +45,8 @@ export interface Ficha {
   busquedas: string[];
   busqueda_web: string;
   excluir: string[];
+  /** Rubros del directorio de tiendas (directorio.ts): a qué tiendas preguntar. */
+  rubros: Rubro[];
 }
 
 export type Fuente = "tienda" | "buscador" | "web";

@@ -15,6 +15,7 @@
  *
  * El trabajo pesado corre en un Workflow (flujo.ts); cada dominio se lee como mucho una vez por segundo (turnos.ts).
  */
+import { DIRECTORIO } from "./directorio.ts";
 import { Investigacion, type Env } from "./flujo.ts";
 import type { Entrada } from "./tipos.ts";
 
@@ -138,7 +139,7 @@ export default {
     const url = new URL(req.url);
     const partes = url.pathname.split("/").filter(Boolean);
     try {
-      if (url.pathname === "/salud") return json({ ok: true, web: !!env.TAVILY_API_KEY, navegador: !!env.BROWSER, contenedor: !!env.LECTOR });
+      if (url.pathname === "/salud") return json({ ok: true, directorio: DIRECTORIO.length, navegador: !!env.BROWSER, contenedor: !!env.LECTOR });
       if (url.pathname === "/research" && req.method === "POST") return await crear(env, req);
       if (partes[0] === "jobs" && req.method === "GET") {
         if (partes.length === 1) return await lista(env, Math.min(100, Math.max(1, Number(url.searchParams.get("limite")) || 30)));

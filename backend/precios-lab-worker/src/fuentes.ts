@@ -4,13 +4,12 @@
  *   tiendas   vigia-precios (service binding): 15 tiendas peruanas por la misma búsqueda que hace su web, con caché de
  *             7 días, un pedido por segundo a cada tienda y pausa de la que falla. Precio estructurado (no hay que leer
  *             la página).
- *   web       Tavily (búsqueda web con clave propia, ~US$ 0,008 por búsqueda): páginas de venta en el Perú que no son
- *             esas tiendas. Si Tavily falla (p. ej. 432: cupo agotado), DuckDuckGo HTML como los agentes
- *             (tools/busqueda_libre.py): un pedido cada 8 s para todo el laboratorio y, si pide pausa, nada.
- *             Cada página se lee después (`leerUrl`).
+ *   buscadores  el buscador propio de las tiendas del directorio (directorio.ts) que venden el rubro del producto: la
+ *             API pública de su plataforma (WooCommerce, Shopify, VTEX, Magento) o, si se arman con JavaScript y no
+ *             tienen API, su página de resultados abierta con Crawl4AI en un contenedor de Cloudflare (lector.ts).
+ *             Reemplaza a la búsqueda web (Tavily y DuckDuckGo) desde el 2026-11-12: «todo open source».
  *
- *   buscadores  el buscador propio de tiendas que arman la página con JavaScript y que no están en vigia-precios
- *             (Inkafarma y Mifarma), abierto con Crawl4AI en un contenedor de Cloudflare (lector.ts).
+ *   web       solo las páginas que pega quien investiga; cada una se lee con `leerUrl`.
  *
  * `leerUrl` lee una página con cortesía: respeta robots.txt (también `Content-Signal: ai-input=no`), espera su turno
  * por dominio (≤ 1 pedido por segundo), se presenta con su nombre (sin hacerse pasar por un navegador), corta las
@@ -19,20 +18,19 @@
  * navegador de Cloudflare (Browser Run).
  */
 import puppeteer from "@cloudflare/puppeteer";
-import { leerPagina, parsearDdg, robotsNiegaIa, robotsPermite, textoVisible, type ResultadoWeb } from "./extraer.ts";
+import { leerPagina, robotsNiegaIa, robotsPermite, textoVisible, type ResultadoWeb } from "./extraer.ts";
+import { leerRespuesta, pedidoDe, type ProductoApi, type TiendaDirectorio } from "./directorio.ts";
 import { rendir, type EnvLector, type Rendida } from "./lector.ts";
 import { esperarTurno, type EnvTurnos } from "./turnos.ts";
 import type { Gasto, Lectura } from "./tipos.ts";
 
 export const USER_AGENT = "VigiaPeru-PreciosLab/0.1 (+https://vigia.gobserva.cloud; precios de referencia de compras públicas)";
 const TOPE_BYTES = 4_000_000;
-const COSTO_TAVILY = 0.008;
 
 export interface EnvFuentes extends EnvTurnos, EnvLector {
   DB: D1Database;
   PRECIOS: Fetcher;
   PRECIOS_TOKEN: string;
-  TAVILY_API_KEY?: string;
   BROWSER?: Fetcher;
 }
 
@@ -61,64 +59,6 @@ export async function buscarTiendas(env: EnvFuentes, termino: string, n = 4): Pr
 }
 
 export type { ResultadoWeb };
-
-/** Tavily: páginas en el Perú (caché de 3 días en D1 por la misma búsqueda). */
-export async function buscarWeb(env: EnvFuentes, gasto: Gasto, consulta: string, excluirDominios: string[]): Promise<ResultadoWeb[]> {
-  if (!env.TAVILY_API_KEY) return [];
-  const clave = `tavily|${consulta.toLowerCase()}`;
-  const c = await env.DB.prepare("SELECT valor, creado FROM cache_busqueda WHERE clave = ?").bind(clave).first<{ valor: string; creado: number }>();
-  let resultados: ResultadoWeb[];
-  if (c && Date.now() - c.creado < 3 * 86_400_000) {
-    resultados = JSON.parse(c.valor) as ResultadoWeb[];
-  } else {
-    // 432 = cupo de la cuenta agotado (y 401/403, clave inválida): no se vuelve a pedir hasta mañana.
-    if (await enPausa(env, "tavily|sin_cupo", 86_400_000)) throw new Error("Tavily sin cupo (en pausa hasta mañana)");
-    const r = await fetch("https://api.tavily.com/search", {
-      method: "POST",
-      headers: { "content-type": "application/json", authorization: `Bearer ${env.TAVILY_API_KEY}` },
-      body: JSON.stringify({ query: consulta, search_depth: "basic", max_results: 12, country: "peru", include_answer: false }),
-    });
-    if ([401, 403, 432, 433].includes(r.status)) await pausar(env, "tavily|sin_cupo");
-    if (!r.ok) throw new Error(`Tavily respondió ${r.status}`);
-    gasto.busquedasWeb += 1;
-    gasto.costoWeb += COSTO_TAVILY;
-    const j = (await r.json()) as { results?: { title?: string; url?: string; content?: string }[] };
-    resultados = (j.results ?? [])
-      .filter((x) => x.url && /^https?:\/\//.test(x.url))
-      .map((x) => ({ titulo: String(x.title ?? "").slice(0, 200), url: x.url!, extracto: String(x.content ?? "").slice(0, 400) }));
-    await env.DB.prepare("INSERT OR REPLACE INTO cache_busqueda (clave, valor, creado) VALUES (?, ?, ?)").bind(clave, JSON.stringify(resultados), Date.now()).run();
-  }
-  const fuera = new Set(excluirDominios.map((d) => d.replace(/^www\./, "")));
-  return resultados.filter((x) => !fuera.has(dominioDe(x.url)));
-}
-
-async function enPausa(env: EnvFuentes, clave: string, ms: number): Promise<boolean> {
-  const c = await env.DB.prepare("SELECT creado FROM cache_busqueda WHERE clave = ?").bind(clave).first<{ creado: number }>();
-  return !!c && Date.now() - c.creado < ms;
-}
-
-async function pausar(env: EnvFuentes, clave: string): Promise<void> {
-  await env.DB.prepare("INSERT OR REPLACE INTO cache_busqueda (clave, valor, creado) VALUES (?, '1', ?)").bind(clave, Date.now()).run();
-}
-
-/** DuckDuckGo HTML (gratis): un pedido cada 8 s para todo el laboratorio; si pide pausa (202), 10 minutos sin pedir. */
-export async function buscarLibre(env: EnvFuentes, consulta: string, excluirDominios: string[]): Promise<ResultadoWeb[]> {
-  if (await enPausa(env, "ddg|pausa", 600_000)) throw new Error("DuckDuckGo en pausa (pidió esperar)");
-  await esperarTurno(env, "duckduckgo.com", 8_000);
-  const r = await fetch("https://html.duckduckgo.com/html/", {
-    method: "POST",
-    headers: { "content-type": "application/x-www-form-urlencoded", "user-agent": USER_AGENT, "accept-language": "es-PE,es;q=0.9" },
-    body: new URLSearchParams({ q: consulta, kl: "pe-es" }).toString(),
-    signal: AbortSignal.timeout(20_000),
-  });
-  const texto = await r.text();
-  if (r.status !== 200 || texto.slice(0, 3000).includes("bots use DuckDuckGo")) {
-    if (r.status === 202 || r.status === 403 || r.status === 429 || r.status === 200) await pausar(env, "ddg|pausa");
-    throw new Error(`DuckDuckGo respondió ${r.status}`);
-  }
-  const fuera = new Set(excluirDominios.map((d) => d.replace(/^www\./, "")));
-  return parsearDdg(texto).filter((x) => !fuera.has(dominioDe(x.url)));
-}
 
 export const dominioDe = (url: string) => {
   try {
@@ -239,45 +179,60 @@ export async function leerUrl(env: EnvFuentes, gasto: Gasto, direccion: string, 
   return { url: direccion, estado: lectura ? "ok" : "sin_precio", detalle: null, lectura, visible, via };
 }
 
-// ─── buscadores de tiendas (Crawl4AI) ────────────────────────────────────────
-
-export interface Buscador {
-  id: string;
-  /** La página de resultados del buscador de la tienda para un término. */
-  url: (q: string) => string;
-  /** Solo para productos de salud (las farmacias). */
-  salud?: boolean;
-}
-
-const q = encodeURIComponent;
-
-/**
- * Tiendas peruanas que no están en vigia-precios y cuyo buscador permite robots.txt (revisado el 2026-11-12). Fuera:
- * MercadoLibre (manda a verificar la cuenta), Memory Kings e Impacto (robots prohíbe su buscador), Dimerc y Sercoplus
- * (nos responden 403), La Curacao y Efe (robots prohíbe /catalogsearch/ y /search/), Crisol (prohíbe `/*?`), Real Plaza
- * (realplaza.com ya es solo la web del centro comercial) y Makro (su listado no muestra precios sin elegir tienda; su API
- * VTEX sí los da, así que le toca a vigia-precios).
- */
-export const BUSCADORES: Buscador[] = [
-  { id: "inkafarma.pe", url: (t) => `https://inkafarma.pe/buscador?keyword=${q(t)}`, salud: true },
-  { id: "mifarma.com.pe", url: (t) => `https://www.mifarma.com.pe/buscador?keyword=${q(t)}`, salud: true },
-];
-
-/** ¿Es un producto de salud? (para preguntar en las farmacias). */
-export const esSalud = (texto: string) =>
-  /medic|f[aá]rmac|tableta|c[aá]psula|jarabe|inyect|ampoll|vial|suero|vacuna|vitamin|antibi[oó]t|analg[eé]s|paracetamol|ibuprofeno|amoxicilina|insulina|jeringa|guante|mascarilla|barbijo|gasa|ap[oó]sito|venda|alcohol|antis[eé]pt|desinfect|cl[oó]rhexidina|yodo|term[oó]metro|tensi[oó]metro|ox[ií]metro|preservativo|pa[nñ]al/i.test(texto);
+// ─── buscadores de las tiendas del directorio ────────────────────────────────
 
 export interface PaginaBuscador {
   url: string;
   estado: "ok" | "robots" | "rechazo" | "error" | "sin_resultados" | "sin_contenedor";
   detalle: string | null;
+  /** navegador: la página armada por Crawl4AI. */
   rendida: Rendida | null;
+  /** API: los productos tal como los dio la tienda. */
+  productos: ProductoApi[] | null;
+}
+
+/**
+ * Pregunta a la búsqueda pública de la plataforma de la tienda (directorio.ts), con la misma cortesía que `leerUrl`.
+ * Las tiendas sin API (`navegador`) van por `abrirBuscador`.
+ */
+export async function buscarEnTienda(env: EnvFuentes, gasto: Gasto, t: TiendaDirectorio, termino: string): Promise<PaginaBuscador> {
+  if (t.plataforma === "navegador") return abrirBuscador(env, gasto, t, termino);
+  const p = pedidoDe(t, termino);
+  const fin = (estado: PaginaBuscador["estado"], detalle: string | null, productos: ProductoApi[] | null = null): PaginaBuscador => ({ url: p.url, estado, detalle, rendida: null, productos });
+  const url = new URL(p.url);
+  const no = await permitido(env, url);
+  if (no) return fin("robots", no);
+  await esperarTurno(env, url.hostname);
+  let texto: string;
+  try {
+    const r = await fetch(url.toString(), {
+      method: p.metodo,
+      headers: { "user-agent": USER_AGENT, accept: "application/json", "accept-language": "es-PE,es;q=0.9", ...(p.cuerpo ? { "content-type": "application/json" } : {}) },
+      body: p.cuerpo,
+      redirect: "follow",
+      signal: AbortSignal.timeout(20_000),
+    });
+    if (r.status === 403 || r.status === 429 || r.status === 401) return fin("rechazo", `la tienda respondió ${r.status}`);
+    if (!r.ok) return fin("error", `HTTP ${r.status}`);
+    texto = (await r.text()).slice(0, TOPE_BYTES);
+  } catch (e) {
+    return fin("error", String((e as Error).message ?? e).slice(0, 120));
+  }
+  if (esDesafio(texto)) return fin("rechazo", "la tienda pide verificar que eres humano");
+  let j: unknown;
+  try {
+    j = JSON.parse(texto);
+  } catch {
+    return fin("error", "la tienda no respondió JSON");
+  }
+  const productos = leerRespuesta(t, j);
+  return productos.length ? fin("ok", null, productos) : fin("sin_resultados", "la búsqueda no trajo productos con precio");
 }
 
 /** Abre la página de resultados del buscador con Crawl4AI, con la misma cortesía que `leerUrl`. */
-export async function abrirBuscador(env: EnvFuentes, gasto: Gasto, b: Buscador, termino: string): Promise<PaginaBuscador> {
-  const direccion = b.url(termino);
-  const fin = (estado: PaginaBuscador["estado"], detalle: string | null, rendida: Rendida | null = null): PaginaBuscador => ({ url: direccion, estado, detalle, rendida });
+export async function abrirBuscador(env: EnvFuentes, gasto: Gasto, t: TiendaDirectorio, termino: string): Promise<PaginaBuscador> {
+  const direccion = pedidoDe(t, termino).url;
+  const fin = (estado: PaginaBuscador["estado"], detalle: string | null, rendida: Rendida | null = null): PaginaBuscador => ({ url: direccion, estado, detalle, rendida, productos: null });
   if (!env.LECTOR) return fin("sin_contenedor", "el contenedor de Crawl4AI no está conectado");
   const url = new URL(direccion);
   const no = await permitido(env, url);

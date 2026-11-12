@@ -4,10 +4,12 @@
  *
  *   entender   GLM 5.3 flash convierte el pedido en una ficha: nombre, atributos obligatorios, unidad y búsquedas.
  *   tiendas    las búsquedas en 15 tiendas peruanas (vigia-precios), con precio estructurado.
- *   buscadores el buscador propio de tiendas armadas con JavaScript (Inkafarma y Mifarma), abierto con
- *              Crawl4AI en un contenedor de Cloudflare; los productos salen del JSON-LD del listado o, si no hay, GLM
- *              los copia del Markdown (cada precio se confirma en el mismo texto).
- *   web        Tavily: páginas de venta en el Perú fuera de esas tiendas.
+ *   buscadores el buscador propio de las tiendas del directorio que venden el rubro del producto (directorio.ts):
+ *              la API pública de su plataforma (WooCommerce, Shopify, VTEX, Magento), con precio estructurado, o su
+ *              página de resultados abierta con Crawl4AI en un contenedor de Cloudflare (Inkafarma, Mifarma): ahí los
+ *              productos salen del JSON-LD del listado o, si no hay, GLM los copia del Markdown (cada precio se
+ *              confirma en el mismo texto). Reemplaza a la búsqueda web (Tavily) desde el 2026-11-12.
+ *   web        las páginas que pegó quien investiga.
  *   leer       cada página: robots.txt, turno por dominio, schema.org (JSON-LD, microdatos, Open Graph); si no hay,
  *              Crawl4AI (o Browser Run si el contenedor no responde) y, al final, GLM sobre el texto. El precio se confirma en el texto visible.
  *   emparejar  reglas (palabras que delatan otro producto) + parecido (bge-m3) + el juicio de GLM: ¿es el mismo
@@ -18,7 +20,8 @@
  */
 import { WorkflowEntrypoint, type WorkflowEvent, type WorkflowStep } from "cloudflare:workers";
 import { confirmarEnTexto, desdeElPrimerPrecio, leerListadoJsonLd, textoVisible } from "./extraer.ts";
-import { abrirBuscador, BUSCADORES, buscarLibre, buscarTiendas, buscarWeb, dominioDe, esSalud, leerUrl, type Buscador, type EnvFuentes, type ResultadoWeb } from "./fuentes.ts";
+import { tiendasPara, type TiendaDirectorio } from "./directorio.ts";
+import { buscarEnTienda, buscarTiendas, dominioDe, leerUrl, type EnvFuentes, type ResultadoWeb } from "./fuentes.ts";
 import { COSTO_SEGUNDO_CONTENEDOR } from "./lector.ts";
 import { entender, juzgar, leerConModelo, leerListadoConModelo, parecido, type EnvModelo } from "./modelo.ts";
 import { resumir, validar } from "./estadistica.ts";
@@ -34,6 +37,8 @@ const MAX_PAGINAS_WEB = 10;
 /** Páginas de la web que se arman con Crawl4AI (o Browser Run) por investigación. */
 const MAX_ARMAR = 8;
 const MAX_OFERTAS_BUSCADOR = 15;
+/** Tiendas del directorio por investigación (las de los rubros del producto). */
+const MAX_TIENDAS_DIRECTORIO = 12;
 const MAX_LISTADOS_IA = 4;
 const MAX_LECTURAS_IA = 5;
 const MAX_JUZGAR = 40;
@@ -135,31 +140,61 @@ export class Investigacion extends WorkflowEntrypoint<Env, { id: string }> {
 
     // ── buscadores ──
     const buscadores = await step.do("buscadores", { ...CONFIG, timeout: "15 minutes" }, async () => {
-      const salud = esSalud(`${ficha.nombre} ${ficha.categoria} ${entrada.consulta}`);
-      const lista = BUSCADORES.filter((b) => !b.salud || salud);
-      if (!env.LECTOR) {
-        await marcar(env, id, "buscadores", "saltado", "el contenedor de Crawl4AI no está conectado");
+      if (entrada.web === false) {
+        await marcar(env, id, "buscadores", "saltado", "no se pidió");
         return [] as Oferta[];
       }
+      // Fichas viejas (antes del directorio) no traen rubros: sin rubro no hay a quién preguntar.
+      const rubros = ficha.rubros ?? [];
+      const lista = tiendasPara(rubros, MAX_TIENDAS_DIRECTORIO).filter((t) => t.plataforma !== "navegador" || env.LECTOR);
       if (!lista.length) {
-        await marcar(env, id, "buscadores", "saltado", "las farmacias solo se consultan para productos de salud");
+        await marcar(env, id, "buscadores", "saltado", rubros.length ? `ninguna tienda del directorio vende ${rubros.join(", ")}` : "el producto no calzó en ningún rubro del directorio");
         return [] as Oferta[];
       }
-      await marcar(env, id, "buscadores", "corriendo");
+      await marcar(env, id, "buscadores", "corriendo", { rubros, tiendas: lista.length });
       const g = gastoVacio();
       const estado: Record<string, string> = {};
       const ofertas: Oferta[] = [];
       let ia = 0;
-      const porTienda = async (b: Buscador, i: number) => {
+      const guardar = (i: number, cuerpo: Record<string, unknown>) =>
+        env.EVIDENCIAS.put(`lab/${id}/buscador-${i}.json`, JSON.stringify({ leido: ahora(), ...cuerpo }), { httpMetadata: { contentType: "application/json" } });
+      const porTienda = async (b: TiendaDirectorio, i: number) => {
         for (const termino of ficha.busquedas.slice(0, 2)) {
-          const p = await abrirBuscador(env, g, b, termino);
+          const p = await buscarEnTienda(env, g, b, termino);
           // Sin productos: se prueba el término siguiente. Si el sitio dice que no (robots, 403, desafío) o falla, no se
           // insiste.
           if (p.estado === "sin_resultados") {
             estado[b.id] = p.detalle ?? "sin resultados";
             continue;
           }
-          if (p.estado !== "ok" || !p.rendida) {
+          if (p.estado !== "ok") {
+            estado[b.id] = p.detalle ?? p.estado;
+            return;
+          }
+          // API de la plataforma: el precio viene estructurado de la tienda (como en «tiendas»).
+          if (p.productos) {
+            const propias: Oferta[] = p.productos.slice(0, MAX_OFERTAS_BUSCADOR).map((x) => ({
+              n: 0,
+              fuente: "buscador",
+              tienda: b.id,
+              titulo: x.titulo,
+              marca: x.marca,
+              url: x.url,
+              precio: x.precio,
+              moneda: x.moneda,
+              disponibilidad: x.disponible == null ? null : x.disponible ? "InStock" : "OutOfStock",
+              extraccion: "api_tienda",
+              confirmado: null,
+              vendedor: null,
+              presentacion: null,
+              evidencia: `lab/${id}/buscador-${i}.json`,
+            }));
+            await guardar(i, { url: p.url, tienda: b.id, plataforma: b.plataforma, termino, metodo: "api_tienda", productos: p.productos.slice(0, 40) });
+            estado[b.id] = `${propias.length} productos`;
+            ofertas.push(...propias);
+            return;
+          }
+          if (!p.rendida) {
             estado[b.id] = p.detalle ?? p.estado;
             return;
           }
@@ -234,54 +269,23 @@ export class Investigacion extends WorkflowEntrypoint<Env, { id: string }> {
       await sumarGasto(env, id, g);
       await marcar(env, id, "buscadores", "listo", {
         ofertas: ofertas.length,
+        rubros,
         tiendas: estado,
       });
       return ofertas;
     });
 
     // ── web ──
+    // Solo las páginas que pegó quien investiga: la búsqueda web (Tavily, DuckDuckGo) la reemplazó el directorio de
+    // tiendas, que pregunta a cada tienda por su propio buscador (paso «buscadores»).
     const web = await step.do("web", CONFIG, async (): Promise<ResultadoWeb[]> => {
-      // Las páginas que pegó quien investiga van primero y se leen siempre.
-      const propias: ResultadoWeb[] = (entrada.urls ?? []).map((url) => ({ titulo: "", url, extracto: "" }));
-      if (entrada.web === false) {
-        await marcar(env, id, "web", propias.length ? "listo" : "saltado", propias.length ? { paginas: propias.length, via: "pegadas" } : "no se pidió");
-        return propias;
-      }
-      await marcar(env, id, "web", "corriendo");
-      // La web es un extra: si no responde, la investigación sigue con las tiendas.
-      const g = gastoVacio();
-      const consulta = `${ficha.busqueda_web} precio`;
-      const fallas: string[] = [];
-      let r: ResultadoWeb[] = [];
-      let via = "tavily";
-      if (env.TAVILY_API_KEY) {
-        try {
-          r = await buscarWeb(env, g, consulta, tiendas.dominios);
-        } catch (e) {
-          fallas.push(`Tavily: ${String((e as Error).message ?? e).slice(0, 80)}`);
-        }
-      }
-      if (!r.length) {
-        via = "duckduckgo";
-        try {
-          r = await buscarLibre(env, consulta, tiendas.dominios);
-        } catch (e) {
-          fallas.push(String((e as Error).message ?? e).slice(0, 80));
-        }
-      }
-      await sumarGasto(env, id, g);
-      const vistas = new Set(propias.map((p) => p.url));
-      const todas = [...propias, ...r.filter((x) => !vistas.has(x.url))].slice(0, MAX_PAGINAS_WEB);
-      if (!todas.length) {
-        await marcar(env, id, "web", "saltado", fallas.length ? `sin resultados (${fallas.join("; ")})` : "sin resultados");
-        return [];
-      }
-      await marcar(env, id, "web", "listo", {
-        paginas: todas.length,
-        via: r.length ? (propias.length ? `pegadas y ${via}` : via) : "pegadas",
-        ...(fallas.length && !r.length ? { nota: fallas.join("; ") } : {}),
-      });
-      return todas;
+      const vistas = new Set<string>();
+      const propias: ResultadoWeb[] = (entrada.urls ?? [])
+        .filter((url) => !vistas.has(url) && vistas.add(url))
+        .slice(0, MAX_PAGINAS_WEB)
+        .map((url) => ({ titulo: "", url, extracto: "" }));
+      await marcar(env, id, "web", propias.length ? "listo" : "saltado", propias.length ? { paginas: propias.length, via: "pegadas" } : "no pegaste páginas");
+      return propias;
     });
 
     // ── leer ──

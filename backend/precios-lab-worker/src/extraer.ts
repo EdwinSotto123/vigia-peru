@@ -218,6 +218,19 @@ export function textoVisible(html: string, tope = 200_000): string {
     .slice(0, tope);
 }
 
+const ENTIDADES: Record<string, string> = { amp: "&", quot: '"', apos: "'", lt: "<", gt: ">", nbsp: " ", ndash: "–", mdash: "—", aacute: "á", eacute: "é", iacute: "í", oacute: "ó", uacute: "ú", ntilde: "ñ", Ntilde: "Ñ", uuml: "ü", deg: "°", reg: "®", trade: "™" };
+
+/** Las entidades HTML de un texto («Caja &#8211; 100 UN» → «Caja – 100 UN»), como las devuelve WooCommerce. */
+export function decodificarEntidades(s: string): string {
+  return s.replace(/&(#x[0-9a-f]+|#\d+|[a-z]+);/gi, (m, e: string) => {
+    if (e[0] === "#") {
+      const n = e[1] === "x" || e[1] === "X" ? parseInt(e.slice(2), 16) : parseInt(e.slice(1), 10);
+      return Number.isFinite(n) && n > 0 && n < 0x110000 ? String.fromCodePoint(n) : m;
+    }
+    return ENTIDADES[e] ?? m;
+  });
+}
+
 /** ¿Aparece el precio en el texto visible? Prueba «1299.90», «1,299.90», «1.299,90», «1 299,90» y sin decimales. */
 export function confirmarEnTexto(precio: number, visible: string): boolean {
   const ent = Math.trunc(precio), dec = Math.round((precio - ent) * 100);
