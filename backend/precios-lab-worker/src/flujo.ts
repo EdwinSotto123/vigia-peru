@@ -358,10 +358,13 @@ export class Investigacion extends WorkflowEntrypoint<Env, { id: string; espera?
       const g = gastoVacio();
       const todas = [...tiendas.ofertas, ...buscadores, ...leidas].map((o, i) => ({ ...o, n: i + 1 }));
       const sim = await parecido(env, ficha, todas.map((o) => o.titulo)).catch(() => todas.map(() => null));
-      const excluir = ficha.excluir.map((x) => x.toLowerCase()).filter((x) => x.length > 2);
+      // Sin tildes: «organico» no atajaba a «Arroz Blanco Orgánico» (2026-988-2).
+      const llano = (s: string) => s.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase();
+      const excluir = ficha.excluir.map(llano).filter((x) => x.length > 2);
       for (const [i, o] of todas.entries()) {
         o.similitud = sim[i] ?? null;
-        const mala = excluir.find((x) => o.titulo.toLowerCase().includes(x));
+        const titulo = llano(o.titulo);
+        const mala = excluir.find((x) => titulo.includes(x));
         if (mala) Object.assign(o, { coincidencia: "distinta", unidades: null, razon: `dice «${mala}»` });
       }
       const pendientes = todas.filter((o) => !o.coincidencia).sort((a, b) => (b.similitud ?? 0) - (a.similitud ?? 0));

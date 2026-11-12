@@ -163,7 +163,11 @@ Para cada oferta decide:
   los atributos obligatorios y sirve para lo mismo) o «distinta» (otro producto, otra medida o capacidad, un repuesto,
   un accesorio, un servicio).
 - unidades: cuántas unidades_base trae la oferta (un pack de 12 = 12; una caja de 10 paquetes = 10 si la unidad base
-  es el paquete). 1 si es una sola. 0 si no se puede saber.
+  es el paquete). 1 si es una sola. 0 si no se puede saber. Mira el precio: muchas farmacias del Perú muestran el precio
+  de UNA tableta o cápsula aunque el nombre diga «x 100» o «caja x 100». Si el precio es demasiado bajo para todo lo que
+  dice el nombre (S/ 0,15 por «x 100 tabletas», S/ 1 por «caja x 100»), es el precio de una: unidades = 1. Y al revés:
+  compara con las demás ofertas del mismo producto en la lista; si una cuesta 5 veces más que las otras por lo mismo
+  (S/ 29 por «lata 170 g» cuando las demás cuestan S/ 5), suele ser un paquete: pon cuántas trae si se sabe, o 0.
 - razon: una frase corta con el porqué.
 Juzga solo por el título y los datos dados. No adivines.`;
 

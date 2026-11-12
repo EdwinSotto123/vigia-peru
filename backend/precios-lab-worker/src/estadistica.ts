@@ -61,6 +61,10 @@ export function resumir(ofertas: Oferta[], referencia: number | null, refs: Refe
   for (const o of validas) porFuente[o.fuente] = (porFuente[o.fuente] ?? 0) + 1;
   const mediana = percentil(precios, 0.5);
   const razon = referencia && mediana ? Math.round((referencia / mediana) * 100) / 100 : null;
+  // Dos grupos de precios para lo mismo (caballa 170 g: latas a S/ 4,60 y «latas» de Makro a S/ 28,90 que son
+  // paquetes, 2026-988-2): la mediana cae entre ellos y no es el precio de nadie.
+  const p25 = percentil(precios, 0.25), p75 = percentil(precios, 0.75);
+  const dispersa = precios.length >= 3 && precios.length < 12 && p25! > 0 && p75! / p25! > 3;
   let veredicto = "Sin con qué comparar";
   let nota = "";
   if (precios.length === 0) {
@@ -69,6 +73,9 @@ export function resumir(ofertas: Oferta[], referencia: number | null, refs: Refe
   } else if (precios.length < 3) {
     veredicto = "Pocas ofertas, no concluyente";
     nota = `Solo ${precios.length === 1 ? "una oferta coincide" : "dos ofertas coinciden"} con el producto.`;
+  } else if (dispersa) {
+    veredicto = "Precios muy dispersos, no concluyente";
+    nota = `Las ${precios.length} ofertas van de ${soles(precios[0])} a ${soles(precios[precios.length - 1])} por unidad: puede haber paquetes leídos como una sola unidad. Revisa las ofertas.`;
   } else if (razon == null) {
     veredicto = "Precio de mercado encontrado";
     nota = `La mitad de las ${precios.length} ofertas cuesta menos de ${soles(mediana!)} por unidad.`;

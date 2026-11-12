@@ -238,16 +238,22 @@ adminPreciosRouter.get("/precios-lab/contrato/:ocid", async (c) => {
     investigacionesDe(c, ocid),
   ]);
   if (!items.length) return c.json({ error: "sin_item", detail: "Ese contrato no tiene ítems cargados." }, 404);
-  let pagado = 0, mercado = 0, comparados = 0, encima = 0;
+  let pagado = 0, mercado = 0, comparados = 0, encima = 0, exceso = 0;
   const filas = items.map((f) => {
     const inv = invs?.get(f.numero_item) ?? null;
     const precio = precioDe(f);
-    const cuenta = !!(inv && inv.estado === "listo" && precio && f.cantidad && inv.mediana && inv.razon != null && (inv.validas ?? 0) >= 3 && !inv.caja);
+    const cuenta = !!(inv && inv.estado === "listo" && precio && f.cantidad && inv.mediana && inv.razon != null && (inv.validas ?? 0) >= 3 && !inv.caja &&
+      !/no concluyente/i.test(inv.veredicto ?? ""));
     if (cuenta) {
       comparados++;
       pagado += precio! * f.cantidad!;
       mercado += inv!.mediana! * f.cantidad!;
-      if ((inv!.razon ?? 0) >= 1.15) encima++;
+      // Lo pagado de más solo en los ítems por encima del mercado: un ítem barato no tapa a uno caro (2026-1967-7: la
+      // frazada humanitaria frente a frazadas de tienda daba −11 millones y escondía la mesa a 1,49 veces).
+      if ((inv!.razon ?? 0) >= 1.15) {
+        encima++;
+        exceso += (precio! - inv!.mediana!) * f.cantidad!;
+      }
     }
     return {
       item: f.numero_item,
@@ -266,7 +272,7 @@ adminPreciosRouter.get("/precios-lab/contrato/:ocid", async (c) => {
     contrato: cab.rows[0] ?? { ocid },
     items: filas,
     laboratorio: invs != null,
-    total: { comparados, encima, pagado: Math.round(pagado * 100) / 100, mercado: Math.round(mercado * 100) / 100 },
+    total: { comparados, encima, pagado: Math.round(pagado * 100) / 100, mercado: Math.round(mercado * 100) / 100, exceso: Math.round(exceso * 100) / 100 },
   });
 });
 

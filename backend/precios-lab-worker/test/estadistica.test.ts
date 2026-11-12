@@ -108,3 +108,12 @@ test("resumir: sin comparar cuando la unidad del pedido no es una unidad base (�
   assert.equal(r.sinComparar, "no dice cuánto pesa una unidad.");
   assert.match(r.nota, /No se compara con lo que pagó el Estado: no dice cuánto pesa una unidad\.$/);
 });
+
+test("resumir: precios muy dispersos con pocas ofertas (caballa 170 g: latas y paquetes, 2026-988-2)", () => {
+  const v = validar([oferta(1, 4.6), oferta(2, 4.7), oferta(3, 28.9), oferta(4, 35.9)]);
+  const r = resumir(v, 3.9);
+  assert.equal(r.veredicto, "Precios muy dispersos, no concluyente");
+  // Con muchas ofertas la mediana aguanta.
+  const muchas = validar([...Array.from({ length: 12 }, (_, i) => oferta(i + 1, 4 + i * 0.1)), oferta(20, 30)]);
+  assert.notEqual(resumir(muchas, 4.5).veredicto, "Precios muy dispersos, no concluyente");
+});

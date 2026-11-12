@@ -139,7 +139,7 @@ interface Contrato {
   contrato: { ocid: string; codigo?: string; titulo?: string; entidad?: string };
   items: ItemContrato[];
   laboratorio: boolean;
-  total: { comparados: number; encima: number; pagado: number; mercado: number };
+  total: { comparados: number; encima: number; pagado: number; mercado: number; exceso: number };
 }
 
 const soles = (n: number | null | undefined) =>
@@ -571,8 +571,7 @@ function VistaContrato({ ocid, abierto, onAbrir }: { ocid: string; abierto: stri
 
   const faltan = data.items.filter((i) => !i.sinTiendas && (!i.investigacion || i.investigacion.estado === "error")).length;
   const enCurso = data.items.filter((i) => i.investigacion && (i.investigacion.estado === "en_cola" || i.investigacion.estado === "corriendo")).length;
-  const { comparados, encima, pagado, mercado } = data.total;
-  const diferencia = pagado - mercado;
+  const { comparados, encima, pagado, mercado, exceso } = data.total;
   const lanzar = async (repetir = false) => {
     setLanzando(true);
     setAviso(null);
@@ -680,14 +679,14 @@ function VistaContrato({ ocid, abierto, onAbrir }: { ocid: string; abierto: stri
           <StatCard etiqueta="Pagó el Estado" valor={comparados ? soles(pagado) : null} pista="en los ítems comparados" />
           <StatCard etiqueta="A la mediana de las tiendas" valor={comparados ? soles(mercado) : null} pista="mismas cantidades" />
           <StatCard
-            etiqueta="Diferencia"
-            valor={comparados ? soles(diferencia) : null}
-            pista={comparados && mercado > 0 ? `${diferencia >= 0 ? "+" : ""}${Math.round((pagado / mercado - 1) * 100)} % frente a las tiendas` : undefined}
-            tono={comparados && mercado > 0 && pagado / mercado >= 1.15 ? "danger" : "neutral"}
+            etiqueta="Pagó de más"
+            valor={comparados ? soles(exceso) : null}
+            pista={encima ? `en ${encima === 1 ? "el ítem" : `los ${NUM.format(encima)} ítems`} por encima, frente a la mediana` : "ningún ítem por encima del mercado"}
+            tono={exceso > 0 ? "danger" : "neutral"}
           />
         </StatGrid>
         <p className="mt-3 text-meta text-mute">
-          El total suma solo los ítems con 3 o más ofertas válidas, sin sospecha de caja y cuya unidad se puede comparar. Es un indicio, no una prueba: el Estado compra por
+          Se suman solo los ítems con 3 o más ofertas válidas y concluyentes, sin sospecha de caja y cuya unidad se puede comparar; «pagó de más» cuenta solo los que están 15 % o más por encima de la mediana. Es un indicio, no una prueba: el Estado compra por
           volumen y con entrega, y la tienda vende al por menor.
         </p>
         {aviso && <p className="mt-2 text-meta text-inkSoft">{aviso}</p>}
