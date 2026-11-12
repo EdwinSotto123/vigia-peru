@@ -28,10 +28,13 @@ export class Lector extends Container<EnvContenedor> {
     // Crawl4AI 0.9.4 solo escucha fuera de su propio loopback si tiene token (entrypoint.sh); sin él, el Worker no
     // lo alcanza en 10.0.0.1:11235. Cada pedido lleva el token (rendir).
     this.envVars = { CRAWL4AI_ALLOW_DEEP_CRAWL: "false", CRAWL4AI_API_TOKEN: env.CRAWL4AI_TOKEN ?? "", GUNICORN_BIND: "0.0.0.0:11235" };
+    // La imagen solo trae `CMD ["bash", "entrypoint.sh"]` (sin ENTRYPOINT, relativo a /app): en Cloudflare salía con
+    // código 0 sin levantar nada. Con el comando explícito arranca en ~2 s (diagnóstico del 2026-11-12).
+    this.entrypoint = ["bash", "-c", "cd /app && exec bash entrypoint.sh"];
   }
 
   override onStop(p: { exitCode?: number; reason?: string }) {
-    console.warn("crawl4ai se detuvo", JSON.stringify(p));
+    if (p.exitCode) console.warn("crawl4ai se detuvo", JSON.stringify(p));
   }
 
   override onError(e: unknown) {
