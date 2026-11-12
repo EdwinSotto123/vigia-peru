@@ -23,7 +23,7 @@ import { confirmarEnTexto, desdeElPrimerPrecio, leerListadoJsonLd, textoVisible 
 import { tiendasPara, type TiendaDirectorio } from "./directorio.ts";
 import { buscarEnTienda, buscarTiendas, dominioDe, leerUrl, type EnvFuentes, type ResultadoWeb } from "./fuentes.ts";
 import { COSTO_SEGUNDO_CONTENEDOR } from "./lector.ts";
-import { entender, juzgar, leerConModelo, leerListadoConModelo, parecido, type EnvModelo } from "./modelo.ts";
+import { entender, juzgar, leerConModelo, leerListadoConModelo, parecido, terminosTienda, type EnvModelo } from "./modelo.ts";
 import { resumir, validar } from "./estadistica.ts";
 import { gastoVacio, type Entrada, type Ficha, type Gasto, type Oferta } from "./tipos.ts";
 
@@ -113,7 +113,7 @@ export class Investigacion extends WorkflowEntrypoint<Env, { id: string; espera?
       await marcar(env, id, "tiendas", "corriendo");
       const vistas = new Map<string, Oferta>();
       const estado: Record<string, string> = {};
-      for (const termino of ficha.busquedas.slice(0, 3)) {
+      for (const termino of terminosTienda(ficha, 3)) {
         const r = await buscarTiendas(env, termino, 4);
         for (const [t, e] of Object.entries(r.tiendas)) if (!estado[t] || e.n > 0) estado[t] = e.n > 0 ? `${e.n} productos` : e.fuente;
         for (const p of r.productos) {
@@ -164,7 +164,7 @@ export class Investigacion extends WorkflowEntrypoint<Env, { id: string; espera?
       const guardar = (i: number, cuerpo: Record<string, unknown>) =>
         env.EVIDENCIAS.put(`lab/${id}/buscador-${i}.json`, JSON.stringify({ leido: ahora(), ...cuerpo }), { httpMetadata: { contentType: "application/json" } });
       const porTienda = async (b: TiendaDirectorio, i: number) => {
-        for (const termino of ficha.busquedas.slice(0, 2)) {
+        for (const termino of terminosTienda(ficha, b.plataforma === "navegador" ? 2 : 3)) {
           const p = await buscarEnTienda(env, g, b, termino);
           // Sin productos: se prueba el término siguiente. Si el sitio dice que no (robots, 403, desafío) o falla, no se
           // insiste.
@@ -390,7 +390,9 @@ export class Investigacion extends WorkflowEntrypoint<Env, { id: string; espera?
     await step.do("resumir", CONFIG, async () => {
       await marcar(env, id, "resumir", "corriendo");
       const finales = validar(juzgadas);
-      const resumen = resumir(finales, entrada.precioReferencia ?? null, entrada.referencias ?? []);
+      // Si una unidad del pedido no es una unidad_base («harinas y hojuelas» por «Unidad»), no hay razón que calcular.
+      const sinComparar = ficha.comparable === false && entrada.precioReferencia != null ? ficha.por_que_no ?? "la unidad del pedido no es comparable" : null;
+      const resumen = resumir(finales, sinComparar ? null : entrada.precioReferencia ?? null, entrada.referencias ?? [], sinComparar);
       const stmts = [env.DB.prepare("DELETE FROM oferta WHERE investigacion = ?").bind(id)];
       for (const o of finales) {
         stmts.push(

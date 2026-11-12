@@ -205,6 +205,7 @@ interface InvestigacionCorta {
   referencia: number | null;
   unidad: string | null;
   caja: number | null;
+  sinComparar: string | null;
   costo: number | null;
 }
 
@@ -220,8 +221,8 @@ async function investigacionesDe(c: Context, ocid: string): Promise<Map<number, 
 
 /**
  * GET /admin/precios-lab/contrato/:ocid — los ítems del contrato con lo que pagó el Estado y la última investigación de
- * cada uno; y el total: lo pagado frente a la mediana de las tiendas, solo en los ítems con 3 o más ofertas válidas y sin
- * sospecha de caja (ahí la unidad no es la misma y la resta no vale).
+ * cada uno; y el total: lo pagado frente a la mediana de las tiendas, solo en los ítems con 3 o más ofertas válidas, sin
+ * sospecha de caja y con una unidad comparable (si no, la unidad no es la misma y la resta no vale).
  */
 adminPreciosRouter.get("/precios-lab/contrato/:ocid", async (c) => {
   const ocid = ocidCorto(c.req.param("ocid"));
@@ -241,7 +242,7 @@ adminPreciosRouter.get("/precios-lab/contrato/:ocid", async (c) => {
   const filas = items.map((f) => {
     const inv = invs?.get(f.numero_item) ?? null;
     const precio = precioDe(f);
-    const cuenta = !!(inv && inv.estado === "listo" && precio && f.cantidad && inv.mediana && (inv.validas ?? 0) >= 3 && !inv.caja);
+    const cuenta = !!(inv && inv.estado === "listo" && precio && f.cantidad && inv.mediana && inv.razon != null && (inv.validas ?? 0) >= 3 && !inv.caja);
     if (cuenta) {
       comparados++;
       pagado += precio! * f.cantidad!;
@@ -303,7 +304,7 @@ adminPreciosRouter.post("/precios-lab/contrato", async (c) => {
     const r = await alLab(c, "/research", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ ...entrada, web: b.data.web, autor: actor(c), espera: k * ESCALON_SEGUNDOS }),
+      body: JSON.stringify({ ...entrada, web: b.data.web, autor: actor(c), espera: k * ESCALON_SEGUNDOS, repetir: b.data.repetir }),
     });
     const j = (await r.json().catch(() => ({}))) as { id?: string; reutilizada?: boolean; error?: string };
     lanzadas.push({ item: f.numero_item, id: j.id, reutilizada: j.reutilizada, error: r.ok ? undefined : j.error ?? `HTTP ${r.status}` });

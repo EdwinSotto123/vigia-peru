@@ -54,7 +54,7 @@ export function validar(ofertas: Oferta[]): Oferta[] {
 
 const soles = (n: number) => `S/ ${n.toLocaleString("es-PE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
-export function resumir(ofertas: Oferta[], referencia: number | null, refs: ReferenciaEstado[] = []): Resumen {
+export function resumir(ofertas: Oferta[], referencia: number | null, refs: ReferenciaEstado[] = [], sinComparar: string | null = null): Resumen {
   const validas = ofertas.filter((o) => o.valida);
   const precios = validas.map((o) => o.precioUnitario!).sort((a, b) => a - b);
   const porFuente: Record<string, number> = {};
@@ -77,6 +77,7 @@ export function resumir(ofertas: Oferta[], referencia: number | null, refs: Refe
       razon >= 1.5 ? "Muy por encima del mercado" : razon >= 1.15 ? "Por encima del mercado" : razon > 0.85 ? "En línea con el mercado" : "Por debajo del mercado";
     nota = `La referencia (${soles(referencia!)}) es ${razon.toLocaleString("es-PE")} veces la mediana de ${precios.length} ofertas (${soles(mediana!)}).`;
   }
+  if (sinComparar && precios.length >= 3) nota += ` No se compara con lo que pagó el Estado: ${sinComparar.replace(/\.$/, "")}.`;
   const caja = precios.length >= 3 ? cajaProbable(razon) : null;
   if (caja) nota += ` Ojo: es casi ${caja} veces la mediana; puede que la entidad compre por caja o paquete de ${caja} y lo llame «unidad». Revisa las bases antes de concluir.`;
   const estado = refs.length ? refs.reduce((m, r) => (r.n > m.n ? r : m), refs[0]) : null;
@@ -97,6 +98,7 @@ export function resumir(ofertas: Oferta[], referencia: number | null, refs: Refe
     veredicto,
     nota: nota.trim(),
     caja,
+    sinComparar,
   };
 }
 

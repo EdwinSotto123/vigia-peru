@@ -72,14 +72,22 @@ compró una entidad del Estado. Lo conviertes en una ficha para buscar su precio
 - atributos: lo que define el producto (marca solo si la piden, modelo, medida, capacidad, material, presentación).
   obligatorio = true si cambiarlo lo vuelve otro producto.
 - unidad_base: la unidad en que se compara el precio («unidad», «paquete de 500 hojas», «galón», «kg»).
-- busquedas: 2 a 4 búsquedas cortas (2 a 5 palabras) como las escribiría alguien en Plaza Vea o Sodimac; de la más
-  precisa a la más general. Sin marcas si no son obligatorias. En español del Perú.
+- busquedas: 2 a 4 búsquedas cortas (1 a 4 palabras) como las escribiría alguien en Plaza Vea o Sodimac; de la más
+  precisa a la más general. Los buscadores de las tiendas exigen TODAS las palabras: solo palabras que aparecen en el
+  nombre del producto en la tienda; nada de unidades de compra («kg», «kilo», «unidad»), «precio», ni grados que la
+  tienda no escribe («calidad superior», «de primera»). La última es el nombre genérico en 1 o 2 palabras y en singular
+  («lenteja», «arroz», «cemento», «papel bond»). Sin marcas si no son obligatorias. En español del Perú.
 - busqueda_web: una búsqueda para Google que encuentre páginas de venta en el Perú.
 - excluir: palabras que delatan otro producto (repuesto, funda, usado, alquiler...).
 - rubros: 1 o 2 rubros de tienda donde se vende: farmacia (medicamentos), medico (insumos y equipos médicos o de
   laboratorio), oficina (útiles, papel, tóner), computo (equipos y accesorios), ferreteria (construcción, electricidad,
   herramientas), limpieza (limpieza e higiene), alimentos, hogar (muebles, electrodomésticos, menaje), seguridad (EPP,
   señalización, extintores), automotriz (llantas, lubricantes, repuestos).
+- comparable: si te dan la «Unidad del pedido», ¿una unidad del pedido es una unidad_base, de modo que su precio se
+  compara con el de las tiendas? true si sí («Kilogramo» y kg; «Unidad» de «cemento x 42.5 kg» y bolsa de 42.5 kg; «Unidad»
+  de «leche evaporada x 400 g» y lata de 400 g). false si no se sabe qué o cuánto trae una unidad del pedido (un kit, lote
+  o juego sin detalle; «harinas y hojuelas» por «Unidad» sin peso; varios productos en un ítem). Sin unidad del pedido, true.
+- por_que_no: si comparable es false, por qué, en una frase corta.
 Usa solo lo que dicen la consulta y la especificación; no inventes atributos.`;
 
 const H_FICHA: Herramienta = {
@@ -99,8 +107,10 @@ const H_FICHA: Herramienta = {
       busqueda_web: { type: "string" },
       excluir: { type: "array", items: { type: "string" } },
       rubros: { type: "array", items: { type: "string", enum: RUBROS } },
+      comparable: { type: "boolean" },
+      por_que_no: { type: "string" },
     },
-    required: ["nombre", "categoria", "atributos", "unidad_base", "busquedas", "busqueda_web", "excluir", "rubros"],
+    required: ["nombre", "categoria", "atributos", "unidad_base", "busquedas", "busqueda_web", "excluir", "rubros", "comparable"],
   },
 };
 
@@ -122,7 +132,28 @@ export async function entender(env: EnvModelo, gasto: Gasto, e: Entrada): Promis
     busqueda_web: corta(f.busqueda_web) || busquedas[0],
     excluir: (Array.isArray(f.excluir) ? f.excluir : []).map(corta).filter(Boolean).slice(0, 15),
     rubros: rubrosDe(f.rubros, `${f.nombre ?? ""} ${f.categoria ?? ""} ${e.consulta}`).slice(0, 3),
+    // Solo cuenta si hay unidad del pedido: sin ella quien investiga escribió el producto y su precio.
+    comparable: !e.unidad || f.comparable !== false,
+    por_que_no: e.unidad && f.comparable === false ? corta(f.por_que_no) || "no se sabe qué o cuánto trae una unidad del pedido" : null,
   };
+}
+
+/** Palabras de unidad de compra o de precio que ninguna tienda pone en el nombre del producto. */
+const RUIDO = /\b(kilos?|kgs?|kilogramos?|unidad(es)?|unds?|precios?|x)\b/gi;
+
+/**
+ * Los términos con que se pregunta a las tiendas, en orden: la búsqueda más precisa, la más general y la categoría. Los
+ * buscadores de VTEX, WooCommerce y Magento exigen TODAS las palabras: «lentejas kilo» o «arroz pilado corriente kg» no
+ * traían nada en Plaza Vea ni en Makro, y «lenteja» o «arroz» traen las bolsas (contrato 2026-988-2, 2026-11-12).
+ */
+export function terminosTienda(f: Pick<Ficha, "busquedas" | "categoria">, n: number): string[] {
+  const limpio = (s: string) => s.replace(RUIDO, " ").replace(/\s+/g, " ").trim().toLowerCase();
+  const todas = f.busquedas.map(limpio).filter((t) => t.length >= 3);
+  const palabras = (t: string) => t.split(" ").length;
+  const general = [...todas].sort((a, b) => palabras(a) - palabras(b))[0];
+  const cat = limpio(f.categoria ?? "");
+  const lista = [todas[0], general, cat && palabras(cat) <= 3 ? cat : "", ...todas.slice(1)];
+  return [...new Set(lista.filter((t): t is string => !!t && t.length >= 3))].slice(0, n);
 }
 
 // ─── emparejar ───────────────────────────────────────────────────────────────

@@ -99,3 +99,12 @@ test("resumir: la referencia que parece una caja (leche «x 400 g» a S/ 36 la u
   assert.equal(cajaProbable(98), 100);
   assert.equal(resumir(v, 2).caja, null);
 });
+
+test("resumir: sin comparar cuando la unidad del pedido no es una unidad base («harinas y hojuelas» por «Unidad»)", () => {
+  const v = validar([oferta(1, 5), oferta(2, 6), oferta(3, 7)]);
+  const r = resumir(v, null, [], "no dice cuánto pesa una unidad.");
+  assert.equal(r.razon, null);
+  assert.equal(r.veredicto, "Precio de mercado encontrado");
+  assert.equal(r.sinComparar, "no dice cuánto pesa una unidad.");
+  assert.match(r.nota, /No se compara con lo que pagó el Estado: no dice cuánto pesa una unidad\.$/);
+});

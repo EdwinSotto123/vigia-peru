@@ -96,6 +96,7 @@ interface Detalle {
     razon: number | null;
     veredicto: string;
     nota: string;
+    sinComparar?: string | null;
   } | null;
   tokens_entrada: number;
   tokens_salida: number;
@@ -131,6 +132,7 @@ interface ItemContrato {
     razon: number | null;
     unidad: string | null;
     caja: number | null;
+    sinComparar: string | null;
   } | null;
 }
 interface Contrato {
@@ -492,8 +494,14 @@ function VistaDetalle({ id, onContrato }: { id: string; onContrato?: (ocid: stri
             <StatCard etiqueta="Ofertas que cuentan" valor={`${NUM.format(r.validas)} de ${NUM.format(r.n)}`} pista="mismo producto o equivalente, con precio confirmado" />
             <StatCard
               etiqueta="Frente a la referencia"
-              valor={r.razon != null ? `${r.razon.toLocaleString("es-PE")} veces` : "Sin referencia"}
-              pista={r.referencia != null ? `${soles(r.referencia)} por unidad` : "Escribe un precio a comparar o parte de un contrato"}
+              valor={r.razon != null ? `${r.razon.toLocaleString("es-PE")} veces` : r.sinComparar ? "No se compara" : "Sin referencia"}
+              pista={
+                r.sinComparar
+                  ? `${data.entrada.precioReferencia != null ? `${soles(data.entrada.precioReferencia)} por ${(data.entrada.unidad ?? "unidad").toLowerCase()}: ` : ""}${r.sinComparar}`
+                  : r.referencia != null
+                    ? `${soles(r.referencia)} por unidad`
+                    : "Escribe un precio a comparar o parte de un contrato"
+              }
               tono={tonoVeredicto(r.veredicto) === "danger" ? "danger" : tonoVeredicto(r.veredicto) === "warn" ? "warn" : "neutral"}
             />
           </StatGrid>
@@ -565,13 +573,13 @@ function VistaContrato({ ocid, abierto, onAbrir }: { ocid: string; abierto: stri
   const enCurso = data.items.filter((i) => i.investigacion && (i.investigacion.estado === "en_cola" || i.investigacion.estado === "corriendo")).length;
   const { comparados, encima, pagado, mercado } = data.total;
   const diferencia = pagado - mercado;
-  const lanzar = async () => {
+  const lanzar = async (repetir = false) => {
     setLanzando(true);
     setAviso(null);
     try {
       const r = await adminFetch<{ lanzadas: { item: number; id?: string; error?: string }[]; quedan: number }>("/precios-lab/contrato", {
         method: "POST",
-        body: JSON.stringify({ ocid }),
+        body: JSON.stringify({ ocid, repetir }),
       });
       const ok = r.lanzadas.filter((x) => x.id).length;
       setAviso(`${ok} ${ok === 1 ? "ítem en cola" : "ítems en cola"}${r.quedan ? `; quedan ${r.quedan} para la siguiente tanda` : ""}.`);
@@ -640,7 +648,8 @@ function VistaContrato({ ocid, abierto, onAbrir }: { ocid: string; abierto: stri
           <span className="flex flex-col items-start gap-1">
             <Badge tono={tonoVeredicto(v.veredicto ?? "")}>{v.veredicto}</Badge>
             {v.caja ? <span className="text-meta text-clayTexto">¿Caja de {v.caja}? Revisa la unidad en las bases</span> : null}
-            {!i.cuentaEnTotal && !v.caja && (v.validas ?? 0) < 3 ? <span className="text-meta text-mute">No entra en el total</span> : null}
+            {v.sinComparar ? <span className="text-meta text-clayTexto">No se compara: {v.sinComparar}</span> : null}
+            {!i.cuentaEnTotal && !v.caja && !v.sinComparar ? <span className="text-meta text-mute">No entra en el total</span> : null}
           </span>
         );
       },
@@ -654,12 +663,16 @@ function VistaContrato({ ocid, abierto, onAbrir }: { ocid: string; abierto: stri
         descripcion={`${data.contrato.entidad ? `${data.contrato.entidad}, ` : ""}contrato ${data.contrato.codigo ?? ocid}, ${data.items.length} ${data.items.length === 1 ? "ítem" : "ítems"}`}
         acciones={
           faltan > 0 ? (
-            <button type="button" className={claseBoton("primario", "sm")} onClick={lanzar} disabled={lanzando}>
+            <button type="button" className={claseBoton("primario", "sm")} onClick={() => lanzar()} disabled={lanzando}>
               {lanzando ? <Loader2 size={14} className="animate-spin" aria-hidden /> : <Search size={14} aria-hidden />} Investigar {faltan === 1 ? "el que falta" : `los ${faltan} que faltan`}
             </button>
           ) : enCurso > 0 ? (
             <Badge tono="pending">{enCurso} en curso</Badge>
-          ) : null
+          ) : (
+            <button type="button" className={claseBoton("secundario", "sm")} onClick={() => lanzar(true)} disabled={lanzando}>
+              {lanzando ? <Loader2 size={14} className="animate-spin" aria-hidden /> : <Search size={14} aria-hidden />} Volver a investigar
+            </button>
+          )
         }
       >
         <StatGrid columnas={4}>
@@ -674,7 +687,7 @@ function VistaContrato({ ocid, abierto, onAbrir }: { ocid: string; abierto: stri
           />
         </StatGrid>
         <p className="mt-3 text-meta text-mute">
-          El total suma solo los ítems con 3 o más ofertas válidas y sin sospecha de caja. Es un indicio, no una prueba: el Estado compra por
+          El total suma solo los ítems con 3 o más ofertas válidas, sin sospecha de caja y cuya unidad se puede comparar. Es un indicio, no una prueba: el Estado compra por
           volumen y con entrega, y la tienda vende al por menor.
         </p>
         {aviso && <p className="mt-2 text-meta text-inkSoft">{aviso}</p>}

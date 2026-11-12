@@ -8,6 +8,7 @@
  *                            web?, autor?} → 202 {id}. La misma entrada el mismo día devuelve la investigación ya hecha
  *                            (idempotencia), salvo que haya fallado.
  *                            `espera` (segundos, fuera de la entrada) atrasa el arranque: contrato entero escalonado.
+ *                            `repetir: true` hace otra aunque haya una igual del día.
  *   GET  /jobs?limite=30     las últimas investigaciones (`ocid=` todas las de un contrato, con ítem y resultado)
  *   GET  /jobs/:id           estado, pasos (con su avance) y gasto
  *   GET  /results/:id        ficha, resumen y ofertas con su juicio y su evidencia
@@ -76,7 +77,8 @@ async function crear(env: Env, req: Request): Promise<Response> {
   const espera = Math.min(900, Math.max(0, Math.trunc(Number(cuerpo?.espera) || 0)));
   const clave = await huella(e);
   const previa = await env.DB.prepare("SELECT id, estado FROM investigacion WHERE clave = ?").bind(clave).first<{ id: string; estado: string }>();
-  if (previa && previa.estado !== "error") return json({ id: previa.id, reutilizada: true });
+  // `repetir` (contrato entero con «volver a investigar»): la misma entrada, otra investigación (la vieja queda en la lista).
+  if (previa && previa.estado !== "error" && cuerpo?.repetir !== true) return json({ id: previa.id, reutilizada: true });
   if (previa) await env.DB.prepare("UPDATE investigacion SET clave = NULL WHERE id = ?").bind(previa.id).run();
   const id = crypto.randomUUID();
   await env.DB.prepare("INSERT INTO investigacion (id, clave, estado, entrada, consulta, creado) VALUES (?, ?, 'en_cola', ?, ?, ?)")
@@ -93,7 +95,7 @@ async function lista(env: Env, limite: number, ocid: string | null) {
     `SELECT id, estado, paso, consulta, creado, terminado, ${COSTO} AS costo, json_extract(resumen, '$.veredicto') AS veredicto,
             json_extract(resumen, '$.mediana') AS mediana, json_extract(resumen, '$.validas') AS validas,
             json_extract(resumen, '$.p25') AS p25, json_extract(resumen, '$.p75') AS p75, json_extract(resumen, '$.razon') AS razon,
-            json_extract(resumen, '$.referencia') AS referencia, json_extract(resumen, '$.caja') AS caja, json_extract(ficha, '$.unidad_base') AS unidad,
+            json_extract(resumen, '$.referencia') AS referencia, json_extract(resumen, '$.caja') AS caja, json_extract(resumen, '$.sinComparar') AS sinComparar, json_extract(ficha, '$.unidad_base') AS unidad,
             json_extract(entrada, '$.ocid') AS ocid, json_extract(entrada, '$.item') AS item, json_extract(entrada, '$.autor') AS autor
        FROM investigacion ${ocid ? "WHERE json_extract(entrada, '$.ocid') = ?" : ""} ORDER BY creado DESC LIMIT ?`,
   ).bind(...(ocid ? [ocid, limite] : [limite])).all();

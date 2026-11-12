@@ -47,6 +47,10 @@ export interface Ficha {
   excluir: string[];
   /** Rubros del directorio de tiendas (directorio.ts): a qué tiendas preguntar. */
   rubros: Rubro[];
+  /** ¿Una unidad del pedido es una unidad_base? Si no («harinas y hojuelas» por «Unidad», 2026-754-1), el precio del Estado
+   * no se compara con el de las tiendas: se da el precio de mercado y nada más. Fichas viejas: sin el campo (= true). */
+  comparable?: boolean;
+  por_que_no?: string | null;
 }
 
 export type Fuente = "tienda" | "buscador" | "web";
@@ -119,6 +123,8 @@ export interface Resumen {
   nota: string;
   /** La referencia es casi N veces la mediana, con N un tamaño de caja común (estadistica.ts cajaProbable). */
   caja?: number | null;
+  /** Por qué no se comparó con la referencia (la unidad del pedido no es comparable). */
+  sinComparar?: string | null;
 }
 
 /** Lo que gastó cada investigación. */
