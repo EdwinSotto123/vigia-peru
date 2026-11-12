@@ -87,6 +87,15 @@ export function leerJsonLd(html: string): Lectura | null {
   return null;
 }
 
+/**
+ * El listado empieza donde aparece el primer precio en soles: lo de antes suele ser menú y promociones. Se deja un
+ * margen para el título del primer producto. Sin precios, el texto entero.
+ */
+export function desdeElPrimerPrecio(texto: string, margen = 1500): string {
+  const i = texto.search(/S\/\s?\d/);
+  return i < 0 ? texto : texto.slice(Math.max(0, i - margen));
+}
+
 /** Todos los objetos de un JSON (los listados anidan Product dentro de ItemList → ListItem → item). */
 function* todos(x: unknown, hondo = 0): Generator<Record<string, unknown>> {
   if (hondo > 8) return;

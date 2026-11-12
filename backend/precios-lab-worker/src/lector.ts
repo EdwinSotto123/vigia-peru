@@ -22,11 +22,12 @@ interface EnvContenedor {
 /**
  * Cómo arranca Crawl4AI. Diagnóstico del 2026-11-12:
  *   - Sin CRAWL4AI_API_TOKEN, su entrypoint.sh solo escucha en 127.0.0.1 y el Worker no lo alcanza en 10.0.0.1:11235.
- *   - La imagen solo trae `CMD ["bash", "entrypoint.sh"]` (sin ENTRYPOINT, relativo a /app): en Cloudflare salía con
- *     código 0 sin levantar nada. Con el comando explícito escucha en ~2 s.
+ *   - Con supervisord como PID 1 (lo que hace el CMD de la imagen: `exec supervisord`), en Cloudflare no lanza a sus
+ *     hijos (ni Redis ni gunicorn; visto por SSH). Con bash como proceso principal y supervisord de hijo, escucha en
+ *     ~2 s. Su salida queda en /tmp/arranque.log.
  */
 export const arranque = (token: string) => ({
-  entrypoint: ["bash", "-c", "cd /app && exec bash entrypoint.sh"],
+  entrypoint: ["bash", "-c", "cd /app && bash entrypoint.sh > /tmp/arranque.log 2>&1; echo \"supervisord salió: $?\" >> /tmp/arranque.log; sleep 30"],
   envVars: { CRAWL4AI_ALLOW_DEEP_CRAWL: "false", CRAWL4AI_API_TOKEN: token, GUNICORN_BIND: "0.0.0.0:11235" },
 });
 
@@ -85,8 +86,24 @@ const INSTANCIAS_VIEJAS = ["lector", "diagnostico"];
  * Abre una página con Crawl4AI. null si no hay contenedor o no respondió (la página queda «sin precio», no tumba el
  * paso). `agente` es nuestro User-Agent.
  */
-export async function rendir(env: EnvLector, gasto: Gasto, url: string, agente: string, esperar = 2): Promise<Rendida | null> {
-  if (!env.LECTOR || !env.CRAWL4AI_TOKEN) return null;
+export interface OpcionesRender {
+  /** Segundos extra después de cargar. */
+  esperar?: number;
+  /** Esperar a que la red quede quieta (listados que traen los productos por XHR después de cargar). */
+  red?: boolean;
+  /** Etiquetas que no van al Markdown (menús, encabezado, pie). */
+  sinEtiquetas?: string[];
+  /** Condición de Crawl4AI (`wait_for`) antes de devolver la página, con su tope en ms. */
+  esperarA?: { condicion: string; ms: number };
+}
+
+export async function rendir(env: EnvLector, gasto: Gasto, url: string, agente: string, op: OpcionesRender = {}, motivo?: { texto: string }): Promise<Rendida | null> {
+  const falla = (t: string) => {
+    if (motivo) motivo.texto = t.replace(/\s+/g, " ").slice(0, 400);
+    return null;
+  };
+  if (!env.LECTOR) return falla("sin contenedor");
+  if (!env.CRAWL4AI_TOKEN) return falla("falta el secreto CRAWL4AI_TOKEN");
   const t0 = Date.now();
   // Solo se cuenta el tiempo si el contenedor respondió: si no llegó a arrancar, Cloudflare no lo cobra.
   let respondio = false;
@@ -113,7 +130,7 @@ export async function rendir(env: EnvLector, gasto: Gasto, url: string, agente: 
       const estado = await lector.getState().catch(() => null);
       console.warn("crawl4ai no arrancó", JSON.stringify(estado), String((e as Error)?.message ?? e).slice(0, 200));
       await lector.destroy().catch(() => undefined);
-      return null;
+      return falla(`no arrancó (${estado?.status ?? "?"}): ${String((e as Error)?.message ?? e)}`);
     }
     const r = await lector.fetch(
       new Request("http://lector/crawl", {
@@ -127,12 +144,13 @@ export async function rendir(env: EnvLector, gasto: Gasto, url: string, agente: 
             params: {
               cache_mode: "bypass",
               check_robots_txt: true,
-              page_timeout: 40_000,
-              wait_until: "domcontentloaded",
-              delay_before_return_html: esperar,
-              magic: false,
-              simulate_user: false,
-              override_navigator: false,
+              page_timeout: 45_000,
+              wait_until: op.red ? "networkidle" : "domcontentloaded",
+              delay_before_return_html: op.esperar ?? 2,
+              ...(op.sinEtiquetas?.length ? { excluded_tags: op.sinEtiquetas } : {}),
+              ...(op.esperarA ? { wait_for: op.esperarA.condicion, wait_for_timeout: op.esperarA.ms } : {}),
+              // Sin magic, simulate_user ni override_navigator (Crawl4AI 0.9.4 ni los acepta de un pedido externo:
+              // quedan en false) y sin enable_stealth: no se disfraza de persona.
             },
           },
         }),
@@ -141,18 +159,19 @@ export async function rendir(env: EnvLector, gasto: Gasto, url: string, agente: 
     );
     respondio = r.status < 500;
     if (!r.ok) {
-      console.warn("crawl4ai", r.status, (await r.text().catch(() => "")).slice(0, 300));
-      return null;
+      const t = (await r.text().catch(() => "")).slice(0, 300);
+      console.warn("crawl4ai", r.status, t);
+      return falla(`respondió ${r.status}: ${t}`);
     }
     const j = (await r.json()) as RespuestaCrawl;
     const x = j.results?.[0];
-    if (!x || x.success === false || !x.html) return null;
+    if (!x || x.success === false || !x.html) return falla(`no leyó la página: ${x?.error_message ?? "sin HTML"}`);
     const md = typeof x.markdown === "string" ? x.markdown : (x.markdown?.raw_markdown ?? "");
     const enlaces = [...(x.links?.internal ?? []), ...(x.links?.external ?? [])].map((l) => l.href ?? "").filter((h) => /^https?:\/\//.test(h));
     return { html: x.html.slice(0, TOPE_HTML), markdown: md.slice(0, 400_000), estado: x.status_code ?? null, enlaces: [...new Set(enlaces)].slice(0, 2000) };
   } catch (e) {
     console.warn("crawl4ai", String((e as Error)?.message ?? e).slice(0, 300));
-    return null;
+    return falla(String((e as Error)?.message ?? e));
   } finally {
     if (respondio) gasto.segundosContenedor += (Date.now() - t0) / 1000;
   }

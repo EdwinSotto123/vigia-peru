@@ -10,7 +10,7 @@
  *             Cada página se lee después (`leerUrl`).
  *
  *   buscadores  el buscador propio de tiendas que arman la página con JavaScript y que no están en vigia-precios
- *             (farmacias, Real Plaza, Makro), abierto con Crawl4AI en un contenedor de Cloudflare (lector.ts).
+ *             (farmacias, Makro), abierto con Crawl4AI en un contenedor de Cloudflare (lector.ts).
  *
  * `leerUrl` lee una página con cortesía: respeta robots.txt (también `Content-Signal: ai-input=no`), espera su turno
  * por dominio (≤ 1 pedido por segundo), se presenta con su nombre (sin hacerse pasar por un navegador), corta las
@@ -254,12 +254,12 @@ const q = encodeURIComponent;
 /**
  * Tiendas peruanas que no están en vigia-precios y cuyo buscador permite robots.txt (revisado el 2026-11-12). Fuera:
  * MercadoLibre (manda a verificar la cuenta), Memory Kings e Impacto (robots prohíbe su buscador), Dimerc y Sercoplus
- * (nos responden 403), La Curacao y Efe (robots prohíbe /catalogsearch/ y /search/), Crisol (prohíbe `/*?`).
+ * (nos responden 403), La Curacao y Efe (robots prohíbe /catalogsearch/ y /search/), Crisol (prohíbe `/*?`), Real Plaza
+ * (realplaza.com ya es solo la web del centro comercial).
  */
 export const BUSCADORES: Buscador[] = [
   { id: "inkafarma.pe", url: (t) => `https://inkafarma.pe/buscador?keyword=${q(t)}`, salud: true },
   { id: "mifarma.com.pe", url: (t) => `https://www.mifarma.com.pe/buscador?keyword=${q(t)}`, salud: true },
-  { id: "realplaza.com", url: (t) => `https://www.realplaza.com/${q(t)}?_q=${q(t)}&map=ft` },
   { id: "makro.plazavea.com.pe", url: (t) => `https://www.makro.plazavea.com.pe/search/?_query=${q(t)}` },
 ];
 
@@ -283,8 +283,28 @@ export async function abrirBuscador(env: EnvFuentes, gasto: Gasto, b: Buscador, 
   const no = await permitido(env, url);
   if (no) return fin("robots", no);
   await esperarTurno(env, url.hostname);
-  const r = await rendir(env, gasto, direccion, USER_AGENT, 4);
-  if (!r) return fin("error", "Crawl4AI no pudo abrirla");
+  const motivo = { texto: "" };
+  // Los listados traen los productos por XHR después de cargar: se espera a que la red quede quieta, y el Markdown
+  // va sin encabezado, menús ni pie (en Makro el menú de categorías ocupaba los primeros miles de caracteres).
+  const r = await rendir(
+    env,
+    gasto,
+    direccion,
+    USER_AGENT,
+    {
+      // Sin esperar a que la red quede quieta: en Makro (VTEX) nunca pasa y el goto vencía a los 45 s.
+      esperar: 2,
+      sinEtiquetas: ["header", "nav", "footer", "aside", "form"],
+      // Hasta que el listado muestre un precio en soles.
+      esperarA: { condicion: "js:() => /S\\/\\s?\\d/.test(document.body ? document.body.innerText : '')", ms: 25_000 },
+    },
+    motivo,
+  );
+  // Si en 25 s no apareció ningún precio, la búsqueda no trajo productos (no es una falla).
+  if (!r && /wait condition|wait_for|Timeout \d+ms exceeded/i.test(motivo.texto) && !/Page\.goto/i.test(motivo.texto)) {
+    return fin("sin_resultados", "no apareció ningún precio en 25 s");
+  }
+  if (!r) return fin("error", `Crawl4AI no pudo abrirla${motivo.texto ? `: ${motivo.texto}` : ""}`);
   if (r.estado === 403 || r.estado === 429 || r.estado === 401) return fin("rechazo", `el sitio respondió ${r.estado}`);
   if (esDesafio(r.html)) return fin("rechazo", "el sitio pide verificar que eres humano");
   if (esMuroSesion(textoVisible(r.html))) return fin("rechazo", "pide iniciar sesión");

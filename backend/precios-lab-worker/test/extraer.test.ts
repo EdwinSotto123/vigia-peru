@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { confirmarEnTexto, leerJsonLd, leerListadoJsonLd, parsearDdg, leerMicrodatos, leerOpenGraph, leerPagina, numeroPrecio, robotsNiegaIa, robotsPermite, textoVisible } from "../src/extraer.ts";
+import { confirmarEnTexto, desdeElPrimerPrecio, leerJsonLd, leerListadoJsonLd, parsearDdg, leerMicrodatos, leerOpenGraph, leerPagina, numeroPrecio, robotsNiegaIa, robotsPermite, textoVisible } from "../src/extraer.ts";
 
 test("numeroPrecio lee los formatos de las tiendas", () => {
   assert.equal(numeroPrecio("S/ 1,299.90"), 1299.9);
@@ -90,6 +90,14 @@ test("Content-Signal: ai-input=no se respeta; sin la señal o solo ai-train=no, 
   assert.ok(robotsNiegaIa("User-Agent: *\nContent-signal: search=yes,ai-input=no\nDisallow: /privado\n"));
   assert.ok(!robotsNiegaIa("User-agent: GPTBot\nContent-Signal: ai-input=no\n\nUser-agent: *\nAllow: /\n"));
   assert.ok(!robotsNiegaIa(""));
+});
+
+test("el listado empieza cerca del primer precio en soles (sin el menú de antes)", () => {
+  const md = `${"Menú | Categorías | ".repeat(500)}CAJA 100 UN | Paracetamol 500mg Tableta | Desde S/ 10.00 | Otro | S/ 4.30`;
+  const r = desdeElPrimerPrecio(md, 60);
+  assert.ok(r.length < 200);
+  assert.ok(r.includes("Paracetamol 500mg Tableta | Desde S/ 10.00"));
+  assert.equal(desdeElPrimerPrecio("sin precios aquí"), "sin precios aquí");
 });
 
 test("listado JSON-LD: ItemList de Product con enlaces relativos, sin repetir", () => {

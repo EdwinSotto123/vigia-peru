@@ -4,7 +4,7 @@
  *
  *   entender   GLM 5.3 flash convierte el pedido en una ficha: nombre, atributos obligatorios, unidad y búsquedas.
  *   tiendas    las búsquedas en 15 tiendas peruanas (vigia-precios), con precio estructurado.
- *   buscadores el buscador propio de tiendas armadas con JavaScript (farmacias, Real Plaza, Makro), abierto con
+ *   buscadores el buscador propio de tiendas armadas con JavaScript (farmacias, Makro), abierto con
  *              Crawl4AI en un contenedor de Cloudflare; los productos salen del JSON-LD del listado o, si no hay, GLM
  *              los copia del Markdown (cada precio se confirma en el mismo texto).
  *   web        Tavily: páginas de venta en el Perú fuera de esas tiendas.
@@ -17,7 +17,7 @@
  * Cada paso guarda su avance en D1 (tabla paso) para que el panel lo muestre mientras corre, y la evidencia en R2.
  */
 import { WorkflowEntrypoint, type WorkflowEvent, type WorkflowStep } from "cloudflare:workers";
-import { confirmarEnTexto, leerListadoJsonLd, textoVisible } from "./extraer.ts";
+import { confirmarEnTexto, desdeElPrimerPrecio, leerListadoJsonLd, textoVisible } from "./extraer.ts";
 import { abrirBuscador, BUSCADORES, buscarLibre, buscarTiendas, buscarWeb, dominioDe, esSalud, leerUrl, type Buscador, type EnvFuentes, type ResultadoWeb } from "./fuentes.ts";
 import { COSTO_SEGUNDO_CONTENEDOR } from "./lector.ts";
 import { entender, juzgar, leerConModelo, leerListadoConModelo, parecido, type EnvModelo } from "./modelo.ts";
@@ -149,7 +149,12 @@ export class Investigacion extends WorkflowEntrypoint<Env, { id: string }> {
       const porTienda = async (b: Buscador, i: number) => {
         for (const termino of ficha.busquedas.slice(0, 2)) {
           const p = await abrirBuscador(env, g, b, termino);
-          // Si el sitio dice que no (robots, 403, desafío) o falla, no se insiste con otro término.
+          // Sin productos: se prueba el término siguiente. Si el sitio dice que no (robots, 403, desafío) o falla, no se
+          // insiste.
+          if (p.estado === "sin_resultados") {
+            estado[b.id] = p.detalle ?? "sin resultados";
+            continue;
+          }
           if (p.estado !== "ok" || !p.rendida) {
             estado[b.id] = p.detalle ?? p.estado;
             return;
@@ -160,7 +165,7 @@ export class Investigacion extends WorkflowEntrypoint<Env, { id: string }> {
             leerListadoJsonLd(r.html, p.url).map((x) => ({ ...x, presentacion: null }));
           if (productos.length < 3 && r.markdown.length > 300 && ia < MAX_LISTADOS_IA) {
             ia++;
-            const m = await leerListadoConModelo(env, g, p.url, r.markdown).catch(() => []);
+            const m = await leerListadoConModelo(env, g, p.url, desdeElPrimerPrecio(r.markdown)).catch(() => []);
             if (m.length > productos.length) {
               productos = m;
               metodo = "listado_ia";
@@ -208,7 +213,9 @@ export class Investigacion extends WorkflowEntrypoint<Env, { id: string }> {
               leido: ahora(),
               metodo,
               productos: propias.map(({ titulo, precio, url, confirmado }) => ({ titulo, precio, url, confirmado })),
-              extracto: r.markdown.slice(0, 4000),
+              largo: r.markdown.length,
+              precios: (r.markdown.match(/S\/\s?\d/g) ?? []).length,
+              extracto: desdeElPrimerPrecio(r.markdown).slice(0, 6000),
             }),
             { httpMetadata: { contentType: "application/json" } },
           );
