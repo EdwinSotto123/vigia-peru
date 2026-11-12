@@ -4,6 +4,8 @@ Se respetaron estas reglas en cada sitio: UA `VigiaPeru-PreciosLab/0.1`, robots.
 
 ## 1. Bloqueo: robots.txt, 403/429, desafío
 
+Después de entrar al directorio, Boticas Hogar y Salud (hogarysalud.com.pe, WooCommerce) respondió 403 a los pedidos desde Cloudflare (2026-11-12; desde el Perú sí responde): salió del directorio.
+
 | Tienda | Dominio | Rubro | Plataforma | Motivo |
 |---|---|---|---|---|
 | Boticas Perú | boticasperu.pe | farmacia | ? | robots.txt da 403 con captcha (Cloudflare) |

@@ -49,10 +49,14 @@ test("Magento: GraphQL con url_key y sufijo", () => {
   assert.ok(JSON.parse(p.cuerpo!).query.includes('search: "alcohol \\"70\\""'));
 });
 
-test("rubros: los del modelo (válidos) más los que delatan las palabras", () => {
+test("rubros: los del modelo (válidos) mandan; si no dio ninguno, las palabras", () => {
   assert.deepEqual(rubrosDe(["oficina", "inventado"], "papel bond A4"), ["oficina"]);
+  assert.deepEqual(rubrosDe(["farmacia"], "Paracetamol 500 mg tableta"), ["farmacia"]);
   assert.deepEqual(rubrosDe([], "Amoxicilina 500 mg cápsula"), ["farmacia"]);
+  assert.deepEqual(rubrosDe([], "Paracetamol 500 mg tableta"), ["farmacia"]);
   assert.ok(rubrosDe(undefined, "guantes de nitrilo quirúrgicos").includes("medico"));
+  assert.ok(rubrosDe(undefined, "Tablet Samsung 10 pulgadas").includes("computo"));
+  assert.ok(!rubrosDe(undefined, "Termómetro digital").includes("hogar"));
   assert.deepEqual(rubrosDe(null, "servicio de consultoría"), []);
 });
 

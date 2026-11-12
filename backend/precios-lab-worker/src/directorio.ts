@@ -12,7 +12,7 @@
  *
  * Cortesía igual que `leerUrl`: robots.txt de la ruta (y `Content-Signal: ai-input=no`), turno por dominio (≤ 1 pedido
  * por segundo), nuestro User-Agent, y no se insiste ante 401/403/429 o un desafío. Cada tienda se probó a mano antes de
- * entrar al directorio (2026-11-12: 39 por API y 2 por Crawl4AI); las que se descartaron y por qué están en
+ * entrar al directorio (2026-11-12: 38 por API y 2 por Crawl4AI); las que se descartaron y por qué están en
  * directorio_descartadas.md.
  */
 import { decodificarEntidades } from "./extraer.ts";
@@ -46,7 +46,6 @@ export const DIRECTORIO: TiendaDirectorio[] = [
   { id: "llantasyaros.pe", nombre: "Llantas y Aros", base: "https://llantasyaros.pe", plataforma: "woocommerce", rubros: ["automotriz"] },
   { id: "hpstore.com.pe", nombre: "HP Store Perú (hpstore.com.pe)", base: "https://hpstore.com.pe", plataforma: "woocommerce", rubros: ["computo", "oficina"] },
   { id: "botifarma.pe", nombre: "Botifarma", base: "https://botifarma.pe", plataforma: "woocommerce", rubros: ["farmacia", "medico"] },
-  { id: "hogarysalud.com.pe", nombre: "Boticas Hogar y Salud", base: "https://www.hogarysalud.com.pe", plataforma: "woocommerce", rubros: ["farmacia", "medico"] },
   { id: "novafarmawimer.pe", nombre: "NovaFarma Wimer", base: "https://novafarmawimer.pe", plataforma: "woocommerce", rubros: ["farmacia", "medico"] },
   { id: "santanatura.com.pe", nombre: "Santa Natura", base: "https://santanatura.com.pe", plataforma: "woocommerce", rubros: ["farmacia"] },
   { id: "beurer.pe", nombre: "Beurer Perú", base: "https://beurer.pe", plataforma: "woocommerce", rubros: ["medico"] },
@@ -89,23 +88,23 @@ export const DIRECTORIO: TiendaDirectorio[] = [
 
 /** Palabras que ponen un producto en un rubro, por si el modelo no lo dijo. */
 const PALABRAS: Record<Rubro, RegExp> = {
-  farmacia: /medic|f[aá]rmac|tableta|c[aá]psula|jarabe|inyect|ampoll|vial|suero|vacuna|vitamin|antibi[oó]t|analg[eé]s|paracetamol|ibuprofeno|amoxicilina|insulina|preservativo|pa[nñ]al/i,
+  farmacia: /medic|f[aá]rmac|tableta|c[aá]psula|jarabe|inyect|ampoll|suero|vacuna|vitamin|antibi[oó]t|analg[eé]s|paracetamol|ibuprofeno|amoxicilina|insulina|preservativo|pa[nñ]al/i,
   medico: /jeringa|guante|mascarilla|barbijo|gasa|ap[oó]sito|venda|algod[oó]n|alcohol|antis[eé]pt|cl[oó]rhexidina|yodo|term[oó]metro|tensi[oó]metro|ox[ií]metro|esteto|cat[eé]ter|sonda|reactivo|laboratorio|quir[uú]rg/i,
   oficina: /papel|bond|cuaderno|lapicero|l[aá]piz|folder|archivador|engrapador|grapa|resaltador|plumon|plum[oó]n|corrector|sobre manila|cinta adhesiva|tinta|t[oó]ner|cartucho|[uú]tiles|oficina|escritorio/i,
-  computo: /computador|laptop|port[aá]til|monitor|teclado|mouse|impresora|disco duro|ssd|memoria|usb|router|switch|proyector|tablet|cable hdmi|ups|estabilizador|servidor|c[aá]mara web/i,
+  computo: /computador|laptop|port[aá]til|monitor|teclado|mouse|impresora|disco duro|ssd|memoria|usb|router|switch|proyector|tablets?\b|cable hdmi|ups|estabilizador|servidor|c[aá]mara web/i,
   ferreteria: /cemento|fierro|varilla|ladrillo|arena|tubo|pvc|tuber[ií]a|codo|v[aá]lvula|pintura|thinner|clavo|tornillo|perno|taladro|amoladora|alambre|cable el[eé]ctrico|interruptor|tomacorriente|foco|luminaria|calamina|madera|triplay|herramienta|ferret/i,
-  limpieza: /detergente|lej[ií]a|desinfectante|jab[oó]n|papel higi[eé]nico|papel toalla|escoba|trapeador|recogedor|bolsa de basura|limpia|ambientador|cera|lavavajilla|alcohol en gel|hipoclorito/i,
+  limpieza: /detergente|lej[ií]a|desinfectante|jab[oó]n|papel higi[eé]nico|papel toalla|escoba|trapeador|recogedor|bolsa de basura|limpia|ambientador|\bcera\b|lavavajilla|alcohol en gel|hipoclorito/i,
   alimentos: /arroz|az[uú]car|aceite|fideo|leche|at[uú]n|conserva|harina|menestra|frejol|lenteja|avena|caf[eé]|galleta|agua de mesa|agua mineral|abarrote|v[ií]veres|sal de mesa|huevo|pollo|carne|pan /i,
-  hogar: /colch[oó]n|silla|mesa|escritorio|estante|armario|ropero|cama|frazada|cortina|ventilador|refriger|cocina|horno|microondas|licuadora|termo|olla|vajilla|menaje/i,
+  hogar: /colch[oó]n|silla|\bmesas?\b|escritorio|estante|armario|ropero|\bcamas?\b|frazada|cortina|ventilador|refriger|cocina|horno|microondas|licuadora|\btermos?\b|\bollas?\b|vajilla|menaje/i,
   seguridad: /casco|chaleco|botas? de seguridad|zapato de seguridad|lentes de seguridad|guantes de seguridad|protector auditivo|respirador|arn[eé]s|extintor|se[nñ]al[eé]tica|cono vial|epp/i,
   automotriz: /llanta|neum[aá]tico|aceite de motor|lubricante|bater[ií]a de auto|filtro de aceite|filtro de aire|pastilla de freno|repuesto|refrigerante|aditivo|grasa/i,
 };
 
-/** Los rubros de un producto: los que dio el modelo y, además, los que delatan sus palabras. */
+/** Los rubros de un producto: los que dio el modelo y, si no dio ninguno válido, los que delatan sus palabras. */
 export function rubrosDe(delModelo: unknown, texto: string): Rubro[] {
   const dados = (Array.isArray(delModelo) ? delModelo : []).map(String).filter((r): r is Rubro => (RUBROS as string[]).includes(r));
-  const porPalabras = RUBROS.filter((r) => PALABRAS[r].test(texto));
-  return [...new Set([...dados, ...porPalabras])];
+  if (dados.length) return [...new Set(dados)];
+  return RUBROS.filter((r) => PALABRAS[r].test(texto));
 }
 
 /** Las tiendas a preguntar para esos rubros (las de más rubros en común primero), hasta `max`. */

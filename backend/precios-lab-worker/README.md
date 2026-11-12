@@ -44,7 +44,7 @@ Se presenta con su nombre (`VigiaPeru-PreciosLab/0.1`), también dentro de Crawl
 `Content-Signal: ai-input=no`) y no insiste si el sitio responde 401, 403, 429, pide verificar que eres humano o pide
 iniciar sesión. Los captchas no se intentan pasar: Crawl4AI corre sin `magic`, `simulate_user` ni `override_navigator`.
 
-El directorio (2026-11-12) tiene 41 tiendas: 39 que responden por la API de su plataforma (VTEX 17, WooCommerce 9,
+El directorio (2026-11-12) tiene 40 tiendas: 38 que responden por la API de su plataforma (VTEX 17, WooCommerce 8,
 Magento 7, Shopify 6) y 2 por Crawl4AI (Inkafarma, Mifarma), con al menos 3 por rubro. Las descartadas y por qué
 (robots.txt, 403, desafío, precios de relleno, otra moneda) están en `directorio_descartadas.md`. Antes, también
 quedaron fuera de los buscadores: MercadoLibre (manda a verificar la cuenta), Memory Kings e Impacto

@@ -384,7 +384,15 @@ function VistaDetalle({ id }: { id: string }) {
     {
       clave: "valida",
       titulo: "Cuenta",
-      celda: (o) => (o.valida ? <Badge tono="ok">Sí</Badge> : <span className="text-meta text-mute">{o.motivo ?? "No"}</span>),
+      celda: (o) =>
+        o.valida ? (
+          <span className="flex flex-col items-start gap-1">
+            <Badge tono="ok">Sí</Badge>
+            {o.motivo && <span className="text-meta text-mute">{o.motivo}</span>}
+          </span>
+        ) : (
+          <span className="text-meta text-mute">{o.motivo ?? "No"}</span>
+        ),
     },
   ];
 
