@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { percentil, resumir, validar } from "../src/estadistica.ts";
+import { cajaProbable, percentil, resumir, validar } from "../src/estadistica.ts";
 import type { Oferta } from "../src/tipos.ts";
 
 const oferta = (n: number, precio: number | null, extra: Partial<Oferta> = {}): Oferta => ({
@@ -87,4 +87,15 @@ test("resumir: veredicto frente a la referencia", () => {
   assert.equal(resumir(v, 11.5).veredicto, "En línea con el mercado");
   assert.equal(resumir(validar([oferta(1, 10)]), 20).veredicto, "Pocas ofertas, no concluyente");
   assert.equal(resumir([], null).veredicto, "No se encontraron ofertas del mismo producto");
+});
+
+test("resumir: la referencia que parece una caja (leche «x 400 g» a S/ 36 la unidad, 2026-754-1)", () => {
+  const v = validar([oferta(1, 1.45), oferta(2, 1.5), oferta(3, 1.55), oferta(4, 1.6)]);
+  const r = resumir(v, 36.22);
+  assert.equal(r.caja, 24);
+  assert.match(r.nota, /caja o paquete de 24/);
+  assert.equal(cajaProbable(2.5), null);
+  assert.equal(cajaProbable(17), null);
+  assert.equal(cajaProbable(98), 100);
+  assert.equal(resumir(v, 2).caja, null);
 });

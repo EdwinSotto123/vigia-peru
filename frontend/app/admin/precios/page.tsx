@@ -36,6 +36,7 @@ interface Fila {
   mediana: number | null;
   validas: number | null;
   ocid: string | null;
+  item: number | null;
 }
 type Estado = "en_cola" | "corriendo" | "listo" | "error";
 interface Paso {
@@ -106,6 +107,37 @@ interface Detalle {
   costo_contenedor?: number;
   pasos: Paso[];
   ofertas: Oferta[];
+}
+
+/** GET /admin/precios-lab/contrato/:ocid: los ítems del contrato con su última investigación y el total. */
+interface ItemContrato {
+  item: number;
+  descripcion: string | null;
+  unidad: string | null;
+  cantidad: number | null;
+  precioReferencial: number | null;
+  precioAdjudicado: number | null;
+  sinTiendas: boolean;
+  cuentaEnTotal: boolean;
+  investigacion: {
+    id: string;
+    estado: Estado;
+    paso: string | null;
+    veredicto: string | null;
+    mediana: number | null;
+    p25: number | null;
+    p75: number | null;
+    validas: number | null;
+    razon: number | null;
+    unidad: string | null;
+    caja: number | null;
+  } | null;
+}
+interface Contrato {
+  contrato: { ocid: string; codigo?: string; titulo?: string; entidad?: string };
+  items: ItemContrato[];
+  laboratorio: boolean;
+  total: { comparados: number; encima: number; pagado: number; mercado: number };
 }
 
 const soles = (n: number | null | undefined) =>
@@ -188,7 +220,7 @@ function IconoPaso({ estado }: { estado: Paso["estado"] | undefined }) {
   return <CircleDashed size={16} className="text-mute" aria-hidden />;
 }
 
-function Formulario({ onCreada }: { onCreada: (id: string) => void }) {
+function Formulario({ onCreada, onContrato }: { onCreada: (id: string) => void; onContrato: (ocid: string) => void }) {
   const [modo, setModo] = useState<"texto" | "contrato">("texto");
   const [consulta, setConsulta] = useState("");
   const [especificacion, setEspecificacion] = useState("");
@@ -209,6 +241,19 @@ function Formulario({ onCreada }: { onCreada: (id: string) => void }) {
       if (!/^[A-Za-z0-9-]{3,80}$/.test(ocid.trim())) return setError("Escribe el código del contrato (por ejemplo 1212841).");
       cuerpo.ocid = ocid.trim();
       if (item.trim()) cuerpo.item = Number(item);
+      // Sin ítem: todos los ítems del contrato, escalonados (POST /admin/precios-lab/contrato).
+      else {
+        setEnviando(true);
+        try {
+          await adminFetch("/precios-lab/contrato", { method: "POST", body: JSON.stringify({ ocid: ocid.trim(), web }) });
+          onContrato(ocid.trim());
+        } catch (err) {
+          setError(mensajeError(err));
+        } finally {
+          setEnviando(false);
+        }
+        return;
+      }
     } else if (consulta.trim().length < 3) {
       return setError("Escribe el producto que quieres investigar.");
     }
@@ -261,61 +306,69 @@ function Formulario({ onCreada }: { onCreada: (id: string) => void }) {
             </label>
             <label className="space-y-1">
               <span className="text-meta text-mute">Ítem</span>
-              <input className={campo} value={item} onChange={(e) => setItem(e.target.value.replace(/\D/g, ""))} placeholder="1" inputMode="numeric" />
+              <input className={campo} value={item} onChange={(e) => setItem(e.target.value.replace(/\D/g, ""))} placeholder="todos" inputMode="numeric" />
             </label>
+            {!item && (
+              <p className="text-meta text-mute sm:col-span-2">Sin ítem se investigan todos los del contrato (hasta 12, uno cada 40 segundos) y ves el total.</p>
+            )}
           </div>
         )}
-        <label className="block space-y-1">
-          <span className="text-meta text-mute">{modo === "contrato" ? "Producto (opcional: si lo dejas vacío, se usa el del ítem)" : "Producto"}</span>
-          <input
-            className={campo}
-            value={consulta}
-            onChange={(e) => setConsulta(e.target.value)}
-            maxLength={300}
-            placeholder="Papel bond A4 75 g, paquete de 500 hojas"
-          />
-        </label>
-        <Expandable resumen="Especificación, unidad, precio a comparar y páginas" variante="caja">
-          <div className="space-y-3 pt-1">
+        {(modo === "texto" || item) && (
+          <>
             <label className="block space-y-1">
-              <span className="text-meta text-mute">Especificación técnica (lo que piden las bases)</span>
-              <textarea className={`${campo} min-h-[96px] py-2`} value={especificacion} onChange={(e) => setEspecificacion(e.target.value)} maxLength={20000} />
-            </label>
-            <div className="grid gap-3 sm:grid-cols-2">
-              <label className="space-y-1">
-                <span className="text-meta text-mute">Unidad</span>
-                <input className={campo} value={unidad} onChange={(e) => setUnidad(e.target.value)} placeholder="paquete" maxLength={60} />
-              </label>
-              <label className="space-y-1">
-                <span className="text-meta text-mute">Precio unitario a comparar (S/)</span>
-                <input className={campo} value={precio} onChange={(e) => setPrecio(e.target.value)} placeholder="25.90" inputMode="decimal" />
-              </label>
-            </div>
-            <label className="block space-y-1">
-              <span className="text-meta text-mute">Páginas que ya encontraste (una por línea, hasta 10): se leen siempre</span>
-              <textarea
-                className={`${campo} min-h-[72px] py-2 font-mono text-meta`}
-                value={enlaces}
-                onChange={(e) => setEnlaces(e.target.value)}
-                placeholder="https://www.tienda.pe/producto"
+              <span className="text-meta text-mute">{modo === "contrato" ? "Producto (opcional: si lo dejas vacío, se usa el del ítem)" : "Producto"}</span>
+              <input
+                className={campo}
+                value={consulta}
+                onChange={(e) => setConsulta(e.target.value)}
+                maxLength={300}
+                placeholder="Papel bond A4 75 g, paquete de 500 hojas"
               />
             </label>
-          </div>
-        </Expandable>
+            <Expandable resumen="Especificación, unidad, precio a comparar y páginas" variante="caja">
+              <div className="space-y-3 pt-1">
+                <label className="block space-y-1">
+                  <span className="text-meta text-mute">Especificación técnica (lo que piden las bases)</span>
+                  <textarea className={`${campo} min-h-[96px] py-2`} value={especificacion} onChange={(e) => setEspecificacion(e.target.value)} maxLength={20000} />
+                </label>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <label className="space-y-1">
+                    <span className="text-meta text-mute">Unidad</span>
+                    <input className={campo} value={unidad} onChange={(e) => setUnidad(e.target.value)} placeholder="paquete" maxLength={60} />
+                  </label>
+                  <label className="space-y-1">
+                    <span className="text-meta text-mute">Precio unitario a comparar (S/)</span>
+                    <input className={campo} value={precio} onChange={(e) => setPrecio(e.target.value)} placeholder="25.90" inputMode="decimal" />
+                  </label>
+                </div>
+                <label className="block space-y-1">
+                  <span className="text-meta text-mute">Páginas que ya encontraste (una por línea, hasta 10): se leen siempre</span>
+                  <textarea
+                    className={`${campo} min-h-[72px] py-2 font-mono text-meta`}
+                    value={enlaces}
+                    onChange={(e) => setEnlaces(e.target.value)}
+                    placeholder="https://www.tienda.pe/producto"
+                  />
+                </label>
+              </div>
+            </Expandable>
+          </>
+        )}
         <label className="flex items-center gap-2 text-dato text-ink">
           <input type="checkbox" checked={web} onChange={(e) => setWeb(e.target.checked)} className="h-4 w-4 accent-granate" />
           Preguntar también a las tiendas del directorio (por rubro)
         </label>
         {error && <p className="text-meta text-crimsonTexto">{error}</p>}
         <button type="submit" disabled={enviando} className={claseBoton("primario", "md")}>
-          {enviando ? <Loader2 size={14} className="animate-spin" aria-hidden /> : <Search size={14} aria-hidden />} Investigar precio
+          {enviando ? <Loader2 size={14} className="animate-spin" aria-hidden /> : <Search size={14} aria-hidden />}{" "}
+          {modo === "contrato" && !item ? "Investigar todos los ítems" : "Investigar precio"}
         </button>
       </form>
     </Panel>
   );
 }
 
-function VistaDetalle({ id }: { id: string }) {
+function VistaDetalle({ id, onContrato }: { id: string; onContrato?: (ocid: string) => void }) {
   const { data, error, mutate } = useAdmin<Detalle>(`/precios-lab/${id}`, {
     refreshInterval: (d) => (d && (d.estado === "listo" || d.estado === "error") ? 0 : 3_000),
   });
@@ -401,7 +454,16 @@ function VistaDetalle({ id }: { id: string }) {
       <Panel
         titulo={data.consulta}
         descripcion={`Pedida ${hace(data.creado) ?? ""}${data.entrada.ocid ? `, del contrato ${data.entrada.ocid}${data.entrada.item ? ` ítem ${data.entrada.item}` : ""}` : ""}`}
-        acciones={<Badge tono={ESTADO[data.estado].tono}>{ESTADO[data.estado].texto}</Badge>}
+        acciones={
+          <span className="flex flex-wrap items-center gap-2">
+            {data.entrada.ocid && onContrato && (
+              <button type="button" className={claseBoton("secundario", "sm")} onClick={() => onContrato(data.entrada.ocid!)}>
+                Todos los ítems del contrato
+              </button>
+            )}
+            <Badge tono={ESTADO[data.estado].tono}>{ESTADO[data.estado].texto}</Badge>
+          </span>
+        }
       >
         <ol className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
           {PASOS.map((p, i) => {
@@ -489,15 +551,175 @@ function VistaDetalle({ id }: { id: string }) {
   );
 }
 
+/** Todos los ítems de un contrato: lo que pagó el Estado frente a la mediana de las tiendas, ítem por ítem y en total. */
+function VistaContrato({ ocid, abierto, onAbrir }: { ocid: string; abierto: string | null; onAbrir: (id: string) => void }) {
+  const { data, error, mutate } = useAdmin<Contrato>(`/precios-lab/contrato/${encodeURIComponent(ocid)}`, {
+    refreshInterval: (d) => (d?.items.some((i) => i.investigacion && (i.investigacion.estado === "en_cola" || i.investigacion.estado === "corriendo")) ? 8_000 : 0),
+  });
+  const [lanzando, setLanzando] = useState(false);
+  const [aviso, setAviso] = useState<string | null>(null);
+  if (error) return <ErrorBanner error={error} titulo="No se pudo leer el contrato" onReintentar={() => mutate()} />;
+  if (!data) return <Panel titulo={`Contrato ${ocid}`}><Loader2 size={16} className="animate-spin text-mute" aria-hidden /></Panel>;
+
+  const faltan = data.items.filter((i) => !i.sinTiendas && (!i.investigacion || i.investigacion.estado === "error")).length;
+  const enCurso = data.items.filter((i) => i.investigacion && (i.investigacion.estado === "en_cola" || i.investigacion.estado === "corriendo")).length;
+  const { comparados, encima, pagado, mercado } = data.total;
+  const diferencia = pagado - mercado;
+  const lanzar = async () => {
+    setLanzando(true);
+    setAviso(null);
+    try {
+      const r = await adminFetch<{ lanzadas: { item: number; id?: string; error?: string }[]; quedan: number }>("/precios-lab/contrato", {
+        method: "POST",
+        body: JSON.stringify({ ocid }),
+      });
+      const ok = r.lanzadas.filter((x) => x.id).length;
+      setAviso(`${ok} ${ok === 1 ? "ítem en cola" : "ítems en cola"}${r.quedan ? `; quedan ${r.quedan} para la siguiente tanda` : ""}.`);
+      mutate();
+    } catch (err) {
+      setAviso(mensajeError(err));
+    } finally {
+      setLanzando(false);
+    }
+  };
+
+  const pagoDe = (i: ItemContrato) => i.precioAdjudicado ?? i.precioReferencial;
+  const columnas: Columna<ItemContrato>[] = [
+    {
+      clave: "item",
+      titulo: "Ítem",
+      principal: true,
+      celda: (i) => (
+        <span className="block min-w-0">
+          <span className="text-ink">
+            {i.item}. {i.descripcion}
+          </span>
+          <span className="block text-meta text-mute">
+            {i.cantidad != null ? `${NUM.format(i.cantidad)} ${(i.unidad ?? "").toLowerCase()}` : i.unidad}
+          </span>
+        </span>
+      ),
+    },
+    {
+      clave: "pago",
+      titulo: "Pagó el Estado",
+      alinear: "derecha",
+      celda: (i) => (
+        <span className="block">
+          {soles(pagoDe(i))}
+          <span className="block text-meta text-mute">{i.precioAdjudicado != null ? "adjudicado" : i.precioReferencial != null ? "referencial" : ""}</span>
+        </span>
+      ),
+    },
+    {
+      clave: "mercado",
+      titulo: "Tiendas (mediana)",
+      alinear: "derecha",
+      celda: (i) => {
+        const v = i.investigacion;
+        if (!v || v.mediana == null) return "";
+        return (
+          <span className="block">
+            {soles(v.mediana)}
+            {v.p25 != null && <span className="block text-meta text-mute">{`${soles(v.p25)} a ${soles(v.p75)}`}</span>}
+          </span>
+        );
+      },
+    },
+    { clave: "razon", titulo: "Veces", alinear: "derecha", celda: (i) => (i.investigacion?.razon != null ? i.investigacion.razon.toLocaleString("es-PE") : "") },
+    {
+      clave: "resultado",
+      titulo: "Resultado",
+      anchoCompletoMovil: true,
+      celda: (i) => {
+        const v = i.investigacion;
+        if (i.sinTiendas) return <span className="text-meta text-mute">Servicio o monto global: no se compara en tiendas</span>;
+        if (!v) return <span className="text-meta text-mute">Sin investigar</span>;
+        if (v.estado !== "listo") return <Badge tono={ESTADO[v.estado].tono}>{v.estado === "corriendo" && v.paso ? `${ESTADO[v.estado].texto}: ${v.paso}` : ESTADO[v.estado].texto}</Badge>;
+        return (
+          <span className="flex flex-col items-start gap-1">
+            <Badge tono={tonoVeredicto(v.veredicto ?? "")}>{v.veredicto}</Badge>
+            {v.caja ? <span className="text-meta text-clayTexto">¿Caja de {v.caja}? Revisa la unidad en las bases</span> : null}
+            {!i.cuentaEnTotal && !v.caja && (v.validas ?? 0) < 3 ? <span className="text-meta text-mute">No entra en el total</span> : null}
+          </span>
+        );
+      },
+    },
+  ];
+
+  return (
+    <div className="space-y-4">
+      <Panel
+        titulo={data.contrato.titulo ?? `Contrato ${ocid}`}
+        descripcion={`${data.contrato.entidad ? `${data.contrato.entidad}, ` : ""}contrato ${data.contrato.codigo ?? ocid}, ${data.items.length} ${data.items.length === 1 ? "ítem" : "ítems"}`}
+        acciones={
+          faltan > 0 ? (
+            <button type="button" className={claseBoton("primario", "sm")} onClick={lanzar} disabled={lanzando}>
+              {lanzando ? <Loader2 size={14} className="animate-spin" aria-hidden /> : <Search size={14} aria-hidden />} Investigar {faltan === 1 ? "el que falta" : `los ${faltan} que faltan`}
+            </button>
+          ) : enCurso > 0 ? (
+            <Badge tono="pending">{enCurso} en curso</Badge>
+          ) : null
+        }
+      >
+        <StatGrid columnas={4}>
+          <StatCard etiqueta="Ítems comparados" valor={`${NUM.format(comparados)} de ${NUM.format(data.items.length)}`} pista={`${NUM.format(encima)} por encima del mercado`} tono={encima > 0 ? "warn" : "neutral"} />
+          <StatCard etiqueta="Pagó el Estado" valor={comparados ? soles(pagado) : null} pista="en los ítems comparados" />
+          <StatCard etiqueta="A la mediana de las tiendas" valor={comparados ? soles(mercado) : null} pista="mismas cantidades" />
+          <StatCard
+            etiqueta="Diferencia"
+            valor={comparados ? soles(diferencia) : null}
+            pista={comparados && mercado > 0 ? `${diferencia >= 0 ? "+" : ""}${Math.round((pagado / mercado - 1) * 100)} % frente a las tiendas` : undefined}
+            tono={comparados && mercado > 0 && pagado / mercado >= 1.15 ? "danger" : "neutral"}
+          />
+        </StatGrid>
+        <p className="mt-3 text-meta text-mute">
+          El total suma solo los ítems con 3 o más ofertas válidas y sin sospecha de caja. Es un indicio, no una prueba: el Estado compra por
+          volumen y con entrega, y la tienda vende al por menor.
+        </p>
+        {aviso && <p className="mt-2 text-meta text-inkSoft">{aviso}</p>}
+      </Panel>
+      <DataTable
+        etiqueta="Ítems del contrato"
+        columnas={columnas}
+        filas={data.items}
+        claveFila={(i) => String(i.item)}
+        onFila={(i) => i.investigacion && onAbrir(i.investigacion.id)}
+        filaActiva={(i) => !!abierto && i.investigacion?.id === abierto}
+        porPagina={15}
+        apilarHasta="lg"
+      />
+    </div>
+  );
+}
+
 function Laboratorio() {
   const params = useSearchParams();
   const router = useRouter();
   const id = params.get("id");
+  const contrato = params.get("contrato");
   const { data, error, mutate, isLoading } = useAdmin<{ investigaciones: Fila[]; total: { n: number; costo: number } }>("/precios-lab", { refreshInterval: 10_000 });
-  const elegir = (nuevo: string | null) => router.replace(nuevo ? `/admin/precios?id=${nuevo}` : "/admin/precios", { scroll: false });
+  // ?contrato= (todos los ítems de un contrato) y ?id= (una investigación) conviven: se abre un ítem sin perder el contrato.
+  const ir = (c: string | null, i: string | null) => {
+    const q = new URLSearchParams();
+    if (c) q.set("contrato", c);
+    if (i) q.set("id", i);
+    router.replace(q.size ? `/admin/precios?${q}` : "/admin/precios", { scroll: false });
+  };
+  const elegir = (nuevo: string | null) => ir(null, nuevo);
 
   const columnas: Columna<Fila>[] = [
-    { clave: "consulta", titulo: "Producto", principal: true, celda: (f) => f.consulta },
+    {
+      clave: "consulta",
+      titulo: "Producto",
+      principal: true,
+      celda: (f) => (
+        <span className="block min-w-0">
+          {f.consulta}
+          {f.ocid && <span className="block text-meta text-mute">contrato {f.ocid}{f.item ? `, ítem ${f.item}` : ""}</span>}
+        </span>
+      ),
+    },
     {
       clave: "estado",
       titulo: "Estado",
@@ -517,6 +739,10 @@ function Laboratorio() {
             onCreada={(nuevo) => {
               mutate();
               elegir(nuevo);
+            }}
+            onContrato={(c) => {
+              mutate();
+              ir(c, null);
             }}
           />
           <div className="min-w-0 space-y-3">
@@ -541,7 +767,8 @@ function Laboratorio() {
             />
           </div>
         </div>
-        {id ? <VistaDetalle id={id} /> : null}
+        {contrato ? <VistaContrato ocid={contrato} abierto={id} onAbrir={(i) => ir(contrato, i)} /> : null}
+        {id ? <VistaDetalle id={id} onContrato={contrato ? undefined : (c) => ir(c, id)} /> : null}
       </div>
     </AdminShell>
   );

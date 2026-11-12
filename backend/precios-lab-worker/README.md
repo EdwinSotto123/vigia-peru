@@ -57,6 +57,14 @@ sí, así que le corresponde a vigia-precios).
 La API de Vigía la expone al panel en `/admin/precios-lab` (`backend/api/src/routes/admin_precios.ts`), que además arma
 el pedido desde un contrato (`ocid` + `item`) y suma lo que pagó el Estado por el mismo CUBSO.
 
+**Contrato entero** (`/admin/precios-lab/contrato`, 2026-11-12): investiga todos los ítems de un contrato (hasta 12 por
+tanda, sin servicios ni montos globales), uno cada 40 s (`espera` en `POST /research`, un `step.sleep` del Workflow: no
+abren a la vez las mismas tiendas, el contenedor ni GLM), y suma lo pagado frente a la mediana de las tiendas en los ítems
+con 3 o más ofertas válidas. El precio adjudicado de cada ítem se empata con `precio_item` por descripción o CUBSO, nunca
+por número: `precio_item` numera como el OCDS y `convocatoria_items` como el SEACE (el arroz de 2026-988-2 tomaba el
+precio de los fideos). Si la referencia es casi 6, 12, 24, 50 o 100 veces la mediana, el resumen avisa que puede ser una
+caja llamada «unidad» (`cajaProbable`) y ese ítem no entra en el total.
+
 ## Despliegue
 
 ```bash

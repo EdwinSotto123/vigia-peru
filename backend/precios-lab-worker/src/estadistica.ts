@@ -77,6 +77,8 @@ export function resumir(ofertas: Oferta[], referencia: number | null, refs: Refe
       razon >= 1.5 ? "Muy por encima del mercado" : razon >= 1.15 ? "Por encima del mercado" : razon > 0.85 ? "En línea con el mercado" : "Por debajo del mercado";
     nota = `La referencia (${soles(referencia!)}) es ${razon.toLocaleString("es-PE")} veces la mediana de ${precios.length} ofertas (${soles(mediana!)}).`;
   }
+  const caja = precios.length >= 3 ? cajaProbable(razon) : null;
+  if (caja) nota += ` Ojo: es casi ${caja} veces la mediana; puede que la entidad compre por caja o paquete de ${caja} y lo llame «unidad». Revisa las bases antes de concluir.`;
   const estado = refs.length ? refs.reduce((m, r) => (r.n > m.n ? r : m), refs[0]) : null;
   if (estado && mediana) {
     nota += ` El Estado pagó una mediana de ${soles(estado.mediana)} (${estado.detalle}).`;
@@ -94,5 +96,20 @@ export function resumir(ofertas: Oferta[], referencia: number | null, refs: Refe
     razon,
     veredicto,
     nota: nota.trim(),
+    caja,
   };
+}
+
+/** Tamaños de caja o paquete comunes en las compras del Estado (blísteres, cajas de leche, millares…). */
+const CAJAS = [6, 10, 12, 20, 24, 25, 30, 36, 40, 48, 50, 60, 100];
+
+/**
+ * Las entidades a veces llaman «unidad» a una caja: leche evaporada «x 400 g» a S/ 36 la unidad (2026-754-1) es una caja
+ * de 24 latas a S/ 1,50 cada una, o una compra cara. Si la referencia es casi N veces la mediana (±10 %), con N un tamaño de
+ * caja común, se avisa. No cambia el veredicto: lo resuelve quien lee las bases.
+ */
+export function cajaProbable(razon: number | null): number | null {
+  if (razon == null || razon < 5) return null;
+  const cerca = CAJAS.map((k) => ({ k, d: Math.abs(razon / k - 1) })).sort((a, b) => a.d - b.d)[0];
+  return cerca.d <= 0.1 ? cerca.k : null;
 }

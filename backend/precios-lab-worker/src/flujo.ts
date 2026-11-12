@@ -41,7 +41,8 @@ const MAX_OFERTAS_BUSCADOR = 15;
 const MAX_TIENDAS_DIRECTORIO = 12;
 const MAX_LISTADOS_IA = 4;
 const MAX_LECTURAS_IA = 5;
-const MAX_JUZGAR = 40;
+/** Con el directorio llegan 70 a 150 ofertas; con 40 quedaba más de la mitad «sin juicio» (cemento 11-12: 43 de 72). */
+const MAX_JUZGAR = 80;
 const LOTE_JUICIO = 20;
 
 const ahora = () => new Date().toISOString();
@@ -69,10 +70,14 @@ async function sumarGasto(env: Env, id: string, g: Gasto) {
 
 const CONFIG = { retries: { limit: 2, delay: "15 seconds" as const, backoff: "exponential" as const }, timeout: "10 minutes" as const };
 
-export class Investigacion extends WorkflowEntrypoint<Env, { id: string }> {
-  async run(event: Readonly<WorkflowEvent<{ id: string }>>, step: WorkflowStep) {
+/** `espera`: segundos antes de empezar. Al investigar todos los ítems de un contrato se escalonan, para no abrir a la vez
+ * las mismas tiendas (turnos de 1 s por dominio), el contenedor (máx. 2) y GLM (tope por minuto, compartido). */
+export class Investigacion extends WorkflowEntrypoint<Env, { id: string; espera?: number }> {
+  async run(event: Readonly<WorkflowEvent<{ id: string; espera?: number }>>, step: WorkflowStep) {
     const env = this.env;
     const id = event.payload.id;
+    const espera = Math.min(900, Math.max(0, Math.trunc(event.payload.espera ?? 0)));
+    if (espera > 0) await step.sleep("esperar turno", espera * 1000);
     try {
       await this.correr(id, env, step);
     } catch (e) {

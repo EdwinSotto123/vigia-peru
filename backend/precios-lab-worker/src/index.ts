@@ -7,7 +7,8 @@
  *   POST /research          {consulta, especificacion?, unidad?, cantidad?, precioReferencia?, referencias?, ocid?, item?,
  *                            web?, autor?} → 202 {id}. La misma entrada el mismo día devuelve la investigación ya hecha
  *                            (idempotencia), salvo que haya fallado.
- *   GET  /jobs?limite=30     las últimas investigaciones
+ *                            `espera` (segundos, fuera de la entrada) atrasa el arranque: contrato entero escalonado.
+ *   GET  /jobs?limite=30     las últimas investigaciones (`ocid=` todas las de un contrato, con ítem y resultado)
  *   GET  /jobs/:id           estado, pasos (con su avance) y gasto
  *   GET  /results/:id        ficha, resumen y ofertas con su juicio y su evidencia
  *   GET  /evidencia/:id/:archivo   lo guardado en R2 (lo leído de cada página)
@@ -68,8 +69,11 @@ async function huella(e: Entrada): Promise<string> {
 }
 
 async function crear(env: Env, req: Request): Promise<Response> {
-  const e = limpiarEntrada((await req.json().catch(() => null)) as Record<string, unknown> | null);
+  const cuerpo = (await req.json().catch(() => null)) as Record<string, unknown> | null;
+  const e = limpiarEntrada(cuerpo);
   if (!e) return json({ error: "falta la consulta (3 a 300 caracteres)" }, 400);
+  // Fuera de la entrada (y de la huella): solo escalona el arranque.
+  const espera = Math.min(900, Math.max(0, Math.trunc(Number(cuerpo?.espera) || 0)));
   const clave = await huella(e);
   const previa = await env.DB.prepare("SELECT id, estado FROM investigacion WHERE clave = ?").bind(clave).first<{ id: string; estado: string }>();
   if (previa && previa.estado !== "error") return json({ id: previa.id, reutilizada: true });
@@ -77,19 +81,22 @@ async function crear(env: Env, req: Request): Promise<Response> {
   const id = crypto.randomUUID();
   await env.DB.prepare("INSERT INTO investigacion (id, clave, estado, entrada, consulta, creado) VALUES (?, ?, 'en_cola', ?, ?, ?)")
     .bind(id, clave, JSON.stringify(e), e.consulta, new Date().toISOString()).run();
-  await env.INVESTIGACION.create({ id, params: { id } });
+  await env.INVESTIGACION.create({ id, params: espera ? { id, espera } : { id } });
   return json({ id }, 202);
 }
 
 const COSTO = "costo_modelo + costo_web + costo_contenedor";
 
-async function lista(env: Env, limite: number) {
+/** Las últimas investigaciones, o todas las de un contrato (`ocid`), con su resultado en corto. */
+async function lista(env: Env, limite: number, ocid: string | null) {
   const r = await env.DB.prepare(
     `SELECT id, estado, paso, consulta, creado, terminado, ${COSTO} AS costo, json_extract(resumen, '$.veredicto') AS veredicto,
             json_extract(resumen, '$.mediana') AS mediana, json_extract(resumen, '$.validas') AS validas,
-            json_extract(entrada, '$.ocid') AS ocid, json_extract(entrada, '$.autor') AS autor
-       FROM investigacion ORDER BY creado DESC LIMIT ?`,
-  ).bind(limite).all();
+            json_extract(resumen, '$.p25') AS p25, json_extract(resumen, '$.p75') AS p75, json_extract(resumen, '$.razon') AS razon,
+            json_extract(resumen, '$.referencia') AS referencia, json_extract(resumen, '$.caja') AS caja, json_extract(ficha, '$.unidad_base') AS unidad,
+            json_extract(entrada, '$.ocid') AS ocid, json_extract(entrada, '$.item') AS item, json_extract(entrada, '$.autor') AS autor
+       FROM investigacion ${ocid ? "WHERE json_extract(entrada, '$.ocid') = ?" : ""} ORDER BY creado DESC LIMIT ?`,
+  ).bind(...(ocid ? [ocid, limite] : [limite])).all();
   const total = await env.DB.prepare(`SELECT count(*) AS n, COALESCE(sum(${COSTO}), 0) AS costo FROM investigacion`).first<{ n: number; costo: number }>();
   return json({ investigaciones: r.results, total });
 }
@@ -142,7 +149,10 @@ export default {
       if (url.pathname === "/salud") return json({ ok: true, directorio: DIRECTORIO.length, navegador: !!env.BROWSER, contenedor: !!env.LECTOR });
       if (url.pathname === "/research" && req.method === "POST") return await crear(env, req);
       if (partes[0] === "jobs" && req.method === "GET") {
-        if (partes.length === 1) return await lista(env, Math.min(100, Math.max(1, Number(url.searchParams.get("limite")) || 30)));
+        if (partes.length === 1) {
+          const ocid = url.searchParams.get("ocid");
+          return await lista(env, Math.min(200, Math.max(1, Number(url.searchParams.get("limite")) || 30)), ocid && /^[A-Za-z0-9-]{3,80}$/.test(ocid) ? ocid : null);
+        }
         if (partes.length === 2) return await detalle(env, partes[1]);
       }
       if (partes[0] === "results" && partes.length === 2 && req.method === "GET") return await resultados(env, partes[1]);

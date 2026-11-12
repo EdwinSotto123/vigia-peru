@@ -117,6 +117,8 @@ export interface Resumen {
   razon: number | null;
   veredicto: string;
   nota: string;
+  /** La referencia es casi N veces la mediana, con N un tamaño de caja común (estadistica.ts cajaProbable). */
+  caja?: number | null;
 }
 
 /** Lo que gastó cada investigación. */
