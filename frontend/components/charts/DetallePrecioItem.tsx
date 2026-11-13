@@ -81,7 +81,12 @@ export function DetallePrecioItem({ fila, fmtMoney }: { fila: FilaPrecio; fmtMon
   const extraEstado = difEstado !== null && medianaEstado && pagado && fila.cantidad ? (pagado - medianaEstado) * fila.cantidad : null;
   // Los precios de tiendas se DESCARTARON (no eran el producto o la unidad). Sólo ese caso: pocos precios o un ítem sin
   // precio unitario no son un descarte, y sus precios se muestran como lo que son.
-  const descartada = observados.length > 0 && (f.retail_descartado === true || (!fila.medido && motivoCrudo === "delta_implausible_sin_unidad_confirmada"));
+  // El descarte es el veredicto «no verificable» (lo pone el guardarraíl o el juez de precio, que escribe su motivo en
+  // texto libre), salvo cuando lo implausible fue la comparación con el Estado y no las tiendas.
+  const descartada =
+    observados.length > 0 &&
+    (f.retail_descartado === true ||
+      (!fila.medido && fila.veredicto.clave === "no_verificable" && motivoCrudo !== "delta_implausible_contra_compras_del_estado_posible_lote"));
 
   return (
     <div className="text-meta leading-relaxed text-ink">
