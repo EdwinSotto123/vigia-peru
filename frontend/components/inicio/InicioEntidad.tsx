@@ -113,7 +113,7 @@ export function InicioEntidad({
         {/* Fija al bajar, con su propio scroll si no entra (un ministerio con muchos funcionarios). */}
         <aside
           aria-label="Quién la gobierna, quién decide y dónde comprobarlo"
-          className="grid min-w-0 items-start gap-4 sm:grid-cols-2 xl:order-first xl:grid-cols-3"
+          className="grid min-w-0 items-start gap-4 sm:grid-cols-2 xl:order-first xl:grid-cols-4"
         >
           <Suspense fallback={<Skeleton className="h-48 rounded-2xl" />}>
             <Lateral ruc={ruc} region={region} ubigeo={ubigeo} regionDenuncias={regionDenuncias} fuentes={fuentes} />

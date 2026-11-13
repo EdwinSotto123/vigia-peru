@@ -54,7 +54,7 @@ export function AccionesLista({ contratos }: { contratos: ContratoResumen[] }) {
     }
   };
   return (
-    <div className="flex flex-wrap items-center gap-2">
+    <div className="flex items-center gap-2">
       <button
         type="button"
         className={BOTON}
@@ -68,7 +68,9 @@ export function AccionesLista({ contratos }: { contratos: ContratoResumen[] }) {
       </button>
       <button type="button" className={BOTON} onClick={copiar}>
         {copiado ? <Check size={14} aria-hidden /> : <Link2 size={14} aria-hidden />}
-        <span aria-live="polite">{copiado ? "Enlace copiado" : "Copiar enlace de esta búsqueda"}</span>
+        <span aria-live="polite">
+          {copiado ? "Copiado" : <>Copiar enlace<span className="sr-only sm:not-sr-only"> de esta búsqueda</span></>}
+        </span>
       </button>
     </div>
   );
