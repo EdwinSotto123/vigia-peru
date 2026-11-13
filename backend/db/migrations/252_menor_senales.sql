@@ -28,13 +28,28 @@
 --   tdr_monto_distinto         media  el monto registrado es 5 veces mayor o menor que el que estima el requerimiento
 --   tdr_experiencia_alta       baja   la experiencia exigida al proveedor es 3 veces o más el monto del contrato
 --   contrato_monto_distinto (alta si el documento pasa el tope de 8 UIT y el registro no; sin los múltiplos exactos, que son cuotas)    media  el contrato u orden dice otro monto que el registrado (más del 5 % y S/ 100)
---   contrato_ruc_distinto      alta   el contrato u orden es con otro RUC que el del proveedor registrado
+--   contrato_ruc_distinto      alta   el contrato u orden es con otro RUC que el del proveedor registrado. No cuenta el RUC
+--                                     de la propia entidad (15 de 168 el 2026-11-13: la lectura tomó el del comprador) ni uno
+--                                     con el dígito verificador malo (mal leído)
+--   contrato_documento_ajeno   media  el documento es con otro RUC Y por otro monto: el PDF que la entidad subió es de otra
+--                                     compra (2433159: una orden de memoria RAM en un servicio de dispensadores de agua).
+--                                     Reemplaza a las dos anteriores: no dice nada del proveedor, dice que el contrato
+--                                     verdadero no está publicado
 --
 -- Las citas que vienen de los PDF pasan sin DNI (8 dígitos) ni RUC 10 (lleva el DNI). La API tapa los nombres al publicar.
 -- refrescar_menor_senales() rehace la tabla entera (segundos: son ~11 mil contratos); la llaman el Worker de scrapers
 -- después de cargar los menores (fuentes/seace_menores.ts) y el lector al terminar (backend/lector/menores.py).
 
 SET lock_timeout = '5s';
+
+-- El dígito verificador de un RUC (módulo 11): un RUC leído de un PDF con un dígito cambiado no pasa.
+CREATE OR REPLACE FUNCTION ruc_valido(r text) RETURNS boolean
+LANGUAGE sql IMMUTABLE AS $$
+  SELECT CASE WHEN r ~ '^\d{11}$' THEN
+    (11 - (SELECT sum(substr(r, i, 1)::int * (ARRAY[5, 4, 3, 2, 7, 6, 5, 4, 3, 2])[i]) FROM generate_series(1, 10) i) % 11) % 10
+      = substr(r, 11, 1)::int
+  ELSE false END
+$$;
 
 CREATE OR REPLACE FUNCTION sin_dni(t text) RETURNS text
 LANGUAGE sql IMMUTABLE AS $$
@@ -204,6 +219,8 @@ BEGIN
     CROSS JOIN LATERAL unnest(a.banderas) b
    WHERE a.version = 'v1' AND a.estado = 'ok' AND a.clase IN ('menor_tdr', 'menor_contrato') AND b = ANY (z.banderas)
      AND (b <> 'tdr_marca_sin_equivalente' OR b = ANY (mm.banderas))
+     -- El RUC del documento es el de la propia entidad (la lectura tomó el del comprador) o no es un RUC: no hay otro proveedor.
+     AND NOT (b = 'contrato_ruc_distinto' AND (a.salida->>'proveedor_ruc' = m.entidad_ruc OR NOT ruc_valido(a.salida->>'proveedor_ruc')))
      -- Un múltiplo exacto (lo registrado es 2 a 24 veces el documento, o al revés) es un servicio pagado en cuotas o una
      -- orden por mes, no un monto distinto: 173 de las 500 banderas del 2026-11-05 eran así (S/ 1,800 y una orden de S/ 3,600).
      AND NOT (b = 'contrato_monto_distinto' AND m.monto > 0 AND NULLIF(a.salida->>'monto_total', '')::numeric > 0
@@ -212,6 +229,21 @@ BEGIN
                       * least(m.monto, (a.salida->>'monto_total')::numeric) - greatest(m.monto, (a.salida->>'monto_total')::numeric))
                   <= 0.02 * greatest(m.monto, (a.salida->>'monto_total')::numeric))
   ON CONFLICT (id_contrato, tipo) DO NOTHING;
+
+  -- Otro RUC y otro monto a la vez: el PDF es de otra compra. Una señal que lo dice, en vez de dos que apuntan al proveedor.
+  INSERT INTO menor_senal (id_contrato, tipo, severidad, monto, detalle)
+  SELECT r.id_contrato, 'contrato_documento_ajeno', 'media', mo.monto,
+         r.detalle || jsonb_strip_nulls(jsonb_build_object(
+           'en_documento', mo.detalle->'en_documento',
+           'objeto_documento', NULLIF(left(sin_dni(a.salida->'items'->0->>'descripcion'), 200), '')))
+    FROM menor_senal r
+    JOIN menor_senal mo ON mo.id_contrato = r.id_contrato AND mo.tipo = 'contrato_monto_distinto'
+    JOIN menor_lectura a ON a.id_contrato = r.id_contrato AND a.clase = 'menor_contrato' AND a.version = 'v1'
+   WHERE r.tipo = 'contrato_ruc_distinto'
+  ON CONFLICT (id_contrato, tipo) DO NOTHING;
+  DELETE FROM menor_senal s
+   WHERE s.tipo IN ('contrato_ruc_distinto', 'contrato_monto_distinto')
+     AND EXISTS (SELECT 1 FROM menor_senal j WHERE j.id_contrato = s.id_contrato AND j.tipo = 'contrato_documento_ajeno');
 
   SELECT count(*) INTO n FROM menor_senal;
   RETURN n;
@@ -222,6 +254,7 @@ BEGIN
   IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'vigia_jobs') THEN
     ALTER FUNCTION refrescar_menor_senales() OWNER TO vigia_jobs;
     ALTER FUNCTION sin_dni(text) OWNER TO vigia_jobs;
+    ALTER FUNCTION ruc_valido(text) OWNER TO vigia_jobs;
     ALTER VIEW menor_item_con_precio OWNER TO vigia_jobs;
   END IF;
   IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'vigia_api') THEN

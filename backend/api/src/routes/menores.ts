@@ -67,7 +67,7 @@ export const OBJETO_MENOR = { bien: "BIEN", servicio: "SERVICIO", consultoria: "
 
 /** Los tipos de señal que salen de lo que Claude leyó en el requerimiento o el contrato (dos lecturas que coinciden). */
 const SENALES_DOCUMENTO = ["tdr_proveedor_nombrado", "tdr_marca_sin_equivalente", "tdr_monto_distinto", "tdr_experiencia_alta",
-                           "contrato_monto_distinto", "contrato_ruc_distinto"];
+                           "contrato_monto_distinto", "contrato_ruc_distinto", "contrato_documento_ajeno"];
 const conTipo = (...t: string[]) => `x.senal_tipos && ARRAY[${t.map((x) => `'${x}'`).join(", ")}]::text[]`;
 
 /** Las señales de cada contrato menor (menor_senal, migración 252), como filtro: alguna, las graves o por familia. */

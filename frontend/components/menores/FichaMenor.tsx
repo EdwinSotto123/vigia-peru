@@ -190,6 +190,8 @@ function fraseSenal(s: SenalMenor, f: FichaMenor): ReactNode {
         </>
       );
     }
+    case "contrato_documento_ajeno":
+      return `${doc} que subió al SEACE es de otra compra: el de ésta no está publicado.`;
     case "menor_partido_mismo_dia":
       return `la entidad cotizó el mismo día ${contratos ? numero(contratos) : "varios"} contratos menores con este proveedor que juntos suman ${soles(s.monto)}, más que el tope de 8 UIT${topeTxt}.`;
     case "menor_partido_en_el_anio":
@@ -444,6 +446,7 @@ const PASO_DE_SENAL: Record<string, ClavePaso> = {
   menor_orden_antes_de_cotizar: "orden",
   contrato_monto_distinto: "documento",
   contrato_ruc_distinto: "documento",
+  contrato_documento_ajeno: "documento",
 };
 
 /**
@@ -775,6 +778,8 @@ function filasComparadas(f: FichaMenor): FilaComparada[] {
   // Qué documento es, con su fecha frente a la firma registrada.
   const dispDoc = fechasDispares(f).documento;
   const fDoc = c ? ymd(c.fecha) : null;
+  // El PDF es de otra compra (otro RUC y otro monto a la vez): lo dice el primer renglón y los demás lo llevan de fondo.
+  const ajeno = senal("contrato_documento_ajeno");
   poner({
     etiqueta: "Qué documento es",
     pedido: r.es_requerimiento ? [{ valor: TIPO_REQ[r.tipo as string] ?? "Requerimiento" }] : [],
@@ -793,7 +798,8 @@ function filasComparadas(f: FichaMenor): FilaComparada[] {
         : []),
       ...(m.fecha ? [{ rotulo: "Firma en el SEACE", valor: cifra(fechaConAnio(m.fecha)) }] : []),
     ],
-    tono: dispDoc ? "dudoso" : undefined,
+    tono: peorTono([ajeno?.severidad, dispDoc ? "dudoso" : null]),
+    marcas: [marca(ajeno)].filter(Boolean) as Marca[],
   });
 
   // Qué se pide frente a lo que dice el documento y a lo que registró el SEACE (2370416: el contrato es por un puente y
@@ -811,6 +817,7 @@ function filasComparadas(f: FichaMenor): FilaComparada[] {
         : []),
       ...(m.descripcion ? [{ rotulo: "En el SEACE", valor: oracion(m.descripcion) }] : []),
     ],
+    tono: ajeno?.severidad,
   });
 
   // El monto: el que estima el requerimiento, el del documento y el registrado.
@@ -837,14 +844,15 @@ function filasComparadas(f: FichaMenor): FilaComparada[] {
               : []),
             ...(registrado ? [{ rotulo: "En el SEACE", valor: registrado }] : []),
           ],
-    tono: peorTono([montoDistinto?.severidad, montoTdr?.severidad]),
+    tono: peorTono([montoDistinto?.severidad, montoTdr?.severidad, ajeno?.severidad]),
     marcas: [marca(montoDistinto), marca(montoTdr)].filter(Boolean) as Marca[],
   });
 
   // El proveedor: si el requerimiento ya lo nombraba, quién ganó y con qué RUC está el documento. El RUC del documento
   // sólo si es de una empresa (RUC 20): el de una persona lleva su DNI.
   const nombrado = senal("tdr_proveedor_nombrado");
-  const rucDistinto = senal("contrato_ruc_distinto");
+  const rucDistinto = senal("contrato_ruc_distinto") ?? ajeno;
+  const marcaRuc = rucDistinto && rucDistinto !== ajeno ? marca(rucDistinto) : null;
   const pn = (r.proveedor_nombrado ?? {}) as Record<string, any>;
   const perfilTipo = PERFIL_TIPO[((r.perfil_proveedor ?? {}) as Record<string, any>).tipo as string];
   const citaNombrado = nombrado ? txt((nombrado.detalle as Record<string, unknown>).cita) : null;
@@ -880,7 +888,7 @@ function filasComparadas(f: FichaMenor): FilaComparada[] {
         : []),
     ],
     tono: peorTono([nombrado?.severidad, rucDistinto?.severidad]),
-    marcas: [marca(nombrado), marca(rucDistinto)].filter(Boolean) as Marca[],
+    marcas: [marca(nombrado), marcaRuc].filter(Boolean) as Marca[],
   });
 
   // Lo que se exige al proveedor, frente a quién es el que ganó (cuánto llevaba en la SUNAT al firmar).
@@ -890,9 +898,7 @@ function filasComparadas(f: FichaMenor): FilaComparada[] {
   const experiencia = senal("tdr_experiencia_alta");
   const marcaSinEq = senal("tdr_marca_sin_equivalente");
   const quien = [m.provTipo ? oracion(m.provTipo) : null, m.provDesde ? `en la SUNAT desde ${fechaConAnio(m.provDesde)}` : null].filter(Boolean).join(", ");
-  poner({
-    etiqueta: "Lo que exige al proveedor",
-    pedido: [
+  const exige: Linea[] = [
       ...(txt(perfil.formacion) ? [{ rotulo: "Formación", valor: txt(perfil.formacion) }] : []),
       ...(num(perfil.experiencia_anios) != null ? [{ rotulo: "Experiencia", valor: plural(num(perfil.experiencia_anios)!, "año", "años") }] : []),
       ...(num(perfil.experiencia_monto) != null ? [{ rotulo: "Facturación", valor: cifra(soles(num(perfil.experiencia_monto))) }] : []),
@@ -900,9 +906,12 @@ function filasComparadas(f: FichaMenor): FilaComparada[] {
       ...(marcasReq.length
         ? [{ rotulo: "Marcas", valor: marcasReq.map((x) => `${x.marca}${x.con_equivalente ? " (o equivalente)" : " (sin «o equivalente»)"}`).join(", ") }]
         : []),
-    ],
+  ];
+  poner({
+    etiqueta: exige.length ? "Lo que exige al proveedor" : "Quién es el proveedor",
+    pedido: exige,
     firmado: [
-      ...(quien ? [{ rotulo: "Quién ganó", valor: quien }] : []),
+      ...(quien ? [{ rotulo: exige.length ? "Quién ganó" : "En la SUNAT", valor: quien }] : []),
       ...(m.provDiasAlGanar != null && m.provDiasAlGanar >= 0 ? [{ rotulo: "Al firmar", valor: `llevaba ${antiguedadTxt(m.provDiasAlGanar)} en la SUNAT` }] : []),
     ],
     tono: peorTono([marcaSinEq?.severidad, experiencia?.severidad]),
@@ -928,7 +937,7 @@ function filasComparadas(f: FichaMenor): FilaComparada[] {
   poner({
     etiqueta: "Penalidad",
     pedido: txt(r.penalidad) ? [{ valor: txt(r.penalidad) }] : [],
-    firmado: c && txt(c.penalidad) ? [{ valor: txt(c.penalidad) }] : [],
+    firmado: c && txt(c.penalidad) ? [{ valor: oracion(txt(c.penalidad)!) }] : [],
   });
   return filas;
 }
@@ -941,7 +950,8 @@ function filasComparadas(f: FichaMenor): FilaComparada[] {
  * nombre de cada columna encima de su valor.
  */
 function Comparacion({ f, filas, er, ec }: { f: FichaMenor; filas: FilaComparada[]; er: EstadoDoc; ec: EstadoDoc }) {
-  const COLS = "md:grid-cols-[10rem_minmax(0,1fr)_minmax(0,1fr)]";
+  const conPedido = er === "leido" || filas.some((x) => x.pedido.length > 0);
+  const COLS = conPedido ? "md:grid-cols-[10rem_minmax(0,1fr)_minmax(0,1fr)]" : "md:grid-cols-[10rem_minmax(0,1fr)]";
   return (
     <div className="space-y-2">
       {/* En el celular no hay cabecera de columnas: el estado de cada documento, en una línea. */}
@@ -951,13 +961,15 @@ function Comparacion({ f, filas, er, ec }: { f: FichaMenor; filas: FilaComparada
       <div className="tarjeta overflow-hidden rounded-2xl border border-line bg-paper">
         <div aria-hidden className={cn("hidden gap-x-4 border-b border-line bg-paperSoft px-4 py-2.5 md:grid", COLS)}>
           <span />
-          <span className="min-w-0">
-            <span className="flex items-center gap-1.5 text-meta font-semibold text-ink">
-              <FileText size={14} className="shrink-0 text-mute" aria-hidden />
-              El requerimiento dice
+          {conPedido && (
+            <span className="min-w-0">
+              <span className="flex items-center gap-1.5 text-meta font-semibold text-ink">
+                <FileText size={14} className="shrink-0 text-mute" aria-hidden />
+                El requerimiento dice
+              </span>
+              <span className="block text-rotulo text-mute">{ESTADO_REQ[er]}</span>
             </span>
-            <span className="block text-rotulo text-mute">{ESTADO_REQ[er]}</span>
-          </span>
+          )}
           <span className="min-w-0">
             <span className="flex items-center gap-1.5 text-meta font-semibold text-ink">
               <FileSignature size={14} className="shrink-0 text-mute" aria-hidden />
@@ -979,18 +991,26 @@ function Comparacion({ f, filas, er, ec }: { f: FichaMenor; filas: FilaComparada
                   </span>
                 )}
               </dt>
+              {conPedido && (
+                <dd className="min-w-0 break-words text-meta leading-snug">
+                  <span className="mb-0.5 block text-micro font-semibold text-mute md:sr-only">El requerimiento</span>
+                  <Lineas lineas={x.pedido} vacio={VACIO[er]} />
+                </dd>
+              )}
               <dd className="min-w-0 break-words text-meta leading-snug">
-                <span className="mb-0.5 block text-micro font-semibold text-mute md:sr-only">El requerimiento</span>
-                <Lineas lineas={x.pedido} vacio={VACIO[er]} />
-              </dd>
-              <dd className="min-w-0 break-words text-meta leading-snug">
-                <span className="mb-0.5 block text-micro font-semibold text-mute md:sr-only">El contrato</span>
+                {conPedido && <span className="mb-0.5 block text-micro font-semibold text-mute md:sr-only">El contrato</span>}
                 <Lineas lineas={x.firmado} vacio={VACIO[ec]} />
               </dd>
             </div>
           ))}
         </dl>
       </div>
+      {!conPedido && (
+        <p className="hidden items-start gap-1.5 text-rotulo text-mute md:flex">
+          <FileText size={14} className="mt-0.5 shrink-0" aria-hidden />
+          Del requerimiento no hay con qué comparar: {minuscula(ESTADO_REQ[er])}.
+        </p>
+      )}
       {f.senales.length > 0 && filas.some((x) => x.marcas?.length) && (
         <p className="text-rotulo text-mute">Cada marca lleva a su señal, con la evidencia, en «Por qué llama la atención».</p>
       )}

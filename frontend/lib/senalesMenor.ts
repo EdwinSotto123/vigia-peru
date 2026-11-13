@@ -30,6 +30,7 @@ const PRIORIDAD_SENAL_MENOR = [
   "menor_orden_antes_de_cotizar",
   "contrato_monto_distinto",
   "contrato_ruc_distinto",
+  "contrato_documento_ajeno",
   "menor_partido_mismo_dia",
   "menor_sobre_tope",
   "menor_precio_alto",
@@ -160,6 +161,15 @@ export function textoSenal(s: SenalMenorFila & Partial<Pick<SenalMenor, "detalle
         nombre: "El contrato es con otro proveedor",
         explica: `El contrato u orden es con otro RUC${typeof d.ruc_en_documento === "string" ? ` (${d.ruc_en_documento})` : ""} que el del proveedor que registra el SEACE. Lo confirmaron dos lecturas de la IA.`,
       };
+    case "contrato_documento_ajeno": {
+      const objeto = typeof d.objeto_documento === "string" && d.objeto_documento.trim() ? d.objeto_documento.trim() : null;
+      const numero = typeof d.numero === "string" && d.numero.trim() ? d.numero.trim() : null;
+      return {
+        chip: "El documento es de otra compra",
+        nombre: "El documento publicado es de otra compra",
+        explica: `El PDF que la entidad subió al SEACE como contrato u orden${numero ? ` (${numero})` : ""} es con otro proveedor y por otro monto (${soles(n(d.en_documento))}, frente a ${soles(n(d.registrado))} registrados)${objeto ? `, y trata de otra cosa: «${objeto.length > 140 ? `${objeto.slice(0, 140).trimEnd()}…` : objeto}»` : ""}. No dice nada del proveedor que ganó: dice que el contrato verdadero de esta compra no está publicado. Lo confirmaron dos lecturas de la IA.`,
+      };
+    }
     default:
       return { chip: s.tipo.replace(/_/g, " "), nombre: s.tipo.replace(/_/g, " "), explica: "Señal de este contrato menor." };
   }

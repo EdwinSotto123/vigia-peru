@@ -62,7 +62,7 @@ export const TIPOS_PROCESO: Record<string, Severidad> = {
 /** Las señales de un contrato menor que salen de leer su requerimiento o su contrato (SENALES_DOCUMENTO de menores.ts). */
 export const TIPOS_MENOR = [
   "tdr_proveedor_nombrado", "tdr_marca_sin_equivalente", "tdr_monto_distinto", "tdr_experiencia_alta",
-  "contrato_monto_distinto", "contrato_ruc_distinto",
+  "contrato_monto_distinto", "contrato_ruc_distinto", "contrato_documento_ajeno",
 ] as const;
 
 /** Los documentos de cada lado, en el orden en que pasan en una contratación. */

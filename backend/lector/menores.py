@@ -116,8 +116,9 @@ def main() -> None:
     filas = base.hacer(lambda cur: (cur.execute(PENDIENTES[a.clase].format(extra=extra), params), cur.fetchall())[1])
     ids = [f[0] for f in filas][: a.limite or None]
     # Lo registrado de cada uno: de dónde bajar el contrato y con qué comparar lo leído (banderas_contexto).
-    ctx = {r[0]: {"doc": r[1], "monto": float(r[2] or 0), "moneda": r[3], "proveedor_ruc": r[4]} for r in base.hacer(
-        lambda cur: (cur.execute("""SELECT id_contrato, id_documento_contrato, monto, moneda, proveedor_ruc FROM seace_menores
+    ctx = {r[0]: {"doc": r[1], "monto": float(r[2] or 0), "moneda": r[3], "proveedor_ruc": r[4],
+                  "entidad_ruc": r[5]} for r in base.hacer(
+        lambda cur: (cur.execute("""SELECT id_contrato, id_documento_contrato, monto, moneda, proveedor_ruc, entidad_ruc FROM seace_menores
                                      WHERE id_contrato = ANY(%s)""", (ids,)), cur.fetchall())[1])} if ids else {}
     print(f"{a.entorno}: {len(ids)} contratos menores por leer ({lector.CLASE} {lector.VERSION}, tope USD {a.tope_usd})", flush=True)
     claude = cliente_claude()

@@ -16,6 +16,7 @@ SISTEMA = """Lees el contrato, la orden de compra o la orden de servicio de una 
 
 Extrae SOLO lo que dice el documento. Si algo no aparece: null en números, cadena vacía en textos, lista vacía.
 Montos en la moneda del documento, sin separadores. La fecha en formato AAAA-MM-DD. El RUC, sólo sus 11 dígitos.
+proveedor_ruc: el RUC del PROVEEDOR o contratista (a quien se le compra), nunca el de la entidad que compra.
 No inventes montos ni fechas.
 
 items: cada línea del documento (hasta 40) con su cantidad, unidad, precio unitario y subtotal.
@@ -73,6 +74,8 @@ def banderas_contexto(salida: dict, ctx: dict) -> list[str]:
         out.append("contrato_monto_distinto")
     ruc = "".join(c for c in str(salida.get("proveedor_ruc") or "") if c.isdigit())
     reg = str(ctx.get("proveedor_ruc") or "")
-    if len(ruc) == 11 and ruc[:2] in ("10", "15", "17", "20") and len(reg) == 11 and ruc != reg:
+    # El RUC de la propia entidad no es «otro proveedor»: la lectura tomó el del comprador (15 de 168 el 2026-11-13).
+    if (len(ruc) == 11 and ruc[:2] in ("10", "15", "17", "20") and len(reg) == 11 and ruc != reg
+            and ruc != str(ctx.get("entidad_ruc") or "")):
         out.append("contrato_ruc_distinto")
     return out
