@@ -160,16 +160,20 @@ export default async function EntidadesPage({
             {
               valor: resumen.conAntecedentes != null ? numero(resumen.conAntecedentes) : null,
               etiqueta: "con antecedentes del ganador",
+              parte: resumen.conAntecedentes != null && resumen.totalEntidades ? resumen.conAntecedentes / resumen.totalEntidades : null,
+              tono: "media",
               contexto: resumen.conGraves != null ? `en algún contrato; ${numero(resumen.conGraves)} con alguno grave` : "en algún contrato",
             },
             {
               valor: resumen.conInformes != null ? numero(resumen.conInformes) : null,
               etiqueta: "con informes de la Contraloría",
+              parte: resumen.conInformes != null && resumen.totalEntidades ? resumen.conInformes / resumen.totalEntidades : null,
               contexto: "con responsabilidad presunta de sus funcionarios",
             },
             {
               valor: numero(resumen.conAlertas),
               etiqueta: "con dictamen publicado",
+              parte: resumen.totalEntidades ? resumen.conAlertas / resumen.totalEntidades : null,
               contexto: `${solesCompacto(resumen.monto)} adjudicados en esos contratos`,
             },
           ]}

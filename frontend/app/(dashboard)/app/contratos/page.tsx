@@ -565,6 +565,7 @@ async function CifrasOrdenes({ resumen, alcance }: { resumen: Promise<ResumenOrd
     {
       valor: porcentaje((100 * r.aPersonas) / r.ordenes),
       etiqueta: "a personas naturales",
+      parte: r.aPersonas / r.ordenes,
       contexto: `${numero(r.aPersonas)} órdenes por ${solesCompacto(r.montoPersonas)}, casi siempre a locadores (RUC 10)`,
       href: con({ persona: "natural" }),
     },
@@ -587,7 +588,31 @@ async function CifrasOrdenes({ resumen, alcance }: { resumen: Promise<ResumenOrd
       href: con({ antecedente: "al_borde_del_tope" }),
     });
   }
-  return <Indicadores franja items={items} />;
+  const aEmpresas = Math.max(0, r.ordenes - r.aPersonas);
+  const montoEmpresas = Math.max(0, r.monto - r.montoPersonas);
+  return (
+    <>
+      <Indicadores franja items={items} />
+      <Repartos titulo="Cómo se reparten estas órdenes">
+        <RepartoPartes
+          titulo="A quién se le compra, por número de órdenes"
+          de={`de ${numero(r.ordenes)} órdenes`}
+          partes={[
+            { clave: "personas", etiqueta: "A personas naturales", n: r.aPersonas, href: con({ persona: "natural" }), clase: "bg-[rgb(var(--serie-2))]" },
+            { clave: "empresas", etiqueta: "A empresas", n: aEmpresas, clase: "bg-[rgb(var(--serie-1))]" },
+          ]}
+        />
+        <RepartoPartes
+          titulo="Y por monto, en millones de soles"
+          de={`de ${solesCompacto(r.monto)}`}
+          partes={[
+            { clave: "personas", etiqueta: "A personas naturales", n: Math.round(r.montoPersonas / 1e6), href: con({ persona: "natural" }), clase: "bg-[rgb(var(--serie-2))]" },
+            { clave: "empresas", etiqueta: "A empresas", n: Math.round(montoEmpresas / 1e6), clase: "bg-[rgb(var(--serie-1))]" },
+          ]}
+        />
+      </Repartos>
+    </>
+  );
 }
 
 // ─── Vista Contratos Menores (≤8 UIT) ──────────────────────────────────────────
@@ -684,6 +709,7 @@ async function CifrasMenores({ resumen }: { resumen: Promise<ResumenMenores | nu
         {
           valor: numeroMen(r.leidos),
           etiqueta: "leídos por la IA",
+          parte: null,
           contexto: `de ${numeroMen(r.conRequerimiento)} requerimientos y ${numeroMen(r.conContrato)} contratos en PDF`,
           tono: "positivo",
         },

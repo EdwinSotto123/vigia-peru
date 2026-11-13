@@ -70,7 +70,8 @@ const entero = (s: string) => Number(s.replace(/,/g, ""));
  */
 function parteDe(it: Cifra): { p: number; rotulo: boolean } | null {
   if (it.parte === null) return null;
-  if (typeof it.parte === "number") return it.parte >= 0 && it.parte <= 1 ? { p: it.parte, rotulo: true } : null;
+  // Si la cifra ya ES el porcentaje («12 %»), la barra va sin repetirlo.
+  if (typeof it.parte === "number") return it.parte >= 0 && it.parte <= 1 ? { p: it.parte, rotulo: !(typeof it.valor === "string" && it.valor.includes("%")) } : null;
   if (typeof it.contexto !== "string") return null;
   const pct = it.contexto.match(/^\s*(\d+(?:[.,]\d+)?)\s?%/);
   if (pct) {
