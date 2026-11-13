@@ -485,14 +485,14 @@ function FilaTabla({
                   ))}
                 </span>
               )}
-              {/* Los números y las fechas, en una tira con una celda por dato (rótulo a la izquierda, dato a la derecha):
-                  antes iban como texto corrido tras los chips y no se distinguía el monto de la fecha. */}
+              {/* Los números y las fechas, en su propia línea con su rótulo delante («Valor S/ 99,027   Convocada 9 oct.»): antes iban
+                  corridos tras los chips; una caja con celdas costaba 30 px por fila (2026-11-13). */}
               {pares.length > 0 && (
-                <span className={cn("mt-2 grid grid-flow-col auto-cols-fr divide-x divide-line overflow-hidden rounded-lg border border-line bg-paperSoft/60", ultimaDe(pares) && k.hasta[ultimaDe(pares)!])}>
+                <span className={cn("mt-1.5 flex flex-wrap items-baseline gap-x-5 gap-y-0.5", ultimaDe(pares) && k.hasta[ultimaDe(pares)!])}>
                   {pares.map((a) => (
-                    <span key={a.clave} className={cn("flex min-w-0 flex-col px-2.5 py-1 [&_*]:text-left", k.hasta[a.desde!])}>
-                      <span className="text-micro font-medium uppercase tracking-wide text-mute">{a.corto ?? a.titulo}</span>
-                      <span className="min-w-0 whitespace-nowrap font-semibold">{fila.celdas[a.clave]}</span>
+                    <span key={a.clave} className={cn("inline-flex min-w-0 items-baseline gap-1.5 [&_*]:text-left [&_[role=img]]:hidden", k.hasta[a.desde!])}>
+                      <span className="shrink-0 text-rotulo text-mute">{a.corto ?? a.titulo}</span>
+                      <span className="min-w-0 whitespace-nowrap font-semibold [&_*]:inline">{fila.celdas[a.clave]}</span>
                     </span>
                   ))}
                 </span>

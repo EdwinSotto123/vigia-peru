@@ -324,7 +324,7 @@ export function PartidosExplorador({
         <div
           role="tablist"
           aria-label="Elecciones de"
-          className={cn("flex gap-2", portada ? "carrusel-lista -mx-4 min-w-0 max-w-[calc(100%+2rem)] flex-nowrap overflow-x-auto px-4 sm:mx-0 sm:max-w-full sm:flex-wrap sm:px-0" : "flex-wrap")}
+          className={cn("flex gap-2", portada ? "grid w-full grid-cols-2 sm:flex sm:w-auto sm:flex-wrap" : "flex-wrap")}
         >
           {PERIODOS.map((p) => {
             const activo = p.anio === anio;
@@ -367,7 +367,7 @@ export function PartidosExplorador({
             <div className="relative overflow-hidden rounded-2xl border border-line bg-paperSoft">
               <div className="flex items-center justify-between gap-3 px-4 pt-4">
                 {cobertura && !seleccion ? (
-                  <div role="tablist" aria-label="Qué pinta el mapa" className={cn("inline-flex rounded-full border border-line bg-paperDeep p-1", portada && "carrusel-lista max-w-full overflow-x-auto")}>
+                  <div role="tablist" aria-label="Qué pinta el mapa" className={cn("inline-flex rounded-full border border-line bg-paperDeep p-1", portada && "max-w-full flex-wrap max-sm:rounded-2xl")}>
                     {(
                       [
                         ["ganador", "Quién gobierna"],
@@ -438,7 +438,7 @@ export function PartidosExplorador({
               ) : vigilando ? (
                 <div className="border-t border-line px-4 py-3">
                   <p className="text-meta text-inkSoft">Qué parte de los contratos de cada región ya leyó Vigía</p>
-                  <ul className={cn("mt-2 flex gap-x-4 gap-y-1.5 text-rotulo text-mute", portada ? "carrusel-lista overflow-x-auto whitespace-nowrap" : "flex-wrap")}>
+                  <ul className="mt-2 flex flex-wrap gap-x-4 gap-y-1.5 text-rotulo text-mute">
                     {/* Los mismos colores y tramos que `colorLectura` (cinco escalones y «Ninguno» con el gris del mapa, que
                         cambia con el modo): antes la leyenda tenía un hex fijo y cuatro tramos, y el de 3 % o más no salía. El
                         borde, para que el gris claro del modo día se vea sobre el fondo. */}
@@ -459,7 +459,7 @@ export function PartidosExplorador({
                   </ul>
                 </div>
               ) : (
-              <ul className={cn("flex gap-x-4 gap-y-1.5 border-t border-line px-4 py-3", portada ? "carrusel-lista overflow-x-auto whitespace-nowrap" : "flex-wrap")}>
+              <ul className="flex flex-wrap gap-x-4 gap-y-1.5 border-t border-line px-4 py-3">
                 {leyenda.map(([o, n]) => (
                   <li key={o} className="flex shrink-0 items-center gap-1.5 text-meta text-inkSoft">
                     <span aria-hidden className="h-2.5 w-2.5 rounded-sm" style={{ background: colores.get(o) ?? otras }} />
@@ -482,7 +482,7 @@ export function PartidosExplorador({
           {/* ── Los paneles ─────────────────────────────────────── */}
           <div className="min-w-0">
             {portada && nodoFicha}
-            <div role="tablist" aria-label="Qué quieres ver" className={cn("flex gap-2", portada ? "carrusel-lista mb-3 overflow-x-auto" : "mb-5 flex-wrap")}>
+            <div role="tablist" aria-label="Qué quieres ver" className={cn("flex gap-2", portada ? "mb-3 flex-wrap" : "mb-5 flex-wrap")}>
               {PANELES.map(({ id, label, Icono }) => (
                 <button
                   key={id}
