@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { Info } from "lucide-react";
 import { Ayuda } from "@/components/patrones/Ayuda";
 import { cn } from "@/lib/utils";
@@ -17,10 +18,13 @@ export function DisclaimerBanner({ className }: DisclaimerBannerProps) {
     <p className={cn("flex flex-wrap items-center gap-x-1.5 text-meta text-inkSoft", className)}>
       <Info size={14} className="shrink-0 text-granate" aria-hidden />
       <strong className="font-semibold text-ink">Vigía Perú no acusa a nadie:</strong>
-      <span>las señales salen del cruce automático de datos públicos.</span>
+      <span>las señales salen del cruce automático de datos públicos y de la lectura de documentos con IA.</span>
       <Ayuda titulo="¿Quién saca conclusiones?">
         Cada señal debe verificarla un periodista, un fiscal o la Contraloría antes de sacar cualquier conclusión.
       </Ayuda>
+      <Link href="/metodologia" className="font-medium text-ink underline underline-offset-2 transition-colors hover:text-granate">
+        Cómo se calculan
+      </Link>
     </p>
   );
 }

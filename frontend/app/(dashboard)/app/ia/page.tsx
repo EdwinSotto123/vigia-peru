@@ -491,7 +491,7 @@ function CapituloProcesos({ r }: { r: ResumenIa }) {
 /** «claude-haiku-5-5» → «Claude Haiku 5.5». */
 function CapituloControl({ r }: { r: ResumenIa }) {
   const confirmar = Math.max(0, r.totales.lecturas - r.totales.documentos);
-  const modelos = r.modelos.length ? [...new Set(r.modelos.map((m) => nombreModelo(m) ?? m))].join(" y ") : "Claude Haiku";
+  const modelos = r.modelos.length ? [...new Set(r.modelos.map((m) => nombreModelo(m) ?? m))].join(" y ") : "un modelo de lenguaje";
   const porLectura = r.totales.lecturas > 0 ? r.totales.costoUsd / r.totales.lecturas : null;
   const controles: { icono: typeof ShieldCheck; titulo: string; texto: ReactNode }[] = [
     {

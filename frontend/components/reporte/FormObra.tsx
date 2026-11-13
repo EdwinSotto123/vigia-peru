@@ -542,7 +542,11 @@ export function FormObra({
               onChange={(e) => setPersonasInvolucradas(e.target.value)}
               placeholder="Ej: el gerente municipal, la subgerente de logística"
               className={cn(campo, "py-2")}
+              aria-describedby="obra-personas-nota"
             />
+            <p id="obra-personas-nota" className="mt-1 text-rotulo text-mute">
+              Este campo no se publica. En la descripción, que sí es pública, no nombres a personas particulares.
+            </p>
           </div>
           <div>
             <label htmlFor="obra-enlaces" className={etiqueta}>

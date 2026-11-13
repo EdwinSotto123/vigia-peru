@@ -262,7 +262,7 @@ export function Pestanas({
           aria-labelledby={`${id}-tab-${p.clave}`}
           hidden={p.clave !== actual}
           tabIndex={0}
-          className={cn(segunda ? "pt-4" : "pt-5", "focus-visible:outline-none")}
+          className={cn(segunda ? "pt-4" : "pt-5", "rounded-lg focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-granate")}
         >
           <PanelActual.Provider value={{ titulo: p.titulo ?? p.etiqueta, nivel: segunda ? 3 : 2 }}>{visitadas.has(p.clave) ? p.contenido : null}</PanelActual.Provider>
         </div>

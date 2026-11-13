@@ -38,6 +38,7 @@ const PARTICIPAR: Enlace[] = [
 
 const SOBRE_VIGIA: Enlace[] = [
   { href: "/preguntas", label: "Preguntas frecuentes" },
+  { href: "/metodologia", label: "Metodología" },
   { href: "/fuentes", label: "De dónde salen los datos" },
   { href: "/glosario", label: "Glosario" },
   { href: "/preguntas#cuentas", label: "Cuánto cuesta y quién paga" },
@@ -92,7 +93,7 @@ export function Footer() {
               <Marca tono="oscuro" tamano="lg" firma />
             </Link>
             <p className="mt-5 max-w-md text-pretty text-dato leading-relaxed text-paper/80">
-              Vigilancia cívica de las compras públicas del Perú. Sin fines de lucro y de código abierto, para que
+              Vigilancia cívica de las compras públicas del Perú. De código abierto, para que
               la verdad no dependa de quién paga el servidor.
             </p>
             <p className="mt-3 max-w-md text-pretty text-meta leading-relaxed text-paper/70">

@@ -337,7 +337,7 @@ export function LineaDeTiempo({ h, etiqueta, clave }: { h: Historia; etiqueta: s
               <svg
                 width={W}
                 height={H}
-                role="img"
+                role="group"
                 aria-label={`${etiqueta}, de ${mesLargo(t.desde)} a ${mesLargo(t.hasta)}. La lista de abajo tiene cada hecho con su fuente.`}
                 className="block cursor-crosshair select-none"
                 onClick={(e) => {

@@ -44,6 +44,9 @@ interface Item {
  *  cuadrito de su color en vez de una barra por fila (skill dataviz: «barra segmentada fina» junto a la lista). */
 interface Reparto { partes: ParteBarra[]; otros?: ParteBarra | null; etiqueta: string }
 
+/** Lo que dice un bloque cuando su consulta falló: nunca la frase de «no hay», que afirmaría un hecho sobre la empresa. */
+const NO_CARGO = "No pudimos cargar este dato. Vuelve a intentar en un momento.";
+
 function Bloque({ titulo, explica, items, verTodo, vacio, reparto, extra }: { titulo: string; explica?: string; items: Item[]; verTodo?: { href: string; texto: string }; vacio: string; reparto?: Reparto; extra?: React.ReactNode }) {
   return (
     // Mide lo que mide su lista: en la rejilla de dos columnas ya no se estira al alto del vecino (dejaba 150-200 px vacíos).
@@ -126,14 +129,15 @@ function repartoDe(todas: ParteBarra[], n: number, etiqueta: string): Reparto {
 
 /** Cómo gana: cuántos procesos y cuánto por cada tipo de proceso (la contratación directa no tiene competencia). */
 export async function ComoGana({ pagina, ruc }: { pagina: Promise<(Pagina<ContratoEmpresa> & { facetas: FacetasContratos | null }) | null>; ruc: string }) {
-  const f = (await pagina)?.facetas;
+  const p = await pagina;
+  const f = p?.facetas;
   const fam = (f?.familias ?? []).filter((x) => x.n > 0);
   const total = fam.reduce((t, x) => t + x.n, 0);
   return (
     <Bloque
       titulo="Cómo gana"
       explica="Por tipo de proceso. En la contratación directa no compite con nadie."
-      vacio="No ganó procesos con buena pro desde 2018."
+      vacio={p ? "No ganó procesos con buena pro desde 2018." : NO_CARGO}
       reparto={repartoDe(fam.map((x) => ({ clave: String(x.valor), nombre: String(x.valor), valor: x.n, texto: plural(x.n, "proceso", "procesos") })), 5, "Sus procesos por tipo")}
       items={fam.slice(0, 5).map((x) => ({
         clave: String(x.valor),
@@ -150,14 +154,15 @@ export async function ComoGana({ pagina, ruc }: { pagina: Promise<(Pagina<Contra
 
 /** Dónde vende: las regiones de las entidades que le adjudicaron, por cuántos procesos. */
 export async function DondeVende({ pagina, ruc }: { pagina: Promise<(Pagina<ContratoEmpresa> & { facetas: FacetasContratos | null }) | null>; ruc: string }) {
-  const f = (await pagina)?.facetas;
+  const p = await pagina;
+  const f = p?.facetas;
   const dep = [...(f?.departamentos ?? [])].sort((a, b) => b.n - a.n);
   const total = dep.reduce((t, x) => t + x.n, 0);
   return (
     <Bloque
       titulo="Dónde gana"
       explica="La región de las entidades que le adjudicaron, por cuántos procesos."
-      vacio="Sin procesos ganados con región."
+      vacio={p ? "Sin procesos ganados con región." : NO_CARGO}
       reparto={repartoDe(dep.map((x) => ({ clave: String(x.valor), nombre: tituloNatural(String(x.valor)), valor: x.n, texto: plural(x.n, "proceso", "procesos") })), 5, "Sus procesos por región")}
       items={dep.slice(0, 5).map((x) => ({
         clave: String(x.valor),
@@ -181,7 +186,7 @@ export async function ClientesPrincipales({ datos, ruc }: { datos: Promise<{ tot
     <Bloque
       titulo="Sus principales clientes"
       explica="Las entidades que más le pagaron por contratos y órdenes."
-      vacio="Ninguna entidad le adjudicó ni le compró."
+      vacio={d ? "Ninguna entidad le adjudicó ni le compró." : NO_CARGO}
       reparto={repartoDe(lista.map((c) => ({ clave: c.entidadRuc, nombre: c.entidad ? tituloNatural(c.entidad) : c.entidadRuc, valor: c.pagado, texto: solesCompacto(c.pagado) })), 5, "Lo que recibió, por entidad")}
       items={lista.slice(0, 5).map((c) => ({
         clave: c.entidadRuc,
@@ -199,7 +204,8 @@ export async function ClientesPrincipales({ datos, ruc }: { datos: Promise<{ tot
 
 /** Quién le gana: las empresas que se llevaron la buena pro donde ella también postuló, de las que más veces a las que menos. */
 export async function QuienLeGana({ pagina, ruc }: { pagina: Promise<(Pagina<PostulacionEmpresa> & { facetas: FacetasPostulaciones | null }) | null>; ruc: string }) {
-  const f = (await pagina)?.facetas;
+  const p = await pagina;
+  const f = p?.facetas;
   const g = f?.ganadores ?? [];
   const r = f?.resultado;
   const postulo = r ? r.gano + r.perdio + r.sin : 0;
@@ -208,7 +214,7 @@ export async function QuienLeGana({ pagina, ruc }: { pagina: Promise<(Pagina<Pos
       titulo="Quién le gana"
       explica={r ? `Postuló a ${numero(postulo)} procesos: ganó ${numero(r.gano)} y perdió ${numero(r.perdio)}.` : undefined}
       extra={r && postulo >= 5 ? <Medidor parte={r.gano / postulo} etiqueta={`Ganó ${numero(r.gano)} de ${numero(postulo)} procesos a los que postuló`} className="mb-1" /> : undefined}
-      vacio="No perdió ningún proceso contra otra empresa con RUC."
+      vacio={p ? "No perdió ningún proceso contra otra empresa con RUC." : NO_CARGO}
       // recorte: los cinco que más le ganan; la lista entera va en «Ver sus postulaciones», al pie del bloque.
       items={g.slice(0, 5).map((x) => ({
         clave: String(x.valor),

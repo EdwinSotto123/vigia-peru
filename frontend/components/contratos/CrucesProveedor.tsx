@@ -834,7 +834,7 @@ function TextoLeido({ c }: { c: CruceProveedor }) {
   const fuente = c.fuenteUrl ? (
     <> <a href={c.fuenteUrl} target="_blank" rel="noopener noreferrer" className={ENLACE_TXT}>Ver el documento en el SEACE</a>.</>
   ) : null;
-  const leido = <span className="text-mute"> Leído del documento con IA (Claude).</span>;
+  const leido = <span className="text-mute"> Leído del documento con IA.</span>;
   if (c.tipo.startsWith("bases_")) {
     if (c.tipo === "bases_marca_sin_equivalente") {
       const marcas = (Array.isArray(d.marcas) ? d.marcas : []) as { marca?: unknown; cita?: unknown }[];

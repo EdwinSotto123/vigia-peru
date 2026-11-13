@@ -45,6 +45,17 @@ async function leer<T>(ruta: string, revalidate = 600): Promise<T | null> {
   }
 }
 
+/**
+ * Como `leer`, pero separa «no existe» (404, devuelve null y la página responde 404) de «falló» (lanza, y la página
+ * muestra el error con «Reintentar»). Antes un corte de la API pintaba «Página no encontrada» sobre un partido que existe.
+ */
+async function leerOFalla<T>(ruta: string, revalidate = 600): Promise<T | null> {
+  const r = await fetch(`${API_BASE}${ruta}`, { next: { revalidate } } as RequestInit);
+  if (r.status === 404) return null;
+  if (!r.ok) throw new Error(`La API respondió ${r.status} en ${ruta}`);
+  return (await r.json()) as T;
+}
+
 export const getPoderPartidos = () => leer<{ data: PoderPartido[] }>(`/poder/partidos`);
 export const getPoderEntidades = (f: { nivel?: string; departamento?: string; q?: string } = {}) => {
   const p = new URLSearchParams();
@@ -53,7 +64,7 @@ export const getPoderEntidades = (f: { nivel?: string; departamento?: string; q?
   return leer<{ data: PoderEntidad[] }>(`/poder/entidades${qs ? `?${qs}` : ""}`);
 };
 export const getPoderPartido = (partido: string) =>
-  leer<{ partido: PoderPartido; entidades: PoderEntidad[] }>(`/poder/partido/${encodeURIComponent(partido)}`);
+  leerOFalla<{ partido: PoderPartido; entidades: PoderEntidad[] }>(`/poder/partido/${encodeURIComponent(partido)}`);
 export const getPoderEntidad = (ruc: string) => (/^\d{11}$/.test(ruc) ? leer<PoderEntidad>(`/poder/entidad/${ruc}`) : Promise.resolve(null));
 
 export interface GrafoCaptura {

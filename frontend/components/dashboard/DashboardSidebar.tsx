@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Briefcase, MapPin, FileSearch, Sparkles, ArrowRight, Flag, Building2, Camera, Menu, X, Lock, Activity, Heart, HelpCircle, BookOpen, Crown, Landmark, LayoutGrid, MessageSquareWarning, Network, Newspaper, ScanText, Users } from "lucide-react";
+import { Briefcase, MapPin, FileSearch, Sparkles, ArrowRight, Flag, Building2, Camera, Menu, X, Lock, Activity, Heart, HelpCircle, BookOpen, Crown, Landmark, LayoutGrid, MessageSquareWarning, Network, Newspaper, Scale, ScanText, Users, Database } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { LinkIntencion } from "@/components/ui/LinkIntencion";
 import { BotonModo } from "@/components/ui/BotonModo";
@@ -219,6 +219,20 @@ const SECTIONS: Section[] = [
         match: (p) => p === "/app/ia",
       },
       {
+        href: "/metodologia",
+        label: "Metodología",
+        icon: <Scale size={16} />,
+        hint: "Cómo se calcula cada señal",
+        match: (p) => p === "/metodologia",
+      },
+      {
+        href: "/fuentes",
+        label: "Fuentes",
+        icon: <Database size={16} />,
+        hint: "De dónde sale cada dato",
+        match: (p) => p === "/fuentes",
+      },
+      {
         href: "/preguntas",
         label: "Preguntas frecuentes",
         icon: <HelpCircle size={16} />,
@@ -231,6 +245,13 @@ const SECTIONS: Section[] = [
         icon: <BookOpen size={16} />,
         hint: "Cada término, en simple",
         match: (p) => p === "/glosario",
+      },
+      {
+        href: "/privacidad",
+        label: "Privacidad",
+        icon: <Lock size={16} />,
+        hint: "Tus datos y cómo corregirlos",
+        match: (p) => p === "/privacidad",
       },
     ],
   },
