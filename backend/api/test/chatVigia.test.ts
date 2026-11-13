@@ -59,6 +59,8 @@ test("la huella de la IP es fija, corta y no contiene la IP", () => {
 test("la cuenta sin correo verificado pregunta menos; la IP suma varias cuentas", () => {
   assert.equal(topeDiaCuenta(true), TOPE_CUENTA_DIA);
   assert.equal(topeDiaCuenta(false), TOPE_SIN_VERIFICAR_DIA);
+  assert.equal(topeDiaCuenta(false, "maria@vigia.local"), TOPE_CUENTA_DIA);
+  assert.equal(topeDiaCuenta(false, "maria@correo.pe"), TOPE_SIN_VERIFICAR_DIA);
   assert.ok(TOPE_SIN_VERIFICAR_DIA < TOPE_CUENTA_DIA);
   assert.ok(TOPE_IP_DIA > TOPE_CUENTA_DIA && TOPE_IP_DIA < TOPE_TOTAL_DIA);
 });

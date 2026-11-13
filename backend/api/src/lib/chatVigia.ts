@@ -49,8 +49,14 @@ export function huellaIp(claveIp: string): string {
   return h.update(claveIp).digest("hex").slice(0, 20);
 }
 
-/** Las preguntas por día que le tocan a una cuenta. */
-export const topeDiaCuenta = (correoVerificado: boolean) => (correoVerificado ? TOPE_CUENTA_DIA : TOPE_SIN_VERIFICAR_DIA);
+/**
+ * Las preguntas por día que le tocan a una cuenta. La cuenta de usuario y contraseña de la web lleva un correo interno
+ * (`usuario@vigia.local`) que no se puede verificar: cuenta como verificada (si no, casi toda cuenta real tendría 3). El
+ * tope menor queda para un correo real que nunca se confirmó, que sí puede confirmarse. Las cuentas desechables las
+ * frena el tope por IP.
+ */
+export const topeDiaCuenta = (correoVerificado: boolean, correo?: string | null) =>
+  correoVerificado || !!correo?.toLowerCase().endsWith("@vigia.local") ? TOPE_CUENTA_DIA : TOPE_SIN_VERIFICAR_DIA;
 
 /**
  * ¿Está en la lista fija? `lista` es la variable `CHAT_BLOQUEO`: IPs (la IPv6 como su /64, «2001:db8:1:2::/64»), uid de

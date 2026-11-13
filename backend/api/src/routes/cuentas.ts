@@ -41,7 +41,7 @@ import { stream } from "hono/streaming";
 import { dentroDeTope } from "../lib/antibots.js";
 import { correrChat, type EnvChat } from "../lib/chatInvestigacion.js";
 import {
-  BLOQUEO_S, FALTAS_PARA_BLOQUEO, LARGO_CONVERSACION, TOPE_CUENTA_MINUTO, TOPE_IP_DIA, TOPE_IP_MINUTO, TOPE_TOTAL_DIA, enListaFija, eventoPublico,
+  BLOQUEO_S, FALTAS_PARA_BLOQUEO, LARGO_CONVERSACION, TOPE_CUENTA_DIA, TOPE_CUENTA_MINUTO, TOPE_IP_DIA, TOPE_IP_MINUTO, TOPE_TOTAL_DIA, enListaFija, eventoPublico,
   huellaIp, pedidoVigia, topeDiaCuenta,
 } from "../lib/chatVigia.js";
 import { registrarConsumo } from "../lib/consumo.js";
@@ -412,7 +412,7 @@ cuentasRouter.post("/me/chat", async (c) => {
   if (mensajes.reduce((n, m) => n + m.texto.length, 0) > LARGO_CONVERSACION) {
     return c.json({ error: "conversacion_larga", detail: "La conversación ya es muy larga: empieza una nueva." }, 413);
   }
-  const rechazo = await protegerChat(c, u.uid, u.emailVerificado);
+  const rechazo = await protegerChat(c, u.uid, u.emailVerificado, u.email);
   if (rechazo) return rechazo;
   const env = (c.env ?? {}) as EnvChat;
   c.header("Content-Type", "application/x-ndjson; charset=utf-8");
@@ -432,7 +432,7 @@ cuentasRouter.post("/me/chat", async (c) => {
  * una falta de la IP y de la cuenta; con `FALTAS_PARA_BLOQUEO` en una hora quedan bloqueadas `BLOQUEO_S`. Devuelve la
  * respuesta de rechazo o null si puede preguntar. Un pedido interno (sin IP de visitante) sólo cuenta por cuenta.
  */
-async function protegerChat(c: Context, uid: string, verificado: boolean): Promise<Response | null> {
+async function protegerChat(c: Context, uid: string, verificado: boolean, correo: string | null): Promise<Response | null> {
   const ip = pedidoInterno(c) ? null : claveIp(ipCliente(c));
   const huella = ip ? huellaIp(ip) : null;
   const cerrado = () => {
@@ -461,11 +461,11 @@ async function protegerChat(c: Context, uid: string, verificado: boolean): Promi
   if (huella && !(await dentroDeTope(`chatvigia|ipdia|${huella}`, TOPE_IP_DIA, DIA_S, true))) {
     return tope("tope_ip", "Desde esta conexión ya se hicieron muchas preguntas hoy. Mañana puedes seguir.");
   }
-  const diario = topeDiaCuenta(verificado);
+  const diario = topeDiaCuenta(verificado, correo);
   if (!(await dentroDeTope(`chatvigia|dia|${uid}`, diario, DIA_S, true))) {
     return tope(
       "tope_dia",
-      verificado
+      diario === TOPE_CUENTA_DIA
         ? `Ya hiciste las ${diario} preguntas de hoy. Mañana puedes seguir.`
         : `Ya hiciste las ${diario} preguntas de hoy. Verifica tu correo desde tu cuenta para tener más cada día.`,
     );
