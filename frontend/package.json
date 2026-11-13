@@ -16,7 +16,6 @@
   },
   "dependencies": {
     "@google-cloud/storage": "^7.19.0",
-    "@gsap/react": "^2.1.2",
     "clsx": "2.1.1",
     "d3-geo": "3.1.1",
     "fflate": "0.8.2",

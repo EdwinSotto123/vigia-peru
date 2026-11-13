@@ -210,7 +210,7 @@ function Motivo({ m }: { m: RevisionMotivo }) {
         ) : undefined
       }
     >
-      {tieneMedida && <Medidor valor={m.valor as number} umbral={m.umbral as number} titulo={m.titulo} />}
+      {tieneMedida && <MedidorUmbral valor={m.valor as number} umbral={m.umbral as number} titulo={m.titulo} />}
       <p className={tieneMedida ? "mt-2 text-inkSoft" : "text-inkSoft"}>{m.detalle}</p>
       {m.reglasEtiquetas && m.reglasEtiquetas.length > 0 && (
         <DatosClave
@@ -236,7 +236,7 @@ function Motivo({ m }: { m: RevisionMotivo }) {
 }
 
 /** Valor contra umbral. Barra neutra, no roja: quedar debajo del umbral es el control de calidad trabajando. */
-function Medidor({ valor, umbral, titulo }: { valor: number; umbral: number; titulo: string }) {
+function MedidorUmbral({ valor, umbral, titulo }: { valor: number; umbral: number; titulo: string }) {
   const v = Math.max(0, Math.min(1, valor));
   const u = Math.max(0, Math.min(1, umbral));
   return (

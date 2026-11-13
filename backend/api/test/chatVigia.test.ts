@@ -23,6 +23,7 @@ test("las instrucciones prohíben acusar, pedir DNI y completar apellidos", () =
 test("al navegador no salen el modelo interno, los tokens ni el costo", () => {
   assert.deepEqual(eventoPublico({ tipo: "inicio", modelo: "interno-x", informe: "abc" }), { tipo: "inicio" });
   assert.deepEqual(eventoPublico({ tipo: "fin", ms: 1200, herramientas: 3, tokens: { entrada: 1 }, costo_usd: 0.01 }), { tipo: "fin", ms: 1200, herramientas: 3 });
+  assert.deepEqual(eventoPublico({ tipo: "respuesta", texto: "Ficha: A · Dictamen: B" }), { tipo: "respuesta", texto: "Ficha: A, Dictamen: B" });
   const paso = { tipo: "paso", id: "1", titulo: "Buscar" };
   assert.equal(eventoPublico(paso), paso);
 });

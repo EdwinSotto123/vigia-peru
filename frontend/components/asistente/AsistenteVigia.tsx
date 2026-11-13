@@ -149,7 +149,7 @@ export function AsistenteVigia() {
       {mensajes.length === 0 ? (
         <Ejemplos alElegir={user ? (q) => void enviar(q) : undefined} />
       ) : (
-        <div className="space-y-4" aria-live="polite">
+        <div className="space-y-4 pb-2" aria-live="polite">
           {mensajes.map((m) =>
             m.rol === "usuario" ? (
               <BurbujaUsuario key={m.id} texto={m.texto} />
@@ -177,7 +177,8 @@ export function AsistenteVigia() {
           rows={1}
           maxLength={4000}
           disabled={loading}
-          placeholder="Pregunta por un contrato, una entidad, una empresa o un partido…"
+          placeholder="Escribe tu pregunta…"
+          aria-describedby="asistente-vigia-pista"
           className="max-h-40 min-h-11 w-full flex-1 resize-none bg-transparent px-2 py-2.5 text-destacado leading-snug text-ink placeholder:text-mute focus:outline-none"
         />
         {corriendo ? (
@@ -190,8 +191,8 @@ export function AsistenteVigia() {
           </button>
         )}
       </form>
-      <p className="text-rotulo text-mute">
-        Responde sólo con datos de Vigía y enlaza cada cosa a su ficha. Una señal es un indicio para revisar, no una
+      <p id="asistente-vigia-pista" className="text-rotulo text-mute">
+        Pregunta por un contrato, una entidad, una empresa o un partido. Responde sólo con datos de Vigía y enlaza cada cosa a su ficha. Una señal es un indicio para revisar, no una
         acusación: comprueba la fuente antes de publicar.{" "}
         <Link href="/metodologia" className="font-medium text-inkSoft underline underline-offset-2 hover:text-granate">
           Cómo trabaja Vigía

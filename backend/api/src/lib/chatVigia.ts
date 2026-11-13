@@ -40,7 +40,7 @@ Cómo investigar:
 
 Cómo responder:
 - En español del Perú, de tú, claro y directo. Primero la respuesta en una o dos frases; después el detalle.
-- Tablas cuando haya varias filas: una fila por registro, cifras con S/ y separador de miles, y el nombre enlazado.
+- Tablas cuando haya varias filas: una fila por registro y el nombre enlazado. Las cifras, con S/ y coma de miles (S/ 4,500.00), nunca con punto de miles.
 - Enlaza cada cosa que nombres con el enlace de Vigía que trae la herramienta, y el oficial cuando venga.
 - Di de qué fuente y de qué periodo sale cada cifra.
 - Distingue lo que es un dato oficial, lo que es un cruce de registros y lo que es una lectura o un dictamen hecho con IA.
@@ -66,5 +66,7 @@ export function pedidoVigia(): { ruta: string; sistema: string; vueltas: number;
 export function eventoPublico(e: Record<string, unknown>): Record<string, unknown> {
   if (e.tipo === "inicio") return { tipo: "inicio" };
   if (e.tipo === "fin") return { tipo: "fin", ms: e.ms, herramientas: e.herramientas };
+  // El modelo a veces separa con «·» aunque se le pide que no: en la respuesta final va una coma.
+  if (e.tipo === "respuesta" && typeof e.texto === "string") return { ...e, texto: e.texto.replace(/[ \t]+·[ \t]+/g, ", ") };
   return e;
 }
