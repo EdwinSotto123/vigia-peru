@@ -29,7 +29,7 @@ const RUTA: Record<TipoFicha, (id: string) => string> = {
 /** Las secciones que se indexan (las de personas, cuentas y formularios no). */
 export const PAGINAS_FIJAS = [
   "/", "/app", "/app/contratos", "/app/entidades", "/app/empresas", "/app/partidos", "/app/poder", "/app/hallazgos",
-  "/app/novedades", "/app/ia", "/app/mapa", "/app/cuanto-cuesta", "/app/apoyar", "/app/aliados", "/glosario", "/preguntas",
+  "/app/novedades", "/app/ia", "/app/mapa", "/app/apoyar", "/glosario", "/preguntas",
   "/fuentes", "/metodologia", "/privacidad",
 ];
 

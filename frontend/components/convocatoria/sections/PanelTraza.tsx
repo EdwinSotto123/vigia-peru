@@ -21,7 +21,7 @@ import type { PanelDossierProps } from "./PanelesDossier";
 import { AvisoSeccion } from "./AvisoSeccion";
 import { SeccionSegura } from "./SeccionSegura";
 
-export function PanelTraza({ result, nombresPrivados, ocidContrato }: PanelDossierProps) {
+export function PanelTraza({ result, nombresPrivados, ocidContrato }: Pick<PanelDossierProps, "result" | "nombresPrivados" | "ocidContrato">) {
   setRedactNames(nombresPrivados);
   const enMano = (result.agent_trace?.length ?? 0) > 0;
   const codigo: string | null = typeof result.compliance?.alerta_codigo === "string" ? result.compliance.alerta_codigo : null;

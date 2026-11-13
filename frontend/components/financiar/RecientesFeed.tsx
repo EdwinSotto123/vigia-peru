@@ -95,7 +95,7 @@ export function AportesPorAliado({ datos }: { datos: AportesAgrupados }) {
           {datos.grupos.length > visibles.length && (
             <>
               Y {plural(datos.grupos.length - visibles.length, "aliado más", "aliados más")} en el{" "}
-              <Link href="/app/aliados" className="font-semibold text-granate underline-offset-2 hover:underline">muro de aliados</Link>.{" "}
+              <Link href="/app/apoyar?seccion=aliados" className="font-semibold text-granate underline-offset-2 hover:underline">muro de aliados</Link>.{" "}
             </>
           )}
           {!datos.completo && <>Se cuentan los últimos {numero(datos.contados)} de {numero(datos.total)} aportes.</>}

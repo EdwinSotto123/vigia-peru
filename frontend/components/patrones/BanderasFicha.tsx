@@ -34,6 +34,9 @@ const RANGO = { alta: 0, media: 1, baja: 2 } as const;
  * «y N más», que abre las demás ahí mismo, cada una con su enlace (antes llevaba a una pestaña: la de antecedentes de
  * la empresa no tiene todas sus banderas y la entidad no tiene pestaña de señales). Sin banderas no ocupa lugar.
  * Server-safe: el `<details>` se abre sin JavaScript.
+ *
+ * Dentro de `MarcoFicha`, fuera de la primera pestaña (la cabecera plegada), en vez de los chips y del panel va UNA línea
+ * (`Plegadas`): cuántas, su gravedad y sus nombres, que se abre en sus filas. Fuera de un `MarcoFicha`, nada cambia.
  */
 export function BanderasFicha({
   banderas,
@@ -57,7 +60,7 @@ export function BanderasFicha({
   return (
     <>
       {/* Abajo de lg, chips bajo el título. */}
-      <ul className={cn("flex flex-wrap items-center gap-2 lg:hidden", className)} aria-label={etiqueta}>
+      <ul className={cn("flex flex-wrap items-center gap-2 lg:hidden group-data-[compacta]/ficha:hidden", className)} aria-label={etiqueta}>
         {vista.map((b) => <Chip key={`${b.tipo}|${b.nombre}`} b={b} />)}
         {resto > 0 && (
           // Abiertas, las demás ocupan su propio renglón (no estiran el de las cuatro primeras).
@@ -75,8 +78,9 @@ export function BanderasFicha({
           </li>
         )}
       </ul>
-      <Significados orden={orden} className="lg:hidden" />
+      <Significados orden={orden} className="lg:hidden group-data-[compacta]/ficha:hidden" />
       <Panel orden={orden} etiqueta={etiqueta} max={max} />
+      <Plegadas orden={orden} etiqueta={etiqueta} />
     </>
   );
 }
@@ -86,26 +90,75 @@ export function BanderasFicha({
  * reparto por gravedad en una barra fina (con su palabra al lado: el color nunca va solo), y una fila por bandera con
  * su nombre entero, cuántos casos y la flecha a su evidencia. Cuatro a la vista (lo que mide el título a su lado); las demás, plegadas debajo.
  */
-function Panel({ orden, etiqueta, max }: { orden: BanderaFicha[]; etiqueta: string; max: number }) {
+/** Cuántas hay de cada gravedad y la frase («4 graves, 5 medias»). */
+function contar(orden: BanderaFicha[]) {
   const cuenta = { alta: 0, media: 0, baja: 0 };
   for (const b of orden) cuenta[b.severidad] += 1;
   const partes = (["alta", "media", "baja"] as const).filter((s) => cuenta[s] > 0);
   const palabra = { alta: ["grave", "graves"], media: ["media", "medias"], baja: ["leve", "leves"] } as const;
   const resumen = partes.map((s) => `${numero(cuenta[s])} ${palabra[s][cuenta[s] === 1 ? 0 : 1]}`).join(", ");
+  return { cuenta, partes, resumen };
+}
+
+/** La barra fina de su reparto por gravedad (el color nunca va solo: la frase va al lado). */
+function BarraGravedad({ orden, className }: { orden: BanderaFicha[]; className?: string }) {
+  const { cuenta, partes } = contar(orden);
+  if (partes.length < 2) return null;
+  return (
+    <div className={cn("flex h-1.5 gap-[2px] overflow-hidden rounded-full", className)} aria-hidden>
+      {partes.map((s) => (
+        <span key={s} className={cn("h-full", BARRA[s])} style={{ width: `${(100 * cuenta[s]) / orden.length}%` }} />
+      ))}
+    </div>
+  );
+}
+
+/**
+ * La cabecera plegada (fuera del Inicio): UNA línea con cuántas banderas, su gravedad y los nombres de las primeras, que
+ * se abre en todas sus filas (cada una con su evidencia). Antes, el panel entero (unos 230 px) o los chips en tres
+ * renglones iban arriba de cada pestaña. Sólo se ve dentro de un `MarcoFicha` plegado.
+ */
+function Plegadas({ orden, etiqueta }: { orden: BanderaFicha[]; etiqueta: string }) {
+  const { resumen } = contar(orden);
+  const graves = orden.filter((b) => b.severidad === "alta").length;
+  const Icono = ESTILO[graves ? "alta" : orden[0].severidad].Icono;
+  return (
+    <details className="group/plegadas hidden rounded-xl border border-line bg-paper group-data-[compacta]/ficha:block">
+      <summary
+        aria-label={`${etiqueta}: ${numero(orden.length)}, ${resumen}. Ver cada una`}
+        className="flex min-h-10 cursor-pointer list-none items-center gap-2 px-3 py-1.5 text-meta [&::-webkit-details-marker]:hidden"
+      >
+        <Icono size={14} className={cn("shrink-0", ICONO_COLOR[graves ? "alta" : orden[0].severidad])} aria-hidden />
+        <span className="shrink-0 font-semibold text-ink">{orden.length === 1 ? "1 bandera" : `${numero(orden.length)} banderas`}</span>
+        <span className="hidden shrink-0 text-inkSoft sm:inline">{resumen}</span>
+        <span className="min-w-0 flex-1 truncate text-mute">{orden.map((b) => b.nombre).join(", ")}</span>
+        <span className="inline-flex shrink-0 items-center gap-0.5 font-semibold text-granate">
+          <span className="group-open/plegadas:hidden">Ver</span>
+          <span className="hidden group-open/plegadas:inline">Cerrar</span>
+          <ChevronDown size={14} className="shrink-0 transition-transform group-open/plegadas:rotate-180" aria-hidden />
+        </span>
+      </summary>
+      <div className="border-t border-line/70 px-1.5 pb-1.5 pt-1">
+        <BarraGravedad orden={orden} className="mx-1.5 mb-1 mt-1" />
+        <ul className="max-h-72 divide-y divide-line/70 overflow-y-auto overscroll-contain" aria-label={etiqueta}>
+          {orden.map((b) => <Fila key={`${b.tipo}|${b.nombre}`} b={b} />)}
+        </ul>
+        <Significados orden={orden} className="border-t border-line/70 px-1.5 pt-1" />
+      </div>
+    </details>
+  );
+}
+
+function Panel({ orden, etiqueta, max }: { orden: BanderaFicha[]; etiqueta: string; max: number }) {
+  const { resumen } = contar(orden);
   const resto = orden.slice(max);
   return (
-    <section aria-label={etiqueta} className="hidden rounded-xl border border-line bg-paper/85 p-3 shadow-sm lg:block">
+    <section aria-label={etiqueta} className="hidden rounded-xl border border-line bg-paper/85 p-3 shadow-sm lg:block group-data-[compacta]/ficha:hidden">
       <div className="flex items-baseline justify-between gap-3 px-1.5">
         <p className="text-meta font-semibold text-ink">{etiqueta}</p>
         <p className="shrink-0 text-rotulo text-inkSoft">{resumen}</p>
       </div>
-      {partes.length > 1 && (
-        <div className="mx-1.5 mt-2 flex h-1.5 gap-[2px] overflow-hidden rounded-full" aria-hidden>
-          {partes.map((s) => (
-            <span key={s} className={cn("h-full", BARRA[s])} style={{ width: `${(100 * cuenta[s]) / orden.length}%` }} />
-          ))}
-        </div>
-      )}
+      <BarraGravedad orden={orden} className="mx-1.5 mt-2" />
       <ul className="mt-2 divide-y divide-line/70">
         {orden.slice(0, max).map((b) => <Fila key={`${b.tipo}|${b.nombre}`} b={b} />)}
       </ul>

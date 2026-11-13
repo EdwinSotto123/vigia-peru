@@ -25,7 +25,7 @@ export interface CifrasInicio {
 
 /** Los tres caminos del ciudadano: su región, lo que Vigía marcó y lo que él ve en la calle. Buscar ya está arriba. */
 const CAMINOS: { href: string; Icono: LucideIcon; texto: string }[] = [
-  { href: "/app/mapa", Icono: MapPin, texto: "Ver qué se contrata en mi región" },
+  { href: "/app/mapa", Icono: MapPin, texto: "Qué se contrata en mi región" },
   { href: "/app/hallazgos", Icono: Flag, texto: "Revisar las señales" },
   { href: "/reporte/nuevo", Icono: Camera, texto: "Denunciar una obra" },
 ];
@@ -78,27 +78,29 @@ function cifras(c: CifrasInicio): Indicador[] {
 export function HeroInicio({ c }: { c: CifrasInicio }) {
   const hayCifras = c.anio != null || c.enCola != null;
   return (
-    <header className="space-y-5">
+    <header className="space-y-4">
+      {/* El título a la escala de la app (antes, 40 px de portada: «texto demasiado grande»), y la bajada en una línea. */}
       <div className="max-w-3xl">
-        <h1 className="font-display text-titulo font-bold leading-tight tracking-tight text-ink text-balance sm:text-portada">
+        <h1 className="font-display text-cifra font-bold leading-tight tracking-tight text-ink text-balance sm:text-titulo">
           ¿Qué quieres revisar hoy?
         </h1>
-        <p className="mt-2 text-destacado leading-snug text-inkSoft text-pretty">
+        <p className="mt-1 text-cuerpo leading-snug text-inkSoft text-pretty">
           Vigía lee los contratos del Estado y marca los que merecen una segunda mirada. Busca algo concreto o mira lo que pasa ahora.
         </p>
       </div>
       <BuscarGlobal variant="grande" atajo={false} />
-      {/* Tres caminos en una fila de enlaces: antes eran ocho tarjetas iguales que repetían el menú. */}
-      <nav aria-label="Por dónde empezar" className="flex flex-wrap items-center gap-x-6 gap-y-1">
+      {/* Tres caminos en una fila de chips: antes eran ocho tarjetas iguales que repetían el menú, y después tres enlaces
+          sueltos que en el celular ocupaban tres renglones. */}
+      <nav aria-label="Por dónde empezar" className="flex flex-wrap items-center gap-2">
         {CAMINOS.map(({ href, Icono, texto }) => (
           <Link
             key={href}
             href={href}
-            className="group inline-flex min-h-10 items-center gap-2 text-dato font-semibold text-granate underline-offset-4 hover:underline"
+            className="group inline-flex min-h-10 items-center gap-2 rounded-full border border-line bg-paper px-3.5 text-dato font-semibold text-ink transition-colors duration-rapido hover:border-granate/40 hover:bg-granate-50"
           >
-            <Icono size={16} className="shrink-0" aria-hidden />
+            <Icono size={15} className="shrink-0 text-granate" aria-hidden />
             {texto}
-            <ArrowRight size={14} className="shrink-0 transition-transform duration-rapido group-hover:translate-x-0.5" aria-hidden />
+            <ArrowRight size={14} className="shrink-0 text-granate transition-transform duration-rapido group-hover:translate-x-0.5" aria-hidden />
           </Link>
         ))}
       </nav>

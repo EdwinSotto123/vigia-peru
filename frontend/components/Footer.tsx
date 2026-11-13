@@ -33,7 +33,7 @@ const EXPLORAR: Enlace[] = [
 const PARTICIPAR: Enlace[] = [
   { href: "/reporte/nuevo", label: "Denunciar una obra o entidad" },
   { href: "/app/denuncias", label: "Denuncias ciudadanas" },
-  { href: "/app/aliados", label: "Ranking de aliados" },
+  { href: "/app/apoyar?seccion=aliados", label: "Podio de aliados" },
 ];
 
 const SOBRE_VIGIA: Enlace[] = [
@@ -41,7 +41,7 @@ const SOBRE_VIGIA: Enlace[] = [
   { href: "/metodologia", label: "Metodología" },
   { href: "/fuentes", label: "De dónde salen los datos" },
   { href: "/glosario", label: "Glosario" },
-  { href: "/preguntas#cuentas", label: "Cuánto cuesta y quién paga" },
+  { href: "/app/apoyar?seccion=costos", label: "Cuánto cuesta y quién paga" },
   { href: "/privacidad", label: "Privacidad y tus datos" },
   // TODO(contacto): reemplazar cuando exista un correo del equipo.
   // Antes decía "Escríbenos": los issues de GitHub son públicos, no un buzón privado.
@@ -78,11 +78,11 @@ export function Footer() {
   const year = new Date().getFullYear();
 
   return (
-    <footer data-tema="oscuro" className="sobre-oscuro mt-20 bg-granate-900 text-paper">
+    <footer data-tema="oscuro" className="sobre-oscuro mt-10 bg-granate-900 text-paper lg:mt-16">
       <FranjaTextil alto={8} />
-      <div className="container-page py-14">
+      <div className="container-page py-8 lg:py-14">
         {/* Firma + llamado a financiar, lado a lado en escritorio. */}
-        <div className="grid items-center gap-8 lg:grid-cols-[1.6fr,1fr]">
+        <div className="grid items-center gap-5 lg:grid-cols-[1.6fr,1fr] lg:gap-8">
           <div>
             <Link
               href="/"
@@ -92,7 +92,7 @@ export function Footer() {
             >
               <Marca tono="oscuro" tamano="lg" firma />
             </Link>
-            <p className="mt-5 max-w-md text-pretty text-dato leading-relaxed text-paper/80">
+            <p className="mt-3 max-w-md text-pretty text-dato leading-relaxed text-paper/80 lg:mt-5">
               Vigilancia cívica de las compras públicas del Perú. De código abierto, para que
               la verdad no dependa de quién paga el servidor.
             </p>
@@ -136,7 +136,7 @@ export function Footer() {
 
         {/* Postura editorial + columnas de enlaces. En el celular los enlaces van de a
             dos columnas: una sola hacía del pie una lista de 16 renglones. */}
-        <div className="mt-12 grid grid-cols-2 gap-x-6 gap-y-10 border-t border-paper/15 pt-10 lg:grid-cols-[1.4fr,1fr,1fr,1fr,1.1fr] lg:gap-x-8">
+        <div className="mt-7 grid grid-cols-2 gap-x-6 gap-y-6 border-t border-paper/15 pt-6 lg:mt-12 lg:grid-cols-[1.4fr,1fr,1fr,1fr,1.1fr] lg:gap-x-8 lg:gap-y-10 lg:pt-10">
           <div className="col-span-2 lg:col-span-1">
             <TituloColumna>Postura editorial</TituloColumna>
             <p className="mt-3 max-w-md text-pretty text-meta leading-relaxed text-paper/80">
@@ -153,7 +153,7 @@ export function Footer() {
 
         {/* Línea final. Son listas: se dibujan como listas, con espacio entre
             ítems, no con una raya de puntos medios entre medio. */}
-        <div className="mt-10 flex flex-col gap-3 border-t border-paper/15 pt-5 text-rotulo leading-4 text-paper/75 sm:flex-row sm:items-center sm:justify-between">
+        <div className="mt-7 flex flex-col gap-3 border-t border-paper/15 pt-5 lg:mt-10 text-rotulo leading-4 text-paper/75 sm:flex-row sm:items-center sm:justify-between">
           <ul className="flex flex-wrap items-center gap-x-4 gap-y-1.5">
             <li className="inline-flex items-center gap-2 font-medium text-paper">
               <FranjaBandera className="ring-paper/30" /> Hecho en Perú
@@ -192,11 +192,11 @@ function TituloColumna({ children }: { children: React.ReactNode }) {
 function ColumnaEnlaces({ titulo, enlaces }: { titulo: string; enlaces: Enlace[] }) {
   // El subrayado en maíz al pasar es el acento del pie (DESIGN_SYSTEM.md §3.3).
   const clase =
-    "inline-flex min-h-11 lg:min-h-6 items-center text-meta leading-snug text-paper/80 decoration-maiz decoration-2 underline-offset-4 transition-colors duration-rapido hover:text-paper hover:underline";
+    "inline-flex min-h-9 lg:min-h-6 items-center text-meta leading-snug text-paper/80 decoration-maiz decoration-2 underline-offset-4 transition-colors duration-rapido hover:text-paper hover:underline";
   return (
     <div className="min-w-0">
       <TituloColumna>{titulo}</TituloColumna>
-      <ul className="mt-3 flex flex-col gap-1.5">
+      <ul className="mt-2 flex flex-col gap-0.5 lg:mt-3 lg:gap-1.5">
         {enlaces.map((e) => (
           <li key={e.href}>
             {e.externo ? (

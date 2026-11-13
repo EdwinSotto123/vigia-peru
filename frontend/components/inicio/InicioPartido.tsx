@@ -1,10 +1,11 @@
 import { Suspense } from "react";
 import Link from "next/link";
-import { ChevronDown } from "lucide-react";
+import { ChevronDown, ClipboardList, FileSearch, FileText, History, Package, Users, Wallet } from "lucide-react";
 import { Ayuda } from "@/components/patrones";
+import { Indicadores, type Indicador } from "@/components/listado";
 import { CifrasEnFila } from "@/components/ui/CifrasEnFila";
 import { Skeleton } from "@/components/ui/Skeleton";
-import { numero, plural, solesCompacto } from "@/lib/formato";
+import { numero, plural, porcentaje, solesCompacto } from "@/lib/formato";
 import { tituloNatural } from "@/lib/landing";
 import {
   getConteosPartido,
@@ -16,29 +17,37 @@ import {
   type GastoPartido,
   type SalientesPartido,
 } from "@/lib/partidosApi";
-import { getCorrupcionPartido, rutaCorrupcion } from "@/lib/corrupcion";
+import { getCorrupcionPartido } from "@/lib/corrupcion";
 import { PARAMS_EN_FICHA, getPersonas } from "@/lib/personas";
-import { Banderas, BarrasMonto, BloqueInicio, LineasSinDato, RejillaInicio, SinRespuesta, SubseccionInicio } from "./BloquesInicio";
-import { CasosCorrupcion } from "./CasosCorrupcion";
-import { ContenidoPersonas } from "./ContenidoPersonas";
-import { GastoInicio, motivoSinGasto } from "./GastoGobiernos";
+import { BarrasMonto, SinRespuesta } from "./BloquesInicio";
+import { BarraPartes, type ParteBarra } from "./BarraPartes";
+import { motivoSinGasto } from "./GastoGobiernos";
+import { hallazgosContratos, hallazgosPersonas } from "./hallazgos";
+import { CajaResumen, HallazgosClave, ListaMas, RejillaResumen, elegirHallazgos, type FilaMas } from "./ResumenFicha";
 
 /**
- * Inicio de un partido (/app/partidos/[clave], primera pestaña) en un período, con el orden de las demás fichas
- * (entidad, región): qué se encontró (las banderas de los contratos de sus gobiernos y de las personas que contrataron)
- * → dinero (en qué gastan según el MEF, en qué y dónde contrataron) → control (los informes de la Contraloría sobre las
- * entidades que gobernó) y, al final, lo que no tiene dato, en una línea cada uno.
+ * Inicio de un partido (/app/partidos/[clave], primera pestaña) en un período, en UNA pantalla de escritorio (pedido del
+ * dueño del 2026-11-13), con la forma de las demás fichas (components/inicio/ResumenFicha.tsx):
  *
- * Antes abría con un bloque del MEF de ~2,650 px con dos tablas paginadas (ahora en la pestaña Gobiernos), tenía «En
- * números», que repetía la cabecera (gobiernos, entidades, proveedores, contratos), y «Personas» quedaba sola en su fila
- * (evaluación 2026-10-26). Las cifras de la cabecera no se repiten aquí.
+ *   las cifras: contratos adjudicados, monto, gobiernos ganados, lo que leyó Vigía
+ *   ┌ Señales para revisar ┐ ┌ Dónde gobierna ─────┐ ┌ Ver más ─────────────────┐
+ *   │ las tres que más     │ │ sus gobiernos por   │ │ contratos, en qué        │
+ *   │ pesan                │ │ nivel y dónde más   │ │ contrataron (panel),     │
+ *   │                      │ │ contrataron         │ │ personas, gasto, control │
+ *   └──────────────────────┘ └──────────────────────┘ └─────────────────────────┘
+ *
+ * Antes: «Qué se encontró», «Dinero» y la tabla entera de la Contraloría uno debajo del otro (~9 pantallas de celular), y
+ * cuando la Contraloría no respondía, una tarjeta entera con «Sin dato: el servicio no respondió» pintado como contenido.
+ * Ahora la tabla está en la pestaña «Control» y lo que no responde es una fila con «Reintentar». Las señales y «Ver más»
+ * llegan cada uno con su `Suspense`: lo lento (los conteos de sus contratos, la Contraloría) no detiene lo demás.
  */
-export async function InicioPartido({
+export function InicioPartido({
   clave,
   anio,
   ruta,
   d,
-  gasto: gastoP,
+  gasto,
+  cifras,
 }: {
   clave: string;
   anio: AnioGobierno;
@@ -46,176 +55,273 @@ export async function InicioPartido({
   d: DetallePartido;
   /** El mismo pedido que la pestaña Gobiernos (Next lo hace una sola vez). */
   gasto?: Promise<GastoPartido | null>;
+  /** Las cifras del partido en el período (`Indicadores`). */
+  cifras: Indicador[];
 }) {
-  // Los conteos de sus contratos (lectura, riesgo, antecedentes) ya no van aquí: los pide su bloque, que llega solo
-  // (ContratosPartido, con su Suspense). Antes, si ese pedido fallaba o tardaba, esperaba todo el Inicio.
+  const procesos = (f: Record<string, string> = {}) => `${ruta}?${new URLSearchParams({ anio: String(anio), seccion: "procesos", ...f })}`;
+  const reintentar = `${ruta}?anio=${anio}`;
+  return (
+    <div className="space-y-4">
+      <h2 className="sr-only">Resumen del partido en {periodoTexto(anio)}</h2>
+      <Indicadores items={cifras} />
+      <RejillaResumen>
+        <Suspense fallback={<CajaEspera titulo="Señales para revisar" />}>
+          <SenalesPartido clave={clave} anio={anio} ruta={ruta} procesos={procesos} reintentar={reintentar} />
+        </Suspense>
+        <DondeGobierna d={d} anio={anio} ruta={ruta} procesos={procesos} />
+        <Suspense fallback={<CajaEspera titulo="Ver más" className="lg:col-span-2 xl:col-span-1" />}>
+          <VerMasPartido clave={clave} anio={anio} ruta={ruta} d={d} gasto={gasto} procesos={procesos} reintentar={reintentar} />
+        </Suspense>
+      </RejillaResumen>
+    </div>
+  );
+}
+
+/** Una caja mientras llega lo suyo: su título y la forma de las filas (nunca «Sin dato» provisional). */
+function CajaEspera({ titulo, className }: { titulo: string; className?: string }) {
+  return (
+    <CajaResumen titulo={titulo} className={className}>
+      <span className="sr-only">Cargando…</span>
+      <div className="space-y-3" aria-hidden>
+        <Skeleton className="h-4 w-3/4" />
+        <Skeleton className="h-2 w-full rounded-full" />
+        <Skeleton className="h-4 w-2/3" />
+        <Skeleton className="h-2 w-full rounded-full" />
+        <Skeleton className="h-4 w-1/2" />
+      </div>
+    </CajaResumen>
+  );
+}
+
+/**
+ * Las tres señales que más pesan entre los contratos de sus gobiernos que están en la base de Vigía (los únicos que se
+ * leen y se cruzan) y las personas que contrataron. Los conteos de sus contratos tienen tiempo límite y un reintento
+ * (getConteosPartido): si aun así no responden, una línea con «Reintentar» y lo demás igual.
+ */
+async function SenalesPartido({
+  clave,
+  anio,
+  ruta,
+  procesos,
+  reintentar,
+}: {
+  clave: string;
+  anio: AnioGobierno;
+  ruta: string;
+  procesos: (f?: Record<string, string>) => string;
+  reintentar: string;
+}) {
+  const [conteos, personas] = await Promise.all([getConteosPartido(clave, anio), getPersonas({ partido: clave, periodo: anio, size: 0 })]);
+  const f = conteos?.facetas ?? null;
+  const l: Record<string, number> = f?.porLectura ?? {};
+  // Cuántos de sus procesos están en la base de Vigía: el total de los antecedentes (no los de CONOSCE, más o menos el doble).
+  const enBase = Object.values(l).reduce((s, n) => s + (n ?? 0), 0);
+  const enPersonas = (x: Record<string, string> = {}) => `${ruta}?${new URLSearchParams({ anio: String(anio), seccion: "personas", ...x })}`;
+  const hallazgos = elegirHallazgos([
+    f ? hallazgosContratos({ porRiesgo: f.porRiesgo, porCruces: f.porCruces, total: enBase }, procesos, { unidad: "En los contratos de sus gobiernos" }) : [],
+    hallazgosPersonas(personas?.resumen ?? null, enPersonas, PARAMS_EN_FICHA, { sinSenales: [] }),
+  ]);
+  return (
+    <CajaResumen
+      titulo="Señales para revisar"
+      flush
+      ayuda={
+        <Ayuda titulo="¿Qué señales son?">
+          <span className="block">
+            Las tres que más pesan entre los contratos de sus gobiernos y las personas que contrataron, lo grave primero. Sólo cuentan
+            los contratos que también están en la base de Vigía (más o menos la mitad).
+          </span>
+          <span className="mt-2 block">Son motivos para revisar: no prueban una irregularidad ni acusan al partido.</span>
+        </Ayuda>
+      }
+      enlace={f?.porCruces?.con ? { href: procesos({ cruces: "con" }), texto: "Todos los antecedentes" } : undefined}
+    >
+      <HallazgosClave filas={hallazgos} vacio="Sin señales en los contratos de sus gobiernos ni en las personas que contrataron." />
+      {!f && (
+        <div className="px-4 pt-2">
+          <SinRespuesta href={reintentar}>Las señales de sus contratos no respondieron ahora.</SinRespuesta>
+        </div>
+      )}
+    </CajaResumen>
+  );
+}
+
+/** Las series de los gráficos para los tres niveles de gobierno (clases enteras: Tailwind no ve las armadas). */
+const SERIE_NIVEL = { regional: "bg-[rgb(var(--serie-1))]", provincial: "bg-[rgb(var(--serie-2))]", distrital: "bg-[rgb(var(--serie-3))]" } as const;
+
+/**
+ * «Dónde gobierna»: sus gobiernos por nivel en una barra (cada parte abre la pestaña Gobiernos con ese nivel) y las
+ * regiones donde más contrataron, en barras de monto (cada una abre sus contratos de esa región).
+ */
+function DondeGobierna({ d, anio, ruta, procesos }: { d: DetallePartido; anio: AnioGobierno; ruta: string; procesos: (f?: Record<string, string>) => string }) {
+  const g = d.partido.gobiernos;
+  const gobiernos = (f: Record<string, string> = {}) => `${ruta}?${new URLSearchParams({ anio: String(anio), seccion: "gobiernos", ...f })}`;
+  const partes: ParteBarra[] = (
+    [
+      ["regional", "Regiones", g.regional],
+      ["provincial", "Provincias", g.provincial],
+      ["distrital", "Distritos", g.distrital],
+    ] as const
+  )
+    .filter(([, , n]) => n > 0)
+    .map(([nivel, etiqueta, n]) => ({ clave: nivel, etiqueta, n, clase: SERIE_NIVEL[nivel], href: gobiernos({ gnivel: nivel }) }));
+  const porRegion = regiones(d);
+  return (
+    <CajaResumen
+      titulo="Dónde gobierna"
+      ayuda={
+        <Ayuda titulo="¿De dónde sale?">
+          Del JNE: los gobiernos regionales, provinciales y distritales que ganó en las elecciones de este período. Lo contratado, del
+          OECE: lo adjudicado por las entidades de esos gobiernos, por región.
+        </Ayuda>
+      }
+      enlace={{ href: gobiernos(), texto: "Sus gobiernos" }}
+    >
+      {partes.length ? (
+        <div className="space-y-4">
+          <BarraPartes leyenda="en-linea" etiqueta={`Gobiernos que ganó para ${periodoTexto(anio)}, por nivel`} partes={partes} />
+          {porRegion.length > 0 && (
+            <div>
+              <p className="mb-2 text-rotulo font-semibold text-mute">Dónde más contrataron</p>
+              <BarrasMonto
+                maximo={4}
+                items={porRegion.map((r) => ({ nombre: r.nombre, monto: r.monto, detalle: plural(r.procesos, "contrato", "contratos"), href: procesos({ region: r.ubigeo }) }))}
+              />
+            </div>
+          )}
+        </div>
+      ) : (
+        <p className="text-meta text-mute">No ganó gobiernos regionales, provinciales ni distritales para {periodoTexto(anio)}.</p>
+      )}
+    </CajaResumen>
+  );
+}
+
+/** «Ver más»: cada pestaña o lista con la cifra que la resume, y en un panel lo que no tiene pestaña propia. */
+async function VerMasPartido({
+  clave,
+  anio,
+  ruta,
+  d,
+  gasto: gastoP,
+  procesos,
+  reintentar,
+}: {
+  clave: string;
+  anio: AnioGobierno;
+  ruta: string;
+  d: DetallePartido;
+  gasto?: Promise<GastoPartido | null>;
+  procesos: (f?: Record<string, string>) => string;
+  reintentar: string;
+}) {
   const [corrupcion, gasto, personas, salientes] = await Promise.all([
     getCorrupcionPartido(clave, anio),
     gastoP ?? getGastoPartido(clave, anio),
     getPersonas({ partido: clave, periodo: anio, size: 0 }),
     getSalientesPartido(clave, anio),
   ]);
-  const procesos = (f: Record<string, string> = {}) => `${ruta}?${new URLSearchParams({ anio: String(anio), seccion: "procesos", ...f })}`;
-  const enPersonas = (f: Record<string, string> = {}) => `${ruta}?${new URLSearchParams({ anio: String(anio), seccion: "personas", ...f })}`;
+  const enSeccion = (seccion: string, f: Record<string, string> = {}) => `${ruta}?${new URLSearchParams({ anio: String(anio), seccion, ...f })}`;
   const h = d.historia;
   const p = personas?.resumen ?? null;
-  const conPersonas = !!p && p.filas > 0;
-  const conPlazas = !!salientes && salientes.total.plazas > 0;
-  const porObjeto = h?.porObjeto ?? [];
-  const porRegion = regiones(d);
-  const hayGasto = !!gasto?.disponible && !!gasto.totales;
-
-  const sinDato: { titulo: string; motivo: string }[] = [];
+  const porObjeto = [...(h?.porObjeto ?? [])].sort((a, b) => b.montoAdjudicadoPen - a.montoAdjudicadoPen);
+  const totalObjeto = porObjeto.reduce((s, o) => s + o.montoAdjudicadoPen, 0);
+  const t = gasto?.disponible ? gasto.totales : null;
   const sinGasto = motivoSinGasto(gasto);
-  if (sinGasto) sinDato.push({ titulo: "En qué gastan sus gobiernos", motivo: sinGasto });
-  if (!porObjeto.length) sinDato.push({ titulo: "En qué y dónde contrataron", motivo: "Sin contratos adjudicados registrados en este período." });
-  if (!p) sinDato.push({ titulo: "Personas contratadas", motivo: "Sin dato: el servicio de personas no respondió." });
-  else if (!p.filas) sinDato.push({ titulo: "Personas contratadas", motivo: "Sus gobiernos no registran órdenes de servicio a personas en este período." });
-
-  return (
-    <div className="space-y-10">
-      <SubseccionInicio
-        titulo="Qué se encontró"
-        descripcion="Cruces de datos públicos en los contratos de sus gobiernos y en quienes contrataron: indicios para revisar, no acusaciones."
-        ayuda={
-          <Ayuda titulo="¿Qué es una bandera?">
-            <span className="block">
-              El riesgo que encontró Vigía al leer un contrato y lo que otros registros públicos dicen de quien lo ganó (o de
-              quien recibió una orden). Sólo cuentan los contratos que también están en la base de Vigía (más o menos la mitad).
-            </span>
-            <span className="mt-2 block">Son motivos para revisar, no prueban una irregularidad ni acusan al partido. Cada fila abre esa lista ya filtrada.</span>
-          </Ayuda>
-        }
-      >
-        {/* Lado a lado desde lg, cada uno de su alto (antes, uno debajo del otro a 1,030 px, con la etiqueta a 900 px de su
-            número). Las plazas, si son el tercero, a lo ancho y con sus entidades en dos columnas: solas en media fila
-            dejaban la otra mitad vacía. */}
-        <RejillaInicio className="items-start">
-          <Suspense fallback={<EsperaContratos enlace={procesos({ cruces: "con" })} />}>
-            <ContratosPartido clave={clave} anio={anio} procesos={procesos} reintentar={`${ruta}?anio=${anio}`} />
-          </Suspense>
-          {p && conPersonas && (
-            <BloqueInicio
-              nivel={3}
-              titulo="En las personas que contrataron"
-              ayuda={
-                <Ayuda titulo="¿Quiénes son?">
-                  Las personas a las que sus gobiernos pagaron por órdenes de servicio (locadores, asesores, choferes…), según el
-                  OECE. Las señales dicen qué otro registro público coincide con cada una: candidaturas y aportes al partido que
-                  gobierna, autoridades, apellidos de autoridades y funcionarios. No prueban nada.
-                </Ayuda>
-              }
-              enlace={{ href: enPersonas(), texto: "Ver a las personas" }}
-            >
-              <ContenidoPersonas r={p} P={PARAMS_EN_FICHA} href={enPersonas} />
-            </BloqueInicio>
-          )}
-          {salientes && conPlazas && <PlazasSalientes s={salientes} ancho={conPersonas} />}
-        </RejillaInicio>
-      </SubseccionInicio>
-
-      {(hayGasto || porObjeto.length > 0) && (
-        <SubseccionInicio titulo="Dinero" descripcion={`En qué gastan sus gobiernos según el MEF y qué contrataron en ${periodoTexto(anio)}.`}>
-          {/* El gasto, a lo alto de las dos filas: al lado, en qué y dónde contrataron (ninguno queda solo en su fila). */}
-          <div className="grid items-start gap-4 lg:grid-cols-2">
-            <GastoInicio gasto={gasto} ruta={ruta} anio={anio} className="lg:row-span-2" />
-            {porObjeto.length > 0 && (
-              <BloqueInicio
-                nivel={3}
-                titulo="En qué contrataron"
-                ayuda={
-                  <Ayuda titulo="¿De dónde sale?">
-                    De lo adjudicado por las entidades que gobernó en {periodoTexto(anio)} (OECE), por objeto. Cada barra abre esos
-                    contratos.
-                  </Ayuda>
-                }
-                enlace={{ href: procesos(), texto: "Ver los contratos" }}
-              >
+  const filas: FilaMas[] = [
+    ...(h
+      ? [
+          {
+            clave: "contratos",
+            icono: FileText,
+            titulo: "Sus contratos",
+            // Sin cifra: cuántos y por cuánto ya son las dos primeras cifras de arriba.
+            texto: "Con su ganador y su monto, mes a mes",
+            href: procesos(),
+          },
+        ]
+      : []),
+    ...(porObjeto.length && totalObjeto > 0
+      ? [
+          {
+            clave: "objeto",
+            icono: Package,
+            titulo: "En qué contrataron",
+            texto: `Lo mayor, ${tituloNatural(porObjeto[0].objeto)}: ${porcentaje((porObjeto[0].montoAdjudicadoPen / totalObjeto) * 100)} del monto`,
+            panel: {
+              titulo: `En qué contrataron sus gobiernos (${periodoTexto(anio)})`,
+              descripcion: "Lo adjudicado por las entidades que gobernó, por objeto (OECE). Cada barra abre esos contratos.",
+              contenido: (
                 <BarrasMonto
+                  maximo={12}
                   items={porObjeto.map((o) => ({ nombre: o.objeto, monto: o.montoAdjudicadoPen, detalle: plural(o.procesos, "contrato", "contratos"), href: procesos({ objeto: o.objeto }) }))}
                 />
-              </BloqueInicio>
-            )}
-            {porRegion.length > 0 && (
-              <BloqueInicio nivel={3} titulo="Dónde contrataron" enlace={{ href: `${ruta}?anio=${anio}&seccion=gobiernos`, texto: "Ver sus gobiernos" }}>
-                <BarrasMonto
-                  items={porRegion.map((r) => ({ nombre: r.nombre, monto: r.monto, detalle: plural(r.procesos, "contrato", "contratos"), href: procesos({ region: r.ubigeo }) }))}
-                />
-              </BloqueInicio>
-            )}
-          </div>
-        </SubseccionInicio>
-      )}
-
-      {/* Control: los informes de la Contraloría sobre sus entidades (no hay cifras de la Procuraduría por partido). */}
-      <CasosCorrupcion
-        datos={corrupcion}
-        ruta={rutaCorrupcion.partido(clave, anio)}
-        ambito="partido"
-        nota={`Informes sobre las entidades que gobernó, emitidos de ${periodoTexto(anio)}. No dicen que la responsabilidad sea de sus autoridades: cada informe nombra a los funcionarios comprendidos, de carrera o de confianza.`}
-      />
-
-      <LineasSinDato items={sinDato} />
-    </div>
-  );
-}
-
-/**
- * «En sus contratos»: las banderas de los procesos de sus gobiernos que están en la base de Vigía, en su propio
- * `Suspense`: el resto del Inicio no lo espera. Con tiempo límite y un reintento (getConteosPartido); si aun así no
- * responde, «no respondió ahora» con «Reintentar» (la misma página), no un «Sin dato» que parece definitivo: en una
- * captura salía y en otra no (auditoría del 2026-11-05).
- */
-async function ContratosPartido({
-  clave,
-  anio,
-  procesos,
-  reintentar,
-}: {
-  clave: string;
-  anio: AnioGobierno;
-  procesos: (f?: Record<string, string>) => string;
-  /** La URL del Inicio de este período, para «Reintentar». */
-  reintentar: string;
-}) {
-  const r = await getConteosPartido(clave, anio);
-  const f = r?.facetas ?? null;
-  const l: Record<string, number> = f?.porLectura ?? {};
-  const leidos = (l.publicado ?? 0) + (l.revision ?? 0);
-  // Cuántos de sus procesos están en la base de Vigía (los únicos que se leen y se cruzan): la suma de «¿Lo leyó Vigía?».
-  // Es el total de los antecedentes y de sus barras, no los procesos de CONOSCE (más o menos el doble).
-  const enBase = Object.values(l).reduce((s, n) => s + (n ?? 0), 0);
+              ),
+            },
+          },
+        ]
+      : []),
+    ...(p && p.filas > 0
+      ? [
+          {
+            clave: "personas",
+            icono: Users,
+            titulo: "Personas contratadas",
+            cifra: numero(p.personas),
+            texto: p.alta > 0 ? `${numero(p.alta)} con una señal grave` : `${solesCompacto(p.monto)} en órdenes de servicio`,
+            tono: p.alta > 0 ? ("alta" as const) : undefined,
+            href: enSeccion("personas"),
+          },
+        ]
+      : !p
+        ? [{ clave: "personas", icono: Users, titulo: "Personas contratadas", texto: "El servicio no respondió ahora", sinRespuesta: true, href: reintentar }]
+        : []),
+    t
+      ? {
+          clave: "gasto",
+          icono: Wallet,
+          titulo: gasto?.mef ? `En qué gastan (MEF ${gasto.mef})` : "En qué gastan",
+          cifra: solesCompacto(t.pim),
+          texto: `${porcentaje(t.pim > 0 ? (t.devengado / t.pim) * 100 : 0)} ya gastado`,
+          href: enSeccion("gobiernos", { gvista: "gasto" }),
+        }
+      : gasto === null
+        ? { clave: "gasto", icono: Wallet, titulo: "En qué gastan", texto: "El servicio no respondió ahora", sinRespuesta: true, href: reintentar }
+        : { clave: "gasto", icono: Wallet, titulo: "En qué gastan", texto: sinGasto ?? "Sin el detalle del MEF para este período" },
+    corrupcion
+      ? {
+          clave: "control",
+          icono: FileSearch,
+          titulo: "Informes de la Contraloría",
+          cifra: numero(corrupcion.informes.total),
+          texto: corrupcion.informes.total ? `${numero(corrupcion.informes.penal)} con responsabilidad penal` : "Ninguno sobre sus entidades en este período",
+          tono: corrupcion.informes.penal > 0 ? ("media" as const) : undefined,
+          href: enSeccion("control"),
+        }
+      : { clave: "control", icono: FileSearch, titulo: "Informes de la Contraloría", texto: "El servicio no respondió ahora", sinRespuesta: true, href: reintentar },
+    ...(salientes && salientes.total.plazas > 0
+      ? [
+          {
+            clave: "salientes",
+            icono: ClipboardList,
+            titulo: "Plazas de sus gestiones salientes",
+            cifra: numero(salientes.total.plazas),
+            texto: `En ${plural(salientes.entidades.length, "entidad", "entidades")}`,
+            tono: "media" as const,
+            panel: {
+              titulo: "Plazas de sus gestiones salientes",
+              descripcion: "Plazas CAS que publicaron sus entidades después de las elecciones y antes de entregar el cargo. No es una falta: es para revisar.",
+              contenido: <PlazasSalientes s={salientes} />,
+            },
+          },
+        ]
+      : []),
+    { clave: "historia", icono: History, titulo: "Su historia", texto: "Desde 2015, y sus campañas", href: enSeccion("historia") },
+  ];
   return (
-    <BloqueInicio nivel={3} titulo="En sus contratos" enlace={{ href: procesos({ cruces: "con" }), texto: "Ver los que tienen antecedentes" }}>
-      {f ? (
-        <Banderas
-          porRiesgo={f.porRiesgo}
-          porCruces={f.porCruces}
-          porLectura={l}
-          total={enBase}
-          unidad={["contrato en la base de Vigía", "contratos en la base de Vigía"]}
-          href={procesos}
-          conRiesgo={leidos > 0}
-        />
-      ) : (
-        <SinRespuesta href={reintentar}>El servicio de contratos no respondió ahora.</SinRespuesta>
-      )}
-    </BloqueInicio>
-  );
-}
-
-/** Mientras llegan los conteos: el bloque con su título y la forma de lo que viene (nunca un «Sin dato» provisional). */
-function EsperaContratos({ enlace }: { enlace: string }) {
-  return (
-    <BloqueInicio nivel={3} titulo="En sus contratos" enlace={{ href: enlace, texto: "Ver los que tienen antecedentes" }}>
-      <span className="sr-only">Contando las banderas de sus contratos…</span>
-      <div className="space-y-3 px-3.5" aria-hidden>
-        <Skeleton className="h-3 w-44" />
-        <Skeleton className="h-2.5 w-full rounded-full" />
-        <Skeleton className="h-3 w-3/4" />
-        <Skeleton className="mt-5 h-36 rounded-xl" />
-      </div>
-    </BloqueInicio>
+    <CajaResumen titulo="Ver más" flush className="lg:col-span-2 xl:col-span-1">
+      <ListaMas filas={filas} columnas={2} />
+    </CajaResumen>
   );
 }
 
@@ -234,24 +340,22 @@ function regiones(d: DetallePartido): { ubigeo: string; nombre: string; procesos
 
 /**
  * Las plazas CAS que sus gobiernos convocaron después de las elecciones regionales y municipales y antes de entregar el
- * cargo (migración 183): quien entre seguirá con la gestión nueva. Las cifras en una franja (antes, una frase con
- * cuatro números adentro) y TODAS sus entidades, las que más convocaron primero: cinco a la vista y las demás en «Ver
- * las otras N» (antes, «y 7 entidades más» en texto, sin manera de verlas). Cada entidad, en verde (se toca: pedido del
- * usuario del 2026-11-05), abre sus plazas con esa señal. `ancho`: a lo ancho de la rejilla, con las entidades en dos
- * columnas.
+ * cargo (migración 183), en el panel de su fila de «Ver más»: las cifras en una franja y TODAS sus entidades, las que más
+ * convocaron primero (diez a la vista y las demás en «Ver las otras N»). Cada entidad abre sus plazas con esa señal. Antes
+ * era un bloque entero del Inicio; en el celular sus nombres desbordaban la pantalla (la lista era una rejilla sin
+ * `grid-cols-1`, que se estira al nombre más largo).
  */
-function PlazasSalientes({ s, ancho = false }: { s: SalientesPartido; ancho?: boolean }) {
+function PlazasSalientes({ s }: { s: SalientesPartido }) {
   const t = s.total;
-  // recorte: cinco a la vista; las demás (todas las que trae la API) en «Ver las otras N», debajo
-  const primeras = s.entidades.slice(0, 5);
-  const resto = s.entidades.slice(5);
+  // recorte: diez a la vista; las demás (todas las que trae la API) en «Ver las otras N», debajo
+  const primeras = s.entidades.slice(0, 10);
+  const resto = s.entidades.slice(10);
   const fila = (e: SalientesPartido["entidades"][number]) => (
-    // Un borde arriba de cada una (no `divide-y`): en dos columnas, las dos filas de arriba llevan el mismo.
-    <li key={e.entidadRuc} className="border-t border-line/70">
+    <li key={e.entidadRuc} className="min-w-0 border-t border-line/70">
       <Link
         href={`/entidad/${e.entidadRuc}?seccion=plazas&zsenal=gestion_saliente`}
         prefetch={false}
-        className="group/entidad flex min-h-11 items-center justify-between gap-3 py-1.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-granate"
+        className="group/entidad flex min-h-11 min-w-0 items-center justify-between gap-3 py-1.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-granate"
       >
         <span className="min-w-0 truncate text-dato font-medium text-granate underline-offset-2 group-hover/entidad:underline" title={tituloNatural(e.entidad)}>
           {tituloNatural(e.entidad)}
@@ -263,18 +367,7 @@ function PlazasSalientes({ s, ancho = false }: { s: SalientesPartido; ancho?: bo
     </li>
   );
   return (
-    <BloqueInicio
-      nivel={3}
-      titulo="Plazas de sus gestiones salientes"
-      ancho={ancho}
-      ayuda={
-        <Ayuda titulo="¿Qué son?">
-          Plazas CAS que publicaron en SERVIR las entidades que gobierna, después de las elecciones regionales y municipales y
-          antes de entregar el cargo. No es una falta: quien entre seguirá con la gestión nueva, y vale revisar las que piden
-          experiencia en la propia entidad o ya tienen locadores haciendo ese trabajo.
-        </Ayuda>
-      }
-    >
+    <div className="space-y-4">
       <CifrasEnFila
         items={[
           { valor: numero(t.plazas), etiqueta: t.plazas === 1 ? "plaza" : "plazas", contexto: `con ${plural(t.vacantes, "vacante", "vacantes")}` },
@@ -284,11 +377,11 @@ function PlazasSalientes({ s, ancho = false }: { s: SalientesPartido; ancho?: bo
             : []),
         ]}
       />
-      <div className="mt-4 [container-type:inline-size]">
+      <div>
         <p className="pb-1 text-rotulo font-semibold text-mute">
           {s.entidades.length === 1 ? "En una entidad" : `En ${numero(s.entidades.length)} entidades, de más a menos plazas`}
         </p>
-        <ul className="grid gap-x-8 [@container(min-width:40rem)]:grid-cols-2">{primeras.map(fila)}</ul>
+        <ul className="grid grid-cols-1">{primeras.map(fila)}</ul>
         {resto.length > 0 && (
           <details className="group/resto mt-1">
             <summary className="inline-flex min-h-9 cursor-pointer list-none items-center gap-1 text-meta font-semibold text-granate hover:underline [&::-webkit-details-marker]:hidden">
@@ -296,13 +389,12 @@ function PlazasSalientes({ s, ancho = false }: { s: SalientesPartido; ancho?: bo
               <span className="hidden group-open/resto:inline">Ver menos</span>
               <ChevronDown size={14} className="shrink-0 transition-transform group-open/resto:rotate-180" aria-hidden />
             </summary>
-            {/* Hasta 200 entidades: con su propio scroll pasadas las ~7 filas, para no estirar el Inicio. */}
-            <ul className="grid max-h-80 gap-x-8 overflow-y-auto overscroll-contain [@container(min-width:40rem)]:grid-cols-2" aria-label="Las otras entidades">
+            <ul className="grid grid-cols-1" aria-label="Las otras entidades">
               {resto.map(fila)}
             </ul>
           </details>
         )}
       </div>
-    </BloqueInicio>
+    </div>
   );
 }

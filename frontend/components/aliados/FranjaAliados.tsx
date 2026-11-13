@@ -43,7 +43,7 @@ export async function FranjaAliados({ className, ancho = "pagina" }: { className
         )}
       >
         <Link
-          href="/app/aliados"
+          href="/app/apoyar?seccion=aliados"
           className="group flex shrink-0 items-center gap-1.5 rounded-full py-1 text-meta font-semibold text-maiz focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-maiz"
         >
           <Crown size={15} aria-hidden />
@@ -76,7 +76,7 @@ export async function FranjaAliados({ className, ancho = "pagina" }: { className
           Súmate<span className="hidden md:inline">&nbsp;desde S/&nbsp;5</span>
         </Link>
         <Link
-          href="/app/aliados"
+          href="/app/apoyar?seccion=aliados"
           className="hidden shrink-0 items-center gap-0.5 rounded-full py-1 text-meta font-medium text-paper/80 underline-offset-2 hover:text-paper hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-maiz lg:inline-flex"
         >
           Ver todos <ChevronRight size={14} aria-hidden />

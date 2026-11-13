@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Briefcase, MapPin, FileSearch, Sparkles, ArrowRight, Flag, Building2, Camera, Menu, X, Lock, Activity, Heart, HelpCircle, BookOpen, Crown, Landmark, LayoutGrid, MessageSquareWarning, Network, Newspaper, Scale, ScanText, Users, Database, MessageCircleQuestion } from "lucide-react";
+import { Briefcase, MapPin, FileSearch, Sparkles, ArrowRight, Flag, Building2, Camera, Menu, X, Lock, Activity, Heart, HelpCircle, BookOpen, Landmark, LayoutGrid, MessageSquareWarning, Network, Newspaper, Scale, ScanText, Users, Database, MessageCircleQuestion } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { LinkIntencion } from "@/components/ui/LinkIntencion";
 import { BotonModo } from "@/components/ui/BotonModo";
@@ -163,19 +163,15 @@ const SECTIONS: Section[] = [
     intencion: "participar",
     items: [
       {
+        // Una entrada (2026-11-13): aportar, el podio de aliados, todos los aportes y cuánto cuesta son pestañas de
+        // /app/apoyar. Antes «Aliados» era otra entrada; el perfil de un aliado y un recibo siguen marcando acá.
         href: "/app/apoyar",
         label: "Apoyar",
         icon: <Heart size={16} />,
-        hint: "Ayúdanos a seguir vigilando",
+        hint: "Aportar y ver los aliados",
         featured: true,
-        match: (p) => p.startsWith("/app/apoyar") || p.startsWith("/app/cuanto-cuesta") || p.startsWith("/app/financiar") || p.startsWith("/impacto"),
-      },
-      {
-        href: "/app/aliados",
-        label: "Aliados",
-        icon: <Crown size={16} />,
-        hint: "Quién financia",
-        match: (p) => p.startsWith("/app/aliados") || p.startsWith("/aliado/"),
+        match: (p) =>
+          p.startsWith("/app/apoyar") || p.startsWith("/app/aliados") || p.startsWith("/app/cuanto-cuesta") || p.startsWith("/aliado/") || p.startsWith("/impacto"),
       },
       ...(FLAGS.editorial
         ? [
@@ -199,7 +195,8 @@ const SECTIONS: Section[] = [
         label: "Método y fuentes",
         icon: <Scale size={16} />,
         hint: "Metodología, fuentes, preguntas y privacidad",
-        match: (p) => RUTAS_COMO_TRABAJA.some((r) => p === r || p.startsWith(`${r}/`)),
+        // «Lo que falta leer» es una pestaña de Auditoría en vivo: sus fichas (/app/financiar/…) también marcan acá.
+        match: (p) => RUTAS_COMO_TRABAJA.some((r) => p === r || p.startsWith(`${r}/`)) || p.startsWith("/app/financiar"),
       },
     ],
   },

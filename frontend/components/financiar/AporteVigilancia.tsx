@@ -189,7 +189,7 @@ export function AporteVigilancia({ pago, para = null }: { pago: PagoPublico; par
           se usa, rubro por rubro.
         </p>
         <div className="mt-4 flex flex-wrap gap-3">
-          <EnlaceAccion href="/app/cuanto-cuesta" variante="secundario" flecha prefetch={false}>
+          <EnlaceAccion href="/app/apoyar?seccion=costos" variante="secundario" flecha prefetch={false}>
             Cuánto cuesta Vigía
           </EnlaceAccion>
           {pago.contactoEmail && (

@@ -6,7 +6,10 @@ import { BarraFiltros, Listado, TablaSkeleton, ZonaResultados, type FiltroSecund
 import { EnlaceAccion } from "@/components/ui/EnlaceAccion";
 import { TablaContratos, TablaContratosSkeleton } from "@/components/contratos/TablaContratos";
 import { filtroEtapa, filtroMes, filtroObra, filtroOperativo, filtroTipo, filtrosMonto, filtrosVisibles } from "@/components/contratos/filtros";
-import { HistoriaGobiernos, ResumenRegion } from "@/components/regiones/GobiernosRegion";
+import { HistoriaGobiernos } from "@/components/regiones/GobiernosRegion";
+import { MarcoFicha } from "@/components/entidad/MarcoFicha";
+import { CasosCorrupcion } from "@/components/inicio/CasosCorrupcion";
+import { getCorrupcionRegion, rutaCorrupcion } from "@/lib/corrupcion";
 import { TerritorioRegion } from "@/components/regiones/ArbolTerritorio";
 import { InicioRegionEsqueleto, InicioRegionFicha } from "@/components/regiones/InicioRegionFicha";
 import { municipalidadesDe, zonasDe, type ZonaRegion } from "@/components/regiones/datos";
@@ -36,14 +39,16 @@ const TAM = 20;
  * /region/[ubigeo o nombre corto] — la ficha de una región (pedido del usuario, 2026-10-22: «las regiones deberían poder
  * clickearse: su historial, cuántos distritos tiene, quiénes gobernaron, casos de corrupción»), con el esqueleto de las
  * demás fichas (entidad, partido). Pestañas (?seccion=):
- *   · Inicio: qué se encontró (banderas de sus contratos y de las personas contratadas), dinero (en qué gasta según el
- *     MEF y sus contratos) y control (Procuraduría y Contraloría). Se arma en el servidor (antes, cuatro pedidos desde
- *     el navegador con «Cargando…» pintado igual que «sin dato»).
+ *   · Inicio, en una pantalla: sus cifras, las tres señales que más pesan, quién la gobierna y «Ver más» (una fila por
+ *     pestaña o lista, y en qué gasta en un panel al costado). Se arma en el servidor.
  *   · Contratos: la misma lista y los mismos filtros que la ficha de una entidad, con la región fija (la ruta) y, si
  *     viene en ?ubigeo=, una provincia o un distrito suyo. Antes «Ver los contratos» sacaba a /app/contratos?ubigeo=.
  *   · Gobiernos: quién la gobernó en cada período y qué partidos ganaron sus provincias y distritos.
  *   · Provincias y distritos: un árbol (provincia → sus distritos) con su alcalde y su partido en cada período; cada
  *     fila abre su panel con la ficha de su municipalidad y sus contratos (?tq= lo trae ya buscado).
+ *   · Control: la Procuraduría (lo comprobado) y todos los informes de la Contraloría, con buscador. Antes iban al pie
+ *     del Inicio: cientos de filas debajo de todo lo demás.
+ * Fuera del Inicio la cabecera se pliega al nombre (MarcoFicha): la lista empieza arriba.
  */
 export default async function RegionPage({ params, searchParams }: { params: { id: string }; searchParams?: Record<string, string | string[] | undefined> }) {
   const r = regionDe(params.id);
@@ -82,29 +87,31 @@ export default async function RegionPage({ params, searchParams }: { params: { i
           { etiqueta: "Partidos y gobiernos", href: "/app/partidos" },
           { etiqueta: r.nombre, href: ruta },
         ]}
-        pestanas={{ primera: "inicio", activa: seccion ?? "inicio", etiquetas: { contratos: "Contratos", gobiernos: "Gobiernos", territorio: "Provincias y distritos" } }}
+        pestanas={{ primera: "inicio", activa: seccion ?? "inicio", etiquetas: { contratos: "Contratos", gobiernos: "Gobiernos", territorio: "Provincias y distritos", control: "Control" } }}
       />
-      {/* Sin bajada: la de antes enumeraba las pestañas. Qué es cada cosa y de dónde sale, en el ⓘ. */}
-      <EncabezadoPagina
-        titulo={`Región ${r.nombre}`}
-        ayuda={
-          <Ayuda titulo="¿De dónde sale esto?">
-            <span className="block">
-              Los gobiernos, del <EnlaceFuente href={INFOGOB_JNE}>JNE</EnlaceFuente> (elecciones de 2014, 2018 y 2022). El gasto, del{" "}
-              <EnlaceFuente href={CONSULTA_AMIGABLE}>MEF</EnlaceFuente>. Los contratos, del <EnlaceFuente href={CONTRATACIONES_ABIERTAS}>SEACE</EnlaceFuente> y{" "}
-              <EnlaceFuente href={CONOSCE_BUSCADOR}>CONOSCE</EnlaceFuente> (OECE). Los casos de corrupción, de la Procuraduría Anticorrupción y la{" "}
-              <EnlaceFuente href={BUSCADOR_CONTRALORIA}>Contraloría</EnlaceFuente>.
+      {/* Sin bajada: la de antes enumeraba las pestañas. Qué es cada cosa y de dónde sale, en el ⓘ. Fuera del Inicio, sólo
+          el nombre (MarcoFicha): sus cifras van en el Inicio y no se repiten arriba de cada pestaña. */}
+      <MarcoFicha activa={seccion ?? "inicio"} primera="inicio">
+        <EncabezadoPagina
+          titulo={`Región ${r.nombre}`}
+          ayuda={
+            <Ayuda titulo="¿De dónde sale esto?">
+              <span className="block">
+                Los gobiernos, del <EnlaceFuente href={INFOGOB_JNE}>JNE</EnlaceFuente> (elecciones de 2014, 2018 y 2022). El gasto, del{" "}
+                <EnlaceFuente href={CONSULTA_AMIGABLE}>MEF</EnlaceFuente>. Los contratos, del <EnlaceFuente href={CONTRATACIONES_ABIERTAS}>SEACE</EnlaceFuente> y{" "}
+                <EnlaceFuente href={CONOSCE_BUSCADOR}>CONOSCE</EnlaceFuente> (OECE). Los casos de corrupción, de la Procuraduría Anticorrupción y la{" "}
+                <EnlaceFuente href={BUSCADOR_CONTRALORIA}>Contraloría</EnlaceFuente>.
+              </span>
+            </Ayuda>
+          }
+          acciones={
+            <span className="flex flex-wrap gap-2">
+              <EnlaceAccion href={`/app/mapa?region=${r.id}`} variante="secundario">Ver en el mapa</EnlaceAccion>
+              <EnlaceAccion href={rutaApoyar(r.ubigeo)} flecha>Ayuda a vigilarla</EnlaceAccion>
             </span>
-          </Ayuda>
-        }
-        acciones={
-          <span className="flex flex-wrap gap-2">
-            <EnlaceAccion href={`/app/mapa?region=${r.id}`} variante="secundario">Ver en el mapa</EnlaceAccion>
-            <EnlaceAccion href={rutaApoyar(r.ubigeo)} flecha>Ayuda a vigilarla</EnlaceAccion>
-          </span>
-        }
-      />
-      <ResumenRegion ubigeo={r.ubigeo} />
+          }
+        />
+      </MarcoFicha>
       <Pestanas
         fija
         key={seccion ?? "inicio"}
@@ -183,10 +190,44 @@ export default async function RegionPage({ params, searchParams }: { params: { i
               </div>
             ),
           },
+          {
+            clave: "control",
+            etiqueta: "Control",
+            titulo: "Informes de control y casos judiciales",
+            contenido: (
+              <div className="space-y-4">
+                <CabeceraPestana
+                  ayuda={
+                    <Ayuda titulo="¿De dónde salen y qué significan?">
+                      <span className="block">
+                        <strong>Procuraduría Anticorrupción</strong>: los casos penales por corrupción en los que el Estado es la parte
+                        agraviada, por sede (casi siempre el departamento). «Con sentencia firme» ya tienen una decisión firme.
+                      </span>
+                      <span className="mt-2 block">
+                        <strong>Contraloría</strong>: informes de control que señalan una responsabilidad presunta de funcionarios de las
+                        entidades de {r.nombre}. No es una condena. Las dos fuentes van por separado y nunca se suman.
+                      </span>
+                    </Ayuda>
+                  }
+                >
+                  Lo comprobado por la Procuraduría y lo que señala la Contraloría en las entidades de {r.nombre}.
+                </CabeceraPestana>
+                <Suspense fallback={<TablaSkeleton columnas={[{ clave: "a", titulo: "Informe", ancho: "1fr" }]} filas={6} />}>
+                  <ControlRegion region={r} ruta={ruta} />
+                </Suspense>
+              </div>
+            ),
+          },
         ]}
       />
     </Pagina>
   );
+}
+
+/** La pestaña Control: la Procuraduría y la Contraloría de la región (el mismo pedido que el Inicio: Next lo hace una vez). */
+async function ControlRegion({ region, ruta }: { region: Region; ruta: string }) {
+  const datos = await getCorrupcionRegion(region.ubigeo);
+  return <CasosCorrupcion datos={datos} ruta={rutaCorrupcion.region(region.ubigeo)} ambito="region" nombreRegion={region.nombre} sinMarco reintentar={`${ruta}?seccion=control`} />;
 }
 
 // ─── Provincias y distritos ──────────────────────────────────────────────────

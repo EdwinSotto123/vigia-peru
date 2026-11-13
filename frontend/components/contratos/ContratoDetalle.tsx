@@ -1,68 +1,53 @@
 /**
- * Ficha de un contrato (DESIGN_SYSTEM.md §14.2), en el orden de la plantilla:
- *   volver → identidad (el objeto; código, entidad y zona en una línea; chips de estado)
- *   → Indicadores (cuánto y cuándo; sólo las cifras que hay, las que faltan en una línea; adjudicado igual al
- *   referencial, una sola cifra) → pestañas (§14.3): Resumen (el estado de su lectura en una franja con qué hacer y, sin
- *   leer, qué se leerá en una fila de pasos dentro de la misma franja; los antecedentes del ganador en un renglón por
- *   tipo) | Antecedentes | Ítems | Participantes (sin dictamen) o Postores y
- *   ofertas (las actas leídas) | Adjudicación y contrato | Precio contratado | Dónde dice cada señal | Cronograma |
- *   Documentos oficiales, cada una con su conteo y su fuente al pie. Participantes, adjudicación y cronograma salen
- *   del registro del proceso (OCDS, CONOSCE, SUNAT, MEF: ProcesoContrato.tsx), así una ficha sin leer también dice
- *   quién compitió, quién ganó, qué se firmó y cuándo.
- *   Antes esas cinco tablas se apilaban debajo del estado y había que bajar y bajar; después, los
- *   antecedentes del ganador iban ENTRE las cifras y las pestañas (hasta 1,100 px de sanciones en prosa) y
- *   en el celular «quién ganó» quedaba al final, a 3.6 pantallas (evaluación 2026-10-26).
+ * La vista «Ficha» de la página de un contrato (DESIGN_SYSTEM.md §14.2), bajo su cabecera única (CabeceraContrato: el
+ * objeto, quién compra y quién ganó, el estado, las banderas y las cifras, igual en la ficha, el dictamen y cómo se
+ * leyó). Aquí sólo lo que es de la ficha, en dos columnas desde lg:
+ *   pestañas (§14.3): Resumen (el estado de su lectura en una franja con qué hacer y, sin leer, qué se leerá en una fila
+ *   de pasos dentro de la misma franja; los antecedentes del ganador en un renglón por tipo, si la cabecera no los lleva
+ *   como banderas) | Antecedentes | Historia | Ítems | Participantes (sin dictamen) o Postores y ofertas (las actas
+ *   leídas) | Adjudicación y contrato | Precio contratado | Dónde dice cada señal | Cronograma | Documentos oficiales,
+ *   cada una con su conteo y su fuente al pie;
+ *   columna lateral: Datos del proceso (el objeto entero, el RUC o el consorcio ganador, los códigos), la entidad en
+ *   Vigía y contratos parecidos de la provincia. La línea de tiempo va en el Resumen.
  *
- * Antes las cifras vivían en una grilla de formulario ("Valor referencial / Monto adjudicado /
- * Convocatoria / Buena pro / Postores / Quién ganó") y cada tabla tenía su propio estilo. Ahora
- * las cifras son `Indicadores`, quién ganó y los códigos van en "Datos del proceso" (columna
- * lateral) y las pestañas de evidencia (`EvidenciaContrato.tsx`) usan la `Tabla` del kit (§14.1).
+ * Antes la ficha tenía su propia cabecera (otra que la del dictamen) y, en el celular, «Datos del proceso» y la línea de
+ * tiempo iban ANTES de las pestañas: 4.4 pantallas hasta el pie (auditoría del 2026-11-13). Ahora van después, en la
+ * columna lateral, y quién ganó está en la cabecera.
  *
- * Server component; `ContratoEnVivo` y `Redact` son islas de cliente. Cifras de cabecera
- * compactas con el monto exacto como contexto; en tablas, soles completos (lib/formato, §10.3).
+ * Server component; `ContratoEnVivo` y `Redact` son islas de cliente.
  */
 
 import Link from "next/link";
 import { rutaApoyar, rutaContrato } from "@/lib/rutas";
-import { DisclaimerBanner } from "@/components/DisclaimerBanner";
 import { Suspense, type ReactNode } from "react";
-import { Building2, CalendarRange, Clock, FileCheck, FileText, Hash, History, Hourglass, Info, MapPin, Package, ShieldAlert } from "lucide-react";
+import { CalendarRange, Clock, FileCheck, FileText, History, Hourglass, Package, Workflow } from "lucide-react";
 import { ContratoEnVivo } from "@/components/auditoria/ContratoEnVivo";
 import { ResultadoAnalisis } from "@/components/auditoria/ResultadoAnalisis";
-import { EstadoPill } from "@/components/auditoria/EstadoPill";
 import { PersonName, Ruc } from "@/components/Redact";
-import { NotaPrivacidad } from "@/components/privacidad/NotaPrivacidad";
-import { Ayuda, AyudaTermino, Cargando, EncabezadoPagina, EnlaceFuente, Franja, FuenteDato, Migas, Pestanas, type Pestana } from "@/components/patrones";
+import { Ayuda, Cargando, Franja, FuenteDato, Pestanas, type Pestana } from "@/components/patrones";
 import { HistoriaFicha } from "@/components/historia/HistoriaFicha";
-import { busquedaOece, enlacesProceso, procesoOece } from "@/lib/fuentes";
-import { migasConDesde } from "@/lib/desde";
-import { Indicadores, type Indicador } from "@/components/listado";
+import { enlacesProceso } from "@/lib/fuentes";
 import { EnlaceAccion, claseAccion } from "@/components/ui/EnlaceAccion";
 import { BotonPestana } from "./BotonPestana";
-import { EstadoContratoPill } from "./ContratosLista";
-import { OCDS, dia, monto, pestanasEvidencia } from "./EvidenciaContrato";
+import { OCDS, dia, pestanasEvidencia } from "./EvidenciaContrato";
 import { pestanasProceso } from "./ProcesoContrato";
-import { recortar, limpiarObjeto } from "./recortar";
+import { recortar } from "./recortar";
 import { OtrosContratosEntidad } from "./OtrosContratosEntidad";
-import { LineaTiempoProceso, fechaGano } from "./LineaTiempoProceso";
+import { LineaTiempoProceso } from "./LineaTiempoProceso";
 import { EntidadEnVigia } from "./EntidadEnVigia";
 import { CrucesProveedor, ResumenAntecedentes, clasificarCruces } from "./CrucesProveedor";
 import { DossierDrawerProvider } from "./DossierDrawer";
-import { PartidoQueGobierna } from "./PartidoQueGobierna";
-import { AvisoContrato } from "./DatoDudosoContrato";
-import { BanderaDato } from "@/components/ui/BanderaDato";
-import { motivoDudoso } from "@/lib/datoDudoso";
+import { objetoLargo } from "./CabeceraContrato";
+import type { LecturaContrato } from "./lecturaContrato";
 import type { ContratoResumen } from "@/lib/contratos";
-import { UBIGEO_REGION } from "@/components/mapa/region-match";
 import { FASES } from "@/lib/auditoria";
 import type { CatalogoReglas } from "@/lib/revision";
-import { fecha, fechaConAnio, fechaCorta, listaY, numero, oracion, plural } from "@/lib/formato";
+import { fecha, fechaCorta, numero, oracion } from "@/lib/formato";
 import {
-  adjudicacionesVigentes, cambioDeGanador, esCodigoConsorcio, esPersonaNatural, etapaLabel, motivoLabel, tipoLabel,
+  cambioDeGanador, esCodigoConsorcio, esPersonaNatural, etapaLabel, motivoLabel, tipoLabel,
   type ContratoDetalle as Detalle,
 } from "@/lib/contratos";
 import { cn } from "@/lib/utils";
-import { tituloNatural } from "@/lib/landing";
 import { enlaceProveedor } from "@/lib/empresas";
 
 /** Qué se analiza hoy, tal como lo informa la API (`procesamientoActivo` del resumen de procesamientos). */
@@ -78,24 +63,39 @@ function conteoAntecedentes(cruces: Parameters<typeof clasificarCruces>[0]): num
   return antecedentes.length + delProceso.length;
 }
 
+/** Las pestañas de la ficha con su nombre (la ruta de navegación de la cabecera dice la abierta). */
+export const ETIQUETAS_FICHA: Record<string, string> = {
+  resumen: "Resumen",
+  antecedentes: "Antecedentes",
+  historia: "Historia",
+  items: "Ítems",
+  participantes: "Participantes",
+  postores: "Postores y ofertas",
+  adjudicacion: "Adjudicación y contrato",
+  precios: "Precio contratado",
+  citas: "Dónde dice cada señal",
+  cronograma: "Cronograma",
+  documentos: "Documentos oficiales",
+};
+
 // ─── Ficha ───────────────────────────────────────────────────────────────────
 
 export function ContratoDetalle({
   c,
+  lectura = null,
+  antecedentesArriba = false,
   alcance = null,
   catalogo = {},
   seccion,
   relacionados = null,
   entidadEnVigia = null,
   parecidos = null,
-  vistas = null,
-  desde,
 }: {
   c: Detalle;
-  /** De dónde vino el usuario (?desde): antepone esa miga para no perder el flujo de navegación. */
-  desde?: string;
-  /** El selector de vistas del contrato (ficha · dictamen · en vivo): arriba de todo, como en las otras dos vistas. */
-  vistas?: ReactNode;
+  /** Lo que encontró la lectura, contado una vez para toda la página (lecturaContrato.ts). */
+  lectura?: LecturaContrato | null;
+  /** La cabecera ya lleva los antecedentes de quien ganó como banderas: el Resumen no los repite. */
+  antecedentesArriba?: boolean;
   alcance?: AlcanceActivo | null;
   catalogo?: CatalogoReglas;
   /** Otros contratos de la misma entidad (solo en fichas cortas): hasta 5 y el total de la entidad. */
@@ -107,14 +107,9 @@ export function ContratoDetalle({
   /** La pestaña abierta al cargar (`?seccion=` de la URL). */
   seccion?: string;
 }) {
-  const regionId = c.ubigeo ? UBIGEO_REGION[c.ubigeo.slice(0, 2)] : undefined;
-  const mapaHref = regionId ? `/app/mapa?region=${regionId}&tab=cola${c.ubigeo && c.ubigeo.length === 6 ? `&ubigeo=${c.ubigeo}` : ""}` : "/app/mapa";
   // En revisión humana se dice "En revisión" y nada más (DESIGN_SYSTEM.md §10.4): ni señales ni
   // comparaciones de precio del análisis, que son los montos que la lectura cuestionaría.
   const enRevision = c.alerta?.estado === "revision";
-  // Lo adjudicado es la suma de las adjudicaciones VIGENTES del registro (una buena pro que pasó a otro postor no se
-  // suma dos veces); el referencial, lo presupuestado.
-  const adjudicado = adjudicacionesVigentes(c).reduce((s, a) => s + (a.montoPen ?? 0), 0) || null;
   const cambio = cambioDeGanador(c);
   // El cruce "otro_postor" dice lo mismo que el aviso de cambio de ganador: en la ficha va una sola vez, en el aviso.
   const cruces = (c.cruces ?? []).filter((x) => !(cambio && x.tipo === "otro_postor"));
@@ -122,8 +117,6 @@ export function ContratoDetalle({
   const varios = new Set(cruces.map((x) => x.rucProveedor)).size > 1;
 
   // Lo de la entidad y la provincia llega después (streaming): no frena la ficha. «Mira más contratos de esta entidad»
-  // es secundario y va a la pestaña Contratos de su ficha (antes un botón verde a todo el ancho en el Resumen que
-  // llevaba a /app/contratos?entidad=, mientras «Ver su ficha», justo al lado, iba a la entidad). Desde el 2026-11-05
   // sólo se dibuja si «Esta entidad en Vigía» no llega: esa placa ya lleva el mismo enlace, con cuántos son.
   const otros =
     relacionados && c.entidadRuc ? (
@@ -136,37 +129,31 @@ export function ContratoDetalle({
   // que existen (los ítems, el cronograma) y la barra las ordena con `conProceso`.
   const evidencia = pestanasEvidencia({ c, enRevision, catalogo });
   const proceso = pestanasProceso({ c });
-  // Leído (con dictamen) y sin procesamiento en vivo: el resultado llena el Resumen y las partes del análisis quedan en la
-  // columna lateral. Sin leer, «Qué se leerá» va en el Resumen, bajo el estado.
-  const leido = c.estadoProcesamiento === "procesado" && !!c.alerta;
-  const cifras = indicadoresDe(c, adjudicado);
 
-  // El Resumen: en qué va su lectura (una franja con qué hacer y, sin leer, qué partes se leerán en una fila de pasos
-  // dentro de la misma franja) y los antecedentes de quien ganó en un renglón por tipo (cada uno abre su grupo en la
-  // pestaña Antecedentes). Antes, en un contrato sin leer, «Qué se leerá» era una tarjeta aparte con ocho pasos en
-  // vertical (~340 px) debajo del estado; antes aún, un título y una frase gris junto a un filete.
+  // El Resumen: en qué va su lectura (una franja con qué hacer), la línea de tiempo del proceso y los antecedentes de
+  // quien ganó en un renglón por tipo (cada uno abre su grupo en la pestaña Antecedentes), si la cabecera no los lleva ya
+  // como banderas. La línea de tiempo iba en la columna lateral, que quedaba el doble de alta que el Resumen.
   const resumen = (
     <div className="space-y-6">
-      <AnalisisCard c={c} alcance={alcance} conCronograma={!!proceso.cronograma} />
-      {cruces.length > 0 && <ResumenAntecedentes cruces={cruces} varios={varios} />}
+      <AnalisisCard c={c} lectura={lectura} alcance={alcance} conCronograma={!!proceso.cronograma} />
+      <LineaTiempoProceso c={c} />
+      {cruces.length > 0 && !antecedentesArriba && <ResumenAntecedentes cruces={cruces} varios={varios} />}
     </div>
   );
 
   const pestanas: Pestana[] = [
-    { clave: "resumen", etiqueta: "Resumen", contenido: resumen },
+    { clave: "resumen", etiqueta: ETIQUETAS_FICHA.resumen, contenido: resumen },
     // El ganador en otros registros (ONPE, JNE, visitas, penalidades, sanciones): datos, no lectura. Su pestaña, con
-    // cuántos antecedentes hay (lo que ya había pasado cuando se convocó y es de esta entidad).
-    // El conteo, con lo que es del proceso (un solo postor), que va en la misma pestaña bajo «En este proceso».
+    // cuántos antecedentes hay (lo que ya había pasado cuando se convocó y es de esta entidad, y lo del proceso).
     ...(cruces.length > 0
-      ? [{ clave: "antecedentes", etiqueta: "Antecedentes", conteo: conteoAntecedentes(cruces), contenido: <CrucesProveedor cruces={cruces} varios={varios} gobierna={c.gobierno} /> }]
+      ? [{ clave: "antecedentes", etiqueta: ETIQUETAS_FICHA.antecedentes, conteo: conteoAntecedentes(cruces), contenido: <CrucesProveedor cruces={cruces} varios={varios} gobierna={c.gobierno} /> }]
       : []),
-    // Todo en una línea de tiempo (fase 3 del plan del 2026-10-27): el proceso, las visitas del ganador a la entidad, sus
-    // antecedentes en la fecha de cada hecho, sus sanciones y la obra. GET /historia/contrato/:ocid, en su propia lectura.
-    // Sólo cuando se abre (?seccion=historia): hay cientos de miles de contratos y los buscadores los recorren todos;
-    // armarla en cada ficha eran ocho consultas más por visita. Con la pestaña cerrada, el enlace que la abre.
+    // Todo en una línea de tiempo: el proceso, las visitas del ganador a la entidad, sus antecedentes en la fecha de cada
+    // hecho, sus sanciones y la obra. GET /historia/contrato/:ocid, sólo cuando se abre (?seccion=historia): armarla en
+    // cada ficha eran ocho consultas más por visita. Con la pestaña cerrada, el enlace que la abre.
     {
       clave: "historia",
-      etiqueta: "Historia",
+      etiqueta: ETIQUETAS_FICHA.historia,
       icono: <History size={15} aria-hidden />,
       contenido:
         seccion === "historia" ? (
@@ -189,85 +176,27 @@ export function ContratoDetalle({
   ];
 
   return (
-    // Envuelve el dossier con el drawer lateral: cualquier componente cliente de adentro (p. ej. una orden del
+    // Envuelve la ficha con el drawer lateral: cualquier componente cliente de adentro (p. ej. una orden del
     // fraccionamiento) puede abrir el detalle a la derecha con useDossierDrawer(), sin salir de la pestaña.
     <DossierDrawerProvider>
-      {vistas && <div className="mb-4">{vistas}</div>}
-      <Migas
-        items={migasConDesde(desde, [{ etiqueta: "Inicio", href: "/app" }, { etiqueta: "Contratos", href: "/app/contratos" }, { etiqueta: `Contrato ${c.codigo ?? c.ocid}` }])}
-        pestanas={{ primera: "resumen", activa: seccion ?? "resumen", etiquetas: Object.fromEntries(pestanas.map((p) => [p.clave, p.etiqueta])) }}
-      />
-
-      <DisclaimerBanner className="mb-4" />
-
-      {/* Dos columnas desde lg: a la izquierda la identidad y las cifras (fila 1) y, justo debajo, las pestañas (fila 2);
-          a la derecha, fija al bajar y a lo alto de las dos filas, los datos del proceso, su línea de tiempo y lo de la
-          entidad. La segunda fila es `1fr`: si la columna lateral es más alta que las cifras, el sobrante va abajo de
-          las pestañas, nunca entre las cifras y las pestañas. En el celular, «quién ganó» y la línea de tiempo van justo
-          después de las cifras (se dibujan dos veces, una por ancho, con ids distintos) y lo de la entidad, al final. */}
-      <div className="grid items-start gap-x-8 gap-y-5 lg:grid-cols-[minmax(0,1fr)_340px] lg:grid-rows-[auto_1fr]">
-        <div className="min-w-0 space-y-5 lg:col-start-1 lg:row-start-1">
-          {/* 1. Identidad: qué se contrata, su código, quién compra y dónde; debajo, sus chips. */}
-          <div className="space-y-3">
-            <EncabezadoPagina titulo={<TituloContrato texto={c.titulo ? oracion(limpiarObjeto(c.titulo)) : "Contrato sin objeto registrado"} />} bajada={<LineaIdentidad c={c} mapaHref={mapaHref} />} />
-            <ul className="flex flex-wrap items-center gap-1.5" aria-label="Tipo, etapa y estado de lectura">
-              <li><span className="pill border-transparent bg-paperDeep text-ink">{tipoLabel(c.tipo) ?? "Tipo sin clasificar"}</span></li>
-              <li><span className="pill border-line text-inkSoft">{etapaLabel(c.etapa) ?? "Etapa sin clasificar"}</span></li>
-              {c.modalidad && <li><span className="pill border-line text-inkSoft">{c.modalidad}</span></li>}
-              <li>{enRevision ? <EstadoPill estado="revision" /> : <EstadoContratoPill estado={c.estadoProcesamiento} operativo={c.estadoOperativo} />}</li>
-              {motivoDudoso(c.datoDudoso?.motivo) && <li><BanderaDato motivo={motivoDudoso(c.datoDudoso?.motivo)!} fuente="oece_ocds" /></li>}
-            </ul>
-          </div>
-
-          {/* 2. Lo que importa del objeto: cuánto y cuándo. Sólo las cifras que el registro trae son tarjeta; las que
-              faltan van nombradas en una línea debajo (antes, sin leer, tres de las cuatro tarjetas decían «Sin dato»). */}
-          <div className="space-y-2.5">
-            {cifras.tarjetas.length > 0 && (
-              <Indicadores
-                items={cifras.tarjetas}
-                apilado
-                // Con tres, la tercera a todo el ancho, como ya pasa en el celular: en dos columnas quedaba media fila
-                // vacía a su lado.
-                className={cifras.tarjetas.length === 3 ? "[&_dl>div:last-child]:col-span-2" : undefined}
-              />
-            )}
-            <LineaSinDato faltan={cifras.faltan} />
-          </div>
-
-          {/* 2'. El OECE publicó un valor que no se puede creer (migración 102): se muestra tal cual, con su aviso. */}
-          <AvisoContrato dato={c.datoDudoso} />
-
-          {/* 2a. La buena pro pasó a otro postor (OCDS + CONOSCE): lo que explica cifras que no cuadran. */}
-          {cambio && <CambioGanador c={c} cambio={cambio} />}
-
-          {/* 2b. En el celular: quién ganó y cuándo, antes de las pestañas. */}
-          <div className="space-y-5 lg:hidden">
-            <DatosProceso c={c} idTitulo="datos-proceso-celular" />
-            <LineaTiempoProceso c={c} idTitulo="linea-tiempo-celular" />
-          </div>
-        </div>
-
-        {/* 3. Resumen, antecedentes y evidencia oficial, una pestaña por sección (§14.3), justo después de las cifras. */}
-        <div className="min-w-0 lg:col-start-1 lg:row-start-2">
+      {/* Dos columnas desde lg: las pestañas a la izquierda y, a la derecha, fija al bajar, los datos del proceso, su
+          línea de tiempo y lo de la entidad. En el celular, la columna lateral va después de las pestañas. */}
+      <div className="grid items-start gap-x-8 gap-y-6 lg:grid-cols-[minmax(0,1fr)_320px]">
+        <div className="min-w-0">
           <Pestanas fija key={seccion ?? "resumen"} etiqueta="Secciones del contrato" activa={seccion} pestanas={pestanas} />
         </div>
 
-        <aside className="min-w-0 space-y-5 lg:sticky lg:top-4 lg:col-start-2 lg:row-span-2 lg:row-start-1" aria-label="Datos del proceso y de la entidad">
-          <div className="hidden space-y-5 lg:block">
-            <DatosProceso c={c} idTitulo="datos-proceso" />
-            <LineaTiempoProceso c={c} />
-          </div>
+        <aside className="min-w-0 space-y-5 lg:sticky lg:top-4" aria-label="Datos del proceso y de la entidad">
+          <DatosProceso c={c} idTitulo="datos-proceso" />
           {/* «Esta entidad en Vigía» ya lleva el enlace a sus contratos: «Mira más contratos de esta entidad» va sólo si
-              esa placa no llega. Antes iban las dos, una debajo de la otra, con dos enlaces a la misma entidad (pedido
-              del usuario del 2026-11-05). */}
+              esa placa no llega (pedido del usuario del 2026-11-05). */}
           {entidadEnVigia && c.entidadRuc ? (
             <Esperar p={entidadEnVigia}>{(e) => (e ? <EntidadEnVigia ruc={c.entidadRuc!} {...e} /> : otros)}</Esperar>
           ) : (
             otros
           )}
-          {/* Con procesamiento en vivo los carriles ya muestran qué agente aplica y cuál se omitió. Sin leer, las partes
-              van en el Resumen («Qué se leerá»); aquí quedan sólo las de un contrato ya leído. */}
-          {!c.procesamiento && leido && <ClasificacionCard c={c} />}
+          {/* «Qué partes del análisis aplican» ya no va aquí: lo dice la vista «Cómo se leyó», con cada parte en su orden y
+              lo que hizo. */}
           {parecidos && (
             <Esperar p={parecidos}>
               {(pr) =>
@@ -286,54 +215,7 @@ export function ContratoDetalle({
           )}
         </aside>
       </div>
-      {/* Al pie de todo (en el celular, también después de lo de la entidad). */}
-      <NotaPrivacidad className="mt-6" />
     </DossierDrawerProvider>
-  );
-}
-
-/** El objeto del contrato, completo; si es largo (los hay de 300 caracteres) baja de tamaño en vez de ocupar siete líneas. */
-function TituloContrato({ texto }: { texto: string }) {
-  const largo = texto.length;
-  return (
-    <span className={largo > 150 ? "block text-bloque leading-snug sm:text-seccion" : largo > 80 ? "block text-seccion leading-snug sm:text-cifra" : undefined}>
-      {texto}
-    </span>
-  );
-}
-
-/** Código, entidad y zona en una línea: la bajada del encabezado. */
-function LineaIdentidad({ c, mapaHref }: { c: Detalle; mapaHref: string }) {
-  const enlace = "inline-flex min-h-6 items-center gap-1.5 text-ink underline-offset-2 hover:text-granate hover:underline";
-  // La entidad es un identificador que lleva a su ficha: en verde y subrayada como los demás de la ficha (pedido del
-  // usuario del 2026-11-05: «Jurado Nacional de Elecciones» era un enlace pintado de negro y no se notaba).
-  const enlaceEntidad =
-    "inline-flex min-h-6 items-center gap-1.5 font-medium text-granate underline decoration-granate/40 underline-offset-2 hover:decoration-granate";
-  return (
-    <span className="inline-flex flex-wrap items-center gap-x-4 gap-y-1">
-      <span className="inline-flex items-center gap-1.5">
-        <Hash size={14} className="shrink-0 text-mute" aria-hidden /> Código SEACE{" "}
-        {/* El código abre el proceso en Contrataciones Abiertas del OECE (con el OCID completo: con el código solo, no abre). */}
-        <EnlaceFuente href={c.ocid ? procesoOece(c.ocid) : busquedaOece(c.codigo)} className="font-mono text-ink decoration-ink/40 hover:decoration-ink">
-          <span translate="no">{c.codigo}</span>
-        </EnlaceFuente>
-      </span>
-      {c.entidadRuc ? (
-        <Link href={`/entidad/${c.entidadRuc}`} className={enlaceEntidad}>
-          <Building2 size={14} className="shrink-0 text-mute" aria-hidden /> {c.entidad ? tituloNatural(c.entidad) : c.entidadRuc}
-        </Link>
-      ) : (
-        <span className="inline-flex items-center gap-1.5">
-          <Building2 size={14} className="shrink-0 text-mute" aria-hidden /> {c.entidad ? tituloNatural(c.entidad) : "Entidad no identificada"}
-        </span>
-      )}
-      {c.zona && (
-        <Link href={mapaHref} className={enlace}>
-          <MapPin size={14} className="shrink-0 text-mute" aria-hidden /> {c.zona}
-        </Link>
-      )}
-      <PartidoQueGobierna g={c.gobierno} completo />
-    </span>
   );
 }
 
@@ -357,122 +239,10 @@ function conProceso(evidencia: Pestana[], proceso: ReturnType<typeof pestanasPro
 }
 
 /**
- * Las cifras del contrato: número compacto → qué es → el monto exacto o la fecha que lo acompaña. Sólo las que tienen
- * valor son tarjeta; las que no, van por su nombre en `faltan` y se dicen juntas en una línea (`LineaSinDato`, la regla
- * de `LineasSinDato` del Inicio). Antes, en un contrato sin leer (casi todos), tres de las cuatro tarjetas decían «Sin
- * dato», «Sin adjudicar» y «Sin dato»: cajas del tamaño de las llenas, sin nada adentro.
+ * Datos del proceso (columna lateral, §14.2): el objeto entero (la cabecera lo recorta), el RUC de quien ganó o los
+ * integrantes del consorcio, la descripción y los códigos del registro. El nombre de quien ganó ya está en la cabecera
+ * (antes iba aquí y en la cabecera del dictamen, cada uno a su manera).
  */
-function indicadoresDe(c: Detalle, adjudicado: number | null): { tarjetas: Indicador[]; faltan: string[] } {
-  const nItems = c.items.length;
-  const nAdjudicaciones = adjudicacionesVigentes(c).length;
-  const reemplazadas = (c.adjudicaciones ?? []).length - nAdjudicaciones;
-  const conOferta = (c.postoresDetalle ?? []).filter((p) => p.montoOferta != null).length;
-  // Los participantes, con la MISMA cuenta que la pestaña «Participantes» (todos los del registro del proceso,
-  // ProcesoContrato.tsx), cuando esa pestaña existe (sin las actas leídas). Antes la cifra contaba sólo los «registrados»
-  // del OCDS y, con un participante que ofertó sin figurar ahí, decía «1 postor, participantes: sin dato» al lado de la
-  // pestaña «Participantes 1» (pedido del usuario del 2026-11-05).
-  const ps = c.participantes ?? [];
-  const conPestana = (c.postoresDetalle ?? []).length === 0 && ps.length > 0;
-  const registrados = conPestana ? ps.length : c.postores ?? (ps.filter((p) => p.registrado).length || null);
-  const unir = (xs: (string | null | false)[]) => xs.filter(Boolean).join(" ") || undefined;
-  const gano = fechaGano(c);
-  const tarjetas: Indicador[] = [];
-  const faltan: string[] = [];
-
-  // Lo adjudicado igual al valor referencial (a menos de 0,5 %): una sola cifra que lo dice. Pedido del usuario del
-  // 2026-11-05: «S/ 70,151 valor referencial» y al lado «S/ 70,151 monto adjudicado, 100 % del valor referencial» era el
-  // mismo monto dos veces.
-  const igual = !!c.montoPen && !!adjudicado && Math.abs(adjudicado - c.montoPen) < 0.005 * c.montoPen;
-
-  if (c.montoPen && !igual) {
-    tarjetas.push({
-      // En la franja, el monto exacto es la cifra (antes «S/ 337 mil» grande y «S/ 336,890» debajo: lo mismo dos veces).
-      valor: monto(c.montoPen, c.moneda),
-      etiqueta: "valor referencial",
-      ayuda: <AyudaTermino clave="valor-referencial" />,
-      contexto: unir([nItems > 1 && `en ${numero(nItems)} ítems`]),
-    });
-  } else if (!c.montoPen) faltan.push("valor referencial");
-
-  if (adjudicado) {
-    tarjetas.push({
-      valor: monto(adjudicado, c.moneda),
-      etiqueta: "monto adjudicado",
-      ayuda: <AyudaTermino clave="adjudicacion" />,
-      contexto: unir([
-        igual
-          ? "igual al valor referencial"
-          : c.montoPen && c.moneda === "PEN" && adjudicado <= c.montoPen * 5 ? `${Math.round((100 * adjudicado) / c.montoPen)} % del valor referencial` : false,
-        // Con la cifra del referencial fuera, sus ítems van aquí.
-        igual && nItems > 1 && `en ${numero(nItems)} ítems`,
-        nAdjudicaciones > 1 && `en ${numero(nAdjudicaciones)} adjudicaciones`,
-        reemplazadas > 0 && `(sin la${reemplazadas > 1 ? "s" : ""} buena${reemplazadas > 1 ? "s" : ""} pro reemplazada${reemplazadas > 1 ? "s" : ""})`,
-      ]),
-    });
-  } else faltan.push("monto adjudicado");
-
-  // Las fechas con el año, también las de este: un proceso convocado en diciembre se adjudica en enero, y «4 ene.» al
-  // lado de «20 dic. 2025» no decía de qué año era.
-  if (c.fecha) {
-    tarjetas.push({
-      valor: fechaConAnio(c.fecha),
-      etiqueta: "convocatoria",
-      ayuda: <AyudaTermino clave="convocatoria" />,
-      // Sin fecha de buena pro en el registro, la de la adjudicación: la misma de la línea de tiempo y de «cuando ganó» en
-      // los antecedentes (antes la cifra decía «sin fecha» al lado de una adjudicación con fecha).
-      contexto: gano ? `${gano.deAdjudicacion ? "adjudicada el" : "buena pro:"} ${fechaConAnio(gano.fecha)}` : "buena pro: sin fecha",
-    });
-  } else if (gano) {
-    // Sin fecha de convocatoria, la de la buena pro (o la de la adjudicación) es la cifra: es la única fecha que hay.
-    tarjetas.push({
-      valor: fechaConAnio(gano.fecha),
-      etiqueta: gano.deAdjudicacion ? "adjudicación" : "buena pro",
-      ayuda: gano.deAdjudicacion ? undefined : <AyudaTermino clave="buena-pro" />,
-      contexto: "convocatoria: sin fecha",
-    });
-  } else faltan.push("fecha de convocatoria");
-
-  if (registrados != null) {
-    tarjetas.push({
-      // Los que participaron (los registrados del OCDS, «tenderers», o los de la pestaña «Participantes»); los que
-      // ofertaron van debajo. Antes decía «17 postores» de un proceso en que ofertaron 3.
-      valor: numero(registrados),
-      etiqueta: registrados === 1 ? "participante" : "participantes",
-      ayuda: <AyudaTermino clave="participante" />,
-      contexto: c.ofertas != null
-        ? plural(c.ofertas, "oferta", "ofertas")
-        : conOferta > 0 ? `${numero(conOferta)} con oferta leída del expediente` : "ofertas: sin dato",
-    });
-  } else if (c.ofertas != null) {
-    // Sin los registrados, los que presentaron oferta según CONOSCE (los postores): la cifra que hay.
-    tarjetas.push({
-      valor: numero(c.ofertas),
-      etiqueta: c.ofertas === 1 ? "postor" : "postores",
-      ayuda: <AyudaTermino clave="postor" />,
-      contexto: "participantes: sin dato",
-    });
-  } else faltan.push("participantes");
-
-  return { tarjetas, faltan };
-}
-
-/**
- * Las cifras que el registro todavía no trae, nombradas juntas en una línea debajo de las tarjetas (como `LineasSinDato`
- * en el Inicio de una ficha): un «Sin dato» no merece una tarjeta del tamaño de una cifra.
- */
-function LineaSinDato({ faltan }: { faltan: string[] }) {
-  if (!faltan.length) return null;
-  return (
-    <p className="flex items-start gap-2 text-meta leading-snug text-mute">
-      <Info size={14} className="mt-0.5 shrink-0" aria-hidden />
-      <span className="min-w-0">
-        <span className="font-semibold text-inkSoft">Sin dato todavía:</span> {listaY(faltan)}.
-      </span>
-    </p>
-  );
-}
-
-/** Datos del proceso (columna lateral, §14.2): quién ganó, la descripción y los códigos del registro. */
 function DatosProceso({ c, idTitulo }: { c: Detalle; idTitulo: string }) {
   // Si la buena pro pasó a otro postor, "quién ganó" es con quien quedó (CONOSCE), no la primera adjudicación del OCDS.
   const queda = cambioDeGanador(c)?.queda[0];
@@ -484,53 +254,37 @@ function DatosProceso({ c, idTitulo }: { c: Detalle; idTitulo: string }) {
   const codigoConsorcio = esCodigoConsorcio(proveedorRuc) ? proveedorRuc : null;
   const integrantes = codigoConsorcio ? (c.participantes ?? []).find((p) => p.ruc === codigoConsorcio)?.integrantes ?? [] : [];
   const descripcion = c.descripcion && c.descripcion !== c.titulo ? c.descripcion : null;
+  const objeto = objetoLargo(c);
   return (
     <div className="rounded-2xl border border-line bg-paper">
       <h2 id={idTitulo} className="px-4 pt-3.5 font-display text-bloque font-bold text-ink">
         Datos del proceso
       </h2>
       <dl className="space-y-3 px-4 pb-3.5 pt-2.5 text-dato leading-5">
-        <Dato k="Quién ganó">
-          {proveedor ? (
-            <>
-              {/* El proveedor del OCDS viene en orden SUNAT (apellidos primero). Una empresa (RUC 20): su nombre es el
-                  enlace a su ficha, en verde como los integrantes de un consorcio (pedido del usuario del 2026-11-05;
-                  antes el nombre iba en negro y «Ver la ficha de la empresa» aparte, debajo). Una persona natural,
-                  tapada y sin enlace. */}
-              <span className="font-semibold">
-                {natural ? (
-                  <PersonName name={proveedor} orden="sunat" />
-                ) : enlaceProveedor(proveedorRuc) ? (
-                  <Link href={enlaceProveedor(proveedorRuc)!} prefetch={false} className="text-granate underline-offset-2 hover:underline">
-                    {proveedor}
-                  </Link>
-                ) : (
-                  proveedor
-                )}
-              </span>
-              {codigoConsorcio ? (
-                <span className="flex items-center gap-1 font-mono text-rotulo text-mute">
-                  Código del consorcio {codigoConsorcio}
-                  <Ayuda titulo="¿Por qué no tiene RUC?">
-                    Un consorcio se forma para participar en un proceso y no tiene RUC propio: el SEACE le da este código. Sus
-                    integrantes sí tienen RUC, y cada empresa su ficha en Vigía.
-                  </Ayuda>
-                </span>
-              ) : (
-                proveedorRuc && (
-                  <span className="block font-mono text-rotulo text-mute">
-                    RUC <Ruc value={proveedorRuc} />
-                  </span>
-                )
-              )}
-              {queda && <span className="block text-rotulo text-mute">Se le adjudicó después de otro postor (CONOSCE)</span>}
-            </>
-          ) : (
-            <span className="text-mute">Sin adjudicar todavía</span>
-          )}
-        </Dato>
+        {objeto && (
+          <Dato k="Objeto, completo">
+            <span className="text-meta leading-relaxed">{objeto}</span>
+          </Dato>
+        )}
+        {/* Una empresa: su RUC (el nombre, con su ficha, va en la cabecera). Una persona natural: nada (su RUC lleva el
+            DNI). */}
+        {proveedor && !natural && !codigoConsorcio && proveedorRuc && (
+          <Dato k="RUC de quien ganó">
+            <span className="font-mono text-meta">
+              <Ruc value={proveedorRuc} />
+            </span>
+            {queda && <span className="block text-rotulo text-mute">Se le adjudicó después de otro postor (CONOSCE)</span>}
+          </Dato>
+        )}
         {codigoConsorcio && (
           <Dato k="Integrantes del consorcio">
+            <span className="mb-1.5 flex items-center gap-1 font-mono text-rotulo text-mute">
+              Código del consorcio {codigoConsorcio}
+              <Ayuda titulo="¿Por qué no tiene RUC?">
+                Un consorcio se forma para participar en un proceso y no tiene RUC propio: el SEACE le da este código. Sus
+                integrantes sí tienen RUC, y cada empresa su ficha en Vigía.
+              </Ayuda>
+            </span>
             {integrantes.length ? (
               <ul className="space-y-1.5">
                 {integrantes.map((x) => (
@@ -687,7 +441,7 @@ function accionesRegistro(c: Detalle, conCronograma: boolean): ReactNode[] {
   return out;
 }
 
-function AnalisisCard({ c, alcance, conCronograma }: { c: Detalle; alcance: AlcanceActivo | null; conCronograma: boolean }) {
+function AnalisisCard({ c, lectura, alcance, conCronograma }: { c: Detalle; lectura: LecturaContrato | null; alcance: AlcanceActivo | null; conCronograma: boolean }) {
   const estado = c.estadoProcesamiento;
   const registro = accionesRegistro(c, conCronograma);
   const falta = faltaParaLeer(c.clasificacion.validacionesPendientes);
@@ -697,16 +451,29 @@ function AnalisisCard({ c, alcance, conCronograma }: { c: Detalle; alcance: Alca
   const pasos = conPasos ? <PasosLectura c={c} /> : null;
 
   if (estado === "procesado" && c.alerta) {
-    // Con procesamiento financiado, ContratoEnVivo (compacto) trae resultado + cómo se ejecutó (carriles + bitácora).
-    if (c.procesamiento) {
-      return <ContratoEnVivo ocid={c.ocid} initial={{ ...c.procesamiento, eventos: [], resultado: c.alerta }} compacto />;
-    }
-    // La tarjeta ocupa la columna principal: la versión ancha pone el puntaje junto al resumen.
+    // En revisión humana: «En revisión» y nada más (§10.4); la tarjeta del resultado ya sabe decirlo.
+    if (c.alerta.estado === "revision") return <ResultadoAnalisis resultado={c.alerta} ocid={c.ocid} revision />;
+    // Leído: una franja con la fecha y las dos salidas (el dictamen y cómo se leyó). Antes iba aquí la tarjeta entera del
+    // resultado (medidor, «5 señales de riesgo», las reglas evaluadas y cada señal): la cabecera ya dice el puntaje y
+    // cada señal, y el dictamen las explica; con la tarjeta, la ficha contaba las señales a su manera (5 contra 4).
+    const n = lectura?.conteo.total ?? c.alerta.banderas.length;
     return (
-      <div className="space-y-2">
-        <ResultadoAnalisis resultado={c.alerta} ocid={c.ocid} sharePath={`/app/contratos/${encodeURIComponent(c.ocid)}`} />
-        {c.alerta.analizadoEn && <p className="text-rotulo text-mute">Leído el {fecha(dia(c.alerta.analizadoEn))}</p>}
-      </div>
+      <FranjaEstado
+        icono={<FileCheck size={18} className="text-mossTexto" aria-hidden />}
+        titulo={c.alerta.analizadoEn ? `Leído el ${fecha(dia(c.alerta.analizadoEn))}` : "Leído por Vigía"}
+        acciones={[
+          <EnlaceAccion key="dictamen" href={rutaContrato(c.ocid, "dictamen")} flecha>
+            Leer el dictamen
+          </EnlaceAccion>,
+          <Link key="como" href={rutaContrato(c.ocid, "vivo")} prefetch={false} className={claseAccion("secundario")}>
+            <Workflow size={16} aria-hidden /> Cómo se leyó
+          </Link>,
+        ]}
+      >
+        {n > 0
+          ? `El dictamen explica ${n === 1 ? "su señal" : `sus ${numero(n)} señales`}, cada una con su norma y su evidencia, y cuenta la historia del proceso.`
+          : "La lectura terminó sin señales: el dictamen dice qué se cotejó."}
+      </FranjaEstado>
     );
   }
 
@@ -875,30 +642,6 @@ function PasosLectura({ c }: { c: Detalle }) {
   );
 }
 
-function ClasificacionCard({ c }: { c: Detalle }) {
-  const agentes = c.clasificacion.agentesAplicables;
-  if (!agentes?.length && !c.clasificacion.clasificadoAt) return null;
-  return (
-    <section className="space-y-1.5">
-      <div className="flex items-center gap-1">
-        <h2 className="font-display text-bloque font-bold text-ink">Qué partes del análisis aplican</h2>
-        <Ayuda titulo="¿Por qué estas partes?">
-          Dependen del tipo de contrato y de su etapa. Las que no aparecen no aplican a este contrato.
-        </Ayuda>
-      </div>
-      {agentes?.length ? (
-        <ul className="flex flex-wrap gap-1">
-          {FASES.filter((f) => agentes.includes(f.key)).map((f) => (
-            <li key={f.key} className="pill border-line bg-paper text-ink">{f.label}</li>
-          ))}
-        </ul>
-      ) : (
-        <p className="text-rotulo text-mute">Ninguna para esta combinación de tipo y etapa.</p>
-      )}
-    </section>
-  );
-}
-
 /**
  * Lo que le falta al registro para poder leerlo, en palabras del ciudadano. Las validaciones internas de la lectura
  * («proveedor_sin_ruc» de un consorcio, el avance de INFOBRAS, ítems sin precio de mercado) no se muestran: son la cocina
@@ -935,64 +678,6 @@ function Descripcion({ texto }: { texto: string }) {
       </summary>
       <span className="mt-1 block">{texto}</span>
     </details>
-  );
-}
-
-/**
- * La buena pro pasó a otro postor sobre los mismos ítems: el OCDS guarda las dos adjudicaciones y CONOSCE registra a
- * quién se le adjudicó al final. Pasa cuando el ganador no firma o pierde la buena pro y se adjudica al siguiente en el
- * orden de prelación, con su propia oferta. Es un dato, no una conclusión.
- */
-function CambioGanador({ c, cambio }: { c: Detalle; cambio: NonNullable<ReturnType<typeof cambioDeGanador>> }) {
-  const { original, queda, diferencia, porcentaje } = cambio;
-  // Una empresa (RUC 20) lleva a su ficha: ver quién era el primero y quién quedó sin tener que buscarlos. Una persona
-  // natural va tapada y sin enlace (su RUC lleva el DNI); un consorcio sin RUC propio, sin enlace.
-  const nombre = (a: { proveedor: string | null; proveedorRuc: string | null }) => {
-    if (!a.proveedor) return "otro postor";
-    if (esPersonaNatural(a.proveedorRuc)) return <PersonName name={a.proveedor} orden="sunat" />;
-    const ficha = enlaceProveedor(a.proveedorRuc);
-    return ficha ? (
-      <Link href={ficha} prefetch={false} className="text-granate underline-offset-2 hover:underline">
-        {a.proveedor}
-      </Link>
-    ) : (
-      a.proveedor
-    );
-  };
-  const sube = diferencia != null && diferencia > 0;
-  return (
-    <section aria-labelledby="cambio-ganador" className={cn("rounded-2xl border bg-paper px-4 py-3.5", sube ? "border-amber/40" : "border-line")}>
-      <div className="flex items-start justify-between gap-3">
-        <h2 id="cambio-ganador" className="flex items-center gap-2 font-display text-bloque font-bold text-ink">
-          <ShieldAlert size={16} className={sube ? "text-amberTexto" : "text-mute"} aria-hidden />
-          La buena pro pasó a otro postor
-        </h2>
-        <Ayuda titulo="¿Por qué hay dos adjudicaciones?">
-          El registro OCDS guarda la buena pro original y la que la reemplazó sobre los mismos ítems; CONOSCE registra a quién se
-          le adjudicó al final. Suele pasar cuando el ganador no firma el contrato o pierde la buena pro y se adjudica al siguiente
-          postor, con su propia oferta. El motivo está en el expediente.
-        </Ayuda>
-      </div>
-      <p className="mt-2 text-dato leading-5 text-ink">
-        La buena pro fue primero para <span className="font-semibold">{nombre(original)}</span>
-        {original.montoPen != null && <> por {monto(original.montoPen, c.moneda)}</>}; según CONOSCE quedó con{" "}
-        {queda.map((q, i) => (
-          <span key={q.id ?? i}>
-            {i > 0 && ", "}
-            <span className="font-semibold">{nombre(q)}</span>
-            {q.montoPen != null && <> por {monto(q.montoPen, c.moneda)}</>}
-          </span>
-        ))}
-        {diferencia != null && diferencia !== 0 && (
-          <>
-            : <span className={cn("font-semibold", sube && "text-amberTexto")}>{sube ? "+" : "−"}{monto(Math.abs(diferencia), c.moneda)}</span>
-            {porcentaje != null && <> ({sube ? "+" : "−"}{numero(Math.abs(Math.round(porcentaje)))} %)</>}
-          </>
-        )}
-        .
-      </p>
-      <FuenteDato fuente="registro OCDS del OECE y las adjudicaciones de CONOSCE" enlaces={enlacesProceso(c.ocid, { codigo: c.codigo, conosce: true })} className="mt-1.5" />
-    </section>
   );
 }
 

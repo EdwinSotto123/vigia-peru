@@ -416,7 +416,7 @@ function filaAporte(a: AporteMio, recargar: () => void): Fila {
             {cantidad}. Va al fondo común que sostiene la vigilancia: la base de datos, los servidores, la captura de datos y la
             lectura a fondo de los contratos más graves. Nadie elige qué contrato se lee.
           </p>
-          <Link href="/app/cuanto-cuesta" className="inline-flex min-h-[24px] items-center gap-1 font-semibold text-granate hover:underline">
+          <Link href="/app/apoyar?seccion=costos" className="inline-flex min-h-[24px] items-center gap-1 font-semibold text-granate hover:underline">
             En qué se usa <ArrowRight size={13} aria-hidden />
           </Link>
         </div>

@@ -8,16 +8,14 @@ import { TIPO_CRUCE } from "@/lib/cruces";
 import { rutaEmpresa } from "@/lib/empresas";
 import { DATASET_AUTORIDADES_JNE, INFOGOB_JNE } from "@/lib/fuentes";
 import { rutaPartido } from "@/lib/partidos";
-import { Ayuda } from "@/components/patrones/Ayuda";
-import { BloqueDetalle, CuerpoDetalle, DatosClave, PieDetalle } from "@/components/patrones/Detalle";
-import { FuenteDato } from "@/components/patrones/Estructura";
+import { BloqueDetalle, CuerpoDetalle, DatosClave, PieDetalle, type DatoClave } from "@/components/patrones/Detalle";
 // De lib/parametrosEmpresa y no de la sección Antecedentes: así no se trae la sección entera a la ficha de la entidad.
 import { P_ANTECEDENTES } from "@/lib/parametrosEmpresa";
 import { CeldaNumero, CeldaPrincipal, TablaPaginada, type Columna, type Fila } from "@/components/listado";
 import { CrucesCelda } from "@/components/contratos/CrucesCelda";
 import { Dato } from "@/components/ui/Dato";
 import { EnlaceAccion } from "@/components/ui/EnlaceAccion";
-import { BloqueInicio, Fichas, type FilaConteo } from "@/components/inicio/BloquesInicio";
+import { Fichas, type FilaConteo } from "@/components/inicio/BloquesInicio";
 import { GrafoCapturaViz } from "./GrafoCapturaViz";
 
 /**
@@ -27,9 +25,9 @@ import { GrafoCapturaViz } from "./GrafoCapturaViz";
  * cadena de captura): el partido y el alcalde tres veces, «37 contratos con indicio» sin enlace y «no es una
  * acusación» cinco veces. Ahora, con los mismos datos:
  *   · `filaCaptura`: UNA fila de las Banderas del Inicio, que abre la lista de esos contratos ya filtrada;
- *   · `EmpresasLigadas`: las empresas en una tabla (lazo, contratos, monto); cada fila abre el panel lateral. La red,
- *     como "Ver como red", sólo en pantallas anchas y con 4 empresas o más;
- *   · `QuienGobierna`: el partido, su autoridad y el período, en la columna lateral.
+ *   · `EmpresasLigadas`: las empresas en una tabla (lazo, contratos, monto), en el panel que abre su fila de «Ver más»
+ *     del Inicio; cada fila abre su detalle. La red, como "Ver como red", sólo en pantallas anchas y con 4 empresas o más;
+ *   · `datosQuienGobierna`: el partido, su autoridad y el período, en la caja «Quién la gobierna» del Inicio.
  *
  * La captura junta tres lazos de casos_cruce: la empresa financió al partido que gobierna (partido_gobernante), le
  * vendió a su campaña (vendio_gobernante) o tiene un socio que trabaja en la entidad (socio_en_entidad). El tercero
@@ -166,69 +164,57 @@ export function EmpresasLigadas({
     };
   });
 
+  const verContratos = href({ cruce: CRUCE_CAPTURA, ...(poder.periodoInicio ? { desde: poder.periodoInicio } : {}), ...(poder.periodoFin ? { hasta: poder.periodoFin } : {}) });
   return (
-    <BloqueInicio
-      nivel={3}
-      titulo="Empresas ligadas a la gestión"
-      ayuda={
-        <Ayuda titulo="¿Qué empresas son?">
-          <span className="block">
-            Las que ganaron contratos de esta entidad y financiaron o le vendieron a la campaña del partido que la gobierna
-            (ONPE × JNE), o tienen un socio o representante que trabaja en la misma entidad (RNP × registro de
-            contratados).
-          </span>
-          <span className="mt-2 block">Sólo empresas (RUC 20): de las personas naturales no se publica el lazo.</span>
-        </Ayuda>
-      }
-      enlace={{ href: href({ cruce: CRUCE_CAPTURA, ...(poder.periodoInicio ? { desde: poder.periodoInicio } : {}), ...(poder.periodoFin ? { hasta: poder.periodoFin } : {}) }), texto: `Ver sus ${numero(poder.n_captura)} contratos` }}
-    >
-      <div className="space-y-4">
-        <DatosClave
-          items={[
-            { etiqueta: "Empresas", valor: faltan > 0 ? `${numero(poder.n_empresas)} (abajo, las ${numero(empresas.length)} con más contratos)` : numero(poder.n_empresas) },
-            { etiqueta: "Adjudicado en esos contratos", valor: solesCompacto(poder.monto_captura), mono: true },
-            {
-              // Contratos (no empresas) por cada lazo: cada uno abre su lista filtrada.
-              etiqueta: "Contratos por lazo",
-              valor: (
-                <Fichas
-                  items={TIPOS_CAPTURA.map((t) => ({
-                    etiqueta: TIPO_CRUCE[t]?.corto ?? t,
-                    n: t === "partido_gobernante" ? poder.n_financiaron : t === "vendio_gobernante" ? poder.n_vendieron : poder.n_socio,
-                    // Del mismo periodo que su conteo (migración 140), como la fila de las banderas.
-                    href: href({ cruces: t, ...(poder.periodoInicio ? { desde: poder.periodoInicio } : {}), ...(poder.periodoFin ? { hasta: poder.periodoFin } : {}) }),
-                  }))}
-                />
-              ),
-            },
-          ]}
-        />
-        <TablaPaginada
-          columnas={COLUMNAS}
-          filas={filas}
-          etiqueta="Empresas ligadas a la gestión"
-          nombre="empresas"
-          tam={8}
-          densidad="compacta"
-          medida="contenedor"
-          buscar={{ placeholder: "Buscar una empresa por nombre o RUC…", etiqueta: "Buscar entre las empresas ligadas" }}
-        />
-        {/* La red repite la tabla como dibujo: sólo donde se lee (desde lg; con la barra lateral, a md quedaba en letra
-            de 9 px) y con 4 empresas o más (con menos es una lista dibujada). */}
-        {empresas.length >= 4 && grafo && (
-          <details className="group/red hidden lg:block">
-            <summary className="inline-flex min-h-9 cursor-pointer list-none items-center gap-1.5 rounded-full border border-line px-3.5 text-meta font-semibold text-inkSoft transition-colors duration-rapido hover:border-granate/40 hover:text-ink [&::-webkit-details-marker]:hidden">
-              <Network size={14} aria-hidden />
-              <span className="group-open/red:hidden">Ver como red</span>
-              <span className="hidden group-open/red:inline">Ocultar la red</span>
-            </summary>
-            <div className="pt-4">
-              <GrafoCapturaViz data={grafo} />
-            </div>
-          </details>
-        )}
-      </div>
-    </BloqueInicio>
+    <div className="space-y-4">
+      <DatosClave
+        items={[
+          { etiqueta: "Empresas", valor: faltan > 0 ? `${numero(poder.n_empresas)} (abajo, las ${numero(empresas.length)} con más contratos)` : numero(poder.n_empresas) },
+          { etiqueta: "Adjudicado en esos contratos", valor: solesCompacto(poder.monto_captura), mono: true },
+          {
+            // Contratos (no empresas) por cada lazo: cada uno abre su lista filtrada.
+            etiqueta: "Contratos por lazo",
+            valor: (
+              <Fichas
+                items={TIPOS_CAPTURA.map((t) => ({
+                  etiqueta: TIPO_CRUCE[t]?.corto ?? t,
+                  n: t === "partido_gobernante" ? poder.n_financiaron : t === "vendio_gobernante" ? poder.n_vendieron : poder.n_socio,
+                  // Del mismo periodo que su conteo (migración 140), como la fila de las banderas.
+                  href: href({ cruces: t, ...(poder.periodoInicio ? { desde: poder.periodoInicio } : {}), ...(poder.periodoFin ? { hasta: poder.periodoFin } : {}) }),
+                }))}
+              />
+            ),
+          },
+        ]}
+      />
+      <TablaPaginada
+        columnas={COLUMNAS}
+        filas={filas}
+        etiqueta="Empresas ligadas a la gestión"
+        nombre="empresas"
+        tam={8}
+        densidad="compacta"
+        medida="contenedor"
+        buscar={{ placeholder: "Buscar una empresa por nombre o RUC…", etiqueta: "Buscar entre las empresas ligadas" }}
+      />
+      {/* La red repite la tabla como dibujo: sólo donde se lee (desde lg; con la barra lateral, a md quedaba en letra
+          de 9 px) y con 4 empresas o más (con menos es una lista dibujada). */}
+      {empresas.length >= 4 && grafo && (
+        <details className="group/red hidden lg:block">
+          <summary className="inline-flex min-h-9 cursor-pointer list-none items-center gap-1.5 rounded-full border border-line px-3.5 text-meta font-semibold text-inkSoft transition-colors duration-rapido hover:border-granate/40 hover:text-ink [&::-webkit-details-marker]:hidden">
+            <Network size={14} aria-hidden />
+            <span className="group-open/red:hidden">Ver como red</span>
+            <span className="hidden group-open/red:inline">Ocultar la red</span>
+          </summary>
+          <div className="pt-4">
+            <GrafoCapturaViz data={grafo} />
+          </div>
+        </details>
+      )}
+      <EnlaceAccion href={verContratos} flecha>
+        {`Ver sus ${numero(poder.n_captura)} contratos`}
+      </EnlaceAccion>
+    </div>
   );
 }
 
@@ -240,44 +226,34 @@ function mesAnio(iso: string | null): string | null {
 }
 
 /**
- * Quién gobierna la entidad hoy (JNE): el partido, su autoridad electa (nombre completo: es una autoridad) y el
- * período. Va en la columna lateral del Inicio. Sin gobierno electo (ministerios, organismos), no se muestra.
+ * Quién gobierna la entidad hoy (JNE): el partido (a su ficha, en el período de este gobierno) y su autoridad electa (nombre
+ * completo: es una autoridad) con su período, como filas de `DatosClave`. Van en la caja «Quién la gobierna» del Inicio,
+ * junto a quién aprueba sus contratos. Sin gobierno electo (ministerios, organismos), ninguna.
  */
-export function QuienGobierna({ poder }: { poder: PoderEntidad | null }) {
-  if (!poder?.partido) return null;
+export function datosQuienGobierna(poder: PoderEntidad | null): DatoClave[] {
+  if (!poder?.partido) return [];
   const desde = mesAnio(poder.periodoInicio);
   const hasta = mesAnio(poder.periodoFin);
-  const cargo = poder.cargo_gob ? oracion(poder.cargo_gob) : "Autoridad electa";
-  return (
-    <BloqueInicio
-      titulo="Quién la gobierna"
-      ayuda={
-        <Ayuda titulo="¿De dónde sale?">
-          Del JNE: la autoridad electa que hoy está en el cargo y la organización política por la que postuló.
-        </Ayuda>
-      }
-    >
-      <DatosClave
-        items={[
-          {
-            etiqueta: "Partido",
-            valor: (
-              // La ficha del partido en el período de este gobierno (antes iba a /app/poder, que no es su ficha).
-              <Link href={rutaPartido(poder.partido, poder.periodoInicio)} prefetch={false} className="font-semibold text-granate underline-offset-2 hover:underline">
-                {tituloNatural(poder.partido)}
-              </Link>
-            ),
-          },
-          { etiqueta: cargo, valor: poder.autoridad ? tituloNatural(poder.autoridad) : null },
-          { etiqueta: "Período", valor: desde && hasta ? `${desde} a ${hasta}` : (hasta ? `Hasta ${hasta}` : null) },
-        ]}
-      />
-      <FuenteDato
-        fuente="JNE, autoridades vigentes (datos abiertos)"
-        href={DATASET_AUTORIDADES_JNE}
-        enlaces={[{ texto: "Infogob (JNE): candidaturas y autoridades de cada elección", href: INFOGOB_JNE }]}
-        className="mt-2"
-      />
-    </BloqueInicio>
-  );
+  return [
+    {
+      etiqueta: "Partido",
+      valor: (
+        <Link href={rutaPartido(poder.partido, poder.periodoInicio)} prefetch={false} className="font-semibold text-granate underline-offset-2 hover:underline">
+          {tituloNatural(poder.partido)}
+        </Link>
+      ),
+    },
+    {
+      etiqueta: poder.cargo_gob ? oracion(poder.cargo_gob) : "Autoridad electa",
+      valor: poder.autoridad ? (
+        <>
+          {tituloNatural(poder.autoridad)}
+          {(desde || hasta) && <span className="text-mute">{desde && hasta ? `, de ${desde} a ${hasta}` : `, hasta ${hasta}`}</span>}
+        </>
+      ) : null,
+    },
+  ];
 }
+
+/** De dónde sale quién gobierna: el JNE (sus datos abiertos de autoridades vigentes e Infogob). */
+export const FUENTE_GOBIERNO = { fuente: "JNE, autoridades vigentes", href: DATASET_AUTORIDADES_JNE, infogob: INFOGOB_JNE } as const;

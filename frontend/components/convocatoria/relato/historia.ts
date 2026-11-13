@@ -15,7 +15,7 @@ import { reglaLabel } from "@/lib/auditoria";
 import { oracion } from "@/lib/formato";
 import { RANGO_SEVERIDAD } from "@/lib/severidad";
 import { severidadDe, type SeveridadSenal } from "../dossier";
-import { evidenciaComoTexto } from "../sections/Evidencia";
+import { evidenciaComoTexto } from "../evidenciaTexto";
 import type { Bandera } from "../types";
 
 // ─── Los pasos del proceso y a cuál va cada regla ─────────────────────────────

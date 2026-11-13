@@ -13,7 +13,7 @@ import { LlamadaPodio } from "./LlamadaPodio";
 import { ORDEN_LABEL, TAM_PAGINA, hrefPerfil, type ClaveOrden, type FilaRanking, type Periodo, type Ranking } from "./ranking";
 
 /**
- * El podio de /app/aliados (pedido del usuario del 2026-10-29: «que sea un PODIO»): arriba, siempre, los tres
+ * El podio de /app/apoyar?seccion=aliados (pedido del usuario del 2026-10-29: «que sea un PODIO»): arriba, siempre, los tres
  * lugares (`PodioRanking`, el mismo de la portada), ocupados o libres; debajo, la meta del mes; del cuarto lugar en
  * adelante, la `Tabla` de todo listado; la invitación, los últimos aportes y los que aportan sin nombre.
  *
@@ -120,8 +120,8 @@ export function RankingAliados({
         total={totalNombres}
         tam={TAM_PAGINA}
         navegacion="url"
-        hrefBase="/app/aliados"
-        query={{ periodo: periodo !== "todo" ? periodo : undefined, q: busqueda }}
+        hrefBase="/app/apoyar"
+        query={{ seccion: "aliados", periodo: periodo !== "todo" ? periodo : undefined, q: busqueda }}
         cargando={false}
         nombre="aliados"
       />

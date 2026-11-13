@@ -10,6 +10,9 @@ import { adjudicacionesVigentes, type ContratoDetalle } from "@/lib/contratos";
  * pasaron desde el anterior; los del mismo día van juntos ("Buena pro y adjudicación"). Arriba, cuánto tardó de la
  * convocatoria a la buena pro (o, sin esa fecha, a la adjudicación). Solo lo que el registro trae (nada se estima); con
  * menos de dos hitos no se dibuja. Server-safe.
+ *
+ * Desde md, en una fila (un paso por columna, unidos por una raya): va en el Resumen de la ficha, a lo ancho. Antes iba
+ * en la columna lateral, en vertical, y la dejaba el doble de alta que el Resumen (auditoría del 2026-11-13).
  */
 interface Hito {
   fecha: string;
@@ -81,24 +84,26 @@ export function LineaTiempoProceso({ c, idTitulo = "linea-tiempo" }: { c: Contra
           </span>
         )}
       </div>
-      <ol className="mt-3">
+      <ol className="mt-3 md:grid md:auto-cols-fr md:grid-flow-col md:gap-x-2">
         {hitos.map((h, i) => {
           const ultimo = i === hitos.length - 1;
           const salto = i === 0 ? null : dias(hitos[i - 1].fecha, h.fecha);
           return (
-            <li key={h.fecha} className="relative grid grid-cols-[14px_minmax(0,1fr)] gap-x-3">
-              {/* El punto del hito y, hasta el siguiente, la línea que los une. */}
-              <span aria-hidden className="relative flex justify-center">
+            <li key={h.fecha} className="relative grid grid-cols-[14px_minmax(0,1fr)] gap-x-3 md:flex md:flex-col md:gap-1.5">
+              {/* El punto del hito y, hasta el siguiente, la línea que los une (hacia abajo; desde md, hacia la derecha). */}
+              <span aria-hidden className="relative flex justify-center md:h-4 md:items-center md:justify-start">
                 <span
                   className={cn(
-                    "relative z-10 mt-1 h-3 w-3 rounded-full border-2",
+                    "relative z-10 mt-1 h-3 w-3 rounded-full border-2 md:mt-0",
                     h.vigia ? "border-granate bg-granate" : "border-granate bg-paper",
                   )}
                 />
-                {!ultimo && <span className="absolute bottom-0 top-4 w-0.5 bg-line" />}
+                {!ultimo && (
+                  <span className="absolute bottom-0 top-4 w-0.5 bg-line md:bottom-auto md:left-3 md:right-[-0.5rem] md:top-1/2 md:h-0.5 md:w-auto md:-translate-y-1/2" />
+                )}
               </span>
-              <div className={cn("min-w-0", !ultimo && "pb-3")}>
-                <div className="flex items-baseline justify-between gap-3 text-meta">
+              <div className={cn("min-w-0", !ultimo && "pb-3 md:pb-0")}>
+                <div className="flex items-baseline justify-between gap-3 text-meta md:flex-col md:items-start md:gap-0.5">
                   <span className={cn("font-medium", h.vigia ? "text-granate" : "text-ink")}>{unir(h.textos)}</span>
                   {/* Con el año, también el de este: la línea cruza años (convocatoria en diciembre, contrato en enero) y
                       «4 ago.» debajo de «20 dic. 2025» no decía de cuál era. */}

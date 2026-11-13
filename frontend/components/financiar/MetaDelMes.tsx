@@ -112,7 +112,7 @@ export function MetaDelMes({ v, conEnlace = true }: { v: ResumenVigilancia; conE
       </p>
 
       {conEnlace && (
-        <Link href="/app/cuanto-cuesta" prefetch={false} className="mt-4 inline-flex min-h-[32px] items-center gap-1 text-meta font-semibold text-granate hover:underline">
+        <Link href="/app/apoyar?seccion=costos" prefetch={false} className="mt-4 inline-flex min-h-[32px] items-center gap-1 text-meta font-semibold text-granate hover:underline">
           Cuánto cuesta Vigía, rubro por rubro <ArrowRight size={14} aria-hidden />
         </Link>
       )}

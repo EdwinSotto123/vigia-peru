@@ -80,7 +80,7 @@ export default async function ZonaPage({
       <Migas
         items={[
           { etiqueta: "Inicio", href: "/app" },
-          { etiqueta: "Lo que falta leer", href: "/app/financiar" },
+          { etiqueta: "Auditoría en vivo", href: "/app/auditoria" }, { etiqueta: "Lo que falta leer", href: "/app/auditoria?seccion=falta" },
           ...breadcrumb.map((b) => ({ etiqueta: b.nombre, href: `/app/financiar/${b.ubigeo}` })),
         ]}
       />
@@ -110,7 +110,7 @@ export default async function ZonaPage({
             pestanas={pestanasZona(d, enVivo)}
           />
 
-          {/* La independencia en una línea; el detalle, en el ⓘ y en las reglas de /app/financiar. */}
+          {/* La independencia en una línea; el detalle, en el ⓘ y en las reglas de /app/apoyar. */}
           <p className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-meta text-inkSoft">
             <ShieldCheck size={15} className="shrink-0 text-granate" aria-hidden />
             <span>Tu aporte va al fondo común: no decide qué se lee.</span>
@@ -118,7 +118,7 @@ export default async function ZonaPage({
               La zona queda como destino sugerido de tu aporte, nada más: lo más grave se lee primero, sea de donde sea, y los
               resultados se publican aunque señalen a quien aportó.
             </Ayuda>
-            <Link href="/app/financiar#independencia" className="font-medium text-granate underline underline-offset-2">Reglas de independencia</Link>
+            <Link href="/app/apoyar#independencia" className="font-medium text-granate underline underline-offset-2">Reglas de independencia</Link>
           </p>
 
           {/* Las zonas hijas, a la vista y no en una pestaña: llenan la columna junto al formulario y son

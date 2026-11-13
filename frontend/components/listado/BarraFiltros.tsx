@@ -1,27 +1,32 @@
 "use client";
 
-import { useEffect, useId, useRef, useState } from "react";
-import { ArrowDownUp, Clock, Eye, FileText, Loader2, Search, SlidersHorizontal, X } from "lucide-react";
+import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
+import { ArrowDownUp, Check, ChevronDown, Clock, Eye, FileText, Loader2, Search, SlidersHorizontal, X } from "lucide-react";
 import { ICONO_SEVERIDAD } from "@/components/ui/Severidad";
-import { Popover } from "@/components/ui/Flotante";
+import { Panel } from "@/components/ui/Panel";
+import { Button } from "@/components/ui/Button";
 import { cn } from "@/lib/utils";
 import { numero } from "@/lib/formato";
-import { useListado } from "./Listado";
+import { useListado, type Parametros } from "./Listado";
 import { colorMuestra, type MuestraColor } from "./paletaSeveridad";
 
 /**
- * La barra de filtros de todo listado (§14.1). Una sola forma, en este orden:
+ * La barra de filtros de todo listado (§14.1). Una fila de cajas de 40 px y, debajo, lo que está filtrando:
  *
- *   [buscar………]  [faceta principal: chips con conteo]  [Filtros (n)]  [Orden]
- *   Filtrando por: Regla: Sobreprecio ×   Entidad: Gobierno Regional… ×   Quitar todo
+ *   escritorio  [buscar………]  [Severidad ⌄] [Región ⌄] [Año ⌄]           [Filtros 2]  [⇅ Más recientes ⌄]
+ *               Región: Lima ×   Regla: Sobreprecio ×                                          Quitar todos
  *
- * - La faceta principal (severidad, riesgo, estado) va a la vista, en chips: es la
- *   pregunta que casi todos hacen. Las secundarias (regla, entidad, zona, tipo…) van
- *   detrás de "Filtros": no ocupan la pantalla hasta que se piden.
- * - Lo activo se ve siempre, cada filtro con su ×: el usuario sabe por qué la lista
- *   es la que es y deshace uno sin rehacer los demás.
- * - Todo va a la URL vía `Listado`; mientras llega la página, spinner en la barra y
- *   `ZonaResultados` atenuada.
+ *   celular     [buscar………………………………………………]
+ *               [Filtros 2]             [⇅ Más recientes ⌄]
+ *
+ * - En escritorio, la faceta y los filtros a la vista van en la fila como desplegables compactos, cada uno del ancho de
+ *   lo que dice. Los que no caben pasan a «Filtros» en vez de abrir un segundo renglón: la barra se mide (`medir`).
+ * - En el celular, sólo el buscador, «Filtros» y el orden (antes eran casi dos pantallas antes de la primera fila). Todos
+ *   los filtros van en una hoja que sube desde abajo, agrupados, con «Ver resultados» y «Quitar filtros».
+ * - En la hoja se elige y se aplica todo junto («Ver resultados»): en el celular cada cambio era una página nueva del
+ *   servidor. En la fila, cada desplegable aplica al elegir.
+ * - Lo activo se ve en un renglón de chips, cada uno con su ×, y «Quitar todos». Sólo si algo filtra.
+ * - Todo va a la URL vía `Listado`; mientras llega la página, el ícono del buscador gira y `ZonaResultados` se atenúa.
  *
  * Props de datos planos: esta barra la arma un server component.
  */
@@ -66,8 +71,8 @@ export interface FiltroSecundario {
   /** Dentro de "Filtros", los filtros con la misma `seccion` van juntos bajo ese subtítulo ("Dónde", "Cuándo", "Cuánto"). */
   seccion?: string;
   /**
-   * En `visibles`: siempre desplegable, aunque tenga una sola opción (un filtro de una opción se dibuja como chip; uno
-   * que mientras carga trae sólo la elegida saltaba de chip a desplegable).
+   * En `visibles`: siempre desplegable, aunque tenga una sola opción (un filtro de una opción se dibuja como interruptor;
+   * uno que mientras carga trae sólo la elegida saltaba de interruptor a desplegable).
    */
   desplegable?: boolean;
   /**
@@ -76,9 +81,8 @@ export interface FiltroSecundario {
    */
   buscable?: boolean;
   /**
-   * En `visibles`: el nombre corto que va DENTRO del desplegable cuando no hay nada elegido ("Riesgo"), como un botón de filtro.
-   * Así las tres preguntas, la búsqueda, "Filtros" y el orden caben en una fila (antes, con la etiqueta afuera, la
-   * barra se partía en dos renglones). Lo elegido se nombra completo en "Filtrando por".
+   * En `visibles`: el nombre corto del desplegable en la fila ("Riesgo"; con algo elegido, "Riesgo: Alto"). Sin `corta`,
+   * va `etiqueta`. El nombre completo va siempre en la hoja de «Filtros» y en el chip de lo activo.
    */
   corta?: string;
 }
@@ -121,11 +125,43 @@ const TONO_ICONO: Record<TonoFaceta, string> = {
 };
 
 // `placeholder:text-mute`: sin él, el texto de ayuda del buscador heredaba el gris de Tailwind (2,5:1, bajo el piso).
+// 16 px en el celular (`text-destacado`): con menos, el iPhone agranda la página al tocar el campo.
 const CAMPO =
-  "h-10 w-full rounded-xl border border-line bg-paper px-3 text-dato text-ink placeholder:text-mute transition-colors duration-rapido hover:border-paperEdge focus:border-granate";
+  "h-10 w-full rounded-xl border border-line bg-paper px-3 text-destacado text-ink placeholder:text-mute transition-colors duration-rapido hover:border-paperEdge focus:border-granate md:text-dato";
+
+/**
+ * La caja de cada control de la fila: 40 px, borde de 1 px, del ancho de lo que dice (hasta 16rem). El anillo de foco va
+ * en la caja: el <select> que la cubre es transparente y su propio anillo no se vería.
+ */
+const CAJA =
+  "relative inline-flex h-10 min-w-0 max-w-[16rem] shrink-0 items-center gap-1.5 whitespace-nowrap rounded-xl border bg-paper pl-3 pr-2.5 text-dato text-ink transition-colors duration-rapido has-[:focus-visible]:outline has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-granate";
+
+const BOTON_FILTROS =
+  "inline-flex h-10 shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-xl border bg-paper px-3 text-dato font-semibold text-ink transition-colors duration-rapido active:translate-y-px";
+
+/** El separador entre controles de la fila (`gap-2`) y el ancho mínimo del buscador (`md:min-w-[16rem]`), para medir. */
+const GAP = 8;
+const MIN_BUSQUEDA = 256;
+
+/** `useLayoutEffect` en el navegador (mide antes de pintar); en el servidor no hace nada y React avisa si se usa. */
+const useEfectoMedida = typeof window === "undefined" ? useEffect : useLayoutEffect;
 
 /** El nombre de un valor que no está entre las opciones: su etiqueta conocida o la clave legible («obra controversia»). */
 const nombreDe = (f: FiltroSecundario, v: string) => f.etiquetas?.[v] ?? (v.charAt(0).toUpperCase() + v.slice(1)).replace(/_/g, " ");
+const etiquetaDe = (f: FiltroSecundario, v: string) => f.opciones.find((o) => o.valor === v)?.etiqueta ?? nombreDe(f, v);
+const esConmutador = (f: FiltroSecundario) => f.opciones.length === 1 && !f.desplegable;
+
+/** Un control que puede ir en la fila (escritorio) y que siempre va en la hoja de «Filtros». */
+interface Control {
+  clave: string;
+  activo: boolean;
+  /** En la fila. */
+  fila: React.ReactNode;
+  /** Su cara, sin el control: la copia invisible con la que se mide cuánto ocupa. */
+  cara: React.ReactNode;
+  /** En la hoja, con el valor del borrador. */
+  hoja: React.ReactNode;
+}
 
 export function BarraFiltros({
   busqueda,
@@ -151,207 +187,364 @@ export function BarraFiltros({
     nombreEnChip?: boolean;
   };
   /**
-   * Filtros desplegables a la vista, en la misma barra (no detrás de "Filtros"): para las preguntas que casi todos
-   * hacen y que tienen varias respuestas ("¿Lo leyó Vigía?", "Antecedentes del ganador"). Cada opción con su conteo.
+   * Filtros a la vista, en la misma fila (no detrás de "Filtros"): para las preguntas que casi todos hacen y que tienen
+   * varias respuestas ("¿Lo leyó Vigía?", "Antecedentes del ganador"). Cada opción con su conteo. Los que no caben en la
+   * fila pasan solos a «Filtros».
    */
   visibles?: FiltroSecundario[];
   filtros?: FiltroSecundario[];
   orden?: Orden;
   /**
    * Filtros que llegan por enlace y no tienen un control propio (el período de un gobierno con `desde` y `hasta`, varios
-   * antecedentes a la vez): se nombran en «Filtrando por» y su × quita todos sus parámetros. Antes quedaban activos e
-   * invisibles: la lista filtraba y la barra decía «Todo el histórico».
+   * antecedentes a la vez): se nombran en el renglón de lo activo y su × quita todos sus parámetros. Antes quedaban
+   * activos e invisibles: la lista filtraba y la barra decía «Todo el histórico».
    */
   chips?: { clave: string; texto: string; params: string[] }[];
   className?: string;
 }) {
   const { parametros, navegar, pendiente } = useListado();
-  const activos = filtros.filter((f) => parametros[f.param]);
-  const esConmutador = (f: FiltroSecundario) => f.opciones.length === 1 && !f.desplegable;
-  const conmutadores = visibles.filter(esConmutador);
-  const desplegables = visibles.filter((f) => !esConmutador(f));
-  const visiblesActivos = desplegables.filter((f) => parametros[f.param]).length;
   const valorFaceta = faceta ? parametros[faceta.param] : undefined;
   const textoBusqueda = busqueda ? parametros[busqueda.param] : undefined;
 
-  const chipsActivos: { clave: string; texto: string; quitar: () => void }[] = [];
-  if (busqueda && textoBusqueda) chipsActivos.push({ clave: busqueda.param, texto: `“${textoBusqueda}”`, quitar: () => navegar({ [busqueda.param]: undefined }) });
-  if (faceta && valorFaceta) {
-    const o = faceta.opciones.find((x) => x.valor === valorFaceta);
-    const opcion = o?.etiqueta ?? valorFaceta;
-    const texto = faceta.nombreEnChip === false ? opcion : `${faceta.etiqueta}: ${opcion}`;
-    chipsActivos.push({ clave: faceta.param, texto, quitar: () => navegar({ [faceta.param]: undefined }) });
+  // ── La hoja de «Filtros»: se elige en un borrador y se aplica todo junto. ──
+  const [abierta, setAbierta] = useState(false);
+  const [borrador, setBorrador] = useState<Parametros>({});
+  const paramsHoja = [...(faceta ? [faceta.param] : []), ...visibles.map((f) => f.param), ...filtros.map((f) => f.param)];
+  const paramsEnlace = chips.flatMap((c) => c.params);
+  const abrir = () => {
+    setBorrador({ ...parametros });
+    setAbierta(true);
+  };
+  const elegir = (param: string) => (v: string) => setBorrador((b) => ({ ...b, [param]: v || undefined }));
+  const hayEnBorrador = [...paramsHoja, ...paramsEnlace].some((p) => borrador[p]);
+  const quitarBorrador = () =>
+    setBorrador((b) => ({ ...b, ...Object.fromEntries([...paramsHoja, ...paramsEnlace].map((p) => [p, undefined])) }));
+  const verResultados = () => {
+    const cambio: Parametros = {};
+    for (const p of [...paramsHoja, ...paramsEnlace]) {
+      if ((borrador[p] || undefined) !== (parametros[p] || undefined)) cambio[p] = borrador[p] || undefined;
+    }
+    setAbierta(false);
+    if (Object.keys(cambio).length) navegar(cambio);
+  };
+
+  // ── Los controles que pueden ir en la fila, en orden: la faceta y los filtros a la vista. ──
+  const controles: Control[] = [];
+  if (faceta) {
+    const elegida = valorFaceta ? faceta.opciones.find((o) => o.valor === valorFaceta) : undefined;
+    const props = {
+      etiqueta: faceta.etiqueta,
+      nombre: valorFaceta && faceta.nombreEnChip === false ? null : faceta.etiqueta,
+      elegido: valorFaceta ? elegida?.etiqueta ?? valorFaceta : null,
+      marca: elegida ? <MarcaOpcion opcion={elegida} /> : null,
+    };
+    controles.push({
+      clave: faceta.param,
+      activo: !!valorFaceta,
+      fila: (
+        <SelectCompacto {...props} valor={valorFaceta ?? ""} onCambio={(v) => navegar({ [faceta.param]: v || undefined })}>
+          <option value="">
+            {faceta.todas}
+            {faceta.conteoTodas != null ? ` (${numero(faceta.conteoTodas)})` : ""}
+          </option>
+          {valorFaceta && !elegida && <option value={valorFaceta}>{valorFaceta}</option>}
+          <Opciones opciones={faceta.opciones} />
+        </SelectCompacto>
+      ),
+      cara: <SelectCompacto {...props} soloCara />,
+      hoja: <FacetaEnHoja faceta={faceta} valor={borrador[faceta.param]} onCambio={elegir(faceta.param)} />,
+    });
   }
-  for (const f of [...visibles.filter((x) => parametros[x.param]), ...activos]) {
-    const v = parametros[f.param]!;
-    const o = f.opciones.find((x) => x.valor === v);
-    chipsActivos.push({ clave: f.param, texto: `${f.etiqueta}: ${o?.etiqueta ?? nombreDe(f, v)}`, quitar: () => navegar({ [f.param]: undefined }) });
+  for (const f of visibles) {
+    const v = parametros[f.param];
+    if (esConmutador(f)) {
+      controles.push({
+        clave: f.param,
+        activo: !!v,
+        fila: <Interruptor filtro={f} activo={!!v} onCambio={(x) => navegar({ [f.param]: x || undefined })} />,
+        cara: <Interruptor filtro={f} activo={!!v} soloCara />,
+        hoja: (
+          <fieldset className="min-w-0">
+            <legend className="mb-1 text-rotulo font-medium text-inkSoft">{f.etiqueta}</legend>
+            <Interruptor filtro={f} activo={!!borrador[f.param]} onCambio={elegir(f.param)} />
+          </fieldset>
+        ),
+      });
+      continue;
+    }
+    const props = {
+      etiqueta: f.etiqueta,
+      nombre: f.corta ?? f.etiqueta,
+      elegido: v ? etiquetaDe(f, v) : null,
+      disabled: f.opciones.length === 0 && !v,
+    };
+    controles.push({
+      clave: f.param,
+      activo: !!v,
+      fila: (
+        <SelectCompacto {...props} valor={v ?? ""} onCambio={(x) => navegar({ [f.param]: x || undefined })}>
+          <option value="">{f.todas}</option>
+          {/* El valor activo puede no estar entre las opciones cruzadas: se agrega para que el select no se vacíe. */}
+          {v && !f.opciones.some((o) => o.valor === v) && <option value={v}>{nombreDe(f, v)}</option>}
+          <Opciones opciones={f.opciones} />
+        </SelectCompacto>
+      ),
+      cara: <SelectCompacto {...props} soloCara />,
+      hoja: <CampoFiltro filtro={f} valor={borrador[f.param]} onCambio={elegir(f.param)} />,
+    });
+  }
+
+  // ── Cuántos controles caben en la fila (escritorio). `null`: aún sin medir (lo pinta el servidor); entonces la fila
+  // corta lo que no cabe (una sola línea con `overflow-hidden`) y nada salta a un segundo renglón. ──
+  const hayHoja = controles.length > 0 || filtros.length > 0;
+  const filaRef = useRef<HTMLDivElement>(null);
+  const medidaRef = useRef<HTMLDivElement>(null);
+  const [enFila, setEnFila] = useState<number | null>(null);
+  const [botonEnEscritorio, setBotonEnEscritorio] = useState(filtros.length > 0);
+  // Una columna angosta en escritorio (768 px con la barra lateral deja ~460): si ni el buscador, «Filtros» y el orden
+  // caben juntos, la barra se apila como en el celular en vez de desbordarse.
+  const [estrecha, setEstrecha] = useState(false);
+  const medir = useRef(() => {});
+  medir.current = () => {
+    const fila = filaRef.current;
+    const medida = medidaRef.current;
+    // En el celular la fila no lleva controles: no hay nada que medir.
+    if (!fila || !medida || !window.matchMedia("(min-width: 768px)").matches) return;
+    const anchos = new Map<string, number>();
+    medida.querySelectorAll<HTMLElement>("[data-medida]").forEach((el) => anchos.set(el.dataset.medida!, Math.ceil(el.getBoundingClientRect().width)));
+    const items = controles.map((c) => anchos.get(c.clave) ?? 0);
+    const fijos = [...(busqueda ? [MIN_BUSQUEDA] : []), ...(orden ? [anchos.get("@orden") ?? 0] : [])];
+    const disponible = fila.clientWidth - 1;
+    const cabe = (n: number, boton: boolean) => {
+      const w = [...fijos, ...items.slice(0, n), ...(boton ? [anchos.get("@filtros") ?? 0] : [])];
+      return w.reduce((s, x) => s + x, 0) + GAP * Math.max(0, w.length - 1) <= disponible;
+    };
+    const angosta = !cabe(0, hayHoja);
+    let n = angosta ? 0 : items.length;
+    let boton = angosta || filtros.length > 0;
+    if (!cabe(n, boton)) {
+      boton = true;
+      while (n > 0 && !cabe(n, true)) n--;
+    }
+    setEstrecha(angosta);
+    setEnFila(n);
+    setBotonEnEscritorio(boton);
+  };
+  // En cada render (cambia lo que dice un desplegable) y cuando cambia el ancho de la fila o de la copia (las fuentes).
+  useEfectoMedida(() => medir.current());
+  useEffect(() => {
+    if (typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver(() => medir.current());
+    if (filaRef.current) ro.observe(filaRef.current);
+    if (medidaRef.current) ro.observe(medidaRef.current);
+    return () => ro.disconnect();
+  }, []);
+
+  const enLaFila = (i: number) => enFila == null || i < enFila;
+  const activosSecundarios = filtros.filter((f) => parametros[f.param]).length;
+  // En el celular la hoja tiene todo; en escritorio, lo que no está en la fila.
+  const nCelular = controles.filter((c) => c.activo).length + activosSecundarios;
+  const nEscritorio = controles.filter((c, i) => c.activo && !enLaFila(i)).length + activosSecundarios;
+
+  // ── Lo activo, para el renglón de chips (la búsqueda no: ya se lee en su campo). ──
+  const chipsActivos: { clave: string; nombre?: string; valor: string; quitar: () => void }[] = [];
+  if (faceta && valorFaceta) {
+    const valor = faceta.opciones.find((x) => x.valor === valorFaceta)?.etiqueta ?? valorFaceta;
+    chipsActivos.push({ clave: faceta.param, nombre: faceta.nombreEnChip === false ? undefined : faceta.etiqueta, valor, quitar: () => navegar({ [faceta.param]: undefined }) });
+  }
+  for (const f of [...visibles, ...filtros]) {
+    const v = parametros[f.param];
+    if (!v) continue;
+    chipsActivos.push({ clave: f.param, nombre: f.etiqueta, valor: etiquetaDe(f, v), quitar: () => navegar({ [f.param]: undefined }) });
   }
   for (const c of chips) {
     if (!c.params.some((p) => parametros[p])) continue;
-    chipsActivos.push({ clave: c.clave, texto: c.texto, quitar: () => navegar(Object.fromEntries(c.params.map((p) => [p, undefined]))) });
+    chipsActivos.push({ clave: c.clave, valor: c.texto, quitar: () => navegar(Object.fromEntries(c.params.map((p) => [p, undefined]))) });
   }
-  const quitarTodo = () => {
-    const cambio: Record<string, undefined> = {};
-    for (const c of chipsActivos) cambio[c.clave] = undefined;
-    for (const c of chips) for (const p of c.params) cambio[p] = undefined;
-    navegar(cambio);
-  };
+  const quitarTodo = () => navegar(Object.fromEntries([...paramsHoja, ...paramsEnlace].map((p) => [p, undefined])));
+
+  // Mientras llega la página, gira el ícono del buscador; sin buscador, el del orden o el de «Filtros».
+  const giraOrden = pendiente && !busqueda && !!orden;
+  const giraFiltros = pendiente && !busqueda && !orden;
+
+  const valorOrden = orden ? parametros[orden.param] ?? orden.porDefecto : "";
+  const propsOrden = orden
+    ? {
+        etiqueta: "Ordenar por",
+        nombre: null,
+        elegido: orden.opciones.find((o) => o.valor === valorOrden)?.etiqueta ?? valorOrden,
+        destacar: false,
+        icono: giraOrden ? <Loader2 size={14} className="shrink-0 animate-spin text-mute" aria-hidden /> : <ArrowDownUp size={14} className="shrink-0 text-mute" aria-hidden />,
+      }
+    : null;
 
   return (
-    <div className={cn("space-y-2.5", className)}>
-      <div className="flex flex-wrap items-center gap-2">
-        {busqueda && <Buscador {...busqueda} valor={textoBusqueda ?? ""} onBuscar={(v) => navegar({ [busqueda.param]: v || undefined })} />}
+    // La copia para medir y la hoja van fuera del `space-y-2`: su margen de arriba le ganaba al `mt-auto` de `Panel` y la
+    // hoja del celular quedaba pegada arriba en vez de subir desde abajo.
+    <div className={cn("relative", className)}>
+      <div className="space-y-2">
+        <div ref={filaRef} className={cn("flex flex-wrap items-center gap-2", !estrecha && "md:flex-nowrap")}>
+          {busqueda && (
+            <Buscador
+              {...busqueda}
+              cargando={pendiente}
+              valor={textoBusqueda ?? ""}
+              onBuscar={(v) => navegar({ [busqueda.param]: v || undefined })}
+              className={cn("w-full sm:w-full sm:min-w-0 sm:flex-none", estrecha ? "lg:max-w-none" : "md:w-auto md:min-w-[16rem] md:flex-1 lg:max-w-xl")}
+            />
+          )}
 
-        {faceta && (
-          // En el celular, una sola fila que se desliza (antes 6 chips ocupaban 4 renglones y
-          // empujaban la tabla fuera de la pantalla); desde sm, envuelven.
-          <div
-            role="group"
-            aria-label={`Filtrar por ${faceta.etiqueta.toLowerCase()}`}
-            className="-mx-4 flex w-[calc(100%+2rem)] items-center gap-1.5 overflow-x-auto px-4 pb-1 [scrollbar-width:none] sm:mx-0 sm:w-auto sm:flex-wrap sm:overflow-visible sm:px-0 sm:pb-0 [&>button]:shrink-0"
-          >
-            <Chip activo={!valorFaceta} onClick={() => navegar({ [faceta.param]: undefined })}>
-              {faceta.todas}
-              {faceta.conteoTodas != null && <Conteo n={faceta.conteoTodas} />}
-            </Chip>
-            {faceta.opciones.map((o) => {
-              const activo = valorFaceta === o.valor;
-              const Icono = o.icono ? ICONOS_FACETA[o.icono] : null;
-              return (
-                <Chip key={o.valor} activo={activo} onClick={() => navegar({ [faceta.param]: activo ? undefined : o.valor })}>
-                  {o.muestra != null ? (
-                    // Del tamaño y la forma de `MuestraSerie` (la leyenda de la barra); sobre el chip elegido, con un filete
-                    // claro para que el color no se pierda en el fondo.
-                    <span
-                      className={cn("inline-block h-2.5 w-2.5 shrink-0 rounded-sm", activo && "ring-1 ring-paper/80")}
-                      style={{ background: colorMuestra(o.muestra) }}
-                      aria-hidden
-                    />
-                  ) : (
-                    Icono && <Icono size={13} className={activo ? "text-paper" : TONO_ICONO[o.tono ?? "neutro"]} aria-hidden />
+          {controles.length > 0 && !estrecha && (
+            // `-m-1 p-1`: aire para el anillo de foco, que `overflow-hidden` cortaría. La altura deja una sola línea: lo que
+            // no cabe (antes de medir) se corta entero, no abre un segundo renglón.
+            <div className="-m-1 hidden h-12 min-w-0 flex-initial flex-wrap items-center gap-2 overflow-hidden p-1 md:flex">
+              {controles.map((c, i) => (
+                <div key={c.clave} className={cn("flex min-w-0", !enLaFila(i) && "hidden")}>
+                  {c.fila}
+                </div>
+              ))}
+            </div>
+          )}
+
+          {(hayHoja || orden) && (
+            <div className={cn("flex w-full items-center gap-2", !estrecha && "md:ml-auto md:w-auto md:shrink-0")}>
+              {hayHoja && (
+                <button
+                  type="button"
+                  onClick={abrir}
+                  aria-haspopup="dialog"
+                  aria-expanded={abierta}
+                  className={cn(
+                    BOTON_FILTROS,
+                    "flex-1",
+                    !estrecha && "md:flex-none",
+                    nCelular > 0 ? "max-md:border-granate" : "max-md:border-line max-md:hover:border-paperEdge",
+                    nEscritorio > 0 ? "md:border-granate" : "md:border-line md:hover:border-paperEdge",
+                    !botonEnEscritorio && "md:hidden",
                   )}
-                  {o.etiqueta}
-                  {o.conteo != null && <Conteo n={o.conteo} />}
-                </Chip>
-              );
-            })}
+                >
+                  {giraFiltros ? <Loader2 size={15} className="shrink-0 animate-spin" aria-hidden /> : <SlidersHorizontal size={15} className="shrink-0" aria-hidden />}
+                  Filtros
+                  {/* En el celular cuenta todo lo de la hoja; en escritorio, lo que no está a la vista en la fila. */}
+                  <Contador n={nCelular} className="md:hidden" />
+                  <Contador n={nEscritorio} className="hidden md:inline-flex" />
+                </button>
+              )}
+              {orden && propsOrden && (
+                <SelectCompacto
+                  {...propsOrden}
+                  valor={valorOrden}
+                  onCambio={(v) => navegar({ [orden.param]: v === orden.porDefecto ? undefined : v })}
+                  className={cn("flex-1 max-w-none", !estrecha && "md:max-w-[16rem] md:flex-none")}
+                >
+                  {orden.opciones.map((o) => (
+                    <option key={o.valor} value={o.valor}>
+                      {o.etiqueta}
+                    </option>
+                  ))}
+                </SelectCompacto>
+              )}
+            </div>
+          )}
+        </div>
+
+        {chipsActivos.length > 0 && (
+          <div className="flex items-center gap-3">
+            {/* Una sola línea: si no caben, se desliza de costado. `-m-1 p-1`: aire para el anillo de foco. */}
+            <ul aria-label="Filtros activos" className="-m-1 flex min-w-0 flex-1 items-center gap-1.5 overflow-x-auto p-1 [scrollbar-width:none]">
+              {chipsActivos.map((c) => (
+                <li key={c.clave} className="shrink-0">
+                  <button
+                    type="button"
+                    onClick={c.quitar}
+                    aria-label={`Quitar el filtro ${c.nombre ? `${c.nombre}: ` : ""}${c.valor}`}
+                    className="inline-flex h-8 max-w-[20rem] items-center gap-1 rounded-lg border border-line bg-paper pl-2.5 pr-1.5 text-meta text-ink transition-colors duration-rapido hover:border-granate"
+                  >
+                    <span className="truncate">
+                      {c.nombre && <span className="text-mute">{c.nombre}: </span>}
+                      <span className="font-medium">{c.valor}</span>
+                    </span>
+                    <X size={13} className="shrink-0 text-mute" aria-hidden />
+                  </button>
+                </li>
+              ))}
+            </ul>
+            {chipsActivos.length > 1 && (
+              <button type="button" onClick={quitarTodo} className="shrink-0 text-meta font-semibold text-granate hover:underline">
+                Quitar todos
+              </button>
+            )}
           </div>
         )}
+      </div>
 
-        {/* Un filtro de una sola opción es un interruptor, no un desplegable de una línea. */}
-        {conmutadores.map((f) => {
-          const o = f.opciones[0];
-          const activo = !!parametros[f.param];
-          return (
-            <Chip key={f.param} activo={activo} onClick={() => navegar({ [f.param]: activo ? undefined : o.valor })}>
-              {o.etiqueta}
-              {o.conteo != null && <Conteo n={o.conteo} />}
-            </Chip>
-          );
-        })}
-
-        {/* En el celular, los desplegables a la vista van dentro de "Filtros": eran 4 renglones antes de la primera fila. */}
-        {desplegables.map((f) => (
-          <span key={f.param} className="hidden sm:inline-flex">
-            <DesplegableVisible filtro={f} valor={parametros[f.param]} onCambio={(v) => navegar({ [f.param]: v || undefined })} />
-          </span>
-        ))}
-
-        <div className="ml-auto flex items-center gap-2">
-          {pendiente && (
-            <Loader2 size={15} className="animate-spin text-mute" aria-hidden />
+      {/* La copia invisible con que se mide la fila: las caras de los controles a su ancho natural, sin recortes. */}
+      <div aria-hidden className="pointer-events-none invisible absolute left-0 top-0 h-0 w-0 overflow-hidden">
+        <div ref={medidaRef} className="flex w-max gap-2">
+          {controles.map((c) => (
+            <div key={c.clave} data-medida={c.clave} className="flex">
+              {c.cara}
+            </div>
+          ))}
+          {hayHoja && (
+            <div data-medida="@filtros" className="flex">
+              <span className={cn(BOTON_FILTROS, "border-line")}>
+                <SlidersHorizontal size={15} className="shrink-0" />
+                Filtros
+                <Contador n={nCelular} />
+              </span>
+            </div>
           )}
-          {(filtros.length > 0 || desplegables.length > 0) && (
-            <span className={cn(filtros.length === 0 && "sm:hidden")}>
-              <Popover
-                titulo="Filtros"
-                anchoClase="w-80"
-                lado="abajo"
-                className={cn(
-                  "min-h-[40px] gap-1.5 rounded-full border px-3.5 text-dato font-medium transition-colors duration-rapido",
-                  activos.length + visiblesActivos > 0 ? "border-granate bg-granate-50 text-granate" : "border-line bg-paper text-ink hover:bg-paperSoft",
-                )}
-                trigger={
-                  <>
-                    <SlidersHorizontal size={15} aria-hidden />
-                    Filtros
-                    {/* En el celular cuenta también los desplegables que van adentro; en escritorio ésos están a la vista. */}
-                    <Contador n={activos.length + visiblesActivos} className="sm:hidden" />
-                    <Contador n={activos.length} className="hidden sm:inline-flex" />
-                  </>
-                }
-              >
-                <span className="block space-y-4">
-                  {desplegables.length > 0 && (
-                    <span className="block space-y-3 sm:hidden">
-                      <span className="block text-rotulo font-semibold text-inkSoft">Lo más usado</span>
-                      {desplegables.map((f) => (
-                        <CampoFiltro key={f.param} filtro={f} valor={parametros[f.param]} onCambio={(v) => navegar({ [f.param]: v || undefined })} />
-                      ))}
-                    </span>
-                  )}
-                  {secciones(filtros).map((g, i) => (
-                    <span
-                      key={g.titulo ?? `s${i}`}
-                      className={cn(
-                        "block space-y-3",
-                        i > 0 && "border-t border-line pt-3",
-                        // Bajo "Lo más usado" (sólo en el celular) también va su divisor.
-                        i === 0 && desplegables.length > 0 && "max-sm:border-t max-sm:border-line max-sm:pt-3",
-                      )}
-                    >
-                      {g.titulo && <span className="block text-rotulo font-semibold text-inkSoft">{g.titulo}</span>}
-                      {g.filtros.map((f) => (
-                        <CampoFiltro key={f.param} filtro={f} valor={parametros[f.param]} onCambio={(v) => navegar({ [f.param]: v || undefined })} />
-                      ))}
-                    </span>
-                  ))}
-                </span>
-              </Popover>
-            </span>
-          )}
-          {orden && (
-            <label className="relative inline-flex items-center">
-              <span className="sr-only">Ordenar por</span>
-              <ArrowDownUp size={14} className="pointer-events-none absolute left-3 text-mute" aria-hidden />
-              <select
-                value={parametros[orden.param] ?? orden.porDefecto}
-                onChange={(e) => navegar({ [orden.param]: e.target.value === orden.porDefecto ? undefined : e.target.value })}
-                className="h-10 min-w-[11.5rem] max-w-[18rem] truncate rounded-full border border-line bg-paper pl-8 pr-7 text-dato text-ink transition-colors duration-rapido hover:bg-paperSoft focus:border-granate"
-              >
-                {orden.opciones.map((o) => (
-                  <option key={o.valor} value={o.valor}>
-                    {o.etiqueta}
-                  </option>
-                ))}
-              </select>
-            </label>
+          {propsOrden && (
+            <div data-medida="@orden" className="flex">
+              <SelectCompacto {...propsOrden} soloCara />
+            </div>
           )}
         </div>
       </div>
 
-      {chipsActivos.length > 0 && (
-        <div className="flex flex-wrap items-center gap-1.5 text-meta">
-          <span className="text-mute">Filtrando por</span>
-          {chipsActivos.map((c) => (
-            <button
-              key={c.clave}
-              type="button"
-              onClick={c.quitar}
-              className="inline-flex min-h-[28px] max-w-[22rem] items-center gap-1 rounded-full bg-paperDeep py-0.5 pl-2.5 pr-1.5 text-ink transition-colors duration-rapido hover:bg-granate-50 hover:text-granate"
-            >
-              <span className="truncate">{c.texto}</span>
-              <X size={13} aria-hidden />
-              <span className="sr-only">Quitar este filtro</span>
-            </button>
-          ))}
-          {chipsActivos.length > 1 && (
-            <button type="button" onClick={quitarTodo} className="ml-1 font-medium text-granate hover:underline">
-              Quitar todo
-            </button>
-          )}
-        </div>
+      {hayHoja && (
+        <Panel
+          abierto={abierta}
+          onCerrar={() => setAbierta(false)}
+          titulo="Filtros"
+          ancho="sm"
+          pie={
+            <div className="flex items-center gap-2">
+              <Button type="button" variant="ghost" onClick={quitarBorrador} disabled={!hayEnBorrador}>
+                Quitar filtros
+              </Button>
+              <Button type="button" onClick={verResultados} className="flex-1">
+                Ver resultados
+              </Button>
+            </div>
+          }
+        >
+          <div className="space-y-6">
+            {/* La faceta, sola (en chips, con su conteo y su color); en escritorio, sólo si no cupo en la fila. */}
+            {faceta && <div className={cn(enFila != null && enLaFila(0) && "md:hidden")}>{controles[0].hoja}</div>}
+            {/* Lo más usado: los filtros a la vista; en escritorio, sólo los que no cupieron. */}
+            {visibles.length > 0 && (
+              <Grupo
+                titulo="Lo más usado"
+                className={cn(enFila != null && enFila >= controles.length && "md:hidden")}
+              >
+                {controles.slice(faceta ? 1 : 0).map((c, j) => (
+                  <div key={c.clave} className={cn(enFila != null && enLaFila(j + (faceta ? 1 : 0)) && "md:hidden")}>
+                    {c.hoja}
+                  </div>
+                ))}
+              </Grupo>
+            )}
+            {secciones(filtros).map((g, i) => (
+              <Grupo key={g.titulo ?? `s${i}`} titulo={g.titulo}>
+                {g.filtros.map((f) => (
+                  <CampoFiltro key={f.param} filtro={f} valor={borrador[f.param]} onCambio={elegir(f.param)} />
+                ))}
+              </Grupo>
+            ))}
+          </div>
+        </Panel>
       )}
     </div>
   );
@@ -368,6 +561,16 @@ function secciones(filtros: FiltroSecundario[]): { titulo?: string; filtros: Fil
   return g;
 }
 
+/** Un grupo de la hoja de «Filtros», con su subtítulo. */
+function Grupo({ titulo, className, children }: { titulo?: string; className?: string; children: React.ReactNode }) {
+  return (
+    <section className={cn("space-y-3", className)}>
+      {titulo && <p className="text-rotulo font-semibold uppercase tracking-wide text-mute">{titulo}</p>}
+      {children}
+    </section>
+  );
+}
+
 function Contador({ n, className }: { n: number; className?: string }) {
   if (n <= 0) return null;
   return (
@@ -377,13 +580,162 @@ function Contador({ n, className }: { n: number; className?: string }) {
   );
 }
 
-/** Un filtro dentro del menú "Filtros": su nombre arriba y el desplegable a todo el ancho. */
+/** El ícono o el cuadrito de color de una opción de la faceta. */
+function MarcaOpcion({ opcion: o, sobreLleno = false }: { opcion: OpcionFaceta; sobreLleno?: boolean }) {
+  if (o.muestra != null) {
+    // Del tamaño y la forma de `MuestraSerie` (la leyenda de la barra); sobre el chip elegido, con un filete claro para
+    // que el color no se pierda en el fondo.
+    return (
+      <span
+        className={cn("inline-block h-2.5 w-2.5 shrink-0 rounded-sm", sobreLleno && "ring-1 ring-paper/80")}
+        style={{ background: colorMuestra(o.muestra) }}
+        aria-hidden
+      />
+    );
+  }
+  const Icono = o.icono ? ICONOS_FACETA[o.icono] : null;
+  return Icono ? <Icono size={13} className={cn("shrink-0", sobreLleno ? "text-paper" : TONO_ICONO[o.tono ?? "neutro"])} aria-hidden /> : null;
+}
+
+/**
+ * Un desplegable compacto de la fila: se ve su nombre ("Región") o lo elegido ("Región: Lima"), del ancho de lo que dice;
+ * encima va el <select> nativo, transparente, que es el que se toca, se enfoca y lee el lector de pantalla (con su lista
+ * nativa en el celular y las opciones con su conteo). Antes cada desplegable medía 13rem aunque dijera "Año".
+ */
+function SelectCompacto({
+  etiqueta,
+  nombre,
+  elegido,
+  marca,
+  icono,
+  destacar = true,
+  valor = "",
+  onCambio,
+  disabled,
+  soloCara = false,
+  className,
+  children,
+}: {
+  /** El nombre accesible del <select>. */
+  etiqueta: string;
+  /** Sin nada elegido, lo que se lee ("Región"); con algo elegido, su prefijo ("Región:"). `null`: sólo lo elegido. */
+  nombre: string | null;
+  /** El texto de lo elegido; `null` = nada. */
+  elegido: string | null;
+  marca?: React.ReactNode;
+  /** Un ícono fijo a la izquierda (el del orden). */
+  icono?: React.ReactNode;
+  /** Con algo elegido, borde de marca y el valor en negrita (un filtro). El orden siempre tiene algo: no se destaca. */
+  destacar?: boolean;
+  valor?: string;
+  onCambio?: (v: string) => void;
+  disabled?: boolean;
+  /** Sólo la cara, sin <select>: la copia con que se mide la fila. */
+  soloCara?: boolean;
+  className?: string;
+  children?: React.ReactNode;
+}) {
+  const activo = elegido != null && destacar;
+  return (
+    <span className={cn(CAJA, activo ? "border-granate" : "border-line hover:border-paperEdge", disabled && "opacity-60", className)}>
+      {icono}
+      {elegido != null && marca}
+      <span aria-hidden className="min-w-0 truncate">
+        {elegido == null ? (
+          nombre
+        ) : nombre ? (
+          <>
+            <span className="text-mute">{nombre}:</span> <span className={cn(activo && "font-semibold")}>{elegido}</span>
+          </>
+        ) : (
+          <span className={cn(activo && "font-semibold")}>{elegido}</span>
+        )}
+      </span>
+      <ChevronDown size={14} className="ml-auto shrink-0 text-mute" aria-hidden />
+      {!soloCara && (
+        <select
+          aria-label={etiqueta}
+          value={valor}
+          onChange={(e) => onCambio?.(e.target.value)}
+          disabled={disabled}
+          className="absolute inset-0 h-full w-full cursor-pointer appearance-none rounded-xl opacity-0 text-destacado disabled:cursor-not-allowed"
+        >
+          {children}
+        </select>
+      )}
+    </span>
+  );
+}
+
+/** Un filtro de una sola opción: un interruptor ("Con posible nepotismo 844"), no un desplegable de una línea. */
+function Interruptor({
+  filtro: f,
+  activo,
+  onCambio,
+  soloCara = false,
+}: {
+  filtro: FiltroSecundario;
+  activo: boolean;
+  onCambio?: (v: string) => void;
+  soloCara?: boolean;
+}) {
+  const o = f.opciones[0];
+  const contenido = (
+    <>
+      {activo && <Check size={14} className="shrink-0" aria-hidden />}
+      <span className="truncate">{o.etiqueta}</span>
+      {o.conteo != null && <span className="shrink-0 text-meta tabular-nums text-mute">{numero(o.conteo)}</span>}
+    </>
+  );
+  const clase = cn(CAJA, "pr-3", activo ? "border-granate font-semibold" : "border-line hover:border-paperEdge");
+  if (soloCara) return <span className={clase}>{contenido}</span>;
+  return (
+    <button type="button" aria-pressed={activo} onClick={() => onCambio?.(activo ? "" : o.valor)} className={cn(clase, "active:translate-y-px")}>
+      {contenido}
+    </button>
+  );
+}
+
+/** La faceta en la hoja: sus opciones como chips, con su conteo y su ícono o cuadrito de color. */
+function FacetaEnHoja({
+  faceta,
+  valor,
+  onCambio,
+}: {
+  faceta: { param: string; etiqueta: string; todas: string; conteoTodas?: number | null; opciones: OpcionFaceta[] };
+  valor: string | undefined;
+  onCambio: (v: string) => void;
+}) {
+  return (
+    <fieldset className="min-w-0">
+      <legend className="mb-2 text-rotulo font-semibold uppercase tracking-wide text-mute">{faceta.etiqueta}</legend>
+      <div className="flex flex-wrap gap-1.5">
+        <Chip activo={!valor} onClick={() => onCambio("")}>
+          {faceta.todas}
+          {faceta.conteoTodas != null && <Conteo n={faceta.conteoTodas} />}
+        </Chip>
+        {faceta.opciones.map((o) => {
+          const activo = valor === o.valor;
+          return (
+            <Chip key={o.valor} activo={activo} onClick={() => onCambio(activo ? "" : o.valor)}>
+              <MarcaOpcion opcion={o} sobreLleno={activo} />
+              {o.etiqueta}
+              {o.conteo != null && <Conteo n={o.conteo} />}
+            </Chip>
+          );
+        })}
+      </div>
+    </fieldset>
+  );
+}
+
+/** Un filtro dentro de la hoja de "Filtros": su nombre arriba y el desplegable a todo el ancho. */
 function CampoFiltro({ filtro: f, valor, onCambio }: { filtro: FiltroSecundario; valor: string | undefined; onCambio: (v: string) => void }) {
   if (f.buscable) return <CampoBuscable filtro={f} valor={valor} onCambio={onCambio} />;
   return (
     <label className="block">
       <span className="mb-1 block text-rotulo font-medium text-inkSoft">{f.etiqueta}</span>
-      <select value={valor ?? ""} onChange={(e) => onCambio(e.target.value)} className={cn(CAMPO, valor && "border-granate/60 font-medium")} disabled={f.opciones.length === 0}>
+      <select value={valor ?? ""} onChange={(e) => onCambio(e.target.value)} className={cn(CAMPO, valor && "border-granate font-medium")} disabled={f.opciones.length === 0 && !valor}>
         <option value="">{f.todas}</option>
         {/* El valor activo puede no estar entre las opciones cruzadas: se agrega para que el select no se vacíe. */}
         {valor && !f.opciones.some((o) => o.valor === valor) && <option value={valor}>{nombreDe(f, valor)}</option>}
@@ -420,7 +772,7 @@ function CampoBuscable({ filtro: f, valor, onCambio }: { filtro: FiltroSecundari
             const o = f.opciones.find((x) => x.etiqueta === t);
             if (o) onCambio(o.valor);
           }}
-          className={cn(CAMPO, "pl-9", valor && "border-granate/60 font-medium")}
+          className={cn(CAMPO, "pl-9", valor && "border-granate font-medium")}
         />
       </span>
       <datalist id={`${id}-opciones`}>
@@ -434,40 +786,6 @@ function CampoBuscable({ filtro: f, valor, onCambio }: { filtro: FiltroSecundari
   );
 }
 
-/**
- * Un desplegable a la vista en la barra. Con algo elegido dice QUÉ filtra ("Riesgo: Alto"), no sólo el valor: antes,
- * con tres desplegables elegidos, la barra decía "Alto", "Lima", "Sí" y no se sabía cuál era cuál.
- */
-function DesplegableVisible({ filtro: f, valor, onCambio }: { filtro: FiltroSecundario; valor: string | undefined; onCambio: (v: string) => void }) {
-  const elegido = !!valor;
-  const rotulo = elegido && f.corta ? `${f.corta}:` : f.corta ? null : f.etiqueta;
-  return (
-    <label
-      className={cn(
-        "inline-flex h-10 min-w-0 items-center rounded-full border bg-paper transition-colors duration-rapido hover:bg-paperSoft focus-within:border-granate",
-        f.corta ? "w-[13rem]" : "max-w-[17rem]",
-        elegido ? "border-granate" : "border-line",
-      )}
-    >
-      {/* El nombre del filtro: siempre para el lector de pantalla; a la vista cuando hay algo elegido o no hay `corta`. */}
-      {rotulo ? <span className="shrink-0 pl-3.5 text-meta text-mute">{rotulo}</span> : <span className="sr-only">{f.etiqueta}</span>}
-      <select
-        value={valor ?? ""}
-        onChange={(e) => onCambio(e.target.value)}
-        className={cn(
-          "h-full min-w-0 flex-1 truncate rounded-full border-0 bg-transparent pr-8 text-dato text-ink focus:outline-none focus:ring-0",
-          rotulo ? "pl-1.5" : "pl-3.5",
-          elegido && "font-semibold text-granate",
-        )}
-      >
-        <option value="">{f.corta ?? f.todas}</option>
-        {valor && !f.opciones.some((o) => o.valor === valor) && <option value={valor}>{nombreDe(f, valor)}</option>}
-        <Opciones opciones={f.opciones} />
-      </select>
-    </label>
-  );
-}
-
 function Chip({ activo, onClick, children }: { activo: boolean; onClick: () => void; children: React.ReactNode }) {
   return (
     <button
@@ -475,8 +793,8 @@ function Chip({ activo, onClick, children }: { activo: boolean; onClick: () => v
       onClick={onClick}
       aria-pressed={activo}
       className={cn(
-        "inline-flex min-h-[40px] items-center gap-1.5 rounded-full border px-3.5 text-dato font-medium transition-colors duration-rapido active:translate-y-px",
-        activo ? "border-granate bg-granate text-paper" : "border-line bg-paper text-ink hover:border-granate/40 hover:bg-granate-50",
+        "inline-flex min-h-[40px] items-center gap-1.5 rounded-xl border px-3 text-dato font-medium transition-colors duration-rapido active:translate-y-px",
+        activo ? "border-granate bg-granate text-paper" : "border-line bg-paper text-ink hover:border-paperEdge",
       )}
     >
       {children}
@@ -500,6 +818,8 @@ export function Buscador({
   valor,
   min = 0,
   onBuscar,
+  cargando = false,
+  className,
 }: {
   param?: string;
   placeholder: string;
@@ -507,6 +827,10 @@ export function Buscador({
   valor: string;
   min?: number;
   onBuscar: (v: string) => void;
+  /** Mientras llega la página: la lupa gira. */
+  cargando?: boolean;
+  /** El ancho del campo en su fila (se suma al de siempre y lo pisa donde choca). */
+  className?: string;
 }) {
   const id = useId();
   const [texto, setTexto] = useState(valor);
@@ -530,7 +854,7 @@ export function Buscador({
   return (
     <form
       role="search"
-      className="relative w-full sm:w-auto sm:min-w-[17rem] sm:flex-1 lg:max-w-sm"
+      className={cn("relative w-full sm:w-auto sm:min-w-[17rem] sm:flex-1 lg:max-w-sm", className)}
       onSubmit={(e) => {
         e.preventDefault();
         const t = texto.trim();
@@ -542,7 +866,10 @@ export function Buscador({
       <label className="sr-only" htmlFor={`${id}-campo`}>
         {etiqueta}
       </label>
-      <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-mute" aria-hidden />
+      {/* El giro va en el ícono de adentro: `animate-spin` y el centrado (`-translate-y-1/2`) pisarían el mismo transform. */}
+      <span className="pointer-events-none absolute left-3 top-1/2 flex -translate-y-1/2 text-mute" aria-hidden>
+        {cargando ? <Loader2 size={15} className="animate-spin" /> : <Search size={15} />}
+      </span>
       <input
         id={`${id}-campo`}
         type="search"

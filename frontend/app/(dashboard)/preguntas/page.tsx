@@ -127,7 +127,7 @@ export default async function PreguntasPage() {
                 Con aportes de personas, colectivos y empresas, de preferencia de cada mes, al fondo común que paga la base de
                 datos, los servidores, la captura de datos y la lectura a fondo de los contratos más graves; nunca con publicidad
                 ni con la venta de datos. Cuánto cuesta cada mes, rubro por rubro y con su fuente, está en{" "}
-                <Link href="/app/cuanto-cuesta" className={ENLACE}>
+                <Link href="/app/apoyar?seccion=costos" className={ENLACE}>
                   Cuánto cuesta Vigía
                 </Link>
                 ; para aportar,{" "}
@@ -152,7 +152,7 @@ export default async function PreguntasPage() {
                 fijo (la base de datos con millones de órdenes y contratos, los servidores y la captura de datos), que se paga
                 igual lea uno o mil. Por eso dejamos de pedir «S/ 3 por contrato» y pedimos un aporte, único o de cada mes, al
                 fondo común. Si te mueve una región, una entidad o un partido, en{" "}
-                <Link href="/app/financiar" className={ENLACE}>
+                <Link href="/app/auditoria?seccion=falta" className={ENLACE}>
                   Lo que falta leer
                 </Link>{" "}
                 ves cuántos de sus contratos esperan lectura y puedes dejarla como destino sugerido de tu aporte.

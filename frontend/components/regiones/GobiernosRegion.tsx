@@ -1,12 +1,17 @@
 "use client";
 
-import { useMemo } from "react";
-import { CeldaNumero, CeldaPrincipal, Indicadores, IndicadoresSkeleton, Tabla, TablaPaginada, TablaSkeleton, type Columna, type Fila, type Indicador } from "@/components/listado";
+import { useMemo, type ReactNode } from "react";
+import Link from "next/link";
+import { CeldaNumero, CeldaPrincipal, Tabla, TablaPaginada, TablaSkeleton, type Columna, type Fila } from "@/components/listado";
 import { Ayuda } from "@/components/patrones/Ayuda";
+import { DatosClave } from "@/components/patrones/Detalle";
 import { EnlaceFuente } from "@/components/patrones/Estructura";
+import { BarraPartes, type ParteBarra } from "@/components/inicio/BarraPartes";
+import { CajaResumen } from "@/components/inicio/ResumenFicha";
+import { Skeleton } from "@/components/ui/Skeleton";
 import { VacioEnLinea } from "@/components/ui/VacioEnLinea";
 import { Dato } from "@/components/ui/Dato";
-import { numero } from "@/lib/formato";
+import { numero, plural } from "@/lib/formato";
 import { INFOGOB_JNE } from "@/lib/fuentes";
 import { cargoRegional, claveOrg, orgDe, pct, type Anio, type AutoridadesDatos } from "@/lib/partidos";
 import { ANIOS, mandato, useAutoridades } from "./autoridades";
@@ -14,7 +19,8 @@ import { ANIOS, mandato, useAutoridades } from "./autoridades";
 /**
  * Los gobiernos de una región en las tres elecciones cargadas (2014, 2018 y 2022: mandatos 2015-2018, 2019-2022 y
  * 2023-2026), de los archivos del JNE que ya usa /app/partidos (`public/data/autoridades-<año>.json`):
- *   · `ResumenRegion`: quién la gobierna hoy, cuántas provincias y distritos tiene, cuántas organizaciones los gobiernan.
+ *   · `QuienGobiernaRegion`: la caja «Quién la gobierna» del Inicio: su gobernador, su partido, su mandato, y qué
+ *     partidos gobiernan sus provincias y distritos, en una barra.
  *   · `HistoriaGobiernos`: sus gobernadores período por período y qué partidos ganaron sus provincias y distritos.
  * Las provincias y los distritos, con sus alcaldes, van en el árbol de `ArbolTerritorio.tsx`.
  * Pedido del usuario (2026-10-22): «clickeamos la región y vemos su historial, cuántos distritos tiene, quiénes
@@ -23,23 +29,79 @@ import { ANIOS, mandato, useAutoridades } from "./autoridades";
 
 const nombreOrg = (d: AutoridadesDatos | undefined, o: number | undefined) => (d && o != null ? orgDe(d, o).n : null);
 
-export function ResumenRegion({ ubigeo }: { ubigeo: string }) {
+/** Las series de los gráficos para los partidos de la barra (clases enteras: Tailwind no ve las armadas). */
+const SERIE = ["bg-[rgb(var(--serie-1))]", "bg-[rgb(var(--serie-2))]", "bg-[rgb(var(--serie-3))]", "bg-[rgb(var(--serie-4))]"] as const;
+
+/**
+ * «Quién la gobierna» en el Inicio de la región: el gobernador (es una autoridad: nombre completo), su partido (a su
+ * ficha), el mandato y los votos, y sus provincias y distritos repartidos por el partido que los gobierna, en una barra
+ * con su leyenda (los cuatro que más gobiernan y «Otros»), cada uno con su ficha. Antes eran cuatro cifras sueltas arriba
+ * de todas las pestañas («6 organizaciones que gobiernan»), sin decir cuáles.
+ */
+export function QuienGobiernaRegion({ ubigeo, ruta }: { ubigeo: string; ruta: string }) {
   const d = useAutoridades();
-  if (d === undefined) return <IndicadoresSkeleton n={4} />;
-  if (d === null) return null;
-  const hoy = d[2022];
-  const gob = hoy?.regional.find((g) => g.u === ubigeo);
-  const prov = hoy?.provincial.filter((p) => p.u.startsWith(ubigeo)) ?? [];
-  const dist = hoy?.distrital.filter((x) => x.u.startsWith(ubigeo)) ?? [];
-  const orgs = new Set([gob?.o, ...prov.map((p) => p.o), ...dist.map((x) => x.o)].filter((x): x is number => x != null));
-  const partido = nombreOrg(hoy, gob?.o);
-  const items: Indicador[] = [
-    { valor: partido, etiqueta: "gobierna la región", contexto: gob ? `${gob.g}, ${mandato(2022)}` : undefined, href: partido ? `/app/partidos/${claveOrg(partido)}?anio=2022` : undefined },
-    { valor: numero(prov.length), etiqueta: "provincias", contexto: "con su alcalde provincial", href: "?seccion=territorio" },
-    { valor: numero(dist.length), etiqueta: "distritos", contexto: "con su alcalde distrital", href: "?seccion=territorio" },
-    { valor: numero(orgs.size), etiqueta: "organizaciones que gobiernan", contexto: "la región, sus provincias o distritos", href: "?seccion=gobiernos" },
+  const ayuda = (
+    <Ayuda titulo="¿De dónde sale?">
+      Del <EnlaceFuente href={INFOGOB_JNE}>JNE</EnlaceFuente>: quién ganó las elecciones regionales y municipales de 2022 (mandato
+      2023 a 2026). Una vacancia o un reemplazo dentro del período no está registrado.
+    </Ayuda>
+  );
+  const caja = (contenido: ReactNode) => (
+    <CajaResumen titulo="Quién la gobierna" ayuda={ayuda} enlace={{ href: `${ruta}?seccion=gobiernos`, texto: "Sus gobiernos" }}>
+      {contenido}
+    </CajaResumen>
+  );
+  if (d === undefined) {
+    return caja(
+      <div className="space-y-3" aria-hidden>
+        <Skeleton className="h-4 w-48" />
+        <Skeleton className="h-4 w-56" />
+        <Skeleton className="h-4 w-40" />
+        <Skeleton className="h-2.5 w-full rounded-full" />
+      </div>,
+    );
+  }
+  const hoy = d?.[2022];
+  if (!hoy) return caja(<VacioEnLinea>No pudimos leer los resultados del JNE. Vuelve a intentarlo en un momento.</VacioEnLinea>);
+  const gob = hoy.regional.find((g) => g.u === ubigeo);
+  const partido = gob ? orgDe(hoy, gob.o).n : null;
+  const munis = [...hoy.provincial.filter((p) => p.u.startsWith(ubigeo)), ...hoy.distrital.filter((x) => x.u.startsWith(ubigeo))];
+  const nProv = hoy.provincial.filter((p) => p.u.startsWith(ubigeo)).length;
+  const nDist = munis.length - nProv;
+  const porOrg = new Map<string, { nombre: string; n: number }>();
+  for (const m of munis) {
+    const n = orgDe(hoy, m.o).n;
+    const e = porOrg.get(claveOrg(n)) ?? { nombre: n, n: 0 };
+    e.n += 1;
+    porOrg.set(claveOrg(n), e);
+  }
+  const orden = [...porOrg.entries()].sort((a, b) => b[1].n - a[1].n);
+  const otros = orden.slice(4).reduce((s, [, e]) => s + e.n, 0);
+  const partes: ParteBarra[] = [
+    // recorte: los cuatro que más gobiernan; los demás, sumados en «Otros» y todos en la pestaña Gobiernos («Sus gobiernos»)
+    ...orden.slice(0, 4).map(([clave, e], i) => ({ clave, etiqueta: e.nombre, n: e.n, href: `/app/partidos/${clave}?anio=2022`, clase: SERIE[i] })),
+    ...(otros ? [{ clave: "otros", etiqueta: orden.length - 4 === 1 ? "Otro partido" : `Otros ${orden.length - 4} partidos`, n: otros, clase: "bg-[rgb(var(--serie-otros))]", href: `${ruta}?seccion=gobiernos` }] : []),
   ];
-  return <Indicadores items={items} />;
+  return caja(
+    <DatosClave
+      items={[
+        { etiqueta: cargoRegional(2022), valor: gob?.g ?? null },
+        {
+          etiqueta: "Partido",
+          valor: partido ? (
+            <Link href={`/app/partidos/${claveOrg(partido)}?anio=2022`} prefetch={false} className="font-semibold text-granate underline-offset-2 hover:underline">
+              {partido}
+            </Link>
+          ) : null,
+        },
+        { etiqueta: "Mandato", valor: `${mandato(2022)}${pct(gob?.p) ? `, con el ${pct(gob?.p)} de los votos` : ""}` },
+        {
+          etiqueta: `Sus ${plural(nProv, "provincia", "provincias")} y ${plural(nDist, "distrito", "distritos")}`,
+          valor: partes.length ? <BarraPartes leyenda="en-linea" etiqueta={`Municipalidades de la región por partido que las gobierna`} partes={partes} className="pt-1" /> : null,
+        },
+      ]}
+    />,
+  );
 }
 
 export function HistoriaGobiernos({ ubigeo, nombre }: { ubigeo: string; nombre: string }) {

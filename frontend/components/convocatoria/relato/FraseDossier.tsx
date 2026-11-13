@@ -8,7 +8,7 @@ import { listaY, numero, plural, porcentaje } from "@/lib/formato";
 import { tituloNatural } from "@/lib/landing";
 import { CORTE_ALTA, CORTE_MEDIA } from "@/lib/severidad";
 import { PersonName, esPersonaNatural } from "../../Redact";
-import { fechaDossier, montoDossier, type ConteoSeveridad, type EstadoCorrida } from "../dossier";
+import { fechaDossier, montoDossier, puntajeVisible, type ConteoSeveridad, type EstadoCorrida } from "../dossier";
 import { cifrasDelProceso, conArticulo, enFrase, mayusculaInicial, queSeContrato, type SenalRelato } from "./historia";
 
 /**
@@ -53,7 +53,9 @@ export function FraseDossier({
 
   // ─── La primera oración: quién le compró qué a quién, por cuánto ───
   const otros = nGanadores > 1 ? ` y a ${plural(nGanadores - 1, "ganador más", "ganadores más")} en otros ítems` : "";
-  const postores = nPostores === 1 && nGanadores <= 1 ? ", el único postor" : nPostores && nPostores > 1 ? `, entre ${numero(nPostores)} postores` : "";
+  // `n_postores` es lo que el registro OCDS llama «tenderers»: los que se registraron, no los que ofertaron (en la ficha,
+  // «15 participantes, 2 ofertas»). Por eso «entre 15 participantes» y no «entre 15 postores».
+  const postores = nPostores === 1 && nGanadores <= 1 ? ", el único participante" : nPostores && nPostores > 1 ? `, entre ${numero(nPostores)} participantes` : "";
   const frenteAlReferencial =
     variacion === null
       ? ""
@@ -167,12 +169,12 @@ export function FraseDossier({
           )}
           {nPostores && (
             <Dato tipo="personas">
-              <strong className={cifra}>{numero(nPostores)}</strong> {nPostores === 1 ? "postor" : "postores"}
+              <strong className={cifra}>{numero(nPostores)}</strong> {nPostores === 1 ? "participante" : "participantes"}
             </Dato>
           )}
-          {score !== null && (
+          {puntajeVisible(score) !== null && (
             <Dato icono={Gauge} nombre="Puntaje de riesgo">
-              puntaje <strong className={cifra}>{Math.round(score)}</strong> de 100{" "}
+              puntaje <strong className={cifra}>{puntajeVisible(score)}</strong> de 100{" "}
               <Ayuda titulo="¿Qué es el puntaje?">
                 Suma el peso de cada señal, de 0 a 100: riesgo alto desde {CORTE_ALTA}, medio desde {CORTE_MEDIA}. Una señal es
                 un patrón que disparó una regla de contratación, con la norma y la evidencia que lo sostienen: una pista para

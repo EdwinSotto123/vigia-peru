@@ -9,7 +9,7 @@ import { cn } from "@/lib/utils";
  * (Explorar azul, Alertas rojo, Participar lima, Cuenta violeta). El color se define en globals.css
  * (`[data-intencion]`); acá solo se decide cuál toca según la ruta.
  *
- * Aliados toma el color de Participar y Partidos el de Explorar, como sus grupos del menú.
+ * Apoyar (con el podio de aliados) toma el color de Participar y Partidos el de Explorar, como sus grupos del menú.
  * Sin intención, el acento es el de siempre y no hay lavado de fondo.
  */
 export type Intencion = "explorar" | "alertas" | "participar" | "cuenta";
@@ -34,7 +34,6 @@ const RUTAS: [prefijo: string, intencion: Intencion][] = [
   ["/app/novedades", "alertas"],
   ["/alerta", "alertas"],
   ["/app/denuncias", "alertas"],
-  ["/app/financiar", "participar"],
   ["/app/apoyar", "participar"],
   ["/app/cuanto-cuesta", "participar"],
   ["/app/aliados", "participar"],
@@ -42,6 +41,8 @@ const RUTAS: [prefijo: string, intencion: Intencion][] = [
   ["/reporte", "participar"],
   // «Cómo trabaja Vigía»: las siete vistas de la misma franja llevan el mismo color.
   ["/app/auditoria", "explorar"],
+  // «Lo que falta leer» es una pestaña de Auditoría en vivo (2026-11-13): sus fichas llevan su color.
+  ["/app/financiar", "explorar"],
   ["/app/ia", "explorar"],
   ["/metodologia", "explorar"],
   ["/fuentes", "explorar"],

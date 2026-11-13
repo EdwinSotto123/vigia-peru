@@ -1,253 +1,113 @@
 import type { Metadata } from "next";
-import { canonica } from "@/lib/seo";
-import Link from "next/link";
-import { ArrowUpRight, Building2, CalendarCheck, CalendarClock, Database, EyeOff, ListOrdered, ScanSearch, Server, ShieldAlert, Users } from "lucide-react";
-import { Beneficios, Franja, FuenteDato, Migas, Pagina, Seccion, type Beneficio } from "@/components/patrones";
-import { FranjaTextil } from "@/components/marca";
+import { HeartHandshake } from "lucide-react";
+import { canonica, NO_INDEXAR } from "@/lib/seo";
+import { Ayuda, EncabezadoPagina, Migas, Pagina } from "@/components/patrones";
 import { EnlaceAccion } from "@/components/ui/EnlaceAccion";
-import { AporteVigilancia, type ParaAporte } from "@/components/financiar/AporteVigilancia";
-import { DeCadaCien } from "@/components/financiar/DeCadaCien";
-import { MetaDelMes } from "@/components/financiar/MetaDelMes";
-import { numero } from "@/lib/formato";
-import { conAcentos, dolares, getMotivoAporte, getPago, getVigilancia, type ResumenVigilancia } from "@/lib/financiamiento";
-import { tituloNatural } from "@/lib/landing";
-import { CONTRALORIA_CORRUPCION, PUESTO_POR_EL_EQUIPO_PEN } from "@/lib/costoCorrupcion";
+import { SeccionAportar } from "@/components/apoyo/SeccionAportar";
+import { SeccionAliados } from "@/components/apoyo/SeccionAliados";
+import { SeccionAportes } from "@/components/apoyo/SeccionAportes";
+import { SeccionCostos } from "@/components/apoyo/SeccionCostos";
+import { ETIQUETA_APOYO, HREF_APOYO, VISTAS_APOYO, VistasApoyo, type VistaApoyo } from "@/components/sitio/VistasSeccion";
+import { uno } from "@/lib/utils";
 
-export const metadata: Metadata = {
-  title: "Ayúdanos a seguir vigilando",
-  description:
-    "La corrupción se lleva carreteras, colegios y camas de hospital. Vigía cruza todos los días lo que compra el Estado y lee a fondo lo más grave. Hasta hoy lo sostuvimos nosotros: ayúdanos a seguir.",
-  alternates: canonica("/app/apoyar"),
+type Params = Record<string, string | string[] | undefined>;
+
+const seccionDe = (sp?: Params): VistaApoyo => {
+  const pedida = uno(sp?.seccion);
+  return VISTAS_APOYO.find((v) => v === pedida) ?? "aportar";
 };
 
-export const revalidate = 300;
+/** Cada pestaña con su título y su descripción; la de los aportes (nombres de quienes aportan), sin indexar. */
+export function generateMetadata({ searchParams }: { searchParams?: Params }): Metadata {
+  const seccion = seccionDe(searchParams);
+  // Siempre sin consulta (lib/seo.ts): robots.txt deja fuera las variantes con `?`, así que las pestañas son la misma URL.
+  const base = { alternates: canonica("/app/apoyar") };
+  if (seccion === "aliados") {
+    return {
+      ...base,
+      title: "Podio de aliados",
+      description:
+        "Quienes sostienen la vigilancia del dinero público, mes a mes. El podio se gana por constancia, no por plata, y no compra nada: nadie elige qué se lee ni qué se publica.",
+    };
+  }
+  if (seccion === "aportes") {
+    return { title: "Todos los aportes", description: "Cada aporte confirmado que sostiene la vigilancia del dinero público, con su recibo.", robots: NO_INDEXAR };
+  }
+  if (seccion === "costos") {
+    return {
+      ...base,
+      title: "Cuánto cuesta Vigía",
+      description: "Lo que cuesta mantener Vigía cada mes, rubro por rubro y con la fuente de cada cifra, y en qué se usa lo que aportas.",
+    };
+  }
+  return {
+    ...base,
+    title: "Ayúdanos a seguir vigilando",
+    description:
+      "La corrupción se lleva carreteras, colegios y camas de hospital. Vigía cruza todos los días lo que compra el Estado y lee a fondo lo más grave. Hasta hoy lo sostuvimos nosotros: ayúdanos a seguir.",
+  };
+}
 
-const CONTRALORIA = CONTRALORIA_CORRUPCION;
-const PUESTO_POR_EL_EQUIPO = PUESTO_POR_EL_EQUIPO_PEN;
+export const revalidate = 60;
 
 /**
- * Lo que el aporte no compra: las reglas de independencia de siempre, cada una con su ícono. Antes llevaban un ✓ verde,
- * que se leía como «sí incluye» al lado de cosas que justamente no se compran.
- */
-const NO_COMPRA: Beneficio[] = [
-  { icono: <ListOrdered size={16} />, titulo: "Qué se lee", texto: "Lo más grave va primero, aporte quien aporte. Ningún aporte decide qué entidad, empresa o contrato se revisa." },
-  { icono: <EyeOff size={16} />, titulo: "Lo que se encuentra", texto: "El análisis no sabe quién aportó, y si te señala a ti, se publica igual." },
-  { icono: <CalendarCheck size={16} />, titulo: "Un lugar por plata", texto: "El podio de aliados cuenta los meses que sostienes la vigilancia, nunca los soles." },
-  { icono: <ShieldAlert size={16} />, titulo: "Reconocimiento con conflicto", texto: "Una empresa con sanción vigente o con alertas puede aportar, pero no recibe reconocimiento público." },
-];
-
-/** En qué se fue lo que pusimos: antes, una enumeración dentro de un párrafo. */
-const PUSIMOS_EN = [
-  { icono: Server, texto: "Servidores" },
-  { icono: Database, texto: "La base de datos" },
-  { icono: CalendarClock, texto: "Bajar cada día lo que publica el Estado" },
-  { icono: ScanSearch, texto: "Leer con IA los contratos más graves" },
-];
-
-/**
- * /app/apoyar — «Ayúdanos a seguir vigilando» (migración 206). Rehecha el 2026-10-29 porque «se ve feo»: el usuario
- * pidió que conmueva («la corrupción cuesta infraestructura pública, carreteras, a muchas familias la vida por esperar
- * en hospitales») y que diga lo que el equipo ya puso. Con la crítica de Impeccable (modo Persuade, dentro del mundo
- * visual de Vigía: granate, maíz y la franja textil), sin el kit de tarjetas iguales que tenía. Y el mismo día, «texto y
- * ya, nada de jerarquía»: las cifras dejaron los párrafos (la de la Contraloría es una figura, DeCadaCien) y cada bloque
- * tiene su forma:
+ * /app/apoyar: todo lo de sostener Vigía en UNA página con pestañas (`?seccion=`), pedido de la auditoría visual del
+ * 2026-11-13 («los bloques de apoyo hasta tres veces», «saltar entre páginas»). Antes eran cuatro páginas con dos
+ * entradas del menú: /app/apoyar (aportar), /app/aliados (el podio), /app/aliados/aportes (cada aporte) y
+ * /app/cuanto-cuesta (las cuentas), y la meta del mes se repetía en tres. Las rutas viejas redirigen a su pestaña con
+ * sus filtros (next.config.js).
  *
- *   1. Por qué: lo que cuesta la corrupción, en cien cuadros, con las dos cifras de la Contraloría y su fuente.
- *   2. Quiénes somos: lo que pusimos hasta hoy, en qué se fue (con íconos) y, como un comprobante, lo que ya vigila.
- *   3. La meta del mes, con sus dos tramos en orden (lo que antes repetía «En qué se usa tu aporte»), y lo que el aporte
- *      no compra.
- *   4. El formulario, fijo a la derecha en escritorio; en el celular, justo después del por qué.
+ *   Aportar             el por qué, el formulario fijo a la derecha, la meta, lo que pusimos y lo que no compra
+ *   Podio de aliados    el podio y la tabla, por meses
+ *   Todos los aportes   cada aporte con su recibo
+ *   Cuánto cuesta       los rubros, la meta, la lectura con IA y mes a mes
  *
- * `?para=<RUC o ubigeo>` es el destino sugerido del aporte: sale en la constancia y no decide qué se lee. El nombre
- * sale de la base (GET /financiamiento/motivo); un `&nombre=` en el enlace se ignora: antes se mostraba tal cual venía
- * (auditoría de pagos del 2026-10-30, H14). Lo que falta leer por zona, entidad o partido está en /app/financiar.
+ * Las pestañas son enlaces (`VistasApoyo`): cada una tiene sus propios filtros y su paginación en la URL, y el servidor
+ * pide sólo lo de la abierta. Ninguna lectura que falla queda en caché (`noStore` en cada sección).
  */
-export default async function ApoyarPage({ searchParams }: { searchParams?: { para?: string } }) {
-  const [v, pago, motivo] = await Promise.all([getVigilancia(), getPago(), searchParams?.para ? getMotivoAporte(searchParams.para) : null]);
-  const para: ParaAporte | null = motivo?.ruc
-    ? { ruc: motivo.ruc, nombre: tituloNatural(motivo.nombre) }
-    : motivo?.ubigeo
-      ? { ubigeo: motivo.ubigeo, nombre: conAcentos(motivo.nombre) }
-      : null;
-  const piso = v?.meta.pisoPen ?? null;
+export default function ApoyarPage({ searchParams }: { searchParams?: Params }) {
+  const seccion = seccionDe(searchParams);
+  const pagina = Math.max(1, Number.parseInt(uno(searchParams?.pagina) ?? "1", 10) || 1);
 
   return (
-    <Pagina>
-      <Migas items={[{ etiqueta: "Inicio", href: "/app" }, { etiqueta: "Ayúdanos a seguir vigilando", href: "/app/apoyar" }]} />
+    <Pagina className="space-y-4">
+      <Migas
+        items={[
+          { etiqueta: "Inicio", href: "/app" },
+          { etiqueta: "Apoyar", href: HREF_APOYO.aportar },
+          ...(seccion !== "aportar" ? [{ etiqueta: ETIQUETA_APOYO[seccion] }] : []),
+        ]}
+      />
+      <EncabezadoPagina
+        titulo="Ayúdanos a seguir vigilando"
+        bajada="Vigía se sostiene con aportes de la gente: cómo aportar, quiénes lo hacen, cada aporte con su recibo y cuánto cuesta mantenerla."
+        ayuda={
+          <Ayuda titulo="¿Qué compra un aporte?">
+            <span className="block">Nada: va al fondo común. Lo más grave se lee primero, aporte quien aporte, y lo que se encuentra se publica igual.</span>
+            <span className="mt-2 block text-mute">Las reglas, en la pestaña Aportar.</span>
+          </Ayuda>
+        }
+        acciones={
+          seccion !== "aportar" ? (
+            <EnlaceAccion href={`${HREF_APOYO.aportar}#aporte`} flecha>
+              <HeartHandshake size={16} aria-hidden /> Aportar
+            </EnlaceAccion>
+          ) : undefined
+        }
+      />
+      <VistasApoyo activa={seccion} />
 
-      <PorQue piso={piso} />
-
-      {/* En el celular: el formulario justo después del por qué; desde lg, fijo a la derecha de todo lo demás. Fijo pero
-          con su propio desplazamiento: si mide más que la pantalla, el botón para seguir no queda escondido hasta el final
-          de la página (auditoría 2026-10-30). */}
-      <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_26rem] lg:items-start">
-        <aside id="aporte" className="min-w-0 scroll-mt-24 lg:sticky lg:top-24 lg:col-start-2 lg:row-span-4 lg:row-start-1 lg:max-h-[calc(100dvh-7rem)] lg:self-start lg:overflow-y-auto lg:overscroll-contain">
-          {pago ? (
-            <AporteVigilancia pago={pago} para={para} />
-          ) : (
-            <p className="rounded-2xl border border-line bg-paper p-5 text-dato text-inkSoft">No pudimos leer los medios de pago ahora. Vuelve a intentarlo en un momento.</p>
-          )}
-        </aside>
-
-        <LoQuePusimos v={v} />
-
-        {v && (
-          <div className="min-w-0 lg:col-start-1">
-            <MetaDelMes v={v} />
-          </div>
+      <div className="pt-1">
+        {seccion === "aliados" ? (
+          <SeccionAliados pagina={pagina} orden={uno(searchParams?.orden)} periodo={uno(searchParams?.periodo)} q={uno(searchParams?.q)} />
+        ) : seccion === "aportes" ? (
+          <SeccionAportes pagina={pagina} q={uno(searchParams?.q)} />
+        ) : seccion === "costos" ? (
+          <SeccionCostos />
+        ) : (
+          <SeccionAportar para={uno(searchParams?.para)} />
         )}
-
-        <div className="min-w-0 space-y-10 lg:col-start-1">
-          <Seccion titulo="Lo que tu aporte no compra" descripcion="Aportes de cualquier tamaño, con las mismas reglas.">
-            <Beneficios items={NO_COMPRA} columnas={2} />
-          </Seccion>
-
-          {v && (v.aliados.nombres.length > 0 || v.aliados.anonimos > 0) && (
-            <Seccion titulo="Quiénes la sostienen" descripcion="Quienes aportaron en los dos últimos meses y eligieron aparecer.">
-              <ul className="flex flex-wrap gap-2">
-                {v.aliados.nombres.map((a) => (
-                  <li key={`${a.nombre}-${a.slug}`} className="inline-flex items-center gap-1.5 rounded-full border border-line bg-paper px-3 py-1 text-meta text-ink">
-                    <Users size={13} aria-hidden className="text-inkSoft" />
-                    {a.slug ? <Link href={`/aliado/${a.slug}`} prefetch={false} className="hover:underline">{a.nombre}</Link> : a.nombre}
-                    {a.periodicidad === "mensual" && <span className="text-rotulo text-mute">cada mes</span>}
-                  </li>
-                ))}
-                {v.aliados.anonimos > 0 && (
-                  <li className="inline-flex items-center rounded-full border border-dashed border-line px-3 py-1 text-meta text-inkSoft">
-                    y {numero(v.aliados.anonimos)} {v.aliados.anonimos === 1 ? "persona anónima" : "personas anónimas"}
-                  </li>
-                )}
-              </ul>
-              <Link href="/app/aliados" prefetch={false} className="mt-3 inline-flex min-h-[32px] items-center gap-1 text-meta font-semibold text-granate hover:underline">
-                Ver el podio de aliados <ArrowUpRight size={14} aria-hidden />
-              </Link>
-            </Seccion>
-          )}
-
-          <Franja
-            icono={<Building2 size={18} />}
-            titulo="¿Te mueve una región, una entidad o un partido?"
-            accion={
-              <EnlaceAccion href="/app/financiar" variante="secundario">
-                Lo que falta leer
-              </EnlaceAccion>
-            }
-          >
-            Mira cuántos de sus contratos esperan lectura y aporta con ella como destino sugerido: tu aporte va igual al
-            fondo común.
-          </Franja>
-
-          <FuenteDato
-            fuente="Contraloría General de la República (estimación de 2023), lo que el equipo calcula que cuesta mantenerla, factura de AWS, tarifa de Cloudflare, costo medido en cada lectura y tipo de cambio del BCRP"
-            href={CONTRALORIA.url}
-          />
-        </div>
       </div>
     </Pagina>
-  );
-}
-
-/**
- * El por qué, en una banda granate con la franja textil: lo que la corrupción se lleva, dicho en cosas, y a la derecha
- * (debajo en el celular, después de los botones) la cifra de la Contraloría dibujada en cien cuadros, con su fuente. La
- * única pieza grande de la página.
- */
-function PorQue({ piso }: { piso: number | null }) {
-  return (
-    <section aria-labelledby="por-que" className="sobre-oscuro relative overflow-hidden rounded-3xl bg-granate-deep text-paper">
-      <div className="grid gap-10 px-5 pb-10 pt-9 sm:px-10 sm:pb-12 sm:pt-12 lg:grid-cols-[minmax(0,1fr)_minmax(0,23rem)] lg:items-center lg:gap-12 lg:px-14">
-        <div className="min-w-0">
-          <h1 id="por-que" className="max-w-[20ch] text-balance font-display text-cifra font-extrabold leading-[1.05] sm:text-titulo lg:text-portada">
-            La corrupción no es una cifra.
-          </h1>
-          <p className="mt-4 max-w-[34ch] text-balance font-display text-seccion font-semibold leading-snug text-paper/85 sm:text-cifra">
-            Es la pista que no se terminó, el colegio sin techo y la cama de hospital que no llegó a tiempo.
-          </p>
-          <p className="mt-6 max-w-[52ch] text-pretty text-cuerpo leading-relaxed text-paper/80 sm:text-bloque">
-            Vigía lee lo que el Estado compra para que eso se vea a tiempo.
-            {piso != null ? ` Mantenerla encendida cuesta cerca de S/\u00a0${numero(piso)} al mes, y la sostenemos entre todos.` : " La sostenemos entre todos."}
-          </p>
-          <div className="mt-8 flex flex-wrap items-center gap-3">
-            <EnlaceAccion href="#aporte" variante="oscuro" tamano="lg">
-              Ayúdanos a seguir vigilando
-            </EnlaceAccion>
-            <EnlaceAccion href="/app/cuanto-cuesta" variante="contornoOscuro" tamano="lg" flecha={false}>
-              Cuánto cuesta Vigía
-            </EnlaceAccion>
-          </div>
-        </div>
-        <DeCadaCien className="border-t border-paper/15 pt-8 lg:border-l lg:border-t-0 lg:pl-10 lg:pt-0" />
-      </div>
-      <FranjaTextil alto={12} />
-    </section>
-  );
-}
-
-/**
- * Lo que pusimos hasta hoy (dicho por el equipo), en qué se fue (cuatro rubros con su ícono; antes, una enumeración dentro
- * de un párrafo), por qué, y debajo lo que ya vigila con eso, como un comprobante: el mismo papel que recibe quien
- * aporta. Las cifras del comprobante son las de GET /financiamiento/vigilancia. Apilado: al lado del formulario, la
- * columna no da para el comprobante y el texto juntos.
- */
-function LoQuePusimos({ v }: { v: ResumenVigilancia | null }) {
-  return (
-    <section aria-labelledby="lo-que-pusimos" className="min-w-0 space-y-6 lg:col-start-1">
-      <h2 id="lo-que-pusimos" className="max-w-[26ch] text-balance font-display text-cifra font-bold leading-tight text-ink sm:text-titulo">
-        Hasta hoy pusimos casi S/{"\u00a0"}{numero(PUESTO_POR_EL_EQUIPO)} para que Vigía exista.
-      </h2>
-      <ul aria-label="En qué se fue" className="grid gap-x-6 gap-y-3 sm:grid-cols-2">
-        {PUSIMOS_EN.map(({ icono: Icono, texto }) => (
-          <li key={texto} className="flex items-center gap-3">
-            <span aria-hidden className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-paperDeep text-granate">
-              <Icono size={18} />
-            </span>
-            <span className="min-w-0 text-dato font-semibold leading-snug text-ink">{texto}</span>
-          </li>
-        ))}
-      </ul>
-      <div className="max-w-[58ch] space-y-2">
-        <p className="text-balance font-display text-bloque font-semibold leading-snug text-ink">
-          Lo pusimos nosotros porque alguien tenía que empezar a leer lo que nadie lee.
-        </p>
-        <p className="text-pretty text-cuerpo leading-relaxed text-inkSoft">
-          Detrás de cada orden hay una obra, una medicina o un sueldo que pagamos todos. Con tu aporte, vigilarlos no depende de
-          unos pocos.
-        </p>
-      </div>
-      {v && <Comprobante v={v} />}
-    </section>
-  );
-}
-
-function Comprobante({ v }: { v: ResumenVigilancia }) {
-  const filas: { texto: string; valor: string }[] = [
-    { texto: "Órdenes de compra y servicio cruzadas con sanciones, fechas y topes", valor: numero(v.vigilamos.ordenes) },
-    { texto: "Procesos con su ganador y sus postores", valor: numero(v.vigilamos.procesos) },
-    { texto: "Contratos con banderas", valor: numero(v.vigilamos.contratosConBanderas) },
-    { texto: "Con algún antecedente grave", valor: numero(v.vigilamos.graves) },
-  ];
-  return (
-    <figure className="min-w-0 max-w-md rounded-2xl border border-line bg-paper shadow-[0_10px_30px_-18px_rgb(var(--ink)/0.35)]">
-      <figcaption className="border-b border-dashed border-line px-4 pb-3 pt-4">
-        <span className="block font-display text-bloque font-bold text-ink">Lo que ya vigila</span>
-        <span className="block text-meta text-mute">En {v.vigilamos.anio}, todo y no una muestra</span>
-      </figcaption>
-      <dl className="space-y-2.5 px-4 py-3.5">
-        {filas.map((f) => (
-          <div key={f.texto} className="flex items-end gap-2 text-meta">
-            <dt className="min-w-0 text-inkSoft">{f.texto}</dt>
-            <span aria-hidden className="mb-1 min-w-4 flex-1 border-b border-dotted border-line" />
-            <dd className="shrink-0 font-mono font-semibold tabular-nums text-ink">{f.valor}</dd>
-          </div>
-        ))}
-      </dl>
-      <div className="flex items-end gap-2 border-t border-dashed border-line px-4 pb-4 pt-3 text-meta">
-        <span className="min-w-0 font-semibold text-ink">Leer uno a fondo con IA</span>
-        <span aria-hidden className="mb-1 min-w-4 flex-1 border-b border-dotted border-line" />
-        <span className="shrink-0 font-mono font-semibold tabular-nums text-granate">
-          {v.ia.costoMedioUsd != null ? dolares(v.ia.costoMedioUsd) : "Sin dato"}
-        </span>
-      </div>
-    </figure>
   );
 }

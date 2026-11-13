@@ -1,7 +1,7 @@
-import { BarChart3, BookOpen, CheckCircle2, Radio } from "lucide-react";
+import { BarChart3, BookOpen, CheckCircle2, Hourglass, Radio } from "lucide-react";
 import { canonica } from "@/lib/seo";
-import { Ayuda, CabeceraPestana, EncabezadoPagina, Migas, Pagina, Pestanas } from "@/components/patrones";
-import { BarraFiltros, Listado, ZonaResultados, type FiltroSecundario } from "@/components/listado";
+import { Ayuda, CabeceraPestana, EncabezadoPagina, Migas, Pagina, PestanaAPedido, Pestanas } from "@/components/patrones";
+import { BarraFiltros, Listado, TablaSkeleton, ZonaResultados, type FiltroSecundario } from "@/components/listado";
 import { EnlaceAccion } from "@/components/ui/EnlaceAccion";
 import { PulseDot } from "@/components/ui/PulseDot";
 import { TOTAL_AGENTES, TOTAL_PASOS } from "@/components/agentes/catalogo";
@@ -15,6 +15,9 @@ import { UltimoAnalisis } from "@/components/auditoria/UltimoAnalisis";
 import { LecturasAnteriores } from "@/components/auditoria/LecturasAnteriores";
 import { SeccionEnUrl } from "@/components/auditoria/SeccionEnUrl";
 import { cuentasAuditoria } from "@/components/auditoria/cuentasAuditoria";
+import { OcultaEnPestanas } from "@/components/auditoria/OcultaEnPestanas";
+import { LoQueFaltaLeer } from "@/components/financiar/LoQueFaltaLeer";
+import { PARAM_BUSCAR, PARAM_PAG } from "@/components/financiar/rutaFalta";
 import {
   DIAS_RITMO,
   getFinanciadoresProcesamientos,
@@ -45,8 +48,8 @@ const FECHA_RX = /^\d{4}-\d{2}-\d{2}$/;
 /** Filas del tablero en vivo por consulta (el máximo del API). */
 const LIMITE_VIVO = 300;
 
-/** Las pestañas del Tablero (§14.3). La primera no va a la URL. */
-const SECCIONES = ["curso", "leidos", "actividad", "como-funciona"] as const;
+/** Las pestañas del Tablero (§14.3). La primera no va a la URL. `falta` es «Lo que falta leer» (antes /app/financiar). */
+const SECCIONES = ["curso", "leidos", "actividad", "como-funciona", "falta"] as const;
 type SeccionAuditoria = (typeof SECCIONES)[number];
 const esSeccion = (s: string | undefined): s is SeccionAuditoria => !!s && (SECCIONES as readonly string[]).includes(s);
 
@@ -73,6 +76,12 @@ function sinFasesInactivas(ps: Procesamiento[]): Procesamiento[] {
   return ps.map((p) => (p.estado === "procesando" || p.fases == null ? p : { ...p, fases: null }));
 }
 
+/** El esqueleto de «Lo que falta leer» mientras se pide: la tabla de zonas (zona y en cola). */
+const COLUMNAS_ESPERA = [
+  { clave: "zona", titulo: "Zona", ancho: "minmax(0,2fr)" },
+  { clave: "cola", titulo: "En cola", ancho: "96px", alinear: "der" as const },
+];
+
 /** Lo que todavía no terminó: en análisis + en espera (el `revision` crudo no existe, pero se cubre). */
 const enCurso = (p: Procesamiento) => p.estado !== "procesado" && p.estado !== "revision";
 
@@ -94,6 +103,11 @@ const enCurso = (p: Procesamiento) => p.estado !== "procesado" && p.estado !== "
  * filtros: los recibe como props y se vuelve a montar (`key`) cuando la URL cambia.
  *
  * `?seccion=` abre una pestaña; la paginación de Ya leídos la conserva en cada enlace.
+ *
+ * «Lo que falta leer» (`?seccion=falta`) era la página /app/financiar, con su propia entrada del menú (auditoría visual
+ * del 2026-11-13: «Financiar dentro de Auditoría en vivo»; /app/financiar redirige aquí). Es la cola vista por región,
+ * entidad o partido, con sus propios filtros (`por`, `buscar`, `pag`, `anio`, `region`, `orden`): se arma sólo cuando se
+ * abre (`PestanaAPedido`) y la barra de filtros de la auditoría se esconde mientras está abierta (`OcultaEnPestanas`).
  */
 export default async function AuditoriaPage({
   searchParams,
@@ -108,10 +122,14 @@ export default async function AuditoriaPage({
   const desde = leer("desde") && FECHA_RX.test(leer("desde")!) ? leer("desde") : undefined;
   const hasta = leer("hasta") && FECHA_RX.test(leer("hasta")!) ? leer("hasta") : undefined;
   const financiador = leer("financiador")?.trim().slice(0, 120) || undefined;
-  const qTexto = leer("q")?.trim();
-  const q = qTexto && qTexto.length >= 2 ? qTexto.slice(0, 80) : undefined;
-  const paginaActual = Math.max(1, Number.parseInt(leer("pagina") ?? "1", 10) || 1);
   const pedida = leer("seccion");
+  // Un enlace viejo a /app/financiar llega con su búsqueda y su página en `q` y `pagina` (next.config.js): en la
+  // pestaña de lo que falta leer son las suyas, no las de la auditoría.
+  const falta = pedida === "falta";
+  const legadoFalta = falta && !leer(PARAM_BUSCAR) && !leer(PARAM_PAG);
+  const qTexto = legadoFalta ? undefined : leer("q")?.trim();
+  const q = qTexto && qTexto.length >= 2 ? qTexto.slice(0, 80) : undefined;
+  const paginaActual = Math.max(1, Number.parseInt((legadoFalta ? undefined : leer("pagina")) ?? "1", 10) || 1);
   const filtros: FiltrosAuditoria = { ubigeo, desde, hasta, financiador, q };
   const histQuery = { ...filtros, estado: "procesado" as const };
 
@@ -237,11 +255,13 @@ export default async function AuditoriaPage({
             parametros={{ ...filtros, seccion: seccion === "curso" ? undefined : seccion, pagina: paginaActual > 1 ? String(paginaActual) : undefined }}
           >
             <div className="space-y-4">
-              <BarraFiltros
-                busqueda={{ param: "q", placeholder: "Buscar qué se contrata, una entidad o un código…", etiqueta: "Buscar en la auditoría", min: 2 }}
-                visibles={[{ param: "ubigeo", etiqueta: "Región", corta: "Región", todas: "Todo el Perú", opciones: opcionesZona }]}
-                filtros={filtrosSecundarios}
-              />
+              <OcultaEnPestanas inicial={seccion} ocultarEn={["falta"]}>
+                <BarraFiltros
+                  busqueda={{ param: "q", placeholder: "Buscar qué se contrata, una entidad o un código…", etiqueta: "Buscar en la auditoría", min: 2 }}
+                  visibles={[{ param: "ubigeo", etiqueta: "Región", corta: "Región", todas: "Todo el Perú", opciones: opcionesZona }]}
+                  filtros={filtrosSecundarios}
+                />
+              </OcultaEnPestanas>
 
               {!esSeccion(pedida) && seccion !== "curso" && <SeccionEnUrl clave={seccion} />}
               <Pestanas
@@ -337,6 +357,29 @@ export default async function AuditoriaPage({
                     icono: <BookOpen size={15} aria-hidden />,
                     contenido: (
                       <ComoFunciona />
+                    ),
+                  },
+                  {
+                    clave: "falta",
+                    etiqueta: "Lo que falta leer",
+                    icono: <Hourglass size={15} aria-hidden />,
+                    // Pesada (zonas, entidades o partidos, con sus cifras): sólo se arma abierta. Si no, al abrirla se pide la
+                    // página con `?seccion=falta` y mientras tanto se ve su esqueleto.
+                    contenido: falta ? (
+                      <LoQueFaltaLeer
+                        filtros={{
+                          por: leer("por"),
+                          buscar: leer(PARAM_BUSCAR) ?? (legadoFalta ? leer("q") : undefined),
+                          pag: leer(PARAM_PAG) ?? (legadoFalta ? leer("pagina") : undefined),
+                          anio: leer("anio"),
+                          region: leer("region"),
+                          orden: leer("orden"),
+                        }}
+                      />
+                    ) : (
+                      <PestanaAPedido clave="falta">
+                        <TablaSkeleton columnas={COLUMNAS_ESPERA} />
+                      </PestanaAPedido>
                     ),
                   },
                 ]}

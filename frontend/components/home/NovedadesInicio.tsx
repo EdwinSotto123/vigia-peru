@@ -1,12 +1,13 @@
 import Link from "next/link";
 import { ArrowRight, Coins } from "lucide-react";
 import { ChipsCruces } from "@/components/contratos/CrucesCelda";
+import { Ayuda } from "@/components/patrones/Ayuda";
 import { SemanasMini, type SemanaNueva } from "@/components/novedades/SemanaASemana";
 import { CifrasEnFila, type Cifra } from "@/components/ui/CifrasEnFila";
 import { Dato } from "@/components/ui/Dato";
 import { Partes } from "@/components/ui/Partes";
 import { API_BASE } from "@/lib/api-client";
-import { numero, porcentaje, solesCompacto } from "@/lib/formato";
+import { numero, solesCompacto } from "@/lib/formato";
 import { tituloNatural } from "@/lib/landing";
 import { rutaContrato } from "@/lib/rutas";
 import { diasDesde, rangoSemana } from "@/lib/semanas";
@@ -64,7 +65,14 @@ export async function NovedadesInicio() {
     {
       valor: numero(graves),
       etiqueta: graves === 1 ? "contrato con un antecedente grave" : "contratos con un antecedente grave",
-      contexto: `${d.resumen.buenasPro ? `de ${numero(d.resumen.buenasPro)} buenas pro (${porcentaje((graves / d.resumen.buenasPro) * 100)}), ` : ""}semana ${rangoSemana(d.semana.desde, d.semana.hasta)}, la última que el Estado publicó completa`,
+      // «de N buenas pro» al comienzo: la cifra dibuja su barra con el porcentaje (CifrasEnFila lo lee del contexto). Qué
+      // semana es, en el ⓘ: en el contexto eran cinco renglones en el celular.
+      contexto: `${d.resumen.buenasPro ? `de ${numero(d.resumen.buenasPro)} buenas pro, ` : ""}semana ${rangoSemana(d.semana.desde, d.semana.hasta)}`,
+      ayuda: (
+        <Ayuda titulo="¿Qué semana es?">
+          La última que el Estado publicó completa. La que corre todavía llega a medias: va punteada en la gráfica de al lado.
+        </Ayuda>
+      ),
       tono: "alta",
       href: "/app/novedades?ver=contratos#listas",
       n: graves,
@@ -105,8 +113,9 @@ export async function NovedadesInicio() {
           Ver todo lo nuevo <ArrowRight size={13} aria-hidden />
         </Link>
       </div>
-      {/* Las cifras en una franja y, al lado, las semanas en chico: una línea en vez de dos cajas de media pantalla. */}
-      <div className="flex flex-col gap-3 border-b border-line px-4 py-3 sm:px-5 lg:flex-row lg:items-center lg:gap-6">
+      {/* Las cifras en una franja y, al lado, las semanas en chico: una línea en vez de dos cajas de media pantalla. Desde xl
+          el bloque comparte fila con «Últimas lecturas» (columna de ~600 px): ahí las semanas bajan bajo las cifras. */}
+      <div className="flex flex-col gap-3 border-b border-line px-4 py-3 sm:px-5 lg:flex-row lg:items-center lg:gap-6 xl:flex-col xl:items-stretch xl:gap-3">
         <CifrasEnFila items={cifras} className="min-w-0 flex-1" />
         <SemanasMini semanas={d.semanas} elegida={d.semana.desde} href={hrefSemana} className="shrink-0 pb-1.5" />
       </div>

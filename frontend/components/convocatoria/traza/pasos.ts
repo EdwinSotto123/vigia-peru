@@ -300,7 +300,7 @@ export function lineasDeResultado(p: Paso): Linea[] {
     }
     case "persist_alert_from_flags":
       if (nro(r.banderas_persistidas) === 0 && !txt(r.alerta_codigo)) add("Sin señales en ese momento: no creó la alerta");
-      else add(nro(r.banderas_persistidas) != null && `Guardó ${plural(r.banderas_persistidas, "señal", "señales")}${nro(r.score) != null ? `; puntaje ${numero(r.score)} de 100` : ""}`, r.banderas_persistidas ? "hallazgo" : undefined);
+      else add(nro(r.banderas_persistidas) != null && `Guardó ${plural(r.banderas_persistidas, "señal", "señales")}${nro(r.score) != null ? `; puntaje parcial ${numero(Math.min(100, Math.round(nro(r.score)!)))} (el final suma las señales de los pasos siguientes)` : ""}`, r.banderas_persistidas ? "hallazgo" : undefined);
       add(nro(r.banderas_descartadas) ? `Descartó ${plural(r.banderas_descartadas, "señal", "señales")}` : null, "tenue");
       break;
     case "google_search":

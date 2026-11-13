@@ -101,7 +101,7 @@ function TarjetaApoyo({ alcance, medios }: { alcance: AlcanceAporte; medios: Med
           Aportar
         </EnlaceAccion>
         <Link
-          href="/app/cuanto-cuesta"
+          href="/app/apoyar?seccion=costos"
           prefetch={false}
           className="inline-flex min-h-[40px] items-center gap-1 text-dato font-semibold text-granate underline-offset-2 hover:underline"
         >

@@ -63,21 +63,39 @@ export function Orquestacion({
   // Arranca con el primero abierto: un acordeón que empieza todo cerrado no
   // enseña que se puede abrir, y acá lo que hay adentro es el argumento.
   const [abierto, setAbierto] = useState<string | null>(carriles[0]?.clave ?? null);
+  // En el celular el detalle abierto de entrada sumaba media pantalla (430 px) a una portada de 24: ahí se abre recién
+  // cuando la persona toca un frente. Desde xl, el diagrama lo muestra abierto como siempre.
+  const [tocado, setTocado] = useState(false);
   const id = useId();
   const activo = carriles.find((c) => c.clave === abierto) ?? null;
 
-  const botones = carriles.map((c) => (
+  const botonesXl = carriles.map((c) => (
     <BotonCarril
       key={c.clave}
       carril={c}
       abierto={abierto === c.clave}
       controla={`${id}-detalle`}
-      onClick={() => setAbierto(abierto === c.clave ? null : c.clave)}
+      onClick={() => {
+        setAbierto(abierto === c.clave ? null : c.clave);
+        setTocado(true);
+      }}
+    />
+  ));
+  const botonesMovil = carriles.map((c) => (
+    <BotonCarril
+      key={c.clave}
+      carril={c}
+      abierto={tocado && abierto === c.clave}
+      controla={`${id}-detalle`}
+      onClick={() => {
+        setAbierto(tocado && abierto === c.clave ? null : c.clave);
+        setTocado(true);
+      }}
     />
   ));
 
   return (
-    <div className="mt-10">
+    <div className="mt-5">
       {/* ── Diagrama, sólo desde xl: a 1024 px las cuatro columnas quedaban de 110 px y cada caja partía su título en tres renglones ── */}
       <div className="hidden items-stretch xl:flex">
         <Columna titulo="Entra">
@@ -113,7 +131,7 @@ export function Orquestacion({
 
         <Columna titulo="Revisa">
           <ul className="flex flex-col justify-center gap-2.5">
-            {botones.map((b, i) => (
+            {botonesXl.map((b, i) => (
               <li key={carriles[i].clave}>{b}</li>
             ))}
           </ul>
@@ -144,7 +162,7 @@ export function Orquestacion({
         />
         <EslabonMovil titulo="Revisa" cuerpo="En tres frentes. Toca uno para ver qué revisa cada parte.">
           <ul className="mt-2.5 space-y-2">
-            {botones.map((b, i) => (
+            {botonesMovil.map((b, i) => (
               <li key={carriles[i].clave}>{b}</li>
             ))}
           </ul>
@@ -153,7 +171,7 @@ export function Orquestacion({
       </ol>
 
       {/* ── Lo que se abre ── */}
-      <div id={`${id}-detalle`} role="region" aria-live="polite" className="mt-4">
+      <div id={`${id}-detalle`} role="region" aria-live="polite" className={tocado ? "mt-4" : "mt-4 hidden xl:block"}>
         {activo ? (
           <DetalleCarril key={activo.clave} carril={activo} />
         ) : (
@@ -235,10 +253,10 @@ function DetalleCarril({ carril }: { carril: CarrilDatos }) {
       {/* El riel. Arranca desfasado porque así arranca de verdad: Proveedor y
           Síntesis esperan a que el expediente esté leído. */}
       <div className="relative mt-3 h-1 overflow-hidden rounded-full bg-paper/10" aria-hidden>
-        <span
-          className="animate-rielPulso absolute inset-0 bg-gradient-to-r from-transparent via-maiz to-transparent bg-[length:20%_100%] bg-no-repeat"
-          style={{ animationDelay: `${carril.arranque * TURNO}s` }}
-        />
+        {/* Un tramo lima liso que recorre el riel (antes, un degradado: la portada no lleva degradados). */}
+        <span className="animate-rielPulso absolute inset-0" style={{ animationDelay: `${carril.arranque * TURNO}s` }}>
+          <span className="block h-full w-1/5 rounded-full bg-maiz" />
+        </span>
       </div>
 
       {/* En móvil la flecha va ARRIBA de la etapa, no a su izquierda: al costado,

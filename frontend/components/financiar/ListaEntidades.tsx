@@ -8,9 +8,10 @@ import { alcanceCorto, type AlcanceProcesamiento, type EntidadFinanciable, type 
 import { numero } from "@/lib/formato";
 import { NombreEntidad, esRucPersona } from "./NombreEntidad";
 import { CLASE_ACCION_LISTA } from "@/components/ui/EnlaceAccion";
+import { PARAM_PAG, RUTA_FALTA, hrefFalta, queryFalta } from "./rutaFalta";
 
 /**
- * La vista "Por entidad" de /app/financiar (§14.1): entidades con contratos en cola, con la
+ * La vista "Por entidad" de «Lo que falta leer» (Auditoría en vivo, `?seccion=falta&por=entidad`; antes /app/financiar, §14.1): entidades con contratos en cola, con la
  * anatomía de todo listado:
  *   entidad (nombre + tipo y región) · en cola · listos para leerse · con dictamen · ›
  * Cada fila lleva a /app/financiar/entidad/[ruc], su cola y el aporte con la entidad como destino sugerido. La columna
@@ -27,13 +28,8 @@ export const TAM_ENTIDADES = 25;
 
 const ACCION = CLASE_ACCION_LISTA;
 
-const hrefVista = (q?: string, pagina?: number, region?: string) => {
-  const p = new URLSearchParams({ por: "entidad" });
-  if (q) p.set("q", q);
-  if (region) p.set("region", region);
-  if (pagina && pagina > 1) p.set("pagina", String(pagina));
-  return `/app/financiar?${p.toString()}`;
-};
+const hrefVista = (q?: string, pagina?: number, region?: string) =>
+  hrefFalta({ por: "entidad", buscar: q || undefined, region, [PARAM_PAG]: pagina && pagina > 1 ? String(pagina) : undefined });
 
 function columnas(alcance: AlcanceProcesamiento | null | undefined): Columna[] {
   return [
@@ -164,8 +160,9 @@ export function ResultadosEntidades({
       total={total}
       tam={TAM_ENTIDADES}
       nombre={q ? (total === 1 ? "entidad que coincide" : "entidades que coinciden") : total === 1 ? "entidad con contratos en cola" : "entidades con contratos en cola"}
-      hrefBase="/app/financiar"
-      query={{ por: "entidad", q: q || undefined, region }}
+      hrefBase={RUTA_FALTA}
+      query={queryFalta({ por: "entidad", buscar: q || undefined, region })}
+      paramPagina={PARAM_PAG}
     />
   );
   return (

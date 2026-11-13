@@ -13,6 +13,10 @@ import { cn } from "@/lib/utils";
  * Cada pestaña dice en una línea CUÁL es la métrica: un ranking sin su regla confunde más de lo que informa.
  * Cada fila lleva a la FICHA de lo que nombra (la entidad, el partido, el aliado, la región): antes las entidades y las
  * regiones llevaban directo a pagar. Financiar queda como la acción secundaria de la pestaña, al pie.
+ *
+ * Desde el 2026-11-13 va a todo el ancho y cada fila es UNA línea desde md (puesto, nombre con su contexto, barra y
+ * cifra en columnas): antes eran tres renglones por fila en media pantalla, 81 px cada una. En el celular la barra baja
+ * a su propio renglón.
  */
 export interface FilaRank {
   id: string;
@@ -41,6 +45,10 @@ export interface PestanaRank {
   nota?: string;
 }
 
+/** Una fila: puesto | nombre y contexto | cifra en el celular (la barra abajo); desde md, puesto | nombre | barra | cifra. */
+const FILA =
+  "grid grid-cols-[1.25rem_minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1.5 px-2 py-2 md:grid-cols-[1.25rem_minmax(0,17rem)_minmax(0,1fr)_8.5rem] md:gap-x-4";
+
 export function RankingsInicio({ pestanas }: { pestanas: PestanaRank[] }) {
   const base = useId();
   const [activa, setActiva] = useState(pestanas[0]?.id ?? "");
@@ -62,7 +70,7 @@ export function RankingsInicio({ pestanas }: { pestanas: PestanaRank[] }) {
     <section aria-labelledby={`${base}-t`} className="tarjeta rounded-2xl border border-line bg-paper">
       <div className="flex flex-col gap-2 border-b border-line px-4 py-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between sm:gap-3 sm:px-5">
         <h2 id={`${base}-t`} className="font-display text-bloque font-bold leading-tight text-ink sm:text-seccion">Avance de la lectura</h2>
-        <div role="tablist" aria-label="Qué ordenar" className="grid grid-cols-4 gap-1 rounded-full border border-line bg-paperDeep p-1 sm:inline-flex">
+        <div role="tablist" aria-label="Qué ordenar" className="grid auto-cols-fr grid-flow-col gap-1 rounded-full border border-line bg-paperDeep p-1 sm:inline-flex">
           {pestanas.map((p, i) => (
             <button
               key={p.id}
@@ -86,51 +94,54 @@ export function RankingsInicio({ pestanas }: { pestanas: PestanaRank[] }) {
         </div>
       </div>
 
-      <div role="tabpanel" id={`${base}-panel`} aria-labelledby={`${base}-tab-${actual.id}`} className="px-4 py-4 sm:px-5">
-        <p className="text-dato leading-snug text-mute">{actual.metrica}</p>
+      <div role="tabpanel" id={`${base}-panel`} aria-labelledby={`${base}-tab-${actual.id}`} className="px-4 py-3 sm:px-5">
+        <p className="text-meta leading-snug text-mute">{actual.metrica}</p>
         {actual.filas.length === 0 ? (
-          <p className="mt-4 rounded-xl bg-paperSoft px-4 py-6 text-center text-dato text-mute">Todavía no hay datos para ordenar.</p>
+          <p className="mt-3 rounded-xl bg-paperSoft px-4 py-6 text-center text-dato text-mute">Todavía no hay datos para ordenar.</p>
         ) : (
-          <ol className="mt-3 space-y-1.5">
+          <ol className="mt-2 divide-y divide-line">
             {actual.filas.map((f, i) => {
               const ancho = Math.max(3, (f.valor / max) * 100);
               const cuerpo = (
                 <>
-                  <span aria-hidden className="w-6 shrink-0 pt-0.5 text-center font-mono text-meta font-bold tabular-nums text-mute">{i + 1}</span>
-                  <span className="min-w-0 flex-1">
+                  <span aria-hidden className="text-center font-mono text-meta font-bold tabular-nums text-mute">{i + 1}</span>
+                  <span className="min-w-0">
                     {/* El nombre en dos líneas en el celular: "Gobierno Regional d…" tres veces no distinguía a nadie. */}
-                    <span className="flex items-start justify-between gap-3">
-                      <span className="line-clamp-2 min-w-0 text-cuerpo font-semibold leading-snug text-ink sm:line-clamp-1" title={f.nombre}>
-                        {f.nombre}
-                      </span>
-                      <span className="shrink-0 pt-0.5 font-mono text-meta font-semibold tabular-nums text-ink">{f.texto}</span>
+                    <span className="line-clamp-2 text-dato font-semibold leading-snug text-ink md:line-clamp-1" title={f.nombre}>
+                      {f.nombre}
                     </span>
-                    <span aria-hidden className="mt-1.5 block h-2 overflow-hidden rounded-full bg-paperDeep">
-                      <span className="relative block h-full rounded-full bg-granate/30" style={{ width: `${ancho}%` }}>
-                        {f.parte != null && <span className="absolute inset-y-0 left-0 rounded-full bg-granate" style={{ width: `${Math.max(0, Math.min(1, f.parte)) * 100}%` }} />}
-                        {f.parte == null && <span className="absolute inset-0 rounded-full bg-granate" />}
-                      </span>
-                    </span>
-                    {f.sub && <span className="mt-1 block truncate text-meta text-mute">{f.sub}</span>}
+                    {f.sub && <span className="hidden truncate text-meta text-mute md:block">{f.sub}</span>}
                   </span>
+                  {/* La barra: en el celular, su propio renglón bajo el nombre; desde md, la columna del medio. */}
+                  <span aria-hidden className="col-span-2 col-start-2 block h-2 overflow-hidden rounded-full bg-paperDeep md:col-span-1 md:col-start-auto">
+                    <span className="relative block h-full rounded-full bg-granate/30" style={{ width: `${ancho}%` }}>
+                      {f.parte != null && <span className="absolute inset-y-0 left-0 rounded-full bg-granate" style={{ width: `${Math.max(0, Math.min(1, f.parte)) * 100}%` }} />}
+                      {f.parte == null && <span className="absolute inset-0 rounded-full bg-granate" />}
+                    </span>
+                  </span>
+                  <span className="col-start-3 row-start-1 whitespace-nowrap text-right font-mono text-meta font-semibold tabular-nums text-ink md:col-start-auto md:row-start-auto">
+                    {f.texto}
+                  </span>
+                  {/* En el celular el contexto va bajo la barra, a lo ancho: al lado del nombre se cortaba a la mitad. */}
+                  {f.sub && <span className="col-span-2 col-start-2 text-meta leading-snug text-mute md:hidden">{f.sub}</span>}
                 </>
               );
               return (
                 <li key={f.id}>
                   {f.href ? (
-                    <Link href={f.href} className="flex items-start gap-2 rounded-xl px-2 py-2 transition-colors duration-rapido hover:bg-granate-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-granate">
+                    <Link href={f.href} className={cn(FILA, "rounded-lg transition-colors duration-rapido hover:bg-granate-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-granate")}>
                       {cuerpo}
                     </Link>
                   ) : (
-                    <div className="flex items-start gap-2 px-2 py-2">{cuerpo}</div>
+                    <div className={FILA}>{cuerpo}</div>
                   )}
                 </li>
               );
             })}
           </ol>
         )}
-        {actual.nota && <p className="mt-3 text-meta leading-snug text-mute">{actual.nota}</p>}
-        <div className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-1">
+        {actual.nota && <p className="mt-2 text-meta leading-snug text-mute">{actual.nota}</p>}
+        <div className="mt-2 flex flex-wrap items-center gap-x-5 gap-y-1 border-t border-line pt-3">
           <Link
             href={actual.verTodos.href}
             className="inline-flex min-h-10 items-center gap-1.5 text-dato font-semibold text-granate underline-offset-4 hover:underline"

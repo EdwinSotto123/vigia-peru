@@ -1,9 +1,12 @@
-import { Building2, Coins, FileSearch, Scale, UserCheck, type LucideIcon } from "lucide-react";
-import { EnlaceAccion } from "./EnlaceAccion";
+import { Building2, Coins, FileSearch, Scale, type LucideIcon } from "lucide-react";
 import { Orquestacion, type CarrilDatos } from "./Orquestacion";
 import { PASOS, TOTAL_AGENTES, TOTAL_PASOS, porCarril, type PasoPipeline } from "@/components/agentes/catalogo";
 
 /**
+ * El pipeline real, corriendo: la pestaña «Qué revisa» de «Cómo trabaja Vigía» (ComoFunciona). Hasta el 2026-11-13 era
+ * una banda propia de una pantalla; la garantía «si no está seguro, lo revisa una persona» quedó en la pestaña «Por qué
+ * creerle», y el «Verlo trabajar ahora», en la cabecera de la sección.
+ *
  * El pipeline real, corriendo.
  *
  * Lo más difícil de creer de este producto —que un equipo de agentes leyó el
@@ -59,48 +62,19 @@ export function PipelineAgentes() {
   }));
 
   return (
-    <section
-      id="agentes"
-      data-tema="oscuro"
-      aria-labelledby="agentes-titulo"
-      className="sobre-oscuro relative scroll-mt-20 overflow-hidden border-t border-paper/10 bg-ink py-16 text-paper sm:py-20"
-    >
-      <div className="container-page relative">
-        {/* El titular dice qué significa para la persona, no qué tecnología corre: qué se
-            revisa (cuatro preguntas) y la garantía (si hay duda, decide una persona). La
-            tecnología queda en el diagrama, como soporte. */}
-        <div className="flex flex-wrap items-end justify-between gap-x-12 gap-y-5">
-          <div className="min-w-0">
-            <h2 id="agentes-titulo" className="max-w-[24ch] text-balance font-display text-titulo font-bold leading-[1.05] sm:text-vitrina">
-              Lo que Vigía revisa en cada contrato
-            </h2>
-            <p className="mt-4 inline-flex items-center gap-2 rounded-full border border-maiz/30 bg-maiz/10 px-3.5 py-1.5 text-dato font-medium text-maiz sm:text-cuerpo">
-              <UserCheck size={16} className="shrink-0" aria-hidden />
-              Si no está seguro, no lo publica: lo revisa una persona.
-            </p>
-          </div>
-          <EnlaceAccion href="/app/auditoria" variante="contornoOscuro" className="shrink-0">
-            Verlo trabajar ahora
-          </EnlaceAccion>
-        </div>
+    // La placa oscura de la marca dentro de la sección clara: el diagrama está dibujado para fondo oscuro.
+    <div data-tema="oscuro" className="sobre-oscuro rounded-2xl bg-ink p-4 text-paper sm:p-6">
+      <ul className="grid grid-cols-2 gap-2 lg:grid-cols-4" aria-label="Lo que se revisa">
+        {PREGUNTAS.map(({ Icono, texto }) => (
+          <li key={texto} className="flex items-center gap-2.5 rounded-xl border border-paper/15 px-3 py-2.5">
+            <Icono size={17} className="shrink-0 text-maiz" aria-hidden />
+            <span className="text-dato font-semibold leading-snug text-paper">{texto}</span>
+          </li>
+        ))}
+      </ul>
 
-        <ul className="mt-8 grid gap-2.5 sm:grid-cols-2 lg:grid-cols-4" aria-label="Lo que se revisa">
-          {PREGUNTAS.map(({ Icono, texto }) => (
-            <li key={texto} className="flex items-center gap-3 rounded-2xl border border-paper/12 bg-paper/[0.04] px-4 py-3.5">
-              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-maiz/10 text-maiz" aria-hidden>
-                <Icono size={18} />
-              </span>
-              <span className="text-cuerpo font-semibold leading-snug text-paper">{texto}</span>
-            </li>
-          ))}
-        </ul>
-
-        {/* El circuito entero —qué entra, quién reparte, qué sale— y el carril que
-            se abra. Antes el detalle de los tres carriles vivía acá abajo siempre
-            desplegado: repetía el encabezado que el diagrama ya daba y dejaba la
-            sección en 1 558 px con dos tercios que nadie lee. */}
-        <Orquestacion carriles={carriles} totalPasos={TOTAL_PASOS} totalAgentes={TOTAL_AGENTES} />
-      </div>
-    </section>
+      {/* El circuito entero —qué entra, quién reparte, qué sale— y el carril que se abra. */}
+      <Orquestacion carriles={carriles} totalPasos={TOTAL_PASOS} totalAgentes={TOTAL_AGENTES} />
+    </div>
   );
 }

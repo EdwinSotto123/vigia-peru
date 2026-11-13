@@ -7,11 +7,11 @@ import { Skeleton } from "@/components/ui/Skeleton";
 import { cn } from "@/lib/utils";
 
 /**
- * La barra de filtros de las listas de /app/financiar por partido y por entidad, en UNA línea:
+ * La barra de filtros de las listas de «Lo que falta leer» por partido y por entidad, en UNA línea:
  *
  *   [buscar………………]  [región ▾]  [orden ▾]  [Quitar filtros]
  *
- * El estado vive en la URL (`?q=&region=&orden=`): se comparte y el botón atrás lo deshace. Todo cambio de
+ * El estado vive en la URL (`?buscar=&region=&orden=`; el nombre de la búsqueda lo da `paramBusqueda`): se comparte y el botón atrás lo deshace. Todo cambio de
  * filtro vuelve a la página 1 (lo hace `Listado.navegar`). Las dos listas de la barra son selectores nativos:
  * teclado, lector de pantalla y móvil funcionan sin código extra.
  *
@@ -35,7 +35,10 @@ export function FiltrosFinanciar({
   regiones,
   ordenes,
   ordenPorDefecto,
+  paramBusqueda = "q",
 }: {
+  /** El parámetro de la búsqueda en la URL (en Auditoría en vivo, `buscar`: `q` es el de sus otras pestañas). */
+  paramBusqueda?: string;
   placeholder: string;
   etiquetaBusqueda: string;
   /** Las regiones elegibles (valor = ubigeo de 2 dígitos). Vacío: no hay selector. */
@@ -45,7 +48,7 @@ export function FiltrosFinanciar({
   ordenPorDefecto?: string;
 }) {
   const { parametros, navegar, pendiente } = useListado();
-  const qUrl = parametros.q ?? "";
+  const qUrl = parametros[paramBusqueda] ?? "";
   const region = parametros.region ?? "";
   const orden = parametros.orden ?? ordenPorDefecto ?? "";
   const [texto, setTexto] = useState(qUrl);
@@ -59,7 +62,7 @@ export function FiltrosFinanciar({
     const t = valor.trim();
     // Desde 2 letras; vaciar el campo sí quita la búsqueda.
     const nuevo = t.length >= 2 ? t : undefined;
-    if ((nuevo ?? "") !== qUrl) navegar({ q: nuevo });
+    if ((nuevo ?? "") !== qUrl) navegar({ [paramBusqueda]: nuevo });
   };
   const alEscribir = (valor: string) => {
     setTexto(valor);
@@ -144,7 +147,7 @@ export function FiltrosFinanciar({
       {hayFiltros && (
         <button
           type="button"
-          onClick={() => navegar({ q: undefined, region: undefined, orden: undefined })}
+          onClick={() => navegar({ [paramBusqueda]: undefined, region: undefined, orden: undefined })}
           className="inline-flex min-h-10 items-center gap-1 rounded-full px-3 text-dato font-semibold text-granate underline-offset-2 hover:underline"
         >
           Quitar filtros

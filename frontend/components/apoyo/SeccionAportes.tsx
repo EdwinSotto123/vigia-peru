@@ -1,27 +1,19 @@
+import { unstable_noStore as noStore } from "next/cache";
 import { SearchX } from "lucide-react";
-import { NO_INDEXAR } from "@/lib/seo";
-import { EncabezadoPagina, EstadoError, EstadoVacio, Migas, Pagina } from "@/components/patrones";
+import { EstadoError, EstadoVacio } from "@/components/patrones";
 import { BarraFiltros, CeldaFecha, CeldaPrincipal, Listado, Tabla, ZonaResultados, type Columna, type Fila } from "@/components/listado";
 import { VacioEnLinea } from "@/components/ui/VacioEnLinea";
 import { Dato } from "@/components/ui/Dato";
 import { Paginacion } from "@/components/ui/Paginacion";
 import { EnlaceAccion } from "@/components/ui/EnlaceAccion";
 import { AvatarAliado } from "@/components/aliados/TarjetaAliado";
-import { NombreEntidad } from "@/components/financiar/NombreEntidad";
 import { LlamadaPodio } from "@/components/aliados/LlamadaPodio";
+import { NombreEntidad } from "@/components/financiar/NombreEntidad";
+import { HREF_APOYO } from "@/components/sitio/VistasSeccion";
 import { getRecientesPagina, TIPO_FINANCIADOR_LABEL, type ContribucionReciente } from "@/lib/financiamiento";
 import { numero } from "@/lib/formato";
 
-export const metadata = {
-  title: "Todos los aportes",
-  description: "Cada aporte confirmado que sostiene la vigilancia del dinero público, con su recibo. Ninguno elige qué se lee.",
-  // Nombres de quienes aportan: se ven en Vigía, no en un buscador.
-  robots: NO_INDEXAR,
-};
-
-export const revalidate = 60;
-
-/** Aportes por página: la lista es larga y crece con cada aporte, así que se pagina de a 25. */
+/** Aportes por página: la lista es larga y crece con cada aporte. */
 const TAM = 25;
 
 const COLUMNAS: Columna[] = [
@@ -96,26 +88,24 @@ function fila(c: ContribucionReciente): Fila {
 }
 
 /**
- * /app/aliados/aportes — todos los aportes confirmados, de a 25, del más reciente al más antiguo. Cada fila
- * lleva a su recibo público. Nunca se ordenan ni se comparan por soles, y solo aparecen los aliados visibles.
- * Es la página de "Ver todos los aportes" de la cinta de /app/aliados. Aquí sí va la semilla de Vigía Perú:
- * es el registro entero.
+ * La pestaña «Todos los aportes» de /app/apoyar (antes /app/aliados/aportes): cada aporte confirmado, de a 25, del más
+ * reciente al más antiguo, y cada fila lleva a su recibo público. Nunca se ordenan ni se comparan por soles, y solo
+ * aparecen los aliados visibles. Aquí sí va la semilla de Vigía Perú: es el registro entero. Los nombres de quienes
+ * aportan se ven en Vigía, no en un buscador: la página entera va sin indexar en esta pestaña (app/(dashboard)/app/apoyar).
  */
-export default async function AportesPage({ searchParams }: { searchParams?: { pagina?: string; q?: string } }) {
-  const pagina = Math.max(1, Number.parseInt(searchParams?.pagina ?? "1", 10) || 1);
-  const q = typeof searchParams?.q === "string" && searchParams.q.trim().length >= 2 ? searchParams.q.trim().slice(0, 80) : undefined;
+export async function SeccionAportes({ pagina, q: qPedida }: { pagina: number; q?: string }) {
+  const q = typeof qPedida === "string" && qPedida.trim().length >= 2 ? qPedida.trim().slice(0, 80) : undefined;
   const datos = await getRecientesPagina(TAM, (pagina - 1) * TAM, q).catch(() => null);
+  if (!datos) noStore();
   const paginas = datos ? Math.max(1, Math.ceil(datos.total / TAM)) : 1;
+  const query = { seccion: "aportes", q };
+  const pag = datos ? (
+    <Paginacion actual={pagina} paginas={paginas} total={datos.total} tam={TAM} navegacion="url" hrefBase="/app/apoyar" query={query} cargando={false} nombre="aportes" />
+  ) : null;
 
   return (
-    <Pagina className="space-y-4">
-      <Migas items={[{ etiqueta: "Inicio", href: "/app" }, { etiqueta: "Aliados", href: "/app/aliados" }, { etiqueta: "Todos los aportes" }]} />
-      <EncabezadoPagina
-        titulo="Todos los aportes"
-        bajada="Cada aporte confirmado, del más reciente al más antiguo. Toca uno para ver su recibo."
-      />
-
-      <Listado ruta="/app/aliados/aportes" parametros={{ q }}>
+    <div className="space-y-4">
+      <Listado ruta="/app/apoyar" parametros={query}>
         <div className="space-y-3">
           <BarraFiltros busqueda={{ param: "q", placeholder: "Buscar un aliado, una zona, una entidad, un partido o un comprobante…", etiqueta: "Buscar en los aportes", min: 2 }} />
           <ZonaResultados>
@@ -127,7 +117,7 @@ export default async function AportesPage({ searchParams }: { searchParams?: { p
               <EstadoVacio
                 titulo="Todavía no hay aportes confirmados"
                 accion={
-                  <EnlaceAccion variante="secundario" href="/app/apoyar">
+                  <EnlaceAccion variante="secundario" href={`${HREF_APOYO.aportar}#aporte`}>
                     Sé el primero
                   </EnlaceAccion>
                 }
@@ -136,25 +126,24 @@ export default async function AportesPage({ searchParams }: { searchParams?: { p
               </EstadoVacio>
             ) : (
               <section aria-label="Aportes" className="space-y-3">
-                <div className="rounded-2xl bg-granate-50 px-4 py-2.5 text-meta text-inkSoft">
-                  <strong className="font-semibold text-ink">{numero(datos.total)}</strong>{" "}
-                  {q ? (datos.total === 1 ? `aporte coincide con “${q}”` : `aportes coinciden con “${q}”`) : datos.total === 1 ? "aporte confirmado" : "aportes confirmados"}.
-                  Mostrando {numero((pagina - 1) * TAM + 1)} a {numero((pagina - 1) * TAM + datos.data.length)}.
+                {/* Cuántos son, en la misma línea que el paginador (antes, una franja teñida aparte). */}
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <p className="text-meta text-inkSoft">
+                    <strong className="font-semibold tabular-nums text-ink">{numero(datos.total)}</strong>{" "}
+                    {q ? (datos.total === 1 ? `aporte coincide con “${q}”` : `aportes coinciden con “${q}”`) : datos.total === 1 ? "aporte confirmado" : "aportes confirmados"}
+                    , del más reciente al más antiguo. Toca uno para ver su recibo.
+                  </p>
+                  {paginas > 1 && pag}
                 </div>
                 <Tabla columnas={COLUMNAS} filas={datos.data.map(fila)} etiqueta="Aportes confirmados, del más reciente al más antiguo" densidad="compacta" />
-                {paginas > 1 && (
-                  <div className="flex justify-end">
-                    <Paginacion actual={pagina} paginas={paginas} total={datos.total} tam={TAM} navegacion="url" hrefBase="/app/aliados/aportes" query={{ q }} cargando={false} nombre="aportes" />
-                  </div>
-                )}
+                {paginas > 1 && <div className="flex justify-end">{pag}</div>}
               </section>
             )}
           </ZonaResultados>
         </div>
       </Listado>
 
-      {/* La invitación al pie, con color: una lista corta no deja la pantalla vacía. */}
       <LlamadaPodio />
-    </Pagina>
+    </div>
   );
 }

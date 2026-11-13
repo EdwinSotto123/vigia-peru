@@ -125,14 +125,17 @@ export function OrganigramaMapa({ org, ruta, entidad }: { org: Organigrama; ruta
   }, [entidad]);
   const plano = useMemo(() => planoOrganigrama(hijos, abiertos, todos, nombreOficina, raizLineas), [hijos, abiertos, todos, raizLineas]);
 
-  // Al abrir el mapa: la entidad a un tercio del ancho (la rama grande va a la derecha) y en el medio de la altura.
+  // Al abrir el mapa: todo lo que cuelga a la izquierda de la entidad a la vista, y la entidad en el medio de la altura.
   useEffect(() => {
     const el = lienzo.current;
     if (!el || !red) return;
+    // Dónde queda el centro de la entidad (x = 0 del plano) y la mitad de su altura, en píxeles del lienzo.
     const x = (-plano.vista.x) * escala;
     const y = (-plano.vista.y) * escala;
-    // La rama grande va a la derecha: la entidad, cerca del borde izquierdo (lo de su izquierda sigue a la vista).
-    el.scrollLeft = Math.max(0, x - el.clientWidth * 0.25);
+    // Antes la entidad iba a un cuarto del ancho y la rama de la izquierda, más ancha que ese cuarto, quedaba cortada en
+    // el borde («…nicipal», «Control», auditoría del 2026-11-13). Ahora, si lo de la izquierda entra en la mitad del ancho,
+    // el mapa empieza en su borde izquierdo (se ve entero); si no, la entidad va al centro y se arrastra para ver lo demás.
+    el.scrollLeft = Math.max(0, x - el.clientWidth * 0.5);
     el.scrollTop = Math.max(0, y - el.clientHeight / 2);
     // Sólo al montar o al volver al mapa: no cada vez que se abre una rama.
     // eslint-disable-next-line react-hooks/exhaustive-deps

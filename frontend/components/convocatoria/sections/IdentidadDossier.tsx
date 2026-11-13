@@ -6,7 +6,7 @@ import Link from "next/link";
 import { CheckCircle2, ExternalLink, MapPin, Share2 } from "lucide-react";
 import type { Indicador } from "@/components/listado";
 import { useSearchParams } from "next/navigation";
-import { AyudaTermino, Migas, Volver } from "@/components/patrones";
+import { AyudaTermino, Migas } from "@/components/patrones";
 import { migasConDesde } from "@/lib/desde";
 import { PartidoQueGobierna } from "@/components/contratos/PartidoQueGobierna";
 import { baseApiNavegador } from "@/lib/api-client";
@@ -219,16 +219,21 @@ export function indicadoresDossier({
   return items;
 }
 
-/** Compartir el informe: hoja nativa del celular o, en escritorio, copiar el enlace. */
-function Compartir({ codigo, objeto }: { codigo: string; objeto?: string | null }) {
+/**
+ * Compartir el informe: hoja nativa del celular o, en escritorio, copiar el enlace. Con `ficha`, el enlace es el de la
+ * ficha del contrato (la cabecera única de su página: un contrato sin leer no tiene informe que compartir).
+ */
+export function Compartir({ codigo, objeto, ficha = false }: { codigo: string; objeto?: string | null; ficha?: boolean }) {
   const [copiado, setCopiado] = useState(false);
   const compartir = async () => {
     try {
-      const url = `${window.location.origin}${rutaContrato(codigo, "dictamen")}`;
+      const url = `${window.location.origin}${rutaContrato(codigo, ficha ? "ficha" : "dictamen")}`;
       if (navigator.share) {
         await navigator.share({
-          title: `Vigía Perú: ${objeto?.slice(0, 80) || "análisis de un contrato"}`,
-          text: `Análisis del contrato ${codigo}, con cada señal, su norma y su evidencia. Revísalo tú:`,
+          title: `Vigía Perú: ${objeto?.slice(0, 80) || (ficha ? "un contrato del Estado" : "análisis de un contrato")}`,
+          text: ficha
+            ? `El contrato ${codigo} en Vigía: quién compró, quién ganó, por cuánto y sus señales. Revísalo tú:`
+            : `Análisis del contrato ${codigo}, con cada señal, su norma y su evidencia. Revísalo tú:`,
           url,
         });
       } else {

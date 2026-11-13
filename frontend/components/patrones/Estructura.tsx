@@ -64,26 +64,32 @@ export function EncabezadoPagina({
   banderas?: ReactNode;
   className?: string;
 }) {
+  /* Dentro de `MarcoFicha` (components/entidad/MarcoFicha.tsx), fuera de la primera pestaña, la cabecera se pliega al
+     nombre (y a la línea de sus banderas): sin la bajada, sin las acciones, sin la placa y el título en una línea. En el
+     Inicio va entera. Fuera de un `MarcoFicha` estas clases no hacen nada (el grupo `ficha` no existe). Pedido del dueño del
+     2026-11-13: en cada pestaña la cabecera ocupaba media pantalla antes de la lista. */
   /* El ⓘ va al final de la bajada (lo que amplía), no junto al h1: un título que
      parte en dos líneas ocupa todo el ancho y empujaba el ⓘ al borde derecho. */
   const cuerpo = bajada ? (
     <>
-      <h1 className="line-clamp-3 font-display text-bloque font-bold leading-snug tracking-tight text-ink text-balance sm:text-seccion" title={typeof titulo === "string" ? titulo : undefined}>{titulo}</h1>
-      <p className="mt-1 max-w-3xl text-meta leading-snug text-inkSoft text-pretty sm:text-dato">
+      <h1 className="line-clamp-3 font-display text-bloque font-bold leading-snug tracking-tight text-ink text-balance sm:text-seccion group-data-[compacta]/ficha:line-clamp-2 group-data-[compacta]/ficha:text-bloque sm:group-data-[compacta]/ficha:line-clamp-1" title={typeof titulo === "string" ? titulo : undefined}>{titulo}</h1>
+      <p className="mt-1 max-w-3xl text-meta leading-snug text-inkSoft text-pretty sm:text-dato group-data-[compacta]/ficha:hidden">
         {bajada}
         {ayuda && <span className="ml-1 inline-flex align-middle">{ayuda}</span>}
       </p>
     </>
   ) : (
     <div className="flex items-center gap-2">
-      <h1 className="line-clamp-3 font-display text-bloque font-bold leading-snug tracking-tight text-ink text-balance sm:text-seccion" title={typeof titulo === "string" ? titulo : undefined}>{titulo}</h1>
+      <h1 className="line-clamp-3 font-display text-bloque font-bold leading-snug tracking-tight text-ink text-balance sm:text-seccion group-data-[compacta]/ficha:line-clamp-2 group-data-[compacta]/ficha:text-bloque sm:group-data-[compacta]/ficha:line-clamp-1" title={typeof titulo === "string" ? titulo : undefined}>{titulo}</h1>
       {ayuda}
     </div>
   );
   // La placa de la sección a la izquierda del título (desde `sm`): cada página se reconoce por su ícono.
   const texto = (
     <div className="flex min-w-0 items-start gap-3">
-      <IconoSeccion />
+      <span className="contents group-data-[compacta]/ficha:hidden">
+        <IconoSeccion />
+      </span>
       <div className="min-w-0">{cuerpo}</div>
     </div>
   );
@@ -92,10 +98,11 @@ export function EncabezadoPagina({
     // caja»): a la izquierda quién es y sus acciones; a la derecha, el panel de sus banderas en filas
     // (`BanderasFicha` cambia de chips a panel en lg). Abajo de lg, las banderas siguen bajo el título, en chips.
     return (
-      <header className={cn("grid gap-x-8 gap-y-3 lg:grid-cols-[minmax(0,1fr)_minmax(21rem,27rem)] lg:items-start", className)}>
-        <div className="min-w-0">
+      <header className={cn("grid gap-x-8 gap-y-3 lg:grid-cols-[minmax(0,1fr)_minmax(21rem,27rem)] lg:items-start group-data-[compacta]/ficha:gap-y-2", className)}>
+        {/* Plegada, el nombre a la altura de la línea de sus banderas (que mide 40 px), también con esa línea abierta. */}
+        <div className="min-w-0 lg:group-data-[compacta]/ficha:pt-2">
           {texto}
-          {acciones && <div className="mt-3 flex flex-wrap items-center gap-2">{acciones}</div>}
+          {acciones && <div className="mt-3 flex flex-wrap items-center gap-2 group-data-[compacta]/ficha:hidden">{acciones}</div>}
         </div>
         <div className="min-w-0">{banderas}</div>
       </header>
@@ -104,7 +111,7 @@ export function EncabezadoPagina({
   return (
     <header className={cn("flex flex-wrap items-end justify-between gap-x-6 gap-y-2", className)}>
       <div className="min-w-0 max-w-3xl">{texto}</div>
-      {acciones && <div className="flex flex-wrap items-center gap-2">{acciones}</div>}
+      {acciones && <div className="flex flex-wrap items-center gap-2 group-data-[compacta]/ficha:hidden">{acciones}</div>}
     </header>
   );
 }

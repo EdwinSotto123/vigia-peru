@@ -11,6 +11,7 @@ import {
   ProveedorMenor,
   SenalesMenor,
   banderasMenor,
+  tituloMenor,
 } from "@/components/menores/FichaMenor";
 import { oracion, soles } from "@/lib/formato";
 import { tituloNatural } from "@/lib/landing";
@@ -56,7 +57,6 @@ export default async function FichaMenorPagina({ params }: { params: { id: strin
   const id = idDe(params.id);
   const f = id ? await getFichaMenor(id) : null;
   if (!f) notFound();
-  const m = f.menor;
   const conSenales = f.senales.length > 0;
   const peor = (["alta", "media", "baja"] as const).find((sv) => f.senales.some((x) => x.severidad === sv));
   const capitulos: CapituloRelato[] = [
@@ -106,7 +106,9 @@ export default async function FichaMenorPagina({ params }: { params: { id: strin
         ]}
       />
       <EncabezadoPagina
-        titulo={oracion(m.descripcion ?? `Contrato menor ${m.codigo ?? m.id}`)}
+        // Corto (110 caracteres, en una palabra): la descripción entera medía 13 líneas en escritorio y 22 en el celular.
+        // Entera va en el cuerpo: «Datos del contrato» desde xl y «Pedido y contrato» debajo.
+        titulo={tituloMenor(f)}
         bajada={<BajadaMenor f={f} />}
         ayuda={
           <Ayuda titulo="¿Qué es un contrato menor?">
@@ -128,7 +130,7 @@ export default async function FichaMenorPagina({ params }: { params: { id: strin
           aria-label="Datos del contrato menor"
           className="hidden min-w-0 xl:sticky xl:top-4 xl:block xl:max-h-[calc(100dvh-2rem)] xl:overflow-y-auto xl:overscroll-contain"
         >
-          <DatosMenor f={f} />
+          <DatosMenor f={f} conObjeto />
         </aside>
       </div>
     </Pagina>

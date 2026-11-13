@@ -215,7 +215,7 @@ export function ExploradorFuentes({ cifras }: { cifras: CifrasFlujo | null }) {
     abierto ? "abierto" : encendido ? (sel ? "encendido" : "reposo") : sel ? "apagado" : "reposo";
 
   return (
-    <div className="sobre-oscuro mt-8 overflow-hidden rounded-2xl bg-ink text-paper shadow-paper">
+    <div data-tema="oscuro" className="sobre-oscuro overflow-hidden rounded-2xl bg-ink text-paper">
       <div
         ref={lienzo}
         className="relative grid gap-4 p-5 sm:p-7 lg:grid-cols-[minmax(0,17.5rem)_minmax(0,1fr)_minmax(0,17.5rem)] lg:gap-0 lg:px-10 lg:py-9 xl:grid-cols-[minmax(0,19rem)_minmax(0,1fr)_minmax(0,19rem)]"

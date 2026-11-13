@@ -43,9 +43,12 @@ const COLUMNAS: Columna[] = [
 export function NepotismoInicio({
   nepotismo,
   href,
+  sinMarco = false,
 }: {
   nepotismo: NepotismoEntidad | null;
   href: (filtro: Record<string, string>) => string;
+  /** Sin su tarjeta ni su título: el panel al costado del Inicio de la entidad ya los pone. */
+  sinMarco?: boolean;
 }) {
   const detalle = nepotismo?.detalle ?? [];
   if (!nepotismo || nepotismo.total === 0 || !detalle.length) return null;
@@ -104,19 +107,8 @@ export function NepotismoInicio({
     };
   });
 
-  return (
-    <BloqueInicio
-      nivel={3}
-      titulo="Parientes de funcionarios que le venden"
-      ayuda={
-        <Ayuda titulo="¿De dónde sale?">
-          Por ley, los funcionarios presentan una Declaración Jurada de Intereses (Ley 31227) donde declaran a sus parientes.
-          Aquí se cruzan esos parientes con los locadores de su propia entidad. Del funcionario va el cargo y el primer
-          apellido; del pariente se tapa un apellido. El impedimento depende del cargo (Ley 32069, art. 30).
-        </Ayuda>
-      }
-      enlace={{ href: href({ [PARAMS_EN_FICHA.senal]: "nepotismo" }), texto: "Ver en personas" }}
-    >
+  const contenido = (
+    <>
       {/* La API trae hasta 40 casos (los de más monto) y el total de todos: EsSalud tiene 353. */}
       {nepotismo.total > detalle.length && (
         <p className="mb-2 text-meta text-inkSoft">
@@ -136,6 +128,32 @@ export function NepotismoInicio({
         medida="contenedor"
         buscar={{ placeholder: "Buscar un cargo o un parentesco…", etiqueta: "Buscar entre los casos de parientes" }}
       />
+    </>
+  );
+  if (sinMarco) {
+    return (
+      <div className="space-y-3">
+        {contenido}
+        <EnlaceAccion href={href({ [PARAMS_EN_FICHA.senal]: "nepotismo" })} variante="secundario">
+          Ver en personas
+        </EnlaceAccion>
+      </div>
+    );
+  }
+  return (
+    <BloqueInicio
+      nivel={3}
+      titulo="Parientes de funcionarios que le venden"
+      ayuda={
+        <Ayuda titulo="¿De dónde sale?">
+          Por ley, los funcionarios presentan una Declaración Jurada de Intereses (Ley 31227) donde declaran a sus parientes.
+          Aquí se cruzan esos parientes con los locadores de su propia entidad. Del funcionario va el cargo y el primer
+          apellido; del pariente se tapa un apellido. El impedimento depende del cargo (Ley 32069, art. 30).
+        </Ayuda>
+      }
+      enlace={{ href: href({ [PARAMS_EN_FICHA.senal]: "nepotismo" }), texto: "Ver en personas" }}
+    >
+      {contenido}
     </BloqueInicio>
   );
 }

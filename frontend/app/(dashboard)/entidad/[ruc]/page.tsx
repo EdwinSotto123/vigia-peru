@@ -50,9 +50,9 @@ import { VisitasEntidad } from "@/components/entidad/VisitasEntidad";
  * /entidad/[ruc] — la ficha de una entidad, con el mismo esqueleto que la de un contrato:
  *   volver → identidad (nombre; tipo, RUC y zona; financiar, denunciar, seguir) → pestañas (`?seccion=`), cada una con su
  *   número y las vacías al final:
- *     · Inicio: sus cifras (contratos y lo leído, antecedentes de los ganadores, órdenes, presupuesto; cada una abre su
- *       pestaña o su filtro), qué se encontró (banderas, con la captura política), dinero y control, con la columna
- *       lateral de quién la gobierna y quién aprueba sus contratos (components/inicio/InicioEntidad.tsx).
+ *     · Inicio, en una pantalla: sus cifras (contratos y lo leído, antecedentes de los ganadores, órdenes, presupuesto;
+ *       cada una abre su pestaña o su filtro), las tres señales que más pesan, quién la gobierna y quién aprueba sus
+ *       contratos, y «Ver más»: una fila por pestaña con su cifra clave (components/inicio/InicioEntidad.tsx).
  *     · Contratos: lo que compró, en tres vistas (`?vista=`): sus convocatorias desde 2015 (con los filtros de
  *       /app/contratos; la URL guarda el filtro), sus órdenes de compra y de servicio y sus contratos menores
  *       (components/entidad/ComprasEntidad.tsx).
@@ -530,13 +530,13 @@ export default async function EntidadProfile({
 
       {/* 1. Identidad: nombre; tipo, RUC y zona en una línea; lo que se puede hacer con ella. Una acción primaria
           (ayudar a vigilarla) y el resto compacto: antes eran cuatro botones del mismo peso, uno por
-          renglón en el celular. "Sus proveedores" pasó a "Sus contratos" y a "Ver también" del Inicio. Fuera del Inicio,
-          en el celular, sin la línea de tipo, RUC y zona (MarcoFicha): la lista empieza en la primera pantalla. */}
+          renglón en el celular. Fuera del Inicio la cabecera se pliega (MarcoFicha): el nombre y una línea con sus banderas
+          que se abre, sin la línea de tipo, RUC y zona ni las acciones; la lista empieza arriba. */}
       <MarcoFicha activa={activa} primera="inicio">
         <EncabezadoPagina
           titulo={nombre}
           bajada={
-            <span className="inline-flex flex-wrap items-center gap-x-4 gap-y-1 max-sm:group-data-[compacta]/ficha:hidden">
+            <span className="inline-flex flex-wrap items-center gap-x-4 gap-y-1">
               {/* Sin tipo que se pueda inferir del nombre, no se muestra (antes, «Entidad del Estado», que no dice nada). */}
               {tipoVisible && (
                 <span className="inline-flex items-center gap-1.5">

@@ -48,7 +48,7 @@ const NAV: { href: string; label: string; vivo?: boolean; dorado?: boolean; desd
   { href: "/app/auditoria", label: "Auditoría en vivo", vivo: true, desde: "xl", prioridad: 6 },
   { href: "/app/partidos", label: "Partidos", desde: "xl", prioridad: 7 },
   // Dorado: el reconocimiento público a quienes financian la lectura (el ranking).
-  { href: "/app/aliados", label: "Aliados", dorado: true, prioridad: 5 },
+  { href: "/app/apoyar?seccion=aliados", label: "Aliados", dorado: true, prioridad: 5 },
   { href: "/reporte/nuevo", label: "Denunciar", desde: "nunca", prioridad: 8 },
   { href: "/preguntas", label: "Preguntas", desde: "nunca", prioridad: 9 },
 ];

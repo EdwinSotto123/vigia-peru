@@ -13,7 +13,7 @@ import {
  */
 const POR_RUTA: [RegExp, LucideIcon][] = [
   [/^\/app\/asistente/, MessageCircleQuestion],
-  [/^\/app\/(mapa|financiar)|^\/region\//, MapPin],
+  [/^\/app\/mapa|^\/region\//, MapPin],
   [/^\/app\/entidades|^\/entidad\/|^\/app\/comparar/, Building2],
   [/^\/app\/empresas|^\/empresa\//, Briefcase],
   [/^\/app\/personas/, Users],
@@ -23,7 +23,7 @@ const POR_RUTA: [RegExp, LucideIcon][] = [
   [/^\/app\/(hallazgos|novedades)/, Flag],
   [/^\/app\/denuncias|^\/reporte/, MessageSquareWarning],
   [/^\/app\/(apoyar|aliados|cuanto-cuesta|mi-impacto)/, Heart],
-  [/^\/app\/auditoria/, Radio],
+  [/^\/app\/(auditoria|financiar)/, Radio],
   [/^\/glosario|^\/preguntas/, BookOpen],
   [/^\/(metodologia|fuentes|privacidad)|^\/app\/ia/, Scale],
   [/^\/app$/, LayoutGrid],

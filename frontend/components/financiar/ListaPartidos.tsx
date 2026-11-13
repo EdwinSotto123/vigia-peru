@@ -3,13 +3,14 @@ import { Ayuda, EstadoError, EstadoVacio } from "@/components/patrones";
 import { CeldaBarra, CeldaNumero, CeldaPrincipal, Tabla, type Columna, type Fila } from "@/components/listado";
 import { Dato } from "@/components/ui/Dato";
 import { Paginacion } from "@/components/ui/Paginacion";
-import { PERIODOS_GOBIERNO, type AnioGobierno, type FilaPartido, type OrdenPartidos, type RankingPartidos } from "@/lib/partidosApi";
+import { type AnioGobierno, type FilaPartido, type OrdenPartidos, type RankingPartidos } from "@/lib/partidosApi";
 import { alcanceCorto, type AlcanceProcesamiento } from "@/lib/financiamiento";
 import { numero, plural } from "@/lib/formato";
 import { CLASE_ACCION_LISTA } from "@/components/ui/EnlaceAccion";
+import { PARAM_PAG, RUTA_FALTA, queryFalta } from "./rutaFalta";
 
 /**
- * La vista "Por partido" de /app/financiar: los partidos de un período con contratos esperando lectura, de 25
+ * La vista "Por partido" de «Lo que falta leer» (Auditoría en vivo, `?seccion=falta&por=partido`; antes /app/financiar): los partidos de un período con contratos esperando lectura, de 25
  * en 25, con filtro de región, búsqueda y orden en la URL. Cada fila lleva a /app/financiar/partido/[clave]?anio=,
  * sus gobiernos y su cola.
  *
@@ -39,49 +40,21 @@ export interface FiltrosPartidosUrl {
 /** Orden por defecto: lo que más espera lectura. */
 export const ORDEN_PARTIDOS_DEFECTO: OrdenPartidos = "cola";
 
-export const queryPartidos = (f: FiltrosPartidosUrl): Record<string, string | undefined> => ({
-  por: "partido",
-  anio: String(f.anio),
-  region: f.region || undefined,
-  q: f.q || undefined,
-  orden: f.orden && f.orden !== ORDEN_PARTIDOS_DEFECTO ? f.orden : undefined,
-});
+export const queryPartidos = (f: FiltrosPartidosUrl): Record<string, string | undefined> =>
+  queryFalta({
+    por: "partido",
+    anio: String(f.anio),
+    region: f.region || undefined,
+    buscar: f.q || undefined,
+    orden: f.orden && f.orden !== ORDEN_PARTIDOS_DEFECTO ? f.orden : undefined,
+  });
 
 export const hrefVistaPartido = (f: FiltrosPartidosUrl) => {
   const p = new URLSearchParams();
   for (const [k, v] of Object.entries(queryPartidos(f))) if (v) p.set(k, v);
-  if (f.pagina && f.pagina > 1) p.set("pagina", String(f.pagina));
-  return `/app/financiar?${p.toString()}`;
+  if (f.pagina && f.pagina > 1) p.set(PARAM_PAG, String(f.pagina));
+  return `${RUTA_FALTA}?${p.toString()}`;
 };
-
-/** Los tres períodos como un control segmentado: el partido se elige DENTRO de un período. Cambiar de período conserva región y búsqueda. */
-export function SelectorPeriodo({ filtros }: { filtros: FiltrosPartidosUrl }) {
-  return (
-    <nav aria-label="Período de gobierno" className="flex flex-wrap items-center gap-x-3 gap-y-2">
-      <span className="text-meta font-medium text-inkSoft">Gobiernos de</span>
-      <ul className="inline-flex rounded-full border border-line bg-paperSoft p-0.5">
-        {PERIODOS_GOBIERNO.map((p) => {
-          const activo = p.anio === filtros.anio;
-          return (
-            <li key={p.anio}>
-              <Link
-                href={hrefVistaPartido({ ...filtros, anio: p.anio, pagina: 1 })}
-                aria-current={activo ? "page" : undefined}
-                scroll={false}
-                className={
-                  "inline-flex min-h-10 items-center rounded-full px-3.5 text-dato font-semibold tabular-nums transition-colors sm:min-h-9 " +
-                  (activo ? "bg-granate text-paper" : "text-inkSoft hover:text-ink")
-                }
-              >
-                {p.texto}
-              </Link>
-            </li>
-          );
-        })}
-      </ul>
-    </nav>
-  );
-}
 
 function columnas(alcance: AlcanceProcesamiento | null | undefined): Columna[] {
   return [
@@ -136,7 +109,7 @@ function fila(f: FilaPartido, anio: AnioGobierno, mayor: number): Fila {
       leidos: <CeldaNumero>{`${numero(f.leidos)} de ${numero(f.contratos)}`}</CeldaNumero>,
       // La fila entera es el enlace: esto es solo la señal visual de adónde lleva (no es un segundo botón).
       accion: (
-        <span aria-hidden className="inline-flex min-h-8 items-center rounded-full border border-granate/40 px-3 text-meta font-semibold text-granate group-hover:bg-granate-50">
+        <span aria-hidden className="inline-flex min-h-8 items-center rounded-full border border-granate/40 px-3 text-meta font-semibold text-granate">
           Ver
         </span>
       ),
@@ -203,8 +176,9 @@ export function ResultadosPartidos({
       total={total}
       tam={TAM_PARTIDOS}
       nombre={q ? (total === 1 ? "partido que coincide" : "partidos que coinciden") : total === 1 ? "partido con contratos en cola" : "partidos con contratos en cola"}
-      hrefBase="/app/financiar"
+      hrefBase={RUTA_FALTA}
       query={queryPartidos(filtros)}
+      paramPagina={PARAM_PAG}
     />
   );
   return (

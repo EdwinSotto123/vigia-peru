@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { ChevronRight, ExternalLink, Info } from "lucide-react";
+import { ExternalLink, Info } from "lucide-react";
 import { Ayuda } from "@/components/patrones/Ayuda";
 import { EnlaceFuente } from "@/components/patrones/Estructura";
 import { CeldaFecha, CeldaPrincipal, Indicadores, Tabla, type Columna, type Fila, type Indicador } from "@/components/listado";
@@ -15,7 +15,7 @@ import { fechaCorta, numero, plural, solesCompacto } from "@/lib/formato";
 import { BUSCADOR_CONTRALORIA } from "@/lib/fuentes";
 import { tituloNatural } from "@/lib/landing";
 import { limpiarObjeto } from "@/components/contratos/recortar";
-import { BloqueInicio, SinDato } from "./BloquesInicio";
+import { BloqueInicio, SinDato, SinRespuesta } from "./BloquesInicio";
 
 /**
  * "Casos de corrupción" del Inicio (región, partido), con los rótulos de docs/CORRUPCION.md y en dos partes que nunca
@@ -27,8 +27,9 @@ import { BloqueInicio, SinDato } from "./BloquesInicio";
  * `ruta` es la de la API (lib/corrupcion.ts, rutaCorrupcion): la tabla pide ahí las páginas siguientes.
  *
  * La ficha de una ENTIDAD ya no usa este bloque (ocupaba ~1,850 px de su Inicio, ~600 de ellos con cifras de la
- * Procuraduría que, como decía su nota, no eran de esa entidad): su Inicio lleva `ResumenContraloria` (cuatro cifras y
- * los tres informes más recientes) y la tabla entera va en su pestaña «Control» (`InformesContraloria`). La
+ * Procuraduría que, como decía su nota, no eran de esa entidad): su Inicio lleva una fila de «Ver más» con sus informes y
+ * la tabla entera va en su pestaña «Control» (`InformesContraloria`). Desde el 2026-11-13 la región y el partido también
+ * tienen su pestaña «Control» (`sinMarco`); el bloque con su tarjeta queda para el panel de zona del mapa. La
  * Procuraduría publica por sede (distrito fiscal), no por entidad agraviada: la entidad enlaza a la ficha de su región,
  * que es donde esas cifras significan algo (el usuario leyó las de Lima en la ficha de la UNI como si fueran de la UNI,
  * 2026-10-22).
@@ -39,6 +40,8 @@ export function CasosCorrupcion({
   ambito,
   nombreRegion,
   nota,
+  sinMarco = false,
+  reintentar = "",
 }: {
   datos: Corrupcion | null | undefined;
   ruta: string;
@@ -47,7 +50,30 @@ export function CasosCorrupcion({
   nombreRegion?: string | null;
   /** Una advertencia bajo el título de la Contraloría (la usa el partido). */
   nota?: string;
+  /** Sin su tarjeta ni su título: la pestaña «Control» de la región o del partido ya los pone (`CabeceraPestana`). */
+  sinMarco?: boolean;
+  /** La URL que vuelve a pedir la página si el servicio no respondió (vacía: la misma). */
+  reintentar?: string;
 }) {
+  // El servicio no respondió ESTA vez: una línea con «Reintentar», no una tarjeta entera con su título y «Sin dato: el
+  // servicio no respondió» pintado como si fuera el contenido (auditoría del 2026-11-13, la ficha de un partido).
+  if (datos === null) {
+    return (
+      <SinRespuesta href={reintentar}>
+        {ambito === "region" ? "Los informes de control y los casos judiciales no respondieron ahora." : "Los informes de control no respondieron ahora."}
+      </SinRespuesta>
+    );
+  }
+  if (sinMarco) {
+    return datos === undefined ? (
+      <SinDato>Cargando…</SinDato>
+    ) : (
+      <div className="space-y-8">
+        {ambito !== "partido" && ambito !== "entidad" && <Procuraduria datos={datos} ambito={ambito} nombreRegion={nombreRegion} />}
+        <Contraloria datos={datos} ruta={ruta} ambito={ambito} nota={nota} />
+      </div>
+    );
+  }
   return (
     <BloqueInicio
       ancho
@@ -70,8 +96,6 @@ export function CasosCorrupcion({
     >
       {datos === undefined ? (
         <SinDato>Cargando…</SinDato>
-      ) : datos === null ? (
-        <SinDato>Sin dato: el servicio no respondió.</SinDato>
       ) : (
         <div className="space-y-6">
           {ambito === "entidad" ? (
@@ -279,31 +303,11 @@ function cifrasInformes(inf: InformesControl, conEntidad: boolean): Indicador[] 
 }
 
 /**
- * Lo de la Contraloría en el Inicio de una entidad: las cuatro cifras, los tres informes más recientes y el enlace a
- * la pestaña con todos. `href` es esa pestaña (`?seccion=control`).
- */
-export function ResumenContraloria({ informes, href }: { informes: InformesControl; href: string }) {
-  // Los tres más recientes (la API los ordena por fecha); todos, con buscador y filtros, en la pestaña.
-  const recientes = informes.pagina.filas.slice(0, 3);
-  return (
-    <div className="space-y-4">
-      <Indicadores items={cifrasInformes(informes, false)} apilado />
-      <Tabla columnas={columnasInformes(false)} filas={recientes.map((i) => filaInforme(i))} etiqueta="Los informes más recientes de la Contraloría" medida="contenedor" />
-      {informes.total > recientes.length && (
-        <Link href={href} prefetch={false} className="inline-flex min-h-9 items-center gap-0.5 text-meta font-semibold text-granate underline-offset-4 hover:underline">
-          Ver los {numero(informes.total)} informes <ChevronRight size={14} aria-hidden />
-        </Link>
-      )}
-    </div>
-  );
-}
-
-/**
  * Todos los informes de la Contraloría, con buscador, filtro por tipo de responsabilidad y paginación (las páginas se
  * piden a la API). `conTitulo={false}` cuando ya lo pone la cabecera de la pestaña (la ficha de la entidad).
  */
 export function InformesContraloria({ datos, ruta, ambito, nota, conTitulo = true }: { datos: Corrupcion | null; ruta: string; ambito: "entidad" | "region" | "partido"; nota?: string; conTitulo?: boolean }) {
-  if (!datos) return <SinDato>Sin dato: el servicio de la Contraloría no respondió.</SinDato>;
+  if (!datos) return <SinRespuesta href="">Los informes de la Contraloría no respondieron ahora.</SinRespuesta>;
   return <Contraloria datos={datos} ruta={ruta} ambito={ambito} nota={nota} conTitulo={conTitulo} />;
 }
 

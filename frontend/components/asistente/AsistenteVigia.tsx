@@ -288,7 +288,8 @@ export function AsistenteVigia() {
           {puedeSeguir && (
             <Sugerencias titulo="¿Quieres saber más?" opciones={SEGUIR.map((t) => ({ texto: t }))} alElegir={(q) => void enviar(q)} chicas />
           )}
-          <div ref={fin} />
+          {/* En el celular el cuadro de escribir va pegado abajo: al bajar hasta aquí, que no tape el último mensaje. */}
+          <div ref={fin} className="scroll-mb-24 lg:scroll-mb-0" />
         </div>
 
         {/* El cuadro de escribir: dentro de la caja en escritorio, pegado abajo de la pantalla en el celular. */}

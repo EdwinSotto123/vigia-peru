@@ -1,12 +1,16 @@
 import { CalendarHeart, ListOrdered, ReceiptText } from "lucide-react";
 import { EnlaceAccion } from "@/components/ui/EnlaceAccion";
+import { HREF_APOYO } from "@/components/sitio/VistasSeccion";
 
 /**
- * «¿Quieres estar en el podio?»: la invitación a sumarse, en una banda con color de marca (no una caja blanca). Tres
- * pasos en una fila separados por divisores y UN botón lima. Desde el 2026-10-29 es el modelo de apoyo (migración 206):
- * el aporte va al fondo común y el podio cuenta los meses, no los soles. Antes decía «Eliges región y cuántos
- * contratos, S/ 3 cada uno», que ya no es cierto. Todo lo que dice sale de reglas reales del producto: el mínimo del
- * formulario (S/ 5), la cola por riesgo (migración 206) y el recibo público de cada aporte.
+ * «¿Quieres estar en el podio?»: la invitación a sumarse. Tres pasos en una fila separados por divisores y UN botón.
+ * Desde el 2026-10-29 es el modelo de apoyo (migración 206): el aporte va al fondo común y el podio cuenta los meses, no
+ * los soles. Antes decía «Eliges región y cuántos contratos, S/ 3 cada uno», que ya no es cierto. Todo lo que dice sale
+ * de reglas reales del producto: el mínimo del formulario (S/ 5), la cola por riesgo (migración 206) y el recibo público
+ * de cada aporte.
+ *
+ * Desde el 2026-11-13 es una caja con borde, como el resto de la página (antes, una banda con degradado granate: el
+ * dueño del producto pidió sin degradados ni color como jerarquía). El botón lleva a la pestaña Aportar de /app/apoyar.
  *
  * Server-safe.
  */
@@ -18,35 +22,32 @@ const PASOS = [
 
 export function LlamadaPodio() {
   return (
-    <section
-      aria-labelledby="llamada-podio"
-      className="sobre-oscuro con-puntos relative overflow-hidden rounded-2xl bg-gradient-to-br from-granate-deep via-ink to-granate-deep text-paper"
-    >
-      <div className="relative space-y-4 px-5 py-5 sm:px-8">
+    <section aria-labelledby="llamada-podio" className="rounded-2xl border border-line bg-paper">
+      <div className="space-y-3 px-4 py-4 sm:px-5">
         <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3">
-          <div>
-            <h2 id="llamada-podio" className="font-display text-cifra font-bold leading-tight sm:text-titulo">
-              ¿Quieres estar en el <span className="text-maiz">podio</span>?
+          <div className="min-w-0">
+            <h2 id="llamada-podio" className="font-display text-bloque font-bold leading-tight text-ink">
+              ¿Quieres estar en el podio?
             </h2>
-            <p className="mt-1 text-cuerpo text-paper/80">Sostén la vigilancia del dinero público, mes a mes.</p>
+            <p className="mt-0.5 text-meta text-inkSoft">Sostén la vigilancia del dinero público, mes a mes.</p>
           </div>
-          <EnlaceAccion href="/app/apoyar" variante="oscuro" tamano="lg" flecha>
+          <EnlaceAccion href={`${HREF_APOYO.aportar}#aporte`} flecha>
             Quiero sumarme
           </EnlaceAccion>
         </div>
-        {/* Los tres pasos en una fila con divisores, sin cajas: la banda ya es la superficie. */}
-        <ol className="grid divide-y divide-paper/15 border-t border-paper/15 sm:grid-cols-3 sm:divide-x sm:divide-y-0">
+        {/* Los tres pasos numerados en una fila con divisores, dentro de la caja. */}
+        <ol className="grid divide-y divide-line border-t border-line sm:grid-cols-3 sm:divide-x sm:divide-y-0">
           {PASOS.map(({ Icono, titulo, texto }, i) => (
             <li key={titulo} className="flex items-start gap-3 py-3 sm:px-4 sm:first:pl-0 sm:last:pr-0">
-              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-maiz/15 text-maiz" aria-hidden>
-                <Icono size={17} />
+              <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-paperDeep text-granate" aria-hidden>
+                <Icono size={16} />
               </span>
               <span className="min-w-0">
-                <span className="block text-dato font-semibold leading-snug text-paper">
+                <span className="block text-dato font-semibold leading-snug text-ink">
                   <span className="sr-only">Paso {i + 1}: </span>
                   {titulo}
                 </span>
-                <span className="mt-0.5 block text-meta leading-snug text-paper/75">{texto}</span>
+                <span className="mt-0.5 block text-meta leading-snug text-mute">{texto}</span>
               </span>
             </li>
           ))}

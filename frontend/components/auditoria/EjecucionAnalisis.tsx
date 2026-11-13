@@ -366,7 +366,7 @@ export function DatosProceso({ p }: { p: ProcesamientoDetalle }) {
             <Ayuda titulo="¿Quién pagó influye en el resultado?">
               Los agentes no saben quién pagó este análisis, y los resultados se publican aunque señalen a quien lo
               financió.{" "}
-              <Link href="/app/financiar#independencia" className="font-medium text-granate underline">
+              <Link href="/app/apoyar#independencia" className="font-medium text-granate underline">
                 Reglas de independencia
               </Link>
               .

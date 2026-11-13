@@ -44,3 +44,31 @@ export function VistasSenales({ activa, publicadas, enRevision }: { activa: Vist
     />
   );
 }
+
+export type VistaApoyo = "aportar" | "aliados" | "aportes" | "costos";
+
+/**
+ * Apoyar: aportar, el podio de aliados, todos los aportes y cuánto cuesta Vigía (2026-11-13, auditoría visual: «los
+ * bloques de apoyo hasta tres veces»). Eran cuatro páginas (/app/apoyar, /app/aliados, /app/aliados/aportes y
+ * /app/cuanto-cuesta) con dos entradas del menú y la meta del mes repetida en tres; ahora son pestañas de UNA página
+ * (`?seccion=`) y las rutas viejas redirigen a la suya (next.config.js).
+ */
+export const HREF_APOYO: Record<VistaApoyo, string> = {
+  aportar: "/app/apoyar",
+  aliados: "/app/apoyar?seccion=aliados",
+  aportes: "/app/apoyar?seccion=aportes",
+  costos: "/app/apoyar?seccion=costos",
+};
+
+export const ETIQUETA_APOYO: Record<VistaApoyo, string> = {
+  aportar: "Aportar",
+  aliados: "Podio de aliados",
+  aportes: "Todos los aportes",
+  costos: "Cuánto cuesta",
+};
+
+export const VISTAS_APOYO = Object.keys(HREF_APOYO) as VistaApoyo[];
+
+export function VistasApoyo({ activa }: { activa: VistaApoyo }) {
+  return <Vistas etiqueta="Apoyar a Vigía" vistas={VISTAS_APOYO.map((v) => ({ href: HREF_APOYO[v], etiqueta: ETIQUETA_APOYO[v], activa: v === activa }))} />;
+}

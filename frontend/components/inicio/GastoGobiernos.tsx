@@ -1,16 +1,16 @@
-import { Ayuda, CabeceraPestana, EnlaceFuente, FuenteDato } from "@/components/patrones";
-import { CeldaNumero, CeldaPrincipal, CeldaTexto, Indicadores, TablaPaginada, type Columna, type Fila } from "@/components/listado";
+import { CabeceraPestana, EnlaceFuente, FuenteDato } from "@/components/patrones";
+import { CeldaNumero, CeldaPrincipal, CeldaTexto, TablaPaginada, type Columna, type Fila } from "@/components/listado";
 import { Dato } from "@/components/ui/Dato";
 import { numero, porcentaje, solesCompacto } from "@/lib/formato";
 import { CONSULTA_AMIGABLE, DATASET_MEF, inversionSsi } from "@/lib/fuentes";
 import { tituloNatural } from "@/lib/landing";
 import { periodoTexto, type GastoPartido } from "@/lib/partidosApi";
-import { BarrasGasto, BloqueInicio } from "./BloquesInicio";
+import { BarrasGasto } from "./BloquesInicio";
 
 /**
  * "En qué gastan sus gobiernos": el presupuesto del MEF de los gobiernos que ganó un partido (sus ejecutoras: todas las
- * de un gobierno regional, la municipalidad en uno provincial o distrital), en dos lugares:
- *   · `GastoInicio`, en el Inicio del partido: sólo las cifras y en qué funciones se va el presupuesto, en una barra.
+ * de un gobierno regional, la municipalidad en uno provincial o distrital):
+ *   · en el Inicio del partido, una fila de «Ver más» con el presupuesto y lo gastado, que abre esta vista;
  *   · `GastoDetalle`, en la pestaña Gobiernos («En qué gastan»): el reparto por función, tipo de gasto y nivel, y los
  *     proyectos con más presupuesto. Cada gobierno con su presupuesto va en la tabla de esa pestaña (GobiernosPartido).
  * Antes todo estaba en el Inicio: ~2,650 px (≈3,900 en el celular) con dos tablas paginadas adentro, antes de las
@@ -27,49 +27,6 @@ export function motivoSinGasto(gasto: GastoPartido | null): string | null {
     return `El detalle del MEF que tiene Vigía es de ${gasto.mef ?? "otro año"}: el mandato de ${periodoTexto(gasto.anio)} ya había terminado.`;
   }
   return null;
-}
-
-/** El bloque del Inicio: las cuatro cifras y las funciones con más presupuesto. `null` sin detalle del MEF. */
-export function GastoInicio({ gasto, ruta, anio, className }: { gasto: GastoPartido | null; ruta: string; anio: number; className?: string }) {
-  const t = gasto?.totales;
-  if (!gasto || !gasto.disponible || !t) return null;
-  return (
-    <BloqueInicio
-      nivel={3}
-      className={className}
-      titulo={`En qué gastan sus gobiernos (MEF ${gasto.mef})`}
-      ayuda={
-        <Ayuda titulo="¿De dónde sale?">
-          <span className="block">
-            Del MEF (<EnlaceFuente href={CONSULTA_AMIGABLE}>Consulta Amigable</EnlaceFuente>): el presupuesto modificado (PIM) y lo ya gastado (devengado) de cada gobierno que
-            ganó el partido. Un gobierno regional suma todas sus unidades ejecutoras (sede, salud, educación, UGEL); uno
-            provincial o distrital, su municipalidad.
-          </span>
-          <span className="mt-2 block">
-            El detalle por función, tipo de gasto y proyecto está cargado para {gasto.mef}: sale sólo en el mandato que
-            incluye ese año. Cada gobierno, con su presupuesto, está en la pestaña Gobiernos.
-          </span>
-        </Ayuda>
-      }
-      enlace={{ href: `${ruta}?anio=${anio}&seccion=gobiernos&gvista=gasto`, texto: "Todo el gasto" }}
-    >
-      <div className="space-y-5">
-        <Indicadores
-          apilado
-          items={[
-            { valor: solesCompacto(t.pim), etiqueta: "de presupuesto", contexto: `en ${gasto.mef}` },
-            { valor: porcentaje(gastado(t.pim, t.devengado)), etiqueta: "ya gastado", contexto: solesCompacto(t.devengado) },
-            { valor: numero(t.conMef), etiqueta: "gobiernos con presupuesto", contexto: `de ${numero(t.gobiernos)} que ganó` },
-            { valor: numero(t.ejecutoras), etiqueta: "unidades ejecutoras", contexto: "las que gastan ese presupuesto" },
-          ]}
-        />
-        <div>
-          <h4 className="mb-3 text-dato font-semibold text-ink">Por función</h4>
-          <BarrasGasto rubros={gasto.funciones ?? []} total={t.pim} maximo={5} />
-        </div>
-      </div>
-    </BloqueInicio>
-  );
 }
 
 /** La vista «En qué gastan» de la pestaña Gobiernos: el reparto entero y los proyectos con más presupuesto. */

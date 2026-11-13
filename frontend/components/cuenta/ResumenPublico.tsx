@@ -57,7 +57,7 @@ export function RecientesDelPais({ cuantos = 6, titulo = "Lo que ya financiaron 
       <div className="flex flex-wrap items-baseline justify-between gap-x-3">
         <h2 className="font-display text-bloque font-bold text-ink">{titulo}</h2>
         {/* Los más recientes; la lista entera, con buscador, en /app/aliados/aportes. */}
-        <Link href="/app/aliados/aportes" className="text-meta font-semibold text-granate underline-offset-4 hover:underline">
+        <Link href="/app/apoyar?seccion=aportes" className="text-meta font-semibold text-granate underline-offset-4 hover:underline">
           Ver todos los aportes
         </Link>
       </div>
@@ -75,7 +75,7 @@ export function AliadosDelPais({ cuantos = 5 }: { cuantos?: number }) {
     <section aria-labelledby="aliados-pais" className="rounded-2xl border border-line bg-paper px-4 py-3.5 sm:px-5">
       <div className="flex flex-wrap items-baseline justify-between gap-x-3">
         <h2 id="aliados-pais" className="font-display text-bloque font-bold text-ink">Así aparecen los aliados</h2>
-        <Link href="/app/aliados" className="text-meta font-semibold text-granate underline-offset-4 hover:underline">Ver el podio</Link>
+        <Link href="/app/apoyar?seccion=aliados" className="text-meta font-semibold text-granate underline-offset-4 hover:underline">Ver el podio</Link>
       </div>
       <ol className="mt-2 space-y-2">
         {filas.map((f) => (

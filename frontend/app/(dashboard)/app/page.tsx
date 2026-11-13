@@ -26,14 +26,18 @@ export const metadata: Metadata = {
 };
 
 /**
- * Pantalla principal de la app: lo simple primero y lo vivo a la vista.
+ * Pantalla principal de la app: lo simple primero y lo vivo a la vista, armada como tablero.
  *
  *  1. La pregunta, el buscador, tres caminos del ciudadano y las cifras del año (`lib/cifras`: los mismos números que
  *     el mapa, financiar y la portada).
- *  2. «Lo nuevo esta semana» (fase 6): contratos con antecedentes graves, sanciones e informes nuevos, y los tres
- *     contratos con más antecedentes; el resto en /app/novedades.
- *  3. Rankings con pestañas (entidades, partidos, aliados, regiones): cada fila abre su ficha. Al lado, «Últimas
- *     lecturas»: lo que se analiza ahora y lo último que se leyó, en un solo bloque.
+ *  2. Dos columnas desde xl, las dos listas de contratos de hoy: «Lo nuevo» (fase 6: contratos con antecedentes
+ *     graves, sanciones e informes nuevos, y los tres contratos con más antecedentes; el resto en /app/novedades) y
+ *     «Últimas lecturas» (lo que se analiza ahora y lo último que se leyó, en un solo bloque).
+ *  3. «Avance de la lectura» a todo el ancho, con pestañas (regiones, partidos, entidades, aliados): una fila por línea,
+ *     con su barra de lo leído; cada fila abre su ficha.
+ *
+ * Hasta el 2026-11-13 «Lo nuevo» iba solo a todo el ancho y el avance compartía fila con las lecturas en filas de tres
+ * renglones: 1,9 pantallas, con media columna vacía bajo la más corta.
  *
  * Toda cifra sale de las mismas lecturas que usa el resto de la app. Si una falla, su bloque (o su pestaña)
  * no se dibuja: nunca se rellena con un número plausible. Cada destino tiene UNA entrada.
@@ -96,7 +100,7 @@ export default async function InicioApp() {
         href: `/entidad/${e.ruc}`,
       })),
       verTodos: { href: "/app/entidades", texto: "Ver todas las entidades" },
-      accion: { href: "/app/financiar?por=entidad", texto: "Lo que falta leer" },
+      accion: { href: "/app/auditoria?seccion=falta&por=entidad", texto: "Lo que falta leer" },
     });
   }
   const filasPartidos = (partidos?.data ?? []).filter((p) => p.contratos > 0).slice(0, TOPE);
@@ -115,7 +119,7 @@ export default async function InicioApp() {
         href: `/app/partidos/${encodeURIComponent(p.clave)}?anio=${ANIO_GOBIERNO_VIGENTE}`,
       })),
       verTodos: { href: "/app/partidos", texto: "Ver todos los partidos" },
-      accion: { href: "/app/financiar?por=partido", texto: "Lo que falta leer" },
+      accion: { href: "/app/auditoria?seccion=falta&por=partido", texto: "Lo que falta leer" },
       nota: "Se asocia al partido que ganó la elección de ese período. Una señal es para revisar, nunca una acusación contra un partido.",
     });
   }
@@ -134,7 +138,7 @@ export default async function InicioApp() {
         parte: aliados[0]?.meses ? (a.meses ?? 0) / aliados[0].meses : 0,
         href: hrefPerfil(a.slug),
       })),
-      verTodos: { href: "/app/aliados", texto: "Ver el podio de aliados" },
+      verTodos: { href: "/app/apoyar?seccion=aliados", texto: "Ver el podio de aliados" },
     });
   }
   const geoPorUbigeo = new Map((regiones ?? []).map((z) => [z.ubigeo, z]));
@@ -161,7 +165,7 @@ export default async function InicioApp() {
         };
       }),
       verTodos: { href: "/app/mapa", texto: "Ver el mapa" },
-      accion: { href: "/app/financiar", texto: "Lo que falta leer" },
+      accion: { href: "/app/auditoria?seccion=falta", texto: "Lo que falta leer" },
     });
   }
 
@@ -185,20 +189,20 @@ export default async function InicioApp() {
 
   return (
     <div className="min-h-screen bg-paperSoft">
-      <Pagina className="space-y-8">
+      <Pagina className="space-y-5">
         <HeroInicio c={cifras} />
 
-        {/* Lo nuevo esta semana: su propia lectura (en caché), sin frenar el resto de la página. */}
-        <Suspense fallback={null}>
-          <NovedadesInicio />
-        </Suspense>
+        {/* Las dos listas de hoy, lado a lado desde xl. Si una no llega (Lo nuevo no respondió, o no hay lecturas), la
+            otra toma el ancho entero: la grilla pasa a una columna cuando tiene un solo hijo. */}
+        <div className="grid grid-cols-[minmax(0,1fr)] items-start gap-5 xl:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)] xl:[&:not(:has(>*+*))]:grid-cols-[minmax(0,1fr)]">
+          {/* Lo nuevo esta semana: su propia lectura (en caché), sin frenar el resto de la página. */}
+          <Suspense fallback={<div aria-hidden className="h-[28rem] animate-pulseSoft rounded-2xl border border-line bg-paperSoft" />}>
+            <NovedadesInicio />
+          </Suspense>
+          {foto && <EnVivoInicio inicial={foto} />}
+        </div>
 
-        {(pestanas.length > 0 || foto) && (
-          <div className="grid grid-cols-[minmax(0,1fr)] items-start gap-5 xl:grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)]">
-            {pestanas.length > 0 && <RankingsInicio pestanas={pestanas} />}
-            {foto && <EnVivoInicio inicial={foto} />}
-          </div>
-        )}
+        {pestanas.length > 0 && <RankingsInicio pestanas={pestanas} />}
       </Pagina>
     </div>
   );

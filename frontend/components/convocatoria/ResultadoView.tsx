@@ -3,16 +3,18 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { setRedactNames } from "../Redact";
+import { rutaContrato } from "@/lib/rutas";
 import { nombresPrivadosDe } from "./nombresPrivados";
-import { ArrowRight, ChevronRight, Info } from "lucide-react";
+import { ArrowRight, ChevronRight, Info, Workflow } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { fechaCorta, numero } from "@/lib/formato";
+import { fechaCorta, numero, oracion } from "@/lib/formato";
 import { TOTAL_AGENTES } from "@/components/agentes/catalogo";
 import { Ayuda } from "@/components/patrones/Ayuda";
 import { EVENTO_ACTIVA, Pestanas, irAPestana } from "@/components/patrones/Pestanas";
 import { ICONO_SEVERIDAD } from "@/components/ui/Severidad";
 import type { ApiResult } from "./types";
-import { contarSeveridades, dossierEnRevision, estadoCorrida, nivelDelDossier, resumenDeTraza, separarBanderas } from "./dossier";
+import { contarSeveridades, dossierEnRevision, estadoCorrida, nivelDelDossier, puntajeVisible, resumenDeTraza, separarBanderas } from "./dossier";
+import { ETIQUETAS_DICTAMEN } from "./pestanasDictamen";
 import { IdentidadDossier } from "./sections/IdentidadDossier";
 import { SeccionSegura } from "./sections/SeccionSegura";
 import { EnRevisionDossier } from "./sections/EnRevisionDossier";
@@ -54,10 +56,18 @@ const PARAM_TAB = "tab";
 export function ResultadoView({
   result,
   vistaPrevia = false,
+  embebido = false,
   tabInicial,
 }: {
   result: ApiResult;
   vistaPrevia?: boolean;
+  /**
+   * Dentro de la página del contrato, bajo su cabecera única (CabeceraContrato): sin identidad ni veredicto (la cabecera
+   * ya dice qué, quién, cuánto, el riesgo y cada señal), sin la pestaña «Cómo se hizo» (es la vista «Cómo se leyó» de
+   * la página) y sin el pie (la página lleva uno solo). Antes la ficha y el dictamen tenían cada uno su cabecera, con
+   * las mismas cifras dichas de otra forma (auditoría visual del 2026-11-13).
+   */
+  embebido?: boolean;
   /**
    * La pestaña de `?tab=`, leída en el servidor (la página pública llega armada del servidor:
    * leer la URL en el navegador desfasaría la hidratación). `null` = la primera. Sin la prop
@@ -101,6 +111,11 @@ export function ResultadoView({
   // Tras el clic el panel ya está a la vista (Pestanas lo monta en el mismo turno): el cuadro siguiente ya puede bajar.
   const abrirTab = useCallback(
     (t: TabKey, ancla?: string) => {
+      // Dentro de la página del contrato, «Cómo se hizo» es su vista «Cómo se leyó» (la barra de vistas, `?vista=vivo`).
+      if (t === "trace" && embebido) {
+        irAPestana("vivo", "vista");
+        return;
+      }
       irATab(t);
       const reducido = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
       requestAnimationFrame(() => {
@@ -109,7 +124,7 @@ export function ResultadoView({
         else mostrarPestanas();
       });
     },
-    [irATab, mostrarPestanas],
+    [irATab, mostrarPestanas, embebido],
   );
 
   // ─── Qué corrió, qué señales se sostienen, qué nivel tiene ───
@@ -120,8 +135,8 @@ export function ResultadoView({
   // De la más grave a la más leve y sin la que repite el hecho de otra: la frase del veredicto nombra las dos primeras.
   const senales = useMemo(() => senalesDelRelato(banderasArr), [banderasArr]);
   const nivel = nivelDelDossier(compl.score, banderasArr.length, corrida);
-  // El puntaje nunca aparece sin las señales que lo explican (§10.4).
-  const score = typeof compl.score === "number" && banderasArr.length > 0 ? compl.score : null;
+  // El puntaje nunca aparece sin las señales que lo explican (§10.4), y con tope de 100 como en toda la página.
+  const score = typeof compl.score === "number" && banderasArr.length > 0 ? puntajeVisible(compl.score) : null;
 
   const ganadores = ((result.postores || []) as any[]).filter((p) => p?.es_ganador);
   const ganador = [...ganadores].sort((a, b) => (Number(b?.monto_ganado) || 0) - (Number(a?.monto_ganado) || 0))[0];
@@ -170,17 +185,19 @@ export function ResultadoView({
   const _sup = (result as any).supervision_obra;
   const _obra = (result as any).obra_ejecucion;
   const nObras = ((_sup?.enlazada && _sup.obras) || (_obra?.enlazada && _obra.obras) || []).length;
+  const E = ETIQUETAS_DICTAMEN;
   const TABS: { key: TabKey; label: string; badge: number | null }[] = [
     // La primera, la que abre el informe: el relato (pedido del usuario del 2026-11-05). Sin conteo: no es una lista.
-    { key: "historia", label: "La historia", badge: null },
-    { key: "resumen", label: "Señales", badge: banderasArr.length || null },
-    { key: "dictamen", label: "Dictamen", badge: null },
-    ...(nObras ? [{ key: "obra" as TabKey, label: _sup?.enlazada ? "La obra supervisada" : "La obra", badge: null }] : []),
-    { key: "items", label: "Ítems y mercado", badge: nItems || null },
-    { key: "proveedor", label: "Proveedor y red", badge: nRed || null },
-    { key: "documentos", label: "Documentos", badge: nDocs || null },
-    { key: "prensa", label: "Prensa", badge: nNoticias || null },
-    { key: "trace", label: "Cómo se hizo", badge: null },
+    { key: "historia", label: E.historia, badge: null },
+    { key: "resumen", label: E.resumen, badge: banderasArr.length || null },
+    { key: "dictamen", label: E.dictamen, badge: null },
+    ...(nObras ? [{ key: "obra" as TabKey, label: _sup?.enlazada ? "La obra supervisada" : E.obra, badge: null }] : []),
+    { key: "items", label: E.items, badge: nItems || null },
+    { key: "proveedor", label: E.proveedor, badge: nRed || null },
+    { key: "documentos", label: E.documentos, badge: nDocs || null },
+    { key: "prensa", label: E.prensa, badge: nNoticias || null },
+    // Dentro de la página del contrato, «Cómo se hizo» es su vista «Cómo se leyó» (arriba, junto a Ficha y Dictamen).
+    ...(embebido ? [] : [{ key: "trace" as TabKey, label: E.trace, badge: null }]),
   ];
 
   // La pestaña abierta, para una sola cosa: en «La historia» la columna «Datos del proceso» no se repite al pie en el
@@ -205,7 +222,9 @@ export function ResultadoView({
 
   return (
     <div className="space-y-5">
-      {/* 1. Identidad: qué, quién compra, quién ganó; el peso del riesgo como chip de estado. */}
+      {/* 1. Identidad: qué, quién compra, quién ganó; el peso del riesgo como chip de estado. Dentro de la página del
+          contrato la dice su cabecera única: aquí ni la identidad ni el veredicto, que repetían sus cifras. */}
+      {!embebido && (
       <IdentidadDossier
         conv={convIdentidad}
         ganador={ganador}
@@ -224,8 +243,10 @@ export function ResultadoView({
           </>
         }
       />
+      )}
 
       {/* 2. El veredicto en una frase, con sus cifras (en todas las pestañas: es lo primero que se lee). */}
+      {!embebido && (
       <SeccionSegura nombre="el veredicto">
         <FraseDossier
           conv={conv}
@@ -238,6 +259,7 @@ export function ResultadoView({
           perfil={compl.perfil ?? null}
         />
       </SeccionSegura>
+      )}
 
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr),300px]">
         {/* ─── COLUMNA PRINCIPAL ─── */}
@@ -283,7 +305,8 @@ export function ResultadoView({
           </div>
 
           {/* Una línea + ⓘ (§10.7). Es la única vez que el informe lo dice: antes lo repetían el
-              veredicto, el pie de la lista de señales y este párrafo. */}
+              veredicto, el pie de la lista de señales y este párrafo. Dentro de la página del contrato, su pie lo dice. */}
+          {!embebido && (
           <p className="flex items-center gap-1 border-t border-line pt-3 text-rotulo text-mute">
             <Info size={13} className="shrink-0" aria-hidden />
             Una señal no es una acusación.
@@ -292,13 +315,18 @@ export function ResultadoView({
               comprobar en su fuente. La denuncia formal corresponde a la Contraloría, la Fiscalía o el periodismo.
             </Ayuda>
           </p>
+          )}
           {/* En la vista previa del panel admin los datos llegan completos (en vidrio): ahí no aplica. */}
-          {!vistaPrevia && <NotaPrivacidad className="-mt-2" />}
+          {!vistaPrevia && !embebido && <NotaPrivacidad className="-mt-2" />}
         </div>
 
         {/* ─── BARRA LATERAL: datos del proceso y cómo se hizo ───
             En «La historia», debajo de xl no se repite al pie: lo dice su capítulo «De dónde sale cada dato». */}
         <aside className={cn("space-y-3 xl:sticky xl:top-20 xl:self-start", activa === "historia" && "hidden xl:block")} aria-label="Datos del proceso">
+          {embebido ? (
+            <LateralEmbebido objeto={conv.objeto} corrida={corrida} nEvents={nEvents} ocid={ocidContrato} />
+          ) : (
+          <>
           <div className="rounded-2xl border border-line bg-paper p-4">
             <h2 className="font-display text-bloque font-bold text-ink">Datos del proceso</h2>
             {/* Filas etiqueta · cifra, alineadas a la izquierda: antes eran tres baldosas centradas. */}
@@ -339,9 +367,61 @@ export function ResultadoView({
               )}
             </span>
           </button>
+          </>
+          )}
         </aside>
       </div>
     </div>
+  );
+}
+
+/**
+ * La columna del dictamen dentro de la página del contrato: el objeto entero (la cabecera lo recorta a tres líneas) y la
+ * entrada a «Cómo se leyó», que es una vista de la página (`?vista=vivo`). Las cifras de antes (postores, ítems y
+ * documentos) ya están en la cabecera y en el conteo de cada pestaña.
+ */
+function LateralEmbebido({ objeto, corrida, nEvents, ocid }: { objeto: unknown; corrida: ReturnType<typeof estadoCorrida>; nEvents: number; ocid: string | null }) {
+  const texto = typeof objeto === "string" && objeto.trim() ? oracion(objeto.trim()) : null;
+  return (
+    <>
+      {texto && (
+        <section aria-labelledby="objeto-dictamen" className="rounded-2xl border border-line bg-paper p-4">
+          <h2 id="objeto-dictamen" className="font-display text-bloque font-bold text-ink">
+            Objeto del contrato
+          </h2>
+          <p className="mt-1.5 text-meta leading-relaxed text-ink">{texto}</p>
+          {ocid && (
+            <p className="mt-3 border-t border-line pt-3 text-meta">
+              <Link href={rutaContrato(ocid, "ficha", { seccion: "documentos" })} prefetch={false} className="inline-flex items-center gap-1 font-medium text-granate hover:underline">
+                Documentos oficiales del proceso <ArrowRight size={13} aria-hidden />
+              </Link>
+            </p>
+          )}
+        </section>
+      )}
+      <button
+        type="button"
+        onClick={() => irAPestana("vivo", "vista")}
+        className="flex w-full items-start gap-3 rounded-2xl border border-line bg-paper p-4 text-left transition-colors duration-rapido hover:bg-paperSoft"
+      >
+        <Workflow size={16} className="mt-0.5 shrink-0 text-mute" aria-hidden />
+        <span className="min-w-0 flex-1">
+          <span className="flex items-center justify-between gap-2 text-meta font-semibold text-ink">
+            Cómo se leyó
+            <ChevronRight size={14} className="shrink-0 text-mute" aria-hidden />
+          </span>
+          <span className="mt-0.5 block text-rotulo leading-snug text-inkSoft">
+            {corrida.hayTraza ? (
+              <>
+                Corrieron {corrida.agentes.length} de {TOTAL_AGENTES} agentes{nEvents > 0 && <>, en {numero(nEvents)} pasos registrados</>}.
+              </>
+            ) : (
+              "Qué partes del análisis corrieron y en qué orden."
+            )}
+          </span>
+        </span>
+      </button>
+    </>
   );
 }
 

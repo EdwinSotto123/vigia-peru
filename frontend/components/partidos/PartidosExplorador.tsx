@@ -46,6 +46,9 @@ import { DueloPartidos, MiDistrito, RankingPartidos } from "./PartidosPaneles";
  *
  * Los archivos salen de `public/data/autoridades-<año>.json` (JNE, Infogob); se bajan una vez
  * cada uno en el navegador. Mientras llegan se ve un esqueleto; si fallan, se dice.
+ *
+ * `anioPagina`: el período lo elige la página (/app/partidos, «Gobiernos de»), así que el explorador no dibuja su propio
+ * selector de elección: antes había dos, uno encima del otro, que podían decir períodos distintos.
  */
 
 type Panel = "ranking" | "duelo" | "distrito";
@@ -65,8 +68,11 @@ export function PartidosExplorador({
   cobertura = null,
   variante = "completo",
   encabezado,
+  anioPagina,
 }: {
   compacto?: boolean;
+  /** El período que eligió la página (2014, 2018 o 2022): sin selector propio. */
+  anioPagina?: number;
   cobertura?: Cobertura | null;
   /** "portada": el mapa más bajo, la ficha arriba del panel y el ranking en sus 5 primeras filas. */
   variante?: "completo" | "portada";
@@ -76,7 +82,8 @@ export function PartidosExplorador({
   const portada = variante === "portada";
   const [datos, setDatos] = useState<Partial<Record<number, AutoridadesDatos>>>({});
   const [error, setError] = useState(false);
-  const [anio, setAnio] = useState<number>(ANIO_ACTUAL);
+  const [anioElegido, setAnio] = useState<number>(anioPagina ?? ANIO_ACTUAL);
+  const anio = anioPagina ?? anioElegido;
   const [panel, setPanel] = useState<Panel>("ranking");
   const [modo, setModo] = useState<Modo>("ganador");
   const [nivel, setNivel] = useState<Nivel>("regional");
@@ -94,13 +101,23 @@ export function PartidosExplorador({
         if (x) setDatos((prev) => (prev[a] ? prev : { ...prev, [a]: x }));
         else if (esElegido) setError(true);
       });
-    pedir(ANIO_ACTUAL, true).then(() => {
-      for (const a of ANIOS_CARGADOS) if (a !== ANIO_ACTUAL) void pedir(a, false);
+    const primero = (ANIOS_CARGADOS.find((a) => a === anioPagina) ?? ANIO_ACTUAL) as Anio;
+    pedir(primero, true).then(() => {
+      for (const a of ANIOS_CARGADOS) if (a !== primero) void pedir(a, false);
     });
     return () => {
       vivo = false;
     };
+    // Sólo al montar: los demás períodos se piden igual, de fondo.
   }, []);
+
+  // La página cambió de período: lo marcado era del archivo anterior (los índices de organización son de cada uno).
+  useEffect(() => {
+    if (anioPagina == null) return;
+    setResaltar(null);
+    setActiva(null);
+    setProvSel(null);
+  }, [anioPagina]);
 
   const d = datos[anio];
   const periodo = PERIODOS.find((p) => p.anio === anio);
@@ -296,7 +313,8 @@ export function PartidosExplorador({
 
   return (
     <div>
-      {/* ── El período (en la portada, con el titular a su izquierda) ───── */}
+      {/* ── El período (en la portada, con el titular a su izquierda). Con `anioPagina`, lo elige la página. ───── */}
+      {anioPagina == null && (
       <div className={portada && encabezado ? "mb-4 flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between" : undefined}>
       {portada && encabezado}
       <div className={cn("flex flex-wrap items-center gap-x-5 gap-y-3", portada ? (encabezado ? "lg:shrink-0" : "mb-4") : "mb-6")}>
@@ -335,6 +353,7 @@ export function PartidosExplorador({
         </div>
       </div>
       </div>
+      )}
 
       {!d ? (
         <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]" aria-busy>

@@ -3,22 +3,23 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
-import { ChevronRight, SearchX } from "lucide-react";
+import { SearchX } from "lucide-react";
 import { nombreDepartamento } from "@/components/mapa/region-match";
 import { rutaRegion } from "@/lib/regiones";
-import { Tabla, type Columna, type Fila } from "@/components/listado/Tabla";
+import { CLASE_ENLACE_CELDA, CeldaNumero, CeldaPrincipal, Tabla, type Columna, type Fila } from "@/components/listado/Tabla";
 import { BarraFiltros, type FiltroSecundario } from "@/components/listado/BarraFiltros";
 import { Listado, ZonaResultados, useListado, type Parametros } from "@/components/listado/Listado";
 import { Vistas, type Vista as OpcionVista } from "@/components/listado/Vistas";
 import { Medidor } from "@/components/charts/BarraSegmentada";
+import { CifrasEnFila, type Cifra } from "@/components/ui/CifrasEnFila";
 import { Dato } from "@/components/ui/Dato";
 import { VacioEnLinea } from "@/components/ui/VacioEnLinea";
-import { EnlaceFuente, Nota } from "@/components/patrones";
-import { Partes } from "@/components/ui/Partes";
+import { Ayuda, EnlaceFuente, Nota } from "@/components/patrones";
+import { CeldaTasa } from "@/components/grafo/indicios";
 import { Paginacion } from "@/components/ui/Paginacion";
 import { Skeleton } from "@/components/ui/Skeleton";
-import { listaY, numero, solesCompacto } from "@/lib/formato";
-import { INFOGOB_JNE } from "@/lib/fuentes";
+import { listaY, numero, porcentaje, solesCompacto } from "@/lib/formato";
+import { CONTRATACIONES_ABIERTAS, INFOGOB_JNE } from "@/lib/fuentes";
 import {
   PALETA_ORG,
   TIPO_ORG_LABEL,
@@ -50,10 +51,16 @@ import { useModo, type Modo } from "@/lib/modo";
  * `Paginacion` arriba y abajo. El estado vive en la URL (`?nivel=&q=&region=&org=&orden=&pagina=`): se comparte, y el
  * botón atrás lo deshace. Cuenta quién ganó, no qué hizo: nada acá acusa a nadie.
  *
- * Lo que llega del servidor son datos planos y nodos ya armados (`contratosNode`, `mapaNode`), nunca funciones.
+ * Lo que llega del servidor son datos planos y el nodo ya armado del mapa (`mapaNode`), nunca funciones.
+ *
+ * «Partidos» es UNA tabla (2026-11-13, auditoría visual: «la lista de partidos en tres páginas»): antes «Todos los
+ * partidos» (cuántos gobiernos) y «Contratos por partido» (procesos y monto) eran dos listas de los mismos 103 partidos,
+ * y el mapa de poder tenía una tercera. Ahora cada fila trae sus gobiernos, sus procesos, lo adjudicado, lo que hay en
+ * Vigía y, en el período vigente, cuántas de sus entidades tienen contratos con indicio; el orden se elige arriba.
+ * `?vista=contratos` sigue funcionando: abre la misma tabla ordenada por lo adjudicado.
  */
 
-export type Vista = "gobiernos" | "partidos" | "contratos" | "mapa";
+export type Vista = "gobiernos" | "partidos" | "mapa";
 
 export interface ContratosDeUnPartido {
   contratos: number;
@@ -64,7 +71,28 @@ export interface ContratosDeUnPartido {
   montoAdjudicadoPen?: number;
 }
 
+/** Del mapa de poder (período vigente): de las entidades que gobierna, cuántas tienen contratos con indicio. */
+export interface IndicioDeUnPartido {
+  con: number;
+  de: number;
+  /** Contratos con indicio y su monto. */
+  contratos: number;
+  monto: number;
+  /** Su página en el mapa de poder (dónde gobierna). */
+  ruta: string;
+}
+
 const TAM = 25;
+
+/** El orden de la tabla de partidos (`?orden=`). «indicio» sólo con los datos del mapa de poder (período vigente). */
+const ORDENES_PARTIDOS = [
+  { valor: "gobiernos", etiqueta: "Gobiernos" },
+  { valor: "monto", etiqueta: "Adjudicado" },
+  { valor: "procesos", etiqueta: "Procesos" },
+  { valor: "indicio", etiqueta: "Con indicio" },
+  { valor: "nombre", etiqueta: "Nombre" },
+] as const;
+type OrdenPartidos = (typeof ORDENES_PARTIDOS)[number]["valor"];
 
 const NIVELES: { id: Nivel; etiqueta: string; plural: string }[] = [
   { id: "regional", etiqueta: "Regiones", plural: "regiones" },
@@ -81,8 +109,7 @@ type Orden = (typeof ORDENES)[number]["valor"];
 
 const VISTAS: { v: Vista; texto: string }[] = [
   { v: "gobiernos", texto: "Quién gobierna" },
-  { v: "partidos", texto: "Todos los partidos" },
-  { v: "contratos", texto: "Contratos por partido" },
+  { v: "partidos", texto: "Partidos" },
   { v: "mapa", texto: "En el mapa" },
 ];
 
@@ -185,7 +212,7 @@ export function DirectorioGobiernos({
   periodos,
   vista,
   contratos,
-  contratosNode,
+  indicios = null,
   mapaNode,
 }: {
   anio: number;
@@ -193,7 +220,8 @@ export function DirectorioGobiernos({
   vista: Vista;
   /** Contratos asociados a cada partido del período, por clave. `null`: la API no respondió. */
   contratos: Record<string, ContratosDeUnPartido> | null;
-  contratosNode: ReactNode;
+  /** Del mapa de poder, por clave (sólo el período vigente). `null`: otro período o la API no respondió. */
+  indicios?: Record<string, IndicioDeUnPartido> | null;
   mapaNode: ReactNode;
 }) {
   const pathname = usePathname();
@@ -222,6 +250,9 @@ export function DirectorioGobiernos({
   const org = params.get("org") ?? "";
   const orden = (ORDENES.find((o) => o.valor === params.get("orden"))?.valor ?? "lugar") as Orden;
   const pagina = Math.max(1, Number(params.get("pagina")) || 1);
+  // El orden de la tabla de partidos. Un enlace viejo a «Contratos por partido» (`?vista=contratos`) abre por lo adjudicado.
+  const ordenPartidos = (ORDENES_PARTIDOS.find((o) => o.valor === params.get("orden") && (o.valor !== "indicio" || indicios))?.valor ??
+    (params.get("vista") === "contratos" ? "monto" : "gobiernos")) as OrdenPartidos;
 
   const modo = useModo();
   const resumen = useMemo(() => {
@@ -236,7 +267,15 @@ export function DirectorioGobiernos({
   }, [datos, modo]);
 
   const hrefVista = (v: Vista) => urlCon(pathname, { anio: String(anio), vista: v !== "gobiernos" ? v : undefined, nivel: v === "gobiernos" && nivel !== "regional" ? nivel : undefined });
-  const hrefPeriodo = (a: number) => urlCon(pathname, { anio: String(a), vista: vista !== "gobiernos" ? vista : undefined, nivel: vista === "gobiernos" && nivel !== "regional" ? nivel : undefined });
+  // Cambiar de período conserva la vista, el nivel y el orden de la tabla de partidos (el de «Con indicio» sólo existe
+  // en el período vigente: en otro, vuelve al de siempre).
+  const hrefPeriodo = (a: number) =>
+    urlCon(pathname, {
+      anio: String(a),
+      vista: vista !== "gobiernos" ? vista : undefined,
+      nivel: vista === "gobiernos" && nivel !== "regional" ? nivel : undefined,
+      orden: vista === "partidos" && ordenPartidos !== "gobiernos" && ordenPartidos !== "indicio" ? ordenPartidos : undefined,
+    });
 
   // Cada vista con su conteo (§14.3): la de partidos, cuántas organizaciones gobernaron algo (hueco mientras se cuenta).
   const vistas: OpcionVista[] = VISTAS.map(({ v, texto }) => ({
@@ -264,11 +303,22 @@ export function DirectorioGobiernos({
           activa: n.id === nivel,
         }))
       : null;
+  // Gobiernos | Adjudicado | Procesos | Con indicio | Nombre: el orden de la tabla de partidos, en la misma fila (§14.1).
+  // Cambiarlo conserva la búsqueda.
+  const ordenesPartidos: OpcionVista[] | null =
+    vista === "partidos"
+      ? ORDENES_PARTIDOS.filter((o) => o.valor !== "indicio" || indicios).map((o) => ({
+          href: urlCon(pathname, { anio: String(anio), vista: "partidos", orden: o.valor === "gobiernos" ? undefined : o.valor, q: q || undefined }),
+          etiqueta: o.etiqueta,
+          activa: o.valor === ordenPartidos,
+        }))
+      : null;
 
   return (
     <div className="space-y-4">
-      {/* Qué mirar: la decisión principal, en granate. Debajo, lo que la acota (período y nivel), un escalón abajo y con
-          su rótulo también en el celular; la fila se parte en renglones si no entra. El período, una sola vez en la página. */}
+      {/* Qué mirar: la decisión principal, en granate. Debajo, lo que la acota (período y nivel, o el orden), un escalón
+          abajo y con su rótulo también en el celular; la fila se parte en renglones si no entra. El período, una sola vez
+          en la página (también en el mapa: antes el mapa tenía su propio selector de elección debajo de éste). */}
       <div className="space-y-2.5">
         <Vistas vistas={vistas} etiqueta="Qué mirar" />
         <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
@@ -278,6 +328,11 @@ export function DirectorioGobiernos({
           {niveles && (
             <ConRotulo rotulo="Nivel">
               <Vistas vistas={niveles} etiqueta="Nivel de gobierno" variante="secundaria" />
+            </ConRotulo>
+          )}
+          {ordenesPartidos && (
+            <ConRotulo rotulo="Ordenar por">
+              <Vistas vistas={ordenesPartidos} etiqueta="Orden de la tabla de partidos" variante="secundaria" />
             </ConRotulo>
           )}
         </div>
@@ -291,13 +346,22 @@ export function DirectorioGobiernos({
             <Gobiernos datos={datos} nivel={nivel} q={q} region={region} org={org} orden={orden} pagina={pagina} anio={anio} claves={resumen.claves} />
           )}
           {datos && resumen && vista === "partidos" && (
-            <TodosLosPartidos datos={datos} resumen={resumen} q={q} pagina={pagina} anio={anio} contratos={contratos} />
+            <TodosLosPartidos
+              datos={datos}
+              resumen={resumen}
+              q={q}
+              pagina={pagina}
+              anio={anio}
+              periodo={periodos.find((p) => p.anio === anio)?.texto ?? String(anio)}
+              orden={ordenPartidos}
+              contratos={contratos}
+              indicios={indicios}
+            />
           )}
           {!datos && !fallo && <TablaCargando />}
         </>
       )}
 
-      {vista === "contratos" && contratosNode}
       {vista === "mapa" && mapaNode}
     </div>
   );
@@ -597,7 +661,7 @@ function RepartoDelPoder({
   const resto = enEsteNivel.slice(PALETA_ORG.length).reduce((s, [, n]) => s + n, 0);
   const etiqueta = NIVELES.find((n) => n.id === nivel)?.plural;
   return (
-    <section aria-label={`Reparto de ${etiqueta} entre organizaciones`} className="rounded-2xl border border-granate/20 bg-gradient-to-br from-granate-50 via-paperSoft to-paper p-3 sm:p-4">
+    <section aria-label={`Reparto de ${etiqueta} entre organizaciones`} className="rounded-2xl border border-line bg-paper p-3 sm:p-4">
       <div className="flex h-3.5 w-full gap-px overflow-hidden rounded-full bg-paperDeep" role="group" aria-label="Tramos por organización">
         {grandes.map(([i, n]) => (
           <button
@@ -634,31 +698,115 @@ function RepartoDelPoder({
   );
 }
 
-// ── Todos los partidos del período ──────────────────────────────────────────────────────────────
+// ── Partidos: una sola tabla ───────────────────────────────────────────────────────────────────
 
+/**
+ * Todas las organizaciones que gobernaron algo en el período, en UNA tabla: sus gobiernos (del archivo del JNE), los
+ * procesos adjudicados y lo adjudicado bajo esos gobiernos (OECE), sus contratos en la base de Vigía y, en el período
+ * vigente, la parte de sus entidades con contratos con indicio (mapa de poder). Arriba, las cifras del período; el
+ * orden, en la fila del período (`DirectorioGobiernos`).
+ */
 function TodosLosPartidos({
   datos,
   resumen,
   q,
   pagina,
   anio,
+  periodo,
+  orden,
   contratos,
+  indicios,
 }: {
   datos: AutoridadesDatos;
   resumen: Resumen;
   q: string;
   pagina: number;
   anio: number;
+  periodo: string;
+  orden: OrdenPartidos;
   contratos: Record<string, ContratosDeUnPartido> | null;
+  indicios: Record<string, IndicioDeUnPartido> | null;
 }) {
   const pathname = usePathname();
-  const parametros: Parametros = { anio: String(anio), vista: "partidos", q: q || undefined };
+  const parametros: Parametros = { anio: String(anio), vista: "partidos", orden: orden === "gobiernos" ? undefined : orden, q: q || undefined };
   return (
-    <Listado ruta={pathname} parametros={parametros}>
-      <ListaPartidos datos={datos} resumen={resumen} q={q} pagina={pagina} anio={anio} contratos={contratos} parametros={parametros} />
-    </Listado>
+    <div className="space-y-3">
+      <CifrasPartidos resumen={resumen} periodo={periodo} contratos={contratos} indicios={indicios} />
+      <Listado ruta={pathname} parametros={parametros}>
+        <ListaPartidos datos={datos} resumen={resumen} q={q} pagina={pagina} anio={anio} orden={orden} contratos={contratos} indicios={indicios} parametros={parametros} />
+      </Listado>
+      <Nota>
+        Cuenta quién ganó la elección de {anio}, no qué hizo cada gobierno: una vacancia, una revocatoria o un reemplazo dentro del período no está registrado.
+        Cada proceso se asocia al partido que gobernaba la entidad el día en que se convocó. Una señal es un motivo para revisar un contrato, nunca una
+        acusación contra un partido ni una persona. Fuentes: <EnlaceFuente href={INFOGOB_JNE}>JNE, Plataforma Electoral (Infogob)</EnlaceFuente> y{" "}
+        <EnlaceFuente href={CONTRATACIONES_ABIERTAS}>OECE (SEACE)</EnlaceFuente>.
+      </Nota>
+    </div>
   );
 }
+
+/** Las cifras del período: sus gobiernos, los procesos y lo adjudicado bajo ellos y, en el vigente, las entidades con indicio. */
+function CifrasPartidos({
+  resumen,
+  periodo,
+  contratos,
+  indicios,
+}: {
+  resumen: Resumen;
+  periodo: string;
+  contratos: Record<string, ContratosDeUnPartido> | null;
+  indicios: Record<string, IndicioDeUnPartido> | null;
+}) {
+  const nivel = { regional: 0, provincial: 0, distrital: 0 };
+  for (const c of resumen.porOrg) {
+    nivel.regional += c.regional;
+    nivel.provincial += c.provincial;
+    nivel.distrital += c.distrital;
+  }
+  const gobiernos = nivel.regional + nivel.provincial + nivel.distrital;
+  const ks = contratos ? Object.values(contratos) : null;
+  const procesos = ks ? ks.reduce((s, k) => s + (k.procesos ?? 0), 0) : null;
+  const monto = ks ? ks.reduce((s, k) => s + (k.montoAdjudicadoPen ?? 0), 0) : null;
+  const is = indicios ? Object.values(indicios) : null;
+  const con = is ? is.reduce((s, i) => s + i.con, 0) : 0;
+  const de = is ? is.reduce((s, i) => s + i.de, 0) : 0;
+  const items: Cifra[] = [
+    {
+      valor: numero(gobiernos),
+      etiqueta: "gobiernos",
+      contexto: `${numero(nivel.regional)} regiones, ${numero(nivel.provincial)} provincias y ${numero(nivel.distrital)} distritos`,
+    },
+    { valor: procesos != null ? numero(procesos) : null, etiqueta: "procesos adjudicados", contexto: `bajo esos gobiernos, de ${periodo}` },
+    { valor: monto != null ? solesCompacto(monto) : null, etiqueta: "adjudicado", contexto: "en soles, según el OECE" },
+  ];
+  if (is && de > 0) {
+    items.push({
+      valor: `${numero(con)} de ${numero(de)}`,
+      etiqueta: "entidades con indicio",
+      contexto: `${porcentaje((con / de) * 100)} de las que gobierna hoy algún partido`,
+      parte: con / de,
+      tono: "media",
+      href: "/app/poder?seccion=entidades",
+    });
+  }
+  return <CifrasEnFila items={items} />;
+}
+
+const AYUDA_VIGIA = (
+  <Ayuda titulo="¿Qué es «En Vigía»?">
+    <span className="block">Los contratos de sus gobiernos que están en la base de Vigía (desde 2026) y cuántos ya se leyeron a fondo.</span>
+  </Ayuda>
+);
+
+const AYUDA_INDICIO = (
+  <Ayuda titulo="¿Qué es «entidades con indicio»?">
+    <span className="block">
+      De las entidades que gobierna hoy el partido (alcaldías y gobiernos regionales, JNE), cuántas tienen al menos un contrato ganado por una empresa
+      que le financió la campaña, que le vendió a la campaña o que tiene un socio contratado por la misma entidad.
+    </span>
+    <span className="mt-1.5 block">Son cruces de registros públicos para revisar: no son una acusación. Cada fila lleva a dónde gobierna.</span>
+  </Ayuda>
+);
 
 function ListaPartidos({
   datos,
@@ -666,7 +814,9 @@ function ListaPartidos({
   q,
   pagina,
   anio,
+  orden,
   contratos,
+  indicios,
   parametros,
 }: {
   datos: AutoridadesDatos;
@@ -674,7 +824,9 @@ function ListaPartidos({
   q: string;
   pagina: number;
   anio: number;
+  orden: OrdenPartidos;
   contratos: Record<string, ContratosDeUnPartido> | null;
+  indicios: Record<string, IndicioDeUnPartido> | null;
   parametros: Parametros;
 }) {
   const otrasTodos = paletaOrg(useModo()).otras;
@@ -683,11 +835,31 @@ function ListaPartidos({
 
   const filas = useMemo(() => {
     const k = normalizar(q);
-    return resumen.porOrg
-      .map((c) => ({ ...c, o: orgDe(datos, c.org), clave: claveOrg(orgDe(datos, c.org).n) }))
-      .filter((c) => !k || normalizar(c.o.n).includes(k));
-  }, [resumen, datos, q]);
-  const maximo = Math.max(1, ...resumen.porOrg.map((c) => c.total));
+    const base = resumen.porOrg.map((c) => {
+      const o = orgDe(datos, c.org);
+      const clave = claveOrg(o.n);
+      return { ...c, o, clave, k: contratos?.[clave], ind: indicios?.[clave] };
+    });
+    const procesosDe = (x: (typeof base)[number]) => x.k?.procesos ?? 0;
+    const montoDe = (x: (typeof base)[number]) => x.k?.montoAdjudicadoPen ?? 0;
+    // El de indicio, por la PARTE de sus entidades con indicio; los que gobiernan menos de 5 van al final (con una o dos,
+    // un solo municipio los lleva a 0 o a 100 %), como en el mapa de poder.
+    const tasa = (x: (typeof base)[number]) => (x.ind && x.ind.de >= 5 ? x.ind.con / x.ind.de : -1);
+    const nombre = (a: (typeof base)[number], b: (typeof base)[number]) => alfabetico(a.o.n, b.o.n);
+    return base
+      .filter((c) => !k || normalizar(c.o.n).includes(k))
+      .sort((a, b) =>
+        orden === "nombre"
+          ? nombre(a, b)
+          : orden === "monto"
+            ? montoDe(b) - montoDe(a) || b.total - a.total || nombre(a, b)
+            : orden === "procesos"
+              ? procesosDe(b) - procesosDe(a) || b.total - a.total || nombre(a, b)
+              : orden === "indicio"
+                ? tasa(b) - tasa(a) || (b.ind?.de ?? 0) - (a.ind?.de ?? 0) || nombre(a, b)
+                : b.total - a.total || montoDe(b) - montoDe(a) || nombre(a, b),
+      );
+  }, [resumen, datos, q, orden, contratos, indicios]);
   const ultima = Math.max(1, Math.ceil(filas.length / TAM));
   const actual = Math.min(pagina, ultima);
   const visibles = filas.slice((actual - 1) * TAM, actual * TAM);
@@ -695,79 +867,95 @@ function ListaPartidos({
     <Paginacion actual={actual} paginas={ultima} total={filas.length} tam={TAM} navegacion="url" hrefBase={pathname} query={parametros} cargando={false} nombre="organizaciones" subir={subir} />
   );
 
+  // En el celular: el partido (con sus gobiernos en la línea de abajo) y lo adjudicado con sus procesos; desde md, una
+  // columna por dato, con su barra contra el mayor de la página.
+  const columnas: Columna[] = [
+    { clave: "partido", titulo: "Partido u organización", ancho: "minmax(0,1.6fr)" },
+    { clave: "gobiernos", titulo: "Gobiernos", ancho: "6.5rem", alinear: "der", desde: "md" },
+    { clave: "procesos", titulo: "Procesos", ancho: "6.5rem", alinear: "der", desde: "lg" },
+    { clave: "monto", titulo: "Adjudicado", ancho: "7.5rem", alinear: "der", desde: "md" },
+    { clave: "montoCel", titulo: "Adjudicado", ancho: "6.5rem", alinear: "der", hasta: "md", igual: false },
+    { clave: "vigia", titulo: "En Vigía", ancho: "7rem", alinear: "der", desde: "xl", ayuda: AYUDA_VIGIA },
+    ...(indicios ? [{ clave: "indicio", titulo: "Entidades con indicio", ancho: "minmax(8.5rem,0.7fr)", desde: "lg", ayuda: AYUDA_INDICIO } satisfies Columna] : []),
+  ];
+
+  const ninguno = <span className="font-sans text-mute">Ninguno</span>;
+  const tabla: Fila[] = visibles.map((c) => {
+    const color = resumen.colores.get(c.org) ?? otrasTodos;
+    const procesos = c.k?.procesos ?? 0;
+    const monto = c.k?.montoAdjudicadoPen ?? 0;
+    const nivelDe: Nivel = c.regional > 0 ? "regional" : c.provincial > 0 ? "provincial" : "distrital";
+    const gobierna = listaY([
+      ...(c.regional > 0 ? [`${numero(c.regional)} ${c.regional === 1 ? "región" : "regiones"}`] : []),
+      ...(c.provincial > 0 ? [`${numero(c.provincial)} ${c.provincial === 1 ? "provincia" : "provincias"}`] : []),
+      ...(c.distrital > 0 ? [`${numero(c.distrital)} ${c.distrital === 1 ? "distrito" : "distritos"}`] : []),
+    ]);
+    return {
+      id: c.clave || String(c.org),
+      href: `/app/partidos/${encodeURIComponent(c.clave)}?anio=${anio}`,
+      enlaces: true,
+      etiqueta: `Ver la ficha de ${c.o.n}`,
+      celdas: {
+        partido: (
+          <CeldaPrincipal
+            textoCompleto={c.o.n}
+            metaEnVarias
+            titulo={
+              <>
+                <span aria-hidden className="mr-2 inline-block h-2.5 w-2.5 rounded-sm" style={{ backgroundColor: color }} />
+                {c.o.n}
+              </>
+            }
+            meta={[
+              <Dato key="t" tipo="tipo">{TIPO_ORG_LABEL[c.o.t]}</Dato>,
+              <Dato key="g" tipo="lugar" nombre="Gobierna">
+                {gobierna}
+              </Dato>,
+            ]}
+          />
+        ),
+        gobiernos: (
+          <CeldaNumero>
+            <Link href={hrefGobiernos(c.clave, nivelDe)} prefetch={false} title={`Ver sus ${numero(c.total)} gobiernos en la lista de Quién gobierna`} className={CLASE_ENLACE_CELDA}>
+              {numero(c.total)}
+            </Link>
+          </CeldaNumero>
+        ),
+        procesos: contratos ? <CeldaNumero>{procesos > 0 ? numero(procesos) : ninguno}</CeldaNumero> : null,
+        monto: contratos ? <CeldaNumero>{monto > 0 ? solesCompacto(monto) : ninguno}</CeldaNumero> : null,
+        montoCel: contratos ? (
+          <CeldaNumero sub={procesos > 0 ? `${numero(procesos)} ${procesos === 1 ? "proceso" : "procesos"}` : undefined}>{monto > 0 ? solesCompacto(monto) : ninguno}</CeldaNumero>
+        ) : null,
+        vigia: contratos ? (
+          <CeldaNumero sub={c.k && c.k.contratos > 0 ? `${numero(c.k.leidos)} ${c.k.leidos === 1 ? "leído" : "leídos"}` : undefined}>
+            {c.k && c.k.contratos > 0 ? numero(c.k.contratos) : ninguno}
+          </CeldaNumero>
+        ) : null,
+        indicio: c.ind ? (
+          <Link href={c.ind.ruta} prefetch={false} title={`Dónde gobierna ${c.o.n} y qué contratos tienen indicio`} className="block w-full min-w-0">
+            <CeldaTasa con={c.ind.con} de={c.ind.de} />
+          </Link>
+        ) : (
+          <span className="text-meta text-mute">Sin entidades hoy</span>
+        ),
+      },
+      magnitudes: { gobiernos: c.total, procesos: contratos ? procesos : null, monto: contratos ? monto : null },
+    };
+  });
+
   return (
     <div className="space-y-3">
-      {/* Todas las que gobernaron algo en el período, de la que más gobiernos tiene a la que menos: el total, en la vista. */}
       <BarraFiltros busqueda={{ param: "q", placeholder: "Buscar un partido, movimiento o alianza…", etiqueta: "Buscar un partido", min: 2 }} />
-
+      {!contratos && (
+        <VacioEnLinea tono="error">No pudimos leer los procesos de cada partido: la tabla muestra sus gobiernos y dice «Sin dato» en lo demás.</VacioEnLinea>
+      )}
       <ZonaResultados>
         {visibles.length === 0 ? (
           <VacioEnLinea icono={<SearchX size={16} aria-hidden />}>Ninguna organización se llama así.</VacioEnLinea>
         ) : (
           <div className="space-y-3">
             <div className="flex justify-end">{pag(false)}</div>
-            <ol className="divide-y divide-line overflow-hidden rounded-2xl border border-line bg-paper">
-              {visibles.map((c, i) => {
-                const color = resumen.colores.get(c.org) ?? otrasTodos;
-                const k = contratos?.[c.clave];
-                const orden = (actual - 1) * TAM + i + 1;
-                return (
-                  // Toda la fila lleva a la ficha del partido (como en "Contratos por partido"): el nombre es el enlace y se
-                  // estira sobre la fila; "Ver sus gobiernos" y el conteo quedan encima y siguen siendo sus propios enlaces.
-                  <li key={c.org} className="relative grid min-h-[48px] items-center gap-x-4 gap-y-1 px-4 py-2 transition-colors focus-within:bg-granate-50 hover:bg-granate-50 sm:grid-cols-[1.75rem_minmax(0,1.4fr)_minmax(0,1fr)_auto]">
-                    <span className="hidden font-mono text-meta tabular-nums text-mute sm:block" aria-hidden>{orden}</span>
-                    <span className="min-w-0">
-                      <span className="flex items-center gap-2">
-                        <span aria-hidden className="h-3 w-1.5 shrink-0 rounded-full" style={{ backgroundColor: color }} />
-                        <Link href={`/app/partidos/${c.clave}?anio=${anio}`} prefetch={false} title={c.o.n}
-                          className="line-clamp-2 text-dato font-semibold text-ink after:absolute after:inset-0 focus-visible:outline-none sm:line-clamp-1">
-                          {c.o.n}
-                        </Link>
-                      </span>
-                      <span className="block truncate pl-3.5 text-rotulo text-mute">
-                        <Partes
-                          partes={[
-                            <Dato key="t" tipo="tipo">{TIPO_ORG_LABEL[c.o.t]}</Dato>,
-                            <Dato key="g" tipo="lugar" nombre="Gobierna">
-                              {listaY([
-                                ...(c.regional > 0 ? [`${numero(c.regional)} ${c.regional === 1 ? "región" : "regiones"}`] : []),
-                                ...(c.provincial > 0 ? [`${numero(c.provincial)} ${c.provincial === 1 ? "provincia" : "provincias"}`] : []),
-                                ...(c.distrital > 0 ? [`${numero(c.distrital)} ${c.distrital === 1 ? "distrito" : "distritos"}`] : []),
-                              ])}
-                            </Dato>,
-                          ]}
-                        />
-                      </span>
-                    </span>
-                    <span className="min-w-0" role="img" aria-label={`${c.total} gobiernos, frente a ${maximo} de la organización con más`}>
-                      <span className="block h-2 overflow-hidden rounded-full bg-paperDeep">
-                        <span className="block h-full rounded-full" style={{ width: `${Math.max(2, (c.total / maximo) * 100)}%`, backgroundColor: color }} />
-                      </span>
-                      <span className="mt-0.5 block text-rotulo tabular-nums text-inkSoft">{numero(c.total)} {c.total === 1 ? "gobierno" : "gobiernos"}</span>
-                    </span>
-                    <span className="flex flex-wrap items-center gap-x-4 gap-y-1 text-meta sm:justify-end">
-                      <Link href={hrefGobiernos(c.clave, c.regional > 0 ? "regional" : c.provincial > 0 ? "provincial" : "distrital")} prefetch={false} className="relative z-10 inline-flex min-h-9 items-center gap-1 font-semibold text-granate underline-offset-4 hover:underline">
-                        Ver sus gobiernos <ChevronRight size={14} aria-hidden />
-                      </Link>
-                      {k && ((k.procesos ?? 0) > 0 || k.contratos > 0) ? (
-                        // Sus procesos del OECE (desde 2015); antes, sólo los contratos de la base de Vigía (2026), y los
-                        // períodos anteriores decían "Sin contratos en la base".
-                        <Link href={`/app/partidos/${c.clave}?anio=${anio}`} prefetch={false} className="relative z-10 inline-flex min-h-9 flex-col items-end justify-center text-right leading-tight text-inkSoft underline-offset-4 hover:text-ink hover:underline">
-                          <span>
-                            <span className="font-mono tabular-nums text-ink">{numero(k.procesos ?? k.contratos)}</span> {(k.procesos ?? 0) > 0 ? "procesos" : "contratos"}
-                          </span>
-                          {(k.montoAdjudicadoPen ?? 0) > 0 && (
-                            <span className="font-mono text-rotulo tabular-nums text-mute">{solesCompacto(k.montoAdjudicadoPen ?? 0)} adjudicados</span>
-                          )}
-                        </Link>
-                      ) : (
-                        contratos && <span className="text-mute">Sin procesos registrados</span>
-                      )}
-                    </span>
-                  </li>
-                );
-              })}
-            </ol>
+            <Tabla columnas={columnas} filas={tabla} etiqueta={`Partidos y organizaciones que gobiernan en ${anio}`} densidad="compacta" />
             {ultima > 1 && <div className="flex justify-end">{pag(true)}</div>}
           </div>
         )}

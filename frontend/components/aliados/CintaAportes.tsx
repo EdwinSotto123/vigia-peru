@@ -102,7 +102,7 @@ export function CintaAportes({ items, total }: { items: ContribucionReciente[]; 
           </h2>
           <p className="text-meta text-paper/70">Quienes se suman a la vigilancia. Toca uno para ver su recibo.</p>
         </div>
-        <EnlaceAccion href="/app/aliados/aportes" variante="oscuro" flecha>
+        <EnlaceAccion href="/app/apoyar?seccion=aportes" variante="oscuro" flecha>
           Ver todos los aportes{typeof total === "number" && total > items.length ? ` (${numero(total)})` : ""}
         </EnlaceAccion>
       </div>

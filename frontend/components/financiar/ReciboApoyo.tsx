@@ -100,7 +100,7 @@ export function ReciboApoyo({ c }: { c: ComprobanteApoyo }) {
           <p className="text-rotulo text-mute">{ACLARACION}</p>
 
           <div className="flex flex-wrap items-center gap-3 border-t border-line pt-5">
-            <EnlaceAccion href="/app/cuanto-cuesta" variante="secundario" flecha prefetch={false}>
+            <EnlaceAccion href="/app/apoyar?seccion=costos" variante="secundario" flecha prefetch={false}>
               En qué se usa
             </EnlaceAccion>
             <Link href="/app/apoyar" prefetch={false} className="inline-flex min-h-[40px] items-center gap-1 text-dato font-semibold text-granate hover:underline">
@@ -155,7 +155,7 @@ export function AporteSinConfirmar({ e }: { e: EstadoAporte }) {
             <EnlaceAccion href="/app/apoyar" variante="secundario" flecha prefetch={false}>
               Aportar
             </EnlaceAccion>
-            <Link href="/app/cuanto-cuesta" prefetch={false} className="inline-flex min-h-[40px] items-center gap-1 text-dato font-semibold text-granate hover:underline">
+            <Link href="/app/apoyar?seccion=costos" prefetch={false} className="inline-flex min-h-[40px] items-center gap-1 text-dato font-semibold text-granate hover:underline">
               En qué se usa <ArrowRight size={14} aria-hidden />
             </Link>
           </div>

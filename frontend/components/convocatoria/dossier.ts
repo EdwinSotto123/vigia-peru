@@ -12,7 +12,7 @@ import { faseLabelCorto } from "@/lib/auditoria";
 import { nivelDeScore, SEVERIDAD, SIN_SENALES, type NivelSeveridad, type SeveridadUI } from "@/lib/severidad";
 import { fecha, fechaCorta, soles } from "@/lib/formato";
 import { sobreprecioSostenido } from "@/components/charts/mercado";
-import { evidenciaComoTexto } from "./sections/Evidencia";
+import { evidenciaComoTexto } from "./evidenciaTexto";
 import type { ApiResult, Bandera } from "./types";
 
 // ─── Qué corrió ───────────────────────────────────────────────────────────
@@ -217,6 +217,45 @@ export function nivelDelDossier(score: number | null | undefined, nSenales: numb
   }
   const nivel = nivelDeScore(score ?? 0) as SeveridadSenal;
   return { nivel, ...TRAMO[nivel], ui: { ...SEVERIDAD[nivel], etiqueta: TRAMO[nivel].etiqueta } };
+}
+
+/**
+ * El puntaje de riesgo tal como se muestra: entero y con tope de 100, igual en la cabecera, el veredicto y la lectura.
+ * La suma de pesos puede pasar de 100 (105 en un contrato con cinco señales graves); la escala que se publica es de 0 a
+ * 100 y el medidor ya la cortaba ahí, pero la frase decía «105 de 100» (auditoría visual del 2026-11-13).
+ */
+export function puntajeVisible(score: number | null | undefined): number | null {
+  if (typeof score !== "number" || !Number.isFinite(score)) return null;
+  return Math.min(100, Math.max(0, Math.round(score)));
+}
+
+/**
+ * De las señales que trae la ficha (GET /contratos/:ocid), las que también cuentan en el informe (`visibles` de
+ * `separarBanderas`). La ficha las trae todas, también los hechos de contexto (`puntua: false`) y los sobreprecios que el
+ * mercado no sostiene, porque esa consulta no manda `puntua`: por eso la ficha decía «5 señales» y el dictamen «4» del
+ * mismo contrato. Se emparejan por regla y comienzo de la evidencia; si la evidencia no coincide (redacción distinta), por
+ * regla y severidad, y al final sólo por regla. Cada señal del informe se usa una vez. Conserva el orden de la ficha.
+ */
+export function senalesQueCuentan<T extends { regla: string; severidad?: unknown; evidencia?: string | null }>(
+  ficha: readonly T[],
+  visibles: readonly Bandera[],
+): T[] {
+  const norm = (s: unknown) => String(s ?? "").replace(/\s+/g, " ").trim().toLowerCase().slice(0, 80);
+  const informe = visibles.map((b) => ({ regla: String(b.regla ?? ""), severidad: severidadDe(b), evidencia: norm(evidenciaComoTexto(b.evidencia)) }));
+  const usadas = new Set<number>();
+  const tomadas = new Set<number>();
+  const pasada = (igual: (f: T, v: (typeof informe)[number]) => boolean) =>
+    ficha.forEach((f, i) => {
+      if (tomadas.has(i)) return;
+      const j = informe.findIndex((v, k) => !usadas.has(k) && igual(f, v));
+      if (j < 0) return;
+      usadas.add(j);
+      tomadas.add(i);
+    });
+  pasada((f, v) => f.regla === v.regla && !!v.evidencia && norm(f.evidencia) === v.evidencia);
+  pasada((f, v) => f.regla === v.regla && severidadDe(f) === v.severidad);
+  pasada((f, v) => f.regla === v.regla);
+  return ficha.filter((_, i) => tomadas.has(i));
 }
 
 // ─── Estado de publicación ───────────────────────────────────────────────

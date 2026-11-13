@@ -990,6 +990,23 @@ function agrupar(lista: CruceProveedor[]): CruceProveedor[][] {
 const anclaDe = (tipo: string) => `antecedente-${tipo}`;
 
 /**
+ * Los antecedentes de quien ganó como banderas de la cabecera (`BanderasFicha`): un renglón por tipo, con su severidad,
+ * cuántos casos y el enlace a su grupo en la pestaña «Antecedentes». Los mismos renglones (y la misma cuenta) que el
+ * resumen de antecedentes y que el conteo de esa pestaña: lo de quien ganó y lo del proceso, sin los datos del proveedor
+ * ni lo posterior a la convocatoria.
+ */
+export function banderasAntecedentes(cruces: CruceProveedor[], href: string): { tipo: string; severidad: "alta" | "media" | "baja"; nombre: string; n: number; href: string }[] {
+  const { antecedentes, delProceso } = clasificarCruces(cruces);
+  return [...agrupar(antecedentes), ...agrupar(delProceso)].map((g) => ({
+    tipo: g[0].tipo,
+    severidad: peorSeveridad(g) ?? g[0].severidad,
+    nombre: g[0].etiqueta,
+    n: g.length,
+    href: `${href}#${anclaDe(g[0].tipo)}`,
+  }));
+}
+
+/**
  * Un bloque de cruces agrupados por tipo, en orden de severidad: los antecedentes, los datos del proveedor y lo
  * posterior. Las sanciones van en tabla con su resumen (GrupoSanciones); el resto, una línea por cruce. El «por qué
  * mirarlo» de un tipo va abierto la primera vez que aparece y en el ⓘ las siguientes (las bandas de un mismo tipo

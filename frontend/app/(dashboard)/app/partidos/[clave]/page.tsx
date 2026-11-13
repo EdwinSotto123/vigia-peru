@@ -1,5 +1,8 @@
 import Link from "next/link";
 import { canonica, descripcion } from "@/lib/seo";
+import { MarcoFicha } from "@/components/entidad/MarcoFicha";
+import { CasosCorrupcion } from "@/components/inicio/CasosCorrupcion";
+import { getCorrupcionPartido, rutaCorrupcion } from "@/lib/corrupcion";
 import { notFound, redirect } from "next/navigation";
 import { Suspense } from "react";
 import { CalendarRange, MapPin } from "lucide-react";
@@ -16,6 +19,7 @@ import {
   Indicadores,
   Listado,
   TablaSkeleton,
+  Vistas,
   ZonaResultados,
   type Columna,
   type FiltroSecundario,
@@ -24,6 +28,7 @@ import {
 } from "@/components/listado";
 import { filtrosVisibles } from "@/components/contratos/filtros";
 import { InicioPartido } from "@/components/inicio/InicioPartido";
+import { SinRespuesta } from "@/components/inicio/BloquesInicio";
 import { ListaPersonas } from "@/components/personas/ListaPersonas";
 import { PARAMS_EN_FICHA } from "@/lib/personas";
 import { Skeleton } from "@/components/ui/Skeleton";
@@ -66,14 +71,16 @@ const VISTAS_CONTRATOS = ["lista", "meses", "vigia"] as const;
 
 /**
  * /app/partidos/[clave]?anio=2018 — un partido en un período, con el esqueleto de las demás fichas (entidad, contrato):
- *   volver → nombre, período (con los otros a un clic) y cuántos gobiernos ganó → cuatro cifras → pestañas (?seccion=):
- *     · Inicio: qué se encontró (banderas) → dinero (MEF y contratos) → control (Contraloría).
+ *   volver → nombre, período (con los otros a un clic) y cuántos gobiernos ganó → pestañas (?seccion=):
+ *     · Inicio, en una pantalla: sus cuatro cifras, las tres señales que más pesan, dónde gobierna y «Ver más».
  *     · Contratos: TODOS los procesos adjudicados de sus gobiernos (OECE, desde 2015), con búsqueda, nivel, región,
  *       objeto, gobierno y orden, de a 20; y en la misma pestaña (`?vista=`) los procesos mes a mes y lo que leyó Vigía.
  *       Los enlaces viejos `?seccion=meses` y `?seccion=vigia` llevan ahí (redirección).
  *     · Personas contratadas.
  *     · Gobiernos: UNA tabla con todos los que ganó (presupuesto MEF, contratos, lo leído y con señal), filtrable en la
  *       URL; cada fila abre sus entidades en un panel. Con el detalle del MEF, también «En qué gastan» (`?gvista=gasto`).
+ *     · Control: los informes de la Contraloría sobre las entidades que gobernó, con buscador (antes, al pie del Inicio).
+ * Fuera del Inicio la cabecera se pliega al nombre y al período (MarcoFicha): la lista empieza arriba.
  * Se asocia al GANADOR de la elección: una vacancia o un reemplazo dentro del período no está registrado (el aviso, una
  * vez, al pie).
  */
@@ -137,58 +144,52 @@ export default async function PartidoPage({ params, searchParams }: { params: { 
           { etiqueta: "Partidos y gobiernos", href: `/app/partidos?anio=${anio}` },
           { etiqueta: d.partido.nombre, href: `${ruta}?anio=${anio}` },
         ]}
-        pestanas={{ primera: "inicio", activa: seccion ?? "inicio", etiquetas: { historia: "Historia", procesos: "Contratos", personas: "Personas contratadas", gobiernos: "Gobiernos" } }}
+        pestanas={{ primera: "inicio", activa: seccion ?? "inicio", etiquetas: { historia: "Historia", procesos: "Contratos", personas: "Personas contratadas", gobiernos: "Gobiernos", control: "Control" } }}
       />
 
-      <EncabezadoPagina
-        titulo={partido.nombre}
-        bajada={
-          <span className="flex flex-wrap items-center gap-x-4 gap-y-1">
-            <span className="inline-flex items-center gap-1.5">
-              <CalendarRange size={14} className="shrink-0 text-mute" aria-hidden /> Gobiernos de {periodoTexto(anio)}
-            </span>
-            {/* Sólo los niveles donde gobierna: «0 regiones, 2 provincias…» era ruido. */}
-            <span className="inline-flex items-center gap-1.5">
-              <MapPin size={14} className="shrink-0 text-mute" aria-hidden />
-              {listaY([
-                ...(partido.gobiernos.regional > 0 ? [plural(partido.gobiernos.regional, "región", "regiones")] : []),
-                ...(partido.gobiernos.provincial > 0 ? [plural(partido.gobiernos.provincial, "provincia", "provincias")] : []),
-                ...(partido.gobiernos.distrital > 0 ? [plural(partido.gobiernos.distrital, "distrito", "distritos")] : []),
-              ]) || "Sin gobiernos en este período"}
-            </span>
-          </span>
-        }
-        acciones={
-          <>
-            {/* Sólo con contratos en la cola (como en la ficha de una entidad): los de períodos anteriores a la ventana de
-                la cola están en la base pero no se financian, y el aporte no tendría qué asignar. */}
-            <EnlaceAccion href="/app/apoyar" flecha>
-              Ayúdanos a vigilar
-            </EnlaceAccion>
-            {/* Lo nuevo de sus gobiernos (los del período vigente), en Mi impacto. */}
-            <SeguirBoton tipo="partido" id={partido.clave} nombre={partido.nombre} />
-          </>
-        }
-      />
-
-      {/* Los otros períodos del mismo partido, a un clic: ¿qué gobernó antes? */}
-      <nav aria-label="Período de gobierno" className="flex flex-wrap items-center gap-2">
-        {PERIODOS_GOBIERNO.map((p) => (
-          <Link
-            key={p.anio}
-            href={`${ruta}?anio=${p.anio}`}
-            aria-current={p.anio === anio ? "page" : undefined}
-            className={
-              "inline-flex min-h-[36px] items-center rounded-full border px-3.5 text-dato font-semibold transition-colors " +
-              (p.anio === anio ? "border-granate bg-granate text-paper" : "border-line bg-paper text-inkSoft hover:border-granate/40 hover:text-ink")
+      {/* Fuera del Inicio, sólo el nombre y, a su lado, el período (MarcoFicha): las cifras van en el Inicio. Los otros
+          períodos del mismo partido, a un clic (¿qué gobernó antes?), con el control segmentado de la lista de partidos: se
+          queda en todas las pestañas, porque el período cambia lo que muestra cada una. */}
+      <MarcoFicha activa={seccion ?? "inicio"} primera="inicio">
+        <div className="flex flex-col gap-y-4 sm:group-data-[compacta]/ficha:flex-row sm:group-data-[compacta]/ficha:items-center sm:group-data-[compacta]/ficha:justify-between sm:group-data-[compacta]/ficha:gap-x-6">
+          <EncabezadoPagina
+            titulo={partido.nombre}
+            bajada={
+              <span className="flex flex-wrap items-center gap-x-4 gap-y-1">
+                <span className="inline-flex items-center gap-1.5">
+                  <CalendarRange size={14} className="shrink-0 text-mute" aria-hidden /> Gobiernos de {periodoTexto(anio)}
+                </span>
+                {/* Sólo los niveles donde gobierna: «0 regiones, 2 provincias…» era ruido. */}
+                <span className="inline-flex items-center gap-1.5">
+                  <MapPin size={14} className="shrink-0 text-mute" aria-hidden />
+                  {listaY([
+                    ...(partido.gobiernos.regional > 0 ? [plural(partido.gobiernos.regional, "región", "regiones")] : []),
+                    ...(partido.gobiernos.provincial > 0 ? [plural(partido.gobiernos.provincial, "provincia", "provincias")] : []),
+                    ...(partido.gobiernos.distrital > 0 ? [plural(partido.gobiernos.distrital, "distrito", "distritos")] : []),
+                  ]) || "Sin gobiernos en este período"}
+                </span>
+              </span>
             }
-          >
-            {p.texto}
-          </Link>
-        ))}
-      </nav>
-
-      <Indicadores items={indicadores(d, anio, totalGobiernos, ruta)} />
+            acciones={
+              <>
+                {/* Sólo con contratos en la cola (como en la ficha de una entidad): los de períodos anteriores a la ventana de
+                    la cola están en la base pero no se financian, y el aporte no tendría qué asignar. */}
+                <EnlaceAccion href="/app/apoyar" flecha>
+                  Ayúdanos a vigilar
+                </EnlaceAccion>
+                {/* Lo nuevo de sus gobiernos (los del período vigente), en Mi impacto. */}
+                <SeguirBoton tipo="partido" id={partido.clave} nombre={partido.nombre} />
+              </>
+            }
+          />
+          <Vistas
+            variante="secundaria"
+            className="self-start sm:group-data-[compacta]/ficha:self-auto sm:group-data-[compacta]/ficha:shrink-0"
+            etiqueta="Período de gobierno"
+            vistas={PERIODOS_GOBIERNO.map((p) => ({ href: `${ruta}?anio=${p.anio}${seccion ? `&seccion=${seccion}` : ""}`, etiqueta: p.texto, activa: p.anio === anio }))}
+          />
+        </div>
+      </MarcoFicha>
 
       <Pestanas
         fija
@@ -201,7 +202,7 @@ export default async function PartidoPage({ params, searchParams }: { params: { 
             etiqueta: "Inicio",
             contenido: (
               <Suspense fallback={<EsqueletoInicio />}>
-                <InicioPartido clave={params.clave} anio={anio} ruta={ruta} d={d} gasto={gastoP} />
+                <InicioPartido clave={params.clave} anio={anio} ruta={ruta} d={d} gasto={gastoP} cifras={indicadores(d, anio, totalGobiernos, ruta)} />
               </Suspense>
             ),
           },
@@ -366,8 +367,31 @@ export default async function PartidoPage({ params, searchParams }: { params: { 
                     En esas elecciones no ganó ningún gobierno regional, provincial ni distrital.
                   </EstadoVacio>
                 ) : (
-                  <p className="text-dato leading-5 text-inkSoft">No pudimos leer sus gobiernos en este momento.</p>
+                  <SinRespuesta href={`${ruta}?anio=${anio}&seccion=gobiernos`}>Sus gobiernos no respondieron ahora.</SinRespuesta>
                 )}
+              </div>
+            ),
+          },
+          {
+            clave: "control",
+            etiqueta: "Control",
+            titulo: "Informes de la Contraloría",
+            contenido: (
+              <div className="space-y-4">
+                <CabeceraPestana
+                  ayuda={
+                    <Ayuda titulo="¿Qué es un informe de control?">
+                      La Contraloría revisa a las entidades y, cuando encuentra algo, señala una responsabilidad presunta (penal, civil o
+                      administrativa) de sus funcionarios y la deriva a quien corresponde. No es una condena, y no dice que la
+                      responsabilidad sea de sus autoridades: cada informe nombra a los funcionarios comprendidos, de carrera o de confianza.
+                    </Ayuda>
+                  }
+                >
+                  Los informes sobre las entidades que gobernó, emitidos de {periodoTexto(anio)}.
+                </CabeceraPestana>
+                <Suspense fallback={<TablaSkeleton columnas={[{ clave: "a", titulo: "Informe", ancho: "1fr" }]} filas={6} />}>
+                  <ControlPartido clave={params.clave} anio={anio} ruta={ruta} />
+                </Suspense>
               </div>
             ),
           },
@@ -376,6 +400,12 @@ export default async function PartidoPage({ params, searchParams }: { params: { 
       <Aviso tono="neutro">{AVISO_PARTIDO}</Aviso>
     </Pagina>
   );
+}
+
+/** La pestaña Control: los informes de la Contraloría sobre sus entidades (el mismo pedido que el Inicio). */
+async function ControlPartido({ clave, anio, ruta }: { clave: string; anio: AnioGobierno; ruta: string }) {
+  const datos = await getCorrupcionPartido(clave, anio);
+  return <CasosCorrupcion datos={datos} ruta={rutaCorrupcion.partido(clave, anio)} ambito="partido" sinMarco reintentar={`${ruta}?anio=${anio}&seccion=control`} />;
 }
 
 function EsqueletoInicio() {

@@ -18,7 +18,7 @@ import { tituloNatural } from "@/lib/landing";
 import { clavePartido, type PoderPartido } from "@/lib/poder";
 
 /**
- * Las vistas del mapa de poder (/app/poder) en las pestañas del kit: la elegida va a la URL (`?vista=`), responden a
+ * Las vistas del mapa de poder (/app/poder) en las pestañas del kit: la elegida va a la URL (`?seccion=`; la página acepta también el `?vista=` de antes), responden a
  * las flechas del teclado, se deslizan en una fila en el celular y cada una se monta (y pide sus datos) la primera vez
  * que se abre. Antes eran botones propios que montaban las cuatro vistas a la vez y obligaban al servidor a hacer cinco
  * consultas aunque nadie abriera los árboles.
@@ -35,7 +35,6 @@ import { clavePartido, type PoderPartido } from "@/lib/poder";
 export function PoderVista({ partidos, activa, entidadesConIndicio }: { partidos: PoderPartido[]; activa?: string; entidadesConIndicio: number }) {
   return (
     <Pestanas
-      param="vista"
       activa={activa}
       etiqueta="Vistas del mapa de poder"
       pestanas={[

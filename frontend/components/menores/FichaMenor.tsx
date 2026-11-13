@@ -24,6 +24,7 @@ import { P_ORD } from "@/lib/ordenes";
 import { esRucPersonaNatural } from "@/lib/privacidad";
 import { ordenarSenalesMenor, pctTxt, textoSenal } from "@/lib/senalesMenor";
 import { cn } from "@/lib/utils";
+import { recortar as recortarEnPalabra } from "@/components/contratos/recortar";
 import { antecedentesSunat, duracion, fechaHoraLima } from "./ListaMenores";
 
 /**
@@ -67,7 +68,6 @@ const num = (v: unknown): number | null => (typeof v === "number" && Number.isFi
 const mayuscula = (s: string) => s.charAt(0).toLocaleUpperCase("es") + s.slice(1);
 /** Sólo la primera letra: «Leído por la IA» → «leído por la IA» (un toLowerCase entero dejaba «la ia» y «el seace»). */
 const minuscula = (s: string) => s.charAt(0).toLocaleLowerCase("es") + s.slice(1);
-const recortar = (s: string, n: number) => (s.length > n ? `${s.slice(0, n - 1).trimEnd()}…` : s);
 const veces = (r: number) => String(Math.round(r * 10) / 10).replace(".", ",");
 /** «23:03» de «2026-08-20T23:03» (la hora de Lima que guarda la API); nada si sólo hay fecha. */
 const hora = (s: string | null | undefined) => (s && /T\d{2}:\d{2}/.test(s) ? s.slice(11, 16) : null);
@@ -123,6 +123,38 @@ export function BajadaMenor({ f }: { f: FichaMenor }) {
       )}
       {objeto ? ` (${objeto.toLocaleLowerCase("es")})` : ""}, registrado en el SEACE.
     </>
+  );
+}
+
+// ─── El título y el objeto entero ──────────────────────────────────────────────
+
+/** Hasta cuántos caracteres va la descripción en el título: los hay de 500 (13 líneas en escritorio, 22 en el celular). */
+const TOPE_TITULO = 110;
+
+/**
+ * El título de la ficha: la descripción que registró la entidad, recortada en una palabra. Entera va en el cuerpo
+ * (`ObjetoMenor` en «Pedido y contrato» debajo de xl; «Datos del contrato», en la columna lateral, desde xl).
+ */
+export function tituloMenor(f: FichaMenor): string {
+  const m = f.menor;
+  return m.descripcion ? recortarEnPalabra(oracion(m.descripcion), TOPE_TITULO) : `Contrato menor ${m.codigo ?? m.id}`;
+}
+
+/** La descripción entera, si el título la recortó. */
+const objetoLargo = (f: FichaMenor): string | null => {
+  const d = f.menor.descripcion ? oracion(f.menor.descripcion).replace(/\s+/g, " ").trim() : null;
+  return d && d.length > TOPE_TITULO ? d : null;
+};
+
+/** El objeto entero, en su caja: lo que el título recortó. */
+export function ObjetoMenor({ f, className }: { f: FichaMenor; className?: string }) {
+  const objeto = objetoLargo(f);
+  if (!objeto) return null;
+  return (
+    <section aria-label="El objeto del contrato, completo" className={cn("rounded-xl border border-line bg-paper px-4 py-3", className)}>
+      <h3 className="font-display text-cuerpo font-bold text-ink">El objeto, como lo registró la entidad</h3>
+      <p className="mt-1 text-dato leading-relaxed text-ink">{objeto}</p>
+    </section>
   );
 }
 
@@ -202,16 +234,12 @@ export function FraseMenor({ f }: { f: FichaMenor }) {
   const fichas = fichasCompra(rutaMenor(m.id), m.entidadRuc, m.proveedorRuc);
   const entidad = m.entidad ? enlace(tituloNatural(m.entidad), fichas.entidad, CLASE_FRASE) : "La entidad";
   const proveedor = m.proveedor ? enlace(tituloNatural(m.proveedor), fichas.proveedor, CLASE_FRASE) : null;
-  // La descripción entera ya es el título de la página: aquí, recortada para que la frase se lea de un tirón.
-  const que = m.descripcion ? `«${recortar(oracion(m.descripcion), 120)}»` : null;
+  // Sin el objeto entre comillas: es el título, justo encima, y la frase lo repetía recortado casi igual (auditoría del
+  // 2026-11-13). Entero va en el cuerpo (ObjetoMenor y «Datos del contrato»).
   const verbo = proveedor ? (
-    /bien/i.test(m.objeto ?? "") ? (
-      <> le compró a {proveedor}{que && <> {que}</>}</>
-    ) : (
-      <> contrató a {proveedor}{que && <> para {que}</>}</>
-    )
+    /bien/i.test(m.objeto ?? "") ? <> le compró a {proveedor}</> : <> contrató a {proveedor}</>
   ) : (
-    <> firmó un contrato menor{que && <> para {que}</>}</>
+    <> firmó un contrato menor</>
   );
 
   const senales = ordenarSenalesMenor(f.senales);
@@ -1164,6 +1192,8 @@ export function PedidoYContrato({ f }: { f: FichaMenor }) {
   const filas = filasComparadas(f);
   return (
     <div className="space-y-4">
+      {/* El objeto entero (el título lo recorta): desde xl va en «Datos del contrato», en la columna lateral. */}
+      <ObjetoMenor f={f} className="xl:hidden" />
       {r || c ? (
         <Comparacion f={f} filas={filas} er={er} ec={ec} />
       ) : (
@@ -1580,10 +1610,12 @@ function DatoLado({ k, children }: { k: string; children: ReactNode }) {
  * estaba aquí tiene su capítulo: lo de la SUNAT y la inhabilitación, en el del proveedor; la justificación de la
  * invitación, en el paso del pedido; las fuentes, al final.
  */
-export function DatosMenor({ f, titulo = "Datos del contrato", nivel = "h2", className }: {
+export function DatosMenor({ f, titulo = "Datos del contrato", nivel = "h2", conObjeto = false, className }: {
   f: FichaMenor;
   titulo?: string;
   nivel?: "h2" | "h3";
+  /** Con la descripción entera bajo «Qué se contrató» (la de la columna lateral: el título la recorta). */
+  conObjeto?: boolean;
   className?: string;
 }) {
   const m = f.menor;
@@ -1611,9 +1643,10 @@ export function DatosMenor({ f, titulo = "Datos del contrato", nivel = "h2", cla
           {/* El RUC sólo de una empresa: el de una persona natural lleva su DNI. */}
           {empresa && <span className="block font-mono text-rotulo text-mute">RUC {m.proveedorRuc}</span>}
         </DatoLado>
-        {(objeto || m.ccmnNombre) && (
+        {(objeto || m.ccmnNombre || (conObjeto && objetoLargo(f))) && (
           <DatoLado k="Qué se contrató">
             {objeto ?? "Sin dato"}
+            {conObjeto && objetoLargo(f) && <span className="mt-1 block text-meta leading-relaxed text-inkSoft">{objetoLargo(f)}</span>}
             {m.ccmnNombre && <span className="block text-rotulo text-mute">En el catálogo: {oracion(m.ccmnNombre)}</span>}
           </DatoLado>
         )}

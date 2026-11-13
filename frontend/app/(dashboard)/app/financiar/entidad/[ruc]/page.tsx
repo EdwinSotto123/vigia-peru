@@ -62,8 +62,8 @@ export default async function FinanciarEntidadPage({
       <Migas
         items={[
           { etiqueta: "Inicio", href: "/app" },
-          { etiqueta: "Lo que falta leer", href: "/app/financiar" },
-          { etiqueta: "Por entidad", href: "/app/financiar?por=entidad" },
+          { etiqueta: "Auditoría en vivo", href: "/app/auditoria" }, { etiqueta: "Lo que falta leer", href: "/app/auditoria?seccion=falta" },
+          { etiqueta: "Por entidad", href: "/app/auditoria?seccion=falta&por=entidad" },
           // Una entidad con RUC 10 es una persona: su nombre no va en la ruta (docs/PRIVACIDAD.md).
           { etiqueta: esRucPersona(entidad.ruc) ? "Entidad" : entidad.nombre },
         ]}
@@ -111,7 +111,7 @@ export default async function FinanciarEntidadPage({
             pestanas={pestanasEntidad(d)}
           />
 
-          {/* La independencia en una línea; el detalle, en el ⓘ y en las reglas de /app/financiar. */}
+          {/* La independencia en una línea; el detalle, en el ⓘ y en las reglas de /app/apoyar. */}
           <p className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-meta text-inkSoft">
             <ShieldCheck size={15} className="shrink-0 text-granate" aria-hidden />
             <span>Tu aporte va al fondo común: no decide qué se lee.</span>
@@ -119,7 +119,7 @@ export default async function FinanciarEntidadPage({
               La entidad queda como destino sugerido de tu aporte, nada más: lo más grave se lee primero, sea de donde sea, y
               los resultados se publican aunque señalen a quien aportó.
             </Ayuda>
-            <Link href="/app/financiar#independencia" className="font-medium text-granate underline underline-offset-2">Reglas de independencia</Link>
+            <Link href="/app/apoyar#independencia" className="font-medium text-granate underline underline-offset-2">Reglas de independencia</Link>
           </p>
         </div>
 
@@ -301,7 +301,7 @@ function filasCola(d: EntidadFinanciableDetalle): Fila[] {
 function NoSePudoLeer({ ruc }: { ruc: string }) {
   return (
     <FichaNoLeida
-      migas={[{ etiqueta: "Inicio", href: "/app" }, { etiqueta: "Lo que falta leer", href: "/app/financiar" }, { etiqueta: "Por entidad", href: "/app/financiar?por=entidad" }]}
+      migas={[{ etiqueta: "Inicio", href: "/app" }, { etiqueta: "Auditoría en vivo", href: "/app/auditoria" }, { etiqueta: "Lo que falta leer", href: "/app/auditoria?seccion=falta" }, { etiqueta: "Por entidad", href: "/app/auditoria?seccion=falta&por=entidad" }]}
       titulo="¿En qué gasta tu dinero esta entidad?"
       error="No pudimos leer la cola de esta entidad"
       reintentar={{ href: `/app/financiar/entidad/${encodeURIComponent(ruc)}` }}

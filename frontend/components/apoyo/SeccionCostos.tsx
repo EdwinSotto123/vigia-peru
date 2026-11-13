@@ -1,87 +1,61 @@
 import { unstable_noStore as noStore } from "next/cache";
-import type { Metadata } from "next";
-import { canonica } from "@/lib/seo";
 import type { ReactNode } from "react";
 import { Calculator, CalendarClock, CircleDollarSign, Info, Receipt } from "lucide-react";
-import { EncabezadoPagina, FuenteDato, Migas, Nota, Pagina, Seccion } from "@/components/patrones";
+import { FuenteDato, Nota, Seccion } from "@/components/patrones";
 import { CeldaBarra, CeldaNumero, CeldaPrincipal, CeldaTexto, Tabla, type Columna, type Fila } from "@/components/listado";
 import { VacioEnLinea } from "@/components/ui/VacioEnLinea";
-import { EnlaceAccion } from "@/components/ui/EnlaceAccion";
 import { MetaDelMes } from "@/components/financiar/MetaDelMes";
 import { fechaCorta, numero, plural, porcentaje, soles } from "@/lib/formato";
 import { dolares, getVigilancia, mesConMayuscula, nombreMes, type ResumenVigilancia, type RubroCosto } from "@/lib/financiamiento";
 import { cn } from "@/lib/utils";
 
-export const metadata: Metadata = {
-  title: "Cuánto cuesta Vigía",
-  description: "Lo que cuesta mantener Vigía cada mes, rubro por rubro y con la fuente de cada cifra, y en qué se usa lo que aportas.",
-  alternates: canonica("/app/cuanto-cuesta"),
-};
-
-export const revalidate = 300;
-
 /**
- * /app/cuanto-cuesta — las cuentas abiertas de Vigía (migración 206; GET /financiamiento/vigilancia): lo que cuesta
- * cada mes por rubro (la factura de AWS por Cost Explorer, la tarifa de Cloudflare), lo que costó la IA en cada lectura,
- * la meta del mes, lo recaudado y la historia mes a mes. Cada cifra dice de dónde sale; lo que no está, se dice.
+ * La pestaña «Cuánto cuesta» de /app/apoyar (antes /app/cuanto-cuesta; migración 206, GET /financiamiento/vigilancia):
+ * lo que cuesta cada mes por rubro (la factura de AWS por Cost Explorer, la tarifa de Cloudflare), lo que costó la IA en
+ * cada lectura, la meta del mes, lo recaudado y la historia mes a mes. Cada cifra dice de dónde sale; lo que no está, se
+ * dice.
  *
- * Rehecha el 2026-10-29 («texto y ya, nada de jerarquía»): las dos tablas de ancho fijo (34rem y 30rem) cortaban «Al
- * mes», «De dónde sale», «IA» y «Recaudado» en el celular, y ahora son la `Tabla` de todo listado; las cuatro tarjetas
- * iguales de la lectura con IA escondían una multiplicación, y ahora son la cuenta, renglón por renglón.
+ * Desde el 2026-11-13 en dos columnas desde xl (antes, cinco secciones una debajo de otra): a la izquierda las cuentas
+ * (rubros y mes a mes), a la derecha la meta, la lectura con IA y lo que no está en las cifras.
  */
-export default async function CuantoCuestaPage() {
+export async function SeccionCostos() {
   const v = await getVigilancia();
-  // Si la API no respondio, esta respuesta no se guarda en cache: antes el aviso de error quedaba servido como la pagina
-  // hasta la siguiente revalidacion (visto en produccion el 2026-11-13).
+  // Si la API no respondió, esta respuesta no se guarda en caché: antes el aviso de error quedaba servido como la página
+  // hasta la siguiente revalidación (visto en producción el 2026-11-13).
   if (!v) noStore();
+  if (!v) {
+    return <VacioEnLinea variante="compacta" tono="error">No pudimos leer los costos ahora. Vuelve a intentarlo en un momento.</VacioEnLinea>;
+  }
   return (
-    <Pagina>
-      <Migas
-        items={[
-          { etiqueta: "Inicio", href: "/app" },
-          { etiqueta: "Ayúdanos a seguir vigilando", href: "/app/apoyar" },
-          { etiqueta: "Cuánto cuesta Vigía", href: "/app/cuanto-cuesta" },
-        ]}
-      />
-      <EncabezadoPagina
-        titulo="Cuánto cuesta Vigía"
-        bajada="Lo que cuesta mantenerla cada mes, de dónde sale cada cifra y en qué se usa lo que aportas."
-        acciones={
-          <EnlaceAccion href="/app/apoyar" flecha prefetch={false}>
-            Aportar
-          </EnlaceAccion>
-        }
-      />
-      {!v ? (
-        <VacioEnLinea variante="compacta" tono="error">No pudimos leer los costos ahora. Vuelve a intentarlo en un momento.</VacioEnLinea>
-      ) : (
-        <div className="space-y-8">
-          <MetaDelMes v={v} conEnlace={false} />
+    <div className="space-y-5">
+      <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(0,24rem)] xl:items-start">
+        <div className="min-w-0 space-y-6">
           <Costos v={v} />
-          <LecturaIA v={v} />
           <MesAMes v={v} />
+        </div>
+        <div className="min-w-0 space-y-5">
+          <MetaDelMes v={v} conEnlace={false} />
+          <LecturaIA v={v} />
           <Seccion titulo="Lo que no está en estas cifras">
-            <ul className="space-y-2 text-dato leading-relaxed text-inkSoft">
-              <li className="flex gap-2">
-                <Info size={16} aria-hidden className="mt-1 shrink-0 text-inkSoft" />
+            <ul className="divide-y divide-line rounded-2xl border border-line bg-paper text-meta leading-snug text-inkSoft">
+              <li className="flex gap-2 px-3.5 py-2.5">
+                <Info size={15} aria-hidden className="mt-0.5 shrink-0 text-mute" />
                 Hoy AWS lo cubren créditos promocionales: las cifras de AWS son lo que costará cuando se acaben, no lo que se paga hoy.
               </li>
-              <li className="flex gap-2">
-                <Info size={16} aria-hidden className="mt-1 shrink-0 text-inkSoft" />
+              <li className="flex gap-2 px-3.5 py-2.5">
+                <Info size={15} aria-hidden className="mt-0.5 shrink-0 text-mute" />
                 La base de datos incluye una copia de pruebas, donde se revisa cada cambio antes de publicarlo.
               </li>
-              <li className="flex gap-2">
-                <Info size={16} aria-hidden className="mt-1 shrink-0 text-inkSoft" />
+              <li className="flex gap-2 px-3.5 py-2.5">
+                <Info size={15} aria-hidden className="mt-0.5 shrink-0 text-mute" />
                 No están el trabajo de quienes mantienen Vigía ni la IA de otras tareas (leer declaraciones juradas), que todavía no medimos.
               </li>
             </ul>
           </Seccion>
-          <FuenteDato
-            fuente={`Factura de AWS (Cost Explorer), tarifa de Cloudflare, costo medido en cada lectura y ${v.tipoCambio.fuente}`}
-          />
         </div>
-      )}
-    </Pagina>
+      </div>
+      <FuenteDato fuente={`Factura de AWS (Cost Explorer), tarifa de Cloudflare, costo medido en cada lectura y ${v.tipoCambio.fuente}`} />
+    </div>
   );
 }
 
@@ -224,7 +198,7 @@ function Costos({ v }: { v: ResumenVigilancia }) {
 /**
  * La lectura a fondo, como la cuenta que es: lo que cuesta leer un contrato por los contratos con banderas graves de un
  * mes. Antes eran cuatro tarjetas iguales (costo, lecturas del mes, graves y total) que escondían la multiplicación; ahora
- * son renglones con la línea de puntos del comprobante de /app/apoyar. «≈» y no «=»: el costo de una lectura es un
+ * son renglones con la línea de puntos del comprobante de la pestaña Aportar. «≈» y no «=»: el costo de una lectura es un
  * promedio (y se muestra redondeado) y los graves, el de tres meses. Lo de este mes va aparte, en la línea de arriba.
  */
 function LecturaIA({ v }: { v: ResumenVigilancia }) {
@@ -236,7 +210,7 @@ function LecturaIA({ v }: { v: ResumenVigilancia }) {
       titulo="La lectura a fondo con IA"
       descripcion="Leer el expediente de un contrato contra la norma, los precios de mercado y sus antecedentes. Se mide en cada lectura."
     >
-      <div className="max-w-xl space-y-3">
+      <div className="space-y-3">
         <figure className="rounded-2xl border border-line bg-paper">
           <figcaption className="border-b border-dashed border-line px-4 pb-3 pt-4">
             <span className="block font-display text-bloque font-bold text-ink">Leer a fondo lo más grave</span>

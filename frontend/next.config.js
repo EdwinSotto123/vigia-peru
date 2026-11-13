@@ -50,12 +50,26 @@ const nextConfig = {
   // Rutas viejas. Antes eran páginas con `redirect()`: se prerenderizaban, y en Workers salían como un 307 sin Location
   // (sólo redirigían con JavaScript; un buscador o un enlace sin JS se quedaba en una página vacía). /donar lleva al
   // aporte al fondo común desde el 2026-10-30.
+  //
+  // Desde el 2026-11-13 (auditoría visual: «saltar entre páginas»), dos fusiones. Apoyar, el podio de aliados, todos los
+  // aportes y cuánto cuesta son pestañas de /app/apoyar (`?seccion=`), y «Lo que falta leer» (/app/financiar) es una
+  // pestaña de Auditoría en vivo (`?seccion=falta`); las fichas /app/financiar/<zona|entidad|partido> siguen donde
+  // estaban. La consulta del enlace viejo pasa entera (paginación, búsqueda, filtros): Next la suma a la del destino.
   async redirects() {
+    const falta = "/app/auditoria?seccion=falta";
     return [
       { source: "/donar", destination: "/app/apoyar", permanent: false },
-      { source: "/financiar", destination: "/app/financiar", permanent: false },
+      { source: "/app/aliados", destination: "/app/apoyar?seccion=aliados", permanent: false },
+      { source: "/app/aliados/aportes", destination: "/app/apoyar?seccion=aportes", permanent: false },
+      { source: "/app/cuanto-cuesta", destination: "/app/apoyar?seccion=costos", permanent: false },
+      // Llegadas desde el mapa con la zona o la entidad ya elegida: directo a su ficha.
+      { source: "/app/financiar", has: [{ type: "query", key: "ubigeo", value: "(?<u>\\d{2}|\\d{4}|\\d{6})" }], destination: "/app/financiar/:u", permanent: false },
+      { source: "/app/financiar", has: [{ type: "query", key: "entidad", value: "(?<ruc>\\d{11})" }], destination: "/app/financiar/entidad/:ruc", permanent: false },
+      { source: "/app/financiar", destination: falta, permanent: false },
+      { source: "/app/financiar/entidad", destination: `${falta}&por=entidad`, permanent: false },
+      { source: "/app/financiar/partido", destination: `${falta}&por=partido`, permanent: false },
+      { source: "/financiar", destination: falta, permanent: false },
       { source: "/financiar/:ubigeo(\\d{2}|\\d{4}|\\d{6})", destination: "/app/financiar/:ubigeo", permanent: false },
-      { source: "/app/financiar/entidad", destination: "/app/financiar?por=entidad", permanent: false },
     ];
   },
   // En `next dev` no corre worker-prod.js: `/v1` (lo que el navegador le pide a la API, lib/api-client.ts) va directo a la

@@ -302,7 +302,7 @@ function Formulario({ perfil }: { perfil: Perfil }) {
           >
             <p className="mb-4 flex flex-wrap items-center gap-x-1 text-dato leading-5 text-inkSoft">
               <span>
-                Lo defines tú: así figuras en el <Link href="/app/aliados" className="font-medium text-granate underline underline-offset-2">ranking de aliados</Link>.
+                Lo defines tú: así figuras en el <Link href="/app/apoyar?seccion=aliados" className="font-medium text-granate underline underline-offset-2">ranking de aliados</Link>.
               </span>
               <Ayuda titulo="¿Para qué sirve el perfil público?">
                 Sólo importa si quieres aparecer en el ranking, tener tu página de aliado y figurar en los comprobantes de tus

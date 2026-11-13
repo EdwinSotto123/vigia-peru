@@ -118,7 +118,7 @@ export async function OrganizacionEntidad({ ruc, ruta, entidad }: { ruc: string;
       <Indicadores items={indicadores} />
       <section aria-labelledby="org-claves" className="space-y-3">
         <h3 id="org-claves" className="font-display text-bloque font-bold text-ink">Quién decide, compra y paga</h3>
-        <div className="grid gap-3 md:grid-cols-2">
+        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
           {tarjeta("La titular", <AyudaTermino clave="titular" />, titular ? [titular] : [], "Su tipo de entidad no está en la estructura que fija la ley")}
           {tarjeta("Aprueba las contrataciones (AGA)", <AyudaTermino clave="aga" />, aga ? [aga] : [], "La ley de su tipo de entidad no la nombra")}
           {claves.map((c) => (

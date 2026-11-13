@@ -272,7 +272,7 @@ export function PeruChoropleth({
     return out;
   }, [projection, deptPaths, provData]);
 
-  /** Qué nombres de departamento caben sobre el mapa (colocación codiciosa, ver mapa/geometria). */
+  /** Qué nombres de departamento caben sobre el mapa y dónde (colocación codiciosa, ver mapa/geometria). */
   const etiquetasVisibles = useMemo(() => colocarEtiquetas(deptPaths, regiones, fitScale), [deptPaths, regiones, fitScale]);
 
   // El encuadre final: el país entero o el departamento abierto. Todo lo que se dibuja a
@@ -624,7 +624,8 @@ export function PeruChoropleth({
               // su nombre es 17 veces su polígono), sólo si la colocación les dio lugar.
               if (!isSelected && !etiquetasVisibles.has(p.ubigeo)) return null;
 
-              const [cx, cy] = p.centroid;
+              // Donde la colocación le hizo lugar (a veces corrido del centroide para no encimarse con un vecino).
+              const [cx, cy] = (!isSelected && etiquetasVisibles.get(p.ubigeo)) || p.centroid;
               const relleno = regiones[p.ubigeo]?.color ?? COLOR.paper;
               const tinta = tintaSobre(relleno);
               const nivel = nivelDeEtiqueta(relleno);

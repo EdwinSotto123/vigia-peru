@@ -127,7 +127,9 @@ export function resumenCorto(n: NodoTraza, r: Recorrido, result: ApiResult): str
     }
     case "senales": {
       const a = respuesta(n, "persist_alert_from_flags");
-      if (a && nro(a.banderas_persistidas) != null) return `${plural(a.banderas_persistidas, "señal guardada", "señales guardadas")}${nro(a.score) != null ? `, puntaje ${numero(a.score)}` : ""}`;
+      // Lo que guardó ESE paso (las señales de las reglas), no el total: las del expediente y la red se suman después.
+      // Sin su puntaje, que es parcial: al lado del «100 de 100» de la cabecera se leía como otro puntaje (53).
+      if (a && nro(a.banderas_persistidas) != null) return `${plural(a.banderas_persistidas, "señal guardada", "señales guardadas")} en este paso`;
       break;
     }
     case "report_writer": {

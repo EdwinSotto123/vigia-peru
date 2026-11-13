@@ -115,7 +115,7 @@ export default async function AliadoPage({
 
   return (
     <div className="container-page space-y-6 py-6 sm:py-8">
-      <Volver href="/app/aliados">Ranking de aliados</Volver>
+      <Volver href="/app/apoyar?seccion=aliados">Podio de aliados</Volver>
 
       <PortadaAliado
         aliado={aliado}
@@ -123,7 +123,7 @@ export default async function AliadoPage({
         insignias={insignias}
         aportes={r.aportes}
         ruta={ruta}
-        hrefRanking="/app/aliados"
+        hrefRanking="/app/apoyar?seccion=aliados"
       />
 
       {/* Lo que hizo leer, cada cifra con su denominador. */}

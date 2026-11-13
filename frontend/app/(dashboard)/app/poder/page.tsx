@@ -15,7 +15,7 @@ export const metadata: Metadata = {
   alternates: canonica("/app/poder"),
 };
 
-// Los datos se cachean 10 minutos (`next.revalidate` en lib/poder); la página lee `?vista=`, así que se arma por pedido.
+// Los datos se cachean 10 minutos (`next.revalidate` en lib/poder); la página lee `?seccion=`, así que se arma por pedido.
 export const revalidate = 600;
 
 /**
@@ -27,8 +27,10 @@ export const revalidate = 600;
  * suyo al abrirse (components/entidad/PoderVista.tsx). Antes eran cinco consultas en cada visita.
  */
 export default async function PoderPage({ searchParams }: { searchParams?: Record<string, string | string[] | undefined> }) {
-  const vista = uno(searchParams?.vista);
-  const activa = vista && Object.keys(VISTAS_PODER).includes(vista) ? vista : undefined;
+  // La pestaña va en `?seccion=`, como en toda la app (antes `?vista=`, y `?seccion=entidades` abría Partidos): los
+  // enlaces viejos con `?vista=` siguen abriendo la suya.
+  const pedida = uno(searchParams?.seccion) ?? uno(searchParams?.vista);
+  const activa = pedida && Object.keys(VISTAS_PODER).includes(pedida) ? pedida : undefined;
   const r = await getPoderPartidos();
   const partidos = r?.data ?? [];
 
@@ -52,7 +54,7 @@ export default async function PoderPage({ searchParams }: { searchParams?: Recor
     <Pagina>
       <Migas
         items={[{ etiqueta: "Inicio", href: "/app" }, { etiqueta: "Mapa de poder", href: "/app/poder" }]}
-        pestanas={{ param: "vista", primera: "partidos", activa, etiquetas: VISTAS_PODER }}
+        pestanas={{ primera: "partidos", activa, etiquetas: VISTAS_PODER }}
       />
       <EncabezadoPagina
         titulo="Mapa de poder"

@@ -245,7 +245,9 @@ function pasosDelProceso({
       clave: "ofertas",
       fecha: fechaOfertas,
       cuando: fechaOfertas ? undefined : "Sin fecha en el registro",
-      titulo: n === 1 ? "Se presentó un solo postor" : n ? `Se presentaron ${numero(n)} postores` : "Presentación de ofertas",
+      // `n_postores` son los registrados del OCDS (los que ofertaron pueden ser menos: la ficha dice «15 participantes, 2
+      // ofertas»): «se registraron», como en la cabecera, y no «se presentaron 15 postores».
+      titulo: n === 1 ? "Se registró un solo participante" : n ? `Se registraron ${numero(n)} participantes` : "Presentación de ofertas",
       detalle:
         ventana || nombres ? (
           <>
@@ -281,7 +283,9 @@ function pasosDelProceso({
       ),
       detalle: oraciones([
         adjudicado !== null && `Por ${montoDossier(adjudicado)}${frente ? `, ${frente}` : ""}`,
-        ganadorEnActa?.puntaje != null && Number.isFinite(Number(ganadorEnActa.puntaje)) && `Puntaje ${numero(Number(ganadorEnActa.puntaje))} en la evaluación`,
+        ganadorEnActa?.puntaje != null && Number.isFinite(Number(ganadorEnActa.puntaje)) && // Los puntos que el comité le dio a la oferta en el acta (pueden pasar de 100 con las bonificaciones de ley): no
+        // es el puntaje de riesgo de Vigía, que va de 0 a 100. Antes decía «Puntaje 105», junto a un «puntaje 100 de 100».
+        `Su oferta obtuvo ${numero(Number(ganadorEnActa.puntaje))} puntos en la evaluación del comité`,
         lugarActa?.lugar && `Acta firmada en ${tituloNatural(String(lugarActa.lugar))}${lugarActa.hora ? `, a las ${lugarActa.hora}` : ""}`,
       ]),
     });

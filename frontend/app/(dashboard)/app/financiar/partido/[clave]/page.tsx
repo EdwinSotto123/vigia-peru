@@ -107,8 +107,8 @@ export default async function FinanciarPartidoPage({
       <Migas
         items={[
           { etiqueta: "Inicio", href: "/app" },
-          { etiqueta: "Lo que falta leer", href: "/app/financiar" },
-          { etiqueta: "Por partido", href: `/app/financiar?por=partido&anio=${anio}` },
+          { etiqueta: "Auditoría en vivo", href: "/app/auditoria" }, { etiqueta: "Lo que falta leer", href: "/app/auditoria?seccion=falta" },
+          { etiqueta: "Por partido", href: `/app/auditoria?seccion=falta&por=partido&anio=${anio}` },
           { etiqueta: nombre },
         ]}
       />
@@ -170,7 +170,7 @@ export default async function FinanciarPartidoPage({
               Lo más grave se lee primero, sea del gobierno que sea, y los resultados se publican aunque señalen a quien
               aportó.
             </Ayuda>
-            <Link href="/app/financiar#independencia" className="font-medium text-granate underline underline-offset-2">Reglas de independencia</Link>
+            <Link href="/app/apoyar#independencia" className="font-medium text-granate underline underline-offset-2">Reglas de independencia</Link>
           </p>
           <Aviso tono="neutro">
             Estos contratos se asocian al partido que ganó la elección de ese período. Una señal es un motivo para revisar un
@@ -193,7 +193,7 @@ export default async function FinanciarPartidoPage({
 function NoSePudoLeer({ clave, anio }: { clave: string; anio: number }) {
   return (
     <FichaNoLeida
-      migas={[{ etiqueta: "Inicio", href: "/app" }, { etiqueta: "Lo que falta leer", href: "/app/financiar" }, { etiqueta: "Por partido", href: `/app/financiar?por=partido&anio=${anio}` }]}
+      migas={[{ etiqueta: "Inicio", href: "/app" }, { etiqueta: "Auditoría en vivo", href: "/app/auditoria" }, { etiqueta: "Lo que falta leer", href: "/app/auditoria?seccion=falta" }, { etiqueta: "Por partido", href: `/app/auditoria?seccion=falta&por=partido&anio=${anio}` }]}
       titulo="¿Cómo contrataron los gobiernos de este partido?"
       error="No pudimos leer la cola de este partido"
       reintentar={{ href: `/app/financiar/partido/${encodeURIComponent(clave)}?anio=${anio}` }}

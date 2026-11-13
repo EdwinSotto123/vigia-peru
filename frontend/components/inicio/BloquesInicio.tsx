@@ -1,7 +1,6 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { ChevronRight, Info, RotateCw } from "lucide-react";
-import { Seccion } from "@/components/patrones/Estructura";
 import { IconoBandera } from "@/components/ui/IconoBandera";
 import { ICONO_NIVEL } from "@/components/ui/Severidad";
 import { tituloNatural } from "@/lib/landing";
@@ -18,11 +17,11 @@ import { PISTA, type ParteBarra } from "./BarraPartes";
  * en el navegador: el Inicio de una región es de cliente).
  * Colores sólo con los tokens del tema (DESIGN_SYSTEM.md): nada de hex.
  *
- * Dos formas de armar un Inicio:
- *   · `RejillaInicio` + `BloqueInicio`: bloques del mismo peso en dos columnas (partido, región).
- *   · `SubseccionInicio` (h2) con sus `BloqueInicio nivel={3}` adentro: el orden de la ficha (§14.2) "qué se encontró
- *     → dinero → control", con la columna lateral aparte (entidad). La rejilla de bloques iguales «no dice nada»: el
- *     dueño no encontraba qué mirar primero (2026-10-26).
+ * El Inicio de las fichas (entidad, región, partido) se arma con components/inicio/ResumenFicha.tsx (cifras, las tres
+ * señales que más pesan, quién gobierna y «Ver más», en una pantalla). Estas piezas son lo de adentro (las listas de
+ * banderas, los repartos, las barras) y los bloques del panel de zona del mapa (`RejillaInicio` + `BloqueInicio`).
+ * Hasta el 2026-11-13 el Inicio apilaba subsecciones (`SubseccionInicio`: «qué se encontró → dinero → control») y una
+ * línea por lo que no tenía dato (`LineasSinDato`): 4.8 pantallas en una entidad. Se quitaron.
  */
 
 /**
@@ -35,40 +34,11 @@ export function RejillaInicio({ children, className }: { children: ReactNode; cl
 }
 
 /** El "Ver …  ›" de la cabecera de un bloque o una subsección: lleva a la pestaña o la lista con el detalle. */
-function EnlaceInicio({ href, texto }: { href: string; texto: string }) {
+export function EnlaceInicio({ href, texto }: { href: string; texto: string }) {
   return (
     <Link href={href} prefetch={false} className="inline-flex min-h-8 shrink-0 items-center gap-0.5 text-meta font-semibold text-granate underline-offset-4 hover:underline">
       {texto} <ChevronRight size={14} aria-hidden />
     </Link>
-  );
-}
-
-/**
- * Una subsección del Inicio de una ficha ("Qué se encontró", "Dinero", "Control"): su título (h2), una línea y su ⓘ;
- * adentro, sus bloques con título h3 (`BloqueInicio nivel={3}`). Es `Seccion` del kit con el ritmo del Inicio.
- */
-export function SubseccionInicio({
-  titulo,
-  descripcion,
-  ayuda,
-  enlace,
-  id,
-  children,
-}: {
-  titulo: string;
-  /** Una línea, o nada: lo demás va en `ayuda`. */
-  descripcion?: ReactNode;
-  ayuda?: ReactNode;
-  enlace?: { href: string; texto: string };
-  id?: string;
-  children: ReactNode;
-}) {
-  return (
-    <Seccion id={id} titulo={titulo} descripcion={descripcion} ayuda={ayuda} acciones={enlace ? <EnlaceInicio {...enlace} /> : undefined}>
-      {/* Dos columnas desde lg: apiladas, las tarjetas del Inicio de una entidad median 5,7 pantallas en una columna con el
-          resto del ancho vacio (auditoria del 2026-11-13). Cada tarjeta mide lo suyo (`items-start`). */}
-      <div className="space-y-4 lg:columns-2 lg:gap-4 lg:space-y-0 [&>*]:break-inside-avoid lg:[&>*]:mb-4 lg:[&>.grid]:[column-span:all]">{children}</div>
-    </Seccion>
   );
 }
 
@@ -89,7 +59,7 @@ export function BloqueInicio({
   ancho?: boolean;
   /**
    * 2 (por defecto): el bloque es una sección de la pestaña Inicio (bajo el h1 de la ficha no hay otro nivel).
-   * 3: va dentro de una `SubseccionInicio`, que ya pone el h2.
+   * 3: va dentro de una sección que ya pone el h2.
    */
   nivel?: 2 | 3;
   /** Un bloque sin dato va con `lg:self-start`: no se estira al alto del vecino (una tarjeta grande y vacía). */
@@ -110,31 +80,6 @@ export function BloqueInicio({
       </header>
       {children}
     </section>
-  );
-}
-
-/** Una tarjeta de primer nivel sin título propio: cuando la subsección ya lo pone (h2) y adentro va una sola pieza. */
-export function TarjetaInicio({ children, className }: { children: ReactNode; className?: string }) {
-  return <div className={`tarjeta min-w-0 rounded-2xl border border-line bg-paper p-4 sm:p-5${className ? ` ${className}` : ""}`}>{children}</div>;
-}
-
-/**
- * Lo que no tiene dato, al final del Inicio y en una línea cada uno: "En qué gasta: Sin dato…". Antes era una tarjeta
- * vacía del mismo tamaño que las llenas (y «En qué gasta» sin presupuesto ocupaba el primer lugar).
- */
-export function LineasSinDato({ items }: { items: { titulo: string; motivo: ReactNode }[] }) {
-  if (!items.length) return null;
-  return (
-    <ul className="space-y-1.5 border-t border-line pt-4" aria-label="Lo que no tiene dato">
-      {items.map((i) => (
-        <li key={i.titulo} className="flex items-start gap-2 text-meta leading-snug text-mute">
-          <Info size={14} className="mt-0.5 shrink-0" aria-hidden />
-          <span className="min-w-0">
-            <span className="font-semibold text-inkSoft">{i.titulo}:</span> {i.motivo}
-          </span>
-        </li>
-      ))}
-    </ul>
   );
 }
 

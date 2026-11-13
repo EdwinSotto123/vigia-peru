@@ -247,7 +247,7 @@ function Competidores({ postores, conActa, nPostores }: { postores: any[]; conAc
       <h3 id="relato-competidores" className="flex flex-wrap items-baseline gap-x-2 font-display text-cuerpo font-bold text-ink">
         Con quién compitió
         <span className="font-sans text-rotulo font-normal text-mute">
-          {numero(n)} postores en el registro del OECE{conActa ? "; la oferta y el puntaje, del acta de buena pro" : ""}
+          {numero(n)} participantes en el registro del OECE{conActa ? "; la oferta y los puntos de la evaluación, del acta de buena pro" : ""}
         </span>
       </h3>
       <ul className="mt-2 divide-y divide-line/70">
@@ -255,7 +255,8 @@ function Competidores({ postores, conActa, nPostores }: { postores: any[]; conAc
           const gano = p.ganador === true || p.es_ganador === true;
           const datos = [
             Number(p.monto_ofertado) > 0 ? `ofertó ${montoDossier(p.monto_ofertado)}` : null,
-            p.puntaje != null && Number.isFinite(Number(p.puntaje)) ? `puntaje ${numero(Number(p.puntaje))}` : null,
+            // Los puntos de la evaluación del comité (acta), no el puntaje de riesgo de Vigía (0 a 100).
+            p.puntaje != null && Number.isFinite(Number(p.puntaje)) ? `${numero(Number(p.puntaje))} puntos en la evaluación` : null,
             p.admitida === false ? "oferta no admitida" : null,
             p.motivo_fuera ? `quedó fuera: ${String(p.motivo_fuera)}` : null,
           ].filter((x): x is string => Boolean(x));

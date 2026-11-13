@@ -1,20 +1,12 @@
 import type { Metadata } from "next";
 import { canonica } from "@/lib/seo";
-import { OjoPixel } from "@/components/marca";
 import { PixelReveal } from "@/components/ui/PixelReveal";
-import { numero } from "@/lib/formato";
-import { EnlaceAccion } from "@/components/landing/EnlaceAccion";
 import { HeroPixel } from "@/components/landing/HeroPixel";
 import { EscalaDinero } from "@/components/landing/EscalaDinero";
-import { CasoLeido } from "@/components/landing/CasoLeido";
-import { PipelineAgentes } from "@/components/landing/PipelineAgentes";
-import { FuentesSection } from "@/components/landing/FuentesSection";
-import { CasosReales } from "@/components/landing/CasosReales";
-import { PodioPortada } from "@/components/landing/PodioPortada";
+import { CasoLeido, type CasoConDetalle } from "@/components/landing/CasoLeido";
+import { ComoFunciona } from "@/components/landing/ComoFunciona";
 import { PartidosSeccion } from "@/components/landing/PartidosSeccion";
 import { Participar } from "@/components/landing/Participar";
-import { ConfianzaSection } from "@/components/landing/ConfianzaSection";
-import { ExpansionSection } from "@/components/landing/ExpansionSection";
 import { PausaFueraDePantalla } from "@/components/landing/PausaFueraDePantalla";
 import { getAlertas } from "@/lib/api-client";
 import { getEstadoGlobal, getRankingPaginado, getVigilancia } from "@/lib/financiamiento";
@@ -41,19 +33,18 @@ export const metadata: Metadata = {
 };
 
 /**
- * La portada cuenta una historia, en este orden:
+ * La portada cuenta una historia, en este orden (2026-11-13: de once bandas a seis; medía 15 pantallas en escritorio
+ * y 24 en el celular, con bandas vacías, carruseles cortados en el borde y el mismo mensaje dicho dos y tres veces):
  *
- *  1. Qué es (HeroPixel). El ojo de puntos se agranda, la pantalla se disuelve en píxeles y del otro lado está…
- *  2. El problema (EscalaDinero): miles de millones en contratos, casi nada leído, en una fila de cifras que se desliza.
- *  3. La respuesta (PartidosSeccion): UN solo mapa con tres lecturas (quién gobierna, cuánto se contrata y
- *     qué tanto vigilamos) y los partidos en una fila que se desliza. Es el único mapa de la portada.
- *  4. Quién lo hace posible (PodioPortada): el podio de quienes la sostienen, lo que cuesta y por qué aportar no compra nada.
- *  5. Qué hace Vigía, con un contrato real (CasoLeido).
- *  6. Cómo lo hace, en palabras de persona (PipelineAgentes).
- *  7. De dónde sale lo que dice (FuentesSection).
- *  8. Lo que ya encontró (CasosReales).
- *  9. Cómo sumarse sin financiar (Participar).
- * 10. Por qué creerle (ConfianzaSection), adónde va (ExpansionSection), y el cierre.
+ *  1. Qué es (HeroPixel): la pregunta, qué hace Vigía y cómo se sostiene, con el ojo de puntos al lado.
+ *  2. El problema (EscalaDinero): miles de contratos, casi nada leído, como tablero: la franja de puntos, los tipos con
+ *     su barra, las seis cifras a la vista y lo que cuesta no leerlos.
+ *  3. La respuesta (PartidosSeccion): UN solo mapa con tres lecturas (quién gobierna, cuánto se contrata y qué tanto
+ *     vigilamos) y la tabla de partidos. Es el único mapa de la portada.
+ *  4. Lo que ya encontró (CasoLeido): casos reales como pestañas, y el elegido leído en cuatro pasos.
+ *  5. Cómo trabaja (ComoFunciona), en pestañas: qué revisa, de dónde sale cada dato y por qué creerle.
+ *  6. Cómo sumarse (Participar): la cifra que espera, aportar, denunciar o investigar, lo que cuesta, por qué aportar no
+ *     compra nada y adónde va.
  *
  * Toda cifra sale del API. Si una lectura falla, la sección que depende de ella
  * no se dibuja: una portada que estima lo que no sabe es exactamente lo que este
@@ -112,17 +103,17 @@ export default async function LandingPage() {
   // La escala es del año en curso, como todas las cifras de la portada; el ⓘ lo dice.
   const anioEscala: AnioEscala | null = resumen && publicados > 0 ? { anio, enAnio: publicados } : null;
 
-  const [casoPrincipal, ...otrosCasos] = elegirCasos(alertas, 4);
-  const reglaCaso = casoPrincipal ? reglaDelCaso(alertas, casoPrincipal) : null;
-  const otrasDelCaso = casoPrincipal ? otrasSenalesDelCaso(alertas, casoPrincipal, reglaCaso) : [];
-  // Cada caso de «Lo que ya encontró» lleva de título el nombre de su regla (antes, la región).
-  const casosConRegla = otrosCasos.map((c) => ({ ...c, regla: reglaDelCaso(alertas, c) }));
+  // Cada caso de «Lo que ya encontró» lleva de título el nombre de su regla y, por su nombre, sus otras señales de proceso.
+  const casos: CasoConDetalle[] = elegirCasos(alertas, 4).map((c) => {
+    const regla = reglaDelCaso(alertas, c);
+    return { ...c, regla, otras: otrasSenalesDelCaso(alertas, c, regla) };
+  });
 
   return (
     <>
       <HeroPixel aliados={clasificar(ranking?.data ?? []).slice(0, 3)} piso={vigilancia?.meta.pisoPen ?? null} />
 
-      {/* El pitch en dos secciones. A: el problema, en cifras que se deslizan. */}
+      {/* El pitch en dos secciones. A: el problema, como tablero de cifras. */}
       {publicados > 0 && montoTotal > 0 && (
         <EscalaDinero
           montoTotal={montoTotal}
@@ -132,42 +123,25 @@ export default async function LandingPage() {
           tipos={tiposEscala}
           anio={anioEscala}
           financiables={estado?.colaGlobal ?? null}
-          precioPen={estado?.tarifa.precioPen ?? null}
           regionesConLectura={regiones?.length ? regiones.filter((z) => z.procesados > 0).length : null}
         />
       )}
 
-      {/* B: la respuesta, un solo mapa con tres lecturas y los partidos en una fila que se desliza. El revelado en píxeles
-          va sólo aquí y en el cierre: en nueve secciones dejaba de ser un momento y era un efecto repetido. */}
+      {/* B: la respuesta, un solo mapa con tres lecturas y la tabla de partidos. El revelado en píxeles va sólo aquí: en
+          nueve secciones dejaba de ser un momento y era un efecto repetido. */}
       <PixelReveal desde="izquierda" celda={30}>
         <PartidosSeccion />
       </PixelReveal>
 
-      {/* La prueba antes del pedido (2026-10-29): un caso leído entero y los demás hallazgos, juntos; después cómo se
-          lee, con qué fuentes y con qué reglas; recién entonces quién la sostiene. */}
-      {casoPrincipal && <CasoLeido caso={casoPrincipal} regla={reglaCaso} otras={otrasDelCaso} leidos={leidos} />}
+      {/* La prueba antes del pedido (2026-10-29): los casos leídos; después cómo se lee, con qué fuentes y con qué
+          reglas; recién entonces cómo sumarse. */}
+      <CasoLeido casos={casos} leidos={leidos} />
 
-      <CasosReales casos={casosConRegla} />
+      {/* «En revisión»: la misma cuenta que el gráfico de señales del mapa de fuentes (resumen de contratos). El estado
+          global contaba otro universo y la portada decía 12 en una sección y 14 en otra. */}
+      <ComoFunciona cifras={cifrasFuentes} enRevision={r ? (r.en_revision ?? 0) : null} />
 
-      <PipelineAgentes />
-
-      <FuentesSection cifras={cifrasFuentes} />
-
-      {/* La misma cuenta que el gráfico de señales del mapa de fuentes (resumen de
-          contratos). El estado global contaba otro universo y la portada decía 12
-          en una sección y 14 en otra. */}
-      <ConfianzaSection enRevision={r ? (r.en_revision ?? 0) : null} />
-
-      {/* Quién la sostiene: el podio, lo que cuesta y por qué aportar no compra nada, en una sola sección. */}
-      <PodioPortada />
-
-      <Participar />
-
-      <ExpansionSection />
-
-      <PixelReveal desde="centro" celda={32}>
-        <CierreLanding enCola={estado?.colaGlobal ?? null} />
-      </PixelReveal>
+      <Participar enCola={estado?.colaGlobal ?? null} />
 
       {/* Las animaciones en bucle de cada bloque corren sólo cuando el bloque está cerca de la pantalla. */}
       <PausaFueraDePantalla />
@@ -261,46 +235,4 @@ function tiposConResto(total: number, porTipo: Partial<Record<string, number>>):
   const etiqueta =
     sinClasificar <= 0 ? "Otros tipos" : sinClasificar >= resto ? "Sin clasificar" : "Otros tipos o sin clasificar";
   return [...top, { etiqueta, n: resto, resto: true }];
-}
-
-/**
- * El cierre: una cifra real y las dos acciones que importan. Es el momento de
- * marca de la portada: una banda carbón con el ojo de puntos al lado del titular. El
- * ojo no acompaña ninguna señal ni ningún nombre: acompaña la invitación.
- *
- * Sin franja textil propia: el pie abre con la suya ochenta píxeles más abajo,
- * y son una por pantalla (§6).
- */
-function CierreLanding({ enCola }: { enCola: number | null }) {
-  return (
-    <section aria-labelledby="cierre-titulo" className="container-page pt-16">
-      <div className="sobre-oscuro relative isolate overflow-hidden rounded-2xl bg-granate-deep text-paper">
-        <div className="grid items-end gap-8 px-6 pb-10 pt-12 sm:px-12 sm:pt-16 lg:grid-cols-[auto_minmax(0,1fr)] lg:gap-14 lg:px-14">
-          {/* La llama, decorativa: en el celular va chica arriba del titular;
-              desde lg, grande a la izquierda, con las patas en el borde de la
-              placa (baja exactamente el pb-10 de la grilla). */}
-          <OjoPixel animado tamano={220} className="h-auto w-28 sm:w-40 lg:w-56 lg:translate-y-4" />
-          <div className="lg:pb-6">
-            <h2 id="cierre-titulo" className="max-w-[20ch] text-balance font-display text-4xl font-extrabold leading-[1.05] sm:text-5xl lg:text-6xl">
-              {enCola != null && enCola > 0
-                ? `Hay ${numero(enCola)} contratos esperando que alguien los lea.`
-                : "Empieza por los contratos de tu región."}
-            </h2>
-            <p className="mt-5 max-w-[48ch] text-pretty text-bloque leading-relaxed text-paper/80">
-              Detrás de cada uno hay una pista, un colegio o un hospital. Mira qué se contrata donde vives, ayúdanos a seguir
-              vigilando o denuncia la obra que tienes enfrente.
-            </p>
-            <div className="mt-8 flex flex-wrap items-center gap-3">
-              <EnlaceAccion href="/app/apoyar" variante="oscuro" tamano="lg">
-                Ayúdanos a seguir vigilando
-              </EnlaceAccion>
-              <EnlaceAccion href="/app/mapa" variante="contornoOscuro" tamano="lg" flecha={false}>
-                Ver mi región
-              </EnlaceAccion>
-            </div>
-          </div>
-        </div>
-      </div>
-    </section>
-  );
 }

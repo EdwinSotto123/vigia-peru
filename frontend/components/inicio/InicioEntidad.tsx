@@ -1,76 +1,57 @@
-import { Suspense, type ReactNode } from "react";
-import Link from "next/link";
-import { ChevronRight, Flag, Landmark, MapPin } from "lucide-react";
-import { ExternalLink } from "@/components/ui/iconosCliente";
+import { Suspense } from "react";
+import { Briefcase, Building2, FileSearch, FileText, Flag, HardHat, Landmark, MapPin, Network, UserRoundSearch, Users, Wallet } from "lucide-react";
 import { Ayuda } from "@/components/patrones/Ayuda";
-import { DatosClave, type DatoClave } from "@/components/patrones/Detalle";
-import { Nota } from "@/components/patrones/Estructura";
+import { DatosClave } from "@/components/patrones/Detalle";
+import { FuenteDato } from "@/components/patrones/Estructura";
 import { Indicadores, type Indicador } from "@/components/listado";
 import { Skeleton } from "@/components/ui/Skeleton";
-import { EmpresasLigadas, QuienGobierna, TIPOS_CAPTURA, filaCaptura } from "@/components/entidad/CapturaEntidad";
-import { QuienDecide } from "@/components/entidad/QuienDecide";
+import { EmpresasLigadas, FUENTE_GOBIERNO, TIPOS_CAPTURA, datosQuienGobierna } from "@/components/entidad/CapturaEntidad";
+import { AyudaQuienDecide, ListaFuncionarios, datosQuienDecide, otrosFuncionarios } from "@/components/entidad/QuienDecide";
 import { getEstructuraEntidad, getGastoEntidad, type ConteosEntidad, type NepotismoEntidad } from "@/lib/api-client";
 import { getCorrupcionEntidad } from "@/lib/corrupcion";
 import type { ResumenContratos } from "@/lib/contratos";
-import { numero, plural, solesCompacto } from "@/lib/formato";
-import { getPersonas, PARAMS_EN_FICHA, SENAL, type ResumenPersonas } from "@/lib/personas";
+import { numero, plural, porcentaje, solesCompacto } from "@/lib/formato";
+import { tituloNatural } from "@/lib/landing";
+import { getResumenObras } from "@/lib/obras";
+import { getPersonas, PARAMS_EN_FICHA } from "@/lib/personas";
 import { getPoderEntidad, getPoderGrafoEntidad } from "@/lib/poder";
 import { rutaRegion } from "@/lib/regiones";
-import {
-  Banderas,
-  BarrasGasto,
-  BloqueInicio,
-  LineasSinDato,
-  SubseccionInicio,
-  TarjetaInicio,
-  hayLectura,
-  partesPorLectura,
-  partesPorTipo,
-  type FilaConteo,
-} from "./BloquesInicio";
-import { BarraPartes, type ParteBarra } from "./BarraPartes";
-import { ContenidoPersonas } from "./ContenidoPersonas";
-import { ResumenContraloria } from "./CasosCorrupcion";
-import { NepotismoInicio } from "./NepotismoInicio";
-import { ObrasInicio } from "@/components/obras/ObrasInicio";
 import { TIPOS_OBRA } from "@/lib/cruces";
+import { NepotismoInicio } from "./NepotismoInicio";
+import { hallazgosContratos, hallazgosObras, hallazgosPersonas } from "./hallazgos";
+import { CajaResumen, HallazgosClave, ListaMas, RejillaResumen, elegirHallazgos, type FilaMas } from "./ResumenFicha";
 
 /**
- * Inicio de una entidad (/entidad/[ruc], primera pestaña), con la plantilla de ficha (DESIGN_SYSTEM.md §14.2) y el
- * molde de la del contrato (ContratoDetalle: columna lateral fija):
+ * Inicio de una entidad (/entidad/[ruc], primera pestaña), en UNA pantalla de escritorio (pedido del dueño del
+ * 2026-11-13). Sus banderas van en la cabecera de la ficha; aquí:
  *
- *   columna principal                                   columna lateral (fija al bajar)
- *   ├─ Qué se encontró   banderas de sus contratos      ├─ Quién la gobierna (partido, autoridad, período)
- *   │                    (con la captura política),     ├─ Quién aprueba sus contratos (la AGA y quién la ocupa)
- *   │                    las empresas ligadas a la      ├─ Ver también
- *   │                    gestión y las de las personas  └─ Dónde comprobarlo (los registros oficiales; antes,
- *   ├─ Dinero            en qué gasta (MEF) y sus          enlaces sueltos al pie de la página)
- *   │                    contratos (por tipo y su lectura, en barras con su leyenda)
- *   ├─ Control           la Contraloría (4 cifras, los 3 últimos informes, "Ver los N") y, en una nota, dónde
- *   │                    están los casos de la Procuraduría (son de su región, no de la entidad)
- *   └─ lo que no tiene dato, una línea cada uno
+ *   las cifras de la ficha (contratos, antecedentes, órdenes, presupuesto: cada una abre su lista)
+ *   ┌ Señales para revisar ─────────────┐ ┌ Quién la gobierna ───────────────┐
+ *   │ las tres que más pesan, de sus     │ │ partido, autoridad, período, quién│
+ *   │ contratos, su gente y sus obras    │ │ aprueba sus contratos y lo ocupa  │
+ *   └────────────────────────────────────┘ └───────────────────────────────────┘
+ *   ┌ Ver más ───────────────────────────────────────────────────────────────────┐
+ *   │ una fila por pestaña con su cifra clave (compras, personas, obras, gasto,  │
+ *   │ control) y, en un panel al costado, lo que no tiene pestaña: las empresas  │
+ *   │ ligadas a la gestión, los parientes que le venden, sus altos funcionarios, │
+ *   │ dónde comprobarlo (los registros oficiales)                                │
+ *   └─────────────────────────────────────────────────────────────────────────────┘
  *
- * Antes: diez bloques del mismo peso en dos columnas, lo que explica el poder al final (a 3,500 px), ~600 px de
- * cifras de la Procuraduría que "no son de esta entidad" y "En qué gasta" vacío en el primer lugar (evaluación
- * 2026-10-26). Las cifras de la ficha (contratos desde 2015, antecedentes, órdenes, presupuesto) van arriba, sólo aquí:
- * en las otras pestañas eran media pantalla del celular antes de la lista (como en la ficha de una empresa).
- *
- * Dos columnas desde xl, no desde lg: con la barra lateral del sitio (256 px), a 1024 px la columna principal quedaba
- * en ~316 px. Entre sm y xl, lo lateral va debajo, en dos columnas; salvo quién la gobierna, que va justo después de las
- * cifras (en el celular quedaba al final, a 6.8 pantallas).
+ * Antes: «Qué se encontró», «Dinero» y «Control» uno debajo del otro, con la lista de banderas de sus contratos, la de
+ * sus personas, la de sus obras, la tabla de empresas ligadas, la de parientes, en qué gasta y los informes de la
+ * Contraloría: 4.8 pantallas de escritorio y ~10 de celular, y casi todo estaba también en su pestaña (auditoría del
+ * 2026-11-13). Las señales que ya son banderas de la cabecera (la captura, el nepotismo) no se repiten aquí.
  */
 export function InicioEntidad({
   ruc,
   ruta,
   cifras,
   resumen,
-  enCola,
   conteos,
   region,
   ubigeo,
   regionDenuncias,
   nepotismo,
-  fueraDelMef = false,
   fuentes,
 }: {
   ruc: string;
@@ -78,360 +59,284 @@ export function InicioEntidad({
   /** Las cifras de la ficha (`Indicadores`). */
   cifras: Indicador[];
   resumen: ResumenContratos | null;
-  enCola: number;
-  /** Cuántas órdenes y contratos menores tiene (GET /entidades/:ruc/conteos); null si no respondió. */
+  /** Ya no se usa aquí (va en la cifra de sus contratos): se acepta para no romper la llamada. */
+  enCola?: number;
+  /** Cuántas filas tiene cada pestaña (GET /entidades/:ruc/conteos); null si no respondió. */
   conteos: ConteosEntidad | null;
   /** Su departamento, por nombre ("Lima"). */
   region: string | null;
-  /** Su ubigeo ("150101"): los dos primeros dígitos son su región (la ficha de la región, la Procuraduría). */
+  /** Su ubigeo ("150101"): los dos primeros dígitos son su región. */
   ubigeo: string | null;
   /** El nombre de su región como lo usa /app/denuncias, si se reconoce. */
   regionDenuncias?: string;
-  /** Parientes declarados en la DJI que son locadores de esta entidad (indicio). Va con las banderas de las personas. */
+  /** Parientes declarados en la DJI que son locadores de esta entidad: el panel de su fila de «Ver más». */
   nepotismo: NepotismoEntidad | null;
-  /** Fuera del SIAF o empresa del Estado: su presupuesto no está en los datos abiertos del MEF (no es que falte). */
+  /** Ya no se usa aquí (lo explica la pestaña Cuánto gasta): se acepta para no romper la llamada. */
   fueraDelMef?: boolean;
-  /** De dónde salen sus datos y dónde comprobarlos en cada registro oficial: la tarjeta «Dónde comprobarlo» del lateral. */
+  /** De dónde salen sus datos y dónde comprobarlos en cada registro oficial (el panel «Dónde comprobarlo»). */
   fuentes?: Fuentes;
 }) {
   return (
-    <div className="space-y-8">
+    <div className="space-y-4">
+      <h2 className="sr-only">Resumen de la entidad</h2>
       <Indicadores items={cifras} />
-      {/* Desde xl, quien la gobierna y quien decide van en una fila de tres tarjetas ARRIBA, y el contenido usa todo el
-          ancho en dos columnas. Antes iban en un carril derecho de 20rem que se acababa al tercer bloque y dejaba una
-          tira vacia de unos 3 000 px (auditoria del 2026-11-13). */}
-      <div className="flex flex-col gap-y-10">
-        {/* Hasta xl, quién la gobierna antes que todo lo demás; desde xl, en la columna lateral (Lateral). */}
-        <Suspense fallback={null}>
-          <GobiernaArriba ruc={ruc} />
-        </Suspense>
-        <div className="min-w-0 space-y-10">
-          <Suspense fallback={<EsqueletoPrincipal />}>
-            <Principal ruc={ruc} ruta={ruta} resumen={resumen} enCola={enCola} conteos={conteos} region={region} ubigeo={ubigeo} nepotismo={nepotismo} fueraDelMef={fueraDelMef} />
-          </Suspense>
-        </div>
-        {/* Fija al bajar, con su propio scroll si no entra (un ministerio con muchos funcionarios). */}
-        <aside
-          aria-label="Quién la gobierna, quién decide y dónde comprobarlo"
-          className="grid min-w-0 items-start gap-4 sm:grid-cols-2 xl:order-first xl:grid-cols-4"
-        >
-          <Suspense fallback={<Skeleton className="h-48 rounded-2xl" />}>
-            <Lateral ruc={ruc} region={region} ubigeo={ubigeo} regionDenuncias={regionDenuncias} fuentes={fuentes} />
-          </Suspense>
-        </aside>
-      </div>
+      <Suspense fallback={<EsqueletoResumen />}>
+        <Resumen
+          ruc={ruc}
+          ruta={ruta}
+          resumen={resumen}
+          conteos={conteos}
+          region={region}
+          ubigeo={ubigeo}
+          regionDenuncias={regionDenuncias}
+          nepotismo={nepotismo}
+          fuentes={fuentes}
+        />
+      </Suspense>
     </div>
   );
 }
 
-/** Quién la gobierna, primero, hasta xl (después va en la columna lateral). Sin autoridad electa (un ministerio), nada. */
-async function GobiernaArriba({ ruc }: { ruc: string }) {
-  // El mismo `fetch` que la columna principal y la lateral: Next lo hace una sola vez.
-  const poder = await getPoderEntidad(ruc);
-  if (!poder?.partido) return null;
-  return (
-    <div className="min-w-0 xl:hidden">
-      <QuienGobierna poder={poder} />
-    </div>
-  );
-}
-
-function EsqueletoPrincipal() {
+/** Mientras llega: la forma de las tres cajas (nunca «Sin dato» provisional). */
+export function EsqueletoResumen() {
   return (
     <div className="space-y-4" aria-hidden>
-      <Skeleton className="h-7 w-56" />
-      <Skeleton className="h-72 rounded-2xl" />
-      <Skeleton className="h-48 rounded-2xl" />
+      <RejillaResumen className="xl:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
+        <Skeleton className="h-60 rounded-xl" />
+        <Skeleton className="h-60 rounded-xl" />
+      </RejillaResumen>
+      <Skeleton className="h-44 rounded-xl" />
     </div>
   );
 }
 
-// ─── Columna principal ───────────────────────────────────────────────────────
-
-async function Principal({
+async function Resumen({
   ruc,
   ruta,
   resumen,
-  enCola,
   conteos,
   region,
   ubigeo,
+  regionDenuncias,
   nepotismo,
-  fueraDelMef,
+  fuentes,
 }: {
   ruc: string;
   ruta: string;
   resumen: ResumenContratos | null;
-  enCola: number;
   conteos: ConteosEntidad | null;
   region: string | null;
   ubigeo: string | null;
+  regionDenuncias?: string;
   nepotismo: NepotismoEntidad | null;
-  fueraDelMef: boolean;
+  fuentes?: Fuentes;
 }) {
-  // Todo a la vez. El poder lo pide también la columna lateral: es el mismo `fetch` y Next lo hace una sola vez.
-  const [gasto, corrupcion, personas, poder, grafo] = await Promise.all([
+  // Todo a la vez (el poder también lo pide la cabecera: Next hace un solo `fetch`).
+  const [gasto, corrupcion, personas, poder, grafo, estructura, obras] = await Promise.all([
     getGastoEntidad(ruc),
     getCorrupcionEntidad(ruc),
     getPersonas({ entidad: ruc, size: 0 }),
     getPoderEntidad(ruc),
     getPoderGrafoEntidad(ruc),
+    getEstructuraEntidad(ruc),
+    getResumenObras(ruc),
   ]);
-  // Los enlaces a la lista de contratos llevan su vista: si la entidad no tiene contratos, la primera vista es otra.
-  const contratos = (f: Record<string, string> = {}) => `${ruta}?${new URLSearchParams({ seccion: "contratos", vista: "contratos", ...f })}`;
-  const enVista = (vista: "ordenes" | "menores") => `${ruta}?${new URLSearchParams({ seccion: "contratos", vista })}`;
-  const enPersonas = (f: Record<string, string> = {}) => `${ruta}?${new URLSearchParams({ seccion: "personas", ...f })}`;
-  const l = resumen?.porLectura;
-  const leidos = (l?.publicado ?? 0) + (l?.revision ?? 0);
-  const totalGasto = (gasto?.funciones ?? []).reduce((s, f) => s + f.pim, 0);
-  const hayGasto = !!gasto && totalGasto > 0;
+  const enSeccion = (seccion: string, f: Record<string, string> = {}) => `${ruta}?${new URLSearchParams({ seccion, ...f })}`;
+  const contratos = (f: Record<string, string> = {}) => enSeccion("contratos", { vista: "contratos", ...f });
+  const enPersonas = (f: Record<string, string> = {}) => enSeccion("personas", f);
   const r = personas?.resumen ?? null;
   const dep = ubigeo?.slice(0, 2) || corrupcion?.departamento || null;
 
-  // Lo que no tiene dato va al final, en una línea cada uno (antes, una tarjeta vacía del mismo peso que las llenas).
-  const sinDato: { titulo: string; motivo: string }[] = [];
-  if (!hayGasto)
-    sinDato.push({
-      titulo: "En qué gasta",
-      motivo: fueraDelMef
-        ? "No está en el SIAF del MEF: su presupuesto no sale en los datos abiertos del MEF."
-        : "Sin dato. Vigía no encontró su presupuesto en el MEF (Consulta Amigable).",
-    });
-  if (!r) sinDato.push({ titulo: "Personas contratadas", motivo: "Sin dato: el servicio de personas no respondió." });
-  else if (!r.filas) sinDato.push({ titulo: "Personas contratadas", motivo: "No registra órdenes de servicio a personas." });
-  if (!corrupcion) sinDato.push({ titulo: "Contraloría", motivo: "Sin dato: el servicio no respondió." });
+  // Las tres señales que más pesan, una de cada fuente primero. La captura y el nepotismo son banderas de la cabecera: no
+  // se repiten. Las de la obra de cada contrato van con sus obras.
+  const hallazgos = elegirHallazgos([
+    hallazgosContratos(resumen, contratos, { sinTipos: [...TIPOS_CAPTURA, ...TIPOS_OBRA] }),
+    hallazgosPersonas(r, enPersonas, PARAMS_EN_FICHA),
+    hallazgosObras(obras, ruta),
+  ]);
 
-  // Sus contratos por tipo y si Vigía los leyó, cada uno en una barra con su leyenda (antes, fichas sueltas: el reparto no
-  // se veía), cada parte con su lista ya filtrada. Las mismas partes que la ficha de una región (BloquesInicio): por tipo,
-  // las series de los gráficos; la lectura, una rampa de lo leído a lo que aún no (la pista).
-  const reparto = (partes: ParteBarra[], etiqueta: string) =>
-    partes.some((p) => p.n > 0) ? <BarraPartes leyenda="en-linea" etiqueta={etiqueta} partes={partes} className="pt-1" /> : <span className="text-mute">Ninguno</span>;
-  const datosContratos: DatoClave[] = [
-    { etiqueta: "Por tipo", valor: resumen ? reparto(partesPorTipo(resumen.porTipo, contratos), "Sus contratos por tipo") : null },
-    // Sin ninguno leído, la barra era entera «Aún no 1,120» y la cifra de la cabecera ya dice «ninguno leído»: no va
-    // (auditoría del 2026-11-05).
-    ...(l && hayLectura(l) ? [{ etiqueta: "¿Lo leyó Vigía?", valor: reparto(partesPorLectura(l, contratos), "Sus contratos según si Vigía los leyó") }] : []),
+  const gobierna = [...datosQuienGobierna(poder), ...datosQuienDecide(estructura)];
+  const otros = otrosFuncionarios(estructura);
+
+  // «Ver más»: cada pestaña con la cifra que la resume, y en un panel lo que no tiene pestaña propia.
+  const totalGasto = (gasto?.funciones ?? []).reduce((s, f) => s + f.pim, 0);
+  const mayorRubro = [...(gasto?.funciones ?? [])].sort((a, b) => b.pim - a.pim)[0];
+  const o = obras?.obras;
+  const inv = obras?.inversiones;
+  const conTipos = resumen ? Object.entries(resumen.porTipo).filter(([, n]) => (n ?? 0) > 0).length : 0;
+  const filas: FilaMas[] = [
+    ...(conteos?.compras != null || resumen
+      ? [
+          {
+            clave: "compras",
+            icono: FileText,
+            titulo: "Sus compras",
+            // Sin cifra: su número ya está en la pestaña y en las cifras de arriba.
+            texto: conTipos ? "Procesos, órdenes, catálogo y menores" : "Procesos, órdenes y contratos menores",
+            href: enSeccion("contratos"),
+          },
+        ]
+      : []),
+    ...(r && r.filas > 0
+      ? [
+          {
+            clave: "personas",
+            icono: Users,
+            titulo: "Personas contratadas",
+            // Cuántas ya lo dice la pestaña: aquí, cuánto se les pagó.
+            cifra: solesCompacto(r.monto),
+            texto: r.alta > 0 ? `${numero(r.alta)} con una señal grave` : `En ${plural(r.ordenes, "orden", "órdenes")} de servicio`,
+            tono: r.alta > 0 ? ("alta" as const) : undefined,
+            href: enPersonas(),
+          },
+        ]
+      : []),
+    ...(o?.total || inv?.total
+      ? [
+          {
+            clave: "obras",
+            icono: HardHat,
+            titulo: "Obras e inversiones",
+            cifra: numero(o?.total || inv?.total || 0),
+            texto: o?.total ? plural(o.alta, "obra con una bandera grave", "obras con una bandera grave") : plural(inv?.total ?? 0, "inversión en Invierte.pe", "inversiones en Invierte.pe"),
+            tono: o?.alta ? ("alta" as const) : undefined,
+            href: enSeccion("obras"),
+          },
+        ]
+      : []),
+    ...(totalGasto > 0 && gasto
+      ? [
+          {
+            clave: "gasto",
+            icono: Wallet,
+            titulo: `En qué gasta${gasto.anio ? ` (${gasto.anio})` : ""}`,
+            // Su presupuesto ya es una cifra de arriba: aquí, en qué se va la parte mayor.
+            cifra: mayorRubro ? porcentaje((mayorRubro.pim / totalGasto) * 100) : null,
+            texto: mayorRubro ? `en ${tituloNatural(mayorRubro.nombre)}` : undefined,
+            href: enSeccion("presupuesto"),
+          },
+        ]
+      : []),
+    corrupcion
+      ? {
+          clave: "control",
+          icono: FileSearch,
+          titulo: "Informes de la Contraloría",
+          cifra: numero(corrupcion.informes.total),
+          texto: corrupcion.informes.total ? `${numero(corrupcion.informes.penal)} con responsabilidad penal` : "Ninguno con responsabilidad en su buscador",
+          tono: corrupcion.informes.penal > 0 ? ("media" as const) : undefined,
+          href: enSeccion("control"),
+        }
+      : { clave: "control", icono: FileSearch, titulo: "Informes de la Contraloría", texto: "El servicio no respondió ahora", sinRespuesta: true, href: ruta },
+    ...(poder?.n_captura && grafo?.empresas?.length
+      ? [
+          {
+            clave: "ligadas",
+            icono: Network,
+            titulo: "Empresas ligadas a la gestión",
+            cifra: numero(poder.n_empresas),
+            texto: `${solesCompacto(poder.monto_captura)} en ${plural(poder.n_captura, "contrato", "contratos")}`,
+            panel: {
+              titulo: "Empresas ligadas a la gestión",
+              descripcion: "Financiaron o le vendieron a la campaña del partido que la gobierna, o un socio trabaja en la entidad. Sólo empresas (RUC 20).",
+              contenido: <EmpresasLigadas poder={poder} grafo={grafo} entidadRuc={ruc} href={contratos} />,
+            },
+          },
+        ]
+      : []),
+    ...(nepotismo && nepotismo.total > 0 && nepotismo.detalle?.length
+      ? [
+          {
+            clave: "parientes",
+            icono: UserRoundSearch,
+            titulo: "Parientes de funcionarios que le venden",
+            // Sin cifra: es la bandera «Posible nepotismo» de la cabecera; aquí, sus casos.
+            texto: `${plural(nepotismo.total, "caso", "casos")}, del funcionario al pariente`,
+            panel: {
+              titulo: "Parientes de funcionarios que le venden",
+              descripcion: "Un funcionario los declaró como parientes en su Declaración Jurada de Intereses y figuran como locadores de la entidad. Del pariente se tapa un apellido.",
+              contenido: <NepotismoInicio nepotismo={nepotismo} href={enPersonas} sinMarco />,
+            },
+          },
+        ]
+      : []),
+    ...(otros.length
+      ? [
+          {
+            clave: "funcionarios",
+            icono: Building2,
+            titulo: "Sus altos funcionarios",
+            cifra: numero(otros.length),
+            texto: "Del organigrama oficial, con su cargo",
+            panel: { titulo: "Sus altos funcionarios", descripcion: "Quienes hoy ocupan sus cargos de dirección, según el organigrama oficial.", contenido: <ListaFuncionarios lista={otros} corte={estructura?.corte} /> },
+          },
+        ]
+      : []),
+    { clave: "proveedores", icono: Briefcase, titulo: "Quiénes le venden", texto: "Sus proveedores, con sus antecedentes", href: `/app/empresas?entidad=${ruc}` },
+    // Los registros oficiales, su región (con la Procuraduría, que publica por departamento) y sus obras denunciadas, en un
+    // panel: antes eran dos tarjetas de enlaces en una columna lateral y, después, tres renglones al pie.
     {
-      etiqueta: "Esperan lectura",
-      valor:
-        enCola > 0 ? (
-          <EnlaceCifra href={contratos({ lectura: "sin_leer" })} n={enCola}>
-            {enCola === 1 ? "contrato en la cola" : "contratos en la cola"}
-          </EnlaceCifra>
-        ) : (
-          <span className="text-mute">Ninguno en la cola</span>
-        ),
-    },
-    // Sus órdenes de compra y de servicio ya son una cifra de la cabecera, con el mismo enlace (antes iban dos veces):
-    // aquí, sólo mientras no están contadas y la cabecera no las muestra. La pestaña Contratos las tiene en su vista.
-    ...(conteos && conteos.ordenes == null
-      ? [{ etiqueta: "Órdenes de compra y de servicio", valor: <EnlaceCifra href={enVista("ordenes")}>Ver sus órdenes desde 2018</EnlaceCifra> }]
-      : []),
-    ...(conteos && conteos.menores > 0
-      ? [
-          {
-            etiqueta: "Contratos menores",
-            valor: (
-              <EnlaceCifra href={enVista("menores")} n={conteos.menores}>
-                {conteos.menores === 1 ? "contrato de hasta 8 UIT" : "contratos de hasta 8 UIT"}
-              </EnlaceCifra>
-            ),
-          },
-        ]
-      : []),
-    ...(r && r.filas
-      ? [
-          {
-            etiqueta: "Órdenes a personas",
-            valor: (
-              <EnlaceCifra href={enPersonas()} n={r.personas}>
-                {r.personas === 1 ? "persona" : "personas"}, {solesCompacto(r.monto)} en {plural(r.ordenes, "orden", "órdenes")}
-              </EnlaceCifra>
-            ),
-          },
-        ]
-      : []),
-    { etiqueta: "Quiénes le venden", valor: <EnlaceCifra href={`/app/empresas?entidad=${ruc}`}>Sus proveedores, con sus antecedentes</EnlaceCifra> },
-  ];
-  const sinInformes = !!corrupcion && corrupcion.informes.total === 0;
-
-  return (
-    <>
-      <SubseccionInicio
-        id="inicio-hallazgos"
-        titulo="Qué se encontró"
-        descripcion="Cruces de datos públicos en sus contratos y en quienes contrata: son indicios para revisar, no acusaciones."
-        ayuda={
-          <Ayuda titulo="¿Qué es una bandera?">
-            <span className="block">
-              Lo que encontró Vigía al leer un contrato y al cruzar a quien lo ganó (o a quien recibió una orden) con otros
-              registros públicos: sanciones, aportes de campaña, socios, parientes declarados…
-            </span>
-            <span className="mt-2 block">Cada fila abre esos contratos o esas personas, ya filtrados, con la evidencia de cada uno.</span>
-          </Ayuda>
-        }
-      >
-        <BloqueInicio nivel={3} titulo="En sus contratos" enlace={{ href: contratos({ cruces: "con" }), texto: "Ver los que tienen antecedentes" }}>
-          <Banderas
-            porRiesgo={resumen?.porRiesgo}
-            porCruces={resumen?.porCruces}
-            porLectura={l}
-            // De cuántos contratos son los antecedentes: el total del reparto y de la barra de cada fila.
-            total={resumen?.total}
-            href={contratos}
-            // Con su ícono (el imán de la captura) cuando está en 0; con casos, el de una bandera grave.
-            extra={poder ? [{ ...filaCaptura(poder, contratos), tipo: "captura" }] : []}
-            // Las banderas de la obra de cada contrato (INFOBRAS, Invierte.pe) van en «En sus obras e inversiones», abajo.
-            sinTipos={[...(poder ? TIPOS_CAPTURA : []), ...TIPOS_OBRA]}
-            conRiesgo={leidos > 0}
-            // Sin el reparto (la API no trajo el total): "Con algún antecedente" ya es la segunda cifra de la cabecera.
-            conAlguno={false}
+      clave: "comprobar",
+      icono: Landmark,
+      titulo: "Dónde comprobarlo",
+      texto: "Sus registros oficiales y su región",
+      panel: {
+        titulo: "Dónde comprobarlo",
+        descripcion: fuentes ? `Fuente: ${fuentes.fuente}.` : undefined,
+        contenido: (
+          <ListaMas
+            filas={[
+              ...(fuentes?.enlaces ?? [])
+                .filter((e): e is { texto: string; href: string } => !!e && !!e.href)
+                .map((e) => ({ clave: e.href, icono: Landmark, titulo: e.texto, href: e.href, externo: true })),
+              ...(dep ? [{ clave: "region", icono: MapPin, titulo: `La ficha de ${region ?? "su región"}`, texto: "Con los casos de la Procuraduría Anticorrupción", href: rutaRegion(dep) }] : []),
+              ...(regionDenuncias
+                ? [{ clave: "denuncias", icono: Flag, titulo: `Obras denunciadas en ${regionDenuncias}`, texto: "Lo que reporta la gente", href: `/app/denuncias?region=${encodeURIComponent(regionDenuncias)}` }]
+                : []),
+            ]}
           />
-        </BloqueInicio>
-        {poder && <EmpresasLigadas poder={poder} grafo={grafo} entidadRuc={ruc} href={contratos} />}
-        {r && r.filas > 0 && (
-          <BloqueInicio nivel={3} titulo="En las personas que contrató" enlace={{ href: enPersonas(), texto: "Ver a las personas" }}>
-            {/* Sin la franja de cuántas y cuánto: ya está en «Sus contratos» (Órdenes a personas), con su enlace. */}
-            <ContenidoPersonas r={r} href={enPersonas} extra={filaNepotismo(r, nepotismo, enPersonas)} conCifras={false} />
-          </BloqueInicio>
-        )}
-        <NepotismoInicio nepotismo={nepotismo} href={enPersonas} />
-        {/* Sus obras de INFOBRAS y sus inversiones de Invierte.pe (migración 160): cada bandera con su lista filtrada. */}
-        <ObrasInicio ruc={ruc} ruta={ruta} />
-      </SubseccionInicio>
-
-      <SubseccionInicio id="inicio-dinero" titulo="Dinero" descripcion="En qué gasta según el MEF y lo que contrata.">
-        {hayGasto && gasto && (
-          <BloqueInicio
-            nivel={3}
-            titulo={
-              gasto.anio
-                ? // Su último año, si su unidad ya no gasta (migración 152: la historia del MEF desde 2015).
-                  `En qué gasta (${gasto.anio}${gasto.ultimoAnioMef != null && gasto.anio < gasto.ultimoAnioMef ? ", su último año en el MEF" : ""})`
-                : "En qué gasta"
-            }
-            ayuda={
-              <Ayuda titulo="¿De dónde sale?">
-                Del MEF (Consulta Amigable): el presupuesto modificado (PIM) de cada función del Estado y la parte ya gastada
-                ({gasto.origen === "etes" ? "lo ejecutado que reporta la empresa municipal" : "devengado"}).{" "}
-                {gasto.cruce === "pliego" ? "Es el de todo el gobierno regional, no sólo esta sede." : ""}
-              </Ayuda>
-            }
-            enlace={{ href: `${ruta}?seccion=presupuesto`, texto: "Todo el presupuesto" }}
-          >
-            <BarrasGasto rubros={gasto.funciones} total={totalGasto} />
-          </BloqueInicio>
-        )}
-        <BloqueInicio nivel={3} titulo="Sus contratos" enlace={{ href: contratos(), texto: "Ver los contratos" }}>
-          <DatosClave items={datosContratos} />
-        </BloqueInicio>
-      </SubseccionInicio>
-
-      <SubseccionInicio
-        id="inicio-control"
-        titulo="Control"
-        descripcion="Los informes de la Contraloría sobre esta entidad: responsabilidad presunta de sus funcionarios."
-        ayuda={
-          <Ayuda titulo="¿Qué es un informe de control?">
-            <span className="block">
-              La Contraloría revisa a las entidades y, cuando encuentra algo, señala una responsabilidad presunta (penal,
-              civil o administrativa) de sus funcionarios y la deriva a quien corresponde. No es una condena.
-            </span>
-            <span className="mt-2 block">
-              Lo comprobado (casos con sentencia firme) lo publica la Procuraduría Anticorrupción, pero por departamento:
-              está en la ficha de la región.
-            </span>
-          </Ayuda>
-        }
-      >
-        {corrupcion && corrupcion.informes.total > 0 && (
-          <TarjetaInicio>
-            <ResumenContraloria informes={corrupcion.informes} href={`${ruta}?seccion=control`} />
-          </TarjetaInicio>
-        )}
-        {/* Sin informes y dónde está la Procuraduría: una nota en su caja, no dos párrafos sueltos sobre el fondo. */}
-        {(sinInformes || dep) && (
-          <Nota>
-            {sinInformes && <span className="block">La Contraloría no tiene informes con responsabilidad sobre esta entidad en su buscador.</span>}
-            {dep && (
-              <span className={sinInformes ? "mt-1.5 block" : "block"}>
-                Los casos de la Procuraduría Anticorrupción se publican por departamento, no por entidad: los de {region ?? "su región"} están en{" "}
-                <Link href={rutaRegion(dep)} prefetch={false} className="font-semibold text-granate underline-offset-2 hover:underline">
-                  la ficha de {region ?? "la región"}
-                </Link>
-                .
-              </span>
-            )}
-          </Nota>
-        )}
-      </SubseccionInicio>
-
-      <LineasSinDato items={sinDato} />
-    </>
-  );
-}
-
-/**
- * La bandera de nepotismo de las personas a las que pagó por órdenes de servicio, primero y aparte de las señales más
- * frecuentes (`ContenidoPersonas` no la repite abajo): grave, con su lista ya filtrada en la pestaña Personas y su barra
- * contra cuántas personas contrató (`filas`, lo mismo que cuentan las señales). Lo grave, lo medio y lo leve de todas
- * ellas va en el reparto de arriba del bloque.
- */
-function filaNepotismo(r: ResumenPersonas, nepotismo: NepotismoEntidad | null, href: (f: Record<string, string>) => string): FilaConteo[] {
-  // La cuenta de la lista filtrada (personas con la señal); si el resumen no la trae, la de la DJI.
-  const n = r.porSenal.find((s) => s.tipo === "nepotismo")?.n ?? nepotismo?.total ?? 0;
-  return n > 0 ? [{ etiqueta: SENAL.nepotismo.titulo, n, href: href({ [PARAMS_EN_FICHA.senal]: "nepotismo" }), grave: true, tipo: "nepotismo", de: r.filas }] : [];
-}
-
-// ─── Columna lateral ─────────────────────────────────────────────────────────
-
-async function Lateral({
-  ruc,
-  region,
-  ubigeo,
-  regionDenuncias,
-  fuentes,
-}: {
-  ruc: string;
-  region: string | null;
-  ubigeo: string | null;
-  regionDenuncias?: string;
-  fuentes?: Fuentes;
-}) {
-  // El poder lo pide también la columna principal: el mismo `fetch`, una sola vez.
-  const [poder, estructura] = await Promise.all([getPoderEntidad(ruc), getEstructuraEntidad(ruc)]);
-  const dep = ubigeo?.slice(0, 2) || null;
-  // Sus proveedores ya están en "Sus contratos" (Dinero); aquí, lo de su región: su ficha (con la Procuraduría) y las
-  // obras denunciadas (antes, la pestaña Denuncias).
-  const enlaces = [
-    ...(dep ? [{ href: rutaRegion(dep), texto: `La ficha de ${region ?? "su región"}`, Icono: MapPin }] : []),
-    ...(regionDenuncias ? [{ href: `/app/denuncias?region=${encodeURIComponent(regionDenuncias)}`, texto: `Obras denunciadas en ${regionDenuncias}`, Icono: Flag }] : []),
+        ),
+      },
+    },
   ];
+
   return (
     <>
-      {/* Hasta xl va arriba de todo (GobiernaArriba). */}
-      {poder?.partido && (
-        <div className="hidden min-w-0 xl:block">
-          <QuienGobierna poder={poder} />
-        </div>
-      )}
-      <QuienDecide estructura={estructura} />
-      {enlaces.length > 0 && (
-        <BloqueInicio titulo="Ver también">
-          <ul className="-mx-1 divide-y divide-line/70">
-            {enlaces.map(({ href, texto, Icono }) => (
-              <li key={href}>
-                <Link href={href} prefetch={false} className="flex min-h-11 items-center gap-2.5 rounded-lg px-1 py-2 text-dato text-ink transition-colors duration-rapido hover:bg-granate-50 hover:text-granate">
-                  <Icono size={15} className="shrink-0 text-mute" aria-hidden />
-                  <span className="min-w-0 flex-1">{texto}</span>
-                  <ChevronRight size={14} className="shrink-0 text-mute" aria-hidden />
-                </Link>
-              </li>
-            ))}
-          </ul>
-        </BloqueInicio>
-      )}
-      {fuentes && <DondeComprobarlo fuentes={fuentes} />}
+      {/* Las señales, más anchas: desde ~34rem cada fila lleva su barra al lado y mide la mitad. */}
+      <RejillaResumen className="xl:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
+        <CajaResumen
+          titulo="Señales para revisar"
+          flush
+          ayuda={
+            <Ayuda titulo="¿Qué señales son?">
+              <span className="block">
+                Las tres que más pesan entre sus contratos, las personas que contrató y sus obras: lo grave primero. Cada fila abre esa
+                lista ya filtrada, con la evidencia de cada caso.
+              </span>
+              <span className="mt-2 block">
+                Son cruces de datos públicos: indicios para revisar, no acusaciones. Sus banderas (arriba, junto al nombre) no se
+                repiten aquí.
+              </span>
+            </Ayuda>
+          }
+          enlace={resumen?.porCruces?.con ? { href: contratos({ cruces: "con" }), texto: "Todos los antecedentes" } : undefined}
+        >
+          <HallazgosClave filas={hallazgos} vacio="Sin señales en sus contratos, en las personas que contrató ni en sus obras." />
+        </CajaResumen>
+        {gobierna.length > 0 && (
+          <CajaResumen
+            titulo={poder?.partido ? "Quién la gobierna" : "Quién decide"}
+            ayuda={<AyudaQuienDecide corte={estructura?.corte} />}
+            enlace={{ href: enSeccion("organizacion"), texto: "Su organización" }}
+          >
+            <DatosClave items={gobierna} />
+            {poder?.partido && <FuenteDato fuente={FUENTE_GOBIERNO.fuente} href={FUENTE_GOBIERNO.href} className="mt-2" />}
+          </CajaResumen>
+        )}
+      </RejillaResumen>
+      <CajaResumen titulo="Ver más" flush>
+        <ListaMas filas={filas} columnas={3} />
+      </CajaResumen>
     </>
   );
 }
@@ -440,54 +345,4 @@ async function Lateral({
 export interface Fuentes {
   fuente: string;
   enlaces: ({ texto: string; href: string } | null | false | undefined)[];
-}
-
-/**
- * «Dónde comprobarlo»: los registros oficiales de la entidad (su personal, sus declaraciones juradas, su presupuesto, los
- * informes de control), con la forma de «Ver también». Antes eran cinco enlaces sueltos en letra chica al pie de la
- * página, debajo de todo. Cada uno se abre afuera.
- */
-function DondeComprobarlo({ fuentes }: { fuentes: Fuentes }) {
-  const enlaces = fuentes.enlaces.filter((e): e is { texto: string; href: string } => !!e && !!e.href);
-  if (!enlaces.length) return null;
-  return (
-    <BloqueInicio titulo="Dónde comprobarlo">
-      <p className="-mt-1 mb-2 text-meta leading-snug text-mute">Fuente: {fuentes.fuente}.</p>
-      <ul className="-mx-1 divide-y divide-line/70">
-        {enlaces.map(({ href, texto }) => (
-          <li key={href}>
-            <a
-              href={href}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex min-h-11 items-center gap-2.5 rounded-lg px-1 py-2 text-dato text-ink transition-colors duration-rapido hover:bg-granate-50 hover:text-granate"
-            >
-              <Landmark size={15} className="shrink-0 text-mute" aria-hidden />
-              <span className="min-w-0 flex-1">{texto}</span>
-              <ExternalLink size={14} className="shrink-0 text-mute" aria-hidden />
-              <span className="sr-only"> (se abre en otra pestaña)</span>
-            </a>
-          </li>
-        ))}
-      </ul>
-    </BloqueInicio>
-  );
-}
-
-/**
- * El valor de una fila de «Sus contratos» que abre su lista: la cifra en tinta, lo demás en gris y la flecha. Antes eran
- * frases enteras en verde, y la cifra no se distinguía del texto.
- */
-function EnlaceCifra({ href, n, children }: { href: string; n?: number; children: ReactNode }) {
-  return (
-    <Link
-      href={href}
-      prefetch={false}
-      className="group inline-flex min-h-8 items-center gap-1.5 text-inkSoft transition-colors duration-rapido hover:text-granate focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-granate"
-    >
-      {n != null && <span className="font-mono font-semibold tabular-nums text-ink group-hover:text-granate">{numero(n)}</span>}
-      <span className="underline-offset-2 group-hover:underline">{children}</span>
-      <ChevronRight size={14} className="shrink-0 text-mute group-hover:text-granate" aria-hidden />
-    </Link>
-  );
 }
