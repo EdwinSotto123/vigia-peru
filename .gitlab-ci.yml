@@ -274,6 +274,37 @@ deploy:agentes:prod:
     - npm ci --no-audit --no-fund
     - npx wrangler deploy $DEPLOY_ENV
 
+# ─── Verificación (auditoría de producto del 2026-11-12, decisión D3) ─────────────────────────────
+# Tipos, pruebas y guardia de estilo en cada push a main o dev. Van en la misma etapa que los despliegues y no los
+# frenan (los despliegues son manuales y el script de despliegue los juega apenas existe el pipeline): si algo falla, el
+# pipeline queda en rojo y se ve antes de dar al botón. Para que SÍ frenen: `needs: ["verificar:web"]` en deploy:web:*.
+verificar:web:
+  stage: deploy
+  script:
+    - cd frontend
+    - npm ci --no-audit --no-fund
+    - npx tsc --noEmit -p .
+    - npm test
+    - npm run auditar:estilo
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "schedule"'
+      when: never
+    - if: '$CI_COMMIT_BRANCH == "main" || $CI_COMMIT_BRANCH == "dev"'
+      changes: ["frontend/**/*"]
+
+verificar:api:
+  stage: deploy
+  script:
+    - cd backend/api
+    - npm ci --no-audit --no-fund
+    - npx tsc --noEmit
+    - npm test
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "schedule"'
+      when: never
+    - if: '$CI_COMMIT_BRANCH == "main" || $CI_COMMIT_BRANCH == "dev"'
+      changes: ["backend/api/**/*"]
+
 # ─── DEV (rama dev) ──────────────────────────────────────────────────────────────────────────────
 deploy:api:dev:
   <<: *api
