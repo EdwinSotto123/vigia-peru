@@ -7,7 +7,7 @@ from ._base import (_sha256_hex, PARSE_OVERALL_TIMEOUT_S, PARSE_SKIP_TEXTO_CACHE
                     PARSER_SCHEMA_VERSION, PARSE_REUSE_EXTRACCION)
 from .fetch import _fetch_doc_bytes, _download_from_gcs
 from .contenedores import _expandir_contenedor
-from .ocr_texto import _texto_de_unidades, _texto_cache_get, _texto_cache_put, _extraccion_cache_put
+from .ocr_texto import _texto_de_unidades, _texto_cache_get, _texto_cache_put, _extraccion_cache_put, _ocr_fallido
 from .extractor import _extraer_documento
 from .evidencia import _post_procesar
 
@@ -172,7 +172,8 @@ def _procesar_doc_texto(doc, state, bloque, ocds_ctx, out, label, sha, tx, blob,
         out["recortes"].extend(tx.get("recortes") or [])
         out["tiempos"]["ocr_s"] = round(time.monotonic() - t1, 1)
         out["unidades"] = [{"nombre": u["nombre"], "kind": u["kind"]} for u in unidades]
-        _texto_cache_put(sha, state.get("ocid") or state.get("ocid_preloaded"), doc.get("gs"), doc.get("formato"), tx)
+        if not _ocr_fallido(tx.get("recortes")):   # OCR fallido: la próxima corrida lo intenta de nuevo
+            _texto_cache_put(sha, state.get("ocid") or state.get("ocid_preloaded"), doc.get("gs"), doc.get("formato"), tx)
         print(f"[lote] OCR · {label[:60]} · {len(unidades)} unidad(es) · {tx['n_paginas']} págs · {tx['chars']:,} chars · "
               f"{tx['motor']} · {out['tiempos']['ocr_s']}s", flush=True)
     out["tx"] = tx
@@ -195,12 +196,14 @@ def _procesar_doc_texto(doc, state, bloque, ocds_ctx, out, label, sha, tx, blob,
             print(f"[lote] extracción en caché · {label[:60]} · {clave}", flush=True)
     if ext is None:
         t2 = time.monotonic()
-        ext = _extraer_documento(tx, label, bloque, ocds_ctx, doc.get("tipo"))
+        # La sección del documento (tender/award/contract) decide qué bloques opcionales se piden (schema.py).
+        ext = _extraer_documento(tx, label, bloque, {**(ocds_ctx or {}), "_seccion": doc.get("seccion")}, doc.get("tipo"))
         out["tiempos"]["extraccion_s"] = round(time.monotonic() - t2, 1)
         out["recortes"].extend(ext.get("_recortes") or [])
         ext = _post_procesar(ext, tx, sha, doc)
         ext["_politica_thinking"] = politica
-        _extraccion_cache_put(sha, clave, ext)   # incluye _recortes/_usos: en caché también se reportan
+        if not ext.get("_bloques_pendientes"):   # con la 2.ª pasada fallida no se cachea: se reintenta
+            _extraccion_cache_put(sha, clave, ext)   # incluye _recortes/_usos: en caché también se reportan
     else:
         out["recortes"].extend(ext.get("_recortes") or [])
     out["ext"] = ext

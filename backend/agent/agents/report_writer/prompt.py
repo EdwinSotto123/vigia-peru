@@ -182,7 +182,10 @@ GUIA_SECCION: dict[str, str] = {
         "(qué se recortó, límite, cuánto quedó fuera), (2) `descartes` (hallazgos descartados por falta de evidencia, "
         "por schema o por verificación, con su motivo), (3) `validaciones_pendientes`. Redacta cada punto en UNA "
         "frase legible ('3 documentos sin requerimiento no aportaron ítems'; '2 banderas legales perdidas por formato'): "
-        "PROHIBIDO volcar JSON, sha256 o claves internas. Si no hubo nada, escribe 'Sin recortes ni descartes en esta "
+        "PROHIBIDO volcar JSON, sha256 o claves internas. Escribe para un ciudadano: di QUÉ documento o fuente no se "
+        "pudo leer o consultar ('no se pudieron leer las Bases Integradas'; 'la consulta en vivo a la SUNAT no "
+        "respondió') y NUNCA códigos HTTP, 'timeout', mensajes de error, ni nombres de herramientas, modelos, "
+        "proveedores o módulos internos (decolecta, parser, worker, Workers AI, LLM, market.*). Si no hubo nada, escribe 'Sin recortes ni descartes en esta "
         "corrida'."
     ),
     "Próximos pasos sugeridos": "### A quién derivar (OCI, Contraloría, Fiscalía, periodismo de investigación) según el tipo de bandera, y qué documento/registro confirmaría o descartaría cada señal.",

@@ -148,7 +148,10 @@ def _fusionar_postor(lista: list[dict], p: dict, es_adjudicacion: bool, sha: str
     if ruc:
         prev = next((q for q in lista if q.get("ruc") == ruc), None)
     if prev is None and nombre:
-        prev = next((q for q in lista if _mismo_nombre(q.get("razon_social"), nombre)), None)
+        # Por nombre sólo si alguno no trae RUC válido: dos RUC válidos distintos son dos postores
+        # («CONSORCIO SAN JUAN I» y «… II» se fundían y la segunda oferta se perdía).
+        prev = next((q for q in lista if not (ruc and q.get("ruc") and q["ruc"] != ruc)
+                     and _mismo_nombre(q.get("razon_social"), nombre)), None)
     nuevo = {k: v for k, v in p.items() if k not in ("ruc",)}
     nuevo["ruc"] = ruc
     if ruc_ocr:
@@ -215,7 +218,11 @@ def _ofertas_desde_postores(postores: list[dict]) -> list[dict]:
 
 def _mismo_firmante(a: dict, b: dict) -> bool:
     """'YHONY E. QUISPE CANAZA' y 'Yhony Edwin Quispe Canaza' son la misma persona: los
-    tokens largos (≥ 3 letras) de uno están contenidos en el otro y comparten ≥ 2."""
+    tokens largos (≥ 3 letras) de uno están contenidos en el otro y comparten ≥ 2. Con DNI
+    distinto nunca son la misma (hermanos: «LUIS ALBERTO QUISPE MAMANI» / «JOSE ALBERTO …»)."""
+    da, db = _solo_digitos(a.get("dni")), _solo_digitos(b.get("dni"))
+    if len(da) == 8 and len(db) == 8 and da != db:
+        return False
     na = [t for t in _norm_razon(a.get("nombre_completo")).split() if len(t) >= 3]
     nb = [t for t in _norm_razon(b.get("nombre_completo")).split() if len(t) >= 3]
     if not na or not nb:
@@ -224,4 +231,4 @@ def _mismo_firmante(a: dict, b: dict) -> bool:
     inter = sa & sb
     if len(inter) < 2:
         return False
-    return sa <= sb or sb <= sa or len(inter) >= 3
+    return sa <= sb or sb <= sa

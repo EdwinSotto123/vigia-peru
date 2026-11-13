@@ -152,13 +152,17 @@ PARSER_SCHEMA_MAX_CHARS = int(os.getenv("PARSER_SCHEMA_MAX_CHARS", "20500"))
 
 def secciones_para_documento(label: str | None, tipo_hint: str | None, seccion: str | None = None) -> set[str]:
     """Qué bloques opcionales del schema aplican a un documento según su título/tipo OCDS/sección."""
-    t = f"{label or ''} {tipo_hint or ''} {seccion or ''}".lower()
+    t = f"{label or ''} {tipo_hint or ''}".lower()
     out: set[str] = set()
     if any(k in t for k in ("acta", "buena pro", "evaluaci", "calificaci", "cuadro", "integrada", "absoluci", "consulta",
                             "observaci", "propuesta", "oferta", "award", "tender")):
         out.add("procedimiento_seleccion")
     if any(k in t for k in ("contrato", "contract", "orden de", "adenda", "ampliaci", "penalidad", "resoluci", "garant",
                             "conformidad", "entrega")):
+        out.update({"ejecucion_contractual", "contrato_final"})
+    # El contrato u orden suele venir en la sección contract/award o dentro de un paquete («Documentos de
+    # Otorgamiento de Buena Pro [zip]», «OC 123») sin decirlo en el título: sin esto `contrato_final` nunca se pedía.
+    if str(seccion or "").lower() in ("contract", "award") or re.search(r"\[(zip|rar|7z)\]|\.(zip|rar|7z)\b", t):
         out.update({"ejecucion_contractual", "contrato_final"})
     if any(k in t for k in ("estudio", "mercado", "indagaci", "informe", "sustento", "cotizaci")):
         out.add("estudio_mercado")

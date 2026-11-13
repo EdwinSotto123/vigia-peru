@@ -26,13 +26,10 @@ def _fetch_doc_bytes(document_url: str, tool_context: ToolContext) -> tuple[byte
     # Necesario porque la URL del OCDS puede tener variantes (?v=1, /, encoding) que
     # difieren de la URL que el cliente registró en doc_urls/docs_b64.
     def _norm(u: str) -> str:
-        try:
-            from urllib.parse import urlparse, urlunparse
-            p = urlparse(u)
-            path = p.path.rstrip("/")
-            return urlunparse((p.scheme.lower(), p.netloc.lower(), path, "", "", "")).lower()
-        except Exception:
-            return (u or "").lower()
+        # La misma regla que la selección: conserva el query cuando lleva el id del archivo (`?fileCode=…`); sin él,
+        # dos documentos del proceso con la misma ruta casaban entre sí y se bajaba el que no era.
+        from tools.doc_select import norm_url
+        return norm_url(u)
 
     target_norm = _norm(document_url)
 

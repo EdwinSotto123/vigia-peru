@@ -110,31 +110,48 @@ def _mercado_cotizaciones(state: dict) -> dict:
     cots = [c for c in ((sd or {}).get("cotizaciones") or []) if isinstance(c, dict)]
     doc_sha = (sd or {}).get("documento_sha256") if sd else None
 
+    def _sim(a, b):
+        return difflib.SequenceMatcher(None, _normalize_name_for_search(a or ""), _normalize_name_for_search(b or "")).ratio()
+
+    def _misma(a: dict, b: dict) -> bool:
+        """La misma cotización citada en dos documentos (informe técnico, informe legal, resolución): mismo monto y
+        mismo cotizante (RUC, o razón social si alguno no trae RUC). El bloque del parser las suma sin fundirlas."""
+        if abs(a["monto"] - b["monto"]) > 0.005:
+            return False
+        if a.get("ruc") and b.get("ruc"):
+            return a["ruc"] == b["ruc"]
+        return bool(a.get("proveedor") and b.get("proveedor")) and _sim(a["proveedor"], b["proveedor"]) >= 0.85
+
     cot_val = []
     for c in cots:
         m = _market_to_num(c.get("monto"))
         if m:
-            cot_val.append({"proveedor": (c.get("proveedor") or "")[:200], "ruc": _ruc11(c.get("ruc")),
-                            "monto": m, "pagina": c.get("pagina"), "documento_sha256": c.get("documento_sha256") or doc_sha})
+            nueva = {"proveedor": (c.get("proveedor") or "")[:200], "ruc": _ruc11(c.get("ruc")),
+                     "monto": m, "pagina": c.get("pagina"), "documento_sha256": c.get("documento_sha256") or doc_sha}
+            previa = next((p for p in cot_val if _misma(p, nueva)), None)
+            if previa is None:
+                cot_val.append(nueva)
+            elif not previa.get("ruc"):
+                previa["ruc"] = nueva["ruc"]
     n = len(cot_val)
     montos = [c["monto"] for c in cot_val]
 
-    # Cotizante = ganador (RUC exacto o razón social muy similar).
-    def _sim(a, b):
-        return difflib.SequenceMatcher(None, _normalize_name_for_search(a or ""), _normalize_name_for_search(b or "")).ratio()
-    cot_ganador, idx_ganador = None, None
+    # Cotizante = ganador (RUC exacto o razón social muy similar). Todas las suyas: si cotizó dos montos, la segunda
+    # no es «de terceros».
+    cot_ganador, idx_ganador, idx_ganadores = None, None, set()
     for i, c in enumerate(cot_val):
-        if ganador_ruc and c.get("ruc") == ganador_ruc:
-            cot_ganador, idx_ganador = {**c, "match": "ruc"}, i
-            break
-        if ganador_nombre and c.get("proveedor") and _sim(c["proveedor"], ganador_nombre) >= 0.85:
-            cot_ganador, idx_ganador = {**c, "match": "razon_social"}, i
-            break
+        match = ("ruc" if (ganador_ruc and c.get("ruc") == ganador_ruc) else
+                 "razon_social" if (ganador_nombre and c.get("proveedor") and _sim(c["proveedor"], ganador_nombre) >= 0.85)
+                 else None)
+        if match:
+            idx_ganadores.add(i)
+            if cot_ganador is None:
+                cot_ganador, idx_ganador = {**c, "match": match}, i
     minimo = min(montos) if montos else None
     ganador_es_el_mas_barato = (cot_ganador is not None and minimo is not None and cot_ganador["monto"] <= minimo + 1e-6)
 
     # Personas naturales entre los cotizantes (RUC 10, o el adjudicatario con RUC 10 reconocido por su nombre).
-    naturales = [es_persona_natural(c.get("ruc")) or (i == idx_ganador and ganador_natural) for i, c in enumerate(cot_val)]
+    naturales = [es_persona_natural(c.get("ruc")) or (i in idx_ganadores and ganador_natural) for i, c in enumerate(cot_val)]
     for c, nat in zip(cot_val, naturales):
         if nat and c.get("proveedor"):
             nombres_tapar.add(c["proveedor"])
@@ -153,7 +170,7 @@ def _mercado_cotizaciones(state: dict) -> dict:
 
     # La base de comparación son las OTRAS cotizaciones (la del ganador es el propio monto):
     # ¿se adjudicó por encima de lo que cotizaron los demás?
-    otras = [c["monto"] for i, c in enumerate(cot_val) if i != idx_ganador]
+    otras = [c["monto"] for i, c in enumerate(cot_val) if i not in idx_ganadores]
     n_otras = len(otras)
     # Sin cotizaciones de terceros no hay mediana: la del propio adjudicatario no es una referencia de mercado.
     mediana = _mediana(otras) if otras else None
@@ -180,7 +197,7 @@ def _mercado_cotizaciones(state: dict) -> dict:
                           "cita": f"Cotización {c['proveedor'] or c.get('ruc') or 's/n'}: S/ {c['monto']:,.2f}"[:240]})
     obs_precios = [{"producto": objeto[:300], "precio": c["monto"], "unidad": "cotización", "url": None, "fecha": None,
                     "proveedor": c["proveedor"] or c.get("ruc"), "moneda_origen": "PEN", "valor": c["monto"],
-                    "ruc": c.get("ruc"), "es_ganador": (i == idx_ganador)}
+                    "ruc": c.get("ruc"), "es_ganador": (i in idx_ganadores)}
                    for i, c in enumerate(publicas)]
     if not n:
         comentario = "El expediente parseado no trae cotizaciones (o el parser no produjo el bloque sustento_directa)."

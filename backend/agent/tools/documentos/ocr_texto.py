@@ -28,12 +28,18 @@ def _paginas_pymupdf(pdf: bytes, page_offset: int) -> tuple[list[dict], list[dic
     if need:
         try:
             rendered = _render_pdf_pages_to_png(pdf, need, dpi=160)
+            leido = False
             for k in range(0, len(rendered), 8):
                 lote = rendered[k:k + 8]
                 textos = _ocr_paginas_gemini(lote)
+                leido = leido or any(textos)
                 for (idx, _png), txt in zip(lote, textos):
                     if txt and len(txt) > paginas[idx]["chars"]:
                         paginas[idx] = {"n": page_offset + idx + 1, "texto": txt, "chars": len(txt), "ocr": "gemini_vision"}
+            if rendered and not leido:
+                # Ninguna página escaneada devolvió texto: es un OCR fallido, no un documento en blanco.
+                recortes.append({"donde": "ocr_gemini_vision", "limite": "sin_texto",
+                                 "omitido": f"páginas rasterizadas {[page_offset + i + 1 for i in need][:30]}"})
         except Exception as e:
             recortes.append({"donde": "ocr_gemini_vision", "limite": "fallo",
                              "omitido": f"páginas rasterizadas {[page_offset + i + 1 for i in need][:30]} ({str(e)[:80]})"})
@@ -73,6 +79,12 @@ def _ocr_paginas_gemini(rendered: list[tuple[int, bytes]]) -> list[str]:
         except Exception:
             continue
     return out
+
+
+def _ocr_fallido(recortes) -> bool:
+    """¿Algún recorte dice que el OCR falló (Vision o un tramo de Document AI)? Ese texto no se cachea: un fallo
+    pasajero dejaba para siempre un contrato escaneado con 0 caracteres."""
+    return any(isinstance(r, dict) and r.get("donde") in ("ocr_gemini_vision", "ocr_docai") for r in (recortes or []))
 
 
 def _texto_de_unidades(unidades: list[dict]) -> dict:
@@ -127,7 +139,8 @@ def _texto_de_unidades(unidades: list[dict]) -> dict:
             return [], [{"donde": f"ocr:{nombre[:80]}", "limite": "pdf_ilegible", "omitido": f"{nombre} ({str(e)[:80]})"}], True, None
         for p in pags:
             p["archivo"] = nombre
-        return pags, rec, False, ("pymupdf+gemini_vision" if any(p.get("ocr") for p in pags) else "pymupdf")
+        # Con el OCR de las páginas escaneadas fallido el texto va incompleto: `truncado` evita que se cachee.
+        return pags, rec, _ocr_fallido(rec), ("pymupdf+gemini_vision" if any(p.get("ocr") for p in pags) else "pymupdf")
 
     # Offsets de página GLOBALES precalculados (conteo con PyMuPDF, barato) → las unidades PDF
     # se OCR-ean EN PARALELO (PARSE_UNIT_WORKERS) conservando la numeración y el orden. Si
@@ -297,6 +310,8 @@ def _texto_cache_get(sha256: str) -> dict | None:
             extraccion = json.loads(extraccion)
         if isinstance(recortes, str):
             recortes = json.loads(recortes)
+        if _ocr_fallido(recortes):   # filas guardadas antes con el OCR fallido: se vuelve a leer
+            return None
         return {"n_paginas": n_paginas, "texto": texto or "", "paginas": paginas or [], "truncado": bool(truncado),
                 "motor": motor, "formato": formato, "extraccion": extraccion or {}, "recortes": recortes or [],
                 "chars": sum(int(p.get("chars") or 0) for p in (paginas or []))}

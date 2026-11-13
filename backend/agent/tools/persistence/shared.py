@@ -89,6 +89,13 @@ _INSERT_BANDERA_SQL = """INSERT INTO banderas (alerta_id, regla, severidad, evid
 def _insert_bandera(cur, alerta_id, regla, severidad, evidencia, norma, fuente_url,
                     agente_origen, verificacion, puntua: bool = True, regla_version: str | None = None,
                     identidad: str | None = None) -> None:
+    # La evidencia se guarda sin DNI ni RUC de persona natural (310 banderas lo llevaban en PROD el 2026-11-13: la API
+    # los tapa al publicar, pero no tienen por qué quedar escritos).
+    try:
+        from tools.verify import sin_datos_personales
+        evidencia = sin_datos_personales(evidencia or "")
+    except Exception:  # noqa: BLE001
+        pass
     cur.execute(
         _INSERT_BANDERA_SQL,
         (alerta_id, (regla or "sin_regla")[:80], severidad if severidad in ("alta", "media", "baja") else "media",

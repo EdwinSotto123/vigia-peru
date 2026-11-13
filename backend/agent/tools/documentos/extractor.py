@@ -134,6 +134,61 @@ def _prompt_lote(label: str, bloque: str | None, ocds_ctx: dict, rango: tuple[in
     )
 
 
+# Con LLM_BACKEND=compatible el schema es sólo texto del prompt y un número puede llegar como cadena
+# («125,000.00»): el código que sigue exige int/float y el dato se perdía (un postor sin oferta).
+_CAMPOS_DINERO = frozenset({"cuantia_total", "monto_oferta", "precio_final_total", "valor_referencial",
+                            "cuantia_referencial_item", "subtotal_contratado", "presupuesto_total", "parcial", "monto",
+                            "monto_facturado_min", "experiencia_minima_soles"})
+_CAMPOS_NUMERO = frozenset({"cantidad", "precio_unitario_referencial", "precio_unitario_ofertado",
+                            "precio_unitario_contratado", "precio_unitario", "puntaje", "puntaje_max", "metrado",
+                            "porcentaje_pago"})
+
+
+def _a_numero(v, dinero: bool):
+    """Cadena numérica → float; lo que no se entiende sin ambigüedad se devuelve igual. «1.234» es mil doscientos
+    treinta y cuatro SÓLO en un campo de dinero: en una cantidad o un precio unitario puede ser un decimal real."""
+    if not isinstance(v, str):
+        return v
+    s = re.sub(r"(?i)s/\.?|us\$|\$|soles|pen\b|usd\b|\s", "", v.replace(" ", " "))
+    if not re.fullmatch(r"\d[\d.,]*", s):
+        return v
+    miles = r"[1-9]\d{0,2}(?:%s\d{3})+"
+    if "," in s and "." in s:
+        dec = "," if s.rfind(",") > s.rfind(".") else "."
+        s = s.replace("." if dec == "," else ",", "").replace(dec, ".")
+    elif "," in s:
+        if re.fullmatch(miles % ",", s):
+            if s.count(",") == 1 and not dinero:
+                return v                      # «1,234» en una cantidad: mil o decimal, no se adivina
+            s = s.replace(",", "")
+        elif s.count(",") == 1:
+            s = s.replace(",", ".")
+        else:
+            return v
+    elif s.count(".") > 1 or (dinero and re.fullmatch(miles % r"\.", s)):
+        if not re.fullmatch(miles % r"\.", s):
+            return v
+        s = s.replace(".", "")
+    try:
+        return float(s)
+    except ValueError:
+        return v
+
+
+def _coaccionar_numeros(obj):
+    """Recorre la extracción y convierte en número las cadenas de los campos numéricos conocidos (en el sitio)."""
+    if isinstance(obj, dict):
+        for k, v in obj.items():
+            if k in _CAMPOS_DINERO or k in _CAMPOS_NUMERO:
+                obj[k] = _a_numero(v, k in _CAMPOS_DINERO)
+            else:
+                _coaccionar_numeros(v)
+    elif isinstance(obj, list):
+        for x in obj:
+            _coaccionar_numeros(x)
+    return obj
+
+
 def _finish_reason(resp) -> str:
     try:
         return str(resp.candidates[0].finish_reason or "")
@@ -149,7 +204,7 @@ def _llamar_extractor(texto: str, label: str, bloque: str | None, ocds_ctx: dict
     model = os.getenv("PARSER_MODEL", DEFAULT_GEMINI_MODEL)
     cfg_kwargs = dict(
         response_mime_type="application/json",
-        response_schema=_parser_schema(bloque, secciones_para_documento(label, tipo_hint)),
+        response_schema=_parser_schema(bloque, secciones_para_documento(label, tipo_hint, (ocds_ctx or {}).get("_seccion"))),
         max_output_tokens=65535,
         http_options=gtypes.HttpOptions(timeout=PARSE_CALL_TIMEOUT_MS),
         system_instruction=_SYSTEM_LOTE,
@@ -215,6 +270,10 @@ def _llamar_extractor(texto: str, label: str, bloque: str | None, ocds_ctx: dict
                                                        "bloques": descartados})
         except Exception as e:  # noqa: BLE001 — la 2.ª pasada nunca tumba la extracción principal
             print(f"[lote] 2.ª pasada ({descartados}) falló: {str(e)[:120]}", flush=True)
+            # Los bloques quedan pendientes: recorte visible y la extracción no se cachea (orquestacion.py).
+            data["_bloques_pendientes"] = [k for k in descartados if data.get(k) in (None, {}, [])]
+            data["_error_segunda_pasada"] = f"{type(e).__name__}: {str(e)[:120]}"
+    _coaccionar_numeros(data)
     um = getattr(resp, "usage_metadata", None)
     # El modelo que respondió (genai y el cliente compatible lo dicen en `model_version`), no el pedido: con
     # LLM_BACKEND=compatible el pedido es el nombre por defecto (gemini-3.6-flash) y responde el de vigia-llm.
@@ -339,6 +398,9 @@ def _extraer_documento(tx: dict, label: str, bloque: str | None, ocds_ctx: dict,
             parte = _extraer_rango(paginas, ra, rb, label, bloque, ocds_ctx, tipo_hint, recortes, usos,
                                    rango_explicito=len(rangos) > 1)
             result = _merge_extraccion(result, parte) if result else parte
+    if result.get("_bloques_pendientes"):
+        recortes.append({"donde": f"extraccion:{label[:80]}", "limite": "segunda_pasada_fallida",
+                         "omitido": f"bloques {result['_bloques_pendientes']} ({result.get('_error_segunda_pasada')})"})
     result["_truncado"] = bool(result.get("_truncado")) or any(r.get("limite", "").startswith("max_output") for r in recortes)
     result["_recortes"] = recortes
     result["_usos"] = usos

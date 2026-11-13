@@ -55,6 +55,32 @@ _DNI_CTX_RE = re.compile(
 # El RUC de una persona natural lleva su DNI dentro (10 + DNI + dígito): no se publica.
 _RUC10_RE = re.compile(r"(?<!\d)10\d{9}(?!\d)")
 RUC_RESERVADO = "RUC de persona natural (reservado)"
+# Jerga técnica que llegaba al dictamen publicado (511 de 4 756 en PROD el 2026-11-13): «(HTTP 504)», «decolecta
+# devolvió HTTP 403: API key sin créditos», «parse timeout». El lector es un ciudadano, no quien opera el sistema.
+_JERGA = (
+    (re.compile(r"\s*\((?:[^()\n]{0,40}\b)?HTTP\s[45]\d{2}[^()\n]{0,60}\)"), ""),
+    (re.compile(r":\s*API key sin cr[eé]ditos", re.I), ""),
+    (re.compile(r"(?:\b(?:el|un)\s+)?(?:\berror\s+)?\bHTTP\s[45]\d{2}\b", re.I), "un error de la fuente"),
+    (re.compile(r"\b(?:parse\s+)?time[- ]?out\b", re.I), "tiempo de espera agotado"),
+    (re.compile(r"\s*\(decolecta\)|\bdecolecta\b", re.I), lambda m: "" if m.group(0).lstrip().startswith("(") else "el servicio de consulta"),
+)
+
+
+def quitar_jerga(md: str) -> tuple[str, int]:
+    """El mismo texto sin códigos HTTP, «timeout» ni nombres de servicios internos."""
+    total = 0
+    for patron, reemplazo in _JERGA:
+        md, n = patron.subn(reemplazo, md)
+        total += n
+    return md, total
+
+
+def sin_datos_personales(texto: str) -> str:
+    """Un texto corto (la evidencia de una bandera) sin DNI ni RUC de persona natural."""
+    if not texto:
+        return texto
+    texto, _ = enmascarar_dnis(texto)
+    return _RUC10_RE.sub(RUC_RESERVADO, re.sub(r"\bRUC\s*(?:N[°º.]?\s*)?:?\s*(?=10\d{9}(?!\d))", "", texto))
 # Un número con miles separados por espacio («S/ 63 500», como escriben las actas y los modelos) se leía como 63 y la
 # bandera se descartaba por monto no respaldado (prueba de oro de servicios 2026-11-10, 1231453).
 _NUM = r"(\d{1,3}(?:[   ]\d{3})+(?:[.,]\d{1,2})?(?!\d)|\d[\d.,]*)"
@@ -536,7 +562,10 @@ def verificar_bandera(flag: dict, state: dict) -> dict:
     n_checks = 0
 
     fuerte = _fuentes_state(state, _STRONG_KEYS, _STRONG_PREFIXES)
-    parser = _fuentes_state(state, _PARSER_KEYS)
+    # Una bandera del analista legal sale de `legal_analysis`: cotejarla contra ese mismo texto la daba siempre por
+    # respaldada (un RUC inventado quedaba «ruc:…:parser»).
+    parser = _fuentes_state(state, [k for k in _PARSER_KEYS
+                                    if not (k == "legal_analysis" and flag.get("regla") == "red_flag_documental")])
     market = _fuentes_state(state, _MARKET_KEYS)
     textos = textos_documentos(state) if (ids["rucs"] or ids["dnis"] or ids["montos"] or ids["fechas"]) else {}
 
@@ -777,6 +806,9 @@ def sanitizar_dictamen(md: str, ver: dict | None) -> tuple[str, dict]:
     md, n10 = _RUC10_RE.subn(RUC_RESERVADO, re.sub(r"\bRUC\s*(?:N[°º.]?\s*)?:?\s*(?=10\d{9}(?!\d))", "", md))
     cambios["ruc10_reservados"] = n10
     n += n10
+    md, nj = quitar_jerga(md)
+    cambios["jerga_quitada"] = nj
+    n += nj
     # El proceso en Contrataciones Abiertas sólo abre con el OCID completo (/proceso/ocds-dgv273-seacev3-<ocid>).
     corregido = arreglar_urls_oece(md)
     cambios["urls_oece_corregidas"] = corregido != md

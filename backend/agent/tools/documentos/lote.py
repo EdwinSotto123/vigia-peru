@@ -448,7 +448,14 @@ def _raiz(tok: str) -> str:
 
 def _tokens_raiz(desc: str) -> set[str]:
     d = re.sub(r"[^A-Z0-9 ]", " ", _norm_txt(desc or "").translate(_LOOKALIKES))
-    return {_raiz(t) for t in d.split() if len(t) >= 3 and t not in _STOP_DESC}
+    # Los números cortos cuentan: «LLANTA 11 R 22» y «LLANTA 12 R 20» no son el mismo ítem.
+    return {_raiz(t) for t in d.split() if (len(t) >= 3 or t.isdigit()) and t not in _STOP_DESC}
+
+
+def _numero_item(n) -> str:
+    """Número de ítem comparable: '01', '1.0' y 1 → '1'."""
+    s = re.sub(r"\.0+$", "", str(n if n is not None else "").strip())
+    return s.lstrip("0") or ("0" if s else "")
 
 
 def _cruzar_items_contratados(consolidados: list[dict], contratados: list[dict]) -> None:
@@ -469,7 +476,7 @@ def _cruzar_items_contratados(consolidados: list[dict], contratados: list[dict])
         ti = _tokens_raiz(it.get("descripcion_corta") or it.get("descripcion") or "")
         if not ti:
             continue
-        mejor, mejor_score = None, 0.0
+        puntos: list[tuple[int, float]] = []
         for j, c in enumerate(cand):
             if j in usados:
                 continue
@@ -486,8 +493,21 @@ def _cruzar_items_contratados(consolidados: list[dict], contratados: list[dict])
                         score *= 0.5
                 except Exception:
                     pass
-            if score > mejor_score:
-                mejor, mejor_score = j, score
+            puntos.append((j, score))
+        # Primero el mismo número de ítem (la OC puede listar en otro orden); después el mejor puntaje, que debe
+        # ser único: si empatan dos renglones con precio distinto no se cruza ninguno.
+        num = _numero_item(it.get("numero"))
+        validos = [(j, s) for j, s in puntos if s >= 0.5]
+        mismos = [(j, s) for j, s in validos if num and _numero_item(cand[j].get("numero")) == num]
+        mejor, mejor_score = None, 0.0
+        grupo = mismos or validos
+        if grupo:
+            tope = max(s for _, s in grupo)
+            top = [j for j, s in grupo if s == tope]
+            origen = min(prio.get(cand[j].get("origen"), 9) for j in top)   # contrato > OC > oferta, como antes
+            top = [j for j in top if prio.get(cand[j].get("origen"), 9) == origen]
+            if len({cand[j].get("precio_unitario_contratado") for j in top}) == 1:
+                mejor, mejor_score = top[0], tope
         # único ítem de cada lado → cruce directo aunque las descripciones difieran
         if mejor is None and len(consolidados) == 1 and len(cand) == 1 and not usados:
             mejor, mejor_score = 0, 0.5

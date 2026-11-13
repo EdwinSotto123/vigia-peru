@@ -39,11 +39,12 @@ def _cuantia_reservada(state: dict) -> bool:
     for it in (raw.get("items_consolidados") or []):
         if isinstance(it, dict):
             textos.append(str(it.get("texto_literal") or "")[:3000])
-    dt = (state or {}).get("documentos_texto") or {}
-    if isinstance(dt, dict):
-        for v in dt.values():
-            if isinstance(v, dict) and isinstance(v.get("texto"), str):
-                textos.append(v["texto"][:20000])
+    # El lote deja en state['documentos_texto'] sólo los metadatos: el texto se lee por sha256 (tools/verify.py).
+    try:
+        from tools.verify import textos_documentos
+        textos.extend(t[:20000] for t in textos_documentos(state or {}).values())
+    except Exception:  # noqa: BLE001
+        pass
     return any(_RE_CUANTIA_RESERVADA.search(t) for t in textos if t)
 
 # ─── Reglas deterministas del lote 1 (plan 2026-09-15 · T12 + extras) ───────────

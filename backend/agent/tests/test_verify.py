@@ -495,3 +495,24 @@ def test_sanitizar_tapa_dni_en_todas_sus_formas_y_el_ruc_10():
 def test_un_codigo_de_consorcio_no_es_persona_natural():
     from tools.privacidad import es_persona_natural
     assert es_persona_natural("10439608801") and not es_persona_natural("1016604") and not es_persona_natural(None)
+
+
+def test_el_dictamen_sale_sin_jerga_tecnica():
+    """PROD 2026-11-13: 511 de 4 756 dictámenes llevaban «HTTP 403», «timeout» o «decolecta»."""
+    from tools.verify import sanitizar_dictamen
+    md = ("- Las Bases Integradas no pudieron extraerse (error HTTP 504 del LLM), por lo que faltan los términos.\n"
+          "- El perfil SUNAT del proveedor (decolecta devolvió HTTP 403: API key sin créditos).\n"
+          "- El acta no pudo parsearse por timeout del modelo (HTTP 504).\n"
+          "- El padrón SUNAT (decolecta) no pudo consultarse en esta corrida (error HTTP 403 del proveedor).")
+    limpio, cambios = sanitizar_dictamen(md, {})
+    for mala in ("HTTP", "timeout", "decolecta", "API key"):
+        assert mala not in limpio, (mala, limpio)
+    assert "Las Bases Integradas no pudieron extraerse, por lo que faltan los términos." in limpio
+    assert "El padrón SUNAT no pudo consultarse en esta corrida." in limpio
+    assert cambios["jerga_quitada"] >= 4 and cambios["modificado"]
+
+
+def test_la_evidencia_de_una_bandera_se_guarda_sin_ruc_10_ni_dni():
+    from tools.verify import sin_datos_personales
+    t = sin_datos_personales("El OECE registra 3 penalidades al RUC 10439608801; su titular, con DNI 43960880, es socio de RUC 20131378972.")
+    assert "10439608801" not in t and "43960880" not in t and "20131378972" in t

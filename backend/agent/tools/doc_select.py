@@ -266,7 +266,7 @@ def seleccionar_documentos(
     nunca llama a un LLM. `doc_ids` (body del orquestador) restringe el lote a esos ids OCDS /
     sha256 / URLs. `gcs_rows`/`fetch_gcs` permiten inyectar el catálogo (tests) en vez de leer
     la BD. `omitidos`: [{id, titulo, tipo, seccion, url, motivo}] con motivo ∈
-    {tope_docs, no_en_doc_ids, duplicado_sha256, duplicado_url}.
+    {tope_docs, no_en_doc_ids, duplicado_sha256, duplicado_url, version_anterior}.
     """
     prioridad = tuple(prioridad or PRIORIDAD_DEFAULT)
     max_docs = int(max_docs or MAX_DOCS_DEFAULT)
@@ -300,8 +300,19 @@ def seleccionar_documentos(
                     "formato": ref["formato"] or _formato(d["formato"], d["url"])})
 
     # documentos_gcs: blob + sha256 (+ metadata si el record no lo trae)
+    # La misma URL puede tener varias filas (otra descarga, otro sha256): vale la ÚLTIMA (id más alto); las
+    # anteriores quedan en omitidos `version_anterior` (antes ganaba la primera, p. ej. una descarga truncada).
+    ultima: dict[str, dict] = {}
     for r in gcs_rows or []:
         k = norm_url(r.get("url_origen")) or f"gs:{r.get('url_gcs')}"
+        previa = ultima.get(k)
+        if previa is not None and (r.get("gcs_id") or 0) < (previa.get("gcs_id") or 0):
+            r, previa = previa, r
+        ultima[k] = r
+        if previa is not None and previa.get("sha256") != r.get("sha256"):
+            omitidos.append({"id": f"gcs:{previa.get('gcs_id')}", "titulo": previa.get("titulo"), "tipo": previa.get("tipo"),
+                             "seccion": previa.get("seccion"), "url": previa.get("url_origen"), "motivo": "version_anterior"})
+    for k, r in ultima.items():
         ref = _get(k)
         ref["gs"] = ref["gs"] or r.get("url_gcs")
         ref["sha256"] = ref["sha256"] or r.get("sha256")
