@@ -1,7 +1,7 @@
 import { rutaContrato } from "@/lib/rutas";
 import type { ReactNode } from "react";
 import Link from "next/link";
-import { ExternalLink, Flag } from "lucide-react";
+import { ExternalLink, FileText } from "lucide-react";
 import { Severidad } from "@/components/ui/Severidad";
 import { Dato } from "@/components/ui/Dato";
 import { Partes, Separador } from "@/components/ui/Partes";
@@ -124,12 +124,15 @@ export function ListaSenales({ senales, total, query, fallo, contratosSinDetalle
     clave: `${g.clave}-${i}`,
     titulo: <ContratoDelGrupo s={g.senales[0]} enGrupo={g.senales.length} />,
     filas: sinRepetidas(g.senales).map(({ s, tambien }) => filaDe(s, tambien)),
+    rotuloFilas: `${plural(g.senales.length, "señal", "señales")} de este contrato${
+      (g.senales[0].senalesDelContrato ?? 0) > g.senales.length ? `, de ${g.senales[0].senalesDelContrato} en total` : ""
+    }`,
   }));
 
   return (
     <div className="space-y-3">
       <div className="flex justify-end">{paginador}</div>
-      <Tabla columnas={COLUMNAS_SENALES} grupos={grupos} etiqueta="Señales publicadas" colapsarIguales />
+      <Tabla columnas={COLUMNAS_SENALES} grupos={grupos} etiqueta="Señales publicadas" colapsarIguales jerarquia />
       <div className="flex flex-wrap items-center justify-between gap-3">
         {contratosSinDetalle > 0 ? (
           <p className="inline-flex items-center gap-1 text-meta text-mute">
@@ -208,7 +211,10 @@ function ContratoDelGrupo({ s, enGrupo }: { s: Senal; enGrupo: number }) {
   const ficha = s.ocid ? rutaContrato(s.ocid) : null;
   const rucEntidad = /^20\d{9}$/.test(s.rucEntidad ?? "") ? s.rucEntidad : null;
   return (
-    <span className="flex min-w-0 items-baseline justify-between gap-x-4">
+    <span className="flex min-w-0 items-start justify-between gap-x-4">
+      <span className="mt-0.5 hidden h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-line bg-paperSoft text-inkSoft sm:flex" aria-hidden>
+        <FileText size={16} />
+      </span>
       <span className="min-w-0 flex-1">
         {/* El tamaño y el peso, los del rótulo de grupo del kit (h3): sobre las señales, que van en `text-dato`. */}
         <span className="block truncate text-ink" title={objeto}>
@@ -241,11 +247,6 @@ function ContratoDelGrupo({ s, enGrupo }: { s: Senal; enGrupo: number }) {
                 </Dato>
               ),
               region && <Dato key="r" tipo="lugar">{tituloNatural(region)}</Dato>,
-              n != null && n > enGrupo && (
-                <Dato key="n" icono={Flag} nombre="Señales del contrato">
-                  {plural(n, "señal", "señales")} en total
-                </Dato>
-              ),
               s.fechaBuenaPro && (
                 <Dato key="f" tipo="fecha" nombre="Buena pro">
                   Buena pro {fechaCorta(s.fechaBuenaPro.slice(0, 10))}
@@ -255,8 +256,9 @@ function ContratoDelGrupo({ s, enGrupo }: { s: Senal; enGrupo: number }) {
           />
         </span>
       </span>
-      <span className="hidden shrink-0 text-meta font-normal text-mute sm:inline">
-        Valor del contrato <span className="font-mono tabular-nums text-ink">{valor != null ? soles(valor) : "Sin dato"}</span>
+      <span className="hidden shrink-0 flex-col items-end text-right sm:flex">
+        <span className="text-rotulo font-normal text-mute">Valor del contrato</span>
+        <span className="font-mono text-dato font-semibold tabular-nums text-ink">{valor != null ? soles(valor) : "Sin dato"}</span>
       </span>
     </span>
   );

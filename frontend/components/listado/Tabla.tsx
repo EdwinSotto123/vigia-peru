@@ -1,6 +1,6 @@
 import { Fragment, isValidElement, type CSSProperties, type ReactNode } from "react";
 import Link from "next/link";
-import { ChevronRight, Equal } from "lucide-react";
+import { ChevronRight, CornerDownRight, Equal } from "lucide-react";
 import { Partes, hayDato } from "@/components/ui/Partes";
 import { Dato } from "@/components/ui/Dato";
 import { Skeleton } from "@/components/ui/Skeleton";
@@ -226,6 +226,8 @@ export interface GrupoFilas {
   /** Rótulo del grupo con su conteo en pastilla: "En espera" + `<CuentaGrupo>47</CuentaGrupo>`. */
   titulo: ReactNode;
   filas: Fila[];
+  /** Con `jerarquia`: qué son las filas de adentro, sobre ellas («3 señales de este contrato»). */
+  rotuloFilas?: ReactNode;
 }
 
 export function Tabla({
@@ -236,6 +238,7 @@ export function Tabla({
   medida = "pantalla",
   densidad = "normal",
   colapsarIguales = false,
+  jerarquia = false,
   className,
 }: {
   columnas: Columna[];
@@ -256,6 +259,12 @@ export function Tabla({
    * («Todos sin leer»); su ancho pasa al título. Cabecera y celdas se van juntas. Ver `Columna.igual` y `Fila.textos`.
    */
   colapsarIguales?: boolean;
+  /**
+   * Con `grupos`: el rótulo del grupo es la cosa (un contrato) y sus filas son de ELLA (sus señales). Cada grupo va
+   * separado del siguiente, con su rótulo en tinta sobre fondo claro, y las filas dentro, en una caja con sangría y una
+   * raya a la izquierda. Sin esto, rótulo y filas se leían al mismo nivel (pedido del usuario del 2026-11-12).
+   */
+  jerarquia?: boolean;
   className?: string;
 }) {
   const k = clases(medida);
@@ -290,7 +299,7 @@ export function Tabla({
           ))}
         </p>
       )}
-      <div className={cn(k.grid, "border-b border-line bg-paperSoft px-4 text-rotulo font-medium text-mute", densidad === "compacta" ? "py-1.5" : "py-2.5")}>
+      <div className={cn(k.grid, "border-b border-line bg-paperSoft px-4 text-rotulo font-medium text-mute", densidad === "compacta" ? "py-1.5" : "py-2.5", jerarquia && "sr-only")}>
         {columnas.map((c) => (
           <span key={c.clave} className={cn("min-w-0 items-center gap-1", claseVisible(c, k), c.alinear === "der" && "justify-end")}>
             <span className="truncate">{c.titulo}</span>
@@ -301,14 +310,29 @@ export function Tabla({
       </div>
       {grupos ? (
         grupos.map((g) => (
-          <section key={g.clave} aria-label={typeof g.titulo === "string" ? g.titulo : undefined} className="border-b border-line last:border-b-0">
+          <section
+            key={g.clave}
+            aria-label={typeof g.titulo === "string" ? g.titulo : undefined}
+            className={cn("last:border-b-0", jerarquia ? "border-b-8 border-paperSoft pb-3" : "border-b border-line")}
+          >
             {/* No `top-0`: el layout baja todo `.sticky.top-0` en el celular. Bajo una barra de pestañas fija, debajo de
                 ella (`--alto-barra-fija` lo pone `Pestanas fija`): si no, el rótulo del grupo quedaba tapado. Fuera de ellas,
                 en el celular, debajo de la barra del sitio (3 rem); desde md la barra es la lateral y no tapa nada. */}
-            <h3 className="sticky top-[var(--alto-barra-fija,3rem)] z-[1] md:top-[var(--alto-barra-fija,0px)] border-b border-line/70 bg-paperSoft/95 px-4 py-2 text-cuerpo font-semibold text-inkSoft backdrop-blur">
+            <h3
+              className={cn(
+                "sticky top-[var(--alto-barra-fija,3rem)] z-[1] md:top-[var(--alto-barra-fija,0px)] px-4 backdrop-blur",
+                jerarquia ? "bg-paper/95 pb-2 pt-3 text-destacado font-semibold text-ink" : "border-b border-line/70 bg-paperSoft/95 py-2 text-cuerpo font-semibold text-inkSoft",
+              )}
+            >
               {g.titulo}
             </h3>
-            <ul>
+            {jerarquia && g.rotuloFilas && (
+              <p className="ml-4 flex items-center gap-1.5 pb-1.5 pl-3 text-rotulo font-semibold text-mute sm:ml-7">
+                <CornerDownRight size={13} className="shrink-0" aria-hidden />
+                {g.rotuloFilas}
+              </p>
+            )}
+            <ul className={jerarquia ? "ml-4 mr-3 overflow-hidden rounded-xl border border-line border-l-[3px] border-l-granate/50 bg-paperSoft/50 sm:ml-7 sm:mr-4" : undefined}>
               {g.filas.map((f) => (
                 <li key={f.id} className="border-b border-line/70 last:border-b-0">
                   <FilaTabla fila={f} columnas={columnas} conAccion={conAccion} medida={medida} densidad={densidad} />
