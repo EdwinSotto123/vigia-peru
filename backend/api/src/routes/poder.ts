@@ -296,7 +296,7 @@ poderRouter.get("/entidad/:ruc/grafo", async (c) => {
        -- Lo convocado en el periodo de gobierno vigente, igual que n_captura (migración 140): la tabla y la cifra
        -- cuentan lo mismo. Todas las empresas (antes cortaba en 18): la tabla de la ficha tiene buscador.
        JOIN convocatorias c ON c.ocid = cp.ocid AND c.entidad_ruc = $1
-        AND c.fecha_convocatoria >= $2 AND c.fecha_convocatoria <= $3
+        AND c.fecha_convocatoria >= COALESCE($2::date, '-infinity') AND c.fecha_convocatoria <= COALESCE($3::date, 'infinity')
        LEFT JOIN empresas e ON e.ruc = cp.ruc_empresa
       WHERE cp.tipo IN ('partido_gobernante', 'vendio_gobernante', 'socio_en_entidad')
         AND cp.ruc_empresa ~ '^20[0-9]{9}$'

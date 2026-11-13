@@ -91,7 +91,7 @@ export const ListaMenoresQuery = z.object({
   q: z.string().trim().min(2).max(80).optional(),
   anio: z.coerce.number().int().min(2024).max(2100).optional(),
   entidad: z.string().regex(/^\d{11}$/).optional(),
-  proveedor: z.string().regex(/^\d{11}$/).optional(),
+  proveedor: z.string().regex(/^(?!10)\d{11}$/).optional(), // nunca un RUC 10 (sale de un DNI): a una persona se llega por su código
   region: z.string().trim().min(2).max(40).optional(), // departamento de la entidad (nombre); se compara normalizado
   objeto: enumDe(OBJETO_MENOR).optional(),
   estado: z.string().trim().min(3).max(30).optional(),
@@ -125,7 +125,7 @@ const FILAS = `SELECT m.*, ms.tipos AS senal_tipos, COALESCE(ms.alta, false) AS 
          (m.fecha_suscripcion - sp.fecha_inicio_actividades) AS dias,
          8 * uit_soles(COALESCE(m.anio::int, extract(year FROM m.fecha_suscripcion)::int)) AS tope,
          upper(immutable_unaccent(e.region)) AS entidad_region,
-         upper(immutable_unaccent(COALESCE(m.descripcion, '') || ' ' || COALESCE(m.entidad, '') || ' ' || COALESCE(m.proveedor, '')
+         upper(immutable_unaccent(COALESCE(m.descripcion, '') || ' ' || COALESCE(m.entidad, '') || ' ' || CASE WHEN m.proveedor_ruc LIKE '10%' THEN '' ELSE COALESCE(m.proveedor, '') END
                                   || ' ' || COALESCE(m.codigo, ''))) AS texto,
          -- La regla de «inhabilitado» de las personas (migración 91): firmó dentro de una inhabilitación temporal o definitiva.
          (m.id_contrato IN (SELECT m2.id_contrato FROM seace_menores m2 JOIN osce_sancionados s ON s.ruc = m2.proveedor_ruc
@@ -161,7 +161,8 @@ export function condicionesMenores(q: FiltrosListaMenores, vals: unknown[]): { a
   if (q.senal) filtros.push({ faceta: "senal", sql: SENAL_MENOR[q.senal] });
   if (q.persona) filtros.push({ faceta: "persona", sql: `x.proveedor_ruc LIKE '${q.persona === "natural" ? "10" : "20"}%'` });
   if (q.monto) filtros.push({ faceta: "monto", sql: MONTO_MENOR[q.monto] });
-  for (const w of palabrasBusqueda(q.q)) filtros.push({ faceta: null, sql: `x.texto LIKE ${p(`%${w}%`)}` });
+  // Sin palabras de 6 dígitos o más: servían para probar un DNI tapado dentro de una descripción.
+  for (const w of palabrasBusqueda(q.q).filter((x) => !/^\d{6,}$/.test(x))) filtros.push({ faceta: null, sql: `x.texto LIKE ${p(`%${w}%`)}` });
   return { ancla, filtros };
 }
 
@@ -214,7 +215,7 @@ export async function clavesMenores(q: Omit<FiltrosListaMenores, "page" | "size"
   const r = await consultaConPlazo(
     `WITH x AS (${FILAS} WHERE ${ancla.join(" AND ")})
      SELECT x.id_contrato AS id, to_char(x.fecha_suscripcion, 'YYYY-MM-DD') AS fecha, x.monto::float AS monto FROM x ${where}
-      ORDER BY x.fecha_suscripcion ${dir}, x.id_contrato ${dir} LIMIT ${n}`, vals);
+      ORDER BY x.fecha_suscripcion ${dir} NULLS LAST, x.id_contrato ${dir} LIMIT ${n}`, vals);
   return r.rows as { id: number; fecha: string | null; monto: number | null }[];
 }
 
@@ -315,7 +316,7 @@ async function proxyPdf(url: string, referer: string, nombre: string, c: Context
 // de Cloudflare y no se puede traer en vivo. Lo espeja a R2 backend/scripts/cargar_seace_menores.py --espejar.
 menoresRouter.get("/:id/requerimiento", async (c) => {
   const id = c.req.param("id");
-  if (!/^\d+$/.test(id)) return c.json({ error: "id_invalido" }, 400);
+  if (!/^\d{1,9}$/.test(id)) return c.json({ error: "id_invalido" }, 400);
   const bucket = (c.env as { DOCUMENTOS?: BucketR2 } | undefined)?.DOCUMENTOS;
   if (!bucket) return c.json({ error: "sin_r2" }, 404);
   const obj = await bucket.get(`seace/menores/req/${id}.pdf`);
@@ -332,7 +333,7 @@ menoresRouter.get("/:id/requerimiento", async (c) => {
 // Contrato u orden ya firmada (prod4).
 menoresRouter.get("/:id/contrato", async (c) => {
   const id = c.req.param("id");
-  if (!/^\d+$/.test(id)) return c.json({ error: "id_invalido" }, 400);
+  if (!/^\d{1,9}$/.test(id)) return c.json({ error: "id_invalido" }, 400);
   const r = await consultaConPlazo("SELECT id_documento_contrato, codigo FROM seace_menores WHERE id_contrato=$1", [id]);
   const row = r.rows[0] as { id_documento_contrato: string | null; codigo: string | null } | undefined;
   if (!row?.id_documento_contrato) return c.json({ error: "sin_contrato" }, 404);
@@ -344,7 +345,7 @@ menoresRouter.get("/:id/contrato", async (c) => {
 
 const ResumenQuery = z.object({
   entidad: z.string().regex(/^\d{11}$/).optional(),
-  proveedor: z.string().regex(/^\d{11}$/).optional(),
+  proveedor: z.string().regex(/^(?!10)\d{11}$/).optional(),
   anio: z.coerce.number().int().min(2024).max(2100).optional(),
 });
 const memoResumen = new Memo<Record<string, unknown>>({ nombre: "menores:resumen", ttlMs: 3_600_000, staleMs: 3_600_000, max: 200 });
@@ -395,7 +396,7 @@ menoresRouter.get("/resumen", async (c) => {
  * el requerimiento y en el contrato, sus señales con la evidencia (los contratos del grupo), los demás contratos menores
  * de la entidad con ese proveedor (donde un contrato partido se ve solo) y las órdenes de pago que le corresponden.
  */
-menoresRouter.get("/:id{[0-9]+}", async (c) => {
+menoresRouter.get("/:id{[0-9]{1,9}}", async (c) => {
   const id = Number(c.req.param("id"));
   const [fila] = await filasMenores([id]);
   if (!fila) return c.json({ error: "no_encontrado" }, 404);
@@ -444,6 +445,13 @@ menoresRouter.get("/:id{[0-9]+}", async (c) => {
          FROM compra_vinculo v WHERE v.clase = 'menor' AND v.ref = $1 ORDER BY v.fecha_emision`, [String(id)]).catch(() => ({ rows: [] })),
   ]);
   const lectura = (clase: string) => (lecturas.rows as { clase: string }[]).find((l) => l.clase === clase) ?? null;
+  // El PDF de OTRA compra hecha a una persona natural: es de un tercero, y sus líneas («servicio de … – NOMBRE») no se
+  // publican. Queda el hecho (otro documento, otro monto), que es lo que la señal dice.
+  const contratoLeido = lectura("menor_contrato") as { salida?: Record<string, unknown> } | null;
+  const esAjeno = (senales.rows as { tipo: string }[]).some((s) => s.tipo === "contrato_documento_ajeno");
+  if (esAjeno && contratoLeido?.salida && !/^20\d{9}$/.test(String(contratoLeido.salida.proveedor_ruc ?? ""))) {
+    contratoLeido.salida = { ...contratoLeido.salida, items: [], firmantes: [] };
+  }
   c.header("Cache-Control", CACHE);
   return c.json(publicar({
     menor: { ...fila, ...(extra.rows[0] as Record<string, unknown>) },

@@ -70,7 +70,9 @@ def banderas_contexto(salida: dict, ctx: dict) -> list[str]:
     out = []
     doc, monto = salida.get("monto_total"), float(ctx.get("monto") or 0)
     if (isinstance(doc, (int, float)) and doc > 0 and monto > 0 and salida.get("moneda") in ("PEN", "")
-            and ctx.get("moneda") in (None, "PEN") and abs(doc - monto) > max(100.0, 0.05 * monto)):
+            and ctx.get("moneda") in (None, "PEN") and abs(doc - monto) > max(100.0, 0.05 * monto)
+            # con y sin IGV es el mismo monto
+            and min(abs(doc - monto * 1.18), abs(doc * 1.18 - monto)) > 0.01 * monto):
         out.append("contrato_monto_distinto")
     ruc = "".join(c for c in str(salida.get("proveedor_ruc") or "") if c.isdigit())
     reg = str(ctx.get("proveedor_ruc") or "")

@@ -415,3 +415,13 @@ test("dos DNI pegados por una coma se tapan los dos; una cifra con decimales no"
   for (const d of ["43960880", "41234567", "40111222", "40333444"]) assert.ok(!r.a.includes(d), r.a);
   assert.equal(r.b, "Monto 12,34567890 y S/ 12345678.50 y 1,234,567");
 });
+
+test("un nombre acortado en un texto libre no destapa el apellido escondido", () => {
+  // Auditoría 2026-11-13: la cita del requerimiento («contratar al Sr. Juan Perez Quispe») salía entera junto a «PEREZ ••• JUAN CARLOS».
+  const s = json(publicar({
+    menor: { proveedor: "PEREZ QUISPE JUAN CARLOS", proveedorRuc: "10439608801" },
+    senales: [{ tipo: "tdr_proveedor_nombrado", detalle: { cita: "Se requiere contratar al Sr. Juan Perez Quispe por tres meses; el señor Pérez Quispe ya prestó el servicio. Carlos Perez Quispe." } }],
+  }));
+  assert.ok(!/quispe/i.test(s), s);
+  assert.ok(s.includes("por tres meses"));
+});

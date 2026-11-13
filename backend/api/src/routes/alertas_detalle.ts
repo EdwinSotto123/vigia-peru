@@ -155,11 +155,18 @@ alertasDetalleRouter.get("/:id", async (c) => {
        ST_Y(a.ubicacion_geo::geometry) AS lat,
        ST_X(a.ubicacion_geo::geometry) AS lon,
        COALESCE(
-         (SELECT json_agg(b.* ORDER BY
-            CASE b.severidad WHEN 'alta' THEN 1 WHEN 'media' THEN 2 ELSE 3 END, b.id)
+         -- Columnas explícitas, como el dossier: la columna verificacion trae RUC y DNI en sus motivos y no sale.
+         (SELECT json_agg(json_build_object(
+                   'id', b.id, 'alerta_id', b.alerta_id, 'regla', b.regla, 'severidad', b.severidad, 'evidencia', b.evidencia,
+                   'norma', b.norma, 'fuente_url', b.fuente_url, 'agente_origen', b.agente_origen,
+                   'puntua', COALESCE(b.puntua, true),
+                   'verificada', CASE WHEN b.verificacion->>'ok' IN ('true', 'false') THEN (b.verificacion->>'ok')::boolean END)
+                 ORDER BY CASE b.severidad WHEN 'alta' THEN 1 WHEN 'media' THEN 2 ELSE 3 END, b.id)
           FROM banderas b WHERE b.alerta_id = a.id),
          '[]'::json
        ) AS banderas,
+       -- Sólo para saber quiénes son las personas al tapar la evidencia: no sale en la respuesta.
+       a.analisis_full AS _contexto,
        (SELECT payload FROM network_expansions
         WHERE alerta_id = a.id ORDER BY created_at DESC LIMIT 1) AS network,
        -- Convergencia pública (no demo, con ≥ 1 reporte público): coordenadas redondeadas y
@@ -180,11 +187,11 @@ alertasDetalleRouter.get("/:id", async (c) => {
     [id],
   );
   if (r.rows.length === 0) return c.json({ error: "not_found" }, 404);
-  const row = r.rows[0];
+  const { _contexto, ...row } = r.rows[0];
   if (esAlertaDemo(row.codigo)) return c.json({ error: "not_found" }, 404);
   if (esPublicada(row.estado)) {
     c.header("Cache-Control", cachePublico(60, { maxAge: 30 }));
-    return c.json(publicar({ ...row, publicada: true, enRevision: false }));
+    return c.json(publicar({ ...row, publicada: true, enRevision: false }, { extra: _contexto ?? undefined }));
   }
   // No publicada (revision / descartada): existe, pero sin score, señales, reglas, dictamen ni
   // análisis — ver GET /alertas/:id/full y /alertas/:id/revision.

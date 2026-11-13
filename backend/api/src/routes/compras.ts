@@ -55,15 +55,17 @@ const FILTROS_PROCESO = ListQuery.pick({ cruces: true, cruce: true, lectura: tru
                                          operativo: true, obra: true, desde: true, hasta: true });
 const CLAVES_PROCESO = Object.keys(FILTROS_PROCESO.shape) as (keyof z.infer<typeof FILTROS_PROCESO>)[];
 const RUC = z.string().regex(/^\d{11}$/);
+/** La contraparte o el proveedor por el que se filtra: nunca un RUC 10 (se calcula desde un DNI). */
+const RUC_NO_PERSONA = z.string().regex(/^(?!10)\d{11}$/);
 
 export const ComprasQuery = FILTROS_PROCESO.extend({
   entidad: RUC.optional(),
-  proveedor: RUC.optional(),
+  proveedor: RUC_NO_PERSONA.optional(),
   q: z.string().trim().min(3).max(80).optional(),
   anio: z.coerce.number().int().min(2015).max(2100).optional(),
   como: z.enum(CLASES_COMPRA).optional(),
   // La contraparte: el proveedor en la ficha de una entidad, la entidad en la de una empresa.
-  con: RUC.optional(),
+  con: RUC_NO_PERSONA.optional(),
   bandera: z.enum(BANDERAS).optional(),
   // Con una bandera de la orden: sólo las de personas naturales (RUC 10) o de empresas (RUC 20), como la lista de órdenes.
   persona: z.enum(["natural", "empresa"]).optional(),

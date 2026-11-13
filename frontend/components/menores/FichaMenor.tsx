@@ -679,6 +679,16 @@ function DatosEnDos({ items, className }: { items: Par[]; className?: string }) 
   );
 }
 
+/**
+ * El monto que estima el requerimiento, si es creíble: menos de S/ 100 frente a un contrato 5 veces mayor es una cantidad
+ * o un número de ítem que la lectura tomó por monto («Estima: S/ 1» en una compra de S/ 43,778).
+ */
+function estimadoCreible(v: unknown, registrado: number | null | undefined): number | null {
+  const e = num(v);
+  if (e == null || e <= 0) return null;
+  return e < 100 && registrado != null && registrado >= 5 * e ? null : e;
+}
+
 type EstadoDoc = "leido" | "no_es" | "sin_leer" | "sin_publicar";
 const estadoDoc = (l: LecturaMenor | null, valido: boolean, publicado: boolean): EstadoDoc =>
   l && valido ? "leido" : l ? "no_es" : publicado ? "sin_leer" : "sin_publicar";
@@ -821,7 +831,7 @@ function filasComparadas(f: FichaMenor): FilaComparada[] {
   });
 
   // El monto: el que estima el requerimiento, el del documento y el registrado.
-  const estimado = num(r.monto_estimado);
+  const estimado = estimadoCreible(r.monto_estimado, m.monto);
   const enDoc = c ? num(c.monto_total) : null;
   const registrado =
     m.monto != null ? (
@@ -1054,7 +1064,7 @@ function DetalleRequerimiento({ f, r, l }: { f: FichaMenor; r: Record<string, an
     txt(r.area_usuaria) || m.areaUsuaria ? { etiqueta: "Quién lo pidió", valor: txt(r.area_usuaria) ?? oracion(m.areaUsuaria!) } : null,
     r.plazo_dias != null ? { etiqueta: "Plazo", valor: `${numero(r.plazo_dias)} días`, mono: true } : null,
     txt(r.lugar) ? { etiqueta: "Dónde", valor: txt(r.lugar) } : null,
-    r.monto_estimado != null ? { etiqueta: "Monto que estima", valor: soles(r.monto_estimado), mono: true } : null,
+    estimadoCreible(r.monto_estimado, m.monto) != null ? { etiqueta: "Monto que estima", valor: soles(r.monto_estimado), mono: true } : null,
     txt(perfil.formacion) ? { etiqueta: "Perfil del proveedor", valor: txt(perfil.formacion) } : null,
     perfil.experiencia_anios != null ? { etiqueta: "Experiencia exigida", valor: `${numero(perfil.experiencia_anios)} años`, mono: true } : null,
     perfil.experiencia_monto != null ? { etiqueta: "Facturación exigida", valor: soles(perfil.experiencia_monto), mono: true } : null,

@@ -84,7 +84,7 @@ export const ListaOrdenesQuery = z.object({
   q: z.string().trim().min(2).max(80).optional(),
   anio: z.coerce.number().int().min(2018).max(2100).optional(),
   entidad: z.string().regex(/^\d{11}$/).optional(),
-  proveedor: z.string().regex(/^\d{11}$/).optional(),
+  proveedor: z.string().regex(/^(?!10)\d{11}$/).optional(), // nunca un RUC 10 (sale de un DNI)
   region: z.string().trim().min(2).max(40).optional(), // departamento (nombre); se compara normalizado
   tipo: z.enum(["compra", "servicio"]).optional(),
   // Antes texto libre comparado tal cual («Emitida»): ahora uno de los tres, en cualquier caja.

@@ -45,7 +45,7 @@ const GRUPO_ESTADO = `CASE ${Object.entries(ESTADO_CATALOGO).map(([k, sql]) => `
 export const ListaCatalogoQuery = z.object({
   q: z.string().trim().min(3).max(80).optional(),
   entidad: z.string().regex(/^\d{11}$/).optional(),
-  proveedor: z.string().regex(/^\d{11}$/).optional(),
+  proveedor: z.string().regex(/^(?!10)\d{11}$/).optional(), // nunca un RUC 10 (sale de un DNI)
   anio: z.coerce.number().int().min(2015).max(2100).optional(),
   estado: z.enum(Object.keys(ESTADO_CATALOGO) as [keyof typeof ESTADO_CATALOGO, ...(keyof typeof ESTADO_CATALOGO)[]]).optional(),
   sobreprecio: z.enum(["si"]).optional(),

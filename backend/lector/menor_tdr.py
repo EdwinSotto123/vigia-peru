@@ -81,7 +81,7 @@ ESQUEMA = {
         },
         "forma_pago": _TXT,
         "penalidad": _TXT,
-        "monto_estimado": {"type": ["number", "null"], "description": "Sólo si el documento dice el monto o el valor estimado"},
+        "monto_estimado": {"type": ["number", "null"], "description": "Sólo si el documento dice el monto o el valor estimado EN SOLES de toda la contratación; nunca una cantidad, un número de ítem ni un precio unitario"},
         "confianza": {"type": "string", "enum": ["alta", "media", "baja"]},
     },
 }
@@ -115,6 +115,7 @@ def banderas_contexto(salida: dict, ctx: dict) -> list[str]:
         out.append("tdr_experiencia_alta")
     est = salida.get("monto_estimado")
     # Cinco veces más o menos que lo estimado: no es una rebaja ni un reajuste, es otro monto (o uno mal registrado).
-    if monto > 0 and isinstance(est, (int, float)) and est > 0 and max(monto / est, est / monto) >= 5:
+    # Menos de S/ 100 «estimados» es una cantidad o un número de ítem mal leído (158 de 227 banderas el 2026-11-13).
+    if monto > 0 and isinstance(est, (int, float)) and est >= 100 and max(monto / est, est / monto) >= 5:
         out.append("tdr_monto_distinto")
     return out

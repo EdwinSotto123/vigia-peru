@@ -219,6 +219,13 @@ BEGIN
     CROSS JOIN LATERAL unnest(a.banderas) b
    WHERE a.version = 'v1' AND a.estado = 'ok' AND a.clase IN ('menor_tdr', 'menor_contrato') AND b = ANY (z.banderas)
      AND (b <> 'tdr_marca_sin_equivalente' OR b = ANY (mm.banderas))
+     -- Un «monto estimado» menor de S/ 100 frente a un contrato 5 veces mayor es una cantidad o un número de ítem que la
+     -- lectura tomó por monto (158 de 227 el 2026-11-13: «estima S/ 1» en una compra de S/ 43,778).
+     AND NOT (b = 'tdr_monto_distinto' AND NULLIF(a.salida->>'monto_estimado', '')::numeric < 100)
+     -- El mismo monto con y sin IGV (18 %) no es otro monto (15 de 247).
+     AND NOT (b = 'contrato_monto_distinto' AND m.monto > 0 AND NULLIF(a.salida->>'monto_total', '')::numeric > 0
+              AND least(abs((a.salida->>'monto_total')::numeric - m.monto * 1.18), abs((a.salida->>'monto_total')::numeric * 1.18 - m.monto))
+                  <= 0.01 * m.monto)
      -- El RUC del documento es el de la propia entidad (la lectura tomó el del comprador) o no es un RUC: no hay otro proveedor.
      AND NOT (b = 'contrato_ruc_distinto' AND (a.salida->>'proveedor_ruc' = m.entidad_ruc OR NOT ruc_valido(a.salida->>'proveedor_ruc')))
      -- Un múltiplo exacto (lo registrado es 2 a 24 veces el documento, o al revés) es un servicio pagado en cuotas o una
@@ -235,7 +242,10 @@ BEGIN
   SELECT r.id_contrato, 'contrato_documento_ajeno', 'media', mo.monto,
          r.detalle || jsonb_strip_nulls(jsonb_build_object(
            'en_documento', mo.detalle->'en_documento',
-           'objeto_documento', NULLIF(left(sin_dni(a.salida->'items'->0->>'descripcion'), 200), '')))
+           -- De qué trata el otro documento, sólo si es de una empresa: la línea de una orden a una persona suele
+           -- llevar su nombre.
+           'objeto_documento', CASE WHEN a.salida->>'proveedor_ruc' LIKE '20%'
+                                    THEN NULLIF(left(sin_dni(a.salida->'items'->0->>'descripcion'), 200), '') END))
     FROM menor_senal r
     JOIN menor_senal mo ON mo.id_contrato = r.id_contrato AND mo.tipo = 'contrato_monto_distinto'
     JOIN menor_lectura a ON a.id_contrato = r.id_contrato AND a.clase = 'menor_contrato' AND a.version = 'v1'

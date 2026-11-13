@@ -346,6 +346,12 @@ class Recolector {
       const { apellidos, nombres } = partes(claves, coma > 0 ? "sunat" : ordenProbable(claves, orden), coma);
       const formas = new Map<string, string[]>();
       for (const f of [claves, [...nombres, ...apellidos], [...apellidos, ...nombres]]) formas.set(f.join(" "), f);
+      // Un nombre acortado en un texto libre («contratar al Sr. Juan Pérez Quispe» junto a «PEREZ ••• JUAN CARLOS»)
+      // destapaba el apellido escondido: también los dos apellidos con UN nombre de pila, y los dos apellidos solos.
+      if (apellidos.length === 2) {
+        if (nombres.length > 1) for (const g of nombres) for (const f of [[g, ...apellidos], [...apellidos, g]]) formas.set(f.join(" "), f);
+        if (apellidos.every((a) => a.length >= 4)) formas.set(apellidos.join(" "), apellidos);
+      }
       p = { id, formas, oculta: apellidos[apellidos.length - 1], familia: false, papel: false };
       this.personas.set(id, p);
     }
