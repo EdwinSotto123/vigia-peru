@@ -372,14 +372,14 @@ export function LineaDeTiempo({ h, etiqueta, clave }: { h: Historia; etiqueta: s
                 ))}
                 {/* El patrón elegido (sus meses) y el mes elegido y el del puntero. */}
                 {patronElegido && visible(patronElegido.mes) && (
-                  <rect x={xMes(patronElegido.mes)} y={EJE} width={(mesesDe(patronElegido.mes, patronElegido.hasta ?? patronElegido.mes) + 1) * mw} height={H - EJE} className="fill-amber/15" />
+                  <rect x={xMes(patronElegido.mes)} y={EJE} width={Math.max(0, (mesesDe(patronElegido.mes, patronElegido.hasta ?? patronElegido.mes) + 1) * mw)} height={H - EJE} className="fill-amber/15" />
                 )}
                 {secElegida && secElegida.pasos.length > 0 && (() => {
                   const d = mesDe(secElegida.pasos[0].fecha);
                   const hh = mesDe(secElegida.pasos[secElegida.pasos.length - 1].fecha);
                   const desde = d < t.desde ? t.desde : d;
                   return hh >= t.desde && d <= t.hasta ? (
-                    <rect x={xMes(desde)} y={EJE} width={(mesesDe(desde, hh > t.hasta ? t.hasta : hh) + 1) * mw} height={H - EJE} className="fill-granate/15" />
+                    <rect x={xMes(desde)} y={EJE} width={Math.max(0, (mesesDe(desde, hh > t.hasta ? t.hasta : hh) + 1) * mw)} height={H - EJE} className="fill-granate/15" />
                   ) : null;
                 })()}
                 {mesElegido && visible(mesElegido) && <rect x={xMes(mesElegido)} y={EJE} width={mw} height={H - EJE} className="fill-granate/20" />}
@@ -547,7 +547,7 @@ function SinDatos({
         if (x1 <= x0) return null;
         return (
           <g key={`${x.desde}-${x.hasta}`}>
-            <rect x={x0} y={y + 3} width={x1 - x0} height={f.alto - 6} rx={3} fill={`url(#${rayado})`} className="stroke-line" strokeWidth={1} />
+            <rect x={x0} y={y + 3} width={Math.max(0, x1 - x0)} height={f.alto - 6} rx={3} fill={`url(#${rayado})`} className="stroke-line" strokeWidth={1} />
             {x1 - x0 >= 64 && (
               <text x={x0 + (x1 - x0) / 2} y={y + f.alto / 2 + 4} textAnchor="middle" className="fill-mute font-semibold" style={{ fontSize: "11px" }}>
                 {x1 - x0 >= 150 ? (l.sinDatos ? x.texto : "Sin datos de este periodo") : x.texto}
@@ -606,7 +606,7 @@ function Hechos({
             className="cursor-pointer focus:outline-none [&:focus-visible>rect]:stroke-granate"
           >
             <title>{`${e.titulo} (${fechaConAnio(e.fecha)} a ${fechaConAnio(e.hasta!)})`}</title>
-            <rect x={x0 + 0.5} y={yy} width={x1 - x0 - 1} height={alto} rx={gob ? 4 : 3} strokeWidth={elegido === e.id ? 2 : 0} className={cn(gob ? (i % 2 ? "fill-paperDeep" : "fill-line/70") : TRAMO[e.severidad ?? "ninguna"], elegido === e.id ? "stroke-granate" : "stroke-transparent")} />
+            <rect x={x0 + 0.5} y={yy} width={Math.max(1, x1 - x0 - 1)} height={alto} rx={gob ? 4 : 3} strokeWidth={elegido === e.id ? 2 : 0} className={cn(gob ? (i % 2 ? "fill-paperDeep" : "fill-line/70") : TRAMO[e.severidad ?? "ninguna"], elegido === e.id ? "stroke-granate" : "stroke-transparent")} />
             {texto && (
               <text x={x0 + 7} y={yy + alto / 2 + 4} className="pointer-events-none fill-ink" style={{ fontSize: "11px" }}>
                 {texto}

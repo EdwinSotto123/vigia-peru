@@ -25,7 +25,7 @@ import { DocumentosContrato } from "./DocumentosContrato";
 import { CitaPagina } from "./CitaPagina";
 import { TextoRedactado } from "./TextoRedactado";
 import { etiquetaRegla, type CatalogoReglas } from "@/lib/revision";
-import { fecha, numero, porcentaje, soles } from "@/lib/formato";
+import { fecha, numero, porcentaje, soles, oracion } from "@/lib/formato";
 import {
   cambioDeGanador, esPersonaNatural, formatoDoc, humanizarCodigo, ordenNombrePostor, personasNaturalesDe, tipoDocLabel,
   type CitaDocumento, type ContratoDetalle as Detalle, type ContratoDocumento, type PostorContrato,
@@ -269,6 +269,22 @@ function SeccionPostores({ c, enRevision }: { c: Detalle; enRevision: boolean })
   // Si la buena pro pasó a otro postor (OCDS + CONOSCE), el "ganador" del acta no es con quien se contrató.
   const cambio = cambioDeGanador(c);
   const rucsQuedan = new Set((cambio?.queda ?? []).map((a) => a.proveedorRuc));
+  // Por qué quedó fuera cada postor: el registro del proceso casi nunca lo trae (salía «Sin dato»), pero la lectura del
+  // acta sí (banderas «acta_*», `detalle.fuera`: nombre, RUC y motivo). Por RUC; si no hay RUC, por nombre.
+  const motivoActa = new Map<string, string>();
+  for (const x of c.cruces ?? []) {
+    if (!x.tipo.startsWith("acta_")) continue;
+    const fuera = (x.detalle as { fuera?: unknown })?.fuera;
+    if (!Array.isArray(fuera)) continue;
+    for (const f of fuera as { ruc?: string | null; nombre?: string | null; motivo?: string | null }[]) {
+      const m = typeof f?.motivo === "string" ? f.motivo.trim() : "";
+      if (!m) continue;
+      if (f.ruc) motivoActa.set(`r:${f.ruc}`, m);
+      if (f.nombre) motivoActa.set(`n:${f.nombre.trim().toUpperCase()}`, m);
+    }
+  }
+  const motivoDe = (p: { ruc?: string | null; razonSocial?: string | null; motivoEstado?: string | null }) =>
+    humanizarCodigo(p.motivoEstado) || (p.ruc && motivoActa.get(`r:${p.ruc}`)) || (p.razonSocial && motivoActa.get(`n:${p.razonSocial.trim().toUpperCase()}`)) || null;
   const filas: Fila[] = ordenados.map((p, i) => {
     const ref = referenciaDe(p, c);
     const dif = hayReferencia && p.montoOferta != null && ref ? ((p.montoOferta - ref) / ref) * 100 : null;
@@ -301,7 +317,11 @@ function SeccionPostores({ c, enRevision }: { c: Detalle; enRevision: boolean })
                 partes={[
                   p.ordenPrelacion != null && <Dato key="puesto" icono={ListOrdered} nombre="Orden de prelación">Puesto {p.ordenPrelacion}</Dato>,
                   p.ruc && <Dato key="ruc" tipo="ruc">RUC <Ruc value={p.ruc} /></Dato>,
-                  humanizarCodigo(p.motivoEstado) && <Dato key="motivo" icono={Info} nombre="Motivo">{humanizarCodigo(p.motivoEstado)}</Dato>,
+                  !p.esGanador && motivoDe(p) && (
+                    <Dato key="motivo" icono={Info} nombre="Por qué quedó fuera" className="whitespace-normal">
+                      Por qué quedó fuera: {recortarMotivo(oracion(motivoDe(p)!))}
+                    </Dato>
+                  ),
                   oferta && <Dato key="oferta" icono={Coins} nombre="Oferta" className="md:hidden">{oferta}</Dato>,
                 ]}
               />
@@ -315,7 +335,7 @@ function SeccionPostores({ c, enRevision }: { c: Detalle; enRevision: boolean })
         fuente: p.citas[0] ? <CitaPagina ocid={c.ocid} cita={p.citas[0]} corto /> : <span className="text-rotulo text-mute">Sin cita</span>,
       },
       // Una persona natural no se busca por su nombre ni por su RUC (docs/PRIVACIDAD.md): sólo por su estado.
-      buscable: [esPersonaNatural(p.ruc) ? null : p.razonSocial, esPersonaNatural(p.ruc) ? null : p.ruc, estado, humanizarCodigo(p.motivoEstado)].filter(Boolean).join(" "),
+      buscable: [esPersonaNatural(p.ruc) ? null : p.razonSocial, esPersonaNatural(p.ruc) ? null : p.ruc, estado, motivoDe(p)].filter(Boolean).join(" "),
     };
   });
   return (
@@ -593,4 +613,11 @@ function Chip({ children, ganador = false }: { children: ReactNode; ganador?: bo
 /** Una sección sin filas: qué falta, en una línea. Sin llamita: puede haber varias en la misma ficha. */
 function Vacio({ children }: { children: ReactNode }) {
   return <VacioEnLinea variante="compacta">{children}</VacioEnLinea>;
+}
+
+/** El motivo del acta en una o dos oraciones: hasta 220 caracteres, cortado en una palabra. */
+function recortarMotivo(m: string): string {
+  const s = m.replace(/\s+/g, " ").trim();
+  if (s.length <= 220) return s;
+  return `${s.slice(0, 220).replace(/\s+\S*$/, "")}…`;
 }

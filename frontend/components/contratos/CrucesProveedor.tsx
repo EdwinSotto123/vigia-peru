@@ -31,7 +31,7 @@ import { txt } from "@/lib/utils";
 import { EvidenciaDelCruce, OrdenesFraccionadas } from "./EvidenciaCruce";
 import { GrupoSanciones, TIPOS_SANCION } from "./SancionesCruce";
 import { BotonPestana } from "./BotonPestana";
-import { esTipoLeido, esTipoObra } from "@/lib/cruces";
+import { TIPO_CRUCE, esTipoLeido, esTipoObra } from "@/lib/cruces";
 import { fraseBandera, type BanderaObra } from "@/lib/obras";
 
 const VARIANTE = { alta: "crimson", media: "amber", baja: "neutral" } as const;
@@ -1158,12 +1158,16 @@ function RenglonesGrupos({ grupos }: { grupos: CruceProveedor[][] }) {
           <BotonPestana
             clave="antecedentes"
             ancla={anclaDe(g[0].tipo)}
-            className="flex min-h-11 w-full items-center justify-between gap-3 px-3.5 py-2 text-left transition-colors duration-rapido hover:bg-granate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-granate"
+            className="flex min-h-11 w-full items-start justify-between gap-3 px-3.5 py-2.5 text-left transition-colors duration-rapido hover:bg-granate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-granate"
           >
-            <span className="flex min-w-0 items-center gap-2">
-              <SeveridadCruce s={peorSeveridad(g) ?? g[0].severidad} />
-              <IconoBandera tipo={g[0].tipo} size={14} className="text-inkSoft" />
-              <span className="line-clamp-2 text-dato leading-snug text-ink">{g[0].etiqueta}</span>
+            <span className="flex min-w-0 items-start gap-2">
+              <span className="mt-0.5 shrink-0"><SeveridadCruce s={peorSeveridad(g) ?? g[0].severidad} /></span>
+              <IconoBandera tipo={g[0].tipo} size={14} className="mt-1 shrink-0 text-inkSoft" />
+              <span className="min-w-0">
+                <span className="block text-dato font-medium leading-snug text-ink">{g[0].etiqueta}</span>
+                {/* Qué significa, a la vista (antes sólo al pasar el mouse): «no se explica qué es cada una» (2026-11-13). */}
+                {TIPO_CRUCE[g[0].tipo]?.explica && <span className="mt-0.5 block text-meta leading-snug text-mute">{TIPO_CRUCE[g[0].tipo].explica}</span>}
+              </span>
             </span>
             <span className="shrink-0 font-mono text-dato tabular-nums text-ink">{numero(g.length)}</span>
           </BotonPestana>
@@ -1194,6 +1198,10 @@ export function ResumenAntecedentes({ cruces, varios }: { cruces: CruceProveedor
           Ver la evidencia <ChevronRight size={14} aria-hidden />
         </BotonPestana>
       </div>
+      <p className="text-meta leading-snug text-inkSoft">
+        Datos de otros registros del Estado sobre {varios ? "quienes ganaron" : "quien ganó"}. <strong className="font-semibold text-ink">Alta</strong>,{" "}
+        <strong className="font-semibold text-ink">media</strong> o <strong className="font-semibold text-ink">baja</strong> dice cuánto pesa cada uno; el número, cuántas veces aparece. Toca uno para ver su evidencia.
+      </p>
       {grupos.length > 0 ? (
         <RenglonesGrupos grupos={grupos} />
       ) : (

@@ -17,6 +17,7 @@
  * Server component; `ContratoEnVivo` y `Redact` son islas de cliente.
  */
 
+import { GUIA_FICHA } from "./guiasFicha";
 import Link from "next/link";
 import { rutaApoyar, rutaContrato } from "@/lib/rutas";
 import { Suspense, type ReactNode } from "react";
@@ -183,7 +184,7 @@ export function ContratoDetalle({
           línea de tiempo y lo de la entidad. En el celular, la columna lateral va después de las pestañas. */}
       <div className="grid items-start gap-x-8 gap-y-6 lg:grid-cols-[minmax(0,1fr)_320px]">
         <div className="min-w-0">
-          <Pestanas fija key={seccion ?? "resumen"} etiqueta="Secciones del contrato" activa={seccion} pestanas={pestanas} />
+          <Pestanas fija key={seccion ?? "resumen"} etiqueta="Secciones del contrato" activa={seccion} pestanas={pestanas.map((p) => ({ ...p, guia: p.guia ?? GUIA_FICHA[p.clave] }))} />
         </div>
 
         <aside className="min-w-0 space-y-5 lg:sticky lg:top-4" aria-label="Datos del proceso y de la entidad">

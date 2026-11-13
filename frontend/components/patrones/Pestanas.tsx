@@ -1,5 +1,6 @@
 "use client";
 
+import { GuiaPestana, type Guia } from "./GuiaPestana";
 import { createContext, useCallback, useContext, useEffect, useId, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -47,11 +48,14 @@ export interface Pestana {
   icono?: ReactNode;
   /** El título del panel abierto (el h2 de su `CabeceraPestana`). Por defecto, `etiqueta`. */
   titulo?: string;
+  /** Qué es, de dónde sale y cómo leerla (`GuiaPestana`): va arriba del contenido al abrirla. */
+  guia?: Guia;
   contenido: ReactNode;
 }
 
 /** El panel en que está una `CabeceraPestana`: su nombre es el título de la cabecera (h2; h3 en `variante="segunda"`). */
-const PanelActual = createContext<{ titulo: string; nivel: 2 | 3 } | null>(null);
+/** `conGuia`: la pestaña ya lleva su `GuiaPestana` arriba, y la línea de la cabecera no la repite. */
+const PanelActual = createContext<{ titulo: string; nivel: 2 | 3; conGuia?: boolean } | null>(null);
 
 /** `useLayoutEffect` sin el aviso del render en el servidor. */
 const useEfectoDeMedida = typeof window !== "undefined" ? useLayoutEffect : useEffect;
@@ -266,7 +270,14 @@ export function Pestanas({
           tabIndex={0}
           className={cn(segunda ? "pt-4" : "pt-5", "rounded-lg focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-granate")}
         >
-          <PanelActual.Provider value={{ titulo: p.titulo ?? p.etiqueta, nivel: segunda ? 3 : 2 }}>{visitadas.has(p.clave) ? p.contenido : null}</PanelActual.Provider>
+          <PanelActual.Provider value={{ titulo: p.titulo ?? p.etiqueta, nivel: segunda ? 3 : 2, conGuia: !!p.guia }}>
+            {visitadas.has(p.clave) ? (
+              <>
+                {p.guia && <GuiaPestana guia={p.guia} />}
+                {p.contenido}
+              </>
+            ) : null}
+          </PanelActual.Provider>
         </div>
       ))}
     </div>
@@ -311,7 +322,7 @@ export function CabeceraPestana({ titulo, children, ayuda, acciones }: { titulo?
             {ayuda}
           </div>
         ) : null}
-        {children && (
+        {children && !panel?.conGuia && (
           <p className={cn("max-w-[80ch] text-dato leading-snug text-inkSoft text-pretty", nombre && "mt-1")}>
             {children}
             {!nombre && ayuda ? <> {ayuda}</> : null}

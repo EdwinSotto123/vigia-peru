@@ -18,6 +18,13 @@ export interface VistaDisponible {
  * las otras se piden al abrirlas (`PestanaAPedido`), sin mover la vista. Va como píldoras (`variante="segunda"`) para no
  * confundirse con las pestañas de cada vista, que van debajo.
  */
+/** Qué es cada vista, en una línea bajo la barra (2026-11-13: «no se explica qué es cada una»). */
+const QUE_ES: Record<VistaContrato, string> = {
+  ficha: "Los datos oficiales del proceso: qué se compró, quién compitió, quién ganó, por cuánto y sus documentos.",
+  dictamen: "Lo que encontró Vigía al leer los documentos: cada señal con la norma que toca y la página donde está.",
+  vivo: "Cómo se leyó: qué revisó cada agente de Vigía, en qué orden y con qué fuentes.",
+};
+
 export function VistasContrato({
   activa,
   vistas,
@@ -41,7 +48,10 @@ export function VistasContrato({
         etiqueta: v.etiqueta,
         contenido:
           v.clave === activa ? (
-            children
+            <>
+              <p className="-mt-1 mb-4 text-meta leading-snug text-inkSoft">{QUE_ES[v.clave]}</p>
+              {children}
+            </>
           ) : (
             <PestanaAPedido clave={v.clave} param="vista">
               <Cargando texto={`Abriendo «${v.etiqueta}»…`} lineas={4} />
