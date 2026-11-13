@@ -121,6 +121,7 @@ export function filaDe(e: EmpresaFila, desde?: string): Fila {
   const vende = e.objeto ? OBJETO_TEXTO[e.objeto] ?? e.objeto : null;
   return {
     id: e.ruc,
+    magnitudes: { contratos: e.adjProcesos ? e.adjMonto : null, ordenes: e.ordN ? e.ordMonto : null },
     celdas: {
       empresa: (
         <CeldaPrincipal

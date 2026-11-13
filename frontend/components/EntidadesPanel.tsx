@@ -269,6 +269,7 @@ function filaEntidad(e: ApiEntidad, puesto: number | null, desdeAntecedentes: De
   const banderas = banderasDe(e);
   return {
     id: e.ruc,
+    magnitudes: { contratos: e.contratos, presupuesto: e.presupuesto?.pim },
     celdas: {
       puesto: puesto != null ? <span className="font-mono text-rotulo tabular-nums text-mute">{numero(puesto)}</span> : null,
       entidad: (

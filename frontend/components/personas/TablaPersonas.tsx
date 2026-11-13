@@ -151,6 +151,7 @@ function filaDe(p: PersonaEntidad, deEntidad: boolean): Fila {
   const anios = aniosTexto(p.anios);
   return {
     id: `${p.codigo}-${p.entidadRuc}`,
+    magnitudes: { monto: p.monto, ordenes: p.ordenes },
     celdas: {
       persona: (
         <CeldaPrincipal

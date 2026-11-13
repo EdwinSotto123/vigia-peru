@@ -39,11 +39,11 @@ import { Ayuda, EstadoError, EstadoVacio, FuenteDato } from "@/components/patron
 import { enlacesProceso } from "@/lib/fuentes";
 import { Llamita } from "@/components/marca/Llamita";
 import { CeldaFecha, CeldaNumero, CeldaPrincipal, CeldaTexto, Tabla, TablaSkeleton, type Columna, type Fila, type Parametros } from "@/components/listado";
-import { CeldaBarra, CodigoFila } from "@/components/listado/Tabla";
+import { CodigoFila } from "@/components/listado/Tabla";
 import { cn } from "@/lib/utils";
 import { rutaContrato } from "@/lib/rutas";
 import { motivoDudoso } from "@/lib/datoDudoso";
-import { fechaConAnio, numero, oracion, plural, porcentaje } from "@/lib/formato";
+import { fechaConAnio, numero, oracion, plural } from "@/lib/formato";
 import { nivelDeScore, severidadDeContrato } from "@/lib/severidad";
 import { esPersonaNatural, etapaLabel, formatMonto, tipoLabel, totalContratosTexto, type ContratoResumen, type ContratosPagina } from "@/lib/contratos";
 import { PersonName } from "@/components/Redact";
@@ -251,9 +251,6 @@ export function TablaContratos({
   // No en la ficha de una entidad (ya es su lista) ni si la entidad ya es el filtro.
   const hrefEntidad = (ruc: string | null) => (!deEntidad && ruc && parametros.entidad !== ruc ? hrefCon({ entidad: ruc }) : null);
 
-  // El monto mayor de la página: la barra de cada fila se mide contra él (se ve de un vistazo cuál pesa más).
-  const mayorMonto = data.reduce((m, c) => Math.max(m, c.montoPen ?? 0), 0);
-
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -262,7 +259,7 @@ export function TablaContratos({
       </div>
       <Tabla
         columnas={COLUMNAS}
-        filas={data.map((c) => filaDe(c, deEntidad, desde, hrefEntidad(c.entidadRuc), parametros.ganadora, mayorMonto))}
+        filas={data.map((c) => filaDe(c, deEntidad, desde, hrefEntidad(c.entidadRuc), parametros.ganadora))}
         etiqueta="Contratos"
         colapsarIguales
       />
@@ -295,7 +292,7 @@ function PuntajeFila({ score }: { score: number }) {
   );
 }
 
-function filaDe(c: ContratoResumen, deEntidad: boolean, desde?: string, soloEntidad?: string | null, datoGanadora?: string, mayorMonto = 0): Fila {
+function filaDe(c: ContratoResumen, deEntidad: boolean, desde?: string, soloEntidad?: string | null, datoGanadora?: string): Fila {
   // En oración, como los procesos y el presupuesto: el SEACE manda casi todo en mayúsculas.
   const titulo = c.titulo ? oracion(limpiarObjeto(c.titulo)) : "Sin objeto registrado";
   // Con su nombre propio, como en su ficha ("Seguro Social de Salud"), no en las mayúsculas del SEACE.
@@ -326,6 +323,7 @@ function filaDe(c: ContratoResumen, deEntidad: boolean, desde?: string, soloEnti
   const etapa = etapaLabel(c.etapa);
   return {
     id: c.ocid,
+    magnitudes: { valor: c.datoDudoso ? null : c.montoPen },
     enlaces: !!codigo,
     // Lo que dice cada celda, para quitar la columna que dice lo mismo en toda la página (`colapsarIguales`). Sin texto
     // (columna que se queda): el estado con la bandera de «posible error de carga» y las banderas de antecedentes.
@@ -349,13 +347,7 @@ function filaDe(c: ContratoResumen, deEntidad: boolean, desde?: string, soloEnti
       contrato: <CeldaPrincipal titulo={recortar(titulo, 160)} meta={meta} dosLineas />,
       cruces: <CrucesCelda cruces={cruces} sinGanador={!c.proveedor} />,
       tipo: <CeldaTexto sub={etapa ?? undefined}>{tipo}</CeldaTexto>,
-      valor: (
-        <CeldaNumero
-          sub={c.montoPen && mayorMonto > 0 ? <CeldaBarra tono="neutro" parte={c.montoPen / mayorMonto} resumen={`${porcentaje((100 * c.montoPen) / mayorMonto)} del mayor de esta página`} className="mt-1" /> : undefined}
-        >
-          {c.montoPen ? monto : <span className="font-sans text-mute">Sin dato</span>}
-        </CeldaNumero>
-      ),
+      valor: <CeldaNumero>{c.montoPen ? monto : <span className="font-sans text-mute">Sin dato</span>}</CeldaNumero>,
       convocada: <CeldaFecha fecha={c.fecha?.slice(0, 10)} />,
     },
     detalle: {

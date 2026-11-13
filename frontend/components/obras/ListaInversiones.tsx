@@ -137,6 +137,7 @@ function filaInversion(v: Inversion): Fila {
   const lugar = [v.lugar.distrito, v.lugar.provincia].filter(Boolean).map((x) => tituloNatural(x!)).join(", ");
   return {
     id: `inv-${v.cui}`,
+    magnitudes: { viable: dudoso ? null : v.montos.viable, actualizado: dudoso ? null : v.montos.actualizado },
     celdas: {
       estado: (
         <span className="flex flex-col items-start gap-1">

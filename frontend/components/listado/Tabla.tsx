@@ -99,6 +99,12 @@ export interface Fila {
    */
   textos?: Record<string, string | null | undefined>;
   /**
+   * La magnitud de sus celdas numéricas, por la clave de su columna (soles, cantidad): la tabla dibuja bajo el número
+   * una barra medida contra el mayor de la página, para comparar las filas de un vistazo. Sólo magnitudes que se
+   * pueden comparar entre filas (no un porcentaje ni un dato dudoso). Hace falta en dos filas o más.
+   */
+  magnitudes?: Record<string, number | null | undefined>;
+  /**
    * Sus celdas llevan enlaces propios (el código del proceso a su ficha): la acción de la fila va en una capa debajo de
    * las celdas y cada `<a>` de una celda se puede tocar solo; el resto de la celda abre la fila. Ver `FilaConEnlaces`.
    */
@@ -269,6 +275,7 @@ export function Tabla({
 }) {
   const k = clases(medida);
   const todas = grupos ? grupos.flatMap((g) => g.filas) : filas ?? [];
+  const maximos = maximosDe(todas);
   const { columnas, notas } = colapsarIguales ? columnasQueDicenAlgo(todasLasColumnas, todas) : { columnas: todasLasColumnas, notas: [] as NotaIgual[] };
   const conAccion = todas.some((f) => f.href || f.detalle);
   const estilo = rejilla(columnas, conAccion);
@@ -335,7 +342,7 @@ export function Tabla({
             <ul className={jerarquia ? "ml-4 mr-3 overflow-hidden rounded-xl border border-line border-l-[3px] border-l-granate/50 bg-paperSoft/50 sm:ml-7 sm:mr-4" : undefined}>
               {g.filas.map((f) => (
                 <li key={f.id} className="border-b border-line/70 last:border-b-0">
-                  <FilaTabla fila={f} columnas={columnas} conAccion={conAccion} medida={medida} densidad={densidad} />
+                  <FilaTabla fila={f} columnas={columnas} conAccion={conAccion} medida={medida} densidad={densidad} maximos={maximos} />
                 </li>
               ))}
             </ul>
@@ -345,7 +352,7 @@ export function Tabla({
         <ul aria-label={etiqueta}>
           {todas.map((f) => (
             <li key={f.id} className="border-b border-line/70 last:border-b-0">
-              <FilaTabla fila={f} columnas={columnas} conAccion={conAccion} medida={medida} densidad={densidad} />
+              <FilaTabla fila={f} columnas={columnas} conAccion={conAccion} medida={medida} densidad={densidad} maximos={maximos} />
             </li>
           ))}
         </ul>
@@ -406,18 +413,33 @@ function soloSinDato(n: ReactNode): boolean {
   return envoltorio && celdaVacia(p.sub as ReactNode) && p.children != null && soloSinDato(p.children as ReactNode);
 }
 
+/** El mayor de cada columna con `magnitudes` en la página (si lo declaran dos filas o más): contra él se mide la barra. */
+function maximosDe(filas: Fila[]): Record<string, number> {
+  const cuenta: Record<string, number> = {};
+  const mayor: Record<string, number> = {};
+  for (const f of filas)
+    for (const [k, v] of Object.entries(f.magnitudes ?? {}))
+      if (typeof v === "number" && Number.isFinite(v) && v > 0) {
+        cuenta[k] = (cuenta[k] ?? 0) + 1;
+        mayor[k] = Math.max(mayor[k] ?? 0, v);
+      }
+  return Object.fromEntries(Object.entries(mayor).filter(([k]) => cuenta[k] >= 2));
+}
+
 function FilaTabla({
   fila,
   columnas,
   conAccion,
   medida,
   densidad,
+  maximos,
 }: {
   fila: Fila;
   columnas: Columna[];
   conAccion: boolean;
   medida: Medida;
   densidad: Densidad;
+  maximos?: Record<string, number>;
 }) {
   const k = clases(medida);
   // Sólo las que dicen algo en ESTA fila: una celda sin dato no se apila (en su columna, desde su ancho, sigue diciendo
@@ -452,6 +474,11 @@ function FilaTabla({
                   </span>
                 ))}
               </span>
+            </span>
+          ) : maximos?.[c.clave] && (fila.magnitudes?.[c.clave] ?? 0) > 0 ? (
+            <span className="block w-full min-w-0">
+              {fila.celdas[c.clave]}
+              <CeldaBarra tono="neutro" parte={fila.magnitudes![c.clave]! / maximos[c.clave]} resumen={`${Math.round((100 * fila.magnitudes![c.clave]!) / maximos[c.clave])} % del mayor de esta página`} className="ml-auto mt-1 max-w-[7rem]" />
             </span>
           ) : (
             fila.celdas[c.clave] ?? <span className="text-meta text-mute">Sin dato</span>

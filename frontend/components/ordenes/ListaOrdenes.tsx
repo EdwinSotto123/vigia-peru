@@ -1662,6 +1662,7 @@ export function filaOrden(o: OrdenGeneral, i: number, { ruta, parametros }: { ru
   // «Qué proceso paga» es el capítulo 3 sólo si la orden paga un proceso; si no, los datos suben al 3.
   return {
     id: `${o.orden ?? i}-${o.fecha}-${o.entidadRuc}`,
+    magnitudes: { monto: motivo || moneda ? null : o.monto },
     // Lo que dice cada celda, para quitar la columna que dice lo mismo en toda la página (`colapsarIguales`). Sin texto
     // (la columna se queda): la que lleva una bandera (posible error, fecha futura) o banderas de antecedentes.
     textos: {

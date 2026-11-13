@@ -316,6 +316,7 @@ export function filaMenor(m: ContratoMenor, i: number, { ruta, parametros }: { r
   ];
   return {
     id: `${m.id}`,
+    magnitudes: { monto: m.monto },
     enlaces: !!m.codigo,
     // Lo que dice cada celda, para quitar la columna que dice lo mismo en toda la página (`colapsarIguales`). Sin texto
     // (la columna se queda): las banderas y la fecha posterior a hoy, con su bandera.

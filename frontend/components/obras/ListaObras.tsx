@@ -272,6 +272,7 @@ function filaObra(o: Obra, { conEntidad, empresaRuc }: { conEntidad: boolean; em
   const a = o.avance;
   return {
     id: `obra-${o.codigo}`,
+    magnitudes: { monto: dudoso ? null : costo.monto },
     celdas: {
       estado: (
         <span className="flex flex-col items-start gap-1">
