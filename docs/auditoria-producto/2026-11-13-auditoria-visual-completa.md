@@ -91,6 +91,36 @@ las piezas compartidas:
   página: contratos, órdenes, menores, empresas, entidades, obras, inversiones y personas.
 - **Placa de sección en la cabecera.** El ícono del menú junto al título de cada página.
 
+## Todo lo demás (commits `2f5802c9` a `0aa498ac`)
+
+- **Asistente:** chat con saludo, respuestas rápidas y «¿Quieres saber más?»; se escribe sin cuenta y se envía al
+  entrar. Contra abuso: topes por IP que suman cuentas, bloqueo automático de 24 h, lista fija `CHAT_BLOQUEO`.
+- **Color:** menú en gris con un solo acento, banderas de fila sin relleno rojo, series de gráficos 10 % menos
+  saturadas (validadas para daltonismo), fondos menos verdosos.
+- **Ficha del contrato:** una cabecera para ficha, dictamen y «Cómo se leyó», con pestañas; las señales cuentan lo
+  mismo en toda la página (4) y el puntaje va con tope de 100; el «105» era el puntaje del comité y ahora lo dice;
+  `?vista=vivo` abre la lectura en vivo. Contrato menor con título corto.
+- **Fichas de entidad, región y partido:** el «Inicio» cabe en una pantalla (cifras, tres señales, quién gobierna y
+  «Ver más»); en las demás pestañas la cabecera se pliega; el mapa mental ya no sale cortado.
+- **Fusiones:** una sola lista de partidos; Apoyar, Podio de aliados, Todos los aportes y Cuánto cuesta en una página;
+  «Lo que falta leer» dentro de Auditoría en vivo; las rutas viejas redirigen. `/app/poder?seccion=` cambia de vista.
+- **Portada:** de 11 bandas a 6; sin carruseles cortados; pie compacto.
+- **Barra de filtros:** una fila de 40 px; en celular, buscador y «Filtros» que abre una hoja.
+
+| Medida (recaptura del 13 de noviembre) | Antes | Después |
+|---|---|---|
+| Alto medio, escritorio | 2,4 pantallas | 2,0 |
+| Alto medio, celular | 4,4 pantallas | 3,8 |
+| Elementos con degradado por página | 4,6 | 0,2 |
+| Portada, escritorio / celular | 15,5 / 23,7 | 6,6 / 11,4 |
+| Ficha de entidad, escritorio / celular | 5,7 / 10,6 | 1,3 / 2,7 |
+| Ficha de región, escritorio / celular | 3,6 / 7,9 | 1,0 / 2,2 |
+| Ficha de partido, escritorio / celular | 2,8 / 9,0 | 1,2 / 2,6 |
+| Páginas con desborde o errores de consola | 1 | 0 |
+
+La banda negra de la portada en las capturas de página entera es un defecto de la captura de Chromium: recorriendo la
+página con scroll, la sección de partidos aparece completa.
+
 ## Lo que sigue, por pieza
 
 1. **Tabla:** filas de 44 a 48 px; ocultar la columna que dice lo mismo en más del 80 % de las filas y decirlo una vez;
