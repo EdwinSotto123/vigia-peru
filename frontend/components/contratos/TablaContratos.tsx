@@ -39,11 +39,12 @@ import { Ayuda, EstadoError, EstadoVacio, FuenteDato } from "@/components/patron
 import { enlacesProceso } from "@/lib/fuentes";
 import { Llamita } from "@/components/marca/Llamita";
 import { CeldaFecha, CeldaNumero, CeldaPrincipal, CeldaTexto, Tabla, TablaSkeleton, type Columna, type Fila, type Parametros } from "@/components/listado";
-import { CodigoFila } from "@/components/listado/Tabla";
+import { CeldaBarra, CodigoFila } from "@/components/listado/Tabla";
+import { cn } from "@/lib/utils";
 import { rutaContrato } from "@/lib/rutas";
 import { motivoDudoso } from "@/lib/datoDudoso";
-import { fechaConAnio, numero, oracion, plural } from "@/lib/formato";
-import { severidadDeContrato } from "@/lib/severidad";
+import { fechaConAnio, numero, oracion, plural, porcentaje } from "@/lib/formato";
+import { nivelDeScore, severidadDeContrato } from "@/lib/severidad";
 import { esPersonaNatural, etapaLabel, formatMonto, tipoLabel, totalContratosTexto, type ContratoResumen, type ContratosPagina } from "@/lib/contratos";
 import { PersonName } from "@/components/Redact";
 import { DetalleContrato } from "./DetalleContrato";
@@ -250,6 +251,9 @@ export function TablaContratos({
   // No en la ficha de una entidad (ya es su lista) ni si la entidad ya es el filtro.
   const hrefEntidad = (ruc: string | null) => (!deEntidad && ruc && parametros.entidad !== ruc ? hrefCon({ entidad: ruc }) : null);
 
+  // El monto mayor de la página: la barra de cada fila se mide contra él (se ve de un vistazo cuál pesa más).
+  const mayorMonto = data.reduce((m, c) => Math.max(m, c.montoPen ?? 0), 0);
+
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -258,7 +262,7 @@ export function TablaContratos({
       </div>
       <Tabla
         columnas={COLUMNAS}
-        filas={data.map((c) => filaDe(c, deEntidad, desde, hrefEntidad(c.entidadRuc), parametros.ganadora))}
+        filas={data.map((c) => filaDe(c, deEntidad, desde, hrefEntidad(c.entidadRuc), parametros.ganadora, mayorMonto))}
         etiqueta="Contratos"
         colapsarIguales
       />
@@ -276,7 +280,22 @@ function crucesDeFila(c: ContratoResumen, datoGanadora?: string) {
   return deLaEmpresa.length ? [...deLaEmpresa, ...(c.cruces ?? [])] : c.cruces;
 }
 
-function filaDe(c: ContratoResumen, deEntidad: boolean, desde?: string, soloEntidad?: string | null, datoGanadora?: string): Fila {
+/** El puntaje (0 a 100) con su barra, del color de su tramo: en la lista por riesgo, lo que ordena las filas. */
+function PuntajeFila({ score }: { score: number }) {
+  const s = Math.max(0, Math.min(100, Math.round(score)));
+  const nivel = nivelDeScore(s);
+  return (
+    <span className="mt-1.5 flex items-center gap-1.5" title={`Puntaje ${s} de 100`}>
+      <span className="block h-1.5 w-14 shrink-0 overflow-hidden rounded-full bg-paperDeep" aria-hidden>
+        <span className={cn("block h-full rounded-full", nivel === "alta" ? "bg-crimson" : nivel === "media" ? "bg-amber" : "bg-inkSoft/60")} style={{ width: `${Math.max(4, s)}%` }} />
+      </span>
+      <span className="font-mono text-rotulo font-semibold tabular-nums text-ink">{s}</span>
+      <span className="text-rotulo text-mute">de 100</span>
+    </span>
+  );
+}
+
+function filaDe(c: ContratoResumen, deEntidad: boolean, desde?: string, soloEntidad?: string | null, datoGanadora?: string, mayorMonto = 0): Fila {
   // En oración, como los procesos y el presupuesto: el SEACE manda casi todo en mayúsculas.
   const titulo = c.titulo ? oracion(limpiarObjeto(c.titulo)) : "Sin objeto registrado";
   // Con su nombre propio, como en su ficha ("Seguro Social de Salud"), no en las mayúsculas del SEACE.
@@ -311,7 +330,8 @@ function filaDe(c: ContratoResumen, deEntidad: boolean, desde?: string, soloEnti
     // Lo que dice cada celda, para quitar la columna que dice lo mismo en toda la página (`colapsarIguales`). Sin texto
     // (columna que se queda): el estado con la bandera de «posible error de carga» y las banderas de antecedentes.
     textos: {
-      estado: motivoDudoso(c.datoDudoso?.motivo) ? undefined : estado,
+      // Con puntaje, la celda dice algo distinto en cada fila: no se quita aunque todas sean «Riesgo alto».
+      estado: motivoDudoso(c.datoDudoso?.motivo) || (c.score != null && !c.enRevision) ? undefined : estado,
       cruces: cruces?.length ? undefined : c.proveedor ? "Sin antecedentes" : "Sin ganador aún",
       tipo: etapa ? `${tipo}, ${etapa.toLowerCase()}` : tipo,
       valor: c.montoPen ? monto : null,
@@ -321,6 +341,7 @@ function filaDe(c: ContratoResumen, deEntidad: boolean, desde?: string, soloEnti
       estado: (
         <ConBanderaDato dato={c.datoDudoso}>
           <EstadoContratoChip c={c} />
+          {c.score != null && !c.enRevision && c.score > 0 && <PuntajeFila score={c.score} />}
         </ConBanderaDato>
       ),
       // Recortado en una palabra: el objeto entero va en el panel (títulos de 300 caracteres en el DOM). Dos líneas en
@@ -328,7 +349,13 @@ function filaDe(c: ContratoResumen, deEntidad: boolean, desde?: string, soloEnti
       contrato: <CeldaPrincipal titulo={recortar(titulo, 160)} meta={meta} dosLineas />,
       cruces: <CrucesCelda cruces={cruces} sinGanador={!c.proveedor} />,
       tipo: <CeldaTexto sub={etapa ?? undefined}>{tipo}</CeldaTexto>,
-      valor: <CeldaNumero>{c.montoPen ? monto : <span className="font-sans text-mute">Sin dato</span>}</CeldaNumero>,
+      valor: (
+        <CeldaNumero
+          sub={c.montoPen && mayorMonto > 0 ? <CeldaBarra tono="neutro" parte={c.montoPen / mayorMonto} resumen={`${porcentaje((100 * c.montoPen) / mayorMonto)} del mayor de esta página`} className="mt-1" /> : undefined}
+        >
+          {c.montoPen ? monto : <span className="font-sans text-mute">Sin dato</span>}
+        </CeldaNumero>
+      ),
       convocada: <CeldaFecha fecha={c.fecha?.slice(0, 10)} />,
     },
     detalle: {

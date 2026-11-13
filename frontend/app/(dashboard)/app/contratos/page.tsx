@@ -14,6 +14,8 @@ import {
   type Parametros,
 } from "@/components/listado";
 import { TablaContratos, TablaContratosCargando } from "@/components/contratos/TablaContratos";
+import { Repartos, RepartoPartes } from "@/components/listado/Repartos";
+import { RepartoInicio, partesPorTipo } from "@/components/inicio/BloquesInicio";
 import { PROVINCIA_NOMBRE } from "@/components/mapa/provincias";
 import {
   chipsDeEnlace, enSeccion, filtroDudoso, filtroEtapa, filtroGanadora, filtroMesVisible, filtroObra, filtroOperativo, filtrosMonto,
@@ -126,6 +128,10 @@ export default async function ContratosPage({ searchParams }: { searchParams?: R
         <IndicadoresContratos resumen={resumen} global={resumenGlobal ?? Promise.resolve(null)} recortada={recortada} parametros={parametros} />
       </Suspense>
 
+      <Suspense fallback={null}>
+        <PanoramaContratos resumen={resumen} parametros={parametros} />
+      </Suspense>
+
       <Listado ruta={RUTA} parametros={parametros} paramPagina="page">
         <Suspense fallback={<Barra resumen={null} parametros={parametros} regiones={regiones} partidos={partidos} entidadNombre={entidadNombre} filas={[]} />}>
           <BarraConConteos
@@ -169,6 +175,48 @@ async function IndicadoresContratos({
     );
   }
   return <Indicadores franja items={indicadores(r, recortada, g?.total ?? null, parametros)} />;
+}
+
+/**
+ * El panorama sobre la lista: cómo se reparten los contratos que cumplen los filtros, por tipo de compra, por el riesgo
+ * de los que Vigía ya leyó y por los antecedentes de quien ganó. Cada parte de la leyenda abre la lista ya filtrada.
+ * Salen del mismo resumen que las cifras: no hay consulta nueva.
+ */
+async function PanoramaContratos({ resumen, parametros }: { resumen: Promise<ResumenContratos | null>; parametros: Parametros }) {
+  const r = await resumen;
+  if (!r || !r.total) return null;
+  const con = (cambio: Parametros) => hrefCon(parametros, cambio);
+  const g = r.porRiesgo;
+  const leidos = (g.alto ?? 0) + (g.medio ?? 0) + (g.bajo ?? 0) + (g.en_revision ?? 0);
+  const k = r.porCruces;
+  return (
+    <Repartos titulo="Cómo se reparten estos contratos">
+      <RepartoPartes titulo="Por tipo de compra" de={`de ${numero(r.total)} contratos`} partes={partesPorTipo(r.porTipo, (f) => con(f))} />
+      {leidos > 0 && (
+        <RepartoInicio
+          titulo="Riesgo de los que Vigía ya leyó"
+          de={`de ${numero(leidos)} leídos`}
+          partes={[
+            { clave: "alto", etiqueta: "Alto", n: g.alto ?? 0, tono: "grave", href: con({ lectura: "publicado", riesgo: "alto" }) },
+            { clave: "medio", etiqueta: "Medio", n: g.medio ?? 0, tono: "media", href: con({ lectura: "publicado", riesgo: "medio" }) },
+            { clave: "bajo", etiqueta: "Bajo o sin señales", n: g.bajo ?? 0, tono: "neutra", href: con({ lectura: "publicado", riesgo: "bajo" }) },
+            { clave: "revision", etiqueta: "En revisión humana", n: g.en_revision ?? 0, tono: "aparte", href: con({ lectura: "revision", riesgo: undefined }) },
+          ]}
+        />
+      )}
+      {k && k.con > 0 && (
+        <RepartoInicio
+          titulo="Antecedentes de quien ganó"
+          de={`de ${numero(r.total)} contratos`}
+          partes={[
+            { clave: "alta", etiqueta: "Con uno grave", n: k.alta, tono: "grave", href: con({ cruces: "alta" }) },
+            { clave: "con", etiqueta: "Con otro antecedente", n: Math.max(0, k.con - k.alta), tono: "media", href: con({ cruces: "con" }) },
+            { clave: "sin", etiqueta: "Sin antecedentes o sin ganador", n: Math.max(0, r.total - k.con), tono: "ninguna" },
+          ]}
+        />
+      )}
+    </Repartos>
+  );
 }
 
 interface Region {

@@ -4,6 +4,7 @@ import { ExternalLink, Info } from "@/components/ui/iconosCliente";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { fechaCorta } from "@/lib/formato";
+import { IconoSeccion } from "./IconoSeccion";
 
 /**
  * Piezas de estructura de página (DESIGN_SYSTEM.md §11.3 y §14). Una página
@@ -65,7 +66,7 @@ export function EncabezadoPagina({
 }) {
   /* El ⓘ va al final de la bajada (lo que amplía), no junto al h1: un título que
      parte en dos líneas ocupa todo el ancho y empujaba el ⓘ al borde derecho. */
-  const texto = bajada ? (
+  const cuerpo = bajada ? (
     <>
       <h1 className="line-clamp-3 font-display text-bloque font-bold leading-snug tracking-tight text-ink text-balance sm:text-seccion" title={typeof titulo === "string" ? titulo : undefined}>{titulo}</h1>
       <p className="mt-1 max-w-3xl text-meta leading-snug text-inkSoft text-pretty sm:text-dato">
@@ -77,6 +78,13 @@ export function EncabezadoPagina({
     <div className="flex items-center gap-2">
       <h1 className="line-clamp-3 font-display text-bloque font-bold leading-snug tracking-tight text-ink text-balance sm:text-seccion" title={typeof titulo === "string" ? titulo : undefined}>{titulo}</h1>
       {ayuda}
+    </div>
+  );
+  // La placa de la sección a la izquierda del título (desde `sm`): cada página se reconoce por su ícono.
+  const texto = (
+    <div className="flex min-w-0 items-start gap-3">
+      <IconoSeccion />
+      <div className="min-w-0">{cuerpo}</div>
     </div>
   );
   if (banderas) {

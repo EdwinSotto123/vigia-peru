@@ -1,5 +1,7 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
+import { AlertTriangle, Banknote, BookOpenCheck, Briefcase, Building2, FileText, HardHat, Landmark, Receipt, Users, type LucideIcon } from "lucide-react";
+import { porcentaje } from "@/lib/formato";
 import { cn } from "@/lib/utils";
 import { Skeleton } from "@/components/ui/Skeleton";
 
@@ -35,7 +37,65 @@ export interface Cifra {
   tono?: "neutro" | "alta" | "media" | "positivo";
   href?: string;
   marca?: string;
+  /** Ícono de la cifra. Sin él, sale de la etiqueta (contratos, órdenes, soles, personas…); `null` lo quita. */
+  icono?: ReactNode | null;
+  /** La proporción que dibuja la barra (0 a 1). Sin ella, sale del contexto («de 2,540 con dictamen», «53 % gastado»); `null` la quita. */
+  parte?: number | null;
 }
+
+/** El ícono que le toca a una cifra por lo que dice su etiqueta: el orden importa (lo más específico primero). */
+const ICONOS: [RegExp, LucideIcon][] = [
+  [/riesgo|grave|señal|sanci|penalidad|alerta|antecedente/i, AlertTriangle],
+  [/le[ií]d|dictamen|lectura|en cola|revisi[oó]n|analiz/i, BookOpenCheck],
+  [/presupuesto|monto|adjudicad|gast|aport|soles|cost|pagad|valor|recaud/i, Banknote],
+  [/[oó]rden|compra/i, Receipt],
+  [/obra|inversi/i, HardHat],
+  [/contrat|convocatoria|proceso|buenas? pro|informe|denuncia/i, FileText],
+  [/empresa|proveedor|postor/i, Briefcase],
+  [/persona|funcionari|planilla|plaza|visita|trabajador|aliado/i, Users],
+  [/partido|gobiern|autoridad|candidat/i, Landmark],
+  [/entidad|municip|regi[oó]n|distrito|provincia/i, Building2],
+];
+function iconoDe(it: Cifra): ReactNode | null {
+  if (it.icono !== undefined) return it.icono;
+  const Icono = ICONOS.find(([re]) => re.test(it.etiqueta))?.[1];
+  return Icono ? <Icono size={15} strokeWidth={1.9} aria-hidden /> : null;
+}
+
+const entero = (s: string) => Number(s.replace(/,/g, ""));
+/**
+ * La proporción de una cifra, leída de lo que ya dice: «763» con contexto «de 2,540 con dictamen» es 30 %; un contexto
+ * que empieza con su porcentaje («53 % ya gastado») es ese porcentaje. Sin denominador a la vista no hay barra: no se
+ * inventa una. `rotulo` es falso cuando el contexto ya dice el porcentaje (no se repite junto a la barra).
+ */
+function parteDe(it: Cifra): { p: number; rotulo: boolean } | null {
+  if (it.parte === null) return null;
+  if (typeof it.parte === "number") return it.parte >= 0 && it.parte <= 1 ? { p: it.parte, rotulo: true } : null;
+  if (typeof it.contexto !== "string") return null;
+  const pct = it.contexto.match(/^\s*(\d+(?:[.,]\d+)?)\s?%/);
+  if (pct) {
+    const p = Number(pct[1].replace(",", ".")) / 100;
+    return p >= 0 && p <= 1 ? { p, rotulo: false } : null;
+  }
+  const de = it.contexto.match(/^de ([\d,]+)(?!\.\d)\b/);
+  if (!de || typeof it.valor !== "string" || !/^[\d,]+$/.test(it.valor.trim())) return null;
+  const total = entero(de[1]);
+  const v = entero(it.valor.trim());
+  return total > 0 && v <= total ? { p: v / total, rotulo: !/%/.test(it.contexto) } : null;
+}
+
+const BARRA: Record<NonNullable<Cifra["tono"]>, string> = {
+  neutro: "bg-[rgb(var(--acento-cifra))]",
+  alta: "bg-rust",
+  media: "bg-amber",
+  positivo: "bg-moss",
+};
+const PLACA: Record<NonNullable<Cifra["tono"]>, string> = {
+  neutro: "bg-paperDeep text-inkSoft",
+  alta: "bg-crimson-soft text-rust",
+  media: "bg-amber-soft text-amberTexto",
+  positivo: "bg-paperDeep text-mossTexto",
+};
 
 const TONO: Record<NonNullable<Cifra["tono"]>, string> = {
   neutro: "text-[rgb(var(--acento-cifra))]",
@@ -151,10 +211,15 @@ function Franja({ items, pie, className }: { items: Cifra[]; pie?: ReactNode; cl
       {/* Una caja y, dentro, una celda por cifra separada por una raya (el hueco de 1 px deja ver el fondo `line`). Antes
           era una línea de texto corrido («4,161 contratos leídos de 60,972…»): no se leía como cifras (2026-11-13). */}
       <dl className={cn("grid grid-cols-2 gap-px overflow-hidden rounded-xl border border-line bg-line [.tarjeta_&]:border-0", COLUMNAS_FRANJA[items.length] ?? "lg:grid-cols-4")}>
-        {items.map((it) => (
-          <div key={it.etiqueta} className="relative flex min-w-0 flex-col gap-0.5 bg-paper px-3.5 py-2.5 last:odd:col-span-2 sm:last:odd:col-span-1 [.tarjeta_&]:bg-paperSoft">
+        {items.map((it) => {
+          const icono = iconoDe(it);
+          const parte = it.valor == null ? null : parteDe(it);
+          const tono = it.tono ?? "neutro";
+          return (
+          <div key={it.etiqueta} className="relative flex min-w-0 flex-col gap-0.5 bg-paper px-3.5 py-3 last:odd:col-span-2 sm:last:odd:col-span-1 [.tarjeta_&]:bg-paperSoft">
             <dt className="order-1 flex min-w-0 items-center gap-1 text-rotulo font-medium leading-tight text-mute">
               {it.marca && <span className={cn("h-2 w-2 shrink-0 rounded-full", it.marca)} aria-hidden />}
+              {icono && !it.marca && <span className={cn("mr-0.5 grid h-6 w-6 shrink-0 place-items-center rounded-md", PLACA[tono])}>{icono}</span>}
               <span className="min-w-0">
                 {it.href ? (
                   <Link href={it.href} prefetch={false} className="underline decoration-line underline-offset-4 after:absolute after:inset-0 hover:decoration-granate focus-visible:outline-none">
@@ -169,9 +234,18 @@ function Franja({ items, pie, className }: { items: Cifra[]; pie?: ReactNode; cl
             <dd className={cn("order-2 font-display text-bloque font-bold leading-tight tracking-tight tabular-nums sm:text-seccion", TONO[it.tono ?? "neutro"])}>
               {it.valor == null ? <span className="text-dato font-semibold text-mute">Sin dato</span> : it.valor}
             </dd>
-            {it.contexto != null && <dd className="order-3 text-rotulo leading-snug text-mute tabular-nums">{it.contexto}</dd>}
+            {parte && (
+              <dd className="order-3 mt-1 flex items-center gap-2" aria-hidden>
+                <span className="block h-1.5 min-w-0 flex-1 overflow-hidden rounded-full bg-paperDeep">
+                  <span className={cn("block h-full rounded-full", BARRA[tono])} style={{ width: `${parte.p > 0 ? Math.max(2, parte.p * 100) : 0}%` }} />
+                </span>
+                {parte.rotulo && <span className="shrink-0 font-mono text-rotulo font-semibold tabular-nums text-inkSoft">{parte.p > 0 && parte.p < 0.01 ? `menos de ${porcentaje(1)}` : porcentaje(parte.p * 100)}</span>}
+              </dd>
+            )}
+            {it.contexto != null && <dd className="order-4 mt-0.5 text-rotulo leading-snug text-mute tabular-nums">{it.contexto}</dd>}
           </div>
-        ))}
+          );
+        })}
       </dl>
       {pie && <div>{pie}</div>}
     </div>
