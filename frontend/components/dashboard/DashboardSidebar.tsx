@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Briefcase, MapPin, FileSearch, Sparkles, ArrowRight, Flag, Building2, Camera, Menu, X, Lock, Activity, Heart, HelpCircle, BookOpen, Crown, Landmark, LayoutGrid, MessageSquareWarning, Network, Newspaper, Scale, ScanText, Users, Database } from "lucide-react";
+import { Briefcase, MapPin, FileSearch, Sparkles, ArrowRight, Flag, Building2, Camera, Menu, X, Lock, Activity, Heart, HelpCircle, BookOpen, Crown, Landmark, LayoutGrid, MessageSquareWarning, Network, Newspaper, Scale, ScanText, Users, Database, MessageCircleQuestion } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { LinkIntencion } from "@/components/ui/LinkIntencion";
 import { BotonModo } from "@/components/ui/BotonModo";
@@ -53,6 +53,13 @@ const SECTIONS: Section[] = [
         icon: <LayoutGrid size={16} />,
         hint: "Busca y elige",
         match: (p) => p === "/app",
+      },
+      {
+        href: "/app/asistente",
+        label: "Asistente",
+        icon: <MessageCircleQuestion size={16} />,
+        hint: "Pregunta en tus palabras",
+        match: (p) => p === "/app/asistente",
       },
     ],
   },

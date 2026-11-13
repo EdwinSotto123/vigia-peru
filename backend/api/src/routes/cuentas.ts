@@ -37,6 +37,12 @@ import {
 import { entidadDeAporteSql, partidoDeAporteSql, marcarConflictoDeInteres } from "../lib/aportes.js";
 import { LOGO_PROPIO } from "./contribuciones.js";
 import { COLUMNA_SEGUIDO, TOPE_SEGUIDOS, empresasSeguidas, errorSeguido, novedadesSeguidas, partidosSeguidos } from "../lib/seguidos.js";
+import { stream } from "hono/streaming";
+import { dentroDeTope } from "../lib/antibots.js";
+import { correrChat, type EnvChat } from "../lib/chatInvestigacion.js";
+import { LARGO_CONVERSACION, TOPE_CUENTA_DIA, TOPE_CUENTA_MINUTO, TOPE_TOTAL_DIA, eventoPublico, pedidoVigia } from "../lib/chatVigia.js";
+import { registrarConsumo } from "../lib/consumo.js";
+import { registrar } from "../lib/registro.js";
 
 export const cuentasRouter = new Hono();
 // Todo es de la persona que entró: nunca en un CDN ni en la caché compartida (también los 401).
@@ -381,6 +387,47 @@ cuentasRouter.post("/me/reclamar", limiteEscritura, async (c) => {
   }
   c.header("Cache-Control", "private, no-store");
   return c.json({ ok: true, codigo, perfil: await perfil(u.uid) });
+});
+
+// ─── POST /cuentas/me/chat ────────────────────────────────────────────────────────────────────────────
+const ChatVigiaBody = z.object({
+  mensajes: z.array(z.object({ rol: z.enum(["usuario", "asistente"]), texto: z.string().trim().min(1).max(6000) })).min(1).max(20),
+});
+const DIA_S = 24 * 60 * 60;
+
+/**
+ * El asistente de investigación de Vigía (lib/chatVigia.ts): NDJSON en vivo con los eventos del chat del panel, sin el
+ * modelo interno ni el costo. Gratis con cuenta, con tope por cuenta y por día y un techo diario para todas las cuentas.
+ * La conversación no se guarda en el servidor; el gasto sí se anota (gobserva_consumo, app «vigia»).
+ */
+cuentasRouter.post("/me/chat", async (c) => {
+  const u = c.get("user");
+  const b = ChatVigiaBody.safeParse(await c.req.json().catch(() => null));
+  if (!b.success) return c.json({ error: "invalid_body", detail: "Manda { mensajes }." }, 400);
+  const { mensajes } = b.data;
+  if (mensajes[mensajes.length - 1].rol !== "usuario") return c.json({ error: "invalid_body", detail: "El último mensaje tiene que ser tuyo." }, 400);
+  if (mensajes.reduce((n, m) => n + m.texto.length, 0) > LARGO_CONVERSACION) {
+    return c.json({ error: "conversacion_larga", detail: "La conversación ya es muy larga: empieza una nueva." }, 413);
+  }
+  if (!(await dentroDeTope(`chatvigia|min|${u.uid}`, TOPE_CUENTA_MINUTO, 60))) {
+    return c.json({ error: "muy_seguido", detail: "Hiciste varias preguntas seguidas. Espera un minuto." }, 429);
+  }
+  if (!(await dentroDeTope(`chatvigia|dia|${u.uid}`, TOPE_CUENTA_DIA, DIA_S, true))) {
+    return c.json({ error: "tope_dia", detail: `Ya hiciste las ${TOPE_CUENTA_DIA} preguntas de hoy. Mañana puedes seguir.` }, 429);
+  }
+  if (!(await dentroDeTope("chatvigia|total", TOPE_TOTAL_DIA, DIA_S, true))) {
+    return c.json({ error: "tope_total", detail: "El asistente llegó a su límite de hoy para todos. Vuelve mañana." }, 429);
+  }
+  const env = (c.env ?? {}) as EnvChat;
+  c.header("Content-Type", "application/x-ndjson; charset=utf-8");
+  c.header("Cache-Control", "no-store");
+  return stream(c, async (s) => {
+    const escribir = (o: Record<string, unknown>) => s.write(`${JSON.stringify(eventoPublico(o))}
+`);
+    const fin = await correrChat(env, { mensajes, modelo: "rapido", actor: `vigia:${u.uid.slice(0, 8)}`, app: pedidoVigia() }, escribir);
+    await registrarConsumo({ uid: u.uid, canal: "asistente", detalle: "rapido", app: "vigia", creditos: 0, costoUsd: fin.costo })
+      .catch((e) => registrar("WARNING", `[chat vigia] consumo sin guardar: ${(e as Error).message}`));
+  });
 });
 
 // ─── GET /cuentas/me/exportar ────────────────────────────────────────────────
