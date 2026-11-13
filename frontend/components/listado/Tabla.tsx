@@ -490,9 +490,9 @@ function FilaTabla({
               {pares.length > 0 && (
                 <span className={cn("mt-2 grid grid-flow-col auto-cols-fr divide-x divide-line overflow-hidden rounded-lg border border-line bg-paperSoft/60", ultimaDe(pares) && k.hasta[ultimaDe(pares)!])}>
                   {pares.map((a) => (
-                    <span key={a.clave} className={cn("flex min-w-0 items-baseline justify-between gap-2 px-2.5 py-1 [&_[role=img]]:hidden", k.hasta[a.desde!])}>
-                      <span className="shrink-0 text-rotulo text-mute">{a.corto ?? a.titulo}</span>
-                      <span className="min-w-0 truncate text-right font-semibold">{fila.celdas[a.clave]}</span>
+                    <span key={a.clave} className={cn("flex min-w-0 flex-col px-2.5 py-1 [&_*]:text-left", k.hasta[a.desde!])}>
+                      <span className="text-micro font-medium uppercase tracking-wide text-mute">{a.corto ?? a.titulo}</span>
+                      <span className="min-w-0 whitespace-nowrap font-semibold">{fila.celdas[a.clave]}</span>
                     </span>
                   ))}
                 </span>
@@ -624,7 +624,7 @@ export function CeldaPrincipal({
   }
   return (
     <span className={cn("block w-full min-w-0", className)}>
-      <span className={cn("text-dato font-semibold leading-snug text-ink", dosLineas ? "line-clamp-3 lg:line-clamp-2" : "line-clamp-2 lg:line-clamp-1")} title={tooltip}>
+      <span className={cn("text-dato font-semibold leading-snug text-ink", dosLineas ? "line-clamp-2" : "line-clamp-2 lg:line-clamp-1")} title={tooltip}>
         {titulo}
       </span>
       {lineaMeta && <span className={cn("mt-0.5 block text-meta text-mute", metaEnVarias ? "whitespace-normal" : "truncate")}>{lineaMeta}</span>}

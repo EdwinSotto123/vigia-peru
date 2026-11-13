@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { Children, type ReactNode } from "react";
 import { ChevronDown, PieChart } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { BarraPartes, type ParteBarra } from "@/components/inicio/BarraPartes";
@@ -15,7 +15,9 @@ import { numero } from "@/lib/formato";
  * Cada hijo es un `RepartoInicio` (severidad) o un `RepartoPartes` (categorías con los colores de serie).
  */
 export function Repartos({ titulo = "Cómo se reparten", children, className }: { titulo?: string; children: ReactNode; className?: string }) {
-  const columnas = "grid gap-px bg-line md:grid-cols-2 xl:grid-cols-3 [&>*]:min-w-0 [&>*]:bg-paper [&>*]:px-4 [&>*]:py-3.5";
+  // Tantas columnas como repartos haya (con dos, dos mitades: una tercera columna vacía dejaba un hueco gris).
+  const n = Children.toArray(children).length;
+  const columnas = cn("grid gap-px bg-line [&>*]:min-w-0 [&>*]:bg-paper [&>*]:px-4 [&>*]:py-3.5", n >= 3 ? "md:grid-cols-2 xl:grid-cols-3" : n === 2 ? "md:grid-cols-2" : "");
   return (
     <>
       <section aria-label={titulo} className={cn("hidden overflow-hidden rounded-xl border border-line md:block", className)}>

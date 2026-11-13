@@ -282,7 +282,7 @@ function PuntajeFila({ score }: { score: number }) {
   const s = Math.max(0, Math.min(100, Math.round(score)));
   const nivel = nivelDeScore(s);
   return (
-    <span className="mt-1.5 flex items-center gap-1.5" title={`Puntaje ${s} de 100`}>
+    <span className="flex items-center gap-1.5 md:mt-1.5" title={`Puntaje ${s} de 100`}>
       <span className="block h-1.5 w-14 shrink-0 overflow-hidden rounded-full bg-paperDeep" aria-hidden>
         <span className={cn("block h-full rounded-full", nivel === "alta" ? "bg-crimson" : nivel === "media" ? "bg-amber" : "bg-inkSoft/60")} style={{ width: `${Math.max(4, s)}%` }} />
       </span>
@@ -336,7 +336,7 @@ function filaDe(c: ContratoResumen, deEntidad: boolean, desde?: string, soloEnti
     },
     celdas: {
       estado: (
-        <span className="flex w-full min-w-0 flex-col items-start">
+        <span className="flex w-full min-w-0 flex-col items-start max-md:flex-row max-md:items-center max-md:gap-2.5">
           <ConBanderaDato dato={c.datoDudoso}>
             <EstadoContratoChip c={c} />
           </ConBanderaDato>
