@@ -47,6 +47,7 @@ import { severidadDeContrato } from "@/lib/severidad";
 import { esPersonaNatural, etapaLabel, formatMonto, tipoLabel, totalContratosTexto, type ContratoResumen, type ContratosPagina } from "@/lib/contratos";
 import { PersonName } from "@/components/Redact";
 import { DetalleContrato } from "./DetalleContrato";
+import { AccionesLista } from "./AccionesLista";
 import { CrucesCelda } from "./CrucesCelda";
 import { PartidoQueGobierna } from "./PartidoQueGobierna";
 import { EstadoContratoChip, estadoLecturaDe } from "./estadoLectura";
@@ -251,7 +252,10 @@ export function TablaContratos({
 
   return (
     <div className="space-y-3">
-      <div className="flex justify-end">{pag(false)}</div>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <AccionesLista contratos={data} />
+        {pag(false)}
+      </div>
       <Tabla
         columnas={COLUMNAS}
         filas={data.map((c) => filaDe(c, deEntidad, desde, hrefEntidad(c.entidadRuc), parametros.ganadora))}

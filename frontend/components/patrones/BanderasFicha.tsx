@@ -75,6 +75,7 @@ export function BanderasFicha({
           </li>
         )}
       </ul>
+      <Significados orden={orden} className="lg:hidden" />
       <Panel orden={orden} etiqueta={etiqueta} max={max} />
     </>
   );
@@ -120,7 +121,39 @@ function Panel({ orden, etiqueta, max }: { orden: BanderaFicha[]; etiqueta: stri
           </ul>
         </details>
       )}
+      <Significados orden={orden} className="border-t border-line/70 px-1.5 pt-1" />
     </section>
+  );
+}
+
+/**
+ * Qué significa cada bandera, a la vista con un toque. Antes la explicación sólo estaba en el `title`, que no existe en
+ * una pantalla táctil ni con teclado (auditoría de producto del 2026-11-12, hallazgo 11). Sin JavaScript: `<details>`.
+ */
+function Significados({ orden, className }: { orden: BanderaFicha[]; className?: string }) {
+  const con = orden.filter((b) => b.explica);
+  if (!con.length) return null;
+  return (
+    <details className={cn("group", className)}>
+      <summary className="inline-flex min-h-8 cursor-pointer list-none items-center gap-1 text-meta font-semibold text-granate underline-offset-2 hover:underline [&::-webkit-details-marker]:hidden">
+        Qué significa cada una
+        <ChevronDown size={14} className="shrink-0 transition-transform group-open:rotate-180" aria-hidden />
+      </summary>
+      <dl className="mt-1.5 max-h-80 space-y-2 overflow-y-auto overscroll-contain pb-1">
+        {con.map((b) => (
+          <div key={`${b.tipo}|${b.nombre}`}>
+            <dt className="text-meta font-semibold text-ink">{b.nombre}</dt>
+            <dd className="text-meta leading-relaxed text-inkSoft">{b.explica}</dd>
+          </div>
+        ))}
+        <div className="text-meta text-inkSoft">
+          Una bandera es un indicio para revisar, no una acusación.{" "}
+          <Link href="/metodologia" prefetch={false} className="font-medium text-ink underline underline-offset-2 hover:text-granate">
+            Cómo se calculan
+          </Link>
+        </div>
+      </dl>
+    </details>
   );
 }
 

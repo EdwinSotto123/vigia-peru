@@ -68,6 +68,10 @@ const COLUMNAS: Columna[] = [
     clave: "tasa",
     titulo: "Entidades con indicio",
     ancho: "minmax(7.5rem,0.75fr)",
+    // En el celular, bajo el nombre del partido: al lado lo dejaba en «Movimiento Independiente…» tres veces.
+    desde: "md",
+    apilar: "con-rotulo",
+    corto: "Entidades con indicio",
     ayuda: (
       <Ayuda titulo="¿Qué es «entidades con indicio»?">
         <span className="block">

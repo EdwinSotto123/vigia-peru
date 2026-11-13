@@ -8,6 +8,7 @@ import { PesoRiesgo } from "@/components/contratos/PesoRiesgo";
 // Directo de cada archivo, no del índice de patrones: este componente va al navegador y el
 // índice arrastra piezas que el panel no usa.
 import { Ayuda } from "@/components/patrones/Ayuda";
+import { AyudaPuntaje } from "@/components/patrones/AyudaPuntaje";
 import { BloqueDetalle, ChipsDetalle, CitaDetalle, CuerpoDetalle, DatosClave } from "@/components/patrones/Detalle";
 import { Ruc } from "@/components/Redact";
 import { NotaPrivacidad } from "@/components/privacidad/NotaPrivacidad";
@@ -84,6 +85,7 @@ export function SenalDetalle({ s }: { s: Senal }) {
                 <span className="tabular-nums text-inkSoft">
                   puntaje {s.score} de 100{n != null ? `, por ${plural(n, "señal", "señales")}` : ""}
                 </span>
+                <AyudaPuntaje />
               </span>
             ),
           },

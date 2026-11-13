@@ -16,6 +16,7 @@ import { PartidoQueGobierna } from "./PartidoQueGobierna";
 import Link from "next/link";
 import { ArrowRight, ChevronRight } from "lucide-react";
 import { Ayuda } from "@/components/patrones/Ayuda";
+import { AyudaPuntaje } from "@/components/patrones/AyudaPuntaje";
 import { AyudaTermino } from "@/components/patrones/AyudaTermino";
 import { BloqueDetalle, ChipsDetalle, CuerpoDetalle, DatosClave, type DatoClave } from "@/components/patrones/Detalle";
 import { EnlaceFuente } from "@/components/patrones/Estructura";
@@ -169,9 +170,7 @@ export function DetalleContrato({ c }: { c: ContratoResumen }) {
       etiqueta: "Puntaje",
       valor: `${c.score} de 100, por ${plural(nSenales, "señal publicada", "señales publicadas")}`,
       ayuda: (
-        <Ayuda titulo="¿Dónde está cada señal?">
-          Cada señal lleva su norma citada y la página del documento donde se apoya: eso está en el dossier.
-        </Ayuda>
+        <AyudaPuntaje>Cada señal lleva su norma citada y la página del documento donde se apoya: eso está en el dossier.</AyudaPuntaje>
       ),
     });
   }

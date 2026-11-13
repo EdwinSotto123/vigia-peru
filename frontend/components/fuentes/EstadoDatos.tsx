@@ -42,7 +42,8 @@ export async function EstadoDatos() {
   const columnas: Columna[] = [
     { clave: "fuente", titulo: "Fuente", ancho: "minmax(0,1fr)" },
     { clave: "hasta", titulo: "Sus datos llegan hasta", ancho: "9.5rem", alinear: "der", desde: "md", apilar: "con-rotulo", corto: "Llega hasta" },
-    { clave: "estado", titulo: "Estado", ancho: "12rem", alinear: "der" },
+    // En el celular va bajo el nombre de la fuente: en su columna de 12rem dejaba el nombre en 15 caracteres.
+    { clave: "estado", titulo: "Estado", ancho: "12rem", alinear: "der", desde: "md", apilar: true },
   ];
   const filas: Fila[] = fuentes.map((f) => {
     const e = ESTADO[f.estado];

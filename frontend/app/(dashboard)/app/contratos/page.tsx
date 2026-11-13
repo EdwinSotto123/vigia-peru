@@ -1,5 +1,8 @@
 import { Suspense } from "react";
+import Link from "next/link";
 import { canonica } from "@/lib/seo";
+import { Franja } from "@/components/patrones/Franja";
+import { CLASE_ACCION_LISTA } from "@/components/ui/EnlaceAccion";
 import { Ayuda, EncabezadoPagina, Migas, Pagina } from "@/components/patrones";
 import { Vistas } from "@/components/listado/Vistas";
 import {
@@ -118,6 +121,21 @@ export default async function ContratosPage({ searchParams }: { searchParams?: R
         <IndicadoresContratos resumen={resumen} global={resumenGlobal ?? Promise.resolve(null)} recortada={recortada} parametros={parametros} />
       </Suspense>
 
+      {/* Sin filtros la lista abre en lo más reciente, que casi nunca está leído todavía: el atajo a lo que sí tiene
+          dictamen, de mayor a menor puntaje (auditoría de producto del 2026-11-12, hallazgo 2). */}
+      {!Object.values(parametros).some(Boolean) && (
+        <Franja
+          titulo="Lo más reciente casi nunca está leído todavía"
+          accion={
+            <Link href={`${RUTA}?riesgo=alto&orden=score`} prefetch={false} className={CLASE_ACCION_LISTA}>
+              Ver primero los de riesgo alto
+            </Link>
+          }
+        >
+          Vigía lee una parte de lo que publica el SEACE. Para empezar por lo ya analizado, ordena por riesgo.
+        </Franja>
+      )}
+
       <Listado ruta={RUTA} parametros={parametros} paramPagina="page">
         <Suspense fallback={<Barra resumen={null} parametros={parametros} regiones={regiones} partidos={partidos} entidadNombre={entidadNombre} filas={[]} />}>
           <BarraConConteos
@@ -234,7 +252,7 @@ function indicadores(resumen: ResumenContratos, recortada: boolean, universo: nu
     {
       valor: numero(base),
       etiqueta: "contratos publicados",
-      contexto: !recortada ? "convocatorias del SEACE" : universo != null ? `con estos filtros, de ${numero(universo)}` : "con estos filtros",
+      contexto: !recortada ? "convocatorias del SEACE, desde 2015" : universo != null ? `con estos filtros, de ${numero(universo)}` : "con estos filtros",
     },
     { valor: numero(leidos), etiqueta: "leídos", contexto: `de ${numero(base)} publicados` },
     {
