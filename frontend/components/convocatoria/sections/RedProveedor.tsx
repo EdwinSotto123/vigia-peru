@@ -89,7 +89,7 @@ const QUE_SIGNIFICA: Record<GraphEdge["kind"], string> = {
   pareja: "Posible familiar, cruzado por nombres y apellidos en registros públicos: «posible» porque dos personas pueden llamarse igual.",
   autoridad: "Aparece vinculado a una autoridad pública.",
   firma_conflicto: "Firmó un documento del proceso (el acta o el comité) teniendo un vínculo con el proveedor: un posible conflicto de interés.",
-  adjudicacion: "La entidad le dio la buena pro.",
+  adjudicacion: "Es el contrato que revisa este dictamen.",
   preside_entidad: "Encabeza la entidad que contrata.",
   designado_por: "Funcionario de confianza designado en la entidad.",
   conflicto_funcionario: "Un funcionario aparece unido al proveedor o a un postor: es el cruce que más pesa.",
@@ -103,9 +103,11 @@ const QUE_SIGNIFICA: Record<GraphEdge["kind"], string> = {
 };
 
 /** Relaciones que se guardan del otro lado de como se leen: el renglón pone primero a los del final (plural si son varios). */
-const AL_REVES: Partial<Record<GraphEdge["kind"], (varios: boolean) => string>> = {
+const AL_REVES: Partial<Record<GraphEdge["kind"], (varios: boolean, e: GraphEdge) => string>> = {
   compitio: (v) => (v ? "también ofertaron a" : "también ofertó a"),
   socio_de: (v) => (v ? "son socios de" : "es socio de"),
+  // «hermana», «posible familiar de quien dirige la empresa»: «es hermana de», «es posible familiar de quien dirige…».
+  pareja: (v, e) => `${v ? "son" : "es"} ${textoRelacion(e)}${/\bde\b/.test(textoRelacion(e)) ? "" : " de"}`,
 };
 /** Cómo se dice la relación en la frase cuando la etiqueta guardada no se lee bien («adjudicación»). */
 const FRASE: Partial<Record<GraphEdge["kind"], string>> = { adjudicacion: "ganó la buena pro de" };
@@ -141,7 +143,7 @@ function VinculosExplicados({ red, onElegir }: { red: Red; onElegir: (id: string
     <button
       type="button"
       onClick={() => onElegir(id)}
-      className="rounded font-semibold text-ink underline decoration-line underline-offset-4 hover:decoration-granate focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-granate"
+      className="rounded text-left font-semibold text-ink underline decoration-line underline-offset-4 hover:decoration-granate focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-granate"
     >
       {redactDnis(red.nombre(id))}
     </button>
@@ -174,7 +176,7 @@ function VinculosExplicados({ red, onElegir }: { red: Red; onElegir: (id: string
                 const vuelta = AL_REVES[r.arista.kind];
                 const sujetos = vuelta ? r.a : [r.de];
                 const objetos = vuelta ? [r.de] : r.a;
-                const relacion = vuelta ? vuelta(sujetos.length > 1) : FRASE[r.arista.kind] ?? relacionDe(r.arista);
+                const relacion = vuelta ? vuelta(sujetos.length > 1, r.arista) : FRASE[r.arista.kind] ?? relacionDe(r.arista);
                 const lista = (ids: string[]) =>
                   ids.map((id, i) => (
                     <span key={id} className="inline-flex items-center">
