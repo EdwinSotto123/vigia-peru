@@ -270,21 +270,32 @@ function SeccionPostores({ c, enRevision }: { c: Detalle; enRevision: boolean })
   const cambio = cambioDeGanador(c);
   const rucsQuedan = new Set((cambio?.queda ?? []).map((a) => a.proveedorRuc));
   // Por qué quedó fuera cada postor: el registro del proceso casi nunca lo trae (salía «Sin dato»), pero la lectura del
-  // acta sí (banderas «acta_*», `detalle.fuera`: nombre, RUC y motivo). Por RUC; si no hay RUC, por nombre.
-  const motivoActa = new Map<string, string>();
+  // acta sí (banderas «acta_*», `detalle.fuera`: nombre, RUC y motivo). El acta casi nunca trae el RUC y escribe el nombre
+  // a su modo («E.I.R.L.» / «EIRL»): se une por RUC, si no por el nombre sin puntos ni espacios (el comienzo), y si quedó
+  // fuera uno solo y el acta da un solo motivo, ese.
+  const normal = (s: string) => s.toUpperCase().normalize("NFD").replace(/[^A-Z0-9]/g, "");
+  const fueraActa: { ruc: string | null; nombre: string; motivo: string }[] = [];
   for (const x of c.cruces ?? []) {
     if (!x.tipo.startsWith("acta_")) continue;
     const fuera = (x.detalle as { fuera?: unknown })?.fuera;
     if (!Array.isArray(fuera)) continue;
     for (const f of fuera as { ruc?: string | null; nombre?: string | null; motivo?: string | null }[]) {
       const m = typeof f?.motivo === "string" ? f.motivo.trim() : "";
-      if (!m) continue;
-      if (f.ruc) motivoActa.set(`r:${f.ruc}`, m);
-      if (f.nombre) motivoActa.set(`n:${f.nombre.trim().toUpperCase()}`, m);
+      if (m && !fueraActa.some((y) => y.motivo === m)) fueraActa.push({ ruc: f.ruc ?? null, nombre: normal(f.nombre ?? ""), motivo: m });
     }
   }
-  const motivoDe = (p: { ruc?: string | null; razonSocial?: string | null; motivoEstado?: string | null }) =>
-    humanizarCodigo(p.motivoEstado) || (p.ruc && motivoActa.get(`r:${p.ruc}`)) || (p.razonSocial && motivoActa.get(`n:${p.razonSocial.trim().toUpperCase()}`)) || null;
+  const excluidos = postores.filter((p) => !p.esGanador);
+  const motivoDe = (p: { ruc?: string | null; razonSocial?: string | null; motivoEstado?: string | null; esGanador?: boolean }): string | null => {
+    const propio = humanizarCodigo(p.motivoEstado);
+    if (propio) return propio;
+    if (p.esGanador || !fueraActa.length) return null;
+    const porRuc = p.ruc ? fueraActa.find((y) => y.ruc === p.ruc) : undefined;
+    if (porRuc) return porRuc.motivo;
+    const n = normal(p.razonSocial ?? "");
+    const porNombre = n.length >= 8 ? fueraActa.find((y) => y.nombre.length >= 8 && (y.nombre.startsWith(n.slice(0, 18)) || n.startsWith(y.nombre.slice(0, 18)))) : undefined;
+    if (porNombre) return porNombre.motivo;
+    return excluidos.length === 1 && fueraActa.length === 1 ? fueraActa[0].motivo : null;
+  };
   const filas: Fila[] = ordenados.map((p, i) => {
     const ref = referenciaDe(p, c);
     const dif = hayReferencia && p.montoOferta != null && ref ? ((p.montoOferta - ref) / ref) * 100 : null;
