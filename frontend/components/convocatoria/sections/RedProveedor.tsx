@@ -102,6 +102,14 @@ const QUE_SIGNIFICA: Record<GraphEdge["kind"], string> = {
   doble_vinculacion: "La misma persona aparece de los dos lados: en el proveedor y en la entidad.",
 };
 
+/** Relaciones que se guardan del otro lado de como se leen: el renglón pone primero a los del final (plural si son varios). */
+const AL_REVES: Partial<Record<GraphEdge["kind"], (varios: boolean) => string>> = {
+  compitio: (v) => (v ? "también ofertaron a" : "también ofertó a"),
+  socio_de: (v) => (v ? "son socios de" : "es socio de"),
+};
+/** Cómo se dice la relación en la frase cuando la etiqueta guardada no se lee bien («adjudicación»). */
+const FRASE: Partial<Record<GraphEdge["kind"], string>> = { adjudicacion: "ganó la buena pro de" };
+
 const ORDEN_GRUPO: Grupo[] = ["riesgo", "politica", "familia", "estado", "negocio"];
 const EXPLICA_GRUPO: Record<Grupo, string> = {
   riesgo: "Lo que pide revisión: cruces entre la gente del proveedor, la entidad y los demás postores.",
@@ -160,25 +168,35 @@ function VinculosExplicados({ red, onElegir }: { red: Red; onElegir: (id: string
             </h4>
             <p className="mt-0.5 pl-7 text-meta leading-snug text-mute">{EXPLICA_GRUPO[g]}</p>
             <ul className="mt-2 space-y-2.5 pl-7">
-              {renglones.map((r) => (
+              {renglones.map((r) => {
+                // Algunas relaciones se guardan del otro lado de como se leen («la entidad → postuló → el postor»): se dan
+                // vuelta para que el renglón sea una oración («A y B también ofertaron a la entidad»).
+                const vuelta = AL_REVES[r.arista.kind];
+                const sujetos = vuelta ? r.a : [r.de];
+                const objetos = vuelta ? [r.de] : r.a;
+                const relacion = vuelta ? vuelta(sujetos.length > 1) : FRASE[r.arista.kind] ?? relacionDe(r.arista);
+                const lista = (ids: string[]) =>
+                  ids.map((id, i) => (
+                    <span key={id} className="inline-flex items-center">
+                      <Nombre id={id} />
+                      {i < ids.length - 1 && <span className="text-mute">{i === ids.length - 2 ? "\u00a0y" : ","}</span>}
+                    </span>
+                  ));
+                return (
                 <li key={r.clave} className="text-meta leading-snug">
                   <span className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5">
-                    <Nombre id={r.de} />
+                    {lista(sujetos)}
                     <span className={cn("inline-flex items-center gap-1 font-semibold", TEXTO_GRUPO[g])}>
                       <ArrowRight size={13} aria-hidden />
-                      {relacionDe(r.arista)}
+                      {relacion}
                       <ArrowRight size={13} aria-hidden />
                     </span>
-                    {r.a.map((id, i) => (
-                      <span key={id} className="inline-flex items-center">
-                        <Nombre id={id} />
-                        {i < r.a.length - 1 && <span className="text-mute">{i === r.a.length - 2 ? "\u00a0y" : ","}</span>}
-                      </span>
-                    ))}
+                    {lista(objetos)}
                   </span>
                   <span className="mt-0.5 block text-mute">{QUE_SIGNIFICA[r.arista.kind]}</span>
                 </li>
-              ))}
+                );
+              })}
             </ul>
           </section>
         );

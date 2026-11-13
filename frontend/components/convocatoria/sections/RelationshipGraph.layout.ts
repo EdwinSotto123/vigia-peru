@@ -487,7 +487,8 @@ export function buildRelationshipGraphData(
       const esFuncionarioActivo = autoridadesActivasNombres.has(nombre.toUpperCase());
       // Los socios salen del RNP, que publica APELLIDO APELLIDO NOMBRE.
       const socioEtiqueta = maskApellidoSunat(nombre);
-      const rol = legible(s.rol_en_postor) || "socio";
+      // «socios» (así viene del RNP) es de una persona: «socio».
+      const rol = (legible(s.rol_en_postor) || "socio").replace(/^socios$/i, "socio");
       nodes.push({
         id: socId,
         kind: esFuncionarioActivo ? "socio_postor_conflicto" : "socio_postor",
