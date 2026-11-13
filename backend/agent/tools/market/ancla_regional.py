@@ -106,7 +106,11 @@ def _ancla_regional_item(it: dict, refs: list[dict], base_val, ctx: dict) -> tup
                 continue
             conv = 1.0
         solape = _solape_raices(descr, r.get("descripcion") or "")
-        if not (r.get("mismo_cubso") or solape >= MARKET_ANCLA_SOLAPE):
+        # Mismo bien = el código de catálogo de ESTE ítem. `mismo_cubso` de la consulta se cumple con el código de
+        # cualquier ítem del proceso: unos guantes aceptaban como referencia las mascarillas del mismo proceso y su
+        # rango silenciaba un «muy elevado» (auditoría 2026-11-13).
+        propio = bool(it.get("cubso")) and str(r.get("cubso") or "") == str(it.get("cubso"))
+        if not (propio or solape >= MARKET_ANCLA_SOLAPE):
             continue
         pu = r.get("precio_unitario_adjudicado") or r.get("precio_unitario_referencial")
         if not pu:

@@ -256,8 +256,29 @@ def precios_de_catalogo(items: list[dict], hasta: str | None = None, departament
 _COMBUSTIBLE = re.compile(r"\b(diesel|di[eé]sel|petr[oó]leo diesel|gasohol|gasolina|glp|gas licuado|petr[oó]leo industrial)\b", re.I)
 
 
+# Bienes que NOMBRAN un combustible sin serlo («aceite para motor diesel», «filtro de petróleo», «cocina a GLP», «grupo
+# electrógeno diesel»): recibían el precio del galón de Osinergmin y salían «muy elevado» (auditoría 2026-11-13).
+_NO_ES_COMBUSTIBLE = re.compile(
+    r"\b(aceites?|lubricantes?|grasas?|filtros?|bombas?|motobombas?|cocinas?|grupos?|electrogen\w*|generador\w*|mangueras?|motor\w*"
+    r"|tanques?|valvulas?|aditivos?|surtidor\w*|cilindros?|balon\w*|regulador\w*|quemador\w*|calentador\w*|termas?|estufas?"
+    r"|lamparas?|sopletes?|vehiculos?|camionetas?|camion\w*|tractor\w*|kits?|repuestos?|servicios?|mantenimiento|inyector\w*"
+    r"|detector\w*|medidor\w*|equipos?|hornos?|calderas?|refrigerante|anticongelante|limpiador\w*|bidon\w*|envases?)\b")
+_UNIDAD_COMBUSTIBLE = re.compile(r"^\s*(us\s*)?(gal|gln|gl\b|galon|lt\b|lts\b|l\b|litro)")
+
+
+def _llano(s: str) -> str:
+    t = unicodedata.normalize("NFD", s or "")
+    return "".join(c for c in t if not unicodedata.combining(c)).lower()
+
+
 def es_combustible(it: dict) -> bool:
-    return bool(_COMBUSTIBLE.search(it.get("descripcion_corta") or ""))
+    """El ítem ES un combustible líquido que se compra por galón o litro: lo nombra, no es otro bien que lo menciona, y
+    su unidad (si la trae) es de volumen (el GLP por balón o por kilo no se compara con el precio por galón)."""
+    desc = _llano(it.get("descripcion_corta") or "")
+    if not _COMBUSTIBLE.search(desc) or _NO_ES_COMBUSTIBLE.search(desc):
+        return False
+    unidad = _llano(str(it.get("unidad") or ""))
+    return not unidad or bool(_UNIDAD_COMBUSTIBLE.match(unidad))
 
 
 def departamento_de(ocds: dict) -> str:
@@ -320,6 +341,48 @@ def _palabras(s: str) -> set[str]:
     return set(termino_busqueda(s, max_palabras=8).split())
 
 
+# Palabras que no dicen qué producto es (envase, unidad, trámite): no cuentan para decidir la variedad.
+_NO_DISTINGUE = {"bolsa", "bolsas", "malla", "mallas", "caja", "cajas", "saco", "sacos", "jaba", "jabas", "kg", "kilo", "kilos",
+                 "kilogramo", "kilogramos", "por", "de", "del", "en", "la", "el", "primera", "segunda", "calidad", "fresco", "fresca",
+                 "frescos", "frescas", "nacional", "tipo", "unidad", "unidades", "granel", "adquisicion", "compra", "suministro",
+                 "alimento", "alimentos", "para", "con", "extra", "categoria", "clase", "grado", "variedad", "tamano", "entero", "entera", "seleccionado", "seleccionada", "und"}
+# Un producto elaborado no es el fresco del mercado mayorista: «papa seca», «ají panca molido», «pasta de tomate».
+_ELABORADO = re.compile(
+    r"\b(sec[oa]s?|molid[oa]s?|pasta|sachet|latas?|conservas?|harina|polvo|deshidratad\w*|congelad\w*|enlatad\w*|frascos?|salsa"
+    r"|jugo|nectar|mermelada|aceite|chuno|tostad\w*|frit[oa]s?|hojuelas?|pure|envasad\w*|precocid\w*|extracto|esencia|pelad\w*"
+    r"|picad\w*|encurtid\w*|almibar|crema|pulpa|concentrad\w*|instantane\w*|sopa|galletas?|fideos?|bebida|refresco)\b")
+_UNIDAD_PESO = re.compile(r"kg|kilo|gramo|tonel|^\s*t\s*$")
+
+
+def _propias(s: str) -> list[str]:
+    return [w for w in termino_busqueda(s, max_palabras=8).split() if w not in _NO_DISTINGUE]
+
+
+def _misma_palabra(a: str, b: str) -> bool:
+    """Igual salvo el plural: «papas» = «papa», «limones» = «limon»."""
+    return a == b or a + "s" == b or b + "s" == a or a + "es" == b or b + "es" == a
+
+
+def _variedad_del_item(desc: str, variedades: list[dict]) -> tuple[dict | None, str]:
+    """La variedad del mercado que ES el bien del ítem, o (None, por qué no). Calza cuando el producto de la variedad
+    (su primera palabra) está en la descripción y TODA palabra propia de la descripción está en la variedad: «papa
+    blanca» calza con «PAPA BLANCA» y no con «PAPA AMARILLA»; «zapallo loche» no calza con «ZAPALLO MACRE». Con sólo el
+    producto («papa») y varias variedades de precios distintos no hay cómo saber cuál es: no se elige ninguna."""
+    d = _propias(desc)
+    if not d:
+        return None, "sin_palabras"
+    calzan = []
+    for v in variedades:
+        pv = _propias(v.get("variedad") or "")
+        if pv and any(_misma_palabra(pv[0], x) for x in d) and all(any(_misma_palabra(x, y) for y in pv) for x in d):
+            calzan.append(v)
+    if not calzan:
+        return None, "otra_variedad"
+    if len(d) == 1 and len({(v.get("variedad") or "").upper() for v in calzan}) > 1:
+        return None, "variedad_sin_precisar"
+    return max(calzan, key=lambda v: v.get("n_dias") or 0), ""
+
+
 def precios_mayorista(items: list[dict], dias: int = 30, hasta: str | None = None) -> tuple[list[dict], dict]:
     """Para cada ítem con precio en el Mercado Mayorista de Lima: p25, mediana y p75 del precio promedio diario por kg
     de la variedad que mejor coincide con la descripción (últimos `dias`). Oficial y mayorista: es la referencia justa
@@ -334,7 +397,14 @@ def precios_mayorista(items: list[dict], dias: int = 30, hasta: str | None = Non
         cubso = re.sub(r"\D", "", str(it.get("cubso") or ""))
         if cubso and not cubso.startswith("50"):
             continue
-        consulta = termino_busqueda(desc, max_palabras=2)
+        # Sólo frescos comprados por peso: un elaborado («papa seca», «pasta de tomate») o una compra por atado, caja o
+        # unidad no se compara con el precio por kilo del mercado (auditoría 2026-11-13: «PAPA SECA» a S/ 12,50 salía
+        # +942 % contra la «PAPA BLANCA» y, con precio «oficial», ya no se miraban las 12 compras de otras entidades).
+        unidad = _llano(str(it.get("unidad") or ""))
+        if _ELABORADO.search(_llano(desc)) or (unidad and not _UNIDAD_PESO.search(unidad)):
+            info["descartadas"] += 1
+            continue
+        consulta = " ".join(_propias(desc)[:2])
         if not consulta:
             continue
         try:
@@ -351,14 +421,13 @@ def precios_mayorista(items: list[dict], dias: int = 30, hasta: str | None = Non
                 vars_ = []
         if not vars_:
             continue
-        pal = _palabras(desc)
-        # La variedad tiene que SER el bien: su nombre principal (la primera palabra: «limon», «naranja») debe estar en la
-        # descripción del ítem. Coincidir en otra palabra («bolsa», «malla», «caja») no cuenta: es el envase.
-        vars_ = [v for v in vars_ if (termino_busqueda(v.get("variedad") or "", max_palabras=1) or "?") in pal]
-        if not vars_:
+        # La variedad tiene que SER el bien (ver `_variedad_del_item`): coincidir en el envase («bolsa») o sólo en el
+        # producto con otra variedad («papa» seca contra papa blanca) no cuenta.
+        mejor, por_que = _variedad_del_item(desc, vars_)
+        if not mejor:
             info["descartadas"] += 1
+            info.setdefault("motivos", {})[str(it.get("numero"))] = por_que
             continue
-        mejor = max(vars_, key=lambda v: (len(pal & _palabras(v.get("variedad") or "")), v.get("n_dias") or 0))
         info["items"] += 1
         info["variedades"][str(it.get("numero"))] = {k: mejor.get(k) for k in ("variedad", "n_dias", "p25", "mediana", "p75")}
         fuente = ((d or {}).get("fuente") or {}).get("url") or "https://www.emmsa.com.pe/index.php/precios-diarios/"

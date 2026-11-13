@@ -374,9 +374,11 @@ def analyze_postores_pattern(ocid: str, tool_context: ToolContext) -> dict:
         direccion = None
         if party:
             addr = party.get("address") or {}
+            # Sin calle no hay dirección que comparar: «LIMA, LIMA» la comparten miles de empresas, y dos postores de
+            # la misma ciudad salían con «dirección compartida» (+35 cada uno, señal de cartel): auditoría 2026-11-13.
             direccion = ", ".join(filter(None, [
                 addr.get("streetAddress"), addr.get("locality"), addr.get("region")
-            ]))
+            ])) if str(addr.get("streetAddress") or "").strip() else None
         if ruc:
             postores.append({"ruc": ruc, "razon_social": nombre, "direccion": direccion})
 

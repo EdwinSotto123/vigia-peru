@@ -28,8 +28,8 @@ export const ETIQUETA_NODO: Record<GraphNode["kind"], string> = {
   municipio_familiar: "Municipio donde trabaja un familiar",
   partido_compartido: "Partido político del municipio",
   postor_rival: "Postor que no ganó",
-  socio_postor: "Socio de un postor que no ganó",
-  socio_postor_conflicto: "Socio de un postor rival que es funcionario público",
+  socio_postor: "Socio o representante de un postor que no ganó",
+  socio_postor_conflicto: "Socio o representante de un postor rival que es funcionario público",
   entidad_secundaria: "Visita relevante al proceso",
 };
 

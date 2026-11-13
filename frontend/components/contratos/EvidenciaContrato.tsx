@@ -271,31 +271,45 @@ function SeccionPostores({ c, enRevision }: { c: Detalle; enRevision: boolean })
   const rucsQuedan = new Set((cambio?.queda ?? []).map((a) => a.proveedorRuc));
   // Por qué quedó fuera cada postor: el registro del proceso casi nunca lo trae (salía «Sin dato»), pero la lectura del
   // acta sí (banderas «acta_*», `detalle.fuera`: nombre, RUC y motivo). El acta casi nunca trae el RUC y escribe el nombre
-  // a su modo («E.I.R.L.» / «EIRL»): se une por RUC, si no por el nombre sin puntos ni espacios (el comienzo), y si quedó
-  // fuera uno solo y el acta da un solo motivo, ese.
-  const normal = (s: string) => s.toUpperCase().normalize("NFD").replace(/[^A-Z0-9]/g, "");
-  const fueraActa: { ruc: string | null; nombre: string; motivo: string }[] = [];
+  // a su modo («E.I.R.L.» / «EIRL»): se une por RUC o, si no, por las palabras propias del nombre (sin la forma
+  // societaria), y SÓLO cuando el calce es de uno a uno. Antes bastaban los primeros 18 caracteres («INVERSIONES Y
+  // SERVICIOS GENERALES ALFA» recibía el motivo de «… BETA») o que quedara fuera uno solo (un segundo puesto válido
+  // recibía el motivo de otro): atribuir un motivo a la empresa equivocada es peor que no mostrarlo (auditoría 11-13).
+  const RELLENO = new Set(["SAC", "SAA", "SRL", "EIRL", "SOCIEDAD", "ANONIMA", "CERRADA", "ABIERTA", "EMPRESA", "INDIVIDUAL", "RESPONSABILIDAD", "LIMITADA", "COMERCIAL", "DEL", "LOS", "LAS", "POR"]);
+  const palabras = (s: string): string[] =>
+    [...new Set(s.toUpperCase().normalize("NFD").replace(/[^A-Z0-9 ]/g, (ch) => (/[.'’]/.test(ch) ? "" : " ")).split(/\s+/).filter((w) => w.length >= 3 && !RELLENO.has(w)))].sort();
+  const mismoNombre = (a: string[], b: string[]): boolean => {
+    if (!a.length || !b.length) return false;
+    const [corto, largo] = a.length <= b.length ? [a, b] : [b, a];
+    // Iguales, o el más corto (desde 2 palabras propias) entero dentro del otro: «CONSORCIO VIAL NORTE» y «VIAL NORTE».
+    return (corto.length === largo.length || corto.length >= 2) && corto.every((w) => largo.includes(w));
+  };
+  const fueraActa: { ruc: string | null; nombre: string[]; motivo: string }[] = [];
   for (const x of c.cruces ?? []) {
     if (!x.tipo.startsWith("acta_")) continue;
     const fuera = (x.detalle as { fuera?: unknown })?.fuera;
     if (!Array.isArray(fuera)) continue;
     for (const f of fuera as { ruc?: string | null; nombre?: string | null; motivo?: string | null }[]) {
       const m = typeof f?.motivo === "string" ? f.motivo.trim() : "";
-      if (m && !fueraActa.some((y) => y.motivo === m)) fueraActa.push({ ruc: f.ruc ?? null, nombre: normal(f.nombre ?? ""), motivo: m });
+      const nombre = palabras(f?.nombre ?? "");
+      // Dos postores pueden quedar fuera por el mismo motivo: son dos renglones, no uno.
+      if (m && !fueraActa.some((y) => y.motivo === m && y.nombre.join(" ") === nombre.join(" "))) fueraActa.push({ ruc: f.ruc ?? null, nombre, motivo: m });
     }
   }
-  const excluidos = postores.filter((p) => !p.esGanador);
+  const nombresExcluidos = [...new Set(postores.filter((p) => !p.esGanador).map((p) => palabras(p.razonSocial ?? "").join(" ")))].map((s) => s.split(" ").filter(Boolean));
   const motivoDe = (p: { ruc?: string | null; razonSocial?: string | null; motivoEstado?: string | null; esGanador?: boolean }): string | null => {
     const propio = humanizarCodigo(p.motivoEstado);
     if (propio) return propio;
     if (p.esGanador || !fueraActa.length) return null;
     const porRuc = p.ruc ? fueraActa.find((y) => y.ruc === p.ruc) : undefined;
     if (porRuc) return porRuc.motivo;
-    const n = normal(p.razonSocial ?? "");
-    const porNombre = n.length >= 8 ? fueraActa.find((y) => y.nombre.length >= 8 && (y.nombre.startsWith(n.slice(0, 18)) || n.startsWith(y.nombre.slice(0, 18)))) : undefined;
-    if (porNombre) return porNombre.motivo;
-    return excluidos.length === 1 && fueraActa.length === 1 ? fueraActa[0].motivo : null;
+    const n = palabras(p.razonSocial ?? "");
+    const candidatos = fueraActa.filter((y) => !y.ruc && mismoNombre(y.nombre, n));
+    // De uno a uno: un solo renglón del acta calza con este postor y ese renglón no calza con ningún otro postor.
+    if (candidatos.length !== 1) return null;
+    return nombresExcluidos.filter((o) => mismoNombre(candidatos[0].nombre, o)).length === 1 ? candidatos[0].motivo : null;
   };
+  const personasPostores = personasNaturalesDe(c);
   const filas: Fila[] = ordenados.map((p, i) => {
     const ref = referenciaDe(p, c);
     const dif = hayReferencia && p.montoOferta != null && ref ? ((p.montoOferta - ref) / ref) * 100 : null;
@@ -330,7 +344,7 @@ function SeccionPostores({ c, enRevision }: { c: Detalle; enRevision: boolean })
                   p.ruc && <Dato key="ruc" tipo="ruc">RUC <Ruc value={p.ruc} /></Dato>,
                   !p.esGanador && motivoDe(p) && (
                     <Dato key="motivo" icono={Info} nombre="Por qué quedó fuera" className="whitespace-normal">
-                      Por qué quedó fuera: {recortarMotivo(oracion(motivoDe(p)!))}
+                      Por qué quedó fuera: <TextoRedactado texto={recortarMotivo(oracion(motivoDe(p)!))} personas={personasPostores} />
                     </Dato>
                   ),
                   oferta && <Dato key="oferta" icono={Coins} nombre="Oferta" className="md:hidden">{oferta}</Dato>,

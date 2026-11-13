@@ -148,6 +148,6 @@ export type GraphEdge = {
       | "pareja" | "autoridad" | "firma_conflicto"
       | "adjudicacion" | "preside_entidad" | "designado_por" | "conflicto_funcionario"
       | "trabaja_en" | "mismo_partido_que" | "partido_de"
-      | "compitio" | "socio_de" | "visito" | "doble_vinculacion";
+      | "compitio" | "socio_de" | "visito" | "doble_vinculacion" | "mismo_titular";
   label?: string;
 };

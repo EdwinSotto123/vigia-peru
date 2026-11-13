@@ -57,22 +57,42 @@ export function DetallePrecioItem({ fila, fmtMoney }: { fila: FilaPrecio; fmtMon
     .map((r) => r.precio_unitario ?? r.precio_unitario_adjudicado ?? r.precio_unitario_referencial)
     .filter((x): x is number => typeof x === "number" && x > 0)
     .sort((a, b) => a - b);
-  const medianaEstado =
-    ancla?.estado === "hallado" && typeof ancla.mediana === "number" && ancla.mediana > 0
-      ? (ancla.mediana as number)
-      : preciosEstado.length >= 3
-        ? preciosEstado.length % 2
-          ? preciosEstado[(preciosEstado.length - 1) / 2]
-          : (preciosEstado[preciosEstado.length / 2 - 1] + preciosEstado[preciosEstado.length / 2]) / 2
-        : null;
+  // La mediana va con el número de compras de las que salió: el ancla regional trae el suyo (`n`), que no es el largo
+  // de la lista de referencias (auditoría 2026-11-13: decía «mediana de 12 compras» para una mediana de 2). Con menos
+  // de 3 compras no hay mediana que mostrar.
+  const delAncla = ancla?.estado === "hallado" && typeof ancla.mediana === "number" && ancla.mediana > 0 && Number(ancla.n) >= 3;
+  const medianaEstado = delAncla
+    ? (ancla.mediana as number)
+    : preciosEstado.length >= 3
+      ? preciosEstado.length % 2
+        ? preciosEstado[(preciosEstado.length - 1) / 2]
+        : (preciosEstado[preciosEstado.length / 2 - 1] + preciosEstado[preciosEstado.length / 2]) / 2
+      : null;
+  const nEstado = delAncla ? Number(ancla.n) : preciosEstado.length;
   const pagado = fila.ofertadoUnit;
-  const difEstado = medianaEstado && pagado ? ((pagado - medianaEstado) / medianaEstado) * 100 : null;
-  const extraEstado = medianaEstado && pagado && fila.cantidad ? (pagado - medianaEstado) * fila.cantidad : null;
-  // La medición con tiendas no sirvió (el análisis la descartó): sus cifras no se muestran como si valieran.
-  const descartada = !fila.medido && observados.length > 0;
+  const difCruda = medianaEstado && pagado ? ((pagado - medianaEstado) / medianaEstado) * 100 : null;
+  const motivoCrudo = String(f.motivo_no_verificable || f.motivo_estimacion || "");
+  // Una diferencia de más del triple o de menos de la cuarta parte no es un sobreprecio: es otra unidad (el lote entero
+  // cargado como una unidad, una caja contra una pieza). El análisis ya lo descarta (mismo umbral: +300 %); aquí tampoco
+  // se afirma, ni en porcentaje ni en soles (antes salía «+4970 %» en rojo junto a «sin veredicto de precio»).
+  const noComparable =
+    difCruda !== null && (difCruda > 300 || difCruda < -75 || motivoCrudo === "delta_implausible_contra_compras_del_estado_posible_lote");
+  const difEstado = difCruda === null || noComparable ? null : Math.round(difCruda) === 0 ? 0 : difCruda;
+  const extraEstado = difEstado !== null && medianaEstado && pagado && fila.cantidad ? (pagado - medianaEstado) * fila.cantidad : null;
+  // Los precios de tiendas se DESCARTARON (no eran el producto o la unidad). Sólo ese caso: pocos precios o un ítem sin
+  // precio unitario no son un descarte, y sus precios se muestran como lo que son.
+  const descartada = observados.length > 0 && (f.retail_descartado === true || (!fila.medido && motivoCrudo === "delta_implausible_sin_unidad_confirmada"));
 
   return (
     <div className="text-meta leading-relaxed text-ink">
+      {medianaEstado !== null && pagado !== null && noComparable && (
+        <p className="mb-4 rounded-xl border border-line bg-paperSoft px-3.5 py-2.5 text-rotulo leading-snug text-mute">
+          <strong className="font-semibold text-ink">Sin comparación de precio.</strong> Aquí figura {fmtMoney(pagado)} por unidad y otras
+          entidades pagaron alrededor de {fmtMoney(medianaEstado)} por un bien de la misma descripción. Una distancia así no se explica
+          por el precio: lo más probable es que no sea la misma unidad (el lote entero anotado como una unidad, o una caja contra una
+          pieza). Por eso no se calcula una diferencia.
+        </p>
+      )}
       {medianaEstado !== null && pagado !== null && difEstado !== null && (
         <div className="mb-4 overflow-hidden rounded-xl border border-line">
           <dl className="grid gap-px bg-line sm:grid-cols-3">
@@ -84,7 +104,7 @@ export function DetallePrecioItem({ fila, fmtMoney }: { fila: FilaPrecio; fmtMon
             <div className="bg-paper px-3.5 py-2.5">
               <dt className="text-rotulo font-medium text-mute">Otras entidades pagaron</dt>
               <dd className="font-display text-bloque font-bold tabular-nums text-ink">{fmtMoney(medianaEstado)}</dd>
-              <dd className="text-rotulo text-mute">mediana de {referencias.length} {referencias.length === 1 ? "compra" : "compras"} del mismo bien en el SEACE</dd>
+              <dd className="text-rotulo text-mute">mediana de {nEstado} compras de un bien de la misma descripción en el SEACE</dd>
             </div>
             <div className="bg-paper px-3.5 py-2.5">
               <dt className="text-rotulo font-medium text-mute">Diferencia</dt>
@@ -207,7 +227,12 @@ export function DetallePrecioItem({ fila, fmtMoney }: { fila: FilaPrecio; fmtMon
 
       {observados.length > 0 && (
         <details open={!descartada} className="group/obs">
-          <summary className={cn("cursor-pointer list-none [&::-webkit-details-marker]:hidden", !descartada && "pointer-events-none")}>
+          {/* Sin descarte no se pliega: ni con el ratón ni con el teclado (Enter dispara el mismo clic). */}
+          <summary
+            tabIndex={descartada ? undefined : -1}
+            onClick={(e) => { if (!descartada) e.preventDefault(); }}
+            className={cn("list-none [&::-webkit-details-marker]:hidden", descartada ? "cursor-pointer" : "cursor-default")}
+          >
             <Titulo>
               {descartada
                 ? `Precios de tiendas descartados (${observados.length}): no eran este producto. Ver cuáles`
@@ -277,7 +302,7 @@ export function DetallePrecioItem({ fila, fmtMoney }: { fila: FilaPrecio; fmtMon
         <>
           <Titulo>
             Lo que pagaron otras entidades por el mismo bien: {referencias.length} {referencias.length === 1 ? "compra" : "compras"} del SEACE
-            {medianaEstado !== null ? `, mediana ${fmtMoney(medianaEstado)}` : ""}
+            {medianaEstado !== null && !noComparable ? `, mediana ${fmtMoney(medianaEstado)} (de ${nEstado})` : ""}
           </Titulo>
           <ul className="space-y-1">
             {referencias.length > 8 && (

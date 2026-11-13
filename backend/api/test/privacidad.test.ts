@@ -390,3 +390,28 @@ test("el expediente de un consorcio: el RNP de cada integrante pasa tapado", () 
   });
   assert.equal(exp.expediente_proveedor.integrantes[0].rnp[0].nombre, `QUISPE ${TAPA_NOMBRE} ROSA ELENA`);
 });
+
+// Auditoría 2026-11-13: papeles que el agente guarda y la API no conocía, y DNI pegados por una coma.
+test("un postor persona natural sin RUC en el acta sale con un apellido tapado", () => {
+  const r = publicar({
+    lecturas_documentos: { acta: { salida: { postores: [
+      { nombre: "QUISPE MAMANI JUAN CARLOS", ruc: null, motivo_fuera: "QUISPE MAMANI JUAN CARLOS no presentó la garantía" },
+      { nombre: "CONSTRUCTORA LOS ANDES S.A.C.", ruc: "20131378972", motivo_fuera: null },
+    ] } } },
+  }) as any;
+  const [persona, empresa] = r.lecturas_documentos.acta.salida.postores;
+  assert.ok(!JSON.stringify(persona).includes("MAMANI"), JSON.stringify(persona));
+  assert.ok(persona.nombre.includes("QUISPE") && persona.nombre.includes("JUAN"));
+  assert.equal(empresa.nombre, "CONSTRUCTORA LOS ANDES S.A.C.");
+});
+
+test("el comité permanente de adquisiciones se tapa igual que los funcionarios designados", () => {
+  const r = publicar({ entity_personnel: { comite_permanente_adquisiciones: [{ nombre_completo: "Pedro Luis Ccori Apaza", cargo: "Presidente del comité" }] } }) as any;
+  assert.ok(!JSON.stringify(r).includes("Apaza"), JSON.stringify(r));
+});
+
+test("dos DNI pegados por una coma se tapan los dos; una cifra con decimales no", () => {
+  const r = publicar({ a: "Socios con documentos 43960880,41234567 y 40111222, 40333444.", b: "Monto 12,34567890 y S/ 12345678.50 y 1,234,567" }) as any;
+  for (const d of ["43960880", "41234567", "40111222", "40333444"]) assert.ok(!r.a.includes(d), r.a);
+  assert.equal(r.b, "Monto 12,34567890 y S/ 12345678.50 y 1,234,567");
+});

@@ -428,9 +428,11 @@ cuentasRouter.post("/me/chat", async (c) => {
 
 /**
  * Los topes y bloqueos del asistente, en orden: la lista fija (`CHAT_BLOQUEO`), el bloqueo automático, los topes por
- * minuto (IP y cuenta), por día (IP y cuenta, menor sin correo verificado) y el techo de todos. Cada rechazo por tope es
- * una falta de la IP y de la cuenta; con `FALTAS_PARA_BLOQUEO` en una hora quedan bloqueadas `BLOQUEO_S`. Devuelve la
- * respuesta de rechazo o null si puede preguntar. Un pedido interno (sin IP de visitante) sólo cuenta por cuenta.
+ * minuto y por día (primero los de la cuenta, después los de la IP) y el techo de todos. Una falta es un rechazo por
+ * ráfaga (el tope por minuto) y es SÓLO de quien la causó: la de la cuenta no cuenta contra la IP, porque detrás de una
+ * IP hay una universidad o una operadora entera y una sola persona la dejaba bloqueada un día (auditoría 2026-11-13).
+ * Con `FALTAS_PARA_BLOQUEO` en una hora queda bloqueado `BLOQUEO_S`. Insistir contra el tope del día no es falta: ya no
+ * cuesta nada. Devuelve la respuesta de rechazo o null si puede preguntar. Un pedido interno sólo cuenta por cuenta.
  */
 async function protegerChat(c: Context, uid: string, verificado: boolean, correo: string | null): Promise<Response | null> {
   const ip = pedidoInterno(c) ? null : claveIp(ipCliente(c));
@@ -443,32 +445,33 @@ async function protegerChat(c: Context, uid: string, verificado: boolean, correo
   const bloqueos = [`chatvigia|bloqueo|c:${uid}`, ...(huella ? [`chatvigia|bloqueo|ip:${huella}`] : [])];
   for (const k of bloqueos) if ((await cuantasEn(k, BLOQUEO_S, true)) > 0) return cerrado();
 
-  const tope = async (error: string, detail: string) => {
-    // Una falta para la IP y para la cuenta: quien insiste contra el tope queda bloqueado un día.
-    for (const sujeto of [`c:${uid}`, ...(huella ? [`ip:${huella}`] : [])]) {
-      if (!(await dentroDeTope(`chatvigia|faltas|${sujeto}`, FALTAS_PARA_BLOQUEO, 60 * 60))) {
-        await dentroDeTope(`chatvigia|bloqueo|${sujeto}`, 1, BLOQUEO_S, true);
-        registrar("WARNING", `[chat vigia] bloqueo automático de ${BLOQUEO_S / 3600} h: ${sujeto.startsWith("ip:") ? `h:${huella}` : `cuenta ${uid.slice(0, 8)}`}`);
-      }
+  // `falta`: el sujeto (cuenta o IP) que hizo la ráfaga; sin él, el rechazo no suma faltas. Las faltas se guardan
+  // (persistente): en memoria se perdían al dormirse el objeto y un robot lento nunca llegaba al bloqueo.
+  const tope = async (error: string, detail: string, falta?: string) => {
+    if (falta && !(await dentroDeTope(`chatvigia|faltas|${falta}`, FALTAS_PARA_BLOQUEO, 60 * 60, true))) {
+      await dentroDeTope(`chatvigia|bloqueo|${falta}`, 1, BLOQUEO_S, true);
+      registrar("WARNING", `[chat vigia] bloqueo automático de ${BLOQUEO_S / 3600} h: ${falta.startsWith("ip:") ? `h:${huella}` : `cuenta ${uid.slice(0, 8)}`}`);
     }
-    c.header("Retry-After", "60");
+    // «Reintenta en un minuto» sólo cuando de verdad basta un minuto: en el tope del día invitaba a insistir.
+    if (falta) c.header("Retry-After", "60");
     c.header("Cache-Control", SIN_CACHE);
     return c.json({ error, detail }, 429);
   };
   const seguido = "Hiciste varias preguntas seguidas. Espera un minuto.";
-  if (huella && !(await dentroDeTope(`chatvigia|ipmin|${huella}`, TOPE_IP_MINUTO, 60))) return tope("muy_seguido", seguido);
-  if (!(await dentroDeTope(`chatvigia|min|${uid}`, TOPE_CUENTA_MINUTO, 60))) return tope("muy_seguido", seguido);
-  if (huella && !(await dentroDeTope(`chatvigia|ipdia|${huella}`, TOPE_IP_DIA, DIA_S, true))) {
-    return tope("tope_ip", "Desde esta conexión ya se hicieron muchas preguntas hoy. Mañana puedes seguir.");
-  }
+  // Primero la cuenta: quien ya gastó lo suyo no le quita cupo a los demás de su misma conexión.
+  if (!(await dentroDeTope(`chatvigia|min|${uid}`, TOPE_CUENTA_MINUTO, 60))) return tope("muy_seguido", seguido, `c:${uid}`);
   const diario = topeDiaCuenta(verificado, correo);
   if (!(await dentroDeTope(`chatvigia|dia|${uid}`, diario, DIA_S, true))) {
     return tope(
       "tope_dia",
       diario === TOPE_CUENTA_DIA
-        ? `Ya hiciste las ${diario} preguntas de hoy. Mañana puedes seguir.`
-        : `Ya hiciste las ${diario} preguntas de hoy. Verifica tu correo desde tu cuenta para tener más cada día.`,
+        ? `Ya hiciste las ${diario} preguntas de este día. En 24 horas puedes seguir.`
+        : `Ya hiciste las ${diario} preguntas de este día. Verifica tu correo desde tu cuenta para tener más cada día.`,
     );
+  }
+  if (huella && !(await dentroDeTope(`chatvigia|ipmin|${huella}`, TOPE_IP_MINUTO, 60))) return tope("muy_seguido", seguido, `ip:${huella}`);
+  if (huella && !(await dentroDeTope(`chatvigia|ipdia|${huella}`, TOPE_IP_DIA, DIA_S, true))) {
+    return tope("tope_ip", "Desde esta conexión ya se hicieron muchas preguntas en las últimas 24 horas. Prueba más tarde.");
   }
   if (!(await dentroDeTope("chatvigia|total", TOPE_TOTAL_DIA, DIA_S, true))) {
     c.header("Cache-Control", SIN_CACHE);

@@ -358,11 +358,14 @@ def check_personal_clave_vinculado_rule(ocid: str, tool_context: ToolContext,
                 candidatos.append((n, f.get("cargo") or "funcionario", "entity_personnel"))
 
     coincidencias = []
+    # Las partículas no son apellidos: «MARIA DE LA CRUZ PEREZ» y «JUAN DE LA CRUZ ROJAS» compartían tres «palabras»
+    # (DE, LA, CRUZ) y la regla los daba por la misma persona, en severidad alta (auditoría 2026-11-13).
+    particulas = {"DE", "DEL", "LA", "LAS", "LOS", "Y", "SAN", "SANTA", "VDA", "VIUDA"}
     for p, n in con_nombre:
-        toks = set(n.split())
+        toks = set(n.split()) - particulas
         for cn, rol, origen in candidatos:
-            ctoks = set(cn.split())
-            # Coincidencia exacta o de ≥3 tokens (dos apellidos + nombre): nunca por un apellido solo.
+            ctoks = set(cn.split()) - particulas
+            # Coincidencia exacta o de ≥3 palabras propias (dos apellidos + nombre): nunca por un apellido solo.
             if n == cn or len(toks & ctoks) >= 3:
                 coincidencias.append({"personal_clave": p.get("nombre") or p.get("nombre_completo"),
                                       "cargo_propuesto": p.get("cargo"), "coincide_con": cn,

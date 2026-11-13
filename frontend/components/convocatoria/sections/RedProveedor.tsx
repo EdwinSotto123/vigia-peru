@@ -40,7 +40,7 @@ const CARRILES: { id: string; titulo: string; kinds: GraphNode["kind"][] }[] = [
 ];
 
 const GRUPO: Record<GraphEdge["kind"], Grupo> = {
-  titular: "negocio", contrato: "negocio", adjudicacion: "negocio", compitio: "negocio",
+  titular: "negocio", mismo_titular: "negocio", contrato: "negocio", adjudicacion: "negocio", compitio: "negocio",
   domicilio: "riesgo", firma_conflicto: "riesgo", conflicto_funcionario: "riesgo", socio_de: "negocio", visito: "riesgo",
   doble_vinculacion: "riesgo",
   candidato: "politica", aporte: "politica", cargo: "politica", mismo_partido_que: "politica", partido_de: "politica",
@@ -69,7 +69,7 @@ const TEXTO_GRUPO: Record<Grupo, string> = {
 };
 
 const ETIQUETA: Record<GraphEdge["kind"], string> = {
-  titular: "es titular de", domicilio: "mismo domicilio", candidato: "fue candidato", aporte: "aportó a", cargo: "tuvo el cargo",
+  titular: "es titular de", mismo_titular: "mismo titular", domicilio: "mismo domicilio", candidato: "fue candidato", aporte: "aportó a", cargo: "tuvo el cargo",
   contrato: "contrató", pareja: "pareja o familia", autoridad: "autoridad", firma_conflicto: "firmó con conflicto",
   adjudicacion: "le adjudicó", preside_entidad: "preside", designado_por: "designado por",
   conflicto_funcionario: "funcionario en conflicto", trabaja_en: "trabaja en", mismo_partido_que: "mismo partido",
@@ -81,6 +81,7 @@ const NODO_RIESGO = new Set<GraphNode["kind"]>(["firmante_conflicto", "socio_pos
 /** Qué significa cada vínculo, en una oración (la lista de vínculos lo dice bajo cada uno: «la red no explica nada»). */
 const QUE_SIGNIFICA: Record<GraphEdge["kind"], string> = {
   titular: "Es dueño, socio o representante de esa empresa, según el RNP del OECE.",
+  mismo_titular: "Las dos empresas tienen a una misma persona como titular, socio o representante, según el RNP del OECE. No dice que una sea dueña de la otra.",
   domicilio: "Las dos empresas declaran el mismo domicilio fiscal: puede ser la misma gente detrás (SUNAT). Vale revisarlo si compitieron entre sí.",
   candidato: "Postuló a un cargo de elección popular (JNE).",
   aporte: "Dio dinero a una campaña electoral (ONPE).",
@@ -97,7 +98,7 @@ const QUE_SIGNIFICA: Record<GraphEdge["kind"], string> = {
   mismo_partido_que: "El familiar trabaja en un municipio del mismo partido que gobierna la entidad que contrata.",
   partido_de: "El partido político al que pertenece.",
   compitio: "Presentó oferta en este mismo proceso y no ganó.",
-  socio_de: "Es socio de ese postor según el RNP. Ser socio de un competidor no es un problema por sí solo; lo sería si también lo fuera del ganador o trabajara en la entidad.",
+  socio_de: "Figura así en ese postor según el RNP. Ser socio, representante o directivo de un competidor no es un problema por sí solo; lo sería si también lo fuera del ganador o trabajara en la entidad.",
   visito: "Una visita registrada a la entidad, relevante para el proceso. Una visita sola no prueba un vínculo.",
   doble_vinculacion: "La misma persona aparece de los dos lados: en el proveedor y en la entidad.",
 };
@@ -105,7 +106,14 @@ const QUE_SIGNIFICA: Record<GraphEdge["kind"], string> = {
 /** Relaciones que se guardan del otro lado de como se leen: el renglón pone primero a los del final (plural si son varios). */
 const AL_REVES: Partial<Record<GraphEdge["kind"], (varios: boolean, e: GraphEdge) => string>> = {
   compitio: (v) => (v ? "también ofertaron a" : "también ofertó a"),
-  socio_de: (v) => (v ? "son socios de" : "es socio de"),
+  // El vínculo es el que da el RNP («socio», «representante legal», «directivo»), no siempre «socio».
+  socio_de: (v, e) => {
+    const rol = /represent/i.test(e.label || "") ? "representante legal" : /directiv/i.test(e.label || "") ? "directivo" : "socio";
+    return v ? `son ${rol === "representante legal" ? "representantes legales" : `${rol}s`} de` : `es ${rol} de`;
+  },
+  // Guardadas entidad → persona: se leen «X preside la entidad», «X registra una visita a la entidad».
+  preside_entidad: (v) => (v ? "presiden" : "preside"),
+  visito: (v) => (v ? "registran una visita a" : "registra una visita a"),
   // «hermana», «posible familiar de quien dirige la empresa»: «es hermana de», «es posible familiar de quien dirige…».
   pareja: (v, e) => `${v ? "son" : "es"} ${textoRelacion(e)}${/\bde\b/.test(textoRelacion(e)) ? "" : " de"}`,
 };
@@ -154,8 +162,9 @@ function VinculosExplicados({ red, onElegir }: { red: Red; onElegir: (id: string
         <p className="flex items-start gap-2.5 px-4 py-3 text-dato leading-snug text-inkSoft">
           <ShieldCheck size={17} className="mt-0.5 shrink-0 text-mossTexto" aria-hidden />
           <span>
-            <span className="font-semibold text-ink">Sin cruces de riesgo.</span> No encontramos a la gente del proveedor unida a la
-            entidad, a sus funcionarios ni a los otros postores (mismo domicilio, socios en común, firmas con conflicto).
+            <span className="font-semibold text-ink">Ningún vínculo de esta red es un cruce de riesgo.</span> Vale sólo para las
+            personas y empresas que aparecen aquí, que son las que el análisis llegó a revisar. Los antecedentes del proveedor y las
+            señales del contrato están en sus propias pestañas.
           </span>
         </p>
       )}

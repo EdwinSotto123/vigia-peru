@@ -85,9 +85,10 @@ const DNI_CON_ETIQUETA = /(\b(?:d\.?\s?n\.?\s?i\.?|documento(?:\s+(?:nacional\s+
 /**
  * Cualquier número de 8 dígitos que no sea parte de otro número (más dígitos, decimales) ni vaya detrás
  * de una moneda. Pegado a letras también ("DNI43960880", un sello escaneado "…43960880m"), salvo que la
- * tira de letras y dígitos sea larga como un hash o un código (`esCodigoLargo`).
+ * tira de letras y dígitos sea larga como un hash o un código (`esCodigoLargo`). Una coma sólo lo une a otro número
+ * si ese otro no es también de 8 dígitos: "43960880,41234567" son dos DNI, "12,34567890" es una cifra.
  */
-const DNI_SUELTO = /(?<!(?:S\/\.?|US\$|\$|€)\s{0,2})(?<![\d.,/])\d{8}(?!\d|[.,]\d)/gu;
+const DNI_SUELTO = /(?<!(?:S\/\.?|US\$|\$|€)\s{0,2})(?<![\d./])(?<!(?<!(?<!\d)\d{8}),)\d{8}(?!\d|\.\d|,(?!\d{8}(?!\d))\d)/gu;
 
 /** ¿El número en `desde` es parte de una tira alfanumérica de 12 o más (sha256, id de documento)? */
 function esCodigoLargo(s: string, desde: number, largo: number): boolean {
@@ -261,6 +262,8 @@ const PAPELES: Record<string, { campos: [campo: string, orden: Orden][]; tipo?: 
   firmantes_descartados_por_alucinacion: { campos: [["nombre_completo", "nombres-primero"], ["nombre", "nombres-primero"]], tipo: "consulta" },
   comite_evaluacion: { campos: [["nombre_completo", "nombres-primero"], ["nombre", "nombres-primero"]] },
   funcionarios_designados: { campos: [["nombre_completo", "nombres-primero"], ["nombre", "nombres-primero"]] },
+  // La otra lista de `entity_personnel` (agents/_shared/schemas/entity.py): salía con el nombre entero (auditoría 11-13).
+  comite_permanente_adquisiciones: { campos: [["nombre_completo", "nombres-primero"], ["nombre", "nombres-primero"]] },
   cruce_firmantes_ganador: { campos: [["firmante", "nombres-primero"], ["persona_proveedor", "nombres-primero"]] },
   rnp_firmantes_resultados: { campos: [["firmante", "nombres-primero"]] },
   empresas: { campos: [["nombre_visto", "sunat"], ["nombre_normalizado_rnp", "sunat"]], tipo: "consulta" },
@@ -280,6 +283,9 @@ const PAPELES: Record<string, { campos: [campo: string, orden: Orden][]; tipo?: 
   // el documento no traiga su RUC al lado.
   postoresDetalle: { campos: [["razonSocial", "sunat"]] },
   fuera: { campos: [["nombre", "sunat"]] },
+  // La lista que el agente guarda de verdad en `lecturas_documentos.acta.salida` (tools/lecturas.py): el acta casi
+  // nunca trae el RUC, y sin él un postor persona natural salía con el nombre entero (auditoría 11-13).
+  postores: { campos: [["nombre", "sunat"]] },
   contratista: { campos: [["nombre", "sunat"]] },
   // El expediente del proveedor (agente, plan 2026-11-04): socios y representantes del RNP, ya con un apellido tapado.
   rnp: { campos: [["nombre", "sunat"]] },

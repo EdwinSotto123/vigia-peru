@@ -108,8 +108,14 @@ def _bloque_recortes(state: dict) -> str:
             lineas.append(f"- recorte: {str(r)[:200]}")
     for d in descartes:
         if isinstance(d, dict):
-            lineas.append(f"- descarte en {d.get('donde')}: {d.get('motivo')} "
-                          f"{json.dumps(d.get('detalle'), ensure_ascii=False, default=str)[:160] if d.get('detalle') else ''}")
+            # Los descartes se escriben con dos juegos de claves (`motivo`/`detalle` y `motivos`/`evidencia`): se leen
+            # los dos, y lo que falta se calla (el dictamen listaba «descarte en None: None»).
+            motivo = d.get("motivo") or d.get("motivos")
+            if isinstance(motivo, (list, tuple, set)):
+                motivo = ", ".join(str(m) for m in motivo)
+            detalle = d.get("detalle") or d.get("evidencia")
+            lineas.append(f"- descarte{' en ' + str(d.get('donde')) if d.get('donde') else ''}: {motivo or 'sin motivo registrado'} "
+                          f"{json.dumps(detalle, ensure_ascii=False, default=str)[:160] if detalle else ''}")
         else:
             lineas.append(f"- descarte: {str(d)[:200]}")
     resto = len(lineas) - _MAX_LINEAS_RECORTES

@@ -85,6 +85,8 @@ const MOTIVOS_ITEM: Record<string, string> = {
   sin_precio_ofertado_ni_referencial: "el expediente no trae precio unitario de este ítem",
   estimado_por_ia_sin_busqueda: "quedó fuera del presupuesto de búsqueda del lote y el modelo lo estimó sin buscar",
   delta_implausible_sin_unidad_confirmada: "la diferencia salió implausible con unidades sin confirmar: se descartó",
+  delta_implausible_contra_compras_del_estado_posible_lote:
+    "la diferencia contra otras compras del Estado salió tan grande que lo más probable es que aquí el precio sea de todo el lote y no de una unidad",
   comparacion_no_normalizada: "la comparación no está normalizada por alcance (meses, personal, m²)",
   no_consultada: "no se llegó a consultar en esta corrida",
 };
@@ -176,13 +178,15 @@ function construirFila(ocdsItem: any, f: any, key: string): FilaPrecio {
 
   // La mediana que se dibuja es la MISMA que muestra la tabla, y es contra la
   // que el backend calculó `diff_pct` en todas sus ramas.
-  const mediana = positivo(f?.precio_mediana_mercado ?? f?.precio_mediana_comparacion);
+  // Con las tiendas descartadas (`retail_descartado`), la mediana que vale es la de las compras del Estado, no la de tiendas.
+  const tiendasFuera = f?.retail_descartado === true;
+  const mediana = positivo(tiendasFuera ? f?.precio_mediana_comparacion : f?.precio_mediana_mercado ?? f?.precio_mediana_comparacion);
   const estimacionIA = positivo(f?.precio_estimado_ia);
   const referenciaUnit = mediana ?? estimacionIA;
   const tipoReferencia: FilaPrecio["tipoReferencia"] = mediana !== null ? "mediana" : "estimacion_ia";
 
-  const rangoMinUnit = mediana !== null ? positivo(f?.rango_min) : null;
-  const rangoMaxUnit = mediana !== null ? positivo(f?.rango_max) : null;
+  const rangoMinUnit = mediana !== null ? positivo(tiendasFuera ? f?.ancla_regional?.rango_min : f?.rango_min) : null;
+  const rangoMaxUnit = mediana !== null ? positivo(tiendasFuera ? f?.ancla_regional?.rango_max : f?.rango_max) : null;
 
   const esEstimacionIA = f?.estado === "estimado_ia" || (mediana === null && estimacionIA !== null);
   const veredicto = veredictoMercado(esEstimacionIA ? "estimado_ia" : f?.veredicto);

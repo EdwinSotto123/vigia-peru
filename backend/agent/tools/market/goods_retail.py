@@ -422,7 +422,8 @@ def _mercado_goods_retail(state: dict) -> dict:
             # Fuentes oficiales primero: combustibles → Osinergmin; frescos → Mercado Mayorista de Lima (EMMSA). Lo que
             # ninguna cubre va a los catálogos de tiendas y, al final, a la búsqueda web.
             precios_comb, info_comb = precios_combustible(items_grounded, departamento_de(ocds), fecha_ref)
-            resto = [it for it in items_grounded if not es_combustible(it)]
+            con_comb = {str(p["item_numero"]) for p in precios_comb}
+            resto = [it for it in items_grounded if str(it.get("numero")) not in con_comb]
             precios_may, info_may = precios_mayorista(resto, hasta=fecha_ref)
             con_may = {str(p["item_numero"]) for p in precios_may}
             # Tiendas + compras de otras entidades (OECE/CONOSCE, hasta la fecha de la convocatoria), con un solo juez.
@@ -498,9 +499,9 @@ def _mercado_goods_retail(state: dict) -> dict:
         ctx = _contexto_unidad_item(it)
         base_val, base = None, None
         if _market_to_num(it.get("precio_unitario_ofertado")):
-            base_val, base = float(it["precio_unitario_ofertado"]), "ofertado"
+            base_val, base = _market_to_num(it["precio_unitario_ofertado"]), "ofertado"
         elif _market_to_num(it.get("precio_unitario_referencial")):
-            base_val, base = float(it["precio_unitario_referencial"]), "referencial"
+            base_val, base = _market_to_num(it["precio_unitario_referencial"]), "referencial"
         ancla, refs_usables = _ancla_regional_item(it, _refs_para(it), base_val, ctx)
         if refs_usables:
             _publicar_grounding(state, [{"uri": r["url"], "titulo": f"SEACE {r['ocid']}",
@@ -629,6 +630,17 @@ def _mercado_goods_retail(state: dict) -> dict:
                 motivo = None
             else:
                 ancla["concuerda_con_retail"] = (vr == veredicto_retail)
+        # Las tiendas dan un Δ implausible (no era el producto o la unidad) pero hay compras de otras entidades por el
+        # mismo bien: la comparación es contra esas compras, y los precios de tiendas quedan descartados. Antes el ítem
+        # salía «no verificable» teniendo la respuesta (1256664: S/ 36,68 contra S/ 25,3 de 12 compras, +45 %).
+        retail_descartado = False
+        if (isinstance(diff, (int, float)) and diff > MARKET_DELTA_IMPLAUSIBLE and n_norm < MARKET_MIN_PRECIOS
+                and diff_fuente == "retail" and ancla.get("estado") == "hallado" and base_val is not None):
+            _registrar_descarte(state, f"market.goods_retail.item_{num}", "retail_descartado",
+                                f"Δ {diff:+.0f} % contra tiendas sin unidad confirmada: se compara con {ancla.get('n')} compras del Estado")
+            retail_descartado = True
+            veredicto, diff, diff_fuente = ancla["veredicto_regional"], ancla.get("diff_vs_mediana_pct"), "ancla_regional"
+            med_comparacion, motivo = ancla.get("mediana"), None
         # Guardarraíl: Δ implausible sin precios con unidad confirmada → no_verificable. También contra el ancla
         # regional: sus referencias ya vienen sin outliers (×5), así que un Δ así es el ítem el que no es comparable
         # (1225718: «set instrumental» de cantidad 1 a S/ 484 000 contra S/ 9 547 por set = +4 970 %; 1226255:
@@ -641,7 +653,8 @@ def _mercado_goods_retail(state: dict) -> dict:
                                 f"Δ {diff:+.0f} % con {n_norm} precio(s) de unidad confirmada (< {MARKET_MIN_PRECIOS})")
         proveedores = []
         vistos = set()
-        for x in precios_obs:
+        # De precios descartados no salen «proveedores potenciales» (EMMSA aparecía como proveedor de una bolsa médica).
+        for x in ([] if (retail_descartado or veredicto == "no_verificable") else precios_obs):
             k = (x.get("proveedor") or x.get("dominio") or "").lower()
             if k and k not in vistos:
                 vistos.add(k)
@@ -671,6 +684,7 @@ def _mercado_goods_retail(state: dict) -> dict:
             "diff_fuente": diff_fuente if (diff is not None or veredicto == "alineado_regional") else None,
             "diff_pct_retail": diff_retail, "veredicto_retail": veredicto_retail,
             "veredicto": veredicto,
+            "retail_descartado": retail_descartado,
             "es_estimacion": veredicto in ("sin_dato", "no_verificable"),
             "motivo_estimacion": motivo,
             "estado": "hallado" if veredicto != "no_verificable" else "no_verificable",
@@ -727,7 +741,7 @@ def _mercado_goods_retail(state: dict) -> dict:
     lote_base = None
     total_ofertado_resp = None
     if respaldados and all(_market_to_num(p) and isinstance(c, (int, float)) for p, c in ofert_resp):
-        total_ofertado_resp = sum(float(p) * float(c) for p, c in ofert_resp)
+        total_ofertado_resp = sum(_market_to_num(p) * float(c) for p, c in ofert_resp)
         lote_base = "ofertado_items"
     elif total_ofertado and not es_referencial and suma_all > 0 and all(v for v in valores_all.values()):
         total_ofertado_resp = float(total_ofertado) * (suma_resp / suma_all)

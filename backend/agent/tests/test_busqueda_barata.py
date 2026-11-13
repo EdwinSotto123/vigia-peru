@@ -142,8 +142,37 @@ def test_mayorista_no_confunde_el_envase_con_el_bien(monkeypatch):
     precios, _ = catalogos.precios_mayorista([{**bolsa, "cubso": "4214260100236736"}])
     assert precios == [] and llamadas == []
     # Un limón de verdad (segmento 50) sí recibe su precio.
-    precios, _ = catalogos.precios_mayorista([{"numero": "2", "descripcion_corta": "LIMON SUTIL EN BOLSA", "cubso": "5030540100012345"}])
+    precios, _ = catalogos.precios_mayorista([{"numero": "2", "descripcion_corta": "LIMON CITRICO EN BOLSA", "cubso": "5030540100012345", "unidad": "KILOGRAMO"}])
     assert [x["precio"] for x in precios] == [2.51, 2.58, 2.71]
+
+
+def test_mayorista_solo_la_variedad_que_el_item_nombra(monkeypatch):
+    """Auditoría 2026-11-13: «PAPA SECA» recibía el precio de la «PAPA BLANCA» (S/ 1,20 contra S/ 12,50, +942 %)."""
+    papas = {"variedades": [{"variedad": "PAPA BLANCA", "n_dias": 30, "p25": 1.1, "mediana": 1.2, "p75": 1.3},
+                            {"variedad": "PAPA AMARILLA", "n_dias": 28, "p25": 2.9, "mediana": 3.1, "p75": 3.4}]}
+    monkeypatch.setattr(catalogos, "_worker", lambda ruta, params: papas)
+    def precio(desc, **mas):
+        precios, info = catalogos.precios_mayorista([{"numero": "1", "descripcion_corta": desc, "cubso": "5040000000000000", **mas}])
+        return [x["precio"] for x in precios], info
+    assert precio("PAPA SECA X KG", unidad="KG")[0] == []                    # elaborado: no es el fresco
+    assert precio("PAPA BLANCA DE PRIMERA", unidad="KILOGRAMO")[0] == [1.1, 1.2, 1.3]
+    assert precio("PAPAS BLANCAS", unidad="KG")[0] == [1.1, 1.2, 1.3]        # el plural es la misma variedad
+    assert precio("ADQUISICION DE PAPA AMARILLA", unidad="KG")[0] == [2.9, 3.1, 3.4]
+    assert precio("PAPA HUAYRO", unidad="KG")[0] == []                        # otra variedad: no se le pone la blanca
+    vacio, info = precio("PAPA", unidad="KG")                                 # sin variedad y dos precios distintos
+    assert vacio == [] and info["motivos"]["1"] == "variedad_sin_precisar"
+    assert precio("PAPA BLANCA", unidad="SACO")[0] == []                      # por saco no se compara con el kilo
+
+
+def test_combustible_es_el_bien_no_lo_que_lo_menciona():
+    """Auditoría 2026-11-13: «ACEITE PARA MOTOR DIESEL 15W40» a S/ 62 el galón salía +287 % contra el diésel."""
+    si = ["DIESEL B5 S-50", "PETRÓLEO DIESEL B5", "GASOHOL 90 PLUS", "GLP VEHICULAR", "Gasolina de 95 octanos"]
+    no = ["ACEITE PARA MOTOR DIESEL 15W40", "FILTRO DE PETROLEO DIESEL", "BOMBA DE GASOLINA ELECTRICA", "COCINA INDUSTRIAL A GLP",
+          "GRUPO ELECTROGENO DIESEL 50 KW", "MANGUERA PARA GLP", "CAMIONETA 4X4 DIESEL"]
+    assert all(catalogos.es_combustible({"descripcion_corta": d, "unidad": "GALON"}) for d in si)
+    assert not any(catalogos.es_combustible({"descripcion_corta": d, "unidad": "UNIDAD"}) for d in no)
+    assert not any(catalogos.es_combustible({"descripcion_corta": d}) for d in no)
+    assert not catalogos.es_combustible({"descripcion_corta": "GLP", "unidad": "KILOGRAMO"})   # por kilo no es por galón
 
 
 def test_fecha_de_la_convocatoria_para_precios_pasados(monkeypatch):

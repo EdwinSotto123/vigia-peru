@@ -168,13 +168,18 @@ def persist_market_flags_as_banderas(alerta_codigo: str, tool_context: ToolConte
             continue
         item_desc = (f.get("item_descripcion") or "")[:80]
         veredicto_item = (f.get("veredicto") or "").lower()
+        # La bandera dice contra qué se midió: el valor referencial no es un «precio ofertado», y la mediana de otras
+        # compras del Estado no es «de mercado» (auditoría 2026-11-13).
+        que_precio = "valor referencial" if f.get("diff_base") == "referencial" else "precio ofertado"
+        que_mediana = ("la mediana de otras compras del Estado por el mismo bien" if f.get("diff_fuente") == "ancla_regional"
+                       else "la mediana de mercado")
         if veredicto_item == "muy_elevado":
             banderas_a_persistir.append({
                 "regla": "sobreprecio_muy_elevado",
                 "severidad": "alta",
                 "evidencia": (
-                    f"Ítem '{item_desc}': precio ofertado {f.get('diff_pct',0):.1f}% "
-                    f"por encima de la mediana de mercado."
+                    f"Ítem '{item_desc}': {que_precio} {f.get('diff_pct') or 0:.1f}% "
+                    f"por encima de {que_mediana}."
                 )[:500],
                 "norma": "Art. 12 Reglamento Ley 32069 — valor referencial razonable",
             })
@@ -183,8 +188,8 @@ def persist_market_flags_as_banderas(alerta_codigo: str, tool_context: ToolConte
                 "regla": "sobreprecio_elevado",
                 "severidad": "media",
                 "evidencia": (
-                    f"Ítem '{item_desc}': precio ofertado {f.get('diff_pct',0):.1f}% "
-                    f"por encima de la mediana de mercado."
+                    f"Ítem '{item_desc}': {que_precio} {f.get('diff_pct') or 0:.1f}% "
+                    f"por encima de {que_mediana}."
                 )[:500],
                 "norma": "Art. 12 Reglamento Ley 32069 — valor referencial razonable",
             })

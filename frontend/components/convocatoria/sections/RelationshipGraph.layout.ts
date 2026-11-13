@@ -73,8 +73,13 @@ export function buildRelationshipGraphData(
   const familia = (person?.pareja_o_familia || []) as any[];
   const autoridades = (person?.vinculo_autoridades || []) as any[];
   const cruceFirmantes = (person?.cruce_firmantes_ganador || [])
-    .filter((c: any) => (c?.severidad || "").toLowerCase() === "alta"
-                       || (c?.tipo_relacion || "").toLowerCase() !== "sin_relacion") as any[];
+    .filter((c: any) => {
+      // Sólo un vínculo que el análisis sostuvo: severidad alta, o una relación con nombre que no sea «sin relación» ni
+      // «apellido compartido» (un apellido en común no es un conflicto; el agente lo deja en baja y fuera de las
+      // señales, y aquí salía en rojo como «Firmante con conflicto»: auditoría 2026-11-13).
+      const rel = String(c?.tipo_relacion || "").toLowerCase().trim();
+      return (c?.severidad || "").toLowerCase() === "alta" || (rel !== "" && rel !== "sin_relacion" && rel !== "apellido_compartido");
+    }) as any[];
   const otrosContratos = (web?.otros_contratos_con_estado || []) as any[];
 
   const personLabel = p.nombre_completo || "Persona no identificada";
@@ -489,6 +494,9 @@ export function buildRelationshipGraphData(
       const socioEtiqueta = maskApellidoSunat(nombre);
       // «socios» (así viene del RNP) es de una persona: «socio».
       const rol = (legible(s.rol_en_postor) || "socio").replace(/^socios$/i, "socio");
+      // El rol que da el RNP manda también en el vínculo: un representante legal o un directivo no es un socio.
+      const rolCrudo = String(s.rol_en_postor || "").toLowerCase();
+      const vinculo = /represent/.test(rolCrudo) ? "representante legal" : /organo|órgano|administr|direct/.test(rolCrudo) ? "directivo" : "socio";
       nodes.push({
         id: socId,
         kind: esFuncionarioActivo ? "socio_postor_conflicto" : "socio_postor",
@@ -503,13 +511,13 @@ export function buildRelationshipGraphData(
           dni: s.dni, rol,
           observacion: esFuncionarioActivo
             ? "⚠ Socio de postor rival es funcionario público activo en la región"
-            : `Socio de postor no ganador (${razonEtiqueta})`,
+            : `${vinculo.charAt(0).toUpperCase()}${vinculo.slice(1)} de un postor que no ganó (${razonEtiqueta})`,
         },
       });
       edges.push({
         from: id, to: socId,
         kind: esFuncionarioActivo ? "conflicto_funcionario" : "socio_de",
-        label: esFuncionarioActivo ? "⚠ socio + funcionario" : "socio",
+        label: esFuncionarioActivo ? `⚠ ${vinculo} + funcionario` : vinculo,
       });
     });
   });
@@ -522,7 +530,8 @@ export function buildRelationshipGraphData(
   const visitasInterMun = (ctx?.visitas_relevantes || []) as any[];
   const entidadesSecundariasYaCreadas = new Set<string>();
   visitasInterMun.slice(0, 4).forEach((v: any, i: number) => {
-    const etiqueta = (v.entidad_representada || v.entidad_visitada || "Visita registrada").trim();
+    // Sin entidad representada, el nodo es quien visitó (tapado): con la entidad visitada salía «ENTIDAD visita ENTIDAD».
+    const etiqueta = String(v.entidad_representada || (v.persona ? maskApellido(v.persona) : "Visita registrada")).trim();
     if (entidadesSecundariasYaCreadas.has(etiqueta.toUpperCase())) return;
     entidadesSecundariasYaCreadas.add(etiqueta.toUpperCase());
     const id = `es_${i}`;
@@ -743,13 +752,20 @@ export function buildRelationshipGraphData(
   if (!p.nombre_completo) {
     const sinPersona = edges
       .filter((e) => !((e.from === idPerson && e.to === idCompanyMain) || (e.to === idPerson && e.from === idCompanyMain)))
-      .map((e) => ({
-        ...e,
-        // «posible familiar» de una persona sin nombre: de quien dirige la empresa (su titular o representante).
-        label: e.kind === "pareja" && e.from === idPerson ? `${e.label || "familiar"} de quien dirige la empresa` : e.label,
-        from: e.from === idPerson ? idCompanyMain : e.from,
-        to: e.to === idPerson ? idCompanyMain : e.to,
-      }));
+      .map((e) => {
+        const dePersona = e.from === idPerson;
+        // Los vínculos eran de una persona sin nombre (quien dirige la empresa), no de la empresa: al colgarlos del
+        // proveedor se dice así. Sin esto la red afirmaba que el proveedor «es dueño, socio o representante» de las
+        // otras empresas del mismo titular, o que la empresa misma tenía un vínculo con una autoridad (auditoría 11-13).
+        const kind: GraphEdge["kind"] = dePersona && e.kind === "titular" ? "mismo_titular" : e.kind;
+        const label =
+          !dePersona ? e.label
+            : e.kind === "pareja" ? `${e.label || "familiar"} de quien dirige la empresa`
+              : e.kind === "titular" ? "tiene el mismo titular o representante que"
+                : e.kind === "autoridad" || e.kind === "firma_conflicto" ? `${e.label || "vínculo"} (con quien dirige la empresa)`
+                  : e.label;
+        return { ...e, kind, label, from: dePersona ? idCompanyMain : e.from, to: e.to === idPerson ? idCompanyMain : e.to };
+      });
     const nodos = nodes.filter((n) => n.id !== idPerson);
     positions.delete(idPerson);
     return { nodes: nodos, edges: sinPersona, positions };
