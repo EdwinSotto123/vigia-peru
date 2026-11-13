@@ -16,11 +16,11 @@ export const metadata: Metadata = {
  */
 export default function AsistentePage() {
   return (
-    <Pagina ancho="lectura">
+    <Pagina>
       <Migas items={[{ etiqueta: "Inicio", href: "/app" }, { etiqueta: "Asistente", href: "/app/asistente" }]} />
       <EncabezadoPagina
         titulo="Asistente de investigación"
-        bajada="Pregunta en tus palabras. Responde sólo con los datos de Vigía, con sus fuentes y lo que no pudo verificar."
+        bajada="Pregunta en tus palabras: responde con los datos de Vigía, con sus fuentes y lo que no pudo verificar."
         ayuda={
           <Ayuda titulo="¿Cómo responde?">
             <span className="block">
