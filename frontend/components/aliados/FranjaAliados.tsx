@@ -53,12 +53,20 @@ export async function FranjaAliados({ className, ancho = "pagina" }: { className
           </span>
         </Link>
 
-        <ol aria-label="Podio de aliados: los tres que más meses sostienen Vigía" className="flex min-w-0 flex-1 items-center gap-1 sm:gap-1.5">
-          {LUGARES.map((lugar) => {
-            const f = podio[lugar - 1];
-            return f ? <Ocupado key={f.id} lugar={lugar} fila={f} /> : <Libre key={`libre-${lugar}`} lugar={lugar} primero={libres === 3 && lugar === 1} />;
-          })}
-        </ol>
+        {libres === 3 ? (
+          // Sin ningún aliado todavía: tres «Lugar libre» en lo alto de cada página se leían como publicidad sin vender
+          // (auditoría de producto del 2026-11-12, decisión D4). Una frase, y el botón de al lado.
+          <p className="min-w-0 flex-1 truncate text-meta text-paper/80">
+            Vigía se sostiene con aportes de la gente<span className="hidden md:inline">: los tres que más meses aporten van aquí</span>.
+          </p>
+        ) : (
+          <ol aria-label="Podio de aliados: los tres que más meses sostienen Vigía" className="flex min-w-0 flex-1 items-center gap-1 sm:gap-1.5">
+            {LUGARES.map((lugar) => {
+              const f = podio[lugar - 1];
+              return f ? <Ocupado key={f.id} lugar={lugar} fila={f} /> : <Libre key={`libre-${lugar}`} lugar={lugar} primero={false} />;
+            })}
+          </ol>
+        )}
 
         <Link
           href={HREF_APOYAR}
