@@ -61,7 +61,7 @@ export function RankingsInicio({ pestanas }: { pestanas: PestanaRank[] }) {
   return (
     <section aria-labelledby={`${base}-t`} className="tarjeta rounded-2xl border border-line bg-paper">
       <div className="flex flex-col gap-2 border-b border-line px-4 py-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between sm:gap-3 sm:px-5">
-        <h2 id={`${base}-t`} className="font-display text-bloque font-bold leading-tight text-ink sm:text-seccion">Rankings</h2>
+        <h2 id={`${base}-t`} className="font-display text-bloque font-bold leading-tight text-ink sm:text-seccion">Avance de la lectura</h2>
         <div role="tablist" aria-label="Qué ordenar" className="grid grid-cols-4 gap-1 rounded-full border border-line bg-paperDeep p-1 sm:inline-flex">
           {pestanas.map((p, i) => (
             <button

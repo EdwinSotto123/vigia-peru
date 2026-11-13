@@ -165,6 +165,11 @@ export default async function InicioApp() {
     });
   }
 
+  // Primero lo que cualquiera reconoce (su región, el partido que la gobierna); la entidad, que pide saber su nombre
+  // exacto, después. Antes abría en «Entidades con más contratos en cola», una cifra de operación de Vigía.
+  const ORDEN_PESTANAS = ["regiones", "partidos", "entidades", "aliados"];
+  pestanas.sort((a, b) => ORDEN_PESTANAS.indexOf(a.id) - ORDEN_PESTANAS.indexOf(b.id));
+
   // ── Últimas lecturas: lo que se analiza ahora y lo último que se leyó, juntos y sin repetir contratos ──
   const activos = (vivo?.activos ?? []).map((a) => aFilaVivo(a as unknown as Record<string, unknown>));
   const lecturas = unirLecturas([publicados ?? [], (cola ?? []).map(deProcesamiento)], LECTURAS);

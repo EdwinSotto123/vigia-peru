@@ -585,11 +585,13 @@ export function CodigoFila({ codigo, nombre, href }: { codigo: string; nombre: s
  * Es dato (no adorno): llena el hueco entre el nombre y las cifras y deja comparar de un vistazo.
  * `parte` (0 a 1) es el largo de la barra; `resumen` es lo que dice a quien no la ve ("812 de 812 en cola").
  */
-export function CeldaBarra({ parte, resumen, className }: { parte: number; resumen: string; className?: string }) {
+/** `tono="neutro"`: para una parte que no es buena ni mala por ser grande (entidades con indicio): en verde de marca,
+ *  un 100 % se leía como «todo bien» cuando es el caso que más hay que mirar. */
+export function CeldaBarra({ parte, resumen, className, tono = "marca" }: { parte: number; resumen: string; className?: string; tono?: "marca" | "neutro" }) {
   const p = Math.min(1, Math.max(0, Number.isFinite(parte) ? parte : 0));
   return (
     <span role="img" aria-label={resumen} className={cn("block h-1.5 w-full overflow-hidden rounded-full bg-paperDeep", className)}>
-      <span className="block h-full rounded-full bg-granate/70" style={{ width: `${p > 0 ? Math.max(3, p * 100) : 0}%` }} />
+      <span className={cn("block h-full rounded-full", tono === "neutro" ? "bg-inkSoft/70" : "bg-granate/70")} style={{ width: `${p > 0 ? Math.max(3, p * 100) : 0}%` }} />
     </span>
   );
 }

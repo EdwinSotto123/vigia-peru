@@ -154,7 +154,7 @@ export function CeldaTasa({ con, de, className }: { con: number; de: number; cla
         </span>
         <span className="shrink-0 font-mono text-rotulo text-inkSoft">{pct}</span>
       </span>
-      <CeldaBarra parte={p} resumen={`${numero(con)} de ${numero(de)} con indicio, ${pct}`} className="mt-1" />
+      <CeldaBarra parte={p} tono="neutro" resumen={`${numero(con)} de ${numero(de)} con indicio, ${pct}`} className="mt-1" />
     </span>
   );
 }
