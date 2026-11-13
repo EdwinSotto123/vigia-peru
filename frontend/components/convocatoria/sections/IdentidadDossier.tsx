@@ -12,6 +12,7 @@ import { PartidoQueGobierna } from "@/components/contratos/PartidoQueGobierna";
 import { baseApiNavegador } from "@/lib/api-client";
 import type { GobiernoContrato } from "@/lib/contratos";
 import { cn } from "@/lib/utils";
+import { tituloNatural } from "@/lib/landing";
 import { listaY, numero, oracion, porcentaje, solesCompacto } from "@/lib/formato";
 import { PersonName, Ruc, esPersonaNatural } from "../../Redact";
 import { fechaDossier, montoDossier, type ConteoSeveridad, type EstadoCorrida } from "../dossier";
@@ -105,8 +106,8 @@ export function IdentidadDossier({
             Convocatoria <span className="font-mono font-semibold text-ink">{codigo}</span>
           </span>
           {conv.entidad && conv.buyer_ruc ? (
-            <Link href={`/entidad/${encodeURIComponent(conv.buyer_ruc)}`} className="font-medium text-ink underline decoration-line underline-offset-2 hover:decoration-granate">
-              {conv.entidad}
+            <Link href={`/entidad/${encodeURIComponent(conv.buyer_ruc)}`} className="font-medium text-granate underline underline-offset-2 hover:text-ink">
+              {tituloNatural(conv.entidad)}
             </Link>
           ) : (
             <span className={conv.entidad ? "font-medium text-ink" : "text-mute"}>{conv.entidad || "Entidad sin dato"}</span>

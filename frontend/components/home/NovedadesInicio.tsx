@@ -64,7 +64,7 @@ export async function NovedadesInicio() {
     {
       valor: numero(graves),
       etiqueta: graves === 1 ? "contrato con un antecedente grave" : "contratos con un antecedente grave",
-      contexto: `${d.resumen.buenasPro ? `de ${numero(d.resumen.buenasPro)} buenas pro (${porcentaje((graves / d.resumen.buenasPro) * 100)}), ` : ""}semana ${rangoSemana(d.semana.desde, d.semana.hasta)}`,
+      contexto: `${d.resumen.buenasPro ? `de ${numero(d.resumen.buenasPro)} buenas pro (${porcentaje((graves / d.resumen.buenasPro) * 100)}), ` : ""}semana ${rangoSemana(d.semana.desde, d.semana.hasta)}, la última que el Estado publicó completa`,
       tono: "alta",
       href: "/app/novedades?ver=contratos#listas",
       n: graves,
