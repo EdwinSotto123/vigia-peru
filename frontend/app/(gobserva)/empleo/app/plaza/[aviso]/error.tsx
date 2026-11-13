@@ -2,7 +2,7 @@
 
 import { RotateCcw } from "lucide-react";
 import { Caja, Pagina } from "@/components/gobserva/app/Caja";
-import { EstadoError } from "@/components/licitaciones-app/ui/Estados";
+import { EstadoError } from "@/components/gobserva/ui/Estados";
 import { claseAccion } from "@/components/ui/EnlaceAccion";
 
 /** Un error inesperado en la ficha de una plaza: qué pasó y cómo reintentar, dentro del marco de la app. */

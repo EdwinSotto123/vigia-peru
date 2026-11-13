@@ -1,6 +1,6 @@
 import { CifrasEnFila } from "@/components/ui/CifrasEnFila";
 import { canonica } from "@/lib/seo";
-import { EstadoVacio as AvisoEnLinea } from "@/components/ui/EstadoVacio";
+import { VacioEnLinea as AvisoEnLinea } from "@/components/ui/VacioEnLinea";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { CloudOff, Flag } from "lucide-react";

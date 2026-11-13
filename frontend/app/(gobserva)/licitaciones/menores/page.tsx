@@ -6,7 +6,7 @@ import { FilaMenor } from "@/components/licitaciones/FilaMenor";
 import { Nota } from "@/components/patrones/Estructura";
 import { Dato } from "@/components/ui/Dato";
 import { CLASE_ACCION_LISTA, claseAccion } from "@/components/ui/EnlaceAccion";
-import { paginasVisibles } from "@/components/ui/PaginacionNumerada";
+import { paginasVisibles } from "@/lib/paginas";
 import { numero } from "@/lib/formato";
 import { rutaEn, urlCanonica } from "@/lib/gobserva";
 import { baseProducto, enLaApp } from "@/lib/gobserva-servidor";

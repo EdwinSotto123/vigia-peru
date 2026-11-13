@@ -3,7 +3,7 @@ import { fechaHoraLima, fechaLargaLima, instante } from "@/lib/licitaciones-app/
 import type { DetalleOportunidad } from "@/lib/licitaciones-app/tipos";
 import { Caja } from "@/components/gobserva/app/Caja";
 import { cn } from "@/lib/utils";
-import { InsigniaVence } from "../ui/Insignia";
+import { InsigniaVence } from "@/components/gobserva/ui/Insignia";
 import { BotonIcs } from "./BotonIcs";
 
 /**

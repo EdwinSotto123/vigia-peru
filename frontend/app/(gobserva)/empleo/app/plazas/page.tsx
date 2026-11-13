@@ -9,8 +9,8 @@ import { AplicarPerfil, SelectorParaTi } from "@/components/empleo-app/SelectorP
 import { carrerasDeAlerta, textosMotivo } from "@/lib/empleo-app/entrevista";
 import { AccionesBusqueda } from "@/components/gobserva/cuenta/AccionesBusqueda";
 import { EstrellaSeguir } from "@/components/licitaciones-app/seguimiento/BotonSeguir";
-import { EstadoError } from "@/components/licitaciones-app/ui/Estados";
-import { Paginacion } from "@/components/licitaciones-app/ui/Paginacion";
+import { EstadoError } from "@/components/gobserva/ui/Estados";
+import { Paginacion } from "@/components/gobserva/ui/Paginacion";
 import { claseAccion } from "@/components/ui/EnlaceAccion";
 import { NIVEL, claveDeSlug, entidadNombre, filtrosDeUrl, getPlazasEmpleo, nombreRegion, puesto, qsEmpleo, type FiltrosEmpleo } from "@/lib/empleo";
 import { numero, soles } from "@/lib/formato";

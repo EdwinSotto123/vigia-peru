@@ -3,8 +3,8 @@ import Link from "next/link";
 import { Building2, CalendarClock, Clock, GraduationCap, MapPin, RotateCcw, Search, SearchX } from "lucide-react";
 import { CabeceraPagina, Caja, Pagina, VacioCaja } from "@/components/gobserva/app/Caja";
 import { Chip, tonoCierre } from "@/components/empleo/TarjetaPlaza";
-import { EstadoError } from "@/components/licitaciones-app/ui/Estados";
-import { Paginacion } from "@/components/licitaciones-app/ui/Paginacion";
+import { EstadoError } from "@/components/gobserva/ui/Estados";
+import { Paginacion } from "@/components/gobserva/ui/Paginacion";
 import { claseAccion } from "@/components/ui/EnlaceAccion";
 import { diasParaCierre, entidadNombre, lugar, nombreRegion, puesto, slugRegion, textoCierre } from "@/lib/empleo";
 import {

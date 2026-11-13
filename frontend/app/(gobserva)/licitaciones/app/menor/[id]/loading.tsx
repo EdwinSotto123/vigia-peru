@@ -1,5 +1,5 @@
 import { Caja, Pagina } from "@/components/gobserva/app/Caja";
-import { Bloque } from "@/components/licitaciones-app/ui/Estados";
+import { Bloque } from "@/components/gobserva/ui/Estados";
 
 /** Mientras llega el contrato menor: la cabecera, las cuatro cifras y sus cajas. */
 export default function Cargando() {

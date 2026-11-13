@@ -10,7 +10,7 @@ import { PestanaItems } from "@/components/licitaciones-app/detalle/PestanaItems
 import { PestanaResumen } from "@/components/licitaciones-app/detalle/PestanaResumen";
 import { PestanaHistorial, PestanaNotas, PestanaPostulacion } from "@/components/licitaciones-app/detalle/PestanasCliente";
 import { Pestanas, leerPestana, type Pestana } from "@/components/licitaciones-app/detalle/Pestanas";
-import { AvisoDemo } from "@/components/licitaciones-app/ui/AvisoDemo";
+import { AvisoDemo } from "@/components/gobserva/ui/AvisoDemo";
 import { limpiar } from "@/lib/licitaciones";
 import { leerFiltros, aParams } from "@/lib/licitaciones-app/filtros";
 import { instante } from "@/lib/licitaciones-app/formato";

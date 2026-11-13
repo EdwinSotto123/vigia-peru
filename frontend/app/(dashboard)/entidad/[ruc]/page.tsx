@@ -30,7 +30,7 @@ import { banderasEntidad } from "@/lib/banderasEntidad";
 import { rutaApoyar } from "@/lib/rutas";
 import { IndicadoresSkeleton, TablaSkeleton, type Indicador } from "@/components/listado";
 import { CLASE_ACCION_LISTA, EnlaceAccion } from "@/components/ui/EnlaceAccion";
-import { EstadoVacio as AvisoEnLinea } from "@/components/ui/EstadoVacio";
+import { VacioEnLinea as AvisoEnLinea } from "@/components/ui/VacioEnLinea";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { InicioEntidad } from "@/components/inicio/InicioEntidad";
 import { InformesContraloria } from "@/components/inicio/CasosCorrupcion";

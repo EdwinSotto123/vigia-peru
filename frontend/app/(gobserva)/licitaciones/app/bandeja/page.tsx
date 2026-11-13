@@ -12,10 +12,10 @@ import { DescargarExcel } from "@/components/licitaciones-app/bandeja/DescargarE
 import { Perfiles } from "@/components/licitaciones-app/bandeja/Perfiles";
 import { ResultadosVivos } from "@/components/licitaciones-app/bandeja/Resultados";
 import { TablaBandeja } from "@/components/licitaciones-app/bandeja/TablaBandeja";
-import { AvisoDemo } from "@/components/licitaciones-app/ui/AvisoDemo";
+import { AvisoDemo } from "@/components/gobserva/ui/AvisoDemo";
 import { AvisoPerfil } from "@/components/licitaciones-app/bandeja/AvisoPerfil";
-import { EstadoError, EstadoVacio } from "@/components/licitaciones-app/ui/Estados";
-import { Paginacion } from "@/components/licitaciones-app/ui/Paginacion";
+import { EstadoError, EstadoVacio } from "@/components/gobserva/ui/Estados";
+import { Paginacion } from "@/components/gobserva/ui/Paginacion";
 import { claseAccion } from "@/components/ui/EnlaceAccion";
 import { FILTROS_POR_DEFECTO, aParams, cambiar, filtrosActivos, leerFiltros, type FiltrosBandeja } from "@/lib/licitaciones-app/filtros";
 import { getFuente } from "@/lib/licitaciones-app/fuente";

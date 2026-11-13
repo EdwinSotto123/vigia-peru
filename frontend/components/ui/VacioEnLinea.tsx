@@ -14,7 +14,7 @@ import { cn } from "@/lib/utils";
  * Server-safe. Anuncia con role="status" para que un lector de pantalla lo lea al aparecer.
  */
 
-export function EstadoVacio({
+export function VacioEnLinea({
   icono,
   children,
   accion,

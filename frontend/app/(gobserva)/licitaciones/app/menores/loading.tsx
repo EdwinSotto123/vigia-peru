@@ -1,5 +1,5 @@
 import { Caja, Pagina } from "@/components/gobserva/app/Caja";
-import { Bloque, EsqueletoTabla } from "@/components/licitaciones-app/ui/Estados";
+import { Bloque, EsqueletoTabla } from "@/components/gobserva/ui/Estados";
 
 /** Mientras llega la bandeja: su misma forma (cabecera, filtros y tabla), no un spinner. */
 export default function Cargando() {

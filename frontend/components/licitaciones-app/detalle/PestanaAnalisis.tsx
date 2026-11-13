@@ -5,9 +5,9 @@ import { fechaCortaLima, pct } from "@/lib/licitaciones-app/formato";
 import type { DetalleOportunidad, Parecido, ProveedorTop } from "@/lib/licitaciones-app/tipos";
 import { numero, soles, solesCompacto } from "@/lib/formato";
 import { Caja } from "@/components/gobserva/app/Caja";
-import { EstadoVacio } from "../ui/Estados";
-import { InsigniaSenal } from "../ui/Insignia";
-import { TablaDatos } from "../ui/TablaDatos";
+import { EstadoVacio } from "@/components/gobserva/ui/Estados";
+import { InsigniaSenal } from "@/components/gobserva/ui/Insignia";
+import { TablaDatos } from "@/components/gobserva/ui/TablaDatos";
 
 /**
  * El análisis: las señales de riesgo con su evidencia, el comprador en cifras (12 meses de CONOSCE), a quién le compra y

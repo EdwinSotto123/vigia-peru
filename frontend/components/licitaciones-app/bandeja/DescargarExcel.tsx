@@ -6,7 +6,7 @@ import { useMe } from "@/components/gobserva/cuenta/comun";
 import { ErrorCuenta, descargarCsv } from "@/lib/gobserva-cuenta";
 import { aParams } from "@/lib/licitaciones-app/filtros";
 import { useLista } from "@/lib/licitaciones-app/useListaUrl";
-import { useAvisos } from "../ui/Avisos";
+import { useAvisos } from "@/components/gobserva/ui/Avisos";
 
 /**
  * Baja en Excel (CSV) la búsqueda que estás viendo, con su orden, hasta el tope de tu plan. Con el plan gratis el botón

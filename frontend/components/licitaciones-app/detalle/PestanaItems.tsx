@@ -2,9 +2,9 @@ import { limpiar } from "@/lib/licitaciones";
 import type { DetalleOportunidad, Item, PrecioRef } from "@/lib/licitaciones-app/tipos";
 import { numero, soles } from "@/lib/formato";
 import { Caja } from "@/components/gobserva/app/Caja";
-import { EstadoVacio } from "../ui/Estados";
-import { Insignia } from "../ui/Insignia";
-import { TablaDatos } from "../ui/TablaDatos";
+import { EstadoVacio } from "@/components/gobserva/ui/Estados";
+import { Insignia } from "@/components/gobserva/ui/Insignia";
+import { TablaDatos } from "@/components/gobserva/ui/TablaDatos";
 import { Package } from "lucide-react";
 
 /** Los ítems con su CUBSO, cantidad y valor; abajo, los precios de referencia de esos CUBSO (lo que pagó el Estado). */

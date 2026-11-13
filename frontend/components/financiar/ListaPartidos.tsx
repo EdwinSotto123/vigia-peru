@@ -2,7 +2,7 @@ import Link from "next/link";
 import { Ayuda, EstadoError, EstadoVacio } from "@/components/patrones";
 import { CeldaBarra, CeldaNumero, CeldaPrincipal, Tabla, type Columna, type Fila } from "@/components/listado";
 import { Dato } from "@/components/ui/Dato";
-import { PaginacionNumerada } from "@/components/ui/PaginacionNumerada";
+import { Paginacion } from "@/components/ui/Paginacion";
 import { PERIODOS_GOBIERNO, type AnioGobierno, type FilaPartido, type OrdenPartidos, type RankingPartidos } from "@/lib/partidosApi";
 import { alcanceCorto, type AlcanceProcesamiento } from "@/lib/financiamiento";
 import { numero, plural } from "@/lib/formato";
@@ -195,7 +195,10 @@ export function ResultadosPartidos({
   }
   const mayorCola = Math.max(1, ...items.map((x) => x.enCola));
   const pag = (
-    <PaginacionNumerada
+    <Paginacion
+      navegacion="url"
+      cargando={false}
+      paginas={Math.max(1, Math.ceil(total / TAM_PARTIDOS))}
       actual={filtros.pagina ?? 1}
       total={total}
       tam={TAM_PARTIDOS}

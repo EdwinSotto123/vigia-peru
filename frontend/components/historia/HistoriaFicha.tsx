@@ -4,7 +4,7 @@ import { Fragment } from "react";
 import { CeldaNumero, CeldaPrincipal, TablaFiltrable, type Columna, type FilaFiltrable } from "@/components/listado";
 import { FuenteDato, Nota, Pestanas, type Pestana } from "@/components/patrones";
 import { Dato } from "@/components/ui/Dato";
-import { EstadoVacio } from "@/components/ui/EstadoVacio";
+import { VacioEnLinea } from "@/components/ui/VacioEnLinea";
 import { fechaConAnio, numero, solesCompacto } from "@/lib/formato";
 import { getHistoria, type Carril, type Historia } from "@/lib/historia";
 import { AccionesHecho, DetalleHecho } from "./DetalleHecho";
@@ -41,16 +41,16 @@ export async function HistoriaFicha({
   const h = await getHistoria(tipo, id);
   if (!h) {
     return (
-      <EstadoVacio variante="compacta" tono="error" icono={<CloudOff size={16} />}>
+      <VacioEnLinea variante="compacta" tono="error" icono={<CloudOff size={16} />}>
         No pudimos armar su historia ahora. Vuelve a intentarlo en un momento.
-      </EstadoVacio>
+      </VacioEnLinea>
     );
   }
   if (!h.carriles.length) {
     return (
-      <EstadoVacio variante="compacta" icono={<History size={16} />}>
+      <VacioEnLinea variante="compacta" icono={<History size={16} />}>
         Todavía no hay hechos con fecha de {nombre} en las fuentes que cruza Vigía.
-      </EstadoVacio>
+      </VacioEnLinea>
     );
   }
   const omitidos = Object.entries(h.omitidos).filter(([, n]) => (n ?? 0) > 0) as [Carril, number][];

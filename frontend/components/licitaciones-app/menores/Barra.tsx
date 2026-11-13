@@ -8,8 +8,8 @@ import { CUANDO, ORDENES_MENORES, activosMenores, type FiltrosMenores } from "@/
 import type { Conteo } from "@/lib/licitaciones-app/tipos";
 import { useListaMenores } from "@/lib/licitaciones-app/useListaUrl";
 import { cn } from "@/lib/utils";
-import { BuscadorTexto } from "../ui/BuscadorTexto";
-import { FiltroOpciones } from "../ui/FiltroOpciones";
+import { BuscadorTexto } from "@/components/gobserva/ui/BuscadorTexto";
+import { FiltroOpciones } from "@/components/gobserva/ui/FiltroOpciones";
 
 /** La barra de los contratos menores: buscar, tipo, región y cuándo cierran, con lo puesto en chips. */
 export function BarraMenores({ porTipo, porRegion }: { porTipo: Conteo[]; porRegion: Conteo[] }) {

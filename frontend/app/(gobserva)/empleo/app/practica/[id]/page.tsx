@@ -4,7 +4,7 @@ import { notFound } from "next/navigation";
 import { ArrowLeft, ArrowUpRight, BookOpen, Building2, CheckCircle2, Clock, GraduationCap, Lock, Mail, MapPin, ShieldCheck, Users } from "lucide-react";
 import { Caja, ESPACIO_CAJAS, Pagina } from "@/components/gobserva/app/Caja";
 import { CopiarEnlace } from "@/components/licitaciones-app/detalle/CopiarEnlace";
-import { Insignia } from "@/components/licitaciones-app/ui/Insignia";
+import { Insignia } from "@/components/gobserva/ui/Insignia";
 import { claseAccion } from "@/components/ui/EnlaceAccion";
 import { diasParaCierre, entidadNombre, fechaDia, lugar, puesto, textoCierre } from "@/lib/empleo";
 import { MODALIDAD, getPractica, leerRequerimientos, textoSubvencion } from "@/lib/empleo-practicas";

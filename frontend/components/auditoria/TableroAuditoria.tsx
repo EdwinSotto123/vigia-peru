@@ -46,7 +46,7 @@
  * `version`, la lista se sondea cada `autoRefreshMs`, como antes.
  */
 
-import { EstadoVacio as VacioEnLinea } from "@/components/ui/EstadoVacio";
+import { VacioEnLinea } from "@/components/ui/VacioEnLinea";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { CheckCircle2, Clock, Cpu, Inbox, WifiOff } from "lucide-react";

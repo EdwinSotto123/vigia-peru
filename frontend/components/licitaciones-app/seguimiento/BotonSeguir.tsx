@@ -6,7 +6,7 @@ import { ESTADOS } from "@/components/gobserva/cuenta/PanelGuardados";
 import { ErrorCuenta, type EstadoGuardado } from "@/lib/gobserva-cuenta";
 import { useSeguimiento, type TipoSeguido } from "@/lib/licitaciones-app/useSeguimiento";
 import { cn } from "@/lib/utils";
-import { useAvisos } from "../ui/Avisos";
+import { useAvisos } from "@/components/gobserva/ui/Avisos";
 
 interface Datos {
   id: string;

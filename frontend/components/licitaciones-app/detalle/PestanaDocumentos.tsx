@@ -4,8 +4,8 @@ import { fechaCortaLima } from "@/lib/licitaciones-app/formato";
 import type { DetalleOportunidad } from "@/lib/licitaciones-app/tipos";
 import { Caja } from "@/components/gobserva/app/Caja";
 import { claseAccion } from "@/components/ui/EnlaceAccion";
-import { EstadoVacio } from "../ui/Estados";
-import { Insignia } from "../ui/Insignia";
+import { EstadoVacio } from "@/components/gobserva/ui/Estados";
+import { Insignia } from "@/components/gobserva/ui/Insignia";
 
 /** Los nombres de los tipos de documento del OCDS, como los dice un proveedor. */
 const TIPO_DOC: Record<string, string> = {

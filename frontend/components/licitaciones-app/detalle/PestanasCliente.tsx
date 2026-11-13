@@ -9,9 +9,9 @@ import { ErrorCuenta, cargarChecklist, guardarChecklist } from "@/lib/gobserva-c
 import { ESTADOS } from "@/components/gobserva/cuenta/PanelGuardados";
 import { Caja } from "@/components/gobserva/app/Caja";
 import { cn } from "@/lib/utils";
-import { EstadoVacio } from "../ui/Estados";
-import { Insignia } from "../ui/Insignia";
-import { useAvisos } from "../ui/Avisos";
+import { EstadoVacio } from "@/components/gobserva/ui/Estados";
+import { Insignia } from "@/components/gobserva/ui/Insignia";
+import { useAvisos } from "@/components/gobserva/ui/Avisos";
 import { SeguirConEtapa } from "../seguimiento/BotonSeguir";
 
 const LARGO_NOTA = 1000;

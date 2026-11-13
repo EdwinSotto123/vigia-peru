@@ -32,7 +32,7 @@ import {
 } from "@/lib/contratos";
 import { cn } from "@/lib/utils";
 import { Partes } from "@/components/ui/Partes";
-import { EstadoVacio } from "@/components/ui/EstadoVacio";
+import { VacioEnLinea } from "@/components/ui/VacioEnLinea";
 
 export const OCDS = "registro OCDS del OECE (SEACE)";
 
@@ -592,5 +592,5 @@ function Chip({ children, ganador = false }: { children: ReactNode; ganador?: bo
 
 /** Una sección sin filas: qué falta, en una línea. Sin llamita: puede haber varias en la misma ficha. */
 function Vacio({ children }: { children: ReactNode }) {
-  return <EstadoVacio variante="compacta">{children}</EstadoVacio>;
+  return <VacioEnLinea variante="compacta">{children}</VacioEnLinea>;
 }

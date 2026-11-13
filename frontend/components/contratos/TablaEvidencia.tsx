@@ -5,7 +5,7 @@ import Link from "next/link";
 import { ArrowUpRight, Download, Printer, SearchX } from "lucide-react";
 import { Buscador } from "@/components/listado/BarraFiltros";
 import { Paginacion } from "@/components/ui/Paginacion";
-import { EstadoVacio } from "@/components/ui/EstadoVacio";
+import { VacioEnLinea } from "@/components/ui/VacioEnLinea";
 import type { EvidenciaCruce } from "@/lib/contratos";
 import { coincide, fechaConAnio, numero, oracion, paraBuscar, porcentaje, soles } from "@/lib/formato";
 import { tituloNatural } from "@/lib/landing";
@@ -165,7 +165,7 @@ export function TablaEvidencia({
         )}
       </div>
       {q && vistas.length === 0 ? (
-        <EstadoVacio icono={<SearchX size={16} />}>Ningún registro coincide con “{consulta}”.</EstadoVacio>
+        <VacioEnLinea icono={<SearchX size={16} />}>Ningún registro coincide con “{consulta}”.</VacioEnLinea>
       ) : (
         <>
           {control}

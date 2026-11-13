@@ -4,7 +4,7 @@ import { useMemo } from "react";
 import { CeldaNumero, CeldaPrincipal, Indicadores, IndicadoresSkeleton, Tabla, TablaPaginada, TablaSkeleton, type Columna, type Fila, type Indicador } from "@/components/listado";
 import { Ayuda } from "@/components/patrones/Ayuda";
 import { EnlaceFuente } from "@/components/patrones/Estructura";
-import { EstadoVacio } from "@/components/ui/EstadoVacio";
+import { VacioEnLinea } from "@/components/ui/VacioEnLinea";
 import { Dato } from "@/components/ui/Dato";
 import { numero } from "@/lib/formato";
 import { INFOGOB_JNE } from "@/lib/fuentes";
@@ -70,7 +70,7 @@ export function HistoriaGobiernos({ ubigeo, nombre }: { ubigeo: string; nombre: 
   }, [d, ubigeo]);
 
   if (d === undefined) return <TablaSkeleton columnas={COLS_GOB} filas={3} />;
-  if (d === null) return <EstadoVacio>No pudimos leer los resultados del JNE. Vuelve a intentarlo en un momento.</EstadoVacio>;
+  if (d === null) return <VacioEnLinea>No pudimos leer los resultados del JNE. Vuelve a intentarlo en un momento.</VacioEnLinea>;
 
   // La fila es UNA acción: abre la ficha del partido en ese período (antes el partido era un enlace dentro de la celda y,
   // en el celular, su columna no se veía: justo el tema de la pestaña).

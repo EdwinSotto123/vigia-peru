@@ -7,8 +7,8 @@ import type { Oportunidad } from "@/lib/licitaciones-app/tipos";
 import { solesCompacto } from "@/lib/formato";
 import { rutaEn } from "@/lib/gobserva";
 import { EstrellaSeguir } from "../seguimiento/BotonSeguir";
-import { IconoSenal, InsigniaTipo, InsigniaVence } from "../ui/Insignia";
-import { TablaDatos, type Columna } from "../ui/TablaDatos";
+import { IconoSenal, InsigniaTipo, InsigniaVence } from "@/components/gobserva/ui/Insignia";
+import { TablaDatos, type Columna } from "@/components/gobserva/ui/TablaDatos";
 
 /**
  * La bandeja como tabla (desde md) o tarjetas (celular). Cada proceso enlaza a su detalle y le pasa la búsqueda de

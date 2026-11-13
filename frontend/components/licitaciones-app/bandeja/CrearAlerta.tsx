@@ -8,8 +8,8 @@ import { useMe } from "@/components/gobserva/cuenta/comun";
 import { aParams, filtrosActivos, type FiltrosBandeja } from "@/lib/licitaciones-app/filtros";
 import { useLista } from "@/lib/licitaciones-app/useListaUrl";
 import { cn } from "@/lib/utils";
-import { Desplegable } from "../ui/Desplegable";
-import { useAvisos } from "../ui/Avisos";
+import { Desplegable } from "@/components/gobserva/ui/Desplegable";
+import { useAvisos } from "@/components/gobserva/ui/Avisos";
 
 /** Un nombre que diga qué busca la alerta: «Bienes con «tóner» en Lima», «Servicios y obras en Cusco y Puno». */
 export function nombreSugerido(f: FiltrosBandeja): string {

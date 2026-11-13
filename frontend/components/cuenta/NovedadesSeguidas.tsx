@@ -11,7 +11,7 @@ import Link from "next/link";
 import { ArrowRight, Briefcase, Building2, Landmark, type LucideIcon } from "lucide-react";
 import { CeldaNumero, CeldaPrincipal, TablaFiltrable, type Columna, type FilaFiltrable } from "@/components/listado";
 import { Dato } from "@/components/ui/Dato";
-import { EstadoVacio } from "@/components/ui/EstadoVacio";
+import { VacioEnLinea } from "@/components/ui/VacioEnLinea";
 import { GRUPOS_CRUCE } from "@/lib/cruces";
 import type { NovedadesSeguidas as Novedades, PorQueSeguido } from "@/lib/cuentas";
 import { fechaCorta, plural, solesCompacto } from "@/lib/formato";
@@ -38,7 +38,7 @@ const datosPor = (por: PorQueSeguido[]) =>
 export function NovedadesSeguidas({ d, sigueAlgo }: { d: Novedades | undefined; sigueAlgo: boolean }) {
   if (!sigueAlgo || !d) {
     return (
-      <EstadoVacio
+      <VacioEnLinea
         variante="compacta"
         accion={
           <span className="flex flex-wrap justify-center gap-x-4 gap-y-1">
@@ -50,7 +50,7 @@ export function NovedadesSeguidas({ d, sigueAlgo }: { d: Novedades | undefined; 
       >
         Sigue una entidad, una empresa o un partido desde su ficha (botón «Seguir») y aquí verás lo nuevo de cada uno: los
         contratos con antecedentes, los informes de control y las sanciones.
-      </EstadoVacio>
+      </VacioEnLinea>
     );
   }
   return (
@@ -119,9 +119,9 @@ function Contratos({ d }: { d: Novedades }) {
         </p>
       )}
       {filas.length === 0 ? (
-        <EstadoVacio variante="compacta">
+        <VacioEnLinea variante="compacta">
           En esos {d.dias} días no hubo contratos con antecedentes graves o para revisar en lo que sigues.
-        </EstadoVacio>
+        </VacioEnLinea>
       ) : (
         <TablaFiltrable
           columnas={columnas}

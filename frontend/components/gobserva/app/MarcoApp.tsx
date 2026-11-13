@@ -6,7 +6,7 @@ import { PRODUCTOS, rutaEn, type Producto } from "@/lib/gobserva";
 import { MarcaGobserva } from "../MarcaGobserva";
 import { MenuCuenta } from "../cuenta/MenuCuenta";
 import { ProveedorApp } from "./contexto";
-import { ProveedorAvisos } from "@/components/licitaciones-app/ui/Avisos";
+import { ProveedorAvisos } from "@/components/gobserva/ui/Avisos";
 import { BarraApp, LateralApp } from "./NavApp";
 import { Campana } from "@/components/licitaciones-app/notificaciones/Campana";
 

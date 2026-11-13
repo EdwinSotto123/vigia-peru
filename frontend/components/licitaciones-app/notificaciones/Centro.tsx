@@ -10,7 +10,7 @@ import { rutaEn } from "@/lib/gobserva";
 import { useNotificaciones } from "@/lib/licitaciones-app/useNotificaciones";
 import { useProductoApp } from "@/components/gobserva/app/contexto";
 import { cn } from "@/lib/utils";
-import { EstadoError, EstadoVacio } from "../ui/Estados";
+import { EstadoError, EstadoVacio } from "@/components/gobserva/ui/Estados";
 import { ItemNotificacion } from "./Item";
 
 const FILTROS = [

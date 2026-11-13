@@ -11,7 +11,7 @@ import type { PlazaParaCumplir } from "@/components/empleo/usePlaza";
 import { CLASE_ENLACE_PIE, Caja, ESPACIO_CAJAS, Pagina } from "@/components/gobserva/app/Caja";
 import { RangoSueldo, fraseSueldo } from "@/components/empleo/RangoSueldo";
 import { CopiarEnlace } from "@/components/licitaciones-app/detalle/CopiarEnlace";
-import { Insignia } from "@/components/licitaciones-app/ui/Insignia";
+import { Insignia } from "@/components/gobserva/ui/Insignia";
 import { aniosCorto, diasParaCierre, entidadNombre, fechaDia, lugar, puesto, tipoContrato } from "@/lib/empleo";
 import { numero, soles } from "@/lib/formato";
 import { palabrasClave, rutaEn } from "@/lib/gobserva";

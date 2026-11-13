@@ -2,7 +2,7 @@ import { SearchX } from "lucide-react";
 import { NO_INDEXAR } from "@/lib/seo";
 import { EncabezadoPagina, EstadoError, EstadoVacio, Migas, Pagina } from "@/components/patrones";
 import { BarraFiltros, CeldaFecha, CeldaPrincipal, Listado, Tabla, ZonaResultados, type Columna, type Fila } from "@/components/listado";
-import { EstadoVacio as VacioEnLinea } from "@/components/ui/EstadoVacio";
+import { VacioEnLinea } from "@/components/ui/VacioEnLinea";
 import { Dato } from "@/components/ui/Dato";
 import { Paginacion } from "@/components/ui/Paginacion";
 import { EnlaceAccion } from "@/components/ui/EnlaceAccion";

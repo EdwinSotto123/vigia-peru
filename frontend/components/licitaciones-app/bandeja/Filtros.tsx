@@ -8,7 +8,7 @@ import type { Conteo } from "@/lib/licitaciones-app/tipos";
 import { useLista } from "@/lib/licitaciones-app/useListaUrl";
 import { numero, solesCompacto } from "@/lib/formato";
 import { cn } from "@/lib/utils";
-import { Desplegable } from "../ui/Desplegable";
+import { Desplegable } from "@/components/gobserva/ui/Desplegable";
 
 /**
  * Los filtros de la bandeja, cada uno en su desplegable y con cuántas oportunidades hay en cada opción (las facetas del

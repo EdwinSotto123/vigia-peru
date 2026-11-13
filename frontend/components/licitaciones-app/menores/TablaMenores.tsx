@@ -5,8 +5,8 @@ import { tituloNatural } from "@/lib/landing";
 import { numero } from "@/lib/formato";
 import { rutaEn } from "@/lib/gobserva";
 import { EstrellaSeguir } from "../seguimiento/BotonSeguir";
-import { Insignia, InsigniaTipo } from "../ui/Insignia";
-import { TablaDatos } from "../ui/TablaDatos";
+import { Insignia, InsigniaTipo } from "@/components/gobserva/ui/Insignia";
+import { TablaDatos } from "@/components/gobserva/ui/TablaDatos";
 
 const HORA = new Intl.DateTimeFormat("es-PE", { timeZone: "America/Lima", hour: "2-digit", minute: "2-digit", hour12: false });
 const DIA = new Intl.DateTimeFormat("es-PE", { timeZone: "America/Lima", day: "numeric", month: "short" });

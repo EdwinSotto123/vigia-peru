@@ -5,7 +5,7 @@ import { ArrowLeft, ArrowUpRight, Building2, CalendarDays, Clock, FileDown, Laye
 import { CLASE_ENLACE_PIE, Caja, ESPACIO_CAJAS, Pagina, VacioCaja } from "@/components/gobserva/app/Caja";
 import { CopiarEnlace } from "@/components/licitaciones-app/detalle/CopiarEnlace";
 import { SeguirConEtapa } from "@/components/licitaciones-app/seguimiento/BotonSeguir";
-import { Insignia, InsigniaTipo } from "@/components/licitaciones-app/ui/Insignia";
+import { Insignia, InsigniaTipo } from "@/components/gobserva/ui/Insignia";
 import { numero, soles, solesCompacto } from "@/lib/formato";
 import { fichaEmpresaVigia, rutaEn } from "@/lib/gobserva";
 import { baseProducto } from "@/lib/gobserva-servidor";

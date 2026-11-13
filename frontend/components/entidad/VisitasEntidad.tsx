@@ -1,7 +1,7 @@
 import { CloudOff, DoorOpen } from "lucide-react";
 import { Indicadores, type Indicador } from "@/components/listado";
 import { AyudaTermino, FuenteDato, Nota } from "@/components/patrones";
-import { EstadoVacio } from "@/components/ui/EstadoVacio";
+import { VacioEnLinea } from "@/components/ui/VacioEnLinea";
 import { fecha, fechaConAnio, numero, plural, porcentaje } from "@/lib/formato";
 import { getVisitasEntidad } from "@/lib/visitas";
 import { Areas, EmpresasDeSuGente, ListaVisitas, Organizaciones, Parientes } from "./VisitasTablas";
@@ -16,17 +16,17 @@ export async function VisitasEntidad({ ruc }: { ruc: string }) {
   const d = await getVisitasEntidad(ruc);
   if (!d) {
     return (
-      <EstadoVacio variante="compacta" tono="error" icono={<CloudOff size={16} />}>
+      <VacioEnLinea variante="compacta" tono="error" icono={<CloudOff size={16} />}>
         No pudimos leer sus visitas ahora. Vuelve a intentarlo en un momento.
-      </EstadoVacio>
+      </VacioEnLinea>
     );
   }
   if (!d.total || !d.resumen) {
     return (
-      <EstadoVacio variante="compacta" icono={<DoorOpen size={16} />}>
+      <VacioEnLinea variante="compacta" icono={<DoorOpen size={16} />}>
         No tenemos visitas registradas de esta entidad. El registro de la PCM no se puede consultar de forma automática: cargamos
         sus reportes publicados y el registro del Congreso.
-      </EstadoVacio>
+      </VacioEnLinea>
     );
   }
   const r = d.resumen;

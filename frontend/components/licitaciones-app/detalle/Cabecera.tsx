@@ -7,7 +7,7 @@ import type { DetalleOportunidad } from "@/lib/licitaciones-app/tipos";
 import { numero, solesCompacto } from "@/lib/formato";
 import { SeguirConEtapa } from "../seguimiento/BotonSeguir";
 import { CopiarEnlace } from "./CopiarEnlace";
-import { Insignia, InsigniaTipo, InsigniaVence } from "../ui/Insignia";
+import { Insignia, InsigniaTipo, InsigniaVence } from "@/components/gobserva/ui/Insignia";
 
 /**
  * La cabecera del detalle: volver a la bandeja (con los mismos filtros), qué es, quién compra, las acciones (seguir con su

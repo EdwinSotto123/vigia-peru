@@ -2,7 +2,7 @@ import Link from "next/link";
 import { Ayuda, EstadoError, EstadoVacio } from "@/components/patrones";
 import { CeldaBarra, CeldaNumero, CeldaPrincipal, Tabla, type Columna, type Fila } from "@/components/listado";
 import { Dato } from "@/components/ui/Dato";
-import { PaginacionNumerada } from "@/components/ui/PaginacionNumerada";
+import { Paginacion } from "@/components/ui/Paginacion";
 import { etiquetaTipoEntidad, tipoEntidad } from "@/lib/entidad-tipo";
 import { alcanceCorto, type AlcanceProcesamiento, type EntidadFinanciable, type EntidadesFinanciables } from "@/lib/financiamiento";
 import { numero } from "@/lib/formato";
@@ -156,7 +156,10 @@ export function ResultadosEntidades({
   }
   const mayorCola = Math.max(1, ...items.map((x) => x.enCola));
   const pag = (
-    <PaginacionNumerada
+    <Paginacion
+      navegacion="url"
+      cargando={false}
+      paginas={Math.max(1, Math.ceil(total / TAM_ENTIDADES))}
       actual={pagina}
       total={total}
       tam={TAM_ENTIDADES}

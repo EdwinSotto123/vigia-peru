@@ -8,7 +8,7 @@ import { FiltrosOportunidades, type ValoresFiltro } from "@/components/licitacio
 import { FilaOportunidad } from "@/components/licitaciones/TarjetaOportunidad";
 import { Nota } from "@/components/patrones/Estructura";
 import { CLASE_ACCION_LISTA, claseAccion } from "@/components/ui/EnlaceAccion";
-import { paginasVisibles } from "@/components/ui/PaginacionNumerada";
+import { paginasVisibles } from "@/lib/paginas";
 import { numero, soles, solesCompacto } from "@/lib/formato";
 import { rutaEn, urlCanonica } from "@/lib/gobserva";
 import { planesServidor } from "@/lib/gobserva-planes";

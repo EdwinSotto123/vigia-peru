@@ -17,7 +17,7 @@ import { CONSULTA_AMIGABLE, DATASET_MEF, enlacesProceso, inversionSsi } from "@/
 import { CeldaNumero, CeldaPrincipal, CeldaTexto, Tabla, TablaPaginada, type Columna, type Fila } from "@/components/listado";
 import { CifrasEnFila, type Cifra } from "@/components/ui/CifrasEnFila";
 import { Dato } from "@/components/ui/Dato";
-import { EstadoVacio } from "@/components/ui/EstadoVacio";
+import { VacioEnLinea } from "@/components/ui/VacioEnLinea";
 import { PersonName } from "@/components/Redact";
 import { SeccionParticipantes } from "./ParticipantesContrato";
 import { monto, OCDS } from "./EvidenciaContrato";
@@ -138,7 +138,7 @@ function SeccionAdjudicacion({ c }: { c: Detalle }) {
             <h3 id="adjudicado-titulo" className="font-display text-bloque font-bold text-ink">Lo adjudicado</h3>
             <CifrasEnFila items={cifras} chico />
             {items.length === 1 && <DatosClave items={datosItem(items[0], c, { sinMontos: true })} />}
-            {items.length === 0 && <EstadoVacio variante="compacta">Todavía no hay una buena pro registrada para este proceso.</EstadoVacio>}
+            {items.length === 0 && <VacioEnLinea variante="compacta">Todavía no hay una buena pro registrada para este proceso.</VacioEnLinea>}
           </div>
           {items.length > 1 && <TablaItems items={items} c={c} />}
           <div className="border-t border-line px-4 py-4 sm:px-5">
@@ -152,9 +152,9 @@ function SeccionAdjudicacion({ c }: { c: Detalle }) {
             {k.firmados.length === 1 ? (
               <DatosClave items={datosContrato(k.firmados[0], c)} className="mt-2" />
             ) : k.firmados.length === 0 ? (
-              <EstadoVacio variante="compacta" className="mt-2">
+              <VacioEnLinea variante="compacta" className="mt-2">
                 {items.some((i) => i.adjudicado != null) ? "CONOSCE todavía no publica el contrato firmado de este proceso." : "Sin buena pro no hay contrato que mostrar."}
-              </EstadoVacio>
+              </VacioEnLinea>
             ) : null}
           </div>
           {k.firmados.length > 1 && <TablaContratos firmados={k.firmados} c={c} />}
@@ -463,7 +463,7 @@ function BloquePresupuesto({ c }: { c: Detalle }) {
       )}
       {datos.length > 0 && <DatosClave items={datos} />}
       {p.cui && !p.mef.length && (
-        <EstadoVacio variante="compacta">El MEF no registra este CUI en el presupuesto de la entidad desde el año de la convocatoria.</EstadoVacio>
+        <VacioEnLinea variante="compacta">El MEF no registra este CUI en el presupuesto de la entidad desde el año de la convocatoria.</VacioEnLinea>
       )}
       <FuenteDato
         fuente={p.mef.length ? "MEF, Datos Abiertos (presupuesto y ejecución de gasto) y el registro OCDS" : OCDS}

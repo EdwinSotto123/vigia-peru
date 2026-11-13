@@ -6,7 +6,7 @@ import { fechaLargaLima, pct, vencimiento } from "@/lib/licitaciones-app/formato
 import type { DetalleOportunidad } from "@/lib/licitaciones-app/tipos";
 import { numero, soles, solesCompacto } from "@/lib/formato";
 import { CLASE_ENLACE_PIE, Caja } from "@/components/gobserva/app/Caja";
-import { InsigniaSenal, InsigniaVence } from "../ui/Insignia";
+import { InsigniaSenal, InsigniaVence } from "@/components/gobserva/ui/Insignia";
 import type { Pestana } from "./Pestanas";
 
 /**

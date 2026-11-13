@@ -11,7 +11,7 @@ import { BloqueDetalle, ChipsDetalle, CuerpoDetalle, DatosClave, PieDetalle, typ
 import { EnlaceFuente } from "@/components/patrones/Estructura";
 import { Dato } from "@/components/ui/Dato";
 import { EnlaceAccion } from "@/components/ui/EnlaceAccion";
-import { EstadoVacio } from "@/components/ui/EstadoVacio";
+import { VacioEnLinea } from "@/components/ui/VacioEnLinea";
 import { coincide, numero, paraBuscar, plural } from "@/lib/formato";
 import { CONOSCE_BUSCADOR, CONTRATACIONES_ABIERTAS, INFOGOB_JNE } from "@/lib/fuentes";
 import { claveOrg, normalizar, orgDe, pct, type Anio, type AutoridadesDatos } from "@/lib/partidos";
@@ -96,8 +96,8 @@ export function TerritorioRegion({
   const provincias = useMemo(() => (d ? armar(d, ubigeo, municipalidades, zonas) : []), [d, ubigeo, municipalidades, zonas]);
 
   if (d === undefined) return <TablaSkeleton columnas={COLUMNAS} filas={6} />;
-  if (d === null) return <EstadoVacio>No pudimos leer los resultados del JNE. Vuelve a intentarlo en un momento.</EstadoVacio>;
-  if (!provincias.length) return <EstadoVacio>El JNE no trae provincias ni distritos para {nombre}.</EstadoVacio>;
+  if (d === null) return <VacioEnLinea>No pudimos leer los resultados del JNE. Vuelve a intentarlo en un momento.</VacioEnLinea>;
+  if (!provincias.length) return <VacioEnLinea>El JNE no trae provincias ni distritos para {nombre}.</VacioEnLinea>;
   return <Arbol provincias={provincias} nombre={nombre} buscar={buscar} rutaContratos={rutaContratos} conMunicipalidades={!!municipalidades} />;
 }
 
@@ -232,7 +232,7 @@ function Arbol({
       </div>
 
       {visibles.length === 0 ? (
-        <EstadoVacio icono={<SearchX size={16} />}>Ningún lugar, alcalde o partido coincide con “{consulta}”.</EstadoVacio>
+        <VacioEnLinea icono={<SearchX size={16} />}>Ningún lugar, alcalde o partido coincide con “{consulta}”.</VacioEnLinea>
       ) : (
         <ProveedorDetalle detalles={detalles} nombre={`Provincias y distritos de ${nombre}`}>
           <div className="overflow-clip rounded-2xl border border-line bg-paper">

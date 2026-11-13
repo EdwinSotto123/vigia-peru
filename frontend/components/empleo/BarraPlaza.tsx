@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { ArrowUpRight, BadgeCheck, CircleDashed, Clock, Lock, Sparkles, XCircle, type LucideIcon } from "lucide-react";
 import { SeguirConEtapa } from "@/components/licitaciones-app/seguimiento/BotonSeguir";
-import { Insignia } from "@/components/licitaciones-app/ui/Insignia";
+import { Insignia } from "@/components/gobserva/ui/Insignia";
 import { diasParaCierre, fechaDia, textoCierre } from "@/lib/empleo";
 import { cn } from "@/lib/utils";
 import { useBasesPlaza } from "./datosPlaza";

@@ -4,7 +4,7 @@ import type { ReactNode } from "react";
 import { Calculator, CalendarClock, CircleDollarSign, Info, Receipt } from "lucide-react";
 import { EncabezadoPagina, FuenteDato, Migas, Nota, Pagina, Seccion } from "@/components/patrones";
 import { CeldaBarra, CeldaNumero, CeldaPrincipal, CeldaTexto, Tabla, type Columna, type Fila } from "@/components/listado";
-import { EstadoVacio } from "@/components/ui/EstadoVacio";
+import { VacioEnLinea } from "@/components/ui/VacioEnLinea";
 import { EnlaceAccion } from "@/components/ui/EnlaceAccion";
 import { MetaDelMes } from "@/components/financiar/MetaDelMes";
 import { fechaCorta, numero, plural, porcentaje, soles } from "@/lib/formato";
@@ -49,7 +49,7 @@ export default async function CuantoCuestaPage() {
         }
       />
       {!v ? (
-        <EstadoVacio variante="compacta" tono="error">No pudimos leer los costos ahora. Vuelve a intentarlo en un momento.</EstadoVacio>
+        <VacioEnLinea variante="compacta" tono="error">No pudimos leer los costos ahora. Vuelve a intentarlo en un momento.</VacioEnLinea>
       ) : (
         <div className="space-y-8">
           <MetaDelMes v={v} conEnlace={false} />

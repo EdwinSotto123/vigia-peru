@@ -6,10 +6,10 @@ import useSWR from "swr";
 import { useSesion } from "@/components/gobserva/cuenta/comun";
 import { ErrorCuenta, borrarBusqueda, cargarBusquedas, crearBusqueda } from "@/lib/gobserva-cuenta";
 import { filtrosActivos } from "@/lib/licitaciones-app/filtros";
-import { useAvisos } from "../ui/Avisos";
+import { useAvisos } from "@/components/gobserva/ui/Avisos";
 import { useLista } from "@/lib/licitaciones-app/useListaUrl";
 import { cn } from "@/lib/utils";
-import { Desplegable } from "../ui/Desplegable";
+import { Desplegable } from "@/components/gobserva/ui/Desplegable";
 
 /**
  * Las búsquedas guardadas (los «perfiles de búsqueda»): un clic las aplica, la que está puesta se marca, y cada una se

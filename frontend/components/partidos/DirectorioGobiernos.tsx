@@ -12,7 +12,7 @@ import { Listado, ZonaResultados, useListado, type Parametros } from "@/componen
 import { Vistas, type Vista as OpcionVista } from "@/components/listado/Vistas";
 import { Medidor } from "@/components/charts/BarraSegmentada";
 import { Dato } from "@/components/ui/Dato";
-import { EstadoVacio } from "@/components/ui/EstadoVacio";
+import { VacioEnLinea } from "@/components/ui/VacioEnLinea";
 import { EnlaceFuente, Nota } from "@/components/patrones";
 import { Partes } from "@/components/ui/Partes";
 import { Paginacion } from "@/components/ui/Paginacion";
@@ -285,7 +285,7 @@ export function DirectorioGobiernos({
 
       {(vista === "gobiernos" || vista === "partidos") && (
         <>
-          {fallo && <EstadoVacio tono="error">No pudimos leer los resultados de {anio}. Recarga la página para reintentar.</EstadoVacio>}
+          {fallo && <VacioEnLinea tono="error">No pudimos leer los resultados de {anio}. Recarga la página para reintentar.</VacioEnLinea>}
 
           {datos && resumen && vista === "gobiernos" && (
             <Gobiernos datos={datos} nivel={nivel} q={q} region={region} org={org} orden={orden} pagina={pagina} anio={anio} claves={resumen.claves} />
@@ -549,7 +549,7 @@ function ListaGobiernos({
 
       <ZonaResultados>
         {filas.length === 0 ? (
-          <EstadoVacio
+          <VacioEnLinea
             icono={<SearchX size={16} aria-hidden />}
             accion={
               hayFiltros ? (
@@ -560,7 +560,7 @@ function ListaGobiernos({
             }
           >
             Ningún gobierno coincide con esos filtros.
-          </EstadoVacio>
+          </VacioEnLinea>
         ) : (
           <div className="space-y-3">
             <div className="flex justify-end">{pag(false)}</div>
@@ -702,7 +702,7 @@ function ListaPartidos({
 
       <ZonaResultados>
         {visibles.length === 0 ? (
-          <EstadoVacio icono={<SearchX size={16} aria-hidden />}>Ninguna organización se llama así.</EstadoVacio>
+          <VacioEnLinea icono={<SearchX size={16} aria-hidden />}>Ninguna organización se llama así.</VacioEnLinea>
         ) : (
           <div className="space-y-3">
             <div className="flex justify-end">{pag(false)}</div>

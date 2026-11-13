@@ -13,7 +13,7 @@ import { Ayuda, AyudaTermino, CabeceraPestana, EncabezadoPagina, Franja, FuenteD
 import { Badge } from "@/components/ui/Badge";
 import { Dato } from "@/components/ui/Dato";
 import { claseAccion } from "@/components/ui/EnlaceAccion";
-import { EstadoVacio } from "@/components/ui/EstadoVacio";
+import { VacioEnLinea } from "@/components/ui/VacioEnLinea";
 import { API_BASE } from "@/lib/api-client";
 import { TIPO_RESPONSABILIDAD } from "@/lib/corrupcion";
 import { GRUPOS_CRUCE } from "@/lib/cruces";
@@ -189,7 +189,7 @@ export default async function NovedadesPage({ searchParams }: { searchParams?: R
         }
       />
       {!d ? (
-        <EstadoVacio variante="compacta" tono="error">No pudimos leer lo nuevo ahora. Vuelve a intentarlo en un momento.</EstadoVacio>
+        <VacioEnLinea variante="compacta" tono="error">No pudimos leer lo nuevo ahora. Vuelve a intentarlo en un momento.</VacioEnLinea>
       ) : (
         <>
           <Seccion

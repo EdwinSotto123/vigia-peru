@@ -3,7 +3,7 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { Download, SearchX } from "lucide-react";
 import { MARGEN_LISTA, Paginacion } from "@/components/ui/Paginacion";
-import { EstadoVacio } from "@/components/ui/EstadoVacio";
+import { VacioEnLinea } from "@/components/ui/VacioEnLinea";
 import { coincide, numero, paraBuscar } from "@/lib/formato";
 import { descargarCsv } from "@/lib/csv";
 import { cn } from "@/lib/utils";
@@ -105,7 +105,7 @@ export function TablaPaginada({
     <div data-paginado className={`${MARGEN_LISTA} space-y-3`}>
       {barra}
       {vistas.length === 0 && q ? (
-        <EstadoVacio icono={<SearchX size={16} />}>Ninguna coincide con “{consulta}”.</EstadoVacio>
+        <VacioEnLinea icono={<SearchX size={16} />}>Ninguna coincide con “{consulta}”.</VacioEnLinea>
       ) : (
         <>
           {controles === "ambos" && control}
@@ -168,7 +168,7 @@ export function ListaPaginada({
         </div>
       )}
       {vistos.length === 0 && q ? (
-        <EstadoVacio icono={<SearchX size={16} />}>Ninguna coincide con “{consulta}”.</EstadoVacio>
+        <VacioEnLinea icono={<SearchX size={16} />}>Ninguna coincide con “{consulta}”.</VacioEnLinea>
       ) : (
         <>
           {controles === "ambos" && control}
@@ -526,7 +526,7 @@ export function TablaFiltrable({
         </p>
       )}
       {vistas.length === 0 ? (
-        <EstadoVacio icono={<SearchX size={16} />}>Nada coincide con estos filtros.</EstadoVacio>
+        <VacioEnLinea icono={<SearchX size={16} />}>Nada coincide con estos filtros.</VacioEnLinea>
       ) : (
         <>
           {agrupada && agrupada.saltos.length >= 3 && <SaltosGrupo saltos={agrupada.saltos} nombre={nombre} />}
