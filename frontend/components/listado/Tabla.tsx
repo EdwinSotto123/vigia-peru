@@ -451,6 +451,15 @@ function FilaTabla({
   // Lo apilado va bajo la primera columna que se ve en el celular (el título), aunque en
   // escritorio la columna apilada vaya antes (el chip de estado a la izquierda).
   const principal = indicePrincipal(columnas);
+  // De lo apilado, los números y las fechas (hasta dos) van en la tira de celdas; lo demás (chips, banderas), en línea.
+  const esPar = (c: Columna) => {
+    const n = fila.celdas[c.clave];
+    return c.apilar === "con-rotulo" && isValidElement(n) && (n.type === CeldaNumero || n.type === CeldaFecha);
+  };
+  const candidatas = apiladas.filter(esPar);
+  const pares = candidatas.length <= 2 ? candidatas : [];
+  const sueltas = apiladas.filter((c) => !pares.includes(c));
+  const ultimaDe = (cs: Columna[]) => cs.reduce<Desde | undefined>((m, c) => (ORDEN.indexOf(c.desde) > ORDEN.indexOf(m) ? c.desde : m), undefined);
   // Con enlaces adentro, la acción de la fila es una capa por debajo (ver abajo): las celdas van encima (`z-[1]`) y SÍ
   // toman el puntero, para que su `title` se vea al pasar (con `pointer-events-none` se perdían el detalle del chip de
   // estado y la lista de antecedentes; auditoría del 2026-11-05). Su clic se lo pasa a la capa `FilaConEnlaces`.
@@ -466,14 +475,28 @@ function FilaTabla({
           {i === principal && apiladas.length > 0 ? (
             <span className="block w-full min-w-0">
               {fila.celdas[c.clave]}
-              <span className={cn("mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1", ultima && k.hasta[ultima])}>
-                {apiladas.map((a) => (
-                  <span key={a.clave} className={cn("inline-flex min-w-0 max-w-full items-center gap-1.5", k.hasta[a.desde!])}>
-                    {a.apilar === "con-rotulo" && <span className="shrink-0 text-rotulo text-mute">{a.corto ?? a.titulo}</span>}
-                    {fila.celdas[a.clave]}
-                  </span>
-                ))}
-              </span>
+              {sueltas.length > 0 && (
+                <span className={cn("mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1", ultimaDe(sueltas) && k.hasta[ultimaDe(sueltas)!])}>
+                  {sueltas.map((a) => (
+                    <span key={a.clave} className={cn("inline-flex min-w-0 max-w-full items-center gap-1.5", k.hasta[a.desde!])}>
+                      {a.apilar === "con-rotulo" && <span className="shrink-0 text-rotulo text-mute">{a.corto ?? a.titulo}</span>}
+                      {fila.celdas[a.clave]}
+                    </span>
+                  ))}
+                </span>
+              )}
+              {/* Los números y las fechas, en una tira con una celda por dato (rótulo a la izquierda, dato a la derecha):
+                  antes iban como texto corrido tras los chips y no se distinguía el monto de la fecha. */}
+              {pares.length > 0 && (
+                <span className={cn("mt-2 grid grid-flow-col auto-cols-fr divide-x divide-line overflow-hidden rounded-lg border border-line bg-paperSoft/60", ultimaDe(pares) && k.hasta[ultimaDe(pares)!])}>
+                  {pares.map((a) => (
+                    <span key={a.clave} className={cn("flex min-w-0 items-baseline justify-between gap-2 px-2.5 py-1 [&_[role=img]]:hidden", k.hasta[a.desde!])}>
+                      <span className="shrink-0 text-rotulo text-mute">{a.corto ?? a.titulo}</span>
+                      <span className="min-w-0 truncate text-right font-semibold">{fila.celdas[a.clave]}</span>
+                    </span>
+                  ))}
+                </span>
+              )}
             </span>
           ) : maximos?.[c.clave] && (fila.magnitudes?.[c.clave] ?? 0) > 0 ? (
             <span className="block w-full min-w-0">

@@ -69,7 +69,7 @@ const COLUMNAS: Columna[] = [
     clave: "estado", desde: "md", apilar: true,
     titulo: "Estado",
     // Lo justo para «Riesgo medio», la pastilla más ancha que no se recorta: el resto del ancho es del objeto.
-    ancho: "120px",
+    ancho: "132px",
     igual: {
       texto: "Estado de todos: {}",
       frases: {
@@ -286,8 +286,7 @@ function PuntajeFila({ score }: { score: number }) {
       <span className="block h-1.5 w-14 shrink-0 overflow-hidden rounded-full bg-paperDeep" aria-hidden>
         <span className={cn("block h-full rounded-full", nivel === "alta" ? "bg-crimson" : nivel === "media" ? "bg-amber" : "bg-inkSoft/60")} style={{ width: `${Math.max(4, s)}%` }} />
       </span>
-      <span className="font-mono text-rotulo font-semibold tabular-nums text-ink">{s}</span>
-      <span className="text-rotulo text-mute">de 100</span>
+      <span className="whitespace-nowrap font-mono text-rotulo tabular-nums text-mute"><span className="font-semibold text-ink">{s}</span>/100</span>
     </span>
   );
 }
@@ -337,10 +336,12 @@ function filaDe(c: ContratoResumen, deEntidad: boolean, desde?: string, soloEnti
     },
     celdas: {
       estado: (
-        <ConBanderaDato dato={c.datoDudoso}>
-          <EstadoContratoChip c={c} />
+        <span className="flex w-full min-w-0 flex-col items-start">
+          <ConBanderaDato dato={c.datoDudoso}>
+            <EstadoContratoChip c={c} />
+          </ConBanderaDato>
           {c.score != null && !c.enRevision && c.score > 0 && <PuntajeFila score={c.score} />}
-        </ConBanderaDato>
+        </span>
       ),
       // Recortado en una palabra: el objeto entero va en el panel (títulos de 300 caracteres en el DOM). Dos líneas en
       // escritorio (tres en el celular): «qué se compra» es el dato de la fila, y en una línea se cortaba a ~30 letras.

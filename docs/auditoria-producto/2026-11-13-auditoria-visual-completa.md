@@ -74,6 +74,23 @@ Cada cambio está en la pieza compartida, así que aplica a todas las páginas q
 - **La lista de contratos abre por riesgo.** Antes abría con 25 convocatorias de ayer, sin ganador, sin monto y sin
   leer. Con una búsqueda de texto sigue abriendo por fecha.
 
+## Lo que se sumó después (commits `63331b63` a `8c24747a`)
+
+El dueño del producto señaló que la base plana solo quitaba cosas. Este bloque agrega presentación de datos, también en
+las piezas compartidas:
+
+- **Cifra con ícono y barra de proporción.** Cada cifra de cabecera lleva el ícono de lo que mide y, cuando su contexto
+  trae el denominador («de 2,540 con dictamen»), una barra con su porcentaje. Sale sola en las cerca de 55 franjas de
+  cifras; sin denominador a la vista no se dibuja nada.
+- **Panorama sobre la lista** (`listado/Repartos`). Una caja con hasta tres repartos en barra segmentada, cada parte con
+  su enlace a la lista filtrada. En Contratos: por tipo de compra, por riesgo de lo leído y por antecedentes del ganador.
+  En Órdenes: a quién se le compra, por número y por monto. En celular va plegado en una línea.
+- **Puntaje en la fila.** La lista de contratos abre por riesgo y ahora muestra el puntaje de cada uno, de 0 a 100, con
+  su barra del color de su tramo.
+- **Barra de magnitud en las tablas** (`Fila.magnitudes`). Bajo cada monto, una barra medida contra el mayor de la
+  página: contratos, órdenes, menores, empresas, entidades, obras, inversiones y personas.
+- **Placa de sección en la cabecera.** El ícono del menú junto al título de cada página.
+
 ## Lo que sigue, por pieza
 
 1. **Tabla:** filas de 44 a 48 px; ocultar la columna que dice lo mismo en más del 80 % de las filas y decirlo una vez;
