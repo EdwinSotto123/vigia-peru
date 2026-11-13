@@ -42,6 +42,7 @@ export default function PrivacidadPage({ searchParams }: { searchParams?: { enla
           antes era una columna de cinco bloques y el formulario quedaba dos pantallas abajo). */}
       <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_26rem]">
         <Pestanas
+          variante="segunda"
           className="min-w-0"
           etiqueta="Partes de la política de privacidad"
           activa={seccion}

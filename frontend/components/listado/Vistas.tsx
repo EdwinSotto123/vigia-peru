@@ -38,8 +38,9 @@ export function Vistas({
     <nav
       aria-label={etiqueta}
       className={cn(
-        "inline-flex max-w-full items-center gap-1 overflow-x-auto rounded-full border border-line p-1 [scrollbar-width:none] [&>a]:shrink-0 [&>a]:whitespace-nowrap",
-        secundaria ? "bg-paperSoft" : "bg-paper",
+        "max-w-full items-center overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden [&>a]:shrink-0 [&>a]:whitespace-nowrap",
+        // Nivel 1: una fila subrayada a todo el ancho (la raya de abajo es la del contenedor). Nivel 2: control segmentado.
+        secundaria ? "inline-flex gap-1 rounded-full border border-line bg-paperSoft p-1" : "flex gap-1 border-b border-line",
         className,
       )}
     >
@@ -60,8 +61,8 @@ export function Vistas({
                   v.activa ? "border-line bg-paper font-semibold text-ink" : "border-transparent font-medium text-inkSoft hover:bg-paper/70 hover:text-ink",
                 )
               : cn(
-                  "min-h-[40px] px-2.5 py-1.5 text-meta font-medium sm:gap-2 sm:px-4 sm:text-dato",
-                  v.activa ? "bg-granate text-paper" : "text-inkSoft hover:bg-granate-50 hover:text-ink",
+                  "min-h-[40px] rounded-none px-3 py-1.5 text-meta font-medium sm:text-dato",
+                  v.activa ? "font-semibold text-ink shadow-[inset_0_-2px_0_rgb(var(--granate))]" : "text-inkSoft hover:text-ink hover:shadow-[inset_0_-2px_0_rgb(var(--line))]",
                 ),
           )}
         >
@@ -69,7 +70,7 @@ export function Vistas({
           {v.conteo === null ? (
             <span className="inline-block h-2.5 w-6 animate-shimmerSweep rounded bg-gradient-to-r from-paperDeep via-paper to-paperDeep bg-[length:200%_100%]" aria-hidden />
           ) : v.conteo !== undefined ? (
-            <span className={cn("text-rotulo font-semibold tabular-nums", v.activa ? (secundaria ? "text-inkSoft" : "text-paper/85") : "text-mute")}>{numero(v.conteo)}</span>
+            <span className={cn("text-rotulo font-semibold tabular-nums", v.activa ? "text-inkSoft" : "text-mute")}>{numero(v.conteo)}</span>
           ) : null}
         </Link>
       ))}

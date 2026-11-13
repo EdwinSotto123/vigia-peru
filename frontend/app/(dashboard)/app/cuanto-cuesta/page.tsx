@@ -1,3 +1,4 @@
+import { unstable_noStore as noStore } from "next/cache";
 import type { Metadata } from "next";
 import { canonica } from "@/lib/seo";
 import type { ReactNode } from "react";
@@ -30,6 +31,9 @@ export const revalidate = 300;
  */
 export default async function CuantoCuestaPage() {
   const v = await getVigilancia();
+  // Si la API no respondio, esta respuesta no se guarda en cache: antes el aviso de error quedaba servido como la pagina
+  // hasta la siguiente revalidacion (visto en produccion el 2026-11-13).
+  if (!v) noStore();
   return (
     <Pagina>
       <Migas

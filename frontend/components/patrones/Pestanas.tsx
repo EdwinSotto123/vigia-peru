@@ -200,7 +200,7 @@ export function Pestanas({
             "flex overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
             segunda
               ? "w-fit max-w-full gap-1 rounded-full border border-line bg-paperSoft p-1"
-              : "gap-1 rounded-2xl border border-line bg-paper p-1 shadow-[0_1px_2px_rgb(var(--ink)/0.04)]",
+              : "gap-1 border-b border-line",
             MASCARA[`${desborde.izq}-${desborde.der}`],
           )}
         >
@@ -222,12 +222,14 @@ export function Pestanas({
                 onKeyDown={(e) => alTeclado(e, i)}
                 className={cn(
                   "inline-flex shrink-0 items-center gap-2 whitespace-nowrap font-medium transition-colors duration-rapido focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-granate",
-                  segunda ? "min-h-[36px] rounded-full px-3 text-meta" : "min-h-[44px] rounded-xl px-3.5 text-dato",
+                  segunda ? "min-h-[36px] rounded-full px-3 text-meta" : "min-h-[42px] rounded-none px-3 text-dato",
                   sel
                     ? segunda
                       ? "bg-paper font-semibold text-granate shadow-[0_1px_2px_rgb(var(--ink)/0.08)]"
-                      : "bg-granate-50 font-semibold text-granate"
-                    : "text-inkSoft hover:bg-paperSoft hover:text-ink",
+                      : "font-semibold text-ink shadow-[inset_0_-2px_0_rgb(var(--granate))]"
+                    : segunda
+                      ? "text-inkSoft hover:bg-paperSoft hover:text-ink"
+                      : "text-inkSoft hover:text-ink hover:shadow-[inset_0_-2px_0_rgb(var(--line))]",
                 )}
               >
                 {p.icono}

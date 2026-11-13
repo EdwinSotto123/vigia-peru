@@ -143,36 +143,35 @@ const COLUMNAS: Record<number, string> = {
  * filtros. Mide ~50 px en escritorio (dos renglones a lo sumo) contra ~120; en el celular, una cifra por renglón.
  * Cada cifra con `href` es un enlace (número y etiqueta), y el ⓘ queda al final de la suya.
  */
+const COLUMNAS_FRANJA: Record<number, string> = { 1: "sm:grid-cols-1", 2: "sm:grid-cols-2", 3: "sm:grid-cols-3", 4: "lg:grid-cols-4" };
+
 function Franja({ items, pie, className }: { items: Cifra[]; pie?: ReactNode; className?: string }) {
   return (
     <div className={cn("space-y-2", className)}>
-      <dl className="flex flex-wrap items-baseline gap-x-8 gap-y-2 rounded-2xl border border-line bg-paper px-4 py-3 [.tarjeta_&]:border-0 [.tarjeta_&]:bg-paperSoft">
-        {items.map((it) => {
-          const numero = (
-            <span className={cn("font-display text-destacado font-bold leading-none tracking-tight tabular-nums", TONO[it.tono ?? "neutro"])}>
-              {it.valor == null ? <span className="text-meta font-semibold text-mute">Sin dato</span> : it.valor}
-            </span>
-          );
-          return (
-            <div key={it.etiqueta} className="flex min-w-0 max-w-full flex-wrap items-baseline gap-x-1.5 gap-y-0.5">
-              <dt className="order-2 text-meta font-semibold text-ink">
+      {/* Una caja y, dentro, una celda por cifra separada por una raya (el hueco de 1 px deja ver el fondo `line`). Antes
+          era una línea de texto corrido («4,161 contratos leídos de 60,972…»): no se leía como cifras (2026-11-13). */}
+      <dl className={cn("grid grid-cols-2 gap-px overflow-hidden rounded-xl border border-line bg-line [.tarjeta_&]:border-0", COLUMNAS_FRANJA[items.length] ?? "lg:grid-cols-4")}>
+        {items.map((it) => (
+          <div key={it.etiqueta} className="relative flex min-w-0 flex-col gap-0.5 bg-paper px-3.5 py-2.5 last:odd:col-span-2 sm:last:odd:col-span-1 [.tarjeta_&]:bg-paperSoft">
+            <dt className="order-1 flex min-w-0 items-center gap-1 text-rotulo font-medium leading-tight text-mute">
+              {it.marca && <span className={cn("h-2 w-2 shrink-0 rounded-full", it.marca)} aria-hidden />}
+              <span className="min-w-0">
                 {it.href ? (
-                  <Link href={it.href} prefetch={false} className="underline decoration-line underline-offset-4 hover:decoration-granate focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-granate">
+                  <Link href={it.href} prefetch={false} className="underline decoration-line underline-offset-4 after:absolute after:inset-0 hover:decoration-granate focus-visible:outline-none">
                     {it.etiqueta}
                   </Link>
                 ) : (
                   it.etiqueta
                 )}
-              </dt>
-              <dd className="order-1 inline-flex items-baseline gap-1.5">
-                {it.marca && <span className={cn("h-2 w-2 shrink-0 self-center rounded-full", it.marca)} aria-hidden />}
-                {numero}
-              </dd>
-              {it.contexto != null && <dd className="order-3 text-rotulo leading-snug text-mute tabular-nums">{it.contexto}</dd>}
-              {it.ayuda && <dd className="order-4 self-center">{it.ayuda}</dd>}
-            </div>
-          );
-        })}
+              </span>
+              {it.ayuda && <span className="relative z-[1] shrink-0">{it.ayuda}</span>}
+            </dt>
+            <dd className={cn("order-2 font-display text-bloque font-bold leading-tight tracking-tight tabular-nums sm:text-seccion", TONO[it.tono ?? "neutro"])}>
+              {it.valor == null ? <span className="text-dato font-semibold text-mute">Sin dato</span> : it.valor}
+            </dd>
+            {it.contexto != null && <dd className="order-3 text-rotulo leading-snug text-mute tabular-nums">{it.contexto}</dd>}
+          </div>
+        ))}
       </dl>
       {pie && <div>{pie}</div>}
     </div>

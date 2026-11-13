@@ -183,6 +183,7 @@ export default function FuentesPage({ searchParams }: { searchParams?: { seccion
 
       {/* Una pestaña por pregunta (2026-11-12): antes eran cinco secciones apiladas, 3,6 pantallas de alto. */}
       <Pestanas
+        variante="segunda"
         etiqueta="Partes de las fuentes"
         activa={seccion}
         pestanas={[

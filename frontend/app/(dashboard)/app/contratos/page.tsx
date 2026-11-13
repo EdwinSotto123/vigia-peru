@@ -1,8 +1,6 @@
 import { Suspense } from "react";
 import Link from "next/link";
 import { canonica } from "@/lib/seo";
-import { Franja } from "@/components/patrones/Franja";
-import { CLASE_ACCION_LISTA } from "@/components/ui/EnlaceAccion";
 import { Ayuda, EncabezadoPagina, Migas, Pagina } from "@/components/patrones";
 import { Vistas } from "@/components/listado/Vistas";
 import {
@@ -79,8 +77,15 @@ export default async function ContratosPage({ searchParams }: { searchParams?: R
   if (vistaParam === "ordenes") return <OrdenesVista searchParams={searchParams} />;
   if (vistaParam === "menores") return <MenoresVista searchParams={searchParams} />;
   // Con los filtros que sólo tiene esta lista (datos de la empresa ganadora, posible error de carga).
-  const query = parseContratosQuery(conProvincia(searchParams), { conDatosGanadora: true });
+  const pedida = parseContratosQuery(conProvincia(searchParams), { conDatosGanadora: true });
+  // Sin orden elegido, primero lo que Vigia ya leyo y de mayor a menor riesgo: por fecha, las 25 primeras eran convocatorias
+  // de ayer, sin ganador, sin monto y sin leer (auditoria del 2026-11-13). Con una busqueda de texto, lo mas reciente.
+  const ordenPorDefecto = pedida.q ? "fecha" : "score";
+  const query = { ...pedida, orden: pedida.orden ?? ordenPorDefecto };
   const parametros = conProvinciaAparte(contratosParametros(query));
+  // En la URL va solo el orden que no es el de por defecto (contratosParametros calla «fecha», que era el de antes).
+  if (query.orden === ordenPorDefecto) delete parametros.orden;
+  else parametros.orden = query.orden;
   // El total del universo sólo hace falta si algo (fuera de la faceta) recorta la base.
   const recortada = Object.entries(parametros).some(([k, v]) => k !== "riesgo" && k !== "orden" && !!v);
   // Arrancan ya, en paralelo; cada pieza espera sólo la suya.
@@ -120,21 +125,6 @@ export default async function ContratosPage({ searchParams }: { searchParams?: R
       <Suspense fallback={<IndicadoresSkeleton n={4} franja />}>
         <IndicadoresContratos resumen={resumen} global={resumenGlobal ?? Promise.resolve(null)} recortada={recortada} parametros={parametros} />
       </Suspense>
-
-      {/* Sin filtros la lista abre en lo más reciente, que casi nunca está leído todavía: el atajo a lo que sí tiene
-          dictamen, de mayor a menor puntaje (auditoría de producto del 2026-11-12, hallazgo 2). */}
-      {!Object.values(parametros).some(Boolean) && (
-        <Franja
-          titulo="Lo más reciente casi nunca está leído todavía"
-          accion={
-            <Link href={`${RUTA}?riesgo=alto&orden=score`} prefetch={false} className={CLASE_ACCION_LISTA}>
-              Ver primero los de riesgo alto
-            </Link>
-          }
-        >
-          Vigía lee una parte de lo que publica el SEACE. Para empezar por lo ya analizado, ordena por riesgo.
-        </Franja>
-      )}
 
       <Listado ruta={RUTA} parametros={parametros} paramPagina="page">
         <Suspense fallback={<Barra resumen={null} parametros={parametros} regiones={regiones} partidos={partidos} entidadNombre={entidadNombre} filas={[]} />}>
@@ -218,7 +208,7 @@ function Barra({ resumen, parametros, regiones, partidos, entidadNombre, filas }
       // sólo existe en los contratos ya leídos (unos cientos de 800 mil): va en «Filtros», como en la ficha de una entidad.
       visibles={[filtroRegion(parametros, regiones, filas), ...filtroProvincia(parametros), filtroMesVisible(parametros), ...filtrosVisibles(resumen, true).filter((f) => f.param !== "riesgo")]}
       filtros={[...filtrosVisibles(resumen, true).filter((f) => f.param === "riesgo"), ...filtros({ resumen, parametros, partidos, entidadNombre })]}
-      orden={{ param: "orden", porDefecto: "fecha", opciones: ORDENES.map((o) => ({ valor: o.value, etiqueta: o.label })) }}
+      orden={{ param: "orden", porDefecto: parametros.q ? "fecha" : "score", opciones: ORDENES.map((o) => ({ valor: o.value, etiqueta: o.label })) }}
       chips={chipsDeEnlace(parametros)}
     />
   );

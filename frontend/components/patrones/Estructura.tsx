@@ -67,15 +67,15 @@ export function EncabezadoPagina({
      parte en dos líneas ocupa todo el ancho y empujaba el ⓘ al borde derecho. */
   const texto = bajada ? (
     <>
-      <h1 className="font-display text-cifra font-bold leading-tight tracking-tight text-ink text-balance sm:text-titulo">{titulo}</h1>
-      <p className="mt-1.5 text-dato leading-snug text-inkSoft text-pretty sm:text-cuerpo">
+      <h1 className="font-display text-bloque font-bold leading-snug tracking-tight text-ink text-balance sm:text-seccion">{titulo}</h1>
+      <p className="mt-1 max-w-3xl text-meta leading-snug text-inkSoft text-pretty sm:text-dato">
         {bajada}
         {ayuda && <span className="ml-1 inline-flex align-middle">{ayuda}</span>}
       </p>
     </>
   ) : (
     <div className="flex items-center gap-2">
-      <h1 className="font-display text-cifra font-bold leading-tight tracking-tight text-ink text-balance sm:text-titulo">{titulo}</h1>
+      <h1 className="font-display text-bloque font-bold leading-snug tracking-tight text-ink text-balance sm:text-seccion">{titulo}</h1>
       {ayuda}
     </div>
   );
@@ -84,7 +84,7 @@ export function EncabezadoPagina({
     // caja»): a la izquierda quién es y sus acciones; a la derecha, el panel de sus banderas en filas
     // (`BanderasFicha` cambia de chips a panel en lg). Abajo de lg, las banderas siguen bajo el título, en chips.
     return (
-      <header className={cn("encabezado-color grid gap-x-8 gap-y-3 lg:grid-cols-[minmax(0,1fr)_minmax(21rem,27rem)] lg:items-start", className)}>
+      <header className={cn("grid gap-x-8 gap-y-3 lg:grid-cols-[minmax(0,1fr)_minmax(21rem,27rem)] lg:items-start", className)}>
         <div className="min-w-0">
           {texto}
           {acciones && <div className="mt-3 flex flex-wrap items-center gap-2">{acciones}</div>}
@@ -94,7 +94,7 @@ export function EncabezadoPagina({
     );
   }
   return (
-    <header className={cn("encabezado-color flex flex-wrap items-end justify-between gap-x-6 gap-y-3", className)}>
+    <header className={cn("flex flex-wrap items-end justify-between gap-x-6 gap-y-2", className)}>
       <div className="min-w-0 max-w-3xl">{texto}</div>
       {acciones && <div className="flex flex-wrap items-center gap-2">{acciones}</div>}
     </header>

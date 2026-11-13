@@ -228,6 +228,7 @@ export default function MetodologiaPage({ searchParams }: { searchParams?: { sec
       </Nota>
 
       <Pestanas
+        variante="segunda"
         etiqueta="Partes de la metodología"
         activa={seccion}
         pestanas={[

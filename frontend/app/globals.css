@@ -671,3 +671,31 @@ dialog:not([open]) {
   #vigia-impresion .line-clamp-3 { -webkit-line-clamp: unset; display: block; overflow: visible; }
   #vigia-impresion tr { break-inside: avoid; }
 }
+
+
+/* ── Superficies planas (2026-11-13) ─────────────────────────────────────────────────────────────────────────
+   El dueño del producto rechazó el degradado como recurso de diseño («haces un degradado y ya crees que es diseño»).
+   Había cuatro capas: el lavado de la pantalla, la cabecera, un tinte en cada caja de primer nivel y sombras de color.
+   Desde aquí la jerarquía la dan el borde, el tamaño y la posición: el color queda para el estado (riesgo, activo).
+   Las reglas de arriba siguen escritas; estas las anulan en un solo lugar. */
+.fondo-intencion,
+html[data-modo="dia"] .fondo-intencion {
+  background-image: none;
+}
+[data-intencion] .encabezado-color,
+html[data-modo="dia"] [data-intencion] .encabezado-color {
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background-image: none;
+  box-shadow: none;
+}
+[data-intencion] .encabezado-color::before {
+  content: none;
+}
+[data-intencion]:not([data-intencion="admin"]) :is(div, section, article, aside, ul, ol, dl).border:is(.bg-paperSoft, .bg-paper):not(.border .border),
+html[data-modo="dia"] [data-intencion]:not([data-intencion="admin"]) :is(div, section, article, aside, ul, ol, dl).border:is(.bg-paperSoft, .bg-paper):not(.border .border) {
+  background-image: none;
+  border-top-color: rgb(var(--line));
+  box-shadow: none;
+}

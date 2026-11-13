@@ -474,6 +474,7 @@ function SidebarLink({
   return (
     <LinkIntencion
       href={href}
+      title={hint}
       data-intencion={intencion}
       aria-current={active ? "page" : undefined}
       className={cn(
@@ -508,17 +509,6 @@ function SidebarLink({
           <span className={cn("truncate", active || featured ? "font-semibold" : "font-medium")}>
             {children}
           </span>
-          {hint && (
-            <span
-              className={cn(
-                "truncate text-micro",
-                // Sin transparencia: el /80 sobre el fondo de acento quedaba en 4,4:1 (el piso es 4,5).
-                featured && active ? "text-paper/90" : active || featured ? "text-acento-texto" : "text-mute",
-              )}
-            >
-              {hint}
-            </span>
-          )}
         </span>
       </span>
       {locked ? (
