@@ -4,6 +4,8 @@ import { ICONO_NIVEL } from "@/components/ui/Severidad";
 import { TIPO_CRUCE, chipCruce } from "@/lib/cruces";
 
 const VARIANTE_CRUCE = { alta: "crimson", media: "amber", baja: "neutral" } as const;
+const BORDE_FILA = { alta: "border-crimson/45", media: "border-amber/50", baja: "border-line" } as const;
+const ICONO_FILA = { alta: "text-crimsonTexto", media: "text-amberTexto", baja: "text-mute" } as const;
 // La severidad también con ícono (no sólo el color: WCAG 1.4.1), el mismo de `Severidad`.
 const ICONO_CRUCE = ICONO_NIVEL;
 const RANGO = { alta: 0, media: 1, baja: 2 } as const;
@@ -54,12 +56,20 @@ export function CrucesCelda({
         const Icono = ICONO_CRUCE[x.severidad];
         return (
           <li key={x.tipo} className="min-w-0" title={explica(x.tipo) ? `${completo(x.tipo)}: ${explica(x.tipo)}` : completo(x.tipo)}>
-            <Badge variant={VARIANTE_CRUCE[x.severidad]} className="max-w-full gap-1 rounded-2xl px-2 py-1 font-semibold leading-tight">
-              <Icono size={12} className="shrink-0" aria-hidden />
-              {/* En un panel (todas a la vista) también el ícono del tipo; en la celda angosta, sólo la severidad. */}
-              {max > MAX_CRUCES && <IconoBandera tipo={x.tipo} size={12} className="opacity-70" />}
-              <span className="min-w-0 break-words">{corto(x.tipo)}</span>
-            </Badge>
+            {/* En la fila, la bandera en texto oscuro con su severidad en el ícono y el borde (2026-11-13): dos o tres pastillas
+                rojas rellenas por fila, junto al chip de riesgo, saturaban la lista. El panel (todas a la vista) sigue igual. */}
+            {max > MAX_CRUCES ? (
+              <Badge variant={VARIANTE_CRUCE[x.severidad]} className="max-w-full gap-1 rounded-2xl px-2 py-1 font-semibold leading-tight">
+                <Icono size={12} className="shrink-0" aria-hidden />
+                <IconoBandera tipo={x.tipo} size={12} className="opacity-70" />
+                <span className="min-w-0 break-words">{corto(x.tipo)}</span>
+              </Badge>
+            ) : (
+              <span className={`inline-flex max-w-full items-center gap-1 rounded-full border bg-paper px-2 py-0.5 text-rotulo font-semibold leading-tight text-ink ${BORDE_FILA[x.severidad]}`}>
+                <Icono size={12} className={`shrink-0 ${ICONO_FILA[x.severidad]}`} aria-hidden />
+                <span className="min-w-0 break-words">{corto(x.tipo)}</span>
+              </span>
+            )}
           </li>
         );
       })}

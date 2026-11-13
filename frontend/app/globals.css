@@ -205,14 +205,14 @@
 html[data-modo="dia"] {
   color-scheme: light;
 
-  --fondo: 239 243 242;       /* #EFF3F2  fondo de la página: mute 4,8:1, inkSoft 9:1 */
+  --fondo: 242 244 243;       /* #F2F4F3 (antes #EFF3F2, más verdoso)  fondo de la página: mute 4,8:1, inkSoft 9:1 */
   --paper: 255 255 255;       /* #FFFFFF  tarjetas (antes #F6F8F7, igual que el fondo: sólo el borde las separaba) */
   --paper-soft: 247 249 248;  /* #F7F9F8  paneles y lo apenas hundido dentro de una tarjeta blanca */
-  --paper-deep: 236 241 239;  /* #ECF1EF  campos, filtros, hundidos */
+  --paper-deep: 238 241 240;  /* #EEF1F0  campos, filtros, hundidos */
   --paper-edge: 190 202 199;  /* #BECAC7  borde marcado */
-  --line: 220 228 226;        /* #DCE4E2  borde por defecto */
+  --line: 222 227 225;        /* #DEE3E1  borde por defecto */
 
-  --lienzo: 239 243 242;      /* #EFF3F2  el mismo gris verdoso del fondo */
+  --lienzo: 242 244 243;      /* #F2F4F3  el mismo gris del fondo */
   --caja: 255 255 255;
   --sombra-caja: 0 1px 2px rgb(17 24 23 / 0.05), 0 2px 8px -4px rgb(17 24 23 / 0.08);
 
@@ -260,7 +260,7 @@ html[data-modo="dia"] {
   --anil-texto: 44 72 170;    /* #2C48AA  6,9:1 sobre paper */
 }
 html[data-modo="dia"] [data-intencion="explorar"] {
-  --acento: 37 99 200;         /* #2563C8 */
+  --acento: 44 94 172;         /* #2C5EAC (antes #2563C8, más eléctrico) */
   --acento-soft: 232 240 252;
   --acento-borde: 160 190 235;
   --acento-texto: 29 78 160;   /* 7,9:1 */
@@ -326,21 +326,21 @@ html[data-modo="dia"] [data-intencion] .encabezado-color {
    fijo: la serie 1 es siempre la primera (contratos), la 2 la segunda (órdenes)… «Otros» va en --serie-otros. En el día
    las series 3 a 5 quedan bajo 3:1 sobre blanco: siempre van con su número escrito al lado o con la tabla. */
 :root {
-  --serie-1: 57 135 229;   /* #3987E5 */
-  --serie-2: 217 89 38;    /* #D95926 */
-  --serie-3: 25 158 112;   /* #199E70 */
-  --serie-4: 201 133 0;    /* #C98500 */
-  --serie-5: 213 81 129;   /* #D55181 */
-  --serie-6: 0 131 0;      /* #008300 */
+  --serie-1: 68 136 220;   /* #4488DC  (2026-11-13: 10 % menos croma; CVD 8,0, todas ≥ 3:1 de noche) */
+  --serie-2: 210 96 53;    /* #D26035 */
+  --serie-3: 50 156 114;   /* #329C72 */
+  --serie-4: 196 135 41;   /* #C48729 */
+  --serie-5: 206 89 130;   /* #CE5982 */
+  --serie-6: 31 129 28;    /* #1F811C */
   --serie-otros: 74 90 88;
 }
 html[data-modo="dia"] {
-  --serie-1: 42 120 214;   /* #2A78D6 */
-  --serie-2: 235 104 52;   /* #EB6834 */
-  --serie-3: 27 175 122;   /* #1BAF7A */
-  --serie-4: 237 161 0;    /* #EDA100 */
-  --serie-5: 232 123 164;  /* #E87BA4 */
-  --serie-6: 0 131 0;      /* #008300 */
+  --serie-1: 54 121 205;   /* #3679CD  (2026-11-13: 10 % menos croma; CVD 8,3, normal 17,7) */
+  --serie-2: 228 110 66;   /* #E46E42 */
+  --serie-3: 55 173 125;   /* #37AD7D */
+  --serie-4: 232 163 50;   /* #E8A332 */
+  --serie-5: 226 128 164;  /* #E280A4 */
+  --serie-6: 31 129 28;    /* #1F811C */
   --serie-otros: 190 202 199;
 }
 

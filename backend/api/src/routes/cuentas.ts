@@ -24,11 +24,11 @@
  * hace falta: el sitio entero funciona igual (docs/design/CUENTAS.md).
  */
 
-import { Hono } from "hono";
+import { Hono, type Context } from "hono";
 import { z } from "zod";
 import { esErrorPg, pool } from "../lib/db.js";
 import { requireAuth } from "../lib/auth.js";
-import { limiteEscritura } from "../lib/antibots.js";
+import { claveIp, cuantasEn, ipCliente, limiteEscritura, pedidoInterno } from "../lib/antibots.js";
 import { SIN_CACHE } from "../lib/http.js";
 import { columnaAusente, conPerfilAliado, hayAporteEntidad, perfilEditableDesdeCuenta } from "../lib/esquema.js";
 import {
@@ -40,7 +40,10 @@ import { COLUMNA_SEGUIDO, TOPE_SEGUIDOS, empresasSeguidas, errorSeguido, novedad
 import { stream } from "hono/streaming";
 import { dentroDeTope } from "../lib/antibots.js";
 import { correrChat, type EnvChat } from "../lib/chatInvestigacion.js";
-import { LARGO_CONVERSACION, TOPE_CUENTA_DIA, TOPE_CUENTA_MINUTO, TOPE_TOTAL_DIA, eventoPublico, pedidoVigia } from "../lib/chatVigia.js";
+import {
+  BLOQUEO_S, FALTAS_PARA_BLOQUEO, LARGO_CONVERSACION, TOPE_CUENTA_MINUTO, TOPE_IP_DIA, TOPE_IP_MINUTO, TOPE_TOTAL_DIA, enListaFija, eventoPublico,
+  huellaIp, pedidoVigia, topeDiaCuenta,
+} from "../lib/chatVigia.js";
 import { registrarConsumo } from "../lib/consumo.js";
 import { registrar } from "../lib/registro.js";
 
@@ -409,15 +412,8 @@ cuentasRouter.post("/me/chat", async (c) => {
   if (mensajes.reduce((n, m) => n + m.texto.length, 0) > LARGO_CONVERSACION) {
     return c.json({ error: "conversacion_larga", detail: "La conversación ya es muy larga: empieza una nueva." }, 413);
   }
-  if (!(await dentroDeTope(`chatvigia|min|${u.uid}`, TOPE_CUENTA_MINUTO, 60))) {
-    return c.json({ error: "muy_seguido", detail: "Hiciste varias preguntas seguidas. Espera un minuto." }, 429);
-  }
-  if (!(await dentroDeTope(`chatvigia|dia|${u.uid}`, TOPE_CUENTA_DIA, DIA_S, true))) {
-    return c.json({ error: "tope_dia", detail: `Ya hiciste las ${TOPE_CUENTA_DIA} preguntas de hoy. Mañana puedes seguir.` }, 429);
-  }
-  if (!(await dentroDeTope("chatvigia|total", TOPE_TOTAL_DIA, DIA_S, true))) {
-    return c.json({ error: "tope_total", detail: "El asistente llegó a su límite de hoy para todos. Vuelve mañana." }, 429);
-  }
+  const rechazo = await protegerChat(c, u.uid, u.emailVerificado);
+  if (rechazo) return rechazo;
   const env = (c.env ?? {}) as EnvChat;
   c.header("Content-Type", "application/x-ndjson; charset=utf-8");
   c.header("Cache-Control", "no-store");
@@ -429,6 +425,57 @@ cuentasRouter.post("/me/chat", async (c) => {
       .catch((e) => registrar("WARNING", `[chat vigia] consumo sin guardar: ${(e as Error).message}`));
   });
 });
+
+/**
+ * Los topes y bloqueos del asistente, en orden: la lista fija (`CHAT_BLOQUEO`), el bloqueo automático, los topes por
+ * minuto (IP y cuenta), por día (IP y cuenta, menor sin correo verificado) y el techo de todos. Cada rechazo por tope es
+ * una falta de la IP y de la cuenta; con `FALTAS_PARA_BLOQUEO` en una hora quedan bloqueadas `BLOQUEO_S`. Devuelve la
+ * respuesta de rechazo o null si puede preguntar. Un pedido interno (sin IP de visitante) sólo cuenta por cuenta.
+ */
+async function protegerChat(c: Context, uid: string, verificado: boolean): Promise<Response | null> {
+  const ip = pedidoInterno(c) ? null : claveIp(ipCliente(c));
+  const huella = ip ? huellaIp(ip) : null;
+  const cerrado = () => {
+    c.header("Cache-Control", SIN_CACHE);
+    return c.json({ error: "bloqueado", detail: "El asistente no está disponible para esta cuenta o esta conexión por un uso fuera de lo normal. Si crees que es un error, escríbenos desde Contacto." }, 403);
+  };
+  if (enListaFija(process.env.CHAT_BLOQUEO, ip, huella, uid)) return cerrado();
+  const bloqueos = [`chatvigia|bloqueo|c:${uid}`, ...(huella ? [`chatvigia|bloqueo|ip:${huella}`] : [])];
+  for (const k of bloqueos) if ((await cuantasEn(k, BLOQUEO_S, true)) > 0) return cerrado();
+
+  const tope = async (error: string, detail: string) => {
+    // Una falta para la IP y para la cuenta: quien insiste contra el tope queda bloqueado un día.
+    for (const sujeto of [`c:${uid}`, ...(huella ? [`ip:${huella}`] : [])]) {
+      if (!(await dentroDeTope(`chatvigia|faltas|${sujeto}`, FALTAS_PARA_BLOQUEO, 60 * 60))) {
+        await dentroDeTope(`chatvigia|bloqueo|${sujeto}`, 1, BLOQUEO_S, true);
+        registrar("WARNING", `[chat vigia] bloqueo automático de ${BLOQUEO_S / 3600} h: ${sujeto.startsWith("ip:") ? `h:${huella}` : `cuenta ${uid.slice(0, 8)}`}`);
+      }
+    }
+    c.header("Retry-After", "60");
+    c.header("Cache-Control", SIN_CACHE);
+    return c.json({ error, detail }, 429);
+  };
+  const seguido = "Hiciste varias preguntas seguidas. Espera un minuto.";
+  if (huella && !(await dentroDeTope(`chatvigia|ipmin|${huella}`, TOPE_IP_MINUTO, 60))) return tope("muy_seguido", seguido);
+  if (!(await dentroDeTope(`chatvigia|min|${uid}`, TOPE_CUENTA_MINUTO, 60))) return tope("muy_seguido", seguido);
+  if (huella && !(await dentroDeTope(`chatvigia|ipdia|${huella}`, TOPE_IP_DIA, DIA_S, true))) {
+    return tope("tope_ip", "Desde esta conexión ya se hicieron muchas preguntas hoy. Mañana puedes seguir.");
+  }
+  const diario = topeDiaCuenta(verificado);
+  if (!(await dentroDeTope(`chatvigia|dia|${uid}`, diario, DIA_S, true))) {
+    return tope(
+      "tope_dia",
+      verificado
+        ? `Ya hiciste las ${diario} preguntas de hoy. Mañana puedes seguir.`
+        : `Ya hiciste las ${diario} preguntas de hoy. Verifica tu correo desde tu cuenta para tener más cada día.`,
+    );
+  }
+  if (!(await dentroDeTope("chatvigia|total", TOPE_TOTAL_DIA, DIA_S, true))) {
+    c.header("Cache-Control", SIN_CACHE);
+    return c.json({ error: "tope_total", detail: "El asistente llegó a su límite de hoy para todos. Vuelve mañana." }, 429);
+  }
+  return null;
+}
 
 // ─── GET /cuentas/me/exportar ────────────────────────────────────────────────
 cuentasRouter.get("/me/exportar", async (c) => {

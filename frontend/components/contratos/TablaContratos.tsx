@@ -284,7 +284,7 @@ function PuntajeFila({ score }: { score: number }) {
   return (
     <span className="flex items-center gap-1.5 md:mt-1.5" title={`Puntaje ${s} de 100`}>
       <span className="block h-1.5 w-14 shrink-0 overflow-hidden rounded-full bg-paperDeep" aria-hidden>
-        <span className={cn("block h-full rounded-full", nivel === "alta" ? "bg-crimson" : nivel === "media" ? "bg-amber" : "bg-inkSoft/60")} style={{ width: `${Math.max(4, s)}%` }} />
+        <span className={cn("block h-full rounded-full", nivel === "baja" || nivel === "sin_analizar" ? "bg-inkSoft/45" : "bg-inkSoft")} style={{ width: `${Math.max(4, s)}%` }} />
       </span>
       <span className="whitespace-nowrap font-mono text-rotulo tabular-nums text-mute"><span className="font-semibold text-ink">{s}</span>/100</span>
     </span>

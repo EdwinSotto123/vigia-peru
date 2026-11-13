@@ -384,8 +384,7 @@ export function DashboardSidebar() {
                   className="flex flex-col gap-0.5"
                 >
                   {section.title && (
-                    <p id={idTitulo} className="flex items-center gap-2 px-3 pb-1.5 text-micro font-semibold uppercase leading-4 tracking-[0.14em] text-acento-texto md:pb-1">
-                      <span aria-hidden className="h-1.5 w-1.5 rounded-full bg-acento" />
+                    <p id={idTitulo} className="px-3 pb-1.5 text-micro font-semibold uppercase leading-4 tracking-[0.14em] text-mute md:pb-1">
                       {section.title}
                     </p>
                   )}
@@ -485,8 +484,8 @@ function SidebarLink({
             ? "border-granate bg-granate text-paper"
             : "border-granate/30 bg-paper text-granate hover:border-granate/50 hover:bg-granate-50"
           : active
-          ? "border-acento/25 bg-acento/10 text-acento-texto"
-          : "border-transparent text-inkSoft hover:bg-acento/[0.06] hover:text-ink",
+          ? "border-granate/25 bg-granate-50 text-ink"
+          : "border-transparent text-inkSoft hover:bg-paperDeep hover:text-ink",
       )}
     >
       <span className="flex min-w-0 items-center gap-2.5">
@@ -499,8 +498,8 @@ function SidebarLink({
                 ? "bg-paper/15 text-paper"
                 : "bg-granate-soft text-granate"
               : active
-              ? "bg-acento text-paper"
-              : "bg-acento/10 text-acento-texto group-hover:bg-acento/20",
+              ? "bg-granate text-paper"
+              : "bg-paperDeep text-inkSoft group-hover:bg-paperEdge/40 group-hover:text-ink",
           )}
         >
           {icon}
