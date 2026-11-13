@@ -116,7 +116,7 @@ export function buildRelationshipGraphData(
   const proveedorEtiqueta = nombreParte(proveedorNombre, proveedorRuc);
   nodes.push({
     id: idCompanyMain, kind: "company_main",
-    label: proveedorEtiqueta.length > 36 ? proveedorEtiqueta.slice(0, 33) + "…" : proveedorEtiqueta,
+    label: proveedorEtiqueta,
     sublabel: proveedorRuc ? `RUC ${maskDnis(String(proveedorRuc))}` : undefined,
     tooltip: proveedorEtiqueta,
     meta: { ruc: proveedorRuc, razon_social: proveedorNombre, rol: "Proveedor de la convocatoria actual" },
@@ -490,9 +490,9 @@ export function buildRelationshipGraphData(
       const rol = legible(s.rol_en_postor) || "socio";
       nodes.push({
         id: socId,
-        kind: esFuncionarioActivo ? "socio_postor_conflicto" : "company_titular",
+        kind: esFuncionarioActivo ? "socio_postor_conflicto" : "socio_postor",
         label: socioEtiqueta,
-        sublabel: rol,
+        sublabel: `${rol} de ${razonEtiqueta.length > 28 ? `${razonEtiqueta.slice(0, 26)}…` : razonEtiqueta}`,
         tooltip: unir(
           socioEtiqueta,
           rol,
@@ -739,5 +739,19 @@ export function buildRelationshipGraphData(
     if (!moved) break;
   }
 
+  if (!p.nombre_completo) {
+    const sinPersona = edges
+      .filter((e) => !((e.from === idPerson && e.to === idCompanyMain) || (e.to === idPerson && e.from === idCompanyMain)))
+      .map((e) => ({
+        ...e,
+        // «posible familiar» de una persona sin nombre: de quien dirige la empresa (su titular o representante).
+        label: e.kind === "pareja" && e.from === idPerson ? `${e.label || "familiar"} de quien dirige la empresa` : e.label,
+        from: e.from === idPerson ? idCompanyMain : e.from,
+        to: e.to === idPerson ? idCompanyMain : e.to,
+      }));
+    const nodos = nodes.filter((n) => n.id !== idPerson);
+    positions.delete(idPerson);
+    return { nodes: nodos, edges: sinPersona, positions };
+  }
   return { nodes, edges, positions };
 }

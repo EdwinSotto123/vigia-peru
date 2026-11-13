@@ -19,7 +19,7 @@
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from "react";
 import { useRouter } from "next/navigation";
-import { Maximize2, Minus, Plus, Scan, X } from "lucide-react";
+import { ArrowRight, Maximize2, Minus, Plus, Scan, ShieldCheck, X } from "lucide-react";
 import { Panel } from "@/components/ui/Panel";
 import { useLienzoNavegable } from "@/components/grafo/lienzo";
 import { aristaTono, chipTono, type Tono } from "@/components/grafo/primitivos";
@@ -34,14 +34,14 @@ type Grupo = "riesgo" | "politica" | "familia" | "negocio" | "estado";
 const CARRILES: { id: string; titulo: string; kinds: GraphNode["kind"][] }[] = [
   { id: "personas", titulo: "Personas del proveedor", kinds: ["person", "pareja", "party", "partido_compartido", "cargo_pasado", "municipio_familiar"] },
   { id: "proveedor", titulo: "El proveedor", kinds: ["company_main"] },
-  { id: "empresas", titulo: "Empresas vinculadas", kinds: ["company_titular", "company_domicilio", "socio_postor_conflicto"] },
+  { id: "empresas", titulo: "Empresas vinculadas", kinds: ["company_titular", "company_domicilio"] },
   { id: "entidad", titulo: "La entidad y sus funcionarios", kinds: ["entidad", "alcalde", "funcionario_designado", "autoridad", "firmante_conflicto", "entidad_secundaria"] },
-  { id: "competencia", titulo: "Otros postores y contratos", kinds: ["postor_rival", "contract"] },
+  { id: "competencia", titulo: "Otros postores, sus socios y contratos", kinds: ["postor_rival", "socio_postor", "socio_postor_conflicto", "contract"] },
 ];
 
 const GRUPO: Record<GraphEdge["kind"], Grupo> = {
   titular: "negocio", contrato: "negocio", adjudicacion: "negocio", compitio: "negocio",
-  domicilio: "riesgo", firma_conflicto: "riesgo", conflicto_funcionario: "riesgo", socio_de: "riesgo", visito: "riesgo",
+  domicilio: "riesgo", firma_conflicto: "riesgo", conflicto_funcionario: "riesgo", socio_de: "negocio", visito: "riesgo",
   doble_vinculacion: "riesgo",
   candidato: "politica", aporte: "politica", cargo: "politica", mismo_partido_que: "politica", partido_de: "politica",
   pareja: "familia",
@@ -77,13 +77,122 @@ const ETIQUETA: Record<GraphEdge["kind"], string> = {
 };
 
 const NODO_RIESGO = new Set<GraphNode["kind"]>(["firmante_conflicto", "socio_postor_conflicto", "company_domicilio"]);
+
+/** Qué significa cada vínculo, en una oración (la lista de vínculos lo dice bajo cada uno: «la red no explica nada»). */
+const QUE_SIGNIFICA: Record<GraphEdge["kind"], string> = {
+  titular: "Es dueño, socio o representante de esa empresa, según el RNP del OECE.",
+  domicilio: "Las dos empresas declaran el mismo domicilio fiscal: puede ser la misma gente detrás (SUNAT). Vale revisarlo si compitieron entre sí.",
+  candidato: "Postuló a un cargo de elección popular (JNE).",
+  aporte: "Dio dinero a una campaña electoral (ONPE).",
+  cargo: "Ocupó un cargo público.",
+  contrato: "Otro contrato con el Estado.",
+  pareja: "Posible familiar, cruzado por nombres y apellidos en registros públicos: «posible» porque dos personas pueden llamarse igual.",
+  autoridad: "Aparece vinculado a una autoridad pública.",
+  firma_conflicto: "Firmó un documento del proceso (el acta o el comité) teniendo un vínculo con el proveedor: un posible conflicto de interés.",
+  adjudicacion: "La entidad le dio la buena pro.",
+  preside_entidad: "Encabeza la entidad que contrata.",
+  designado_por: "Funcionario de confianza designado en la entidad.",
+  conflicto_funcionario: "Un funcionario aparece unido al proveedor o a un postor: es el cruce que más pesa.",
+  trabaja_en: "Trabaja en esa entidad.",
+  mismo_partido_que: "El familiar trabaja en un municipio del mismo partido que gobierna la entidad que contrata.",
+  partido_de: "El partido político al que pertenece.",
+  compitio: "Presentó oferta en este mismo proceso y no ganó.",
+  socio_de: "Es socio de ese postor según el RNP. Ser socio de un competidor no es un problema por sí solo; lo sería si también lo fuera del ganador o trabajara en la entidad.",
+  visito: "Una visita registrada a la entidad, relevante para el proceso. Una visita sola no prueba un vínculo.",
+  doble_vinculacion: "La misma persona aparece de los dos lados: en el proveedor y en la entidad.",
+};
+
+const ORDEN_GRUPO: Grupo[] = ["riesgo", "politica", "familia", "estado", "negocio"];
+const EXPLICA_GRUPO: Record<Grupo, string> = {
+  riesgo: "Lo que pide revisión: cruces entre la gente del proveedor, la entidad y los demás postores.",
+  politica: "Aportes, candidaturas y cargos de la gente del proveedor.",
+  familia: "Posibles familiares de la gente del proveedor.",
+  estado: "Quién dirige y quién firma en la entidad.",
+  negocio: "Quién es dueño de qué y con quién compitió. Es el contexto, no una señal.",
+};
+
+/**
+ * Los vínculos de la red en frases, agrupados por lo que significan y con lo que pide revisión primero (pedido del
+ * usuario del 2026-11-13: «la red no explica nada»). Cada renglón: quién, la relación, con quién (varios del mismo tipo
+ * y del mismo origen en un renglón) y qué significa. Sin cruces de riesgo, se dice en vez de callarlo. Cada nombre abre
+ * su detalle, como en los carriles.
+ */
+function VinculosExplicados({ red, onElegir }: { red: Red; onElegir: (id: string) => void }) {
+  type Renglon = { clave: string; de: string; a: string[]; arista: GraphEdge };
+  const porGrupo = new Map<Grupo, Renglon[]>();
+  for (const e of red.aristas) {
+    const g = GRUPO[e.kind] ?? "negocio";
+    const lista = porGrupo.get(g) ?? porGrupo.set(g, []).get(g)!;
+    const clave = `${e.from}|${e.kind}|${textoRelacion(e)}`;
+    const r = lista.find((x) => x.clave === clave);
+    if (r) {
+      if (!r.a.includes(e.to)) r.a.push(e.to);
+    } else lista.push({ clave, de: e.from, a: [e.to], arista: e });
+  }
+  const Nombre = ({ id }: { id: string }) => (
+    <button
+      type="button"
+      onClick={() => onElegir(id)}
+      className="rounded font-semibold text-ink underline decoration-line underline-offset-4 hover:decoration-granate focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-granate"
+    >
+      {redactDnis(red.nombre(id))}
+    </button>
+  );
+  return (
+    <div className="divide-y divide-line overflow-hidden rounded-2xl border border-line bg-paper">
+      {!porGrupo.has("riesgo") && (
+        <p className="flex items-start gap-2.5 px-4 py-3 text-dato leading-snug text-inkSoft">
+          <ShieldCheck size={17} className="mt-0.5 shrink-0 text-mossTexto" aria-hidden />
+          <span>
+            <span className="font-semibold text-ink">Sin cruces de riesgo.</span> No encontramos a la gente del proveedor unida a la
+            entidad, a sus funcionarios ni a los otros postores (mismo domicilio, socios en común, firmas con conflicto).
+          </span>
+        </p>
+      )}
+      {ORDEN_GRUPO.filter((g) => porGrupo.has(g)).map((g) => {
+        const renglones = porGrupo.get(g)!;
+        return (
+          <section key={g} aria-label={NOMBRE_GRUPO[g]} className="px-4 py-3">
+            <h4 className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+              <span className={cn("inline-block h-1.5 w-5 shrink-0 self-center rounded-full", chipTono(TONO_GRUPO[g]))} aria-hidden />
+              <span className="text-dato font-semibold text-ink">{NOMBRE_GRUPO[g]}</span>
+              <span className="font-mono text-rotulo tabular-nums text-mute">{renglones.length}</span>
+            </h4>
+            <p className="mt-0.5 pl-7 text-meta leading-snug text-mute">{EXPLICA_GRUPO[g]}</p>
+            <ul className="mt-2 space-y-2.5 pl-7">
+              {renglones.map((r) => (
+                <li key={r.clave} className="text-meta leading-snug">
+                  <span className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5">
+                    <Nombre id={r.de} />
+                    <span className={cn("inline-flex items-center gap-1 font-semibold", TEXTO_GRUPO[g])}>
+                      <ArrowRight size={13} aria-hidden />
+                      {relacionDe(r.arista)}
+                      <ArrowRight size={13} aria-hidden />
+                    </span>
+                    {r.a.map((id, i) => (
+                      <span key={id} className="inline-flex items-center">
+                        <Nombre id={id} />
+                        {i < r.a.length - 1 && <span className="text-mute">{i === r.a.length - 2 ? "\u00a0y" : ","}</span>}
+                      </span>
+                    ))}
+                  </span>
+                  <span className="mt-0.5 block text-mute">{QUE_SIGNIFICA[r.arista.kind]}</span>
+                </li>
+              ))}
+            </ul>
+          </section>
+        );
+      })}
+    </div>
+  );
+}
 const POR_CARRIL = 8;
 /**
  * El ancho mínimo de un carril con letra real (13 px, nombres en dos líneas) y el hueco entre carriles (por donde pasan
  * las curvas). Sólo cuentan los carriles con alguien: sin empresas vinculadas, los otros cuatro se reparten el ancho.
  */
-const ANCHO_CARRIL = 128;
-const HUECO = 28;
+const ANCHO_CARRIL = 140;
+const HUECO = 22;
 /**
  * Cuánto puede faltar para que los carriles entren: hasta ahí la red se desliza de costado dentro de su caja (en una
  * columna de ~730 px a 1440, con la barra lateral del informe); con más, va como listas.
@@ -194,10 +303,14 @@ export function RedProveedor({ person, web, proveedor, ctx }: { person: any; web
           {estrecho ? "Ver la red como grafo" : "Pantalla completa"}
         </button>
       </div>
-      <p className="text-rotulo text-mute">
-        {red.nodos.length} {red.nodos.length === 1 ? "persona, empresa o entidad" : "personas, empresas y entidades"} unidas por{" "}
-        {red.aristas.length} {red.aristas.length === 1 ? "vínculo" : "vínculos"}.{" "}
-        {estrecho ? "Toca a cualquiera para ver su detalle." : "Pasa el mouse o enfoca a alguien para ver con quién se vincula y por qué; tócalo para ver su detalle."}
+      <VinculosExplicados red={red} onElegir={elegir} />
+
+      <p className="pt-2 text-meta font-semibold text-ink">El mapa de la red</p>
+      <p className="-mt-2 text-rotulo text-mute">
+        Las mismas {red.aristas.length === 1 ? "relación" : `${red.aristas.length} relaciones`} entre {red.nodos.length}{" "}
+        {red.nodos.length === 1 ? "persona, empresa o entidad" : "personas, empresas y entidades"}, de izquierda a derecha: la gente del proveedor, el
+        proveedor, sus otras empresas, la entidad y los otros postores.{" "}
+        {estrecho ? "Toca a cualquiera para ver su detalle." : "Pasa el mouse sobre alguien para resaltar sus vínculos; tócalo para ver su detalle."}
       </p>
 
       <div className="rounded-2xl border border-line bg-paperSoft p-4 sm:p-5">
@@ -384,15 +497,15 @@ function Carriles({
                             apagado && "opacity-40",
                           )}
                         >
-                          <span className="line-clamp-2 text-meta font-semibold leading-snug text-ink">{redactDnis(n.label)}</span>
+                          <span className="line-clamp-3 break-words text-meta font-semibold leading-snug text-ink" title={n.label}>{redactDnis(n.label)}</span>
                           {/* La segunda línea siempre está (su dato o qué es): al resaltar un vecino dice por qué está unido sin
                               cambiar de alto, así los demás nodos no se corren bajo el mouse. */}
                           {rel ? (
-                            <span className={cn("mt-0.5 line-clamp-1 text-rotulo font-semibold", TEXTO_GRUPO[GRUPO[rel.kind] ?? "negocio"])}>
+                            <span className={cn("mt-0.5 line-clamp-2 text-rotulo font-semibold", TEXTO_GRUPO[GRUPO[rel.kind] ?? "negocio"])}>
                               {relacionDe(rel)}
                             </span>
                           ) : (
-                            <span className="mt-0.5 line-clamp-1 text-rotulo text-mute">{redactDnis(segunda)}</span>
+                            <span className="mt-0.5 line-clamp-2 break-words text-rotulo text-mute">{redactDnis(segunda)}</span>
                           )}
                           {!ancho && suyos.length > 0 && (
                             <span className="mt-1.5 block space-y-0.5 border-t border-line pt-1.5">

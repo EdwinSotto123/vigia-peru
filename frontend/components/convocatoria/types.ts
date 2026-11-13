@@ -116,7 +116,7 @@ export type GraphNode = {
       | "party" | "contract" | "cargo_pasado" | "autoridad" | "firmante_conflicto"
       | "entidad" | "alcalde" | "funcionario_designado"
       | "municipio_familiar" | "partido_compartido"
-      | "postor_rival" | "socio_postor_conflicto" | "entidad_secundaria";
+      | "postor_rival" | "socio_postor" | "socio_postor_conflicto" | "entidad_secundaria";
   label: string;
   sublabel?: string;
   tooltip?: string;
