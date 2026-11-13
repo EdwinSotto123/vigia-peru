@@ -28,7 +28,8 @@ export function nombreModelo(id: string | null | undefined): string | null {
  * de Vigía. `criterio`: para decirlo así («Criterio de Vigía: …») y no como «Norma: …».
  */
 export function normaLegible(norma: string | null | undefined): { texto: string; criterio: boolean } | null {
-  const n = (norma ?? "").trim();
+  // Sin la URL cruda que algunas reglas pegan a la norma («D.S. 009-2025-EF (https://www.gob.pe/…»): la fuente va en su enlace.
+  const n = (norma ?? "").replace(/\s*\(\s*https?:\/\/[^)\s]*\)?/g, "").replace(/\s*https?:\/\/\S+/g, "").replace(/\s{2,}/g, " ").trim();
   if (!n) return null;
   const m = n.match(/^heur[ií]stica\s*[—–:-]\s*(.+)$/i);
   if (m) return { texto: m[1].charAt(0).toLocaleUpperCase("es") + m[1].slice(1), criterio: true };

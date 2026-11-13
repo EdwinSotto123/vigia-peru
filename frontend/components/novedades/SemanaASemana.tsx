@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { Clock } from "lucide-react";
 import { colorSerie } from "@/components/charts/BarraSegmentada";
-import { numero, porcentaje, solesCompacto } from "@/lib/formato";
+import { fechaCorta, numero, porcentaje, solesCompacto } from "@/lib/formato";
 import { diaMes, mesDe, rangoSemana } from "@/lib/semanas";
 import { cn } from "@/lib/utils";
 
@@ -302,6 +302,10 @@ export function SemanasMini({
           );
         })}
       </ol>
+      <p className="mt-2 flex justify-between gap-3 text-micro text-mute" aria-hidden>
+        <span>desde el {fechaCorta(datos[0].desde)}</span>
+        <span>la más alta: {numero(mayor)}</span>
+      </p>
     </figure>
   );
 }

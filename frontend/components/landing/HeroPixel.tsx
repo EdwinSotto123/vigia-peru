@@ -260,7 +260,7 @@ export function HeroPixel({ aliados = [], piso = null }: { aliados?: FilaRanking
         <canvas ref={lienzo} aria-hidden className="pointer-events-none absolute inset-0 z-30 hidden h-full w-full lg:block" />
         <p
           aria-hidden
-          className="puente pointer-events-none invisible absolute inset-0 z-40 hidden items-center justify-center text-center font-display text-3xl font-bold text-ink/85 lg:flex"
+          className="puente sobre-oscuro pointer-events-none invisible absolute inset-0 z-40 hidden items-center justify-center text-center font-display text-3xl font-bold text-paper/90 lg:flex"
         >
           Vigía mira. Alguien lo hace posible.
         </p>

@@ -14,7 +14,7 @@ import { ChipsDetalle, CuerpoDetalle, DatosClave, PieDetalle, type DatoClave } f
 import { PesoRiesgo } from "@/components/contratos/PesoRiesgo";
 import { severidadDeContrato } from "@/lib/severidad";
 import { PUBLIC_API_BASE, faseHumana, faseProgreso, type Procesamiento } from "@/lib/auditoria";
-import { fecha, numero, oracion, porcentaje, relativo, soles } from "@/lib/formato";
+import { fecha, fechaCorta, numero, oracion, porcentaje, relativo, soles } from "@/lib/formato";
 import { tituloNatural } from "@/lib/landing";
 import { aFilaVivo, deAnalisis, deProcesamiento, esAnalisisReal, unirLecturas, type FilaLectura, type FilaVivo, type FotoVivo } from "./vivo";
 
@@ -55,10 +55,13 @@ function duracion(seg: number): string {
 }
 
 /** «desde hace 3 h», «desde ayer», «desde el 12 oct.»: la fecha real de la última lectura terminada. */
-function desdeCuando(iso: string): string {
-  const r = relativo(iso);
+function desdeCuando(iso: string, ahora: number | null): string {
+  const r = cuando(iso, ahora);
   return /^(hace|ayer)/.test(r) ? r : `el ${r}`;
 }
+
+/** Antes de montar (sin hora del navegador), la fecha: igual en el servidor y en el navegador. Después, «hace 4 min». */
+const cuando = (iso: string, ahora: number | null) => (ahora == null ? fechaCorta(iso) : relativo(iso, ahora));
 
 const pctDe = (f: FilaVivo) => faseProgreso({ estado: "procesando", faseIndex: f.faseIndex, faseActual: f.faseActual, fases: f.fases });
 const faseDe = (f: FilaVivo) =>
@@ -168,14 +171,14 @@ export function EnVivoInicio({ inicial }: { inicial: FotoVivo }) {
   const ultima = foto.lecturas[0]?.fecha ?? null;
   // Sin nada en análisis y sin terminar una lectura en dos días, la lectura está en pausa, y se dice así. Antes decía
   // «Sin lecturas desde el 12 oct.», que se leía como un hueco de los datos y no como un estado (auditoría 2026-10-27).
-  const enPausa = !!ultima && Date.now() - new Date(ultima).getTime() > PAUSA_MS;
+  const enPausa = !!ultima && ahora != null && ahora - new Date(ultima).getTime() > PAUSA_MS;
   // El estado, en una línea: late sólo si de verdad hay algo en análisis; si no, la fecha real de la última lectura.
   const estado = vivo
     ? `${numero(foto.totalEnAnalisis)} en análisis ahora`
     : !foto.vivoConocido
-      ? ultima ? `La última terminó ${relativo(ultima)}` : null
+      ? ultima ? `La última terminó ${cuando(ultima, ahora)}` : null
       : ultima
-        ? enPausa ? `La lectura está en pausa desde ${desdeCuando(ultima)}` : `Ninguna en análisis ahora; la última terminó ${relativo(ultima)}`
+        ? enPausa ? `La lectura está en pausa desde ${desdeCuando(ultima, ahora)}` : `Ninguna en análisis ahora; la última terminó ${cuando(ultima, ahora)}`
         : "Ninguna en análisis ahora";
 
   const detalles: DetalleFila[] = [
@@ -228,7 +231,7 @@ export function EnVivoInicio({ inicial }: { inicial: FotoVivo }) {
             <li key={`leida-${f.ocid}`}>
               <BotonFila
                 id={`leida-${f.ocid}`}
-                etiqueta={`${tituloDe(f.titulo)}: ${palabraLectura(f)}, terminó ${f.fecha ? relativo(f.fecha) : "sin fecha"}. Ver el detalle`}
+                etiqueta={`${tituloDe(f.titulo)}: ${palabraLectura(f)}, terminó ${f.fecha ? cuando(f.fecha, ahora) : "sin fecha"}. Ver el detalle`}
                 className={FILA}
               >
                 <span className="flex items-start gap-3">
@@ -246,7 +249,7 @@ export function EnVivoInicio({ inicial }: { inicial: FotoVivo }) {
                   <span className="flex shrink-0 flex-col items-end gap-1 text-right">
                     <ChipLectura f={f} />
                     <Dato tipo="fecha" nombre="Terminó" className="text-rotulo text-mute">
-                      {f.fecha ? relativo(f.fecha) : "Sin fecha"}
+                      {f.fecha ? cuando(f.fecha, ahora) : "Sin fecha"}
                     </Dato>
                   </span>
                 </span>

@@ -12,7 +12,7 @@ import { PartidoQueGobierna } from "@/components/contratos/PartidoQueGobierna";
 import { baseApiNavegador } from "@/lib/api-client";
 import type { GobiernoContrato } from "@/lib/contratos";
 import { cn } from "@/lib/utils";
-import { listaY, numero, porcentaje, solesCompacto } from "@/lib/formato";
+import { listaY, numero, oracion, porcentaje, solesCompacto } from "@/lib/formato";
 import { PersonName, Ruc, esPersonaNatural } from "../../Redact";
 import { fechaDossier, montoDossier, type ConteoSeveridad, type EstadoCorrida } from "../dossier";
 import { oeceProcesoUrl } from "../utils";
@@ -65,6 +65,7 @@ export function IdentidadDossier({
     return () => { vivo = false; };
   }, [conv.ocid, conv.codigo]);
   const natural = esPersonaNatural(ganador?.ruc);
+  const objeto = oracion(objetoCompleto(conv.objeto) || "");
   const desde = useSearchParams().get("desde") ?? undefined;
   const accion =
     "inline-flex min-h-[32px] items-center gap-1.5 rounded-full border border-line bg-paper px-3 py-1 text-rotulo font-semibold text-ink transition-colors duration-rapido hover:bg-paperDeep";
@@ -89,8 +90,14 @@ export function IdentidadDossier({
       </div>
 
       <div>
-        <Titulo className="max-w-4xl break-words font-display text-seccion font-bold leading-tight tracking-tight text-ink text-balance sm:text-titulo">
-          {objetoCompleto(conv.objeto) || "Contrato sin objeto registrado"}
+        <Titulo
+          className={cn(
+            "max-w-4xl break-words font-display font-bold tracking-tight text-ink text-balance",
+            // Un objeto largo ocupaba media pantalla del celular en letra de título: baja un escalón por tramo de largo.
+            objeto.length > 150 ? "text-bloque leading-snug sm:text-seccion" : objeto.length > 80 ? "text-seccion leading-snug sm:text-cifra" : "text-seccion leading-tight sm:text-titulo",
+          )}
+        >
+          {objeto || "Contrato sin objeto registrado"}
         </Titulo>
         {/* Quién compra, en una línea con el código. */}
         <p className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-dato text-inkSoft">

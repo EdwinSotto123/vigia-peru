@@ -210,7 +210,7 @@ export function ResultadoAnalisis({ resultado: r, ocid, score, banderas, duracio
           {(r?.documentos || (r?.recortes ?? 0) > 0 || (r?.validacionesPendientes?.length ?? 0) > 0) && (
             <div className="min-w-0 border-l-2 border-line pl-3">
               <dt className="text-rotulo font-semibold text-inkSoft">Expediente</dt>
-              <dd className="mt-1 space-y-1 text-ink">
+              <dd className="mt-1 flex flex-col items-start gap-1 text-ink">
                 {r?.documentos && (
                   <div className="inline-flex flex-wrap items-center gap-x-3 gap-y-0.5" title={r.documentos.titulos.join(", ")}>
                     <span className="inline-flex items-center gap-1.5">
