@@ -12,6 +12,7 @@ import { UserMenu } from "@/components/auth/UserMenu";
 import { BuscarGlobal } from "@/components/BuscarGlobal";
 import { FranjaTextil, Marca } from "@/components/marca";
 import { FLAGS } from "@/lib/flags";
+import { RUTAS_COMO_TRABAJA } from "@/components/sitio/VistasSeccion";
 
 type Intencion = "explorar" | "alertas" | "participar";
 
@@ -142,28 +143,18 @@ const SECTIONS: Section[] = [
         href: "/app/hallazgos",
         label: "Señales",
         icon: <Flag size={16} />,
-        hint: "Qué revisar primero",
+        hint: "Publicadas y lo nuevo de la semana",
         intencion: "alertas",
         match: (p) =>
-          p.startsWith("/app/hallazgos") || p.startsWith("/app/alertas") || p.startsWith("/alerta"),
-      },
-      {
-        // Lo nuevo: la última semana que publicó el Estado (contratos con antecedentes graves), informes y sanciones.
-        // «De esta semana» no era cierto: el Estado publica las buenas pro con semanas de atraso.
-        href: "/app/novedades",
-        label: "Lo nuevo",
-        icon: <Newspaper size={16} />,
-        hint: "Lo último publicado",
-        intencion: "alertas",
-        match: (p) => p.startsWith("/app/novedades"),
+          p.startsWith("/app/hallazgos") || p.startsWith("/app/novedades") || p.startsWith("/app/alertas") || p.startsWith("/alerta"),
       },
       {
         href: "/app/denuncias",
         label: "Denuncias ciudadanas",
         icon: <MessageSquareWarning size={16} />,
-        hint: "Lo que reporta la gente",
+        hint: "Lo que reporta la gente, y denunciar",
         intencion: "alertas",
-        match: (p) => p.startsWith("/app/denuncias"),
+        match: (p) => p.startsWith("/app/denuncias") || p.startsWith("/reporte"),
       },
     ],
   },
@@ -178,13 +169,6 @@ const SECTIONS: Section[] = [
         hint: "Ayúdanos a seguir vigilando",
         featured: true,
         match: (p) => p.startsWith("/app/apoyar") || p.startsWith("/app/cuanto-cuesta") || p.startsWith("/app/financiar") || p.startsWith("/impacto"),
-      },
-      {
-        href: "/reporte/nuevo",
-        label: "Denunciar una obra",
-        icon: <Camera size={16} />,
-        hint: "Con foto y ubicación",
-        match: (p) => p.startsWith("/reporte"),
       },
       {
         href: "/app/aliados",
@@ -211,54 +195,11 @@ const SECTIONS: Section[] = [
     title: "Cómo trabaja Vigía",
     items: [
       {
-        href: "/app/auditoria",
-        label: "Auditoría en vivo",
-        icon: <Activity size={16} />,
-        hint: "Lo que se lee ahora",
-        intencion: "participar",
-        match: (p) => p.startsWith("/app/auditoria"),
-      },
-      {
-        href: "/app/ia",
-        label: "Lo que leyó la IA",
-        icon: <ScanText size={16} />,
-        hint: "Lo que leyó y encontró",
-        match: (p) => p === "/app/ia",
-      },
-      {
         href: "/metodologia",
-        label: "Metodología",
+        label: "Método y fuentes",
         icon: <Scale size={16} />,
-        hint: "Cómo se calcula cada señal",
-        match: (p) => p === "/metodologia",
-      },
-      {
-        href: "/fuentes",
-        label: "Fuentes",
-        icon: <Database size={16} />,
-        hint: "De dónde sale cada dato",
-        match: (p) => p === "/fuentes",
-      },
-      {
-        href: "/preguntas",
-        label: "Preguntas frecuentes",
-        icon: <HelpCircle size={16} />,
-        hint: "Las dudas más comunes",
-        match: (p) => p === "/preguntas" || p.startsWith("/preguntas/"),
-      },
-      {
-        href: "/glosario",
-        label: "Glosario",
-        icon: <BookOpen size={16} />,
-        hint: "Cada término, en simple",
-        match: (p) => p === "/glosario",
-      },
-      {
-        href: "/privacidad",
-        label: "Privacidad",
-        icon: <Lock size={16} />,
-        hint: "Tus datos y cómo corregirlos",
-        match: (p) => p === "/privacidad",
+        hint: "Metodología, fuentes, preguntas y privacidad",
+        match: (p) => RUTAS_COMO_TRABAJA.some((r) => p === r || p.startsWith(`${r}/`)),
       },
     ],
   },

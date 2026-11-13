@@ -17,7 +17,7 @@ export function AyudaPuntaje({ children }: { children?: ReactNode }) {
       </span>
       {children ? <span className="mt-1.5 block">{children}</span> : null}
       <span className="mt-1.5 block">
-        <Link href="/metodologia#puntaje" className="font-medium text-ink underline underline-offset-2 hover:text-granate">
+        <Link href="/metodologia?seccion=puntaje" className="font-medium text-ink underline underline-offset-2 hover:text-granate">
           Cómo se calcula
         </Link>
       </span>

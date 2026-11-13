@@ -18,6 +18,7 @@ import { rutaContrato } from "@/lib/rutas";
 import { textoSenal } from "@/lib/senalesMenor";
 import { nombreModelo } from "@/lib/modelos";
 import { cn } from "@/lib/utils";
+import { VistasComoTrabaja } from "@/components/sitio/VistasSeccion";
 
 export const revalidate = 3600;
 
@@ -61,6 +62,7 @@ export default async function IaPage() {
           </Ayuda>
         }
       />
+      <VistasComoTrabaja activa="ia" />
       {r ? <Relato r={r} /> : <EstadoError>Vuelve a intentarlo en unos minutos: las cifras de las lecturas no llegaron.</EstadoError>}
     </Pagina>
   );

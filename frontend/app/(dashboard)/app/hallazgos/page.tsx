@@ -1,3 +1,4 @@
+import { VistasSenales } from "@/components/sitio/VistasSeccion";
 import { Suspense } from "react";
 import { canonica } from "@/lib/seo";
 import { Ayuda, EncabezadoPagina, Migas, Pagina } from "@/components/patrones";
@@ -106,15 +107,7 @@ export default async function HallazgosPage({
 }
 
 function vistas(activa: SenalesQuery["vista"], publicadas: number | null, enRevision: number | null) {
-  return (
-    <Vistas
-      etiqueta="Qué señales ver"
-      vistas={[
-        { href: RUTA, etiqueta: "Publicadas", conteo: publicadas, activa: activa === "publicadas" },
-        { href: `${RUTA}?vista=revision`, etiqueta: "Financiados en revisión", conteo: enRevision, activa: activa === "revision" },
-      ]}
-    />
-  );
+  return <VistasSenales activa={activa === "revision" ? "revision" : "publicadas"} publicadas={publicadas} enRevision={enRevision} />;
 }
 
 /** Carga de la vista en revisión: las vistas sin conteos (un "0" provisional se lee como dato) y la lista en esqueleto. */

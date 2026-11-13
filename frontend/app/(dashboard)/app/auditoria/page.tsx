@@ -27,6 +27,7 @@ import {
 import { getResumenVivo } from "@/lib/contratos";
 import { getZona, getZonas } from "@/lib/financiamiento";
 import { fechaCorta, hoyLima } from "@/lib/formato";
+import { VistasComoTrabaja } from "@/components/sitio/VistasSeccion";
 
 export const metadata = {
   title: "Auditoría en vivo",
@@ -225,6 +226,7 @@ export default async function AuditoriaPage({
           </EnlaceAccion>
         }
       />
+      <VistasComoTrabaja activa="auditoria" />
 
       <ResumenAuditoria initial={resumen} ritmoInicial={ritmo} pollMs={5000}>
         <div className="space-y-6">

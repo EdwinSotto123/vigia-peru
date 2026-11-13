@@ -1,3 +1,5 @@
+import { VistasComoTrabaja } from "@/components/sitio/VistasSeccion";
+import { Pestanas } from "@/components/patrones";
 import type { Metadata } from "next";
 import { canonica } from "@/lib/seo";
 import Link from "next/link";
@@ -160,95 +162,136 @@ function Seccion({ titulo, intro, children }: { titulo: string; intro?: React.Re
   return (
     <section className="space-y-4">
       <div className="max-w-2xl space-y-1.5">
-        <h2 className="font-display text-seccion font-bold text-ink text-balance">{titulo}</h2>
-        {intro && <p className="text-cuerpo leading-relaxed text-inkSoft text-pretty">{intro}</p>}
+        <h2 className="font-display text-bloque font-bold text-ink text-balance">{titulo}</h2>
+        {intro && <p className="text-dato leading-relaxed text-inkSoft text-pretty">{intro}</p>}
       </div>
       {children}
     </section>
   );
 }
 
-export default function FuentesPage() {
+export default function FuentesPage({ searchParams }: { searchParams?: { seccion?: string | string[] } }) {
+  const seccion = Array.isArray(searchParams?.seccion) ? searchParams?.seccion[0] : searchParams?.seccion;
   return (
     <Pagina>
-      <Migas items={[{ etiqueta: "Inicio", href: "/app" }, { etiqueta: "De dónde salen los datos", href: "/fuentes" }]} />
+      <Migas items={[{ etiqueta: "Inicio", href: "/app" }, { etiqueta: "Cómo trabaja Vigía", href: "/metodologia" }, { etiqueta: "Fuentes", href: "/fuentes" }]} />
       <EncabezadoPagina
         titulo="De dónde salen los datos"
-        bajada="Todo lo que ves en Vigía viene de registros públicos del Estado. Acá está cada fuente, qué aporta y hasta dónde llega —sin esconder los límites."
+        bajada="Cada fuente, qué aporta y hasta dónde llega. Lo que no viene de un registro del Estado (precios de tiendas, prensa, lecturas con IA) se dice en su lugar."
       />
+      <VistasComoTrabaja activa="fuentes" />
 
-      {/* Hasta cuándo llega cada fuente y si está al día (GET /estado/datos); sin respuesta, la página sigue sin esta parte. */}
-      <Suspense fallback={null}>
-        <EstadoDatos />
-      </Suspense>
-
-      <Seccion
-        titulo="El SEACE, por dos puertas"
-        intro={
-          <>
-            La contratación pública la regula una sola institución: el <b>OECE</b> (antes se llamaba OSCE; es el mismo
-            organismo, renombrado). Sus datos salen por dos ventanas distintas del mismo sistema, el SEACE. Las unimos por
-            el código del proceso.
-          </>
-        }
-      >
-        <div className="grid gap-4 sm:grid-cols-2">
-          {PUERTAS.map((f) => (
-            <TarjetaFuente key={f.nombre} f={f} />
-          ))}
-        </div>
-      </Seccion>
-
-      <Seccion
-        titulo="Los registros con los que se cruza"
-        intro="El SEACE dice qué se compró y quién ganó. Estos otros registros dicen quién está detrás y con qué vínculos. El cruce de ambos es lo que levanta una bandera."
-      >
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {REGISTROS.map((f) => (
-            <TarjetaFuente key={f.nombre} f={f} />
-          ))}
-        </div>
-      </Seccion>
-
-      <Seccion
-        titulo="Cómo se cruzan"
-        intro="Casi ninguna bandera vive en una sola fuente: nace de juntar «ganó en el SEACE» con otro registro."
-      >
-        <ul className="divide-y divide-line overflow-hidden rounded-2xl border border-line bg-paper">
-          {CRUCES.map((c) => (
-            <li key={c.bandera} className="flex flex-col gap-0.5 px-5 py-3 sm:flex-row sm:items-baseline sm:gap-4">
-              <span className="font-display text-cuerpo font-semibold text-ink sm:w-64 sm:shrink-0">{c.bandera}</span>
-              <span className="text-meta leading-relaxed text-inkSoft">{c.formula}</span>
-            </li>
-          ))}
-        </ul>
-      </Seccion>
-
-      <Seccion titulo="Qué todavía NO tenemos">
-        <div className="space-y-3 rounded-2xl border border-line bg-paperSoft p-5">
-          <p className="text-meta leading-relaxed text-inkSoft">
-            Somos honestos con los huecos. Por ejemplo, <b>«quién pidió» una compra</b> (el área usuaria o el funcionario
-            que hizo el requerimiento) <b>no está en los datos abiertos</b>: vive en el expediente interno de la entidad, que
-            el SEACE no publica para las órdenes de compra y solo a medias en las bases de los contratos.
-          </p>
-          <p className="text-meta leading-relaxed text-inkSoft">
-            Por eso una bandera siempre es <b>una señal para revisar</b>, nunca una acusación: mostramos el hecho público y
-            su fuente, y la conclusión la saca una persona.
-          </p>
-        </div>
-      </Seccion>
-
-      <p className="text-meta text-mute">
-        ¿Quieres verlo como un mapa interactivo? Está en la{" "}
-        <Link href="/" className={ENLACE}>
-          portada
-        </Link>
-        . Y todo el código que limpia cada fuente es público en{" "}
-        <a href={REPO} target="_blank" rel="noreferrer" className={ENLACE}>
-          GitHub
-        </a>
-        .
-      </p>
+      {/* Una pestaña por pregunta (2026-11-12): antes eran cinco secciones apiladas, 3,6 pantallas de alto. */}
+      <Pestanas
+        etiqueta="Partes de las fuentes"
+        activa={seccion}
+        pestanas={[
+          {
+            clave: "hoy",
+            etiqueta: "Cómo están hoy",
+            contenido: (
+              // Hasta cuándo llega cada fuente y si está al día (GET /estado/datos); sin respuesta, se dice.
+              <Suspense fallback={<p className="text-meta text-mute" role="status">Consultando el estado de cada fuente…</p>}>
+                <EstadoDatos />
+              </Suspense>
+            ),
+          },
+          {
+            clave: "seace",
+            etiqueta: "El SEACE",
+            conteo: PUERTAS.length,
+            contenido: (
+              <Seccion
+                titulo="El SEACE, por dos puertas"
+                intro={
+                  <>
+                    La contratación pública la regula una sola institución: el <b>OECE</b> (antes se llamaba OSCE; es el mismo
+                    organismo, renombrado). Sus datos salen por dos ventanas distintas del mismo sistema, el SEACE. Las unimos
+                    por el código del proceso.
+                  </>
+                }
+              >
+                <div className="grid gap-4 sm:grid-cols-2">
+                  {PUERTAS.map((f) => (
+                    <TarjetaFuente key={f.nombre} f={f} />
+                  ))}
+                </div>
+              </Seccion>
+            ),
+          },
+          {
+            clave: "registros",
+            etiqueta: "Registros que se cruzan",
+            conteo: REGISTROS.length,
+            contenido: (
+              <Seccion
+                titulo="Los registros con los que se cruza"
+                intro="El SEACE dice qué se compró y quién ganó. Estos otros registros dicen quién está detrás y con qué vínculos."
+              >
+                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
+                  {REGISTROS.map((f) => (
+                    <TarjetaFuente key={f.nombre} f={f} />
+                  ))}
+                </div>
+              </Seccion>
+            ),
+          },
+          {
+            clave: "cruces",
+            etiqueta: "Cómo se cruzan",
+            conteo: CRUCES.length,
+            contenido: (
+              <Seccion titulo="Cómo se cruzan" intro="Casi ninguna bandera vive en una sola fuente: nace de juntar «ganó en el SEACE» con otro registro.">
+                <div className="overflow-hidden rounded-2xl border border-line bg-paper">
+                  <table className="w-full text-left">
+                    <thead className="bg-paperSoft text-rotulo text-mute">
+                      <tr>
+                        <th scope="col" className="px-4 py-2 font-medium sm:px-5">Bandera</th>
+                        <th scope="col" className="px-4 py-2 font-medium sm:px-5">Registros que se juntan</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {CRUCES.map((c) => (
+                        <tr key={c.bandera} className="border-t border-line align-baseline">
+                          <th scope="row" className="px-4 py-2.5 text-dato font-semibold text-ink sm:w-72 sm:px-5">{c.bandera}</th>
+                          <td className="px-4 py-2.5 text-meta leading-relaxed text-inkSoft sm:px-5">{c.formula}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </Seccion>
+            ),
+          },
+          {
+            clave: "falta",
+            etiqueta: "Lo que no tenemos",
+            contenido: (
+              <div className="grid gap-4 lg:grid-cols-2">
+                <div className="rounded-2xl border border-line bg-paper p-4 sm:p-5">
+                  <p className="text-dato font-semibold text-ink">Quién pidió la compra</p>
+                  <p className="mt-1 text-meta leading-relaxed text-inkSoft">
+                    El área usuaria o el funcionario que hizo el requerimiento <b>no está en los datos abiertos</b>: vive en el
+                    expediente interno de la entidad, que el SEACE no publica para las órdenes de compra y solo a medias en
+                    las bases de los contratos.
+                  </p>
+                </div>
+                <div className="rounded-2xl border border-line bg-paperSoft p-4 sm:p-5">
+                  <p className="text-dato font-semibold text-ink">Por eso una bandera es una señal para revisar</p>
+                  <p className="mt-1 text-meta leading-relaxed text-inkSoft">
+                    Nunca una acusación: mostramos el hecho público y su fuente, y la conclusión la saca una persona. El código
+                    que limpia cada fuente es público en{" "}
+                    <a href={REPO} target="_blank" rel="noreferrer" className={ENLACE}>
+                      GitHub
+                    </a>
+                    .
+                  </p>
+                </div>
+              </div>
+            ),
+          },
+        ]}
+      />
     </Pagina>
   );
 }

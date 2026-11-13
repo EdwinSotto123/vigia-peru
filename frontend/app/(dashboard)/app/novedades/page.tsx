@@ -23,6 +23,7 @@ import { tituloNatural } from "@/lib/landing";
 import { regionDe } from "@/lib/regiones";
 import { rutaContrato } from "@/lib/rutas";
 import { diaLargo, diasDesde, rangoSemana } from "@/lib/semanas";
+import { VistasSenales } from "@/components/sitio/VistasSeccion";
 
 export const metadata: Metadata = {
   title: "Lo nuevo",
@@ -171,7 +172,7 @@ export default async function NovedadesPage({ searchParams }: { searchParams?: R
     <Pagina>
       <Migas items={[{ etiqueta: "Inicio", href: "/app" }, { etiqueta: "Lo nuevo", href: "/app/novedades" }]} />
       <EncabezadoPagina
-        titulo="Lo nuevo"
+        titulo="Lo nuevo de la semana"
         bajada={
           <>
             Lo último que publicó el Estado, semana a semana, y lo que Vigía encontró ahí: contratos que ganó alguien con un
@@ -188,6 +189,7 @@ export default async function NovedadesPage({ searchParams }: { searchParams?: R
           ) : undefined
         }
       />
+      <VistasSenales activa="semana" />
       {!d ? (
         <VacioEnLinea variante="compacta" tono="error">No pudimos leer lo nuevo ahora. Vuelve a intentarlo en un momento.</VacioEnLinea>
       ) : (

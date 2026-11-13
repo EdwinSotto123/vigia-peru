@@ -37,7 +37,8 @@ const PROMESAS: Record<Modo, { icono: React.ReactNode; texto: string }[]> = {
   ],
 };
 
-export function ReporteNuevo() {
+/** `enPanel`: dentro de la ventana de «Denunciar» (BotonDenunciar): sin el marco de página, las migas ni el título, que ya los da la ventana. */
+export function ReporteNuevo({ enPanel = false }: { enPanel?: boolean } = {}) {
   const search = useSearchParams();
   const initialModo: Modo = search.get("modo") === "entidad" ? "entidad" : "obra";
   const initialRuc = search.get("ruc") ?? "";
@@ -59,16 +60,27 @@ export function ReporteNuevo() {
 
   // `Pagina` como toda la app: el formulario usa todo el ancho porque son tres columnas (desde lg) que se
   // habilitan una tras otra; en el teléfono se apilan como un acordeón de pasos.
+  const Marco = enPanel ? "div" : Pagina;
   return (
-    <Pagina>
-      <Migas items={[{ etiqueta: "Inicio", href: "/app" }, { etiqueta: "Denunciar", href: "/reporte/nuevo" }]} />
+    <Marco>
+      {!enPanel && <Migas items={[{ etiqueta: "Inicio", href: "/app" }, { etiqueta: "Denuncias", href: "/app/denuncias" }, { etiqueta: "Denunciar", href: "/reporte/nuevo" }]} />}
       <div className="space-y-3">
-        <Link href="/app/denuncias" className="inline-flex min-h-[44px] items-center gap-2 text-meta font-medium text-inkSoft hover:text-ink">
-          <ArrowLeft size={14} aria-hidden /> Volver a las denuncias
-        </Link>
 
         {/* Una sola franja: título, frase, las tres garantías y el tipo de denuncia como pestañas. */}
         <div className="space-y-3 rounded-2xl border border-line bg-paperSoft px-4 py-4 sm:px-5">
+          {enPanel ? (
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <p className="min-w-0 flex-1 text-dato leading-relaxed text-inkSoft">
+                {modo === "obra"
+                  ? "Sube una foto, marca el lugar y cuenta qué pasa. Se publica para que cualquiera la vea."
+                  : "Elige la entidad y cuenta el patrón que viste. Tu denuncia queda en reserva: no se publica."}
+              </p>
+              <div className="grid w-full grid-cols-2 gap-1 rounded-full border border-line bg-paperDeep p-1 sm:w-auto" role="group" aria-label="Qué quieres denunciar">
+                <TabBig active={modo === "obra"} onClick={() => setModo("obra")} icon={<HardHat size={16} />} title="Una obra" subtitle="Paralizada, fantasma, mal hecha" />
+                <TabBig active={modo === "entidad"} onClick={() => setModo("entidad")} icon={<Building2 size={16} />} title="Una entidad" subtitle="Un patrón en una institución" />
+              </div>
+            </div>
+          ) : (
           <EncabezadoPagina
             titulo="Denuncia lo que viste"
             bajada={
@@ -83,6 +95,7 @@ export function ReporteNuevo() {
               </div>
             }
           />
+          )}
           <ul className="flex flex-wrap gap-2" aria-label="Qué pasa con tu denuncia">
             {PROMESAS[modo].map((p) => (
               <li key={p.texto} className="inline-flex min-h-[32px] items-center gap-1.5 rounded-full border border-line bg-paper px-3 py-1 text-rotulo leading-4 font-medium text-inkSoft">
@@ -108,7 +121,7 @@ export function ReporteNuevo() {
             onDone={(id, region) => {
               setOkRegion(region ?? null);
               setOk(id);
-              window.scrollTo({ top: 0 });
+              if (!enPanel) window.scrollTo({ top: 0 });
             }}
           />
         ) : (
@@ -124,7 +137,7 @@ export function ReporteNuevo() {
           />
         )}
       </div>
-    </Pagina>
+    </Marco>
   );
 }
 

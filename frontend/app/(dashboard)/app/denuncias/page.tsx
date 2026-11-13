@@ -12,6 +12,7 @@ import { confirmadosDe, parseDenunciasQuery, type EstadoDenunciaFiltro } from "@
 import { REGIONES } from "@/lib/peru-data";
 import { maskDnis } from "@/lib/privacidad";
 import { numero, porcentaje } from "@/lib/formato";
+import { BotonDenunciar } from "@/components/denuncias/BotonDenunciar";
 
 export const metadata: Metadata = {
   title: "Denuncias ciudadanas",
@@ -28,8 +29,6 @@ const MUESTRA = 200;
 const CATEGORIAS_OBRA = new Set<string>(["obra_paralizada", "obra_fantasma", "funcionario_sospechoso", "irregularidad_general"]);
 const REGIONES_ORDENADAS = [...REGIONES].sort((a, b) => a.nombre.localeCompare(b.nombre, "es"));
 
-const BOTON_DENUNCIAR =
-  "inline-flex min-h-[40px] items-center gap-1.5 rounded-full bg-granate px-4 py-2 text-dato leading-5 font-semibold text-paper transition-colors duration-rapido hover:bg-granate-deep";
 const BOTON_SECUNDARIO =
   "inline-flex min-h-[40px] items-center gap-1.5 rounded-full border border-line bg-paper px-4 py-2 text-dato leading-5 font-semibold text-ink transition-colors duration-rapido hover:border-granate/40 hover:bg-granate-50";
 
@@ -198,10 +197,7 @@ export default async function DenunciasPage({
         }
         acciones={
           sinNinguna ? (
-            <Link href="/reporte/nuevo" className={BOTON_DENUNCIAR}>
-              <MessageSquareWarning size={16} aria-hidden />
-              Denunciar una obra
-            </Link>
+            <BotonDenunciar>Denunciar</BotonDenunciar>
           ) : (
             <>
               {!fallo && (
@@ -210,10 +206,7 @@ export default async function DenunciasPage({
                   <ArrowRight size={13} aria-hidden />
                 </Link>
               )}
-              <Link href="/reporte/nuevo" className={BOTON_DENUNCIAR}>
-                <MessageSquareWarning size={16} aria-hidden />
-                Denunciar una obra
-              </Link>
+              <BotonDenunciar>Denunciar</BotonDenunciar>
             </>
           )
         }

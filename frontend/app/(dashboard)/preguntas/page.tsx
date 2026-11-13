@@ -6,6 +6,7 @@ import { EnlaceAccion } from "@/components/ui/EnlaceAccion";
 import { FUENTES_FLUJO } from "@/components/landing/fuentesFlujo";
 import { AbrirPorAncla } from "./AbrirPorAncla";
 import { TemaPreguntas, type TemaFAQ } from "./TemaPreguntas";
+import { VistasComoTrabaja } from "@/components/sitio/VistasSeccion";
 
 export const metadata: Metadata = {
   title: "Preguntas frecuentes",
@@ -223,6 +224,7 @@ export default async function PreguntasPage() {
           </>
         }
       />
+      <VistasComoTrabaja activa="preguntas" />
 
       {/* Índice de temas sólo en una columna (celular, tableta): en escritorio los
           cuatro temas se ven juntos y el índice repetiría lo que ya está a la vista. */}

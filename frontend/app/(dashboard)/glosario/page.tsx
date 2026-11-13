@@ -4,6 +4,7 @@ import { EncabezadoPagina, Migas, Pagina } from "@/components/patrones";
 import { CeldaPrincipal, TablaFiltrable, type Columna, type FilaFiltrable } from "@/components/listado";
 import { Dato } from "@/components/ui/Dato";
 import { GLOSARIO, nombreTermino } from "@/lib/glosario";
+import { VistasComoTrabaja } from "@/components/sitio/VistasSeccion";
 
 export const metadata: Metadata = {
   title: "Glosario",
@@ -62,12 +63,13 @@ export default function GlosarioPage({ searchParams }: { searchParams?: { q?: st
         titulo="Glosario"
         bajada="Cada término que usa Vigía, explicado en palabras simples. Es la misma explicación que se abre con el «?» junto a cada dato."
       />
+      <VistasComoTrabaja activa="glosario" />
       <TablaFiltrable
         columnas={COLUMNAS}
         filas={filas}
         etiqueta="Términos del glosario"
         nombre="términos"
-        tam={100}
+        tam={20}
         buscar={{ placeholder: "Buscar un término: PIM, CAS, buena pro…", etiqueta: "Buscar en el glosario", inicial: q ?? undefined }}
         filtros={[{ clave: "tema", etiqueta: "Tema del término", corta: "Tema", opciones: TEMAS.map((t) => ({ valor: t, etiqueta: t })) }]}
         ordenes={[
