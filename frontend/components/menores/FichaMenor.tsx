@@ -191,7 +191,7 @@ function fraseSenal(s: SenalMenor, f: FichaMenor): ReactNode {
       );
     }
     case "contrato_documento_ajeno":
-      return `${doc} que subió al SEACE es de otra compra: el de ésta no está publicado.`;
+      return `${doc} que subió al SEACE es de otra compra: el documento de ésta no está publicado.`;
     case "menor_partido_mismo_dia":
       return `la entidad cotizó el mismo día ${contratos ? numero(contratos) : "varios"} contratos menores con este proveedor que juntos suman ${soles(s.monto)}, más que el tope de 8 UIT${topeTxt}.`;
     case "menor_partido_en_el_anio":
