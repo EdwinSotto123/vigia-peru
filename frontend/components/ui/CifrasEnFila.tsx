@@ -78,6 +78,8 @@ function parteDe(it: Cifra): { p: number; rotulo: boolean } | null {
     const p = Number(pct[1].replace(",", ".")) / 100;
     return p >= 0 && p <= 1 ? { p, rotulo: false } : null;
   }
+  // «de 2017 a 2025» es un periodo, no un denominador.
+  if (/^de \d{4}( a |[,.]|$)/.test(it.contexto)) return null;
   const de = it.contexto.match(/^de ([\d,]+)(?!\.\d)\b/);
   if (!de || typeof it.valor !== "string" || !/^[\d,]+$/.test(it.valor.trim())) return null;
   const total = entero(de[1]);
