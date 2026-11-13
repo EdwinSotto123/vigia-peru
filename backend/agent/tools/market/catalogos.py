@@ -325,9 +325,15 @@ def precios_mayorista(items: list[dict], dias: int = 30, hasta: str | None = Non
     de la variedad que mejor coincide con la descripción (últimos `dias`). Oficial y mayorista: es la referencia justa
     para frescos (el supermercado es un tope minorista). Ítems sin variedad en EMMSA (frutas que se venden en el
     Mercado de Frutas, p. ej. papaya) no reciben nada y siguen a los demás niveles."""
-    precios, info = [], {"items": 0, "precios": 0, "variedades": {}}
+    precios, info = [], {"items": 0, "precios": 0, "variedades": {}, "descartadas": 0}
     for it in items:
         desc = it.get("descripcion_corta") or ""
+        # Sólo alimentos: con código del catálogo (CUBSO), su segmento tiene que ser el 50 (alimentos, bebidas y tabaco).
+        # Sin este filtro se consultaba TODO ítem y una «bolsa de aspiración de secreciones» recibía el precio del «LIMON
+        # CITRICO BOLSA» (dictamen 1256664, 2026-11): además quedaba fuera de la comparación con otras compras del Estado.
+        cubso = re.sub(r"\D", "", str(it.get("cubso") or ""))
+        if cubso and not cubso.startswith("50"):
+            continue
         consulta = termino_busqueda(desc, max_palabras=2)
         if not consulta:
             continue
@@ -346,6 +352,12 @@ def precios_mayorista(items: list[dict], dias: int = 30, hasta: str | None = Non
         if not vars_:
             continue
         pal = _palabras(desc)
+        # La variedad tiene que SER el bien: su nombre principal (la primera palabra: «limon», «naranja») debe estar en la
+        # descripción del ítem. Coincidir en otra palabra («bolsa», «malla», «caja») no cuenta: es el envase.
+        vars_ = [v for v in vars_ if (termino_busqueda(v.get("variedad") or "", max_palabras=1) or "?") in pal]
+        if not vars_:
+            info["descartadas"] += 1
+            continue
         mejor = max(vars_, key=lambda v: (len(pal & _palabras(v.get("variedad") or "")), v.get("n_dias") or 0))
         info["items"] += 1
         info["variedades"][str(it.get("numero"))] = {k: mejor.get(k) for k in ("variedad", "n_dias", "p25", "mediana", "p75")}

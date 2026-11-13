@@ -50,14 +50,66 @@ export function DetallePrecioItem({ fila, fmtMoney }: { fila: FilaPrecio; fmtMon
   const proveedores: any[] = Array.isArray(f.proveedores_potenciales) ? f.proveedores_potenciales : [];
   const queries: string[] = Array.isArray(f.queries_realizadas) ? f.queries_realizadas : [];
   const porUnidad = fila.cantidad !== null ? `${numero(fila.cantidad)} ${fila.unidad}` : null;
+  // Lo que pagaron otras entidades por el mismo bien (compras del SEACE): la mediana regional si la hay; si no, la de las
+  // referencias (desde 3). Es la comparación que se entiende y la que va arriba (2026-11-13: el bloque «arrimaba datos»
+  // y mostraba como «mediana de mercado» un precio que el propio análisis había descartado).
+  const preciosEstado = referencias
+    .map((r) => r.precio_unitario ?? r.precio_unitario_adjudicado ?? r.precio_unitario_referencial)
+    .filter((x): x is number => typeof x === "number" && x > 0)
+    .sort((a, b) => a - b);
+  const medianaEstado =
+    ancla?.estado === "hallado" && typeof ancla.mediana === "number" && ancla.mediana > 0
+      ? (ancla.mediana as number)
+      : preciosEstado.length >= 3
+        ? preciosEstado.length % 2
+          ? preciosEstado[(preciosEstado.length - 1) / 2]
+          : (preciosEstado[preciosEstado.length / 2 - 1] + preciosEstado[preciosEstado.length / 2]) / 2
+        : null;
+  const pagado = fila.ofertadoUnit;
+  const difEstado = medianaEstado && pagado ? ((pagado - medianaEstado) / medianaEstado) * 100 : null;
+  const extraEstado = medianaEstado && pagado && fila.cantidad ? (pagado - medianaEstado) * fila.cantidad : null;
+  // La medición con tiendas no sirvió (el análisis la descartó): sus cifras no se muestran como si valieran.
+  const descartada = !fila.medido && observados.length > 0;
 
   return (
     <div className="text-meta leading-relaxed text-ink">
+      {medianaEstado !== null && pagado !== null && difEstado !== null && (
+        <div className="mb-4 overflow-hidden rounded-xl border border-line">
+          <dl className="grid gap-px bg-line sm:grid-cols-3">
+            <div className="bg-paper px-3.5 py-2.5">
+              <dt className="text-rotulo font-medium text-mute">Aquí, por unidad</dt>
+              <dd className="font-display text-bloque font-bold tabular-nums text-ink">{fmtMoney(pagado)}</dd>
+              <dd className="text-rotulo text-mute">{fila.baseOfertado === "ofertado" ? "precio ofertado" : "valor referencial"}{porUnidad ? `, ${porUnidad}` : ""}</dd>
+            </div>
+            <div className="bg-paper px-3.5 py-2.5">
+              <dt className="text-rotulo font-medium text-mute">Otras entidades pagaron</dt>
+              <dd className="font-display text-bloque font-bold tabular-nums text-ink">{fmtMoney(medianaEstado)}</dd>
+              <dd className="text-rotulo text-mute">mediana de {referencias.length} {referencias.length === 1 ? "compra" : "compras"} del mismo bien en el SEACE</dd>
+            </div>
+            <div className="bg-paper px-3.5 py-2.5">
+              <dt className="text-rotulo font-medium text-mute">Diferencia</dt>
+              <dd className={cn("font-display text-bloque font-bold tabular-nums", difEstado >= 50 ? "text-rust" : difEstado >= 20 ? "text-amberTexto" : "text-ink")}>
+                {difEstado > 0 ? "+" : ""}{difEstado.toFixed(0)} %
+              </dd>
+              <dd className="text-rotulo text-mute">
+                {extraEstado !== null && Math.abs(extraEstado) >= 1
+                  ? `${fmtMoney(Math.abs(extraEstado))} ${extraEstado > 0 ? "más" : "menos"} en toda la línea`
+                  : "frente a esa mediana"}
+              </dd>
+            </div>
+          </dl>
+          <p className="border-t border-line bg-paperSoft px-3.5 py-2 text-rotulo leading-snug text-mute">
+            Compara el precio por unidad con compras de otras entidades por un bien de la misma descripción (abajo, cada una con su enlace). Otra marca,
+            presentación o cantidad puede explicar parte de la diferencia: es un motivo para revisar, no una prueba de sobreprecio.
+          </p>
+        </div>
+      )}
       <dl className="mt-0">
         <Dato etiqueta="Cantidad del requerimiento">{porUnidad ?? "no consta en el expediente"}</Dato>
         <Dato etiqueta={`Precio ${fila.baseOfertado === "ofertado" ? "ofertado" : "referencial"} por unidad`}>
           {fila.ofertadoUnit !== null ? fmtMoney(fila.ofertadoUnit) : "sin precio unitario en el expediente"}
         </Dato>
+        {!descartada && (
         <Dato
           etiqueta={fila.tipoReferencia === "mediana" ? "Mediana de mercado por unidad" : "Estimación del modelo por unidad"}
         >
@@ -65,7 +117,8 @@ export function DetallePrecioItem({ fila, fmtMoney }: { fila: FilaPrecio; fmtMon
             ? `${fila.tipoReferencia === "mediana" ? "" : "≈ "}${fmtMoney(fila.referenciaUnit)}`
             : "sin precio de mercado"}
         </Dato>
-        {fila.rangoMinUnit !== null && fila.rangoMaxUnit !== null && (
+        )}
+        {!descartada && fila.rangoMinUnit !== null && fila.rangoMaxUnit !== null && (
           <Dato etiqueta={`Rango observado (${fila.nPrecios} precio(s) con fuente)`}>
             {fmtMoney(fila.rangoMinUnit)} – {fmtMoney(fila.rangoMaxUnit)}
           </Dato>
@@ -75,7 +128,7 @@ export function DetallePrecioItem({ fila, fmtMoney }: { fila: FilaPrecio; fmtMon
             {fmtMoney(fila.ofertado)} <span className="font-sans font-normal text-mute">({porUnidad})</span>
           </Dato>
         )}
-        {fila.referencia !== null && porUnidad && (
+        {!descartada && fila.referencia !== null && porUnidad && (
           <Dato etiqueta={`Total de la línea, ${fila.tipoReferencia === "mediana" ? "a precio de mercado" : "estimado"}`}>
             {fmtMoney(fila.referencia)} <span className="font-sans font-normal text-mute">({porUnidad})</span>
           </Dato>
@@ -100,9 +153,11 @@ export function DetallePrecioItem({ fila, fmtMoney }: { fila: FilaPrecio; fmtMon
       {!fila.medido && (
         <p className="mt-3 border-l-2 border-line pl-3 text-rotulo text-mute">
           <strong className="font-semibold text-ink">{fila.veredicto.etiqueta}.</strong>{" "}
-          {fila.motivo
-            ? `Sin veredicto de precio porque ${fila.motivo}.`
-            : "Este ítem no tiene una medición de mercado, así que no entra en el sobreprecio del lote."}
+          {descartada
+            ? "Los precios de tiendas que encontró el análisis no eran de este mismo producto, así que se descartaron y no cuentan para el sobreprecio."
+            : fila.motivo
+              ? `Sin veredicto de precio porque ${fila.motivo}.`
+              : "Este ítem no tiene una medición de mercado, así que no entra en el sobreprecio del lote."}
           {fila.tipoReferencia === "estimacion_ia" && (
             <>
               {" "}
@@ -151,10 +206,15 @@ export function DetallePrecioItem({ fila, fmtMoney }: { fila: FilaPrecio; fmtMon
       )}
 
       {observados.length > 0 && (
-        <>
-          <Titulo>
-            Precios encontrados en el mercado: {observados.length} referencia{observados.length === 1 ? "" : "s"}, {fila.nFuentes} con enlace
-          </Titulo>
+        <details open={!descartada} className="group/obs">
+          <summary className={cn("cursor-pointer list-none [&::-webkit-details-marker]:hidden", !descartada && "pointer-events-none")}>
+            <Titulo>
+              {descartada
+                ? `Precios de tiendas descartados (${observados.length}): no eran este producto. Ver cuáles`
+                : `Precios encontrados en el mercado: ${observados.length} referencia${observados.length === 1 ? "" : "s"}, ${fila.nFuentes} con enlace`}
+            </Titulo>
+          </summary>
+          {descartada && fila.motivo && <p className="mb-2 text-rotulo text-mute">Por qué se descartaron, según el análisis: {fila.motivo}.</p>}
           <div className="overflow-x-auto">
             <table className="w-full border-collapse text-micro">
               <thead>
@@ -210,16 +270,14 @@ export function DetallePrecioItem({ fila, fmtMoney }: { fila: FilaPrecio; fmtMon
               </tbody>
             </table>
           </div>
-        </>
+        </details>
       )}
 
       {referencias.length > 0 && (
         <>
           <Titulo>
-            Contratos comparables en el propio SEACE: {referencias.length}
-            {ancla?.estado === "hallado" && typeof ancla.mediana === "number"
-              ? `, mediana regional ${fmtMoney(ancla.mediana)}`
-              : ""}
+            Lo que pagaron otras entidades por el mismo bien: {referencias.length} {referencias.length === 1 ? "compra" : "compras"} del SEACE
+            {medianaEstado !== null ? `, mediana ${fmtMoney(medianaEstado)}` : ""}
           </Titulo>
           <ul className="space-y-1">
             {referencias.length > 8 && (
@@ -254,7 +312,7 @@ export function DetallePrecioItem({ fila, fmtMoney }: { fila: FilaPrecio; fmtMon
         </>
       )}
 
-      {proveedores.length > 0 && (
+      {!descartada && proveedores.length > 0 && (
         <>
           <Titulo>Proveedores donde la entidad podría haber cotizado</Titulo>
           <ul className="space-y-0.5 text-rotulo">

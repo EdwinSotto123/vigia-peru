@@ -129,6 +129,23 @@ def test_precios_mayorista(monkeypatch):
     assert [p["precio"] for p in precios] == [1.1, 1.15, 1.25] and all(p["origen"] == "emmsa" and p["unidad"] == "kg" for p in precios)
 
 
+def test_mayorista_no_confunde_el_envase_con_el_bien(monkeypatch):
+    """Dictamen 1256664: una bolsa de aspiración médica recibió el precio del «LIMON CITRICO BOLSA» (S/ 2.58 contra S/ 36.68)."""
+    limon = {"variedades": [{"variedad": "LIMON CITRICO BOLSA", "n_dias": 30, "p25": 2.51, "mediana": 2.58, "p75": 2.71}]}
+    llamadas = []
+    monkeypatch.setattr(catalogos, "_worker", lambda ruta, params: llamadas.append(params["q"]) or limon)
+    bolsa = {"numero": "1", "descripcion_corta": "BOLSA DE ASPIRACIÓN DE SECRECIONES C/VÁLVULA Y FILTRO ANTIBACTERIANO 1 L"}
+    precios, info = catalogos.precios_mayorista([bolsa])
+    assert precios == [] and info["descartadas"] == 1          # «bolsa» es el envase del limón, no el bien
+    # Con código de catálogo que no es de alimentos (42: equipo médico), ni se consulta.
+    llamadas.clear()
+    precios, _ = catalogos.precios_mayorista([{**bolsa, "cubso": "4214260100236736"}])
+    assert precios == [] and llamadas == []
+    # Un limón de verdad (segmento 50) sí recibe su precio.
+    precios, _ = catalogos.precios_mayorista([{"numero": "2", "descripcion_corta": "LIMON SUTIL EN BOLSA", "cubso": "5030540100012345"}])
+    assert [x["precio"] for x in precios] == [2.51, 2.58, 2.71]
+
+
 def test_fecha_de_la_convocatoria_para_precios_pasados(monkeypatch):
     assert catalogos.fecha_convocatoria({"tender": {"tenderPeriod": {"startDate": "2024-08-17T09:00:00-05:00"}}}) == "2024-08-17"
     assert catalogos.fecha_convocatoria({"date": "2023-01-05T00:00:00Z", "tender": {}}) == "2023-01-05"
