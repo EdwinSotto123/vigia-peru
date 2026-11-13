@@ -132,11 +132,11 @@ export default async function CompararPage({ searchParams }: { searchParams?: Bu
 
       {(a || b) && (
         <div className="overflow-x-auto rounded-xl border border-line">
-          <table className="w-full min-w-[560px] text-left">
+          <table className="w-full table-fixed text-left [&_td]:break-words [&_th]:break-words max-sm:[&_td]:px-2 max-sm:[&_th]:px-2">
             <caption className="sr-only">Comparación de las dos entidades</caption>
             <thead>
               <tr className="border-b border-line bg-paperSoft">
-                <th scope="col" className="w-[30%] px-4 py-3 text-rotulo font-semibold uppercase tracking-wide text-mute">Qué</th>
+                <th scope="col" className="w-[28%] px-4 py-3 text-rotulo font-semibold uppercase tracking-wide text-mute">Qué</th>
                 {[a, b].map((x, i) => (
                   <th key={i} scope="col" className="px-4 py-3 align-top">
                     {x ? (

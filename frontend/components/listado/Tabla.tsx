@@ -237,7 +237,7 @@ export function Tabla({
   etiqueta,
   medida = "pantalla",
   densidad = "normal",
-  colapsarIguales = false,
+  colapsarIguales = true,
   jerarquia = false,
   className,
 }: {
@@ -362,7 +362,7 @@ export function Tabla({
 }
 
 const FILA =
-  "min-h-[60px] px-4 py-3 text-left transition-colors duration-rapido hover:bg-paperSoft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-granate";
+  "min-h-[48px] px-4 py-2 text-left transition-colors duration-rapido hover:bg-paperSoft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-granate";
 
 const FILA_COMPACTA =
   "min-h-[42px] px-4 py-1.5 text-left transition-colors duration-rapido hover:bg-paperSoft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-granate";

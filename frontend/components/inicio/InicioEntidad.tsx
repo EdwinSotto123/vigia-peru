@@ -97,7 +97,10 @@ export function InicioEntidad({
   return (
     <div className="space-y-8">
       <Indicadores items={cifras} />
-      <div className="grid items-start gap-x-8 gap-y-10 xl:grid-cols-[minmax(0,1fr)_20rem]">
+      {/* Desde xl, quien la gobierna y quien decide van en una fila de tres tarjetas ARRIBA, y el contenido usa todo el
+          ancho en dos columnas. Antes iban en un carril derecho de 20rem que se acababa al tercer bloque y dejaba una
+          tira vacia de unos 3 000 px (auditoria del 2026-11-13). */}
+      <div className="flex flex-col gap-y-10">
         {/* Hasta xl, quién la gobierna antes que todo lo demás; desde xl, en la columna lateral (Lateral). */}
         <Suspense fallback={null}>
           <GobiernaArriba ruc={ruc} />
@@ -110,7 +113,7 @@ export function InicioEntidad({
         {/* Fija al bajar, con su propio scroll si no entra (un ministerio con muchos funcionarios). */}
         <aside
           aria-label="Quién la gobierna, quién decide y dónde comprobarlo"
-          className="grid min-w-0 items-start gap-4 sm:grid-cols-2 xl:sticky xl:top-20 xl:max-h-[calc(100dvh-6rem)] xl:grid-cols-1 xl:overflow-y-auto xl:overscroll-contain"
+          className="grid min-w-0 items-start gap-4 sm:grid-cols-2 xl:order-first xl:grid-cols-3"
         >
           <Suspense fallback={<Skeleton className="h-48 rounded-2xl" />}>
             <Lateral ruc={ruc} region={region} ubigeo={ubigeo} regionDenuncias={regionDenuncias} fuentes={fuentes} />

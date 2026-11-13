@@ -67,7 +67,7 @@ export function EncabezadoPagina({
      parte en dos líneas ocupa todo el ancho y empujaba el ⓘ al borde derecho. */
   const texto = bajada ? (
     <>
-      <h1 className="font-display text-bloque font-bold leading-snug tracking-tight text-ink text-balance sm:text-seccion">{titulo}</h1>
+      <h1 className="line-clamp-3 font-display text-bloque font-bold leading-snug tracking-tight text-ink text-balance sm:text-seccion" title={typeof titulo === "string" ? titulo : undefined}>{titulo}</h1>
       <p className="mt-1 max-w-3xl text-meta leading-snug text-inkSoft text-pretty sm:text-dato">
         {bajada}
         {ayuda && <span className="ml-1 inline-flex align-middle">{ayuda}</span>}
@@ -75,7 +75,7 @@ export function EncabezadoPagina({
     </>
   ) : (
     <div className="flex items-center gap-2">
-      <h1 className="font-display text-bloque font-bold leading-snug tracking-tight text-ink text-balance sm:text-seccion">{titulo}</h1>
+      <h1 className="line-clamp-3 font-display text-bloque font-bold leading-snug tracking-tight text-ink text-balance sm:text-seccion" title={typeof titulo === "string" ? titulo : undefined}>{titulo}</h1>
       {ayuda}
     </div>
   );

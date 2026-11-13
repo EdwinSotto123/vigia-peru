@@ -65,7 +65,9 @@ export function SubseccionInicio({
 }) {
   return (
     <Seccion id={id} titulo={titulo} descripcion={descripcion} ayuda={ayuda} acciones={enlace ? <EnlaceInicio {...enlace} /> : undefined}>
-      <div className="space-y-4">{children}</div>
+      {/* Dos columnas desde lg: apiladas, las tarjetas del Inicio de una entidad median 5,7 pantallas en una columna con el
+          resto del ancho vacio (auditoria del 2026-11-13). Cada tarjeta mide lo suyo (`items-start`). */}
+      <div className="grid items-start gap-4 lg:grid-cols-2 lg:[&>.grid]:col-span-2">{children}</div>
     </Seccion>
   );
 }
