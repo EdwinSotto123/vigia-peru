@@ -25,10 +25,98 @@ def _juez_coherencia_dice_coherente(state: dict) -> bool:
                 return True
     return False
 
+# Causales de la contratación directa: (clave, literal del art. 27.1 del TUO de la Ley 30225, patrón, descripción,
+# ¿necesita el acto que declara la situación?). El catálogo anterior (`_CAUSALES_DIRECTA` de tools/_core.py) no tenía
+# las dos causales más usadas —proveedor único y arrendamiento o compra de inmuebles—, así que una directa por
+# proveedor único salía como «sin causal identificable» en severidad alta; y sus literales no eran los de la ley
+# (ponía la emergencia en el «a», que es la contratación entre entidades). El literal es sólo el del TUO: en la
+# evidencia se nombra la causal, no la letra, porque la Ley 32069 (art. 55.1) rige desde el 22-abr-2025.
+_CAUSALES: list[tuple[str, str | None, str, str, bool]] = [
+    ("emergencia", "b", r"(situaci[oó]n de emergencia|desastre|catastrofe|cat[áa]strofe|"
+                        r"emergencia\s+(?:nacional|sanitaria|ambiental)|lluvias intensas|sismo|terremoto)",
+     "Situación de emergencia / desastre", True),
+    ("desabastecimiento", "c", r"desabastecimiento(\s+inminente)?", "Desabastecimiento inminente", True),
+    ("entre_entidades", "a", r"contrataci[oó]n\s+(entre|con)\s+entidad(es)?\s+p[uú]blica|"
+                             r"contrat\w+\s+(entre\s+entidades|con\s+otra\s+entidad)",
+     "Contratación entre entidades públicas", False),
+    ("proveedor_unico", "e", r"proveedor\s+[uú]nico|[uú]nico\s+proveedor|"
+                             r"s[oó]lo\s+pued[ae]n?\s+obtenerse\s+de\s+un\s+determinado\s+proveedor|"
+                             r"determinado\s+proveedor\s+(que\s+)?posea\s+derechos\s+exclusivos|"
+                             r"(propiedad\s+(intelectual|industrial)|patente|marca\s+registrada|derechos?\s+de\s+autor)"
+                             r"\s+.{0,40}([uú]nic|exclusiv)",
+     "Proveedor único / derechos exclusivos", False),
+    ("inmuebles", "j", r"(arrendamiento|alquiler|adquisici[oó]n)\s+de\s+(un\s+|el\s+|los\s+)?(bien(es)?\s+)?inmuebles?",
+     "Arrendamiento o adquisición de bienes inmuebles", False),
+    ("personalisimo", "f", r"servicios?\s+personal[ií]simos?|notoria\s+especializaci[oó]n",
+     "Servicio personalísimo / notoria especialización", False),
+    ("publicidad", "g", r"servicios?\s+de\s+publicidad\s+(en\s+medios|por\s+medios|para\s+el\s+estado|estatal)",
+     "Servicio de publicidad en medios", False),
+    ("consultoria_continuacion", "h", r"servicios?\s+de\s+consultor[ií]a(\s+especializa)?",
+     "Servicios de consultoría (continuación o especializada)", False),
+    ("investigacion", "i", r"fines\s+de\s+investigaci[oó]n|investigaci[oó]n,\s+experimentaci[oó]n",
+     "Bienes y servicios con fines de investigación, experimentación o desarrollo", False),
+    ("asesoria_legal", "k", r"asesor[ií]a\s+legal\s+(en\s+casos\s+excepcionales|excepcional)|"
+                            r"defensa\s+de\s+(funcionarios|servidores|ex\s*funcionarios)",
+     "Asesoría legal para la defensa de funcionarios", False),
+    ("contrato_resuelto", "l", r"contrato\s+(resuelto|declarado\s+nulo)|prestaciones\s+no\s+ejecutadas|"
+                               r"continuidad\s+de\s+la\s+ejecuci[oó]n",
+     "Continuidad de un contrato resuelto o declarado nulo", False),
+    ("capacitacion", "m", r"capacitaci[oó]n\s+(de\s+inter[eé]s\s+)?(institucional|necesaria)|pasant[ií]a",
+     "Capacitación de interés institucional", False),
+    ("secreto", "d", r"car[aá]cter\s+(de\s+)?secreto|secreto\s+militar|razones\s+de\s+orden\s+interno",
+     "Carácter secreto, secreto militar o de orden interno", False),
+    # Dos supuestos que el catálogo anterior ya reconocía y que la ley trata fuera del art. 27 (sin literal).
+    ("tarifa_regulada", None, r"servicios?\s+p[uú]blicos?\s+.{0,30}\s+tarifa(s)?\s+regulad",
+     "Servicio público con tarifa regulada", False),
+    ("servicios_financieros", None, r"servicios?\s+financieros?\s+del\s+estado",
+     "Servicios financieros del Estado", False),
+]
+
+
+def _textos_causal(state: dict) -> list[str]:
+    """Dónde más dice el expediente qué causal se invoca: el bloque `sustento_directa` del parser (causal_articulo,
+    causal_texto, proveedor_unico_justificacion) y el estudio de mercado. La regla sólo leía `fundamento_legal`
+    (las normas citadas: «Art. 55 Ley 32069»), que casi nunca nombra la causal."""
+    raw = state.get("parser_raw_consolidated") or {}
+    doc = _safe_parse_json(state.get("document_analysis")) or {}
+    em = _safe_parse_json(state.get("estudio_mercado")) or {}
+    out: list[str] = []
+    for src in ((raw.get("sustento_directa") if isinstance(raw, dict) else None), state.get("parser_bloque_sustento_directa"),
+                (doc.get("sustento_directa") if isinstance(doc, dict) else None), em):
+        if not isinstance(src, dict):
+            continue
+        for k in ("causal_articulo", "causal_texto", "proveedor_unico_justificacion"):
+            v = src.get(k)
+            if isinstance(v, str) and v.strip() and v.strip() not in out:
+                out.append(v.strip())
+    return out
+
+
+def _se_leyo_algo(state: dict, doc, raw, textos_causal: list[str]) -> bool:
+    """¿Hubo texto de algún documento? `document_analysis` y `parser_raw_consolidated` existen siempre que corre el
+    parser, aunque todo llegue vacío (PDF escaneado): que el diccionario exista no es haber leído."""
+    if textos_causal:
+        return True
+    try:
+        if _verify.textos_documentos(state):
+            return True
+    except Exception:  # noqa: BLE001
+        pass
+    for src in (doc, raw):
+        if not isinstance(src, dict):
+            continue
+        for k in ("fundamento_legal", "items_consolidados", "items", "resumen_ejecutivo", "firmantes",
+                  "firmantes_consolidados", "postores_extraidos", "postores_consolidados", "motivos_adjudicacion",
+                  "comite_evaluacion", "requerimiento_tecnico_detallado"):
+            if src.get(k):
+                return True
+    return False
+
+
 def _identificar_causal_directa(fundamento_textos: list[str], objeto_contrato: str = "") -> dict:
     """Identifica qué causal del Art. 27 / Art. 55 invocó la entidad para una
-    Contratación Directa. Retorna {causal_letra, descripcion, evidencia_text,
-    requiere_acto_resolutivo, match_score}.
+    Contratación Directa. Retorna {causal_clave, causal_letra, descripcion, evidencia_text,
+    requiere_acto_resolutivo, match}. `causal_letra` es el literal del art. 27.1 del TUO de la Ley 30225.
 
     Si ninguna causal coincide, retorna {causal_letra: None, ...}.
     """
@@ -36,10 +124,18 @@ def _identificar_causal_directa(fundamento_textos: list[str], objeto_contrato: s
     corpus = " ".join(str(t) for t in (fundamento_textos or []))[:10000]
     corpus_lower = corpus.lower()
 
-    for letra, pattern, descripcion, requiere_resol in _CAUSALES_DIRECTA:
+    # Gana la causal que el texto nombra PRIMERO, no la primera del catálogo: «proveedor único … para evitar el
+    # desabastecimiento» invoca el proveedor único (y no necesita el acto que declara un desabastecimiento).
+    hallazgos = []
+    for orden, (clave, letra, pattern, descripcion, requiere_resol) in enumerate(_CAUSALES):
         m = _re.search(pattern, corpus_lower, _re.IGNORECASE)
         if m:
+            hallazgos.append((m.start(), orden, m, clave, letra, descripcion, requiere_resol))
+    if hallazgos:
+        _, _, m, clave, letra, descripcion, requiere_resol = min(hallazgos, key=lambda h: (h[0], h[1]))
+        if m:
             return {
+                "causal_clave": clave,
                 "causal_letra": letra,
                 "descripcion": descripcion,
                 "evidencia_text": corpus[max(0, m.start()-50):m.end()+100],
@@ -115,6 +211,21 @@ def _buscar_acto_resolutivo(state: dict) -> dict:
             elif isinstance(v, dict):
                 tipados.append(" ".join(str(x) for x in v.values() if x))
     corpus_tipado = "\n".join(tipados)
+    # El acto que el parser ya extrajo por campos (tipo, número, fecha): «Resolución de Alcaldía» + «045-2026-MDSJ» no
+    # trae el «N°» que piden los patrones y se daba por inexistente.
+    for src in ((raw.get("sustento_directa") if isinstance(raw, dict) else None) or {},
+                (doc_analysis or {}).get("sustento_directa") or {}):
+        if not isinstance(src, dict):
+            continue
+        for k in ("acto_aprobatorio", "acto_resolutivo"):
+            v = src.get(k)
+            if isinstance(v, dict) and str(v.get("numero") or "").strip():
+                cita = " ".join(str(v.get(x)) for x in ("tipo", "numero", "fecha") if v.get(x))[:240]
+                return {"encontrado": True, "tipo": str(v.get("tipo") or "Acto aprobatorio"),
+                        "numero": str(v["numero"]).strip(), "fecha_proxima": v.get("fecha") or None,
+                        "fragmento": cita, "cita": cita,
+                        "fuente": "parser_bloque_tipado", "documento_sha256": None, "pagina": v.get("pagina"),
+                        "texto_completo_disponible": texto_completo, "solo_resumenes": not texto_completo}
     for _tipo, pattern, descripcion in _ACTO_PATTERNS:
         m = _re.search(pattern, corpus_tipado, _re.IGNORECASE)
         if m:
@@ -190,14 +301,18 @@ def check_directa_fundamento_rule(ocid: str, tool_context: ToolContext,
         cur = conn.cursor()
         cur.execute("SELECT tipo_proceso, objeto FROM convocatorias WHERE ocid=%s", (ocid,))
         row = cur.fetchone()
-        if not row or not row[0]:
-            return {"regla": "directa_sin_fundamento", "triggered": False}
-        tipo, objeto = row[0], (row[1] or "")
+        state = tool_context.state
+        # `tipo_proceso` está NULL en casi toda la tabla (la ingesta llena `modalidad`): el procedimiento sale del
+        # OCDS del state, como en las demás reglas (`_procurement_method`); antes la regla terminaba acá sin evaluar.
+        tipo = _procurement_method(state, (row[0] if row else None))
+        if not tipo or tipo.strip().lower() == "desconocido":
+            return {"regla": "directa_sin_fundamento", "triggered": False, "estado": "sin_dato",
+                    "motivo": "sin tipo de procedimiento en la base ni en el OCDS"}
+        _ocds = state.get("ocds") or state.get("ocds_preloaded") or {}
+        objeto = ((row[1] if row else None) or (_ocds.get("tender") or {}).get("description") or "")
         if "DIRECTA" not in (tipo or "").upper() and "EXONERA" not in (tipo or "").upper():
             return {"regla": "directa_sin_fundamento", "triggered": False,
                     "motivo": "no es contratación directa"}
-
-        state = tool_context.state
 
         # 1. Extraer fundamento_legal del document_analysis
         doc = _safe_parse_json(state.get("document_analysis"))
@@ -207,8 +322,9 @@ def check_directa_fundamento_rule(ocid: str, tool_context: ToolContext,
         if not fund and raw.get("fundamento_legal"):
             fund = raw["fundamento_legal"]
 
-        # 2. Identificar causal específica
-        causal = _identificar_causal_directa(fund, objeto)
+        # 2. Identificar causal específica: en las normas citadas y en lo que el expediente dice de la causal
+        textos_causal = _textos_causal(state)
+        causal = _identificar_causal_directa(textos_causal + [str(f) for f in fund], objeto)
         # Mantener compatibilidad con la heurística vieja: si el regex no
         # encontró una causal pero el texto menciona keywords legales,
         # consideramos que SÍ hay una causal vaga (no triggera bandera).
@@ -216,7 +332,7 @@ def check_directa_fundamento_rule(ocid: str, tool_context: ToolContext,
             "55" in str(f) or "EMERGENCIA" in str(f).upper() or
             "EXONERA" in str(f).upper() or "D.S." in str(f) or
             "DECRETO SUPREMO" in str(f).upper()
-            for f in fund
+            for f in list(fund) + textos_causal
         )
 
         # 3. Buscar acto resolutivo si la causal lo requiere
@@ -243,7 +359,7 @@ def check_directa_fundamento_rule(ocid: str, tool_context: ToolContext,
             # ¿De verdad no hay causal, o no se pudo LEER el documento? Si no hubo análisis del documento ni texto del
             # parser, la ausencia de causal es falta de extracción (PDF escaneado o no publicado), no una irregularidad:
             # MEDIA con verificación manual, no ALTA (auditoría 2026-10-23: antes era alta sistemática sobre ilegibles).
-            hubo_texto = bool(doc) or bool(raw)
+            hubo_texto = _se_leyo_algo(state, doc, raw, textos_causal)
             result.update({
                 "triggered": True,
                 "severidad": "alta" if hubo_texto else "media",
@@ -274,8 +390,8 @@ def check_directa_fundamento_rule(ocid: str, tool_context: ToolContext,
                 "requiere_verificacion": solo_resumenes,
                 "regla": "directa_emergencia_sin_acto_resolutivo",
                 "evidencia": (
-                    f"La Contratación Directa invocó causal '{causal['descripcion']}' "
-                    f"(Art. 27 lit. {causal['causal_letra']}), pero no se identifica "
+                    f"La Contratación Directa invocó causal '{causal['descripcion']}', "
+                    f"pero no se identifica "
                     + ("en el texto completo de los documentos publicados "
                        if not solo_resumenes else
                        "en los resúmenes disponibles de los documentos (texto completo no disponible: "
@@ -283,8 +399,8 @@ def check_directa_fundamento_rule(ocid: str, tool_context: ToolContext,
                     + "el acto resolutivo que declara la situación (D.S./D.U./Resolución/Acuerdo "
                     "Regional). Sin acto resolutivo acreditable, la causal carece de sustento legal."
                 ),
-                "norma": "Art. 27.1 lit. a) TUO Ley 30225 — la situación de emergencia "
-                         "debe estar acreditada por declaratoria oficial",
+                "norma": "Art. 27.1 lit. b) y c) TUO Ley 30225 / Art. 55.1 Ley 32069 — la emergencia o el "
+                         "desabastecimiento deben estar acreditados por el acto que los declara",
                 "fuente_url": proceso_oece(ocid),
             })
             tool_context.state.setdefault("pending_flags", []).append(result)

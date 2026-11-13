@@ -82,7 +82,14 @@ def _bloque_validaciones(state: dict) -> str:
     vals = state.get("validaciones_pendientes")
     if not isinstance(vals, (list, tuple)) or not vals:
         return ""
-    lineas = "\n".join(f"- {_VALIDACION_TEXTO.get(str(v), str(v))}" for v in vals)
+    # Un consorcio sí se investiga, por sus integrantes: la nota de «proveedor sin RUC» dice eso y no lo contrario.
+    exp = state.get("expediente_proveedor")
+    consorcio = isinstance(exp, dict) and exp.get("consorcio") and exp.get("integrantes")
+    textos = dict(_VALIDACION_TEXTO)
+    if consorcio:
+        textos["proveedor_sin_ruc"] = ("El ganador es un consorcio sin RUC propio: la empresa y su red se investigaron por sus "
+                                       "integrantes registrados en el CONOSCE, no por el consorcio como tal.")
+    lineas = "\n".join(f"- {textos.get(str(v), str(v))}" for v in vals)
     return ("\n\nVALIDACIONES PENDIENTES (datos que NO se pudieron verificar en esta corrida). Cerrá el "
             "dictamen con una sección '## Validaciones pendientes' que las liste TAL CUAL, sin inventar "
             "resultados ni conclusiones sobre ellas:\n" + lineas)

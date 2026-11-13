@@ -91,7 +91,7 @@ GUIA_SECCION: dict[str, str] = {
         "`fuente_url`; y el `vinculo` del supervisor con el ejecutor (personas en común en el RNP, consorcios en "
         "común, mismo domicilio). Las señales de `supervision_obra.senales` ya son banderas: interprétalas, no las "
         "repitas. Si no está enlazada a una obra, di que no se pudo cruzar y usa `historial_supervisor` (cuántas obras "
-        "supervisó, cuántas se paralizaron, cuántas con adicionales altos o pagadas sin avance). Sin `supervision_obra`: "
+        "supervisó, cuántas se paralizaron, cuántas con adicionales altos o pagadas sin avance; con `integrantes`, es la suma de los integrantes del consorcio; con `estado: sin_dato`, di su motivo y no escribas «0 obras»). Sin `supervision_obra`: "
         "'no aplica (no es supervisión de obra)'."
     ),
     "Términos de referencia y plantel exigido": (
@@ -112,7 +112,7 @@ GUIA_SECCION: dict[str, str] = {
         "### Del bloque `obra` del parser y de `market_analysis` (estrategia presupuesto_obra): presupuesto total vs "
         "suma de partidas, GG + utilidad, partidas inconsistentes, adicionales acumulados (% y resoluciones), "
         "ampliaciones de plazo, requisitos de residente/supervisor; obras similares en SEACE como referencia de "
-        "escala. INFOBRAS figura como validación pendiente: no describas avance de obra."
+        "escala. El avance de la obra va en «Ejecución y ampliaciones» (de `obra_ejecucion`), no aquí. Si `market_analysis.presupuesto.estado` es `sin_dato`, di su `motivo`."
     ),
     "Causal y expediente de sustento": (
         "### De `causal_directa_invocada`, `acto_resolutivo_directa`, `legal_analysis.causal_directa_evaluacion` y "
@@ -137,18 +137,18 @@ GUIA_SECCION: dict[str, str] = {
         "cada obra, estado, avance físico real contra programado y contra lo pagado (`financiero_pct`), paralización y su "
         "causa, ampliaciones (`dias_ampliacion`), adicionales (`adicionales_pct`), controversias e informes de control, "
         "con su `fuente_url`; de `inversion`, el costo actualizado contra el viable (`sobrecosto_pct`) y los laudos; y "
-        "`banderas_obra` (ya son banderas: interprétalas). Después, del bloque `obra` del parser y de los documentos "
+        "`banderas_obra` (banderas de Vigía en la ficha del contrato, fuera de este análisis: cítalas así, no como banderas del análisis). Después, del bloque `obra` del parser y de los documentos "
         "`contractAmendment`: % acumulado de adicionales y sus resoluciones, ampliaciones y sus causas. Sin "
-        "`obra_ejecucion` enlazada, INFOBRAS no se pudo cruzar: dilo y no describas avance físico."
+        "`obra_ejecucion` enlazada, INFOBRAS todavía no registra la obra de este contrato: dilo, no describas avance físico y usa `obra_ejecucion.inversiones` (Invierte.pe por el CUI del proceso: monto viable, costo actualizado, `sobrecosto_pct`, laudos, con su `fuente_url`)."
     ),
     "Antecedentes del contratista y consorciados": (
         "### PRIMERO `expediente_proveedor` (padrón SUNAT, RNP, sanciones, buenas pro del CONOSCE, banderas) y "
         "`obra_ejecucion.historial_contratista` (cuántas obras ejecutó según INFOBRAS, cuántas paralizadas, con "
-        "adicionales altos o pagadas sin avance); del supervisor, `obra_ejecucion.obras[].vinculo_supervisor` (personas "
+        "adicionales altos o pagadas sin avance; si trae `integrantes` es la suma de los integrantes del consorcio, y si trae `estado: sin_dato` di su motivo y no escribas «0 obras»); del supervisor, `obra_ejecucion.obras[].vinculo_supervisor` (personas "
         "o consorcios en común con el contratista). Después, de `web_research` y `person_network`: cada consorciado con "
         "RUC, capacidad/experiencia declarada y lo que no está en un registro (solo con evidencia)."
     ),
-    "Cotizaciones vs monto adjudicado": "### De `market_analysis` (estrategia cotizaciones): cotizaciones del expediente (proveedor, monto, página), mediana de terceros, Δ % del monto adjudicado vs mediana y vs la más barata, si el cotizante ganador fue el más barato, cotizantes vinculados según `person_network` (`no_verificable` si no corrió). Sin bloque `sustento_directa` → decláralo.",
+    "Cotizaciones vs monto adjudicado": "### De `market_analysis` (estrategia cotizaciones): cotizaciones del expediente (proveedor, monto, página), mediana de terceros, Δ % del monto adjudicado vs mediana y vs la más barata, si el cotizante ganador fue el más barato, cotizantes vinculados según `person_network` (`no_verificable` si no corrió). Si `periodos_inferidos` trae un número, las cotizaciones son por mes o por cuota y la comparación es por periodo (`monto_comparado`): dilo así. De `market_analysis.sustento`: informes, acto aprobatorio, justificación de proveedor único y, en un convenio, las entidades parte (la contraparte es otra entidad pública: no la describas como empresa). Sin bloque `sustento_directa` → decláralo.",
     "Red de personas": _GUIA_RED,
     "Cumplimiento normativo": (
         "### De `compliance_result`, `banderas` y `normative_compliance`: reglas ejecutadas y su resultado (disparó / no "

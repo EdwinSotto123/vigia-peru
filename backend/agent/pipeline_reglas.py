@@ -121,7 +121,7 @@ async def reglas_extendidas_codigo(pc, reglas_kw: dict):
     lote1 = set(getattr(pc.T, "REGLAS_LOTE1", {}) or {})
     reglas = [(r, _fn_regla(pc, r)) for r in sorted(pc.profile.reglas_activas)
               if r not in REGLAS_DURAS and r not in lote1]
-    faltan = [r for r, fn in reglas if fn is None]
+    faltan = [r for r, fn in reglas if fn is None and not r.startswith("-")]   # «-regla» = apagada adrede
     reglas = [(r, fn) for r, fn in reglas if fn is not None]
     if not reglas:
         return

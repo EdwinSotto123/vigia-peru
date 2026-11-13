@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import asyncio
 import os
+import re
 from dataclasses import dataclass
 from typing import Any, Callable
 
@@ -394,6 +395,26 @@ async def fase_proveedor(pc: PipelineCtx):
     pc.ctx.update(ganador=ganador, ruc=ruc, razon=ganador.get("razon_social") or "",
                entidad=(gan or {}).get("entidad") or {}, postores=(gan or {}).get("todos_postores") or [])
     fuente_oece = proceso_oece(pc.ocid)
+    # Un consorcio figura con su código del SEACE, no con un RUC. La clasificación lo daba por «proveedor sin RUC» y
+    # sacaba a los agentes que investigan al proveedor: en PROD (2026-11-13) el 86 % de las obras y el 84 % de las
+    # consultorías las gana un consorcio, y quedaban sin prensa, sin red de personas y sin reglas extendidas. Con sus
+    # integrantes en el CONOSCE se investiga a cada uno.
+    es_ruc = bool(re.fullmatch(r"\d{11}", ruc))
+    integrantes: list[dict] = []
+    if ruc and not es_ruc:
+        try:
+            from tools.expediente import integrantes_consorcio
+            integrantes = [m for m in await asyncio.to_thread(integrantes_consorcio, ruc)
+                           if re.fullmatch(r"\d{11}", str(m.get("ruc") or ""))][:5]
+        except Exception as e:  # noqa: BLE001
+            _registrar_descarte(pc.state, "proveedor.consorcio", "error_bd", f"{type(e).__name__}: {str(e)[:160]}")
+    pc.ctx["integrantes"] = integrantes
+    if integrantes and "proveedor_sin_ruc" in (pc.state.get("validaciones_pendientes") or []):
+        _extra = {"web_research", "news_research", "person_network", "compliance_extended"}
+        _perm0 = pc.perm
+        pc.perm = lambda n, _p=_perm0: _p(n) or (n in _extra and n in getattr(pc.profile, "agentes", ()))
+        yield {"kind": "phase", "name": "proveedor",
+               "msg": f"el ganador es un consorcio de {len(integrantes)} integrante(s): se investiga a cada uno"}
     # Lo que sale de la base de Vigía (expediente, obra, supervisión) corre siempre que haya ganador u obra: son
     # consultas, no agentes, y alimentan el dictamen y las banderas aunque la matriz tipo × etapa no incluya a los
     # agentes que investigan al proveedor. Las consultas en vivo (OECE, decolecta) sólo si alguno de ésos corre.
@@ -413,7 +434,7 @@ async def fase_proveedor(pc: PipelineCtx):
     senales = (exp or {}).get("senales") if en_base else None
     # 2. El perfil del OECE en vivo (apto para contratar) sólo si se puede llegar: desde AWS el OECE responde 403 sin
     #    el downloader (OECE_EN_VIVO=0 en la Lambda). Si falla, quedan las sanciones de la base.
-    if ruc and _investiga_proveedor and not solo_bd and os.getenv("OECE_EN_VIVO", "1") == "1":
+    if es_ruc and _investiga_proveedor and not solo_bd and os.getenv("OECE_EN_VIVO", "1") == "1":
         evs, perfil = await t_call(pc, pc.T.query_oece_perfil, "query_oece_perfil", ruc=ruc)
         for e in evs:
             yield e
@@ -422,7 +443,7 @@ async def fase_proveedor(pc: PipelineCtx):
     for e in flags_from_senales(pc, senales, fuente_oece):
         yield e
     # 3. SUNAT por decolecta sólo para lo que no está en el padrón (un RUC 10, un RUC nuevo) y si algún agente lo lee.
-    if ruc and _investiga_proveedor and not sunat_en_base and not solo_bd:
+    if es_ruc and _investiga_proveedor and not sunat_en_base and not solo_bd:
         evs, sunat = await t_call(pc, pc.T.query_sunat_decolecta, "query_sunat_decolecta", ruc=ruc)
         for e in evs:
             yield e
@@ -477,20 +498,31 @@ async def fase_research(pc: PipelineCtx):
                    "msg": f"prensa: {len(pre['leidas'])} notas leídas de {pre['candidatas']} candidatas ({pre['segundos']} s, sin costo)"}
         except Exception as _e:  # noqa: BLE001
             yield {"kind": "warn", "agent": "pipeline", "detail": f"prensa precargada: {str(_e)[:160]}"}
+    # A quién se investiga: la empresa, o cada integrante del consorcio (empresas; una persona natural consorciada no
+    # se nombra en la búsqueda).
+    _integrantes = [m for m in (pc.ctx.get("integrantes") or []) if str(m.get("ruc") or "").startswith("20")]
+    if _integrantes:
+        _lista = "; ".join(f"{m.get('nombre') or 'integrante'} (RUC {m['ruc']})" for m in _integrantes)
+        _quien = (f"el consorcio «{razon}», que no tiene RUC propio, a través de sus integrantes: {_lista}. Investiga a "
+                  f"CADA integrante por separado y di de cuál es cada hallazgo")
+        _quien_prensa = f"consorcio '{razon}' y sus integrantes: {_lista}"
+    else:
+        _quien = f"la empresa con RUC {ruc} y razón social {razon}"
+        _quien_prensa = f"proveedor '{razon}' (RUC {ruc})"
     # Mensajes de los 3 agentes de investigación INDEPENDIENTES (empresa · prensa · funcionarios).
     if pc.state.get("expediente_proveedor"):
         # El expediente de la base ya trae SUNAT, RNP, sanciones, penalidades, historial del CONOSCE y banderas: la web
         # sólo para lo que no está en un registro.
-        _web_msg = (f"Investiga la empresa con RUC {ruc} y razón social {razon}. Su perfil SUNAT, sus socios y "
+        _web_msg = (f"Investiga {_quien}. Su perfil SUNAT, sus socios y "
                     f"representantes (RNP), sus sanciones y su historial de contratos YA vienen de la base de Vigía "
                     f"(perfil pre-cargado en tu instrucción): no los busques ni los contradigas. Busca sólo en prensa y "
                     f"fuentes abiertas lo que no está en un registro: investigaciones, denuncias, vínculos con "
                     f"funcionarios o con la entidad, y hechos recientes.")
     else:
-        _web_msg = (f"Investiga la empresa con RUC {ruc} y razón social {razon}. El perfil SUNAT ya está "
+        _web_msg = (f"Investiga {_quien}. El perfil SUNAT ya está "
                     f"pre-cargado en tu instrucción — incorpóralo y complementa con prensa, sanciones, "
                     f"directivos, aportes ONPE e historial de contratos.")
-    _news_msg = (f"Investiga en prensa peruana: proveedor '{razon}' (RUC {ruc}); entidad "
+    _news_msg = (f"Investiga en prensa peruana: {_quien_prensa}; entidad "
                  f"'{entidad.get('nombre','')}' (RUC {entidad.get('ruc','')}, región {entidad.get('region','')}); "
                  f"objeto: {objeto[:160]}.")
     _entity_msg = (f"Investiga la estructura administrativa de '{entidad.get('nombre','')}' "
@@ -616,19 +648,24 @@ async def fase_person_network(pc: PipelineCtx):
     ganador, ruc, razon, entidad, postores = pc.ctx["ganador"], pc.ctx["ruc"], pc.ctx["razon"], pc.ctx["entidad"], pc.ctx["postores"]
     yield {"kind": "phase", "name": "person_network", "msg": "mapeando la red de personas"}
     socios_personas: list[dict] = []
-    if ruc:
-        evs, rnp = await t_call(pc, pc.T.query_rnp_empresa, "query_rnp_empresa", ruc=ruc)
+    # El RNP es por empresa: el del ganador o, si es un consorcio, el de cada integrante (el código del consorcio no
+    # existe en el RNP y la red salía vacía, «sin red detectada»).
+    rucs_ganador = ([m["ruc"] for m in (pc.ctx.get("integrantes") or []) if str(m.get("ruc") or "").startswith("20")]
+                    or ([ruc] if ruc else []))
+    for k, ruc_g in enumerate(rucs_ganador):
+        evs, rnp = await t_call(pc, pc.T.query_rnp_empresa, "query_rnp_empresa", ruc=ruc_g)
         for e in evs:
             yield e
+        pre = f"i{k}_" if len(rucs_ganador) > 1 else ""
         for grupo in ("socios", "representantes_legales", "organos_administracion"):
             for i, s in enumerate((rnp or {}).get(grupo) or []):
                 if isinstance(s, dict) and (s.get("numero_documento") or s.get("nombre")):
-                    socios_personas.append({"id": f"{grupo}_{i}", "dni": s.get("numero_documento") or "",
+                    socios_personas.append({"id": f"{pre}{grupo}_{i}", "dni": s.get("numero_documento") or "",
                                             "nombre": s.get("nombre") or "", "rol": grupo[:-1] if grupo.endswith("s") else grupo})
     # RNP de postores rivales
     for j, p in enumerate(postores):
         pr = (p or {}).get("ruc") if isinstance(p, dict) else None
-        if pr and pr != ruc:
+        if pr and pr != ruc and pr not in rucs_ganador:
             evs, _ = await t_call(pc, pc.T.query_rnp_empresa, "query_rnp_empresa", ruc=pr)
             for e in evs:
                 yield e

@@ -24,7 +24,10 @@ def _peso(agente: str | None, severidad: str | None) -> int:
 # la misma oferta (la del ganador, igual o casi igual al referencial). Las dos se muestran (dicen cosas distintas: poca
 # competencia y posible filtración), pero en el puntaje la de menor peso suma la mitad: antes ese precio contaba dos
 # veces y 1228227 llegaba a 100 con dos señales de precio (pedido del usuario del 2026-11-05).
-_MISMO_HECHO_PUNTAJE: tuple[tuple[str, str], ...] = (("unico_postor_alto", "oferta_igual_valor_referencial"),)
+# Lo mismo con una sanción vigente: la ven la regla de la base (`proveedor_sancionado_osce`) y la señal del expediente
+# (`sancion_vigente_oece`), y una sola sanción sumaba dos veces 35 (auditoría 2026-11-13).
+_MISMO_HECHO_PUNTAJE: tuple[tuple[str, str], ...] = (("unico_postor_alto", "oferta_igual_valor_referencial"),
+                                                     ("proveedor_sancionado_osce", "sancion_vigente_oece"))
 
 
 def puntaje_de(banderas: list[dict]) -> int:

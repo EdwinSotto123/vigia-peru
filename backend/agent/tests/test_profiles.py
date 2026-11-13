@@ -194,5 +194,6 @@ def test_reglas_activas_existen_en_compliance_rules():
     from agents._shared.profiles import PROFILES
     reales = set(REGLAS_POR_NOMBRE)
     for nombre, p in PROFILES.items():
-        faltan = set(p.reglas_activas) - reales
+        # «-regla» apaga una regla de lote 1 (activas por omisión): también tiene que existir.
+        faltan = {r.lstrip("-") for r in p.reglas_activas} - reales
         assert not faltan, f"perfil {nombre}: reglas inexistentes {sorted(faltan)}"

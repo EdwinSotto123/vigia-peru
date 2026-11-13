@@ -85,7 +85,10 @@ def _prompt_lote(label: str, bloque: str | None, ocds_ctx: dict, rango: tuple[in
         bloque_txt = ("BLOQUE `servicio` (perfil SERVICIOS/CONSULTORÍA): si el documento describe el servicio (TDR/Bases), "
                       "completá alcance (literal), actividades, entregables con plazo y % de pago, plazo total, personal "
                       "clave (cargo, profesión, años, dedicación), experiencia exigida al postor, tarifas (concepto/unidad/precio), "
-                      "penalidades, si se permite subcontratar, forma de pago y lugar. Cada entregable/personal/tarifa con su página.\n")
+                      "penalidades, si se permite subcontratar, forma de pago y lugar. Cada entregable/personal/tarifa con su página. "
+                      # Las unidades las usa el mercado (tools/market/historico_seace.py): costo mensual = monto / (días / 30).
+                      "`plazo_total_dias` es el plazo de TODO el servicio en DÍAS (12 meses = 360, 1 año = 365; nunca el número de "
+                      "meses ni el plazo de un solo entregable).\n")
     elif bloque == "obra":
         bloque_txt = ("BLOQUE `obra` (perfil OBRAS): expediente técnico (memoria literal, presupuesto total, partidas con "
                       "metrado/unidad/precio/parcial, GG % y utilidad %, plazo, cronograma), requisitos de residente y supervisor, "
@@ -95,7 +98,11 @@ def _prompt_lote(label: str, bloque: str | None, ocds_ctx: dict, rango: tuple[in
         bloque_txt = ("BLOQUE `sustento_directa` (perfil OTROS: directa/convenio/consultoría por causal): causal invocada "
                       "(artículo y texto LITERAL), informe técnico e informe legal (número, fecha, firmante), acto aprobatorio "
                       "(tipo, número, fecha), cotizaciones (proveedor, RUC, monto, fecha), justificación de proveedor único, fecha "
-                      "de publicación en SEACE; para convenios: entidades parte, objeto, aportes, vigencia.\n")
+                      "de publicación en SEACE; para convenios: entidades parte, objeto, aportes, vigencia. "
+                      # El mercado (tools/market/cotizaciones.py) compara cada monto contra el total adjudicado.
+                      "En `cotizaciones` va TODA cotización o propuesta económica del expediente, también la del proveedor que "
+                      "resultó contratado; `monto` es el TOTAL cotizado por toda la prestación (no el precio unitario ni la cuota "
+                      "mensual, salvo que el documento sólo dé ese) y `ruc` son los 11 dígitos, sin texto.\n")
     return (
         f"DOCUMENTO: {label}\n"
         + (f"Tipo declarado en SEACE: {tipo_hint}\n" if tipo_hint else "")

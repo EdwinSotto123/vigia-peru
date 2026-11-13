@@ -384,7 +384,7 @@ def get_dictamen_context(tool_context: ToolContext) -> dict:
         "acto_resolutivo_directa", "sunat_decolecta", "expediente_proveedor", "lecturas_documentos", "precios_internos", "supervision_obra", "obra_ejecucion",
         # Bloques tipados por documento (ruteo incremental): estudio de mercado +
         # causal (Resumen Ejecutivo) y condiciones FINALES (Orden de Compra).
-        "estudio_mercado", "contrato_final",
+        "estudio_mercado", "contrato_final", "parser_bloque_servicio", "parser_bloque_sustento_directa",
         "recortes", "descartes", "validaciones_pendientes", "perfil",
     ]
     out: dict = {}
@@ -480,8 +480,11 @@ def read_document_analysis(tool_context: ToolContext) -> dict:
     # (leía ítems/firmantes inventados). La tool SÍ tiene los datos reales. Antes esto solo
     # se usaba como fallback "si document_analysis vacío"; ahora gana SIEMPRE que tenga datos.
     raw = state.get("parser_raw_consolidated")
+    # El bloque del tipo (servicio, sustento de una directa) también es análisis de documentos: sin él, un expediente
+    # que sólo trae informe y resolución daba «el parser aún no corrió» y el analista legal no veía la causal.
     if isinstance(raw, dict) and (raw.get("items_consolidados") or raw.get("firmantes")
-                                  or raw.get("postores_consolidados") or raw.get("postores_extraidos")):
+                                  or raw.get("postores_consolidados") or raw.get("postores_extraidos")
+                                  or raw.get("servicio") or raw.get("sustento_directa") or raw.get("fundamento_legal")):
         # Una sola lista de ítems y sin alias/sha256 (`_compact_document_analysis`): antes viajaba
         # `items` Y `items_consolidados` (la misma lista), cada ítem con `texto_literal` y su alias
         # `requerimiento_tecnico_detallado` → 4 copias del texto, reenviadas en cada turno del
@@ -495,6 +498,8 @@ def read_document_analysis(tool_context: ToolContext) -> dict:
             "cuantia_total": raw.get("cuantia_total"),
             "modalidad": raw.get("modalidad"),
             "fundamento_legal": raw.get("fundamento_legal"),
+            "servicio": raw.get("servicio") or None,
+            "sustento_directa": raw.get("sustento_directa") or None,
             # Estudio de mercado + causal (Resumen Ejecutivo) para que el análisis
             # legal evalúe la VALIDEZ de la causal de contratación directa.
             "estudio_mercado": state.get("estudio_mercado"),

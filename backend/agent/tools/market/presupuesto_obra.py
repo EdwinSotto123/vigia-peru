@@ -6,6 +6,13 @@ from .historico_seace import (_comparables_convocatorias, _cubsos_del_record,
     _entidad_ruc_del_record, _finding_historico, _monto_del_record)
 from .normalizar import _diff_pct, _market_to_num, _publicar_grounding
 
+def _avance_cruzado(state: dict) -> bool:
+    """¿El contrato ya está enlazado a su obra en INFOBRAS con su avance (bloque `obra_ejecucion`, tools/obras.py)?"""
+    ob = state.get("obra_ejecucion")
+    return isinstance(ob, dict) and any(isinstance(o, dict) and (o.get("fisico_real") is not None or o.get("financiero_pct") is not None)
+                                        for o in (ob.get("obras") or []))
+
+
 def _mercado_presupuesto_obra(state: dict) -> dict:
     ocds = state.get("ocds") or {}
     ocid = _short_ocid(ocds.get("ocid") or state.get("ocid") or "")
@@ -16,11 +23,16 @@ def _mercado_presupuesto_obra(state: dict) -> dict:
     entidad_ruc = _entidad_ruc_del_record(ocds)
 
     raw = state.get("parser_raw_consolidated") or {}
-    obra = raw.get("obra") if isinstance(raw.get("obra"), dict) else None
+    obra = raw.get("obra") if isinstance(raw.get("obra"), dict) and raw.get("obra") else None
     et = (obra or {}).get("expediente_tecnico") if obra else None
-    et = et if isinstance(et, dict) else None
+    et = et if isinstance(et, dict) and et else None
 
-    presupuesto: dict = {"estado": "sin_dato", "motivo": "sin_bloque_obra_del_parser"} if not et else {"estado": "hallado"}
+    # Sin expediente técnico leído no hay partidas ni GG/utilidad; el bloque `obra` puede traer igual los adicionales y
+    # las ampliaciones de una adenda, que se cuentan abajo contra el monto del proceso.
+    presupuesto: dict = ({"estado": "hallado"} if et else
+                         {"estado": "sin_dato", "motivo": "sin_expediente_tecnico_en_el_bloque_obra" if obra
+                          else "sin_bloque_obra_del_parser"})
+    total = None
     if et:
         partidas = [p for p in (et.get("partidas") or []) if isinstance(p, dict)]
         suma, inconsistentes = 0.0, []
@@ -50,8 +62,9 @@ def _mercado_presupuesto_obra(state: dict) -> dict:
                                        if presupuesto["area_m2"] and (total or monto) else None)
         if presupuesto["monto_por_m2"] is None:
             presupuesto["monto_por_m2_estado"] = "sin_dato"
-        adicionales = [a for a in ((obra or {}).get("adicionales") or []) if isinstance(a, dict)]
-        ampliaciones = [a for a in ((obra or {}).get("ampliaciones_plazo") or []) if isinstance(a, dict)]
+    if obra:
+        adicionales = [a for a in (obra.get("adicionales") or []) if isinstance(a, dict)]
+        ampliaciones = [a for a in (obra.get("ampliaciones_plazo") or []) if isinstance(a, dict)]
         suma_adic = sum(_market_to_num(a.get("monto")) or 0 for a in adicionales)
         ref = total or monto
         presupuesto["adicionales"] = {
@@ -59,6 +72,8 @@ def _mercado_presupuesto_obra(state: dict) -> dict:
             "pct_acumulado": round(suma_adic / ref * 100, 2) if (adicionales and ref) else None,
             "n_ampliaciones_plazo": len(ampliaciones),
         }
+        if not et and (adicionales or ampliaciones):
+            presupuesto["estado"] = "hallado"
 
     comparables = _comparables_convocatorias(ocid, cubsos, objeto, ("obras",)) if (ocid and (cubsos or objeto)) else []
     for c in comparables:
@@ -68,16 +83,24 @@ def _mercado_presupuesto_obra(state: dict) -> dict:
     monto_cmp = monto or (presupuesto.get("presupuesto_total") if et else None)
     finding = _finding_historico(objeto, "1", monto_cmp, base or ("referencial" if monto_cmp else None), comparables, unidad="Obra")
 
+    # El avance de la obra lo trae el cruce con INFOBRAS (tools/obras.py), que corre después: queda pendiente salvo que
+    # ya esté en el state (un reintento, otro orden de fases). Si el cruce llega después, lo quita él.
+    pendientes = [] if _avance_cruzado(state) else ["infobras_avance"]
     vp = state.setdefault("validaciones_pendientes", [])
-    if isinstance(vp, list) and "infobras_avance" not in vp:
-        vp.append("infobras_avance")
+    if isinstance(vp, list):
+        for p in pendientes:
+            if p not in vp:
+                vp.append(p)
 
-    obs = [f"Obras similares en BD SEACE: {len(comparables)} en {MARKET_HIST_MESES} meses.",
-           "Avance físico/financiero (INFOBRAS) no integrado: validación pendiente explícita."]
-    if presupuesto.get("estado") == "sin_dato":
+    obs = [f"Obras similares en BD SEACE: {len(comparables)} en {MARKET_HIST_MESES} meses."]
+    if pendientes:
+        obs.append("Avance físico/financiero (INFOBRAS): pendiente hasta cruzar el contrato con su obra.")
+    if not obra:
         obs.append("Sin bloque `obra` del parser: no se contrastaron partidas ni GG/utilidad.")
+    elif not et:
+        obs.append("El bloque `obra` no trae expediente técnico: no se contrastaron partidas ni GG/utilidad.")
     return {
-        "estado": "hallado" if (et or comparables) else "sin_dato",
+        "estado": "hallado" if (et or comparables or presupuesto["estado"] == "hallado") else "sin_dato",
         "findings": [finding],
         "monto_base": monto, "monto_base_tipo": base,
         "presupuesto": presupuesto,
@@ -89,7 +112,7 @@ def _mercado_presupuesto_obra(state: dict) -> dict:
         "cobertura_mercado": 1.0 if finding["veredicto"] != "sin_dato" else 0.0,
         "n_items": 1, "n_con_mediana": 1 if finding["precio_mediana_mercado"] is not None else 0,
         "confianza_global": ("media" if len(comparables) >= MARKET_HIST_MIN_N else "baja"),
-        "validaciones_pendientes": ["infobras_avance"],
+        "validaciones_pendientes": pendientes,
         "observaciones_clave": obs,
         "grounding_urls": [c["url"] for c in comparables],
         "_modo": "presupuesto_obra",

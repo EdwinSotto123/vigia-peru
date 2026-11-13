@@ -173,6 +173,8 @@ def persist_market_flags_as_banderas(alerta_codigo: str, tool_context: ToolConte
         que_precio = "valor referencial" if f.get("diff_base") == "referencial" else "precio ofertado"
         que_mediana = ("la mediana de otras compras del Estado por el mismo bien" if f.get("diff_fuente") == "ancla_regional"
                        else "la mediana de mercado")
+        if f.get("diff_fuente") == "cotizaciones_expediente":
+            que_precio, que_mediana = "monto adjudicado", "la mediana de las cotizaciones de terceros del propio expediente"
         if veredicto_item == "muy_elevado":
             banderas_a_persistir.append({
                 "regla": "sobreprecio_muy_elevado",

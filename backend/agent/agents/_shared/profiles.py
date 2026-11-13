@@ -168,7 +168,14 @@ _OTROS = Profile(
     parser_bloque="sustento_directa",
     market_estrategia="cotizaciones",
     legal_vectores="otros",
-    reglas_activas=_REGLAS_BASE | {"fraccionamiento", "directa_recurrente"},
+    # Una directa tiene UN proveedor invitado y su valor referencial es la cotización elegida: «único postor», «oferta
+    # igual al referencial» y «única oferta válida» se cumplen por definición (en PROD, 2026-11-13, salían en el 68 %,
+    # 65 % y 11 % de las directas) y no dicen nada del contrato. Tampoco hay plazo mínimo de convocatoria. Las de lote 1
+    # están activas por omisión: se apagan con el prefijo «-».
+    reglas_activas=(_REGLAS_BASE - {"unico_postor_alto", "postor_unico_mayoritario", "plazo_convocatoria_minimo",
+                                    "oferta_igual_valor_referencial", "unica_oferta_valida"})
+                   | {"fraccionamiento", "directa_recurrente",
+                      "-oferta_igual_valor_referencial", "-unica_oferta_valida"},
     topes_uit=_TOPES_CONSULTORIA,
     dictamen_secciones=(
         "Resumen ejecutivo", "Hechos clave", "Causal y expediente de sustento",

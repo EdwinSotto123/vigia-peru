@@ -47,7 +47,14 @@ from tools.fuentes import arreglar_urls_oece
 _RUC_RE = re.compile(r"(?<!\d)(?:10|15|16|17|20)\d{9}(?!\d)")
 # DNI solo con contexto explícito: un 8-dígitos suelto suele ser un N° de resolución,
 # teléfono o parte de un monto. "DNI 12345678", "D.N.I. N° 12345678", "DNI: 12345678".
-_DNI_CTX_RE = re.compile(r"\bD\.?\s?N\.?\s?I\.?\s*(?:N[°º\.]?\s*)?:?\s*(\d{8})(?!\d)", re.I)
+# También «DNI n.° 1234…», «DNI Nro. …», «DNI No …», con negrita o comillas de código alrededor del número, y
+# «documento de identidad 1234…»: salían en claro en el dictamen (auditoría 2026-11-13).
+_DNI_CTX_RE = re.compile(
+    r"(?:\bD\.?\s?N\.?\s?I\.?|\bdocumento(?:\s+nacional)?\s+de\s+identidad)\s*"
+    r"(?:(?:n(?:ro|um|úm)?\.?\s?[°º]?|n[°º]|no\.?|número|numero|#)\s*)?[:\-]?\s*[*_`]{0,3}(\d{8})(?!\d)", re.I)
+# El RUC de una persona natural lleva su DNI dentro (10 + DNI + dígito): no se publica.
+_RUC10_RE = re.compile(r"(?<!\d)10\d{9}(?!\d)")
+RUC_RESERVADO = "RUC de persona natural (reservado)"
 # Un número con miles separados por espacio («S/ 63 500», como escriben las actas y los modelos) se leía como 63 y la
 # bandera se descartaba por monto no respaldado (prueba de oro de servicios 2026-11-10, 1231453).
 _NUM = r"(\d{1,3}(?:[   ]\d{3})+(?:[.,]\d{1,2})?(?!\d)|\d[\d.,]*)"
@@ -767,6 +774,9 @@ def sanitizar_dictamen(md: str, ver: dict | None) -> tuple[str, dict]:
             cambios["urls_eliminadas"].append(u)
     md, n = enmascarar_dnis(md)
     cambios["dnis_enmascarados"] = n
+    md, n10 = _RUC10_RE.subn(RUC_RESERVADO, re.sub(r"\bRUC\s*(?:N[°º.]?\s*)?:?\s*(?=10\d{9}(?!\d))", "", md))
+    cambios["ruc10_reservados"] = n10
+    n += n10
     # El proceso en Contrataciones Abiertas sólo abre con el OCID completo (/proceso/ocds-dgv273-seacev3-<ocid>).
     corregido = arreglar_urls_oece(md)
     cambios["urls_oece_corregidas"] = corregido != md

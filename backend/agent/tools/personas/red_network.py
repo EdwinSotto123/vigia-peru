@@ -99,7 +99,29 @@ def read_person_network_context(tool_context: ToolContext) -> dict:
     firmantes_validos = [f for f in firmantes if not f.get("_descartado_anti_alucinacion")]
 
     rnp_proveedor = {}
-    if ganador_ruc:
+    if ganador_ruc and not (str(ganador_ruc).isdigit() and len(str(ganador_ruc)) == 11):
+        # Un consorcio (código del SEACE, no un RUC): la gente del ganador es la de sus integrantes. Sin esto el RNP
+        # del «ganador» venía vacío y la red de 8 de cada 10 obras decía «sin red detectada» (auditoría 2026-11-13).
+        try:
+            from tools.expediente import integrantes_consorcio
+            miembros = [m for m in integrantes_consorcio(str(ganador_ruc)) if str(m.get("ruc") or "").startswith("20")][:5]
+        except Exception as e:
+            miembros, rnp_proveedor = [], {"error": str(e)[:200]}
+        if miembros:
+            rnp_proveedor = {"found": False, "consorcio": True, "integrantes": [], "socios": [],
+                             "representantes_legales": [], "organos_administracion": []}
+            for m in miembros:
+                try:
+                    r = query_rnp_empresa(ruc=m["ruc"], tool_context=tool_context) or {}
+                except Exception:
+                    r = {}
+                rnp_proveedor["integrantes"].append({"ruc": m["ruc"], "razon_social": m.get("nombre"), "found": bool(r.get("found"))})
+                rnp_proveedor["found"] = rnp_proveedor["found"] or bool(r.get("found"))
+                for grupo_key in ("socios", "representantes_legales", "organos_administracion"):
+                    for p in r.get(grupo_key) or []:
+                        if isinstance(p, dict):
+                            rnp_proveedor[grupo_key].append({**p, "integrante": m.get("nombre"), "integrante_ruc": m["ruc"]})
+    elif ganador_ruc:
         try:
             rnp_proveedor = query_rnp_empresa(ruc=ganador_ruc, tool_context=tool_context)
         except Exception as e:
@@ -220,7 +242,14 @@ def read_person_network_context(tool_context: ToolContext) -> dict:
             return (persona, {"error": str(e)[:200]})
 
     datos_peru: dict = {}
-    personas_lista = list(personas_a_investigar)[:30]  # hasta 30 personas
+    # Orden fijo (un set cambia de orden en cada corrida y el corte dejaba fuera a gente distinta cada vez): primero
+    # los documentos, que se buscan exacto, y después los nombres. Hasta 40: un consorcio suma la gente de cada
+    # integrante. Lo que no entra queda anotado, no se pierde en silencio.
+    _todas = sorted(personas_a_investigar, key=lambda p: (not str(p).isdigit(), str(p)))
+    personas_lista = _todas[:40]
+    if len(_todas) > len(personas_lista):
+        state.setdefault("recortes", []).append({"donde": "person_network.personas_investigadas", "limite": 40,
+                                                 "omitido": {"n": len(_todas) - len(personas_lista)}})
     if personas_lista:
         with concurrent.futures.ThreadPoolExecutor(max_workers=8) as pool:
             futures = {pool.submit(_investigar_persona, p): p for p in personas_lista}

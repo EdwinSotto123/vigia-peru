@@ -36,16 +36,43 @@ def _iso(v):
     return v.isoformat() if hasattr(v, "isoformat") else v
 
 
-def _integrantes(cur, ruc: str) -> list[str]:
-    """El RUC y, si es un consorcio, sus integrantes."""
-    if not ruc:
+def _es_ruc(v) -> bool:
+    s = str(v or "").strip()
+    return len(s) == 11 and s.isdigit()
+
+
+def _ids(*valores) -> list[str]:
+    """Identificadores sin vacíos ni repetidos; cada valor puede ser uno solo o una lista."""
+    out: list[str] = []
+    for v in valores:
+        for x in (v if isinstance(v, (list, tuple, set)) else [v]):
+            x = str(x or "").strip()
+            if x and x not in out:
+                out.append(x)
+    return out
+
+
+def _integrantes(cur, *ids) -> list[str]:
+    """Cada identificador (un RUC, el código de un consorcio en el SEACE) y, de los que son consorcios, sus integrantes."""
+    todos = _ids(*ids)
+    if not todos:
         return []
-    m = [r["ruc_miembro"] for r in _filas(cur, "SELECT DISTINCT ruc_miembro FROM conosce_consorcios WHERE ruc_consorcio = %s", (ruc,))]
-    return sorted({ruc, *m})
+    m = [r["ruc_miembro"] for r in _filas(cur, "SELECT DISTINCT ruc_miembro FROM conosce_consorcios WHERE ruc_consorcio = ANY(%s)",
+                                         (todos,)) if r.get("ruc_miembro")]
+    return sorted({*todos, *m})
 
 
-def vinculo_supervisor_ejecutor(cur, supervisor: str, ejecutor: str) -> dict:
-    """Qué une al supervisor con el ejecutor (los dos expandidos a sus consorciados). Sin documentos ni nombres en claro."""
+def contraparte_obra(cur, codigo, rol: str) -> list[str]:
+    """Con qué ganador calzó el OTRO contrato de la misma obra (`rol`: 'ejecucion' o 'supervision'), según obra_contrato.
+    INFOBRAS publica al consorcio que ejecuta con su código «C000…» o sin nada: por ahí no se llega a sus integrantes;
+    por el proceso que ganó, sí (el código del consorcio en el SEACE, que CONOSCE abre en sus integrantes)."""
+    return [r["ruc"] for r in _filas(cur, "SELECT DISTINCT ruc FROM obra_contrato WHERE codigo = %s AND rol = %s", (codigo, rol))
+            if r.get("ruc")]
+
+
+def vinculo_supervisor_ejecutor(cur, supervisor, ejecutor) -> dict:
+    """Qué une al supervisor con el ejecutor (los dos expandidos a sus consorciados). Sin documentos ni nombres en claro.
+    Cada lado puede ser un identificador o varios (el de INFOBRAS, el ganador del proceso, el del enlace con la obra)."""
     sup, eje = _integrantes(cur, supervisor), _integrantes(cur, ejecutor)
     out = {"mismo_ruc": bool(set(sup) & set(eje)), "personas_comunes": [], "consorcios_comunes": [], "mismo_domicilio": False}
     if not sup or not eje:
@@ -77,6 +104,10 @@ def _pct(a, b):
         return None
 
 
+def _avance_posible(v) -> bool:
+    return v is not None and 0 <= v <= 100.5
+
+
 def senales_obra(o: dict, vinculo: dict | None) -> list[dict]:
     """Reglas fijas sobre una obra supervisada (los mismos umbrales que las banderas de obras de Vigía cuando existen)."""
     s: list[dict] = []
@@ -100,12 +131,26 @@ def senales_obra(o: dict, vinculo: dict | None) -> list[dict]:
                       "fuente_url": url,
                       "evidencia": f"En «{nombre}» (INFOBRAS {o['codigo']}): " + "; ".join(partes) + "."})
     if o.get("paralizada") or (o.get("dias_paralizada") or 0) >= 90:
+        # «Existe paralización = Sí» también queda en una obra que después siguió o terminó: el texto dice cuál es el caso.
+        estado = str(o.get("estado") or "").strip()
+        sigue = not estado or estado.lower().startswith("paraliz")
         s.append({"regla": "supervision_obra_paralizada", "severidad": "media", "norma": NORMA_SUPERVISION, "fuente_url": url,
-                  "evidencia": f"«{nombre}» figura paralizada en INFOBRAS"
+                  "evidencia": (f"«{nombre}» figura paralizada en INFOBRAS" if sigue else
+                                f"«{nombre}» registra una paralización en INFOBRAS y hoy figura «{estado}»")
                                + (f" ({o['dias_paralizada']} días)" if o.get("dias_paralizada") else "")
                                + (f": {o['causal_paralizacion']}" if o.get("causal_paralizacion") else "") + "."})
     fis, fin, prog = o.get("fisico_real"), o.get("financiero_pct"), o.get("fisico_prog")
-    if fis is not None and fin is not None and fin - fis >= 20:
+    # Un dato imposible de INFOBRAS (avance de 1.700 %, adicionales de 300 veces el contrato) no dispara nada: los mismos
+    # límites que obra_dudoso() (migración 160).
+    if not _avance_posible(fis):
+        fis = None
+    if not _avance_posible(prog):
+        prog = None
+    if fin is not None and not 0 <= fin <= 300:
+        fin = None
+    # Con la obra físicamente terminada (95 % o más), pagar más del 100 % son adicionales o reajustes ya ejecutados, no
+    # «pago sin obra» (como obra_pagado_sin_avance en la migración 160).
+    if fis is not None and fin is not None and fin - fis >= 20 and fis < 95:
         s.append({"regla": "supervision_pagado_sin_avance", "severidad": "media", "norma": NORMA_SUPERVISION, "fuente_url": url,
                   "evidencia": f"En «{nombre}» se pagó el {fin:.0f} % y el avance físico es {fis:.0f} %: "
                                f"{fin - fis:.0f} puntos pagados sin obra que los respalde, con la supervisión en curso."})
@@ -113,7 +158,7 @@ def senales_obra(o: dict, vinculo: dict | None) -> list[dict]:
         s.append({"regla": "supervision_avance_rezagado", "severidad": "baja", "norma": NORMA_SUPERVISION, "fuente_url": url,
                   "evidencia": f"«{nombre}» lleva {fis:.0f} % de avance físico contra {prog:.0f} % programado."})
     p_adic = _pct(o.get("adicionales_monto"), o.get("contrato_monto"))
-    if p_adic is not None and p_adic >= 15:
+    if p_adic is not None and 15 <= p_adic <= 300:
         s.append({"regla": "supervision_adicionales_altos", "severidad": "media", "norma": NORMA_SUPERVISION, "fuente_url": url,
                   "evidencia": f"«{nombre}» tiene {o.get('adicionales_n') or 0} adicional(es) por el {p_adic:.0f} % del contrato "
                                f"de obra (el 15 % es el tope sin autorización de la Contraloría), aprobados con esta supervisión."})
@@ -125,8 +170,37 @@ def senales_obra(o: dict, vinculo: dict | None) -> list[dict]:
     return s
 
 
+# Las mismas cuentas que las señales de arriba, para el historial (sin datos imposibles ni obras ya terminadas).
+SQL_ADICIONALES_ALTOS = "adicionales_monto > 0.15 * NULLIF(contrato_monto, 0) AND adicionales_monto <= 3 * contrato_monto"
+SQL_PAGADA_SIN_AVANCE = ("financiero_pct - fisico_real >= 20 AND fisico_real >= 0 AND fisico_real < 95 "
+                         "AND financiero_pct <= 300")
+HISTORIAL_SIN_DATO = {"estado": "sin_dato", "motivo": ("el ganador es un consorcio sin RUC propio y el CONOSCE todavía no publica "
+                                                      "sus integrantes: no se pudo buscar su historial en INFOBRAS")}
+
+
+def historial_de(quienes: list[str], uno: str, varios: str) -> dict:
+    """De quién es el historial: de la empresa o, en un consorcio, de sus integrantes sumados."""
+    if len(quienes) > 1:
+        return {"integrantes": len(quienes),
+                "fuente": f"INFOBRAS (Contraloría), todas las obras que {varios} los {len(quienes)} integrantes del consorcio"}
+    return {"fuente": f"INFOBRAS (Contraloría), todas las obras que {uno}"}
+
+
+def sin_ruc_de_persona(o: dict) -> None:
+    """El ejecutor o el supervisor que es una persona natural (RUC 10): un apellido tapado y sin su RUC (lleva el DNI)."""
+    for rol in ("ejecutor", "supervisor"):
+        if es_persona_natural(o.get(f"{rol}_ruc")):
+            if o.get(f"{rol}_nombre"):
+                o[f"{rol}_nombre"] = tapar_nombre(o[f"{rol}_nombre"])
+            o[f"{rol}_ruc"] = None
+            o[f"{rol}_persona_natural"] = True
+    if es_persona_natural(o.get("ruc_contrato")):
+        o["ruc_contrato"] = None
+
+
 def supervision_bd(ocid: str, ruc_ganador: str | None, conn=None) -> dict:
-    corto = str(ocid or "").split("-")[-1] if str(ocid or "").startswith("ocds-") else str(ocid or "")
+    # El código corto como está en `convocatorias.ocid`: «2026-10404-12» en los procesos de 2026 (no su último tramo).
+    corto = _short_ocid(str(ocid or ""))
     propia = conn is None
     conn = conn or _pg()
     try:
@@ -135,30 +209,36 @@ def supervision_bd(ocid: str, ruc_ganador: str | None, conn=None) -> dict:
                                   WHERE oc.ocid = %s AND oc.rol = 'supervision' ORDER BY o.contrato_monto DESC NULLS LAST""",
                        (corto,))
         out: dict = {"enlazada": bool(obras), "obras": [], "senales": []}
-        # Sin ganador en el OCDS (procesos viejos): el RUC del enlace con la obra.
         # Sin ganador en el OCDS, o con el código de un consorcio (no es un RUC): el RUC del enlace con la obra.
-        if not (ruc_ganador and len(str(ruc_ganador)) == 11 and str(ruc_ganador).isdigit()):
+        ruc_proceso = ruc_ganador
+        if not _es_ruc(ruc_ganador):
             ruc_ganador = next((o.get("ruc_contrato") for o in obras if o.get("ruc_contrato")), None) or ruc_ganador
         out["ruc_contrato"] = ruc_ganador
         for o in obras[:5]:
-            v = vinculo_supervisor_ejecutor(cur, o.get("supervisor_ruc") or ruc_ganador or "", o.get("ejecutor_ruc") or "")
+            # El supervisor: el que registra INFOBRAS, el ganador de este proceso (un consorcio, por su código) y el del
+            # enlace. El ejecutor: el de INFOBRAS y el ganador del proceso de obras de esa misma obra.
+            v = vinculo_supervisor_ejecutor(cur, [o.get("supervisor_ruc"), ruc_proceso, o.get("ruc_contrato")],
+                                            [o.get("ejecutor_ruc"), *contraparte_obra(cur, o["codigo"], "ejecucion")])
             sen = senales_obra(o, v)
-            for k in ("ejecutor_nombre", "supervisor_nombre"):
-                ruc_k = o.get(k.replace("_nombre", "_ruc"))
-                if es_persona_natural(ruc_k) and o.get(k):
-                    o[k] = tapar_nombre(o[k])
+            sin_ruc_de_persona(o)
             out["obras"].append({**{k: _iso(x) for k, x in o.items()}, "vinculo": v,
                                  "supervision_pct_obra": _pct(o.get("supervision_monto"), o.get("contrato_monto")),
                                  "adicionales_pct": _pct(o.get("adicionales_monto"), o.get("contrato_monto")),
                                  "fuente_url": URL_INFOBRAS.format(o["codigo"])})
             out["senales"].extend(sen)
-        if ruc_ganador:
-            h = _filas(cur, """SELECT count(*)::int AS obras, count(*) FILTER (WHERE paralizada)::int AS paralizadas,
-                                      count(*) FILTER (WHERE adicionales_monto > 0.15 * NULLIF(contrato_monto, 0))::int AS con_adicionales_altos,
-                                      count(*) FILTER (WHERE financiero_pct - fisico_real >= 20)::int AS pagadas_sin_avance,
+        # El historial: por el RUC o, si ganó un consorcio (INFOBRAS no conoce su código del SEACE), por sus integrantes.
+        quienes = [x for x in _integrantes(cur, ruc_proceso, ruc_ganador) if _es_ruc(x)]
+        if quienes:
+            h = _filas(cur, f"""SELECT count(*)::int AS obras, count(*) FILTER (WHERE paralizada)::int AS paralizadas,
+                                      count(*) FILTER (WHERE {SQL_ADICIONALES_ALTOS})::int AS con_adicionales_altos,
+                                      count(*) FILTER (WHERE {SQL_PAGADA_SIN_AVANCE})::int AS pagadas_sin_avance,
                                       COALESCE(sum(supervision_monto), 0)::float AS monto_supervision
-                                 FROM obra_infobras WHERE supervisor_ruc = %s""", (ruc_ganador,))[0]
-            out["historial_supervisor"] = {**h, "fuente": "INFOBRAS (Contraloría), todas las obras que supervisó"}
+                                 FROM obra_infobras WHERE supervisor_ruc = ANY(%s)""", (quienes,))[0]
+            out["historial_supervisor"] = {**h, **historial_de(quienes, "supervisó", "supervisaron")}
+        elif ruc_proceso or ruc_ganador:
+            out["historial_supervisor"] = dict(HISTORIAL_SIN_DATO)
+        if es_persona_natural(out.get("ruc_contrato")):
+            out["_ruc_contrato"], out["ruc_contrato"] = out["ruc_contrato"], None
         return out
     finally:
         if propia:
@@ -180,8 +260,11 @@ def query_supervision_obra(ocid: str, tool_context: ToolContext, ruc: str | None
         sup = supervision_bd(ocid, ruc)
     except Exception as e:  # noqa: BLE001
         return {"error": f"base no disponible: {str(e)[:160]}"}
+    # El RUC de una persona natural no queda en el bloque (va al dictamen y a la ficha): sólo vuelve al orquestador, que
+    # lo necesita para pedir el expediente cuando el OCDS no trae ganador.
+    ruc_contrato = sup.pop("_ruc_contrato", None) or sup.get("ruc_contrato")
     tool_context.state["supervision_obra"] = sup
-    return {"enlazada": sup["enlazada"], "ruc_contrato": sup.get("ruc_contrato"), "obras": len(sup["obras"]), "senales": sup["senales"],
+    return {"enlazada": sup["enlazada"], "ruc_contrato": ruc_contrato, "obras": len(sup["obras"]), "senales": sup["senales"],
             "historial": sup.get("historial_supervisor")}
 
 

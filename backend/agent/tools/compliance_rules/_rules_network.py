@@ -421,7 +421,8 @@ def check_directa_recurrente_rule(ocid: str, tool_context: ToolContext,
                      LEFT JOIN postores p ON p.ocid=c.ocid AND p.empresa_ruc=%s
                      LEFT JOIN ofertas o ON o.postor_id=p.id AND o.ganadora
                     WHERE c.ocid<>%s AND (c.proveedor_ruc=%s OR o.id IS NOT NULL)
-                      AND UPPER(COALESCE(c.tipo_proceso,'')) LIKE '%%DIRECTA%%'
+                      AND (c.tipo_contratacion = 'directa'
+                           OR UPPER(COALESCE(c.tipo_proceso, c.modalidad, '')) LIKE '%%DIRECTA%%')
                       AND c.fecha_convocatoria BETWEEN %s::date - INTERVAL '12 months' AND %s::date""",
                 (prov_ruc, ocid, prov_ruc, fecha, fecha))
         else:
@@ -431,7 +432,8 @@ def check_directa_recurrente_rule(ocid: str, tool_context: ToolContext,
                      LEFT JOIN postores p ON p.ocid=c.ocid AND p.empresa_ruc=%s
                      LEFT JOIN ofertas o ON o.postor_id=p.id AND o.ganadora
                     WHERE c.ocid<>%s AND (c.proveedor_ruc=%s OR o.id IS NOT NULL)
-                      AND UPPER(COALESCE(c.tipo_proceso,'')) LIKE '%%DIRECTA%%'
+                      AND (c.tipo_contratacion = 'directa'
+                           OR UPPER(COALESCE(c.tipo_proceso, c.modalidad, '')) LIKE '%%DIRECTA%%')
                       AND c.fecha_convocatoria >= NOW() - INTERVAL '12 months'""",
                 (prov_ruc, ocid, prov_ruc))
         rows = cur.fetchall()

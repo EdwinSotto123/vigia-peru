@@ -477,3 +477,21 @@ def test_numeros_de_url_no_son_montos():
          "exige S/ 800,000.00")
     assert list(extraer_identificadores(t)["montos"]) == ["800,000.00"]
     assert extraer_identificadores("revisar publicaciones/6444155")["montos"] == {}
+
+
+def test_sanitizar_tapa_dni_en_todas_sus_formas_y_el_ruc_10():
+    """Auditoría 2026-11-13: «DNI n.° …», «DNI Nro. …», negrita y «documento de identidad» salían en claro; el RUC 10 también."""
+    from tools.verify import sanitizar_dictamen
+    md = ("Firmó con DNI n.° 43960880, su socio con DNI Nro. 41234567, otro con DNI No 40111222, "
+          "DNI: **40333444**, DNI `40555666` y documento de identidad 40777888. "
+          "El proveedor (RUC 10439608801) ganó; la empresa RUC 20131378972 no. Resolución 12345678-2026.")
+    limpio, cambios = sanitizar_dictamen(md, {})
+    for d in ("43960880", "41234567", "40111222", "40333444", "40555666", "40777888", "10439608801"):
+        assert d not in limpio, (d, limpio)
+    assert "20131378972" in limpio and "12345678-2026" in limpio      # un RUC 20 y un número de resolución siguen
+    assert cambios["ruc10_reservados"] == 1 and cambios["modificado"]
+
+
+def test_un_codigo_de_consorcio_no_es_persona_natural():
+    from tools.privacidad import es_persona_natural
+    assert es_persona_natural("10439608801") and not es_persona_natural("1016604") and not es_persona_natural(None)

@@ -96,4 +96,7 @@ def tapar_en_texto(texto: str | None, nombres) -> str | None:
 
 
 def es_persona_natural(ruc: str | None) -> bool:
-    return bool(ruc) and str(ruc).startswith("10")
+    """RUC de persona natural: 11 dígitos que empiezan en 10. El código de un consorcio en el SEACE («1016604», 7
+    dígitos) también empieza en 10 y no lo es: su nombre salía con una palabra tapada («CONSORCIO ••• NORTE SUR»)."""
+    r = str(ruc or "").strip()
+    return len(r) == 11 and r.isdigit() and r.startswith("10")

@@ -297,8 +297,12 @@ def check_adicional_acumulado_rule(ocid: str, tool_context: ToolContext,
         pcts = [a.get("pct_acumulado") for a in adicionales if isinstance(a, dict)
                 and isinstance(a.get("pct_acumulado"), (int, float))]
         montos = [float(a.get("monto") or 0) for a in adicionales if isinstance(a, dict)]
+        # Sin presupuesto leído del expediente, la base es lo adjudicado en el proceso (antes el porcentaje quedaba en
+        # None aunque hubiera adicionales leídos y el monto estuviera en el registro).
         presupuesto = ((obra.get("expediente_tecnico") or {}).get("presupuesto_total")
-                       or obra.get("presupuesto_total"))
+                       or obra.get("presupuesto_total")
+                       or sum(float(((a.get("value") or {}).get("amount")) or 0)
+                              for a in (ocds.get("awards") or []) if isinstance(a, dict)) or None)
         if pcts:
             pct, fuente = float(max(pcts)), "parser_obra_adicionales"
         elif montos and presupuesto:
@@ -415,7 +419,8 @@ def check_fraccionamiento_rule(ocid: str, tool_context: ToolContext,
         elif "ADJUDICACION SIMPLIFICADA" in tipo_u or "AS-" in tipo_u:
             tope = _tope(topes, _TOPES_DEFAULT["adjudicacion_simplificada_max"],
                          "adjudicacion_simplificada_max", "adjudicacion_simplificada", "licitacion_publica")
-        elif "DIRECTA" in tipo_u or "MENOR" in tipo_u:
+        # Una contratación directa no tiene tope de 8 UIT (ése es el de los contratos menores).
+        elif "MENOR" in tipo_u:
             tope = 8.0
         excede = tope is not None and (suma / UIT) > tope
         result.update({

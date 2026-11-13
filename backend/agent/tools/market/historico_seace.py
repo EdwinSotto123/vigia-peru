@@ -17,15 +17,26 @@ def _cubsos_del_record(ocds: dict) -> list[str]:
     return ids
 
 
-def _monto_del_record(ocds: dict, state: dict) -> tuple[float | None, str | None]:
+def _monto_del_record(ocds: dict, state: dict, total: bool = False) -> tuple[float | None, str | None]:
     """(monto, base): adjudicado (awards) > contratado (contracts) > referencial (tender.value /
-    convocatoria). None si el valor no es público (p.ej. hasTenderInformationProtectedByLaw)."""
+    convocatoria). None si el valor no es público (p.ej. hasTenderInformationProtectedByLaw).
+
+    `total=True` suma todas las adjudicaciones vigentes (o todos los contratos): en un proceso adjudicado por ítems
+    el OCDS trae una adjudicación por ítem, y la primera sola no es el monto del proceso (se compara contra la
+    cuantía TOTAL de otras convocatorias y se divide entre el plazo de TODO el servicio)."""
     def _amt(v):
         try:
             a = float((v or {}).get("amount") or 0)
             return a if a > 0 else None
         except (TypeError, ValueError):
             return None
+    if total:
+        for nodo, etiqueta in (("awards", "adjudicado"), ("contracts", "contratado")):
+            vals = [_amt(x.get("value")) for x in (ocds.get(nodo) or [])
+                    if isinstance(x, dict) and str(x.get("status") or "").lower() not in ("cancelled", "unsuccessful")]
+            vals = [v for v in vals if v]
+            if vals:
+                return float(sum(vals)), etiqueta
     for a in ocds.get("awards") or []:
         if isinstance(a, dict) and _amt(a.get("value")):
             return _amt(a.get("value")), "adjudicado"
@@ -161,7 +172,7 @@ def _finding_historico(objeto: str, item_numero: str, monto, base: str | None, c
         "diff_pct": diff, "diff_base": base if diff is not None else None,
         "veredicto": veredicto, "es_estimacion": veredicto == "sin_dato", "motivo_estimacion": motivo,
         "estado": "hallado" if n else "sin_dato",
-        "evidencia": [{"url": c["url"], "cita": f"{(c.get('objeto') or '')[:160]} · S/ {c['cuantia_referencial']:,.2f}"[:240]} for c in comparables][:20],
+        "evidencia": [{"url": c["url"], "cita": f"{(c.get('objeto') or '')[:160]}: S/ {c['cuantia_referencial']:,.2f}"[:240]} for c in comparables][:20],
         "spec_restrictiva": None,
         "comentario": ((f"{n} convocatoria(s) comparable(s) en {MARKET_HIST_MESES} meses (BD SEACE propia); "
                         f"rango p25–p75 S/ {p25:,.2f} – {p75:,.2f}."
@@ -171,13 +182,47 @@ def _finding_historico(objeto: str, item_numero: str, monto, base: str | None, c
     }
 
 
+def _entero_positivo(v) -> int | None:
+    try:
+        n = int(float(v))
+        return n if n > 0 else None
+    except (TypeError, ValueError):
+        return None
+
+
+def _lectura(state: dict, clase: str, marca: str) -> dict:
+    """La salida de un lector de Vigía (`lecturas_documentos`), vacía si el documento leído no era de esa clase."""
+    lect = state.get("lecturas_documentos") if isinstance(state.get("lecturas_documentos"), dict) else {}
+    salida = (lect.get(clase) or {}).get("salida") if isinstance(lect.get(clase), dict) else None
+    return salida if (isinstance(salida, dict) and salida.get(marca) is not False) else {}
+
+
+def _plazo_del_servicio(state: dict, srv: dict | None) -> tuple[int | None, str | None]:
+    """(días, fuente) del plazo del servicio. Manda el contrato firmado (es el plazo por el que se paga el monto
+    adjudicado); después las bases o los TDR. Antes sólo se miraba el bloque `servicio` del parser: con bases
+    escaneadas no hay bloque y el costo mensual quedaba sin dato aunque el lector ya tenía el plazo."""
+    contrato, bases = _lectura(state, "contrato", "es_contrato"), _lectura(state, "bases", "es_bases")
+    cf = _safe_parse_json(state.get("contrato_final")) or {}
+    candidatos = (
+        (contrato.get("plazo_dias"), "contrato (lector de Vigía)"),
+        (cf.get("plazo_ejecucion_dias") if isinstance(cf, dict) else None, "contrato u orden (parser)"),
+        ((srv or {}).get("plazo_total_dias"), "términos de referencia (parser)"),
+        (bases.get("plazo_dias"), "bases (lector de Vigía)"),
+    )
+    for valor, fuente in candidatos:
+        n = _entero_positivo(valor)
+        if n:
+            return n, fuente
+    return None, None
+
+
 def _mercado_historico_seace(state: dict) -> dict:
     ocds = state.get("ocds") or {}
     ocid = _short_ocid(ocds.get("ocid") or state.get("ocid") or "")
     tender = ocds.get("tender") or {}
     objeto = tender.get("description") or tender.get("title") or ""
     cubsos = _cubsos_del_record(ocds)
-    monto, base = _monto_del_record(ocds, state)
+    monto, base = _monto_del_record(ocds, state, total=True)
     entidad_ruc = _entidad_ruc_del_record(ocds)
     tipos = ("servicios", "consultoria")
 
@@ -191,25 +236,34 @@ def _mercado_historico_seace(state: dict) -> dict:
 
     # Tarifas implícitas del bloque `servicio` del parser (lo produce D; si falta → sin_dato).
     raw = state.get("parser_raw_consolidated") or {}
-    srv = raw.get("servicio") if isinstance(raw.get("servicio"), dict) else None
-    ind: dict = {"estado": "sin_dato", "motivo": "sin_bloque_servicio_del_parser"} if not srv else {"estado": "hallado"}
-    if srv:
-        plazo = srv.get("plazo_total_dias")
-        personal = [p for p in (srv.get("personal_clave") or []) if isinstance(p, dict)]
-        entregables = [e for e in (srv.get("entregables") or []) if isinstance(e, dict)]
-        ind.update({"plazo_dias": plazo, "n_personal_clave": len(personal), "n_entregables": len(entregables),
-                    "tarifas_declaradas": [t for t in (srv.get("tarifas") or []) if isinstance(t, dict)][:20]})
-        try:
-            meses = float(plazo) / 30.0 if plazo else None
-        except (TypeError, ValueError):
-            meses = None
+    srv = raw.get("servicio") if isinstance(raw, dict) and isinstance(raw.get("servicio"), dict) and raw.get("servicio") else None
+    plazo, plazo_fuente = _plazo_del_servicio(state, srv)
+    personal = [p for p in ((srv or {}).get("personal_clave") or []) if isinstance(p, dict)]
+    personal_fuente = "términos de referencia (parser)" if personal else None
+    if not personal:
+        personal = [p for p in (_lectura(state, "bases", "es_bases").get("personal_clave") or []) if isinstance(p, dict)]
+        personal_fuente = "bases (lector de Vigía)" if personal else None
+    ind: dict = ({"estado": "sin_dato", "motivo": "sin_bloque_servicio_del_parser"}
+                 if not (srv or plazo or personal) else {"estado": "hallado"})
+    if srv or plazo or personal:
+        entregables = [e for e in ((srv or {}).get("entregables") or []) if isinstance(e, dict)]
+        ind.update({"plazo_dias": plazo, "plazo_fuente": plazo_fuente,
+                    "n_personal_clave": len(personal), "personal_fuente": personal_fuente,
+                    "n_entregables": len(entregables),
+                    "tarifas_declaradas": [t for t in ((srv or {}).get("tarifas") or []) if isinstance(t, dict)][:20]})
+        # Un plazo menor a un mes no se lleva a «costo mensual»: 10 días por S/ 30 000 no son S/ 90 000 al mes.
+        meses = plazo / 30.0 if (plazo and plazo >= 30) else None
         ind["costo_mensual_implicito"] = round(monto / meses, 2) if (monto and meses) else None
         ind["costo_mensual_por_persona"] = (round(monto / meses / len(personal), 2)
                                             if (monto and meses and personal) else None)
+        if ind["costo_mensual_por_persona"] is not None:
+            # El divisor son los CARGOS de personal clave que piden las bases, no la dotación del servicio.
+            ind["costo_mensual_por_persona_base"] = "cargos de personal clave exigidos (no es el total de trabajadores)"
         ind["costo_por_entregable"] = round(monto / len(entregables), 2) if (monto and entregables) else None
         if ind["costo_mensual_implicito"] is None and ind["costo_por_entregable"] is None:
             ind["estado"] = "sin_dato"
-            ind["motivo"] = "monto_no_publico" if not monto else "sin_plazo_ni_entregables_en_tdr"
+            ind["motivo"] = ("monto_no_publico" if not monto
+                             else "plazo_menor_a_un_mes" if plazo else "sin_plazo_ni_entregables_en_tdr")
     # Comparación de tarifa mensual contra comparables: solo posible si estos traen plazo (no
     # lo guardamos en `convocatorias`) → se declara.
     ind["comparacion_tarifa_mensual"] = {"estado": "sin_dato", "motivo": "comparables_sin_plazo_en_bd"}

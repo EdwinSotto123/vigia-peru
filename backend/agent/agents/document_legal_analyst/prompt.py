@@ -208,13 +208,22 @@ VECTORES — SERVICIOS / CONSULTORÍA (sobre el bloque `servicio` del parser: al
 actividades[], entregables[], plazo_total_dias, personal_clave[], experiencia_postor,
 tarifas[], penalidades[], subcontratacion_permitida, forma_pago)
 ═══════════════════════════════════════════════════════════════════════════
+DÓNDE ESTÁ EL DATO: si `read_document_analysis` no trae el bloque `servicio`, los mismos datos
+están en las LECTURAS DE LOS DOCUMENTOS ORIGINALES con otro nombre y valen igual:
+`bases.personal_clave[].experiencia_anios` (= experiencia_min_anios),
+`bases.experiencia_postor.monto_minimo` (= monto_facturado_min; su `cita` es la evidencia),
+`bases.plazo_dias` y `contrato.plazo_dias` (= plazo_total_dias), `contrato.forma_de_pago`
+(= forma_pago). Sin el bloque y sin lecturas, estos vectores quedan `sin_dato`: no los
+deduzcas del objeto.
 a) PERSONAL CLAVE SOBRE-EXIGIDO (personal_clave_sobreexigido): `personal_clave[]` con grado
    académico, años de experiencia o dedicación desproporcionados al monto y al plazo
    (p.ej. varios profesionales con décadas de experiencia para un servicio de bajo monto),
    o perfiles que solo una persona/empresa puede cubrir. Norma: Art. 2 — libertad de
    concurrencia; proporcionalidad de requisitos. `alta`/`media` según magnitud.
 b) EXPERIENCIA EXCESIVA (experiencia_excesiva): `experiencia_postor.monto_facturado_min`
-   > 3 × valor del contrato, o rubro/`n_contratos` que reduce a 1-2 postores. `alta`/`media`.
+   > 3 × `cotejos_legales.valor_estimado_total` (el valor ESTIMADO de la convocatoria; NUNCA el
+   monto adjudicado, ofertado o contratado), o rubro/`n_contratos` que reduce a 1-2 postores.
+   `alta`/`media`.
 c) PLAZO IRREAL (plazo_irreal): `plazo_total_dias` incompatible con los entregables/
    actividades (solo cumplible por quien ya viene ejecutando), o entregables con plazos
    que suman más que el plazo total. `media`.
@@ -231,8 +240,8 @@ f) PENALIDAD ATÍPICA (penalidad_atipica): `penalidades[]` con fórmula o tope d
     "obras": """
 ═══════════════════════════════════════════════════════════════════════════
 VECTORES — OBRAS (sobre el bloque `obra` del parser: expediente_tecnico {presupuesto_total,
-partidas[], gastos_generales_pct, utilidad_pct, plazo_dias}, requisitos de residente /
-supervisor, garantia_fiel_cumplimiento, adelantos, adicionales[], ampliaciones_plazo[],
+partidas[], gastos_generales_pct, utilidad_pct, plazo_dias}, residente_requisitos,
+supervisor_requisitos, garantia_fiel_cumplimiento, adelantos, adicionales[], ampliaciones_plazo[],
 valorizaciones[]; y documentos `contractAmendment` del OCDS)
 ═══════════════════════════════════════════════════════════════════════════
 a) ADICIONALES SIN AUTORIZACIÓN / SOBRE TOPE (adicional_sin_autorizacion): `adicionales[]`
@@ -247,9 +256,13 @@ c) SUPERVISOR DESIGNADO POR DIRECTA (supervisor_por_directa): supervisión de ob
 d) CONSORCIO Y CAPACIDAD RNP (consorcio_capacidad_rnp): consorcio cuya capacidad máxima
    de contratación (RNP) declarada en el documento es inferior al monto, o integrantes sin
    experiencia en la especialidad. `media`.
-e) EXPERIENCIA DESPROPORCIONADA (experiencia_desproporcionada): experiencia en obras
-   similares > 3 × valor, o "similar" definida tan estrechamente que solo un contratista
-   califica. `alta`/`media`.
+e) EXPERIENCIA DESPROPORCIONADA (experiencia_desproporcionada): la experiencia en obras
+   similares exigida al postor supera 3 × `cotejos_legales.valor_estimado_total` (el valor
+   ESTIMADO de la convocatoria, ya en el prompt; si `cotejos_legales.experiencia[]` trae el
+   cotejo, manda su `supera_tope`), o "similar" definida tan estrechamente que solo un
+   contratista califica. NUNCA la midas contra el monto adjudicado, ofertado o contratado: eso
+   infla el cociente. Sin valor estimado no hay cociente: no emitas la bandera por monto.
+   `alta`/`media`.
 f) PLAZO IRREAL (plazo_irreal): `plazo_dias` incompatible con el metrado de las partidas
    principales (solo cumplible por quien ya movilizó). `media`.
 """,
@@ -260,6 +273,15 @@ VECTORES — CONTRATACIÓN DIRECTA / CONVENIO / RÉGIMEN ESPECIAL (sobre el bloq
 acto_aprobatorio {tipo, numero, fecha}, cotizaciones[], proveedor_unico_justificacion,
 fecha_publicacion_seace; para convenio: entidades_parte[], objeto, aportes, vigencia)
 ═══════════════════════════════════════════════════════════════════════════
+DÓNDE ESTÁ EL DATO: si `read_document_analysis` no trae el bloque `sustento_directa`, la causal
+está en `estudio_mercado` (`causal_articulo`, `causal_texto`, `proveedores_evaluados`) y en
+`fundamento_legal`; el contrato, en `contrato_final` y en la lectura `contrato`. Lo que no
+aparezca en ninguno de esos lugares es `sin_dato`, no una ausencia en el expediente: el vector
+b) sólo se emite si el documento que sustenta la directa fue leído y no nombra el acto.
+CONVENIO O CONTRATACIÓN ENTRE ENTIDADES: la contraparte es otra entidad pública; no la trates
+como una empresa (no aplican cotizaciones de terceros ni proveedor único). Lo que se revisa es
+que la entidad proveedora preste ese bien o servicio como parte de sus funciones y no lo
+subcontrate a un privado, y que el convenio no encubra una compra que debió concursarse.
 a) CAUSAL INCONGRUENTE CON EL OBJETO (causal_incongruente): la causal invocada no calza
    con el objeto (emergencia por lluvias → bienes ajenos a la atención de la emergencia;
    emergencia sanitaria → obras no sanitarias; proveedor único sin sustento de
@@ -274,11 +296,11 @@ d) FRACCIONAMIENTO (fraccionamiento): el propio expediente o el objeto revela pa
    fechas próximas). Solo con el dato literal en el documento; el cruce con otras
    convocatorias lo hace el sistema. `alta`.
 e) RECURRENCIA DEL PROVEEDOR EN DIRECTAS (directa_recurrente): el expediente cita
-   contrataciones directas previas con el mismo proveedor, o `cotizaciones[]` con un solo
-   cotizante que coincide con el adjudicatario. `media`.
+   contrataciones directas previas con el mismo proveedor para la misma necesidad. `media`.
 f) COTIZACIONES INSUFICIENTES O VINCULADAS (procedimiento): `cotizaciones[]` con < 2
-   cotizantes de terceros, o cotizantes con el mismo domicilio/representante según el
-   documento. `media`.
+   cotizantes de terceros (incluido el caso de un solo cotizante que es el adjudicatario), o
+   cotizantes con el mismo domicilio/representante según el documento. `media`. No aplica a
+   un convenio ni a una contratación entre entidades.
 """,
 }
 
