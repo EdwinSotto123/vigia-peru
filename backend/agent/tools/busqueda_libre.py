@@ -30,6 +30,10 @@ DDG = "https://html.duckduckgo.com/html/"
 BING_NOTICIAS = "https://www.bing.com/news/search"
 ESPACIO_DDG_S = float(os.getenv("DDG_ESPACIO_S", "8"))
 PAUSA_DDG_S = float(os.getenv("DDG_PAUSA_S", "600"))
+# Desde AWS DuckDuckGo no contesta (medido en PROD el 2026-11-13: ninguna de 1 600 búsquedas trajo resultados web y cada
+# una esperaba ~24 s en fila, 8 de espacio y 16 de tiempo agotado; 8 de 10 consultorías pasaban los 15 minutos de la
+# Lambda). Con tiempo propio y corto, y un pedido que no contesta cuenta como bloqueo: los siguientes no esperan.
+TIEMPO_DDG_S = float(os.getenv("DDG_TIMEOUT_S", "8"))
 
 _estado = {"ultimo": 0.0, "bloqueado_hasta": 0.0}
 _candados: dict[int, asyncio.Lock] = {}
@@ -92,7 +96,10 @@ async def ddg(cli, consulta: str, n: int = 8) -> list[dict] | None:
         if espera > 0:
             await asyncio.sleep(espera)
         try:
-            r = await cli.post(DDG, data={"q": consulta, "kl": "pe-es"}, headers=UA)
+            r = await asyncio.wait_for(cli.post(DDG, data={"q": consulta, "kl": "pe-es"}, headers=UA), TIEMPO_DDG_S)
+        except Exception:  # noqa: BLE001  (tiempo agotado o sin conexión)
+            _estado["bloqueado_hasta"] = time.monotonic() + PAUSA_DDG_S
+            return None
         finally:
             _estado["ultimo"] = time.monotonic()
         if r.status_code == 202 or r.status_code == 403 or "bots use DuckDuckGo" in r.text[:3000]:

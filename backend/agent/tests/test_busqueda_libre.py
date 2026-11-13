@@ -82,3 +82,28 @@ def test_google_search_libre_publica_las_urls(monkeypatch):
     assert r["fuentes"] == [{"titulo": "Nota", "url": "https://elcomercio.pe/nota-1", "fecha": "2026-11-09"}]
     assert "elcomercio.pe/nota-1" in r["resumen"] and r["avisos"]
     assert ctx.state["grounding_urls"] == ["https://elcomercio.pe/nota-1"]
+
+
+def test_ddg_que_no_contesta_se_pausa_y_los_siguientes_no_esperan(monkeypatch):
+    """PROD 2026-11-13: desde AWS DuckDuckGo no contesta y cada búsqueda esperaba ~24 s en fila."""
+    monkeypatch.setattr(bl, "ESPACIO_DDG_S", 0.0)
+    monkeypatch.setattr(bl, "TIEMPO_DDG_S", 0.05)
+    monkeypatch.setattr(bl, "PAUSA_DDG_S", 60)
+    bl._estado.update(ultimo=0.0, bloqueado_hasta=0.0)
+
+    class _Colgado:
+        posts = 0
+
+        async def post(self, *a, **k):
+            self.posts += 1
+            await asyncio.sleep(5)
+
+    async def correr():
+        cli = _Colgado()
+        t0 = asyncio.get_running_loop().time()
+        r = [await bl.ddg(cli, f"q{i}") for i in range(4)]
+        return r, cli.posts, asyncio.get_running_loop().time() - t0
+
+    r, posts, dt = asyncio.run(correr())
+    bl._estado.update(ultimo=0.0, bloqueado_hasta=0.0)
+    assert r == [None] * 4 and posts == 1 and dt < 1
