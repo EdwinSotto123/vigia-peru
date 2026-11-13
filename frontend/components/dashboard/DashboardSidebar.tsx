@@ -109,7 +109,7 @@ const SECTIONS: Section[] = [
         href: "/app/poder",
         label: "Mapa de poder",
         icon: <Network size={16} />,
-        hint: "Captura por partido",
+        hint: "Quién gobierna y quién le vende",
         match: (p) => p.startsWith("/app/poder"),
       },
     ],

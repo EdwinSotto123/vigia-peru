@@ -228,7 +228,7 @@ function BarraEntidades({
         }]
       : []),
     {
-      param: "captura", etiqueta: "Captura política", todas: "Todas", seccion: "Quién la gobierna",
+      param: "captura", etiqueta: "Empresas ligadas a la gestión", todas: "Todas", seccion: "Quién la gobierna",
       opciones: [{ valor: "1", etiqueta: "Con ganadores ligados a quien la gobierna", conteo: n("captura") }],
     },
     {

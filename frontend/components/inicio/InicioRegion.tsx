@@ -138,7 +138,7 @@ export function InicioRegion({
       )}
 
       {corrupcion === undefined ? (
-        <BloqueInicio ancho titulo="Casos de corrupción">
+        <BloqueInicio ancho titulo="Informes de control y casos judiciales">
           <div className="space-y-3" aria-hidden>
             <Skeleton className="h-24 rounded-xl" />
             <Skeleton className="h-40 rounded-xl" />

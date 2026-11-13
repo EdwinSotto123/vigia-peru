@@ -51,7 +51,7 @@ export function CasosCorrupcion({
   return (
     <BloqueInicio
       ancho
-      titulo="Casos de corrupción"
+      titulo="Informes de control y casos judiciales"
       ayuda={
         <Ayuda titulo="¿De dónde salen y qué significan?">
           <span className="block">

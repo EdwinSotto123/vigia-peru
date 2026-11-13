@@ -55,7 +55,7 @@ export function banderasEntidad(
   }
   if (s.captura > 0) {
     out.push({
-      tipo: "captura", severidad: "alta", chip: "Captura política", n: s.captura,
+      tipo: "captura", severidad: "alta", chip: "Empresas ligadas a la gestión", n: s.captura,
       titulo: s.captura === 1 ? "1 contrato lo ganó una empresa ligada a la gestión" : `${numero(s.captura)} contratos los ganaron empresas ligadas a la gestión`,
       explica: `La empresa ganadora, o alguien detrás de ella, financió${partido ? ` a ${partido}, que la gobierna,` : " al partido que la gobierna"} o le vendió a su campaña, o un socio suyo trabaja en la entidad (ONPE, JNE, RNP). Contratos de su gobierno actual.`,
       href: `${ficha}?${periodo}`,
@@ -129,7 +129,7 @@ export function banderasEntidad(
   if ((s.parientePlanilla ?? 0) > 0) {
     const n = s.parientePlanilla!;
     out.push({
-      tipo: "pariente_planilla", severidad: "alta", chip: "Parientes en su planilla", n,
+      tipo: "pariente_planilla", severidad: "alta", chip: "Posibles parientes en su planilla", n,
       titulo: `${plural(n, "persona de su planilla fue declarada", "personas de su planilla fueron declaradas")} como pariente por un funcionario de la entidad`,
       explica: "Un funcionario de la misma entidad las declaró como parientes en su Declaración Jurada de Intereses (Contraloría), y figuran en su planilla. La Ley 26771 prohíbe a quien puede nombrar o contratar hacerlo con sus parientes. Coincide por el nombre completo: es un indicio para revisar.",
       href: `${ficha}?seccion=planilla&lsenal=pariente_planilla`,
