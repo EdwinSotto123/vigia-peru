@@ -355,11 +355,14 @@ def read_person_network_context(tool_context: ToolContext) -> dict:
     # Loreto 2023-2026) es accionista de PETRO CABALLOCOCHA S.A.C., postor no
     # ganador. Sin este enriquecimiento, ese hallazgo no era visible en grafo.
     socios_postores_rivales: list[dict] = []
+    # Los integrantes del consorcio ganador figuran también como participantes: no son rivales del consorcio (prueba de
+    # oro de obras 2026-11-13: cinco «postores vinculados» eran un integrante comparado consigo mismo).
+    _integrantes_ganador = {str(i.get("ruc")) for i in (rnp_proveedor.get("integrantes") or []) if isinstance(i, dict)}
     for postor in todos_postores:
         if postor.get("es_ganador"):
             continue
         ruc_postor = postor.get("ruc")
-        if not ruc_postor:
+        if not ruc_postor or str(ruc_postor) in _integrantes_ganador:
             continue
         try:
             sp = query_rnp_empresa(ruc=ruc_postor, tool_context=tool_context)

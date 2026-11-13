@@ -499,8 +499,11 @@ def _socios_por_postor(state: dict) -> list[dict]:
     """[{ruc, razon_social, socios:[{nombre, dni}]}] para ganador + rivales (RNP)."""
     pnc = state.get("person_network_context") or {}
     out = []
+    # Un integrante del consorcio ganador no es su rival: su gente ya está en la del ganador (`rnp_proveedor.integrantes`).
+    _rnp_g = pnc.get("rnp_proveedor") if isinstance(pnc.get("rnp_proveedor"), dict) else {}
+    integrantes = {str(i.get("ruc")) for i in (_rnp_g.get("integrantes") or []) if isinstance(i, dict)}
     for r in (pnc.get("socios_postores_rivales") or []):
-        if isinstance(r, dict) and r.get("socios"):
+        if isinstance(r, dict) and r.get("socios") and str(r.get("ruc_postor")) not in integrantes:
             out.append({"ruc": r.get("ruc_postor"), "razon_social": r.get("razon_social"),
                         "socios": [s for s in r["socios"] if isinstance(s, dict)]})
     rnp = pnc.get("rnp_proveedor") or {}

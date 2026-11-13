@@ -69,3 +69,17 @@ def test_la_nota_de_validacion_dice_que_se_investigo_a_los_integrantes():
     con = _bloque_validaciones({"validaciones_pendientes": ["proveedor_sin_ruc"],
                                 "expediente_proveedor": {"consorcio": True, "integrantes": [{"ruc": "20611756101"}]}})
     assert "no se investigó" in sin and "no se investigó" not in con and "integrantes" in con
+
+
+def test_un_integrante_del_consorcio_ganador_no_es_su_rival():
+    """Prueba de oro de obras 2026-11-13: el integrante figuraba también como participante y «compartía» su propio
+    socio con el consorcio."""
+    from tools.compliance_rules._rules_lote1 import _socios_por_postor
+    socio = {"nombre": "QUISPE MAMANI JUAN", "numero_documento": "40111222"}
+    state = {"person_network_context": {
+        "rnp_proveedor": {"consorcio": True, "integrantes": [{"ruc": "20611756101"}], "socios": [socio]},
+        "socios_postores_rivales": [
+            {"ruc_postor": "20611756101", "razon_social": "KALED & CASAS S.A.C.", "socios": [{"nombre": socio["nombre"], "dni": "40111222"}]},
+            {"ruc_postor": "20574615942", "razon_social": "OTRA S.A.C.", "socios": [{"nombre": "ROJAS PAZ ANA", "dni": "40333444"}]}]}}
+    rucs = [x["ruc"] for x in _socios_por_postor(state) if not x.get("es_ganador")]
+    assert rucs == ["20574615942"]
