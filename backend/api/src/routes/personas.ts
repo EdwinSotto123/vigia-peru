@@ -420,6 +420,31 @@ personasRouter.get("/rastro", async (c) => {
         `SELECT p.nombre_norm AS nombre, p.cargo, p.entidad, p.año_desde AS desde, p.año_hasta AS hasta
            FROM peps p WHERE ${todas("p.nombre_norm")} ORDER BY p.año_desde DESC NULLS LAST LIMIT 20`),
     ]);
+    // El cruce que busca un investigador: la persona visitó una entidad y una empresa SUYA (es socia o representante) le
+    // ganó procesos a esa misma entidad. Con las fechas, para ver si la visita fue antes de la buena pro.
+    let visitoYGano: Record<string, unknown>[] = [];
+    const rucsEmp = [...new Set((rnp ?? []).map((x) => x.ruc))];
+    const rucsEnt = [...new Set((visitas ?? []).map((x) => x.entidad_ruc).filter((x): x is string => !!x))];
+    if (rucsEmp.length && rucsEnt.length) {
+      const g = await consultaConPlazo<{ empresa_ruc: string; entidad_ruc: string; entidad: string; procesos: number; monto: number | null; primera: string; ultima: string }>(
+        `SELECT a.ruc_proveedor AS empresa_ruc, a.entidad_ruc, max(a.entidad) AS entidad, count(DISTINCT a.codigo_convocatoria)::int AS procesos,
+                sum(a.monto_adjudicado) FILTER (WHERE a.moneda IN ('Soles', 'Nuevos Soles'))::float AS monto,
+                to_char(min(a.fecha_buenapro), 'YYYY-MM-DD') AS primera, to_char(max(a.fecha_buenapro), 'YYYY-MM-DD') AS ultima
+           FROM conosce_adjudicaciones a WHERE a.ruc_proveedor = ANY($1::text[]) AND a.entidad_ruc = ANY($2::text[])
+          GROUP BY 1, 2 ORDER BY 5 DESC NULLS LAST LIMIT 40`, [rucsEmp, rucsEnt], 8000).then((r) => r.rows).catch(() => []);
+      visitoYGano = g.map((x) => {
+        const v = (visitas ?? []).filter((y) => y.entidad_ruc === x.entidad_ruc);
+        const primeraVisita = v.map((y) => y.primera).sort()[0] ?? null;
+        return {
+          entidad: x.entidad, entidad_ruc: x.entidad_ruc, empresa_ruc: x.empresa_ruc,
+          empresa: (rnp ?? []).find((y) => y.ruc === x.empresa_ruc)?.empresa ?? null,
+          rol_en_la_empresa: (rnp ?? []).find((y) => y.ruc === x.empresa_ruc)?.rol ?? null,
+          visitas: v.reduce((s, y) => s + y.visitas, 0), primera_visita: primeraVisita, ultima_visita: v.map((y) => y.ultima).sort().pop() ?? null,
+          procesos_ganados: x.procesos, monto_soles: x.monto, primera_buena_pro: x.primera, ultima_buena_pro: x.ultima,
+          visito_antes_de_ganar: primeraVisita != null && primeraVisita <= x.ultima,
+        };
+      });
+    }
     // Cada fila lleva el nombre como está en su registro, con un apellido tapado: dos personas distintas que comparten
     // las palabras buscadas se ven como dos nombres.
     const tapar = <T extends { nombre: string }>(filas: T[] | null) =>
@@ -432,6 +457,7 @@ personasRouter.get("/rastro", async (c) => {
       aportes_de_campana: tapar(aportes),
       personas_expuestas: tapar(peps),
       ordenes_como_persona_natural: tapar(await ordenes),
+      visito_y_su_empresa_gano: visitoYGano,
       sin_respuesta: [["visitas", visitas], ["empresas", rnp], ["declaraciones_juradas", dji], ["aportes_de_campana", aportes], ["personas_expuestas", peps]]
         .filter(([, v]) => v === null).map(([k]) => k),
     };

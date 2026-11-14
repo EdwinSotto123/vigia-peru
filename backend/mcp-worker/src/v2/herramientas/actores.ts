@@ -66,9 +66,21 @@ export const redEmpresa = definir({
   async ejecutar({ ruc }, cx) {
     const r = rucJuridico(ruc);
     const e = enlaces(cx.env);
-    const [s, cl] = await Promise.all([api<Fila>(cx.env, `/empresas/${r}/socios`), api<Fila>(cx.env, `/empresas/${r}/clientes`)]);
+    const [s, cl, ac, pt] = await Promise.all([
+      api<Fila>(cx.env, `/empresas/${r}/socios`), api<Fila>(cx.env, `/empresas/${r}/clientes`),
+      // Postores de relleno y patrones de la empresa (migración 276): si fallan, la red sale igual.
+      api<Fila>(cx.env, "/patrones/acompanantes", { ruc: r, solo: "todos", size: 15 }).catch(() => null),
+      api<Fila>(cx.env, "/patrones", { alcance: "proveedor", ruc: r, size: 15 }).catch(() => null),
+    ]);
     return {
       ruc: r,
+      postores_de_relleno: ((ac?.data ?? []) as Fila[]).map((x) => ({
+        papel: x.rucGanador === r ? "esta empresa gana y la otra la acompaña" : "esta empresa acompaña y la otra gana",
+        otra_empresa: x.rucGanador === r ? x.acompanante : x.ganador, otra_ruc: x.rucGanador === r ? x.rucAcompanante : x.rucGanador,
+        procesos_juntos: x.juntos, entidades: x.entidades, postulaciones_del_acompanante: x.postulacionesDelAcompanante,
+        ganadas_del_acompanante: x.ganadasDelAcompanante, comparten_socio: x.vinculo === "socio_comun" ? true : undefined, fuerte: x.fuerte,
+      })),
+      patrones: ((pt?.data ?? []) as Fila[]).map((x) => ({ senal: x.regla, contratos: x.casos, entidades: x.entidades, ejemplos_ocid: x.ejemplos })),
       personas: (s.socios ?? []).map((p: Fila) => tomar(p, ["nombre", "roles", "desde", "otrasEmpresas", "enElEstado"])),
       empresas_vinculadas: (s.vinculadas ?? []).map((v: Fila) => ({
         ruc: v.ruc, nombre: v.nombre, le_vende_al_estado: v.vende, antecedentes: v.antecedentes, graves: v.graves, inhabilitada: v.inhabilitada ?? undefined,
@@ -367,6 +379,10 @@ export const rastroPersona = definir({
       },
       visitas,
       empresas: ((r?.empresas ?? []) as Fila[]).map((x) => ({ ...x, enlace: x.ruc ? e.empresa(x.ruc) : undefined })),
+      // Lo primero que mira un investigador: visitó la entidad y una empresa suya le ganó procesos.
+      visito_y_su_empresa_gano: ((r?.visito_y_su_empresa_gano ?? []) as Fila[]).map((x) => ({
+        ...x, enlace_empresa: x.empresa_ruc ? e.empresa(x.empresa_ruc) : undefined, enlace_entidad: x.entidad_ruc ? e.entidad(x.entidad_ruc) : undefined,
+      })),
       declaraciones_juradas: r?.declaraciones_juradas ?? [],
       aportes_de_campana: r?.aportes_de_campana ?? [],
       personas_expuestas: r?.personas_expuestas ?? [],
