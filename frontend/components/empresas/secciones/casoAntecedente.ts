@@ -434,6 +434,19 @@ export function datosDe(a: AntecedenteEmpresa, ruc: string): DatoCaso[] {
       d.solas_las_dos === true && { etiqueta: "En este proceso", valor: "Fueron las únicas dos postoras" },
       delProceso(),
     );
+  } else if (t === "renovacion_mas_cara") {
+    const cm = num(d.costo_mensual);
+    const ca = num(d.costo_mensual_anterior);
+    const df = num(d.diff_pct);
+    const ex = num(d.exceso);
+    add(
+      cm != null && { etiqueta: "Costo al mes", valor: soles(cm) },
+      ca != null && { etiqueta: "En el contrato anterior", valor: `${soles(ca)} al mes${txt(d.fecha_anterior) ? ` (${txt(d.fecha_anterior)})` : ""}` },
+      df != null && { etiqueta: "Subió", valor: `${numero(Math.round(df))} %` },
+      ex != null && ex > 0 && { etiqueta: "De más en todo el plazo", valor: soles(ex) },
+      d.mismo_proveedor != null && { etiqueta: "Proveedor", valor: d.mismo_proveedor === true ? "El mismo que antes" : "Otro que antes" },
+      delProceso(),
+    );
   } else if (t === "puerta_giratoria") {
     const dias = num(d.dias_despues);
     add(

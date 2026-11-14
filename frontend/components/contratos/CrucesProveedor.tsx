@@ -270,6 +270,7 @@ const POR_QUE: Record<string, string> = {
   turno_postores: "Cuando dos empresas con los mismos dueños o la misma dirección compiten una y otra vez y se reparten las buenas pro, la competencia puede ser sólo aparente: es el patrón de la rotación de ofertas. Vale ver quién más se presentó y a qué precios.",
   postor_de_relleno: "Una oferta de cobertura es la que se presenta para perder: da la apariencia de competencia y deja ganar a otra. Una empresa que casi nunca gana y aparece una y otra vez junto al mismo ganador encaja en ese patrón. Vale comparar los precios que ofertó y si sus propuestas llegaron completas.",
   consorcio_rival: "Dos empresas que postularon juntas en un consorcio conocen sus costos y sus precios. Si después compiten por separado en procesos de pocos postores y gana siempre una de las dos, la competencia puede ser sólo aparente. No lo prueba: en mercados de pocos proveedores es común asociarse a veces y competir otras.",
+  renovacion_mas_cara: "Un servicio que se renueva debería costar parecido por mes, salvo que cambie su alcance. Una subida grande de un contrato al siguiente merece comparar los términos de referencia de los dos: sedes, personal, horarios y equipos. Si el alcance es el mismo, la entidad tendría que explicar por qué paga más. Pesa más cuando el proveedor es el mismo.",
   puerta_giratoria: "Quien trabajó en una entidad conoce sus necesidades, sus presupuestos y a quienes deciden. La Ley 32069 impide contratar con la entidad a ciertos ex funcionarios durante un tiempo tras dejar el cargo. Que la empresa de alguien que acaba de salir gane ahí merece ver en el expediente qué cargo tenía y si intervino en el requerimiento. El empate es por nombre completo: hay que confirmarlo.",
   empresa_espejo: "Una empresa inhabilitada no puede contratar con el Estado. Si la misma gente sigue ganando con otra razón social mientras dura la sanción, la sanción pierde efecto: vale revisar si la empresa nueva tiene los mismos dueños, el mismo local o el mismo personal clave que la sancionada.",
   interes_declarado: "La Ley 31227 obliga a los funcionarios a declarar sus intereses para que se aparten de las decisiones sobre las empresas en las que los tienen. Que una de ellas le gane un contrato a su propia entidad merece ver en el expediente si se apartó.",
@@ -713,6 +714,24 @@ function Texto({ c, gobierna }: { c: CruceProveedor; gobierna?: GobiernoContrato
           <b>{n(d.consorcios_juntas) === 1 ? "un consorcio" : `${n(d.consorcios_juntas) ?? "varios"} consorcios`}</b> y, por separado, se enfrentaron en{" "}
           <b>{n(d.veces_rivales) ?? "varios"} procesos</b> de pocos postores: esta ganó {n(d.gano_esta) ?? "algunos"} y la otra {n(d.gano_la_rival) ?? 0}.
           {d.solas_las_dos === true ? " En este proceso fueron las únicas dos postoras." : ""}
+          <Gano c={c} />
+        </>
+      );
+    }
+    case "renovacion_mas_cara": {
+      const ant = txt(d.ocid_anterior);
+      return (
+        <>
+          Este servicio cuesta <b>{solesCompacto(n(d.costo_mensual))} al mes</b>; en el contrato anterior del mismo servicio en esta entidad
+          {txt(d.fecha_anterior) ? ` (${fechaConAnio(txt(d.fecha_anterior)!)})` : ""} costaba <b>{solesCompacto(n(d.costo_mensual_anterior))} al mes</b>:{" "}
+          <b>{n(d.diff_pct) != null ? `${Math.round(n(d.diff_pct)!)} % más` : "más"}</b>
+          {n(d.exceso) ? <>, unos {solesCompacto(n(d.exceso))} de más en todo el plazo</> : ""}.
+          {d.mismo_proveedor === true ? " El proveedor es el mismo." : d.mismo_proveedor === false ? " El proveedor cambió." : ""}{" "}
+          {ant ? (
+            <a className="underline" href={`/app/contratos/${encodeURIComponent(ant)}`}>
+              Ver el contrato anterior
+            </a>
+          ) : null}
           <Gano c={c} />
         </>
       );

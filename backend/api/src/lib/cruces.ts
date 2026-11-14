@@ -53,6 +53,8 @@ export const ETIQUETA_CRUCE: Record<string, string> = {
   // o representante del ganador (migración 278).
   consorcio_rival: "Compitió contra una empresa que fue su socia en un consorcio",
   puerta_giratoria: "Un socio o representante del ganador trabajó antes en la entidad",
+  // El mismo servicio, en la misma entidad, cuesta bastante más al mes que en su contrato anterior (migración 283).
+  renovacion_mas_cara: "El servicio cuesta más al mes que en su contrato anterior",
   domicilio_compartido: "Mismo domicilio fiscal que otro participante",
   proveedor_cautivo: "Casi todo su ingreso del Estado es de esta entidad",
   partido_gobernante: "Financió al partido que gobierna la entidad",

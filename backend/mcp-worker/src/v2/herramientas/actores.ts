@@ -434,11 +434,13 @@ export const patrones = definir({
     "empresas con la misma señal de proceso en 3 o más contratos de 2 o más entidades. Con alcance «relleno»: postores de " +
     "relleno, empresas que casi nunca ganan y dedican sus postulaciones a acompañar a un mismo ganador (posible oferta de " +
     "cobertura; más grave si comparten socio). Con alcance «consorcio»: empresas que postularon juntas en un consorcio y " +
-    "después compiten por separado en procesos de pocos postores que gana una de las dos (posible reparto). Con un RUC, los patrones de esa entidad o empresa. Cada patrón trae contratos " +
+    "después compiten por separado en procesos de pocos postores que gana una de las dos (posible reparto). Con alcance " +
+    "«renovacion»: servicios que una entidad volvió a contratar pagando 30 % o más POR MES que en el contrato anterior " +
+    "(con cuánto costaba, cuánto cuesta y si el proveedor es el mismo). Con un RUC, los patrones de esa entidad o empresa. Cada patrón trae contratos " +
     "de ejemplo para abrir con ficha_contrato o dictamen. Un patrón es un motivo para mirar, no una acusación.",
   cuenta: true,
   entrada: {
-    alcance: z.enum(["entidad", "proveedor", "relleno", "consorcio"]).default("entidad"),
+    alcance: z.enum(["entidad", "proveedor", "relleno", "consorcio", "renovacion"]).default("entidad"),
     ruc: z.string().min(11).max(14).optional().describe("RUC 20 de la entidad o de la empresa (opcional)."),
     regla: z.string().max(60).optional().describe("Sólo una señal, por su código (p. ej. unica_oferta_valida)."),
     pagina: z.number().int().min(1).max(50).default(1),
@@ -446,6 +448,25 @@ export const patrones = definir({
   async ejecutar(a, cx) {
     const e = enlaces(cx.env);
     const ruc = a.ruc ? rucJuridico(a.ruc) : undefined;
+    if (a.alcance === "renovacion") {
+      const r = await api<Fila>(cx.env, "/patrones/renovaciones", { ruc, page: a.pagina, size: 20 });
+      return {
+        total: r.total,
+        de_mas_en_total_soles: r.exceso,
+        renovaciones: ((r.data ?? []) as Fila[]).map((x) => ({
+          servicio: x.objeto, entidad: x.entidad, entidad_ruc: x.entidadRuc, proveedor: x.proveedor ?? undefined, proveedor_ruc: x.proveedorRuc ?? undefined,
+          mismo_proveedor_que_antes: x.mismoProveedor ?? undefined, costo_mensual_soles: x.costoMensual, costo_mensual_anterior_soles: x.costoMensualAnterior,
+          subio_pct: x.diffPct, de_mas_en_el_plazo_soles: x.exceso, plazo_dias: x.plazoDias, plazo_anterior_dias: x.plazoAnterior,
+          fecha: x.fecha, fecha_anterior: x.fechaAnterior, parecido_del_objeto: x.similitud,
+          enlace: e.contrato(x.ocid), enlace_contrato_anterior: e.contrato(x.ocidAnterior), enlace_entidad: e.entidad(x.entidadRuc),
+        })),
+        como_leerlo:
+          "El costo mensual es el monto entre el plazo. Sólo servicios continuos (cinco meses o más), con objeto casi igual y cuando el " +
+          "anterior ya había corrido la mayor parte de su plazo. La subida puede deberse a más sedes, personal o alcance: abre los dos " +
+          "contratos con ficha_contrato y compara los términos de referencia antes de concluir.",
+        aviso: AVISO,
+      };
+    }
     if (a.alcance === "consorcio") {
       const r = await api<Fila>(cx.env, "/patrones/consorcios", { ruc, page: a.pagina, size: 20 });
       return {

@@ -14,6 +14,9 @@
  *       después, por separado, en 3 o más procesos de pocos postores que ganó una de las dos. Primero los más
  *       concentrados (muchos procesos en pocas entidades); al final, marcados, los de mercado nacional (migración 279).
  *
+ *   GET /patrones/renovaciones?ruc=&page=&size=
+ *       Servicios que una entidad volvió a contratar pagando 30 % o más por mes que en el contrato anterior
+ *       (migración 283). Con `ruc`, los de esa entidad o los que ganó esa empresa.
  *   GET /patrones/precios?q=&tipo=bien|servicio&entidad=&anio=
  *       Precios de referencia. `bien`: los productos de los Catálogos de Perú Compras cuya descripción trae las palabras,
  *       con lo que pagaron por ellos 5 entidades o más (cuartil 1, mediana y cuartil 3 por año; sin IGV y con IGV).
@@ -172,6 +175,38 @@ patronesRouter.get("/precios", async (c) => {
     const cm = r.rows.map((x) => x.costoMensual).sort((a, b) => a - b);
     const pc = (k: number) => (cm.length ? cm[Math.min(cm.length - 1, Math.floor(k * (cm.length - 1) + 0.5))] : null);
     return publicar({ tipo: "servicio", total: r.rows.length, resumen: cm.length >= 5 ? { n: cm.length, p25: pc(0.25), mediana: pc(0.5), p75: pc(0.75) } : null, data: r.rows });
+  });
+  c.header("Cache-Control", CACHE);
+  return c.json(cuerpo);
+});
+
+const Renovaciones = z.object({
+  ruc: z.string().regex(/^20\d{9}$/).optional(),
+  page: z.coerce.number().int().min(1).max(200).default(1),
+  size: z.coerce.number().int().min(1).max(50).default(20),
+});
+
+patronesRouter.get("/renovaciones", async (c) => {
+  const p = Renovaciones.safeParse(Object.fromEntries(Object.entries(parametros(c)).filter(([, v]) => v !== "" && v != null)));
+  if (!p.success) return c.json({ error: "invalid_query", issues: p.error.issues }, 400);
+  const q = p.data;
+  const cuerpo = await memo.obtener(`renovaciones:${JSON.stringify(q)}`, async () => {
+    const vals: unknown[] = [];
+    const add = (v: unknown) => { vals.push(v); return `$${vals.length}`; };
+    const donde = q.ruc ? `WHERE r.entidad_ruc = ${add(q.ruc)} OR r.proveedor_ruc = $${vals.length}` : "";
+    const n = vals.length;
+    const [filas, total] = await Promise.all([
+      pool.query(
+        `SELECT r.ocid, r.ocid_anterior AS "ocidAnterior", r.entidad_ruc AS "entidadRuc", r.entidad, r.objeto, to_char(r.fecha, 'YYYY-MM-DD') AS fecha,
+                to_char(r.fecha_anterior, 'YYYY-MM-DD') AS "fechaAnterior", r.monto::float AS monto, r.monto_anterior::float AS "montoAnterior",
+                r.plazo_dias AS "plazoDias", r.plazo_anterior AS "plazoAnterior", r.costo_mensual::float AS "costoMensual",
+                r.costo_mensual_anterior::float AS "costoMensualAnterior", r.diff_pct::float AS "diffPct", r.similitud::float AS similitud,
+                r.exceso::float AS exceso, r.proveedor_ruc AS "proveedorRuc", e.nombre AS proveedor, r.mismo_proveedor AS "mismoProveedor"
+           FROM servicio_renovacion r LEFT JOIN empresa_resumen e ON e.ruc = r.proveedor_ruc ${donde}
+          ORDER BY r.fecha DESC NULLS LAST, r.diff_pct DESC, r.ocid LIMIT ${add(q.size)} OFFSET ${add((q.page - 1) * q.size)}`, vals),
+      pool.query<{ n: number; exceso: number | null }>(`SELECT count(*)::int AS n, sum(r.exceso)::float AS exceso FROM servicio_renovacion r ${donde}`, vals.slice(0, n)),
+    ]);
+    return publicar({ total: total.rows[0]?.n ?? 0, exceso: total.rows[0]?.exceso ?? 0, page: q.page, size: q.size, data: filas.rows });
   });
   c.header("Cache-Control", CACHE);
   return c.json(cuerpo);

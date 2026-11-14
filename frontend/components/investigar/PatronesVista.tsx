@@ -2,23 +2,25 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
-import { Briefcase, Building2, Handshake, SearchX, Users } from "lucide-react";
+import { Briefcase, Building2, Handshake, SearchX, TrendingUp, Users } from "lucide-react";
 import { Ayuda, CabeceraPestana, Nota, Pestanas } from "@/components/patrones";
 import { EVENTO_ACTIVA } from "@/components/patrones/Pestanas";
 import { CeldaBarra, CeldaNumero, CeldaPrincipal, CeldaTexto, CLASE_ENLACE_CELDA, Indicadores, Tabla, type Columna, type Fila, type Indicador } from "@/components/listado";
 import { EstadoCarga, usePoder } from "@/components/grafo/vista";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
+import { Dato } from "@/components/ui/Dato";
 import { MARGEN_LISTA, Paginacion } from "@/components/ui/Paginacion";
 import { VacioEnLinea } from "@/components/ui/VacioEnLinea";
 import { reglaLabel } from "@/lib/auditoria-reglas";
-import { decimal, numero, plural, porcentaje, solesCompacto } from "@/lib/formato";
+import { decimal, fechaConAnio, numero, oracion, plural, porcentaje, solesCompacto } from "@/lib/formato";
 import { tituloNatural } from "@/lib/landing";
 import {
   codigoDeOcid,
   rutaAcompanantes,
   rutaConsorcios,
   rutaPatrones,
+  rutaRenovaciones,
   SECCIONES_PATRONES,
   TAM_PATRONES,
   type AlcancePatron,
@@ -26,6 +28,8 @@ import {
   type PatronConsorcio,
   type PatronesAcompanantes,
   type PatronesConsorcios,
+  type PatronesRenovaciones,
+  type PatronRenovacion,
   type PatronesSenal,
   type PatronSenal,
   type SeccionPatrones,
@@ -34,8 +38,8 @@ import { esRucEnClaro, esRucPersonaNatural } from "@/lib/privacidad";
 import { cn } from "@/lib/utils";
 
 /**
- * Las cuatro listas de /app/patrones en las pestañas del kit (`?seccion=`). Cada pestaña pide lo suyo a la API la primera
- * vez que se abre (`Pestanas` la monta recién entonces), así una visita hace UNA consulta y no cuatro. La página y la
+ * Las cinco listas de /app/patrones en las pestañas del kit (`?seccion=`). Cada pestaña pide lo suyo a la API la primera
+ * vez que se abre (`Pestanas` la monta recién entonces), así una visita hace UNA consulta y no cinco. La página y la
  * señal elegida de cada lista van a la URL (`?page=`, `?regla=`) sin recargar, como la pestaña: el enlace comparte la
  * vista exacta, y al cambiar de pestaña la URL lleva lo de la que se ve.
  *
@@ -83,6 +87,13 @@ export function PatronesVista({ activa, inicial, etiquetas }: { activa?: string;
           titulo: "Socias de consorcio que después compiten",
           icono: <Handshake size={15} aria-hidden />,
           contenido: <ListaConsorcios inicial={de("consorcios")} />,
+        },
+        {
+          clave: "renovaciones",
+          etiqueta: SECCIONES_PATRONES.renovaciones,
+          titulo: "El mismo servicio, más caro al renovarlo",
+          icono: <TrendingUp size={15} aria-hidden />,
+          contenido: <ListaRenovaciones inicial={de("renovaciones")} />,
         },
       ]}
     />
@@ -618,6 +629,154 @@ function filaConsorcio(p: PatronConsorcio, i: number): Fila {
       gano: <CeldaTexto sub={`${plural(p.ganoB, "vez", "veces")} la segunda`}>{`${plural(p.ganoA, "vez", "veces")} la primera`}</CeldaTexto>,
       entidades: <CeldaNumero>{numero(p.entidades)}</CeldaNumero>,
       periodo: anios ? <CeldaTexto>{anios}</CeldaTexto> : undefined,
+    },
+  };
+}
+
+// ─── Renovaciones más caras ──────────────────────────────────────────────────────
+
+const COLUMNAS_RENOVACIONES: Columna[] = [
+  { clave: "servicio", titulo: "Servicio y entidad", ancho: "minmax(0,1.6fr)" },
+  {
+    clave: "costo",
+    titulo: "Costo al mes",
+    ancho: "7.5rem",
+    alinear: "der",
+    desde: "md",
+    apilar: "con-rotulo",
+    ayuda: (
+      <Ayuda titulo="¿Cómo se calcula el costo al mes?">
+        <span className="block">El monto del contrato entre los meses de su plazo. Arriba, el de ahora; debajo, el del contrato anterior.</span>
+      </Ayuda>
+    ),
+  },
+  { clave: "subida", titulo: "Subida", ancho: "5.5rem", alinear: "der", desde: "md", apilar: "con-rotulo", corto: "Subió" },
+  {
+    clave: "exceso",
+    titulo: "De más en el plazo",
+    ancho: "8.5rem",
+    alinear: "der",
+    desde: "lg",
+    apilar: "con-rotulo",
+    corto: "De más en todo el plazo",
+    ayuda: (
+      <Ayuda titulo="¿Qué es «de más»?">
+        <span className="block">Lo que cuesta de más el contrato nuevo en todo su plazo, frente a lo que habría costado con el costo al mes de antes.</span>
+      </Ayuda>
+    ),
+  },
+  { clave: "proveedor", titulo: "Proveedor", ancho: "minmax(0,1fr)", desde: "lg", apilar: "con-rotulo" },
+  { clave: "contratos", titulo: "Los dos contratos", ancho: "minmax(11rem,0.9fr)", desde: "xl", apilar: true },
+];
+
+function ListaRenovaciones({ inicial }: { inicial: InicialPatrones }) {
+  const lista = useListaEnUrl("renovaciones", inicial);
+  const carga = usePoder<PatronesRenovaciones>(rutaRenovaciones(lista.page));
+  return (
+    <div className="space-y-4">
+      <CabeceraPestana
+        ayuda={
+          <Ayuda titulo="¿Qué es una renovación más cara?">
+            <span className="block">
+              Una entidad volvió a contratar el <b>mismo servicio</b> y el costo por mes (el monto entre el plazo) subió <b>30 % o más</b>{" "}
+              frente al contrato anterior.
+            </span>
+            <span className="mt-1.5 block">
+              Sólo cuenta en servicios continuos: los dos contratos duran cinco meses o más, su objeto es casi igual y el anterior
+              ya había corrido la mayor parte de su plazo. No cuenta lo que es por obra o por proyecto.
+            </span>
+            <span className="mt-1.5 block">
+              Puede explicarse por más sedes, más personal o más alcance: compara los términos de referencia de los dos contratos.
+              Es un motivo para mirar, no una acusación.
+            </span>
+          </Ayuda>
+        }
+      >
+        Servicios continuos que una entidad volvió a contratar con un costo al mes 30 % mayor o más.
+      </CabeceraPestana>
+      <EstadoCarga carga={carga} columnas={COLUMNAS_RENOVACIONES}>
+        {(d) => {
+          const filas = d.data ?? [];
+          return (
+            <div className="space-y-4">
+              <Indicadores
+                franja
+                items={[
+                  { valor: numero(d.total), etiqueta: "renovaciones más caras", contexto: "el mismo servicio, en la misma entidad", icono: <TrendingUp size={15} strokeWidth={1.9} aria-hidden />, parte: null },
+                  ...(d.exceso != null ? [{ valor: solesCompacto(d.exceso), etiqueta: "de más en todo el plazo", contexto: "la suma de lo que subió cada una", parte: null } satisfies Indicador] : []),
+                  { valor: "30 % o más", etiqueta: "sube el costo al mes", contexto: "frente al contrato anterior", parte: null },
+                ]}
+              />
+              <ZonaLista total={d.total} page={lista.page} cargando={carga.cargando} nombre="renovaciones" onPagina={lista.irAPagina} vacio="Todavía no hay renovaciones con este patrón.">
+                {filas.length > 0 ? <Tabla columnas={COLUMNAS_RENOVACIONES} filas={filas.map(filaRenovacion)} etiqueta="Servicios renovados con un costo al mes mayor" /> : null}
+              </ZonaLista>
+              <Nota>
+                Una subida puede tener explicación: más sedes, más personal, más alcance. Antes de afirmar algo, abre los dos
+                contratos y compara sus términos de referencia.
+              </Nota>
+            </div>
+          );
+        }}
+      </EstadoCarga>
+    </div>
+  );
+}
+
+/** Un contrato de la renovación: el enlace a su ficha y su fecha. */
+function EnlaceContrato({ ocid, fecha, children }: { ocid: string; fecha: string | null; children: ReactNode }) {
+  return (
+    <span className="inline-flex min-w-0 flex-wrap items-baseline gap-x-1.5">
+      <Link href={`/app/contratos/${encodeURIComponent(ocid)}`} prefetch={false} title={`Abrir el contrato ${ocid}`} className={CLASE_ENLACE_CELDA}>
+        {children}
+      </Link>
+      {fecha && <span className="tabular-nums text-mute">{fechaConAnio(fecha)}</span>}
+    </span>
+  );
+}
+
+function filaRenovacion(p: PatronRenovacion, i: number): Fila {
+  const objeto = p.objeto ? oracion(p.objeto) : "Servicio sin descripción";
+  return {
+    id: `renovacion-${i}`,
+    textos: { proveedor: p.proveedor ? undefined : null, exceso: p.exceso == null ? null : undefined },
+    celdas: {
+      servicio: (
+        <CeldaPrincipal
+          titulo={objeto}
+          dosLineas
+          meta={[
+            <Dato key="e" tipo="entidad">
+              <EnlaceEntidad ruc={p.entidadRuc} nombre={p.entidad} />
+            </Dato>,
+          ]}
+        />
+      ),
+      costo: (
+        <CeldaNumero sub={p.costoMensualAnterior != null ? `antes ${solesCompacto(p.costoMensualAnterior)}` : undefined}>
+          {p.costoMensual != null ? solesCompacto(p.costoMensual) : SIN_DATO}
+        </CeldaNumero>
+      ),
+      subida: (
+        <span className="block text-right font-mono text-dato font-semibold tabular-nums text-amberTexto" title="Cuánto subió el costo al mes frente al contrato anterior">
+          +{porcentaje(p.diffPct)}
+        </span>
+      ),
+      exceso: <CeldaNumero>{p.exceso != null ? solesCompacto(p.exceso) : SIN_DATO}</CeldaNumero>,
+      proveedor: p.proveedor ? (
+        <CeldaTexto sub={p.mismoProveedor === true ? <Badge variant="amber">Mismo proveedor que antes</Badge> : undefined}>
+          {p.proveedorRuc ? <EnlaceEmpresa ruc={p.proveedorRuc} nombre={p.proveedor} /> : tituloNatural(p.proveedor)}
+        </CeldaTexto>
+      ) : undefined,
+      contratos: (
+        <span className="flex min-w-0 flex-col gap-y-0.5 text-meta">
+          <EnlaceContrato ocid={p.ocid} fecha={p.fecha}>
+            Este contrato
+          </EnlaceContrato>
+          <EnlaceContrato ocid={p.ocidAnterior} fecha={p.fechaAnterior}>
+            Contrato anterior
+          </EnlaceContrato>
+        </span>
+      ),
     },
   };
 }

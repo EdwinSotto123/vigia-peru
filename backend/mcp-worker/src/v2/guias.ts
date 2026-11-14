@@ -70,6 +70,7 @@ Trabaja como un perito, no como un buscador: cada afirmación con su registro, c
 - patrones (alcance proveedor): empresas con la misma señal en varias entidades.
 - patrones (alcance relleno): postores que casi nunca ganan y siempre acompañan al mismo ganador.
 - patrones (alcance consorcio): empresas que fueron socias en un consorcio y luego «compiten» entre sí.
+- patrones (alcance renovacion): servicios que la entidad volvió a contratar pagando mucho más por mes.
 - hallazgos_entidad y ranking_entidades: la entidad frente a sus pares.
 Un contrato raro puede ser un error; diez iguales son un modo de trabajar.
 

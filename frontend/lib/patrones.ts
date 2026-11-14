@@ -1,8 +1,8 @@
 /**
  * Patrones (API /patrones, migración 276): lo que SE REPITE. Una señal de los agentes que aparece mucho más en una
  * entidad que en el país, o en varios contratos de una misma empresa; el postor que casi nunca gana y siempre acompaña
- * al mismo ganador; dos empresas que fueron socias en un consorcio y después compiten entre sí. Un patrón es un motivo
- * para mirar, no una acusación.
+ * al mismo ganador; dos empresas que fueron socias en un consorcio y después compiten entre sí; el mismo servicio que una
+ * entidad vuelve a contratar bastante más caro por mes. Un patrón es un motivo para mirar, no una acusación.
  *
  * La página (/app/patrones) pide cada lista al abrir su pestaña, desde el navegador: aquí están los tipos, las rutas de
  * la API (`ruta…`) y las mismas lecturas para un componente de servidor (`get…`).
@@ -15,6 +15,7 @@ export const SECCIONES_PATRONES = {
   proveedores: "Por proveedor",
   relleno: "Postores de relleno",
   consorcios: "Socias que compiten",
+  renovaciones: "Renovaciones más caras",
 } as const;
 export type SeccionPatrones = keyof typeof SECCIONES_PATRONES;
 
@@ -110,6 +111,43 @@ export interface PatronesConsorcios {
   data: PatronConsorcio[];
 }
 
+/** Una entidad volvió a contratar el mismo servicio continuo y el costo por mes subió 30 % o más. */
+export interface PatronRenovacion {
+  ocid: string;
+  ocidAnterior: string;
+  entidadRuc: string;
+  entidad: string | null;
+  objeto: string | null;
+  fecha: string | null;
+  fechaAnterior: string | null;
+  monto: number | null;
+  montoAnterior: number | null;
+  plazoDias: number | null;
+  plazoAnterior: number | null;
+  /** Monto entre plazo, en soles por mes. */
+  costoMensual: number | null;
+  costoMensualAnterior: number | null;
+  /** Cuánto subió el costo por mes, en % (30 a 300). */
+  diffPct: number;
+  /** Qué tan igual es el objeto de los dos contratos (0.65 a 1). */
+  similitud: number;
+  /** Soles de más en todo el plazo, frente al costo por mes de antes. */
+  exceso: number | null;
+  /** RUC 20, o null. */
+  proveedorRuc: string | null;
+  proveedor: string | null;
+  mismoProveedor: boolean | null;
+}
+
+export interface PatronesRenovaciones {
+  total: number;
+  /** La suma de «de más» de todas, en soles. */
+  exceso: number | null;
+  page: number;
+  size: number;
+  data: PatronRenovacion[];
+}
+
 // ─── Rutas de la API ─────────────────────────────────────────────────────────────
 
 const consulta = (p: Record<string, string | number | undefined>) => {
@@ -122,6 +160,7 @@ export const rutaPatrones = (alcance: AlcancePatron, page = 1, regla?: string) =
   `/patrones?${consulta({ alcance, page, size: TAM_PATRONES, regla })}`;
 export const rutaAcompanantes = (page = 1) => `/patrones/acompanantes?${consulta({ solo: "fuertes", page, size: TAM_PATRONES })}`;
 export const rutaConsorcios = (page = 1) => `/patrones/consorcios?${consulta({ page, size: TAM_PATRONES })}`;
+export const rutaRenovaciones = (page = 1) => `/patrones/renovaciones?${consulta({ page, size: TAM_PATRONES })}`;
 
 // ─── Lecturas (servidor) ─────────────────────────────────────────────────────────
 
@@ -137,6 +176,7 @@ async function leer<T>(ruta: string, revalidate = 600): Promise<T | null> {
 export const getPatrones = (alcance: AlcancePatron, page = 1, regla?: string) => leer<PatronesSenal>(rutaPatrones(alcance, page, regla));
 export const getPatronesAcompanantes = (page = 1) => leer<PatronesAcompanantes>(rutaAcompanantes(page));
 export const getPatronesConsorcios = (page = 1) => leer<PatronesConsorcios>(rutaConsorcios(page));
+export const getPatronesRenovaciones = (page = 1) => leer<PatronesRenovaciones>(rutaRenovaciones(page));
 
 // ─── Para mostrar ────────────────────────────────────────────────────────────────
 
