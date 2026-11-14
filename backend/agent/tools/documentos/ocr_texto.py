@@ -25,18 +25,49 @@ def _paginas_pymupdf(pdf: bytes, page_offset: int) -> tuple[list[dict], list[dic
     finally:
         d.close()
     need = list(layout.get("needs_render_pages") or [])
+    # Tope de páginas escaneadas por documento y de tiempo: un expediente puede traer cientos, y el análisis entero
+    # corre en una Lambda de 900 s. Lo que no entra queda dicho en `recortes` (no cuenta como OCR fallido).
+    _max = int(os.getenv("OCR_MAX_PAGINAS", "40"))
+    if len(need) > _max:
+        recortes.append({"donde": "ocr_tope_paginas", "limite": _max,
+                         "omitido": f"{len(need) - _max} páginas escaneadas de {len(need)} (desde la {page_offset + need[_max] + 1})"})
+        need = need[:_max]
     if need:
         try:
-            rendered = _render_pdf_pages_to_png(pdf, need, dpi=160)
+            import concurrent.futures as _cf
+            import time as _time
+            rendered = _render_pdf_pages_to_png(pdf, need, dpi=int(os.getenv("OCR_DPI", "130")))
             leido = False
-            for k in range(0, len(rendered), 8):
-                lote = rendered[k:k + 8]
-                textos = _ocr_paginas_gemini(lote)
-                leido = leido or any(textos)
-                for (idx, _png), txt in zip(lote, textos):
-                    if txt and len(txt) > paginas[idx]["chars"]:
-                        paginas[idx] = {"n": page_offset + idx + 1, "texto": txt, "chars": len(txt), "ocr": "gemini_vision"}
-            if rendered and not leido:
+            _tam = max(1, int(os.getenv("OCR_LOTE", "4")))
+            lotes = [rendered[k:k + _tam] for k in range(0, len(rendered), _tam)]
+            _fin = _time.monotonic() + float(os.getenv("OCR_BUDGET_S", "150"))
+            ex = _cf.ThreadPoolExecutor(max_workers=max(1, int(os.getenv("OCR_PARALELO", "3"))))
+            try:
+                futs = {ex.submit(_ocr_paginas_gemini, lote): lote for lote in lotes}
+                pendientes = set(futs)
+                while pendientes:
+                    hechos, pendientes = _cf.wait(pendientes, timeout=max(0.0, _fin - _time.monotonic()),
+                                                  return_when=_cf.FIRST_COMPLETED)
+                    if not hechos:   # se acabó el tiempo: lo que falta no se espera
+                        faltan = [page_offset + idx + 1 for f in pendientes for idx, _p in futs[f]]
+                        recortes.append({"donde": "ocr_gemini_vision", "limite": "tiempo",
+                                         "omitido": f"páginas escaneadas {sorted(faltan)[:30]}"})
+                        break
+                    for f in hechos:
+                        lote = futs[f]
+                        try:
+                            textos = f.result()
+                        except Exception as e:  # noqa: BLE001 — un lote caído no tumba a los demás
+                            recortes.append({"donde": "ocr_gemini_vision", "limite": "fallo",
+                                             "omitido": f"páginas escaneadas {[page_offset + i + 1 for i, _p in lote]} ({str(e)[:80]})"})
+                            continue
+                        leido = leido or any(textos)
+                        for (idx, _png), txt in zip(lote, textos):
+                            if txt and len(txt) > paginas[idx]["chars"]:
+                                paginas[idx] = {"n": page_offset + idx + 1, "texto": txt, "chars": len(txt), "ocr": "gemini_vision"}
+            finally:
+                ex.shutdown(wait=False, cancel_futures=True)
+            if rendered and not leido and not any(r.get("donde") == "ocr_gemini_vision" for r in recortes):
                 # Ninguna página escaneada devolvió texto: es un OCR fallido, no un documento en blanco.
                 recortes.append({"donde": "ocr_gemini_vision", "limite": "sin_texto",
                                  "omitido": f"páginas rasterizadas {[page_offset + i + 1 for i in need][:30]}"})
@@ -56,8 +87,9 @@ def _ocr_paginas_gemini(rendered: list[tuple[int, bytes]]) -> list[str]:
             required=["indice", "texto"]))}, required=["paginas"])
     parts = [gtypes.Part.from_text(text=(
         f"Adjunto {len(rendered)} imágenes de páginas escaneadas (índices 0..{len(rendered) - 1}, en ese orden). "
-        "Transcribí LITERALMENTE todo el texto de cada una (tablas como filas con ' | '). No resumas, no "
-        "inventes, no completes. Si una página es ilegible, devolvé texto vacío para ese índice."))]
+        "Transcribe LITERALMENTE todo el texto de cada una (tablas como filas con ' | '; conserva números, montos, "
+        "fechas, RUC y nombres tal como están). No resumas, no inventes, no completes. Si una página es ilegible, "
+        "devuelve texto vacío para ese índice. Devuelve un elemento por cada imagen."))]
     for _idx, png in rendered:
         parts.append(gtypes.Part.from_bytes(data=png, mime_type="image/png"))
     cfg = gtypes.GenerateContentConfig(response_mime_type="application/json", response_schema=schema,

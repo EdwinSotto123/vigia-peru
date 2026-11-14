@@ -42,14 +42,14 @@ def _judge_model() -> str:
     return os.getenv("GEMINI_MODEL_JUDGE", "gemini-3.5-flash-lite")
 
 
-def _cfg_juez(schema):
+def _cfg_juez(schema, etapa: str = "juez"):
     """Config común de los jueces: JSON con schema, sin razonamiento (clasificar en un enum)."""
     from google.genai import types as gt
     return gt.GenerateContentConfig(
         temperature=0.0, response_mime_type="application/json", response_schema=schema,
         http_options=gt.HttpOptions(timeout=60000),
-        thinking_config=thinking_crudo("juez", _judge_model(), "minimal"),
-        labels=etiquetas("juez"),
+        thinking_config=thinking_crudo(etapa, _judge_model(), "minimal"),
+        labels=etiquetas(etapa),
     )
 
 
@@ -137,7 +137,7 @@ def _judge_array(prompt: str, n_expected: int, labels: list[str]) -> list[str]:
     return [(x if x in labels else None) for x in out]
 
 
-def _judge_array_reason(prompt: str, n_expected: int, labels: list[str]) -> list[dict]:
+def _judge_array_reason(prompt: str, n_expected: int, labels: list[str], etapa: str = "juez") -> list[dict]:
     """Como _judge_array pero cada elemento es {label, reason} — para que el
     dashboard muestre POR QUÉ cada ítem (bandera/precio) pasó o falló."""
     from google.genai import types as gt
@@ -157,7 +157,7 @@ def _judge_array_reason(prompt: str, n_expected: int, labels: list[str]) -> list
         )},
         required=["veredictos"],
     )
-    cfg = _cfg_juez(schema)
+    cfg = _cfg_juez(schema, etapa)
     error = ""
     try:
         with _throttle_gemini():

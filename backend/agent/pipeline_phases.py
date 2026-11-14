@@ -378,6 +378,17 @@ async def fase_market(pc: PipelineCtx):
         evs, _ = await t_call(pc, pc.T.analyze_market_sharded, "analyze_market_sharded", agent="market_price_agent", ocid=pc.ocid)
         for e in evs:
             yield e
+    # Segunda mirada a cada sobreprecio ANTES de que sea bandera y de que se escriba el dictamen (tools/market/
+    # verificador.py): mismo bien, misma unidad, suficientes precios. Lo que no se sostiene pasa a «no verificable».
+    try:
+        from tools.market.verificador import verificar_sobreprecios
+        _vp = await asyncio.to_thread(verificar_sobreprecios, pc.state)
+        if _vp.get("revisados"):
+            yield {"kind": "phase", "name": "precio",
+                   "msg": (f"sobreprecios revisados: {_vp['revisados']}; se sostienen {_vp.get('confirmados', 0)}, "
+                           f"no verificables {len(_vp.get('degradados') or [])}")}
+    except Exception as _e:  # noqa: BLE001
+        yield {"kind": "warn", "name": "precio", "msg": f"verificador de precio: {str(_e)[:160]}"}
     evs, _ = await t_call(pc, pc.T.persist_market_flags_as_banderas, "persist_market_flags_as_banderas",
                       agent="market_price_agent", alerta_codigo=pc.alerta_codigo)
     for e in evs:

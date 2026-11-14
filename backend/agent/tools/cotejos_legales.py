@@ -179,6 +179,11 @@ def _competencia_efectiva(state: dict) -> int:
 _RE_ERROR_MATERIAL = _re.compile(r"error\s+(de\s+)?transcripci|error\s+material|podr[ií]a\s+ser\s+un\s+error", _re.I)
 
 
+_RE_VINCULO_PERSONA = _re.compile(r"conflicto\s+de\s+inter[eé]s|impedimento\s+(para\s+contratar|del\s+art)|"
+                                  r"(es|figura\s+como|ser[ií]a)\s+(socio|accionista|representante|integrante)\s+del?\s+"
+                                  r"(consorcio|postor|ganador|contratista|adjudicatario)", _re.I)
+
+
 def depurar_banderas_legales(state: dict) -> list[dict]:
     """Quita de `legal_analysis.red_flags_documentales` lo que no es una bandera documental: la repetición de una regla
     de código (único postor, oferta igual al referencial, con vector «procedimiento»), los puntajes sobre 100 por
@@ -250,6 +255,11 @@ def depurar_banderas_legales(state: dict) -> list[dict]:
             # Una irregularidad del trámite (negociación, desierta, justificación del procedimiento) que no toca ningún
             # requisito ni especificación: no es un requisito dirigido (1225299: el mismo postor de la convocatoria desierta).
             motivo_contexto = "irregularidad del trámite que no toca un requisito ni una especificación"
+        elif vector in ("otro", "procedimiento", "") and _RE_VINCULO_PERSONA.search(texto):
+            # Un vínculo entre personas (conflicto de interés, quien firma es socio del ganador) lo deciden las reglas
+            # de red con los registros, no la lectura de un PDF: 1232401 publicó «alta» tomando al consultante del
+            # pliego por firmante de la entidad.
+            motivo_contexto = "vínculo entre personas: lo evalúan las reglas de red con registros, no la lectura del expediente"
         if motivo:
             fuera.append({"vector": vector, "descripcion": texto[:200], "motivo": motivo})
         elif motivo_contexto:

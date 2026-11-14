@@ -281,11 +281,37 @@ def es_combustible(it: dict) -> bool:
     return not unidad or bool(_UNIDAD_COMBUSTIBLE.match(unidad))
 
 
+_DEPARTAMENTOS = {"01": "AMAZONAS", "02": "ANCASH", "03": "APURIMAC", "04": "AREQUIPA", "05": "AYACUCHO", "06": "CAJAMARCA",
+                  "07": "CALLAO", "08": "CUSCO", "09": "HUANCAVELICA", "10": "HUANUCO", "11": "ICA", "12": "JUNIN",
+                  "13": "LA LIBERTAD", "14": "LAMBAYEQUE", "15": "LIMA", "16": "LORETO", "17": "MADRE DE DIOS",
+                  "18": "MOQUEGUA", "19": "PASCO", "20": "PIURA", "21": "PUNO", "22": "SAN MARTIN", "23": "TACNA",
+                  "24": "TUMBES", "25": "UCAYALI"}
+
+
 def departamento_de(ocds: dict) -> str:
-    """Región de la entidad compradora según el OCDS (parties[role=buyer].address.region)."""
+    """Departamento de la entidad compradora: por el ubigeo de la convocatoria en la base y, si no, por el OCDS. El
+    `address.region` del OCDS suele traer la PROVINCIA («Sullana», «Jorge Basadre»): con ella el servicio de precios no
+    hallaba el departamento y comparaba contra el ámbito nacional (52 de 56 combustibles en PROD, 2026-11-14)."""
+    ocid = str((ocds or {}).get("ocid") or "")
+    if ocid:
+        try:
+            from tools._core import _pg, _short_ocid
+            conn = _pg()
+            try:
+                cur = conn.cursor()
+                cur.execute("SELECT left(ubigeo, 2) FROM convocatorias WHERE ocid = %s", (_short_ocid(ocid),))
+                fila = cur.fetchone()
+                if fila and _DEPARTAMENTOS.get(str(fila[0] or "")):
+                    return _DEPARTAMENTOS[str(fila[0])]
+            finally:
+                conn.close()
+        except Exception:  # noqa: BLE001 — sin base, lo que diga el OCDS
+            pass
     for p in (ocds or {}).get("parties") or []:
         if isinstance(p, dict) and "buyer" in (p.get("roles") or []):
-            return str(((p.get("address") or {}).get("region")) or "")
+            d = p.get("address") or {}
+            region = _llano(str(d.get("department") or d.get("region") or "")).upper()
+            return region if region in _DEPARTAMENTOS.values() else ""
     return ""
 
 

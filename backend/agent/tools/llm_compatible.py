@@ -36,8 +36,19 @@ def _url() -> str:
     return base if base.endswith("/chat/completions") else base + "/chat/completions"
 
 
-def modelo() -> str:
-    return os.getenv("LLM_COMPAT_MODEL") or os.getenv("WORKERS_AI_MODEL") or "default"
+def modelo(config=None) -> str:
+    """El modelo de una llamada directa. Las etapas de `LLM_COMPAT_ETAPAS_CAPAZ` (los jueces y el verificador de
+    precio: deciden si una señal se publica) van al modelo capaz; lo demás, al rápido."""
+    rapido = os.getenv("LLM_COMPAT_MODEL") or os.getenv("WORKERS_AI_MODEL") or "default"
+    capaz = os.getenv("WORKERS_AI_MODEL_SMART")
+    if config is not None and capaz:
+        etapas = {e.strip() for e in os.getenv("LLM_COMPAT_ETAPAS_CAPAZ", "juez,verificador_precio").split(",") if e.strip()}
+        try:
+            if _etapa(config) in etapas:
+                return capaz
+        except Exception:  # noqa: BLE001
+            pass
+    return rapido
 
 
 # ── esquema (genai Schema / pydantic / dict) → JSON Schema ────────────────────────────────────────
@@ -73,7 +84,22 @@ def _texto_pdf(datos: bytes) -> str:
     return texto
 
 
-def _parte(p) -> str:
+def _bloque_imagen(datos: bytes, mime: str) -> dict:
+    """Una imagen como bloque `image_url` (JPEG en base64). El modelo abierto sí lee imágenes (los lectores de
+    backend/lector ya le mandan las páginas escaneadas así); antes el agente las rechazaba y 4 685 páginas escaneadas
+    de 72 contratos quedaban sin leer (auditoría 2026-11-14). Un PNG se pasa a JPEG: pesa la quinta parte."""
+    import base64
+    if mime != "image/jpeg":
+        import fitz  # PyMuPDF
+        pix = fitz.Pixmap(datos)
+        if pix.alpha or pix.n > 3:
+            pix = fitz.Pixmap(fitz.csRGB, pix)
+        datos = pix.tobytes(output="jpeg", jpg_quality=int(os.getenv("OCR_JPEG_CALIDAD", "72")))
+    return {"type": "image_url", "image_url": {"url": "data:image/jpeg;base64," + base64.b64encode(datos).decode()}}
+
+
+def _parte(p):
+    """Texto (str) o, para una imagen, su bloque `image_url`."""
     if isinstance(p, str):
         return p
     t = getattr(p, "text", None)
@@ -81,10 +107,36 @@ def _parte(p) -> str:
         return t
     inl = getattr(p, "inline_data", None)
     if inl is not None and getattr(inl, "data", None) is not None:
-        if (getattr(inl, "mime_type", "") or "") == "application/pdf":
+        mime = getattr(inl, "mime_type", "") or ""
+        if mime == "application/pdf":
             return _texto_pdf(inl.data)
-        raise ValueError("el modelo compatible no lee imágenes")
+        if mime.startswith("image/"):
+            return _bloque_imagen(inl.data, mime)
+        raise ValueError(f"tipo de archivo no soportado por el adaptador compatible: {mime}")
     raise ValueError(f"parte no soportada por el adaptador compatible: {type(p).__name__}")
+
+
+def _contenido(partes):
+    """El contenido de un mensaje: un texto, o bloques de texto e imagen en su orden si hay alguna imagen."""
+    piezas = [_parte(p) for p in partes]
+    if all(isinstance(x, str) for x in piezas):
+        return "\n\n".join(piezas)
+    bloques: list[dict] = []
+    for x in piezas:
+        if isinstance(x, str):
+            if bloques and bloques[-1]["type"] == "text":
+                bloques[-1]["text"] += "\n\n" + x
+            else:
+                bloques.append({"type": "text", "text": x})
+        else:
+            bloques.append(x)
+    return bloques
+
+
+def _solo_texto(contenido) -> str:
+    if isinstance(contenido, str):
+        return contenido
+    return "\n\n".join(b.get("text", "") for b in contenido if isinstance(b, dict) and b.get("type") == "text")
 
 
 def _mensajes(contents):
@@ -94,8 +146,8 @@ def _mensajes(contents):
         contents = [contents]
     if contents and all(hasattr(c, "parts") for c in contents):  # lista de Content
         return [{"role": "assistant" if getattr(c, "role", "user") == "model" else "user",
-                 "content": "\n\n".join(_parte(p) for p in (c.parts or []))} for c in contents]
-    return [{"role": "user", "content": "\n\n".join(_parte(p) for p in contents)}]
+                 "content": _contenido(c.parts or [])} for c in contents]
+    return [{"role": "user", "content": _contenido(contents)}]
 
 
 def _sistema(config) -> str | None:
@@ -168,7 +220,7 @@ class _Modelos:
         busca = _pide_busqueda(config)
         n_busquedas, fuentes, consultas = 0, [], []
         if busca:
-            pedido = mensajes[-1]["content"][:6000]
+            pedido = _solo_texto(mensajes[-1]["content"])[:6000]
             plan, _ = _llamar([{"role": "system", "content": "Devuelve SOLO un arreglo JSON con 1 a 3 consultas de búsqueda web "
                                 "(en español, foco Perú) para responder la tarea del usuario."},
                                {"role": "user", "content": pedido}], 400, config)
@@ -204,7 +256,7 @@ class _Modelos:
                              candidates_token_count=uso.get("completion_tokens") or 0, thoughts_token_count=0, traffic_type=None)
         try:
             from tools import costo_llm
-            costo_llm.registrar_externo(modelo(), _etapa(config), um,
+            costo_llm.registrar_externo(modelo(config), _etapa(config), um,
                                         extra_usd=n_busquedas * float(os.getenv("BUSQUEDA_USD_POR_BUSQUEDA", "0.008")))
         except Exception:
             pass
@@ -213,7 +265,7 @@ class _Modelos:
         # `model=` de la llamada se ignora aquí; quien lo anotaba como «el modelo» dejaba «gemini-3.6-flash» en lecturas
         # que hizo Haiku (2026-11-05).
         return SimpleNamespace(text=texto, usage_metadata=um, candidates=[cand], parsed=None, prompt_feedback=None,
-                               model_version=str(d.get("model") or modelo()))
+                               model_version=str(d.get("model") or modelo(config)))
 
 
 # Modelos que rechazan `temperature` con HTTP 400 ("deprecated for this model"): se aprende en la primera
@@ -223,9 +275,9 @@ _SIN_TEMPERATURA: set[str] = set()
 
 def _llamar(mensajes: list[dict], tope: int, config, intentos: int = 3) -> tuple[str, dict]:
     import requests
-    cuerpo = {"model": modelo(), "messages": mensajes, "max_tokens": tope}
+    cuerpo = {"model": modelo(config), "messages": mensajes, "max_tokens": tope}
     temp = getattr(config, "temperature", None)
-    if temp is not None and modelo() not in _SIN_TEMPERATURA:
+    if temp is not None and modelo(config) not in _SIN_TEMPERATURA:
         cuerpo["temperature"] = float(temp)
     if os.getenv("WORKERS_AI_REASONING"):
         cuerpo["reasoning_effort"] = os.environ["WORKERS_AI_REASONING"]
@@ -253,7 +305,7 @@ def _llamar(mensajes: list[dict], tope: int, config, intentos: int = 3) -> tuple
                 continue
             return (msg.get("content") or ""), d
         if r.status_code == 400 and "temperature" in cuerpo and "temperature" in r.text:
-            _SIN_TEMPERATURA.add(modelo())
+            _SIN_TEMPERATURA.add(modelo(config))
             cuerpo.pop("temperature")
             r = requests.post(_url(), headers=headers, json=cuerpo, timeout=float(os.getenv("LLM_COMPAT_TIMEOUT_S", "180")))
             if r.status_code < 400:
