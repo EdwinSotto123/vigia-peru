@@ -420,6 +420,23 @@ def check_fraccionamiento_rule(ocid: str, tool_context: ToolContext,
     result = {"regla": "fraccionamiento", "proveedor_ruc": prov_ruc,
               "procesos_relacionados": relacionados[:10], "estado": "hallado" if relacionados else "sin_dato",
               "_nota_alcance": "Conteos sobre procesos ingestados en la base de Vigía.", "triggered": False}
+    # Fraccionar es partir una compra para no llegar al procedimiento que le tocaba: sólo es señal si la SUMA cruza un
+    # umbral que cada proceso, por separado, no alcanza. Sin eso, dos compras parecidas al mismo proveedor son sólo
+    # dos compras (prueba de oro 2026-11-14: 1226572, S/ 87 000 + S/ 126 150, lejos de los S/ 485 000 de la licitación).
+    umbral_cruzado = None
+    if relacionados:
+        _propia = float(cuantia or 0)
+        _suma = _propia + sum(r["cuantia"] for r in relacionados)
+        _mayor = max([_propia, *[r["cuantia"] for r in relacionados]])
+        _es_obra = str((state.get("clasificacion") or {}).get("tipo") or state.get("perfil_nombre") or "").lower().startswith("obra")
+        _umbrales = ([8 * _TOPES_LEY_32069["uit_soles"], _TOPES_LEY_32069["obras_licitacion_min_soles"]] if _es_obra else
+                     [8 * _TOPES_LEY_32069["uit_soles"], _TOPES_LEY_32069["comparacion_precios_max_soles"],
+                      _TOPES_LEY_32069["licitacion_publica_min_soles"]])
+        umbral_cruzado = max((u for u in _umbrales if _mayor < u <= _suma), default=None)
+        if umbral_cruzado is None:
+            result.update({"estado": "hallado", "motivo": (f"hay {len(relacionados)} proceso(s) parecido(s) con la entidad, pero la "
+                                                          f"suma (S/ {_suma:,.2f}) no cruza ningún umbral de procedimiento")})
+            relacionados_sin_cruce, relacionados = relacionados, []
     if relacionados:
         suma = float(cuantia or 0) + sum(r["cuantia"] for r in relacionados)
         UIT = _tope(topes, _TOPES_DEFAULT["uit_soles"], "uit_soles", "uit")
@@ -434,13 +451,17 @@ def check_fraccionamiento_rule(ocid: str, tool_context: ToolContext,
         elif "MENOR" in tipo_u:
             tope = 8.0
         excede = tope is not None and (suma / UIT) > tope
+        # Cruzar el umbral de la licitación pública es lo grave; los umbrales menores, señal media.
+        _grave = umbral_cruzado is not None and umbral_cruzado >= _TOPES_LEY_32069["licitacion_publica_min_soles"]
+        _es_natural = len(str(prov_ruc)) == 11 and str(prov_ruc).startswith("10")
         result.update({
-            "triggered": True, "severidad": "alta" if excede else "media",
+            "umbral_cruzado_soles": umbral_cruzado,
+            "triggered": True, "severidad": "alta" if (excede or _grave) else "media",
             "suma_soles": round(suma, 2), "suma_uit": round(suma / UIT, 1), "tope_uit_modalidad": tope,
-            "evidencia": (f"{prov_nombre or 'El proveedor'} (RUC {prov_ruc}) obtuvo {len(relacionados)} proceso(s) "
+            "evidencia": (f"{prov_nombre or 'El proveedor'}{'' if _es_natural else f' (RUC {prov_ruc})'} obtuvo {len(relacionados)} proceso(s) "
                           f"adicional(es) de objeto similar con la misma entidad en ±90 días "
                           f"({', '.join(r['ocid'] for r in relacionados[:4])}); suma S/ {suma:,.2f} "
-                          f"({suma / UIT:.1f} UIT)"
+                          f"({suma / UIT:.1f} UIT), que cruza el umbral de S/ {umbral_cruzado:,.0f} que ninguno alcanza por separado"
                           + (f", por encima del tope de {tope:g} UIT de la modalidad '{tipo}'." if excede else ".")),
             "norma": "Art. 20 TUO Ley 30225 / Art. 36 Ley 32069 — prohibición de fraccionamiento",
             "fuente_url": proceso_oece(ocid),
