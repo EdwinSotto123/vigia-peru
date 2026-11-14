@@ -431,6 +431,11 @@ def cmd_cargar(a) -> int:
                 cur.execute("SET LOCAL statement_timeout = 0")
                 cur.execute("SELECT refrescar_perucompras_precios()")
                 print(f"  precios de referencia: {cur.fetchone()[0]:,} líneas al doble de la mediana o más", flush=True)
+            # Las fichas con referencia, buscables por su descripción (migración 281): las usa el agente de bienes.
+            cur.execute("SELECT to_regprocedure('refrescar_perucompras_ficha()') IS NOT NULL")
+            if cargados and cur.fetchone()[0]:
+                cur.execute("SELECT refrescar_perucompras_ficha()")
+                print(f"  fichas buscables: {cur.fetchone()[0]:,}", flush=True)
             # Cada compra con su orden del SEACE (migración 240), el año en curso y el anterior: las órdenes de antes ya
             # quedaron juntas en su carga.
             cur.execute("SELECT to_regprocedure('refrescar_compras(date,date)') IS NOT NULL")

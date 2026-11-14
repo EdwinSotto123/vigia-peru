@@ -81,7 +81,12 @@ GUIA_SECCION: dict[str, str] = {
         "Rotula la columna según `diff_base`/origen del precio: 'Contratado' si el precio viene del contrato u orden de "
         "compra, 'Ofertado' si de la oferta, 'Referencial' solo si es el valor referencial de las bases/OCDS. Si "
         "`sobreprecio_pct` se calculó sobre la cuantía referencial y no sobre lo contratado, dilo (es sobre el "
-        "estimado de la entidad, no sobre el precio pagado). Nunca calcules ni reinterpretes cifras: copia las del código."
+        "estimado de la entidad, no sobre el precio pagado). Nunca calcules ni reinterpretes cifras: copia las del código. "
+        "JUSTIFICA cada sobreprecio: debajo de la tabla, por cada ítem `elevado` o `muy_elevado`, copia su "
+        "`justificacion_precio` (cuánto se pagó, la referencia, de cuántos precios o entidades y de qué fuente, la "
+        "cantidad y cuántos soles de más son: `exceso_soles`) y agrega en una frase qué podría explicarlo sin "
+        "irregularidad (flete a zona alejada, entrega por partes, marca o especificación exigida, compra pequeña) y si el "
+        "expediente lo sostiene. Un ítem sin `justificacion_precio` no se presenta como sobreprecio."
     ),
     "Supervisión y vínculo con el contratista": (
         "### De `supervision_obra` (base de Vigía: INFOBRAS de la Contraloría y RNP). Si `enlazada` es true, por cada obra: "

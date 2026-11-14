@@ -142,7 +142,11 @@ def guardas(f: dict, ma: dict | None = None) -> str | None:
             return (f"el precio pactado (S/ {pactado:,.2f}) no supera en 15 % al percentil 75 de los grifos "
                     f"(S/ {max(precios):,.2f}): está dentro de lo que se cobra")
         return None
-    if len(precios) < (2 if oficial else _MIN_OBS):
+    # Perú Compras: una mediana sostenida por 5 entidades o más vale sola; su tope es el cuartil 3 y ya trae el IGV.
+    respaldo = sum(int(_num(o.get("respaldo")) or 0) for o in obs)
+    topes = [t for t in (_num(o.get("tope_referencia")) for o in obs) if t]
+    solo_catalogo = bool(obs) and all(str(o.get("origen") or "").lower() == "perucompras" for o in obs)
+    if len(precios) < (1 if respaldo >= _MIN_OBS else 2 if oficial else _MIN_OBS):
         return f"sólo {len(precios)} precio(s) distintos de comparación: hacen falta al menos {_MIN_OBS}"
     tiendas = {str(o.get("dominio") or o.get("proveedor") or "").lower() for o in obs} - {""}
     if not oficial and len(tiendas) < 2:
@@ -151,10 +155,10 @@ def guardas(f: dict, ma: dict | None = None) -> str | None:
         return (f"los precios de comparación van de S/ {min(precios):,.2f} a S/ {max(precios):,.2f}: son productos "
                 f"distintos y su mediana no dice nada")
     # La mediana contra el propio rango: si el precio pactado cae dentro de lo observado, no es sobreprecio.
-    if pactado and pactado <= max(precios):
+    if pactado and pactado <= max(precios + topes):
         return (f"el precio pactado (S/ {pactado:,.2f}) está dentro del rango de los precios observados "
-                f"(hasta S/ {max(precios):,.2f})")
-    if oficial and 15 <= pct <= 22:
+                f"(hasta S/ {max(precios + topes):,.2f})")
+    if oficial and not solo_catalogo and 15 <= pct <= 22:
         return "una diferencia de 15 a 22 % contra otras compras puede ser sólo el IGV (unas lo incluyen y otras no)"
     return None
 
@@ -294,6 +298,18 @@ def verificar_sobreprecios(state: dict) -> dict:
                                         f"{d['item']}: {d['motivo']}")
             except Exception:  # noqa: BLE001
                 pass
+        # Cada sobreprecio que quedó en pie lleva su justificación ya escrita por el código (precio pagado, referencia,
+        # fuente y exceso en soles): el dictamen la copia, no la calcula.
+        try:
+            from tools.persistence.justificacion_precio import justificar
+            for f in ma.get("findings") or []:
+                if isinstance(f, dict) and str(f.get("veredicto") or "") in _ELEVADOS:
+                    txt, nums = justificar(f)
+                    if txt:
+                        f["justificacion_precio"] = txt
+                        f["exceso_soles"] = nums.get("exceso_soles")
+        except Exception:  # noqa: BLE001
+            pass
         ma["verificacion_precio"] = {k: (len(v) if k == "degradados" else v) for k, v in res.items()}
         ma["verificacion_precio"]["detalle"] = res["degradados"][:12]
         state["market_analysis"] = ma

@@ -12,6 +12,7 @@ _FUENTE = {
     "emmsa": "precios mayoristas de EMMSA",
     "conosce": "otras compras del Estado (CONOSCE)",
     "catalogo_tienda": "catálogos de tiendas",
+    "perucompras": "catálogos electrónicos de Perú Compras (lo que pagaron otras entidades por el mismo producto, con IGV)",
 }
 
 
@@ -64,7 +65,12 @@ def justificar(f: dict) -> tuple[str, dict]:
     verbo = "El valor referencial es" if es_ref else "Se pagó"
     partes = [f"{verbo} {_s(pagado)} por {unidad}; la referencia es {_s(ref)}"]
     det = []
-    if n:
+    # Perú Compras: la referencia es lo que pagaron N entidades, no «N precios».
+    resp = 0 if de_ancla else sum(int(_n(x.get("respaldo")) or 0) for x in (f.get("precios_observados") or []) if isinstance(x, dict))
+    if resp:
+        det.append(f"de lo que pagaron {resp} entidades")
+        nums["n_entidades_referencia"] = resp
+    elif n:
         det.append(f"mediana de {n} precio{'s' if n != 1 else ''}")
         nums["n_precios_referencia"] = n
     if lo and hi and hi > lo:

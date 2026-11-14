@@ -586,7 +586,8 @@ def _mercado_goods_retail(state: dict) -> dict:
                 "tipo_cambio_aplicado": MARKET_USD_PEN if p["moneda_origen"] == "USD" else None,
                 "titulo_fuente": f0.get("titulo"), "dominio": f0.get("dominio"),
                 "urls_adicionales": [x["uri"] for x in p["fuentes"][1:]],
-                "origen": p.get("origen"),          # osinergmin | emmsa | catalogo_tienda | conosce | None (búsqueda web)
+                "origen": p.get("origen"),          # osinergmin | emmsa | catalogo_tienda | conosce | perucompras | None (búsqueda web)
+                "respaldo": p.get("respaldo"), "tope_referencia": p.get("tope_referencia"),
                 # compat frontend (columna `valor`)
                 "valor": round(norm, 2) if norm is not None else None,
             }
@@ -604,10 +605,17 @@ def _mercado_goods_retail(state: dict) -> dict:
         mediana = _mediana(keep)
         n = len(keep)
         n_norm = sum(1 for x in precios_obs if x["precio"] in keep and (x["normalizacion"] or {}).get("regla") != "asumida_misma_unidad")
-        diff_retail = _diff_pct(base_val, mediana) if n >= MARKET_MIN_PRECIOS else None
+        # Una mediana de Perú Compras resume lo que pagaron 5 entidades o más: cuenta por las entidades que la sostienen.
+        respaldo = sum(int(x.get("respaldo") or 1) for x in precios_obs if x["precio"] in keep)
+        suficiente = n >= MARKET_MIN_PRECIOS or (n >= 1 and respaldo >= MARKET_MIN_PRECIOS)
+        diff_retail = _diff_pct(base_val, mediana) if suficiente else None
         veredicto_retail = _veredicto(diff_retail) if diff_retail is not None else "sin_dato"
+        # Si TODA la referencia es de Perú Compras, lo «normal» llega hasta su cuartil 3: por debajo no hay sobreprecio.
+        _topes = [x["tope_referencia"] for x in precios_obs if x["precio"] in keep and x.get("tope_referencia")]
+        if veredicto_retail in ("elevado", "muy_elevado") and _topes and len(_topes) == n and base_val is not None and base_val <= max(_topes):
+            veredicto_retail = "alineado"
         motivo = None
-        if n < MARKET_MIN_PRECIOS:
+        if not suficiente:
             motivo = "precios_insuficientes"
         elif base_val is None:
             motivo = "sin_precio_ofertado_ni_referencial"
@@ -682,7 +690,7 @@ def _mercado_goods_retail(state: dict) -> dict:
             "precio_mediana_comparacion": round(med_comparacion, 2) if isinstance(med_comparacion, (int, float)) else None,
             "rango_min": round(min(keep), 2) if keep else None,
             "rango_max": round(max(keep), 2) if keep else None,
-            "n_precios": n, "n_precios_normalizados": n_norm,
+            "n_precios": n, "n_precios_normalizados": n_norm, "respaldo_precios": respaldo,
             "diff_pct": diff, "diff_base": base if diff is not None else None,
             "diff_fuente": diff_fuente if (diff is not None or veredicto == "alineado_regional") else None,
             "diff_pct_retail": diff_retail, "veredicto_retail": veredicto_retail,
@@ -712,7 +720,8 @@ def _mercado_goods_retail(state: dict) -> dict:
     # sin precio base propio (lote tipo canasta) igual aporta su mediana × cantidad al total.
     respaldados = [f for f in findings if f.get("veredicto") != "no_verificable"
                    and isinstance(f.get("precio_mediana_comparacion") or f.get("precio_mediana_mercado"), (int, float))
-                   and (f.get("n_precios", 0) >= MARKET_MIN_PRECIOS or (f.get("ancla_regional") or {}).get("estado") == "hallado")]
+                   and (f.get("n_precios", 0) >= MARKET_MIN_PRECIOS or (f.get("respaldo_precios") or 0) >= MARKET_MIN_PRECIOS
+                        or (f.get("ancla_regional") or {}).get("estado") == "hallado")]
     valores_all = {_norm_num(f.get("item_numero")): _valor_item(by_num.get(_norm_num(f.get("item_numero")), {}), f) for f in findings}
     resp_nums = {_norm_num(f.get("item_numero")) for f in respaldados}
     suma_all = sum(v for v in valores_all.values() if v)

@@ -150,8 +150,9 @@ def candidatos(termino: str) -> list[dict]:
     return [c for lista in listas for c in lista]
 
 
-_JUEZ = """Para cada ítem de una compra pública peruana tienes productos de catálogos de tiendas y compras de otras entidades
-públicas ya adjudicadas ("compra de …": precio unitario pagado) (id, producto, precio).
+_JUEZ = """Para cada ítem de una compra pública peruana tienes productos de catálogos de tiendas, compras de otras entidades
+públicas ya adjudicadas ("compra de …": precio unitario pagado) y productos de los catálogos electrónicos de Perú Compras
+("catálogo de Perú Compras: mediana de N órdenes…": lo que pagaron varias entidades por ese producto exacto) (id, producto, precio).
 Elige SOLO los que son el MISMO bien que el ítem (mismo tipo, misma especificación principal; la marca puede variar
 salvo que el ítem exija una). Descarta accesorios, repuestos, otros productos y presentaciones no comparables.
 Si el ítem exige certificaciones o especificaciones (`certificaciones`, `especificaciones`) y el nombre del producto no
@@ -220,6 +221,22 @@ def _compras_estado(items: list[dict], hasta: str | None, departamento: str) -> 
     return out, error
 
 
+def _perucompras(items: list[dict], hasta: str | None) -> tuple[dict[str, list[dict]], str | None]:
+    """Candidatos de los catálogos electrónicos de Perú Compras por ítem (tools/market/perucompras.py), en paralelo."""
+    if os.getenv("PERUCOMPRAS_ACTIVO", "1") == "0" or not items:
+        return {}, None
+    from .perucompras import candidatos_perucompras
+    with concurrent.futures.ThreadPoolExecutor(max_workers=4) as ex:
+        futs = {str(it.get("numero")): ex.submit(candidatos_perucompras, it, hasta) for it in items}
+    out, error = {}, None
+    for num, f in futs.items():
+        try:
+            out[num] = f.result()
+        except Exception as e:  # noqa: BLE001  (sin la tabla, el nivel queda fuera; lo demás sigue)
+            error = str(e)[:160]
+    return out, error
+
+
 def precios_de_catalogo(items: list[dict], hasta: str | None = None, departamento: str = "") -> tuple[list[dict], dict]:
     """Precios en el formato de los workers de goods_retail (`precios[]`) + resumen para el informe. A los candidatos
     de las tiendas se suman las compras de otras entidades del mismo bien (precio unitario adjudicado, hasta la fecha
@@ -228,6 +245,9 @@ def precios_de_catalogo(items: list[dict], hasta: str | None = None, departament
     cands = {str(it.get("numero")): candidatos(termino_busqueda(it.get("descripcion_corta") or "")) for it in elegibles}
     del_estado, error_estado = _compras_estado(elegibles, hasta, departamento)
     for num, extra in del_estado.items():
+        cands[num] = (cands.get(num) or []) + extra
+    de_pc, error_pc = _perucompras(elegibles, hasta)
+    for num, extra in de_pc.items():
         cands[num] = (cands.get(num) or []) + extra
     n_cands = sum(len(v) for v in cands.values())
     try:
@@ -242,11 +262,16 @@ def precios_de_catalogo(items: list[dict], hasta: str | None = None, departament
                 "item_numero": num, "producto": c["producto"], "precio": round(c["precio"] / n, 4),
                 "moneda_origen": "PEN", "unidad": it.get("unidad") or "Unidad", "proveedor": c["tienda"],
                 "fuentes": [{"uri": c["url"], "titulo": c["producto"],
-                             "dominio": c["url"].split("//")[-1].split("/")[0] if c.get("origen") == "conosce" else c["tienda"]}],
+                             "dominio": c["url"].split("//")[-1].split("/")[0] if c.get("origen") in ("conosce", "perucompras") else c["tienda"]}],
                 "origen": c.get("origen") or "catalogo_tienda", "precio_publicado": c["precio"], "unidades_por_producto": n,
+                # Perú Compras: cuántas entidades sostienen la mediana y su cuartil 3 (por unidad del ítem).
+                **({"respaldo": c["respaldo"], "tope_referencia": round(c["tope_referencia"] / n, 4)} if c.get("respaldo") else {}),
             })
     return precios, {"tiendas": list(TIENDAS), "items_consultados": len(elegibles), "candidatos": n_cands,
                      "candidatos_compras_estado": sum(len(v) for v in del_estado.values()),
+                     "candidatos_perucompras": sum(len(v) for v in de_pc.values()),
+                     **({"error_perucompras": error_pc} if error_pc else {}),
+                     "precios_perucompras": sum(1 for p in precios if p["origen"] == "perucompras"),
                      **({"error_compras_estado": error_estado} if error_estado else {}),
                      "precios_elegidos": len(precios),
                      "precios_compras_estado": sum(1 for p in precios if p["origen"] == "conosce")}
