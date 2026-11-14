@@ -94,6 +94,16 @@ export function IndiceRecorrido() {
                 <a
                   href={`#${p.id}`}
                   aria-current={esActivo ? "step" : undefined}
+                  onClick={(e) => {
+                    // La sección llega debajo de la cabecera Y de esta barra: sin esto su título quedaba tapado.
+                    const destino = document.getElementById(p.id);
+                    if (!destino) return;
+                    e.preventDefault();
+                    const alto = (e.currentTarget.closest("nav")?.getBoundingClientRect().bottom ?? 130) + 8;
+                    const suave = !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+                    window.scrollTo({ top: destino.getBoundingClientRect().top + window.scrollY - alto, behavior: suave ? "smooth" : "auto" });
+                    history.replaceState(null, "", `#${p.id}`);
+                  }}
                   className={clsx(
                     "flex min-h-11 items-center gap-2 rounded-xl px-2.5 py-1.5 transition-colors",
                     esActivo ? "bg-paperDeep" : "hover:bg-paperSoft",
