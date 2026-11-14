@@ -99,10 +99,19 @@ export function IndiceRecorrido() {
                     const destino = document.getElementById(p.id);
                     if (!destino) return;
                     e.preventDefault();
-                    const alto = (e.currentTarget.closest("nav")?.getBoundingClientRect().bottom ?? 130) + 8;
+                    const barra = e.currentTarget.closest("nav");
+                    const meta = () => destino.getBoundingClientRect().top - ((barra?.getBoundingClientRect().bottom ?? 130) + 8);
                     const suave = !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-                    window.scrollTo({ top: destino.getBoundingClientRect().top + window.scrollY - alto, behavior: suave ? "smooth" : "auto" });
+                    window.scrollTo({ top: window.scrollY + meta(), behavior: suave ? "smooth" : "auto" });
+                    setActivo(p.id);
                     history.replaceState(null, "", `#${p.id}`);
+                    // Las secciones de arriba crecen al cargar (el mapa): si el destino se movió, se corrige al llegar.
+                    for (const ms of [900, 1700]) {
+                      window.setTimeout(() => {
+                        if (Math.abs(meta()) > 24) window.scrollTo({ top: window.scrollY + meta(), behavior: "auto" });
+                        setActivo(p.id);
+                      }, ms);
+                    }
                   }}
                   className={clsx(
                     "flex min-h-11 items-center gap-2 rounded-xl px-2.5 py-1.5 transition-colors",
