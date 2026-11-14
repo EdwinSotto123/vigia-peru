@@ -27,13 +27,19 @@ export function LecturaTotalPanel({ datos }: { datos: LecturaTotal }) {
   const leidos = datos.alertas.analizados;
   const porContrato = m.leidos > 0 ? m.costoLeidos / m.leidos : null;
   const minutos = m.segundos ? m.segundos / 60 : null;
+  // Lo leído antes de que existiera el libro del análisis masivo (las primeras lecturas del año).
+  const anteriores = Math.max(0, leidos - m.leidos - datos.financiados);
   const usado = datos.tope && datos.tope > 0 ? Math.min(1, m.costo / datos.tope) : null;
 
   const cifras: Cifra[] = [
     {
       valor: numero(leidos),
       etiqueta: "contratos leídos",
-      contexto: `${numero(m.leidos)} del análisis masivo y ${numero(datos.financiados)} financiados por aportes`,
+      contexto: [
+        `${numero(m.leidos)} del análisis masivo`,
+        `${numero(datos.financiados)} financiados por aportes`,
+        ...(anteriores > 0 ? [`${numero(anteriores)} de lecturas anteriores`] : []),
+      ].join(", "),
       ayuda: (
         <Ayuda titulo="¿Qué cuenta como leído?">
           <span className="block">Un contrato que los agentes analizaron de principio a fin, tenga o no señales.</span>
@@ -105,7 +111,7 @@ export function LecturaTotalPanel({ datos }: { datos: LecturaTotal }) {
               etiqueta="Gasto de lectura por tipo de contrato"
               partes={redes.map((r) => ({ clave: r.red, nombre: NOMBRE_RED[r.red] ?? r.red, valor: r.costo, texto: usd(r.costo) }))}
             />
-            <ul className="mt-3 grid gap-x-6 gap-y-1.5 sm:grid-cols-2">
+            <ul className="mt-3 space-y-1.5">
               {redes.map((r, i) => (
                 <li key={r.red} className="flex items-baseline justify-between gap-3 text-dato">
                   <span className="inline-flex min-w-0 items-center gap-2 text-ink">
@@ -126,7 +132,7 @@ export function LecturaTotalPanel({ datos }: { datos: LecturaTotal }) {
             <h3 className="text-cuerpo font-semibold text-ink">Contratos leídos por día</h3>
             <p className="text-meta text-inkSoft">Últimos {dias.length} días, hora de Lima</p>
             <ol
-              className="mt-3 flex h-28 items-end gap-1"
+              className="mt-3 flex h-32 items-end gap-1"
               aria-label={`Contratos leídos por día: ${conLectura.map((d) => `${fechaCorta(d.dia)}, ${numero(d.n)}`).join("; ")}`}
             >
               {dias.map((d) => (
@@ -135,7 +141,7 @@ export function LecturaTotalPanel({ datos }: { datos: LecturaTotal }) {
                   <span
                     aria-hidden
                     className="block w-full rounded-t"
-                    style={{ height: `${Math.max(d.n > 0 ? 4 : 1, (d.n / maxDia) * 100)}%`, background: d.n > 0 ? "rgb(var(--serie-1))" : "rgb(var(--serie-otros) / 0.4)" }}
+                    style={{ height: `${Math.max(d.n > 0 ? 4 : 1, (d.n / maxDia) * 82)}%`, background: d.n > 0 ? "rgb(var(--serie-1))" : "rgb(var(--serie-otros) / 0.4)" }}
                   />
                 </li>
               ))}
