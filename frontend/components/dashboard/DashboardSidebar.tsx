@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Briefcase, MapPin, FileSearch, Sparkles, ArrowRight, Flag, Building2, Camera, Menu, X, Lock, Activity, Heart, HelpCircle, BookOpen, Landmark, LayoutGrid, MessageSquareWarning, Network, Newspaper, Scale, ScanText, Users, Database, MessageCircleQuestion } from "lucide-react";
+import { Briefcase, MapPin, FileSearch, Sparkles, ArrowRight, Flag, Building2, Camera, Menu, X, Lock, Activity, Heart, HelpCircle, BookOpen, Landmark, LayoutGrid, MessageSquareWarning, Network, Newspaper, Repeat, Scale, ScanText, Users, Database, MessageCircleQuestion } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { LinkIntencion } from "@/components/ui/LinkIntencion";
 import { BotonModo } from "@/components/ui/BotonModo";
@@ -147,6 +147,14 @@ const SECTIONS: Section[] = [
         intencion: "alertas",
         match: (p) =>
           p.startsWith("/app/hallazgos") || p.startsWith("/app/novedades") || p.startsWith("/app/alertas") || p.startsWith("/alerta"),
+      },
+      {
+        href: "/app/patrones",
+        label: "Patrones",
+        icon: <Repeat size={16} />,
+        hint: "Lo que se repite",
+        intencion: "alertas",
+        match: (p) => p.startsWith("/app/patrones"),
       },
       {
         href: "/app/denuncias",

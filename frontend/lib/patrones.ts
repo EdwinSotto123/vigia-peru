@@ -1,0 +1,150 @@
+/**
+ * Patrones (API /patrones, migración 276): lo que SE REPITE. Una señal de los agentes que aparece mucho más en una
+ * entidad que en el país, o en varios contratos de una misma empresa; el postor que casi nunca gana y siempre acompaña
+ * al mismo ganador; dos empresas que fueron socias en un consorcio y después compiten entre sí. Un patrón es un motivo
+ * para mirar, no una acusación.
+ *
+ * La página (/app/patrones) pide cada lista al abrir su pestaña, desde el navegador: aquí están los tipos, las rutas de
+ * la API (`ruta…`) y las mismas lecturas para un componente de servidor (`get…`).
+ */
+import { API_BASE } from "./api-client";
+
+/** Las pestañas de /app/patrones, en su orden: clave de `?seccion=` y nombre. */
+export const SECCIONES_PATRONES = {
+  entidades: "Por entidad",
+  proveedores: "Por proveedor",
+  relleno: "Postores de relleno",
+  consorcios: "Socias que compiten",
+} as const;
+export type SeccionPatrones = keyof typeof SECCIONES_PATRONES;
+
+/** Filas por página: el mismo tamaño en las cuatro listas. */
+export const TAM_PATRONES = 25;
+
+export type AlcancePatron = "entidad" | "proveedor";
+
+/** Una señal de proceso que se repite en una entidad o en una empresa. */
+export interface PatronSenal {
+  ruc: string;
+  nombre: string | null;
+  regla: string;
+  /** Contratos leídos en que aparece la señal. */
+  casos: number;
+  /** Contratos leídos (por los agentes) de esa entidad o empresa: el denominador de `tasa`. */
+  leidos: number;
+  /** En cuántas entidades distintas (alcance proveedor); null en el alcance entidad. */
+  entidades: number | null;
+  /** Parte de sus contratos leídos con la señal (0 a 1). */
+  tasa: number | null;
+  /** La misma parte en todo el país (0 a 1). */
+  tasaPais: number | null;
+  /** Cuántas veces la tasa del país. */
+  veces: number | null;
+  /** Soles, o null si no se sabe. */
+  monto: number | null;
+  /** OCID de contratos con la señal. */
+  ejemplos: string[];
+  calculadoEl: string | null;
+}
+
+export interface PatronesSenal {
+  total: number;
+  page: number;
+  size: number;
+  porRegla: { regla: string; n: number }[];
+  data: PatronSenal[];
+}
+
+/** Un ganador y la empresa que casi siempre postula a su lado sin ganar. */
+export interface PatronAcompanante {
+  rucGanador: string;
+  ganador: string | null;
+  rucAcompanante: string;
+  acompanante: string | null;
+  /** Procesos en que postularon los dos. */
+  juntos: number;
+  entidades: number;
+  postulacionesDelAcompanante: number;
+  ganadasDelAcompanante: number;
+  /** Parte de las postulaciones del acompañante que fueron junto a ese ganador (0 a 1). */
+  parte: number;
+  desde: string | null;
+  hasta: string | null;
+  /** `socio_comun`: además comparten un socio. */
+  vinculo: "socio_comun" | null;
+  fuerte: boolean;
+}
+
+export interface PatronesAcompanantes {
+  total: number;
+  page: number;
+  size: number;
+  data: PatronAcompanante[];
+}
+
+/** Dos empresas que postularon juntas en consorcio y después se enfrentan por separado. */
+export interface PatronConsorcio {
+  rucA: string;
+  nombreA: string | null;
+  rucB: string;
+  nombreB: string | null;
+  /** Consorcios en que fueron socias. */
+  consorcios: number;
+  /** Procesos en que compitieron por separado. */
+  rivales: number;
+  /** De esos, en cuántos fueron las únicas dos postoras. */
+  solas: number;
+  ganoA: number;
+  ganoB: number;
+  entidades: number;
+  desde: string | null;
+  hasta: string | null;
+  /** Coinciden en más de 20 entidades (aseguradoras, por ejemplo): es la forma del mercado, no da bandera. */
+  mercadoNacional: boolean;
+}
+
+export interface PatronesConsorcios {
+  total: number;
+  page: number;
+  size: number;
+  data: PatronConsorcio[];
+}
+
+// ─── Rutas de la API ─────────────────────────────────────────────────────────────
+
+const consulta = (p: Record<string, string | number | undefined>) => {
+  const q = new URLSearchParams();
+  for (const [k, v] of Object.entries(p)) if (v !== undefined && v !== "") q.set(k, String(v));
+  return q.toString();
+};
+
+export const rutaPatrones = (alcance: AlcancePatron, page = 1, regla?: string) =>
+  `/patrones?${consulta({ alcance, page, size: TAM_PATRONES, regla })}`;
+export const rutaAcompanantes = (page = 1) => `/patrones/acompanantes?${consulta({ solo: "fuertes", page, size: TAM_PATRONES })}`;
+export const rutaConsorcios = (page = 1) => `/patrones/consorcios?${consulta({ page, size: TAM_PATRONES })}`;
+
+// ─── Lecturas (servidor) ─────────────────────────────────────────────────────────
+
+async function leer<T>(ruta: string, revalidate = 600): Promise<T | null> {
+  try {
+    const r = await fetch(`${API_BASE}${ruta}`, { next: { revalidate } } as RequestInit);
+    return r.ok ? ((await r.json()) as T) : null;
+  } catch {
+    return null;
+  }
+}
+
+export const getPatrones = (alcance: AlcancePatron, page = 1, regla?: string) => leer<PatronesSenal>(rutaPatrones(alcance, page, regla));
+export const getPatronesAcompanantes = (page = 1) => leer<PatronesAcompanantes>(rutaAcompanantes(page));
+export const getPatronesConsorcios = (page = 1) => leer<PatronesConsorcios>(rutaConsorcios(page));
+
+// ─── Para mostrar ────────────────────────────────────────────────────────────────
+
+/** El código corto de un OCID («ocds-dgv273-seacev3-1235259» → «1235259»): el que se lee en una fila. */
+export const codigoDeOcid = (ocid: string) => ocid.replace(/^ocds-[a-z0-9]+-seacev3-/i, "");
+
+/** Una página pedida en la URL (`?page=`): un entero desde 1. */
+export const paginaDe = (v: string | undefined) => {
+  const n = Number(v);
+  return Number.isInteger(n) && n >= 1 ? n : 1;
+};
