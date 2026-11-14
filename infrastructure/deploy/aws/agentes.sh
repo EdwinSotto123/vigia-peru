@@ -29,7 +29,7 @@ trap 'rm -rf "$TMP"' EXIT
 (
   export PGUSER_V="vigia_$ROL" PGPASSWORD_V="$(ssm "/vigia/vigia-db/password-$ROL")" LLM_T="$(ssm /vigia/llm/token)" \
          R2_T="$(ssm /vigia/r2/lector-token)" AG_T="$(ssm /vigia/agente/token)" CH_K="$(ssm /vigia/chroma/api-key)" \
-         TV_K="$(ssm /vigia/tavily/api-key)" DC_K="$(ssm /vigia/decolecta/api-key)" PR_T="$(ssm /vigia/precios/token)"
+         TV_K="$(ssm /vigia/tavily/api-key)" PR_T="$(ssm /vigia/precios/token)"
   "$PY" - "$TMP/env.json" "${EXTRA_ENV_JSON:-}" <<'PY'
 import json, os, sys
 e = {
@@ -54,7 +54,7 @@ e = {
     "LEGAL_RAG_BACKEND": "chroma", "CHROMA_API_KEY": os.environ["CH_K"], "CHROMA_DATABASE": "simplia-vect",
     "ALMACEN_DOCS": "r2", "R2_LECTOR_URL": "https://vigia-r2-sync.vigiaperu.workers.dev", "R2_LECTOR_TOKEN": os.environ["R2_T"],
     "PARSE_GLOBAL_BUDGET_S": "500", "MARKET_TIMEOUT_S": "240", "AGENTE_TOKEN": os.environ["AG_T"], "TARIFA_RESPALDO": "0.10,0.50",
-    "DECOLECTA_API_KEY": os.environ["DC_K"], "PRECIOS_URL": "https://vigia-precios.vigiaperu.workers.dev",
+    "PRECIOS_URL": "https://vigia-precios.vigiaperu.workers.dev",
     "PRECIOS_TOKEN": os.environ["PR_T"],
 }
 if len(sys.argv) > 2 and sys.argv[2]:

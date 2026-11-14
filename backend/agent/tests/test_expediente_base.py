@@ -129,7 +129,7 @@ def test_veredicto_de_precio_contra_los_percentiles():
     assert P._veredicto(None, 1, 2, 3) == "sin_dato"
 
 
-def test_fila_de_empresa_vacia_no_reemplaza_a_decolecta(monkeypatch):
+def test_fila_de_empresa_vacia_no_cuenta_como_perfil_sunat(monkeypatch):
     exp = {**EXP, "sunat": {"razon_social": "X SAC", "estado": None, "fecha_inicio_actividades": None, "rnp_vigente": True},
            "sanciones": [], "banderas": []}
     monkeypatch.setattr(E, "expediente_proveedor_bd", lambda *a, **k: dict(exp))
@@ -226,3 +226,25 @@ def test_fecha_de_alta_posterior_a_la_primera_buena_pro_no_hace_nueva_a_la_empre
     assert s["fecha_inicio_efectiva"] == "2017-04-02"
     assert s["edad_dias_al_contratar"] > 3000 and "posterior a su RNP" in s["fecha_inicio_dudosa"]
     assert "**Antigüedad:**" in E.ficha_md(exp)
+
+
+def test_las_senales_de_la_persona_con_esta_entidad_son_una_bandera_sin_nombres():
+    """Persona natural: lo que Vigía ya calculó (declaraciones juradas, planilla, visitas) va al contrato."""
+    from tools.expediente import ficha_md, senales_de_persona
+    exp = {"ruc": "10439608801", "persona_natural": True, "rnp": [], "sanciones": [], "penalidades": {}, "historial": {},
+           "persona": {"ordenes": 14, "monto": 52000.0, "entidades": 2, "primera": "2019-05-02", "ultima": "2026-03-10",
+                       "con_esta_entidad": {"ordenes": 9, "meses": 9, "monto": 31500.0, "primera": "2025-01-10", "ultima": "2026-03-10"},
+                       "senales": [
+                           {"tipo": "tambien_planilla", "severidad": "alta", "con_esta_entidad": True, "entidades": 1,
+                            "que": "figura en la planilla de la entidad mientras cobra por órdenes de servicio"},
+                           {"tipo": "candidato", "severidad": "baja", "con_esta_entidad": True, "entidades": 1, "que": "fue candidato en una elección"},
+                           {"tipo": "nepotismo", "severidad": "alta", "con_esta_entidad": False, "entidades": 1,
+                            "que": "tiene un pariente declarado entre los funcionarios de la entidad"}]}}
+    s = senales_de_persona("10439608801", exp)
+    assert len(s) == 1 and s[0]["regla"] == "persona_contratada_senales" and s[0]["severidad"] == "alta"
+    assert "planilla" in s[0]["evidencia"] and "pariente" not in s[0]["evidencia"] and "candidato" not in s[0]["evidencia"]
+    assert "10439608801" not in s[0]["evidencia"] and "43960880" not in s[0]["evidencia"]
+    md = ficha_md(exp)
+    assert "persona natural" in md and "14 por" in md and "Señales con esta entidad" in md and "no disponible" not in md
+    assert senales_de_persona("10439608801", {"persona": {"senales": exp["persona"]["senales"][1:]}}) == []
+

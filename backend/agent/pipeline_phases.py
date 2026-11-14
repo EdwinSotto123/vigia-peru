@@ -417,7 +417,8 @@ async def fase_proveedor(pc: PipelineCtx):
                "msg": f"el ganador es un consorcio de {len(integrantes)} integrante(s): se investiga a cada uno"}
     # Lo que sale de la base de Vigía (expediente, obra, supervisión) corre siempre que haya ganador u obra: son
     # consultas, no agentes, y alimentan el dictamen y las banderas aunque la matriz tipo × etapa no incluya a los
-    # agentes que investigan al proveedor. Las consultas en vivo (OECE, decolecta) sólo si alguno de ésos corre.
+    # agentes que investigan al proveedor. La consulta en vivo al OECE sólo si alguno de ésos corre. La SUNAT nunca se
+    # consulta afuera: el padrón y lo que Vigía sabe de las personas naturales están en la base.
     _investiga_proveedor = any(pc.perm(a) for a in ("web_research", "person_network", "compliance_extended"))
     solo_bd = os.getenv("EXPEDIENTE_SOLO_BD", "0") == "1"
     perfil_n = getattr(pc.profile, "nombre", "")
@@ -442,17 +443,6 @@ async def fase_proveedor(pc: PipelineCtx):
             senales = perfil.get("senales")
     for e in flags_from_senales(pc, senales, fuente_oece):
         yield e
-    # 3. SUNAT por decolecta sólo para lo que no está en el padrón (un RUC 10, un RUC nuevo) y si algún agente lo lee.
-    if es_ruc and _investiga_proveedor and not sunat_en_base and not solo_bd:
-        evs, sunat = await t_call(pc, pc.T.query_sunat_decolecta, "query_sunat_decolecta", ruc=ruc)
-        for e in evs:
-            yield e
-        if isinstance(sunat, dict) and (sunat.get("error") or sunat.get("found") is False):
-            evs, _ = await t_call(pc, pc.T.query_edad_ciiu_web, "query_edad_ciiu_web", ruc=ruc, razon_social=pc.ctx["razon"])
-            for e in evs:
-                yield e
-        elif isinstance(sunat, dict):
-            pc.state["sunat_decolecta"] = sunat  # read_sunat_profile ya no vuelve a llamar a decolecta
     # 4. Obras: la obra que ejecuta (INFOBRAS, Invierte.pe) y su supervisor (tools/obras.py). Consultoría: la obra que
     #    supervisa y su vínculo con el ejecutor (tools/consultoria.py). Por el proceso: no hace falta el RUC.
     for perfil_obra, herramienta in (("obras", "query_obra_ejecucion"), ("consultoria", "query_supervision_obra")):
@@ -471,7 +461,7 @@ async def fase_proveedor(pc: PipelineCtx):
                                       entidad_ruc=(pc.ctx["entidad"] or {}).get("ruc"), ocid=pc.ocid)
                 for e in evs:
                     yield e
-    if ruc and _investiga_proveedor and (sunat_en_base or not solo_bd):
+    if ruc and _investiga_proveedor:
         evs, _ = await t_call(pc, pc.T.read_sunat_profile, "read_sunat_profile")
         for e in evs:
             yield e

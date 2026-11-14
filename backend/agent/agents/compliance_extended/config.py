@@ -31,7 +31,7 @@ USES_TODAY_HEADER = False
 # Las 12 reglas leen state directamente vía tool_context; estas 2 son juicio del LLM
 # sobre datos que debe VER en el prompt.
 STATE_INJECTIONS = [
-    ('sunat_decolecta', 'PERFIL SUNAT DEL GANADOR (decolecta) — tipo de contribuyente '
+    ('sunat_decolecta', 'PERFIL SUNAT DEL GANADOR (base de Vigía) — tipo de contribuyente '
      '(persona natural si el RUC empieza en 10, jurídica si empieza en 20), CIIU/actividad, '
      'antigüedad y estado del RUC'),
     ('web_research', 'INVESTIGACIÓN WEB DEL GANADOR — evidencia (o AUSENCIA de evidencia) de '

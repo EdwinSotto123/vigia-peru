@@ -75,6 +75,7 @@ OTRAS_SENALES: dict[str, tuple[str, str]] = {
     "antecedente_proveedor_web": ("Antecedentes del proveedor en la web", "Fuentes públicas verificables reportan hechos relevantes sobre la empresa ganadora."),
     "sancion_historica_oece": ("Sanción previa en el OECE", "El ganador tuvo sanciones del Tribunal de Contrataciones, aunque ya no estén vigentes."),
     "sancion_vigente_oece": ("Sanción vigente en el OECE", "El ganador tiene una sanción vigente del Tribunal de Contrataciones."),
+    "persona_contratada_senales": ("Señales de la persona contratada", "El ganador es una persona natural y los registros (declaraciones juradas, planilla, JNE, ONPE, visitas) la vinculan con esta misma entidad."),
     "penalidades_oece_historicas": ("Penalidades en contratos previos", "El ganador recibió penalidades en contratos anteriores con el Estado."),
     "conflicto_interes_funcionario_empresa": ("Funcionario con empresa vinculada", "Un funcionario que intervino en el proceso figura ligado a una empresa relacionada con el ganador."),
     "capacidad_operativa_cuestionable": ("Capacidad operativa cuestionable", "El tamaño, la antigüedad o el historial del ganador no guardan relación con lo que se le adjudicó."),

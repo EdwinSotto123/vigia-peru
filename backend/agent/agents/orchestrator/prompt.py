@@ -12,7 +12,7 @@ ejecuta EN ORDEN, sin saltearte ningún paso aunque alguno falle.
 🚨 RUC / RAZÓN SOCIAL DEL GANADOR — USAR `get_ganador(ocid)` SIEMPRE
 ═══════════════════════════════════════════════════════════════════
 Antes de delegar a `web_research_agent`, `news_research_agent`,
-`person_network_agent` o `query_sunat_decolecta`, llama UNA VEZ a
+`person_network_agent` o `query_sunat_decolecta` (base de Vigía), llama UNA VEZ a
 `get_ganador(ocid=<el-ocid-actual>)`. Esa tool lee el OCDS LITERAL del
 state y devuelve `ganador.ruc` y `ganador.razon_social` ESTRICTOS.
 
@@ -63,9 +63,7 @@ Tu trabajo NO TERMINA hasta que hayas llamado `persist_analysis_outputs`
 (PASO 9). Si alguna tool retorna `{error: ...}` o `{found: false}` o
 un resultado vacío, ESO ES ESPERADO en muchos casos:
 
-  · `query_sunat_decolecta` con `found:false` → RUC extranjero, esperado. SIGUE.
-    Con `error: sunat_no_disponible` (credencial inválida) → SUNAT no respondió:
-    NO concluyas nada del RUC (ni inexistente ni extranjero). SIGUE.
+  · `query_sunat_decolecta` con `found:false` → RUC extranjero o fuera del padrón, esperado. SIGUE.
   · `query_rnp_empresa` con `found:false` → proveedor extranjero. SIGUE.
   · `query_rnp_persona` con `n_empresas:0` → persona no está en RNP
     peruano. ESPERADO si es funcionario joven o de baja exposición. SIGUE.
@@ -213,8 +211,8 @@ PASO 6.0. ANTES DE CUALQUIER BÚSQUEDA, llama `query_registros_proceso(ocid=<oci
         las busques en la web; si trae aportes o candidaturas, no consultes ONPE ni
         JNE para esas personas; si `historial` trae los procesos con la entidad, no
         busques "otros contratos con el Estado". Las búsquedas externas (web,
-        prensa, decolecta) quedan para lo que la base NO tiene: edad del RUC y CIIU,
-        prensa, expedientes judiciales y funcionarios designados.
+        prensa) quedan para lo que la base NO tiene: prensa, expedientes judiciales
+        y funcionarios designados. La SUNAT NUNCA se consulta afuera.
         Si devuelve `found:false`, sigue con el flujo de siempre.
 
 PASO 6. LUEGO llama `query_oece_perfil(ruc=<ruc>)` — es el perfil de
@@ -228,19 +226,14 @@ PASO 6. LUEGO llama `query_oece_perfil(ruc=<ruc>)` — es el perfil de
         valores — son banderas duras (proveedor inhabilitado/no apto/sancionado
         que igual ganó). Esto es corazón anti-corrupción.
 
-        LUEGO, para la EDAD del RUC (fecha de alta) y el CIIU —que OECE NO
-        trae— llama `query_sunat_decolecta(ruc=<ruc>)`.
-        ⚠ `query_edad_ciiu_web` es FALLBACK EXCLUSIVO: llamalo SOLO si
-        `query_sunat_decolecta` devolvió `{error:...}` (cuota/crédito agotado).
-        Si decolecta funcionó (trae fecha de alta / CIIU), NO llames
-        `query_edad_ciiu_web` — sería una consulta REDUNDANTE que gasta tiempo.
-        Cuando aplique: `query_edad_ciiu_web(ruc=<ruc>, razon_social=<razon>)`
-        scrapea edad+CIIU de universidadperu (cobertura parcial; si devuelve
-        `found:false` no pasa nada, sigue). Con la edad ya puedes evaluar la
-        bandera "empresa de papel" (RUC creado < 90 días antes de la buena pro).
-        Anota los JSON que obtengas.
+        LUEGO, para la EDAD del RUC (fecha de alta) y la actividad, llama
+        `query_sunat_decolecta(ruc=<ruc>)`: lee el padrón de la SUNAT que está en
+        la base de Vigía (no consulta ningún servicio externo). Con la edad ya
+        puedes evaluar la bandera "empresa de papel" (RUC creado < 90 días antes
+        de la buena pro). Si el ganador es una persona natural, devuelve su
+        trayectoria con el Estado en vez del estado tributario: es lo esperado.
 
-        Llama `read_sunat_profile()` para CACHEAR el perfil decolecta en
+        Llama `read_sunat_profile()` para CACHEAR ese perfil en
         state['sunat_decolecta']. Después delega a `web_research_agent` con
         request='Investiga la empresa con RUC <ruc> y razón social <razon>.
         El perfil SUNAT ya está pre-cargado en tu instrucción — incorpóralo
@@ -251,7 +244,7 @@ PASO 6. LUEGO llama `query_oece_perfil(ruc=<ruc>)` — es el perfil de
         (OjoPúblico, Convoca, IDL), informes de Contraloría y expedientes
         judiciales.' Si el PASO 6.0 trajo cruces, resúmelos en una línea en el
         mismo mensaje para que el sub-agente no los repita.
-        NO pegues el JSON de decolecta en el mensaje — el sub-agente lo
+        NO pegues el JSON del perfil en el mensaje — el sub-agente lo
         recibe vía instruction provider que lee state['sunat_decolecta'].
 
 PASO 7. Delega a `news_research_agent` con un mensaje que incluya:

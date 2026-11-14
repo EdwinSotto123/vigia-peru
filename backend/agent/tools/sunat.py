@@ -4,177 +4,63 @@ from tools._core import *  # noqa: F401,F403
 from tools._core import downloader_base
 from datetime import date
 
-from tools import universidadperu as _up
 
 
-def _sunat_no_disponible(status: int, body: str) -> dict:
-    """Resultado cuando decolecta rechaza la CREDENCIAL (401: key inválida, vencida o sin cuota —
-    decolecta responde {"error": "Apikey Required / Limit Exceeded"}). No dice NADA del RUC: no es
-    "RUC no encontrado" ni "proveedor extranjero". Conserva la clave `error` para que el pipeline
-    siga con su fallback (query_edad_ciiu_web) sin romperse."""
+def _perfil_de_la_base(ruc: str, tool_context: ToolContext) -> dict:
+    """El perfil del RUC con lo que hay en la base de Vigía (padrón de la SUNAT, RNP, CONOSCE). Sin red."""
+    state = tool_context.state
+    cache = (state.get("sunat_profiles") or {}).get(ruc)
+    if isinstance(cache, dict) and cache and not cache.get("error"):
+        return cache
+    from tools.expediente import _perfil_persona, _perfil_sunat, expediente_proveedor_bd
     try:
-        print(json.dumps({"_vigia": True, "kind": "sunat_no_disponible", "http_status": status},
-                         ensure_ascii=False), flush=True)
-    except Exception:
-        pass
-    return {
-        "error": "sunat_no_disponible",
-        "disponible": False,
-        "motivo": "SUNAT no disponible (credencial inválida)",
-        "http_status": status,
-        "detalle_proveedor": (body or "")[:200],
-        "interpretacion": ("La consulta a SUNAT no se pudo hacer: esto NO significa que el RUC no exista, "
-                           "ni que el proveedor sea extranjero o no habido. No saques conclusiones del RUC "
-                           "con este resultado; usa las demás fuentes (OECE, universidadperu)."),
-        "_source": "decolecta",
-    }
+        exp = expediente_proveedor_bd(ruc, None, None, _fecha_buena_pro_state(state))
+    except Exception as e:  # noqa: BLE001
+        return {"found": False, "ruc": ruc, "razon": f"la base no respondió: {str(e)[:120]}", "_source": "base_vigia"}
+    s_ = exp.get("sunat") or {}
+    if s_.get("estado") or s_.get("fecha_inicio_actividades"):
+        perfil = _perfil_sunat(ruc, exp)
+        state.setdefault("sunat_profiles", {})[ruc] = perfil
+        return perfil
+    if exp.get("persona_natural"):
+        return _perfil_persona(ruc, exp)
+    return {"found": False, "ruc": ruc, "razon": "El RUC no figura en el padrón de la SUNAT que tiene Vigía.",
+            "_source": "base_vigia"}
 
 
 def query_sunat_decolecta(ruc: str, tool_context: ToolContext) -> dict:
-    """Consulta el endpoint de decolecta para obtener datos SUNAT del RUC.
-    Esta tool es PREFERIBLE a hacer scraping de SUNAT vía Google Search.
-    Cubre: razón social, tipo, condición, estado, dirección, ubigeo, CIIU,
-    fecha de inicio de actividades, sistema de emisión, comercio exterior.
+    """Perfil SUNAT del RUC desde la base de Vigía (padrón de la SUNAT, RNP y CONOSCE). No consulta ningún servicio
+    externo: el nombre de la herramienta es histórico.
 
     Args:
         ruc: RUC peruano de 11 dígitos (string).
 
     Returns:
-        Diccionario con la respuesta normalizada o {"error": ...}. Si la credencial de
-        decolecta es rechazada (HTTP 401) devuelve {"error": "sunat_no_disponible",
-        "motivo": "SUNAT no disponible (credencial inválida)", ...}: eso NO informa nada
-        sobre el RUC (no es "no encontrado" ni "extranjero").
-        Ejemplo:
-          {
-            "ruc": "20100028698",
-            "razon_social": "FERREYROS S.A.",
-            "tipo": "SOCIEDAD ANONIMA",
-            "estado": "ACTIVO",
-            "condicion": "HABIDO",
-            "direccion": "...",
-            "departamento": "LIMA", "provincia": "LIMA", "distrito": "MIRAFLORES",
-            "ciiu_principal": "5190 - VENTA AL POR MAYOR DE OTROS PRODUCTOS",
-            "fecha_inicio_actividades": "1925-07-15",
-            "edad_dias": 36900,
-            "_source": "decolecta",
-          }
+        Diccionario con razón social, estado, condición, actividad, fecha de inicio y edad en días al contratar; para
+        una persona natural, su trayectoria con el Estado; {"found": false} si no figura.
     """
     ruc = (ruc or "").strip().replace("PE-RUC-", "")
     if len(ruc) != 11 or not ruc.isdigit():
-        # Esperado para proveedores extranjeros. NO es error fatal.
         return {
             "found": False,
             "ruc_consultado": ruc,
             "razon": (
-                f"RUC {ruc!r} no tiene formato peruano estándar (11 dígitos). "
-                "Típicamente significa proveedor NO DOMICILIADO en Perú. SUNAT "
-                "no tiene este tipo de RUC en su registro. CONTINUÁ con el flujo: "
-                "delegá web_research_agent para investigar la empresa en fuentes "
-                "internacionales."
+                f"RUC {ruc!r} no tiene formato peruano estándar (11 dígitos). Típicamente es un proveedor no "
+                "domiciliado en el Perú o un consorcio. Continúa con el flujo."
             ),
         }
-    if not DECOLECTA_API_KEY:
-        return {"error": "DECOLECTA_API_KEY no configurada en el entorno del Cloud Run",
-                "motivo": "SUNAT no disponible (credencial no configurada)",
-                "hint": ("Se monta desde Secret Manager (secreto decolecta-api-key): "
-                         "ver infrastructure/README.md · SUNAT (decolecta).")}
-    # IMPORTANTE: usar `/sunat/ruc/full` en lugar de `/sunat/ruc`. El endpoint
-    # básico solo trae razon_social/estado/condicion/ubigeo — devuelve
-    # `tipo=null, ciiu=null` aunque el RUC esté activo. `/full` agrega:
-    # `tipo` (PERSONA NATURAL CON NEGOCIO / SOCIEDAD ANÓNIMA / etc),
-    # `actividad_economica` (CIIU descriptivo), `numero_trabajadores`,
-    # `tipo_facturacion`, `tipo_contabilidad`, `comercio_exterior`.
-    # Bug detectado 2026-05-25 en OCID 1212841 — el agente reportaba "perfil
-    # SUNAT anómalamente escueto" cuando la API SÍ tenía los datos.
-    try:
-        r = requests.get(
-            f"{DECOLECTA_BASE}/sunat/ruc/full",
-            params={"numero": ruc},
-            headers={"Authorization": f"Bearer {DECOLECTA_API_KEY}",
-                     "Accept": "application/json"},
-            timeout=15,
-        )
-        # 401 = la CREDENCIAL no sirve (inválida/vencida/sin cuota): el endpoint básico usa la misma
-        # key, así que no se reintenta y se informa "SUNAT no disponible", no "RUC no encontrado".
-        if r.status_code == 401:
-            return _sunat_no_disponible(401, r.text)
-        # Fallback al endpoint básico si /full no existe o falla (plan free)
-        if r.status_code in (404, 403):
-            r = requests.get(
-                f"{DECOLECTA_BASE}/sunat/ruc",
-                params={"numero": ruc},
-                headers={"Authorization": f"Bearer {DECOLECTA_API_KEY}",
-                         "Accept": "application/json"},
-                timeout=15,
-            )
-    except Exception as e:
-        return {"error": f"network: {str(e)[:200]}"}
-    if r.status_code == 401:
-        return _sunat_no_disponible(401, r.text)
-    if r.status_code == 403:
-        return {"error": f"HTTP {r.status_code} — API key inválida o sin créditos",
-                "motivo": "SUNAT no disponible (acceso denegado por el proveedor)",
-                "body": r.text[:200]}
-    if r.status_code == 404:
-        return {"error": "ruc_not_found", "ruc": ruc}
-    if r.status_code != 200:
-        return {"error": f"HTTP {r.status_code}", "body": r.text[:200]}
-    try:
-        data = r.json() or {}
-    except Exception:
-        return {"error": "non-json response", "body": r.text[:200]}
+    return _perfil_de_la_base(ruc, tool_context)
 
-    # Decolecta normaliza algunos campos; nosotros emparejamos a la forma que
-    # consume el web_research_agent.
-    fecha_inicio = (
-        data.get("fecha_inicio_actividades")
-        or data.get("fecha_inscripcion")
-        or data.get("registration_date")
-    )
-    edad_dias = None
-    if fecha_inicio:
-        try:
-            from datetime import datetime, date
-            d = datetime.strptime(fecha_inicio[:10], "%Y-%m-%d").date()
-            edad_dias = (date.today() - d).days
-        except Exception:
-            pass
-
-    out = {
-        "ruc": data.get("ruc") or ruc,
-        "razon_social": data.get("razon_social") or data.get("nombre"),
-        "tipo": data.get("tipo_contribuyente") or data.get("tipo"),
-        "estado": data.get("estado") or data.get("estado_contribuyente"),
-        "condicion": data.get("condicion") or data.get("condicion_domicilio"),
-        "direccion": data.get("direccion") or data.get("domicilio_fiscal"),
-        "departamento": data.get("departamento") or data.get("ubigeo_departamento"),
-        "provincia": data.get("provincia") or data.get("ubigeo_provincia"),
-        "distrito": data.get("distrito") or data.get("ubigeo_distrito"),
-        "ubigeo": data.get("ubigeo"),
-        "ciiu_principal": data.get("actividad_economica") or data.get("ciiu"),
-        "actividades_economicas": data.get("actividades_economicas") or [],
-        "sistema_emision": data.get("sistema_emision_comprobante") or data.get("sistema_emision"),
-        "sistema_contabilidad": data.get("sistema_contabilidad"),
-        "comercio_exterior": data.get("comercio_exterior") or data.get("actividad_comercio_exterior"),
-        "fecha_inicio_actividades": fecha_inicio,
-        "edad_dias": edad_dias,
-        "_source": "decolecta",
-        "_raw_keys": list(data.keys()),
-    }
-    # Guardar en state para que el report_writer pueda acceder al perfil
-    tool_context.state.setdefault("sunat_profiles", {})[ruc] = out
-    return out
 
 def read_sunat_profile(tool_context: ToolContext) -> dict:
-    """Devuelve el perfil SUNAT (decolecta) del proveedor ganador. Self-contained:
-    si está cacheado en state, lo retorna; si no, lo consulta via
-    `query_sunat_decolecta` con el RUC del ganador (state['ocds']) y lo cachea.
+    """Devuelve el perfil SUNAT del proveedor ganador, de la base de Vigía. Self-contained:
+    si está cacheado en state, lo retorna; si no, lo lee de la base con el RUC del ganador (state['ocds']).
 
     Args:
         (sin args) — usa el RUC del ganador del OCID actual.
 
     Returns:
-        dict con el JSON crudo de decolecta o {error: ...} si no hay ganador.
+        dict con el perfil o {error: ...} si no hay ganador.
     """
     state = tool_context.state
     cache = state.get("sunat_decolecta")
@@ -240,7 +126,7 @@ def query_oece_perfil(ruc: str, tool_context: ToolContext) -> dict:
     y la APTITUD para contratar (esAptoContratar / esHabilitado).
 
     ⚠ Edad del RUC (fecha de alta) y CIIU NO vienen en OECE — para esos usá
-    `query_sunat_decolecta` (si hay cuota) o universidadperu.
+    `query_sunat_decolecta` (padrón en la base de Vigía).
 
     Args:
         ruc: RUC peruano de 11 dígitos.
@@ -513,47 +399,24 @@ def _fetch_text_via_downloader(url: str):
 
 
 def query_edad_ciiu_web(ruc: str, razon_social: str, tool_context: ToolContext) -> dict:
-    """Fallback para EDAD del RUC (fecha de alta) y CIIU cuando decolecta no
-    tiene cuota: la ficha pública de universidadperu.com (tools/universidadperu.py),
-    vía downloader. Se llega por la búsqueda por RUC del sitio (o, de respaldo, por
-    el slug de la razón social) y solo se acepta si el campo RUC de la ficha es el
-    pedido: nunca devuelve datos de otra empresa. Las personas naturales (RUC 10…)
-    casi nunca tienen ficha.
+    """Edad del RUC y actividad desde la base de Vigía. No consulta la web: el nombre es histórico.
 
     Args:
         ruc: RUC peruano de 11 dígitos.
-        razon_social: razón social (del OCDS) — se usa para armar el slug.
+        razon_social: razón social (no se usa).
 
     Returns:
-        dict con fecha_inicio_actividades, edad_dias, ciiu, tipo, estado_domicilio,
-        o {found: false} si el slug no resolvió o el RUC no coincide.
+        dict con fecha_inicio_actividades, edad_dias y ciiu, o {found: false}.
     """
     ruc = (ruc or "").strip().replace("PE-RUC-", "")
     if len(ruc) != 11 or not ruc.isdigit():
         return {"found": False, "razon": "RUC inválido."}
-    ficha, fuente_url, motivo = _up.ficha_por_ruc(ruc, razon_social or "", _fetch_text_via_downloader)
-    if ficha is None:
-        return {"found": False, "slug": _up.slug(razon_social or ""), "razon": motivo}
-    inicio = _up.fecha_inicio(ficha.get("fecha inicio actividades"))
-    fecha_iso = inicio.isoformat() if inicio else None
-    edad_dias = (date.today() - inicio).days if inicio else None
-    out = {
-        "found": True,
-        "ruc": ruc,
-        "fecha_inicio_actividades": fecha_iso or ficha.get("fecha inicio actividades"),
-        "edad_dias": edad_dias,
-        "ciiu": ficha.get("ciiu"),
-        "tipo": ficha.get("tipo empresa"),
-        "estado_domicilio": ficha.get("estado domicilio"),
-        "fuente_url": fuente_url,
-        "_source": "universidadperu",
-    }
-    # Cachear edad en el perfil de state si existe
-    prof = tool_context.state.setdefault("sunat_profiles", {}).setdefault(ruc, {})
-    if edad_dias is not None:
-        prof.setdefault("edad_dias", edad_dias)
-        prof.setdefault("fecha_inicio_actividades", fecha_iso)
-    return out
+    p = _perfil_de_la_base(ruc, tool_context)
+    if p.get("found") is False:
+        return p
+    return {"found": True, "ruc": ruc, "fecha_inicio_actividades": p.get("fecha_inicio_actividades"),
+            "edad_dias": p.get("edad_dias"), "ciiu": p.get("ciiu_principal"), "tipo": p.get("tipo"),
+            "_source": p.get("_source")}
 
 
 # ── FunctionTool wrappers ──

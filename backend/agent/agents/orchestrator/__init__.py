@@ -20,7 +20,6 @@ from tools import (
     register_convocatoria_in_db_tool,
     query_sunat_decolecta_tool,
     query_oece_perfil_tool,
-    query_edad_ciiu_web_tool,
     query_rnp_persona_tool,
     query_rnp_empresa_tool,
     lookup_opinion_oece_tool,
@@ -79,7 +78,6 @@ vigia_orchestrator = Agent(
         query_registros_proceso_tool,
         query_sunat_decolecta_tool,
         query_oece_perfil_tool,   # perfil OECE: estado + sanciones/inhab + aptitud (sin cuota, vía downloader)
-        query_edad_ciiu_web_tool, # fallback edad+CIIU (universidadperu) si decolecta sin cuota
         query_rnp_persona_tool,
         query_rnp_empresa_tool,
         lookup_opinion_oece_tool,

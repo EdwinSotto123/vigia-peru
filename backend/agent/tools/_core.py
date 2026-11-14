@@ -65,8 +65,6 @@ _CAUSALES_DIRECTA = [
     ("k", r"capacitaci[oó]n\s+(institucional|necesaria)|pasant[ií]a",
      "Capacitación / pasantía", False),
 ]
-DECOLECTA_BASE = os.getenv("DECOLECTA_BASE", "https://api.decolecta.com/v1")
-DECOLECTA_API_KEY = os.getenv("DECOLECTA_API_KEY", "")
 _MAX_RENDER_PAGES = 30
 DEFAULT_GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-3.6-flash")
 PINECONE_HOST = "https://rag-leyes-k8u4w2h.svc.gcp-us-central1-4a9f.pinecone.io"
@@ -427,7 +425,7 @@ def _today_iso() -> str:
     """Fecha de hoy en ISO (yyyy-mm-dd) — UTC para consistencia."""
     return _dt.date.today().isoformat()
 
-__all__ = ['BROWSER', 'DECOLECTA_API_KEY', 'DECOLECTA_BASE', 'DEFAULT_GEMINI_MODEL', 'EMBED_MODEL_RAG', 'FunctionTool',
+__all__ = ['BROWSER', 'DEFAULT_GEMINI_MODEL', 'EMBED_MODEL_RAG', 'FunctionTool',
            'FLEX_HEADERS', 'flex_activo', 'thinking_crudo', 'OECE_BASE', 'PG_DB', 'PG_HOST', 'PG_PASS', 'PG_USER', 'PINECONE_API_KEY', 'PINECONE_HOST', 'RAG_NAMESPACE', 'ToolContext', '_CAUSALES_DIRECTA', '_GEMINI_CALL_SEM', '_GEMINI_CALL_CONCURRENCY', '_GEMINI_LAST_CALL_LOCK', '_GEMINI_LAST_CALL_T', '_GEMINI_MIN_INTERVAL_S', '_MAX_RENDER_PAGES', '_annotate_future_date', '_dt', '_gemini_call_with_retry', '_gemini_client', 'modelo_extractor', '_marcar_truncado', '_fallback_patch_activo', '_GEMINI_CALL_DEADLINE_S', '_normalize_name_for_search', '_normalize_persona', '_pg', '_safe_parse_json', '_short_ocid', '_table_exists', '_throttle_gemini', '_today_iso', 'annotations', 'base64', 'concurrent', 'io', 'json', 'os', 'pg8000', 'random', 're', 'requests', 'threading', 'time', 'zipfile']
 
 

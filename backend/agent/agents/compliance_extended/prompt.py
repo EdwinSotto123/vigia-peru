@@ -38,7 +38,7 @@ PASO 13 — JUICIO CONTEXTUAL (último paso; hasta DOS banderas). Usa SOLO los b
 inyectados al final de este prompt: PERFIL SUNAT DEL GANADOR, INVESTIGACIÓN WEB, RED DE
 PERSONAS. Si un bloque no está o viene vacío, NO emitas la bandera que dependa de él.
 Cada bandera de juicio lleva EVIDENCIA LITERAL: en `evidencia` copia el campo y el valor
-exactos del bloque que la sustenta (p.ej. "sunat_decolecta.fecha_inicio_actividades =
+exactos del bloque que la sustenta (p.ej. "perfil SUNAT: fecha_inicio_actividades =
 <valor>; web_research.hallazgos_por_fuente[<fuente>].mensaje = '<cita>'") y en `fuente` la
 URL del dato (la `url`/`fuente_url`/`evidencia[].url` del bloque). Sin URL en el bloque →
 `fuente=""` (el sistema pone la del proceso) y la bandera queda con

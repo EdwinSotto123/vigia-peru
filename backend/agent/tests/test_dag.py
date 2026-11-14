@@ -92,7 +92,7 @@ def entorno(monkeypatch):
     T.query_sunat_decolecta = _mk_tool(log, "query_sunat_decolecta", {"sunat_decolecta": {"ruc": "20100000001"}}, dur=0.05,
                                        ret={"found": True})
     T.query_edad_ciiu_web = _mk_tool(log, "query_edad_ciiu_web")
-    T.read_sunat_profile = _mk_tool(log, "read_sunat_profile")
+    T.read_sunat_profile = _mk_tool(log, "read_sunat_profile", {"sunat_decolecta": {"ruc": "20100000001"}}, dur=0.05)
     T.batch_person_lookup = _mk_tool(log, "batch_person_lookup", {"batch_person_lookup_result": {"n": 1}})
     T.query_rnp_empresa = _mk_tool(log, "query_rnp_empresa", ret={"socios": [{"numero_documento": "12345678", "nombre": "JUAN"}]})
     T.detect_puerta_giratoria = _mk_tool(log, "detect_puerta_giratoria")

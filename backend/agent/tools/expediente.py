@@ -1,8 +1,11 @@
 """Expediente del proveedor desde la base de Vigía: lo que el agente antes buscaba afuera (SUNAT por decolecta, el
 historial por la web) y lo que ya calculó Vigía (banderas). Plan 2026-11-04, parte 1.
 
-  · SUNAT: `empresa_resumen` (la misma ficha de /empresa/<RUC>), `empresas` y `sunat_padron` (2,37 M de RUC 20). Un RUC 10
-    no está en el padrón: para ése sigue decolecta (pipeline_phases.fase_proveedor).
+  · SUNAT: `empresa_resumen` (la misma ficha de /empresa/<RUC>), `empresas` y `sunat_padron` (2,37 M de RUC 20: en
+    2026 no hay un solo ganador con RUC 20 fuera del padrón).
+  · Persona natural (RUC 10): no está en el padrón de empresas. Su ficha sale de lo que Vigía ya calculó con sus
+    órdenes, las declaraciones juradas de intereses, la planilla, el JNE, la ONPE y las visitas (`persona_entidad`,
+    `persona_senal`). Ningún servicio externo.
   · RNP: socios, representantes y directivos (`rnp_conformacion_juridica`), con el nombre con un apellido tapado y sin
     su documento.
   · Sanciones del OECE (`osce_sancionados`) y penalidades (`penalidades`).
@@ -23,6 +26,105 @@ from tools.privacidad import es_persona_natural, tapar_nombre
 
 _MAX_RNP = 30
 _MAX_PROCESOS = 8
+
+# Las señales de `persona_senal` en una frase. Sin el detalle: ahí van nombres de parientes y de terceros.
+_SENAL_PERSONA = {
+    "tambien_planilla": "figura en la planilla de la entidad mientras cobra por órdenes de servicio",
+    "nepotismo": "tiene un pariente declarado entre los funcionarios de la entidad",
+    "nepotismo_gobierno": "tiene un pariente declarado en el mismo nivel de gobierno",
+    "funcionario_contratado": "declaró un cargo público en la entidad y además cobra por órdenes",
+    "autoridad_contratada": "es o fue autoridad elegida y cobra por órdenes",
+    "financio_campana": "aportó a la campaña de quien gobierna la entidad",
+    "aporte_gobierna": "aportó al partido que gobierna la entidad",
+    "candidato_gobierna": "fue candidato del partido que gobierna la entidad",
+    "inhabilitado": "recibió órdenes con una sanción del OECE vigente",
+    "al_borde_del_tope": "recibe órdenes justo por debajo del tope de las compras menores",
+    "meses_seguidos": "encadena órdenes mes a mes, como si fuera un puesto fijo",
+    "pago_alto": "cobra por órdenes más que lo usual en la entidad",
+    "visita_previa": "visitó la entidad antes de su primera orden",
+    "socio_proveedor": "es socio o representante de una empresa proveedora del Estado",
+    "apellidos_funcionario": "comparte los dos apellidos con un funcionario designado de la entidad",
+    "apellidos_autoridad": "comparte los dos apellidos con una autoridad de la entidad",
+    "familia_estado": "tiene familiares declarados que trabajan en el Estado",
+    "paso_a_planilla": "pasó de órdenes de servicio a la planilla",
+    "candidato": "fue candidato en una elección",
+    "aporte": "aportó a una organización política",
+}
+_PESO = {"alta": 0, "media": 1, "baja": 2}
+# Las que hablan de un vínculo de la persona con ESTA entidad o con quien la gobierna: sólo ésas son bandera del
+# contrato. El resto (cobra más que lo usual, es socio de una empresa) queda como hecho en la ficha.
+_SENAL_FUERTE = {"tambien_planilla", "nepotismo", "nepotismo_gobierno", "funcionario_contratado", "autoridad_contratada",
+                 "financio_campana", "aporte_gobierna", "candidato_gobierna", "inhabilitado", "visita_previa"}
+
+
+def _persona_bd(conn, ruc: str, entidad_ruc: str | None) -> dict | None:
+    """La persona natural en `persona_entidad` y `persona_senal`. None si la base no deja leerlas (permiso) o no hay
+    nada: el expediente sigue sin ese bloque."""
+    cur = conn.cursor()
+    try:
+        filas = _filas(cur, """SELECT entidad_ruc, entidad, servicio, ordenes, meses, monto::float AS monto, primera, ultima
+                                 FROM persona_entidad WHERE ruc = %s ORDER BY monto DESC NULLS LAST""", (ruc,))
+        senales = _filas(cur, """SELECT tipo, severidad, entidad_ruc FROM persona_senal WHERE ruc = %s""", (ruc,))
+    except Exception:  # noqa: BLE001 — es la última consulta del expediente: deshacerla no pierde nada
+        try:
+            conn.rollback()
+        except Exception:  # noqa: BLE001
+            pass
+        return None
+    if not filas and not senales:
+        return None
+    misma = next((f for f in filas if entidad_ruc and f["entidad_ruc"] == entidad_ruc), None)
+    primeras = [f["primera"] for f in filas if f.get("primera")]
+    ultimas = [f["ultima"] for f in filas if f.get("ultima")]
+    por_tipo: dict[str, dict] = {}
+    for s in senales:
+        d = por_tipo.setdefault(s["tipo"], {"tipo": s["tipo"], "severidad": s["severidad"], "entidades": set(),
+                                            "con_esta_entidad": False})
+        d["entidades"].add(s["entidad_ruc"])
+        if entidad_ruc and s["entidad_ruc"] == entidad_ruc:
+            d["con_esta_entidad"] = True
+            d["severidad"] = s["severidad"]
+        elif not d["con_esta_entidad"] and _PESO.get(s["severidad"], 3) < _PESO.get(d["severidad"], 3):
+            d["severidad"] = s["severidad"]
+    lista = [{"tipo": d["tipo"], "severidad": d["severidad"], "con_esta_entidad": d["con_esta_entidad"],
+              "entidades": len(d["entidades"]), "que": _SENAL_PERSONA.get(d["tipo"], d["tipo"].replace("_", " "))}
+             for d in por_tipo.values()]
+    lista.sort(key=lambda d: (not d["con_esta_entidad"], _PESO.get(d["severidad"], 3), d["tipo"]))
+    return {
+        "ordenes": sum(f.get("ordenes") or 0 for f in filas),
+        "monto": round(sum(f.get("monto") or 0 for f in filas), 2),
+        "entidades": len(filas),
+        "primera": _iso(min(primeras)) if primeras else None,
+        "ultima": _iso(max(ultimas)) if ultimas else None,
+        "servicio": next((f["servicio"] for f in filas if f.get("servicio")), None),
+        "con_esta_entidad": ({"ordenes": misma.get("ordenes") or 0, "meses": misma.get("meses") or 0,
+                              "monto": round(misma.get("monto") or 0, 2), "primera": _iso(misma.get("primera")),
+                              "ultima": _iso(misma.get("ultima"))} if misma else None),
+        "principales_entidades": [{"entidad": f["entidad"], "ordenes": f.get("ordenes") or 0,
+                                   "monto": round(f.get("monto") or 0, 2)} for f in filas[:5]],
+        "senales": lista,
+        "fuente": "base de Vigía: órdenes de compra y de servicio, declaraciones juradas de intereses, planilla, JNE, "
+                  "ONPE y registro de visitas",
+    }
+
+
+def senales_de_persona(ruc: str, exp: dict) -> list[dict]:
+    """Las señales de la persona CON ESTA ENTIDAD, de severidad alta o media, como una sola bandera del contrato."""
+    p = exp.get("persona") or {}
+    fuertes = [s for s in p.get("senales") or [] if s.get("con_esta_entidad") and s.get("severidad") in ("alta", "media")
+               and s.get("tipo") in _SENAL_FUERTE]
+    if not fuertes:
+        return []
+    sev = "alta" if any(s["severidad"] == "alta" for s in fuertes) else "media"
+    misma = p.get("con_esta_entidad") or {}
+    cola = (f" Con esta entidad suma {misma['ordenes']} orden(es) por S/ {misma['monto']:,.2f} entre "
+            f"{misma.get('primera')} y {misma.get('ultima')}." if misma.get("ordenes") else "")
+    return [{"regla": "persona_contratada_senales", "severidad": sev,
+             "norma": "Ley General de Contrataciones Públicas — impedimentos para contratar y conflicto de intereses",
+             "evidencia": ("El ganador es una persona natural y los registros de Vigía (órdenes, declaraciones juradas "
+                           "de intereses, planilla, JNE, ONPE y visitas) dicen que, con esta misma entidad, "
+                           + "; ".join(s["que"] for s in fuertes) + "." + cola
+                           + " Es un indicio para revisar, no una conclusión.")}]
 
 
 def _filas(cur, sql: str, params: tuple) -> list[dict]:
@@ -164,6 +266,12 @@ def expediente_proveedor_bd(ruc: str, entidad_ruc: str | None = None, ocid: str 
             corto = str(ocid).split("-")[-1]
             out["banderas_de_este_proceso"] = sorted({r["tipo"] for r in _filas(
                 cur, "SELECT DISTINCT tipo FROM cruces_proveedor WHERE ruc_empresa = %s AND ocid = %s", (ruc, corto))})
+
+        # 6. Persona natural: lo que Vigía ya sabe de ella (va al final: si falla, lo anterior queda).
+        if out["persona_natural"]:
+            persona = _persona_bd(conn, ruc, entidad_ruc)
+            if persona:
+                out["persona"] = persona
         return out
     finally:
         if propia:
@@ -182,6 +290,20 @@ def _perfil_sunat(ruc: str, exp: dict) -> dict:
             "fecha_inicio_actividades": s.get("fecha_inicio_efectiva") or s.get("fecha_inicio_actividades"),
             "edad_dias": s.get("edad_dias_al_contratar"), "fecha_inicio_dudosa": s.get("fecha_inicio_dudosa"),
             "_source": "padron_sunat_vigia"}
+
+
+def _perfil_persona(ruc: str, exp: dict) -> dict:
+    """El perfil de una persona natural con lo que hay en la base. No lleva estado ni fecha de inicio: el padrón de
+    empresas no la tiene y no se inventa; su antigüedad es la de su trato con el Estado."""
+    p, h = exp.get("persona") or {}, exp.get("historial") or {}
+    fechas = [f for f in (p.get("primera"), h.get("primera")) if f]
+    return {"ruc": ruc, "tipo": "PERSONA NATURAL", "estado": None, "condicion": None,
+            "fecha_inicio_actividades": None, "edad_dias": None,
+            "contrata_con_el_estado_desde": min(fechas) if fechas else None,
+            "ordenes": p.get("ordenes"), "buenas_pro": h.get("procesos"),
+            "nota": ("Persona natural: su estado tributario no está en el padrón de empresas de Vigía. No es un dato "
+                     "faltante del análisis ni una señal: se juzga por su trayectoria con el Estado y sus señales."),
+            "_source": "base_vigia"}
 
 
 def _sancion_oece(s: dict, fecha_ref: date | None) -> dict:
@@ -260,15 +382,18 @@ def query_expediente_proveedor(ruc: str, tool_context: ToolContext, entidad_ruc:
         crudos.append(exp["sunat"]["razon_social"])
     state["_nombres_tapar"] = sorted({*state.get("_nombres_tapar", []), *crudos})
     state["expediente_proveedor"] = exp
-    # Sólo cuenta como «en el padrón» si trae el estado o la fecha de inicio: una fila de `empresas` vacía (sólo el RNP)
-    # no reemplaza a decolecta.
+    # Sólo cuenta como «en el padrón» si trae el estado o la fecha de inicio (una fila de `empresas` vacía, sólo con el
+    # RNP, no es un perfil). Lo que no está en la base no se busca afuera: una persona natural lleva su propio perfil.
     s_ = exp.get("sunat") or {}
     sunat_ok = bool(s_.get("estado") or s_.get("fecha_inicio_actividades"))
     if sunat_ok:
         perfil = _perfil_sunat(ruc, exp)
         state.setdefault("sunat_profiles", {})[ruc] = perfil
         state["sunat_decolecta"] = perfil
+    elif exp.get("persona_natural"):
+        state["sunat_decolecta"] = _perfil_persona(ruc, exp)
     state.setdefault("oece_perfiles", {})[ruc] = oece = _perfil_oece(ruc, exp, state)
+    oece["senales"] = [*oece["senales"], *senales_de_persona(ruc, exp)]
     h = exp["historial"]
     return {"ruc": ruc, "sunat_en_base": sunat_ok, "rnp": len(exp["rnp"]), "sanciones": len(exp["sanciones"]),
             "penalidades": exp["penalidades"].get("n"), "procesos": h["procesos"], "monto": h["monto"],
@@ -356,6 +481,8 @@ def ficha_md(exp: dict | None) -> str:
         return "\n".join(partes)
     lineas = ["**Lo que dicen los registros** (base de Vigía: padrón SUNAT, RNP, OECE y CONOSCE)", ""]
     s = exp.get("sunat")
+    if s and exp.get("persona_natural") and not (s.get("estado") or s.get("fecha_inicio_actividades")):
+        s = None
     if s:
         edad = s.get("edad_dias_al_contratar")
         anos = f" ({edad // 365} años al contratar)" if isinstance(edad, int) and edad >= 365 else (
@@ -367,7 +494,23 @@ def ficha_md(exp: dict | None) -> str:
         if s.get("fecha_inicio_dudosa"):
             lineas.append(f"- **Antigüedad:** {s['fecha_inicio_dudosa']}")
     elif exp.get("persona_natural"):
-        lineas.append("- **SUNAT:** persona natural con negocio; no está en el padrón de empresas de Vigía.")
+        lineas.append("- **Tipo de proveedor:** persona natural (su estado tributario no figura en el padrón de empresas).")
+    p = exp.get("persona") or {}
+    if p.get("ordenes"):
+        misma_p = p.get("con_esta_entidad") or {}
+        lineas.append(f"- **Órdenes con el Estado:** {p['ordenes']} por {_soles(p['monto'])} en {p['entidades']} entidad(es), "
+                      f"de {p.get('primera')} a {p.get('ultima')}"
+                      + (f"; con esta entidad, {misma_p['ordenes']} por {_soles(misma_p['monto'])} en {misma_p['meses']} mes(es)."
+                         if misma_p.get("ordenes") else "; ninguna con esta entidad."))
+    if p.get("senales"):
+        con = [s["que"] for s in p["senales"] if s.get("con_esta_entidad")]
+        otras = [s["que"] for s in p["senales"] if not s.get("con_esta_entidad")]
+        if con:
+            lineas.append("- **Señales con esta entidad** (declaraciones juradas, planilla, JNE, ONPE, visitas): "
+                          + "; ".join(con) + ".")
+        if otras:
+            lineas.append("- **Señales con otras entidades:** " + "; ".join(otras[:6])
+                          + (f" y {len(otras) - 6} más" if len(otras) > 6 else "") + ".")
     rnp = exp.get("rnp") or []
     if rnp:
         por_rol: dict[str, list[str]] = {}

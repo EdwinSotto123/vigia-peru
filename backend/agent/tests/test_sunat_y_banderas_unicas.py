@@ -43,45 +43,43 @@ def _fake_get(respuestas: list[_Resp], llamadas: list[str]):
     return _get
 
 
-def test_sunat_401_es_no_disponible_y_no_ruc_inexistente(monkeypatch):
-    llamadas: list[str] = []
-    monkeypatch.setattr(sunat, "DECOLECTA_API_KEY", "sk_vencida")
-    monkeypatch.setattr(sunat.requests, "get",
-                        _fake_get([_Resp(401, '{"error":"Apikey Required / Limit Exceeded"}')], llamadas))
+def test_el_perfil_sunat_sale_de_la_base_y_no_de_un_servicio_externo(monkeypatch):
+    """2026-11-13: la SUNAT nunca se consulta afuera. El perfil es el del padrón que está en la base."""
+    import tools.expediente as expediente
+
+    def _sin_red(*a, **kw):
+        raise AssertionError("no debe salir a la red por la SUNAT")
+
+    monkeypatch.setattr(sunat.requests, "get", _sin_red)
+    monkeypatch.setattr(sunat.requests, "post", _sin_red)
+    monkeypatch.setattr(expediente, "expediente_proveedor_bd", lambda ruc, *a, **kw: {
+        "ruc": ruc, "persona_natural": False, "rnp": [], "historial": {},
+        "sunat": {"razon_social": "FERREYROS S.A.", "estado": "ACTIVO", "condicion": "HABIDO",
+                  "fecha_inicio_actividades": "1925-07-15", "edad_dias_al_contratar": 36900, "actividad": "VENTA"}})
     ctx = SimpleNamespace(state={})
     out = sunat.query_sunat_decolecta(RUC, ctx)
-    assert out["error"] == "sunat_no_disponible"
-    assert out["motivo"] == "SUNAT no disponible (credencial inválida)"
-    assert out["disponible"] is False and out["http_status"] == 401
-    assert "found" not in out and "ruc_not_found" not in str(out)
-    assert len(llamadas) == 1                      # la key es la misma: no se reintenta /sunat/ruc
-    assert "sunat_profiles" not in ctx.state       # nada del RUC queda cacheado
+    assert out["estado"] == "ACTIVO" and out["_source"] == "padron_sunat_vigia"
+    assert ctx.state["sunat_profiles"][RUC] is out
+    assert sunat.query_edad_ciiu_web(RUC, "FERREYROS", ctx)["edad_dias"] == 36900
+    assert not hasattr(sunat, "DECOLECTA_API_KEY")
 
 
-def test_sunat_403_en_full_sigue_cayendo_al_basico(monkeypatch):
-    llamadas: list[str] = []
-    monkeypatch.setattr(sunat, "DECOLECTA_API_KEY", "sk_plan_free")
-    monkeypatch.setattr(sunat.requests, "get", _fake_get(
-        [_Resp(403, "plan"), _Resp(200, data={"ruc": RUC, "razon_social": "FERREYROS S.A.",
-                                              "fecha_inicio_actividades": "1925-07-15"})], llamadas))
-    ctx = SimpleNamespace(state={})
-    out = sunat.query_sunat_decolecta(RUC, ctx)
-    assert llamadas[0].endswith("/sunat/ruc/full") and llamadas[1].endswith("/sunat/ruc")
-    assert out["razon_social"] == "FERREYROS S.A." and ctx.state["sunat_profiles"][RUC] is out
+def test_una_persona_natural_lleva_su_trayectoria_y_no_un_sunat_no_disponible(monkeypatch):
+    import tools.expediente as expediente
+    monkeypatch.setattr(expediente, "expediente_proveedor_bd", lambda ruc, *a, **kw: {
+        "ruc": ruc, "persona_natural": True, "rnp": [], "historial": {"procesos": 2, "primera": "2021-03-01"},
+        "persona": {"ordenes": 14, "primera": "2019-05-02"}})
+    out = sunat.query_sunat_decolecta("10439608801", SimpleNamespace(state={}))
+    assert out["tipo"] == "PERSONA NATURAL" and out["contrata_con_el_estado_desde"] == "2019-05-02"
+    assert "error" not in out and out.get("found") is not False
 
 
-def test_sunat_401_en_el_basico_tambien_es_no_disponible(monkeypatch):
-    llamadas: list[str] = []
-    monkeypatch.setattr(sunat, "DECOLECTA_API_KEY", "sk_x")
-    monkeypatch.setattr(sunat.requests, "get", _fake_get([_Resp(403, "plan"), _Resp(401, "no")], llamadas))
+def test_un_ruc_que_no_esta_en_la_base_es_no_encontrado(monkeypatch):
+    import tools.expediente as expediente
+    monkeypatch.setattr(expediente, "expediente_proveedor_bd", lambda ruc, *a, **kw: {
+        "ruc": ruc, "persona_natural": False, "rnp": [], "historial": {}})
     out = sunat.query_sunat_decolecta(RUC, SimpleNamespace(state={}))
-    assert out["error"] == "sunat_no_disponible" and len(llamadas) == 2
-
-
-def test_sunat_404_sigue_siendo_ruc_no_encontrado(monkeypatch):
-    monkeypatch.setattr(sunat, "DECOLECTA_API_KEY", "sk_ok")
-    monkeypatch.setattr(sunat.requests, "get", _fake_get([_Resp(404), _Resp(404)], []))
-    assert sunat.query_sunat_decolecta(RUC, SimpleNamespace(state={})) == {"error": "ruc_not_found", "ruc": RUC}
+    assert out["found"] is False and "error" not in out
 
 
 class _Cur:

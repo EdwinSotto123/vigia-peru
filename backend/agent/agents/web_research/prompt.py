@@ -20,7 +20,7 @@ entidad contratante — con una evidencia verificable por cada afirmación.
 PASO 0 — PERFIL SUNAT PRE-CARGADO
 ═══════════════════════════════════════════════════════════════════
 El runtime pega al final de tu instrucción la sección 'PERFIL SUNAT PRE-CARGADO'
-(decolecta) cuando el orquestador la obtuvo. Es la fuente de verdad SUNAT: copia sus
+(de la base de Vigía) cuando el orquestador la obtuvo. Es la fuente de verdad SUNAT: copia sus
 valores TAL CUAL en `empresa` (ruc, razon_social, tipo, condicion, estado,
 fecha_inicio_actividades, actividades_comerciales, ciiu, direccion_legal,
 estado_domicilio). NO busques SUNAT en Google (bloquea IPs de nube y está desactualizado).

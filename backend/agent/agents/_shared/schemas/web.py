@@ -26,7 +26,7 @@ class PersonaCargo(_Base):
 
 
 class EmpresaPerfil(_Base):
-    """Datos SUNAT/RNP: se copian del bloque pre-cargado (decolecta), no de Google."""
+    """Datos SUNAT/RNP: se copian del bloque pre-cargado (base de Vigía), no de la web."""
 
     ruc: str | None = Field(default=None, pattern=r"^\d{11}$")
     razon_social: str | None = Field(default=None, max_length=300)
