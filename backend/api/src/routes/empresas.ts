@@ -286,8 +286,10 @@ empresasRouter.get("/:ruc", async (c) => {
                 e.ord_monto_dudoso::float AS "ordMontoDudoso", to_char(e.fecha_alta, 'YYYY-MM-DD') AS "fechaAlta", e.domicilio,
                 e.actividad, e.socios, e.representantes, e.directivos, e.vinculadas, e.visitas_clientes AS "visitasClientes",
                 -- Personas distintas (una con tres papeles es una): la pestaña «Su gente» decía 3 de una sola.
+                -- ruc_empresa es char(11): sin el ::bpchar se comparaba como texto, no usaba su índice y recorría 1,4 M de
+                -- filas (441 ms de los 573 de esta consulta, 65 mil llamadas al mes; con el índice, 9 ms).
                 (SELECT count(DISTINCT r.numero_documento) FROM rnp_conformacion_juridica r
-                  WHERE r.ruc_empresa = e.ruc AND r.numero_documento IS NOT NULL)::int AS personas,
+                  WHERE r.ruc_empresa = e.ruc::bpchar AND r.numero_documento IS NOT NULL)::int AS personas,
                 to_char(e.actualizado, 'YYYY-MM-DD') AS actualizado,
                 -- Con cuántas entidades la mitad o más de sus órdenes quedaron al borde del tope, y cuántas órdenes (207).
                 (SELECT count(*) FROM empresa_borde_tope eb WHERE eb.ruc = e.ruc)::int AS "bordeEntidades",

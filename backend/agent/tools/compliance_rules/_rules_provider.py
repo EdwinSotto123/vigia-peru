@@ -60,7 +60,7 @@ def check_sanctioned_provider_rule(ocid: str, tool_context: ToolContext,
                      FROM postores p
                      JOIN ofertas o  ON o.postor_id = p.id AND o.ganadora
                      JOIN empresas e ON e.ruc = p.empresa_ruc
-                     JOIN rnp_conformacion_juridica r ON r.ruc_empresa = e.ruc
+                     JOIN rnp_conformacion_juridica r ON r.ruc_empresa = e.ruc::bpchar
                      JOIN osce_sancionados_vigentes s
                           ON (s.es_persona_natural = TRUE AND SUBSTRING(s.ruc FROM 3 FOR 8) = r.numero_documento)
                     WHERE p.ocid = %s""",

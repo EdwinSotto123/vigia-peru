@@ -422,7 +422,7 @@ async function fundacion(f: FilaCruce): Promise<Evidencia | null> {
   if (!f.ruc_empresa.startsWith("20")) return null;
   const r = await filas(
     `SELECT e.razon_social, e.fecha_alta_ruc, e.estado_sunat, e.metadata->>'condicion' AS condicion, e.actividad_economica,
-            (SELECT count(DISTINCT j.numero_documento) FROM rnp_conformacion_juridica j WHERE j.ruc_empresa = e.ruc) AS personas
+            (SELECT count(DISTINCT j.numero_documento) FROM rnp_conformacion_juridica j WHERE j.ruc_empresa = e.ruc::bpchar) AS personas
        FROM empresas e WHERE e.ruc = $1`, [f.ruc_empresa]);
   if (!r.length) return null;
   const x = r[0];

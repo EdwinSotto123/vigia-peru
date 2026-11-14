@@ -287,7 +287,9 @@ const RESUMEN_SQL = `SELECT
              FROM procesamientos p JOIN contribuciones co ON co.id = p.contribucion_id
             GROUP BY 1 HAVING count(*) FILTER (WHERE p.estado = ANY($1::text[])) > 0) x) AS "porDepartamento"`;
 
-const resumenMemo = new Memo<Serializado>({ nombre: "procesamientos:resumen", ttlMs: 4_000 });
+// 10 s y, vencido, se sirve lo que hay mientras se recalcula: la consulta cuesta ~300 ms y el tablero la pide sin parar
+// (130 mil veces al mes, la cuarta que más tiempo de base se llevaba).
+const resumenMemo = new Memo<Serializado>({ nombre: "procesamientos:resumen", ttlMs: 10_000, staleMs: 20_000 });
 let versionVista = "";
 
 procesamientosRouter.get("/resumen", (c) =>
