@@ -10,6 +10,7 @@ from tools.persistence.shared import (
     _recalcular_score, _verificar_o_descartar,
 )
 from tools.fuentes import proceso_oece  # noqa: E402
+from tools.persistence.justificacion_precio import justificar as _justificar_precio  # noqa: E402
 
 
 def _cobertura_por_valor(findings: list[dict], mk: dict | None = None) -> float:
@@ -182,15 +183,19 @@ def persist_market_flags_as_banderas(alerta_codigo: str, tool_context: ToolConte
                        else "la mediana de mercado")
         if f.get("diff_fuente") == "cotizaciones_expediente":
             que_precio, que_mediana = "monto adjudicado", "la mediana de las cotizaciones de terceros del propio expediente"
+        # La justificación: qué se pagó, contra qué referencia, de dónde sale y cuánto dinero es.
+        _just, _nums = _justificar_precio(f)
+        _just = f" {_just}" if _just else ""
         if veredicto_item == "muy_elevado":
             banderas_a_persistir.append({
                 "regla": "sobreprecio_muy_elevado",
                 "severidad": "alta",
                 "evidencia": (
                     f"Ítem '{item_desc}'{_num_txt}: {que_precio} {f.get('diff_pct') or 0:.1f}% "
-                    f"por encima de {que_mediana}."
-                )[:500],
+                    f"por encima de {que_mediana}.{_just}"
+                )[:700],
                 "norma": "Art. 12 Reglamento Ley 32069 — valor referencial razonable",
+                **_nums,
             })
         elif veredicto_item == "elevado":
             banderas_a_persistir.append({
@@ -198,9 +203,10 @@ def persist_market_flags_as_banderas(alerta_codigo: str, tool_context: ToolConte
                 "severidad": "media",
                 "evidencia": (
                     f"Ítem '{item_desc}'{_num_txt}: {que_precio} {f.get('diff_pct') or 0:.1f}% "
-                    f"por encima de {que_mediana}."
-                )[:500],
+                    f"por encima de {que_mediana}.{_just}"
+                )[:700],
                 "norma": "Art. 12 Reglamento Ley 32069 — valor referencial razonable",
+                **_nums,
             })
         if f.get("spec_restrictiva"):
             banderas_a_persistir.append({
