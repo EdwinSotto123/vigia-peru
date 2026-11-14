@@ -88,6 +88,7 @@ export const redEmpresa = definir({
         return {
           otra_empresa: soyA ? x.nombreB : x.nombreA, otra_ruc: soyA ? x.rucB : x.rucA, consorcios_juntas: x.consorcios,
           procesos_como_rivales: x.rivales, solas_las_dos: x.solas, gano_esta: soyA ? x.ganoA : x.ganoB, gano_la_otra: soyA ? x.ganoB : x.ganoA,
+          entidades: x.entidades, mercado_nacional: x.mercadoNacional === true ? true : undefined,
         };
       }),
       personas: (s.socios ?? []).map((p: Fila) => tomar(p, ["nombre", "roles", "desde", "otrasEmpresas", "enElEstado"])),
@@ -445,11 +446,13 @@ export const patrones = definir({
         pares: ((r.data ?? []) as Fila[]).map((x) => ({
           empresa_a: x.nombreA, ruc_a: x.rucA, empresa_b: x.nombreB, ruc_b: x.rucB, consorcios_juntas: x.consorcios,
           procesos_como_rivales: x.rivales, solas_las_dos: x.solas, gano_a: x.ganoA, gano_b: x.ganoB, se_turnan: x.ganoA > 0 && x.ganoB > 0,
-          entidades: x.entidades, desde: x.desde, hasta: x.hasta, enlace_a: e.empresa(x.rucA), enlace_b: e.empresa(x.rucB),
+          entidades: x.entidades, desde: x.desde, hasta: x.hasta, mercado_nacional: x.mercadoNacional === true ? true : undefined,
+          enlace_a: e.empresa(x.rucA), enlace_b: e.empresa(x.rucB),
         })),
         como_leerlo:
           "Sólo cuenta procesos de 2 a 4 postores en que las dos postularon por separado y ganó exactamente una. «solas_las_dos»: " +
-          "procesos en que fueron las únicas postoras. En mercados de pocos proveedores es normal asociarse a veces y competir otras: " +
+          "procesos en que fueron las únicas postoras. Salen primero los pares concentrados en pocas entidades. «mercado_nacional»: " +
+          "coinciden en más de 20 entidades (p. ej. aseguradoras) y no dan bandera en el contrato. En mercados de pocos proveedores es normal asociarse a veces y competir otras: " +
           "compara los precios ofertados y mira si la que pierde alguna vez ofertó en serio.",
         aviso: AVISO,
       };

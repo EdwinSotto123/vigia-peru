@@ -301,7 +301,7 @@ def expediente_proveedor_bd(ruc: str, entidad_ruc: str | None = None, ocid: str 
             riv = _filas(cur, """SELECT CASE WHEN ruc_a = %s THEN nombre_b ELSE nombre_a END AS rival, consorcios, rivales, solas,
                                         CASE WHEN ruc_a = %s THEN gano_a ELSE gano_b END AS gano_este,
                                         CASE WHEN ruc_a = %s THEN gano_b ELSE gano_a END AS gano_la_rival
-                                   FROM consorcio_rival WHERE ruc_a = %s OR ruc_b = %s ORDER BY rivales DESC LIMIT 5""", (ruc,) * 5)
+                                   FROM consorcio_rival WHERE (ruc_a = %s OR ruc_b = %s) AND entidades <= 20 ORDER BY rivales DESC LIMIT 5""", (ruc,) * 5)
             if riv:
                 out["socias_de_consorcio_rivales"] = [_limpio(x) for x in riv]
         except Exception:  # noqa: BLE001 — sin esas tablas o sin permiso, el expediente sigue

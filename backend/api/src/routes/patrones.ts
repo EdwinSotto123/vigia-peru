@@ -11,7 +11,8 @@
  *
  *   GET /patrones/consorcios?ruc=&page=&size=
  *       Socios de consorcio que compiten (migración 278): pares de empresas que postularon juntas en un consorcio y
- *       después, por separado, en 3 o más procesos de pocos postores que ganó una de las dos.
+ *       después, por separado, en 3 o más procesos de pocos postores que ganó una de las dos. Primero los más
+ *       concentrados (muchos procesos en pocas entidades); al final, marcados, los de mercado nacional (migración 279).
  *
  * Todo sale de señales y postulaciones ya públicas, sólo de empresas (RUC 20). Un patrón es un motivo para mirar, no una
  * acusación.
@@ -114,9 +115,10 @@ patronesRouter.get("/consorcios", async (c) => {
     const [filas, total] = await Promise.all([
       pool.query(
         `SELECT ruc_a AS "rucA", nombre_a AS "nombreA", ruc_b AS "rucB", nombre_b AS "nombreB", consorcios, rivales, solas,
-                gano_a AS "ganoA", gano_b AS "ganoB", entidades, to_char(desde, 'YYYY-MM-DD') AS desde, to_char(hasta, 'YYYY-MM-DD') AS hasta
+                gano_a AS "ganoA", gano_b AS "ganoB", entidades, to_char(desde, 'YYYY-MM-DD') AS desde, to_char(hasta, 'YYYY-MM-DD') AS hasta,
+                amplio AS "mercadoNacional"
            FROM consorcio_rival ${donde}
-          ORDER BY (gano_a > 0 AND gano_b > 0) DESC, solas DESC, rivales DESC, ruc_a LIMIT ${add(q.size)} OFFSET ${add((q.page - 1) * q.size)}`, vals),
+          ORDER BY amplio, (rivales::float / entidades) DESC, solas DESC, rivales DESC, ruc_a LIMIT ${add(q.size)} OFFSET ${add((q.page - 1) * q.size)}`, vals),
       pool.query<{ n: number }>(`SELECT count(*)::int AS n FROM consorcio_rival ${donde}`, vals.slice(0, n)),
     ]);
     return publicar({ total: total.rows[0]?.n ?? 0, page: q.page, size: q.size, data: filas.rows });
