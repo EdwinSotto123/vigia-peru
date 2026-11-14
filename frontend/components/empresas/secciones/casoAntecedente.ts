@@ -414,6 +414,36 @@ export function datosDe(a: AntecedenteEmpresa, ruc: string): DatoCaso[] {
       { etiqueta: "Quién ganó", valor: `Esta empresa, ${numero(num(d.gano_esta) ?? 0)}; la otra, ${numero(num(d.gano_otra) ?? 0)}` },
       delProceso(),
     );
+  } else if (t === "postor_de_relleno") {
+    const j = num(d.juntos);
+    add(
+      otraEmpresa(d.ruc_acompanante, d.acompanante, "Lo acompaña"),
+      j != null && { etiqueta: "Se presentó a su lado", valor: `En ${plural(j, "proceso", "procesos")} que ganó esta empresa` },
+      { etiqueta: "Cuánto gana la otra", valor: `${numero(num(d.ganadas_del_acompanante) ?? 0)} de sus ${numero(num(d.postulaciones_del_acompanante) ?? 0)} postulaciones` },
+      txt(d.vinculo) && { etiqueta: "Comparten", valor: "Un socio o representante (RNP)" },
+      delProceso(),
+    );
+  } else if (t === "consorcio_rival") {
+    const v = num(d.veces_rivales);
+    const cj = num(d.consorcios_juntas);
+    add(
+      otraEmpresa(d.ruc_rival, d.rival, "Contra"),
+      cj != null && { etiqueta: "Fueron socias", valor: `En ${plural(cj, "consorcio", "consorcios")}` },
+      v != null && { etiqueta: "Compitieron por separado", valor: `En ${plural(v, "proceso", "procesos")} con pocos postores` },
+      { etiqueta: "Quién ganó", valor: `Esta empresa, ${numero(num(d.gano_esta) ?? 0)}; la otra, ${numero(num(d.gano_la_rival) ?? 0)}` },
+      d.solas_las_dos === true && { etiqueta: "En este proceso", valor: "Fueron las únicas dos postoras" },
+      delProceso(),
+    );
+  } else if (t === "puerta_giratoria") {
+    const dias = num(d.dias_despues);
+    add(
+      quien(),
+      txt(d.cargo) && { etiqueta: "Cargo que tenía en la entidad", valor: oracion(txt(d.cargo)!) },
+      txt(d.salio) && { etiqueta: "Salió de la planilla", valor: txt(d.salio)! },
+      dias != null && { etiqueta: "La empresa ganó", valor: dias <= 45 ? `${numero(dias)} días después` : `${numero(Math.round(dias / 30))} meses después` },
+      { etiqueta: "Cómo se empató", valor: "Por nombre completo: por confirmar", soloPanel: true },
+      delProceso(),
+    );
   } else if (t === "domicilio_compartido") {
     const postores = empresas(
       (Array.isArray(d.postores) ? (d.postores as { ruc?: unknown; nombre?: unknown }[]) : [])

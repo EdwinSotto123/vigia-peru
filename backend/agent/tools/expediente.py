@@ -296,6 +296,14 @@ def expediente_proveedor_bd(ruc: str, entidad_ruc: str | None = None, ocid: str 
                 out["postores_de_relleno"] = [_limpio(x) for x in rell]
             if pats:
                 out["patrones"] = [_limpio(x) for x in pats]
+            # Empresas que fueron sus socias en un consorcio y después compiten con ella (migración 278). Va al final del
+            # bloque: si la tabla no está, lo anterior ya quedó en el expediente.
+            riv = _filas(cur, """SELECT CASE WHEN ruc_a = %s THEN nombre_b ELSE nombre_a END AS rival, consorcios, rivales, solas,
+                                        CASE WHEN ruc_a = %s THEN gano_a ELSE gano_b END AS gano_este,
+                                        CASE WHEN ruc_a = %s THEN gano_b ELSE gano_a END AS gano_la_rival
+                                   FROM consorcio_rival WHERE ruc_a = %s OR ruc_b = %s ORDER BY rivales DESC LIMIT 5""", (ruc,) * 5)
+            if riv:
+                out["socias_de_consorcio_rivales"] = [_limpio(x) for x in riv]
         except Exception:  # noqa: BLE001 — sin esas tablas o sin permiso, el expediente sigue
             try:
                 conn.rollback()
@@ -363,6 +371,7 @@ def resumen_para_agentes(exp: dict) -> dict:
                                     "principales_entidades": [e.get("entidad") for e in (h.get("principales_entidades") or [])[:3]]},
         "banderas_previas": [f"{b.get('tipo')} ({b.get('severidad')}, {b.get('n')})" for b in (exp.get("banderas") or [])[:8]],
         "postores_de_relleno": exp.get("postores_de_relleno") or [],
+        "socias_de_consorcio_rivales": exp.get("socias_de_consorcio_rivales") or [],
         "patrones_que_se_repiten": exp.get("patrones") or [],
     }
     p = exp.get("persona")
@@ -583,6 +592,10 @@ def ficha_md(exp: dict | None) -> str:
         lineas.append(f"- **Postor que lo acompaña:** {x.get('acompanante')} se presentó en {x.get('juntos')} procesos que ganó este "
                       f"proveedor y ganó {x.get('gano')} de sus {x.get('postulo')} postulaciones"
                       + (", y comparten socio o representante." if x.get("vinculo") else "."))
+    for x in (exp.get("socias_de_consorcio_rivales") or [])[:3]:
+        lineas.append(f"- **Rival que fue su socia:** {x.get('rival')} postuló con este proveedor en {x.get('consorcios')} consorcio(s) y, por "
+                      f"separado, se enfrentaron en {x.get('rivales')} procesos de pocos postores: este ganó {x.get('gano_este')} y la otra "
+                      f"{x.get('gano_la_rival')}.")
     for x in [y for y in exp.get("patrones") or [] if y.get("alcance") == "entidad"][:3]:
         lineas.append(f"- **Patrón de la entidad:** la señal «{_senal(x.get('regla'))}» está en {x.get('casos')} de sus "
                       f"{x.get('leidos')} contratos leídos ({round((x.get('tasa') or 0) * 100)} %; en el país, {round((x.get('tasa_pais') or 0) * 100)} %).")

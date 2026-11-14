@@ -96,7 +96,7 @@ const GUARDADO = "X-Vigia-Guardado";
  *       el orden «Más afines» que premia lo específico (las respuestas guardadas antes no los tenían).
  * "89": los planes de Gobserva traen los créditos del MCP al mes (`limites.mcp`, 2026-11-08).
  */
-const VERSION_CACHE = "95";
+const VERSION_CACHE = "96";
 
 function cacheable(req: Request): boolean {
   if (req.method !== "GET") return false;

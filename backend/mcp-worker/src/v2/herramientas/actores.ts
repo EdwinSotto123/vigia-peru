@@ -66,11 +66,12 @@ export const redEmpresa = definir({
   async ejecutar({ ruc }, cx) {
     const r = rucJuridico(ruc);
     const e = enlaces(cx.env);
-    const [s, cl, ac, pt] = await Promise.all([
+    const [s, cl, ac, pt, cr] = await Promise.all([
       api<Fila>(cx.env, `/empresas/${r}/socios`), api<Fila>(cx.env, `/empresas/${r}/clientes`),
       // Postores de relleno y patrones de la empresa (migración 276): si fallan, la red sale igual.
       api<Fila>(cx.env, "/patrones/acompanantes", { ruc: r, solo: "todos", size: 15 }).catch(() => null),
       api<Fila>(cx.env, "/patrones", { alcance: "proveedor", ruc: r, size: 15 }).catch(() => null),
+      api<Fila>(cx.env, "/patrones/consorcios", { ruc: r, size: 15 }).catch(() => null),
     ]);
     return {
       ruc: r,
@@ -81,6 +82,14 @@ export const redEmpresa = definir({
         ganadas_del_acompanante: x.ganadasDelAcompanante, comparten_socio: x.vinculo === "socio_comun" ? true : undefined, fuerte: x.fuerte,
       })),
       patrones: ((pt?.data ?? []) as Fila[]).map((x) => ({ senal: x.regla, contratos: x.casos, entidades: x.entidades, ejemplos_ocid: x.ejemplos })),
+      // Empresas que fueron sus socias en un consorcio y luego compiten con ella (migración 278).
+      socias_de_consorcio_que_compiten: ((cr?.data ?? []) as Fila[]).map((x) => {
+        const soyA = x.rucA === r;
+        return {
+          otra_empresa: soyA ? x.nombreB : x.nombreA, otra_ruc: soyA ? x.rucB : x.rucA, consorcios_juntas: x.consorcios,
+          procesos_como_rivales: x.rivales, solas_las_dos: x.solas, gano_esta: soyA ? x.ganoA : x.ganoB, gano_la_otra: soyA ? x.ganoB : x.ganoA,
+        };
+      }),
       personas: (s.socios ?? []).map((p: Fila) => tomar(p, ["nombre", "roles", "desde", "otrasEmpresas", "enElEstado"])),
       empresas_vinculadas: (s.vinculadas ?? []).map((v: Fila) => ({
         ruc: v.ruc, nombre: v.nombre, le_vende_al_estado: v.vende, antecedentes: v.antecedentes, graves: v.graves, inhabilitada: v.inhabilitada ?? undefined,
@@ -416,11 +425,12 @@ export const patrones = definir({
     "previas…) aparece en una parte de sus contratos leídos que es el doble o más de la del país. Con alcance «proveedor»: " +
     "empresas con la misma señal de proceso en 3 o más contratos de 2 o más entidades. Con alcance «relleno»: postores de " +
     "relleno, empresas que casi nunca ganan y dedican sus postulaciones a acompañar a un mismo ganador (posible oferta de " +
-    "cobertura; más grave si comparten socio). Con un RUC, los patrones de esa entidad o empresa. Cada patrón trae contratos " +
+    "cobertura; más grave si comparten socio). Con alcance «consorcio»: empresas que postularon juntas en un consorcio y " +
+    "después compiten por separado en procesos de pocos postores que gana una de las dos (posible reparto). Con un RUC, los patrones de esa entidad o empresa. Cada patrón trae contratos " +
     "de ejemplo para abrir con ficha_contrato o dictamen. Un patrón es un motivo para mirar, no una acusación.",
   cuenta: true,
   entrada: {
-    alcance: z.enum(["entidad", "proveedor", "relleno"]).default("entidad"),
+    alcance: z.enum(["entidad", "proveedor", "relleno", "consorcio"]).default("entidad"),
     ruc: z.string().min(11).max(14).optional().describe("RUC 20 de la entidad o de la empresa (opcional)."),
     regla: z.string().max(60).optional().describe("Sólo una señal, por su código (p. ej. unica_oferta_valida)."),
     pagina: z.number().int().min(1).max(50).default(1),
@@ -428,6 +438,22 @@ export const patrones = definir({
   async ejecutar(a, cx) {
     const e = enlaces(cx.env);
     const ruc = a.ruc ? rucJuridico(a.ruc) : undefined;
+    if (a.alcance === "consorcio") {
+      const r = await api<Fila>(cx.env, "/patrones/consorcios", { ruc, page: a.pagina, size: 20 });
+      return {
+        total: r.total,
+        pares: ((r.data ?? []) as Fila[]).map((x) => ({
+          empresa_a: x.nombreA, ruc_a: x.rucA, empresa_b: x.nombreB, ruc_b: x.rucB, consorcios_juntas: x.consorcios,
+          procesos_como_rivales: x.rivales, solas_las_dos: x.solas, gano_a: x.ganoA, gano_b: x.ganoB, se_turnan: x.ganoA > 0 && x.ganoB > 0,
+          entidades: x.entidades, desde: x.desde, hasta: x.hasta, enlace_a: e.empresa(x.rucA), enlace_b: e.empresa(x.rucB),
+        })),
+        como_leerlo:
+          "Sólo cuenta procesos de 2 a 4 postores en que las dos postularon por separado y ganó exactamente una. «solas_las_dos»: " +
+          "procesos en que fueron las únicas postoras. En mercados de pocos proveedores es normal asociarse a veces y competir otras: " +
+          "compara los precios ofertados y mira si la que pierde alguna vez ofertó en serio.",
+        aviso: AVISO,
+      };
+    }
     if (a.alcance === "relleno") {
       const r = await api<Fila>(cx.env, "/patrones/acompanantes", { ruc, page: a.pagina, size: 20, solo: ruc ? "todos" : "fuertes" });
       return {

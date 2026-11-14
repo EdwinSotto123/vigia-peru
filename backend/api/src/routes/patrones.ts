@@ -9,6 +9,10 @@
  *       Postores de relleno: empresas que casi nunca ganan y dedican sus postulaciones a acompañar a un mismo ganador.
  *       Con `ruc`, los de esa empresa (como ganadora y como acompañante); sin él, los pares más fuertes del país.
  *
+ *   GET /patrones/consorcios?ruc=&page=&size=
+ *       Socios de consorcio que compiten (migración 278): pares de empresas que postularon juntas en un consorcio y
+ *       después, por separado, en 3 o más procesos de pocos postores que ganó una de las dos.
+ *
  * Todo sale de señales y postulaciones ya públicas, sólo de empresas (RUC 20). Un patrón es un motivo para mirar, no una
  * acusación.
  */
@@ -85,6 +89,35 @@ patronesRouter.get("/acompanantes", async (c) => {
            FROM postor_acompanante ${donde}
           ORDER BY fuerte DESC, (vinculo IS NOT NULL) DESC, juntos DESC, ruc_ganador LIMIT ${add(q.size)} OFFSET ${add((q.page - 1) * q.size)}`, vals),
       pool.query<{ n: number }>(`SELECT count(*)::int AS n FROM postor_acompanante ${donde}`, vals.slice(0, n)),
+    ]);
+    return publicar({ total: total.rows[0]?.n ?? 0, page: q.page, size: q.size, data: filas.rows });
+  });
+  c.header("Cache-Control", CACHE);
+  return c.json(cuerpo);
+});
+
+const Consorcios = z.object({
+  ruc: z.string().regex(/^20\d{9}$/).optional(),
+  page: z.coerce.number().int().min(1).max(200).default(1),
+  size: z.coerce.number().int().min(1).max(50).default(20),
+});
+
+patronesRouter.get("/consorcios", async (c) => {
+  const p = Consorcios.safeParse(Object.fromEntries(Object.entries(parametros(c)).filter(([, v]) => v !== "" && v != null)));
+  if (!p.success) return c.json({ error: "invalid_query", issues: p.error.issues }, 400);
+  const q = p.data;
+  const cuerpo = await memo.obtener(`consorcios:${JSON.stringify(q)}`, async () => {
+    const vals: unknown[] = [];
+    const add = (v: unknown) => { vals.push(v); return `$${vals.length}`; };
+    const donde = q.ruc ? `WHERE ruc_a = ${add(q.ruc)} OR ruc_b = $${vals.length}` : "";
+    const n = vals.length;
+    const [filas, total] = await Promise.all([
+      pool.query(
+        `SELECT ruc_a AS "rucA", nombre_a AS "nombreA", ruc_b AS "rucB", nombre_b AS "nombreB", consorcios, rivales, solas,
+                gano_a AS "ganoA", gano_b AS "ganoB", entidades, to_char(desde, 'YYYY-MM-DD') AS desde, to_char(hasta, 'YYYY-MM-DD') AS hasta
+           FROM consorcio_rival ${donde}
+          ORDER BY (gano_a > 0 AND gano_b > 0) DESC, solas DESC, rivales DESC, ruc_a LIMIT ${add(q.size)} OFFSET ${add((q.page - 1) * q.size)}`, vals),
+      pool.query<{ n: number }>(`SELECT count(*)::int AS n FROM consorcio_rival ${donde}`, vals.slice(0, n)),
     ]);
     return publicar({ total: total.rows[0]?.n ?? 0, page: q.page, size: q.size, data: filas.rows });
   });

@@ -49,6 +49,10 @@ export const ETIQUETA_CRUCE: Record<string, string> = {
   turno_postores: "Compite con una empresa vinculada y se turnan para ganar",
   // Una empresa que casi nunca gana y dedica sus postulaciones a acompañar a este ganador (migración 276).
   postor_de_relleno: "Lo acompaña un postor que casi nunca gana",
+  // Dos que fueron socias en un consorcio compiten por separado, y quien salió de la planilla de la entidad es socio
+  // o representante del ganador (migración 278).
+  consorcio_rival: "Compitió contra una empresa que fue su socia en un consorcio",
+  puerta_giratoria: "Un socio o representante del ganador trabajó antes en la entidad",
   domicilio_compartido: "Mismo domicilio fiscal que otro participante",
   proveedor_cautivo: "Casi todo su ingreso del Estado es de esta entidad",
   partido_gobernante: "Financió al partido que gobierna la entidad",

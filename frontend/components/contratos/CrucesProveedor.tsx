@@ -268,6 +268,9 @@ const POR_QUE: Record<string, string> = {
   socio_en_entidad: "Que un dueño o representante del proveedor esté en la planilla o la lista de locadores de la MISMA entidad que lo contrata es un conflicto de interés directo: quien decide y quien vende pueden ser la misma red. Merece revisar el expediente.",
   pariente_funcionario: "La Ley 32069 impide contratar con la entidad a los parientes de ciertos funcionarios (los que deciden o influyen en la compra). Que un familiar declarado de un funcionario de la misma entidad sea dueño o representante del ganador merece ver en el expediente quién intervino y si se apartó.",
   turno_postores: "Cuando dos empresas con los mismos dueños o la misma dirección compiten una y otra vez y se reparten las buenas pro, la competencia puede ser sólo aparente: es el patrón de la rotación de ofertas. Vale ver quién más se presentó y a qué precios.",
+  postor_de_relleno: "Una oferta de cobertura es la que se presenta para perder: da la apariencia de competencia y deja ganar a otra. Una empresa que casi nunca gana y aparece una y otra vez junto al mismo ganador encaja en ese patrón. Vale comparar los precios que ofertó y si sus propuestas llegaron completas.",
+  consorcio_rival: "Dos empresas que postularon juntas en un consorcio conocen sus costos y sus precios. Si después compiten por separado en procesos de pocos postores y gana siempre una de las dos, la competencia puede ser sólo aparente. No lo prueba: en mercados de pocos proveedores es común asociarse a veces y competir otras.",
+  puerta_giratoria: "Quien trabajó en una entidad conoce sus necesidades, sus presupuestos y a quienes deciden. La Ley 32069 impide contratar con la entidad a ciertos ex funcionarios durante un tiempo tras dejar el cargo. Que la empresa de alguien que acaba de salir gane ahí merece ver en el expediente qué cargo tenía y si intervino en el requerimiento. El empate es por nombre completo: hay que confirmarlo.",
   empresa_espejo: "Una empresa inhabilitada no puede contratar con el Estado. Si la misma gente sigue ganando con otra razón social mientras dura la sanción, la sanción pierde efecto: vale revisar si la empresa nueva tiene los mismos dueños, el mismo local o el mismo personal clave que la sancionada.",
   interes_declarado: "La Ley 31227 obliga a los funcionarios a declarar sus intereses para que se aparten de las decisiones sobre las empresas en las que los tienen. Que una de ellas le gane un contrato a su propia entidad merece ver en el expediente si se apartó.",
   empleo_declarado: "Haber trabajado para una empresa no impide comprarle, pero quien decide debe apartarse si el vínculo es reciente. Pesa más si la buena pro llegó mientras todavía trabajaba para ella.",
@@ -686,6 +689,44 @@ function Texto({ c, gobierna }: { c: CruceProveedor; gobierna?: GobiernoContrato
           {via.includes("persona") && via.includes("domicilio") ? " y " : ""}
           {via.includes("domicilio") ? "el domicilio fiscal (SUNAT)" : ""}, compitieron juntas en <b>{n(d.juntos) ?? "varios"} procesos</b> con pocos
           postores: esta ganó {n(d.gano_esta) ?? "algunos"} y la otra {n(d.gano_otra) ?? "otros"}. Este contrato es uno de los que ganó.
+          <Gano c={c} />
+        </>
+      );
+    }
+    case "postor_de_relleno": {
+      const otra = txt(d.ruc_acompanante);
+      return (
+        <>
+          {otra ? <OtraEmpresa ruc={otra} nombre={txt(d.acompanante)} conRuc /> : <b>Otra empresa</b>} se presentó en{" "}
+          <b>{n(d.juntos) ?? "varios"} procesos</b> que ganó <Emp c={c} /> y ganó sólo {n(d.ganadas_del_acompanante) ?? 0} de sus{" "}
+          {n(d.postulaciones_del_acompanante) ?? "varias"} postulaciones{txt(d.vinculo) ? ". Además comparten un socio o representante (RNP)" : ""}. Este
+          contrato es uno de esos procesos.
+          <Gano c={c} />
+        </>
+      );
+    }
+    case "consorcio_rival": {
+      const otra = txt(d.ruc_rival);
+      return (
+        <>
+          <Emp c={c} /> y {otra ? <OtraEmpresa ruc={otra} nombre={txt(d.rival)} conRuc /> : <b>otro postor</b>} postularon juntas en{" "}
+          <b>{n(d.consorcios_juntas) === 1 ? "un consorcio" : `${n(d.consorcios_juntas) ?? "varios"} consorcios`}</b> y, por separado, se enfrentaron en{" "}
+          <b>{n(d.veces_rivales) ?? "varios"} procesos</b> de pocos postores: esta ganó {n(d.gano_esta) ?? "algunos"} y la otra {n(d.gano_la_rival) ?? 0}.
+          {d.solas_las_dos === true ? " En este proceso fueron las únicas dos postoras." : ""}
+          <Gano c={c} />
+        </>
+      );
+    }
+    case "puerta_giratoria": {
+      const dias = n(d.dias_despues);
+      const cargo = txt(d.cargo);
+      return (
+        <>
+          {quien(c)} salió de la planilla de esta entidad{txt(d.salio) ? ` en ${txt(d.salio)}` : ""}
+          {cargo ? <> (cargo: {cargo.toLowerCase()})</> : ""}, y <Emp c={c} /> ganó aquí{" "}
+          <b>{dias != null ? (dias <= 45 ? `${dias} días después` : `${Math.round(dias / 30)} meses después`) : "después"}</b>
+          {d.entro_a_la_empresa_tras_salir === true ? ". Entró a la empresa después de salir de la entidad" : ""}. El empate es por nombre completo: hay
+          que confirmarlo.
           <Gano c={c} />
         </>
       );
