@@ -510,6 +510,10 @@ export async function contratosDeEmpresa(ruc: string, q: FiltrosContratosEmpresa
           ORDER BY c.codigo, c.entidad_ruc, c.ocid
        ), s AS (
          SELECT tipo, fecha_desde, fecha_hasta, fecha_resolucion, resolucion FROM osce_sancionados WHERE ruc = $1
+       ), kc AS MATERIALIZED (
+         -- Los cruces de la empresa de una sola lectura por su RUC (28 ms para 3 520 filas). Antes se buscaba la fila de cada
+         -- proceso por separado: 3 ms por proceso, 10,4 s con 3 482, y la ficha de los proveedores grandes daba error 500.
+         SELECT DISTINCT ON (k.ocid) k.ocid, k.cruces FROM casos_cruce k WHERE k.ruc = $1 ORDER BY k.ocid
        ), x AS MATERIALIZED (
          SELECT pr.*, d.motivo AS dudoso, cv.ocid, k.cruces,
                 (SELECT count(*) FROM jsonb_array_elements(COALESCE(k.cruces, '[]')) e
@@ -518,7 +522,7 @@ export async function contratosDeEmpresa(ruc: string, q: FiltrosContratosEmpresa
            FROM pr
            LEFT JOIN dud d ON d.codigo_convocatoria = pr.codigo AND d.entidad_ruc = pr.entidad_ruc
            LEFT JOIN cv ON cv.codigo = pr.codigo AND cv.entidad_ruc = pr.entidad_ruc
-           LEFT JOIN casos_cruce k ON k.ocid = cv.ocid AND k.ruc = $1
+           LEFT JOIN kc k ON k.ocid = cv.ocid
            -- Las sanciones del Tribunal frente a la buena pro (la regla de sancion_vigente, migración 56).
            LEFT JOIN LATERAL (
              SELECT (array_agg(jsonb_build_object('tipo', s.tipo, 'desde', s.fecha_desde, 'hasta', s.fecha_hasta, 'resolucion', s.resolucion)
@@ -803,9 +807,13 @@ empresasRouter.get("/:ruc/postulaciones", async (c) => {
          SELECT p.codigo_convocatoria AS codigo, min(p.fecha_propuesta) AS fecha, max(p.fecha_convocatoria) AS convocatoria,
                 max(CASE WHEN p.ruc_postor <> $1 THEN p.postor END) AS consorcio,
                 array_agg(DISTINCT p.ruc_postor) AS postores
-           FROM conosce_postores p
-          WHERE p.ruc_postor = $1
-             OR (p.ruc_postor IN (SELECT ruc_consorcio FROM conosce_consorcios WHERE ruc_miembro = $1) AND p.ruc_postor !~ '^(10|20)[0-9]{9}$')
+           -- Dos lecturas por índice unidas, no un OR con subconsulta: el OR recorría el millón de filas de la tabla (10 s
+           -- por pasada) y la ficha de los proveedores grandes daba error 500 (2026-11-14).
+           FROM (SELECT * FROM conosce_postores WHERE ruc_postor = $1
+                 UNION ALL
+                 SELECT * FROM conosce_postores
+                  WHERE ruc_postor IN (SELECT ruc_consorcio FROM conosce_consorcios WHERE ruc_miembro = $1)
+                    AND ruc_postor !~ '^(10|20)[0-9]{9}$') p
           GROUP BY p.codigo_convocatoria
        ), g AS MATERIALIZED (
          SELECT p.*, w.entidad, w.entidad_ruc, w.descripcion, w.objeto, w.ganadores, w.rucs_ganadores, w.monto,

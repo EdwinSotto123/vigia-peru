@@ -585,9 +585,11 @@ function sqlResumenProveedor(ruc: string): string {
       UNION ALL
       SELECT 'proceso', COALESCE(extract(year FROM max(a.fecha_buenapro))::int, 0),
              sum(a.monto_adjudicado) FILTER (WHERE a.moneda IN ('PEN', 'Soles', 'SOLES', 'Nuevos Soles'))
-        FROM conosce_adjudicaciones a
-       WHERE a.ruc_proveedor = '${ruc}'
-          OR (a.ruc_proveedor IN (SELECT ruc_consorcio FROM conosce_consorcios WHERE ruc_miembro = '${ruc}') AND a.ruc_proveedor !~ '^(10|20)[0-9]{9}$')
+        FROM (SELECT * FROM conosce_adjudicaciones WHERE ruc_proveedor = '${ruc}'
+              UNION ALL
+              SELECT * FROM conosce_adjudicaciones
+               WHERE ruc_proveedor IN (SELECT ruc_consorcio FROM conosce_consorcios WHERE ruc_miembro = '${ruc}')
+                 AND ruc_proveedor !~ '^(10|20)[0-9]{9}$') a
        GROUP BY a.codigo_convocatoria, a.entidad_ruc
     ) x WHERE anio IS NOT NULL GROUP BY 1, 2`;
 }
