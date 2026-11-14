@@ -248,6 +248,9 @@ export function cadenaCruces(): Refresco[] {
     // Familiar de un funcionario socio del ganador, y postores que se turnan (migración 189).
     f("refrescar_cruce_pariente_funcionario", true),
     f("refrescar_cruce_turno_postores", true),
+    // Postor de relleno y patrones en lo que leyeron los agentes (migración 276).
+    f("refrescar_cruce_postor_relleno", true),
+    f("refrescar_patron_agentes", true),
     // Lo que dicen el acta de buena pro y las consultas leídas con Claude (migraciones 245-246).
     f("refrescar_cruce_acta", true),
     // Quita los cruces que algún JOIN multiplica (migración 120), antes de juntarlos en casos_cruce.

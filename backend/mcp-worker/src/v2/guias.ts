@@ -14,6 +14,10 @@ export const INSTRUCCIONES = [
   "un partido), su enlace en Vigía, la fuente oficial y la fecha de la consulta. Con solo un nombre, la herramienta buscar da",
   "el código. estado_fuentes dice hasta qué fecha llega cada fuente.",
   "Una señal o un puntaje es un indicio para revisar, no una acusación: la denuncia corresponde a la Contraloría o a la Fiscalía.",
+  "Para investigar: empieza por patrones (señales que se repiten en una entidad o un proveedor, y postores de relleno), sigue a las",
+  "personas con rastro_persona (por nombre completo: visitas, empresas, declaraciones, aportes, planilla y órdenes) y red_empresa,",
+  "ordena los hechos por fecha y busca también la explicación inocente antes de concluir. Nunca digas «sin registros» de una",
+  "persona sin haber usado rastro_persona.",
   "Por privacidad no hay DNI, las personas naturales salen con un apellido tapado y un RUC 10 nunca se muestra ni se busca.",
   "Todas las herramientas piden conectar una cuenta de Gobserva con un plan de pago vigente: las de plazas CAS, el plan de Empleo; las de licitaciones, obras y mercado, el de Licitaciones; las demás, cualquier plan.",
   "Cada llamada descuenta créditos del mes de ese plan: 1 las búsquedas y fichas, 3 los análisis, 10 consultar_datos y documentos_zip; mi_cupo dice cuántos quedan. Pide solo lo necesario y reutiliza lo que ya trajiste.",
@@ -51,9 +55,54 @@ const COMO_USAR = `# Cómo usar el MCP de Vigía
    Contenido de documentos: buscar_documentos (bases, actas, contratos, lecturas de la IA y dictámenes).
 6. Cifras agregadas: consultar_datos (sin medida devuelve el catálogo de la fuente).
 7. Contexto: historia (línea de tiempo), partido, persona_publica, senales y estado_fuentes.
+9. Lo que se repite: patrones (por entidad, por proveedor o postores de relleno). Es por donde empieza una investigación.
+10. Antes de investigar a fondo, lee la guía «Método para investigar con Vigía» (vigia://guia/metodo).
 8. Una persona por su nombre: rastro_persona SIEMPRE primero (visitas a entidades, empresas, declaraciones juradas, aportes, planilla, órdenes y candidaturas en una sola llamada). No concluyas «sin registros» sin haberla usado.
 
 Cita siempre el enlace de Vigía y la fuente oficial que trae cada respuesta, con la fecha de la consulta.`;
+
+const METODO = `# Método para investigar con Vigía
+
+Trabaja como un perito, no como un buscador: cada afirmación con su registro, cada sospecha con su descarte.
+
+## 1. Empieza por lo que se repite
+- patrones (alcance entidad): dónde una señal aparece mucho más que en el resto del país.
+- patrones (alcance proveedor): empresas con la misma señal en varias entidades.
+- patrones (alcance relleno): postores que casi nunca ganan y siempre acompañan al mismo ganador.
+- hallazgos_entidad y ranking_entidades: la entidad frente a sus pares.
+Un contrato raro puede ser un error; diez iguales son un modo de trabajar.
+
+## 2. Sigue a las personas, no sólo a las empresas
+- rastro_persona con el nombre completo: visitas, empresas, declaraciones juradas, aportes, planilla y órdenes de una vez.
+- red_empresa: socios y representantes, y las otras empresas donde están. Pregunta si esas empresas compiten entre sí.
+- visitas_entidad: quién entró a la entidad antes de la convocatoria y a qué oficina.
+- persona_publica y partido: quién gobierna la entidad y desde cuándo.
+
+## 3. Arma la línea de tiempo
+Ordena por fecha: alta de la empresa en la SUNAT, visitas, convocatoria, consultas, buena pro, contrato, adicionales, pagos.
+Lo que importa es el ORDEN: una visita al área usuaria antes de la convocatoria pesa; una después de la firma, casi nada.
+historia y ficha_contrato dan las fechas.
+
+## 4. Las preguntas que separan un indicio de una coincidencia
+- ¿Hubo competencia de verdad? Cuántos postularon, cuántos ofertaron, cuántos quedaron válidos y por qué cayeron los demás.
+- ¿El requisito que dejó fuera a los demás lo cumple sólo uno? ¿Lo pidió alguien en las consultas y no se acogió?
+- ¿El precio se parece al de otras entidades por el mismo bien y la misma unidad? Un sobreprecio sin unidad comprobada no se afirma.
+- ¿La relación entre personas está en un registro (RNP, declaración jurada, planilla) o es sólo un apellido igual?
+- ¿El documento publicado es de este proceso? Fecha, proveedor y monto tienen que cuadrar con el registro.
+- ¿El patrón sobrevive si quitas el caso más llamativo?
+
+## 5. Busca lo que desmiente tu hipótesis
+Antes de concluir, busca la explicación inocente: mercado de pocos proveedores, bien de marca única por compatibilidad,
+proveedor local en zona alejada, proceso declarado desierto antes, emergencia real. Si la encuentras, dilo.
+
+## 6. Cómo escribir el resultado
+- Hechos (con fuente y fecha) separados de señales (indicios) y de lo que falta verificar.
+- Montos en soles, fechas completas, el nombre de la entidad y de la empresa, y el enlace de Vigía de cada contrato.
+- Personas naturales con un apellido tapado, como las entrega Vigía. Nunca un documento.
+- Nada de «corrupto», «fraude» o «culpable»: eso lo dice un juez. Di qué se observa y a quién le toca investigarlo
+  (Contraloría para el control, Fiscalía para el delito, OECE para el procedimiento).
+- Si no hay datos, dilo así: «Vigía no tiene…». No rellenes con suposiciones ni concluyas «sin registros» sin haber
+  usado rastro_persona (personas) o buscar (empresas y entidades).`;
 
 const PUNTAJE = `# Cómo se calcula el puntaje de un dictamen
 
@@ -76,6 +125,7 @@ export function registrarGuias(server: McpServer, cx: Contexto): void {
   const json = (uri: string, d: unknown) => ({ contents: [{ uri, mimeType: "application/json", text: JSON.stringify(d) }] });
 
   server.registerResource("como-usar", "vigia://guia/como-usar", { title: "Cómo usar el MCP de Vigía", mimeType: "text/markdown" }, async (u) => texto(u.href, COMO_USAR));
+  server.registerResource("metodo", "vigia://guia/metodo", { title: "Método para investigar con Vigía", mimeType: "text/markdown" }, async (u) => texto(u.href, METODO));
   server.registerResource("puntaje", "vigia://guia/puntaje", { title: "Cómo se calcula el puntaje", mimeType: "text/markdown" }, async (u) => texto(u.href, PUNTAJE));
   server.registerResource("privacidad", "vigia://guia/privacidad", { title: "Privacidad", mimeType: "text/markdown" }, async (u) => texto(u.href, PRIVACIDAD));
   server.registerResource("fuentes", "vigia://guia/fuentes", { title: "Fuentes y hasta qué fecha llegan", mimeType: "application/json" }, async (u) =>
@@ -94,6 +144,18 @@ export function registrarGuias(server: McpServer, cx: Contexto): void {
     "Para cada afirmación cita el enlace de Vigía y la fuente oficial, con la fecha de los datos (estado_fuentes). " +
     "Separa hechos de señales, y di qué falta verificar. Una señal no es una acusación.";
 
+  server.registerPrompt(
+    "investigar_patron",
+    { title: "Investigar un patrón", description: "Parte de lo que se repite en una entidad o un proveedor y llega a los contratos y las personas.", argsSchema: { quien: z.string().describe("Nombre o RUC de la entidad o empresa (opcional)").optional() } },
+    ({ quien }) =>
+      pedir(
+        `Investiga ${quien ? `a «${quien}»` : "los patrones más fuertes del país"} con el MCP de Vigía, siguiendo la guía vigia://guia/metodo. ` +
+          `Pasos: ${quien ? "buscar (para su RUC), " : ""}patrones con alcance entidad, proveedor y relleno; abre con dictamen y ficha_contrato ` +
+          `tres contratos de ejemplo de cada patrón; red_empresa de los ganadores que se repiten y rastro_persona de sus representantes; ` +
+          `visitas_entidad de la entidad. Arma la línea de tiempo y, para cada patrón, di qué lo explicaría sin irregularidad y si esa ` +
+          `explicación se sostiene. ${CIERRE}`,
+      ),
+  );
   server.registerPrompt(
     "investigar_proveedor",
     { title: "Investigar un proveedor", description: "Perfil de una empresa: quién es, a quién le vende, con quién está vinculada y qué señales tiene.", argsSchema: { empresa: z.string().describe("Nombre o RUC 20") } },

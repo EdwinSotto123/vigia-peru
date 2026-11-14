@@ -377,6 +377,21 @@ personasRouter.get("/rastro", async (c) => {
     const todas = (col: string) => pats.map((_, i) => `${col} LIKE $${i + 1}`).join(" AND ");
     const intento = <T extends Record<string, unknown>>(sql: string) =>
       consultaConPlazo<T>(sql, pats, 8000).then((r) => r.rows).catch(() => null);
+    // Las órdenes de persona natural van por apellidos exactos (índice ap1, ap2): cada palabra buscada puede ser un apellido.
+    const exactas = [...new Set(palabras.flatMap((w) => {
+      const sinTilde = w.toUpperCase().normalize("NFD").replace(/N\u0303/g, "Ñ").replace(/\p{M}/gu, "");
+      return [sinTilde, sinTilde.replace(/Ñ/g, "N")];
+    }))];
+    const ordenes = palabras.length >= 3
+      ? consultaConPlazo<{ nombre: string; codigo: string | null; entidad: string; entidad_ruc: string; ordenes: number; monto: number; primera: string; ultima: string; servicio: string | null }>(
+          `SELECT max(o.nombre) AS nombre, max(pc.codigo) AS codigo, max(o.entidad) AS entidad, o.entidad_ruc, sum(o.ordenes)::int AS ordenes,
+                  sum(o.monto)::float AS monto, to_char(min(o.primera), 'YYYY-MM-DD') AS primera, to_char(max(o.ultima), 'YYYY-MM-DD') AS ultima,
+                  max(o.servicio) AS servicio
+             FROM persona_orden_anual o LEFT JOIN persona_codigo pc ON pc.ruc = o.ruc
+            WHERE o.ap1 = ANY($1::text[]) AND o.ap2 = ANY($1::text[])
+              AND (SELECT bool_and(upper(o.nombre) LIKE p) FROM unnest($2::text[]) p)
+            GROUP BY o.ruc, o.entidad_ruc ORDER BY 6 DESC NULLS LAST LIMIT 40`, [exactas, pats], 8000).then((r) => r.rows).catch(() => null)
+      : Promise.resolve([]);
     const [visitas, rnp, dji, aportes, peps] = await Promise.all([
       intento<{ nombre: string; entidad: string; entidad_ruc: string | null; visitas: number; primera: string; ultima: string;
                 en_nombre_de: string[] | null; a_quien: string[] | null; motivos: string[] | null }>(
@@ -416,6 +431,7 @@ personasRouter.get("/rastro", async (c) => {
       declaraciones_juradas: tapar(dji),
       aportes_de_campana: tapar(aportes),
       personas_expuestas: tapar(peps),
+      ordenes_como_persona_natural: tapar(await ordenes),
       sin_respuesta: [["visitas", visitas], ["empresas", rnp], ["declaraciones_juradas", dji], ["aportes_de_campana", aportes], ["personas_expuestas", peps]]
         .filter(([, v]) => v === null).map(([k]) => k),
     };

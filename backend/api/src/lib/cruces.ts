@@ -47,6 +47,8 @@ export const ETIQUETA_CRUCE: Record<string, string> = {
   // que compiten juntos y se reparten las buenas pro.
   pariente_funcionario: "Un familiar de un funcionario de la entidad es socio o representante del ganador",
   turno_postores: "Compite con una empresa vinculada y se turnan para ganar",
+  // Una empresa que casi nunca gana y dedica sus postulaciones a acompañar a este ganador (migración 276).
+  postor_de_relleno: "Lo acompaña un postor que casi nunca gana",
   domicilio_compartido: "Mismo domicilio fiscal que otro participante",
   proveedor_cautivo: "Casi todo su ingreso del Estado es de esta entidad",
   partido_gobernante: "Financió al partido que gobierna la entidad",

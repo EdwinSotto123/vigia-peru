@@ -22,6 +22,7 @@ export function enlaces(env: EnvV2) {
     entidad: (ruc: string) => `${v}/entidad/${ruc}`,
     partido: (clave: string) => `${v}/app/partidos/${encodeURIComponent(clave)}`,
     planilla: (codigo: string) => `${v}/app/personas/planilla/${codigo}`,
+    persona: (codigo: string) => `${v}/app/personas/${codigo}`,
     obra: (cui: string) => `https://obras.gobserva.cloud/proyecto/${cui}`,
     /**
      * Una orden no tiene ficha propia: la lista de compras de la entidad, buscando su número («O/S-6076-2025-…» → 6076)

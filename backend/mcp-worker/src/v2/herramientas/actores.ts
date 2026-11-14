@@ -362,7 +362,8 @@ export const rastroPersona = definir({
         visitas: visitas.reduce((s, v) => s + (v.visitas ?? 0), 0),
         entidades_visitadas: new Set(visitas.map((v) => v.entidad)).size,
         empresas: hay(r?.empresas), declaraciones_juradas: hay(r?.declaraciones_juradas), aportes_de_campana: hay(r?.aportes_de_campana),
-        en_planilla: pl?.total ?? 0, con_ordenes_como_persona_natural: per?.total ?? 0, candidaturas: hay(tr?.personas),
+        en_planilla: pl?.total ?? 0, entidades_que_le_dieron_ordenes: hay(r?.ordenes_como_persona_natural) || (per?.total ?? 0),
+        candidaturas: hay(tr?.personas),
       },
       visitas,
       empresas: ((r?.empresas ?? []) as Fila[]).map((x) => ({ ...x, enlace: x.ruc ? e.empresa(x.ruc) : undefined })),
@@ -373,7 +374,13 @@ export const rastroPersona = definir({
         nombre: p.nombre, entidad: p.entidad, entidad_ruc: p.entidadRuc, cargo: p.cargo, regimen: p.regimen, sueldo_mes_soles: p.total,
         primer_mes: p.primerMes, ultimo_mes: p.ultimoMes, enlace: p.ficha ? e.planilla(p.ficha) : undefined,
       })),
-      ordenes_como_persona_natural: ((per?.data ?? []) as Fila[]).map((p) => tomar(p, ["nombre", "entidad", "entidadRuc", "servicio", "ordenes", "monto", "primera", "ultima", "codigo"])),
+      ordenes_como_persona_natural: [
+        ...((r?.ordenes_como_persona_natural ?? []) as Fila[]).map((p) => ({
+          nombre: p.nombre, entidad: p.entidad, entidad_ruc: p.entidad_ruc, servicio: p.servicio ?? undefined, ordenes: p.ordenes, monto_soles: p.monto,
+          primera: p.primera, ultima: p.ultima, enlace: p.codigo ? e.persona(p.codigo) : undefined,
+        })),
+        ...((per?.data ?? []) as Fila[]).map((p) => tomar(p, ["nombre", "entidad", "entidadRuc", "servicio", "ordenes", "monto", "primera", "ultima", "codigo"])),
+      ],
       trayectoria_electoral: tr?.personas ?? [],
       no_respondieron: [...((r?.sin_respuesta ?? []) as string[]), ...(r ? [] : ["visitas, empresas y declaraciones"]), ...(pl ? [] : ["planilla"]), ...(per ? [] : ["órdenes"])],
       nota:
@@ -384,4 +391,60 @@ export const rastroPersona = definir({
   },
 });
 
-export const HERRAMIENTAS_ACTORES = [fichaEmpresa, redEmpresa, fichaEntidad, proveedoresDeEntidad, partido, historia, personaPublica, rastroPersona];
+export const patrones = definir({
+  nombre: "patrones",
+  titulo: "Patrones que se repiten",
+  descripcion:
+    "Dónde una misma señal se REPITE, que es lo que un investigador busca primero. Con alcance «entidad»: entidades donde una " +
+    "señal de los agentes (única oferta válida, único postor, oferta igual al referencial, requisitos dirigidos, visitas " +
+    "previas…) aparece en una parte de sus contratos leídos que es el doble o más de la del país. Con alcance «proveedor»: " +
+    "empresas con la misma señal de proceso en 3 o más contratos de 2 o más entidades. Con alcance «relleno»: postores de " +
+    "relleno, empresas que casi nunca ganan y dedican sus postulaciones a acompañar a un mismo ganador (posible oferta de " +
+    "cobertura; más grave si comparten socio). Con un RUC, los patrones de esa entidad o empresa. Cada patrón trae contratos " +
+    "de ejemplo para abrir con ficha_contrato o dictamen. Un patrón es un motivo para mirar, no una acusación.",
+  cuenta: true,
+  entrada: {
+    alcance: z.enum(["entidad", "proveedor", "relleno"]).default("entidad"),
+    ruc: z.string().min(11).max(14).optional().describe("RUC 20 de la entidad o de la empresa (opcional)."),
+    regla: z.string().max(60).optional().describe("Sólo una señal, por su código (p. ej. unica_oferta_valida)."),
+    pagina: z.number().int().min(1).max(50).default(1),
+  },
+  async ejecutar(a, cx) {
+    const e = enlaces(cx.env);
+    const ruc = a.ruc ? rucJuridico(a.ruc) : undefined;
+    if (a.alcance === "relleno") {
+      const r = await api<Fila>(cx.env, "/patrones/acompanantes", { ruc, page: a.pagina, size: 20, solo: ruc ? "todos" : "fuertes" });
+      return {
+        total: r.total,
+        pares: ((r.data ?? []) as Fila[]).map((x) => ({
+          ganador: x.ganador, ruc_ganador: x.rucGanador, acompanante: x.acompanante, ruc_acompanante: x.rucAcompanante,
+          procesos_juntos: x.juntos, entidades: x.entidades, postulaciones_del_acompanante: x.postulacionesDelAcompanante,
+          ganadas_del_acompanante: x.ganadasDelAcompanante, parte_de_sus_postulaciones: x.parte, desde: x.desde, hasta: x.hasta,
+          comparten_socio: x.vinculo === "socio_comun" ? true : undefined, fuerte: x.fuerte,
+          enlace_ganador: e.empresa(x.rucGanador), enlace_acompanante: e.empresa(x.rucAcompanante),
+        })),
+        como_leerlo:
+          "«Fuerte»: el acompañante dedica 60 % o más de sus postulaciones a ese ganador y gana 1 de cada 10 o menos. Sólo cuenta " +
+          "procesos de 2 a 4 postores. Para confirmar, compara los montos ofertados y las fechas en los contratos que comparten.",
+        aviso: AVISO,
+      };
+    }
+    const r = await api<Fila>(cx.env, "/patrones", { alcance: a.alcance, ruc, regla: a.regla, page: a.pagina, size: 20 });
+    return {
+      total: r.total,
+      por_senal: r.porRegla,
+      patrones: ((r.data ?? []) as Fila[]).map((x) => ({
+        nombre: x.nombre, ruc: x.ruc, senal: x.regla, contratos_con_la_senal: x.casos, contratos_leidos: x.leidos,
+        entidades: x.entidades ?? undefined, parte: x.tasa, parte_en_el_pais: x.tasaPais, veces_la_del_pais: x.veces,
+        monto_soles: x.monto ?? undefined, ejemplos_ocid: x.ejemplos,
+        enlace: a.alcance === "entidad" ? e.entidad(x.ruc) : e.empresa(x.ruc),
+      })),
+      como_leerlo:
+        "«parte» es la fracción de los contratos LEÍDOS (no de todos los publicados) que tienen la señal. Vigía lee primero lo " +
+        "más riesgoso, así que la comparación vale entre entidades, no como tasa real del país.",
+      aviso: AVISO,
+    };
+  },
+});
+
+export const HERRAMIENTAS_ACTORES = [fichaEmpresa, redEmpresa, fichaEntidad, proveedoresDeEntidad, partido, historia, personaPublica, rastroPersona, patrones];
