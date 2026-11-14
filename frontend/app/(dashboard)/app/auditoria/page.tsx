@@ -27,6 +27,8 @@ import {
   getRitmoProcesamientos,
   type Procesamiento,
 } from "@/lib/auditoria";
+import { getLecturaTotal } from "@/lib/auditoria";
+import { LecturaTotalPanel } from "@/components/auditoria/LecturaTotalPanel";
 import { getResumenVivo } from "@/lib/contratos";
 import { getZona, getZonas } from "@/lib/financiamiento";
 import { fechaCorta, hoyLima } from "@/lib/formato";
@@ -133,7 +135,7 @@ export default async function AuditoriaPage({
   const filtros: FiltrosAuditoria = { ubigeo, desde, hasta, financiador, q };
   const histQuery = { ...filtros, estado: "procesado" as const };
 
-  const [resumen, zonas, initialCompleto, historicoCompleto, financiadores, ultimo, ritmo, nombreSubzona] = await Promise.all([
+  const [resumen, zonas, initialCompleto, historicoCompleto, financiadores, ultimo, ritmo, nombreSubzona, lectura] = await Promise.all([
     getResumenVivo(),
     getZonas("departamento"),
     // El tablero en vivo obedece los mismos filtros que lo ya leído (zona, fecha, quién pagó), y sólo
@@ -150,6 +152,8 @@ export default async function AuditoriaPage({
     getRitmoProcesamientos(DIAS_RITMO),
     // Los enlaces del mapa pueden traer una provincia o un distrito: su nombre, para el chip y el título.
     ubigeo && ubigeo.length > 2 ? getZona(ubigeo).then((z) => z?.zona.nombre ?? null) : Promise.resolve(null),
+    // Todo lo leído (financiados y análisis masivo) y lo que costó: antes la página sólo contaba los financiados.
+    getLecturaTotal(),
   ]);
   const initial = initialCompleto ? sinFasesInactivas(initialCompleto) : null;
   const historico = historicoCompleto ? { ...historicoCompleto, data: sinFasesInactivas(historicoCompleto.data ?? []) } : null;
@@ -227,7 +231,7 @@ export default async function AuditoriaPage({
           está en su pestaña; el ⓘ lo resume en dos oraciones. */}
       <EncabezadoPagina
         titulo="Auditoría en vivo"
-        bajada="Cada contrato financiado, de la cola al dictamen, en orden de antigüedad: nadie elige cuál se lee."
+        bajada="Cuánto leyó Vigía, cuánto costó leerlo y, uno por uno, los contratos financiados por aportes: de la cola al dictamen, en orden de antigüedad."
         ayuda={
           <Ayuda titulo="¿Cómo se lee un contrato?">
             <span className="block">
@@ -246,6 +250,9 @@ export default async function AuditoriaPage({
       />
       <VistasComoTrabaja activa="auditoria" />
 
+      {lectura && !hayFiltros && <LecturaTotalPanel datos={lectura} />}
+
+      <h2 className="font-display text-bloque font-bold text-ink">Financiados por aportes, uno por uno</h2>
       <ResumenAuditoria initial={resumen} ritmoInicial={ritmo} pollMs={5000}>
         <div className="space-y-6">
           <EstadoAuditoria />

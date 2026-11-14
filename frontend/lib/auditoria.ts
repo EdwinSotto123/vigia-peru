@@ -422,6 +422,30 @@ export async function getRitmoProcesamientos(dias = 14): Promise<RitmoProcesamie
   return procs ? ritmoDesdeLista(procs, Date.now(), dias) : null;
 }
 
+// ─── Todo lo leído y lo que costó (GET /financiamiento/procesamientos/lectura) ──
+export interface LecturaTotal {
+  masivo: {
+    leidos: number; fallidos: number; enCurso: number; costo: number; costoLeidos: number; costoFallidos: number;
+    costoPruebas: number; segundos: number | null; primero: string | null; ultimo: string | null;
+  };
+  porRed: { red: string; leidos: number; costo: number }[];
+  porDia: { dia: string; n: number; costo: number }[];
+  alertas: { analizados: number; conDictamen: number; ultimo: string | null };
+  financiados: number;
+  tope: number | null;
+}
+
+export async function getLecturaTotal(): Promise<LecturaTotal | null> {
+  try {
+    const res = await fetch(`${API_BASE}/financiamiento/procesamientos/lectura`, { next: { revalidate: 120 } } as any);
+    if (!res.ok) return null;
+    const d = (await res.json()) as LecturaTotal;
+    return d?.masivo && d?.alertas ? d : null;
+  } catch {
+    return null;
+  }
+}
+
 // ─── Fases: reducción de la bitácora (misma lógica que backend/dispatcher/events.py) ──
 
 const ALIASES: Record<string, string> = {

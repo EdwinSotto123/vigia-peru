@@ -17,6 +17,7 @@
  *                                                     (fase, segundos) + lote de ingesta + documentos + en revisión
  *                                                     + agentes activos + `version` + `porDepartamento`
  *   GET /financiamiento/procesamientos/ritmo?dias=14  procesados por día (hora de Lima, con los días en cero)
+ *   GET /financiamiento/procesamientos/lectura        todo lo leído (financiados y análisis masivo) y lo que costó
  *   GET /financiamiento/procesamientos/:ocid          detalle + eventos [{ts, kind, name, msg}] + fases + resultado
  *                                                     (score, señales, mercado, documentos leídos) + estimado (mediana)
  *
@@ -368,6 +369,56 @@ procesamientosRouter.get("/ritmo", async (c) => {
     return { dias: r.rows, total: r.rows.reduce((s, d) => s + d.n, 0), ultimoFin };
   }, cachePublico(0, { maxAge: 0 }));
 });
+
+// ─── GET /financiamiento/procesamientos/lectura ─────────────────────────────────────────
+// TODO lo que Vigía leyó y lo que costó leerlo: los financiados por aportes son una parte chica (320); el análisis
+// masivo (libro `agente_masivo`, migraciones 272 y 274) es el resto y no salía en la auditoría (pedido 2026-11-14).
+// El costo es el del modelo, en dólares, medido por cada corrida. Sin datos personales: sólo cuentas.
+const LECTURA_SQL = `WITH hoy AS (SELECT (now() AT TIME ZONE 'America/Lima')::date AS d),
+  dias AS (SELECT generate_series(hoy.d - 13, hoy.d, interval '1 day')::date AS dia FROM hoy),
+  por_dia AS (SELECT (terminado_en AT TIME ZONE 'America/Lima')::date AS dia, count(*) FILTER (WHERE estado = 'ok')::int AS n,
+                     COALESCE(sum(costo), 0)::float AS costo
+                FROM agente_masivo, hoy
+               WHERE terminado_en >= ((hoy.d - 13)::timestamp AT TIME ZONE 'America/Lima') AND estado IN ('ok', 'error')
+               GROUP BY 1)
+SELECT
+  (SELECT json_build_object(
+            'leidos', count(*) FILTER (WHERE estado = 'ok')::int,
+            'fallidos', count(*) FILTER (WHERE estado = 'error')::int,
+            'enCurso', count(*) FILTER (WHERE estado = 'en_vuelo' AND creado_en > now() - interval '30 minutes')::int,
+            'costo', COALESCE(sum(costo), 0)::float,
+            'costoLeidos', COALESCE(sum(costo) FILTER (WHERE estado = 'ok'), 0)::float,
+            'costoFallidos', COALESCE(sum(costo) FILTER (WHERE estado = 'error'), 0)::float,
+            'costoPruebas', COALESCE(sum(costo) FILTER (WHERE estado = 'externo'), 0)::float,
+            'segundos', (avg(segundos) FILTER (WHERE estado = 'ok'))::float,
+            'primero', min(creado_en), 'ultimo', max(terminado_en) FILTER (WHERE estado = 'ok'))
+     FROM agente_masivo) AS masivo,
+  (SELECT COALESCE(json_agg(x), '[]'::json) FROM (
+     SELECT red, count(*) FILTER (WHERE estado = 'ok')::int AS leidos, COALESCE(sum(costo), 0)::float AS costo
+       FROM agente_masivo WHERE estado IN ('ok', 'error') AND red IS NOT NULL GROUP BY red ORDER BY 2 DESC) x) AS "porRed",
+  (SELECT json_agg(json_build_object('dia', to_char(dias.dia, 'YYYY-MM-DD'), 'n', COALESCE(p.n, 0), 'costo', COALESCE(p.costo, 0)) ORDER BY dias.dia)
+     FROM dias LEFT JOIN por_dia p USING (dia)) AS "porDia",
+  (SELECT json_build_object('analizados', count(*)::int,
+                            'conDictamen', count(*) FILTER (WHERE dictamen_markdown IS NOT NULL AND dictamen_markdown <> '')::int,
+                            'ultimo', max(analizado_en))
+     FROM alertas WHERE analizado_en IS NOT NULL) AS alertas,
+  (SELECT count(*)::int FROM procesamientos WHERE estado = 'procesado') AS financiados`;
+const lecturaMemo = new Memo<Serializado>({ nombre: "procesamientos:lectura", ttlMs: 120_000 });
+
+procesamientosRouter.get("/lectura", (c) =>
+  responderJson(c, lecturaMemo, "lectura", async () => {
+    const r = await pool.query(LECTURA_SQL);
+    // El tope del análisis masivo es el de su última tanda; si esa tabla no se puede leer, va sin tope.
+    let tope: number | null = null;
+    try {
+      const q = await pool.query<{ tope: string | null }>(`SELECT tope FROM agente_masivo_tanda WHERE tope IS NOT NULL ORDER BY id DESC LIMIT 1`);
+      tope = q.rows[0]?.tope != null ? Number(q.rows[0].tope) : null;
+    } catch {
+      tope = null;
+    }
+    const x = r.rows[0];
+    return { masivo: x.masivo, porRed: x.porRed, porDia: x.porDia ?? [], alertas: x.alertas, financiados: x.financiados, tope };
+  }, cachePublico(120, { maxAge: 60 })));
 
 // ─── GET /financiamiento/procesamientos/reglas?perfil=bienes ─────────────────────────────
 // Reglas deterministas por perfil (JSON estático generado por backend/scripts/exportar_reglas.py).
