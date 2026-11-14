@@ -12,12 +12,13 @@ if _AGENT not in sys.path:
 
 from tools.market import costo_mensual as CM  # noqa: E402
 
-COLS = ["ocid", "entidad_ruc", "entidad", "objeto", "fecha", "monto", "plazo_dias", "plazo_fuente", "costo_mensual", "n_personal", "sim", "proveedor_ruc"]
+COLS = ["ocid", "entidad_ruc", "entidad", "objeto", "fecha", "monto", "plazo_dias", "plazo_fuente", "costo_mensual", "n_personal", "sim", "proveedor_ruc", "dias_antes"]
 ENT = "20100000001"
 
 
-def _fila(ocid, ent, cm, sim=0.8, fecha=dt.date(2025, 3, 1), personal=None, plazo=360):
-    return (ocid, ent, f"Entidad {ent[-2:]}", "Servicio de vigilancia para la sede central", fecha, cm * plazo / 30, plazo, "contrato", cm, personal, sim, None)
+def _fila(ocid, ent, cm, sim=0.8, fecha=dt.date(2025, 3, 1), personal=None, plazo=360, dias_antes=None):
+    return (ocid, ent, f"Entidad {ent[-2:]}", "Servicio de vigilancia para la sede central", fecha, cm * plazo / 30, plazo, "contrato", cm, personal, sim, None,
+            plazo + 20 if dias_antes is None else dias_antes)
 
 
 class _Cur:
@@ -87,6 +88,11 @@ def test_servicios_de_una_vez_otro_alcance_o_plantilla_no_dan_bandera(monkeypatc
     _con(monkeypatch, [_fila("1100", ENT, 30000.0, plazo=60)])
     comp = CM.comparar_costo_mensual("1200", ENT, "Servicio de mantenimiento", 48000.0)
     assert comp["previo"]["comparable"] is False and CM.bandera_costo_mensual({}, comp, "1200", 576000.0, 360) is None
+    # Dos contratos de dos años convocados con cinco meses de diferencia: simultáneos, no una renovación (1224008).
+    _con(monkeypatch, [_fila("1100", ENT, 32400.0, sim=1.0, plazo=731, dias_antes=150)])
+    comp = CM.comparar_costo_mensual("1200", ENT, "Servicio de alimentos para el personal policial", 69840.0)
+    assert comp["previo"]["comparable"] is False and "simultáneos" in comp["previo"]["no_comparable_por"]
+    assert CM.bandera_costo_mensual({}, comp, "1200", 1701768.0, 731) is None
     # Supervisión de obra: cada contrato es de otra obra.
     _con(monkeypatch, [_fila("1100", ENT, 30000.0)])
     comp = CM.comparar_costo_mensual("1200", ENT, "Consultoría de obra para la supervisión de la ejecución de la obra X", 48000.0)

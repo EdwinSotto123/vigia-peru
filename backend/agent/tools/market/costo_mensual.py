@@ -25,9 +25,10 @@ SIM_PARES = 0.50
 MIN_PLAZO_CONTINUO = 150    # días: por debajo no es un servicio continuo que se renueva
 MAX_SALTO = 300.0           # %: más que eso es otro servicio
 RAZON_PLAZO = 3.0           # el plazo de uno no puede ser más de 3 veces el del otro
+PARTE_DEL_PLAZO = 0.6       # una renovación llega cuando el anterior ya corrió al menos el 60 % de su plazo
 # Servicios que se contratan por obra o por proyecto: el «anterior» es de otra obra, no una renovación.
 _POR_PROYECTO = re.compile(r"supervisi[oó]n|expediente\s+t[eé]cnico|consultor[ií]a\s+de\s+obra|elaboraci[oó]n\s+de(l)?\s+(estudio|perfil|expediente)|"
-                           r"mantenimiento\s+(peri[oó]dico|rutinario)\s+(de(l)?\s+)?(camino|carretera|v[ií]a|tramo)", re.I)
+                           r"mantenimiento\s+(peri[oó]dico|rutinario)\s+(de(l)?\s+)?(camino|carretera|v[ií]a|tramo|red\s+vial|la\s+red\s+vial)", re.I)
 SALTO_MEDIA = 30.0      # % sobre el contrato anterior
 SALTO_ALTA = 60.0
 MAX_MESES_PREVIO = 48
@@ -52,13 +53,14 @@ def comparar_costo_mensual(ocid: str, entidad_ruc: str | None, objeto: str, cost
         cur = conn.cursor()
         cur.execute(
             """SELECT s.ocid, s.entidad_ruc, s.entidad, s.objeto, s.fecha, s.monto, s.plazo_dias, s.plazo_fuente, s.costo_mensual,
-                      s.n_personal, similarity(s.objeto_norm, lower(%s)) AS sim, s.proveedor_ruc
+                      s.n_personal, similarity(s.objeto_norm, lower(%s)) AS sim, s.proveedor_ruc,
+                      (COALESCE((SELECT c.fecha_convocatoria FROM convocatorias c WHERE c.ocid = %s), CURRENT_DATE) - s.fecha) AS dias_antes
                  FROM servicio_costo_mensual s
                 WHERE s.ocid <> %s AND similarity(s.objeto_norm, lower(%s)) >= %s
                   AND s.fecha >= CURRENT_DATE - make_interval(months => %s)
                   AND s.fecha < COALESCE((SELECT c.fecha_convocatoria FROM convocatorias c WHERE c.ocid = %s), CURRENT_DATE)
                 ORDER BY s.fecha DESC LIMIT 200""",
-            (objeto, oc, objeto, min(SIM_PREVIO, SIM_PARES), MAX_MESES_PREVIO, oc))
+            (objeto, oc, oc, objeto, min(SIM_PREVIO, SIM_PARES), MAX_MESES_PREVIO, oc))
         cols = [d[0] for d in cur.description]
         filas = [dict(zip(cols, r)) for r in cur.fetchall()]
     except Exception as e:  # noqa: BLE001 — sin la tabla o sin permiso
@@ -75,6 +77,7 @@ def comparar_costo_mensual(ocid: str, entidad_ruc: str | None, objeto: str, cost
                 "fecha": f["fecha"].isoformat() if f.get("fecha") else None, "monto": float(f["monto"]),
                 "plazo_dias": int(f["plazo_dias"]), "plazo_fuente": f.get("plazo_fuente"), "costo_mensual": round(cm, 2),
                 "similitud": round(float(f["sim"]), 2), "n_personal": f.get("n_personal"), "url": proceso_oece(f["ocid"]),
+                "dias_antes": int(f["dias_antes"]) if f.get("dias_antes") is not None else None,
                 "diff_pct": round((costo_mensual - cm) / cm * 100, 1) if cm > 0 else None}
 
     previos = [f for f in filas if entidad_ruc and f.get("entidad_ruc") == entidad_ruc and float(f["sim"]) >= SIM_PREVIO]
@@ -88,6 +91,11 @@ def comparar_costo_mensual(ocid: str, entidad_ruc: str | None, objeto: str, cost
             p["comparable"], p["no_comparable_por"] = False, "la diferencia es tan grande que debe ser otro alcance, no el mismo servicio"
         elif _POR_PROYECTO.search(objeto or "") or _POR_PROYECTO.search(p.get("objeto") or ""):
             p["comparable"], p["no_comparable_por"] = False, "es un servicio por obra o por proyecto: el anterior es de otra obra"
+        elif p.get("dias_antes") is not None and p["dias_antes"] < PARTE_DEL_PLAZO * p["plazo_dias"]:
+            # Prueba real (1224008, 2026-11-14): «alimentos para el personal policial», dos contratos de 731 días
+            # convocados con cinco meses de diferencia. No es una renovación: corren a la vez, para otra sede o grupo.
+            p["comparable"], p["no_comparable_por"] = False, ("el contrato parecido se convocó hace poco y sigue vigente: son contratos "
+                                                              "simultáneos (otra sede o grupo), no una renovación")
         elif p["plazo_dias"] < MIN_PLAZO_CONTINUO:
             p["comparable"], p["no_comparable_por"] = False, "el contrato anterior duró menos de cinco meses: no es un servicio continuo"
         out["previo"] = p
