@@ -106,7 +106,12 @@ GUIA_SECCION: dict[str, str] = {
         "exigido y su proporcionalidad al monto, experiencia exigida, penalidades, subcontratación. De "
         "`market_analysis` (estrategia historico_seace): `indicadores_servicio` (costo mensual / por persona / por "
         "entregable) y la posición del monto frente a convocatorias similares (p25/p50/p75, `posicion_historica`) "
-        "como referencia de escala, dejando claro que no es un veredicto de sobreprecio salvo que `veredicto` lo diga."
+        "como referencia de escala, dejando claro que no es un veredicto de sobreprecio salvo que `veredicto` lo diga. "
+        "Si `indicadores_servicio.comparacion_tarifa_mensual.previo` existe, ESCRÍBELO con sus cifras: cuánto cuesta este "
+        "servicio al mes, cuánto costaba al mes el contrato anterior del mismo servicio en la misma entidad (fecha, monto, "
+        "plazo), la diferencia en % y si las bases piden más personal que antes (`alcance_crecio`). Si hay `pares` "
+        "comparables, da el rango p25–p75 al mes y dónde cae; si `pares.comparable` es false, di que los servicios "
+        "parecidos son demasiado distintos para comparar. Sin `previo` ni `pares`, di que no hay con qué comparar el costo."
     ),
     "Expediente técnico, presupuesto y adicionales": (
         "### Del bloque `obra` del parser y de `market_analysis` (estrategia presupuesto_obra): presupuesto total vs "

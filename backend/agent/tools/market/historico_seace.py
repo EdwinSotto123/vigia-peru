@@ -264,9 +264,15 @@ def _mercado_historico_seace(state: dict) -> dict:
             ind["estado"] = "sin_dato"
             ind["motivo"] = ("monto_no_publico" if not monto
                              else "plazo_menor_a_un_mes" if plazo else "sin_plazo_ni_entregables_en_tdr")
-    # Comparación de tarifa mensual contra comparables: solo posible si estos traen plazo (no
-    # lo guardamos en `convocatorias`) → se declara.
-    ind["comparacion_tarifa_mensual"] = {"estado": "sin_dato", "motivo": "comparables_sin_plazo_en_bd"}
+    # Costo mensual contra el contrato anterior del mismo servicio en la misma entidad y contra servicios parecidos
+    # (tabla servicio_costo_mensual, migración 280). Antes: «sin dato, los comparables no traen plazo».
+    try:
+        from .costo_mensual import bandera_costo_mensual, comparar_costo_mensual
+        comp = comparar_costo_mensual(ocid, entidad_ruc, objeto, ind.get("costo_mensual_implicito"), len(personal) or None)
+        ind["comparacion_tarifa_mensual"] = comp
+        bandera_costo_mensual(state, comp, ocid, monto, plazo)
+    except Exception as _e:  # noqa: BLE001 — la comparación nunca tumba el análisis de mercado
+        ind["comparacion_tarifa_mensual"] = {"estado": "sin_dato", "motivo": f"fallo: {str(_e)[:100]}"}
 
     misma_ent = [c for c in comparables if c.get("misma_entidad")]
     n = len(comparables)

@@ -91,7 +91,8 @@ def test_lectura_que_no_es_del_documento_no_da_plazo(monkeypatch):
                                   "bases": {"salida": {"es_bases": False, "plazo_dias": 90, "personal_clave": [{"cargo": "X"}]}}}}
     ind = _mercado_historico_seace(st)["indicadores_servicio"]
     assert ind == {"estado": "sin_dato", "motivo": "sin_bloque_servicio_del_parser",
-                   "comparacion_tarifa_mensual": {"estado": "sin_dato", "motivo": "comparables_sin_plazo_en_bd"}}
+                   "comparacion_tarifa_mensual": {"estado": "sin_dato", "costo_mensual": None,
+                                                  "motivo": "sin_costo_mensual_de_este_contrato"}}
 
 
 def test_el_bloque_del_parser_sigue_valiendo(monkeypatch):

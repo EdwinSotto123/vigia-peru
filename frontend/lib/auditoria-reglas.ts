@@ -52,6 +52,7 @@ const ETIQUETA_REGLA: Record<string, string> = {
   sancion_vigente_oece: "Sanción vigente en el OECE",
   penalidades_oece_historicas: "Penalidades en contratos previos",
   persona_contratada_senales: "Señales de la persona contratada",
+  costo_mensual_salto: "El servicio cuesta más al mes que su contrato anterior",
   supervisor_vinculado_ejecutor: "Supervisor vinculado al contratista",
   supervision_obra_paralizada: "Obra supervisada paralizada",
   supervision_pagado_sin_avance: "Obra pagada sin avance",

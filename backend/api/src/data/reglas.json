@@ -1,6 +1,6 @@
 {
-  "version": "48958c4d",
-  "generado_at": "2026-11-13",
+  "version": "7d8c21db",
+  "generado_at": "2026-11-14",
   "agentes_canonicos": [
     "compliance",
     "document_parser",
@@ -776,6 +776,10 @@
     "sancion_vigente_oece": {
       "etiqueta": "Sanción vigente en el OECE",
       "descripcion": "El ganador tiene una sanción vigente del Tribunal de Contrataciones."
+    },
+    "costo_mensual_salto": {
+      "etiqueta": "El servicio cuesta más al mes que su contrato anterior",
+      "descripcion": "El costo mensual del servicio (monto entre plazo) subió 30 % o más frente al contrato anterior del mismo servicio en la misma entidad. Puede explicarse por más alcance o más personal: hay que comparar los términos de referencia."
     },
     "persona_contratada_senales": {
       "etiqueta": "Señales de la persona contratada",

@@ -254,6 +254,8 @@ export function cadenaCruces(): Refresco[] {
     // Socios de consorcio que compiten y puerta giratoria (migración 278).
     f("refrescar_cruce_consorcio_rival", true),
     f("refrescar_cruce_puerta_giratoria", true),
+    // Costo mensual de cada servicio, para el agente de servicios (migración 280).
+    f("refrescar_servicio_costo_mensual", true),
     // Lo que dicen el acta de buena pro y las consultas leídas con Claude (migraciones 245-246).
     f("refrescar_cruce_acta", true),
     // Quita los cruces que algún JOIN multiplica (migración 120), antes de juntarlos en casos_cruce.

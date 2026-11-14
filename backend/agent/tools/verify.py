@@ -149,6 +149,8 @@ RULE_SLUGS: frozenset[str] = frozenset({
     # Red de consultoría (tools/consultoria.py): la supervisión contra la obra en INFOBRAS.
     "supervisor_vinculado_ejecutor", "supervision_obra_paralizada", "supervision_pagado_sin_avance",
     "supervision_avance_rezagado", "supervision_adicionales_altos", "supervision_costo_atipico",
+    # Servicios: el costo mensual frente al contrato anterior del mismo servicio (tools/market/costo_mensual.py).
+    "costo_mensual_salto",
 })
 
 # Claves del state que son fuente FUERTE (obtenidas de forma determinista: OCDS, SUNAT,
