@@ -634,6 +634,13 @@ async function contarTotal(q: ListaQ): Promise<{ total: number; totalExacto: boo
   }
   const d = driverDe(q);
   const { conds, usaCe } = filtros(q, vals, d.m);
+  // Sólo la entidad, sin más filtros: su total ya está contado en entidad_stats (el mismo universo; EsSalud: 24 750 en
+  // los dos). Era la consulta más cara de la base en un mes: 386 mil llamadas que leían hasta 10 001 filas cada una,
+  // y además decía «10.000+» donde ahora da el número exacto.
+  if (q.entidad && /^\d{11}$/.test(q.entidad) && conds.length === 2 && vals.length === 1 && vals[0] === q.entidad) {
+    const e = await pool.query<{ n: number }>(`SELECT contratos::int AS n FROM entidad_stats WHERE ruc = $1`, [q.entidad]);
+    if (e.rows[0]) return { total: e.rows[0].n, totalExacto: true };
+  }
   const r = await pool.query(
     `SELECT count(*)::int AS n FROM (SELECT 1 FROM ${d.from(usaCe)} WHERE ${conds.join(" AND ")} LIMIT ${TOPE_CONTEO + 1}) x`, vals);
   const n = r.rows[0].n as number;
