@@ -9,7 +9,7 @@ from .pdf_utils import _analyze_pdf_layout, _render_pdf_pages_to_png
 
 
 # ── Texto por página: Document AI o PyMuPDF (+ Gemini Vision para páginas rasterizadas) ──
-def _paginas_pymupdf(pdf: bytes, page_offset: int) -> tuple[list[dict], list[dict]]:
+def _paginas_pymupdf(pdf: bytes, page_offset: int, fin: float | None = None) -> tuple[list[dict], list[dict]]:
     """Fallback sin Document AI: texto extraíble por página; las páginas rasterizadas
     (texto < 300 chars con imagen > 25 % del área) se transcriben con Gemini Vision en
     lotes de ≤ 8 PNGs. Devuelve (paginas, recortes)."""
@@ -32,6 +32,13 @@ def _paginas_pymupdf(pdf: bytes, page_offset: int) -> tuple[list[dict], list[dic
         recortes.append({"donde": "ocr_tope_paginas", "limite": _max,
                          "omitido": f"{len(need) - _max} páginas escaneadas de {len(need)} (desde la {page_offset + need[_max] + 1})"})
         need = need[:_max]
+    import time as _t0
+    if need and fin is not None and fin - _t0.monotonic() < 5:
+        # Se acabó el tiempo de OCR de este DOCUMENTO (`fin` lo comparte con los demás PDF de su ZIP): queda el texto
+        # extraíble y lo demás se dice en `recortes`. No es un OCR fallido (como el tope de páginas).
+        recortes.append({"donde": "ocr_tope_tiempo", "limite": "OCR_DOC_BUDGET_S",
+                         "omitido": f"{len(need)} páginas escaneadas (desde la {page_offset + need[0] + 1})"})
+        need = []
     if need:
         try:
             import concurrent.futures as _cf
@@ -41,6 +48,8 @@ def _paginas_pymupdf(pdf: bytes, page_offset: int) -> tuple[list[dict], list[dic
             _tam = max(1, int(os.getenv("OCR_LOTE", "4")))
             lotes = [rendered[k:k + _tam] for k in range(0, len(rendered), _tam)]
             _fin = _time.monotonic() + float(os.getenv("OCR_BUDGET_S", "150"))
+            if fin is not None:
+                _fin = min(_fin, fin)
             ex = _cf.ThreadPoolExecutor(max_workers=max(1, int(os.getenv("OCR_PARALELO", "3"))))
             try:
                 futs = {ex.submit(_ocr_paginas_gemini, lote): lote for lote in lotes}
@@ -119,7 +128,7 @@ def _ocr_fallido(recortes) -> bool:
     return any(isinstance(r, dict) and r.get("donde") in ("ocr_gemini_vision", "ocr_docai") for r in (recortes or []))
 
 
-def _texto_de_unidades(unidades: list[dict]) -> dict:
+def _texto_de_unidades(unidades: list[dict], fin: float | None = None) -> dict:
     """Todas las unidades → páginas con numeración GLOBAL continua ({n, texto, chars, archivo}),
     texto con marcadores ⟦archivo: …⟧ / ⟦p.N⟧, motor y recortes."""
     from tools.docai import docai_enabled, extract_docai, marcar_paginas
@@ -166,7 +175,7 @@ def _texto_de_unidades(unidades: list[dict]) -> dict:
                 p["archivo"] = nombre
             return res["paginas"], list(res.get("recortes") or []), bool(res.get("truncado")), "docai"
         try:
-            pags, rec = _paginas_pymupdf(pdf, offset)
+            pags, rec = _paginas_pymupdf(pdf, offset, fin)
         except Exception as e:
             return [], [{"donde": f"ocr:{nombre[:80]}", "limite": "pdf_ilegible", "omitido": f"{nombre} ({str(e)[:80]})"}], True, None
         for p in pags:

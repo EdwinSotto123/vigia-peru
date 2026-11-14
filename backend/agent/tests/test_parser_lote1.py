@@ -321,7 +321,7 @@ def test_misma_unidad_pdf_en_dos_documentos_del_lote_se_ocrea_una_vez(monkeypatc
     llamadas = []
     original = D._paginas_pymupdf
 
-    def _contando(blob, offset):
+    def _contando(blob, offset, fin=None):
         llamadas.append(offset)
         return original(blob, offset)
     monkeypatch.setattr(D.ocr_texto, "_paginas_pymupdf", _contando)
@@ -344,7 +344,7 @@ def test_mismo_sha_en_dos_docs_del_lote_usa_cache_en_memoria(monkeypatch):
             {"id": "d2", "url": url2, "gs": None, "tipo": "biddingDocuments", "titulo": "Bases Integradas", "seccion": "tender", "formato": "pdf", "sha256": None}]
     ocr = []
     orig = D._texto_de_unidades
-    monkeypatch.setattr(D.orquestacion, "_texto_de_unidades", lambda u: (ocr.append(1), orig(u))[1])
+    monkeypatch.setattr(D.orquestacion, "_texto_de_unidades", lambda u, fin=None: (ocr.append(1), orig(u, fin))[1])
     monkeypatch.setattr(D.orquestacion, "_extraer_documento", lambda tx, label, bloque, ctx, hint: {"items": [], "resumen": "r", "_usos": [], "_recortes": []})
     monkeypatch.setattr(D.orquestacion, "_sha_por_url_get", lambda ocid, url: None)
     monkeypatch.setattr(D.orquestacion, "_sha_por_url_put", lambda *a, **k: None)

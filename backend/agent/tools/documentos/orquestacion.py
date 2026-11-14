@@ -87,17 +87,42 @@ def _sha_por_url_put(ocid: str | None, url: str | None, sha256: str, doc: dict) 
             pass
 
 
-def _esperar_sha(sha: str) -> bool:
-    """Si otro hilo del MISMO lote ya está procesando este sha (bytes idénticos publicados
-    con dos URLs), espera a que termine y devuelve True (→ leer de caché). Si no, reclama el
-    sha y devuelve False."""
+# Margen tras el plazo del lector (`state["_parse_deadline"]`): una llamada tardía todavía puede leer algo corto.
+_GRACIA_S = 60.0
+
+
+def _restante(state: dict | None) -> float | None:
+    """Segundos que le quedan al lector (plazo + margen), o None si nadie fijó un plazo."""
+    fin = (state or {}).get("_parse_deadline")
+    if not isinstance(fin, (int, float)):
+        return None
+    return fin + _GRACIA_S - time.monotonic()
+
+
+def _fuera_de_plazo(state: dict | None) -> bool:
+    r = _restante(state)
+    return r is not None and r <= 0
+
+
+def _esperar_sha(sha: str, espera: float | None = None) -> bool | None:
+    """Si otro hilo ya está procesando este sha (bytes idénticos publicados con dos URLs, o un hilo de un lote anterior
+    que se quedó sin plazo), espera a que termine y devuelve True (→ leer de caché). Si no, reclama el sha y devuelve
+    False. Devuelve None si la espera se agota y el otro hilo sigue: sin eso, una fase posterior se quedaba hasta 600 s
+    colgada de un hilo huérfano y el análisis entero moría en el límite de la Lambda (2026-11-14, dos contratos)."""
     with _INFLIGHT_LOCK:
         ev = _INFLIGHT.get(sha)
         if ev is None:
             _INFLIGHT[sha] = threading.Event()
             return False
-    ev.wait(timeout=PARSE_OVERALL_TIMEOUT_S)
-    return True
+    tope = float(PARSE_OVERALL_TIMEOUT_S) if espera is None else max(1.0, min(float(PARSE_OVERALL_TIMEOUT_S), espera))
+    return True if ev.wait(timeout=tope) else None
+
+
+def _ocupado(out: dict, label: str) -> dict:
+    out["error"] = "parse timeout"
+    out["recortes"].append({"donde": f"lector:{label[:80]}", "limite": "otro_hilo_sin_terminar",
+                            "omitido": f"{label} (otro hilo todavía lo procesa y se acabó el plazo)"})
+    return out
 
 
 def _liberar_sha(sha: str) -> None:
@@ -124,7 +149,10 @@ def _procesar_doc(doc: dict, state: dict, bloque: str, prioridad: tuple[str, ...
         out["sha256"] = sha
     reclamado: str | None = None
     if sha:
-        if _esperar_sha(sha):
+        _e = _esperar_sha(sha, _restante(state))
+        if _e is None:
+            return _ocupado(out, label)
+        if _e:
             out["cache"]["esperado_en_lote"] = True
         else:
             reclamado = sha
@@ -142,7 +170,10 @@ def _procesar_doc(doc: dict, state: dict, bloque: str, prioridad: tuple[str, ...
                 sha = _sha256_hex(blob)
                 out["sha256"] = sha
                 doc["sha256"] = sha
-                if _esperar_sha(sha):
+                _e = _esperar_sha(sha, _restante(state))
+                if _e is None:
+                    return _ocupado(out, label)
+                if _e:
                     out["cache"]["esperado_en_lote"] = True
                 else:
                     reclamado = sha
@@ -167,7 +198,12 @@ def _procesar_doc_texto(doc, state, bloque, ocds_ctx, out, label, sha, tx, blob,
         if not unidades:
             out["error"] = "sin_contenido_procesable"
             return out
-        tx = _texto_de_unidades(unidades)
+        # Tope de OCR por DOCUMENTO: `OCR_BUDGET_S` es por PDF, y un ZIP con 16 PDF escaneados sumaba 380 s.
+        _fin_ocr = time.monotonic() + float(os.getenv("OCR_DOC_BUDGET_S", "150"))
+        _r = _restante(state)
+        if _r is not None:
+            _fin_ocr = min(_fin_ocr, time.monotonic() + max(0.0, _r - _GRACIA_S))
+        tx = _texto_de_unidades(unidades, _fin_ocr)
         tx["extraccion"] = {}
         out["recortes"].extend(tx.get("recortes") or [])
         out["tiempos"]["ocr_s"] = round(time.monotonic() - t1, 1)
@@ -194,6 +230,12 @@ def _procesar_doc_texto(doc, state, bloque, ocds_ctx, out, label, sha, tx, blob,
             ext = previa
             out["cache"]["extraccion"] = True
             print(f"[lote] extracción en caché · {label[:60]} · {clave}", flush=True)
+    if ext is None and _fuera_de_plazo(state):
+        # El lote ya dio este documento por perdido: seguir sólo gastaría modelo y tiempo que nadie va a leer. El texto
+        # (si hubo OCR) ya quedó en caché para la próxima corrida.
+        out["error"] = "parse timeout"
+        out["recortes"].append({"donde": f"lector:{label[:80]}", "limite": "fuera_de_plazo", "omitido": f"extracción de {label}"})
+        return out
     if ext is None:
         t2 = time.monotonic()
         # La sección del documento (tender/award/contract) decide qué bloques opcionales se piden (schema.py).
