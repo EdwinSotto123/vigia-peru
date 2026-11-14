@@ -544,8 +544,11 @@ def check_postores_vinculados_rnp_rule(ocid: str, tool_context: ToolContext,
     noms = {_norm_razon_cr(o.get("razon_social") or "") for o in ofertas} - {""}
 
     def _oferto(x: dict) -> bool:
-        return (not ofertas or x.get("es_ganador") or bool(x.get("ruc") and x["ruc"] in rucs)
-                or _norm_razon_cr(x.get("razon_social") or "") in noms)
+        # Sin el acta leída no se sabe quién ofertó: sólo el ganador cuenta. Antes, sin ofertas, TODOS los inscritos
+        # pasaban por ofertantes (prueba de oro de servicios, 2026-2000-37: 41 inscritos, 4 pares entre empresas que no
+        # se sabe si compitieron, y el ganador era un consorcio ajeno a todas).
+        return bool(x.get("es_ganador") or (x.get("ruc") and x["ruc"] in rucs)
+                    or _norm_razon_cr(x.get("razon_social") or "") in noms)
     result = {"regla": "postores_vinculados_rnp", "triggered": False, "n_postores_con_socios": len(postores),
               "solo_quienes_ofertaron": bool(ofertas)}
     if len(postores) < 2:
@@ -568,7 +571,8 @@ def check_postores_vinculados_rnp_rule(ocid: str, tool_context: ToolContext,
                                       "persona": sa.get("nombre") or sb.get("nombre")})
                         continue
                     apa, apb = _apellidos(sa.get("nombre")), _apellidos(sb.get("nombre"))
-                    if apa and apb and apa == apb and ambos_ofertaron:
+                    # Dos apellidos iguales: entre quienes ofertaron, o con el ganador cuando no se leyó el acta (1225062).
+                    if apa and apb and apa == apb and (ambos_ofertaron or (con_ganador and not ofertas)):
                         pares.append({"tipo": "dos_apellidos", "postor_a": a["razon_social"], "postor_b": b["razon_social"],
                                       "apellidos": " ".join(apa), "persona_a": sa.get("nombre"), "persona_b": sb.get("nombre")})
     result.update({"estado": "hallado", "n_pares": len(pares), "detalle": pares[:6]})

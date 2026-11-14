@@ -459,6 +459,25 @@ def test_postores_vinculados_rnp_1225062_dos_apellidos_y_dni():
     assert r2["severidad"] == "alta" and r2["detalle"][0]["tipo"] == "mismo_dni"
 
 
+def test_postores_vinculados_sin_acta_no_marca_a_inscritos_que_no_son_el_ganador():
+    """2026-2000-37 (prueba de oro de servicios): 41 inscritos, acta sin leer, el ganador es un consorcio ajeno. Dos
+    inscritos comparten una persona: no se sabe si ofertaron, así que no hay bandera."""
+    st = {"ocds": _ocds(ganador="20519951551", ganador_nombre="CONSORCIO VIGILANCIA"),
+          "person_network_context": {
+              "rnp_proveedor": {"integrantes": [{"ruc": "20519951551", "razon_social": "VIGSER S.A.C."}]},
+              "socios_postores_rivales": [
+                  {"ruc_postor": "20600000011", "razon_social": "MAXIMA SEGURIDAD S.A.C.", "socios": [{"nombre": "ROJAS DIAZ ANA MARIA", "dni": "40000001"}]},
+                  {"ruc_postor": "20600000012", "razon_social": "CORPORACION C&Z S.A.C.", "socios": [{"nombre": "ROJAS DIAZ ANA MARIA", "dni": "40000001"}]}]}}
+    r = cr.check_postores_vinculados_rnp_rule(OCID, _Ctx(st))
+    assert r["triggered"] is False and r["n_pares"] == 0
+    # Con el acta leída y las dos ofertando, sí.
+    st["parser_raw_consolidated"] = {"postores": [
+        {"ruc": "20600000011", "razon_social": "MAXIMA SEGURIDAD S.A.C.", "monto_oferta": 100.0},
+        {"ruc": "20600000012", "razon_social": "CORPORACION C&Z S.A.C.", "monto_oferta": 110.0}]}
+    r2 = cr.check_postores_vinculados_rnp_rule(OCID, _Ctx(st))
+    assert r2["triggered"] is True and r2["severidad"] == "alta"
+
+
 def test_oferta_mas_barata_no_gana_1225090():
     st = {"ocds": _ocds(ref=702000.0, awards=(649800.0,), ganador="20501887286", ganador_nombre="DIAGNOSTICA PERUANA S.A.C.",
                         metodo="Licitación Pública"),
