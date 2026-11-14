@@ -296,7 +296,10 @@ async def run_agent_isolated(agent, msg_text: str, base_state: dict, output_key:
     trabajo = copy.deepcopy(base_state)
     evs, texto, _salida, m = await _correr(agent, msg_text, trabajo)
     delta = {output_key: trabajo[output_key]} if output_key in trabajo else {}
-    if not delta:
+    con_salida = bool(delta)
+    if isinstance(trabajo.get("grounding_urls"), list):
+        delta["grounding_urls"] = list(trabajo["grounding_urls"])   # acumulador: el driver lo une, no lo pisa
+    if not con_salida:
         evs.append({"agent": getattr(agent, "name", "agent"), "kind": "warn",
                     "detail": f"merge: output_key '{output_key}' ausente en el sub-agente — sección pudo perderse"})
     return evs, texto, delta, m

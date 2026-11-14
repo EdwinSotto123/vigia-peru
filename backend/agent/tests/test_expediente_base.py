@@ -182,7 +182,7 @@ def test_consorcio_junta_a_sus_integrantes(monkeypatch):
     assert any("Integrante PEREZ ••• JUAN" in s["evidencia"] for s in r["senales"])
     assert "PEREZ QUISPE JUAN" in ctx.state["_nombres_tapar"]
     md = E.ficha_md(exp)
-    assert "del CONSORCIO MATIBAMBA, con 2 integrante(s)" in md and "**PEREZ ••• JUAN** (RUC 10123456789)" in md
+    assert "del CONSORCIO MATIBAMBA, con 2 integrante(s)" in md and "**PEREZ ••• JUAN**" in md and "10123456789" not in md
 
 
 

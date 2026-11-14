@@ -175,11 +175,18 @@ def mensaje_juicio(pc) -> str:
     exige citar el monto) y las reglas deterministas que dispararon, en forma compacta."""
     ocds = pc.state.get("ocds") or pc.state.get("ocds_preloaded") or {}
     awards = [a for a in (ocds.get("awards") or []) if isinstance(a, dict)] if isinstance(ocds, dict) else []
-    ganadores = [{"proveedor": s.get("name"), "id": s.get("id"), "monto": (a.get("value") or {}).get("amount"),
+    from tools.privacidad import es_persona_natural, tapar_nombre
+    from tools.verify import sin_datos_personales
+
+    def _natural(s):
+        return es_persona_natural("".join(ch for ch in str(s.get("id") or "") if ch.isdigit()))
+
+    ganadores = [{"proveedor": tapar_nombre(s.get("name")) if _natural(s) else s.get("name"),
+                  "id": "persona natural" if _natural(s) else s.get("id"), "monto": (a.get("value") or {}).get("amount"),
                   "moneda": (a.get("value") or {}).get("currency")}
                  for a in awards[:5] for s in (a.get("suppliers") or []) if isinstance(s, dict)]
     disparadas = [{"regla": b.get("regla"), "severidad": b.get("severidad"),
-                   "evidencia": str(b.get("evidencia") or "")[:200]}
+                   "evidencia": sin_datos_personales(str(b.get("evidencia") or ""))[:200]}
                   for b in (pc.state.get("pending_flags") or []) if isinstance(b, dict)][:30]
     return (f"OCID {pc.ocid}. Las 12 reglas deterministas ya corrieron en código.\n"
             f"ADJUDICACIÓN (OCDS): {json.dumps(ganadores, ensure_ascii=False, default=str)}\n"

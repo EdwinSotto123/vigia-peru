@@ -157,8 +157,11 @@ def _montos_ocds(ocds: dict) -> dict:
     tender = ocds.get("tender") or {}
 
     def _amt(node):
+        # En soles: un contrato en dólares trae `amount_PEN` (1226915 comparaba USD 15 387 contra precios en soles).
+        val = (node or {}).get("value") or {}
         try:
-            v = float(((node or {}).get("value") or {}).get("amount") or 0)
+            en_soles = val.get("amount_PEN") if str(val.get("currency") or "PEN").upper() != "PEN" else None
+            v = float(en_soles or val.get("amount") or 0)
         except (TypeError, ValueError):
             v = 0.0
         return v if v > 0 else None
@@ -208,7 +211,22 @@ def _norm_razon_cr(s: str) -> str:
 def _sin_oferta(estado) -> bool:
     """`participante_sin_oferta`, "no presentó oferta", "sin propuesta"…: registrado sin ofertar."""
     e = " ".join(_sin_tildes(str(estado or "")).lower().replace("_", " ").replace("-", " ").split())
-    return any(k in e for k in ("sin oferta", "no presento", "no oferto", "sin propuesta", "solo registro", "registrado sin"))
+    return any(k in e for k in ("sin oferta", "no presento", "no oferto", "sin propuesta", "solo registro", "registrado sin",
+                                "integrante consorcio", "integrante del consorcio", "consorciado"))
+
+
+def _sin_repetidos(postores: list[dict]) -> list[dict]:
+    """El mismo postor leído en dos documentos (a veces con otro RUC, el del consorcio) es UN postor."""
+    vistos: set[str] = set()
+    out = []
+    for p in postores:
+        nombre = " ".join(_sin_tildes(str(p.get("razon_social") or p.get("nombre") or "")).upper().replace(".", "").split())
+        if nombre and nombre in vistos:
+            continue
+        if nombre:
+            vistos.add(nombre)
+        out.append(p)
+    return out
 
 
 _RE_FUERA = re.compile(r"descalific|rechaz|no\s+admit|inadmit|no\s+cumpl|no\s+alcanz|puntaje\s+t[eé]cnico\s+m[ií]nimo|"
@@ -282,7 +300,7 @@ def n_participantes_parser(state: dict) -> tuple[int, int] | None:
     da = _safe_parse_json((state or {}).get("document_analysis")) or {}
     base = next((f for f in (raw.get("postores"), raw.get("postores_consolidados"), da.get("postores_extraidos"),
                              da.get("postores_consolidados")) if isinstance(f, list) and f), [])
-    base = [p for p in base if isinstance(p, dict)]
+    base = _sin_repetidos([p for p in base if isinstance(p, dict)])
     if not base or not any(p.get("estado") or p.get("estado_oferta") for p in base):
         return None
     sin = sum(1 for p in base if _sin_oferta(p.get("estado") or p.get("estado_oferta")))
@@ -300,7 +318,7 @@ def _postores_parser(state: dict) -> list[dict]:
     raw = (state or {}).get("parser_raw_consolidated") or {}
     da = _safe_parse_json((state or {}).get("document_analysis")) or {}
     fuentes = [raw.get("postores"), raw.get("postores_consolidados"), da.get("postores_extraidos")]
-    base = next((f for f in fuentes if isinstance(f, list) and f), [])
+    base = _sin_repetidos([p for p in next((f for f in fuentes if isinstance(f, list) and f), []) if isinstance(p, dict)])
     out: list[dict] = []
     for p in base:
         if not isinstance(p, dict):

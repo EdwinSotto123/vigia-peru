@@ -306,6 +306,36 @@ def _perfil_persona(ruc: str, exp: dict) -> dict:
             "_source": "base_vigia"}
 
 
+def resumen_para_agentes(exp: dict) -> dict:
+    """El expediente en corto, para inyectarlo a los agentes que investigan: lo que YA se sabe por registros."""
+    if not exp:
+        return {}
+    if exp.get("consorcio"):
+        return {"consorcio": exp.get("nombre"), "fuente": "base de Vigía",
+                "integrantes": [{"nombre": e.get("nombre"), "ruc": None if e.get("persona_natural") else e.get("ruc"),
+                                 **resumen_para_agentes({**e, "consorcio": False})} for e in exp.get("integrantes") or []]}
+    h, pen, s = exp.get("historial") or {}, exp.get("penalidades") or {}, exp.get("sunat") or {}
+    out = {
+        "fuente": "base de Vigía (padrón SUNAT, RNP, OECE, CONOSCE)",
+        "persona_natural": bool(exp.get("persona_natural")),
+        "sunat": {k: s.get(k) for k in ("estado", "condicion", "fecha_inicio_efectiva", "actividad") if s.get(k)},
+        "rnp": [f"{r.get('rol')}: {r.get('nombre')}" for r in (exp.get("rnp") or [])[:8]],
+        "sanciones_oece": len(exp.get("sanciones") or []),
+        "penalidades": {"n": pen.get("n") or 0, "monto": pen.get("monto")},
+        "contratos_con_el_estado": {"procesos": h.get("procesos") or 0, "monto": h.get("monto"), "entidades": h.get("entidades"),
+                                    "primera": h.get("primera"), "ultima": h.get("ultima"),
+                                    "con_esta_entidad": h.get("con_esta_entidad"),
+                                    "principales_entidades": [e.get("entidad") for e in (h.get("principales_entidades") or [])[:3]]},
+        "banderas_previas": [f"{b.get('tipo')} ({b.get('severidad')}, {b.get('n')})" for b in (exp.get("banderas") or [])[:8]],
+    }
+    p = exp.get("persona")
+    if p:
+        out["ordenes_con_el_estado"] = {k: p.get(k) for k in ("ordenes", "monto", "entidades", "primera", "ultima", "con_esta_entidad")}
+        out["senales_de_la_persona"] = [s_["que"] + (" (con esta entidad)" if s_.get("con_esta_entidad") else "")
+                                        for s_ in (p.get("senales") or [])[:8]]
+    return out
+
+
 def _sancion_oece(s: dict, fecha_ref: date | None) -> dict:
     """Una fila de `osce_sancionados` con las claves del OECE, juzgada a la fecha de la buena pro (no a hoy: el `estado`
     del registro es el de hoy). Una sanción que empezó después no cuenta; una definitiva rige desde que empieza."""
@@ -382,6 +412,7 @@ def query_expediente_proveedor(ruc: str, tool_context: ToolContext, entidad_ruc:
         crudos.append(exp["sunat"]["razon_social"])
     state["_nombres_tapar"] = sorted({*state.get("_nombres_tapar", []), *crudos})
     state["expediente_proveedor"] = exp
+    state["expediente_resumen"] = resumen_para_agentes(exp)
     # Sólo cuenta como «en el padrón» si trae el estado o la fecha de inicio (una fila de `empresas` vacía, sólo con el
     # RNP, no es un perfil). Lo que no está en la base no se busca afuera: una persona natural lleva su propio perfil.
     s_ = exp.get("sunat") or {}
@@ -446,11 +477,26 @@ def _expediente_consorcio(codigo: str, tool_context: ToolContext, entidad_ruc: s
         if s_.get("estado") or s_.get("fecha_inicio_actividades"):
             state.setdefault("sunat_profiles", {})[m["ruc"]] = _perfil_sunat(m["ruc"], e)
         for sn in _perfil_oece(m["ruc"], e, state)["senales"]:
-            senales.append({**sn, "evidencia": f"Integrante {e['nombre']} (RUC {m['ruc']}): {sn.get('evidencia', '')}"[:600]})
+            _id = "" if es_persona_natural(m["ruc"]) else f" (RUC {m['ruc']})"
+            senales.append({**sn, "evidencia": f"Integrante {e['nombre']}{_id}: {sn.get('evidencia', '')}"[:600]})
     exp = {"ruc": codigo, "consorcio": True, "nombre": miembros[0].get("consorcio"), "persona_natural": False,
            "fuente": "base de Vigía", "integrantes": integrantes}
     state["_nombres_tapar"] = sorted({*state.get("_nombres_tapar", []), *[c for c in crudos if c]})
     state["expediente_proveedor"] = exp
+    state["expediente_resumen"] = resumen_para_agentes(exp)
+    # El perfil del consorcio es el de sus integrantes: sin esto, el «perfil SUNAT» que recibían los agentes era un
+    # aviso de «RUC sin formato peruano, proveedor no domiciliado» (47 de 105 contratos; 2 dictámenes lo publicaron).
+    state["sunat_decolecta"] = {
+        "consorcio": True, "nombre": exp.get("nombre"), "_source": "padron_sunat_vigia",
+        "nota": "El ganador es un consorcio: no tiene RUC propio. Su perfil es el de cada integrante. No es un proveedor "
+                "no domiciliado.",
+        "integrantes": [({**_perfil_sunat(m["ruc"], e), "razon_social": e.get("nombre")}
+                         if (e.get("sunat") or {}).get("estado") or (e.get("sunat") or {}).get("fecha_inicio_actividades")
+                         else {"nombre": e.get("nombre"), "tipo": "PERSONA NATURAL" if e.get("persona_natural") else None})
+                        for m, e in zip(miembros, integrantes)]}
+    for it in state["sunat_decolecta"]["integrantes"]:
+        if str(it.get("ruc") or "").startswith("10"):
+            it.pop("ruc", None)
     state.setdefault("oece_perfiles", {})[codigo] = {"ruc": codigo, "senales": senales, "_source": "osce_sancionados_vigia",
                                                      "n_sanciones": sum(len(e.get("sanciones") or []) for e in integrantes)}
     return {"ruc": codigo, "consorcio": True, "integrantes": len(integrantes), "sunat_en_base": False,
@@ -476,7 +522,8 @@ def ficha_md(exp: dict | None) -> str:
                   f"{exp.get('nombre') or 'consorcio'}, con {len(exp.get('integrantes') or [])} integrante(s):", ""]
         for e in exp.get("integrantes") or []:
             cuerpo = ficha_md({**e, "consorcio": False}).split("\n")[2:]  # sin su propio título
-            partes.append(f"**{e.get('nombre') or 'Integrante'}** (RUC {e.get('ruc')})")
+            partes.append(f"**{e.get('nombre') or 'Integrante'}**"
+                          + ("" if e.get("persona_natural") or es_persona_natural(e.get("ruc")) else f" (RUC {e.get('ruc')})"))
             partes += [ln for ln in cuerpo if ln.strip()] + [""]
         return "\n".join(partes)
     lineas = ["**Lo que dicen los registros** (base de Vigía: padrón SUNAT, RNP, OECE y CONOSCE)", ""]

@@ -320,7 +320,7 @@ def persist_analysis_outputs(alerta_codigo: str, tool_context: ToolContext) -> d
                      updated_at=NOW()
                    RETURNING id""",
                 (raw_codigo, ocid, ent_ruc, prov_ruc, monto_adj, monto_ref, fbp, region,
-                 (objeto or "")[:500], ocid.split("-")[-1],
+                 (objeto or "")[:500], _short_ocid(ocid),
                  proceso_oece(ocid)),
             )
             state["montos_alerta"] = {"monto_adjudicado": monto_adj, "monto_referencial": monto_ref, "fuente": _fuente_monto}
@@ -439,7 +439,7 @@ def persist_analysis_outputs(alerta_codigo: str, tool_context: ToolContext) -> d
         cur.execute(
             """UPDATE alertas
                   SET analisis_full = %s::jsonb,
-                      dictamen_markdown = %s,
+                      dictamen_markdown = COALESCE(NULLIF(%s, ''), dictamen_markdown),
                       analizado_en = NOW(),
                       updated_at = NOW()
                 WHERE codigo = %s""",

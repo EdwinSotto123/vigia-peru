@@ -236,10 +236,21 @@ def _llamar(mensajes: list[dict], tope: int, config, intentos: int = 3) -> tuple
         headers["x-vigia-respaldo"] = "nunca"
     espera = 2.0
     for i in range(intentos):
-        r = requests.post(_url(), headers=headers, json=cuerpo, timeout=float(os.getenv("LLM_COMPAT_TIMEOUT_S", "180")))
+        try:
+            r = requests.post(_url(), headers=headers, json=cuerpo, timeout=float(os.getenv("LLM_COMPAT_TIMEOUT_S", "180")))
+        except requests.RequestException as e:
+            if i == intentos - 1:
+                raise RuntimeError(f"LLM compatible sin conexión: {type(e).__name__}") from e
+            time.sleep(espera + random.uniform(0, 1))
+            espera *= 2
+            continue
         if r.status_code < 400:
             d = r.json()
             msg = ((d.get("choices") or [{}])[0]).get("message") or {}
+            if not (msg.get("content") or "").strip() and not msg.get("tool_calls") and i < intentos - 1:
+                time.sleep(espera + random.uniform(0, 1))   # 200 con el contenido vacío: se reintenta
+                espera *= 2
+                continue
             return (msg.get("content") or ""), d
         if r.status_code == 400 and "temperature" in cuerpo and "temperature" in r.text:
             _SIN_TEMPERATURA.add(modelo())

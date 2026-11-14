@@ -259,6 +259,8 @@ async def _run_agent_isolated(agent, msg_text: str, base_state: dict, output_key
     delta: dict = {}
     try:
         sess = await session_service.get_session(app_name=APP_NAME, user_id=user_id, session_id=sid)
+        if sess and sess.state and isinstance(sess.state.get("grounding_urls"), list):
+            delta["grounding_urls"] = list(sess.state["grounding_urls"])   # acumulador: el driver lo une, no lo pisa
         if sess and sess.state and output_key in sess.state:
             delta[output_key] = sess.state[output_key]
         else:

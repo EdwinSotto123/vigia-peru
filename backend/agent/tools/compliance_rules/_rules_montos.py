@@ -380,8 +380,19 @@ def check_fraccionamiento_rule(ocid: str, tool_context: ToolContext,
         entidad_ruc, objeto, fecha, cuantia, tipo = row
         prov_ruc, prov_nombre = _ganador_ruc(ocid, state, cur)
         if not prov_ruc:
+            # Un consorcio: su código del SEACE es el `proveedor_ruc` de sus otros procesos con la entidad.
+            _o = state.get("ocds") or state.get("ocds_preloaded") or {}
+            for _a in (_o.get("awards") or []):
+                for _s in (_a.get("suppliers") or []):
+                    _d = "".join(ch for ch in str(_s.get("id") or "") if ch.isdigit())
+                    if _d and not prov_ruc:
+                        prov_ruc, prov_nombre = _d, _s.get("name")
+        if not prov_ruc:
             return {"regla": "fraccionamiento", "triggered": False, "estado": "sin_dato",
                     "motivo": "sin proveedor adjudicado identificable"}
+        if len(str(prov_ruc)) == 11 and str(prov_ruc).startswith("10"):
+            from tools.privacidad import tapar_nombre
+            prov_nombre = tapar_nombre(prov_nombre)
         cur.execute(
             """SELECT DISTINCT c.ocid, c.objeto, c.fecha_convocatoria, c.cuantia_referencial, c.tipo_proceso
                  FROM convocatorias c

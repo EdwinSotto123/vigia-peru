@@ -63,6 +63,28 @@ _JERGA = (
     (re.compile(r"(?:\b(?:el|un)\s+)?(?:\berror\s+)?\bHTTP\s[45]\d{2}\b", re.I), "un error de la fuente"),
     (re.compile(r"\b(?:parse\s+)?time[- ]?out\b", re.I), "tiempo de espera agotado"),
     (re.compile(r"\s*\(decolecta\)|\bdecolecta\b", re.I), lambda m: "" if m.group(0).lstrip().startswith("(") else "el servicio de consulta"),
+    (re.compile(r"\s*\((?:porque\s+)?el modelo compatible no lee im[aá]genes\)", re.I), ""),
+    (re.compile(r"el modelo compatible no lee im[aá]genes", re.I), "las páginas escaneadas no se pudieron leer"),
+    (re.compile(r"\bp[aá]ginas rasterizadas\b", re.I), "páginas escaneadas"),
+    (re.compile(r"\brasterizad(a|o)(s?)\b", re.I), lambda m: f"escanead{m.group(1)}{m.group(2)}"),
+    (re.compile(r"\bpersistid(a|o)(s?)\s+en\s+(?:la\s+)?base\s+de\s+datos\b", re.I), lambda m: f"registrad{m.group(1)}{m.group(2)}"),
+    (re.compile(r"\bpersistid(a|o)(s?)\b", re.I), lambda m: f"registrad{m.group(1)}{m.group(2)}"),
+    (re.compile(r"\b(reglas?|banderas?|cotejos?|verificaci[oó]n(?:es)?|c[aá]lculos?)\s+determinista(s?)\b", re.I),
+     lambda m: f"{m.group(1)} automátic{'a' if m.group(1).lower()[:1] in 'rbv' else 'o'}{m.group(2)}"),
+    (re.compile(r"\b(?:del|de|por|v[ií]a)\s+grounding\b", re.I), "de la búsqueda web"),
+    (re.compile(r"\bgrounding\b", re.I), "búsqueda web"),
+    (re.compile(r"\b(en|de|durante)\s+esta\s+corrida\b", re.I), lambda m: f"{m.group(1)} este análisis"),
+    (re.compile(r"`?\bsin_dato\b`?"), "sin dato"),
+    (re.compile(r"`?\bno_verificable\b`?"), "no verificable"),
+    (re.compile(r"`?\bmarket_analysis\b`?"), "el análisis de mercado"),
+    (re.compile(r"`?\bweb_research\b`?"), "la investigación web"),
+    (re.compile(r"`?\bnews_research\b`?"), "la revisión de prensa"),
+    (re.compile(r"`?\bperson_network\b`?"), "la red de personas"),
+    (re.compile(r"`?\blegal_analysis\b`?"), "el análisis legal"),
+    (re.compile(r"`?\bdocument_analysis\b`?"), "la lectura de documentos"),
+    (re.compile(r"`?\bentity_personnel\b`?"), "los funcionarios de la entidad"),
+    (re.compile(r"`?\bexpediente_proveedor\b`?"), "el expediente del proveedor"),
+    (re.compile(r"`?\bcompliance_result\b`?"), "las reglas automáticas"),
 )
 
 
@@ -614,6 +636,8 @@ def verificar_bandera(flag: dict, state: dict) -> dict:
             motivos.append(f"monto:{raw}:documentos_texto")
         elif _monto_en(_topes_legales(flag), cands):
             motivos.append(f"monto:{raw}:tope_legal")
+        elif _monto_en(_numeros_de_la_regla(flag), cands):
+            motivos.append(f"monto:{raw}:calculo_de_la_regla")
         else:
             ok = False
             motivos.append(f"monto:{raw}:no_respaldado")
@@ -643,6 +667,7 @@ def verificar_bandera(flag: dict, state: dict) -> dict:
 
     if n_checks == 0:
         motivos.append("sin_identificadores_verificables")
+    motivos = [re.sub(r"^dni:\d{8}:", "dni:reservado:", re.sub(r"^ruc:10\d{9}:", "ruc:persona_natural:", m)) for m in motivos]
     res = {"ok": ok, "motivos": motivos, "n_checks": n_checks}
     flag["verificacion"] = res
     return res
@@ -673,6 +698,39 @@ def _banderas_persistidas(state: dict) -> list[dict]:
         return en_state
 
 
+def _numeros_de_la_regla(flag: dict) -> set:
+    """Los números que una regla de CÓDIGO dejó en sus propios campos (sumas, cuantías de los procesos que cruzó). Una
+    bandera escrita por un modelo no trae estos campos: para ella no cambia nada."""
+    out: set = set()
+
+    def _rec(v, prof=0):
+        if isinstance(v, bool) or prof > 4:
+            return
+        if isinstance(v, (int, float)):
+            out.add(round(float(v), 2))
+        elif isinstance(v, dict):
+            for k, x in v.items():
+                if k not in ("evidencia", "norma", "fuente_url", "regla", "severidad"):
+                    _rec(x, prof + 1)
+        elif isinstance(v, list):
+            for x in v[:60]:
+                _rec(x, prof + 1)
+
+    if isinstance(flag, dict) and not str(flag.get("_source") or "").startswith("orchestrator"):
+        _rec(flag)
+    return out
+
+
+_NO_DISPARO = re.compile(r"no\s+(?:se\s+)?(?:dispar|activ|emit|configur)|sin\s+disparar|no\s+aplica|no\s+corresponde|"
+                         r"no\s+se\s+detect|descartad", re.I)
+
+
+def _solo_negada(md: str, slug: str) -> bool:
+    """¿Todas las menciones de la regla dicen que NO disparó? Eso informa, no inventa una bandera."""
+    lineas = [ln for ln in md.splitlines() if slug in ln.lower()]
+    return bool(lineas) and all(_NO_DISPARO.search(ln) for ln in lineas)
+
+
 def verificar_dictamen(md: str, state: dict) -> dict:
     """Valida en código que el dictamen no cite banderas inexistentes ni URLs que
     ningún output respalde. Devuelve {banderas_no_existentes, urls_no_respaldadas,
@@ -682,7 +740,7 @@ def verificar_dictamen(md: str, state: dict) -> dict:
     persistidas = _banderas_persistidas(state)
     slugs_ok = {str(b.get("regla")) for b in persistidas if b.get("regla")}
     citadas = sorted({t for t in _SLUG_RE.findall(md.lower()) if t in RULE_SLUGS})
-    banderas_no_existentes = [t for t in citadas if t not in slugs_ok]
+    banderas_no_existentes = [t for t in citadas if t not in slugs_ok and not _solo_negada(md, t)]
 
     # URLs: respaldadas si están en grounding, en algún output del state o son oficiales.
     todo = _Fuentes()

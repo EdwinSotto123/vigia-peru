@@ -31,6 +31,7 @@ USES_TODAY_HEADER = False
 # Las 12 reglas leen state directamente vía tool_context; estas 2 son juicio del LLM
 # sobre datos que debe VER en el prompt.
 STATE_INJECTIONS = [
+    ('expediente_resumen', 'TRAYECTORIA DEL GANADOR SEGÚN REGISTROS (base de Vigía): contratos con el Estado, con esta entidad, sanciones, penalidades y RNP. Manda sobre lo que diga la investigación web'),
     ('sunat_decolecta', 'PERFIL SUNAT DEL GANADOR (base de Vigía) — tipo de contribuyente '
      '(persona natural si el RUC empieza en 10, jurídica si empieza en 20), CIIU/actividad, '
      'antigüedad y estado del RUC'),

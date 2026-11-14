@@ -100,6 +100,7 @@ def _ndjson_con_latidos(fuente, latido_s: float | None = None):
         asyncio.run(_async())
 
     threading.Thread(target=_worker, daemon=True).start()
+    _t0_flujo = _time.time()
     while True:
         try:
             ev = q.get(timeout=espera) if espera and espera > 0 else q.get()
@@ -109,6 +110,8 @@ def _ndjson_con_latidos(fuente, latido_s: float | None = None):
         if ev is fin:
             break
         try:
+            if isinstance(ev, dict) and "t" not in ev:
+                ev["t"] = round(_time.time() - _t0_flujo, 1)
             yield json.dumps(ev, ensure_ascii=False, default=str) + "\n"
         except Exception as ex:  # noqa: BLE001
             yield json.dumps({"kind": "error", "detail": str(ex)[:200]}) + "\n"

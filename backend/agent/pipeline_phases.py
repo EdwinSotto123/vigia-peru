@@ -479,8 +479,10 @@ async def fase_research(pc: PipelineCtx):
         try:
             from tools.prensa import precargar
             from tools.compliance_rules._rules_network import _firmantes_del_ganador
+            from tools.privacidad import es_persona_natural as _es_natural
             personas = sorted(_firmantes_del_ganador(pc.state))[:2]
-            pre = await asyncio.to_thread(precargar, razon, entidad.get("nombre", ""), personas)
+            # A una persona natural no se la busca por su nombre en un buscador externo: sólo la entidad.
+            pre = await asyncio.to_thread(precargar, "" if _es_natural(ruc) else razon, entidad.get("nombre", ""), personas)
             pc.state["prensa_precargada"] = pre
             from tools.busqueda import _publicar
             _publicar(pc.state, [{"url": n["url"]} for n in pre["leidas"] if n.get("url")])
@@ -499,6 +501,14 @@ async def fase_research(pc: PipelineCtx):
     else:
         _quien = f"la empresa con RUC {ruc} y razón social {razon}"
         _quien_prensa = f"proveedor '{razon}' (RUC {ruc})"
+    from tools.privacidad import es_persona_natural as _es_natural, tapar_nombre as _tapar_nombre
+    _ganador_natural = _es_natural(ruc)
+    if _ganador_natural and not _integrantes:
+        # Persona natural: ni su nombre completo ni su RUC salen a un buscador ni al modelo.
+        razon = _tapar_nombre(razon) or "persona natural"
+        _quien = ("al proveedor, que es una PERSONA NATURAL. Por privacidad NO la busques por nombre ni por RUC en la "
+                  "web: usa sólo lo que ya viene de la base de Vigía y, si buscas, que sea sobre la entidad y el objeto")
+        _quien_prensa = "proveedor persona natural (no se busca por nombre)"
     # Mensajes de los 3 agentes de investigación INDEPENDIENTES (empresa · prensa · funcionarios).
     if pc.state.get("expediente_proveedor"):
         # El expediente de la base ya trae SUNAT, RNP, sanciones, penalidades, historial del CONOSCE y banderas: la web
@@ -518,7 +528,7 @@ async def fase_research(pc: PipelineCtx):
     _entity_msg = (f"Investiga la estructura administrativa de '{entidad.get('nombre','')}' "
                    f"(RUC {entidad.get('ruc','')}) en la región {entidad.get('region','')}. Devuelve los "
                    f"funcionarios designados (gerentes, procurador, jefe OCI, etc.) con su acto resolutivo.")
-    _web_stub = {"empresa": {"ruc": ruc, "razon_social": razon}, "hallazgos": [],
+    _web_stub = {"empresa": {"ruc": None if _ganador_natural else ruc, "razon_social": razon}, "hallazgos": [],
                  "sin_hallazgos_relevantes": True, "_note": "web_research sin hallazgos tras reintento"}
     _entity_stub = {"funcionarios_designados": [], "sin_data_publica": True,
                     "_note": "entity_personnel sin directorio público tras reintento"}
@@ -578,7 +588,7 @@ async def fase_research(pc: PipelineCtx):
                 yield {"kind": "error", "agent": nm, "detail": f"parallel run: {str(res)[:200]}"}
                 continue
             evs_a, _ft, delta_a, lm_a = res
-            pc.state.update(delta_a)             # SOLO el output_key del agente (merge seguro)
+            _aplicar_delta(pc.state, delta_a)    # el output_key del agente y las URL que encontró (acumulador)
             for e in evs_a:
                 yield e
             # Suma tokens/costo de este sub-run al global (lo hace el driver, en el event loop).
@@ -899,8 +909,9 @@ async def fase_dictamen(pc: PipelineCtx):
             _nombres = list(pc.state.get("_nombres_tapar") or [])
             if es_persona_natural(pc.ctx.get("ruc")) and pc.ctx.get("razon"):
                 _nombres.append(pc.ctx["razon"])
+            from tools.verify import sin_datos_personales
             _md = insertar_ficha(pc.state["final_dictamen"], pc.state.get("expediente_proveedor"))
-            pc.state["final_dictamen"] = tapar_en_texto(_md, _nombres)
+            pc.state["final_dictamen"] = tapar_en_texto(sin_datos_personales(_md), _nombres)
         except Exception as e:  # noqa: BLE001
             yield {"kind": "warn", "name": "report_writer", "msg": f"ficha del proveedor: {str(e)[:160]}"}
 

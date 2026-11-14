@@ -87,7 +87,7 @@ _RE_N_DE_M_FUERA = _re.compile(r"(\d+)\s+de\s+(?:las\s+|los\s+)?(\d+)\s+(?:ofert
 # «Sin comité de selección identificado»: con la Ley 32069 el oficial de compra o los evaluadores conducen varios
 # procedimientos, y el expediente que se lee no siempre trae la designación (falsa alarma en la prueba de oro).
 _RE_COMITE = _re.compile(r"comit[eé]\s+de\s+selecci[oó]n|\bcomit[eé]\b", _re.I)
-_RE_AUSENTE = _re.compile(r"(sin|ausencia\s+de(l)?)\s+(un\s+)?comit|no\s+se\s+(identific|design|acredit|encontr)\w*\s+(el\s+|un\s+|ning[uú]n\s+|al\s+)?(comit|evaluador)|comit[eé]\s+de\s+selecci[oó]n\s+(no\s+)?(identificad|designad)", _re.I)
+_RE_AUSENTE = _re.compile(r"(sin|ausencia\s+de(l)?)\s+(un\s+)?comit|no\s+se\s+(identific|design|acredit|encontr|registr)\w*\s+(el\s+|un\s+|ning[uú]n\s+|al\s+)?(comit|evaluador)|no\s+(registra|figura|consta|identifica)\s+(el\s+|un\s+|ning[uú]n\s+)?(comit|evaluador)|comit[eé]\s+de\s+selecci[oó]n\s+(no\s+)?(identificad|designad)", _re.I)
 # La vigencia de una carta fianza o garantía (vence antes de la conformidad): se renueva en la ejecución.
 _RE_FIANZA = _re.compile(r"carta\s+fianza|garant[ií]a\s+de\s+fiel", _re.I)
 _RE_VIGENCIA = _re.compile(r"\bvence|vencimiento|vigencia|renov", _re.I)
@@ -176,7 +176,7 @@ def _competencia_efectiva(state: dict) -> int:
 
 
 # Errores materiales: fechas, cronograma o transcripción que no cambian quién compite (regla 7 del prompt; 6).
-_RE_ERROR_MATERIAL = _re.compile(r"^\W*incoherencia|error\s+(de\s+)?transcripci|error\s+material|podr[ií]a\s+ser\s+un\s+error", _re.I)
+_RE_ERROR_MATERIAL = _re.compile(r"error\s+(de\s+)?transcripci|error\s+material|podr[ií]a\s+ser\s+un\s+error", _re.I)
 
 
 def depurar_banderas_legales(state: dict) -> list[dict]:

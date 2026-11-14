@@ -186,7 +186,8 @@ def _fanout_goods_retail(items: list, objeto: str, state: dict, contexto: str = 
     lotes = [items[i:i + MARKET_CHUNK_SIZE] for i in range(0, len(items), MARKET_CHUNK_SIZE)]
     precios, comentarios, sin_precios, chunks = [], {}, set(), []
     errores = 0
-    with concurrent.futures.ThreadPoolExecutor(max_workers=MARKET_MAX_WORKERS) as ex:
+    ex = concurrent.futures.ThreadPoolExecutor(max_workers=MARKET_MAX_WORKERS)
+    try:
         futs = [ex.submit(_worker_goods_retail, ch, objeto, i, contexto) for i, ch in enumerate(lotes)]
         try:
             for fut in concurrent.futures.as_completed(futs, timeout=MARKET_TIMEOUT_S):
@@ -208,6 +209,8 @@ def _fanout_goods_retail(items: list, objeto: str, state: dict, contexto: str = 
             _registrar_recorte(state, "market.goods_retail.fanout_timeout", MARKET_TIMEOUT_S, pend)
             for f in futs:
                 f.cancel()
+    finally:
+        ex.shutdown(wait=False, cancel_futures=True)   # no esperar a un hilo colgado
     if errores:
         _registrar_recorte(state, "market.goods_retail.workers_con_error", len(lotes), errores)
     return precios, comentarios, sin_precios, chunks, len(lotes)

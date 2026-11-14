@@ -201,6 +201,8 @@ tarea:masivo-agentes:
 # hay que rehacer la base (Dockerfile.lambda) y subir AGENTE_BASE.
 .aws_agentes: &aws_agentes
   stage: deploy
+  # El registro público de AWS a veces responde «toomanyrequests» al bajar la imagen del job: se reintenta solo.
+  retry: { max: 2, when: [runner_system_failure, stuck_or_timeout_failure, unknown_failure] }
   image: { name: "public.ecr.aws/aws-cli/aws-cli:2.17.43", entrypoint: [""] }
   id_tokens:
     AWS_ID_TOKEN:

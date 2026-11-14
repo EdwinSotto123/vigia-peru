@@ -554,7 +554,7 @@ def check_lobby_visits_rule(ocid: str, tool_context: ToolContext,
                  else f"{v0['empresa']} (ganador)")
         otras = len(ganadoras) - 1
         result.update({
-            "severidad": "alta",
+            "severidad": "alta" if v0.get("decisor") else "media",
             "evidencia": (
                 f"{v0['visitante']} ({v0['rol_en_empresa'] or 'persona vinculada'} de {quien}) visitó {entidad_nombre} el "
                 f"{v0['fecha_visita']}, {v0['dias_antes_convocatoria']} días antes de la convocatoria del {fconv}"

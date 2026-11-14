@@ -153,7 +153,7 @@ def test_dni_con_contexto_en_batch_lookup_o_descartado():
     ok = verify.verificar_bandera({"evidencia": f"Firmante JUAN PEREZ (DNI {DNI_REAL})"}, _state())
     assert ok["ok"] is True
     bad = verify.verificar_bandera({"evidencia": f"Firmante X, DNI N° {DNI_FALSO}"}, _state())
-    assert bad["ok"] is False and f"dni:{DNI_FALSO}:no_respaldado" in bad["motivos"]
+    assert bad["ok"] is False and "dni:reservado:no_respaldado" in bad["motivos"]   # el DNI no queda escrito en los motivos
 
 
 def test_ocho_digitos_sin_contexto_no_se_toman_como_dni():
@@ -508,7 +508,7 @@ def test_el_dictamen_sale_sin_jerga_tecnica():
     for mala in ("HTTP", "timeout", "decolecta", "API key"):
         assert mala not in limpio, (mala, limpio)
     assert "Las Bases Integradas no pudieron extraerse, por lo que faltan los términos." in limpio
-    assert "El padrón SUNAT no pudo consultarse en esta corrida." in limpio
+    assert "El padrón SUNAT no pudo consultarse en este análisis." in limpio
     assert cambios["jerga_quitada"] >= 4 and cambios["modificado"]
 
 

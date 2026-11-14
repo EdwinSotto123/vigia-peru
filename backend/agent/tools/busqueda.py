@@ -109,6 +109,25 @@ async def _buscar_externo(proveedor: str, consulta: str, cli) -> dict:
         {"titulo": x["titulo"], "url": x["url"], "fecha": x["fecha"]} for x in res], "citas": [], "resultados": res}
 
 
+_VACIAS_SEGUIDAS = int(os.getenv("BUSQUEDAS_VACIAS_SEGUIDAS", "4"))
+_TOPE_BUSQUEDAS = int(os.getenv("BUSQUEDAS_TOPE", "18"))
+_CUENTAS: dict = {}
+
+
+def _cuenta_busquedas(tool_context) -> dict | None:
+    """La cuenta de búsquedas de ESTE agente en ESTE análisis (por invocación; no se guarda en el state)."""
+    if tool_context is None:
+        return None
+    try:
+        clave = (getattr(tool_context, "invocation_id", None) or id(getattr(tool_context, "state", tool_context)),
+                 getattr(tool_context, "agent_name", "") or "")
+    except Exception:  # noqa: BLE001
+        return None
+    if len(_CUENTAS) > 400:
+        _CUENTAS.clear()
+    return _CUENTAS.setdefault(clave, {"total": 0, "vacias": 0})
+
+
 async def google_search(consulta: str, tool_context=None) -> dict:
     """Busca en la web (con foco en Perú) y devuelve un resumen con citas y las fuentes reales (URL, título).
     Usa consultas concretas (nombre completo, RUC, entidad, año). Solo las URLs de `fuentes` existen."""
@@ -117,11 +136,19 @@ async def google_search(consulta: str, tool_context=None) -> dict:
     proveedor = os.getenv("BUSQUEDA_PROVEEDOR", "libre").strip().lower()
     if proveedor == "libre":
         from tools import busqueda_libre
+        cuenta = _cuenta_busquedas(tool_context)
+        if cuenta is not None and (cuenta["vacias"] >= _VACIAS_SEGUIDAS or cuenta["total"] >= _TOPE_BUSQUEDAS):
+            return {"resumen": (f"Búsqueda no realizada: ya van {cuenta['total']} búsquedas, las últimas {cuenta['vacias']} "
+                                "sin resultados. NO busques más: responde ahora con lo que tienes y marca el resto "
+                                "como sin dato."), "fuentes": [], "citas": [], "agotado": True}
         try:
             r = await busqueda_libre.buscar(consulta)
         except Exception as e:  # noqa: BLE001
             return {"error": f"búsqueda falló: {type(e).__name__}: {str(e)[:200]}", "resumen": "", "fuentes": [], "citas": []}
         res = r["resultados"]
+        if cuenta is not None:
+            cuenta["total"] += 1
+            cuenta["vacias"] = 0 if res else cuenta["vacias"] + 1
         out = {"resumen": "\n".join(f"- {x['titulo']}{' (' + x['fecha'] + ')' if x.get('fecha') else ''}: {x['extracto']} ({x['url']})" for x in res),
                "fuentes": [{"titulo": x["titulo"], "url": x["url"], "fecha": x.get("fecha")} for x in res], "citas": [],
                "resultados": res, "buscadores": r["fuentes_usadas"]}

@@ -34,7 +34,7 @@ class EmpresaPerfil(_Base):
     condicion: str | None = Field(default=None, max_length=60)
     estado: str | None = Field(default=None, max_length=60)
     fecha_inicio_actividades: str | None = Field(default=None, max_length=20)
-    actividades_comerciales: list[str] = Field(default_factory=list)
+    actividades_comerciales: list[str] | None = Field(default_factory=list)   # null no descarta el bloque entero
     ciiu: str | None = Field(default=None, max_length=40)
     direccion_legal: str | None = Field(default=None, max_length=300)
     estado_domicilio: str | None = Field(default=None, max_length=60)

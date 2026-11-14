@@ -12,7 +12,7 @@ MAX_OUTPUT_TOKENS = None
 OUTPUT_SCHEMA = 'WebResearchOutput'   # nombre en agents/_shared/schemas.py (WS M); nativo solo con OUTPUT_SCHEMA_NATIVO=1
 OUTPUT_KEY = 'web_research'
 USES_TODAY_HEADER = False
-STATE_INJECTIONS = [('prensa_precargada', 'PRENSA YA BUSCADA Y LEÍDA sobre el proveedor y la entidad (úsala antes de buscar)'), ('sunat_decolecta', 'PERFIL SUNAT PRE-CARGADO (base de Vigía) — incorporalo TAL CUAL en tu salida `empresa`, NO repitas la búsqueda SUNAT')]
+STATE_INJECTIONS = [('expediente_resumen', 'LO QUE YA SE SABE DEL PROVEEDOR POR REGISTROS (base de Vigía): contratos con el Estado y con esta entidad, sanciones, penalidades, RNP. Es un hecho: NUNCA escribas que no tiene contratos previos, sanciones o relación con la entidad si aquí figuran; cópialo en tu salida y busca sólo lo que no está'), ('prensa_precargada', 'PRENSA YA BUSCADA Y LEÍDA sobre el proveedor y la entidad (úsala antes de buscar)'), ('sunat_decolecta', 'PERFIL SUNAT PRE-CARGADO (base de Vigía) — incorporalo TAL CUAL en tu salida `empresa`, NO repitas la búsqueda SUNAT')]
 
 TOOLS = [
     herramienta_busqueda(),

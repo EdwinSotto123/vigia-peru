@@ -317,6 +317,9 @@ def degradar_mercado_implausible(per_precio: list, state: dict) -> dict:
             if not isinstance(f, dict):
                 continue
             d = _desc_item(f)
+            if d in motivos and str(f.get("veredicto") or "") not in ("elevado", "muy_elevado"):
+                motivos.pop(d, None)   # sin sobreprecio afirmado no hay nada que invalidar
+                continue
             if d in motivos:
                 f["veredicto_original"] = f.get("veredicto")
                 f["veredicto"] = "no_verificable"
@@ -474,7 +477,10 @@ def run_inline_evals(banderas: list, market_findings: list, dictamen: str,
             "`verificacion_determinista` (ok=true y motivos sin 'no_respaldado') o con "
             "las `citas_documento` (texto literal del expediente). Es 'no_respaldada' si "
             "es vaga/genérica, si contradice el contexto o si sus identificadores no "
-            "aparecen en ninguna fuente.\n"
+            "aparecen en ninguna fuente. OJO: `numberOfTenderers` del OCDS cuenta a los INSCRITOS, no a quienes "
+            "ofertaron: que una bandera diga 'único postor' o 'única oferta válida' con numberOfTenderers mayor NO es "
+            "una contradicción. Una bandera con `verificacion_determinista.ok` = true y sin motivos 'no_respaldado' es "
+            "'respaldada' aunque el OCDS no traiga su dato (sale del acta, del RNP o de la base).\n"
             "Devuelve `veredictos`: lista alineada por índice; cada elemento "
             "{label:'respaldada'|'no_respaldada', reason: 1 frase con el dato "
             "concreto que la respalda, o qué dato verificable le falta}.\n\n"

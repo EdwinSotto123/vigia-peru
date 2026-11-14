@@ -37,6 +37,11 @@ def add_contextual_flag(regla: str, severidad: str, evidencia: str,
     """
     if severidad not in ("alta", "media", "baja"):
         severidad = "media"
+    import re as _re
+    if _re.match(r"\s*(?:no\s+se\s+emite|no\s+emitida|no\s+aplica|no\s+corresponde\s+emitir|sin\s+bandera)\b",
+                 evidencia or "", _re.I):
+        return {"ok": False, "motivo": "La evidencia dice que la bandera no corresponde: no se registra.",
+                "n_pending_total": len(tool_context.state.get("pending_flags") or [])}
     flag = {
         "regla": (regla or "contextual")[:80],
         "severidad": severidad,
@@ -158,7 +163,7 @@ def persist_alert_from_flags(ocid: str, tool_context: ToolContext) -> dict:
                RETURNING id""",
             (codigo, ocid, ent_ruc, prov_ruc, monto_adj, monto_ref, fbp, region, score,
              [b["regla"] for b in banderas], (objeto or "")[:500],
-             ocid.split("-")[-1], proceso_oece(ocid)),
+             _short_ocid(ocid), proceso_oece(ocid)),
         )
         alerta_id = cur.fetchone()[0]
         state["montos_alerta"] = {"monto_adjudicado": monto_adj, "monto_referencial": monto_ref, "fuente": _fuente_monto}
@@ -185,7 +190,10 @@ def persist_alert_from_flags(ocid: str, tool_context: ToolContext) -> dict:
         state["alerta_codigo"] = codigo
         # pending_flags queda solo con lo verificado (sin duplicados ni descartadas):
         # evaluate_normative_compliance y el writer no deben ver banderas descartadas.
-        state["pending_flags"] = banderas
+        _ya = {id(p) for p in pendientes}
+        _llegadas = [b for b in (state.get("pending_flags") or []) if isinstance(b, dict) and id(b) not in _ya
+                     and not any(b.get("regla") == p.get("regla") and b.get("evidencia") == p.get("evidencia") for p in pendientes)]
+        state["pending_flags"] = banderas + _llegadas   # lo que otra rama agregó mientras tanto no se pierde
         return {
             "alerta_codigo": codigo, "alerta_id": str(alerta_id),
             "score": score, "banderas_persistidas": len(banderas),

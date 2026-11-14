@@ -270,6 +270,9 @@ def build_market_input(ocid: str, tool_context: ToolContext) -> dict:
             continue
 
         if parser_it and not parser_it_es_subitem:
+            # El contrato puede numerar en otro orden que el registro: se une el MISMO bien, no el mismo número.
+            parser_it = _parser_del_item(sql_it, parser_it, parser_by_num)
+        if parser_it and not parser_it_es_subitem:
             for k in (
                 "requerimiento_tecnico_detallado",
                 "marca_o_modelo_exigido",
@@ -639,6 +642,40 @@ def _award_items_ocds(ocds: dict) -> dict[str, float]:
                     if k is not None and str(k) not in out:
                         out[str(k)] = round(amt / qty, 4)
     return out
+
+
+def _parser_del_item(sql_it: dict, mismo_numero: dict, parser_by_num: dict) -> dict | None:
+    """El ítem del parser que corresponde al ítem del registro. El del mismo número si es el mismo bien; si no, el que
+    coincide por descripción (y cantidad); si ninguno coincide y el del mismo número es claramente otro bien, ninguno.
+    1228470: los cuatro ítems cruzados (al kit de ropa de S/ 5,80 se le puso el precio de la sábana, S/ 64,50, y la
+    tubuladura salió con +1 360 %)."""
+    d_sql = sql_it.get("descripcion_corta") or ""
+
+    def _mide(p):
+        s = _solape_raices(d_sql, p.get("descripcion_corta") or "")
+        c1, c2 = sql_it.get("cantidad"), p.get("cantidad")
+        try:
+            ambas = bool(c1 and c2)
+            misma = ambas and abs(float(c1) - float(c2)) / max(float(c1), 1e-9) <= 0.01
+        except (TypeError, ValueError):
+            ambas = misma = False
+        return s, misma, ambas and not misma
+
+    if not d_sql or not mismo_numero.get("descripcion_corta"):
+        return mismo_numero
+    s, misma, distinta = _mide(mismo_numero)
+    if s >= 0.5 or (s >= 0.3 and not distinta):
+        return mismo_numero
+    mejor, mejor_s = None, 0.0
+    for p in parser_by_num.values():
+        if p is mismo_numero or not isinstance(p, dict) or p.get("padre_ocds_item"):
+            continue
+        s2, m2, _d2 = _mide(p)
+        if s2 >= 0.5 and s2 + (0.5 if m2 else 0.0) > mejor_s:
+            mejor, mejor_s = p, s2 + (0.5 if m2 else 0.0)
+    if mejor is not None:
+        return mejor
+    return None if (distinta and s < 0.2) else mismo_numero
 
 
 def _match_contratado(it: dict, contratados: list[dict]) -> dict | None:

@@ -212,6 +212,15 @@ def _banderas_para_dictamen(state) -> list[dict] | None:
     """Banderas PERSISTIDAS (todos los agentes) leídas de BD por alerta_codigo; si la
     BD no responde, las que dejó `persist_alert_from_flags` en state['banderas']."""
     codigo = state.get("alerta_codigo")
+    if not isinstance(state.get("banderas"), list):
+        # Esta corrida no persistió (base en sólo lectura o caída): lo que hay en la base es de OTRO análisis. Valen las
+        # banderas que la corrida dejó pendientes.
+        pend = [x for k in ("pending_flags", "pending_doc_flags", "pending_market_flags")
+                for x in (state.get(k) or []) if isinstance(x, dict) and x.get("regla")]
+        if pend:
+            return [{"regla": x.get("regla"), "severidad": x.get("severidad"), "evidencia": x.get("evidencia"),
+                     "norma": x.get("norma"), "fuente_url": x.get("fuente_url"),
+                     "agente_origen": x.get("agente_origen") or x.get("_source")} for x in pend]
     if codigo:
         try:
             conn = _pg()
@@ -385,6 +394,7 @@ def get_dictamen_context(tool_context: ToolContext) -> dict:
         # Bloques tipados por documento (ruteo incremental): estudio de mercado +
         # causal (Resumen Ejecutivo) y condiciones FINALES (Orden de Compra).
         "estudio_mercado", "contrato_final", "parser_bloque_servicio", "parser_bloque_sustento_directa",
+        "parser_bloque_obra",
         "recortes", "descartes", "validaciones_pendientes", "perfil",
     ]
     out: dict = {}
@@ -484,7 +494,8 @@ def read_document_analysis(tool_context: ToolContext) -> dict:
     # que sólo trae informe y resolución daba «el parser aún no corrió» y el analista legal no veía la causal.
     if isinstance(raw, dict) and (raw.get("items_consolidados") or raw.get("firmantes")
                                   or raw.get("postores_consolidados") or raw.get("postores_extraidos")
-                                  or raw.get("servicio") or raw.get("sustento_directa") or raw.get("fundamento_legal")):
+                                  or raw.get("servicio") or raw.get("sustento_directa") or raw.get("fundamento_legal")
+                                  or raw.get("obra")):
         # Una sola lista de ítems y sin alias/sha256 (`_compact_document_analysis`): antes viajaba
         # `items` Y `items_consolidados` (la misma lista), cada ítem con `texto_literal` y su alias
         # `requerimiento_tecnico_detallado` → 4 copias del texto, reenviadas en cada turno del
@@ -499,6 +510,7 @@ def read_document_analysis(tool_context: ToolContext) -> dict:
             "modalidad": raw.get("modalidad"),
             "fundamento_legal": raw.get("fundamento_legal"),
             "servicio": raw.get("servicio") or None,
+            "obra": raw.get("obra") or None,
             "sustento_directa": raw.get("sustento_directa") or None,
             # Estudio de mercado + causal (Resumen Ejecutivo) para que el análisis
             # legal evalúe la VALIDEZ de la causal de contratación directa.

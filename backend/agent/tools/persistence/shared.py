@@ -27,6 +27,7 @@ def _peso(agente: str | None, severidad: str | None) -> int:
 # Lo mismo con una sanción vigente: la ven la regla de la base (`proveedor_sancionado_osce`) y la señal del expediente
 # (`sancion_vigente_oece`), y una sola sanción sumaba dos veces 35 (auditoría 2026-11-13).
 _MISMO_HECHO_PUNTAJE: tuple[tuple[str, str], ...] = (("unico_postor_alto", "oferta_igual_valor_referencial"),
+                                                     ("unica_oferta_valida", "oferta_igual_valor_referencial"),
                                                      ("proveedor_sancionado_osce", "sancion_vigente_oece"))
 
 
@@ -160,7 +161,9 @@ def _verificar_o_descartar(flag: dict, state: dict, donde: str, agente: str) -> 
         descartes.append(entry)
     try:
         print(json.dumps({"_vigia": True, "kind": "bandera_descartada", "donde": donde,
-                          "regla": flag.get("regla"), "motivos": res.get("motivos", [])[:6]},
+                          "regla": flag.get("regla"),
+                          "motivos": [m for m in res.get("motivos", []) if not m.startswith(("ruc:", "dni:"))
+                                      or m.endswith("no_respaldado")][:6]},
                          ensure_ascii=False), flush=True)
     except Exception:
         pass
