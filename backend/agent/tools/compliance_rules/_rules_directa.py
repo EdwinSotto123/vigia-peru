@@ -577,6 +577,45 @@ def check_inconsistencia_doc_vs_ocds_rule(ocid: str, tool_context: ToolContext,
             "doc_resumen": (doc.get("resumen_ejecutivo") or "")[:120],
         })
 
+    # EL ARCHIVO PUBLICADO COMO CONTRATO ES DE OTRA COMPRA: el lector del contrato (lecturas_documentos.contrato) ya
+    # dice de quién es, de cuándo y si es un contrato. La regla sólo comparaba cuantías y dejaba pasar una orden de
+    # compra de 2025 a otro proveedor colgada en un proceso de 2026 (prueba de oro de directas: 1226155, 1232065,
+    # 1230657). Hacen falta DOS indicios independientes: uno solo puede ser un error de lectura.
+    try:
+        _lc = (state.get("lecturas_documentos") or {}).get("contrato") or {}
+        _lc = _lc.get("salida") if isinstance(_lc, dict) and isinstance(_lc.get("salida"), dict) else _lc
+        if isinstance(_lc, dict) and _lc:
+            from datetime import date as _date
+            from tools.compliance_rules._base import ganadores_evaluables
+            _gan = ganadores_evaluables(ocid, state) or []
+            _rucs = {str(g.get("ruc")) for g in _gan if g.get("ruc")}
+            _ruc_doc = "".join(ch for ch in str((_lc.get("contratista") or {}).get("ruc") or "") if ch.isdigit())
+            _integrantes = {str(x) for x in ((_lc.get("contratista") or {}).get("integrantes_ruc") or [])}
+            indicios = []
+            if len(_ruc_doc) == 11 and _rucs and _ruc_doc not in _rucs and not (_integrantes & _rucs):
+                indicios.append("está a nombre de otro proveedor, que no es el adjudicado")
+
+            def _f(v):
+                try:
+                    return _date.fromisoformat(str(v)[:10])
+                except (TypeError, ValueError):
+                    return None
+            _f_doc = _f(_lc.get("fecha_suscripcion")) or _f(_lc.get("fecha_inicio"))
+            _f_bp = min((d for d in (_f(g.get("fecha_buena_pro")) for g in _gan) if d), default=None)
+            if _f_doc and _f_bp and (_f_bp - _f_doc).days > 30:
+                indicios.append(f"tiene fecha {_f_doc.isoformat()}, anterior a la buena pro del {_f_bp.isoformat()}")
+            if _lc.get("es_contrato") is False:
+                indicios.append("no es un contrato ni una orden de este proceso")
+            _mon_doc = str(_lc.get("moneda") or "").upper()
+            _mon_reg = str(val.get("currency") or "PEN").upper()
+            if ("US" in _mon_doc or "DOL" in _mon_doc) and _mon_reg in ("PEN", ""):
+                indicios.append("está en dólares y el registro en soles")
+            if len(indicios) >= 2:
+                inconsistencias.append({"tipo": "contrato_publicado_es_otro_documento", "indicios": indicios,
+                                        "objeto_documento": str(_lc.get("objeto") or "")[:140]})
+    except Exception:  # noqa: BLE001 — sin lectura del contrato no hay nada que comparar
+        pass
+
     result = {
         "regla": "inconsistencia_doc_vs_ocds",
         "cuantia_ocds": cuantia_ocds,
@@ -593,7 +632,7 @@ def check_inconsistencia_doc_vs_ocds_rule(ocid: str, tool_context: ToolContext,
     norma = _norma_state(state)
     if inconsistencias:
         # Priorizar la incongruencia de OBJETO (la más grave) si está presente.
-        _prio = ["objeto_no_corresponde_documento", "extraccion_documento_fallida",
+        _prio = ["objeto_no_corresponde_documento", "contrato_publicado_es_otro_documento", "extraccion_documento_fallida",
                  "cuantia_distinta", "items_count_distinto"]
         primera = min(inconsistencias,
                       key=lambda i: _prio.index(i["tipo"]) if i["tipo"] in _prio else 99)
@@ -606,6 +645,12 @@ def check_inconsistencia_doc_vs_ocds_rule(ocid: str, tool_context: ToolContext,
                   f"('{primera.get('doc_items') or primera.get('doc_resumen')}'). Posible Bases mal "
                   f"adjuntado, plantilla reusada o expediente incongruente — la evaluación técnica "
                   f"y de precio del proceso queda comprometida.")
+        elif primera["tipo"] == "contrato_publicado_es_otro_documento":
+            _obj = primera.get("objeto_documento")
+            ev = ("El archivo publicado como contrato de este proceso es de otra compra: "
+                  + "; ".join(primera.get("indicios") or []) + "."
+                  + (f" Lo que describe: «{_obj}»." if _obj else "")
+                  + " El contrato real de este proceso no está publicado: no se puede comprobar qué se firmó.")
         elif primera["tipo"] == "extraccion_documento_fallida":
             result["regla"] = "extraccion_documento_fallida"
             _ni = primera.get("n_items") or 0

@@ -84,3 +84,25 @@ def test_lo_verificado_en_codigo_no_pasa_por_el_juez_de_respaldo():
     assert not _verificada_en_codigo({"regla": "cobertura_prensa_adversa", "agente_origen": "news_research_agent", "verificacion": ok}, None)
     assert not _verificada_en_codigo({"regla": "capacidad_operativa_cuestionable", "_source": "orchestrator_paso_7.7", "verificacion": ok}, None)
     assert not _verificada_en_codigo({"regla": "unica_oferta_valida", "agente_origen": "compliance_agent", "verificacion": {"ok": False}}, None)
+
+
+def test_el_archivo_publicado_como_contrato_es_de_otra_compra(monkeypatch):
+    """Directas 1226155: una orden de compra de 2025 a otro proveedor, colgada en un proceso de 2026."""
+    from types import SimpleNamespace
+
+    from tools.compliance_rules import _base, _rules_directa as R
+    monkeypatch.setattr(_base, "ganadores_evaluables", lambda ocid, state, cur=None: [
+        {"ruc": "20100000001", "nombre": "GANADOR SAC", "fecha_buena_pro": "2026-07-15"}])
+    base = {"ocds": {"ocid": "X", "tender": {"value": {"amount": 18000, "currency": "PEN"}}},
+            "document_analysis": {"cuantia_total": 0, "items_consolidados": []}, "pending_flags": []}
+    ajeno = {"contratista": {"ruc": "20999999999"}, "fecha_suscripcion": "2025-08-28", "es_contrato": False, "moneda": "S/",
+             "objeto": "Tarjeta de video"}
+    st = {**base, "pending_flags": [], "lecturas_documentos": {"contrato": {"salida": ajeno}}}
+    r = R.check_inconsistencia_doc_vs_ocds_rule("X", SimpleNamespace(state=st))
+    tipos = [i["tipo"] for i in r["inconsistencias"]]
+    assert "contrato_publicado_es_otro_documento" in tipos and "de otra compra" in r["evidencia"]
+    # Un solo indicio (el lector dudó de que fuera un contrato) no alcanza.
+    propio = {"contratista": {"ruc": "20100000001"}, "fecha_suscripcion": "2026-07-20", "es_contrato": False, "moneda": "S/"}
+    st2 = {**base, "pending_flags": [], "lecturas_documentos": {"contrato": {"salida": propio}}}
+    r2 = R.check_inconsistencia_doc_vs_ocds_rule("X", SimpleNamespace(state=st2))
+    assert "contrato_publicado_es_otro_documento" not in [i["tipo"] for i in r2["inconsistencias"]]
