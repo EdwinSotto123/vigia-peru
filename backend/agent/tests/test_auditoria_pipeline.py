@@ -73,3 +73,14 @@ def test_el_resumen_del_expediente_no_lleva_el_ruc_de_una_persona_natural():
         {"ruc": "20100000001", "persona_natural": False, "nombre": "EMPRESA SAC", "historial": {"procesos": 8, "con_esta_entidad": {"procesos": 3}}}]}
     r = resumen_para_agentes(exp)
     assert "10123456789" not in str(r) and r["integrantes"][1]["contratos_con_el_estado"]["procesos"] == 8
+
+
+def test_lo_verificado_en_codigo_no_pasa_por_el_juez_de_respaldo():
+    """PROD 2026-11-14: 2 088 análisis retenidos sólo porque el juez, que ve el OCDS, rechazaba reglas del acta."""
+    from tools.self_eval import _verificada_en_codigo
+    ok = {"ok": True, "motivos": []}
+    assert _verificada_en_codigo({"regla": "unica_oferta_valida", "agente_origen": "compliance_agent", "verificacion": ok}, None)
+    assert _verificada_en_codigo({"regla": "red_flag_documental", "agente_origen": "document_legal_analyst_agent", "verificacion": ok}, None)
+    assert not _verificada_en_codigo({"regla": "cobertura_prensa_adversa", "agente_origen": "news_research_agent", "verificacion": ok}, None)
+    assert not _verificada_en_codigo({"regla": "capacidad_operativa_cuestionable", "_source": "orchestrator_paso_7.7", "verificacion": ok}, None)
+    assert not _verificada_en_codigo({"regla": "unica_oferta_valida", "agente_origen": "compliance_agent", "verificacion": {"ok": False}}, None)

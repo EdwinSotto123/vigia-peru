@@ -242,6 +242,26 @@ def _contexto_ocds(state: dict | None) -> dict:
     }
 
 
+_ORIGEN_INVESTIGACION = ("news_research", "web_research", "person_network", "entity_personnel", "orchestrator", "juicio")
+
+
+def _verificada_en_codigo(b: dict, state: dict | None) -> bool:
+    """¿La bandera sale de una regla en código o de la lectura de documentos, y pasó la verificación determinista
+    (sus RUC, montos y fechas están en el expediente o en los registros)? Las de investigación en fuentes abiertas y
+    las de juicio de un modelo no: ésas las mira el juez."""
+    origen = str(b.get("agente_origen") or b.get("_source") or "").lower()
+    if any(k in origen for k in _ORIGEN_INVESTIGACION):
+        return False
+    ver = b.get("verificacion")
+    if not isinstance(ver, dict) and state:
+        try:
+            from tools import verify as _v
+            ver = _v.verificar_bandera(dict(b), state)
+        except Exception:  # noqa: BLE001
+            ver = None
+    return isinstance(ver, dict) and ver.get("ok") is True
+
+
 def _contexto_bandera(b: dict, state: dict | None) -> dict:
     """Verificación determinista + citas literales del documento para UNA bandera
     (auditoría §2.4: el juez antes juzgaba la prosa sin ver la fuente)."""
@@ -463,6 +483,18 @@ def run_inline_evals(banderas: list, market_findings: list, dictamen: str,
     # respaldo_de_bandera (LLM, batched, máx 12).
     _max_band = int(os.getenv("EVAL_MAX_BANDERAS", "24"))
     bl = banderas[:_max_band]
+    # Lo que ya verificó el código no lo juzga un modelo que sólo ve el OCDS. Medido en PROD el 2026-11-14: 2 267 de
+    # 5 645 análisis (40 %) estaban retenidos en revisión, 2 088 sólo por este juez, que daba por «no respaldada» el
+    # 98 % de `unica_oferta_valida` (sale del acta, que no ve) y el 88 % de las banderas del analista legal (salen de
+    # los documentos, que tampoco ve). El juez queda para lo que no tiene otra verificación: la investigación en
+    # fuentes abiertas y el juicio de un modelo.
+    _verificadas = [b for b in bl if _verificada_en_codigo(b, state)]
+    for b in _verificadas:
+        out["respaldo"]["n"] += 1
+        out["respaldo"]["ok"] += 1
+        out["per_bandera"].append({"regla": b.get("regla"), "respaldada": True,
+                                   "reason": "verificada en código contra el expediente y los registros"})
+    bl = [b for b in bl if not any(b is v for v in _verificadas)]
     if bl:
         items = [{
             "i": i, "regla": b.get("regla"), "norma": b.get("norma"),
