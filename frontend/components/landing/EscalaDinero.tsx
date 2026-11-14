@@ -1,5 +1,7 @@
 "use client";
 
+import { EtiquetaPaso } from "@/components/landing/Recorrido";
+
 import { useRef } from "react";
 import Link from "next/link";
 import {
@@ -149,6 +151,7 @@ export function EscalaDinero({
     >
       <div className="container-page relative py-10 sm:py-12">
         {/* ── La idea, en una frase ─────────────────────────────── */}
+        <EtiquetaPaso id="escala" oscuro />
         <div className="flex flex-wrap items-end justify-between gap-x-10 gap-y-2">
           <h2 id="escala-titulo" className="max-w-3xl text-balance font-display text-cifra font-bold leading-[1.08] tracking-tight sm:text-titulo">
             El Estado publicó <span className="text-maiz">{numero(publicados)}</span> contratos{anio ? ` en ${anio.anio}` : ""} y casi nadie los

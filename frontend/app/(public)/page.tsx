@@ -8,6 +8,7 @@ import { ComoFunciona } from "@/components/landing/ComoFunciona";
 import { PartidosSeccion } from "@/components/landing/PartidosSeccion";
 import { Participar } from "@/components/landing/Participar";
 import { PausaFueraDePantalla } from "@/components/landing/PausaFueraDePantalla";
+import { IndiceRecorrido } from "@/components/landing/Recorrido";
 import { getAlertas } from "@/lib/api-client";
 import { getEstadoGlobal, getRankingPaginado, getVigilancia } from "@/lib/financiamiento";
 import { clasificar } from "@/components/aliados/ranking";
@@ -112,6 +113,9 @@ export default async function LandingPage() {
   return (
     <>
       <HeroPixel aliados={clasificar(ranking?.data ?? []).slice(0, 3)} piso={vigilancia?.meta.pisoPen ?? null} />
+
+      {/* El orden, a la vista: los cinco pasos de la historia, pegados bajo la cabecera, con el que se está leyendo. */}
+      <IndiceRecorrido />
 
       {/* El pitch en dos secciones. A: el problema, como tablero de cifras. */}
       {publicados > 0 && montoTotal > 0 && (

@@ -1,5 +1,7 @@
 "use client";
 
+import { EtiquetaPaso } from "@/components/landing/Recorrido";
+
 import { rutaContrato } from "@/lib/rutas";
 import { useId, useRef, useState, type KeyboardEvent } from "react";
 import Link from "next/link";
@@ -132,6 +134,7 @@ export function CasoLeido({ casos, leidos }: { casos: CasoConDetalle[]; /** Los 
       <div className="container-page relative py-10 sm:py-12">
         <div className="flex flex-wrap items-end justify-between gap-x-10 gap-y-4">
           <div className="min-w-0 max-w-[60ch]">
+            <EtiquetaPaso id="casos" oscuro />
             <h2 id="casos-titulo" className="text-balance font-display text-cifra font-bold leading-[1.08] tracking-tight sm:text-titulo">
               Lo que ya <span className="text-maiz">encontró.</span>
             </h2>

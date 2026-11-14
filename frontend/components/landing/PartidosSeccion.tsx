@@ -7,6 +7,7 @@ import { getEstadoGlobal } from "@/lib/financiamiento";
 import { getContratosGeo, getResumenContratos } from "@/lib/contratos";
 import { numero, porcentaje } from "@/lib/formato";
 import { INFOGOB_JNE } from "@/lib/fuentes";
+import { EtiquetaPaso } from "@/components/landing/Recorrido";
 import type { Cobertura } from "@/lib/partidos";
 import { getRankingPartidos, type RankingPartidos } from "@/lib/partidosApi";
 
@@ -61,11 +62,15 @@ export async function PartidosSeccion() {
           variante="portada"
           encabezado={
             <div className="max-w-2xl">
+              <EtiquetaPaso id="partidos" />
+              {/* El titular responde a la pregunta de la primera pantalla («¿En qué se gasta el dinero de tu región?»):
+                  antes hablaba de partidos y la sección parecía cambiar de tema. */}
               <h2 id="partidos-titulo" className="text-balance font-display text-cifra font-bold leading-[1.08] sm:text-titulo">
-                Con tu ayuda, vigilamos a los <span className="text-granate">partidos políticos.</span>
+                ¿Quién gobierna tu región y <span className="text-granate">cuánto contrata?</span>
               </h2>
               <p className="mt-2 hidden text-pretty text-cuerpo leading-relaxed text-inkSoft sm:block">
-                Quién gobierna cada región, cuánto se contrata en ella y qué tanto de eso ya leyó Vigía.
+                Con tu ayuda vigilamos a los partidos políticos: quién gobierna cada región, cuánto se contrata en ella y qué
+                tanto de eso ya leyó Vigía.
               </p>
             </div>
           }
