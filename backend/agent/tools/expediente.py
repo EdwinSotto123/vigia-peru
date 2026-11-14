@@ -50,6 +50,23 @@ _SENAL_PERSONA = {
     "candidato": "fue candidato en una elección",
     "aporte": "aportó a una organización política",
 }
+# El nombre legible de las señales que más se repiten (para la ficha; lo demás sale con sus palabras).
+_ETIQUETA_SENAL = {
+    "unico_postor_alto": "único postor con oferta alta", "unica_oferta_valida": "única oferta válida",
+    "oferta_igual_valor_referencial": "oferta igual al valor referencial", "concentracion_entidad": "proveedor que concentra las compras",
+    "lobby_visits_pre_convocatoria": "visitas a la entidad antes de la convocatoria", "red_flag_documental": "requisitos dirigidos en las bases",
+    "postores_vinculados_rnp": "postores vinculados entre sí", "tipo_proceso_vs_monto": "procedimiento que no corresponde al monto",
+    "fraccionamiento": "posible fraccionamiento", "sancion_historica_oece": "proveedores con sanciones previas",
+    "penalidades_oece_historicas": "proveedores con penalidades previas", "ruc_ganador_muy_nuevo": "ganadores recién creados",
+    "fecha_buena_pro_incoherente": "fechas de buena pro incoherentes", "inconsistencia_doc_vs_ocds": "documentos que no cuadran con el registro",
+    "plazo_convocatoria_minimo": "plazos de convocatoria mínimos",
+}
+
+
+def _senal(regla) -> str:
+    return _ETIQUETA_SENAL.get(str(regla), str(regla).replace("_", " "))
+
+
 _PESO = {"alta": 0, "media": 1, "baja": 2}
 # Las que hablan de un vínculo de la persona con ESTA entidad o con quien la gobierna: sólo ésas son bandera del
 # contrato. El resto (cobra más que lo usual, es socio de una empresa) queda como hecho en la ficha.
@@ -267,6 +284,24 @@ def expediente_proveedor_bd(ruc: str, entidad_ruc: str | None = None, ocid: str 
             out["banderas_de_este_proceso"] = sorted({r["tipo"] for r in _filas(
                 cur, "SELECT DISTINCT tipo FROM cruces_proveedor WHERE ruc_empresa = %s AND ocid = %s", (ruc, corto))})
 
+        # 5b. Lo que se repite (migración 276): postores de relleno del proveedor y patrones de los agentes en este
+        #     proveedor y en esta entidad. Un contrato raro puede ser un error; el mismo hecho repetido es un modo de trabajar.
+        try:
+            rell = _filas(cur, """SELECT acompanante, juntos, entidades, postulo, gano, vinculo FROM postor_acompanante
+                                   WHERE ruc_ganador = %s AND fuerte ORDER BY juntos DESC LIMIT 5""", (ruc,))
+            pats = _filas(cur, """SELECT alcance, regla, casos, leidos, entidades, tasa::float AS tasa, tasa_pais::float AS tasa_pais
+                                    FROM patron_agentes WHERE (alcance = 'proveedor' AND ruc = %s) OR (alcance = 'entidad' AND ruc = %s)
+                                   ORDER BY alcance, casos DESC LIMIT 12""", (ruc, entidad_ruc or ""))
+            if rell:
+                out["postores_de_relleno"] = [_limpio(x) for x in rell]
+            if pats:
+                out["patrones"] = [_limpio(x) for x in pats]
+        except Exception:  # noqa: BLE001 — sin esas tablas o sin permiso, el expediente sigue
+            try:
+                conn.rollback()
+            except Exception:  # noqa: BLE001
+                pass
+
         # 6. Persona natural: lo que Vigía ya sabe de ella (va al final: si falla, lo anterior queda).
         if out["persona_natural"]:
             persona = _persona_bd(conn, ruc, entidad_ruc)
@@ -327,6 +362,8 @@ def resumen_para_agentes(exp: dict) -> dict:
                                     "con_esta_entidad": h.get("con_esta_entidad"),
                                     "principales_entidades": [e.get("entidad") for e in (h.get("principales_entidades") or [])[:3]]},
         "banderas_previas": [f"{b.get('tipo')} ({b.get('severidad')}, {b.get('n')})" for b in (exp.get("banderas") or [])[:8]],
+        "postores_de_relleno": exp.get("postores_de_relleno") or [],
+        "patrones_que_se_repiten": exp.get("patrones") or [],
     }
     p = exp.get("persona")
     if p:
@@ -542,6 +579,16 @@ def ficha_md(exp: dict | None) -> str:
             lineas.append(f"- **Antigüedad:** {s['fecha_inicio_dudosa']}")
     elif exp.get("persona_natural"):
         lineas.append("- **Tipo de proveedor:** persona natural (su estado tributario no figura en el padrón de empresas).")
+    for x in (exp.get("postores_de_relleno") or [])[:3]:
+        lineas.append(f"- **Postor que lo acompaña:** {x.get('acompanante')} se presentó en {x.get('juntos')} procesos que ganó este "
+                      f"proveedor y ganó {x.get('gano')} de sus {x.get('postulo')} postulaciones"
+                      + (", y comparten socio o representante." if x.get("vinculo") else "."))
+    for x in [y for y in exp.get("patrones") or [] if y.get("alcance") == "entidad"][:3]:
+        lineas.append(f"- **Patrón de la entidad:** la señal «{_senal(x.get('regla'))}» está en {x.get('casos')} de sus "
+                      f"{x.get('leidos')} contratos leídos ({round((x.get('tasa') or 0) * 100)} %; en el país, {round((x.get('tasa_pais') or 0) * 100)} %).")
+    for x in [y for y in exp.get("patrones") or [] if y.get("alcance") == "proveedor"][:3]:
+        lineas.append(f"- **Patrón del proveedor:** la señal «{_senal(x.get('regla'))}» se repite en {x.get('casos')} de sus "
+                      f"contratos leídos, en {x.get('entidades')} entidades.")
     p = exp.get("persona") or {}
     if p.get("ordenes"):
         misma_p = p.get("con_esta_entidad") or {}
