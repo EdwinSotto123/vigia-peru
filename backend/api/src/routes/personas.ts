@@ -392,7 +392,7 @@ personasRouter.get("/rastro", async (c) => {
               AND (SELECT bool_and(upper(o.nombre) LIKE p) FROM unnest($2::text[]) p)
             GROUP BY o.ruc, o.entidad_ruc ORDER BY 6 DESC NULLS LAST LIMIT 40`, [exactas, pats], 8000).then((r) => r.rows).catch(() => null)
       : Promise.resolve([]);
-    const [visitas, rnp, dji, aportes, peps] = await Promise.all([
+    const [visitas, rnp, dji, aportes, peps, salidas] = await Promise.all([
       intento<{ nombre: string; entidad: string; entidad_ruc: string | null; visitas: number; primera: string; ultima: string;
                 en_nombre_de: string[] | null; a_quien: string[] | null; motivos: string[] | null }>(
         `SELECT v.visitante_norm AS nombre, v.entidad_visitada AS entidad,
@@ -419,6 +419,11 @@ personasRouter.get("/rastro", async (c) => {
       intento<{ nombre: string; cargo: string | null; entidad: string | null; desde: number | null; hasta: number | null }>(
         `SELECT p.nombre_norm AS nombre, p.cargo, p.entidad, p.año_desde AS desde, p.año_hasta AS hasta
            FROM peps p WHERE ${todas("p.nombre_norm")} ORDER BY p.año_desde DESC NULLS LAST LIMIT 20`),
+      // Quien dejó la planilla de una entidad (las salidas se registran desde 2025).
+      intento<{ nombre: string; entidad: string | null; entidad_ruc: string; cargo: string | null; dependencia: string | null; desde: string | null; hasta: string }>(
+        `SELECT s.nombre_norm AS nombre, (SELECT es.nombre FROM entidad_stats es WHERE es.ruc = s.entidad_ruc) AS entidad, s.entidad_ruc,
+                max(s.cargo) AS cargo, max(s.dependencia) AS dependencia, to_char(min(s.primer_mes), 'YYYY-MM') AS desde, to_char(max(s.ultimo_mes), 'YYYY-MM') AS hasta
+           FROM planilla_salida s WHERE ${todas("s.nombre_norm")} GROUP BY s.nombre_norm, s.entidad_ruc ORDER BY 7 DESC LIMIT 20`),
     ]);
     // El cruce que busca un investigador: la persona visitó una entidad y una empresa SUYA (es socia o representante) le
     // ganó procesos a esa misma entidad. Con las fechas, para ver si la visita fue antes de la buena pro.
@@ -445,6 +450,30 @@ personasRouter.get("/rastro", async (c) => {
         };
       });
     }
+    // Puerta giratoria: salió de la planilla de una entidad y una empresa SUYA le ganó después a esa misma entidad. El
+    // empate entre la planilla y el RNP es por nombre: se dice, para que se confirme.
+    let salioYGano: Record<string, unknown>[] = [];
+    const rucsSal = [...new Set((salidas ?? []).map((x) => x.entidad_ruc))];
+    if (rucsEmp.length && rucsSal.length) {
+      const g = await consultaConPlazo<{ empresa_ruc: string; entidad_ruc: string; codigo: string; fecha: string; monto: number | null }>(
+        `SELECT a.ruc_proveedor AS empresa_ruc, a.entidad_ruc, a.codigo_convocatoria AS codigo, to_char(max(a.fecha_buenapro), 'YYYY-MM-DD') AS fecha,
+                sum(a.monto_adjudicado) FILTER (WHERE a.moneda IN ('Soles', 'Nuevos Soles'))::float AS monto
+           FROM conosce_adjudicaciones a WHERE a.ruc_proveedor = ANY($1::text[]) AND a.entidad_ruc = ANY($2::text[])
+          GROUP BY 1, 2, 3 ORDER BY 4 LIMIT 200`, [rucsEmp, rucsSal], 8000).then((r) => r.rows).catch(() => []);
+      salioYGano = (salidas ?? []).flatMap((s) => {
+        const despues = g.filter((x) => x.entidad_ruc === s.entidad_ruc && x.fecha > `${s.hasta}-31`);
+        return [...new Set(despues.map((x) => x.empresa_ruc))].map((ruc) => {
+          const suyos = despues.filter((x) => x.empresa_ruc === ruc);
+          const emp = (rnp ?? []).find((y) => y.ruc === ruc);
+          return {
+            entidad: s.entidad, entidad_ruc: s.entidad_ruc, cargo_que_tenia: s.cargo, salio_de_planilla: s.hasta,
+            empresa: emp?.empresa ?? null, empresa_ruc: ruc, rol_en_la_empresa: emp?.rol ?? null, en_la_empresa_desde: emp?.desde ?? null,
+            procesos_ganados_despues: suyos.length, monto_soles: suyos.reduce((t, x) => t + (x.monto ?? 0), 0),
+            primera_buena_pro_tras_salir: suyos[0]?.fecha ?? null, empate: "por nombre completo: confirmar que es la misma persona",
+          };
+        });
+      });
+    }
     // Cada fila lleva el nombre como está en su registro, con un apellido tapado: dos personas distintas que comparten
     // las palabras buscadas se ven como dos nombres.
     const tapar = <T extends { nombre: string }>(filas: T[] | null) =>
@@ -458,6 +487,8 @@ personasRouter.get("/rastro", async (c) => {
       personas_expuestas: tapar(peps),
       ordenes_como_persona_natural: tapar(await ordenes),
       visito_y_su_empresa_gano: visitoYGano,
+      salidas_de_planilla: tapar(salidas),
+      salio_de_la_entidad_y_su_empresa_gano: salioYGano,
       sin_respuesta: [["visitas", visitas], ["empresas", rnp], ["declaraciones_juradas", dji], ["aportes_de_campana", aportes], ["personas_expuestas", peps]]
         .filter(([, v]) => v === null).map(([k]) => k),
     };

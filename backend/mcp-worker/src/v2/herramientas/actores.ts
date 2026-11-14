@@ -355,7 +355,9 @@ export const rastroPersona = definir({
     "a la vez: las visitas que hizo a entidades del Estado (a cuál, cuántas veces, entre qué fechas, a qué oficina y en " +
     "nombre de qué organización), las empresas en que es socia o representante (RNP), sus declaraciones juradas de " +
     "intereses como funcionaria, sus aportes de campaña, si es persona expuesta políticamente, la planilla del Estado, sus " +
-    "órdenes de servicio como persona natural, su trayectoria electoral y su cargo vigente. ÚSALA SIEMPRE que pregunten " +
+    "órdenes de servicio como persona natural, su trayectoria electoral y su cargo vigente. Trae dos cruces ya hechos: " +
+    "visitó una entidad y una empresa suya le ganó, y salió de la planilla de una entidad y una empresa suya le ganó " +
+    "después (puerta giratoria). ÚSALA SIEMPRE que pregunten " +
     "por una persona («¿tiene contratos o visitas?», «¿quién es?»): es la única que busca visitas por el nombre del " +
     "visitante. Los nombres salen con un apellido tapado (es sólo para mostrar; la búsqueda usa el nombre entero) y nunca " +
     "sale un documento. No se busca por DNI. Si hay varios nombres parecidos, dilo: pueden ser personas distintas.",
@@ -393,6 +395,11 @@ export const rastroPersona = definir({
       visito_y_su_empresa_gano: ((r?.visito_y_su_empresa_gano ?? []) as Fila[]).map((x) => ({
         ...x, enlace_empresa: x.empresa_ruc ? e.empresa(x.empresa_ruc) : undefined, enlace_entidad: x.entidad_ruc ? e.entidad(x.entidad_ruc) : undefined,
       })),
+      // Puerta giratoria: dejó la planilla de una entidad y una empresa suya le ganó después a esa misma entidad.
+      salio_de_la_entidad_y_su_empresa_gano: ((r?.salio_de_la_entidad_y_su_empresa_gano ?? []) as Fila[]).map((x) => ({
+        ...x, enlace_empresa: x.empresa_ruc ? e.empresa(x.empresa_ruc) : undefined, enlace_entidad: x.entidad_ruc ? e.entidad(x.entidad_ruc) : undefined,
+      })),
+      salidas_de_planilla: r?.salidas_de_planilla ?? [],
       declaraciones_juradas: r?.declaraciones_juradas ?? [],
       aportes_de_campana: r?.aportes_de_campana ?? [],
       personas_expuestas: r?.personas_expuestas ?? [],
