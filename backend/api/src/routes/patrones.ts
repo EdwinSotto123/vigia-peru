@@ -14,6 +14,11 @@
  *       después, por separado, en 3 o más procesos de pocos postores que ganó una de las dos. Primero los más
  *       concentrados (muchos procesos en pocas entidades); al final, marcados, los de mercado nacional (migración 279).
  *
+ *   GET /patrones/precios?q=&tipo=bien|servicio&entidad=&anio=
+ *       Precios de referencia. `bien`: los productos de los Catálogos de Perú Compras cuya descripción trae las palabras,
+ *       con lo que pagaron por ellos 5 entidades o más (cuartil 1, mediana y cuartil 3 por año; sin IGV y con IGV).
+ *       `servicio`: el costo MENSUAL de servicios parecidos (monto entre plazo, migración 280), con su contrato.
+ *
  * Todo sale de señales y postulaciones ya públicas, sólo de empresas (RUC 20). Un patrón es un motivo para mirar, no una
  * acusación.
  */
@@ -122,6 +127,51 @@ patronesRouter.get("/consorcios", async (c) => {
       pool.query<{ n: number }>(`SELECT count(*)::int AS n FROM consorcio_rival ${donde}`, vals.slice(0, n)),
     ]);
     return publicar({ total: total.rows[0]?.n ?? 0, page: q.page, size: q.size, data: filas.rows });
+  });
+  c.header("Cache-Control", CACHE);
+  return c.json(cuerpo);
+});
+
+const Precios = z.object({
+  q: z.string().trim().min(3).max(120),
+  tipo: z.enum(["bien", "servicio"]).default("bien"),
+  entidad: z.string().regex(/^20\d{9}$/).optional(),
+  anio: z.coerce.number().int().min(2017).max(2035).optional(),
+});
+const IGV = 1.18;
+
+patronesRouter.get("/precios", async (c) => {
+  const p = Precios.safeParse(Object.fromEntries(Object.entries(parametros(c)).filter(([, v]) => v !== "" && v != null)));
+  if (!p.success) return c.json({ error: "invalid_query", issues: p.error.issues }, 400);
+  const q = p.data;
+  // Todas las palabras (sin tildes, en minúsculas) tienen que estar en la descripción.
+  const palabras = [...new Set(q.q.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase().replace(/[^a-z0-9ñ ]+/g, " ").split(/\s+/).filter((w) => w.length >= 2))].slice(0, 6);
+  if (!palabras.length) return c.json({ error: "invalid_query", detail: "Escribe al menos una palabra." }, 400);
+  const pats = palabras.map((w) => `%${w.replace(/[%_\\]/g, "")}%`);
+  const cuerpo = await memo.obtener(`precios:${JSON.stringify({ ...q, palabras })}`, async () => {
+    if (q.tipo === "bien") {
+      const conds = pats.map((_, i) => `f.descripcion_norm LIKE $${i + 2}`).join(" AND ");
+      const r = await pool.query(
+        `SELECT f.ficha, f.descripcion, f.marca, f.nro_parte AS "nroParte", f.catalogo, r.anio, r.lineas, r.entidades,
+                r.p25::float AS p25, r.mediana::float AS mediana, r.p75::float AS p75
+           FROM perucompras_ficha f JOIN perucompras_precio_ref r ON r.ficha = f.ficha
+          WHERE r.anio >= $1 AND r.mediana > 0 AND ${conds}
+          ORDER BY r.anio DESC, r.entidades DESC, r.lineas DESC LIMIT 40`, [q.anio ?? new Date().getFullYear() - 1, ...pats]);
+      return publicar({
+        tipo: "bien", total: r.rows.length,
+        data: r.rows.map((x) => ({ ...x, medianaConIgv: Math.round(x.mediana * IGV * 100) / 100, p25ConIgv: Math.round(x.p25 * IGV * 100) / 100, p75ConIgv: Math.round(x.p75 * IGV * 100) / 100 })),
+      });
+    }
+    const vals: unknown[] = [...pats];
+    const conds = pats.map((_, i) => `unaccent(s.objeto_norm) LIKE $${i + 1}`);
+    if (q.entidad) { vals.push(q.entidad); conds.push(`s.entidad_ruc = $${vals.length}`); }
+    const r = await pool.query<{ costoMensual: number }>(
+      `SELECT s.ocid, s.entidad, s.entidad_ruc AS "entidadRuc", s.objeto, to_char(s.fecha, 'YYYY-MM-DD') AS fecha, s.monto::float AS monto,
+              s.plazo_dias AS "plazoDias", s.plazo_fuente AS "plazoFuente", s.costo_mensual::float AS "costoMensual", s.tipo
+         FROM servicio_costo_mensual s WHERE ${conds.join(" AND ")} ORDER BY s.fecha DESC NULLS LAST LIMIT 60`, vals);
+    const cm = r.rows.map((x) => x.costoMensual).sort((a, b) => a - b);
+    const pc = (k: number) => (cm.length ? cm[Math.min(cm.length - 1, Math.floor(k * (cm.length - 1) + 0.5))] : null);
+    return publicar({ tipo: "servicio", total: r.rows.length, resumen: cm.length >= 5 ? { n: cm.length, p25: pc(0.25), mediana: pc(0.5), p75: pc(0.75) } : null, data: r.rows });
   });
   c.header("Cache-Control", CACHE);
   return c.json(cuerpo);

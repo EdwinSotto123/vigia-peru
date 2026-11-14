@@ -499,4 +499,58 @@ export const patrones = definir({
   },
 });
 
-export const HERRAMIENTAS_ACTORES = [fichaEmpresa, redEmpresa, fichaEntidad, proveedoresDeEntidad, partido, historia, personaPublica, rastroPersona, patrones];
+export const preciosReferencia = definir({
+  nombre: "precios_referencia",
+  titulo: "Precios de referencia",
+  descripcion:
+    "Cuánto paga el Estado por un bien o por un servicio, para juzgar si un precio es alto. Con tipo «bien»: los productos " +
+    "de los Catálogos Electrónicos de Perú Compras cuya descripción trae las palabras (por ejemplo «papel bond a4 75», " +
+    "«toner hp 85a», «llanta 215 75 r17»), con lo que pagaron por cada producto 5 entidades o más en el año: cuartil 1, " +
+    "mediana y cuartil 3, sin IGV y con IGV. Con tipo «servicio»: el costo MENSUAL (monto entre plazo) de servicios " +
+    "contratados cuyo objeto trae las palabras (por ejemplo «vigilancia», «limpieza», «alimentacion»), con su contrato; " +
+    "con entidad_ruc, sólo los de esa entidad (para ver cómo cambió el costo mensual de una renovación a otra). El precio " +
+    "de catálogo incluye la entrega; un servicio puede tener otro alcance (más sedes o más personal): compara antes de concluir.",
+  cuenta: true,
+  entrada: {
+    que: z.string().min(3).max(120).describe("Palabras del producto o del servicio; todas deben estar en la descripción."),
+    tipo: z.enum(["bien", "servicio"]).default("bien"),
+    entidad_ruc: z.string().min(11).max(14).optional().describe("(servicio) RUC 20 de la entidad."),
+    anio: z.number().int().min(2017).max(2035).optional().describe("(bien) Desde qué año (por defecto, el año pasado)."),
+  },
+  async ejecutar(a, cx) {
+    const e = enlaces(cx.env);
+    const r = await api<Fila>(cx.env, "/patrones/precios", {
+      q: a.que, tipo: a.tipo, anio: a.anio, entidad: a.entidad_ruc ? rucJuridico(a.entidad_ruc, "RUC de la entidad") : undefined,
+    });
+    if (a.tipo === "bien") {
+      return {
+        total: r.total,
+        productos: ((r.data ?? []) as Fila[]).map((x) => ({
+          producto: x.descripcion, marca: x.marca ?? undefined, numero_de_parte: x.nroParte ?? undefined, catalogo: x.catalogo, anio: x.anio,
+          ordenes: x.lineas, entidades: x.entidades, mediana_sin_igv: x.mediana, mediana_con_igv: x.medianaConIgv,
+          cuartil_1_con_igv: x.p25ConIgv, cuartil_3_con_igv: x.p75ConIgv,
+        })),
+        como_leerlo:
+          "Cada fila es un producto exacto del catálogo (ficha-producto). Un contrato se pacta con IGV: compara con «con_igv». " +
+          "Lo normal va del cuartil 1 al cuartil 3; por encima del cuartil 3 vale preguntar por qué. Si no sale nada, prueba menos palabras.",
+        fuente: "Perú Compras, Catálogos Electrónicos de Acuerdos Marco (órdenes de compra)",
+        aviso: AVISO,
+      };
+    }
+    return {
+      total: r.total,
+      resumen_costo_mensual: r.resumen ?? "menos de 5 servicios: sin resumen",
+      servicios: ((r.data ?? []) as Fila[]).map((x) => ({
+        objeto: x.objeto, entidad: x.entidad, entidad_ruc: x.entidadRuc, fecha: x.fecha, monto_soles: x.monto, plazo_dias: x.plazoDias,
+        plazo_segun: x.plazoFuente, costo_mensual_soles: x.costoMensual, ocid: x.ocid, enlace: e.contrato(x.ocid),
+      })),
+      como_leerlo:
+        "El costo mensual es el monto entre el plazo (en meses de 30 días). Dos servicios con el mismo nombre pueden tener otro " +
+        "alcance: mira sedes, personal y horarios en los términos de referencia. El resumen mezcla todo lo que coincidió.",
+      fuente: "SEACE (monto) y contrato, OCDS o bases (plazo)",
+      aviso: AVISO,
+    };
+  },
+});
+
+export const HERRAMIENTAS_ACTORES = [fichaEmpresa, redEmpresa, fichaEntidad, proveedoresDeEntidad, partido, historia, personaPublica, rastroPersona, patrones, preciosReferencia];

@@ -88,6 +88,7 @@ historia y ficha_contrato dan las fechas.
 - ¿Hubo competencia de verdad? Cuántos postularon, cuántos ofertaron, cuántos quedaron válidos y por qué cayeron los demás.
 - ¿El requisito que dejó fuera a los demás lo cumple sólo uno? ¿Lo pidió alguien en las consultas y no se acogió?
 - ¿El precio se parece al de otras entidades por el mismo bien y la misma unidad? Un sobreprecio sin unidad comprobada no se afirma.
+  precios_referencia da lo que pagó el Estado por un producto del catálogo de Perú Compras y el costo mensual de un servicio.
 - ¿La relación entre personas está en un registro (RNP, declaración jurada, planilla) o es sólo un apellido igual?
 - ¿El documento publicado es de este proceso? Fecha, proveedor y monto tienen que cuadrar con el registro.
 - ¿El patrón sobrevive si quitas el caso más llamativo?
