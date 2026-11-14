@@ -444,7 +444,7 @@ def check_ampliacion_denegada_penalidad_rule(ocid: str, tool_context: ToolContex
                 continue
             res = str(a.get("resultado") or a.get("resolucion") or "")
             if _RE_AMPL_IMPROC.search(res) or str(a.get("resultado") or "").lower() in ("improcedente", "denegada", "denegado"):
-                hechos.append(f"ampliación de plazo N° {a.get('n') or '?'} declarada improcedente"
+                hechos.append("ampliación de plazo" + (f" N° {a.get('n')}" if a.get("n") else "") + " declarada improcedente"
                               + (f" ({a.get('resolucion')})" if a.get("resolucion") and a.get("resolucion") != res else ""))
         for p in (src.get("penalidades_aplicadas") or []):
             if isinstance(p, dict):

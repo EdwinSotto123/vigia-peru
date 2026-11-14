@@ -656,10 +656,12 @@ def check_inconsistencia_doc_vs_ocds_rule(ocid: str, tool_context: ToolContext,
             _ni = primera.get("n_items") or 0
             _det = (f"{_ni} ítem(s) extraídos, todos vacíos o genéricos" if _ni
                     else "no se extrajo ningún ítem usable del documento procesado")
-            ev = (f"El parser no logró extraer el detalle real de los documentos del expediente "
-                  f"({_det}). El Bases podría estar mal adjuntado, ser una plantilla o estar "
-                  f"ilegible/escaneado → el análisis técnico y de precio de este proceso NO es "
-                  f"confiable y debe revisarse manualmente.")
+            # Es un límite de la lectura de Vigía, no un indicio contra el proceso: se muestra y NO suma al puntaje
+            # (auditoría 2026-11-14: 120 contratos publicados puntuaban por una falla del lector).
+            result["puntua"] = False
+            ev = (f"Vigía no pudo leer el detalle de los documentos del expediente ({_det}). El archivo puede estar "
+                  f"escaneado, ser una plantilla o estar mal adjuntado. Por eso el análisis técnico y de precios de "
+                  f"este proceso está incompleto. No es un indicio contra el proceso y no suma al puntaje.")
         elif primera["tipo"] == "cuantia_distinta":
             _base_lbl = ("monto adjudicado/contratado" if primera.get("ocds_base") == "awards/contracts"
                          else "valor referencial")
