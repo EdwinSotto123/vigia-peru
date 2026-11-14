@@ -274,7 +274,8 @@ export const personaPublica = definir({
     "Busca por nombre a una autoridad o a quien trabaja en el Estado. Para una autoridad (alcalde, gobernador, regidor, " +
     "congresista) da su trayectoria electoral del JNE desde 2014 (cada candidatura con año, cargo, partido, lugar y si salió " +
     "electa) y el cargo que tiene hoy con su entidad y RUC. En la planilla del Estado da cargo, entidad, régimen, sueldo y " +
-    "señales, con un apellido tapado. No se busca por DNI ni se muestran ciudadanos sin cargo.",
+    "señales, con un apellido tapado. No se busca por DNI. Para saber si una persona cualquiera tiene visitas, empresas, " +
+    "órdenes o declaraciones, usa rastro_persona.",
   cuenta: true,
   entrada: {
     nombre: z.string().min(6).max(80).describe("Apellidos y nombres, al menos dos palabras."),
@@ -324,4 +325,63 @@ export const personaPublica = definir({
   },
 });
 
-export const HERRAMIENTAS_ACTORES = [fichaEmpresa, redEmpresa, fichaEntidad, proveedoresDeEntidad, partido, historia, personaPublica];
+export const rastroPersona = definir({
+  nombre: "rastro_persona",
+  titulo: "Rastro de una persona",
+  descripcion:
+    "Busca a una persona por su NOMBRE COMPLETO (apellidos y nombres, en cualquier orden) en todos los registros de Vigía " +
+    "a la vez: las visitas que hizo a entidades del Estado (a cuál, cuántas veces, entre qué fechas, a qué oficina y en " +
+    "nombre de qué organización), las empresas en que es socia o representante (RNP), sus declaraciones juradas de " +
+    "intereses como funcionaria, sus aportes de campaña, si es persona expuesta políticamente, la planilla del Estado, sus " +
+    "órdenes de servicio como persona natural, su trayectoria electoral y su cargo vigente. ÚSALA SIEMPRE que pregunten " +
+    "por una persona («¿tiene contratos o visitas?», «¿quién es?»): es la única que busca visitas por el nombre del " +
+    "visitante. Los nombres salen con un apellido tapado (es sólo para mostrar; la búsqueda usa el nombre entero) y nunca " +
+    "sale un documento. No se busca por DNI. Si hay varios nombres parecidos, dilo: pueden ser personas distintas.",
+  cuenta: true,
+  entrada: { nombre: z.string().min(6).max(80).describe("Apellidos y nombres de la persona, al menos dos palabras.") },
+  async ejecutar(a, cx) {
+    if (/\d/.test(a.nombre)) throw new ErrorUsuario("No se busca por DNI ni por números: escribe el nombre.");
+    const palabras = a.nombre.trim().split(/\s+/).filter((w) => w.length >= 3);
+    if (palabras.length < 2) throw new ErrorUsuario("Escribe al menos un apellido y un nombre.");
+    const e = enlaces(cx.env);
+    const suave = <T>(p: Promise<T>) => p.catch((err) => (err instanceof ErrorApi ? null : Promise.reject(err)));
+    const [r, pl, per, tr] = await Promise.all([
+      suave(api<Fila>(cx.env, "/personas/rastro", { q: a.nombre }, { interno: true })),
+      suave(api<Fila>(cx.env, "/planilla", { q: a.nombre, size: 10 })),
+      suave(api<Fila>(cx.env, "/personas", { q: a.nombre, size: 10 })),
+      suave(api<Fila>(cx.env, "/poder/trayectoria", { q: a.nombre })),
+    ]);
+    const visitas = ((r?.visitas ?? []) as Fila[]).map((v) => ({
+      nombre: v.nombre, entidad: v.entidad, entidad_ruc: v.entidad_ruc ?? undefined, visitas: v.visitas, primera: v.primera, ultima: v.ultima,
+      en_nombre_de: v.en_nombre_de ?? undefined, a_quien_visito: v.a_quien ?? undefined, motivos: v.motivos ?? undefined,
+      enlace: v.entidad_ruc ? e.entidad(v.entidad_ruc) : undefined,
+    }));
+    const hay = (x: unknown) => (Array.isArray(x) ? x.length : 0);
+    return {
+      resumen: {
+        visitas: visitas.reduce((s, v) => s + (v.visitas ?? 0), 0),
+        entidades_visitadas: new Set(visitas.map((v) => v.entidad)).size,
+        empresas: hay(r?.empresas), declaraciones_juradas: hay(r?.declaraciones_juradas), aportes_de_campana: hay(r?.aportes_de_campana),
+        en_planilla: pl?.total ?? 0, con_ordenes_como_persona_natural: per?.total ?? 0, candidaturas: hay(tr?.personas),
+      },
+      visitas,
+      empresas: ((r?.empresas ?? []) as Fila[]).map((x) => ({ ...x, enlace: x.ruc ? e.empresa(x.ruc) : undefined })),
+      declaraciones_juradas: r?.declaraciones_juradas ?? [],
+      aportes_de_campana: r?.aportes_de_campana ?? [],
+      personas_expuestas: r?.personas_expuestas ?? [],
+      planilla: ((pl?.data ?? []) as Fila[]).map((p) => ({
+        nombre: p.nombre, entidad: p.entidad, entidad_ruc: p.entidadRuc, cargo: p.cargo, regimen: p.regimen, sueldo_mes_soles: p.total,
+        primer_mes: p.primerMes, ultimo_mes: p.ultimoMes, enlace: p.ficha ? e.planilla(p.ficha) : undefined,
+      })),
+      ordenes_como_persona_natural: ((per?.data ?? []) as Fila[]).map((p) => tomar(p, ["nombre", "entidad", "entidadRuc", "servicio", "ordenes", "monto", "primera", "ultima", "codigo"])),
+      trayectoria_electoral: tr?.personas ?? [],
+      no_respondieron: [...((r?.sin_respuesta ?? []) as string[]), ...(r ? [] : ["visitas, empresas y declaraciones"]), ...(pl ? [] : ["planilla"]), ...(per ? [] : ["órdenes"])],
+      nota:
+        "El registro de visitas es el de la plataforma de transparencia: sólo trae las entidades que la usan. Un mismo nombre " +
+        "puede ser de dos personas: cada fila lleva el nombre como figura en su registro. Aparecer aquí no es una irregularidad.",
+      aviso: AVISO,
+    };
+  },
+});
+
+export const HERRAMIENTAS_ACTORES = [fichaEmpresa, redEmpresa, fichaEntidad, proveedoresDeEntidad, partido, historia, personaPublica, rastroPersona];

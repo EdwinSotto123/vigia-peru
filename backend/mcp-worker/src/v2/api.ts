@@ -35,12 +35,14 @@ export async function api<T = Record<string, unknown>>(
   env: EnvV2,
   ruta: string,
   params: Record<string, Valor> = {},
-  opciones: { metodo?: string; cuerpo?: unknown; token?: string } = {},
+  opciones: { metodo?: string; cuerpo?: unknown; token?: string; interno?: boolean } = {},
 ): Promise<T> {
   const url = new URL(`https://vigia-api.interno/v1${ruta}`);
   for (const [k, v] of Object.entries(params)) if (v !== undefined && v !== null && v !== "") url.searchParams.set(k, String(v));
   const headers = new Headers({ accept: "application/json", "user-agent": "vigia-mcp/2" });
   if (opciones.token) headers.set("authorization", `Bearer ${opciones.token}`);
+  // Rutas que la API sólo le abre al MCP (p. ej. /personas/rastro, que busca por nombre completo).
+  if (opciones.interno && env.MCP_INTERNO_TOKEN) headers.set("x-vigia-interno", env.MCP_INTERNO_TOKEN);
   let body: string | undefined;
   if (opciones.cuerpo !== undefined) {
     headers.set("content-type", "application/json");

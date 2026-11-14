@@ -51,6 +51,7 @@ const COMO_USAR = `# Cómo usar el MCP de Vigía
    Contenido de documentos: buscar_documentos (bases, actas, contratos, lecturas de la IA y dictámenes).
 6. Cifras agregadas: consultar_datos (sin medida devuelve el catálogo de la fuente).
 7. Contexto: historia (línea de tiempo), partido, persona_publica, senales y estado_fuentes.
+8. Una persona por su nombre: rastro_persona SIEMPRE primero (visitas a entidades, empresas, declaraciones juradas, aportes, planilla, órdenes y candidaturas en una sola llamada). No concluyas «sin registros» sin haberla usado.
 
 Cita siempre el enlace de Vigía y la fuente oficial que trae cada respuesta, con la fecha de la consulta.`;
 

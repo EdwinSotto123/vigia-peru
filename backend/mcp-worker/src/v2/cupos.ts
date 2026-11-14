@@ -74,7 +74,7 @@ export const HERRAMIENTAS_DE_DATOS = new Set(["consultar_datos"]);
 export const PESOS: Record<string, number> = {
   seguir: 0, dejar_de_seguir: 0, mis_seguimientos: 0, mi_cupo: 0, estado_fuentes: 0,
   mercado_rubro: 3, mercado_obras: 3, gasto_entidad: 3, gasto_por_concepto: 3, red_empresa: 3, historia: 3, hallazgos_entidad: 3,
-  ranking_entidades: 3, buscar_documentos: 3, planilla_entidad: 3, visitas_entidad: 3, informes_control: 3,
+  ranking_entidades: 3, buscar_documentos: 3, planilla_entidad: 3, visitas_entidad: 3, informes_control: 3, rastro_persona: 3,
   consultar_datos: 10, documentos_zip: 10,
 };
 export const pesoDe = (herramienta: string) => PESOS[herramienta] ?? 1;

@@ -1,3 +1,4 @@
+import { timingSafeEqual } from "node:crypto";
 import { Hono } from "hono";
 import { z } from "zod";
 import { consultaConPlazo, pool } from "../lib/db.js";
@@ -336,6 +337,90 @@ personasRouter.get("/", async (c) => {
     });
   });
   c.header("Cache-Control", CACHE);
+  return c.json(cuerpo);
+});
+
+// ─── GET /personas/rastro?q= ───────────────────────────────────
+/**
+ * Dónde aparece una persona, buscada por su NOMBRE COMPLETO, en todos los registros que Vigía tiene: visitas a entidades
+ * (como visitante), empresas en que es socia o representante (RNP), declaraciones juradas de intereses (como
+ * declarante), aportes de campaña y personas expuestas políticamente. Pedido del usuario el 2026-11-14: el asistente
+ * respondió «ningún registro» de alguien con 6 visitas a 4 entidades, porque ninguna herramienta buscaba visitas por el
+ * nombre del visitante. El apellido tapado es para MOSTRAR; para buscar se usa el nombre entero.
+ *
+ * Sólo para el MCP (cabecera interna, como /gobserva/interno/consumo): por la API pública permitiría confirmar a quién
+ * corresponde un nombre tapado. La respuesta sale con un apellido tapado y sin ningún documento. Se pide un apellido y
+ * un nombre como mínimo (dos palabras de 3 letras o más), y cada lista tiene tope.
+ */
+const Rastro = z.object({ q: z.string().trim().min(6).max(80) });
+const rastroMemo = new Memo<Record<string, unknown>>({ nombre: "personas:rastro", ttlMs: 600_000, max: 300 });
+
+/** Una palabra del nombre como patrón de LIKE: mayúsculas, sin tildes, y «_» donde la base puede tener Ñ o una vocal con tilde. */
+function patronPalabra(w: string): string {
+  const base = w.toUpperCase().normalize("NFD").replace(/N\u0303/g, "_").replace(/\p{M}/gu, "").replace(/[%\\]/g, "");
+  return `%${base.replace(/[^A-Z_]/g, "_")}%`;
+}
+
+personasRouter.get("/rastro", async (c) => {
+  const esperado = (c.env as { MCP_INTERNO_TOKEN?: string } | undefined)?.MCP_INTERNO_TOKEN ?? process.env.MCP_INTERNO_TOKEN ?? "";
+  const llega = Buffer.from(c.req.header("x-vigia-interno") ?? "");
+  const clave = Buffer.from(esperado);
+  if (!esperado || llega.length !== clave.length || !timingSafeEqual(llega, clave)) return c.json({ error: "forbidden" }, 403);
+  const parsed = Rastro.safeParse(parametros(c));
+  if (!parsed.success) return c.json({ error: "invalid_query" }, 400);
+  if (/\d/.test(parsed.data.q)) return c.json({ error: "invalid_query", detail: "No se busca por DNI, RUC ni números: escribe el nombre." }, 400);
+  const palabras = [...new Set(parsed.data.q.split(/\s+/).filter((w) => w.replace(/[^\p{L}]/gu, "").length >= 3))].slice(0, 6);
+  if (palabras.length < 2) return c.json({ error: "invalid_query", detail: "Escribe al menos un apellido y un nombre." }, 400);
+  const pats = palabras.map(patronPalabra);
+  const cuerpo = await rastroMemo.obtener(pats.join("|"), async () => {
+    // Todas las palabras tienen que estar en el nombre (en cualquier orden): cada tabla tiene índice de trigramas.
+    const todas = (col: string) => pats.map((_, i) => `${col} LIKE $${i + 1}`).join(" AND ");
+    const intento = <T extends Record<string, unknown>>(sql: string) =>
+      consultaConPlazo<T>(sql, pats, 8000).then((r) => r.rows).catch(() => null);
+    const [visitas, rnp, dji, aportes, peps] = await Promise.all([
+      intento<{ nombre: string; entidad: string; entidad_ruc: string | null; visitas: number; primera: string; ultima: string;
+                en_nombre_de: string[] | null; a_quien: string[] | null; motivos: string[] | null }>(
+        `SELECT v.visitante_norm AS nombre, v.entidad_visitada AS entidad,
+                (SELECT r.ruc FROM visita_entidad_ruc r WHERE r.entidad_visitada = v.entidad_visitada LIMIT 1) AS entidad_ruc,
+                count(*)::int AS visitas, to_char(min(v.fecha_visita), 'YYYY-MM-DD') AS primera, to_char(max(v.fecha_visita), 'YYYY-MM-DD') AS ultima,
+                (array_agg(DISTINCT v.entidad_visitante) FILTER (WHERE COALESCE(v.entidad_visitante, '') <> ''))[1:4] AS en_nombre_de,
+                (array_agg(DISTINCT concat_ws(', ', NULLIF(v.funcionario_cargo, ''), NULLIF(v.funcionario_area, '')))
+                   FILTER (WHERE COALESCE(v.funcionario_cargo, v.funcionario_area, '') <> ''))[1:5] AS a_quien,
+                (array_agg(DISTINCT left(v.motivo, 90)) FILTER (WHERE COALESCE(v.motivo, '') <> ''))[1:4] AS motivos
+           FROM visitas_entidades v WHERE ${todas("v.visitante_norm")}
+          GROUP BY 1, 2 ORDER BY 1, count(*) DESC LIMIT 60`),
+      intento<{ nombre: string; ruc: string; empresa: string | null; rol: string | null; desde: string | null }>(
+        `SELECT DISTINCT ON (r.nombre, r.ruc_empresa, r.tipo_rol) r.nombre, r.ruc_empresa AS ruc, e.nombre AS empresa, r.tipo_rol AS rol,
+                to_char(r.fecha_inicio_vigencia, 'YYYY-MM-DD') AS desde
+           FROM rnp_conformacion_juridica r LEFT JOIN empresa_resumen e ON e.ruc = r.ruc_empresa
+          WHERE ${todas("r.nombre")} AND r.ruc_empresa LIKE '20%' ORDER BY r.nombre, r.ruc_empresa, r.tipo_rol LIMIT 40`),
+      intento<{ nombre: string; entidad: string | null; cargo: string | null; presentada: string | null; inicio: string | null; cese: string | null }>(
+        `SELECT DISTINCT ON (d.nombre_norm, d.entidad, d.cargo) d.nombre_norm AS nombre, d.entidad, d.cargo,
+                left(d.fecha_presentacion::text, 10) AS presentada, left(d.fecha_inicio_cargo::text, 10) AS inicio, left(d.fecha_cese_cargo::text, 10) AS cese
+           FROM dji_funcionarios d WHERE ${todas("d.nombre_norm")} ORDER BY d.nombre_norm, d.entidad, d.cargo, d.fecha_presentacion DESC LIMIT 40`),
+      intento<{ nombre: string; partido: string | null; anio: number | null; monto: number | null; aportes: number }>(
+        `SELECT upper(a.nombre) AS nombre, a.partido, a.año AS anio, sum(a.monto)::float AS monto, count(*)::int AS aportes
+           FROM onpe_aporte_unico a WHERE ${todas("upper(a.nombre)")} GROUP BY 1, 2, 3 ORDER BY 3 DESC NULLS LAST LIMIT 40`),
+      intento<{ nombre: string; cargo: string | null; entidad: string | null; desde: number | null; hasta: number | null }>(
+        `SELECT p.nombre_norm AS nombre, p.cargo, p.entidad, p.año_desde AS desde, p.año_hasta AS hasta
+           FROM peps p WHERE ${todas("p.nombre_norm")} ORDER BY p.año_desde DESC NULLS LAST LIMIT 20`),
+    ]);
+    // Cada fila lleva el nombre como está en su registro, con un apellido tapado: dos personas distintas que comparten
+    // las palabras buscadas se ven como dos nombres.
+    const tapar = <T extends { nombre: string }>(filas: T[] | null) =>
+      filas?.map((f) => ({ ...f, nombre: taparNombrePropio(f.nombre, f.nombre) ?? f.nombre })) ?? null;
+    return {
+      buscado: palabras.length,
+      visitas: tapar(visitas),
+      empresas: tapar(rnp),
+      declaraciones_juradas: tapar(dji),
+      aportes_de_campana: tapar(aportes),
+      personas_expuestas: tapar(peps),
+      sin_respuesta: [["visitas", visitas], ["empresas", rnp], ["declaraciones_juradas", dji], ["aportes_de_campana", aportes], ["personas_expuestas", peps]]
+        .filter(([, v]) => v === null).map(([k]) => k),
+    };
+  });
+  c.header("Cache-Control", "private, no-store");
   return c.json(cuerpo);
 });
 
