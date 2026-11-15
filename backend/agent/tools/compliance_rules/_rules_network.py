@@ -301,7 +301,7 @@ def check_testaferro_multi_ruc_rule(ocid: str, tool_context: ToolContext,
                     f"de {principal['n_empresas_ganadoras']} empresas distintas que ganaron "
                     f"contratos del Estado en los últimos 12 meses. Patrón típico de testaferro multi-RUC."
                 ),
-                "norma": "Art. 50 TUO Ley 30225 — Impedimentos / Art. 11 inc. m (consorcio sin declarar)",
+                "norma": "Heurística — " + _norma_state(tool_context.state)["impedimentos"],
                 "fuente_url": None,
             })
             state.setdefault("pending_flags", []).append(result)

@@ -463,7 +463,7 @@ def check_fraccionamiento_rule(ocid: str, tool_context: ToolContext,
                           f"({', '.join(r['ocid'] for r in relacionados[:4])}); suma S/ {suma:,.2f} "
                           f"({suma / UIT:.1f} UIT), que cruza el umbral de S/ {umbral_cruzado:,.0f} que ninguno alcanza por separado"
                           + (f", por encima del tope de {tope:g} UIT de la modalidad '{tipo}'." if excede else ".")),
-            "norma": "Art. 20 TUO Ley 30225 / Art. 36 Ley 32069 — prohibición de fraccionamiento",
+            "norma": _norma_state(tool_context.state)["fraccionamiento"],
             "fuente_url": proceso_oece(ocid),
         })
         state.setdefault("pending_flags", []).append(result)

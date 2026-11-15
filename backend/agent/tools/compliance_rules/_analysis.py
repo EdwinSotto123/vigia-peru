@@ -153,15 +153,20 @@ def evaluate_normative_compliance(ocid: str, tool_context: ToolContext) -> dict:
     evaluaciones = []
     for h in hallazgos:
         question = f"{h['titulo']}: {h['descripcion']}"
-        opinion, motivo = None, None
+        opinion, motivo, articulo = None, None, None
         try:
             rag_resp = query_legal_rag(question, tool_context)
             matches = rag_resp.get("matches") or []
-            opinion, motivo = _elegir_opinion_pertinente(h, matches, perfil_nombre, norma)
+            # La búsqueda con fecha (tools/normas_rag.py) separa la norma que rige de los criterios: el artículo va en
+            # `norma_aplicable` y en `opinion_oece` sólo una opinión o un acuerdo. Antes el primer resultado (casi
+            # siempre un artículo o una base estándar) quedaba rotulado como «opinión del OECE».
+            articulo = _elegir_norma_aplicable(h, matches, perfil_nombre, norma)
+            opinion, motivo = _elegir_opinion_pertinente(h, _solo_criterios(matches), perfil_nombre, norma)
         except Exception as _e:
             motivo = f"rag_error:{str(_e)[:80]}"
         evaluaciones.append({
             "hallazgo": h,
+            "norma_aplicable": articulo,
             "opinion_oece": opinion,
             "motivo_sin_opinion": motivo if opinion is None else None,
         })
@@ -185,6 +190,30 @@ _RAG_STOP_TEMA = {"opinion", "consulta", "entidad", "entidades", "contratista", 
                   "debe", "corresponde", "aplica", "aplicacion", "conforme", "respecto", "dicha", "dicho"}
 _TERMINOS_OBRA = ("metrado", "valorizacion", "valorizaciones", "adicional de obra", "expediente tecnico",
                   "residente", "supervisor de obra", "liquidacion de obra", "obra")
+
+
+_TIPOS_CRITERIO = ("opinion", "acuerdo_sala_plena", "precedente", "resolucion_tribunal")
+
+
+def _solo_criterios(matches: list) -> list:
+    """Con la búsqueda por fecha (cada resultado trae `aplica`): sólo opiniones y acuerdos, primero los del régimen del
+    proceso y al final los de la otra ley, marcados. Con el respaldo anterior (sin `aplica`) la lista queda igual."""
+    if not any(isinstance(m, dict) and m.get("aplica") for m in matches):
+        return matches
+    crit = [m for m in matches if isinstance(m, dict) and m.get("tipo") in _TIPOS_CRITERIO]
+    return [m for m in crit if m.get("aplica") == "criterio"] + \
+           [{**m, "_regimen_distinto": True} for m in crit if m.get("aplica") == "criterio_anterior"]
+
+
+def _elegir_norma_aplicable(h: dict, matches: list, perfil_nombre: str, norma: dict) -> dict | None:
+    """El artículo de la ley o del reglamento (o el numeral de una directiva) que rige en la fecha y trata del hallazgo.
+    Las bases estándar y las normas de control no sirven de fundamento de una bandera. None sin búsqueda por fecha."""
+    normas = [m for m in matches if isinstance(m, dict) and m.get("aplica") == "norma"]
+    for tipos in (("ley", "reglamento"), ("directiva",)):
+        m, _motivo = _elegir_opinion_pertinente(h, [x for x in normas if x.get("tipo") in tipos], perfil_nombre, norma)
+        if m is not None:
+            return {k: m.get(k) for k in ("documento", "numero", "tipo", "articulo", "epigrafe", "cita", "cita_formato", "url_oficial", "version", "score")}
+    return None
 
 
 def _elegir_opinion_pertinente(h: dict, matches: list, perfil_nombre: str, norma: dict) -> tuple[dict | None, str | None]:

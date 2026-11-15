@@ -106,3 +106,37 @@ def test_la_mejor_directiva_tiene_un_lugar_aunque_la_ley_cope_el_cupo():
     m = N.elegir([dict(zip(COLS, x)) for x in filas])
     assert [x["slug"] for x in m].count("directiva-003-2025-oece-cd") == 1 and "directiva-017-2025-oece-cd" not in [x["slug"] for x in m]
 
+
+def test_la_bandera_recibe_el_articulo_y_la_opinion_por_separado():
+    """Con la búsqueda por fecha, el primer resultado es un artículo: no debe quedar como «opinión del OECE»."""
+    from tools import compliance_rules as cr
+    h = {"titulo": "Fraccionamiento", "descripcion": "Varias órdenes del mismo objeto fraccionan la contratación para evitar el procedimiento de selección"}
+    base = {"score": 0.9, "interpretacion_snippet": "el fraccionamiento de varias órdenes del mismo objeto para evitar el procedimiento de selección está prohibido"}
+    matches = [
+        {**base, "aplica": "norma", "tipo": "bases_estandar", "documento": "Bases estándar 2026", "articulo": "3.5"},
+        {**base, "aplica": "norma", "tipo": "ley", "documento": "Ley N° 32069", "numero": "Ley N° 32069", "articulo": "50", "cita_formato": "Art. 50 de Ley N° 32069"},
+        {**base, "aplica": "criterio_anterior", "tipo": "opinion", "documento": "Opinión N° 88-2023/DTN", "num_opinion": "88-2023"},
+        {**base, "aplica": "criterio", "tipo": "opinion", "documento": "Opinión D000050-2026-OECE-DTN", "num_opinion": "D000050-2026"},
+    ]
+    norma = cr.norma_aplicable("2026-05-01")
+    art = cr._elegir_norma_aplicable(h, matches, "bienes", norma)
+    assert art["articulo"] == "50" and art["tipo"] == "ley"                      # la base estándar no es fundamento
+    op, _ = cr._elegir_opinion_pertinente(h, cr._solo_criterios(matches), "bienes", norma)
+    assert op["num_opinion"] == "D000050-2026" and not op.get("_regimen_distinto")   # primero la del régimen del proceso
+    solo_vieja, _ = cr._elegir_opinion_pertinente(h, cr._solo_criterios(matches[:3]), "bienes", norma)
+    assert solo_vieja["num_opinion"] == "88-2023" and solo_vieja["_regimen_distinto"] is True
+    # El respaldo anterior no trae `aplica`: la lista no se toca y no hay artículo aparte.
+    viejos = [{**base, "num_opinion": "10-2024", "norma": "Ley 30225"}]
+    assert cr._solo_criterios(viejos) is viejos and cr._elegir_norma_aplicable(h, viejos, "bienes", norma) is None
+
+
+
+def test_las_citas_fijas_de_las_reglas_son_los_articulos_correctos():
+    """Comprobadas contra el texto oficial (2026-11-15): fraccionamiento art. 50, comparación de precios art. 25 del TUO,
+    y la cuantía NO es el art. 12 del Reglamento (ese es la participación de Perú Compras)."""
+    from tools import compliance_rules as cr
+    nueva, vieja = cr.norma_aplicable("2026-03-01"), cr.norma_aplicable("2024-03-01")
+    assert nueva["fraccionamiento"].startswith("Art. 50 Ley 32069") and vieja["fraccionamiento"].startswith("Art. 20 TUO Ley 30225")
+    assert vieja["comparacion_precios"].startswith("Art. 25 TUO") and "97 y 98" in nueva["comparacion_precios"]
+    assert nueva["cuantia"].startswith("Art. 48 Ley 32069") and "Art. 12" not in nueva["cuantia"] and "32 y 34" in vieja["cuantia"]
+    assert "Anexo IV" not in vieja["procedimientos"]

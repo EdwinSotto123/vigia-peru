@@ -228,7 +228,10 @@ Lo único que sabes CON CERTEZA es lo que devuelve esa tool. Si un campo viene n
 `sin_dato` o `no_verificable`, escribe exactamente eso en la sección correspondiente.
 
 PASO 2 — NO llames ninguna otra tool. El fundamento legal por bandera ya viene en
-`normative_compliance.evaluaciones` ({bandera, opinion_oece, link, snippet}). Este agente
+`normative_compliance.evaluaciones` ({bandera, norma_aplicable, opinion_oece, link, snippet}):
+`norma_aplicable` es el artículo que regía en la fecha del proceso (cítalo primero, con su número) y
+`opinion_oece` un criterio del OECE si lo hay; si trae `_regimen_distinto`, dilo: «emitida bajo la ley
+anterior, vale por analogía», y no cites sus artículos como vigentes. Este agente
 corre con razonamiento: encadenar tools rompe el protocolo (400). UNA llamada y a escribir.
 
 ═══════════════════════════════════════════════════════════════════

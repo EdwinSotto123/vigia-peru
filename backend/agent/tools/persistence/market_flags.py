@@ -202,7 +202,7 @@ def persist_market_flags_as_banderas(alerta_codigo: str, tool_context: ToolConte
                     f"Ítem '{item_desc}'{_num_txt}: {que_precio} {f.get('diff_pct') or 0:.1f}% "
                     f"por encima de {que_mediana}.{_just}"
                 )[:700],
-                "norma": "Art. 12 Reglamento Ley 32069 — valor referencial razonable",
+                "norma": _norma(state, "cuantia"),
                 **_nums,
             })
         elif veredicto_item == "elevado":
@@ -213,7 +213,7 @@ def persist_market_flags_as_banderas(alerta_codigo: str, tool_context: ToolConte
                     f"Ítem '{item_desc}'{_num_txt}: {que_precio} {f.get('diff_pct') or 0:.1f}% "
                     f"por encima de {que_mediana}.{_just}"
                 )[:700],
-                "norma": "Art. 12 Reglamento Ley 32069 — valor referencial razonable",
+                "norma": _norma(state, "cuantia"),
                 **_nums,
             })
         if f.get("spec_restrictiva"):
@@ -253,7 +253,7 @@ def persist_market_flags_as_banderas(alerta_codigo: str, tool_context: ToolConte
                 "evidencia": (
                     f"Lote completo: {_detalle}({sobreprecio_pct:+.1f}% sobre el estimado de mercado)."
                 )[:500],
-                "norma": "Art. 12 Reglamento Ley 32069 — valor referencial razonable",
+                "norma": _norma(state, "cuantia"),
             })
         elif sobreprecio_pct >= 15:
             banderas_a_persistir.append({
@@ -262,7 +262,7 @@ def persist_market_flags_as_banderas(alerta_codigo: str, tool_context: ToolConte
                 "evidencia": (
                     f"Lote completo: {_detalle}({sobreprecio_pct:+.1f}% sobre el estimado de mercado)."
                 )[:500],
-                "norma": "Art. 12 Reglamento Ley 32069 — valor referencial razonable",
+                "norma": _norma(state, "cuantia"),
             })
 
     if not banderas_a_persistir:

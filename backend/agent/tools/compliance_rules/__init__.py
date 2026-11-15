@@ -154,6 +154,8 @@ from tools.compliance_rules._analysis import (  # noqa: F401
     _RAG_STOP_TEMA,
     _TERMINOS_OBRA,
     _elegir_opinion_pertinente,
+    _elegir_norma_aplicable,
+    _solo_criterios,
     detect_estado_real,
     analyze_postores_pattern,
     _detect_estado_real_persist,

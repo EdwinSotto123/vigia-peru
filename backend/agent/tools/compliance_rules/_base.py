@@ -53,6 +53,10 @@ def _regla_omitida(nombre: str, reglas: frozenset | None, activa_por_defecto: bo
 # 1225256, 1225266, 1225416, 1225450).
 _INICIO_LEY_32069 = _dt.date(2025, 4, 22)
 
+# Cada cita se comprobó contra el texto oficial cargado en `norma_fragmento` (2026-11-15). Tres estaban mal y salían en
+# las banderas: el art. 12 del Reglamento no trata del valor referencial (es la participación de Perú Compras), el
+# fraccionamiento de la Ley 32069 es el art. 50 (el 36 es compra centralizada) y la comparación de precios del TUO es el
+# art. 25 (el 22 es licitación y concurso público). El TUO no tiene un «Anexo IV» de procedimientos por monto.
 _NORMAS = {
     "ley_32069": {
         "regimen": "ley_32069",
@@ -63,10 +67,12 @@ _NORMAS = {
         "competencia": "Art. 5 Ley 32069 — principio de competencia",
         "integridad": "Art. 5 Ley 32069 — principio de integridad",
         "impedimentos": "Art. 30 Ley 32069 — impedimentos para contratar",
-        "sanciones": "Art. 30 lit. Ley 32069 — impedimentos derivados de sanciones / Reglamento D.S. 009-2025-EF",
+        "sanciones": "Art. 30 Ley 32069 — impedimentos para contratar (proveedores sancionados)",
         "procedimientos": "Art. 54 Ley 32069 y art. 14 Ley 32513 (Presupuesto 2026) — procedimientos según cuantía",
-        "comparacion_precios": "Reglamento D.S. 009-2025-EF — comparación de precios (lista de invitados, oferta ≤ cuantía)",
-        "penalidades": "Reglamento D.S. 009-2025-EF — penalidad por mora y ampliación de plazo",
+        "comparacion_precios": "Arts. 97 y 98 Reglamento D.S. 009-2025-EF — comparación de precios",
+        "penalidades": "Arts. 119, 120 y 142 Reglamento D.S. 009-2025-EF — penalidades, penalidad por mora y ampliación de plazo",
+        "cuantia": "Art. 48 Ley 32069 y arts. 47 y 53 Reglamento D.S. 009-2025-EF — cuantía de la contratación e interacción con el mercado",
+        "fraccionamiento": "Art. 50 Ley 32069 y art. 45 Reglamento D.S. 009-2025-EF — fraccionamiento",
     },
     "tuo_30225": {
         "regimen": "tuo_30225",
@@ -78,9 +84,11 @@ _NORMAS = {
         "integridad": "Art. 2 TUO Ley 30225 — principio de integridad",
         "impedimentos": "Art. 11 TUO Ley 30225 — impedimentos para contratar",
         "sanciones": "Art. 50 TUO Ley 30225 — infracciones y sanciones",
-        "procedimientos": "Anexo IV TUO Ley 30225 — procedimientos según monto",
-        "comparacion_precios": "Art. 22 TUO Ley 30225 — comparación de precios",
-        "penalidades": "Arts. 158-162 Reglamento TUO Ley 30225 — penalidades y ampliación de plazo",
+        "procedimientos": "Art. 21 TUO Ley 30225 y Ley de Presupuesto del año — procedimientos de selección según monto",
+        "comparacion_precios": "Art. 25 TUO Ley 30225 — comparación de precios",
+        "penalidades": "Arts. 158, 161 y 162 Reglamento D.S. 344-2018-EF — ampliación de plazo, penalidades y penalidad por mora",
+        "cuantia": "Arts. 32 y 34 Reglamento D.S. 344-2018-EF — valor estimado y valor referencial",
+        "fraccionamiento": "Art. 20 TUO Ley 30225 y art. 40 Reglamento D.S. 344-2018-EF — prohibición de fraccionamiento",
     },
 }
 
