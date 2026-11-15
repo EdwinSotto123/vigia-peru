@@ -112,6 +112,10 @@ def slug_de(ident: str, id_: str = "") -> str:
 
 def texto_paginas(archivo: Path, columna: str | None = None) -> list[str]:
     suf = archivo.suffix.lower()
+    if suf in (".doc", ".docx") and archivo.with_suffix(".pdf").exists():      # Word ya pasado a PDF (rag-legal-pe/scripts/doc_a_pdf.py)
+        archivo, suf = archivo.with_suffix(".pdf"), ".pdf"
+    if suf == ".doc":
+        raise ValueError("Word antiguo sin convertir a PDF")
     if suf == ".pdf":
         import fitz
         with fitz.open(archivo) as pdf:
