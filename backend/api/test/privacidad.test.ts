@@ -425,3 +425,9 @@ test("un nombre acortado en un texto libre no destapa el apellido escondido", ()
   assert.ok(!/quispe/i.test(s), s);
   assert.ok(s.includes("por tres meses"));
 });
+
+test("una sucesión registrada como socio no publica sus nombres", async () => {
+  const { nombrePublicable } = await import("../src/lib/cruces.js");
+  assert.equal(nombrePublicable("SUCESION PEREZ GOMEZ JUAN REPRESENTADA POR MARIA LOPEZ DIAZ VIUDA DE PEREZ"), "Sucesión (nombre reservado)");
+  assert.equal(nombrePublicable("ROJAS QUISPE ELENA"), "ROJAS QUISPE ELENA");
+});

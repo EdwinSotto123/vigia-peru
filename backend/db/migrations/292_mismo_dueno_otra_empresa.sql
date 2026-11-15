@@ -33,7 +33,9 @@ BEGIN
 
   DROP TABLE IF EXISTS _md_rp;
   CREATE TEMP TABLE _md_rp ON COMMIT DROP AS
-    SELECT r.ruc_empresa AS ruc, r.numero_documento AS doc, max(r.nombre) AS nombre, string_agg(DISTINCT r.tipo_rol, ', ' ORDER BY r.tipo_rol) AS rol
+    SELECT r.ruc_empresa AS ruc, r.numero_documento AS doc,
+           -- Una sucesión figura con dos nombres completos («SUCESION … REPRESENTADA POR …»): no se guarda.
+           CASE WHEN max(r.nombre) ~* 'SUCESI|REPRESENTAD|VIUDA DE|HEREDER|INDIVISA' THEN 'Sucesión (nombre reservado)' ELSE max(r.nombre) END AS nombre, string_agg(DISTINCT r.tipo_rol, ', ' ORDER BY r.tipo_rol) AS rol
       FROM rnp_conformacion_juridica r
      WHERE r.tipo_documento LIKE 'DOC. NACIONAL%' AND r.tipo_rol = 'SOCIO_ACCIONISTA_TITULAR'
        AND r.numero_documento IN (SELECT numero_documento FROM rnp_conformacion_juridica

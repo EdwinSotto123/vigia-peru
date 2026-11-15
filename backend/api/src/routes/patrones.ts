@@ -32,6 +32,7 @@ import { pool } from "../lib/db.js";
 import { Memo } from "../lib/cache.js";
 import { cachePublico, parametros } from "../lib/http.js";
 import { publicar } from "../lib/privacidad.js";
+import { nombrePublicable } from "../lib/cruces.js";
 
 export const patronesRouter = new Hono();
 
@@ -175,7 +176,7 @@ patronesRouter.get("/duenos", async (c) => {
     return publicar({
       total: total.rows[0]?.n ?? 0, page: q.page, size: q.size,
       // `socios` es la forma que `publicar()` ya conoce de los cruces: tapa un apellido.
-      data: filas.rows.map(({ nombre, ...x }) => ({ ...x, socios: [{ nombre, rol: "Socio" }] })),
+      data: filas.rows.map(({ nombre, ...x }) => ({ ...x, socios: [{ nombre: nombrePublicable(nombre), rol: "Socio" }] })),
     });
   });
   c.header("Cache-Control", CACHE);

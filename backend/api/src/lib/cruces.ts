@@ -105,6 +105,15 @@ const ETIQUETA_POSTERIOR: Record<string, string> = {
   autoridad: "Fue elegido autoridad",
 };
 
+/**
+ * El RNP registra a veces como socio a una sucesión («SUCESION PÉREZ … REPRESENTADA POR … VIUDA DE …»): son dos nombres
+ * completos en una cadena que el tapado de un apellido no reconoce. Esos no se publican: sale un rótulo.
+ */
+export function nombrePublicable(nombre: unknown): string {
+  const t = String(nombre ?? "").trim();
+  return /SUCESI[OÓ]N|REPRESENTAD[AO]\s+POR|VIUDA\s+DE|HEREDER[OA]S|INDIVISA/i.test(t) ? "Sucesión (nombre reservado)" : t;
+}
+
 const ORDEN_SEVERIDAD = `CASE severidad WHEN 'alta' THEN 0 WHEN 'media' THEN 1 ELSE 2 END`;
 
 const ROL: Record<string, string> = {
@@ -187,7 +196,7 @@ export function aCruce(r: Record<string, any>): Cruce {
     delete d.visitas;
   }
   const socios = r.persona_nombre && r.tipo !== "visita_previa" && !PATRONES_VISITA.has(r.tipo)
-    ? [{ nombre: String(r.persona_nombre), rol: rolLegible(r.persona_rol), ...(r.tipo === "autoridad" ? { cargo: (d.cargo as string) ?? null } : {}) }]
+    ? [{ nombre: nombrePublicable(r.persona_nombre), rol: rolLegible(r.persona_rol), ...(r.tipo === "autoridad" ? { cargo: (d.cargo as string) ?? null } : {}) }]
     : [];
   return {
     tipo: r.tipo,
