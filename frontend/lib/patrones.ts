@@ -15,6 +15,7 @@ export const SECCIONES_PATRONES = {
   proveedores: "Por proveedor",
   relleno: "Postores de relleno",
   consorcios: "Socias que compiten",
+  duenos: "Mismo dueño",
   renovaciones: "Renovaciones más caras",
 } as const;
 export type SeccionPatrones = keyof typeof SECCIONES_PATRONES;
@@ -104,6 +105,30 @@ export interface PatronConsorcio {
   mercadoNacional: boolean;
 }
 
+/** Un socio que gana en una entidad con dos o más empresas, procesos de objeto parecido (migraciones 292 y 293). */
+export interface PatronDueno {
+  entidadRuc: string;
+  entidad: string | null;
+  /** El socio, con un apellido tapado (o un rótulo si es una sucesión). */
+  socios: { nombre: string; rol: string }[];
+  empresas: { ruc: string; nombre: string | null }[];
+  /** Contratos con otro de objeto parecido de una empresa hermana. */
+  contratos: number;
+  /** De esos, los que están a 90 días o menos del otro. */
+  seguidos: number;
+  monto: number | null;
+  desde: string | null;
+  hasta: string | null;
+  ejemplos: string[];
+}
+
+export interface PatronesDuenos {
+  total: number;
+  page: number;
+  size: number;
+  data: PatronDueno[];
+}
+
 export interface PatronesConsorcios {
   total: number;
   page: number;
@@ -160,6 +185,7 @@ export const rutaPatrones = (alcance: AlcancePatron, page = 1, regla?: string) =
   `/patrones?${consulta({ alcance, page, size: TAM_PATRONES, regla })}`;
 export const rutaAcompanantes = (page = 1) => `/patrones/acompanantes?${consulta({ solo: "fuertes", page, size: TAM_PATRONES })}`;
 export const rutaConsorcios = (page = 1) => `/patrones/consorcios?${consulta({ page, size: TAM_PATRONES })}`;
+export const rutaDuenos = (page = 1, ruc?: string) => `/patrones/duenos?${consulta({ page, size: TAM_PATRONES, ruc })}`;
 export const rutaRenovaciones = (page = 1) => `/patrones/renovaciones?${consulta({ page, size: TAM_PATRONES })}`;
 
 // ─── Lecturas (servidor) ─────────────────────────────────────────────────────────

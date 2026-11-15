@@ -474,6 +474,18 @@ personasRouter.get("/rastro", async (c) => {
         });
       });
     }
+    // Red de la persona (migraciones 292 y 293): dos o más empresas SUYAS ganan en la misma entidad procesos de objeto
+    // parecido. Se exige que al menos dos de las empresas del grupo sean de esta persona, para no traer el grupo de otro socio.
+    let variasEmpresas: Record<string, unknown>[] = [];
+    if (rucsEmp.length >= 2) {
+      variasEmpresas = await consultaConPlazo<Record<string, unknown>>(
+        `SELECT g.entidad_ruc, (SELECT es.nombre FROM entidad_stats es WHERE es.ruc = g.entidad_ruc) AS entidad, g.empresas, g.contratos AS contratos_con_objeto_parecido,
+                g.seguidos AS con_90_dias_o_menos_entre_si, g.monto::float AS monto_soles, to_char(g.desde, 'YYYY-MM-DD') AS desde, to_char(g.hasta, 'YYYY-MM-DD') AS hasta,
+                g.ejemplos AS ejemplos_ocid
+           FROM mismo_dueno_grupo g
+          WHERE g.rucs && $1::text[] AND (SELECT count(*) FROM unnest(g.rucs) u WHERE u = ANY($1::text[])) >= 2
+          ORDER BY g.seguidos DESC, g.contratos DESC LIMIT 20`, [rucsEmp], 6000).then((r) => r.rows).catch(() => []);
+    }
     // Cada fila lleva el nombre como está en su registro, con un apellido tapado: dos personas distintas que comparten
     // las palabras buscadas se ven como dos nombres.
     const tapar = <T extends { nombre: string }>(filas: T[] | null) =>
@@ -489,6 +501,7 @@ personasRouter.get("/rastro", async (c) => {
       visito_y_su_empresa_gano: visitoYGano,
       salidas_de_planilla: tapar(salidas),
       salio_de_la_entidad_y_su_empresa_gano: salioYGano,
+      gana_en_la_misma_entidad_con_varias_empresas: variasEmpresas,
       sin_respuesta: [["visitas", visitas], ["empresas", rnp], ["declaraciones_juradas", dji], ["aportes_de_campana", aportes], ["personas_expuestas", peps]]
         .filter(([, v]) => v === null).map(([k]) => k),
     };

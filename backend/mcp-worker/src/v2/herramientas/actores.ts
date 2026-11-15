@@ -366,7 +366,7 @@ export const rastroPersona = definir({
     "intereses como funcionaria, sus aportes de campaña, si es persona expuesta políticamente, la planilla del Estado, sus " +
     "órdenes de servicio como persona natural, su trayectoria electoral y su cargo vigente. Trae dos cruces ya hechos: " +
     "visitó una entidad y una empresa suya le ganó, y salió de la planilla de una entidad y una empresa suya le ganó " +
-    "después (puerta giratoria). ÚSALA SIEMPRE que pregunten " +
+    "después (puerta giratoria). Y un tercero: dos o más empresas suyas ganan en la misma entidad procesos de objeto parecido. ÚSALA SIEMPRE que pregunten " +
     "por una persona («¿tiene contratos o visitas?», «¿quién es?»): es la única que busca visitas por el nombre del " +
     "visitante. Los nombres salen con un apellido tapado (es sólo para mostrar; la búsqueda usa el nombre entero) y nunca " +
     "sale un documento. No se busca por DNI. Si hay varios nombres parecidos, dilo: pueden ser personas distintas.",
@@ -407,6 +407,13 @@ export const rastroPersona = definir({
       // Puerta giratoria: dejó la planilla de una entidad y una empresa suya le ganó después a esa misma entidad.
       salio_de_la_entidad_y_su_empresa_gano: ((r?.salio_de_la_entidad_y_su_empresa_gano ?? []) as Fila[]).map((x) => ({
         ...x, enlace_empresa: x.empresa_ruc ? e.empresa(x.empresa_ruc) : undefined, enlace_entidad: x.entidad_ruc ? e.entidad(x.entidad_ruc) : undefined,
+      })),
+      // Red de la persona: dos o más empresas suyas ganan en la misma entidad procesos de objeto parecido (migración 292).
+      gana_en_la_misma_entidad_con_varias_empresas: ((r?.gana_en_la_misma_entidad_con_varias_empresas ?? []) as Fila[]).map((x) => ({
+        entidad: x.entidad, entidad_ruc: x.entidad_ruc, empresas: ((x.empresas ?? []) as Fila[]).map((y) => ({ empresa: y.nombre, ruc: y.ruc, enlace: e.empresa(y.ruc) })),
+        contratos_con_objeto_parecido: x.contratos_con_objeto_parecido, con_90_dias_o_menos_entre_si: x.con_90_dias_o_menos_entre_si,
+        monto_soles: x.monto_soles, desde: x.desde, hasta: x.hasta, ejemplos: ((x.ejemplos_ocid ?? []) as string[]).map((o) => e.contrato(o)),
+        enlace_entidad: x.entidad_ruc ? e.entidad(x.entidad_ruc) : undefined,
       })),
       salidas_de_planilla: r?.salidas_de_planilla ?? [],
       declaraciones_juradas: r?.declaraciones_juradas ?? [],

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
-import { Briefcase, Building2, Handshake, SearchX, TrendingUp, Users } from "lucide-react";
+import { Briefcase, Building2, Handshake, SearchX, TrendingUp, Users, UsersRound } from "lucide-react";
 import { Ayuda, CabeceraPestana, Nota, Pestanas } from "@/components/patrones";
 import { EVENTO_ACTIVA } from "@/components/patrones/Pestanas";
 import { CeldaBarra, CeldaNumero, CeldaPrincipal, CeldaTexto, CLASE_ENLACE_CELDA, Indicadores, Tabla, type Columna, type Fila, type Indicador } from "@/components/listado";
@@ -19,6 +19,7 @@ import {
   codigoDeOcid,
   rutaAcompanantes,
   rutaConsorcios,
+  rutaDuenos,
   rutaPatrones,
   rutaRenovaciones,
   SECCIONES_PATRONES,
@@ -26,6 +27,8 @@ import {
   type AlcancePatron,
   type PatronAcompanante,
   type PatronConsorcio,
+  type PatronDueno,
+  type PatronesDuenos,
   type PatronesAcompanantes,
   type PatronesConsorcios,
   type PatronesRenovaciones,
@@ -87,6 +90,13 @@ export function PatronesVista({ activa, inicial, etiquetas }: { activa?: string;
           titulo: "Socias de consorcio que después compiten",
           icono: <Handshake size={15} aria-hidden />,
           contenido: <ListaConsorcios inicial={de("consorcios")} />,
+        },
+        {
+          clave: "duenos",
+          etiqueta: SECCIONES_PATRONES.duenos,
+          titulo: "El mismo dueño gana con varias empresas en una entidad",
+          icono: <UsersRound size={15} aria-hidden />,
+          contenido: <ListaDuenos inicial={de("duenos")} />,
         },
         {
           clave: "renovaciones",
@@ -628,6 +638,139 @@ function filaConsorcio(p: PatronConsorcio, i: number): Fila {
       rivales: <CeldaNumero sub={p.solas > 0 ? `solas las dos en ${numero(p.solas)}` : undefined}>{numero(p.rivales)}</CeldaNumero>,
       gano: <CeldaTexto sub={`${plural(p.ganoB, "vez", "veces")} la segunda`}>{`${plural(p.ganoA, "vez", "veces")} la primera`}</CeldaTexto>,
       entidades: <CeldaNumero>{numero(p.entidades)}</CeldaNumero>,
+      periodo: anios ? <CeldaTexto>{anios}</CeldaTexto> : undefined,
+    },
+  };
+}
+
+// ─── Mismo dueño ─────────────────────────────────────────────────────────────────
+
+const COLUMNAS_DUENOS: Columna[] = [
+  { clave: "grupo", titulo: "Entidad y empresas", ancho: "minmax(0,1.8fr)" },
+  { clave: "socio", titulo: "Socio en común", ancho: "minmax(0,0.9fr)", desde: "lg", apilar: "con-rotulo", corto: "Socio" },
+  {
+    clave: "contratos",
+    titulo: "Contratos parecidos",
+    ancho: "9rem",
+    alinear: "der",
+    desde: "md",
+    apilar: "con-rotulo",
+    corto: "Parecidos",
+    ayuda: (
+      <Ayuda titulo="¿Qué cuenta?">
+        <span className="block">
+          Contratos de una empresa que tienen, en la misma entidad, otro de objeto parecido ganado por una empresa del mismo socio. Debajo,
+          cuántos están a 90 días o menos del otro.
+        </span>
+      </Ayuda>
+    ),
+  },
+  { clave: "monto", titulo: "Monto", ancho: "7rem", alinear: "der", desde: "md", apilar: "con-rotulo" },
+  { clave: "ejemplos", titulo: "Contratos de ejemplo", ancho: "minmax(0,0.9fr)", desde: "lg", apilar: "con-rotulo", corto: "Ejemplos" },
+  { clave: "periodo", titulo: "Años", ancho: "6.5rem", desde: "xl", apilar: "con-rotulo" },
+];
+
+function ListaDuenos({ inicial }: { inicial: InicialPatrones }) {
+  const lista = useListaEnUrl("duenos", inicial);
+  // El filtro por RUC (de la entidad o de una de las empresas) es de la vista: no viaja a la URL.
+  const [ruc, setRuc] = useState("");
+  const rucValido = /^20\d{9}$/.test(ruc.trim()) ? ruc.trim() : undefined;
+  const carga = usePoder<PatronesDuenos>(rutaDuenos(rucValido ? 1 : lista.page, rucValido));
+  return (
+    <div className="space-y-4">
+      <CabeceraPestana
+        ayuda={
+          <Ayuda titulo="¿Por qué mirar a un dueño con varias empresas?">
+            <span className="block">
+              La concentración de un proveedor se mide por su RUC. Si una persona le vende lo mismo a una entidad con dos empresas, ninguna
+              parece dominante y cada compra queda bajo el tope que obligaría a un procedimiento con más competencia.
+            </span>
+            <span className="mt-1.5 block">
+              Sólo cuenta a socios (no a directores ni representantes) de 2 a 6 empresas, según el Registro Nacional de Proveedores, y
+              procesos de objeto parecido desde 2023.
+            </span>
+            <span className="mt-1.5 block">Un grupo familiar puede tener dos empresas legítimas. Un patrón es un motivo para mirar, no una acusación.</span>
+          </Ayuda>
+        }
+      >
+        Un socio que gana en la misma entidad, con dos o más empresas, procesos de objeto parecido.
+      </CabeceraPestana>
+      <label className="block max-w-md">
+        <span className="text-rotulo font-medium text-inkSoft">Filtrar por RUC de la entidad o de una empresa</span>
+        <input
+          type="search"
+          inputMode="numeric"
+          value={ruc}
+          onChange={(e) => setRuc(e.target.value.replace(/\D/g, "").slice(0, 11))}
+          placeholder="RUC de 11 dígitos que empieza en 20"
+          autoComplete="off"
+          className="mt-1 h-11 w-full rounded-xl border border-line bg-paperSoft px-3 text-dato text-ink placeholder:text-mute focus:border-granate focus:bg-paper focus:outline-none focus:ring-2 focus:ring-granate/20"
+        />
+      </label>
+      <EstadoCarga carga={carga} columnas={COLUMNAS_DUENOS}>
+        {(d) => {
+          const filas = d.data ?? [];
+          return (
+            <div className="space-y-4">
+              <Indicadores
+                franja
+                items={[
+                  { valor: numero(d.total), etiqueta: rucValido ? "grupos con ese RUC" : "grupos de entidad y socio", contexto: "dos o más empresas del mismo socio", icono: <UsersRound size={15} strokeWidth={1.9} aria-hidden />, parte: null },
+                  { valor: "90 días", etiqueta: "o menos entre dos contratos", contexto: "es la forma grave: una compra repartida", parte: null },
+                  { valor: "2 a 6", etiqueta: "empresas por socio", contexto: "quien figura en decenas no es el dueño", parte: null },
+                ]}
+              />
+              <ZonaLista total={d.total} page={rucValido ? 1 : lista.page} cargando={carga.cargando} nombre="grupos" onPagina={lista.irAPagina} vacio="No hay grupos con este patrón para ese filtro.">
+                {filas.length > 0 ? <Tabla columnas={COLUMNAS_DUENOS} filas={filas.map(filaDueno)} etiqueta="Socios que ganan en una entidad con varias empresas" /> : null}
+              </ZonaLista>
+            </div>
+          );
+        }}
+      </EstadoCarga>
+    </div>
+  );
+}
+
+function filaDueno(p: PatronDueno, i: number): Fila {
+  const anios = periodo(p.desde, p.hasta);
+  const empresas = p.empresas ?? [];
+  return {
+    id: `dueno-${i}`,
+    textos: { periodo: anios },
+    celdas: {
+      grupo: (
+        <CeldaPrincipal
+          dosLineas
+          titulo={<EnlaceEntidad ruc={p.entidadRuc} nombre={p.entidad} />}
+          meta={
+            <span className="block">
+              {/* recorte: cuatro empresas caben en la celda; las demás se cuentan a continuación */}
+              {empresas.slice(0, 4).map((e, k) => (
+                <span key={e.ruc}>
+                  {k > 0 ? ", " : ""}
+                  <EnlaceEmpresa ruc={e.ruc} nombre={e.nombre} />
+                </span>
+              ))}
+              {empresas.length > 4 ? ` y ${empresas.length - 4} más` : ""}
+            </span>
+          }
+        />
+      ),
+      socio: <CeldaTexto>{p.socios?.[0]?.nombre ?? "Sin nombre publicado"}</CeldaTexto>,
+      contratos: <CeldaNumero sub={p.seguidos > 0 ? `${numero(p.seguidos)} a 90 días o menos` : undefined}>{numero(p.contratos)}</CeldaNumero>,
+      monto: <CeldaNumero>{p.monto != null ? solesCompacto(p.monto) : "Sin dato"}</CeldaNumero>,
+      ejemplos: (
+        <CeldaTexto>
+          {(p.ejemplos ?? []).map((o, k) => (
+            <span key={o}>
+              {k > 0 ? ", " : ""}
+              <Link href={`/app/contratos/${encodeURIComponent(o)}`} prefetch={false} className={CLASE_ENLACE_CELDA}>
+                {codigoDeOcid(o)}
+              </Link>
+            </span>
+          ))}
+        </CeldaTexto>
+      ),
       periodo: anios ? <CeldaTexto>{anios}</CeldaTexto> : undefined,
     },
   };
