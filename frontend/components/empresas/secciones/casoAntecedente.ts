@@ -446,6 +446,17 @@ export function datosDe(a: AntecedenteEmpresa, ruc: string): DatoCaso[] {
       dd != null && { etiqueta: "Objeto parecido", valor: dd === 0 ? "Con la misma fecha de buena pro" : `A ${plural(dd, "día", "días")} de este proceso` },
       delProceso(),
     );
+  } else if (t === "contrato_sobre_adjudicado") {
+    const mc = num(d.monto_contrato);
+    const ad = num(d.adjudicado);
+    const df = num(d.diff_pct);
+    add(
+      mc != null && { etiqueta: "Monto del contrato", valor: soles(mc) },
+      ad != null && { etiqueta: "Adjudicado", valor: soles(ad) },
+      df != null && { etiqueta: "Diferencia", valor: `${numero(Math.round(df))} % más` },
+      d.igual_al_referencial === true && { etiqueta: "Coincide con", valor: "El valor referencial del proceso" },
+      delProceso(),
+    );
   } else if (t === "retencion_sobre_tope") {
     const mc = num(d.monto_contrato);
     const tp = num(d.tope);

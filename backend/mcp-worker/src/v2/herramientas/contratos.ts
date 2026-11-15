@@ -128,7 +128,7 @@ export const buscarContratos = definir({
     monto_min: z.number().min(0).optional().describe("Monto mínimo en soles."),
     monto_max: z.number().min(0).optional(),
     riesgo: z.enum(["alto", "medio", "bajo", "sin_analizar"]).optional().describe("Nivel del dictamen de Vigía (solo dictámenes publicados)."),
-    senal: z.string().max(40).optional().describe("Tipo de señal de los cruces, por ejemplo «unico_postor», «socio_comun», «recien_fundada»."),
+    senal: z.string().max(40).optional().describe("Tipo de señal de los cruces, por ejemplo «unico_postor», «socio_comun», «recien_fundada», «mismo_dueno» (el mismo socio gana ahí con otra empresa), «retencion_sobre_tope», «contrato_sobre_adjudicado», «puerta_giratoria», «renovacion_mas_cara»."),
     orden: z.enum(["fecha", "monto", "puntaje"]).default("fecha"),
     pagina,
     por_pagina: porPagina,

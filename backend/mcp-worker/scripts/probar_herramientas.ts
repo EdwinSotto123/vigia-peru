@@ -56,6 +56,9 @@ const CASOS: Caso[] = [
     espera: (r) => (lista(r, "normas_que_regian").some((x) => (x as { articulo?: string }).articulo === "30") && lista(r, "criterios_de_esa_ley").length ? null : "sin el artículo 30 o sin criterios") },
   { h: normaAplicable as never, args: { pregunta: "impedimentos para contratar", fecha: "2023-05-10" },
     espera: (r) => (/30225/.test(String(r.rige)) && lista(r, "normas_que_regian").length ? null : "un proceso de 2023 debe regirse por la Ley 30225") },
+  // Una de las dos ferreteras del mismo dueño que le venden al mismo gobierno regional: debe traer a su hermana.
+  { h: redEmpresa as never, args: { ruc: "20532492051" },
+    espera: (r) => (lista(r, "mismo_dueno_en_la_misma_entidad").some((g) => ((g as { empresas_hermanas: unknown[] }).empresas_hermanas ?? []).length >= 1) ? null : "sin empresas hermanas en la misma entidad") },
   { h: redEmpresa as never, args: { ruc: "20100210909" }, espera: (r) => (lista(r, "socias_de_consorcio_que_compiten").length ? null : "sin socias de consorcio para una aseguradora que las tiene") },
 ];
 

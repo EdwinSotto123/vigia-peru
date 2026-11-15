@@ -60,6 +60,8 @@ export const ETIQUETA_CRUCE: Record<string, string> = {
   retencion_sobre_tope: "Garantía por retención de pagos sobre el tope, sin parecer pequeña empresa",
   // Un socio del ganador es socio de otra empresa que ganó en la misma entidad un objeto parecido (migración 292).
   mismo_dueno: "El mismo dueño ganó aquí algo parecido con otra empresa",
+  // El monto leído en el contrato supera en 25 % o más lo adjudicado según CONOSCE y el OCDS (migración 294).
+  contrato_sobre_adjudicado: "El contrato se firmó por más de lo adjudicado",
   domicilio_compartido: "Mismo domicilio fiscal que otro participante",
   proveedor_cautivo: "Casi todo su ingreso del Estado es de esta entidad",
   partido_gobernante: "Financió al partido que gobierna la entidad",

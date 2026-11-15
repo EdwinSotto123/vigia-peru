@@ -263,6 +263,8 @@ export function cadenaCruces(): Refresco[] {
     // El mismo dueño gana en la misma entidad con otra empresa un objeto parecido (migración 292).
     f("refrescar_cruce_mismo_dueno", true),
     f("refrescar_mismo_dueno_grupo", true),
+    // El contrato se firmó por más de lo adjudicado según las dos fuentes oficiales (migración 294).
+    f("refrescar_cruce_contrato_sobre_adjudicado", true),
     // Lo que dicen el acta de buena pro y las consultas leídas con Claude (migraciones 245-246).
     f("refrescar_cruce_acta", true),
     // Quita los cruces que algún JOIN multiplica (migración 120), antes de juntarlos en casos_cruce.

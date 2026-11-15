@@ -60,21 +60,30 @@ export const redEmpresa = definir({
   descripcion:
     "Con quién está vinculada una empresa (RUC 20): sus socios, representantes y directivos (con un apellido tapado), las " +
     "otras empresas con las que comparte personas y si también le venden al Estado, empresas socias, y sus clientes del " +
-    "Estado con cuánto le compró cada uno. Sirve para ver concentración y vínculos entre postores.",
+    "Estado con cuánto le compró cada uno. También dice si un socio suyo gana en las mismas entidades, con otra empresa, " +
+    "procesos de objeto parecido (el mismo negocio repartido entre razones sociales). Sirve para ver concentración y vínculos entre postores.",
   cuenta: true,
   entrada: { ruc: rucEntrada("la empresa") },
   async ejecutar({ ruc }, cx) {
     const r = rucJuridico(ruc);
     const e = enlaces(cx.env);
-    const [s, cl, ac, pt, cr] = await Promise.all([
+    const [s, cl, ac, pt, cr, du] = await Promise.all([
       api<Fila>(cx.env, `/empresas/${r}/socios`), api<Fila>(cx.env, `/empresas/${r}/clientes`),
       // Postores de relleno y patrones de la empresa (migración 276): si fallan, la red sale igual.
       api<Fila>(cx.env, "/patrones/acompanantes", { ruc: r, solo: "todos", size: 15 }).catch(() => null),
       api<Fila>(cx.env, "/patrones", { alcance: "proveedor", ruc: r, size: 15 }).catch(() => null),
       api<Fila>(cx.env, "/patrones/consorcios", { ruc: r, size: 15 }).catch(() => null),
+      // Empresas del mismo socio que ganan objetos parecidos en las mismas entidades (migraciones 292 y 293).
+      api<Fila>(cx.env, "/patrones/duenos", { ruc: r, size: 15 }).catch(() => null),
     ]);
     return {
       ruc: r,
+      mismo_dueno_en_la_misma_entidad: ((du?.data ?? []) as Fila[]).map((x) => ({
+        entidad: x.entidad, entidad_ruc: x.entidadRuc, socio: x.socios?.[0]?.nombre ?? undefined,
+        empresas_hermanas: ((x.empresas ?? []) as Fila[]).filter((y) => y.ruc !== r).map((y) => ({ empresa: y.nombre, ruc: y.ruc, enlace: e.empresa(y.ruc) })),
+        contratos_con_objeto_parecido: x.contratos, con_90_dias_o_menos_entre_si: x.seguidos, monto_soles: x.monto, desde: x.desde, hasta: x.hasta,
+        ejemplos: ((x.ejemplos ?? []) as string[]).map((o) => e.contrato(o)),
+      })),
       postores_de_relleno: ((ac?.data ?? []) as Fila[]).map((x) => ({
         papel: x.rucGanador === r ? "esta empresa gana y la otra la acompaña" : "esta empresa acompaña y la otra gana",
         otra_empresa: x.rucGanador === r ? x.acompanante : x.ganador, otra_ruc: x.rucGanador === r ? x.rucAcompanante : x.rucGanador,
