@@ -760,7 +760,8 @@ function Texto({ c, gobierna }: { c: CruceProveedor; gobierna?: GobiernoContrato
           El contrato dice <b>{solesCompacto(n(d.monto_contrato))}</b>, pero la buena pro fue por <b>{solesCompacto(n(d.adjudicado))}</b> según los dos
           registros oficiales: <b>{n(d.diff_pct) != null ? `${Math.round(n(d.diff_pct)!)} % más` : "más"}</b>
           {n(d.de_mas) ? <>, unos {solesCompacto(n(d.de_mas))} de diferencia</> : ""}.
-          {d.igual_al_referencial === true ? " El monto firmado coincide con el valor referencial del proceso." : ""} El monto del contrato sale de una
+          {d.igual_al_referencial === true ? " El monto firmado coincide con el valor referencial del proceso." : ""}
+          {txt(d.consorcio) ? ` Lo ganó ${tituloNatural(txt(d.consorcio)!)}, que esta empresa integra.` : ""} El monto del contrato sale de una
           lectura automática: conviene abrir el documento.
           <Gano c={c} />
         </>
