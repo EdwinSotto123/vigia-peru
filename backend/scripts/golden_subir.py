@@ -42,10 +42,15 @@ def _fecha_caso(st: dict) -> str | None:
     return None
 
 
-RE_OPINION = re.compile(r"Opini[oó]n\s*(?:N[°ºo.]*\s*)?(D?\d{1,4})-(20\d{2})", re.I)
+RE_OPINION = re.compile(r"Opini[oó]n\s*(?:N[°ºo.]*\s*)?(D?\d{1,6})-(20\d{2})", re.I)
 
 
-def citas_legales(st: dict, articulos: dict[str, set], regimen: str, opiniones: dict[str, str] | None = None) -> dict:
+def clave_opinion(numero: str, anio: str) -> str:
+    """«D26-2025», «D000026-2025-OECE-DTN» y «026-2025/DTN» son la misma opinión: el número sin la D ni los ceros."""
+    return f"{int(re.sub(r'[^0-9]', '', numero) or 0)}-{anio}"
+
+
+def citas_legales(st: dict, articulos: dict[str, set], regimen: str, opiniones: dict[str, set] | None = None) -> dict:
     """Las normas que citó el analista legal (en sus banderas y en el dictamen) y su validez."""
     textos = []
     leg = st.get("legal_analysis")
@@ -58,13 +63,15 @@ def citas_legales(st: dict, articulos: dict[str, set], regimen: str, opiniones: 
     # Opiniones del OECE: ¿existe en el corpus y se emitió bajo la ley que rige el proceso?
     for txt in textos:
         for m in RE_OPINION.finditer(txt):
-            clave = f"{m.group(1).upper().lstrip('0')}-{m.group(2)}"
+            clave = clave_opinion(m.group(1), m.group(2))
             if ("opinion", clave) in vistas:
                 continue
             vistas.add(("opinion", clave))
-            reg = (opiniones or {}).get(clave)
-            citas.append({"cita": re.sub(r"\s+", " ", m.group(0))[:80], "norma": "opinion", "articulo": clave, "existe": reg is not None,
-                          "rige": reg in (regimen, "ambos"), "estado": "no_existe" if reg is None else "ok" if reg in (regimen, "ambos") else "otro_regimen"})
+            # En 2025 hay dos series con el mismo número (OSCE, Ley 30225, y OECE, Ley 32069): vale si alguna rige.
+            regs = (opiniones or {}).get(clave)
+            rige = bool(regs) and bool(regs & {regimen, "ambos"})
+            citas.append({"cita": re.sub(r"\s+", " ", m.group(0))[:80], "norma": "opinion", "articulo": clave, "existe": bool(regs),
+                          "rige": rige, "estado": "no_existe" if not regs else "ok" if rige else "otro_regimen"})
     for txt in textos:
         for m in RE_CITA.finditer(txt):
             art, nombre = m.group(1), m.group(2)
@@ -115,11 +122,11 @@ def main() -> None:
             articulos.setdefault(slug, set()).add(str(art).split(".")[0])
 
         cu.execute("SELECT numero, documento, regimen FROM norma WHERE tipo = 'opinion'")
-        opiniones: dict[str, str] = {}
+        opiniones: dict[str, set] = {}
         for numero, documento, reg in cu.fetchall():
-            mo = RE_OPINION.search(f"Opinión N° {numero or ''} {documento or ''}") or RE_OPINION.search(str(documento or ""))
+            mo = RE_OPINION.search(str(documento or "")) or RE_OPINION.search(f"Opinión N° {numero or ''}") or RE_OPINION.search(str(numero or ""))
             if mo:
-                opiniones[f"{mo.group(1).upper().lstrip('0')}-{mo.group(2)}"] = reg
+                opiniones.setdefault(clave_opinion(mo.group(1), mo.group(2)), set()).add(reg)
         tp = fp = fn = errores = 0
         por_regla: dict[str, list[int]] = {}
         costos, segs, filas, filas_legal = [], [], [], []
