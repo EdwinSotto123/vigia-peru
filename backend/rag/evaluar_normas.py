@@ -59,7 +59,8 @@ def _acierto(esperado: list[dict], matches: list[dict]) -> int | None:
                 if _slug_de(m).startswith(e["slug_prefijo"]) and str(e.get("texto_contiene") or "").lower() in str(m.get("texto") or m.get("cita") or "").lower():
                     return i
                 continue
-            mismo_doc = e.get("slug") and (e["slug"] == _slug_de(m) or e["slug"] in str(m.get("uri") or ""))
+            # «ley-32069-art-30-impedimentos» es el artículo 30 de «ley-32069» (el cuadro que el consolidado sólo enlaza).
+            mismo_doc = e.get("slug") and (e["slug"] == _slug_de(m) or _slug_de(m).startswith(e["slug"] + "-art-") or e["slug"] in str(m.get("uri") or ""))
             if mismo_doc and (not e.get("articulo") or str(e["articulo"]).split(".")[0] == str(m.get("articulo") or "").split(".")[0]):
                 return i
     return None

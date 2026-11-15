@@ -338,8 +338,8 @@ def clasificar(d: dict) -> dict:
     if re.search(r"SERVIR|\bCAS\b|\b1057\b|075-2008|31131|32563|30057|040-2014|\b1023\b|28175|\b1442\b|\b1666\b|D\.L\. (N. )?(276|728)\b|31188|29973|29248|26771|27674|"
                  r"018-2007-TR|PLANILLA|AIRHSP|EF/53|NEPOTISMO|DISCAPACIDAD|CONSTITUCION|UNIDAD DE INGRESO", t):
         materia = "empleo_publico"
-    elif re.search(r"31589|OBRAS PARALIZADAS", t):
-        materia = "contrataciones"
+    elif re.search(r"31589|OBRAS PARALIZADAS|071-2018-PCM|RECONSTRUCCION|29230|081-2022-EF|OBRAS POR IMPUESTOS|010-2025-OECE", t):
+        materia = "especial"          # otro régimen de contratación: no entra en la búsqueda general (migración 287)
     elif tipo == "control" or re.search(r"27785|SISTEMA NACIONAL DE CONTROL|31288|31358", t):
         materia = "control"
     elif re.search(r"PRESUPUESTO|ENDEUDAMIENTO|\b1440\b|\b1441\b|\b1436\b|\bUIT\b", t):

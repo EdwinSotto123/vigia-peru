@@ -115,6 +115,14 @@ la R.D. 0001-2026-EF/54.01 rigen desde el 14.
 **Materia.** La búsqueda del analista legal no trae empleo público (CAS, planillas) salvo que se pida
 (`buscar_norma(…, p_materias)`). Así el corpus de CAS y planillas vive en la misma base sin ensuciar los contratos.
 
+**Regímenes especiales.** La Ley 31589 (obras paralizadas) y sus bases, la Reconstrucción con Cambios (D.S. 071-2018-PCM)
+y Obras por Impuestos (Ley 29230) llevan materia `especial` y tampoco entran en la búsqueda general (migración 287): al
+cargarlas sin esa marca la medición bajó de 93,2 % a 89 %, porque sus artículos se parecen a los de la ley general.
+
+**Medición con el corpus ampliado** (73 preguntas, 8 primeros): acierto 93,2 %, MRR 0,769, norma primero 100 %, régimen
+equivocado 0 %. Prueba de oro de bienes con la búsqueda nueva (imagen eaa6bf57): F1 0,93, y las 79 citas legales del
+analista existen y regían en la fecha (antes, 1 a 4 por corrida eran de la otra ley o inexistentes).
+
 **Corpus cargado** (PROD, 2026-11-15): 972 normas y criterios, 16 293 fragmentos (antes 750 y 7 450).
 
 | Qué entró | Cuánto |
