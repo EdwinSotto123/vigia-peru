@@ -77,12 +77,15 @@ def _regimen_equivocado(reg: str, m: dict) -> bool:
 def medir(nombre: str, buscar, casos: list[dict], detalle: bool) -> dict:
     n = hit = primero_norma = malos = total = 0
     mrr = 0.0
-    fallas = []
+    fallas, por_caso = [], []
     for c in casos:
         reg = str(c["regimen"])
         ms = buscar(c["pregunta"], reg, c.get("fecha"))[:8]          # `fecha`: preguntas que dependen de la versión de la norma
         n += 1
         p = _acierto(c.get("esperado") or [], ms)
+        por_caso.append({"caso": c, "puesto": p,
+                         "primeros": [f"{(m.get('documento') or m.get('numero') or '')[:90]}" + (f", art. {m['articulo']}" if m.get("articulo") else "")
+                                      + (f" ({m['aplica']})" if m.get("aplica") and m["aplica"] != "norma" else "") for m in ms[:8]]})
         if p:
             hit += 1
             mrr += 1.0 / p
@@ -98,13 +101,47 @@ def medir(nombre: str, buscar, casos: list[dict], detalle: bool) -> dict:
     if detalle:
         for f in fallas[:25]:
             print("   sin acierto:", f)
+    r["por_caso"] = por_caso
     return r
+
+
+def subir(destino: str, r: dict, nota: str | None) -> None:
+    """La medición al panel (/admin/golden, conjunto `rag_normas`): cada pregunta con su puesto y lo que salió primero."""
+    import datetime as dt
+    from tunel_rds import conexion
+    corrida = "normas-" + dt.datetime.now().strftime("%Y%m%d-%H%M")
+    with conexion(destino) as cn:
+        cu = cn.cursor()
+        for x in r["por_caso"]:
+            c = x["caso"]
+            esperado = [(e.get("slug") or (e.get("slug_prefijo", "") + "…")) + (f", art. {e['articulo']}" if e.get("articulo") else "") for e in c.get("esperado") or []]
+            cu.execute("""INSERT INTO golden_caso (conjunto, caso, titulo, perfil, fecha, regimen, esperado) VALUES ('rag_normas', %s, %s, %s, %s, %s, %s)
+                          ON CONFLICT (conjunto, caso) DO UPDATE SET titulo = EXCLUDED.titulo, perfil = EXCLUDED.perfil, fecha = EXCLUDED.fecha,
+                            regimen = EXCLUDED.regimen, esperado = EXCLUDED.esperado""",
+                       (c["id"], c["pregunta"][:400], c.get("regla"), c.get("fecha") or FECHA[str(c["regimen"])], str(c["regimen"]),
+                        json.dumps({"pregunta": c["pregunta"], "esperado": esperado}, ensure_ascii=False)))
+        cu.execute("UPDATE golden_conjunto SET casos = (SELECT count(*) FROM golden_caso WHERE conjunto = 'rag_normas'), actualizado_at = now() WHERE clave = 'rag_normas'")
+        metricas = {k: r[k] for k in ("acierto@8", "MRR", "norma_primero", "regimen_equivocado", "preguntas")}
+        cu.execute("""INSERT INTO golden_corrida (conjunto, corrida, variante, imagen, contratos, errores, exhaustividad_pct, f1, metricas, nota)
+                      VALUES ('rag_normas', %s, %s, %s, %s, 0, %s, %s, %s, %s)
+                      ON CONFLICT (conjunto, corrida, variante) DO UPDATE SET metricas = EXCLUDED.metricas, nota = EXCLUDED.nota RETURNING id""",
+                   (corrida, r["sistema"], r["sistema"], r["preguntas"], round(100 * r["acierto@8"], 1), r["MRR"], json.dumps(metricas, ensure_ascii=False), nota))
+        cid = cu.fetchone()[0]
+        cu.execute("DELETE FROM golden_resultado WHERE corrida_id = %s", (cid,))
+        for x in r["por_caso"]:
+            cu.execute("""INSERT INTO golden_resultado (corrida_id, caso, estado, aciertos, omisiones, detalle) VALUES (%s, %s, 'ok', %s, %s, %s)""",
+                       (cid, x["caso"]["id"], ["norma_esperada"] if x["puesto"] else [], [] if x["puesto"] else ["norma_esperada"],
+                        json.dumps({"puesto": x["puesto"], "primeros": x["primeros"]}, ensure_ascii=False)))
+        cn.commit()
+    print(f"subida: rag_normas {corrida} ({r['sistema']}), {len(r['por_caso'])} preguntas")
 
 
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--solo", choices=["nuevo", "chroma"])
     ap.add_argument("--detalle", action="store_true")
+    ap.add_argument("--subir", choices=["dev", "prod"], help="guarda la medición en el panel (conjunto rag_normas)")
+    ap.add_argument("--nota")
     a = ap.parse_args()
     _entorno()
     casos = _casos()
@@ -137,7 +174,9 @@ def main() -> None:
                     if f["aplica"] == "criterio_anterior":
                         f["advertencia"] = f"emitido bajo la ley {otro}"
                 return filas
-            medir("vigia_normas", nuevo_con_slug, casos, a.detalle)
+            res = medir("vigia_normas", nuevo_con_slug, casos, a.detalle)
+        if a.subir:
+            subir(a.subir, res, a.nota)
     if a.solo != "nuevo":
         from tools import legal as L
 
@@ -155,7 +194,9 @@ def main() -> None:
             for m in ms:
                 m["slug"] = por_numero.get(str(m.get("numero") or "")) or por_numero.get(str(m.get("documento") or "")) or ""
             return ms
-        medir("chroma", chroma, casos, a.detalle)
+        res = medir("chroma", chroma, casos, a.detalle)
+        if a.subir:
+            subir(a.subir, res, a.nota)
 
 
 if __name__ == "__main__":

@@ -45,11 +45,11 @@ export function CorridasGolden({ conjuntos, conjunto, onConjunto, onCorrida }: {
       alinear: "derecha",
       celda: (f) => (f.errores ? <span className="font-semibold text-crimsonTexto">{f.errores.toLocaleString("es-PE")}</span> : <span className="font-sans text-mute">Ninguno</span>),
     },
-    { clave: "precision", titulo: "Precisión", alinear: "derecha", celda: (f) => fmtPct(f.precision) ?? <SinDato /> },
-    { clave: "exhaustividad", titulo: "Exhaustividad", alinear: "derecha", celda: (f) => fmtPct(f.exhaustividad) ?? <SinDato /> },
+    { clave: "precision", titulo: "Precisión", alinear: "derecha", celda: (f) => fmtPct(f.precision) ?? <SinDato texto="No aplica" /> },
+    { clave: "exhaustividad", titulo: que.casos === "preguntas" ? "Acierto en 8" : "Exhaustividad", alinear: "derecha", celda: (f) => fmtPct(f.exhaustividad) ?? <SinDato /> },
     {
       clave: "f1",
-      titulo: "F1",
+      titulo: que.casos === "preguntas" ? "MRR" : "F1",
       alinear: "derecha",
       celda: (f) => (
         <span className="inline-flex items-center justify-end gap-1.5">

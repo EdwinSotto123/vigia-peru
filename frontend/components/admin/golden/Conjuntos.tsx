@@ -52,15 +52,21 @@ function TarjetaConjunto({ c, onCorridas, onCasos }: { c: Conjunto; onCorridas: 
         <>
           <div className="grid gap-x-5 gap-y-3 sm:grid-cols-[auto_minmax(0,1fr)]">
             <div className="min-w-0">
-              <p className="text-rotulo font-medium text-mute">F1 de la última corrida</p>
+              <p className="text-rotulo font-medium text-mute">{c.queMide === "recuperacion" ? "MRR de la última corrida" : "F1 de la última corrida"}</p>
               <p className="mt-0.5 flex flex-wrap items-baseline gap-x-2 gap-y-1">
                 <span className="font-display text-cifra font-bold leading-none tracking-tight tabular-nums text-ink">{fmtF1(u.f1) ?? "Sin dato"}</span>
                 <Delta ahora={u.f1} antes={previa?.f1} contra={previa?.imagen} />
               </p>
             </div>
             <div className="min-w-0 space-y-2">
-              <FilaMedida etiqueta="Precisión" valor={u.precision} que="de lo que marcó, cuánto era cierto" />
-              <FilaMedida etiqueta="Exhaustividad" valor={u.exhaustividad} que="de lo que había, cuánto encontró" />
+              {c.queMide === "recuperacion" ? (
+                <FilaMedida etiqueta="Acierto en los 8 primeros" valor={u.exhaustividad} que="preguntas en que salió la norma esperada" />
+              ) : (
+                <>
+                  <FilaMedida etiqueta="Precisión" valor={u.precision} que="de lo que marcó, cuánto era cierto" />
+                  <FilaMedida etiqueta="Exhaustividad" valor={u.exhaustividad} que="de lo que había, cuánto encontró" />
+                </>
+              )}
             </div>
           </div>
 

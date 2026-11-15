@@ -87,9 +87,14 @@ export function DetalleCorrida({ id, onVolver }: { id: string; onVolver: () => v
       )}
 
       <StatGrid columnas={3}>
-        <StatCard etiqueta="F1" valor={fmtF1(c.f1)} pista={f1.pista} tono={f1.tono} />
-        <StatCard etiqueta="Precisión" valor={fmtPct(c.precision)} pista={precision.pista} tono={precision.tono} />
-        <StatCard etiqueta="Exhaustividad" valor={fmtPct(c.exhaustividad)} pista={exhaustividad.pista} tono={exhaustividad.tono} />
+        <StatCard etiqueta={c.queMide === "recuperacion" ? "MRR" : "F1"} valor={fmtF1(c.f1)} pista={f1.pista} tono={f1.tono} />
+        {c.queMide !== "recuperacion" && <StatCard etiqueta="Precisión" valor={fmtPct(c.precision)} pista={precision.pista} tono={precision.tono} />}
+        <StatCard
+          etiqueta={c.queMide === "recuperacion" ? "Acierto en los 8 primeros" : "Exhaustividad"}
+          valor={fmtPct(c.exhaustividad)}
+          pista={exhaustividad.pista}
+          tono={exhaustividad.tono}
+        />
         <StatCard
           etiqueta={que.casos === "preguntas" ? "Preguntas" : "Contratos"}
           valor={c.contratos}
@@ -229,6 +234,7 @@ function FilaResultado({ r, queMide }: { r: Resultado; queMide: QueMide }) {
   const fallas = [...(r.falsasAlarmas ?? []).map((regla) => ({ regla, tipo: "falsa" as const })), ...(r.omisiones ?? []).map((regla) => ({ regla, tipo: "omision" as const }))];
   const legal = r.detalle?.banderas_legales?.length || r.detalle?.citas?.length;
   const hayDetalle = fallas.length > 0 || !!legal || (r.aciertos?.length ?? 0) > 0;
+  if (!esContrato) return <FilaPregunta r={r} />;
   return (
     <div className="min-w-0 space-y-1.5">
       <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
@@ -288,6 +294,62 @@ function FilaResultado({ r, queMide }: { r: Resultado; queMide: QueMide }) {
               </p>
             )}
             {legal ? <DetalleLegal r={r} /> : null}
+          </div>
+        </Expandable>
+      )}
+    </div>
+  );
+}
+
+/** Una pregunta del conjunto de recuperación: en qué puesto salió la norma esperada y qué salió primero. */
+function FilaPregunta({ r }: { r: Resultado }) {
+  const puesto = typeof r.detalle?.puesto === "number" ? r.detalle.puesto : null;
+  const primeros = r.detalle?.primeros ?? [];
+  const esperado = (r.esperado as { esperado?: string[] } | null)?.esperado ?? [];
+  return (
+    <div className="min-w-0 space-y-1.5">
+      <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+        <span className="font-mono text-meta font-semibold text-ink">{r.caso}</span>
+        <span className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-rotulo text-mute">
+          {r.fecha && <span>proceso del {fmtEjecutada(r.fecha)}</span>}
+          {nombreRegimen(r.regimen) && <span>{nombreRegimen(r.regimen)}</span>}
+        </span>
+      </div>
+      {r.titulo && <p className="text-dato leading-snug text-ink text-pretty">{r.titulo}</p>}
+      <div className="flex flex-wrap items-center gap-1.5">
+        {puesto ? (
+          <Badge tono={puesto <= 3 ? "ok" : "warn"} title="El puesto en que salió la norma esperada entre los 8 primeros">
+            Salió en el puesto {puesto}
+          </Badge>
+        ) : (
+          <Badge tono="danger" punto>
+            No salió entre los 8 primeros
+          </Badge>
+        )}
+      </div>
+      {(primeros.length > 0 || esperado.length > 0) && (
+        <Expandable variante="linea" resumen="Ver lo esperado y lo que salió">
+          <div className="grid gap-x-5 gap-y-2 pt-1 sm:grid-cols-2">
+            <div className="min-w-0">
+              <p className="text-rotulo font-medium text-mute">Esperado (cualquiera de estos)</p>
+              <ul className="mt-1 space-y-0.5 text-meta leading-relaxed text-inkSoft">
+                {esperado.map((e) => (
+                  <li key={e} className="break-words font-mono">
+                    {e}
+                  </li>
+                ))}
+              </ul>
+            </div>
+            <div className="min-w-0">
+              <p className="text-rotulo font-medium text-mute">Lo que recibió el agente, en orden</p>
+              <ol className="mt-1 list-decimal space-y-0.5 pl-5 text-meta leading-relaxed text-inkSoft">
+                {primeros.map((p, i) => (
+                  <li key={`${i}-${p}`} className="break-words">
+                    {p}
+                  </li>
+                ))}
+              </ol>
+            </div>
           </div>
         </Expandable>
       )}

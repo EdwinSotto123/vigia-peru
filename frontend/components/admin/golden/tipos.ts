@@ -92,6 +92,9 @@ export interface DetalleResultado {
   banderas_legales?: BanderaLegal[];
   citas?: CitaLegal[];
   resumen_citas?: ResumenCitas;
+  /** Conjunto de recuperación: el puesto de la norma esperada (null si no salió) y lo que salió, en orden. */
+  puesto?: number | null;
+  primeros?: string[];
 }
 
 export interface Resultado {

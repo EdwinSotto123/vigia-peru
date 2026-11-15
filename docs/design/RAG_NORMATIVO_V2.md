@@ -49,7 +49,8 @@ Cada uno guarda su número de artículo y su epígrafe, para citar «Art. 45 del
 vector (coseno), fusionados por rango recíproco (RRF, k = 60). El puntaje se pondera por jerarquía (ley 1,30;
 reglamento 1,25; acuerdo 1,10; opinión 1,00; bases estándar y directivas 0,90; control 0,80) y un criterio de la otra
 ley vale la mitad. El agente recibe cupos: hasta 5 normas (2 de bases estándar como máximo), 3 criterios del régimen y
-2 del régimen anterior, sin repetir artículo.
+2 del régimen anterior, sin repetir artículo. Si ninguna directiva entró entre las 5 normas, la mejor directiva ocupa el
+último lugar: la ley y el reglamento pesan más y copaban el cupo en preguntas que sólo regula una directiva.
 
 **Jerarquía.** 1 ley · 2 reglamento · 3 directiva y bases estándar · 4 acuerdo de Sala Plena y precedente · 5 opinión
 y resolución · 6 control.
@@ -120,7 +121,8 @@ y Obras por Impuestos (Ley 29230) llevan materia `especial` y tampoco entran en 
 cargarlas sin esa marca la medición bajó de 93,2 % a 89 %, porque sus artículos se parecen a los de la ley general.
 
 **Medición con el corpus ampliado** (73 preguntas, 8 primeros): acierto 93,2 %, MRR 0,769, norma primero 100 %, régimen
-equivocado 0 %. Prueba de oro de bienes con la búsqueda nueva (imagen eaa6bf57): F1 0,93, y las 79 citas legales del
+equivocado 0 %. Con las 18 preguntas nuevas de `backend/rag/evalset_fechas.jsonl` (versión del Reglamento antes y después
+del 14-01-2026, cuadro de impedimentos, directivas, acuerdos de 2026): 94,5 % en 91 preguntas, las 18 nuevas con acierto. Prueba de oro de bienes con la búsqueda nueva (imagen eaa6bf57): F1 0,93, y las 79 citas legales del
 analista existen y regían en la fecha (antes, 1 a 4 por corrida eran de la otra ley o inexistentes).
 
 **Corpus cargado** (PROD, 2026-11-15): 972 normas y criterios, 16 293 fragmentos (antes 750 y 7 450).
