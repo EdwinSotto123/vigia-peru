@@ -482,7 +482,27 @@ def query_legal_rag(question: str, tool_context: ToolContext, regimen: str = "")
     if LEGAL_RAG_BACKEND == "pgvector":
         return _query_legal_rag_pgvector(question, tool_context)
     fallos = []
-    if LEGAL_RAG_BACKEND == "chroma" and os.getenv("CHROMA_API_KEY"):
+    # RAG normativo propio (tools/normas_rag.py, migración 284): por FECHA de la convocatoria y con jerarquía. Si falla o
+    # no trae nada, sigue la cascada de antes (Chroma y sus respaldos).
+    if os.getenv("LEGAL_RAG_BACKEND", "") in ("vigia", "normas"):
+        try:
+            from tools.normas_rag import buscar_normas
+            fecha = None
+            try:
+                from tools.compliance_rules import _fecha_convocatoria_state
+                fecha = _fecha_convocatoria_state(getattr(tool_context, "state", None) or {})
+            except Exception:  # noqa: BLE001
+                fecha = None
+            if (regimen or "").strip() and fecha is None:      # sin fecha en el expediente, el régimen pedido decide
+                fecha = "2024-06-30" if "30225" in regimen else None
+            res = buscar_normas(question, fecha)
+            if not res.get("error") and res.get("n_matches"):
+                _publicar_urls_grounding(tool_context, res["matches"])
+                return res
+            fallos.append(res.get("error") or "normas_sin_resultados")
+        except Exception as e:  # noqa: BLE001
+            fallos.append(f"normas_exc: {str(e)[:150]}")
+    if (LEGAL_RAG_BACKEND == "chroma" or os.getenv("LEGAL_RAG_BACKEND", "") in ("vigia", "normas")) and os.getenv("CHROMA_API_KEY"):
         try:
             reg = (regimen or "").strip() or _rag_regimen_state(tool_context)
             res = query_legal_rag_chroma(question, regimen=reg)
