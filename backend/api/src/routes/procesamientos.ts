@@ -262,16 +262,12 @@ const RESUMEN_SQL = `SELECT
        FROM procesamientos_publico WHERE estado = 'procesando' ORDER BY iniciado_at NULLS LAST, ocid LIMIT 24) x) AS activos,
   (SELECT count(*)::int FROM convocatorias WHERE created_at >= now() - interval '24 hours') AS "descargados24h",
   (SELECT valor FROM ajustes WHERE clave = 'procesamiento') AS "procesamientoActivo",
-  (SELECT json_build_object('n', count(*)::int, 'contratos', count(DISTINCT ocid)::int)
-     FROM documentos_gcs WHERE borrado_at IS NULL AND expira_at > now()) AS "documentosListos",
   (SELECT json_build_object('pendientes', count(*) FILTER (WHERE estado = 'pendiente')::int,
                             'descargando', count(*) FILTER (WHERE estado = 'descargando')::int,
                             'listos24h', count(*) FILTER (WHERE estado = 'listo' AND atendido_at >= now() - interval '24 hours')::int,
                             'fallidos', count(*) FILTER (WHERE estado = 'fallido')::int)
      FROM pedidos_descarga) AS pedidos,
   (SELECT json_build_object('medianaSeg', e."medianaSeg", 'n', e.n) FROM (${ESTIMADO_SQL}) e) AS estimado,
-  (SELECT json_build_object('n', count(*)::int, 'contratos', count(DISTINCT ocid)::int)
-     FROM documentos_gcs WHERE creado_at >= now() - interval '7 days') AS "documentosDescargados7d",
   -- Procesados cuya alerta quedó bloqueada por la autoevaluación (revisión humana): cuentan como procesados, no como señales.
   (SELECT count(*)::int FROM procesamientos p JOIN alertas a ON ocid_corto(a.ocid) = ocid_corto(p.ocid)
     WHERE p.estado = 'procesado' AND a.estado = 'revision') AS revision,
@@ -290,12 +286,21 @@ const RESUMEN_SQL = `SELECT
 // 10 s y, vencido, se sirve lo que hay mientras se recalcula: la consulta cuesta ~300 ms y el tablero la pide sin parar
 // (130 mil veces al mes, la cuarta que más tiempo de base se llevaba).
 const resumenMemo = new Memo<Serializado>({ nombre: "procesamientos:resumen", ttlMs: 10_000, staleMs: 20_000 });
+// Los dos conteos de documentos recorren 128 mil filas (140 ms de los ~300 del resumen) y nadie los necesita al segundo:
+// van aparte, cada 5 minutos.
+const DOCUMENTOS_SQL = `SELECT
+  (SELECT json_build_object('n', count(*)::int, 'contratos', count(DISTINCT ocid)::int)
+     FROM documentos_gcs WHERE borrado_at IS NULL AND expira_at > now()) AS "documentosListos",
+  (SELECT json_build_object('n', count(*)::int, 'contratos', count(DISTINCT ocid)::int)
+     FROM documentos_gcs WHERE creado_at >= now() - interval '7 days') AS "documentosDescargados7d"`;
+const documentosMemo = new Memo<Record<string, unknown>>({ nombre: "procesamientos:documentos", ttlMs: 300_000, staleMs: 600_000 });
 let versionVista = "";
 
 procesamientosRouter.get("/resumen", (c) =>
   responderJson(c, resumenMemo, "resumen", async () => {
-    const [r, lote] = await Promise.all([
+    const [r, docs, lote] = await Promise.all([
       pool.query(RESUMEN_SQL, [[...ESTADOS_ACTIVOS]]),
+      documentosMemo.obtener("docs", async () => (await pool.query(DOCUMENTOS_SQL)).rows[0] ?? {}),
       (async () => {
         if (!(await hayLotesIngesta())) return null;
         try {
@@ -309,7 +314,7 @@ procesamientosRouter.get("/resumen", (c) =>
         }
       })(),
     ]);
-    const x = r.rows[0];
+    const x = { ...r.rows[0], ...docs };
     const porEstado: Record<string, number> = { encolado: 0, procesando: 0, procesado: 0, error: 0, pendiente_de_procesamiento: 0, esperando_documentos: 0, revision: 0, ...x.porEstado };
     porEstado.revision = x.revision;
     const activos = x.activos as { faseActual: string | null }[];
@@ -338,7 +343,7 @@ procesamientosRouter.get("/resumen", (c) =>
       version: x.version,
       porDepartamento: x.porDepartamento,
     };
-  }, cachePublico(4, { maxAge: 0 })));
+  }, cachePublico(10, { maxAge: 0 })));
 
 // ─── GET /financiamiento/procesamientos/ritmo?dias=14 ────────────────────────
 // Procesados por día (hora de Lima), con los días en cero, hasta hoy: `{dias:[{dia, n}], total, ultimoFin}`.
