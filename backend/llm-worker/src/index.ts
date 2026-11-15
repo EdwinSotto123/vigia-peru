@@ -3,6 +3,7 @@
  *
  *   POST /v1/chat/completions   { model, messages, tools?, stream?, temperature?, max_tokens? }
  *   GET  /v1/models             modelos permitidos
+ *   POST /v1/embeddings         { input } → vectores de @cf/baai/bge-m3 (1 024 dimensiones)
  *   GET  /salud                 sin auth
  *   *    /nativo/v1/…           API nativa del proveedor de respaldo, de paso (ver `nativo`)
  *
@@ -193,6 +194,22 @@ export default {
     const permitidos = env.MODELOS_PERMITIDOS.split(",").map((s) => s.trim()).filter(Boolean);
     if (url.pathname === "/v1/models") {
       return json({ object: "list", data: permitidos.map((id) => ({ id, object: "model", owned_by: "cloudflare" })) });
+    }
+    // POST /v1/embeddings { input: string | string[] } → vectores de bge-m3 (1 024), los mismos con que la API indexa
+    // rag_fragmento y norma_fragmento: el agente embebe su pregunta y busca en la base (RAG normativo, migración 284).
+    if (url.pathname === "/v1/embeddings" && req.method === "POST") {
+      const c = (await req.json().catch(() => null)) as { input?: unknown } | null;
+      const textos = (Array.isArray(c?.input) ? c!.input : [c?.input]).filter((x): x is string => typeof x === "string" && x.trim().length > 0).slice(0, 64);
+      if (!textos.length) return json({ error: { message: "falta input" } }, 400);
+      try {
+        const r = (await (env as unknown as { AI: { run: (m: string, e: unknown) => Promise<{ data?: number[][] }> } }).AI.run(
+          "@cf/baai/bge-m3", { text: textos.map((x) => x.slice(0, 8000)) })) as { data?: number[][] };
+        const data = (r.data ?? []).map((embedding, index) => ({ object: "embedding", index, embedding }));
+        if (data.length !== textos.length) return json({ error: { message: "el modelo de embeddings no respondió completo" } }, 502);
+        return json({ object: "list", model: "@cf/baai/bge-m3", data });
+      } catch (e) {
+        return json({ error: { message: `embeddings: ${String((e as Error).message ?? e).slice(0, 200)}` } }, 502);
+      }
     }
     if (url.pathname !== "/v1/chat/completions" || req.method !== "POST") return json({ error: { message: "no encontrado" } }, 404);
 
