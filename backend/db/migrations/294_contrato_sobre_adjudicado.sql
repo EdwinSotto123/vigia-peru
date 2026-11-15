@@ -4,8 +4,10 @@
 -- (documento_lectura, clase «contrato») y hay dos registros oficiales de la buena pro: CONOSCE y el OCDS del proceso.
 -- De 9 074 contratos con los tres datos, 7 superan en 25 % o más lo adjudicado según CONOSCE; dos eran procesos de
 -- varios ítems en que CONOSCE traía uno solo. Por eso se exige que las DOS fuentes den un adjudicado menor, un solo
--- ganador y que el OCDS no registre otra adjudicación. Quedan 5; en 3 el contrato coincide con el valor referencial
--- aunque la buena pro fue por menos.
+-- ganador y que el OCDS no registre otra adjudicación. Quedan 5 confirmados por las dos fuentes (en 3 el contrato coincide
+-- con el valor referencial aunque la buena pro fue por menos), pero la bandera sólo va a empresas con RUC 20: 3 de los 5
+-- los ganó un consorcio y 1 una persona natural (que no se marca nunca). Hoy da 1 bandera; crecerá con las lecturas.
+-- Pendiente: atribuir los de consorcio a sus integrantes (conosce_consorcios).
 --
 -- Es un indicio para abrir el contrato: el monto sale de una lectura automática y puede incluir prestaciones que la
 -- buena pro registró aparte.
