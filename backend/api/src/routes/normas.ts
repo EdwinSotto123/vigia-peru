@@ -44,7 +44,8 @@ export function elegirNormas(filas: Fila[]): Fila[] {
   let bases = 0;
   for (const f of filas) {
     if (por[f.aplica].length >= CUPO[f.aplica]) continue;
-    const clave = `${f.slug}|${f.articulo ?? f.texto.slice(0, 80)}`;
+    // Una opinión o un acuerdo, una sola vez (su mejor fragmento); un artículo, una sola vez.
+    const clave = f.aplica === "norma" ? `${f.slug}|${f.articulo ?? f.texto.slice(0, 80)}` : f.slug;
     if (vistos.has(clave)) continue;
     if (f.tipo === "bases_estandar" && ++bases > 2) continue;
     vistos.add(clave);
@@ -106,10 +107,18 @@ normasRouter.get("/buscar", async (c) => {
         if (otra) Object.assign(x, { texto: otra.texto, documento: otra.documento, version: otra.hasta ? `texto que regía hasta el ${otra.hasta}` : "versión de esa fecha" });
       }
     }
+    // El mismo artículo pudo llegar por el texto vigente (ya cambiado por el de la fecha) y por su versión anterior.
+    const dichos = new Set<string>();
+    const sinRepetir = elegidas.filter((x) => {
+      const k = `${x.documento}|${x.articulo ?? x.texto.slice(0, 80)}`;
+      if (dichos.has(k)) return false;
+      dichos.add(k);
+      return true;
+    });
     const regimen = fecha >= "2025-04-22" ? "32069" : "30225";
     return {
       pregunta: p.q, fecha, regimen, ley: regimen === "32069" ? "Ley N° 32069" : "Ley N° 30225 (TUO)", busqueda: vector ? "hibrida" : "solo_palabras",
-      data: elegidas.map((x) => ({ ...x, texto: x.texto.replace(/\s+/g, " ").trim() })),
+      data: sinRepetir.map((x) => ({ ...x, texto: x.texto.replace(/\s+/g, " ").trim() })),
     };
   });
   c.header("Cache-Control", CACHE);

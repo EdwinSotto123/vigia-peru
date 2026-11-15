@@ -153,3 +153,11 @@ def test_el_acuerdo_de_sala_plena_tiene_un_lugar_entre_los_criterios():
     m = N.elegir([dict(zip(COLS, x)) for x in filas[:-1]])
     assert [x["slug"] for x in m if x["aplica"] == "criterio"] == ["opinion-0", "opinion-1", "opinion-2"]
 
+
+def test_una_opinion_ocupa_un_solo_cupo_de_criterio():
+    filas = [_f(1, "ley-32069", "ley", "norma", "50", 0.9)]
+    filas += [_f(10 + i, "opinion-d000059-2025-oece-dtn", "opinion", "criterio", None, 0.8 - i / 100) for i in range(3)]
+    filas += [_f(20, "opinion-d000013-2025-oece-dtn", "opinion", "criterio", None, 0.5)]
+    m = N.elegir([dict(zip(COLS, x)) for x in filas])
+    assert [x["slug"] for x in m if x["aplica"] == "criterio"] == ["opinion-d000059-2025-oece-dtn", "opinion-d000013-2025-oece-dtn"]
+

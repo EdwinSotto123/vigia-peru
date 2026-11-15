@@ -69,7 +69,9 @@ def elegir(filas: list[dict], cupo: dict | None = None) -> list[dict]:
         ap = f.get("aplica")
         if ap not in por or len(por[ap]) >= cupo.get(ap, 0):
             continue
-        clave = (f.get("slug"), f.get("articulo") or (f.get("texto") or "")[:80])
+        # Un artículo, una vez; una opinión o un acuerdo, una vez (su mejor fragmento): tres trozos de la misma opinión
+        # ocupaban los tres cupos de criterios.
+        clave = (f.get("slug"), f.get("articulo") or (f.get("texto") or "")[:80]) if ap == "norma" else (f.get("slug"), None)
         if clave in vistos:
             continue
         if f.get("tipo") == "bases_estandar":
