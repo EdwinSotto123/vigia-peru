@@ -81,3 +81,40 @@ def test_regimen_materia_y_vigencia():
     assert (d["tipo"], d["regimen"], d["fecha_emision"]) == ("opinion", "32069", "2026-10-01")
     d = F.clasificar({"id": "ACUERDO-002-2023-TCE", "identificador": "Acuerdo de Sala Plena 002-2023/TCE", "tipo": "acuerdo_sala_plena", "fecha_publicacion": "2023-12-02"})
     assert (d["tipo"], d["regimen"]) == ("acuerdo_sala_plena", "30225")
+
+
+OPINION = """OPINIÓN Nº D000099-2026-OECE-DTN
+Entidad: Municipalidad de prueba
+ASUNTO
+: Fraccionamiento en contratos menores
+
+Referencia: Formulario S/N de fecha 01.09.2026
+
+1.
+ANTECEDENTES
+Mediante el documento de la referencia, la entidad formula varias consultas sobre el fraccionamiento de las contrataciones.
+
+2.
+CONSULTA1 Y ANÁLISIS
+2.1 La entidad pregunta si dos órdenes de servicio del mismo objeto en el mismo año configuran fraccionamiento prohibido.
+Sobre el particular, corresponde señalar que el artículo 50 de la Ley establece los supuestos de fraccionamiento.
+
+3. CONCLUSIONES
+3.1 La contratación del mismo objeto mediante varias órdenes en el mismo ejercicio puede configurar fraccionamiento.
+3.2 No hay fraccionamiento cuando la necesidad surge de manera imprevisible con posterioridad a la primera contratación.
+
+Jesús María, 28 de septiembre de 2026
+Firmado digitalmente por la Directora Técnico Normativa
+"""
+
+
+def test_una_opinion_deja_cada_conclusion_como_fragmento():
+    fr = F.fragmentos([OPINION], "Opinión D000099-2026-OECE-DTN (28-09-2026)", "opinion")
+    epis = [f["epigrafe"] for f in fr]
+    de = ": Fraccionamiento en contratos menores"
+    assert epis == ["Asunto" + de, "Antecedentes" + de, "Consultas y análisis" + de, "Conclusión 3.1" + de, "Conclusión 3.2" + de]
+    assert fr[3]["texto"].startswith("Opinión D000099-2026-OECE-DTN (28-09-2026) — Conclusión 3.1: Fraccionamiento en contratos menores\n3.1 La contratación")
+    assert "Firmado digitalmente" not in fr[4]["texto"] and "imprevisible" in fr[4]["texto"]
+    # Sin la estructura de siempre se corta por párrafos, como antes.
+    assert F.cortar_opinion("Un texto cualquiera sin secciones numeradas de opinión.") is None
+

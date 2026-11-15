@@ -152,6 +152,10 @@ def limpiar(t: str) -> str:
     t = re.sub(r"^\s*\d*\s*NORMAS LEGALES\s.*$", "", t, flags=re.M)                 # cabecera de El Peruano
     t = re.sub(r"^\s*(?:El Peruano|Firmado por:|Editora Peru|Fecha:).*$", "", t, flags=re.M)
     t = re.sub(r"^\s*(?:P[áa]gina\s+)?\d{1,3}\s*(?:de\s+\d{1,3})?\s*$", "", t, flags=re.M)   # número de página suelto
+    t = re.sub(r"^\s*P[áa]g\.\s*\d{1,3}\s*de\s*\d{1,3}\s*$", "", t, flags=re.M)
+    # El sello de los documentos electrónicos del OSCE y del OECE, repetido en cada página.
+    t = re.sub(r"Esta es una copia aut[ée]ntica imprimible.{0,600}?clave:\s*\S+", "", t, flags=re.S)
+    t = re.sub(r"Documento electr[óo]nico firmado digitalmente.{0,400}?validador\.xhtml", "", t, flags=re.S)
     t = re.sub(r"[ \t]+", " ", t)
     return re.sub(r"\n{3,}", "\n\n", t)
 
@@ -200,8 +204,60 @@ def _epigrafe(resto: str, cuerpo: str) -> str | None:
     return e or None
 
 
+# En el PDF el número de la sección va en su propia línea («1.» y debajo «ANTECEDENTES») y el título puede traer la
+# llamada de una nota al pie («CONSULTA1 Y ANÁLISIS»). Sólo en mayúsculas: la palabra dentro de un párrafo no cuenta.
+RE_SEC_OPINION = re.compile(r"^[ \t]*(?:(?:\d{1,2}|[IVX]{1,4})[ \t]*[.)]?[ \t]*)?(ANTECEDENTES?|CONSULTAS?\d?(?:[ \t]+Y[ \t]+AN[ÁA]LISIS)?|AN[ÁA]LISIS|CONCLUSI[OÓ]N(?:ES)?)\d?[ \t]*:?[ \t]*$", re.M)
+RE_NUM_CONCLUSION = re.compile(r"^[ \t]*(\d{1,2}\.\d{1,2})\.?[ \t]+(?=\S)", re.M)
+RE_FIRMA = re.compile(r"^[ \t]*(?:Jes[úu]s Mar[íi]a,|Firmado digitalmente|Documento firmado digitalmente|Atentamente)", re.M)
+# Dos formatos: «ASUNTO» y debajo «: Liquidación…» (2025) o «Asunto:» y debajo el texto (2026).
+RE_ASUNTO = re.compile(r"^[ \t]*(?:ASUNTO|Asunto)[ \t]*:?[ \t]*\n?[ \t]*:?[ \t]*([^\n:]+(?:\n(?![ \t]*\n|[ \t]*(?:REFERENCIA|Referencia))[^\n]+){0,2})", re.M)
+RE_COLA_NUMERO = re.compile(r"\n[ \t]*(?:\d{1,2}|[IVX]{1,4})[ \t]*[.)]?[ \t]*$")
+
+
+def cortar_opinion(texto: str) -> list[dict] | None:
+    """Una opinión de la DTN: el asunto, el análisis por párrafos y CADA conclusión como fragmento propio (es lo que se
+    cita). El asunto va en el epígrafe de todos: dice de qué trata. None si no tiene la estructura de siempre."""
+    secs = list(RE_SEC_OPINION.finditer(texto))
+    if not any(m.group(1).startswith("CONCLUSI") for m in secs):
+        return None
+    m = RE_ASUNTO.search(texto[:secs[0].start()])
+    asunto = re.sub(r"\s+", " ", m.group(1)).strip(" .") if m else ""
+    de = f": {asunto[:110]}" if asunto else ""
+    salida = []
+    cabecera = re.sub(r"\n\s*\n+", "\n", RE_COLA_NUMERO.sub("", texto[:secs[0].start()])).strip()
+    if len(cabecera) > MIN:
+        salida.append({"articulo": None, "epigrafe": "Asunto" + de, "cuerpo": cabecera[-1200:], "pos": 0})
+    for i, m in enumerate(secs):
+        nombre = m.group(1)
+        fin = secs[i + 1].start() if i + 1 < len(secs) else len(texto)
+        cuerpo = RE_COLA_NUMERO.sub("", texto[m.end():fin])
+        if nombre.startswith("CONCLUSI"):
+            f = RE_FIRMA.search(cuerpo)
+            if f and f.start() > 80:
+                cuerpo = cuerpo[:f.start()]
+            nums = list(RE_NUM_CONCLUSION.finditer(cuerpo))
+            if len(nums) >= 2:
+                for k, n in enumerate(nums):
+                    hasta = nums[k + 1].start() if k + 1 < len(nums) else len(cuerpo)
+                    salida.append({"articulo": None, "epigrafe": f"Conclusión {n.group(1)}{de}", "cuerpo": cuerpo[n.start():hasta].strip(), "pos": m.end() + n.start()})
+            else:
+                salida.append({"articulo": None, "epigrafe": "Conclusión" + de, "cuerpo": cuerpo.strip(), "pos": m.end()})
+        else:
+            titulo = ("Antecedentes" if nombre.startswith("ANTECED") else "Consultas y análisis") + de
+            pos = m.end()
+            for pieza in _partir(cuerpo):
+                j = texto.find(pieza[:50], pos)
+                pos = j if j >= 0 else pos
+                salida.append({"articulo": None, "epigrafe": titulo, "cuerpo": pieza, "pos": pos})
+    return salida
+
+
 def cortar(texto: str, tipo: str) -> list[dict]:
     """[{articulo, epigrafe, cuerpo, pos}] según el tipo de documento."""
+    if tipo == "opinion":
+        partes = cortar_opinion(texto)
+        if partes:
+            return partes
     marcas = []                                     # (pos, clase, etiqueta, resto)
     arts = list(RE_ART.finditer(texto))
     usar_articulos = tipo in ("ley", "reglamento") and len(arts) >= 2 or len(arts) >= 6
@@ -434,6 +490,7 @@ def main() -> None:
         for x in (c if isinstance(c, list) else list(c.values())[0]):
             catalogo[slug_de(x.get("numero") or "")] = x
     informe, usados = [], {}
+    hay_lote6 = (raiz / "00_manifiesto" / "lote6_resultado.json").exists()
     for d in manifiesto(raiz):
         ident = str(d.get("identificador") or d.get("id"))
         if a.solo and a.solo != d.get("id"):
@@ -441,6 +498,9 @@ def main() -> None:
         fila = {"id": d.get("id"), "identificador": ident, "lote": d["_lote"]}
         if d.get("id") in SALTAR:
             informe.append({**fila, "entra": False, "motivo": SALTAR[d.get("id")]})
+            continue
+        if hay_lote6 and d["_lote"] == "3" and str(d.get("id") or "").startswith("OPINION-"):
+            informe.append({**fila, "entra": False, "motivo": "reemplazada por la descarga desde su página oficial (lote 6)"})
             continue
         archivo = raiz / str(d.get("archivo_local") or "")
         if not d["_ok"] or not d.get("archivo_local") or not archivo.exists():
@@ -459,6 +519,8 @@ def main() -> None:
             slug = slug_de(f"bases estandar {d.get('id')}")
         documento = aj.get("documento") or (f"{ident}, {d.get('titulo')}" if d.get("titulo") and str(d.get("titulo"))[:25].lower() not in ident.lower() else ident)
         documento = re.sub(r"\s+", " ", documento)[:170]
+        if k["tipo"] == "opinion" and k.get("fecha_emision"):
+            documento = f"{ident} ({k['fecha_emision'][8:10]}-{k['fecha_emision'][5:7]}-{k['fecha_emision'][:4]})"
         try:
             frag = fragmentos(texto_paginas(archivo, columna), documento if not tipo_bases else str(d.get("titulo") or ident)[:150], k["tipo"])
         except Exception as e:  # noqa: BLE001

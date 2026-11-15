@@ -5,6 +5,7 @@
     python -X utf8 backend/scripts/cargar_normas.py dev|prod vectores      # calcula los embeddings que falten
     python -X utf8 backend/scripts/cargar_normas.py dev|prod reglas <json> # carga las reglas de cumplimiento (norma_regla)
     python -X utf8 backend/scripts/cargar_normas.py dev|prod cierres       # vigencias que dependen de otra norma (bases de 2025)
+    python -X utf8 backend/scripts/cargar_normas.py dev|prod podar <dir>   # borra lo descargado que ya no está en la carpeta y los duplicados
     python -X utf8 backend/scripts/cargar_normas.py dev|prod estado
 
 Las claves (Chroma, vigia-llm) salen de la configuración de la Lambda de agentes si no están en el entorno; no se imprimen.
@@ -249,6 +250,26 @@ def reglas(cn, archivo: Path) -> None:
     print("reglas cargadas:", len(lista), flush=True)
 
 
+def podar(cn, carpeta: Path) -> None:
+    """La carpeta manda: borra lo descargado que ya no está entre las fichas (una norma renombrada o descartada) y las
+    opiniones cargadas desde Chroma (una fila por conclusión) cuya opinión completa ya llegó desde su página oficial."""
+    slugs = [json.loads(f.read_text(encoding="utf-8"))["slug"] for f in sorted(carpeta.glob("*.json")) if not f.name.startswith("_")]
+    if len(slugs) < 50:
+        raise SystemExit(f"{carpeta}: sólo {len(slugs)} fichas; no se poda con una carpeta a medias")
+    cu = cn.cursor()
+    cu.execute("DELETE FROM norma WHERE origen = 'descarga' AND NOT (slug = ANY(%s)) RETURNING slug", (slugs,))
+    fuera = [r[0] for r in cu.fetchall()]
+    print("descargadas que ya no están en la carpeta:", len(fuera), fuera[:8], flush=True)
+    # La misma opinión por el número de su página en gob.pe (…/informes-publicaciones/<número>-opinion-…).
+    cu.execute("""DELETE FROM norma v USING norma n
+                   WHERE v.tipo = 'opinion' AND v.origen = 'chroma' AND n.tipo = 'opinion' AND n.origen = 'descarga'
+                     AND substring(v.url_oficial FROM 'informes-publicaciones/([0-9]+)-') IS NOT NULL
+                     AND substring(v.url_oficial FROM 'informes-publicaciones/([0-9]+)-') = substring(n.url_oficial FROM 'informes-publicaciones/([0-9]+)-')
+                  RETURNING v.slug""")
+    print("conclusiones sueltas reemplazadas por su opinión completa:", cu.rowcount, flush=True)
+    cn.commit()
+
+
 def cierres(cn) -> None:
     """Vigencias que dependen de otra norma. Las bases estándar de 2025 (cargadas desde Chroma) rigen hasta el 13-01-2026:
     desde el 14 se convoca con las que aprobó la R.D. 0001-2026-EF/54.01 (cuadro comparativo del OECE del D.S. 001-2026-EF)."""
@@ -299,6 +320,8 @@ if __name__ == "__main__":
             desde_carpeta(cn, Path(sys.argv[3]))
         elif que == "vectores":
             vectores(cn)
+        elif que == "podar":
+            podar(cn, Path(sys.argv[3]))
         elif que == "cierres":
             cierres(cn)
         elif que == "reglas":
