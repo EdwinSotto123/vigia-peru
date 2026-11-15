@@ -125,7 +125,7 @@ equivocado 0 %. Con las 18 preguntas nuevas de `backend/rag/evalset_fechas.jsonl
 del 14-01-2026, cuadro de impedimentos, directivas, acuerdos de 2026): 94,5 % en 91 preguntas, las 18 nuevas con acierto. Prueba de oro de bienes con la búsqueda nueva (imagen eaa6bf57): F1 0,93, y las 79 citas legales del
 analista existen y regían en la fecha (antes, 1 a 4 por corrida eran de la otra ley o inexistentes).
 
-**Corpus cargado** (PROD, 2026-11-15): 972 normas y criterios, 16 293 fragmentos (antes 750 y 7 450).
+**Corpus cargado** (PROD, 2026-11-15): 1 177 normas y criterios, 25 378 fragmentos, todos con vector (antes 750 y 7 450).
 
 | Qué entró | Cuánto |
 |---|---|
@@ -138,10 +138,34 @@ analista existen y regían en la fecha (antes, 1 a 4 por corrida eran de la otra
 | Directivas de Perú Compras (fichas técnicas, encargo, homologación, compra corporativa, acuerdos marco) | 8 |
 | Bases estándar de 2026 (19) y de la Ley 31589 (5) | 24 |
 | Acuerdos de Sala Plena de 2021 a 2026 | 22 |
-| Opiniones de la DTN de 2025 y 2026 (42 de la Ley 32069 y 33 de la anterior) | 75 |
+| Opiniones de la DTN de 2019 a 2026, completas y con cada conclusión como fragmento | 1 005 |
 | Control: Ley 27785, directivas de la Contraloría (INFOBRAS, Ley 31358, autorización previa) | 5 |
 | Inversión: D.L. 1252, Directiva 001-2019-EF/63.01 y sus modificatorias, Ley 29230 | 9 |
 | Empleo público: D.L. 1057 y reglamento, Ley 32563, Ley 30057 y reglamento, D.L. 276, 728, 1023, 1666, AIRHSP, SERVIR | 31 |
+
+**Opiniones.** Los listados del OECE sólo se recorren con `?sheet=`, que `robots.txt` prohíbe. El sitemap público de
+gob.pe sí las lista todas: de ahí salen las 1 005 direcciones (782 de 2019 a 2024, 95 de 2025 y 128 de 2026), y cada
+opinión se baja de su página oficial (`backend/scripts/normas_descarga`). Las 232 publicadas en Word se pasan a PDF.
+El conversor corta cada opinión en asunto, antecedentes, análisis y **una conclusión por fragmento**, con el asunto en
+el título. En 2025 hay dos series con el mismo número: `D0000NN-2025-OSCE-DTN` (enero a abril, Ley 30225) y
+`D0000NN-2025-OECE-DTN` (desde el 22-04-2025, Ley 32069); las conclusiones sueltas que venían de Chroma (721 filas)
+se reemplazaron por la opinión completa.
+
+**Tres ajustes de la búsqueda que salieron de medir** (cada uno con su migración y su cifra):
+
+| Ajuste | Por qué | Efecto medido (91 preguntas) |
+|---|---|---|
+| Materia `especial` fuera de la búsqueda general (287) | la Ley 31589 y la Reconstrucción se colaban en preguntas comunes | de 89 % a 93,2 % |
+| El título del artículo pesa aparte, a la mitad (288) | «Artículo 34. Contratos menores» perdía contra artículos largos | de 94,5 % a 95,6 %; MRR de 0,741 a 0,780 |
+| Candidatos por clase: 60 artículos y 60 criterios (289) | con mil opiniones, los 60 mejores eran sólo opiniones | lo primero vuelve a ser un artículo en el 100 % |
+
+En `elegir()` (agente): un lugar para la mejor directiva entre las normas y otro para el acuerdo de Sala Plena o el
+precedente entre los criterios.
+
+**Medición final** (`python -m backend.rag.evaluar_normas --solo nuevo`, 91 preguntas): el agente recibe la norma
+esperada en el 98,9 % (hasta 10 resultados; 93,4 % en los 8 primeros, porque los acuerdos de la ley anterior van al
+final como «por analogía»), MRR 0,767, lo primero es un artículo vigente en el 100 % y 0 % de régimen equivocado.
+Cada corrida queda en /admin/golden, conjunto «Recuperación de normas», con el detalle por pregunta.
 
 ## 7. Lo que falta (para descargar a mano o con otro método)
 
@@ -149,9 +173,9 @@ Los agentes respetaron `robots.txt` y no saltaron ningún bloqueo. Esto quedó f
 
 | Prioridad | Qué | Por qué no se pudo | Dónde |
 |---|---|---|---|
-| 1 | Opiniones de la DTN: D000028 a D000103 de 2025 y D000001 a D000103 de 2026 | el listado sólo se recorre con `?sheet=`, que `robots.txt` prohíbe | gob.pe/institucion/oece/colecciones/66839 y 713, página por página a mano; o pedir el consolidado al OECE por transparencia |
 | 1 | Reglamento D.S. 009-2025-EF, texto original completo | el PDF oficial es un escaneo de 196 páginas | necesita OCR; mientras tanto el cuadro comparativo cubre los 102 artículos que cambiaron |
-| 2 | Acuerdos de Sala Plena de 2019 y 2020 | la colección 715 no los muestra en su primera página | gob.pe/institucion/oece/colecciones/715 (la base ya tiene el 004-2019) |
+| 2 | Acuerdos de Sala Plena de 2019 y 2020 | no aparecen como publicaciones en el sitemap ni en la primera página de la colección 715 | gob.pe/institucion/oece/colecciones/715 (la base ya tiene el 004-2019) |
+| 2 | Opiniones anteriores a 2019 (1 400 más en el sitemap, 2006 a 2018) | no se bajaron: son de leyes ya derogadas dos veces | mismo script, `bajar_opiniones_sitemap.py 2018,2017 8` si hicieran falta |
 | 2 | Resoluciones del Tribunal sobre direccionamiento, calificación y marcas | no hay listado descargable | buscador de resoluciones del Tribunal |
 | 2 | Tabla de concordancias Ley 30225 con Ley 32069 | no se encontró una oficial | si el OECE la publica; si no, se arma con las dos leyes |
 | 2 | Anexos de mef.gob.pe (TUO de la Ley 29230, D.L. 1252 original, Ley 32513 con anexos) | el sitio responde con un desafío anti bot | descarga manual desde un navegador |
@@ -183,7 +207,22 @@ de Presupuesto 2026, no la de Endeudamiento.
 
 Siguen abiertos: 2 (adecuación del Reglamento a la Ley 32732), 7 (artículo que exige el Cuadro Multianual), 14, 16, 19 y 20.
 
-## 8. Pendiente de diseño
+## 8. Lo que apareció al cruzar el código con los textos oficiales
+
+Con los artículos en la base se pudo comprobar lo que el agente cita **sin** pasar por la búsqueda:
+
+| Qué | Dónde | Corrección |
+|---|---|---|
+| «Art. 12 Reglamento Ley 32069, valor referencial razonable» en las banderas de sobreprecio | `tools/persistence/market_flags.py` | el art. 12 es la participación de Perú Compras; ahora cita el art. 48 de la Ley y los arts. 47 y 53 del Reglamento (o los arts. 32 y 34 del reglamento anterior, según la fecha) |
+| «Art. 36 Ley 32069, prohibición de fraccionamiento» | `_rules_montos.py` | el art. 36 es compra centralizada; fraccionamiento es el art. 50 de la Ley y el 45 del Reglamento |
+| «Art. 22 TUO Ley 30225, comparación de precios» y «Anexo IV TUO» | `_base.py` | comparación de precios es el art. 25; el TUO no tiene ese anexo |
+| El campo `opinion_oece` de cada bandera recibía el primer resultado de la búsqueda | `evaluate_normative_compliance` | con la búsqueda por fecha era un artículo o una base estándar en 471 de 474 casos; ahora el artículo va en `norma_aplicable` y `opinion_oece` sólo recibe una opinión o un acuerdo |
+
+Las 103 banderas ya publicadas con esas citas se corrigieron en la base (copia para deshacer en
+`~/.simplia/normas_corregidas_2026-11-15_1007.json`). Las citas fijas viven en `_NORMAS` (`tools/compliance_rules/_base.py`),
+por régimen, y una prueba las fija (`test_las_citas_fijas_de_las_reglas_son_los_articulos_correctos`).
+
+## 9. Pendiente de diseño
 
 - Etiquetas de tema por fragmento (`temas`), para filtrar antes de buscar.
 - Usar una tabla de concordancias para devolver, junto a un `criterio_anterior`, el artículo vigente equivalente.
