@@ -136,10 +136,19 @@ def main() -> None:
     if a.solo != "nuevo":
         from tools import legal as L
 
+        # Chroma no devuelve el slug: se recupera por el número de la norma (el catálogo ya está en la base).
+        with conexion("prod") as cn2:
+            cu2 = cn2.cursor()
+            cu2.execute("SELECT numero, documento, slug FROM norma")
+            por_numero = {}
+            for numero, documento, slug in cu2.fetchall():
+                por_numero[str(numero or "")] = slug
+                por_numero[str(documento or "")] = slug
+
         def chroma(q, reg):
             ms = (L.query_legal_rag_chroma(q, regimen=reg).get("matches") or [])
             for m in ms:
-                m["slug"] = re.sub(r"\.(txt|pdf)$", "", str(m.get("uri") or m.get("sourceUri") or "").rsplit("/", 1)[-1])
+                m["slug"] = por_numero.get(str(m.get("numero") or "")) or por_numero.get(str(m.get("documento") or "")) or ""
             return ms
         medir("chroma", chroma, casos, a.detalle)
 
