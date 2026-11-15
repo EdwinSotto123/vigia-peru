@@ -50,23 +50,6 @@ Lo que más se repite en los casos reales y SÍ es bandera (`otro` o el vector q
     descalificado lo fue por ese requisito), o denuncias de direccionamiento que el comité no respondió → media;
   · una descalificación por una diferencia de céntimos o por una formalidad subsanable cuando el descalificado tenía
     la mejor oferta (motivo_fuera) → media.
-  · VARIAS CERTIFICACIONES DE TERCEROS facultativas (ISO, sellos de sostenibilidad o similares, que no se consiguen
-    para un proceso) que SUMADAS pesan más que lo que queda para llegar al mínimo técnico: haz la cuenta (100 − mínimo
-    técnico = lo que se puede dejar de ganar; p. ej. mínimo 70, ISO 9001 con 15 y dos sellos con 25 = 40 > 30: sin
-    ellas nadie pasa) → `certificacion_atipica`, media, con la cuenta en la descripción. NO vale para factores que
-    cualquier postor cumple con una declaración jurada o un compromiso (capacitación, mejoras, plazo de entrega,
-    garantía comercial), aunque sumen 100;
-  · un plazo PARCIAL de 1 a 5 días para IMPLEMENTAR un sistema que el propio documento describe con migración de
-    datos, instalación o configuración de software o de servidores: sólo lo cumple quien ya lo tiene montado →
-    `plazo_irreal`, media. NO vale para llegar con equipos o personal, iniciar el servicio o hacer una primera
-    entrega (eso es logística, no un trabajo que tome semanas), ni para el plazo total del servicio;
-  · las bases NOMBRAN una marca comercial en el objeto o en un requisito de admisión, aunque el comité la haya
-    reemplazado por «o equivalente» al integrar las bases tras una observación: di las dos cosas (que la nombraban
-    y que se corrigió) → `marca_unica`, media;
-  · el acta deja constancia de que la oferta ganadora presentó MENOS de lo que pedía un requisito MEDIBLE de las
-    bases (horas, años, monto, cantidad: pedían 60 horas y acreditó 40) y aun así se validó «por mayoría», siendo la
-    única oferta válida → `otro`, media, con la cifra exigida y la presentada. Un voto discordante sobre cómo
-    VALORAR una experiencia o un documento, sin esa diferencia medible, no es bandera.
 NO es bandera: una marca que identifica el equipo de la entidad que hay que mantener o calibrar; requisitos
 genéricos del objeto (revista indexada para publicar un artículo); certificaciones de 5 a 30 puntos como factor; que
 haya muchas consultas; un puntaje sobre 100 por bonificaciones de ley (MYPE, colindancia); fechas, horas o montos del

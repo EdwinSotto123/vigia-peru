@@ -189,17 +189,22 @@ def main() -> None:
             filas_legal.append((ocid, "ok", la, lf, lo, x.get("segundos"), x.get("costo_usd"), {"banderas_legales": dichas, "citas": ci["citas"][:40],
                                                                                               "resumen_citas": {k: ci[k] for k in tot_citas}}))
 
-        def _corrida(conjunto, n, err, m, por, extra, lineas):
+        # Cuándo se ejecutó: lo dice el nombre de la carpeta (AAAAMMDD-HHMMSS, hora de Lima).
+        mt = re.match(r"^(\d{4})(\d{2})(\d{2})-(\d{2})(\d{2})(\d{2})$", a.corrida.name)
+        cuando = f"{mt.group(1)}-{mt.group(2)}-{mt.group(3)} {mt.group(4)}:{mt.group(5)}:{mt.group(6)} America/Lima" if mt else None
+
+        def _corrida(conjunto, n, err, m, por, extra, lineas, var=None):
             p, rc, f1 = m
             cu.execute("""INSERT INTO golden_corrida (conjunto, corrida, variante, imagen, contratos, errores, precision_pct, exhaustividad_pct, f1,
-                                                       usd_medio, segundos_medio, por_regla, metricas, nota)
-                          VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                                                       usd_medio, segundos_medio, por_regla, metricas, nota, ejecutada_at)
+                          VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, COALESCE(%s::timestamptz, now()))
                           ON CONFLICT (conjunto, corrida, variante) DO UPDATE SET imagen = EXCLUDED.imagen, contratos = EXCLUDED.contratos, errores = EXCLUDED.errores,
                             precision_pct = EXCLUDED.precision_pct, exhaustividad_pct = EXCLUDED.exhaustividad_pct, f1 = EXCLUDED.f1, usd_medio = EXCLUDED.usd_medio,
-                            segundos_medio = EXCLUDED.segundos_medio, por_regla = EXCLUDED.por_regla, metricas = EXCLUDED.metricas, nota = EXCLUDED.nota
+                            segundos_medio = EXCLUDED.segundos_medio, por_regla = EXCLUDED.por_regla, metricas = EXCLUDED.metricas, nota = EXCLUDED.nota,
+                            ejecutada_at = EXCLUDED.ejecutada_at
                           RETURNING id""",
-                       (conjunto, a.corrida.name, variante, a.imagen, n, err, p, rc, f1, round(statistics.mean(costos), 4) if costos else None,
-                        round(statistics.mean(segs), 1) if segs else None, json.dumps(por, ensure_ascii=False), json.dumps(extra, ensure_ascii=False), a.nota))
+                       (conjunto, a.corrida.name, var or variante, a.imagen, n, err, p, rc, f1, round(statistics.mean(costos), 4) if costos else None,
+                        round(statistics.mean(segs), 1) if segs else None, json.dumps(por, ensure_ascii=False), json.dumps(extra, ensure_ascii=False), a.nota, cuando))
             cid = cu.fetchone()[0]
             cu.execute("DELETE FROM golden_resultado WHERE corrida_id = %s", (cid,))
             for caso, estado, ac, fa, om, seg, usd, det in lineas:
@@ -212,7 +217,7 @@ def main() -> None:
         pct = lambda k: round(100 * tot_citas[k] / tot_citas["total"], 1) if tot_citas["total"] else None  # noqa: E731
         _corrida("legal", len(filas_legal), errores, _f1(ltp, lfp, lfn), {"red_flag_documental": [ltp, lfp, lfn]},
                  {"red": a.conjunto, "citas": tot_citas, "citas_ok_pct": pct("ok"), "citas_otro_regimen_pct": pct("otro_regimen"),
-                  "citas_no_existe_pct": pct("no_existe")}, filas_legal)
+                  "citas_no_existe_pct": pct("no_existe")}, filas_legal, var=a.conjunto)
         cu.execute("UPDATE golden_conjunto c SET casos = (SELECT count(*) FROM golden_caso k WHERE k.conjunto = c.clave), actualizado_at = now()")
         cn.commit()
         print(f"{a.conjunto}: {n_ok} contratos (+{errores} err), P/R/F1 {_f1(tp, fp, fn)} | legal {_f1(ltp, lfp, lfn)} | citas {tot_citas}")

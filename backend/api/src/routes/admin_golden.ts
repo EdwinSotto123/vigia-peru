@@ -78,7 +78,8 @@ adminGoldenRouter.get("/golden/corridas/:id", async (c) => {
       `SELECT id, imagen, f1::float AS f1, precision_pct::float AS precision, exhaustividad_pct::float AS exhaustividad,
               to_char(ejecutada_at AT TIME ZONE 'America/Lima', 'YYYY-MM-DD HH24:MI') AS ejecutada
          FROM golden_corrida WHERE conjunto = $1 AND ejecutada_at < (SELECT ejecutada_at FROM golden_corrida WHERE id = $2)
-        ORDER BY ejecutada_at DESC LIMIT 1`, [k.rows[0].conjunto, id]);
+          AND ($1 <> 'legal' OR variante = $3)      -- el analista legal se compara dentro de la misma red
+        ORDER BY ejecutada_at DESC LIMIT 1`, [k.rows[0].conjunto, id, k.rows[0].variante]);
     return c.json({ corrida: k.rows[0], anterior: ant.rows[0] ?? null, resultados: r.rows });
   } catch (e) {
     if (esErrorPg(e, "42P01", "42883")) return sinMigracion(c);
