@@ -163,6 +163,13 @@ def orchestrate(request):
         if not hmac.compare_digest(dado.encode(), token.encode()):
             return (json.dumps({"error": "no autorizado"}), 401, {"Content-Type": "application/json", **cors})
 
+    # Cada pedido empieza sin plazo de lector: el del análisis anterior (misma Lambda, ya vencido) no debe frenar a éste.
+    try:
+        from tools.documentos._base import fijar_plazo_lote
+        fijar_plazo_lote(None)
+    except Exception:  # noqa: BLE001
+        pass
+
     # GET routing: sin action → health con perfil y modelos; ?action=list|load|random
     if request.method == "GET":
         action = request.args.get("action")

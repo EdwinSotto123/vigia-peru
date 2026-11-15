@@ -26,6 +26,50 @@ PARSE_OVERALL_TIMEOUT_S = int(os.getenv("PARSE_OVERALL_TIMEOUT_S", "600"))
 # al writer + persist + force_flush. Debe dejar margen para el resto del pipeline.
 PARSE_GLOBAL_BUDGET_S = int(os.getenv("PARSE_GLOBAL_BUDGET_S", "700"))
 
+# ── El cupo de llamadas al modelo del LECTOR, aparte del resto del análisis ──────────────────────────────────────────
+# Las llamadas directas al modelo comparten un semáforo de 4 (tools/_core.py). Cuando el lote agotaba su plazo, sus
+# hilos seguían llamando (reintentos, particiones de un JSON truncado, la «2.ª llamada») y ocupaban los 4 cupos durante
+# minutos: los jueces, el saneado y el RAG del resto del análisis esperaban sin límite y la Lambda moría a los 900 s
+# (1229081 y 1229217 el 2026-11-14; 1230630 en la prueba de oro de servicios: 457 s parado tras el analista legal).
+# Ahora: (1) el lector tiene su PROPIO semáforo, así que nunca le quita cupo al resto; (2) vencido el plazo del lote,
+# sus hilos no hacen ni una llamada más.
+import threading as _threading
+import time as _time_base
+
+_PARSER_SEM = _threading.Semaphore(max(1, int(os.getenv("PARSER_CALL_CONCURRENCY", os.getenv("GEMINI_CALL_CONCURRENCY", "4")) or 4)))
+_PLAZO_LOTE: list = [None]        # reloj monotónico; una Lambda atiende un análisis a la vez
+
+
+class FueraDePlazo(RuntimeError):
+    """El lote ya dio por perdido este documento: no se llama más al modelo por él."""
+
+
+def fijar_plazo_lote(vence: float | None) -> None:
+    _PLAZO_LOTE[0] = vence
+
+
+def lote_vencido(margen: float = 5.0) -> bool:
+    d = _PLAZO_LOTE[0]
+    return d is not None and _time_base.monotonic() > d + margen
+
+
+def _throttle_parser():
+    """Como `_throttle_gemini`, con el semáforo del lector. Levanta FueraDePlazo si el plazo del lote venció, antes de
+    pedir cupo y otra vez al obtenerlo (pudo vencer mientras esperaba)."""
+    class _Ctx:
+        def __enter__(self):
+            if lote_vencido():
+                raise FueraDePlazo("el lector se quedó sin plazo")
+            _PARSER_SEM.acquire()
+            if lote_vencido():
+                _PARSER_SEM.release()
+                raise FueraDePlazo("el lector se quedó sin plazo")
+            return self
+
+        def __exit__(self, *a):
+            _PARSER_SEM.release()
+    return _Ctx()
+
 
 # Versión del extractor de TEXTO (OCR + layout + marcadores). Cambiarla invalida la caché
 # de `documentos_texto` (se vuelve a hacer OCR). La extracción estructurada se cachea

@@ -3,7 +3,7 @@ reintento por rango de páginas cuando el JSON llega truncado."""
 
 from tools._core import *  # noqa: F401,F403
 from tools.costo_llm import etiquetas
-from ._base import PARSE_CALL_TIMEOUT_MS, PARSE_MAX_CHARS_POR_LLAMADA, PARSE_UNIT_WORKERS
+from ._base import PARSE_CALL_TIMEOUT_MS, PARSE_MAX_CHARS_POR_LLAMADA, PARSE_UNIT_WORKERS, _throttle_parser
 from .schema import _parser_schema, secciones_para_documento, _schema_solo, descartes_de_este_hilo
 
 
@@ -228,7 +228,7 @@ def _llamar_extractor(texto: str, label: str, bloque: str | None, ocds_ctx: dict
     ]
     descartados = descartes_de_este_hilo()
     t0 = time.monotonic()
-    with _throttle_gemini():
+    with _throttle_parser():
         resp = _gemini_call_with_retry(lambda: client.models.generate_content(
             model=model, contents=parts, config=config))
     dt = time.monotonic() - t0
@@ -254,7 +254,7 @@ def _llamar_extractor(texto: str, label: str, bloque: str | None, ocds_ctx: dict
                 f"Del TEXTO OCR anterior extraé SOLO los bloques {descartados} (documento: {label}; "
                 f"tipo declarado: {tipo_hint or 'desconocido'}). Si el documento no contiene ese bloque, devolvé null. "
                 "Cada dato con `evidencia` (página y cita literal). Devolvé SOLO JSON."))]
-            with _throttle_gemini():
+            with _throttle_parser():
                 resp2 = _gemini_call_with_retry(lambda: client.models.generate_content(
                     model=model, contents=parts2, config=gtypes.GenerateContentConfig(**cfg2)))
             d2 = _safe_parse_json((resp2.text or "").strip()) or {}

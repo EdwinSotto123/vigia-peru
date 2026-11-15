@@ -83,3 +83,45 @@ def test_ocr_con_el_tiempo_del_documento_agotado_no_rasteriza(monkeypatch):
     assert [p["n"] for p in paginas] == [1, 2] and "pagina uno" in paginas[0]["texto"]
     assert [r["donde"] for r in recortes] == ["ocr_tope_tiempo"]
     assert not ocr_texto._ocr_fallido(recortes)                 # es un tope, no un OCR fallido: el texto sí se guarda
+
+
+def test_el_lector_tiene_su_propio_cupo_y_no_bloquea_al_resto():
+    """1230630 (prueba de oro de servicios): los hilos huérfanos del lector ocupaban los 4 cupos del semáforo global y
+    el resto del análisis esperaba 457 s. Con su propio semáforo, aunque el lector esté lleno, el resto pasa."""
+    from tools import _core
+    from tools.documentos import _base as B
+    B.fijar_plazo_lote(None)
+    tomados = 0
+    try:
+        while B._PARSER_SEM.acquire(blocking=False):      # el lector, saturado
+            tomados += 1
+        hecho = []
+
+        def _resto():
+            with _core._throttle_gemini():
+                hecho.append(1)
+        h = threading.Thread(target=_resto)
+        h.start()
+        h.join(timeout=5)
+        assert hecho == [1]                                # un juez o el saneado no esperan al lector
+    finally:
+        for _ in range(tomados):
+            B._PARSER_SEM.release()
+
+
+def test_vencido_el_plazo_del_lote_el_lector_no_llama_mas_al_modelo():
+    import pytest
+    from tools.documentos import _base as B
+    try:
+        B.fijar_plazo_lote(time.monotonic() - 60)
+        assert B.lote_vencido() is True
+        with pytest.raises(B.FueraDePlazo):
+            with B._throttle_parser():
+                raise AssertionError("no debía llegar a llamar al modelo")
+        assert B._PARSER_SEM.acquire(blocking=False)       # no se quedó con ningún cupo
+        B._PARSER_SEM.release()
+        B.fijar_plazo_lote(time.monotonic() + 60)          # dentro del plazo, pasa
+        with B._throttle_parser():
+            pass
+    finally:
+        B.fijar_plazo_lote(None)

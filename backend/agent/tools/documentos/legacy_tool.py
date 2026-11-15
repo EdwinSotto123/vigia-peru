@@ -2,7 +2,7 @@
 page-sharding + llamadas Gemini en paralelo + consolidación en state."""
 
 from tools._core import *  # noqa: F401,F403
-from ._base import _perfil_params, PARSE_GLOBAL_BUDGET_S, PARSE_OVERALL_TIMEOUT_S, PARSE_MAX_WORKERS
+from ._base import _perfil_params, PARSE_GLOBAL_BUDGET_S, PARSE_OVERALL_TIMEOUT_S, PARSE_MAX_WORKERS, fijar_plazo_lote
 from .fetch import _fetch_doc_bytes
 from .contenedores import _expandir_contenedor
 from .legacy_extract import _paginas_a_pdf_sintetico, _parse_single_pdf_with_gemini
@@ -112,6 +112,7 @@ def parse_document_pdf(document_url: str, tool_context: ToolContext) -> dict:
         except Exception:
             pass
     _eff_timeout = max(30.0, min(float(PARSE_OVERALL_TIMEOUT_S), _deadline - _now))
+    fijar_plazo_lote(_now + _eff_timeout)
 
     ex = concurrent.futures.ThreadPoolExecutor(max_workers=PARSE_MAX_WORKERS)
     futures = {

@@ -3,7 +3,7 @@ sobre un PDF (o PDF sintético de páginas de texto) con layout híbrido texto+V
 
 from tools._core import *  # noqa: F401,F403
 from tools.costo_llm import etiquetas
-from ._base import PARSE_CALL_TIMEOUT_MS
+from ._base import PARSE_CALL_TIMEOUT_MS, _throttle_parser
 from .pdf_utils import _analyze_pdf_layout, _render_pdf_pages_to_png
 from .schema import _parser_schema
 from .extractor import _finish_reason
@@ -394,7 +394,7 @@ def _parse_single_pdf_with_gemini(blob: bytes, source_label: str) -> dict:
     parts.append(gtypes.Part.from_text(text=prompt))
 
     try:
-        with _throttle_gemini():
+        with _throttle_parser():
             resp = _gemini_call_with_retry(
                 lambda: client.models.generate_content(
                     model=DEFAULT_GEMINI_MODEL, contents=parts, config=config,

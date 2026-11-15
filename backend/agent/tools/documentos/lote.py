@@ -4,7 +4,7 @@ cross-documento de ítems/postores/firmantes/comité/etc.)."""
 
 from tools._core import *  # noqa: F401,F403
 from tools.doc_select import seleccionar_documentos, recorte_seleccion
-from ._base import _perfil_params, _norm_txt, _norm_razon, _LOOKALIKES, PARSE_GLOBAL_BUDGET_S, PARSE_LOTE_WORKERS
+from ._base import _perfil_params, _norm_txt, _norm_razon, _LOOKALIKES, PARSE_GLOBAL_BUDGET_S, PARSE_LOTE_WORKERS, fijar_plazo_lote
 from .clasificacion import _es_doc_contratacion, _es_doc_de_adjudicacion, _es_doc_resultado, _origen_precio
 from .entidades import (_rucs_ocds, _ganadores_ocds, _fusionar_postor, _ofertas_desde_postores,
                         _mismo_firmante, _mismo_nombre, _pagina_principal)
@@ -49,6 +49,7 @@ def parse_documentos_lote(state: dict, docs: list[dict], *, parser_bloque: str |
         deadline = now + PARSE_GLOBAL_BUDGET_S
         state["_parse_deadline"] = deadline
     budget = max(60.0, deadline - now)
+    fijar_plazo_lote(now + budget)      # pasado este momento, los hilos del lote no llaman más al modelo
 
     resultados: list[dict | None] = [None] * len(docs)
     ex = concurrent.futures.ThreadPoolExecutor(max_workers=max(1, PARSE_LOTE_WORKERS))
@@ -67,6 +68,10 @@ def parse_documentos_lote(state: dict, docs: list[dict], *, parser_bloque: str |
                                   "omitido": [{"id": docs[i].get("id"), "titulo": docs[i].get("titulo")} for i in pend]})
         for i in pend:
             resultados[i] = {"doc": docs[i], "error": "parse timeout", "recortes": [], "tiempos": {}, "sha256": docs[i].get("sha256"), "cache": {}}
+    else:
+        # Todos terminaron a tiempo: no quedan hilos sueltos, y una lectura posterior (un documento más, pedido por
+        # otra fase) no debe encontrarse el plazo de este lote ya vencido.
+        fijar_plazo_lote(None)
     finally:
         ex.shutdown(wait=False, cancel_futures=True)
 
