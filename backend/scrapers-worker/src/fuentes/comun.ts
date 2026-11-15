@@ -260,6 +260,8 @@ export function cadenaCruces(): Refresco[] {
     f("refrescar_cruce_renovacion_cara", true),
     // Garantía por retención de pagos sobre el tope, con un contratista que no parece MYPE (migración 291).
     f("refrescar_cruce_retencion_sobre_tope", true),
+    // El mismo dueño gana en la misma entidad con otra empresa un objeto parecido (migración 292).
+    f("refrescar_cruce_mismo_dueno", true),
     // Lo que dicen el acta de buena pro y las consultas leídas con Claude (migraciones 245-246).
     f("refrescar_cruce_acta", true),
     // Quita los cruces que algún JOIN multiplica (migración 120), antes de juntarlos en casos_cruce.

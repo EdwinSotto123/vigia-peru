@@ -434,6 +434,18 @@ export function datosDe(a: AntecedenteEmpresa, ruc: string): DatoCaso[] {
       d.solas_las_dos === true && { etiqueta: "En este proceso", valor: "Fueron las únicas dos postoras" },
       delProceso(),
     );
+  } else if (t === "mismo_dueno") {
+    const otras = Array.isArray(d.otras_empresas) ? (d.otras_empresas as { ruc?: unknown; nombre?: unknown }[]) : [];
+    const pr = num(d.procesos_de_las_otras);
+    const mo = num(d.monto_de_las_otras);
+    const dd = num(d.dias_de_diferencia);
+    add(
+      ...otras.slice(0, 3).flatMap((o) => otraEmpresa(o.ruc, o.nombre, "Mismo socio que")),
+      otras.length > 3 && { etiqueta: "Y además", valor: `${plural(otras.length - 3, "empresa más", "empresas más")} del mismo socio` },
+      pr != null && { etiqueta: "Ganaron en esta entidad", valor: `${plural(pr, "proceso", "procesos")} en dos años${mo != null ? `, por ${soles(mo)}` : ""}` },
+      dd != null && { etiqueta: "Objeto parecido", valor: dd === 0 ? "Con la misma fecha de buena pro" : `A ${plural(dd, "día", "días")} de este proceso` },
+      delProceso(),
+    );
   } else if (t === "retencion_sobre_tope") {
     const mc = num(d.monto_contrato);
     const tp = num(d.tope);

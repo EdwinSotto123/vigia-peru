@@ -270,6 +270,7 @@ const POR_QUE: Record<string, string> = {
   turno_postores: "Cuando dos empresas con los mismos dueños o la misma dirección compiten una y otra vez y se reparten las buenas pro, la competencia puede ser sólo aparente: es el patrón de la rotación de ofertas. Vale ver quién más se presentó y a qué precios.",
   postor_de_relleno: "Una oferta de cobertura es la que se presenta para perder: da la apariencia de competencia y deja ganar a otra. Una empresa que casi nunca gana y aparece una y otra vez junto al mismo ganador encaja en ese patrón. Vale comparar los precios que ofertó y si sus propuestas llegaron completas.",
   consorcio_rival: "Dos empresas que postularon juntas en un consorcio conocen sus costos y sus precios. Si después compiten por separado en procesos de pocos postores y gana siempre una de las dos, la competencia puede ser sólo aparente. No lo prueba: en mercados de pocos proveedores es común asociarse a veces y competir otras.",
+  mismo_dueno: "La concentración de un proveedor se mide por su RUC. Si una persona vende lo mismo a la misma entidad con dos empresas, ninguna parece dominante, cada compra queda bajo el tope que obligaría a un procedimiento con más competencia, y si una es sancionada sigue la otra. Vale revisar si las compras debieron agruparse en un solo proceso (fraccionamiento) y si las dos empresas se presentaron como competidoras entre sí.",
   retencion_sobre_tope: "Una carta fianza obliga a un banco a pagar si el contratista incumple. Con la retención de pagos el Estado sólo tiene lo que le fue descontando al propio contratista, y nada al inicio del contrato. Por eso el Reglamento la limita a contratos chicos o a micro y pequeñas empresas. Si una empresa grande garantiza así un contrato grande, la entidad aceptó menos protección de la que la norma exige: corresponde pedir la constancia de MYPE del contratista y ver quién aceptó la garantía.",
   renovacion_mas_cara: "Un servicio que se renueva debería costar parecido por mes, salvo que cambie su alcance. Una subida grande de un contrato al siguiente merece comparar los términos de referencia de los dos: sedes, personal, horarios y equipos. Si el alcance es el mismo, la entidad tendría que explicar por qué paga más. Pesa más cuando el proveedor es el mismo.",
   puerta_giratoria: "Quien trabajó en una entidad conoce sus necesidades, sus presupuestos y a quienes deciden. La Ley 32069 impide contratar con la entidad a ciertos ex funcionarios durante un tiempo tras dejar el cargo. Que la empresa de alguien que acaba de salir gane ahí merece ver en el expediente qué cargo tenía y si intervino en el requerimiento. El empate es por nombre completo: hay que confirmarlo.",
@@ -715,6 +716,39 @@ function Texto({ c, gobierna }: { c: CruceProveedor; gobierna?: GobiernoContrato
           <b>{n(d.consorcios_juntas) === 1 ? "un consorcio" : `${n(d.consorcios_juntas) ?? "varios"} consorcios`}</b> y, por separado, se enfrentaron en{" "}
           <b>{n(d.veces_rivales) ?? "varios"} procesos</b> de pocos postores: esta ganó {n(d.gano_esta) ?? "algunos"} y la otra {n(d.gano_la_rival) ?? 0}.
           {d.solas_las_dos === true ? " En este proceso fueron las únicas dos postoras." : ""}
+          <Gano c={c} />
+        </>
+      );
+    }
+    case "mismo_dueno": {
+      const otras = Array.isArray(d.otras_empresas) ? (d.otras_empresas as { ruc?: string; nombre?: string; procesos?: number }[]) : [];
+      const par = txt(d.ocid_parecido);
+      const dias = n(d.dias_de_diferencia);
+      return (
+        <>
+          {quien(c)} es socio de <Emp c={c} /> y también de{" "}
+          {/* recorte: tres nombres caben en la frase; las demás se cuentan a continuación («y N más») */}
+          {otras.slice(0, 3).map((o, i) => (
+            <span key={o.ruc ?? i}>
+              {i > 0 ? (i === Math.min(otras.length, 3) - 1 ? " y " : ", ") : ""}
+              {o.ruc && /^20\d{9}$/.test(o.ruc) ? (
+                <a className="underline" href={`/empresa/${o.ruc}`}>
+                  {o.nombre ?? o.ruc}
+                </a>
+              ) : (
+                o.nombre ?? "otra empresa"
+              )}
+            </span>
+          ))}
+          {otras.length > 3 ? ` y ${otras.length - 3} más` : ""}, que en esta misma entidad{" "}
+          {otras.length === 1 ? "ganó" : "ganaron"} <b>{n(d.procesos_de_las_otras) ?? "otros"} {n(d.procesos_de_las_otras) === 1 ? "proceso" : "procesos"}</b> por{" "}
+          <b>{solesCompacto(n(d.monto_de_las_otras))}</b> en dos años. Uno es de objeto parecido a este
+          {dias != null ? <>, con <b>{dias === 0 ? "la misma fecha de buena pro" : `${dias} ${dias === 1 ? "día" : "días"} de diferencia`}</b></> : ""}.{" "}
+          {par ? (
+            <a className="underline" href={`/app/contratos/${encodeURIComponent(par)}`}>
+              Ver el otro proceso
+            </a>
+          ) : null}
           <Gano c={c} />
         </>
       );
