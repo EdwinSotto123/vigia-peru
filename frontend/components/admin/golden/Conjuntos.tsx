@@ -159,6 +159,7 @@ export function MetricasRecuperacion({ m }: { m: Record<string, unknown> | null 
   if (!m) return null;
   const items: ParClave[] = [
     { etiqueta: "Acierto en los 8 primeros", valor: fmtMetrica(m["acierto@8"]), pista: "la norma esperada salió entre los 8" },
+    ...(m["acierto@10"] != null ? [{ etiqueta: "Acierto en lo que recibe el agente", valor: fmtMetrica(m["acierto@10"]), pista: "hasta 10: los dos últimos son criterios de la otra ley" }] : []),
     { etiqueta: "MRR", valor: fmtMetrica(m.MRR), pista: "qué tan arriba sale la esperada" },
     { etiqueta: "Norma en primer lugar", valor: fmtMetrica(m.norma_primero) },
     { etiqueta: "Régimen equivocado", valor: fmtMetrica(m.regimen_equivocado), pista: "resultados de la ley que no rige" },

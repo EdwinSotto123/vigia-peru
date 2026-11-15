@@ -75,14 +75,17 @@ def _regimen_equivocado(reg: str, m: dict) -> bool:
 
 
 def medir(nombre: str, buscar, casos: list[dict], detalle: bool) -> dict:
-    n = hit = primero_norma = malos = total = 0
+    n = hit = hit10 = primero_norma = malos = total = 0
     mrr = 0.0
     fallas, por_caso = [], []
     for c in casos:
         reg = str(c["regimen"])
-        ms = buscar(c["pregunta"], reg, c.get("fecha"))[:8]          # `fecha`: preguntas que dependen de la versión de la norma
+        todos = buscar(c["pregunta"], reg, c.get("fecha"))[:10]      # `fecha`: preguntas que dependen de la versión de la norma
+        ms = todos[:8]
         n += 1
         p = _acierto(c.get("esperado") or [], ms)
+        # Lo que de verdad recibe el agente son hasta 10: los dos últimos son criterios de la otra ley (por analogía).
+        hit10 += 1 if _acierto(c.get("esperado") or [], todos) else 0
         por_caso.append({"caso": c, "puesto": p,
                          "primeros": [f"{(m.get('documento') or m.get('numero') or '')[:90]}" + (f", art. {m['articulo']}" if m.get("articulo") else "")
                                       + (f" ({m['aplica']})" if m.get("aplica") and m["aplica"] != "norma" else "") for m in ms[:8]]})
@@ -95,7 +98,8 @@ def medir(nombre: str, buscar, casos: list[dict], detalle: bool) -> dict:
             primero_norma += 1
         malos += sum(1 for m in ms if _regimen_equivocado(reg, m))
         total += len(ms)
-    r = {"sistema": nombre, "preguntas": n, "acierto@8": round(hit / n, 3), "MRR": round(mrr / n, 3), "norma_primero": round(primero_norma / n, 3),
+    r = {"sistema": nombre, "preguntas": n, "acierto@8": round(hit / n, 3), "acierto@10": round(hit10 / n, 3), "MRR": round(mrr / n, 3),
+         "norma_primero": round(primero_norma / n, 3),
          "regimen_equivocado": f"{malos} de {total} ({round(100 * malos / max(1, total), 1)} %)"}
     print(json.dumps(r, ensure_ascii=False))
     if detalle:
@@ -121,7 +125,7 @@ def subir(destino: str, r: dict, nota: str | None) -> None:
                        (c["id"], c["pregunta"][:400], c.get("regla"), c.get("fecha") or FECHA[str(c["regimen"])], str(c["regimen"]),
                         json.dumps({"pregunta": c["pregunta"], "esperado": esperado}, ensure_ascii=False)))
         cu.execute("UPDATE golden_conjunto SET casos = (SELECT count(*) FROM golden_caso WHERE conjunto = 'rag_normas'), actualizado_at = now() WHERE clave = 'rag_normas'")
-        metricas = {k: r[k] for k in ("acierto@8", "MRR", "norma_primero", "regimen_equivocado", "preguntas")}
+        metricas = {k: r[k] for k in ("acierto@8", "acierto@10", "MRR", "norma_primero", "regimen_equivocado", "preguntas")}
         cu.execute("""INSERT INTO golden_corrida (conjunto, corrida, variante, imagen, contratos, errores, exhaustividad_pct, f1, metricas, nota)
                       VALUES ('rag_normas', %s, %s, %s, %s, 0, %s, %s, %s, %s)
                       ON CONFLICT (conjunto, corrida, variante) DO UPDATE SET metricas = EXCLUDED.metricas, nota = EXCLUDED.nota RETURNING id""",

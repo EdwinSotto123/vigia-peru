@@ -140,3 +140,16 @@ def test_las_citas_fijas_de_las_reglas_son_los_articulos_correctos():
     assert vieja["comparacion_precios"].startswith("Art. 25 TUO") and "97 y 98" in nueva["comparacion_precios"]
     assert nueva["cuantia"].startswith("Art. 48 Ley 32069") and "Art. 12" not in nueva["cuantia"] and "32 y 34" in vieja["cuantia"]
     assert "Anexo IV" not in vieja["procedimientos"]
+
+
+def test_el_acuerdo_de_sala_plena_tiene_un_lugar_entre_los_criterios():
+    filas = [_f(1, "ley-32069", "ley", "norma", "88", 0.9)]
+    filas += [_f(10 + i, f"opinion-{i}", "opinion", "criterio", None, 0.8 - i / 100) for i in range(5)]
+    filas += [_f(30, "acuerdo-sala-plena-004-2026-tcp", "acuerdo_sala_plena", "criterio", None, 0.3)]
+    m = N.elegir([dict(zip(COLS, x)) for x in filas])
+    crit = [x["slug"] for x in m if x["aplica"] == "criterio"]
+    assert crit == ["acuerdo-sala-plena-004-2026-tcp", "opinion-0", "opinion-1"]        # 3 cupos: el acuerdo primero
+    # Sin acuerdo entre los candidatos, nada cambia.
+    m = N.elegir([dict(zip(COLS, x)) for x in filas[:-1]])
+    assert [x["slug"] for x in m if x["aplica"] == "criterio"] == ["opinion-0", "opinion-1", "opinion-2"]
+

@@ -19,6 +19,7 @@ import re
 CUPO = {"norma": int(os.getenv("NORMAS_K_NORMA", "5")), "criterio": int(os.getenv("NORMAS_K_CRITERIO", "3")),
         "criterio_anterior": int(os.getenv("NORMAS_K_ANTERIOR", "2"))}
 MAX_BASES_ESTANDAR = 2          # los anexos de bases estándar no deben copar el cupo de normas
+VINCULANTES = ("acuerdo_sala_plena", "precedente")
 INICIO_32069 = dt.date(2025, 4, 22)
 NOMBRE_LEY = {"32069": "Ley N° 32069", "30225": "Ley N° 30225"}
 CORPUS = {"norma": "normas", "criterio": "criterios", "criterio_anterior": "criterios-regimen-anterior"}
@@ -85,6 +86,15 @@ def elegir(filas: list[dict], cupo: dict | None = None) -> list[dict]:
             if len(por["norma"]) >= cupo.get("norma", 0):
                 por["norma"].pop()
             por["norma"].append(mejor)
+    # Y un lugar para el acuerdo de Sala Plena o el precedente (vinculantes) entre los criterios: con mil opiniones en
+    # el corpus, sus fragmentos copaban los tres cupos aunque hubiera un acuerdo sobre el tema.
+    for clase in ("criterio", "criterio_anterior"):
+        if por[clase] and not any(x.get("tipo") in VINCULANTES for x in por[clase]):
+            mejor = next((x for x in filas if x.get("aplica") == clase and x.get("tipo") in VINCULANTES), None)
+            if mejor is not None:
+                if len(por[clase]) >= cupo.get(clase, 0):
+                    por[clase].pop()
+                por[clase].insert(0, mejor)          # el vinculante va primero entre los criterios
     return por["norma"] + por["criterio"] + por["criterio_anterior"]
 
 
