@@ -94,6 +94,7 @@ dejarlas como fichas `.json` en una carpeta; `cargar_normas.py <destino> carpeta
 
 | Prioridad | Fuente | Dónde | Por qué |
 |---|---|---|---|
+| 1 | Cuadro de impedimentos del artículo 30 de la Ley 32069 (el texto consolidado sólo dice «Enlace Web: Impedimentos para contratar (PDF)») | enlace dentro del artículo 30 en la página de la ley en gob.pe/oece | el artículo quedó en 592 caracteres, sin la lista de impedidos: es la norma central para conflictos de interés |
 | 1 | Opiniones de la DTN del OECE de 2025 y 2026 (Ley 32069) | gob.pe, institución OECE, «Informes y publicaciones», tipo opinión | hoy sólo hay 34 del régimen vigente |
 | 1 | Acuerdos de Sala Plena y precedentes del Tribunal de 2025-2026 | gob.pe/oece, Tribunal de Contrataciones Públicas | criterios vinculantes del régimen nuevo: hay 1 |
 | 2 | Directivas del OECE vigentes (bases estándar ya están): requerimiento, expediente, catálogos, PAC | gob.pe/oece, «Normas legales» | hoy hay 2 directivas |
