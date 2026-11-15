@@ -10,7 +10,7 @@
  * `rastro_persona` necesita además MCP_INTERNO_TOKEN; sin él esa prueba se salta. No imprime secretos ni nombres enteros.
  */
 import { z } from "zod";
-import { patrones, preciosReferencia, redEmpresa } from "../src/v2/herramientas/actores";
+import { normaAplicable, patrones, preciosReferencia, redEmpresa } from "../src/v2/herramientas/actores";
 
 const PRUEBA = process.env.GOBSERVA_PRUEBA ?? "";
 if (!PRUEBA) {
@@ -45,6 +45,13 @@ const CASOS: Caso[] = [
   { h: patrones as never, args: { alcance: "renovacion" }, espera: hay("renovaciones") },
   { h: preciosReferencia as never, args: { que: "papel bond a4 75" }, espera: hay("productos") },
   { h: preciosReferencia as never, args: { que: "vigilancia", tipo: "servicio" }, espera: hay("servicios", 5) },
+  // Un proceso de 2025 recibe el artículo 46 del Reglamento como regía antes del 14-01-2026; uno de 2026, el vigente.
+  { h: normaAplicable as never, args: { pregunta: "estrategia de contratación: qué contiene", fecha: "2025-09-01" },
+    espera: (r) => (lista(r, "normas_que_regian").some((x) => /regía hasta/.test(String((x as { version?: string }).version ?? ""))) ? null : "no trajo el texto anterior del artículo modificado") },
+  { h: normaAplicable as never, args: { pregunta: "parientes del alcalde impedidos de contratar", fecha: "2026-03-01" },
+    espera: (r) => (lista(r, "normas_que_regian").some((x) => (x as { articulo?: string }).articulo === "30") && lista(r, "criterios_de_esa_ley").length ? null : "sin el artículo 30 o sin criterios") },
+  { h: normaAplicable as never, args: { pregunta: "impedimentos para contratar", fecha: "2023-05-10" },
+    espera: (r) => (/30225/.test(String(r.rige)) && lista(r, "normas_que_regian").length ? null : "un proceso de 2023 debe regirse por la Ley 30225") },
   { h: redEmpresa as never, args: { ruc: "20100210909" }, espera: (r) => (lista(r, "socias_de_consorcio_que_compiten").length ? null : "sin socias de consorcio para una aseguradora que las tiene") },
 ];
 

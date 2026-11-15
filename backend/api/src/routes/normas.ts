@@ -107,6 +107,13 @@ normasRouter.get("/buscar", async (c) => {
         if (otra) Object.assign(x, { texto: otra.texto, documento: otra.documento, version: otra.hasta ? `texto que regía hasta el ${otra.hasta}` : "versión de esa fecha" });
       }
     }
+    // Un artículo que llegó directamente desde la versión anterior también dice que es el texto de esa fecha.
+    const propias = await pool.query(
+      `SELECT slug, to_char(vigencia_hasta, 'DD-MM-YYYY') AS hasta FROM norma WHERE slug = ANY($1) AND version_de IS NOT NULL`, [elegidas.map((x) => x.slug)]);
+    for (const x of elegidas) {
+      const v = propias.rows.find((y) => y.slug === x.slug);
+      if (v && !x.version) x.version = v.hasta ? `texto que regía hasta el ${v.hasta}` : "versión de esa fecha";
+    }
     // El mismo artículo pudo llegar por el texto vigente (ya cambiado por el de la fecha) y por su versión anterior.
     const dichos = new Set<string>();
     const sinRepetir = elegidas.filter((x) => {
