@@ -47,6 +47,16 @@ def test_tiendas_se_nombran_y_el_valor_referencial_no_es_lo_pagado():
     assert "exceso_soles" not in nums and "Total pagado" not in txt
 
 
+def test_combustible_dice_cuantas_declaraciones():
+    f = {**DIESEL, "n_precios": 3, "precios_observados": [
+        {"origen": "osinergmin", "producto": "Diesel B5 S-50, percentil 25 de 203 declaraciones (Lima)", "precio": 12.4},
+        {"origen": "osinergmin", "producto": "Diesel B5 S-50, mediana de 203 declaraciones (Lima)", "precio": 13.03},
+        {"origen": "osinergmin", "producto": "Diesel B5 S-50, percentil 75 de 203 declaraciones (Lima)", "precio": 13.9}]}
+    txt, nums = justificar(f)
+    assert "(mediana de 203 declaraciones de precio; de S/ 12.40 a S/ 13.90; precios que los grifos declaran a Osinergmin)" in txt
+    assert nums["n_declaraciones_referencia"] == 203
+
+
 def test_sin_precio_o_sin_referencia_no_inventa():
     assert justificar({"precio_unitario_ofertado": 10}) == ("", {})
     assert justificar({"precio_mediana_mercado": 10}) == ("", {})

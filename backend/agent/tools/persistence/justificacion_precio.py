@@ -7,6 +7,8 @@ Devuelve el texto que sigue a la frase de la bandera y los números usados, que 
 que la verificación los encuentre (tools/verify.py los busca en el expediente y en la bandera)."""
 from __future__ import annotations
 
+import re
+
 _FUENTE = {
     "osinergmin": "precios que los grifos declaran a Osinergmin",
     "emmsa": "precios mayoristas de EMMSA",
@@ -14,6 +16,9 @@ _FUENTE = {
     "catalogo_tienda": "catálogos de tiendas",
     "perucompras": "catálogos electrónicos de Perú Compras (lo que pagaron otras entidades por el mismo producto, con IGV)",
 }
+
+
+_RE_DECL = re.compile(r"de\s+(\d+)\s+declaraciones", re.I)
 
 
 def _n(v) -> float | None:
@@ -67,9 +72,16 @@ def justificar(f: dict) -> tuple[str, dict]:
     det = []
     # Perú Compras: la referencia es lo que pagaron N entidades, no «N precios».
     resp = 0 if de_ancla else sum(int(_n(x.get("respaldo")) or 0) for x in (f.get("precios_observados") or []) if isinstance(x, dict))
+    # Osinergmin: cada fila resume muchas declaraciones de grifos («… de 203 declaraciones»): se dice ese número.
+    decl = 0 if de_ancla else max((int(m.group(1)) for x in (f.get("precios_observados") or []) if isinstance(x, dict)
+                                   and str(x.get("origen") or "") == "osinergmin"
+                                   for m in [_RE_DECL.search(str(x.get("producto") or ""))] if m), default=0)
     if resp:
         det.append(f"de lo que pagaron {resp} entidades")
         nums["n_entidades_referencia"] = resp
+    elif decl:
+        det.append(f"mediana de {decl} declaraciones de precio")
+        nums["n_declaraciones_referencia"] = decl
     elif n:
         det.append(f"mediana de {n} precio{'s' if n != 1 else ''}")
         nums["n_precios_referencia"] = n
