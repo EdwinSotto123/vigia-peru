@@ -229,17 +229,21 @@ def reglas(cn, archivo: Path) -> None:
     dato = json.loads(archivo.read_text(encoding="utf-8"))
     lista = dato if isinstance(dato, list) else list(dato.values())[0]
     cu = cn.cursor()
+    # Qué regla de Vigía ya la cubre (backend/rag/reglas_vigia.json): para ver en el panel lo que falta construir.
+    cubre = json.loads((RAIZ / "backend" / "rag" / "reglas_vigia.json").read_text(encoding="utf-8"))
     for r in lista:
+        c = cubre.get(r["id"]) or {}
         cu.execute("""INSERT INTO norma_regla (id, categoria, fase, descripcion, fundamento, normas, tipo_verificacion, parametro, valor_referencia,
-                                               severidad, regimen, verificacion, actualizado_at)
-                      VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, now())
+                                               severidad, regimen, verificacion, regla_vigia, nota, actualizado_at)
+                      VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, now())
                       ON CONFLICT (id) DO UPDATE SET categoria = EXCLUDED.categoria, fase = EXCLUDED.fase, descripcion = EXCLUDED.descripcion,
                         fundamento = EXCLUDED.fundamento, normas = EXCLUDED.normas, tipo_verificacion = EXCLUDED.tipo_verificacion,
                         parametro = EXCLUDED.parametro, valor_referencia = EXCLUDED.valor_referencia, severidad = EXCLUDED.severidad,
-                        regimen = EXCLUDED.regimen, verificacion = EXCLUDED.verificacion, actualizado_at = now()""",
+                        regimen = EXCLUDED.regimen, verificacion = EXCLUDED.verificacion, regla_vigia = EXCLUDED.regla_vigia,
+                        nota = EXCLUDED.nota, actualizado_at = now()""",
                    (r["id"], r.get("categoria") or "transversal", r.get("fase"), r["descripcion"], r.get("fundamento"), list(r.get("normas_ids") or []),
                     r.get("tipo_verificacion"), r.get("parametro") or None, r.get("valor_referencia_2026") or None, r.get("severidad"),
-                    list(r.get("regimen") or []), r.get("verificacion")))
+                    list(r.get("regimen") or []), r.get("verificacion"), ", ".join(c.get("reglas") or []) or None, c.get("nota")))
     cn.commit()
     print("reglas cargadas:", len(lista), flush=True)
 

@@ -242,6 +242,7 @@ function Reglas() {
   const categorias = useMemo(() => [...new Set(reglas.map((r) => r.categoria))], [reglas]);
   const filas = categoria === "todas" ? reglas : reglas.filter((r) => r.categoria === categoria);
   const porVerificar = reglas.filter((r) => r.verificacion && r.verificacion !== "C").length;
+  const cubiertas = reglas.filter((r) => r.reglaVigia).length;
   const columnas: Columna<ReglaNorma>[] = [
     {
       clave: "regla",
@@ -259,6 +260,28 @@ function Reglas() {
     { clave: "fundamento", titulo: "Fundamento", celda: (r) => r.fundamento ?? <SinDato texto="Sin fundamento" /> },
     { clave: "como", titulo: "Cómo se verifica", celda: (r) => (r.tipoVerificacion ? COMO_SE_VERIFICA[r.tipoVerificacion] ?? r.tipoVerificacion : <SinDato />) },
     { clave: "valor", titulo: "Valor de referencia", celda: (r) => r.valorReferencia ?? <SinDato texto="No aplica" /> },
+    {
+      clave: "vigia",
+      titulo: "En Vigía",
+      anchoCompletoMovil: true,
+      celda: (r) =>
+        r.reglaVigia ? (
+          <span className="block min-w-0">
+            <span className="flex flex-wrap gap-1.5">
+              {r.reglaVigia.split(",").map((k) => (
+                <Badge key={k} tono="ok">
+                  {k.trim()}
+                </Badge>
+              ))}
+            </span>
+            {r.nota && <span className="mt-1 block text-rotulo leading-snug text-mute text-pretty">{r.nota}</span>}
+          </span>
+        ) : (
+          <Badge tono="muted" title="Ninguna regla del agente ni cruce de la base la verifica todavía">
+            Sin cubrir
+          </Badge>
+        ),
+    },
     {
       clave: "verificacion",
       titulo: "Estado del dato",
@@ -278,8 +301,9 @@ function Reglas() {
       {!error && !data && isLoading && <SkeletonPanel lineas={6} />}
       {data && (
         <>
-          <StatGrid columnas={3}>
+          <StatGrid columnas={4}>
             <StatCard etiqueta="Reglas de cumplimiento" valor={reglas.length} pista="lo que se verifica en un contrato, un CAS o una planilla" />
+            <StatCard etiqueta="Ya las verifica Vigía" valor={cubiertas} pista={`${reglas.length - cubiertas} todavía sin una regla o un cruce que las revise`} tono={cubiertas ? "ok" : "warn"} />
             <StatCard etiqueta="Con fundamento confirmado" valor={reglas.length - porVerificar} pista="el artículo se comprobó en la fuente oficial" tono="ok" />
             <StatCard etiqueta="Por confirmar" valor={porVerificar} pista="el artículo o el valor sale de una fuente secundaria" tono={porVerificar ? "warn" : "ok"} />
           </StatGrid>

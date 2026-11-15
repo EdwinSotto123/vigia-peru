@@ -1,0 +1,17 @@
+{
+  "_": "Qué regla de Vigía ya cubre cada regla de cumplimiento de norma_regla (cargar_normas.py … reglas). Sólo lo que de verdad se verifica hoy; lo demás queda sin cubrir.",
+  "REG-01": {"reglas": ["regimen_de"], "nota": "La búsqueda de normas y las reglas del agente eligen la ley por la fecha de convocatoria."},
+  "REG-02": {"reglas": ["version_de"], "nota": "La búsqueda sirve el texto del Reglamento que regía en la fecha (migración 286)."},
+  "PRE-06": {"reglas": ["fraccionamiento"], "nota": "Agrupa órdenes y procesos del mismo objeto y proveedor en el año."},
+  "MEN-09": {"reglas": ["cuantia_al_limite_del_tope"], "nota": "Marca la cuantía pegada al tope; no revisa que la UIT sea la de la fecha del acto."},
+  "SEL-14": {"reglas": ["tipo_proceso_vs_monto"], "nota": "Compara el procedimiento con la cuantía del año."},
+  "SEL-18": {"reglas": ["proveedor_sancionado_osce", "conflicto_interes_funcionario_empresa", "pariente_funcionario", "socio_en_entidad"], "nota": "Sanciones, vínculos de funcionarios y parientes con el proveedor. No cubre todos los tipos del artículo 30."},
+  "SEL-21": {"reglas": ["directa_sin_fundamento", "directa_causal_imprecisa", "directa_emergencia_sin_acto_resolutivo"], "nota": "Causal y sustento de la contratación directa."},
+  "EJE-25": {"reglas": ["ampliacion_denegada_penalidad"], "nota": "Penalidad aplicada tras una ampliación de plazo denegada."},
+  "EJE-26": {"reglas": ["adicional_acumulado", "adicional_sobre_tope"], "nota": "Suma de adicionales contra el 25 % del contrato."},
+  "OBR-31": {"reglas": ["adicional_sobre_tope", "supervision_adicionales_altos"], "nota": "Adicionales de obra altos; no distingue la autorización previa de la Contraloría."},
+  "OBR-32": {"reglas": ["adicional_sobre_tope"], "nota": "Adicionales sobre el tope."},
+  "OBR-35": {"reglas": ["supervision_obra_paralizada", "supervision_pagado_sin_avance"], "nota": "Cruza la obra con INFOBRAS e Invierte.pe por su CUI."},
+  "CAS-40": {"reglas": ["persona_contratada_senales"], "nota": "Señal «al borde del tope» de las personas contratadas."},
+  "PLA-48": {"reglas": ["persona_contratada_senales"], "nota": "Señal «al borde del tope» de las personas contratadas."}
+}
