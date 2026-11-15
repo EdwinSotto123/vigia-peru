@@ -74,7 +74,7 @@ export default async function InicioApp() {
     getContratosGeo({ nivel: "departamento", desde: desdeLectura() }).catch(() => null),
     // La cola de cada región: el «en cola» de financiar, con la misma palabra y el mismo número.
     getZonas("departamento").catch(() => null),
-    getResumenVivo().catch(() => null),
+    getResumenVivo(60).catch(() => null),
   ]);
 
   // ── Cifras del año: un solo universo (lib/cifras) ──

@@ -94,7 +94,7 @@ export default async function ContratoPage({
   const tab = esClaveDictamen(tabPedida) && tabPedida !== "trace" ? tabPedida : undefined;
   const [{ contrato: base, redirigirA }, vivoResumen, catalogo] = await Promise.all([
     resolverContrato(param),
-    getResumenVivo(),
+    getResumenVivo(60),
     getCatalogoReglas().catch(() => ({}) as CatalogoReglas),
   ]);
   // La pestaña pedida sobrevive a la redirección del código SEACE a su OCID.

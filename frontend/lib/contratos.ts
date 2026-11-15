@@ -909,8 +909,13 @@ export interface ResumenProcesamientoVivo {
   porDepartamento?: Record<string, { activos: number; procesando: number }>;
 }
 
-export const getResumenVivo = () =>
-  getJson<ResumenProcesamientoVivo>(`/financiamiento/procesamientos/resumen`, 5);
+/**
+ * `revalidate` en segundos: 5 para el tablero de auditoría (se mira en vivo); la ficha de un contrato y la portada de la
+ * app pasan 60. Con 5 en la ficha, cada visita de un rastreador (0,6 fichas por segundo) recalculaba el resumen: era la
+ * consulta que más tiempo de base se llevaba (medido el 2026-11-14).
+ */
+export const getResumenVivo = (revalidate = 5) =>
+  getJson<ResumenProcesamientoVivo>(`/financiamiento/procesamientos/resumen`, revalidate);
 
 // ─── Presentación ────────────────────────────────────────────────────────────
 
