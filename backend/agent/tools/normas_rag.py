@@ -80,6 +80,28 @@ def elegir(filas: list[dict], cupo: dict | None = None) -> list[dict]:
     return por["norma"] + por["criterio"] + por["criterio_anterior"]
 
 
+def texto_de_la_fecha(cur, filas: list[dict], f: dt.date) -> None:
+    """Un artículo puede tener OTRO texto para la fecha del proceso (el Reglamento cambió 123 artículos el 14-01-2026).
+    Si existe una versión (`norma.version_de`) de ese artículo que regía ese día, el agente recibe ESE texto."""
+    pares = sorted({(x["slug"], x["articulo"]) for x in filas if x.get("articulo") and x.get("aplica") == "norma"})
+    if not pares:
+        return
+    try:
+        cur.execute("""SELECT n.version_de, f.articulo, n.slug, n.documento, n.vigencia_hasta, string_agg(f.texto, E'\n' ORDER BY f.orden)
+                         FROM norma n JOIN norma_fragmento f ON f.slug = n.slug
+                        WHERE n.version_de = ANY(%s) AND f.articulo = ANY(%s)
+                          AND COALESCE(n.vigencia_desde, DATE '1900-01-01') <= %s AND (n.vigencia_hasta IS NULL OR n.vigencia_hasta >= %s)
+                        GROUP BY 1, 2, 3, 4, 5""", ([p[0] for p in pares], [p[1] for p in pares], f, f))
+        version = {(r[0], r[1]): r for r in cur.fetchall()}
+    except Exception:  # noqa: BLE001 — sin la migración 286 no hay versiones: queda el texto vigente
+        return
+    for x in filas:
+        v = version.get((x.get("slug"), x.get("articulo")))
+        if v and x.get("aplica") == "norma":
+            x["texto"], x["documento"], x["version_fecha"] = v[5], v[3], f"texto que regía hasta el {v[4]:%d-%m-%Y}" if v[4] else "versión de la fecha"
+            x["slug_version"] = v[2]
+
+
 def buscar_normas(pregunta: str, fecha=None, tipos: list[str] | None = None, conn=None, vector=...) -> dict:
     """{question, fecha, regimen, matches[], _source: 'vigia_normas'} o {error}. `fecha`: la de la convocatoria."""
     f = _fecha(fecha) or dt.date.today()
@@ -95,6 +117,8 @@ def buscar_normas(pregunta: str, fecha=None, tipos: list[str] | None = None, con
                     (pregunta, ("[" + ",".join(f"{x:.6f}" for x in vec) + "]") if vec else None, f, tipos))
         cols = [d[0] for d in cur.description]
         filas = [dict(zip(cols, r)) for r in cur.fetchall()]
+        elegidas = elegir(filas)
+        texto_de_la_fecha(cur, elegidas, f)
     except Exception as e:  # noqa: BLE001
         return {"error": f"normas: {str(e)[:160]}", "question": pregunta}
     finally:
@@ -107,7 +131,12 @@ def buscar_normas(pregunta: str, fecha=None, tipos: list[str] | None = None, con
         return {"error": "normas_sin_resultados", "question": pregunta, "regimen": regimen}
     tope = max(float(x.get("puntaje") or 0) for x in filas) or 1.0
     matches = []
-    for x in elegir(filas):
+    vistos = set()
+    for x in elegidas:
+        clave = (x.get("slug_version") or x.get("slug"), x.get("articulo") or id(x))
+        if clave in vistos:          # el mismo artículo llegó por el texto vigente y por su versión anterior
+            continue
+        vistos.add(clave)
         otro = "30225" if regimen == "32069" else "32069"
         m = {
             "corpus": CORPUS[x["aplica"]], "aplica": x["aplica"], "tipo": x["tipo"], "documento": x["documento"], "numero": x.get("numero"),
@@ -120,6 +149,8 @@ def buscar_normas(pregunta: str, fecha=None, tipos: list[str] | None = None, con
             "num_opinion": x.get("numero") if x["tipo"] == "opinion" else None, "norma": x.get("numero") or x.get("documento"),
             "interpretacion_snippet": re.sub(r"\s+", " ", x.get("texto") or "").strip()[:400], "link": x.get("url_oficial") or "",
         }
+        if x.get("version_fecha"):
+            m["version"] = x["version_fecha"]
         if x["aplica"] == "criterio_anterior":
             m["advertencia"] = (f"Emitido bajo la {NOMBRE_LEY[otro]}, que NO rige este proceso ({NOMBRE_LEY[regimen]}). Sirve sólo por analogía: "
                                 f"no cites sus artículos como vigentes; cita el artículo equivalente de la norma aplicable si aparece arriba.")

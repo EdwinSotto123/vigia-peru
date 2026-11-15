@@ -3,6 +3,8 @@
     python -X utf8 backend/scripts/cargar_normas.py dev|prod chroma        # trae las 4 colecciones de Chroma Cloud
     python -X utf8 backend/scripts/cargar_normas.py dev|prod carpeta <dir> # carga fichas .json de una carpeta (ver abajo)
     python -X utf8 backend/scripts/cargar_normas.py dev|prod vectores      # calcula los embeddings que falten
+    python -X utf8 backend/scripts/cargar_normas.py dev|prod reglas <json> # carga las reglas de cumplimiento (norma_regla)
+    python -X utf8 backend/scripts/cargar_normas.py dev|prod cierres       # vigencias que dependen de otra norma (bases de 2025)
     python -X utf8 backend/scripts/cargar_normas.py dev|prod estado
 
 Las claves (Chroma, vigia-llm) salen de la configuración de la Lambda de agentes si no están en el entorno; no se imprimen.
@@ -11,6 +13,9 @@ Ficha de `carpeta` (un .json por norma o criterio, para lo que se descargue desp
   {"slug": "opinion-012-2026-dtn", "documento": "Opinión N° 012-2026/DTN", "numero": "012-2026/DTN", "emisor": "OECE",
    "tipo": "opinion", "regimen": "32069", "fecha_emision": "2026-03-14", "url_oficial": "https://…",
    "fragmentos": [{"articulo": "29", "epigrafe": "Requisitos de calificación", "texto": "…", "pagina": 3}]}
+Opcionales (migración 286): "materia" (contrataciones | control | presupuesto | administrativo | empleo_publico | inversion),
+"estado", "verificacion" (C | S | PV), "version_de" (slug de la norma de la que esta es OTRA versión por fecha), "catalogo_id",
+"sha256", "vigencia_desde", "vigencia_hasta". Las fichas salen de backend/scripts/normas_fichas.py.
 """
 from __future__ import annotations
 
@@ -126,6 +131,9 @@ def _guardar(cu, norma: dict, fragmentos: list[dict]) -> int:
                     tipo = EXCLUDED.tipo, jerarquia = EXCLUDED.jerarquia, regimen = EXCLUDED.regimen, fecha_emision = EXCLUDED.fecha_emision,
                     vigencia_desde = EXCLUDED.vigencia_desde, vigencia_hasta = EXCLUDED.vigencia_hasta, url_oficial = EXCLUDED.url_oficial,
                     url_pdf = EXCLUDED.url_pdf, origen = EXCLUDED.origen, nota = EXCLUDED.nota, actualizado_at = now()""", norma)
+    extra = {k: norma.get(k) for k in ("materia", "estado", "verificacion", "version_de", "catalogo_id", "sha256") if norma.get(k)}
+    if extra:          # columnas de la migración 286: sólo las que trae la ficha
+        cu.execute("UPDATE norma SET " + ", ".join(f"{k} = %s" for k in extra) + " WHERE slug = %s", (*extra.values(), norma["slug"]))
     cu.execute("SELECT orden, hash FROM norma_fragmento WHERE slug = %s", (norma["slug"],))
     hay = dict(cu.fetchall())
     nuevos = {f["orden"]: f for f in fragmentos}
@@ -200,17 +208,51 @@ def desde_carpeta(cn, carpeta: Path) -> None:
     cu = cn.cursor()
     n = 0
     for f in sorted(carpeta.glob("*.json")):
+        if f.name.startswith("_"):
+            continue
         d = json.loads(f.read_text(encoding="utf-8"))
         tipo = d.get("tipo") or "otra"
         norma = {"slug": d["slug"], "documento": d["documento"], "numero": d.get("numero"), "emisor": d.get("emisor"), "tipo": tipo,
                  "jerarquia": JERARQUIA.get(tipo, 6), "regimen": d.get("regimen") or "ambos", "fecha_emision": _fecha(d.get("fecha_emision")),
                  "vigencia_desde": _fecha(d.get("vigencia_desde")), "vigencia_hasta": _fecha(d.get("vigencia_hasta")),
-                 "url_oficial": d.get("url_oficial"), "url_pdf": d.get("url_pdf"), "origen": d.get("origen") or "descarga", "nota": d.get("nota")}
+                 "url_oficial": d.get("url_oficial"), "url_pdf": d.get("url_pdf"), "origen": d.get("origen") or "descarga", "nota": d.get("nota"),
+                 **{k: d.get(k) for k in ("materia", "estado", "verificacion", "version_de", "catalogo_id", "sha256")}}
         frag = [{"orden": i, "articulo": x.get("articulo"), "epigrafe": x.get("epigrafe"), "pagina": x.get("pagina"), "texto": x["texto"].strip(),
                  "hash": _hash(x["texto"].strip())} for i, x in enumerate(d.get("fragmentos") or []) if len((x.get("texto") or "").strip()) >= 40]
         n += _guardar(cu, norma, frag)
     cn.commit()
     print(f"{carpeta}: {n} fragmentos nuevos o cambiados", flush=True)
+
+
+def reglas(cn, archivo: Path) -> None:
+    """Las reglas de cumplimiento del paquete docs/rag_legal_peru (02_datos/reglas_cumplimiento.json) a `norma_regla`."""
+    dato = json.loads(archivo.read_text(encoding="utf-8"))
+    lista = dato if isinstance(dato, list) else list(dato.values())[0]
+    cu = cn.cursor()
+    for r in lista:
+        cu.execute("""INSERT INTO norma_regla (id, categoria, fase, descripcion, fundamento, normas, tipo_verificacion, parametro, valor_referencia,
+                                               severidad, regimen, verificacion, actualizado_at)
+                      VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, now())
+                      ON CONFLICT (id) DO UPDATE SET categoria = EXCLUDED.categoria, fase = EXCLUDED.fase, descripcion = EXCLUDED.descripcion,
+                        fundamento = EXCLUDED.fundamento, normas = EXCLUDED.normas, tipo_verificacion = EXCLUDED.tipo_verificacion,
+                        parametro = EXCLUDED.parametro, valor_referencia = EXCLUDED.valor_referencia, severidad = EXCLUDED.severidad,
+                        regimen = EXCLUDED.regimen, verificacion = EXCLUDED.verificacion, actualizado_at = now()""",
+                   (r["id"], r.get("categoria") or "transversal", r.get("fase"), r["descripcion"], r.get("fundamento"), list(r.get("normas_ids") or []),
+                    r.get("tipo_verificacion"), r.get("parametro") or None, r.get("valor_referencia_2026") or None, r.get("severidad"),
+                    list(r.get("regimen") or []), r.get("verificacion")))
+    cn.commit()
+    print("reglas cargadas:", len(lista), flush=True)
+
+
+def cierres(cn) -> None:
+    """Vigencias que dependen de otra norma. Las bases estándar de 2025 (cargadas desde Chroma) rigen hasta el 13-01-2026:
+    desde el 14 se convoca con las que aprobó la R.D. 0001-2026-EF/54.01 (cuadro comparativo del OECE del D.S. 001-2026-EF)."""
+    cu = cn.cursor()
+    cu.execute("""UPDATE norma SET vigencia_hasta = DATE '2026-01-13', estado = 'vigente_modificada'
+                   WHERE tipo = 'bases_estandar' AND origen = 'chroma' AND regimen = '32069' AND vigencia_hasta IS NULL
+                     AND slug LIKE 'bases-estandar-%%-2025'""")
+    print("bases estándar de 2025 cerradas al 13-01-2026:", cu.rowcount, flush=True)
+    cn.commit()
 
 
 def vectores(cn, lote: int = 24) -> None:
@@ -252,4 +294,8 @@ if __name__ == "__main__":
             desde_carpeta(cn, Path(sys.argv[3]))
         elif que == "vectores":
             vectores(cn)
+        elif que == "cierres":
+            cierres(cn)
+        elif que == "reglas":
+            reglas(cn, Path(sys.argv[3]))
         estado(cn)

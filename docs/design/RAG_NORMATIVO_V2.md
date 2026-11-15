@@ -86,26 +86,78 @@ corrida de la otra ley o inexistentes.
 
 `LEGAL_RAG_BACKEND=vigia` en la Lambda. Si la búsqueda falla o no trae nada, sigue la cascada anterior (Chroma).
 
-## 6. Lo que falta cargar (fuentes por descargar)
+Para sumar normas: dejar los archivos en la carpeta de descargas con su fila en el manifiesto,
+`python backend/scripts/normas_fichas.py <descargas> <fichas>`, `cargar_normas.py prod carpeta <fichas>` y
+`cargar_normas.py prod vectores`.
 
-El portal gob.pe rechaza clientes automáticos desde fuera del Perú. Hay que bajarlas desde una IP peruana (o a mano) y
-dejarlas como fichas `.json` en una carpeta; `cargar_normas.py <destino> carpeta <dir>` las carga y
-`cargar_normas.py <destino> vectores` las indexa. Formato de la ficha: cabecera de `backend/scripts/cargar_normas.py`.
+## 6. Unificación de las tres fuentes (2026-11-15)
 
-| Prioridad | Fuente | Dónde | Por qué |
+Había tres trabajos sobre lo mismo: el RAG de Vigía (migración 284), una descarga parcial en `rag-legal-pe` (98 normas
+planeadas, 74 con texto) y el paquete `docs/rag_legal_peru` (catálogo de 86 normas, 48 reglas, un esquema con artículos
+versionados). Quedaron así:
+
+| Del paquete o de la descarga | Dónde quedó |
+|---|---|
+| Catálogo de normas con estado y verificación (C confirmado, S secundaria, PV por verificar) | columnas `norma.estado`, `norma.verificacion`, `norma.catalogo_id` (migración 286) |
+| Categorías A a G | `norma.materia`: contrataciones, control, presupuesto, administrativo, inversión, empleo público |
+| Artículos versionados con `articulos_vigentes(fecha)` | `norma.version_de`: la otra versión es otra fila con su vigencia; la búsqueda sirve el texto de la fecha |
+| 48 reglas de cumplimiento | tabla `norma_regla`, visible en /admin/golden, pestaña Normas, Reglas |
+| Descargas de los dos agentes y de los cinco lotes | `backend/scripts/normas_fichas.py` las convierte en fichas por artículo; `cargar_normas.py … carpeta` las carga |
+
+**Versiones por fecha.** El D.S. 001-2026-EF cambió 123 artículos del Reglamento desde el 14-01-2026. La base tenía sólo
+el texto consolidado. Ahora `ds-009-2025-ef-anterior` guarda el texto anterior de cada artículo modificado (sale de la
+columna izquierda del cuadro comparativo del OECE; el PDF oficial del texto original es un escaneo) con vigencia del
+22-04-2025 al 13-01-2026 y `version_de = ds-009-2025-ef`. Cuando el agente pregunta por un proceso de 2025 y la búsqueda
+trae un artículo modificado, `tools/normas_rag.py::texto_de_la_fecha` lo cambia por el texto que regía y lo marca
+(«texto que regía hasta el 13-01-2026»). Lo mismo con las bases estándar: las de 2025 cierran el 13-01-2026 y las 19 de
+la R.D. 0001-2026-EF/54.01 rigen desde el 14.
+
+**Materia.** La búsqueda del analista legal no trae empleo público (CAS, planillas) salvo que se pida
+(`buscar_norma(…, p_materias)`). Así el corpus de CAS y planillas vive en la misma base sin ensuciar los contratos.
+
+**Corpus cargado** (PROD, 2026-11-15): 972 normas y criterios, 16 293 fragmentos (antes 750 y 7 450).
+
+| Qué entró | Cuánto |
+|---|---|
+| Cuadro de impedimentos del artículo 30 de la Ley 32069 (texto de El Peruano del 24-06-2024) | 7 fragmentos |
+| Reglamento, texto anterior al 14-01-2026 | 102 artículos |
+| D.S. 001-2026-EF, D.S. 222-2026-EF, D.S. 072-2025-EF, fe de erratas del Reglamento | 4 |
+| Leyes que modifican la Ley 32069: 32187, 32515, 32732, D.L. 1715 | 4 |
+| Directivas del OECE vigentes (001 a 018 de 2025, 001-2026, lineamientos, código de ética del arbitraje) | 23 |
+| Directivas y resoluciones de la DGA del MEF (EF/54.01) | 15 |
+| Directivas de Perú Compras (fichas técnicas, encargo, homologación, compra corporativa, acuerdos marco) | 8 |
+| Bases estándar de 2026 (19) y de la Ley 31589 (5) | 24 |
+| Acuerdos de Sala Plena de 2021 a 2026 | 22 |
+| Opiniones de la DTN de 2025 y 2026 (42 de la Ley 32069 y 33 de la anterior) | 75 |
+| Control: Ley 27785, directivas de la Contraloría (INFOBRAS, Ley 31358, autorización previa) | 5 |
+| Inversión: D.L. 1252, Directiva 001-2019-EF/63.01 y sus modificatorias, Ley 29230 | 9 |
+| Empleo público: D.L. 1057 y reglamento, Ley 32563, Ley 30057 y reglamento, D.L. 276, 728, 1023, 1666, AIRHSP, SERVIR | 31 |
+
+## 7. Lo que falta (para descargar a mano o con otro método)
+
+Los agentes respetaron `robots.txt` y no saltaron ningún bloqueo. Esto quedó fuera:
+
+| Prioridad | Qué | Por qué no se pudo | Dónde |
 |---|---|---|---|
-| 1 | Cuadro de impedimentos del artículo 30 de la Ley 32069 (el texto consolidado sólo dice «Enlace Web: Impedimentos para contratar (PDF)») | enlace dentro del artículo 30 en la página de la ley en gob.pe/oece | el artículo quedó en 592 caracteres, sin la lista de impedidos: es la norma central para conflictos de interés |
-| 1 | Opiniones de la DTN del OECE de 2025 y 2026 (Ley 32069) | gob.pe, institución OECE, «Informes y publicaciones», tipo opinión | hoy sólo hay 34 del régimen vigente |
-| 1 | Acuerdos de Sala Plena y precedentes del Tribunal de 2025-2026 | gob.pe/oece, Tribunal de Contrataciones Públicas | criterios vinculantes del régimen nuevo: hay 1 |
-| 2 | Directivas del OECE vigentes (bases estándar ya están): requerimiento, expediente, catálogos, PAC | gob.pe/oece, «Normas legales» | hoy hay 2 directivas |
-| 2 | Tabla de concordancias Ley 30225 ↔ Ley 32069 (artículo viejo → artículo nuevo) | publicación del OECE o del MEF | permite convertir una opinión vieja en su artículo vigente |
-| 2 | Modificatorias del reglamento posteriores al 09-01-2026 y Ley de Presupuesto 2027 | El Peruano | los topes por cuantía cambian cada año |
-| 3 | Resoluciones del Tribunal sobre direccionamiento, requisitos de calificación y marcas (2025-2026) | buscador de resoluciones del Tribunal | ejemplos resueltos para el analista |
-| 3 | Informes de control de la Contraloría por tipo de hallazgo | ya hay parte en `rag_fragmento` (informe_control) | criterio de auditoría |
+| 1 | Opiniones de la DTN: D000028 a D000103 de 2025 y D000001 a D000103 de 2026 | el listado sólo se recorre con `?sheet=`, que `robots.txt` prohíbe | gob.pe/institucion/oece/colecciones/66839 y 713, página por página a mano; o pedir el consolidado al OECE por transparencia |
+| 1 | Reglamento D.S. 009-2025-EF, texto original completo | el PDF oficial es un escaneo de 196 páginas | necesita OCR; mientras tanto el cuadro comparativo cubre los 102 artículos que cambiaron |
+| 2 | Acuerdos de Sala Plena de 2019 y 2020 | la colección 715 no los muestra en su primera página | gob.pe/institucion/oece/colecciones/715 (la base ya tiene el 004-2019) |
+| 2 | Resoluciones del Tribunal sobre direccionamiento, calificación y marcas | no hay listado descargable | buscador de resoluciones del Tribunal |
+| 2 | Tabla de concordancias Ley 30225 con Ley 32069 | no se encontró una oficial | si el OECE la publica; si no, se arma con las dos leyes |
+| 2 | Anexos de mef.gob.pe (TUO de la Ley 29230, D.L. 1252 original, Ley 32513 con anexos) | el sitio responde con un desafío anti bot | descarga manual desde un navegador |
+| 3 | R.C. 220-2025-CG (control de obras paralizadas) y sus 14 anexos; Ley 27674; Ley 30225 original | sólo existen escaneados | OCR |
+| 3 | ROF del OECE (anexo del D.S. 067-2025-EF y texto integrado) | El Peruano publica sólo el decreto | gob.pe/oece |
+| 3 | Leyes 27815 y 27806 | el archivo bajado no era la norma | SPIJ o El Peruano |
 
-## 7. Pendiente de diseño
+Datos que el catálogo traía mal y los textos corrigieron: el D.S. 328-2025-EF no es de obras (aprueba el Monto Único
+Consolidado del D.L. 276); el D.L. 1440 es el Sistema Nacional de Presupuesto; el reglamento de la Ley 26771 es el
+D.S. 021-2000-PCM, no el D.S. 018-2007-TR; el D.L. 1442 está derogado (lo reemplaza el D.L. 1666); la Ley 32513 es la
+de Presupuesto 2026, no la de Endeudamiento.
 
-- Versiones de un mismo artículo dentro del régimen (un artículo modificado en 2026): hoy se guarda el texto consolidado;
-  con `vigencia_desde` y `vigencia_hasta` por fragmento se podría servir el texto que regía en cada fecha.
+## 8. Pendiente de diseño
+
 - Etiquetas de tema por fragmento (`temas`), para filtrar antes de buscar.
-- Usar la tabla de concordancias para devolver, junto a un `criterio_anterior`, el artículo vigente equivalente.
+- Usar una tabla de concordancias para devolver, junto a un `criterio_anterior`, el artículo vigente equivalente.
+- Enlazar cada `norma_regla` con la regla del agente que ya la cubre (`regla_vigia`) y medir cuántas quedan sin cubrir.
+- Versión por fecha de la Ley 32069: hoy hay un solo texto (el consolidado, con notas que dicen desde cuándo rige cada
+  cambio). Los cambios son pocos (art. 7.1 por la Ley 32515, art. 85.1 por el D.L. 1715, Ley 32732).

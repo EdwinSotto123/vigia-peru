@@ -7,6 +7,7 @@
  *   GET /admin/golden/casos?conjunto=        los casos de un conjunto con lo esperado
  *   GET /admin/normas                        el corpus normativo: documentos y fragmentos por tipo y régimen
  *   GET /admin/normas/buscar?q=&fecha=       lo que el agente legal recibiría para esa pregunta y esa fecha de convocatoria
+ *   GET /admin/normas/reglas                 las reglas de cumplimiento con su fundamento y su estado de verificación (migr. 286)
  *
  * Todo es de sólo lectura. Las corridas las sube backend/scripts/golden_subir.py.
  */
@@ -110,8 +111,9 @@ adminGoldenRouter.get("/normas", async (c) => {
                     FROM norma n LEFT JOIN norma_fragmento f ON f.slug = n.slug GROUP BY 1, 2, 3 ORDER BY 3, 2`),
       pool.query(`SELECT n.slug, n.documento, n.numero, n.tipo, n.regimen, to_char(n.fecha_emision, 'YYYY-MM-DD') AS "fechaEmision",
                          to_char(n.vigencia_desde, 'YYYY-MM-DD') AS "vigenciaDesde", to_char(n.vigencia_hasta, 'YYYY-MM-DD') AS "vigenciaHasta",
-                         n.url_oficial AS "urlOficial", (SELECT count(*)::int FROM norma_fragmento f WHERE f.slug = n.slug) AS fragmentos
-                    FROM norma n WHERE n.tipo NOT IN ('opinion') ORDER BY n.jerarquia, n.regimen DESC, n.documento LIMIT 200`),
+                         n.url_oficial AS "urlOficial", (SELECT count(*)::int FROM norma_fragmento f WHERE f.slug = n.slug) AS fragmentos,
+                         n.materia, n.estado, n.verificacion, n.version_de AS "versionDe", n.origen
+                    FROM norma n WHERE n.tipo NOT IN ('opinion') ORDER BY n.jerarquia, n.regimen DESC, n.documento LIMIT 800`),
     ]);
     return c.json({ porTipo: porTipo.rows, documentos: docs.rows });
   } catch (e) {
@@ -139,9 +141,37 @@ adminGoldenRouter.get("/normas/buscar", async (c) => {
               left(texto, 700) AS texto, url_oficial AS "urlOficial", rango_palabras AS "rangoPalabras", rango_vector AS "rangoVector",
               round(puntaje::numeric, 5)::float AS puntaje
          FROM buscar_norma($1, $2::halfvec, $3::date, 24, NULL)`, [q, vector, fecha]);
+    // Igual que el agente (tools/normas_rag.py): si un artículo tenía OTRO texto en esa fecha, se muestra ese.
+    const pares = r.rows.filter((x) => x.aplica === "norma" && x.articulo);
+    if (pares.length) {
+      const v = await pool.query(
+        `SELECT n.version_de AS base, f.articulo, n.documento, to_char(n.vigencia_hasta, 'YYYY-MM-DD') AS hasta,
+                left(string_agg(f.texto, E'\n' ORDER BY f.orden), 2400) AS texto
+           FROM norma n JOIN norma_fragmento f ON f.slug = n.slug
+          WHERE n.version_de = ANY($1) AND f.articulo = ANY($2)
+            AND COALESCE(n.vigencia_desde, DATE '1900-01-01') <= $3::date AND (n.vigencia_hasta IS NULL OR n.vigencia_hasta >= $3::date)
+          GROUP BY 1, 2, 3, 4`, [pares.map((x) => x.slug), pares.map((x) => x.articulo), fecha]);
+      for (const x of pares) {
+        const otra = v.rows.find((y) => y.base === x.slug && y.articulo === x.articulo);
+        if (otra) Object.assign(x, { texto: otra.texto, documento: otra.documento, version: otra.hasta ? `Texto que regía hasta el ${otra.hasta}` : "Versión de esa fecha" });
+      }
+    }
     return c.json({ pregunta: q, fecha, regimen: fecha >= "2025-04-22" ? "32069" : "30225", busqueda: vector ? "hibrida" : "solo_palabras", data: r.rows });
   } catch (e) {
     if (esErrorPg(e, "42P01", "42883")) return sinMigracion(c);
+    throw e;
+  }
+});
+
+adminGoldenRouter.get("/normas/reglas", async (c) => {
+  try {
+    const r = await pool.query(
+      `SELECT id, categoria, fase, descripcion, fundamento, normas, tipo_verificacion AS "tipoVerificacion", parametro,
+              valor_referencia AS "valorReferencia", severidad, regimen, verificacion, regla_vigia AS "reglaVigia", nota
+         FROM norma_regla ORDER BY categoria, id LIMIT 500`);
+    return c.json({ data: r.rows });
+  } catch (e) {
+    if (esErrorPg(e, "42P01", "42883", "42703")) return sinMigracion(c);
     throw e;
   }
 });

@@ -7,7 +7,7 @@ import { Ayuda } from "@/components/patrones";
 import { coincide, paraBuscar } from "@/lib/formato";
 import { useAdmin } from "@/lib/useAdmin";
 import { ErrorGolden } from "./comunes";
-import { fmtEjecutada, nombreRegimen, type AplicaNorma, type DocumentoNorma, type NormasPorTipo, type RespuestaBuscarNormas, type RespuestaNormas, type ResultadoNorma } from "./tipos";
+import { COMO_SE_VERIFICA, MATERIA, VERIFICACION, fmtEjecutada, nombreRegimen, type AplicaNorma, type DocumentoNorma, type NormasPorTipo, type ReglaNorma, type RespuestaBuscarNormas, type RespuestaNormas, type ResultadoNorma } from "./tipos";
 
 /**
  * Pestaña «Normas»: el RAG normativo. El corpus por tipo y régimen, la lista de documentos con su vigencia y su enlace
@@ -15,7 +15,7 @@ import { fmtEjecutada, nombreRegimen, type AplicaNorma, type DocumentoNorma, typ
  * devuelve la norma aplicable, los criterios del mismo régimen y los de la ley anterior (sólo por analogía).
  */
 
-type Vista = "corpus" | "documentos" | "probador";
+type Vista = "corpus" | "documentos" | "reglas" | "probador";
 
 export function NormasGolden() {
   const [vista, setVista] = useState<Vista>("corpus");
@@ -31,11 +31,14 @@ export function NormasGolden() {
         opciones={[
           { valor: "corpus", etiqueta: "Corpus" },
           { valor: "documentos", etiqueta: "Documentos", cuenta: data ? data.documentos?.length ?? 0 : null },
+          { valor: "reglas", etiqueta: "Reglas" },
           { valor: "probador", etiqueta: "Probador" },
         ]}
       />
       {vista === "probador" ? (
         <Probador />
+      ) : vista === "reglas" ? (
+        <Reglas />
       ) : (
         <>
           <ErrorGolden error={error} titulo="No se pudo leer el corpus de normas" onReintentar={() => mutate()} />
@@ -124,7 +127,10 @@ function Corpus({ porTipo }: { porTipo: NormasPorTipo[] }) {
 
 function Documentos({ documentos }: { documentos: DocumentoNorma[] }) {
   const [q, setQ] = useState("");
-  const indice = useMemo(() => documentos.map((d) => paraBuscar([d.documento, d.numero, d.tipo, nombreRegimen(d.regimen), d.slug].filter(Boolean).join(" "))), [documentos]);
+  const indice = useMemo(
+    () => documentos.map((d) => paraBuscar([d.documento, d.numero, d.tipo, nombreRegimen(d.regimen), d.slug, d.materia ? MATERIA[d.materia] ?? d.materia : null].filter(Boolean).join(" "))),
+    [documentos],
+  );
   const consulta = paraBuscar(q);
   const filas = useMemo(() => (consulta ? documentos.filter((_, i) => coincide(indice[i], consulta)) : documentos), [documentos, indice, consulta]);
   const columnas: Columna<DocumentoNorma>[] = [
@@ -136,10 +142,25 @@ function Documentos({ documentos }: { documentos: DocumentoNorma[] }) {
         <span className="block min-w-0">
           <span className="block text-dato font-medium leading-snug text-ink text-pretty">{d.documento ?? d.slug}</span>
           {d.numero && <span className="block break-words text-rotulo text-mute">{d.numero}</span>}
+          {(d.versionDe || (d.verificacion && d.verificacion !== "C")) && (
+            <span className="mt-1 flex flex-wrap gap-1.5">
+              {d.versionDe && (
+                <Badge tono="brand" title="Esta norma tiene otro texto según la fecha del proceso: la búsqueda sirve el que regía ese día">
+                  Versión por fecha
+                </Badge>
+              )}
+              {d.verificacion && d.verificacion !== "C" && (
+                <Badge tono="warn" title={VERIFICACION[d.verificacion]?.pista}>
+                  {VERIFICACION[d.verificacion]?.nombre ?? d.verificacion}
+                </Badge>
+              )}
+            </span>
+          )}
         </span>
       ),
     },
     { clave: "tipo", titulo: "Tipo", celda: (d) => d.tipo ?? <SinDato /> },
+    { clave: "materia", titulo: "Materia", celda: (d) => (d.materia ? MATERIA[d.materia] ?? d.materia : <SinDato />) },
     { clave: "regimen", titulo: "Régimen", className: "whitespace-nowrap", celda: (d) => nombreRegimen(d.regimen) ?? <SinDato /> },
     { clave: "emision", titulo: "Emisión", className: "whitespace-nowrap", celda: (d) => fmtEjecutada(d.fechaEmision) ?? <SinDato texto="Sin fecha" /> },
     {
@@ -183,7 +204,7 @@ function Documentos({ documentos }: { documentos: DocumentoNorma[] }) {
           type="search"
           value={q}
           onChange={(e) => setQ(e.target.value)}
-          placeholder="Buscar por nombre, número, tipo o régimen"
+          placeholder="Buscar por nombre, número, tipo, materia o régimen"
           autoComplete="off"
           className="h-11 w-full rounded-xl border border-line bg-paperSoft pl-10 pr-3 text-destacado placeholder:text-mute focus:border-granate focus:bg-paper focus:outline-none focus:ring-2 focus:ring-granate/20"
         />
@@ -198,6 +219,88 @@ function Documentos({ documentos }: { documentos: DocumentoNorma[] }) {
         apilarHasta="lg"
         vacio={<EmptyState compacto icono={<BookOpen size={16} />} titulo={consulta ? "Ningún documento coincide con la búsqueda" : "Todavía no hay documentos en el corpus"} />}
       />
+    </div>
+  );
+}
+
+// ─── Reglas ──────────────────────────────────────────────────────────────────────
+
+const CATEGORIA: Record<string, string> = {
+  transversal: "Transversal",
+  contratos_menores: "Contratos menores",
+  contrataciones_mayores: "Procedimientos de selección",
+  ejecucion: "Ejecución contractual",
+  obras: "Obras",
+  cas: "CAS",
+  planillas: "Planillas",
+};
+
+function Reglas() {
+  const { data, error, isLoading, mutate } = useAdmin<{ data: ReglaNorma[] }>("/normas/reglas");
+  const [categoria, setCategoria] = useState<string>("todas");
+  const reglas = data?.data ?? [];
+  const categorias = useMemo(() => [...new Set(reglas.map((r) => r.categoria))], [reglas]);
+  const filas = categoria === "todas" ? reglas : reglas.filter((r) => r.categoria === categoria);
+  const porVerificar = reglas.filter((r) => r.verificacion && r.verificacion !== "C").length;
+  const columnas: Columna<ReglaNorma>[] = [
+    {
+      clave: "regla",
+      titulo: "Regla",
+      principal: true,
+      celda: (r) => (
+        <span className="block min-w-0">
+          <span className="block text-dato font-medium leading-snug text-ink text-pretty">{r.descripcion}</span>
+          <span className="block text-rotulo text-mute">
+            {r.id}, {CATEGORIA[r.categoria] ?? r.categoria}
+          </span>
+        </span>
+      ),
+    },
+    { clave: "fundamento", titulo: "Fundamento", celda: (r) => r.fundamento ?? <SinDato texto="Sin fundamento" /> },
+    { clave: "como", titulo: "Cómo se verifica", celda: (r) => (r.tipoVerificacion ? COMO_SE_VERIFICA[r.tipoVerificacion] ?? r.tipoVerificacion : <SinDato />) },
+    { clave: "valor", titulo: "Valor de referencia", celda: (r) => r.valorReferencia ?? <SinDato texto="No aplica" /> },
+    {
+      clave: "verificacion",
+      titulo: "Estado del dato",
+      celda: (r) =>
+        r.verificacion ? (
+          <Badge tono={r.verificacion === "C" ? "ok" : "warn"} title={VERIFICACION[r.verificacion]?.pista}>
+            {VERIFICACION[r.verificacion]?.nombre ?? r.verificacion}
+          </Badge>
+        ) : (
+          <SinDato />
+        ),
+    },
+  ];
+  return (
+    <div className="space-y-4">
+      <ErrorGolden error={error} titulo="No se pudieron leer las reglas" onReintentar={() => mutate()} />
+      {!error && !data && isLoading && <SkeletonPanel lineas={6} />}
+      {data && (
+        <>
+          <StatGrid columnas={3}>
+            <StatCard etiqueta="Reglas de cumplimiento" valor={reglas.length} pista="lo que se verifica en un contrato, un CAS o una planilla" />
+            <StatCard etiqueta="Con fundamento confirmado" valor={reglas.length - porVerificar} pista="el artículo se comprobó en la fuente oficial" tono="ok" />
+            <StatCard etiqueta="Por confirmar" valor={porVerificar} pista="el artículo o el valor sale de una fuente secundaria" tono={porVerificar ? "warn" : "ok"} />
+          </StatGrid>
+          <FilterChips<string>
+            etiqueta="Categoría de la regla"
+            valor={categoria}
+            onCambiar={setCategoria}
+            opciones={[{ valor: "todas", etiqueta: "Todas", cuenta: reglas.length }, ...categorias.map((k) => ({ valor: k, etiqueta: CATEGORIA[k] ?? k, cuenta: reglas.filter((r) => r.categoria === k).length }))]}
+          />
+          <DataTable
+            columnas={columnas}
+            filas={filas}
+            claveFila={(r) => r.id}
+            etiqueta="Reglas de cumplimiento normativo"
+            porPagina={25}
+            reinicio={categoria}
+            apilarHasta="lg"
+            vacio={<EmptyState compacto icono={<BookOpen size={16} />} titulo="Todavía no hay reglas cargadas" />}
+          />
+        </>
+      )}
     </div>
   );
 }
@@ -339,6 +442,13 @@ function ResultadoDeNorma({ x }: { x: ResultadoNorma }) {
         {nombreRegimen(x.regimen) && <span>{nombreRegimen(x.regimen)}</span>}
         <span>{x.fechaEmision ? `emitida el ${fmtEjecutada(x.fechaEmision)}` : "sin fecha de emisión"}</span>
       </p>
+      {x.version && (
+        <p>
+          <Badge tono="brand" title="El artículo se modificó después: para esa fecha rige este texto">
+            {x.version}
+          </Badge>
+        </p>
+      )}
       {x.epigrafe && <p className="text-dato font-medium leading-snug text-ink text-pretty">{x.epigrafe}</p>}
       {texto ? (
         <>

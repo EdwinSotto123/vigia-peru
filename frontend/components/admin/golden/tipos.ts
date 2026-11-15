@@ -161,6 +161,13 @@ export interface DocumentoNorma {
   vigenciaDesde: string | null;
   vigenciaHasta: string | null;
   urlOficial: string | null;
+  materia?: string | null;
+  estado?: string | null;
+  /** C confirmado en fuente oficial, S fuente secundaria, PV por verificar. */
+  verificacion?: string | null;
+  /** El slug de la norma de la que esta es otra versión por fecha. */
+  versionDe?: string | null;
+  origen?: string | null;
   fragmentos: number;
 }
 
@@ -171,6 +178,46 @@ export interface RespuestaNormas {
 
 export type AplicaNorma = "norma" | "criterio" | "criterio_anterior";
 
+/** Una regla de cumplimiento que se verifica contra el corpus (tabla `norma_regla`). */
+export interface ReglaNorma {
+  id: string;
+  categoria: string;
+  fase: string | null;
+  descripcion: string;
+  fundamento: string | null;
+  normas: string[];
+  tipoVerificacion: string | null;
+  parametro: string | null;
+  valorReferencia: string | null;
+  severidad: string | null;
+  regimen: string[];
+  verificacion: string | null;
+  reglaVigia: string | null;
+  nota: string | null;
+}
+
+export const MATERIA: Record<string, string> = {
+  contrataciones: "Contrataciones",
+  control: "Control",
+  presupuesto: "Presupuesto",
+  administrativo: "Administrativo",
+  empleo_publico: "Empleo público",
+  inversion: "Inversión pública",
+};
+
+export const VERIFICACION: Record<string, { nombre: string; pista: string }> = {
+  C: { nombre: "Confirmado", pista: "Confirmado en la fuente oficial" },
+  S: { nombre: "Fuente secundaria", pista: "Sale de una fuente secundaria: falta confirmarlo en la oficial" },
+  PV: { nombre: "Por verificar", pista: "Dato pendiente de verificación" },
+};
+
+export const COMO_SE_VERIFICA: Record<string, string> = {
+  determinista: "Cálculo con datos",
+  dato_externo: "Dato de otra fuente",
+  documental: "Lectura del documento",
+  rag_llm: "Análisis con normas",
+};
+
 export interface ResultadoNorma {
   slug: string;
   documento: string | null;
@@ -180,6 +227,8 @@ export interface ResultadoNorma {
   aplica: AplicaNorma;
   fechaEmision: string | null;
   articulo: string | null;
+  /** Si el artículo tenía otro texto en la fecha pedida: «Texto que regía hasta el …». */
+  version?: string | null;
   epigrafe: string | null;
   texto: string | null;
   urlOficial: string | null;

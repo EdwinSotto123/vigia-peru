@@ -26,10 +26,13 @@ class _Cur:
         self.filas, self.description, self.pedido = filas, [(c,) for c in COLS], None
 
     def execute(self, sql, params):
-        self.pedido = params
+        if "version_de" in sql:          # la consulta de versiones por fecha
+            self.pedido_version, self.sirve = params, "versiones"
+            return
+        self.pedido, self.sirve = params, "filas"
 
     def fetchall(self):
-        return self.filas
+        return self.filas if getattr(self, "sirve", "filas") == "filas" else getattr(self, "versiones", [])
 
 
 class _Conn:
@@ -75,3 +78,19 @@ def test_la_fecha_decide_el_regimen_y_sin_resultados_es_error():
 def test_sin_credenciales_no_hay_vector(monkeypatch):
     monkeypatch.delenv("WORKERS_AI_URL", raising=False)
     assert N.embeber_pregunta("plazo") is None
+
+
+def test_un_proceso_anterior_recibe_el_texto_que_regia_en_su_fecha():
+    """El Reglamento cambió el 14-01-2026: un proceso de 2025 lee el artículo como estaba, y se le dice."""
+    filas = [_f(1, "ds-009-2025-ef", "reglamento", "norma", "46", 0.9, numero="009-2025-EF"),
+             _f(2, "ds-009-2025-ef", "reglamento", "norma", "50", 0.8, numero="009-2025-EF")]
+    conn = _Conn(filas)
+    conn.cur.versiones = [("ds-009-2025-ef", "46", "ds-009-2025-ef-anterior", "Reglamento, texto anterior al 14-01-2026", dt.date(2026, 1, 13),
+                           "Artículo 46 como regía en 2025")]
+    r = N.buscar_normas("estrategia de contratación", "2025-09-01", conn=conn, vector=None)
+    m = r["matches"]
+    assert conn.cur.pedido_version[2] == dt.date(2025, 9, 1) and conn.cur.pedido_version[0] == ["ds-009-2025-ef", "ds-009-2025-ef"]
+    assert m[0]["cita"] == "Artículo 46 como regía en 2025" and m[0]["documento"].endswith("anterior al 14-01-2026")
+    assert m[0]["version"] == "texto que regía hasta el 13-01-2026" and m[0]["cita_formato"].startswith("Art. 46 de 009-2025-EF")
+    assert "version" not in m[1] and m[1]["cita"].startswith("Texto del fragmento 2")
+
