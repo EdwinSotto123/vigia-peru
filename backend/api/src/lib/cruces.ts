@@ -55,6 +55,9 @@ export const ETIQUETA_CRUCE: Record<string, string> = {
   puerta_giratoria: "Un socio o representante del ganador trabajó antes en la entidad",
   // El mismo servicio, en la misma entidad, cuesta bastante más al mes que en su contrato anterior (migración 283).
   renovacion_mas_cara: "El servicio cuesta más al mes que en su contrato anterior",
+  // El contrato se garantizó con retención de pagos por encima del tope, y al contratista le adjudicaron más de lo que
+  // vende una pequeña empresa (migración 291).
+  retencion_sobre_tope: "Garantía por retención de pagos sobre el tope, sin parecer pequeña empresa",
   domicilio_compartido: "Mismo domicilio fiscal que otro participante",
   proveedor_cautivo: "Casi todo su ingreso del Estado es de esta entidad",
   partido_gobernante: "Financió al partido que gobierna la entidad",

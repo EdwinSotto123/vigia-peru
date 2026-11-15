@@ -270,6 +270,7 @@ const POR_QUE: Record<string, string> = {
   turno_postores: "Cuando dos empresas con los mismos dueños o la misma dirección compiten una y otra vez y se reparten las buenas pro, la competencia puede ser sólo aparente: es el patrón de la rotación de ofertas. Vale ver quién más se presentó y a qué precios.",
   postor_de_relleno: "Una oferta de cobertura es la que se presenta para perder: da la apariencia de competencia y deja ganar a otra. Una empresa que casi nunca gana y aparece una y otra vez junto al mismo ganador encaja en ese patrón. Vale comparar los precios que ofertó y si sus propuestas llegaron completas.",
   consorcio_rival: "Dos empresas que postularon juntas en un consorcio conocen sus costos y sus precios. Si después compiten por separado en procesos de pocos postores y gana siempre una de las dos, la competencia puede ser sólo aparente. No lo prueba: en mercados de pocos proveedores es común asociarse a veces y competir otras.",
+  retencion_sobre_tope: "Una carta fianza obliga a un banco a pagar si el contratista incumple. Con la retención de pagos el Estado sólo tiene lo que le fue descontando al propio contratista, y nada al inicio del contrato. Por eso el Reglamento la limita a contratos chicos o a micro y pequeñas empresas. Si una empresa grande garantiza así un contrato grande, la entidad aceptó menos protección de la que la norma exige: corresponde pedir la constancia de MYPE del contratista y ver quién aceptó la garantía.",
   renovacion_mas_cara: "Un servicio que se renueva debería costar parecido por mes, salvo que cambie su alcance. Una subida grande de un contrato al siguiente merece comparar los términos de referencia de los dos: sedes, personal, horarios y equipos. Si el alcance es el mismo, la entidad tendría que explicar por qué paga más. Pesa más cuando el proveedor es el mismo.",
   puerta_giratoria: "Quien trabajó en una entidad conoce sus necesidades, sus presupuestos y a quienes deciden. La Ley 32069 impide contratar con la entidad a ciertos ex funcionarios durante un tiempo tras dejar el cargo. Que la empresa de alguien que acaba de salir gane ahí merece ver en el expediente qué cargo tenía y si intervino en el requerimiento. El empate es por nombre completo: hay que confirmarlo.",
   empresa_espejo: "Una empresa inhabilitada no puede contratar con el Estado. Si la misma gente sigue ganando con otra razón social mientras dura la sanción, la sanción pierde efecto: vale revisar si la empresa nueva tiene los mismos dueños, el mismo local o el mismo personal clave que la sancionada.",
@@ -714,6 +715,18 @@ function Texto({ c, gobierna }: { c: CruceProveedor; gobierna?: GobiernoContrato
           <b>{n(d.consorcios_juntas) === 1 ? "un consorcio" : `${n(d.consorcios_juntas) ?? "varios"} consorcios`}</b> y, por separado, se enfrentaron en{" "}
           <b>{n(d.veces_rivales) ?? "varios"} procesos</b> de pocos postores: esta ganó {n(d.gano_esta) ?? "algunos"} y la otra {n(d.gano_la_rival) ?? 0}.
           {d.solas_las_dos === true ? " En este proceso fueron las únicas dos postoras." : ""}
+          <Gano c={c} />
+        </>
+      );
+    }
+    case "retencion_sobre_tope": {
+      return (
+        <>
+          Este contrato de <b>{solesCompacto(n(d.monto_contrato))}</b> se garantizó con <b>retención de pagos</b>, que sólo vale hasta{" "}
+          <b>{solesCompacto(n(d.tope))}</b> en {txt(d.categoria) === "works" ? "obras" : "bienes y servicios"}, salvo para micro y pequeñas empresas. A{" "}
+          <Emp c={c} /> el Estado le adjudicó <b>{solesCompacto(n(d.adjudicado_anio_1))}</b> en {n(d.anio_1) ?? "el año anterior"} y{" "}
+          <b>{solesCompacto(n(d.adjudicado_anio_2))}</b> en {n(d.anio_2) ?? "el año previo"}: más de lo que vende una pequeña empresa en un año (
+          {solesCompacto(n(d.techo_pequena_anio_1))}). Falta ver su constancia de MYPE.
           <Gano c={c} />
         </>
       );

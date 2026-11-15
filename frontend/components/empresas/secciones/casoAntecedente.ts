@@ -434,6 +434,20 @@ export function datosDe(a: AntecedenteEmpresa, ruc: string): DatoCaso[] {
       d.solas_las_dos === true && { etiqueta: "En este proceso", valor: "Fueron las únicas dos postoras" },
       delProceso(),
     );
+  } else if (t === "retencion_sobre_tope") {
+    const mc = num(d.monto_contrato);
+    const tp = num(d.tope);
+    const a1 = num(d.adjudicado_anio_1);
+    const a2 = num(d.adjudicado_anio_2);
+    add(
+      mc != null && { etiqueta: "Contrato", valor: soles(mc) },
+      { etiqueta: "Garantía", valor: "Retención de pagos" },
+      tp != null && { etiqueta: "Tope para la retención", valor: `${soles(tp)}, salvo micro y pequeña empresa` },
+      a1 != null && { etiqueta: `Adjudicado en ${txt(d.anio_1) ?? "el año anterior"}`, valor: soles(a1) },
+      a2 != null && { etiqueta: `Adjudicado en ${txt(d.anio_2) ?? "el año previo"}`, valor: soles(a2) },
+      num(d.techo_pequena_anio_1) != null && { etiqueta: "Lo que vende una pequeña empresa", valor: `Hasta ${soles(num(d.techo_pequena_anio_1)!)} al año` },
+      delProceso(),
+    );
   } else if (t === "renovacion_mas_cara") {
     const cm = num(d.costo_mensual);
     const ca = num(d.costo_mensual_anterior);
