@@ -436,11 +436,12 @@ export const patrones = definir({
     "cobertura; más grave si comparten socio). Con alcance «consorcio»: empresas que postularon juntas en un consorcio y " +
     "después compiten por separado en procesos de pocos postores que gana una de las dos (posible reparto). Con alcance " +
     "«renovacion»: servicios que una entidad volvió a contratar pagando 30 % o más POR MES que en el contrato anterior " +
-    "(con cuánto costaba, cuánto cuesta y si el proveedor es el mismo). Con un RUC, los patrones de esa entidad o empresa. Cada patrón trae contratos " +
+    "(con cuánto costaba, cuánto cuesta y si el proveedor es el mismo). Con alcance «dueno»: un mismo socio que gana en una " +
+    "entidad con dos o más empresas procesos de objeto parecido (reparto de compras entre razones sociales). Con un RUC, los patrones de esa entidad o empresa. Cada patrón trae contratos " +
     "de ejemplo para abrir con ficha_contrato o dictamen. Un patrón es un motivo para mirar, no una acusación.",
   cuenta: true,
   entrada: {
-    alcance: z.enum(["entidad", "proveedor", "relleno", "consorcio", "renovacion"]).default("entidad"),
+    alcance: z.enum(["entidad", "proveedor", "relleno", "consorcio", "renovacion", "dueno"]).default("entidad"),
     ruc: z.string().min(11).max(14).optional().describe("RUC 20 de la entidad o de la empresa (opcional)."),
     regla: z.string().max(60).optional().describe("Sólo una señal, por su código (p. ej. unica_oferta_valida)."),
     pagina: z.number().int().min(1).max(50).default(1),
@@ -448,6 +449,26 @@ export const patrones = definir({
   async ejecutar(a, cx) {
     const e = enlaces(cx.env);
     const ruc = a.ruc ? rucJuridico(a.ruc) : undefined;
+    if (a.alcance === "dueno") {
+      const r = await api<Fila>(cx.env, "/patrones/duenos", { ruc, page: a.pagina, size: 20 });
+      return {
+        total: r.total,
+        grupos: ((r.data ?? []) as Fila[]).map((x) => ({
+          entidad: x.entidad, entidad_ruc: x.entidadRuc, socio: x.socios?.[0]?.nombre ?? undefined,
+          empresas: ((x.empresas ?? []) as Fila[]).map((y) => ({ empresa: y.nombre, ruc: y.ruc, enlace: e.empresa(y.ruc) })),
+          contratos_con_objeto_parecido: x.contratos, con_90_dias_o_menos_entre_si: x.seguidos, monto_soles: x.monto, desde: x.desde, hasta: x.hasta,
+          ejemplos: ((x.ejemplos ?? []) as string[]).map((o) => e.contrato(o)), enlace_entidad: e.entidad(x.entidadRuc),
+        })),
+        como_leerlo:
+          "Cada fila es un socio que tiene dos o más empresas ganando en la misma entidad procesos de objeto parecido. " +
+          "«con_90_dias_o_menos_entre_si»: contratos que tienen otro parecido de una empresa hermana a 90 días o menos, la forma " +
+          "típica de repartir una compra para no pasar un tope. Sólo cuenta socios (no directores ni representantes) de 2 a 6 " +
+          "empresas, según el Registro Nacional de Proveedores. Un grupo familiar puede ser legítimo: mira en ficha_contrato si " +
+          "las compras debieron ser una sola y si las hermanas se presentaron como competidoras.",
+        fuente: "RNP (socios) y CONOSCE (adjudicaciones desde 2023)",
+        aviso: AVISO,
+      };
+    }
     if (a.alcance === "renovacion") {
       const r = await api<Fila>(cx.env, "/patrones/renovaciones", { ruc, page: a.pagina, size: 20 });
       return {

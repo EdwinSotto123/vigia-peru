@@ -17,6 +17,7 @@
  *   GET /patrones/renovaciones?ruc=&page=&size=
  *       Servicios que una entidad volvió a contratar pagando 30 % o más por mes que en el contrato anterior
  *       (migración 283). Con `ruc`, los de esa entidad o los que ganó esa empresa.
+ *   GET /patrones/duenos?ruc=     un mismo socio que gana en una entidad con varias empresas (migración 292)
  *   GET /patrones/precios?q=&tipo=bien|servicio&entidad=&anio=
  *       Precios de referencia. `bien`: los productos de los Catálogos de Perú Compras cuya descripción trae las palabras,
  *       con lo que pagaron por ellos 5 entidades o más (cuartil 1, mediana y cuartil 3 por año; sin IGV y con IGV).
@@ -130,6 +131,52 @@ patronesRouter.get("/consorcios", async (c) => {
       pool.query<{ n: number }>(`SELECT count(*)::int AS n FROM consorcio_rival ${donde}`, vals.slice(0, n)),
     ]);
     return publicar({ total: total.rows[0]?.n ?? 0, page: q.page, size: q.size, data: filas.rows });
+  });
+  c.header("Cache-Control", CACHE);
+  return c.json(cuerpo);
+});
+
+/**
+ * GET /patrones/duenos?ruc=  Un mismo socio que gana en una entidad con varias empresas, objetos parecidos (migración 292).
+ * Una fila por entidad y socio: sus empresas, cuántos contratos y cuántos con 90 días o menos entre uno y otro. Con `ruc`,
+ * los de esa entidad o los grupos en que está esa empresa. El socio sale con un apellido tapado y sin documento.
+ */
+patronesRouter.get("/duenos", async (c) => {
+  const p = Consorcios.safeParse(Object.fromEntries(Object.entries(parametros(c)).filter(([, v]) => v !== "" && v != null)));
+  if (!p.success) return c.json({ error: "invalid_query", issues: p.error.issues }, 400);
+  const q = p.data;
+  const cuerpo = await memo.obtener(`duenos:${JSON.stringify(q)}`, async () => {
+    const vals: unknown[] = [];
+    const add = (v: unknown) => { vals.push(v); return `$${vals.length}`; };
+    // Con RUC: la entidad, o los grupos (entidad y socio) en que participa esa empresa.
+    const donde = q.ruc
+      ? `AND (c.entidad_ruc = ${add(q.ruc)} OR (c.entidad_ruc, x.persona_doc) IN (
+            SELECT c2.entidad_ruc, x2.persona_doc FROM cruces_proveedor x2 JOIN convocatorias c2 ON c2.ocid = x2.ocid
+             WHERE x2.tipo = 'mismo_dueno' AND x2.ruc_empresa = $${vals.length}))`
+      : "";
+    const n = vals.length;
+    const base = `FROM cruces_proveedor x JOIN convocatorias c ON c.ocid = x.ocid WHERE x.tipo = 'mismo_dueno' ${donde}`;
+    const [filas, total] = await Promise.all([
+      pool.query(
+        `SELECT g.entidad_ruc AS "entidadRuc", en.nombre AS entidad, g.nombre, g.contratos, g.seguidos, g.monto::float AS monto,
+                to_char(g.desde, 'YYYY-MM-DD') AS desde, to_char(g.hasta, 'YYYY-MM-DD') AS hasta, g.ejemplos,
+                (SELECT jsonb_agg(jsonb_build_object('ruc', e.ruc, 'nombre', e.razon_social) ORDER BY e.razon_social) FROM empresas e WHERE e.ruc = ANY(g.rucs)) AS empresas
+           FROM (SELECT c.entidad_ruc, x.persona_doc, max(x.persona_nombre) AS nombre, count(DISTINCT x.ocid)::int AS contratos,
+                        count(DISTINCT x.ocid) FILTER (WHERE x.severidad = 'alta')::int AS seguidos, sum(x.monto) AS monto,
+                        min(x.fecha) AS desde, max(x.fecha) AS hasta, array_agg(DISTINCT x.ruc_empresa) AS rucs,
+                        (array_agg(x.ocid ORDER BY (x.severidad = 'alta') DESC, x.fecha DESC))[1:3] AS ejemplos
+                   ${base} GROUP BY c.entidad_ruc, x.persona_doc) g
+           LEFT JOIN entidades en ON en.ruc = g.entidad_ruc
+          WHERE cardinality(g.rucs) >= 2
+          ORDER BY g.seguidos DESC, g.contratos DESC, g.entidad_ruc LIMIT ${add(q.size)} OFFSET ${add((q.page - 1) * q.size)}`, vals),
+      pool.query<{ n: number }>(
+        `SELECT count(*)::int AS n FROM (SELECT 1 ${base} GROUP BY c.entidad_ruc, x.persona_doc HAVING count(DISTINCT x.ruc_empresa) >= 2) z`, vals.slice(0, n)),
+    ]);
+    return publicar({
+      total: total.rows[0]?.n ?? 0, page: q.page, size: q.size,
+      // `socios` es la forma que `publicar()` ya conoce de los cruces: tapa un apellido.
+      data: filas.rows.map(({ nombre, ...x }) => ({ ...x, socios: [{ nombre, rol: "Socio" }] })),
+    });
   });
   c.header("Cache-Control", CACHE);
   return c.json(cuerpo);

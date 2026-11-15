@@ -43,6 +43,10 @@ const CASOS: Caso[] = [
   { h: patrones as never, args: { alcance: "relleno" }, espera: hay("pares") },
   { h: patrones as never, args: { alcance: "consorcio" }, espera: hay("pares") },
   { h: patrones as never, args: { alcance: "renovacion" }, espera: hay("renovaciones") },
+  // El socio sale con un apellido tapado y cada grupo trae dos empresas o más.
+  { h: patrones as never, args: { alcance: "dueno" },
+    espera: (r) => (lista(r, "grupos").length >= 5 && lista(r, "grupos").every((g) => ((g as { empresas: unknown[] }).empresas ?? []).length >= 2 && /•/.test(String((g as { socio?: string }).socio ?? "•")))
+      ? null : "grupos sin dos empresas o con el nombre del socio sin tapar") },
   { h: preciosReferencia as never, args: { que: "papel bond a4 75" }, espera: hay("productos") },
   { h: preciosReferencia as never, args: { que: "vigilancia", tipo: "servicio" }, espera: hay("servicios", 5) },
   // Un proceso de 2025 recibe el artículo 46 del Reglamento como regía antes del 14-01-2026; uno de 2026, el vigente.
