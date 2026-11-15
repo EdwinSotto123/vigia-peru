@@ -80,7 +80,7 @@ def medir(nombre: str, buscar, casos: list[dict], detalle: bool) -> dict:
     fallas = []
     for c in casos:
         reg = str(c["regimen"])
-        ms = buscar(c["pregunta"], reg)[:8]
+        ms = buscar(c["pregunta"], reg, c.get("fecha"))[:8]          # `fecha`: preguntas que dependen de la versión de la norma
         n += 1
         p = _acierto(c.get("esperado") or [], ms)
         if p:
@@ -114,20 +114,24 @@ def main() -> None:
         with conexion("prod") as cn:
             cn.set_session(readonly=True, autocommit=True)
 
-            def nuevo(q, reg):
-                r = N.buscar_normas(q, FECHA[reg], conn=cn)
+            def nuevo(q, reg, fecha=None):
+                r = N.buscar_normas(q, fecha or FECHA[reg], conn=cn)
                 ms = r.get("matches") or []
                 for m in ms:        # el slug no va en la respuesta al agente: se recupera para medir
                     m["slug"] = m.get("slug") or ""
                 return ms
             # Para medir hace falta el slug: se pide el candidato crudo y se elige igual que el agente.
-            def nuevo_con_slug(q, reg):
+            def nuevo_con_slug(q, reg, fecha=None):
                 vec = N.embeber_pregunta(q)
                 cur = cn.cursor()
                 cur.execute("SELECT * FROM buscar_norma(%s, %s::halfvec, %s, 40, NULL)",
-                            (q, ("[" + ",".join(f"{x:.6f}" for x in vec) + "]") if vec else None, FECHA[reg]))
+                            (q, ("[" + ",".join(f"{x:.6f}" for x in vec) + "]") if vec else None, fecha or FECHA[reg]))
                 cols = [d[0] for d in cur.description]
                 filas = N.elegir([dict(zip(cols, x)) for x in cur.fetchall()])
+                # Igual que el agente: si el artículo tenía otro texto en esa fecha, cuenta esa versión.
+                N.texto_de_la_fecha(cur, filas, N._fecha(fecha or FECHA[reg]))
+                for f in filas:
+                    f["slug"] = f.get("slug_version") or f["slug"]
                 otro = "30225" if reg == "32069" else "32069"
                 for f in filas:
                     if f["aplica"] == "criterio_anterior":
@@ -146,7 +150,7 @@ def main() -> None:
                 por_numero[str(numero or "")] = slug
                 por_numero[str(documento or "")] = slug
 
-        def chroma(q, reg):
+        def chroma(q, reg, fecha=None):
             ms = (L.query_legal_rag_chroma(q, regimen=reg).get("matches") or [])
             for m in ms:
                 m["slug"] = por_numero.get(str(m.get("numero") or "")) or por_numero.get(str(m.get("documento") or "")) or ""

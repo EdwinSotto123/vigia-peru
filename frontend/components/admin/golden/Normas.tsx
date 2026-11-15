@@ -277,9 +277,12 @@ function Reglas() {
             {r.nota && <span className="mt-1 block text-rotulo leading-snug text-mute text-pretty">{r.nota}</span>}
           </span>
         ) : (
-          <Badge tono="muted" title="Ninguna regla del agente ni cruce de la base la verifica todavía">
-            Sin cubrir
-          </Badge>
+          <span className="block min-w-0">
+            <Badge tono="muted" title="Ninguna regla del agente ni cruce de la base la verifica todavía">
+              Sin cubrir
+            </Badge>
+            {r.nota && <span className="mt-1 block text-rotulo leading-snug text-mute text-pretty">{r.nota}</span>}
+          </span>
         ),
     },
     {

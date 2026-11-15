@@ -77,6 +77,14 @@ def elegir(filas: list[dict], cupo: dict | None = None) -> list[dict]:
             n_bases += 1
         vistos.add(clave)
         por[ap].append(f)
+    # Un lugar para la directiva: la ley y el reglamento pesan más y copaban el cupo aunque la pregunta fuera sobre algo
+    # que sólo regula una directiva (el cuaderno de incidencias, la ficha del proveedor, los acuerdos marco).
+    if por["norma"] and not any(x.get("tipo") == "directiva" for x in por["norma"]):
+        mejor = next((x for x in filas if x.get("aplica") == "norma" and x.get("tipo") == "directiva"), None)
+        if mejor is not None:
+            if len(por["norma"]) >= cupo.get("norma", 0):
+                por["norma"].pop()
+            por["norma"].append(mejor)
     return por["norma"] + por["criterio"] + por["criterio_anterior"]
 
 

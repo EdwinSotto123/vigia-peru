@@ -94,3 +94,15 @@ def test_un_proceso_anterior_recibe_el_texto_que_regia_en_su_fecha():
     assert m[0]["version"] == "texto que regía hasta el 13-01-2026" and m[0]["cita_formato"].startswith("Art. 46 de 009-2025-EF")
     assert "version" not in m[1] and m[1]["cita"].startswith("Texto del fragmento 2")
 
+
+def test_la_mejor_directiva_tiene_un_lugar_aunque_la_ley_cope_el_cupo():
+    filas = [_f(i, "ley-32069", "ley", "norma", str(40 + i), 1 - i / 100) for i in range(1, 8)]
+    filas += [_f(20, "directiva-017-2025-oece-cd", "directiva", "norma", "6.1", 0.2), _f(21, "directiva-018-2025-oece-cd", "directiva", "norma", "7.1", 0.1)]
+    m = N.elegir([dict(zip(COLS, x)) for x in filas])
+    assert len(m) == 5 and [x["slug"] for x in m][-1] == "directiva-017-2025-oece-cd"
+    assert [x["articulo"] for x in m[:4]] == ["41", "42", "43", "44"]
+    # Si ya entró una directiva por su puntaje, no se toca.
+    filas[1] = _f(2, "directiva-003-2025-oece-cd", "directiva", "norma", "5.2", 0.98)
+    m = N.elegir([dict(zip(COLS, x)) for x in filas])
+    assert [x["slug"] for x in m].count("directiva-003-2025-oece-cd") == 1 and "directiva-017-2025-oece-cd" not in [x["slug"] for x in m]
+
