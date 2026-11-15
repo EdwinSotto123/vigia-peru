@@ -83,9 +83,27 @@ Todo queda en `golden_conjunto`, `golden_caso`, `golden_corrida` y `golden_resul
 Línea base del analista legal (imagen b390f6b6): bienes F1 0,73 · servicios 0,67 · consultoría 0,40; 1 a 4 citas por
 corrida de la otra ley o inexistentes.
 
+### Validación de la imagen que quedó en producción (d9c489d8-sdk, 2026-11-15)
+
+Las cinco pruebas de oro con la búsqueda nueva, 105 contratos sin un solo corte:
+
+| Red | Contratos | Precisión | Exhaustividad | F1 | Citas legales válidas | Antes (imagen y búsqueda anteriores) |
+|---|---|---|---|---|---|---|
+| Bienes | 30 | 93 % | 98 % | 0,955 | 95 de 99; las otras 4 son opiniones de la ley anterior adjuntadas como «por analogía» | 0,95 |
+| Servicios | 20 | 92 % | 87 % | 0,895 | 69 de 70 | 0,91 |
+| Consultoría | 20 | 96 % | 85 % | 0,904 | 74 de 74 | 0,90 |
+| Obras | 20 | 91 % | 91 % | 0,907 | 72 de 72 | 0,90 con Chroma |
+| Directas | 15 | 81 % | 50 % | 0,618 | 29 de 29 (con Chroma, 19 de 20) | 0,642 |
+
+En directas, 15 de las 17 omisiones son de tres reglas apagadas a propósito (oferta igual al referencial, única oferta,
+único postor) que la referencia todavía espera. El analista legal (`red_flag_documental`) sigue variando entre
+corridas: en bienes dio 6 aciertos, 1 falsa alarma y 0 omisiones; en consultoría 2, 2 y 5.
+
 ## 5. Activación
 
 `LEGAL_RAG_BACKEND=vigia` en la Lambda. Si la búsqueda falla o no trae nada, sigue la cascada anterior (Chroma).
+Desde el 2026-11-15 está activa en las cinco Lambdas de producción. Vuelta atrás: la variable a `chroma` y la imagen
+`52ccb64f-sdk` (o `03d261d2-sdk` en directas).
 
 Para sumar normas: dejar los archivos en la carpeta de descargas con su fila en el manifiesto,
 `python backend/scripts/normas_fichas.py <descargas> <fichas>`, `cargar_normas.py prod carpeta <fichas>` y
