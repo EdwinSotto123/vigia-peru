@@ -166,6 +166,7 @@ def persist_market_flags_as_banderas(alerta_codigo: str, tool_context: ToolConte
     # 1) Banderas por sub-ítem (sobreprecio + spec restrictiva). Un hallazgo por ítem: dos con la misma descripción y
     #    distinto porcentaje daban dos banderas de sobreprecio «del mismo ítem».
     _items_vistos: set = set()
+    _precios_vistos: set = set()
     for f in findings:
         if not isinstance(f, dict):
             continue
@@ -186,6 +187,13 @@ def persist_market_flags_as_banderas(alerta_codigo: str, tool_context: ToolConte
         # La justificación: qué se pagó, contra qué referencia, de dónde sale y cuánto dinero es.
         _just, _nums = _justificar_precio(f)
         _just = f" {_just}" if _just else ""
+        # El mismo bien dos veces (una como ítem del OCDS y otra como ítem del documento: «ítem 3» e «ítem 1.1», mismo
+        # precio y misma referencia) es UN sobreprecio, no dos (visto en PROD el 2026-11-14).
+        if veredicto_item in ("elevado", "muy_elevado") and _nums.get("precio_pagado") and _nums.get("precio_referencia"):
+            _clave_precio = (veredicto_item, round(_nums["precio_pagado"], 2), round(_nums["precio_referencia"], 2))
+            if _clave_precio in _precios_vistos:
+                continue
+            _precios_vistos.add(_clave_precio)
         if veredicto_item == "muy_elevado":
             banderas_a_persistir.append({
                 "regla": "sobreprecio_muy_elevado",

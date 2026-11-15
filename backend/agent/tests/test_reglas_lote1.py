@@ -687,6 +687,24 @@ def test_market_findings_del_parser_no_se_descartan_1225392(monkeypatch):
     assert not any(b["regla"].startswith("sobreprecio_lote") for b in db.banderas)   # 1 ítem → sin lote
 
 
+def test_el_mismo_bien_dos_veces_al_mismo_precio_es_una_bandera_justificada(monkeypatch):
+    """PROD 2026-11-14: el diésel salía como «ítem 3» (OCDS) y como «ítem 1.1» (documento), con el mismo precio y la misma
+    referencia: dos banderas por un solo sobreprecio."""
+    db = _DB()
+    monkeypatch.setattr(persistence.market_flags, "_pg", lambda: db)
+    comun = {"veredicto": "muy_elevado", "diff_pct": 70.1, "precio_mediana_mercado": 13.93, "precio_unitario_ofertado": 23.69, "unidad": "Galón",
+             "n_precios": 3, "rango_min": 12.64, "rango_max": 16.5}
+    st = {"ocid": OCID, "ocds": _ocds(desc="ADQUISICION DE COMBUSTIBLE DIESEL B5 S50"),
+          "market_input": {"items": [{"item_numero": "3", "descripcion_corta": "PETROLEO DIESEL B5 S50"}, {"item_numero": "1.1", "descripcion_corta": "DIESEL B5 S50"}]},
+          "market_analysis": _mk([{**comun, "item_numero": "3", "item_descripcion": "PETROLEO DIESEL B5 S50", "cantidad": 17842},
+                                  {**comun, "item_numero": "1.1", "item_descripcion": "DIESEL B5 S50", "cantidad": 17482}], n_items=2)}
+    res = persistence.persist_market_flags_as_banderas("OECE-" + OCID, _Ctx(st))
+    sobre = [b for b in res["banderas"] if b["regla"] == "sobreprecio_muy_elevado"]
+    assert len(sobre) == 1
+    assert "Se pagó S/ 23.69 por galón; la referencia es S/ 13.93" in sobre[0]["evidencia"] and "más que al precio de referencia" in sobre[0]["evidencia"]
+    assert sobre[0]["exceso_soles"] == round((23.69 - 13.93) * 17842, 2)
+
+
 def test_market_alucinacion_sin_correlato_se_descarta(monkeypatch):
     db = _DB()
     monkeypatch.setattr(persistence.market_flags, "_pg", lambda: db)
