@@ -574,4 +574,47 @@ export const preciosReferencia = definir({
   },
 });
 
-export const HERRAMIENTAS_ACTORES = [fichaEmpresa, redEmpresa, fichaEntidad, proveedoresDeEntidad, partido, historia, personaPublica, rastroPersona, patrones, preciosReferencia];
+export const normaAplicable = definir({
+  nombre: "norma_aplicable",
+  titulo: "Norma aplicable en una fecha",
+  descripcion:
+    "Qué dice la norma de contrataciones sobre un tema, PARA LA FECHA del proceso. Con una pregunta o un tema («fraccionamiento», " +
+    "«impedimentos de parientes de un alcalde», «penalidad por mora», «contratación directa por emergencia») y la fecha de la " +
+    "convocatoria devuelve: los artículos de la ley, el reglamento y las directivas que regían ese día (Ley 32069 desde el " +
+    "22-04-2025; antes, Ley 30225), con el texto que tenían entonces si después se modificaron; los criterios del OECE de " +
+    "esa misma ley (opiniones de la Dirección Técnico Normativa y acuerdos de Sala Plena del Tribunal); y, aparte, criterios " +
+    "emitidos bajo la otra ley, que valen sólo por analogía. Sirve para citar bien una irregularidad: el artículo exacto y " +
+    "su enlace oficial. Con materia «empleo_publico» busca en las normas de CAS y planillas; con «especial», en obras " +
+    "paralizadas, Reconstrucción con Cambios y Obras por Impuestos. No interpreta el caso: da el texto.",
+  cuenta: true,
+  entrada: {
+    pregunta: z.string().min(3).max(300).describe("El tema o la pregunta, en palabras de la norma si las sabes."),
+    fecha: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().describe("Fecha de la convocatoria (AAAA-MM-DD). Sin ella, hoy. ficha_contrato la da."),
+    materia: z.enum(["contrataciones", "empleo_publico", "especial", "inversion"]).default("contrataciones"),
+  },
+  async ejecutar(a, cx) {
+    const r = await api<Fila>(cx.env, "/normas/buscar", { q: a.pregunta, fecha: a.fecha, materia: a.materia });
+    const filas = (r.data ?? []) as Fila[];
+    const como = (x: Fila) => ({
+      norma: x.documento, articulo: x.articulo ?? undefined, titulo: x.epigrafe ?? undefined, emitida: x.fechaEmision ?? undefined,
+      version: x.version ?? undefined, texto: recortar(String(x.texto ?? ""), 1200), fuente_oficial: x.urlOficial ?? undefined,
+    });
+    return {
+      fecha_del_proceso: r.fecha, rige: r.ley,
+      normas_que_regian: filas.filter((x) => x.aplica === "norma").map(como),
+      criterios_de_esa_ley: filas.filter((x) => x.aplica === "criterio").map(como),
+      criterios_de_la_otra_ley: filas.filter((x) => x.aplica === "criterio_anterior").map((x) => ({
+        ...como(x), advertencia: "Emitido bajo la otra ley: vale por analogía; sus artículos no son los vigentes para este proceso.",
+      })),
+      como_leerlo:
+        "Cita primero un artículo de «normas_que_regian». «version» avisa que el artículo se modificó después y que ese es el texto de " +
+        "la fecha. Una opinión del OECE interpreta la norma, no la reemplaza. Si no aparece el artículo que buscas, prueba con las " +
+        "palabras de la norma (por ejemplo «prestaciones adicionales» en vez de «ampliación del contrato»).",
+      busqueda: r.busqueda === "hibrida" ? "por palabras y por significado" : "sólo por palabras",
+      fuente: "Textos oficiales de El Peruano y de gob.pe (OECE, MEF, Perú Compras, Contraloría, SERVIR), por artículo",
+      aviso: AVISO,
+    };
+  },
+});
+
+export const HERRAMIENTAS_ACTORES = [fichaEmpresa, redEmpresa, fichaEntidad, proveedoresDeEntidad, partido, historia, personaPublica, rastroPersona, patrones, preciosReferencia, normaAplicable];
