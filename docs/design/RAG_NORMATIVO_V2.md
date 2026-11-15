@@ -162,6 +162,25 @@ Consolidado del D.L. 276); el D.L. 1440 es el Sistema Nacional de Presupuesto; e
 D.S. 021-2000-PCM, no el D.S. 018-2007-TR; el D.L. 1442 está derogado (lo reemplaza el D.L. 1666); la Ley 32513 es la
 de Presupuesto 2026, no la de Endeudamiento.
 
+### Pendientes del paquete que los textos cargados ya responden
+
+| N.º | Pendiente | Respuesta con el texto oficial |
+|---|---|---|
+| 1 | Artículo de controversias de la Ley 32069 | art. 76 (mecanismos); junta de disputas 79 y 80; conciliación 81 y 82; arbitraje 83 y 84 |
+| 3 | Procesos convocados antes del 22-04-2025 | Cuarta Disposición Complementaria Transitoria de la Ley: se rigen por las normas vigentes al convocar |
+| 4 | Tope de la comparación de precios en el art. 95 | la comparación de precios está en los arts. 97 y 98; el tope de S/ 100 000 no aparece en el Reglamento ni en la Ley 32513: sigue abierto |
+| 5 | Tope de S/ 79 000 000 para licitación de obras | no aparece en ninguna norma cargada; el art. 14 de la Ley 32513 fija licitación pública de obras desde S/ 5 000 000 |
+| 6 | Factor F de la penalidad por mora | art. 120 del Reglamento: 0,40 en bienes y servicios; en obras depende del plazo (0,40 y 0,25 confirmados en el texto) |
+| 8 | Artículo de fraccionamiento | art. 50 de la Ley (supuestos de fraccionamiento) |
+| 9 | Vigencia del D.S. 222-2026-EF | cinco artículos, sin cláusula de vigencia: rige desde el día siguiente de su publicación (22-10-2026) |
+| 11, 12 | Materia de las directivas del OECE | 004 registro de instituciones arbitrales; 008 gastos arbitrales; 009 recusación; 011 supervisión y 012 sanción de instituciones arbitrales; 013 multas; 014 vigilancia ciudadana; 015 casilla electrónica; 016 retención de multas |
+| 13 | Acuerdos de Sala Plena de 2026 | existen 001, 004 y 005-2026/TCP; 002 y 003 no figuran en la colección |
+| 15 | Bonificación a licenciados de las Fuerzas Armadas | Ley 29248: 10 % confirmado |
+| 17 | Arts. 24 y 31 de la Ley 32513 | 24: incorporación del BET Fijo; 31: bono excepcional por única vez |
+| 18 | Ley 32187 | confirmado: modifica disposiciones complementarias finales de la Ley 32069 |
+
+Siguen abiertos: 2 (adecuación del Reglamento a la Ley 32732), 7 (artículo que exige el Cuadro Multianual), 14, 16, 19 y 20.
+
 ## 8. Pendiente de diseño
 
 - Etiquetas de tema por fragmento (`temas`), para filtrar antes de buscar.

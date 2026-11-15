@@ -241,9 +241,10 @@ def reglas(cn, archivo: Path) -> None:
                         parametro = EXCLUDED.parametro, valor_referencia = EXCLUDED.valor_referencia, severidad = EXCLUDED.severidad,
                         regimen = EXCLUDED.regimen, verificacion = EXCLUDED.verificacion, regla_vigia = EXCLUDED.regla_vigia,
                         nota = EXCLUDED.nota, actualizado_at = now()""",
-                   (r["id"], r.get("categoria") or "transversal", r.get("fase"), r["descripcion"], r.get("fundamento"), list(r.get("normas_ids") or []),
+                   (r["id"], r.get("categoria") or "transversal", r.get("fase"), r["descripcion"], c.get("fundamento") or r.get("fundamento"),
+                    list(r.get("normas_ids") or []),
                     r.get("tipo_verificacion"), r.get("parametro") or None, r.get("valor_referencia_2026") or None, r.get("severidad"),
-                    list(r.get("regimen") or []), r.get("verificacion"), ", ".join(c.get("reglas") or []) or None, c.get("nota")))
+                    list(r.get("regimen") or []), c.get("verificacion") or r.get("verificacion"), ", ".join(c.get("reglas") or []) or None, c.get("nota")))
     cn.commit()
     print("reglas cargadas:", len(lista), flush=True)
 
