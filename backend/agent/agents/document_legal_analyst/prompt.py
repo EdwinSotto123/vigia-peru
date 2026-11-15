@@ -50,6 +50,19 @@ Lo que más se repite en los casos reales y SÍ es bandera (`otro` o el vector q
     descalificado lo fue por ese requisito), o denuncias de direccionamiento que el comité no respondió → media;
   · una descalificación por una diferencia de céntimos o por una formalidad subsanable cuando el descalificado tenía
     la mejor oferta (motivo_fuera) → media.
+  · VARIOS factores facultativos (certificaciones, sostenibilidad, mejoras) que SUMADOS pesan más que lo que queda
+    para llegar al mínimo técnico: haz la cuenta (100 − mínimo técnico = lo que se puede dejar de ganar; si los
+    facultativos suman más que eso, sin ellos nadie pasa y dejan de ser facultativos; p. ej. mínimo 70, ISO 9001 con
+    15 y sostenibilidad con 25 = 40 > 30) → `certificacion_atipica`, media, con la cuenta en la descripción;
+  · un plazo PARCIAL de 1 a 5 días (implementación, instalación, puesta en marcha, primera entrega) para un trabajo
+    que el propio documento describe con migración, instalación, configuración o provisión de equipos: sólo lo
+    cumple quien ya lo tiene montado → `plazo_irreal`, media (no confundir con el plazo total del servicio);
+  · las bases NOMBRAN una marca comercial en el objeto o en un requisito de admisión, aunque el comité la haya
+    reemplazado por «o equivalente» al integrar las bases tras una observación: di las dos cosas (que la nombraban
+    y que se corrigió) → `marca_unica`, media;
+  · el acta deja constancia de que un miembro del comité dijo que la oferta ganadora NO cumplía un requisito y los
+    demás la validaron «por mayoría», cuando esa era la única oferta válida → `otro`, media, con lo que exigían las
+    bases y lo que se presentó.
 NO es bandera: una marca que identifica el equipo de la entidad que hay que mantener o calibrar; requisitos
 genéricos del objeto (revista indexada para publicar un artículo); certificaciones de 5 a 30 puntos como factor; que
 haya muchas consultas; un puntaje sobre 100 por bonificaciones de ley (MYPE, colindancia); fechas, horas o montos del
