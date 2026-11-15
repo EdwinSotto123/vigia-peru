@@ -149,29 +149,16 @@ patronesRouter.get("/duenos", async (c) => {
   const cuerpo = await memo.obtener(`duenos:${JSON.stringify(q)}`, async () => {
     const vals: unknown[] = [];
     const add = (v: unknown) => { vals.push(v); return `$${vals.length}`; };
-    // Con RUC: la entidad, o los grupos (entidad y socio) en que participa esa empresa.
-    const donde = q.ruc
-      ? `AND (c.entidad_ruc = ${add(q.ruc)} OR (c.entidad_ruc, x.persona_doc) IN (
-            SELECT c2.entidad_ruc, x2.persona_doc FROM cruces_proveedor x2 JOIN convocatorias c2 ON c2.ocid = x2.ocid
-             WHERE x2.tipo = 'mismo_dueno' AND x2.ruc_empresa = $${vals.length}))`
-      : "";
+    // De la tabla ya agrupada (migración 293). Con RUC: la entidad, o los grupos en que participa esa empresa.
+    const donde = q.ruc ? `WHERE g.entidad_ruc = ${add(q.ruc)} OR g.rucs @> ARRAY[$${vals.length}]` : "";
     const n = vals.length;
-    const base = `FROM cruces_proveedor x JOIN convocatorias c ON c.ocid = x.ocid WHERE x.tipo = 'mismo_dueno' ${donde}`;
     const [filas, total] = await Promise.all([
       pool.query(
         `SELECT g.entidad_ruc AS "entidadRuc", en.nombre AS entidad, g.nombre, g.contratos, g.seguidos, g.monto::float AS monto,
-                to_char(g.desde, 'YYYY-MM-DD') AS desde, to_char(g.hasta, 'YYYY-MM-DD') AS hasta, g.ejemplos,
-                (SELECT jsonb_agg(jsonb_build_object('ruc', e.ruc, 'nombre', e.razon_social) ORDER BY e.razon_social) FROM empresas e WHERE e.ruc = ANY(g.rucs)) AS empresas
-           FROM (SELECT c.entidad_ruc, x.persona_doc, max(x.persona_nombre) AS nombre, count(DISTINCT x.ocid)::int AS contratos,
-                        count(DISTINCT x.ocid) FILTER (WHERE x.severidad = 'alta')::int AS seguidos, sum(x.monto) AS monto,
-                        min(x.fecha) AS desde, max(x.fecha) AS hasta, array_agg(DISTINCT x.ruc_empresa) AS rucs,
-                        (array_agg(x.ocid ORDER BY (x.severidad = 'alta') DESC, x.fecha DESC))[1:3] AS ejemplos
-                   ${base} GROUP BY c.entidad_ruc, x.persona_doc) g
-           LEFT JOIN entidades en ON en.ruc = g.entidad_ruc
-          WHERE cardinality(g.rucs) >= 2
+                to_char(g.desde, 'YYYY-MM-DD') AS desde, to_char(g.hasta, 'YYYY-MM-DD') AS hasta, g.ejemplos, g.empresas
+           FROM mismo_dueno_grupo g LEFT JOIN entidades en ON en.ruc = g.entidad_ruc ${donde}
           ORDER BY g.seguidos DESC, g.contratos DESC, g.entidad_ruc LIMIT ${add(q.size)} OFFSET ${add((q.page - 1) * q.size)}`, vals),
-      pool.query<{ n: number }>(
-        `SELECT count(*)::int AS n FROM (SELECT 1 ${base} GROUP BY c.entidad_ruc, x.persona_doc HAVING count(DISTINCT x.ruc_empresa) >= 2) z`, vals.slice(0, n)),
+      pool.query<{ n: number }>(`SELECT count(*)::int AS n FROM mismo_dueno_grupo g ${donde}`, vals.slice(0, n)),
     ]);
     return publicar({
       total: total.rows[0]?.n ?? 0, page: q.page, size: q.size,
