@@ -164,6 +164,28 @@ export const filtroGanadora = (): FiltroSecundario => ({
   opciones: DATOS_GANADORA.map((d) => ({ valor: d.valor, etiqueta: d.etiqueta, grupo: d.grupo })),
 });
 
+/**
+ * Un SEGUNDO antecedente, para pedir dos a la vez (`cruce`, que la API junta con el de «Antecedentes del ganador»): los
+ * contratos «observados por la Contraloría» Y «con un solo postor». Sin conteo (dependería del primero). Si un enlace
+ * trae varios en `cruce` (la lista los toma como «alguno de»), esa combinación va como una opción más, para que el
+ * desplegable no quede en blanco. Quien lo usa no pinta el chip de `chipsDeEnlace` para `cruce` (ya lo pinta la barra).
+ */
+export function filtroOtroAntecedente(parametros: Parametros, obraAparte = false): FiltroSecundario {
+  const nombre = (t: string) => TIPO_CRUCE[t]?.corto ?? t.replace(/_/g, " ");
+  const actual = parametros.cruce;
+  const varios = actual && actual.includes(",") ? [{ valor: actual, etiqueta: `Alguno de: ${listaY(actual.split(",").filter(Boolean).map(nombre))}` }] : [];
+  return {
+    param: "cruce",
+    etiqueta: "Y además con otro antecedente",
+    todas: "Sin combinar",
+    etiquetas: Object.fromEntries(GRUPOS_CRUCE.flatMap((g) => g.tipos.map((t) => [t.tipo, t.corto]))),
+    opciones: [
+      ...varios,
+      ...GRUPOS_CRUCE.flatMap((g) => g.tipos.filter((t) => !(obraAparte && esTipoObra(t.tipo))).map((t) => ({ valor: t.tipo, etiqueta: t.corto, grupo: g.titulo }))),
+    ],
+  };
+}
+
 /** El posible error de carga del OECE (S/ 1 de valor referencial, o 20 veces lo adjudicado): las mismas palabras que en Empresas. */
 export const filtroDudoso = (resumen: Pick<ResumenContratos, "porDudoso"> | null): FiltroSecundario => ({
   param: "dudoso",

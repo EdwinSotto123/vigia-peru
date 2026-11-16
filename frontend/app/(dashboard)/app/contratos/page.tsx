@@ -18,7 +18,7 @@ import { Repartos, RepartoPartes } from "@/components/listado/Repartos";
 import { RepartoInicio, partesPorTipo } from "@/components/inicio/BloquesInicio";
 import { PROVINCIA_NOMBRE } from "@/components/mapa/provincias";
 import {
-  chipsDeEnlace, enSeccion, filtroDudoso, filtroEtapa, filtroGanadora, filtroMesVisible, filtroObra, filtroOperativo, filtrosMonto,
+  chipsDeEnlace, enSeccion, filtroDudoso, filtroEtapa, filtroGanadora, filtroMesVisible, filtroObra, filtroOperativo, filtroOtroAntecedente, filtrosMonto,
   filtrosVisibles, filtroTipo, SECCIONES_FILTRO,
 } from "@/components/contratos/filtros";
 import { getEntidad, getRegionesEntidades } from "@/lib/api-client";
@@ -257,7 +257,8 @@ function Barra({ resumen, parametros, regiones, partidos, entidadNombre, filas }
       visibles={[filtroRegion(parametros, regiones, filas), ...filtroProvincia(parametros), filtroMesVisible(parametros), ...filtrosVisibles(resumen, true).filter((f) => f.param !== "riesgo")]}
       filtros={[...filtrosVisibles(resumen, true).filter((f) => f.param === "riesgo"), ...filtros({ resumen, parametros, partidos, entidadNombre })]}
       orden={{ param: "orden", porDefecto: parametros.q ? "fecha" : "score", opciones: ORDENES.map((o) => ({ valor: o.value, etiqueta: o.label })) }}
-      chips={chipsDeEnlace(parametros)}
+      // El chip de `cruce` lo pinta la barra (tiene su desplegable, «Y además con otro antecedente»); aquí, sólo el período.
+      chips={chipsDeEnlace(parametros, false)}
     />
   );
 }
@@ -405,7 +406,8 @@ function filtros({
       },
     ),
     // Hechos de la empresa que ganó, no de este contrato: la fila los muestra cuando se filtra por uno (TablaContratos).
-    ...enSeccion(SECCIONES_FILTRO.ganador, filtroGanadora()),
+    // Un segundo antecedente a la vez que el de la fila de arriba: «observado por la Contraloría» Y «único postor».
+    ...enSeccion(SECCIONES_FILTRO.ganador, filtroOtroAntecedente(parametros, true), filtroGanadora()),
     ...enSeccion(SECCIONES_FILTRO.cuanto, ...filtrosMonto(parametros), filtroDudoso(resumen)),
     ...enSeccion(SECCIONES_FILTRO.lectura, filtroOperativo(resumen)),
   ];
