@@ -12,11 +12,19 @@
  * cuánto cobró). Sólo cuenta en los totales; y un total que, restado de lo que sí se ve, daría el monto de un solo caso
  * reservado, no se da: el de un grado con un solo caso reservado y el general con un solo caso reservado cuando la lista
  * los trae todos (pedido del 2026-11-16).
+ *
+ * Y al revés: si el LOCADOR es la autoridad electa (va con su nombre completo en su ficha) y el parentesco destaparía el
+ * apellido tapado del funcionario (parentescoInversoPublicable: hermano, madre, tío, primo…), el caso sale como «lo declaró
+ * un funcionario de la entidad» (`declarante: "funcionario"`), con la misma reserva: ni el cargo, ni el apellido, ni la
+ * ficha del funcionario, ni el parentesco, ni el locador, ni el monto (migración 312).
  */
 
-import { apellidoFuncionario, parentescoPublicable, publicar } from "./privacidad.js";
+import { apellidoFuncionario, parentescoInversoPublicable, parentescoPublicable, publicar } from "./privacidad.js";
 
-/** Una fila de dji_nepotismo para la ficha, con `electo`: el declarante es una autoridad electa (declaranteElectoSql). */
+/**
+ * Una fila de dji_nepotismo para la ficha, con `electo`: el declarante es una autoridad electa (declaranteElectoSql); y
+ * `locadorElecto`: el locador lo es (esElectoSql sobre su DNI).
+ */
 export interface FilaNepotismo {
   declarante: string | null;
   cargo: string | null;
@@ -24,6 +32,7 @@ export interface FilaNepotismo {
   grado: string;
   parentesco: string | null;
   electo: boolean;
+  locadorElecto?: boolean;
   proveedorRuc: string;
   proveedorNombre: string;
   proveedorCodigo: string | null;
@@ -31,21 +40,43 @@ export interface FilaNepotismo {
   monto: number;
 }
 
-/** Cuántos casos y cuánto, por grado, parentesco y si el declarante es electo: de TODOS los casos (no sólo los listados). */
+/** Cuántos casos y cuánto, por grado, parentesco y quién es electo: de TODOS los casos (no sólo los listados). */
 export interface GrupoNepotismo {
   grado: string;
   parentesco: string | null;
   electo: boolean;
+  locadorElecto?: boolean;
   n: number;
   monto: number;
 }
 
-/** El caso reservado: sólo que existe. */
+/**
+ * El caso reservado: sólo que existe. Sin `declarante`, «un familiar de una autoridad electa» (la electa lo declaró); con
+ * `declarante: "funcionario"`, «lo declaró un funcionario de la entidad» (el familiar es el electo).
+ */
 export interface CasoReservado {
   reservado: true;
+  declarante?: "funcionario";
 }
 
+/** El declarante es electo y el parentesco destaparía el apellido tapado del familiar. */
 export const casoReservado = (f: Pick<FilaNepotismo, "electo" | "parentesco">) => f.electo && !parentescoPublicable(f.parentesco);
+
+/** El familiar es el electo y el parentesco destaparía el apellido tapado del funcionario que lo declaró (312). */
+export const casoReservadoInverso = (f: Pick<FilaNepotismo, "locadorElecto" | "parentesco">) =>
+  f.locadorElecto === true && !parentescoInversoPublicable(f.parentesco);
+
+/**
+ * Un caso, visto desde lo que es del FUNCIONARIO que lo declaró (su ficha de planilla). Si él es electo, sus casos
+ * reservados (en cualquier sentido) salen sólo como que existen. Si no lo es, el caso inverso no sale: él va con un
+ * apellido tapado y, en lo suyo, «declaró a un familiar» con su caso reservado lo señalaría (como la etiqueta del locador
+ * en la 311).
+ */
+export function casoDelDeclarante(o: { parentesco: string | null; declaranteElecto: boolean; familiarElecto: boolean }): "ver" | "reservado" | "fuera" {
+  const inverso = casoReservadoInverso({ locadorElecto: o.familiarElecto, parentesco: o.parentesco });
+  if (inverso && !o.declaranteElecto) return "fuera";
+  return inverso || casoReservado({ electo: o.declaranteElecto, parentesco: o.parentesco }) ? "reservado" : "ver";
+}
 
 /** Las señales de persona que nombran a un familiar declarado en la DJI: nepotismo (137), en el mismo gobierno (179) y en el Estado (180). */
 export const SENALES_CON_PARIENTES: ReadonlySet<string> = new Set(["nepotismo", "nepotismo_gobierno", "familia_estado"]);
@@ -73,15 +104,17 @@ export function podarParientes<D extends Record<string, unknown>>(
 }
 
 export function nepotismoPublico(filas: FilaNepotismo[], grupos: GrupoNepotismo[], total: number, montoTotal: number | null) {
-  const visibles = filas.filter((f) => !casoReservado(f));
-  const reservadas = filas.length - visibles.length;
-  // Por grado: los casos y el monto de todos; sin monto si el grado tiene un solo caso reservado.
+  const visibles = filas.filter((f) => !casoReservado(f) && !casoReservadoInverso(f));
+  // Los reservados: los de una autoridad electa que declaró, y los de un funcionario que declaró a una autoridad electa.
+  const reservadas = filas.filter((f) => casoReservado(f)).length;
+  const inversas = filas.filter((f) => !casoReservado(f) && casoReservadoInverso(f)).length;
+  // Por grado: los casos y el monto de todos; sin monto si el grado tiene un solo caso reservado (de cualquier lado).
   const porGrado = new Map<string, { grado: string; n: number; monto: number; reservados: number }>();
   for (const g of grupos) {
     const x = porGrado.get(g.grado) ?? { grado: g.grado, n: 0, monto: 0, reservados: 0 };
     x.n += g.n;
     x.monto += g.monto;
-    if (casoReservado(g)) x.reservados += g.n;
+    if (casoReservado(g) || casoReservadoInverso(g)) x.reservados += g.n;
     porGrado.set(g.grado, x);
   }
   const reservadosTodos = [...porGrado.values()].reduce((t, g) => t + g.reservados, 0);
@@ -97,12 +130,13 @@ export function nepotismoPublico(filas: FilaNepotismo[], grupos: GrupoNepotismo[
     // de planilla, tampoco cuando el parentesco no es seguro. Los reservados, al final y sin nada de eso.
     detalle: [
       ...(publicar(
-        visibles.map(({ declarante, declaranteFicha, electo: _e, ...r }) => {
+        visibles.map(({ declarante, declaranteFicha, electo: _e, locadorElecto: _l, ...r }) => {
           const funcionarioApellido = apellidoFuncionario(r.parentesco, declarante);
           return { ...r, funcionarioApellido, declaranteFicha: funcionarioApellido ? declaranteFicha : null };
         }),
       ) as Record<string, unknown>[]),
       ...Array.from({ length: reservadas }, (): CasoReservado => ({ reservado: true })),
+      ...Array.from({ length: inversas }, (): CasoReservado => ({ reservado: true, declarante: "funcionario" })),
     ],
   };
 }

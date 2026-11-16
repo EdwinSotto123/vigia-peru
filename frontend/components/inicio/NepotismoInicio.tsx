@@ -28,28 +28,38 @@ const funcionario = (cargo: string | null, apellido: string | null) => {
 };
 
 /**
- * «Un familiar de una autoridad electa»: su nombre completo es público y el parentesco (hermano, hijo, sobrino, primo,
- * nieto) permitiría deducir el apellido que se le tapa al familiar. Sin parentesco, sin el familiar ni su ficha, sin
- * órdenes ni monto: sólo suma en el total de casos.
+ * Un caso reservado: sólo suma en el total de casos, sin parentesco, sin el familiar ni su ficha, sin órdenes ni monto.
+ *   · «Un familiar de una autoridad electa»: el nombre completo de quien lo declaró es público y el parentesco (hermano,
+ *     hijo, sobrino, primo, nieto) permitiría deducir el apellido que se le tapa al familiar.
+ *   · «Lo declaró un funcionario de la entidad» (`porFuncionario`): al revés, el familiar es la autoridad electa y el
+ *     parentesco permitiría deducir el apellido que se le tapa al funcionario; ni su cargo ni su apellido.
  */
-function filaReservada(i: number): Fila {
+function filaReservada(i: number, porFuncionario: boolean): Fila {
   return {
     id: `reservado-${i}`,
-    buscable: "autoridad electa reservado",
+    buscable: porFuncionario ? "funcionario reservado" : "autoridad electa reservado",
     celdas: {
-      funcionario: <CeldaPrincipal titulo="Una autoridad electa" meta={[<Dato key="g" tipo="personas" nombre="Parentesco">Declaró a un familiar</Dato>]} />,
+      funcionario: (
+        <CeldaPrincipal
+          titulo={porFuncionario ? "Un funcionario de la entidad" : "Una autoridad electa"}
+          meta={[<Dato key="g" tipo="personas" nombre="Parentesco">Declaró a un familiar</Dato>]}
+        />
+      ),
       pariente: <CeldaTexto>Reservado</CeldaTexto>,
       monto: <span className="block text-right text-meta text-mute">Reservado</span>,
     },
     detalle: {
-      titulo: "Un familiar de una autoridad electa",
-      descripcion: "Una autoridad electa declaró a un familiar que le vende a la entidad",
+      titulo: porFuncionario ? "Lo declaró un funcionario de la entidad" : "Un familiar de una autoridad electa",
+      descripcion: porFuncionario
+        ? "Un funcionario declaró a un familiar que le vende a la entidad"
+        : "Una autoridad electa declaró a un familiar que le vende a la entidad",
       contenido: (
         <CuerpoDetalle>
           <BloqueDetalle titulo="Por qué no se muestra más">
             <p className="text-dato leading-relaxed text-inkSoft">
-              El nombre de una autoridad electa es público. Con el parentesco, el monto o el nombre del familiar (que va con un apellido tapado) se
-              podría deducir su apellido. El caso cuenta en el total de la entidad, pero no se detalla.
+              {porFuncionario
+                ? "El familiar es una autoridad electa y su nombre es público. Con el parentesco, el cargo o el apellido del funcionario (que va con un apellido tapado) se podría deducir el que se le tapa. El caso cuenta en el total de la entidad, pero no se detalla."
+                : "El nombre de una autoridad electa es público. Con el parentesco, el monto o el nombre del familiar (que va con un apellido tapado) se podría deducir su apellido. El caso cuenta en el total de la entidad, pero no se detalla."}
             </p>
           </BloqueDetalle>
           <BloqueDetalle titulo="Qué se cruzó">
@@ -88,8 +98,8 @@ export function NepotismoInicio({
   if (!nepotismo || nepotismo.total === 0 || !detalle.length) return null;
 
   const filas: Fila[] = detalle.map((x, i) => {
-    // El caso de una autoridad electa con un parentesco que destapa: sólo que existe (lo decide el API).
-    if (x.reservado) return filaReservada(i);
+    // El caso de una autoridad electa con un parentesco que destapa (o al revés): sólo que existe (lo decide el API).
+    if (x.reservado) return filaReservada(i, x.declarante === "funcionario");
     const d: NepotismoIndicio = x;
     const quien = funcionario(d.cargo, d.funcionarioApellido);
     const grado = GRADO[d.grado] ?? "pariente";

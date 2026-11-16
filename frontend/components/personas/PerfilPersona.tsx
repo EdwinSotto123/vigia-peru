@@ -255,13 +255,14 @@ function Familia({ p }: { p: PerfilPersona }) {
   const entidades = new Set(p.familia.map((f) => f.entidadRuc)).size;
   const filas: Fila[] = p.familia.map((f, i) =>
     // Reservado por el API: la persona va completa (es electa) y el parentesco destaparía el apellido del funcionario.
+    // «Lo declaró un funcionario de la entidad»: sin su cargo, su apellido, su ficha ni el parentesco (migración 312).
     f.reservado
       ? {
           id: `reservado-${i}`,
           celdas: {
             quien: (
               <CeldaPrincipal
-                titulo="Un funcionario o autoridad"
+                titulo="Un funcionario de la entidad"
                 meta={[<Dato key="en" tipo="entidad" nombre="Su entidad">{tituloNatural(f.entidad ?? "Otra entidad")}</Dato>]}
               />
             ),

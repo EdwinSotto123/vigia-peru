@@ -373,10 +373,13 @@ export interface NepotismoIndicio {
 }
 /**
  * Un caso de una AUTORIDAD ELECTA (su nombre completo es público) con un parentesco que destaparía el apellido tapado del
- * familiar (hermano, hijo, sobrino, primo, nieto o desconocido): sólo se sabe que existe. Va al final de la lista.
+ * familiar (hermano, hijo, sobrino, primo, nieto o desconocido): sólo se sabe que existe. Va al final de la lista. Con
+ * `declarante: "funcionario"`, al revés: el familiar es el electo y el parentesco destaparía el apellido del funcionario
+ * que lo declaró («lo declaró un funcionario de la entidad», migración 312).
  */
 export interface NepotismoReservado {
   reservado: true;
+  declarante?: "funcionario";
 }
 export interface NepotismoEntidad {
   total: number;

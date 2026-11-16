@@ -225,6 +225,8 @@ export function datoClavePlanilla(tipo: TipoPlanilla, d: Record<string, unknown>
     case "pariente_planilla": {
       const f = lista(d.funcionarios);
       if (f.length > 1) return `Pariente de ${numero(f.length)} funcionarios de su entidad`;
+      // Reservado: es una autoridad electa y el parentesco destaparía el apellido tapado del funcionario (migración 312).
+      if (f[0]?.reservado) return "Lo declaró un funcionario de su entidad";
       const cargo = cargoEnOracion(f[0]?.cargo, true);
       return `${oracionSimple(GRADO_PARIENTE[t(f[0]?.grado) ?? "otro"] ?? "pariente")} de un funcionario de su entidad${cargo ? ` (${cargo})` : ""}`;
     }
@@ -516,7 +518,9 @@ export function DetalleSenalPlanilla({ tipo, d }: { tipo: TipoPlanilla; d: Recor
     );
   } else if (tipo === "pariente_planilla") {
     // Del funcionario: su cargo y, sólo si no destapa el apellido tapado de esta persona, su primer apellido y su ficha
-    // (lo decide la migración 182 con la regla de la API). Nunca su nombre completo.
+    // (lo decide la migración 182 con la regla de la API). Nunca su nombre completo. Si esta persona es una autoridad
+    // electa y el parentesco destaparía el apellido tapado del funcionario, «lo declaró un funcionario de su entidad»:
+    // ni su cargo, ni su apellido, ni su ficha, ni el parentesco (migración 312).
     return (
       <TablaChica
         etiqueta="Funcionarios de su entidad que lo declararon como pariente"
@@ -524,14 +528,24 @@ export function DetalleSenalPlanilla({ tipo, d }: { tipo: TipoPlanilla; d: Recor
           { clave: "quien", titulo: "Lo declaró", ancho: "minmax(0,1fr)" },
           { clave: "parentesco", titulo: "Parentesco declarado", corto: "Parentesco", ancho: "minmax(0,11rem)", desde: "md", apilar: "con-rotulo" },
         ]}
-        filas={lista(d.funcionarios).map((f, i) => ({
-          id: String(i),
-          ...(t(f.ficha) ? { href: `/app/personas/planilla/${t(f.ficha)}` } : {}),
-          celdas: {
-            quien: <CeldaPrincipal titulo={natural(f.cargo) ?? "Funcionario de la entidad"} meta={t(f.apellido) ? [<Dato key="a" tipo="personas" nombre="Funcionario">{t(f.apellido)}</Dato>] : undefined} />,
-            parentesco: texto(oracionSimple(GRADO_PARIENTE[t(f.grado) ?? "otro"] ?? "pariente")),
-          },
-        }))}
+        filas={lista(d.funcionarios).map((f, i) =>
+          f.reservado
+            ? {
+                id: `reservado-${i}`,
+                celdas: {
+                  quien: <CeldaPrincipal titulo="Un funcionario de su entidad" meta={[<Dato key="r" tipo="personas" nombre="Funcionario">Su cargo se reserva</Dato>]} />,
+                  parentesco: reservadoCorto,
+                },
+              }
+            : {
+                id: String(i),
+                ...(t(f.ficha) ? { href: `/app/personas/planilla/${t(f.ficha)}` } : {}),
+                celdas: {
+                  quien: <CeldaPrincipal titulo={natural(f.cargo) ?? "Funcionario de la entidad"} meta={t(f.apellido) ? [<Dato key="a" tipo="personas" nombre="Funcionario">{t(f.apellido)}</Dato>] : undefined} />,
+                  parentesco: texto(oracionSimple(GRADO_PARIENTE[t(f.grado) ?? "otro"] ?? "pariente")),
+                },
+              },
+        )}
       />
     );
   } else if (tipo === "familiar_en_planilla") {

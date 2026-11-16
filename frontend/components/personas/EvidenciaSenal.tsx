@@ -143,12 +143,13 @@ export function datoClaveSenal(s: SenalDetalle): string | null {
       const n = ords.length || num(d.ordenes) || 0;
       const monto = ords.length ? ords.reduce((t, o) => t + (num(o.monto) ?? 0), 0) : num(d.monto) ?? 0;
       const cargo = par.length === 1 && !par[0].reservado ? cargoEnOracion(par[0].cargo, true) : null;
-      // Reservado: un funcionario o autoridad cuyo parentesco destaparía un apellido tapado (lo decide el API).
+      // Reservado: él es una autoridad electa y el parentesco destaparía el apellido tapado del funcionario (lo decide el
+      // API): «lo declaró un funcionario de la entidad», sin su cargo ni el parentesco.
       const quien =
         par.length > 1
           ? `Pariente de ${numero(par.length)} funcionarios de la entidad`
           : par[0]?.reservado
-            ? "Familiar de un funcionario o autoridad de la entidad"
+            ? "Lo declaró un funcionario de la entidad"
             : `${gradoTitulo(par[0]?.grado)} de un funcionario de la entidad${cargo ? ` (${cargo})` : ""}`;
       return `${quien}: ${plural(n, "orden", "órdenes")} por ${soles(monto)}`;
     }
@@ -158,7 +159,7 @@ export function datoClaveSenal(s: SenalDetalle): string | null {
       const ent = par[0]?.reservado ? null : natural(par[0]?.entidad);
       const cargo = par.length === 1 && !par[0].reservado ? cargoEnOracion(par[0].cargo, true) : null;
       const otras = s.tipo === "familia_estado" ? "de otras entidades" : "de otras entidades del mismo gobierno";
-      if (par.length === 1 && par[0].reservado) return `Familiar de un funcionario o autoridad ${otras.replace("entidades", "entidad").replace("otras", "otra")}`;
+      if (par.length === 1 && par[0].reservado) return `Lo declaró un funcionario ${otras.replace("entidades", "entidad").replace("otras", "otra")}`;
       return par.length > 1
         ? `Pariente de ${numero(par.length)} funcionarios ${otras}`
         : `${gradoTitulo(par[0]?.grado)} de un funcionario${cargo ? ` (${cargo})` : ""}${ent ? ` de ${ent}` : ` ${otras.replace("entidades", "entidad").replace("otras", "otra")}`}`;
@@ -290,8 +291,9 @@ const texto = (v: string | null, clase = "text-ink") => <span className={`text-m
 
 /**
  * Un funcionario que lo declaró, reservado por el API: él va con su nombre completo (es electo) y el parentesco destaparía
- * el apellido tapado del funcionario. Ni su cargo, ni su apellido, ni su ficha, ni el parentesco. (El caso contrario, un
- * funcionario electo con un parentesco que destapa el de él, ni llega: la señal no lo nombra, migración 311.)
+ * el apellido tapado del funcionario. Queda «lo declaró un funcionario de la entidad»: ni su cargo, ni su apellido, ni su
+ * ficha, ni el parentesco (migración 312). (El caso contrario, un funcionario electo con un parentesco que destapa el de
+ * él, ni llega: la señal no lo nombra, migración 311.)
  */
 const filaReservada = (i: number, quien: string): Fila => ({
   id: `reservado-${i}`,
@@ -309,7 +311,7 @@ export function EvidenciaSenal({ s, codigo, entidadRuc }: { s: SenalDetalle; cod
       // nadie; es un indicio para revisión humana. La fila lleva a la ficha de planilla del funcionario, si la tiene.
       const parientes: Fila[] = lista(d.parientes).map((p, i) =>
         p.reservado
-          ? filaReservada(i, "Un funcionario o autoridad de la entidad")
+          ? filaReservada(i, "Un funcionario de la entidad")
           : {
               id: String(i),
               ...(txt(p.ficha) ? { href: `/app/personas/planilla/${txt(p.ficha)}` } : {}),
@@ -360,7 +362,7 @@ export function EvidenciaSenal({ s, codigo, entidadRuc }: { s: SenalDetalle; cod
       const mismoGobierno = s.tipo === "nepotismo_gobierno";
       const parientes: Fila[] = lista(d.parientes).map((p, i) =>
         p.reservado
-          ? filaReservada(i, mismoGobierno ? "Un funcionario o autoridad del mismo gobierno" : "Un funcionario o autoridad de otra entidad")
+          ? filaReservada(i, mismoGobierno ? "Un funcionario de otra entidad del mismo gobierno" : "Un funcionario de otra entidad")
           : {
               id: String(i),
               ...(txt(p.ficha) ? { href: `/app/personas/planilla/${txt(p.ficha)}` } : {}),

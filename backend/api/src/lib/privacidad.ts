@@ -877,6 +877,9 @@ const INVERSO_PUBLICABLE: Record<string, string> = {
   "NIETASTRO(A) POR PARTE DEL CONYUGE": "Nietastro o nietastra",
 };
 
+/** La lista cerrada al revés, como la repite en SQL parentesco_inverso_publicable (migración 312; las pruebas comparan). */
+export const PARENTESCOS_INVERSO_PUBLICABLES: readonly string[] = Object.freeze(Object.keys(INVERSO_PUBLICABLE));
+
 export function parentescoInversoPublicable(parentesco: unknown): string | null {
   if (typeof parentesco !== "string") return null;
   const p = parentesco.normalize("NFD").replace(/\p{M}/gu, "").toUpperCase().replace(/\s+/g, " ").trim();

@@ -7,7 +7,7 @@ import { Memo } from "../lib/cache.js";
 import { hayModelosLectura } from "../lib/esquema.js";
 import { crucesDeEntidad, fraccionamientoDeEntidad } from "../lib/cruces.js";
 import { publicar } from "../lib/privacidad.js";
-import { declaranteElectoSql } from "../lib/electos.js";
+import { declaranteElectoSql, esElectoSql } from "../lib/electos.js";
 import { nepotismoPublico, type FilaNepotismo, type GrupoNepotismo } from "../lib/nepotismo.js";
 import { alertaNoDemo, alertaPublica, convocatoriaNoDemo, ENTIDAD_METADATA_MOCK } from "../lib/publicacion.js";
 import { hayObras } from "./obras.js";
@@ -1152,13 +1152,17 @@ entidadesRouter.get("/:ruc", async (c) => {
     // El detalle va hasta 40 casos; el total, el monto y por grado, de TODOS (antes salían de esos 40: EsSalud tiene 353 y
     // su bandera decía 40). La vista se calcula una vez (MATERIALIZED). Si falla, la ficha sale sin él (antes, 500: la
     // vista pasaba los 10 s en el Minsa hasta la migración 208). `electo`: el declarante es una autoridad electa (su nombre
-    // completo es público): con un parentesco que destapa, su caso se reserva (lib/nepotismo.ts).
+    // completo es público): con un parentesco que destapa, su caso se reserva (lib/nepotismo.ts). `locadorElecto`: el
+    // locador lo es; con un parentesco que destapa al funcionario, también (migración 312).
     pool.query<FilaNepotismo & { totalCasos: number; montoTotal: number | null; porGrado: GrupoNepotismo[] | null }>(
       `WITH n AS MATERIALIZED (
-              SELECT x.*, ${declaranteElectoSql("x.declarante_norm", "x.entidad_ruc", "x.cargo")} AS electo
+              SELECT x.*, ${declaranteElectoSql("x.declarante_norm", "x.entidad_ruc", "x.cargo")} AS electo,
+                     ${esElectoSql("substr(x.proveedor_ruc, 3, 8)")} AS locador_electo
                 FROM dji_nepotismo x WHERE x.entidad_ruc = $1),
-            g AS (SELECT grado, parentesco, electo, count(*)::int AS n, COALESCE(sum(monto), 0)::float AS monto FROM n GROUP BY 1, 2, 3)
+            g AS (SELECT grado, parentesco, electo, locador_electo AS "locadorElecto", count(*)::int AS n, COALESCE(sum(monto), 0)::float AS monto
+                    FROM n GROUP BY 1, 2, 3, 4)
        SELECT n.declarante_norm AS declarante, n.cargo, pp.ficha AS "declaranteFicha", n.grado, n.parentesco, n.electo,
+              n.locador_electo AS "locadorElecto",
               n.proveedor_ruc AS "proveedorRuc", n.proveedor_nombre AS "proveedorNombre", pc.codigo AS "proveedorCodigo", n.ordenes, n.monto,
               (SELECT count(*) FROM n)::int AS "totalCasos", (SELECT sum(monto) FROM n)::float AS "montoTotal",
               (SELECT json_agg(g) FROM g) AS "porGrado"

@@ -774,3 +774,83 @@ test("la base reserva con la misma regla que la API (migración 311) y la corre 
   despues(cadena(leer("../../scripts/cargar_visitas_congreso.py"), 'for fn in ("refrescar_visita_pariente"'), ['"refrescar_planilla_extra"'], null,
     "cargar_visitas_congreso.py");
 });
+
+test("el caso inverso en la entidad: el locador es el electo y el parentesco destapa al funcionario → «lo declaró un funcionario de la entidad», sólo en los totales", async () => {
+  const { nepotismoPublico } = await import("../src/lib/nepotismo.js");
+  const fila = (x: Record<string, unknown>) => ({
+    declarante: null, cargo: null, declaranteFicha: null, grado: "otro", parentesco: null, electo: false, locadorElecto: false,
+    proveedorRuc: "10439608801", proveedorNombre: "PEREZ QUISPE JUAN", proveedorCodigo: "0123456789ab", ordenes: 1, monto: 1000, ...x,
+  }) as Parameters<typeof nepotismoPublico>[0][number];
+  // Un jefe (no electo) declaró a su hermano, que es regidor (electo) y locador de la entidad.
+  const jefeHermanoRegidor = fila({ declarante: "SALAS VEGA LUIS", cargo: "JEFE DE LOGISTICA", declaranteFicha: "f9", grado: "hermano",
+                                    parentesco: "HERMANO(A) DEL DECLARANTE", locadorElecto: true, proveedorRuc: "10411112222",
+                                    proveedorNombre: "SALAS VEGA PEDRO", proveedorCodigo: "e1e2e3e4e5e6", ordenes: 4, monto: 15020 });
+  // Su hijo electo no destapa al funcionario (el materno del hijo no es el del padre): se ve, como siempre.
+  const gerenteHijoElecto = fila({ declarante: "TORRES LIMA ANA", cargo: "GERENTE MUNICIPAL", grado: "hijo", parentesco: "HIJO(A)", locadorElecto: true,
+                                   proveedorRuc: "10422223333", proveedorNombre: "QUISPE TORRES RAUL", proveedorCodigo: "f1f2f3f4f5f6", ordenes: 2, monto: 7000 });
+  const comun = fila({ declarante: "ROJAS PAZ ELENA", cargo: "ASISTENTE", grado: "conyuge", parentesco: "CONYUGE", proveedorCodigo: "a9a9a9a9a9a9", ordenes: 3, monto: 9000 });
+  const filas = [jefeHermanoRegidor, comun, gerenteHijoElecto];
+  const grupos = filas.map((f) => ({ grado: f.grado, parentesco: f.parentesco, electo: f.electo, locadorElecto: f.locadorElecto, n: 1, monto: f.monto }));
+  const r = nepotismoPublico(filas, grupos, 3, 15020 + 9000 + 7000);
+  const s = json(r);
+  // El caso inverso: al final, como «lo declaró un funcionario de la entidad»; ni su cargo, su apellido, su ficha ni el
+  // parentesco; ni el locador ni el monto.
+  assert.deepEqual(r.detalle.at(-1), { reservado: true, declarante: "funcionario" });
+  assert.doesNotMatch(s, /JEFE DE LOGISTICA|SALAS|"f9"|e1e2e3e4e5e6|15020/);
+  // Los demás, como siempre (sin la marca de quién es electo).
+  assert.equal(r.detalle.length, 3);
+  assert.ok(r.detalle.some((d) => (d as Record<string, unknown>).proveedorCodigo === "f1f2f3f4f5f6"));
+  assert.doesNotMatch(s, /locadorElecto/);
+  // Sólo suma en los totales: con un solo caso reservado, ni el monto general (la lista los trae todos) ni el de su grado.
+  assert.equal(r.total, 3);
+  assert.equal(r.monto, null);
+  assert.deepEqual(r.porGrado.find((g) => g.grado === "hermano"), { grado: "hermano", n: 1, monto: null });
+
+  // Con uno de cada lado, cada uno con su leyenda, y el monto general ya no destapa a ninguno.
+  const alcaldeHermano = fila({ declarante: "PEREZ QUISPE PEDRO", cargo: "ALCALDE", grado: "hermano", parentesco: "HERMANO(A) DEL DECLARANTE", electo: true,
+                                proveedorCodigo: "b1b2b3b4b5b6", ordenes: 5, monto: 20000 });
+  const dos = [jefeHermanoRegidor, alcaldeHermano];
+  const r2 = nepotismoPublico(dos, dos.map((f) => ({ grado: f.grado, parentesco: f.parentesco, electo: f.electo, locadorElecto: f.locadorElecto, n: 1, monto: f.monto })), 2, 35020);
+  assert.deepEqual(r2.detalle, [{ reservado: true }, { reservado: true, declarante: "funcionario" }]);
+  assert.equal(r2.monto, 35020);
+  assert.deepEqual(r2.porGrado, [{ grado: "hermano", n: 2, monto: 35020 }]);
+});
+
+test("el caso inverso en lo del funcionario: su ficha de planilla no lo muestra (va tapado); si él también es electo, reservado", async () => {
+  const { casoDelDeclarante, podarParientes, casoReservado } = await import("../src/lib/nepotismo.js");
+  const { reservarParentesco } = await import("../src/lib/privacidad.js");
+  // Un funcionario sin cargo de elección declaró a su hermano, que es autoridad electa: en su ficha, el caso no sale.
+  assert.equal(casoDelDeclarante({ parentesco: "HERMANO(A) DEL DECLARANTE", declaranteElecto: false, familiarElecto: true }), "fuera");
+  assert.equal(casoDelDeclarante({ parentesco: "MADRE DEL DECLARANTE", declaranteElecto: false, familiarElecto: true }), "fuera");
+  assert.equal(casoDelDeclarante({ parentesco: "PALOMINO HERMANO", declaranteElecto: false, familiarElecto: true }), "fuera");
+  // Con un parentesco que no lo destapa (su hijo, su cónyuge), se ve.
+  assert.equal(casoDelDeclarante({ parentesco: "HIJO(A)", declaranteElecto: false, familiarElecto: true }), "ver");
+  assert.equal(casoDelDeclarante({ parentesco: "CONYUGE", declaranteElecto: true, familiarElecto: true }), "ver");
+  // Si él es electo (va completo), reservado: el de la 311 y el de los dos electos.
+  assert.equal(casoDelDeclarante({ parentesco: "HERMANO(A) DEL DECLARANTE", declaranteElecto: true, familiarElecto: false }), "reservado");
+  assert.equal(casoDelDeclarante({ parentesco: "HERMANO(A) DEL DECLARANTE", declaranteElecto: true, familiarElecto: true }), "reservado");
+  assert.equal(casoDelDeclarante({ parentesco: "HERMANO(A) DEL DECLARANTE", declaranteElecto: false, familiarElecto: false }), "ver");
+
+  // En la ficha del electo (la señal de /personas/:codigo), el caso inverso sigue: reservado, no podado (es lo suyo).
+  const det = { parientes: [{ declarante: "SALAS VEGA LUIS", cargo: "JEFE DE LOGISTICA", grado: "hermano", parentesco: "HERMANO(A) DEL DECLARANTE" }] };
+  assert.equal(podarParientes("nepotismo", det, (pr) => casoReservado({ electo: false, parentesco: String(pr.parentesco) })), det);
+  assert.ok(reservarParentesco({ parentesco: "HERMANO(A) DEL DECLARANTE", declaranteElecto: false, familiarPublico: true }));
+});
+
+test("la base reserva el caso inverso con la misma lista que la API (migración 312)", async () => {
+  const { readFileSync } = await import("node:fs");
+  const { PARENTESCOS_INVERSO_PUBLICABLES, FAMILIA_POLITICA_FUENTE, parentescoInversoPublicable } = await import("../src/lib/privacidad.js");
+  const sql = readFileSync(new URL("../../db/migrations/312_reserva_parientes_inversa.sql", import.meta.url), "utf8");
+  const funcion = sql.slice(sql.indexOf("FUNCTION parentesco_inverso_publicable"), sql.indexOf("1. Los pares del filtro"));
+  const lista = /x\.n IN \(([\s\S]*?)\)\s+OR x\.n ~/.exec(funcion)?.[1] ?? "";
+  const enSql = [...lista.matchAll(/'([^']+)'/g)].map((m) => m[1]);
+  assert.ok(enSql.length >= 17);
+  assert.deepEqual([...enSql].sort(), [...PARENTESCOS_INVERSO_PUBLICABLES].sort());
+  for (const p of enSql) assert.ok(parentescoInversoPublicable(p), p);
+  assert.ok(funcion.includes(`'${FAMILIA_POLITICA_FUENTE}'`));
+  assert.ok(funcion.includes("btrim(regexp_replace(upper(immutable_unaccent(COALESCE(p, ''))), '\\s+', ' ', 'g'))"));
+  // Los pares del filtro de la planilla y la función fila por fila usan la misma regla; y la reserva de la 311 sigue entera.
+  assert.match(sql, /FUNCTION public\.refrescar_dji_nepotismo_pares[\s\S]*?parentesco_inverso_publicable/);
+  assert.match(sql, /FUNCTION public\.dji_declarante_con_nepotismo[\s\S]*?parentesco_inverso_publicable/);
+  assert.match(sql, /FUNCTION refrescar_reserva_parientes[\s\S]*?CASE WHEN parentesco_publicable\(x\.p->>'parentesco'\) THEN false/);
+});

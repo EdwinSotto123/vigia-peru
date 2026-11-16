@@ -3,13 +3,14 @@ import { z } from "zod";
 import { consultaConPlazo, pool } from "../lib/db.js";
 import { Memo } from "../lib/cache.js";
 import { cachePublico, parametros } from "../lib/http.js";
-import { TAPA_NOMBRE, publicar, parentescoPublicable } from "../lib/privacidad.js";
-import { declaranteElectoSql } from "../lib/electos.js";
+import { TAPA_NOMBRE, publicar } from "../lib/privacidad.js";
+import { declaranteElectoSql, esElectoSql } from "../lib/electos.js";
+import { casoDelDeclarante } from "../lib/nepotismo.js";
 import { djiEntidad, personalPte } from "../lib/fuentes.js";
 import { visitasHasta } from "../lib/visitas.js";
 import { adscritosDe, armarOrganigrama, plantillaPorNombre, type CargoDji, type NombreGlobal, type OficinaPlanilla, type PlantillaId, type UnidadGobierno, type VisitaArea } from "../lib/organigrama.js";
 import { palabrasBusqueda } from "./personas.js";
-import { funcionariosConPariente, type FuncionariosConPariente } from "./entidades.js";
+import type { FuncionariosConPariente } from "./entidades.js";
 
 /**
  * Planilla (migración 92) y plazas CAS (migración 93).
@@ -118,6 +119,22 @@ export const conPariente = (t: string, pares: FuncionariosConPariente | null, p:
   pares
     ? `(${t}.entidad_ruc, ${t}.nombre_norm) IN (SELECT x.e, x.d FROM unnest(${p(pares.entidades)}::text[], ${p(pares.declarantes)}::text[]) AS x(e, d))`
     : `dji_declarante_con_nepotismo(${t}.entidad_ruc, ${t}.nombre_norm)`;
+
+/**
+ * Los pares de la planilla: los mismos del indicio (entidades.ts), sin el funcionario cuyos familiares locadores son todos
+ * autoridades electas con un parentesco que destaparía su apellido tapado (migración 312): marcarlo diría cuál es. La
+ * entidad sigue contando el caso. Si la función no está o falla, null (cada fila va con dji_declarante_con_nepotismo, que
+ * tampoco los cuenta).
+ */
+const SQL_PARES_PLANILLA = `SELECT entidad, declarante FROM dji_nepotismo_pares_planilla()`;
+const paresPlanillaMemo = new Memo<FuncionariosConPariente>({ nombre: "planilla:pares", ttlMs: 600_000, staleMs: 3_600_000, max: 1 });
+export const funcionariosConParientePlanilla = () =>
+  paresPlanillaMemo
+    .obtener("todos", async () => {
+      const r = await consultaConPlazo<{ entidad: string; declarante: string }>(SQL_PARES_PLANILLA, [], 30_000);
+      return { entidades: r.rows.map((x) => x.entidad), declarantes: r.rows.map((x) => x.declarante) };
+    })
+    .catch((e) => { console.warn(`[planilla] pares: ${(e as Error).message}`); return null; });
 
 export const ListaPlanilla = {
   ...Alcance,
@@ -304,7 +321,7 @@ planillaRouter.get("/", async (c) => {
                         situacion: "antes", salieron, mesParcial });
     }
     // Los pares funcionario × entidad del indicio (calculados una vez): la lista sólo los espera si filtra por él.
-    const paresP = funcionariosConPariente();
+    const paresP = funcionariosConParientePlanilla();
     const conds = [...alc];
     const v2 = [...vals];
     filtrosPlanilla(q, conds, v2, q.pariente ? await paresP : null);
@@ -382,11 +399,13 @@ planillaRouter.get("/ficha/:codigo", async (c) => {
         [f._nn, f.entidadRuc]),
       // Parientes que ESTA persona declaró en su DJI y que son locadores de su MISMA entidad (lado del funcionario del
       // nepotismo, vista dji_nepotismo migr. 137). El pariente (RUC-10) va tapado por publicar(); enlaza a su ficha.
-      // `electo`: esta persona es una autoridad electa (regidor, alcalde…: su nombre completo es público en el JNE).
+      // `electo`: esta persona es una autoridad electa (regidor, alcalde…: su nombre completo es público en el JNE);
+      // `locadorElecto`: el familiar lo es (por su DNI, que no sale de la base).
       pool.query<{ grado: string; parentesco: string | null; proveedorRuc: string; proveedorNombre: string; proveedorCodigo: string | null;
-                   ordenes: number; monto: number; electo: boolean }>(
+                   ordenes: number; monto: number; electo: boolean; locadorElecto: boolean }>(
         `SELECT n.grado, n.parentesco, n.proveedor_ruc AS "proveedorRuc", n.proveedor_nombre AS "proveedorNombre",
-                pc.codigo AS "proveedorCodigo", n.ordenes, n.monto, ${declaranteElectoSql("$1::text", "$2::text", "$3::text")} AS electo
+                pc.codigo AS "proveedorCodigo", n.ordenes, n.monto, ${declaranteElectoSql("$1::text", "$2::text", "$3::text")} AS electo,
+                ${esElectoSql("substr(n.proveedor_ruc, 3, 8)")} AS "locadorElecto"
            FROM dji_nepotismo n LEFT JOIN persona_codigo pc ON pc.ruc = n.proveedor_ruc
           WHERE n.declarante_norm = $1 AND n.entidad_ruc = $2 ORDER BY n.monto DESC NULLS LAST LIMIT 20`,
         [f._nn, f.entidadRuc, f.cargo ?? ""]),
@@ -398,7 +417,12 @@ planillaRouter.get("/ficha/:codigo", async (c) => {
       otras: otras.rows,
       // Si es una autoridad electa y el parentesco destaparía el apellido tapado del familiar (hermano, hijo, sobrino,
       // primo, nieto o desconocido), el familiar no se identifica: ni su nombre, ni su ficha, ni sus órdenes, ni el monto.
-      nepotismo: nepotismo.rows.map(({ electo, ...x }) => (electo && !parentescoPublicable(x.parentesco) ? { reservado: true as const } : x)),
+      // Si el electo es el familiar y el parentesco destaparía el apellido tapado de esta persona, el caso no sale aquí
+      // (es lo suyo y va con un apellido tapado); si los dos son electos, reservado (lib/nepotismo.ts, migración 312).
+      nepotismo: nepotismo.rows.flatMap(({ electo, locadorElecto, ...x }): (typeof x | { reservado: true })[] => {
+        const caso = casoDelDeclarante({ parentesco: x.parentesco, declaranteElecto: electo, familiarElecto: locadorElecto });
+        return caso === "fuera" ? [] : caso === "reservado" ? [{ reservado: true }] : [x];
+      }),
     });
   });
   if (!cuerpo) return c.json({ error: "not_found" }, 404);

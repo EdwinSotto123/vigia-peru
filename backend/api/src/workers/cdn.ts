@@ -101,8 +101,9 @@ const GUARDADO = "X-Vigia-Guardado";
  *        (migración 301).
  * "102": la señal de personas «órdenes tras un informe de control» (migración 308, `senales.informeLocador`) y los
  *        familiares de una autoridad electa con parentesco que destapa, reservados en nepotismo y planilla (311).
+ * "103": el caso inverso: la autoridad electa es el familiar y el parentesco destaparía al funcionario (312).
  */
-const VERSION_CACHE = "102";
+const VERSION_CACHE = "103";
 
 function cacheable(req: Request): boolean {
   if (req.method !== "GET") return false;
