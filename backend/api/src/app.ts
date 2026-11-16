@@ -59,6 +59,7 @@ import { proyectosRouter } from "./routes/proyectos.js";
 import { iaRouter } from "./routes/ia.js";
 import { datosRouter } from "./routes/datos.js";
 import { hallazgosRouter } from "./routes/hallazgos.js";
+import { transparenciaRouter } from "./routes/transparencia.js";
 
 export const app = new Hono();
 
@@ -188,6 +189,9 @@ api.route("/datos", datosRouter);
 // Hallazgos: el ranking de una cifra dentro de un grupo de entidades parecidas (migración 256). La ficha de una entidad
 // va en /entidades/:ruc/hallazgos.
 api.route("/hallazgos", hallazgosRouter);
+// Métricas y transparencia (página /metricas): precisión de los agentes, RAG normativo, verificación, costos y bitácora
+// con fecha. Sólo agregados (migración 300).
+api.route("/transparencia", transparenciaRouter);
 api.route("/admin", adminRouter);
 
 app.route("/", api);

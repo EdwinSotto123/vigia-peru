@@ -7,11 +7,12 @@ import { Vistas } from "@/components/listado/Vistas";
  * cabecera, así que pasar de una a otra se lee como cambiar de pestaña.
  */
 
-export type VistaComoTrabaja = "metodologia" | "fuentes" | "ia" | "auditoria" | "preguntas" | "glosario" | "privacidad";
+export type VistaComoTrabaja = "metodologia" | "fuentes" | "metricas" | "ia" | "auditoria" | "preguntas" | "glosario" | "privacidad";
 
 const COMO_TRABAJA: { clave: VistaComoTrabaja; href: string; etiqueta: string }[] = [
   { clave: "metodologia", href: "/metodologia", etiqueta: "Metodología" },
   { clave: "fuentes", href: "/fuentes", etiqueta: "Fuentes" },
+  { clave: "metricas", href: "/metricas", etiqueta: "Métricas y costos" },
   { clave: "ia", href: "/app/ia", etiqueta: "Lo que leyó la IA" },
   { clave: "auditoria", href: "/app/auditoria", etiqueta: "Auditoría en vivo" },
   { clave: "preguntas", href: "/preguntas", etiqueta: "Preguntas" },

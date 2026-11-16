@@ -40,6 +40,7 @@ const SOBRE_VIGIA: Enlace[] = [
   { href: "/preguntas", label: "Preguntas frecuentes" },
   { href: "/metodologia", label: "Metodología" },
   { href: "/fuentes", label: "De dónde salen los datos" },
+  { href: "/metricas", label: "Métricas y transparencia" },
   { href: "/glosario", label: "Glosario" },
   { href: "/app/apoyar?seccion=costos", label: "Cuánto cuesta y quién paga" },
   { href: "/privacidad", label: "Privacidad y tus datos" },

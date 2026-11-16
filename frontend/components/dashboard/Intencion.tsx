@@ -46,6 +46,7 @@ const RUTAS: [prefijo: string, intencion: Intencion][] = [
   ["/app/ia", "explorar"],
   ["/metodologia", "explorar"],
   ["/fuentes", "explorar"],
+  ["/metricas", "explorar"],
   ["/preguntas", "explorar"],
   ["/glosario", "explorar"],
   ["/privacidad", "explorar"],

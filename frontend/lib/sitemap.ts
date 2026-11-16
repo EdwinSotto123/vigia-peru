@@ -30,7 +30,7 @@ const RUTA: Record<TipoFicha, (id: string) => string> = {
 export const PAGINAS_FIJAS = [
   "/", "/app", "/app/contratos", "/app/entidades", "/app/empresas", "/app/partidos", "/app/poder", "/app/hallazgos",
   "/app/novedades", "/app/ia", "/app/mapa", "/app/apoyar", "/glosario", "/preguntas",
-  "/fuentes", "/metodologia", "/privacidad",
+  "/fuentes", "/metodologia", "/metricas", "/privacidad",
 ];
 
 async function leerApi<T>(ruta: string): Promise<T | null> {

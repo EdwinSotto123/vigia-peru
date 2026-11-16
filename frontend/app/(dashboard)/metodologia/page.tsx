@@ -72,6 +72,7 @@ const NO_PRUEBA: { titulo: string; texto: string }[] = [
 
 const DONDE: { titulo: string; texto: string; href: string; enlace: string }[] = [
   { titulo: "Las fuentes", texto: "Cada registro, con la fecha hasta la que llega hoy.", href: "/fuentes", enlace: "Ver las fuentes" },
+  { titulo: "Las métricas", texto: "Cuánto aciertan los agentes, cuánto se equivocan y cuánto cuesta, con fecha.", href: "/metricas", enlace: "Ver las métricas" },
   { titulo: "La privacidad", texto: "Sin DNI, con un apellido tapado y sin el RUC de una persona.", href: "/privacidad", enlace: "Ver la política" },
   { titulo: "Las correcciones", texto: "Si un dato sobre ti es incorrecto, pídelo desde el formulario.", href: "/privacidad#pedido", enlace: "Pedir una corrección" },
   { titulo: "Los términos", texto: "Cada palabra que usa Vigía, explicada en simple.", href: "/glosario", enlace: "Abrir el glosario" },
