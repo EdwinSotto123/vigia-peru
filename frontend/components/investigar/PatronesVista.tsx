@@ -900,6 +900,9 @@ function filaInhabilitada(p: PatronInhabilitada, i: number): Fila {
       ? `del ${fechaConAnio(p.sancionDesde)} al ${fechaConAnio(p.sancionHasta)}`
       : `desde el ${fechaConAnio(p.sancionDesde)}`
     : null;
+  // La fecha de fundación sólo se dice cuando es el motivo: la empresa nació desde seis meses antes de la sanción.
+  const nacioCerca =
+    !!p.fundada && !!p.sancionDesde && new Date(`${p.fundada}T12:00:00Z`).getTime() >= new Date(`${p.sancionDesde}T12:00:00Z`).getTime() - 180 * 86_400_000;
   return {
     id: `inhabilitada-${i}`,
     textos: { periodo: anios },
@@ -908,12 +911,7 @@ function filaInhabilitada(p: PatronInhabilitada, i: number): Fila {
         <CeldaPrincipal
           dosLineas
           titulo={<EnlaceEmpresa ruc={p.ruc} nombre={p.empresa} />}
-          meta={
-            <span className="block">
-              {p.socios?.[0]?.nombre ?? "Socio sin nombre publicado"}
-              {p.hechaParaSeguir && p.fundada ? `, empresa fundada el ${fechaConAnio(p.fundada)}` : ""}
-            </span>
-          }
+          meta={<span className="block">{p.socios?.[0]?.nombre ?? "Socio sin nombre publicado"}</span>}
         />
       ),
       sancionada: (
@@ -923,6 +921,7 @@ function filaInhabilitada(p: PatronInhabilitada, i: number): Fila {
             {clase}
             {rango ? `, ${rango}` : ""}
           </span>
+          {nacioCerca ? <span className="mt-0.5 block text-rotulo text-inkSoft">La empresa que gana se fundó el {fechaConAnio(p.fundada!)}</span> : null}
         </span>
       ),
       contratos: <CeldaNumero sub={p.graves > 0 ? `${numero(p.graves)} ${p.graves === 1 ? "grave" : "graves"}` : undefined}>{numero(p.contratos)}</CeldaNumero>,

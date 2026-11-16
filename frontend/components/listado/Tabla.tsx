@@ -492,7 +492,8 @@ function FilaTabla({
                   {pares.map((a) => (
                     <span key={a.clave} className={cn("inline-flex min-w-0 items-baseline gap-1.5 [&_*]:text-left [&_[role=img]]:hidden", k.hasta[a.desde!])}>
                       <span className="shrink-0 text-rotulo text-mute">{a.corto ?? a.titulo}</span>
-                      <span className="min-w-0 whitespace-nowrap font-semibold [&_*]:inline">{fila.celdas[a.clave]}</span>
+                      {/* La cifra y su línea de abajo quedan en un renglón: la segunda va separada y sin negrita («43 43 graves» se leía «4343 graves»). */}
+                      <span className="min-w-0 whitespace-nowrap font-semibold [&_*]:inline [&_span+span]:ml-1.5 [&_span+span]:font-normal">{fila.celdas[a.clave]}</span>
                     </span>
                   ))}
                 </span>
