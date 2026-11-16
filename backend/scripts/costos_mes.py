@@ -34,6 +34,12 @@ RUBROS_AWS = {
                    "El cómputo de los agentes que leen cada contrato; sube mientras corre el análisis masivo y baja cuando termina"),
 }
 OTROS_AWS = ("aws_otros", "Otros servicios de AWS", None)
+# Lo que NO se proyecta con el ritmo de los últimos días: el análisis masivo es una campaña con tope (MASIVO_TOPE), no un
+# gasto de todos los meses. Proyectado, el 2026-11-16 dejó noviembre en US$ 729 y la meta pública de aportes en S/ 2 504
+# (era S/ 1 200). De estos servicios se publica lo facturado hasta ayer, y el mes siguiente no los trae hasta su factura.
+SIN_PROYECTAR = {"AWS Lambda"}
+NOTA_SIN_PROYECTAR = "sin proyectar al mes: es el análisis masivo de contratos, una campaña con tope"
+
 
 # Cloudflare: el plan de Workers (las páginas, la API y la captura de datos corren ahí). El uso por encima del plan no
 # se mide aquí (Cloudflare no tiene una API de facturación pública).
@@ -110,16 +116,20 @@ def filas_del_mes(mes: date) -> tuple[list[tuple], str, dict[str, float] | None,
         ritmo = aws_ce(max(mes, hoy - timedelta(days=dias)), hoy)
         dias_reales = (hoy - max(mes, hoy - timedelta(days=dias))).days or 1
         faltan = (fin - al).days
-        proyectado = {k: v + ritmo.get(k, 0.0) / dias_reales * faltan for k, v in facturado.items()}
+        proyectado = {k: v + (0.0 if k in SIN_PROYECTAR else ritmo.get(k, 0.0) / dias_reales * faltan) for k, v in facturado.items()}
         for k, v in ritmo.items():
-            proyectado.setdefault(k, v / dias_reales * faltan)
+            if k not in SIN_PROYECTAR:
+                proyectado.setdefault(k, v / dias_reales * faltan)
         nota_mes += f"; proyectado al mes con el ritmo de los últimos {dias_reales} días"
     filas = []
     for rubro, (titulo, detalle, usd, servicios) in agrupar(proyectado).items():
         if usd < 0.01:
             continue
+        # Un rubro que no se proyecta dice hasta qué día va su cifra, no «proyectado al mes».
+        fijo = not cerrado and all(s in SIN_PROYECTAR for s in servicios)
+        nota = f"Facturado del 1 al {al.day} de {mes.month:02d}/{mes.year}, {NOTA_SIN_PROYECTAR}" if fijo else nota_mes
         filas.append((mes, rubro, titulo, "AWS", detalle or detalle_otros(servicios), round(usd, 2), "factura", not cerrado,
-                      al, nota_mes + ". Hoy lo cubren créditos promocionales de AWS: es lo que costará cuando se acaben."))
+                      al, nota + ". Hoy lo cubren créditos promocionales de AWS: es lo que costará cuando se acaben."))
     rubro, titulo, proveedor, detalle, usd, nota = CLOUDFLARE
     filas.append((mes, rubro, titulo, proveedor, detalle, usd, "estimado", False, None, nota))
     return filas, nota_mes, ritmo, dias_reales
@@ -131,7 +141,8 @@ def filas_proyeccion(mes: date, ritmo: dict[str, float], dias: int) -> list[tupl
     nota = (f"Proyección: el ritmo de los últimos {dias} días por los {dias_mes} del mes, hasta que llegue la factura. "
             "Hoy lo cubren créditos promocionales de AWS: es lo que costará cuando se acaben.")
     filas = [(mes, rubro, titulo, "AWS", detalle or detalle_otros(servicios), round(usd / dias * dias_mes, 2), "estimado", True, None, nota)
-             for rubro, (titulo, detalle, usd, servicios) in agrupar(ritmo).items() if usd / dias * dias_mes >= 0.01]
+             for rubro, (titulo, detalle, usd, servicios) in agrupar({k: v for k, v in ritmo.items() if k not in SIN_PROYECTAR}).items()
+             if usd / dias * dias_mes >= 0.01]
     rubro, titulo, proveedor, detalle, usd, nota_cf = CLOUDFLARE
     filas.append((mes, rubro, titulo, proveedor, detalle, usd, "estimado", False, None, nota_cf))
     return filas

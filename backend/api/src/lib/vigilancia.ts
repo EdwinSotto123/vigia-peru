@@ -5,7 +5,9 @@
  *
  *   · costos: `costos_mes` (la factura de AWS por servicio y la tarifa de Cloudflare; backend/scripts/costos_mes.py).
  *     Un mes sin cerrar va proyectado; el siguiente, al ritmo de hoy, hasta que llegue su factura.
- *   · IA: lo que costó cada lectura a fondo (alertas.analisis_full->'llm_metrics', medido en cada lectura).
+ *   · IA: lo que costó cada lectura a fondo (llm_metrics.cost_usd, medido en cada lectura), sumado desde la tabla
+ *     angosta `transparencia_analisis` (migración 300, al día cada hora). Leerlo del JSON de cada alerta tardaba 7,7 s con
+ *     8 728 análisis (2026-11-16) y el rol de la API corta a los 10 s: la página decía «No pudimos leer los costos».
  *   · meta: el piso (seguir encendidos) y la completa (además, leer a fondo todos los contratos con banderas graves de
  *     un mes: el promedio de los últimos tres meses cerrados por el costo medio de una lectura). El piso es lo que dice el
  *     equipo que cuesta mantenerla (MANTENERLA_EQUIPO_PEN), o lo facturado si algún mes lo pasa: las facturas de
@@ -16,7 +18,6 @@
 
 import { pool } from "./db.js";
 import { Memo } from "./cache.js";
-import { alertaNoDemo } from "./publicacion.js";
 
 /**
  * Lo que cuesta de verdad mantener Vigía encendida, dicho por el equipo el 2026-10-29 («S/ 334 al mes es imposible…
@@ -24,6 +25,13 @@ import { alertaNoDemo } from "./publicacion.js";
  * son una parte, y lo demás no aparece en ellas. La meta toma el mayor de los dos; se cambia aquí si cambia.
  */
 const MANTENERLA_EQUIPO_PEN = 1_200;
+
+/**
+ * Rubros de `costos_mes` que se muestran y se suman al total del mes, pero NO entran al piso de la meta: el piso es
+ * mantenerla encendida (base, servidores, red, páginas) y el cómputo de los agentes es leer contratos, que además corre
+ * como campaña con tope. Con él adentro, la meta pública pasó de S/ 1 200 a S/ 2 504 el 2026-11-16.
+ */
+const RUBROS_FUERA_DEL_PISO = new Set(["aws_agentes"]);
 
 /** Sin el del BCRP (la tabla vacía): un tipo de cambio referencial, dicho como tal. */
 const TC_REFERENCIAL = 3.75;
@@ -89,13 +97,14 @@ export function resumenVigilancia(): Promise<ResumenVigilancia> {
       pool.query(`SELECT pen_por_usd::float AS v, fuente FROM tipo_cambio_mes WHERE mes <= $1 ORDER BY mes DESC LIMIT 1`, [m.dia])
         .catch(() => ({ rows: [] as any[] })),
       pool.query(
-        `SELECT count(*) FILTER (WHERE a.analizado_en >= $1 AND a.analizado_en < $2)::int AS "lecturasMes",
-                COALESCE(sum((a.analisis_full->'llm_metrics'->>'cost_usd')::numeric) FILTER (WHERE a.analizado_en >= $1 AND a.analizado_en < $2), 0)::float AS "costoMesUsd",
-                avg((a.analisis_full->'llm_metrics'->>'cost_usd')::numeric)::float AS "costoMedioUsd",
+        // De la tabla angosta (ya sin las alertas de demostración): no del JSON de cada alerta.
+        `SELECT count(*) FILTER (WHERE t.analizado_en >= $1 AND t.analizado_en < $2)::int AS "lecturasMes",
+                COALESCE(sum(t.usd) FILTER (WHERE t.analizado_en >= $1 AND t.analizado_en < $2), 0)::float AS "costoMesUsd",
+                avg(t.usd)::float AS "costoMedioUsd",
                 count(*)::int AS "lecturasTotal",
-                to_char(min(a.analizado_en) AT TIME ZONE 'America/Lima', 'YYYY-MM-DD') AS desde
-           FROM alertas a
-          WHERE a.analisis_full ? 'llm_metrics' AND (a.analisis_full->'llm_metrics'->>'cost_usd') IS NOT NULL AND ${alertaNoDemo("a")}`,
+                to_char(min(t.analizado_en) AT TIME ZONE 'America/Lima', 'YYYY-MM-DD') AS desde
+           FROM transparencia_analisis t
+          WHERE t.usd IS NOT NULL`,
         [m.ini, m.fin]),
       // Los contratos con banderas graves de un mes: el promedio de los tres últimos meses cerrados.
       pool.query(
@@ -116,14 +125,13 @@ export function resumenVigilancia(): Promise<ResumenVigilancia> {
          )
          SELECT to_char(x.mes, 'YYYY-MM') AS mes,
                 (SELECT sum(monto_usd)::float FROM costos_mes c WHERE c.mes = x.mes) AS "costoUsd",
-                (SELECT COALESCE(sum((a.analisis_full->'llm_metrics'->>'cost_usd')::numeric), 0)::float FROM alertas a
-                  WHERE a.analisis_full ? 'llm_metrics' AND ${alertaNoDemo("a")}
-                    AND a.analizado_en >= (x.mes::timestamp AT TIME ZONE 'America/Lima')
-                    AND a.analizado_en < ((x.mes + interval '1 month')::timestamp AT TIME ZONE 'America/Lima')) AS "iaUsd",
-                (SELECT count(*)::int FROM alertas a
-                  WHERE a.analisis_full ? 'llm_metrics' AND ${alertaNoDemo("a")}
-                    AND a.analizado_en >= (x.mes::timestamp AT TIME ZONE 'America/Lima')
-                    AND a.analizado_en < ((x.mes + interval '1 month')::timestamp AT TIME ZONE 'America/Lima')) AS lecturas,
+                (SELECT COALESCE(sum(t.usd), 0)::float FROM transparencia_analisis t
+                  WHERE t.analizado_en >= (x.mes::timestamp AT TIME ZONE 'America/Lima')
+                    AND t.analizado_en < ((x.mes + interval '1 month')::timestamp AT TIME ZONE 'America/Lima')) AS "iaUsd",
+                (SELECT count(*)::int FROM transparencia_analisis t
+                  WHERE t.usd IS NOT NULL
+                    AND t.analizado_en >= (x.mes::timestamp AT TIME ZONE 'America/Lima')
+                    AND t.analizado_en < ((x.mes + interval '1 month')::timestamp AT TIME ZONE 'America/Lima')) AS lecturas,
                 (SELECT COALESCE(sum(monto_pen), 0)::float FROM contribuciones co
                   WHERE co.${VALIDADA} AND co.pasarela IS DISTINCT FROM 'institucional'
                     AND co.pagada_at >= (x.mes::timestamp AT TIME ZONE 'America/Lima')
@@ -159,7 +167,7 @@ export function resumenVigilancia(): Promise<ResumenVigilancia> {
     const porMes = num(graves.rows[0]?.n);
     const costoLeerlosUsd = costoMedioUsd == null ? null : porMes * costoMedioUsd;
     const pen = (usd: number) => Math.round(usd * tipoCambio.penPorUsd);
-    const medidoPen = rubros.length ? pen(totalUsd) : null;
+    const medidoPen = rubros.length ? pen(rubros.reduce((s, r) => s + (RUBROS_FUERA_DEL_PISO.has(r.rubro) ? 0 : r.montoUsd), 0)) : null;
     const pisoPen = Math.max(medidoPen ?? 0, MANTENERLA_EQUIPO_PEN);
     const visibles = aliados.rows.map((r) => ({ nombre: r.nombre as string, tipo: r.tipo as string, slug: (r.slug as string) ?? null, periodicidad: (r.periodicidad as string) ?? null }));
     const anonimos = (await pool.query(
