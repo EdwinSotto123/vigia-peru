@@ -251,17 +251,19 @@ patronesRouter.get("/control", async (c) => {
     if (q.misma) conds.push("x.misma");
     const donde = conds.length ? `WHERE ${conds.join(" AND ")}` : "";
     // Unas 6 700 banderas: se agrupan al vuelo (la respuesta queda en memoria). El documento de la persona no sale de la
-    // consulta: sólo agrupa.
+    // consulta: sólo agrupa. El informe que se muestra es el MÁS ANTIGUO de la persona entre los de sus banderas: así
+    // todos los contratos contados son posteriores a él (con el más reciente, «ganados después» no era cierto para los
+    // contratos anteriores a ese informe).
     const r = await pool.query(
       `WITH x AS (
          SELECT c.ruc_empresa AS ruc, max(c.persona_nombre) AS nombre, max(c.detalle->>'rol_en_empresa') AS rol,
-                (array_agg(c.detalle->>'informe_codigo' ORDER BY c.severidad = 'alta' DESC, c.fecha DESC))[1] AS informe_codigo,
-                (array_agg(c.detalle->>'informe_numero' ORDER BY c.severidad = 'alta' DESC, c.fecha DESC))[1] AS informe_numero,
-                (array_agg(c.detalle->>'informe_entidad' ORDER BY c.severidad = 'alta' DESC, c.fecha DESC))[1] AS informe_entidad,
-                (array_agg(c.detalle->>'informe_entidad_ruc' ORDER BY c.severidad = 'alta' DESC, c.fecha DESC))[1] AS informe_entidad_ruc,
-                (array_agg(c.detalle->>'emision' ORDER BY c.severidad = 'alta' DESC, c.fecha DESC))[1] AS emision,
-                (array_agg(c.detalle->'responsabilidades' ORDER BY c.severidad = 'alta' DESC, c.fecha DESC))[1] AS responsabilidades,
-                (array_agg(c.detalle->>'url_resumen' ORDER BY c.severidad = 'alta' DESC, c.fecha DESC))[1] AS ficha,
+                (array_agg(c.detalle->>'informe_codigo' ORDER BY c.detalle->>'emision', c.fecha))[1] AS informe_codigo,
+                (array_agg(c.detalle->>'informe_numero' ORDER BY c.detalle->>'emision', c.fecha))[1] AS informe_numero,
+                (array_agg(c.detalle->>'informe_entidad' ORDER BY c.detalle->>'emision', c.fecha))[1] AS informe_entidad,
+                (array_agg(c.detalle->>'informe_entidad_ruc' ORDER BY c.detalle->>'emision', c.fecha))[1] AS informe_entidad_ruc,
+                (array_agg(c.detalle->>'emision' ORDER BY c.detalle->>'emision', c.fecha))[1] AS emision,
+                (array_agg(c.detalle->'responsabilidades' ORDER BY c.detalle->>'emision', c.fecha))[1] AS responsabilidades,
+                (array_agg(c.detalle->>'url_resumen' ORDER BY c.detalle->>'emision', c.fecha))[1] AS ficha,
                 max((c.detalle->>'n_informes')::int) AS informes,
                 count(DISTINCT c.ocid)::int AS contratos, (count(DISTINCT c.ocid) FILTER (WHERE c.severidad = 'alta'))::int AS graves,
                 sum(c.monto)::float AS monto, count(DISTINCT cv.entidad_ruc)::int AS entidades,
