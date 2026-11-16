@@ -14,6 +14,7 @@
  */
 import { esErrorPg, pool } from "./db.js";
 import { embeber, vectorLiteral, type IaWorkers } from "./rag.js";
+import { publicar } from "./privacidad.js";
 
 /** Los temas de una observación (lista cerrada de la lectura de IA) y el del objetivo en el buscador. */
 export const TEMAS_CONTROL: Record<string, string> = {
@@ -214,7 +215,8 @@ async function vectorDe(ia: IaWorkers, q: string): Promise<string> {
 
 /**
  * La búsqueda híbrida en las observaciones (y objetivos) de los informes de control. Sin `ia` o si Workers AI no
- * responde, sólo por palabras: `modo` lo dice. Devuelve los datos SIN publicar(): quien los devuelve al público los pasa.
+ * responde, sólo por palabras: `modo` lo dice. Los textos salen ya sin los nombres de los funcionarios comprendidos; lo
+ * demás (DNI sueltos, RUC 10) lo tapa el publicar() de quien los devuelve al público.
  */
 export async function buscarInformesControl(b: BusquedaControl, ia?: IaWorkers): Promise<{
   q: string; modo: "hibrido" | "texto"; total: number; resultados: ResultadoControl[]; tiempos_ms: { significado: number; consulta: number };
@@ -264,8 +266,31 @@ export async function buscarInformesControl(b: BusquedaControl, ia?: IaWorkers):
     vistos.add(clave);
     return true;
   }).slice(0, n);
+  const limpios = await sinComprendidos(resultados);
   return {
-    q: b.q, modo: vector ? "hibrido" : "texto", total: resultados.length, resultados,
+    q: b.q, modo: vector ? "hibrido" : "texto", total: limpios.length, resultados: limpios,
     tiempos_ms: { significado: t1 - t0, consulta: Date.now() - t1 },
   };
+}
+
+/**
+ * El texto de una observación a veces nombra a un funcionario comprendido en ese informe (medido el 2026-11-16: el nombre
+ * completo en 6 informes y los dos apellidos en 92). El detalle de un informe ya lo tapa, porque va junto a `implicados`;
+ * una búsqueda no los trae. Aquí se piden los comprendidos de los informes encontrados y se pasa todo por publicar(), que
+ * tapa a esas personas también dentro de la prosa: vale para la API, el MCP y los precedentes del informe para control.
+ * Sin la vista de la migración 302, los textos salen como están (publicar() de quien los devuelve sigue tapando DNI).
+ */
+async function sinComprendidos(resultados: ResultadoControl[]): Promise<ResultadoControl[]> {
+  const codigos = Array.from(new Set(resultados.map((x) => x.codigo)));
+  if (!codigos.length) return resultados;
+  try {
+    if (!(await hayVistaImplicados())) return resultados;
+    const r = await pool.query<{ nombre: string }>(
+      `SELECT DISTINCT nombre FROM informe_control_implicado WHERE codigo = ANY($1::text[])`, [codigos]);
+    if (!r.rows.length) return resultados;
+    return (publicar({ resultados, implicados: r.rows.map((x) => ({ nombre: x.nombre })) }) as { resultados: ResultadoControl[] }).resultados;
+  } catch (e) {
+    console.warn(`[control] comprendidos de la búsqueda: ${(e as Error).message}`);
+    return resultados;
+  }
 }
