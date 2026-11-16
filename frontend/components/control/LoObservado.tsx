@@ -56,8 +56,8 @@ export function LoObservado({
             <>
               <span className="flex min-w-0 items-center gap-2">
                 <MuestraSerie i={i} />
-                {Icono && <Icono size={14} strokeWidth={1.9} className="shrink-0 text-mute" aria-hidden />}
-                <span className="truncate text-meta font-medium text-ink">{t.temaTexto}</span>
+                {Icono && <Icono size={14} strokeWidth={1.9} className="hidden shrink-0 text-mute sm:block" aria-hidden />}
+                <span className="min-w-0 text-meta font-medium leading-snug text-ink">{t.temaTexto}</span>
               </span>
               <span className="shrink-0 text-right">
                 {t.perjuicioPen > 0 && <span className="block font-mono text-meta tabular-nums text-ink">{solesCompacto(t.perjuicioPen)}</span>}

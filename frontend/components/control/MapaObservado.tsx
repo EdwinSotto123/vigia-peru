@@ -53,7 +53,12 @@ export function MapaObservado({ datos }: { datos: ResumenControl | null }) {
               {i + 1}. {tituloNatural(e.entidad ?? `RUC ${e.ruc}`)}
             </Link>
           }
-          meta={<span className="block">{e.departamento ? tituloNatural(e.departamento) : "Sin departamento registrado"}, {plural(e.informes, "informe leído", "informes leídos")}</span>}
+          meta={
+            <span className="block">
+              {e.departamento ? tituloNatural(e.departamento) : (e.departamentos ?? 0) > 1 ? `En ${e.departamentos} departamentos` : "Sin departamento registrado"},{" "}
+              {plural(e.informes, "informe leído", "informes leídos")}
+            </span>
+          }
         />
       ),
       perjuicio: (
@@ -67,7 +72,7 @@ export function MapaObservado({ datos }: { datos: ResumenControl | null }) {
       contratos: (
         <CeldaNumero>
           {e.contratos > 0 ? (
-            <Link href={`/app/patrones?seccion=observados`} prefetch={false} className={CLASE_ENLACE_CELDA} title="Ver los proveedores con procesos observados">
+            <Link href={`/app/contratos?entidad=${e.ruc}&cruce=observado_por_contraloria`} prefetch={false} className={CLASE_ENLACE_CELDA} title="Ver los contratos de esta entidad que la Contraloría observó">
               {numero(e.contratos)}
             </Link>
           ) : (

@@ -110,14 +110,17 @@ informesControlRouter.get("/resumen", async (c) => {
             GROUP BY 1 ORDER BY 1`, q.tema ? [q.tema] : []),
         pool.query(
           `WITH x AS (
-             SELECT btrim(ic.entidad_ruc::text) AS ruc, max(ic.entidad_nombre) AS nombre, max(ic.departamento) AS departamento,
+             SELECT btrim(ic.entidad_ruc::text) AS ruc, max(ic.entidad_nombre) AS nombre,
+                    -- El departamento sólo si todos sus informes son de uno (EsSalud o un ministerio los tienen en varios).
+                    CASE WHEN count(DISTINCT ic.departamento) = 1 THEN max(ic.departamento) END AS departamento,
+                    count(DISTINCT ic.departamento)::int AS departamentos,
                     count(DISTINCT o.codigo)::int AS informes, count(*)::int AS observaciones, ${PERJ("PEN")} AS perjuicio,
                     count(DISTINCT o.codigo) FILTER (WHERE 'penal' = ANY (ic.responsabilidades))::int AS penal,
                     mode() WITHIN GROUP (ORDER BY o.tema) AS tema_principal
                FROM informe_control_observacion o JOIN informes_control ic ON ic.codigo = o.codigo
               WHERE ic.entidad_ruc ~ '^20[0-9]{9}' ${q.tema ? "AND o.tema = $2" : ""}
               GROUP BY 1)
-           SELECT x.ruc, COALESCE(e.nombre, x.nombre) AS entidad, x.departamento, x.informes, x.observaciones, x.perjuicio AS "perjuicioPen", x.penal,
+           SELECT x.ruc, COALESCE(e.nombre, x.nombre) AS entidad, x.departamento, x.departamentos, x.informes, x.observaciones, x.perjuicio AS "perjuicioPen", x.penal,
                   x.tema_principal AS "temaPrincipal",
                   (SELECT count(DISTINCT p.ocid) FROM informe_control_proceso p JOIN informes_control i2 ON i2.codigo = p.codigo
                     WHERE btrim(i2.entidad_ruc::text) = x.ruc)::int AS contratos

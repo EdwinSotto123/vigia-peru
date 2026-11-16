@@ -88,7 +88,9 @@ export interface ResumenControl {
   entidades: {
     ruc: string;
     entidad: string | null;
+    /** Sólo si todos sus informes leídos son de un departamento; `departamentos` dice en cuántos están. */
     departamento: string | null;
+    departamentos?: number;
     informes: number;
     observaciones: number;
     perjuicioPen: number;
