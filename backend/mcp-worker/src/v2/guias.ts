@@ -18,6 +18,10 @@ export const INSTRUCCIONES = [
   "personas con rastro_persona (por nombre completo: visitas, empresas, declaraciones, aportes, planilla y órdenes) y red_empresa,",
   "ordena los hechos por fecha y busca también la explicación inocente antes de concluir. Nunca digas «sin registros» de una",
   "persona sin haber usado rastro_persona.",
+  "Lo que ya encontró la Contraloría: informes_control (los de una entidad, con sus observaciones y funcionarios comprendidos) y",
+  "buscar_informes_control (por palabras o por sentido en las observaciones de todo el país, para hallar precedentes); la",
+  "responsabilidad que señalan es presunta, no una condena. informe_control_contrato entrega las señales de un contrato como",
+  "observaciones con condición, criterio, efecto y causa, listas para un órgano de control.",
   "Por privacidad no hay DNI, las personas naturales salen con un apellido tapado y un RUC 10 nunca se muestra ni se busca.",
   "Todas las herramientas piden conectar una cuenta de Gobserva con un plan de pago vigente: las de plazas CAS, el plan de Empleo; las de licitaciones, obras y mercado, el de Licitaciones; las demás, cualquier plan.",
   "Cada llamada descuenta créditos del mes de ese plan: 1 las búsquedas y fichas, 3 los análisis, 10 consultar_datos y documentos_zip; mi_cupo dice cuántos quedan. Pide solo lo necesario y reutiliza lo que ya trajiste.",
@@ -46,16 +50,22 @@ export const INSTRUCCIONES_LICITACIONES = [
 const COMO_USAR = `# Cómo usar el MCP de Vigía
 
 1. Con un nombre: buscar → da el OCID, RUC, CUI o clave.
-2. Un contrato: ficha_contrato (datos, postores, documentos del SEACE) y dictamen (puntaje y señales con evidencia).
+2. Un contrato: ficha_contrato (datos, postores, documentos del SEACE), dictamen (puntaje y señales con evidencia) e
+   informe_control_contrato (sus señales como observaciones en formato de informe de control: condición, criterio de la
+   ley de esa fecha, efecto, causa, evidencia y precedentes de informes reales de la Contraloría).
 3. Una empresa: ficha_empresa (SUNAT, cifras, antecedentes) y red_empresa (socios, empresas vinculadas, clientes).
 4. Una entidad: ficha_entidad (resumen), gasto_entidad (en qué gasta), proveedores_de_entidad (concentración), ordenes, obras_entidad,
-   informes_control (Contraloría con PDF), planilla_entidad y visitas_entidad.
+   informes_control (Contraloría: cada informe con su objetivo, sus observaciones y los funcionarios comprendidos, con
+   responsabilidad presunta), planilla_entidad y visitas_entidad.
+   Lo que encontró la Contraloría en todo el país: buscar_informes_control (por palabras o por sentido).
 5. Documentos: documentos_zip arma un ZIP con bases, actas y contratos de hasta 10 procesos.
    Lo raro: hallazgos_entidad (la entidad frente a sus pares) y ranking_entidades (quién destaca en una métrica).
    Contenido de documentos: buscar_documentos (bases, actas, contratos, lecturas de la IA y dictámenes).
 6. Cifras agregadas: consultar_datos (sin medida devuelve el catálogo de la fuente).
 7. Contexto: historia (línea de tiempo), partido, persona_publica, senales y estado_fuentes.
-9. Lo que se repite: patrones (por entidad, por proveedor o postores de relleno). Es por donde empieza una investigación.
+9. Lo que se repite: patrones (por entidad, por proveedor, postores de relleno, socias de consorcio que compiten,
+   renovaciones más caras, un mismo dueño con varias empresas y socios de una empresa inhabilitada). Es por donde empieza
+   una investigación.
 10. Antes de investigar a fondo, lee la guía «Método para investigar con Vigía» (vigia://guia/metodo).
 8. Una persona por su nombre: rastro_persona SIEMPRE primero (visitas a entidades, empresas, declaraciones juradas, aportes, planilla, órdenes y candidaturas en una sola llamada). No concluyas «sin registros» sin haberla usado.
 
@@ -71,11 +81,17 @@ Trabaja como un perito, no como un buscador: cada afirmación con su registro, c
 - patrones (alcance relleno): postores que casi nunca ganan y siempre acompañan al mismo ganador.
 - patrones (alcance consorcio): empresas que fueron socias en un consorcio y luego «compiten» entre sí.
 - patrones (alcance renovacion): servicios que la entidad volvió a contratar pagando mucho más por mes.
+- patrones (alcance dueno): un mismo socio que gana en una entidad con dos o más empresas procesos de objeto parecido.
+- patrones (alcance inhabilitada): empresas que ganan mientras otra empresa del mismo socio está inhabilitada.
+- buscar_contratos con varias señales y todas_las_senales: los contratos que juntan dos indicios (único postor y socio de
+  una inhabilitada, por ejemplo).
 - hallazgos_entidad y ranking_entidades: la entidad frente a sus pares.
 Un contrato raro puede ser un error; diez iguales son un modo de trabajar.
 
 ## 2. Sigue a las personas, no sólo a las empresas
 - rastro_persona con el nombre completo: visitas, empresas, declaraciones juradas, aportes, planilla y órdenes de una vez.
+  También dice si figura en informes de control (responsabilidad presunta) y si la entidad del informe le dio órdenes
+  después, y si una empresa suya está inhabilitada mientras otra suya gana.
 - red_empresa: socios y representantes, y las otras empresas donde están. Pregunta si esas empresas compiten entre sí.
 - visitas_entidad: quién entró a la entidad antes de la convocatoria y a qué oficina.
 - persona_publica y partido: quién gobierna la entidad y desde cuándo.
@@ -92,6 +108,8 @@ historia y ficha_contrato dan las fechas.
   precios_referencia da lo que pagó el Estado por un producto del catálogo de Perú Compras y el costo mensual de un servicio.
 - ¿Qué norma se habría incumplido, y regía en la fecha del proceso? norma_aplicable da el artículo exacto (con el texto de
   esa fecha) y los criterios del OECE; una opinión emitida bajo la otra ley sólo vale por analogía.
+- ¿La Contraloría ya observó algo parecido? buscar_informes_control trae observaciones reales (con número de informe,
+  entidad y fecha): sirven de precedente, no de prueba de este caso. informes_control da las de la misma entidad.
 - ¿La relación entre personas está en un registro (RNP, declaración jurada, planilla) o es sólo un apellido igual?
 - ¿El documento publicado es de este proceso? Fecha, proveedor y monto tienen que cuadrar con el registro.
 - ¿El patrón sobrevive si quitas el caso más llamativo?
@@ -104,6 +122,8 @@ proveedor local en zona alejada, proceso declarado desierto antes, emergencia re
 - Hechos (con fuente y fecha) separados de señales (indicios) y de lo que falta verificar.
 - Montos en soles, fechas completas, el nombre de la entidad y de la empresa, y el enlace de Vigía de cada contrato.
 - Personas naturales con un apellido tapado, como las entrega Vigía. Nunca un documento.
+- Para entregarlo a un órgano de control: informe_control_contrato arma las observaciones en su formato (condición,
+  criterio, efecto, causa, evidencia). Es un informe de indicios de Vigía, no un informe de la Contraloría.
 - Nada de «corrupto», «fraude» o «culpable»: eso lo dice un juez. Di qué se observa y a quién le toca investigarlo
   (Contraloría para el control, Fiscalía para el delito, OECE para el procedimiento).
 - Si no hay datos, dilo así: «Vigía no tiene…». No rellenes con suposiciones ni concluyas «sin registros» sin haber
