@@ -641,9 +641,15 @@ def check_oferta_mas_barata_no_gana_rule(ocid: str, tool_context: ToolContext,
                     return q
             return None
         qg, qb = _busca(ganador["razon_social"]), _busca(barata["razon_social"])
-        if qg and qb:
-            factor_txt = (f" Puntajes: ganador {qg.get('total')} (económico {qg.get('economico')}, técnico {qg.get('tecnico')}) "
-                          f"vs {qb.get('total')} (económico {qb.get('economico')}, técnico {qb.get('tecnico')}).")
+        def _pts(q: dict) -> str | None:
+            """«98 (económico 60, técnico 38)» con lo que haya; None si el acta no trae ningún puntaje (1250529 imprimía
+            «ganador None (económico None, técnico None)»)."""
+            partes = [f"{n} {q.get(k)}" for n, k in (("económico", "economico"), ("técnico", "tecnico")) if q.get(k) is not None]
+            if q.get("total") is None and not partes:
+                return None
+            return (str(q.get("total")) if q.get("total") is not None else "sin total") + (f" ({', '.join(partes)})" if partes else "")
+        if qg and qb and (_pts(qg) or _pts(qb)):
+            factor_txt = f" Puntajes: ganador {_pts(qg) or 'sin dato'} vs {_pts(qb) or 'sin dato'}."
             fg, fb = qg.get("factores") or {}, qb.get("factores") or {}
             if isinstance(fg, dict) and isinstance(fb, dict):
                 decisivos = [k for k in fg if _f(fg.get(k)) and (float(fg.get(k) or 0) > float(fb.get(k) or 0))]

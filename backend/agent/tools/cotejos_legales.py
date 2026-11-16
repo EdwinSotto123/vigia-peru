@@ -107,9 +107,23 @@ _RE_MARCA_GENERICA = _re.compile(
     r"sin\s+(especificar|indicar|precisar|mencionar|consignar|exigir)\s+(una\s+|la\s+|el\s+)?(marca|modelo)\b", _re.I)
 
 
+# Un producto dado por su nombre comercial y su número («CAT 950», «PC200», «D6T»): con un verbo de coincidencia o de
+# ventaja cerca, el hallazgo apunta a un modelo aunque no diga «marca» ni «modelo» (1250529, 2026-11-16: «los parámetros
+# coinciden… con el cargador frontal CAT 950 de Ferreyros S.A.» quedaba sin puntaje como si nada convergiera).
+_RE_PRODUCTO = _re.compile(r"\b(?:[A-Z]{2,}[\s-]?\d{2,4}[A-Z]{0,2}|[A-Z]{1,3}\d{1,4}[A-Z]{1,2})\b")
+_RE_COINCIDE = _re.compile(r"coincid|favorec|ventaja|calibrad|a\s+la\s+medida|hech[oa]s?\s+para|direccion|dirigid|s[oó]lo\s+cumpl", _re.I)
+
+
 def _converge(texto: str) -> bool:
     """¿El hallazgo dice que el requisito converge en un proveedor, una marca o un modelo?"""
-    return bool(_RE_CONVERGE.search(_RE_MARCA_GENERICA.sub(" ", texto or "")))
+    t = _RE_MARCA_GENERICA.sub(" ", texto or "")
+    if _RE_CONVERGE.search(t):
+        return True
+    # Un producto con nombre y número, a menos de 160 caracteres de «coincide», «favorece», «ventaja», «a la medida»…
+    for m in _RE_PRODUCTO.finditer(t):
+        if _RE_COINCIDE.search(t[max(0, m.start() - 160):m.end() + 160]):
+            return True
+    return False
 
 
 # Requisito de cercanía (grifo, almacén o taller a N km de la sede): reduce el universo, pero en una ciudad no apunta por

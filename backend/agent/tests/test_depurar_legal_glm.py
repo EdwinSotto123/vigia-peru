@@ -57,6 +57,19 @@ def test_quedan_la_incongruencia_y_lo_que_hizo_el_comite():
     assert depurar_banderas_legales(st) == []
 
 
+def test_producto_con_nombre_y_numero_que_coincide_sigue_aunque_haya_competencia():
+    """1250529 (2026-11-16): el hallazgo no decía «marca» ni «modelo», pero sí con qué producto coincidían los parámetros.
+    Con dos calificados pasaba a contexto (sin puntaje). Un número suelto o una norma no convergen."""
+    st = _estado([
+        {"vector": "direccionamiento", "descripcion": "Parámetros técnicos de las EETT (torque 1050 Nm, caudal 250 L/min, potencia neta 230 HP) y el factor de evaluación 'Mejoras a las Especificaciones Técnicas' (20 puntos) coinciden, según denuncia de participantes no acogida, con el cargador frontal CAT 950 de Ferreyros S.A."},
+        {"vector": "procedimiento", "descripcion": "Empate exacto de ofertas resuelto con un criterio no previsto; se aplicó la norma ISO 9001 al desempate."},
+    ], calificados=2)
+    depurar_banderas_legales(st)
+    la = st["legal_analysis"]
+    assert len(la["red_flags_documentales"]) == 1 and "CAT 950" in la["red_flags_documentales"][0]["descripcion"]
+    assert len(la["hallazgos_contexto"]) == 1 and la["hallazgos_contexto"][0]["descripcion"].startswith("Empate")
+
+
 def test_con_dos_calificados_lo_que_no_converge_pasa_a_contexto():
     """Prueba de oro 2026-11-10 (1226611, 1228943, 1242917): con dos o más ofertas calificadas, un empate mal resuelto
     o la justificación del procedimiento no son requisito dirigido. Se publican sin puntaje, no se borran."""
