@@ -32,7 +32,8 @@ import { EvidenciaDelCruce, OrdenesFraccionadas } from "./EvidenciaCruce";
 import { GrupoSanciones, TIPOS_SANCION } from "./SancionesCruce";
 import { BotonPestana } from "./BotonPestana";
 import { TEMA_OBSERVACION_CONTROL, TIPO_CRUCE, esTipoLeido, esTipoObra, responsabilidadesEnPalabras } from "@/lib/cruces";
-import { InformeEnPanel, informeDeDetalle } from "@/components/control/InformeEnPanel";
+import { InformeEnPanel } from "@/components/control/InformeEnPanel";
+import { informeDeDetalle } from "@/lib/corrupcion";
 import { fraseBandera, type BanderaObra } from "@/lib/obras";
 
 const VARIANTE = { alta: "crimson", media: "amber", baja: "neutral" } as const;

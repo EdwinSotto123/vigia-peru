@@ -371,3 +371,34 @@ export function cuentasDeFicha(i: Pick<InformeControl, "ficha" | "funcionarios">
     comprendidos: f?.implicados?.length || i.funcionarios || 0,
   };
 }
+
+/**
+ * El informe que cita el detalle de una bandera (cruces_proveedor.detalle), como lo pide el panel del informe
+ * (components/control/InformeEnPanel.tsx). null sin código. Vive aquí y no en ese archivo porque lo llama un Server
+ * Component (contratos/CrucesProveedor.tsx): una función exportada desde un módulo «use client» no se puede llamar en el
+ * servidor (la ficha del contrato se caía al dibujar la bandera, 2026-11-16).
+ */
+export function informeDeDetalle(d: Record<string, unknown>): {
+  codigo: string;
+  numero: string | null;
+  titulo: string | null;
+  fecha: string | null;
+  entidad: string | null;
+  entidadRuc: string | null;
+  responsabilidades: string[];
+  urlResumen: string | null;
+} | null {
+  const t = (v: unknown) => (typeof v === "string" && v.trim() ? v.trim() : null);
+  const codigo = t(d.informe_codigo);
+  if (!codigo || !/^[0-9A-Z]{6,24}$/.test(codigo)) return null;
+  return {
+    codigo,
+    numero: t(d.informe_numero),
+    titulo: t(d.informe_titulo),
+    fecha: t(d.emision),
+    entidad: t(d.informe_entidad),
+    entidadRuc: t(d.informe_entidad_ruc),
+    responsabilidades: Array.isArray(d.responsabilidades) ? d.responsabilidades.filter((r): r is string => typeof r === "string") : [],
+    urlResumen: t(d.url_resumen),
+  };
+}
