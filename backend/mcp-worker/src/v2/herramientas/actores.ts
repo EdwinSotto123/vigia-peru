@@ -381,7 +381,7 @@ export const rastroPersona = definir({
     "intereses como funcionaria, sus aportes de campaña, si es persona expuesta políticamente, la planilla del Estado, sus " +
     "órdenes de servicio como persona natural, su trayectoria electoral y su cargo vigente. Trae dos cruces ya hechos: " +
     "visitó una entidad y una empresa suya le ganó, y salió de la planilla de una entidad y una empresa suya le ganó " +
-    "después (puerta giratoria). Y un tercero: dos o más empresas suyas ganan en la misma entidad procesos de objeto parecido. ÚSALA SIEMPRE que pregunten " +
+    "después (puerta giratoria). Y dos más: dos o más empresas suyas ganan en la misma entidad procesos de objeto parecido, y una empresa suya está inhabilitada mientras otra suya gana buenas pro. ÚSALA SIEMPRE que pregunten " +
     "por una persona («¿tiene contratos o visitas?», «¿quién es?»): es la única que busca visitas por el nombre del " +
     "visitante. Los nombres salen con un apellido tapado (es sólo para mostrar; la búsqueda usa el nombre entero) y nunca " +
     "sale un documento. No se busca por DNI. Si hay varios nombres parecidos, dilo: pueden ser personas distintas.",
@@ -429,6 +429,11 @@ export const rastroPersona = definir({
         contratos_con_objeto_parecido: x.contratos_con_objeto_parecido, con_90_dias_o_menos_entre_si: x.con_90_dias_o_menos_entre_si,
         monto_soles: x.monto_soles, desde: x.desde, hasta: x.hasta, ejemplos: ((x.ejemplos_ocid ?? []) as string[]).map((o) => e.contrato(o)),
         enlace_entidad: x.entidad_ruc ? e.entidad(x.entidad_ruc) : undefined,
+      })),
+      // Una empresa suya está inhabilitada y otra empresa suya ganó dentro de la sanción (migración 297).
+      empresa_suya_inhabilitada_y_otra_gano: ((r?.empresa_suya_inhabilitada_y_otra_gano ?? []) as Fila[]).map((x) => ({
+        ...x, enlace_inhabilitada: x.empresa_inhabilitada_ruc ? e.empresa(x.empresa_inhabilitada_ruc) : undefined,
+        enlace_empresa: x.empresa_que_gano_ruc ? e.empresa(x.empresa_que_gano_ruc) : undefined,
       })),
       salidas_de_planilla: r?.salidas_de_planilla ?? [],
       declaraciones_juradas: r?.declaraciones_juradas ?? [],

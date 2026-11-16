@@ -486,6 +486,37 @@ personasRouter.get("/rastro", async (c) => {
           WHERE g.rucs && $1::text[] AND (SELECT count(*) FROM unnest(g.rucs) u WHERE u = ANY($1::text[])) >= 2
           ORDER BY g.seguidos DESC, g.contratos DESC LIMIT 20`, [rucsEmp], 6000).then((r) => r.rows).catch(() => []);
     }
+    // Una empresa SUYA está inhabilitada y OTRA empresa suya ganó buenas pro dentro de la sanción (migración 297, vista
+    // desde la persona). Las dos empresas tienen que ser de la misma fila del RNP (el mismo nombre completo), para no
+    // juntar a dos homónimos; aquí cuenta cualquier rol (socio, representante o directivo) y se dice cuál.
+    let inhabilitadaYGano: Record<string, unknown>[] = [];
+    if (rucsEmp.length >= 2) {
+      const g = await consultaConPlazo<{ sancionada_ruc: string; sancionada: string | null; sancion: string; desde: string; hasta: string | null;
+                                         empresa_ruc: string; procesos: number; monto: number | null; primera: string; ultima: string }>(
+        `SELECT s.ruc AS sancionada_ruc, max(s.razon_social) AS sancionada, s.tipo AS sancion, to_char(s.fecha_desde, 'YYYY-MM-DD') AS desde,
+                to_char(s.fecha_hasta, 'YYYY-MM-DD') AS hasta, a.ruc_proveedor AS empresa_ruc, count(DISTINCT a.codigo_convocatoria)::int AS procesos,
+                sum(a.monto_adjudicado) FILTER (WHERE a.moneda IN ('Soles', 'Nuevos Soles'))::float AS monto,
+                to_char(min(a.fecha_buenapro), 'YYYY-MM-DD') AS primera, to_char(max(a.fecha_buenapro), 'YYYY-MM-DD') AS ultima
+           FROM osce_sancionados s
+           JOIN conosce_adjudicaciones a ON a.ruc_proveedor = ANY($1::text[]) AND a.ruc_proveedor <> s.ruc AND a.monto_adjudicado > 0
+                                        AND a.fecha_buenapro >= s.fecha_desde AND (s.fecha_hasta IS NULL OR a.fecha_buenapro <= s.fecha_hasta)
+          WHERE s.ruc = ANY($1::text[]) AND s.tipo IN ('temporal', 'definitivo') AND s.fecha_desde IS NOT NULL
+          GROUP BY s.ruc, s.tipo, s.fecha_desde, s.fecha_hasta, a.ruc_proveedor ORDER BY 7 DESC LIMIT 40`, [rucsEmp], 8000).then((r) => r.rows).catch(() => []);
+      const nombresDe = (ruc: string) => new Set((rnp ?? []).filter((y) => y.ruc === ruc).map((y) => y.nombre));
+      inhabilitadaYGano = g.flatMap((x) => {
+        const enSancionada = nombresDe(x.sancionada_ruc);
+        const mismo = (rnp ?? []).find((y) => y.ruc === x.empresa_ruc && enSancionada.has(y.nombre));
+        if (!mismo) return [];
+        const enLaSancionada = (rnp ?? []).find((y) => y.ruc === x.sancionada_ruc && y.nombre === mismo.nombre);
+        return [{
+          empresa_inhabilitada: x.sancionada, empresa_inhabilitada_ruc: x.sancionada_ruc, rol_en_la_inhabilitada: enLaSancionada?.rol ?? null,
+          sancion: x.sancion === "definitivo" ? "inhabilitación definitiva" : "inhabilitación temporal", sancion_desde: x.desde, sancion_hasta: x.hasta,
+          empresa_que_gano: mismo.empresa, empresa_que_gano_ruc: x.empresa_ruc, rol_en_la_que_gano: mismo.rol, en_la_que_gano_desde: mismo.desde,
+          procesos_ganados_durante_la_sancion: x.procesos, monto_soles: x.monto, primera_buena_pro: x.primera, ultima_buena_pro: x.ultima,
+          falta_confirmar: "que sea la misma persona (el empate es por nombre completo), su porcentaje en las dos empresas y que sean del mismo rubro",
+        }];
+      });
+    }
     // Cada fila lleva el nombre como está en su registro, con un apellido tapado: dos personas distintas que comparten
     // las palabras buscadas se ven como dos nombres.
     const tapar = <T extends { nombre: string }>(filas: T[] | null) =>
@@ -502,6 +533,7 @@ personasRouter.get("/rastro", async (c) => {
       salidas_de_planilla: tapar(salidas),
       salio_de_la_entidad_y_su_empresa_gano: salioYGano,
       gana_en_la_misma_entidad_con_varias_empresas: variasEmpresas,
+      empresa_suya_inhabilitada_y_otra_gano: inhabilitadaYGano,
       sin_respuesta: [["visitas", visitas], ["empresas", rnp], ["declaraciones_juradas", dji], ["aportes_de_campana", aportes], ["personas_expuestas", peps]]
         .filter(([, v]) => v === null).map(([k]) => k),
     };
