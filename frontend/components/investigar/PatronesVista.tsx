@@ -647,7 +647,7 @@ function filaConsorcio(p: PatronConsorcio, i: number): Fila {
 
 const COLUMNAS_DUENOS: Columna[] = [
   { clave: "grupo", titulo: "Entidad y empresas", ancho: "minmax(0,1.8fr)" },
-  { clave: "socio", titulo: "Socio en común", ancho: "minmax(0,0.9fr)", desde: "lg", apilar: "con-rotulo", corto: "Socio" },
+  { clave: "socio", titulo: "Socio en común", ancho: "minmax(0,1.1fr)", desde: "lg", apilar: "con-rotulo", corto: "Socio" },
   {
     clave: "contratos",
     titulo: "Contratos parecidos",
@@ -756,7 +756,8 @@ function filaDueno(p: PatronDueno, i: number): Fila {
           }
         />
       ),
-      socio: <CeldaTexto>{p.socios?.[0]?.nombre ?? "Sin nombre publicado"}</CeldaTexto>,
+      // El nombre entero, en las líneas que haga falta: cortado no dice quién es.
+      socio: <span className="block min-w-0 whitespace-normal break-words text-dato leading-snug text-inkSoft">{p.socios?.[0]?.nombre ?? "Sin nombre publicado"}</span>,
       contratos: <CeldaNumero sub={p.seguidos > 0 ? `${numero(p.seguidos)} a 90 días o menos` : undefined}>{numero(p.contratos)}</CeldaNumero>,
       monto: <CeldaNumero>{p.monto != null ? solesCompacto(p.monto) : "Sin dato"}</CeldaNumero>,
       ejemplos: (
