@@ -337,6 +337,9 @@ deploy:web:dev:
 # ─── PRODUCTION (rama main) ──────────────────────────────────────────────────────────────────────
 deploy:api:prod:
   <<: *api
+  # Un despliegue de producción no se corta a medias: con `interruptible: true` (el valor por defecto de arriba), un push
+  # posterior cancelaba el job en marcha del pipeline anterior (pasó el 2026-11-16 con deploy:web:prod).
+  interruptible: false
   variables: { DEPLOY_ENV: "" }
   environment:
     name: production
@@ -349,6 +352,7 @@ deploy:api:prod:
 
 deploy:web:prod:
   <<: *web
+  interruptible: false   # como deploy:api:prod: un push posterior no lo cancela a medias
   variables:
     DEPLOY_ENV: ""
     VIGIA_API_URL: "https://vigia-api.vigiaperu.workers.dev"
