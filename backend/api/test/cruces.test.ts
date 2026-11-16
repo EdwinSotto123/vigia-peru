@@ -119,4 +119,7 @@ test("observado por la Contraloría (migración 313): el informe, el tema y el p
   assert.equal(c.detalle.nomenclatura, "AS-SM-3-2021-MDI-1");
   assert.equal(c.detalle.otras[0].n, 3);
   assert.equal(c.fuenteUrl, url);
+  // Atada por el CUI, la observación es de la obra del contrato, no del procedimiento.
+  const porCui = aCruce({ ...fila, severidad: "media", detalle: { ...fila.detalle, via: "cui", cui: "2475416", nomenclatura: null } });
+  assert.equal(porCui.etiqueta, "La Contraloría observó la obra de este contrato en un informe de control");
 });

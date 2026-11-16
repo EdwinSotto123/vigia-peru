@@ -12,6 +12,7 @@ import { Dato } from "@/components/ui/Dato";
 import { Paginacion } from "@/components/ui/Paginacion";
 import { BuscadorControl } from "@/components/control/BuscadorControl";
 import { asuntoDe, detalleDeInforme, rucEntidad } from "@/components/control/DetalleInforme";
+import { LoObservado } from "@/components/control/LoObservado";
 import { ChipsResponsabilidad } from "@/components/control/piezas";
 import { TAM_INFORMES, cuentasDeFicha, paginaCorrupcion, tipoServicioCorto, type Corrupcion, type InformeControl, type InformesControl, type PaginaInformes, type TipoInforme } from "@/lib/corrupcion";
 import { fechaCorta, numero, plural, solesCompacto } from "@/lib/formato";
@@ -406,6 +407,7 @@ function Contraloria({
       ) : (
         <div className="space-y-4">
           <Indicadores items={cifrasInformes(inf, conEntidad)} />
+          {inf.observado && <LoObservado datos={inf.observado} />}
           {buscarEn && <BuscadorControl variante="caja" entidad={buscarEn} onActivo={setBuscandoHallazgos} />}
           {!buscandoHallazgos && (
             <>

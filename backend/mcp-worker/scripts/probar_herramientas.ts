@@ -89,6 +89,11 @@ const CASOS: Caso[] = [
   { h: informesControl as never, args: { ruc: "20154477374" },
     espera: (r) => ((lista(r, "informes") as { ficha?: { observaciones?: unknown[] } | null }[]).some((x) => (x.ficha?.observaciones?.length ?? 0) > 0)
       ? null : "ningún informe de la entidad trae su ficha con observaciones") },
+  // Sin RUC: el mapa nacional de lo observado (migración 314), con sus temas y su ranking de entidades.
+  { h: informesControl as never, args: {},
+    espera: (r) => (Number(r.observaciones_leidas) > 5000 && lista(r, "por_tema").length >= 5 && lista(r, "entidades_con_mas_perjuicio_senalado").length >= 10
+      && lista(r, "entidades_con_mas_perjuicio_senalado").every((e) => /^20\d{9}$/.test(String((e as { ruc: string }).ruc)))
+      ? null : "el mapa nacional de lo observado salió incompleto") },
   { h: patrones as never, args: { alcance: "control", solo_graves: true },
     espera: (r) => (lista(r, "casos").length >= 5 && lista(r, "casos").every((g) => Number((g as { graves: number }).graves) > 0 && /•/.test(String((g as { persona?: string }).persona ?? "•")))
       ? null : "la lista de socios con informe de control salió vacía, sin graves o con un nombre sin tapar") },

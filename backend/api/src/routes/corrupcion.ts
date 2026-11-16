@@ -3,7 +3,7 @@ import { z } from "zod";
 import { escaparLike, pool } from "../lib/db.js";
 import { cachePublico, parametros } from "../lib/http.js";
 import { publicar } from "../lib/privacidad.js";
-import { detallesDeInformes, type DetalleInforme } from "../lib/contraloriaFichas.js";
+import { TEMAS_CONTROL, detallesDeInformes, type DetalleInforme } from "../lib/contraloriaFichas.js";
 import { PERIODOS_GOBIERNO } from "./partidos.js";
 
 /**
@@ -60,8 +60,16 @@ async function informes(donde: string, vals: unknown[], q: PaginaQ) {
     const p = `$${valsLista.length}`;
     filtro += ` AND (ic.titulo ILIKE ${p} OR ic.numero ILIKE ${p} OR ic.entidad_nombre ILIKE ${p})`;
   }
-  const [conteos, lista] = await Promise.all([
+  const [conteos, temas, atados, lista] = await Promise.all([
     pool.query(`SELECT ${CONTEOS} FROM informes_control ic WHERE ${donde}`, vals),
+    // Lo observado, por tema (migración 314) y los contratos que esas observaciones nombran (313). Sin esas tablas, nada.
+    pool.query(
+      `SELECT o.tema, count(*)::int AS observaciones, count(DISTINCT o.codigo)::int AS informes,
+              COALESCE(sum(o.perjuicio) FILTER (WHERE o.cuenta AND o.moneda = 'PEN'), 0)::float AS "perjuicioPen"
+         FROM informes_control ic JOIN informe_control_observacion o ON o.codigo = ic.codigo
+        WHERE ${donde} GROUP BY o.tema ORDER BY 4 DESC, 2 DESC`, vals).catch(() => null),
+    pool.query(
+      `SELECT count(DISTINCT p.ocid)::int AS n FROM informes_control ic JOIN informe_control_proceso p ON p.codigo = ic.codigo WHERE ${donde}`, vals).catch(() => null),
     pool.query(
       `SELECT ${FILA}, count(*) OVER ()::int AS n FROM informes_control ic WHERE ${filtro}
         ORDER BY ${ORDEN} LIMIT ${q.size} OFFSET ${(q.page - 1) * q.size}`, valsLista),
@@ -69,8 +77,18 @@ async function informes(donde: string, vals: unknown[], q: PaginaQ) {
   // Lo que dice la Ficha Resumen de cada informe de la página (migraciones 302-305), en corto: el detalle entero está en
   // GET /informes-control/:codigo. Sin fichas cargadas, la lista sale como antes.
   const detalles = await detallesDeInformes(lista.rows.map((f) => String(f.codigo))).catch(() => new Map<string, DetalleInforme>());
+  const porTema = (temas?.rows ?? []).map((t) => ({ ...t, temaTexto: TEMAS_CONTROL[t.tema] ?? t.tema }));
   return {
     ...conteos.rows[0],
+    // `observado`: null mientras ninguna ficha del alcance tenga sus observaciones leídas.
+    observado: porTema.length
+      ? {
+          observaciones: porTema.reduce((s, t) => s + t.observaciones, 0),
+          perjuicioPen: porTema.reduce((s, t) => s + t.perjuicioPen, 0),
+          contratos: atados?.rows[0]?.n ?? 0,
+          porTema,
+        }
+      : null,
     pagina: {
       page: q.page, size: q.size, tipo: q.tipo ?? null, q: q.q ?? null, total: lista.rows[0]?.n ?? 0,
       filas: lista.rows.map(({ n: _n, ...f }) => ({ ...f, ficha: fichaCorta(detalles.get(String(f.codigo))) })),

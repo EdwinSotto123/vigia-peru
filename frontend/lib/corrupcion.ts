@@ -62,6 +62,57 @@ export interface PaginaInformes {
   filas: InformeControl[];
 }
 
+/** Lo observado de un tema (migración 314): cuántas observaciones leídas y cuánto perjuicio cuantifican, en soles. */
+export interface TemaObservado {
+  tema: string;
+  temaTexto: string;
+  observaciones: number;
+  informes: number;
+  perjuicioPen: number;
+}
+
+/** Lo que la Contraloría observó en un alcance (entidad, región, partido): por tema, con los contratos de Vigía nombrados. */
+export interface ObservadoControl {
+  observaciones: number;
+  perjuicioPen: number;
+  contratos: number;
+  porTema: TemaObservado[];
+}
+
+/** GET /informes-control/resumen: el mapa nacional de lo observado (con `tema`, el ranking de ese tema). */
+export interface ResumenControl {
+  tema: string | null;
+  total: { informes: number; leidos: number; observaciones: number; conPerjuicio: number; perjuicioPen: number; perjuicioUsd: number; contratos: number } | null;
+  porTema: TemaObservado[];
+  porAnio: { anio: number; informes: number; observaciones: number; perjuicioPen: number }[];
+  entidades: {
+    ruc: string;
+    entidad: string | null;
+    departamento: string | null;
+    informes: number;
+    observaciones: number;
+    perjuicioPen: number;
+    penal: number;
+    contratos: number;
+    temaPrincipal: string;
+    temaPrincipalTexto: string;
+  }[];
+  nota: string;
+}
+
+export const TEMAS_OBSERVACION = ["seleccion_contratacion", "ejecucion_contractual", "pagos_adelantos", "personal_planillas", "bienes_almacen", "presupuesto_tesoreria", "otros"];
+
+/** El mapa nacional (servidor); `tema` sólo si es uno de la lista. null si la API no responde o la base no lo tiene. */
+export async function getResumenControl(tema?: string | null): Promise<ResumenControl | null> {
+  const t = tema && TEMAS_OBSERVACION.includes(tema) ? tema : null;
+  try {
+    const r = await fetch(`${API_BASE}/informes-control/resumen${t ? `?tema=${t}` : ""}`, { next: { revalidate: 3600 } } as RequestInit);
+    return r.ok ? ((await r.json()) as ResumenControl) : null;
+  } catch {
+    return null;
+  }
+}
+
 export interface InformesControl {
   total: number;
   penal: number;
@@ -71,6 +122,8 @@ export interface InformesControl {
   entidades: number;
   desde: string | null;
   hasta: string | null;
+  /** Lo observado por tema (migración 314); null mientras ninguna ficha del alcance tenga sus observaciones leídas. */
+  observado?: ObservadoControl | null;
   pagina: PaginaInformes;
 }
 

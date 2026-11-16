@@ -1,8 +1,9 @@
 import type { Metadata } from "next";
 import { ShieldAlert } from "lucide-react";
 import { BuscadorControl } from "@/components/control/BuscadorControl";
+import { MapaObservado } from "@/components/control/MapaObservado";
 import { Ayuda, EnlaceFuente, EncabezadoPagina, Migas, Nota, Pagina } from "@/components/patrones";
-import { AVISO_PRESUNTA } from "@/lib/corrupcion";
+import { AVISO_PRESUNTA, getResumenControl } from "@/lib/corrupcion";
 import { BUSCADOR_CONTRALORIA } from "@/lib/fuentes";
 import { canonica } from "@/lib/seo";
 import { uno } from "@/lib/utils";
@@ -19,9 +20,13 @@ export const metadata: Metadata = {
  * de hacer un RAG de ellos»). La página sólo lee `?q=`; la búsqueda la hace el navegador (components/control/
  * BuscadorControl.tsx contra GET /informes-control/buscar), con espera al escribir, un mínimo de 3 letras y el tope de la
  * API. Cada resultado abre el panel del informe, el mismo de la pestaña Control de una entidad, una región o un partido.
+ *
+ * Debajo, el mapa de lo observado (migración 314): cuánto perjuicio cuantifican las observaciones leídas, por tema, y las
+ * entidades con más; `?tema=` deja el ranking en un tema. Si la API no lo tiene, la página queda como antes.
  */
-export default function ContraloriaPage({ searchParams }: { searchParams?: Record<string, string | string[] | undefined> }) {
+export default async function ContraloriaPage({ searchParams }: { searchParams?: Record<string, string | string[] | undefined> }) {
   const q = uno(searchParams?.q) ?? "";
+  const resumen = await getResumenControl(uno(searchParams?.tema));
   return (
     <Pagina>
       <Migas items={[{ etiqueta: "Inicio", href: "/app" }, { etiqueta: "Contraloría", href: "/app/contraloria" }]} />
@@ -43,6 +48,8 @@ export default function ContraloriaPage({ searchParams }: { searchParams?: Recor
       />
 
       <BuscadorControl inicial={q} enUrl ejemplos />
+
+      <MapaObservado datos={resumen} />
 
       <Nota icono={<ShieldAlert size={15} aria-hidden />}>
         {AVISO_PRESUNTA} Los funcionarios comprendidos van con un apellido tapado y sin documento. Para ver todos los informes

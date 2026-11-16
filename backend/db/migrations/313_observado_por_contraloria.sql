@@ -26,7 +26,7 @@
 --   6. Por CUI (`cui`): la observación nombra una obra con su código único de inversión y esa inversión tiene, en la entidad
 --      del informe y convocado antes del informe, UN solo contrato de obra. Sólo observaciones de ejecución o de pagos
 --      cuyo texto habla de la ejecución de la obra (valorizaciones, metrados, ampliaciones de plazo, adicionales,
---      penalidades, recepción, liquidación) y no de la elaboración del expediente técnico ni de contratar la supervisión:
+--      penalidades, recepción, liquidación) y no de la elaboración del expediente técnico ni de contratar o pagar la supervisión:
 --      esos son otros contratos de la misma inversión (en una muestra de 24, 4 eran de esos).
 --
 -- Medido en PROD antes de escribirla, con 9 768 observaciones leídas de 18 207 (CTE de sólo lectura): 1 915 procesos
@@ -232,7 +232,7 @@ BEGIN
        WHERE (ob ->> 'cui') ~ '^[0-9]{6,7}$' AND i.entidad_ruc IS NOT NULL AND i.fecha_emision IS NOT NULL
          AND o.tema IN ('ejecucion_contractual', 'pagos_adelantos')
          AND o.texto ~ 'VALORIZACI|METRADO|AMPLIACION(ES)? DE PLAZO|ADICIONAL|DEDUCTIVO|PENALIDAD|RECEPCION|LIQUIDACION|PARTIDAS|CONTRATISTA|EJECUCION DE (LA )?OBRA|ADELANTO|PARALIZA'
-         AND o.texto !~ 'ELABORACION DE(L)? EXPEDIENTE|PAGARON POR EXPEDIENTE|CONTRATACION DE(L)? SUPERVISOR|CONTRATACION DE LA SUPERVISION|SERVICIOS? DE CONSULTORIA|CONSULTORIA DE OBRA'
+         AND o.texto !~ 'ELABORACION DE(L)? EXPEDIENTE|PAGARON POR EXPEDIENTE|CONTRATACION DE(L)? SUPERVISOR|CONTRATACION DE LA SUPERVISION|SERVICIOS? DE CONSULTORIA|CONSULTORIA DE OBRA|CONTRATISTA SUPERVISOR|PAGOS? A(L| LA) SUPERVIS'
     ), cand AS (
       SELECT men.codigo, men.n, men.cui, k.ocid, count(*) OVER (PARTITION BY men.codigo, men.n, men.cui) AS contratos
         FROM men

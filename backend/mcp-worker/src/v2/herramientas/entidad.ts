@@ -157,22 +157,58 @@ export const informesControl = definir({
     "que señalan (penal, civil, administrativa) y el enlace al PDF. De cada uno, lo que dice su Ficha Resumen: objetivo, " +
     "montos, observaciones (con su tema) y los funcionarios comprendidos con su responsabilidad PRESUNTA (un apellido " +
     "tapado). Si una observación nombra un proceso que está en Vigía, trae `enVigia` con su OCID: ábrelo con " +
-    "ficha_contrato. Filtra por año, tipo o palabras del título. Para buscar por el contenido de las observaciones en todo el país, " +
-    "usa buscar_informes_control.",
+    "ficha_contrato. Trae también `observado`: cuántas observaciones se leyeron y cuánto perjuicio cuantifican, por tema. " +
+    "Filtra por año, tipo o palabras del título. SIN ruc: el mapa nacional de lo observado (por tema, por año y las " +
+    "entidades con más perjuicio señalado; con `tema`, el ranking de ese tema). Para buscar por el contenido de las " +
+    "observaciones en todo el país, usa buscar_informes_control.",
   entrada: {
-    ruc: rucEntidad,
+    ruc: rucEntidad.optional().describe("RUC de la entidad (11 dígitos). Sin él, el mapa nacional de lo observado."),
+    tema: z.enum(["seleccion_contratacion", "ejecucion_contractual", "pagos_adelantos", "personal_planillas", "bienes_almacen", "presupuesto_tesoreria", "otros"])
+      .optional().describe("(sin ruc) Sólo las entidades con más perjuicio señalado en ese tema."),
     anio: z.number().int().min(2000).max(2030).optional(),
     tipo: z.enum(["penal", "civil", "administrativa"]).optional(),
     texto: z.string().min(3).max(60).optional(),
     pagina,
   },
   async ejecutar(a, cx) {
+    if (!a.ruc) {
+      const m = await api<Fila>(cx.env, "/informes-control/resumen", { tema: a.tema, n: 30 });
+      const t = (m.total ?? {}) as Fila;
+      return {
+        alcance: "todo el país",
+        tema: m.tema ?? undefined,
+        informes_de_control: t.informes, informes_leidos: t.leidos, observaciones_leidas: t.observaciones,
+        observaciones_que_cuantifican_perjuicio: t.conPerjuicio, perjuicio_cuantificado_soles: t.perjuicioPen,
+        perjuicio_cuantificado_dolares: t.perjuicioUsd || undefined, contratos_de_vigia_nombrados: t.contratos,
+        por_tema: ((m.porTema ?? []) as Fila[]).map((x) => ({ tema: x.tema, nombre: x.temaTexto, observaciones: x.observaciones, informes: x.informes, perjuicio_soles: x.perjuicioPen })),
+        por_anio: ((m.porAnio ?? []) as Fila[]).map((x) => ({ anio: x.anio, informes: x.informes, observaciones: x.observaciones, perjuicio_soles: x.perjuicioPen })),
+        entidades_con_mas_perjuicio_senalado: ((m.entidades ?? []) as Fila[]).map((x) => ({
+          entidad: x.entidad, ruc: x.ruc, departamento: x.departamento ?? undefined, informes_leidos: x.informes, observaciones: x.observaciones,
+          perjuicio_soles: x.perjuicioPen, informes_con_penal_presunta: x.penal, contratos_de_vigia_nombrados: x.contratos,
+          lo_que_mas_se_le_observa: x.temaPrincipalTexto, enlace: x.enlace,
+        })),
+        como_leerlo:
+          "El perjuicio es el que cuantifica cada observación según una lectura automática (IA) de su Ficha Resumen: un orden de " +
+          "magnitud para saber dónde mirar, no una liquidación; un monto repetido en varias observaciones de un informe se cuenta " +
+          "una vez. Para los informes de una entidad, llama de nuevo con su ruc; para los proveedores de los procesos observados, " +
+          "patrones con alcance «observado».",
+        fuente: "Contraloría General de la República (Fichas Resumen de los informes de control, leídas con GLM 5.3 flash).",
+        aviso: "Un informe de control señala presunta responsabilidad; no es una sentencia.",
+      };
+    }
     const r = rucJuridico(a.ruc, "RUC de la entidad");
     const d = await api<Fila>(cx.env, `/corrupcion/entidad/${r}`, { anio: a.anio, tipo: a.tipo, q: a.texto, page: a.pagina, size: 20 });
     const inf = d.informes ?? {};
+    const obs = inf.observado as Fila | null | undefined;
     return {
       ruc: r,
       total: inf.total,
+      observado: obs
+        ? {
+            observaciones_leidas: obs.observaciones, perjuicio_cuantificado_soles: obs.perjuicioPen, contratos_de_vigia_nombrados: obs.contratos,
+            por_tema: ((obs.porTema ?? []) as Fila[]).map((x) => ({ tema: x.tema, nombre: x.temaTexto, observaciones: x.observaciones, perjuicio_soles: x.perjuicioPen })),
+          }
+        : undefined,
       responsabilidad: { penal: inf.penal, civil: inf.civil, administrativa: inf.administrativa },
       funcionarios_comprendidos: inf.funcionarios,
       desde: inf.desde,

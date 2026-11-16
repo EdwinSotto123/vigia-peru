@@ -12,7 +12,8 @@ recomendaciones y los funcionarios comprendidos). El informe completo (`url_pdf`
   cargar   --entorno prod --carpeta DIR            texto + campos del formulario → informe_control_ficha (migración 304)
   leer     --entorno prod [--tope-usd 40]          tema, perjuicio, normas y referencias de cada observación (GLM 5.3 flash)
   indexar  --entorno prod                          trozos (objetivo y observaciones) y embeddings → informe_control_fragmento (305)
-  atar     --entorno prod                          cada observación con el contrato que nombra y su bandera (migración 313)
+  atar     --entorno prod                          cada observación con el contrato que nombra y su bandera (migración 313),
+                                                   y las observaciones en plano para los resúmenes por tema (314)
   estado   --entorno prod
 
 El servidor de la Contraloría (apps8.contraloria.gob.pe) sólo responde a IPs del Perú: `bajar` corre desde una PC en el
@@ -978,6 +979,12 @@ def atar(entorno: str) -> None:
         cu.execute("SELECT refrescar_cruce_observado_por_contraloria()")
         banderas = cu.fetchone()[0]
         cn.commit()
+        # Las observaciones en plano (tema y perjuicio), para los resúmenes por entidad, región y tema (migración 314).
+        cu.execute("SELECT to_regprocedure('refrescar_informe_control_observacion()') IS NOT NULL")
+        if cu.fetchone()[0]:
+            cu.execute("SELECT refrescar_informe_control_observacion()")
+            print(f"  observaciones leídas (tema y perjuicio): {cu.fetchone()[0]}")
+            cn.commit()
         cu.execute("SELECT via, count(*), count(DISTINCT ocid), count(DISTINCT codigo) FROM informe_control_proceso GROUP BY via ORDER BY via")
         for via, filas, contratos, informes in cu.fetchall():
             print(f"  por {via}: {filas} observaciones atadas, {contratos} contratos, {informes} informes")

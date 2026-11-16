@@ -210,7 +210,10 @@ export function aCruce(r: Record<string, any>): Cruce {
     : [];
   return {
     tipo: r.tipo,
-    etiqueta: ETIQUETA_CRUCE[r.tipo] ?? r.tipo,
+    // Atada por el CUI, la observación es de la OBRA del contrato, no del procedimiento de selección (migración 313).
+    etiqueta: r.tipo === "observado_por_contraloria" && r.detalle?.via === "cui"
+      ? "La Contraloría observó la obra de este contrato en un informe de control"
+      : (ETIQUETA_CRUCE[r.tipo] ?? r.tipo),
     severidad: r.severidad,
     rucProveedor: r.ruc_empresa,
     ocid: r.ocid ?? null,

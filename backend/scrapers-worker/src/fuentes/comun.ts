@@ -269,6 +269,8 @@ export function cadenaCruces(): Refresco[] {
     f("refrescar_cruce_socio_con_informe_control", true),
     // Una observación de un informe de control nombra el proceso o la obra del contrato (migración 313).
     f("refrescar_cruce_observado_por_contraloria", true),
+    // Cada observación leída con su tema y su perjuicio, para sumar por entidad, región y tema (migración 314).
+    f("refrescar_informe_control_observacion", true),
     // El contrato se firmó por más de lo adjudicado según las dos fuentes oficiales (migración 294).
     f("refrescar_cruce_contrato_sobre_adjudicado", true),
     // Lo que dicen el acta de buena pro y las consultas leídas con Claude (migraciones 245-246).

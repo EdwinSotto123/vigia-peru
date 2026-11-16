@@ -57,7 +57,8 @@ const COMO_USAR = `# Cómo usar el MCP de Vigía
 4. Una entidad: ficha_entidad (resumen), gasto_entidad (en qué gasta), proveedores_de_entidad (concentración), ordenes, obras_entidad,
    informes_control (Contraloría: cada informe con su objetivo, sus observaciones y los funcionarios comprendidos, con
    responsabilidad presunta), planilla_entidad y visitas_entidad.
-   Lo que encontró la Contraloría en todo el país: buscar_informes_control (por palabras o por sentido).
+   Lo que encontró la Contraloría en todo el país: buscar_informes_control (por palabras o por sentido) e
+   informes_control SIN ruc (el mapa: perjuicio que cuantifican las observaciones por tema y por año, y las entidades con más).
 5. Documentos: documentos_zip arma un ZIP con bases, actas y contratos de hasta 10 procesos.
    Lo raro: hallazgos_entidad (la entidad frente a sus pares) y ranking_entidades (quién destaca en una métrica).
    Contenido de documentos: buscar_documentos (bases, actas, contratos, lecturas de la IA y dictámenes).
