@@ -361,6 +361,17 @@ export const GLOSARIO: Record<string, TerminoGlosario> = {
     termino: "un informe de control",
     definicion: "Un informe en que la Contraloría revisa a una entidad o a una obra y señala riesgos, problemas o una responsabilidad presunta de sus funcionarios. No es una condena.",
   },
+  "ficha-resumen": {
+    tema: "Obras e inversiones",
+    termino: "la Ficha Resumen de un informe de control",
+    definicion: "Las pocas páginas con que la Contraloría resume cada informe de control: qué revisó, cuánto dinero, lo que encontró (sus observaciones) y a qué funcionarios comprende. El informe completo suele ser un escaneo de cientos de páginas.",
+    fuente: "Contraloría General de la República",
+  },
+  "responsabilidad-presunta": {
+    tema: "Obras e inversiones",
+    termino: "la responsabilidad presunta",
+    definicion: "Lo que un informe de control le señala a cada funcionario comprendido: que podría responder por un posible delito (penal), por un perjuicio que se pide reparar (civil) o por una falta (administrativa). La Contraloría la deriva a quien decide: no es una acusación ni una condena.",
+  },
   "control-concurrente": {
     tema: "Obras e inversiones",
     termino: "el control concurrente",

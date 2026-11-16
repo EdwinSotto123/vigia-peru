@@ -223,7 +223,7 @@ async function Resumen({
           icono: FileSearch,
           titulo: "Informes de la Contraloría",
           cifra: numero(corrupcion.informes.total),
-          texto: corrupcion.informes.total ? `${numero(corrupcion.informes.penal)} con responsabilidad penal` : "Ninguno con responsabilidad en su buscador",
+          texto: corrupcion.informes.total ? `${numero(corrupcion.informes.penal)} con responsabilidad penal presunta` : "Ninguno con responsabilidad en su buscador",
           tono: corrupcion.informes.penal > 0 ? ("media" as const) : undefined,
           href: enSeccion("control"),
         }

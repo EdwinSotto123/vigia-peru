@@ -2,7 +2,7 @@
 
 import { usePathname } from "next/navigation";
 import {
-  BookOpen, Briefcase, Building2, FileSearch, Flag, Heart, Landmark, LayoutGrid, MapPin, MessageCircleQuestion, MessageSquareWarning, Network, Radio, Scale, Users,
+  BookOpen, Briefcase, Building2, FileSearch, Flag, Heart, Landmark, LayoutGrid, MapPin, MessageCircleQuestion, MessageSquareWarning, Network, Radio, Scale, ScanSearch, Users,
   type LucideIcon,
 } from "lucide-react";
 
@@ -21,6 +21,7 @@ const POR_RUTA: [RegExp, LucideIcon][] = [
   [/^\/app\/poder/, Network],
   [/^\/app\/contratos/, FileSearch],
   [/^\/app\/(hallazgos|novedades)/, Flag],
+  [/^\/app\/contraloria/, ScanSearch],
   [/^\/app\/denuncias|^\/reporte/, MessageSquareWarning],
   [/^\/app\/(apoyar|aliados|cuanto-cuesta|mi-impacto)/, Heart],
   [/^\/app\/(auditoria|financiar)/, Radio],

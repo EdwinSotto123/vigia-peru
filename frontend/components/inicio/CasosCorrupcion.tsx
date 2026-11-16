@@ -2,19 +2,21 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { ExternalLink, Info } from "lucide-react";
+import { Info, ListChecks } from "lucide-react";
 import { Ayuda } from "@/components/patrones/Ayuda";
+import { AyudaTermino } from "@/components/patrones/AyudaTermino";
 import { EnlaceFuente } from "@/components/patrones/Estructura";
-import { CeldaFecha, CeldaPrincipal, Indicadores, Tabla, type Columna, type Fila, type Indicador } from "@/components/listado";
+import { CeldaFecha, CeldaPrincipal, CodigoFila, Indicadores, Tabla, type Columna, type Fila, type Indicador } from "@/components/listado";
 import { Buscador } from "@/components/listado/BarraFiltros";
-import { Badge } from "@/components/ui/Badge";
 import { Dato } from "@/components/ui/Dato";
 import { Paginacion } from "@/components/ui/Paginacion";
-import { TAM_INFORMES, TIPO_RESPONSABILIDAD, paginaCorrupcion, type Corrupcion, type InformeControl, type InformesControl, type PaginaInformes, type TipoInforme } from "@/lib/corrupcion";
+import { BuscadorControl } from "@/components/control/BuscadorControl";
+import { asuntoDe, detalleDeInforme, rucEntidad } from "@/components/control/DetalleInforme";
+import { ChipsResponsabilidad } from "@/components/control/piezas";
+import { TAM_INFORMES, cuentasDeFicha, paginaCorrupcion, tipoServicioCorto, type Corrupcion, type InformeControl, type InformesControl, type PaginaInformes, type TipoInforme } from "@/lib/corrupcion";
 import { fechaCorta, numero, plural, solesCompacto } from "@/lib/formato";
 import { BUSCADOR_CONTRALORIA } from "@/lib/fuentes";
 import { tituloNatural } from "@/lib/landing";
-import { limpiarObjeto } from "@/components/contratos/recortar";
 import { BloqueInicio, SinDato, SinRespuesta } from "./BloquesInicio";
 
 /**
@@ -23,7 +25,9 @@ import { BloqueInicio, SinDato, SinRespuesta } from "./BloquesInicio";
  *   · Procuraduría Anticorrupción: lo COMPROBADO (casos con sentencia firme, en ejecución de sentencia) y los casos en
  *     trámite, en cifras; por sede, que es casi siempre un departamento. Con su tabla de sedes si hay más de una.
  *   · Contraloría: sus cifras y TODOS los informes con responsabilidad PRESUNTA en una tabla paginada, filtrable por
- *     tipo; cada fila abre el informe oficial (el PDF nombra a los funcionarios: se enlaza, no se copia).
+ *     tipo. Desde el 2026-11-16 cada fila dice lo que trae su Ficha Resumen (tipo de servicio, observaciones, funcionarios
+ *     comprendidos) y abre su panel lateral (components/control/DetalleInforme.tsx): lo que encontró, a quiénes comprende
+ *     con su responsabilidad presunta (un apellido tapado) y, al pie, la Ficha Resumen y el informe completo.
  * `ruta` es la de la API (lib/corrupcion.ts, rutaCorrupcion): la tabla pide ahí las páginas siguientes.
  *
  * La ficha de una ENTIDAD ya no usa este bloque (ocupaba ~1,850 px de su Inicio, ~600 de ellos con cifras de la
@@ -203,64 +207,61 @@ const COLUMNAS_SEDES: Columna[] = [
   { clave: "tramite", titulo: "En trámite", ancho: "110px", alinear: "der", desde: "md", apilar: "con-rotulo" },
 ];
 
-const VARIANTE: Record<string, "crimson" | "amber" | "neutral"> = { penal: "crimson", civil: "amber" };
-
 /**
  * Las columnas de la tabla de informes. Con `conEntidad` (región, partido) la entidad de cada informe va en su columna
- * desde lg y, antes, debajo del asunto: en el celular se perdía de qué entidad era cada informe. El número del informe,
- * que ahí es el enlace al PDF, también baja bajo el asunto antes de lg (si no, en el celular no habría cómo abrirlo).
+ * desde lg y, antes, debajo del asunto: en el celular se perdía de qué entidad era cada informe. El número del informe va
+ * al comienzo de la línea de abajo del asunto (`CodigoFila`), en todo ancho: antes era una columna desde lg y, en la
+ * región y el partido, el enlace al PDF (ahora los documentos van al pie del panel de cada informe).
  */
 function columnasInformes(conEntidad: boolean): Columna[] {
+  // El informe se lleva el ancho (su línea de abajo dice el número, el servicio, las observaciones y los comprendidos): a
+  // 1440 px entra en un renglón. Las responsabilidades son dos o tres chips.
   return [
     { clave: "fecha", titulo: "Fecha", ancho: "92px", desde: "md", apilar: true },
-    { clave: "numero", titulo: "Informe", ancho: "148px", desde: "lg", ...(conEntidad ? { apilar: true } : {}) },
-    { clave: "asunto", titulo: "Asunto", ancho: "minmax(0,1.5fr)" },
+    { clave: "asunto", titulo: "Informe", ancho: "minmax(0,2.2fr)" },
     ...(conEntidad ? [{ clave: "entidad", titulo: "Entidad", ancho: "minmax(0,1fr)", desde: "lg" as const, apilar: true }] : []),
-    { clave: "tipo", titulo: "Responsabilidad presunta", ancho: "minmax(0,1fr)", desde: "md", apilar: true },
+    { clave: "tipo", titulo: "Responsabilidad presunta", ancho: "minmax(0,1fr)", desde: "md", apilar: true, ayuda: <AyudaTermino clave="responsabilidad-presunta" /> },
   ];
 }
 
-/** El RUC de una entidad pública se enlaza a su ficha; nunca uno que empiece con 10 (una persona) ni uno mal formado. */
-const rucEntidad = (ruc: string | null) => (ruc && /^\d{11}$/.test(ruc) && !ruc.startsWith("10") ? ruc : null);
-
 /**
- * Una fila por informe. Sin la entidad (la ficha de una entidad), la fila entera abre el informe oficial (el PDF nombra
- * a los funcionarios: se enlaza, no se copia). Con la entidad (región, partido), la fila tiene DOS destinos y no puede
- * ser un solo enlace (un enlace dentro de otro no es HTML válido y el navegador lo rompe): el número del informe abre el
- * PDF y la entidad, su ficha en Vigía, los dos en verde (lo que se toca, pedido del usuario del 2026-11-05). Antes la
- * entidad iba en gris, sin enlace, aunque la API trae su RUC.
+ * Una fila por informe: su asunto y, debajo, el número, el tipo de servicio, cuántas observaciones y a cuántos
+ * funcionarios comprende (de su Ficha Resumen, si Vigía ya la leyó; si no, el conteo del buscador de la Contraloría). La
+ * fila abre su panel lateral, sin salir de la página (pedido del dueño del 2026-11-16): lo que encontró, a quiénes y con
+ * qué responsabilidad presunta, y los documentos de la Contraloría. Con la entidad (región, partido), su nombre es un
+ * enlace a su ficha dentro de la fila (`enlaces`: la fila es una capa debajo, y el enlace se toca solo).
  */
 function filaInforme(i: InformeControl, conEntidad = false): Fila {
   const ruc = rucEntidad(i.entidadRuc);
   const nombreEntidad = i.entidad ? tituloNatural(i.entidad) : null;
+  const { observaciones, comprendidos } = cuentasDeFicha(i);
+  const servicio = tipoServicioCorto(i.ficha?.tipoServicio);
   return {
-    id: i.numero,
-    ...(conEntidad ? {} : { href: i.urlPdf ?? undefined, externo: true }),
+    id: i.codigo || i.numero,
+    enlaces: conEntidad && !!ruc,
     celdas: {
       fecha: <CeldaFecha fecha={i.fecha} />,
-      numero:
-        conEntidad && i.urlPdf ? (
-          <a
-            href={i.urlPdf}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex min-h-8 min-w-0 items-center gap-1 font-mono text-meta font-medium text-granate underline-offset-2 hover:underline"
-          >
-            <span className="min-w-0 break-all">{i.numero}</span>
-            <ExternalLink size={12} className="shrink-0" aria-hidden />
-            <span className="sr-only"> (informe en PDF, se abre en otra pestaña)</span>
-          </a>
-        ) : (
-          <span className="font-mono text-meta text-inkSoft">{i.numero}</span>
-        ),
       asunto: (
         <CeldaPrincipal
-          titulo={i.titulo ? tituloNatural(limpiarObjeto(i.titulo)) : "Sin asunto registrado"}
+          titulo={asuntoDe(i.titulo)}
           dosLineas
+          metaEnVarias
+          // Cada dato entero en su renglón: «3 funcionarios / comprendidos» partido en dos se leía mal.
           meta={[
-            i.funcionarios ? (
-              <Dato key="f" tipo="personas" nombre="Funcionarios comprendidos">
-                {plural(i.funcionarios, "funcionario comprendido", "funcionarios comprendidos")}
+            <CodigoFila key="n" codigo={i.numero} nombre="Informe N.°" />,
+            servicio ? (
+              <Dato key="s" tipo="servicio" className="whitespace-nowrap">
+                {servicio}
+              </Dato>
+            ) : null,
+            observaciones ? (
+              <Dato key="o" icono={ListChecks} nombre="Lo que encontró" className="whitespace-nowrap">
+                {plural(observaciones, "observación", "observaciones")}
+              </Dato>
+            ) : null,
+            comprendidos ? (
+              <Dato key="f" tipo="personas" nombre="Funcionarios comprendidos" className="whitespace-nowrap">
+                {plural(comprendidos, "funcionario comprendido", "funcionarios comprendidos")}
               </Dato>
             ) : null,
           ]}
@@ -277,14 +278,23 @@ function filaInforme(i: InformeControl, conEntidad = false): Fila {
           )}
         </Dato>
       ),
-      tipo: (
-        <ul className="flex flex-wrap gap-1" aria-label="Tipos de responsabilidad">
-          {i.responsabilidades.map((r) => (
-            <li key={r}><Badge variant={VARIANTE[r] ?? "neutral"}>{TIPO_RESPONSABILIDAD[r] ?? r}</Badge></li>
-          ))}
-        </ul>
-      ),
+      tipo: <ChipsResponsabilidad tipos={i.responsabilidades} etiqueta="Tipos de responsabilidad presunta" />,
     },
+    detalle: detalleDeInforme(
+      {
+        codigo: i.codigo || i.numero,
+        numero: i.numero,
+        titulo: i.titulo,
+        fecha: i.fecha,
+        entidad: i.entidad,
+        entidadRuc: i.entidadRuc,
+        responsabilidades: i.responsabilidades,
+        funcionarios: i.funcionarios,
+        urlPdf: i.urlPdf,
+        ficha: i.ficha ?? null,
+      },
+      { conEntidad },
+    ),
   };
 }
 
@@ -304,20 +314,51 @@ function cifrasInformes(inf: InformesControl, conEntidad: boolean): Indicador[] 
 
 /**
  * Todos los informes de la Contraloría, con buscador, filtro por tipo de responsabilidad y paginación (las páginas se
- * piden a la API). `conTitulo={false}` cuando ya lo pone la cabecera de la pestaña (la ficha de la entidad).
+ * piden a la API). `conTitulo={false}` cuando ya lo pone la cabecera de la pestaña (la ficha de la entidad). Con
+ * `buscarEn` (la ficha de una entidad), arriba de la lista va «Buscar en lo que encontró la Contraloría» en sus informes.
  */
-export function InformesContraloria({ datos, ruta, ambito, nota, conTitulo = true }: { datos: Corrupcion | null; ruta: string; ambito: "entidad" | "region" | "partido"; nota?: string; conTitulo?: boolean }) {
+export function InformesContraloria({
+  datos,
+  ruta,
+  ambito,
+  nota,
+  conTitulo = true,
+  buscarEn,
+}: {
+  datos: Corrupcion | null;
+  ruta: string;
+  ambito: "entidad" | "region" | "partido";
+  nota?: string;
+  conTitulo?: boolean;
+  buscarEn?: { ruc: string; nombre?: string | null };
+}) {
   if (!datos) return <SinRespuesta href="">Los informes de la Contraloría no respondieron ahora.</SinRespuesta>;
-  return <Contraloria datos={datos} ruta={ruta} ambito={ambito} nota={nota} conTitulo={conTitulo} />;
+  return <Contraloria datos={datos} ruta={ruta} ambito={ambito} nota={nota} conTitulo={conTitulo} buscarEn={buscarEn} />;
 }
 
-function Contraloria({ datos, ruta, ambito, nota, conTitulo = true }: { datos: Corrupcion; ruta: string; ambito: "entidad" | "region" | "partido"; nota?: string; conTitulo?: boolean }) {
+function Contraloria({
+  datos,
+  ruta,
+  ambito,
+  nota,
+  conTitulo = true,
+  buscarEn,
+}: {
+  datos: Corrupcion;
+  ruta: string;
+  ambito: "entidad" | "region" | "partido";
+  nota?: string;
+  conTitulo?: boolean;
+  buscarEn?: { ruc: string; nombre?: string | null };
+}) {
   const inf = datos.informes;
   const [tipo, setTipo] = useState<TipoInforme | null>(null);
   const [busca, setBusca] = useState("");
   const [pagina, setPagina] = useState<PaginaInformes>(inf.pagina);
   const [cargando, setCargando] = useState(false);
   const [fallo, setFallo] = useState(false);
+  // Mientras se busca en lo que encontró la Contraloría, sus resultados reemplazan a la lista (un solo panel a la vez).
+  const [buscandoHallazgos, setBuscandoHallazgos] = useState(false);
 
   const pedir = async (page: number, t: TipoInforme | null, q: string) => {
     setCargando(true);
@@ -365,56 +406,71 @@ function Contraloria({ datos, ruta, ambito, nota, conTitulo = true }: { datos: C
       ) : (
         <div className="space-y-4">
           <Indicadores items={cifrasInformes(inf, conEntidad)} />
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <Buscador
-              placeholder="Buscar un asunto, un número de informe o una entidad…"
-              etiqueta="Buscar en los informes de la Contraloría"
-              valor={busca}
-              min={2}
-              onBuscar={buscar}
-            />
-            <div role="group" aria-label="Filtrar por tipo de responsabilidad" className="inline-flex flex-wrap gap-1.5">
-              {opciones.map((o) => (
-                <button
-                  key={o.etiqueta}
-                  type="button"
-                  aria-pressed={tipo === o.t}
-                  onClick={() => filtrar(o.t)}
-                  className={
-                    "inline-flex min-h-9 items-center gap-1.5 rounded-full border px-3.5 text-meta font-semibold transition-colors " +
-                    (tipo === o.t ? "border-granate bg-granate text-paper" : "border-line bg-paper text-inkSoft hover:border-granate/40 hover:text-ink")
+          {buscarEn && <BuscadorControl variante="caja" entidad={buscarEn} onActivo={setBuscandoHallazgos} />}
+          {!buscandoHallazgos && (
+            <>
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <Buscador
+                  placeholder={
+                    buscarEn
+                      ? "Filtrar la lista por asunto o número de informe…"
+                      : conEntidad
+                        ? "Buscar un asunto, un número de informe o una entidad…"
+                        : "Buscar un asunto o un número de informe…"
                   }
-                >
-                  {o.etiqueta}
-                  <span className={"font-mono text-rotulo tabular-nums " + (tipo === o.t ? "text-paper/80" : "text-mute")}>{numero(o.n)}</span>
-                </button>
-              ))}
-            </div>
-            <Paginacion
-              actual={pagina.page}
-              paginas={paginas}
-              total={pagina.total}
-              tam={TAM_INFORMES}
-              navegacion="interna"
-              onChange={(n) => void pedir(n, tipo, busca)}
-              cargando={cargando}
-              nombre="informes"
-            />
-          </div>
-          {fallo ? (
-            <SinDato>No pudimos traer esa página. Vuelve a intentarlo.</SinDato>
-          ) : busca && pagina.total === 0 ? (
-            <SinDato>Ningún informe coincide con “{busca}”.</SinDato>
-          ) : (
-            <div className={cargando ? "opacity-60 transition-opacity" : undefined} aria-busy={cargando}>
-              <Tabla columnas={columnas} filas={filas} etiqueta="Informes de control de la Contraloría" medida="contenedor" />
-            </div>
+                  etiqueta={buscarEn ? "Filtrar la lista de informes de la Contraloría" : "Buscar en los informes de la Contraloría"}
+                  valor={busca}
+                  min={2}
+                  onBuscar={buscar}
+                />
+                <div role="group" aria-label="Filtrar por tipo de responsabilidad" className="inline-flex flex-wrap gap-1.5">
+                  {opciones.map((o) => (
+                    <button
+                      key={o.etiqueta}
+                      type="button"
+                      aria-pressed={tipo === o.t}
+                      onClick={() => filtrar(o.t)}
+                      className={
+                        "inline-flex min-h-9 items-center gap-1.5 rounded-full border px-3.5 text-meta font-semibold transition-colors " +
+                        (tipo === o.t ? "border-granate bg-granate text-paper" : "border-line bg-paper text-inkSoft hover:border-granate/40 hover:text-ink")
+                      }
+                    >
+                      {o.etiqueta}
+                      <span className={"font-mono text-rotulo tabular-nums " + (tipo === o.t ? "text-paper/80" : "text-mute")}>{numero(o.n)}</span>
+                    </button>
+                  ))}
+                </div>
+                <Paginacion
+                  actual={pagina.page}
+                  paginas={paginas}
+                  total={pagina.total}
+                  tam={TAM_INFORMES}
+                  navegacion="interna"
+                  onChange={(n) => void pedir(n, tipo, busca)}
+                  cargando={cargando}
+                  nombre="informes"
+                />
+              </div>
+              {fallo ? (
+                <SinDato>No pudimos traer esa página. Vuelve a intentarlo.</SinDato>
+              ) : busca && pagina.total === 0 ? (
+                <SinDato>Ningún informe coincide con “{busca}”.</SinDato>
+              ) : (
+                <div className={cargando ? "opacity-60 transition-opacity" : undefined} aria-busy={cargando}>
+                  <Tabla columnas={columnas} filas={filas} etiqueta="Informes de control de la Contraloría" medida="contenedor" />
+                </div>
+              )}
+            </>
           )}
-          <p className="text-rotulo text-mute">
+          <p className="text-rotulo leading-relaxed text-mute">
             {conEntidad
-              ? "El número de cada informe abre el informe oficial en la Contraloría, y la entidad, su ficha en Vigía. "
-              : "Cada fila abre el informe oficial en la Contraloría. "}
-            Todos están también en su <EnlaceFuente href={BUSCADOR_CONTRALORIA}>buscador de informes</EnlaceFuente>.
+              ? "Cada fila abre lo que encontró la Contraloría y a quiénes comprende, y la entidad lleva a su ficha en Vigía. "
+              : "Cada fila abre lo que encontró la Contraloría y a quiénes comprende, con la Ficha Resumen y el informe completo. "}
+            Todos están también en su <EnlaceFuente href={BUSCADOR_CONTRALORIA}>buscador de informes</EnlaceFuente>, y puedes{" "}
+            <Link href="/app/contraloria" prefetch={false} className="font-medium text-granate underline decoration-granate/35 underline-offset-2 hover:decoration-granate">
+              buscar en lo que encontró en todo el país
+            </Link>
+            .
           </p>
         </div>
       )}

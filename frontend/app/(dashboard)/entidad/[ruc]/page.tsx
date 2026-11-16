@@ -476,7 +476,10 @@ export default async function EntidadProfile({
         </PestanaVacia>
       ) : (
         <div>
-          <CabeceraPestana ayuda={<AyudaControl />}>Todos sus informes de control, con la responsabilidad presunta que señalan. Cada fila abre el informe oficial.</CabeceraPestana>
+          <CabeceraPestana ayuda={<AyudaControl />}>
+            Todos sus informes de control, con la responsabilidad presunta que señalan. Cada fila abre lo que encontró la Contraloría y a
+            quiénes comprende.
+          </CabeceraPestana>
           <Suspense
             fallback={
               <div className="space-y-4">
@@ -485,7 +488,7 @@ export default async function EntidadProfile({
               </div>
             }
           >
-            <InformesEntidad ruc={e.ruc} />
+            <InformesEntidad ruc={e.ruc} nombre={nombre} />
           </Suspense>
         </div>
       ),
@@ -659,10 +662,13 @@ function Espera({ clave }: { clave: string }) {
   return <EsqueletoPestana {...(forma[clave] ?? { columna: "Detalle" })} />;
 }
 
-/** Los informes de la Contraloría de la entidad, para su pestaña (las páginas siguientes las pide la tabla). */
-async function InformesEntidad({ ruc }: { ruc: string }) {
+/**
+ * Los informes de la Contraloría de la entidad, para su pestaña (las páginas siguientes las pide la tabla), con el buscador
+ * de lo que encontró la Contraloría en ellos (`buscarEn`: sólo los de su RUC).
+ */
+async function InformesEntidad({ ruc, nombre }: { ruc: string; nombre: string }) {
   const datos = await getCorrupcionEntidad(ruc);
-  return <InformesContraloria datos={datos} ruta={rutaCorrupcion.entidad(ruc)} ambito="entidad" conTitulo={false} />;
+  return <InformesContraloria datos={datos} ruta={rutaCorrupcion.entidad(ruc)} ambito="entidad" conTitulo={false} buscarEn={{ ruc, nombre }} />;
 }
 
 // ─── Las ⓘ de las pestañas (las usa también su versión vacía) ─────────────────
@@ -739,8 +745,8 @@ function AyudaControl() {
   return (
     <Ayuda titulo="¿Qué es un informe de control?">
       La Contraloría revisa a las entidades y, cuando encuentra algo, señala una responsabilidad presunta (penal, civil o
-      administrativa) de sus funcionarios y la deriva a quien corresponde. No es una condena. El informe nombra a los
-      funcionarios: aquí se enlaza, no se copia.
+      administrativa) de sus funcionarios y la deriva a quien corresponde. No es una condena. De cada informe, Vigía muestra
+      lo que dice su Ficha Resumen: lo que encontró y a quiénes comprende, con un apellido tapado y sin documento.
     </Ayuda>
   );
 }

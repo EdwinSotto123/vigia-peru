@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Briefcase, MapPin, FileSearch, Sparkles, ArrowRight, Flag, Building2, Camera, Menu, X, Lock, Activity, Heart, HelpCircle, BookOpen, Landmark, LayoutGrid, MessageSquareWarning, Network, Newspaper, Repeat, Scale, ScanText, Users, Database, MessageCircleQuestion } from "lucide-react";
+import { Briefcase, MapPin, FileSearch, Sparkles, ArrowRight, Flag, Building2, Camera, Menu, X, Lock, Activity, Heart, HelpCircle, BookOpen, Landmark, LayoutGrid, MessageSquareWarning, Network, Newspaper, Repeat, Scale, ScanSearch, ScanText, Users, Database, MessageCircleQuestion } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { LinkIntencion } from "@/components/ui/LinkIntencion";
 import { BotonModo } from "@/components/ui/BotonModo";
@@ -155,6 +155,16 @@ const SECTIONS: Section[] = [
         hint: "Lo que se repite",
         intencion: "alertas",
         match: (p) => p.startsWith("/app/patrones"),
+      },
+      {
+        // Lo que encontraron los informes de control de todo el país, buscable (2026-11-16). Los de una entidad, en su
+        // pestaña Control.
+        href: "/app/contraloria",
+        label: "Contraloría",
+        icon: <ScanSearch size={16} />,
+        hint: "Busca en sus informes",
+        intencion: "alertas",
+        match: (p) => p.startsWith("/app/contraloria"),
       },
       {
         href: "/app/denuncias",

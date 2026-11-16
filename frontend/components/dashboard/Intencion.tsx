@@ -34,6 +34,8 @@ const RUTAS: [prefijo: string, intencion: Intencion][] = [
   ["/app/novedades", "alertas"],
   ["/alerta", "alertas"],
   ["/app/denuncias", "alertas"],
+  // Lo que encontró la Contraloría: en el grupo «Qué» del menú, con Señales y Patrones.
+  ["/app/contraloria", "alertas"],
   ["/app/apoyar", "participar"],
   ["/app/cuanto-cuesta", "participar"],
   ["/app/aliados", "participar"],

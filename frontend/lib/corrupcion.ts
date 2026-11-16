@@ -8,7 +8,37 @@
  */
 import { API_BASE, baseApiNavegador } from "./api-client";
 
+/** Los montos de la Ficha Resumen: el auditado y el examinado (auditoría) o el del hecho revisado (control específico). */
+export interface MontosInforme {
+  auditado: number | null;
+  examinado: number | null;
+  objeto: number | null;
+}
+
+/** Un funcionario comprendido en un informe: su nombre llega con un apellido tapado (publicar() de la API). */
+export interface ImplicadoInforme {
+  nombre: string;
+  /** penal, civil, administrativa_entidad, administrativa_pas, administrativa: siempre PRESUNTA. */
+  responsabilidades: string[];
+}
+
+/**
+ * Lo que dice la Ficha Resumen de un informe, en corto (la lista de /corrupcion/*): el texto de cada observación llega
+ * recortado a 300 caracteres y su tema ya en palabras («Pagos y adelantos»). El detalle entero, en GET /informes-control/:codigo.
+ */
+export interface FichaInformeCorta {
+  objetivo: string | null;
+  tipoServicio: string | null;
+  montos: MontosInforme;
+  observaciones: { n: number; texto: string; tema: string | null; perjuicio: number | null }[];
+  recomendaciones: number;
+  /** null: no se sabe; []: la ficha no nombra a nadie. */
+  implicados: ImplicadoInforme[] | null;
+}
+
 export interface InformeControl {
+  /** El código de la Contraloría (2025CPO131500011): abre el detalle en GET /informes-control/:codigo. */
+  codigo: string;
   numero: string;
   titulo: string | null;
   fecha: string | null;
@@ -17,6 +47,8 @@ export interface InformeControl {
   urlPdf: string | null;
   entidad: string | null;
   entidadRuc: string | null;
+  /** null mientras Vigía no lea su Ficha Resumen (se cargan de a pocos). */
+  ficha?: FichaInformeCorta | null;
 }
 
 export type TipoInforme = "penal" | "civil" | "administrativa";
@@ -113,4 +145,174 @@ export const TIPO_RESPONSABILIDAD: Record<string, string> = {
   civil: "Civil",
   administrativa_entidad: "Administrativa",
   administrativa_pas: "Sanción administrativa",
+  administrativa: "Administrativa",
 };
+
+/** Qué pasa con cada responsabilidad presunta: a quién la deriva la Contraloría. Para la ayuda del panel de un informe. */
+export const QUE_ES_RESPONSABILIDAD: { tipo: string; texto: string }[] = [
+  { tipo: "penal", texto: "Un posible delito. La Contraloría lo deriva y la Fiscalía decide si investiga." },
+  { tipo: "civil", texto: "Un perjuicio económico que se pide reparar. La Procuraduría puede demandarlo ante un juez." },
+  { tipo: "administrativa_entidad", texto: "Una falta en la función. La ve la propia entidad, en su proceso disciplinario." },
+  { tipo: "administrativa_pas", texto: "Una falta más grave. La ve la Contraloría, en su procedimiento sancionador." },
+];
+
+/** Lo que se dice siempre junto a un informe con responsabilidad: la del aviso de la API. */
+export const AVISO_PRESUNTA = "Responsabilidad presunta: la Contraloría la señala y la deriva; no es una condena.";
+
+// ─── Lo que encontró la Contraloría: el detalle de un informe y su buscador (GET /informes-control/*) ───────────────
+
+/** Una observación de la Ficha Resumen, entera, con lo que le puso la lectura de IA (tema, perjuicio y referencias). */
+export interface ObservacionInforme {
+  n: number;
+  texto: string;
+  /** La clave del tema (pagos_adelantos…): null mientras la IA no la lea. */
+  tema: string | null;
+  temaTexto: string | null;
+  perjuicio: number | null;
+  moneda: "PEN" | "USD" | null;
+  normas: string[];
+  obras: { nombre: string; cui: string | null }[];
+  contratos: string[];
+  procesos: string[];
+  /** Sólo RUC 15, 17 o 20 (nunca un RUC 10: la API los descarta). */
+  empresas: { razon_social: string; ruc: string | null }[];
+}
+
+/** GET /informes-control/:codigo: el informe con su ficha leída (si la hay) y sus funcionarios comprendidos. */
+export interface DetalleInformeControl {
+  codigo: string;
+  numero: string | null;
+  titulo: string | null;
+  /** La modalidad del buscador de la Contraloría, en mayúsculas («AUDITORIA CUMPLIMIENTO»). */
+  modalidad: string | null;
+  entidad: string | null;
+  entidadRuc: string | null;
+  responsabilidades: string[];
+  funcionarios: number | null;
+  fecha: string | null;
+  urlResumen: string | null;
+  urlPdf: string | null;
+  objetivo: string | null;
+  tipoServicio: string | null;
+  tipoServicioTexto: string | null;
+  unidadEmisora: string | null;
+  montos: MontosInforme;
+  /** «Observaciones» o, en un control específico, «Argumentos de hecho (irregularidades advertidas)». */
+  observacionesRotulo: string | null;
+  observaciones: ObservacionInforme[];
+  recomendaciones: number;
+  implicados: ImplicadoInforme[] | null;
+  /** Cuándo leyó la IA sus observaciones (null: sólo el lector del formulario). */
+  leidoIa: string | null;
+  /** true si Vigía ya leyó su Ficha Resumen. */
+  ficha: boolean;
+  aviso: string;
+}
+
+/** Un resultado del buscador: UNA observación (o el objetivo, con tema «objetivo») y los datos de su informe. */
+export interface ResultadoControl {
+  codigo: string;
+  numero: string | null;
+  titulo: string | null;
+  entidad: string | null;
+  entidadRuc: string | null;
+  fecha: string | null;
+  modalidad: string | null;
+  responsabilidades: string[];
+  observacion: string;
+  tema: string | null;
+  temaTexto: string | null;
+  score: number;
+  urlFicha: string | null;
+  urlInforme: string | null;
+}
+
+export interface BusquedaControl {
+  q: string;
+  /** `texto`: esta vez sólo por palabras (el buscador por sentido no respondió). */
+  modo: "hibrido" | "texto";
+  total: number;
+  resultados: ResultadoControl[];
+}
+
+/** Cuántas observaciones se piden de una vez (el tope de la API): se pagina en el navegador, sin otro pedido. */
+export const N_BUSQUEDA_CONTROL = 30;
+
+export type RespuestaBusquedaControl =
+  | { tipo: "ok"; datos: BusquedaControl }
+  /** Demasiadas búsquedas seguidas desde esta conexión (20 por minuto): cuántos segundos esperar. */
+  | { tipo: "tope"; reintentarEn: number }
+  | { tipo: "error"; motivo: "no_disponible" | "lenta" | "red" };
+
+/**
+ * Busca en lo que encontró la Contraloría (GET /informes-control/buscar), desde el navegador. `entidad`: el RUC de una
+ * entidad para buscar sólo en sus informes. Un pedido cancelado (`signal`) tira su AbortError: quien llama lo ignora.
+ */
+export async function buscarEnControl(q: string, entidad: string | null, signal?: AbortSignal): Promise<RespuestaBusquedaControl> {
+  const p = new URLSearchParams({ q, n: String(N_BUSQUEDA_CONTROL) });
+  if (entidad) p.set("entidad", entidad);
+  let r: Response;
+  try {
+    r = await fetch(`${baseApiNavegador()}/informes-control/buscar?${p.toString()}`, { signal });
+  } catch (e) {
+    if ((e as Error)?.name === "AbortError") throw e;
+    return { tipo: "error", motivo: "red" };
+  }
+  if (r.status === 429) {
+    const cuerpo = (await r.json().catch(() => null)) as { reintentarEn?: number } | null;
+    const segundos = Number(cuerpo?.reintentarEn ?? r.headers.get("Retry-After") ?? 60);
+    return { tipo: "tope", reintentarEn: Number.isFinite(segundos) && segundos > 0 ? Math.min(segundos, 300) : 60 };
+  }
+  if (r.status === 503) return { tipo: "error", motivo: "no_disponible" };
+  if (r.status === 504) return { tipo: "error", motivo: "lenta" };
+  if (!r.ok) return { tipo: "error", motivo: "red" };
+  try {
+    const d = (await r.json()) as BusquedaControl;
+    return { tipo: "ok", datos: { q: d.q, modo: d.modo, total: d.total, resultados: Array.isArray(d.resultados) ? d.resultados : [] } };
+  } catch {
+    return { tipo: "error", motivo: "red" };
+  }
+}
+
+/** El detalle de un informe, desde el navegador (lo pide su panel al abrirse). null: la Contraloría no tiene ese código. */
+export async function pedirDetalleInforme(codigo: string): Promise<DetalleInformeControl | null> {
+  const r = await fetch(`${baseApiNavegador()}/informes-control/${encodeURIComponent(codigo)}`);
+  if (r.status === 404) return null;
+  if (!r.ok) throw new Error(`informe ${r.status}`);
+  return (await r.json()) as DetalleInformeControl;
+}
+
+/**
+ * El tipo de servicio en corto, para una fila: «Servicio de Control Específico a Hechos con Presunta Irregularidad» →
+ * «Control específico». Lo que no se reconoce va como oración.
+ */
+export function tipoServicioCorto(t: string | null | undefined): string | null {
+  const s = (t ?? "").trim();
+  if (!s) return null;
+  const conocidos: [RegExp, string][] = [
+    [/control espec[ií]fico/i, "Control específico"],
+    [/auditor[ií]a\s+(de\s+)?cumplimiento/i, "Auditoría de cumplimiento"],
+    [/auditor[ií]a\s+financiera/i, "Auditoría financiera"],
+    [/auditor[ií]a\s+de\s+desempe[ñn]o/i, "Auditoría de desempeño"],
+    [/examen especial/i, "Examen especial"],
+    [/control concurrente/i, "Control concurrente"],
+    [/visita de control/i, "Visita de control"],
+    [/orientaci[oó]n de oficio/i, "Orientación de oficio"],
+  ];
+  const conocido = conocidos.find(([re]) => re.test(s));
+  if (conocido) return conocido[1];
+  const minus = s.toLocaleLowerCase("es");
+  return minus.charAt(0).toLocaleUpperCase("es") + minus.slice(1);
+}
+
+/**
+ * Lo que una ficha corta permite contar en una fila: sus observaciones y sus funcionarios comprendidos (los de la ficha o,
+ * sin ella, los que cuenta el buscador de la Contraloría). El perjuicio no: la ficha corta no trae su moneda.
+ */
+export function cuentasDeFicha(i: Pick<InformeControl, "ficha" | "funcionarios">): { observaciones: number; comprendidos: number } {
+  const f = i.ficha;
+  return {
+    observaciones: f?.observaciones.length ?? 0,
+    comprendidos: f?.implicados?.length || i.funcionarios || 0,
+  };
+}

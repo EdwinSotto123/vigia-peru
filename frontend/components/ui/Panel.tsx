@@ -111,12 +111,17 @@ export function Panel({
 
   // En móvil, un panel lateral es una hoja que sube desde abajo: el pulgar
   // llega al borde inferior, no al lateral derecho.
+  //
+  // Los márgenes van con `!`: el <dialog> se dibuja donde está en el árbol y,
+  // dentro de un `space-y-*` (la lista de `TablaPaginada`), la regla de sus
+  // hermanos le ponía `margin-top: 12px` encima del `mt-auto`, y la hoja del
+  // celular quedaba arriba, despegada del borde de abajo (2026-11-16).
   const layout =
     posicion === "centro"
-      ? "m-auto w-[calc(100vw-2rem)] max-h-[85dvh] rounded-3xl"
+      ? "!m-auto w-[calc(100vw-2rem)] max-h-[85dvh] rounded-3xl"
       : posicion === "hoja"
-        ? "mt-auto mb-0 w-full max-h-[85dvh] rounded-t-3xl"
-        : "mt-auto mb-0 w-full max-h-[88dvh] rounded-t-3xl sm:mr-0 sm:ml-auto sm:my-0 sm:h-dvh sm:max-h-none sm:rounded-none sm:rounded-l-3xl";
+        ? "!mt-auto !mb-0 w-full max-h-[85dvh] rounded-t-3xl"
+        : "!mt-auto !mb-0 w-full max-h-[88dvh] rounded-t-3xl sm:!mr-0 sm:!ml-auto sm:!my-0 sm:h-dvh sm:max-h-none sm:rounded-none sm:rounded-l-3xl";
 
   const entrada =
     posicion === "centro"

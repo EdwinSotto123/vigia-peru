@@ -819,6 +819,7 @@ export function Buscador({
   min = 0,
   onBuscar,
   cargando = false,
+  espera = 350,
   className,
 }: {
   param?: string;
@@ -829,6 +830,11 @@ export function Buscador({
   onBuscar: (v: string) => void;
   /** Mientras llega la página: la lupa gira. */
   cargando?: boolean;
+  /**
+   * Cuánto esperar tras la última tecla antes de buscar (ms). Más largo en un buscador que cuesta cada pedido (el de lo
+   * que encontró la Contraloría arma un embedding por búsqueda): así una palabra escrita despacio no son cinco pedidos.
+   */
+  espera?: number;
   /** El ancho del campo en su fila (se suma al de siempre y lo pisa donde choca). */
   className?: string;
 }) {
@@ -848,9 +854,9 @@ export function Buscador({
     const id = window.setTimeout(() => {
       ultimo.current = t;
       onBuscar(t);
-    }, 350);
+    }, espera);
     return () => window.clearTimeout(id);
-  }, [texto, onBuscar, min]);
+  }, [texto, onBuscar, min, espera]);
   return (
     <form
       role="search"
