@@ -3,6 +3,7 @@ import { z } from "zod";
 import { escaparLike, pool } from "../lib/db.js";
 import { cachePublico, parametros } from "../lib/http.js";
 import { publicar } from "../lib/privacidad.js";
+import { detallesDeInformes, type DetalleInforme } from "../lib/contraloriaFichas.js";
 import { PERIODOS_GOBIERNO } from "./partidos.js";
 
 /**
@@ -40,7 +41,7 @@ const CONTEOS = `count(*)::int AS total,
                  to_char(min(COALESCE(ic.fecha_emision, ic.fecha_publicacion)), 'YYYY-MM-DD') AS desde,
                  to_char(max(COALESCE(ic.fecha_emision, ic.fecha_publicacion)), 'YYYY-MM-DD') AS hasta`;
 
-const FILA = `ic.numero, ic.titulo, to_char(COALESCE(ic.fecha_emision, ic.fecha_publicacion), 'YYYY-MM-DD') AS fecha,
+const FILA = `ic.codigo, ic.numero, ic.titulo, to_char(COALESCE(ic.fecha_emision, ic.fecha_publicacion), 'YYYY-MM-DD') AS fecha,
               ic.responsabilidades, ic.funcionarios, ic.url_pdf AS "urlPdf", ic.entidad_nombre AS entidad, ic.entidad_ruc AS "entidadRuc"`;
 const ORDEN = `COALESCE(ic.fecha_emision, ic.fecha_publicacion) DESC NULLS LAST, ic.codigo DESC`;
 const POR_TIPO: Record<NonNullable<PaginaQ["tipo"]>, string> = {
@@ -65,9 +66,29 @@ async function informes(donde: string, vals: unknown[], q: PaginaQ) {
       `SELECT ${FILA}, count(*) OVER ()::int AS n FROM informes_control ic WHERE ${filtro}
         ORDER BY ${ORDEN} LIMIT ${q.size} OFFSET ${(q.page - 1) * q.size}`, valsLista),
   ]);
+  // Lo que dice la Ficha Resumen de cada informe de la página (migraciones 302-305), en corto: el detalle entero está en
+  // GET /informes-control/:codigo. Sin fichas cargadas, la lista sale como antes.
+  const detalles = await detallesDeInformes(lista.rows.map((f) => String(f.codigo))).catch(() => new Map<string, DetalleInforme>());
   return {
     ...conteos.rows[0],
-    pagina: { page: q.page, size: q.size, tipo: q.tipo ?? null, q: q.q ?? null, total: lista.rows[0]?.n ?? 0, filas: lista.rows.map(({ n: _n, ...f }) => f) },
+    pagina: {
+      page: q.page, size: q.size, tipo: q.tipo ?? null, q: q.q ?? null, total: lista.rows[0]?.n ?? 0,
+      filas: lista.rows.map(({ n: _n, ...f }) => ({ ...f, ficha: fichaCorta(detalles.get(String(f.codigo))) })),
+    },
+  };
+}
+
+/** La ficha en corto para una lista: objetivo, montos, cada observación con su tema (hasta 300 caracteres) y los implicados. */
+function fichaCorta(d: DetalleInforme | undefined) {
+  if (!d) return null;
+  const corta = (t: string, n: number) => (t.length > n ? `${t.slice(0, n - 1).trimEnd()}…` : t);
+  return {
+    objetivo: d.objetivo ? corta(d.objetivo, 400) : null,
+    tipoServicio: d.tipoServicioTexto ?? d.tipoServicio,
+    montos: d.montos,
+    observaciones: d.observaciones.map((o) => ({ n: o.n, texto: corta(o.texto, 300), tema: o.temaTexto, perjuicio: o.perjuicio })),
+    recomendaciones: d.recomendaciones,
+    implicados: d.implicados,
   };
 }
 

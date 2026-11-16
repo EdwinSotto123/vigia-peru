@@ -854,3 +854,18 @@ test("la base reserva el caso inverso con la misma lista que la API (migración 
   assert.match(sql, /FUNCTION public\.dji_declarante_con_nepotismo[\s\S]*?parentesco_inverso_publicable/);
   assert.match(sql, /FUNCTION refrescar_reserva_parientes[\s\S]*?CASE WHEN parentesco_publicable\(x\.p->>'parentesco'\) THEN false/);
 });
+
+test("implicados de un informe de control (migraciones 302 y 304): un apellido tapado, también en la lista de la entidad", () => {
+  const r = publicar({
+    informes: { pagina: { filas: [{ codigo: "2018CPOL44600002", titulo: "Proceso de contratacion de la obra", ficha: {
+      objetivo: "Determinar si el proceso se realizó conforme a la normativa.",
+      implicados: [{ nombre: "VELASQUEZ BAUTISTA LUCE", responsabilidades: ["penal", "administrativa_pas"] },
+                   { nombre: "DE LA CRUZ ESPINOZA ROSA", responsabilidades: ["civil"] }],
+    } }] } },
+  });
+  const imp = r.informes.pagina.filas[0].ficha.implicados;
+  assert.equal(imp[0].nombre, `VELASQUEZ ${TAPA_NOMBRE} LUCE`);
+  assert.equal(imp[1].nombre, `DE LA CRUZ ${TAPA_NOMBRE} ROSA`);
+  assert.doesNotMatch(json(r), /BAUTISTA|ESPINOZA/);
+  assert.deepEqual(imp[0].responsabilidades, ["penal", "administrativa_pas"]);
+});

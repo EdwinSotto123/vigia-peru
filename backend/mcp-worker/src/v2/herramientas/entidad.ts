@@ -154,7 +154,10 @@ export const informesControl = definir({
   titulo: "Informes de la Contraloría",
   descripcion:
     "Los informes de control de la Contraloría sobre una entidad, con su número, título, fecha, el tipo de responsabilidad " +
-    "que señalan (penal, civil, administrativa) y el enlace al PDF. Filtra por año, tipo o palabras del título.",
+    "que señalan (penal, civil, administrativa) y el enlace al PDF. De cada uno, lo que dice su Ficha Resumen: objetivo, " +
+    "montos, observaciones (con su tema) y los funcionarios comprendidos con su responsabilidad PRESUNTA (un apellido " +
+    "tapado). Filtra por año, tipo o palabras del título. Para buscar por el contenido de las observaciones en todo el país, " +
+    "usa buscar_informes_control.",
   entrada: {
     ruc: rucEntidad,
     anio: z.number().int().min(2000).max(2030).optional(),
@@ -178,6 +181,37 @@ export const informesControl = definir({
         ? tomar(d.procuraduria as Fila, ["corte", "en_tramite", "sentencias", "casos_nuevos", "en_ejecucion", "reparacion_civil", "url_fuente"])
         : undefined,
       fuente: "Contraloría General de la República (informes de servicios de control) y Procuraduría Anticorrupción.",
+      aviso: "Un informe de control señala presunta responsabilidad; no es una sentencia.",
+    };
+  },
+});
+
+export const buscarInformesControl = definir({
+  nombre: "buscar_informes_control",
+  titulo: "Buscar en los informes de la Contraloría",
+  descripcion:
+    "Busca, por palabras y por significado, en las observaciones de los informes de control de la Contraloría de todo el " +
+    "país (sus Fichas Resumen): «pagos por partidas no ejecutadas», «fraccionamiento en compras de combustible», " +
+    "«adicionales de obra sin sustento». Cada resultado es una observación con su tema, el número y la entidad del informe, " +
+    "la fecha, la responsabilidad que señala (PRESUNTA) y el enlace a su ficha. Sirve para encontrar precedentes de un " +
+    "hecho y qué entidades tuvieron observaciones parecidas. Filtra por entidad (RUC o nombre) y por fecha mínima.",
+  entrada: {
+    pregunta: z.string().min(3).max(300).describe("Lo que buscas, en palabras normales."),
+    entidad: z.string().min(3).max(120).optional().describe("RUC de 11 dígitos o palabras del nombre de la entidad."),
+    desde: z.string().regex(/^(19|20)\d{2}(-\d{2}-\d{2})?$/).optional().describe("Año (AAAA) o fecha (AAAA-MM-DD) mínima de emisión."),
+    n: z.number().int().min(1).max(30).default(10),
+  },
+  async ejecutar(a, cx) {
+    const d = await api<Fila>(cx.env, "/informes-control/buscar", { q: a.pregunta, entidad: a.entidad, desde: a.desde, n: a.n });
+    return {
+      pregunta: a.pregunta,
+      modo: d.modo,
+      resultados: ((d.resultados ?? []) as Fila[]).map((x) => ({
+        informe: x.numero ?? x.codigo, codigo: x.codigo, titulo: x.titulo, entidad: x.entidad, entidad_ruc: x.entidadRuc, fecha: x.fecha,
+        modalidad: x.modalidad, responsabilidad_presunta: x.responsabilidades, tema: x.temaTexto ?? x.tema, observacion: x.observacion,
+        ficha: x.urlFicha ?? undefined, enlace_entidad: x.enlace ?? undefined,
+      })),
+      nota: d.nota,
       aviso: "Un informe de control señala presunta responsabilidad; no es una sentencia.",
     };
   },
@@ -216,7 +250,7 @@ export const documentosZip = definir({
   },
 });
 
-export const HERRAMIENTAS_ENTIDAD = [gastoEntidad, planillaEntidad, visitasEntidad, obrasEntidad, informesControl, documentosZip];
+export const HERRAMIENTAS_ENTIDAD = [gastoEntidad, planillaEntidad, visitasEntidad, obrasEntidad, informesControl, buscarInformesControl, documentosZip];
 
 export const gastoPorConcepto = definir({
   nombre: "gasto_por_concepto",

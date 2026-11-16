@@ -320,6 +320,9 @@ const PAPELES: Record<string, { campos: [campo: string, orden: Orden][]; tipo?: 
   persona_principal: { campos: [["nombre_completo", "nombres-primero"], ["nombre", "nombres-primero"]] },
   pareja_o_familia: { campos: [["nombre", "nombres-primero"], ["nombre_completo", "nombres-primero"]], tipo: "familia" },
   socios: { campos: [["nombre", "sunat"]] },
+  // Los funcionarios comprendidos en un informe de control (migraciones 302 y 304, lib/contraloriaFichas.ts): la
+  // Contraloría los publica con apellidos y nombres; su responsabilidad es PRESUNTA.
+  implicados: { campos: [["nombre", "sunat"]] },
   representantes_legales: { campos: [["nombre", "sunat"]] },
   organos_administracion: { campos: [["nombre", "sunat"]] },
   representantes: { campos: [["nombre", "nombres-primero"]] },

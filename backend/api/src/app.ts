@@ -19,6 +19,7 @@ import { crucesRouter } from "./routes/cruces.js";
 import { partidosRouter } from "./routes/partidos.js";
 import { poderRouter } from "./routes/poder.js";
 import { corrupcionRouter } from "./routes/corrupcion.js";
+import { informesControlRouter } from "./routes/informesControl.js";
 import { personasRouter } from "./routes/personas.js";
 import { empresasRouter } from "./routes/empresas.js";
 import { planillaRouter, plazasRouter } from "./routes/planilla.js";
@@ -143,6 +144,7 @@ api.route("/cruces", crucesRouter);
 api.route("/partidos", partidosRouter);
 api.route("/poder", poderRouter);
 api.route("/corrupcion", corrupcionRouter);
+api.route("/informes-control", informesControlRouter); // fichas de la Contraloría y su buscador (migraciones 304-305)
 api.route("/personas", personasRouter);
 api.route("/empresas", empresasRouter);
 api.route("/planilla", planillaRouter);
