@@ -46,7 +46,7 @@ const GRUPO: Record<GraphEdge["kind"], Grupo> = {
   doble_vinculacion: "riesgo",
   candidato: "politica", aporte: "politica", cargo: "politica", mismo_partido_que: "politica", partido_de: "politica",
   pareja: "familia",
-  autoridad: "estado", preside_entidad: "estado", designado_por: "estado", trabaja_en: "estado",
+  autoridad: "estado", preside_entidad: "estado", designado_por: "estado", trabaja_en: "estado", visita_interna: "estado",
 };
 
 /** El tono de cada relación, del mismo juego que los grafos del mapa de poder (`Tono`). */
@@ -74,7 +74,8 @@ const ETIQUETA: Record<GraphEdge["kind"], string> = {
   contrato: "contrató", pareja: "pareja o familia", autoridad: "autoridad", firma_conflicto: "firmó con conflicto",
   adjudicacion: "le adjudicó", preside_entidad: "preside", designado_por: "designado por",
   conflicto_funcionario: "funcionario en conflicto", trabaja_en: "trabaja en", mismo_partido_que: "mismo partido",
-  partido_de: "partido de", compitio: "compitió", socio_de: "socio de", visito: "visitó", doble_vinculacion: "doble vínculo",
+  partido_de: "partido de", compitio: "compitió", socio_de: "socio de", visito: "visitó", visita_interna: "registró una visita",
+  doble_vinculacion: "doble vínculo",
 };
 
 const NODO_RIESGO = new Set<GraphNode["kind"]>(["firmante_conflicto", "socio_postor_conflicto", "company_domicilio"]);
@@ -101,6 +102,7 @@ const QUE_SIGNIFICA: Record<GraphEdge["kind"], string> = {
   compitio: "Presentó oferta en este mismo proceso y no ganó.",
   socio_de: "Figura así en ese postor según el RNP. Ser socio, representante o directivo de un competidor no es un problema por sí solo; lo sería si también lo fuera del ganador o trabajara en la entidad.",
   visito: "Una visita registrada a la entidad, relevante para el proceso. Una visita sola no prueba un vínculo.",
+  visita_interna: "Es del comité o trabaja en la propia entidad, o la visita es de hace más de dos años: no dice nada del proveedor. Va como dato, no como señal.",
   doble_vinculacion: "La misma persona aparece de los dos lados: en el proveedor y en la entidad.",
 };
 
@@ -115,6 +117,7 @@ const AL_REVES: Partial<Record<GraphEdge["kind"], (varios: boolean, e: GraphEdge
   // Guardadas entidad → persona: se leen «X preside la entidad», «X registra una visita a la entidad».
   preside_entidad: (v) => (v ? "presiden" : "preside"),
   visito: (v) => (v ? "registran una visita a" : "registra una visita a"),
+  visita_interna: (v) => (v ? "registran visitas a" : "registra una visita a"),
   // «hermana», «posible familiar de quien dirige la empresa»: «es hermana de», «es posible familiar de quien dirige…».
   pareja: (v, e) => `${v ? "son" : "es"} ${textoRelacion(e)}${/\bde\b/.test(textoRelacion(e)) ? "" : " de"}`,
 };
@@ -131,6 +134,7 @@ type Seccion = "riesgo" | "entidad" | "ganador" | "politica" | "competidores";
 const SECCION: Record<GraphEdge["kind"], Seccion> = {
   domicilio: "riesgo", firma_conflicto: "riesgo", conflicto_funcionario: "riesgo", visito: "riesgo", doble_vinculacion: "riesgo",
   autoridad: "entidad", preside_entidad: "entidad", designado_por: "entidad", trabaja_en: "entidad", adjudicacion: "entidad",
+  visita_interna: "entidad",
   titular: "ganador", mismo_titular: "ganador", contrato: "ganador", pareja: "ganador",
   candidato: "politica", aporte: "politica", cargo: "politica", mismo_partido_que: "politica", partido_de: "politica",
   compitio: "competidores", socio_de: "competidores",

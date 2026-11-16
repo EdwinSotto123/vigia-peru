@@ -360,7 +360,12 @@ const PAPELES: Record<string, { campos: [campo: string, orden: Orden][]; tipo?: 
   representantes: { campos: [["nombre", "nombres-primero"]] },
   gerente_general: { campos: [["nombre", "sunat"]] },
   visitas: { campos: [["visitante", "sunat"], ["funcionario", "sunat"]], tipo: "consulta" },
-  visitas_relevantes: { campos: [["visitante", "sunat"], ["funcionario", "sunat"], ["funcionario_nombre", "sunat"]], tipo: "consulta" },
+  // El agente guarda a quien visitó en `persona` y al anfitrión en `funcionario_anfitrion` (tools/personas/
+  // visitas_clasificar.py): sin esas dos claves el anfitrión salía entero en el dossier público (2026-11-16).
+  visitas_relevantes: {
+    campos: [["visitante", "sunat"], ["funcionario", "sunat"], ["funcionario_nombre", "sunat"], ["persona", "sunat"], ["funcionario_anfitrion", "sunat"]],
+    tipo: "consulta",
+  },
   visitas_inter_municipales: { campos: [["persona", "nombres-primero"], ["funcionario_anfitrion", "sunat"]], tipo: "consulta" },
   aportes: { campos: [["nombre", "sunat"]], tipo: "consulta" },
   candidaturas: { campos: [["nombre", "sunat"]], tipo: "consulta" },
@@ -423,6 +428,14 @@ class Recolector {
     if (paren) {
       this.persona(paren[1], orden, tipo, fijo);
       this.persona(paren[2], orden, tipo, fijo);
+      return;
+    }
+    // «PEREZ QUISPE JUAN - OFICINA DESCONCENTRADA DE LORETO»: el registro de visitas pega la dependencia del anfitrión
+    // tras un guion. Con ella el nombre pasaba de 8 palabras, no se reconocía como persona y salía sin tapar: la persona
+    // es lo de antes del guion (un apellido compuesto, «PEREZ-GODOY», no lleva espacios alrededor).
+    const conDependencia = /^(.{5,80}?)\s+[-–—]\s+\S/u.exec(nombre);
+    if (conDependencia) {
+      this.persona(conDependencia[1], orden, tipo, fijo);
       return;
     }
     if (pareceEmpresa(nombre)) return;

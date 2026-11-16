@@ -9,6 +9,7 @@ import { declaranteElectoSql, esElectoSql, marcaElecto } from "../lib/electos.js
 import { SENALES_CON_PARIENTES, casoReservado, podarParientes } from "../lib/nepotismo.js";
 import { enlaceFuente } from "../lib/fuentes.js";
 import { visitasHasta } from "../lib/visitas.js";
+import { personasPorNombreVisible } from "../lib/personasNombre.js";
 import { PERIODOS_GOBIERNO } from "./partidos.js";
 
 /**
@@ -326,11 +327,18 @@ personasRouter.get("/", async (c) => {
          SELECT ${FILA.replace(/pe\./g, "pag.")}, ${GOBIERNOS("pag.gobiernos")} AS gobiernos
            FROM pag ORDER BY ${ORDEN[q.orden].replace(/pe\./g, "pag.")}, pag.entidad_ruc, pag.ruc`, vals, 25_000);
     });
-    const [filas, rs, cuenta, facetas] = await Promise.all([
+    // Si lo buscado parece un nombre (un apellido y un nombre), además de la entidad y el servicio se busca a la PERSONA
+    // por su nombre visible (lib/personasNombre.ts): antes no había cómo llegar a una ficha escribiendo el nombre. Sólo
+    // en la primera página y en todo el país (dentro de una entidad la lista ya es corta).
+    const porNombreP = q.q && q.page === 1 && !q.entidad && !q.dep && !q.partido
+      ? personasPorNombreVisible(q.q).catch((e) => { console.warn(`[personas] por nombre: ${(e as Error).message}`); return []; })
+      : Promise.resolve([]);
+    const [filas, rs, cuenta, facetas, porNombre] = await Promise.all([
       filasP,
       res,
       cuentaP,
       facetasDe(q).catch((e) => { console.warn(`[personas] facetas: ${(e as Error).message}`); return null; }),
+      porNombreP,
     ]);
     // Sin conteo (falló): lo que se sabe es que hay al menos lo de esta página y, si vino llena, algo más.
     const vistas = (q.page - 1) * q.size + filas.rows.length;
@@ -338,6 +346,8 @@ personasRouter.get("/", async (c) => {
     const totalExacto = cuenta === "fallo" ? filas.rows.length < q.size : total <= TOPE_CONTEO || !cuenta;
     return publicar({
       total, totalExacto, page: q.page, size: q.size, data: filas.rows.map((f) => ({ ...f, nombre: f.nombre ? conEnie(f.nombre) : f.nombre })), resumen: rs, facetas,
+      // Personas cuyo nombre visible coincide con lo buscado: cada una con su ficha.
+      porNombre: porNombre.map((p) => ({ ...p, nombre: conEnie(p.nombre) })),
     });
   });
   c.header("Cache-Control", CACHE);
@@ -583,7 +593,7 @@ personasRouter.get("/:codigo", async (c) => {
     const electoP = /^10\d{9}$/.test(ruc)
       ? pool.query<{ e: boolean }>(`SELECT ${esElectoSql("$1::text")} AS e`, [ruc.slice(2, 10)])
       : Promise.resolve(null);
-    const [ent, senales, anual, mensual, dudosas, cambios] = await Promise.all([
+    const [ent, senales, anual, mensual, dudosas, cambios, ganados] = await Promise.all([
       // Con la gestión que gobierna hoy cada entidad (migración 181): «entró con la gestión 2023-2026».
       pool.query(
         `SELECT ${FILA}, ${GOBIERNOS("pe.gobiernos")} AS gobiernos, z.nombre AS "depNombre",
@@ -643,9 +653,29 @@ personasRouter.get("/:codigo", async (c) => {
                   CROSS JOIN gobierno_nacional_inicio n)
          SELECT DISTINCT to_char(t.desde, 'YYYY-MM') AS mes, t.nivel, t.quien
            FROM t, r WHERE t.desde > r.d0 AND t.desde <= r.d1 ORDER BY 1`, [ruc]).catch(() => ({ rows: [] })),
+      // Los procesos de selección que ganó como persona natural (CONOSCE, con su RUC), cada uno con las señales de ese
+      // contrato (casos_cruce). La ficha se armaba sólo con sus órdenes de servicio (migración 317).
+      pool.query<{ codigo: string; ocid: string | null; proveedor: string | null; entidad: string | null; entidadRuc: string | null; objeto: string | null;
+                   tipoProceso: string | null; nomenclatura: string | null; fecha: string | null; monto: number | null; severidad: string | null; tipos: string[] | null }>(
+        `WITH g AS (
+           SELECT a.codigo_convocatoria::text AS codigo, max(a.proveedor) AS proveedor, max(a.entidad) AS entidad, btrim(max(a.entidad_ruc)) AS entidad_ruc,
+                  max(a.descripcion_proceso) AS objeto, max(a.tipo_proceso) AS tipo_proceso, max(a.nomenclatura) AS nomenclatura,
+                  min(a.fecha_buenapro) AS fecha, sum(a.monto_adjudicado) AS monto
+             FROM conosce_adjudicaciones a
+            WHERE a.ruc_proveedor = $1 AND a.monto_adjudicado > 0
+            GROUP BY 1)
+         SELECT g.codigo, c.ocid, g.proveedor, g.entidad, g.entidad_ruc AS "entidadRuc", g.objeto, g.tipo_proceso AS "tipoProceso", g.nomenclatura,
+                to_char(g.fecha, 'YYYY-MM-DD') AS fecha, g.monto::float AS monto, k.severidad, k.tipos
+           FROM g
+           LEFT JOIN convocatorias c ON c.codigo::text = g.codigo
+           LEFT JOIN casos_cruce k ON k.ocid = c.ocid AND k.ruc = $1
+          ORDER BY g.fecha DESC NULLS LAST, g.codigo DESC LIMIT 300`, [ruc]).catch((e) => { console.warn(`[personas] procesos ganados: ${(e as Error).message}`); return { rows: [] }; }),
     ]);
-    if (!ent.rows.length) return null;
-    const nombrePersona = ent.rows[0]?.nombre ? conEnie(ent.rows[0].nombre) : null;
+    // Sin órdenes de servicio pero con procesos ganados, también tiene ficha.
+    if (!ent.rows.length && !ganados.rows.length) return null;
+    const nombreCrudo = ent.rows[0]?.nombre ?? ganados.rows.find((g) => g.proveedor)?.proveedor ?? null;
+    const nombrePersona = nombreCrudo ? conEnie(nombreCrudo) : null;
+    const procesos = ganados.rows.map(({ proveedor: _p, ...g }) => ({ ...g, objeto: taparNombrePropio(g.objeto, nombrePersona) }));
     // Las órdenes CONCRETAS detrás de la señal "inhabilitado" (el mismo JOIN órdenes↔sanción por vigencia que la computa
     // en la migración 91): se citan para que un humano pueda revisar cada una. Sólo si la persona tiene esa señal; el
     // `detalle.ordenes` (conteo) y estas filas salen del mismo DISTINCT ON, así que coinciden.
@@ -840,13 +870,21 @@ personasRouter.get("/:codigo", async (c) => {
     });
     const sum = (k: "ordenes" | "monto" | "meses") => entidades.reduce((t, e) => t + Number(e[k] ?? 0), 0);
     const fechas = (k: "primera" | "ultima") => entidades.map((e) => e[k]).filter(Boolean).sort();
+    const fechasGanados = procesos.map((g) => g.fecha).filter((f): f is string => !!f).sort();
     return publicar({
       persona: {
-        codigo, ruc, nombre: entidades[0].nombre, ...marcaElecto(personaPublica), entidades: entidades.length, ordenes: sum("ordenes"), monto: sum("monto"),
+        codigo, ruc, nombre: entidades[0]?.nombre ?? nombrePersona, ...marcaElecto(personaPublica), entidades: entidades.length, ordenes: sum("ordenes"), monto: sum("monto"),
         meses: sum("meses"), primera: fechas("primera")[0] ?? null, ultima: fechas("ultima").at(-1) ?? null,
         nSenales: senales.rows.length - nQuitadas,
         dudosas: dudosas.rows[0]?.ordenes ? dudosas.rows[0] : null,
+        // Los procesos de selección que ganó (CONOSCE): cuántos, cuánto, en cuántas entidades y entre qué fechas.
+        procesos: procesos.length,
+        montoProcesos: procesos.reduce((t, g) => t + (g.monto ?? 0), 0),
+        entidadesProcesos: new Set(procesos.map((g) => g.entidadRuc).filter(Boolean)).size,
+        primeraBuenaPro: fechasGanados[0] ?? null,
+        ultimaBuenaPro: fechasGanados.at(-1) ?? null,
       },
+      procesos,
       entidades,
       anual: anual.rows,
       mensual: mensual.rows,

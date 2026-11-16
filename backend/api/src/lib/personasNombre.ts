@@ -1,0 +1,93 @@
+/**
+ * Buscar a una persona natural por su nombre VISIBLE (pedido del dueño del 2026-11-16: «lo busco y parece que no tiene
+ * perfil»). La lista de personas sólo buscaba por la entidad y el servicio; por nombre no había cómo llegar a una ficha
+ * desde la web (el rastro por nombre entero es sólo del MCP: en la API pública permitiría confirmar un apellido tapado).
+ *
+ * La regla que evita esa fuga: se busca en el nombre entero (índice del primer apellido), pero un resultado SÓLO sale si
+ * cada palabra buscada coincide con una palabra que el público ve de ese nombre, ya tapado por publicar(). Quien escriba
+ * el apellido escondido no recibe nada distinto de quien escriba cualquier otra palabra: no hay cómo adivinarlo probando.
+ *
+ * Fuentes: persona_orden_anual (quien tiene órdenes de servicio) y persona_ganadora (quien ganó un proceso de selección,
+ * migración 317; sin la tabla, sólo las órdenes). Pide un apellido y un nombre como mínimo (dos palabras de 3 letras o
+ * más) y que una de las palabras sea la PRIMERA del nombre (el primer apellido, que siempre se ve en el orden del padrón).
+ */
+import { consultaConPlazo } from "./db.js";
+import { publicar } from "./privacidad.js";
+
+export interface PersonaHallada {
+  codigo: string;
+  /** RUC 10: publicar() lo vuelve una referencia y, por él, tapa un apellido del nombre. */
+  ruc: string;
+  nombre: string;
+  /** De sus órdenes de servicio (0 si sólo ganó procesos). */
+  ordenes: number;
+  monto: number;
+  entidades: number;
+  /** La entidad que más le pagó o, si sólo ganó procesos, nada. */
+  entidad: string | null;
+  /** De los procesos de selección que ganó (0 si sólo tiene órdenes). */
+  procesos: number;
+  montoProcesos: number;
+}
+
+// En mayúsculas primero: «ñ» se descompone en «n» + tilde, y la «Ñ» se conserva (las demás tildes se quitan).
+const sinTildes = (t: string) => t.toUpperCase().normalize("NFD").replace(/Ñ/g, "Ñ").replace(/\p{M}/gu, "");
+
+/** Las palabras que se buscan: sin tildes ni signos, de 3 letras o más, hasta 5. Con un número (DNI, RUC), ninguna. */
+export function palabrasDeNombre(q: string | undefined): string[] {
+  if (!q || /\d/.test(q)) return [];
+  return [...new Set(sinTildes(q).replace(/[^A-ZÑ ]+/g, " ").split(/\s+/).filter((w) => w.length >= 3))].slice(0, 5);
+}
+
+/** Las palabras que el público VE de un nombre: se tapa como lo tapa la API y se quita lo tapado. */
+export function palabrasVisibles(nombre: string): string[] {
+  const tapado = publicar({ socios: [{ nombre }] }).socios[0]?.nombre ?? "";
+  // Si por algo no se tapó nada (una sola palabra, no parece persona), no se da por visible ninguna.
+  if (!tapado.includes("•")) return [];
+  return sinTildes(tapado).split(/\s+/).filter((w) => w && !w.includes("•")).map((w) => w.replace(/[^A-ZÑ]/g, "")).filter(Boolean);
+}
+
+/** ¿Todas las palabras buscadas están (enteras o como parte) en alguna palabra visible? «Ñ» y «N» valen igual. */
+export function coincideConLoVisible(palabras: string[], visibles: string[]): boolean {
+  const n = (w: string) => w.replace(/Ñ/g, "N");
+  const vs = visibles.map(n);
+  return palabras.length > 0 && palabras.every((w) => vs.some((v) => v.includes(n(w))));
+}
+
+export async function personasPorNombreVisible(q: string | undefined, tope = 30): Promise<PersonaHallada[]> {
+  const palabras = palabrasDeNombre(q);
+  if (palabras.length < 2) return [];
+  // El primer apellido en la base va como lo deja mef_norm: con «Ñ» o con «N» según la fuente; se prueban las dos. Entran
+  // también las partículas cortas («DE», «LA») por si el nombre empieza con una.
+  const primeras = [...new Set(sinTildes(q ?? "").replace(/[^A-ZÑ ]+/g, " ").split(/\s+/).filter((w) => w.length >= 2).flatMap((w) => [w, w.replace(/Ñ/g, "N")]))];
+  const pats = palabras.map((w) => `%${w.replace(/Ñ/g, "_")}%`);
+  type Fila = { ruc: string; nombre: string; codigo: string; ordenes?: number; monto?: number; entidades?: number; entidad?: string | null; procesos?: number; montoProcesos?: number };
+  const [ordenes, ganadores] = await Promise.all([
+    consultaConPlazo<Fila>(
+      `SELECT o.ruc, max(o.nombre) AS nombre, max(pc.codigo) AS codigo, sum(o.ordenes)::int AS ordenes, COALESCE(sum(o.monto), 0)::float AS monto,
+              count(DISTINCT o.entidad_ruc)::int AS entidades, (array_agg(o.entidad ORDER BY o.monto DESC NULLS LAST))[1] AS entidad
+         FROM persona_orden_anual o JOIN persona_codigo pc ON pc.ruc = o.ruc
+        WHERE o.ap1 = ANY($1::text[]) AND (SELECT bool_and(upper(o.nombre) LIKE p) FROM unnest($2::text[]) p)
+        GROUP BY o.ruc ORDER BY 5 DESC NULLS LAST LIMIT 150`, [primeras, pats], 8000).then((r) => r.rows).catch(() => [] as Fila[]),
+    consultaConPlazo<Fila>(
+      `SELECT g.ruc, g.nombre, pc.codigo, g.procesos, COALESCE(g.monto, 0)::float AS "montoProcesos"
+         FROM persona_ganadora g JOIN persona_codigo pc ON pc.ruc = g.ruc
+        WHERE g.ap1 = ANY($1::text[]) AND (SELECT bool_and(upper(g.nombre) LIKE p) FROM unnest($2::text[]) p)
+        ORDER BY g.monto DESC NULLS LAST LIMIT 150`, [primeras, pats], 8000).then((r) => r.rows).catch(() => [] as Fila[]),
+  ]);
+  const porRuc = new Map<string, PersonaHallada>();
+  for (const f of ordenes) {
+    porRuc.set(f.ruc, { codigo: f.codigo, ruc: f.ruc, nombre: f.nombre, ordenes: f.ordenes ?? 0, monto: f.monto ?? 0, entidades: f.entidades ?? 0,
+                         entidad: f.entidad ?? null, procesos: 0, montoProcesos: 0 });
+  }
+  for (const f of ganadores) {
+    const p = porRuc.get(f.ruc);
+    if (p) Object.assign(p, { procesos: f.procesos ?? 0, montoProcesos: f.montoProcesos ?? 0 });
+    else porRuc.set(f.ruc, { codigo: f.codigo, ruc: f.ruc, nombre: f.nombre, ordenes: 0, monto: 0, entidades: 0, entidad: null, procesos: f.procesos ?? 0, montoProcesos: f.montoProcesos ?? 0 });
+  }
+  return [...porRuc.values()]
+    // La regla de privacidad: sólo quien coincide por lo que se ve.
+    .filter((p) => coincideConLoVisible(palabras, palabrasVisibles(p.nombre.replace(/(?<=\p{L})¿(?=\p{L})/gu, "Ñ"))))
+    .sort((a, b) => b.monto + b.montoProcesos - (a.monto + a.montoProcesos))
+    .slice(0, tope);
+}

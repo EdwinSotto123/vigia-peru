@@ -104,8 +104,10 @@ const GUARDADO = "X-Vigia-Guardado";
  * "103": el caso inverso: la autoridad electa es el familiar y el parentesco destaparía al funcionario (312).
  * "104": el orden de un nombre se decide por pesos de apellido y nombre de pila (lib/pesosNombre.ts): un paterno que
  *        también es nombre de pila ya no deja los dos apellidos a la vista.
+ * "105": el anfitrión de una visita con su dependencia pegada («APELLIDOS NOMBRES - OFICINA …») salía entero en el
+ *        dossier (visitas relevantes y visitas de cada persona): ahora se tapa (2026-11-16).
  */
-const VERSION_CACHE = "104";
+const VERSION_CACHE = "105";
 
 function cacheable(req: Request): boolean {
   if (req.method !== "GET") return false;

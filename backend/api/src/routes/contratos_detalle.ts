@@ -325,21 +325,33 @@ contratosDetalleRouter.get("/:ocid", async (c) => {
     alertaRow.banderas = alertaRow.banderas.map((b: any) => ({ ...b, citas: citasDeBandera(b) }));
   }
 
+  // El código de ficha (/app/personas/<código>) de quien ganó o participó como persona natural: la ficha del contrato lo
+  // enlaza (el RUC 10 nunca sale; el código es al azar, migraciones 91 y 317). Se busca ANTES de publicar(), con el RUC.
+  const rucsPersona = [...new Set([resumen.proveedorRuc, ...adjudicaciones.map((a) => a.proveedorRuc), ...participantes.map((p) => p.ruc)]
+    .filter((r): r is string => typeof r === "string" && /^10\d{9}$/.test(r)))];
+  const codigoPersona = new Map<string, string>();
+  if (rucsPersona.length) {
+    const pc = await pool.query<{ ruc: string; codigo: string }>(`SELECT ruc, codigo FROM persona_codigo WHERE ruc = ANY($1::text[])`, [rucsPersona]).catch(() => null);
+    for (const x of pc?.rows ?? []) codigoPersona.set(x.ruc, x.codigo);
+  }
+  const fichaDe = (ruc: unknown) => (typeof ruc === "string" ? codigoPersona.get(ruc) ?? null : null);
+
   cache(c, 60);
   // Proveedor persona natural (nombre y RUC 10), postores, participantes, citas y señales: tapados (lib/privacidad.ts).
   return c.json(publicar({
     ...resumen,
+    proveedorPersona: fichaDe(resumen.proveedorRuc),
     fechaBuenaPro: buenaPro.fecha,
     fechaBuenaProFuente: buenaPro.fuente,
     items,
     documentos,
-    adjudicaciones,
+    adjudicaciones: adjudicaciones.map((a) => ({ ...a, personaCodigo: fichaDe(a.proveedorRuc) })),
     contratadoConosce: conosce.length ? conosce : null,
     datoDudoso,
     cruces,
     postoresDetalle: postores,
     itemsAnalizados,
-    participantes,
+    participantes: participantes.map((p) => ({ ...p, personaCodigo: fichaDe(p.ruc) })),
     ofertas,
     cronograma,
     // En un proceso enorme, los contratos de mayor monto y los totales (recortarContrato); el cronograma usa todos.

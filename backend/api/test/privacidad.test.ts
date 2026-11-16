@@ -885,3 +885,24 @@ test("orden del nombre por pesos (pesosNombre.ts): un apellido paterno que tambi
   assert.equal(tapado("DE LA CRUZ ESPINOZA ROSA"), `DE LA CRUZ ${TAPA_NOMBRE} ROSA`);
   assert.equal(tapado("QUISPE DE LA TORRE JUAN"), `QUISPE ${TAPA_NOMBRE} JUAN`);
 });
+
+test("el anfitrión de una visita con su dependencia pegada se tapa (visitas relevantes y visitas de cada persona)", () => {
+  // Datos sintéticos. El registro de visitas escribe «APELLIDOS NOMBRES - DEPENDENCIA»: con la dependencia, el nombre
+  // pasaba de 8 palabras, no se tomaba por persona y salía entero.
+  const anfitrion = "QUISPEMAYTA HUAMANCHUMO ROBERTINO ELIAS - OFICINA DESCONCENTRADA DE LORETO";
+  const d = publicar({
+    person_network_context: {
+      visitas_relevantes: [{ persona: "CCAHUANA TICONA FILOMENO", entidad_visitada: "ORGANISMO INVENTADO", funcionario_anfitrion: anfitrion, motivo: "Reunión de trabajo." }],
+      datos_peru_por_persona: { "FILOMENO CCAHUANA TICONA": { visitas: { visitas: [{ visitante: "CCAHUANA TICONA FILOMENO", funcionario: anfitrion }] } } },
+    },
+  });
+  const t = JSON.stringify(d);
+  assert.doesNotMatch(t, /HUAMANCHUMO/, "el segundo apellido del anfitrión no sale");
+  assert.doesNotMatch(t, /TICONA/, "ni el de quien visitó");
+  const v = d.person_network_context.visitas_relevantes[0];
+  assert.match(v.funcionario_anfitrion, /^QUISPEMAYTA .* ROBERTINO ELIAS - OFICINA DESCONCENTRADA DE LORETO$/);
+  assert.match(v.persona, /^CCAHUANA .* FILOMENO$/);
+  // Un apellido compuesto con guion (sin espacios) no se parte.
+  const c = publicar({ socios: [{ nombre: "PEREZ-GODOY HUAMANCHUMO ROBERTINO" }] });
+  assert.doesNotMatch(JSON.stringify(c), /HUAMANCHUMO/);
+});

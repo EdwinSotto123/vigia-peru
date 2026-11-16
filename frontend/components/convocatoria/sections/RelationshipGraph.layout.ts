@@ -527,15 +527,77 @@ export function buildRelationshipGraphData(
   // entidad contratante o con el proveedor ganador en el motivo). Las visitas institucionales
   // ordinarias (p. ej. un funcionario municipal en el Congreso) no se trazan. El campo antiguo
   // `visitas_inter_municipales` de análisis previos se ignora a propósito.
+  //
+  // Y no toda visita a la entidad que contrata dice algo del proveedor (pedido del usuario del 2026-11-16, contrato
+  // 1231028: «son miembros del comité; si visitan su propia entidad no tiene sentido que sea alerta roja»). Va como DATO,
+  // no como cruce de riesgo, la visita de:
+  //   · alguien de la propia entidad: figura en su comité, entre sus firmantes o sus funcionarios, o el registro dice
+  //     que venía en representación de esa misma entidad;
+  //   · hace más de dos años contados desde el análisis.
   const visitasInterMun = (ctx?.visitas_relevantes || []) as any[];
+  const sinTildes = (t: unknown) => String(t ?? "").normalize("NFD").replace(/\p{M}/gu, "").toUpperCase();
+  const VACIAS_ENTIDAD = new Set(["DE", "DEL", "LA", "LOS", "LAS", "EL", "EN"]);
+  const palabrasEntidad = (t: unknown) => new Set(sinTildes(t).split(/[^A-Z0-9]+/).filter((w) => w.length > 1 && !VACIAS_ENTIDAD.has(w)));
+  const mismaEntidad = (a: unknown, b: unknown) => {
+    const x = palabrasEntidad(a), y = palabrasEntidad(b);
+    if (!x.size || !y.size) return false;
+    return [...x].filter((w) => y.has(w)).length / Math.min(x.size, y.size) >= 0.8;
+  };
+  // Las palabras que se VEN de un nombre (la API ya tapó un apellido con «•»): dos listas nombran a la misma persona si
+  // las de la más corta están todas en la otra (el orden puede cambiar entre el acta y el registro de visitas).
+  const palabrasNombre = (t: unknown) => new Set(sinTildes(t).split(/[^A-Z•]+/).filter((w) => w.length > 1 && !w.includes("•")));
+  const mismaPersona = (a: Set<string>, b: Set<string>) => {
+    const [corta, larga] = a.size <= b.size ? [a, b] : [b, a];
+    return corta.size >= 2 && [...corta].every((w) => larga.has(w));
+  };
+  // La gente del proveedor y de los postores puede firmar el contrato o el acta: no son «de la entidad».
+  const delLadoDelProveedor = [proveedorNombre, p.nombre_completo, ctx?.ganador?.razon_social, ...((ctx?.todos_postores || []) as any[]).map((x: any) => x?.razon_social)]
+    .map(palabrasNombre).filter((s) => s.size >= 2);
+  const genteDeLaEntidad = [
+    ...((ctx?.comite_evaluacion || []) as any[]), ...funcionariosDesignados, ...((ctx?.firmantes_consolidados || []) as any[]),
+    ...(alcaldeData ? [alcaldeData] : []),
+  ]
+    .map((f: any) => palabrasNombre(f?.nombre_completo || f?.nombre))
+    .filter((s) => s.size >= 2 && !delLadoDelProveedor.some((x) => mismaPersona(x, s)));
+  const hoyAnalisis = /^\d{4}-\d{2}-\d{2}/.test(String(ctx?._today || "")) ? String(ctx._today).slice(0, 10) : new Date().toISOString().slice(0, 10);
+  const haceDosAnios = `${Number(hoyAnalisis.slice(0, 4)) - 2}${hoyAnalisis.slice(4)}`;
+  const porQueEsDato = (v: any): string | null => {
+    if (v?.entidad_representada && mismaEntidad(v.entidad_representada, v.entidad_visitada || entidadContratante?.nombre)) {
+      return "El registro dice que venía en representación de la misma entidad: es parte de ella.";
+    }
+    const quienEs = palabrasNombre(v?.persona);
+    if (quienEs.size >= 2 && genteDeLaEntidad.some((s) => mismaPersona(s, quienEs))) {
+      return "Figura en el comité, entre los firmantes o entre los funcionarios de la propia entidad.";
+    }
+    const f = String(v?.fecha || "").slice(0, 10);
+    if (/^\d{4}-\d{2}-\d{2}$/.test(f) && f < haceDosAnios) return "La visita es de más de dos años antes del análisis.";
+    return null;
+  };
   const entidadesSecundariasYaCreadas = new Set<string>();
-  visitasInterMun.slice(0, 4).forEach((v: any, i: number) => {
+  visitasInterMun.slice(0, 6).forEach((v: any, i: number) => {
+    const dato = porQueEsDato(v);
     // Sin entidad representada, el nodo es quien visitó (tapado): con la entidad visitada salía «ENTIDAD visita ENTIDAD».
-    const etiqueta = String(v.entidad_representada || (v.persona ? maskApellido(v.persona) : "Visita registrada")).trim();
+    // Una visita que es sólo un dato lleva siempre a la persona: «OEFA registra una visita a OEFA» no decía nada.
+    const etiqueta = String((dato ? "" : v.entidad_representada) || (v.persona ? maskApellido(v.persona) : "Visita registrada")).trim();
     if (entidadesSecundariasYaCreadas.has(etiqueta.toUpperCase())) return;
     entidadesSecundariasYaCreadas.add(etiqueta.toUpperCase());
     const id = `es_${i}`;
     const quien = v.persona ? maskApellido(v.persona) : "Una persona";
+    if (dato) {
+      nodes.push({
+        id, kind: "entidad_secundaria",
+        label: etiqueta,
+        sublabel: "visita registrada",
+        tooltip: `${quien} registró una visita a ${v.entidad_visitada || "la entidad"}${v.fecha ? " (" + v.fecha + ")" : ""}. ${dato}`.trim(),
+        meta: {
+          entidad: etiqueta,
+          observacion: `${dato} No es un vínculo con el proveedor: va como dato.`,
+          rol: "Visita registrada a la entidad (dato, no señal)",
+        },
+      });
+      edges.push({ from: idEntidad, to: id, kind: "visita_interna", label: "visita" });
+      return;
+    }
     nodes.push({
       id, kind: "entidad_secundaria",
       label: etiqueta,

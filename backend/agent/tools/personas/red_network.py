@@ -9,7 +9,7 @@ from tools.personas.rnp import query_rnp_empresa, query_rnp_persona
 from tools.personas.electoral import (query_autoridades_entidad, query_jne_candidaturas,
                                       query_onpe_aportantes, query_pep)
 from tools.personas.visitas import query_visitas_de_persona
-from tools.personas.visitas_clasificar import resumir_visitas
+from tools.personas.visitas_clasificar import _misma_persona, resumir_visitas
 
 
 def read_person_network_context(tool_context: ToolContext) -> dict:
@@ -425,9 +425,16 @@ def read_person_network_context(tool_context: ToolContext) -> dict:
     # ordinaria. Antes toda visita de alguien "de otra municipalidad" se dibujaba como "doble
     # vinculación"; ahora solo se destaca la que toca a la entidad contratante o menciona al
     # proveedor ganador, y las coincidencias aproximadas por nombre se descartan.
+    # Quién es de la entidad: su comité, sus firmantes y sus funcionarios. El ganador y los postores también firman (el
+    # contrato, su oferta): ellos no. Sus visitas a la propia entidad no son un cruce.
+    del_proveedor = [ganador_razon] + [p.get("razon_social") for p in todos_postores]
+    gente_entidad = [n for n in ((f.get("nombre_completo") or f.get("nombre") or "").strip()
+                                 for f in [*comite_validos, *firmantes_validos, *funcionarios_designados] if isinstance(f, dict))
+                     if n and not any(_misma_persona(n, x) for x in del_proveedor if x)]
     resumen_visitas = resumir_visitas(
         {n: ((d or {}).get("visitas") or {}).get("visitas") or [] for n, d in datos_peru.items()},
-        entidad_contratante=buyer_nombre, ganador_razon=ganador_razon)
+        entidad_contratante=buyer_nombre, ganador_razon=ganador_razon,
+        personas_de_la_entidad=gente_entidad, fecha_referencia=_today_iso())
 
     out = {
         # Anclaje temporal — fecha de hoy para que el LLM no marque fechas
