@@ -521,6 +521,27 @@ personasRouter.get("/rastro", async (c) => {
         }];
       });
     }
+    // Informes de control de la Contraloría en que figura como funcionario comprendido, con responsabilidad PRESUNTA
+    // (migración 302; la vista no trae documento: el empate es por nombre completo y se dice).
+    const control = await intento<{ nombre: string; codigo: string; numero: string | null; titulo: string | null; entidad: string | null;
+                                    entidad_ruc: string | null; fecha: string | null; responsabilidades: string[]; ficha: string | null }>(
+      `SELECT p.nombre, i.codigo, i.numero, left(i.titulo, 220) AS titulo, i.entidad_nombre AS entidad, btrim(i.entidad_ruc) AS entidad_ruc,
+              to_char(coalesce(i.fecha_emision, i.fecha_publicacion), 'YYYY-MM-DD') AS fecha, p.responsabilidades, i.url_resumen AS ficha
+         FROM informe_control_implicado p JOIN informes_control i ON i.codigo = p.codigo
+        WHERE ${todas("p.nombre")} ORDER BY 7 DESC NULLS LAST LIMIT 40`);
+    // Y el cruce: figura en un informe de una entidad y esa MISMA entidad le siguió dando órdenes después (migración 308,
+    // vista aquí por nombre). Las órdenes vienen por año: cuenta si la última es posterior al informe.
+    const ordenesFilas = (await ordenes) ?? [];
+    const enInformeYCobro = (control ?? []).flatMap((x) => {
+      if (!x.entidad_ruc || !x.fecha) return [];
+      const o = ordenesFilas.find((y) => y.entidad_ruc === x.entidad_ruc && y.ultima > x.fecha!);
+      return o ? [{
+        entidad: x.entidad, entidad_ruc: x.entidad_ruc, informe: x.numero ?? x.codigo, fecha_del_informe: x.fecha,
+        responsabilidad_presunta: x.responsabilidades, ordenes_de_esa_entidad: o.ordenes, monto_soles: o.monto,
+        primera_orden: o.primera, ultima_orden: o.ultima, ficha: x.ficha,
+        falta_confirmar: "que sea la misma persona (el empate es por nombre completo) y cuántas de esas órdenes son posteriores al informe",
+      }] : [];
+    });
     // Cada fila lleva el nombre como está en su registro, con un apellido tapado: dos personas distintas que comparten
     // las palabras buscadas se ven como dos nombres.
     const tapar = <T extends { nombre: string }>(filas: T[] | null) =>
@@ -532,12 +553,14 @@ personasRouter.get("/rastro", async (c) => {
       declaraciones_juradas: tapar(dji),
       aportes_de_campana: tapar(aportes),
       personas_expuestas: tapar(peps),
-      ordenes_como_persona_natural: tapar(await ordenes),
+      ordenes_como_persona_natural: tapar(ordenesFilas.length ? ordenesFilas : await ordenes),
       visito_y_su_empresa_gano: visitoYGano,
       salidas_de_planilla: tapar(salidas),
       salio_de_la_entidad_y_su_empresa_gano: salioYGano,
       gana_en_la_misma_entidad_con_varias_empresas: variasEmpresas,
       empresa_suya_inhabilitada_y_otra_gano: inhabilitadaYGano,
+      informes_de_control: tapar(control),
+      en_informe_de_control_y_despues_cobro: enInformeYCobro,
       sin_respuesta: [["visitas", visitas], ["empresas", rnp], ["declaraciones_juradas", dji], ["aportes_de_campana", aportes], ["personas_expuestas", peps]]
         .filter(([, v]) => v === null).map(([k]) => k),
     };
