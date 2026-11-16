@@ -10,6 +10,7 @@
  * `rastro_persona` necesita además MCP_INTERNO_TOKEN; sin él esa prueba se salta. No imprime secretos ni nombres enteros.
  */
 import { z } from "zod";
+import { buscarContratos } from "../src/v2/herramientas/contratos";
 import { fichaEntidad, normaAplicable, patrones, preciosReferencia, redEmpresa } from "../src/v2/herramientas/actores";
 
 const PRUEBA = process.env.GOBSERVA_PRUEBA ?? "";
@@ -67,6 +68,8 @@ const CASOS: Caso[] = [
   { h: patrones as never, args: { alcance: "inhabilitada", solo_graves: true },
     espera: (r) => (lista(r, "casos").length >= 5 && lista(r, "casos").every((g) => Number((g as { graves: number }).graves) > 0 && /^20\d{9}$/.test(String((g as { ruc_inhabilitada: string }).ruc_inhabilitada)))
       ? null : "la lista de socios de inhabilitadas salió vacía o sin graves") },
+  { h: buscarContratos as never, args: { senal: "unico_postor,socio_de_inhabilitada", todas_las_senales: true, por_pagina: 5 },
+    espera: (r) => (Number(r.total) > 0 && Number(r.total) < 2000 ? null : `la combinación de señales dio ${String(r.total)} contratos`) },
   { h: redEmpresa as never, args: { ruc: "20100210909" }, espera: (r) => (lista(r, "socias_de_consorcio_que_compiten").length ? null : "sin socias de consorcio para una aseguradora que las tiene") },
 ];
 

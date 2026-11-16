@@ -114,7 +114,7 @@ export const buscarContratos = definir({
   titulo: "Buscar contratos",
   descripcion:
     "Lista procesos de contratación del Estado peruano (SEACE) con filtros: texto, entidad, proveedor, región, tipo, fechas, " +
-    "monto, nivel de riesgo del dictamen de Vigía y tipo de señal (por ejemplo «unico_postor»). Con proveedor_ruc lista los " +
+    "monto, nivel de riesgo del dictamen de Vigía y tipo de señal (por ejemplo «unico_postor»; varias a la vez con todas_las_senales). Con proveedor_ruc lista los " +
     "procesos que ganó esa empresa (CONOSCE). Devuelve el OCID de cada uno para ficha_contrato y dictamen.",
   entrada: {
     texto: z.string().max(120).optional().describe("Palabras del objeto o el código del proceso."),
@@ -128,7 +128,9 @@ export const buscarContratos = definir({
     monto_min: z.number().min(0).optional().describe("Monto mínimo en soles."),
     monto_max: z.number().min(0).optional(),
     riesgo: z.enum(["alto", "medio", "bajo", "sin_analizar"]).optional().describe("Nivel del dictamen de Vigía (solo dictámenes publicados)."),
-    senal: z.string().max(40).optional().describe("Tipo de señal de los cruces, por ejemplo «unico_postor», «socio_comun», «recien_fundada», «mismo_dueno» (el mismo socio gana ahí con otra empresa), «socio_de_inhabilitada» (su socio tiene otra empresa inhabilitada el día de la buena pro), «retencion_sobre_tope», «contrato_sobre_adjudicado», «puerta_giratoria», «renovacion_mas_cara»."),
+    senal: z.string().max(200).regex(/^[a-z_]+(,[a-z_]+)*$/).optional().describe("Tipo de señal de los cruces (varios, separados por coma), por ejemplo «unico_postor», «socio_comun», «recien_fundada», «mismo_dueno» (el mismo socio gana ahí con otra empresa), «socio_de_inhabilitada» (su socio tiene otra empresa inhabilitada el día de la buena pro), «retencion_sobre_tope», «contrato_sobre_adjudicado», «puerta_giratoria», «renovacion_mas_cara»."),
+    todas_las_senales: z.boolean().optional().describe("Con varias señales en `senal`: sólo los contratos que las tienen TODAS (por defecto, alguna). Sirve para combinar, p. ej. «unico_postor,socio_de_inhabilitada»."),
+    solo_senales_graves: z.boolean().optional().describe("Sólo contratos con al menos una señal grave de los cruces."),
     orden: z.enum(["fecha", "monto", "puntaje"]).default("fecha"),
     pagina,
     por_pagina: porPagina,
@@ -156,7 +158,7 @@ export const buscarContratos = definir({
     const reg = region(a.region);
     const r = await api<Fila>(env, "/contratos", {
       q: a.texto, entidad, ubigeo: reg?.ubigeo, tipo: a.tipo, desde, hasta, monto_min: a.monto_min, monto_max: a.monto_max,
-      riesgo: a.riesgo, cruce: a.senal, orden: a.orden === "puntaje" ? "score" : a.orden, page: a.pagina, size: a.por_pagina,
+      riesgo: a.riesgo, cruce: a.senal, cruce_todas: a.todas_las_senales && a.senal ? 1 : undefined, cruces: a.solo_senales_graves ? "alta" : undefined, orden: a.orden === "puntaje" ? "score" : a.orden, page: a.pagina, size: a.por_pagina,
     });
     return {
       total: r.total,

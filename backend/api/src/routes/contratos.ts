@@ -119,7 +119,8 @@ function filtros(q: Partial<Filtros>, vals: unknown[], m: Mapa, excluir = new Se
     const k = [`k.ocid = ${m.ocid}`];
     if (q.cruces === "alta") k.push("k.n_alta > 0");
     else if (q.cruces && q.cruces !== "con") k.push(`${add(q.cruces)} = ANY(k.tipos)`);
-    if (q.cruce) k.push(`k.tipos && ${add(q.cruce.split(","))}::text[]`);
+    // Varios tipos: alguno (&&) o, con cruce_todas, todos a la vez (@>): «único postor Y socio de inhabilitada».
+    if (q.cruce) k.push(`k.tipos ${q.cruce_todas ? "@>" : "&&"} ${add(q.cruce.split(","))}::text[]`);
     conds.push(`EXISTS (SELECT 1 FROM casos_cruce k WHERE ${k.join(" AND ")})`);
   }
   // La obra del contrato (INFOBRAS e Invierte.pe): sus banderas viven en casos_cruce como las demás, pero son hechos de la
@@ -183,7 +184,7 @@ const geoTextoMemo = new Memo<Serializado>({ nombre: "contratos:geo:texto", ttlM
 // operativo ni riesgo (auditoría M1: la portada calculaba 5 cubos idénticos). El reparto es en memoria.
 // `porTipoRiesgo[tipo][riesgo]` = lo que daría `porRiesgo` con ese `tipo` elegido (respeta operativo):
 // la matriz tipo × riesgo de una sola llamada.
-const ResumenQuery = ListQuery.pick({ q: true, ubigeo: true, entidad: true, monto_min: true, monto_max: true, desde: true, hasta: true, tipo: true, etapa: true, riesgo: true, operativo: true, cruces: true, cruce: true, obra: true, lectura: true, partido: true, ganadora: true, dudoso: true });
+const ResumenQuery = ListQuery.pick({ q: true, ubigeo: true, entidad: true, monto_min: true, monto_max: true, desde: true, hasta: true, tipo: true, etapa: true, riesgo: true, operativo: true, cruces: true, cruce: true, cruce_todas: true, obra: true, lectura: true, partido: true, ganadora: true, dudoso: true });
 type Faceta = "tipo" | "operativo" | "riesgo";
 type Celda = Record<Faceta, string | null> & { n: number };
 const FACETAS: Faceta[] = ["tipo", "operativo", "riesgo"];
@@ -692,7 +693,7 @@ async function lista(q: ListaQ) {
 const GeoQuery = ListQuery.pick({
   tipo: true, etapa: true, riesgo: true, ubigeo: true, entidad: true, q: true, desde: true, hasta: true,
   // Los filtros del mapa: lectura, antecedentes del ganador y partido que gobierna.
-  lectura: true, cruces: true, cruce: true, obra: true, partido: true,
+  lectura: true, cruces: true, cruce: true, cruce_todas: true, obra: true, partido: true,
 }).extend({
   nivel: z.enum(["distrito", "provincia", "departamento"]).default("distrito"),
 });

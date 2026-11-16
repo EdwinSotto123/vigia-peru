@@ -160,6 +160,8 @@ export const ListQuery = z.object({
   // "con" (alguno), "alta" (uno grave) o un tipo de cruce (el desplegable "Antecedentes" los ofrece todos).
   cruces: z.string().max(40).regex(/^[a-z_]+$/).optional(),
   cruce: z.string().max(300).regex(/^[a-z_]+(,[a-z_]+)*$/).optional(),
+  /** Con `cruce` de varios tipos: el contrato debe tener TODOS (sin esto, alguno). Para combinar señales. */
+  cruce_todas: z.enum(["1", "true"]).optional(),
   // Las banderas de la obra del contrato (INFOBRAS e Invierte.pe, migración 160), aparte de los antecedentes del ganador:
   // «con» (alguna) o un tipo.
   obra: z.string().max(40).regex(/^(con|(obra|inversion)_[a-z_]+)$/).optional(),
