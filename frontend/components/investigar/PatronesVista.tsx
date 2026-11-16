@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
-import { Ban, Briefcase, Building2, Handshake, SearchX, TrendingUp, Users, UsersRound } from "lucide-react";
+import { Ban, Briefcase, Building2, FileSearch, Handshake, SearchX, TrendingUp, Users, UsersRound } from "lucide-react";
 import { Ayuda, CabeceraPestana, Nota, Pestanas } from "@/components/patrones";
 import { EVENTO_ACTIVA } from "@/components/patrones/Pestanas";
 import { CeldaBarra, CeldaNumero, CeldaPrincipal, CeldaTexto, CLASE_ENLACE_CELDA, Indicadores, Tabla, type Columna, type Fila, type Indicador } from "@/components/listado";
@@ -19,6 +19,7 @@ import {
   codigoDeOcid,
   rutaAcompanantes,
   rutaConsorcios,
+  rutaControl,
   rutaDuenos,
   rutaInhabilitadas,
   rutaPatrones,
@@ -28,7 +29,9 @@ import {
   type AlcancePatron,
   type PatronAcompanante,
   type PatronConsorcio,
+  type PatronControl,
   type PatronDueno,
+  type PatronesControl,
   type PatronInhabilitada,
   type PatronesInhabilitadas,
   type PatronesDuenos,
@@ -107,6 +110,13 @@ export function PatronesVista({ activa, inicial, etiquetas }: { activa?: string;
           titulo: "Ganan mientras otra empresa del mismo socio está inhabilitada",
           icono: <Ban size={15} aria-hidden />,
           contenido: <ListaInhabilitadas inicial={de("inhabilitadas")} />,
+        },
+        {
+          clave: "control",
+          etiqueta: SECCIONES_PATRONES.control,
+          titulo: "Ganan con un socio comprendido en un informe de control",
+          icono: <FileSearch size={15} aria-hidden />,
+          contenido: <ListaControl inicial={de("control")} />,
         },
         {
           clave: "renovaciones",
@@ -922,6 +932,168 @@ function filaInhabilitada(p: PatronInhabilitada, i: number): Fila {
             {rango ? `, ${rango}` : ""}
           </span>
           {nacioCerca ? <span className="mt-0.5 block text-rotulo text-inkSoft">La empresa que gana se fundó el {fechaConAnio(p.fundada!)}</span> : null}
+        </span>
+      ),
+      contratos: <CeldaNumero sub={p.graves > 0 ? `${numero(p.graves)} ${p.graves === 1 ? "grave" : "graves"}` : undefined}>{numero(p.contratos)}</CeldaNumero>,
+      monto: <CeldaNumero>{p.monto != null ? solesCompacto(p.monto) : "Sin dato"}</CeldaNumero>,
+      ejemplos: (
+        <CeldaTexto>
+          {(p.ejemplos ?? []).map((o, k) => (
+            <span key={o}>
+              {k > 0 ? ", " : ""}
+              <Link href={`/app/contratos/${encodeURIComponent(o)}`} prefetch={false} className={CLASE_ENLACE_CELDA}>
+                {codigoDeOcid(o)}
+              </Link>
+            </span>
+          ))}
+        </CeldaTexto>
+      ),
+      periodo: anios ? <CeldaTexto>{anios}</CeldaTexto> : undefined,
+    },
+  };
+}
+
+// ─── Socio en informe de control ─────────────────────────────────────────────────
+
+const COLUMNAS_CONTROL: Columna[] = [
+  { clave: "gana", titulo: "Empresa que gana y persona", ancho: "minmax(0,1.4fr)" },
+  { clave: "informe", titulo: "Informe de control anterior", ancho: "minmax(0,1.5fr)", desde: "md", apilar: "con-rotulo", corto: "Informe" },
+  {
+    clave: "contratos",
+    titulo: "Ganados después",
+    ancho: "8.5rem",
+    alinear: "der",
+    desde: "md",
+    apilar: "con-rotulo",
+    corto: "Ganados",
+    ayuda: (
+      <Ayuda titulo="¿Qué cuenta?">
+        <span className="block">
+          Procesos con buena pro para esta empresa, sola o en consorcio, después de emitido el informe. Debajo, los graves: la
+          responsabilidad presunta es penal y el informe es de la misma entidad que contrató o de los dos años anteriores.
+        </span>
+      </Ayuda>
+    ),
+  },
+  { clave: "monto", titulo: "Monto de los procesos", ancho: "8rem", alinear: "der", desde: "lg", apilar: "con-rotulo", corto: "Monto" },
+  { clave: "ejemplos", titulo: "Contratos de ejemplo", ancho: "minmax(0,0.9fr)", desde: "lg", apilar: "con-rotulo", corto: "Ejemplos" },
+  { clave: "periodo", titulo: "Años", ancho: "6.5rem", desde: "xl", apilar: "con-rotulo" },
+];
+
+const RESPONSABILIDAD_CORTA: Record<string, string> = {
+  penal: "penal", civil: "civil", administrativa_entidad: "administrativa", administrativa_pas: "sanción administrativa", administrativa: "administrativa",
+};
+
+function ListaControl({ inicial }: { inicial: InicialPatrones }) {
+  const lista = useListaEnUrl("control", inicial);
+  // Los filtros (RUC, graves, misma entidad) son de la vista: no viajan a la URL y vuelven a la primera página.
+  const [ruc, setRuc] = useState("");
+  const rucValido = /^20\d{9}$/.test(ruc.trim()) ? ruc.trim() : undefined;
+  const [graves, setGraves] = useState(false);
+  const [misma, setMisma] = useState(false);
+  const filtrada = !!rucValido || graves || misma;
+  const carga = usePoder<PatronesControl>(rutaControl(filtrada ? 1 : lista.page, rucValido, graves, misma));
+  return (
+    <div className="space-y-4">
+      <CabeceraPestana
+        ayuda={
+          <Ayuda titulo="¿Por qué mirar al socio con un informe de control?">
+            <span className="block">
+              Un informe de control señala responsabilidad cuando los auditores de la Contraloría encuentran que un funcionario incumplió
+              sus funciones o causó un perjuicio. Si esa persona es después dueña o representante de una empresa que le gana al Estado,
+              vale leer qué observó el informe y si se parece a lo contratado.
+            </span>
+            <span className="mt-1.5 block">
+              Cruza a los funcionarios comprendidos en los informes con los socios y representantes legales del Registro Nacional de
+              Proveedores, por su documento (que no se muestra), y las buenas pro desde 2018 posteriores al informe.
+            </span>
+            <span className="mt-1.5 block">
+              La responsabilidad es presunta: la Contraloría la identifica y la deriva; no es una condena ni un impedimento para contratar.
+              Un patrón es un motivo para mirar, no una acusación.
+            </span>
+          </Ayuda>
+        }
+      >
+        Empresas que ganaron buenas pro con un socio o representante comprendido, antes, en un informe de control de la Contraloría.
+      </CabeceraPestana>
+      <label className="block max-w-md">
+        <span className="text-rotulo font-medium text-inkSoft">Filtrar por RUC de la empresa o de una entidad</span>
+        <input
+          type="search"
+          inputMode="numeric"
+          value={ruc}
+          onChange={(e) => setRuc(e.target.value.replace(/\D/g, "").slice(0, 11))}
+          placeholder="RUC de 11 dígitos que empieza en 20"
+          autoComplete="off"
+          className="mt-1 h-11 w-full rounded-xl border border-line bg-paperSoft px-3 text-dato text-ink placeholder:text-mute focus:border-granate focus:bg-paper focus:outline-none focus:ring-2 focus:ring-granate/20"
+        />
+      </label>
+      <div className="flex flex-wrap gap-x-6 gap-y-1">
+        <label className="flex min-h-11 w-fit cursor-pointer items-center gap-2.5 text-dato text-ink">
+          <input type="checkbox" checked={graves} onChange={(e) => setGraves(e.target.checked)} className="size-5 rounded border-line accent-granate" />
+          Sólo los graves: penal presunta y cercana
+        </label>
+        <label className="flex min-h-11 w-fit cursor-pointer items-center gap-2.5 text-dato text-ink">
+          <input type="checkbox" checked={misma} onChange={(e) => setMisma(e.target.checked)} className="size-5 rounded border-line accent-granate" />
+          El informe es de la misma entidad que contrató
+        </label>
+      </div>
+      <EstadoCarga carga={carga} columnas={COLUMNAS_CONTROL}>
+        {(d) => {
+          const filas = d.data ?? [];
+          return (
+            <div className="space-y-4">
+              <Indicadores
+                franja
+                items={[
+                  { valor: numero(d.total), etiqueta: filtrada ? "casos con ese filtro" : "pares de empresa y persona", contexto: "la persona figura en un informe anterior", icono: <FileSearch size={15} strokeWidth={1.9} aria-hidden />, parte: null },
+                  { valor: "Presunta", etiqueta: "es la responsabilidad", contexto: "la Contraloría la señala y la deriva: no es una condena", parte: null },
+                  { valor: "2 años", etiqueta: "o la misma entidad", contexto: "con responsabilidad penal presunta, es grave", parte: null },
+                ]}
+              />
+              <ZonaLista total={d.total} page={filtrada ? 1 : lista.page} cargando={carga.cargando} nombre="casos" onPagina={lista.irAPagina} vacio="No hay casos con este patrón para ese filtro.">
+                {filas.length > 0 ? <Tabla columnas={COLUMNAS_CONTROL} filas={filas.map(filaControl)} etiqueta="Empresas que ganan con un socio comprendido en un informe de control" /> : null}
+              </ZonaLista>
+            </div>
+          );
+        }}
+      </EstadoCarga>
+    </div>
+  );
+}
+
+function filaControl(p: PatronControl, i: number): Fila {
+  const anios = periodo(p.desde, p.hasta);
+  const resp = (p.responsabilidades ?? []).map((r) => RESPONSABILIDAD_CORTA[r] ?? r);
+  const unicas = resp.filter((r, k) => resp.indexOf(r) === k);
+  const numeroInforme = p.informeNumero ?? p.informeCodigo ?? "sin número";
+  const otros = Math.max(0, (p.informes ?? 1) - 1);
+  return {
+    id: `control-${i}`,
+    textos: { periodo: anios },
+    celdas: {
+      gana: (
+        <CeldaPrincipal
+          dosLineas
+          titulo={<EnlaceEmpresa ruc={p.ruc} nombre={p.empresa} />}
+          meta={<span className="block">{p.socios?.[0]?.nombre ?? "Persona sin nombre publicado"}, {(p.socios?.[0]?.rol ?? "socio").toLowerCase()}</span>}
+        />
+      ),
+      informe: (
+        <span className="block min-w-0 whitespace-normal break-words text-dato leading-snug text-inkSoft">
+          {p.ficha ? (
+            <a href={p.ficha} target="_blank" rel="noopener noreferrer" className={CLASE_ENLACE_CELDA}>
+              {numeroInforme}
+            </a>
+          ) : (
+            numeroInforme
+          )}
+          {p.informeEntidad ? <>, de {tituloNatural(p.informeEntidad)}</> : null}
+          <span className="mt-0.5 block text-rotulo text-mute">
+            {p.emision ? `${fechaConAnio(p.emision)}, ` : ""}responsabilidad presunta {unicas.length ? unicas.join(" y ") : "sin detalle"}
+            {otros > 0 ? `; figura en ${otros} ${otros === 1 ? "informe más" : "informes más"}` : ""}
+          </span>
+          {p.mismaEntidad ? <span className="mt-0.5 block text-rotulo text-inkSoft">Es de una entidad que después le contrató</span> : null}
         </span>
       ),
       contratos: <CeldaNumero sub={p.graves > 0 ? `${numero(p.graves)} ${p.graves === 1 ? "grave" : "graves"}` : undefined}>{numero(p.contratos)}</CeldaNumero>,

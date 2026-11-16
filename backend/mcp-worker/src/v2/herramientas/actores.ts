@@ -482,12 +482,12 @@ export const patrones = definir({
     "cobertura; más grave si comparten socio). Con alcance «consorcio»: empresas que postularon juntas en un consorcio y " +
     "después compiten por separado en procesos de pocos postores que gana una de las dos (posible reparto). Con alcance " +
     "«renovacion»: servicios que una entidad volvió a contratar pagando 30 % o más POR MES que en el contrato anterior " +
-    "(con cuánto costaba, cuánto cuesta y si el proveedor es el mismo). Con alcance «inhabilitada»: empresas que ganan mientras otra empresa del mismo socio está inhabilitada (con ruc: la ganadora, la inhabilitada o la entidad). Con alcance «dueno»: un mismo socio que gana en una " +
+    "(con cuánto costaba, cuánto cuesta y si el proveedor es el mismo). Con alcance «control»: empresas que ganan con un socio o representante comprendido en un informe de control de la Contraloría anterior (responsabilidad presunta). Con alcance «inhabilitada»: empresas que ganan mientras otra empresa del mismo socio está inhabilitada (con ruc: la ganadora, la inhabilitada o la entidad). Con alcance «dueno»: un mismo socio que gana en una " +
     "entidad con dos o más empresas procesos de objeto parecido (reparto de compras entre razones sociales). Con un RUC, los patrones de esa entidad o empresa. Cada patrón trae contratos " +
     "de ejemplo para abrir con ficha_contrato o dictamen. Un patrón es un motivo para mirar, no una acusación.",
   cuenta: true,
   entrada: {
-    alcance: z.enum(["entidad", "proveedor", "relleno", "consorcio", "renovacion", "dueno", "inhabilitada"]).default("entidad"),
+    alcance: z.enum(["entidad", "proveedor", "relleno", "consorcio", "renovacion", "dueno", "inhabilitada", "control"]).default("entidad"),
     ruc: z.string().min(11).max(14).optional().describe("RUC 20 de la entidad o de la empresa (opcional)."),
     regla: z.string().max(60).optional().describe("Sólo una señal, por su código (p. ej. unica_oferta_valida)."),
     solo_graves: z.boolean().optional().describe("(dueno) Sólo grupos con contratos parecidos a 90 días o menos entre sí. (inhabilitada) Sólo con sanción definitiva o empresa hecha cerca de la sanción."),
@@ -497,6 +497,28 @@ export const patrones = definir({
   async ejecutar(a, cx) {
     const e = enlaces(cx.env);
     const ruc = a.ruc ? rucJuridico(a.ruc) : undefined;
+    if (a.alcance === "control") {
+      const r = await api<Fila>(cx.env, "/patrones/control", { ruc, page: a.pagina, size: 20, graves: a.solo_graves ? 1 : undefined });
+      return {
+        total: r.total,
+        casos: ((r.data ?? []) as Fila[]).map((x) => ({
+          empresa_que_gana: x.empresa, ruc: x.ruc, enlace: e.empresa(x.ruc), persona: x.socios?.[0]?.nombre ?? undefined, papel_en_la_empresa: x.socios?.[0]?.rol,
+          informe_de_control: x.informeNumero ?? x.informeCodigo, entidad_del_informe: x.informeEntidad, fecha_del_informe: x.emision,
+          responsabilidad_presunta: x.responsabilidades, otros_informes_de_la_persona: Math.max(0, Number(x.informes ?? 1) - 1),
+          ficha_del_informe: x.ficha ?? undefined, informe_de_la_misma_entidad_que_contrato: x.mismaEntidad === true ? true : undefined,
+          contratos_ganados_despues: x.contratos, graves: x.graves, monto_de_los_procesos_soles: x.monto, entidades: x.entidades,
+          primera_buena_pro: x.desde, ultima_buena_pro: x.hasta, ejemplos: ((x.ejemplos ?? []) as string[]).map((o) => e.contrato(o)),
+        })),
+        como_leerlo:
+          "Cada fila es una empresa que ganó buenas pro teniendo como socio o representante legal a una persona comprendida en " +
+          "un informe de control de la Contraloría emitido ANTES. La responsabilidad es PRESUNTA: no es una condena ni un " +
+          "impedimento para contratar. «graves»: responsabilidad penal presunta y el informe es de la misma entidad que " +
+          "contrató o de los dos años anteriores. Lee qué observó el informe (informes_control o su ficha) y si se parece a lo " +
+          "contratado; si ganó en consorcio, el monto es el del proceso entero.",
+        fuente: "Contraloría (informes de control), RNP (socios y representantes) y CONOSCE (adjudicaciones desde 2018)",
+        aviso: AVISO,
+      };
+    }
     if (a.alcance === "inhabilitada") {
       const r = await api<Fila>(cx.env, "/patrones/inhabilitadas", { ruc, page: a.pagina, size: 20, graves: a.solo_graves ? 1 : undefined });
       return {

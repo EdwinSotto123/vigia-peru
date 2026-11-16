@@ -229,6 +229,67 @@ patronesRouter.get("/inhabilitadas", async (c) => {
   return c.json(cuerpo);
 });
 
+/**
+ * GET /patrones/control?ruc=&graves=1&misma=1  Empresas que ganan con un socio o representante comprendido en un informe
+ * de control de la Contraloría anterior a la buena pro (cruce `socio_con_informe_control`, migraciones 303 y 307). Una
+ * fila por empresa y persona: su informe más grave, cuántos contratos ganó después y en cuántas entidades. Con `ruc`: la
+ * empresa, la entidad del informe o la entidad que contrató. `misma`: sólo donde el informe es de la entidad que contrató.
+ * La responsabilidad es PRESUNTA; el socio sale con un apellido tapado y sin documento.
+ */
+const Control = Consorcios.extend({ graves: z.enum(["1", "true"]).optional(), misma: z.enum(["1", "true"]).optional() });
+
+patronesRouter.get("/control", async (c) => {
+  const p = Control.safeParse(Object.fromEntries(Object.entries(parametros(c)).filter(([, v]) => v !== "" && v != null)));
+  if (!p.success) return c.json({ error: "invalid_query", issues: p.error.issues }, 400);
+  const q = p.data;
+  const cuerpo = await memo.obtener(`control:${JSON.stringify(q)}`, async () => {
+    const vals: unknown[] = [];
+    const add = (v: unknown) => { vals.push(v); return `$${vals.length}`; };
+    const conds: string[] = [];
+    if (q.ruc) conds.push(`(x.ruc = ${add(q.ruc)} OR x.informe_entidad_ruc = $${vals.length} OR $${vals.length} = ANY(x.ents))`);
+    if (q.graves) conds.push("x.graves > 0");
+    if (q.misma) conds.push("x.misma");
+    const donde = conds.length ? `WHERE ${conds.join(" AND ")}` : "";
+    // Unas 6 700 banderas: se agrupan al vuelo (la respuesta queda en memoria). El documento de la persona no sale de la
+    // consulta: sólo agrupa.
+    const r = await pool.query(
+      `WITH x AS (
+         SELECT c.ruc_empresa AS ruc, max(c.persona_nombre) AS nombre, max(c.detalle->>'rol_en_empresa') AS rol,
+                (array_agg(c.detalle->>'informe_codigo' ORDER BY c.severidad = 'alta' DESC, c.fecha DESC))[1] AS informe_codigo,
+                (array_agg(c.detalle->>'informe_numero' ORDER BY c.severidad = 'alta' DESC, c.fecha DESC))[1] AS informe_numero,
+                (array_agg(c.detalle->>'informe_entidad' ORDER BY c.severidad = 'alta' DESC, c.fecha DESC))[1] AS informe_entidad,
+                (array_agg(c.detalle->>'informe_entidad_ruc' ORDER BY c.severidad = 'alta' DESC, c.fecha DESC))[1] AS informe_entidad_ruc,
+                (array_agg(c.detalle->>'emision' ORDER BY c.severidad = 'alta' DESC, c.fecha DESC))[1] AS emision,
+                (array_agg(c.detalle->'responsabilidades' ORDER BY c.severidad = 'alta' DESC, c.fecha DESC))[1] AS responsabilidades,
+                (array_agg(c.detalle->>'url_resumen' ORDER BY c.severidad = 'alta' DESC, c.fecha DESC))[1] AS ficha,
+                max((c.detalle->>'n_informes')::int) AS informes,
+                count(DISTINCT c.ocid)::int AS contratos, (count(DISTINCT c.ocid) FILTER (WHERE c.severidad = 'alta'))::int AS graves,
+                sum(c.monto)::float AS monto, count(DISTINCT cv.entidad_ruc)::int AS entidades,
+                COALESCE(bool_or((c.detalle->>'misma_entidad')::boolean OR (c.detalle->>'misma_entidad_en_otro')::boolean), false) AS misma,
+                min(c.fecha) AS desde, max(c.fecha) AS hasta,
+                (array_agg(c.ocid ORDER BY c.severidad = 'alta' DESC, c.monto DESC NULLS LAST))[1:3] AS ejemplos,
+                array_agg(DISTINCT cv.entidad_ruc::text) AS ents
+           FROM cruces_proveedor c JOIN convocatorias cv ON cv.ocid = c.ocid
+          WHERE c.tipo = 'socio_con_informe_control'
+          GROUP BY c.ruc_empresa, c.persona_doc)
+       SELECT x.ruc, e.razon_social AS empresa, x.nombre, x.rol, x.informe_codigo AS "informeCodigo", x.informe_numero AS "informeNumero",
+              x.informe_entidad AS "informeEntidad", x.informe_entidad_ruc AS "informeEntidadRuc", x.emision, x.responsabilidades, x.ficha,
+              x.informes, x.contratos, x.graves, x.monto, x.entidades, x.misma AS "mismaEntidad",
+              to_char(x.desde, 'YYYY-MM-DD') AS desde, to_char(x.hasta, 'YYYY-MM-DD') AS hasta, x.ejemplos, (count(*) OVER ())::int AS total
+         FROM x LEFT JOIN empresas e ON e.ruc = x.ruc ${donde}
+        ORDER BY x.misma DESC, x.graves DESC, x.contratos DESC, x.monto DESC NULLS LAST, x.ruc LIMIT ${add(q.size)} OFFSET ${add((q.page - 1) * q.size)}`, vals);
+    return publicar({
+      total: r.rows[0]?.total ?? 0, page: q.page, size: q.size,
+      // `socios` es la forma que `publicar()` ya conoce de los cruces: tapa un apellido.
+      data: r.rows.map(({ nombre, rol, total: _t, ...x }) => ({
+        ...x, socios: [{ nombre: nombrePublicable(nombre), rol: /SOCIO/.test(String(rol)) ? "Socio" : "Representante legal" }],
+      })),
+    });
+  });
+  c.header("Cache-Control", CACHE);
+  return c.json(cuerpo);
+});
+
 const Precios = z.object({
   q: z.string().trim().min(3).max(120),
   tipo: z.enum(["bien", "servicio"]).default("bien"),
