@@ -77,6 +77,29 @@ def test_hechos_de_duenos_sin_nombres_y_con_lo_que_falta_confirmar():
     assert "duenos_en_este_proceso" not in E.resumen_para_agentes(EXP)
 
 
+def test_informe_de_control_anterior_es_contexto_sin_personas_ni_texto_de_la_observacion():
+    det = {"informe_codigo": "2025CPOL44600007", "informe_numero": "007-2025-2-4460", "emision": "2025-08-14", "tema": "ejecucion_contractual",
+           "perjuicio": 6200000.5, "moneda": "PEN", "responsabilidades": ["administrativa_entidad", "penal", "administrativa_pas"],
+           "proceso_observado": "ocds-dgv273-seacev3-557756", "proceso_observado_nomenclatura": "LP-SM-84-2019-ENT/CEABE-1",
+           "dias_despues": 253, "n_procesos_observados": 2, "url_resumen": "https://apps8.contraloria.gob.pe/x", "informe_titulo": "ASUNTO"}
+    h = E.hecho_de_control("gano_tras_observacion", "alta", det)
+    assert h["grave"] and h["informe"] == "007-2025-2-4460" and h["responsabilidad_presunta"] == ["penal", "administrativa"]
+    assert h["tema"] == "la ejecución del contrato" and h["dias_antes_de_la_buena_pro"] == 253
+    assert "url_resumen" not in h and "informe_titulo" not in h and "proceso_observado_ocid" not in h
+    # Lo que la Contraloría observó en ESTE proceso es posterior a la buena pro: no va al agente.
+    assert E.hecho_de_control("observado_por_contraloria", "alta", det) is None
+    assert E.hecho_de_control("gano_tras_observacion", "alta", {}) is None and E.hecho_de_control("mismo_dueno", "alta", det) is None
+    # Un perjuicio en dólares no se pasa como soles.
+    assert E.hecho_de_control("gano_tras_observacion", "media", {**det, "moneda": "USD"})["perjuicio"] is None
+    md = E.ficha_md({**EXP, "control": [h]})
+    assert "Informe de control anterior" in md and "253 día(s) antes de esta buena pro" in md and "Informe N.° 007-2025-2-4460 (2025-08-14)" in md
+    assert "(LP-SM-84-2019-ENT/CEABE-1)" in md and "sobre la ejecución del contrato" in md and "Son 2 los procesos suyos observados antes" in md
+    assert "presunta responsabilidad penal, administrativa de funcionarios y no sanciona al proveedor" in md and "no una señal de este proceso" in md
+    r = E.resumen_para_agentes({**EXP, "control": [h]})
+    assert r["informe_de_control_anterior_sobre_otro_proceso_suyo_en_la_entidad"] == [h]
+    assert "informe_de_control_anterior_sobre_otro_proceso_suyo_en_la_entidad" not in E.resumen_para_agentes(EXP)
+
+
 def test_insertar_ficha_al_comienzo_de_la_seccion_y_una_sola_vez():
     md = "## Resumen\nx\n\n## Antecedentes del proveedor\nTexto del modelo.\n\n## Personas clave y red empresarial\ny"
     una = E.insertar_ficha(md, EXP)

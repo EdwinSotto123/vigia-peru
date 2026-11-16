@@ -145,6 +145,31 @@ def senales_de_persona(ruc: str, exp: dict) -> list[dict]:
                            + " Es un indicio para revisar, no una conclusión.")}]
 
 
+_TEMA_CONTROL = {"seleccion_contratacion": "la selección y la contratación", "ejecucion_contractual": "la ejecución del contrato",
+                 "pagos_adelantos": "pagos y adelantos", "personal_planillas": "personal y planillas",
+                 "bienes_almacen": "bienes y almacén", "presupuesto_tesoreria": "presupuesto y tesorería"}
+
+
+def hecho_de_control(tipo, severidad, detalle) -> dict | None:
+    """El detalle de la bandera `gano_tras_observacion` (migración 315) con sólo lo que el dictamen dice: el informe de
+    control, su fecha, el proceso que observó, el tema y las cifras. Sin el texto de la observación ni personas.
+
+    Lo que la Contraloría observó en ESTE mismo proceso (`observado_por_contraloria`) NO entra: ese informe es posterior a
+    la buena pro, y el agente analiza con lo que se sabía al contratar."""
+    d = detalle if isinstance(detalle, dict) else {}
+    informe = d.get("informe_numero") or d.get("informe_codigo")
+    if tipo != "gano_tras_observacion" or not informe:
+        return None
+    resp = sorted({"penal" if r == "penal" else "civil" if r == "civil" else "administrativa"
+                   for r in (d.get("responsabilidades") or []) if isinstance(r, str)},
+                  key=("penal", "civil", "administrativa").index)
+    return {"tipo": tipo, "grave": severidad == "alta", "informe": str(informe), "emision": d.get("emision"),
+            "dias_antes_de_la_buena_pro": d.get("dias_despues"), "proceso_observado": d.get("proceso_observado_nomenclatura"),
+            "tema": _TEMA_CONTROL.get(str(d.get("tema") or "")), "perjuicio": d.get("perjuicio") if d.get("moneda") != "USD" else None,
+            "responsabilidad_presunta": resp, "procesos_observados_antes": d.get("n_procesos_observados"),
+            "consorcio": d.get("consorcio")}
+
+
 def hecho_de_dueno(tipo, severidad, detalle) -> dict | None:
     """El detalle de una bandera de dueños (`socio_de_inhabilitada`, `mismo_dueno`) con sólo lo que el dictamen dice:
     empresas, fechas y cifras. Nunca el nombre ni el documento de la persona."""
@@ -309,6 +334,13 @@ def expediente_proveedor_bd(ruc: str, entidad_ruc: str | None = None, ocid: str 
                 hecho = hecho_de_dueno(d.get("tipo"), d.get("severidad"), d.get("detalle"))
                 if hecho:
                     out.setdefault("duenos", []).append(hecho)
+            # 5a-bis. Un informe de control ANTERIOR a esta buena pro observó otro proceso que el proveedor había ganado en
+            #     esta misma entidad (migración 315). Es contexto: no dice nada de este proceso.
+            for d in _filas(cur, """SELECT tipo, severidad, detalle FROM cruces_proveedor
+                                     WHERE ruc_empresa = %s AND ocid = %s AND tipo = 'gano_tras_observacion'""", (ruc, corto)):
+                hecho = hecho_de_control(d.get("tipo"), d.get("severidad"), d.get("detalle"))
+                if hecho:
+                    out.setdefault("control", []).append(hecho)
 
         # 5b. Lo que se repite (migración 276): postores de relleno del proveedor y patrones de los agentes en este
         #     proveedor y en esta entidad. Un contrato raro puede ser un error; el mismo hecho repetido es un modo de trabajar.
@@ -403,6 +435,9 @@ def resumen_para_agentes(exp: dict) -> dict:
     if exp.get("duenos"):
         # Hechos de los dueños en ESTE proceso: van a la sección de red y vínculos, con lo que falta confirmar.
         out["duenos_en_este_proceso"] = exp["duenos"]
+    if exp.get("control"):
+        # Contexto, no una señal de este proceso: un informe de control anterior sobre OTRO proceso del proveedor aquí.
+        out["informe_de_control_anterior_sobre_otro_proceso_suyo_en_la_entidad"] = exp["control"]
     p = exp.get("persona")
     if p:
         out["ordenes_con_el_estado"] = {k: p.get(k) for k in ("ordenes", "monto", "entidades", "primera", "ultima", "con_esta_entidad")}
@@ -640,6 +675,21 @@ def ficha_md(exp: dict | None) -> str:
                           + f", que en esta misma entidad ganó o ganaron {x.get('procesos') or 'otros'} proceso(s) por {_soles(x.get('monto'))} en dos años"
                           + (f"; uno es de objeto parecido, a {dias} día(s) de este" if dias is not None else "")
                           + ". Vale revisar si las compras debieron ser un solo proceso.")
+    for x in (exp.get("control") or [])[:2]:
+        dias = x.get("dias_antes_de_la_buena_pro")
+        resp = x.get("responsabilidad_presunta") or []
+        lineas.append("- **Informe de control anterior:** "
+                      + (f"{dias} día(s) antes de esta buena pro, " if isinstance(dias, int) and dias > 0 else "antes de esta buena pro, ")
+                      + f"la Contraloría emitió el Informe N.° {x.get('informe')}"
+                      + (f" ({x['emision']})" if x.get("emision") else "")
+                      + ", que observó otro proceso que este proveedor había ganado en esta misma entidad"
+                      + (f" ({x['proceso_observado']})" if x.get("proceso_observado") else "")
+                      + (f", sobre {x['tema']}" if x.get("tema") else "")
+                      + (f"; cuantifica un perjuicio de {_soles(x['perjuicio'])}" if x.get("perjuicio") else "")
+                      + (f". Son {x['procesos_observados_antes']} los procesos suyos observados antes en la entidad"
+                         if isinstance(x.get("procesos_observados_antes"), int) and x["procesos_observados_antes"] > 1 else "")
+                      + (f". El informe señala presunta responsabilidad {', '.join(resp)} de funcionarios" if resp else ". El informe señala a funcionarios")
+                      + " y no sanciona al proveedor: es contexto para ver si lo observado se repite, no una señal de este proceso.")
     for x in (exp.get("socias_de_consorcio_rivales") or [])[:3]:
         lineas.append(f"- **Rival que fue su socia:** {x.get('rival')} postuló con este proveedor en {x.get('consorcios')} consorcio(s) y, por "
                       f"separado, se enfrentaron en {x.get('rivales')} procesos de pocos postores: este ganó {x.get('gano_este')} y la otra "
