@@ -253,22 +253,38 @@ function Politica({ p }: { p: PerfilPersona }) {
 
 function Familia({ p }: { p: PerfilPersona }) {
   const entidades = new Set(p.familia.map((f) => f.entidadRuc)).size;
-  const filas: Fila[] = p.familia.map((f, i) => ({
-    id: String(i),
-    ...(f.ficha ? { href: `/app/personas/planilla/${f.ficha}` } : {}),
-    celdas: {
-      quien: (
-        <CeldaPrincipal
-          titulo={f.cargo ? tituloNatural(f.cargo) : "Funcionario"}
-          meta={[
-            f.funcionarioApellido ? <Dato key="ap" tipo="personas" nombre="Funcionario">{f.funcionarioApellido}</Dato> : null,
-            <Dato key="en" tipo="entidad" nombre="Su entidad">{tituloNatural(f.entidad ?? "Otra entidad")}</Dato>,
-          ]}
-        />
-      ),
-      parentesco: <span className="text-meta text-inkSoft">{GRADO_PARIENTE[f.grado ?? "otro"] ?? "Pariente"}</span>,
-    },
-  }));
+  const filas: Fila[] = p.familia.map((f, i) =>
+    // Reservado por el API: la persona va completa (es electa) y el parentesco destaparía el apellido del funcionario.
+    f.reservado
+      ? {
+          id: `reservado-${i}`,
+          celdas: {
+            quien: (
+              <CeldaPrincipal
+                titulo="Un funcionario o autoridad"
+                meta={[<Dato key="en" tipo="entidad" nombre="Su entidad">{tituloNatural(f.entidad ?? "Otra entidad")}</Dato>]}
+              />
+            ),
+            parentesco: <span className="text-meta text-mute">Reservado</span>,
+          },
+        }
+      : {
+          id: String(i),
+          ...(f.ficha ? { href: `/app/personas/planilla/${f.ficha}` } : {}),
+          celdas: {
+            quien: (
+              <CeldaPrincipal
+                titulo={f.cargo ? tituloNatural(f.cargo) : "Funcionario"}
+                meta={[
+                  f.funcionarioApellido ? <Dato key="ap" tipo="personas" nombre="Funcionario">{f.funcionarioApellido}</Dato> : null,
+                  <Dato key="en" tipo="entidad" nombre="Su entidad">{tituloNatural(f.entidad ?? "Otra entidad")}</Dato>,
+                ]}
+              />
+            ),
+            parentesco: <span className="text-meta text-inkSoft">{GRADO_PARIENTE[f.grado ?? "otro"] ?? "Pariente"}</span>,
+          },
+        },
+  );
   return (
     <Seccion
       titulo="Familia en el Estado"
@@ -283,8 +299,9 @@ function Familia({ p }: { p: PerfilPersona }) {
         filas={filas}
       />
       <Nota>
-        Del funcionario se muestra su cargo, su entidad y su primer apellido, nunca su nombre completo. Que un pariente trabaje en
-        el Estado no es una falta: lo es que intervenga en su contratación. Ese cruce está en las señales de cada entidad.
+        Del funcionario se muestra su cargo, su entidad y su primer apellido, nunca su nombre completo. Si es una autoridad electa y el
+        parentesco permitiría deducir un apellido tapado, sólo su entidad. Que un pariente trabaje en el Estado no es una falta: lo es
+        que intervenga en su contratación. Ese cruce está en las señales de cada entidad.
       </Nota>
       <FuenteDato
         fuente="Contraloría, Declaraciones Juradas de Intereses"

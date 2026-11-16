@@ -95,16 +95,23 @@ const anios = (xs: number[]) => (xs.length ? (xs[0] === xs[xs.length - 1] ? Stri
 
 const tituloNepotismo = (n: number) => (n === 1 ? "Declaró a un pariente que le vende a su entidad" : `Declaró a ${numero(n)} parientes que le venden a su entidad`);
 
-/** "Hijo(a): 35 órdenes por S/ 181,917, de 2019 a 2024" o "2 parientes: 36 órdenes por S/ 187,317". */
-function datoNepotismo(parientes: ParienteProveedor[]): string {
-  if (parientes.length === 1) {
+/**
+ * "Hijo(a): 35 órdenes por S/ 181,917, de 2019 a 2024" o "2 parientes: 36 órdenes por S/ 187,317". Los reservados (es una
+ * autoridad electa y el parentesco destaparía el apellido tapado del familiar) sólo se cuentan: sin parentesco ni monto.
+ */
+function datoNepotismo(todos: ParienteProveedor[]): string {
+  const parientes = todos.filter((p) => !p.reservado);
+  const reservados = todos.length - parientes.length;
+  const y = reservados ? `${parientes.length ? "; y " : ""}${plural(reservados, "familiar", "familiares")} con datos reservados` : "";
+  if (!parientes.length) return conMayuscula(y);
+  if (parientes.length === 1 && !reservados) {
     const p = parientes[0];
     const a = anios(p.anios);
     return `${conMayuscula(grado(p.grado))}: ${plural(p.n, "orden", "órdenes")} por ${soles(p.monto)}${a ? `, ${a.includes(" a ") ? `de ${a}` : `en ${a}`}` : ""}`;
   }
   const n = parientes.reduce((t, p) => t + p.n, 0);
   const monto = parientes.reduce((t, p) => t + p.monto, 0);
-  return `${numero(parientes.length)} parientes: ${plural(n, "orden", "órdenes")} por ${soles(monto)}`;
+  return `${plural(parientes.length, "pariente", "parientes")}: ${plural(n, "orden", "órdenes")} por ${soles(monto)}${y}`;
 }
 
 function FilaNepotismo({ parientes, entidad, donde }: { parientes: ParienteProveedor[]; entidad?: string; donde: DondePlanilla }) {
@@ -119,6 +126,19 @@ function FilaNepotismo({ parientes, entidad, donde }: { parientes: ParienteProve
         impedimento depende del cargo (Ley 32069, art. 30).
       </p>
       {parientes.map((p, i) => {
+        // Reservado: es una autoridad electa (su nombre completo es público) y con el parentesco, el nombre o el monto del
+        // familiar se deduciría el apellido que se le tapa. Sólo que existe.
+        if (p.reservado) {
+          return (
+            <section key={`reservado-${i}`} className="space-y-1">
+              <h3 className="text-cuerpo font-semibold leading-snug text-ink">Un familiar</h3>
+              <p className="text-meta text-inkSoft">
+                Se reservan su parentesco, su nombre y sus órdenes: con el nombre completo de una autoridad electa a la vista, se le deduciría el apellido
+                que Vigía le tapa.
+              </p>
+            </section>
+          );
+        }
         const a = anios(p.anios);
         return (
           <section key={`${p.codigo ?? p.nombre}-${i}`} className="space-y-2">
@@ -173,6 +193,17 @@ const natural = (v: unknown) => (t(v) ? tituloNatural(t(v)!) : null);
 /** El mes de una señal que trae `anio` y `mes` sueltos (brecha, pago extraordinario): "set. 2026". */
 const mesDe = (d: Record<string, unknown>) => (n(d.anio) && n(d.mes) ? mes(`${n(d.anio)}-${String(n(d.mes)).padStart(2, "0")}`) : null);
 const dia = (v: unknown) => (typeof v === "string" && /^\d{4}-\d{2}-\d{2}/.test(v) ? fechaCorta(v.slice(0, 10)) : null);
+/**
+ * Los grados de los familiares que declaró, sin repetir. Los reservados (es una autoridad electa y el parentesco destaparía
+ * el apellido tapado del familiar: migración 311) llegan sin parentesco y van contados aparte.
+ */
+const gradosVisibles = (par: Record<string, unknown>[]) => {
+  const visibles = par.filter((x) => !x.reservado);
+  const reservados = par.length - visibles.length;
+  const grados = [...new Set(visibles.map((x) => GRADO_PARIENTE[t(x.grado) ?? "otro"] ?? "pariente"))];
+  if (reservados) grados.push(visibles.length ? `${reservados === 1 ? "uno" : numero(reservados)} con el parentesco reservado` : "parentesco reservado");
+  return grados.join(", ");
+};
 
 /** El dato que sostiene la señal, en una línea, para su fila. Nunca el nombre de una persona. */
 export function datoClavePlanilla(tipo: TipoPlanilla, d: Record<string, unknown>): string | null {
@@ -183,9 +214,13 @@ export function datoClavePlanilla(tipo: TipoPlanilla, d: Record<string, unknown>
       return [cuantas != null ? `${plural(cuantas, "orden", "órdenes")} por ${soles(n(d.monto) ?? 0)}` : null, meses ? `en ${meses}` : null].filter(Boolean).join(" ") || null;
     }
     case "pariente_locador": {
+      // Los reservados (es una autoridad electa y el parentesco destaparía el apellido tapado del familiar: migración
+      // 311) sólo se cuentan; con uno solo así, la señal no trae sus sumas.
       const par = lista(d.parientes);
-      const grados = [...new Set(par.map((x) => GRADO_PARIENTE[t(x.grado) ?? "otro"] ?? "pariente"))];
-      return `${plural(par.length, "pariente", "parientes")} (${grados.join(", ")}) con ${plural(n(d.ordenes) ?? 0, "orden", "órdenes")} por ${soles(n(d.monto) ?? 0)} de la entidad`;
+      const ordenes = n(d.ordenes);
+      const monto = n(d.monto);
+      const cuanto = ordenes != null && monto != null ? `${plural(ordenes, "orden", "órdenes")} por ${soles(monto)}` : "órdenes";
+      return `${plural(par.length, "pariente", "parientes")} (${gradosVisibles(par)}) con ${cuanto} de la entidad`;
     }
     case "pariente_planilla": {
       const f = lista(d.funcionarios);
@@ -195,9 +230,8 @@ export function datoClavePlanilla(tipo: TipoPlanilla, d: Record<string, unknown>
     }
     case "familiar_en_planilla": {
       const par = lista(d.parientes);
-      const grados = [...new Set(par.map((x) => GRADO_PARIENTE[t(x.grado) ?? "otro"] ?? "pariente"))];
-      const cargo = par.length === 1 ? natural(par[0].cargo) : null;
-      return `Declaró ${par.length === 1 ? "a un pariente" : `a ${numero(par.length)} parientes`} (${grados.join(", ")}) que ${par.length === 1 ? "trabaja" : "trabajan"} en su entidad${cargo ? `, como ${cargo}` : ""}`;
+      const cargo = par.length === 1 && !par[0].reservado ? natural(par[0].cargo) : null;
+      return `Declaró ${par.length === 1 ? "a un pariente" : `a ${numero(par.length)} parientes`} (${gradosVisibles(par)}) que ${par.length === 1 ? "trabaja" : "trabajan"} en su entidad${cargo ? `, como ${cargo}` : ""}`;
     }
     case "ascenso_expres": {
       const a = (d.antes ?? {}) as Record<string, unknown>;
@@ -293,6 +327,9 @@ function TablaChica({ columnas, filas, etiqueta }: { columnas: Columna[]; filas:
 }
 
 const texto = (v: string | null) => <span className="text-meta text-ink">{v ?? "Sin dato"}</span>;
+/** El familiar reservado de una autoridad electa (migración 311): ni su parentesco, ni su cargo, ni lo que cobró. */
+const reservado = <span className="text-meta text-inkSoft">Un familiar, con el parentesco reservado</span>;
+const reservadoCorto = <span className="text-meta text-mute">Reservado</span>;
 /**
  * El partido como enlace a su ficha (captura, contratos de sus gobiernos): el vínculo se investiga, no es texto muerto.
  * Por su clave (`rutaPartido`) y, con el año del dato, en ese período: con el nombre crudo la ficha no lo encontraba.
@@ -451,7 +488,8 @@ export function DetalleSenalPlanilla({ tipo, d }: { tipo: TipoPlanilla; d: Recor
       />
     );
   } else if (tipo === "pariente_locador") {
-    // Del pariente sólo el parentesco y lo que cobró: nunca quién es (ni su nombre ni su documento).
+    // Del pariente sólo el parentesco y lo que cobró: nunca quién es (ni su nombre ni su documento). El reservado (es una
+    // autoridad electa y el parentesco destaparía el apellido tapado del familiar), sólo que existe.
     return (
       <TablaChica
         etiqueta="Parientes locadores que declaró"
@@ -461,15 +499,19 @@ export function DetalleSenalPlanilla({ tipo, d }: { tipo: TipoPlanilla; d: Recor
           { clave: "monto", titulo: "Monto", ancho: "7rem", alinear: "der" },
           { clave: "anios", titulo: "Años", ancho: "6rem", desde: "md", apilar: "con-rotulo" },
         ]}
-        filas={lista(d.parientes).map((x, i) => ({
-          id: String(i),
-          celdas: {
-            parentesco: texto(oracionSimple(GRADO_PARIENTE[t(x.grado) ?? "otro"] ?? "pariente")),
-            ordenes: texto(n(x.ordenes) != null ? numero(n(x.ordenes)!) : null),
-            monto: texto(n(x.monto) != null ? soles(n(x.monto)) : null),
-            anios: texto([t(x.desde), t(x.hasta)].filter((y, j, a) => y && a.indexOf(y) === j).join(" a ") || null),
-          },
-        }))}
+        filas={lista(d.parientes).map((x, i) =>
+          x.reservado
+            ? { id: `reservado-${i}`, celdas: { parentesco: reservado, ordenes: reservadoCorto, monto: reservadoCorto, anios: reservadoCorto } }
+            : {
+                id: String(i),
+                celdas: {
+                  parentesco: texto(oracionSimple(GRADO_PARIENTE[t(x.grado) ?? "otro"] ?? "pariente")),
+                  ordenes: texto(n(x.ordenes) != null ? numero(n(x.ordenes)!) : null),
+                  monto: texto(n(x.monto) != null ? soles(n(x.monto)) : null),
+                  anios: texto([t(x.desde), t(x.hasta)].filter((y, j, a) => y && a.indexOf(y) === j).join(" a ") || null),
+                },
+              },
+        )}
       />
     );
   } else if (tipo === "pariente_planilla") {
@@ -501,13 +543,17 @@ export function DetalleSenalPlanilla({ tipo, d }: { tipo: TipoPlanilla; d: Recor
           { clave: "parentesco", titulo: "Parentesco declarado", ancho: "minmax(0,1fr)" },
           { clave: "cargo", titulo: "Su cargo en la entidad", corto: "Cargo", ancho: "minmax(0,1fr)", desde: "md", apilar: "con-rotulo" },
         ]}
-        filas={lista(d.parientes).map((x, i) => ({
-          id: String(i),
-          celdas: {
-            parentesco: texto(oracionSimple(GRADO_PARIENTE[t(x.grado) ?? "otro"] ?? "pariente")),
-            cargo: texto(natural(x.cargo)),
-          },
-        }))}
+        filas={lista(d.parientes).map((x, i) =>
+          x.reservado
+            ? { id: `reservado-${i}`, celdas: { parentesco: reservado, cargo: reservadoCorto } }
+            : {
+                id: String(i),
+                celdas: {
+                  parentesco: texto(oracionSimple(GRADO_PARIENTE[t(x.grado) ?? "otro"] ?? "pariente")),
+                  cargo: texto(natural(x.cargo)),
+                },
+              },
+        )}
       />
     );
   } else if (tipo === "ascenso_expres") {

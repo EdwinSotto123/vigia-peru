@@ -20,7 +20,8 @@ Uso:
   python backend/scripts/cargar_contraloria_informes.py --entorno dev --responsabilidades PENAL,CIVIL
 Idempotente: upsert por código y, al final, refrescar_informes_control_entidad() (ubigeo y RUC de todos los informes).
 Las personas de cada informe leído se reemplazan por las de esta lectura (upsert por código y orden; se borran las que
-sobran). Un informe que esta vez no trae a nadie conserva las que tenía.
+sobran). Un informe que esta vez no trae a nadie conserva las que tenía. Después rehace la señal de personas que sale de
+ellas (refrescar_persona_informe_control, migración 308) y el resumen de las listas de personas.
 Requiere psycopg2, la CLI de AWS y session-manager-plugin (túnel de infrastructure/aws/tunel_rds.py).
 """
 
@@ -309,6 +310,17 @@ def main() -> int:
                      filas = EXCLUDED.filas, fuente_url = EXCLUDED.fuente_url, descargado_at = EXCLUDED.descargado_at,
                      cargado_at = now(), estado = 'ok', error = NULL""",
                 (FUENTE, f"script {date.today().isoformat()}", sha, tot, URL_BUSCADOR, datetime.now(timezone.utc)))
+        if gente is not None:
+            # Lo que sale de las personas (migración 308): la señal del locador que un informe de su entidad comprende y que
+            # recibió órdenes de ella después, y el resumen de las listas de personas. Cada uno en su transacción; si la
+            # función no está en esa base, se salta. Las banderas de los contratos (303) las rehace la cadena de cruces.
+            for f in ("refrescar_persona_informe_control", "refrescar_personas_resumen"):
+                with con, con.cursor() as cur:
+                    cur.execute("SELECT to_regprocedure(%s) IS NOT NULL", (f"{f}()",))
+                    if cur.fetchone()[0]:
+                        cur.execute("SET LOCAL statement_timeout = 0")
+                        cur.execute(f"SELECT {f}()")
+                        print(f"  {f}(): {cur.fetchone()[0]}")
     print(f"✓ {BASES[a.entorno]}: {escritos} nuevos o cambiados · {tot} informes, {con_ruc} con RUC "
           f"({con_ruc / max(tot, 1):.1%}), {con_ubigeo} con distrito, {ambiguos} ambiguos")
     return 0

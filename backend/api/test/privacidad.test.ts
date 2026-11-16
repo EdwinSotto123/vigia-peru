@@ -618,3 +618,159 @@ test("familiares de un electo (nombre completo): un hermano y un sobrino no expo
   assert.deepEqual(tapado.lista.map((x) => x.parentesco), ["Hermano o hermana", "Otro familiar"]);
   assert.doesNotMatch(json(tapado), /PALOMINO/);
 });
+
+test("nepotismo de una entidad: el caso de una autoridad electa con un parentesco que destapa sale reservado; con cónyuge, visible; un gerente con un hermano, como siempre", async () => {
+  const { nepotismoPublico } = await import("../src/lib/nepotismo.js");
+  const fila = (x: Record<string, unknown>) => ({
+    declarante: null, cargo: null, declaranteFicha: null, grado: "otro", parentesco: null, electo: false, proveedorRuc: "10439608801",
+    proveedorNombre: "PEREZ QUISPE JUAN", proveedorCodigo: "0123456789ab", ordenes: 1, monto: 1000, ...x,
+  }) as Parameters<typeof nepotismoPublico>[0][number];
+  const alcaldeHermano = fila({ declarante: "PEREZ QUISPE PEDRO", cargo: "ALCALDE", grado: "hermano", parentesco: "HERMANO(A) DEL DECLARANTE", electo: true,
+                                proveedorRuc: "10439608801", proveedorNombre: "PEREZ QUISPE JUAN", proveedorCodigo: "a1b2c3d4e5f6", ordenes: 7, monto: 31417 });
+  const alcaldeConyuge = fila({ declarante: "PEREZ QUISPE PEDRO", cargo: "ALCALDE", grado: "conyuge", parentesco: "CONYUGE", electo: true,
+                                proveedorRuc: "10411112222", proveedorNombre: "ROJAS PAZ ELENA", proveedorCodigo: "b1b2c3d4e5f6", ordenes: 2, monto: 9013 });
+  const gerenteHermano = fila({ declarante: "TORRES LIMA LUIS", cargo: "GERENTE MUNICIPAL", declaranteFicha: "f1", grado: "hermano", parentesco: "HERMANO(A) DEL DECLARANTE",
+                                electo: false, proveedorRuc: "10422223333", proveedorNombre: "TORRES LIMA ANA", proveedorCodigo: "c1b2c3d4e5f6", ordenes: 3, monto: 12011 });
+  const filas = [alcaldeHermano, gerenteHermano, alcaldeConyuge];
+  const grupos = filas.map((f) => ({ grado: f.grado, parentesco: f.parentesco, electo: f.electo, n: 1, monto: f.monto }));
+  const r = nepotismoPublico(filas, grupos, 3, 31417 + 12011 + 9013);
+  const s = json(r);
+  // El del alcalde y su hermano: «un familiar de una autoridad electa», al final, sin parentesco, sin el familiar, sin monto.
+  assert.deepEqual(r.detalle.at(-1), { reservado: true });
+  assert.equal(r.detalle.filter((d) => "reservado" in d).length, 1);
+  assert.doesNotMatch(s, /31417|a1b2c3d4e5f6/);
+  // El del alcalde y su cónyuge: visible, con su monto y la ficha del familiar.
+  const conyuge = r.detalle.find((d) => d.parentesco === "CONYUGE")!;
+  assert.equal(conyuge.monto, 9013);
+  assert.equal(conyuge.proveedorCodigo, "b1b2c3d4e5f6");
+  // El del gerente (no electo) y su hermano: como hoy, con el primer apellido del funcionario y su ficha.
+  const gerente = r.detalle.find((d) => d.cargo === "GERENTE MUNICIPAL")!;
+  assert.equal(gerente.monto, 12011);
+  assert.equal(gerente.funcionarioApellido, "TORRES");
+  assert.equal(gerente.declaranteFicha, "f1");
+  // Ningún nombre completo de funcionario ni RUC 10 sin tapar.
+  assert.doesNotMatch(s, /PEREZ QUISPE PEDRO|TORRES LIMA LUIS|10439608801|10422223333/);
+  // Los totales suman todo; el grado «hermano» tiene un solo caso reservado: sin su monto aparte. Y como la lista trae los
+  // tres casos, el total general menos lo listado daría el del reservado: tampoco va.
+  assert.equal(r.total, 3);
+  assert.equal(r.monto, null);
+  assert.deepEqual(r.porGrado.find((g) => g.grado === "hermano"), { grado: "hermano", n: 2, monto: null });
+  assert.deepEqual(r.porGrado.find((g) => g.grado === "conyuge"), { grado: "conyuge", n: 1, monto: 9013 });
+  // Con dos reservados en el grado, su suma sí.
+  const otroHermano = fila({ ...alcaldeHermano, proveedorCodigo: "d1b2c3d4e5f6", monto: 5009 });
+  const dos = nepotismoPublico([alcaldeHermano, otroHermano], [{ grado: "hermano", parentesco: "HERMANO(A) DEL DECLARANTE", electo: true, n: 2, monto: 36426 }], 2, 36426);
+  assert.deepEqual(dos.porGrado, [{ grado: "hermano", n: 2, monto: 36426 }]);
+  assert.equal(dos.monto, 36426);
+  assert.deepEqual(dos.detalle, [{ reservado: true }, { reservado: true }]);
+});
+
+test("quién se reserva al declarar un familiar: el cargo de elección, el parentesco en las dos direcciones", async () => {
+  const { esCargoDeEleccion } = await import("../src/lib/electos.js");
+  const { parentescoInversoPublicable, reservarParentesco } = await import("../src/lib/privacidad.js");
+  for (const c of ["ALCALDE", "ALCALDÍA", "REGIDOR 4", "REGIGOR", "TENIENTE ALCALDE", "VICE GOBERNADOR REGIONAL", "CONSEJERA REGIONAL POR LA PROVINCIA", "CONGRESISTA", "CONCEJO MUNICIPAL"]) {
+    assert.ok(esCargoDeEleccion(c), c);
+  }
+  for (const c of ["GERENTE MUNICIPAL", "COLABORADOR", "OTRO CARGO FUNCION O LABOR", "JEFE DE ABASTECIMIENTO", null]) assert.ok(!esCargoDeEleccion(c), String(c));
+  // Declarante electo: se reserva con hermano, hijo, sobrino, primo, nieto o desconocido; no con cónyuge, padres o tíos.
+  assert.ok(reservarParentesco({ parentesco: "HERMANO(A) DEL DECLARANTE", declaranteElecto: true, familiarPublico: false }));
+  assert.ok(reservarParentesco({ parentesco: "PALOMINO HERMANO", declaranteElecto: true, familiarPublico: false }));
+  assert.ok(!reservarParentesco({ parentesco: "CONYUGE", declaranteElecto: true, familiarPublico: false }));
+  assert.ok(!reservarParentesco({ parentesco: "TÍO (A)", declaranteElecto: true, familiarPublico: false }));
+  assert.ok(!reservarParentesco({ parentesco: "HERMANO(A) DEL DECLARANTE", declaranteElecto: false, familiarPublico: false }));
+  // Familiar con nombre completo (un electo declarado por un funcionario): se reserva con lo que destapa al funcionario.
+  for (const p of ["HERMANO(A) DEL DECLARANTE", "MADRE DEL DECLARANTE", "TÍO (A)", "PRIMO(A)", "ABUELO MATERNO DEL DECLARANTE", "TÍO(A) ABUELO(A)", "BISABUELO(A)", ""]) {
+    assert.equal(parentescoInversoPublicable(p), null, p);
+    assert.ok(reservarParentesco({ parentesco: p, declaranteElecto: false, familiarPublico: true }), p);
+  }
+  for (const p of ["CONYUGE", "PADRE DEL DECLARANTE", "HIJO(A)", "SOBRINO(A)", "NIETO(A)", "ABUELA MATERNA DEL DECLARANTE", "CUÑADO(A)", "MADRE DEL CÓNYUGE"]) {
+    assert.ok(parentescoInversoPublicable(p), p);
+    assert.ok(!reservarParentesco({ parentesco: p, declaranteElecto: false, familiarPublico: true }), p);
+  }
+});
+
+test("la ficha de un locador: el caso reservado de una autoridad electa no le deja la señal, ni como «reservada»; con otro familiar, sólo ése", async () => {
+  const { podarParientes, casoReservado, SENALES_CON_PARIENTES } = await import("../src/lib/nepotismo.js");
+  // Quién es electo lo dice la base (declaranteElectoSql); aquí, el alcalde y la regidora de la prueba.
+  const electos = new Set(["PEREZ QUISPE PEDRO", "SALAS VEGA ROSA"]);
+  const reservado = (pr: Record<string, unknown>) =>
+    casoReservado({ electo: electos.has(String(pr.declarante)), parentesco: typeof pr.parentesco === "string" ? pr.parentesco : null });
+  const alcaldeHermano = { declarante: "PEREZ QUISPE PEDRO", cargo: "ALCALDE", grado: "hermano", parentesco: "HERMANO(A) DEL DECLARANTE" };
+  const alcaldeConyuge = { declarante: "PEREZ QUISPE PEDRO", cargo: "ALCALDE", grado: "conyuge", parentesco: "CONYUGE" };
+  const gerenteHijo = { declarante: "TORRES LIMA LUIS", cargo: "GERENTE MUNICIPAL", grado: "hijo", parentesco: "HIJO(A)" };
+
+  // Sólo el del alcalde con su hermano: la señal no sale (la lista ya no le pone la etiqueta y la ficha no la contradice).
+  assert.equal(podarParientes("nepotismo", { parientes: [alcaldeHermano], ordenes: 7, monto: 31417 }, reservado), null);
+  // Un parentesco desconocido o ilegible de un electo destapa igual.
+  assert.equal(podarParientes("nepotismo", { parientes: [{ ...alcaldeHermano, parentesco: "PALOMINO HERMANO" }] }, reservado), null);
+  // Con el de un gerente (no electo) al lado: queda la señal, con ése solo, y sus órdenes de la entidad como estaban.
+  const mixta = podarParientes("nepotismo", { parientes: [alcaldeHermano, gerenteHijo], ordenes: 9, monto: 40000 }, reservado)!;
+  assert.deepEqual(mixta.parientes, [gerenteHijo]);
+  assert.equal(mixta.ordenes, 9);
+  assert.doesNotMatch(json(mixta), /PEREZ QUISPE|HERMANO/);
+  // El alcalde con su cónyuge no destapa: nada cambia (el mismo objeto).
+  const conyuge = { parientes: [alcaldeConyuge], ordenes: 2, monto: 9013 };
+  assert.equal(podarParientes("nepotismo", conyuge, reservado), conyuge);
+
+  // Familia en el Estado: «entidades» cuenta las de los que quedan; en el mismo gobierno, igual que el nepotismo.
+  const familia = podarParientes("familia_estado", {
+    entidades: 2,
+    parientes: [
+      { ...alcaldeHermano, entidad_ruc: "20100000001", entidad: "MUNICIPALIDAD A" },
+      { declarante: "SALAS VEGA ROSA", cargo: "REGIDORA", grado: "otro", parentesco: "SOBRINO(A)", entidad_ruc: "20100000002", entidad: "MUNICIPALIDAD B" },
+      { ...gerenteHijo, entidad_ruc: "20100000003", entidad: "MUNICIPALIDAD C" },
+    ],
+  }, reservado)!;
+  assert.equal(familia.entidades, 1);
+  assert.deepEqual((familia.parientes as Record<string, unknown>[]).map((p) => p.entidad_ruc), ["20100000003"]);
+  assert.equal(podarParientes("nepotismo_gobierno", { parientes: [{ ...alcaldeHermano, entidad_ruc: "20100000001" }], nivel: "provincial" }, reservado), null);
+
+  // Las demás señales, y una sin la lista de familiares, pasan tal cual.
+  const otra = { parientes: [alcaldeHermano], en_el_borde: 3 };
+  assert.equal(podarParientes("al_borde_del_tope", otra, reservado), otra);
+  const sinLista = { ordenes: 1 };
+  assert.equal(podarParientes("nepotismo", sinLista, reservado), sinLista);
+  assert.deepEqual([...SENALES_CON_PARIENTES].sort(), ["familia_estado", "nepotismo", "nepotismo_gobierno"]);
+});
+
+test("la base reserva con la misma regla que la API (migración 311) y la corre en cada cadena tras las señales y antes del resumen", async () => {
+  const { readFileSync } = await import("node:fs");
+  const { PARENTESCOS_PUBLICABLES, FAMILIA_POLITICA_FUENTE, parentescoPublicable } = await import("../src/lib/privacidad.js");
+  const { CARGO_DE_ELECCION } = await import("../src/lib/electos.js");
+  const leer = (ruta: string) => readFileSync(new URL(ruta, import.meta.url), "utf8");
+  const sql = leer("../../db/migrations/311_reserva_parientes_electos.sql");
+
+  // La lista cerrada de parentesco_publicable: la misma, ni uno más ni uno menos.
+  const funcion = sql.slice(sql.indexOf("FUNCTION parentesco_publicable"), sql.indexOf("FUNCTION cargo_de_eleccion"));
+  const lista = /x\.n IN \(([\s\S]*?)\)\s+OR x\.n ~/.exec(funcion)?.[1] ?? "";
+  const enSql = [...lista.matchAll(/'([^']+)'/g)].map((m) => m[1]);
+  assert.ok(enSql.length >= 20);
+  assert.deepEqual([...enSql].sort(), [...PARENTESCOS_PUBLICABLES].sort());
+  for (const p of enSql) assert.ok(parentescoPublicable(p), p);
+  // La familia del cónyuge, con la misma expresión; el cargo de elección, también.
+  assert.ok(funcion.includes(`'${FAMILIA_POLITICA_FUENTE}'`));
+  assert.ok(sql.includes(`'${CARGO_DE_ELECCION}'`));
+  // Normaliza como la API: sin tildes, en mayúsculas, los espacios juntos.
+  assert.ok(funcion.includes("btrim(regexp_replace(upper(immutable_unaccent(COALESCE(p, ''))), '\\s+', ' ', 'g'))"));
+
+  // Cada cadena que rehace una señal que nombra a un familiar corre la reserva después de ella y antes del resumen.
+  const despues = (texto: string, antes: string[], luego: string | null, archivo: string) => {
+    const i = texto.indexOf("refrescar_reserva_parientes");
+    assert.ok(i > 0, `${archivo}: no corre refrescar_reserva_parientes`);
+    for (const a of antes) assert.ok(texto.indexOf(a) >= 0 && texto.indexOf(a) < i, `${archivo}: ${a} va antes`);
+    if (luego) assert.ok(texto.indexOf(luego, i) > i, `${archivo}: ${luego} va después`);
+  };
+  const cadena = (texto: string, desde: string) => texto.slice(texto.indexOf(desde));
+  const ordenes = leer("../../scrapers-worker/src/fuentes/conosce_ordenes.ts");
+  despues(cadena(ordenes, "refrescar(env, step, id, ["), ['opcional("refrescar_nepotismo_senal")', 'opcional("refrescar_senales_extra")',
+    'opcional("refrescar_familia_estado")'], 'f("refrescar_personas_resumen")', "conosce_ordenes.ts");
+  const pte = leer("../../scrapers-worker/src/fuentes/pte_personal.ts");
+  despues(cadena(pte, 'for (const f of ["refrescar_nepotismo_senal"'), ['"refrescar_nepotismo_senal"', '"refrescar_senales_extra"', '"refrescar_familia_estado"',
+    '"refrescar_planilla_extra"'], '"refrescar_personas_resumen"', "pte_personal.ts");
+  despues(cadena(leer("../../scripts/orquestar_dji.py"), "PASOS_SENAL = ("), ['"refrescar_nepotismo_senal"', '"refrescar_senales_extra"',
+    '"refrescar_familia_estado"', '"refrescar_planilla_extra"'], '"refrescar_personas_resumen"', "orquestar_dji.py");
+  despues(cadena(leer("../../scripts/cadena_planilla.py"), "PASOS = ["), ['"refrescar_nepotismo_senal()"', '"refrescar_senales_extra()"',
+    '"refrescar_familia_estado()"', '"refrescar_planilla_extra()"'], '"refrescar_personas_resumen()"', "cadena_planilla.py");
+  despues(cadena(leer("../../scripts/cargar_visitas_nacional.py"), "REFRESCOS = ["), ['"refrescar_planilla_extra"'], null, "cargar_visitas_nacional.py");
+  despues(cadena(leer("../../scripts/cargar_visitas_congreso.py"), 'for fn in ("refrescar_visita_pariente"'), ['"refrescar_planilla_extra"'], null,
+    "cargar_visitas_congreso.py");
+});

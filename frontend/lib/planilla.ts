@@ -461,6 +461,8 @@ export interface OrdenCitada {
 }
 
 export interface ParienteProveedor {
+  /** Reservado por el API (autoridad electa con un parentesco que destapa): sin nombre, ficha, órdenes ni monto. */
+  reservado?: true;
   grado: string;
   /** Con un apellido tapado, como llega de la API. */
   nombre: string;
@@ -501,6 +503,7 @@ export function ordenesCitadas(v: unknown): OrdenCitada[] {
  */
 export function parientesProveedores(f: FichaPlanilla, fichas: (FichaPersona | null)[]): ParienteProveedor[] {
   return f.nepotismo.map((x, i) => {
+    if (x.reservado) return { reservado: true, grado: "otro", nombre: "", codigo: null, ordenes: null, n: 0, monto: 0, anios: [] };
     const ficha = fichas[i];
     const ent = ficha?.entidades.find((e) => e.entidadRuc === f.persona.entidadRuc);
     const senal = ent?.senalesDetalle.find((s) => s.tipo === "nepotismo");
@@ -643,7 +646,9 @@ export interface FichaPlanilla {
   historia: { mes: string; base: number | null; extra: number; total: number | null; dudoso: boolean; filas: number; cargo: string | null }[];
   otras: { entidadRuc: string; entidad: string | null; cargo: string | null; regimen: number | null; base: number | null; ultimoMes: string | null; nSenales: number; ficha: string | null }[];
   /** Parientes que ESTA persona declaró en su DJI y que son locadores de su misma entidad (lado funcionario del nepotismo). */
-  nepotismo: { grado: string; parentesco: string; proveedorRuc: string; proveedorNombre: string; proveedorCodigo: string | null; ordenes: number; monto: number }[];
+  /** `reservado`: es una autoridad electa y el parentesco destaparía el apellido tapado del familiar: sólo que existe. */
+  nepotismo: ({ grado: string; parentesco: string; proveedorRuc: string; proveedorNombre: string; proveedorCodigo: string | null; ordenes: number; monto: number; reservado?: undefined }
+    | { reservado: true })[];
 }
 
 export const rutaPlanilla = (ficha: string, seccion?: string) => `/app/personas/planilla/${ficha}${seccion ? `?seccion=${seccion}` : ""}`;

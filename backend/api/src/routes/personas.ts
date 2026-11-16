@@ -4,8 +4,9 @@ import { z } from "zod";
 import { consultaConPlazo, pool } from "../lib/db.js";
 import { Memo } from "../lib/cache.js";
 import { cachePublico, parametros } from "../lib/http.js";
-import { TAPA_NOMBRE, apellidoFuncionario, apellidosSunat, publicar } from "../lib/privacidad.js";
-import { esElectoSql, marcaElecto } from "../lib/electos.js";
+import { TAPA_NOMBRE, apellidoFuncionario, apellidosSunat, publicar, reservarParentesco } from "../lib/privacidad.js";
+import { declaranteElectoSql, esElectoSql, marcaElecto } from "../lib/electos.js";
+import { SENALES_CON_PARIENTES, casoReservado, podarParientes } from "../lib/nepotismo.js";
 import { enlaceFuente } from "../lib/fuentes.js";
 import { visitasHasta } from "../lib/visitas.js";
 import { PERIODOS_GOBIERNO } from "./partidos.js";
@@ -39,6 +40,9 @@ export const TIPOS_SENAL = [
   "nepotismo", "financio_campana", "candidato_gobierna", "autoridad_contratada", "inhabilitado", "aporte_gobierna", "apellidos_autoridad", "apellidos_funcionario",
   "nepotismo_gobierno", "al_borde_del_tope", "socio_proveedor", "familia_estado",
   "funcionario_contratado", "meses_seguidos", "pago_alto", "candidato", "aporte", "visita_previa", "tambien_planilla", "paso_a_planilla",
+  // Un informe de control de la Contraloría lo comprende (responsabilidad presunta) y la misma entidad le dio órdenes
+  // después de emitido (migración 308).
+  "ordenes_tras_informe",
 ] as const;
 
 /**
@@ -708,8 +712,60 @@ personasRouter.get("/:codigo", async (c) => {
         [paresOtras.map(([e]) => e), paresOtras.map(([, d]) => d)]);
       for (const r of pf.rows) declOtras.set(`${r.entidadRuc}|${r.nn}`, r.ficha);
     }
+    // ¿Quién de los funcionarios que la declararon es una autoridad electa (su nombre completo es público)? Y ¿va ella con su
+    // nombre completo? Con un parentesco que destapa, lo que identifica al funcionario se reserva (reservarParentesco).
+    const personaPublica = (await electoP)?.rows[0]?.e === true;
+    const pares = senales.rows
+      .filter((s) => s.tipo === "nepotismo" || s.tipo === "nepotismo_gobierno" || s.tipo === "familia_estado")
+      .flatMap((s) => {
+        const par = (s.detalle as Record<string, unknown>)?.parientes;
+        return Array.isArray(par)
+          ? (par as Record<string, unknown>[]).map((pr) => ({
+              entidad: s.tipo === "nepotismo" ? s.entidadRuc : String(pr.entidad_ruc ?? ""), declarante: String(pr.declarante ?? ""), cargo: String(pr.cargo ?? ""),
+            }))
+          : [];
+      })
+      .filter((x) => x.entidad && x.declarante);
+    const electos = new Set<string>();
+    if (pares.length) {
+      const r = await pool.query<{ e: string; n: string; electo: boolean }>(
+        `SELECT x.e, x.n, ${declaranteElectoSql("x.n", "x.e", "x.c")} AS electo FROM unnest($1::text[], $2::text[], $3::text[]) AS x(e, n, c)`,
+        [pares.map((x) => x.entidad), pares.map((x) => x.declarante), pares.map((x) => x.cargo)],
+      ).catch(() => null);
+      // Si la consulta falla, todos cuentan como electos: se reserva de más, nunca de menos.
+      for (const x of r ? r.rows.filter((y) => y.electo) : pares.map((y) => ({ e: y.entidad, n: y.declarante }))) electos.add(`${x.e}|${x.n}`);
+    }
+    /**
+     * Un familiar declarado, como sale: con el cargo, el primer apellido y la ficha del funcionario; o reservado (sólo que
+     * existe) si ella va con su nombre completo y el parentesco destaparía el apellido tapado del funcionario. El caso de
+     * un funcionario electo con un parentesco que destapa el de ella ya no llega aquí (podarParientes, abajo).
+     */
+    const pariente = (entidad: string, pr: Record<string, unknown>, declarante: unknown, fichaDe: (d: string) => string | null) => {
+      if (reservarParentesco({ parentesco: pr.parentesco, declaranteElecto: electos.has(`${entidad}|${String(declarante ?? "")}`), familiarPublico: personaPublica })) {
+        return { reservado: true as const };
+      }
+      const funcionarioApellido = apellidoFuncionario(pr.parentesco, declarante);
+      return { ...pr, funcionarioApellido, ficha: funcionarioApellido ? fichaDe(String(declarante ?? "")) : null };
+    };
     const porEntidad = new Map<string, unknown[]>();
-    for (const s of senales.rows) {
+    // El caso reservado de una autoridad electa (lo declaró y el parentesco destapa el apellido tapado de esta persona) no
+    // sale, ni como «reservado»: sin otro familiar, la señal tampoco, ni entre las de su entidad (migración 311, que se lo
+    // quita en la base; esto cubre lo que llegue antes de su próxima corrida).
+    const quitadas = new Map<string, Set<string>>();
+    let nQuitadas = 0;
+    for (const s0 of senales.rows) {
+      const podado = SENALES_CON_PARIENTES.has(s0.tipo) && s0.detalle
+        ? podarParientes(s0.tipo, s0.detalle as Record<string, unknown>, (pr) => casoReservado({
+            electo: electos.has(`${s0.tipo === "nepotismo" ? s0.entidadRuc : String(pr.entidad_ruc ?? "")}|${String(pr.declarante ?? "")}`),
+            parentesco: typeof pr.parentesco === "string" ? pr.parentesco : null,
+          }))
+        : s0.detalle;
+      if (!podado && SENALES_CON_PARIENTES.has(s0.tipo) && s0.detalle) {
+        quitadas.set(s0.entidadRuc, (quitadas.get(s0.entidadRuc) ?? new Set<string>()).add(s0.tipo));
+        nQuitadas++;
+        continue;
+      }
+      const s = podado === s0.detalle ? s0 : { ...s0, detalle: podado };
       const l = porEntidad.get(s.entidadRuc) ?? [];
       const detalle = s.tipo === "inhabilitado"
         ? { ...(s.detalle as Record<string, unknown>), ordenes_detalle: ordsInhab.get(s.entidadRuc) ?? [] }
@@ -720,12 +776,11 @@ personasRouter.get("/:codigo", async (c) => {
               return {
                 ...det,
                 parientes: Array.isArray(par)
-                  ? (par as Record<string, unknown>[]).map(({ declarante, ...pr }) => {
+                  ? (par as Record<string, unknown>[]).map(({ declarante, ...pr }) =>
                       // Sin el nombre completo del funcionario (ver apellidoFuncionario): su primer apellido y su ficha,
-                      // sólo si el parentesco no puede destapar el apellido tapado de esta persona.
-                      const funcionarioApellido = apellidoFuncionario(pr.parentesco, declarante);
-                      return { ...pr, funcionarioApellido, ficha: funcionarioApellido ? declFichas.get(`${s.entidadRuc}|${String(declarante ?? "")}`) ?? null : null };
-                    })
+                      // sólo si el parentesco no puede destapar el apellido tapado de esta persona; reservado si es una
+                      // autoridad electa y el parentesco destapa.
+                      pariente(s.entidadRuc, pr, declarante, (d) => declFichas.get(`${s.entidadRuc}|${d}`) ?? null))
                   : par,
                 ordenes_detalle: ordsNep.get(s.entidadRuc) ?? [],
               };
@@ -739,10 +794,8 @@ personasRouter.get("/:codigo", async (c) => {
                 return {
                   ...det,
                   parientes: Array.isArray(par)
-                    ? (par as Record<string, unknown>[]).map(({ declarante, ...pr }) => {
-                        const funcionarioApellido = apellidoFuncionario(pr.parentesco, declarante);
-                        return { ...pr, funcionarioApellido, ficha: funcionarioApellido ? declOtras.get(`${String(pr.entidad_ruc ?? "")}|${String(declarante ?? "")}`) ?? null : null };
-                      })
+                    ? (par as Record<string, unknown>[]).map(({ declarante, ...pr }) =>
+                        pariente(String(pr.entidad_ruc ?? ""), pr, declarante, (d) => declOtras.get(`${String(pr.entidad_ruc ?? "")}|${d}`) ?? null))
                     : par,
                 };
               })()
@@ -755,15 +808,20 @@ personasRouter.get("/:codigo", async (c) => {
       l.push({ tipo: s.tipo, severidad: s.severidad, detalle, fuente: s.fuente, fuenteUrl });
       porEntidad.set(s.entidadRuc, l);
     }
-    const entidades = ent.rows.map((e) => ({ ...e, nombre: e.nombre ? conEnie(e.nombre) : e.nombre, senalesDetalle: porEntidad.get(e.entidadRuc) ?? [] }));
+    const entidades = ent.rows.map((e) => {
+      // Las señales de la entidad (persona_entidad), sin las que no salen.
+      const fuera = quitadas.get(e.entidadRuc);
+      const suyas = fuera && Array.isArray(e.senales) ? (e.senales as { tipo?: unknown }[]).filter((x) => !fuera.has(String(x.tipo))) : null;
+      return { ...e, ...(suyas ? { senales: suyas, nSenales: suyas.length } : {}), nombre: e.nombre ? conEnie(e.nombre) : e.nombre,
+               senalesDetalle: porEntidad.get(e.entidadRuc) ?? [] };
+    });
     const sum = (k: "ordenes" | "monto" | "meses") => entidades.reduce((t, e) => t + Number(e[k] ?? 0), 0);
     const fechas = (k: "primera" | "ultima") => entidades.map((e) => e[k]).filter(Boolean).sort();
-    const electo = (await electoP)?.rows[0]?.e === true;
     return publicar({
       persona: {
-        codigo, ruc, nombre: entidades[0].nombre, ...marcaElecto(electo), entidades: entidades.length, ordenes: sum("ordenes"), monto: sum("monto"),
+        codigo, ruc, nombre: entidades[0].nombre, ...marcaElecto(personaPublica), entidades: entidades.length, ordenes: sum("ordenes"), monto: sum("monto"),
         meses: sum("meses"), primera: fechas("primera")[0] ?? null, ultima: fechas("ultima").at(-1) ?? null,
-        nSenales: senales.rows.length,
+        nSenales: senales.rows.length - nQuitadas,
         dudosas: dudosas.rows[0]?.ordenes ? dudosas.rows[0] : null,
       },
       entidades,
@@ -890,6 +948,18 @@ personasRouter.get("/:codigo/perfil", async (c) => {
           LIMIT 20`, [ruc]),
     ]);
     const totalVisitas = (visitas.rows[0]?.total as number | undefined) ?? 0;
+    // Como en la ficha: si el funcionario es una autoridad electa, o si ella misma va con su nombre completo, y el parentesco
+    // destapa, el funcionario no se identifica (ni cargo, ni apellido, ni ficha, ni parentesco).
+    const personaPublica = autoridades.rows.length > 0
+      || (await pool.query<{ e: boolean }>(`SELECT ${esElectoSql("$1::text")} AS e`, [dni]).catch(() => ({ rows: [{ e: true }] }))).rows[0]?.e === true;
+    const famElectos = new Set<string>();
+    if (familia.rows.length) {
+      const r = await pool.query<{ e: string; n: string; electo: boolean }>(
+        `SELECT x.e, x.n, ${declaranteElectoSql("x.n", "x.e", "x.c")} AS electo FROM unnest($1::text[], $2::text[], $3::text[]) AS x(e, n, c)`,
+        [familia.rows.map((f) => f.entidadRuc), familia.rows.map((f) => f.declarante ?? ""), familia.rows.map((f) => f.cargo ?? "")],
+      ).catch(() => null);
+      for (const x of r ? r.rows.filter((y) => y.electo) : familia.rows.map((f) => ({ e: f.entidadRuc, n: f.declarante ?? "" }))) famElectos.add(`${x.e}|${x.n}`);
+    }
     return publicar({
       empresas: empresas.rows,
       candidaturas: candidaturas.rows,
@@ -903,10 +973,17 @@ personasRouter.get("/:codigo/perfil", async (c) => {
         // Las visitas antes de su primera orden en una entidad: van destacadas en la línea de vida.
         antesDeOrden: previas.rows,
       },
-      // Sin el nombre del funcionario (apellidoFuncionario): su primer apellido y su ficha, si el parentesco lo permite.
-      familia: familia.rows.map(({ declarante, ficha, ...f }) => {
+      // Sin el nombre del funcionario (apellidoFuncionario): su primer apellido y su ficha, si el parentesco lo permite;
+      // reservado (sólo la entidad) si ella va completa y el parentesco destapa el apellido del funcionario. El caso de una
+      // autoridad electa con un parentesco que destapa el de ella no sale (como en su ficha: migración 311).
+      familia: familia.rows.flatMap(({ declarante, ficha, ...f }): Record<string, unknown>[] => {
+        const electo = famElectos.has(`${f.entidadRuc}|${declarante ?? ""}`);
+        if (casoReservado({ electo, parentesco: f.parentesco })) return [];
+        if (reservarParentesco({ parentesco: f.parentesco, declaranteElecto: electo, familiarPublico: personaPublica })) {
+          return [{ entidadRuc: f.entidadRuc, entidad: f.entidad, reservado: true as const }];
+        }
         const funcionarioApellido = apellidoFuncionario(f.parentesco, declarante);
-        return { ...f, funcionarioApellido, ficha: funcionarioApellido ? ficha : null };
+        return [{ ...f, funcionarioApellido, ficha: funcionarioApellido ? ficha : null }];
       }),
       planilla: planilla.rows,
       entidades: entidades.rows,

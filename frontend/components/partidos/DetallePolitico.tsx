@@ -422,10 +422,23 @@ function Ordenes({ d, partido }: { d: DetallePolitico; partido: string }) {
 }
 
 function Familia({ d }: { d: DetallePolitico }) {
+  // Los reservados (uno de los dos va con su nombre completo y el parentesco destaparía el apellido del otro), sólo contados.
+  const reservados = d.familia.filter((f) => f.reservado).length;
+  const visibles = d.familia.flatMap((f) => (f.reservado ? [] : [f]));
   return (
     <div className="space-y-3">
+      {reservados > 0 && (
+        <div className={`${TARJETA} flex items-start gap-3`}>
+          <UsersRound size={16} className="mt-0.5 shrink-0 text-mute" aria-hidden />
+          <p className="min-w-0 text-meta leading-relaxed text-inkSoft">
+            <span className="font-semibold text-ink">{plural(reservados, "funcionario lo declaró", "funcionarios lo declararon")} como familiar</span> con un
+            parentesco que se reserva: con su nombre completo a la vista, la entidad, el cargo o el parentesco permitirían deducir el apellido que se le
+            tapa al funcionario.
+          </p>
+        </div>
+      )}
       <ul className="space-y-2">
-        {d.familia.map((f, i) => (
+        {visibles.map((f, i) => (
           <li key={`${f.entidadRuc}-${i}`} className={`${TARJETA} flex items-start gap-3`}>
             <UsersRound size={16} className="mt-0.5 shrink-0 text-mute" aria-hidden />
             <div className="min-w-0">

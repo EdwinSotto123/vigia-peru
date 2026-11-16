@@ -6,7 +6,7 @@ Para qué: después de un relleno de pte_personal (con `relleno` el Worker no re
 alguna de estas funciones, o cuando la cadena del Worker se cortó a medias. No aplica migraciones: si hace falta una,
 aplícala antes por su lado.
 
-Orden (cada paso lee lo que dejó el anterior; del 3 al 10 rehacen lo que los dos primeros borran):
+Orden (cada paso lee lo que dejó el anterior; del 3 al 12 rehacen lo que los dos primeros borran):
    1. refrescar_planilla()                   la planilla de hoy de cada entidad, la del último mes completo (202)
    2. refrescar_personas_senales(desde)      personas contratadas por orden y sus señales, para los pares con órdenes
                                              desde ese año (--desde; «todo» = toda la historia)
@@ -15,10 +15,14 @@ Orden (cada paso lee lo que dejó el anterior; del 3 al 10 rehacen lo que los do
    5. refrescar_senales_extra()              doble planilla, socio de un proveedor y las demás de la 179
    6. refrescar_familia_estado()             familia en el Estado (180)
    7. refrescar_socio_proveedor_locador()    el locador socio de un proveedor de su entidad (181)
-   8. refrescar_planilla_extra()             pariente en la planilla, ascenso exprés, visita antes de entrar (182, 196)
-   9. refrescar_entidad_senal_politica()     cuántos de quienes financiaron al que gobierna trabajan en cada entidad (178)
-  10. refrescar_organo_nombre_global()       nombres de oficinas con que el organigrama lee las siglas de la planilla (186)
-  11. refrescar_personas_resumen()           el resumen de personas que leen las listas (104)
+   8. refrescar_persona_informe_control()    el locador que un informe de control de su entidad comprende y recibió
+                                             órdenes de ella después (308)
+   9. refrescar_planilla_extra()             pariente en la planilla, ascenso exprés, visita antes de entrar (182, 196)
+  10. refrescar_reserva_parientes()          el caso reservado de una autoridad electa sale de las señales que nombran a
+                                             un familiar, y con él la etiqueta del locador o de la planilla (311)
+  11. refrescar_entidad_senal_politica()     cuántos de quienes financiaron al que gobierna trabajan en cada entidad (178)
+  12. refrescar_organo_nombre_global()       nombres de oficinas con que el organigrama lee las siglas de la planilla (186)
+  13. refrescar_personas_resumen()           el resumen de personas que leen las listas (104)
 
 Cada paso abre su propia conexión por el túnel (infrastructure/aws/tunel_rds.py). Si el túnel corta una consulta larga
 (~20 min sin datos), espera a que termine en el servidor y sigue con la siguiente. Un paso cuya función no existe en esa
@@ -44,7 +48,8 @@ PASOS = [
     "refrescar_planilla()",
     "refrescar_personas_senales({desde})",
     "refrescar_nepotismo_senal()", "refrescar_senales_politicas()", "refrescar_senales_extra()", "refrescar_familia_estado()",
-    "refrescar_socio_proveedor_locador()", "refrescar_planilla_extra()", "refrescar_entidad_senal_politica()",
+    "refrescar_socio_proveedor_locador()", "refrescar_persona_informe_control()", "refrescar_planilla_extra()",
+    "refrescar_reserva_parientes()", "refrescar_entidad_senal_politica()",
     "refrescar_organo_nombre_global()", "refrescar_personas_resumen()",
 ]
 

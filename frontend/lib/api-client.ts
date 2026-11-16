@@ -122,6 +122,9 @@ export interface ApiEntidad {
     ascensoExpres?: number;
     plazasSaliente?: number;
     empresaEspejo?: number;
+    /** Sólo en la ficha (migración 308): locadores que un informe de control de la entidad comprende (responsabilidad
+     *  presunta) y que siguieron recibiendo órdenes de ella después del informe. */
+    informeLocador?: number;
     /** Visitas de familiares declarados de sus funcionarios (migración 188). */
     visitaPariente?: number;
     /** Olas de órdenes a personas tras un cambio de gestión (migración 188) y la más reciente. */
@@ -366,12 +369,22 @@ export interface NepotismoIndicio {
   proveedorCodigo: string | null; // id (12 hex) para enlazar a su ficha; la evidencia (sus órdenes) vive ahí
   ordenes: number;
   monto: number;
+  reservado?: undefined;
+}
+/**
+ * Un caso de una AUTORIDAD ELECTA (su nombre completo es público) con un parentesco que destaparía el apellido tapado del
+ * familiar (hermano, hijo, sobrino, primo, nieto o desconocido): sólo se sabe que existe. Va al final de la lista.
+ */
+export interface NepotismoReservado {
+  reservado: true;
 }
 export interface NepotismoEntidad {
   total: number;
-  monto: number;
-  porGrado: { grado: string; n: number; monto: number }[];
-  detalle?: NepotismoIndicio[];
+  /** `null` si, restado de lo que se lista, daría el monto de un solo caso reservado. */
+  monto: number | null;
+  /** El monto de un grado, `null` si ese grado tiene un solo caso reservado. */
+  porGrado: { grado: string; n: number; monto: number | null }[];
+  detalle?: (NepotismoIndicio | NepotismoReservado)[];
 }
 
 export async function getEntidad(ruc: string) {

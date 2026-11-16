@@ -38,6 +38,7 @@ const POR_TIPO: Record<string, LucideIcon> = {
   tambien_planilla: Split, tambien_ordenes: Split, doble_planilla: Copy,
   paso_a_planilla: IdCard, antes_locador: IdCard, planilla: IdCard,
   socio_proveedor: Briefcase, pago_extraordinario: Wallet, plazas: Ruler, gestion_saliente: DoorOpen, empresa_espejo: Copy,
+  ordenes_tras_informe: FileSearch,
   // Obra
   obra_controversia: Swords, obra_informe_control: FileSearch,
 };

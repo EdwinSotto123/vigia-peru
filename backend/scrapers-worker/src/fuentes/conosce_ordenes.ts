@@ -257,6 +257,11 @@ export async function correrOrdenes(env: Env, p: ParamsCorrida, step: WorkflowSt
     // La gestión actual de cada entidad (filtro «entró con la gestión») y el locador socio de un proveedor (migración 181).
     opcional("refrescar_entidad_gestion"),
     opcional("refrescar_socio_proveedor_locador"),
+    // Un informe de control de la entidad lo comprende y ella le dio órdenes después (migración 308).
+    opcional("refrescar_persona_informe_control"),
+    // El caso reservado de una autoridad electa (un parentesco que destapa el apellido tapado de su familiar) sale de las
+    // señales que lo nombran, y con él la etiqueta del locador (migración 311): después de ellas y antes del resumen.
+    opcional("refrescar_reserva_parientes"),
     // Y cuántos de ellos trabajan en cada entidad, para su bandera (migración 178).
     opcional("refrescar_entidad_senal_politica"),
     f("refrescar_personas_resumen"),
@@ -281,7 +286,8 @@ export async function correrOrdenes(env: Env, p: ParamsCorrida, step: WorkflowSt
     ["fraccionamiento", "refrescar_fraccionamiento"], ["personas_ordenes", "refrescar_personas_ordenes"],
     ["personas", "refrescar_personas_senales"], ["senales_politicas", "refrescar_senales_politicas"],
     ["senales_extra", "refrescar_senales_extra"], ["familia_estado", "refrescar_familia_estado"],
-    ["socio_proveedor", "refrescar_socio_proveedor_locador"], ["personas_resumen", "refrescar_personas_resumen"],
+    ["socio_proveedor", "refrescar_socio_proveedor_locador"], ["informe_control", "refrescar_persona_informe_control"],
+    ["reserva_parientes", "refrescar_reserva_parientes"], ["personas_resumen", "refrescar_personas_resumen"],
     ["entidad_ordenes", "refrescar_entidad_ordenes"], ["ordenes_mes", "refrescar_ordenes_mes"],
     ["entidad_ordenes_anterior", "refrescar_entidad_ordenes_anterior"], ["ordenes_mes_anterior", "refrescar_ordenes_mes_anterior"],
     ["compras", "refrescar_compras"], ["compras_anterior", "refrescar_compras_anterior"], ["ola_gestion", "refrescar_ola_gestion"],

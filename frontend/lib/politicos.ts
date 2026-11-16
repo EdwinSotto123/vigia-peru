@@ -330,7 +330,9 @@ export interface DetallePolitico {
     personaCodigo: string | null;
     entidades: { entidadRuc: string; entidad: string | null; servicio: string | null; ordenes: number; monto: number; primera: string | null; ultima: string | null; tipos: string[] | null; gobernaba: boolean }[];
   } | null;
-  familia: { entidadRuc: string; entidad: string | null; parentesco: string | null; grado: string | null; puesto: string | null; funcionarioApellido: string | null; ficha: string | null }[];
+  /** `reservado`: uno de los dos va con su nombre completo y el parentesco destaparía el apellido tapado del otro: sólo que existe. */
+  familia: ({ entidadRuc: string; entidad: string | null; parentesco: string | null; grado: string | null; puesto: string | null; funcionarioApellido: string | null; ficha: string | null; reservado?: undefined }
+    | { reservado: true })[];
   sanciones: { tipo: string; desde: string | null; hasta: string | null; resolucion: string | null; infraccion: string | null; estado: string | null; multa: number | null }[];
   otrosPartidos: { clave: string; partido: string | null; gano: boolean; candidato: boolean; aportante: boolean; elecciones: number[]; aportesMonto: number }[];
   /** Su DJI (migración 301): sólo si ganó desde 2022. El empate es por nombre completo y la entidad que gobierna. */

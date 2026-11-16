@@ -57,7 +57,7 @@ export default async function FichaPlanillaPage({ params, searchParams }: { para
   // entidades); y la de cada pariente que le vende a su entidad (las órdenes concretas, como evidencia).
   const [locador, fichasParientes] = await Promise.all([
     p.codigo ? getFichaPersona(p.codigo) : Promise.resolve(null),
-    Promise.all(f.nepotismo.map((x) => (x.proveedorCodigo ? getFichaPersona(x.proveedorCodigo) : Promise.resolve(null)))),
+    Promise.all(f.nepotismo.map((x) => (!x.reservado && x.proveedorCodigo ? getFichaPersona(x.proveedorCodigo) : Promise.resolve(null)))),
   ]);
   const parientes = parientesProveedores(f, fichasParientes);
   // El pariente locador también llega como señal (migración 179); con la evidencia rica de arriba (sus órdenes y su ficha),

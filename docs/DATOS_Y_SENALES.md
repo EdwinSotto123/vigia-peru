@@ -298,6 +298,7 @@ muestran en `frontend/components/personas/SenalesFicha.tsx`.
 | `visita_previa` | baja | órdenes × visitas (DNI) a la misma entidad | visita en `[primera_orden-180, primera_orden]` |
 | `tambien_planilla` | alta | órdenes × planilla PTE (nombre, misma entidad) | órdenes en un mes en que también está en planilla |
 | `paso_a_planilla` | baja | órdenes × planilla | entró a planilla DESPUÉS de su primera orden |
+| `ordenes_tras_informe` | alta/media/baja | `informe_control_persona` (DNI) × órdenes de la MISMA entidad del informe | recibió órdenes de servicio de la entidad después de emitido un informe de control que lo comprende (nombre de CONOSCE y de la Contraloría con 2 palabras o más en común); alta si la responsabilidad es penal y la primera orden llegó a 365 días o menos, media si penal más tarde o civil, baja si sólo administrativa. `refrescar_persona_informe_control()`, migración 308. Responsabilidad PRESUNTA |
 
 ---
 

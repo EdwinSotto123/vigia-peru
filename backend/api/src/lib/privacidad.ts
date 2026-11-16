@@ -820,6 +820,9 @@ const PARENTESCO_PUBLICABLE: Record<string, string> = {
 /** La familia del cónyuge, del conviviente o del excónyuge: sus apellidos no son los del declarante. */
 const FAMILIA_POLITICA = /^(PADRE|MADRE|HERMANO\(A\)|HIJO|HIJO\(A\)|NIETO\(A\)|ABUEL[OA] (PATERN|MATERN)[OA]) DEL (CONYUGE|CONVIVIENTE|EXCONYUGE)$/;
 const ETIQUETA_POLITICA: Record<string, string> = { CONYUGE: "cónyuge", CONVIVIENTE: "conviviente", EXCONYUGE: "excónyuge" };
+/** La lista cerrada y la familia política, tal como las repite en SQL parentesco_publicable (migración 311; las pruebas comparan). */
+export const PARENTESCOS_PUBLICABLES: readonly string[] = Object.freeze(Object.keys(PARENTESCO_PUBLICABLE));
+export const FAMILIA_POLITICA_FUENTE = FAMILIA_POLITICA.source;
 
 export function parentescoPublicable(parentesco: unknown): string | null {
   if (typeof parentesco !== "string") return null;
@@ -844,6 +847,52 @@ export function etiquetaParentesco(parentesco: unknown): string | null {
   if (typeof parentesco !== "string") return null;
   const p = parentesco.normalize("NFD").replace(/\p{M}/gu, "").toUpperCase().replace(/\s+/g, " ").trim();
   return parentescoPublicable(parentesco) ?? PARENTESCO_DESTAPA[p] ?? null;
+}
+
+/**
+ * Al revés que parentescoPublicable: el FAMILIAR declarado va con su nombre COMPLETO (un electo) y quien se protege es el
+ * declarante (un funcionario, con un apellido tapado). El parentesco es lo que el familiar es del declarante. Destapan el
+ * apellido tapado del declarante (su materno): hermano(a), madre (su materno es el paterno de ella), tío(a) y primo(a)
+ * (por la rama de una hermana o una tía), abuelo materno (por la madre), tío abuelo, bisabuelo y tatarabuelo, y cualquier
+ * parentesco desconocido. No destapan: cónyuge, conviviente, padre, hijo(a), sobrino(a), nieto(a), abuelo paterno, las
+ * abuelas, cuñado(a), suegro(a), yerno, nuera, hijastros y la familia del cónyuge o conviviente. Lista cerrada.
+ */
+const INVERSO_PUBLICABLE: Record<string, string> = {
+  "CONYUGE": "Cónyuge",
+  "CONVIVIENTE": "Conviviente",
+  "PADRE DEL DECLARANTE": "Padre",
+  "HIJO(A)": "Hijo o hija",
+  "(HIJO)": "Hijo o hija",
+  "SOBRINO(A)": "Sobrino o sobrina",
+  "NIETO(A)": "Nieto o nieta",
+  "ABUELO PATERNO DEL DECLARANTE": "Abuelo paterno",
+  "ABUELA PATERNA DEL DECLARANTE": "Abuela paterna",
+  "ABUELA MATERNA DEL DECLARANTE": "Abuela materna",
+  "CUNADO(A)": "Cuñado o cuñada",
+  "SUEGRO(A)": "Suegro o suegra",
+  "YERNO": "Yerno",
+  "NUERA": "Nuera",
+  "HIJASTRO(A)": "Hijastro o hijastra",
+  "HIJASTRO(A) POR PARTE DEL CONYUGE": "Hijastro o hijastra",
+  "NIETASTRO(A) POR PARTE DEL CONYUGE": "Nietastro o nietastra",
+};
+
+export function parentescoInversoPublicable(parentesco: unknown): string | null {
+  if (typeof parentesco !== "string") return null;
+  const p = parentesco.normalize("NFD").replace(/\p{M}/gu, "").toUpperCase().replace(/\s+/g, " ").trim();
+  if (INVERSO_PUBLICABLE[p]) return INVERSO_PUBLICABLE[p];
+  const m = FAMILIA_POLITICA.exec(p);
+  return m ? `Familiar de su ${ETIQUETA_POLITICA[m[3]]}` : null;
+}
+
+/**
+ * ¿Se reserva lo que identifica a un funcionario que declaró a un familiar (su cargo, su apellido, su ficha, el parentesco
+ * y, en su entidad, el monto y el enlace al familiar)? Sí si uno de los dos va con su nombre completo y el parentesco
+ * permite deducir, con ese nombre, el apellido que se le tapa al otro: el declarante es una autoridad electa y el
+ * parentesco destapa al familiar (hermano, hijo…), o el familiar es el electo y el parentesco destapa al declarante.
+ */
+export function reservarParentesco(o: { parentesco: unknown; declaranteElecto: boolean; familiarPublico: boolean }): boolean {
+  return (o.declaranteElecto && !parentescoPublicable(o.parentesco)) || (o.familiarPublico && !parentescoInversoPublicable(o.parentesco));
 }
 
 export function publicar<T>(valor: T, opts: { correos?: boolean; extra?: unknown } = {}): T {

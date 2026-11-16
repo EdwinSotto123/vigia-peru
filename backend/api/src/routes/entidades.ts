@@ -6,7 +6,9 @@ import { cachePublico, parametros } from "../lib/http.js";
 import { Memo } from "../lib/cache.js";
 import { hayModelosLectura } from "../lib/esquema.js";
 import { crucesDeEntidad, fraccionamientoDeEntidad } from "../lib/cruces.js";
-import { apellidoFuncionario, publicar } from "../lib/privacidad.js";
+import { publicar } from "../lib/privacidad.js";
+import { declaranteElectoSql } from "../lib/electos.js";
+import { nepotismoPublico, type FilaNepotismo, type GrupoNepotismo } from "../lib/nepotismo.js";
 import { alertaNoDemo, alertaPublica, convocatoriaNoDemo, ENTIDAD_METADATA_MOCK } from "../lib/publicacion.js";
 import { hayObras } from "./obras.js";
 import { hayCatalogo } from "./catalogo.js";
@@ -1149,15 +1151,17 @@ entidadesRouter.get("/:ruc", async (c) => {
     // del proveedor lo tapa publicar() como a cualquier locador (un apellido). Ver vista dji_nepotismo (migr. 136).
     // El detalle va hasta 40 casos; el total, el monto y por grado, de TODOS (antes salían de esos 40: EsSalud tiene 353 y
     // su bandera decía 40). La vista se calcula una vez (MATERIALIZED). Si falla, la ficha sale sin él (antes, 500: la
-    // vista pasaba los 10 s en el Minsa hasta la migración 208).
-    pool.query<{ declarante: string; cargo: string | null; declaranteFicha: string | null; grado: string; parentesco: string; proveedorRuc: string; proveedorNombre: string; proveedorCodigo: string | null; ordenes: number; monto: number;
-                 totalCasos: number; montoTotal: number | null; porGrado: { grado: string; n: number; monto: number }[] }>(
-      `WITH n AS MATERIALIZED (SELECT * FROM dji_nepotismo WHERE entidad_ruc = $1),
-            g AS (SELECT grado, count(*)::int AS n, COALESCE(sum(monto), 0)::float AS monto FROM n GROUP BY grado)
-       SELECT n.declarante_norm AS declarante, n.cargo, pp.ficha AS "declaranteFicha", n.grado, n.parentesco,
+    // vista pasaba los 10 s en el Minsa hasta la migración 208). `electo`: el declarante es una autoridad electa (su nombre
+    // completo es público): con un parentesco que destapa, su caso se reserva (lib/nepotismo.ts).
+    pool.query<FilaNepotismo & { totalCasos: number; montoTotal: number | null; porGrado: GrupoNepotismo[] | null }>(
+      `WITH n AS MATERIALIZED (
+              SELECT x.*, ${declaranteElectoSql("x.declarante_norm", "x.entidad_ruc", "x.cargo")} AS electo
+                FROM dji_nepotismo x WHERE x.entidad_ruc = $1),
+            g AS (SELECT grado, parentesco, electo, count(*)::int AS n, COALESCE(sum(monto), 0)::float AS monto FROM n GROUP BY 1, 2, 3)
+       SELECT n.declarante_norm AS declarante, n.cargo, pp.ficha AS "declaranteFicha", n.grado, n.parentesco, n.electo,
               n.proveedor_ruc AS "proveedorRuc", n.proveedor_nombre AS "proveedorNombre", pc.codigo AS "proveedorCodigo", n.ordenes, n.monto,
               (SELECT count(*) FROM n)::int AS "totalCasos", (SELECT sum(monto) FROM n)::float AS "montoTotal",
-              (SELECT json_agg(g ORDER BY g.monto DESC) FROM g) AS "porGrado"
+              (SELECT json_agg(g) FROM g) AS "porGrado"
          FROM n
          LEFT JOIN persona_codigo pc ON pc.ruc = n.proveedor_ruc
          LEFT JOIN planilla_persona pp ON pp.entidad_ruc = n.entidad_ruc AND pp.nombre_norm = n.declarante_norm
@@ -1174,9 +1178,10 @@ entidadesRouter.get("/:ruc", async (c) => {
     // entidad y los socios de una empresa que le vende. Por la llave de la entidad; sin ellas, la ficha sale igual.
     // Y las del plan del 2026-10-27 (migraciones 181-184): locadores socios de una empresa que le vende (por DNI), en su
     // planilla el pariente de un funcionario y el ascenso exprés, sus plazas CAS de la gestión saliente y los contratos
-    // que ganó una empresa espejo de una inhabilitada.
+    // que ganó una empresa espejo de una inhabilitada. Y los locadores que un informe de control de la entidad comprende
+    // y siguieron recibiendo órdenes de ella después (migración 308).
     pool.query<{ alBorde: number; alBordeEmpresas: number; nepotismoGobierno: number; doblePlanilla: number; socioProveedor: number; socioLocador: number;
-                 parientePlanilla: number; ascensoExpres: number; plazasSaliente: number; empresaEspejo: number }>(
+                 parientePlanilla: number; ascensoExpres: number; plazasSaliente: number; empresaEspejo: number; informeLocador: number }>(
       `SELECT (SELECT count(*) FROM persona_entidad pe WHERE pe.entidad_ruc = $1 AND 'al_borde_del_tope' = ANY(pe.tipos))::int AS "alBorde",
               -- Las empresas con la mitad o más de sus órdenes al borde del tope (migración 207).
               (SELECT count(*) FROM empresa_borde_tope eb WHERE eb.entidad_ruc = $1)::int AS "alBordeEmpresas",
@@ -1184,6 +1189,7 @@ entidadesRouter.get("/:ruc", async (c) => {
               (SELECT count(*) FROM planilla_persona p WHERE p.entidad_ruc = $1 AND 'doble_planilla' = ANY(p.tipos))::int AS "doblePlanilla",
               (SELECT count(*) FROM planilla_persona p WHERE p.entidad_ruc = $1 AND 'socio_proveedor' = ANY(p.tipos))::int AS "socioProveedor",
               (SELECT count(*) FROM persona_entidad pe WHERE pe.entidad_ruc = $1 AND 'socio_proveedor' = ANY(pe.tipos))::int AS "socioLocador",
+              (SELECT count(*) FROM persona_entidad pe WHERE pe.entidad_ruc = $1 AND 'ordenes_tras_informe' = ANY(pe.tipos))::int AS "informeLocador",
               (SELECT count(*) FROM planilla_persona p WHERE p.entidad_ruc = $1 AND 'pariente_planilla' = ANY(p.tipos))::int AS "parientePlanilla",
               (SELECT count(*) FROM planilla_persona p WHERE p.entidad_ruc = $1 AND 'ascenso_expres' = ANY(p.tipos))::int AS "ascensoExpres",
               (SELECT count(*) FROM servir_convocatoria s WHERE s.entidad_ruc = $1 AND 'gestion_saliente' = ANY(s.tipos))::int AS "plazasSaliente",
@@ -1222,21 +1228,14 @@ entidadesRouter.get("/:ruc", async (c) => {
     entidad.metadata = limpia;
   }
   const nepFilas = nep?.rows ?? [];
+  // Los casos de un declarante electo con un parentesco que destapa van reservados (lib/nepotismo.ts).
   const nepotismo = nepFilas.length
-    ? {
-        total: nepFilas[0].totalCasos,
-        monto: nepFilas[0].montoTotal ?? 0,
-        porGrado: nepFilas[0].porGrado ?? [],
-        // El proveedor (RUC-10) va tapado por publicar() como cualquier locador. Del funcionario, su cargo y, sólo si no
-        // puede destapar el apellido tapado del pariente, su primer apellido (apellidoFuncionario); nunca el nombre
-        // completo. Su ficha de planilla, tampoco cuando el parentesco no es seguro (ahí se ve su primer apellido).
-        detalle: publicar(
-          nepFilas.map(({ declarante, declaranteFicha, totalCasos: _t, montoTotal: _m, porGrado: _g, ...r }) => {
-            const funcionarioApellido = apellidoFuncionario(r.parentesco, declarante);
-            return { ...r, funcionarioApellido, declaranteFicha: funcionarioApellido ? declaranteFicha : null };
-          }),
-        ),
-      }
+    ? nepotismoPublico(
+        nepFilas.map(({ totalCasos: _t, montoTotal: _m, porGrado: _g, ...r }) => r),
+        nepFilas[0].porGrado ?? [],
+        nepFilas[0].totalCasos,
+        nepFilas[0].montoTotal,
+      )
     : null;
   const b = ban?.rows[0];
   const g = gente?.rows[0];
@@ -1256,7 +1255,7 @@ entidadesRouter.get("/:ruc", async (c) => {
           ...(g ? {
             alBorde: g.alBorde, alBordeEmpresas: g.alBordeEmpresas, nepotismoGobierno: g.nepotismoGobierno, doblePlanilla: g.doblePlanilla, socioProveedor: g.socioProveedor,
             socioLocador: g.socioLocador, parientePlanilla: g.parientePlanilla, ascensoExpres: g.ascensoExpres, plazasSaliente: g.plazasSaliente,
-            empresaEspejo: g.empresaEspejo,
+            empresaEspejo: g.empresaEspejo, informeLocador: g.informeLocador,
           } : {}),
           ...(catalogo?.rows[0] ? { sobreprecioCatalogo: catalogo.rows[0].ordenes, sobreprecioCatalogoExceso: catalogo.rows[0].exceso } : {}),
           ...(visitasYOlas?.rows[0] ? {

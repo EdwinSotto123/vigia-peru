@@ -40,7 +40,8 @@ import { z } from "zod";
 import { esErrorPg, pool } from "../lib/db.js";
 import { Memo } from "../lib/cache.js";
 import { cachePublico, parametros } from "../lib/http.js";
-import { apellidoFuncionario, etiquetaParentesco, parentescoPublicable, publicar } from "../lib/privacidad.js";
+import { apellidoFuncionario, etiquetaParentesco, parentescoPublicable, publicar, reservarParentesco } from "../lib/privacidad.js";
+import { declaranteElectoSql } from "../lib/electos.js";
 
 /** Los cruces de una persona con el partido, del más grave al más leve (migraciones 299 y 301). */
 export const SENALES_POLITICO = [
@@ -380,6 +381,16 @@ async function detallePolitico(clave: string, codigo: string): Promise<Record<st
     for (const x of r.rows) porEmpresa.set(x.ruc, x);
   }
 
+  // Los funcionarios que la declararon como familiar: si uno es una autoridad electa, o si ella misma va con su nombre
+  // completo, y el parentesco destaparía el apellido tapado del otro, ese funcionario no se identifica (reservarParentesco).
+  const famElectos = new Set<string>();
+  if (familia.rows.length) {
+    const r = await pool.query<{ e: string; n: string; electo: boolean }>(
+      `SELECT x.e, x.n, ${declaranteElectoSql("x.n", "x.e", "x.c")} AS electo FROM unnest($1::text[], $2::text[], $3::text[]) AS x(e, n, c)`,
+      [familia.rows.map((f) => f.entidadRuc), familia.rows.map((f) => f.declarante ?? ""), familia.rows.map((f) => f.puesto ?? "")],
+    ).catch(() => null);
+    for (const x of r ? r.rows.filter((y) => y.electo) : familia.rows.map((f) => ({ e: f.entidadRuc, n: f.declarante ?? "" }))) famElectos.add(`${x.e}|${x.n}`);
+  }
   const filasAporte = aportes.rows;
   return publicar({
     ...base,
@@ -392,8 +403,13 @@ async function detallePolitico(clave: string, codigo: string): Promise<Record<st
     }),
     procesos: { total: procesos.rows[0]?.total ?? 0, filas: procesos.rows.map(({ total: _t, ...f }) => f) },
     ordenes: ordenes.rows.length ? { personaCodigo: yo.personaCodigo, entidades: ordenes.rows } : null,
-    // Sin el nombre del funcionario: su primer apellido y su ficha sólo si el parentesco no destapa el apellido tapado.
+    // Sin el nombre del funcionario: su primer apellido y su ficha sólo si el parentesco no destapa el apellido tapado; y
+    // reservado del todo (ni entidad, ni cargo, ni parentesco) cuando uno de los dos va con su nombre completo y el
+    // parentesco destaparía al otro.
     familia: familia.rows.map(({ declarante, ficha, ...f }) => {
+      if (reservarParentesco({ parentesco: f.parentesco, declaranteElecto: famElectos.has(`${f.entidadRuc}|${declarante ?? ""}`), familiarPublico: yo.publico })) {
+        return { reservado: true as const };
+      }
       const funcionarioApellido = apellidoFuncionario(f.parentesco, declarante);
       return { ...f, funcionarioApellido, ficha: funcionarioApellido ? ficha : null };
     }),

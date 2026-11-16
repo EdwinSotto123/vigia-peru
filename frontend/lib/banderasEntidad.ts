@@ -174,6 +174,17 @@ export function banderasEntidad(
       href: `${ficha}?seccion=personas&psenal=socio_proveedor`,
     });
   }
+  // Locadores que un informe de control sobre la entidad comprende y que después siguieron recibiendo órdenes de ella
+  // (migración 308).
+  if ((s.informeLocador ?? 0) > 0) {
+    const n = s.informeLocador!;
+    out.push({
+      tipo: "ordenes_tras_informe", severidad: "media", chip: "Locadores con informe de control", n,
+      titulo: `${plural(n, "locador comprendido", "locadores comprendidos")} en un informe de control de la entidad ${n === 1 ? "siguió" : "siguieron"} recibiendo órdenes después`,
+      explica: "La Contraloría los comprendió, por su DNI, en un informe de control sobre esta entidad, con presunta responsabilidad penal, civil o administrativa, y la entidad les dio órdenes de servicio después de emitido el informe. La responsabilidad presunta no es una condena ni impide contratar: es un dato para revisar.",
+      href: `${ficha}?seccion=personas&psenal=ordenes_tras_informe`,
+    });
+  }
   if ((s.plazasSaliente ?? 0) > 0) {
     const n = s.plazasSaliente!;
     out.push({

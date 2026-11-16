@@ -208,7 +208,7 @@ export interface OrdenesPersona {
 export const TIPOS_SENAL = [
   "nepotismo", "financio_campana", "candidato_gobierna", "autoridad_contratada", "inhabilitado", "aporte_gobierna", "nepotismo_gobierno",
   "apellidos_autoridad", "apellidos_funcionario", "funcionario_contratado", "meses_seguidos", "pago_alto", "al_borde_del_tope", "candidato", "aporte",
-  "visita_previa", "tambien_planilla", "paso_a_planilla", "familia_estado", "socio_proveedor",
+  "visita_previa", "tambien_planilla", "paso_a_planilla", "familia_estado", "socio_proveedor", "ordenes_tras_informe",
 ] as const;
 export type TipoSenal = (typeof TIPOS_SENAL)[number];
 
@@ -230,7 +230,7 @@ export const GRUPO_SENAL: Record<TipoSenal, (typeof GRUPOS_SENAL)[number]> = {
   meses_seguidos: "Cómo se le paga", pago_alto: "Cómo se le paga", al_borde_del_tope: "Cómo se le paga", tambien_planilla: "Cómo se le paga",
   paso_a_planilla: "Cómo se le paga",
   socio_proveedor: "Sus empresas",
-  inhabilitado: "Otros registros", visita_previa: "Otros registros",
+  inhabilitado: "Otros registros", visita_previa: "Otros registros", ordenes_tras_informe: "Otros registros",
 };
 
 export const SENAL: Record<TipoSenal, { corto: string; titulo: string; explica: string }> = {
@@ -349,6 +349,12 @@ export const SENAL: Record<TipoSenal, { corto: string; titulo: string; explica: 
     explica:
       "Primero recibió órdenes de servicio y después apareció en la planilla de la misma entidad, en un mes en que esta ya publicaba su planilla. Es común al pasar de locador a CAS: es un dato, no una falta.",
   },
+  ordenes_tras_informe: {
+    corto: "Órdenes tras un informe de control",
+    titulo: "Recibió órdenes de la entidad después de un informe de control que le señala presunta responsabilidad",
+    explica:
+      "La Contraloría lo comprendió, por su DNI, en un informe de control sobre esta misma entidad, con presunta responsabilidad penal, civil o administrativa, y después de emitido el informe la entidad le dio órdenes de servicio. La responsabilidad presunta no es una condena ni le impide contratar con el Estado: vale ver si la entidad conocía el informe y qué le encargó. Es grave si la responsabilidad es penal y la primera orden llegó dentro del año siguiente al informe.",
+  },
 };
 
 export const SEVERIDAD_TEXTO: Record<Severidad, string> = { alta: "Grave", media: "Para revisar", baja: "Dato" };
@@ -364,6 +370,7 @@ export const FUENTE_TEXTO: Record<string, string> = {
   pte_personal: "Portal de Transparencia Estándar, personal",
   visitas_entidades: "Registro de visitas a entidades",
   oece_rnp: "OECE, Registro Nacional de Proveedores (conformación jurídica)",
+  informes_control: "Contraloría, informes de control (responsabilidad presunta)",
 };
 
 /** La fuente en corto, para la línea de la señal (la completa, con su enlace, va en la evidencia). */
@@ -377,6 +384,7 @@ export const FUENTE_CORTA: Record<string, string> = {
   pte_personal: "Portal de Transparencia",
   visitas_entidades: "Registro de visitas",
   oece_rnp: "OECE, RNP",
+  informes_control: "Contraloría, informe de control",
 };
 
 /** El parentesco declarado en la DJI, como lo dice la ficha ("hijo" → "hijo(a)"). */
@@ -650,7 +658,13 @@ export interface PerfilPersona {
     /** Las visitas antes de su primera orden en una entidad (señal visita_previa, migración 195). */
     antesDeOrden?: { entidadRuc: string; entidad: string | null; severidad: string; primeraOrden: string | null; primeraVisita: string | null; n: number; aQuienDecide: number }[];
   };
-  familia: { entidadRuc: string; entidad: string | null; parentesco: string | null; grado: string | null; cargo: string | null; funcionarioApellido: string | null; ficha: string | null }[];
+  /**
+   * `reservado`: la persona va con su nombre completo (es electa) y el parentesco destaparía el apellido tapado del
+   * funcionario: sólo su entidad. El caso de un funcionario electo con un parentesco que destapa el de ella no llega
+   * (migración 311: no la marca en ninguna parte).
+   */
+  familia: ({ entidadRuc: string; entidad: string | null; parentesco: string | null; grado: string | null; cargo: string | null; funcionarioApellido: string | null; ficha: string | null; reservado?: undefined }
+    | { entidadRuc: string; entidad: string | null; reservado: true })[];
   /** `idPte`: el id de la entidad en el Portal de Transparencia (su página de personal), null si no se sabe. */
   planilla: { entidadRuc: string; entidad: string | null; ficha: string | null; cargo: string | null; regimen: number | null; dependencia: string | null; desde: string | null; hasta: string | null; base: number | null; nSenales: number | null; idPte?: number | null }[];
   entidades: { entidadRuc: string; entidad: string | null; primera: string | null; ultima: string | null; ordenes: number; monto: number }[];

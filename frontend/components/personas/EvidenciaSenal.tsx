@@ -4,7 +4,8 @@ import { CeldaBarra, CeldaNumero, CeldaPrincipal, Tabla, TablaPaginada, type Col
 import { Dato } from "@/components/ui/Dato";
 import { FrenteMediana } from "@/components/charts/FrenteMediana";
 import { LineaHitos, type Hito } from "@/components/charts/LineaHitos";
-import { decimal, fecha, fechaCorta, numero, plural, porcentaje, soles } from "@/lib/formato";
+import { responsabilidadesEnPalabras } from "@/lib/cruces";
+import { decimal, fecha, fechaCorta, numero, oracion, plural, porcentaje, soles } from "@/lib/formato";
 import { CONOSCE_BUSCADOR, fichaRnp, registroVisita } from "@/lib/fuentes";
 import { tituloNatural } from "@/lib/landing";
 import { rutaPartido } from "@/lib/partidos";
@@ -141,19 +142,23 @@ export function datoClaveSenal(s: SenalDetalle): string | null {
       const ords = lista(d.ordenes_detalle);
       const n = ords.length || num(d.ordenes) || 0;
       const monto = ords.length ? ords.reduce((t, o) => t + (num(o.monto) ?? 0), 0) : num(d.monto) ?? 0;
-      const cargo = par.length === 1 ? cargoEnOracion(par[0].cargo, true) : null;
+      const cargo = par.length === 1 && !par[0].reservado ? cargoEnOracion(par[0].cargo, true) : null;
+      // Reservado: un funcionario o autoridad cuyo parentesco destaparía un apellido tapado (lo decide el API).
       const quien =
         par.length > 1
           ? `Pariente de ${numero(par.length)} funcionarios de la entidad`
-          : `${gradoTitulo(par[0]?.grado)} de un funcionario de la entidad${cargo ? ` (${cargo})` : ""}`;
+          : par[0]?.reservado
+            ? "Familiar de un funcionario o autoridad de la entidad"
+            : `${gradoTitulo(par[0]?.grado)} de un funcionario de la entidad${cargo ? ` (${cargo})` : ""}`;
       return `${quien}: ${plural(n, "orden", "órdenes")} por ${soles(monto)}`;
     }
     case "nepotismo_gobierno":
     case "familia_estado": {
       const par = lista(d.parientes);
-      const ent = natural(par[0]?.entidad);
-      const cargo = par.length === 1 ? cargoEnOracion(par[0].cargo, true) : null;
+      const ent = par[0]?.reservado ? null : natural(par[0]?.entidad);
+      const cargo = par.length === 1 && !par[0].reservado ? cargoEnOracion(par[0].cargo, true) : null;
       const otras = s.tipo === "familia_estado" ? "de otras entidades" : "de otras entidades del mismo gobierno";
+      if (par.length === 1 && par[0].reservado) return `Familiar de un funcionario o autoridad ${otras.replace("entidades", "entidad").replace("otras", "otra")}`;
       return par.length > 1
         ? `Pariente de ${numero(par.length)} funcionarios ${otras}`
         : `${gradoTitulo(par[0]?.grado)} de un funcionario${cargo ? ` (${cargo})` : ""}${ent ? ` de ${ent}` : ` ${otras.replace("entidades", "entidad").replace("otras", "otra")}`}`;
@@ -262,6 +267,12 @@ export function datoClaveSenal(s: SenalDetalle): string | null {
       const entro = mes(txt(d.primer_mes_planilla));
       return [primera ? `Primera orden el ${primera}` : null, entro ? `en planilla desde ${entro}` : null].filter(Boolean).join("; ") || null;
     }
+    case "ordenes_tras_informe": {
+      // Migración 308: el informe de control de esta entidad que lo comprende y lo que ella le dio después.
+      const resp = responsabilidadesEnPalabras(d.responsabilidades);
+      const emision = dia(d.emision);
+      return `Informe ${txt(d.informe_numero) ?? "de control"}${emision ? ` del ${emision}` : ""}${resp ? `, presunta responsabilidad ${resp}` : ""}; después, ${plural(num(d.ordenes_despues) ?? 0, "orden", "órdenes")} por ${soles(num(d.monto_despues) ?? 0)}`;
+    }
     default:
       return null;
   }
@@ -277,26 +288,43 @@ function Lista({ columnas, filas, etiqueta }: { columnas: Columna[]; filas: Fila
 
 const texto = (v: string | null, clase = "text-ink") => <span className={`text-meta ${clase}`}>{v ?? "Sin dato"}</span>;
 
+/**
+ * Un funcionario que lo declaró, reservado por el API: él va con su nombre completo (es electo) y el parentesco destaparía
+ * el apellido tapado del funcionario. Ni su cargo, ni su apellido, ni su ficha, ni el parentesco. (El caso contrario, un
+ * funcionario electo con un parentesco que destapa el de él, ni llega: la señal no lo nombra, migración 311.)
+ */
+const filaReservada = (i: number, quien: string): Fila => ({
+  id: `reservado-${i}`,
+  celdas: {
+    quien: <CeldaPrincipal titulo={quien} meta={[<Dato key="r" tipo="personas" nombre="Funcionario">Su cargo se reserva</Dato>]} />,
+    parentesco: texto("Reservado", "text-mute"),
+  },
+});
+
 export function EvidenciaSenal({ s, codigo, entidadRuc }: { s: SenalDetalle; codigo: string; entidadRuc?: string }) {
   const d = s.detalle ?? {};
   switch (s.tipo) {
     case "nepotismo": {
       // El/los funcionario(s) que lo declararon como pariente: cargo + primer apellido + parentesco. No se nombra entero a
       // nadie; es un indicio para revisión humana. La fila lleva a la ficha de planilla del funcionario, si la tiene.
-      const parientes: Fila[] = lista(d.parientes).map((p, i) => ({
-        id: String(i),
-        ...(txt(p.ficha) ? { href: `/app/personas/planilla/${txt(p.ficha)}` } : {}),
-        celdas: {
-          quien: (
-            <CeldaPrincipal
-              titulo={natural(p.cargo) ?? "Funcionario de la entidad"}
-              // Sólo su primer apellido, y sólo si el parentesco no puede destapar el apellido tapado (lo decide el API).
-              meta={txt(p.funcionarioApellido) ? [<Dato key="ap" tipo="personas" nombre="Funcionario">{primerApellido(p.funcionarioApellido)}</Dato>] : undefined}
-            />
-          ),
-          parentesco: texto(GRADO_PARIENTE[txt(p.grado) ?? "otro"] ?? "pariente", "text-inkSoft"),
-        },
-      }));
+      const parientes: Fila[] = lista(d.parientes).map((p, i) =>
+        p.reservado
+          ? filaReservada(i, "Un funcionario o autoridad de la entidad")
+          : {
+              id: String(i),
+              ...(txt(p.ficha) ? { href: `/app/personas/planilla/${txt(p.ficha)}` } : {}),
+              celdas: {
+                quien: (
+                  <CeldaPrincipal
+                    titulo={natural(p.cargo) ?? "Funcionario de la entidad"}
+                    // Sólo su primer apellido, y sólo si el parentesco no puede destapar el apellido tapado (lo decide el API).
+                    meta={txt(p.funcionarioApellido) ? [<Dato key="ap" tipo="personas" nombre="Funcionario">{primerApellido(p.funcionarioApellido)}</Dato>] : undefined}
+                  />
+                ),
+                parentesco: texto(GRADO_PARIENTE[txt(p.grado) ?? "otro"] ?? "pariente", "text-inkSoft"),
+              },
+            },
+      );
       const ordenes = ordenesCitadas(d.ordenes_detalle);
       const n = ordenes.length || num(d.ordenes) || 0;
       const monto = ordenes.length ? ordenes.reduce((t, o) => t + (o.monto ?? 0), 0) : num(d.monto) ?? 0;
@@ -330,22 +358,26 @@ export function EvidenciaSenal({ s, codigo, entidadRuc }: { s: SenalDetalle; cod
       // Como el nepotismo, pero el funcionario es de OTRA entidad (del mismo gobierno, o de otro en «Familia en el Estado»):
       // su entidad enlaza a su ficha.
       const mismoGobierno = s.tipo === "nepotismo_gobierno";
-      const parientes: Fila[] = lista(d.parientes).map((p, i) => ({
-        id: String(i),
-        ...(txt(p.ficha) ? { href: `/app/personas/planilla/${txt(p.ficha)}` } : {}),
-        celdas: {
-          quien: (
-            <CeldaPrincipal
-              titulo={natural(p.cargo) ?? "Funcionario"}
-              meta={[
-                txt(p.funcionarioApellido) ? <Dato key="ap" tipo="personas" nombre="Funcionario">{primerApellido(p.funcionarioApellido)}</Dato> : null,
-                txt(p.entidad) ? <Dato key="en" tipo="entidad" nombre="Su entidad">{natural(p.entidad)}</Dato> : null,
-              ]}
-            />
-          ),
-          parentesco: texto(GRADO_PARIENTE[txt(p.grado) ?? "otro"] ?? "pariente", "text-inkSoft"),
-        },
-      }));
+      const parientes: Fila[] = lista(d.parientes).map((p, i) =>
+        p.reservado
+          ? filaReservada(i, mismoGobierno ? "Un funcionario o autoridad del mismo gobierno" : "Un funcionario o autoridad de otra entidad")
+          : {
+              id: String(i),
+              ...(txt(p.ficha) ? { href: `/app/personas/planilla/${txt(p.ficha)}` } : {}),
+              celdas: {
+                quien: (
+                  <CeldaPrincipal
+                    titulo={natural(p.cargo) ?? "Funcionario"}
+                    meta={[
+                      txt(p.funcionarioApellido) ? <Dato key="ap" tipo="personas" nombre="Funcionario">{primerApellido(p.funcionarioApellido)}</Dato> : null,
+                      txt(p.entidad) ? <Dato key="en" tipo="entidad" nombre="Su entidad">{natural(p.entidad)}</Dato> : null,
+                    ]}
+                  />
+                ),
+                parentesco: texto(GRADO_PARIENTE[txt(p.grado) ?? "otro"] ?? "pariente", "text-inkSoft"),
+              },
+            },
+      );
       return (
         <div className="space-y-3">
           {mismoGobierno && (
@@ -864,6 +896,84 @@ export function EvidenciaSenal({ s, codigo, entidadRuc }: { s: SenalDetalle; cod
               Ver sus órdenes de esta entidad
             </VerOrdenes>
           )}
+        </div>
+      );
+    }
+    case "ordenes_tras_informe": {
+      // Migración 308: el informe de control de ESTA entidad que lo comprende (presunta responsabilidad) y lo que ella le dio
+      // después. La línea va del informe a su primera orden; los demás informes de la entidad en que figura, en una tabla.
+      const resp = responsabilidadesEnPalabras(d.responsabilidades);
+      const url = txt(d.url_resumen);
+      const numeroInf = txt(d.informe_numero) ?? txt(d.informe_codigo);
+      const po = (d.primera_orden_detalle ?? null) as Obj | null;
+      const primera = txt(d.primera_orden)?.slice(0, 10) ?? null;
+      const anioPrimera = primera?.slice(0, 4) ?? null;
+      const diasPrimera = num(d.dias_hasta_primera);
+      const ultima = txt(d.ultima_orden)?.slice(0, 10) ?? null;
+      const hitos: Hito[] = [
+        ...(txt(d.emision) ? [{ fecha: txt(d.emision)!.slice(0, 10), texto: numeroInf ? `Informe de control ${numeroInf}` : "Informe de control" }] : []),
+        ...(primera
+          ? [{
+              fecha: primera, texto: "Primera orden después del informe", destacado: true,
+              href: entidadRuc ? `/app/personas/${codigo}?seccion=ordenes&oent=${entidadRuc}${anioPrimera ? `&oanio=${anioPrimera}` : ""}` : null,
+            }]
+          : []),
+        ...(ultima && ultima !== primera ? [{ fecha: ultima, texto: "Su última orden de la entidad" }] : []),
+      ];
+      const otros: Fila[] = lista(d.otros_informes).map((x, i) => ({
+        id: String(i),
+        celdas: {
+          informe: (
+            <CeldaPrincipal
+              titulo={txt(x.numero) ? `Informe ${txt(x.numero)}` : "Informe de control"}
+              meta={[<Dato key="f" tipo="fecha" nombre="Emitido">{dia(x.emision) ?? "Sin fecha"}</Dato>]}
+            />
+          ),
+          resp: texto(responsabilidadesEnPalabras(x.responsabilidades), "text-inkSoft"),
+          despues: <CeldaNumero sub={num(x.ordenes) ? plural(num(x.ordenes)!, "orden", "órdenes") : undefined}>{soles(num(x.monto) ?? 0)}</CeldaNumero>,
+          fuente: txt(x.url_resumen) ? <EnlaceFuente href={txt(x.url_resumen)!} className="text-meta">Su resumen</EnlaceFuente> : texto(null, "text-mute"),
+        },
+      }));
+      return (
+        <div className="space-y-3">
+          <DatosClave
+            items={[
+              { etiqueta: "Informe de control", valor: url && numeroInf ? <EnlaceFuente href={url}>{numeroInf}</EnlaceFuente> : numeroInf, mono: true },
+              { etiqueta: "Emitido", valor: dia(d.emision) },
+              { etiqueta: "Presunta responsabilidad", valor: resp ? resp.charAt(0).toUpperCase() + resp.slice(1) : null },
+              ...(txt(d.informe_titulo) ? [{ etiqueta: "Asunto del informe", valor: `«${oracion(txt(d.informe_titulo)!)}»` }] : []),
+              {
+                etiqueta: "Después del informe",
+                valor: `${plural(num(d.ordenes_despues) ?? 0, "orden", "órdenes")} por ${soles(num(d.monto_despues) ?? 0)}`,
+                mono: true,
+              },
+              {
+                etiqueta: "Primera orden después",
+                valor: [txt(po?.numero) ? `N.° ${txt(po?.numero)}` : null, dia(primera) ? `del ${dia(primera)}` : null,
+                        diasPrimera != null ? `(${plural(diasPrimera, "día", "días")} después del informe)` : null].filter(Boolean).join(" ") || null,
+              },
+              { etiqueta: "Antes del informe", valor: d.ya_tenia_ordenes === true ? "Ya tenía órdenes de esta entidad" : "No tenía órdenes de esta entidad" },
+            ]}
+          />
+          <LineaHitos hitos={hitos} etiqueta="Del informe de control a sus órdenes" />
+          <Lista
+            etiqueta="Otros informes de esta entidad en que figura"
+            columnas={[
+              { clave: "informe", titulo: "Informe", ancho: "minmax(0,1fr)" },
+              { clave: "resp", titulo: "Presunta responsabilidad", corto: "Responsabilidad", ancho: "minmax(0,1fr)", desde: "md", apilar: "con-rotulo" },
+              { clave: "despues", titulo: "Le dieron después", corto: "Después", ancho: "8rem", alinear: "der" },
+              { clave: "fuente", titulo: "Fuente", ancho: "7rem", desde: "md", apilar: "con-rotulo" },
+            ]}
+            filas={otros}
+          />
+          <Nota>
+            La Contraloría identifica la responsabilidad y la deriva (al Ministerio Público, a la procuraduría, a la entidad o a su
+            procedimiento sancionador): es presunta, no es una condena ni le impide contratar con el Estado. Es la misma persona por
+            su documento: el informe la nombra con su DNI, el mismo de su RUC.
+          </Nota>
+          <VerOrdenes codigo={codigo} entidadRuc={entidadRuc} anio={anioPrimera}>
+            {entidadRuc ? "Ver sus órdenes de esta entidad" : "Ver sus órdenes del Estado"}
+          </VerOrdenes>
         </div>
       );
     }

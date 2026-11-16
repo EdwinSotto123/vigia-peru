@@ -3,7 +3,8 @@ import { z } from "zod";
 import { consultaConPlazo, pool } from "../lib/db.js";
 import { Memo } from "../lib/cache.js";
 import { cachePublico, parametros } from "../lib/http.js";
-import { TAPA_NOMBRE, publicar } from "../lib/privacidad.js";
+import { TAPA_NOMBRE, publicar, parentescoPublicable } from "../lib/privacidad.js";
+import { declaranteElectoSql } from "../lib/electos.js";
 import { djiEntidad, personalPte } from "../lib/fuentes.js";
 import { visitasHasta } from "../lib/visitas.js";
 import { adscritosDe, armarOrganigrama, plantillaPorNombre, type CargoDji, type NombreGlobal, type OficinaPlanilla, type PlantillaId, type UnidadGobierno, type VisitaArea } from "../lib/organigrama.js";
@@ -381,19 +382,23 @@ planillaRouter.get("/ficha/:codigo", async (c) => {
         [f._nn, f.entidadRuc]),
       // Parientes que ESTA persona declaró en su DJI y que son locadores de su MISMA entidad (lado del funcionario del
       // nepotismo, vista dji_nepotismo migr. 137). El pariente (RUC-10) va tapado por publicar(); enlaza a su ficha.
-      pool.query(
+      // `electo`: esta persona es una autoridad electa (regidor, alcalde…: su nombre completo es público en el JNE).
+      pool.query<{ grado: string; parentesco: string | null; proveedorRuc: string; proveedorNombre: string; proveedorCodigo: string | null;
+                   ordenes: number; monto: number; electo: boolean }>(
         `SELECT n.grado, n.parentesco, n.proveedor_ruc AS "proveedorRuc", n.proveedor_nombre AS "proveedorNombre",
-                pc.codigo AS "proveedorCodigo", n.ordenes, n.monto
+                pc.codigo AS "proveedorCodigo", n.ordenes, n.monto, ${declaranteElectoSql("$1::text", "$2::text", "$3::text")} AS electo
            FROM dji_nepotismo n LEFT JOIN persona_codigo pc ON pc.ruc = n.proveedor_ruc
           WHERE n.declarante_norm = $1 AND n.entidad_ruc = $2 ORDER BY n.monto DESC NULLS LAST LIMIT 20`,
-        [f._nn, f.entidadRuc]),
+        [f._nn, f.entidadRuc, f.cargo ?? ""]),
     ]);
     const { _nn, paterno, nombres, ...resto } = f;
     return publicar({
       persona: { ...resto, nombre: [paterno, TAPA_NOMBRE, nombres].filter(Boolean).join(" ") },
       historia: historia.rows,
       otras: otras.rows,
-      nepotismo: nepotismo.rows,
+      // Si es una autoridad electa y el parentesco destaparía el apellido tapado del familiar (hermano, hijo, sobrino,
+      // primo, nieto o desconocido), el familiar no se identifica: ni su nombre, ni su ficha, ni sus órdenes, ni el monto.
+      nepotismo: nepotismo.rows.map(({ electo, ...x }) => (electo && !parentescoPublicable(x.parentesco) ? { reservado: true as const } : x)),
     });
   });
   if (!cuerpo) return c.json({ error: "not_found" }, 404);

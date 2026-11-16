@@ -99,8 +99,10 @@ const GUARDADO = "X-Vigia-Guardado";
  *        antes «DE ••• CRUZ ESPINOZA ROSA» dejaba el materno a la vista) y los políticos de un partido (migración 299).
  * "101": Políticos con su DJI propia, sus familiares (parentescos que destapan, reservados) y sus informes de control
  *        (migración 301).
+ * "102": la señal de personas «órdenes tras un informe de control» (migración 308, `senales.informeLocador`) y los
+ *        familiares de una autoridad electa con parentesco que destapa, reservados en nepotismo y planilla (311).
  */
-const VERSION_CACHE = "101";
+const VERSION_CACHE = "102";
 
 function cacheable(req: Request): boolean {
   if (req.method !== "GET") return false;

@@ -26,3 +26,28 @@ test("el buscador deja las palabras como mef_norm: mayúsculas, sin tildes, de 3
   assert.deepEqual(palabrasBusqueda(undefined), []);
   assert.equal(palabrasBusqueda("uno dos tres cuatro cinco seis siete").length, 5);
 });
+
+test("órdenes tras un informe de control (migración 308): el RUC 10 no sale y el informe queda con su código y su enlace", () => {
+  // Datos sintéticos: RUC 10 con el DNI 00000001, nombre inventado.
+  const url = "https://apps8.contraloria.gob.pe/SPIC/srvDownload/ViewPDF?CRES_CODIGO=2019CPOL42000117&TIPOARCHIVO=RE";
+  const r = publicar({
+    persona: { codigo: "0123456789ab", ruc: "10000000011", nombre: "QUISPEMAYTA HUAMANCHUMO ROBERTINO" },
+    entidades: [{
+      entidadRuc: "20999999993", nombre: "QUISPEMAYTA HUAMANCHUMO ROBERTINO",
+      senalesDetalle: [{
+        tipo: "ordenes_tras_informe", severidad: "alta", fuente: "informes_control", fuenteUrl: url,
+        detalle: { informe_codigo: "2019CPOL42000117", informe_numero: "1734-2019-CG/GRPI", emision: "2019-08-02",
+          responsabilidades: ["administrativa_entidad", "penal"], url_resumen: url, ordenes_despues: 13, monto_despues: 369200,
+          primera_orden: "2020-02-07", dias_hasta_primera: 189, primera_orden_detalle: { numero: "2000422", monto: 30000 } },
+      }],
+    }],
+  });
+  const json = JSON.stringify(r);
+  assert.doesNotMatch(json, /10000000011|00000001|HUAMANCHUMO/);
+  const d = r.entidades[0].senalesDetalle[0].detalle;
+  // 8 cifras pegadas a letras en el código del informe: es un código, no un DNI.
+  assert.equal(d.informe_codigo, "2019CPOL42000117");
+  assert.equal(d.url_resumen, url);
+  assert.equal(r.entidades[0].senalesDetalle[0].fuenteUrl, url);
+  assert.equal(d.primera_orden_detalle.numero, "2000422");
+});
