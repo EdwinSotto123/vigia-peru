@@ -145,6 +145,24 @@ Rol `vigia_api` (también `vigia_api_admin` y `vigia_mcp`); `statement_timeout` 
 `procuraduria` es null si el departamento no tiene sede en el último boletín; `ultimos` son los 10 informes más nuevos.
 Los datos son públicos: ningún rol que lee pierde acceso; los agentes (`vigia_agentes`) leen pero no escriben.
 
+## Lo que dicen los informes: fichas, buscador e informe para control (2026-11-16)
+
+El informe completo de la Contraloría (`url_pdf`) es un escaneo de 50 a 150 MB sin texto: no se baja ni se lee. Lo que sí
+se lee es su **Ficha Resumen** (`url_resumen`): un PDF de texto de unas tres páginas con el objetivo, los montos, el tipo
+de servicio de control y las observaciones numeradas.
+
+| Pieza | Dónde |
+|---|---|
+| Fichas y su lectura | `informe_control_ficha` (migración 304): el texto y `campos` (objetivo, montos, observaciones, recomendaciones); la lectura con GLM 5.3 flash agrega a cada observación su tema, el perjuicio y las referencias (obras, contratos, procesos, empresas) |
+| Buscador | `informe_control_fragmento` + `buscar_informe_control()` (migración 305, palabras y vectores bge-m3); `GET /informes-control/buscar`, `/app/contraloria` en la web y `buscar_informes_control` en el MCP |
+| Funcionarios comprendidos | `informe_control_persona` (302, con DNI, restringida) y la vista sin documento `informe_control_implicado`; en la web, con un apellido tapado y siempre «responsabilidad presunta» |
+| Señales | `socio_con_informe_control` (contratos; 303 y 307) y `ordenes_tras_informe` (personas; 308) |
+| Informe para control | `GET /contratos/:ocid/informe-control` (306): las señales de un contrato como observaciones con condición, criterio, efecto, causa, evidencia y precedentes de informes reales; pestaña «Informe para control» del dictamen |
+
+**Actualizar todo (una vez al mes, desde una PC en el Perú):** `bash backend/scripts/actualizar_contraloria.sh`. Carga los
+informes y sus funcionarios, baja las fichas que faltan (un pedido por segundo), las lee y rehace el índice. Los PDF
+quedan en `dataset/contraloria_fichas/` (git lo ignora).
+
 ## Desplegar
 
 1. Migración en RDS: `psql "$DSN" -v ON_ERROR_STOP=1 -f backend/db/migrations/90_corrupcion.sql` (por el túnel de
