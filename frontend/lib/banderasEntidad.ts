@@ -165,6 +165,26 @@ export function banderasEntidad(
       href: `${ficha}?seccion=contratos&cruce=empresa_espejo`,
     });
   }
+  // Lo que la Contraloría ya observó en sus procesos (migración 313) y lo que la entidad adjudicó después a esos mismos
+  // proveedores (315): las dos llevan a la lista de esos contratos, cada uno con su informe.
+  if ((s.ganoTrasObservacion ?? 0) > 0) {
+    const n = s.ganoTrasObservacion!;
+    out.push({
+      tipo: "gano_tras_observacion", severidad: "media", chip: "Adjudicó tras una observación", n,
+      titulo: `${plural(n, "contrato adjudicado", "contratos adjudicados")} a un proveedor después de que la Contraloría observara otro proceso suyo aquí`,
+      explica: "Un informe de control observó un proceso que ese proveedor había ganado en esta entidad, y la entidad le volvió a adjudicar después de emitido. El informe señala a funcionarios, con responsabilidad presunta, y no sanciona al proveedor: vale ver si lo observado se corrigió.",
+      href: `${ficha}?seccion=contratos&cruce=gano_tras_observacion`,
+    });
+  }
+  if ((s.observadoContraloria ?? 0) > 0) {
+    const n = s.observadoContraloria!;
+    out.push({
+      tipo: "observado_por_contraloria", severidad: "media", chip: "Procesos observados por la Contraloría", n,
+      titulo: `${plural(n, "proceso suyo nombrado", "procesos suyos nombrados")} en una observación de un informe de control`,
+      explica: "Una observación de un informe de control de la Contraloría nombra ese proceso de selección o la obra de ese contrato: dice lo que los auditores encontraron ahí. La responsabilidad que identifica es presunta y recae en funcionarios y servidores.",
+      href: `${ficha}?seccion=contratos&cruce=observado_por_contraloria`,
+    });
+  }
   if ((s.socioLocador ?? 0) > 0) {
     const n = s.socioLocador!;
     out.push({

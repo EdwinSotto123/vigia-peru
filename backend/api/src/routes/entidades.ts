@@ -1185,13 +1185,15 @@ entidadesRouter.get("/:ruc", async (c) => {
     // que ganó una empresa espejo de una inhabilitada. Y los locadores que un informe de control de la entidad comprende
     // y siguieron recibiendo órdenes de ella después (migración 308).
     pool.query<{ alBorde: number; alBordeEmpresas: number; nepotismoGobierno: number; doblePlanilla: number; socioProveedor: number; socioLocador: number;
-                 parientePlanilla: number; ascensoExpres: number; plazasSaliente: number; empresaEspejo: number; informeLocador: number }>(
+                 parientePlanilla: number; ascensoExpres: number; plazasSaliente: number; empresaEspejo: number; informeLocador: number;
+                 observadoContraloria: number; ganoTrasObservacion: number }>(
       // Cada tabla se lee UNA vez y sólo las filas con alguna de estas señales, por el índice GIN de `tipos`. Antes era una
       // subconsulta por señal sobre todas las personas de la entidad: en la más grande (49 mil locadores y 64 mil en
       // planilla) tocaba 14 592 páginas de persona_entidad y 184 240 de planilla_persona (16 s en frío: pasaba el plazo
       // de 10 s y la ficha salía sin estas banderas); así son 857 y 1 677 páginas. Mismos números en 48 entidades (2026-11-16).
       `SELECT pe."alBorde", eb."alBordeEmpresas", pe."nepotismoGobierno", pp."doblePlanilla", pp."socioProveedor", pe."socioLocador",
-              pe."informeLocador", pp."parientePlanilla", pp."ascensoExpres", sv."plazasSaliente", es."empresaEspejo"
+              pe."informeLocador", pp."parientePlanilla", pp."ascensoExpres", sv."plazasSaliente", es."empresaEspejo",
+              oc."observadoContraloria", oc."ganoTrasObservacion"
          FROM (SELECT (count(*) FILTER (WHERE 'al_borde_del_tope' = ANY(tipos)))::int AS "alBorde",
                       (count(*) FILTER (WHERE 'nepotismo_gobierno' = ANY(tipos)))::int AS "nepotismoGobierno",
                       (count(*) FILTER (WHERE 'socio_proveedor' = ANY(tipos)))::int AS "socioLocador",
@@ -1210,7 +1212,13 @@ entidadesRouter.get("/:ruc", async (c) => {
               (SELECT count(*)::int AS "alBordeEmpresas" FROM empresa_borde_tope WHERE entidad_ruc = $1) eb,
               (SELECT count(*)::int AS "plazasSaliente" FROM servir_convocatoria WHERE entidad_ruc = $1 AND 'gestion_saliente' = ANY(tipos)) sv,
               (SELECT count(*)::int AS "empresaEspejo" FROM cruces_proveedor c JOIN convocatorias cv ON cv.ocid = c.ocid
-                WHERE c.tipo = 'empresa_espejo' AND cv.entidad_ruc = $1) es`,
+                WHERE c.tipo = 'empresa_espejo' AND cv.entidad_ruc = $1) es,
+              -- Sus procesos que una observación de un informe de control nombra (migración 313) y los que adjudicó después
+              -- a un proveedor con un proceso suyo ya observado aquí (315): contratos, no banderas (un consorcio trae varias).
+              (SELECT (count(DISTINCT c.ocid) FILTER (WHERE c.tipo = 'observado_por_contraloria'))::int AS "observadoContraloria",
+                      (count(DISTINCT c.ocid) FILTER (WHERE c.tipo = 'gano_tras_observacion'))::int AS "ganoTrasObservacion"
+                 FROM cruces_proveedor c JOIN convocatorias cv ON cv.ocid = c.ocid
+                WHERE c.tipo IN ('observado_por_contraloria', 'gano_tras_observacion') AND cv.entidad_ruc = $1) oc`,
       [ruc],
     ).catch((e) => { console.warn(`[entidades] señales de su gente en ${ruc}: ${(e as Error).message}`); return null; }),
     // La migración 188: visitas de familiares declarados de sus funcionarios y la ola de órdenes a personas tras un cambio
@@ -1272,6 +1280,7 @@ entidadesRouter.get("/:ruc", async (c) => {
             alBorde: g.alBorde, alBordeEmpresas: g.alBordeEmpresas, nepotismoGobierno: g.nepotismoGobierno, doblePlanilla: g.doblePlanilla, socioProveedor: g.socioProveedor,
             socioLocador: g.socioLocador, parientePlanilla: g.parientePlanilla, ascensoExpres: g.ascensoExpres, plazasSaliente: g.plazasSaliente,
             empresaEspejo: g.empresaEspejo, informeLocador: g.informeLocador,
+            observadoContraloria: g.observadoContraloria, ganoTrasObservacion: g.ganoTrasObservacion,
           } : {}),
           ...(catalogo?.rows[0] ? { sobreprecioCatalogo: catalogo.rows[0].ordenes, sobreprecioCatalogoExceso: catalogo.rows[0].exceso } : {}),
           ...(visitasYOlas?.rows[0] ? {

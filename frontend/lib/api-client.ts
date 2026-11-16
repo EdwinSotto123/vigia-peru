@@ -122,6 +122,10 @@ export interface ApiEntidad {
     ascensoExpres?: number;
     plazasSaliente?: number;
     empresaEspejo?: number;
+    /** Sus procesos que una observación de un informe de control nombra (migración 313). */
+    observadoContraloria?: number;
+    /** Los que adjudicó después a un proveedor con un proceso suyo ya observado aquí (migración 315). */
+    ganoTrasObservacion?: number;
     /** Sólo en la ficha (migración 308): locadores que un informe de control de la entidad comprende (responsabilidad
      *  presunta) y que siguieron recibiendo órdenes de ella después del informe. */
     informeLocador?: number;
