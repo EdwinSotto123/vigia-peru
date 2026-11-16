@@ -4,7 +4,7 @@ import { z } from "zod";
 import { consultaConPlazo, pool } from "../lib/db.js";
 import { Memo } from "../lib/cache.js";
 import { cachePublico, parametros } from "../lib/http.js";
-import { TAPA_NOMBRE, apellidoFuncionario, publicar } from "../lib/privacidad.js";
+import { TAPA_NOMBRE, apellidoFuncionario, apellidosSunat, publicar } from "../lib/privacidad.js";
 import { esElectoSql, marcaElecto } from "../lib/electos.js";
 import { enlaceFuente } from "../lib/fuentes.js";
 import { visitasHasta } from "../lib/visitas.js";
@@ -794,10 +794,14 @@ export function taparNombrePropio(texto: string | null, nombre: string | null): 
   // Por palabras enteras (sin \b: no conoce la Ñ ni las tildes).
   const esc = (w: string[]) => w.map((x) => x.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("\\s+");
   const sunat = new RegExp(`(?<!\\p{L})${esc(p)}(?!\\p{L})`, "giu");
-  const hablado = new RegExp(`(?<!\\p{L})${esc([...p.slice(2), p[0], p[1]])}(?!\\p{L})`, "giu");
+  // Se tapa el segundo apellido entero, con sus partículas («QUISPE DE LA TORRE JUAN» → «QUISPE ••• JUAN»), y el primero
+  // se queda con las suyas («DE LA CRUZ ••• ROSA»): lo decide apellidosSunat, como en publicar().
+  const [e1, e2] = apellidosSunat(p.map((w) => w.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase()));
+  const [ap1, ap2, nombres] = [p.slice(0, e1), p.slice(e1, e2), p.slice(e2)];
+  const hablado = new RegExp(`(?<!\\p{L})${esc([...nombres, ...ap1, ...ap2])}(?!\\p{L})`, "giu");
   return texto
-    .replace(sunat, [p[0], TAPA_NOMBRE, ...p.slice(2)].join(" "))
-    .replace(hablado, [...p.slice(2), p[0], TAPA_NOMBRE].join(" "));
+    .replace(sunat, [...ap1, TAPA_NOMBRE, ...nombres].join(" "))
+    .replace(hablado, [...nombres, ...ap1, TAPA_NOMBRE].join(" "));
 }
 
 // ─── GET /personas/:codigo/perfil ───────────────────────────────────────────────────────────────

@@ -431,3 +431,98 @@ test("una sucesión registrada como socio no publica sus nombres", async () => {
   assert.equal(nombrePublicable("SUCESION PEREZ GOMEZ JUAN REPRESENTADA POR MARIA LOPEZ DIAZ VIUDA DE PEREZ"), "Sucesión (nombre reservado)");
   assert.equal(nombrePublicable("ROJAS QUISPE ELENA"), "ROJAS QUISPE ELENA");
 });
+
+test("políticos de un partido (migración 299): quien no ganó y el aportante, con un apellido tapado aunque hayan postulado a alcalde; quien ganó, completo; la empresa que aporta, intacta; ningún documento", async () => {
+  const { filaPolitico } = await import("../src/routes/partidosPoliticos.js");
+  const base = {
+    publico: false, ruc: null, gano: false, candidato: true, aportante: false, nCandidaturas: 1, elecciones: [2022], cargo: "ALCALDE DISTRITAL",
+    lugar: "QUELLOUNO, LA CONVENCION, CUSCO", aportesN: 0, aportesMonto: 0, aporteDesde: null, aporteHasta: null, conDocumento: true, personaCodigo: null,
+    empN: 1, empMonto: 1000, empInhab: 0, empGobN: 0, empGobMonto: 0, ordEntidades: 0, ordMonto: 0, ordGobEntidades: 0, ordGobMonto: 0, familiaN: 0,
+    sancionesN: 0, senales: ["empresas_estado", "no_es_una_senal"], sev: 2,
+  };
+  const filas = [
+    { ...base, codigo: "a1b2c3d4e5f6", tipo: "persona" as const, nombre: "ROJAS PAZ ELENA" },
+    { ...base, codigo: "0123456789ab", tipo: "persona" as const, nombre: "PEREZ QUISPE JUAN", publico: true, gano: true },
+    { ...base, codigo: "b1b2c3d4e5f6", tipo: "persona" as const, nombre: "TORRES LIMA ANA", candidato: false, aportante: true, cargo: null, lugar: null },
+    { ...base, codigo: "c1b2c3d4e5f6", tipo: "empresa" as const, nombre: "RAY OF LIGHT", ruc: "20479548782", candidato: false, aportante: true, cargo: null, lugar: null },
+  ].map(filaPolitico);
+  // La fila no lleva el cargo junto al nombre (publicar() lo leería como el de una autoridad y dejaría el nombre completo).
+  assert.ok(!("cargo" in filas[0]) && !("rol" in filas[0]) && !("doc" in filas[0]) && !("dni" in filas[0]));
+  const r = publicar({ total: 4, politicos: filas });
+  assert.equal(r.politicos[0].nombre, `ROJAS ${TAPA_NOMBRE} ELENA`);
+  assert.equal(r.politicos[0].ultimaCandidatura?.puesto, "ALCALDE DISTRITAL");
+  assert.equal(r.politicos[1].nombre, "PEREZ QUISPE JUAN");
+  assert.equal(r.politicos[2].nombre, `TORRES ${TAPA_NOMBRE} ANA`);
+  assert.equal(r.politicos[3].nombre, null);
+  assert.equal(r.politicos[3].razonSocial, "RAY OF LIGHT");
+  assert.equal(r.politicos[3].ruc, "20479548782");
+  // El código de la ficha queda como está (también uno hecho sólo de cifras) y una señal desconocida no sale.
+  assert.equal(r.politicos[1].codigo, "0123456789ab");
+  assert.deepEqual(r.politicos[0].senales, [{ tipo: "empresas_estado", severidad: "media" }]);
+  const s = json(r);
+  assert.ok(!/ROJAS PAZ|TORRES LIMA/.test(s), s);
+  assert.doesNotMatch(s, /(?<!\d)\d{8}(?!\d)/);
+});
+
+test("detalle de un político: su nombre en un texto libre se tapa (va en `extra`); el del que ganó, no; del funcionario que lo declaró, sólo el primer apellido si no destapa nada", () => {
+  const detalle = {
+    procesos: { total: 1, filas: [{ codigo: "987654", descripcion: "SERVICIO DE ASESORIA A CARGO DE ROJAS PAZ ELENA", entidad: "MUNICIPALIDAD DISTRITAL DE QUELLOUNO" }] },
+    familia: [{ entidad: "MINISTERIO PUBLICO", puesto: "FISCAL", parentesco: "HERMANO(A) DEL DECLARANTE", funcionarioApellido: apellidoFuncionario("HERMANO(A) DEL DECLARANTE", "ROJAS PAZ LUIS") }],
+    sanciones: [{ tipo: "temporal", resolucion: "1234-2021-TCE-S1", infraccion: "Presentar información inexacta" }],
+  };
+  const tapado = publicar(detalle, { extra: { politicos: [{ nombre: "ROJAS PAZ ELENA" }] } });
+  assert.equal(tapado.procesos.filas[0].descripcion, `SERVICIO DE ASESORIA A CARGO DE ROJAS ${TAPA_NOMBRE} ELENA`);
+  assert.equal(tapado.familia[0].funcionarioApellido, "ROJAS");
+  assert.ok(!("politicos" in tapado));
+  const electo = publicar(detalle, { extra: { politicos: [{ nombre: "ROJAS PAZ ELENA", electo: true }] } });
+  assert.equal(electo.procesos.filas[0].descripcion, "SERVICIO DE ASESORIA A CARGO DE ROJAS PAZ ELENA");
+  // Con hijo(a), el primer apellido del funcionario ES el tapado de la persona: no sale.
+  assert.equal(apellidoFuncionario("HIJO(A)", "PAZ ROJAS LUIS"), null);
+});
+
+test("apellidos compuestos: las partículas van con su apellido y se tapa el SEGUNDO apellido entero (apellidos y nombres)", () => {
+  const casos: [string, string][] = [
+    ["DE LA CRUZ ESPINOZA ROSA", `DE LA CRUZ ${TAPA_NOMBRE} ROSA`],
+    ["QUISPE DE LA TORRE JUAN", `QUISPE ${TAPA_NOMBRE} JUAN`],
+    ["DEL AGUILA RIOS ANA MARIA", `DEL AGUILA ${TAPA_NOMBRE} ANA MARIA`],
+    ["ROJAS PEREZ ELENA", `ROJAS ${TAPA_NOMBRE} ELENA`],
+    ["DE LA CRUZ DE LOS SANTOS LUIS", `DE LA CRUZ ${TAPA_NOMBRE} LUIS`],
+    ["SAN MARTIN VDA DE QUISPE NELLY", `SAN MARTIN ${TAPA_NOMBRE} NELLY`],
+    ["PEREZ VDA DE QUISPE MARIA", `PEREZ ${TAPA_NOMBRE} MARIA`],
+    ["ORTEGA Y GASSET MAMANI JOSE", `ORTEGA Y GASSET ${TAPA_NOMBRE} JOSE`],
+    // Un solo apellido compuesto y un nombre: nunca queda una partícula tapada y el resto a la vista.
+    ["DEL AGUILA ANA", `DEL AGUILA ${TAPA_NOMBRE}`],
+  ];
+  for (const [nombre, tapado] of casos) {
+    // En la lista de políticos (orden fijo del JNE y la ONPE) y en una lista general en orden SUNAT (socios del RNP).
+    assert.equal(publicar({ politicos: [{ nombre }] }).politicos[0].nombre, tapado, nombre);
+    assert.equal(publicar({ socios: [{ nombre }] }).socios[0].nombre, tapado, nombre);
+    // Y con su RUC 10 al lado (un proveedor persona natural).
+    assert.equal(publicar({ ganador: { ruc: "10439608801", nombre } }).ganador.nombre, tapado, nombre);
+  }
+  // El orden del padrón no se adivina: un apellido que también es nombre de pila no deja los dos apellidos a la vista.
+  assert.equal(publicar({ politicos: [{ nombre: "SANTOS QUISPE YHON" }] }).politicos[0].nombre, `SANTOS ${TAPA_NOMBRE} YHON`);
+});
+
+test("apellidos compuestos con el nombre primero y en texto libre: tampoco queda el materno a la vista", () => {
+  const r = publicar({
+    firmantes: [{ nombre_completo: "JUAN CARLOS PEREZ DE LA CRUZ" }, { nombre_completo: "MARIA DEL CARMEN QUISPE ROJAS" }, { nombre_completo: "LUIS DE LA CRUZ ESPINOZA" }],
+    politicos: [{ nombre: "DE LA CRUZ ESPINOZA ROSA" }],
+    nota: "Firmó la señora Rosa De La Cruz Espinoza; antes, DE LA CRUZ ESPINOZA ROSA.",
+  });
+  assert.equal(r.firmantes[0].nombre_completo, `JUAN CARLOS PEREZ ${TAPA_NOMBRE}`);
+  assert.equal(r.firmantes[1].nombre_completo, `MARIA DEL CARMEN QUISPE ${TAPA_NOMBRE}`);
+  assert.equal(r.firmantes[2].nombre_completo, `LUIS DE LA CRUZ ${TAPA_NOMBRE}`);
+  assert.equal(r.nota, `Firmó la señora Rosa De La Cruz ${TAPA_NOMBRE}; antes, DE LA CRUZ ${TAPA_NOMBRE} ROSA.`);
+  assert.ok(!/espinoza/i.test(json(r)));
+});
+
+test("taparNombrePropio (órdenes de una persona): el segundo apellido entero, con partículas, en los dos órdenes", async () => {
+  const { taparNombrePropio } = await import("../src/routes/personas.js");
+  const t = (nombre: string) => taparNombrePropio(`SERVICIO DE ${nombre} PARA LA OFICINA`, nombre);
+  assert.equal(t("DE LA CRUZ ESPINOZA ROSA"), `SERVICIO DE DE LA CRUZ ${TAPA_NOMBRE} ROSA PARA LA OFICINA`);
+  assert.equal(t("QUISPE DE LA TORRE JUAN"), `SERVICIO DE QUISPE ${TAPA_NOMBRE} JUAN PARA LA OFICINA`);
+  assert.equal(t("DEL AGUILA RIOS ANA MARIA"), `SERVICIO DE DEL AGUILA ${TAPA_NOMBRE} ANA MARIA PARA LA OFICINA`);
+  assert.equal(t("ROJAS PEREZ ELENA"), `SERVICIO DE ROJAS ${TAPA_NOMBRE} ELENA PARA LA OFICINA`);
+  assert.equal(taparNombrePropio("contratar a JUAN QUISPE DE LA TORRE por tres meses", "QUISPE DE LA TORRE JUAN"), `contratar a JUAN QUISPE ${TAPA_NOMBRE} por tres meses`);
+});

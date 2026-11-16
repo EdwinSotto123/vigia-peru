@@ -95,8 +95,10 @@ const GUARDADO = "X-Vigia-Guardado";
  * "88": Empleo (2026-11-08): /empleo/calce trae por qué calza cada plaza (`motivo`), los puestos reales (`sugeridos`) y
  *       el orden «Más afines» que premia lo específico (las respuestas guardadas antes no los tenían).
  * "89": los planes de Gobserva traen los créditos del MCP al mes (`limites.mcp`, 2026-11-08).
+ * "100": apellidos compuestos (2026-11-16): se tapa el segundo apellido entero con sus partículas («DE LA CRUZ ••• ROSA»;
+ *        antes «DE ••• CRUZ ESPINOZA ROSA» dejaba el materno a la vista) y los políticos de un partido (migración 299).
  */
-const VERSION_CACHE = "99";
+const VERSION_CACHE = "100";
 
 function cacheable(req: Request): boolean {
   if (req.method !== "GET") return false;

@@ -9,9 +9,10 @@ import { CalendarRange, MapPin } from "lucide-react";
 import { Aviso } from "@/components/partidos/AvisoPartido";
 import { GobiernosPartido, P_GOB, filtrosGobiernos } from "@/components/partidos/GobiernosPartido";
 import { GraficoMeses } from "@/components/partidos/GraficoMeses";
+import { PoliticosPartido } from "@/components/partidos/PoliticosPartido";
 import { TablaProcesos } from "@/components/procesos/TablaProcesos";
 import { EnlaceAccion } from "@/components/ui/EnlaceAccion";
-import { Ayuda, CabeceraPestana, Cargando, EncabezadoPagina, EstadoVacio, FichaNoLeida, Migas, Pagina, Pestanas } from "@/components/patrones";
+import { Ayuda, CabeceraPestana, Cargando, EncabezadoPagina, EstadoVacio, FichaNoLeida, Migas, Pagina, PestanaAPedido, Pestanas } from "@/components/patrones";
 import { HistoriaFicha } from "@/components/historia/HistoriaFicha";
 import { SeguirBoton } from "@/components/cuenta/SeguirBoton";
 import {
@@ -31,6 +32,7 @@ import { InicioPartido } from "@/components/inicio/InicioPartido";
 import { SinRespuesta } from "@/components/inicio/BloquesInicio";
 import { ListaPersonas } from "@/components/personas/ListaPersonas";
 import { PARAMS_EN_FICHA } from "@/lib/personas";
+import { P_POLITICOS } from "@/lib/politicos";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { LECTURAS } from "@/lib/contratos";
 import { listaY, numero, plural, porcentaje, solesCompacto } from "@/lib/formato";
@@ -77,6 +79,8 @@ const VISTAS_CONTRATOS = ["lista", "meses", "vigia"] as const;
  *       objeto, gobierno y orden, de a 20; y en la misma pestaña (`?vista=`) los procesos mes a mes y lo que leyó Vigía.
  *       Los enlaces viejos `?seccion=meses` y `?seccion=vigia` llevan ahí (redirección).
  *     · Personas contratadas.
+ *     · Políticos: sus candidatos que ganaron, los que no ganaron y sus aportantes, de todos sus años (no sólo el período
+ *       elegido), con lo que otros registros dicen de cada uno (migración 299). Se pide al abrirla (`PestanaAPedido`).
  *     · Gobiernos: UNA tabla con todos los que ganó (presupuesto MEF, contratos, lo leído y con señal), filtrable en la
  *       URL; cada fila abre sus entidades en un panel. Con el detalle del MEF, también «En qué gastan» (`?gvista=gasto`).
  *     · Control: los informes de la Contraloría sobre las entidades que gobernó, con buscador (antes, al pie del Inicio).
@@ -133,7 +137,7 @@ export default async function PartidoPage({ params, searchParams }: { params: { 
   const con = (nombres: readonly string[]) => nombres.some((k) => typeof searchParams?.[k] === "string");
   const seccion =
     seccionUrl ??
-    (con(Object.values(PARAMS_EN_FICHA)) ? "personas" : con(Object.values(P_GOB)) ? "gobiernos" : Object.values(filtros).some(Boolean) || page > 1 ? "procesos" : undefined);
+    (con(Object.values(PARAMS_EN_FICHA)) ? "personas" : con(Object.values(P_POLITICOS)) ? "politicos" : con(Object.values(P_GOB)) ? "gobiernos" : Object.values(filtros).some(Boolean) || page > 1 ? "procesos" : undefined);
   const vista = VISTAS_CONTRATOS.find((v) => v === uno(searchParams?.vista));
 
   return (
@@ -144,7 +148,7 @@ export default async function PartidoPage({ params, searchParams }: { params: { 
           { etiqueta: "Partidos y gobiernos", href: `/app/partidos?anio=${anio}` },
           { etiqueta: d.partido.nombre, href: `${ruta}?anio=${anio}` },
         ]}
-        pestanas={{ primera: "inicio", activa: seccion ?? "inicio", etiquetas: { historia: "Historia", procesos: "Contratos", personas: "Personas contratadas", gobiernos: "Gobiernos", control: "Control" } }}
+        pestanas={{ primera: "inicio", activa: seccion ?? "inicio", etiquetas: { historia: "Historia", procesos: "Contratos", personas: "Personas contratadas", politicos: "Políticos", gobiernos: "Gobiernos", control: "Control" } }}
       />
 
       {/* Fuera del Inicio, sólo el nombre y, a su lado, el período (MarcoFicha): las cifras van en el Inicio. Los otros
@@ -338,6 +342,41 @@ export default async function PartidoPage({ params, searchParams }: { params: { 
             ),
           },
           {
+            // Su gente: quién postuló, quién ganó y quién aportó, y lo que dicen de cada uno otros registros (migración 299).
+            clave: "politicos",
+            etiqueta: "Políticos",
+            titulo: "Candidatos y aportantes del partido",
+            contenido: (
+              <div className="space-y-4">
+                <CabeceraPestana
+                  ayuda={
+                    <Ayuda titulo="¿Quiénes son y qué se cruza?">
+                      <span className="block">
+                        Quienes postularon con este partido (JNE), ganaran o no, y quienes le aportaron (ONPE), de todos sus años. De cada uno, lo
+                        que dicen otros registros: sus empresas y lo que le vendieron al Estado, sus órdenes de servicio, los funcionarios que lo
+                        declararon como familiar y sus sanciones.
+                      </span>
+                      <span className="mt-2 block">
+                        Sólo se cruza a quien su fuente publica con su documento, nunca por nombre. Por privacidad no se muestra ningún documento y
+                        se tapa un apellido a quien no ganó una elección. Un cruce es un hecho para revisar, no una acusación.
+                      </span>
+                    </Ayuda>
+                  }
+                >
+                  Quién postuló, quién ganó y quién aportó a {partido.nombre}, y qué dicen de cada uno los otros registros públicos.
+                </CabeceraPestana>
+                {/* A pedido: la lista no viaja (ni se consulta) si la pestaña no está abierta. */}
+                {seccion !== "politicos" ? (
+                  <PestanaAPedido clave="politicos">
+                    <TablaSkeleton columnas={COLUMNAS_POLITICOS} filas={10} />
+                  </PestanaAPedido>
+                ) : (
+                  <PoliticosPartido clave={params.clave} partido={partido.nombre} sp={searchParams} ruta={ruta} base={{ anio: String(anio), seccion: "politicos" }} />
+                )}
+              </div>
+            ),
+          },
+          {
             clave: "gobiernos",
             etiqueta: "Gobiernos",
             conteo: gobiernos.length || totalGobiernos,
@@ -477,6 +516,12 @@ const COLUMNAS_SKELETON: Columna[] = [
   { clave: "fecha", titulo: "Convocado", ancho: "96px" },
   { clave: "proceso", titulo: "Proceso", ancho: "minmax(0,1.6fr)" },
   { clave: "monto", titulo: "Adjudicado", ancho: "128px", alinear: "der" },
+];
+
+const COLUMNAS_POLITICOS: Columna[] = [
+  { clave: "persona", titulo: "Persona", ancho: "minmax(0,1.4fr)" },
+  { clave: "cruces", titulo: "Cruces", ancho: "minmax(0,1fr)", desde: "md" },
+  { clave: "aportes", titulo: "Aportó", ancho: "104px", alinear: "der", desde: "lg" },
 ];
 
 const COLUMNAS_GOBIERNOS: Columna[] = [

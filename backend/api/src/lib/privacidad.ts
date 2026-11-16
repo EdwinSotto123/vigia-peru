@@ -167,10 +167,51 @@ function ordenProbable(palabras: string[], porDefecto: Orden): Orden {
  * los dos últimos (nombre primero) o los dos primeros (orden SUNAT); con dos palabras, uno y uno. El que
  * se tapa es el último apellido: el materno.
  */
-function partes(p: string[], orden: Orden, coma: number): { apellidos: string[]; nombres: string[] } {
-  if (coma > 0 && coma < p.length) return { apellidos: p.slice(0, coma), nombres: p.slice(coma) };
-  if (p.length === 2) return orden === "sunat" ? { apellidos: [p[0]], nombres: [p[1]] } : { apellidos: [p[1]], nombres: [p[0]] };
-  return orden === "sunat" ? { apellidos: p.slice(0, 2), nombres: p.slice(2) } : { apellidos: p.slice(-2), nombres: p.slice(0, -2) };
+function partes(p: string[], orden: Orden, coma: number): { apellidos: string[]; nombres: string[]; oculto: string[] } {
+  if (coma > 0 && coma < p.length) {
+    const apellidos = p.slice(0, coma);
+    const e1 = finApellido(apellidos, 0);
+    return { apellidos, nombres: p.slice(coma), oculto: e1 < apellidos.length ? apellidos.slice(e1) : apellidos };
+  }
+  if (p.length === 2) return orden === "sunat" ? { apellidos: [p[0]], nombres: [p[1]], oculto: [p[0]] } : { apellidos: [p[1]], nombres: [p[0]], oculto: [p[1]] };
+  if (orden === "sunat") {
+    const [e1, e2] = apellidosSunat(p);
+    return { apellidos: p.slice(0, e2), nombres: p.slice(e2), oculto: p.slice(e1, e2) };
+  }
+  // Nombre primero: los apellidos van al final; cada uno con las partículas que lleva delante. Queda al menos un nombre.
+  let k = p.length - 1;
+  while (k - 1 >= 1 && PARTICULAS.has(p[k - 1])) k--;
+  if (k - 1 < 1) return { apellidos: p.slice(k), nombres: p.slice(0, k), oculto: p.slice(k) };
+  let m = k - 1;
+  while (m - 1 >= 1 && PARTICULAS.has(p[m - 1])) m--;
+  return { apellidos: p.slice(m), nombres: p.slice(0, m), oculto: p.slice(k) };
+}
+
+/**
+ * Palabras que no son un apellido solas sino el comienzo de uno («DE LA CRUZ», «DEL AGUILA», «SAN MARTIN», «VDA DE
+ * QUISPE»): van pegadas a la palabra que sigue. Sin esto, de «DE LA CRUZ ESPINOZA ROSA» se tapaba «LA» y el materno
+ * quedaba a la vista (2026-11-16). Las que aparecen de verdad en los nombres de candidatos y aportantes (conteo en la
+ * base): DE, LA, DEL, LOS, LAS, SAN, SANTA, VDA, DA, D e Y; el resto, por las fuentes con apellidos extranjeros.
+ */
+const PARTICULAS = new Set(["de", "del", "la", "las", "los", "san", "santa", "santo", "da", "das", "do", "dos", "di", "van", "von", "mc", "mac", "vda", "viuda", "d"]);
+
+/** Dónde termina (sin incluir) el apellido que empieza en `i`: sus partículas y la palabra que las sigue. */
+function finApellido(p: string[], i: number): number {
+  let j = i;
+  while (j < p.length - 1 && PARTICULAS.has(p[j])) j++;
+  return Math.min(p.length, j + 1);
+}
+
+/**
+ * En el orden apellidos-nombres (SUNAT, JNE, ONPE): dónde termina el primer apellido y dónde el segundo, cada uno con sus
+ * partículas («ORTEGA Y GASSET» es uno). Lo que se tapa es el segundo entero: `palabras.slice(e1, e2)`. Las palabras,
+ * normalizadas (minúsculas y sin tildes).
+ */
+export function apellidosSunat(palabras: string[]): [e1: number, e2: number] {
+  let e1 = finApellido(palabras, 0);
+  if (palabras[e1] === "y" && e1 + 2 < palabras.length) e1 += 2;
+  if (e1 >= palabras.length) return [Math.max(1, palabras.length - 1), palabras.length];
+  return [e1, finApellido(palabras, e1)];
 }
 
 /** Títulos que a veces van pegados delante del nombre ("Lic.Adm.", "Ing.", "C.P.C."): no son parte de él. */
@@ -244,10 +285,19 @@ firmado digitalmente`.split(/\s+/).filter(Boolean));
  * familiar sin papel se tapa entero; las consultas (ONPE, JNE, visitas, la clave de
  * `datos_peru_por_persona`, la prosa) no cuentan como papel.
  */
-interface Persona { id: string; formas: Map<string, string[]>; oculta: string; familia: boolean; papel: boolean }
+interface Persona { id: string; formas: Map<string, string[]>; oculta: string[]; familia: boolean; papel: boolean }
 type Tipo = "papel" | "consulta" | "familia";
 const modoDe = (p: Persona): Modo => (p.familia && !p.papel ? "completo" : "apellido");
-interface Variante { claves: string[]; oculta: number } // oculta = -1: el nombre entero
+interface Variante { claves: string[]; oculta: number; n: number } // oculta = -1: el nombre entero; n: cuántas palabras se tapan
+
+/** Dónde empieza en `claves` la última aparición seguida de `oculta` (el apellido tapado, con sus partículas). */
+function dondeOculta(claves: string[], oculta: string[]): { oculta: number; n: number } {
+  for (let i = claves.length - oculta.length; i >= 0; i--) {
+    if (oculta.every((w, j) => claves[i + j] === w)) return { oculta: i, n: oculta.length };
+  }
+  // No está seguido en esta forma: al menos su última palabra (la que no es partícula).
+  return { oculta: claves.lastIndexOf(oculta[oculta.length - 1]), n: 1 };
+}
 
 // ─── Pasada 1: quién es quién ────────────────────────────────────────────────
 
@@ -256,7 +306,7 @@ interface Variante { claves: string[]; oculta: number } // oculta = -1: el nombr
  * el contrato (por defecto), `consulta` (un registro donde se la buscó: ONPE, JNE, visitas, RNP de los
  * firmantes) o `familia` (pariente que deduce la IA).
  */
-const PAPELES: Record<string, { campos: [campo: string, orden: Orden][]; tipo?: Tipo }> = {
+const PAPELES: Record<string, { campos: [campo: string, orden: Orden][]; tipo?: Tipo; fijo?: boolean }> = {
   firmantes: { campos: [["nombre_completo", "nombres-primero"], ["nombre", "nombres-primero"]] },
   firmantes_consolidados: { campos: [["nombre_completo", "nombres-primero"], ["nombre", "nombres-primero"]] },
   firmantes_descartados_por_alucinacion: { campos: [["nombre_completo", "nombres-primero"], ["nombre", "nombres-primero"]], tipo: "consulta" },
@@ -291,6 +341,11 @@ const PAPELES: Record<string, { campos: [campo: string, orden: Orden][]; tipo?: 
   rnp: { campos: [["nombre", "sunat"]] },
   // Las personas en común entre el supervisor y el contratista (tools/consultoria.py), ya con un apellido tapado.
   personas_comunes: { campos: [["nombre", "sunat"]] },
+  // Los candidatos y aportantes de un partido (routes/partidosPoliticos.ts, migración 299): un apellido tapado, salvo
+  // quien ganó una elección (`electo: true`). El cargo al que postuló no va junto al nombre (lo destaparía CARGO_ELECTO).
+  // El JNE y la ONPE escriben siempre apellidos y nombres: orden fijo (un apellido que también es nombre de pila, «SANTOS
+  // QUISPE YHON», se leía con el nombre primero y quedaban los dos apellidos a la vista).
+  politicos: { campos: [["nombre", "sunat"]], fijo: true },
 };
 
 /**
@@ -325,13 +380,14 @@ class Recolector {
     return { claves: claves.slice(t), coma };
   }
 
-  persona(nombre: unknown, orden: Orden, tipo: Tipo = "papel") {
+  /** `fijo`: el campo SIEMPRE viene en ese orden (un padrón oficial): no se adivina por los nombres de pila. */
+  persona(nombre: unknown, orden: Orden, tipo: Tipo = "papel", fijo = false) {
     if (typeof nombre !== "string") return;
     // "ROJAS PAZ ELENA (SUCESION DE …)": lo de afuera y lo de adentro del paréntesis, cada uno por su lado.
     const paren = /^([^()]+)\(([^()]+)\)\s*$/.exec(nombre);
     if (paren) {
-      this.persona(paren[1], orden, tipo);
-      this.persona(paren[2], orden, tipo);
+      this.persona(paren[1], orden, tipo, fijo);
+      this.persona(paren[2], orden, tipo, fijo);
       return;
     }
     if (pareceEmpresa(nombre)) return;
@@ -343,16 +399,17 @@ class Recolector {
       // La misma persona escrita en otro orden en otro campo: también esa forma.
       p.formas.set(claves.join(" "), claves);
     } else {
-      const { apellidos, nombres } = partes(claves, coma > 0 ? "sunat" : ordenProbable(claves, orden), coma);
+      const { apellidos, nombres, oculto } = partes(claves, coma > 0 ? "sunat" : fijo ? orden : ordenProbable(claves, orden), coma);
       const formas = new Map<string, string[]>();
       for (const f of [claves, [...nombres, ...apellidos], [...apellidos, ...nombres]]) formas.set(f.join(" "), f);
       // Un nombre acortado en un texto libre («contratar al Sr. Juan Pérez Quispe» junto a «PEREZ ••• JUAN CARLOS»)
       // destapaba el apellido escondido: también los dos apellidos con UN nombre de pila, y los dos apellidos solos.
-      if (apellidos.length === 2) {
+      // Con dos apellidos (cada uno puede llevar partículas: «DE LA CRUZ»).
+      if (oculto.length < apellidos.length) {
         if (nombres.length > 1) for (const g of nombres) for (const f of [[g, ...apellidos], [...apellidos, g]]) formas.set(f.join(" "), f);
-        if (apellidos.every((a) => a.length >= 4)) formas.set(apellidos.join(" "), apellidos);
+        if (apellidos.every((a) => PARTICULAS.has(a) || a.length >= 4)) formas.set(apellidos.join(" "), apellidos);
       }
-      p = { id, formas, oculta: apellidos[apellidos.length - 1], familia: false, papel: false };
+      p = { id, formas, oculta: oculto, familia: false, papel: false };
       this.personas.set(id, p);
     }
     if (tipo === "familia") p.familia = true;
@@ -381,8 +438,8 @@ class Recolector {
     if (!p) return;
     // El mismo cálculo que para la persona protegida (orden SUNAT/JNE, apellidos primero): se tapa la misma palabra,
     // también si esta persona ya se había registrado en otro campo con otro orden.
-    const { apellidos } = partes(claves, coma > 0 ? "sunat" : ordenProbable(claves, "sunat"), coma);
-    p.oculta = apellidos[apellidos.length - 1];
+    const { oculto } = partes(claves, coma > 0 ? "sunat" : ordenProbable(claves, "sunat"), coma);
+    p.oculta = oculto;
     p.papel = true;
     this.forzados.add(p.id);
   }
@@ -478,7 +535,7 @@ function recolectar(v: unknown, r: Recolector, clavePadre = "", autoridades = fa
     r.electo(o.nombre_completo);
   } else {
     const papel = PAPELES[clavePadre];
-    if (papel) for (const [campo, orden] of papel.campos) r.persona(o[campo], orden, papel.tipo);
+    if (papel) for (const [campo, orden] of papel.campos) r.persona(o[campo], orden, papel.tipo, papel.fijo);
     // La ruta ya sabe por su DNI que es o fue autoridad electa (lib/electos.ts): su nombre va completo donde aparezca.
     if (o.electo === true) for (const n of [o.nombre, o.nombre_completo, o.visitante, o.persona, o.autoridad, o.firmante]) r.electo(n);
     // Quien ejerce un cargo de elección (el alcalde que firma, un regidor en el comité) es público
@@ -520,7 +577,7 @@ function contexto(r: Recolector, opts: { correos?: boolean } = {}): Contexto {
     for (const claves of p.formas.values()) {
       const lista = porPrimera.get(claves[0]) ?? [];
       // El materno es la última aparición de esa palabra en la forma ("QUISPE QUISPE JUAN" → la segunda).
-      lista.push({ claves, oculta: modoDe(p) === "completo" ? -1 : claves.lastIndexOf(p.oculta) });
+      lista.push({ claves, ...(modoDe(p) === "completo" ? { oculta: -1, n: 0 } : dondeOculta(claves, p.oculta)) });
       porPrimera.set(claves[0], lista);
       slugs.push(slug(claves.join(" ")));
     }
@@ -553,7 +610,7 @@ function taparNombres(texto: string, ctx: Contexto): string {
       }
       if (!calza) continue;
       const desde = v.oculta < 0 ? toks[t] : toks[t + v.oculta];
-      const hasta = v.oculta < 0 ? toks[t + n - 1] : desde;
+      const hasta = v.oculta < 0 ? toks[t + n - 1] : toks[t + v.oculta + v.n - 1];
       out += texto.slice(ultimo, desde.i) + TAPA_NOMBRE;
       ultimo = hasta.f;
       cambio = true;

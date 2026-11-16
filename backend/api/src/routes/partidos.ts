@@ -14,6 +14,8 @@
  *                                     `gobiernos`: TODOS los que ganó en el período, con sus procesos y contratos
  *   GET /partidos/:clave/procesos     todos sus procesos adjudicados del período (CONOSCE), paginados y filtrables:
  *                                     anio, nivel, region, ubigeo, q, objeto, orden (fecha|monto), page, size
+ *   GET /partidos/:clave/politicos    sus candidatos (ganaron o no) y sus aportantes, con lo que otros registros dicen de
+ *                                     cada uno; y /politicos/:codigo, el detalle de uno (routes/partidosPoliticos.ts, migración 299)
  *
  * Lo que dice y lo que no: se asocia al GANADOR de la elección. Una vacancia, una revocatoria o un
  * reemplazo dentro del período no se registra. Una señal es para revisar, nunca una acusación: acá no
@@ -29,8 +31,11 @@ import { COLS_ESTADO_FILA, joinsEstadoFila } from "../lib/estadoFila.js";
 import { Memo, responderJson, type Serializado } from "../lib/cache.js";
 import { cachePublico, parametros } from "../lib/http.js";
 import { CONTEOS, RankingQuery, claveRanking, consultaGobiernos, consultaRanking } from "../lib/rankingPartidos.js";
+import { montarPoliticos } from "./partidosPoliticos.js";
 
 export const partidosRouter = new Hono();
+// Los políticos del partido (dos segmentos más que `/:clave`: no chocan con las rutas de abajo).
+montarPoliticos(partidosRouter);
 
 export const PERIODOS_GOBIERNO = [
   { anio: 2014, desde: "2015-01-01", hasta: "2018-12-31" },

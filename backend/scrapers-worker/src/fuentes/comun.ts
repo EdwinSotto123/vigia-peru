@@ -282,6 +282,8 @@ export function cadenaCruces(): Refresco[] {
     f("refrescar_borde_empresas", true),
     // empresa_resumen con sus antecedentes y las señales SUNAT de estado (migraciones 109 y 117).
     f("refrescar_empresas"),
+    // Los candidatos y aportantes de cada partido con sus cruces (migración 299): lee empresa_resumen, recién hecho.
+    f("refrescar_partido_politicos", true),
     // Las empresas cuya gente visitó cada entidad y lo que la entidad les dio después (migraciones 203 y 243), por partes.
     ...Array.from({ length: PARTES_VISITA_EMPRESA }, (_, parte): Refresco => ({
       nombre: `refrescar_visita_empresa ${parte + 1}/${PARTES_VISITA_EMPRESA}`,
