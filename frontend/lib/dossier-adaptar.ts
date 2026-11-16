@@ -90,7 +90,8 @@ export function adaptLoadedToUi(loaded: any) {
     enRevision: loaded.enRevision === true || loaded.estado === "revision",
     publicada: loaded.publicada !== false,
     convocatoria: {
-      codigo: (loaded.ocid || "").split("-").pop(),
+      // Sin el prefijo del OCDS; el último tramo solo dejaba «3» de «…-2026-150-3».
+      codigo: (loaded.ocid || "").replace(/^ocds-[a-z0-9]+-seacev\d+-/i, ""),
       ocid: loaded.ocid,
       entidad: loaded.entidad,
       buyer_ruc: buyer_ruc ?? loaded.entidad_ruc ?? null,

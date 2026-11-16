@@ -218,7 +218,8 @@ async function analizadas(q: z.infer<typeof AnalizadasQuery>) {
   const items = r.rows.map((row) => ({
     codigo: row.codigo,
     ocid: row.ocid,
-    codigo_convocatoria: (row.ocid ?? "").split("-").pop() ?? "",
+    // Sólo sin el prefijo del OCDS: lo que sigue al último guion dejaba «3» de «…-2026-150-3» (identificadores con guiones).
+    codigo_convocatoria: (row.ocid ?? "").replace(/^ocds-[a-z0-9]+-seacev\d+-/i, ""),
     score: Number(row.score ?? 0),
     objeto: (row.objeto ?? "").slice(0, 200),
     monto: Number(row.monto_adjudicado ?? 0),
