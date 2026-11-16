@@ -144,6 +144,24 @@ def senales_de_persona(ruc: str, exp: dict) -> list[dict]:
                            + " Es un indicio para revisar, no una conclusión.")}]
 
 
+def hecho_de_dueno(tipo, severidad, detalle) -> dict | None:
+    """El detalle de una bandera de dueños (`socio_de_inhabilitada`, `mismo_dueno`) con sólo lo que el dictamen dice:
+    empresas, fechas y cifras. Nunca el nombre ni el documento de la persona."""
+    d = detalle if isinstance(detalle, dict) else {}
+    if tipo == "socio_de_inhabilitada" and d.get("sancionada"):
+        return {"tipo": tipo, "grave": severidad == "alta", "sancionada": d.get("sancionada"),
+                "sancion": "definitiva" if d.get("sancion") == "definitivo" else "temporal",
+                "desde": d.get("sancion_desde"), "hasta": d.get("sancion_hasta"),
+                "hecha_cerca_de_la_sancion": bool(d.get("hecha_para_seguir")), "fundada": d.get("fundada"),
+                "consorcio": d.get("consorcio"), "norma": d.get("norma")}
+    if tipo == "mismo_dueno" and d.get("otras_empresas"):
+        return {"tipo": tipo, "grave": severidad == "alta",
+                "otras_empresas": [str(o.get("nombre") or "otra empresa") for o in d.get("otras_empresas") or [] if isinstance(o, dict)][:5],
+                "procesos": d.get("procesos_de_las_otras"), "monto": d.get("monto_de_las_otras"),
+                "dias_de_diferencia": d.get("dias_de_diferencia")}
+    return None
+
+
 def _filas(cur, sql: str, params: tuple) -> list[dict]:
     cur.execute(sql, params)
     cols = [d[0] for d in cur.description]
@@ -283,6 +301,13 @@ def expediente_proveedor_bd(ruc: str, entidad_ruc: str | None = None, ocid: str 
             corto = str(ocid).split("-")[-1]
             out["banderas_de_este_proceso"] = sorted({r["tipo"] for r in _filas(
                 cur, "SELECT DISTINCT tipo FROM cruces_proveedor WHERE ruc_empresa = %s AND ocid = %s", (ruc, corto))})
+            # 5a. Las dos banderas de DUEÑOS de este proceso, con su evidencia (migraciones 292 y 297): un socio que tiene
+            #     otra empresa inhabilitada, o que gana en esta entidad con otra empresa. Sin el nombre de la persona.
+            for d in _filas(cur, """SELECT tipo, severidad, detalle FROM cruces_proveedor
+                                     WHERE ruc_empresa = %s AND ocid = %s AND tipo IN ('socio_de_inhabilitada', 'mismo_dueno')""", (ruc, corto)):
+                hecho = hecho_de_dueno(d.get("tipo"), d.get("severidad"), d.get("detalle"))
+                if hecho:
+                    out.setdefault("duenos", []).append(hecho)
 
         # 5b. Lo que se repite (migración 276): postores de relleno del proveedor y patrones de los agentes en este
         #     proveedor y en esta entidad. Un contrato raro puede ser un error; el mismo hecho repetido es un modo de trabajar.
@@ -374,6 +399,9 @@ def resumen_para_agentes(exp: dict) -> dict:
         "socias_de_consorcio_rivales": exp.get("socias_de_consorcio_rivales") or [],
         "patrones_que_se_repiten": exp.get("patrones") or [],
     }
+    if exp.get("duenos"):
+        # Hechos de los dueños en ESTE proceso: van a la sección de red y vínculos, con lo que falta confirmar.
+        out["duenos_en_este_proceso"] = exp["duenos"]
     p = exp.get("persona")
     if p:
         out["ordenes_con_el_estado"] = {k: p.get(k) for k in ("ordenes", "monto", "entidades", "primera", "ultima", "con_esta_entidad")}
@@ -592,6 +620,25 @@ def ficha_md(exp: dict | None) -> str:
         lineas.append(f"- **Postor que lo acompaña:** {x.get('acompanante')} se presentó en {x.get('juntos')} procesos que ganó este "
                       f"proveedor y ganó {x.get('gano')} de sus {x.get('postulo')} postulaciones"
                       + (", y comparten socio o representante." if x.get("vinculo") else "."))
+    for x in exp.get("duenos") or []:
+        if x.get("tipo") == "socio_de_inhabilitada":
+            lineas.append(f"- **Socio de una empresa inhabilitada:** un socio de este proveedor lo es también de {x.get('sancionada')}, "
+                          f"con inhabilitación {x.get('sancion')} para contratar con el Estado desde {x.get('desde') or '?'}"
+                          + (f" hasta {x['hasta']}" if x.get("hasta") else "")
+                          + "; esta buena pro cae dentro de la sanción"
+                          + (f". Este proveedor se fundó el {x['fundada']}, cerca del inicio de la sanción o después"
+                             if x.get("hecha_cerca_de_la_sancion") and x.get("fundada") and str(x["fundada"]) >= str(x.get("desde") or "")
+                             else "")
+                          + (f" ({x['norma']})" if x.get("norma") else "")
+                          + ". Falta confirmar que el socio tenga más de 30 % del capital y que las dos empresas sean del mismo rubro.")
+        elif x.get("tipo") == "mismo_dueno":
+            otras = x.get("otras_empresas") or []
+            dias = x.get("dias_de_diferencia")
+            lineas.append(f"- **Mismo dueño, otra empresa:** un socio de este proveedor lo es también de {', '.join(otras[:3])}"
+                          + (f" y {len(otras) - 3} más" if len(otras) > 3 else "")
+                          + f", que en esta misma entidad ganó o ganaron {x.get('procesos') or 'otros'} proceso(s) por {_soles(x.get('monto'))} en dos años"
+                          + (f"; uno es de objeto parecido, a {dias} día(s) de este" if dias is not None else "")
+                          + ". Vale revisar si las compras debieron ser un solo proceso.")
     for x in (exp.get("socias_de_consorcio_rivales") or [])[:3]:
         lineas.append(f"- **Rival que fue su socia:** {x.get('rival')} postuló con este proveedor en {x.get('consorcios')} consorcio(s) y, por "
                       f"separado, se enfrentaron en {x.get('rivales')} procesos de pocos postores: este ganó {x.get('gano_este')} y la otra "

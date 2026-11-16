@@ -51,6 +51,24 @@ def test_ficha_md_trae_las_cifras_de_la_base():
     assert "ninguna registrada" in md
 
 
+def test_hechos_de_duenos_sin_nombres_y_con_lo_que_falta_confirmar():
+    det = {"sancionada": "CORPORACION X & CIA S.A.C.", "sancionada_ruc": "20600000001", "sancion": "temporal", "sancion_desde": "2026-02-21",
+           "sancion_hasta": "2028-02-21", "hecha_para_seguir": True, "fundada": "2026-03-08",
+           "norma": "Art. 30 Ley 32069 — impedimento 3.E (integrantes de una persona jurídica inhabilitada)"}
+    h = E.hecho_de_dueno("socio_de_inhabilitada", "alta", det)
+    assert h["grave"] and h["sancion"] == "temporal" and "sancionada_ruc" not in h
+    m = E.hecho_de_dueno("mismo_dueno", "media", {"otras_empresas": [{"ruc": "20600000002", "nombre": "HERMANA S.A.C.", "procesos": 2}],
+                                                 "procesos_de_las_otras": 2, "monto_de_las_otras": 150000.0, "dias_de_diferencia": 12})
+    assert m["otras_empresas"] == ["HERMANA S.A.C."] and not m["grave"]
+    assert E.hecho_de_dueno("unico_postor", "alta", {}) is None and E.hecho_de_dueno("mismo_dueno", "alta", None) is None
+    md = E.ficha_md({**EXP, "duenos": [h, m]})
+    assert "Socio de una empresa inhabilitada" in md and "CORPORACION X & CIA S.A.C." in md and "hasta 2028-02-21" in md
+    assert "se fundó el 2026-03-08" in md and "impedimento 3.E" in md and "más de 30 % del capital" in md
+    assert "Mismo dueño, otra empresa" in md and "HERMANA S.A.C." in md and "a 12 día(s) de este" in md
+    assert E.resumen_para_agentes({**EXP, "duenos": [h]})["duenos_en_este_proceso"] == [h]
+    assert "duenos_en_este_proceso" not in E.resumen_para_agentes(EXP)
+
+
 def test_insertar_ficha_al_comienzo_de_la_seccion_y_una_sola_vez():
     md = "## Resumen\nx\n\n## Antecedentes del proveedor\nTexto del modelo.\n\n## Personas clave y red empresarial\ny"
     una = E.insertar_ficha(md, EXP)
