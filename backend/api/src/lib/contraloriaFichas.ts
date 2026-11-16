@@ -241,7 +241,9 @@ export async function buscarInformesControl(b: BusquedaControl, ia?: IaWorkers):
               i.url_resumen AS "urlFicha", i.url_pdf AS "urlInforme"
          FROM buscar_informe_control($1, $2::halfvec, $3, $4::date, $5) r
          JOIN informes_control i ON i.codigo = r.codigo`,
-      [b.q, vector, b.entidad || null, b.desde || null, n])).rows;
+      // Diez de más: el mismo texto puede venir dos veces (el título de la observación y su desarrollo, o dos trozos
+      // iguales del mismo informe) y se quita abajo.
+      [b.q, vector, b.entidad || null, b.desde || null, Math.min(40, n + 10)])).rows;
     await cliente.query("COMMIT");
   } catch (e) {
     await cliente.query("ROLLBACK").catch(() => {});
@@ -249,12 +251,19 @@ export async function buscarInformesControl(b: BusquedaControl, ia?: IaWorkers):
   } finally {
     cliente.release();
   }
+  // Un mismo hallazgo, una vez: mismo informe y mismo comienzo de texto (sin mayúsculas, tildes ni signos).
+  const vistos = new Set<string>();
   const resultados = filas.map((x) => ({
     ...(x as unknown as ResultadoControl),
     responsabilidades: (x.responsabilidades as string[] | null) ?? [],
     temaTexto: x.tema ? (TEMAS_CONTROL[String(x.tema)] ?? String(x.tema)) : null,
     score: Number(x.score),
-  }));
+  })).filter((x) => {
+    const clave = `${x.codigo}|${String(x.observacion ?? "").normalize("NFD").replace(/\p{M}/gu, "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim().slice(0, 140)}`;
+    if (vistos.has(clave)) return false;
+    vistos.add(clave);
+    return true;
+  }).slice(0, n);
   return {
     q: b.q, modo: vector ? "hibrido" : "texto", total: resultados.length, resultados,
     tiempos_ms: { significado: t1 - t0, consulta: Date.now() - t1 },
