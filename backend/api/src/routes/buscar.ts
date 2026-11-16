@@ -1,7 +1,10 @@
 /**
  * Búsqueda global (⌘K / campo de la cabecera del dashboard).
  *
- *   GET /buscar?q=<texto>  → { q, contratos[], entidades[], empresas[], zonas[], aportes[], alertas[], parcial } (LIMIT 5 cada grupo)
+ *   GET /buscar?q=<texto>  → { q, contratos[], entidades[], empresas[], personas[], zonas[], aportes[], alertas[], parcial } (LIMIT 5 cada grupo)
+ *
+ * `personas` (2026-11-16): quien tiene cargo público (declaraciones juradas o planilla, migraciones 318 y 319) y quien
+ * recibió órdenes o ganó procesos, sólo por lo que se VE de su nombre (dos palabras como mínimo) y con un apellido tapado.
  *
  * Reconoce: OCID (1249514 / ocds-dgv273-seacev3-1249514), código de alerta (OECE-1249514),
  * código de aporte (VIG-2026-00004), RUC (11 dígitos), nombre de entidad, nombre de zona
@@ -23,6 +26,9 @@ import { registrar } from "../lib/registro.js";
 import { alertaPublica, convocatoriaNoDemo } from "../lib/publicacion.js";
 import { NOMBRE_VALIDO } from "./entidades.js";
 import { palabrasBusqueda } from "./personas.js";
+import { funcionariosPorNombreVisible, palabrasDeBusqueda } from "../lib/funcionarios.js";
+import { personasPorNombreVisible } from "../lib/personasNombre.js";
+import { publicar } from "../lib/privacidad.js";
 
 export const buscarRouter = new Hono();
 
@@ -35,7 +41,7 @@ const TOPE_RAMA = 100;
 buscarRouter.get("/", async (c) => {
   const q = (c.req.query("q") ?? "").trim().slice(0, 120);
   c.header("Cache-Control", cachePublico(30, { swr: 60 }));
-  if (q.length < 2) return c.json({ q, contratos: [], entidades: [], empresas: [], zonas: [], aportes: [], alertas: [], parcial: false });
+  if (q.length < 2) return c.json({ q, contratos: [], entidades: [], empresas: [], personas: [], zonas: [], aportes: [], alertas: [], parcial: false });
 
   const like = `%${escaparLike(q.toLowerCase())}%`;
   const esCodigo = /^[\w.-]+$/.test(q) && /\d/.test(q);
@@ -51,6 +57,18 @@ buscarRouter.get("/", async (c) => {
 
   const COLS_CONTRATO = `c.ocid, c.codigo, c.objeto AS titulo, e.nombre AS entidad, c.cuantia_referencial::float AS "montoPen", z.nombre AS zona`;
   const palabras = palabrasBusqueda(q);
+  // Personas: sólo con un apellido y un nombre (sin números). Va aparte del resto: si falla, sale vacío.
+  const personasP: Promise<Record<string, unknown>[]> = palabrasDeBusqueda(q).length >= 2
+    ? Promise.all([funcionariosPorNombreVisible(q, 4), personasPorNombreVisible(q, 2)])
+        .then(([conCargo, contratadas]) => [
+          ...conCargo.map((f) => ({ tipo: "cargo", codigo: f.codigo, nombre: f.nombre, cargo: f.cargo, entidad: f.entidad })),
+          // publicar() le tapa un apellido (lleva su RUC 10 al lado); el RUC no sale.
+          ...(publicar({ contratadas }).contratadas as typeof contratadas).map((p) => ({
+            tipo: "contratada", codigo: p.codigo, nombre: p.nombre, entidad: p.entidad, ordenes: p.ordenes, procesos: p.procesos,
+          })),
+        ])
+        .catch((e) => { vacio("personas")(e); return []; })
+    : Promise.resolve([]);
   const [contratos, entidades, empresas, zonas, aportes, alertas] = await Promise.all([
     // Contratos: por código/OCID (exacto o prefijo) o por texto del objeto.
     esCodigo
@@ -151,5 +169,6 @@ buscarRouter.get("/", async (c) => {
       : Promise.resolve({ rows: [] as any[] }),
   ]);
 
-  return c.json({ q, contratos: contratos.rows, entidades: entidades.rows, empresas: empresas.rows, zonas: zonas.rows, aportes: aportes.rows, alertas: alertas.rows, parcial });
+  const personas = await personasP;
+  return c.json({ q, contratos: contratos.rows, entidades: entidades.rows, empresas: empresas.rows, personas, zonas: zonas.rows, aportes: aportes.rows, alertas: alertas.rows, parcial });
 });

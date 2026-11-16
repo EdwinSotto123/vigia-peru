@@ -393,7 +393,9 @@ export const rastroPersona = definir({
     "después (puerta giratoria). Y dos más: dos o más empresas suyas ganan en la misma entidad procesos de objeto parecido, y una empresa suya está inhabilitada mientras otra suya gana buenas pro. También los informes de control de la Contraloría en que figura con responsabilidad presunta (no es una condena) y si la entidad del informe le dio órdenes después. ÚSALA SIEMPRE que pregunten " +
     "por una persona («¿tiene contratos o visitas?», «¿quién es?»): es la única que busca visitas por el nombre del " +
     "visitante. Los nombres salen con un apellido tapado (es sólo para mostrar; la búsqueda usa el nombre entero) y nunca " +
-    "sale un documento. No se busca por DNI. Si hay varios nombres parecidos, dilo: pueden ser personas distintas.",
+    "sale un documento. No se busca por DNI. Si hay varios nombres parecidos, dilo: pueden ser personas distintas. Si la " +
+    "persona tiene cargo público (presentó declaraciones juradas de intereses), `con_cargo_publico` trae su último cargo y " +
+    "el enlace a su ficha de rastro en Vigía: dáselo a quien pregunta.",
   cuenta: true,
   entrada: { nombre: z.string().min(6).max(80).describe("Apellidos y nombres de la persona, al menos dos palabras.") },
   async ejecutar(a, cx) {
@@ -420,8 +422,13 @@ export const rastroPersona = definir({
         entidades_visitadas: new Set(visitas.map((v) => v.entidad)).size,
         empresas: hay(r?.empresas), declaraciones_juradas: hay(r?.declaraciones_juradas), aportes_de_campana: hay(r?.aportes_de_campana),
         en_planilla: pl?.total ?? 0, entidades_que_le_dieron_ordenes: hay(r?.ordenes_como_persona_natural) || (per?.total ?? 0),
-        candidaturas: hay(tr?.personas),
+        candidaturas: hay(tr?.personas), con_cargo_publico: hay(r?.con_cargo_publico),
       },
+      // Quien presentó declaraciones juradas de intereses: su último cargo y su ficha de rastro en la web.
+      con_cargo_publico: ((r?.con_cargo_publico ?? []) as Fila[]).map((x) => ({
+        nombre: x.nombre, ultimo_cargo: x.cargo ?? undefined, entidad: x.entidad ?? undefined, declaraciones_juradas: x.declaraciones,
+        enlace: x.codigo ? e.funcionario(x.codigo) : undefined,
+      })),
       visitas,
       empresas: ((r?.empresas ?? []) as Fila[]).map((x) => ({ ...x, enlace: x.ruc ? e.empresa(x.ruc) : undefined })),
       // Lo primero que mira un investigador: visitó la entidad y una empresa suya le ganó procesos.

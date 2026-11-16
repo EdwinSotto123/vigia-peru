@@ -23,7 +23,7 @@ import { rutaContrato } from "@/lib/rutas";
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
-import { Search, FileSearch, Building2, Briefcase, MapPin, Heart, Flag, Loader2, CornerDownLeft, X } from "lucide-react";
+import { Search, FileSearch, Building2, Briefcase, MapPin, Heart, Flag, Loader2, CornerDownLeft, UserRound, X } from "lucide-react";
 import { PUBLIC_API_BASE } from "@/lib/auditoria";
 import { limpiarObjeto } from "@/components/contratos/recortar";
 import { etiquetaTipoVisible } from "@/lib/entidad-tipo";
@@ -37,6 +37,8 @@ interface Resultados {
   q: string;
   contratos: { ocid: string; codigo: string; titulo: string | null; entidad: string | null; montoPen: number | null; zona: string | null }[];
   entidades: { ruc: string; nombre: string; tipo: string | null; region: string | null; contratos: number }[];
+  /** Personas con cargo público (declaraciones juradas o planilla) o contratadas, con un apellido tapado. Una API anterior no lo trae. */
+  personas?: { tipo: "cargo" | "contratada"; codigo: string; nombre: string; cargo?: string | null; entidad?: string | null; ordenes?: number; procesos?: number }[];
   /** Empresas (RUC 20) que le venden al Estado. Una API anterior no lo trae. */
   empresas?: { ruc: string; nombre: string; departamento: string | null; contratos: number; ordenes: number }[];
   /** `provincia` (de un distrito) y `departamento` (de una provincia o un distrito): una API anterior no los trae. */
@@ -211,9 +213,20 @@ export function BuscarGlobal({
       icon: <MapPin size={14} aria-hidden />,
     }));
     const aportes: Item[] = res.aportes.map((p) => ({ key: `p-${p.codigo}`, grupo: "Aportes", href: `/impacto/${p.codigo}`, titulo: p.codigo, detalle: [p.financiador, p.zona, plural(p.contratos, "contrato", "contratos")], icon: <Heart size={14} aria-hidden /> }));
+    // Personas: quien tiene cargo público lleva a su ficha de rastro; quien recibió órdenes o ganó procesos, a la suya.
+    const personas: Item[] = (res.personas ?? []).map((p) => ({
+      key: `h-${p.tipo}-${p.codigo}`, grupo: "Personas",
+      href: p.tipo === "cargo" ? `/app/personas/cargo/${p.codigo}` : `/app/personas/${p.codigo}`,
+      titulo: p.nombre,
+      detalle: p.tipo === "cargo"
+        ? [p.cargo ? tituloNatural(p.cargo) : "Con cargo público", p.entidad ? tituloNatural(p.entidad) : null]
+        : ["Persona contratada", p.entidad ? tituloNatural(p.entidad) : null, p.procesos ? plural(p.procesos, "proceso ganado", "procesos ganados") : null],
+      icon: <UserRound size={14} aria-hidden />,
+    }));
+    // Si lo buscado dio personas y ningún contrato lo nombra, van primero: quien escribe un nombre busca a esa persona.
     return esLugar(res.q, res.zonas)
-      ? [...zonas, ...entidades, ...contratos, ...alertas, ...empresas, ...aportes]
-      : [...contratos, ...alertas, ...entidades, ...empresas, ...zonas, ...aportes];
+      ? [...zonas, ...entidades, ...contratos, ...alertas, ...empresas, ...personas, ...aportes]
+      : [...personas, ...contratos, ...alertas, ...entidades, ...empresas, ...zonas, ...aportes];
   }, [res]);
 
   const ir = useCallback((it: Item) => { navegando.current = true; setOpen(false); router.push(it.href); }, [router]);

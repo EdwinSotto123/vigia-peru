@@ -91,6 +91,7 @@ Un contrato raro puede ser un error; diez iguales son un modo de trabajar.
 
 ## 2. Sigue a las personas, no sólo a las empresas
 - rastro_persona con el nombre completo: visitas, empresas, declaraciones juradas, aportes, planilla y órdenes de una vez.
+  Si tiene cargo público (declaró intereses o está o estuvo en una planilla), trae el enlace a su ficha de rastro en la web.
   También dice si figura en informes de control (responsabilidad presunta) y si la entidad del informe le dio órdenes
   después, y si una empresa suya está inhabilitada mientras otra suya gana.
 - red_empresa: socios y representantes, y las otras empresas donde están. Pregunta si esas empresas compiten entre sí.

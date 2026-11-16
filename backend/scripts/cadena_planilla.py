@@ -50,7 +50,10 @@ PASOS = [
     "refrescar_nepotismo_senal()", "refrescar_senales_politicas()", "refrescar_senales_extra()", "refrescar_familia_estado()",
     "refrescar_socio_proveedor_locador()", "refrescar_persona_informe_control()", "refrescar_planilla_extra()",
     "refrescar_reserva_parientes()", "refrescar_entidad_senal_politica()",
-    "refrescar_organo_nombre_global()", "refrescar_personas_resumen()",
+    "refrescar_organo_nombre_global()",
+    # El índice de personas con cargo público (planilla de hoy y de antes, y declaraciones juradas; migración 319).
+    "refrescar_funcionario_resumen()",
+    "refrescar_personas_resumen()",
 ]
 
 

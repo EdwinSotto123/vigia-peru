@@ -47,6 +47,11 @@ público, dónde se aplica y cómo se pide una corrección (Ley 29733). Vigente 
   de personas (dossier, ficha, listas de alertas y señales, contratos, procesamientos, denuncias) y
   `publicarTraza()` para "Cómo se hizo". El panel admin pide el dossier con `publico: false`.
   Pruebas: `backend/api/test/privacidad.test.ts`.
+- **Personas con cargo público** (`backend/api/src/lib/funcionarios.ts`, migraciones 318 y 319): la ficha de rastro
+  (`/app/personas/cargo/<código>`) muestra el nombre UNA sola vez, con el apellido materno tapado; las filas de cada
+  registro (visitas, RNP, órdenes) van sin nombre, porque cada registro lo taparía a su modo y dos versiones lo dirían
+  entero. Se busca sólo por el apellido paterno y los nombres. Lo que la persona dijo representar en una visita se
+  publica sólo si es una organización. Pruebas: `backend/api/test/funcionarios.test.ts`.
 - **MCP** (`backend/mcp-worker/src/herramientas.ts`): la evidencia sin DNI, RUC 10, celulares ni
   correos, y el nombre pegado a un DNI entero (sin refs: no tiene la clave).
 - **Frontend** (`frontend/lib/privacidad.ts`, `components/Redact.tsx`): lo tapado por la API se pinta

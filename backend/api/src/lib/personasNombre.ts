@@ -4,8 +4,9 @@
  * desde la web (el rastro por nombre entero es sólo del MCP: en la API pública permitiría confirmar un apellido tapado).
  *
  * La regla que evita esa fuga: se busca en el nombre entero (índice del primer apellido), pero un resultado SÓLO sale si
- * cada palabra buscada coincide con una palabra que el público ve de ese nombre, ya tapado por publicar(). Quien escriba
- * el apellido escondido no recibe nada distinto de quien escriba cualquier otra palabra: no hay cómo adivinarlo probando.
+ * dos de las palabras buscadas, por lo menos, coinciden con palabras que el público ve de ese nombre, ya tapado por
+ * publicar(). Las demás palabras no cuentan: quien escriba el apellido escondido (el nombre completo) recibe lo mismo que
+ * quien escriba otra palabra en su lugar, así que encuentra a la persona y no puede confirmar el apellido probando.
  *
  * Fuentes: persona_orden_anual (quien tiene órdenes de servicio) y persona_ganadora (quien ganó un proceso de selección,
  * migración 317; sin la tabla, sólo las órdenes). Pide un apellido y un nombre como mínimo (dos palabras de 3 letras o
@@ -54,6 +55,13 @@ export function coincideConLoVisible(palabras: string[], visibles: string[]): bo
   return palabras.length > 0 && palabras.every((w) => vs.some((v) => v.includes(n(w))));
 }
 
+/** Cuántas de las palabras buscadas están (enteras o como parte) en alguna palabra visible. */
+export function cuantasVisibles(palabras: string[], visibles: string[]): number {
+  const n = (w: string) => w.replace(/Ñ/g, "N");
+  const vs = visibles.map(n);
+  return palabras.filter((w) => vs.some((v) => v.includes(n(w)))).length;
+}
+
 export async function personasPorNombreVisible(q: string | undefined, tope = 30): Promise<PersonaHallada[]> {
   const palabras = palabrasDeNombre(q);
   if (palabras.length < 2) return [];
@@ -67,12 +75,12 @@ export async function personasPorNombreVisible(q: string | undefined, tope = 30)
       `SELECT o.ruc, max(o.nombre) AS nombre, max(pc.codigo) AS codigo, sum(o.ordenes)::int AS ordenes, COALESCE(sum(o.monto), 0)::float AS monto,
               count(DISTINCT o.entidad_ruc)::int AS entidades, (array_agg(o.entidad ORDER BY o.monto DESC NULLS LAST))[1] AS entidad
          FROM persona_orden_anual o JOIN persona_codigo pc ON pc.ruc = o.ruc
-        WHERE o.ap1 = ANY($1::text[]) AND (SELECT bool_and(upper(o.nombre) LIKE p) FROM unnest($2::text[]) p)
+        WHERE o.ap1 = ANY($1::text[]) AND (SELECT count(*) FROM unnest($2::text[]) p WHERE upper(o.nombre) LIKE p) >= 2
         GROUP BY o.ruc ORDER BY 5 DESC NULLS LAST LIMIT 150`, [primeras, pats], 8000).then((r) => r.rows).catch(() => [] as Fila[]),
     consultaConPlazo<Fila>(
       `SELECT g.ruc, g.nombre, pc.codigo, g.procesos, COALESCE(g.monto, 0)::float AS "montoProcesos"
          FROM persona_ganadora g JOIN persona_codigo pc ON pc.ruc = g.ruc
-        WHERE g.ap1 = ANY($1::text[]) AND (SELECT bool_and(upper(g.nombre) LIKE p) FROM unnest($2::text[]) p)
+        WHERE g.ap1 = ANY($1::text[]) AND (SELECT count(*) FROM unnest($2::text[]) p WHERE upper(g.nombre) LIKE p) >= 2
         ORDER BY g.monto DESC NULLS LAST LIMIT 150`, [primeras, pats], 8000).then((r) => r.rows).catch(() => [] as Fila[]),
   ]);
   const porRuc = new Map<string, PersonaHallada>();
@@ -86,8 +94,10 @@ export async function personasPorNombreVisible(q: string | undefined, tope = 30)
     else porRuc.set(f.ruc, { codigo: f.codigo, ruc: f.ruc, nombre: f.nombre, ordenes: 0, monto: 0, entidades: 0, entidad: null, procesos: f.procesos ?? 0, montoProcesos: f.montoProcesos ?? 0 });
   }
   return [...porRuc.values()]
-    // La regla de privacidad: sólo quien coincide por lo que se ve.
-    .filter((p) => coincideConLoVisible(palabras, palabrasVisibles(p.nombre.replace(/(?<=\p{L})¿(?=\p{L})/gu, "Ñ"))))
-    .sort((a, b) => b.monto + b.montoProcesos - (a.monto + a.montoProcesos))
-    .slice(0, tope);
+    // La regla de privacidad: sólo quien coincide, en dos palabras o más, por lo que se VE. Lo demás escrito no decide.
+    .map((p) => ({ p, n: cuantasVisibles(palabras, palabrasVisibles(p.nombre.replace(/(?<=\p{L})¿(?=\p{L})/gu, "Ñ"))) }))
+    .filter((x) => x.n >= 2)
+    .sort((a, b) => b.n - a.n || b.p.monto + b.p.montoProcesos - (a.p.monto + a.p.montoProcesos))
+    .slice(0, tope)
+    .map((x) => x.p);
 }

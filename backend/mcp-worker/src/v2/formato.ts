@@ -23,6 +23,8 @@ export function enlaces(env: EnvV2) {
     partido: (clave: string) => `${v}/app/partidos/${encodeURIComponent(clave)}`,
     planilla: (codigo: string) => `${v}/app/personas/planilla/${codigo}`,
     persona: (codigo: string) => `${v}/app/personas/${codigo}`,
+    /** La ficha de rastro de quien tiene cargo público (declaraciones juradas de intereses). */
+    funcionario: (codigo: string) => `${v}/app/personas/cargo/${codigo}`,
     obra: (cui: string) => `https://obras.gobserva.cloud/proyecto/${cui}`,
     /**
      * Una orden no tiene ficha propia: la lista de compras de la entidad, buscando su número («O/S-6076-2025-…» → 6076)

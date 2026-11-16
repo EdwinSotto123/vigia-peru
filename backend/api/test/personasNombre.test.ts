@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { coincideConLoVisible, palabrasDeNombre, palabrasVisibles } from "../src/lib/personasNombre.js";
+import { coincideConLoVisible, cuantasVisibles, palabrasDeNombre, palabrasVisibles } from "../src/lib/personasNombre.js";
 
 process.env.PRIVACIDAD_CLAVE = "clave-de-prueba-de-32-caracteres-o-mas";
 
@@ -38,4 +38,14 @@ test("las palabras de la búsqueda: sin tildes, de 3 letras o más, y nada si tr
   // «Ñ» y «N» valen igual al comparar.
   assert.equal(coincideConLoVisible(["PENA", "JOSE"], ["PEÑA", "JOSE"]), true);
   assert.equal(coincideConLoVisible([], ["PEÑA"]), false);
+});
+
+test("con el nombre completo también se encuentra: cuentan dos palabras visibles, y el apellido tapado no decide", () => {
+  const v = palabrasVisibles(NOMBRE);
+  // El nombre completo, con el apellido tapado bien escrito: dos visibles o más.
+  assert.equal(cuantasVisibles(palabrasDeNombre("Robertino Quispemayta Huamanchumo"), v), 2);
+  // Con OTRO apellido en su lugar da lo mismo: no sirve para confirmar cuál es el tapado.
+  assert.equal(cuantasVisibles(palabrasDeNombre("Robertino Quispemayta Ccorahua"), v), 2);
+  // El apellido tapado y un nombre: una sola visible, no alcanza.
+  assert.equal(cuantasVisibles(palabrasDeNombre("Huamanchumo Robertino"), v), 1);
 });

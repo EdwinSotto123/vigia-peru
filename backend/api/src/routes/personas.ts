@@ -10,6 +10,7 @@ import { SENALES_CON_PARIENTES, casoReservado, podarParientes } from "../lib/nep
 import { enlaceFuente } from "../lib/fuentes.js";
 import { visitasHasta } from "../lib/visitas.js";
 import { personasPorNombreVisible } from "../lib/personasNombre.js";
+import { funcionarioDeCodigo, funcionariosPorNombreVisible, mismaPersona, nombreTapado, organizacionPublicable, palabrasDeBusqueda, palabrasRequeridas, parecidosA } from "../lib/funcionarios.js";
 import { PERIODOS_GOBIERNO } from "./partidos.js";
 
 /**
@@ -385,8 +386,33 @@ personasRouter.get("/rastro", async (c) => {
   if (/\d/.test(parsed.data.q)) return c.json({ error: "invalid_query", detail: "No se busca por DNI, RUC ni números: escribe el nombre." }, 400);
   const palabras = [...new Set(parsed.data.q.split(/\s+/).filter((w) => w.replace(/[^\p{L}]/gu, "").length >= 3))].slice(0, 6);
   if (palabras.length < 2) return c.json({ error: "invalid_query", detail: "Escribe al menos un apellido y un nombre." }, 400);
+  const cuerpo = await rastroMemo.obtener(palabras.map(patronPalabra).join("|"), async () => {
+    // Quien además tiene cargo público lleva el enlace a su ficha de rastro (migración 318).
+    const [rastro, conCargo] = await Promise.all([
+      armarRastro(palabras),
+      consultaConPlazo<{ codigo: string; paterno: string; nombres: string; cargo: string | null; entidad: string | null; declaraciones: number }>(
+        `SELECT f.codigo, f.paterno, f.nombres, f.cargo, f.entidad, f.declaraciones FROM funcionario_resumen f
+          WHERE (SELECT bool_and(f.nombre_norm LIKE p) FROM unnest($1::text[]) p) ORDER BY f.declaraciones DESC LIMIT 5`,
+        [palabras.map(patronPalabra)], 6000).then((r) => r.rows).catch(() => []),
+    ]);
+    return {
+      ...rastro,
+      con_cargo_publico: conCargo.map(({ paterno, nombres, ...f }) => ({ ...f, nombre: nombreTapado(paterno, nombres) })),
+    };
+  });
+  c.header("Cache-Control", "private, no-store");
+  return c.json(cuerpo);
+});
+
+/**
+ * El rastro de una persona en todos los registros. `palabras`: las que TIENEN que estar en el nombre de cada fila.
+ * `acepta`: además, la fila sólo cuenta si su nombre pasa esta prueba (la ficha pública exige que sea la misma persona:
+ * `mismaPersona`). Cada lista sale con el nombre de su registro con un apellido tapado.
+ */
+async function armarRastro(palabras: string[], acepta?: (nombre: string) => boolean) {
   const pats = palabras.map(patronPalabra);
-  const cuerpo = await rastroMemo.obtener(pats.join("|"), async () => {
+  const solo = <T extends { nombre: string }>(filas: T[] | null): T[] | null => (filas && acepta ? filas.filter((f) => acepta(f.nombre)) : filas);
+  {
     // Todas las palabras tienen que estar en el nombre (en cualquier orden): cada tabla tiene índice de trigramas.
     const todas = (col: string) => pats.map((_, i) => `${col} LIKE $${i + 1}`).join(" AND ");
     const intento = <T extends Record<string, unknown>>(sql: string) =>
@@ -404,15 +430,16 @@ personasRouter.get("/rastro", async (c) => {
              FROM persona_orden_anual o LEFT JOIN persona_codigo pc ON pc.ruc = o.ruc
             WHERE o.ap1 = ANY($1::text[]) AND o.ap2 = ANY($1::text[])
               AND (SELECT bool_and(upper(o.nombre) LIKE p) FROM unnest($2::text[]) p)
-            GROUP BY o.ruc, o.entidad_ruc ORDER BY 6 DESC NULLS LAST LIMIT 40`, [exactas, pats], 8000).then((r) => r.rows).catch(() => null)
+            GROUP BY o.ruc, o.entidad_ruc ORDER BY 6 DESC NULLS LAST LIMIT 40`, [exactas, pats], 8000).then((r) => solo(r.rows)).catch(() => null)
       : Promise.resolve([]);
-    const [visitas, rnp, dji, aportes, peps, salidas] = await Promise.all([
+    const [visitas, rnp, dji, aportes, peps, salidas] = (await Promise.all([
       intento<{ nombre: string; entidad: string; entidad_ruc: string | null; visitas: number; primera: string; ultima: string;
                 en_nombre_de: string[] | null; a_quien: string[] | null; motivos: string[] | null }>(
         `SELECT v.visitante_norm AS nombre, v.entidad_visitada AS entidad,
                 (SELECT r.ruc FROM visita_entidad_ruc r WHERE r.entidad_visitada = v.entidad_visitada LIMIT 1) AS entidad_ruc,
                 count(*)::int AS visitas, to_char(min(v.fecha_visita), 'YYYY-MM-DD') AS primera, to_char(max(v.fecha_visita), 'YYYY-MM-DD') AS ultima,
-                (array_agg(DISTINCT v.entidad_visitante) FILTER (WHERE COALESCE(v.entidad_visitante, '') <> ''))[1:4] AS en_nombre_de,
+                (array_agg(DISTINCT v.entidad_visitante) FILTER (WHERE COALESCE(v.entidad_visitante, '') <> ''
+                                                                    AND v.tipo_entidad_visitante IS DISTINCT FROM 'persona_natural'))[1:4] AS en_nombre_de,
                 (array_agg(DISTINCT concat_ws(', ', NULLIF(v.funcionario_cargo, ''), NULLIF(v.funcionario_area, '')))
                    FILTER (WHERE COALESCE(v.funcionario_cargo, v.funcionario_area, '') <> ''))[1:5] AS a_quien,
                 (array_agg(DISTINCT left(v.motivo, 90)) FILTER (WHERE COALESCE(v.motivo, '') <> ''))[1:4] AS motivos
@@ -438,7 +465,15 @@ personasRouter.get("/rastro", async (c) => {
         `SELECT s.nombre_norm AS nombre, (SELECT es.nombre FROM entidad_stats es WHERE es.ruc = s.entidad_ruc) AS entidad, s.entidad_ruc,
                 max(s.cargo) AS cargo, max(s.dependencia) AS dependencia, to_char(min(s.primer_mes), 'YYYY-MM') AS desde, to_char(max(s.ultimo_mes), 'YYYY-MM') AS hasta
            FROM planilla_salida s WHERE ${todas("s.nombre_norm")} GROUP BY s.nombre_norm, s.entidad_ruc ORDER BY 7 DESC LIMIT 20`),
-    ]);
+    ])).map((l) => solo(l as { nombre: string }[] | null)) as [
+      { nombre: string; entidad: string; entidad_ruc: string | null; visitas: number; primera: string; ultima: string;
+        en_nombre_de: string[] | null; a_quien: string[] | null; motivos: string[] | null }[] | null,
+      { nombre: string; ruc: string; empresa: string | null; rol: string | null; desde: string | null }[] | null,
+      { nombre: string; entidad: string | null; cargo: string | null; presentada: string | null; inicio: string | null; cese: string | null }[] | null,
+      { nombre: string; partido: string | null; anio: number | null; monto: number | null; aportes: number }[] | null,
+      { nombre: string; cargo: string | null; entidad: string | null; desde: number | null; hasta: number | null }[] | null,
+      { nombre: string; entidad: string | null; entidad_ruc: string; cargo: string | null; dependencia: string | null; desde: string | null; hasta: string }[] | null,
+    ];
     // El cruce que busca un investigador: la persona visitó una entidad y una empresa SUYA (es socia o representante) le
     // ganó procesos a esa misma entidad. Con las fechas, para ver si la visita fue antes de la buena pro.
     let visitoYGano: Record<string, unknown>[] = [];
@@ -533,12 +568,12 @@ personasRouter.get("/rastro", async (c) => {
     }
     // Informes de control de la Contraloría en que figura como funcionario comprendido, con responsabilidad PRESUNTA
     // (migración 302; la vista no trae documento: el empate es por nombre completo y se dice).
-    const control = await intento<{ nombre: string; codigo: string; numero: string | null; titulo: string | null; entidad: string | null;
+    const control = solo(await intento<{ nombre: string; codigo: string; numero: string | null; titulo: string | null; entidad: string | null;
                                     entidad_ruc: string | null; fecha: string | null; responsabilidades: string[]; ficha: string | null }>(
       `SELECT p.nombre, i.codigo, i.numero, left(i.titulo, 220) AS titulo, i.entidad_nombre AS entidad, btrim(i.entidad_ruc) AS entidad_ruc,
               to_char(coalesce(i.fecha_emision, i.fecha_publicacion), 'YYYY-MM-DD') AS fecha, p.responsabilidades, i.url_resumen AS ficha
          FROM informe_control_implicado p JOIN informes_control i ON i.codigo = p.codigo
-        WHERE ${todas("p.nombre")} ORDER BY 7 DESC NULLS LAST LIMIT 40`);
+        WHERE ${todas("p.nombre")} ORDER BY 7 DESC NULLS LAST LIMIT 40`));
     // Y el cruce: figura en un informe de una entidad y esa MISMA entidad le siguió dando órdenes después (migración 308,
     // vista aquí por nombre). Las órdenes vienen por año: cuenta si la última es posterior al informe.
     const ordenesFilas = (await ordenes) ?? [];
@@ -572,15 +607,135 @@ personasRouter.get("/rastro", async (c) => {
       informes_de_control: tapar(control),
       en_informe_de_control_y_despues_cobro: enInformeYCobro,
       sin_respuesta: [["visitas", visitas], ["empresas", rnp], ["declaraciones_juradas", dji], ["aportes_de_campana", aportes], ["personas_expuestas", peps]]
-        .filter(([, v]) => v === null).map(([k]) => k),
+        .filter(([, v]) => v === null).map(([k]) => k as string),
     };
+  }
+}
+
+const CODIGO = /^[0-9a-f]{12}$/;
+
+// ─── GET /personas/buscar?q= ────────────────────────────────────────────────────────────────────
+/**
+ * Buscar a una PERSONA por su nombre en todos los registros que tienen ficha (pedido del dueño del 2026-11-16: alguien con
+ * un cargo de poder «no aparece en la BBDD»; estaba, pero sólo se llegaba a quien recibió órdenes): quien tiene cargo
+ * público —presentó declaraciones juradas de intereses o está o estuvo en una planilla del Estado (migraciones 318 y
+ * 319)— y quien recibió órdenes o ganó procesos. Sólo por lo que se VE del nombre (apellido paterno y nombres): el
+ * apellido tapado no se busca.
+ */
+const buscarMemo = new Memo<Record<string, unknown>>({ nombre: "personas:buscar", ttlMs: 600_000, staleMs: 600_000, max: 400 });
+
+personasRouter.get("/buscar", async (c) => {
+  const q = (c.req.query("q") ?? "").trim().slice(0, 80);
+  const palabras = palabrasDeBusqueda(q);
+  c.header("Cache-Control", CACHE);
+  if (palabras.length < 2) return c.json({ q, falta: "Escribe un apellido y un nombre.", conCargo: [], contratadas: [] });
+  const cuerpo = await buscarMemo.obtener(palabras.join(" "), async () => {
+    const [conCargo, contratadas] = await Promise.all([
+      funcionariosPorNombreVisible(q, 25).catch(() => []),
+      personasPorNombreVisible(q, 12).catch(() => []),
+    ]);
+    return publicar({ q, conCargo, contratadas });
   });
-  c.header("Cache-Control", "private, no-store");
+  return c.json(cuerpo);
+});
+
+// ─── GET /personas/cargo/:codigo ────────────────────────────────────────────────────────────────
+/**
+ * La ficha de rastro de una persona con cargo público (migración 318): los cargos que declaró a la Contraloría y dónde más
+ * aparece — las visitas que hizo a otras entidades, las empresas en que es socia o representante, la planilla, sus
+ * órdenes, sus aportes de campaña y los informes de control que la comprenden (responsabilidad presunta) —, con los
+ * cruces entre esos registros ya hechos (visitó una entidad y una empresa suya le ganó; salió de la planilla y una
+ * empresa suya le ganó después).
+ *
+ * Es pública, así que: el nombre sale UNA sola vez y con el apellido materno tapado (las filas de cada registro no llevan
+ * nombre: cada registro lo taparía a su modo y dos versiones lo dirían entero); lo que representaba en una visita sólo si
+ * es una organización; sin motivos de visita (texto libre); sin documentos. El empate con los otros registros es por
+ * nombre completo (`mismaPersona`) y la ficha lo avisa.
+ */
+const cargoMemo = new Memo<Record<string, unknown> | null>({ nombre: "personas:cargo", ttlMs: 600_000, staleMs: 600_000, max: 400 });
+
+personasRouter.get("/cargo/:codigo", async (c) => {
+  const codigo = c.req.param("codigo");
+  if (!CODIGO.test(codigo)) return c.json({ error: "not_found" }, 404);
+  const cuerpo = await cargoMemo.obtener(codigo, async () => {
+    const f = await funcionarioDeCodigo(codigo);
+    if (!f) return null;
+    const esEl = mismaPersona(f);
+    const orgOk = organizacionPublicable(f);
+    const [cargos, planilla, rastro, parecidos] = await Promise.all([
+      // Cada cargo que declaró, por entidad: desde cuándo, hasta cuándo y cuántas declaraciones lo respaldan.
+      pool.query(
+        `SELECT d.entidad, (SELECT r.ruc FROM dji_entidad_ruc r WHERE r.entidad = d.entidad) AS "entidadRuc", NULLIF(btrim(d.cargo), '') AS cargo,
+                count(DISTINCT d.codigo_ddjj)::int AS declaraciones,
+                to_char(min(fecha_dji(d.fecha_inicio_cargo)), 'YYYY-MM-DD') AS inicio,
+                to_char(max(fecha_dji(d.fecha_cese_cargo)), 'YYYY-MM-DD') AS cese,
+                bool_or(COALESCE(btrim(d.fecha_cese_cargo), '') = '') AS "sinCese",
+                to_char(min(fecha_dji(d.fecha_presentacion)), 'YYYY-MM-DD') AS primera,
+                to_char(max(fecha_dji(d.fecha_presentacion)), 'YYYY-MM-DD') AS ultima
+           FROM dji_funcionarios d WHERE d.nombre_norm = $1
+          GROUP BY d.entidad, NULLIF(btrim(d.cargo), '') ORDER BY max(fecha_dji(d.fecha_presentacion)) DESC NULLS LAST, 1 LIMIT 80`, [f.nombreNorm]),
+      // Su planilla, por nombre exacto (se escribe igual que en la DJI): la de hoy, con el enlace a esa ficha, y las
+      // entidades en que ya no figura. Con el último mes que publicó cada entidad: «no figura» puede ser que la entidad
+      // publicó un mes incompleto, no que la persona se fue.
+      consultaConPlazo<Record<string, unknown>>(
+        `SELECT x.*, (SELECT to_char(max(m.mes), 'YYYY-MM') FROM planilla_entidad_mes m WHERE m.entidad_ruc = x."entidadRuc") AS "ultimoMesEntidad"
+           FROM (
+             SELECT 'hoy' AS situacion, p.ficha, p.entidad, p.entidad_ruc AS "entidadRuc", p.cargo, p.dependencia, p.regimen, p.base::float AS base, p.meses,
+                    to_char(p.primer_mes, 'YYYY-MM') AS "primerMes", to_char(p.ultimo_mes, 'YYYY-MM') AS "ultimoMes"
+               FROM planilla_persona p WHERE p.nombre_norm = $1
+             UNION ALL
+             SELECT 'antes', NULL, (SELECT es.nombre FROM entidad_stats es WHERE es.ruc = s.entidad_ruc), s.entidad_ruc, s.cargo, s.dependencia, s.regimen,
+                    s.base::float, s.meses, to_char(s.primer_mes, 'YYYY-MM'), to_char(s.ultimo_mes, 'YYYY-MM')
+               FROM planilla_salida s WHERE s.nombre_norm = $1
+           ) x ORDER BY x.situacion DESC, x."ultimoMes" DESC NULLS LAST LIMIT 30`, [f.nombreNorm], 8000)
+        .then((r) => r.rows).catch(() => null),
+      armarRastro(palabrasRequeridas(f), esEl),
+      parecidosA(f).catch(() => 0),
+    ]);
+    // Sin el nombre de cada registro (ver arriba) y sin texto libre.
+    const sinNombre = <T extends Record<string, unknown>>(filas: T[] | null | undefined) => (filas ?? []).map(({ nombre: _n, ...x }) => x);
+    const visitas = (rastro.visitas ?? []).map(({ nombre: _n, motivos: _m, en_nombre_de, ...v }) => ({
+      ...v, en_nombre_de: (en_nombre_de ?? []).filter((o: string) => orgOk(o)),
+    }));
+    return publicar({
+      codigo,
+      persona: {
+        nombre: f.nombre, cargo: f.cargo, entidad: f.entidad, entidadRuc: f.entidadRuc, cargoDe: f.cargoDe,
+        declaraciones: f.declaraciones, entidades: f.entidades, primera: f.primera, ultima: f.ultima,
+        planillaHoy: f.planillaHoy, planillaEntidades: f.planillaEntidades, planillaHasta: f.planillaHasta,
+      },
+      // Otras personas con cargo público que se ven igual (mismo apellido paterno y nombres): son fichas aparte.
+      parecidos,
+      cargos: cargos.rows,
+      visitas: {
+        total: visitas.reduce((s, v) => s + (v.visitas ?? 0), 0),
+        entidades: new Set(visitas.map((v) => v.entidad)).size,
+        primera: visitas.map((v) => v.primera).filter(Boolean).sort()[0] ?? null,
+        ultima: visitas.map((v) => v.ultima).filter(Boolean).sort().pop() ?? null,
+        filas: visitas.sort((a, b) => (b.visitas ?? 0) - (a.visitas ?? 0)),
+      },
+      empresas: sinNombre(rastro.empresas),
+      planilla: planilla ?? [],
+      ordenes: sinNombre(rastro.ordenes_como_persona_natural),
+      aportes: sinNombre(rastro.aportes_de_campana),
+      expuesta: sinNombre(rastro.personas_expuestas),
+      informes: sinNombre(rastro.informes_de_control),
+      cruces: {
+        visitoYSuEmpresaGano: rastro.visito_y_su_empresa_gano,
+        salioYSuEmpresaGano: rastro.salio_de_la_entidad_y_su_empresa_gano,
+        variasEmpresasEnUnaEntidad: rastro.gana_en_la_misma_entidad_con_varias_empresas,
+        empresaInhabilitadaYOtraGano: rastro.empresa_suya_inhabilitada_y_otra_gano,
+        enInformeYDespuesCobro: rastro.en_informe_de_control_y_despues_cobro,
+      },
+      sinRespuesta: [...rastro.sin_respuesta, ...(planilla ? [] : ["planilla"])],
+    });
+  });
+  if (!cuerpo) return c.json({ error: "not_found" }, 404);
+  c.header("Cache-Control", CACHE);
   return c.json(cuerpo);
 });
 
 // ─── GET /personas/:codigo ──────────────────────────────────────────────────────────────────────
-const CODIGO = /^[0-9a-f]{12}$/;
 
 personasRouter.get("/:codigo", async (c) => {
   const codigo = c.req.param("codigo");

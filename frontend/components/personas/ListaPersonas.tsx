@@ -32,6 +32,8 @@ import {
   type ResumenPersonas, GRUPO_SENAL, GRUPOS_SENAL } from "@/lib/personas";
 import { TablaPersonas, TablaPersonasSkeleton } from "./TablaPersonas";
 import { PersonasPorNombre } from "./PersonasPorNombre";
+import { PersonasConCargo } from "./PersonasConCargo";
+import { getPersonasEncontradas, type PersonasEncontradas } from "@/lib/funcionarios";
 
 const TAM = 20;
 /** Desplegables a la vista, como mucho (BarraFiltros v2): los que sobran van dentro de «Filtros». */
@@ -75,6 +77,9 @@ export function ListaPersonas({
 }) {
   const f = filtrosDeUrl(sp, P);
   const paginaP = getPersonas({ ...alcance, ...f, page: f.page, size: TAM });
+  // Lo buscado puede ser el nombre de alguien con cargo público (declaraciones juradas o planilla): se busca aparte, sólo
+  // en la lista del país (en la de una entidad o un partido se busca dentro de ella).
+  const conCargoP = f.q && !deEntidad && !alcance.partido ? getPersonasEncontradas(f.q) : Promise.resolve(null);
   const parametros: Parametros = { ...base, ...parametrosDe(f, P) };
   const extras = [...visiblesExtra, ...filtrosExtra];
   const filtrada = !!(f.senal || f.severidad || f.servicio || f.anio || f.gobierno || f.monto || f.meses || f.ingreso || f.q) || extras.some((x) => !!base[x.param]);
@@ -100,7 +105,7 @@ export function ListaPersonas({
         </Suspense>
         <ZonaResultados>
           <Suspense fallback={<TablaPersonasSkeleton deEntidad={deEntidad} />}>
-            <Resultados pagina={paginaP} parametros={parametros} ruta={ruta} actual={f.page ?? 1} P={P} deEntidad={deEntidad} filtrada={filtrada} />
+            <Resultados pagina={paginaP} conCargo={conCargoP} parametros={parametros} ruta={ruta} actual={f.page ?? 1} P={P} deEntidad={deEntidad} filtrada={filtrada} />
           </Suspense>
         </ZonaResultados>
       </Listado>
@@ -110,6 +115,7 @@ export function ListaPersonas({
 
 async function Resultados(props: {
   pagina: Promise<PaginaPersonas | null>;
+  conCargo: Promise<PersonasEncontradas | null>;
   parametros: Parametros;
   ruta: string;
   actual: number;
@@ -117,9 +123,11 @@ async function Resultados(props: {
   deEntidad: boolean;
   filtrada: boolean;
 }) {
-  const pagina = await props.pagina;
+  const [pagina, conCargo] = await Promise.all([props.pagina, props.conCargo]);
   return (
     <div className="space-y-4">
+      {/* Quien tiene cargo público y se llama así: su ficha de rastro (declaraciones, planilla, visitas, empresas). */}
+      {conCargo?.conCargo?.length ? <PersonasConCargo personas={conCargo.conCargo} /> : null}
       {/* Lo buscado puede ser el nombre de una persona: quienes coinciden por lo que se ve de su nombre, con su ficha. */}
       {pagina?.porNombre?.length ? <PersonasPorNombre personas={pagina.porNombre} /> : null}
       <TablaPersonas

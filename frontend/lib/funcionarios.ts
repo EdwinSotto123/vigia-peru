@@ -1,0 +1,164 @@
+/**
+ * Personas con cargo público (API /personas/buscar y /personas/cargo/:codigo, migraciones 318 y 319): quien presentó una
+ * declaración jurada de intereses a la Contraloría o está o estuvo en una planilla del Estado, y su rastro en los demás
+ * registros de Vigía. Pedido del dueño del 2026-11-16: alguien con un cargo de poder «no aparece en la BBDD»; estaba (en
+ * la planilla, en las declaraciones y en las visitas), pero la web no tenía por dónde llegar.
+ *
+ * Privacidad: el nombre llega con el apellido materno tapado y una sola vez (las filas de cada registro no traen nombre);
+ * la ficha se pide por un código al azar; no hay documentos. El empate con los otros registros es por nombre completo.
+ */
+import { API_BASE } from "./api-client";
+import type { PersonaPorNombre } from "./personas";
+
+export const rutaFuncionario = (codigo: string, seccion?: string) => `/app/personas/cargo/${codigo}${seccion ? `?seccion=${seccion}` : ""}`;
+
+/** Una persona con cargo público hallada por su nombre visible. */
+export interface FuncionarioHallado {
+  codigo: string;
+  nombre: string;
+  cargo: string | null;
+  entidad: string | null;
+  entidadRuc: string | null;
+  /** De dónde sale ese cargo: la planilla o su declaración jurada. */
+  cargoDe: "planilla" | "dji" | null;
+  declaraciones: number;
+  entidades: number;
+  ultima: string | null;
+  /** Figura en la planilla del último mes de alguna entidad. */
+  planillaHoy: boolean;
+  planillaEntidades: number;
+  /** El último mes en que figuró en una planilla (AAAA-MM). */
+  planillaHasta: string | null;
+}
+
+/** GET /personas/buscar?q=: una persona buscada por su nombre en los registros que tienen ficha. */
+export interface PersonasEncontradas {
+  q: string;
+  /** Qué falta para poder buscar (un apellido y un nombre). */
+  falta?: string;
+  /** Con cargo público: declaraciones juradas de intereses o planilla (de hoy o de antes). */
+  conCargo: FuncionarioHallado[];
+  /** Con órdenes de servicio o procesos ganados como persona natural. */
+  contratadas: PersonaPorNombre[];
+}
+
+export interface CargoDeclarado {
+  entidad: string | null;
+  entidadRuc: string | null;
+  cargo: string | null;
+  declaraciones: number;
+  inicio: string | null;
+  cese: string | null;
+  /** Alguna declaración de ese cargo no trae fecha de cese. */
+  sinCese: boolean;
+  primera: string | null;
+  ultima: string | null;
+}
+
+/** Las visitas que la persona hizo a una entidad (registro de visitas de esa entidad). */
+export interface VisitaHecha {
+  entidad: string;
+  entidad_ruc: string | null;
+  visitas: number;
+  primera: string | null;
+  ultima: string | null;
+  /** La organización que dijo representar (sólo organizaciones). */
+  en_nombre_de: string[];
+  /** El cargo y la oficina de a quién visitó. */
+  a_quien: string[] | null;
+}
+
+export interface EmpresaDeLaPersona { ruc: string; empresa: string | null; rol: string | null; desde: string | null }
+/** Una planilla en que la persona figura («hoy»: en el último mes de la entidad) o figuró («antes»). */
+export interface PlanillaDeLaPersona {
+  situacion: "hoy" | "antes";
+  /** La ficha de planilla (sólo la de hoy la tiene): /app/personas/planilla/<ficha>. */
+  ficha: string | null;
+  entidad: string | null; entidadRuc: string; cargo: string | null; dependencia: string | null; regimen: number | null;
+  /** El sueldo base de un mes. */
+  base: number | null;
+  meses: number | null;
+  primerMes: string | null; ultimoMes: string | null;
+  /** Hasta qué mes llega la planilla publicada de esa entidad. */
+  ultimoMesEntidad: string | null;
+}
+export interface OrdenesDeLaPersona {
+  codigo: string | null; entidad: string | null; entidad_ruc: string; servicio: string | null; ordenes: number; monto: number | null; primera: string | null; ultima: string | null;
+}
+export interface AporteDeLaPersona { partido: string | null; anio: number | null; monto: number | null; aportes: number }
+export interface CargoExpuesto { cargo: string | null; entidad: string | null; desde: number | null; hasta: number | null }
+export interface InformeDeLaPersona {
+  codigo: string; numero: string | null; titulo: string | null; entidad: string | null; entidad_ruc: string | null; fecha: string | null;
+  responsabilidades: string[] | null; ficha: string | null;
+}
+
+/** Los cruces entre registros que la API ya trae hechos. El empate es por nombre completo: hay que confirmarlo. */
+export interface CrucesDeLaPersona {
+  visitoYSuEmpresaGano: {
+    entidad: string | null; entidad_ruc: string; empresa: string | null; empresa_ruc: string; rol_en_la_empresa: string | null; visitas: number;
+    primera_visita: string | null; ultima_visita: string | null; procesos_ganados: number; monto_soles: number | null;
+    primera_buena_pro: string | null; ultima_buena_pro: string | null; visito_antes_de_ganar: boolean;
+  }[];
+  salioYSuEmpresaGano: {
+    entidad: string | null; entidad_ruc: string; cargo_que_tenia: string | null; salio_de_planilla: string | null; empresa: string | null; empresa_ruc: string;
+    rol_en_la_empresa: string | null; procesos_ganados_despues: number; monto_soles: number | null; primera_buena_pro_tras_salir: string | null;
+  }[];
+  variasEmpresasEnUnaEntidad: {
+    entidad: string | null; entidad_ruc: string; empresas: { ruc: string; nombre: string | null }[] | null; contratos_con_objeto_parecido: number;
+    con_90_dias_o_menos_entre_si: number; monto_soles: number | null; desde: string | null; hasta: string | null;
+  }[];
+  empresaInhabilitadaYOtraGano: {
+    empresa_inhabilitada: string | null; empresa_inhabilitada_ruc: string; sancion: string | null; sancion_desde: string | null; sancion_hasta: string | null;
+    empresa_que_gano: string | null; empresa_que_gano_ruc: string; procesos_ganados_durante_la_sancion: number; monto_soles: number | null;
+  }[];
+  enInformeYDespuesCobro: {
+    entidad: string | null; entidad_ruc: string; informe: string | null; fecha_del_informe: string | null; ordenes_de_esa_entidad: number; monto_soles: number | null;
+    ultima_orden: string | null;
+  }[];
+}
+
+export interface FichaFuncionario {
+  codigo: string;
+  persona: {
+    nombre: string; cargo: string | null; entidad: string | null; entidadRuc: string | null; cargoDe: "planilla" | "dji" | null;
+    declaraciones: number; entidades: number; primera: string | null; ultima: string | null;
+    planillaHoy: boolean; planillaEntidades: number; planillaHasta: string | null;
+  };
+  /** Otras personas con cargo público que se ven igual (mismo apellido paterno y mismos nombres): son fichas aparte. */
+  parecidos: number;
+  cargos: CargoDeclarado[];
+  visitas: { total: number; entidades: number; primera: string | null; ultima: string | null; filas: VisitaHecha[] };
+  empresas: EmpresaDeLaPersona[];
+  planilla: PlanillaDeLaPersona[];
+  ordenes: OrdenesDeLaPersona[];
+  aportes: AporteDeLaPersona[];
+  expuesta: CargoExpuesto[];
+  informes: InformeDeLaPersona[];
+  cruces: CrucesDeLaPersona;
+  /** Registros que no respondieron a tiempo: su parte de la ficha puede estar incompleta. */
+  sinRespuesta: string[];
+}
+
+async function leer<T>(ruta: string, revalidate = 600): Promise<T | null> {
+  try {
+    const r = await fetch(`${API_BASE}${ruta}`, { next: { revalidate } } as RequestInit);
+    return r.ok ? ((await r.json()) as T) : null;
+  } catch {
+    return null;
+  }
+}
+
+export const getFichaFuncionario = (codigo: string) =>
+  /^[0-9a-f]{12}$/.test(codigo) ? leer<FichaFuncionario>(`/personas/cargo/${codigo}`) : Promise.resolve(null);
+
+/** Con menos de dos palabras, o con un número, no se pide nada (la API tampoco busca). */
+export const getPersonasEncontradas = (q: string | undefined) => {
+  const t = (q ?? "").trim();
+  return t.split(/\s+/).filter((w) => w.length >= 3).length >= 2 && !/\d/.test(t)
+    ? leer<PersonasEncontradas>(`/personas/buscar?q=${encodeURIComponent(t.slice(0, 80))}`)
+    : Promise.resolve(null);
+};
+
+/** Cuántos cruces trae la ficha, sumados. */
+export const totalCruces = (c: CrucesDeLaPersona) =>
+  c.visitoYSuEmpresaGano.length + c.salioYSuEmpresaGano.length + c.variasEmpresasEnUnaEntidad.length + c.empresaInhabilitadaYOtraGano.length + c.enInformeYDespuesCobro.length;

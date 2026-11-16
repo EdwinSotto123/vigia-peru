@@ -359,7 +359,9 @@ export async function correrPte(env: Env, p: ParamsCorrida, step: WorkflowStep, 
   // exprés y la planilla de cada entidad mes a mes (182); y los nombres de oficinas con que el organigrama lee las siglas
   // de una planilla (186). Y el locador que un informe de control de su entidad comprende y recibió órdenes después (308).
   // Tras todas las que nombran a un familiar declarado, el caso reservado de una autoridad electa sale de ellas (311).
-  for (const f of ["refrescar_nepotismo_senal", "refrescar_senales_politicas", "refrescar_senales_extra", "refrescar_familia_estado", "refrescar_socio_proveedor_locador", "refrescar_persona_informe_control", "refrescar_planilla_extra", "refrescar_reserva_parientes", "refrescar_entidad_senal_politica", "refrescar_organo_nombre_global"]) {
+  for (const f of ["refrescar_nepotismo_senal", "refrescar_senales_politicas", "refrescar_senales_extra", "refrescar_familia_estado", "refrescar_socio_proveedor_locador", "refrescar_persona_informe_control", "refrescar_planilla_extra", "refrescar_reserva_parientes", "refrescar_entidad_senal_politica", "refrescar_organo_nombre_global",
+                   // El índice de personas con cargo público (planilla de hoy y de antes, y declaraciones juradas; migración 319).
+                   "refrescar_funcionario_resumen"]) {
     resumen[f] = await step.do(f, CARGA, () => conDb(env.HYPERDRIVE, async (db) => {
       const [{ existe }] = await db.filas<{ existe: boolean }>("SELECT to_regprocedure($1) IS NOT NULL AS existe", [`${f}()`]);
       return existe ? Number((await db.filas<{ n: number }>(`SELECT ${f}() AS n`))[0]?.n ?? 0) : null;
