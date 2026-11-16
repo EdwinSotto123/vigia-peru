@@ -265,6 +265,8 @@ export function cadenaCruces(): Refresco[] {
     f("refrescar_mismo_dueno_grupo", true),
     // El socio de una empresa inhabilitada gana con otra durante la sanción (migración 297).
     f("refrescar_cruce_socio_de_inhabilitada", true),
+    // Un socio o representante del ganador figura en un informe de control anterior a la buena pro (migración 303).
+    f("refrescar_cruce_socio_con_informe_control", true),
     // El contrato se firmó por más de lo adjudicado según las dos fuentes oficiales (migración 294).
     f("refrescar_cruce_contrato_sobre_adjudicado", true),
     // Lo que dicen el acta de buena pro y las consultas leídas con Claude (migraciones 245-246).
@@ -282,7 +284,8 @@ export function cadenaCruces(): Refresco[] {
     f("refrescar_borde_empresas", true),
     // empresa_resumen con sus antecedentes y las señales SUNAT de estado (migraciones 109 y 117).
     f("refrescar_empresas"),
-    // Los candidatos y aportantes de cada partido con sus cruces (migración 299): lee empresa_resumen, recién hecho.
+    // Los candidatos y aportantes de cada partido con sus cruces (migración 299), su DJI, lo que obtuvieron sus familiares y
+    // sus informes de control (301): lee empresa_resumen, recién hecho.
     f("refrescar_partido_politicos", true),
     // Las empresas cuya gente visitó cada entidad y lo que la entidad les dio después (migraciones 203 y 243), por partes.
     ...Array.from({ length: PARTES_VISITA_EMPRESA }, (_, parte): Refresco => ({

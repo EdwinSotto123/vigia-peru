@@ -77,3 +77,22 @@ test("visita previa: el rol del visitante en la empresa sale legible", () => {
     persona_rol: "REPRESENTANTE_LEGAL, SOCIO_ACCIONISTA_TITULAR", detalle: { entidad_visitada: "X", dias_antes: 5 } });
   assert.equal(c.visitas[0].rol, "representante legal, socio");
 });
+
+test("socio con informe de control (migración 303): sin DNI, el socio tapado y el informe con su código y enlace intactos", () => {
+  const url = "https://apps8.contraloria.gob.pe/SPIC/srvDownload/ViewPDF?CRES_CODIGO=2018CPOL44600002&TIPOARCHIVO=RE";
+  const fila = { ...base, tipo: "socio_con_informe_control", severidad: "alta", ocid: "ocds-dgv273-seacev3-3", persona_doc: "00000001",
+    persona_nombre: "QUISPEMAYTA HUAMANCHUMO ROBERTINO", persona_rol: "REPRESENTANTE_LEGAL, SOCIO_ACCIONISTA_TITULAR",
+    fuente: "informes_control", fuente_url: url,
+    detalle: { informe_codigo: "2018CPOL44600002", informe_numero: "011-2018-2-4460", informe_entidad: "MUNICIPALIDAD DISTRITAL INVENTADA",
+      informe_entidad_ruc: "20999999993", emision: "2018-05-02", responsabilidades: ["administrativa_pas", "penal"], misma_entidad: true,
+      url_resumen: url, n_informes: 2, n_personas: 1 } };
+  const c = publicar({ cruces: [aCruce(fila)] }).cruces[0];
+  assert.doesNotMatch(json(c), /00000001|HUAMANCHUMO/);
+  assert.equal(c.socios[0].rol, "representante legal, socio");
+  assert.equal(c.etiqueta, "Un socio o representante figura con presunta responsabilidad en un informe de control");
+  // El código del informe trae 8 cifras pegadas a letras: es un código, no un DNI.
+  assert.equal(c.detalle.informe_codigo, "2018CPOL44600002");
+  assert.equal(c.detalle.informe_numero, "011-2018-2-4460");
+  assert.equal(c.detalle.url_resumen, url);
+  assert.equal(c.fuenteUrl, url);
+});

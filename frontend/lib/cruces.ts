@@ -61,6 +61,8 @@ export const GRUPOS_CRUCE: { titulo: string; tipos: { tipo: string; corto: strin
       { tipo: "sancion_definitiva", chip: "Inhabilitación definitiva", corto: "Inhabilitación definitiva antes", explica: "Tuvo una inhabilitación DEFINITIVA del Tribunal de Contrataciones antes de este proceso: la sanción más grave." },
       { tipo: "sancion_temporal", chip: "Inhabilitación temporal", corto: "Inhabilitación temporal antes", explica: "Tuvo una inhabilitación temporal del Tribunal antes de este proceso. Si además seguía vigente al ganar, también dice «Inhabilitado al ganar»." },
       { tipo: "sancion_multa", chip: "Multa del Tribunal", corto: "Multa del Tribunal antes", explica: "El Tribunal le puso una multa antes de este proceso (sin inhabilitación)." },
+      // Migración 303: la persona, por su DNI, en la lista de funcionarios comprendidos de un informe de control (302).
+      { tipo: "socio_con_informe_control", chip: "Socio en informe de control", corto: "Un socio o representante figura con presunta responsabilidad en un informe de control", explica: "Una persona que figura en el Registro Nacional de Proveedores como socia o representante legal del ganador (se cruza por su DNI) está comprendida en un informe de control de la Contraloría emitido ANTES de la buena pro, con responsabilidad penal, civil o administrativa. Es responsabilidad PRESUNTA: la Contraloría la identifica y la deriva al Ministerio Público, a la procuraduría o a un procedimiento sancionador; no es una condena ni un impedimento para contratar. Es grave si la responsabilidad es penal y el informe es de la misma entidad que contrató o de los dos años anteriores a la buena pro; una penal más antigua o una civil es media, y sólo administrativa es leve." },
       { tipo: "penalidad", corto: "Penalidades", explica: "Le aplicaron penalidades en contratos anteriores." },
       // Adicionales en bandas por cuánto pasan el tope legal (25% bienes y servicios) (migración 121).
       { tipo: "adicional_sobre_tope", chip: "Adicionales sobre tope", corto: "Adicionales sobre el tope legal", explica: "El contrato sumó adicionales por más del 25% de lo contratado, el tope legal en bienes y servicios sin autorización de la Contraloría (CONOSCE)." },
@@ -142,3 +144,22 @@ export const TIPO_CRUCE = Object.fromEntries(GRUPOS_CRUCE.flatMap((g) => g.tipos
 
 /** El nombre de un cruce para un chip angosto (o su `corto` si no tiene uno más breve). */
 export const chipCruce = (tipo: string): string => TIPO_CRUCE[tipo]?.chip ?? TIPO_CRUCE[tipo]?.corto ?? tipo;
+
+/** Cada responsabilidad que señala un informe de control (migraciones 90 y 302), en palabras. Siempre presunta. */
+const RESPONSABILIDAD_CONTROL: Record<string, string> = {
+  penal: "penal",
+  civil: "civil",
+  administrativa_entidad: "administrativa (la procesa la entidad)",
+  administrativa_pas: "administrativa (la procesa la Contraloría)",
+  administrativa: "administrativa",
+};
+/** ["penal", "administrativa_entidad"] → «penal y administrativa (la procesa la entidad)»; null si no hay ninguna. */
+export function responsabilidadesEnPalabras(v: unknown): string | null {
+  const orden = Object.keys(RESPONSABILIDAD_CONTROL);
+  const xs = (Array.isArray(v) ? v : [])
+    .filter((r): r is string => typeof r === "string" && r in RESPONSABILIDAD_CONTROL)
+    .sort((a, b) => orden.indexOf(a) - orden.indexOf(b))
+    .map((r) => RESPONSABILIDAD_CONTROL[r]);
+  if (!xs.length) return null;
+  return xs.length === 1 ? xs[0] : `${xs.slice(0, -1).join(", ")} y ${xs[xs.length - 1]}`;
+}

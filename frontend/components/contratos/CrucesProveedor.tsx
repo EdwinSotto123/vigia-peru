@@ -31,7 +31,7 @@ import { txt } from "@/lib/utils";
 import { EvidenciaDelCruce, OrdenesFraccionadas } from "./EvidenciaCruce";
 import { GrupoSanciones, TIPOS_SANCION } from "./SancionesCruce";
 import { BotonPestana } from "./BotonPestana";
-import { TIPO_CRUCE, esTipoLeido, esTipoObra } from "@/lib/cruces";
+import { TIPO_CRUCE, esTipoLeido, esTipoObra, responsabilidadesEnPalabras } from "@/lib/cruces";
 import { fraseBandera, type BanderaObra } from "@/lib/obras";
 
 const VARIANTE = { alta: "crimson", media: "amber", baja: "neutral" } as const;
@@ -69,6 +69,8 @@ const FUENTE: Record<string, string> = {
   // La obra del contrato y su inversión (migración 160).
   infobras: "INFOBRAS (Contraloría)",
   invierte_pe: "Invierte.pe (MEF)",
+  // Las personas de los informes de control (migraciones 302 y 303).
+  informes_control: "Informes de control de la Contraloría",
   // Los documentos del SEACE leídos con Claude (migración 246).
   acta_buena_pro: "Acta de buena pro del SEACE, leída con IA",
   consultas_bases: "Pliego de consultas del SEACE, leído con IA",
@@ -272,6 +274,7 @@ const POR_QUE: Record<string, string> = {
   consorcio_rival: "Dos empresas que postularon juntas en un consorcio conocen sus costos y sus precios. Si después compiten por separado en procesos de pocos postores y gana siempre una de las dos, la competencia puede ser sólo aparente. No lo prueba: en mercados de pocos proveedores es común asociarse a veces y competir otras.",
   mismo_dueno: "La concentración de un proveedor se mide por su RUC. Si una persona vende lo mismo a la misma entidad con dos empresas, ninguna parece dominante, cada compra queda bajo el tope que obligaría a un procedimiento con más competencia, y si una es sancionada sigue la otra. Vale revisar si las compras debieron agruparse en un solo proceso (fraccionamiento) y si las dos empresas se presentaron como competidoras entre sí.",
   socio_de_inhabilitada: "Inhabilitar a una empresa no sirve si sus dueños siguen vendiendo con otra razón social. Por eso la ley extiende el impedimento a las empresas del mismo rubro de esos mismos socios mientras dure la sanción, y contratar con un impedido es causa de nulidad del contrato y de una nueva sanción. Corresponde ver el porcentaje del socio en las dos empresas, si venden lo mismo y si la ganadora declaró bajo juramento no tener impedimento.",
+  socio_con_informe_control: "Un informe de control señala responsabilidad cuando los auditores de la Contraloría encuentran que un funcionario incumplió sus funciones o causó un perjuicio, y la deriva: la penal, al Ministerio Público; la civil, a la procuraduría; la administrativa, a la entidad o al procedimiento sancionador de la Contraloría. Es presunta: no es una condena ni impide contratar con el Estado. Que una persona comprendida en un informe sea dueña o representante de la empresa que después gana merece leer qué le señaló el informe, ver si se parece a lo que se contrató y, si es la misma entidad, si esa persona intervino en la compra.",
   contrato_sobre_adjudicado: "La buena pro fija cuánto paga el Estado: el contrato sólo puede subir después por adicionales aprobados, con su tope. Si el contrato nace con un monto mayor al de la oferta ganadora, alguien cambió el precio fuera de la competencia. Cuando el monto firmado coincide con el valor referencial, vale preguntar por qué no se respetó la rebaja que ofreció el ganador.",
   retencion_sobre_tope: "Una carta fianza obliga a un banco a pagar si el contratista incumple. Con la retención de pagos el Estado sólo tiene lo que le fue descontando al propio contratista, y nada al inicio del contrato. Por eso el Reglamento la limita a contratos chicos o a micro y pequeñas empresas. Si una empresa grande garantiza así un contrato grande, la entidad aceptó menos protección de la que la norma exige: corresponde pedir la constancia de MYPE del contratista y ver quién aceptó la garantía.",
   renovacion_mas_cara: "Un servicio que se renueva debería costar parecido por mes, salvo que cambie su alcance. Una subida grande de un contrato al siguiente merece comparar los términos de referencia de los dos: sedes, personal, horarios y equipos. Si el alcance es el mismo, la entidad tendría que explicar por qué paga más. Pesa más cuando el proveedor es el mismo.",
@@ -778,6 +781,37 @@ function Texto({ c, gobierna }: { c: CruceProveedor; gobierna?: GobiernoContrato
             : ""}
           {txt(d.consorcio) ? ` El proceso lo ganó ${tituloNatural(txt(d.consorcio)!)}, que esta empresa integra.` : ""} Falta confirmar el porcentaje del socio
           y que las dos empresas sean del mismo rubro.
+          <Gano c={c} />
+        </>
+      );
+    }
+    case "socio_con_informe_control": {
+      // Migración 303: la persona (por su DNI) está entre los funcionarios comprendidos de un informe de control anterior.
+      const numeroInf = txt(d.informe_numero) ?? txt(d.informe_codigo) ?? "sin número";
+      const url = txt(d.url_resumen);
+      const ent = txt(d.informe_entidad);
+      const resp = responsabilidadesEnPalabras(d.responsabilidades);
+      const nInf = n(d.n_informes);
+      const nPer = n(d.n_personas);
+      return (
+        <>
+          {quien(c)} figura en el informe de control{" "}
+          {url ? (
+            <a href={url} target="_blank" rel="noopener noreferrer" className={ENLACE_TXT}>
+              {numeroInf}
+            </a>
+          ) : (
+            <b>{numeroInf}</b>
+          )}{" "}
+          de la Contraloría{txt(d.emision) ? <>, emitido el {fechaConAnio(txt(d.emision)!)}</> : ""}
+          {ent ? <> sobre <Entidad nombre={tituloNatural(ent)} ruc={txt(d.informe_entidad_ruc)} /></> : ""}
+          {d.misma_entidad === true ? <b> (la misma entidad que contrató)</b> : ""}, con <b>presunta responsabilidad{resp ? ` ${resp}` : ""}</b>.
+          {txt(d.informe_titulo) ? <> El informe trata de «{recortar(oracion(txt(d.informe_titulo)!), 220)}».</> : ""}
+          {nInf != null && nInf > 1 ? <> Figura en <b>{numero(nInf)} informes</b> anteriores a esta buena pro.</> : ""}
+          {d.misma_entidad_en_otro === true ? " Uno de los otros informes es de la misma entidad que contrató." : ""}
+          {nPer != null && nPer > 1 ? <> Además, {nPer === 2 ? "otra persona" : `otras ${numero(nPer - 1)} personas`} de esta empresa {nPer === 2 ? "figura" : "figuran"} en informes de control anteriores.</> : ""}
+          {txt(d.consorcio) ? ` El proceso lo ganó ${tituloNatural(txt(d.consorcio)!)}, que esta empresa integra.` : ""} Es una responsabilidad
+          que la Contraloría identifica y deriva: no es una condena.
           <Gano c={c} />
         </>
       );

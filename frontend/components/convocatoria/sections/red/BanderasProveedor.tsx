@@ -49,7 +49,7 @@ const DE_TIPO: Record<string, Familia> = {
   unico_postor: "competencia", postor_de_relleno: "competencia", consorcio_rival: "competencia", turno_postores: "competencia", otro_postor: "competencia",
   renovacion_mas_cara: "precio", contrato_sobre_adjudicado: "precio",
   socio_comun: "vinculos", mismo_dueno: "vinculos", socio_en_entidad: "vinculos", interes_declarado: "vinculos", pariente_funcionario: "vinculos",
-  puerta_giratoria: "vinculos", socio_de_inhabilitada: "vinculos", empleo_declarado: "vinculos", domicilio_compartido: "vinculos", empresa_espejo: "vinculos",
+  puerta_giratoria: "vinculos", socio_de_inhabilitada: "vinculos", socio_con_informe_control: "vinculos", empleo_declarado: "vinculos", domicilio_compartido: "vinculos", empresa_espejo: "vinculos",
   fraccionamiento: "compras", proveedor_cautivo: "compras",
   penalidad: "ejecucion", retencion_sobre_tope: "ejecucion",
   dada_de_baja: "registro", suspendida: "registro", no_habida: "registro",

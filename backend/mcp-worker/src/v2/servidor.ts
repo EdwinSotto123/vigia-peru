@@ -5,6 +5,7 @@ import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/
 import { INSTRUCCIONES, INSTRUCCIONES_EMPLEO, INSTRUCCIONES_LICITACIONES, registrarGuias } from "./guias";
 import { HERRAMIENTAS_ACTORES } from "./herramientas/actores";
 import { HERRAMIENTAS_CONTRATOS } from "./herramientas/contratos";
+import { HERRAMIENTAS_CONTROL } from "./herramientas/control";
 import { HERRAMIENTAS_CUENTA } from "./herramientas/cuenta";
 import { HERRAMIENTAS_DATOS } from "./herramientas/datos";
 import { HERRAMIENTAS_ENTIDAD } from "./herramientas/entidad";
@@ -13,6 +14,7 @@ import { registrar, type Contexto, type Perfil } from "./registro";
 
 export const HERRAMIENTAS = [
   ...HERRAMIENTAS_CONTRATOS,
+  ...HERRAMIENTAS_CONTROL,
   ...HERRAMIENTAS_ACTORES,
   ...HERRAMIENTAS_ENTIDAD,
   ...HERRAMIENTAS_DATOS,

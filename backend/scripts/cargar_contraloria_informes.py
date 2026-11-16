@@ -7,14 +7,20 @@ Contraloría (appbp.contraloria.gob.pe, 161.132.x.x) no responde a IPs de fuera 
 Cloudflare (directo en Miami, relay en Zúrich y Browser Rendering) y timeout desde AWS us-east-2; 200 desde Lima.
 
 Responsabilidad PRESUNTA (no es condena). PRIVACIDAD: cada fila del buscador trae en `Text` (y a veces en
-`Funcionarios`) el DNI y el nombre de cada funcionario; de eso sólo se toma cuántos son. Nada se guarda en disco.
+`Funcionarios`) el DNI y el nombre de cada funcionario. Sin --personas, de eso sólo se toma cuántos son. Con --personas
+(migración 302) cada uno va a `informe_control_persona` (documento, nombre y responsabilidades), una tabla que ni la API
+ni el MCP ni los agentes leen; la API ve la vista sin documento `informe_control_implicado`. Nada se guarda en disco y
+el script sólo imprime conteos: nunca un nombre ni un documento.
 
 Uso:
   python backend/scripts/cargar_contraloria_informes.py --entorno dev          # las 4 responsabilidades (~14 100, 15 páginas)
   python backend/scripts/cargar_contraloria_informes.py --entorno prod
-  python backend/scripts/cargar_contraloria_informes.py --seco                 # sólo baja y cuenta
+  python backend/scripts/cargar_contraloria_informes.py --entorno prod --personas   # y las personas de cada informe
+  python backend/scripts/cargar_contraloria_informes.py --seco [--personas]     # sólo baja y cuenta
   python backend/scripts/cargar_contraloria_informes.py --entorno dev --responsabilidades PENAL,CIVIL
 Idempotente: upsert por código y, al final, refrescar_informes_control_entidad() (ubigeo y RUC de todos los informes).
+Las personas de cada informe leído se reemplazan por las de esta lectura (upsert por código y orden; se borran las que
+sobran). Un informe que esta vez no trae a nadie conserva las que tenía.
 Requiere psycopg2, la CLI de AWS y session-manager-plugin (túnel de infrastructure/aws/tunel_rds.py).
 """
 
@@ -101,7 +107,128 @@ def a_informe(f: dict) -> dict | None:
     }
 
 
-def pagina(n: int, resp: list[str]) -> tuple[list[dict], int, int]:
+# ── Las personas de cada informe (--personas, migración 302) ──────────────────────────────────────────────────────────
+# `Text` junta los campos del informe y, por cada funcionario comprendido, «DNI : <número> APELLIDOS NOMBRES
+# RESPONSABILIDAD : ADMINISTRATIVO ENTIDAD PENAL». Tras la última persona siguen el nivel de gobierno, el periodo y el
+# operativo: la lista de responsabilidades termina en la primera palabra que no es una de las suyas. Medido el 2026-11-16:
+# en los 14 154 informes hay tantos «DNI :» como dice TotalFuncionarios.
+PALABRAS_RESPONSABILIDAD = {"ADMINISTRATIVO", "ENTIDAD", "PAS", "PENAL", "CIVIL"}
+
+
+def responsabilidades_persona(cola: str) -> list[str]:
+    """«ADMINISTRATIVO ENTIDAD ADMINISTRATIVO PAS PENAL GOBIERNO LOCAL …» → administrativa_entidad, administrativa_pas,
+    penal (los nombres de NOMBRES, los mismos de informes_control.responsabilidades)."""
+    ws: list[str] = []
+    for w in cola.split():
+        if w.upper() not in PALABRAS_RESPONSABILIDAD:
+            break
+        ws.append(w.upper())
+    out, i = set(), 0
+    while i < len(ws):
+        if ws[i] == "ADMINISTRATIVO" and i + 1 < len(ws) and ws[i + 1] in ("ENTIDAD", "PAS"):
+            out.add(NOMBRES[f"ADMINISTRATIVO {ws[i + 1]}"])
+            i += 2
+            continue
+        if ws[i] in NOMBRES:      # un ENTIDAD o PAS suelto no dice nada: se ignora
+            out.add(NOMBRES[ws[i]])
+        i += 1
+    return sorted(out)
+
+
+def personas(f: dict) -> tuple[list[dict], int]:
+    """Las personas de una fila del buscador, en su orden, y cuántos «DNI :» trae. De cada una: el documento (sólo cifras;
+    None si no trae número), el nombre como lo publica la Contraloría y sus responsabilidades. Queda en memoria: nunca se
+    imprime ni va a disco."""
+    texto = " ".join(str(f.get("Text") or "").split())
+    tramos = re.split(r"\bDNI\s*:", texto)[1:]
+    out: list[dict] = []
+    for tramo in tramos:
+        m = re.match(r"\s*(.*?)\s*\bRESPONSABILIDAD\s*:\s*(.*)$", tramo)
+        if not m:
+            continue
+        toks = m.group(1).split()
+        doc = toks.pop(0) if toks and re.fullmatch(r"[0-9]+", toks[0]) else None
+        if toks:
+            out.append({"orden": len(out) + 1, "doc": doc, "nombre": " ".join(toks),
+                        "responsabilidades": responsabilidades_persona(m.group(2))})
+    return out, len(tramos)
+
+
+def verificar(informes: dict[str, dict], gente: dict[str, tuple[list[dict], int]]) -> None:
+    """Por informe, ¿las personas leídas son TotalFuncionarios? Y si no, por qué. Sólo conteos."""
+    c: dict[str, int] = {k: 0 for k in ("personas", "cuadran", "sin_text", "otro_numero", "sin_responsabilidad", "dni8",
+                                         "doc_otro", "sin_doc", "sin_tipo", "repetidas")}
+    otros: dict[int, int] = {}
+    for codigo, i in informes.items():
+        ps, marcas = gente.get(codigo, ([], 0))
+        n = i.get("funcionarios")
+        c["personas"] += len(ps)
+        if n is not None and len(ps) == n:
+            c["cuadran"] += 1
+        elif marcas == 0:
+            c["sin_text"] += 1           # el buscador no trajo a nadie en Text
+        elif marcas != n:
+            c["otro_numero"] += 1        # el buscador lista otro número de personas que su propio TotalFuncionarios
+        else:
+            c["sin_responsabilidad"] += 1  # algún «DNI :» sin «RESPONSABILIDAD :» o sin nombre: no se pudo leer
+        docs = [p["doc"] for p in ps if p["doc"]]
+        for d in docs:
+            if len(d) == 8:
+                c["dni8"] += 1
+            else:
+                c["doc_otro"] += 1
+                otros[len(d)] = otros.get(len(d), 0) + 1
+        c["sin_doc"] += sum(1 for p in ps if not p["doc"])
+        c["sin_tipo"] += sum(1 for p in ps if not p["responsabilidades"])
+        c["repetidas"] += len(docs) - len(set(docs))
+    no = len(informes) - c["cuadran"]
+    print(f"Personas: {c['personas']} en {len(informes)} informes; {c['dni8']} con DNI de 8 cifras, {c['doc_otro']} con otro "
+          f"número ({', '.join(f'{v} de {k} cifras' for k, v in sorted(otros.items())) or 'ninguno'}), {c['sin_doc']} sin número, "
+          f"{c['sin_tipo']} sin responsabilidad leída, {c['repetidas']} repetidas en su mismo informe")
+    print(f"  Personas leídas = TotalFuncionarios en {c['cuadran']} de {len(informes)} informes; no cuadran {no}: "
+          f"{c['sin_text']} sin nadie en Text, {c['otro_numero']} con otro número de «DNI :» que su total, "
+          f"{c['sin_responsabilidad']} con alguna persona que no se pudo leer")
+
+
+SQL_PERSONAS_TEMP = """CREATE TEMP TABLE _icp (codigo TEXT, orden SMALLINT, doc TEXT, nombre TEXT, responsabilidades TEXT[])
+  ON COMMIT DROP"""
+SQL_PERSONAS_LOTE = """INSERT INTO _icp SELECT codigo, orden, doc, nombre, responsabilidades FROM jsonb_to_recordset(%s::jsonb)
+  AS x (codigo TEXT, orden SMALLINT, doc TEXT, nombre TEXT, responsabilidades TEXT[])"""
+# Las de un informe leído que ya no están en su lista (la lista se acortó). Un informe sin nadie esta vez no entra a _icp.
+SQL_PERSONAS_BORRAR = """DELETE FROM informe_control_persona p
+  WHERE p.codigo IN (SELECT DISTINCT codigo FROM _icp)
+    AND NOT EXISTS (SELECT 1 FROM _icp t WHERE t.codigo = p.codigo AND t.orden = p.orden)"""
+SQL_PERSONAS_UPSERT = """INSERT INTO informe_control_persona AS p (codigo, orden, doc, nombre, responsabilidades)
+  SELECT codigo, orden, doc, nombre, responsabilidades FROM _icp
+  ON CONFLICT (codigo, orden) DO UPDATE SET doc = EXCLUDED.doc, nombre = EXCLUDED.nombre,
+    responsabilidades = EXCLUDED.responsabilidades, cargado_at = now()
+  WHERE (p.doc, p.nombre, p.responsabilidades) IS DISTINCT FROM (EXCLUDED.doc, EXCLUDED.nombre, EXCLUDED.responsabilidades)"""
+
+
+def escribir_personas(cur, gente: dict[str, tuple[list[dict], int]]) -> tuple[int, int, int]:
+    """Las personas de cada informe leído, en la misma transacción que los informes. Devuelve (escritas o cambiadas,
+    borradas, total en la tabla). Un error no se imprime con su DETAIL: Postgres pone ahí los valores de la fila."""
+    import psycopg2
+    filas = [{"codigo": codigo, **p} for codigo, (ps, _) in gente.items() for p in ps]
+    try:
+        cur.execute(SQL_PERSONAS_TEMP)
+        for k in range(0, len(filas), 5000):
+            cur.execute(SQL_PERSONAS_LOTE, (json.dumps(filas[k:k + 5000], ensure_ascii=False),))
+        # Sin estadísticas, el DELETE de abajo puede elegir un plan que compara cada fila con todas.
+        cur.execute("CREATE INDEX ON _icp (codigo, orden)")
+        cur.execute("ANALYZE _icp")
+        cur.execute(SQL_PERSONAS_BORRAR)
+        borradas = cur.rowcount
+        cur.execute(SQL_PERSONAS_UPSERT)
+        escritas = cur.rowcount
+        cur.execute("SELECT count(*) FROM informe_control_persona")
+        (total,) = cur.fetchone()
+    except psycopg2.Error as e:
+        raise SystemExit(f"personas: error {e.pgcode}: {e.diag.message_primary}") from None
+    return escritas, borradas, total
+
+
+def pagina(n: int, resp: list[str], gente: dict[str, tuple[list[dict], int]] | None = None) -> tuple[list[dict], int, int]:
     q = urllib.parse.urlencode({"ActionPage": "TransportType", "Action": "loadInformesElastic", "PageSize": POR_PAGINA,
                                 "PageNumber": n, "pGeneral": " ", "pResponsabilidad": " OR ".join(f'"{r}"' for r in resp)})
     for intento in range(4):
@@ -117,7 +244,14 @@ def pagina(n: int, resp: list[str]) -> tuple[list[dict], int, int]:
         raise RuntimeError(f"página {n}: el buscador no devolvió una lista")
     total_paginas = int(filas[0].get("TotalPages") or 0) if filas else 0
     total = int(filas[0].get("TotalRows") or 0) if filas else 0
-    return [i for i in map(a_informe, filas) if i], total_paginas, total
+    informes = []
+    for f in filas:
+        i = a_informe(f)
+        if i:
+            informes.append(i)
+            if gente is not None:
+                gente[i["codigo"]] = personas(f)
+    return informes, total_paginas, total
 
 
 def main() -> int:
@@ -126,6 +260,8 @@ def main() -> int:
     ap.add_argument("--seco", action="store_true", help="sólo baja y cuenta, no escribe")
     ap.add_argument("--responsabilidades", default=",".join(RESPONSABILIDADES),
                     help=f"separadas por coma (por defecto: {','.join(RESPONSABILIDADES)})")
+    ap.add_argument("--personas", action="store_true",
+                    help="también las personas de cada informe → informe_control_persona (migración 302); sólo imprime conteos")
     a = ap.parse_args()
     if not a.seco and not a.entorno:
         ap.error("falta --entorno (o --seco)")
@@ -133,14 +269,18 @@ def main() -> int:
     resp = [r.strip().upper() for r in a.responsabilidades.split(",") if r.strip()]
 
     informes: dict[str, dict] = {}
+    gente: dict[str, tuple[list[dict], int]] | None = {} if a.personas else None
     n, paginas, total = 1, 1, 0
     while n <= paginas and n <= 60:
-        filas, paginas, total = pagina(n, resp)
+        filas, paginas, total = pagina(n, resp, gente)
         for i in filas:
             informes[i["codigo"]] = i
         print(f"  página {n}/{paginas}: {len(filas)} informes")
         n += 1
+        time.sleep(1)    # un pedido por segundo como máximo
     print(f"Buscador: {total} informes; leídos {len(informes)} distintos")
+    if gente is not None:
+        verificar(informes, gente)
     if a.seco or not informes:
         return 0
 
@@ -153,6 +293,10 @@ def main() -> int:
             for k in range(0, len(lista), POR_PAGINA):
                 cur.execute(SQL_UPSERT, (json.dumps(lista[k:k + POR_PAGINA], ensure_ascii=False),))
                 escritos += cur.rowcount
+            if gente is not None:
+                # Después de los informes: cada persona apunta a su informe (llave foránea).
+                p_escritas, p_borradas, p_total = escribir_personas(cur, gente)
+                print(f"Personas: {p_escritas} nuevas o cambiadas, {p_borradas} quitadas; {p_total} en informe_control_persona")
             cur.execute("SELECT * FROM refrescar_informes_control_entidad()")
             tot, con_ubigeo, con_ruc, ambiguos = cur.fetchone()
             cur.execute("""SELECT encode(sha256(convert_to(coalesce(string_agg(codigo || '|' || coalesce(fecha_publicacion::text, ''),

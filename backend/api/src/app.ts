@@ -38,6 +38,7 @@ import { adminRouter } from "./routes/admin.js";
 import { gastoRouter } from "./routes/gasto.js";
 import { documentosRouter } from "./routes/documentos.js";
 import { contratosRouter } from "./routes/contratos.js";
+import { informeControlRouter } from "./routes/informeControl.js";
 import { ordenesRouter } from "./routes/ordenes.js";
 import { menoresRouter } from "./routes/menores.js";
 import { catalogoRouter } from "./routes/catalogo.js";
@@ -158,6 +159,8 @@ api.route("/reportes", reportesRouter);
 api.route("/financiamiento/procesamientos", procesamientosRouter); // antes de /financiamiento (prefijo)
 api.route("/financiamiento", financiamientoRouter);
 api.route("/contribuciones", contribucionesRouter);
+// El informe de indicios en formato de control de un contrato (migración 306): antes del detalle de /contratos/:ocid.
+api.route("/contratos", informeControlRouter);
 api.route("/contratos", contratosRouter);
 // Documentos de varios procesos en un ZIP (MCP y chat del panel), desde R2.
 api.route("/documentos", documentosRouter);

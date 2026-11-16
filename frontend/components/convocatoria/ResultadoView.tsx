@@ -191,6 +191,9 @@ export function ResultadoView({
     { key: "historia", label: E.historia, badge: null },
     { key: "resumen", label: E.resumen, badge: banderasArr.length || null },
     { key: "dictamen", label: E.dictamen, badge: null },
+    // Las señales con la forma de un informe de control (se redacta al abrirla). No en la vista previa del panel: la
+    // alerta todavía no está publicada.
+    ...(ocidContrato && !vistaPrevia ? [{ key: "control" as TabKey, label: E.control, badge: null }] : []),
     ...(nObras ? [{ key: "obra" as TabKey, label: _sup?.enlazada ? "La obra supervisada" : E.obra, badge: null }] : []),
     { key: "items", label: E.items, badge: nItems || null },
     { key: "proveedor", label: E.proveedor, badge: nRed || null },

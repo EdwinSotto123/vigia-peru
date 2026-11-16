@@ -12,6 +12,7 @@
 import { z } from "zod";
 import { buscarContratos } from "../src/v2/herramientas/contratos";
 import { fichaEntidad, normaAplicable, patrones, preciosReferencia, redEmpresa } from "../src/v2/herramientas/actores";
+import { informeControlContrato } from "../src/v2/herramientas/control";
 
 const PRUEBA = process.env.GOBSERVA_PRUEBA ?? "";
 if (!PRUEBA) {
@@ -71,6 +72,15 @@ const CASOS: Caso[] = [
   { h: buscarContratos as never, args: { senal: "unico_postor,socio_de_inhabilitada", todas_las_senales: true, por_pagina: 5 },
     espera: (r) => (Number(r.total) > 0 && Number(r.total) < 2000 ? null : `la combinación de señales dio ${String(r.total)} contratos`) },
   { h: redEmpresa as never, args: { ruc: "20100210909" }, espera: (r) => (lista(r, "socias_de_consorcio_que_compiten").length ? null : "sin socias de consorcio para una aseguradora que las tiene") },
+  // El informe para control de un contrato con señales (la primera vez lo redacta un modelo abierto, hasta un minuto): cada
+  // observación con su sumilla, su condición y el criterio de la ley de su fecha; ninguna persona en el texto.
+  { h: informeControlContrato as never, args: { ocid: "1195870" },
+    espera: (r) => {
+      const obs = lista(r, "observaciones") as { sumilla?: string; condicion?: string; criterio?: { ley?: string } }[];
+      if (!obs.length) return "el informe salió sin observaciones";
+      if (!obs.every((o) => (o.sumilla ?? "").length > 10 && (o.condicion ?? "").length > 20 && /Ley N\.° (32069|30225)/.test(String(o.criterio?.ley ?? "")))) return "una observación sin sumilla, sin condición o sin la ley de su fecha";
+      return /•/.test(JSON.stringify(obs)) ? "una observación nombra a una persona" : null;
+    } },
 ];
 
 let fallos = 0;

@@ -28,7 +28,7 @@ const Buscar = z.object({
   materia: z.enum(["contrataciones", "empleo_publico", "especial", "inversion"]).default("contrataciones"),
 });
 
-interface Fila {
+export interface Fila {
   slug: string; documento: string; numero: string | null; tipo: string; regimen: string; aplica: "norma" | "criterio" | "criterio_anterior";
   fechaEmision: string | null; articulo: string | null; epigrafe: string | null; texto: string; urlOficial: string | null; version?: string;
 }
@@ -73,14 +73,34 @@ export function elegirNormas(filas: Fila[]): Fila[] {
 normasRouter.get("/buscar", async (c) => {
   const leido = Buscar.safeParse(Object.fromEntries(Object.entries(parametros(c)).filter(([, v]) => v !== "" && v != null)));
   if (!leido.success) return c.json({ error: "invalid_query", issues: leido.error.issues }, 400);
-  const p = leido.data;
+  const cuerpo = await buscarNormas(leido.data, (c.env as { AI?: IaWorkers } | undefined)?.AI);
+  c.header("Cache-Control", CACHE);
+  return c.json(cuerpo);
+});
+
+/** Lo que devuelve la búsqueda: la ley de esa fecha y las normas y criterios elegidos (lo mismo que recibe el analista legal). */
+export interface NormasDeLaFecha {
+  pregunta: string;
+  fecha: string;
+  regimen: "32069" | "30225";
+  ley: string;
+  busqueda: "hibrida" | "solo_palabras";
+  data: (Fila & { version?: string })[];
+}
+
+/**
+ * La búsqueda de GET /normas/buscar, para quien la necesite dentro de la API (el redactor del informe para control,
+ * routes/informeControl.ts): las normas que regían en `fecha` sobre `q`, con su memoria de una hora. Sin `ia`, sólo por
+ * palabras. `vectorDado`: el embedding de `q` ya calculado (quien busca varias preguntas las embebe juntas, en un pedido).
+ */
+export async function buscarNormas(p: z.input<typeof Buscar>, ia?: IaWorkers, vectorDado?: string | null): Promise<NormasDeLaFecha> {
+  const materia = p.materia ?? "contrataciones";
   const fecha = p.fecha ?? new Date().toISOString().slice(0, 10);
-  const materias = p.materia === "contrataciones" ? null : [p.materia];
-  const clave = `${p.q.toLowerCase()}|${fecha}|${p.materia}`;
-  const cuerpo = await memo.obtener(clave, async () => {
-    const ia = (c.env as { AI?: IaWorkers } | undefined)?.AI;
-    let vector: string | null = null;
-    if (ia) {
+  const materias = materia === "contrataciones" ? null : [materia];
+  const clave = `${p.q.toLowerCase()}|${fecha}|${materia}`;
+  return (await memo.obtener(clave, async () => {
+    let vector: string | null = vectorDado ?? null;
+    if (!vector && ia) {
       try {
         vector = `[${(await embeber(ia, [p.q], 15_000))[0].join(",")}]`;
       } catch {
@@ -127,7 +147,5 @@ normasRouter.get("/buscar", async (c) => {
       pregunta: p.q, fecha, regimen, ley: regimen === "32069" ? "Ley N° 32069" : "Ley N° 30225 (TUO)", busqueda: vector ? "hibrida" : "solo_palabras",
       data: sinRepetir.map((x) => ({ ...x, texto: x.texto.replace(/\s+/g, " ").trim() })),
     };
-  });
-  c.header("Cache-Control", CACHE);
-  return c.json(cuerpo);
-});
+  })) as unknown as NormasDeLaFecha;
+}

@@ -1,5 +1,5 @@
 import { recortar } from "@/components/contratos/recortar";
-import { esTipoLeido, esTipoObra } from "@/lib/cruces";
+import { esTipoLeido, esTipoObra, responsabilidadesEnPalabras } from "@/lib/cruces";
 import { rutaEmpresa, type AntecedenteEmpresa, type ReferenciasAntecedente } from "@/lib/empresas";
 import { hoyLima, numero, oracion, plural, soles } from "@/lib/formato";
 import { inversionSsi, obraInfobras } from "@/lib/fuentes";
@@ -456,6 +456,27 @@ export function datosDe(a: AntecedenteEmpresa, ruc: string): DatoCaso[] {
       desde != null && { etiqueta: "Sanción", valor: hasta ? `Del ${desde} al ${hasta}` : `Desde el ${desde}` },
       d.hecha_para_seguir === true && fundada != null && { etiqueta: "Esta empresa se fundó", valor: `El ${fundada}` },
       { etiqueta: "Falta confirmar", valor: "El porcentaje del socio y que sean del mismo rubro" },
+      delProceso(),
+    );
+  } else if (t === "socio_con_informe_control") {
+    // Migración 303: el informe de control en que figura la persona, emitido antes de la buena pro (enlace a la Contraloría).
+    const url = txt(d.url_resumen);
+    const resp = responsabilidadesEnPalabras(d.responsabilidades);
+    const ni = num(d.n_informes);
+    const np = num(d.n_personas);
+    add(
+      quien(),
+      { etiqueta: "Informe de control", valor: txt(d.informe_numero) ?? txt(d.informe_codigo), mono: true, href: url, fuera: url != null },
+      fechaDe(d.emision) != null && { etiqueta: "Emitido", valor: `El ${fechaDe(d.emision)}` },
+      resp != null && { etiqueta: "Presunta responsabilidad", valor: mayus(resp) },
+      entidad(d.informe_entidad, txt(d.informe_entidad_ruc), "Entidad del informe"),
+      d.misma_entidad === true && { etiqueta: "Es de", valor: "La misma entidad que contrató" },
+      d.misma_entidad_en_otro === true && { etiqueta: "Otro de sus informes", valor: "Es de la misma entidad que contrató" },
+      ni != null && ni > 1 && { etiqueta: "Informes antes de la buena pro", valor: plural(ni, "informe", "informes") },
+      np != null && np > 1 && { etiqueta: "Personas de la empresa en informes", valor: numero(np) },
+      fechaDe(d.en_la_empresa_desde) != null && { etiqueta: "En la empresa desde", valor: `El ${fechaDe(d.en_la_empresa_desde)}, según el RNP`, soloPanel: true },
+      txt(d.informe_titulo) && { etiqueta: "Asunto del informe", valor: recortar(oracion(txt(d.informe_titulo)!), 220), soloPanel: true },
+      { etiqueta: "Qué es", valor: "Una responsabilidad presunta que la Contraloría identifica y deriva: no es una condena", soloPanel: true },
       delProceso(),
     );
   } else if (t === "contrato_sobre_adjudicado") {

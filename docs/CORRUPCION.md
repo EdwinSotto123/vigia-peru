@@ -27,8 +27,13 @@ Migración: `backend/db/migrations/90_corrupcion.sql`.
 ## Privacidad
 
 - El buscador de la Contraloría trae, en el campo `Text` de cada fila, el **DNI y el nombre** de cada funcionario
-  comprendido. No se guarda: ni la base ni el crudo en R2 lo tienen. Sólo `funcionarios` (cuántos). Las dos cargas leen una
+  comprendido. `informes_control` y el crudo en R2 no lo tienen: sólo `funcionarios` (cuántos). Las dos cargas leen una
   lista cerrada de campos (`CAMPOS` en `contraloria_informes.ts`, `a_informe()` en el script).
+- Desde el 2026-11-16 (migración 302) el script, con `--personas`, guarda a cada persona en `informe_control_persona`
+  (DNI, nombre como lo publica la Contraloría y sus responsabilidades): una tabla que ni la API ni el MCP ni los agentes
+  leen, con sus lecturas auditadas (pgaudit). La API ve la vista sin DNI `informe_control_implicado` y tapa un apellido
+  con `publicar()`. Nada pasa por disco ni por R2 y el script sólo imprime conteos. De ahí sale la señal
+  `socio_con_informe_control` (migración 303). El Worker no carga personas.
 - El boletín de la Procuraduría son cifras agregadas: no hay personas.
 - El `titulo` es el asunto oficial del informe. Revisado el 2026-10-21: sin DNI (los números de 8 cifras son códigos SIAF,
   pólizas, rutas). Puede nombrar hospitales o instituciones con nombre de persona; si la web lo muestra, que pase por la

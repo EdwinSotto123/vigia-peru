@@ -62,6 +62,9 @@ export const ETIQUETA_CRUCE: Record<string, string> = {
   mismo_dueno: "El mismo dueño ganó aquí algo parecido con otra empresa",
   // Un socio del ganador es socio de una empresa inhabilitada, y la buena pro cae dentro de la sanción (migración 297).
   socio_de_inhabilitada: "Su socio tiene otra empresa inhabilitada para contratar",
+  // Un socio o representante del ganador figura con responsabilidad PRESUNTA en un informe de control de la Contraloría
+  // emitido antes de la buena pro (migración 303).
+  socio_con_informe_control: "Un socio o representante figura con presunta responsabilidad en un informe de control",
   // El monto leído en el contrato supera en 25 % o más lo adjudicado según CONOSCE y el OCDS (migración 294).
   contrato_sobre_adjudicado: "El contrato se firmó por más de lo adjudicado",
   domicilio_compartido: "Mismo domicilio fiscal que otro participante",

@@ -29,7 +29,7 @@ import { setRedactNames, type NombreConocido } from "../../Redact";
 import { HistoriaDossier } from "../relato/HistoriaDossier";
 import { contextoDeSenales } from "../senal/directorio";
 
-export type TabKey = "historia" | "resumen" | "dictamen" | "obra" | "items" | "proveedor" | "documentos" | "prensa" | "trace";
+export type TabKey = "historia" | "resumen" | "dictamen" | "control" | "obra" | "items" | "proveedor" | "documentos" | "prensa" | "trace";
 
 export interface PanelDossierProps {
   tab: TabKey;
@@ -79,6 +79,7 @@ const PanelDocumentos = dynamic(() => import("./PanelDocumentos").then((m) => m.
 const PanelPrensa = dynamic(() => import("./PanelPrensa").then((m) => m.PanelPrensa), { ssr: false, loading: () => <PanelCargando /> });
 const PanelTraza = dynamic(() => import("./PanelTraza").then((m) => m.PanelTraza), { ssr: false, loading: () => <PanelCargando /> });
 const PanelObra = dynamic(() => import("./PanelObra").then((m) => m.PanelObra), { ssr: false, loading: () => <PanelCargando /> });
+const PanelInformeControl = dynamic(() => import("./PanelInformeControl").then((m) => m.PanelInformeControl), { ssr: false, loading: () => <PanelCargando /> });
 
 export function PanelDossier(p: PanelDossierProps) {
   switch (p.tab) {
@@ -88,6 +89,8 @@ export function PanelDossier(p: PanelDossierProps) {
       return <PanelResumen {...p} />;
     case "dictamen":
       return <PanelDictamen {...p} />;
+    case "control":
+      return <PanelInformeControl {...p} />;
     case "items":
       return <PanelItems {...p} />;
     case "proveedor":
