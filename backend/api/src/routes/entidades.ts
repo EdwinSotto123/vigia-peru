@@ -1186,19 +1186,31 @@ entidadesRouter.get("/:ruc", async (c) => {
     // y siguieron recibiendo órdenes de ella después (migración 308).
     pool.query<{ alBorde: number; alBordeEmpresas: number; nepotismoGobierno: number; doblePlanilla: number; socioProveedor: number; socioLocador: number;
                  parientePlanilla: number; ascensoExpres: number; plazasSaliente: number; empresaEspejo: number; informeLocador: number }>(
-      `SELECT (SELECT count(*) FROM persona_entidad pe WHERE pe.entidad_ruc = $1 AND 'al_borde_del_tope' = ANY(pe.tipos))::int AS "alBorde",
+      // Cada tabla se lee UNA vez y sólo las filas con alguna de estas señales, por el índice GIN de `tipos`. Antes era una
+      // subconsulta por señal sobre todas las personas de la entidad: en la más grande (49 mil locadores y 64 mil en
+      // planilla) tocaba 14 592 páginas de persona_entidad y 184 240 de planilla_persona (16 s en frío: pasaba el plazo
+      // de 10 s y la ficha salía sin estas banderas); así son 857 y 1 677 páginas. Mismos números en 48 entidades (2026-11-16).
+      `SELECT pe."alBorde", eb."alBordeEmpresas", pe."nepotismoGobierno", pp."doblePlanilla", pp."socioProveedor", pe."socioLocador",
+              pe."informeLocador", pp."parientePlanilla", pp."ascensoExpres", sv."plazasSaliente", es."empresaEspejo"
+         FROM (SELECT (count(*) FILTER (WHERE 'al_borde_del_tope' = ANY(tipos)))::int AS "alBorde",
+                      (count(*) FILTER (WHERE 'nepotismo_gobierno' = ANY(tipos)))::int AS "nepotismoGobierno",
+                      (count(*) FILTER (WHERE 'socio_proveedor' = ANY(tipos)))::int AS "socioLocador",
+                      (count(*) FILTER (WHERE 'ordenes_tras_informe' = ANY(tipos)))::int AS "informeLocador"
+                 FROM persona_entidad
+                WHERE entidad_ruc = $1 AND n_senales > 0
+                  AND tipos && ARRAY['al_borde_del_tope', 'nepotismo_gobierno', 'socio_proveedor', 'ordenes_tras_informe']) pe,
+              (SELECT (count(*) FILTER (WHERE 'doble_planilla' = ANY(tipos)))::int AS "doblePlanilla",
+                      (count(*) FILTER (WHERE 'socio_proveedor' = ANY(tipos)))::int AS "socioProveedor",
+                      (count(*) FILTER (WHERE 'pariente_planilla' = ANY(tipos)))::int AS "parientePlanilla",
+                      (count(*) FILTER (WHERE 'ascenso_expres' = ANY(tipos)))::int AS "ascensoExpres"
+                 FROM planilla_persona
+                WHERE entidad_ruc = $1 AND n_senales > 0
+                  AND tipos && ARRAY['doble_planilla', 'socio_proveedor', 'pariente_planilla', 'ascenso_expres']) pp,
               -- Las empresas con la mitad o más de sus órdenes al borde del tope (migración 207).
-              (SELECT count(*) FROM empresa_borde_tope eb WHERE eb.entidad_ruc = $1)::int AS "alBordeEmpresas",
-              (SELECT count(*) FROM persona_entidad pe WHERE pe.entidad_ruc = $1 AND 'nepotismo_gobierno' = ANY(pe.tipos))::int AS "nepotismoGobierno",
-              (SELECT count(*) FROM planilla_persona p WHERE p.entidad_ruc = $1 AND 'doble_planilla' = ANY(p.tipos))::int AS "doblePlanilla",
-              (SELECT count(*) FROM planilla_persona p WHERE p.entidad_ruc = $1 AND 'socio_proveedor' = ANY(p.tipos))::int AS "socioProveedor",
-              (SELECT count(*) FROM persona_entidad pe WHERE pe.entidad_ruc = $1 AND 'socio_proveedor' = ANY(pe.tipos))::int AS "socioLocador",
-              (SELECT count(*) FROM persona_entidad pe WHERE pe.entidad_ruc = $1 AND 'ordenes_tras_informe' = ANY(pe.tipos))::int AS "informeLocador",
-              (SELECT count(*) FROM planilla_persona p WHERE p.entidad_ruc = $1 AND 'pariente_planilla' = ANY(p.tipos))::int AS "parientePlanilla",
-              (SELECT count(*) FROM planilla_persona p WHERE p.entidad_ruc = $1 AND 'ascenso_expres' = ANY(p.tipos))::int AS "ascensoExpres",
-              (SELECT count(*) FROM servir_convocatoria s WHERE s.entidad_ruc = $1 AND 'gestion_saliente' = ANY(s.tipos))::int AS "plazasSaliente",
-              (SELECT count(*) FROM cruces_proveedor c JOIN convocatorias cv ON cv.ocid = c.ocid
-                WHERE c.tipo = 'empresa_espejo' AND cv.entidad_ruc = $1)::int AS "empresaEspejo"`,
+              (SELECT count(*)::int AS "alBordeEmpresas" FROM empresa_borde_tope WHERE entidad_ruc = $1) eb,
+              (SELECT count(*)::int AS "plazasSaliente" FROM servir_convocatoria WHERE entidad_ruc = $1 AND 'gestion_saliente' = ANY(tipos)) sv,
+              (SELECT count(*)::int AS "empresaEspejo" FROM cruces_proveedor c JOIN convocatorias cv ON cv.ocid = c.ocid
+                WHERE c.tipo = 'empresa_espejo' AND cv.entidad_ruc = $1) es`,
       [ruc],
     ).catch((e) => { console.warn(`[entidades] señales de su gente en ${ruc}: ${(e as Error).message}`); return null; }),
     // La migración 188: visitas de familiares declarados de sus funcionarios y la ola de órdenes a personas tras un cambio

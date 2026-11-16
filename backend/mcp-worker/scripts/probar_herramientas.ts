@@ -11,6 +11,7 @@
  */
 import { z } from "zod";
 import { buscarContratos } from "../src/v2/herramientas/contratos";
+import { buscarInformesControl, informesControl } from "../src/v2/herramientas/entidad";
 import { fichaEntidad, normaAplicable, patrones, preciosReferencia, redEmpresa } from "../src/v2/herramientas/actores";
 import { informeControlContrato } from "../src/v2/herramientas/control";
 
@@ -71,6 +72,17 @@ const CASOS: Caso[] = [
       ? null : "la lista de socios de inhabilitadas salió vacía o sin graves") },
   { h: buscarContratos as never, args: { senal: "unico_postor,socio_de_inhabilitada", todas_las_senales: true, por_pagina: 5 },
     espera: (r) => (Number(r.total) > 0 && Number(r.total) < 2000 ? null : `la combinación de señales dio ${String(r.total)} contratos`) },
+  // La búsqueda en las observaciones de los informes de la Contraloría (migraciones 304-305) y la ficha en la lista.
+  { h: buscarInformesControl as never, args: { pregunta: "pago de valorizaciones por partidas no ejecutadas", n: 5 },
+    espera: (r) => {
+      const rs = lista(r, "resultados") as { observacion?: string; informe?: string; entidad?: string }[];
+      if (rs.length < 3) return `la búsqueda de informes de control dio ${rs.length} resultados`;
+      if (!rs.some((x) => /valoriz|partidas/i.test(String(x.observacion)))) return "ningún resultado habla de valorizaciones ni partidas";
+      return /(?<![0-9])[0-9]{8}(?![0-9-])/.test(JSON.stringify(rs.map((x) => x.observacion))) ? "una observación trae un número de 8 cifras sin tapar" : null;
+    } },
+  { h: informesControl as never, args: { ruc: "20154477374" },
+    espera: (r) => ((lista(r, "informes") as { ficha?: { observaciones?: unknown[] } | null }[]).some((x) => (x.ficha?.observaciones?.length ?? 0) > 0)
+      ? null : "ningún informe de la entidad trae su ficha con observaciones") },
   { h: redEmpresa as never, args: { ruc: "20100210909" }, espera: (r) => (lista(r, "socias_de_consorcio_que_compiten").length ? null : "sin socias de consorcio para una aseguradora que las tiene") },
   // El informe para control de un contrato con señales (la primera vez lo redacta un modelo abierto, hasta un minuto): cada
   // observación con su sumilla, su condición y el criterio de la ley de su fecha; ninguna persona en el texto.
