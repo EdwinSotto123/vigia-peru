@@ -467,21 +467,44 @@ export const patrones = definir({
     "cobertura; más grave si comparten socio). Con alcance «consorcio»: empresas que postularon juntas en un consorcio y " +
     "después compiten por separado en procesos de pocos postores que gana una de las dos (posible reparto). Con alcance " +
     "«renovacion»: servicios que una entidad volvió a contratar pagando 30 % o más POR MES que en el contrato anterior " +
-    "(con cuánto costaba, cuánto cuesta y si el proveedor es el mismo). Con alcance «dueno»: un mismo socio que gana en una " +
+    "(con cuánto costaba, cuánto cuesta y si el proveedor es el mismo). Con alcance «inhabilitada»: empresas que ganan mientras otra empresa del mismo socio está inhabilitada (con ruc: la ganadora, la inhabilitada o la entidad). Con alcance «dueno»: un mismo socio que gana en una " +
     "entidad con dos o más empresas procesos de objeto parecido (reparto de compras entre razones sociales). Con un RUC, los patrones de esa entidad o empresa. Cada patrón trae contratos " +
     "de ejemplo para abrir con ficha_contrato o dictamen. Un patrón es un motivo para mirar, no una acusación.",
   cuenta: true,
   entrada: {
-    alcance: z.enum(["entidad", "proveedor", "relleno", "consorcio", "renovacion", "dueno"]).default("entidad"),
+    alcance: z.enum(["entidad", "proveedor", "relleno", "consorcio", "renovacion", "dueno", "inhabilitada"]).default("entidad"),
     ruc: z.string().min(11).max(14).optional().describe("RUC 20 de la entidad o de la empresa (opcional)."),
     regla: z.string().max(60).optional().describe("Sólo una señal, por su código (p. ej. unica_oferta_valida)."),
-    solo_graves: z.boolean().optional().describe("(dueno) Sólo grupos con contratos parecidos a 90 días o menos entre sí."),
+    solo_graves: z.boolean().optional().describe("(dueno) Sólo grupos con contratos parecidos a 90 días o menos entre sí. (inhabilitada) Sólo con sanción definitiva o empresa hecha cerca de la sanción."),
     minimo_contratos: z.number().int().min(2).max(500).optional().describe("(dueno) Sólo grupos con al menos tantos contratos parecidos."),
     pagina: z.number().int().min(1).max(50).default(1),
   },
   async ejecutar(a, cx) {
     const e = enlaces(cx.env);
     const ruc = a.ruc ? rucJuridico(a.ruc) : undefined;
+    if (a.alcance === "inhabilitada") {
+      const r = await api<Fila>(cx.env, "/patrones/inhabilitadas", { ruc, page: a.pagina, size: 20, graves: a.solo_graves ? 1 : undefined });
+      return {
+        total: r.total,
+        casos: ((r.data ?? []) as Fila[]).map((x) => ({
+          empresa_que_gana: x.empresa, ruc: x.ruc, enlace: e.empresa(x.ruc), socio: x.socios?.[0]?.nombre ?? undefined,
+          empresa_inhabilitada: x.sancionada, ruc_inhabilitada: x.sancionadaRuc, enlace_inhabilitada: x.sancionadaRuc ? e.empresa(x.sancionadaRuc) : undefined,
+          sancion: x.sancion === "definitivo" ? "inhabilitación definitiva" : "inhabilitación temporal", sancion_desde: x.sancionDesde, sancion_hasta: x.sancionHasta ?? undefined,
+          contratos_ganados_durante_la_sancion: x.contratos, graves: x.graves, monto_de_los_procesos_soles: x.monto, entidades: x.entidades,
+          ganadora_fundada: x.fundada ?? undefined, hecha_cerca_de_la_sancion: x.hechaParaSeguir === true ? true : undefined,
+          primera_buena_pro: x.desde, ultima_buena_pro: x.hasta, ejemplos: ((x.ejemplos ?? []) as string[]).map((o) => e.contrato(o)),
+        })),
+        como_leerlo:
+          "Cada fila es una empresa que ganó buenas pro mientras otra empresa del mismo socio estaba inhabilitada para contratar. " +
+          "La ley impide contratar a la empresa del mismo rubro cuyos socios con más de 30 % del capital formaron parte de una " +
+          "inhabilitada cuando cometió la infracción, mientras dure la sanción (Ley 32069, art. 30, impedimento 3.E; antes, art. 11 " +
+          "de la Ley 30225). «graves»: la sanción es definitiva, o la ganadora se fundó o el socio entró a ella desde seis meses antes " +
+          "de la sanción. La base no tiene el porcentaje del socio ni el rubro: confírmalos (ficha_empresa de las dos, norma_aplicable) " +
+          "antes de afirmar que hubo impedimento. Si ganó en consorcio, el monto es el del proceso entero.",
+        fuente: "OECE (sancionados), RNP (socios) y CONOSCE (adjudicaciones desde 2018)",
+        aviso: AVISO,
+      };
+    }
     if (a.alcance === "dueno") {
       const r = await api<Fila>(cx.env, "/patrones/duenos", { ruc, page: a.pagina, size: 20, graves: a.solo_graves ? 1 : undefined, min: a.minimo_contratos });
       return {

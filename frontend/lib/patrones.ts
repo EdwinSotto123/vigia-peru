@@ -16,6 +16,7 @@ export const SECCIONES_PATRONES = {
   relleno: "Postores de relleno",
   consorcios: "Socias que compiten",
   duenos: "Mismo dueño",
+  inhabilitadas: "Socio de inhabilitada",
   renovaciones: "Renovaciones más caras",
 } as const;
 export type SeccionPatrones = keyof typeof SECCIONES_PATRONES;
@@ -122,6 +123,38 @@ export interface PatronDueno {
   ejemplos: string[];
 }
 
+/** Una empresa que gana mientras otra del mismo socio está inhabilitada (migración 297). */
+export interface PatronInhabilitada {
+  ruc: string;
+  empresa: string | null;
+  sancionadaRuc: string | null;
+  sancionada: string | null;
+  /** «temporal» o «definitivo». */
+  sancion: string | null;
+  sancionDesde: string | null;
+  sancionHasta: string | null;
+  /** El socio, con un apellido tapado (o un rótulo si es una sucesión). */
+  socios: { nombre: string; rol: string }[];
+  /** Contratos ganados dentro de la sanción. */
+  contratos: number;
+  /** De esos, los graves: sanción definitiva, o empresa fundada (o socio que entró) cerca del inicio de la sanción. */
+  graves: number;
+  monto: number | null;
+  entidades: number;
+  desde: string | null;
+  hasta: string | null;
+  hechaParaSeguir: boolean;
+  fundada: string | null;
+  ejemplos: string[];
+}
+
+export interface PatronesInhabilitadas {
+  total: number;
+  page: number;
+  size: number;
+  data: PatronInhabilitada[];
+}
+
 export interface PatronesDuenos {
   total: number;
   page: number;
@@ -187,6 +220,8 @@ export const rutaAcompanantes = (page = 1) => `/patrones/acompanantes?${consulta
 export const rutaConsorcios = (page = 1) => `/patrones/consorcios?${consulta({ page, size: TAM_PATRONES })}`;
 export const rutaDuenos = (page = 1, ruc?: string, graves = false) =>
   `/patrones/duenos?${consulta({ page, size: TAM_PATRONES, ruc, graves: graves ? 1 : undefined })}`;
+export const rutaInhabilitadas = (page = 1, ruc?: string, graves = false) =>
+  `/patrones/inhabilitadas?${consulta({ page, size: TAM_PATRONES, ruc, graves: graves ? 1 : undefined })}`;
 export const rutaRenovaciones = (page = 1) => `/patrones/renovaciones?${consulta({ page, size: TAM_PATRONES })}`;
 
 // ─── Lecturas (servidor) ─────────────────────────────────────────────────────────

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
-import { Briefcase, Building2, Handshake, SearchX, TrendingUp, Users, UsersRound } from "lucide-react";
+import { Ban, Briefcase, Building2, Handshake, SearchX, TrendingUp, Users, UsersRound } from "lucide-react";
 import { Ayuda, CabeceraPestana, Nota, Pestanas } from "@/components/patrones";
 import { EVENTO_ACTIVA } from "@/components/patrones/Pestanas";
 import { CeldaBarra, CeldaNumero, CeldaPrincipal, CeldaTexto, CLASE_ENLACE_CELDA, Indicadores, Tabla, type Columna, type Fila, type Indicador } from "@/components/listado";
@@ -20,6 +20,7 @@ import {
   rutaAcompanantes,
   rutaConsorcios,
   rutaDuenos,
+  rutaInhabilitadas,
   rutaPatrones,
   rutaRenovaciones,
   SECCIONES_PATRONES,
@@ -28,6 +29,8 @@ import {
   type PatronAcompanante,
   type PatronConsorcio,
   type PatronDueno,
+  type PatronInhabilitada,
+  type PatronesInhabilitadas,
   type PatronesDuenos,
   type PatronesAcompanantes,
   type PatronesConsorcios,
@@ -97,6 +100,13 @@ export function PatronesVista({ activa, inicial, etiquetas }: { activa?: string;
           titulo: "El mismo dueño gana con varias empresas en una entidad",
           icono: <UsersRound size={15} aria-hidden />,
           contenido: <ListaDuenos inicial={de("duenos")} />,
+        },
+        {
+          clave: "inhabilitadas",
+          etiqueta: SECCIONES_PATRONES.inhabilitadas,
+          titulo: "Ganan mientras otra empresa del mismo socio está inhabilitada",
+          icono: <Ban size={15} aria-hidden />,
+          contenido: <ListaInhabilitadas inicial={de("inhabilitadas")} />,
         },
         {
           clave: "renovaciones",
@@ -766,6 +776,156 @@ function filaDueno(p: PatronDueno, i: number): Fila {
       // El nombre entero, en las líneas que haga falta: cortado no dice quién es.
       socio: <span className="block min-w-0 whitespace-normal break-words text-dato leading-snug text-inkSoft">{p.socios?.[0]?.nombre ?? "Sin nombre publicado"}</span>,
       contratos: <CeldaNumero sub={p.seguidos > 0 ? `${numero(p.seguidos)} a 90 días o menos` : undefined}>{numero(p.contratos)}</CeldaNumero>,
+      monto: <CeldaNumero>{p.monto != null ? solesCompacto(p.monto) : "Sin dato"}</CeldaNumero>,
+      ejemplos: (
+        <CeldaTexto>
+          {(p.ejemplos ?? []).map((o, k) => (
+            <span key={o}>
+              {k > 0 ? ", " : ""}
+              <Link href={`/app/contratos/${encodeURIComponent(o)}`} prefetch={false} className={CLASE_ENLACE_CELDA}>
+                {codigoDeOcid(o)}
+              </Link>
+            </span>
+          ))}
+        </CeldaTexto>
+      ),
+      periodo: anios ? <CeldaTexto>{anios}</CeldaTexto> : undefined,
+    },
+  };
+}
+
+// ─── Socio de inhabilitada ───────────────────────────────────────────────────────
+
+const COLUMNAS_INHABILITADAS: Columna[] = [
+  { clave: "gana", titulo: "Empresa que gana y socio", ancho: "minmax(0,1.5fr)" },
+  { clave: "sancionada", titulo: "Empresa inhabilitada del mismo socio", ancho: "minmax(0,1.4fr)", desde: "md", apilar: "con-rotulo", corto: "Inhabilitada" },
+  {
+    clave: "contratos",
+    titulo: "Ganados en la sanción",
+    ancho: "9rem",
+    alinear: "der",
+    desde: "md",
+    apilar: "con-rotulo",
+    corto: "Ganados",
+    ayuda: (
+      <Ayuda titulo="¿Qué cuenta?">
+        <span className="block">
+          Procesos con buena pro para esta empresa, sola o en consorcio, entre el inicio y el fin de la inhabilitación de la otra. Debajo,
+          los graves: la sanción es definitiva, o la empresa se fundó o el socio entró a ella desde seis meses antes de la sanción.
+        </span>
+      </Ayuda>
+    ),
+  },
+  { clave: "monto", titulo: "Monto de los procesos", ancho: "8rem", alinear: "der", desde: "lg", apilar: "con-rotulo", corto: "Monto" },
+  { clave: "ejemplos", titulo: "Contratos de ejemplo", ancho: "minmax(0,0.9fr)", desde: "lg", apilar: "con-rotulo", corto: "Ejemplos" },
+  { clave: "periodo", titulo: "Años", ancho: "6.5rem", desde: "xl", apilar: "con-rotulo" },
+];
+
+function ListaInhabilitadas({ inicial }: { inicial: InicialPatrones }) {
+  const lista = useListaEnUrl("inhabilitadas", inicial);
+  // El filtro por RUC (la ganadora, la inhabilitada o la entidad) y el de graves son de la vista: no viajan a la URL.
+  const [ruc, setRuc] = useState("");
+  const rucValido = /^20\d{9}$/.test(ruc.trim()) ? ruc.trim() : undefined;
+  const [graves, setGraves] = useState(false);
+  const filtrada = !!rucValido || graves;
+  const carga = usePoder<PatronesInhabilitadas>(rutaInhabilitadas(filtrada ? 1 : lista.page, rucValido, graves));
+  return (
+    <div className="space-y-4">
+      <CabeceraPestana
+        ayuda={
+          <Ayuda titulo="¿Por qué mirar al socio de una inhabilitada?">
+            <span className="block">
+              Inhabilitar a una empresa no sirve si sus dueños siguen vendiendo con otra razón social. Por eso la ley impide contratar a la
+              empresa del mismo rubro cuyos socios con más de 30 % del capital formaron parte de una inhabilitada, mientras dure la sanción
+              (artículo 30 de la Ley 32069, impedimento 3.E; antes, artículo 11 de la Ley 30225).
+            </span>
+            <span className="mt-1.5 block">
+              Cruza los sancionados de la OECE con los socios del Registro Nacional de Proveedores y las buenas pro desde 2018. Sólo cuenta a
+              socios (no a directores ni representantes) que ya figuraban en la inhabilitada al empezar la sanción.
+            </span>
+            <span className="mt-1.5 block">
+              El registro no dice el porcentaje del socio ni si las dos empresas son del mismo rubro: hay que confirmarlo. Un patrón es un
+              motivo para mirar, no una acusación.
+            </span>
+          </Ayuda>
+        }
+      >
+        Empresas que ganaron buenas pro mientras otra empresa del mismo socio estaba inhabilitada para contratar con el Estado.
+      </CabeceraPestana>
+      <label className="block max-w-md">
+        <span className="text-rotulo font-medium text-inkSoft">Filtrar por RUC de una empresa o de la entidad</span>
+        <input
+          type="search"
+          inputMode="numeric"
+          value={ruc}
+          onChange={(e) => setRuc(e.target.value.replace(/\D/g, "").slice(0, 11))}
+          placeholder="RUC de 11 dígitos que empieza en 20"
+          autoComplete="off"
+          className="mt-1 h-11 w-full rounded-xl border border-line bg-paperSoft px-3 text-dato text-ink placeholder:text-mute focus:border-granate focus:bg-paper focus:outline-none focus:ring-2 focus:ring-granate/20"
+        />
+      </label>
+      <label className="flex min-h-11 w-fit cursor-pointer items-center gap-2.5 text-dato text-ink">
+        <input type="checkbox" checked={graves} onChange={(e) => setGraves(e.target.checked)} className="size-5 rounded border-line accent-granate" />
+        Sólo los graves: sanción definitiva o empresa hecha cerca de la sanción
+      </label>
+      <EstadoCarga carga={carga} columnas={COLUMNAS_INHABILITADAS}>
+        {(d) => {
+          const filas = d.data ?? [];
+          return (
+            <div className="space-y-4">
+              <Indicadores
+                franja
+                items={[
+                  { valor: numero(d.total), etiqueta: rucValido ? "casos con ese RUC" : graves ? "casos graves" : "pares de empresa e inhabilitada", contexto: "con el mismo socio", icono: <Ban size={15} strokeWidth={1.9} aria-hidden />, parte: null },
+                  { valor: "30 %", etiqueta: "del capital, o más", contexto: "es lo que la ley exige del socio: falta confirmarlo", parte: null },
+                  { valor: "6 meses", etiqueta: "antes de la sanción, o después", contexto: "si la empresa nació ahí, es grave", parte: null },
+                ]}
+              />
+              <ZonaLista total={d.total} page={filtrada ? 1 : lista.page} cargando={carga.cargando} nombre="casos" onPagina={lista.irAPagina} vacio="No hay casos con este patrón para ese filtro.">
+                {filas.length > 0 ? <Tabla columnas={COLUMNAS_INHABILITADAS} filas={filas.map(filaInhabilitada)} etiqueta="Empresas que ganan mientras otra del mismo socio está inhabilitada" /> : null}
+              </ZonaLista>
+            </div>
+          );
+        }}
+      </EstadoCarga>
+    </div>
+  );
+}
+
+function filaInhabilitada(p: PatronInhabilitada, i: number): Fila {
+  const anios = periodo(p.desde, p.hasta);
+  const clase = p.sancion === "definitivo" ? "Inhabilitación definitiva" : "Inhabilitación temporal";
+  const rango = p.sancionDesde
+    ? p.sancionHasta
+      ? `del ${fechaConAnio(p.sancionDesde)} al ${fechaConAnio(p.sancionHasta)}`
+      : `desde el ${fechaConAnio(p.sancionDesde)}`
+    : null;
+  return {
+    id: `inhabilitada-${i}`,
+    textos: { periodo: anios },
+    celdas: {
+      gana: (
+        <CeldaPrincipal
+          dosLineas
+          titulo={<EnlaceEmpresa ruc={p.ruc} nombre={p.empresa} />}
+          meta={
+            <span className="block">
+              {p.socios?.[0]?.nombre ?? "Socio sin nombre publicado"}
+              {p.hechaParaSeguir && p.fundada ? `, empresa fundada el ${fechaConAnio(p.fundada)}` : ""}
+            </span>
+          }
+        />
+      ),
+      sancionada: (
+        <span className="block min-w-0 whitespace-normal break-words text-dato leading-snug text-inkSoft">
+          {p.sancionadaRuc ? <EnlaceEmpresa ruc={p.sancionadaRuc} nombre={p.sancionada} /> : (p.sancionada ?? "Sin nombre")}
+          <span className="mt-0.5 block text-rotulo text-mute">
+            {clase}
+            {rango ? `, ${rango}` : ""}
+          </span>
+        </span>
+      ),
+      contratos: <CeldaNumero sub={p.graves > 0 ? `${numero(p.graves)} ${p.graves === 1 ? "grave" : "graves"}` : undefined}>{numero(p.contratos)}</CeldaNumero>,
       monto: <CeldaNumero>{p.monto != null ? solesCompacto(p.monto) : "Sin dato"}</CeldaNumero>,
       ejemplos: (
         <CeldaTexto>

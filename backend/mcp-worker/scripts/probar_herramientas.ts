@@ -64,6 +64,9 @@ const CASOS: Caso[] = [
       ? null : "el filtro de graves o el mínimo no se aplicó") },
   { h: fichaEntidad as never, args: { ruc: "20131257750" },
     espera: (r) => ((r.duenos_con_varias_empresas as { grupos?: number } | undefined)?.grupos ? null : "la ficha de la entidad no trae sus grupos de dueños") },
+  { h: patrones as never, args: { alcance: "inhabilitada", solo_graves: true },
+    espera: (r) => (lista(r, "casos").length >= 5 && lista(r, "casos").every((g) => Number((g as { graves: number }).graves) > 0 && /^20\d{9}$/.test(String((g as { ruc_inhabilitada: string }).ruc_inhabilitada)))
+      ? null : "la lista de socios de inhabilitadas salió vacía o sin graves") },
   { h: redEmpresa as never, args: { ruc: "20100210909" }, espera: (r) => (lista(r, "socias_de_consorcio_que_compiten").length ? null : "sin socias de consorcio para una aseguradora que las tiene") },
 ];
 

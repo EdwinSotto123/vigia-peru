@@ -181,6 +181,54 @@ patronesRouter.get("/duenos", async (c) => {
   return c.json(cuerpo);
 });
 
+/**
+ * GET /patrones/inhabilitadas?ruc=&graves=1  Empresas que ganan mientras otra empresa del mismo socio está inhabilitada
+ * (cruce `socio_de_inhabilitada`, migración 297). Una fila por empresa ganadora e inhabilitada: cuántos contratos ganó
+ * dentro de la sanción y cuántos son graves (sanción definitiva, o la ganadora se fundó o el socio entró cerca del inicio
+ * de la sanción). Con `ruc`: la ganadora, la inhabilitada o la entidad que contrató. El socio sale con un apellido tapado.
+ */
+const Inhabilitadas = Consorcios.extend({ graves: z.enum(["1", "true"]).optional() });
+
+patronesRouter.get("/inhabilitadas", async (c) => {
+  const p = Inhabilitadas.safeParse(Object.fromEntries(Object.entries(parametros(c)).filter(([, v]) => v !== "" && v != null)));
+  if (!p.success) return c.json({ error: "invalid_query", issues: p.error.issues }, 400);
+  const q = p.data;
+  const cuerpo = await memo.obtener(`inhabilitadas:${JSON.stringify(q)}`, async () => {
+    const vals: unknown[] = [];
+    const add = (v: unknown) => { vals.push(v); return `$${vals.length}`; };
+    const conds: string[] = [];
+    if (q.ruc) conds.push(`(x.ruc = ${add(q.ruc)} OR x.sancionada_ruc = $${vals.length} OR $${vals.length} = ANY(x.ents))`);
+    if (q.graves) conds.push("x.graves > 0");
+    const donde = conds.length ? `WHERE ${conds.join(" AND ")}` : "";
+    // Unas 2 400 banderas: se agrupan al vuelo (la respuesta queda en memoria).
+    const r = await pool.query(
+      `WITH x AS (
+         SELECT c.ruc_empresa AS ruc, c.detalle->>'sancionada_ruc' AS sancionada_ruc, max(c.detalle->>'sancionada') AS sancionada,
+                max(c.detalle->>'sancion') AS sancion, min(c.detalle->>'sancion_desde') AS sancion_desde, max(c.detalle->>'sancion_hasta') AS sancion_hasta,
+                max(c.persona_nombre) AS nombre, count(DISTINCT c.ocid)::int AS contratos,
+                (count(DISTINCT c.ocid) FILTER (WHERE c.severidad = 'alta'))::int AS graves, sum(c.monto)::float AS monto,
+                count(DISTINCT cv.entidad_ruc)::int AS entidades, min(c.fecha) AS desde, max(c.fecha) AS hasta,
+                COALESCE(bool_or((c.detalle->>'hecha_para_seguir')::boolean), false) AS hecha, max(c.detalle->>'fundada') AS fundada,
+                (array_agg(c.ocid ORDER BY c.monto DESC NULLS LAST))[1:3] AS ejemplos, array_agg(DISTINCT cv.entidad_ruc::text) AS ents
+           FROM cruces_proveedor c JOIN convocatorias cv ON cv.ocid = c.ocid
+          WHERE c.tipo = 'socio_de_inhabilitada'
+          GROUP BY 1, 2)
+       SELECT x.ruc, e.razon_social AS empresa, x.sancionada_ruc AS "sancionadaRuc", x.sancionada, x.sancion, x.sancion_desde AS "sancionDesde",
+              x.sancion_hasta AS "sancionHasta", x.nombre, x.contratos, x.graves, x.monto, x.entidades,
+              to_char(x.desde, 'YYYY-MM-DD') AS desde, to_char(x.hasta, 'YYYY-MM-DD') AS hasta, x.hecha AS "hechaParaSeguir", x.fundada, x.ejemplos,
+              (count(*) OVER ())::int AS total
+         FROM x LEFT JOIN empresas e ON e.ruc = x.ruc ${donde}
+        ORDER BY x.graves DESC, x.contratos DESC, x.monto DESC NULLS LAST, x.ruc LIMIT ${add(q.size)} OFFSET ${add((q.page - 1) * q.size)}`, vals);
+    return publicar({
+      total: r.rows[0]?.total ?? 0, page: q.page, size: q.size,
+      // `socios` es la forma que `publicar()` ya conoce de los cruces: tapa un apellido.
+      data: r.rows.map(({ nombre, total: _t, ...x }) => ({ ...x, socios: [{ nombre: nombrePublicable(nombre), rol: "Socio" }] })),
+    });
+  });
+  c.header("Cache-Control", CACHE);
+  return c.json(cuerpo);
+});
+
 const Precios = z.object({
   q: z.string().trim().min(3).max(120),
   tipo: z.enum(["bien", "servicio"]).default("bien"),
