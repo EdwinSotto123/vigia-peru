@@ -232,6 +232,17 @@ def _limpio(s: str) -> str:
     return " ".join((s or "").split())
 
 
+def _sin_nulos(v):
+    """Lo mismo sin el carácter nulo en ningún texto (Postgres no lo guarda en text ni en jsonb)."""
+    if isinstance(v, str):
+        return v.replace("\x00", "")
+    if isinstance(v, list):
+        return [_sin_nulos(x) for x in v]
+    if isinstance(v, dict):
+        return {k: _sin_nulos(x) for k, x in v.items()}
+    return v
+
+
 def _bloques(doc) -> list[tuple[int, float, float, str]]:
     """Los bloques de texto de todas las páginas, en orden de lectura: página, renglón (±3 pt) y columna."""
     out = []
@@ -560,7 +571,9 @@ def cargar(entorno: str, carpeta: Path, todas: bool) -> None:
         def soltar():
             nonlocal lote
             if lote:
-                cu.execute(SQL_FICHA, (json.dumps(lote, ensure_ascii=False),))
+                # Algunas fichas traen el carácter nulo en su texto (2018CPOL42500015, «…recomendaciones siguientes: \0»):
+                # Postgres no lo acepta en text ni en jsonb y el lote entero fallaba. Se quita antes de mandarlo.
+                cu.execute(SQL_FICHA, (json.dumps(_sin_nulos(lote), ensure_ascii=False),))
                 cn.commit()
                 lote = []
 
