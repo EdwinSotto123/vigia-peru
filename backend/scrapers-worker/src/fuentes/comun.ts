@@ -263,6 +263,8 @@ export function cadenaCruces(): Refresco[] {
     // El mismo dueño gana en la misma entidad con otra empresa un objeto parecido (migración 292).
     f("refrescar_cruce_mismo_dueno", true),
     f("refrescar_mismo_dueno_grupo", true),
+    // El socio de una empresa inhabilitada gana con otra durante la sanción (migración 297).
+    f("refrescar_cruce_socio_de_inhabilitada", true),
     // El contrato se firmó por más de lo adjudicado según las dos fuentes oficiales (migración 294).
     f("refrescar_cruce_contrato_sobre_adjudicado", true),
     // Lo que dicen el acta de buena pro y las consultas leídas con Claude (migraciones 245-246).

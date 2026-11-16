@@ -23,7 +23,7 @@ const POR_TIPO: Record<string, LucideIcon> = {
   socio_comun: GitFork, unico_postor: UserRound, otro_postor: Replace,
   socio_en_entidad: ArrowRightLeft, funcionario_contratado: ArrowRightLeft,
   interes_declarado: Handshake, empleo_declarado: DoorOpen,
-  domicilio_compartido: MapPinHouse, turno_postores: Repeat, consorcio_rival: Repeat, postor_de_relleno: UserRound, puerta_giratoria: DoorOpen, renovacion_mas_cara: TrendingUp, retencion_sobre_tope: Wallet, mismo_dueno: UsersRound, contrato_sobre_adjudicado: TrendingUp, pariente_funcionario: HeartHandshake,
+  domicilio_compartido: MapPinHouse, turno_postores: Repeat, consorcio_rival: Repeat, postor_de_relleno: UserRound, puerta_giratoria: DoorOpen, renovacion_mas_cara: TrendingUp, retencion_sobre_tope: Wallet, mismo_dueno: UsersRound, socio_de_inhabilitada: Ban, contrato_sobre_adjudicado: TrendingUp, pariente_funcionario: HeartHandshake,
   visita_previa: Footprints, visitas_clientes: Footprints,
   // Historial
   inhabilitado: Ban, penal: Gavel, sancion_multa: Gavel, inversion_laudo: Gavel, penalidad: CircleMinus,

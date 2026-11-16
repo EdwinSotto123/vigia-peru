@@ -271,6 +271,7 @@ const POR_QUE: Record<string, string> = {
   postor_de_relleno: "Una oferta de cobertura es la que se presenta para perder: da la apariencia de competencia y deja ganar a otra. Una empresa que casi nunca gana y aparece una y otra vez junto al mismo ganador encaja en ese patrón. Vale comparar los precios que ofertó y si sus propuestas llegaron completas.",
   consorcio_rival: "Dos empresas que postularon juntas en un consorcio conocen sus costos y sus precios. Si después compiten por separado en procesos de pocos postores y gana siempre una de las dos, la competencia puede ser sólo aparente. No lo prueba: en mercados de pocos proveedores es común asociarse a veces y competir otras.",
   mismo_dueno: "La concentración de un proveedor se mide por su RUC. Si una persona vende lo mismo a la misma entidad con dos empresas, ninguna parece dominante, cada compra queda bajo el tope que obligaría a un procedimiento con más competencia, y si una es sancionada sigue la otra. Vale revisar si las compras debieron agruparse en un solo proceso (fraccionamiento) y si las dos empresas se presentaron como competidoras entre sí.",
+  socio_de_inhabilitada: "Inhabilitar a una empresa no sirve si sus dueños siguen vendiendo con otra razón social. Por eso la ley extiende el impedimento a las empresas del mismo rubro de esos mismos socios mientras dure la sanción, y contratar con un impedido es causa de nulidad del contrato y de una nueva sanción. Corresponde ver el porcentaje del socio en las dos empresas, si venden lo mismo y si la ganadora declaró bajo juramento no tener impedimento.",
   contrato_sobre_adjudicado: "La buena pro fija cuánto paga el Estado: el contrato sólo puede subir después por adicionales aprobados, con su tope. Si el contrato nace con un monto mayor al de la oferta ganadora, alguien cambió el precio fuera de la competencia. Cuando el monto firmado coincide con el valor referencial, vale preguntar por qué no se respetó la rebaja que ofreció el ganador.",
   retencion_sobre_tope: "Una carta fianza obliga a un banco a pagar si el contratista incumple. Con la retención de pagos el Estado sólo tiene lo que le fue descontando al propio contratista, y nada al inicio del contrato. Por eso el Reglamento la limita a contratos chicos o a micro y pequeñas empresas. Si una empresa grande garantiza así un contrato grande, la entidad aceptó menos protección de la que la norma exige: corresponde pedir la constancia de MYPE del contratista y ver quién aceptó la garantía.",
   renovacion_mas_cara: "Un servicio que se renueva debería costar parecido por mes, salvo que cambie su alcance. Una subida grande de un contrato al siguiente merece comparar los términos de referencia de los dos: sedes, personal, horarios y equipos. Si el alcance es el mismo, la entidad tendría que explicar por qué paga más. Pesa más cuando el proveedor es el mismo.",
@@ -750,6 +751,33 @@ function Texto({ c, gobierna }: { c: CruceProveedor; gobierna?: GobiernoContrato
               Ver el otro proceso
             </a>
           ) : null}
+          <Gano c={c} />
+        </>
+      );
+    }
+    case "socio_de_inhabilitada": {
+      const sr = txt(d.sancionada_ruc);
+      const hasta = txt(d.sancion_hasta);
+      return (
+        <>
+          {quien(c)} es socio de <Emp c={c} /> y también de{" "}
+          {sr && /^20\d{9}$/.test(sr) ? (
+            <a className="underline" href={`/empresa/${sr}`}>
+              {txt(d.sancionada) ?? sr}
+            </a>
+          ) : (
+            txt(d.sancionada) ?? "otra empresa"
+          )}
+          , que tiene una <b>inhabilitación {txt(d.sancion) === "definitivo" ? "definitiva" : "temporal"}</b> para contratar con el Estado
+          {txt(d.sancion_desde) ? <> desde el {fechaConAnio(txt(d.sancion_desde)!)}</> : ""}
+          {hasta ? <> hasta el {fechaConAnio(hasta)}</> : ""}. Esta buena pro cae dentro de la sanción.
+          {d.hecha_para_seguir === true
+            ? txt(d.fundada) && txt(d.sancion_desde) && txt(d.fundada)! >= txt(d.sancion_desde)!
+              ? <> La empresa ganadora se fundó el <b>{fechaConAnio(txt(d.fundada)!)}</b>, con la sanción ya en curso.</>
+              : " La empresa ganadora se fundó, o el socio entró a ella, cerca del inicio de la sanción."
+            : ""}
+          {txt(d.consorcio) ? ` El proceso lo ganó ${tituloNatural(txt(d.consorcio)!)}, que esta empresa integra.` : ""} Falta confirmar el porcentaje del socio
+          y que las dos empresas sean del mismo rubro.
           <Gano c={c} />
         </>
       );

@@ -446,6 +446,18 @@ export function datosDe(a: AntecedenteEmpresa, ruc: string): DatoCaso[] {
       dd != null && { etiqueta: "Objeto parecido", valor: dd === 0 ? "Con la misma fecha de buena pro" : `A ${plural(dd, "día", "días")} de este proceso` },
       delProceso(),
     );
+  } else if (t === "socio_de_inhabilitada") {
+    const desde = fechaDe(d.sancion_desde);
+    const hasta = fechaDe(d.sancion_hasta);
+    const fundada = fechaDe(d.fundada);
+    add(
+      otraEmpresa(d.sancionada_ruc, d.sancionada, "Mismo socio que"),
+      { etiqueta: "Esa empresa tiene", valor: `Inhabilitación ${txt(d.sancion) === "definitivo" ? "definitiva" : "temporal"}` },
+      desde != null && { etiqueta: "Sanción", valor: hasta ? `Del ${desde} al ${hasta}` : `Desde el ${desde}` },
+      d.hecha_para_seguir === true && fundada != null && { etiqueta: "Esta empresa se fundó", valor: `El ${fundada}` },
+      { etiqueta: "Falta confirmar", valor: "El porcentaje del socio y que sean del mismo rubro" },
+      delProceso(),
+    );
   } else if (t === "contrato_sobre_adjudicado") {
     const mc = num(d.monto_contrato);
     const ad = num(d.adjudicado);
