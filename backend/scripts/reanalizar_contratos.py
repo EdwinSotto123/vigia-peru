@@ -84,11 +84,19 @@ def main() -> None:
         M.log(f"[{'ok ' if ok else 'ERR'}] {o} {r} {res.get('segundos')}s USD {costo:.4f} score {st.get('score')} "
               f"{str(res.get('error') or '')[:120]}")
 
-    with ThreadPoolExecutor(max(1, a.hilos)) as ex:
-        list(ex.map(uno, trabajos))
-    if hecho["usd"] > 0:
-        M.anotar(round(hecho["usd"], 4), f"reanálisis: {a.motivo} ({hecho['ok']} ok, {hecho['error']} con error)")
-    M.log(f"fin: {hecho['ok']} ok, {hecho['error']} con error, USD {hecho['usd']:.2f} (anotado en el libro del masivo)")
+    try:
+        with ThreadPoolExecutor(max(1, a.hilos)) as ex:
+            list(ex.map(uno, trabajos))
+        if hecho["usd"] > 0:
+            M.anotar(round(hecho["usd"], 4), f"reanálisis: {a.motivo} ({hecho['ok']} ok, {hecho['error']} con error)")
+        M.log(f"fin: {hecho['ok']} ok, {hecho['error']} con error, USD {hecho['usd']:.2f} (anotado en el libro del masivo)")
+    finally:
+        # El túnel se cierra aquí: al apagarse el intérprete ya no puede (y quedaba la sesión de SSM abierta).
+        if M._db.get("cm") is not None:
+            try:
+                M._db["cm"].__exit__(None, None, None)
+            except Exception:  # noqa: BLE001
+                pass
 
 
 if __name__ == "__main__":
