@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Briefcase, Building2, CalendarRange, DoorOpen, FileSearch, Flag, Landmark, ScrollText, Wallet } from "lucide-react";
+import { Briefcase, Building2, CalendarRange, DoorOpen, Flag, Landmark, ScrollText, Wallet } from "lucide-react";
 import {
   Ayuda,
   BanderasFicha,
@@ -74,8 +74,8 @@ function EnlaceEntidad({ ruc, nombre }: { ruc: string | null | undefined; nombre
  *   · Cargos: su planilla (hoy y antes) y cada cargo que declaró a la Contraloría.
  *   · Visitas: a qué entidades fue, cuántas veces y en nombre de quién; cada fila abre su panel.
  *   · Empresas: en cuáles es socia o representante (RNP).
- *   · Otros registros: órdenes como persona natural, informes de control (responsabilidad presunta), aportes de campaña
- *     y cargos de persona expuesta políticamente.
+ *   · Otros registros: candidaturas (JNE), órdenes como persona natural, informes de control (responsabilidad presunta),
+ *     aportes de campaña y cargos de persona expuesta políticamente.
  * El nombre va una sola vez, con el apellido materno tapado. El empate entre registros es por nombre completo y la página
  * lo dice. No se indexa en buscadores.
  */
@@ -99,7 +99,7 @@ export default async function FuncionarioPage({ params, searchParams }: { params
   const nCruces = totalCruces(f.cruces);
   const primera = nCruces > 0 ? "revision" : "cargos";
   const seccion = uno(searchParams?.seccion) ?? primera;
-  const otros = f.ordenes.length + f.informes.length + f.aportes.length + f.expuesta.length;
+  const otros = f.ordenes.length + f.informes.length + f.aportes.length + f.expuesta.length + (f.candidaturas?.length ?? 0);
   const banderas = banderasDe(f, ruta);
 
   const ayuda = (
@@ -193,6 +193,7 @@ export default async function FuncionarioPage({ params, searchParams }: { params
               <div className="space-y-6">
                 <section className="space-y-3" data-bloque>
                   <CabeceraPestana
+                    titulo="En la planilla del Estado"
                     ayuda={
                       <Ayuda titulo="¿De dónde sale la planilla?">
                         <span className="block">
@@ -213,6 +214,7 @@ export default async function FuncionarioPage({ params, searchParams }: { params
                 </section>
                 <section className="space-y-3" data-bloque>
                   <CabeceraPestana
+                    titulo="Lo que declaró a la Contraloría"
                     ayuda={
                       <Ayuda titulo="¿Qué es una declaración jurada de intereses?">
                         <span className="block">
@@ -306,7 +308,7 @@ export default async function FuncionarioPage({ params, searchParams }: { params
             clave: "otros",
             icono: <ScrollText size={15} aria-hidden />,
             etiqueta: "Otros registros",
-            titulo: "Órdenes, informes de control y política",
+            titulo: "Política, órdenes e informes de control",
             conteo: otros,
             contenido: <OtrosRegistros f={f} />,
           },
@@ -727,21 +729,49 @@ function Informe({ x }: { x: InformeDeLaPersona }) {
   );
 }
 
+const lugarDe = (c: { region: string | null; provincia: string | null; distrito: string | null }) =>
+  [c.distrito, c.provincia, c.region].filter((x): x is string => !!x).map((x) => tituloNatural(x)).join(", ");
+
 function OtrosRegistros({ f }: { f: FichaFuncionario }) {
-  const nada = f.ordenes.length + f.informes.length + f.aportes.length + f.expuesta.length === 0;
+  const candidaturas = f.candidaturas ?? [];
+  const nada = candidaturas.length + f.ordenes.length + f.informes.length + f.aportes.length + f.expuesta.length === 0;
   if (nada) {
     return (
       <EstadoVacio titulo="No figura en estos registros" compacto conLlamita={false}>
-        No recibió órdenes de servicio como persona natural, ningún informe de control la comprende, no aportó a una campaña y no está en la lista de
-        personas expuestas políticamente.
+        No fue candidata desde 2014, no recibió órdenes de servicio como persona natural, ningún informe de control la comprende, no aportó a una
+        campaña y no está en la lista de personas expuestas políticamente.
       </EstadoVacio>
     );
   }
+  const electa = candidaturas.filter((c) => (c.resultado ?? "").toLowerCase() === "electo").length;
   return (
     <div className="space-y-6">
+      {candidaturas.length > 0 && (
+        <section className="space-y-2" data-bloque>
+          <CabeceraPestana
+            titulo="Candidaturas"
+            ayuda={
+              <Ayuda titulo="¿De dónde salen?">
+                <span className="block">
+                  Del Jurado Nacional de Elecciones: las listas de candidatos de las elecciones desde 2014. El resultado de 2022 no está completo
+                  en esa fuente: «no electo» puede faltar a la verdad en ese año.
+                </span>
+              </Ayuda>
+            }
+          >
+            Fue candidata {plural(candidaturas.length, "vez", "veces")} desde 2014{electa > 0 ? `; salió electa ${plural(electa, "vez", "veces")}` : ""}.
+          </CabeceraPestana>
+          <DatosClave
+            items={candidaturas.map((c, i) => ({
+              etiqueta: `${c.anio ?? "Sin año"}, ${cargoTexto(c.cargo)}${candidaturas.length > 1 ? ` (${i + 1})` : ""}`,
+              valor: `${c.partido ? tituloNatural(c.partido) : "Organización sin nombre"}${lugarDe(c) ? `, ${lugarDe(c)}` : ""}${c.resultado ? `; ${c.resultado.toLowerCase()}` : ""}`,
+            }))}
+          />
+        </section>
+      )}
       {f.ordenes.length > 0 && (
         <section className="space-y-3" data-bloque>
-          <CabeceraPestana>
+          <CabeceraPestana titulo="Órdenes de servicio">
             Recibió órdenes de servicio como persona natural de {plural(f.ordenes.length, "entidad", "entidades")}. Cada fila abre su ficha de persona
             contratada.
           </CabeceraPestana>
@@ -751,6 +781,7 @@ function OtrosRegistros({ f }: { f: FichaFuncionario }) {
       {f.informes.length > 0 && (
         <section className="space-y-3" data-bloque>
           <CabeceraPestana
+            titulo="Informes de control"
             ayuda={
               <Ayuda titulo="¿Qué quiere decir que un informe la comprende?">
                 <span className="block">
@@ -760,7 +791,6 @@ function OtrosRegistros({ f }: { f: FichaFuncionario }) {
               </Ayuda>
             }
           >
-            <FileSearch size={15} className="mr-1.5 inline text-mute" aria-hidden />
             {plural(f.informes.length, "informe de control la comprende", "informes de control la comprenden")}, con responsabilidad presunta. El número abre lo
             que encontró el informe.
           </CabeceraPestana>
@@ -773,7 +803,7 @@ function OtrosRegistros({ f }: { f: FichaFuncionario }) {
       )}
       {f.aportes.length > 0 && (
         <section className="space-y-2" data-bloque>
-          <CabeceraPestana>Aportes de campaña declarados a la ONPE.</CabeceraPestana>
+          <CabeceraPestana titulo="Aportes de campaña">Lo que aportó a organizaciones políticas, según la ONPE.</CabeceraPestana>
           <DatosClave
             items={f.aportes.map((a, i) => ({
               etiqueta: `${a.partido ? tituloNatural(a.partido) : "Organización sin nombre"}${a.anio ? `, ${a.anio}` : ""}${f.aportes.length > 1 ? ` (${i + 1})` : ""}`,
@@ -784,7 +814,7 @@ function OtrosRegistros({ f }: { f: FichaFuncionario }) {
       )}
       {f.expuesta.length > 0 && (
         <section className="space-y-2" data-bloque>
-          <CabeceraPestana>Cargos por los que figura como persona expuesta políticamente.</CabeceraPestana>
+          <CabeceraPestana titulo="Persona expuesta políticamente">Los cargos por los que figura en esa lista.</CabeceraPestana>
           <DatosClave
             items={f.expuesta.map((x, i) => ({
               etiqueta: `${cargoTexto(x.cargo)}${f.expuesta.length > 1 ? ` (${i + 1})` : ""}`,

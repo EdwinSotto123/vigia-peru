@@ -87,6 +87,11 @@ export interface OrdenesDeLaPersona {
 }
 export interface AporteDeLaPersona { partido: string | null; anio: number | null; monto: number | null; aportes: number }
 export interface CargoExpuesto { cargo: string | null; entidad: string | null; desde: number | null; hasta: number | null }
+/** Una candidatura suya (JNE, desde 2014). */
+export interface CandidaturaDeLaPersona {
+  anio: number | null; cargo: string | null; partido: string | null; resultado: string | null;
+  region: string | null; provincia: string | null; distrito: string | null;
+}
 export interface InformeDeLaPersona {
   codigo: string; numero: string | null; titulo: string | null; entidad: string | null; entidad_ruc: string | null; fecha: string | null;
   responsabilidades: string[] | null; ficha: string | null;
@@ -133,6 +138,8 @@ export interface FichaFuncionario {
   ordenes: OrdenesDeLaPersona[];
   aportes: AporteDeLaPersona[];
   expuesta: CargoExpuesto[];
+  /** Una API anterior no las trae. */
+  candidaturas?: CandidaturaDeLaPersona[];
   informes: InformeDeLaPersona[];
   cruces: CrucesDeLaPersona;
   /** Registros que no respondieron a tiempo: su parte de la ficha puede estar incompleta. */

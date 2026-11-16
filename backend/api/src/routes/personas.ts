@@ -417,6 +417,12 @@ async function armarRastro(palabras: string[], acepta?: (nombre: string) => bool
     const todas = (col: string) => pats.map((_, i) => `${col} LIKE $${i + 1}`).join(" AND ");
     const intento = <T extends Record<string, unknown>>(sql: string) =>
       consultaConPlazo<T>(sql, pats, 8000).then((r) => r.rows).catch(() => null);
+    // Los registros que guardan el nombre como lo escribió su fuente (RNP, ONPE, informes de control) pueden traer «Ñ»
+    // donde el nombre de la ficha, ya normalizado, trae «N»: ahí la «N» vale por cualquier letra. Sólo con `acepta`, que
+    // después exige el nombre exacto (sin él, la búsqueda se abriría de más).
+    const patsCrudos = acepta ? pats.map((p) => p.replace(/N/g, "_")) : pats;
+    const intentoCrudo = <T extends Record<string, unknown>>(sql: string) =>
+      consultaConPlazo<T>(sql, patsCrudos, 8000).then((r) => r.rows).catch(() => null);
     // Las órdenes de persona natural van por apellidos exactos (índice ap1, ap2): cada palabra buscada puede ser un apellido.
     const exactas = [...new Set(palabras.flatMap((w) => {
       const sinTilde = w.toUpperCase().normalize("NFD").replace(/N\u0303/g, "Ñ").replace(/\p{M}/gu, "");
@@ -445,7 +451,7 @@ async function armarRastro(palabras: string[], acepta?: (nombre: string) => bool
                 (array_agg(DISTINCT left(v.motivo, 90)) FILTER (WHERE COALESCE(v.motivo, '') <> ''))[1:4] AS motivos
            FROM visitas_entidades v WHERE ${todas("v.visitante_norm")}
           GROUP BY 1, 2 ORDER BY 1, count(*) DESC LIMIT 60`),
-      intento<{ nombre: string; ruc: string; empresa: string | null; rol: string | null; desde: string | null }>(
+      intentoCrudo<{ nombre: string; ruc: string; empresa: string | null; rol: string | null; desde: string | null }>(
         `SELECT DISTINCT ON (r.nombre, r.ruc_empresa, r.tipo_rol) r.nombre, r.ruc_empresa AS ruc, e.nombre AS empresa, r.tipo_rol AS rol,
                 to_char(r.fecha_inicio_vigencia, 'YYYY-MM-DD') AS desde
            FROM rnp_conformacion_juridica r LEFT JOIN empresa_resumen e ON e.ruc = r.ruc_empresa
@@ -454,7 +460,7 @@ async function armarRastro(palabras: string[], acepta?: (nombre: string) => bool
         `SELECT DISTINCT ON (d.nombre_norm, d.entidad, d.cargo) d.nombre_norm AS nombre, d.entidad, d.cargo,
                 left(d.fecha_presentacion::text, 10) AS presentada, left(d.fecha_inicio_cargo::text, 10) AS inicio, left(d.fecha_cese_cargo::text, 10) AS cese
            FROM dji_funcionarios d WHERE ${todas("d.nombre_norm")} ORDER BY d.nombre_norm, d.entidad, d.cargo, d.fecha_presentacion DESC LIMIT 40`),
-      intento<{ nombre: string; partido: string | null; anio: number | null; monto: number | null; aportes: number }>(
+      intentoCrudo<{ nombre: string; partido: string | null; anio: number | null; monto: number | null; aportes: number }>(
         `SELECT upper(a.nombre) AS nombre, a.partido, a.año AS anio, sum(a.monto)::float AS monto, count(*)::int AS aportes
            FROM onpe_aporte_unico a WHERE ${todas("upper(a.nombre)")} GROUP BY 1, 2, 3 ORDER BY 3 DESC NULLS LAST LIMIT 40`),
       intento<{ nombre: string; cargo: string | null; entidad: string | null; desde: number | null; hasta: number | null }>(
@@ -568,7 +574,7 @@ async function armarRastro(palabras: string[], acepta?: (nombre: string) => bool
     }
     // Informes de control de la Contraloría en que figura como funcionario comprendido, con responsabilidad PRESUNTA
     // (migración 302; la vista no trae documento: el empate es por nombre completo y se dice).
-    const control = solo(await intento<{ nombre: string; codigo: string; numero: string | null; titulo: string | null; entidad: string | null;
+    const control = solo(await intentoCrudo<{ nombre: string; codigo: string; numero: string | null; titulo: string | null; entidad: string | null;
                                     entidad_ruc: string | null; fecha: string | null; responsabilidades: string[]; ficha: string | null }>(
       `SELECT p.nombre, i.codigo, i.numero, left(i.titulo, 220) AS titulo, i.entidad_nombre AS entidad, btrim(i.entidad_ruc) AS entidad_ruc,
               to_char(coalesce(i.fecha_emision, i.fecha_publicacion), 'YYYY-MM-DD') AS fecha, p.responsabilidades, i.url_resumen AS ficha
@@ -662,7 +668,8 @@ personasRouter.get("/cargo/:codigo", async (c) => {
     if (!f) return null;
     const esEl = mismaPersona(f);
     const orgOk = organizacionPublicable(f);
-    const [cargos, planilla, rastro, parecidos] = await Promise.all([
+    const requeridas = palabrasRequeridas(f);
+    const [cargos, planilla, rastro, parecidos, candidaturas] = await Promise.all([
       // Cada cargo que declaró, por entidad: desde cuándo, hasta cuándo y cuántas declaraciones lo respaldan.
       pool.query(
         `SELECT d.entidad, (SELECT r.ruc FROM dji_entidad_ruc r WHERE r.entidad = d.entidad) AS "entidadRuc", NULLIF(btrim(d.cargo), '') AS cargo,
@@ -689,8 +696,16 @@ personasRouter.get("/cargo/:codigo", async (c) => {
                FROM planilla_salida s WHERE s.nombre_norm = $1
            ) x ORDER BY x.situacion DESC, x."ultimoMes" DESC NULLS LAST LIMIT 30`, [f.nombreNorm], 8000)
         .then((r) => r.rows).catch(() => null),
-      armarRastro(palabrasRequeridas(f), esEl),
+      armarRastro(requeridas, esEl),
       parecidosA(f).catch(() => 0),
+      // Sus candidaturas (JNE, desde 2014): a qué postuló, con qué organización y si salió electa.
+      consultaConPlazo<{ nombre: string; anio: number | null; cargo: string | null; partido: string | null; resultado: string | null;
+                         region: string | null; provincia: string | null; distrito: string | null }>(
+        `SELECT c.nombre, c."año" AS anio, c.cargo, c.partido, c.resultado, c.region, c.provincia, c.distrito
+           FROM jne_candidaturas c WHERE ${requeridas.map((_, i) => `upper(c.nombre) LIKE $${i + 1}`).join(" AND ")}
+          ORDER BY c."año" DESC NULLS LAST LIMIT 80`, requeridas.map((w) => patronPalabra(w).replace(/N/g, "_")), 8000)
+        .then((r) => r.rows.filter((x) => esEl(x.nombre)).map(({ nombre: _n, ...x }) => x))
+        .catch(() => null),
     ]);
     // Sin el nombre de cada registro (ver arriba) y sin texto libre.
     const sinNombre = <T extends Record<string, unknown>>(filas: T[] | null | undefined) => (filas ?? []).map(({ nombre: _n, ...x }) => x);
@@ -719,6 +734,7 @@ personasRouter.get("/cargo/:codigo", async (c) => {
       ordenes: sinNombre(rastro.ordenes_como_persona_natural),
       aportes: sinNombre(rastro.aportes_de_campana),
       expuesta: sinNombre(rastro.personas_expuestas),
+      candidaturas: candidaturas ?? [],
       informes: sinNombre(rastro.informes_de_control),
       cruces: {
         visitoYSuEmpresaGano: rastro.visito_y_su_empresa_gano,
@@ -727,7 +743,7 @@ personasRouter.get("/cargo/:codigo", async (c) => {
         empresaInhabilitadaYOtraGano: rastro.empresa_suya_inhabilitada_y_otra_gano,
         enInformeYDespuesCobro: rastro.en_informe_de_control_y_despues_cobro,
       },
-      sinRespuesta: [...rastro.sin_respuesta, ...(planilla ? [] : ["planilla"])],
+      sinRespuesta: [...rastro.sin_respuesta, ...(planilla ? [] : ["planilla"]), ...(candidaturas ? [] : ["candidaturas"])],
     });
   });
   if (!cuerpo) return c.json({ error: "not_found" }, 404);
