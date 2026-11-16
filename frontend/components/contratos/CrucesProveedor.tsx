@@ -982,7 +982,20 @@ function TextoLeido({ c }: { c: CruceProveedor }) {
   const d = c.detalle;
   const fuera = (Array.isArray(d.fuera) ? d.fuera : []) as { nombre?: unknown; ruc?: unknown; motivo?: unknown }[];
   const fuente = c.fuenteUrl ? (
-    <> <a href={c.fuenteUrl} target="_blank" rel="noopener noreferrer" className={ENLACE_TXT}>Ver el documento en el SEACE</a>.</>
+    <>
+      {" "}
+      {/* La copia que guarda Vigía (el SEACE falla a menudo con error 502); si no la hay, la ruta lleva al SEACE. */}
+      <a href={`/v1/documentos/copia?u=${encodeURIComponent(c.fuenteUrl)}`} target="_blank" rel="noopener noreferrer" className={ENLACE_TXT}>
+        Ver el documento
+      </a>{" "}
+      <span className="text-mute">
+        (copia de Vigía; también{" "}
+        <a href={c.fuenteUrl} target="_blank" rel="noopener noreferrer" className={ENLACE_TXT}>
+          en el SEACE
+        </a>
+        ).
+      </span>
+    </>
   ) : null;
   const leido = <span className="text-mute"> Leído del documento con IA.</span>;
   if (c.tipo.startsWith("bases_")) {

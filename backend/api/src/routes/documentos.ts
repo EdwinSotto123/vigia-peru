@@ -3,6 +3,7 @@
  *
  *   GET /documentos/indice?ocid=1228227&ocid=…   hasta 10 procesos: qué documentos hay guardados, su tamaño y cuáles no
  *   GET /documentos/zip?ocid=1228227&ocid=…      el ZIP en streaming desde R2 (vigia-peru-batch), con indice.csv
+ *   GET /documentos/copia?u=<URL del SEACE>      la copia guardada de un documento (o redirige al SEACE si no está)
  *   GET /documentos/buscar?q=…[&ocid=…][&entidad=<RUC>][&tipo=bases,buena_pro…][&origen=documento,lectura…][&desde=2024]
  *        [&hasta=2026][&limite=8]                 el RAG de documentos (migración 258, lib/rag.ts): búsqueda híbrida
  *                                                 (palabras + significado) en el texto de bases, actas, contratos,
@@ -145,6 +146,49 @@ documentosRouter.get("/zip", async (c) => {
       "Content-Disposition": `attachment; filename="${nombre}"`,
       "Cache-Control": "private, max-age=600",
       "X-Content-Type-Options": "nosniff",
+    },
+  });
+});
+
+/**
+ * GET /documentos/copia?u=<URL del SEACE>   La copia que Vigía guarda de UN documento público del SEACE.
+ *
+ * Los enlaces de descarga del SEACE fallan a menudo (502) o caducan. Las banderas que salen de un documento leído
+ * enlazaban sólo ahí: si Vigía tiene la copia (documentos_gcs, en R2), se sirve desde aquí; si no, se redirige al SEACE.
+ * Sólo URL de descarga del SEACE: no es un redirector abierto.
+ */
+const TIPO_MIME: Record<string, string> = {
+  pdf: "application/pdf", zip: "application/zip", rar: "application/vnd.rar", doc: "application/msword", xls: "application/vnd.ms-excel",
+  docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+};
+const ORIGEN_SEACE = /^https:\/\/prod[0-9]\.seace\.gob\.pe(:9000)?\/[\w./?=&%-]{1,300}$/;
+
+documentosRouter.get("/copia", async (c) => {
+  const u = new URL(c.req.url).searchParams.get("u") ?? "";
+  if (!ORIGEN_SEACE.test(u)) return c.json({ error: "pedido_invalido", detail: "Indica la dirección de descarga del SEACE del documento." }, 400);
+  if (!(await dentroDeTope(`copia|${ipCliente(c)}`, 40, 600))) {
+    return c.json({ error: "demasiados_pedidos", detail: "Son muchas descargas seguidas: espera unos minutos.", reintentarEn: 600 }, 429);
+  }
+  const r = await pool.query<{ titulo: string | null; formato: string | null; urlGcs: string }>(
+    `SELECT d.titulo, lower(d.formato) AS formato, d.url_gcs AS "urlGcs"
+       FROM documentos_gcs d WHERE d.url_origen = $1 AND d.borrado_at IS NULL AND d.expira_at > now()
+      ORDER BY d.creado_at DESC LIMIT 1`, [u]);
+  const d = r.rows[0];
+  const m = d ? /^gs:\/\/([^/]+)\/(.+)$/.exec(d.urlGcs) : null;
+  const objeto = m ? await ambitoPedido.getStore()?.almacen?.(m[1])?.get(m[2]) : null;
+  // Sin copia (o fuera de Workers): al SEACE, que es de donde salió.
+  if (!d || !objeto) return c.redirect(u, 302);
+  const formato = d.formato || "bin";
+  const base = (d.titulo ?? "documento").normalize("NFD").replace(/\p{M}/gu, "").replace(/[^\w.-]+/g, "_").replace(/^_+|_+$/g, "").slice(0, 80) || "documento";
+  return new Response(objeto.body, {
+    headers: {
+      "Content-Type": TIPO_MIME[formato] ?? "application/octet-stream",
+      // Un PDF se abre en el navegador; lo demás se descarga.
+      "Content-Disposition": `${formato === "pdf" ? "inline" : "attachment"}; filename="${base}.${formato}"`,
+      "Cache-Control": "public, max-age=86400",
+      "X-Content-Type-Options": "nosniff",
+      "X-Robots-Tag": "noindex",
     },
   });
 });
