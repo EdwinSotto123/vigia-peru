@@ -458,6 +458,30 @@ export function datosDe(a: AntecedenteEmpresa, ruc: string): DatoCaso[] {
       { etiqueta: "Falta confirmar", valor: "El porcentaje del socio y que sean del mismo rubro" },
       delProceso(),
     );
+  } else if (t === "gano_tras_observacion") {
+    // Migración 315: antes de esta buena pro, un informe de control observó otro proceso que la empresa ganó en la entidad.
+    const url = txt(d.url_resumen);
+    const resp = responsabilidadesEnPalabras(d.responsabilidades);
+    const tema = TEMA_OBSERVACION_CONTROL[txt(d.tema) ?? ""];
+    const perj = num(d.perjuicio);
+    const dias = num(d.dias_despues);
+    const no = num(d.n_procesos_observados);
+    const observado = txt(d.proceso_observado);
+    add(
+      observado != null && {
+        etiqueta: "Proceso observado antes", valor: txt(d.proceso_observado_nomenclatura) ?? observado, mono: true,
+        href: rutaContrato(observado, "ficha", { seccion: "antecedentes" }),
+      },
+      { etiqueta: "Informe de control", valor: txt(d.informe_numero) ?? txt(d.informe_codigo), mono: true, href: url, fuera: url != null },
+      fechaDe(d.emision) != null && { etiqueta: "Emitido", valor: `El ${fechaDe(d.emision)}${dias != null && dias > 0 ? `, ${plural(dias, "día", "días")} antes de esta buena pro` : ""}` },
+      tema != null && { etiqueta: "Qué observó", valor: mayus(tema) },
+      perj != null && perj > 0 && { etiqueta: "Perjuicio que cuantifica", valor: txt(d.moneda) === "USD" ? `US$ ${numero(perj)}` : soles(perj), mono: true },
+      resp != null && { etiqueta: "Presunta responsabilidad", valor: `${mayus(resp)}, de funcionarios y servidores` },
+      no != null && no > 1 && { etiqueta: "Procesos suyos observados antes", valor: `${numero(no)} en esta entidad` },
+      txt(d.informe_titulo) && { etiqueta: "Asunto del informe", valor: recortar(oracion(txt(d.informe_titulo)!), 220), soloPanel: true },
+      { etiqueta: "Qué es", valor: "La entidad le volvió a adjudicar después del informe: el informe no sanciona al proveedor ni le impide contratar", soloPanel: true },
+      delProceso(),
+    );
   } else if (t === "observado_por_contraloria") {
     // Migración 313: la observación de un informe de control que nombra este proceso (o la obra del contrato, por su CUI).
     const url = txt(d.url_resumen);

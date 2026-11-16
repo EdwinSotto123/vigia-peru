@@ -34,6 +34,7 @@ import { BotonPestana } from "./BotonPestana";
 import { TEMA_OBSERVACION_CONTROL, TIPO_CRUCE, esTipoLeido, esTipoObra, responsabilidadesEnPalabras } from "@/lib/cruces";
 import { InformeEnPanel } from "@/components/control/InformeEnPanel";
 import { informeDeDetalle } from "@/lib/corrupcion";
+import { rutaContrato } from "@/lib/rutas";
 import { fraseBandera, type BanderaObra } from "@/lib/obras";
 
 const VARIANTE = { alta: "crimson", media: "amber", baja: "neutral" } as const;
@@ -276,6 +277,7 @@ const POR_QUE: Record<string, string> = {
   consorcio_rival: "Dos empresas que postularon juntas en un consorcio conocen sus costos y sus precios. Si después compiten por separado en procesos de pocos postores y gana siempre una de las dos, la competencia puede ser sólo aparente. No lo prueba: en mercados de pocos proveedores es común asociarse a veces y competir otras.",
   mismo_dueno: "La concentración de un proveedor se mide por su RUC. Si una persona vende lo mismo a la misma entidad con dos empresas, ninguna parece dominante, cada compra queda bajo el tope que obligaría a un procedimiento con más competencia, y si una es sancionada sigue la otra. Vale revisar si las compras debieron agruparse en un solo proceso (fraccionamiento) y si las dos empresas se presentaron como competidoras entre sí.",
   socio_de_inhabilitada: "Inhabilitar a una empresa no sirve si sus dueños siguen vendiendo con otra razón social. Por eso la ley extiende el impedimento a las empresas del mismo rubro de esos mismos socios mientras dure la sanción, y contratar con un impedido es causa de nulidad del contrato y de una nueva sanción. Corresponde ver el porcentaje del socio en las dos empresas, si venden lo mismo y si la ganadora declaró bajo juramento no tener impedimento.",
+  gano_tras_observacion: "Cuando la Contraloría observa un proceso, la entidad recibe el informe y sus recomendaciones. Que después le vuelva a adjudicar al mismo proveedor no está prohibido: el informe señala a funcionarios, no sanciona a la empresa. Pero es el momento de ver si lo observado se corrigió: si las bases, la evaluación o la conformidad repiten lo que el informe encontró.",
   observado_por_contraloria: "Un informe de control es el resultado de una auditoría o de un servicio de control: los auditores de la Contraloría revisaron este proceso y dejaron por escrito lo que encontraron. La responsabilidad que identifican es presunta y es de funcionarios y servidores, no del proveedor; la derivan al Ministerio Público, a la procuraduría o a un procedimiento sancionador. Vale leer la observación completa y ver en qué quedó.",
   socio_con_informe_control: "Un informe de control señala responsabilidad cuando los auditores de la Contraloría encuentran que un funcionario incumplió sus funciones o causó un perjuicio, y la deriva: la penal, al Ministerio Público; la civil, a la procuraduría; la administrativa, a la entidad o al procedimiento sancionador de la Contraloría. Es presunta: no es una condena ni impide contratar con el Estado. Que una persona comprendida en un informe sea dueña o representante de la empresa que después gana merece leer qué le señaló el informe, ver si se parece a lo que se contrató y, si es la misma entidad, si esa persona intervino en la compra.",
   contrato_sobre_adjudicado: "La buena pro fija cuánto paga el Estado: el contrato sólo puede subir después por adicionales aprobados, con su tope. Si el contrato nace con un monto mayor al de la oferta ganadora, alguien cambió el precio fuera de la competencia. Cuando el monto firmado coincide con el valor referencial, vale preguntar por qué no se respetó la rebaja que ofreció el ganador.",
@@ -785,6 +787,39 @@ function Texto({ c, gobierna }: { c: CruceProveedor; gobierna?: GobiernoContrato
           {txt(d.consorcio) ? ` El proceso lo ganó ${tituloNatural(txt(d.consorcio)!)}, que esta empresa integra.` : ""} Falta confirmar el porcentaje del socio
           y que las dos empresas sean del mismo rubro.
           <Gano c={c} />
+        </>
+      );
+    }
+    case "gano_tras_observacion": {
+      // Migración 315: antes de esta buena pro, un informe de control observó otro proceso que el proveedor ganó aquí.
+      const numeroInf = txt(d.informe_numero) ?? txt(d.informe_codigo) ?? "sin número";
+      const informe = informeDeDetalle(d);
+      const resp = responsabilidadesEnPalabras(d.responsabilidades);
+      const tema = TEMA_OBSERVACION_CONTROL[txt(d.tema) ?? ""];
+      const perj = n(d.perjuicio);
+      const dias = n(d.dias_despues);
+      const nObs = n(d.n_procesos_observados);
+      const observado = txt(d.proceso_observado);
+      const nombreObservado = txt(d.proceso_observado_nomenclatura) ?? (txt(d.via_observado) === "cui" ? "una obra" : "otro proceso");
+      return (
+        <>
+          Antes de esta buena pro, la Contraloría ya había observado{" "}
+          {observado ? (
+            <Link href={rutaContrato(observado, "ficha", { seccion: "antecedentes" })} prefetch={false} className={ENLACE_TXT}>
+              {nombreObservado}
+            </Link>
+          ) : (
+            nombreObservado
+          )}
+          , que <Emp c={c} /> ganó en esta misma entidad: lo hizo en el informe de control{" "}
+          {informe ? <InformeEnPanel informe={informe} className={ENLACE_TXT} /> : <b>{numeroInf}</b>}
+          {txt(d.emision) ? <>, emitido el {fechaConAnio(txt(d.emision)!)}</> : ""}
+          {dias != null && dias > 0 ? <>, <b>{numero(dias)} días antes</b> de esta buena pro</> : ""}.
+          {tema ? <> Esa observación trata de <b>{tema}</b>{perj != null && perj > 0 ? <> y cuantifica un perjuicio de <b>{txt(d.moneda) === "USD" ? `US$ ${numero(perj)}` : solesCompacto(perj)}</b></> : ""}.</> : ""}
+          {resp ? <> El informe identifica <b>presunta responsabilidad {resp}</b> de funcionarios y servidores.</> : ""}
+          {nObs != null && nObs > 1 ? <> Son <b>{numero(nObs)} procesos</b> suyos en esta entidad los que la Contraloría observó antes.</> : ""}
+          {txt(d.consorcio) ? ` Este proceso lo ganó ${tituloNatural(txt(d.consorcio)!)}, que esta empresa integra.` : ""} El informe no sanciona al
+          proveedor ni le impide contratar: vale ver si lo observado se corrigió.
         </>
       );
     }

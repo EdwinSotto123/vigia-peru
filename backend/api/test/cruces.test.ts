@@ -123,3 +123,20 @@ test("observado por la Contraloría (migración 313): el informe, el tema y el p
   const porCui = aCruce({ ...fila, severidad: "media", detalle: { ...fila.detalle, via: "cui", cui: "2475416", nomenclatura: null } });
   assert.equal(porCui.etiqueta, "La Contraloría observó la obra de este contrato en un informe de control");
 });
+
+test("ganó tras una observación (migración 315): el informe y el proceso observado intactos; sin personas", () => {
+  const url = "https://apps8.contraloria.gob.pe/SPIC/srvDownload/ViewPDF?CRES_CODIGO=2022CPOL44600007&TIPOARCHIVO=RE";
+  const fila = { ...base, tipo: "gano_tras_observacion", severidad: "alta", ocid: "ocds-dgv273-seacev3-912744", persona_doc: null,
+    persona_nombre: null, persona_rol: null, fuente: "informes_control", fuente_url: url,
+    detalle: { informe_codigo: "2022CPOL44600007", informe_numero: "007-2022-2-4460", emision: "2022-11-30", responsabilidades: ["penal"],
+      url_resumen: url, observacion_n: 2, tema: "seleccion_contratacion", perjuicio: 250000, moneda: "PEN",
+      proceso_observado: "ocds-dgv273-seacev3-712744", proceso_observado_nomenclatura: "AS-SM-3-2021-MDI-1", via_observado: "sigla",
+      dias_despues: 412, n_procesos_observados: 2, consorcio: null } };
+  const c = publicar({ cruces: [aCruce(fila)] }).cruces[0];
+  assert.equal(c.etiqueta, "La Contraloría ya había observado otro proceso suyo en esta entidad");
+  assert.equal(c.detalle.proceso_observado, "ocds-dgv273-seacev3-712744");
+  assert.equal(c.detalle.proceso_observado_nomenclatura, "AS-SM-3-2021-MDI-1");
+  assert.equal(c.detalle.dias_despues, 412);
+  assert.equal(c.detalle.informe_numero, "007-2022-2-4460");
+  assert.equal(c.socios.length, 0);
+});

@@ -112,7 +112,7 @@ historia y ficha_contrato dan las fechas.
 - ¿La Contraloría ya observó ESTE proceso? Si la ficha del contrato trae la señal «observado_por_contraloria», una
   observación de un informe de control lo nombra: cita el número del informe y léela antes de seguir (el informe es de
   funcionarios, no sanciona al proveedor). patrones con alcance «observado» dice a qué proveedores les siguió adjudicando
-  la misma entidad después del informe.
+  la misma entidad después del informe, y cada uno de esos contratos nuevos lleva la señal «gano_tras_observacion».
 - ¿La Contraloría ya observó algo parecido? buscar_informes_control trae observaciones reales (con número de informe,
   entidad y fecha): sirven de precedente, no de prueba de este caso. informes_control da las de la misma entidad.
 - ¿La relación entre personas está en un registro (RNP, declaración jurada, planilla) o es sólo un apellido igual?

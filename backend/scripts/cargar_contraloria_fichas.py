@@ -979,6 +979,12 @@ def atar(entorno: str) -> None:
         cu.execute("SELECT refrescar_cruce_observado_por_contraloria()")
         banderas = cu.fetchone()[0]
         cn.commit()
+        # La entidad le adjudica después de un informe que observó otro proceso suyo (migración 315).
+        cu.execute("SELECT to_regprocedure('refrescar_cruce_gano_tras_observacion()') IS NOT NULL")
+        if cu.fetchone()[0]:
+            cu.execute("SELECT refrescar_cruce_gano_tras_observacion()")
+            print(f"banderas gano_tras_observacion: {cu.fetchone()[0]}")
+            cn.commit()
         # Las observaciones en plano (tema y perjuicio), para los resúmenes por entidad, región y tema (migración 314).
         cu.execute("SELECT to_regprocedure('refrescar_informe_control_observacion()') IS NOT NULL")
         if cu.fetchone()[0]:

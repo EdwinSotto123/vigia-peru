@@ -68,6 +68,9 @@ export const ETIQUETA_CRUCE: Record<string, string> = {
   // Una observación de un informe de control nombra ESTE proceso (o la obra de este contrato, por su CUI): lo que la
   // Contraloría ya encontró ahí (migración 313). La responsabilidad es presunta y de funcionarios, no del proveedor.
   observado_por_contraloria: "La Contraloría observó este proceso en un informe de control",
+  // La misma entidad le adjudica DESPUÉS de un informe de control que observó otro proceso que él había ganado ahí
+  // (migración 315). El informe no sanciona al proveedor.
+  gano_tras_observacion: "La Contraloría ya había observado otro proceso suyo en esta entidad",
   // El monto leído en el contrato supera en 25 % o más lo adjudicado según CONOSCE y el OCDS (migración 294).
   contrato_sobre_adjudicado: "El contrato se firmó por más de lo adjudicado",
   domicilio_compartido: "Mismo domicilio fiscal que otro participante",

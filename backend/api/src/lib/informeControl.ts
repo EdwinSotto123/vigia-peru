@@ -343,14 +343,14 @@ export const TEMAS: Record<string, Tema> = {
   // Lo que la Contraloría YA observó en este mismo procedimiento (migración 313) no es un indicio nuevo de Vigía: es el
   // antecedente de control del caso. Va como contexto, con el número del informe, para que quien lea lo pida.
   control_previo: {
-    titulo: "El procedimiento ya fue materia de un informe de control",
+    titulo: "Informes de control anteriores sobre este procedimiento o sobre otro del mismo contratista en la Entidad",
     orden: 23,
     contexto: true,
     normas: { "32069": [PRINCIPIOS["32069"]], "30225": [PRINCIPIOS["30225"]] },
     control: "seguimiento de las recomendaciones de un informe de control anterior sobre el mismo procedimiento de selección",
     efecto: "Lo observado antes por la Contraloría sobre este procedimiento constituiría un antecedente que debe leerse con el informe de origen.",
     recomendacion: "Revisar el informe de control de origen y el estado de la implementación de sus recomendaciones.",
-    miembros: ["observado_por_contraloria"],
+    miembros: ["observado_por_contraloria", "gano_tras_observacion"],
   },
 };
 
@@ -697,6 +697,10 @@ export function textoDeCruce(c: Fila, e: { nombre: string | null; ruc: string | 
       const objeto = d.via === "cui" ? `la obra de este contrato${d.cui ? ` (código único de inversión ${d.cui})` : ""}` : "este procedimiento";
       return `La Contraloría General de la República observó ${objeto} en el Informe N.° ${d.informe_numero ?? d.informe_codigo ?? "registrado"}${d.emision ? `, emitido el ${fl(d.emision)}` : ""}${d.observacion_n != null ? ` (observación ${d.observacion_n}${tema ? `, sobre ${tema}` : ""})` : ""}${numero(d.perjuicio) ? `, en la que cuantifica un perjuicio de ${d.moneda === "USD" ? `US$ ${entero(d.perjuicio)}` : soles(d.perjuicio)}` : ""}.${resp.length ? ` El informe identifica presunta responsabilidad ${resp.join(", ")} de funcionarios y servidores.` : ""}${numero(d.n_observaciones) && Number(d.n_observaciones) > 1 ? ` En total, ${d.n_observaciones} observaciones de ${d.n_informes ?? 1} informe(s) nombran este contrato.` : ""}`;
     }
+    case tipo === "gano_tras_observacion": {
+      const tema = TEMA_OBSERVACION[String(d.tema ?? "")];
+      return `Antes de esta buena pro${d.dias_despues != null ? ` (${entero(d.dias_despues)} días antes)` : ""}, la Contraloría General de la República había observado otro procedimiento que ${E} ganó en la misma Entidad${d.proceso_observado_nomenclatura ? ` (${d.proceso_observado_nomenclatura})` : ""}, en el Informe N.° ${d.informe_numero ?? d.informe_codigo ?? "registrado"}${d.emision ? `, emitido el ${fl(d.emision)}` : ""}${tema ? `, en una observación sobre ${tema}` : ""}.${numero(d.n_procesos_observados) && Number(d.n_procesos_observados) > 1 ? ` Son ${d.n_procesos_observados} los procedimientos suyos observados antes en la Entidad.` : ""} El informe no sanciona al contratista.`;
+    }
     case tipo === "dada_de_baja" || tipo === "suspendida" || tipo === "no_habida":
       return `A la fecha de la consulta, la SUNAT registra a ${E} como ${tipo === "no_habida" ? "no habida" : tipo === "suspendida" ? "suspendida" : "dada de baja"}.`;
     default: {
@@ -789,7 +793,9 @@ export function senalesDelContrato(ficha: Fila, banderas: FilaBandera[]): SenalI
       // Lo que ya observó la Contraloría va como contexto (sin desarrollar): su etiqueta dice en qué informe.
       etiqueta: tipo === "observado_por_contraloria" && (c.detalle?.informe_numero ?? c.detalle?.informe_codigo)
         ? `La Contraloría observó ${c.detalle?.via === "cui" ? "la obra de este contrato" : "este procedimiento"} en el Informe N.° ${c.detalle.informe_numero ?? c.detalle.informe_codigo}`
-        : String(c.etiqueta ?? ETIQUETA_CRUCE[tipo] ?? tipo),
+        : tipo === "gano_tras_observacion" && (c.detalle?.informe_numero ?? c.detalle?.informe_codigo)
+          ? `La Contraloría ya había observado otro procedimiento del contratista en la Entidad (Informe N.° ${c.detalle.informe_numero ?? c.detalle.informe_codigo})`
+          : String(c.etiqueta ?? ETIQUETA_CRUCE[tipo] ?? tipo),
       severidad: sev(c.severidad),
       tema: temaDe(tipo),
       texto: textoDeCruce(c, e),

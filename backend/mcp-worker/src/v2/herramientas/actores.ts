@@ -194,6 +194,15 @@ export const fichaEntidad = definir({
       nepotismo: f.nepotismo ? { casos: f.nepotismo.total, monto_soles: f.nepotismo.monto } : undefined,
       contraloria: inf
         ? { informes: inf.total, responsabilidad_penal: inf.penal, civil: inf.civil, administrativa: inf.administrativa, desde: inf.desde, hasta: inf.hasta,
+            // Lo que le observó, por tema, con el perjuicio que cuantifican las observaciones leídas (migración 314) y
+            // cuántos contratos de Vigía nombran (313): para el detalle, informes_control con este RUC.
+            observado: inf.observado
+              ? {
+                  observaciones_leidas: inf.observado.observaciones, perjuicio_cuantificado_soles: inf.observado.perjuicioPen,
+                  contratos_de_vigia_nombrados: inf.observado.contratos,
+                  por_tema: ((inf.observado.porTema ?? []) as Fila[]).map((x) => ({ tema: x.temaTexto, observaciones: x.observaciones, perjuicio_soles: x.perjuicioPen })),
+                }
+              : undefined,
             recientes: (inf.pagina?.filas ?? []).map((x: Fila) => tomar(x, ["numero", "titulo", "fecha", "urlPdf"])) }
         : undefined,
       procuraduria_departamento: control?.procuraduria
