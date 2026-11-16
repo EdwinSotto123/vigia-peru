@@ -221,88 +221,94 @@ def check_recurrencia_firmante_rule(ocid: str, tool_context: ToolContext,
 def check_testaferro_multi_ruc_rule(ocid: str, tool_context: ToolContext,
                                     reglas_activas: frozenset[str] | None = None,
                                     topes_uit: dict | None = None) -> dict:
-    """C9 — Testaferro multi-RUC: detecta cuando el representante legal / socio /
-    titular del ganador aparece como representante de ≥3 empresas distintas que
-    también ganaron contratos del Estado. Patrón típico de testaferro.
+    """C9 — La misma persona detrás de varias empresas ganadoras.
 
-    Fuente: cruza datos de `query_rnp_empresa` + alertas históricas en BD.
-    Norma: Art. 50 TUO Ley 30225 (impedimentos) + Art. 11 inc. m (consorcio sin declarar).
+    Un socio o representante legal del ganador (persona natural) figura con ese mismo papel en otras dos o más empresas
+    que ganaron buenas pro en los últimos 12 meses. Cambios del 2026-11-16, tras el contrato 1250529 (el «documento» de
+    la evidencia era el RUC de la empresa matriz del ganador):
+      · sólo personas naturales (documento nacional): un accionista que es empresa es un grupo empresarial, no una persona;
+      · sólo socios y representantes legales, y sólo quien figura en 6 empresas o menos (un director profesional de un
+        grupo grande figura en decenas);
+      · «ganaron» se mide en las buenas pro del CONOSCE, no en los contratos que Vigía analizó;
+      · la evidencia nombra a las empresas con su RUC y NO lleva el documento de la persona.
+    Grave sólo si alguna de esas empresas ganó en la misma entidad de este contrato.
+
+    Fuente: rnp_conformacion_juridica + conosce_adjudicaciones. Norma: impedimentos para contratar (heurística).
     """
     reglas = _perfil_reglas(tool_context, reglas_activas)
     om = _regla_omitida("testaferro_multi_ruc", reglas)
     if om:
         return om
     state = tool_context.state
-    # `rnp_empresa_proveedor` no la escribe nadie: el RNP del ganador vive en
-    # `person_network_context.rnp_proveedor` (personas.py) — informe 1225266 P6. Se
-    # complementa con los DNI del perfil OECE del ganador (`oece_perfiles[ruc]`).
-    pnc = state.get("person_network_context") or {}
-    rnp_empresa = (state.get("rnp_empresa_proveedor") or pnc.get("rnp_proveedor")
-                   or (pnc.get("rnp_empresa") if isinstance(pnc.get("rnp_empresa"), dict) else None) or {})
-    socios = rnp_empresa.get("socios") or []
-    representantes = rnp_empresa.get("representantes_legales") or []
-    organos = rnp_empresa.get("organos_administracion") or []
-
-    # Extraer todos los DNI/RUC de personas vinculadas al proveedor
-    personas = set()
-    for p in socios + representantes + organos:
-        if isinstance(p, dict):
-            doc = (p.get("numero_documento") or p.get("dni") or "").strip()
-            if doc:
-                personas.add(doc)
     g_ruc, _ = _ganador_ruc(ocid, state)
-    perfil_oece = (state.get("oece_perfiles") or {}).get(g_ruc) or {} if g_ruc else {}
-    for k in ("socios_dni", "representantes_dni", "organos_dni"):
-        for d in (perfil_oece.get(k) or []):
-            d = str(d).strip()
-            if d.isdigit() and len(d) == 8:
-                personas.add(d)
-
-    if not personas:
-        return {"regla": "testaferro_multi_ruc", "triggered": False,
-                "motivo": "sin personas vinculadas en RNP del proveedor"}
+    if not g_ruc or not str(g_ruc).startswith("20"):
+        return {"regla": "testaferro_multi_ruc", "triggered": False, "motivo": "el ganador no es una empresa con RUC 20"}
 
     conn = _pg()
     try:
         cur = conn.cursor()
-        # Por cada persona, contar cuántas empresas DISTINTAS donde aparece y han ganado contratos del Estado
-        triggered_list = []
-        for doc in personas:
-            cur.execute(
-                """SELECT COUNT(DISTINCT r.ruc_empresa) AS n_empresas,
-                          ARRAY_AGG(DISTINCT r.ruc_empresa) AS rucs
-                     FROM rnp_conformacion_juridica r
-                     JOIN alertas a ON a.proveedor_ruc = r.ruc_empresa
-                    WHERE r.numero_documento = %s
-                      AND a.analizado_en >= NOW() - INTERVAL '12 months'""",
-                (doc,),
-            )
-            row = cur.fetchone()
-            if row and (row[0] or 0) >= 3:
-                triggered_list.append({
-                    "numero_documento": doc,
-                    "n_empresas_ganadoras": int(row[0]),
-                    "rucs_empresas": (row[1] or [])[:10],
-                })
-
+        # La entidad de este contrato, por su OCID tal como llega o sin el prefijo del OCDS.
+        from tools.lecturas import ocid_corto
+        cur.execute("SELECT c.entidad_ruc::text FROM convocatorias c WHERE c.ocid IN (%s, %s) LIMIT 1", (ocid, ocid_corto(ocid)))
+        entidad_ruc = ((cur.fetchone() or [None])[0] or "").strip()
+        cur.execute(
+            """WITH gente AS (
+                 SELECT DISTINCT r.numero_documento AS doc
+                   FROM rnp_conformacion_juridica r
+                  WHERE r.ruc_empresa = %s AND r.tipo_documento LIKE 'DOC. NACIONAL%%'
+                    AND r.tipo_rol IN ('SOCIO_ACCIONISTA_TITULAR', 'REPRESENTANTE_LEGAL')
+               ), pocas AS (   -- quien figura en decenas de empresas no es el dueño de ninguna
+                 SELECT r.numero_documento AS doc
+                   FROM rnp_conformacion_juridica r JOIN gente g ON g.doc = r.numero_documento
+                  WHERE r.tipo_rol IN ('SOCIO_ACCIONISTA_TITULAR', 'REPRESENTANTE_LEGAL')
+                  GROUP BY 1 HAVING count(DISTINCT r.ruc_empresa) BETWEEN 3 AND 6
+               )
+               SELECT r.numero_documento, r.ruc_empresa::text, max(e.razon_social),
+                      bool_or(r.tipo_rol = 'SOCIO_ACCIONISTA_TITULAR') AS socio,
+                      count(DISTINCT a.codigo_convocatoria)::int, sum(a.monto_adjudicado)::float,
+                      bool_or(a.entidad_ruc::text = %s) AS misma_entidad
+                 FROM rnp_conformacion_juridica r
+                 JOIN pocas p ON p.doc = r.numero_documento
+                 JOIN conosce_adjudicaciones a ON a.ruc_proveedor = r.ruc_empresa AND a.monto_adjudicado > 0
+                                              AND a.fecha_buenapro >= current_date - 365
+                 LEFT JOIN empresas e ON e.ruc = r.ruc_empresa
+                WHERE r.tipo_rol IN ('SOCIO_ACCIONISTA_TITULAR', 'REPRESENTANTE_LEGAL')
+                  AND r.ruc_empresa <> %s AND r.ruc_empresa LIKE '20%%'
+                GROUP BY 1, 2""",
+            (g_ruc, entidad_ruc, g_ruc),
+        )
+        por_persona: dict[str, list[dict]] = {}
+        for doc, ruc, nombre, socio, procesos, monto, misma in cur.fetchall():
+            por_persona.setdefault(doc, []).append({
+                "ruc": ruc, "nombre": nombre or ruc, "papel": "socio" if socio else "representante legal",
+                "procesos": int(procesos or 0), "monto": round(float(monto or 0), 2), "misma_entidad": bool(misma)})
+        # Con el ganador son tres o más empresas ganadoras de la misma persona.
+        casos = sorted((v for v in por_persona.values() if len(v) >= 2), key=lambda v: (-len(v), -sum(x["monto"] for x in v)))
         result = {
             "regla": "testaferro_multi_ruc",
-            "n_personas_evaluadas": len(personas),
-            "n_triggered": len(triggered_list),
-            "detalle": triggered_list,
-            "triggered": len(triggered_list) > 0,
+            "n_personas_evaluadas": len(por_persona),
+            "n_triggered": len(casos),
+            # Sin el documento de la persona: sólo las empresas, que son públicas.
+            "detalle": [{"otras_empresas": sorted(v, key=lambda x: -x["monto"])[:10]} for v in casos[:3]],
+            "triggered": bool(casos),
         }
-        if triggered_list:
-            principal = triggered_list[0]
+        if casos:
+            otras = sorted(casos[0], key=lambda x: -x["monto"])
+            misma = any(x["misma_entidad"] for x in otras)
+            lista = "; ".join(f"{x['nombre']} (RUC {x['ruc']}, {x['procesos']} buena(s) pro por S/ {x['monto']:,.2f})" for x in otras[:5])
             result.update({
-                "severidad": "alta",
+                "severidad": "alta" if misma else "media",
+                "ganador_ruc": g_ruc,
                 "evidencia": (
-                    f"Persona con documento {principal['numero_documento']} figura como representante "
-                    f"de {principal['n_empresas_ganadoras']} empresas distintas que ganaron "
-                    f"contratos del Estado en los últimos 12 meses. Patrón típico de testaferro multi-RUC."
+                    f"Un {otras[0]['papel']} del ganador (RUC {g_ruc}) figura también como socio o representante legal de "
+                    f"{len(otras)} empresas más que ganaron buenas pro del Estado en los últimos 12 meses: {lista}"
+                    + (f" y {len(otras) - 5} más" if len(otras) > 5 else "") + ". "
+                    + ("Al menos una ganó en esta misma entidad. " if misma else "")
+                    + "Varias empresas de una misma persona no son una falta: hay que revisar si compiten entre sí, si se "
+                      "reparten las compras de una entidad o si alguna está impedida."
                 ),
                 "norma": "Heurística — " + _norma_state(tool_context.state)["impedimentos"],
-                "fuente_url": None,
+                "fuente_url": f"https://apps.oece.gob.pe/perfilprov-ui/ficha/{g_ruc}",
             })
             state.setdefault("pending_flags", []).append(result)
         return result
