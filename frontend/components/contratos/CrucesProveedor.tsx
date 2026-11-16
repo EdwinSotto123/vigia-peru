@@ -774,7 +774,8 @@ function Texto({ c, gobierna }: { c: CruceProveedor; gobierna?: GobiernoContrato
           <b>{solesCompacto(n(d.tope))}</b> en {txt(d.categoria) === "works" ? "obras" : "bienes y servicios"}, salvo para micro y pequeñas empresas. A{" "}
           <Emp c={c} /> el Estado le adjudicó <b>{solesCompacto(n(d.adjudicado_anio_1))}</b> en {n(d.anio_1) ?? "el año anterior"} y{" "}
           <b>{solesCompacto(n(d.adjudicado_anio_2))}</b> en {n(d.anio_2) ?? "el año previo"}: más de lo que vende una pequeña empresa en un año (
-          {solesCompacto(n(d.techo_pequena_anio_1))}). Falta ver su constancia de MYPE.
+          {solesCompacto(n(d.techo_pequena_anio_1))}).{txt(d.consorcio) ? ` El contrato lo ganó ${tituloNatural(txt(d.consorcio)!)}, que esta empresa integra.` : ""} Falta
+          ver su constancia de MYPE.
           <Gano c={c} />
         </>
       );
