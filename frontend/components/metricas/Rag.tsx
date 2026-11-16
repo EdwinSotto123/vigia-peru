@@ -1,9 +1,10 @@
-import { BookOpenText, Library, ListOrdered, SearchCheck } from "lucide-react";
+import { BookOpenText, Library, ListOrdered, ScanSearch, SearchCheck } from "lucide-react";
+import Link from "next/link";
 import { BarraSegmentada, MuestraSerie, type ParteBarra } from "@/components/charts/BarraSegmentada";
 import { ColumnasSerie } from "@/components/charts/ColumnasSerie";
 import { CeldaNumero, CeldaPrincipal, CeldaTexto, Indicadores, Tabla, type Columna } from "@/components/listado";
 import { decimal, numero, plural, porcentaje } from "@/lib/formato";
-import { diaCorto, diaDe, SISTEMA_RAG, TIPO_NORMA, type Corpus, type EvaluacionRag, type Transparencia } from "@/lib/transparencia";
+import { diaCorto, diaDe, SISTEMA_RAG, TIPO_NORMA, type Corpus, type CorpusContraloria, type EvaluacionRag, type Transparencia } from "@/lib/transparencia";
 import { Caja, fechaHora, MideNoMide, NoMedido, PieDato, RenglonMedidor } from "./piezas";
 
 const tasa = (v: number | null) => (v == null ? "Sin dato" : porcentaje(v * 100, { decimales: 1 }));
@@ -117,8 +118,42 @@ const COLUMNAS: Columna[] = [
  * opiniones), cómo rinde en la última medición y la historia de mediciones, incluida la del buscador anterior con la que
  * se comparó.
  */
+/** El segundo corpus: las Fichas Resumen de los informes de control de la Contraloría, leídas y buscables. */
+function Contraloria({ c }: { c: CorpusContraloria }) {
+  return (
+    <Caja
+      titulo="Lo que encontró la Contraloría, buscable"
+      icono={<ScanSearch size={16} aria-hidden />}
+      bajada={
+        <>
+          Las observaciones de sus informes de control, leídas de la Ficha Resumen de cada uno. Se buscan por palabras o por sentido en{" "}
+          <Link href="/app/contraloria" className="font-medium text-granate underline decoration-granate/40 underline-offset-2 hover:decoration-granate">
+            Contraloría
+          </Link>{" "}
+          y sirven de precedente al informe para control de cada contrato.
+        </>
+      }
+      fecha={c.actualizado}
+      fuente="Tablas informes_control, informe_control_ficha e informe_control_fragmento (la fecha es la de la última ficha bajada)."
+    >
+      <Indicadores
+        items={[
+          { valor: numero(c.fichas), etiqueta: "fichas leídas", contexto: `de ${numero(c.informes)} informes con responsabilidad presunta`, parte: c.informes ? c.fichas / c.informes : null },
+          { valor: numero(c.observaciones), etiqueta: "observaciones", contexto: `${numero(c.fragmentos)} trozos buscables, ${numero(c.conVector)} con vector`, parte: null },
+          { valor: numero(c.leidasIa), etiqueta: "fichas con tema y perjuicio", contexto: "leídos por un modelo abierto; el resto, en curso", parte: c.conObservaciones ? c.leidasIa / c.conObservaciones : null },
+          { valor: c.comprendidos == null ? null : numero(c.comprendidos), etiqueta: "funcionarios comprendidos", contexto: "responsabilidad presunta: no es una condena", parte: null },
+        ]}
+      />
+      <MideNoMide
+        mide="Cuánto de lo que publicó la Contraloría está leído y se puede buscar."
+        noMide="Si el informe completo dice algo más: es un escaneo sin texto y no se lee; sólo su Ficha Resumen."
+      />
+    </Caja>
+  );
+}
+
 export function Rag({ rag }: { rag: Transparencia["rag"] }) {
-  if (!rag || (!rag.corpus && !rag.serie.length)) {
+  if (!rag || (!rag.corpus && !rag.contraloria && !rag.serie.length)) {
     return <NoMedido titulo="RAG normativo">Todavía no hay normas cargadas ni evaluaciones del buscador en la base.</NoMedido>;
   }
   const { corpus, serie } = rag;
@@ -141,6 +176,8 @@ export function Rag({ rag }: { rag: Transparencia["rag"] }) {
         {corpus && <Composicion corpus={corpus} />}
         {ultima && <UltimaMedicion ultima={ultima} serie={propias} />}
       </div>
+
+      {rag.contraloria && <Contraloria c={rag.contraloria} />}
 
       <Caja titulo="Cómo leer estas medidas" icono={<SearchCheck size={16} aria-hidden />}>
         <MideNoMide

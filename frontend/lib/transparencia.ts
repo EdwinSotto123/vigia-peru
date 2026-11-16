@@ -58,6 +58,22 @@ export interface Corpus {
   porTipo: { tipo: string; documentos: number; fragmentos: number }[];
 }
 
+/** Lo que encontró la Contraloría, buscable (migraciones 302-305): sólo conteos. */
+export interface CorpusContraloria {
+  informes: number;
+  /** Fichas Resumen bajadas y leídas con el lector del formulario. */
+  fichas: number;
+  conObservaciones: number;
+  observaciones: number;
+  /** Fichas cuyas observaciones ya leyó la IA (tema, perjuicio, referencias). */
+  leidasIa: number;
+  fragmentos: number;
+  conVector: number;
+  /** Funcionarios comprendidos (responsabilidad presunta); null si no se pudo contar. */
+  comprendidos: number | null;
+  actualizado: string | null;
+}
+
 export interface SumasDictamen {
   n: number;
   conVerificacion: number;
@@ -80,7 +96,7 @@ export interface SumasDictamen {
 export interface Transparencia {
   generado: string;
   agentes: { fecha: string | null; desde: string | null; redes: RedMedida[]; legal: LegalMedido[] } | null;
-  rag: { corpus: Corpus | null; serie: EvaluacionRag[]; fecha: string | null } | null;
+  rag: { corpus: Corpus | null; contraloria?: CorpusContraloria | null; serie: EvaluacionRag[]; fecha: string | null } | null;
   verificacion: {
     senales: { total: number; cotejadas: number; noCotejadas: number; sinCotejo: number; contratos: number; alta: number; media: number; baja: number } | null;
     dictamenes: (SumasDictamen & { desde: string | null; hasta: string | null; porRed: (SumasDictamen & { red: string; nombre: string })[] }) | null;

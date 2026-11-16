@@ -349,6 +349,30 @@ async function facturas() {
   return { filas: mes.rows, tipoCambio: tc.rows[0] ?? null };
 }
 
+/**
+ * El otro corpus: lo que encontró la Contraloría (migraciones 302-305). Cuántos informes hay, de cuántos se leyó la Ficha
+ * Resumen, cuántas observaciones quedaron buscables y cuántas leyó la IA (tema, perjuicio, referencias). Sólo conteos.
+ */
+async function contraloria() {
+  const [f, g, p] = await Promise.all([
+    pool.query<{ informes: number; fichas: number; conObservaciones: number; observaciones: number; leidasIa: number; actualizado: string | null }>(
+      `SELECT (SELECT count(*) FROM informes_control)::int AS informes, count(*)::int AS fichas,
+              (count(*) FILTER (WHERE jsonb_typeof(campos -> 'observaciones') = 'array' AND jsonb_array_length(campos -> 'observaciones') > 0))::int AS "conObservaciones",
+              COALESCE(sum(CASE WHEN jsonb_typeof(campos -> 'observaciones') = 'array' THEN jsonb_array_length(campos -> 'observaciones') END), 0)::int AS observaciones,
+              (count(*) FILTER (WHERE campos -> 'ia' ->> 'leido_at' IS NOT NULL))::int AS "leidasIa",
+              to_char(max(descargado_at) AT TIME ZONE '${LIMA}', ${MINUTO}) AS actualizado
+         FROM informe_control_ficha`),
+    pool.query<{ fragmentos: number; conVector: number }>(
+      `SELECT count(*)::int AS fragmentos, count(embedding)::int AS "conVector" FROM informe_control_fragmento`),
+    // La vista sin documento (302): cuántos funcionarios comprendidos y en cuántos informes. Sin ella, null.
+    pool.query<{ personas: number; informes: number }>(
+      `SELECT count(*)::int AS personas, count(DISTINCT codigo)::int AS informes FROM informe_control_implicado`).catch(() => ({ rows: [] as { personas: number; informes: number }[] })),
+  ]);
+  const x = f.rows[0];
+  if (!x) return null;
+  return { ...x, fragmentos: g.rows[0]?.fragmentos ?? 0, conVector: g.rows[0]?.conVector ?? 0, comprendidos: p.rows[0]?.personas ?? null };
+}
+
 const declarados = () =>
   pool.query(
     `SELECT to_char(mes, 'YYYY-MM') AS mes, concepto, categoria, monto::float AS monto, moneda, fuente, nota,
@@ -357,8 +381,9 @@ const declarados = () =>
 
 transparenciaRouter.get("/", async (c) => {
   const cuerpo = await memo.obtener("todo", async (ctl) => {
-    const [filas, corp, sen, dict, anal, costo, valid, lect, mas, alm, fact, decl] = await Promise.all([
-      bloque("corridas", ctl, corridas), bloque("corpus", ctl, corpus), bloque("senales", ctl, senales), bloque("dictamenes", ctl, dictamenes),
+    const [filas, corp, ctr, sen, dict, anal, costo, valid, lect, mas, alm, fact, decl] = await Promise.all([
+      bloque("corridas", ctl, corridas), bloque("corpus", ctl, corpus), bloque("contraloria", ctl, contraloria),
+      bloque("senales", ctl, senales), bloque("dictamenes", ctl, dictamenes),
       bloque("analizados", ctl, analizados), bloque("costoAnalisis", ctl, costoAnalisis), bloque("validacion", ctl, validacion),
       bloque("lectores", ctl, lectores), bloque("masivo", ctl, masivo), bloque("almacenamiento", ctl, almacenamiento),
       bloque("facturas", ctl, facturas), bloque("declarados", ctl, declarados),
@@ -367,7 +392,9 @@ transparenciaRouter.get("/", async (c) => {
     return {
       generado: new Date().toISOString(),
       agentes: filas ? armarAgentes(filas) : null,
-      rag: corp || serieRag.length ? { corpus: corp, serie: serieRag, fecha: serieRag[serieRag.length - 1]?.fecha ?? null } : null,
+      rag: corp || ctr || serieRag.length
+        ? { corpus: corp, contraloria: ctr, serie: serieRag, fecha: serieRag[serieRag.length - 1]?.fecha ?? null }
+        : null,
       verificacion: { senales: sen, dictamenes: dict },
       costos: { analizados: anal, analisis: costo, validacion: valid, lectores: lect, masivo: mas, almacenamiento: alm, facturas: fact, declarados: decl },
     };
