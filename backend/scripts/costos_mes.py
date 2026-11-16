@@ -28,6 +28,10 @@ RUBROS_AWS = {
     "Amazon Elastic Compute Cloud - Compute": ("aws_servidores", "Servidores", "La salida a internet de la base y la conexión que la reparte"),
     "Amazon Virtual Private Cloud": ("aws_red", "Red", "Direcciones IP públicas"),
     "EC2 - Other": ("aws_discos", "Discos y transferencia", "Discos de los servidores y datos que salen"),
+    # Los agentes corren en Lambda: mientras dura el análisis masivo de contratos es el rubro más grande (US$ 181 del 1 al
+    # 16 de noviembre de 2026) y antes caía en «Otros servicios», con una descripción que no era la suya.
+    "AWS Lambda": ("aws_agentes", "Agentes que analizan contratos",
+                   "El cómputo de los agentes que leen cada contrato; sube mientras corre el análisis masivo y baja cuando termina"),
 }
 OTROS_AWS = ("aws_otros", "Otros servicios de AWS", None)
 
