@@ -31,7 +31,8 @@ import { txt } from "@/lib/utils";
 import { EvidenciaDelCruce, OrdenesFraccionadas } from "./EvidenciaCruce";
 import { GrupoSanciones, TIPOS_SANCION } from "./SancionesCruce";
 import { BotonPestana } from "./BotonPestana";
-import { TIPO_CRUCE, esTipoLeido, esTipoObra, responsabilidadesEnPalabras } from "@/lib/cruces";
+import { TEMA_OBSERVACION_CONTROL, TIPO_CRUCE, esTipoLeido, esTipoObra, responsabilidadesEnPalabras } from "@/lib/cruces";
+import { InformeEnPanel, informeDeDetalle } from "@/components/control/InformeEnPanel";
 import { fraseBandera, type BanderaObra } from "@/lib/obras";
 
 const VARIANTE = { alta: "crimson", media: "amber", baja: "neutral" } as const;
@@ -274,6 +275,7 @@ const POR_QUE: Record<string, string> = {
   consorcio_rival: "Dos empresas que postularon juntas en un consorcio conocen sus costos y sus precios. Si después compiten por separado en procesos de pocos postores y gana siempre una de las dos, la competencia puede ser sólo aparente. No lo prueba: en mercados de pocos proveedores es común asociarse a veces y competir otras.",
   mismo_dueno: "La concentración de un proveedor se mide por su RUC. Si una persona vende lo mismo a la misma entidad con dos empresas, ninguna parece dominante, cada compra queda bajo el tope que obligaría a un procedimiento con más competencia, y si una es sancionada sigue la otra. Vale revisar si las compras debieron agruparse en un solo proceso (fraccionamiento) y si las dos empresas se presentaron como competidoras entre sí.",
   socio_de_inhabilitada: "Inhabilitar a una empresa no sirve si sus dueños siguen vendiendo con otra razón social. Por eso la ley extiende el impedimento a las empresas del mismo rubro de esos mismos socios mientras dure la sanción, y contratar con un impedido es causa de nulidad del contrato y de una nueva sanción. Corresponde ver el porcentaje del socio en las dos empresas, si venden lo mismo y si la ganadora declaró bajo juramento no tener impedimento.",
+  observado_por_contraloria: "Un informe de control es el resultado de una auditoría o de un servicio de control: los auditores de la Contraloría revisaron este proceso y dejaron por escrito lo que encontraron. La responsabilidad que identifican es presunta y es de funcionarios y servidores, no del proveedor; la derivan al Ministerio Público, a la procuraduría o a un procedimiento sancionador. Vale leer la observación completa y ver en qué quedó.",
   socio_con_informe_control: "Un informe de control señala responsabilidad cuando los auditores de la Contraloría encuentran que un funcionario incumplió sus funciones o causó un perjuicio, y la deriva: la penal, al Ministerio Público; la civil, a la procuraduría; la administrativa, a la entidad o al procedimiento sancionador de la Contraloría. Es presunta: no es una condena ni impide contratar con el Estado. Que una persona comprendida en un informe sea dueña o representante de la empresa que después gana merece leer qué le señaló el informe, ver si se parece a lo que se contrató y, si es la misma entidad, si esa persona intervino en la compra.",
   contrato_sobre_adjudicado: "La buena pro fija cuánto paga el Estado: el contrato sólo puede subir después por adicionales aprobados, con su tope. Si el contrato nace con un monto mayor al de la oferta ganadora, alguien cambió el precio fuera de la competencia. Cuando el monto firmado coincide con el valor referencial, vale preguntar por qué no se respetó la rebaja que ofreció el ganador.",
   retencion_sobre_tope: "Una carta fianza obliga a un banco a pagar si el contratista incumple. Con la retención de pagos el Estado sólo tiene lo que le fue descontando al propio contratista, y nada al inicio del contrato. Por eso el Reglamento la limita a contratos chicos o a micro y pequeñas empresas. Si una empresa grande garantiza así un contrato grande, la entidad aceptó menos protección de la que la norma exige: corresponde pedir la constancia de MYPE del contratista y ver quién aceptó la garantía.",
@@ -785,10 +787,51 @@ function Texto({ c, gobierna }: { c: CruceProveedor; gobierna?: GobiernoContrato
         </>
       );
     }
+    case "observado_por_contraloria": {
+      // Migración 313: una observación de un informe de control nombra este proceso (o la obra del contrato, por su CUI).
+      const numeroInf = txt(d.informe_numero) ?? txt(d.informe_codigo) ?? "sin número";
+      const informe = informeDeDetalle(d);
+      const resp = responsabilidadesEnPalabras(d.responsabilidades);
+      const tema = TEMA_OBSERVACION_CONTROL[txt(d.tema) ?? ""];
+      const perj = n(d.perjuicio);
+      const nObs = n(d.n_observaciones);
+      const nInf = n(d.n_informes);
+      const via = txt(d.via);
+      return (
+        <>
+          La Contraloría observó{" "}
+          {via === "cui" ? (
+            <>
+              la obra de este contrato{txt(d.cui) ? <> (inversión <span className="font-mono tabular-nums">{txt(d.cui)}</span>)</> : ""}
+            </>
+          ) : (
+            "este proceso"
+          )}{" "}
+          en el informe de control {informe ? <InformeEnPanel informe={informe} className={ENLACE_TXT} /> : <b>{numeroInf}</b>}
+          {txt(d.emision) ? <>, emitido el {fechaConAnio(txt(d.emision)!)}</> : ""}
+          {n(d.observacion_n) != null ? (
+            <>
+              : su observación {n(d.observacion_n)}
+              {tema ? <> trata de <b>{tema}</b></> : " lo nombra"}
+            </>
+          ) : (
+            ""
+          )}
+          {perj != null && perj > 0 ? <> y cuantifica un perjuicio de <b>{txt(d.moneda) === "USD" ? `US$ ${numero(perj)}` : solesCompacto(perj)}</b></> : ""}.
+          {resp ? <> El informe identifica <b>presunta responsabilidad {resp}</b> de funcionarios y servidores.</> : ""}
+          {nObs != null && nObs > 1 ? <> En total, <b>{numero(nObs)} observaciones</b>{nInf != null && nInf > 1 ? ` de ${numero(nInf)} informes` : ""} nombran este contrato.</> : ""}
+          {via === "unico" ? " El informe no da la sigla del proceso: se empató por su tipo, número y año, que en esta entidad son de un solo proceso." : ""}
+          {via === "cui" ? " Se empató por el código de la inversión, que en esta entidad tiene un solo contrato de obra." : ""}
+          {txt(d.consorcio) ? ` El proceso lo ganó ${tituloNatural(txt(d.consorcio)!)}, que esta empresa integra.` : ""} El informe no sanciona al
+          proveedor: dice lo que los auditores encontraron.
+        </>
+      );
+    }
     case "socio_con_informe_control": {
       // Migración 303: la persona (por su DNI) está entre los funcionarios comprendidos de un informe de control anterior.
       const numeroInf = txt(d.informe_numero) ?? txt(d.informe_codigo) ?? "sin número";
       const url = txt(d.url_resumen);
+      const informe = informeDeDetalle(d);
       const ent = txt(d.informe_entidad);
       const resp = responsabilidadesEnPalabras(d.responsabilidades);
       const nInf = n(d.n_informes);
@@ -796,7 +839,9 @@ function Texto({ c, gobierna }: { c: CruceProveedor; gobierna?: GobiernoContrato
       return (
         <>
           {quien(c)} figura en el informe de control{" "}
-          {url ? (
+          {informe ? (
+            <InformeEnPanel informe={informe} className={ENLACE_TXT} />
+          ) : url ? (
             <a href={url} target="_blank" rel="noopener noreferrer" className={ENLACE_TXT}>
               {numeroInf}
             </a>

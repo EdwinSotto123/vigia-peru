@@ -12,6 +12,7 @@ recomendaciones y los funcionarios comprendidos). El informe completo (`url_pdf`
   cargar   --entorno prod --carpeta DIR            texto + campos del formulario → informe_control_ficha (migración 304)
   leer     --entorno prod [--tope-usd 40]          tema, perjuicio, normas y referencias de cada observación (GLM 5.3 flash)
   indexar  --entorno prod                          trozos (objetivo y observaciones) y embeddings → informe_control_fragmento (305)
+  atar     --entorno prod                          cada observación con el contrato que nombra y su bandera (migración 313)
   estado   --entorno prod
 
 El servidor de la Contraloría (apps8.contraloria.gob.pe) sólo responde a IPs del Perú: `bajar` corre desde una PC en el
@@ -962,6 +963,28 @@ def indexar(entorno: str, hilos: int) -> None:
     print(f"vectores calculados: {hechos}")
 
 
+def atar(entorno: str) -> None:
+    """Ata cada observación al contrato que nombra (migración 313) y escribe la bandera `observado_por_contraloria`.
+
+    La bandera llega a las listas (casos_cruce) con el siguiente refresco de cruces del Worker de scrapers, que también
+    corre este mismo paso; aquí se adelanta para que la ficha del contrato y el panel del informe la muestren ya."""
+    with _conexion(entorno) as cn:
+        cu = cn.cursor()
+        cu.execute("SET statement_timeout = '900s'")
+        cu.execute("SELECT to_regprocedure('refrescar_cruce_observado_por_contraloria()') IS NOT NULL")
+        if not cu.fetchone()[0]:
+            print("la migración 313 no está en esta base: nada que atar")
+            return
+        cu.execute("SELECT refrescar_cruce_observado_por_contraloria()")
+        banderas = cu.fetchone()[0]
+        cn.commit()
+        cu.execute("SELECT via, count(*), count(DISTINCT ocid), count(DISTINCT codigo) FROM informe_control_proceso GROUP BY via ORDER BY via")
+        for via, filas, contratos, informes in cu.fetchall():
+            print(f"  por {via}: {filas} observaciones atadas, {contratos} contratos, {informes} informes")
+        cu.execute("SELECT severidad, count(*) FROM cruces_proveedor WHERE tipo = 'observado_por_contraloria' GROUP BY 1 ORDER BY 1")
+        print(f"banderas observado_por_contraloria: {banderas}", dict(cu.fetchall()))
+
+
 def estado(entorno: str) -> None:
     with _conexion(entorno) as cn:
         cn.set_session(readonly=True, autocommit=True)
@@ -1011,6 +1034,8 @@ def main() -> int:
     p = sub.add_parser("indexar")
     p.add_argument("--entorno", choices=["dev", "prod"], required=True)
     p.add_argument("--hilos", type=int, default=2)
+    p = sub.add_parser("atar", help="ata cada observación al contrato que nombra y escribe su bandera (migración 313)")
+    p.add_argument("--entorno", choices=["dev", "prod"], required=True)
     p = sub.add_parser("estado")
     p.add_argument("--entorno", choices=["dev", "prod"], required=True)
     a = ap.parse_args()
@@ -1022,6 +1047,9 @@ def main() -> int:
         return 0
     if a.cmd == "indexar":
         indexar(a.entorno, a.hilos)
+        return 0
+    if a.cmd == "atar":
+        atar(a.entorno)
         return 0
     if a.cmd == "estado":
         estado(a.entorno)

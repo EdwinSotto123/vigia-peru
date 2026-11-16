@@ -65,6 +65,9 @@ export const ETIQUETA_CRUCE: Record<string, string> = {
   // Un socio o representante del ganador figura con responsabilidad PRESUNTA en un informe de control de la Contraloría
   // emitido antes de la buena pro (migración 303).
   socio_con_informe_control: "Un socio o representante figura con presunta responsabilidad en un informe de control",
+  // Una observación de un informe de control nombra ESTE proceso (o la obra de este contrato, por su CUI): lo que la
+  // Contraloría ya encontró ahí (migración 313). La responsabilidad es presunta y de funcionarios, no del proveedor.
+  observado_por_contraloria: "La Contraloría observó este proceso en un informe de control",
   // El monto leído en el contrato supera en 25 % o más lo adjudicado según CONOSCE y el OCDS (migración 294).
   contrato_sobre_adjudicado: "El contrato se firmó por más de lo adjudicado",
   domicilio_compartido: "Mismo domicilio fiscal que otro participante",

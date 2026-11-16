@@ -267,6 +267,8 @@ export function cadenaCruces(): Refresco[] {
     f("refrescar_cruce_socio_de_inhabilitada", true),
     // Un socio o representante del ganador figura en un informe de control anterior a la buena pro (migración 303).
     f("refrescar_cruce_socio_con_informe_control", true),
+    // Una observación de un informe de control nombra el proceso o la obra del contrato (migración 313).
+    f("refrescar_cruce_observado_por_contraloria", true),
     // El contrato se firmó por más de lo adjudicado según las dos fuentes oficiales (migración 294).
     f("refrescar_cruce_contrato_sobre_adjudicado", true),
     // Lo que dicen el acta de buena pro y las consultas leídas con Claude (migraciones 245-246).

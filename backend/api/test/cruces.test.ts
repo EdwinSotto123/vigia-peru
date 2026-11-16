@@ -96,3 +96,27 @@ test("socio con informe de control (migración 303): sin DNI, el socio tapado y 
   assert.equal(c.detalle.url_resumen, url);
   assert.equal(c.fuenteUrl, url);
 });
+
+test("observado por la Contraloría (migración 313): el informe, el tema y el perjuicio intactos; sin personas", () => {
+  const url = "https://apps8.contraloria.gob.pe/SPIC/srvDownload/ViewPDF?CRES_CODIGO=2022CPOL44600007&TIPOARCHIVO=RE";
+  const fila = { ...base, tipo: "observado_por_contraloria", severidad: "alta", ocid: "ocds-dgv273-seacev3-712744", persona_doc: null,
+    persona_nombre: null, persona_rol: null, fuente: "informes_control", fuente_url: url,
+    detalle: { informe_codigo: "2022CPOL44600007", informe_numero: "007-2022-2-4460", informe_titulo: "ADQUISICIÓN DE MAQUINARIA INVENTADA",
+      informe_entidad: "MUNICIPALIDAD DISTRITAL INVENTADA", informe_entidad_ruc: "20999999993", emision: "2022-11-30",
+      responsabilidades: ["penal", "administrativa_entidad"], url_resumen: url, observacion_n: 2, tema: "seleccion_contratacion",
+      // Un perjuicio de 8 cifras es un monto, no un DNI: llega como número y no se toca.
+      perjuicio: 12345678.5, moneda: "PEN", via: "sigla", nomenclatura: "AS-SM-3-2021-MDI-1", cui: null,
+      n_observaciones: 2, n_informes: 1, perjuicio_total: 12345678.5,
+      otras: [{ codigo: "2022CPOL44600007", numero: "007-2022-2-4460", n: 3, tema: "pagos_adelantos", perjuicio: null, via: "sigla" }] } };
+  const c = publicar({ cruces: [aCruce(fila)] }).cruces[0];
+  assert.equal(c.etiqueta, "La Contraloría observó este proceso en un informe de control");
+  assert.equal(c.severidad, "alta");
+  assert.equal(c.socios.length, 0);
+  assert.equal(c.detalle.informe_codigo, "2022CPOL44600007");
+  assert.equal(c.detalle.informe_numero, "007-2022-2-4460");
+  assert.equal(c.detalle.perjuicio, 12345678.5);
+  assert.equal(c.detalle.tema, "seleccion_contratacion");
+  assert.equal(c.detalle.nomenclatura, "AS-SM-3-2021-MDI-1");
+  assert.equal(c.detalle.otras[0].n, 3);
+  assert.equal(c.fuenteUrl, url);
+});

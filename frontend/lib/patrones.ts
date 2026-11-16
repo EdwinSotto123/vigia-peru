@@ -18,6 +18,7 @@ export const SECCIONES_PATRONES = {
   duenos: "Mismo dueño",
   inhabilitadas: "Socio de inhabilitada",
   control: "Socio en informe de control",
+  observados: "Observados por la Contraloría",
   renovaciones: "Renovaciones más caras",
 } as const;
 export type SeccionPatrones = keyof typeof SECCIONES_PATRONES;
@@ -192,6 +193,43 @@ export interface PatronesControl {
   data: PatronControl[];
 }
 
+/** Un proveedor con procesos que la Contraloría observó en una entidad (migración 313) y lo que ella le adjudicó después. */
+export interface PatronObservado {
+  ruc: string;
+  empresa: string | null;
+  entidadRuc: string;
+  entidad: string | null;
+  /** Procesos del proveedor en esa entidad que alguna observación nombra. */
+  observados: number;
+  graves: number;
+  monto: number | null;
+  /** Lo que cuantifican las observaciones, en soles. */
+  perjuicio: number | null;
+  observaciones: number | null;
+  informes: number;
+  temas: string[] | null;
+  /** El informe más antiguo del par. */
+  informeCodigo: string | null;
+  informeNumero: string | null;
+  emision: string | null;
+  responsabilidades: string[] | null;
+  ficha: string | null;
+  ejemplos: string[];
+  desde: string | null;
+  hasta: string | null;
+  /** Lo que la misma entidad le adjudicó (con su RUC) después de emitido ese informe. */
+  despues: number;
+  montoDespues: number | null;
+  ultimaDespues: string | null;
+}
+
+export interface PatronesObservados {
+  total: number;
+  page: number;
+  size: number;
+  data: PatronObservado[];
+}
+
 export interface PatronesDuenos {
   total: number;
   page: number;
@@ -261,6 +299,8 @@ export const rutaInhabilitadas = (page = 1, ruc?: string, graves = false) =>
   `/patrones/inhabilitadas?${consulta({ page, size: TAM_PATRONES, ruc, graves: graves ? 1 : undefined })}`;
 export const rutaControl = (page = 1, ruc?: string, graves = false, misma = false) =>
   `/patrones/control?${consulta({ page, size: TAM_PATRONES, ruc, graves: graves ? 1 : undefined, misma: misma ? 1 : undefined })}`;
+export const rutaObservados = (page = 1, ruc?: string, graves = false, siguio = false) =>
+  `/patrones/observados?${consulta({ page, size: TAM_PATRONES, ruc, graves: graves ? 1 : undefined, siguio: siguio ? 1 : undefined })}`;
 export const rutaRenovaciones = (page = 1) => `/patrones/renovaciones?${consulta({ page, size: TAM_PATRONES })}`;
 
 // ─── Lecturas (servidor) ─────────────────────────────────────────────────────────

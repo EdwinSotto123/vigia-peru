@@ -292,6 +292,71 @@ patronesRouter.get("/control", async (c) => {
   return c.json(cuerpo);
 });
 
+/**
+ * GET /patrones/observados?ruc=&graves=1&siguio=1  Proveedores con procesos que la Contraloría observó en un informe de
+ * control (cruce `observado_por_contraloria`, migración 313), por empresa y entidad: cuántos procesos, el perjuicio que
+ * cuantifican las observaciones, el informe más antiguo y cuánto le adjudicó esa MISMA entidad después de emitido ese
+ * informe (CONOSCE, sólo lo ganado con su propio RUC: lo ganado en consorcio no se cuenta). Con `ruc`: la empresa o la
+ * entidad. `siguio`: sólo donde la entidad le volvió a adjudicar después del informe. Sólo empresas (RUC 20).
+ * La responsabilidad que identifica un informe es PRESUNTA y de funcionarios: el informe no sanciona al proveedor.
+ */
+const Observados = Consorcios.extend({ graves: z.enum(["1", "true"]).optional(), siguio: z.enum(["1", "true"]).optional() });
+
+patronesRouter.get("/observados", async (c) => {
+  const p = Observados.safeParse(Object.fromEntries(Object.entries(parametros(c)).filter(([, v]) => v !== "" && v != null)));
+  if (!p.success) return c.json({ error: "invalid_query", issues: p.error.issues }, 400);
+  const q = p.data;
+  const cuerpo = await memo.obtener(`observados:${JSON.stringify(q)}`, async () => {
+    const vals: unknown[] = [];
+    const add = (v: unknown) => { vals.push(v); return `$${vals.length}`; };
+    const conds: string[] = [];
+    if (q.ruc) conds.push(`(x.ruc = ${add(q.ruc)} OR x.entidad_ruc = $${vals.length})`);
+    if (q.graves) conds.push("x.graves > 0");
+    if (q.siguio) conds.push("d.despues > 0");
+    const donde = conds.length ? `WHERE ${conds.join(" AND ")}` : "";
+    // Unas mil banderas: se agrupan al vuelo (la respuesta queda en memoria) y lo adjudicado después sale del índice
+    // (ruc_proveedor, entidad_ruc) de CONOSCE. El informe que se muestra es el MÁS ANTIGUO del par: todo lo contado como
+    // «después» es posterior a él.
+    const r = await pool.query(
+      `WITH b AS (
+         SELECT c.ruc_empresa AS ruc, btrim(cv.entidad_ruc::text) AS entidad_ruc, c.ocid, c.severidad, c.monto, c.fecha,
+                c.detalle->>'informe_codigo' AS codigo, c.detalle->>'informe_numero' AS numero, NULLIF(c.detalle->>'emision', '')::date AS emision,
+                c.detalle->'responsabilidades' AS resp, c.detalle->>'url_resumen' AS ficha, c.detalle->>'tema' AS tema,
+                NULLIF(c.detalle->>'perjuicio_total', '')::numeric AS perjuicio, (c.detalle->>'n_observaciones')::int AS n_obs
+           FROM cruces_proveedor c JOIN convocatorias cv ON cv.ocid = c.ocid
+          WHERE c.tipo = 'observado_por_contraloria' AND c.ruc_empresa ~ '^20[0-9]{9}$'),
+       x AS (
+         SELECT ruc, entidad_ruc, count(DISTINCT ocid)::int AS observados, (count(DISTINCT ocid) FILTER (WHERE severidad = 'alta'))::int AS graves,
+                sum(monto)::float AS monto, sum(perjuicio)::float AS perjuicio, sum(n_obs)::int AS observaciones, min(emision) AS emision,
+                (array_agg(codigo ORDER BY emision, ocid))[1] AS informe_codigo, (array_agg(numero ORDER BY emision, ocid))[1] AS informe_numero,
+                (array_agg(resp ORDER BY emision, ocid))[1] AS responsabilidades, (array_agg(ficha ORDER BY emision, ocid))[1] AS ficha,
+                count(DISTINCT codigo)::int AS informes, array_agg(DISTINCT tema) FILTER (WHERE tema IS NOT NULL) AS temas,
+                (array_agg(ocid ORDER BY severidad = 'alta' DESC, monto DESC NULLS LAST))[1:3] AS ejemplos,
+                min(fecha) AS desde, max(fecha) AS hasta
+           FROM b GROUP BY ruc, entidad_ruc)
+       SELECT x.ruc, e.razon_social AS empresa, x.entidad_ruc AS "entidadRuc", en.nombre AS entidad, x.observados, x.graves, x.monto, x.perjuicio,
+              x.observaciones, x.informes, x.temas, x.informe_codigo AS "informeCodigo", x.informe_numero AS "informeNumero",
+              to_char(x.emision, 'YYYY-MM-DD') AS emision, x.responsabilidades, x.ficha, x.ejemplos,
+              to_char(x.desde, 'YYYY-MM-DD') AS desde, to_char(x.hasta, 'YYYY-MM-DD') AS hasta,
+              COALESCE(d.despues, 0) AS despues, d.monto_despues AS "montoDespues", to_char(d.ultima, 'YYYY-MM-DD') AS "ultimaDespues",
+              (count(*) OVER ())::int AS total
+         FROM x
+         LEFT JOIN empresas e ON e.ruc = x.ruc
+         LEFT JOIN entidades en ON btrim(en.ruc::text) = x.entidad_ruc
+         LEFT JOIN LATERAL (
+           SELECT count(DISTINCT a.codigo_convocatoria)::int AS despues, sum(a.monto_adjudicado)::float AS monto_despues, max(a.fecha_buenapro) AS ultima
+             FROM conosce_adjudicaciones a
+            WHERE x.emision IS NOT NULL AND a.ruc_proveedor = x.ruc AND a.entidad_ruc = x.entidad_ruc
+              AND a.fecha_buenapro > x.emision AND a.monto_adjudicado > 0) d ON true
+         ${donde}
+        ORDER BY (COALESCE(d.despues, 0) > 0) DESC, x.graves DESC, COALESCE(d.despues, 0) DESC, x.perjuicio DESC NULLS LAST, x.ruc, x.entidad_ruc
+        LIMIT ${add(q.size)} OFFSET ${add((q.page - 1) * q.size)}`, vals);
+    return publicar({ total: r.rows[0]?.total ?? 0, page: q.page, size: q.size, data: r.rows.map(({ total: _t, ...x }) => x) });
+  });
+  c.header("Cache-Control", CACHE);
+  return c.json(cuerpo);
+});
+
 const Precios = z.object({
   q: z.string().trim().min(3).max(120),
   tipo: z.enum(["bien", "servicio"]).default("bien"),

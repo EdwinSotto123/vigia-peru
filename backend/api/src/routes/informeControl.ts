@@ -292,9 +292,23 @@ const sinTildes = (t: string) => t.normalize("NFD").replace(/\p{M}/gu, "").toLow
  * que está en todos, como «planta», casi no suma). Es contexto para el órgano de control, no una comparación de hechos:
  * va en el alcance, con el asunto de cada informe.
  */
-async function antecedentesDeControl(objeto: string): Promise<Precedente[]> {
+async function antecedentesDeControl(objeto: string, ocid: string): Promise<Precedente[]> {
+  // Primero, los informes que ya observaron ESTE procedimiento (informe_control_proceso, migración 313).
+  let directos: Precedente[] = [];
+  try {
+    const r = await pool.query(
+      `SELECT ic.codigo, ic.numero, ic.titulo, ic.entidad_nombre, ic.fecha_emision, ic.modalidad, ic.responsabilidades, ic.url_resumen, ic.url_pdf
+         FROM informes_control ic
+        WHERE ic.codigo IN (SELECT p.codigo FROM informe_control_proceso p WHERE p.ocid = $1)
+        ORDER BY ic.fecha_emision DESC NULLS LAST, ic.codigo
+        LIMIT 3`,
+      [ocid]);
+    directos = r.rows.map((x, i) => ({ ...aPrecedente(x, `D${i + 1}`), directo: true }));
+  } catch (e) {
+    if (!esErrorPg(e, "42P01", "42501")) registrar("WARNING", `[informe-control] informes sobre el mismo procedimiento: ${(e as Error).message}`);
+  }
   const palabras = [...new Set((sinTildes(objeto).match(/[a-zñ]{5,}/g) ?? []).filter((w) => !VACIAS.has(w)))].slice(0, 8);
-  if (palabras.length < 2) return [];
+  if (palabras.length < 2) return directos;
   try {
     const r = await pool.query(
       `WITH t AS MATERIALIZED (
@@ -305,12 +319,13 @@ async function antecedentesDeControl(objeto: string): Promise<Precedente[]> {
        SELECT ic.codigo, ic.numero, ic.titulo, ic.entidad_nombre, ic.fecha_emision, ic.modalidad, ic.responsabilidades, ic.url_resumen, ic.url_pdf, m.peso, m.n
          FROM m JOIN informes_control ic ON ic.codigo = m.codigo
         ORDER BY m.peso DESC, ic.fecha_emision DESC NULLS LAST
-        LIMIT 3`,
+        LIMIT 6`,
       [palabras]);
-    return r.rows.map((x, i) => aPrecedente(x, `A${i + 1}`));
+    const yaEstan = new Set(directos.map((q) => q.codigo));
+    return [...directos, ...r.rows.filter((x) => !yaEstan.has(String(x.codigo))).slice(0, 3).map((x, i) => aPrecedente(x, `A${i + 1}`))];
   } catch (e) {
     registrar("WARNING", `[informe-control] antecedentes de control: ${(e as Error).message}`);
-    return [];
+    return directos;
   }
 }
 
@@ -341,7 +356,7 @@ export async function redactarInforme(
   const [normasPorGrupo, precedentes, antecedentes] = await Promise.all([
     normasDeLasObservaciones(e.grupos, e.proceso.fechaConvocatoria, ia),
     precedentesCandidatos(e.grupos, ia),
-    antecedentesDeControl(e.proceso.objeto),
+    antecedentesDeControl(e.proceso.objeto, e.ocid),
   ]);
   const r = await redactarObservaciones(env, e.proceso, e.grupos, normasPorGrupo, precedentes, {
     modelo: opciones.modelo ?? MODELO_REDACTOR,

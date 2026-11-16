@@ -72,6 +72,12 @@ const CASOS: Caso[] = [
       ? null : "la lista de socios de inhabilitadas salió vacía o sin graves") },
   { h: buscarContratos as never, args: { senal: "unico_postor,socio_de_inhabilitada", todas_las_senales: true, por_pagina: 5 },
     espera: (r) => (Number(r.total) > 0 && Number(r.total) < 2000 ? null : `la combinación de señales dio ${String(r.total)} contratos`) },
+  // Lo que la Contraloría observó, atado a su contrato (migración 313): el patrón por proveedor y entidad, y el filtro.
+  { h: patrones as never, args: { alcance: "observado" },
+    espera: (r) => (lista(r, "casos").length >= 5 && lista(r, "casos").every((g) => /^20\d{9}$/.test(String((g as { ruc: string }).ruc)) && Number((g as { procesos_observados: number }).procesos_observados) > 0)
+      ? null : "la lista de procesos observados por la Contraloría salió vacía o con un RUC que no es de empresa") },
+  { h: buscarContratos as never, args: { senal: "observado_por_contraloria", por_pagina: 5 },
+    espera: (r) => (Number(r.total) >= 100 ? null : `sólo ${String(r.total)} contratos observados por la Contraloría`) },
   // La búsqueda en las observaciones de los informes de la Contraloría (migraciones 304-305) y la ficha en la lista.
   { h: buscarInformesControl as never, args: { pregunta: "pago de valorizaciones por partidas no ejecutadas", n: 5 },
     espera: (r) => {

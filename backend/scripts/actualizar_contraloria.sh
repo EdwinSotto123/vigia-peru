@@ -11,7 +11,8 @@
 #   2. las Fichas Resumen de los informes que aún no se bajaron (1 pedido por segundo; migración 304);
 #   3. su lectura: el formulario (determinista) y, con GLM 5.3 flash, el tema, el perjuicio y las referencias de cada
 #      observación, con tope de gasto acumulado (CONTRALORIA_TOPE_USD, 40 por defecto);
-#   4. el índice del buscador (trozos y vectores bge-m3; migración 305).
+#   4. el índice del buscador (trozos y vectores bge-m3; migración 305);
+#   5. cada observación atada al contrato que nombra y su bandera `observado_por_contraloria` (migración 313).
 #
 # Los PDF y las bitácoras quedan en dataset/ (git lo ignora; las fichas nombran a personas con su DNI: nunca al repo).
 # Otra carpeta: CONTRALORIA_DATOS=/ruta. Requiere la CLI de AWS con el perfil del operador, session-manager-plugin,
@@ -40,6 +41,9 @@ $FICHAS leer --entorno "$ENTORNO" --tope-usd "${CONTRALORIA_TOPE_USD:-40}" --hil
 
 paso "4. Índice del buscador"
 $FICHAS indexar --entorno "$ENTORNO" --hilos 2 || exit 1
+
+paso "5. Contratos que nombran las observaciones"
+$FICHAS atar --entorno "$ENTORNO" || echo "no se pudieron atar los contratos: lo hará el refresco de cruces del Worker"
 
 paso "Estado"
 $FICHAS estado --entorno "$ENTORNO"

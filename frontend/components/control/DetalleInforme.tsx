@@ -17,6 +17,7 @@ import {
 import { BUSCADOR_CONTRALORIA } from "@/lib/fuentes";
 import { fecha, listaY, numero, oracion, paraBuscar, plural, soles, solesCompacto } from "@/lib/formato";
 import { tituloNatural } from "@/lib/landing";
+import { rutaContrato } from "@/lib/rutas";
 import { cn } from "@/lib/utils";
 import { ChipResponsabilidad, ChipTema, ChipsResponsabilidad } from "./piezas";
 
@@ -521,7 +522,21 @@ function Hallazgos({ v, coincide }: { v: Vista; coincide?: CoincidenciaBusqueda 
 
 /** Lo que nombra una observación: empresas (con su ficha si tienen RUC 20), obras, procesos, contratos y normas. */
 function Referencias({ o }: { o: ObservacionVista }) {
+  const enVigia = o.enVigia ?? [];
   const grupos: { clave: string; titulo: string; items: ReactNode[] }[] = [
+    {
+      // Lo primero: el contrato de Vigía que la observación nombra (por su nomenclatura o por el CUI de la obra).
+      clave: "vigia",
+      titulo: enVigia.length === 1 ? "El contrato en Vigía" : "Los contratos en Vigía",
+      items: enVigia.map((k) => (
+        <Dato key={`v${k.ocid}`} icono={ScanSearch}>
+          <Link href={rutaContrato(k.ocid, "ficha", { seccion: "antecedentes" })} prefetch={false} className="font-medium text-granate underline-offset-2 hover:underline">
+            {k.nomenclatura ?? (k.cui ? `Obra de la inversión ${k.cui}` : "Ver el contrato")}
+          </Link>
+          {k.objeto && <span className="ml-1 text-mute">{recortarTexto(tituloNatural(limpiarObjeto(k.objeto)), 110)}</span>}
+        </Dato>
+      )),
+    },
     {
       clave: "empresas",
       titulo: o.empresas.length === 1 ? "Empresa" : "Empresas",

@@ -176,6 +176,8 @@ export interface ObservacionInforme {
   procesos: string[];
   /** Sólo RUC 15, 17 o 20 (nunca un RUC 10: la API los descarta). */
   empresas: { razon_social: string; ruc: string | null }[];
+  /** Los contratos de Vigía que la observación nombra (migración 313): por la nomenclatura del proceso o por el CUI. */
+  enVigia?: { ocid: string; nomenclatura: string | null; via: "codigo" | "sigla" | "unico" | "cui"; cui: string | null; objeto: string | null }[];
 }
 
 /** GET /informes-control/:codigo: el informe con su ficha leída (si la hay) y sus funcionarios comprendidos. */

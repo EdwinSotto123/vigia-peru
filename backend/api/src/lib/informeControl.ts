@@ -340,6 +340,18 @@ export const TEMAS: Record<string, Tema> = {
     recomendacion: "Contrastar los antecedentes difundidos con los registros oficiales del contratista.",
     miembros: ["cobertura_prensa_adversa", "antecedente_proveedor_web", "antecedentes_proveedor"],
   },
+  // Lo que la Contraloría YA observó en este mismo procedimiento (migración 313) no es un indicio nuevo de Vigía: es el
+  // antecedente de control del caso. Va como contexto, con el número del informe, para que quien lea lo pida.
+  control_previo: {
+    titulo: "El procedimiento ya fue materia de un informe de control",
+    orden: 23,
+    contexto: true,
+    normas: { "32069": [PRINCIPIOS["32069"]], "30225": [PRINCIPIOS["30225"]] },
+    control: "seguimiento de las recomendaciones de un informe de control anterior sobre el mismo procedimiento de selección",
+    efecto: "Lo observado antes por la Contraloría sobre este procedimiento constituiría un antecedente que debe leerse con el informe de origen.",
+    recomendacion: "Revisar el informe de control de origen y el estado de la implementación de sus recomendaciones.",
+    miembros: ["observado_por_contraloria"],
+  },
 };
 
 const OTROS: Tema = {
@@ -599,6 +611,16 @@ function registrosDe(ev: unknown): Registros | null {
   };
 }
 
+/** El tema de una observación de la Contraloría (lectura de IA de la ficha resumen, lista cerrada), en palabras. */
+export const TEMA_OBSERVACION: Record<string, string> = {
+  seleccion_contratacion: "la selección y la contratación",
+  ejecucion_contractual: "la ejecución del contrato",
+  pagos_adelantos: "pagos y adelantos",
+  personal_planillas: "personal y planillas",
+  bienes_almacen: "bienes y almacén",
+  presupuesto_tesoreria: "presupuesto y tesorería",
+};
+
 /** El hecho de un cruce en una o dos frases, con sus cifras (los tipos frecuentes; el resto, genérico con sus datos). */
 export function textoDeCruce(c: Fila, e: { nombre: string | null; ruc: string | null } | null): string {
   const d: Fila = c.detalle ?? {};
@@ -666,6 +688,14 @@ export function textoDeCruce(c: Fila, e: { nombre: string | null; ruc: string | 
       const vs = (Array.isArray(c.visitas) ? (c.visitas as Fila[]) : []).slice(0, 4)
         .map((v) => `el ${fl(v.fecha) ?? "día registrado"}${v.hora ? ` a las ${v.hora}` : ""}${v.cargoFuncionario ? `, con el cargo ${recortar(v.cargoFuncionario, 80)}` : ""}${v.areaFuncionario ? ` (${recortar(v.areaFuncionario, 80)})` : ""}`);
       return `Una persona vinculada a ${E} visitó ${d.entidad_visitada ?? "la Entidad"}${vs.length ? ` ${vs.join("; ")}` : ""}${d.buena_pro ? `, antes de la buena pro del ${fl(d.buena_pro)}` : ""}.`;
+    }
+    case tipo === "observado_por_contraloria": {
+      const tema = TEMA_OBSERVACION[String(d.tema ?? "")];
+      const resp = [...new Set((Array.isArray(d.responsabilidades) ? (d.responsabilidades as unknown[]) : [])
+        .map((r) => (r === "penal" ? "penal" : r === "civil" ? "civil" : /^administrativa/.test(String(r)) ? "administrativa" : "")))]
+        .filter(Boolean);
+      const objeto = d.via === "cui" ? `la obra de este contrato${d.cui ? ` (código único de inversión ${d.cui})` : ""}` : "este procedimiento";
+      return `La Contraloría General de la República observó ${objeto} en el Informe N.° ${d.informe_numero ?? d.informe_codigo ?? "registrado"}${d.emision ? `, emitido el ${fl(d.emision)}` : ""}${d.observacion_n != null ? ` (observación ${d.observacion_n}${tema ? `, sobre ${tema}` : ""})` : ""}${numero(d.perjuicio) ? `, en la que cuantifica un perjuicio de ${d.moneda === "USD" ? `US$ ${entero(d.perjuicio)}` : soles(d.perjuicio)}` : ""}.${resp.length ? ` El informe identifica presunta responsabilidad ${resp.join(", ")} de funcionarios y servidores.` : ""}${numero(d.n_observaciones) && Number(d.n_observaciones) > 1 ? ` En total, ${d.n_observaciones} observaciones de ${d.n_informes ?? 1} informe(s) nombran este contrato.` : ""}`;
     }
     case tipo === "dada_de_baja" || tipo === "suspendida" || tipo === "no_habida":
       return `A la fecha de la consulta, la SUNAT registra a ${E} como ${tipo === "no_habida" ? "no habida" : tipo === "suspendida" ? "suspendida" : "dada de baja"}.`;
@@ -756,7 +786,10 @@ export function senalesDelContrato(ficha: Fila, banderas: FilaBandera[]): SenalI
       clave: `cruce:${tipo}:${c.rucProveedor ?? ""}:${fechaIso(c.fecha) ?? ""}`,
       origen: "cruce",
       tipo,
-      etiqueta: String(c.etiqueta ?? ETIQUETA_CRUCE[tipo] ?? tipo),
+      // Lo que ya observó la Contraloría va como contexto (sin desarrollar): su etiqueta dice en qué informe.
+      etiqueta: tipo === "observado_por_contraloria" && (c.detalle?.informe_numero ?? c.detalle?.informe_codigo)
+        ? `La Contraloría observó ${c.detalle?.via === "cui" ? "la obra de este contrato" : "este procedimiento"} en el Informe N.° ${c.detalle.informe_numero ?? c.detalle.informe_codigo}`
+        : String(c.etiqueta ?? ETIQUETA_CRUCE[tipo] ?? tipo),
       severidad: sev(c.severidad),
       tema: temaDe(tipo),
       texto: textoDeCruce(c, e),
@@ -1333,6 +1366,8 @@ export interface Precedente {
   modalidad: string | null;
   responsabilidades: string[];
   url: string | null;
+  /** El informe observó ESTE mismo procedimiento (migración 313), no una contratación parecida. */
+  directo?: boolean;
 }
 
 export interface RedaccionObservacion {
@@ -1607,9 +1642,15 @@ export function markdownDe(d: InformeControl): string {
   L.push(`Periodo revisado: del ${fechaLarga(a.periodo.desde) ?? "inicio del procedimiento"} al ${fechaLarga(a.periodo.hasta)}${a.antecedentesDesde ? `, con antecedentes del contratista desde el ${fechaLarga(a.antecedentesDesde)}` : ""}. Datos al ${fechaLarga(a.corte)}.`, "");
   L.push(`Normativa aplicable a la fecha de la convocatoria: ${md(a.regimen)}.`, "", md(a.nota), "", "Registros consultados:", "", ...a.registros.map((r) => `- ${md(r)}`), "");
   if (a.documentos.length) L.push("Documentos del expediente publicados en el SEACE:", "", ...a.documentos.map((x) => `- ${enlaceMd(`${x.titulo}${x.fecha ? ` (${fechaLarga(x.fecha)})` : ""}`, x.copia ?? x.url)}`), "");
-  if (d.antecedentesControl.length) {
+  const directos = d.antecedentesControl.filter((q) => q.directo);
+  if (directos.length) {
+    L.push("Informes de control de la Contraloría que ya observaron este procedimiento:", "");
+    for (const q of directos) L.push(`- ${q.url ? enlaceMd(`Informe N.° ${q.numero ?? q.codigo}`, q.url) : `Informe N.° ${md(q.numero ?? q.codigo)}`}, ${md(q.entidad ?? "")}${q.anio ? ` (${q.anio})` : ""}: ${md(q.titulo ?? "")}`);
+    L.push("");
+  }
+  if (d.antecedentesControl.some((q) => !q.directo)) {
     L.push("Informes de control de la Contraloría sobre contrataciones parecidas:", "");
-    for (const q of d.antecedentesControl) L.push(`- ${q.url ? enlaceMd(`Informe N.° ${q.numero ?? q.codigo}`, q.url) : `Informe N.° ${md(q.numero ?? q.codigo)}`}, ${md(q.entidad ?? "")}${q.anio ? ` (${q.anio})` : ""}: ${md(q.titulo ?? "")}`);
+    for (const q of d.antecedentesControl.filter((x) => !x.directo)) L.push(`- ${q.url ? enlaceMd(`Informe N.° ${q.numero ?? q.codigo}`, q.url) : `Informe N.° ${md(q.numero ?? q.codigo)}`}, ${md(q.entidad ?? "")}${q.anio ? ` (${q.anio})` : ""}: ${md(q.titulo ?? "")}`);
     L.push("");
   }
   L.push("## III. Resultados", "");

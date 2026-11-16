@@ -86,7 +86,11 @@ function fichaCorta(d: DetalleInforme | undefined) {
     objetivo: d.objetivo ? corta(d.objetivo, 400) : null,
     tipoServicio: d.tipoServicioTexto ?? d.tipoServicio,
     montos: d.montos,
-    observaciones: d.observaciones.map((o) => ({ n: o.n, texto: corta(o.texto, 300), tema: o.temaTexto, perjuicio: o.perjuicio })),
+    // `enVigia`: los contratos de Vigía que la observación nombra (migración 313), sólo si hay alguno.
+    observaciones: d.observaciones.map((o) => ({
+      n: o.n, texto: corta(o.texto, 300), tema: o.temaTexto, perjuicio: o.perjuicio,
+      ...(o.enVigia.length ? { enVigia: o.enVigia.map((k) => ({ ocid: k.ocid, nomenclatura: k.nomenclatura, via: k.via })) } : {}),
+    })),
     recomendaciones: d.recomendaciones,
     implicados: d.implicados,
   };

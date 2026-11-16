@@ -1,5 +1,5 @@
 import { recortar } from "@/components/contratos/recortar";
-import { esTipoLeido, esTipoObra, responsabilidadesEnPalabras } from "@/lib/cruces";
+import { TEMA_OBSERVACION_CONTROL, esTipoLeido, esTipoObra, responsabilidadesEnPalabras } from "@/lib/cruces";
 import { rutaEmpresa, type AntecedenteEmpresa, type ReferenciasAntecedente } from "@/lib/empresas";
 import { hoyLima, numero, oracion, plural, soles } from "@/lib/formato";
 import { inversionSsi, obraInfobras } from "@/lib/fuentes";
@@ -456,6 +456,29 @@ export function datosDe(a: AntecedenteEmpresa, ruc: string): DatoCaso[] {
       desde != null && { etiqueta: "Sanción", valor: hasta ? `Del ${desde} al ${hasta}` : `Desde el ${desde}` },
       d.hecha_para_seguir === true && fundada != null && { etiqueta: "Esta empresa se fundó", valor: `El ${fundada}` },
       { etiqueta: "Falta confirmar", valor: "El porcentaje del socio y que sean del mismo rubro" },
+      delProceso(),
+    );
+  } else if (t === "observado_por_contraloria") {
+    // Migración 313: la observación de un informe de control que nombra este proceso (o la obra del contrato, por su CUI).
+    const url = txt(d.url_resumen);
+    const resp = responsabilidadesEnPalabras(d.responsabilidades);
+    const tema = TEMA_OBSERVACION_CONTROL[txt(d.tema) ?? ""];
+    const perj = num(d.perjuicio);
+    const no = num(d.n_observaciones);
+    const ni = num(d.n_informes);
+    const via = txt(d.via);
+    add(
+      { etiqueta: "Informe de control", valor: txt(d.informe_numero) ?? txt(d.informe_codigo), mono: true, href: url, fuera: url != null },
+      fechaDe(d.emision) != null && { etiqueta: "Emitido", valor: `El ${fechaDe(d.emision)}` },
+      num(d.observacion_n) != null && { etiqueta: "Qué observó", valor: `Observación ${num(d.observacion_n)}${tema ? `: ${tema}` : ""}` },
+      perj != null && perj > 0 && { etiqueta: "Perjuicio que cuantifica", valor: txt(d.moneda) === "USD" ? `US$ ${numero(perj)}` : soles(perj), mono: true },
+      resp != null && { etiqueta: "Presunta responsabilidad", valor: `${mayus(resp)}, de funcionarios y servidores` },
+      no != null && no > 1 && { etiqueta: "En total", valor: `${plural(no, "observación", "observaciones")}${ni != null && ni > 1 ? ` de ${plural(ni, "informe", "informes")}` : ""}` },
+      via === "cui" && { etiqueta: "Cómo se empató", valor: `Por la inversión ${txt(d.cui) ?? ""}, que tiene un solo contrato de obra en la entidad`.replace("  ", " "), soloPanel: true },
+      via === "unico" && { etiqueta: "Cómo se empató", valor: "Por tipo, número y año (el informe no da la sigla)", soloPanel: true },
+      (via === "codigo" || via === "sigla") && txt(d.nomenclatura) && { etiqueta: "Proceso que nombra", valor: txt(d.nomenclatura), mono: true, soloPanel: true },
+      txt(d.informe_titulo) && { etiqueta: "Asunto del informe", valor: recortar(oracion(txt(d.informe_titulo)!), 220), soloPanel: true },
+      { etiqueta: "Qué es", valor: "Lo que los auditores encontraron en el proceso: una responsabilidad presunta de funcionarios, no una sanción al proveedor", soloPanel: true },
       delProceso(),
     );
   } else if (t === "socio_con_informe_control") {

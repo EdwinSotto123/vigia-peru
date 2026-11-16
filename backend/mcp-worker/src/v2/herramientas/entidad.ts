@@ -156,7 +156,8 @@ export const informesControl = definir({
     "Los informes de control de la Contraloría sobre una entidad, con su número, título, fecha, el tipo de responsabilidad " +
     "que señalan (penal, civil, administrativa) y el enlace al PDF. De cada uno, lo que dice su Ficha Resumen: objetivo, " +
     "montos, observaciones (con su tema) y los funcionarios comprendidos con su responsabilidad PRESUNTA (un apellido " +
-    "tapado). Filtra por año, tipo o palabras del título. Para buscar por el contenido de las observaciones en todo el país, " +
+    "tapado). Si una observación nombra un proceso que está en Vigía, trae `enVigia` con su OCID: ábrelo con " +
+    "ficha_contrato. Filtra por año, tipo o palabras del título. Para buscar por el contenido de las observaciones en todo el país, " +
     "usa buscar_informes_control.",
   entrada: {
     ruc: rucEntidad,

@@ -25,6 +25,8 @@ export const GRUPOS_CRUCE: { titulo: string; tipos: { tipo: string; corto: strin
   {
     titulo: "En el proceso",
     tipos: [
+      // Migración 313: una observación de un informe de control nombra este proceso (o la obra del contrato, por su CUI).
+      { tipo: "observado_por_contraloria", chip: "Observado por la Contraloría", corto: "La Contraloría observó este proceso", explica: "Una observación de un informe de control de la Contraloría nombra este procedimiento de selección (se empata por la entidad, el tipo, el número, el año y la sigla) o la obra de este contrato (por su código único de inversión). El informe es posterior al proceso: dice lo que los auditores encontraron en él. La responsabilidad que identifica es PRESUNTA y recae en funcionarios y servidores; no sanciona al proveedor. Es grave si el informe señala responsabilidad penal y la observación es de la selección, la ejecución o los pagos; media si es penal o civil, o si cuantifica un perjuicio; leve si es sólo administrativa." },
       { tipo: "socio_comun", chip: "Socio común", corto: "Socio común entre postores", explica: "Dos postores del mismo proceso comparten socio o representante (RNP): competencia aparente." },
       { tipo: "unico_postor", corto: "Único postor", explica: "El proceso tuvo un solo postor (OCDS): no hubo competencia real. Pesa más si además se adjudicó pegado al valor referencial o es millonario: posible direccionamiento." },
       { tipo: "socio_en_entidad", chip: "Socio en la entidad", corto: "Socio del proveedor trabaja en la entidad", explica: "Un socio o representante del ganador es, además, una persona contratada por la MISMA entidad que le dio el contrato (RNP × registro de contratados): posible conflicto de interés, por revisar." },
@@ -152,6 +154,15 @@ const RESPONSABILIDAD_CONTROL: Record<string, string> = {
   administrativa_entidad: "administrativa (la procesa la entidad)",
   administrativa_pas: "administrativa (la procesa la Contraloría)",
   administrativa: "administrativa",
+};
+/** El tema de una observación de un informe de control (lectura de IA, lista cerrada), para una frase («trata de…»). */
+export const TEMA_OBSERVACION_CONTROL: Record<string, string> = {
+  seleccion_contratacion: "la selección y la contratación",
+  ejecucion_contractual: "la ejecución del contrato o de la obra",
+  pagos_adelantos: "pagos y adelantos",
+  personal_planillas: "personal y planillas",
+  bienes_almacen: "bienes y almacén",
+  presupuesto_tesoreria: "presupuesto y tesorería",
 };
 /** ["penal", "administrativa_entidad"] → «penal y administrativa (la procesa la entidad)»; null si no hay ninguna. */
 export function responsabilidadesEnPalabras(v: unknown): string | null {

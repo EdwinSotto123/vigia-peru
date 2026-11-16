@@ -482,21 +482,46 @@ export const patrones = definir({
     "cobertura; más grave si comparten socio). Con alcance «consorcio»: empresas que postularon juntas en un consorcio y " +
     "después compiten por separado en procesos de pocos postores que gana una de las dos (posible reparto). Con alcance " +
     "«renovacion»: servicios que una entidad volvió a contratar pagando 30 % o más POR MES que en el contrato anterior " +
-    "(con cuánto costaba, cuánto cuesta y si el proveedor es el mismo). Con alcance «control»: empresas que ganan con un socio o representante comprendido en un informe de control de la Contraloría anterior (responsabilidad presunta). Con alcance «inhabilitada»: empresas que ganan mientras otra empresa del mismo socio está inhabilitada (con ruc: la ganadora, la inhabilitada o la entidad). Con alcance «dueno»: un mismo socio que gana en una " +
+    "(con cuánto costaba, cuánto cuesta y si el proveedor es el mismo). Con alcance «control»: empresas que ganan con un socio o representante comprendido en un informe de control de la Contraloría anterior (responsabilidad presunta). Con alcance «observado»: proveedores con procesos que la Contraloría observó en un informe de control, por entidad, y cuánto les adjudicó esa misma entidad después del informe. Con alcance «inhabilitada»: empresas que ganan mientras otra empresa del mismo socio está inhabilitada (con ruc: la ganadora, la inhabilitada o la entidad). Con alcance «dueno»: un mismo socio que gana en una " +
     "entidad con dos o más empresas procesos de objeto parecido (reparto de compras entre razones sociales). Con un RUC, los patrones de esa entidad o empresa. Cada patrón trae contratos " +
     "de ejemplo para abrir con ficha_contrato o dictamen. Un patrón es un motivo para mirar, no una acusación.",
   cuenta: true,
   entrada: {
-    alcance: z.enum(["entidad", "proveedor", "relleno", "consorcio", "renovacion", "dueno", "inhabilitada", "control"]).default("entidad"),
+    alcance: z.enum(["entidad", "proveedor", "relleno", "consorcio", "renovacion", "dueno", "inhabilitada", "control", "observado"]).default("entidad"),
     ruc: z.string().min(11).max(14).optional().describe("RUC 20 de la entidad o de la empresa (opcional)."),
     regla: z.string().max(60).optional().describe("Sólo una señal, por su código (p. ej. unica_oferta_valida)."),
-    solo_graves: z.boolean().optional().describe("(dueno) Sólo grupos con contratos parecidos a 90 días o menos entre sí. (inhabilitada) Sólo con sanción definitiva o empresa hecha cerca de la sanción."),
+    solo_graves: z.boolean().optional().describe("(dueno) Sólo grupos con contratos parecidos a 90 días o menos entre sí. (inhabilitada) Sólo con sanción definitiva o empresa hecha cerca de la sanción. (observado) Sólo con responsabilidad penal presunta en una observación de selección, ejecución o pagos."),
+    siguio_ganando: z.boolean().optional().describe("(observado) Sólo donde la misma entidad le volvió a adjudicar después de emitido el informe."),
     minimo_contratos: z.number().int().min(2).max(500).optional().describe("(dueno) Sólo grupos con al menos tantos contratos parecidos."),
     pagina: z.number().int().min(1).max(50).default(1),
   },
   async ejecutar(a, cx) {
     const e = enlaces(cx.env);
     const ruc = a.ruc ? rucJuridico(a.ruc) : undefined;
+    if (a.alcance === "observado") {
+      const r = await api<Fila>(cx.env, "/patrones/observados", { ruc, page: a.pagina, size: 20, graves: a.solo_graves ? 1 : undefined, siguio: a.siguio_ganando ? 1 : undefined });
+      return {
+        total: r.total,
+        casos: ((r.data ?? []) as Fila[]).map((x) => ({
+          empresa: x.empresa, ruc: x.ruc, enlace: e.empresa(x.ruc), entidad: x.entidad, ruc_entidad: x.entidadRuc,
+          procesos_observados: x.observados, graves: x.graves, observaciones: x.observaciones, informes: x.informes, temas: x.temas ?? undefined,
+          monto_de_los_procesos_soles: x.monto, perjuicio_que_cuantifican_soles: x.perjuicio ?? undefined,
+          primer_informe: x.informeNumero ?? x.informeCodigo, fecha_del_informe: x.emision, responsabilidad_presunta: x.responsabilidades,
+          ficha_del_informe: x.ficha ?? undefined,
+          adjudicado_despues_por_la_misma_entidad: { procesos: x.despues, monto_soles: x.montoDespues ?? undefined, ultima_buena_pro: x.ultimaDespues ?? undefined },
+          ejemplos: ((x.ejemplos ?? []) as string[]).map((o) => e.contrato(o)),
+        })),
+        como_leerlo:
+          "Cada fila es un proveedor y una entidad: procesos que ese proveedor ganó ahí y que una observación de un informe " +
+          "de control de la Contraloría nombra (por su nomenclatura o por el CUI de la obra). El informe es posterior al " +
+          "proceso y dice lo que los auditores encontraron; la responsabilidad que identifica es PRESUNTA y recae en " +
+          "funcionarios y servidores: NO sanciona al proveedor. «adjudicado_despues» cuenta lo que esa misma entidad le " +
+          "adjudicó con su propio RUC después de emitido el primer informe (lo ganado en consorcio no se cuenta). Abre el " +
+          "contrato de ejemplo con ficha_contrato y lee la observación con informes_control o buscar_informes_control.",
+        fuente: "Contraloría (Fichas Resumen de los informes de control, leídas con IA) y CONOSCE (adjudicaciones desde 2018)",
+        aviso: AVISO,
+      };
+    }
     if (a.alcance === "control") {
       const r = await api<Fila>(cx.env, "/patrones/control", { ruc, page: a.pagina, size: 20, graves: a.solo_graves ? 1 : undefined });
       return {

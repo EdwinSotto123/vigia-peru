@@ -41,6 +41,17 @@ export interface ObservacionControl {
   contratos: string[];
   procesos: string[];
   empresas: { razon_social: string; ruc: string | null }[];
+  /** Los contratos de Vigía que esta observación nombra (migración 313); [] si ninguno se pudo atar. */
+  enVigia: ContratoObservado[];
+}
+
+/** Un contrato atado a una observación: por la nomenclatura del proceso (codigo, sigla, unico) o por el CUI de la obra. */
+export interface ContratoObservado {
+  ocid: string;
+  nomenclatura: string | null;
+  via: "codigo" | "sigla" | "unico" | "cui";
+  cui: string | null;
+  objeto: string | null;
 }
 
 export interface ImplicadoControl {
@@ -71,7 +82,11 @@ const num = (v: unknown): number | null => (typeof v === "number" && Number.isFi
 const texto = (v: unknown): string | null => (typeof v === "string" && v.trim() ? v.trim() : null);
 
 /** `campos` de informe_control_ficha → el detalle que se publica (sin el texto entero de la ficha, que nunca sale). */
-export function detalleDeCampos(campos: Json | null | undefined, implicados: ImplicadoControl[] | null): DetalleInforme {
+export function detalleDeCampos(
+  campos: Json | null | undefined,
+  implicados: ImplicadoControl[] | null,
+  contratos: Map<number, ContratoObservado[]> = new Map(),
+): DetalleInforme {
   const c = campos ?? {};
   const ia = (c.ia && typeof c.ia === "object" ? c.ia : {}) as Json;
   const porN = new Map(lista<Json>(ia.observaciones).map((o) => [Number(o.n), o]));
@@ -100,6 +115,7 @@ export function detalleDeCampos(campos: Json | null | undefined, implicados: Imp
         empresas: lista<Json>(x.empresas)
           .map((e) => ({ razon_social: String(e.razon_social ?? ""), ruc: typeof e.ruc === "string" && /^(15|17|20)\d{9}$/.test(e.ruc) ? e.ruc : null }))
           .filter((e) => e.razon_social),
+        enVigia: contratos.get(Number(o.n)) ?? [],
       };
     }),
     recomendaciones: lista(c.recomendaciones).length,
@@ -143,6 +159,30 @@ async function implicadosDe(codigos: string[]): Promise<Map<string, ImplicadoCon
 }
 
 /**
+ * Los contratos de Vigía que nombra cada observación de cada informe (informe_control_proceso, migración 313): por la
+ * nomenclatura del proceso o por el CUI de la obra. Sin la tabla (otra base), ninguno.
+ */
+async function contratosObservados(codigos: string[]): Promise<Map<string, Map<number, ContratoObservado[]>>> {
+  const m = new Map<string, Map<number, ContratoObservado[]>>();
+  try {
+    const r = await pool.query<{ codigo: string; n: number; ocid: string; nomenclatura: string | null; via: ContratoObservado["via"]; cui: string | null; objeto: string | null }>(
+      `SELECT p.codigo, p.n, p.ocid, p.nomenclatura, p.via, p.cui, left(c.objeto, 220) AS objeto
+         FROM informe_control_proceso p LEFT JOIN convocatorias c ON c.ocid = p.ocid
+        WHERE p.codigo = ANY($1::text[])
+        ORDER BY p.codigo, p.n, p.ocid`,
+      [codigos]);
+    for (const x of r.rows) {
+      const porN = m.get(x.codigo) ?? new Map<number, ContratoObservado[]>();
+      m.set(x.codigo, porN);
+      porN.set(x.n, [...(porN.get(x.n) ?? []), { ocid: x.ocid, nomenclatura: x.nomenclatura, via: x.via, cui: x.cui, objeto: x.objeto }]);
+    }
+  } catch (e) {
+    if (!esErrorPg(e, "42P01", "42501")) throw e;
+  }
+  return m;
+}
+
+/**
  * El detalle de varios informes por su código: los que tienen la ficha leída y, si existe la vista, sus implicados. Un
  * informe sin ficha no está en el mapa (la lista lo muestra con lo del buscador de la Contraloría).
  */
@@ -157,9 +197,9 @@ export async function detallesDeInformes(codigos: string[]): Promise<Map<string,
     if (esErrorPg(e, "42P01", "42501")) return new Map();     // la migración 304 todavía no llegó a esta base
     throw e;
   }
-  const implicados = await implicadosDe(unicos);
+  const [implicados, contratos] = await Promise.all([implicadosDe(unicos), contratosObservados(unicos)]);
   const m = new Map<string, DetalleInforme>();
-  for (const f of filas) m.set(f.codigo, detalleDeCampos(f.campos, implicados ? (implicados.get(f.codigo) ?? []) : null));
+  for (const f of filas) m.set(f.codigo, detalleDeCampos(f.campos, implicados ? (implicados.get(f.codigo) ?? []) : null, contratos.get(f.codigo)));
   // Un informe sin ficha leída pero con implicados: también se publica lo que hay.
   if (implicados) {
     for (const c of unicos) {

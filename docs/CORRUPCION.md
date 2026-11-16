@@ -156,12 +156,13 @@ de servicio de control y las observaciones numeradas.
 | Fichas y su lectura | `informe_control_ficha` (migración 304): el texto y `campos` (objetivo, montos, observaciones, recomendaciones); la lectura con GLM 5.3 flash agrega a cada observación su tema, el perjuicio y las referencias (obras, contratos, procesos, empresas) |
 | Buscador | `informe_control_fragmento` + `buscar_informe_control()` (migración 305, palabras y vectores bge-m3); `GET /informes-control/buscar`, `/app/contraloria` en la web y `buscar_informes_control` en el MCP |
 | Funcionarios comprendidos | `informe_control_persona` (302, con DNI, restringida) y la vista sin documento `informe_control_implicado`; en la web, con un apellido tapado y siempre «responsabilidad presunta» |
-| Señales | `socio_con_informe_control` (contratos; 303 y 307) y `ordenes_tras_informe` (personas; 308) |
+| Señales | `socio_con_informe_control` (contratos; 303 y 307), `ordenes_tras_informe` (personas; 308) y `observado_por_contraloria` (contratos; 313) |
+| Observación → contrato | `informe_control_proceso` (313): qué contrato de Vigía nombra cada observación, por la nomenclatura del proceso (entidad, tipo, número, año y sigla) o por el CUI de la obra. La arma `refrescar_informe_control_proceso()`; la bandera, `refrescar_cruce_observado_por_contraloria()` (en el refresco de cruces del Worker y en el paso `atar` del script de fichas). El panel de un informe enlaza cada observación a su contrato (`enVigia`), y el «Informe para control» pone primero los informes que ya observaron ese procedimiento |
 | Informe para control | `GET /contratos/:ocid/informe-control` (306): las señales de un contrato como observaciones con condición, criterio, efecto, causa, evidencia y precedentes de informes reales; pestaña «Informe para control» del dictamen |
 
 **Actualizar todo (una vez al mes, desde una PC en el Perú):** `bash backend/scripts/actualizar_contraloria.sh`. Carga los
-informes y sus funcionarios, baja las fichas que faltan (un pedido por segundo), las lee y rehace el índice. Los PDF
-quedan en `dataset/contraloria_fichas/` (git lo ignora).
+informes y sus funcionarios, baja las fichas que faltan (un pedido por segundo), las lee, rehace el índice y ata cada
+observación al contrato que nombra. Los PDF quedan en `dataset/contraloria_fichas/` (git lo ignora).
 
 ## Desplegar
 

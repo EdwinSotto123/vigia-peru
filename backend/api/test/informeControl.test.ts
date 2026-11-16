@@ -142,6 +142,28 @@ test("las señales: sin los cruces posteriores, sin las banderas que no suman, n
   assert.match(pen.texto, /26 de junio de 2019/);
 });
 
+test("lo que ya observó la Contraloría (migración 313) es contexto: no se desarrolla y su etiqueta dice el informe", () => {
+  const ficha = { ...FICHA, cruces: [...FICHA.cruces, {
+    tipo: "observado_por_contraloria", etiqueta: "La Contraloría observó este proceso en un informe de control", severidad: "alta",
+    rucProveedor: "20100028698", proveedor: "FERREYROS SOCIEDAD ANÓNIMA", fecha: "2026-09-30", montoSoles: 1112981.43,
+    detalle: { informe_codigo: "2027CPOL44600007", informe_numero: "007-2027-2-4460", emision: "2027-03-15", observacion_n: 2,
+      tema: "seleccion_contratacion", perjuicio: 250000, moneda: "PEN", responsabilidades: ["penal", "administrativa_entidad"], via: "sigla",
+      n_observaciones: 2, n_informes: 1 },
+    socios: [], visitas: [], fuente: "informes_control", fuenteUrl: "https://apps8.contraloria.gob.pe/SPIC/srvDownload/ViewPDF?CRES_CODIGO=2027CPOL44600007&TIPOARCHIVO=RE",
+  }] };
+  const s = senalesDelContrato(ficha, BANDERAS);
+  const obs = s.find((x) => x.tipo === "observado_por_contraloria")!;
+  assert.equal(obs.tema, "control_previo");
+  assert.equal(obs.etiqueta, "La Contraloría observó este procedimiento en el Informe N.° 007-2027-2-4460");
+  assert.match(obs.texto, /Informe N\.° 007-2027-2-4460, emitido el 15 de marzo de 2027 \(observación 2, sobre la selección y la contratación\)/);
+  assert.match(obs.texto, /perjuicio de S\/ 250,000\.00/);
+  assert.match(obs.texto, /presunta responsabilidad penal, administrativa de funcionarios y servidores/);
+  assert.match(obs.texto, /2 observaciones de 1 informe\(s\) nombran este contrato/);
+  const { grupos, resto } = agrupar(s);
+  assert.equal(grupos.some((g) => g.tema === "control_previo"), false, "no es una observación de Vigía");
+  assert.equal(resto.some((x) => x.tipo === "observado_por_contraloria"), true, "va con las otras señales, sin desarrollar");
+});
+
 test("agrupar: el mismo hecho en una observación, por gravedad", () => {
   const { grupos } = agrupar(senalesDelContrato(FICHA, BANDERAS));
   assert.deepEqual(grupos.map((g) => g.tema), ["vinculo_inhabilitada", "bases", "evaluacion", "penalidades"]);
