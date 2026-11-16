@@ -321,26 +321,37 @@ patronesRouter.get("/observados", async (c) => {
       `WITH b AS (
          SELECT c.ruc_empresa AS ruc, btrim(cv.entidad_ruc::text) AS entidad_ruc, c.ocid, c.severidad, c.monto, c.fecha,
                 c.detalle->>'informe_codigo' AS codigo, c.detalle->>'informe_numero' AS numero, NULLIF(c.detalle->>'emision', '')::date AS emision,
-                c.detalle->'responsabilidades' AS resp, c.detalle->>'url_resumen' AS ficha, c.detalle->>'tema' AS tema,
-                NULLIF(c.detalle->>'perjuicio_total', '')::numeric AS perjuicio, (c.detalle->>'n_observaciones')::int AS n_obs
+                c.detalle->'responsabilidades' AS resp, c.detalle->>'url_resumen' AS ficha, c.detalle->>'tema' AS tema
            FROM cruces_proveedor c JOIN convocatorias cv ON cv.ocid = c.ocid
           WHERE c.tipo = 'observado_por_contraloria' AND c.ruc_empresa ~ '^20[0-9]{9}$'),
        x AS (
          SELECT ruc, entidad_ruc, count(DISTINCT ocid)::int AS observados, (count(DISTINCT ocid) FILTER (WHERE severidad = 'alta'))::int AS graves,
-                sum(monto)::float AS monto, sum(perjuicio)::float AS perjuicio, sum(n_obs)::int AS observaciones, min(emision) AS emision,
+                sum(monto)::float AS monto, min(emision) AS emision,
                 (array_agg(codigo ORDER BY emision, ocid))[1] AS informe_codigo, (array_agg(numero ORDER BY emision, ocid))[1] AS informe_numero,
                 (array_agg(resp ORDER BY emision, ocid))[1] AS responsabilidades, (array_agg(ficha ORDER BY emision, ocid))[1] AS ficha,
                 count(DISTINCT codigo)::int AS informes, array_agg(DISTINCT tema) FILTER (WHERE tema IS NOT NULL) AS temas,
                 (array_agg(ocid ORDER BY severidad = 'alta' DESC, monto DESC NULLS LAST))[1:3] AS ejemplos,
                 min(fecha) AS desde, max(fecha) AS hasta
-           FROM b GROUP BY ruc, entidad_ruc)
-       SELECT x.ruc, e.razon_social AS empresa, x.entidad_ruc AS "entidadRuc", en.nombre AS entidad, x.observados, x.graves, x.monto, x.perjuicio,
-              x.observaciones, x.informes, x.temas, x.informe_codigo AS "informeCodigo", x.informe_numero AS "informeNumero",
+           FROM b GROUP BY ruc, entidad_ruc),
+       -- Las observaciones del par, una vez cada una (una observación puede nombrar varios contratos del mismo proveedor),
+       -- y su perjuicio en soles: el mismo monto repetido dentro de un informe es su total, y cuenta una vez.
+       k AS (
+         SELECT DISTINCT b.ruc, b.entidad_ruc, p.codigo, p.n, CASE WHEN p.moneda = 'PEN' AND p.perjuicio > 0 THEN p.perjuicio END AS perjuicio
+           FROM b JOIN informe_control_proceso p ON p.ocid = b.ocid),
+       o AS (
+         SELECT n.ruc, n.entidad_ruc, n.observaciones, m.perjuicio
+           FROM (SELECT ruc, entidad_ruc, count(*)::int AS observaciones FROM k GROUP BY 1, 2) n
+           LEFT JOIN (SELECT ruc, entidad_ruc, sum(perjuicio)::float AS perjuicio
+                        FROM (SELECT DISTINCT ruc, entidad_ruc, codigo, perjuicio FROM k WHERE perjuicio IS NOT NULL) u GROUP BY 1, 2) m
+             ON m.ruc = n.ruc AND m.entidad_ruc = n.entidad_ruc)
+       SELECT x.ruc, e.razon_social AS empresa, x.entidad_ruc AS "entidadRuc", en.nombre AS entidad, x.observados, x.graves, x.monto, o.perjuicio,
+              o.observaciones, x.informes, x.temas, x.informe_codigo AS "informeCodigo", x.informe_numero AS "informeNumero",
               to_char(x.emision, 'YYYY-MM-DD') AS emision, x.responsabilidades, x.ficha, x.ejemplos,
               to_char(x.desde, 'YYYY-MM-DD') AS desde, to_char(x.hasta, 'YYYY-MM-DD') AS hasta,
               COALESCE(d.despues, 0) AS despues, d.monto_despues AS "montoDespues", to_char(d.ultima, 'YYYY-MM-DD') AS "ultimaDespues",
               (count(*) OVER ())::int AS total
          FROM x
+         LEFT JOIN o ON o.ruc = x.ruc AND o.entidad_ruc = x.entidad_ruc
          LEFT JOIN empresas e ON e.ruc = x.ruc
          LEFT JOIN entidades en ON btrim(en.ruc::text) = x.entidad_ruc
          LEFT JOIN LATERAL (
@@ -349,7 +360,7 @@ patronesRouter.get("/observados", async (c) => {
             WHERE x.emision IS NOT NULL AND a.ruc_proveedor = x.ruc AND a.entidad_ruc = x.entidad_ruc
               AND a.fecha_buenapro > x.emision AND a.monto_adjudicado > 0) d ON true
          ${donde}
-        ORDER BY (COALESCE(d.despues, 0) > 0) DESC, x.graves DESC, COALESCE(d.despues, 0) DESC, x.perjuicio DESC NULLS LAST, x.ruc, x.entidad_ruc
+        ORDER BY (COALESCE(d.despues, 0) > 0) DESC, x.graves DESC, COALESCE(d.despues, 0) DESC, o.perjuicio DESC NULLS LAST, x.ruc, x.entidad_ruc
         LIMIT ${add(q.size)} OFFSET ${add((q.page - 1) * q.size)}`, vals);
     return publicar({ total: r.rows[0]?.total ?? 0, page: q.page, size: q.size, data: r.rows.map(({ total: _t, ...x }) => x) });
   });
