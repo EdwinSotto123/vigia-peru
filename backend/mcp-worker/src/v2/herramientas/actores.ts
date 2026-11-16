@@ -146,16 +146,20 @@ export const fichaEntidad = definir({
   descripcion:
     "Una entidad pública por su RUC: lugar, contratos, presupuesto del MEF por año (PIA, PIM, devengado y % de ejecución), " +
     "quién la gobierna y de qué partido, señales sobre su planilla, locadores y proveedores, posible nepotismo, informes " +
-    "de la Contraloría con su PDF y casos de la Procuraduría en su departamento.",
+    "de la Contraloría con su PDF y casos de la Procuraduría en su departamento. También los socios que le ganan con dos o " +
+    "más empresas procesos de objeto parecido.",
   entrada: { ruc: rucEntrada("la entidad") },
   async ejecutar({ ruc }, cx) {
     const r = rucJuridico(ruc, "RUC de la entidad");
-    const [f, poder, control] = await Promise.all([
+    const [f, poder, control, du] = await Promise.all([
       api<Fila>(cx.env, `/entidades/${r}`),
       api<Fila>(cx.env, `/poder/entidad/${r}`).catch(() => null),
       api<Fila>(cx.env, `/corrupcion/entidad/${r}`, { size: 5 }).catch(() => null),
+      // Socios que le ganan a esta entidad con dos o más empresas (migraciones 292 y 293).
+      api<Fila>(cx.env, "/patrones/duenos", { ruc: r, size: 8 }).catch(() => null),
     ]);
     const ent = f.entidad ?? {};
+    const e = enlaces(cx.env);
     const anios = ((f.mef?.by_year ?? []) as Fila[]).slice(-6).map((y) => ({
       anio: y.year, pia: y.pia, pim: y.pim, devengado: y.devengado, ejecucion_pct: y.pim ? Math.round((1000 * y.devengado) / y.pim) / 10 : null,
     }));
@@ -171,6 +175,17 @@ export const fichaEntidad = definir({
       distrito: ent.distrito,
       contratos: ent.contratos,
       presupuesto: anios.length ? { fuente: "MEF (Consulta Amigable, SIAF)", por_anio: anios } : undefined,
+      duenos_con_varias_empresas: du && (du.total ?? 0) > 0
+        ? {
+            grupos: du.total,
+            principales: ((du.data ?? []) as Fila[]).map((x) => ({
+              socio: x.socios?.[0]?.nombre ?? undefined, empresas: ((x.empresas ?? []) as Fila[]).map((y) => ({ empresa: y.nombre, ruc: y.ruc, enlace: e.empresa(y.ruc) })),
+              contratos_con_objeto_parecido: x.contratos, con_90_dias_o_menos_entre_si: x.seguidos, monto_soles: x.monto,
+              ejemplos: ((x.ejemplos ?? []) as string[]).map((o) => e.contrato(o)),
+            })),
+            como_leerlo: "Un socio que le gana a esta entidad, con dos o más empresas, procesos de objeto parecido. Para la lista entera: patrones con alcance «dueno» y este RUC.",
+          }
+        : undefined,
       gobierno: poder
         ? { partido: poder.partido, cargo: poder.cargo_gob, autoridad: poder.autoridad, desde: poder.periodoInicio, hasta: poder.periodoFin,
             contratos_a_empresas_ligadas: poder.n_captura, monto_ligadas_soles: poder.monto_captura }
@@ -460,13 +475,15 @@ export const patrones = definir({
     alcance: z.enum(["entidad", "proveedor", "relleno", "consorcio", "renovacion", "dueno"]).default("entidad"),
     ruc: z.string().min(11).max(14).optional().describe("RUC 20 de la entidad o de la empresa (opcional)."),
     regla: z.string().max(60).optional().describe("Sólo una señal, por su código (p. ej. unica_oferta_valida)."),
+    solo_graves: z.boolean().optional().describe("(dueno) Sólo grupos con contratos parecidos a 90 días o menos entre sí."),
+    minimo_contratos: z.number().int().min(2).max(500).optional().describe("(dueno) Sólo grupos con al menos tantos contratos parecidos."),
     pagina: z.number().int().min(1).max(50).default(1),
   },
   async ejecutar(a, cx) {
     const e = enlaces(cx.env);
     const ruc = a.ruc ? rucJuridico(a.ruc) : undefined;
     if (a.alcance === "dueno") {
-      const r = await api<Fila>(cx.env, "/patrones/duenos", { ruc, page: a.pagina, size: 20 });
+      const r = await api<Fila>(cx.env, "/patrones/duenos", { ruc, page: a.pagina, size: 20, graves: a.solo_graves ? 1 : undefined, min: a.minimo_contratos });
       return {
         total: r.total,
         grupos: ((r.data ?? []) as Fila[]).map((x) => ({

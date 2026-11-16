@@ -17,7 +17,7 @@
  *   GET /patrones/renovaciones?ruc=&page=&size=
  *       Servicios que una entidad volvió a contratar pagando 30 % o más por mes que en el contrato anterior
  *       (migración 283). Con `ruc`, los de esa entidad o los que ganó esa empresa.
- *   GET /patrones/duenos?ruc=     un mismo socio que gana en una entidad con varias empresas (migración 292)
+ *   GET /patrones/duenos?ruc=&graves=1&min=   un mismo socio que gana en una entidad con varias empresas (migración 292)
  *   GET /patrones/precios?q=&tipo=bien|servicio&entidad=&anio=
  *       Precios de referencia. `bien`: los productos de los Catálogos de Perú Compras cuya descripción trae las palabras,
  *       con lo que pagaron por ellos 5 entidades o más (cuartil 1, mediana y cuartil 3 por año; sin IGV y con IGV).
@@ -142,15 +142,26 @@ patronesRouter.get("/consorcios", async (c) => {
  * Una fila por entidad y socio: sus empresas, cuántos contratos y cuántos con 90 días o menos entre uno y otro. Con `ruc`,
  * los de esa entidad o los grupos en que está esa empresa. El socio sale con un apellido tapado y sin documento.
  */
+const Duenos = Consorcios.extend({
+  /** Sólo grupos con contratos a 90 días o menos entre sí (la forma grave). */
+  graves: z.enum(["1", "true"]).optional(),
+  /** Mínimo de contratos parecidos del grupo. */
+  min: z.coerce.number().int().min(2).max(500).optional(),
+});
+
 patronesRouter.get("/duenos", async (c) => {
-  const p = Consorcios.safeParse(Object.fromEntries(Object.entries(parametros(c)).filter(([, v]) => v !== "" && v != null)));
+  const p = Duenos.safeParse(Object.fromEntries(Object.entries(parametros(c)).filter(([, v]) => v !== "" && v != null)));
   if (!p.success) return c.json({ error: "invalid_query", issues: p.error.issues }, 400);
   const q = p.data;
   const cuerpo = await memo.obtener(`duenos:${JSON.stringify(q)}`, async () => {
     const vals: unknown[] = [];
     const add = (v: unknown) => { vals.push(v); return `$${vals.length}`; };
     // De la tabla ya agrupada (migración 293). Con RUC: la entidad, o los grupos en que participa esa empresa.
-    const donde = q.ruc ? `WHERE g.entidad_ruc = ${add(q.ruc)} OR g.rucs @> ARRAY[$${vals.length}]` : "";
+    const conds: string[] = [];
+    if (q.ruc) conds.push(`(g.entidad_ruc = ${add(q.ruc)} OR g.rucs @> ARRAY[$${vals.length}])`);
+    if (q.graves) conds.push("g.seguidos > 0");
+    if (q.min) conds.push(`g.contratos >= ${add(q.min)}`);
+    const donde = conds.length ? `WHERE ${conds.join(" AND ")}` : "";
     const n = vals.length;
     const [filas, total] = await Promise.all([
       pool.query(

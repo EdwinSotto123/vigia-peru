@@ -185,7 +185,8 @@ export const rutaPatrones = (alcance: AlcancePatron, page = 1, regla?: string) =
   `/patrones?${consulta({ alcance, page, size: TAM_PATRONES, regla })}`;
 export const rutaAcompanantes = (page = 1) => `/patrones/acompanantes?${consulta({ solo: "fuertes", page, size: TAM_PATRONES })}`;
 export const rutaConsorcios = (page = 1) => `/patrones/consorcios?${consulta({ page, size: TAM_PATRONES })}`;
-export const rutaDuenos = (page = 1, ruc?: string) => `/patrones/duenos?${consulta({ page, size: TAM_PATRONES, ruc })}`;
+export const rutaDuenos = (page = 1, ruc?: string, graves = false) =>
+  `/patrones/duenos?${consulta({ page, size: TAM_PATRONES, ruc, graves: graves ? 1 : undefined })}`;
 export const rutaRenovaciones = (page = 1) => `/patrones/renovaciones?${consulta({ page, size: TAM_PATRONES })}`;
 
 // ─── Lecturas (servidor) ─────────────────────────────────────────────────────────

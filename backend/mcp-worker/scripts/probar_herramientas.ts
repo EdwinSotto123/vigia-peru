@@ -10,7 +10,7 @@
  * `rastro_persona` necesita además MCP_INTERNO_TOKEN; sin él esa prueba se salta. No imprime secretos ni nombres enteros.
  */
 import { z } from "zod";
-import { normaAplicable, patrones, preciosReferencia, redEmpresa } from "../src/v2/herramientas/actores";
+import { fichaEntidad, normaAplicable, patrones, preciosReferencia, redEmpresa } from "../src/v2/herramientas/actores";
 
 const PRUEBA = process.env.GOBSERVA_PRUEBA ?? "";
 if (!PRUEBA) {
@@ -59,6 +59,11 @@ const CASOS: Caso[] = [
   // Una de las dos ferreteras del mismo dueño que le venden al mismo gobierno regional: debe traer a su hermana.
   { h: redEmpresa as never, args: { ruc: "20532492051" },
     espera: (r) => (lista(r, "mismo_dueno_en_la_misma_entidad").some((g) => ((g as { empresas_hermanas: unknown[] }).empresas_hermanas ?? []).length >= 1) ? null : "sin empresas hermanas en la misma entidad") },
+  { h: patrones as never, args: { alcance: "dueno", solo_graves: true, minimo_contratos: 10 },
+    espera: (r) => (lista(r, "grupos").length >= 3 && lista(r, "grupos").every((g) => Number((g as { con_90_dias_o_menos_entre_si: number }).con_90_dias_o_menos_entre_si) > 0 && Number((g as { contratos_con_objeto_parecido: number }).contratos_con_objeto_parecido) >= 10)
+      ? null : "el filtro de graves o el mínimo no se aplicó") },
+  { h: fichaEntidad as never, args: { ruc: "20131257750" },
+    espera: (r) => ((r.duenos_con_varias_empresas as { grupos?: number } | undefined)?.grupos ? null : "la ficha de la entidad no trae sus grupos de dueños") },
   { h: redEmpresa as never, args: { ruc: "20100210909" }, espera: (r) => (lista(r, "socias_de_consorcio_que_compiten").length ? null : "sin socias de consorcio para una aseguradora que las tiene") },
 ];
 

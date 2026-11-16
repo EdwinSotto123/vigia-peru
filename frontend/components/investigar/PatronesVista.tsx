@@ -675,7 +675,10 @@ function ListaDuenos({ inicial }: { inicial: InicialPatrones }) {
   // El filtro por RUC (de la entidad o de una de las empresas) es de la vista: no viaja a la URL.
   const [ruc, setRuc] = useState("");
   const rucValido = /^20\d{9}$/.test(ruc.trim()) ? ruc.trim() : undefined;
-  const carga = usePoder<PatronesDuenos>(rutaDuenos(rucValido ? 1 : lista.page, rucValido));
+  // Sólo los grupos con contratos a 90 días o menos entre sí. Como el RUC, es de la vista y vuelve a la primera página.
+  const [graves, setGraves] = useState(false);
+  const filtrada = !!rucValido || graves;
+  const carga = usePoder<PatronesDuenos>(rutaDuenos(filtrada ? 1 : lista.page, rucValido, graves));
   return (
     <div className="space-y-4">
       <CabeceraPestana
@@ -707,6 +710,10 @@ function ListaDuenos({ inicial }: { inicial: InicialPatrones }) {
           className="mt-1 h-11 w-full rounded-xl border border-line bg-paperSoft px-3 text-dato text-ink placeholder:text-mute focus:border-granate focus:bg-paper focus:outline-none focus:ring-2 focus:ring-granate/20"
         />
       </label>
+      <label className="flex min-h-11 w-fit cursor-pointer items-center gap-2.5 text-dato text-ink">
+        <input type="checkbox" checked={graves} onChange={(e) => setGraves(e.target.checked)} className="size-5 rounded border-line accent-granate" />
+        Sólo los graves: contratos parecidos a 90 días o menos entre sí
+      </label>
       <EstadoCarga carga={carga} columnas={COLUMNAS_DUENOS}>
         {(d) => {
           const filas = d.data ?? [];
@@ -715,12 +722,12 @@ function ListaDuenos({ inicial }: { inicial: InicialPatrones }) {
               <Indicadores
                 franja
                 items={[
-                  { valor: numero(d.total), etiqueta: rucValido ? "grupos con ese RUC" : "grupos de entidad y socio", contexto: "dos o más empresas del mismo socio", icono: <UsersRound size={15} strokeWidth={1.9} aria-hidden />, parte: null },
+                  { valor: numero(d.total), etiqueta: rucValido ? "grupos con ese RUC" : graves ? "grupos graves" : "grupos de entidad y socio", contexto: "dos o más empresas del mismo socio", icono: <UsersRound size={15} strokeWidth={1.9} aria-hidden />, parte: null },
                   { valor: "90 días", etiqueta: "o menos entre dos contratos", contexto: "es la forma grave: una compra repartida", parte: null },
                   { valor: "2 a 6", etiqueta: "empresas por socio", contexto: "quien figura en decenas no es el dueño", parte: null },
                 ]}
               />
-              <ZonaLista total={d.total} page={rucValido ? 1 : lista.page} cargando={carga.cargando} nombre="grupos" onPagina={lista.irAPagina} vacio="No hay grupos con este patrón para ese filtro.">
+              <ZonaLista total={d.total} page={filtrada ? 1 : lista.page} cargando={carga.cargando} nombre="grupos" onPagina={lista.irAPagina} vacio="No hay grupos con este patrón para ese filtro.">
                 {filas.length > 0 ? <Tabla columnas={COLUMNAS_DUENOS} filas={filas.map(filaDueno)} etiqueta="Socios que ganan en una entidad con varias empresas" /> : null}
               </ZonaLista>
             </div>
