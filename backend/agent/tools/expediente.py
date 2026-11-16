@@ -22,6 +22,7 @@ from __future__ import annotations
 from datetime import date
 
 from tools._core import *  # noqa: F401,F403
+from tools.lecturas import ocid_corto
 from tools.privacidad import es_persona_natural, tapar_nombre
 
 _MAX_RNP = 30
@@ -298,7 +299,7 @@ def expediente_proveedor_bd(ruc: str, entidad_ruc: str | None = None, ocid: str 
               FROM cruces_proveedor WHERE ruc_empresa = %s GROUP BY 1, 2
              ORDER BY CASE severidad WHEN 'alta' THEN 0 WHEN 'media' THEN 1 ELSE 2 END, 3 DESC""", (ruc,))]
         if ocid:
-            corto = str(ocid).split("-")[-1]
+            corto = ocid_corto(ocid)
             out["banderas_de_este_proceso"] = sorted({r["tipo"] for r in _filas(
                 cur, "SELECT DISTINCT tipo FROM cruces_proveedor WHERE ruc_empresa = %s AND ocid = %s", (ruc, corto))})
             # 5a. Las dos banderas de DUEÑOS de este proceso, con su evidencia (migraciones 292 y 297): un socio que tiene

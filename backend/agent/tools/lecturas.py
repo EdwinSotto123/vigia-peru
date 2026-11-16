@@ -15,8 +15,21 @@ _VERSION = {"buena_pro": "v2", "contrato": "v1", "consultas": "v1", "bases": "v1
 _NOMBRE = {"buena_pro": "acta", "contrato": "contrato", "consultas": "consultas", "bases": "bases"}
 
 
-def _ocid_corto(ocid: str) -> str:
-    return str(ocid or "").split("-")[-1]
+_PREFIJO_OCDS = re.compile(r"^ocds-[a-z0-9]+-seacev\d+-(.+)$")
+
+
+def ocid_corto(ocid) -> str:
+    """El OCID como lo guarda Vigía (convocatorias.ocid, cruces_proveedor.ocid, documento_lectura.ocid): sin el prefijo
+    `ocds-…-seacev3-`. Quedarse con lo que sigue al último guion servía para «…-1195870», pero de «…-2026-150-3» dejaba
+    «3»: unos 397 mil procesos tienen el identificador con guiones, y el agente no encontraba sus lecturas ni sus banderas."""
+    s = str(ocid or "").strip()
+    m = _PREFIJO_OCDS.match(s)
+    if m:
+        return m.group(1)
+    return s.split("-")[-1] if s.startswith("ocds-") else s
+
+
+_ocid_corto = ocid_corto
 
 
 def _postores(salida: dict, nombres: set[str]) -> list[dict]:

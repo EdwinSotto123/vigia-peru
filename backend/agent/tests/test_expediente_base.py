@@ -51,6 +51,14 @@ def test_ficha_md_trae_las_cifras_de_la_base():
     assert "ninguna registrada" in md
 
 
+def test_ocid_corto_no_recorta_los_identificadores_con_guiones():
+    from tools.lecturas import ocid_corto
+    assert ocid_corto("ocds-dgv273-seacev3-1195870") == "1195870"
+    assert ocid_corto("ocds-dgv273-seacev3-2026-150-3") == "2026-150-3"
+    assert ocid_corto("2026-150-3") == "2026-150-3" and ocid_corto("1195870") == "1195870"
+    assert ocid_corto("ocds-dgv273-seacev3-v2-3510109") == "v2-3510109" and ocid_corto(None) == ""
+
+
 def test_hechos_de_duenos_sin_nombres_y_con_lo_que_falta_confirmar():
     det = {"sancionada": "CORPORACION X & CIA S.A.C.", "sancionada_ruc": "20600000001", "sancion": "temporal", "sancion_desde": "2026-02-21",
            "sancion_hasta": "2028-02-21", "hecha_para_seguir": True, "fundada": "2026-03-08",

@@ -9,6 +9,7 @@ de distancia), y sólo referencias con 5 o más precios de 3 o más entidades.
 from __future__ import annotations
 
 from tools._core import *  # noqa: F401,F403
+from tools.lecturas import ocid_corto
 
 _MIN_PRECIOS = 5
 _MIN_ENTIDADES = 3
@@ -27,7 +28,7 @@ def _veredicto(unit: float | None, p25, med, p75) -> str:
 
 
 def precios_internos_bd(ocid: str, conn=None) -> list[dict]:
-    corto = str(ocid or "").split("-")[-1]
+    corto = ocid_corto(ocid)
     propia = conn is None
     conn = conn or _pg()
     try:
