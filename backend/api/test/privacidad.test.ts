@@ -526,3 +526,95 @@ test("taparNombrePropio (órdenes de una persona): el segundo apellido entero, c
   assert.equal(t("ROJAS PEREZ ELENA"), `SERVICIO DE ROJAS ${TAPA_NOMBRE} ELENA PARA LA OFICINA`);
   assert.equal(taparNombrePropio("contratar a JUAN QUISPE DE LA TORRE por tres meses", "QUISPE DE LA TORRE JUAN"), `contratar a JUAN QUISPE ${TAPA_NOMBRE} por tres meses`);
 });
+
+test("DJI del político (migración 301): sus familiares sin nombre ni documento, sólo el parentesco y lo que obtuvieron; los informes de control con su número y la responsabilidad presunta", async () => {
+  const { filaPolitico } = await import("../src/routes/partidosPoliticos.js");
+  const entrada = {
+    codigo: "a1b2c3d4e5f6", tipo: "persona" as const, nombre: "PEREZ QUISPE JUAN", publico: true, ruc: null, gano: true, candidato: true, aportante: false,
+    nCandidaturas: 1, elecciones: [2022], cargo: "ALCALDE DISTRITAL", lugar: "QUELLOUNO, LA CONVENCION, CUSCO", aportesN: 0, aportesMonto: 0,
+    aporteDesde: null, aporteHasta: null, conDocumento: true, personaCodigo: null, empN: 0, empMonto: 0, empInhab: 0, empGobN: 0, empGobMonto: 0,
+    ordEntidades: 0, ordMonto: 0, ordGobEntidades: 0, ordGobMonto: 0, familiaN: 0, sancionesN: 0,
+    senales: ["familia_su_entidad", "control_penal", "familia_estado", "dji_inventada"], sev: 3,
+    djiEstado: "leida", famN: 7, famOrdenesN: 2, famOrdenesMonto: 48000, famEmpresasN: 1, famSuEntidadN: 1, famSuEntidadMonto: 24000,
+    famPartidoN: 1, famPartidoMonto: 24000, controlN: 2, controlPenal: 1,
+  };
+  const fila = filaPolitico(entrada);
+  assert.equal(fila.dji, "leida");
+  assert.deepEqual(fila.senales.map((s) => [s.tipo, s.severidad]), [["familia_su_entidad", "alta"], ["control_penal", "alta"], ["familia_estado", "baja"]]);
+  assert.deepEqual(fila.cruces.familiares.suEntidad, { n: 1, monto: null });
+  assert.deepEqual(fila.cruces.control, { informes: 2, penal: 1 });
+  // Un estado que no es de la lista no sale; sin la migración 301, ceros y sin estado.
+  assert.equal(filaPolitico({ ...entrada, djiEstado: "otra" }).dji, null);
+  const sin301 = filaPolitico({ ...entrada, djiEstado: undefined, famN: undefined, famSuEntidadN: undefined, controlN: undefined });
+  assert.equal(sin301.dji, null);
+  assert.equal(sin301.cruces.familiares.declarados, 0);
+
+  // Lo que la lista dice de los familiares de un electo: cuántos, nunca montos (restados del detalle darían el de uno solo).
+  assert.deepEqual(fila.cruces.familiares, {
+    declarados: 7, conOrdenes: 2, ordenesMonto: null, conEmpresas: 1, suEntidad: { n: 1, monto: null }, partido: { n: 1, monto: null },
+  });
+  // De un político tapado, los montos quedan.
+  assert.equal(filaPolitico({ ...entrada, publico: false }).cruces.familiares.suEntidad.monto, 24000);
+
+  // Los informes de control: su número (no es un DNI) y la responsabilidad, presunta, intactos.
+  const informes = publicar({
+    informes: [{ informe: "2023CSI038600012", numero: "015-2023-2-0386-SCE", titulo: "Servicio de control específico a la Municipalidad Distrital de Quellouno",
+                 entidad: "MUNICIPALIDAD DISTRITAL DE QUELLOUNO", fecha: "2023-08-14", responsabilidades: ["penal", "administrativa_pas"] }],
+  }, { extra: { politicos: [{ nombre: "PEREZ QUISPE JUAN", electo: true }] } });
+  assert.equal(informes.informes[0].numero, "015-2023-2-0386-SCE");
+  assert.deepEqual(informes.informes[0].responsabilidades, ["penal", "administrativa_pas"]);
+});
+
+test("parentescos de la DJI de un electo: sólo los que no destapan el apellido tapado del familiar salen con su etiqueta; lo desconocido, no", async () => {
+  const { parentescoPublicable } = await import("../src/lib/privacidad.js");
+  for (const p of ["HERMANO(A) DEL DECLARANTE", "HIJO(A)", "SOBRINO(A)", "PRIMO(A)", "NIETO(A)", "(HIJO)", "", null, "PALOMINO HERMANO", "A MI HIJO GUTARRA", "CONYUGUE: CORTEZ"]) {
+    assert.equal(parentescoPublicable(p), null, String(p));
+  }
+  assert.equal(parentescoPublicable("CONYUGE"), "Cónyuge");
+  assert.equal(parentescoPublicable("CÓNYUGE"), "Cónyuge");
+  assert.equal(parentescoPublicable("TÍO (A)"), "Tío o tía");
+  assert.equal(parentescoPublicable("CUÑADO(A)"), "Cuñado o cuñada");
+  assert.equal(parentescoPublicable("MADRE DEL DECLARANTE"), "Madre");
+  assert.equal(parentescoPublicable("HERMANO(A) DEL CONVIVIENTE"), "Familiar de su conviviente");
+  assert.equal(parentescoPublicable("PADRE DEL EXCÓNYUGE"), "Familiar de su excónyuge");
+});
+
+test("familiares de un electo (nombre completo): un hermano y un sobrino no exponen parentesco, monto, empresa ni años; un cónyuge sí; con dos que destapan, sólo el total", async () => {
+  const { reservarFamiliares } = await import("../src/routes/partidosPoliticos.js");
+  const fila = (x: Record<string, unknown>) => ({
+    pariente: 1, parentesco: null, grado: null, tipo: "orden", entidadRuc: null, entidad: null, empresaRuc: null, empresa: null, rol: null,
+    ordenes: null, procesos: null, monto: null, desde: null, hasta: null, suEntidad: false, suEntidadProcesos: null, suEntidadMonto: null,
+    nepotismo: false, delPartido: false, ...x,
+  }) as Parameters<typeof reservarFamiliares>[0][number];
+  const hermano = fila({ pariente: 1, parentesco: "HERMANO(A) DEL DECLARANTE", grado: "hermano", entidadRuc: "20159377777", entidad: "MUNICIPALIDAD DISTRITAL DE QUELLOUNO",
+                         ordenes: 4, monto: 26417, desde: 2023, hasta: 2024, suEntidad: true, nepotismo: true, delPartido: true });
+  const sobrino = fila({ pariente: 2, parentesco: "SOBRINO(A)", grado: "otro", tipo: "empresa", empresaRuc: "20600000001", empresa: "CONSTRUCTORA ANDINA DEL SUR E.I.R.L.",
+                         rol: "SOCIO_ACCIONISTA_TITULAR", procesos: 3, monto: 1500003 });
+  const conyuge = fila({ pariente: 3, parentesco: "CONYUGE", grado: "conyuge", entidadRuc: "20131370645", entidad: "MINISTERIO PUBLICO", ordenes: 2, monto: 9013, desde: 2024, hasta: 2024 });
+
+  const r = publicar(reservarFamiliares([hermano, sobrino, conyuge], true));
+  const s = json(r);
+  // El cónyuge, entero: parentesco, entidad y monto.
+  assert.equal(r.lista.length, 1);
+  assert.equal(r.lista[0].parentesco, "Cónyuge");
+  assert.equal(r.lista[0].ordenes[0].monto, 9013);
+  // El hermano y el sobrino, sólo contados: ni el parentesco, ni el monto, ni la empresa (nombre ni RUC), ni los años.
+  assert.doesNotMatch(s, /HERMANO|SOBRINO|hermano|sobrino/);
+  assert.doesNotMatch(s, /26417|1500003|CONSTRUCTORA|20600000001|2023/);
+  assert.equal(r.conAlgo, 3);
+  assert.deepEqual(r.reservados, { n: 2, suEntidad: { n: 1, monto: null }, partido: { n: 1 }, ordenes: { n: 1, monto: null }, empresas: { n: 1 } });
+
+  // Dos que destapan en el mismo cruce: sólo la suma, nunca lo de cada uno.
+  const primo = fila({ pariente: 4, parentesco: "PRIMO(A)", grado: "otro", entidadRuc: "20159377777", entidad: "MUNICIPALIDAD DISTRITAL DE QUELLOUNO",
+                       ordenes: 2, monto: 12011, desde: 2024, hasta: 2025, suEntidad: true, nepotismo: true });
+  const dos = publicar(reservarFamiliares([hermano, primo], true));
+  assert.deepEqual(dos.lista, []);
+  assert.deepEqual(dos.reservados, { n: 2, suEntidad: { n: 2, monto: 38428 }, partido: { n: 1 }, ordenes: { n: 2, monto: 38428 }, empresas: { n: 0 } });
+  assert.doesNotMatch(json(dos), /26417|12011|PRIMO|HERMANO/);
+
+  // De un político tapado, todos de a uno con la etiqueta de su parentesco; el texto suelto de la DJI, nunca.
+  const tapado = reservarFamiliares([hermano, fila({ ...conyuge, pariente: 5, parentesco: "PALOMINO HERMANO" })], false);
+  assert.equal(tapado.reservados, null);
+  assert.deepEqual(tapado.lista.map((x) => x.parentesco), ["Hermano o hermana", "Otro familiar"]);
+  assert.doesNotMatch(json(tapado), /PALOMINO/);
+});

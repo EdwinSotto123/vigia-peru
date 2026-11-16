@@ -97,8 +97,10 @@ const GUARDADO = "X-Vigia-Guardado";
  * "89": los planes de Gobserva traen los créditos del MCP al mes (`limites.mcp`, 2026-11-08).
  * "100": apellidos compuestos (2026-11-16): se tapa el segundo apellido entero con sus partículas («DE LA CRUZ ••• ROSA»;
  *        antes «DE ••• CRUZ ESPINOZA ROSA» dejaba el materno a la vista) y los políticos de un partido (migración 299).
+ * "101": Políticos con su DJI propia, sus familiares (parentescos que destapan, reservados) y sus informes de control
+ *        (migración 301).
  */
-const VERSION_CACHE = "100";
+const VERSION_CACHE = "101";
 
 function cacheable(req: Request): boolean {
   if (req.method !== "GET") return false;

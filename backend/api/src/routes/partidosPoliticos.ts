@@ -7,7 +7,9 @@
  *                                            Con `resumen`: cuántos hay de cada papel, señal y elección en todo el partido.
  *   GET /partidos/:clave/politicos/:codigo   el detalle de una persona: candidaturas, aportes al partido, sus empresas (RNP)
  *                                            y los procesos que ganaron en gobiernos del partido, sus órdenes de servicio,
- *                                            los funcionarios que la declararon como familiar (DJI) y sus sanciones (OECE).
+ *                                            los funcionarios que la declararon como familiar (DJI), sus sanciones (OECE) y,
+ *                                            desde la migración 301, su propia DJI (si ganó desde 2022), lo que obtuvieron los
+ *                                            familiares que declara en ella y sus informes de control (responsabilidad PRESUNTA).
  *
  * Qué se cruza: sólo a quien su fuente trae con documento (el JNE no lo publica de la mayoría de candidatos). Nunca por
  * nombre: un homónimo quedaría con las empresas de otra persona. `conDocumento: false` lo dice en cada fila.
@@ -21,7 +23,15 @@
  *   · el buscador y el orden por nombre sólo miran lo que se ve (`busca`, `nombre_orden`): de quien va tapado, su primera
  *     palabra; así no sirven para confirmar un apellido tapado;
  *   · del funcionario que la declaró como familiar, su cargo y su primer apellido sólo si el parentesco no destapa nada
- *     (apellidoFuncionario); de una empresa socia, sólo RUC 20.
+ *     (apellidoFuncionario); de una empresa socia, sólo RUC 20;
+ *   · de los familiares que el político declara en su DJI, ni el nombre ni el documento ni un enlace a su ficha: sólo el
+ *     parentesco y lo que obtuvieron (las tablas politico_* no los tienen). Su DJI se empata por NOMBRE completo y entidad:
+ *     `empate: "nombre"` lo dice para que la interfaz pida confirmar que es la misma persona;
+ *   · si el político va con su nombre COMPLETO (un electo), un familiar cuyo parentesco destapa su apellido tapado
+ *     (hermano, hijo, sobrino, primo, nieto o un parentesco desconocido: parentescoPublicable) no sale de a uno: sin
+ *     parentesco, sin monto, sin empresa y sin años, sólo en `reservados` (cuántos y, con dos o más en un cruce, el monto
+ *     sumado). Con su monto o su empresa se lo ubicaría en las listas de su entidad o de la empresa y, con el nombre del
+ *     político a la vista, se le deduciría el apellido. Por lo mismo, la lista no da montos de familiares de un electo.
  * Un cruce es un hecho para revisar, no una acusación.
  */
 
@@ -30,24 +40,32 @@ import { z } from "zod";
 import { esErrorPg, pool } from "../lib/db.js";
 import { Memo } from "../lib/cache.js";
 import { cachePublico, parametros } from "../lib/http.js";
-import { apellidoFuncionario, publicar } from "../lib/privacidad.js";
+import { apellidoFuncionario, etiquetaParentesco, parentescoPublicable, publicar } from "../lib/privacidad.js";
 
-/** Los cruces de una persona con el partido, del más grave al más leve (migración 299). */
+/** Los cruces de una persona con el partido, del más grave al más leve (migraciones 299 y 301). */
 export const SENALES_POLITICO = [
-  "empresas_gobierno", "ordenes_gobierno", "inhabilitado", "sancion", "empresa_inhabilitada", "empresas_estado", "ordenes", "familia",
+  "empresas_gobierno", "ordenes_gobierno", "familia_su_entidad", "control_penal", "inhabilitado", "sancion", "empresa_inhabilitada",
+  "empresas_estado", "familia_partido", "control", "ordenes", "familia_estado", "familia",
 ] as const;
 export type SenalPolitico = (typeof SENALES_POLITICO)[number];
 
 type Severidad = "alta" | "media" | "baja";
 const SEVERIDAD: Record<SenalPolitico, Severidad> = {
-  empresas_gobierno: "alta", ordenes_gobierno: "alta", inhabilitado: "alta", sancion: "media", empresa_inhabilitada: "media", empresas_estado: "media",
-  ordenes: "baja", familia: "baja",
+  empresas_gobierno: "alta", ordenes_gobierno: "alta", familia_su_entidad: "alta", control_penal: "alta", inhabilitado: "alta",
+  sancion: "media", empresa_inhabilitada: "media", empresas_estado: "media", familia_partido: "media", control: "media",
+  ordenes: "baja", familia_estado: "baja", familia: "baja",
 };
+
+/** El estado de su DJI (migración 301): sólo de quien ganó desde 2022; `null` para los demás. */
+export const ESTADOS_DJI = ["leida", "registro", "no_encontrada", "ambigua"] as const;
 
 const PoliticosQuery = z.object({
   papel: z.enum(["gano", "no_gano", "aportante"]).optional(),
   cruces: z.enum(["con", "alta", "sin", "sin_documento"]).optional(),
   senal: z.enum(SENALES_POLITICO).optional(),
+  // Su declaración jurada de intereses (sólo quien ganó desde 2022): en el registro o leída, ya leída, con familiares, o
+  // sin encontrar (no está, o un homónimo impidió empatarla).
+  dji: z.enum(["con", "leida", "familiares", "sin"]).optional(),
   eleccion: z.coerce.number().int().min(2000).max(2100).optional(),
   // En lo que se ve: el nombre de quien ganó, el primer apellido de los demás, el cargo y el lugar.
   q: z.string().trim().min(3).max(80).optional(),
@@ -78,6 +96,9 @@ interface FilaBase {
   aportesMonto: number; aporteDesde: string | null; aporteHasta: string | null; conDocumento: boolean; personaCodigo: string | null;
   empN: number; empMonto: number; empInhab: number; empGobN: number; empGobMonto: number; ordEntidades: number; ordMonto: number;
   ordGobEntidades: number; ordGobMonto: number; familiaN: number; sancionesN: number; senales: string[]; sev: number;
+  // Migración 301 (opcionales: una base sin ella no los trae).
+  djiEstado?: string | null; famN?: number; famOrdenesN?: number; famOrdenesMonto?: number; famEmpresasN?: number;
+  famSuEntidadN?: number; famSuEntidadMonto?: number; famPartidoN?: number; famPartidoMonto?: number; controlN?: number; controlPenal?: number;
 }
 
 const COLS = `pp.codigo, pp.tipo, pp.nombre, pp.publico, CASE WHEN pp.tipo = 'empresa' THEN pp.doc END AS ruc, pp.gano, pp.candidato, pp.aportante,
@@ -86,7 +107,10 @@ const COLS = `pp.codigo, pp.tipo, pp.nombre, pp.publico, CASE WHEN pp.tipo = 'em
   (pp.doc IS NOT NULL) AS "conDocumento", pp.persona_codigo AS "personaCodigo",
   pp.emp_n AS "empN", pp.emp_monto::float AS "empMonto", pp.emp_inhab AS "empInhab", pp.emp_gob_n AS "empGobN", pp.emp_gob_monto::float AS "empGobMonto",
   pp.ord_entidades AS "ordEntidades", pp.ord_monto::float AS "ordMonto", pp.ord_gob_entidades AS "ordGobEntidades", pp.ord_gob_monto::float AS "ordGobMonto",
-  pp.familia_n AS "familiaN", pp.sanciones_n AS "sancionesN", pp.senales, pp.sev`;
+  pp.familia_n AS "familiaN", pp.sanciones_n AS "sancionesN", pp.senales, pp.sev,
+  pp.dji_estado AS "djiEstado", pp.fam_n AS "famN", pp.fam_ordenes_n AS "famOrdenesN", pp.fam_ordenes_monto::float AS "famOrdenesMonto",
+  pp.fam_empresas_n AS "famEmpresasN", pp.fam_su_entidad_n AS "famSuEntidadN", pp.fam_su_entidad_monto::float AS "famSuEntidadMonto",
+  pp.fam_partido_n AS "famPartidoN", pp.fam_partido_monto::float AS "famPartidoMonto", pp.control_n AS "controlN", pp.control_penal AS "controlPenal"`;
 
 /**
  * Una fila como sale al público. La persona va en `nombre` (publicar() le tapa un apellido si no lleva `electo`); una
@@ -116,7 +140,21 @@ export function filaPolitico(f: FilaBase) {
       ordenes: { entidades: f.ordEntidades, monto: f.ordMonto, enGobiernos: { entidades: f.ordGobEntidades, monto: f.ordGobMonto } },
       familia: f.familiaN,
       sanciones: f.sancionesN,
+      // Lo que obtuvieron los familiares que declara en SU DJI (sin nombres ni documentos). De un político de nombre completo,
+      // sólo cuántos: un monto sumado de familiares que no se pueden mostrar de a uno, restado del detalle de los que sí,
+      // daría el de uno solo (ver arriba).
+      familiares: {
+        declarados: f.famN ?? 0,
+        conOrdenes: f.famOrdenesN ?? 0,
+        ordenesMonto: f.publico ? null : f.famOrdenesMonto ?? 0,
+        conEmpresas: f.famEmpresasN ?? 0,
+        suEntidad: { n: f.famSuEntidadN ?? 0, monto: f.publico ? null : f.famSuEntidadMonto ?? 0 },
+        partido: { n: f.famPartidoN ?? 0, monto: f.publico ? null : f.famPartidoMonto ?? 0 },
+      },
+      // Informes de control con responsabilidad PRESUNTA (no es una condena).
+      control: { informes: f.controlN ?? 0, penal: f.controlPenal ?? 0 },
     },
+    dji: (ESTADOS_DJI as readonly string[]).includes(f.djiEstado ?? "") ? (f.djiEstado as (typeof ESTADOS_DJI)[number]) : null,
     senales: f.senales.filter((t): t is SenalPolitico => (SENALES_POLITICO as readonly string[]).includes(t)).map((t) => ({ tipo: t, severidad: SEVERIDAD[t] })),
   };
 }
@@ -127,28 +165,42 @@ const resumenMemo = new Memo<Record<string, unknown> | null>({ nombre: "partidos
 const detalleMemo = new Memo<Record<string, unknown> | null>({ nombre: "partidos:politico", ttlMs: 600_000, staleMs: 600_000, max: 400 });
 const CACHE = cachePublico(3600, { maxAge: 300, swr: 86400 });
 
+/** Se pudo cruzar con otros registros: por su documento o, sin él, por su DJI empatada (migración 301). */
+const CRUZABLE = "(pp.doc IS NOT NULL OR COALESCE(pp.dji_estado IN ('leida', 'registro'), false))";
+
 /** La tabla todavía no existe en esta base (migración 299 sin aplicar): la lista responde vacía y lo dice. */
 const sinTabla = (e: unknown) => esErrorPg(e, "42P01", "42703");
 
 /** Cuántos hay de cada papel, señal y elección en TODO el partido (no cambia con los filtros). */
 async function resumenDe(clave: string) {
   return resumenMemo.obtener(clave, async () => {
-    const [t, s, a] = await Promise.all([
+    const [t, d, s, a] = await Promise.all([
       pool.query(
         `SELECT count(*)::int AS total, count(*) FILTER (WHERE pp.gano)::int AS gano,
                 count(*) FILTER (WHERE pp.candidato AND NOT pp.gano)::int AS "noGano", count(*) FILTER (WHERE pp.aportante)::int AS aportantes,
                 count(*) FILTER (WHERE pp.tipo = 'empresa')::int AS empresas,
                 count(*) FILTER (WHERE pp.doc IS NOT NULL)::int AS "conDocumento", count(*) FILTER (WHERE pp.n_senales > 0)::int AS "conCruces",
+                -- Se pudo cruzar: con su documento, o (sin él) por su DJI empatada (migración 301).
+                count(*) FILTER (WHERE ${CRUZABLE})::int AS cruzables,
                 count(*) FILTER (WHERE pp.sev = 3)::int AS alta, count(*) FILTER (WHERE pp.sev = 2)::int AS media, count(*) FILTER (WHERE pp.sev = 1)::int AS baja,
                 COALESCE(sum(pp.aportes_monto), 0)::float AS "aportesMonto", COALESCE(sum(pp.aportes_n), 0)::int AS "aportesN"
            FROM partido_politico pp WHERE pp.org_clave = $1`, [clave]),
+      // Las autoridades elegidas desde 2022 (con este u otro partido) de esta lista, por su DJI (migración 301): los mismos
+      // conjuntos que el filtro `dji`. Sin esa migración, nada.
+      pool.query<{ alcance: number; leida: number; registro: number; sinDji: number; conFamiliares: number }>(
+        `SELECT count(*) FILTER (WHERE pp.dji_estado IS NOT NULL)::int AS alcance,
+                count(*) FILTER (WHERE pp.dji_estado = 'leida')::int AS leida,
+                count(*) FILTER (WHERE pp.dji_estado = 'registro')::int AS registro,
+                count(*) FILTER (WHERE pp.dji_estado IN ('no_encontrada', 'ambigua'))::int AS "sinDji",
+                count(*) FILTER (WHERE pp.fam_n > 0)::int AS "conFamiliares"
+           FROM partido_politico pp WHERE pp.org_clave = $1`, [clave]).catch(() => ({ rows: [] })),
       pool.query<{ tipo: string; n: number }>(
         `SELECT t AS tipo, count(*)::int AS n FROM partido_politico pp, unnest(pp.senales) t WHERE pp.org_clave = $1 GROUP BY 1`, [clave]),
       pool.query<{ anio: number; n: number }>(
         `SELECT a AS anio, count(*)::int AS n FROM partido_politico pp, unnest(pp.anios) a WHERE pp.org_clave = $1 GROUP BY 1 ORDER BY 1 DESC`, [clave]),
     ]);
     if (!t.rows[0]?.total) return null;
-    return { ...t.rows[0], porSenal: s.rows, porEleccion: a.rows };
+    return { ...t.rows[0], dji: d.rows[0]?.alcance ? d.rows[0] : null, porSenal: s.rows, porEleccion: a.rows };
   });
 }
 
@@ -172,10 +224,14 @@ export function montarPoliticos(router: Hono): void {
         if (q.papel === "aportante") conds.push("pp.aportante");
         if (q.cruces === "con") conds.push("pp.n_senales > 0");
         if (q.cruces === "alta") conds.push("pp.sev = 3");
-        if (q.cruces === "sin") conds.push("pp.n_senales = 0 AND pp.doc IS NOT NULL");
-        if (q.cruces === "sin_documento") conds.push("pp.doc IS NULL");
+        if (q.cruces === "sin") conds.push(`pp.n_senales = 0 AND ${CRUZABLE}`);
+        if (q.cruces === "sin_documento") conds.push(`NOT (${CRUZABLE})`);
         if (q.senal) conds.push(`${add(q.senal)} = ANY (pp.senales)`);
         if (q.eleccion) conds.push(`${add(q.eleccion)} = ANY (pp.anios)`);
+        if (q.dji === "con") conds.push("pp.dji_estado IN ('leida', 'registro')");
+        if (q.dji === "leida") conds.push("pp.dji_estado = 'leida'");
+        if (q.dji === "familiares") conds.push("pp.fam_n > 0");
+        if (q.dji === "sin") conds.push("pp.dji_estado IN ('no_encontrada', 'ambigua')");
         for (const w of palabras(q.q)) conds.push(`pp.busca LIKE ${add(`%${w}%`)}`);
         const where = conds.join(" AND ");
         const [filas, total, resumen] = await Promise.all([
@@ -224,8 +280,10 @@ const CLAVE_DE = (col: string) => `(SELECT COALESCE(
    FROM (SELECT left(lower(replace(mef_norm(${col}), ' ', '-')), 80) AS k) k)`;
 
 async function detallePolitico(clave: string, codigo: string): Promise<Record<string, unknown> | null> {
-  const p = await pool.query<{ doc: string | null; tipo: "persona" | "empresa"; nombre: string; publico: boolean; candidaturas: unknown; desde: string | null; personaCodigo: string | null }>(
-    `SELECT pp.doc, pp.tipo, pp.nombre, pp.publico, pp.candidaturas, to_char(pp.desde, 'YYYY-MM-DD') AS desde, pp.persona_codigo AS "personaCodigo"
+  const p = await pool.query<{ doc: string | null; tipo: "persona" | "empresa"; nombre: string; publico: boolean; candidaturas: unknown; desde: string | null;
+                               personaCodigo: string | null; djiEstado: string | null; famN: number | null }>(
+    `SELECT pp.doc, pp.tipo, pp.nombre, pp.publico, pp.candidaturas, to_char(pp.desde, 'YYYY-MM-DD') AS desde, pp.persona_codigo AS "personaCodigo",
+            to_jsonb(pp) ->> 'dji_estado' AS "djiEstado", (to_jsonb(pp) ->> 'fam_n')::int AS "famN"
        FROM partido_politico pp WHERE pp.org_clave = $1 AND pp.codigo = $2`, [clave, codigo]);
   const yo = p.rows[0];
   if (!yo) return null;
@@ -236,8 +294,12 @@ async function detallePolitico(clave: string, codigo: string): Promise<Record<st
     `SELECT pp.org_clave AS clave, (SELECT max(g.org_nombre) FROM gobierno_periodo g WHERE g.org_clave = pp.org_clave) AS partido,
             pp.gano, pp.candidato, pp.aportante, pp.anios AS elecciones, pp.aportes_monto::float AS "aportesMonto"
        FROM partido_politico pp WHERE pp.codigo = $1 AND pp.org_clave <> $2 ORDER BY pp.gano DESC, pp.org_clave LIMIT 30`, [codigo, clave]);
+  // Su DJI, lo que obtuvieron sus familiares y sus informes de control (migración 301): por el código, también sin documento
+  // (la DJI se empata por nombre y entidad). Sin esa migración, nada.
+  const suDji = djiDelPolitico(codigo, clave, yo.djiEstado, yo.famN ?? 0, yo.publico);
   if (!yo.doc) {
-    return publicar({ ...base, aportes: null, empresas: [], procesos: { total: 0, filas: [] }, ordenes: null, familia: [], sanciones: [], otrosPartidos: (await otros).rows }, { extra });
+    return publicar({ ...base, aportes: null, empresas: [], procesos: { total: 0, filas: [] }, ordenes: null, familia: [], sanciones: [],
+                      ...(await suDji), otrosPartidos: (await otros).rows }, { extra });
   }
   const doc = yo.doc;
   const esEmpresa = yo.tipo === "empresa";
@@ -336,6 +398,129 @@ async function detallePolitico(clave: string, codigo: string): Promise<Record<st
       return { ...f, funcionarioApellido, ficha: funcionarioApellido ? ficha : null };
     }),
     sanciones: sanciones.rows,
+    ...(await suDji),
     otrosPartidos: (await otros).rows,
   }, { extra });
+}
+
+/** Lo que obtuvieron, juntos, los familiares de un político de nombre completo que no se pueden mostrar de a uno. */
+export interface FamiliaresReservados {
+  /** Cuántos de ellos obtuvieron algo del Estado. */
+  n: number;
+  /** De la entidad que él gobierna, durante su gestión. El monto, sólo si son dos o más. */
+  suEntidad: { n: number; monto: number | null };
+  /** De gobiernos de este partido. */
+  partido: { n: number };
+  /** Órdenes de servicio del Estado, en cualquier entidad. El monto, sólo si son dos o más. */
+  ordenes: { n: number; monto: number | null };
+  /** Socios, representantes o directivos de empresas que ganaron buenas pro. */
+  empresas: { n: number };
+}
+
+export interface FilaFamiliar {
+  pariente: number; parentesco: string | null; grado: string | null; tipo: "orden" | "empresa"; entidadRuc: string | null; entidad: string | null;
+  empresaRuc: string | null; empresa: string | null; rol: string | null; ordenes: number | null; procesos: number | null; monto: number | null;
+  desde: number | null; hasta: number | null; suEntidad: boolean; suEntidadProcesos: number | null; suEntidadMonto: number | null;
+  nepotismo: boolean; delPartido: boolean;
+}
+
+/**
+ * Lo que su propia DJI dice (migración 301): las declaraciones empatadas (por NOMBRE completo y la entidad que gobierna: se
+ * dice en `empate`), cada familiar que declara con lo que obtuvo (sin su nombre ni su documento: el número `pariente` sólo
+ * los distingue) y sus informes de control con responsabilidad PRESUNTA. Si las tablas no existen, todo vacío.
+ */
+async function djiDelPolitico(codigo: string, clave: string, estado: string | null, declarados: number, nombreCompleto: boolean) {
+  const vacio = <T>() => ({ rows: [] as T[] });
+  const [dji, fam, inf] = await Promise.all([
+    pool.query<Record<string, unknown>>(
+      `SELECT d.entidad_ruc AS "entidadRuc", COALESCE(d.entidad, d.entidad_ruc) AS entidad, d.org_clave AS "partidoClave",
+              (SELECT max(g.org_nombre) FROM gobierno_periodo g WHERE g.org_clave = d.org_clave) AS partido,
+              d.cargo_electo AS "cargoElecto", d.proceso, to_char(d.desde, 'YYYY-MM-DD') AS desde, to_char(d.hasta, 'YYYY-MM-DD') AS hasta,
+              d.cargo_dji AS "cargoDji", to_char(d.presentada, 'YYYY-MM-DD') AS presentada, d.declaraciones, d.leida, d.familiares
+         FROM politico_dji d WHERE d.codigo = $1 ORDER BY d.desde DESC NULLS LAST`, [codigo]).catch(() => vacio<Record<string, unknown>>()),
+    pool.query<FilaFamiliar>(
+      `SELECT f.pariente, f.parentesco, f.grado, f.tipo, f.entidad_ruc AS "entidadRuc", f.entidad, f.empresa_ruc AS "empresaRuc", f.empresa, f.rol,
+              f.ordenes, f.procesos, f.monto::float AS monto, f.desde, f.hasta, f.su_entidad AS "suEntidad", f.su_entidad_procesos AS "suEntidadProcesos",
+              f.su_entidad_monto::float AS "suEntidadMonto", f.nepotismo, ($2 = ANY (f.partidos)) AS "delPartido"
+         FROM politico_familiar f WHERE f.codigo = $1
+        ORDER BY f.pariente, f.su_entidad DESC, f.monto DESC NULLS LAST LIMIT 400`, [codigo, clave]).catch(() => vacio<FilaFamiliar>()),
+    pool.query<Record<string, unknown>>(
+      `SELECT i.informe, i.numero, i.titulo, i.entidad, i.entidad_ruc AS "entidadRuc", to_char(i.fecha, 'YYYY-MM-DD') AS fecha, i.responsabilidades,
+              COALESCE(NULLIF(ic.url_resumen, ''), NULLIF(ic.url_pdf, '')) AS url
+         FROM politico_informe i LEFT JOIN informes_control ic ON ic.codigo = i.informe
+        WHERE i.codigo = $1 ORDER BY i.fecha DESC NULLS LAST LIMIT 100`, [codigo]).catch(() => vacio<Record<string, unknown>>()),
+  ]);
+  return {
+    dji: estado ? { estado, empate: "nombre" as const, declaraciones: dji.rows } : null,
+    familiares: { declarados, ...reservarFamiliares(fam.rows, nombreCompleto) },
+    informes: inf.rows,
+  };
+}
+
+/**
+ * Los familiares que declara un político, de a uno (`lista`) o juntos (`reservados`). Si su nombre va COMPLETO
+ * (`nombreCompleto`, un electo), el familiar cuyo parentesco destapa su apellido tapado (parentescoPublicable devuelve
+ * `null`: hermano, hijo, sobrino, primo, nieto o un parentesco desconocido) no sale de a uno: ni su parentesco, ni sus
+ * montos, ni sus empresas, ni sus años; sólo cuenta en `reservados`, y sus montos se suman sólo cuando son dos o más en
+ * ese cruce. Los demás salen con la etiqueta de su parentesco (nunca el texto suelto de la DJI). De un político tapado,
+ * todos de a uno, también con la etiqueta de su parentesco.
+ */
+export function reservarFamiliares(filas: FilaFamiliar[], nombreCompleto: boolean): {
+  conAlgo: number;
+  lista: { pariente: number; parentesco: string; grado: string | null; suEntidad: boolean; delPartido: boolean;
+           ordenes: Record<string, unknown>[]; empresas: Record<string, unknown>[] }[];
+  reservados: FamiliaresReservados | null;
+} {
+  const porPariente = new Map<number, FilaFamiliar[]>();
+  for (const f of filas) porPariente.set(f.pariente, [...(porPariente.get(f.pariente) ?? []), f]);
+  const lista: ReturnType<typeof reservarFamiliares>["lista"] = [];
+  // Lo de cada familiar reservado, para sumar después sólo donde son dos o más.
+  const ocultos: { suEntidad: number | null; partido: boolean; ordenes: number | null; empresa: boolean }[] = [];
+  for (const [pariente, suyas] of porPariente) {
+    const etiqueta = parentescoPublicable(suyas[0].parentesco);
+    const suEntidad = suyas.some((f) => f.suEntidad);
+    const delPartido = suyas.some((f) => f.delPartido);
+    if (nombreCompleto && !etiqueta) {
+      const ordenes = suyas.filter((f) => f.tipo === "orden");
+      ocultos.push({
+        suEntidad: suEntidad
+          ? suyas.filter((f) => f.suEntidad).reduce((t, f) => t + (f.tipo === "orden" ? f.monto ?? 0 : f.suEntidadMonto ?? 0), 0)
+          : null,
+        partido: delPartido,
+        ordenes: ordenes.length ? ordenes.reduce((t, f) => t + (f.monto ?? 0), 0) : null,
+        empresa: suyas.some((f) => f.tipo === "empresa"),
+      });
+      continue;
+    }
+    lista.push({
+      pariente,
+      parentesco: etiqueta ?? etiquetaParentesco(suyas[0].parentesco) ?? "Otro familiar",
+      grado: suyas[0].grado,
+      suEntidad,
+      delPartido,
+      ordenes: suyas.filter((f) => f.tipo === "orden").map((f) => ({
+        entidadRuc: f.entidadRuc, entidad: f.entidad, ordenes: f.ordenes, monto: f.monto, desde: f.desde, hasta: f.hasta,
+        suEntidad: f.suEntidad, nepotismo: f.nepotismo, delPartido: f.delPartido,
+      })),
+      empresas: suyas.filter((f) => f.tipo === "empresa").map((f) => ({
+        ruc: f.empresaRuc, nombre: f.empresa, rol: f.rol, procesos: f.procesos, monto: f.monto,
+        suEntidad: f.suEntidad ? { procesos: f.suEntidadProcesos ?? 0, monto: f.suEntidadMonto ?? 0 } : null, delPartido: f.delPartido,
+      })),
+    });
+  }
+  // Con dos o más, la suma; con uno solo, sin monto (sería el suyo).
+  const suma = (xs: (number | null)[]) => {
+    const con = xs.filter((x): x is number => x != null);
+    return { n: con.length, monto: con.length >= 2 ? con.reduce((t, x) => t + x, 0) : null };
+  };
+  const reservados: FamiliaresReservados | null = ocultos.length
+    ? {
+        n: ocultos.length,
+        suEntidad: suma(ocultos.map((o) => o.suEntidad)),
+        partido: { n: ocultos.filter((o) => o.partido).length },
+        ordenes: suma(ocultos.map((o) => o.ordenes)),
+        empresas: { n: ocultos.filter((o) => o.empresa).length },
+      }
+    : null;
+  return { conAlgo: porPariente.size, lista, reservados };
 }

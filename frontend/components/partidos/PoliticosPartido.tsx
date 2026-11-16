@@ -32,6 +32,8 @@ import { fecha, listaY, numero, plural, soles, solesCompacto } from "@/lib/forma
 import { tituloNatural } from "@/lib/landing";
 import { rutaPersona } from "@/lib/personas";
 import {
+  DJI_POLITICO,
+  ESTADO_DJI,
   ORDENES_POLITICOS,
   PAPELES_POLITICO,
   P_POLITICOS,
@@ -70,7 +72,7 @@ export function PoliticosPartido({ clave, partido, sp, ruta, base }: { clave: st
   const f = filtrosPoliticosDeUrl(sp);
   const paginaP = getPoliticos(clave, f);
   const parametros: Parametros = { ...base, ...parametrosPoliticos(f) };
-  const filtrada = !!(f.papel || f.cruces || f.senal || f.eleccion || f.q);
+  const filtrada = !!(f.papel || f.cruces || f.senal || f.dji || f.eleccion || f.q);
   return (
     <div className="space-y-4">
       <Suspense fallback={<IndicadoresSkeleton n={4} />}>
@@ -123,23 +125,37 @@ async function Cifras({ pagina, ruta, base }: { pagina: Promise<PaginaPoliticos 
     {
       valor: numero(r.conCruces),
       etiqueta: "con cruces para revisar",
-      contexto: `de ${numero(r.conDocumento)} que se pudieron cruzar`,
+      contexto: `de ${numero(r.cruzables ?? r.conDocumento)} que se pudieron cruzar`,
       ayuda: (
         <Ayuda titulo="¿A quién se cruza?">
           Sólo a quien el JNE o la ONPE publican con su documento: {numero(r.conDocumento)} de {numero(r.total)}. Del resto se sabe su candidatura, pero
-          no se le busca en otros registros: cruzar por nombre le pondría a una persona las empresas de un homónimo.
+          no se le busca en otros registros: cruzar por nombre le pondría a una persona las empresas de un homónimo. La excepción es la declaración jurada
+          de quien ganó desde 2022, que se empata por su nombre y la entidad que gobierna.{(r.cruzables ?? r.conDocumento) > r.conDocumento
+            ? ` Así se suman ${numero((r.cruzables ?? r.conDocumento) - r.conDocumento)} sin documento.`
+            : ""}
         </Ayuda>
       ),
       icono: <Scale size={15} strokeWidth={1.9} aria-hidden />,
       href: a({ [P_POLITICOS.cruces]: "con" }),
     },
   ];
-  return <Indicadores items={items} pie={<Reparto r={r} />} />;
+  return (
+    <Indicadores
+      items={items}
+      pie={
+        <div className="space-y-3">
+          <Reparto r={r} />
+          <RepartoDji r={r} ruta={ruta} base={base} />
+        </div>
+      }
+    />
+  );
 }
 
 /** Cómo se reparten por su cruce más grave quienes se pudieron cruzar; y, aparte, cuántos no llevan documento. */
 function Reparto({ r }: { r: ResumenPoliticos }) {
-  const sin = Math.max(0, r.conDocumento - r.conCruces);
+  const cruzables = r.cruzables ?? r.conDocumento;
+  const sin = Math.max(0, cruzables - r.conCruces);
   const unidad = (n: number) => plural(n, "persona", "personas");
   const partes: ParteBarra[] = [
     { clave: "alta", nombre: "Con un cruce alto", valor: r.alta, texto: unidad(r.alta) },
@@ -147,7 +163,7 @@ function Reparto({ r }: { r: ResumenPoliticos }) {
     { clave: "baja", nombre: "Con un cruce bajo", valor: r.baja, texto: unidad(r.baja) },
   ].filter((p) => p.valor > 0);
   const otros: ParteBarra = { clave: "sin", nombre: "Sin cruces", valor: sin, texto: unidad(sin) };
-  if (!r.conDocumento) return null;
+  if (!cruzables) return null;
   return (
     <div style={paletaGravedad(partes)}>
       <BarraSegmentada partes={partes} otros={otros} etiqueta="Quienes se pudieron cruzar, por su cruce más grave" />
@@ -156,7 +172,48 @@ function Reparto({ r }: { r: ResumenPoliticos }) {
           <li key={p.clave} className="inline-flex items-center gap-1.5">
             <MuestraSerie i={i} />
             {p.nombre}
-            <span className="font-mono font-semibold tabular-nums text-ink">{cuotaDe(p.valor, r.conDocumento)}</span>
+            <span className="font-mono font-semibold tabular-nums text-ink">{cuotaDe(p.valor, cruzables)}</span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+/**
+ * La pregunta del dueño (2026-11-16): «¿estamos considerando todas las declaraciones juradas? ¿hay algún político que no
+ * la tenga?». Las autoridades elegidas desde 2022 de esta lista, por su DJI: ya leída (con sus familiares), sólo en el
+ * registro de la Contraloría (todavía sin leer) o no encontrada. Cada parte filtra la lista.
+ */
+function RepartoDji({ r, ruta, base }: { r: ResumenPoliticos; ruta: string; base: Parametros }) {
+  const d = r.dji;
+  if (!d?.alcance) return null;
+  const unidad = (n: number) => plural(n, "autoridad", "autoridades");
+  const partes: (ParteBarra & { filtro: string })[] = [
+    { clave: "leida", nombre: "Su DJI leída", valor: d.leida, texto: unidad(d.leida), filtro: "leida" },
+    { clave: "registro", nombre: "En el registro, sin leer", valor: d.registro, texto: unidad(d.registro), filtro: "con" },
+  ].filter((p) => p.valor > 0);
+  const otros = { clave: "sin", nombre: "No encontrada", valor: d.sinDji, texto: unidad(d.sinDji), filtro: "sin" };
+  const enlace = (filtro: string) => urlDesde(ruta, { ...base, [P_POLITICOS.dji]: filtro });
+  return (
+    <div>
+      <p className="mb-1 flex items-center gap-1 text-rotulo font-medium text-inkSoft">
+        {plural(d.alcance, "autoridad elegida", "autoridades elegidas")} desde 2022, por su declaración jurada de intereses
+        <Ayuda titulo="¿Cómo se encuentra su DJI?">
+          La Contraloría publica las declaraciones sin documento: se empata por el nombre completo y la entidad que gobierna (su municipalidad, la sede de
+          su gobierno regional o el Congreso), así que hay que confirmar que es la misma persona. «En el registro» quiere decir que está obligada a
+          declarar y su DJI todavía no se leyó; «No encontrada», que no aparece en esa entidad. {numero(d.conFamiliares)} declaran familiares.
+        </Ayuda>
+      </p>
+      <BarraSegmentada partes={partes} otros={otros} etiqueta="Autoridades elegidas desde 2022, por su declaración jurada" />
+      <ul className="mt-1.5 flex flex-wrap gap-x-4 gap-y-0.5 text-rotulo text-inkSoft">
+        {[...partes.map((p, i) => ({ p, i: i as number | "otros" })), ...(otros.valor > 0 ? [{ p: otros, i: "otros" as const }] : [])].map(({ p, i }) => (
+          <li key={p.clave}>
+            <Link href={enlace(p.filtro)} prefetch={false} className="inline-flex min-h-6 items-center gap-1.5 hover:text-ink hover:underline">
+              <MuestraSerie i={i} />
+              {p.nombre}
+              <span className="font-mono font-semibold tabular-nums text-ink">{numero(p.valor)}</span>
+            </Link>
           </li>
         ))}
       </ul>
@@ -183,8 +240,8 @@ function Barra({ resumen: r }: { resumen: ResumenPoliticos | null }) {
       opciones: [
         { valor: "con", etiqueta: "Con algún cruce", conteo: r?.conCruces ?? null },
         { valor: "alta", etiqueta: "Con un cruce alto", conteo: r?.alta ?? null },
-        { valor: "sin", etiqueta: "Se cruzó y no salió nada", conteo: r ? Math.max(0, r.conDocumento - r.conCruces) : null },
-        { valor: "sin_documento", etiqueta: "Sin documento: no se cruzó", conteo: r ? r.total - r.conDocumento : null },
+        { valor: "sin", etiqueta: "Se cruzó y no salió nada", conteo: r ? Math.max(0, (r.cruzables ?? r.conDocumento) - r.conCruces) : null },
+        { valor: "sin_documento", etiqueta: "Sin documento: no se cruzó", conteo: r ? r.total - (r.cruzables ?? r.conDocumento) : null },
       ],
     },
     {
@@ -205,6 +262,22 @@ function Barra({ resumen: r }: { resumen: ResumenPoliticos | null }) {
       opciones: (r?.porEleccion ?? []).map((e) => ({ valor: String(e.anio), etiqueta: String(e.anio), conteo: e.n })),
     },
   ];
+  const d = r?.dji;
+  // Su DJI, dentro de «Filtros»: sólo de quien ganó desde 2022.
+  const filtros: FiltroSecundario[] =
+    r && !d?.alcance
+      ? []
+      : [{
+          param: P_POLITICOS.dji,
+          etiqueta: "Su DJI",
+          todas: "Con o sin DJI",
+          seccion: "Declaración jurada",
+          opciones: DJI_POLITICO.map((o) => ({
+            valor: o.valor,
+            etiqueta: o.etiqueta,
+            conteo: d ? { con: d.leida + d.registro, leida: d.leida, familiares: d.conFamiliares, sin: d.sinDji }[o.valor] : null,
+          })),
+        }];
   return (
     <BarraFiltros
       busqueda={{ param: P_POLITICOS.q, placeholder: "Buscar por apellido, cargo o lugar…", etiqueta: "Buscar en los políticos del partido", min: 3 }}
@@ -217,6 +290,7 @@ function Barra({ resumen: r }: { resumen: ResumenPoliticos | null }) {
         opciones: PAPELES_POLITICO.map((p) => ({ valor: p.valor, etiqueta: p.etiqueta, conteo: conteoPapel[p.valor] ?? null })),
       }}
       visibles={visibles}
+      filtros={filtros}
       orden={{ param: P_POLITICOS.orden, porDefecto: "cruces", opciones: ORDENES_POLITICOS.map((o) => ({ valor: o.valor, etiqueta: o.etiqueta })) }}
     />
   );
@@ -247,7 +321,8 @@ const COLUMNAS: Columna[] = [
     ayuda: (
       <Ayuda titulo="¿Qué es un cruce?">
         Lo que otros registros públicos dicen de esta persona: si una empresa suya le vendió al Estado o ganó en gobiernos de este partido, si recibió
-        órdenes de servicio, si un funcionario la declaró como familiar o si tiene sanciones. Es un hecho para revisar, no una acusación.
+        órdenes de servicio, si un funcionario la declaró como familiar, si tiene sanciones, si los familiares que declara en su DJI contratan con el
+        Estado y si un informe de control le señala responsabilidad presunta. Es un hecho para revisar, no una acusación.
       </Ayuda>
     ),
   },
@@ -323,9 +398,9 @@ async function Resultados({
       <Tabla columnas={COLUMNAS} filas={pagina.politicos.map((p) => filaDe(p, clave, partido))} etiqueta="Candidatos y aportantes del partido" />
       {paginas > 1 && <div className="flex justify-end">{pag(true)}</div>}
       <Nota>
-        Un cruce es un hecho para revisar, no una acusación: tener una empresa, trabajar para el Estado o aportar a un partido es legal. La Contraloría y
-        la Procuraduría no publican los nombres de las personas de sus informes y casos, así que aquí no hay cruce con ellos: los de las entidades que
-        gobernó el partido están en la pestaña Control.
+        Un cruce es un hecho para revisar, no una acusación: tener una empresa, trabajar para el Estado o aportar a un partido es legal. Los informes de
+        control se cruzan por el DNI de cada funcionario comprendido, y su responsabilidad es presunta, no una condena. La DJI de una autoridad se
+        empata por su nombre y su entidad: confirma que es la misma persona. La Procuraduría no publica nombres: sus casos van en la pestaña Control.
       </Nota>
     </div>
   );
@@ -357,6 +432,9 @@ function Papel({ p }: { p: Politico }) {
     </span>
   );
 }
+
+/** Se pudo cruzar: con su documento o, sin él, por su DJI empatada (su nombre y la entidad que gobierna). */
+const cruzable = (p: Politico) => p.conDocumento || p.dji === "leida" || p.dji === "registro";
 
 const nombreDe = (p: Politico) => (p.tipo === "empresa" ? (p.razonSocial ? tituloNatural(p.razonSocial) : "Empresa sin nombre") : p.nombre ?? "Persona sin nombre");
 
@@ -397,7 +475,7 @@ function filaDe(p: Politico, clave: string, partido: string): Fila {
           etiquetaLista="Cruces de la persona con otros registros"
         />
       ) : (
-        <span className="text-meta text-mute">{p.conDocumento ? "Sin cruces" : "Sin documento: no se cruzó"}</span>
+        <span className="text-meta text-mute">{cruzable(p) ? "Sin cruces" : "Sin documento: no se cruzó"}</span>
       ),
       aportes: p.aportes.n ? (
         <CeldaNumero sub={plural(p.aportes.n, "aporte", "aportes")}>{solesCompacto(p.aportes.monto)}</CeldaNumero>
@@ -435,6 +513,8 @@ function VistaPolitico({ p, clave, partido, elecciones }: { p: Politico; clave: 
           valor: `${soles(p.aportes.monto)} en ${plural(p.aportes.n, "aporte", "aportes")}${p.aportes.desde ? `, ${p.aportes.desde === p.aportes.hasta ? `el ${fecha(p.aportes.desde)}` : `del ${fecha(p.aportes.desde)} al ${fecha(p.aportes.hasta)}`}` : ""}`,
         }]
       : []),
+    // Su DJI, si ganó desde 2022 (la de los demás no existe: la presenta quien ejerce un cargo).
+    ...(p.dji ? [{ etiqueta: "Su declaración jurada", valor: ESTADO_DJI[p.dji] }] : []),
   ];
   return (
     <CuerpoDetalle>
@@ -445,11 +525,11 @@ function VistaPolitico({ p, clave, partido, elecciones }: { p: Politico; clave: 
             <span className="text-meta text-inkSoft">{plural(p.senales.length, "cruce", "cruces")} con otros registros</span>
           </>
         ) : (
-          <span className="text-meta text-inkSoft">{p.conDocumento ? "Se cruzó con los otros registros y no salió nada" : "Sin documento en su fuente: no se cruzó"}</span>
+          <span className="text-meta text-inkSoft">{cruzable(p) ? "Se cruzó con los otros registros y no salió nada" : "Sin documento en su fuente: no se cruzó"}</span>
         )}
       </ChipsDetalle>
       <DatosClave items={datos} />
-      <CrucesDelPolitico clave={clave} codigo={p.codigo} partido={partido} senales={p.senales} conDocumento={p.conDocumento} />
+      <CrucesDelPolitico clave={clave} codigo={p.codigo} partido={partido} senales={p.senales} conDocumento={p.conDocumento} dji={p.dji ?? null} />
     </CuerpoDetalle>
   );
 }

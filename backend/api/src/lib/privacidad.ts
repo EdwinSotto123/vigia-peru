@@ -786,6 +786,66 @@ export function apellidoFuncionario(parentesco: unknown, declarante: unknown): s
   return declarante.trim().split(/\s+/)[0] || null;
 }
 
+/**
+ * El parentesco de un familiar que una persona de nombre COMPLETO declara en su DJI (un electo), si mostrarlo no permite
+ * deducir el apellido que se le tapa al familiar (su materno) a partir del nombre del declarante: su etiqueta, o `null`.
+ * Con el nombre completo del declarante (paterno Pp, materno Pm) destapan: hermano(a) (su materno es Pm), hijo(a) (de una
+ * declarante, su materno es Pp), sobrino(a), primo(a) y nieto(a) (por la rama de una hermana, una tía o una hija), y
+ * cualquier parentesco desconocido o ilegible (la DJI trae texto suelto, a veces con nombres). No destapan los de la
+ * lista: cónyuge, conviviente, padres, tíos, abuelos, cuñados, suegros, yerno, nuera, hijastros y la familia del cónyuge
+ * o conviviente. Es una lista CERRADA: lo que no está en ella se trata como si destapara (pedido del 2026-11-16).
+ */
+const PARENTESCO_PUBLICABLE: Record<string, string> = {
+  "CONYUGE": "Cónyuge",
+  "CONVIVIENTE": "Conviviente",
+  "PADRE DEL DECLARANTE": "Padre",
+  "MADRE DEL DECLARANTE": "Madre",
+  "TIO (A)": "Tío o tía",
+  "TIO(A)": "Tío o tía",
+  "TIO(A) ABUELO(A)": "Tío abuelo o tía abuela",
+  "ABUELO PATERNO DEL DECLARANTE": "Abuelo paterno",
+  "ABUELA PATERNA DEL DECLARANTE": "Abuela paterna",
+  "ABUELO MATERNO DEL DECLARANTE": "Abuelo materno",
+  "ABUELA MATERNA DEL DECLARANTE": "Abuela materna",
+  "BISABUELO(A)": "Bisabuelo o bisabuela",
+  "TATARABUELO(A)": "Tatarabuelo o tatarabuela",
+  "CUNADO(A)": "Cuñado o cuñada",
+  "SUEGRO(A)": "Suegro o suegra",
+  "YERNO": "Yerno",
+  "NUERA": "Nuera",
+  "HIJASTRO(A)": "Hijastro o hijastra",
+  "HIJASTRO(A) POR PARTE DEL CONYUGE": "Hijastro o hijastra",
+  "NIETASTRO(A) POR PARTE DEL CONYUGE": "Nietastro o nietastra",
+};
+/** La familia del cónyuge, del conviviente o del excónyuge: sus apellidos no son los del declarante. */
+const FAMILIA_POLITICA = /^(PADRE|MADRE|HERMANO\(A\)|HIJO|HIJO\(A\)|NIETO\(A\)|ABUEL[OA] (PATERN|MATERN)[OA]) DEL (CONYUGE|CONVIVIENTE|EXCONYUGE)$/;
+const ETIQUETA_POLITICA: Record<string, string> = { CONYUGE: "cónyuge", CONVIVIENTE: "conviviente", EXCONYUGE: "excónyuge" };
+
+export function parentescoPublicable(parentesco: unknown): string | null {
+  if (typeof parentesco !== "string") return null;
+  const p = parentesco.normalize("NFD").replace(/\p{M}/gu, "").toUpperCase().replace(/\s+/g, " ").trim();
+  if (PARENTESCO_PUBLICABLE[p]) return PARENTESCO_PUBLICABLE[p];
+  const m = FAMILIA_POLITICA.exec(p);
+  return m ? `Familiar de su ${ETIQUETA_POLITICA[m[3]]}` : null;
+}
+
+/** Los parentescos que destapan, con su etiqueta: sólo para el familiar de un político TAPADO (ahí no hay nada que destapar). */
+const PARENTESCO_DESTAPA: Record<string, string> = {
+  "HERMANO(A) DEL DECLARANTE": "Hermano o hermana",
+  "HIJO(A)": "Hijo o hija",
+  "(HIJO)": "Hijo o hija",
+  "SOBRINO(A)": "Sobrino o sobrina",
+  "PRIMO(A)": "Primo o prima",
+  "NIETO(A)": "Nieto o nieta",
+};
+
+/** La etiqueta de cualquier parentesco conocido de la DJI, o `null` si es texto suelto (a veces con nombres): nunca el texto tal cual. */
+export function etiquetaParentesco(parentesco: unknown): string | null {
+  if (typeof parentesco !== "string") return null;
+  const p = parentesco.normalize("NFD").replace(/\p{M}/gu, "").toUpperCase().replace(/\s+/g, " ").trim();
+  return parentescoPublicable(parentesco) ?? PARENTESCO_DESTAPA[p] ?? null;
+}
+
 export function publicar<T>(valor: T, opts: { correos?: boolean; extra?: unknown } = {}): T {
   const r = new Recolector();
   const v = conEnie(valor);

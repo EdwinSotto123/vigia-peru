@@ -5,15 +5,23 @@
  * de cada uno: sus empresas que le vendieron al Estado (RNP y OECE), sus órdenes de servicio, los funcionarios que lo
  * declararon como familiar (declaraciones juradas de intereses), sus aportes (ONPE) y sus sanciones (OECE).
  *
+ * Desde la migración 301, también lo que dice SU declaración jurada de intereses (DJI), si ganó desde 2022: los familiares
+ * que declara y lo que obtuvieron del Estado, y sus informes de control con responsabilidad PRESUNTA.
+ *
  * Privacidad (docs/PRIVACIDAD.md): la API nunca da un documento; quien no ganó una elección llega con un apellido tapado
  * y quien ganó, con su nombre completo (como en el resto de Vigía). El nombre no va a un `title` ni a un `aria-label`.
- * Sólo se cruza a quien su fuente trae con documento (`conDocumento`): nunca por nombre.
+ * Sólo se cruza a quien su fuente trae con documento (`conDocumento`): nunca por nombre. La excepción es su propia DJI, que
+ * la Contraloría publica sin documento: se empata por el nombre completo y la entidad que gobierna, y la pantalla pide
+ * confirmar que es la misma persona. De sus familiares no llega ni el nombre ni el documento: sólo el parentesco. Y de un
+ * electo (nombre completo), el familiar cuyo parentesco destaparía su apellido tapado (hermano, hijo, sobrino, primo,
+ * nieto o desconocido) llega sólo contado en `reservados`, sin parentesco, monto, empresa ni años.
  */
 
 import { API_BASE } from "./api-client";
 
 export const SENALES_POLITICO = [
-  "empresas_gobierno", "ordenes_gobierno", "inhabilitado", "sancion", "empresa_inhabilitada", "empresas_estado", "ordenes", "familia",
+  "empresas_gobierno", "ordenes_gobierno", "familia_su_entidad", "control_penal", "inhabilitado", "sancion", "empresa_inhabilitada",
+  "empresas_estado", "familia_partido", "control", "ordenes", "familia_estado", "familia",
 ] as const;
 export type SenalPolitico = (typeof SENALES_POLITICO)[number];
 export type SeveridadPolitico = "alta" | "media" | "baja";
@@ -64,6 +72,54 @@ export const SENAL_POLITICO: Record<SenalPolitico, { corto: string; titulo: stri
     explica:
       "Un funcionario público lo nombró como pariente en su Declaración Jurada de Intereses (Ley 31227). Dice que un familiar suyo tiene un puesto en el Estado, no que lo consiguió por él.",
   },
+  familia_su_entidad: {
+    corto: "Un familiar contrata con su entidad",
+    titulo: "Un familiar que declaró obtuvo contratos de la entidad que gobierna",
+    explica:
+      "En su declaración jurada de intereses declaró a un familiar que, durante su gestión, recibió órdenes de servicio de la misma entidad que él gobierna o tiene una empresa que le ganó buenas pro. Es el indicio de posible nepotismo: un hecho para revisar, no una acusación. Su declaración se empató por su nombre completo y la entidad: confirma que es la misma persona.",
+  },
+  familia_partido: {
+    corto: "Un familiar contrata con gobiernos del partido",
+    titulo: "Un familiar que declaró obtuvo contratos de gobiernos de este partido",
+    explica:
+      "Un familiar que declaró en su DJI recibió órdenes de entidades que gobernaba este partido, o tiene una empresa que ganó buenas pro en sus gobiernos. Es un hecho para revisar, no una acusación.",
+  },
+  familia_estado: {
+    corto: "Un familiar contrata con el Estado",
+    titulo: "Un familiar que declaró contrata con el Estado",
+    explica:
+      "Un familiar que declaró en su DJI recibió órdenes de servicio de alguna entidad pública o tiene una empresa que ganó buenas pro. Es un dato de contexto: trabajar para el Estado es legal.",
+  },
+  control_penal: {
+    corto: "Responsabilidad penal presunta",
+    titulo: "Un informe de control le señala responsabilidad penal presunta",
+    explica:
+      "La Contraloría lo comprende en un informe de control con responsabilidad penal presunta, que deriva al Ministerio Público. Es presunta: no es una acusación fiscal ni una condena.",
+  },
+  control: {
+    corto: "Informe de control (presunta)",
+    titulo: "Un informe de control le señala responsabilidad presunta",
+    explica:
+      "La Contraloría lo comprende en un informe de control con responsabilidad civil o administrativa presunta. Es presunta: no es una sanción firme.",
+  },
+};
+
+/** Lo que un informe de control le señala a una persona, en palabras. Siempre presunta. */
+export const RESPONSABILIDAD: Record<string, string> = {
+  penal: "Penal",
+  civil: "Civil",
+  administrativa_entidad: "Administrativa (la ve la entidad)",
+  administrativa_pas: "Administrativa (procedimiento sancionador)",
+  administrativa: "Administrativa",
+};
+
+/** El estado de su DJI: sólo de quien ganó desde 2022 (la DJI es de quien ejerce un cargo). */
+export type EstadoDji = "leida" | "registro" | "no_encontrada" | "ambigua";
+export const ESTADO_DJI: Record<EstadoDji, string> = {
+  leida: "Su DJI está leída",
+  registro: "Su DJI está en el registro, todavía sin leer",
+  no_encontrada: "No encontramos su DJI",
+  ambigua: "No se pudo empatar su DJI (un homónimo o un nombre muy corto)",
 };
 
 export interface Politico {
@@ -95,7 +151,21 @@ export interface Politico {
     ordenes: { entidades: number; monto: number; enGobiernos: { entidades: number; monto: number } };
     familia: number;
     sanciones: number;
+    /** Lo que obtuvieron los familiares que declara en su DJI (migración 301; en una API vieja no viene). */
+    familiares?: {
+      declarados: number;
+      conOrdenes: number;
+      /** `null` si el político va con su nombre completo: sólo se cuentan. */
+      ordenesMonto: number | null;
+      conEmpresas: number;
+      suEntidad: { n: number; monto: number | null };
+      partido: { n: number; monto: number | null };
+    };
+    /** Informes de control con responsabilidad PRESUNTA. */
+    control?: { informes: number; penal: number };
   };
+  /** El estado de su DJI, si ganó desde 2022; `null` para los demás. */
+  dji?: EstadoDji | null;
   senales: { tipo: SenalPolitico; severidad: SeveridadPolitico }[];
 }
 
@@ -106,6 +176,8 @@ export interface ResumenPoliticos {
   aportantes: number;
   empresas: number;
   conDocumento: number;
+  /** Se pudo cruzar: con su documento o, sin él, por su DJI empatada (en una API vieja no viene: es `conDocumento`). */
+  cruzables?: number;
   conCruces: number;
   alta: number;
   media: number;
@@ -114,6 +186,8 @@ export interface ResumenPoliticos {
   aportesN: number;
   porSenal: { tipo: string; n: number }[];
   porEleccion: { anio: number; n: number }[];
+  /** Quienes ganaron con el partido desde 2022, por su DJI (migración 301). */
+  dji?: { alcance: number; leida: number; registro: number; sinDji: number; conFamiliares: number } | null;
 }
 
 export interface PaginaPoliticos {
@@ -136,6 +210,15 @@ export type PapelPolitico = (typeof PAPELES_POLITICO)[number]["valor"];
 export const CRUCES_POLITICO = ["con", "alta", "sin", "sin_documento"] as const;
 export type CrucesPolitico = (typeof CRUCES_POLITICO)[number];
 
+/** El filtro por su DJI (sólo quien ganó desde 2022). */
+export const DJI_POLITICO = [
+  { valor: "con", etiqueta: "Con su DJI" },
+  { valor: "leida", etiqueta: "Con su DJI leída" },
+  { valor: "familiares", etiqueta: "Declara familiares" },
+  { valor: "sin", etiqueta: "Sin su DJI" },
+] as const;
+export type DjiPolitico = (typeof DJI_POLITICO)[number]["valor"];
+
 export const ORDENES_POLITICOS = [
   { valor: "cruces", etiqueta: "Más cruces primero" },
   { valor: "aportes", etiqueta: "Mayor aporte" },
@@ -148,6 +231,7 @@ export interface FiltrosPoliticos {
   papel?: PapelPolitico;
   cruces?: CrucesPolitico;
   senal?: SenalPolitico;
+  dji?: DjiPolitico;
   eleccion?: number;
   q?: string;
   orden?: OrdenPoliticos;
@@ -155,7 +239,7 @@ export interface FiltrosPoliticos {
 }
 
 /** Los nombres de sus filtros en la URL de la ficha del partido (con «k» delante: no chocan con los de otras pestañas). */
-export const P_POLITICOS = { papel: "kpapel", cruces: "kcruces", senal: "ksenal", eleccion: "kanio", q: "kq", orden: "korden", page: "kpag" } as const;
+export const P_POLITICOS = { papel: "kpapel", cruces: "kcruces", senal: "ksenal", dji: "kdji", eleccion: "kanio", q: "kq", orden: "korden", page: "kpag" } as const;
 
 type Busqueda = Record<string, string | string[] | undefined> | undefined;
 const uno = (v: string | string[] | undefined) => (Array.isArray(v) ? v[0] : v);
@@ -170,6 +254,7 @@ export function filtrosPoliticosDeUrl(sp: Busqueda): FiltrosPoliticos {
     papel: PAPELES_POLITICO.find((p) => p.valor === v("papel"))?.valor,
     cruces: CRUCES_POLITICO.find((c) => c === v("cruces")),
     senal: SENALES_POLITICO.find((s) => s === v("senal")),
+    dji: DJI_POLITICO.find((d) => d.valor === v("dji"))?.valor,
     eleccion: Number.isInteger(eleccion) && eleccion >= 2000 && eleccion <= 2100 ? eleccion : undefined,
     // La búsqueda pide 3 letras (como la API): con menos, no filtra.
     q: q && q.length >= 3 ? q : undefined,
@@ -184,6 +269,7 @@ export function parametrosPoliticos(f: FiltrosPoliticos): Record<string, string 
     [P_POLITICOS.papel]: f.papel,
     [P_POLITICOS.cruces]: f.cruces,
     [P_POLITICOS.senal]: f.senal,
+    [P_POLITICOS.dji]: f.dji,
     [P_POLITICOS.eleccion]: f.eleccion ? String(f.eleccion) : undefined,
     [P_POLITICOS.q]: f.q,
     [P_POLITICOS.orden]: f.orden && f.orden !== "cruces" ? f.orden : undefined,
@@ -247,6 +333,53 @@ export interface DetallePolitico {
   familia: { entidadRuc: string; entidad: string | null; parentesco: string | null; grado: string | null; puesto: string | null; funcionarioApellido: string | null; ficha: string | null }[];
   sanciones: { tipo: string; desde: string | null; hasta: string | null; resolucion: string | null; infraccion: string | null; estado: string | null; multa: number | null }[];
   otrosPartidos: { clave: string; partido: string | null; gano: boolean; candidato: boolean; aportante: boolean; elecciones: number[]; aportesMonto: number }[];
+  /** Su DJI (migración 301): sólo si ganó desde 2022. El empate es por nombre completo y la entidad que gobierna. */
+  dji?: {
+    estado: EstadoDji;
+    empate: "nombre";
+    declaraciones: {
+      entidadRuc: string;
+      entidad: string | null;
+      partidoClave: string | null;
+      partido: string | null;
+      cargoElecto: string | null;
+      proceso: string | null;
+      desde: string | null;
+      hasta: string | null;
+      cargoDji: string | null;
+      presentada: string | null;
+      declaraciones: number;
+      leida: boolean;
+      familiares: number;
+    }[];
+  } | null;
+  /** Los familiares que declara en su DJI y lo que obtuvieron. Sin nombre ni documento: `pariente` sólo los numera. */
+  familiares?: {
+    declarados: number;
+    conAlgo: number;
+    /**
+     * De un político de nombre completo, los familiares cuyo parentesco destaparía su apellido tapado: sólo cuántos y, con
+     * dos o más en un cruce, el monto sumado (`null` con uno solo). `null` si no hay.
+     */
+    reservados?: {
+      n: number;
+      suEntidad: { n: number; monto: number | null };
+      partido: { n: number };
+      ordenes: { n: number; monto: number | null };
+      empresas: { n: number };
+    } | null;
+    lista: {
+      pariente: number;
+      parentesco: string | null;
+      grado: string | null;
+      suEntidad: boolean;
+      delPartido: boolean;
+      ordenes: { entidadRuc: string | null; entidad: string | null; ordenes: number | null; monto: number | null; desde: number | null; hasta: number | null; suEntidad: boolean; nepotismo: boolean; delPartido: boolean }[];
+      empresas: { ruc: string | null; nombre: string | null; rol: string | null; procesos: number | null; monto: number | null; suEntidad: { procesos: number; monto: number } | null; delPartido: boolean }[];
+    }[];
+  };
+  /** Sus informes de control con responsabilidad PRESUNTA (por su DNI, migraciones 302 y 301). */
+  informes?: { informe: string; numero: string | null; titulo: string | null; entidad: string | null; entidadRuc: string | null; fecha: string | null; responsabilidades: string[]; url: string | null }[];
 }
 
 /** En qué papel está la persona en el partido, en palabras: «Ganó una elección y aportó». */
