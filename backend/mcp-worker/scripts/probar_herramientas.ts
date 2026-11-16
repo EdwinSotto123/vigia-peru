@@ -12,7 +12,7 @@
 import { z } from "zod";
 import { buscarContratos } from "../src/v2/herramientas/contratos";
 import { buscarInformesControl, informesControl } from "../src/v2/herramientas/entidad";
-import { fichaEntidad, normaAplicable, patrones, preciosReferencia, redEmpresa } from "../src/v2/herramientas/actores";
+import { fichaEntidad, normaAplicable, patrones, personaPublica, preciosReferencia, redEmpresa } from "../src/v2/herramientas/actores";
 import { informeControlContrato } from "../src/v2/herramientas/control";
 
 const PRUEBA = process.env.GOBSERVA_PRUEBA ?? "";
@@ -41,6 +41,12 @@ const lista = (r: Record<string, unknown>, k: string) => (Array.isArray(r[k]) ? 
 const hay = (k: string, min = 1) => (r: Record<string, unknown>) => (lista(r, k).length >= min ? null : `«${k}» trae ${lista(r, k).length} filas (se esperaban ${min} o más)`);
 
 const CASOS: Caso[] = [
+  // Personas con cargo público (migraciones 318 y 319): un apellido y un nombre muy comunes traen varias, todas con el
+  // apellido materno tapado y con el enlace a su ficha de rastro.
+  { h: personaPublica as never, args: { nombre: "Quispe Juan", donde: "planilla" },
+    espera: (r) => (lista(r, "con_cargo_publico").length >= 5
+      && lista(r, "con_cargo_publico").every((x) => /•/.test(String((x as { nombre?: string }).nombre ?? "")) && /\/app\/personas\/cargo\/[0-9a-f]{12}$/.test(String((x as { enlace?: string }).enlace ?? "")))
+      ? null : "sin personas con cargo público, o sin tapar o sin enlace a su ficha") },
   { h: patrones as never, args: { alcance: "entidad" }, espera: hay("patrones") },
   { h: patrones as never, args: { alcance: "proveedor" }, espera: hay("patrones") },
   { h: patrones as never, args: { alcance: "relleno" }, espera: hay("pares") },

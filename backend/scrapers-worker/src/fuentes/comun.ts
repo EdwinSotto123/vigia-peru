@@ -287,6 +287,8 @@ export function cadenaCruces(): Refresco[] {
     f("refrescar_entidad_antecedentes", true),
     // Las personas naturales que ganaron procesos de selección (migración 317): su resumen y su código de ficha.
     f("refrescar_persona_ganadora", true),
+    // El índice para buscar por nombre a quien recibió órdenes o ganó procesos (migración 320): lee la tabla anterior.
+    f("refrescar_persona_busqueda", true),
     // Las órdenes de cada empresa por entidad y año (migración 109) y las que están al borde del tope (207).
     f("refrescar_empresa_ordenes"),
     f("refrescar_borde_empresas", true),

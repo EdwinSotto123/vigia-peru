@@ -8,9 +8,11 @@
  * publicar(). Las demás palabras no cuentan: quien escriba el apellido escondido (el nombre completo) recibe lo mismo que
  * quien escriba otra palabra en su lugar, así que encuentra a la persona y no puede confirmar el apellido probando.
  *
- * Fuentes: persona_orden_anual (quien tiene órdenes de servicio) y persona_ganadora (quien ganó un proceso de selección,
- * migración 317; sin la tabla, sólo las órdenes). Pide un apellido y un nombre como mínimo (dos palabras de 3 letras o
- * más) y que una de las palabras sea la PRIMERA del nombre (el primer apellido, que siempre se ve en el orden del padrón).
+ * Fuente: persona_busqueda (migración 320), una fila por persona con las palabras de su nombre (GIN) y sus cifras sumadas;
+ * preselecciona a quien trae dos de las palabras buscadas y aquí se publica sólo a quien coincide por lo que se ve. Antes
+ * se leía persona_orden_anual por el primer apellido: con uno común eran 50 mil filas y 8 s en frío, que frenaban también
+ * el buscador general. Esa lectura queda de respaldo si la tabla no está. Pide un apellido y un nombre como mínimo (dos
+ * palabras de 3 letras o más).
  */
 import { consultaConPlazo } from "./db.js";
 import { publicar } from "./privacidad.js";
@@ -65,6 +67,32 @@ export function cuantasVisibles(palabras: string[], visibles: string[]): number 
 export async function personasPorNombreVisible(q: string | undefined, tope = 30): Promise<PersonaHallada[]> {
   const palabras = palabrasDeNombre(q);
   if (palabras.length < 2) return [];
+  // En el índice las palabras van como en mef_norm: sin tildes y con la «Ñ» como «N».
+  const enIndice = [...new Set(palabras.map((w) => w.replace(/Ñ/g, "N")))];
+  const pares: string[][] = [];
+  for (let i = 0; i < enIndice.length; i++) for (let j = i + 1; j < enIndice.length; j++) pares.push([enIndice[i], enIndice[j]]);
+  try {
+    const r = await consultaConPlazo<PersonaHallada>(
+      `SELECT b.ruc, b.nombre, pc.codigo, b.ordenes, b.monto::float AS monto, b.entidades, b.entidad, b.procesos, b.monto_procesos::float AS "montoProcesos"
+         FROM persona_busqueda b JOIN persona_codigo pc ON pc.ruc = b.ruc
+        WHERE ${pares.map((_, i) => `b.palabras @> $${i + 2}::text[]`).join(" OR ")}
+        ORDER BY (SELECT count(*) FROM unnest($1::text[]) w WHERE w = ANY (b.palabras)) DESC, (b.monto + b.monto_procesos) DESC, b.ruc
+        LIMIT 400`, [enIndice, ...pares], 5000);
+    return r.rows
+      // La regla de privacidad: sólo quien coincide, en dos palabras o más, por lo que se VE. Lo demás escrito no decide.
+      .map((p) => ({ p, n: cuantasVisibles(palabras, palabrasVisibles(p.nombre.replace(/(?<=\p{L})¿(?=\p{L})/gu, "Ñ"))) }))
+      .filter((x) => x.n >= 2)
+      .sort((a, b) => b.n - a.n || b.p.monto + b.p.montoProcesos - (a.p.monto + a.p.montoProcesos))
+      .slice(0, tope)
+      .map((x) => x.p);
+  } catch {
+    // Sin la tabla (una base sin la migración 320) o si no respondió: la lectura de antes, por el primer apellido.
+    return porPrimerApellido(q, palabras, tope);
+  }
+}
+
+/** La lectura anterior, de respaldo: persona_orden_anual y persona_ganadora por el primer apellido (lenta con uno común). */
+async function porPrimerApellido(q: string | undefined, palabras: string[], tope: number): Promise<PersonaHallada[]> {
   // El primer apellido en la base va como lo deja mef_norm: con «Ñ» o con «N» según la fuente; se prueban las dos. Entran
   // también las partículas cortas («DE», «LA») por si el nombre empieza con una.
   const primeras = [...new Set(sinTildes(q ?? "").replace(/[^A-ZÑ ]+/g, " ").split(/\s+/).filter((w) => w.length >= 2).flatMap((w) => [w, w.replace(/Ñ/g, "N")]))];

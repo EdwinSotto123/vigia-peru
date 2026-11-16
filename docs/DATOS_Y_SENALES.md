@@ -146,6 +146,7 @@ Agrupadas por lo que representan. Filas aproximadas (reltuples) y tamaño en pro
 | `persona_orden_anual` | 5.4 M | órdenes de cada persona por año |
 | `persona_codigo` / `planilla_codigo` | 2.0 M / 640 k | códigos opacos de persona (privacidad) |
 | `funcionario_resumen` / `funcionario_codigo` | 1.15 M | una fila por persona con cargo público (migraciones 318 y 319): quien presentó una declaración jurada de intereses o está o estuvo en una planilla; su cargo y entidad más recientes y las palabras VISIBLES de su nombre para buscarla (GIN). Da la ficha de rastro `/app/personas/cargo/<código>` y la búsqueda `GET /personas/buscar` |
+| `persona_busqueda` | 2.0 M | una fila por persona natural con órdenes o procesos ganados: las palabras de su nombre (GIN) y sus cifras sumadas, para buscarla por nombre sin recorrer `persona_orden_anual` (migración 320). Sólo preselecciona: la API publica a quien coincide por lo que se ve |
 | `persona_ganadora` | 31 k | personas naturales que ganaron procesos de selección (CONOSCE, migración 317): procesos, monto, entidades y fechas; da ficha a quien no tiene órdenes. La API la busca sólo por lo que se VE del nombre |
 | `persona_senal` | 300 k | señales calculadas por persona |
 | `persona_resumen` / `persona_flags` | 3.5 k / 9.2 k | resumen y banderas por persona |

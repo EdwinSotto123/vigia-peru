@@ -329,8 +329,10 @@ export const personaPublica = definir({
     "Busca por nombre a una autoridad o a quien trabaja en el Estado. Para una autoridad (alcalde, gobernador, regidor, " +
     "congresista) da su trayectoria electoral del JNE desde 2014 (cada candidatura con año, cargo, partido, lugar y si salió " +
     "electa) y el cargo que tiene hoy con su entidad y RUC. En la planilla del Estado da cargo, entidad, régimen, sueldo y " +
-    "señales, con un apellido tapado. No se busca por DNI. Para saber si una persona cualquiera tiene visitas, empresas, " +
-    "órdenes o declaraciones, usa rastro_persona.",
+    "señales, con un apellido tapado. `con_cargo_publico` trae a quien presentó declaraciones juradas de intereses o está o " +
+    "ESTUVO en una planilla (quien ya no figura en el último mes de su entidad no sale en `planilla`, pero sí aquí), con su " +
+    "cargo más reciente y el enlace a su ficha de rastro en Vigía. No se busca por DNI. Para saber si una persona cualquiera " +
+    "tiene visitas, empresas, órdenes o declaraciones, usa rastro_persona.",
   cuenta: true,
   entrada: {
     nombre: z.string().min(6).max(80).describe("Apellidos y nombres, al menos dos palabras."),
@@ -341,14 +343,22 @@ export const personaPublica = definir({
     if (palabras.length < 2) throw new ErrorUsuario("Escribe al menos un apellido y un nombre.");
     if (/\d{6,}/.test(a.nombre)) throw new ErrorUsuario("No se busca por DNI ni por números: escribe el nombre.");
     const e = enlaces(cx.env);
-    const [pl, au, tr] = await Promise.all([
+    const [pl, au, tr, cc] = await Promise.all([
       a.donde !== "autoridades" ? api<Fila>(cx.env, "/planilla", { q: a.nombre, size: 10 }) : Promise.resolve(null),
       a.donde !== "planilla" ? api<Fila>(cx.env, "/poder/entidades", { q: a.nombre }).catch((err) => (err instanceof ErrorApi ? null : Promise.reject(err))) : Promise.resolve(null),
       a.donde !== "planilla" ? api<Fila>(cx.env, "/poder/trayectoria", { q: a.nombre }).catch((err) => (err instanceof ErrorApi ? null : Promise.reject(err))) : Promise.resolve(null),
+      // El índice de personas con cargo público (declaraciones juradas o planilla, de hoy o de antes).
+      api<Fila>(cx.env, "/personas/buscar", { q: a.nombre }).catch((err) => (err instanceof ErrorApi ? null : Promise.reject(err))),
     ]);
     const normal = (t: string) => t.toLowerCase().normalize("NFD").replace(/\p{M}/gu, "");
     const buscadas = palabras.map(normal);
     return {
+      con_cargo_publico: ((cc?.conCargo ?? []) as Fila[]).map((x) => ({
+        nombre: x.nombre, cargo: x.cargo ?? undefined, entidad: x.entidad ?? undefined, entidad_ruc: x.entidadRuc ?? undefined,
+        el_cargo_sale_de: x.cargoDe === "planilla" ? "la planilla de su entidad" : x.cargoDe === "dji" ? "su declaración jurada de intereses" : undefined,
+        en_planilla: x.planillaEntidades > 0 ? (x.planillaHoy ? "figura en la planilla de hoy" : `figuró hasta ${x.planillaHasta ?? "una fecha sin dato"}`) : "no figura en planillas",
+        declaraciones_juradas: x.declaraciones, enlace: x.codigo ? e.funcionario(x.codigo) : undefined,
+      })),
       planilla: pl
         ? {
             total: pl.total,
@@ -375,7 +385,7 @@ export const personaPublica = definir({
             .filter((x) => buscadas.every((w) => normal(String(x.autoridad ?? "")).includes(w)))
             .map((x) => ({ autoridad: x.autoridad, cargo: x.cargo_gob, entidad: x.entidad, entidad_ruc: x.entidad_ruc, partido: x.partido, desde: x.periodoInicio, hasta: x.periodoFin }))
         : undefined,
-      fuente: "JNE (candidaturas 2014 a 2022), registro de autoridades vigentes y planillas del Portal de Transparencia Estándar.",
+      fuente: "JNE (candidaturas 2014 a 2022), registro de autoridades vigentes, planillas del Portal de Transparencia Estándar y declaraciones juradas de intereses (Contraloría).",
     };
   },
 });

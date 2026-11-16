@@ -707,9 +707,29 @@ personasRouter.get("/cargo/:codigo", async (c) => {
         .then((r) => r.rows.filter((x) => esEl(x.nombre)).map(({ nombre: _n, ...x }) => x))
         .catch(() => null),
     ]);
+    // Las visitas se buscan por palabras (índice de trigramas sobre 12 M de filas): con un nombre muy común puede no
+    // responder a tiempo. Entonces, por el nombre exacto en sus formas más usadas (índice btree): apellidos y nombres,
+    // nombres y apellidos, y las dos con sólo el primer nombre. Trae menos que la otra, pero no deja la ficha sin visitas.
+    let visitasDe = rastro.visitas;
+    if (visitasDe === null) {
+      const primerNombre = f.nombres.split(" ")[0];
+      const apellidos = [f.paterno, f.materno ?? ""].filter(Boolean).join(" ");
+      const formas = [...new Set([`${apellidos} ${f.nombres}`, `${f.nombres} ${apellidos}`, `${apellidos} ${primerNombre}`, `${primerNombre} ${apellidos}`])];
+      visitasDe = await consultaConPlazo<NonNullable<typeof rastro.visitas>[number]>(
+        `SELECT v.visitante_norm AS nombre, v.entidad_visitada AS entidad,
+                (SELECT r.ruc FROM visita_entidad_ruc r WHERE r.entidad_visitada = v.entidad_visitada LIMIT 1) AS entidad_ruc,
+                count(*)::int AS visitas, to_char(min(v.fecha_visita), 'YYYY-MM-DD') AS primera, to_char(max(v.fecha_visita), 'YYYY-MM-DD') AS ultima,
+                (array_agg(DISTINCT v.entidad_visitante) FILTER (WHERE COALESCE(v.entidad_visitante, '') <> ''
+                                                                    AND v.tipo_entidad_visitante IS DISTINCT FROM 'persona_natural'))[1:4] AS en_nombre_de,
+                (array_agg(DISTINCT concat_ws(', ', NULLIF(v.funcionario_cargo, ''), NULLIF(v.funcionario_area, '')))
+                   FILTER (WHERE COALESCE(v.funcionario_cargo, v.funcionario_area, '') <> ''))[1:5] AS a_quien,
+                NULL::text[] AS motivos
+           FROM visitas_entidades v WHERE v.visitante_norm = ANY($1::text[])
+          GROUP BY 1, 2 ORDER BY count(*) DESC LIMIT 60`, [formas], 6000).then((r) => r.rows).catch(() => null);
+    }
     // Sin el nombre de cada registro (ver arriba) y sin texto libre.
     const sinNombre = <T extends Record<string, unknown>>(filas: T[] | null | undefined) => (filas ?? []).map(({ nombre: _n, ...x }) => x);
-    const visitas = (rastro.visitas ?? []).map(({ nombre: _n, motivos: _m, en_nombre_de, ...v }) => ({
+    const visitas = (visitasDe ?? []).map(({ nombre: _n, motivos: _m, en_nombre_de, ...v }) => ({
       ...v, en_nombre_de: (en_nombre_de ?? []).filter((o: string) => orgOk(o)),
     }));
     return publicar({
@@ -743,7 +763,7 @@ personasRouter.get("/cargo/:codigo", async (c) => {
         empresaInhabilitadaYOtraGano: rastro.empresa_suya_inhabilitada_y_otra_gano,
         enInformeYDespuesCobro: rastro.en_informe_de_control_y_despues_cobro,
       },
-      sinRespuesta: [...rastro.sin_respuesta, ...(planilla ? [] : ["planilla"]), ...(candidaturas ? [] : ["candidaturas"])],
+      sinRespuesta: [...rastro.sin_respuesta.filter((x) => x !== "visitas" || visitasDe === null), ...(planilla ? [] : ["planilla"]), ...(candidaturas ? [] : ["candidaturas"])],
     });
   });
   if (!cuerpo) return c.json({ error: "not_found" }, 404);
