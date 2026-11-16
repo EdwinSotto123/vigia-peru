@@ -12,6 +12,7 @@
     "cf:preview": "opennextjs-cloudflare preview -- --port 8788",
     "cf:deploy": "opennextjs-cloudflare build && opennextjs-cloudflare deploy",
     "auditar:estilo": "node scripts/auditar-estilo.mjs",
+    "auditar:limite": "node scripts/auditar-limite-cliente.mjs",
     "e2e:visual": "python e2e/visual/recorrer.py"
   },
   "dependencies": {

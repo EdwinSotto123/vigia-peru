@@ -288,6 +288,8 @@ verificar:web:
     - npx tsc --noEmit -p .
     - npm test
     - npm run auditar:estilo
+    # Un Server Component que usa una función de un módulo «use client» se cae al dibujar (2026-11-16): ni tsc lo avisa.
+    - npm run auditar:limite
   rules:
     - if: '$CI_PIPELINE_SOURCE == "schedule"'
       when: never
