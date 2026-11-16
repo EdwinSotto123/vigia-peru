@@ -140,7 +140,15 @@ function Contraloria({ c }: { c: CorpusContraloria }) {
         items={[
           { valor: numero(c.fichas), etiqueta: "fichas leídas", contexto: `de ${numero(c.informes)} informes con responsabilidad presunta`, parte: c.informes ? c.fichas / c.informes : null },
           { valor: numero(c.observaciones), etiqueta: "observaciones", contexto: `${numero(c.fragmentos)} trozos buscables, ${numero(c.conVector)} con vector`, parte: null },
-          { valor: numero(c.leidasIa), etiqueta: "fichas con tema y perjuicio", contexto: "leídos por un modelo abierto; el resto, en curso", parte: c.conObservaciones ? c.leidasIa / c.conObservaciones : null },
+          {
+            valor: numero(c.leidasIa),
+            etiqueta: "fichas con tema y perjuicio",
+            contexto: c.costoIaUsd ? `leídos por un modelo abierto: costó US$ ${c.costoIaUsd.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "leídos por un modelo abierto; el resto, en curso",
+            parte: c.conObservaciones ? c.leidasIa / c.conObservaciones : null,
+          },
+          ...(c.contratosAtados
+            ? [{ valor: numero(c.contratosAtados), etiqueta: "contratos atados a una observación", contexto: "el informe nombra su proceso o su obra: llevan la bandera en su ficha", parte: null }]
+            : []),
           { valor: c.comprendidos == null ? null : numero(c.comprendidos), etiqueta: "funcionarios comprendidos", contexto: "responsabilidad presunta: no es una condena", parte: null },
         ]}
       />

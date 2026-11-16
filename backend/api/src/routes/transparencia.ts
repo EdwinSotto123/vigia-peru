@@ -354,12 +354,14 @@ async function facturas() {
  * Resumen, cuántas observaciones quedaron buscables y cuántas leyó la IA (tema, perjuicio, referencias). Sólo conteos.
  */
 async function contraloria() {
-  const [f, g, p] = await Promise.all([
-    pool.query<{ informes: number; fichas: number; conObservaciones: number; observaciones: number; leidasIa: number; actualizado: string | null }>(
+  const [f, g, p, k] = await Promise.all([
+    pool.query<{ informes: number; fichas: number; conObservaciones: number; observaciones: number; leidasIa: number; costoIaUsd: number; actualizado: string | null }>(
       `SELECT (SELECT count(*) FROM informes_control)::int AS informes, count(*)::int AS fichas,
               (count(*) FILTER (WHERE jsonb_typeof(campos -> 'observaciones') = 'array' AND jsonb_array_length(campos -> 'observaciones') > 0))::int AS "conObservaciones",
               COALESCE(sum(CASE WHEN jsonb_typeof(campos -> 'observaciones') = 'array' THEN jsonb_array_length(campos -> 'observaciones') END), 0)::int AS observaciones,
               (count(*) FILTER (WHERE campos -> 'ia' ->> 'leido_at' IS NOT NULL))::int AS "leidasIa",
+              -- Lo que costó esa lectura (Workers AI, por tokens): cada ficha guarda su parte.
+              COALESCE(sum((campos -> 'ia' ->> 'costo_usd')::numeric), 0)::float AS "costoIaUsd",
               to_char(max(descargado_at) AT TIME ZONE '${LIMA}', ${MINUTO}) AS actualizado
          FROM informe_control_ficha`),
     pool.query<{ fragmentos: number; conVector: number }>(
@@ -367,10 +369,16 @@ async function contraloria() {
     // La vista sin documento (302): cuántos funcionarios comprendidos y en cuántos informes. Sin ella, null.
     pool.query<{ personas: number; informes: number }>(
       `SELECT count(*)::int AS personas, count(DISTINCT codigo)::int AS informes FROM informe_control_implicado`).catch(() => ({ rows: [] as { personas: number; informes: number }[] })),
+    // Los contratos de Vigía que alguna observación nombra (migración 313). Sin la tabla, null.
+    pool.query<{ contratos: number; observaciones: number }>(
+      `SELECT count(DISTINCT ocid)::int AS contratos, count(DISTINCT (codigo, n))::int AS observaciones FROM informe_control_proceso`).catch(() => ({ rows: [] as { contratos: number; observaciones: number }[] })),
   ]);
   const x = f.rows[0];
   if (!x) return null;
-  return { ...x, fragmentos: g.rows[0]?.fragmentos ?? 0, conVector: g.rows[0]?.conVector ?? 0, comprendidos: p.rows[0]?.personas ?? null };
+  return {
+    ...x, fragmentos: g.rows[0]?.fragmentos ?? 0, conVector: g.rows[0]?.conVector ?? 0, comprendidos: p.rows[0]?.personas ?? null,
+    contratosAtados: k.rows[0]?.contratos ?? null, observacionesAtadas: k.rows[0]?.observaciones ?? null,
+  };
 }
 
 const declarados = () =>

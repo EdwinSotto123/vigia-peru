@@ -67,6 +67,11 @@ export interface CorpusContraloria {
   observaciones: number;
   /** Fichas cuyas observaciones ya leyó la IA (tema, perjuicio, referencias). */
   leidasIa: number;
+  /** Lo que costó esa lectura, en dólares (Workers AI, por tokens). */
+  costoIaUsd?: number;
+  /** Contratos de Vigía que alguna observación nombra (migración 313); null si no se pudo contar. */
+  contratosAtados?: number | null;
+  observacionesAtadas?: number | null;
   fragmentos: number;
   conVector: number;
   /** Funcionarios comprendidos (responsabilidad presunta); null si no se pudo contar. */
