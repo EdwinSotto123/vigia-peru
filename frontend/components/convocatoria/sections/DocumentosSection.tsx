@@ -9,6 +9,7 @@ import { coincide, paraBuscar } from "@/lib/formato";
 import { tipoDocLabel } from "@/lib/contratos";
 import { plural } from "@/lib/formato";
 import { fechaDossier } from "../dossier";
+import { copiaDeDocumento, esDocumentoSeace } from "./EnlaceDocumento";
 
 /** "APPLICATION/PDF", "pdf", ".PDF" → "pdf". El formato viene en cualquier caja. */
 export function formatoNormalizado(f: unknown): string {
@@ -137,16 +138,25 @@ export function DocumentosSection({
                   )}
                 </div>
                 {d.url && (
-                  <a
-                    href={d.url}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="inline-flex min-h-[32px] shrink-0 items-center gap-1 rounded-full border border-line bg-paper px-3 py-1 text-rotulo font-semibold text-granate hover:bg-paperDeep"
-                    title={esPdf ? "Abrir el PDF en el SEACE" : "Descargar el archivo del SEACE"}
-                  >
-                    {esPdf ? <ExternalLink size={11} aria-hidden /> : <Download size={11} aria-hidden />}
-                    {esPdf ? "Ver" : "Descargar"}
-                  </a>
+                  // La copia que guarda Vigía primero (la descarga del SEACE falla a menudo con error 502; si Vigía no la
+                  // tiene, esa ruta lleva al SEACE) y el SEACE al lado, como alternativa.
+                  <span className="flex shrink-0 flex-col items-end gap-0.5">
+                    <a
+                      href={esDocumentoSeace(d.url) ? copiaDeDocumento(d.url) : d.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex min-h-[32px] items-center gap-1 rounded-full border border-line bg-paper px-3 py-1 text-rotulo font-semibold text-granate hover:bg-paperDeep"
+                      title={esDocumentoSeace(d.url) ? "Abrir la copia que guarda Vigía" : esPdf ? "Abrir el PDF" : "Descargar el archivo"}
+                    >
+                      {esPdf ? <ExternalLink size={11} aria-hidden /> : <Download size={11} aria-hidden />}
+                      {esPdf ? "Ver el documento" : "Descargar"}
+                    </a>
+                    {esDocumentoSeace(d.url) && (
+                      <a href={d.url} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-6 items-center text-micro font-medium text-mute underline decoration-line underline-offset-2 hover:text-granate">
+                        o en el SEACE
+                      </a>
+                    )}
+                  </span>
                 )}
               </div>
             </li>

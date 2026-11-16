@@ -26,6 +26,7 @@ import { adjudicacionesVigentes, esPersonaNatural, humanizarCodigo, type Contrat
 import { enlaceProveedor } from "@/lib/empresas";
 import { FUENTE_HITO, numeroContrato, tituloContrato, type ContratoFirmado, type HitoProceso, type ItemAdjudicado, type PersonaProceso } from "@/lib/procesoContrato";
 import { ObrasDelContrato } from "@/components/obras/ObraContrato";
+import { EnlaceDocumento, copiaDeDocumento, esDocumentoSeace } from "@/components/convocatoria/sections/EnlaceDocumento";
 
 /**
  * Las tres pestañas, o null la que no tiene nada. «Participantes» sólo sin las actas del dictamen (con ellas va
@@ -196,7 +197,7 @@ function CondicionesLeidas({ c }: { c: Detalle }) {
       <h3 className="font-display text-bloque font-bold text-ink">Lo que dice el contrato</h3>
       <p className="mt-1 text-meta text-inkSoft">Condiciones leídas del contrato firmado con IA ({k.modelo.replace(/^claude-/, "Claude ").replace(/-/g, " ")}). Revisa el documento antes de citarlas.</p>
       <DatosClave items={items} className="mt-2" />
-      <FuenteDato fuente="Contrato firmado (SEACE), leído con IA" fecha={k.leidoAt} href={k.url ?? undefined} className="mt-2" />
+      <FuenteDato fuente="Contrato firmado (SEACE), leído con IA" fecha={k.leidoAt} href={k.url ? (esDocumentoSeace(k.url) ? copiaDeDocumento(k.url) : k.url) : undefined} className="mt-2" />
     </div>
   );
 }
@@ -342,9 +343,8 @@ function datosContrato(f: ContratoFirmado, c: Detalle): DatoClave[] {
       ? [{
           etiqueta: "Documento",
           valor: (
-            <a href={f.url} target="_blank" rel="noopener noreferrer" className="font-medium text-granate underline-offset-2 hover:underline">
-              Ver el contrato en el SEACE<span className="sr-only"> (se abre en otra pestaña)</span>
-            </a>
+            // La copia que guarda Vigía primero (el SEACE falla a menudo con error 502) y el SEACE al lado.
+            <EnlaceDocumento url={f.url}>Ver el contrato</EnlaceDocumento>
           ),
         }]
       : []),

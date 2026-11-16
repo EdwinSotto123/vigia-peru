@@ -205,6 +205,8 @@ export interface SenalRelato {
   tambien: string | null;
   /** El id de su tarjeta en «Por qué llama la atención»: lo lleva la primera señal de cada regla. */
   ancla: string | null;
+  /** La bandera tal como llegó del análisis: con ella se arma su panel lateral (quién la encontró, el cotejo, la fuente). */
+  origen: Bandera;
 }
 
 /** El id de la tarjeta de una regla: los chips de la cronología llevan aquí. */
@@ -223,6 +225,7 @@ export function senalesDelRelato(banderas: readonly Bandera[]): SenalRelato[] {
   const base = banderas
     .map((b, i) => ({
       i,
+      b,
       regla: String(b.regla || "sin_regla"),
       severidad: severidadDe(b),
       evidencia: texto(evidenciaComoTexto(b.evidencia)),
@@ -243,6 +246,7 @@ export function senalesDelRelato(banderas: readonly Bandera[]): SenalRelato[] {
       item: s.item,
       tambien: tambien ? reglaLabel(tambien.regla) : null,
       ancla,
+      origen: s.b,
     };
   });
 }
@@ -272,6 +276,8 @@ export interface ChipPaso {
   severidad: SeveridadSenal;
   n: number;
   ancla: string;
+  /** Las señales de esa regla (su panel las trae todas). */
+  senales: SenalRelato[];
 }
 
 /**
@@ -287,9 +293,10 @@ export function senalesPorPaso(senales: readonly SenalRelato[], presentes: Reado
     const ya = lista.find((c) => c.regla === s.regla);
     if (ya) {
       ya.n++;
+      ya.senales.push(s);
       if (RANGO_SEVERIDAD[s.severidad] < RANGO_SEVERIDAD[ya.severidad]) ya.severidad = s.severidad;
     } else {
-      lista.push({ regla: s.regla, etiqueta: s.etiqueta, severidad: s.severidad, n: 1, ancla: anclaSenal(s.regla) });
+      lista.push({ regla: s.regla, etiqueta: s.etiqueta, severidad: s.severidad, n: 1, ancla: anclaSenal(s.regla), senales: [s] });
     }
     out.set(paso, lista);
   }

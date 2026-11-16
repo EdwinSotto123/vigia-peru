@@ -19,54 +19,18 @@ import { redactDnis, type NombreConocido } from "../../Redact";
 import { evidenciaComoTexto } from "./Evidencia";
 import type { FasesMap } from "@/lib/auditoria";
 import { AuditoriaDeAgentes } from "@/components/agentes/AuditoriaDeAgentes";
-import { claveDePaso } from "@/components/agentes/catalogo";
-import type { SenalAgente, Severidad } from "@/components/agentes/senales";
+import type { SenalAgente } from "@/components/agentes/senales";
 import type { Bandera } from "../types";
-import { severidadDe } from "../dossier";
-import { inferAgente } from "../utils";
-import { txt } from "@/lib/utils";
+import { TITULO_TEMA, temaDeRegla } from "../relato/historia";
+import type { ContextoSenal } from "../senal/directorio";
+import { senalDeBandera } from "../senal/normalizar";
+import { SobreQuien } from "../senal/SobreQuien";
 
-/** El payload del buscador es JSON suelto: el cotejo puede venir plano o anidado, o no venir. */
-type BanderaConCotejo = Bandera & {
-  verificada?: boolean | null;
-  verificacion?: { ok?: boolean | null } | null;
+/** El tema de una regla (la competencia, el precio, el proveedor…), para filtrar la tabla y decirlo en cada fila. */
+const temaDe = (regla: string) => {
+  const clave = temaDeRegla(regla);
+  return { clave, titulo: TITULO_TEMA[clave] };
 };
-
-
-/** La `Bandera` del payload → la señal normalizada que pinta la tabla de señales. */
-function desdeBandera(b: Bandera): SenalAgente {
-  const raw = b as BanderaConCotejo;
-  const inferido = inferAgente(b);
-  const bruto = txt(b.agente_origen) ?? (inferido && inferido !== "?" ? inferido : null);
-  const cotejo =
-    typeof raw.verificada === "boolean"
-      ? raw.verificada
-      : typeof raw.verificacion?.ok === "boolean"
-        ? raw.verificacion.ok
-        : null;
-  return {
-    regla: txt(b.regla) ?? "sin_regla",
-    // La misma lectura que la cabecera del dossier (../dossier): los conteos cuadran.
-    severidad: severidadDe(b) as Severidad,
-    agente: claveDePaso(bruto),
-    agenteBruto: bruto,
-    verificada: cotejo,
-    // La evidencia puede venir como texto o como lista de citas: nunca se pierde.
-    evidencia: txt(evidenciaComoTexto(b.evidencia)),
-    evidenciaTextual: txt(b.evidencia_textual),
-    norma: txt(b.norma),
-    fuenteUrl: txt(b.fuente_url),
-    item: txt(b.item_afectado),
-    opinion: b.opinion_oece_relacionada?.num_opinion
-      ? {
-          num: txt(b.opinion_oece_relacionada.num_opinion),
-          url: txt(b.opinion_oece_relacionada.url),
-          snippet: txt(b.opinion_oece_relacionada.snippet),
-        }
-      : null,
-    citas: [],
-  };
-}
 
 export function BanderasAgrupadas({
   banderas,
@@ -77,6 +41,7 @@ export function BanderasAgrupadas({
   noVerificables = [],
   contexto = [],
   nombresPrivados,
+  ctxSenales,
 }: {
   banderas: Bandera[];
   /** Solo si el análisis lo trae: no se supone un número. */
@@ -96,8 +61,17 @@ export function BanderasAgrupadas({
   contexto?: Bandera[];
   /** Personas privadas del dossier: su apellido va tapado también en la línea de cada señal. */
   nombresPrivados?: NombreConocido[];
+  /** De quién habla cada señal (el ganador, la entidad y las empresas del dictamen): va en el panel de cada una. */
+  ctxSenales?: ContextoSenal | null;
 }) {
-  const senales = useMemo(() => (banderas ?? []).map(desdeBandera), [banderas]);
+  const senales = useMemo(() => (banderas ?? []).map(senalDeBandera), [banderas]);
+  const contextoDeSenal = useMemo(
+    () =>
+      ctxSenales
+        ? (s: SenalAgente) => <SobreQuien regla={s.regla} evidencias={[s.evidencia]} ctx={ctxSenales} otrasEmpresas={s.otrasEmpresas ?? []} />
+        : undefined,
+    [ctxSenales],
+  );
   const apartadas = (noVerificables.length > 0 || contexto.length > 0) && (
     <>
       {contexto.length > 0 && <HechosDeContexto banderas={contexto} />}
@@ -115,6 +89,8 @@ export function BanderasAgrupadas({
       reglasEvaluadas={reglas_evaluadas ?? undefined}
       nombresPrivados={nombresPrivados}
       anexo={apartadas}
+      temaDe={temaDe}
+      contextoDeSenal={contextoDeSenal}
     />
   );
 }

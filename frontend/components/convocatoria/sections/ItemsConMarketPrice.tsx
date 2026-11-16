@@ -32,13 +32,29 @@ export function ItemsConMarketPrice({
   allItems = [],
   market,
   fmtMoney,
+  conEstado = 0,
 }: {
   items: any[];
   allItems?: any[];
   market: any;
   fmtMoney: (n: any) => string;
+  /**
+   * Cuántos ítems sí se compararon con compras del Estado por el mismo bien (`precios_internos`): con alguno, un ítem
+   * sin precio de mercado no se rotula «No verificable» a secas (pedido del usuario del 2026-11-16).
+   */
+  conEstado?: number;
 }) {
-  const { filas, padreLote } = construirFilas({ items, allItems, market });
+  const armadas = construirFilas({ items, allItems, market });
+  const padreLote = armadas.padreLote;
+  // El veredicto es el del agente (no cambia ni lo medido ni los conteos): sólo el rótulo dice que la mitad sí se verificó.
+  const filas =
+    conEstado > 0
+      ? armadas.filas.map((f) =>
+          f.veredicto.clave === "no_verificable" && (f.finding?.ancla_regional?.estado === "hallado" || armadas.filas.length === 1)
+            ? { ...f, veredicto: { ...f.veredicto, etiqueta: "Verificación parcial con compras del Estado" } }
+            : f,
+        )
+      : armadas.filas;
   const { orden, fuera } = ordenarPorDiferencia(filas);
   const maximo = maximoEscala(orden);
   // Conteos sobre TODOS los ítems desglosados, no solo sobre los que entran al
@@ -92,6 +108,15 @@ export function ItemsConMarketPrice({
           ", y ninguno supera el techo del rango observado en el mercado."
         ) : (
           "."
+        )}
+        {conEstado > 0 && conMedicion < filas.length && (
+          <>
+            {" "}
+            <strong className="font-semibold">
+              {conEstado} de {filas.length}
+            </strong>{" "}
+            sí {conEstado === 1 ? "se comparó" : "se compararon"} con lo que pagó el Estado por el mismo bien: esa comparación está arriba.
+          </>
         )}
         {estimados > 0 && (
           <>

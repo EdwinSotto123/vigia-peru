@@ -8,7 +8,7 @@ import { montoDossier } from "../dossier";
 import type { PanelDossierProps } from "./PanelesDossier";
 import { AvisoSeccion } from "./AvisoSeccion";
 import { ItemsConMarketPrice } from "./ItemsConMarketPrice";
-import { MarketVerdictCard } from "./MarketVerdictCard";
+import { MarketVerdictCard, verificadoConEstado } from "./MarketVerdictCard";
 import { PostoresSection } from "./PostoresSection";
 import { PreciosDelEstado } from "./PreciosDelEstado";
 import { SeccionSegura } from "./SeccionSegura";
@@ -23,6 +23,8 @@ export function PanelItems({ result, corrida, nItems, nombresPrivados }: PanelDo
   const hayPostores = (result.postores || []).length > 0;
   const precios = (result as any).precios_internos;
   const hayPrecios = (precios?.items || []).length > 0;
+  // Lo que sí se verificó contra compras del Estado: el veredicto de mercado y el gráfico lo dicen.
+  const estado = verificadoConEstado(precios);
   if (!hayItems && !hayVeredicto && !hayPostores && !hayPrecios) {
     return (
       <AvisoSeccion titulo="No hay ítems ni comparación de mercado para este contrato" icono={<Package size={16} aria-hidden />}>
@@ -58,13 +60,13 @@ export function PanelItems({ result, corrida, nItems, nombresPrivados }: PanelDo
                 </p>
               )}
             </div>
-            <ItemsConMarketPrice items={items} allItems={consolidados} market={result.market_analysis} fmtMoney={montoDossier} />
+            <ItemsConMarketPrice items={items} allItems={consolidados} market={result.market_analysis} fmtMoney={montoDossier} conEstado={estado?.conReferencia ?? 0} />
           </section>
         </SeccionSegura>
       )}
       {hayVeredicto && (
         <SeccionSegura nombre="el veredicto de mercado">
-          <MarketVerdictCard market={result.market_analysis} fmtMoney={montoDossier} />
+          <MarketVerdictCard market={result.market_analysis} fmtMoney={montoDossier} estado={estado} />
         </SeccionSegura>
       )}
       {hayPostores && (

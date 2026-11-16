@@ -15,6 +15,7 @@ import { BloqueDetalle, ChipsDetalle, CitaDetalle, CuerpoDetalle, DatosClave, ty
 import { Severidad } from "@/components/ui/Severidad";
 import { maskDnis, pareceEmpresa, redactDnis, type NombreConocido } from "@/components/Redact";
 import { fechaConAnio, plural } from "@/lib/formato";
+import { normaLegible } from "@/lib/modelos";
 import { nombreDeAgente, pasoDeClave } from "./catalogo";
 import { SelloVerificada } from "./SelloVerificada";
 import { ORDEN_SEVERIDAD, type SenalAgente } from "./senales";
@@ -79,6 +80,10 @@ function enPlural(palabra: string, sufijo: string): string {
 export function limpiarEvidencia(texto: string): string {
   return (
     texto
+      // Los análisis anteriores al 2026-11-16 llamaban «persona» a un socio que es una empresa («Persona con documento
+      // 20100027292 figura como representante…»): un documento de 11 cifras que empieza en 20 es un RUC de empresa.
+      .replace(/Persona con documento (20\d{9})(?!\d)/g, "La empresa con RUC $1")
+      .replace(/persona con documento (20\d{9})(?!\d)/g, "la empresa con RUC $1")
       .replace(CAMPO_ORIGEN, "")
       .replace(CAMPO_GENERICO, "")
       // «VIGENTE(S)» → «vigente(s)»: una palabra entera en mayúsculas con su plural a medias es énfasis, no una sigla.
@@ -105,22 +110,32 @@ export function limpiarEvidencia(texto: string): string {
  * y el apellido de cada persona privada del dossier tapado donde aparezca (de más, nunca de menos). El texto completo,
  * con el vidrio revelable, está en el panel.
  */
-export function resumenSinDatosPersonales(texto: string, nombres: NombreConocido[] = []): string {
+export function resumenSinDatosPersonales(texto: string, nombres: NombreConocido[] = [], max: number = MAX_RESUMEN): string {
   const t = maskDnis(limpiarEvidencia(texto.normalize("NFC")));
   const tapar = apellidosPrivados(nombres);
   const limpio = tapar.size ? t.replace(/\p{L}+/gu, (w) => (tapar.has(sinTildes(w)) ? "•".repeat(Math.min(Math.max(w.length, 3), 8)) : w)) : t;
-  if (limpio.length <= MAX_RESUMEN) return limpio;
-  const corte = limpio.slice(0, MAX_RESUMEN);
+  if (limpio.length <= max) return limpio;
+  const corte = limpio.slice(0, max);
+  // Con más lugar (las filas del dictamen), se corta en el final de una oración si lo hay: nunca a media frase.
+  if (max > MAX_RESUMEN) {
+    const fin = Math.max(corte.lastIndexOf(". "), corte.lastIndexOf("; "), corte.lastIndexOf(": "));
+    if (fin > max * 0.35) return `${corte.slice(0, fin + 1).replace(/[;:]$/, ".")} …`;
+  }
   const esp = corte.lastIndexOf(" ");
-  return `${esp > MAX_RESUMEN * 0.6 ? corte.slice(0, esp) : corte}…`;
+  return `${esp > max * 0.6 ? corte.slice(0, esp) : corte}…`;
+}
+
+/** ¿El resumen de la fila dejó parte de la evidencia afuera? (para decir «sigue en el panel» sólo cuando es cierto). */
+export function evidenciaRecortada(texto: string, max: number = MAX_RESUMEN): boolean {
+  return maskDnis(limpiarEvidencia(texto.normalize("NFC"))).length > max;
 }
 
 /**
  * El mismo resumen como componente: la función vive en este módulo cliente, así que un
  * server component (la tabla de /app/hallazgos) la usa a través de aquí, pasando sólo datos.
  */
-export function ResumenEvidencia({ texto, nombres }: { texto: string; nombres?: NombreConocido[] }) {
-  return <>{resumenSinDatosPersonales(texto, nombres)}</>;
+export function ResumenEvidencia({ texto, nombres, max }: { texto: string; nombres?: NombreConocido[]; max?: number }) {
+  return <>{resumenSinDatosPersonales(texto, nombres, max)}</>;
 }
 
 // ─── Dos reglas, un mismo hecho ─────────────────────────────────────────────────
@@ -166,9 +181,27 @@ export function sinRepetidas<T extends { regla: string; severidad: SenalAgente["
  * chips → quién la encontró, en filas → qué mira la regla, qué se encontró, la norma y las
  * páginas del expediente. La fuente oficial va como fila: el pie del panel lo arma
  * AuditoriaDeAgentes.
+ *
+ * `contexto`: sobre quién es la señal (el ganador, la entidad y las empresas que nombra la evidencia, con su ficha): lo
+ * arma el dictamen (convocatoria/senal/SobreQuien), que es quien sabe quién es cada RUC. `sinGenerales`: sin «Qué mira
+ * esta regla» ni «Qué no prueba esto», para cuando un panel junta varias señales de la misma regla y los dice una vez.
  */
-export function DetalleSenal({ senal, etiqueta, descripcion }: { senal: SenalAgente; etiqueta: string; descripcion: string | null }) {
+export function DetalleSenal({
+  senal,
+  etiqueta,
+  descripcion,
+  contexto,
+  sinGenerales = false,
+}: {
+  senal: SenalAgente;
+  etiqueta: string;
+  descripcion: string | null;
+  contexto?: React.ReactNode;
+  sinGenerales?: boolean;
+}) {
   const agente = pasoDeClave(senal.agente);
+  // «Heurística — …» no es una norma sino un criterio de Vigía, y la URL cruda que algunas reglas pegan a la norma se quita.
+  const norma = normaLegible(senal.norma);
   const datos: DatoClave[] = [
     {
       etiqueta: "La encontró",
@@ -199,17 +232,12 @@ export function DetalleSenal({ senal, etiqueta, descripcion }: { senal: SenalAge
         <SelloVerificada verificada={senal.verificada} />
       </ChipsDetalle>
 
-      <DatosClave items={datos} />
-
-      {descripcion && (
-        <BloqueDetalle titulo="Qué mira esta regla">
-          <p>{descripcion}</p>
-        </BloqueDetalle>
-      )}
+      {contexto}
 
       <BloqueDetalle titulo="Qué se encontró">
         {/* Sin las formas de máquina de la regla (el campo de origen, «sanción(es)», fechas ISO), como en la fila. */}
         {senal.evidencia ? <p>{redactDnis(limpiarEvidencia(senal.evidencia))}</p> : <p className="text-mute">El análisis no guardó el texto de esta señal.</p>}
+        {senal.item && <p className="mt-1 text-meta text-mute">Sobre el ítem {senal.item}.</p>}
         {senal.evidenciaTextual && (
           <div className="mt-2">
             <CitaDetalle fuente="Texto del documento">{redactDnis(senal.evidenciaTextual)}</CitaDetalle>
@@ -218,9 +246,23 @@ export function DetalleSenal({ senal, etiqueta, descripcion }: { senal: SenalAge
       </BloqueDetalle>
 
       <BloqueDetalle titulo="La norma que cita">
-        {senal.norma ? <p>{senal.norma}</p> : <p className="text-mute">Esta señal no cita una norma: se sostiene solo en la evidencia de arriba.</p>}
+        {norma ? (
+          <p>{norma.criterio ? <>Criterio de Vigía: {norma.texto}</> : norma.texto}</p>
+        ) : (
+          <p className="text-mute">Esta señal no cita una norma: se sostiene solo en la evidencia de arriba.</p>
+        )}
         {senal.opinion?.num && <OpinionOece opinion={senal.opinion} />}
       </BloqueDetalle>
+
+      <BloqueDetalle titulo="Quién la encontró y cómo se cotejó">
+        <DatosClave items={datos} />
+      </BloqueDetalle>
+
+      {descripcion && !sinGenerales && (
+        <BloqueDetalle titulo="Qué mira esta regla">
+          <p>{descripcion}</p>
+        </BloqueDetalle>
+      )}
 
       {senal.citas.length > 0 && (
         <BloqueDetalle
@@ -234,11 +276,26 @@ export function DetalleSenal({ senal, etiqueta, descripcion }: { senal: SenalAge
                   <FileText size={12} aria-hidden />
                   <span className="font-medium text-inkSoft">{c.documentoTitulo ?? "Documento del expediente"}</span>
                   {c.pagina != null && <span className="font-mono tabular-nums text-ink">pág. {c.pagina}</span>}
-                  {c.documentoUrl && (
-                    <a href={c.documentoUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 font-medium text-granate hover:underline">
-                      Abrir el documento <ExternalLink size={11} aria-hidden />
-                    </a>
-                  )}
+                  {c.documentoUrl &&
+                    // Un documento del SEACE: la copia que guarda Vigía primero (el SEACE falla a menudo) y el SEACE al lado.
+                    (/^https?:\/\/[a-z0-9.-]*seace\.gob\.pe(?::\d+)?\//i.test(c.documentoUrl) ? (
+                      <span className="inline-flex flex-wrap items-baseline gap-x-1.5">
+                        <a href={`/v1/documentos/copia?u=${encodeURIComponent(c.documentoUrl)}`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 font-medium text-granate hover:underline">
+                          Ver el documento <ExternalLink size={11} aria-hidden />
+                        </a>
+                        <span>
+                          (copia de Vigía; también{" "}
+                          <a href={c.documentoUrl} target="_blank" rel="noopener noreferrer" className="font-medium text-granate hover:underline">
+                            en el SEACE
+                          </a>
+                          )
+                        </span>
+                      </span>
+                    ) : (
+                      <a href={c.documentoUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 font-medium text-granate hover:underline">
+                        Abrir el documento <ExternalLink size={11} aria-hidden />
+                      </a>
+                    ))}
                 </span>
               );
               // Sin texto de la página no hay cita que mostrar: sólo el documento y su enlace.
@@ -248,12 +305,14 @@ export function DetalleSenal({ senal, etiqueta, descripcion }: { senal: SenalAge
         </BloqueDetalle>
       )}
 
-      <BloqueDetalle titulo="Qué no prueba esto">
-        <p className="text-inkSoft">
-          Es una señal de riesgo, no una acusación: {etiqueta.toLowerCase()} es un indicio que hay que verificar contra la
-          fuente oficial antes de publicarlo o denunciarlo.
-        </p>
-      </BloqueDetalle>
+      {!sinGenerales && (
+        <BloqueDetalle titulo="Qué no prueba esto">
+          <p className="text-inkSoft">
+            Es una señal de riesgo, no una acusación: {etiqueta.toLowerCase()} es un indicio que hay que verificar contra la
+            fuente oficial antes de publicarlo o denunciarlo.
+          </p>
+        </BloqueDetalle>
+      )}
     </CuerpoDetalle>
   );
 }

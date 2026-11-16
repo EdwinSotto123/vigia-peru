@@ -18,7 +18,7 @@
  */
 
 import { useMemo, useState } from "react";
-import { ChevronDown } from "lucide-react";
+import { ChevronDown, ChevronRight } from "lucide-react";
 import type { EstadoProc, FasesMap } from "@/lib/auditoria";
 import { Severidad } from "@/components/ui/Severidad";
 import { Ayuda, Seccion } from "@/components/patrones";
@@ -29,7 +29,8 @@ import { cn } from "@/lib/utils";
 import { PASOS, nombreDeAgente, pasoDeClave, pasosDelPerfil, TOTAL_PASOS, type PasoPipeline } from "./catalogo";
 import { CarrilesAgentes } from "./CarrilesAgentes";
 import { EjeAgentes, rangoDelAnalisis, ventanaDe } from "./EjeAgentes";
-import { DetalleSenal, ResumenEvidencia, sinRepetidas } from "./ListaSenales";
+import { FiltrosSenales, type GravedadFiltro } from "./FiltrosSenales";
+import { DetalleSenal, ResumenEvidencia, evidenciaRecortada, sinRepetidas } from "./ListaSenales";
 import { MatrizReglas } from "./MatrizReglas";
 import { LeyendaCotejo } from "./SelloVerificada";
 import { agruparPorAgente, contar, ORDEN_SEVERIDAD, SIN_AGENTE, type SenalAgente } from "./senales";
@@ -50,7 +51,17 @@ interface Props {
   nombresPrivados?: NombreConocido[];
   /** Lo que va entre la tabla y la matriz de reglas (las señales de precio no verificables). */
   anexo?: React.ReactNode;
+  /**
+   * El tema de cada regla (la competencia, el precio, el proveedor…): con él la tabla se filtra por tema y cada fila lo
+   * dice. Lo da quien conoce el relato del dictamen (convocatoria/relato/historia); sin él, sólo se filtra por gravedad.
+   */
+  temaDe?: (regla: string) => { clave: string; titulo: string };
+  /** Sobre quién es cada señal (el ganador, la entidad, las empresas que nombra): va arriba en su panel lateral. */
+  contextoDeSenal?: (s: SenalAgente) => React.ReactNode;
 }
+
+/** Lo que entra en la fila de la evidencia: hasta el final de una oración. El resto, en su panel. */
+const MAX_EVIDENCIA = 230;
 
 const COLUMNA_SEVERIDAD: Columna = { clave: "severidad", desde: "md", apilar: true, titulo: "Severidad", ancho: "116px" };
 const COLUMNA_SENAL: Columna = { clave: "senal", titulo: "Señal y evidencia", ancho: "minmax(0,1fr)" };
@@ -74,8 +85,12 @@ export function AuditoriaDeAgentes({
   titulo = "Las señales, una por una",
   nombresPrivados,
   anexo,
+  temaDe,
+  contextoDeSenal,
 }: Props) {
   const [agente, setAgente] = useState<string | null>(null);
+  const [gravedad, setGravedad] = useState<GravedadFiltro | null>(null);
+  const [tema, setTema] = useState<string | null>(null);
   const { reglas, cargando } = useReglasPerfil(perfil);
 
   const mapaFases: FasesMap = fases ?? {};
@@ -92,12 +107,30 @@ export function AuditoriaDeAgentes({
     return PASOS.filter((p) => claves.has(p.clave));
   }, [reglas, porAgente]);
   const conteo = useMemo(() => contar(senales), [senales]);
-  const filtradas = useMemo(
+  // Las del agente elegido, con su tema: sobre ellas cuentan los filtros de gravedad y de tema.
+  const delAgente = useMemo(
     () =>
       senales
         .filter((s) => (agente ? (s.agente ?? SIN_AGENTE) === agente : true))
+        .map((s) => ({ s, severidad: s.severidad, tema: temaDe?.(s.regla).clave ?? "" })),
+    [senales, agente, temaDe],
+  );
+  const temas = useMemo(() => {
+    if (!temaDe) return [];
+    const vistos = new Map<string, string>();
+    for (const x of [...delAgente].sort((a, b) => ORDEN_SEVERIDAD[a.severidad] - ORDEN_SEVERIDAD[b.severidad])) {
+      const t = temaDe(x.s.regla);
+      if (!vistos.has(t.clave)) vistos.set(t.clave, t.titulo);
+    }
+    return [...vistos].map(([clave, titulo]) => ({ clave, titulo }));
+  }, [delAgente, temaDe]);
+  const filtradas = useMemo(
+    () =>
+      delAgente
+        .filter((x) => (!gravedad || x.severidad === gravedad) && (!tema || x.tema === tema))
+        .map((x) => x.s)
         .sort((a, b) => ORDEN_SEVERIDAD[a.severidad] - ORDEN_SEVERIDAD[b.severidad]),
-    [senales, agente],
+    [delAgente, gravedad, tema],
   );
 
   const agentesConSenales = Object.keys(porAgente).filter((k) => k !== SIN_AGENTE).length;
@@ -132,10 +165,25 @@ export function AuditoriaDeAgentes({
               )
             }
             textoCompleto={otraRegla ? `${etiqueta}. ${otraRegla}.` : etiqueta}
-            meta={[
-              s.item && <span className="font-mono">ítem {s.item}</span>,
-              s.evidencia ? <ResumenEvidencia texto={s.evidencia} nombres={nombresPrivados} /> : "Sin evidencia registrada",
-            ]}
+            // La evidencia hasta el final de una oración y en las líneas que haga falta: antes iba en UNA línea recortada
+            // a media frase («…figura como representante de 3 empresas distintas que ga…») y no se veía cómo leer el resto.
+            metaEnVarias
+            meta={
+              <span className="block max-w-prose text-pretty leading-relaxed text-inkSoft">
+                {(temaDe || s.item) && (
+                  <span className="mb-0.5 block text-rotulo text-mute">
+                    {temaDe?.(s.regla).titulo}
+                    {temaDe && s.item ? ", " : ""}
+                    {s.item && <span className="font-mono">ítem {s.item}</span>}
+                  </span>
+                )}
+                {s.evidencia ? <ResumenEvidencia texto={s.evidencia} nombres={nombresPrivados} max={MAX_EVIDENCIA} /> : "Sin evidencia registrada"}
+                <span className="mt-1 flex items-center gap-1 text-rotulo font-semibold text-granate">
+                  {s.evidencia && evidenciaRecortada(s.evidencia, MAX_EVIDENCIA) ? "Ver la evidencia completa" : "Ver la evidencia"}
+                  <ChevronRight size={12} aria-hidden />
+                </span>
+              </span>
+            }
           />
         ),
         cotejo: <SelloCotejo verificada={s.verificada} />,
@@ -153,7 +201,7 @@ export function AuditoriaDeAgentes({
             {otraRegla && <span>{otraRegla}.</span>}
           </span>
         ),
-        contenido: <DetalleSenal senal={s} etiqueta={etiqueta} descripcion={descripcionDeRegla(s.regla, reglas)} />,
+        contenido: <DetalleSenal senal={s} etiqueta={etiqueta} descripcion={descripcionDeRegla(s.regla, reglas)} contexto={contextoDeSenal?.(s)} />,
       },
     };
   });
@@ -230,13 +278,25 @@ export function AuditoriaDeAgentes({
           </div>
         </details>
 
+        {/* Por gravedad y por tema, con cuántas hay de cada una (pedido del usuario del 2026-11-16). */}
+        <FiltrosSenales
+          senales={delAgente}
+          temas={temas}
+          gravedad={gravedad}
+          tema={tema}
+          alCambiar={(f) => {
+            setGravedad(f.gravedad);
+            setTema(f.tema);
+          }}
+        />
+
         {/* El recorte activo, con su salida: la tabla nunca queda filtrada sin decirlo. */}
         {agente && (
           <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-meta text-inkSoft" aria-live="polite">
             <span>
               Señales de <strong className="font-semibold text-ink">{pasoSel?.nombre ?? "sin agente declarado"}</strong>:{" "}
               <span className="tabular-nums">
-                {filtradas.length} de {conteo.total}
+                {delAgente.length} de {conteo.total}
               </span>
             </span>
             <button type="button" onClick={() => setAgente(null)} className="font-medium text-granate hover:underline">

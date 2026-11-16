@@ -19,12 +19,13 @@
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowRight, Maximize2, Minus, Plus, Scan, ShieldCheck, X } from "lucide-react";
+import { ArrowRight, Building2, Info, Landmark, Maximize2, Minus, Plus, Scan, ShieldAlert, ShieldCheck, Swords, Vote, X, type LucideIcon } from "lucide-react";
 import { Panel } from "@/components/ui/Panel";
 import { useLienzoNavegable } from "@/components/grafo/lienzo";
 import { aristaTono, chipTono, type Tono } from "@/components/grafo/primitivos";
 import { cn } from "@/lib/utils";
 import { redactDnis } from "../../Redact";
+import { mismaEmpresa, nombreLegible } from "../senal/nombres";
 import type { GraphEdge, GraphNode } from "../types";
 import { CuerpoNodo, ETIQUETA_NODO, PieNodo, tituloNodo, type VinculoNodo } from "./NodeDetailPanel";
 import { buildRelationshipGraphData } from "./RelationshipGraph.layout";
@@ -120,33 +121,51 @@ const AL_REVES: Partial<Record<GraphEdge["kind"], (varios: boolean, e: GraphEdge
 /** Cómo se dice la relación en la frase cuando la etiqueta guardada no se lee bien («adjudicación»). */
 const FRASE: Partial<Record<GraphEdge["kind"], string>> = { adjudicacion: "ganó la buena pro de" };
 
-const ORDEN_GRUPO: Grupo[] = ["riesgo", "politica", "familia", "estado", "negocio"];
-const EXPLICA_GRUPO: Record<Grupo, string> = {
-  riesgo: "Lo que pide revisión: cruces entre la gente del proveedor, la entidad y los demás postores.",
-  politica: "Aportes, candidaturas y cargos de la gente del proveedor.",
-  familia: "Posibles familiares de la gente del proveedor.",
-  estado: "Quién dirige y quién firma en la entidad.",
-  negocio: "Quién es dueño de qué y con quién compitió. Es el contexto, no una señal.",
+/**
+ * Las secciones de la lista explicada, por DE QUIÉN se habla y en este orden (pedido del usuario del 2026-11-16: «se
+ * entiende más claro, pero hay algo de desorden»): lo que pide revisión, la entidad y quién firma, el ganador y quién
+ * está detrás, la política de su gente, y los competidores con sus socios. Los colores del mapa siguen saliendo de
+ * `GRUPO` (qué significa el vínculo); esto sólo ordena la lista.
+ */
+type Seccion = "riesgo" | "entidad" | "ganador" | "politica" | "competidores";
+const SECCION: Record<GraphEdge["kind"], Seccion> = {
+  domicilio: "riesgo", firma_conflicto: "riesgo", conflicto_funcionario: "riesgo", visito: "riesgo", doble_vinculacion: "riesgo",
+  autoridad: "entidad", preside_entidad: "entidad", designado_por: "entidad", trabaja_en: "entidad", adjudicacion: "entidad",
+  titular: "ganador", mismo_titular: "ganador", contrato: "ganador", pareja: "ganador",
+  candidato: "politica", aporte: "politica", cargo: "politica", mismo_partido_que: "politica", partido_de: "politica",
+  compitio: "competidores", socio_de: "competidores",
+};
+const ORDEN_SECCION: Seccion[] = ["riesgo", "entidad", "ganador", "politica", "competidores"];
+const DATOS_SECCION: Record<Seccion, { titulo: string; explica: string; icono: LucideIcon; tono: Grupo }> = {
+  riesgo: { titulo: "Lo que pide revisión", explica: "Cruces entre la gente del proveedor, la entidad y los demás postores.", icono: ShieldAlert, tono: "riesgo" },
+  entidad: { titulo: "La entidad y quién firma", explica: "Quién contrata, quién la dirige y a quién le dio la buena pro.", icono: Landmark, tono: "estado" },
+  ganador: { titulo: "El ganador y quién está detrás", explica: "Sus dueños, sus representantes y sus otras empresas. Es el contexto, no una señal.", icono: Building2, tono: "negocio" },
+  politica: { titulo: "La política de su gente", explica: "Aportes, candidaturas y cargos de las personas del proveedor.", icono: Vote, tono: "politica" },
+  competidores: { titulo: "Los competidores y sus socios", explica: "Quién más se presentó y quiénes figuran detrás de cada uno. Es el contexto, no una señal.", icono: Swords, tono: "negocio" },
 };
 
 /**
- * Los vínculos de la red en frases, agrupados por lo que significan y con lo que pide revisión primero (pedido del
- * usuario del 2026-11-13: «la red no explica nada»). Cada renglón: quién, la relación, con quién (varios del mismo tipo
- * y del mismo origen en un renglón) y qué significa. Sin cruces de riesgo, se dice en vez de callarlo. Cada nombre abre
- * su detalle, como en los carriles.
+ * Los vínculos de la red en frases (pedido del usuario del 2026-11-13: «la red no explica nada»), ordenados por jerarquía
+ * (2026-11-16): primero el veredicto (si algún vínculo pide revisión o ninguno), después una sección por de quién se
+ * habla. Dentro de cada sección los renglones van juntos por tipo de vínculo y lo que ese vínculo significa se dice UNA
+ * vez, como nota del grupo (antes «Figura así en ese postor según el RNP…» se repetía bajo cada postor). Cada renglón:
+ * quién, la relación, con quién (varios del mismo tipo y del mismo origen en un renglón). Cada nombre abre su detalle.
  */
 function VinculosExplicados({ red, onElegir }: { red: Red; onElegir: (id: string) => void }) {
   type Renglon = { clave: string; de: string; a: string[]; arista: GraphEdge };
-  const porGrupo = new Map<Grupo, Renglon[]>();
+  // Sección → tipo de vínculo → renglones (en el orden en que aparece cada tipo).
+  const porSeccion = new Map<Seccion, Map<GraphEdge["kind"], Renglon[]>>();
   for (const e of red.aristas) {
-    const g = GRUPO[e.kind] ?? "negocio";
-    const lista = porGrupo.get(g) ?? porGrupo.set(g, []).get(g)!;
+    const s = SECCION[e.kind] ?? "ganador";
+    const tipos = porSeccion.get(s) ?? porSeccion.set(s, new Map()).get(s)!;
+    const lista = tipos.get(e.kind) ?? tipos.set(e.kind, []).get(e.kind)!;
     const clave = `${e.from}|${e.kind}|${textoRelacion(e)}`;
     const r = lista.find((x) => x.clave === clave);
     if (r) {
       if (!r.a.includes(e.to)) r.a.push(e.to);
     } else lista.push({ clave, de: e.from, a: [e.to], arista: e });
   }
+  const nRiesgo = [...(porSeccion.get("riesgo")?.values() ?? [])].reduce((n, l) => n + l.length, 0);
   const Nombre = ({ id }: { id: string }) => (
     <button
       type="button"
@@ -158,7 +177,8 @@ function VinculosExplicados({ red, onElegir }: { red: Red; onElegir: (id: string
   );
   return (
     <div className="divide-y divide-line overflow-hidden rounded-2xl border border-line bg-paper">
-      {!porGrupo.has("riesgo") && (
+      {/* 1. El veredicto de la red, antes que nada. */}
+      {nRiesgo === 0 ? (
         <p className="flex items-start gap-2.5 px-4 py-3 text-dato leading-snug text-inkSoft">
           <ShieldCheck size={17} className="mt-0.5 shrink-0 text-mossTexto" aria-hidden />
           <span>
@@ -167,18 +187,34 @@ function VinculosExplicados({ red, onElegir }: { red: Red; onElegir: (id: string
             señales del contrato están en sus propias pestañas.
           </span>
         </p>
+      ) : (
+        <p className="flex items-start gap-2.5 px-4 py-3 text-dato leading-snug text-inkSoft">
+          <ShieldAlert size={17} className="mt-0.5 shrink-0 text-crimsonTexto" aria-hidden />
+          <span>
+            <span className="font-semibold text-ink">
+              {nRiesgo === 1 ? "Un vínculo de esta red pide revisión." : `${nRiesgo} vínculos de esta red piden revisión.`}
+            </span>{" "}
+            Van primero. Un cruce es un indicio para comprobar en su fuente, no una prueba.
+          </span>
+        </p>
       )}
-      {ORDEN_GRUPO.filter((g) => porGrupo.has(g)).map((g) => {
-        const renglones = porGrupo.get(g)!;
+      {/* 2. Una sección por de quién se habla; dentro, los renglones por tipo de vínculo, con su explicación una sola vez. */}
+      {ORDEN_SECCION.filter((s) => porSeccion.has(s)).map((s) => {
+        const tipos = [...porSeccion.get(s)!.entries()];
+        const datos = DATOS_SECCION[s];
+        const g = datos.tono;
+        const total = tipos.reduce((n, [, l]) => n + l.length, 0);
         return (
-          <section key={g} aria-label={NOMBRE_GRUPO[g]} className="px-4 py-3">
-            <h4 className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
-              <span className={cn("inline-block h-1.5 w-5 shrink-0 self-center rounded-full", chipTono(TONO_GRUPO[g]))} aria-hidden />
-              <span className="text-dato font-semibold text-ink">{NOMBRE_GRUPO[g]}</span>
-              <span className="font-mono text-rotulo tabular-nums text-mute">{renglones.length}</span>
+          <section key={s} aria-label={datos.titulo} className="px-4 py-3.5">
+            <h4 className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+              <datos.icono size={16} className={cn("shrink-0", s === "riesgo" ? "text-crimsonTexto" : "text-mute")} aria-hidden />
+              <span className="font-display text-cuerpo font-bold text-ink">{datos.titulo}</span>
+              <span className="font-mono text-rotulo tabular-nums text-mute">{total}</span>
             </h4>
-            <p className="mt-0.5 pl-7 text-meta leading-snug text-mute">{EXPLICA_GRUPO[g]}</p>
-            <ul className="mt-2 space-y-2.5 pl-7">
+            <p className="mt-0.5 pl-6 text-meta leading-snug text-mute">{datos.explica}</p>
+            {tipos.map(([kind, renglones]) => (
+            <div key={kind} className="mt-2.5 pl-6">
+            <ul className="space-y-1.5">
               {renglones.map((r) => {
                 // Algunas relaciones se guardan del otro lado de como se leen («la entidad → postuló → el postor»): se dan
                 // vuelta para que el renglón sea una oración («A y B también ofertaron a la entidad»).
@@ -204,11 +240,17 @@ function VinculosExplicados({ red, onElegir }: { red: Red; onElegir: (id: string
                     </span>
                     {lista(objetos)}
                   </span>
-                  <span className="mt-0.5 block text-mute">{QUE_SIGNIFICA[r.arista.kind]}</span>
                 </li>
                 );
               })}
             </ul>
+            {/* Qué significa este vínculo, una vez para todos sus renglones. */}
+            <p className="mt-1.5 flex items-start gap-1.5 rounded-lg bg-paperSoft px-2.5 py-1.5 text-rotulo leading-snug text-mute">
+              <Info size={12} className="mt-0.5 shrink-0" aria-hidden />
+              <span>{QUE_SIGNIFICA[kind]}</span>
+            </p>
+            </div>
+            ))}
           </section>
         );
       })}
@@ -264,8 +306,29 @@ export function RedProveedor({ person, web, proveedor, ctx }: { person: any; web
   const datos = useMemo(() => buildRelationshipGraphData(person, web, proveedor, ctx), [person, web, proveedor, ctx]);
   const red = useMemo<Red | null>(() => {
     if (!datos?.nodes.length) return null;
-    const nodos = datos.nodes;
-    const aristas = datos.edges;
+    // La misma empresa con dos nombres es UN nodo: el agente a veces lista al propio ganador entre sus «empresas del mismo
+    // titular» con su nombre corto («Ferreyros S.A.» junto a «FERREYROS SOCIEDAD ANÓNIMA»): se une al ganador.
+    const principal = datos.nodes.find((n) => n.kind === "company_main");
+    const alias = new Map<string, string>();
+    if (principal) {
+      for (const n of datos.nodes) {
+        if (n === principal || (n.kind !== "company_titular" && n.kind !== "company_domicilio")) continue;
+        const mismoRuc = !!n.meta?.ruc && n.meta.ruc === principal.meta?.ruc;
+        if (mismoRuc || mismaEmpresa(n.label, principal.label)) alias.set(n.id, principal.id);
+      }
+    }
+    const real = (id: string) => alias.get(id) ?? id;
+    // Los nombres, escritos de una sola manera (los registros van en mayúsculas; el agente, en título).
+    const nodos = datos.nodes.filter((n) => !alias.has(n.id)).map((n) => ({ ...n, label: nombreLegible(n.label) || n.label }));
+    const vistas = new Set<string>();
+    const aristas = datos.edges
+      .map((e) => ({ ...e, from: real(e.from), to: real(e.to) }))
+      .filter((e) => {
+        const k = `${e.from}|${e.to}|${e.kind}|${e.label ?? ""}`;
+        if (e.from === e.to || vistas.has(k)) return false;
+        vistas.add(k);
+        return true;
+      });
     const carrilDe = new Map<string, number>();
     for (const n of nodos) {
       const i = CARRILES.findIndex((c) => c.kinds.includes(n.kind));

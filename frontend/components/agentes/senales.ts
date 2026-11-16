@@ -29,6 +29,20 @@ export interface SenalAgente {
   item: string | null;
   opinion: { num: string | null; url: string | null; snippet: string | null } | null;
   citas: CitaDocumento[];
+  /** El RUC de quien ganó, si la regla lo guardó en la señal (análisis desde el 2026-11-16). */
+  ganadorRuc?: string | null;
+  /** Las otras empresas de las que habla la señal (`detalle[].otras_empresas`), si la regla las guardó. */
+  otrasEmpresas?: EmpresaDeSenal[];
+}
+
+/** Una empresa aludida por una señal, tal como la guarda la regla: quién es, qué papel tiene y qué ganó. */
+export interface EmpresaDeSenal {
+  ruc: string | null;
+  nombre: string | null;
+  papel: string | null;
+  procesos: number | null;
+  monto: number | null;
+  mismaEntidad: boolean | null;
 }
 
 export interface ConteoSenales {

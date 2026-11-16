@@ -1,6 +1,6 @@
 "use client";
 
-import { Info } from "lucide-react";
+import { Info, Scale } from "lucide-react";
 import { numero, porcentaje } from "@/lib/formato";
 import { ICONO_SEVERIDAD, resumenLote } from "@/components/charts/mercado";
 import { cn } from "@/lib/utils";
@@ -35,8 +35,57 @@ function Cifra({ etiqueta, valor, nota }: { etiqueta: string; valor: string; not
   );
 }
 
-export function MarketVerdictCard({ market, fmtMoney }: { market: any; fmtMoney: (n: any) => string }) {
+/**
+ * Lo que el análisis sí verificó contra las compras del Estado (`precios_internos`): cuántos ítems tienen referencia y,
+ * si es uno solo, su diferencia con la mediana. Con esto, un «no verificable» del mercado no se lee como «no se verificó
+ * nada» (pedido del usuario del 2026-11-16: arriba decía «En rango» frente al Estado y abajo «No verificable»).
+ */
+export interface VerificadoEstado {
+  /** Ítems con referencia del Estado. */
+  conReferencia: number;
+  /** Ítems del contrato comparados. */
+  items: number;
+  /** Con un solo ítem: su diferencia con la mediana del Estado (la del agente) y de cuántos precios sale. */
+  diferenciaPct: number | null;
+  mediana: number | null;
+  precios: number | null;
+  entidades: number | null;
+}
+
+export function verificadoConEstado(preciosInternos: any): VerificadoEstado | null {
+  const items: any[] = preciosInternos?.items ?? [];
+  const conRef = items.filter((x) => x?.referencia && typeof x.referencia.mediana === "number");
+  if (conRef.length === 0) return null;
+  const uno = conRef.length === 1 ? conRef[0] : null;
+  return {
+    conReferencia: conRef.length,
+    items: items.length,
+    diferenciaPct: uno && typeof uno.diferencia_vs_mediana_pct === "number" ? uno.diferencia_vs_mediana_pct : null,
+    mediana: uno ? uno.referencia.mediana : null,
+    precios: uno && typeof uno.referencia.precios === "number" ? uno.referencia.precios : null,
+    entidades: uno && typeof uno.referencia.entidades === "number" ? uno.referencia.entidades : null,
+  };
+}
+
+/** El motivo que escribió el juez de precio, sin sus nombres internos («'alineado_regional'», «Δ»). */
+function motivoDelJuez(texto: unknown): string | null {
+  const t = typeof texto === "string" ? texto.trim() : "";
+  if (!t || !/\s/.test(t)) return null;
+  const limpio = t
+    .replace(/^juez de plausibilidad de precio:\s*/i, "")
+    .replace(/Δ\s*/g, "una diferencia de ")
+    .replace(/'alineado_regional'/g, "«alineado con las compras de otras entidades»")
+    .replace(/'([a-z_]+)'/g, (_, k: string) => `«${k.replace(/_/g, " ")}»`)
+    .replace(/\.$/, "");
+  return limpio ? limpio.charAt(0).toLocaleLowerCase("es") + limpio.slice(1) : null;
+}
+
+export function MarketVerdictCard({ market, fmtMoney, estado = null }: { market: any; fmtMoney: (n: any) => string; estado?: VerificadoEstado | null }) {
   const r = resumenLote(market);
+  // Sin sobreprecio de mercado medido, pero con la comparación contra el Estado hecha: verificación parcial, no «no verificable».
+  const parcial = !r.comparable && !!estado;
+  const findings: any[] = market?.findings || [];
+  const motivoJuez = findings.length === 1 ? motivoDelJuez(findings[0]?.motivo_no_verificable) : null;
   const Icono = ICONO_SEVERIDAD[r.veredicto.ui.icono];
   const cobertura = r.cobertura !== null ? Math.round(r.cobertura * 100) : null;
   const conteo =
@@ -54,10 +103,17 @@ export function MarketVerdictCard({ market, fmtMoney }: { market: any; fmtMoney:
       <div className={cn("border-l pl-4", r.veredicto.ui.borde)}>
         <div className="flex flex-wrap items-center justify-between gap-2">
           <span className="text-rotulo font-medium text-mute">Precio ofertado contra el mercado</span>
-          <span className={cn("pill px-2 py-0 text-micro", r.veredicto.ui.fondo, r.veredicto.ui.texto, r.veredicto.ui.borde)}>
-            <Icono size={11} aria-hidden />
-            {r.veredicto.etiqueta}
-          </span>
+          {parcial ? (
+            <span className="pill border-line bg-paperDeep px-2 py-0 text-micro font-semibold text-ink">
+              <Scale size={11} aria-hidden />
+              Verificación parcial con compras del Estado
+            </span>
+          ) : (
+            <span className={cn("pill px-2 py-0 text-micro", r.veredicto.ui.fondo, r.veredicto.ui.texto, r.veredicto.ui.borde)}>
+              <Icono size={11} aria-hidden />
+              {r.veredicto.etiqueta}
+            </span>
+          )}
         </div>
 
         {r.comparable && r.pct !== null ? (
@@ -98,6 +154,41 @@ export function MarketVerdictCard({ market, fmtMoney }: { market: any; fmtMoney:
                 </>
               )}
             </p>
+          </>
+        ) : parcial && estado ? (
+          <>
+            <h2 className="mt-1 font-display text-seccion font-bold leading-tight text-ink">
+              El precio sí se verificó contra compras del Estado; contra el mercado, no se pudo
+            </h2>
+            <ul className="mt-2 space-y-1.5 text-meta leading-snug text-inkSoft">
+              <li className="flex gap-2">
+                <span className="mt-0.5 shrink-0 rounded-full bg-paperDeep px-1.5 font-mono text-rotulo font-semibold text-ink">Sí</span>
+                <span>
+                  <strong className="font-semibold text-ink">Compras del Estado por el mismo bien:</strong>{" "}
+                  {estado.diferenciaPct !== null && estado.mediana !== null ? (
+                    <>
+                      el precio está {estado.diferenciaPct > 0 ? "+" : estado.diferenciaPct < 0 ? "−" : ""}
+                      {porcentaje(Math.abs(estado.diferenciaPct), { decimales: 0 })} {estado.diferenciaPct >= 0 ? "sobre" : "bajo"} la mediana de{" "}
+                      {fmtMoney(estado.mediana)}
+                      {estado.precios ? ` (${numero(estado.precios)} precios${estado.entidades ? ` de ${numero(estado.entidades)} entidades` : ""})` : ""}.
+                    </>
+                  ) : (
+                    <>
+                      {numero(estado.conReferencia)} de {numero(estado.items)} ítems se compararon con lo que otras entidades pagaron.
+                    </>
+                  )}{" "}
+                  El detalle está arriba, en «Lo que pagó el Estado por lo mismo».
+                </span>
+              </li>
+              <li className="flex gap-2">
+                <span className="mt-0.5 shrink-0 rounded-full bg-paperDeep px-1.5 font-mono text-rotulo font-semibold text-ink">No</span>
+                <span>
+                  <strong className="font-semibold text-ink">Precios de mercado:</strong> no alcanzaron para sostener un porcentaje de sobreprecio
+                  {motivoJuez ? ` (${motivoJuez})` : r.motivo && findings.length !== 1 ? ` (${r.motivo})` : ""}. Por eso no se publica una cifra de sobreprecio de
+                  mercado en vez de publicar una que no se sostiene.
+                </span>
+              </li>
+            </ul>
           </>
         ) : (
           <>

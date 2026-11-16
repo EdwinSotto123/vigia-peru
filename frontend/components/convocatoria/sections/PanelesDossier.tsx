@@ -27,6 +27,7 @@ import { SeccionSegura } from "./SeccionSegura";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { setRedactNames, type NombreConocido } from "../../Redact";
 import { HistoriaDossier } from "../relato/HistoriaDossier";
+import { contextoDeSenales } from "../senal/directorio";
 
 export type TabKey = "historia" | "resumen" | "dictamen" | "obra" | "items" | "proveedor" | "documentos" | "prensa" | "trace";
 
@@ -108,12 +109,14 @@ export function PanelDossier(p: PanelDossierProps) {
 // Estática (sin `next/dynamic`), como «La historia»: los enlaces viejos con `?tab=resumen` la abren de entrada y llega en
 // el HTML del servidor. Desde el 2026-11-05 la primera es «La historia»; ésta queda para la evidencia entera, en tabla.
 
-function PanelResumen({ result, banderasArr, noVerificables, contexto, corrida, nombresPrivados }: PanelDossierProps) {
+function PanelResumen({ result, banderasArr, noVerificables, contexto, corrida, nombresPrivados, ganador }: PanelDossierProps) {
   // Se registran otra vez las personas privadas justo antes de redactar: en el servidor el
   // registro de Redact es global del proceso y otro informe pudo cambiarlo en el medio.
   setRedactNames(nombresPrivados);
   const compl = result.compliance || {};
   const causal = (result as any).causal_directa_invocada;
+  // De quién habla cada señal: el panel lateral de cada una lo dice arriba (el ganador, la entidad, las empresas aludidas).
+  const ctxSenales = contextoDeSenales(result, ganador);
   return (
     <div className="space-y-4">
       <div id="senales" className="scroll-mt-24">
@@ -129,6 +132,7 @@ function PanelResumen({ result, banderasArr, noVerificables, contexto, corrida, 
               noVerificables={noVerificables}
               contexto={contexto}
               nombresPrivados={nombresPrivados}
+              ctxSenales={ctxSenales}
             />
           </SeccionSegura>
         ) : corrida.completa ? (

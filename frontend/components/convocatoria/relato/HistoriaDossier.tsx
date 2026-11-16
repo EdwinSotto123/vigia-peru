@@ -2,7 +2,7 @@
 
 import { useMemo, type ReactNode } from "react";
 import { ChevronRight } from "lucide-react";
-import { CapitulosRelato, Cronologia, irAPestana, type CapituloRelato, type PasoRelato } from "@/components/patrones";
+import { CapitulosRelato, irAPestana, type CapituloRelato } from "@/components/patrones";
 import { fechaDossier, montoDossier, contarSeveridades } from "../dossier";
 import { hoyLima, numero, plural, porcentaje } from "@/lib/formato";
 import { tituloNatural } from "@/lib/landing";
@@ -20,10 +20,11 @@ import {
   pasoDeRegla,
   senalesDelRelato,
   senalesPorPaso,
-  type ClavePaso,
   type SenalRelato,
 } from "./historia";
+import { LineaProceso, type PasoProceso } from "./LineaProceso";
 import { ENLACE_RELATO, PorQueLlama } from "./PorQueLlama";
+import { contextoDeSenales } from "../senal/directorio";
 import { NombreProveedor, QuienGano } from "./QuienGano";
 
 /**
@@ -47,6 +48,9 @@ export function HistoriaDossier(p: PanelDossierProps) {
   // Sin la función de ResultadoView (no debería pasar), se cambia de pestaña igual, sin bajar a ella.
   const abrirTab = p.abrirTab ?? ((t: TabKey, _ancla?: string) => irAPestana(t, "tab"));
   const verEvidencia = () => abrirTab("resumen", "senales");
+  // De quién habla cada señal (el ganador, la entidad y cada empresa que el dictamen nombra): lo usa su panel lateral.
+  const ctxSenales = useMemo(() => contextoDeSenales(result, ganador), [result, ganador]);
+  const perfil: string | null = result.compliance?.perfil ?? null;
 
   const senales = useMemo(() => senalesDelRelato(banderasArr), [banderasArr]);
   const conteo = useMemo(() => contarSeveridades(banderasArr), [banderasArr]);
@@ -58,11 +62,11 @@ export function HistoriaDossier(p: PanelDossierProps) {
     {
       id: "relato-que-paso",
       titulo: "Qué pasó",
-      bajada: "Los pasos del proceso con las fechas del registro del OECE. Cada señal aparece en el paso donde se ve: tócala para leer su evidencia.",
+      bajada: "Los pasos del proceso, con las fechas del registro del OECE y los días entre uno y otro. Cada señal va en el paso donde se ve.",
       contenido: (
         <>
           <SeccionSegura nombre="la cronología del proceso">
-            <Cronologia pasos={pasos} etiqueta="Los pasos del proceso" />
+            <LineaProceso pasos={pasos} ctx={ctxSenales} perfil={perfil} />
           </SeccionSegura>
           {result.estado_real?.estado_inconsistente && (
             <SeccionSegura nombre="el aviso de estado">
@@ -79,12 +83,12 @@ export function HistoriaDossier(p: PanelDossierProps) {
       tono,
       bajada:
         conteo.total > 0
-          ? "De la más grave a la más leve, agrupadas por tema: qué se encontró y la norma que lo sostiene. Una señal es una pista para comprobar, no una acusación."
+          ? "Cada señal con lo que se encontró y la norma que la sostiene. Filtra por gravedad o por tema. Una señal es una pista para comprobar, no una acusación."
           : undefined,
       accion: conteo.total > 0 ? <ConteoSenales conteo={conteo} /> : undefined,
       contenido: (
         <SeccionSegura nombre="las señales del relato">
-          <PorQueLlama senales={senales} contexto={p.contexto} noVerificables={p.noVerificables} corrida={p.corrida} verEvidencia={verEvidencia} />
+          <PorQueLlama senales={senales} contexto={p.contexto} noVerificables={p.noVerificables} corrida={p.corrida} verEvidencia={verEvidencia} ctx={ctxSenales} perfil={perfil} nombresPrivados={p.nombresPrivados} />
         </SeccionSegura>
       ),
     },
@@ -111,7 +115,16 @@ export function HistoriaDossier(p: PanelDossierProps) {
       bajada: "El resumen del dictamen que se escribió con toda esta evidencia.",
       contenido: (
         <SeccionSegura nombre="el resumen del dictamen">
-          <LoQueDice dict={p.dict} corrida={p.corrida} modelo={result.dictamen?.gen_meta?.model ?? null} abrirTab={abrirTab} />
+          <LoQueDice
+            dict={p.dict}
+            corrida={p.corrida}
+            modelo={result.dictamen?.gen_meta?.model ?? null}
+            abrirTab={abrirTab}
+            conv={conv}
+            ganador={ganador}
+            nPostores={nPostores}
+            conteo={conteo}
+          />
         </SeccionSegura>
       ),
     },
@@ -143,7 +156,6 @@ export function HistoriaDossier(p: PanelDossierProps) {
 // ─── La cronología del proceso ────────────────────────────────────────────────
 
 
-type PasoConClave = PasoRelato & { clave: ClavePaso };
 
 /**
  * Los pasos del proceso, con lo que dicen los datos del análisis (registro OCDS, el acta y el contrato leídos), en orden:
@@ -165,7 +177,7 @@ function pasosDelProceso({
   ganadores: any[];
   senales: SenalRelato[];
   nPostores: number | null;
-}): PasoRelato[] {
+}): PasoProceso[] {
   const lecturas = (result as any).lecturas_documentos ?? {};
   const acta = lecturas.acta?.salida ?? null;
   const contrato = lecturas.contrato?.salida ?? null;
@@ -178,7 +190,7 @@ function pasosDelProceso({
   const entidad = conv.entidad ? conArticulo(tituloNatural(String(conv.entidad).replace(/\s+/g, " ").trim())) : "la entidad";
   const { referencial, adjudicado, variacion } = cifrasDelProceso(conv, ganador);
   const objetivos = new Set(senales.map((s) => pasoDeRegla(s.regla)));
-  const pasos: PasoConClave[] = [];
+  const pasos: PasoProceso[] = [];
   const oraciones = (xs: (string | null | undefined | false)[]) => {
     // Cada pedazo sin su punto final («S.A.C.», «17 jul.»): el punto lo pone la unión, una sola vez.
     const t = xs
@@ -342,10 +354,5 @@ function pasosDelProceso({
   // Cada señal, pegada a su paso (o al presente más cercano, si el suyo no consta).
   const presentes = new Set(pasos.filter((x) => !x.falta).map((x) => x.clave));
   const porPaso = senalesPorPaso(senales, presentes);
-  return pasos.map(({ clave, ...paso }) => {
-    const chips = porPaso.get(clave);
-    return chips?.length
-      ? { ...paso, senales: chips.map((c) => ({ severidad: c.severidad, texto: c.n > 1 ? `${c.etiqueta} ×${c.n}` : c.etiqueta, href: `#${c.ancla}` })) }
-      : paso;
-  });
+  return pasos.map((paso) => ({ ...paso, chips: porPaso.get(paso.clave) ?? [] }));
 }
