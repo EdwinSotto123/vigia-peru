@@ -369,6 +369,28 @@ Resultado en `cruces_proveedor` (evidencia por cruce) y `casos_cruce` (agregado 
 | `recurrente_dominante/frecuente/recurrente` | alta/media/baja | ganador × adjudicaciones de la entidad (antes) | ≥50% del gasto / ≥10 procesos o ≥25% / 3–9 procesos |
 | `proveedor_cautivo` | media/baja | adjudicaciones por empresa | su entidad dominante concentra ≥90% (media) / 75–90% (baja); piso `≥200k` y `≥3 procesos` |
 
+### 9.5 Señales forenses (2026-11, migraciones 276–298)
+Todas van al sistema de banderas (`cruces_proveedor` → `casos_cruce`), atadas a un contrato y con su evidencia en `detalle`.
+Cuando gana un consorcio (CONOSCE lo registra con un código de 7 dígitos), la bandera va a cada empresa integrante.
+
+| Tipo | Sev. | Cruza | Umbral |
+|---|---|---|---|
+| `postor_de_relleno` | alta/media | postores del proceso × `postor_acompanante` | una empresa que acompaña siempre al mismo ganador y casi nunca gana |
+| `consorcio_rival` | alta/media | `conosce_consorcios` × postores | fueron socias en un consorcio y después compiten por separado en procesos de pocos postores |
+| `turno_postores` | alta | adjudicaciones por entidad | las mismas empresas se turnan la buena pro |
+| `puerta_giratoria` | alta/media | `planilla_salida` × RNP × adjudicaciones | quien salió de la planilla de la entidad figura en la empresa que le gana después; alta en el primer año (empate por nombre: confirmar) |
+| `renovacion_mas_cara` | alta/media | `documento_lectura` (contrato) × contrato anterior del mismo servicio | costo mensual mayor al del contrato anterior en la misma entidad |
+| `retencion_sobre_tope` | alta/media | contrato leído × adjudicaciones de dos años | garantía por retención de pagos sobre S/ 480 000 (bienes y servicios) o S/ 5 000 000 (obras) y ganador con más de 1 700 UIT adjudicadas en cada uno de los dos años anteriores (art. 114 del Reglamento) |
+| `contrato_sobre_adjudicado` | alta/media | contrato leído × CONOSCE × OCDS | monto del contrato ≥ 25 % sobre lo adjudicado según las dos fuentes; alta desde 50 % |
+| `mismo_dueno` | alta/media | socios del RNP × adjudicaciones por entidad | un socio (de 2 a 6 empresas) gana en la misma entidad con otra empresa un objeto parecido (trigramas ≥ 0,45); alta a 90 días o menos, media hasta 12 meses. Grupos en `mismo_dueno_grupo` |
+| `socio_de_inhabilitada` | alta/media | `osce_sancionados` × socios del RNP × adjudicaciones | el socio de una empresa inhabilitada gana con otra empresa dentro de la sanción (Ley 32069, art. 30, impedimento 3.E); alta si la sanción es definitiva o la ganadora se fundó / el socio entró desde 180 días antes. La base no tiene el porcentaje del socio ni el rubro: siempre «falta confirmar» |
+
+Trampas que ya costaron: `empresas.fecha_alta_ruc` no siempre es la fundación (un RUC reactivado tiene alta posterior a
+su primera buena pro: sólo vale si es anterior a la primera adjudicación); las tablas temporales de una función pesada
+necesitan `ANALYZE` y `statement_timeout` (sin estadísticas, un cruce llenó el disco temporal de producción).
+Vistas agrupadas para el investigador: `/patrones/duenos`, `/patrones/inhabilitadas`, `/patrones/consorcios`,
+`/patrones/acompanantes` (pestañas de `/app/patrones` y herramienta `patrones` del MCP).
+
 ---
 
 ## 10. Catálogo de cruces — Registro SUNAT (a nivel empresa)
