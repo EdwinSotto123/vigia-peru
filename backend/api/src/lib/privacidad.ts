@@ -30,6 +30,7 @@
  */
 
 import { createHmac, randomBytes } from "node:crypto";
+import { PESO_NOMBRE } from "./pesosNombre.js";
 
 export const TAPA_NOMBRE = "•••";
 export const TAPA_DNI = "••••••••";
@@ -151,9 +152,40 @@ rodolfo rodrigo romulo ronal rosa ruben sabina salomon santos sebastian severino
 virginia walther wilson yanet yolanda yuri zenon florencio fortunato epifanio leandro leonor nazario teofilo eusebio`
   .split(/\s+/).filter(Boolean));
 
-/** El orden más probable de `palabras` (normalizadas); `porDefecto` el del campo de donde salió. */
+/** La palabra principal de cada grupo de un nombre: las partículas se pegan a la que sigue («de la cruz» → «cruz»). */
+function principales(p: string[]): string[] {
+  const out: string[] = [];
+  for (let i = 0; i < p.length; ) {
+    let j = i;
+    while (j < p.length - 1 && PARTICULAS.has(p[j])) j++;
+    out.push(p[j]);
+    i = j + 1;
+  }
+  return out;
+}
+
+/**
+ * El orden más probable de `palabras` (normalizadas); `porDefecto` el del campo de donde salió.
+ *
+ * Primero por pesos (lib/pesosNombre.ts): cuánto se parece cada palabra a un apellido o a un nombre de pila. Si el
+ * nombre va «apellidos nombres», las dos primeras deben pesar como apellidos y el resto como nombres; si va al revés, las
+ * dos últimas. Gana la lectura que mejor cuadra. Con la regla anterior (sólo 281 nombres de pila), un apellido paterno
+ * que también es nombre de pila («SANTOS QUISPE YHON») se leía al revés y quedaban los DOS apellidos a la vista: 1,81 %
+ * de error contra un padrón con los apellidos aparte; con los pesos, 0,25 % (2026-11-16). En empate, la regla anterior.
+ */
 function ordenProbable(palabras: string[], porDefecto: Orden): Orden {
   if (palabras.length < 2) return porDefecto;
+  const g = principales(palabras);
+  if (g.length >= 3) {
+    const w = g.map((x) => PESO_NOMBRE.get(x) ?? 0);
+    let antes = 0;      // todo menos las dos últimas
+    let despues = 0;    // todo menos las dos primeras
+    for (let k = 0; k < w.length - 2; k++) antes += w[k];
+    for (let k = 2; k < w.length; k++) despues += w[k];
+    const sunat = w[0] + w[1] - despues;
+    const nombresPrimero = w[w.length - 2] + w[w.length - 1] - antes;
+    if (sunat !== nombresPrimero) return sunat > nombresPrimero ? "sunat" : "nombres-primero";
+  }
   const primera = PILA.has(palabras[0]);
   const ultima = PILA.has(palabras[palabras.length - 1]);
   const tercera = palabras.length >= 3 && PILA.has(palabras[2]);

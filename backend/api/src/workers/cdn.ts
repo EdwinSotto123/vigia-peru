@@ -102,8 +102,10 @@ const GUARDADO = "X-Vigia-Guardado";
  * "102": la señal de personas «órdenes tras un informe de control» (migración 308, `senales.informeLocador`) y los
  *        familiares de una autoridad electa con parentesco que destapa, reservados en nepotismo y planilla (311).
  * "103": el caso inverso: la autoridad electa es el familiar y el parentesco destaparía al funcionario (312).
+ * "104": el orden de un nombre se decide por pesos de apellido y nombre de pila (lib/pesosNombre.ts): un paterno que
+ *        también es nombre de pila ya no deja los dos apellidos a la vista.
  */
-const VERSION_CACHE = "103";
+const VERSION_CACHE = "104";
 
 function cacheable(req: Request): boolean {
   if (req.method !== "GET") return false;

@@ -869,3 +869,19 @@ test("implicados de un informe de control (migraciones 302 y 304): un apellido t
   assert.doesNotMatch(json(r), /BAUTISTA|ESPINOZA/);
   assert.deepEqual(imp[0].responsabilidades, ["penal", "administrativa_pas"]);
 });
+
+test("orden del nombre por pesos (pesosNombre.ts): un apellido paterno que también es nombre de pila no se lee al revés", () => {
+  const tapado = (n: string) => (publicar({ socios: [{ nombre: n }] }) as { socios: { nombre: string }[] }).socios[0].nombre;
+  // Apellidos primero: antes «MARTIN PEREZ KEVIN» se leía con el nombre primero y quedaban los dos apellidos a la vista.
+  assert.equal(tapado("SANTOS QUISPE JUAN CARLOS"), `SANTOS ${TAPA_NOMBRE} JUAN CARLOS`);
+  assert.equal(tapado("MARTIN PEREZ KEVIN"), `MARTIN ${TAPA_NOMBRE} KEVIN`);
+  assert.equal(tapado("PASCUAL MAMANI ROSA"), `PASCUAL ${TAPA_NOMBRE} ROSA`);
+  assert.equal(tapado("REYNA LEON JESUS ANGEL"), `REYNA ${TAPA_NOMBRE} JESUS ANGEL`);
+  // Nombre primero, aunque el campo sea de un padrón que suele ir al revés: se tapa el último apellido.
+  assert.equal(tapado("JUAN CARLOS PEREZ QUISPE"), `JUAN CARLOS PEREZ ${TAPA_NOMBRE}`);
+  assert.equal(tapado("ROSA QUISPE MAMANI"), `ROSA QUISPE ${TAPA_NOMBRE}`);
+  assert.equal(tapado("MARIA DEL CARMEN PEREZ QUISPE"), `MARIA DEL CARMEN PEREZ ${TAPA_NOMBRE}`);
+  // Y los apellidos compuestos siguen enteros.
+  assert.equal(tapado("DE LA CRUZ ESPINOZA ROSA"), `DE LA CRUZ ${TAPA_NOMBRE} ROSA`);
+  assert.equal(tapado("QUISPE DE LA TORRE JUAN"), `QUISPE ${TAPA_NOMBRE} JUAN`);
+});
