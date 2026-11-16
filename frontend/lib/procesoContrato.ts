@@ -46,6 +46,8 @@ export interface Participante extends PersonaProceso {
   } | null;
   vinculos: VinculoProceso[];
   integrantes: PersonaProceso[];
+  /** Si es una persona natural con ficha en Vigía: su código (/app/personas/<código>; nunca el RUC). */
+  personaCodigo?: string | null;
 }
 
 export interface HitoProceso {

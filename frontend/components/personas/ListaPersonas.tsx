@@ -31,6 +31,7 @@ import {
   type ParamsPersonas,
   type ResumenPersonas, GRUPO_SENAL, GRUPOS_SENAL } from "@/lib/personas";
 import { TablaPersonas, TablaPersonasSkeleton } from "./TablaPersonas";
+import { PersonasPorNombre } from "./PersonasPorNombre";
 
 const TAM = 20;
 /** Desplegables a la vista, como mucho (BarraFiltros v2): los que sobran van dentro de «Filtros». */
@@ -116,16 +117,21 @@ async function Resultados(props: {
   deEntidad: boolean;
   filtrada: boolean;
 }) {
+  const pagina = await props.pagina;
   return (
-    <TablaPersonas
-      pagina={await props.pagina}
-      parametros={props.parametros}
-      ruta={props.ruta}
-      actual={props.actual}
-      paramPagina={props.P.page}
-      deEntidad={props.deEntidad}
-      filtrada={props.filtrada}
-    />
+    <div className="space-y-4">
+      {/* Lo buscado puede ser el nombre de una persona: quienes coinciden por lo que se ve de su nombre, con su ficha. */}
+      {pagina?.porNombre?.length ? <PersonasPorNombre personas={pagina.porNombre} /> : null}
+      <TablaPersonas
+        pagina={pagina}
+        parametros={props.parametros}
+        ruta={props.ruta}
+        actual={props.actual}
+        paramPagina={props.P.page}
+        deEntidad={props.deEntidad}
+        filtrada={props.filtrada}
+      />
+    </div>
   );
 }
 
@@ -261,7 +267,7 @@ function Barra({
   ];
   return (
     <BarraFiltros
-      busqueda={{ param: P.q, placeholder: "Buscar por entidad o tipo de servicio…", etiqueta: "Buscar en las personas contratadas", min: 3 }}
+      busqueda={{ param: P.q, placeholder: "Buscar por nombre, entidad o servicio…", etiqueta: "Buscar en las personas contratadas", min: 3 }}
       faceta={{
         param: P.severidad,
         etiqueta: "Señales",

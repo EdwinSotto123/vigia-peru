@@ -656,7 +656,8 @@ personasRouter.get("/:codigo", async (c) => {
       // Los procesos de selección que ganó como persona natural (CONOSCE, con su RUC), cada uno con las señales de ese
       // contrato (casos_cruce). La ficha se armaba sólo con sus órdenes de servicio (migración 317).
       pool.query<{ codigo: string; ocid: string | null; proveedor: string | null; entidad: string | null; entidadRuc: string | null; objeto: string | null;
-                   tipoProceso: string | null; nomenclatura: string | null; fecha: string | null; monto: number | null; severidad: string | null; tipos: string[] | null }>(
+                   tipoProceso: string | null; nomenclatura: string | null; fecha: string | null; monto: number | null; severidad: string | null;
+                   cruces: { tipo: string; severidad: string; n: number }[] | null }>(
         `WITH g AS (
            SELECT a.codigo_convocatoria::text AS codigo, max(a.proveedor) AS proveedor, max(a.entidad) AS entidad, btrim(max(a.entidad_ruc)) AS entidad_ruc,
                   max(a.descripcion_proceso) AS objeto, max(a.tipo_proceso) AS tipo_proceso, max(a.nomenclatura) AS nomenclatura,
@@ -665,7 +666,7 @@ personasRouter.get("/:codigo", async (c) => {
             WHERE a.ruc_proveedor = $1 AND a.monto_adjudicado > 0
             GROUP BY 1)
          SELECT g.codigo, c.ocid, g.proveedor, g.entidad, g.entidad_ruc AS "entidadRuc", g.objeto, g.tipo_proceso AS "tipoProceso", g.nomenclatura,
-                to_char(g.fecha, 'YYYY-MM-DD') AS fecha, g.monto::float AS monto, k.severidad, k.tipos
+                to_char(g.fecha, 'YYYY-MM-DD') AS fecha, g.monto::float AS monto, k.severidad, k.cruces
            FROM g
            LEFT JOIN convocatorias c ON c.codigo::text = g.codigo
            LEFT JOIN casos_cruce k ON k.ocid = c.ocid AND k.ruc = $1

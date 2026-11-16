@@ -107,6 +107,47 @@ patronesRouter.get("/acompanantes", async (c) => {
   return c.json(cuerpo);
 });
 
+/**
+ * GET /patrones/acompanantes/procesos?acompanante=&ganador=  Los procesos en que postularon LOS DOS (CONOSCE, desde 2018),
+ * del más reciente al más antiguo: quién ganó cada uno, con cuántos postores y por cuánto. Es la evidencia de una fila de
+ * «Postores de relleno» (el panel lateral de /app/patrones la pide al abrirse). Sólo empresas (RUC 20). Hasta 80.
+ */
+const Pareja = z.object({ acompanante: z.string().regex(/^20\d{9}$/), ganador: z.string().regex(/^20\d{9}$/) });
+
+patronesRouter.get("/acompanantes/procesos", async (c) => {
+  const p = Pareja.safeParse(parametros(c));
+  if (!p.success) return c.json({ error: "invalid_query", issues: p.error.issues }, 400);
+  const q = p.data;
+  const cuerpo = await memo.obtener(`pareja:${q.acompanante}:${q.ganador}`, async () => {
+    const r = await pool.query(
+      `WITH c AS (
+         SELECT a.codigo_convocatoria::text AS codigo, min(a.fecha_convocatoria) AS fecha
+           FROM conosce_postores a
+          WHERE a.ruc_postor = $1 AND a.anio >= 2018
+            AND EXISTS (SELECT 1 FROM conosce_postores b WHERE b.codigo_convocatoria = a.codigo_convocatoria AND b.ruc_postor = $2)
+          GROUP BY 1)
+       SELECT c.codigo, cv.ocid, r.entidad_ruc AS "entidadRuc", r.entidad, left(COALESCE(r.descripcion, cv.objeto), 220) AS objeto,
+              to_char(c.fecha, 'YYYY-MM-DD') AS fecha, r.monto::float AS monto,
+              COALESCE($2 = ANY (r.rucs), false) AS "ganoElGanador", COALESCE($1 = ANY (r.rucs), false) AS "ganoElAcompanante",
+              (SELECT count(DISTINCT x.ruc_postor) FROM conosce_postores x WHERE x.codigo_convocatoria = c.codigo)::int AS postores
+         FROM c
+         LEFT JOIN conosce_proceso_resumen r ON r.codigo = c.codigo
+         LEFT JOIN convocatorias cv ON cv.codigo::text = c.codigo
+        ORDER BY c.fecha DESC NULLS LAST, c.codigo DESC LIMIT 80`, [q.acompanante, q.ganador]);
+    const filas = r.rows as { ganoElGanador: boolean; ganoElAcompanante: boolean; postores: number }[];
+    return publicar({
+      acompanante: q.acompanante, ganador: q.ganador, total: filas.length,
+      ganoElGanador: filas.filter((x) => x.ganoElGanador).length,
+      ganoElAcompanante: filas.filter((x) => x.ganoElAcompanante).length,
+      // Los que cuenta el patrón: 2 a 4 postores, ganó el acompañado y no el acompañante.
+      delPatron: filas.filter((x) => x.ganoElGanador && !x.ganoElAcompanante && x.postores >= 2 && x.postores <= 4).length,
+      data: r.rows,
+    });
+  });
+  c.header("Cache-Control", CACHE);
+  return c.json(cuerpo);
+});
+
 const Consorcios = z.object({
   ruc: z.string().regex(/^20\d{9}$/).optional(),
   page: z.coerce.number().int().min(1).max(200).default(1),

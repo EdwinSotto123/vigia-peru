@@ -8,6 +8,7 @@ import { EVENTO_ACTIVA } from "@/components/patrones/Pestanas";
 import { CeldaBarra, CeldaNumero, CeldaPrincipal, CeldaTexto, CLASE_ENLACE_CELDA, Indicadores, Tabla, type Columna, type Fila, type Indicador } from "@/components/listado";
 import { EstadoCarga, usePoder } from "@/components/grafo/vista";
 import { InformeEnPanel } from "@/components/control/InformeEnPanel";
+import { detalleConsorcio, detalleControl, detalleDueno, detalleInhabilitada, detalleObservado, detalleRelleno, detalleRenovacion, detalleSenal } from "./DetallePatron";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Dato } from "@/components/ui/Dato";
@@ -56,7 +57,8 @@ import { cn } from "@/lib/utils";
  * señal elegida de cada lista van a la URL (`?page=`, `?regla=`) sin recargar, como la pestaña: el enlace comparte la
  * vista exacta, y al cambiar de pestaña la URL lleva lo de la que se ve.
  *
- * Las filas no son un enlace: cada nombre lleva a su ficha y cada contrato de ejemplo a la suya.
+ * Cada fila abre su panel lateral (`DetallePatron`): el patrón en una frase, sus cifras, los contratos que lo sostienen y
+ * qué conviene revisar. Los nombres y los contratos de ejemplo de la fila siguen siendo enlaces propios a su ficha.
  */
 
 /** Lo que pide la URL al cargar: vale sólo para la pestaña abierta. */
@@ -462,6 +464,8 @@ function filaSenal(p: PatronSenal, i: number, alcance: AlcancePatron, nombreRegl
   return {
     // Nunca el RUC en el DOM como id (un proveedor puede ser persona natural).
     id: `${alcance}-${i}`,
+    detalle: detalleSenal(p, alcance, senal),
+    enlaces: true,
     textos: {
       senal,
       veces: p.veces == null ? null : undefined,
@@ -556,6 +560,8 @@ function filaRelleno(p: PatronAcompanante, i: number): Fila {
   const anios = periodo(p.desde, p.hasta);
   return {
     id: `relleno-${i}`,
+    detalle: detalleRelleno(p),
+    enlaces: true,
     textos: { periodo: anios },
     celdas: {
       acompanante: (
@@ -652,6 +658,8 @@ function filaConsorcio(p: PatronConsorcio, i: number): Fila {
   const anios = periodo(p.desde, p.hasta);
   return {
     id: `consorcio-${i}`,
+    detalle: detalleConsorcio(p),
+    enlaces: true,
     textos: { periodo: anios },
     celdas: {
       par: (
@@ -774,6 +782,8 @@ function filaDueno(p: PatronDueno, i: number): Fila {
   const empresas = p.empresas ?? [];
   return {
     id: `dueno-${i}`,
+    detalle: detalleDueno(p),
+    enlaces: true,
     textos: { periodo: anios },
     celdas: {
       grupo: (
@@ -926,6 +936,8 @@ function filaInhabilitada(p: PatronInhabilitada, i: number): Fila {
     !!p.fundada && !!p.sancionDesde && new Date(`${p.fundada}T12:00:00Z`).getTime() >= new Date(`${p.sancionDesde}T12:00:00Z`).getTime() - 180 * 86_400_000;
   return {
     id: `inhabilitada-${i}`,
+    detalle: detalleInhabilitada(p),
+    enlaces: true,
     textos: { periodo: anios },
     celdas: {
       gana: (
@@ -1081,6 +1093,8 @@ function filaControl(p: PatronControl, i: number): Fila {
   const otros = Math.max(0, (p.informes ?? 1) - 1);
   return {
     id: `control-${i}`,
+    detalle: detalleControl(p),
+    enlaces: true,
     textos: { periodo: anios },
     celdas: {
       gana: (
@@ -1260,6 +1274,8 @@ function filaObservado(p: PatronObservado, i: number): Fila {
   const otros = Math.max(0, (p.informes ?? 1) - 1);
   return {
     id: `observado-${i}`,
+    detalle: detalleObservado(p),
+    enlaces: true,
     celdas: {
       gana: (
         <CeldaPrincipal
@@ -1413,6 +1429,8 @@ function filaRenovacion(p: PatronRenovacion, i: number): Fila {
   const objeto = p.objeto ? oracion(p.objeto) : "Servicio sin descripción";
   return {
     id: `renovacion-${i}`,
+    detalle: detalleRenovacion(p),
+    enlaces: true,
     textos: { proveedor: p.proveedor ? undefined : null, exceso: p.exceso == null ? null : undefined },
     celdas: {
       servicio: (

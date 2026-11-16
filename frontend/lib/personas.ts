@@ -75,6 +75,8 @@ export interface PaginaPersonas {
   resumen: ResumenPersonas;
   /** Las opciones de los filtros que dependen del alcance (null en la ficha de un partido o si no se pudieron leer). */
   facetas?: FacetasPersonas | null;
+  /** Personas cuyo nombre VISIBLE coincide con lo buscado (sólo con `q`, en la primera página del país). */
+  porNombre?: PersonaPorNombre[];
 }
 
 /**
@@ -133,6 +135,34 @@ export interface AnioDePersona {
   enElPais: ReferenciaPago | null;
 }
 
+/** Un proceso de selección que la persona ganó con su RUC (CONOSCE), con los antecedentes de ese contrato. */
+export interface ProcesoGanado {
+  codigo: string;
+  ocid: string | null;
+  entidad: string | null;
+  entidadRuc: string | null;
+  objeto: string | null;
+  tipoProceso: string | null;
+  nomenclatura: string | null;
+  fecha: string | null;
+  monto: number | null;
+  severidad: "alta" | "media" | "baja" | null;
+  cruces: { tipo: string; severidad: "alta" | "media" | "baja"; n?: number }[] | null;
+}
+
+/** Una persona hallada por su nombre visible en la lista (GET /personas?q=, `porNombre`). */
+export interface PersonaPorNombre {
+  codigo: string;
+  ruc: string;
+  nombre: string;
+  ordenes: number;
+  monto: number;
+  entidades: number;
+  entidad: string | null;
+  procesos: number;
+  montoProcesos: number;
+}
+
 export interface FichaPersona {
   persona: {
     codigo: string;
@@ -147,7 +177,15 @@ export interface FichaPersona {
     nSenales: number;
     /** Sus órdenes con un monto que puede ser un error de CONOSCE: se muestran, van aparte de sus sumas. */
     dudosas?: { ordenes: number; monto: number | null; motivos: string[] | null } | null;
+    /** Los procesos de selección que ganó como persona natural (CONOSCE; migración 317). */
+    procesos?: number;
+    montoProcesos?: number;
+    entidadesProcesos?: number;
+    primeraBuenaPro?: string | null;
+    ultimaBuenaPro?: string | null;
   };
+  /** Cada proceso que ganó, con las señales de ese contrato. */
+  procesos?: ProcesoGanado[];
   entidades: EntidadDePersona[];
   anual: AnioDePersona[];
   /** Lo cobrado cada mes por órdenes (línea de tiempo); `dudoso`, lo que puede ser un error de CONOSCE, aparte. */

@@ -21,6 +21,7 @@ import { CORTO_EMPRESA } from "@/lib/empresas";
 import { fecha, listaY, numero, oracion, plural, soles } from "@/lib/formato";
 import { tituloNatural } from "@/lib/landing";
 import { esRucPersonaNatural } from "@/lib/privacidad";
+import { rutaPersona } from "@/lib/personas";
 import {
   ETIQUETAS_PARTICIPANTE, EXPLICA_VINCULO, antiguedad, estadoParticipante, explicaBandera, nombreBandera, rucVisibleDe, tipoVinculo,
   vinculosComoBanderas, type Participante, type PersonaProceso,
@@ -217,7 +218,21 @@ export function DetalleParticipante({
           </div>
         ) : (
           <p className="text-dato text-inkSoft">
-            {esRucPersonaNatural(p.ruc) ? "Vigía no arma el historial de una persona natural." : "Vigía no tiene un historial de este participante."}
+            {esRucPersonaNatural(p.ruc) ? (
+              p.personaCodigo ? (
+                <>
+                  Es una persona natural: lo que ganó y las órdenes que recibió están en{" "}
+                  <Link href={rutaPersona(p.personaCodigo, "procesos")} prefetch={false} className="font-medium text-granate underline decoration-granate/35 underline-offset-2 hover:decoration-granate">
+                    su ficha
+                  </Link>
+                  , con un apellido tapado y sin su documento.
+                </>
+              ) : (
+                "Vigía no tiene una ficha de esta persona natural."
+              )
+            ) : (
+              "Vigía no tiene un historial de este participante."
+            )}
           </p>
         )}
       </BloqueDetalle>

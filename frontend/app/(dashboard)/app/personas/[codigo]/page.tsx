@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
-import { Building2, CalendarRange, Flag, ListOrdered, Receipt, Route, Wallet } from "lucide-react";
+import { Building2, CalendarRange, Flag, Gavel, ListOrdered, Receipt, Route, Wallet } from "lucide-react";
 import {
   Ayuda,
   BloqueDetalle,
@@ -49,7 +49,9 @@ import {
   type AnioDePersona,
   type EntidadDePersona,
   type FichaPersona,
+  type ProcesoGanado,
 } from "@/lib/personas";
+import { rutaContrato } from "@/lib/rutas";
 import { nombrePartido } from "@/lib/planilla";
 import { peorSeveridad } from "@/lib/severidad";
 import { uno } from "@/lib/utils";
@@ -91,7 +93,10 @@ export default async function PersonaPage({ params, searchParams }: { params: { 
   const banderas = banderasPersona(cuenta.lista, `${ruta}?seccion=senales`);
   const filtrosOrdenes = filtrosOrdenesDeUrl(searchParams);
   const seccionUrl = uno(searchParams?.seccion);
-  const seccion = seccionUrl ?? (hayFiltrosOrdenes(filtrosOrdenes) ? "ordenes" : undefined);
+  // Quien no tiene órdenes y sí procesos ganados (migración 317) abre en sus procesos.
+  const procesos = f.procesos ?? [];
+  const soloProcesos = p.ordenes === 0 && procesos.length > 0;
+  const seccion = seccionUrl ?? (hayFiltrosOrdenes(filtrosOrdenes) ? "ordenes" : soloProcesos ? "procesos" : undefined);
   const sentUrl = uno(searchParams?.sent);
   const sent = sentUrl && f.entidades.some((e) => e.entidadRuc === sentUrl) ? sentUrl : undefined;
   const ordenesP = getOrdenesPersona(params.codigo, { ...filtrosOrdenes, size: TAM_ORDENES });
@@ -102,8 +107,8 @@ export default async function PersonaPage({ params, searchParams }: { params: { 
   const ayuda = (
     <Ayuda titulo="¿Por qué está esta persona aquí?">
       <span className="block">
-        Porque recibió órdenes de servicio del Estado como persona natural: el OECE (CONOSCE) las publica con su nombre y lo
-        que se le pagó. Vigía no muestra su DNI ni su RUC y tapa uno de sus apellidos.
+        Porque recibió órdenes de servicio del Estado o ganó procesos de selección como persona natural: el OECE (CONOSCE) los
+        publica con su nombre y lo que se le pagó o adjudicó. Vigía no muestra su DNI ni su RUC y tapa uno de sus apellidos.
       </span>
       <span className="mt-2 block">
         Las señales dicen qué otro registro público coincide con esta persona. Ninguna prueba un delito ni un parentesco.{" "}
@@ -120,14 +125,17 @@ export default async function PersonaPage({ params, searchParams }: { params: { 
           { etiqueta: "Personas contratadas", href: "/app/personas" },
           { etiqueta: nombre, href: ruta },
         ]}
-        pestanas={{ primera: "senales", activa: seccion ?? "senales", etiquetas: { recorrido: "Recorrido", pagos: "Lo que cobró", ordenes: "Órdenes", entidades: "Entidades" } }}
+        pestanas={{ primera: "senales", activa: seccion ?? "senales", etiquetas: { procesos: "Procesos", recorrido: "Recorrido", pagos: "Lo que cobró", ordenes: "Órdenes", entidades: "Entidades" } }}
       />
       <EncabezadoPagina
         titulo={nombre}
         bajada={
           <span className="flex flex-wrap items-center gap-x-4 gap-y-1">
             <span className="inline-flex items-center gap-1.5">
-              <Building2 size={14} className="shrink-0 text-mute" aria-hidden /> Órdenes de servicio de {plural(p.entidades, "entidad", "entidades")}
+              <Building2 size={14} className="shrink-0 text-mute" aria-hidden />{" "}
+              {soloProcesos
+                ? `Ganó ${plural(procesos.length, "proceso de selección", "procesos de selección")} en ${plural(p.entidadesProcesos ?? 1, "entidad", "entidades")}`
+                : `Órdenes de servicio de ${plural(p.entidades, "entidad", "entidades")}${procesos.length ? ` y ${plural(procesos.length, "proceso ganado", "procesos ganados")}` : ""}`}
               {!fechas && ayuda}
             </span>
             {fechas && (
@@ -195,6 +203,49 @@ export default async function PersonaPage({ params, searchParams }: { params: { 
               </div>
             ),
           },
+          ...(procesos.length
+            ? [
+                {
+                  clave: "procesos",
+                  icono: <Gavel size={15} aria-hidden />,
+                  etiqueta: "Procesos",
+                  titulo: "Los procesos de selección que ganó",
+                  conteo: procesos.length,
+                  contenido: (
+                    <div>
+                      <CabeceraPestana
+                        ayuda={
+                          <Ayuda titulo="¿De dónde salen?">
+                            <span className="block">
+                              Del registro de adjudicaciones del OECE (CONOSCE): los procesos de selección en que esta persona obtuvo la
+                              buena pro con su propio RUC, que no se muestra. Son distintos de sus órdenes de servicio, que van en su
+                              pestaña.
+                            </span>
+                            <span className="mt-2 block">
+                              Cada fila abre el contrato en Vigía, con sus antecedentes y, si se analizó, su dictamen. Un antecedente es
+                              un motivo para revisar, no una acusación.
+                            </span>
+                          </Ayuda>
+                        }
+                      >
+                        {plural(procesos.length, "proceso ganado", "procesos ganados")} como persona natural por {solesCompacto(p.montoProcesos ?? 0)}
+                        {p.primeraBuenaPro && p.ultimaBuenaPro && p.primeraBuenaPro !== p.ultimaBuenaPro
+                          ? `, del ${fechaConAnio(p.primeraBuenaPro)} al ${fechaConAnio(p.ultimaBuenaPro)}.`
+                          : "."}
+                      </CabeceraPestana>
+                      <TablaPaginada
+                        columnas={COLUMNAS_PROCESOS}
+                        filas={procesos.map(filaProceso)}
+                        etiqueta="Procesos de selección que ganó"
+                        nombre="procesos"
+                        tam={20}
+                        buscar={{ placeholder: "Buscar por objeto, entidad o código…", etiqueta: "Buscar en los procesos que ganó" }}
+                      />
+                    </div>
+                  ),
+                },
+              ]
+            : []),
           {
             clave: "recorrido",
             icono: <Route size={15} aria-hidden />,
@@ -266,6 +317,40 @@ export default async function PersonaPage({ params, searchParams }: { params: { 
   );
 }
 
+// ─── Los procesos que ganó ───────────────────────────────────────────────────────────────────────
+
+const COLUMNAS_PROCESOS: Columna[] = [
+  { clave: "proceso", titulo: "Proceso y entidad", ancho: "minmax(0,1.7fr)" },
+  { clave: "fecha", titulo: "Buena pro", ancho: "6.5rem", desde: "md", apilar: "con-rotulo" },
+  { clave: "antecedentes", titulo: "Antecedentes del contrato", ancho: "minmax(0,1fr)", desde: "md", apilar: true },
+  { clave: "monto", titulo: "Adjudicado", ancho: "7rem", alinear: "der" },
+];
+
+function filaProceso(g: ProcesoGanado): Fila {
+  const objeto = g.objeto ? tituloNatural(g.objeto) : "Proceso sin objeto registrado";
+  const entidad = g.entidad ? tituloNatural(g.entidad) : "Entidad sin nombre";
+  return {
+    id: `proceso-${g.codigo}`,
+    href: rutaContrato(g.ocid ?? g.codigo, "ficha", { seccion: "antecedentes" }),
+    textos: { proceso: `${objeto} ${entidad} ${g.nomenclatura ?? ""} ${g.codigo}`, fecha: g.fecha ?? "" },
+    celdas: {
+      proceso: (
+        <CeldaPrincipal
+          dosLineas
+          titulo={objeto}
+          meta={[
+            <span key="e">{entidad}</span>,
+            g.nomenclatura ? <Dato key="n" tipo="codigo" mono>{g.nomenclatura}</Dato> : null,
+          ]}
+        />
+      ),
+      fecha: <span className="text-meta tabular-nums text-inkSoft">{g.fecha ? fechaConAnio(g.fecha) : "Sin fecha"}</span>,
+      antecedentes: <CrucesCelda cruces={g.cruces} etiquetaLista="Antecedentes de este contrato" />,
+      monto: <CeldaNumero>{g.monto != null ? solesCompacto(g.monto) : "Sin dato"}</CeldaNumero>,
+    },
+  };
+}
+
 type Cuenta = ReturnType<typeof senalesDistintas>;
 
 /**
@@ -307,6 +392,15 @@ function indicadores(f: FichaPersona, c: Cuenta, ruta: string): Indicador[] {
       ),
       href: `${ruta}?seccion=ordenes`,
     },
+    // Los procesos de selección que ganó (migración 317): antes la ficha sólo contaba sus órdenes.
+    ...((p.procesos ?? 0) > 0
+      ? [{
+          valor: solesCompacto(p.montoProcesos ?? 0),
+          etiqueta: "adjudicados en procesos",
+          contexto: `${plural(p.procesos ?? 0, "proceso ganado", "procesos ganados")} en ${plural(p.entidadesProcesos ?? 1, "entidad", "entidades")}`,
+          href: `${ruta}?seccion=procesos`,
+        } satisfies Indicador]
+      : []),
     { valor: numero(p.meses), etiqueta: "meses con órdenes", contexto: "sumados por año y entidad", href: `${ruta}?seccion=pagos` },
     { valor: numero(p.entidades), etiqueta: p.entidades === 1 ? "entidad" : "entidades", contexto: "que lo contrataron", href: `${ruta}?seccion=entidades` },
     {

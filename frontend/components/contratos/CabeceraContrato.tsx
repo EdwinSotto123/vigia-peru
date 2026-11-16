@@ -26,6 +26,7 @@ import { reglaLabel } from "@/lib/auditoria";
 import { busquedaOece, enlacesProceso, procesoOece } from "@/lib/fuentes";
 import { motivoDudoso } from "@/lib/datoDudoso";
 import { enlaceProveedor } from "@/lib/empresas";
+import { rutaPersona } from "@/lib/personas";
 import { tituloNatural } from "@/lib/landing";
 import { rutaContrato } from "@/lib/rutas";
 import { UBIGEO_REGION } from "@/components/mapa/region-match";
@@ -183,13 +184,21 @@ function Ganador({ c, enlace }: { c: Detalle; enlace: string }) {
   }
   const natural = esPersonaNatural(ruc);
   const ficha = !natural && !esCodigoConsorcio(ruc) ? enlaceProveedor(ruc) : null;
+  // El código de la ficha de quien quedó con la buena pro (la adjudicación vigente) o, si no cambió, el del ganador.
+  const codigoPersona = natural
+    ? (queda ? adjudicacionesVigentes(c).find((a) => a.proveedorRuc === ruc)?.personaCodigo : null) ?? (ruc === c.proveedorRuc ? c.proveedorPersona : null) ?? null
+    : null;
+  const fichaPersona = codigoPersona ? rutaPersona(codigoPersona, "procesos") : null;
   // Otros ganadores en otros ítems (adjudicaciones vigentes a otro proveedor).
   const otros = new Set(adjudicacionesVigentes(c).map((a) => a.proveedorRuc ?? a.proveedor).filter((x) => x && x !== ruc && x !== proveedor)).size;
   return (
     <span className="inline-flex flex-wrap items-center gap-x-1.5">
       <Trophy size={14} className="shrink-0 text-mute" aria-hidden />
       Ganó{" "}
-      {natural ? (
+      {natural && fichaPersona ? (
+        // Una persona natural con ficha en Vigía (sus órdenes y los procesos que ganó): por su código, nunca por su RUC.
+        <Link href={fichaPersona} prefetch={false} className={enlace}><PersonName name={proveedor} orden="sunat" /></Link>
+      ) : natural ? (
         <span className="font-semibold text-ink"><PersonName name={proveedor} orden="sunat" /></span>
       ) : ficha ? (
         <Link href={ficha} prefetch={false} className={enlace}>{proveedor}</Link>

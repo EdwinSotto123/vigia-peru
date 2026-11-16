@@ -145,6 +145,7 @@ Agrupadas por lo que representan. Filas aproximadas (reltuples) y tamaño en pro
 | `persona_entidad` | 3.2 M | persona ↔ entidad que la contrató |
 | `persona_orden_anual` | 5.4 M | órdenes de cada persona por año |
 | `persona_codigo` / `planilla_codigo` | 2.0 M / 640 k | códigos opacos de persona (privacidad) |
+| `persona_ganadora` | 31 k | personas naturales que ganaron procesos de selección (CONOSCE, migración 317): procesos, monto, entidades y fechas; da ficha a quien no tiene órdenes. La API la busca sólo por lo que se VE del nombre |
 | `persona_senal` | 300 k | señales calculadas por persona |
 | `persona_resumen` / `persona_flags` | 3.5 k / 9.2 k | resumen y banderas por persona |
 | `empresa_visita` / `empresa_personas` | 19 k / 0 | visitas y personas de empresa |

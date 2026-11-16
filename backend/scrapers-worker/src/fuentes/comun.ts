@@ -285,6 +285,8 @@ export function cadenaCruces(): Refresco[] {
     f("refrescar_casos_cruce_base"),
     // Cuántos contratos con antecedentes tiene cada entidad (migración 175), de casos_cruce recién hecho.
     f("refrescar_entidad_antecedentes", true),
+    // Las personas naturales que ganaron procesos de selección (migración 317): su resumen y su código de ficha.
+    f("refrescar_persona_ganadora", true),
     // Las órdenes de cada empresa por entidad y año (migración 109) y las que están al borde del tope (207).
     f("refrescar_empresa_ordenes"),
     f("refrescar_borde_empresas", true),

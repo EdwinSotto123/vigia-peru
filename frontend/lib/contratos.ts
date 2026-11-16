@@ -337,7 +337,11 @@ export interface ContratoDetalle extends ContratoResumen, ProcesoContrato {
   adjudicaciones: {
     id: string | null; fecha: string | null; montoPen: number | null; proveedor: string | null; proveedorRuc: string | null;
     items?: string[]; vigente?: boolean; sinConfirmar?: boolean;
+    /** Si quien ganó es una persona natural con ficha en Vigía: su código (/app/personas/<código>). */
+    personaCodigo?: string | null;
   }[];
+  /** El código de ficha del ganador si es una persona natural (nunca su RUC). */
+  proveedorPersona?: string | null;
   /** Cruces de los ganadores con ONPE, JNE, visitas, penalidades y sanciones. Falta en una API anterior. */
   cruces?: CruceProveedor[];
   /** Misma forma que `resultado` en auditoría (señales, mercado, documentos leídos); `estado` = 'revision' si la autoevaluación la bloqueó.
