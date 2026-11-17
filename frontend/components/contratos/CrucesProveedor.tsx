@@ -18,7 +18,7 @@ import { Ayuda, CabeceraPestana } from "@/components/patrones";
 import { Badge } from "@/components/ui/Badge";
 import { IconoBandera } from "@/components/ui/IconoBandera";
 import { CuentaGrupo } from "@/components/listado";
-import { ChevronDown, ChevronRight, Scale } from "lucide-react";
+import { ChevronDown, ChevronRight, CircleAlert, Scale } from "lucide-react";
 import { ICONO_NIVEL } from "@/components/ui/Severidad";
 import type { CruceProveedor } from "@/lib/contratos";
 import { fechaConAnio, fechaCorta, numero, oracion, soles, solesCompacto } from "@/lib/formato";
@@ -668,6 +668,12 @@ function Texto({ c, gobierna }: { c: CruceProveedor; gobierna?: GobiernoContrato
           {n(p.entidades) ? ` en ${numero(n(p.entidades)!)} entidades` : ""}
           {razon ? <> (<b>{razon.toLocaleString("es-PE", { maximumFractionDigits: 1 })} veces</b>)</> : ""}. Por encima del rango habitual suma{" "}
           <b>{solesCompacto(c.montoSoles)}</b>.
+          {d.posible_paquete === true && (
+            <span className="mt-1 flex items-start gap-1.5 text-amberTexto">
+              <CircleAlert size={14} className="mt-0.5 shrink-0" aria-hidden />
+              <span>Dato dudoso: {txt(d.nota_paquete) ?? "el ítem parece agrupar varios productos"}. Revisa los renglones de la ficha antes de concluir.</span>
+            </span>
+          )}
           <Gano c={c} />
         </>
       );

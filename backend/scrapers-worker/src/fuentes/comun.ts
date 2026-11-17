@@ -233,6 +233,9 @@ export function cadenaCruces(): Refresco[] {
   return [
     { nombre: "refrescar_cruces", sql: "SELECT jsonb_agg(c) FROM refrescar_cruces() c" },
     f("refrescar_precio_item"),
+    // Sobreprecio sobre un ítem que agrupa varios productos con el CUBSO de uno («insumos para el programa del Vaso de
+    // Leche»): dato dudoso, severidad baja y su nota (migración 340).
+    f("marcar_sobreprecio_paquete", true),
     f("refrescar_contrato_partido"),
     f("refrescar_cruce_otro_postor"),
     // «Ganó recién fundada» (migración 118): la brecha entre el alta en la SUNAT y la buena pro de ese proceso.
