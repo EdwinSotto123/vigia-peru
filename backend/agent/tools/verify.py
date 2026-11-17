@@ -413,6 +413,72 @@ def _monto_en_texto(texto: str, candidatos: list[float]) -> bool:
     return False
 
 
+# ─── Qué ES un monto en el documento ─────────────────────────────────────────
+# Que un número exista en un documento no dice qué significa. El 2026-11-16 una bandera «cotejada» decía que «el documento
+# indica S/ 24,98 M» frente a S/ 9,83 M adjudicados: los S/ 24,98 M eran el monto facturado que pedía un factor de
+# evaluación (la experiencia exigida al postor), no la cuantía del proceso. Aquí se mira la palabra que más cerca
+# precede a cada aparición del monto en el texto: si TODAS sus apariciones lo presentan como experiencia, garantía,
+# penalidad o capacidad financiera, ese es su rol, y una bandera que lo use como otra cosa no pasa la verificación.
+_ROL_NO_CUANTIA: tuple[tuple[str, "re.Pattern[str]"], ...] = (
+    ("experiencia_exigida", re.compile(r"experiencia|facturad|facturaci[oó]n|monto\s+m[ií]nimo\s+de\s+ventas?", re.I)),
+    ("garantia", re.compile(r"garant[ií]a|fiel\s+cumplimiento|carta\s+fianza|p[oó]liza\s+de\s+cauci[oó]n", re.I)),
+    ("penalidad", re.compile(r"penalidad|multa", re.I)),
+    ("capacidad_financiera", re.compile(r"l[ií]nea\s+de\s+cr[eé]dito|solvencia|patrimonio|capital\s+social", re.I)),
+)
+_ROL_CUANTIA = re.compile(
+    r"valor\s+referencial|valor\s+estimado|cuant[ií]a|precio|presupuesto|importe|monto\s+(?:total\s+)?(?:del\s+|de\s+la\s+)?"
+    r"(?:contrat|adjudic|ofert|propuesta)|oferta\s+econ[oó]mica|buena\s+pro|monto\s+del\s+contrato", re.I)
+_VENTANA_ROL = 260
+
+
+def _variantes_monto(c: float) -> set[str]:
+    v = {f"{c:,.2f}", f"{c:.2f}", f"{c:,.0f}", f"{c:.0f}", f"{c:,.1f}"}
+    return v | {x.replace(",", "X").replace(".", ",").replace("X", ".") for x in list(v)} | {x.replace(",", " ") for x in list(v)}
+
+
+def _rol_en_ventana(antes: str) -> str | None:
+    """El rol que dice la palabra clave MÁS CERCANA antes del monto: uno de `_ROL_NO_CUANTIA`, «cuantia» o None."""
+    mejor: tuple[int, str] | None = None
+    for nombre, pat in (*_ROL_NO_CUANTIA, ("cuantia", _ROL_CUANTIA)):
+        for m in pat.finditer(antes):
+            if mejor is None or m.end() > mejor[0]:
+                mejor = (m.end(), nombre)
+    return mejor[1] if mejor else None
+
+
+def rol_del_monto(textos: "Iterable[str]", candidatos: list[float]) -> str | None:
+    """Qué es un monto según los documentos: el rol (experiencia_exigida, garantia, penalidad, capacidad_financiera) si
+    TODAS sus apariciones lo presentan así; None si alguna lo presenta como cuantía, precio u oferta, si no hay palabra
+    clave cerca o si el monto no aparece. Ante la duda no decide: sólo descarta lo que el texto dice sin ambigüedad."""
+    roles: set[str | None] = set()
+    for texto in textos:
+        if not texto:
+            continue
+        for c in candidatos:
+            # Las variantes más largas primero y sin contar dos veces la misma posición («24,978,592.50» contiene «978,592.50»).
+            vistos: set[int] = set()
+            for v in sorted(_variantes_monto(c), key=len, reverse=True):
+                i = texto.find(v)
+                while i != -1:
+                    pegado = (i > 0 and (texto[i - 1].isdigit() or texto[i - 1] in ",.")) or texto[i + len(v):i + len(v) + 1].isdigit()
+                    if not pegado and not any(abs(i - j) < len(v) for j in vistos):
+                        vistos.add(i)
+                        roles.add(_rol_en_ventana(texto[max(0, i - _VENTANA_ROL):i]))
+                    i = texto.find(v, i + 1)
+    if not roles or None in roles or "cuantia" in roles:
+        return None
+    return sorted(r for r in roles if r)[0] if len(roles) >= 1 else None
+
+
+def _bandera_habla_de(texto_bandera: str, raw: str, rol: str) -> bool:
+    """¿La bandera, cerca de ese monto, ya lo llama por su rol? («exige una experiencia de S/ …»: eso es coherente)."""
+    pat = dict(_ROL_NO_CUANTIA)[rol]
+    i = texto_bandera.find(raw)
+    if i == -1:
+        return bool(pat.search(texto_bandera))
+    return bool(pat.search(texto_bandera[max(0, i - 160):i + len(raw) + 80]))
+
+
 _GROUNDING_REDIRECT = "vertexaisearch.cloud.google.com/grounding-api-redirect/"
 
 
@@ -632,10 +698,14 @@ def verificar_bandera(flag: dict, state: dict) -> dict:
             motivos.append(f"monto:{raw}:fuente_determinista")
         elif _monto_en(market.nums, cands):
             motivos.append(f"monto:{raw}:market_analysis")
-        elif _monto_en(parser.nums, cands):
-            motivos.append(f"monto:{raw}:parser")
-        elif any(_monto_en_texto(t, cands) for t in textos.values()):
-            motivos.append(f"monto:{raw}:documentos_texto")
+        elif _monto_en(parser.nums, cands) or any(_monto_en_texto(t, cands) for t in textos.values()):
+            # El monto sale de un documento (no de un registro): además de existir, tiene que SER lo que la bandera dice.
+            rol = rol_del_monto(textos.values(), cands) if textos else None
+            if rol and not _bandera_habla_de(_texto_bandera(flag), raw, rol):
+                ok = False
+                motivos.append(f"monto:{raw}:en_el_documento_es_{rol}:no_respaldado")
+            else:
+                motivos.append(f"monto:{raw}:{'parser' if _monto_en(parser.nums, cands) else 'documentos_texto'}")
         elif _monto_en(_topes_legales(flag), cands):
             motivos.append(f"monto:{raw}:tope_legal")
         elif _monto_en(_numeros_de_la_regla(flag), cands):

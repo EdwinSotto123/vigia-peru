@@ -516,3 +516,54 @@ def test_la_evidencia_de_una_bandera_se_guarda_sin_ruc_10_ni_dni():
     from tools.verify import sin_datos_personales
     t = sin_datos_personales("El OECE registra 3 penalidades al RUC 10439608801; su titular, con DNI 43960880, es socio de RUC 20131378972.")
     assert "10439608801" not in t and "43960880" not in t and "20131378972" in t
+
+
+# ─── Qué ES un monto en el documento (2026-11-16) ────────────────────────────
+_BASES_EXPERIENCIA = (
+    "⟦p.30⟧ 4.1.2. FACTORES DE EVALUACIÓN FACULTATIVOS. A. EXPERIENCIA ADICIONAL DEL POSTOR EN LA ESPECIALIDAD. "
+    "El postor debe acreditar un monto facturado acumulado equivalente a S/ 24,978,592.50 (Veinticuatro Millones), por la "
+    "contratación de servicios iguales o similares al objeto de la convocatoria. M = Monto facturado acumulado por el "
+    "postor. M > ó = S/ 36,000,000.00 35 puntos. M > [24,978,592.50] y < [30,000,000.00] 15 puntos.")
+
+
+def _state_bases(texto: str) -> dict:
+    return _state(documentos_texto={SHA: {"n_paginas": 40, "chars": len(texto), "texto": texto}})
+
+
+def test_el_rol_de_un_monto_lo_dice_la_palabra_mas_cercana_que_lo_precede():
+    assert verify.rol_del_monto([_BASES_EXPERIENCIA], [24978592.50]) == "experiencia_exigida"
+    assert verify.rol_del_monto(["El valor referencial asciende a S/ 500,000.00 incluido IGV."], [500000.0]) is None
+    assert verify.rol_del_monto(["Garantía de fiel cumplimiento por S/ 98,265.30."], [98265.30]) == "garantia"
+    # Aparece como experiencia y también como valor referencial: no se decide.
+    doble = "Experiencia: monto facturado de S/ 500,000.00. ⟦p.3⟧ El valor referencial es S/ 500,000.00."
+    assert verify.rol_del_monto([doble], [500000.0]) is None
+    # Sin palabra clave cerca, o si el monto no está: tampoco.
+    assert verify.rol_del_monto(["Se entregó S/ 12,345.00 al contado."], [12345.0]) is None
+    assert verify.rol_del_monto([_BASES_EXPERIENCIA], [777.0]) is None
+
+
+def test_la_experiencia_exigida_usada_como_cuantia_no_pasa_la_verificacion():
+    # El caso real: «el documento indica S/ 24,978,592.50» era el monto facturado que pedía un factor de evaluación.
+    st = _state_bases(_BASES_EXPERIENCIA)
+    flag = {"regla": "inconsistencia_doc_vs_ocds",
+            "evidencia": "Discrepancia de cuantía: el OCDS publica S/ 245,000.00 (monto adjudicado/contratado) pero el "
+                         "documento del expediente indica S/ 24,978,592.50 (154.2 % de diferencia)."}
+    res = verify.verificar_bandera(flag, st)
+    assert res["ok"] is False
+    assert any(m.endswith("en_el_documento_es_experiencia_exigida:no_respaldado") for m in res["motivos"])
+
+
+def test_una_bandera_que_habla_de_la_experiencia_exigida_si_pasa():
+    st = _state_bases(_BASES_EXPERIENCIA)
+    flag = {"regla": "red_flag_documental",
+            "evidencia": "Las bases exigen acreditar una experiencia de S/ 24,978,592.50 en servicios similares, muy por "
+                         "encima del valor del proceso."}
+    res = verify.verificar_bandera(flag, st)
+    assert res["ok"] is True and any(":documentos_texto" in m or ":parser" in m for m in res["motivos"])
+
+
+def test_un_monto_del_registro_no_se_discute_aunque_el_documento_lo_llame_de_otro_modo():
+    # 245 000 es el monto adjudicado del OCDS: fuente determinista, no pasa por el rol del documento.
+    st = _state_bases("Garantía de fiel cumplimiento por S/ 245,000.00.")
+    res = verify.verificar_bandera({"evidencia": "Se adjudicó por S/ 245,000.00."}, st)
+    assert res["ok"] is True and any(m.startswith("monto:245,000.00") and m.endswith(":fuente_determinista") for m in res["motivos"])
