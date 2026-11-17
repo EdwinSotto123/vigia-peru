@@ -3,6 +3,7 @@
 
   python -X utf8 backend/lector/por_pieza.py prod --lector reporte_evaluacion --limite 120 --tope-usd 2
   python -X utf8 backend/lector/por_pieza.py prod --lector bases_secciones --limite 150 --tope-usd 5
+  python -X utf8 backend/lector/por_pieza.py prod --lector bases --limite 500 --tope-usd 6          # la ficha completa
 
 El dato lo lee un modelo abierto (GLM 5.3 flash por vigia-llm; nunca Claude). El código hace lo demás:
   · prepara   el texto de la pieza con sus marcas de página (documentos_texto) y, en las bases, sólo las secciones que
@@ -33,10 +34,11 @@ from pathlib import Path
 RAIZ = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(RAIZ / "backend"))
 sys.path.insert(0, str(RAIZ / "infrastructure" / "aws"))
-from lector import secciones  # noqa: E402
+from lector import ficha_bases, secciones  # noqa: E402
 
 VERSION = "m1"
 TOPE_TOTAL_USD = 315.0
+TANDA = 24                             # piezas por consulta: cada una trae el texto de sus páginas
 _NULO = ["string", "null"]
 _NUM = ["number", "null"]
 _ENT = ["integer", "null"]
@@ -156,8 +158,15 @@ Lo que más se confunde, y cómo se distingue:
         "fuente_financiamiento": {"type": _NULO}}},
 }
 
+# «bases» es la ficha completa (lector/ficha_bases.py): dos pedidos por pieza y una sola pieza por proceso (las bases
+# integradas si las hay). «bases_secciones» es su versión corta del piloto (cuantía y experiencia), para comparar con la regla.
 LECTORES = {"reporte_presentacion": REPORTE_PRESENTACION, "reporte_evaluacion": REPORTE_EVALUACION,
-            "reporte_otorgamiento": REPORTE_OTORGAMIENTO, "bases_secciones": BASES_SECCIONES}
+            "reporte_otorgamiento": REPORTE_OTORGAMIENTO, "bases_secciones": BASES_SECCIONES,
+            "bases": {"tipos": ["bases", "bases_integradas"], "ficha": True}}
+
+
+def version_de(nombre: str) -> str:
+    return ficha_bases.VERSION if nombre == "bases" else VERSION
 
 
 class _Lector:
@@ -268,6 +277,27 @@ SELECT p.id, p.tipo_documento,
 """
 # Para comparar con la regla hace falta que la pieza ya tenga su lectura por regla.
 CON_REGLA = "AND EXISTS (SELECT 1 FROM pieza_lectura r WHERE r.pieza_id = p.id AND r.lector = %(lector)s AND r.modelo = 'plantilla')"
+# La ficha de las bases se lee una vez por PROCESO: de sus piezas de bases con texto, las integradas si las hay; primero
+# los procesos más recientes.
+PENDIENTES_BASES = """
+SELECT p.id, p.tipo_documento,
+       (SELECT jsonb_agg(jsonb_build_object('n', e.p->'n', 'texto', e.p->'texto') ORDER BY e.ord)
+          FROM jsonb_array_elements(t.paginas) WITH ORDINALITY AS e(p, ord)
+         WHERE (e.p->>'n') ~ '^\\d+$' AND (e.p->>'n')::int BETWEEN p.pag_ini AND p.pag_fin) AS paginas
+  FROM (SELECT DISTINCT ON (q.ocid) q.id, q.ocid, q.sha256, q.tipo_documento, q.pag_ini, q.pag_fin
+          FROM documento_pieza q
+         WHERE q.tipo_documento = ANY (%(tipos)s) AND q.paginas >= 15 AND q.paginas_con_texto * 2 >= q.paginas
+         ORDER BY q.ocid, (q.tipo_documento = 'bases_integradas') DESC, q.paginas_con_texto DESC, q.id DESC) p
+  JOIN documentos_texto t ON t.sha256 = p.sha256
+  LEFT JOIN convocatorias c ON c.ocid = p.ocid
+ WHERE jsonb_typeof(t.paginas) = 'array'
+   AND NOT EXISTS (SELECT 1 FROM pieza_lectura l JOIN documento_pieza z ON z.id = l.pieza_id
+                    WHERE z.ocid = p.ocid AND l.lector = %(lector)s AND l.version = %(version)s AND l.estado <> 'error'
+                      -- Una ficha que esperaba la transcripción vuelve a la cola cuando el texto del documento cambió.
+                      AND NOT (l.estado = 'espera_vision' AND z.id = p.id AND t.actualizado_at > l.leido_at))
+ ORDER BY c.fecha_convocatoria DESC NULLS LAST, p.id DESC
+ LIMIT %(limite)s
+"""
 GUARDAR = """
 INSERT INTO pieza_lectura (pieza_id, lector, version, modelo, estado, salida, sobrante, tokens_in, tokens_out, costo_usd, detalle, leido_at)
 VALUES (%(pieza_id)s, %(lector)s, %(version)s, %(modelo)s, %(estado)s, %(salida)s, 0, %(tokens_in)s, %(tokens_out)s, %(costo_usd)s,
@@ -279,9 +309,54 @@ ON CONFLICT (pieza_id, lector, version) DO UPDATE SET
 GASTADO = "SELECT COALESCE(sum(costo_usd), 0)::float FROM pieza_lectura WHERE modelo <> 'plantilla'"
 
 
-def leer_una(motor, nombre: str, pieza_id: int, tipo: str, paginas: list[dict]) -> dict:
-    fila = {"pieza_id": pieza_id, "lector": nombre, "version": VERSION, "modelo": motor.nombre, "estado": "sin_texto", "salida": None,
-            "tokens_in": None, "tokens_out": None, "costo_usd": 0, "detalle": None}
+def leer_ficha_bases(motor, fila: dict, paginas: list[dict], con_escaneos: bool = False) -> dict:
+    """La ficha completa de unas bases: la parte específica entera, por tramos seguidos, con el mismo esquema en cada uno;
+    después se juntan, se comprueban las citas y se dice qué quedó sin leer (páginas escaneadas, tramos que fallaron).
+    Queda «ok» sólo si se leyó todo; si no, «parcial» con lo que sí se leyó."""
+    prep = ficha_bases.preparar(paginas)
+    if prep is None:
+        return {**fila, "estado": "sin_armazon"}
+    if prep["escaneadas"] and not con_escaneos:
+        # Con un bloque escaneado adentro (el requerimiento pegado como imagen) la ficha saldría a medias y habría que
+        # pagarla otra vez tras transcribir: espera su turno. `paginas` va en el detalle para la cola de transcripción.
+        return {**fila, "estado": "espera_vision",
+                "detalle": json.dumps({"escaneadas": prep["escaneadas"], "rango": prep["rango"]})[:2000]}
+    if not prep["tramos"]:
+        return {**fila, "estado": "sin_texto", "detalle": f"{len(prep['escaneadas'])} páginas escaneadas en la parte específica"}
+    lector = _Lector({"SISTEMA": ficha_bases.SISTEMA, "PEDIDO": ficha_bases.PEDIDO, "ESQUEMA": ficha_bases.ESQUEMA})
+    salidas: list[dict | None] = []
+    fallos: list[str] = []
+    tin = tout = 0
+    costo = 0.0
+    for t in prep["tramos"]:
+        r = motor.llamar_texto(lector, t["texto"])
+        tin, tout, costo = tin + (r["tokens_in"] or 0), tout + (r["tokens_out"] or 0), costo + float(r["costo_usd"] or 0)
+        fila["modelo"] = r["modelo"]
+        if r["estado"] == "ok":
+            salidas.append(r["salida"])
+        else:
+            salidas.append(None)
+            fallos.append(f"páginas {t['pag_ini']}-{t['pag_fin']}: {r['estado']}")
+    fila.update(tokens_in=tin, tokens_out=tout, costo_usd=round(costo, 6))
+    if not any(salidas):
+        return {**fila, "estado": "error", "detalle": "; ".join(fallos)[:300]}
+    ficha = ficha_bases.juntar(salidas, prep["tramos"])
+    ficha["citas"] = ficha_bases.revisar_citas(ficha, _llano("\n".join(t["texto"] for t in prep["tramos"])), cita_en_texto)
+    ficha["lectura"] = {"paginas": prep["rango"], "tramos": len(prep["tramos"]), "tramos_fallidos": fallos,
+                        "paginas_escaneadas": prep["escaneadas"], "sin_leer_por_tope": prep["sin_leer_por_tope"]}
+    completo = not fallos and not prep["escaneadas"] and not prep["sin_leer_por_tope"]
+    detalle = "; ".join(x for x in (
+        f"{len(prep['escaneadas'])} páginas escaneadas sin leer" if prep["escaneadas"] else "",
+        f"{len(prep['sin_leer_por_tope'])} páginas fuera por tope" if prep["sin_leer_por_tope"] else "",
+        "; ".join(fallos)) if x)[:300]
+    return {**fila, "estado": "ok" if completo else "parcial", "detalle": detalle or None, "salida": json.dumps(ficha, ensure_ascii=False)}
+
+
+def leer_una(motor, nombre: str, pieza_id: int, tipo: str, paginas: list[dict], con_escaneos: bool = False) -> dict:
+    fila = {"pieza_id": pieza_id, "lector": nombre, "version": version_de(nombre), "modelo": motor.nombre, "estado": "sin_texto",
+            "salida": None, "tokens_in": None, "tokens_out": None, "costo_usd": 0, "detalle": None}
+    if nombre == "bases":
+        return leer_ficha_bases(motor, fila, paginas, con_escaneos)
     texto = texto_de_bases(paginas) if nombre == "bases_secciones" else texto_de_paginas(paginas)
     if not texto or len(texto) < 200:
         return {**fila, "estado": "sin_armazon" if nombre == "bases_secciones" else "sin_texto"}
@@ -312,11 +387,13 @@ def main() -> None:
     ap.add_argument("--modelo", default=None)
     ap.add_argument("--con-regla", action="store_true", help="sólo piezas que ya tienen su lectura por regla (para comparar)")
     ap.add_argument("--varios-items", action="store_true", help="primero las piezas largas (reportes de varios ítems)")
+    ap.add_argument("--con-escaneos", action="store_true",
+                    help="bases: leer también las que traen un bloque escaneado (quedan «parcial»); sin esto, esperan la transcripción")
     a = ap.parse_args()
     lector = LECTORES[a.lector]
     motor = MotorWorkers(a.modelo or MODELO_DEFECTO)
-    consulta = PENDIENTES.format(filtro=CON_REGLA if a.con_regla else "",
-                                 orden="p.paginas DESC, p.id DESC" if a.varios_items else "p.id DESC")
+    consulta = PENDIENTES_BASES if a.lector == "bases" else PENDIENTES.format(
+        filtro=CON_REGLA if a.con_regla else "", orden="p.paginas DESC, p.id DESC" if a.varios_items else "p.id DESC")
     t0 = time.time()
     with ExitStack() as pila:
         cn = pila.enter_context(conexion(a.entorno))
@@ -325,43 +402,42 @@ def main() -> None:
         total = cur.fetchone()[0]
         if total >= TOPE_TOTAL_USD:
             sys.exit(f"tope total alcanzado: USD {total:.2f} de {TOPE_TOTAL_USD}")
-        cur.execute(consulta, {"tipos": lector["tipos"], "lector": a.lector, "version": VERSION, "limite": a.limite})
-        piezas = cur.fetchall()
-        cn.commit()
-        print(f"{a.entorno}: {len(piezas)} piezas por leer con {motor.nombre} ({a.lector} {VERSION}); gastado hasta ahora USD "
-              f"{total:.2f} de {TOPE_TOTAL_USD}", flush=True)
+        print(f"{a.entorno}: hasta {a.limite} piezas con {motor.nombre} ({a.lector} {version_de(a.lector)}), tope USD {a.tope_usd}; "
+              f"gastado hasta ahora USD {total:.2f} de {TOPE_TOTAL_USD}", flush=True)
         gastado, hechos = 0.0, 0
         cuenta: dict[str, int] = {}
-        candado = threading.Lock()
+        vistas: set[int] = set()
+        seguir = True
         with ThreadPoolExecutor(max_workers=a.hilos) as pool:
-            futuros = {}
-            i = 0
-            while i < len(piezas) or futuros:
-                while i < len(piezas) and len(futuros) < a.hilos * 2 and gastado < a.tope_usd and total + gastado < TOPE_TOTAL_USD:
-                    pid, tipo, paginas = piezas[i]
-                    futuros[pool.submit(leer_una, motor, a.lector, pid, tipo, paginas or [])] = pid
-                    i += 1
-                if not futuros:
-                    break
-                listo = next(as_completed(futuros))
-                pid = futuros.pop(listo)
-                try:
-                    fila = listo.result()
-                except Exception as e:  # noqa: BLE001 — queda como error y se reintenta en otra corrida
-                    fila = {"pieza_id": pid, "lector": a.lector, "version": VERSION, "modelo": motor.nombre, "estado": "error",
-                            "salida": None, "tokens_in": None, "tokens_out": None, "costo_usd": 0,
-                            "detalle": f"{type(e).__name__}: {str(e)[:200]}"}
-                cur.execute(GUARDAR, fila)
+            # Por tandas: cada pieza viaja con el texto de sus páginas (unas bases son cientos de KB).
+            while seguir and hechos < a.limite:
+                cur.execute(consulta, {"tipos": lector["tipos"], "lector": a.lector, "version": version_de(a.lector),
+                                       "limite": min(TANDA, a.limite - hechos)})
+                piezas = [x for x in cur.fetchall() if x[0] not in vistas]
                 cn.commit()
-                with candado:
+                if not piezas:
+                    break
+                vistas.update(x[0] for x in piezas)
+                futuros = {pool.submit(leer_una, motor, a.lector, pid, tipo, paginas or [], a.con_escaneos): pid
+                           for pid, tipo, paginas in piezas}
+                for listo in as_completed(futuros):
+                    pid = futuros[listo]
+                    try:
+                        fila = listo.result()
+                    except Exception as e:  # noqa: BLE001 — queda como error y se reintenta en otra corrida
+                        fila = {"pieza_id": pid, "lector": a.lector, "version": version_de(a.lector), "modelo": motor.nombre,
+                                "estado": "error", "salida": None, "tokens_in": None, "tokens_out": None, "costo_usd": 0,
+                                "detalle": f"{type(e).__name__}: {str(e)[:200]}"}
+                    cur.execute(GUARDAR, fila)
+                    cn.commit()
                     gastado += float(fila["costo_usd"] or 0)
                     hechos += 1
                     cuenta[fila["estado"]] = cuenta.get(fila["estado"], 0) + 1
-                if hechos % 20 == 0:
-                    print(f"  {hechos}/{len(piezas)} USD {gastado:.3f} {cuenta} {round(time.time() - t0)} s", flush=True)
-                if (gastado >= a.tope_usd or total + gastado >= TOPE_TOTAL_USD) and i < len(piezas):
+                    if hechos % 20 == 0:
+                        print(f"  {hechos} piezas USD {gastado:.3f} {cuenta} {round(time.time() - t0)} s", flush=True)
+                if gastado >= a.tope_usd or total + gastado >= TOPE_TOTAL_USD:
                     print("  tope alcanzado: no se mandan más", flush=True)
-                    i = len(piezas)
+                    seguir = False
     print(f"FIN {a.lector}: {hechos} piezas, USD {gastado:.3f} (USD {gastado / max(hechos, 1):.5f} por pieza), {cuenta}, "
           f"{round(time.time() - t0)} s")
 
