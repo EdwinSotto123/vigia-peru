@@ -5,7 +5,9 @@
  *     q        la pregunta o el tema («fraccionamiento», «impedimentos de parientes», «penalidad por mora»);
  *     fecha    la de la convocatoria (AAAA-MM-DD; hoy si falta): decide la ley (Ley 32069 desde el 22-04-2025, antes la
  *              30225) y la versión de cada artículo (el Reglamento cambió el 14-01-2026);
- *     materia  contrataciones (por defecto, con control y presupuesto) | empleo_publico | especial | inversion.
+ *     materia  contrataciones (por defecto, con control y presupuesto) | empleo_publico | especial | inversion |
+ *              integridad (gestión de intereses y registro de visitas, ética pública, declaración jurada de intereses,
+ *              impedimentos al dejar el cargo y delitos contra la administración pública: migración 331).
  *
  * Devuelve lo mismo que recibe el analista legal: hasta 5 artículos que regían ese día, 3 criterios del OECE de esa ley
  * (opiniones y acuerdos de Sala Plena) y 2 de la otra ley, marcados: valen sólo por analogía.
@@ -25,7 +27,7 @@ const memo = new Memo<Record<string, unknown>>({ nombre: "normas", ttlMs: 3_600_
 const Buscar = z.object({
   q: z.string().trim().min(3).max(300),
   fecha: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
-  materia: z.enum(["contrataciones", "empleo_publico", "especial", "inversion"]).default("contrataciones"),
+  materia: z.enum(["contrataciones", "empleo_publico", "especial", "inversion", "integridad"]).default("contrataciones"),
 });
 
 export interface Fila {

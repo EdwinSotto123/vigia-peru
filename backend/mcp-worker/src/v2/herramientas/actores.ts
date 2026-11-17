@@ -795,22 +795,28 @@ export const normaAplicable = definir({
     "esa misma ley (opiniones de la Dirección Técnico Normativa y acuerdos de Sala Plena del Tribunal); y, aparte, criterios " +
     "emitidos bajo la otra ley, que valen sólo por analogía. Sirve para citar bien una irregularidad: el artículo exacto y " +
     "su enlace oficial. Con materia «empleo_publico» busca en las normas de CAS y planillas; con «especial», en obras " +
-    "paralizadas, Reconstrucción con Cambios y Obras por Impuestos. No interpreta el caso: da el texto.",
+    "paralizadas, Reconstrucción con Cambios y Obras por Impuestos; con «integridad», en la gestión de intereses y el registro " +
+    "de visitas (Ley 28024), el Código de Ética de la Función Pública (Ley 27815), la declaración jurada de intereses " +
+    "(Ley 31227), los impedimentos al dejar el cargo (Ley 27588 hasta el 19-07-2023; desde el 20, Ley 31564) y los delitos " +
+    "contra la administración pública del Código Penal (colusión, negociación incompatible, tráfico de influencias, cohecho). " +
+    "No interpreta el caso: da el texto.",
   cuenta: true,
   entrada: {
     pregunta: z.string().min(3).max(300).describe("El tema o la pregunta, en palabras de la norma si las sabes."),
     fecha: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().describe("Fecha de la convocatoria (AAAA-MM-DD). Sin ella, hoy. ficha_contrato la da."),
-    materia: z.enum(["contrataciones", "empleo_publico", "especial", "inversion"]).default("contrataciones"),
+    materia: z.enum(["contrataciones", "empleo_publico", "especial", "inversion", "integridad"]).default("contrataciones"),
   },
   async ejecutar(a, cx) {
     const r = await api<Fila>(cx.env, "/normas/buscar", { q: a.pregunta, fecha: a.fecha, materia: a.materia });
+    // La ley de contrataciones que regía (32069 o 30225) no dice nada de una norma de integridad: ahí no va.
+    const deContrataciones = a.materia !== "integridad";
     const filas = (r.data ?? []) as Fila[];
     const como = (x: Fila) => ({
       norma: x.documento, articulo: x.articulo ?? undefined, titulo: x.epigrafe ?? undefined, emitida: x.fechaEmision ?? undefined,
       version: x.version ?? undefined, texto: recortar(String(x.texto ?? ""), 1200), fuente_oficial: x.urlOficial ?? undefined,
     });
     return {
-      fecha_del_proceso: r.fecha, rige: r.ley,
+      fecha_del_proceso: r.fecha, rige: deContrataciones ? r.ley : undefined,
       normas_que_regian: filas.filter((x) => x.aplica === "norma").map(como),
       criterios_de_esa_ley: filas.filter((x) => x.aplica === "criterio").map(como),
       criterios_de_la_otra_ley: filas.filter((x) => x.aplica === "criterio_anterior").map((x) => ({

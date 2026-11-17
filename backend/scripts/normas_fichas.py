@@ -73,6 +73,31 @@ AJUSTES = {
     # Las bases estándar de 2026 reemplazan a las de 2025 con el Reglamento modificado.
     **{f"C-BASE26-{i:02d}": {"vigencia_desde": "2026-01-14"} for i in range(1, 20)},
 }
+# Lote 8 (normas_descarga/integridad.py): gestión de intereses, ética, declaración jurada de intereses, impedimentos al
+# dejar el cargo y delitos de funcionarios. Materia `integridad`: la búsqueda general no la trae (migración 331); se pide
+# con p_materias. Sin fecha de vigencia comprobada en la fuente, `vigencia_desde` queda vacía (no se inventa).
+INTEGRIDAD = {
+    "INT-LEY-28024": {"vigencia_desde": None},
+    "INT-DS-120-2019-PCM": {}, "INT-LEY-27815": {}, "INT-DS-019-2002-PCM": {}, "INT-LEY-31564": {}, "INT-DS-082-2023-PCM": {},
+    # Los títulos de estas tres pasan de 170 caracteres: el nombre va abreviado, con el tema entre paréntesis.
+    "INT-LEY-27588": {"documento": "Ley N° 27588 (prohibiciones e incompatibilidades de funcionarios y servidores públicos y de quienes presten servicios "
+                                   "al Estado)"},
+    "INT-LEY-31227": {"documento": "Ley N° 31227 (declaración jurada de intereses de autoridades, servidores y candidatos a cargos públicos: su "
+                                   "control, fiscalización y sanción por la Contraloría)"},
+    "INT-DS-033-2005-PCM": {"fecha_emision": "2005-04-18", "vigencia_desde": None},
+    # Los títulos I a IV del Reglamento del Código de Ética, como rigieron hasta su derogación: otra versión de la misma norma.
+    "INT-DS-033-2005-PCM-DEROGADO": {"slug": "ds-033-2005-pcm-anterior", "version_de": "ds-033-2005-pcm", "numero": "033-2005-PCM",
+                                     "fecha_emision": "2005-04-18", "vigencia_desde": None, "vigencia_hasta": "2014-06-13",
+                                     "documento": "D.S. N° 033-2005-PCM, Reglamento de la Ley del Código de Ética de la Función Pública: títulos I a "
+                                                  "IV, que rigieron hasta el 13-06-2014"},
+    # Es el Reglamento de la Ley 31227 aunque lo dicte la Contraloría: jerarquía de reglamento, no de documento de control.
+    "INT-RC-158-2021-CG": {"tipo": "reglamento",
+                           "documento": "R.C. N° 158-2021-CG, Reglamento para implementar la Ley N° 31227 (declaración jurada de intereses)"},
+    "INT-DL-635-CODIGO-PENAL": {"slug": "codigo-penal-delitos-funcionarios", "numero": "Código Penal", "vigencia_desde": None,
+                                "documento": "Código Penal (Decreto Legislativo N° 635): delitos contra la administración pública cometidos por "
+                                             "funcionarios"},
+}
+AJUSTES.update({k: {"materia": "integridad", "regimen": "ambos", **v} for k, v in INTEGRIDAD.items()})
 
 RE_ART = re.compile(r"^[ \t]*(?:Art[íi]culo|ART[ÍI]CULO)\s+(\d{1,3}(?:\s?-\s?[A-Z])?)\s*[°º]?\s*[.\-–:]*[ \t]*(.*)$", re.M)
 RE_SECCION_DISP = re.compile(r"^[ \t]*(DISPOSICI[OÓ]N(?:ES)?\s+COMPLEMENTARIAS?\s+(FINAL(?:ES)?|TRANSITORIAS?|MODIFICATORIAS?|DEROGATORIAS?))[ \t]*$", re.M | re.I)
@@ -329,6 +354,28 @@ def cortar(texto: str, tipo: str) -> list[dict]:
     return salida
 
 
+def fragmentos_unidades(unidades: list[dict], documento: str) -> list[dict]:
+    """Una norma que ya viene cortada por artículo ({articulo, epigrafe, texto}: el .json del lote 8): las mismas
+    cabeceras que fragmentos(). Un artículo largo se parte por párrafos (el texto trae uno por línea)."""
+    salida = []
+    for u in unidades:
+        art, epi = u.get("articulo"), u.get("epigrafe")
+        piezas = [re.sub(r"\n\s*\n", "\n", p) for p in _partir(u["texto"].replace("\n", "\n\n"))]
+        for k, pieza in enumerate(piezas):
+            if len(pieza) < MIN:
+                continue
+            if art and art.startswith("DC"):
+                cab = f"{documento} — {epi or art}"
+            elif art:
+                cab = f"{documento} — Artículo {art}" + (f" — {epi}" if epi else "")
+            else:
+                cab = documento + (f" — {epi}" if epi else "")
+            if len(piezas) > 1:
+                cab += f" (parte {k + 1} de {len(piezas)})"
+            salida.append({"articulo": art, "epigrafe": (epi or None) and epi[:160], "pagina": None, "texto": cab + "\n" + pieza})
+    return salida
+
+
 def fragmentos(paginas: list[str], documento: str, tipo: str) -> list[dict]:
     texto, inicios = unir(paginas)
     salida = []
@@ -497,7 +544,7 @@ def main() -> None:
     hay_lote6 = (raiz / "00_manifiesto" / "lote6_resultado.json").exists()
     for d in manifiesto(raiz):
         ident = str(d.get("identificador") or d.get("id"))
-        if a.solo and a.solo != d.get("id"):
+        if a.solo and d.get("id") not in a.solo.split(","):          # uno o varios id separados por comas
             continue
         fila = {"id": d.get("id"), "identificador": ident, "lote": d["_lote"]}
         if d.get("id") in SALTAR:
@@ -526,7 +573,10 @@ def main() -> None:
         if k["tipo"] == "opinion" and k.get("fecha_emision"):
             documento = f"{ident} ({k['fecha_emision'][8:10]}-{k['fecha_emision'][5:7]}-{k['fecha_emision'][:4]})"
         try:
-            frag = fragmentos(texto_paginas(archivo, columna), documento if not tipo_bases else str(d.get("titulo") or ident)[:150], k["tipo"])
+            if archivo.suffix.lower() == ".json":          # ya cortada por artículo (lote 8)
+                frag = fragmentos_unidades(json.loads(archivo.read_text(encoding="utf-8"))["unidades"], documento)
+            else:
+                frag = fragmentos(texto_paginas(archivo, columna), documento if not tipo_bases else str(d.get("titulo") or ident)[:150], k["tipo"])
         except Exception as e:  # noqa: BLE001
             informe.append({**fila, "entra": False, "motivo": f"no se pudo leer: {str(e)[:120]}"})
             continue

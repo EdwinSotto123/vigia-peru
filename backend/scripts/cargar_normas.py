@@ -14,7 +14,8 @@ Ficha de `carpeta` (un .json por norma o criterio, para lo que se descargue desp
   {"slug": "opinion-012-2026-dtn", "documento": "Opinión N° 012-2026/DTN", "numero": "012-2026/DTN", "emisor": "OECE",
    "tipo": "opinion", "regimen": "32069", "fecha_emision": "2026-03-14", "url_oficial": "https://…",
    "fragmentos": [{"articulo": "29", "epigrafe": "Requisitos de calificación", "texto": "…", "pagina": 3}]}
-Opcionales (migración 286): "materia" (contrataciones | control | presupuesto | administrativo | empleo_publico | inversion),
+Opcionales (migración 286): "materia" (contrataciones | control | presupuesto | administrativo | empleo_publico | inversion |
+especial | integridad; empleo_publico, especial e integridad no salen en la búsqueda general: migraciones 287 y 331),
 "estado", "verificacion" (C | S | PV), "version_de" (slug de la norma de la que esta es OTRA versión por fecha), "catalogo_id",
 "sha256", "vigencia_desde", "vigencia_hasta". Las fichas salen de backend/scripts/normas_fichas.py.
 """
