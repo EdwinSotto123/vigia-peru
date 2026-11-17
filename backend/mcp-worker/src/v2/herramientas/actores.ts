@@ -405,7 +405,9 @@ export const rastroPersona = definir({
     "visitante. Los nombres salen con un apellido tapado (es sólo para mostrar; la búsqueda usa el nombre entero) y nunca " +
     "sale un documento. No se busca por DNI. Si hay varios nombres parecidos, dilo: pueden ser personas distintas. Si la " +
     "persona tiene cargo público (presentó declaraciones juradas de intereses), `con_cargo_publico` trae su último cargo y " +
-    "el enlace a su ficha de rastro en Vigía: dáselo a quien pregunta.",
+    "el enlace a su ficha de rastro en Vigía: dáselo a quien pregunta. Con cargo público trae también `visitas_que_recibio`: " +
+    "qué empresas la visitaron en las entidades en que trabajó (por el nombre de quien recibió la visita) y cuántos procesos " +
+    "le ganó después cada una a esa entidad; nunca quién visitó.",
   cuenta: true,
   entrada: { nombre: z.string().min(6).max(80).describe("Apellidos y nombres de la persona, al menos dos palabras.") },
   async ejecutar(a, cx) {
@@ -420,6 +422,18 @@ export const rastroPersona = definir({
       suave(api<Fila>(cx.env, "/personas", { q: a.nombre, size: 10 })),
       suave(api<Fila>(cx.env, "/poder/trayectoria", { q: a.nombre })),
     ]);
+    // Las visitas que recibió (migración 335), de la ficha de rastro de cada persona con cargo público que calza (hasta 2).
+    const fichas = await Promise.all(((r?.con_cargo_publico ?? []) as Fila[]).filter((x) => x.codigo).slice(0, 2)
+      .map((x) => suave(api<Fila>(cx.env, `/personas/cargo/${encodeURIComponent(x.codigo)}`)).then((f) => ({ codigo: x.codigo as string, f }))));
+    const visitasQueRecibio = fichas.filter(({ f }) => f?.recibidas?.filas?.length).map(({ codigo, f }) => ({
+      ficha: e.funcionario(codigo),
+      empresas: f!.recibidas.empresas, visitas: f!.recibidas.visitas, empresas_que_ganaron_despues: f!.recibidas.ganaronDespues,
+      filas: ((f!.recibidas.filas ?? []) as Fila[]).slice(0, 20).map((x) => ({
+        empresa: x.empresa, ruc: x.ruc, enlace_empresa: e.empresa(x.ruc), entidad: x.entidad, enlace_entidad: x.entidadRuc ? e.entidad(x.entidadRuc) : undefined,
+        visitas: x.visitas, primera: x.primera, ultima: x.ultima, procesos_ganados_despues: x.ganoDespues,
+        monto_adjudicado_despues_soles: x.montoDespues ?? undefined, primera_buena_pro_despues: x.primeraBuenaPro ?? undefined,
+      })),
+    }));
     const visitas = ((r?.visitas ?? []) as Fila[]).map((v) => ({
       nombre: v.nombre, entidad: v.entidad, entidad_ruc: v.entidad_ruc ?? undefined, visitas: v.visitas, primera: v.primera, ultima: v.ultima,
       en_nombre_de: v.en_nombre_de ?? undefined, a_quien_visito: v.a_quien ?? undefined, motivos: v.motivos ?? undefined,
@@ -440,6 +454,9 @@ export const rastroPersona = definir({
         enlace: x.codigo ? e.funcionario(x.codigo) : undefined,
       })),
       visitas,
+      // Por el nombre de quien recibió la visita, sólo en entidades en que la persona tuvo cargo o planilla: un homónimo
+      // exacto en la misma entidad saldría también.
+      visitas_que_recibio: visitasQueRecibio.length ? visitasQueRecibio : undefined,
       empresas: ((r?.empresas ?? []) as Fila[]).map((x) => ({ ...x, enlace: x.ruc ? e.empresa(x.ruc) : undefined })),
       // Lo primero que mira un investigador: visitó la entidad y una empresa suya le ganó procesos.
       visito_y_su_empresa_gano: ((r?.visito_y_su_empresa_gano ?? []) as Fila[]).map((x) => ({
