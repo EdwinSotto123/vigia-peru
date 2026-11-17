@@ -43,7 +43,7 @@ export async function generateMetadata({
   // Sin los «¿» que el SEACE dejó donde iban comillas (la pestaña del navegador también lo muestra).
   const objeto = corto(c.titulo ? limpiarObjeto(c.titulo) : `Contrato ${c.codigo}`, 70);
   const base = c.entidad ? `${objeto}, ${corto(c.entidad, 48)}` : objeto;
-  const titulo = vista === "dictamen" ? `Análisis: ${base}` : vista === "vivo" ? `${base}, cómo se leyó` : base;
+  const titulo = vista === "dictamen" ? `Análisis: ${base}` : vista === "vivo" ? `${base}, trazabilidad` : base;
   const desc = [
     c.entidad,
     c.zona,
@@ -89,7 +89,7 @@ export default async function ContratoPage({
   const desde = leerDesde(searchParams);
   const tabPedida = typeof searchParams?.tab === "string" ? searchParams.tab : undefined;
   let vista = vistaDe(searchParams?.vista);
-  // «Cómo se hizo» era la última pestaña del dictamen; ahora es la vista «Cómo se leyó»: los enlaces viejos llegan ahí.
+  // «Cómo se hizo» era la última pestaña del dictamen; ahora es la vista «Trazabilidad»: los enlaces viejos llegan ahí.
   if (vista === "dictamen" && tabPedida === "trace") vista = "vivo";
   const tab = esClaveDictamen(tabPedida) && tabPedida !== "trace" ? tabPedida : undefined;
   const [{ contrato: base, redirigirA }, vivoResumen, catalogo] = await Promise.all([
@@ -120,7 +120,7 @@ export default async function ContratoPage({
   const vistas: VistaDisponible[] = [
     { clave: "ficha", etiqueta: "Ficha del contrato" },
     ...(publicada ? [{ clave: "dictamen" as const, etiqueta: "Dictamen" }] : []),
-    ...(base.procesamiento || informe || proceso ? [{ clave: "vivo" as const, etiqueta: enCurso ? "Lectura en vivo" : "Cómo se leyó" }] : []),
+    ...(base.procesamiento || informe || proceso ? [{ clave: "vivo" as const, etiqueta: enCurso ? "Trazabilidad en vivo" : "Trazabilidad" }] : []),
   ];
   const activa: VistaContrato = vistas.some((v) => v.clave === vista) ? vista : "ficha";
 

@@ -196,7 +196,7 @@ export function ContratoDetalle({
           ) : (
             otros
           )}
-          {/* «Qué partes del análisis aplican» ya no va aquí: lo dice la vista «Cómo se leyó», con cada parte en su orden y
+          {/* «Qué partes del análisis aplican» ya no va aquí: lo dice la vista «Trazabilidad», con cada parte en su orden y
               lo que hizo. */}
           {parecidos && (
             <Esperar p={parecidos}>
@@ -467,7 +467,7 @@ function AnalisisCard({ c, lectura, alcance, conCronograma }: { c: Detalle; lect
             Leer el dictamen
           </EnlaceAccion>,
           <Link key="como" href={rutaContrato(c.ocid, "vivo")} prefetch={false} className={claseAccion("secundario")}>
-            <Workflow size={16} aria-hidden /> Cómo se leyó
+            <Workflow size={16} aria-hidden /> Trazabilidad
           </Link>,
         ]}
       >

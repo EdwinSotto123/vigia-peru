@@ -65,7 +65,7 @@ export function ResultadoView({
   vistaPrevia?: boolean;
   /**
    * Dentro de la página del contrato, bajo su cabecera única (CabeceraContrato): sin identidad ni veredicto (la cabecera
-   * ya dice qué, quién, cuánto, el riesgo y cada señal), sin la pestaña «Cómo se hizo» (es la vista «Cómo se leyó» de
+   * ya dice qué, quién, cuánto, el riesgo y cada señal), sin la pestaña «Cómo se hizo» (es la vista «Trazabilidad» de
    * la página) y sin el pie (la página lleva uno solo). Antes la ficha y el dictamen tenían cada uno su cabecera, con
    * las mismas cifras dichas de otra forma (auditoría visual del 2026-11-13).
    */
@@ -115,7 +115,7 @@ export function ResultadoView({
   // Tras el clic el panel ya está a la vista (Pestanas lo monta en el mismo turno): el cuadro siguiente ya puede bajar.
   const abrirTab = useCallback(
     (t: TabKey, ancla?: string) => {
-      // Dentro de la página del contrato, «Cómo se hizo» es su vista «Cómo se leyó» (la barra de vistas, `?vista=vivo`).
+      // Dentro de la página del contrato, «Cómo se hizo» es su vista «Trazabilidad» (la barra de vistas, `?vista=vivo`).
       if (t === "trace" && embebido) {
         irAPestana("vivo", "vista");
         return;
@@ -203,7 +203,7 @@ export function ResultadoView({
     { key: "proveedor", label: E.proveedor, badge: nRed || null },
     { key: "documentos", label: E.documentos, badge: nDocs || null },
     { key: "prensa", label: E.prensa, badge: nNoticias || null },
-    // Dentro de la página del contrato, «Cómo se hizo» es su vista «Cómo se leyó» (arriba, junto a Ficha y Dictamen).
+    // Dentro de la página del contrato, «Cómo se hizo» es su vista «Trazabilidad» (arriba, junto a Ficha y Dictamen).
     ...(embebido ? [] : [{ key: "trace" as TabKey, label: E.trace, badge: null }]),
   ];
 
@@ -385,7 +385,7 @@ export function ResultadoView({
 
 /**
  * La columna del dictamen dentro de la página del contrato: el objeto entero (la cabecera lo recorta a tres líneas) y la
- * entrada a «Cómo se leyó», que es una vista de la página (`?vista=vivo`). Las cifras de antes (postores, ítems y
+ * entrada a «Trazabilidad», que es una vista de la página (`?vista=vivo`). Las cifras de antes (postores, ítems y
  * documentos) ya están en la cabecera y en el conteo de cada pestaña.
  */
 function LateralEmbebido({ objeto, corrida, nEvents, ocid }: { objeto: unknown; corrida: ReturnType<typeof estadoCorrida>; nEvents: number; ocid: string | null }) {
@@ -415,7 +415,7 @@ function LateralEmbebido({ objeto, corrida, nEvents, ocid }: { objeto: unknown; 
         <Workflow size={16} className="mt-0.5 shrink-0 text-mute" aria-hidden />
         <span className="min-w-0 flex-1">
           <span className="flex items-center justify-between gap-2 text-meta font-semibold text-ink">
-            Cómo se leyó
+            Trazabilidad
             <ChevronRight size={14} className="shrink-0 text-mute" aria-hidden />
           </span>
           <span className="mt-0.5 block text-rotulo leading-snug text-inkSoft">
