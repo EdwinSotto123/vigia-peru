@@ -259,11 +259,25 @@ def expediente_proveedor_bd(ruc: str, entidad_ruc: str | None = None, ocid: str 
                 out["rnp"].append(fila)
         out["_nombres_crudos"] = sorted({r["nombre"] for r in rnp if r.get("nombre")})
 
-        # 3. Sanciones y penalidades.
-        out["sanciones"] = [_limpio(s) for s in _filas(cur, """
-            SELECT tipo, resolucion, fecha_resolucion, fecha_desde, fecha_hasta, left(infraccion, 220) AS infraccion, estado,
-                   monto_multa_soles, verificacion_pago
-              FROM osce_sancionados WHERE ruc = %s ORDER BY fecha_desde DESC NULLS LAST LIMIT 20""", (ruc,))]
+        # 3. Sanciones y penalidades. Con lo que dice HOY la ficha del proveedor en el OECE (migración 337): los datos
+        # abiertos no reflejan cuando el Tribunal sustituyó o levantó una sanción (A & G INDUSTRIES, 2026-2409-58).
+        cur.execute("SAVEPOINT sanciones_ficha")
+        try:
+            out["sanciones"] = [_limpio(s) for s in _filas(cur, """
+                SELECT s.tipo, s.resolucion, s.fecha_resolucion, s.fecha_desde, s.fecha_hasta, left(s.infraccion, 220) AS infraccion,
+                       s.estado, s.monto_multa_soles, s.verificacion_pago, f.estado_ficha, f.fin_ficha,
+                       to_char(f.consultado_at, 'YYYY-MM-DD') AS ficha_consultada
+                  FROM osce_sancionados s
+                  LEFT JOIN LATERAL (SELECT x.estado_ficha, x.fin_ficha, x.consultado_at FROM sancion_segun_ficha x
+                                      WHERE x.ruc = s.ruc AND x.resolucion = s.resolucion LIMIT 1) f ON true
+                 WHERE s.ruc = %s ORDER BY s.fecha_desde DESC NULLS LAST LIMIT 20""", (ruc,))]
+            cur.execute("RELEASE SAVEPOINT sanciones_ficha")
+        except Exception:  # noqa: BLE001 — una base sin la migración 337: como antes
+            cur.execute("ROLLBACK TO SAVEPOINT sanciones_ficha")
+            out["sanciones"] = [_limpio(s) for s in _filas(cur, """
+                SELECT tipo, resolucion, fecha_resolucion, fecha_desde, fecha_hasta, left(infraccion, 220) AS infraccion, estado,
+                       monto_multa_soles, verificacion_pago
+                  FROM osce_sancionados WHERE ruc = %s ORDER BY fecha_desde DESC NULLS LAST LIMIT 20""", (ruc,))]
         pen = _filas(cur, """SELECT count(*)::int AS n, sum(monto)::float AS monto, count(DISTINCT entidad_contratante)::int AS entidades,
                                     min(fecha) AS desde, max(fecha) AS hasta
                                FROM penalidades WHERE empresa_ruc = %s""", (ruc,))[0]
@@ -446,6 +460,9 @@ def resumen_para_agentes(exp: dict) -> dict:
     return out
 
 
+_LEY_32069 = date(2025, 4, 22)
+
+
 def _sancion_oece(s: dict, fecha_ref: date | None) -> dict:
     """Una fila de `osce_sancionados` con las claves del OECE, juzgada a la fecha de la buena pro (no a hoy: el `estado`
     del registro es el de hoy). Una sanción que empezó después no cuenta; una definitiva rige desde que empieza."""
@@ -457,8 +474,22 @@ def _sancion_oece(s: dict, fecha_ref: date | None) -> dict:
         desde = date.fromisoformat(str(s.get("fecha_desde"))[:10]) if s.get("fecha_desde") else None
     except ValueError:
         desde = None
+    try:
+        fin_ficha = date.fromisoformat(str(s.get("fin_ficha"))[:10]) if s.get("fin_ficha") else None
+    except ValueError:
+        fin_ficha = None
+    if s.get("estado_ficha") == "no_figura":
+        d["segun_ficha_oece"] = f"ya no figura en la ficha del OECE (consultada el {s.get('ficha_consultada')}): sustituida, reducida o anulada"
     if desde and desde > ref:
         d["vigente"] = False
+    # Ya no figura y la buena pro es desde la Ley 32069 (22-04-2025, cuando se empezaron a sustituir definitivas por
+    # retroactividad benigna): no se sabe que estuviera vigente ese día. Con fin según la ficha anterior a la buena pro,
+    # tampoco lo estaba. Con buena pro anterior, se juzga como siempre (lo estaba) y lleva la nota.
+    elif (s.get("estado_ficha") == "no_figura" and ref >= _LEY_32069) or (fin_ficha and fin_ficha < ref):
+        d["vigente"] = False
+        d.pop("estado", None)
+        if fin_ficha:
+            d["fechaFin"] = fin_ficha
     elif s.get("tipo") == "definitivo":
         d["vigente"] = True
     elif s.get("tipo") == "temporal" and s.get("fecha_hasta"):

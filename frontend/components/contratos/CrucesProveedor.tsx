@@ -430,6 +430,16 @@ function Texto({ c, gobierna }: { c: CruceProveedor; gobierna?: GobiernoContrato
           {tipo === "multa" && c.montoSoles ? ` de ${solesCompacto(c.montoSoles)}` : ""}
           {txt(d.infraccion) ? `, por ${recortar(txt(d.infraccion)!.replace(/^[-\s]*(i+\)\s*)?/i, ""), 260).toLowerCase()}` : ""}
           {txt(d.resolucion) ? ` (Res. ${d.resolucion})` : ""}.
+          {/* Migración 337: la ficha del proveedor en el OECE dice hoy que el Tribunal la sustituyó o la dio por terminada. */}
+          {txt(d.segun_ficha) && (
+            <span className="mt-1 flex items-start gap-1.5 text-mossTexto">
+              <CircleAlert size={14} className="mt-0.5 shrink-0" aria-hidden />
+              <span>
+                {txt(d.estado) === "sustituida o levantada" ? "Sustituida o levantada" : "Terminada"}: {txt(d.segun_ficha)}
+                {txt(d.ficha_consultada) ? ` (consultada el ${fechaCorta(txt(d.ficha_consultada)!)})` : ""}.
+              </span>
+            </span>
+          )}
         </>
       );
     }
