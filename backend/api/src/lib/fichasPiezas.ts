@@ -186,6 +186,19 @@ function mismo(a: { ruc?: unknown; nombre?: unknown }, b: { ruc?: unknown; nombr
   return na.slice(0, n) === nb.slice(0, n);
 }
 
+/**
+ * Lo que sumaron los demás factores, comprobado: precio + otros tiene que dar el total (el total coincide con el reporte de
+ * evaluación del SEACE). Si el modelo lo leyó mal (en el proceso 1225937 leyó 50 donde el acta dice 60), se calcula.
+ */
+export function otrosDe(e: any): number | null {
+  const precio = num(e?.puntaje_precio);
+  const total = num(e?.puntaje_total);
+  const otros = num(e?.puntaje_otros);
+  if (precio == null || total == null) return otros;
+  const calculado = Math.round((total - precio) * 100) / 100;
+  return otros != null && Math.abs(precio + otros - total) <= 0.05 ? otros : calculado;
+}
+
 export function enriquecerPostores(
   postores: PostorDetalle[], evaluacion: FichaPieza | undefined, presentacion: FichaPieza | undefined,
   participantes: { ruc: string; nombre: string | null }[], enVigia: Set<string>,
@@ -204,7 +217,7 @@ export function enriquecerPostores(
     motivoNoAdmitida: txt(e?.motivo_no_admitida)?.slice(0, 400) ?? null,
     calificada: typeof e?.calificada === "boolean" ? e.calificada : null,
     motivoNoCalificada: txt(e?.motivo_no_calificada)?.slice(0, 400) ?? null,
-    puntajePrecio: num(e?.puntaje_precio), puntajeOtros: num(e?.puntaje_otros), puntajeTotal: num(e?.puntaje_total),
+    puntajePrecio: num(e?.puntaje_precio), puntajeOtros: otrosDe(e), puntajeTotal: num(e?.puntaje_total),
     bonificacion: num(e?.bonificacion), puntajeFinal: num(e?.puntaje_final),
     citaEvaluacion: evaluacion ? citaDe(e, evaluacion, enVigia) : null,
   });

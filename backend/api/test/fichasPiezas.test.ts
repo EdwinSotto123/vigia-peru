@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { enriquecerPostores, itemsDeDocumentos, perfilDeBases, type FichaPieza, type PostorDetalle } from "../src/lib/fichasPiezas.js";
+import { enriquecerPostores, itemsDeDocumentos, otrosDe, perfilDeBases, type FichaPieza, type PostorDetalle } from "../src/lib/fichasPiezas.js";
 import { publicar } from "../src/lib/privacidad.js";
 
 // Forma real del proceso 1225937 (lubricantes): las bases piden diez productos y el contrato los trae con marca y precio.
@@ -81,4 +81,10 @@ test("perfil: las bases dicen qué se le pide al contratista, con su página y s
   assert.equal(p.experiencia[0].cita?.pagina, 31);
   assert.equal(p.marcas[0].admiteEquivalente, false);
   assert.equal(p.adelantos, null);
+});
+
+test("puntaje de los demás factores: si precio + otros no da el total, se calcula del total", () => {
+  assert.equal(otrosDe({ puntaje_precio: 35.26, puntaje_otros: 50, puntaje_total: 95.26 }), 60);
+  assert.equal(otrosDe({ puntaje_precio: 40, puntaje_otros: 60, puntaje_total: 100 }), 60);
+  assert.equal(otrosDe({ puntaje_precio: null, puntaje_otros: 12, puntaje_total: 80 }), 12);
 });
