@@ -89,6 +89,8 @@ el tramo de un factor de evaluación: si dudas, null. (Medido el 2026-11-16: en 
 experiencia_postor: la experiencia que se exige al postor como REQUISITO DE CALIFICACIÓN (monto facturado mínimo,
 en cuántos años, en qué especialidad), con una cita copiada de las bases que traiga ese mismo monto. Los tramos de un
 factor de evaluación («más de S/ X: 35 puntos») no son el requisito.
+citas: para el valor referencial y el plazo, la frase de las bases de donde tomaste cada dato, copiada palabra por
+palabra y con el número como está escrito (200 caracteres como máximo). Si el dato va en null, su cita va vacía.
 personal_clave: cada cargo exigido con los años de experiencia que se le piden (nunca nombres de personas).
 marcas: SOLO marcas comerciales, fabricantes o modelos que las bases exigen o nombran para el bien o servicio, con una
 cita copiada palabra por palabra; con_equivalente es true si la misma frase admite «o equivalente» o «similar»."""
@@ -101,7 +103,7 @@ ESQUEMA = {
     "type": "object",
     "additionalProperties": False,
     "required": ["es_bases", "objeto", "valor_referencial", "plazo_dias", "experiencia_postor", "personal_clave",
-                 "equipamiento", "factores_evaluacion", "marcas", "confianza"],
+                 "equipamiento", "factores_evaluacion", "marcas", "citas", "confianza"],
     "properties": {
         "es_bases": {"type": "boolean", "description": "Si las páginas son de las bases del procedimiento"},
         "objeto": _TXT,
@@ -127,6 +129,11 @@ ESQUEMA = {
             "type": "array",
             "items": {"type": "object", "additionalProperties": False, "required": ["marca", "con_equivalente", "cita"],
                       "properties": {"marca": _TXT, "con_equivalente": {"type": "boolean"}, "cita": _TXT}},
+        },
+        # La cita de cada dato clave (2026-11-16): con ella hecho_documento comprueba el dato sin modelo (migración 324).
+        "citas": {
+            "type": "object", "additionalProperties": False, "required": ["valor_referencial", "plazo_dias"],
+            "properties": {"valor_referencial": _TXT, "plazo_dias": _TXT},
         },
         "confianza": {"type": "string", "enum": ["alta", "media", "baja"]},
     },

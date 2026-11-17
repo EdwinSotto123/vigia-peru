@@ -22,6 +22,10 @@ el contrato los da; un consorcio no tiene RUC propio en el contrato: deja ruc en
 
 De quien firma por la entidad, sólo el CARGO (nunca el nombre ni el DNI). No extraigas DNI de nadie.
 
+citas: para el monto contratado, el plazo, el adelanto directo y el tope de la penalidad por mora, la frase del contrato
+de donde tomaste cada dato, copiada palabra por palabra y con el número como está escrito (200 caracteres como
+máximo). Si el dato va en null, su cita va vacía. Sirven para comprobar el dato sin volver a leer el documento.
+
 observaciones: SOLO cláusulas que el contrato muestra y que alguien que vigila el gasto querría revisar (una cláusula
 fuera de lo común, un pago o adelanto antes de ejecutar, una condición que favorece al contratista de forma inusual).
 Cada una con una cita copiada del contrato palabra por palabra. Lo normal es que no haya ninguna: un contrato común no
@@ -41,7 +45,7 @@ ESQUEMA = {
     "required": ["es_contrato", "numero_contrato", "fecha_suscripcion", "moneda", "monto_contratado", "contratista",
                  "objeto", "plazo_dias", "fecha_inicio", "fecha_fin", "forma_de_pago", "garantia_fiel_cumplimiento",
                  "adelanto_directo_pct", "adelanto_materiales_pct", "penalidad_mora_tope_pct", "otras_penalidades",
-                 "solucion_controversias", "cargo_firmante_entidad", "observaciones", "confianza"],
+                 "solucion_controversias", "cargo_firmante_entidad", "observaciones", "citas", "confianza"],
     "properties": {
         "es_contrato": {"type": "boolean", "description": "Si el documento es el contrato firmado (o su adenda)"},
         "numero_contrato": _TXT,
@@ -76,6 +80,12 @@ ESQUEMA = {
                 "properties": {"explicacion": {"type": "string"},
                                "cita": {"type": "string", "description": "Frase copiada del contrato, palabra por palabra"}},
             },
+        },
+        # La cita de cada dato clave (2026-11-16): con ella hecho_documento comprueba el dato sin modelo (migración 324).
+        "citas": {
+            "type": "object", "additionalProperties": False,
+            "required": ["monto_contratado", "plazo_dias", "adelanto_directo_pct", "penalidad_mora_tope_pct"],
+            "properties": {"monto_contratado": _TXT, "plazo_dias": _TXT, "adelanto_directo_pct": _TXT, "penalidad_mora_tope_pct": _TXT},
         },
         "confianza": {"type": "string", "enum": ["alta", "media", "baja"]},
     },

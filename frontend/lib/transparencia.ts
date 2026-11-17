@@ -98,6 +98,17 @@ export interface SumasDictamen {
   descartes: number;
 }
 
+/** Un tipo de dato leído de un documento (el monto del contrato, la experiencia exigida…) y cuánto de él se comprobó. */
+export interface HechosLeidos {
+  tipo: string;
+  clase: string;
+  total: number;
+  comprobados: number;
+  contradicen: number;
+  sinComprobar: number;
+  hasta: string | null;
+}
+
 export interface Transparencia {
   generado: string;
   agentes: { fecha: string | null; desde: string | null; redes: RedMedida[]; legal: LegalMedido[] } | null;
@@ -105,6 +116,8 @@ export interface Transparencia {
   verificacion: {
     senales: { total: number; cotejadas: number; noCotejadas: number; sinCotejo: number; contratos: number; alta: number; media: number; baja: number } | null;
     dictamenes: (SumasDictamen & { desde: string | null; hasta: string | null; porRed: (SumasDictamen & { red: string; nombre: string })[] }) | null;
+    /** Los datos leídos de los documentos, por tipo, y cuántos se comprobaron sin modelo (migración 323). Una API anterior no lo trae. */
+    hechos?: HechosLeidos[] | null;
   };
   costos: {
     analizados: { total: number; porMes: { mes: string; n: number }[] } | null;

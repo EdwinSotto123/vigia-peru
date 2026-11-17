@@ -381,6 +381,19 @@ async function contraloria() {
   };
 }
 
+/**
+ * Los datos leídos de los documentos, por tipo, y cuántos se pudieron comprobar sin modelo (hecho_documento, migración
+ * 323): contra un registro oficial, contra la cita del propio documento o contra una segunda lectura.
+ */
+const hechosLeidos = () =>
+  pool.query(
+    `SELECT tipo, clase, count(*)::int AS total,
+            count(*) FILTER (WHERE verificado IN ('registro', 'cita', 'dos_lecturas'))::int AS comprobados,
+            count(*) FILTER (WHERE verificado = 'contradice_registro')::int AS contradicen,
+            count(*) FILTER (WHERE verificado = 'sin_verificar')::int AS "sinComprobar",
+            to_char(max(leido_at) AT TIME ZONE '${LIMA}', 'YYYY-MM-DD') AS hasta
+       FROM hecho_documento GROUP BY tipo, clase ORDER BY count(*) DESC`).then((r) => r.rows);
+
 const declarados = () =>
   pool.query(
     `SELECT to_char(mes, 'YYYY-MM') AS mes, concepto, categoria, monto::float AS monto, moneda, fuente, nota,
@@ -389,12 +402,12 @@ const declarados = () =>
 
 transparenciaRouter.get("/", async (c) => {
   const cuerpo = await memo.obtener("todo", async (ctl) => {
-    const [filas, corp, ctr, sen, dict, anal, costo, valid, lect, mas, alm, fact, decl] = await Promise.all([
+    const [filas, corp, ctr, sen, dict, anal, costo, valid, lect, mas, alm, fact, decl, hech] = await Promise.all([
       bloque("corridas", ctl, corridas), bloque("corpus", ctl, corpus), bloque("contraloria", ctl, contraloria),
       bloque("senales", ctl, senales), bloque("dictamenes", ctl, dictamenes),
       bloque("analizados", ctl, analizados), bloque("costoAnalisis", ctl, costoAnalisis), bloque("validacion", ctl, validacion),
       bloque("lectores", ctl, lectores), bloque("masivo", ctl, masivo), bloque("almacenamiento", ctl, almacenamiento),
-      bloque("facturas", ctl, facturas), bloque("declarados", ctl, declarados),
+      bloque("facturas", ctl, facturas), bloque("declarados", ctl, declarados), bloque("hechos", ctl, hechosLeidos),
     ]);
     const serieRag = filas ? armarRagSerie(filas) : [];
     return {
@@ -403,7 +416,7 @@ transparenciaRouter.get("/", async (c) => {
       rag: corp || ctr || serieRag.length
         ? { corpus: corp, contraloria: ctr, serie: serieRag, fecha: serieRag[serieRag.length - 1]?.fecha ?? null }
         : null,
-      verificacion: { senales: sen, dictamenes: dict },
+      verificacion: { senales: sen, dictamenes: dict, hechos: hech },
       costos: { analizados: anal, analisis: costo, validacion: valid, lectores: lect, masivo: mas, almacenamiento: alm, facturas: fact, declarados: decl },
     };
   });

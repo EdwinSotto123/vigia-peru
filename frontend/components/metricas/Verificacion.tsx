@@ -1,8 +1,8 @@
-import { BadgeCheck, BellRing, ShieldQuestion } from "lucide-react";
+import { BadgeCheck, BellRing, FileCheck2, ShieldQuestion } from "lucide-react";
 import { BarraSegmentada, MuestraSerie } from "@/components/charts/BarraSegmentada";
 import { Nota } from "@/components/patrones";
 import { numero, plural, porcentaje } from "@/lib/formato";
-import type { Transparencia } from "@/lib/transparencia";
+import type { HechosLeidos, Transparencia } from "@/lib/transparencia";
 import { Caja, Metrica, MideNoMide, NoMedido, RenglonMedidor } from "./piezas";
 
 const FUENTE_DICTAMEN = "Control automático de cada dictamen (verificacion_dictamen y self_evals de cada análisis), resumido en la tabla transparencia_analisis.";
@@ -35,6 +35,58 @@ function FalsasAlarmas({ agentes }: { agentes: NonNullable<Transparencia["agente
       <MideNoMide
         mide="De cada 100 señales que la red levantó sobre contratos leídos a mano, cuántas no debían salir."
         noMide="Las falsas alarmas de los contratos publicados: sólo se pueden contar donde una persona ya leyó el contrato."
+      />
+    </Caja>
+  );
+}
+
+const NOMBRE_HECHO: Record<string, string> = {
+  "monto_contratado|contrato": "Monto del contrato firmado",
+  "valor_referencial|buena_pro": "Valor referencial, leído del acta",
+  "valor_referencial|bases": "Valor referencial, leído de las bases",
+  "experiencia_exigida_monto|bases": "Experiencia que se exige al postor",
+  "postores|buena_pro": "Cuántos postores figuran en el acta",
+  "fecha_suscripcion|contrato": "Fecha de firma del contrato",
+  "consultas|consultas": "Consultas y observaciones del pliego",
+  "plazo_dias|contrato": "Plazo, leído del contrato",
+  "plazo_dias|bases": "Plazo, leído de las bases",
+  "adelanto_directo_pct|contrato": "Adelanto directo",
+  "penalidad_mora_tope_pct|contrato": "Tope de la penalidad por mora",
+  "experiencia_exigida_anios|bases": "Años en que se cuenta la experiencia",
+};
+
+/**
+ * Los datos que los lectores sacaron de los documentos y cuántos se pudieron comprobar sin modelo (hecho_documento,
+ * migración 323). Nació de un error del 2026-11-16: un monto de experiencia exigida se presentó como la cuantía de un
+ * proceso. Desde entonces cada dato dice qué es y contra qué se midió, y aquí se ve cuánto falta por comprobar.
+ */
+function DatosComprobados({ hechos }: { hechos: HechosLeidos[] }) {
+  const vistos = hechos.filter((h) => NOMBRE_HECHO[`${h.tipo}|${h.clase}`] && h.total >= 100);
+  if (!vistos.length) return null;
+  const total = vistos.reduce((s, h) => s + h.total, 0);
+  const comprobados = vistos.reduce((s, h) => s + h.comprobados, 0);
+  return (
+    <Caja
+      titulo="Datos leídos de los documentos que se pudieron comprobar"
+      icono={<FileCheck2 size={16} aria-hidden />}
+      bajada={`${numero(comprobados)} de ${plural(total, "dato", "datos")} (${porcentaje((comprobados / total) * 100)}) coinciden con un registro oficial, con la cita del propio documento o con una segunda lectura.`}
+      fecha={vistos.map((h) => h.hasta).filter(Boolean).sort().pop()}
+      fuente="Tabla hecho_documento: cada dato de las bases, el acta, el contrato y el pliego de consultas, con su tipo y su comprobación."
+    >
+      <ul className="space-y-2.5">
+        {vistos.map((h) => (
+          <RenglonMedidor
+            key={`${h.tipo}|${h.clase}`}
+            nombre={NOMBRE_HECHO[`${h.tipo}|${h.clase}`]}
+            parte={h.total ? h.comprobados / h.total : null}
+            texto={porcentaje(h.total ? (h.comprobados / h.total) * 100 : 0, { decimales: 1 })}
+            sub={`${plural(h.total, "lectura", "lecturas")}${h.contradicen ? `; ${numero(h.contradicen)} no coinciden con el registro` : ""}${h.sinComprobar ? `; ${numero(h.sinComprobar)} sin contra qué medir` : ""}`}
+          />
+        ))}
+      </ul>
+      <MideNoMide
+        mide="De cada dato que un lector sacó de un documento, si coincide con el registro oficial del proceso (el referencial, lo adjudicado, los postores), si la frase que copió del documento trae ese mismo valor, o si dos lecturas independientes dan lo mismo."
+        noMide="Que el dato esté bien cuando no hay contra qué medirlo: el plazo, los adelantos y las penalidades todavía no traen su cita. «No coincide» puede ser un error de lectura o una diferencia real entre el documento y el registro."
       />
     </Caja>
   );
@@ -199,6 +251,7 @@ export function Verificacion({ verificacion, agentes, generado }: { verificacion
             Cada análisis guarda su control, pero el resumen que lo suma (tabla transparencia_analisis, migración 300) todavía no está en la base.
           </NoMedido>
         )}
+        {verificacion.hechos?.length ? <DatosComprobados hechos={verificacion.hechos} /> : null}
       </div>
     </div>
   );
