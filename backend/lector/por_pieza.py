@@ -402,6 +402,10 @@ def main() -> None:
     with ExitStack() as pila:
         cn = pila.enter_context(conexion(a.entorno))
         cur = cn.cursor()
+        # Una sola corrida de este lector a la vez (la PC y el CI leen la misma cola): candado de sesión en la base.
+        cur.execute("SELECT pg_try_advisory_lock(hashtext(%s))", (f"lector.por_pieza:{a.lector}",))
+        if not cur.fetchone()[0]:
+            sys.exit("otra corrida igual está en curso: no se hace nada")
         cur.execute(GASTADO)
         total = cur.fetchone()[0]
         if total >= TOPE_TOTAL_USD:

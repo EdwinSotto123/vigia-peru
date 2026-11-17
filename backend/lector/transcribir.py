@@ -223,6 +223,11 @@ def main() -> None:
     t0 = time.time()
     with conexion(a.entorno) as cn:
         cur = cn.cursor()
+        if not a.medir:
+            # Una sola corrida de esta cola a la vez (la PC y el CI leen la misma): candado de sesión en la base.
+            cur.execute("SELECT pg_try_advisory_lock(hashtext(%s))", (f"lector.transcribir:{a.cola}",))
+            if not cur.fetchone()[0]:
+                sys.exit("otra corrida igual está en curso: no se hace nada")
         cur.execute(GASTADO)
         total = cur.fetchone()[0]
         if a.cola == "cortos":

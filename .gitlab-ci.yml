@@ -168,15 +168,28 @@ tarea:ordenes-anual:
       when: manual
       allow_failure: true
 
-# Las piezas de cada proceso (un PDF con su tipo, migración 325) y lo que se lee de ellas SIN modelo: los reportes que
-# genera el SEACE y las secciones de las bases. Parte del texto ya guardado (documentos_texto): no baja archivos ni llama
-# a un modelo, así que no gasta. Después rehace los postores e ítems por proceso y los hechos (migraciones 326-327).
+# La lectura de documentos en capas (backend/lector), cada documento una sola vez:
+#   1. el texto por página de los archivos nuevos (texto.py, sin modelo);
+#   2. las piezas con su tipo y lo que se lee por plantilla y por regla (piezas.py, sin modelo);
+#   3. la transcripción con visión de las páginas escaneadas (transcribir.py), con tope diario;
+#   4. las fichas con modelo: bases completas y documentos cortos (por_pieza.py), con tope diario;
+#   5. los postores e ítems por proceso y los hechos (migraciones 326-328).
+# Lo que gasta (pasos 3 y 4, GLM 5.3 flash por vigia-llm) tiene además un tope total contado en la base
+# (pieza_lectura.costo_usd, US$ 315): al llegar, esos pasos salen sin hacer nada. Un candado en la base evita que dos
+# corridas (la PC y el CI) lean la misma cola a la vez.
 tarea:piezas:
   <<: *tarea_con_base
-  timeout: 2h
+  timeout: 3h
   script:
+    - pip install --quiet pymupdf
+    - python -X utf8 backend/lector/texto.py prod --max-mb 25 --limite 4000 || echo "texto: cortado; la siguiente corrida retoma"
     - python -X utf8 backend/lector/piezas.py prod
     - python -X utf8 backend/lector/piezas.py prod --bases
+    - python -X utf8 backend/lector/transcribir.py prod --cola cortos --limite 400 --tope-usd 1 || true
+    - python -X utf8 backend/lector/transcribir.py prod --limite 150 --tope-usd 2 || true
+    - python -X utf8 backend/lector/piezas.py prod
+    - for l in garantia modificacion resolucion desierto; do python -X utf8 backend/lector/por_pieza.py prod --lector $l --limite 400 --tope-usd 0.5 || true; done
+    - python -X utf8 backend/lector/por_pieza.py prod --lector bases --limite 300 --tope-usd 3 || true
     - python -X utf8 backend/scripts/tareas_ci.py prod refrescar-piezas
   rules:
     - if: '$CI_PIPELINE_SOURCE == "schedule" && ($TAREA == "piezas" || $CI_PIPELINE_SCHEDULE_DESCRIPTION =~ /^piezas:/)'
