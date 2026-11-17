@@ -156,7 +156,7 @@ export const FUENTES: FuentePublica[] = [
 ];
 
 /** Claves del catálogo que no son un registro para el público: una prueba, una tabla de cruce, crudos sin cargar, un relleno ya hecho y un legado. */
-export const INTERNAS = ["salud_lima", "oece_entidades", "pnda_oece", "oece_historico", "portal_visitas_manual"];
+export const INTERNAS = ["salud_lima", "oece_entidades", "pnda_oece", "oece_historico", "portal_visitas_manual", "oece_fichas"];
 
 export type EstadoPublico = "al_dia" | "atrasada" | "error" | "manual" | "fuente_vieja";
 

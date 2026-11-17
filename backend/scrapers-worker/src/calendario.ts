@@ -59,6 +59,9 @@
  *                      150); antes, backend/scripts/cargar_entidades_oece.py a mano. Casi no cambia: con el mismo
  *                      sha256 no hace nada.
  *
+ *   oece_fichas        lunes 08:00: la ficha del proveedor en el OECE de las empresas sancionadas (migración 337), por el relay
+ *                      de Lima, hasta 700 por semana; corrige «sanción vigente» cuando el Tribunal sustituyó una sanción.
+ *
  *   contraloria_informes  día 10, 08:00: el buscador de informes de la Contraloría, por el relay de Lima (sólo responde
  *                      a IPs del Perú: 522 desde Cloudflare y por Zúrich). Respaldo a mano:
  *                      backend/scripts/cargar_contraloria_informes.py (docs/CORRUPCION.md).
@@ -86,7 +89,7 @@ export function fuentesDelCron(cron: string, ms: number): string[] {
   const dia = lima.getUTCDate();
   const out: string[] = [];
   if (lima.getUTCDay() === 0) out.push("pnda_sancionados", "osce_penalidades", "conosce_ordenes");
-  if (lima.getUTCDay() === 1) out.push("mef_presupuesto");
+  if (lima.getUTCDay() === 1) out.push("mef_presupuesto", "oece_fichas");
   if (lima.getUTCDay() === 2) out.push("mef_opds_etes", "sunat_padron");
   if (lima.getUTCDay() === 3) out.push("onpe_claridad", "onpe_gastos");
   if (lima.getUTCDay() === 4) out.push("congreso_visitas", "servir_convocatorias", "infobras");

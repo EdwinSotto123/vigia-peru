@@ -106,6 +106,8 @@ export const CATALOGO: FuenteCatalogo[] = [
     situacion: { tipo: "rota", nota: "El sitio de la Procuraduría Anticorrupción no responde desde el 30 de octubre de 2026, así que no hay de dónde bajar su boletín mensual. Ves lo del último boletín que se cargó." } },
   { fuente: "salud_lima", nombre: "Salida peruana (tu PC)", donde: "lima", agenda: "Diario, 12:40", cadaDias: 2,
     que: "Prueba diaria de la salida con IP del Perú (backend/scrapers-pc/salida_peru): que responda y llegue a la Contraloría, INFOBRAS y SERVIR." },
+  { fuente: "oece_fichas", nombre: "Ficha del proveedor en el OECE (sanciones vigentes)", donde: "lima", agenda: "Lunes, 08:00 (hasta 700 empresas)", cadaDias: 8,
+    que: "Apto y habilitado hoy, y cada sanción con su fin, de las empresas sancionadas: corrige «sanción vigente» cuando el Tribunal la sustituyó o levantó (migración 337). El OECE sólo responde a IP peruana: sale por el relay de Lima. Respaldo: backend/scripts/oece_fichas.py." },
   { fuente: "infobras", nombre: "Obras públicas (INFOBRAS)", donde: "lima", agenda: "Jueves, 08:00", cadaDias: 8,
     que: "Obras con su avance y CUI. La Contraloría sólo responde a IP peruana: sale por el relay de Lima." },
   { fuente: "invierte_pe", nombre: "Inversiones (Invierte.pe)", donde: "cloudflare", agenda: "Viernes, 08:00", cadaDias: 7,
