@@ -228,6 +228,7 @@ export const fichaContrato = definir({
         que_es: h.tipo, segun: h.clase === "buena_pro" ? "acta de buena pro" : h.clase, valor: h.valor ?? h.fecha,
         comprobado: h.verificado === "registro" ? "coincide con el registro oficial"
           : h.verificado === "contradice_registro" ? `NO coincide con el registro oficial${h.contra != null ? ` (${h.contra})` : ""}: verificar en el documento antes de usarlo`
+          : h.verificado === "plantilla" ? "lo dice el reporte que genera el propio SEACE (leído sin modelo)"
           : h.verificado === "cita" ? "la cita del documento trae ese valor"
           : h.verificado === "dos_lecturas" ? "dos lecturas independientes coinciden" : "sin comprobar: sólo contexto",
         cita: h.cita ?? undefined,

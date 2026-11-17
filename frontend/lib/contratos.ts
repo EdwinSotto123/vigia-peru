@@ -630,7 +630,8 @@ export interface HechoDocumento {
   valor: number | null;
   fecha: string | null;
   cita: string | null;
-  verificado: "registro" | "contradice_registro" | "cita" | "dos_lecturas" | "sin_verificar";
+  /** `plantilla`: lo dice un reporte que genera el propio SEACE, leído sin modelo (migración 327). */
+  verificado: "registro" | "contradice_registro" | "plantilla" | "cita" | "dos_lecturas" | "sin_verificar";
   contra: number | null;
 }
 

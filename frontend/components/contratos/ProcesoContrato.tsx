@@ -171,10 +171,31 @@ function SeccionAdjudicacion({ c }: { c: Detalle }) {
   );
 }
 
+/** De qué documento salió un dato, dicho en palabras. Las clases `reporte_*` son los reportes que genera el propio SEACE. */
+const SEGUN: Record<string, string> = {
+  buena_pro: "el acta",
+  bases: "las bases",
+  bases_secciones: "el apartado de la cuantía de las bases",
+  contrato: "el contrato",
+  reporte_otorgamiento: "el reporte de otorgamiento del SEACE",
+  reporte_presentacion: "el reporte de presentación de ofertas del SEACE",
+  reporte_evaluacion: "el reporte de evaluación del SEACE",
+};
+
 const QUE_ES: Record<string, (h: HechoDocumento) => string> = {
-  valor_referencial: (h) => `Valor referencial, según ${h.clase === "buena_pro" ? "el acta" : "las bases"}`,
+  valor_referencial: (h) => `Cuantía o valor referencial, según ${SEGUN[h.clase] ?? "las bases"}`,
+  cuantia_reservada: () => "Cuantía de la contratación, según las bases",
   experiencia_exigida_monto: () => "Experiencia que se exige al postor",
+  experiencia_exigida_veces: () => "Experiencia que se exige al postor",
+  experiencia_adicional_monto: () => "Experiencia adicional que da puntaje",
   experiencia_exigida_anios: () => "Años en que se cuenta esa experiencia",
+  ofertas_presentadas: () => "Postores que presentaron oferta",
+  postores_admitidos: () => "Postores con oferta admitida",
+  postores_calificados: () => "Postores calificados",
+  items: () => "Ítems del proceso",
+  items_desiertos: () => "Ítems que quedaron desiertos",
+  monto_adjudicado: () => "Monto adjudicado, según el reporte de otorgamiento",
+  sin_consultas: () => "Consultas y observaciones a las bases",
   plazo_dias: (h) => `Plazo, según ${h.clase === "contrato" ? "el contrato" : "las bases"}`,
   monto_contratado: () => "Monto del contrato firmado",
   fecha_suscripcion: () => "Fecha de firma del contrato",
@@ -185,13 +206,19 @@ const QUE_ES: Record<string, (h: HechoDocumento) => string> = {
   contrato_de_otro_proceso: () => "El archivo publicado como contrato",
 };
 
+/** Los datos que son una cuenta (de postores, de ítems), no un monto. */
+const CUENTAS = new Set(["postores", "consultas", "ofertas_presentadas", "postores_admitidos", "postores_calificados", "items", "items_desiertos"]);
+
 function valorDeHecho(h: HechoDocumento, moneda: string | null | undefined): string {
   if (h.tipo === "contrato_de_otro_proceso") return "No es un contrato de este proceso";
+  if (h.tipo === "cuantia_reservada") return "Reservada: las bases no la dan a conocer";
+  if (h.tipo === "sin_consultas") return "Nadie formuló consultas ni observaciones";
   if (h.fecha) return fechaConAnio(h.fecha);
   if (h.valor == null) return "Sin dato";
   if (h.tipo === "plazo_dias") return plural(h.valor, "día", "días");
   if (h.tipo === "experiencia_exigida_anios") return plural(h.valor, "año", "años");
-  if (h.tipo === "postores" || h.tipo === "consultas") return numero(h.valor);
+  if (h.tipo === "experiencia_exigida_veces") return `${h.valor.toLocaleString("es-PE", { maximumFractionDigits: 2 })} ${h.valor === 1 ? "vez" : "veces"} la cuantía`;
+  if (CUENTAS.has(h.tipo)) return numero(h.valor);
   if (h.tipo.endsWith("_pct")) return `${h.valor.toLocaleString("es-PE", { maximumFractionDigits: 2 })} %`;
   return monto(h.valor, moneda ?? null);
 }
@@ -206,9 +233,12 @@ function Comprobacion({ h, moneda }: { h: HechoDocumento; moneda: string | null 
     return (
       <span className="inline-flex items-center gap-1 text-rotulo text-amberTexto">
         <CircleAlert size={13} className="shrink-0" aria-hidden />
-        No coincide con el registro{h.contra != null ? ` (${h.tipo === "postores" ? numero(h.contra) : monto(h.contra, moneda ?? null)})` : ""}: revísalo en el documento
+        No coincide con el registro{h.contra != null ? ` (${CUENTAS.has(h.tipo) ? numero(h.contra) : monto(h.contra, moneda ?? null)})` : ""}: revísalo en el documento
       </span>
     );
+  }
+  if (h.verificado === "plantilla") {
+    return <span className="inline-flex items-center gap-1 text-rotulo text-inkSoft"><CircleCheck size={13} className="shrink-0 text-marca" aria-hidden />Lo dice el reporte que genera el SEACE</span>;
   }
   if (h.verificado === "cita" || h.verificado === "dos_lecturas") {
     return (
@@ -243,7 +273,7 @@ function HechosComprobados({ c }: { c: Detalle }) {
     <div className="border-t border-line px-4 py-4 sm:px-5">
       <h3 className="font-display text-bloque font-bold text-ink">Lo que se comprobó de los documentos</h3>
       <p className="mt-1 text-meta text-inkSoft">
-        Cada dato leído del expediente dice qué es y contra qué se midió: el registro oficial, la cita del propio documento o una segunda lectura.
+        Cada dato leído del expediente dice qué es y contra qué se midió: el registro oficial, el reporte que genera el SEACE, la cita del propio documento o una segunda lectura.
         {dudosos > 0 ? ` ${plural(dudosos, "dato no coincide", "datos no coinciden")} con el registro: puede ser una diferencia real o un error de lectura.` : ""}
       </p>
       <DatosClave items={items} className="mt-2" />

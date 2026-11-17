@@ -53,6 +53,18 @@ const NOMBRE_HECHO: Record<string, string> = {
   "adelanto_directo_pct|contrato": "Adelanto directo",
   "penalidad_mora_tope_pct|contrato": "Tope de la penalidad por mora",
   "experiencia_exigida_anios|bases": "Años en que se cuenta la experiencia",
+  // Leídos sin modelo: de los reportes que genera el SEACE y de las secciones de las bases (migración 327).
+  "valor_referencial|reporte_otorgamiento": "Cuantía, del reporte de otorgamiento del SEACE",
+  "monto_adjudicado|reporte_otorgamiento": "Monto adjudicado, del reporte de otorgamiento del SEACE",
+  "ofertas_presentadas|reporte_presentacion": "Postores que presentaron oferta",
+  "postores_admitidos|reporte_evaluacion": "Postores con oferta admitida",
+  "postores_calificados|reporte_evaluacion": "Postores calificados",
+  "sin_consultas|acta_no_formulacion": "Procesos en que nadie consultó",
+  "valor_referencial|bases_secciones": "Cuantía, del apartado de las bases",
+  "cuantia_reservada|bases_secciones": "Bases que reservan la cuantía",
+  "experiencia_exigida_monto|bases_secciones": "Experiencia exigida, de los requisitos de calificación",
+  "experiencia_adicional_monto|bases_secciones": "Experiencia adicional que da puntaje",
+
 };
 
 /**
@@ -69,9 +81,9 @@ function DatosComprobados({ hechos }: { hechos: HechosLeidos[] }) {
     <Caja
       titulo="Datos leídos de los documentos que se pudieron comprobar"
       icono={<FileCheck2 size={16} aria-hidden />}
-      bajada={`${numero(comprobados)} de ${plural(total, "dato", "datos")} (${porcentaje((comprobados / total) * 100)}) coinciden con un registro oficial, con la cita del propio documento o con una segunda lectura.`}
+      bajada={`${numero(comprobados)} de ${plural(total, "dato", "datos")} (${porcentaje((comprobados / total) * 100)}) coinciden con un registro oficial, salen de un reporte que genera el SEACE, o se comprobaron con la cita del propio documento o con una segunda lectura.`}
       fecha={vistos.map((h) => h.hasta).filter(Boolean).sort().pop()}
-      fuente="Tabla hecho_documento: cada dato de las bases, el acta, el contrato y el pliego de consultas, con su tipo y su comprobación."
+      fuente="Tabla hecho_documento: cada dato de las bases, el acta, el contrato, el pliego de consultas y los reportes del SEACE, con su tipo y su comprobación."
     >
       <ul className="space-y-2.5">
         {vistos.map((h) => (

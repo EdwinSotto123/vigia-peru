@@ -388,7 +388,7 @@ async function contraloria() {
 const hechosLeidos = () =>
   pool.query(
     `SELECT tipo, clase, count(*)::int AS total,
-            count(*) FILTER (WHERE verificado IN ('registro', 'cita', 'dos_lecturas'))::int AS comprobados,
+            count(*) FILTER (WHERE verificado IN ('registro', 'plantilla', 'cita', 'dos_lecturas'))::int AS comprobados,
             count(*) FILTER (WHERE verificado = 'contradice_registro')::int AS contradicen,
             count(*) FILTER (WHERE verificado = 'sin_verificar')::int AS "sinComprobar",
             to_char(max(leido_at) AT TIME ZONE '${LIMA}', 'YYYY-MM-DD') AS hasta
