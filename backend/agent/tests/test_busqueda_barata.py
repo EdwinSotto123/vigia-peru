@@ -173,6 +173,13 @@ def test_combustible_es_el_bien_no_lo_que_lo_menciona():
     assert not any(catalogos.es_combustible({"descripcion_corta": d, "unidad": "UNIDAD"}) for d in no)
     assert not any(catalogos.es_combustible({"descripcion_corta": d}) for d in no)
     assert not catalogos.es_combustible({"descripcion_corta": "GLP", "unidad": "KILOGRAMO"})   # por kilo no es por galón
+    # El destino no dice qué es el bien (golden 1225299): «para los vehículos…» no lo vuelve un vehículo.
+    destino = ["Diesel B5 S-50 (suministro de combustible para los vehículos asignados a la Sede Central del Ministerio Público)",
+               "SUMINISTRO DE COMBUSTIBLE DIESEL B5 S50 PARA LA FLOTA VEHICULAR DEL SENCICO",
+               "PETROLEO DIESEL B5 PARA GRUPO ELECTROGENO DEL HOSPITAL",
+               "Suministro de combustible (Diesel B5 S-50) para camionetas de la sede"]
+    assert all(catalogos.es_combustible({"descripcion_corta": d, "unidad": "GALON"}) for d in destino)
+    assert not catalogos.es_combustible({"descripcion_corta": "Aceite para motor diesel (lubricante 15W40)", "unidad": "GALON"})
 
 
 def test_fecha_de_la_convocatoria_para_precios_pasados(monkeypatch):

@@ -296,11 +296,26 @@ def _llano(s: str) -> str:
     return "".join(c for c in t if not unicodedata.combining(c)).lower()
 
 
+# Lo que dice PARA QUÉ se compra («… para los vehículos asignados a la sede», «(suministro para la flota)») no dice QUÉ
+# es: el bien es lo de antes. Sin este corte, «Diesel B5 S-50 (suministro de combustible para los vehículos asignados a
+# la Sede Central…)» caía en la lista de no-combustibles por «vehículos» y perdía el precio oficial de Osinergmin
+# (golden 1225299, imagen 9d4943a9: sobreprecio de 36 % que pasó a «alineado»).
+_PROPOSITO = re.compile(r"\s(para|destinad[oa]s?|con destino|a utilizar|a usarse|que se)\s.*$|\s*[\(\[].*$")
+
+
+def _cabeza(desc: str) -> str:
+    """«diesel b5 s-50 (suministro … para los vehiculos …)» → «diesel b5 s-50». Si al cortar no queda nada (empieza con
+    paréntesis), la descripción entera."""
+    corte = _PROPOSITO.sub("", desc).strip(" ,;:-")
+    return corte or desc
+
+
 def es_combustible(it: dict) -> bool:
     """El ítem ES un combustible líquido que se compra por galón o litro: lo nombra, no es otro bien que lo menciona, y
-    su unidad (si la trae) es de volumen (el GLP por balón o por kilo no se compara con el precio por galón)."""
+    su unidad (si la trae) es de volumen (el GLP por balón o por kilo no se compara con el precio por galón). Lo que
+    descarta («aceite», «grupo electrógeno», «vehículos»…) se busca sólo en el bien, no en su destino."""
     desc = _llano(it.get("descripcion_corta") or "")
-    if not _COMBUSTIBLE.search(desc) or _NO_ES_COMBUSTIBLE.search(desc):
+    if not _COMBUSTIBLE.search(desc) or _NO_ES_COMBUSTIBLE.search(_cabeza(desc)):
         return False
     unidad = _llano(str(it.get("unidad") or ""))
     return not unidad or bool(_UNIDAD_COMBUSTIBLE.match(unidad))
