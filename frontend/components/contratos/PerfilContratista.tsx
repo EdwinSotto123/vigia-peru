@@ -57,6 +57,18 @@ const cantidadDe = (x: { cantidad: number | null; unidad: string | null }) =>
 export function SeccionPerfil({ c }: { c: Detalle }) {
   const p = c.perfilContratista!;
   const totalFactores = p.factores.reduce((s, f) => s + (f.puntajeMaximo ?? 0), 0);
+  // La frase de arriba sale de los datos, no del resumen del lector (que junta lo de cada tramo leído y habla de la lectura).
+  const exp = p.experiencia.find((x) => x.para !== "mype" && cantidadDe(x)) ?? p.experiencia.find((x) => cantidadDe(x));
+  const expMype = p.experiencia.find((x) => x.para === "mype" && cantidadDe(x) && x !== exp);
+  const precio = p.factores.find((f) => /precio|econ/i.test(f.factor ?? ""));
+  const entrega = p.plazos.find((x) => x.dias != null && /entrega|ejecuci/i.test(x.que ?? ""));
+  const frase = [
+    exp && `Pedían una experiencia de ${cantidadDe(exp)}${expMype ? ` (${cantidadDe(expMype)} a las micro y pequeñas empresas)` : ""}`,
+    p.exigencias.length > 0 && `con ${plural(p.exigencias.length, "exigencia particular", "exigencias particulares")}`,
+    p.marcas.length > 0 && `con ${plural(p.marcas.length, "marca nombrada", "marcas nombradas")}`,
+    precio?.puntajeMaximo != null && totalFactores > 0 && `el precio daba ${numero(precio.puntajeMaximo)} de ${numero(totalFactores)} puntos`,
+    entrega && `la entrega era en ${plural(entrega.dias!, "día", "días")}`,
+  ].filter(Boolean).join(", ");
   const datos: DatoClave[] = [
     {
       etiqueta: "Cuantía",
@@ -91,7 +103,7 @@ export function SeccionPerfil({ c }: { c: Detalle }) {
         Lo que las bases le pedían a quien quisiera ganar: experiencia, documentos, cómo se puntuaba y qué se exigía al firmar.
       </CabeceraPestana>
       <div className="space-y-5 rounded-2xl border border-line bg-paper px-4 py-4 sm:px-5">
-        {p.resumen && <EnUnaFrase>{p.resumen}</EnUnaFrase>}
+        {frase && <EnUnaFrase>{frase}.</EnUnaFrase>}
         {datos.length > 0 && <DatosClave items={datos} />}
 
         <Lista
@@ -104,8 +116,10 @@ export function SeccionPerfil({ c }: { c: Detalle }) {
               key={`exp-${i}`}
               ocid={c.ocid}
               cita={x.cita}
-              sub={[x.para && PARA[x.para], x.anios != null && `en los últimos ${plural(x.anios, "año", "años")}`, x.acreditacion && `Se acredita con: ${x.acreditacion}`]
-                .filter(Boolean).join(". ") || undefined}
+              sub={[
+                [x.para && PARA[x.para], x.anios != null && `en los últimos ${plural(x.anios, "año", "años")}`].filter(Boolean).join(", "),
+                x.acreditacion && `Se acredita con: ${x.acreditacion}`,
+              ].filter(Boolean).map((s) => oracion(String(s))).join(". ") || undefined}
             >
               {cantidadDe(x) ? <><b>{cantidadDe(x)}</b>{x.requisito ? `: ${x.requisito}` : ""}</> : x.requisito ?? "Requisito sin detalle"}
             </Renglon>

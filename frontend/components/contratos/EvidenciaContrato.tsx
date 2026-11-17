@@ -25,7 +25,7 @@ import { DocumentosContrato } from "./DocumentosContrato";
 import { CitaPagina } from "./CitaPagina";
 import { TextoRedactado } from "./TextoRedactado";
 import { etiquetaRegla, type CatalogoReglas } from "@/lib/revision";
-import { fecha, numero, porcentaje, soles, oracion } from "@/lib/formato";
+import { decimal, fecha, numero, porcentaje, soles, oracion } from "@/lib/formato";
 import {
   cambioDeGanador, esPersonaNatural, formatoDoc, humanizarCodigo, ordenNombrePostor, personasNaturalesDe, tipoDocLabel,
   type CitaDocumento, type ContratoDetalle as Detalle, type ContratoDocumento, type PostorContrato,
@@ -126,6 +126,10 @@ const senalesConCita = (c: Detalle) => (c.alerta?.banderas ?? []).filter((b) => 
 // ─── Secciones de evidencia ──────────────────────────────────────────────────
 
 function SeccionItems({ c }: { c: Detalle }) {
+  // El SEACE registra a veces un paquete (diez lubricantes) como UN ítem de «1 unidad»: su precio «por unidad» es el del
+  // paquete entero y compararlo con lo que otras entidades pagan por un producto daba «311 veces la mediana». Con el
+  // desglose de los documentos a la vista, esa comparación no se muestra.
+  const paquete = (c.itemsDocumento?.filas.length ?? 0) > c.items.length;
   const conEstado = c.items.some((it) => it.estado);
   const conPrecio = c.items.some((it) => it.precio && (it.precio.unitarioAdjudicado != null || it.precio.unitarioReferencial != null));
   // Con precios, la columna central de la ficha (~600 px) no entra con todo: el estado, la cantidad y el valor referencial
@@ -177,7 +181,9 @@ function SeccionItems({ c }: { c: Detalle }) {
         cantidad: it.cantidad != null ? <CeldaNumero sub={it.unidad ?? undefined}>{numero(it.cantidad)}</CeldaNumero> : undefined,
         monto: it.montoPen ? <CeldaNumero>{monto(it.montoPen, c.moneda)}</CeldaNumero> : undefined,
         unitario: it.precio ? <PrecioUnidad p={it.precio} unidad={it.unidad} /> : undefined,
-        frente: it.precio?.comparacion ? <FrenteOtras p={it.precio} /> : it.precio ? <span className="text-rotulo text-mute">Sin con qué comparar</span> : undefined,
+        frente: paquete && it.precio
+          ? <span className="text-rotulo text-mute">Un paquete de {numero(c.itemsDocumento!.filas.length)} renglones: no se compara por unidad</span>
+          : it.precio?.comparacion ? <FrenteOtras p={it.precio} /> : it.precio ? <span className="text-rotulo text-mute">Sin con qué comparar</span> : undefined,
       },
       buscable: [it.descripcion, `item ${it.posicion}`, it.cubso && `cubso ${it.cubso}`, it.estado && humanizarCodigo(it.estado)].filter(Boolean).join(" "),
     };
@@ -380,7 +386,7 @@ function SeccionPostores({ c, enRevision }: { c: Detalle; enRevision: boolean })
                   p.admitida === false && <Dato key="adm" icono={Info} nombre="Admisión">No admitida</Dato>,
                   p.admitida !== false && p.calificada === false && <Dato key="cal" icono={Info} nombre="Calificación">No calificó</Dato>,
                   conPuntaje && (p.puntajeFinal ?? p.puntajeTotal) != null && (
-                    <Dato key="pts" icono={ListOrdered} nombre="Puntaje" className="md:hidden">{numero((p.puntajeFinal ?? p.puntajeTotal)!)} puntos</Dato>
+                    <Dato key="pts" icono={ListOrdered} nombre="Puntaje" className="md:hidden">{pts((p.puntajeFinal ?? p.puntajeTotal)!)} puntos</Dato>
                   ),
                   !p.esGanador && motivoDe(p) && (
                     <Dato key="motivo" icono={Info} nombre="Por qué quedó fuera" className="whitespace-normal">
@@ -400,13 +406,13 @@ function SeccionPostores({ c, enRevision }: { c: Detalle; enRevision: boolean })
         puntaje: (p.puntajeFinal ?? p.puntajeTotal) != null ? (
           <CeldaNumero
             sub={[
-              p.puntajePrecio != null && `precio ${numero(p.puntajePrecio)}`,
-              p.puntajeOtros != null && `otros ${numero(p.puntajeOtros)}`,
-              p.puntajeOtros == null && p.puntajePrecio != null && p.puntajeTotal != null && p.puntajeTotal !== p.puntajePrecio && `otros ${numero(Math.round((p.puntajeTotal - p.puntajePrecio) * 100) / 100)}`,
-              p.bonificacion != null && `bonificación ${numero(p.bonificacion)}`,
+              p.puntajePrecio != null && `precio ${pts(p.puntajePrecio)}`,
+              p.puntajeOtros != null && `otros ${pts(p.puntajeOtros)}`,
+              p.puntajeOtros == null && p.puntajePrecio != null && p.puntajeTotal != null && p.puntajeTotal !== p.puntajePrecio && `otros ${pts(Math.round((p.puntajeTotal - p.puntajePrecio) * 100) / 100)}`,
+              p.bonificacion != null && `bonificación ${pts(p.bonificacion)}`,
             ].filter(Boolean).join(", ") || undefined}
           >
-            {numero((p.puntajeFinal ?? p.puntajeTotal)!)}
+            {pts((p.puntajeFinal ?? p.puntajeTotal)!)}
           </CeldaNumero>
         ) : undefined,
         fuente: p.citas[0] ? <CitaPagina ocid={c.ocid} cita={p.citas[0]} corto /> : <span className="text-rotulo text-mute">Sin cita</span>,
@@ -449,21 +455,24 @@ function ResumenEvaluacion({ c }: { c: Detalle }) {
       {m && (
         <p>
           La oferta más baja, de {pn(m.masBaja)} por <b>{soles(m.masBaja.monto ?? 0)}</b>
-          {m.masBaja.puntajeFinal != null ? ` (${numero(m.masBaja.puntajeFinal)} puntos)` : ""}, no ganó. La buena pro fue a {pn(m.ganador)}, que ofertó{" "}
+          {m.masBaja.puntajeFinal != null ? ` (${pts(m.masBaja.puntajeFinal)} puntos)` : ""}, no ganó. La buena pro fue a {pn(m.ganador)}, que ofertó{" "}
           <b>{soles(m.ganador.monto ?? 0)}</b>, {porcentaje(m.diferenciaPct, { decimales: 1 })} más ({soles(m.diferenciaSoles)})
-          {m.ganador.puntajeFinal != null ? `, y sumó ${numero(m.ganador.puntajeFinal)} puntos` : ""}
-          {m.ganador.bonificacion != null ? ` con ${numero(m.ganador.bonificacion)} de bonificación` : ""}.
+          {m.ganador.puntajeFinal != null ? `, y sumó ${pts(m.ganador.puntajeFinal)} puntos` : ""}
+          {m.ganador.bonificacion != null ? ` con ${pts(m.ganador.bonificacion)} de bonificación` : ""}.
         </p>
       )}
       {ev.factores.length > 0 && (
         <p className="text-inkSoft">
-          Se puntuó con {ev.factores.map((f) => `${f.factor ?? "un factor"}${f.puntajeMaximo != null ? ` (${numero(f.puntajeMaximo)})` : ""}`).join(", ")}
-          {total > 0 ? `, ${numero(total)} puntos en total` : ""}.
+          Se puntuó con {ev.factores.map((f) => `${f.factor ?? "un factor"}${f.puntajeMaximo != null ? ` (${pts(f.puntajeMaximo)})` : ""}`).join(", ")}
+          {total > 0 ? `, ${pts(total)} puntos en total` : ""}.
         </p>
       )}
     </div>
   );
 }
+
+/** Un puntaje como lo escribe el acta, con hasta dos decimales: 100,02 frente a 100 decide una buena pro. */
+const pts = (n: number) => decimal(n, 2);
 
 /** Precio unitario contratado (u ofertado) de cada ítem frente a su referencia. */
 function SeccionPrecios({ c, items }: { c: Detalle; items: ReturnType<typeof itemsConPrecio> }) {

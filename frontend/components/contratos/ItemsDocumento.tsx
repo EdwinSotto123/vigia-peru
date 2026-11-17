@@ -5,7 +5,7 @@
  * (backend/lector: «bases» y «contrato»), con la comprobación sin modelo del contrato (cantidad × unitario = total).
  */
 import { ListOrdered, Package, Tag } from "lucide-react";
-import { Ayuda, FuenteDato } from "@/components/patrones";
+import { Ayuda, DatosClave, EnUnaFrase, FuenteDato } from "@/components/patrones";
 import { CeldaNumero, CeldaPrincipal, TablaPaginada, type Columna, type Fila } from "@/components/listado";
 import { Dato } from "@/components/ui/Dato";
 import { Partes } from "@/components/ui/Partes";
@@ -13,6 +13,13 @@ import { enlacesProceso } from "@/lib/fuentes";
 import { numero, plural, soles } from "@/lib/formato";
 import type { ContratoDetalle as Detalle } from "@/lib/contratos";
 import { CitaPagina } from "./CitaPagina";
+
+/** «ACEITE DE MOTOR 15W40» → «Aceite de motor 15W40»: sin gritar, sin tocar códigos con números. */
+function oracionCorta(s: string): string {
+  if (s !== s.toUpperCase()) return s;
+  const bajo = s.toLowerCase().replace(/\b([a-z]*\d[a-z\d-]*)\b/g, (m) => m.toUpperCase());
+  return bajo.charAt(0).toUpperCase() + bajo.slice(1);
+}
 
 export function DesgloseItems({ c }: { c: Detalle }) {
   const d = c.itemsDocumento!;
@@ -35,12 +42,57 @@ export function DesgloseItems({ c }: { c: Detalle }) {
     const k = f.contratado;
     const cantidad = (f.cantidad ?? k?.cantidad) != null ? `${numero((f.cantidad ?? k?.cantidad)!)}${(f.unidad ?? k?.unidad) ? ` ${(f.unidad ?? k?.unidad)!.toLowerCase()}` : ""}` : null;
     const cita = k?.cita ?? f.cita;
+    // El nombre corto del producto: lo del contrato antes de los dos puntos («ACEITE DE MOTOR 15W40 : MOBIL DELVAC…»), o el
+    // comienzo de lo que piden las bases. La especificación entera va en el panel.
+    const corto = (k?.descripcion?.split(":")[0]?.trim() || f.descripcion?.split(",")[0]?.trim() || "Sin descripción");
+    const producto = k?.descripcion?.includes(":") ? k.descripcion.split(":").slice(1).join(":").trim() : null;
     return {
       id: `renglon-${i}`,
+      enlaces: true,
+      etiqueta: "Ver el detalle de este renglón",
+      detalle: {
+        titulo: oracionCorta(corto),
+        etiqueta: "Ver el detalle de este renglón",
+        descripcion: <span className="line-clamp-2">{k?.marca ? `Marca ${k.marca}` : `Renglón ${f.numero}`}</span>,
+        contenido: (
+          <div className="space-y-5">
+            <EnUnaFrase>
+              {cantidad ? <>Se compraron <b>{cantidad}</b></> : "Se compró"}
+              {k?.precioUnitario != null ? <> a <b>{soles(k.precioUnitario)}</b> cada uno</> : ""}
+              {k?.precioTotal != null ? <>, <b>{soles(k.precioTotal)}</b> en total</> : ""}
+              {k?.marca ? <> (marca {k.marca}{producto ? `, ${producto}` : ""})</> : ""}.
+            </EnUnaFrase>
+            <DatosClave
+              items={[
+                { etiqueta: "Renglón", valor: f.numero, mono: true },
+                { etiqueta: "Cantidad", valor: cantidad },
+                { etiqueta: "Precio unitario", valor: k?.precioUnitario != null ? soles(k.precioUnitario) : null, mono: true },
+                { etiqueta: "Total", valor: k?.precioTotal != null ? soles(k.precioTotal) : null, mono: true },
+                { etiqueta: "¿Cuadra?", valor: k?.cuadra == null ? null : k.cuadra ? "Sí: cantidad por precio unitario da el total" : "No: revisa el contrato" },
+              ]}
+            />
+            {f.descripcion && (
+              <section className="space-y-1.5">
+                <h3 className="font-display text-bloque font-bold text-ink">Lo que pedían las bases</h3>
+                <p className="text-dato leading-relaxed text-inkSoft">{f.descripcion}</p>
+                {f.cita && <CitaPagina ocid={c.ocid} cita={f.cita} />}
+              </section>
+            )}
+            {k?.descripcion && (
+              <section className="space-y-1.5">
+                <h3 className="font-display text-bloque font-bold text-ink">Lo que se firmó en el contrato</h3>
+                <p className="text-dato leading-relaxed text-inkSoft">{k.descripcion}</p>
+                {k.cita && <CitaPagina ocid={c.ocid} cita={k.cita} />}
+              </section>
+            )}
+          </div>
+        ),
+      },
       celdas: {
         item: (
           <CeldaPrincipal
-            titulo={f.descripcion ?? k?.descripcion ?? "Sin descripción"}
+            dosLineas
+            titulo={oracionCorta(corto)}
             meta={
               <Partes
                 partes={[
