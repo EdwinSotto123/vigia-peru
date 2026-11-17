@@ -564,6 +564,7 @@ export const patrones = definir({
           entidad: g.entidad, entidad_ruc: g.entidadRuc, severidad: g.severidad, miembros: g.miembros, empresas: g.empresas, personas: g.personas,
           ordenes: g.ordenes, monto_soles: g.monto, desde: g.desde, hasta: g.hasta,
           puesto_del_grupo_entre_los_proveedores: g.puestoGrupo, puesto_de_su_miembro_mayor: g.puestoMayor,
+          parte_de_sus_ventas_por_ordenes_que_viene_de_esta_entidad: g.parteEntidad ?? undefined,
           al_borde_del_tope: { ordenes: g.borde, de_ordenes_hasta_8_uit: g.hasta8Uit, monto_soles: g.montoBorde },
           sobre_el_tope: g.sobreTope, dias_con_ordenes_a_varios_miembros: g.diasJuntos, pares_de_ordenes_correlativas: g.correlativas,
           objetos_repartidos_entre_miembros: g.repartidos, monto_repartido_soles: g.montoRepartido,

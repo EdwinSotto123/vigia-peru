@@ -430,6 +430,7 @@ export function detalleGrupo(p: PatronGrupo): Detalle {
         </EnUnaFrase>
         <DatosClave
           items={[
+            { etiqueta: "De sus ventas por órdenes, de esta entidad", valor: p.parteEntidad != null ? porcentaje(p.parteEntidad * 100) : null, mono: true },
             { etiqueta: "Al borde del tope de 8 UIT", valor: p.hasta8Uit ? `${numero(p.borde)} de ${numero(p.hasta8Uit)} órdenes` : "Sin órdenes de hasta 8 UIT", mono: true },
             { etiqueta: "Por encima del tope", valor: p.sobreTope ? numero(p.sobreTope) : "Ninguna", mono: true },
             { etiqueta: "Días con órdenes a varios integrantes", valor: p.diasJuntos ? `${numero(p.diasJuntos)} (${solesCompacto(p.montoJuntos)})` : "Ninguno", mono: true },

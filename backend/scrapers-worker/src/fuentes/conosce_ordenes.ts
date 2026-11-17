@@ -282,6 +282,8 @@ export async function correrOrdenes(env: Env, p: ParamsCorrida, step: WorkflowSt
     // Grupos de proveedores por dueño y familia en cada entidad, y lo que hicieron juntos con las órdenes (migración 343):
     // sobre los conteos por empresa y persona recién rehechos. Unos 20-30 min: por la cola, no por Hyperdrive.
     opcional("refrescar_grupos_proveedor"),
+    // La severidad según cuánto depende cada grupo de su entidad (migración 347).
+    opcional("calibrar_grupos_proveedor"),
     // Y los que tienen un integrante declarado como pariente por un funcionario de la misma entidad (migración 344).
     opcional("marcar_grupos_parientes"),
     // Los cruces (el fraccionamiento es uno) y los casos cruzados (migraciones 48 y 57).

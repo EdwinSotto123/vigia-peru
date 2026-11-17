@@ -154,6 +154,8 @@ export interface PatronGrupo {
   montoRepartido: number;
   puestoGrupo: number | null;
   puestoMayor: number | null;
+  /** Qué parte de lo que el grupo le vendió al Estado por órdenes viene de esta entidad (0 a 1, migración 347). */
+  parteEntidad: number | null;
   severidad: "alta" | "media" | "baja";
   vinculos: { a: string; nombreA: string | null; b: string; nombreB: string | null; via: string; que: string; persona: string | null; personaB: string | null }[];
   dias: { fecha: string; ordenes: number; miembros: number; monto: number; correlativas: number; detalle: { ruc: string; nombre: string | null; orden: string; monto: number }[] }[];

@@ -976,7 +976,12 @@ function filaGrupo(p: PatronGrupo, i: number): Fila {
         />
       ),
       monto: (
-        <CeldaNumero sub={p.puestoGrupo && p.puestoMayor && p.puestoGrupo < p.puestoMayor ? `juntos, n.° ${numero(p.puestoGrupo)} de la entidad` : plural(p.ordenes, "orden", "órdenes")}>
+        <CeldaNumero
+          sub={[
+            p.puestoGrupo && p.puestoMayor && p.puestoGrupo < p.puestoMayor ? `juntos, n.° ${numero(p.puestoGrupo)} de la entidad` : plural(p.ordenes, "orden", "órdenes"),
+            p.parteEntidad != null && p.parteEntidad >= 0.5 ? `${porcentaje(p.parteEntidad * 100)} de sus ventas` : null,
+          ].filter(Boolean).join("; ")}
+        >
           {solesCompacto(p.monto)}
         </CeldaNumero>
       ),

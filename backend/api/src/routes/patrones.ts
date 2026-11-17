@@ -530,7 +530,7 @@ patronesRouter.get("/grupos", async (c) => {
               r.miembros, r.empresas, r.personas, r.ordenes, r.monto::float AS monto, to_char(r.desde, 'YYYY-MM-DD') AS desde,
               to_char(r.hasta, 'YYYY-MM-DD') AS hasta, r.hasta_8uit AS "hasta8Uit", r.borde, r.monto_borde::float AS "montoBorde",
               r.sobre_tope AS "sobreTope", r.dias_juntos AS "diasJuntos", r.monto_juntos::float AS "montoJuntos", r.correlativas,
-              r.repartidos, r.monto_repartido::float AS "montoRepartido", r.puesto_grupo AS "puestoGrupo", r.puesto_mayor AS "puestoMayor",
+              r.repartidos, r.monto_repartido::float AS "montoRepartido", r.puesto_grupo AS "puestoGrupo", r.puesto_mayor AS "puestoMayor", r.parte_entidad::float AS "parteEntidad",
               r.severidad, r.detalle, (count(*) OVER ())::int AS total
          FROM grupo_proveedor_resumen r
         WHERE ($1::text IS NULL OR r.entidad_ruc = $1) AND ($3::text IS NULL OR r.severidad = $3)
