@@ -313,6 +313,16 @@ def test_evaluacion_por_postor_con_su_item():
     assert dos["item"] == 2 and dos["postores"] == [] and dos["sin_postores"] is True
 
 
+def test_el_registro_pegado_al_nombre_sin_espacio():
+    """Lo encontró la lectura con modelo: el PDF a veces no trae el espacio («…INGENIEROSValido») y el nombre quedaba sucio."""
+    pegado = EVALUACION.replace("EMPRESA UNO S.A.C.\nValido\n", "EMPRESA UNO INGENIEROSValido\n")
+    primero = P.leer_pagina(pegado)["items"][0]["postores"][0]
+    assert primero["nombre"] == "EMPRESA UNO INGENIEROS" and primero["registro"] == "Valido" and primero["admitida"] is True
+    # Un nombre que termina en una palabra parecida, en mayúsculas, no se corta.
+    intacto = EVALUACION.replace("EMPRESA UNO S.A.C.\nValido\n", "SERVICIOS DE INVALIDO\nValido\n")
+    assert P.leer_pagina(intacto)["items"][0]["postores"][0]["nombre"] == "SERVICIOS DE INVALIDO"
+
+
 def test_otorgamiento_consorcio_desierto_y_hoja_siguiente():
     (d,) = P.leer_paginas(["una página cualquiera", OTORGAMIENTO_1, OTORGAMIENTO_2])
     assert d["plantilla"] == "reporte_otorgamiento" and d["paginas"] == [2, 3] and d["sobrante"] == 0

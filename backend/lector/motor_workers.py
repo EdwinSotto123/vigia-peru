@@ -95,6 +95,14 @@ class MotorWorkers:
 
     def llamar(self, lector, pdfs) -> dict:
         bloques, imagenes, _ = contenido(pdfs, lector.PEDIDO)
+        return self.pedir(lector, bloques, imagenes)
+
+    def llamar_texto(self, lector, texto: str) -> dict:
+        """La misma lectura cuando ya se tiene el texto de la pieza (documentos_texto, con sus marcas de página): no hace
+        falta bajar el PDF. Sirve para los documentos con texto; un escaneo necesita `llamar`, que manda la imagen."""
+        return self.pedir(lector, [{"type": "text", "text": texto + "\n\n" + lector.PEDIDO}], 0)
+
+    def pedir(self, lector, bloques: list[dict], imagenes: int = 0) -> dict:
         cuerpo = {
             "model": self.modelo,
             "messages": [{"role": "system", "content": lector.SISTEMA}, {"role": "user", "content": bloques}],

@@ -41,7 +41,9 @@ _MONTO = re.compile(r"^(S/\.?|\$/?\.?|US\$|USD|€)\s*([\d,]+(?:\.\d+)?)$")
 # La nomenclatura de un procedimiento: siglas, número, año y, al final, el número de convocatoria («LP-ABR-3-2026-X/CS-1»).
 _NOMENCLATURA = re.compile(r"^[A-ZÑ]{2,}[A-Z0-9Ñ .\-/°º_]*-(?:19|20)\d{2}-.*-\d{1,2}$")
 _REGISTRO = re.compile(r"^(no\s+)?v[aá]lid[oa]$|^inv[aá]lid[oa]$|^anulad[oa]$|^retirad[oa]$", re.I)
-_REGISTRO_PEGADO = re.compile(r"\s((?:no\s+)?v[aá]lid[oa])$", re.I)
+# El registro pegado al final del nombre, con espacio («… S.A.C. Valido») o sin él («…INGENIEROSValido»: el PDF no trae
+# el espacio; se reconoce porque el nombre va en mayúsculas y «Valido» no). Lo halló la lectura con modelo al comparar.
+_REGISTRO_PEGADO = re.compile(r"(?:\s|(?<=[A-ZÁÉÍÓÚÑ.)\"']))((?:No\s+)?V[aá]lid[oa]|(?<=\s)(?:no\s+)?v[aá]lid[oa])$")
 _ADMISION = {"admitida": True, "no admitida": False}
 _CALIFICACION = {"calificada": True, "descalificada": False, "-": None}
 _MONEDA = {"S/": "PEN", "S/.": "PEN", "$/.": "USD", "$/": "USD", "$": "USD", "US$": "USD", "USD": "USD", "€": "EUR"}
