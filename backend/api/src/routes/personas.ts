@@ -670,7 +670,7 @@ const cargoMemo = new Memo<Record<string, unknown> | null>({ nombre: "personas:c
 personasRouter.get("/cargo/:codigo", async (c) => {
   const codigo = c.req.param("codigo");
   if (!CODIGO.test(codigo)) return c.json({ error: "not_found" }, 404);
-  const cuerpo = await cargoMemo.obtener(codigo, async () => {
+  const cuerpo = await cargoMemo.obtener(codigo, async (ctl) => {
     const f = await funcionarioDeCodigo(codigo);
     if (!f) return null;
     const esEl = mismaPersona(f);
@@ -764,6 +764,17 @@ personasRouter.get("/cargo/:codigo", async (c) => {
     const visitas = (visitasDe ?? []).map(({ nombre: _n, motivos: _m, en_nombre_de, ...v }) => ({
       ...v, en_nombre_de: (en_nombre_de ?? []).filter((o: string) => orgOk(o)),
     }));
+    // Si la planilla no respondió a tiempo, al menos lo que ya dice el índice (funcionario_resumen): la entidad y el cargo de
+    // hoy. Antes la ficha decía «No figura en ninguna planilla» bajo una cabecera «En planilla hoy» (usuario, 2026-11-17).
+    const planillaFilas = planilla ?? (f.planillaHoy && f.entidadRuc
+      ? [{ situacion: "hoy", ficha: null, entidad: f.entidad, entidadRuc: f.entidadRuc, cargo: f.cargo, dependencia: null, regimen: null,
+           base: null, meses: null, primerMes: null, ultimoMes: f.planillaHasta ? String(f.planillaHasta).slice(0, 7) : null, ultimoMesEntidad: null,
+           resumida: true }]
+      : []);
+    const sinRespuesta = [...rastro.sin_respuesta.filter((x) => x !== "visitas" || visitasDe === null), ...(planilla ? [] : ["planilla"]),
+      ...(candidaturas ? [] : ["candidaturas"]), ...(recibidas ? [] : ["visitas_recibidas"])];
+    // Una ficha a medias no se guarda: el que vuelva a pedirla en un momento la arma entera.
+    if (sinRespuesta.length) ctl.noGuardar();
     return publicar({
       codigo,
       persona: {
@@ -789,7 +800,7 @@ personasRouter.get("/cargo/:codigo", async (c) => {
         ganaronDespues: recibidas.filter((x) => x.ganoDespues > 0).length,
         filas: recibidas,
       },
-      planilla: planilla ?? [],
+      planilla: planillaFilas,
       ordenes: sinNombre(rastro.ordenes_como_persona_natural),
       aportes: sinNombre(rastro.aportes_de_campana),
       expuesta: sinNombre(rastro.personas_expuestas),
@@ -802,12 +813,12 @@ personasRouter.get("/cargo/:codigo", async (c) => {
         empresaInhabilitadaYOtraGano: rastro.empresa_suya_inhabilitada_y_otra_gano,
         enInformeYDespuesCobro: rastro.en_informe_de_control_y_despues_cobro,
       },
-      sinRespuesta: [...rastro.sin_respuesta.filter((x) => x !== "visitas" || visitasDe === null), ...(planilla ? [] : ["planilla"]), ...(candidaturas ? [] : ["candidaturas"]),
-        ...(recibidas ? [] : ["visitas_recibidas"])],
+      sinRespuesta,
     });
   });
   if (!cuerpo) return c.json({ error: "not_found" }, 404);
-  c.header("Cache-Control", CACHE);
+  // A medias, sin caché del borde: si no, la versión incompleta se sirve media hora.
+  c.header("Cache-Control", ((cuerpo as { sinRespuesta?: string[] }).sinRespuesta ?? []).length ? "no-store" : CACHE);
   return c.json(cuerpo);
 });
 

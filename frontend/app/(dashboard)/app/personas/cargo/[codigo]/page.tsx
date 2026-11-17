@@ -209,9 +209,13 @@ export default async function FuncionarioPage({ params, searchParams }: { params
                       </Ayuda>
                     }
                   >
-                    {f.planilla.length
-                      ? `En planilla: ${plural(f.planilla.length, "entidad", "entidades")}${p.planillaHoy ? "" : "; hoy no figura en ninguna"}.`
-                      : "No figura en ninguna planilla publicada en el Portal de Transparencia."}
+                    {f.sinRespuesta.includes("planilla")
+                      ? p.planillaHoy
+                        ? `Figura hoy en la planilla de ${p.entidad ?? "una entidad"}. El detalle no respondió a tiempo: vuelve a cargar la página en un momento.`
+                        : "La planilla no respondió a tiempo: vuelve a cargar la página en un momento."
+                      : f.planilla.length
+                        ? `En planilla: ${plural(f.planilla.length, "entidad", "entidades")}${p.planillaHoy ? "" : "; hoy no figura en ninguna"}.`
+                        : "No figura en ninguna planilla publicada en el Portal de Transparencia."}
                   </CabeceraPestana>
                   {f.planilla.length > 0 && <Tabla columnas={COLUMNAS_PLANILLA} filas={f.planilla.map(filaPlanilla)} etiqueta="Planillas en que figura o figuró" />}
                 </section>
