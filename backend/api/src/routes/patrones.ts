@@ -554,13 +554,32 @@ patronesRouter.get("/grupos", async (c) => {
     const codigos = personas.length
       ? new Map((await pool.query<{ ruc: string; codigo: string }>(`SELECT ruc, codigo FROM persona_codigo WHERE ruc = ANY($1)`, [personas])).rows.map((x) => [x.ruc, x.codigo]))
       : new Map<string, string>();
+    // Cuánto de lo que cada integrante le vendió al Estado por órdenes (desde 2018) viene de ESA entidad: las cuatro
+    // empresas del caso de la UNI dependían de ella entre el 92 % y el 99,9 %.
+    const pares = grupos.flatMap((x) => ((x.detalle?.miembros ?? []) as { ruc: string }[]).map((m) => [x.entidadRuc as string, m.ruc]));
+    const dependencia = new Map<string, number>();
+    if (pares.length) {
+      const d = await pool.query<{ entidad: string; ruc: string; parte: number }>(
+        `WITH p AS (SELECT * FROM unnest($1::text[], $2::text[]) AS t(entidad, ruc)),
+              tot AS (
+                SELECT ruc, entidad_ruc, sum(monto) AS monto FROM empresa_orden_anual WHERE anio >= 2018 AND ruc IN (SELECT ruc FROM p) GROUP BY 1, 2
+                UNION ALL
+                SELECT ruc, entidad_ruc, sum(monto) FROM persona_orden_anual WHERE anio >= 2018 AND ruc IN (SELECT ruc FROM p) GROUP BY 1, 2)
+         SELECT p.entidad, p.ruc,
+                (sum(t.monto) FILTER (WHERE t.entidad_ruc = p.entidad) / NULLIF(sum(t.monto), 0))::float AS parte
+           FROM p JOIN tot t ON t.ruc = p.ruc GROUP BY 1, 2`,
+        [pares.map((x) => x[0]), pares.map((x) => x[1])],
+      ).catch(() => ({ rows: [] as { entidad: string; ruc: string; parte: number }[] }));
+      for (const r of d.rows) if (r.parte != null) dependencia.set(`${r.entidad}|${r.ruc}`, Math.round(r.parte * 1000) / 1000);
+    }
     const data = grupos.map(({ total: _t, detalle, ...x }) => {
       const miembros = ((detalle?.miembros ?? []) as { ruc: string; nombre: string; ordenes: number; monto: number }[]);
       const nombreDe = new Map(miembros.map((m) => [m.ruc, m.nombre]));
       const conNombre = (o: { ruc?: string }) => ({ ...o, nombre: o.ruc ? nombreDe.get(o.ruc) ?? null : null });
       return {
         ...x,
-        miembros: miembros.map((m) => ({ ...m, persona: m.ruc.startsWith("10"), codigo: codigos.get(m.ruc) ?? null })),
+        miembros: miembros.map((m) => ({ ...m, persona: m.ruc.startsWith("10"), codigo: codigos.get(m.ruc) ?? null,
+          parteDeSusVentas: dependencia.get(`${x.entidadRuc}|${m.ruc}`) ?? null })),
         vinculos: vinc.rows.filter((v) => v.entidad_ruc === x.entidadRuc && v.grupo === x.grupo).map((v) => ({
           a: v.a, nombreA: nombreDe.get(v.a) ?? null, b: v.b, nombreB: nombreDe.get(v.b) ?? null, via: v.via, que: VIA[v.via] ?? v.via,
           persona: v.persona ? taparNombrePropio(nombrePublicable(v.persona), v.persona) : null,

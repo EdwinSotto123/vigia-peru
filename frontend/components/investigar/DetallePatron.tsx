@@ -441,7 +441,13 @@ export function detalleGrupo(p: PatronGrupo): Detalle {
           <ul className="space-y-1.5 text-dato">
             {p.miembros.map((m) => (
               <li key={m.ruc} className="flex items-baseline justify-between gap-3">
-                <span className="min-w-0"><Integrante m={m} />{m.persona ? <span className="ml-1.5 text-rotulo text-mute">persona natural</span> : null}</span>
+                <span className="min-w-0">
+                  <Integrante m={m} />
+                  {m.persona ? <span className="ml-1.5 text-rotulo text-mute">persona natural</span> : null}
+                  {m.parteDeSusVentas != null && m.parteDeSusVentas >= 0.5 ? (
+                    <span className="ml-1.5 text-rotulo text-amberTexto">{porcentaje(m.parteDeSusVentas * 100)} de sus ventas por órdenes</span>
+                  ) : null}
+                </span>
                 <span className="shrink-0 font-mono text-meta tabular-nums text-inkSoft">{solesCompacto(m.monto)}</span>
               </li>
             ))}

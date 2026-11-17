@@ -569,6 +569,7 @@ export const patrones = definir({
           objetos_repartidos_entre_miembros: g.repartidos, monto_repartido_soles: g.montoRepartido,
           integrantes: ((g.miembros ?? []) as Fila[]).map((m) => ({
             nombre: m.nombre, ruc: m.persona ? undefined : m.ruc, persona_natural: m.persona || undefined, ordenes: m.ordenes, monto_soles: m.monto,
+            parte_de_sus_ventas_por_ordenes_que_viene_de_esta_entidad: m.parteDeSusVentas ?? undefined,
             enlace: m.persona ? (m.codigo ? `${cx.env.VIGIA_URL}/app/personas/${m.codigo}` : undefined) : e.empresa(m.ruc),
           })),
           por_que_estan_juntos: ((g.vinculos ?? []) as Fila[]).slice(0, 20).map((v) => ({ entre: [v.nombreA, v.nombreB], vinculo: v.que, persona: v.persona ?? undefined, otra_persona: v.personaB ?? undefined })),

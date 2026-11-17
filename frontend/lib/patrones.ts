@@ -135,7 +135,8 @@ export interface PatronGrupo {
   entidadRuc: string;
   entidad: string | null;
   grupo: string;
-  miembros: { ruc: string; nombre: string | null; ordenes: number; monto: number; persona: boolean; codigo: string | null }[];
+  /** `parteDeSusVentas`: qué parte de lo que le vendió al Estado por órdenes desde 2018 viene de esta entidad (0 a 1). */
+  miembros: { ruc: string; nombre: string | null; ordenes: number; monto: number; persona: boolean; codigo: string | null; parteDeSusVentas: number | null }[];
   empresas: number;
   personas: number;
   ordenes: number;
