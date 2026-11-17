@@ -1022,7 +1022,7 @@ const COLUMNAS_REPETIDAS: Columna[] = [
     ),
   },
   { clave: "total", titulo: "Juntas, frente al tope", ancho: "9.5rem", alinear: "der", desde: "md", apilar: "con-rotulo", corto: "Juntas" },
-  { clave: "dias", titulo: "Entre la primera y la última", ancho: "9rem", alinear: "der", desde: "md", apilar: "con-rotulo", corto: "Días" },
+  { clave: "dias", titulo: "Días entre ellas", ancho: "9rem", alinear: "der", desde: "md", apilar: "con-rotulo", corto: "Días" },
   { clave: "estado", titulo: "Devengadas", ancho: "7.5rem", alinear: "der", desde: "lg", apilar: "con-rotulo" },
 ];
 
