@@ -513,13 +513,14 @@ export const patrones = definir({
     "de ejemplo para abrir con ficha_contrato o dictamen. Con alcance «observacion»: los indicadores NUEVOS que Vigía todavía " +
     "está midiendo, contrato por contrato (una reunión de la empresa con quien decide las compras mientras se evaluaban las " +
     "ofertas; visitas declaradas «personales» y repetidas a quien decide; dos rivales con un socio común que registran sus " +
-    "ofertas casi a la vez): se muestran con su evidencia y NO cuentan para el puntaje del contrato. " +
+    "ofertas casi a la vez; un funcionario de la entidad que declaró en su DJI haber trabajado en la empresa que ganó " +
+    "mientras él ocupaba el cargo): se muestran con su evidencia y NO cuentan para el puntaje del contrato. " +
     "Un patrón es un motivo para mirar, no una acusación.",
   cuenta: true,
   entrada: {
     alcance: z.enum(["entidad", "proveedor", "relleno", "consorcio", "renovacion", "dueno", "inhabilitada", "control", "observado", "observacion"]).default("entidad"),
-    indicador: z.enum(["reunion_en_evaluacion", "visita_personal_decisor", "ofertas_a_la_vez"]).optional()
-      .describe("(observacion) Sólo uno de los tres indicadores en observación."),
+    indicador: z.enum(["reunion_en_evaluacion", "visita_personal_decisor", "ofertas_a_la_vez", "trabajo_en_el_ganador"]).optional()
+      .describe("(observacion) Sólo uno de los indicadores en observación."),
     ruc: z.string().min(11).max(14).optional().describe("RUC 20 de la entidad o de la empresa (opcional)."),
     regla: z.string().max(60).optional().describe("Sólo una señal, por su código (p. ej. unica_oferta_valida)."),
     solo_graves: z.boolean().optional().describe("(dueno) Sólo grupos con contratos parecidos a 90 días o menos entre sí. (inhabilitada) Sólo con sanción definitiva o empresa hecha cerca de la sanción. (observado) Sólo con responsabilidad penal presunta en una observación de selección, ejecución o pagos."),
@@ -549,6 +550,7 @@ export const patrones = definir({
           ya_era_proveedor_de_la_entidad: x.yaProveedor ?? undefined,
           minutos_entre_las_ofertas: x.minutos ?? undefined, horas_de_registro: x.horaGanador && x.horaOtro ? [x.horaGanador, x.horaOtro] : undefined,
           otro_postor: x.otro ?? undefined, ruc_otro_postor: x.otroRuc ?? undefined,
+          cuando_fue_el_empleo: x.cuando ?? undefined, empleo_desde: x.empleoDesde ?? undefined, empleo_hasta: x.empleoHasta ?? undefined,
         })),
         como_leerlo:
           "Son indicadores EN OBSERVACIÓN: Vigía todavía mide cuántas veces aciertan, así que no cuentan para el puntaje del " +
@@ -558,7 +560,10 @@ export const patrones = definir({
           "de los que pierden; entre proveedores previos casi no hay diferencia). visita_personal_decisor: la misma persona " +
           "visitó al mismo funcionario que decide, declarando «visita personal», en 3 o más días de 2 o más meses, en el año " +
           "anterior a la buena pro. ofertas_a_la_vez: el ganador y otro postor comparten un socio o representante y " +
-          "registraron sus ofertas con 30 minutos o menos de diferencia. Cada uno tiene una explicación sencilla posible " +
+          "registraron sus ofertas con 30 minutos o menos de diferencia. trabajo_en_el_ganador: un funcionario de la entidad " +
+          "declaró en su DJI (datos abiertos) un empleo en la empresa, y la buena pro cayó mientras ocupaba su cargo; " +
+          "cuando_fue_el_empleo dice si el empleo seguía vigente (a_la_vez), si empezó después (despues), si lo dejó en los " +
+          "dos años anteriores (hasta_2_anios) o antes. Cada uno tiene una explicación sencilla posible " +
           "(una subsanación, un familiar, el mismo estudio contable): abre el contrato con ficha_contrato y lee su evidencia.",
         fuente: "Registro de visitas en línea, Registro Nacional de Proveedores, CONOSCE y el reporte de presentación de ofertas del SEACE",
         aviso: AVISO,

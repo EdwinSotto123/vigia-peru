@@ -38,6 +38,7 @@ export const ETIQUETA_CRUCE: Record<string, string> = {
   reunion_en_evaluacion: "Se reunió con quien decide las compras mientras se evaluaban las ofertas",
   visita_personal_decisor: "Visitas «personales» repetidas a quien decide las compras",
   ofertas_a_la_vez: "Presentó su oferta casi a la vez que un rival con el que comparte socio",
+  trabajo_en_el_ganador: "Un funcionario de la entidad declaró haber trabajado en la empresa que ganó",
   socio_comun: "Comparte socio o representante con otro postor",
   // Competencia y conflicto en el proceso (migración 122).
   unico_postor: "Único postor del proceso",

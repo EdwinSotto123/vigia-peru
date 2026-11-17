@@ -238,6 +238,9 @@ export function cadenaCruces(): Refresco[] {
     f("refrescar_cruce_proveedor_cautivo"),
     // Un funcionario declaró en su DJI un interés en la empresa que le ganó a su entidad (migración 170).
     f("refrescar_cruce_interes_dji", true),
+    // Un funcionario de la entidad declaró en la DJI de datos abiertos un empleo en la empresa que ganó mientras él
+    // ocupaba el cargo (migración 330): después de interes_dji, para no repetir lo que ya marca empleo_declarado.
+    f("refrescar_cruce_empleo_dji", true),
     // La empresa espejo de una inhabilitada y las postulaciones de cada empresa (migración 184).
     f("refrescar_cruce_empresa_espejo", true),
     f("refrescar_proceso_resumen", true),

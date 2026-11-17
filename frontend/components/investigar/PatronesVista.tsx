@@ -1499,6 +1499,16 @@ const NOMBRE_OBSERVACION: Record<PatronObservacion["tipo"], string> = {
   reunion_en_evaluacion: "Reunión con quien decide, durante la evaluación",
   visita_personal_decisor: "Visitas «personales» repetidas a quien decide",
   ofertas_a_la_vez: "Ofertas casi a la vez, con un socio común",
+  trabajo_en_el_ganador: "Un funcionario declaró haber trabajado en el ganador",
+};
+
+/** Cuándo fue el empleo frente a la buena pro (trabajo_en_el_ganador). */
+const CUANDO_EMPLEO: Record<string, string> = {
+  a_la_vez: "seguía trabajando ahí el día de la buena pro",
+  despues: "empezó a trabajar ahí después de la buena pro",
+  hasta_2_anios: "lo dejó menos de dos años antes de la buena pro",
+  antes: "lo dejó más de dos años antes de la buena pro",
+  sin_fechas: "su declaración no dice cuándo",
 };
 
 /** «0,3 %», «menos del 0,1 %»: una proporción chica sin perder el orden de magnitud. */
@@ -1522,9 +1532,9 @@ function ListaObservacion({ inicial }: { inicial: InicialPatrones }) {
               cuenta para el riesgo del contrato hasta saber, con una muestra revisada, cuántas veces acierta.
             </span>
             <span className="mt-1.5 block">
-              Hoy son tres: una reunión de la empresa con quien decide las compras mientras se evaluaban las ofertas, visitas
-              declaradas «personales» y repetidas a quien decide, y dos rivales con un socio común que registran sus ofertas
-              casi a la vez.
+              Hoy son cuatro: una reunión de la empresa con quien decide las compras mientras se evaluaban las ofertas, visitas
+              declaradas «personales» y repetidas a quien decide, dos rivales con un socio común que registran sus ofertas
+              casi a la vez, y un funcionario de la entidad que declaró en su DJI haber trabajado en la empresa que ganó.
             </span>
             <span className="mt-1.5 block">De quien recibió una visita se muestra sólo el cargo. Es un motivo para mirar, no una acusación.</span>
           </Ayuda>
@@ -1561,7 +1571,7 @@ function ListaObservacion({ inicial }: { inicial: InicialPatrones }) {
                     <label className="min-w-0 sm:w-96">
                       <span className="sr-only">Filtrar por indicador</span>
                       <select className={CAMPO} value={tipo ?? ""} onChange={(e) => lista.elegirRegla(e.target.value)}>
-                        <option value="">{todos > 0 ? `Los tres indicadores (${numero(todos)})` : "Los tres indicadores"}</option>
+                        <option value="">{todos > 0 ? `Todos los indicadores (${numero(todos)})` : "Todos los indicadores"}</option>
                         {porTipo.map((o) => (
                           <option key={o.tipo} value={o.tipo}>{`${NOMBRE_OBSERVACION[o.tipo as PatronObservacion["tipo"]] ?? o.etiqueta} (${numero(o.n)})`}</option>
                         ))}
@@ -1592,6 +1602,9 @@ function evidenciaObservacion(p: PatronObservacion): string {
   }
   if (p.tipo === "visita_personal_decisor") {
     return `${plural(p.dias ?? 3, "día distinto", "días distintos")}${p.meses != null && p.meses > 1 ? ` de ${plural(p.meses, "mes", "meses")}` : ""} de visita personal a ${quien}`;
+  }
+  if (p.tipo === "trabajo_en_el_ganador") {
+    return `Quien tiene el cargo de ${quien} declaró un empleo en la empresa: ${CUANDO_EMPLEO[p.cuando ?? ""] ?? "sin fechas"}`;
   }
   const min = p.minutos == null ? "pocos minutos" : p.minutos < 1 ? "menos de un minuto" : plural(Math.round(p.minutos), "minuto", "minutos");
   return `Sus ofertas se registraron con ${min} de diferencia${p.horaGanador && p.horaOtro ? ` (${p.horaGanador} y ${p.horaOtro})` : ""}`;

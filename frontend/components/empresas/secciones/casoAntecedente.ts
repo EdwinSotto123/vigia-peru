@@ -364,7 +364,24 @@ export function datosDe(a: AntecedenteEmpresa, ruc: string): DatoCaso[] {
     );
   }
   // ── Su gente en otras empresas y en el Estado ──
-  else if (t === "ofertas_a_la_vez") {
+  else if (t === "trabajo_en_el_ganador") {
+    const CUANDO: Record<string, string> = {
+      a_la_vez: "Seguía vigente el día de la buena pro",
+      despues: "Empezó después de la buena pro, todavía en el cargo",
+      hasta_2_anios: "Lo dejó menos de dos años antes",
+      antes: "Lo dejó más de dos años antes",
+      sin_fechas: "La declaración no dice cuándo",
+    };
+    add(
+      quien(),
+      txt(d.cargo_en_la_empresa) && { etiqueta: "Su cargo en la empresa", valor: oracion(txt(d.cargo_en_la_empresa)!.toLowerCase()) },
+      rangoDe(d.empleo_desde, d.empleo_hasta) && { etiqueta: "El empleo", valor: rangoDe(d.empleo_desde, d.empleo_hasta) },
+      txt(d.cuando) && CUANDO[txt(d.cuando)!] && { etiqueta: "Frente a la buena pro", valor: CUANDO[txt(d.cuando)!] },
+      rangoDe(d.cargo_desde, d.cargo_hasta) && { etiqueta: "Su cargo en la entidad", valor: rangoDe(d.cargo_desde, d.cargo_hasta) },
+      { etiqueta: "De dónde sale", valor: "Su Declaración Jurada de Intereses (datos abiertos de la Contraloría)", soloPanel: true },
+      delProceso(),
+    );
+  } else if (t === "ofertas_a_la_vez") {
     const otros = empresas(r?.otros ?? (Array.isArray(d.otros_postores) ? (d.otros_postores as string[]).map((x) => ({ ruc: x, nombre: null })) : []));
     const rolOtro = Array.isArray(d.rol_en_otros) ? papeles((d.rol_en_otros as string[]).join(", ")) : null;
     const min = num(d.minutos);

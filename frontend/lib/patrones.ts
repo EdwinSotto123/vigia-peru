@@ -289,7 +289,7 @@ export interface PatronesRenovaciones {
  * hasta medir su precisión. De quien recibió una visita llega sólo el cargo y el área; quien visitó está en la ficha.
  */
 export interface PatronObservacion {
-  tipo: "reunion_en_evaluacion" | "visita_personal_decisor" | "ofertas_a_la_vez";
+  tipo: "reunion_en_evaluacion" | "visita_personal_decisor" | "ofertas_a_la_vez" | "trabajo_en_el_ganador";
   etiqueta: string;
   severidad: "alta" | "media" | "baja";
   ocid: string;
@@ -319,6 +319,10 @@ export interface PatronObservacion {
   horaOtro: string | null;
   otroRuc: string | null;
   otro: string | null;
+  /** Trabajo en el ganador: cuándo fue el empleo frente a la buena pro (a_la_vez, despues, hasta_2_anios, antes, sin_fechas). */
+  cuando?: string | null;
+  empleoDesde?: string | null;
+  empleoHasta?: string | null;
 }
 
 export interface PatronesObservacion {

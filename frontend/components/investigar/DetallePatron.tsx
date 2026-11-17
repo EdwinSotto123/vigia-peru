@@ -617,6 +617,11 @@ export function detalleObservacion(p: PatronObservacion): Detalle {
         Gente de <b>{emp}</b> visitó a {recibio(p)} de <b>{ent}</b> <b>después de presentar su oferta</b> y antes de la buena pro.{" "}
         {p.yaProveedor ? "La empresa ya le vendía a la entidad: la visita puede ser por lo que ya tenía contratado." : "La empresa no le había vendido a la entidad ese año ni el anterior."}
       </>
+    ) : p.tipo === "trabajo_en_el_ganador" ? (
+      <>
+        Un funcionario de <b>{ent}</b>, con el cargo de {(p.cargo ?? "funcionario").toLowerCase()}, declaró en su Declaración Jurada de Intereses
+        haber trabajado en <b>{emp}</b>, y la entidad le dio la buena pro mientras él ocupaba ese cargo.
+      </>
     ) : p.tipo === "visita_personal_decisor" ? (
       <>
         Una misma persona de <b>{emp}</b> visitó en <b>{plural(p.dias ?? 3, "día distinto", "días distintos")}</b>, declarando «visita personal», a{" "}
@@ -636,6 +641,15 @@ export function detalleObservacion(p: PatronObservacion): Detalle {
           { etiqueta: "Duró la evaluación", valor: p.diasEvaluacion != null ? plural(p.diasEvaluacion, "día", "días") : null },
           { etiqueta: "¿Ya le vendía a la entidad?", valor: p.yaProveedor ? "Sí" : "No, ni ese año ni el anterior" },
         ]
+      : p.tipo === "trabajo_en_el_ganador"
+        ? [
+            { etiqueta: "Cargo del funcionario", valor: p.cargo ? tituloNatural(p.cargo) : null },
+            { etiqueta: "El empleo en la empresa", valor: p.empleoDesde ? `${fechaConAnio(p.empleoDesde)}${p.empleoHasta ? ` a ${fechaConAnio(p.empleoHasta)}` : ", sin fecha de salida"}` : null },
+            {
+              etiqueta: "Frente a la buena pro",
+              valor: ({ a_la_vez: "Seguía vigente", despues: "Empezó después", hasta_2_anios: "Lo dejó menos de dos años antes", antes: "Lo dejó más de dos años antes", sin_fechas: "Sin fechas" } as Record<string, string>)[p.cuando ?? ""] ?? null,
+            },
+          ]
       : p.tipo === "visita_personal_decisor"
         ? [
             { etiqueta: "Días distintos", valor: p.dias != null ? numero(p.dias) : null, mono: true },
@@ -658,6 +672,13 @@ export function detalleObservacion(p: PatronObservacion): Detalle {
           "Mira cómo se calificó a los demás postores: si alguno quedó fuera por una formalidad.",
           "Descarta la explicación sencilla: una subsanación, la firma de otro contrato o un trámite pendiente.",
         ]
+      : p.tipo === "trabajo_en_el_ganador"
+        ? [
+            "Abre el contrato y busca en el expediente si el funcionario firmó el requerimiento, integró el comité o dio la conformidad.",
+            "Revisa su Declaración Jurada de Intereses en la Contraloría: el empleo, sus fechas y si declaró el vínculo.",
+            "Mira cuánto le adjudicó la entidad a la empresa antes y después de que él llegara al cargo.",
+            "Descarta la explicación sencilla: un empleo de hace años, en otra área, sin relación con lo que se compró.",
+          ]
       : p.tipo === "visita_personal_decisor"
         ? [
             "Abre el contrato y mira las fechas de las visitas frente a la convocatoria y la buena pro.",

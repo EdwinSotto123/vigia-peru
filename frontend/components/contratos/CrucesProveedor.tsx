@@ -266,6 +266,7 @@ const POR_QUE: Record<string, string> = {
   reunion_en_evaluacion: "Con las ofertas ya presentadas, lo que falta es evaluarlas, y el trato con los postores va por el SEACE. Una reunión del futuro ganador con quien decide las compras en esos días merece ver quién integró el comité y cómo se calificó a los demás postores.",
   visita_personal_decisor: "Una relación personal entre quien vende y quien decide la compra es un posible conflicto de intereses: al funcionario le toca declararlo y apartarse. El registro sólo dice que la visita se anotó como personal; puede ser un familiar o un error al llenar el motivo.",
   ofertas_a_la_vez: "Dos empresas que compiten y comparten un dueño o representante ya son una señal de competencia aparente. Que además registren sus ofertas una tras otra sugiere que las preparó la misma mano.",
+  trabajo_en_el_ganador: "Quien trabajó en una empresa, o todavía trabaja ahí, tiene un vínculo con ella que debe declarar y que lo obliga a apartarse de lo que la toque. Vale ver si el funcionario intervino en esta contratación: su área, si firmó el requerimiento o si integró el comité.",
   partido_gobernante: "La empresa, o una persona detrás de ella, aportó dinero al partido que gobierna la entidad que le dio el contrato: un posible conflicto de interés, el más directo de estos cruces.",
   vendio_gobernante: "La empresa, o una persona detrás de ella, le vendió a la campaña del partido que gobierna la entidad. Es una relación comercial, no un aporte: pesa según el monto.",
   proveedor_campana: "Es una relación comercial con un partido político. Pesa más cuando es el partido que gobierna la entidad, y menos en cadenas grandes que le venden a todos.",
@@ -548,6 +549,29 @@ function Texto({ c, gobierna }: { c: CruceProveedor; gobierna?: GobiernoContrato
           <b>{min == null ? "pocos minutos" : min < 1 ? "menos de un minuto" : `${numero(Math.round(min))} ${Math.round(min) === 1 ? "minuto" : "minutos"}`} de diferencia</b>
           {txt(d.hora_ganador) && txt(d.hora_otro) ? ` (a las ${txt(d.hora_ganador)} y a las ${txt(d.hora_otro)})` : ""}.
           <Gano c={c} />
+        </>
+      );
+    }
+    case "trabajo_en_el_ganador": {
+      const p = c.socios[0];
+      const desde = txt(d.empleo_desde);
+      const hasta = txt(d.empleo_hasta);
+      const puesto = txt(d.cargo_en_la_empresa);
+      const cuando: Record<string, string> = {
+        a_la_vez: "Según su declaración, todavía trabajaba en la empresa el día de la buena pro.",
+        despues: "Empezó a trabajar en la empresa después de la buena pro, cuando seguía en su cargo.",
+        hasta_2_anios: "Había dejado ese empleo menos de dos años antes de la buena pro.",
+        antes: "Había dejado ese empleo más de dos años antes de la buena pro.",
+        sin_fechas: "Su declaración no dice desde cuándo ni hasta cuándo trabajó ahí.",
+      };
+      return (
+        <>
+          {p?.nombre ? <span className="font-semibold">{p.nombre}</span> : "Un funcionario"}
+          <span className="text-inkSoft"> ({p?.rol ? oracion(p.rol) : "funcionario"} de la entidad)</span> declaró en su Declaración Jurada
+          de Intereses haber trabajado en <Emp c={c} />
+          {puesto ? <> como {puesto.toLowerCase()}</> : ""}
+          {desde ? <>, desde el {fechaConAnio(desde)}{hasta ? <> hasta el {fechaConAnio(hasta)}</> : " sin fecha de salida"}</> : ""}. La entidad
+          le dio esta buena pro mientras él ocupaba ese cargo. {cuando[txt(d.cuando) ?? ""] ?? ""}
         </>
       );
     }
@@ -1338,7 +1362,7 @@ const anclaDe = (tipo: string) => `antecedente-${tipo}`;
  * resumen de antecedentes y que el conteo de esa pestaña: lo de quien ganó y lo del proceso, sin los datos del proveedor
  * ni lo posterior a la convocatoria.
  */
-export function banderasAntecedentes(cruces: CruceProveedor[], href: string): { tipo: string; severidad: "alta" | "media" | "baja"; nombre: string; n: number; href: string }[] {
+export function banderasAntecedentes(cruces: CruceProveedor[], href: string): { tipo: string; severidad: "alta" | "media" | "baja"; nombre: string; n: number; href: string; observacion?: boolean }[] {
   const { antecedentes, delProceso, enObservacion } = clasificarCruces(cruces);
   return [
     ...[...agrupar(antecedentes), ...agrupar(delProceso)].map((g) => ({
@@ -1353,6 +1377,7 @@ export function banderasAntecedentes(cruces: CruceProveedor[], href: string): { 
     ...agrupar(enObservacion).map((g) => ({
       tipo: g[0].tipo,
       severidad: "baja" as const,
+      observacion: true,
       nombre: `En observación: ${g[0].etiqueta}`,
       n: g.length,
       href: `${href}#${anclaDe(g[0].tipo)}`,

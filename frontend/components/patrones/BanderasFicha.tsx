@@ -17,6 +17,11 @@ export interface BanderaFicha {
   explica?: string;
   /** La evidencia: la pestaña de la ficha con su filtro. Sin ella, la bandera no es enlace. */
   href?: string | null;
+  /**
+   * Un indicador en observación (migración 329): se muestra, pero no entra a la cuenta por gravedad ni a su barra, porque
+   * todavía no cuenta para el riesgo. La frase lo suma aparte («1 grave, 2 leves y 1 en observación»).
+   */
+  observacion?: boolean;
 }
 
 // Los tres canales de la severidad (color, forma y palabra), como `Severidad`; la palabra, para el lector de pantalla.
@@ -93,21 +98,26 @@ export function BanderasFicha({
 /** Cuántas hay de cada gravedad y la frase («4 graves, 5 medias»). */
 function contar(orden: BanderaFicha[]) {
   const cuenta = { alta: 0, media: 0, baja: 0 };
-  for (const b of orden) cuenta[b.severidad] += 1;
+  for (const b of orden) if (!b.observacion) cuenta[b.severidad] += 1;
+  const enObservacion = orden.filter((b) => b.observacion).length;
   const partes = (["alta", "media", "baja"] as const).filter((s) => cuenta[s] > 0);
   const palabra = { alta: ["grave", "graves"], media: ["media", "medias"], baja: ["leve", "leves"] } as const;
-  const resumen = partes.map((s) => `${numero(cuenta[s])} ${palabra[s][cuenta[s] === 1 ? 0 : 1]}`).join(", ");
-  return { cuenta, partes, resumen };
+  const resumen = [
+    ...partes.map((s) => `${numero(cuenta[s])} ${palabra[s][cuenta[s] === 1 ? 0 : 1]}`),
+    ...(enObservacion ? [`${numero(enObservacion)} en observación`] : []),
+  ].join(", ");
+  const total = cuenta.alta + cuenta.media + cuenta.baja;
+  return { cuenta, partes, resumen, total };
 }
 
 /** La barra fina de su reparto por gravedad (el color nunca va solo: la frase va al lado). */
 function BarraGravedad({ orden, className }: { orden: BanderaFicha[]; className?: string }) {
-  const { cuenta, partes } = contar(orden);
+  const { cuenta, partes, total } = contar(orden);
   if (partes.length < 2) return null;
   return (
     <div className={cn("flex h-1.5 gap-[2px] overflow-hidden rounded-full", className)} aria-hidden>
       {partes.map((s) => (
-        <span key={s} className={cn("h-full", BARRA[s])} style={{ width: `${(100 * cuenta[s]) / orden.length}%` }} />
+        <span key={s} className={cn("h-full", BARRA[s])} style={{ width: `${(100 * cuenta[s]) / total}%` }} />
       ))}
     </div>
   );
