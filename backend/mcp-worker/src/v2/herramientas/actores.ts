@@ -537,10 +537,12 @@ export const patrones = definir({
     "la persona que vende con su RUC y es socia de una de ellas, socios con los mismos dos apellidos poco comunes), con lo que " +
     "hicieron juntos en las órdenes: al borde del tope de 8 UIT, órdenes el mismo día con números correlativos y el mismo " +
     "objeto repartido entre miembros (fraccionamiento visto como grupo); con ruc, los de esa entidad o los de esa empresa. " +
+    "Con alcance «repetida»: la misma compra (proveedor, monto y objeto) en varias órdenes directas de 7 a 90 días entre sí: " +
+    "fraccionamiento en el tiempo si juntas pasan el tope y cada una queda al borde, o posible pago doble si todas se devengaron. " +
     "Un patrón es un motivo para mirar, no una acusación.",
   cuenta: true,
   entrada: {
-    alcance: z.enum(["entidad", "proveedor", "relleno", "consorcio", "renovacion", "dueno", "inhabilitada", "control", "observado", "observacion", "grupo"]).default("entidad"),
+    alcance: z.enum(["entidad", "proveedor", "relleno", "consorcio", "renovacion", "dueno", "inhabilitada", "control", "observado", "observacion", "grupo", "repetida"]).default("entidad"),
     indicador: z.enum(["reunion_en_evaluacion", "visita_personal_decisor", "ofertas_a_la_vez", "trabajo_en_el_ganador",
       "firma_en_plazo_de_apelacion"]).optional()
       .describe("(observacion) Sólo uno de los indicadores en observación."),
@@ -554,6 +556,23 @@ export const patrones = definir({
   async ejecutar(a, cx) {
     const e = enlaces(cx.env);
     const ruc = a.ruc ? rucJuridico(a.ruc) : undefined;
+    if (a.alcance === "repetida") {
+      // Con un RUC: primero como entidad; si no hay nada, como empresa proveedora.
+      let r = await api<Fila>(cx.env, "/patrones/repetidas", { entidad: ruc, severidad: a.solo_graves ? "alta" : undefined, page: a.pagina, size: 20 });
+      if (ruc && !(r.total > 0)) r = await api<Fila>(cx.env, "/patrones/repetidas", { ruc, severidad: a.solo_graves ? "alta" : undefined, page: a.pagina, size: 20 });
+      return {
+        total: r.total,
+        compras_repetidas: ((r.data ?? []) as Fila[]).map((x) => ({
+          entidad: x.entidad, entidad_ruc: x.entidadRuc, proveedor: x.nombre, proveedor_ruc: String(x.ruc ?? "").startsWith("20") ? x.ruc : undefined,
+          severidad: x.severidad, objeto: x.objeto, monto_de_cada_orden: x.monto, ordenes: x.ordenes, total_soles: x.total, tope_soles: x.tope,
+          desde: x.desde, hasta: x.hasta, dias: x.dias, devengadas: x.devengadas,
+          detalle: ((x.detalle ?? []) as Fila[]).map((o) => ({ orden: o.orden, fecha: o.fecha, estado: o.estado })),
+          enlace_entidad: e.entidad(x.entidadRuc),
+        })),
+        como_leerlo: r.como_leerlo,
+        aviso: AVISO,
+      };
+    }
     if (a.alcance === "grupo") {
       // Con un RUC: si es una entidad, sus grupos; si no, los grupos de esa empresa (en cada entidad a la que vendió).
       let r = await api<Fila>(cx.env, "/patrones/grupos", { entidad: ruc, severidad: a.solo_graves ? "alta" : undefined, page: a.pagina, size: 10 });

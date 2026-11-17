@@ -284,6 +284,8 @@ export async function correrOrdenes(env: Env, p: ParamsCorrida, step: WorkflowSt
     opcional("refrescar_grupos_proveedor"),
     // La severidad según cuánto depende cada grupo de su entidad (migración 347).
     opcional("calibrar_grupos_proveedor"),
+    // La misma compra repetida en semanas (migración 348): fraccionamiento en el tiempo o posible pago doble.
+    opcional("refrescar_ordenes_repetidas"),
     // Y los que tienen un integrante declarado como pariente por un funcionario de la misma entidad (migración 344).
     opcional("marcar_grupos_parientes"),
     // Los cruces (el fraccionamiento es uno) y los casos cruzados (migraciones 48 y 57).

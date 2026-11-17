@@ -605,6 +605,47 @@ patronesRouter.get("/grupos", async (c) => {
   return c.json(cuerpo);
 });
 
+const Repetidas = z.object({
+  entidad: z.string().regex(/^20\d{9}$/).optional(),
+  ruc: z.string().regex(/^20\d{9}$/).optional(),
+  severidad: z.enum(["alta", "media", "baja"]).optional(),
+  page: z.coerce.number().int().min(1).max(200).default(1),
+  size: z.coerce.number().int().min(1).max(50).default(20),
+});
+
+/**
+ * GET /patrones/repetidas?entidad=&ruc=&severidad= — la misma compra repetida en semanas (migración 348): órdenes directas
+ * de bienes del mismo proveedor, el mismo monto y el mismo objeto, de 7 a 90 días entre la primera y la última. Puede ser
+ * un fraccionamiento en el tiempo (juntas pasan el tope de 8 UIT), una orden registrada dos veces (si las dos se devengaron,
+ * un posible pago doble) o un suministro periódico legítimo. `ruc` es el de una empresa (un RUC 10 no se recibe).
+ */
+patronesRouter.get("/repetidas", async (c) => {
+  const p = Repetidas.safeParse(Object.fromEntries(Object.entries(parametros(c)).filter(([, v]) => v !== "" && v != null)));
+  if (!p.success) return c.json({ error: "invalid_query", issues: p.error.issues }, 400);
+  const q = p.data;
+  const cuerpo = await memo.obtener(`repetidas:${JSON.stringify(q)}`, async () => {
+    const r = await pool.query(
+      `SELECT x.entidad_ruc AS "entidadRuc", (SELECT es.nombre FROM entidad_stats es WHERE es.ruc = x.entidad_ruc) AS entidad,
+              x.ruc_contratista AS ruc, x.contratista AS nombre, x.monto::float AS monto, x.ordenes, x.total::float AS total, x.tope::float AS tope,
+              to_char(x.desde, 'YYYY-MM-DD') AS desde, to_char(x.hasta, 'YYYY-MM-DD') AS hasta, x.dias, x.devengadas, x.objeto, x.severidad, x.detalle,
+              (count(*) OVER ())::int AS total_filas
+         FROM ordenes_repetidas x
+        WHERE ($1::text IS NULL OR x.entidad_ruc = $1) AND ($2::text IS NULL OR x.ruc_contratista = $2) AND ($3::text IS NULL OR x.severidad = $3)
+        ORDER BY CASE x.severidad WHEN 'alta' THEN 0 WHEN 'media' THEN 1 ELSE 2 END, x.total DESC
+        LIMIT $4 OFFSET $5`,
+      [q.entidad ?? null, q.ruc ?? null, q.severidad ?? null, q.size, (q.page - 1) * q.size],
+    ).catch(() => ({ rows: [] as Record<string, unknown>[] }));
+    const filas = r.rows as Record<string, any>[];
+    return publicar({
+      total: filas[0]?.total_filas ?? 0, page: q.page, size: q.size,
+      data: filas.map(({ total_filas: _t, ...x }) => x),
+      como_leerlo: "La misma compra (proveedor, monto y objeto) en varias órdenes directas de 7 a 90 días entre sí. Si juntas pasan el tope de 8 UIT y cada una queda al borde, es la forma de un fraccionamiento en el tiempo; si todas se devengaron, pregunta si se pagó dos veces. Un suministro mensual puede explicarlo: mira el requerimiento.",
+    });
+  });
+  c.header("Cache-Control", CACHE);
+  return c.json(cuerpo);
+});
+
 const Renovaciones = z.object({
   ruc: z.string().regex(/^20\d{9}$/).optional(),
   page: z.coerce.number().int().min(1).max(200).default(1),
