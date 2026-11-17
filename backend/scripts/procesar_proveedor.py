@@ -60,6 +60,16 @@ SELECT x FROM unnest(%(ocids)s::text[]) x
  WHERE NOT EXISTS (SELECT 1 FROM documentos_gcs g WHERE ocid_corto(g.ocid) = ocid_corto(x) AND g.borrado_at IS NULL)
    AND NOT EXISTS (SELECT 1 FROM pedidos_descarga d WHERE d.ocid = x AND d.estado IN ('pendiente', 'descargando'))
 """
+ENCOLAR_PRECIOS = """
+INSERT INTO precios_lab_cola (ocid, prioridad, autor, motivo)
+SELECT DISTINCT ocid_corto(x), %s, 'procesar_proveedor.py', %s FROM unnest(%s::text[]) x
+ WHERE EXISTS (SELECT 1 FROM documento_pieza p JOIN pieza_lectura l ON l.pieza_id = p.id
+                WHERE ocid_corto(p.ocid) = ocid_corto(x) AND l.lector IN ('contrato', 'bases') AND l.estado IN ('ok', 'parcial'))
+    OR EXISTS (SELECT 1 FROM convocatoria_items ci WHERE ci.ocid = ocid_corto(x))
+ON CONFLICT (ocid) DO UPDATE SET estado = 'pendiente', pedido_at = now(), prioridad = EXCLUDED.prioridad,
+  motivo = EXCLUDED.motivo, vueltas = 0
+WHERE precios_lab_cola.estado IN ('sin_items', 'error', 'hecho')
+"""
 ESTADO = """
 SELECT count(*) AS procesos,
        count(*) FILTER (WHERE EXISTS (SELECT 1 FROM documentos_gcs g WHERE ocid_corto(g.ocid) = ocid_corto(x) AND g.borrado_at IS NULL)) AS con_documentos,
@@ -154,18 +164,6 @@ def main() -> None:
             fila = cur.fetchone()
             print(json.dumps(dict(zip([d[0] for d in cur.description], fila)), ensure_ascii=False, indent=1))
 
-        if "precios" in a.pasos:
-            cur.execute("""INSERT INTO precios_lab_cola (ocid, prioridad, autor, motivo)
-                           SELECT DISTINCT ocid_corto(x), %s, 'procesar_proveedor.py', %s FROM unnest(%s::text[]) x
-                           ON CONFLICT (ocid) DO UPDATE SET estado = 'pendiente', pedido_at = now(), prioridad = EXCLUDED.prioridad,
-                             motivo = EXCLUDED.motivo, vueltas = 0
-                           WHERE precios_lab_cola.estado IN ('sin_items', 'error')""",
-                        (a.prioridad, a.motivo[:200], ocids))
-            cn.commit()
-            cur.execute("SELECT estado, count(*) FROM precios_lab_cola WHERE ocid = ANY (ARRAY(SELECT ocid_corto(x) FROM unnest(%s::text[]) x)) GROUP BY 1",
-                        (ocids,))
-            print(f"\n── precios: cola del laboratorio {dict(cur.fetchall())} (el cron de 10 min de la API la vacía)", flush=True)
-
     arch = str(archivo)
     if "texto" in a.pasos:
         correr(["py", "backend/lector/texto.py", a.entorno, "--ocids-archivo", arch, "--hilos", "6"], "texto")
@@ -183,6 +181,17 @@ def main() -> None:
         for nombre in LECTORES:
             correr(["py", "backend/lector/por_pieza.py", a.entorno, "--lector", nombre, "--ocids-archivo", arch, "--limite", "5000",
                     "--tope-usd", str(a.tope_lectura), "--hilos", "4"], f"leer {nombre}")
+    # Los precios DESPUÉS de leer: con los renglones leídos de las bases y del contrato, el laboratorio investiga cada
+    # producto; antes de leerlos sólo tenía el ítem del registro, que a veces es el paquete entero («suministros para el
+    # Vaso de Leche», 2026-212-10). Sólo entran los procesos con algún renglón leído o con ítems en el registro.
+    if "precios" in a.pasos:
+        with conexion(a.entorno) as cn:
+            cur = cn.cursor()
+            cur.execute(ENCOLAR_PRECIOS, (a.prioridad, a.motivo[:200], ocids))
+            cn.commit()
+            cur.execute("SELECT estado, count(*) FROM precios_lab_cola WHERE ocid = ANY (ARRAY(SELECT ocid_corto(x) FROM unnest(%s::text[]) x)) GROUP BY 1",
+                        (ocids,))
+            print(f"\n── precios: cola del laboratorio {dict(cur.fetchall())} (el cron de 10 min de la API la vacía)", flush=True)
     if "analizar" in a.pasos and a.entorno == "prod":
         correr(["py", "backend/scripts/reanalizar_contratos.py", "prod", "--archivo", arch, "--motivo", a.motivo,
                 "--tope", str(a.tope_analisis), "--hilos", "3"], "reanalizar con agentes")

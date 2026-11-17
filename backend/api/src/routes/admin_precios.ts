@@ -148,7 +148,7 @@ export async function referenciasPorTexto(consulta: string, unidad: string | nul
 
 /** El pedido al laboratorio para un ítem del contrato: con las referencias del Estado por CUBSO y por texto. */
 async function entradaDeItem(ocid: string, f: ItemContrato) {
-  const consulta = String(f.descripcion_corta || f.descripcion || "").slice(0, 300);
+  const consulta = consultaDe(f);
   const [porCubso, porTexto] = await Promise.all([referenciasDe(f.cubso, f.unidad), referenciasPorTexto(consulta, f.unidad)]);
   return {
     consulta,
@@ -246,6 +246,7 @@ const ESCALON_SEGUNDOS = 40;
 
 interface InvestigacionCorta {
   id: string;
+  consulta: string;
   estado: string;
   paso: string | null;
   item: number | null;
@@ -263,14 +264,30 @@ interface InvestigacionCorta {
   costo: number | null;
 }
 
-/** La investigación más reciente de cada ítem del contrato (la lista del Worker viene de la más nueva a la más vieja). */
-async function investigacionesDe(c: Context, ocid: string): Promise<Map<number, InvestigacionCorta> | null> {
+/** Las investigaciones de cada ítem del contrato, de la más nueva a la más vieja (así viene la lista del Worker). */
+async function investigacionesDe(c: Context, ocid: string): Promise<Map<number, InvestigacionCorta[]> | null> {
   const r = await alLab(c, `/jobs?ocid=${encodeURIComponent(ocid)}&limite=200`);
   if (!r.ok) return null;
   const j = (await r.json()) as { investigaciones?: InvestigacionCorta[] };
-  const por = new Map<number, InvestigacionCorta>();
-  for (const i of j.investigaciones ?? []) if (i.item != null && !por.has(Number(i.item))) por.set(Number(i.item), i);
+  const por = new Map<number, InvestigacionCorta[]>();
+  for (const i of j.investigaciones ?? []) {
+    if (i.item == null) continue;
+    const k = Number(i.item);
+    por.set(k, [...(por.get(k) ?? []), i]);
+  }
   return por;
+}
+
+const consultaDe = (f: ItemContrato) => String(f.descripcion_corta || f.descripcion || "").slice(0, 300);
+const mismaConsulta = (a: string, b: string) => a.replace(/\s+/g, " ").trim().toUpperCase() === b.replace(/\s+/g, " ").trim().toUpperCase();
+
+/**
+ * La última investigación de ESTE renglón: mismo número y mismo producto. Sólo el número no basta: el registro del SEACE y
+ * los renglones leídos numeran desde 1, y el «ítem 1» de un paquete («suministros para el Vaso de Leche», 2026-212-10) no
+ * es el renglón 1 (leche evaporada). Antes, investigado el paquete, el renglón quedaba como hecho.
+ */
+function ultimaDe(invs: Map<number, InvestigacionCorta[]> | null, f: ItemContrato): InvestigacionCorta | null {
+  return (invs?.get(f.numero_item) ?? []).find((i) => mismaConsulta(i.consulta ?? "", consultaDe(f))) ?? null;
 }
 
 /**
@@ -294,7 +311,7 @@ adminPreciosRouter.get("/precios-lab/contrato/:ocid", async (c) => {
   if (!items.length) return c.json({ error: "sin_item", detail: "Ese contrato no tiene ítems cargados." }, 404);
   let pagado = 0, mercado = 0, comparados = 0, encima = 0, exceso = 0;
   const filas = items.map((f) => {
-    const inv = invs?.get(f.numero_item) ?? null;
+    const inv = ultimaDe(invs, f);
     const precio = precioDe(f);
     const cuenta = !!(inv && inv.estado === "listo" && precio && f.cantidad && inv.mediana && inv.razon != null && (inv.validas ?? 0) >= 3 && !inv.caja &&
       !/no concluyente/i.test(inv.veredicto ?? ""));
@@ -354,7 +371,7 @@ async function lanzarContrato(c: Context, ocidPedido: string, o: { web?: boolean
   if (!invs) return { ok: false, error: "sin_laboratorio" };
   const pendientes = items.filter((f) => {
     if (sinTiendas(f)) return false;
-    const e = invs.get(f.numero_item)?.estado;
+    const e = ultimaDe(invs, f)?.estado;
     return o.repetir ? e !== "en_cola" && e !== "corriendo" : !e || e === "error";
   });
   const lote = pendientes.slice(0, Math.max(0, o.maximo ?? MAX_ITEMS_CONTRATO));
