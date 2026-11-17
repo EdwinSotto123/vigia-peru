@@ -64,6 +64,7 @@ import {
   rutaOrdenes,
   type InhabilitacionProveedor,
   type OrdenFraccionada,
+  type OrdenRepetida,
   type OrdenGeneral,
   type OrdenesPagina,
   type ProcesoCandidato,
@@ -528,6 +529,7 @@ const parteDelTope = (monto: number, tope: number) => porcentaje((100 * monto) /
 /** El nombre de dos banderas en la fila y en el panel: el mismo en el chip de la celda y en el índice de las tarjetas. */
 const CHIP_INHABILITADO = "Inhabilitado al emitirse";
 const CHIP_FRACCIONAMIENTO = TIPO_CRUCE.fraccionamiento?.chip ?? "Pasan 8 UIT";
+const CHIP_REPETIDA = "Compra repetida";
 
 /** Los antecedentes de una orden, del más grave al más leve; cada uno con su evidencia en el panel. */
 export function antecedentesOrden(o: OrdenGeneral): Antecedente[] {
@@ -554,6 +556,15 @@ export function antecedentesOrden(o: OrdenGeneral): Antecedente[] {
       severidad: f.severidad === "alta" ? "alta" : "media",
       chip: CHIP_FRACCIONAMIENTO,
       explica: `Una de ${f.ordenes} órdenes que la entidad le emitió ese día: suman ${soles(f.total)}, más que el tope de 8 UIT (${soles(f.tope)}).`,
+    });
+  }
+  const r = o.repetida;
+  if (r) {
+    out.push({
+      tipo: "repetida",
+      severidad: r.severidad === "alta" ? "alta" : "media",
+      chip: CHIP_REPETIDA,
+      explica: `Una de ${r.ordenes} órdenes iguales (mismo proveedor, monto y descripción) en ${plural(r.dias, "día", "días")}: juntas suman ${soles(r.total)}${r.total > r.tope ? `, más que el tope de 8 UIT (${soles(r.tope)})` : ""}.`,
     });
   }
   const rango = { alta: 0, media: 1, baja: 2 } as const;
@@ -1096,6 +1107,64 @@ function TarjetaFraccionamiento({ o, f, id }: { o: OrdenGeneral; f: OrdenFraccio
   );
 }
 
+/** Las órdenes iguales en pocas semanas: cuántas, en cuántos días, cuánto suman frente al tope y cada una con su estado. */
+function TarjetaRepetida({ o, r, id }: { o: OrdenGeneral; r: OrdenRepetida; id: string }) {
+  const pasa = r.total > r.tope;
+  const todas = r.devengadas === r.ordenes;
+  return (
+    <TarjetaBandera
+      id={id}
+      tipo="repetida"
+      severidad={r.severidad === "alta" ? "alta" : "media"}
+      nombre="La misma compra, repetida en pocas semanas"
+      pie={
+        <>
+          <AccionesBandera
+            acciones={[
+              esEmpresa(o.rucContratista) && o.entidadRuc
+                ? { href: rutaOrdenes({ entidad: o.entidadRuc, proveedor: o.rucContratista, antecedente: "repetida" }), texto: "Ver sus compras repetidas en la entidad" }
+                : null,
+            ]}
+          />
+          <DondeComprobarlo enlaces={[{ texto: "Buscador de CONOSCE (OECE)", href: CONOSCE_BUSCADOR, pista: "busca las órdenes de la entidad a este proveedor" }]} />
+        </>
+      }
+    >
+      <p>
+        La entidad le emitió {plural(r.ordenes, "orden directa", "órdenes directas")} al mismo proveedor, por el mismo monto y con la misma descripción, en{" "}
+        {plural(r.dias, "día", "días")}.{" "}
+        {pasa
+          ? "Juntas pasan el tope de 8 UIT, el monto hasta el que se puede comprar sin concurso: puede ser una compra partida en el tiempo."
+          : "Juntas no pasan el tope de 8 UIT."}{" "}
+        {todas ? "Todas llegaron a devengarse: pregunta si la entrega fue una sola y se pagó dos veces." : "Un suministro que se repite puede explicarlo; no lo prueba."}
+      </p>
+      <HechosBandera>
+        <Dato icono={ReceiptText} nombre="Órdenes iguales">{plural(r.ordenes, "orden", "órdenes")} en {plural(r.dias, "día", "días")}</Dato>
+        <Dato icono={Banknote} nombre="Lo que suman">
+          Suman <Monto n={r.total} />
+        </Dato>
+        <Dato icono={Gauge} nombre="Tope de 8 UIT de ese año">
+          Tope: <Monto n={r.tope} />
+        </Dato>
+      </HechosBandera>
+      <ul className="divide-y divide-line/70 rounded-xl border border-line" aria-label="Las órdenes iguales">
+        {r.detalle.map((d, k) => (
+          <li key={`${d.orden}-${k}`} className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5 px-3 py-2">
+            <span className="min-w-0">
+              <span className="font-mono text-rotulo text-ink">{d.orden}</span>
+              {d.fecha === o.fecha && d.orden === o.orden && <span className="pill ml-2 border-line bg-paperSoft text-inkSoft">Esta orden</span>}
+            </span>
+            <span className="shrink-0 text-meta text-inkSoft">
+              {fechaLarga(d.fecha)}
+              {d.estado ? `, ${d.estado.toLocaleLowerCase("es")}` : ""}
+            </span>
+          </li>
+        ))}
+      </ul>
+    </TarjetaBandera>
+  );
+}
+
 /**
  * Una bandera de la orden en el panel: su nombre (el mismo del chip de la fila, que va como señal en la cronología), lo
  * que se encontró en una oración (la segunda del veredicto, si es la más grave) y su tarjeta con la evidencia.
@@ -1163,6 +1232,13 @@ function banderasDeOrden(o: OrdenGeneral): BanderaOrden[] {
     const frase = `Ese mismo día le emitió ${otrasDelDia(f)}: con ésta suman ${soles(f.total)}, más que el tope de 8 UIT (${soles(f.tope)}).`;
     const sev = f.severidad === "alta" ? "alta" : "media";
     poner("fraccionamiento", sev, CHIP_FRACCIONAMIENTO, frase, (id) => <TarjetaFraccionamiento o={o} f={f} id={id} />);
+  }
+  const r = o.repetida;
+  if (r) {
+    const frase =
+      `Es una de ${numero(r.ordenes)} órdenes iguales (mismo proveedor, monto y descripción) en ${plural(r.dias, "día", "días")}: ` +
+      `juntas suman ${soles(r.total)}${r.total > r.tope ? `, más que el tope de 8 UIT (${soles(r.tope)})` : ""}.`;
+    poner("repetida", r.severidad === "alta" ? "alta" : "media", CHIP_REPETIDA, frase, (id) => <TarjetaRepetida o={o} r={r} id={id} />);
   }
   const rango = { alta: 0, media: 1, baja: 2 } as const;
   return out.sort((a, b) => rango[a.severidad] - rango[b.severidad]);

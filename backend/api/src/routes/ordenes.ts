@@ -73,7 +73,7 @@ export const MONTO_ORDEN = {
  * órdenes de la franja). Los de la orden misma: partida con otras del mismo día y emitida a un proveedor inhabilitado.
  */
 export const ANTECEDENTES_ORDEN = ["nepotismo", "financio_campana", "candidato_gobierna", "autoridad_contratada", "al_borde_del_tope",
-                                   "fraccionamiento", "inhabilitado"] as const;
+                                   "fraccionamiento", "inhabilitado", "repetida"] as const;
 const DE_PERSONA = new Set<string>(["nepotismo", "financio_campana", "candidato_gobierna", "autoridad_contratada", "al_borde_del_tope"]);
 /** Las señales de la persona con la entidad que la fila muestra como bandera (el nepotismo va aparte, en `conNepotismo`). */
 const SENALES_FILA = ["financio_campana", "candidato_gobierna", "autoridad_contratada", "aporte_gobierna", "nepotismo_gobierno"];
@@ -122,6 +122,16 @@ const MONTOS = `CASE WHEN ${EN_SOLES} THEN COALESCE(o.monto, o.monto_dudoso)::fl
 /** La orden es parte de un grupo de órdenes del mismo día que juntas pasan 8 UIT (ordenes_fraccionadas, migración 51). */
 const FRACCIONADA = `FROM ordenes_fraccionadas f WHERE f.entidad_ruc = o.entidad_ruc AND f.fecha = o.fecha_emision
                       AND f.ruc_contratista = o.ruc_contratista AND f.detalle @> jsonb_build_array(jsonb_build_object('orden', o.orden))`;
+
+/**
+ * La misma compra repetida en semanas (migraciones 348 y 349): la orden es una de varias al mismo proveedor, por el mismo
+ * monto y con la misma descripción, de 7 a 90 días entre la primera y la última. Sólo las de severidad alta o media (juntas
+ * pasan el tope de 8 UIT, o todas se devengaron); las demás se ven en Patrones. Se ata por la fecha que guarda `detalle`,
+ * el proveedor y el monto, no por el texto de la orden: la misma orden puede venir con otra oficina en el nombre.
+ */
+const REPETIDA = `FROM ordenes_repetidas r WHERE r.ruc_contratista = o.ruc_contratista AND r.entidad_ruc = o.entidad_ruc
+                    AND r.monto = o.monto AND o.moneda = 'Nuevos Soles' AND o.fecha_emision BETWEEN r.desde AND r.hasta
+                    AND r.severidad IN ('alta', 'media') AND r.detalle @> jsonb_build_array(jsonb_build_object('fecha', o.fecha_emision))`;
 
 /**
  * El proveedor estaba inhabilitado por el Tribunal de Contrataciones el día en que se emitió la orden: la misma regla que
@@ -231,6 +241,9 @@ const COLS = `to_char(o.fecha_emision, 'YYYY-MM-DD') AS fecha, o.entidad, o.enti
               (SELECT jsonb_build_object('ordenes', f.ordenes, 'total', f.total::float, 'tope', f.tope::float,
                                          'mismaDescripcion', f.misma_descripcion, 'severidad', f.severidad, 'detalle', f.detalle)
                  ${FRACCIONADA} LIMIT 1) AS fraccionamiento,
+              (SELECT jsonb_build_object('ordenes', r.ordenes, 'total', r.total::float, 'tope', r.tope::float, 'dias', r.dias,
+                                         'devengadas', r.devengadas, 'severidad', r.severidad, 'detalle', r.detalle)
+                 ${REPETIDA} ORDER BY r.total DESC LIMIT 1) AS repetida,
               -- Con la infracción por la que lo inhabilitó (pedido del usuario del 2026-11-05: el panel no decía por qué).
               (SELECT jsonb_build_object('tipo', s.tipo, 'resolucion', s.resolucion, 'desde', to_char(s.fecha_desde, 'YYYY-MM-DD'),
                                          'hasta', to_char(s.fecha_hasta, 'YYYY-MM-DD'), 'infraccion', left(s.infraccion, 900))
@@ -303,12 +316,19 @@ export function sqlListaOrdenes(q: FiltrosListaOrdenes, forzarAcotada = false): 
       // de 45 s); así lee sólo las ~64 mil órdenes emitidas a inhabilitados y después filtra la entidad (unos segundos).
       ? `(${periodosInhabilitado(q.proveedor)}) s CROSS JOIN LATERAL (SELECT x.* FROM conosce_ordenes x WHERE x.ruc_contratista = s.ruc
            AND x.fecha_emision BETWEEN s.desde AND s.hasta OFFSET 0) o`
-      : `conosce_ordenes o`;
+      : q.antecedente === "repetida"
+        // Desde las ~5 mil órdenes de ordenes_repetidas (proveedor, entidad, fecha y monto), por el índice del proveedor.
+        // Recorrer el índice por fecha probando cada orden tardaba 7 s la primera página (medido 2026-11-17).
+        ? `(SELECT DISTINCT r.entidad_ruc, r.ruc_contratista, r.monto, (e->>'fecha')::date AS fecha
+              FROM ordenes_repetidas r, jsonb_array_elements(r.detalle) e WHERE r.severidad IN ('alta', 'media')) rr
+           CROSS JOIN LATERAL (SELECT x.* FROM conosce_ordenes x WHERE x.ruc_contratista = rr.ruc_contratista
+             AND x.fecha_emision = rr.fecha AND x.entidad_ruc = rr.entidad_ruc AND x.monto = rr.monto AND x.moneda = 'Nuevos Soles' OFFSET 0) o`
+        : `conosce_ordenes o`;
   if (dePersona) enVentana.unshift(`ps.tipo = '${q.antecedente}'`);
   if (q.antecedente === "al_borde_del_tope") enVentana.push(EN_EL_BORDE);
   // Con esos puntos de partida se ordena por `fecha_emision + 0`: una expresión sin índice, para que el planificador no
   // vuelva a recorrer el de fecha con el LIMIT (un top-N sobre las candidatas: 0,2-0,6 s en caliente, medido 2026-10-27).
-  const porFecha = dePersona || q.antecedente === "inhabilitado" ? "o.fecha_emision + 0" : "o.fecha_emision";
+  const porFecha = dePersona || q.antecedente === "inhabilitado" || q.antecedente === "repetida" ? "o.fecha_emision + 0" : "o.fecha_emision";
   const dir = q.orden === "antiguo" ? "ASC" : "DESC";
   const offset = (q.page - 1) * q.size;
   const lim = q.size + 1; // una de más para saber si hay página siguiente

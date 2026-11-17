@@ -27,6 +27,8 @@ export type OrdenGeneral = OrdenEmpresa & {
   conNepotismo?: boolean;
   /** La orden es una de varias que la entidad le emitió ese día y que juntas pasan 8 UIT (ordenes_fraccionadas). Falta en la API vieja. */
   fraccionamiento?: OrdenFraccionada | null;
+  /** La orden es una de varias iguales (proveedor, monto y descripción) de 7 a 90 días entre sí (migraciones 348-349). */
+  repetida?: OrdenRepetida | null;
   /** El Tribunal de Contrataciones tenía inhabilitado al proveedor el día en que se emitió. Falta en la API vieja. */
   inhabilitacion?: InhabilitacionProveedor | null;
   /** Las demás señales de la persona con esta entidad (financió la campaña, candidato del que gobierna…): sólo el tipo. */
@@ -73,6 +75,20 @@ export interface OrdenFraccionada {
   mismaDescripcion: boolean;
   severidad: "alta" | "media" | "baja";
   detalle: { orden: string; monto: number; descripcion: string | null; estado: string | null }[];
+}
+
+/** Las órdenes iguales a una orden, emitidas en pocas semanas: la evidencia de su bandera «Compra repetida». */
+export interface OrdenRepetida {
+  ordenes: number;
+  total: number;
+  /** El tope de una orden directa el año de la primera (8 UIT). */
+  tope: number;
+  /** Entre la primera y la última. */
+  dias: number;
+  devengadas: number;
+  /** alta: juntas pasan el tope y cada una quedó al borde; media: juntas pasan el tope, o todas se devengaron. */
+  severidad: "alta" | "media" | "baja";
+  detalle: { orden: string; fecha: string; estado: string | null }[];
 }
 
 /** La inhabilitación del Tribunal de Contrataciones vigente en la fecha (temporal o definitiva) y su resolución. */
@@ -146,6 +162,8 @@ export const ANTECEDENTES_ORDEN = [
   { valor: "candidato_gobierna", etiqueta: SENAL.candidato_gobierna.corto, grupo: DE_LA_PERSONA },
   { valor: "autoridad_contratada", etiqueta: SENAL.autoridad_contratada.corto, grupo: DE_LA_PERSONA },
   { valor: "fraccionamiento", etiqueta: "Órdenes del mismo día que pasan 8 UIT", grupo: DE_LA_ORDEN },
+  // La misma orden (proveedor, monto y descripción) repetida de 7 a 90 días después (migraciones 348-349).
+  { valor: "repetida", etiqueta: "Compra repetida en pocas semanas", grupo: DE_LA_ORDEN },
   // Persona o empresa con la mitad o más de las órdenes de la entidad así (migraciones 179 y 207).
   { valor: "al_borde_del_tope", etiqueta: "Al borde del tope (95 % a 100 %)", grupo: DE_LA_ORDEN },
   { valor: "inhabilitado", etiqueta: "Proveedor inhabilitado al emitirse", grupo: DE_LA_ORDEN },
