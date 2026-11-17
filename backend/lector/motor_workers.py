@@ -27,6 +27,10 @@ PRECIOS = {
     "@cf/moonshotai/kimi-k2.6": (0.95, 4.00),
     "@cf/zai-org/glm-5.3": (1.40, 4.40),
     "@cf/openai/gpt-oss-120b": (0.35, 0.75),
+    # Hermanos de vigia-llm (MODELOS_HERMANOS): contestan cuando el pedido choca con el tope por minuto. Sin tarifa de
+    # lista a mano: estimadas por arriba (como el modelo grande de su familia) hasta medirlas con gasto_workers_ai.py.
+    "@cf/qwen/qwen3.8-27b": (0.30, 1.20),
+    "@cf/deepseek-ai/deepseek-v4-pro-0813": (1.40, 4.40),
 }
 MAX_IMAGENES = 8
 MIN_LETRAS_PAGINA = 120          # una página con menos letras es un escaneo: va como imagen
@@ -89,8 +93,10 @@ class MotorWorkers:
         _, imagenes, caracteres = contenido(pdfs, lector.PEDIDO)
         return int((caracteres + len(lector.SISTEMA)) / 3.2) + imagenes * TOKENS_POR_IMAGEN
 
-    def costo(self, tin: int, tout: int) -> float:
-        p_in, p_out = PRECIOS.get(self.modelo, (float("nan"), float("nan")))
+    def costo(self, tin: int, tout: int, modelo: str | None = None) -> float:
+        """Al precio del modelo que CONTESTÓ (un hermano si el pedido chocó con el tope), no del pedido: así los libros se
+        acercan a lo que cobra Cloudflare (el 2026-11-17 cubrían el 70,5 % de lo facturado)."""
+        p_in, p_out = PRECIOS.get(modelo or self.modelo) or PRECIOS.get(self.modelo, (float("nan"), float("nan")))
         return round(tin * p_in / 1e6 + tout * p_out / 1e6, 6)
 
     def llamar(self, lector, pdfs) -> dict:
@@ -143,7 +149,8 @@ class MotorWorkers:
             return {**res, "estado": "error", "detalle": f"contestó {quien}, no Workers AI"}
         u = j.get("usage") or {}
         tin, tout = int(u.get("prompt_tokens") or 0), int(u.get("completion_tokens") or 0)
-        res.update(tokens_in=tin, tokens_out=tout, costo_usd=self.costo(tin, tout))
+        servido = quien.split(":", 1)[1] if quien.startswith("workers-ai:") else self.modelo
+        res.update(modelo=servido, tokens_in=tin, tokens_out=tout, costo_usd=self.costo(tin, tout, servido))
         if imagenes:
             res["detalle"] = f"{imagenes} páginas escaneadas como imagen"
         msj = ((j.get("choices") or [{}])[0] or {}).get("message") or {}
