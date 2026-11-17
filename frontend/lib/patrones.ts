@@ -17,6 +17,7 @@ export const SECCIONES_PATRONES = {
   consorcios: "Socias que compiten",
   duenos: "Mismo dueño",
   grupos: "Grupos por dueño y familia",
+  repetidas: "Compras repetidas",
   inhabilitadas: "Socio de inhabilitada",
   control: "Socio en informe de control",
   observados: "Observados por la Contraloría",
@@ -169,6 +170,39 @@ export interface PatronesGrupos {
   page: number;
   size: number;
   data: PatronGrupo[];
+}
+
+/**
+ * La misma compra repetida en semanas (migraciones 348 y 349): órdenes de compra directas del mismo proveedor, el mismo
+ * monto y el mismo objeto, de 7 a 90 días entre la primera y la última. Una persona natural llega con un apellido tapado y
+ * su RUC como referencia opaca.
+ */
+export interface PatronRepetida {
+  entidadRuc: string;
+  entidad: string | null;
+  ruc: string;
+  nombre: string | null;
+  /** El de cada orden: es el mismo. */
+  monto: number;
+  ordenes: number;
+  total: number;
+  /** El tope de una orden directa el año de la primera (8 UIT). */
+  tope: number;
+  desde: string;
+  hasta: string;
+  dias: number;
+  devengadas: number;
+  objeto: string | null;
+  /** alta: juntas pasan el tope y cada una está al borde; media: juntas pasan el tope, o todas se devengaron. */
+  severidad: "alta" | "media" | "baja";
+  detalle: { orden: string; fecha: string; estado: string | null }[];
+}
+
+export interface PatronesRepetidas {
+  total: number;
+  page: number;
+  size: number;
+  data: PatronRepetida[];
 }
 
 /** Una empresa que gana mientras otra del mismo socio está inhabilitada (migración 297). */
@@ -399,6 +433,8 @@ export const rutaDuenos = (page = 1, ruc?: string, graves = false) =>
   `/patrones/duenos?${consulta({ page, size: TAM_PATRONES, ruc, graves: graves ? 1 : undefined })}`;
 export const rutaGrupos = (page = 1, ruc?: string, graves = false) =>
   `/patrones/grupos?${consulta({ page, size: TAM_PATRONES, buscar: ruc, severidad: graves ? "alta" : undefined })}`;
+export const rutaRepetidas = (page = 1, ruc?: string, graves = false) =>
+  `/patrones/repetidas?${consulta({ page, size: TAM_PATRONES, buscar: ruc, severidad: graves ? "alta" : undefined })}`;
 export const rutaInhabilitadas = (page = 1, ruc?: string, graves = false) =>
   `/patrones/inhabilitadas?${consulta({ page, size: TAM_PATRONES, ruc, graves: graves ? 1 : undefined })}`;
 export const rutaControl = (page = 1, ruc?: string, graves = false, misma = false) =>

@@ -608,13 +608,15 @@ patronesRouter.get("/grupos", async (c) => {
 const Repetidas = z.object({
   entidad: z.string().regex(/^20\d{9}$/).optional(),
   ruc: z.string().regex(/^20\d{9}$/).optional(),
+  /** El RUC de la entidad o el de la empresa: la web tiene un solo filtro. */
+  buscar: z.string().regex(/^20\d{9}$/).optional(),
   severidad: z.enum(["alta", "media", "baja"]).optional(),
   page: z.coerce.number().int().min(1).max(200).default(1),
   size: z.coerce.number().int().min(1).max(50).default(20),
 });
 
 /**
- * GET /patrones/repetidas?entidad=&ruc=&severidad= — la misma compra repetida en semanas (migración 348): órdenes directas
+ * GET /patrones/repetidas?entidad=&ruc=&buscar=&severidad= — la misma compra repetida en semanas (migración 348): órdenes directas
  * de bienes del mismo proveedor, el mismo monto y el mismo objeto, de 7 a 90 días entre la primera y la última. Puede ser
  * un fraccionamiento en el tiempo (juntas pasan el tope de 8 UIT), una orden registrada dos veces (si las dos se devengaron,
  * un posible pago doble) o un suministro periódico legítimo. `ruc` es el de una empresa (un RUC 10 no se recibe).
@@ -631,9 +633,10 @@ patronesRouter.get("/repetidas", async (c) => {
               (count(*) OVER ())::int AS total_filas
          FROM ordenes_repetidas x
         WHERE ($1::text IS NULL OR x.entidad_ruc = $1) AND ($2::text IS NULL OR x.ruc_contratista = $2) AND ($3::text IS NULL OR x.severidad = $3)
+          AND ($6::text IS NULL OR x.entidad_ruc = $6 OR x.ruc_contratista = $6)
         ORDER BY CASE x.severidad WHEN 'alta' THEN 0 WHEN 'media' THEN 1 ELSE 2 END, x.total DESC
         LIMIT $4 OFFSET $5`,
-      [q.entidad ?? null, q.ruc ?? null, q.severidad ?? null, q.size, (q.page - 1) * q.size],
+      [q.entidad ?? null, q.ruc ?? null, q.severidad ?? null, q.size, (q.page - 1) * q.size, q.buscar ?? null],
     ).catch(() => ({ rows: [] as Record<string, unknown>[] }));
     const filas = r.rows as Record<string, any>[];
     return publicar({

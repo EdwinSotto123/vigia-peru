@@ -2,13 +2,13 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
-import { Ban, Briefcase, Building2, FileSearch, FlaskConical, Handshake, ScanSearch, SearchX, TrendingUp, Users, UsersRound } from "lucide-react";
+import { Ban, Briefcase, Building2, CopyCheck, FileSearch, FlaskConical, Handshake, ScanSearch, SearchX, TrendingUp, Users, UsersRound } from "lucide-react";
 import { Ayuda, CabeceraPestana, Nota, Pestanas } from "@/components/patrones";
 import { EVENTO_ACTIVA } from "@/components/patrones/Pestanas";
 import { CeldaBarra, CeldaNumero, CeldaPrincipal, CeldaTexto, CLASE_ENLACE_CELDA, Indicadores, Tabla, type Columna, type Fila, type Indicador } from "@/components/listado";
 import { EstadoCarga, usePoder } from "@/components/grafo/vista";
 import { InformeEnPanel } from "@/components/control/InformeEnPanel";
-import { detalleConsorcio, detalleControl, detalleDueno, detalleGrupo, detalleInhabilitada, detalleObservacion, detalleObservado, detalleRelleno, detalleRenovacion, detalleSenal } from "./DetallePatron";
+import { detalleConsorcio, detalleControl, detalleDueno, detalleGrupo, detalleInhabilitada, detalleObservacion, detalleObservado, detalleRelleno, detalleRenovacion, detalleRepetida, detalleSenal } from "./DetallePatron";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Dato } from "@/components/ui/Dato";
@@ -29,6 +29,7 @@ import {
   rutaObservados,
   rutaPatrones,
   rutaRenovaciones,
+  rutaRepetidas,
   SECCIONES_PATRONES,
   TAM_PATRONES,
   type AlcancePatron,
@@ -38,6 +39,8 @@ import {
   type PatronDueno,
   type PatronGrupo,
   type PatronesGrupos,
+  type PatronRepetida,
+  type PatronesRepetidas,
   type PatronesControl,
   type PatronObservacion,
   type PatronesObservacion,
@@ -122,6 +125,13 @@ export function PatronesVista({ activa, inicial, etiquetas }: { activa?: string;
           titulo: "Proveedores unidos por dueño o familia en una entidad",
           icono: <UsersRound size={15} aria-hidden />,
           contenido: <ListaGrupos inicial={de("grupos")} />,
+        },
+        {
+          clave: "repetidas",
+          etiqueta: SECCIONES_PATRONES.repetidas,
+          titulo: "La misma compra, repetida en pocas semanas",
+          icono: <CopyCheck size={15} aria-hidden />,
+          contenido: <ListaRepetidas inicial={de("repetidas")} />,
         },
         {
           clave: "inhabilitadas",
@@ -989,6 +999,122 @@ function filaGrupo(p: PatronGrupo, i: number): Fila {
       juntos: <CeldaNumero sub={p.correlativas ? plural(p.correlativas, "par correlativo", "pares correlativos") : undefined}>{p.diasJuntos ? plural(p.diasJuntos, "día", "días") : "Ninguno"}</CeldaNumero>,
       repartidos: <CeldaNumero sub={p.repartidos ? solesCompacto(p.montoRepartido) : undefined}>{p.repartidos ? numero(p.repartidos) : "Ninguno"}</CeldaNumero>,
       periodo: anios ? <CeldaTexto>{anios}</CeldaTexto> : undefined,
+    },
+  };
+}
+
+// ─── La misma compra repetida en semanas (órdenes directas) ──────────────────────
+
+const COLUMNAS_REPETIDAS: Columna[] = [
+  { clave: "compra", titulo: "Entidad, proveedor y objeto", ancho: "minmax(0,1.8fr)" },
+  {
+    clave: "ordenes",
+    titulo: "Órdenes iguales",
+    ancho: "9rem",
+    alinear: "der",
+    corto: "Órdenes",
+    ayuda: (
+      <Ayuda titulo="¿Qué cuenta?">
+        <span className="block">
+          Órdenes de compra directas al mismo proveedor, por el mismo monto y con la misma descripción. Arriba, el monto de cada una; debajo, cuántas son.
+        </span>
+      </Ayuda>
+    ),
+  },
+  { clave: "total", titulo: "Juntas, frente al tope", ancho: "9.5rem", alinear: "der", desde: "md", apilar: "con-rotulo", corto: "Juntas" },
+  { clave: "dias", titulo: "Entre la primera y la última", ancho: "9rem", alinear: "der", desde: "md", apilar: "con-rotulo", corto: "Días" },
+  { clave: "estado", titulo: "Devengadas", ancho: "7.5rem", alinear: "der", desde: "lg", apilar: "con-rotulo" },
+];
+
+function ListaRepetidas({ inicial }: { inicial: InicialPatrones }) {
+  const lista = useListaEnUrl("repetidas", inicial);
+  const [ruc, setRuc] = useState("");
+  const rucValido = /^20\d{9}$/.test(ruc.trim()) ? ruc.trim() : undefined;
+  const [graves, setGraves] = useState(false);
+  const filtrada = !!rucValido || graves;
+  const carga = usePoder<PatronesRepetidas>(rutaRepetidas(filtrada ? 1 : lista.page, rucValido, graves));
+  return (
+    <div className="space-y-4">
+      <CabeceraPestana
+        ayuda={
+          <Ayuda titulo="¿Qué puede ser?">
+            <span className="block">
+              Un fraccionamiento en el tiempo: una necesidad partida en órdenes que, cada una, queda por debajo del tope de 8 UIT, y que juntas lo pasan.
+            </span>
+            <span className="mt-1.5 block">
+              Una orden registrada dos veces: si las dos llegaron a devengarse, pregunta si se pagó dos veces.
+            </span>
+            <span className="mt-1.5 block">
+              Un suministro periódico legítimo (el mismo producto cada mes). El requerimiento lo dice. Cuenta cada número de orden una vez por entidad y año.
+            </span>
+          </Ayuda>
+        }
+      >
+        La misma compra, al mismo proveedor y por el mismo monto, en varias órdenes directas de 7 a 90 días entre la primera y la última.
+      </CabeceraPestana>
+      <label className="block max-w-md">
+        <span className="text-rotulo font-medium text-inkSoft">Filtrar por RUC de la entidad o de una empresa</span>
+        <input
+          type="search"
+          inputMode="numeric"
+          value={ruc}
+          onChange={(e) => setRuc(e.target.value.replace(/\D/g, "").slice(0, 11))}
+          placeholder="RUC de 11 dígitos que empieza en 20"
+          autoComplete="off"
+          className="mt-1 h-11 w-full rounded-xl border border-line bg-paperSoft px-3 text-dato text-ink placeholder:text-mute focus:border-granate focus:bg-paper focus:outline-none focus:ring-2 focus:ring-granate/20"
+        />
+      </label>
+      <label className="flex min-h-11 w-fit cursor-pointer items-center gap-2.5 text-dato text-ink">
+        <input type="checkbox" checked={graves} onChange={(e) => setGraves(e.target.checked)} className="size-5 rounded border-line accent-granate" />
+        Sólo los graves: juntas pasan el tope y cada una queda al borde
+      </label>
+      <EstadoCarga carga={carga} columnas={COLUMNAS_REPETIDAS}>
+        {(d) => {
+          const filas = d.data ?? [];
+          return (
+            <div className="space-y-4">
+              <Indicadores
+                franja
+                items={[
+                  { valor: numero(d.total), etiqueta: rucValido ? "compras con ese RUC" : graves ? "compras graves" : "compras repetidas", contexto: "desde enero de hace dos años, S/ 5 mil o más", icono: <CopyCheck size={15} strokeWidth={1.9} aria-hidden />, parte: null },
+                  { valor: "8 UIT", etiqueta: "el tope de una orden", contexto: "por encima hay que convocar un proceso", parte: null },
+                  { valor: "7 a 90", etiqueta: "días entre la primera y la última", contexto: "el mismo día ya lo cubre el fraccionamiento", parte: null },
+                ]}
+              />
+              <ZonaLista total={d.total} page={filtrada ? 1 : lista.page} cargando={carga.cargando} nombre="compras" onPagina={lista.irAPagina} vacio="No hay compras repetidas para ese filtro.">
+                {filas.length > 0 ? <Tabla columnas={COLUMNAS_REPETIDAS} filas={filas.map(filaRepetida)} etiqueta="La misma compra repetida en pocas semanas" /> : null}
+              </ZonaLista>
+            </div>
+          );
+        }}
+      </EstadoCarga>
+    </div>
+  );
+}
+
+function filaRepetida(p: PatronRepetida, i: number): Fila {
+  const pasa = p.total > p.tope;
+  return {
+    id: `repetida-${i}`,
+    detalle: detalleRepetida(p),
+    enlaces: true,
+    celdas: {
+      compra: (
+        <CeldaPrincipal
+          dosLineas
+          titulo={<EnlaceEntidad ruc={p.entidadRuc} nombre={p.entidad} />}
+          meta={
+            <span className="block">
+              {esRucEnClaro(p.ruc) && !esRucPersonaNatural(p.ruc) ? <EnlaceEmpresa ruc={p.ruc} nombre={p.nombre} /> : <span>{p.nombre ? tituloNatural(p.nombre) : "Persona natural"}</span>}
+              {p.objeto ? <span className="text-mute">: {oracion(p.objeto.toLowerCase())}</span> : null}
+            </span>
+          }
+        />
+      ),
+      ordenes: <CeldaNumero sub={plural(p.ordenes, "orden", "órdenes")}>{solesCompacto(p.monto)}</CeldaNumero>,
+      total: <CeldaNumero sub={pasa ? `pasa el tope de ${solesCompacto(p.tope)}` : `tope ${solesCompacto(p.tope)}`}>{solesCompacto(p.total)}</CeldaNumero>,
+      dias: <CeldaNumero sub={fechaConAnio(p.desde)}>{plural(p.dias, "día", "días")}</CeldaNumero>,
+      estado: <CeldaNumero>{p.devengadas === p.ordenes ? "Todas" : `${numero(p.devengadas)} de ${numero(p.ordenes)}`}</CeldaNumero>,
     },
   };
 }

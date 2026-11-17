@@ -22,6 +22,7 @@ import {
   type PatronObservacion,
   type PatronObservado,
   type PatronRenovacion,
+  type PatronRepetida,
   type PatronSenal,
 } from "@/lib/patrones";
 import { rutaContrato } from "@/lib/rutas";
@@ -519,6 +520,84 @@ export function detalleGrupo(p: PatronGrupo): Detalle {
       </div>
     ),
     pie: <Pie enlaces={[esRuc20(p.entidadRuc) && { texto: "Ficha de la entidad", href: `/entidad/${p.entidadRuc}` }]} />,
+  };
+}
+
+// ─── La misma compra repetida en semanas ─────────────────────────────────────────
+
+/** Una orden no tiene ficha propia: la lista de compras de la entidad, buscando su número en el año de la orden. */
+const rutaOrden = (entidadRuc: string, orden: string, fecha: string) => {
+  const n = /(\d{3,8})/.exec(orden)?.[1];
+  const q = new URLSearchParams({ seccion: "contratos", ...(n ? { cq: n } : {}), canio: fecha.slice(0, 4) });
+  return `/entidad/${entidadRuc}?${q}`;
+};
+const ESTADO_ORDEN: Record<string, string> = { Devengada: "devengada", Emitida: "emitida", Comprometida: "comprometida" };
+
+export function detalleRepetida(p: PatronRepetida): Detalle {
+  const ent = entidad(p.entidad);
+  const prov = p.nombre ? tituloNatural(p.nombre) : "Persona natural";
+  const pasa = p.total > p.tope;
+  const todasDevengadas = p.devengadas === p.ordenes;
+  return {
+    titulo: paraTitulo(p.ruc, p.nombre, "La misma compra repetida"),
+    etiqueta: "Ver el detalle de esta compra repetida",
+    descripcion: <span className="line-clamp-2">{ent}</span>,
+    contenido: (
+      <div className="space-y-5">
+        <EnUnaFrase tono={p.severidad === "alta" ? "alta" : "media"}>
+          <b>{ent}</b> le emitió a <b>{prov}</b> {plural(p.ordenes, "orden", "órdenes")} de compra directas por <b>{solesCompacto(p.monto)}</b> cada una, con la
+          misma descripción, en <b>{plural(p.dias, "día", "días")}</b>.
+          {pasa ? <> Juntas suman {solesCompacto(p.total)}: pasan el tope de una orden ({solesCompacto(p.tope)}).</> : <> Juntas suman {solesCompacto(p.total)}.</>}
+          {todasDevengadas ? " Todas llegaron a devengarse." : ""}
+        </EnUnaFrase>
+        <DatosClave
+          items={[
+            { etiqueta: "Monto de cada orden", valor: solesCompacto(p.monto), mono: true },
+            { etiqueta: "Juntas", valor: solesCompacto(p.total), mono: true },
+            { etiqueta: "Tope de una orden directa ese año", valor: solesCompacto(p.tope), mono: true },
+            { etiqueta: "Cada una, frente al tope", valor: porcentaje((p.monto / p.tope) * 100), mono: true },
+            { etiqueta: "Devengadas", valor: todasDevengadas ? "Todas" : `${numero(p.devengadas)} de ${numero(p.ordenes)}`, mono: true },
+          ]}
+        />
+        {p.objeto ? (
+          <Bloque titulo="Qué se compró">
+            <p className="text-dato leading-relaxed text-inkSoft">{oracionCorta(p.objeto)}</p>
+          </Bloque>
+        ) : null}
+        <Bloque titulo="Las órdenes">
+          <ul className="divide-y divide-line/70 overflow-hidden rounded-xl border border-line">
+            {p.detalle.map((o, i) => (
+              <li key={i} className="flex items-baseline justify-between gap-3 px-3 py-2 text-dato">
+                <Link href={rutaOrden(p.entidadRuc, o.orden, o.fecha)} prefetch={false} className={`${ENLACE} min-w-0 truncate font-mono`}>
+                  {o.orden}
+                </Link>
+                <span className="shrink-0 text-meta text-inkSoft">
+                  {fechaConAnio(o.fecha)}
+                  {o.estado ? `, ${ESTADO_ORDEN[o.estado] ?? o.estado.toLowerCase()}` : ""}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </Bloque>
+        <QueRevisar
+          pasos={[
+            "Pide los requerimientos de cada orden: si salieron de una misma necesidad, es un fraccionamiento y debió convocarse un proceso.",
+            todasDevengadas
+              ? "Pide los comprobantes de pago y las conformidades de cada orden: si la entrega es una sola, se pagó dos veces."
+              : "Mira si la orden que falta se anuló o sigue abierta, y si la entrega es una sola.",
+            "Si es un suministro que se repite cada mes, confirma que el plan anual lo previó así y que no se evitó un proceso por el total del año.",
+          ]}
+        />
+      </div>
+    ),
+    pie: (
+      <Pie
+        enlaces={[
+          esRuc20(p.entidadRuc) && { texto: "Ficha de la entidad", href: `/entidad/${p.entidadRuc}` },
+          esRuc20(p.ruc) && { texto: "Ficha del proveedor", href: `/empresa/${p.ruc}` },
+        ]}
+      />
+    ),
   };
 }
 

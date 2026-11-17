@@ -566,7 +566,7 @@ export const patrones = definir({
           entidad: x.entidad, entidad_ruc: x.entidadRuc, proveedor: x.nombre, proveedor_ruc: String(x.ruc ?? "").startsWith("20") ? x.ruc : undefined,
           severidad: x.severidad, objeto: x.objeto, monto_de_cada_orden: x.monto, ordenes: x.ordenes, total_soles: x.total, tope_soles: x.tope,
           desde: x.desde, hasta: x.hasta, dias: x.dias, devengadas: x.devengadas,
-          detalle: ((x.detalle ?? []) as Fila[]).map((o) => ({ orden: o.orden, fecha: o.fecha, estado: o.estado })),
+          detalle: ((x.detalle ?? []) as Fila[]).map((o) => ({ orden: o.orden, fecha: o.fecha, estado: o.estado, enlace: e.orden(String(x.entidadRuc), o.orden, o.fecha) })),
           enlace_entidad: e.entidad(x.entidadRuc),
         })),
         como_leerlo: r.como_leerlo,
