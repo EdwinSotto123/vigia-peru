@@ -638,7 +638,9 @@ personasRouter.get("/buscar", async (c) => {
   const cuerpo = await buscarMemo.obtener(palabras.join(" "), async () => {
     const [conCargo, contratadas] = await Promise.all([
       funcionariosPorNombreVisible(q, 25).catch(() => []),
-      personasPorNombreVisible(q, 12).catch(() => []),
+      // Hasta 30: quien escribe el nombre completo trae también a quienes coinciden por el otro apellido, y no deben
+      // sacar de la lista a la persona buscada.
+      personasPorNombreVisible(q, 30).catch(() => []),
     ]);
     return publicar({ q, conCargo, contratadas });
   });

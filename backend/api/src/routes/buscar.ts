@@ -69,8 +69,8 @@ buscarRouter.get("/", async (c) => {
         ])
         .catch((e) => { vacio("personas")(e); return []; })
     : Promise.resolve([]);
-  // El buscador no espera a las personas más de 2 s: lo demás (contratos, entidades) sale igual.
-  const personasATiempo = Promise.race([personasP, new Promise<Record<string, unknown>[]>((ok) => setTimeout(() => ok([]), 2000))]);
+  // El buscador no espera a las personas más de 1,5 s: lo demás (contratos, entidades) sale igual.
+  const personasATiempo = Promise.race([personasP, new Promise<Record<string, unknown>[]>((ok) => setTimeout(() => ok([]), 1500))]);
   const [contratos, entidades, empresas, zonas, aportes, alertas] = await Promise.all([
     // Contratos: por código/OCID (exacto o prefijo) o por texto del objeto.
     esCodigo
