@@ -272,26 +272,40 @@ export async function buscarInformesControl(b: BusquedaControl, ia?: IaWorkers):
   }
   const t1 = Date.now();
   const n = Math.max(1, Math.min(30, Math.round(b.n ?? 10)));
-  const cliente = await pool.connect();
+  const buscar = async (vec: string | null, topeMs: number): Promise<Json[]> => {
+    const cliente = await pool.connect();
+    try {
+      await cliente.query("BEGIN READ ONLY");
+      await cliente.query(`SET LOCAL statement_timeout = ${topeMs}`);
+      const filas = (await cliente.query(
+        `SELECT r.codigo, r.numero, r.titulo, r.entidad_nombre AS entidad, r.entidad_ruc AS "entidadRuc",
+                to_char(r.fecha_emision, 'YYYY-MM-DD') AS fecha, r.modalidad, r.responsabilidades, r.observacion, r.tema, r.score,
+                i.url_resumen AS "urlFicha", i.url_pdf AS "urlInforme"
+           FROM buscar_informe_control($1, $2::halfvec, $3, $4::date, $5) r
+           JOIN informes_control i ON i.codigo = r.codigo`,
+        // Diez de más: el mismo texto puede venir dos veces (el título de la observación y su desarrollo, o dos trozos
+        // iguales del mismo informe) y se quita abajo.
+        [b.q, vec, b.entidad || null, b.desde || null, Math.min(40, n + 10)])).rows;
+      await cliente.query("COMMIT");
+      return filas;
+    } catch (e) {
+      await cliente.query("ROLLBACK").catch(() => {});
+      throw e;
+    } finally {
+      cliente.release();
+    }
+  };
   let filas: Json[];
   try {
-    await cliente.query("BEGIN READ ONLY");
-    await cliente.query("SET LOCAL statement_timeout = 8000");
-    filas = (await cliente.query(
-      `SELECT r.codigo, r.numero, r.titulo, r.entidad_nombre AS entidad, r.entidad_ruc AS "entidadRuc",
-              to_char(r.fecha_emision, 'YYYY-MM-DD') AS fecha, r.modalidad, r.responsabilidades, r.observacion, r.tema, r.score,
-              i.url_resumen AS "urlFicha", i.url_pdf AS "urlInforme"
-         FROM buscar_informe_control($1, $2::halfvec, $3, $4::date, $5) r
-         JOIN informes_control i ON i.codigo = r.codigo`,
-      // Diez de más: el mismo texto puede venir dos veces (el título de la observación y su desarrollo, o dos trozos
-      // iguales del mismo informe) y se quita abajo.
-      [b.q, vector, b.entidad || null, b.desde || null, Math.min(40, n + 10)])).rows;
-    await cliente.query("COMMIT");
+    filas = await buscar(vector, 8000);
   } catch (e) {
-    await cliente.query("ROLLBACK").catch(() => {});
-    throw e;
-  } finally {
-    cliente.release();
+    // Con la tabla fuera de la memoria (un refresco grande la desaloja), el índice de significado puede tardar segundos
+    // en frío: medido el 2026-11-17, 54 ms la parte de palabras y 9 ms la de significado en caliente, 2,6 s la búsqueda
+    // entera en frío. Si se pasa del tope, la misma búsqueda sólo por palabras antes que un error.
+    if (!vector || !/statement timeout|canceling statement/i.test(String((e as Error).message))) throw e;
+    console.warn(`[control] búsqueda híbrida lenta, sigue sólo por palabras: ${b.q}`);
+    vector = null;
+    filas = await buscar(null, 6000);
   }
   // Un mismo hallazgo, una vez: mismo informe y mismo comienzo de texto (sin mayúsculas, tildes ni signos).
   const vistos = new Set<string>();

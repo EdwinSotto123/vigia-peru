@@ -87,6 +87,10 @@ const CASOS: Caso[] = [
   { h: buscarContratos as never, args: { senal: "unico_postor,socio_de_inhabilitada", todas_las_senales: true, por_pagina: 5 },
     espera: (r) => (Number(r.total) > 0 && Number(r.total) < 2000 ? null : `la combinación de señales dio ${String(r.total)} contratos`) },
   // Lo que la Contraloría observó, atado a su contrato (migración 313): el patrón por proveedor y entidad, y el filtro.
+  // La misma compra repetida en semanas (migraciones 348-349): en la UNI, el posible duplicado de Pan American (O/C-1883 y 2364-2024).
+  { h: patrones as never, args: { alcance: "repetida", ruc: "20169004359" },
+    espera: (r) => ((lista(r, "compras_repetidas") as { proveedor_ruc?: string; monto_de_cada_orden?: number }[]).some((x) => x.proveedor_ruc === "20603050747" && x.monto_de_cada_orden === 28190)
+      ? null : "sin la compra repetida de Pan American en la UNI") },
   // Grupos por dueño y familia (migraciones 343-347): el de la UNI (Valencia) sale grave, con la dependencia y sin RUC 10.
   { h: patrones as never, args: { alcance: "grupo", ruc: "20605328696" },
     espera: (r) => {
