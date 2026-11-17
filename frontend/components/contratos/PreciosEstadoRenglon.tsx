@@ -5,6 +5,7 @@ import { Landmark, LoaderCircle } from "lucide-react";
 import { PUBLIC_API_BASE } from "@/lib/auditoria";
 import { Ayuda } from "@/components/patrones";
 import { decimal, soles } from "@/lib/formato";
+import { mismaUnidad } from "@/lib/unidad";
 
 /**
  * En el panel de un renglón de la ficha: lo que pagó el Estado por lo mismo, buscado por las palabras del producto
@@ -20,17 +21,6 @@ interface Referencia {
   p25: number | null;
   mediana: number;
   p75: number | null;
-}
-
-/** La unidad comparable, como `unidad_norm` de la base (migración 338): «GALONES» y «gal» → «galon». */
-function unidadNorm(t: string | null): string | null {
-  const u = (t ?? "").normalize("NFD").replace(/\p{M}/gu, "").toLowerCase().replace(/[^a-z0-9 ]+/g, " ").trim();
-  if (!u) return null;
-  if (/^(gal|gln|gl)(on|ones)?$/.test(u)) return "galon";
-  if (/^(kg|kgs|kilo|kilos|kilogramos?)$/.test(u)) return "kilogramo";
-  if (/^(l|lt|lts|litros?)$/.test(u)) return "litro";
-  if (/^(und|unid|unidad|unidades|u|un|pza|pieza|piezas)$/.test(u)) return "unidad";
-  return u;
 }
 
 const FUENTE: Record<string, string> = {
@@ -101,7 +91,7 @@ export function PreciosEstadoRenglon({
           <ul className="divide-y divide-line/60 rounded-xl border border-line">
             {refs.map((x, i) => {
               // Sólo en la misma unidad: un «balde de 5 galones» no se compara con el precio por galón.
-              const misma = !!x.unidad && unidadNorm(x.unidad) === unidadNorm(unidad);
+              const misma = mismaUnidad(x.unidad, unidad);
               const veces = misma && pagado != null && x.mediana > 0 ? pagado / x.mediana : null;
               return (
                 <li key={i} className="flex items-start justify-between gap-3 px-3.5 py-2.5">

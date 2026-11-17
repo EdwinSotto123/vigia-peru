@@ -9,6 +9,7 @@ import { Ayuda } from "@/components/patrones/Ayuda";
 import { BloqueDetalle, CuerpoDetalle } from "@/components/patrones/Detalle";
 import { decimal, numero, plural, soles } from "@/lib/formato";
 import { cn } from "@/lib/utils";
+import { mismaUnidad } from "@/lib/unidad";
 
 /**
  * El laboratorio de precios, renglón por renglón (GET /contratos/:ocid/precios-mercado; backend/api/src/lib/laboratorioPrecios.ts).
@@ -89,8 +90,14 @@ function oracion(s0: string): string {
   return bajo.charAt(0).toUpperCase() + bajo.slice(1);
 }
 
-/** La mediana del Estado con más compras detrás (la que se dibuja). */
-const estadoPrincipal = (r: Renglon) => (r.referencias.length ? r.referencias.reduce((m, x) => (x.n > m.n ? x : m), r.referencias[0]) : null);
+/**
+ * La mediana del Estado que se dibuja: la de más compras detrás EN LA MISMA UNIDAD del contrato. Una de otra unidad («por
+ * unidad» contra «balde de 5 galones») queda en el panel con su unidad, pero no en la escala.
+ */
+function estadoPrincipal(r: Renglon): Referencia | null {
+  const comparables = r.referencias.filter((x) => mismaUnidad(x.unidad, r.unidad));
+  return comparables.length ? comparables.reduce((m, x) => (x.n > m.n ? x : m), comparables[0]) : null;
+}
 
 export function LaboratorioPrecios({ ocid }: { ocid: string | null }) {
   const { data } = useSWR(ocid ? `${PUBLIC_API_BASE}/contratos/${encodeURIComponent(ocid)}/precios-mercado` : null, leer, {
