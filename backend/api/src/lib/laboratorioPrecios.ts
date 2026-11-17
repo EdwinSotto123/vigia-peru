@@ -133,7 +133,8 @@ export async function preciosDeMercado(s: Servicio | undefined, ocid: string): P
     return {
       item, producto: String(e.consulta ?? inv.consulta ?? ""), estado: inv.estado, cantidad, unidad: (e.unidad as string) ?? null,
       unidadComparada: (det?.ficha?.unidad_base as string) ?? null, pagado, mediana, p25: num(r.p25), p75: num(r.p75), validas, razon,
-      veredicto, nota: typeof r.nota === "string" ? r.nota : null, caja, cuenta, referencias, ofertas,
+      // Sin la indicación al operador del laboratorio («Prueba con otras palabras…»): el público no puede reintentar.
+      veredicto, nota: typeof r.nota === "string" ? r.nota.replace(/\s*Prueba con otras palabras[^.]*\./, "").trim() || null : null, caja, cuenta, referencias, ofertas,
       investigado: det?.terminado ?? inv.terminado ?? null,
     };
   }));

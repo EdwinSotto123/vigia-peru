@@ -121,7 +121,9 @@ contratosDetalleRouter.get("/:ocid/precios-mercado", async (c) => {
   const lab = (c.env as { PRECIOS_LAB?: { fetch(req: Request): Promise<Response> } } | undefined)?.PRECIOS_LAB;
   const datos = await preciosDeMercado(lab, ocid);
   if (!datos) return c.json({ error: "sin_laboratorio" }, 503);
-  cache(c, datos.renglones.some((r) => r.estado !== "listo" && r.estado !== "error") ? 120 : 1800);
+  // Con investigaciones en curso, sin «stale-while-revalidate»: si no, el borde sirve media hora la foto de «investigando».
+  if (datos.renglones.some((r) => r.estado !== "listo" && r.estado !== "error")) c.header("Cache-Control", "public, max-age=30");
+  else cache(c, 1800);
   return c.json(datos);
 });
 

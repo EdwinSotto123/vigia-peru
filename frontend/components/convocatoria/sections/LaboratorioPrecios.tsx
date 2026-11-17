@@ -81,6 +81,14 @@ function tono(r: Renglon): "alto" | "medio" | "neutro" {
   return r.razon >= 1.5 ? "alto" : r.razon >= 1.15 ? "medio" : "neutro";
 }
 
+/** «ACEITE DE MOTOR 15W40 : MOBIL» → «Aceite de motor 15W40: Mobil»: sin gritar, sin tocar los códigos con números. */
+function oracion(s0: string): string {
+  const s = s0.replace(/\s+([,:])/g, "$1").replace(/\s{2,}/g, " ").trim();
+  if (s !== s.toUpperCase()) return s;
+  const bajo = s.toLowerCase().replace(/\b([a-z]*\d[a-z\d-]*)\b/g, (m) => m.toUpperCase());
+  return bajo.charAt(0).toUpperCase() + bajo.slice(1);
+}
+
 /** La mediana del Estado con más compras detrás (la que se dibuja). */
 const estadoPrincipal = (r: Renglon) => (r.referencias.length ? r.referencias.reduce((m, x) => (x.n > m.n ? x : m), r.referencias[0]) : null);
 
@@ -162,7 +170,10 @@ function FilaRenglon({ r }: { r: Renglon }) {
   const valores = [r.pagado, r.p75, r.mediana, ref?.mediana].filter((v): v is number => typeof v === "number" && v > 0);
   const tope = valores.length ? Math.max(...valores) * 1.12 : 0;
   const x = (v: number | null | undefined) => (v != null && tope > 0 ? `${Math.min(100, (v / tope) * 100)}%` : null);
-  const titulo = `${r.item}. ${r.producto}`;
+  const producto = oracion(r.producto);
+  const titulo = `${r.item}. ${producto}`;
+  // Sin precio de tiendas ni del Estado no hay escala que dibujar: sólo el punto de lo pagado no dice nada.
+  const conEscala = tope > 0 && ((listo && r.mediana != null) || !!ref);
   return (
     <Revelar
       titulo={titulo}
@@ -174,15 +185,16 @@ function FilaRenglon({ r }: { r: Renglon }) {
     >
       <div className="grid gap-2 px-5 py-3 transition-colors duration-rapido group-hover:bg-paperSoft sm:grid-cols-[minmax(0,1.1fr)_minmax(0,1.4fr)_auto] sm:items-center sm:gap-4">
         <div className="min-w-0">
-          <p className="truncate text-dato font-semibold text-ink">
+          <p className="line-clamp-2 text-dato font-semibold leading-snug text-ink">
             <span className="mr-1.5 font-mono text-rotulo text-mute">{r.item}</span>
-            {r.producto}
+            {producto}
           </p>
           <p className="mt-0.5 text-rotulo text-mute">
-            {r.cantidad != null ? `${numero(r.cantidad)} ${r.unidad ?? ""}`.trim() : "sin cantidad"}
+            {r.cantidad != null ? `${numero(r.cantidad)} ${(r.unidad ?? "").toLowerCase()}`.trim() : "sin cantidad"}
             {r.pagado != null && <> a {soles(r.pagado)} cada uno</>}
           </p>
         </div>
+        {conEscala ? (
         <div className="relative h-7" aria-hidden>
           <div className="absolute inset-x-0 top-1/2 h-px -translate-y-1/2 bg-line" />
           {listo && r.p25 != null && r.p75 != null && tope > 0 && (
@@ -207,6 +219,9 @@ function FilaRenglon({ r }: { r: Renglon }) {
             />
           )}
         </div>
+        ) : (
+          <p className="text-rotulo text-mute">{listo || r.estado === "error" ? "Sin precios para comparar" : "Buscando precios…"}</p>
+        )}
         <div className="flex items-center gap-2 sm:justify-end">
           {r.razon != null && r.cuenta && (
             <span
