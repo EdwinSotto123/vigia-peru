@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { Fragment, type ReactNode } from "react";
-import { Banknote, Gauge, Gavel, ListFilter, ReceiptText, Scale, Store, TriangleAlert } from "lucide-react";
+import { Banknote, CalendarRange, Gauge, Gavel, ListFilter, ReceiptText, Scale, Store, TriangleAlert, UsersRound } from "lucide-react";
 import {
   Ayuda,
   AyudaTermino,
@@ -65,6 +65,7 @@ import {
   type InhabilitacionProveedor,
   type OrdenFraccionada,
   type OrdenRepetida,
+  type ParienteSocio,
   type OrdenGeneral,
   type OrdenesPagina,
   type ProcesoCandidato,
@@ -530,6 +531,20 @@ const parteDelTope = (monto: number, tope: number) => porcentaje((100 * monto) /
 const CHIP_INHABILITADO = "Inhabilitado al emitirse";
 const CHIP_FRACCIONAMIENTO = TIPO_CRUCE.fraccionamiento?.chip ?? "Pasan 8 UIT";
 const CHIP_REPETIDA = "Compra repetida";
+const CHIP_PARIENTE_SOCIO = "Empresa de un pariente";
+/** «CUÑADO(A)» → «cuñado o cuñada»; «HERMANO(A) DEL DECLARANTE» → «hermano o hermana». */
+const parentescoLegible = (p: string | null | undefined) => {
+  const t = (p ?? "pariente").toLocaleLowerCase("es").replace(/\s+del declarante$/, "").replace(/\s*\(\s*a\s*\)/g, "(a)").replace(/conyuge/g, "cónyuge").trim();
+  const m = /^(\S+?)o\(a\)(.*)$/.exec(t);
+  return m ? `${m[1]}o o ${m[1]}a${m[2]}` : t.replace("(a)", "");
+};
+/** «socio_accionista_titular, representante_legal» → «socio y representante legal». */
+const rolLegible = (r: string | null | undefined) => {
+  const xs = (r ?? "").split(",").map((x) => x.trim()).filter(Boolean).map((x) =>
+    x.startsWith("socio") ? "socio" : x.startsWith("representante") ? "representante legal" : x.startsWith("organo") ? "directivo" : x.replace(/_/g, " "));
+  const u = [...new Set(xs)];
+  return u.length ? u.join(" y ") : "socio o representante";
+};
 
 /** Los antecedentes de una orden, del más grave al más leve; cada uno con su evidencia en el panel. */
 export function antecedentesOrden(o: OrdenGeneral): Antecedente[] {
@@ -556,6 +571,15 @@ export function antecedentesOrden(o: OrdenGeneral): Antecedente[] {
       severidad: f.severidad === "alta" ? "alta" : "media",
       chip: CHIP_FRACCIONAMIENTO,
       explica: `Una de ${f.ordenes} órdenes que la entidad le emitió ese día: suman ${soles(f.total)}, más que el tope de 8 UIT (${soles(f.tope)}).`,
+    });
+  }
+  const ps = o.parienteSocio;
+  if (ps) {
+    out.push({
+      tipo: "pariente_socio",
+      severidad: ps.severidad === "alta" ? "alta" : "media",
+      chip: CHIP_PARIENTE_SOCIO,
+      explica: `Un ${rolLegible(ps.rol)} de la empresa es ${parentescoLegible(ps.parentesco)} de ${ps.cargo ? `un funcionario de la entidad (${oracion(ps.cargo.toLocaleLowerCase("es"))})` : "un funcionario de la entidad"}, según su declaración jurada de intereses.`,
     });
   }
   const r = o.repetida;
@@ -1107,6 +1131,50 @@ function TarjetaFraccionamiento({ o, f, id }: { o: OrdenGeneral; f: OrdenFraccio
   );
 }
 
+/** La empresa de un pariente declarado: quién en la empresa, qué parentesco, qué cargo y cuánto le compró la entidad. */
+function TarjetaParienteSocio({ o, ps, id }: { o: OrdenGeneral; ps: ParienteSocio; id: string }) {
+  return (
+    <TarjetaBandera
+      id={id}
+      tipo="pariente_socio"
+      severidad={ps.severidad === "alta" ? "alta" : "media"}
+      nombre="La empresa de un pariente de un funcionario de la entidad"
+      pie={
+        <>
+          <AccionesBandera
+            acciones={[
+              esEmpresa(o.rucContratista) && o.entidadRuc
+                ? { href: rutaOrdenes({ entidad: o.entidadRuc, proveedor: o.rucContratista, antecedente: "pariente_socio" }), texto: "Ver sus órdenes en la entidad" }
+                : null,
+            ]}
+          />
+          <DondeComprobarlo
+            enlaces={[
+              { texto: "Declaraciones juradas de intereses (Contraloría)", href: djiEntidad(o.entidadRuc), pista: "busca a los funcionarios de la entidad y sus parientes" },
+              ...(esEmpresa(o.rucContratista) ? [{ texto: "Registro Nacional de Proveedores (RNP)", href: fichaRnp(o.rucContratista), pista: "mira sus socios y representantes" }] : []),
+            ]}
+          />
+        </>
+      }
+    >
+      <p>
+        Un {rolLegible(ps.rol)} de esta empresa es {parentescoLegible(ps.parentesco)} de{" "}
+        {ps.cargo ? <>un funcionario de la entidad ({oracion(ps.cargo.toLocaleLowerCase("es"))})</> : "un funcionario de la entidad"}: el funcionario lo
+        declaró en su declaración jurada de intereses, con su documento, y el mismo documento figura en la empresa en el Registro Nacional de Proveedores.
+        No prueba que el funcionario haya intervenido en la compra; la ley impide contratar a ciertos parientes según el cargo.
+      </p>
+      <HechosBandera>
+        <Dato icono={ReceiptText} nombre="Órdenes de la entidad a la empresa desde 2023">{plural(ps.ordenes, "orden", "órdenes")} desde 2023</Dato>
+        <Dato icono={Banknote} nombre="Lo que suman">
+          Suman <Monto n={ps.monto} />
+        </Dato>
+        {ps.desde ? <Dato icono={CalendarRange} nombre="En la empresa desde">En la empresa desde {fechaLarga(ps.desde)}</Dato> : null}
+        {ps.parientes > 1 ? <Dato icono={UsersRound} nombre="Parientes declarados en la empresa">{plural(ps.parientes, "pariente declarado", "parientes declarados")}</Dato> : null}
+      </HechosBandera>
+    </TarjetaBandera>
+  );
+}
+
 /** Las órdenes iguales en pocas semanas: cuántas, en cuántos días, cuánto suman frente al tope y cada una con su estado. */
 function TarjetaRepetida({ o, r, id }: { o: OrdenGeneral; r: OrdenRepetida; id: string }) {
   const pasa = r.total > r.tope;
@@ -1232,6 +1300,13 @@ function banderasDeOrden(o: OrdenGeneral): BanderaOrden[] {
     const frase = `Ese mismo día le emitió ${otrasDelDia(f)}: con ésta suman ${soles(f.total)}, más que el tope de 8 UIT (${soles(f.tope)}).`;
     const sev = f.severidad === "alta" ? "alta" : "media";
     poner("fraccionamiento", sev, CHIP_FRACCIONAMIENTO, frase, (id) => <TarjetaFraccionamiento o={o} f={f} id={id} />);
+  }
+  const ps = o.parienteSocio;
+  if (ps) {
+    const frase =
+      `Un ${rolLegible(ps.rol)} de la empresa es ${parentescoLegible(ps.parentesco)} de ` +
+      `${ps.cargo ? `un funcionario de la entidad (${oracion(ps.cargo.toLocaleLowerCase("es"))})` : "un funcionario de la entidad"}, según su declaración jurada.`;
+    poner("pariente_socio", ps.severidad === "alta" ? "alta" : "media", CHIP_PARIENTE_SOCIO, frase, (id) => <TarjetaParienteSocio o={o} ps={ps} id={id} />);
   }
   const r = o.repetida;
   if (r) {

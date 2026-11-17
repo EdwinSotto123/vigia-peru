@@ -73,7 +73,7 @@ export const MONTO_ORDEN = {
  * órdenes de la franja). Los de la orden misma: partida con otras del mismo día y emitida a un proveedor inhabilitado.
  */
 export const ANTECEDENTES_ORDEN = ["nepotismo", "financio_campana", "candidato_gobierna", "autoridad_contratada", "al_borde_del_tope",
-                                   "fraccionamiento", "inhabilitado", "repetida"] as const;
+                                   "fraccionamiento", "inhabilitado", "repetida", "pariente_socio"] as const;
 const DE_PERSONA = new Set<string>(["nepotismo", "financio_campana", "candidato_gobierna", "autoridad_contratada", "al_borde_del_tope"]);
 /** Las señales de la persona con la entidad que la fila muestra como bandera (el nepotismo va aparte, en `conNepotismo`). */
 const SENALES_FILA = ["financio_campana", "candidato_gobierna", "autoridad_contratada", "aporte_gobierna", "nepotismo_gobierno"];
@@ -132,6 +132,16 @@ const FRACCIONADA = `FROM ordenes_fraccionadas f WHERE f.entidad_ruc = o.entidad
 const REPETIDA = `FROM ordenes_repetidas r WHERE r.ruc_contratista = o.ruc_contratista AND r.entidad_ruc = o.entidad_ruc
                     AND r.monto = o.monto AND o.moneda = 'Nuevos Soles' AND o.fecha_emision BETWEEN r.desde AND r.hasta
                     AND r.severidad IN ('alta', 'media') AND r.detalle @> jsonb_build_array(jsonb_build_object('fecha', o.fecha_emision))`;
+
+/**
+ * La empresa de un pariente (migración 350): un socio, representante o directivo de la empresa es pariente que un
+ * funcionario de esta misma entidad declaró en su DJI. Sólo órdenes de 2023 en adelante (las DJI son de quienes están hoy
+ * en el cargo) y con el pariente ya en la empresa (RNP) ese día.
+ */
+const PARIENTE_SOCIO = `FROM empresa_pariente_funcionario x WHERE x.entidad_ruc = o.entidad_ruc AND x.ruc_empresa = o.ruc_contratista
+                          AND o.fecha_emision >= DATE '2023-01-01' AND o.fecha_emision >= COALESCE(x.en_empresa_desde, DATE '1900-01-01')`;
+/** Una autoridad electa tiene nombre público: su cargo con un parentesco de sangre destaparía un apellido tapado. */
+const CARGO_ELECTO = `x.cargo ~* '(ALCALDE|REGIDOR|GOBERNADOR|CONSEJER|CONGRESISTA|PRESIDENTE REGIONAL)'`;
 
 /**
  * El proveedor estaba inhabilitado por el Tribunal de Contrataciones el día en que se emitió la orden: la misma regla que
@@ -244,6 +254,11 @@ const COLS = `to_char(o.fecha_emision, 'YYYY-MM-DD') AS fecha, o.entidad, o.enti
               (SELECT jsonb_build_object('ordenes', r.ordenes, 'total', r.total::float, 'tope', r.tope::float, 'dias', r.dias,
                                          'devengadas', r.devengadas, 'severidad', r.severidad, 'detalle', r.detalle)
                  ${REPETIDA} ORDER BY r.total DESC LIMIT 1) AS repetida,
+              (SELECT jsonb_build_object('parentesco', CASE WHEN ${CARGO_ELECTO} THEN 'pariente' ELSE x.parentesco END,
+                                         'cargo', CASE WHEN ${CARGO_ELECTO} THEN NULL ELSE x.cargo END,
+                                         'rol', x.rol, 'desde', to_char(x.en_empresa_desde, 'YYYY-MM-DD'), 'parientes', x.parientes,
+                                         'ordenes', x.ordenes, 'monto', x.monto::float, 'severidad', x.severidad)
+                 ${PARIENTE_SOCIO} LIMIT 1) AS "parienteSocio",
               -- Con la infracción por la que lo inhabilitó (pedido del usuario del 2026-11-05: el panel no decía por qué).
               (SELECT jsonb_build_object('tipo', s.tipo, 'resolucion', s.resolucion, 'desde', to_char(s.fecha_desde, 'YYYY-MM-DD'),
                                          'hasta', to_char(s.fecha_hasta, 'YYYY-MM-DD'), 'infraccion', left(s.infraccion, 900))
@@ -316,6 +331,10 @@ export function sqlListaOrdenes(q: FiltrosListaOrdenes, forzarAcotada = false): 
       // de 45 s); así lee sólo las ~64 mil órdenes emitidas a inhabilitados y después filtra la entidad (unos segundos).
       ? `(${periodosInhabilitado(q.proveedor)}) s CROSS JOIN LATERAL (SELECT x.* FROM conosce_ordenes x WHERE x.ruc_contratista = s.ruc
            AND x.fecha_emision BETWEEN s.desde AND s.hasta OFFSET 0) o`
+      : q.antecedente === "pariente_socio"
+        // Desde los ~700 pares entidad-empresa de la migración 350, por el índice del proveedor.
+        ? `empresa_pariente_funcionario x CROSS JOIN LATERAL (SELECT y.* FROM conosce_ordenes y WHERE y.ruc_contratista = x.ruc_empresa
+             AND y.entidad_ruc = x.entidad_ruc AND y.fecha_emision >= GREATEST(DATE '2023-01-01', COALESCE(x.en_empresa_desde, DATE '1900-01-01')) OFFSET 0) o`
       : q.antecedente === "repetida"
         // Desde las ~5 mil órdenes de ordenes_repetidas (proveedor, entidad, fecha y monto), por el índice del proveedor.
         // Recorrer el índice por fecha probando cada orden tardaba 7 s la primera página (medido 2026-11-17).
@@ -328,7 +347,8 @@ export function sqlListaOrdenes(q: FiltrosListaOrdenes, forzarAcotada = false): 
   if (q.antecedente === "al_borde_del_tope") enVentana.push(EN_EL_BORDE);
   // Con esos puntos de partida se ordena por `fecha_emision + 0`: una expresión sin índice, para que el planificador no
   // vuelva a recorrer el de fecha con el LIMIT (un top-N sobre las candidatas: 0,2-0,6 s en caliente, medido 2026-10-27).
-  const porFecha = dePersona || q.antecedente === "inhabilitado" || q.antecedente === "repetida" ? "o.fecha_emision + 0" : "o.fecha_emision";
+  const porFecha = dePersona || q.antecedente === "inhabilitado" || q.antecedente === "repetida" || q.antecedente === "pariente_socio"
+    ? "o.fecha_emision + 0" : "o.fecha_emision";
   const dir = q.orden === "antiguo" ? "ASC" : "DESC";
   const offset = (q.page - 1) * q.size;
   const lim = q.size + 1; // una de más para saber si hay página siguiente

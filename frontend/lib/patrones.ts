@@ -163,7 +163,7 @@ export interface PatronGrupo {
   objetosRepartidos: { anio: number; objeto: string; ordenes: number; miembros: number; monto: number; tope: number; detalle: { ruc: string; nombre: string | null; orden: string; fecha: string; monto: number }[] }[];
   sobreTopeOrdenes: { ruc: string; nombre: string | null; orden: string; fecha: string; monto: number; tope: number; descripcion: string | null }[];
   /** Integrantes que un funcionario de la misma entidad declaró como pariente en su DJI (migración 344). */
-  parientesDeFuncionarios: { ruc: string; nombre: string | null; cargo: string | null; parentesco: string | null; ordenes: number | null; monto: number | null }[];
+  parientesDeFuncionarios: { ruc: string; nombre: string | null; cargo: string | null; parentesco: string | null; ordenes: number | null; monto: number | null; via?: "ruc10" | "socio" }[];
 }
 export interface PatronesGrupos {
   total: number;

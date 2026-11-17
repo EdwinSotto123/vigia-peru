@@ -460,8 +460,17 @@ export function detalleGrupo(p: PatronGrupo): Detalle {
             <ul className="space-y-1.5 text-meta leading-relaxed text-inkSoft">
               {p.parientesDeFuncionarios.map((d, i) => (
                 <li key={i}>
-                  {quien(d.ruc, d.nombre)}: {d.cargo ? <>un funcionario de la entidad ({tituloNatural(d.cargo)})</> : "un funcionario de la entidad"} lo declaró
-                  como {(d.parentesco ?? "pariente").toLowerCase()} en su declaración jurada de intereses.
+                  {d.via === "socio" ? (
+                    <>
+                      {quien(d.ruc, d.nombre)}: uno de sus socios o representantes es {(d.parentesco ?? "pariente").toLowerCase()} de{" "}
+                      {d.cargo ? <>un funcionario de la entidad ({tituloNatural(d.cargo)})</> : "un funcionario de la entidad"}, según su declaración jurada de intereses.
+                    </>
+                  ) : (
+                    <>
+                      {quien(d.ruc, d.nombre)}: {d.cargo ? <>un funcionario de la entidad ({tituloNatural(d.cargo)})</> : "un funcionario de la entidad"} lo declaró
+                      como {(d.parentesco ?? "pariente").toLowerCase()} en su declaración jurada de intereses.
+                    </>
+                  )}
                 </li>
               ))}
             </ul>

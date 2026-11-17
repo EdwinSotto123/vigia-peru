@@ -29,6 +29,8 @@ export type OrdenGeneral = OrdenEmpresa & {
   fraccionamiento?: OrdenFraccionada | null;
   /** La orden es una de varias iguales (proveedor, monto y descripción) de 7 a 90 días entre sí (migraciones 348-349). */
   repetida?: OrdenRepetida | null;
+  /** Un socio, representante o directivo de la empresa es pariente declarado de un funcionario de esta entidad (migración 350). */
+  parienteSocio?: ParienteSocio | null;
   /** El Tribunal de Contrataciones tenía inhabilitado al proveedor el día en que se emitió. Falta en la API vieja. */
   inhabilitacion?: InhabilitacionProveedor | null;
   /** Las demás señales de la persona con esta entidad (financió la campaña, candidato del que gobierna…): sólo el tipo. */
@@ -75,6 +77,24 @@ export interface OrdenFraccionada {
   mismaDescripcion: boolean;
   severidad: "alta" | "media" | "baja";
   detalle: { orden: string; monto: number; descripcion: string | null; estado: string | null }[];
+}
+
+/** El pariente declarado en la DJI que figura en la empresa (sin nombre ni documento: el parentesco, el cargo y su papel). */
+export interface ParienteSocio {
+  /** Como lo escribe la DJI («CUÑADO(A)», «HERMANO(A) DEL DECLARANTE»); «pariente» si el funcionario es autoridad electa. */
+  parentesco: string | null;
+  /** Del funcionario que lo declaró; null si es autoridad electa o no se encontró. */
+  cargo: string | null;
+  /** Su papel en la empresa (RNP): socio_accionista_titular, representante_legal, organo_administracion. */
+  rol: string | null;
+  /** Desde cuándo figura en la empresa. */
+  desde: string | null;
+  /** Cuántos parientes declarados figuran en la empresa. */
+  parientes: number;
+  /** Órdenes de la entidad a la empresa desde 2023. */
+  ordenes: number;
+  monto: number;
+  severidad: "alta" | "media" | "baja";
 }
 
 /** Las órdenes iguales a una orden, emitidas en pocas semanas: la evidencia de su bandera «Compra repetida». */
@@ -164,6 +184,8 @@ export const ANTECEDENTES_ORDEN = [
   { valor: "fraccionamiento", etiqueta: "Órdenes del mismo día que pasan 8 UIT", grupo: DE_LA_ORDEN },
   // La misma orden (proveedor, monto y descripción) repetida de 7 a 90 días después (migraciones 348-349).
   { valor: "repetida", etiqueta: "Compra repetida en pocas semanas", grupo: DE_LA_ORDEN },
+  // Un socio o representante de la empresa es pariente declarado de un funcionario de la entidad (migración 350).
+  { valor: "pariente_socio", etiqueta: "Empresa de un pariente de un funcionario", grupo: DE_LA_ORDEN },
   // Persona o empresa con la mitad o más de las órdenes de la entidad así (migraciones 179 y 207).
   { valor: "al_borde_del_tope", etiqueta: "Al borde del tope (95 % a 100 %)", grupo: DE_LA_ORDEN },
   { valor: "inhabilitado", etiqueta: "Proveedor inhabilitado al emitirse", grupo: DE_LA_ORDEN },

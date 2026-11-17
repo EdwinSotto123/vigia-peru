@@ -593,8 +593,9 @@ patronesRouter.get("/grupos", async (c) => {
         // pariente: entonces sólo «un funcionario de la entidad» y «pariente».
         parientesDeFuncionarios: ((detalle?.parientes_de_funcionarios ?? []) as Record<string, any>[]).map((d) => {
           const electo = /ALCALDE|REGIDOR|GOBERNADOR|CONSEJER|CONGRESISTA|PRESIDENTE REGIONAL/i.test(String(d.cargo ?? ""));
+          // via «socio» (migración 350): el pariente es socio, representante o directivo de esta empresa del grupo.
           return { ...conNombre(d), cargo: electo ? null : d.cargo ?? null, parentesco: electo ? "pariente" : d.parentesco ?? null,
-                   ordenes: d.ordenes ?? null, monto: d.monto ?? null };
+                   ordenes: d.ordenes ?? null, monto: d.monto ?? null, via: d.via === "socio" ? "socio" : "ruc10" };
         }),
       };
     });

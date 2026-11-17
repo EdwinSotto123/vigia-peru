@@ -286,6 +286,9 @@ export async function correrOrdenes(env: Env, p: ParamsCorrida, step: WorkflowSt
     opcional("calibrar_grupos_proveedor"),
     // La misma compra repetida en semanas (migración 348): fraccionamiento en el tiempo o posible pago doble.
     opcional("refrescar_ordenes_repetidas"),
+    // La empresa de un pariente declarado en la DJI que recibe órdenes de esa misma entidad (migración 350), antes de marcar
+    // los grupos: marcar_grupos_parientes suma también esos casos.
+    opcional("refrescar_empresa_pariente_funcionario"),
     // Y los que tienen un integrante declarado como pariente por un funcionario de la misma entidad (migración 344).
     opcional("marcar_grupos_parientes"),
     // Los cruces (el fraccionamiento es uno) y los casos cruzados (migraciones 48 y 57).
