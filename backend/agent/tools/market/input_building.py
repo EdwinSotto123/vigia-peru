@@ -124,6 +124,14 @@ def build_market_input(ocid: str, tool_context: ToolContext) -> dict:
     ):
         parser_items = llm_items
 
+    # Los renglones que leyeron los lectores por pieza (backend/lector: el CONTRATO con marca, cantidad y precio unitario
+    # comprobado; las BASES con la especificación y la cantidad), fuera de este análisis y una vez por documento. Si traen
+    # MÁS renglones que el lector de este análisis, mandan ellos: en 1225937 el lector resumió diez lubricantes como «un
+    # paquete de 10 productos» y el mercado buscó precio para el paquete entero (0 de 1 ítems con precio de mercado).
+    de_piezas = _renglones_de_piezas(ocid)
+    if len(de_piezas) >= 2 and len(de_piezas) > len(parser_items):
+        parser_items = de_piezas
+
     # Indexar parser_items por número
     parser_by_num: dict = {}
     for pi in parser_items:
@@ -580,6 +588,78 @@ def build_market_input(ocid: str, tool_context: ToolContext) -> dict:
 
 
 _DOCS_PRECIO_CONTRATO_RE = re.compile(r"contrat|orden\s+de\s+compra|orden\s+de\s+servicio|buena\s+pro|cuadro\s+comparativo|propuesta|oferta", re.IGNORECASE)
+
+
+def _clave_renglon(v) -> str | None:
+    """«01», «1», «Ítem 1» → «1»."""
+    import re as _re
+    m = _re.search(r"\d+", str(v or ""))
+    return str(int(m.group(0))) if m else None
+
+
+def _renglones_desde_fichas(contrato: dict | None, bases: dict | None) -> list[dict]:
+    """Los renglones de las fichas por pieza en la forma de `items_consolidados` del parser. Del contrato salen la
+    descripción, la marca, la unidad, la cantidad y el precio unitario (sólo si el renglón cuadra: cantidad × unitario =
+    total); de las bases, la especificación entera como requerimiento técnico. Se emparejan por número o, si las dos
+    listas tienen el mismo largo, por orden."""
+    k_items = [x for x in ((contrato or {}).get("items") or []) if isinstance(x, dict)]
+    b_items = [x for x in ((bases or {}).get("items") or []) if isinstance(x, dict)]
+    if len(k_items) < 2 and len(b_items) < 2:
+        return []
+    por_num = {_clave_renglon(x.get("numero")): x for x in k_items if _clave_renglon(x.get("numero"))}
+    mismo_largo = len(k_items) == len(b_items)
+    base = b_items if len(b_items) >= len(k_items) else k_items
+    out: list[dict] = []
+    for i, x in enumerate(base, start=1):
+        es_bases = base is b_items
+        b = x if es_bases else None
+        k = (por_num.get(_clave_renglon(x.get("numero"))) or (k_items[i - 1] if mismo_largo else None)) if es_bases else x
+        desc_k = str((k or {}).get("descripcion") or "").strip()
+        corto = desc_k.split(":")[0].strip() if desc_k else str((b or {}).get("descripcion") or "").split(",")[0].strip()
+        pu = (k or {}).get("precio_unitario")
+        pu = float(pu) if isinstance(pu, (int, float)) and pu > 0 and (k or {}).get("cuadra") is not False else None
+        cant = (b or {}).get("cantidad") if (b or {}).get("cantidad") is not None else (k or {}).get("cantidad")
+        out.append({
+            "numero": _clave_renglon(x.get("numero")) or str(i),
+            "descripcion_corta": (desc_k or corto)[:300],
+            "cantidad": float(cant) if isinstance(cant, (int, float)) else None,
+            "unidad": (b or {}).get("unidad") or (k or {}).get("unidad") or "UND",
+            "precio_unitario_referencial": None,
+            "precio_unitario_ofertado": pu,
+            "origen_precio": "contrato_leido_por_pieza" if pu else None,
+            "marca_ofertada": (k or {}).get("marca"),
+            "requerimiento_tecnico_detallado": (b or {}).get("descripcion"),
+            "marca_o_modelo_exigido": None,
+            "certificaciones_exigidas": [],
+            "padre_ocds_item": None,
+            "_fuente": "fichas_por_pieza",
+        })
+    return out
+
+
+def _renglones_de_piezas(ocid: str) -> list[dict]:
+    """Las fichas «contrato» y «bases» del proceso (pieza_lectura, la más reciente con modelo; de las bases, las
+    integradas primero). Sin la tabla o sin lectura, nada: el análisis sigue como antes."""
+    try:
+        conn = _pg()
+    except Exception:  # noqa: BLE001
+        return []
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            """SELECT DISTINCT ON (l.lector) l.lector, l.salida
+                 FROM documento_pieza p JOIN pieza_lectura l ON l.pieza_id = p.id
+                WHERE ocid_corto(p.ocid) = ocid_corto(%s) AND l.lector IN ('contrato', 'bases')
+                  AND l.estado IN ('ok', 'parcial') AND l.modelo <> 'plantilla' AND jsonb_typeof(l.salida) = 'object'
+                ORDER BY l.lector, (p.tipo_documento = 'bases_integradas') DESC, l.leido_at DESC""",
+            (ocid,),
+        )
+        fichas = {r[0]: r[1] for r in cur.fetchall() if isinstance(r[1], dict)}
+    except Exception:  # noqa: BLE001 — una base sin las migraciones 325-326
+        return []
+    finally:
+        conn.close()
+    return _renglones_desde_fichas(fichas.get("contrato"), fichas.get("bases"))
 
 
 def _items_contratados_del_state(state: dict, doc_llm: dict | None = None) -> list[dict]:
