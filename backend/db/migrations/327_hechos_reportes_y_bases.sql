@@ -1,12 +1,13 @@
--- 327 · hecho_documento: los hechos leídos SIN modelo, de los reportes del SEACE y de las secciones de las bases.
+-- 327 · hecho_documento: los hechos de los reportes del SEACE (por plantilla) y de la ficha de las bases (por modelo).
 --
 -- Fase 3 del plan de extracción por tipo de documento. Hasta aquí hecho_documento sólo traía lo que un modelo leyó
 -- (documento_lectura). Ahora suma lo que se lee sin modelo (pieza_lectura, proceso_item y proceso_postor, migr. 325-326):
 --   · del reporte de otorgamiento: la cuantía (suma de los ítems), lo adjudicado, cuántos ítems y cuántos desiertos;
 --   · del reporte de presentación: cuántos presentaron oferta; del de evaluación: a cuántos se admitió y calificó;
 --   · del acta de no formulación: que nadie consultó;
---   · de las bases, leídas por secciones: la cuantía o que está RESERVADA, la experiencia exigida (requisito de
---     calificación) y la experiencia adicional (factor de evaluación), cada una con su página y su cita.
+--   · de las bases: la cuantía o que está RESERVADA, la experiencia exigida (requisito de calificación) y la experiencia
+--     adicional (factor de evaluación), cada una con su página y su cita. Estas las lee un MODELO (la ficha completa de
+--     las bases, lector/ficha_bases.py); la lectura por reglas de la misma pieza es la segunda lectura que las comprueba.
 -- Lo último es la respuesta directa al error del 2026-11-16: la experiencia adicional sale como lo que es, y en las bases
 -- con cuantía reservada queda dicho que el monto no existe en el documento.
 --
@@ -283,57 +284,78 @@ BEGIN
    WHERE l.lector = 'acta_no_formulacion' AND l.estado = 'ok'
    ORDER BY p.ocid, l.leido_at DESC;
 
-  -- Las bases leídas por secciones (lector/secciones.py): primero las integradas y, de ellas, la lectura más reciente.
+  -- Las bases: la FICHA que leyó el modelo (lector/ficha_bases.py; una por proceso, de las bases integradas si las hay)
+  -- y, como segunda lectura independiente, la de las reglas sobre la misma pieza (lector/secciones.py). Medido el
+  -- 2026-11-16: en texto libre lee mejor el modelo (su cuantía coincide con el registro en 86 de 86; la regla, 78 de 80).
   CREATE TEMP TABLE _hd_b ON COMMIT DROP AS
-  SELECT p.ocid, p.sha256, l.version, l.salida, l.leido_at,
-         row_number() OVER (PARTITION BY p.ocid ORDER BY (p.tipo_documento = 'bases_integradas') DESC, l.leido_at DESC, p.id DESC) AS orden
+  SELECT DISTINCT ON (p.ocid) p.ocid, p.sha256, l.version, l.modelo, l.salida, l.leido_at, r.salida AS regla,
+         CASE WHEN jsonb_typeof(l.salida->'citas'->'fallas') = 'array' THEN l.salida->'citas'->'fallas' ELSE '[]'::jsonb END AS fallas
     FROM pieza_lectura l JOIN documento_pieza p ON p.id = l.pieza_id
-   WHERE l.lector = 'bases_secciones' AND l.estado = 'ok' AND jsonb_typeof(l.salida) = 'object';
+    LEFT JOIN pieza_lectura r ON r.pieza_id = l.pieza_id AND r.lector = 'bases_secciones' AND r.modelo = 'plantilla' AND r.estado = 'ok'
+   WHERE l.lector = 'bases' AND l.modelo <> 'plantilla' AND l.estado IN ('ok', 'parcial') AND jsonb_typeof(l.salida) = 'object'
+   ORDER BY p.ocid, (l.estado = 'ok') DESC, l.leido_at DESC;
   CREATE INDEX ON _hd_b (ocid);
   ANALYZE _hd_b;
 
-  -- La cuantía, o que la entidad decidió no darla a conocer (numeral 53.4 del Reglamento de la Ley 32069). Sale sólo del
-  -- apartado de la cuantía del Capítulo I de la sección específica, con su página y su cita.
+  -- La cuantía, o que la entidad decidió no darla a conocer (numeral 53.4 del Reglamento de la Ley 32069). El código de
+  -- la ficha sólo la acepta del tramo de las generalidades. Comprobada: contra el registro; si no hay registro, porque la
+  -- regla leyó lo mismo; si no, porque su cita trae el valor.
   INSERT INTO hecho_documento (ocid, tipo, clase, version, valor_num, cita, verificado, contra, modelo, leido_at, sha256, pagina)
-  SELECT DISTINCT ON (b.ocid) b.ocid,
-         CASE WHEN b.salida->'cuantia'->>'reservada' = 'true' THEN 'cuantia_reservada' ELSE 'valor_referencial' END,
-         'bases_secciones', b.version,
-         CASE WHEN b.salida->'cuantia'->>'reservada' = 'true' THEN 1 ELSE _hecho_num(b.salida->'cuantia'->'valor') END,
-         NULLIF(left(b.salida->'cuantia'->>'cita', 600), ''),
-         CASE WHEN b.salida->'cuantia'->>'reservada' = 'true' OR r.referencial IS NULL THEN 'cita'
-              WHEN abs(_hecho_num(b.salida->'cuantia'->'valor') - r.referencial) <= 0.005 * r.referencial THEN 'registro'
-              ELSE 'contradice_registro' END,
-         r.referencial, 'plantilla', b.leido_at, b.sha256, (_hecho_num(b.salida->'cuantia'->'pagina'))::int
-    FROM _hd_b b LEFT JOIN (SELECT ocid, NULLIF(cuantia_referencial, 0) AS referencial FROM convocatorias) r ON r.ocid = b.ocid
-   WHERE jsonb_typeof(b.salida->'cuantia') = 'object'
-     AND (b.salida->'cuantia'->>'reservada' = 'true'
-          OR (_hecho_num(b.salida->'cuantia'->'valor') > 0 AND COALESCE(b.salida->'cuantia'->>'moneda', 'PEN') = 'PEN'))
-   ORDER BY b.ocid, b.orden;
-
-  -- La experiencia que se EXIGE al postor (requisito de calificación): en monto o en veces la cuantía.
-  INSERT INTO hecho_documento (ocid, tipo, clase, version, valor_num, cita, verificado, contra, modelo, leido_at, sha256, pagina)
-  SELECT DISTINCT ON (b.ocid, x.tipo) b.ocid, x.tipo, 'bases_secciones', b.version, x.valor, NULLIF(left(e->>'cita', 600), ''), 'cita',
-         r.referencial, 'plantilla', b.leido_at, b.sha256, (_hecho_num(e->'pagina'))::int
+  SELECT b.ocid, CASE WHEN c.estado = 'reservada' THEN 'cuantia_reservada' ELSE 'valor_referencial' END, 'bases_secciones', b.version,
+         CASE WHEN c.estado = 'reservada' THEN 1 ELSE c.valor END, NULLIF(left(c.cita, 600), ''),
+         CASE WHEN b.fallas ? 'cuantia' THEN 'sin_verificar'
+              WHEN c.estado = 'reservada' THEN CASE WHEN b.regla->'cuantia'->>'reservada' = 'true' THEN 'dos_lecturas' ELSE 'cita' END
+              WHEN r.referencial IS NOT NULL AND abs(c.valor - r.referencial) <= 0.005 * r.referencial THEN 'registro'
+              WHEN r.referencial IS NOT NULL THEN 'contradice_registro'
+              WHEN abs(c.valor - _hecho_num(b.regla->'cuantia'->'valor')) <= 0.005 * c.valor THEN 'dos_lecturas'
+              WHEN regexp_replace(c.cita, '[^0-9]', '', 'g') LIKE '%' || trunc(c.valor)::text || '%' THEN 'cita'
+              ELSE 'sin_verificar' END,
+         r.referencial, b.modelo, b.leido_at, b.sha256, c.pagina
     FROM _hd_b b
-   CROSS JOIN LATERAL jsonb_array_elements(CASE WHEN jsonb_typeof(b.salida->'experiencia_exigida') = 'array'
-                                                THEN b.salida->'experiencia_exigida' ELSE '[]'::jsonb END) WITH ORDINALITY AS t(e, n)
-   CROSS JOIN LATERAL (SELECT CASE WHEN _hecho_num(e->'monto') > 0 THEN 'experiencia_exigida_monto'
-                                   WHEN _hecho_num(e->'veces') > 0 THEN 'experiencia_exigida_veces' END AS tipo,
-                              COALESCE(NULLIF(_hecho_num(e->'monto'), 0), _hecho_num(e->'veces')) AS valor) x
+   CROSS JOIN LATERAL (SELECT b.salida->'cuantia'->>'estado' AS estado, _hecho_num(b.salida->'cuantia'->'valor') AS valor,
+                              COALESCE(b.salida->'cuantia'->>'cita', '') AS cita, (_hecho_num(b.salida->'cuantia'->'pagina'))::int AS pagina,
+                              COALESCE(b.salida->'cuantia'->>'moneda', 'PEN') AS moneda) c
     LEFT JOIN (SELECT ocid, NULLIF(cuantia_referencial, 0) AS referencial FROM convocatorias) r ON r.ocid = b.ocid
-   WHERE x.tipo IS NOT NULL AND x.valor > 0
-   ORDER BY b.ocid, x.tipo, b.orden, t.n;
+   WHERE c.estado = 'reservada' OR (c.estado = 'publica' AND c.valor > 0 AND c.moneda = 'PEN');
+
+  -- La experiencia que se EXIGE al postor (requisito de calificación), en monto o en veces la cuantía: la general, no la
+  -- rebajada para micro y pequeñas empresas. `contra` lleva la cuantía del registro, para decir cuántas veces es.
+  INSERT INTO hecho_documento (ocid, tipo, clase, version, valor_num, cita, verificado, contra, modelo, leido_at, sha256, pagina)
+  SELECT DISTINCT ON (b.ocid, x.tipo) b.ocid, x.tipo, 'bases_secciones', b.version, x.valor, NULLIF(left(x.cita, 600), ''),
+         CASE WHEN EXISTS (SELECT 1 FROM jsonb_array_elements(CASE WHEN jsonb_typeof(b.regla->'experiencia_exigida') = 'array'
+                                                                  THEN b.regla->'experiencia_exigida' ELSE '[]'::jsonb END) g
+                            WHERE abs(_hecho_num(g->(CASE x.tipo WHEN 'experiencia_exigida_monto' THEN 'monto' ELSE 'veces' END)) - x.valor)
+                                  <= 0.005 * x.valor) THEN 'dos_lecturas'
+              WHEN x.cita <> '' AND (x.tipo = 'experiencia_exigida_veces'
+                                     OR regexp_replace(x.cita, '[^0-9]', '', 'g') LIKE '%' || trunc(x.valor)::text || '%') THEN 'cita'
+              ELSE 'sin_verificar' END,
+         r.referencial, b.modelo, b.leido_at, b.sha256, (_hecho_num(t.e->'pagina'))::int
+    FROM _hd_b b
+   CROSS JOIN LATERAL jsonb_array_elements(CASE WHEN jsonb_typeof(b.salida->'requisitos_calificacion') = 'array'
+                                                THEN b.salida->'requisitos_calificacion' ELSE '[]'::jsonb END) WITH ORDINALITY AS t(e, n)
+   CROSS JOIN LATERAL (SELECT CASE t.e->>'unidad' WHEN 'soles' THEN 'experiencia_exigida_monto'
+                                                  WHEN 'veces_la_cuantia' THEN 'experiencia_exigida_veces' END AS tipo,
+                              _hecho_num(t.e->'cantidad') AS valor, COALESCE(t.e->>'cita', '') AS cita) x
+    LEFT JOIN (SELECT ocid, NULLIF(cuantia_referencial, 0) AS referencial FROM convocatorias) r ON r.ocid = b.ocid
+   WHERE t.e->>'tipo' = 'experiencia_postor' AND t.e->>'para' = 'general' AND x.tipo IS NOT NULL AND x.valor > 0
+   ORDER BY b.ocid, x.tipo, t.n;
 
   -- La experiencia ADICIONAL que da puntaje (factor de evaluación): el monto más alto. No es un requisito ni la cuantía.
   INSERT INTO hecho_documento (ocid, tipo, clase, version, valor_num, cita, verificado, contra, modelo, leido_at, sha256, pagina)
-  SELECT DISTINCT ON (b.ocid) b.ocid, 'experiencia_adicional_monto', 'bases_secciones', b.version, _hecho_num(e->'monto'),
-         NULLIF(left(e->>'cita', 600), ''), 'cita', r.referencial, 'plantilla', b.leido_at, b.sha256, (_hecho_num(e->'pagina'))::int
+  SELECT DISTINCT ON (b.ocid) b.ocid, 'experiencia_adicional_monto', 'bases_secciones', b.version, _hecho_num(t.e->'monto'),
+         NULLIF(left(t.e->>'cita', 600), ''),
+         CASE WHEN EXISTS (SELECT 1 FROM jsonb_array_elements(CASE WHEN jsonb_typeof(b.regla->'experiencia_adicional') = 'array'
+                                                                  THEN b.regla->'experiencia_adicional' ELSE '[]'::jsonb END) g
+                            WHERE abs(_hecho_num(g->'monto') - _hecho_num(t.e->'monto')) <= 0.005 * _hecho_num(t.e->'monto')) THEN 'dos_lecturas'
+              WHEN regexp_replace(COALESCE(t.e->>'cita', ''), '[^0-9]', '', 'g') LIKE '%' || trunc(_hecho_num(t.e->'monto'))::text || '%' THEN 'cita'
+              ELSE 'sin_verificar' END,
+         r.referencial, b.modelo, b.leido_at, b.sha256, (_hecho_num(t.e->'pagina'))::int
     FROM _hd_b b
-   CROSS JOIN LATERAL jsonb_array_elements(CASE WHEN jsonb_typeof(b.salida->'experiencia_adicional') = 'array'
-                                                THEN b.salida->'experiencia_adicional' ELSE '[]'::jsonb END) AS t(e)
+   CROSS JOIN LATERAL jsonb_array_elements(CASE WHEN jsonb_typeof(b.salida->'factores_evaluacion') = 'array'
+                                                THEN b.salida->'factores_evaluacion' ELSE '[]'::jsonb END) AS t(e)
     LEFT JOIN (SELECT ocid, NULLIF(cuantia_referencial, 0) AS referencial FROM convocatorias) r ON r.ocid = b.ocid
-   WHERE _hecho_num(e->'monto') > 0
-   ORDER BY b.ocid, b.orden, _hecho_num(e->'monto') DESC;
+   WHERE _hecho_num(t.e->'monto') > 0 AND t.e->>'factor' ~* 'experiencia'
+   ORDER BY b.ocid, _hecho_num(t.e->'monto') DESC;
 
   SELECT count(*) INTO v_n FROM hecho_documento;
   ANALYZE hecho_documento;

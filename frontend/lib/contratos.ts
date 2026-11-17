@@ -633,6 +633,12 @@ export interface HechoDocumento {
   /** `plantilla`: lo dice un reporte que genera el propio SEACE, leído sin modelo (migración 327). */
   verificado: "registro" | "contradice_registro" | "plantilla" | "cita" | "dos_lecturas" | "sin_verificar";
   contra: number | null;
+  /** La página del documento de donde salió. Una API anterior no la trae. */
+  pagina?: number | null;
+  /** Cuántas lecturas hay de este dato; se muestra la mejor comprobada. */
+  fuentes?: number;
+  /** Otra lectura de este mismo dato no coincide con el registro. */
+  otraNoCoincide?: boolean;
 }
 
 export function humanizarCodigo(s: string | null | undefined): string | null {

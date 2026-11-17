@@ -34,7 +34,7 @@ from pathlib import Path
 RAIZ = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(RAIZ / "backend"))
 sys.path.insert(0, str(RAIZ / "infrastructure" / "aws"))
-from lector import ficha_bases, secciones  # noqa: E402
+from lector import ficha_bases, fichas_cortas, secciones  # noqa: E402
 
 VERSION = "m1"
 TOPE_TOTAL_USD = 315.0
@@ -162,7 +162,9 @@ Lo que más se confunde, y cómo se distingue:
 # integradas si las hay). «bases_secciones» es su versión corta del piloto (cuantía y experiencia), para comparar con la regla.
 LECTORES = {"reporte_presentacion": REPORTE_PRESENTACION, "reporte_evaluacion": REPORTE_EVALUACION,
             "reporte_otorgamiento": REPORTE_OTORGAMIENTO, "bases_secciones": BASES_SECCIONES,
-            "bases": {"tipos": ["bases", "bases_integradas"], "ficha": True}}
+            "bases": {"tipos": ["bases", "bases_integradas"], "ficha": True},
+            # Los documentos cortos que nunca se leían (lector/fichas_cortas.py): garantía, modificación, resolución, desierto.
+            **fichas_cortas.LECTORES}
 
 
 def version_de(nombre: str) -> str:
@@ -370,6 +372,8 @@ def leer_una(motor, nombre: str, pieza_id: int, tipo: str, paginas: list[dict], 
     salida = r["salida"]
     if nombre == "bases_secciones":
         salida["citas"] = comprobar_bases(salida, texto)
+    elif nombre in fichas_cortas.LECTORES:
+        salida["citas"] = ficha_bases.revisar_citas(salida, _llano(texto), cita_en_texto)
     fila["salida"] = json.dumps(salida, ensure_ascii=False)
     return fila
 

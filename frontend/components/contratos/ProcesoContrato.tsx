@@ -265,6 +265,13 @@ function HechosComprobados({ c }: { c: Detalle }) {
       <span className="block space-y-0.5">
         <span className="block font-mono text-meta tabular-nums text-ink">{valorDeHecho(h, c.moneda)}</span>
         <Comprobacion h={h} moneda={c.moneda} />
+        {h.pagina ? <span className="block text-rotulo text-mute">Página {h.pagina} del documento</span> : null}
+        {h.otraNoCoincide ? (
+          <span className="flex items-center gap-1 text-rotulo text-amberTexto">
+            <CircleAlert size={13} className="shrink-0" aria-hidden />
+            Otra lectura de este dato no coincide con el registro
+          </span>
+        ) : null}
       </span>
     ),
   }));

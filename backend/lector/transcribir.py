@@ -3,6 +3,7 @@
 
   python -X utf8 backend/lector/transcribir.py prod --limite 20 --tope-usd 2
   python -X utf8 backend/lector/transcribir.py prod --medir                     # cuántas páginas esperan
+  python -X utf8 backend/lector/transcribir.py prod --cola cortos --limite 500  # garantías, adicionales, resoluciones…
 
 Por qué: cerca de dos de cada tres bases recientes traen un bloque escaneado dentro de su parte específica (el
 requerimiento pegado como imagen: especificaciones, términos de referencia, requisitos de calificación). Sin transcribir,
@@ -60,6 +61,22 @@ SELECT p.id, p.sha256, p.archivo, p.pag_ini, g.url_gcs, lower(g.formato), l.deta
  WHERE l.lector = 'bases' AND l.estado = 'espera_vision' AND g.url_gcs IS NOT NULL
    AND NOT EXISTS (SELECT 1 FROM pieza_lectura x WHERE x.pieza_id = p.id AND x.lector = 'transcripcion' AND x.version = %(version)s)
  ORDER BY c.fecha_convocatoria DESC NULLS LAST, p.id DESC
+ LIMIT %(limite)s
+"""
+# La otra cola: los documentos cortos y firmados que casi siempre son un escaneo (garantías, adicionales, ampliaciones,
+# resoluciones, nulidades, informes de desierto). Se transcriben todas sus páginas sin texto.
+CORTOS = ("garantia", "adicional", "reduccion", "ampliacion_plazo", "adenda", "resolucion_contrato", "nulidad", "informe_desierto")
+COLA_CORTOS = """
+SELECT p.id, p.sha256, p.archivo, p.pag_ini, g.url_gcs, lower(g.formato),
+       jsonb_build_object('escaneadas', (SELECT jsonb_agg((e.p->>'n')::int ORDER BY (e.p->>'n')::int)
+                                           FROM jsonb_array_elements(t.paginas) AS e(p)
+                                          WHERE (e.p->>'n') ~ '^[0-9]+$' AND (e.p->>'n')::int BETWEEN p.pag_ini AND p.pag_fin
+                                            AND length(coalesce(e.p->>'texto', '')) < 300))::text
+  FROM documento_pieza p JOIN documentos_gcs g ON g.id = p.doc_id JOIN documentos_texto t ON t.sha256 = p.sha256
+ WHERE p.tipo_documento = ANY (%(tipos)s) AND p.paginas <= %(max_paginas)s AND p.paginas_con_texto < p.paginas
+   AND g.url_gcs IS NOT NULL AND jsonb_typeof(t.paginas) = 'array'
+   AND NOT EXISTS (SELECT 1 FROM pieza_lectura x WHERE x.pieza_id = p.id AND x.lector = 'transcripcion' AND x.version = %(version)s)
+ ORDER BY p.id DESC
  LIMIT %(limite)s
 """
 GASTADO = "SELECT COALESCE(sum(costo_usd), 0)::float FROM pieza_lectura WHERE modelo <> 'plantilla'"
@@ -200,13 +217,19 @@ def main() -> None:
     ap.add_argument("--hilos", type=int, default=3)
     ap.add_argument("--modelo", default=None)
     ap.add_argument("--medir", action="store_true")
+    ap.add_argument("--cola", choices=["bases", "cortos"], default="bases",
+                    help="bases: las que esperan visión para su ficha; cortos: garantías, adicionales, resoluciones, desiertos")
     a = ap.parse_args()
     t0 = time.time()
     with conexion(a.entorno) as cn:
         cur = cn.cursor()
         cur.execute(GASTADO)
         total = cur.fetchone()[0]
-        cur.execute(COLA, {"version": VERSION, "limite": 100000 if a.medir else a.limite})
+        if a.cola == "cortos":
+            cur.execute(COLA_CORTOS, {"version": VERSION, "limite": 100000 if a.medir else a.limite, "tipos": list(CORTOS),
+                                      "max_paginas": 25})
+        else:
+            cur.execute(COLA, {"version": VERSION, "limite": 100000 if a.medir else a.limite})
         cola = cur.fetchall()
         cn.commit()
         paginas_cola = 0

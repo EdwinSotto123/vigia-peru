@@ -396,17 +396,27 @@ export interface HechoDocumento {
   valor: number | null;
   fecha: string | null;
   cita: string | null;
-  /** registro | contradice_registro | cita | dos_lecturas | sin_verificar */
+  /** registro | plantilla | dos_lecturas | cita | sin_verificar | contradice_registro */
   verificado: string;
   /** El valor del registro (o de la otra lectura) contra el que se midió. */
   contra: number | null;
+  /** La página del documento de donde salió, si el lector la dio. */
+  pagina: number | null;
+  /** Cuántas lecturas hay de este dato (de varios documentos o lectores); aquí va la mejor comprobada. */
+  fuentes: number;
+  /** Alguna de las otras lecturas no coincide con el registro. */
+  otraNoCoincide: boolean;
 }
 
 async function hechosDe(ocid: string): Promise<HechoDocumento[]> {
   const r = await pool.query(
+    // Un dato, una fila: expediente_hechos (migraciones 327-328) elige la lectura mejor comprobada de cada tipo.
     `SELECT h.tipo, h.clase, h.valor_num::float AS valor, to_char(h.valor_fecha, 'YYYY-MM-DD') AS fecha, left(h.cita, 400) AS cita,
-            h.verificado, h.contra::float AS contra
-       FROM hecho_documento h WHERE h.ocid = $1 ORDER BY h.tipo, h.clase`, [ocid]);
+            h.verificado, h.contra::float AS contra, h.pagina, h.fuentes,
+            (h.con_contradiccion AND h.verificado <> 'contradice_registro') AS "otraNoCoincide"
+       FROM expediente_hechos h JOIN hecho_tipo t ON t.tipo = h.tipo
+      WHERE h.ocid = $1
+      ORDER BY array_position(ARRAY['proceso', 'requisitos', 'competencia', 'consultas', 'adjudicacion', 'contrato'], t.grupo), h.tipo`, [ocid]);
   return r.rows as HechoDocumento[];
 }
 
