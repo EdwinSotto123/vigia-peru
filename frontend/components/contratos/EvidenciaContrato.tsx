@@ -19,7 +19,7 @@ import { Ayuda, BloqueDetalle, CabeceraPestana, ChipsDetalle, CuerpoDetalle, Dat
 import { enlacesProceso } from "@/lib/fuentes";
 import { enlaceProveedor } from "@/lib/empresas";
 import { CeldaFecha, CeldaNumero, CeldaPrincipal, CeldaTexto, ListaPaginada, TablaPaginada, type Columna, type Fila } from "@/components/listado";
-import { ChevronDown, CircleDot, Coins, FolderOpen, HardDrive, Info, ListOrdered, Package, Tag } from "lucide-react";
+import { ChevronDown, CircleDot, Clock, Coins, FolderOpen, HardDrive, Info, ListOrdered, Package, Tag } from "lucide-react";
 import { Dato } from "@/components/ui/Dato";
 import { DocumentosContrato } from "./DocumentosContrato";
 import { CitaPagina } from "./CitaPagina";
@@ -33,6 +33,8 @@ import {
 import { cn } from "@/lib/utils";
 import { Partes } from "@/components/ui/Partes";
 import { VacioEnLinea } from "@/components/ui/VacioEnLinea";
+import { DesgloseItems } from "./ItemsDocumento";
+import { SeccionPerfil, cuentaPerfil } from "./PerfilContratista";
 
 export const OCDS = "registro OCDS del OECE (SEACE)";
 
@@ -82,7 +84,15 @@ export function pestanasEvidencia({ c, enRevision, catalogo }: { c: Detalle; enR
   const precios = itemsConPrecio(c);
   const senales = senalesConCita(c);
   const pestanas: (Pestana | false)[] = [
-    { clave: "items", etiqueta: "Ítems", conteo: c.items.length, contenido: <SeccionItems c={c} /> },
+    { clave: "items", etiqueta: "Ítems", conteo: Math.max(c.items.length, c.itemsDocumento?.filas.length ?? 0), contenido: <SeccionItems c={c} /> },
+    // Lo que las bases le pedían a quien quisiera ganar (ficha de las bases leída por pieza): entre lo que se compró y quién
+    // ofertó.
+    !!c.perfilContratista && {
+      clave: "perfil",
+      etiqueta: "Perfil del contratista",
+      conteo: cuentaPerfil(c.perfilContratista),
+      contenido: <SeccionPerfil c={c} />,
+    },
     postores.length > 0 && {
       clave: "postores",
       etiqueta: "Postores y ofertas",
@@ -172,9 +182,16 @@ function SeccionItems({ c }: { c: Detalle }) {
       buscable: [it.descripcion, `item ${it.posicion}`, it.cubso && `cubso ${it.cubso}`, it.estado && humanizarCodigo(it.estado)].filter(Boolean).join(" "),
     };
   });
+  const desglose = (c.itemsDocumento?.filas.length ?? 0) > 0;
   return (
     <>
-      <CabeceraPestana>Lo que se compra, ítem por ítem, con su cantidad y su valor referencial.</CabeceraPestana>
+      <CabeceraPestana>
+        {desglose
+          ? "Lo que se compró, renglón por renglón según las bases y el contrato, y debajo cómo lo registra el SEACE."
+          : "Lo que se compra, ítem por ítem, con su cantidad y su valor referencial."}
+      </CabeceraPestana>
+      {desglose && <DesgloseItems c={c} />}
+      {desglose && <h3 className="mt-5 font-display text-bloque font-bold text-ink">Como lo registra el SEACE</h3>}
       {c.items.length ? (
         <TablaPaginada
           columnas={columnas}
@@ -236,6 +253,8 @@ function FrenteOtras({ p }: { p: NonNullable<Detalle["items"][number]["precio"]>
 function SeccionPostores({ c, enRevision }: { c: Detalle; enRevision: boolean }) {
   const postores = c.postoresDetalle ?? [];
   const conItem = c.items.length > 1;
+  // Con el acta o cuadro leído por pieza (lector «evaluacion»): el puntaje con su desglose.
+  const conPuntaje = postores.some((p) => p.puntajeFinal != null || p.puntajeTotal != null);
   // La comparación con la referencia solo existe si al menos un postor tiene contra qué compararse.
   const hayReferencia = !enRevision && postores.some((p) => p.montoOferta != null && referenciaDe(p, c) != null);
   const columnas: Columna[] = [
@@ -257,6 +276,19 @@ function SeccionPostores({ c, enRevision }: { c: Detalle; enRevision: boolean })
         </Ayuda>
       ) : undefined,
     },
+    ...(conPuntaje ? [{
+      clave: "puntaje",
+      titulo: "Puntaje",
+      ancho: "128px",
+      alinear: "der",
+      desde: "md",
+      ayuda: (
+        <Ayuda titulo="¿Cómo se lee el puntaje?">
+          El puntaje final del acta. Debajo, de dónde sale: lo que dio el precio, lo que dieron los demás factores y la bonificación
+          (por ejemplo, 5 % a la micro y pequeña empresa). Gana el puntaje final más alto.
+        </Ayuda>
+      ),
+    } satisfies Columna] : []),
     {
       clave: "fuente",
       titulo: "Fuente",
@@ -342,6 +374,14 @@ function SeccionPostores({ c, enRevision }: { c: Detalle; enRevision: boolean })
                 partes={[
                   p.ordenPrelacion != null && <Dato key="puesto" icono={ListOrdered} nombre="Orden de prelación">Puesto {p.ordenPrelacion}</Dato>,
                   p.ruc && <Dato key="ruc" tipo="ruc">RUC <Ruc value={p.ruc} /></Dato>,
+                  p.horaOferta && (
+                    <Dato key="hora" icono={Clock} nombre="Hora de su oferta">Ofertó {p.fechaOferta ? `el ${fecha(p.fechaOferta)} ` : ""}a las {p.horaOferta}</Dato>
+                  ),
+                  p.admitida === false && <Dato key="adm" icono={Info} nombre="Admisión">No admitida</Dato>,
+                  p.admitida !== false && p.calificada === false && <Dato key="cal" icono={Info} nombre="Calificación">No calificó</Dato>,
+                  conPuntaje && (p.puntajeFinal ?? p.puntajeTotal) != null && (
+                    <Dato key="pts" icono={ListOrdered} nombre="Puntaje" className="md:hidden">{numero((p.puntajeFinal ?? p.puntajeTotal)!)} puntos</Dato>
+                  ),
                   !p.esGanador && motivoDe(p) && (
                     <Dato key="motivo" icono={Info} nombre="Por qué quedó fuera" className="whitespace-normal">
                       Por qué quedó fuera: <TextoRedactado texto={recortarMotivo(oracion(motivoDe(p)!))} personas={personasPostores} />
@@ -357,6 +397,18 @@ function SeccionPostores({ c, enRevision }: { c: Detalle; enRevision: boolean })
         ),
         item: p.item ? <CeldaTexto>{p.item}</CeldaTexto> : undefined,
         oferta: oferta ? <CeldaNumero sub={dif != null ? `${diferencia(dif)} vs. referencia` : undefined}>{oferta}</CeldaNumero> : undefined,
+        puntaje: (p.puntajeFinal ?? p.puntajeTotal) != null ? (
+          <CeldaNumero
+            sub={[
+              p.puntajePrecio != null && `precio ${numero(p.puntajePrecio)}`,
+              p.puntajeOtros != null && `otros ${numero(p.puntajeOtros)}`,
+              p.puntajeOtros == null && p.puntajePrecio != null && p.puntajeTotal != null && p.puntajeTotal !== p.puntajePrecio && `otros ${numero(Math.round((p.puntajeTotal - p.puntajePrecio) * 100) / 100)}`,
+              p.bonificacion != null && `bonificación ${numero(p.bonificacion)}`,
+            ].filter(Boolean).join(", ") || undefined}
+          >
+            {numero((p.puntajeFinal ?? p.puntajeTotal)!)}
+          </CeldaNumero>
+        ) : undefined,
         fuente: p.citas[0] ? <CitaPagina ocid={c.ocid} cita={p.citas[0]} corto /> : <span className="text-rotulo text-mute">Sin cita</span>,
       },
       // Una persona natural no se busca por su nombre ni por su RUC (docs/PRIVACIDAD.md): sólo por su estado.
@@ -366,6 +418,7 @@ function SeccionPostores({ c, enRevision }: { c: Detalle; enRevision: boolean })
   return (
     <>
       <CabeceraPestana>Quién presentó oferta, por cuánto y en qué quedó, según las actas del expediente.</CabeceraPestana>
+      <ResumenEvaluacion c={c} />
       <TablaPaginada
         columnas={columnas}
         filas={filas}
@@ -376,6 +429,39 @@ function SeccionPostores({ c, enRevision }: { c: Detalle; enRevision: boolean })
       />
       <FuenteDato fuente="actas y cuadros comparativos del expediente" enlaces={enlacesProceso(c.ocid, { codigo: c.codigo })} className="mt-2" />
     </>
+  );
+}
+
+/**
+ * Lo que el acta o cuadro de evaluación leído por pieza deja ver arriba de la tabla: si la oferta más baja perdió (y por
+ * cuánto, con la bonificación que lo decidió) y con qué factores se puntuó. Neutro: la bonificación a la micro y pequeña
+ * empresa es legal; es un dato para leer, no una señal.
+ */
+function ResumenEvaluacion({ c }: { c: Detalle }) {
+  const ev = c.evaluacion;
+  if (!ev || (!ev.masBajaPerdio && !ev.factores.length)) return null;
+  const m = ev.masBajaPerdio;
+  const pn = (n: { ruc: string | null; nombre: string | null }) =>
+    n.nombre ? (esPersonaNatural(n.ruc) ? <PersonName name={n.nombre} /> : <b>{n.nombre}</b>) : "un postor";
+  const total = ev.factores.reduce((s, f) => s + (f.puntajeMaximo ?? 0), 0);
+  return (
+    <div className="mb-3 space-y-2 rounded-2xl border border-line bg-paper px-4 py-3 text-dato leading-relaxed text-ink">
+      {m && (
+        <p>
+          La oferta más baja, de {pn(m.masBaja)} por <b>{soles(m.masBaja.monto ?? 0)}</b>
+          {m.masBaja.puntajeFinal != null ? ` (${numero(m.masBaja.puntajeFinal)} puntos)` : ""}, no ganó. La buena pro fue a {pn(m.ganador)}, que ofertó{" "}
+          <b>{soles(m.ganador.monto ?? 0)}</b>, {porcentaje(m.diferenciaPct, { decimales: 1 })} más ({soles(m.diferenciaSoles)})
+          {m.ganador.puntajeFinal != null ? `, y sumó ${numero(m.ganador.puntajeFinal)} puntos` : ""}
+          {m.ganador.bonificacion != null ? ` con ${numero(m.ganador.bonificacion)} de bonificación` : ""}.
+        </p>
+      )}
+      {ev.factores.length > 0 && (
+        <p className="text-inkSoft">
+          Se puntuó con {ev.factores.map((f) => `${f.factor ?? "un factor"}${f.puntajeMaximo != null ? ` (${numero(f.puntajeMaximo)})` : ""}`).join(", ")}
+          {total > 0 ? `, ${numero(total)} puntos en total` : ""}.
+        </p>
+      )}
+    </div>
   );
 }
 

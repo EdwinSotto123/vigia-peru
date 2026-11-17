@@ -73,3 +73,9 @@ def test_el_nombre_de_un_pdf_suelto_no_clasifica():
     (pieza,) = piezas.leer_documento("ARCHIVOS DE LA AMPLIACIÓN DEL CONTRATO",
                                      [{"n": 1, "archivo": "ARCHIVOS DE LA AMPLIACION DEL CONTRATO.pdf", "texto": texto}], "pdf")
     assert pieza["tipo"] == "ampliacion_plazo"
+
+
+def test_bases_integradas_por_casillero_aunque_la_portada_diga_estandar():
+    # Proceso 1225937: las integradas conservan la portada «BASES ESTÁNDAR…»; el casillero del SEACE dice cuáles son.
+    assert tipos.clasificar("Bases Integradas", None, "BASES ESTÁNDAR DE LICITACIÓN PÚBLICA ABREVIADA") == ("bases_integradas", "casillero")
+    assert tipos.clasificar("Bases Administrativas", None, "BASES ESTÁNDAR DE LICITACIÓN PÚBLICA ABREVIADA") == ("bases", "titulo")

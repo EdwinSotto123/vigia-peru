@@ -374,8 +374,31 @@ def leer_una(motor, nombre: str, pieza_id: int, tipo: str, paginas: list[dict], 
         salida["citas"] = comprobar_bases(salida, texto)
     elif nombre in fichas_cortas.LECTORES:
         salida["citas"] = ficha_bases.revisar_citas(salida, _llano(texto), cita_en_texto)
+        if nombre == "contrato":
+            salida["aritmetica"] = aritmetica_contrato(salida)
     fila["salida"] = json.dumps(salida, ensure_ascii=False)
     return fila
+
+
+def aritmetica_contrato(s: dict) -> dict:
+    """La comprobación sin modelo del contrato: cada renglón cantidad × unitario = total (±1 %), y la suma de los renglones
+    = el monto del contrato (±0,5 %). Lo que no cuadra no se usa como precio comprobado."""
+    def num(v):
+        return float(v) if isinstance(v, (int, float)) else None
+    items = s.get("items") or []
+    renglones_ok, renglones = 0, 0
+    for it in items:
+        c, u, tot = num(it.get("cantidad")), num(it.get("precio_unitario")), num(it.get("precio_total"))
+        if c and u and tot:
+            renglones += 1
+            ok = abs(c * u - tot) <= max(0.01 * tot, 1.0)
+            renglones_ok += ok
+            it["cuadra"] = ok
+    totales = [num(it.get("precio_total")) for it in items]
+    suma = sum(x for x in totales if x) if items and all(totales) else None
+    monto = num((s.get("monto_total") or {}).get("valor"))
+    return {"renglones": renglones, "renglones_ok": renglones_ok, "suma_items": suma, "monto": monto,
+            "suma_cuadra": None if suma is None or not monto else abs(suma - monto) <= 0.005 * monto}
 
 
 def main() -> None:
@@ -391,19 +414,27 @@ def main() -> None:
     ap.add_argument("--modelo", default=None)
     ap.add_argument("--con-regla", action="store_true", help="sólo piezas que ya tienen su lectura por regla (para comparar)")
     ap.add_argument("--varios-items", action="store_true", help="primero las piezas largas (reportes de varios ítems)")
+    ap.add_argument("--ocid", default=None, help="sólo las piezas de este proceso (también las ya leídas por otra pieza)")
     ap.add_argument("--con-escaneos", action="store_true",
                     help="bases: leer también las que traen un bloque escaneado (quedan «parcial»); sin esto, esperan la transcripción")
     a = ap.parse_args()
     lector = LECTORES[a.lector]
     motor = MotorWorkers(a.modelo or MODELO_DEFECTO)
-    consulta = PENDIENTES_BASES if a.lector == "bases" else PENDIENTES.format(
-        filtro=CON_REGLA if a.con_regla else "", orden="p.paginas DESC, p.id DESC" if a.varios_items else "p.id DESC")
+    if a.ocid:
+        # Un proceso: sus piezas de este tipo sin esta lectura. Para la ficha de las bases, las integradas si las hay.
+        filtro = "AND ocid_corto(p.ocid) = ocid_corto(%(ocid)s)" + (
+            " AND (p.tipo_documento = 'bases_integradas' OR NOT EXISTS (SELECT 1 FROM documento_pieza i"
+            " WHERE i.ocid = p.ocid AND i.tipo_documento = 'bases_integradas'))" if a.lector == "bases" else "")
+        consulta = PENDIENTES.format(filtro=filtro, orden="p.id DESC")
+    else:
+        consulta = PENDIENTES_BASES if a.lector == "bases" else PENDIENTES.format(
+            filtro=CON_REGLA if a.con_regla else "", orden="p.paginas DESC, p.id DESC" if a.varios_items else "p.id DESC")
     t0 = time.time()
     with ExitStack() as pila:
         cn = pila.enter_context(conexion(a.entorno))
         cur = cn.cursor()
         # Una sola corrida de este lector a la vez (la PC y el CI leen la misma cola): candado de sesión en la base.
-        cur.execute("SELECT pg_try_advisory_lock(hashtext(%s))", (f"lector.por_pieza:{a.lector}",))
+        cur.execute("SELECT pg_try_advisory_lock(hashtext(%s))", (f"lector.por_pieza:{a.lector}" + (f":{a.ocid}" if a.ocid else ""),))
         if not cur.fetchone()[0]:
             sys.exit("otra corrida igual está en curso: no se hace nada")
         cur.execute(GASTADO)
@@ -420,7 +451,7 @@ def main() -> None:
             # Por tandas: cada pieza viaja con el texto de sus páginas (unas bases son cientos de KB).
             while seguir and hechos < a.limite:
                 cur.execute(consulta, {"tipos": lector["tipos"], "lector": a.lector, "version": version_de(a.lector),
-                                       "limite": min(TANDA, a.limite - hechos)})
+                                       "limite": min(TANDA, a.limite - hechos), "ocid": a.ocid})
                 piezas = [x for x in cur.fetchall() if x[0] not in vistas]
                 cn.commit()
                 if not piezas:

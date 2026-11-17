@@ -26,6 +26,7 @@ import { LineaProceso, type PasoProceso } from "./LineaProceso";
 import { ENLACE_RELATO, PorQueLlama } from "./PorQueLlama";
 import { contextoDeSenales } from "../senal/directorio";
 import { NombreProveedor, QuienGano } from "./QuienGano";
+import { conOferta, PostoresOfertas } from "./PostoresOfertas";
 
 /**
  * «La historia», la primera pestaña del informe (pedido del usuario del 2026-11-05: «veo que solo apilamos y demás sin dar
@@ -58,6 +59,9 @@ export function HistoriaDossier(p: PanelDossierProps) {
   const pasos = pasosDelProceso({ result, conv, ganador, ganadores, senales, nPostores });
 
   const tono = conteo.alta > 0 ? "alta" : conteo.media > 0 ? "media" : conteo.total > 0 ? "baja" : undefined;
+  // «Postores y ofertas»: sólo con la ficha del contrato y al menos un postor con oferta (monto o puntaje).
+  const pc = p.postoresContrato ?? null;
+  const nOfertas = pc ? pc.postores.filter(conOferta).length : 0;
   const capitulos: CapituloRelato[] = [
     {
       id: "relato-que-paso",
@@ -108,6 +112,22 @@ export function HistoriaDossier(p: PanelDossierProps) {
         </SeccionSegura>
       ),
     },
+    ...(pc && nOfertas > 0
+      ? [
+          {
+            id: "relato-postores",
+            titulo: "Postores y ofertas",
+            tituloLargo: "Quién ofertó, por cuánto y cómo se evaluó",
+            bajada: "Cada oferta con su puntaje y en qué quedó, según el acta y el cuadro de evaluación leídos del expediente.",
+            conteo: nOfertas,
+            contenido: (
+              <SeccionSegura nombre="los postores y sus ofertas">
+                <PostoresOfertas datos={pc} />
+              </SeccionSegura>
+            ),
+          } satisfies CapituloRelato,
+        ]
+      : []),
     {
       id: "relato-analisis",
       titulo: "El análisis",

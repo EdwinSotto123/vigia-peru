@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { setRedactNames } from "../Redact";
+import type { PostoresDelContrato } from "./relato/PostoresOfertas";
 import { rutaContrato } from "@/lib/rutas";
 import { nombresPrivadosDe } from "./nombresPrivados";
 import { ArrowRight, ChevronRight, Info, Workflow } from "lucide-react";
@@ -58,6 +59,7 @@ export function ResultadoView({
   vistaPrevia = false,
   embebido = false,
   tabInicial,
+  postoresContrato,
 }: {
   result: ApiResult;
   vistaPrevia?: boolean;
@@ -74,6 +76,8 @@ export function ResultadoView({
    * (panel admin, que pinta sólo en el cliente), se lee de la URL al montar.
    */
   tabInicial?: string | null;
+  /** Los postores y la evaluación de la ficha del contrato: el capítulo «Postores y ofertas» de la historia. */
+  postoresContrato?: PostoresDelContrato | null;
 }) {
   const conv = result.convocatoria || {};
   const compl = result.compliance || {};
@@ -300,6 +304,7 @@ export function ResultadoView({
                       nDocs={nDocs}
                       nEvents={nEvents}
                       abrirTab={abrirTab}
+                      postoresContrato={postoresContrato ?? null}
                     />
                   </SeccionSegura>
                 ),

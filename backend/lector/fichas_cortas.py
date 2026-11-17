@@ -9,6 +9,8 @@ salió de leer documentos reales (docs/DOCUMENTOS_SEACE.md):
   modificacion   qué se aprueba o se deniega (el verbo decide el dato), por cuánto o por cuántos días, y la causal
   resolucion     quién resuelve el contrato (o anula el procedimiento), por qué causal y con qué requerimiento previo
   desierto       por qué quedó desierto y cuántos participaron y ofertaron
+  contrato       cada renglón contratado con su marca, cantidad, precio unitario y total; monto, plazo, garantía, penalidad
+  evaluacion     por postor: oferta, admisión, calificación y su motivo, puntajes, bonificación, prelación y ganador
 
 Nombres de personas: estos documentos traen firmas de funcionarios y representantes. Los esquemas NO piden nombres de
 personas naturales; sólo el cargo de quien firma y la razón social del contratista o del emisor.
@@ -188,4 +190,86 @@ El documento debería ser el informe (o el acta) que sustenta que un procedimien
             "resumen": {"type": "string"}}),
 }
 
-LECTORES = {"garantia": GARANTIA, "modificacion": MODIFICACION, "resolucion": RESOLUCION, "desierto": DESIERTO}
+# ── El contrato: lo que se pactó, renglón por renglón ──────────────────────────────────────────────────────────────
+# Medido en el contrato 068-2026 de lubricantes (proceso 1225937): el SEACE registra UN ítem («adquisición de
+# lubricantes») y el contrato trae diez productos con su marca, cantidad, precio unitario y total. Ese desglose es el que
+# permite comparar precios: sin él, el precio del «ítem» es el del paquete entero.
+CONTRATO = {
+    "tipos": ["contrato"],
+    "SISTEMA": _REGLAS + """
+Lees un CONTRATO (o su adenda) de una contratación pública. Lo que más importa es la tabla de lo contratado: cada renglón
+con su número, su descripción, la MARCA ofertada si figura, la unidad, la cantidad, el precio unitario y el total del
+renglón. Copia los renglones TODOS, en el orden del documento, aunque el SEACE los registre como un solo ítem. Si la tabla
+sigue en la página siguiente, sigue leyendo. Si el contrato no trae tabla, `items` va vacío.
+- El precio unitario y el total son números tal como están escritos; no los calcules si no figuran.
+- `monto_total` es el monto del contrato (la cláusula del monto o el total de la tabla).
+- La garantía de fiel cumplimiento y la penalidad salen de sus cláusulas: el monto, y la fórmula o el tope de la penalidad.
+- El contratista va con su razón social y su RUC. Si es una persona natural, `razon_social` y `ruc` van null.""",
+    "PEDIDO": "De este contrato: su número y fecha de firma, el contratista, el monto total, el plazo, cada renglón de lo "
+              "contratado (marca, unidad, cantidad, precio unitario y total), la garantía de fiel cumplimiento, la penalidad "
+              "y la forma de pago. Cada dato con su página y su cita.",
+    "ESQUEMA": _objeto(
+        ["es_del_tipo", "resumen", "numero", "fecha_suscripcion", "contratista", "monto_total", "plazo_dias", "items",
+         "garantia_fiel_cumplimiento", "penalidad", "forma_de_pago"], {
+            "es_del_tipo": {"type": "boolean"},
+            "resumen": {"type": "string"},
+            "numero": _citado(_NULO),
+            "fecha_suscripcion": _citado(_NULO),
+            "contratista": _objeto(["razon_social", "ruc", "es_consorcio"], {
+                "razon_social": {"type": _NULO}, "ruc": {"type": _NULO}, "es_consorcio": {"type": _BOOL}}),
+            "monto_total": _monto(),
+            "plazo_dias": _citado(_ENT),
+            "items": {"type": "array", "items": _objeto(
+                ["numero", "descripcion", "marca", "unidad", "cantidad", "precio_unitario", "precio_total", "pagina", "cita"], {
+                    "numero": {"type": _NULO}, "descripcion": {"type": "string"}, "marca": {"type": _NULO},
+                    "unidad": {"type": _NULO}, "cantidad": {"type": _NUM}, "precio_unitario": {"type": _NUM},
+                    "precio_total": {"type": _NUM}, **_CITA})},
+            "garantia_fiel_cumplimiento": _monto(),
+            "penalidad": _objeto(["formula", "tope_porcentaje", "pagina", "cita"], {
+                "formula": {"type": _NULO}, "tope_porcentaje": {"type": _NUM}, **_CITA}),
+            "forma_de_pago": _citado(_NULO)}),
+}
+
+# ── La evaluación: quién ofertó cuánto y por qué ganó o quedó fuera ─────────────────────────────────────────────────
+# El acta de otorgamiento y el cuadro de evaluación (casi siempre el mismo documento firmado) traen, por postor, su oferta,
+# si se admitió y calificó (y por qué no), el puntaje de cada factor, la bonificación (MYPE, Amazonía, etc.) y el orden de
+# prelación. En el proceso 1225937 la oferta más baja perdió por 0,02 puntos tras la bonificación MYPE de otra: sin esta
+# lectura, la ficha sólo veía el puntaje final.
+EVALUACION = {
+    "tipos": ["acta_buena_pro", "cuadro_evaluacion"],
+    "SISTEMA": _REGLAS + """
+Lees un ACTA de admisión, calificación, evaluación u otorgamiento de la buena pro, o su cuadro de evaluación. Por cada
+postor que figura, devuelve: su nombre o razón social (un postor persona natural también va con su nombre: es un
+proveedor), su RUC si figura, el ítem, el monto de su oferta, si su oferta se ADMITIÓ y si se CALIFICÓ (true, false o null
+si el documento no lo dice) con el motivo cuando no, el puntaje de precio, el de los demás factores sumados, el puntaje
+total, la bonificación en puntos (por ejemplo la de 5 % a la micro y pequeña empresa) y el puntaje final, su orden de
+prelación y si ganó la buena pro.
+- El motivo de no admisión o de no calificación se copia como lo dice el documento, en una frase.
+- Si un postor aparece en varias tablas (admisión, calificación, evaluación, prelación), junta todo en UNA fila.
+- `factores` son los factores de evaluación con su puntaje máximo («A. Precio: 40 puntos»).
+- No devuelvas los nombres de los miembros del comité ni de quienes firman.""",
+    "PEDIDO": "De esta acta o cuadro: cada postor con su oferta, admisión, calificación (y el motivo si quedó fuera), "
+              "puntajes, bonificación, puntaje final, orden de prelación y si ganó; los factores de evaluación y la fecha "
+              "y el monto de la buena pro. Cada dato con su página y su cita.",
+    "ESQUEMA": _objeto(
+        ["es_del_tipo", "resumen", "postores", "factores", "fecha_buena_pro", "monto_adjudicado"], {
+            "es_del_tipo": {"type": "boolean"},
+            "resumen": {"type": "string"},
+            "postores": {"type": "array", "items": _objeto(
+                ["nombre", "ruc", "item", "monto_oferta", "admitida", "motivo_no_admitida", "calificada", "motivo_no_calificada",
+                 "puntaje_precio", "puntaje_otros", "puntaje_total", "bonificacion", "puntaje_final", "orden_prelacion",
+                 "ganador", "pagina", "cita"], {
+                    "nombre": {"type": "string"}, "ruc": {"type": _NULO}, "item": {"type": _ENT},
+                    "monto_oferta": {"type": _NUM}, "admitida": {"type": _BOOL}, "motivo_no_admitida": {"type": _NULO},
+                    "calificada": {"type": _BOOL}, "motivo_no_calificada": {"type": _NULO},
+                    "puntaje_precio": {"type": _NUM}, "puntaje_otros": {"type": _NUM}, "puntaje_total": {"type": _NUM},
+                    "bonificacion": {"type": _NUM}, "puntaje_final": {"type": _NUM}, "orden_prelacion": {"type": _ENT},
+                    "ganador": {"type": _BOOL}, **_CITA})},
+            "factores": {"type": "array", "items": _objeto(["factor", "puntaje_maximo"], {
+                "factor": {"type": "string"}, "puntaje_maximo": {"type": _NUM}})},
+            "fecha_buena_pro": _citado(_NULO),
+            "monto_adjudicado": _monto()}),
+}
+
+LECTORES = {"garantia": GARANTIA, "modificacion": MODIFICACION, "resolucion": RESOLUCION, "desierto": DESIERTO,
+            "contrato": CONTRATO, "evaluacion": EVALUACION}

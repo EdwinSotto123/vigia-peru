@@ -70,6 +70,7 @@ export const ETIQUETAS_FICHA: Record<string, string> = {
   historia: "Historia",
   items: "Ítems",
   participantes: "Participantes",
+  perfil: "Perfil del contratista",
   postores: "Postores y ofertas",
   adjudicacion: "Adjudicación y contrato",
   precios: "Precio contratado",

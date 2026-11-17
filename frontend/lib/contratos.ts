@@ -186,6 +186,84 @@ export interface PostorContrato {
   ordenPrelacion: number | null;
   item: string | null;
   citas: CitaDocumento[];
+  // Del acta o cuadro de evaluación leído por pieza (lector «evaluacion», lib/fichasPiezas.ts de la API). Opcionales: un
+  // proceso sin esa lectura no los trae.
+  admitida?: boolean | null;
+  motivoNoAdmitida?: string | null;
+  calificada?: boolean | null;
+  motivoNoCalificada?: string | null;
+  puntajePrecio?: number | null;
+  /** Lo que sumaron los demás factores (plazo, garantía, integridad…). */
+  puntajeOtros?: number | null;
+  /** Antes de la bonificación. */
+  puntajeTotal?: number | null;
+  /** En puntos: la de 5 % a la micro y pequeña empresa, la de Amazonía, etc. */
+  bonificacion?: number | null;
+  puntajeFinal?: number | null;
+  citaEvaluacion?: CitaDocumento | null;
+  /** Del reporte de presentación de ofertas del SEACE. */
+  fechaOferta?: string | null;
+  horaOferta?: string | null;
+}
+
+/** Un dato de una ficha leída por pieza con su cita (página y frase) en el documento. */
+export type ConCita<T> = T & { cita: CitaDocumento | null };
+
+/** Cada renglón de lo que se compró: lo que pedían las bases y lo que se firmó en el contrato (lectores por pieza). */
+export interface ItemsDocumento {
+  filas: {
+    numero: string; descripcion: string | null; unidad: string | null; cantidad: number | null; cita: CitaDocumento | null;
+    contratado: ConCita<{
+      descripcion: string | null; marca: string | null; unidad: string | null; cantidad: number | null;
+      precioUnitario: number | null; precioTotal: number | null;
+      /** Cantidad × precio unitario = total (±1 %), sin modelo. */
+      cuadra: boolean | null;
+    }> | null;
+  }[];
+  bases: { documento: string | null; documentoUrl: string | null; enVigia: boolean } | null;
+  contrato: {
+    documento: string | null; documentoUrl: string | null; enVigia: boolean; numero: string | null; monto: number | null;
+    renglonesQueCuadran: number | null; renglones: number | null; sumaCuadra: boolean | null;
+  } | null;
+}
+
+/** Lo que las bases le piden al contratista (ficha de las bases, lector «bases»). Cada dato con su página y su cita. */
+export interface PerfilContratista {
+  documento: string | null; documentoUrl: string | null; enVigia: boolean; integradas: boolean; leido: string | null; modelo: string;
+  resumen: string | null;
+  cuantia: ConCita<{ estado: string | null; valor: number | null; moneda: string | null }> | null;
+  sistema: string | null;
+  financiamiento: string | null;
+  experiencia: ConCita<{ tipo: string | null; requisito: string | null; para: string | null; cantidad: number | null; unidad: string | null; anios: number | null; acreditacion: string | null }>[];
+  personalClave: ConCita<{ cargo: string | null; cantidad: number | null; profesion: string | null; experiencia: string | null }>[];
+  equipamiento: ConCita<{ equipo: string | null; cantidad: number | null }>[];
+  exigencias: ConCita<{ exigencia: string | null }>[];
+  documentosAdmision: ConCita<{ documento: string | null }>[];
+  documentosContrato: ConCita<{ documento: string | null }>[];
+  factores: ConCita<{ factor: string | null; puntajeMaximo: number | null; monto: number | null }>[];
+  plazos: ConCita<{ que: string | null; dias: number | null }>[];
+  garantias: ConCita<{ tipo: string | null; porcentaje: number | null }>[];
+  penalidades: ConCita<{ tipo: string | null; descripcion: string | null; topePct: number | null }>[];
+  marcas: ConCita<{ marca: string | null; admiteEquivalente: boolean | null }>[];
+  formaDePago: string | null;
+  adelantos: ConCita<{ directoPct: number | null; materialesPct: number | null }> | null;
+  controversias: string | null;
+}
+
+/** El acta o cuadro de evaluación leído por pieza: factores, buena pro y si la oferta más baja perdió. */
+export interface EvaluacionLeida {
+  documento: string | null; documentoUrl: string | null; enVigia: boolean; leido: string | null; modelo: string;
+  factores: { factor: string | null; puntajeMaximo: number | null }[];
+  fechaBuenaPro: string | null;
+  montoAdjudicado: number | null;
+  /** Ofertas admitidas con monto. */
+  ofertas: number;
+  masBajaPerdio: {
+    masBaja: { ruc: string | null; nombre: string | null; monto: number | null; puntajeFinal: number | null };
+    ganador: { ruc: string | null; nombre: string | null; monto: number | null; puntajeFinal: number | null; bonificacion: number | null };
+    diferenciaSoles: number;
+    diferenciaPct: number;
+  } | null;
 }
 
 /** De dónde salió una lectura con IA: el modelo, cuándo, cuántas páginas y el documento en el SEACE. */
@@ -354,6 +432,10 @@ export interface ContratoDetalle extends ContratoResumen, ProcesoContrato {
   /** U5: postores con ofertas e ítems con precio contratado, leídos del expediente por los agentes. */
   postoresDetalle?: PostorContrato[];
   itemsAnalizados?: ItemAnalizado[];
+  /** Una API anterior no los trae. */
+  itemsDocumento?: ItemsDocumento | null;
+  perfilContratista?: PerfilContratista | null;
+  evaluacion?: EvaluacionLeida | null;
   /** Lo que Claude leyó en el acta, el contrato firmado y el pliego de consultas (backend/lector, migración 245). */
   lecturaIA?: LecturaIA | null;
   /** Cada dato leído de un documento, con qué es y si se comprobó sin modelo (migración 323). Una API anterior no lo trae. */

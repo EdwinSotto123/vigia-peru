@@ -150,6 +150,10 @@ def clasificar(casillero: str | None, archivo: str | None, inicio: str | None, t
     if cabeza and re.search(_PLIEGO, cabeza[:600]):
         return "pliego_absolucion", "titulo"
     if cabeza and (tipo := _primero(_POR_TITULO, cabeza)):
+        # Las integradas suelen conservar en la portada «BASES ESTÁNDAR…»: el casillero del SEACE dice cuáles son (429
+        # piezas mal tipadas al 2026-11-17, entre ellas las del proceso 1225937).
+        if tipo == "bases" and re.search(r"^BASES INTEGRADAS", cas):
+            return "bases_integradas", "casillero"
         return tipo, "titulo"
     if (tipo := _primero(_POR_CASILLERO, cas)):
         return tipo, "casillero"

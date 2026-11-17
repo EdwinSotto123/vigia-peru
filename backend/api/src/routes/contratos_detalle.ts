@@ -17,6 +17,7 @@ import { convocatoriaNoDemo, esPublicada, redactarResultado } from "../lib/publi
 import { cachePublico } from "../lib/http.js";
 import { crearCitador } from "../lib/citas.js";
 import { crucesDeProceso, type Ganador } from "../lib/cruces.js";
+import { enriquecerPostores, itemsDeDocumentos, leerFichasPiezas, perfilDeBases, type FichaPieza, type PostorDetalle } from "../lib/fichasPiezas.js";
 import { obraDelContrato } from "../lib/obras.js";
 import {
   CONTRATOS_OCDS_SQL, PARTES_TENDERER_SQL, armarContrato, armarCronograma, armarParticipantes, contratosConosce, deEstaConvocatoria, fechaBuenaProDe,
@@ -199,6 +200,8 @@ contratosDetalleRouter.get("/:ocid", async (c) => {
   const lecturas = await lecturasDe(row.ocid).catch(() => [] as FilaLectura[]);
   // Los datos de esos documentos como hechos con tipo y con su comprobación (migración 323). Sin la tabla, nada.
   const hechos = await hechosDe(row.ocid).catch(() => [] as HechoDocumento[]);
+  // Lo que leyeron los lectores por pieza (lib/fichasPiezas.ts): las bases, el contrato, la evaluación, los reportes.
+  const fichas = await leerFichasPiezas(row.ocid).catch(() => new Map<string, FichaPieza>());
 
   // Alerta no publicada (revision/descartada): sin score, señales, mercado ni reglas, y sin lo que los
   // agentes leyeron del expediente — el análisis entero está sin publicar (lib/publicacion.ts §2).
@@ -306,7 +309,11 @@ contratosDetalleRouter.get("/:ocid", async (c) => {
   });
   // Sin expediente de los agentes: los postores del acta leída con Claude (mismos campos; sin citas por página).
   const actaLeida = lecturas.find((l) => l.clase === "buena_pro");
-  const postores = postoresAgentes.length || !actaLeida ? postoresAgentes : postoresDeLectura(actaLeida.salida);
+  const postoresBase = postoresAgentes.length || !actaLeida ? postoresAgentes : postoresDeLectura(actaLeida.salida);
+  // Con el acta o cuadro de evaluación leído por pieza: admisión, calificación y su motivo, puntajes, bonificación y la hora
+  // de cada oferta (reporte de presentación). Sin esa lectura, los postores quedan como estaban.
+  const { postores, evaluacion } = enriquecerPostores(postoresBase as PostorDetalle[], fichas.get("evaluacion"), fichas.get("reporte_presentacion"),
+    participantes.map((p) => ({ ruc: p.ruc, nombre: p.nombre })), enVigiaUrls);
   const itemsAnalizados = ((expediente?.items ?? []) as any[]).map((it, i) => {
     const num = String(it?.numero ?? i + 1);
     const ocds = items.find((x) => x.id === num || String(x.posicion) === num);
@@ -355,6 +362,12 @@ contratosDetalleRouter.get("/:ocid", async (c) => {
     cruces,
     postoresDetalle: postores,
     itemsAnalizados,
+    // Cada renglón de lo que se compró según las bases y el contrato leídos por pieza (null si los dos traen uno solo).
+    itemsDocumento: itemsDeDocumentos(fichas.get("bases"), fichas.get("contrato"), enVigiaUrls),
+    // Lo que las bases le piden al contratista: experiencia, personal, exigencias, factores, plazos, garantías, pago.
+    perfilContratista: perfilDeBases(fichas.get("bases"), enVigiaUrls),
+    // El acta o cuadro de evaluación leído por pieza: factores, buena pro y si la oferta más baja perdió.
+    evaluacion,
     participantes: participantes.map((p) => ({ ...p, personaCodigo: fichaDe(p.ruc) })),
     ofertas,
     cronograma,

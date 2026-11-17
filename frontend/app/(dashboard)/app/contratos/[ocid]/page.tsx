@@ -135,8 +135,12 @@ export default async function ContratoPage({
 
   let contenido: ReactNode;
   if (activa === "dictamen") {
+    // El capítulo «Postores y ofertas» de la historia lee los postores de la ficha (con la evaluación leída por pieza).
+    const postoresContrato = c.postoresDetalle?.length
+      ? { ocid: c.ocid, moneda: c.moneda ?? null, postores: c.postoresDetalle, evaluacion: c.evaluacion ?? null, conPerfil: !!c.perfilContratista }
+      : null;
     contenido = informe ? (
-      <ResultadoView result={informe} embebido tabInicial={tab ?? null} />
+      <ResultadoView result={informe} embebido tabInicial={tab ?? null} postoresContrato={postoresContrato} />
     ) : (
       <EstadoError
         titulo="No pudimos cargar el dictamen"

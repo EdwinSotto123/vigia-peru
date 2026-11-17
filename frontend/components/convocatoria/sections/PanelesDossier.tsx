@@ -27,6 +27,7 @@ import { SeccionSegura } from "./SeccionSegura";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { setRedactNames, type NombreConocido } from "../../Redact";
 import { HistoriaDossier } from "../relato/HistoriaDossier";
+import type { PostoresDelContrato } from "../relato/PostoresOfertas";
 import { contextoDeSenales } from "../senal/directorio";
 
 export type TabKey = "historia" | "resumen" | "dictamen" | "control" | "obra" | "items" | "proveedor" | "documentos" | "prensa" | "trace";
@@ -54,6 +55,11 @@ export interface PanelDossierProps {
    * cada uno a su pestaña de detalle; la arma ResultadoView.
    */
   abrirTab?: (t: TabKey, ancla?: string) => void;
+  /**
+   * Los postores de la ficha del contrato y la evaluación leída por pieza, para el capítulo «Postores y ofertas» de la
+   * historia. Sólo la página del contrato los pasa; sin ellos (panel admin, informe suelto), el capítulo no aparece.
+   */
+  postoresContrato?: PostoresDelContrato | null;
 }
 
 /** Mientras baja el JS de una pestaña: la forma de su contenido, sin la llamita (es evidencia). */
