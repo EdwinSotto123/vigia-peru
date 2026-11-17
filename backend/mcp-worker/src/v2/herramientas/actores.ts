@@ -762,7 +762,8 @@ export const preciosReferencia = definir({
     "Cuánto paga el Estado por un bien o por un servicio, para juzgar si un precio es alto. Con tipo «bien»: los productos " +
     "de los Catálogos Electrónicos de Perú Compras cuya descripción trae las palabras (por ejemplo «papel bond a4 75», " +
     "«toner hp 85a», «llanta 215 75 r17»), con lo que pagaron por cada producto 5 entidades o más en el año: cuartil 1, " +
-    "mediana y cuartil 3, sin IGV y con IGV. Con tipo «servicio»: el costo MENSUAL (monto entre plazo) de servicios " +
+    "mediana y cuartil 3, sin IGV y con IGV; y, de las mismas palabras, lo que pagaron los procesos adjudicados (3 años), " +
+    "las compras menores (2 años) y otros contratos que Vigía leyó, cada fuente en una unidad. Con tipo «servicio»: el costo MENSUAL (monto entre plazo) de servicios " +
     "contratados cuyo objeto trae las palabras (por ejemplo «vigilancia», «limpieza», «alimentacion»), con su contrato; " +
     "con entidad_ruc, sólo los de esa entidad (para ver cómo cambió el costo mensual de una renovación a otra). El precio " +
     "de catálogo incluye la entrega; un servicio puede tener otro alcance (más sedes o más personal): compara antes de concluir.",
@@ -779,15 +780,21 @@ export const preciosReferencia = definir({
       q: a.que, tipo: a.tipo, anio: a.anio, entidad: a.entidad_ruc ? rucJuridico(a.entidad_ruc, "RUC de la entidad") : undefined,
     });
     if (a.tipo === "bien") {
+      // Las compras del Estado con esas palabras (migraciones 338-339), en una unidad por fuente.
+      const estado = await api<Fila>(cx.env, "/patrones/precios-estado", { q: a.que }).catch(() => null);
       return {
         total: r.total,
+        compras_del_estado: (((estado as { referencias?: Fila[] } | null)?.referencias ?? []) as Fila[]).map((x) => ({
+          fuente: x.fuente, que: x.detalle, unidad: x.unidad ?? undefined, compras: x.n, cuartil_1: x.p25, mediana: x.mediana, cuartil_3: x.p75,
+        })),
         productos: ((r.data ?? []) as Fila[]).map((x) => ({
           producto: x.descripcion, marca: x.marca ?? undefined, numero_de_parte: x.nroParte ?? undefined, catalogo: x.catalogo, anio: x.anio,
           ordenes: x.lineas, entidades: x.entidades, mediana_sin_igv: x.mediana, mediana_con_igv: x.medianaConIgv,
           cuartil_1_con_igv: x.p25ConIgv, cuartil_3_con_igv: x.p75ConIgv,
         })),
         como_leerlo:
-          "Cada fila es un producto exacto del catálogo (ficha-producto). Un contrato se pacta con IGV: compara con «con_igv». " +
+          "«compras_del_estado»: lo que pagaron otras entidades por un bien con esas palabras; compara sólo en la misma unidad. " +
+          "Cada fila de «productos» es un producto exacto del catálogo (ficha-producto). Un contrato se pacta con IGV: compara con «con_igv». " +
           "Lo normal va del cuartil 1 al cuartil 3; por encima del cuartil 3 vale preguntar por qué. Si no sale nada, prueba menos palabras.",
         fuente: "Perú Compras, Catálogos Electrónicos de Acuerdos Marco (órdenes de compra)",
         aviso: AVISO,

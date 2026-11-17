@@ -305,6 +305,44 @@ export const dictamen = definir({
   },
 });
 
+export const preciosDeMercado = definir({
+  nombre: "precios_de_mercado",
+  titulo: "Precios de mercado de un contrato, renglón por renglón",
+  descripcion:
+    "Lo que averiguó el laboratorio de precios de Vigía para cada renglón de un contrato (los productos que piden las bases " +
+    "y firma el contrato, aunque el SEACE los registre como un solo ítem): lo que pagó el Estado por unidad, la mediana y el " +
+    "rango de las ofertas de tiendas peruanas con su enlace, las veces la mediana y el veredicto; y las referencias del " +
+    "Estado que se usaron (mismo CUBSO o mismas palabras: procesos, compras menores, catálogo de Perú Compras, otros " +
+    "contratos leídos). Sólo hay datos de los contratos que el laboratorio ya investigó.",
+  entrada: { ocid: z.string().min(1).max(64).describe("OCID o código del proceso.") },
+  async ejecutar({ ocid }, cx) {
+    const id = aOcid(ocid);
+    const d = await api<Fila>(cx.env, `/contratos/${encodeURIComponent(id)}/precios-mercado`).catch(() => null);
+    const renglones = ((d?.renglones ?? []) as Fila[]);
+    if (!renglones.length) {
+      return { ocid: id, nota: "El laboratorio de precios todavía no investigó este contrato. ficha_contrato trae sus renglones y precios." };
+    }
+    return {
+      ocid: id,
+      total: d!.total,
+      renglones: renglones.map((r) => ({
+        renglon: r.item, producto: r.producto, cantidad: r.cantidad ?? undefined, unidad: r.unidad ?? undefined, estado: r.estado,
+        pagado_por_unidad: r.pagado ?? undefined, mediana_tiendas: r.mediana ?? undefined, cuartil_1: r.p25 ?? undefined, cuartil_3: r.p75 ?? undefined,
+        ofertas_validas: r.validas, veces_la_mediana: r.razon ?? undefined, veredicto: r.veredicto ?? undefined, nota: r.nota ?? undefined,
+        cuenta_en_el_total: r.cuenta,
+        referencias_del_estado: ((r.referencias ?? []) as Fila[]).map((x) => ({ fuente: x.fuente, que: x.detalle, unidad: x.unidad ?? undefined, compras: x.n, mediana: x.mediana })),
+        ofertas: ((r.ofertas ?? []) as Fila[]).slice(0, 5).map((o) => ({ tienda: o.tienda, producto: o.producto, precio_por_unidad: o.precioUnitario, enlace: o.url })),
+      })),
+      como_leerlo:
+        "«veces_la_mediana» es lo pagado por unidad entre la mediana de las tiendas. El total sólo suma los renglones con tres " +
+        "ofertas o más, sin sospecha de caja y con su cantidad; lo pagado de más, sólo donde se pagó 1,15 veces o más. Un precio de " +
+        "tienda puede no incluir flete ni entrega en provincia, y un envase más chico cuesta más por unidad que al por mayor.",
+      enlace: enlaces(cx.env).dictamen(id),
+      aviso: AVISO,
+    };
+  },
+});
+
 export const comprasMenores = definir({
   nombre: "compras_menores",
   titulo: "Compras menores (hasta 8 UIT)",
@@ -510,4 +548,4 @@ export const estadoFuentes = definir({
   },
 });
 
-export const HERRAMIENTAS_CONTRATOS = [buscar, buscarContratos, fichaContrato, dictamen, comprasMenores, ordenes, senales, estadoFuentes];
+export const HERRAMIENTAS_CONTRATOS = [buscar, buscarContratos, fichaContrato, dictamen, preciosDeMercado, comprasMenores, ordenes, senales, estadoFuentes];

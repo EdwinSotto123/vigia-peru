@@ -10,7 +10,7 @@
  * `rastro_persona` necesita además MCP_INTERNO_TOKEN; sin él esa prueba se salta. No imprime secretos ni nombres enteros.
  */
 import { z } from "zod";
-import { buscarContratos } from "../src/v2/herramientas/contratos";
+import { buscarContratos, preciosDeMercado } from "../src/v2/herramientas/contratos";
 import { buscarInformesControl, informesControl } from "../src/v2/herramientas/entidad";
 import { fichaEntidad, normaAplicable, patrones, personaPublica, preciosReferencia, redEmpresa } from "../src/v2/herramientas/actores";
 import { informeControlContrato } from "../src/v2/herramientas/control";
@@ -57,6 +57,14 @@ const CASOS: Caso[] = [
     espera: (r) => (lista(r, "grupos").length >= 5 && lista(r, "grupos").every((g) => ((g as { empresas: unknown[] }).empresas ?? []).length >= 2 && /•/.test(String((g as { socio?: string }).socio ?? "•")))
       ? null : "grupos sin dos empresas o con el nombre del socio sin tapar") },
   { h: preciosReferencia as never, args: { que: "papel bond a4 75" }, espera: hay("productos") },
+  // Las compras del Estado por las mismas palabras (migraciones 338-339): la avena precocida tiene cientos de procesos por kg.
+  { h: preciosReferencia as never, args: { que: "avena precocida hojuela" },
+    espera: (r) => ((lista(r, "compras_del_estado") as { fuente?: string; compras?: number }[]).some((x) => x.fuente === "procesos" && Number(x.compras) >= 50)
+      ? null : "sin compras del Estado por texto para la avena precocida") },
+  // El laboratorio de precios renglón por renglón (los lubricantes de 2026-397-20, investigados el 11-17).
+  { h: preciosDeMercado as never, args: { ocid: "2026-397-20" },
+    espera: (r) => (lista(r, "renglones").length >= 5 && lista(r, "renglones").some((x) => Number((x as { ofertas_validas?: number }).ofertas_validas) >= 3)
+      ? null : "el laboratorio no trae renglones con ofertas para los lubricantes") },
   { h: preciosReferencia as never, args: { que: "vigilancia", tipo: "servicio" }, espera: hay("servicios", 5) },
   // Un proceso de 2025 recibe el artículo 46 del Reglamento como regía antes del 14-01-2026; uno de 2026, el vigente.
   { h: normaAplicable as never, args: { pregunta: "estrategia de contratación: contenido y elaboración", fecha: "2025-09-01" },

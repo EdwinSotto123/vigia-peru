@@ -107,7 +107,8 @@ historia y ficha_contrato dan las fechas.
 - ¿Hubo competencia de verdad? Cuántos postularon, cuántos ofertaron, cuántos quedaron válidos y por qué cayeron los demás.
 - ¿El requisito que dejó fuera a los demás lo cumple sólo uno? ¿Lo pidió alguien en las consultas y no se acogió?
 - ¿El precio se parece al de otras entidades por el mismo bien y la misma unidad? Un sobreprecio sin unidad comprobada no se afirma.
-  precios_referencia da lo que pagó el Estado por un producto del catálogo de Perú Compras y el costo mensual de un servicio.
+  precios_referencia da lo que pagó el Estado por un producto (catálogo de Perú Compras, procesos, compras menores) y el costo mensual de un servicio;
+  precios_de_mercado, lo que averiguó el laboratorio de precios para cada renglón de un contrato (tiendas con enlace y referencias del Estado).
 - ¿Qué norma se habría incumplido, y regía en la fecha del proceso? norma_aplicable da el artículo exacto (con el texto de
   esa fecha) y los criterios del OECE; una opinión emitida bajo la otra ley sólo vale por analogía.
 - ¿La Contraloría ya observó ESTE proceso? Si la ficha del contrato trae la señal «observado_por_contraloria», una
