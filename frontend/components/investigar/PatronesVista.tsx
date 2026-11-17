@@ -1500,6 +1500,7 @@ const NOMBRE_OBSERVACION: Record<PatronObservacion["tipo"], string> = {
   visita_personal_decisor: "Visitas «personales» repetidas a quien decide",
   ofertas_a_la_vez: "Ofertas casi a la vez, con un socio común",
   trabajo_en_el_ganador: "Un funcionario declaró haber trabajado en el ganador",
+  firma_en_plazo_de_apelacion: "Contrato firmado antes de que se pudiera apelar",
 };
 
 /** Cuándo fue el empleo frente a la buena pro (trabajo_en_el_ganador). */
@@ -1602,6 +1603,10 @@ function evidenciaObservacion(p: PatronObservacion): string {
   }
   if (p.tipo === "visita_personal_decisor") {
     return `${plural(p.dias ?? 3, "día distinto", "días distintos")}${p.meses != null && p.meses > 1 ? ` de ${plural(p.meses, "mes", "meses")}` : ""} de visita personal a ${quien}`;
+  }
+  if (p.tipo === "firma_en_plazo_de_apelacion") {
+    const cuando = p.diasHabiles === 0 ? "el mismo día de la buena pro" : `${plural(p.diasHabiles ?? 1, "día hábil", "días hábiles")} después de la buena pro`;
+    return `Firmado ${cuando}, con ${plural(p.ofertas ?? 2, "oferta", "ofertas")} en el ítem`;
   }
   if (p.tipo === "trabajo_en_el_ganador") {
     return `Quien tiene el cargo de ${quien} declaró un empleo en la empresa: ${CUANDO_EMPLEO[p.cuando ?? ""] ?? "sin fechas"}`;

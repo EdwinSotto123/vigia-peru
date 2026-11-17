@@ -492,7 +492,8 @@ patronesRouter.get("/renovaciones", async (c) => {
   return c.json(cuerpo);
 });
 
-const TIPOS_OBSERVACION = ["reunion_en_evaluacion", "visita_personal_decisor", "ofertas_a_la_vez", "trabajo_en_el_ganador"] as const;
+const TIPOS_OBSERVACION = ["reunion_en_evaluacion", "visita_personal_decisor", "ofertas_a_la_vez", "trabajo_en_el_ganador",
+  "firma_en_plazo_de_apelacion"] as const;
 const Observacion = z.object({
   tipo: z.enum(TIPOS_OBSERVACION).optional(),
   ruc: z.string().regex(/^20\d{9}$/).optional(),
@@ -533,6 +534,9 @@ patronesRouter.get("/observacion", async (c) => {
                 COALESCE(k.detalle->>'cargo_funcionario', k.detalle->'visitas'->-1->>'cargo', k.detalle->>'cargo') AS cargo,
                 -- trabajo_en_el_ganador: cuándo fue el empleo frente a la buena pro, y sus fechas.
                 k.detalle->>'cuando' AS cuando, k.detalle->>'empleo_desde' AS "empleoDesde", k.detalle->>'empleo_hasta' AS "empleoHasta",
+                -- firma_en_plazo_de_apelacion: cuándo se firmó, cuántos días hábiles después de la buena pro y con cuántas ofertas.
+                k.detalle->>'firma' AS firma, (k.detalle->>'dias_habiles')::int AS "diasHabiles", (k.detalle->>'ofertas')::int AS ofertas,
+                k.detalle->>'consentimiento_registrado' AS consentimiento, k.detalle->>'norma' AS norma,
                 COALESCE(k.detalle->>'area_funcionario', k.detalle->'visitas'->-1->>'area') AS area,
                 (k.detalle->>'minutos')::float AS minutos, k.detalle->>'hora_ganador' AS "horaGanador", k.detalle->>'hora_otro' AS "horaOtro",
                 k.detalle->'otros_postores'->>0 AS "otroRuc", eo.razon_social AS otro, k.total

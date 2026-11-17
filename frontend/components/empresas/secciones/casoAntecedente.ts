@@ -381,6 +381,17 @@ export function datosDe(a: AntecedenteEmpresa, ruc: string): DatoCaso[] {
       { etiqueta: "De dónde sale", valor: "Su Declaración Jurada de Intereses (datos abiertos de la Contraloría)", soloPanel: true },
       delProceso(),
     );
+  } else if (t === "firma_en_plazo_de_apelacion") {
+    const dias = num(d.dias_habiles);
+    add(
+      fechaDe(d.firma) && { etiqueta: "Firma del contrato", valor: fechaDe(d.firma) },
+      dias != null && { etiqueta: "Después de la buena pro", valor: dias === 0 ? "El mismo día" : plural(dias, "día hábil", "días hábiles") },
+      num(d.ofertas) != null && { etiqueta: "Ofertas en el ítem", valor: plural(num(d.ofertas)!, "oferta", "ofertas") },
+      fechaDe(d.consentimiento_registrado) && { etiqueta: "Consentimiento en CONOSCE", valor: fechaDe(d.consentimiento_registrado) },
+      txt(d.norma) && { etiqueta: "Norma", valor: txt(d.norma), soloPanel: true },
+      { etiqueta: "De dónde sale", valor: "CONOSCE: adjudicaciones, contratos y postores del OECE", soloPanel: true },
+      delProceso(),
+    );
   } else if (t === "ofertas_a_la_vez") {
     const otros = empresas(r?.otros ?? (Array.isArray(d.otros_postores) ? (d.otros_postores as string[]).map((x) => ({ ruc: x, nombre: null })) : []));
     const rolOtro = Array.isArray(d.rol_en_otros) ? papeles((d.rol_en_otros as string[]).join(", ")) : null;

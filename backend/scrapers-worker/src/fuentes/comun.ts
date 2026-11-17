@@ -286,6 +286,8 @@ export function cadenaCruces(): Refresco[] {
     // El ganador y otro postor comparten una persona y registraron sus ofertas casi a la vez (migración 329): lee la tabla
     // anterior. Es un indicador en observación: se muestra y no puntúa (senal_en_observacion).
     f("refrescar_cruce_ofertas_a_la_vez", true),
+    // Contrato firmado cuando los otros postores todavía podían apelar la buena pro (migración 334, en observación).
+    f("refrescar_cruce_firma_apelacion", true),
     // Los datos de los documentos leídos, como hechos con tipo y con su comprobación contra el registro (migraciones 323
     // y 327: también los leídos sin modelo, de los reportes del SEACE y de las secciones de las bases).
     f("refrescar_hecho_documento", true),

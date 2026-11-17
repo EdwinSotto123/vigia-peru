@@ -266,6 +266,7 @@ const POR_QUE: Record<string, string> = {
   reunion_en_evaluacion: "Con las ofertas ya presentadas, lo que falta es evaluarlas, y el trato con los postores va por el SEACE. Una reunión del futuro ganador con quien decide las compras en esos días merece ver quién integró el comité y cómo se calificó a los demás postores.",
   visita_personal_decisor: "Una relación personal entre quien vende y quien decide la compra es un posible conflicto de intereses: al funcionario le toca declararlo y apartarse. El registro sólo dice que la visita se anotó como personal; puede ser un familiar o un error al llenar el motivo.",
   ofertas_a_la_vez: "Dos empresas que compiten y comparten un dueño o representante ya son una señal de competencia aparente. Que además registren sus ofertas una tras otra sugiere que las preparó la misma mano.",
+  firma_en_plazo_de_apelacion: "Mientras corre el plazo para apelar, los otros postores pueden pedir que se revise la buena pro. Firmar antes deja el contrato hecho antes de que nadie pueda reclamar: la norma manda esperar el consentimiento. Vale mirar si alguien apeló y qué pasó con esa apelación.",
   trabajo_en_el_ganador: "Quien trabajó en una empresa, o todavía trabaja ahí, tiene un vínculo con ella que debe declarar y que lo obliga a apartarse de lo que la toque. Vale ver si el funcionario intervino en esta contratación: su área, si firmó el requerimiento o si integró el comité.",
   partido_gobernante: "La empresa, o una persona detrás de ella, aportó dinero al partido que gobierna la entidad que le dio el contrato: un posible conflicto de interés, el más directo de estos cruces.",
   vendio_gobernante: "La empresa, o una persona detrás de ella, le vendió a la campaña del partido que gobierna la entidad. Es una relación comercial, no un aporte: pesa según el monto.",
@@ -549,6 +550,24 @@ function Texto({ c, gobierna }: { c: CruceProveedor; gobierna?: GobiernoContrato
           <b>{min == null ? "pocos minutos" : min < 1 ? "menos de un minuto" : `${numero(Math.round(min))} ${Math.round(min) === 1 ? "minuto" : "minutos"}`} de diferencia</b>
           {txt(d.hora_ganador) && txt(d.hora_otro) ? ` (a las ${txt(d.hora_ganador)} y a las ${txt(d.hora_otro)})` : ""}.
           <Gano c={c} />
+        </>
+      );
+    }
+    case "firma_en_plazo_de_apelacion": {
+      const dias = n(d.dias_habiles);
+      const ofertas = n(d.ofertas);
+      const firma = txt(d.firma);
+      const bp = txt(d.buena_pro);
+      const cons = txt(d.consentimiento_registrado);
+      return (
+        <>
+          La entidad firmó el contrato con <Emp c={c} />
+          {firma ? <> el <b>{fechaConAnio(firma)}</b></> : ""},{" "}
+          <b>{dias == null ? "pocos días" : dias === 0 ? "el mismo día de la buena pro" : `${numero(dias)} ${dias === 1 ? "día hábil" : "días hábiles"} después de la buena pro`}</b>
+          {bp && dias !== 0 ? ` (del ${fechaConAnio(bp)})` : ""}. En {n(d.item) != null ? `el ítem ${numero(n(d.item)!)}` : "ese ítem"} hubo{" "}
+          {ofertas != null ? `${numero(ofertas)} ofertas` : "más de una oferta"}: los otros postores tenían al menos 5 días hábiles para apelar, y el
+          contrato se firma recién después del consentimiento{txt(d.norma) ? ` (${txt(d.norma)})` : ""}.
+          {cons ? ` CONOSCE registra el consentimiento el ${fechaConAnio(cons)}.` : ""}
         </>
       );
     }

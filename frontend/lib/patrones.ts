@@ -289,7 +289,7 @@ export interface PatronesRenovaciones {
  * hasta medir su precisión. De quien recibió una visita llega sólo el cargo y el área; quien visitó está en la ficha.
  */
 export interface PatronObservacion {
-  tipo: "reunion_en_evaluacion" | "visita_personal_decisor" | "ofertas_a_la_vez" | "trabajo_en_el_ganador";
+  tipo: "reunion_en_evaluacion" | "visita_personal_decisor" | "ofertas_a_la_vez" | "trabajo_en_el_ganador" | "firma_en_plazo_de_apelacion";
   etiqueta: string;
   severidad: "alta" | "media" | "baja";
   ocid: string;
@@ -323,6 +323,13 @@ export interface PatronObservacion {
   cuando?: string | null;
   empleoDesde?: string | null;
   empleoHasta?: string | null;
+  /** Firma en el plazo de apelación: el día de la firma, los días hábiles desde la buena pro, las ofertas del ítem,
+   * el consentimiento que registra CONOSCE y la norma según el régimen. */
+  firma?: string | null;
+  diasHabiles?: number | null;
+  ofertas?: number | null;
+  consentimiento?: string | null;
+  norma?: string | null;
 }
 
 export interface PatronesObservacion {

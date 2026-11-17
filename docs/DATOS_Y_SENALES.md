@@ -409,13 +409,15 @@ cuentan para el puntaje ni para «contratos con antecedentes»: no entran a `cas
 muestra revisada. Quitar la fila de un tipo lo hace puntuar en el siguiente refresco. Es el mismo trato que ya tienen
 los datos del proveedor (migración 115).
 
-Hoy son tres (conteos en producción del 2026-11-17):
+Hoy son cinco (conteos en producción del 2026-11-17):
 
 | Tipo | Sev. | Filas | Cruza | Umbral |
 |---|---|---|---|---|
 | `reunion_en_evaluacion` | media/baja | 461 | visitas × gente del ganador (socio, representante o directivo, por su documento) | visitó a un funcionario que decide las compras después de presentar su oferta y antes de la buena pro, con un motivo de trato directo (reunión, visita personal, gestión de intereses o por el procedimiento). Media si la empresa no le vendía a la entidad ese año ni el anterior ni había ganado ahí en los dos años previos (158); baja si ya era proveedora (303). Medido: entre postores que no eran proveedores, 1,01 % de los que ganan tuvo esa reunión contra 0,32 % de los que pierden; entre proveedores previos casi no hay diferencia |
 | `visita_personal_decisor` | media | 303 | visitas × gente del ganador | la misma persona del ganador visitó al mismo funcionario que decide las compras, declarando «visita personal», en 3 o más días de 2 o más meses distintos, en el año anterior a la buena pro |
 | `ofertas_a_la_vez` | media | 11 | `proceso_postor` (reporte de presentación de ofertas del SEACE) × RNP | el ganador y otro postor del mismo ítem comparten un socio, representante o directivo (no cuentan quienes figuran en más de 10 empresas) y registraron sus ofertas con 30 minutos o menos de diferencia |
+| `trabajo_en_el_ganador` | media/baja | 1 227 | DJI de datos abiertos (`dji_empleos` × `dji_funcionarios` por `codigo_ddjj`; migraciones 330-333) × adjudicaciones | un funcionario de la entidad declaró un empleo en la empresa que ganó y la buena pro cayó mientras él ocupaba su cargo. Baja si dejó el empleo más de dos años antes o la declaración no trae fechas. No repite los procesos que ya marca `empleo_declarado` |
+| `firma_en_plazo_de_apelacion` | media | ver abajo | CONOSCE: adjudicaciones × contratos × postores (migración 334) | en un ítem con dos o más ofertas, el contrato se firmó antes del 5.º día hábil siguiente a la buena pro, cuando los otros postores todavía podían apelarla (D.S. 344-2018-EF arts. 64 y 141; D.S. 009-2025-EF arts. 82, 90 y 304). Fuera: una sola oferta, buena pro con más de una fecha, firma anterior a la buena pro, directas y regímenes especiales |
 
 Además, la 329 agrega:
 

@@ -617,6 +617,12 @@ export function detalleObservacion(p: PatronObservacion): Detalle {
         Gente de <b>{emp}</b> visitó a {recibio(p)} de <b>{ent}</b> <b>después de presentar su oferta</b> y antes de la buena pro.{" "}
         {p.yaProveedor ? "La empresa ya le vendía a la entidad: la visita puede ser por lo que ya tenía contratado." : "La empresa no le había vendido a la entidad ese año ni el anterior."}
       </>
+    ) : p.tipo === "firma_en_plazo_de_apelacion" ? (
+      <>
+        <b>{ent}</b> firmó el contrato con <b>{emp}</b>{" "}
+        <b>{p.diasHabiles === 0 ? "el mismo día de la buena pro" : `${plural(p.diasHabiles ?? 1, "día hábil", "días hábiles")} después de la buena pro`}</b>, cuando los
+        otros postores del ítem todavía podían apelarla.
+      </>
     ) : p.tipo === "trabajo_en_el_ganador" ? (
       <>
         Un funcionario de <b>{ent}</b>, con el cargo de {(p.cargo ?? "funcionario").toLowerCase()}, declaró en su Declaración Jurada de Intereses
@@ -641,6 +647,14 @@ export function detalleObservacion(p: PatronObservacion): Detalle {
           { etiqueta: "Duró la evaluación", valor: p.diasEvaluacion != null ? plural(p.diasEvaluacion, "día", "días") : null },
           { etiqueta: "¿Ya le vendía a la entidad?", valor: p.yaProveedor ? "Sí" : "No, ni ese año ni el anterior" },
         ]
+      : p.tipo === "firma_en_plazo_de_apelacion"
+        ? [
+            { etiqueta: "Firma del contrato", valor: p.firma ? fechaConAnio(p.firma) : null },
+            { etiqueta: "Días hábiles tras la buena pro", valor: p.diasHabiles != null ? numero(p.diasHabiles) : null, mono: true },
+            { etiqueta: "Ofertas en el ítem", valor: p.ofertas != null ? numero(p.ofertas) : null, mono: true },
+            { etiqueta: "Consentimiento en CONOSCE", valor: p.consentimiento ? fechaConAnio(p.consentimiento) : null },
+            { etiqueta: "Norma", valor: p.norma ?? null },
+          ]
       : p.tipo === "trabajo_en_el_ganador"
         ? [
             { etiqueta: "Cargo del funcionario", valor: p.cargo ? tituloNatural(p.cargo) : null },
@@ -672,6 +686,13 @@ export function detalleObservacion(p: PatronObservacion): Detalle {
           "Mira cómo se calificó a los demás postores: si alguno quedó fuera por una formalidad.",
           "Descarta la explicación sencilla: una subsanación, la firma de otro contrato o un trámite pendiente.",
         ]
+      : p.tipo === "firma_en_plazo_de_apelacion"
+        ? [
+            "Abre el contrato y compara la fecha de firma con la de la buena pro en el cronograma y en el documento del contrato.",
+            "Revisa en el SEACE si algún postor apeló la buena pro y qué resolvió la entidad o el Tribunal.",
+            "Mira cuántas ofertas hubo y si las demás quedaron descalificadas: con una sola válida el riesgo de apelación es menor.",
+            "Descarta la explicación sencilla: una fecha mal registrada en CONOSCE o un contrato de otro ítem.",
+          ]
       : p.tipo === "trabajo_en_el_ganador"
         ? [
             "Abre el contrato y busca en el expediente si el funcionario firmó el requerimiento, integró el comité o dio la conformidad.",

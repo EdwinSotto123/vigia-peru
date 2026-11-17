@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { adjudicacionesVigentes } from "../src/routes/contratos_detalle.js";
+import { adjudicacionesVigentes, ganadoresSoloConosce } from "../src/routes/contratos_detalle.js";
 
 // Caso real 1228396: el OCDS trae la buena pro de UNILENE (1.º del acta) y la de MULTIMEDICAL (2.º) sobre los mismos
 // dos ítems; CONOSCE registra a MULTIMEDICAL como contratado.
@@ -49,4 +49,16 @@ test("sin CONOSCE: si juntas no pasan el referencial es un reparto (todas vigent
   ], [], new Map([["1", 97_500]]));
   assert.deepEqual(alternativas.map((x) => x.vigente), [true, false]);
   assert.ok(alternativas.every((x) => x.sinConfirmar));
+});
+
+test("ganadores que sólo registra CONOSCE: uno por código, con su monto sumado y su última buena pro", () => {
+  const k = (item: number, ruc: string | null, montoPen: number | null, fechaBuenaPro: string | null) =>
+    ({ item, ruc, proveedor: "X", cantidad: 1, montoPen, estado: "Adjudicado", fechaBuenaPro });
+  const r = ganadoresSoloConosce([{ proveedorRuc: "20000000001" }], [
+    k(1, "20000000001", 10, "2026-01-02"),   // ya está en el OCDS
+    k(2, "1843000", 30, "2026-01-05"),        // consorcio con código del SEACE
+    k(3, "1843000", 20, "2026-01-09"),
+    k(4, null, null, null),                   // ítem desierto
+  ]);
+  assert.deepEqual(r, [{ proveedorRuc: "1843000", proveedor: "X", fecha: "2026-01-09", montoPen: 50 }]);
 });

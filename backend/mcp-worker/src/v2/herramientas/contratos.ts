@@ -221,7 +221,13 @@ export const fichaContrato = definir({
       contrato: (c.contrato?.items ?? []).slice(0, 15).map((i: Fila) => tomar(i, ["descripcion", "estado", "referencial", "adjudicado", "porcentaje"])),
       cronograma: (c.cronograma ?? []).map((x: Fila) => tomar(x, ["clave", "fecha", "hasta"])),
       documentos: (c.documentos ?? []).slice(0, 30).map((d: Fila) => tomar(d, ["titulo", "tipo", "fecha", "formato", "url"])),
-      cruces: (c.cruces ?? []).slice(0, 12).map((x: Fila) => tomar(x, ["tipo", "etiqueta", "severidad", "fecha", "montoSoles"])),
+      // Primero las que cuentan para el riesgo; las EN OBSERVACIÓN (migración 329) van marcadas y al final: todavía no se
+      // mide cuánto aciertan, así que no deben leerse como una señal más.
+      cruces: [...((c.cruces ?? []) as Fila[])].sort((a, b) => Number(a.observacion === true) - Number(b.observacion === true)).slice(0, 15)
+        .map((x: Fila) => ({ ...tomar(x, ["tipo", "etiqueta", "severidad", "fecha", "montoSoles"]), en_observacion: x.observacion === true || undefined })),
+      cruces_en_observacion: ((c.cruces ?? []) as Fila[]).some((x) => x.observacion === true)
+        ? "Las marcadas en_observacion son indicadores nuevos que se muestran con su evidencia pero no cuentan para el puntaje: indicio por revisar, no un hallazgo."
+        : undefined,
       // Cada dato leído de un documento del expediente, con QUÉ ES y si se comprobó sin modelo. Úsalo para no confundir
       // un monto con otro: la experiencia exigida al postor no es el valor del proceso.
       datos_de_los_documentos: ((c.hechosDocumentos ?? []) as Fila[]).map((h) => ({

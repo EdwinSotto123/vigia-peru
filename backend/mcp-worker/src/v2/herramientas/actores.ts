@@ -514,12 +514,14 @@ export const patrones = definir({
     "está midiendo, contrato por contrato (una reunión de la empresa con quien decide las compras mientras se evaluaban las " +
     "ofertas; visitas declaradas «personales» y repetidas a quien decide; dos rivales con un socio común que registran sus " +
     "ofertas casi a la vez; un funcionario de la entidad que declaró en su DJI haber trabajado en la empresa que ganó " +
-    "mientras él ocupaba el cargo): se muestran con su evidencia y NO cuentan para el puntaje del contrato. " +
+    "mientras él ocupaba el cargo; un contrato firmado cuando los otros postores todavía podían apelar la buena pro): " +
+    "se muestran con su evidencia y NO cuentan para el puntaje del contrato. " +
     "Un patrón es un motivo para mirar, no una acusación.",
   cuenta: true,
   entrada: {
     alcance: z.enum(["entidad", "proveedor", "relleno", "consorcio", "renovacion", "dueno", "inhabilitada", "control", "observado", "observacion"]).default("entidad"),
-    indicador: z.enum(["reunion_en_evaluacion", "visita_personal_decisor", "ofertas_a_la_vez", "trabajo_en_el_ganador"]).optional()
+    indicador: z.enum(["reunion_en_evaluacion", "visita_personal_decisor", "ofertas_a_la_vez", "trabajo_en_el_ganador",
+      "firma_en_plazo_de_apelacion"]).optional()
       .describe("(observacion) Sólo uno de los indicadores en observación."),
     ruc: z.string().min(11).max(14).optional().describe("RUC 20 de la entidad o de la empresa (opcional)."),
     regla: z.string().max(60).optional().describe("Sólo una señal, por su código (p. ej. unica_oferta_valida)."),
@@ -551,6 +553,8 @@ export const patrones = definir({
           minutos_entre_las_ofertas: x.minutos ?? undefined, horas_de_registro: x.horaGanador && x.horaOtro ? [x.horaGanador, x.horaOtro] : undefined,
           otro_postor: x.otro ?? undefined, ruc_otro_postor: x.otroRuc ?? undefined,
           cuando_fue_el_empleo: x.cuando ?? undefined, empleo_desde: x.empleoDesde ?? undefined, empleo_hasta: x.empleoHasta ?? undefined,
+          firma_del_contrato: x.firma ?? undefined, dias_habiles_tras_la_buena_pro: x.diasHabiles ?? undefined,
+          ofertas_en_el_item: x.ofertas ?? undefined, consentimiento_registrado: x.consentimiento ?? undefined, norma: x.norma ?? undefined,
         })),
         como_leerlo:
           "Son indicadores EN OBSERVACIÓN: Vigía todavía mide cuántas veces aciertan, así que no cuentan para el puntaje del " +
@@ -563,9 +567,13 @@ export const patrones = definir({
           "registraron sus ofertas con 30 minutos o menos de diferencia. trabajo_en_el_ganador: un funcionario de la entidad " +
           "declaró en su DJI (datos abiertos) un empleo en la empresa, y la buena pro cayó mientras ocupaba su cargo; " +
           "cuando_fue_el_empleo dice si el empleo seguía vigente (a_la_vez), si empezó después (despues), si lo dejó en los " +
-          "dos años anteriores (hasta_2_anios) o antes. Cada uno tiene una explicación sencilla posible " +
+          "dos años anteriores (hasta_2_anios) o antes. firma_en_plazo_de_apelacion: en un ítem con dos o más ofertas, el " +
+          "contrato se firmó antes del 5.º día hábil siguiente a la buena pro, cuando los otros postores todavía podían " +
+          "apelarla (el contrato se perfecciona después del consentimiento: arts. 64 y 141 del reglamento de la Ley 30225; " +
+          "arts. 82, 90 y 304 del de la Ley 32069); puede ser también un error de fecha en CONOSCE. " +
+          "Cada uno tiene una explicación sencilla posible " +
           "(una subsanación, un familiar, el mismo estudio contable): abre el contrato con ficha_contrato y lee su evidencia.",
-        fuente: "Registro de visitas en línea, Registro Nacional de Proveedores, CONOSCE y el reporte de presentación de ofertas del SEACE",
+        fuente: "Registro de visitas en línea, Registro Nacional de Proveedores, CONOSCE (adjudicaciones, contratos y postores) y el reporte de presentación de ofertas del SEACE",
         aviso: AVISO,
       };
     }

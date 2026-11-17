@@ -16,7 +16,7 @@ import { ambitoPedido } from "../lib/plataforma.js";
 import { convocatoriaNoDemo, esPublicada, redactarResultado } from "../lib/publicacion.js";
 import { cachePublico } from "../lib/http.js";
 import { crearCitador } from "../lib/citas.js";
-import { crucesDeProceso } from "../lib/cruces.js";
+import { crucesDeProceso, type Ganador } from "../lib/cruces.js";
 import { obraDelContrato } from "../lib/obras.js";
 import {
   CONTRATOS_OCDS_SQL, PARTES_TENDERER_SQL, armarContrato, armarCronograma, armarParticipantes, contratosConosce, deEstaConvocatoria, fechaBuenaProDe,
@@ -242,8 +242,10 @@ contratosDetalleRouter.get("/:ocid", async (c) => {
     items: (Array.isArray(aw?.items) ? aw.items : []).map((i: any) => String(i?.id ?? "")).filter(Boolean),
   })), conosce, new Map(items.filter((it) => it.montoPen != null).map((it) => [it.id, it.montoPen as number])));
 
-  // Migración 48: cruces del ganador con ONPE, JNE, visitas, penalidades y sanciones (lib/cruces.ts).
-  const cruces = await crucesDeProceso(row.ocid, adjudicaciones);
+  // Migración 48: cruces del ganador con ONPE, JNE, visitas, penalidades y sanciones (lib/cruces.ts). Los ganadores
+  // son los del OCDS más los que sólo registra CONOSCE: sin eso, un proceso sin buena pro en el OCDS (o un consorcio
+  // que sólo figura en CONOSCE) no mostraba sus señales (1 a 4 % de las de cada tipo, medido el 2026-11-17).
+  const cruces = await crucesDeProceso(row.ocid, [...adjudicaciones, ...ganadoresSoloConosce(adjudicaciones, conosce)]);
 
   // ── El registro del proceso (lib/proceso.ts): participantes, adjudicación y contrato, cronograma ──
   // Sólo lo de ESTA convocatoria: el record de un OCID de procedimiento trae también la buena pro y el contrato de otra.
@@ -487,6 +489,23 @@ export interface FilaConosce {
   item: number; ruc: string | null; proveedor: string | null; cantidad: number | null; montoPen: number | null; estado: string | null;
   /** El valor referencial del ítem, su buena pro y su consentimiento (la pestaña «Adjudicación y contrato» y el cronograma). */
   referencial?: number | null; fechaBuenaPro?: string | null; fechaConsentimiento?: string | null;
+}
+
+/**
+ * Los proveedores que CONOSCE da por adjudicados y que el OCDS no trae, uno por código (su monto sumado y su buena pro
+ * más reciente). Un consorcio con código del SEACE lo abre después `crucesDeProceso` en sus integrantes.
+ */
+export function ganadoresSoloConosce(aws: { proveedorRuc: string | null }[], conosce: FilaConosce[]): Ganador[] {
+  const yaEstan = new Set(aws.map((a) => a.proveedorRuc).filter(Boolean));
+  const porRuc = new Map<string, Ganador>();
+  for (const k of conosce) {
+    if (!k.ruc || yaEstan.has(k.ruc)) continue;
+    const g = porRuc.get(k.ruc) ?? { proveedorRuc: k.ruc, proveedor: k.proveedor, fecha: null, montoPen: null };
+    if (k.montoPen != null) g.montoPen = (g.montoPen ?? 0) + k.montoPen;
+    if (k.fechaBuenaPro && (!g.fecha || k.fechaBuenaPro > g.fecha)) g.fecha = k.fechaBuenaPro;
+    porRuc.set(k.ruc, g);
+  }
+  return [...porRuc.values()];
 }
 
 /** Ítems adjudicados del proceso en CONOSCE (una fila por ítem y proveedor). Sin la tabla, vacío. */
