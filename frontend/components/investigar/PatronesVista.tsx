@@ -119,7 +119,7 @@ export function PatronesVista({ activa, inicial, etiquetas }: { activa?: string;
         {
           clave: "grupos",
           etiqueta: SECCIONES_PATRONES.grupos,
-          titulo: "Empresas y personas del mismo dueño o familia que le venden a una entidad por órdenes",
+          titulo: "Proveedores unidos por dueño o familia en una entidad",
           icono: <UsersRound size={15} aria-hidden />,
           contenido: <ListaGrupos inicial={de("grupos")} />,
         },
