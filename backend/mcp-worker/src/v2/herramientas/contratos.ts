@@ -222,6 +222,16 @@ export const fichaContrato = definir({
       cronograma: (c.cronograma ?? []).map((x: Fila) => tomar(x, ["clave", "fecha", "hasta"])),
       documentos: (c.documentos ?? []).slice(0, 30).map((d: Fila) => tomar(d, ["titulo", "tipo", "fecha", "formato", "url"])),
       cruces: (c.cruces ?? []).slice(0, 12).map((x: Fila) => tomar(x, ["tipo", "etiqueta", "severidad", "fecha", "montoSoles"])),
+      // Cada dato leído de un documento del expediente, con QUÉ ES y si se comprobó sin modelo. Úsalo para no confundir
+      // un monto con otro: la experiencia exigida al postor no es el valor del proceso.
+      datos_de_los_documentos: ((c.hechosDocumentos ?? []) as Fila[]).map((h) => ({
+        que_es: h.tipo, segun: h.clase === "buena_pro" ? "acta de buena pro" : h.clase, valor: h.valor ?? h.fecha,
+        comprobado: h.verificado === "registro" ? "coincide con el registro oficial"
+          : h.verificado === "contradice_registro" ? `NO coincide con el registro oficial${h.contra != null ? ` (${h.contra})` : ""}: verificar en el documento antes de usarlo`
+          : h.verificado === "cita" ? "la cita del documento trae ese valor"
+          : h.verificado === "dos_lecturas" ? "dos lecturas independientes coinciden" : "sin comprobar: sólo contexto",
+        cita: h.cita ?? undefined,
+      })),
       obras: (c.obras ?? []).slice(0, 5),
       inversiones: (c.inversiones ?? []).slice(0, 5),
       dictamen: resumenDictamen(c.alerta, c.ocid, cx) ?? { estado: c.procesamiento?.estado ?? c.estadoProcesamiento ?? "sin analizar" },

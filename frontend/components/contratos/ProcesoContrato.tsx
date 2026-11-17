@@ -11,7 +11,7 @@
 
 import type { ReactNode } from "react";
 import Link from "next/link";
-import { Clock, FileText, Hash, ListOrdered, Package, UserRound } from "lucide-react";
+import { CircleAlert, CircleCheck, CircleDashed, Clock, FileText, Hash, ListOrdered, Package, UserRound } from "lucide-react";
 import { Ayuda, AyudaTermino, BloqueDetalle, CabeceraPestana, ChipsDetalle, CuerpoDetalle, DatosClave, EnlaceFuente, FuenteDato, type DatoClave, type Pestana } from "@/components/patrones";
 import { CONSULTA_AMIGABLE, DATASET_MEF, enlacesProceso, inversionSsi } from "@/lib/fuentes";
 import { CeldaNumero, CeldaPrincipal, CeldaTexto, Tabla, TablaPaginada, type Columna, type Fila } from "@/components/listado";
@@ -22,7 +22,7 @@ import { PersonName } from "@/components/Redact";
 import { SeccionParticipantes } from "./ParticipantesContrato";
 import { monto, OCDS } from "./EvidenciaContrato";
 import { fecha, fechaConAnio, listaY, numero, oracion, plural, porcentaje, soles, solesCompacto } from "@/lib/formato";
-import { adjudicacionesVigentes, esPersonaNatural, humanizarCodigo, type ContratoDetalle as Detalle } from "@/lib/contratos";
+import { adjudicacionesVigentes, esPersonaNatural, humanizarCodigo, type ContratoDetalle as Detalle, type HechoDocumento } from "@/lib/contratos";
 import { enlaceProveedor } from "@/lib/empresas";
 import { FUENTE_HITO, numeroContrato, tituloContrato, type ContratoFirmado, type HitoProceso, type ItemAdjudicado, type PersonaProceso } from "@/lib/procesoContrato";
 import { ObrasDelContrato } from "@/components/obras/ObraContrato";
@@ -160,6 +160,7 @@ function SeccionAdjudicacion({ c }: { c: Detalle }) {
           </div>
           {k.firmados.length > 1 && <TablaContratos firmados={k.firmados} c={c} />}
           <CondicionesLeidas c={c} />
+          <HechosComprobados c={c} />
           <FuenteDato fuente="CONOSCE (OECE) y el registro OCDS" enlaces={enlacesProceso(c.ocid, { codigo: c.codigo, conosce: true })} className="border-t border-line px-4 py-2 sm:px-5" />
         </section>
         {c.presupuesto && <BloquePresupuesto c={c} />}
@@ -167,6 +168,86 @@ function SeccionAdjudicacion({ c }: { c: Detalle }) {
         <ObrasDelContrato obras={c.obras} inversiones={c.inversiones} />
       </div>
     </>
+  );
+}
+
+const QUE_ES: Record<string, (h: HechoDocumento) => string> = {
+  valor_referencial: (h) => `Valor referencial, según ${h.clase === "buena_pro" ? "el acta" : "las bases"}`,
+  experiencia_exigida_monto: () => "Experiencia que se exige al postor",
+  experiencia_exigida_anios: () => "Años en que se cuenta esa experiencia",
+  plazo_dias: (h) => `Plazo, según ${h.clase === "contrato" ? "el contrato" : "las bases"}`,
+  monto_contratado: () => "Monto del contrato firmado",
+  fecha_suscripcion: () => "Fecha de firma del contrato",
+  adelanto_directo_pct: () => "Adelanto directo",
+  penalidad_mora_tope_pct: () => "Tope de la penalidad por mora",
+  postores: () => "Postores que figuran en el acta",
+  consultas: () => "Consultas y observaciones del pliego",
+  contrato_de_otro_proceso: () => "El archivo publicado como contrato",
+};
+
+function valorDeHecho(h: HechoDocumento, moneda: string | null | undefined): string {
+  if (h.tipo === "contrato_de_otro_proceso") return "No es un contrato de este proceso";
+  if (h.fecha) return fechaConAnio(h.fecha);
+  if (h.valor == null) return "Sin dato";
+  if (h.tipo === "plazo_dias") return plural(h.valor, "día", "días");
+  if (h.tipo === "experiencia_exigida_anios") return plural(h.valor, "año", "años");
+  if (h.tipo === "postores" || h.tipo === "consultas") return numero(h.valor);
+  if (h.tipo.endsWith("_pct")) return `${h.valor.toLocaleString("es-PE", { maximumFractionDigits: 2 })} %`;
+  return monto(h.valor, moneda ?? null);
+}
+
+/** Cómo se comprobó un dato: con ícono y con palabras (nunca sólo color). */
+function Comprobacion({ h, moneda }: { h: HechoDocumento; moneda: string | null | undefined }) {
+  const veces = h.tipo === "experiencia_exigida_monto" && h.valor && h.contra ? `, ${(h.valor / h.contra).toLocaleString("es-PE", { maximumFractionDigits: 1 })} veces el valor referencial` : "";
+  if (h.verificado === "registro") {
+    return <span className="inline-flex items-center gap-1 text-rotulo text-inkSoft"><CircleCheck size={13} className="shrink-0 text-marca" aria-hidden />Coincide con el registro oficial</span>;
+  }
+  if (h.verificado === "contradice_registro") {
+    return (
+      <span className="inline-flex items-center gap-1 text-rotulo text-amberTexto">
+        <CircleAlert size={13} className="shrink-0" aria-hidden />
+        No coincide con el registro{h.contra != null ? ` (${h.tipo === "postores" ? numero(h.contra) : monto(h.contra, moneda ?? null)})` : ""}: revísalo en el documento
+      </span>
+    );
+  }
+  if (h.verificado === "cita" || h.verificado === "dos_lecturas") {
+    return (
+      <span className="inline-flex items-center gap-1 text-rotulo text-inkSoft">
+        <CircleCheck size={13} className="shrink-0 text-marca" aria-hidden />
+        {h.verificado === "cita" ? "La cita del documento trae ese valor" : "Dos lecturas coinciden"}{veces}
+      </span>
+    );
+  }
+  return <span className="inline-flex items-center gap-1 text-rotulo text-mute"><CircleDashed size={13} className="shrink-0" aria-hidden />Sin comprobar: tómalo como contexto</span>;
+}
+
+/**
+ * Los datos que se leyeron de los documentos del expediente, cada uno con QUÉ ES y si se pudo comprobar sin modelo
+ * (migración 323). Nació de un error del 2026-11-16: un monto de experiencia exigida al postor se presentó como la cuantía
+ * del proceso. Aquí cada número dice de qué documento salió y contra qué se midió.
+ */
+function HechosComprobados({ c }: { c: Detalle }) {
+  const hechos = c.hechosDocumentos ?? [];
+  if (!hechos.length) return null;
+  const items: DatoClave[] = hechos.map((h, i) => ({
+    etiqueta: `${(QUE_ES[h.tipo] ?? (() => humanizarCodigo(h.tipo)))(h)}${hechos.filter((x) => x.tipo === h.tipo && x.clase === h.clase).length > 1 ? ` (${i + 1})` : ""}`,
+    valor: (
+      <span className="block space-y-0.5">
+        <span className="block font-mono text-meta tabular-nums text-ink">{valorDeHecho(h, c.moneda)}</span>
+        <Comprobacion h={h} moneda={c.moneda} />
+      </span>
+    ),
+  }));
+  const dudosos = hechos.filter((h) => h.verificado === "contradice_registro").length;
+  return (
+    <div className="border-t border-line px-4 py-4 sm:px-5">
+      <h3 className="font-display text-bloque font-bold text-ink">Lo que se comprobó de los documentos</h3>
+      <p className="mt-1 text-meta text-inkSoft">
+        Cada dato leído del expediente dice qué es y contra qué se midió: el registro oficial, la cita del propio documento o una segunda lectura.
+        {dudosos > 0 ? ` ${plural(dudosos, "dato no coincide", "datos no coinciden")} con el registro: puede ser una diferencia real o un error de lectura.` : ""}
+      </p>
+      <DatosClave items={items} className="mt-2" />
+    </div>
   );
 }
 

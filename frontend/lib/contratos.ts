@@ -352,6 +352,8 @@ export interface ContratoDetalle extends ContratoResumen, ProcesoContrato {
   itemsAnalizados?: ItemAnalizado[];
   /** Lo que Claude leyó en el acta, el contrato firmado y el pliego de consultas (backend/lector, migración 245). */
   lecturaIA?: LecturaIA | null;
+  /** Cada dato leído de un documento, con qué es y si se comprobó sin modelo (migración 323). Una API anterior no lo trae. */
+  hechosDocumentos?: HechoDocumento[];
   procesamiento: Procesamiento | null;
   clasificacion: Clasificacion;
   /** Documentos vigentes en el almacén de Vigía (retención 90 días). null si la migración 15 no está. */
@@ -621,6 +623,17 @@ const PALABRA_CON_TILDE: Record<string, string> = {
  * "CONTRATADO") como texto para leer: minúsculas, sin guiones bajos, con tildes en
  * las palabras conocidas y la primera en mayúscula. No le inventa significado.
  */
+/** Un dato leído de un documento del expediente: qué es, de dónde salió y si se pudo comprobar. */
+export interface HechoDocumento {
+  tipo: string;
+  clase: string;
+  valor: number | null;
+  fecha: string | null;
+  cita: string | null;
+  verificado: "registro" | "contradice_registro" | "cita" | "dos_lecturas" | "sin_verificar";
+  contra: number | null;
+}
+
 export function humanizarCodigo(s: string | null | undefined): string | null {
   if (!s) return null;
   const palabras = s

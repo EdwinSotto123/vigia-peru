@@ -197,6 +197,8 @@ contratosDetalleRouter.get("/:ocid", async (c) => {
   ]);
   // Lo que Claude leyó en el acta, el contrato y las consultas (migración 245; backend/lector). Sin la tabla, nada.
   const lecturas = await lecturasDe(row.ocid).catch(() => [] as FilaLectura[]);
+  // Los datos de esos documentos como hechos con tipo y con su comprobación (migración 323). Sin la tabla, nada.
+  const hechos = await hechosDe(row.ocid).catch(() => [] as HechoDocumento[]);
 
   // Alerta no publicada (revision/descartada): sin score, señales, mercado ni reglas, y sin lo que los
   // agentes leyeron del expediente — el análisis entero está sin publicar (lib/publicacion.ts §2).
@@ -365,6 +367,9 @@ contratosDetalleRouter.get("/:ocid", async (c) => {
     // Lo que Claude leyó en los documentos (backend/lector): de dónde salió cada cosa y, del contrato y las consultas,
     // los hechos. Sus banderas van en `cruces` (migración 246), con su evidencia.
     lecturaIA: lecturaIA(lecturas, postoresAgentes.length > 0),
+    // Cada dato leído de un documento, con qué es y si se pudo comprobar sin modelo (contra un registro oficial, contra
+    // su propia cita o contra una segunda lectura).
+    hechosDocumentos: hechos,
     procesamiento: proc.rows[0] ?? null,
     documentosEnVigia: docsGcsResumen,
     pedidoDescarga: pedido,
@@ -380,6 +385,30 @@ contratosDetalleRouter.get("/:ocid", async (c) => {
     },
   }));
 });
+
+// ─── Los hechos de los documentos, con su comprobación (migración 323) ──────
+
+export interface HechoDocumento {
+  /** Qué es, de una lista cerrada: valor_referencial, experiencia_exigida_monto, monto_contratado… */
+  tipo: string;
+  /** De qué documento salió: bases, buena_pro (el acta), contrato, consultas. */
+  clase: string;
+  valor: number | null;
+  fecha: string | null;
+  cita: string | null;
+  /** registro | contradice_registro | cita | dos_lecturas | sin_verificar */
+  verificado: string;
+  /** El valor del registro (o de la otra lectura) contra el que se midió. */
+  contra: number | null;
+}
+
+async function hechosDe(ocid: string): Promise<HechoDocumento[]> {
+  const r = await pool.query(
+    `SELECT h.tipo, h.clase, h.valor_num::float AS valor, to_char(h.valor_fecha, 'YYYY-MM-DD') AS fecha, left(h.cita, 400) AS cita,
+            h.verificado, h.contra::float AS contra
+       FROM hecho_documento h WHERE h.ocid = $1 ORDER BY h.tipo, h.clase`, [ocid]);
+  return r.rows as HechoDocumento[];
+}
 
 // ─── Lo que Claude leyó en los documentos (migración 245) ───────────────────
 

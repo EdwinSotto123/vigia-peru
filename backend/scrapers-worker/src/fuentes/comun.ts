@@ -277,6 +277,8 @@ export function cadenaCruces(): Refresco[] {
     f("refrescar_cruce_contrato_sobre_adjudicado", true),
     // Lo que dicen el acta de buena pro y las consultas leídas con Claude (migraciones 245-246).
     f("refrescar_cruce_acta", true),
+    // Los datos de los documentos leídos, como hechos con tipo y con su comprobación contra el registro (migración 323).
+    f("refrescar_hecho_documento", true),
     // Quita los cruces que algún JOIN multiplica (migración 120), antes de juntarlos en casos_cruce.
     f("dedup_cruces_proveedor"),
     f("refrescar_adjudicado_vigente"),
