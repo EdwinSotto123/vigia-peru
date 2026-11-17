@@ -26,7 +26,7 @@
 12. Mapa de poder / captura
 13. Antecedentes (Contraloría / Procuraduría)
 14. El pipeline de refresco (orden real)
-15. Cómo se puntúa (contrato y empresa)
+15. Cómo se puntúa (el contrato; la empresa ya no tiene puntaje)
 16. Privacidad y encuadre
 17. Huecos y oportunidades (para analizar)
 18. Discrepancias y notas técnicas
@@ -51,7 +51,8 @@ Cifras de la base (prod, 2026-10-25): **~40 GB en PostgreSQL (AWS RDS), 115 tabl
 
 El sistema produce **~60 tipos de señal/cruce** agrupados en: dato dudoso, personas contratadas, planilla/plazas,
 política, proceso de selección, historial del proveedor, patrón de compras, registro SUNAT, captura/poder y
-antecedentes de corrupción. Cada contrato y cada empresa recibe un **puntaje** ponderado a partir de ellos.
+antecedentes de corrupción. Cada contrato recibe un **puntaje** ponderado a partir de ellos. La empresa no tiene
+puntaje: muestra sus antecedentes como hechos (§15).
 
 Lo más reciente (octubre 2026): la subsección **Contratos Menores (≤8 UIT)** (fuentes prod4+prod6 del SEACE, con el
 requerimiento/TDR descargable) y la **identidad SUNAT de sus proveedores** (`seace_proveedor_sunat`), con banderas de
@@ -71,7 +72,9 @@ Toda señal tiene una de tres severidades, con tres canales (color + ícono + pa
 
 - **Puntaje de orden de un contrato** (`casos_cruce.puntaje`): `10×n_alta + 3×n_media + 1×n_baja`
   (`backend/db/migrations/115_atribucion_cruces.sql:339`).
-- **Puntaje de una empresa** (`empresa_resumen.puntaje`, 0–100): reglas con tope por grupo (ver §15).
+- **La empresa no tiene puntaje.** El de 0 a 100 lo quitaron las migraciones 112 y 113 porque «parece acusación».
+  `empresa_resumen` guarda `cruces` (cada tipo de antecedente con su gravedad más alta y cuántos registros) y los
+  conteos `n_alta`, `n_media` y `n_baja` (ver §15).
 - **Regla de atribución (clave):** los "datos del proveedor" (que es candidato, aportó, es autoridad, le vendió a una
   campaña) **se muestran pero NO suben el riesgo del contrato** — son contexto de la empresa, no culpa del contrato
   puntual (`115_atribucion_cruces.sql:362-364`).
@@ -138,7 +141,7 @@ Agrupadas por lo que representan. Filas aproximadas (reltuples) y tamaño en pro
 ### 4.4 Empresas y personas que venden/contratan
 | Tabla | Filas | Qué es |
 |---|---|---|
-| `empresa_resumen` | 236 k | ficha agregada de cada empresa (puntaje, cruces, estado SUNAT) |
+| `empresa_resumen` | 236 k | ficha agregada de cada empresa (cruces con su gravedad, estado SUNAT; sin puntaje) |
 | `empresas` | 250 k | datos base de empresas (domicilio, fecha de alta del RUC, estado) |
 | `empresa_orden_anual` | 1.9 M | órdenes por empresa y año |
 | `rnp_conformacion_juridica` | 1.4 M | socios/representantes/directivos (RNP) con su documento |
@@ -299,7 +302,7 @@ muestran en `frontend/components/personas/SenalesFicha.tsx`.
 | `inhabilitado` | alta | órdenes × sancionados Tribunal | recibió órdenes dentro de `[fecha_desde, fecha_hasta]` de una inhabilitación |
 | `meses_seguidos` | media | persona_orden_anual | órdenes en **≥10 meses** de un mismo año |
 | `pago_alto` | media | monto/mes × `servicio_referencia` | `monto/meses ≥ 2.5× mediana` Y `≥ S/ 6,000` Y `meses≥2` Y `personas≥10` |
-| `visita_previa` | baja | órdenes × visitas (DNI) a la misma entidad | visita en `[primera_orden-180, primera_orden]` |
+| `visita_previa` | media/baja | órdenes × visitas (DNI) a la misma entidad | visita en `[primera_orden-180, primera_orden]`; media si visitó a quien decide las compras (migr. 195) |
 | `tambien_planilla` | alta | órdenes × planilla PTE (nombre, misma entidad) | órdenes en un mes en que también está en planilla |
 | `paso_a_planilla` | baja | órdenes × planilla | entró a planilla DESPUÉS de su primera orden |
 | `ordenes_tras_informe` | alta/media/baja | `informe_control_persona` (DNI) × órdenes de la MISMA entidad del informe | recibió órdenes de servicio de la entidad después de emitido un informe de control que lo comprende (nombre de CONOSCE y de la Contraloría con 2 palabras o más en común); alta si la responsabilidad es penal y la primera orden llegó a 365 días o menos, media si penal más tarde o civil, baja si sólo administrativa. `refrescar_persona_informe_control()`, migración 308. Responsabilidad PRESUNTA |
@@ -336,7 +339,7 @@ Régimen: 1 CAS · 2 R.276 (nombrado) · 3 R.728 (privado) · 4 PAC · 5 FAG · 
 ## 9. Catálogo de cruces — Empresa / Contrato
 
 Resultado en `cruces_proveedor` (evidencia por cruce) y `casos_cruce` (agregado por ocid+ruc). Versión vigente de
-`refrescar_cruces()`: `backend/db/migrations/121_segmentar_cruces.sql`.
+`refrescar_cruces()`: `backend/db/migrations/211_aportes_unicos.sql`.
 
 ### 9.1 Política
 | Tipo | Sev. | Cruza | Umbral |
@@ -399,6 +402,35 @@ necesitan `ANALYZE` y `statement_timeout` (sin estadísticas, un cruce llenó el
 Vistas agrupadas para el investigador: `/patrones/duenos`, `/patrones/inhabilitadas`, `/patrones/consorcios`,
 `/patrones/acompanantes` (pestañas de `/app/patrones` y herramienta `patrones` del MCP).
 
+### 9.6 Indicadores en observación (migración 329)
+Una señal nueva no entra al puntaje el día que nace. La tabla `senal_en_observacion` lista los tipos que se MUESTRAN con
+su evidencia en la ficha del contrato, en su cabecera y en `/app/patrones` (pestaña «En observación»). Esos tipos NO
+cuentan para el puntaje ni para «contratos con antecedentes»: no entran a `casos_cruce` hasta medir su precisión con una
+muestra revisada. Quitar la fila de un tipo lo hace puntuar en el siguiente refresco. Es el mismo trato que ya tienen
+los datos del proveedor (migración 115).
+
+Hoy son tres (conteos en producción del 2026-11-17):
+
+| Tipo | Sev. | Filas | Cruza | Umbral |
+|---|---|---|---|---|
+| `reunion_en_evaluacion` | media/baja | 461 | visitas × gente del ganador (socio, representante o directivo, por su documento) | visitó a un funcionario que decide las compras después de presentar su oferta y antes de la buena pro, con un motivo de trato directo (reunión, visita personal, gestión de intereses o por el procedimiento). Media si la empresa no le vendía a la entidad ese año ni el anterior ni había ganado ahí en los dos años previos (158); baja si ya era proveedora (303). Medido: entre postores que no eran proveedores, 1,01 % de los que ganan tuvo esa reunión contra 0,32 % de los que pierden; entre proveedores previos casi no hay diferencia |
+| `visita_personal_decisor` | media | 303 | visitas × gente del ganador | la misma persona del ganador visitó al mismo funcionario que decide las compras, declarando «visita personal», en 3 o más días de 2 o más meses distintos, en el año anterior a la buena pro |
+| `ofertas_a_la_vez` | media | 11 | `proceso_postor` (reporte de presentación de ofertas del SEACE) × RNP | el ganador y otro postor del mismo ítem comparten un socio, representante o directivo (no cuentan quienes figuran en más de 10 empresas) y registraron sus ofertas con 30 minutos o menos de diferencia |
+
+Además, la 329 agrega:
+
+- **Etapa y motivo de cada `visita_previa`** (el cruce del contrato, `refrescar_cruce_visita_previa()`): la etapa del
+  procedimiento en que cayó la visita (`etapa`: `antes_de_convocar`, `convocatoria`, `evaluacion`, `dia_buena_pro`) y la
+  clase del motivo declarado (`clase_motivo`, función `visita_motivo_clase`: `reunion`, `personal`,
+  `gestion_intereses`, `seleccion`, `operativa`, `protocolar`, `otra`).
+- **`senal_tasa_base`:** de cada tipo de señal, en cuántos procesos aparece y sobre cuántos se puede medir. La ficha lo
+  muestra como «cuán frecuente es». La rehace `refrescar_senal_tasa_base()`.
+- **El motivo en texto libre nunca se publica.** Sale la categoría del registro o sólo su clase, porque el texto libre a
+  veces nombra a terceros.
+
+Se midió y NO se implementó la contratación directa repetida a la misma empresa: sin la causal, marca sobre todo a
+proveedores únicos naturales.
+
 ---
 
 ## 10. Catálogo de cruces — Registro SUNAT (a nivel empresa)
@@ -431,6 +463,16 @@ Las ≤8 UIT no pasan por proceso de selección, así que no entran a `cruces_pr
 | proveedor **no habido / no hallado** | `condicion ≠ HABIDO` | 4 |
 | **recién creada al ganar** | `fecha_suscripcion - fecha_inicio_actividades < 6 meses` | por calcular por fila |
 
+- **Señales propias de cada menor** (`menor_senal`): la tabla la crea la migración 251 y la llena
+  `refrescar_menor_senales()` (migración 252). Cada señal va atada a su contrato, con su evidencia. Por registro:
+  `menor_partido_mismo_dia` (alta), `menor_partido_en_el_anio` (media), `menor_sobre_tope` (alta), `menor_borde_tope`
+  (baja), `menor_ventana_corta` (media; alta con menos de 1 hora), `menor_invitacion_cerrada` (media),
+  `menor_fin_de_semana` (baja) y `menor_precio_alto` (media; alta con 3 veces la mediana y S/ 5 mil de exceso). Leídas en
+  el requerimiento y el contrato, sólo si dos lecturas coinciden: `tdr_proveedor_nombrado` (alta),
+  `tdr_marca_sin_equivalente` (media), `tdr_monto_distinto` (media), `tdr_experiencia_alta` (baja),
+  `contrato_monto_distinto` (media; alta si el documento pasa el tope y el registro no), `contrato_ruc_distinto` (alta)
+  y `contrato_documento_ajeno` (media). La migración 253 suma `menor_orden_antes_de_cotizar` (alta): la orden se emitió
+  antes de publicarse el pedido de cotizaciones.
 - **Giro (CIIU)** y **tipo de contribuyente** del proveedor se muestran como contexto.
 - **Lo que NO se puede (aún):** unir un menor con su orden de pago en `conosce_ordenes` — no comparten llave; solo
   cruce difuso (RUC+monto+entidad+fecha). Y la lista de cotizantes no es pública (solo el ganador).
@@ -469,7 +511,7 @@ entidad/región (nunca nombres):
 3. `dedup_cruces_proveedor()` — quita duplicados (limpió ~179 mil en prod).
 4. `refrescar_casos_cruce_base()` — agrega a `casos_cruce` por (ocid, ruc), excluye datos-del-proveedor del riesgo.
 5. `refrescar_senales_sunat()` — estados SUNAT a `empresa_resumen`.
-6. `refrescar_empresas()` — **DELETE+rebuild** de `empresa_resumen` (puntaje y nivel por empresa).
+6. `refrescar_empresas()` — **DELETE+rebuild** de `empresa_resumen` (cruces y conteos por gravedad; sin puntaje).
 7. `refrescar_poder()` — `poder_entidad` / `poder_partido`.
 
 > Implicación: `empresa_resumen` y `poder_*` son **derivadas**; no se insertan filas a mano (se borran al refrescar).
@@ -478,13 +520,14 @@ entidad/región (nunca nombres):
 
 ## 15. Cómo se puntúa
 
-**Contrato** (`casos_cruce.puntaje`): `10×alta + 3×media + 1×baja`, contando solo los cruces que SON del contrato
-(los datos del proveedor no cuentan). El orden de la lista usa ese puntaje.
+**Contrato** (`casos_cruce.puntaje`, `refrescar_casos_cruce_base()`): 10 por cada tipo de señal alta, 3 por cada media
+y 1 por cada baja. Cuenta solo los cruces que SON del contrato: no cuentan los datos del proveedor (migración 115) ni los
+indicadores en observación (§9.6). El orden de la lista usa ese puntaje.
 
-**Empresa** (`empresa_resumen.puntaje`, 0–100, `109_empresas.sql`): reglas con tope por grupo —
-inhabilitación (40), gobernante (30; aporte-al-gobernante alta=15, venta-al-gobernante alta=10), competencia (25),
-sanciones (24), autoridades (20), visitas (16), fraccionamiento (15), sobreprecio (15), penalidades (12), campañas (8),
-adicionales (8), recurrencia (4). Nivel: ≥50 alto · ≥20 medio · >0 bajo · 0 sin.
+**Empresa: sin puntaje.** El puntaje de 0 a 100 de la migración 109 ya no existe: la 112 dejó de calcularlo porque
+«parece acusación» y la 113 borró sus columnas (`puntaje`, `nivel`) y sus tablas de reglas. Hoy `empresa_resumen`
+muestra los antecedentes como hechos: `cruces` (cada tipo con su gravedad más alta y cuántos registros) y los conteos
+`n_alta`, `n_media` y `n_baja`. No hay un número que ordene empresas.
 
 ---
 
@@ -502,7 +545,8 @@ adicionales (8), recurrencia (4). Nivel: ≥50 alto · ≥20 medio · >0 bajo ·
 ### 17.1 Datos que YA tenemos pero usamos poco
 - **`peps` (38 k personas expuestas políticamente)**: no se cruza sistemáticamente con proveedores/socios/autoridades.
   Oportunidad: bandera "proveedor/socio es PEP" o "familiar de PEP" (por apellidos).
-- **`dji_funcionarios`/`dji_empleos` (1.8 M / 2.7 M)**: se usan solo para `apellidos_funcionario`/`funcionario_contratado`.
+- **`dji_funcionarios`/`dji_empleos` (1.8 M / 2.7 M)**: `apellidos_funcionario` y `funcionario_contratado` leen
+  `dji_funcionarios`. `dji_empleos` hoy sólo se usa para deducir el RUC de la entidad del declarante.
   Oportunidad fuerte: **enriquecimiento patrimonial inexplicable** — patrimonio declarado vs. contratos/sueldos.
 - **`penalidades`, `opiniones_oece`, `procuraduria_casos_sede`**: subexplotadas en señales.
 - **`mef_ejecutora_gasto` (548 k)**: cruzar lo **adjudicado/pagado vs. lo presupuestado** (ejecución anómala, gasto de
@@ -544,7 +588,7 @@ adicionales (8), recurrencia (4). Nivel: ≥50 alto · ≥20 medio · >0 bajo ·
 2. `recien_fundada` genérico sigue en el frontend; el SQL vigente solo emite las tres bandas (migr 119).
 3. Severidad de `aporte`/`proveedor_campana`/`vendio_gobernante` pasó a bandas por monto (migr 115/121).
 4. `sancion` genérico se segmentó en `sancion_definitiva/temporal/multa` (migr 121).
-5. La versión vigente de `refrescar_cruces()` es la de `121_segmentar_cruces.sql` (las migraciones se redefinen en
+5. La versión vigente de `refrescar_cruces()` es la de `211_aportes_unicos.sql` (las migraciones se redefinen en
    cascada; gana la última).
 
 ---
@@ -645,7 +689,7 @@ Solo las columnas que sirven para cruzar o filtrar; no el esquema completo.
 - **`empresas`** (250 k): `ruc`, `nombre`, `fecha_alta_ruc` (clave de `recien_fundada`), `domicilio_fiscal`
   (clave de `domicilio_compartido`), `estado_sunat`, `condicion` (en metadata).
 - **`empresa_resumen`** (236 k): `ruc`, `nombre`, `estado_sunat`, `fecha_alta`, `domicilio`, `actividad`, `departamento`,
-  `objeto`, `puntaje`, `nivel`, `cruces` (jsonb), `tipos` (array), `n_alta/n_media/n_baja`, `inhabilitada`,
+  `objeto`, `cruces` (jsonb), `tipos` (array), `n_alta/n_media/n_baja`, `inhabilitada`,
   `inhabilitada_hasta`, `adj_monto`, `cons_monto`, `visitas`, `socios`, `representantes`, `directivos`.
 - **`rnp_conformacion_juridica`** (1.4 M): `ruc`, `tipo_documento`, `numero_documento` (DNI de socios), `nombre`, `rol`
   (socio/representante/directivo), `participacion`.

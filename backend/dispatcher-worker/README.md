@@ -9,15 +9,21 @@ reduce el NDJSON evento por evento y cierra con `terminar()`. El SQL es el mismo
 Puede correr junto al job: el reclamo es `FOR UPDATE SKIP LOCKED` y cada corrida se identifica como
 `cloudflare-<id>` en `procesamientos.worker` (las del job son `<ejecución>-<tarea>-<pid>`).
 
-## Estado: apagado
+## Estado: encendido desde el 4 de noviembre de 2026
 
-`"triggers": { "crons": [] }` y `DISPATCHER_ACTIVO = "0"`. Para que el Worker tome la cola solo:
+`"triggers": { "crons": ["*/5 * * * *"] }` y `DISPATCHER_ACTIVO = "1"` en `wrangler.jsonc` (commit `2f184e5a`). Cada
+5 minutos el cron reclama la cola (`procesamientos`) y llama a las Lambdas de agentes de AWS, una por red, con el
+Bearer `AGENTE_TOKEN` (secreto) en vez de un ID token de Google. Sólo analiza lo que entra a `procesamientos`:
+contratos financiados y reanálisis del panel.
 
-1. `"crons": ["*/5 * * * *"]` y `"DISPATCHER_ACTIVO": "1"` en `wrangler.jsonc` (sin la variable el cron no reclama);
-2. `npx wrangler deploy`;
-3. pausar el scheduler del job (`gcloud scheduler jobs pause vigia-dispatcher-run --location us-central1`).
+Estuvo apagado del 14 de octubre al 4 de noviembre de 2026, sin Cloud Run.
 
-Mientras tanto se usa a mano: `POST /ejecutar` (una corrida) y `GET /simular` (corrida en seco).
+Para apagarlo:
+
+1. `"crons": []` y `"DISPATCHER_ACTIVO": "0"` en `wrangler.jsonc` (con la variable en 0 el cron no reclama);
+2. `npx wrangler deploy`.
+
+Apagado, se sigue usando a mano: `POST /ejecutar` (una corrida) y `GET /simular` (corrida en seco).
 
 ## Cómo corre (y por qué así)
 
@@ -91,7 +97,7 @@ binding `HYPERDRIVE` (id `5616f9f3183941adb536f06fa2287bd3`, rol `vigia_dispatch
 | `DISPATCHER_GRACE_MINUTES` | 20 | espera de la alerta tras un corte |
 | `DISPATCHER_MAX_EVENTOS` | 400 | tope de `procesamientos.eventos` |
 | `DISPATCHER_PREFETCH_OCDS` · `DISPATCHER_REQUIERE_DOCS_GCS` | 1 · 1 | como en `main.py` |
-| `DISPATCHER_ACTIVO` | 0 | solo Workers: el cron reclama únicamente con 1 |
+| `DISPATCHER_ACTIVO` | 1 | solo Workers: el cron reclama únicamente con 1 (con 0 queda apagado) |
 | `DISPATCHER_TRAMO_S` | 1200 | solo Workers: duración de cada tramo del stream (10–1500) |
 | `DISPATCHER_OECE_BASE` | (API del OECE) | solo Workers: base del prefetch (para pruebas) |
 

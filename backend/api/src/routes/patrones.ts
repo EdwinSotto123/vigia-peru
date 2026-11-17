@@ -515,25 +515,31 @@ patronesRouter.get("/observacion", async (c) => {
         // De quien recibió la visita, sólo su cargo y su área (nunca su nombre): la última visita en la reunión durante
         // la evaluación; el funcionario visitado en las visitas personales. Quien visitó no va en la lista: está en la
         // ficha del contrato, con un apellido tapado.
-        `SELECT c.tipo, c.severidad, c.ocid, cv.codigo, cv.objeto, c.ruc_empresa AS ruc, e.razon_social AS empresa,
+        // Primero la página (unos cientos de filas en total) y después los nombres. `empresas.ruc` y `entidades.ruc` son
+        // character(11): se compara con ese tipo, o la base deja el índice y recorre 250 mil empresas por fila (60 s).
+        `WITH k AS MATERIALIZED (
+           SELECT c.tipo, c.severidad, c.ocid, c.ruc_empresa, c.fecha, c.detalle, (count(*) OVER ())::int AS total
+             FROM cruces_proveedor c
+             JOIN convocatorias cv ON cv.ocid = c.ocid
+            WHERE ${conds.join(" AND ")}
+            ORDER BY CASE c.severidad WHEN 'alta' THEN 0 WHEN 'media' THEN 1 ELSE 2 END, c.fecha DESC NULLS LAST, c.ocid, c.ruc_empresa
+            LIMIT ${add(q.size)} OFFSET ${add((q.page - 1) * q.size)})
+         SELECT k.tipo, k.severidad, k.ocid, cv.codigo, cv.objeto, k.ruc_empresa AS ruc, e.razon_social AS empresa,
                 btrim(cv.entidad_ruc::text) AS "entidadRuc", en.nombre AS entidad,
-                to_char(c.fecha, 'YYYY-MM-DD') AS fecha, c.detalle->>'buena_pro' AS "buenaPro", c.detalle->>'oferta' AS oferta,
-                (c.detalle->>'dias_evaluacion')::int AS "diasEvaluacion", (c.detalle->>'visitas_n')::int AS visitas,
-                (c.detalle->>'dias')::int AS dias, (c.detalle->>'meses')::int AS meses,
-                (c.detalle->>'ya_proveedor')::boolean AS "yaProveedor",
-                COALESCE(c.detalle->>'cargo_funcionario', c.detalle->'visitas'->-1->>'cargo') AS cargo,
-                COALESCE(c.detalle->>'area_funcionario', c.detalle->'visitas'->-1->>'area') AS area,
-                (c.detalle->>'minutos')::float AS minutos, c.detalle->>'hora_ganador' AS "horaGanador", c.detalle->>'hora_otro' AS "horaOtro",
-                c.detalle->'otros_postores'->>0 AS "otroRuc", eo.razon_social AS otro,
-                (count(*) OVER ())::int AS total
-           FROM cruces_proveedor c
-           JOIN convocatorias cv ON cv.ocid = c.ocid
-           LEFT JOIN empresas e ON e.ruc = c.ruc_empresa
-           LEFT JOIN entidades en ON btrim(en.ruc::text) = btrim(cv.entidad_ruc::text)
-           LEFT JOIN empresas eo ON eo.ruc = c.detalle->'otros_postores'->>0
-          WHERE ${conds.join(" AND ")}
-          ORDER BY CASE c.severidad WHEN 'alta' THEN 0 WHEN 'media' THEN 1 ELSE 2 END, c.fecha DESC NULLS LAST, c.ocid, c.ruc_empresa
-          LIMIT ${add(q.size)} OFFSET ${add((q.page - 1) * q.size)}`, vals),
+                to_char(k.fecha, 'YYYY-MM-DD') AS fecha, k.detalle->>'buena_pro' AS "buenaPro", k.detalle->>'oferta' AS oferta,
+                (k.detalle->>'dias_evaluacion')::int AS "diasEvaluacion", (k.detalle->>'visitas_n')::int AS visitas,
+                (k.detalle->>'dias')::int AS dias, (k.detalle->>'meses')::int AS meses,
+                (k.detalle->>'ya_proveedor')::boolean AS "yaProveedor",
+                COALESCE(k.detalle->>'cargo_funcionario', k.detalle->'visitas'->-1->>'cargo') AS cargo,
+                COALESCE(k.detalle->>'area_funcionario', k.detalle->'visitas'->-1->>'area') AS area,
+                (k.detalle->>'minutos')::float AS minutos, k.detalle->>'hora_ganador' AS "horaGanador", k.detalle->>'hora_otro' AS "horaOtro",
+                k.detalle->'otros_postores'->>0 AS "otroRuc", eo.razon_social AS otro, k.total
+           FROM k
+           JOIN convocatorias cv ON cv.ocid = k.ocid
+           LEFT JOIN empresas e ON e.ruc = k.ruc_empresa::char(11)
+           LEFT JOIN entidades en ON en.ruc = cv.entidad_ruc
+           LEFT JOIN empresas eo ON eo.ruc = (k.detalle->'otros_postores'->>0)::char(11)
+          ORDER BY CASE k.severidad WHEN 'alta' THEN 0 WHEN 'media' THEN 1 ELSE 2 END, k.fecha DESC NULLS LAST, k.ocid, k.ruc_empresa`, vals),
       pool.query<{ tipo: string; n: number }>(
         `SELECT tipo, count(*)::int AS n FROM cruces_proveedor
           WHERE tipo = ANY($1::text[]) AND ruc_empresa ~ '^20[0-9]{9}$' GROUP BY tipo ORDER BY n DESC`, [[...TIPOS_OBSERVACION]]),
