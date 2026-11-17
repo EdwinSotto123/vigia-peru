@@ -8,12 +8,13 @@ import { montoDossier } from "../dossier";
 import type { PanelDossierProps } from "./PanelesDossier";
 import { AvisoSeccion } from "./AvisoSeccion";
 import { ItemsConMarketPrice } from "./ItemsConMarketPrice";
+import { LaboratorioPrecios } from "./LaboratorioPrecios";
 import { MarketVerdictCard, verificadoConEstado } from "./MarketVerdictCard";
 import { PostoresSection } from "./PostoresSection";
 import { PreciosDelEstado } from "./PreciosDelEstado";
 import { SeccionSegura } from "./SeccionSegura";
 
-export function PanelItems({ result, corrida, nItems, nombresPrivados, postoresContrato }: PanelDossierProps) {
+export function PanelItems({ result, corrida, nItems, nombresPrivados, postoresContrato, ocidContrato }: PanelDossierProps) {
   setRedactNames(nombresPrivados);
   const items = result.items || [];
   const findings = result.market_analysis?.findings || [];
@@ -25,20 +26,31 @@ export function PanelItems({ result, corrida, nItems, nombresPrivados, postoresC
   const hayPrecios = (precios?.items || []).length > 0;
   // Lo que sí se verificó contra compras del Estado: el veredicto de mercado y el gráfico lo dicen.
   const estado = verificadoConEstado(precios);
+  // El laboratorio de precios (renglón por renglón, tiendas y compras del Estado) va primero y aparece aunque el agente
+  // de precios no haya desglosado ítems: lo lee de su propio servicio, no de este análisis.
+  const laboratorio = (
+    <SeccionSegura nombre="el laboratorio de precios">
+      <LaboratorioPrecios ocid={ocidContrato ?? postoresContrato?.ocid ?? null} />
+    </SeccionSegura>
+  );
   if (!hayItems && !hayVeredicto && !hayPostores && !hayPrecios) {
     return (
-      <AvisoSeccion titulo="No hay ítems ni comparación de mercado para este contrato" icono={<Package size={16} aria-hidden />}>
-        {result.market_analysis_raw && !result.market_analysis
-          ? "La comparación de precios respondió, pero su resultado no se pudo leer, así que no se publica ninguna."
-          : corrida.agentes.includes("market")
-            ? "La comparación de precios corrió, pero no llegó a desglosar ítems comparables."
-            : "La comparación de precios no llegó a correr en este análisis."}{" "}
-        No se muestra una comparación que no se hizo.
-      </AvisoSeccion>
+      <div className="space-y-4">
+        {laboratorio}
+        <AvisoSeccion titulo="No hay ítems ni comparación de mercado para este contrato" icono={<Package size={16} aria-hidden />}>
+          {result.market_analysis_raw && !result.market_analysis
+            ? "La comparación de precios respondió, pero su resultado no se pudo leer, así que no se publica ninguna."
+            : corrida.agentes.includes("market")
+              ? "La comparación de precios corrió, pero no llegó a desglosar ítems comparables."
+              : "La comparación de precios no llegó a correr en este análisis."}{" "}
+          No se muestra una comparación que no se hizo.
+        </AvisoSeccion>
+      </div>
     );
   }
   return (
     <div className="space-y-4">
+      {laboratorio}
       {hayPrecios && (
         <SeccionSegura nombre="los precios del Estado">
           <PreciosDelEstado datos={precios} />

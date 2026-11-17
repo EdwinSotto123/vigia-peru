@@ -19,6 +19,7 @@ import { crearCitador } from "../lib/citas.js";
 import { crucesDeProceso, type Ganador } from "../lib/cruces.js";
 import { enriquecerPostores, itemsDeDocumentos, leerFichasPiezas, perfilDeBases, type FichaPieza, type PostorDetalle } from "../lib/fichasPiezas.js";
 import { obraDelContrato } from "../lib/obras.js";
+import { preciosDeMercado } from "../lib/laboratorioPrecios.js";
 import {
   CONTRATOS_OCDS_SQL, PARTES_TENDERER_SQL, armarContrato, armarCronograma, armarParticipantes, contratosConosce, deEstaConvocatoria, fechaBuenaProDe,
   recortarContrato,
@@ -109,6 +110,19 @@ contratosDetalleRouter.get("/:ocid/gobierno", async (c) => {
   );
   cache(c, 3600);
   return c.json({ gobierno: r.rows[0]?.gobierno ?? null });
+});
+
+// ─── GET /contratos/:ocid/precios-mercado — el laboratorio de precios, renglón por renglón ────────
+// Tiendas en internet y referencias del Estado (lib/laboratorioPrecios.ts). Sin laboratorio conectado, 503; sin
+// investigaciones, renglones vacíos.
+contratosDetalleRouter.get("/:ocid/precios-mercado", async (c) => {
+  const ocid = c.req.param("ocid");
+  if (!/^[\w.-]{1,64}$/.test(ocid)) return c.json({ error: "invalid_ocid" }, 400);
+  const lab = (c.env as { PRECIOS_LAB?: { fetch(req: Request): Promise<Response> } } | undefined)?.PRECIOS_LAB;
+  const datos = await preciosDeMercado(lab, ocid);
+  if (!datos) return c.json({ error: "sin_laboratorio" }, 503);
+  cache(c, datos.renglones.some((r) => r.estado !== "listo" && r.estado !== "error") ? 120 : 1800);
+  return c.json(datos);
 });
 
 contratosDetalleRouter.get("/:ocid", async (c) => {
