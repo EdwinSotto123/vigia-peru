@@ -37,7 +37,7 @@ from pathlib import Path
 RAIZ = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(RAIZ / "backend"))
 sys.path.insert(0, str(RAIZ / "infrastructure" / "aws"))
-from lector.base import bajar_r2  # noqa: E402
+from lector.base import bajar_r2, ocids_de_archivo  # noqa: E402
 
 MIN_LETRAS_PAGINA = 300                # menos que esto, la página es un escaneo (el mismo umbral que los agentes)
 TOPE_PAGINAS = 1500                    # por archivo
@@ -51,6 +51,7 @@ SELECT g.sha256, min(g.ocid) AS ocid, min(g.url_gcs) AS url, max(lower(g.formato
  WHERE g.borrado_at IS NULL AND g.sha256 IS NOT NULL AND g.url_gcs IS NOT NULL AND g.ocid IS NOT NULL
    AND lower(g.formato) IN ('pdf', 'zip') AND g.bytes <= %(max_bytes)s
    AND (%(patron)s::text IS NULL OR upper(g.titulo) ~ %(patron)s)
+   AND (%(ocids)s::text[] IS NULL OR ocid_corto(g.ocid) = ANY (%(ocids)s::text[]))
    AND NOT EXISTS (SELECT 1 FROM documentos_texto t WHERE t.sha256 = g.sha256)
  GROUP BY g.sha256
  ORDER BY max(g.bytes)
@@ -134,8 +135,10 @@ def main() -> None:
     ap.add_argument("--limite", type=int, default=100000)
     ap.add_argument("--hilos", type=int, default=6)
     ap.add_argument("--medir", action="store_true")
+    ap.add_argument("--ocids-archivo", default=None, help="sólo los documentos de estos procesos (uno por línea)")
     a = ap.parse_args()
-    params = {"max_bytes": int(a.max_mb * 1024 * 1024), "patron": a.casilleros, "limite": a.limite}
+    ocids = ocids_de_archivo(a.ocids_archivo)
+    params = {"max_bytes": int(a.max_mb * 1024 * 1024), "patron": a.casilleros, "limite": a.limite, "ocids": ocids}
     t0 = time.time()
     cuenta: Counter = Counter()
     with ExitStack() as pila:
@@ -143,7 +146,8 @@ def main() -> None:
         cur = cn.cursor()
         if not a.medir:
             # Una sola corrida por casillero a la vez (la PC y el CI leen la misma cola): candado de sesión en la base.
-            cur.execute("SELECT pg_try_advisory_lock(hashtext(%s))", (f"lector.texto:{a.casilleros or ''}",))
+            # Con una lista de procesos es otra cola (no espera a la corrida general).
+            cur.execute("SELECT pg_try_advisory_lock(hashtext(%s))", (f"lector.texto:{a.casilleros or ''}:{a.ocids_archivo or ''}",))
             if not cur.fetchone()[0]:
                 sys.exit("otra corrida igual está en curso: no se hace nada")
         cur.execute(PENDIENTES, params)

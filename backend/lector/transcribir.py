@@ -34,7 +34,7 @@ from pathlib import Path
 RAIZ = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(RAIZ / "backend"))
 sys.path.insert(0, str(RAIZ / "infrastructure" / "aws"))
-from lector.base import bajar_r2  # noqa: E402
+from lector.base import bajar_r2, ocids_de_archivo  # noqa: E402
 
 VERSION = "t1"
 TOPE_TOTAL_USD = 315.0                 # el mismo tope de lectura con modelo (lector/por_pieza.py)
@@ -60,12 +60,16 @@ SELECT p.id, p.sha256, p.archivo, p.pag_ini, g.url_gcs, lower(g.formato), l.deta
   LEFT JOIN convocatorias c ON c.ocid = p.ocid
  WHERE l.lector = 'bases' AND l.estado = 'espera_vision' AND g.url_gcs IS NOT NULL
    AND NOT EXISTS (SELECT 1 FROM pieza_lectura x WHERE x.pieza_id = p.id AND x.lector = 'transcripcion' AND x.version = %(version)s)
+   AND (%(ocids)s::text[] IS NULL OR ocid_corto(p.ocid) = ANY (%(ocids)s::text[]))
  ORDER BY c.fecha_convocatoria DESC NULLS LAST, p.id DESC
  LIMIT %(limite)s
 """
 # La otra cola: los documentos cortos y firmados que casi siempre son un escaneo (garantías, adicionales, ampliaciones,
 # resoluciones, nulidades, informes de desierto). Se transcriben todas sus páginas sin texto.
 CORTOS = ("garantia", "adicional", "reduccion", "ampliacion_plazo", "adenda", "resolucion_contrato", "nulidad", "informe_desierto")
+# La cola «proceso»: el contrato (renglones, marca y precio unitario), el acta de buena pro y el cuadro de evaluación
+# (postores, ofertas y puntajes) cuando vienen escaneados: el 63 % de las actas firmadas lo están (2026-11-16).
+PROCESO = ("contrato", "acta_buena_pro", "cuadro_evaluacion")
 COLA_CORTOS = """
 SELECT p.id, p.sha256, p.archivo, p.pag_ini, g.url_gcs, lower(g.formato),
        jsonb_build_object('escaneadas', (SELECT jsonb_agg((e.p->>'n')::int ORDER BY (e.p->>'n')::int)
@@ -76,6 +80,7 @@ SELECT p.id, p.sha256, p.archivo, p.pag_ini, g.url_gcs, lower(g.formato),
  WHERE p.tipo_documento = ANY (%(tipos)s) AND p.paginas <= %(max_paginas)s AND p.paginas_con_texto < p.paginas
    AND g.url_gcs IS NOT NULL AND jsonb_typeof(t.paginas) = 'array'
    AND NOT EXISTS (SELECT 1 FROM pieza_lectura x WHERE x.pieza_id = p.id AND x.lector = 'transcripcion' AND x.version = %(version)s)
+   AND (%(ocids)s::text[] IS NULL OR ocid_corto(p.ocid) = ANY (%(ocids)s::text[]))
  ORDER BY p.id DESC
  LIMIT %(limite)s
 """
@@ -217,24 +222,28 @@ def main() -> None:
     ap.add_argument("--hilos", type=int, default=3)
     ap.add_argument("--modelo", default=None)
     ap.add_argument("--medir", action="store_true")
-    ap.add_argument("--cola", choices=["bases", "cortos"], default="bases",
-                    help="bases: las que esperan visión para su ficha; cortos: garantías, adicionales, resoluciones, desiertos")
+    ap.add_argument("--cola", choices=["bases", "cortos", "proceso"], default="bases",
+                    help="bases: las que esperan visión para su ficha; cortos: garantías, adicionales, resoluciones, desiertos; "
+                         "proceso: contrato, acta de buena pro y cuadro de evaluación")
+    ap.add_argument("--ocids-archivo", default=None, help="sólo los documentos de estos procesos (uno por línea)")
     a = ap.parse_args()
+    ocids = ocids_de_archivo(a.ocids_archivo)
     t0 = time.time()
     with conexion(a.entorno) as cn:
         cur = cn.cursor()
         if not a.medir:
             # Una sola corrida de esta cola a la vez (la PC y el CI leen la misma): candado de sesión en la base.
-            cur.execute("SELECT pg_try_advisory_lock(hashtext(%s))", (f"lector.transcribir:{a.cola}",))
+            cur.execute("SELECT pg_try_advisory_lock(hashtext(%s))", (f"lector.transcribir:{a.cola}:{a.ocids_archivo or ''}",))
             if not cur.fetchone()[0]:
                 sys.exit("otra corrida igual está en curso: no se hace nada")
         cur.execute(GASTADO)
         total = cur.fetchone()[0]
-        if a.cola == "cortos":
-            cur.execute(COLA_CORTOS, {"version": VERSION, "limite": 100000 if a.medir else a.limite, "tipos": list(CORTOS),
-                                      "max_paginas": 25})
+        if a.cola in ("cortos", "proceso"):
+            cur.execute(COLA_CORTOS, {"version": VERSION, "limite": 100000 if a.medir else a.limite, "ocids": ocids,
+                                      "tipos": list(CORTOS if a.cola == "cortos" else PROCESO),
+                                      "max_paginas": 25 if a.cola == "cortos" else 40})
         else:
-            cur.execute(COLA, {"version": VERSION, "limite": 100000 if a.medir else a.limite})
+            cur.execute(COLA, {"version": VERSION, "limite": 100000 if a.medir else a.limite, "ocids": ocids})
         cola = cur.fetchall()
         cn.commit()
         paginas_cola = 0

@@ -64,6 +64,13 @@ def norma(s: str | None) -> str:
 R2_URL = "https://vigia-r2-sync.vigiaperu.workers.dev/objeto"
 
 
+def ocids_de_archivo(ruta: str | None) -> list[str] | None:
+    """Los procesos de un archivo (uno por línea; vale el OCID completo o el corto). None si no hay archivo: todos."""
+    if not ruta:
+        return None
+    return [x.strip() for x in Path(ruta).read_text(encoding="utf-8").splitlines() if x.strip() and not x.startswith("#")]
+
+
 def bajar_r2(url_gcs: str) -> bytes:
     """gs://bucket/ruta → el objeto, por vigia-r2-sync (réplica en R2)."""
     import requests

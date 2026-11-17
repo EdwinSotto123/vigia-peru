@@ -25,6 +25,7 @@ RAIZ = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(RAIZ / "backend"))
 sys.path.insert(0, str(RAIZ / "infrastructure" / "aws"))
 from lector import plantillas, tipos  # noqa: E402
+from lector.base import ocids_de_archivo  # noqa: E402
 
 MIN_LETRAS = 120                       # una página con menos letras es un escaneo sin transcribir
 TOPE_TEXTO = 60_000                    # caracteres de la pieza que mira el clasificador
@@ -42,6 +43,7 @@ SELECT d.ocid, d.doc_id, d.casillero, t.sha256, d.formato,
                   FROM jsonb_array_elements(t.paginas) WITH ORDINALITY AS e(p, ord)) x) AS paginas
   FROM (SELECT g.ocid, g.sha256, min(g.id) AS doc_id, max(upper(g.titulo)) AS casillero, max(lower(g.formato)) AS formato
           FROM documentos_gcs g WHERE g.borrado_at IS NULL AND g.ocid IS NOT NULL AND g.sha256 IS NOT NULL
+           AND (%(ocids)s::text[] IS NULL OR ocid_corto(g.ocid) = ANY (%(ocids)s::text[]))
          GROUP BY g.ocid, g.sha256) d
   JOIN documentos_texto t ON t.sha256 = d.sha256
  WHERE jsonb_typeof(t.paginas) = 'array' {solo_nuevos}
@@ -205,6 +207,7 @@ def main() -> None:
     ap.add_argument("--todos", action="store_true", help="rehace también los documentos ya registrados")
     ap.add_argument("--bases", action="store_true", help="en vez de registrar piezas, lee por secciones las bases con texto")
     ap.add_argument("--limite", type=int, default=0)
+    ap.add_argument("--ocids-archivo", default=None, help="sólo los documentos de estos procesos (uno por línea)")
     a = ap.parse_args()
     if a.bases:
         leer_bases(a.entorno, a.limite)
@@ -220,7 +223,7 @@ def main() -> None:
         cn = pila.enter_context(conexion(a.entorno))
         lee = cn.cursor("piezas")              # cursor del lado del servidor: son decenas de miles de textos
         lee.itersize = 200
-        lee.execute(consulta, {"con_texto": PAGINAS_CON_TEXTO})
+        lee.execute(consulta, {"con_texto": PAGINAS_CON_TEXTO, "ocids": ocids_de_archivo(a.ocids_archivo)})
         # Se escribe por otra conexión, para confirmar por tandas sin cerrar el cursor de lectura.
         cn_escribe = None if a.medir else pila.enter_context(conexion(a.entorno))
         escribe = cn_escribe.cursor() if cn_escribe else None
