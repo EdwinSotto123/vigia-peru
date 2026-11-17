@@ -2,13 +2,13 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
-import { Ban, Briefcase, Building2, FileSearch, Handshake, ScanSearch, SearchX, TrendingUp, Users, UsersRound } from "lucide-react";
+import { Ban, Briefcase, Building2, FileSearch, FlaskConical, Handshake, ScanSearch, SearchX, TrendingUp, Users, UsersRound } from "lucide-react";
 import { Ayuda, CabeceraPestana, Nota, Pestanas } from "@/components/patrones";
 import { EVENTO_ACTIVA } from "@/components/patrones/Pestanas";
 import { CeldaBarra, CeldaNumero, CeldaPrincipal, CeldaTexto, CLASE_ENLACE_CELDA, Indicadores, Tabla, type Columna, type Fila, type Indicador } from "@/components/listado";
 import { EstadoCarga, usePoder } from "@/components/grafo/vista";
 import { InformeEnPanel } from "@/components/control/InformeEnPanel";
-import { detalleConsorcio, detalleControl, detalleDueno, detalleInhabilitada, detalleObservado, detalleRelleno, detalleRenovacion, detalleSenal } from "./DetallePatron";
+import { detalleConsorcio, detalleControl, detalleDueno, detalleInhabilitada, detalleObservacion, detalleObservado, detalleRelleno, detalleRenovacion, detalleSenal } from "./DetallePatron";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Dato } from "@/components/ui/Dato";
@@ -24,6 +24,7 @@ import {
   rutaControl,
   rutaDuenos,
   rutaInhabilitadas,
+  rutaObservacion,
   rutaObservados,
   rutaPatrones,
   rutaRenovaciones,
@@ -35,6 +36,8 @@ import {
   type PatronControl,
   type PatronDueno,
   type PatronesControl,
+  type PatronObservacion,
+  type PatronesObservacion,
   type PatronObservado,
   type PatronesObservados,
   type PatronInhabilitada,
@@ -137,6 +140,13 @@ export function PatronesVista({ activa, inicial, etiquetas }: { activa?: string;
           titulo: "El mismo servicio, más caro al renovarlo",
           icono: <TrendingUp size={15} aria-hidden />,
           contenido: <ListaRenovaciones inicial={de("renovaciones")} />,
+        },
+        {
+          clave: "observacion",
+          etiqueta: SECCIONES_PATRONES.observacion,
+          titulo: "Indicadores nuevos que todavía se están midiendo",
+          icono: <FlaskConical size={15} aria-hidden />,
+          contenido: <ListaObservacion inicial={de("observacion")} />,
         },
       ]}
     />
@@ -1469,6 +1479,153 @@ function filaRenovacion(p: PatronRenovacion, i: number): Fila {
             Contrato anterior
           </EnlaceContrato>
         </span>
+      ),
+    },
+  };
+}
+
+// ─── Indicadores en observación (migración 329) ──────────────────────────────────
+
+const COLUMNAS_OBSERVACION: Columna[] = [
+  { clave: "empresa", titulo: "Empresa y entidad", ancho: "minmax(0,1.5fr)" },
+  { clave: "indicador", titulo: "Indicador", ancho: "minmax(0,1.1fr)", desde: "md", apilar: true },
+  { clave: "evidencia", titulo: "Lo que se encontró", ancho: "minmax(0,1.3fr)", desde: "md", apilar: true },
+  { clave: "fecha", titulo: "Buena pro", ancho: "7rem", alinear: "der", desde: "lg", apilar: "con-rotulo" },
+  { clave: "contrato", titulo: "Contrato", ancho: "6.5rem", desde: "lg", apilar: "con-rotulo" },
+];
+
+/** El nombre corto de cada indicador, para el filtro y la celda. */
+const NOMBRE_OBSERVACION: Record<PatronObservacion["tipo"], string> = {
+  reunion_en_evaluacion: "Reunión con quien decide, durante la evaluación",
+  visita_personal_decisor: "Visitas «personales» repetidas a quien decide",
+  ofertas_a_la_vez: "Ofertas casi a la vez, con un socio común",
+};
+
+/** «0,3 %», «menos del 0,1 %»: una proporción chica sin perder el orden de magnitud. */
+function proporcionChica(casos: number, universo: number): string {
+  const p = (100 * casos) / universo;
+  if (p < 0.1) return "menos del 0,1 %";
+  return `${p < 10 ? decimal(p, 1) : String(Math.round(p))} %`;
+}
+
+function ListaObservacion({ inicial }: { inicial: InicialPatrones }) {
+  const lista = useListaEnUrl("observacion", inicial);
+  const tipo = lista.regla && lista.regla in NOMBRE_OBSERVACION ? lista.regla : undefined;
+  const carga = usePoder<PatronesObservacion>(rutaObservacion(lista.page, tipo));
+  return (
+    <div className="space-y-4">
+      <CabeceraPestana
+        ayuda={
+          <Ayuda titulo="¿Qué es un indicador en observación?">
+            <span className="block">
+              Un cruce nuevo que Vigía todavía está <b>midiendo</b>. Se muestra con su evidencia para que lo revises, pero no
+              cuenta para el riesgo del contrato hasta saber, con una muestra revisada, cuántas veces acierta.
+            </span>
+            <span className="mt-1.5 block">
+              Hoy son tres: una reunión de la empresa con quien decide las compras mientras se evaluaban las ofertas, visitas
+              declaradas «personales» y repetidas a quien decide, y dos rivales con un socio común que registran sus ofertas
+              casi a la vez.
+            </span>
+            <span className="mt-1.5 block">De quien recibió una visita se muestra sólo el cargo. Es un motivo para mirar, no una acusación.</span>
+          </Ayuda>
+        }
+      >
+        Cruces nuevos, contrato por contrato, que todavía no cuentan para el riesgo: están aquí para revisarlos.
+      </CabeceraPestana>
+      <EstadoCarga carga={carga} columnas={COLUMNAS_OBSERVACION}>
+        {(d) => {
+          const filas = d.data ?? [];
+          const porTipo = d.porTipo ?? [];
+          const todos = porTipo.reduce((s, o) => s + o.n, 0);
+          return (
+            <div className="space-y-4">
+              <Indicadores
+                franja
+                items={porTipo.map((o) => ({
+                  valor: numero(o.n),
+                  etiqueta: NOMBRE_OBSERVACION[o.tipo as PatronObservacion["tipo"]] ?? o.etiqueta,
+                  contexto: o.tasaBase && o.tasaBase.universo > 0 ? `${proporcionChica(o.tasaBase.casos, o.tasaBase.universo)} de los ${o.tasaBase.que}` : "contratos con este indicador",
+                  icono: <FlaskConical size={15} strokeWidth={1.9} aria-hidden />,
+                  parte: null,
+                } satisfies Indicador))}
+              />
+              <ZonaLista
+                total={d.total}
+                page={lista.page}
+                cargando={carga.cargando}
+                nombre="contratos"
+                onPagina={lista.irAPagina}
+                vacio={tipo ? "Ningún contrato con este indicador." : "Todavía no hay contratos con indicadores en observación."}
+                filtro={
+                  porTipo.length > 1 || tipo ? (
+                    <label className="min-w-0 sm:w-96">
+                      <span className="sr-only">Filtrar por indicador</span>
+                      <select className={CAMPO} value={tipo ?? ""} onChange={(e) => lista.elegirRegla(e.target.value)}>
+                        <option value="">{todos > 0 ? `Los tres indicadores (${numero(todos)})` : "Los tres indicadores"}</option>
+                        {porTipo.map((o) => (
+                          <option key={o.tipo} value={o.tipo}>{`${NOMBRE_OBSERVACION[o.tipo as PatronObservacion["tipo"]] ?? o.etiqueta} (${numero(o.n)})`}</option>
+                        ))}
+                      </select>
+                    </label>
+                  ) : undefined
+                }
+              >
+                {filas.length > 0 ? <Tabla columnas={COLUMNAS_OBSERVACION} filas={filas.map(filaObservacion)} etiqueta="Contratos con un indicador en observación" /> : null}
+              </ZonaLista>
+              <Nota>
+                Cada uno tiene una explicación sencilla posible: una subsanación, un familiar, el mismo estudio contable. Antes de
+                afirmar algo, abre el contrato y lee su evidencia en «Antecedentes».
+              </Nota>
+            </div>
+          );
+        }}
+      </EstadoCarga>
+    </div>
+  );
+}
+
+/** Lo que se encontró, en una línea: sin nombres de personas (de quien recibió, sólo el cargo). */
+function evidenciaObservacion(p: PatronObservacion): string {
+  const quien = p.cargo ? p.cargo.toLowerCase() : "quien decide las compras";
+  if (p.tipo === "reunion_en_evaluacion") {
+    return `${plural(p.visitas ?? 1, "visita", "visitas")} a ${quien} después de presentar su oferta${p.yaProveedor ? "; ya le vendía a la entidad" : "; no le había vendido antes"}`;
+  }
+  if (p.tipo === "visita_personal_decisor") {
+    return `${plural(p.dias ?? 3, "día distinto", "días distintos")}${p.meses != null && p.meses > 1 ? ` de ${plural(p.meses, "mes", "meses")}` : ""} de visita personal a ${quien}`;
+  }
+  const min = p.minutos == null ? "pocos minutos" : p.minutos < 1 ? "menos de un minuto" : plural(Math.round(p.minutos), "minuto", "minutos");
+  return `Sus ofertas se registraron con ${min} de diferencia${p.horaGanador && p.horaOtro ? ` (${p.horaGanador} y ${p.horaOtro})` : ""}`;
+}
+
+function filaObservacion(p: PatronObservacion, i: number): Fila {
+  return {
+    // Nunca el RUC en el DOM como id.
+    id: `observacion-${i}`,
+    detalle: detalleObservacion(p),
+    enlaces: true,
+    textos: { fecha: p.buenaPro ? undefined : null },
+    celdas: {
+      empresa: (
+        <CeldaPrincipal
+          titulo={<EnlaceEmpresa ruc={p.ruc} nombre={p.empresa} />}
+          meta={[
+            <Dato key="e" tipo="entidad">
+              {p.entidadRuc ? <EnlaceEntidad ruc={p.entidadRuc} nombre={p.entidad} /> : tituloNatural(p.entidad ?? "Entidad sin nombre")}
+            </Dato>,
+          ]}
+        />
+      ),
+      indicador: <CeldaTexto>{NOMBRE_OBSERVACION[p.tipo] ?? p.etiqueta}</CeldaTexto>,
+      evidencia: (
+        <CeldaTexto sub={p.tipo === "ofertas_a_la_vez" && p.otro ? <>Con {p.otroRuc ? <EnlaceEmpresa ruc={p.otroRuc} nombre={p.otro} /> : tituloNatural(p.otro)}</> : undefined}>
+          {evidenciaObservacion(p)}
+        </CeldaTexto>
+      ),
+      fecha: <span className="block text-right tabular-nums text-inkSoft">{p.buenaPro ? fechaConAnio(p.buenaPro) : SIN_DATO}</span>,
+      contrato: (
+        <Link href={`/app/contratos/${encodeURIComponent(p.ocid)}`} prefetch={false} title={`Abrir el contrato ${p.ocid}`} className={CLASE_ENLACE_CELDA}>
+          {p.codigo ?? codigoDeOcid(p.ocid)}
+        </Link>
       ),
     },
   };

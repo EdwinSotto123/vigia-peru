@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { ArrowUpRight } from "lucide-react";
 import { BloqueDetalle, DatosClave } from "@/components/patrones/Detalle";
-import { TIPO_CRUCE } from "@/lib/cruces";
+import { TIPO_CRUCE, esPatronVisita } from "@/lib/cruces";
 import type { AntecedenteEmpresa } from "@/lib/empresas";
 import { fechaConAnio, numero } from "@/lib/formato";
 import { txtONumero } from "@/lib/utils";
@@ -87,7 +87,7 @@ export function DetalleDelAntecedente({ a, sinQuien = false }: { a: AntecedenteE
   const ruc = a.rucProveedor ?? "";
   // `sinQuien`: el panel ya dice quién en su recuadro (DetalleHecho); la persona y su papel no van dos veces.
   const datos = datosDe(a, ruc).filter((x) => !sinQuien || !["Quién", "Quién fue", "Quién lo declaró", "Su papel en la empresa"].includes(x.etiqueta));
-  const patron = a.tipo !== "visita_previa" && a.tipo.startsWith("visita_") && a.visitas.length > 0;
+  const patron = esPatronVisita(a.tipo) && a.visitas.length > 0;
   const explica = TIPO_CRUCE[a.tipo]?.explica;
   return (
     <>

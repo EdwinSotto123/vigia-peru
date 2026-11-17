@@ -465,13 +465,16 @@ export const estadoFuentes = definir({
   titulo: "Estado de las fuentes",
   descripcion:
     "Hasta qué fecha llegan los datos de cada fuente de Vigía (SEACE, CONOSCE, MEF, SUNAT, Contraloría, visitas, planillas…), " +
-    "cuándo se cargaron por última vez y si están al día. Úsala para fechar una conclusión o explicar por qué falta algo reciente.",
+    "cuándo se cargaron por última vez y si están al día; y de las que están rotas, detenidas o son una foto, por qué. " +
+    "Úsala para fechar una conclusión o explicar por qué falta algo reciente.",
   entrada: {},
   async ejecutar(_a, cx) {
     const r = await api<Fila>(cx.env, "/estado/datos");
     return {
       fuentes: (r.fuentes ?? []).map((f: Fila) => ({
         clave: f.clave, nombre: f.nombre, que: f.que, cadencia: f.cadencia, datos_hasta: f.hasta, ultima_carga: f.ultimaCarga, estado: f.estado,
+        // Lo que el estado solo no dice (rota, parada, sin_novedad, foto), con su porqué y el registro oficial.
+        situacion: f.situacion ?? undefined, nota: f.nota ?? undefined, fuente_oficial: f.enlace ?? undefined,
       })),
       estados: {
         al_dia: "cargó dentro de su cadencia",
@@ -479,6 +482,12 @@ export const estadoFuentes = definir({
         error: "la última carga falló",
         fuente_vieja: "carga, pero la fuente dejó de publicar hace más de tres meses",
         manual: "se carga a mano",
+      },
+      situaciones: {
+        rota: "el sitio oficial no responde: no hay de dónde traerla",
+        parada: "Vigía detuvo su captura por ahora",
+        sin_novedad: "la carga corre, pero la fuente no publica archivos nuevos",
+        foto: "se cargó una vez y no se actualiza sola",
       },
       generado: r.generado,
     };

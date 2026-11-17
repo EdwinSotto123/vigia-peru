@@ -27,7 +27,7 @@ import { recortar } from "@/components/contratos/recortar";
 import { Dato } from "@/components/ui/Dato";
 import { EnlaceAccion } from "@/components/ui/EnlaceAccion";
 import { Severidad } from "@/components/ui/Severidad";
-import { TIPO_CRUCE } from "@/lib/cruces";
+import { TIPO_CRUCE, esPatronVisita } from "@/lib/cruces";
 import { listaY, numero, plural, soles } from "@/lib/formato";
 import {
   CLARIDAD_ONPE,
@@ -628,7 +628,7 @@ function detalleCaso(f: FilaCasos, ruc: string, explica?: string): Omit<DetalleF
   const datos = varios ? f.datos.filter((x) => !DEL_PROCESO.has(x.etiqueta)) : f.datos;
   const entidad = a.entidad ? tituloNatural(a.entidad) : null;
   const gente = aSuGente(a, ruc);
-  const patronVisitas = a.tipo !== "visita_previa" && a.tipo.startsWith("visita_") && a.visitas.length > 0;
+  const patronVisitas = esPatronVisita(a.tipo) && a.visitas.length > 0;
   return {
     titulo: a.etiqueta,
     descripcion: entidad ?? (a.ocid ? undefined : "De la empresa, no de un proceso"),

@@ -167,7 +167,7 @@ export const TEMAS: Record<string, Tema> = {
     efecto: "La vinculación entre postores constituiría un indicio de una competencia aparente, que podría afectar la determinación del precio y la selección del contratista.",
     recomendacion: "Requerir las ofertas presentadas y la documentación societaria de los postores, y evaluar la comunicación al INDECOPI si se confirma una posible concertación.",
     miembros: [
-      "socio_comun", "domicilio_compartido", "postores_vinculados_rnp", "ofertas_agrupadas", "postor_de_relleno", "turno_postores", "consorcio_rival",
+      "socio_comun", "domicilio_compartido", "postores_vinculados_rnp", "ofertas_agrupadas", "postor_de_relleno", "turno_postores", "consorcio_rival", "ofertas_a_la_vez",
       "postores_coordinados_mismo_titular", "lazos_entre_postores_mismo_titular", "lazo_entre_postores_mismo_titular", "colusion_lazos_entre_postores",
       "postor_simultaneo_integrante_ganador",
     ],
@@ -274,7 +274,8 @@ export const TEMAS: Record<string, Tema> = {
     control: "reuniones o visitas de proveedores con funcionarios de la entidad antes de la convocatoria o del otorgamiento de la buena pro",
     efecto: "Las visitas registradas durante el procedimiento constituirían un indicio de riesgo para la imparcialidad y la igualdad de trato entre postores.",
     recomendacion: "Requerir el registro de visitas de las fechas señaladas y verificar qué servidores recibieron al contratista y si intervinieron en el procedimiento.",
-    miembros: ["visita_previa", "visita_repetida", "visita_fuera_horario", "visita_antes_convocatoria", "lobby_visits_pre_convocatoria"],
+    miembros: ["visita_previa", "visita_repetida", "visita_fuera_horario", "visita_antes_convocatoria", "lobby_visits_pre_convocatoria",
+      "reunion_en_evaluacion", "visita_personal_decisor"],
   },
   politico: {
     titulo: "Vínculos del contratista con organizaciones políticas",
@@ -759,7 +760,8 @@ export function senalesDelContrato(ficha: Fila, banderas: FilaBandera[]): SenalI
   }
 
   for (const c of (ficha.cruces ?? []) as Fila[]) {
-    if (!c || c.posterior === true || NO_SON_SENALES.has(String(c.tipo))) continue;
+    // Un indicador en observación (migración 329) todavía no tiene medida su precisión: no va a un informe para control.
+    if (!c || c.posterior === true || c.observacion === true || NO_SON_SENALES.has(String(c.tipo))) continue;
     const tipo = String(c.tipo);
     const e = empresaDe(c.proveedor, c.rucProveedor);
     const datos = (datosPublicables(c.detalle ?? {}) as Record<string, unknown> | undefined) ?? {};

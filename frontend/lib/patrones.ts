@@ -20,6 +20,7 @@ export const SECCIONES_PATRONES = {
   control: "Socio en informe de control",
   observados: "Observados por la Contraloría",
   renovaciones: "Renovaciones más caras",
+  observacion: "En observación",
 } as const;
 export type SeccionPatrones = keyof typeof SECCIONES_PATRONES;
 
@@ -283,6 +284,51 @@ export interface PatronesRenovaciones {
 
 // ─── Rutas de la API ─────────────────────────────────────────────────────────────
 
+/**
+ * Un contrato con un indicador en observación (migración 329): se muestra con su evidencia y no cuenta para el riesgo
+ * hasta medir su precisión. De quien recibió una visita llega sólo el cargo y el área; quien visitó está en la ficha.
+ */
+export interface PatronObservacion {
+  tipo: "reunion_en_evaluacion" | "visita_personal_decisor" | "ofertas_a_la_vez";
+  etiqueta: string;
+  severidad: "alta" | "media" | "baja";
+  ocid: string;
+  codigo: string | null;
+  objeto: string | null;
+  ruc: string;
+  empresa: string | null;
+  entidadRuc: string | null;
+  entidad: string | null;
+  /** La última visita, o el día de las ofertas. */
+  fecha: string | null;
+  buenaPro: string | null;
+  /** Reunión en la evaluación: el día de su oferta y cuántos días duró la evaluación. */
+  oferta: string | null;
+  diasEvaluacion: number | null;
+  visitas: number | null;
+  /** Visitas personales: en cuántos días y meses distintos. */
+  dias: number | null;
+  meses: number | null;
+  /** Reunión en la evaluación: si la empresa ya le vendía a la entidad. */
+  yaProveedor: boolean | null;
+  cargo: string | null;
+  area: string | null;
+  /** Ofertas casi a la vez: los minutos entre las dos, sus horas y el otro postor. */
+  minutos: number | null;
+  horaGanador: string | null;
+  horaOtro: string | null;
+  otroRuc: string | null;
+  otro: string | null;
+}
+
+export interface PatronesObservacion {
+  total: number;
+  page: number;
+  size: number;
+  porTipo: { tipo: string; n: number; etiqueta: string; tasaBase: { casos: number; universo: number; que: string } | null }[];
+  data: PatronObservacion[];
+}
+
 const consulta = (p: Record<string, string | number | undefined>) => {
   const q = new URLSearchParams();
   for (const [k, v] of Object.entries(p)) if (v !== undefined && v !== "") q.set(k, String(v));
@@ -302,6 +348,8 @@ export const rutaControl = (page = 1, ruc?: string, graves = false, misma = fals
 export const rutaObservados = (page = 1, ruc?: string, graves = false, siguio = false) =>
   `/patrones/observados?${consulta({ page, size: TAM_PATRONES, ruc, graves: graves ? 1 : undefined, siguio: siguio ? 1 : undefined })}`;
 export const rutaRenovaciones = (page = 1) => `/patrones/renovaciones?${consulta({ page, size: TAM_PATRONES })}`;
+export const rutaObservacion = (page = 1, tipo?: string, ruc?: string) =>
+  `/patrones/observacion?${consulta({ page, size: TAM_PATRONES, tipo, ruc })}`;
 
 // ─── Lecturas (servidor) ─────────────────────────────────────────────────────────
 

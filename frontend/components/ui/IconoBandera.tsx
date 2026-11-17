@@ -3,7 +3,7 @@ import {
   Anchor, ArrowRightLeft, Ban, Banknote, Briefcase, CalendarPlus, CalendarRange, ChartPie, CircleMinus, CirclePause, CirclePlus,
   ClockAlert, Coins, Construction, Copy, DoorOpen, FileSearch, FileX, Flag, Footprints, Gauge, Gavel, GitFork, Handshake,
   HeartHandshake, IdCard, Landmark, Magnet, MapPinHouse, MapPinOff, Megaphone, Repeat, Replace, Ruler, Scissors, Split, Sprout,
-  Swords, TrendingUp, UserRound, UsersRound, Vote, Wallet,
+  Swords, Timer, TrendingUp, UserRound, UsersRound, Vote, Wallet,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -25,6 +25,8 @@ const POR_TIPO: Record<string, LucideIcon> = {
   interes_declarado: Handshake, empleo_declarado: DoorOpen,
   domicilio_compartido: MapPinHouse, turno_postores: Repeat, consorcio_rival: Repeat, postor_de_relleno: UserRound, puerta_giratoria: DoorOpen, renovacion_mas_cara: TrendingUp, retencion_sobre_tope: Wallet, mismo_dueno: UsersRound, socio_de_inhabilitada: Ban, socio_con_informe_control: FileSearch, observado_por_contraloria: FileSearch, gano_tras_observacion: FileSearch, contrato_sobre_adjudicado: TrendingUp, pariente_funcionario: HeartHandshake,
   visita_previa: Footprints, visitas_clientes: Footprints,
+  // En observación (migración 329)
+  reunion_en_evaluacion: Footprints, visita_personal_decisor: Footprints, ofertas_a_la_vez: Timer,
   // Historial
   inhabilitado: Ban, penal: Gavel, sancion_multa: Gavel, inversion_laudo: Gavel, penalidad: CircleMinus,
   // Patrón

@@ -182,7 +182,7 @@ tarea:piezas:
   timeout: 3h
   script:
     - pip install --quiet pymupdf
-    - python -X utf8 backend/lector/texto.py prod --max-mb 25 --limite 4000 || echo "texto: cortado; la siguiente corrida retoma"
+    - python -X utf8 backend/lector/texto.py prod --max-mb 25 --limite 4000 || echo "texto cortado; la siguiente corrida retoma"
     - python -X utf8 backend/lector/piezas.py prod
     - python -X utf8 backend/lector/piezas.py prod --bases
     - python -X utf8 backend/lector/transcribir.py prod --cola cortos --limite 400 --tope-usd 1 || true

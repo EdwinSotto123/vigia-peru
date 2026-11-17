@@ -4,6 +4,10 @@
  * (raíz del repo). Una fuente nueva del Worker (backend/scrapers-worker/src/workflow.ts) o un cargador nuevo de PC va
  * acá también; si no, el panel la muestra igual, pero como «sin catálogo».
  *
+ * Lo que ve el público (GET /estado/datos: la página /fuentes y estado_fuentes del MCP) es otra lista, la de
+ * routes/estado.ts: junta estas claves en filas con nombre para la gente y dice hasta qué fecha llegan sus datos. Cada
+ * clave de acá va en una fila de allá o en su lista de internas (test/estadoFuentes.test.ts lo exige).
+ *
  * Dos bitácoras, y el estado sale de las dos:
  *   corridas_fuente (migración 74)  cada corrida del Worker vigia-scrapers con su estado: si corrió y si falló.
  *   datasets_cargas (migración 23)  cada archivo nuevo cargado (por sha256): cuándo llegó un dato nuevo. Los cargadores
@@ -14,6 +18,23 @@ import type pg from "pg";
 
 /** Por dónde sale el pedido: lo que hay que mirar si una fuente deja de llegar. */
 export type Donde = "cloudflare" | "zurich" | "lima" | "navegador" | "pc" | "ci";
+
+/**
+ * Lo que las bitácoras no pueden decir de una fuente: se declara a mano y se quita cuando deja de ser cierto.
+ *   rota         el registro oficial no responde: no hay de dónde cargar
+ *   parada       la captura está detenida a propósito
+ *   sin_novedad  la carga corre bien, pero el portal no publica un archivo nuevo
+ *   foto         se cargó una vez y no tiene refresco
+ */
+export type TipoSituacion = "rota" | "parada" | "sin_novedad" | "foto";
+
+export interface Situacion {
+  tipo: TipoSituacion;
+  /** La explicación para el público (sale en /fuentes y en el MCP): de tú, sin nombres de personas. */
+  nota: string;
+}
+
+const SIN_ARCHIVO_NUEVO = "La carga corre bien, pero el portal de datos abiertos no trae un archivo nuevo desde el 16 de setiembre de 2026.";
 
 export interface FuenteCatalogo {
   fuente: string;
@@ -27,6 +48,8 @@ export interface FuenteCatalogo {
   cadaDias: number | null;
   /** Corridas que lanza al terminar (quedan en corridas_fuente con su propia clave). */
   lanza?: string[];
+  /** Rota, parada, sin archivo nuevo o foto sin refresco: lo que el estado calculado no alcanza a decir. */
+  situacion?: Situacion;
 }
 
 export const CATALOGO: FuenteCatalogo[] = [
@@ -36,7 +59,9 @@ export const CATALOGO: FuenteCatalogo[] = [
   { fuente: "documentos", nombre: "Documentos de los contratos financiados", donde: "zurich", agenda: "Cada hora, minuto 40", cadaDias: 1,
     que: "Bases, actas y contratos de lo que se financió, a R2 (reemplaza a vigia-batch)." },
   { fuente: "seace_menores", nombre: "Compras menores (hasta 8 UIT)", donde: "zurich", agenda: "Lunes, 05:00", cadaDias: 7,
-    que: "Contratos menores del SEACE nuevo y el PDF de su requerimiento (prod6 sólo pasa por Zúrich)." },
+    que: "Contratos menores del SEACE nuevo y el PDF de su requerimiento (prod6 sólo pasa por Zúrich). El detalle (área usuaria, invitación, ítems) lo completa la tarea menores-detalle de GitLab CI." },
+  { fuente: "seace_cotizaciones", nombre: "Compras menores abiertas (para cotizar)", donde: "zurich", agenda: "Cada hora, minuto 40", cadaDias: 1,
+    que: "Lo que un proveedor todavía puede cotizar (hasta 8 UIT, prod6): alta de las nuevas con sus ítems y su requerimiento, y cierre de las que dejan de estar vigentes." },
   { fuente: "pnda_sancionados", nombre: "Proveedores sancionados (Tribunal)", donde: "cloudflare", agenda: "Domingos, 08:00", cadaDias: 7,
     que: "Inhabilitaciones y multas del Tribunal de Contrataciones: bandera crítica al ganador sancionado." },
   { fuente: "osce_penalidades", nombre: "Penalidades de contratistas (OSCE)", donde: "cloudflare", agenda: "Domingos, 08:00", cadaDias: 7,
@@ -57,11 +82,14 @@ export const CATALOGO: FuenteCatalogo[] = [
   { fuente: "conosce", nombre: "Adjudicaciones, postores y contratos (CONOSCE)", donde: "cloudflare", agenda: "Sábados, 08:00", cadaDias: 7,
     que: "Reportes del SEACE del año actual y el anterior, consorcios y procesos por partido; después, los cruces." },
   { fuente: "pnda_visitas", nombre: "Visitas a entidades (datos abiertos)", donde: "cloudflare", agenda: "Días 1 y 15, 08:00", cadaDias: 17,
-    que: "Registro de visitas publicado en la PNDA (hoy sólo el Gobierno Regional de Loreto)." },
+    que: "Registro de visitas publicado en la PNDA (hoy sólo el Gobierno Regional de Loreto).",
+    situacion: { tipo: "sin_novedad", nota: `${SIN_ARCHIVO_NUEVO} Sólo lo publicaba el Gobierno Regional de Loreto.` } },
   { fuente: "pnda_dji", nombre: "Declaraciones de intereses: cargos y empleos (PNDA)", donde: "cloudflare", agenda: "Día 5, 08:00", cadaDias: 33,
-    que: "Reportes 1 y 3 de la DJI: cargo, entidad y empleos previos (puerta giratoria). Los familiares salen de la DJIC." },
+    que: "Reportes 1 y 3 de la DJI: cargo, entidad y empleos previos (puerta giratoria). Los familiares salen de la DJIC.",
+    situacion: { tipo: "sin_novedad", nota: SIN_ARCHIVO_NUEVO } },
   { fuente: "jne_infogob", nombre: "Autoridades electas y vigentes (JNE)", donde: "cloudflare", agenda: "Día 5, 08:00", cadaDias: 33,
-    que: "Alcaldes, gobernadores y su organización política." },
+    que: "Alcaldes, gobernadores y su organización política.",
+    situacion: { tipo: "sin_novedad", nota: SIN_ARCHIVO_NUEVO } },
   { fuente: "pnda_oece", nombre: "Datasets del OECE en la PNDA", donde: "cloudflare", agenda: "Día 1, 08:00", cadaDias: 33,
     que: "Ofertantes, consorcios, SICAN, pronunciamientos y cuadernos de obra: sólo crudos en R2 (carga manual)." },
   { fuente: "pte_personal", nombre: "Planilla del Estado (Portal de Transparencia)", donde: "cloudflare", agenda: "Día 20, 08:00", cadaDias: 33,
@@ -71,8 +99,11 @@ export const CATALOGO: FuenteCatalogo[] = [
   // ── Desde una PC en el Perú: la fuente bloquea la nube o pide captcha ──────────────────────────────────────────
   { fuente: "contraloria_informes", nombre: "Informes de control (Contraloría)", donde: "lima", agenda: "Día 10, 08:00", cadaDias: 33,
     que: "Informes con responsabilidad presunta. Sólo responde a IP peruana: sale por el relay de Lima (backend/relay-lima)." },
+  { fuente: "contraloria_fichas", nombre: "Fichas resumen de los informes de control (Contraloría)", donde: "pc", agenda: "Mensual, a mano, después del día 10", cadaDias: null,
+    que: "La ficha resumen de cada informe (PDF de texto): objetivo, montos y observaciones, leídas y atadas al contrato que nombran. backend/scripts/actualizar_contraloria.sh; no anota en datasets_cargas (su fecha es informe_control_ficha.descargado_at)." },
   { fuente: "ppedc_boletin", nombre: "Casos de la Procuraduría Anticorrupción", donde: "pc", agenda: "Mensual, a mano (cuando sale el boletín)", cadaDias: 45,
-    que: "Casos por sede del boletín mensual (PDF): backend/scripts/cargar_ppedc_boletin.py." },
+    que: "Casos por sede del boletín mensual (PDF): backend/scripts/cargar_ppedc_boletin.py.",
+    situacion: { tipo: "rota", nota: "El sitio de la Procuraduría Anticorrupción no responde desde el 30 de octubre de 2026, así que no hay de dónde bajar su boletín mensual. Ves lo del último boletín que se cargó." } },
   { fuente: "salud_lima", nombre: "Salida peruana (tu PC)", donde: "lima", agenda: "Diario, 12:40", cadaDias: 2,
     que: "Prueba diaria de la salida con IP del Perú (backend/scrapers-pc/salida_peru): que responda y llegue a la Contraloría, INFOBRAS y SERVIR." },
   { fuente: "infobras", nombre: "Obras públicas (INFOBRAS)", donde: "lima", agenda: "Jueves, 08:00", cadaDias: 8,
@@ -93,9 +124,18 @@ export const CATALOGO: FuenteCatalogo[] = [
     que: "Une el RUC de cada entidad con su código del MEF (registro de la OECE); después refrescar_mef_presupuesto()." },
   { fuente: "portal_visitas_manual", nombre: "Visitas: exportación manual del portal (legado)", donde: "pc", agenda: "Legado (mayo de 2026)", cadaDias: null,
     que: "La exportación de ~345 entidades de mayo de 2026; la reemplaza la plataforma nacional." },
+  { fuente: "perucompras", nombre: "Catálogos electrónicos (Perú Compras)", donde: "pc", agenda: "A mano, sin fecha fija", cadaDias: null,
+    que: "Órdenes de los catálogos con sus ítems, precio unitario y fichas-producto (reporte detallado público) y el índice mensual de la PNDA: backend/scripts/cargar_perucompras.py y cargar_perucompras_dab.py." },
+  { fuente: "rnp_conformacion_juridica", nombre: "Socios y representantes de proveedores (RNP)", donde: "pc", agenda: "Sin refresco (carga única)", cadaDias: null,
+    que: "Conformación jurídica del RNP: socios, representantes y órganos de administración de cada proveedor. La normaliza backend/scripts/rnp_normalize.py; no anota en datasets_cargas (su fecha es fecha_corte).",
+    situacion: { tipo: "foto", nota: "Es una foto: se cargó una vez y no se actualiza sola. Un socio o representante que cambió después de esa fecha no aparece." } },
+  { fuente: "jne_candidaturas", nombre: "Candidaturas (JNE)", donde: "pc", agenda: "Sin refresco (carga única)", cadaDias: null,
+    que: "Candidatos y electos de cada elección, de los archivos del JNE: backend/scripts/load_jne_candidaturas.py. Infogob pide captcha: no se actualiza sola, ni anota en datasets_cargas.",
+    situacion: { tipo: "foto", nota: "Es una foto: se cargó una vez y no se actualiza sola. Las candidaturas inscritas después de esa fecha no aparecen." } },
   // ── GitLab CI + PC ──────────────────────────────────────────────────────────────────────────────────────────
-  { fuente: "dji_familiares", nombre: "Declaraciones de intereses: familiares (DJIC)", donde: "ci", agenda: "Rondas hasta vaciar los pendientes", cadaDias: null,
-    que: "PDFs del portal DJIC en GitLab CI (10 IP), procesados en la PC: familiares e intereses. Su bitácora es dji_descargas." },
+  { fuente: "dji_familiares", nombre: "Declaraciones de intereses: familiares (DJIC)", donde: "ci", agenda: "Rondas hasta vaciar los pendientes (parada desde el 29-oct-2026)", cadaDias: null,
+    que: "PDFs del portal DJIC en GitLab CI (10 IP), procesados en la PC: familiares e intereses. Su bitácora es dji_descargas.",
+    situacion: { tipo: "parada", nota: "La captura de estas declaraciones está detenida desde el 29 de octubre de 2026. Lo que ya se leyó se sigue mostrando; falta una parte de los declarantes." } },
 ];
 
 const HIJAS = new Set(CATALOGO.flatMap((f) => f.lanza ?? []));

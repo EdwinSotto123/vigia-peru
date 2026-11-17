@@ -3,6 +3,7 @@ import { pool } from "../lib/db.js";
 import { Memo } from "../lib/cache.js";
 import { cachePublico } from "../lib/http.js";
 import { publicar } from "../lib/privacidad.js";
+import { motivoPublicable } from "../lib/cruces.js";
 import { esElectoSql, marcaElecto } from "../lib/electos.js";
 import { datasetVisitas, VISITAS_CONGRESO, VISITAS_EN_LINEA } from "../lib/fuentes.js";
 
@@ -230,6 +231,8 @@ visitasRouter.get("/entidad/:ruc", async (c) => {
       // familiar de un funcionario va sin nombre.
       visitas: lista.rows.map(({ id, ruc: rucEmpresa, electo, ...v }) => ({
         ...v,
+        // El motivo en texto libre puede nombrar a otras personas: sale la categoría del registro o su clase.
+        motivo: motivoPublicable(v.motivo),
         visitante: v.pariente ? null : v.visitante,
         ...marcaElecto(electo === true && !v.pariente),
         empresa: rucEmpresa && /^20\d{9}$/.test(rucEmpresa) ? { ruc: rucEmpresa, nombre: nombres.get(rucEmpresa) ?? null } : null,

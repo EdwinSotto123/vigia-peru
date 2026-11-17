@@ -137,6 +137,35 @@ export const GRUPOS_CRUCE: { titulo: string; tipos: { tipo: string; corto: strin
   },
 ];
 
+/**
+ * Indicadores EN OBSERVACIÓN (migración 329): se muestran en la ficha con su evidencia y no cuentan para el riesgo del
+ * contrato hasta que se mida su precisión con una muestra revisada. Van fuera de GRUPOS_CRUCE: la lista de contratos no
+ * puede filtrar por ellos (no entran a los contratos con antecedentes); la de empresas sí los ofrece.
+ */
+export const GRUPO_EN_OBSERVACION: (typeof GRUPOS_CRUCE)[number] = {
+  titulo: "En observación",
+  tipos: [
+    { tipo: "reunion_en_evaluacion", chip: "Reunión en la evaluación", corto: "Se reunió con quien decide mientras se evaluaban las ofertas", explica: "Un socio o representante del ganador se reunió con un funcionario que decide las compras de la entidad después de presentar su oferta y antes de la buena pro (registro de visitas). Sólo cuentan los motivos de trato directo que la propia visita declara: reunión, visita personal o gestión de intereses; un mantenimiento o una entrega no. Pesa más si la empresa no le vendía antes a la entidad; si ya era proveedora, la visita puede ser por lo que ya tenía contratado. También puede ser una subsanación o el trámite de otro contrato: vale ver si quien la recibió integró el comité de selección. Del funcionario sólo se muestra el cargo. Indicador en observación: no cuenta para el riesgo del contrato hasta medir cuántas veces acierta." },
+    { tipo: "visita_personal_decisor", chip: "Visitas personales a quien decide", corto: "Visitas «personales» repetidas a quien decide las compras", explica: "La misma persona del ganador (socio, representante o directivo) visitó al mismo funcionario que decide las compras de la entidad, declarando «visita personal», en 3 o más días de 2 o más meses distintos, en el año anterior a la buena pro (registro de visitas). Una relación personal entre quien vende y quien decide es un posible conflicto de intereses. Puede ser un familiar, un excompañero o un motivo mal llenado: no prueba nada por sí solo. Del funcionario sólo se muestra el cargo. Indicador en observación: no cuenta para el riesgo del contrato hasta medir cuántas veces acierta." },
+    { tipo: "ofertas_a_la_vez", chip: "Ofertas casi a la vez", corto: "Presentó su oferta casi a la vez que un rival vinculado", explica: "El ganador y otro postor del mismo ítem comparten un socio, representante o directivo (Registro Nacional de Proveedores) y registraron sus ofertas en el SEACE con 30 minutos o menos de diferencia (reporte de presentación de ofertas). Entre postores que ofertan tan seguido, compartir a una persona es varias veces más frecuente que entre los que ofertan con horas de diferencia: sugiere que las dos ofertas las preparó la misma mano. También puede ser el mismo estudio que tramita para varios clientes: vale comparar los precios y los documentos de las dos ofertas. Indicador en observación: no cuenta para el riesgo del contrato hasta medir cuántas veces acierta." },
+  ],
+};
+
+/** ¿Es un indicador en observación? (por su tipo; la ficha del contrato lo trae además en `observacion`). */
+export const esEnObservacion = (tipo: string) => GRUPO_EN_OBSERVACION.tipos.some((t) => t.tipo === tipo);
+
+/** Los patrones de visitas: sus visitas van una por una (fecha, hora, cargo de quien recibió). */
+export const esPatronVisita = (tipo: string) =>
+  (tipo !== "visita_previa" && tipo.startsWith("visita_")) || tipo === "reunion_en_evaluacion";
+
+/** La etapa del procedimiento en que cayó una visita (migración 329), en palabras. */
+export const ETAPA_VISITA: Record<string, string> = {
+  antes_de_convocar: "antes de que se convocara el proceso",
+  convocatoria: "entre la convocatoria y la presentación de su oferta",
+  evaluacion: "después de presentar su oferta, mientras se evaluaba",
+  dia_buena_pro: "el mismo día de la buena pro",
+};
+
 /** ¿Es una bandera leída de un documento con Claude (acta, bases o consultas)? */
 export const esTipoLeido = (tipo: string) => tipo.startsWith("acta_") || tipo.startsWith("consultas_") || tipo.startsWith("bases_");
 
@@ -144,7 +173,7 @@ export const esTipoLeido = (tipo: string) => tipo.startsWith("acta_") || tipo.st
 export const esTipoObra = (tipo: string) => tipo.startsWith("obra_") || tipo.startsWith("inversion_");
 export const TIPOS_OBRA = GRUPOS_CRUCE.flatMap((g) => g.tipos.map((t) => t.tipo)).filter(esTipoObra);
 
-export const TIPO_CRUCE = Object.fromEntries(GRUPOS_CRUCE.flatMap((g) => g.tipos.map((t) => [t.tipo, t])));
+export const TIPO_CRUCE = Object.fromEntries([...GRUPOS_CRUCE, GRUPO_EN_OBSERVACION].flatMap((g) => g.tipos.map((t) => [t.tipo, t])));
 
 /** El nombre de un cruce para un chip angosto (o su `corto` si no tiene uno más breve). */
 export const chipCruce = (tipo: string): string => TIPO_CRUCE[tipo]?.chip ?? TIPO_CRUCE[tipo]?.corto ?? tipo;

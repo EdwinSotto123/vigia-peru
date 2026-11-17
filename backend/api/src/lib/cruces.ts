@@ -34,6 +34,10 @@ export const ETIQUETA_CRUCE: Record<string, string> = {
   visita_repetida: "Visitó al mismo funcionario una y otra vez antes de ganar",
   visita_fuera_horario: "Visitó la entidad fuera del horario de atención antes de ganar",
   visita_antes_convocatoria: "Visitó la entidad la semana antes de que se convocara el proceso",
+  // Indicadores en observación (migración 329): se muestran con su evidencia y no puntúan hasta medir su precisión.
+  reunion_en_evaluacion: "Se reunió con quien decide las compras mientras se evaluaban las ofertas",
+  visita_personal_decisor: "Visitas «personales» repetidas a quien decide las compras",
+  ofertas_a_la_vez: "Presentó su oferta casi a la vez que un rival con el que comparte socio",
   socio_comun: "Comparte socio o representante con otro postor",
   // Competencia y conflicto en el proceso (migración 122).
   unico_postor: "Único postor del proceso",
@@ -148,7 +152,14 @@ export interface Cruce {
   buenaPro?: { fecha: string | null; montoSoles: number | null } | null;
   /** Si el ganador es un consorcio, el cruce es de uno de sus integrantes (rucProveedor / proveedor). */
   consorcio?: { codigo: string; nombre: string | null } | null;
-  /** socio_comun: los otros postores del proceso con el mismo socio, con su razón social. */
+  /**
+   * Indicador en observación (migración 329, `senal_en_observacion`): se muestra con su evidencia, pero no entra al
+   * puntaje del contrato ni lo hace un «contrato con antecedentes» hasta que se mida su precisión.
+   */
+  observacion?: boolean;
+  /** En cuántos procesos aparece este tipo y sobre cuántos se puede medir (migración 329, `senal_tasa_base`). */
+  tasaBase?: TasaBase | null;
+  /** socio_comun y ofertas_a_la_vez: los otros postores del proceso con el mismo socio, con su razón social. */
   otrosPostores?: { ruc: string; nombre: string | null }[];
   /** Las referencias del antecedente (lib/referencias.ts): la entidad visitada por su RUC, la elección, el cargo… */
   referencias?: Referencias | null;
@@ -175,8 +186,64 @@ export interface Cruce {
 
 const fecha = (v: unknown) => (v instanceof Date ? v.toISOString().slice(0, 10) : typeof v === "string" ? v.slice(0, 10) : null);
 
-/** Los patrones de visitas (migración 193): sus visitas van en `visitas`, como la visita previa. */
-export const PATRONES_VISITA = new Set(["visita_repetida", "visita_fuera_horario", "visita_antes_convocatoria"]);
+/**
+ * Los patrones de visitas (migración 193): sus visitas van en `visitas`, como la visita previa. Desde la 329 también la
+ * reunión durante la evaluación de ofertas y las visitas «personales» repetidas a quien decide.
+ */
+export const PATRONES_VISITA = new Set([
+  "visita_repetida", "visita_fuera_horario", "visita_antes_convocatoria", "reunion_en_evaluacion", "visita_personal_decisor",
+]);
+
+/** La clase del motivo declarado de una visita (visita_motivo_clase, migración 329), en palabras. */
+export const CLASE_MOTIVO: Record<string, string> = {
+  reunion: "Reunión de trabajo",
+  personal: "Visita personal",
+  gestion_intereses: "Gestión de intereses",
+  seleccion: "Por un procedimiento de selección",
+  operativa: "Provisión de un servicio, mantenimiento o entrega",
+  protocolar: "Acto protocolar, académico o de prensa",
+  otra: "Otro motivo",
+};
+
+/** Las categorías del registro de visitas en línea: texto fijo, sin nombres. */
+const MOTIVO_DE_CATALOGO = new RegExp(
+  "^(REUNI[OÓ]N DE TRABAJO|PROVISI[OÓ]N DE SERVICIOS|GESTI[OÓ]N DE INTERESES|NORMAL|MANTENIMIENTO PROGRAMADO|PROVEEDOR(ES)?" +
+  "|VISITA T[EÉ]CNICA|VISITA PERSONAL|VISITA PROTOCOLAR|ENTREGA DE DOCUMENTOS|RECOGER DOCUMENTOS|PRENSA|REUNI[OÓ]N" +
+  "|OTROS MOTIVOS ?- ?(VISITA PERSONAL|ACTO P[UÚ]BLICO ?/ ?PROTOCOLAR|ACAD[EÉ]MICO|PROCEDIMIENTO DE SELECCI[OÓ]N" +
+  "|EVENTO INSTITUCIONAL|ACTIVIDAD PERIOD[IÍ]STICA|INVESTIGACI[OÓ]N ACAD[EÉ]MICA|CONTROL ?/ ?SUPERVISI[OÓ]N ?/ ?FISCALIZACI[OÓ]N))[.]?$", "i");
+
+/**
+ * El motivo declarado de una visita, para publicar. Las categorías del registro salen tal cual. Algunas entidades
+ * escriben texto libre y ahí a veces nombran a otras personas (quien acompaña, quien autoriza): de ése sale sólo su
+ * clase, nunca el texto.
+ */
+export function motivoPublicable(motivo: unknown, clase?: unknown): string | null {
+  const t = typeof motivo === "string" ? motivo.trim() : "";
+  if (t && MOTIVO_DE_CATALOGO.test(t)) return t.replace(/[.]$/, "");
+  const c = typeof clase === "string" && CLASE_MOTIVO[clase] ? clase : claseDeMotivo(t);
+  return c ? CLASE_MOTIVO[c] : null;
+}
+
+/** La clase de un motivo declarado: la misma regla que visita_motivo_clase() de la base (migración 329). */
+export function claseDeMotivo(motivo: unknown): string | null {
+  const x = (typeof motivo === "string" ? motivo : "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase().trim();
+  if (!x) return null;
+  if (/PROCEDIMIENTO DE SELECCI|LICITACI|BUENA PRO|\bOFERTAS?\b/.test(x)) return "seleccion";
+  if (/GESTION DE INTERESES/.test(x)) return "gestion_intereses";
+  if (/PROVISI|MANTENIMIENTO|PROVEEDOR|ENTREGA|SERVICIO|CONCESIONARIO|INSTALACI|VISITA TECNICA|ACONDICIONAMIENTO|REPARACI|DOCUMENT|TRAMITE|COBRO/.test(x)) return "operativa";
+  if (/VISITA PERSONAL/.test(x)) return "personal";
+  if (/REUNI|MESA DE TRABAJO|COORDINACI/.test(x)) return "reunion";
+  if (/PROTOCOL|EVENTO|ACADEMIC|PRENSA|PERIODIST/.test(x)) return "protocolar";
+  return "otra";
+}
+
+/** La etapa del procedimiento en que cayó una visita (migración 329), en palabras. */
+export const ETAPA_VISITA: Record<string, string> = {
+  antes_de_convocar: "antes de que se convocara el proceso",
+  convocatoria: "entre la convocatoria y la presentación de su oferta",
+  evaluacion: "después de presentar su oferta, mientras se evaluaba",
+  dia_buena_pro: "el mismo día de la buena pro",
+};
 
 /** Fila de cruces_proveedor → lo que ve el público (sin el DNI; personas bajo `socios` / `visitas`). */
 export function aCruce(r: Record<string, any>): Cruce {
@@ -188,12 +255,15 @@ export function aCruce(r: Record<string, any>): Cruce {
       visitante: r.persona_nombre ?? null, rol: rolLegible(r.persona_rol), cargoFuncionario: d.cargo_funcionario ?? null,
       // Su área, y si decide la compra (titular, gerencia, administración, logística, comité: migración 188).
       areaFuncionario: d.area_funcionario ?? null, decisor: d.decisor === true,
-      entidad: d.entidad_visitada ?? null, fecha: fecha(r.fecha), motivo: d.motivo ?? null,
+      entidad: d.entidad_visitada ?? null, fecha: fecha(r.fecha), motivo: motivoPublicable(d.motivo, d.clase_motivo),
+      // En qué etapa del procedimiento cayó (migración 329): antes de convocar, en la convocatoria o en la evaluación.
+      etapa: typeof d.etapa === "string" ? d.etapa : null,
     });
     delete d.funcionario;
     delete d.cargo_funcionario;
     delete d.area_funcionario;
     delete d.motivo;
+    delete d.clase_motivo;
   } else if (PATRONES_VISITA.has(r.tipo)) {
     // Cada visita del patrón (migración 193): fecha, hora, minutos y, de quien la recibió, sólo su cargo y su área. En la
     // repetida el funcionario es uno (su cargo va en el detalle); en las demás, cada visita trae el suyo.
@@ -204,6 +274,8 @@ export function aCruce(r: Record<string, any>): Cruce {
         cargoFuncionario: (v.cargo ?? d.cargo_funcionario ?? null) as string | null,
         areaFuncionario: (v.area ?? d.area_funcionario ?? null) as string | null,
         decisor: (v.decisor ?? d.decisor) === true,
+        // La clase del motivo declarado (migración 329): nunca el texto libre.
+        ...(typeof v.clase === "string" && CLASE_MOTIVO[v.clase] ? { motivo: CLASE_MOTIVO[v.clase] } : {}),
       });
     }
     delete d.visitas;
@@ -259,6 +331,35 @@ export function aDia(r: Record<string, any>): DiaFraccionado {
 
 const COLS = `tipo, ruc_empresa, ocid, severidad, fecha, monto, persona_nombre, persona_rol, detalle, fuente, fuente_url`;
 
+/** Los tipos cuyo detalle trae `otros_postores` (los RUC de los otros postores con la misma persona). */
+const CON_OTROS_POSTORES = new Set(["socio_comun", "ofertas_a_la_vez"]);
+
+/** En cuántos procesos aparece un tipo de señal y sobre cuántos se puede medir. */
+export interface TasaBase { casos: number; universo: number; que: string }
+let catalogoEn = 0;
+let catalogoDe: { observacion: Set<string>; tasas: Map<string, TasaBase> } = { observacion: new Set(), tasas: new Map() };
+
+/**
+ * Qué tipos están en observación y la tasa base de cada tipo (migración 329). Dos tablas chicas que cambian con el
+ * refresco diario: se leen una vez cada diez minutos. Sin la migración, vacío.
+ */
+export async function catalogoSenales(): Promise<{ observacion: Set<string>; tasas: Map<string, TasaBase> }> {
+  if (Date.now() - catalogoEn < 600_000) return catalogoDe;
+  const [o, t] = await Promise.all([
+    pool.query<{ tipo: string }>(`SELECT tipo FROM senal_en_observacion`).catch(() => null),
+    pool.query<{ tipo: string; casos: number; universo: number; que: string }>(
+      `SELECT tipo, casos, universo, universo_que AS que FROM senal_tasa_base WHERE universo > 0 AND universo_que IS NOT NULL`).catch(() => null),
+  ]);
+  if (o && t) {
+    catalogoDe = {
+      observacion: new Set(o.rows.map((r) => r.tipo)),
+      tasas: new Map(t.rows.map((r) => [r.tipo, { casos: Number(r.casos), universo: Number(r.universo), que: r.que }])),
+    };
+    catalogoEn = Date.now();
+  }
+  return catalogoDe;
+}
+
 export interface Ganador {
   proveedorRuc: string | null;
   proveedor: string | null;
@@ -308,7 +409,8 @@ export async function crucesDeProceso(ocid: string, ganadores: Ganador[]): Promi
      ORDER BY ${ORDEN_SEVERIDAD}, tipo, fecha DESC NULLS LAST LIMIT 200`, [[...porRuc.keys()], ocid]).catch(() => null);
   const crudas = q?.rows ?? [];
   const cruces = crudas.map(aCruce);
-  const otros = [...new Set(cruces.flatMap((c) => (c.tipo === "socio_comun" && Array.isArray(c.detalle.otros_postores) ? c.detalle.otros_postores as string[] : [])))];
+  const otros = [...new Set(cruces.flatMap((c) => (CON_OTROS_POSTORES.has(c.tipo) && Array.isArray(c.detalle.otros_postores) ? c.detalle.otros_postores as string[] : [])))];
+  const catalogo = await catalogoSenales();
   // Fraccionamiento: los días y sus órdenes, de la entidad de ESTE proceso (el cruce sólo trae cuántos y cuánto).
   const fracc = new Map<string, DiaFraccionado[]>();
   const conFracc = [...new Set(cruces.filter((c) => c.tipo === "fraccionamiento").map((c) => c.rucProveedor))];
@@ -368,9 +470,11 @@ export async function crucesDeProceso(ocid: string, ganadores: Ganador[]): Promi
       consorcio: g?.consorcio ?? null,
       referencias: refs[i] ?? null,
       entidadRuc: proceso.entidadRuc,
-      ...(c.tipo === "socio_comun"
+      ...(CON_OTROS_POSTORES.has(c.tipo)
         ? { otrosPostores: ((c.detalle.otros_postores as string[] | undefined) ?? []).map((ruc) => ({ ruc, nombre: nombres.get(ruc) ?? null })) }
         : {}),
+      ...(catalogo.observacion.has(c.tipo) ? { observacion: true } : {}),
+      ...(catalogo.tasas.has(c.tipo) ? { tasaBase: catalogo.tasas.get(c.tipo) } : {}),
       ...(c.tipo === "fraccionamiento" ? { ordenesDias: fracc.get(c.rucProveedor) ?? [] } : {}),
       ...(evidencias[i]?.length ? { evidencia: marcarPosteriores(evidencias[i], proceso.fecha) } : {}),
       ...anteriores,

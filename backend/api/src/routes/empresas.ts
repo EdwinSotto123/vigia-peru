@@ -3,7 +3,7 @@ import { z } from "zod";
 import { consultaConPlazo, pool } from "../lib/db.js";
 import { Memo } from "../lib/cache.js";
 import { cachePublico, parametros } from "../lib/http.js";
-import { aCruce, aDia, ETIQUETA_CRUCE } from "../lib/cruces.js";
+import { aCruce, aDia, ETIQUETA_CRUCE, motivoPublicable } from "../lib/cruces.js";
 import { evidenciasDe, type FilaCruce, type ProcesoCruce } from "../lib/evidencia.js";
 import { publicar } from "../lib/privacidad.js";
 import { esElectoSql, marcaElecto } from "../lib/electos.js";
@@ -1178,7 +1178,8 @@ empresasRouter.get("/:ruc/visitas", async (c) => {
           : { numero: v.ordenNumero, descripcion: v.ordenDescripcion, monto: v.ordenMonto, tipoOrden: v.ordenTipo, codigo: null, ocid: null };
         return {
           fecha: v.fecha, entidad: v.entidad, entidadRuc: v.entidadRuc, via: VIA[v.via] ?? v.via, visitante: v.visitante, ...marcaElecto(v.electo),
-          cargoFuncionario: v.cargoFuncionario, area: v.area, motivo: v.motivo, lugar: v.lugar, entidadDeclarada: v.entidadDeclarada,
+          // El motivo en texto libre puede nombrar a otras personas: sale la categoría del registro o su clase.
+          cargoFuncionario: v.cargoFuncionario, area: v.area, motivo: motivoPublicable(v.motivo), lugar: v.lugar, entidadDeclarada: v.entidadDeclarada,
           fuente: v.fuente,
           despues,
           diasDespues: dias(v.fecha, despues),

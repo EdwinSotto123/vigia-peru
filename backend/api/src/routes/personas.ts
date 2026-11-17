@@ -8,6 +8,7 @@ import { TAPA_NOMBRE, apellidoFuncionario, apellidosSunat, publicar, reservarPar
 import { declaranteElectoSql, esElectoSql, marcaElecto } from "../lib/electos.js";
 import { SENALES_CON_PARIENTES, casoReservado, podarParientes } from "../lib/nepotismo.js";
 import { enlaceFuente } from "../lib/fuentes.js";
+import { motivoPublicable } from "../lib/cruces.js";
 import { visitasHasta } from "../lib/visitas.js";
 import { personasPorNombreVisible } from "../lib/personasNombre.js";
 import { funcionarioDeCodigo, funcionariosPorNombreVisible, mismaPersona, nombreTapado, organizacionPublicable, palabrasDeBusqueda, palabrasRequeridas, parecidosA } from "../lib/funcionarios.js";
@@ -480,6 +481,10 @@ async function armarRastro(palabras: string[], acepta?: (nombre: string) => bool
       { nombre: string; cargo: string | null; entidad: string | null; desde: number | null; hasta: number | null }[] | null,
       { nombre: string; entidad: string | null; entidad_ruc: string; cargo: string | null; dependencia: string | null; desde: string | null; hasta: string }[] | null,
     ];
+    // El motivo en texto libre puede nombrar a otras personas: sale la categoría del registro o su clase.
+    for (const v of visitas ?? []) {
+      v.motivos = v.motivos ? [...new Set(v.motivos.map((m) => motivoPublicable(m)).filter((m): m is string => !!m))] : null;
+    }
     // El cruce que busca un investigador: la persona visitó una entidad y una empresa SUYA (es socia o representante) le
     // ganó procesos a esa misma entidad. Con las fechas, para ver si la visita fue antes de la buena pro.
     let visitoYGano: Record<string, unknown>[] = [];

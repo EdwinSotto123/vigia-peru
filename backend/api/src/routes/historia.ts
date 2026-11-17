@@ -18,7 +18,7 @@ import {
   obraInfobras,
   procesoOece,
 } from "../lib/fuentes.js";
-import { aCruce, ETIQUETA_CRUCE } from "../lib/cruces.js";
+import { aCruce, ETIQUETA_CRUCE, motivoPublicable } from "../lib/cruces.js";
 import { COL_GOBIERNO, gobiernoDeFila } from "../lib/gobiernoFila.js";
 import { referenciasDe } from "../lib/referencias.js";
 import {
@@ -910,7 +910,8 @@ async function historiaEmpresa(ruc: string): Promise<(Historia & { registro: unk
       datos: [
         { etiqueta: "Entidad", valor: v.entidad ? titulo(v.entidad) : "Sin dato", href: v.entidad_ruc ? `/entidad/${v.entidad_ruc}` : null },
         ...(recibio ? [{ etiqueta: "Lo recibió", valor: recibio }] : []),
-        ...(v.motivo ? [{ etiqueta: "Motivo", valor: corto(v.motivo, 160) ?? v.motivo }] : []),
+        // El motivo en texto libre puede nombrar a otras personas: sale la categoría del registro o su clase.
+        ...(motivoPublicable(v.motivo) ? [{ etiqueta: "Motivo", valor: motivoPublicable(v.motivo)! }] : []),
         ...(horario ? [{ etiqueta: "Hora", valor: horario }] : []),
         ...(v.lugar ? [{ etiqueta: "Dónde", valor: titulo(v.lugar) }] : []),
         ...(deSuGente ? enLaEmpresa(v.doc, v.fecha) : []),

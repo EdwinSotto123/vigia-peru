@@ -18,7 +18,7 @@ import { Ayuda, CabeceraPestana } from "@/components/patrones";
 import { Badge } from "@/components/ui/Badge";
 import { IconoBandera } from "@/components/ui/IconoBandera";
 import { CuentaGrupo } from "@/components/listado";
-import { ChevronDown, ChevronRight } from "lucide-react";
+import { ChevronDown, ChevronRight, Scale } from "lucide-react";
 import { ICONO_NIVEL } from "@/components/ui/Severidad";
 import type { CruceProveedor } from "@/lib/contratos";
 import { fechaConAnio, fechaCorta, numero, oracion, soles, solesCompacto } from "@/lib/formato";
@@ -31,7 +31,7 @@ import { txt } from "@/lib/utils";
 import { EvidenciaDelCruce, OrdenesFraccionadas } from "./EvidenciaCruce";
 import { GrupoSanciones, TIPOS_SANCION } from "./SancionesCruce";
 import { BotonPestana } from "./BotonPestana";
-import { TEMA_OBSERVACION_CONTROL, TIPO_CRUCE, esTipoLeido, esTipoObra, responsabilidadesEnPalabras } from "@/lib/cruces";
+import { ETAPA_VISITA, TEMA_OBSERVACION_CONTROL, TIPO_CRUCE, esEnObservacion, esTipoLeido, esTipoObra, responsabilidadesEnPalabras } from "@/lib/cruces";
 import { InformeEnPanel } from "@/components/control/InformeEnPanel";
 import { informeDeDetalle } from "@/lib/corrupcion";
 import { rutaContrato } from "@/lib/rutas";
@@ -181,21 +181,23 @@ const DIA_SEMANA = new Intl.DateTimeFormat("es-PE", { weekday: "long", timeZone:
 const POR_VISITA: Record<string, string> = { fin_de_semana: "fin de semana", temprano: "antes de las 7", noche: "desde las 19" };
 
 /** «el sábado 4 ago. a las 20:15 (3 h 10 min)»: una visita en palabras (la hora, si la hay). */
-function unaVisita(v: CruceProveedor["visitas"][number], conPorque = false): string {
+function unaVisita(v: CruceProveedor["visitas"][number], conPorque = false, conMotivo = false): string {
   const f = v.fecha ? `el ${DIA_SEMANA.format(new Date(`${v.fecha}T12:00:00Z`))} ${fechaConAnio(v.fecha)}` : "un día sin fecha";
   const h = v.hora ? ` a las ${v.hora}` : "";
   const m = v.minutos != null && v.minutos > 0 ? ` (${v.minutos >= 60 ? `${Math.floor(v.minutos / 60)} h${v.minutos % 60 ? ` ${v.minutos % 60} min` : ""}` : `${v.minutos} min`})` : "";
   const por = conPorque && v.por && POR_VISITA[v.por] ? `, ${POR_VISITA[v.por]}` : "";
-  return `${f}${h}${m}${por}`;
+  // El motivo es la categoría del registro o su clase (la API nunca manda el texto libre).
+  const motivo = conMotivo && v.motivo ? `, por «${v.motivo.toLowerCase()}»` : "";
+  return `${f}${h}${m}${por}${motivo}`;
 }
 
 /** Las visitas de un patrón: las seis primeras en la línea y, si hay más, todas en una lista que se abre. */
-function VisitasEnLinea({ visitas, conPorque = false }: { visitas: CruceProveedor["visitas"]; conPorque?: boolean }) {
+function VisitasEnLinea({ visitas, conPorque = false, conMotivo = false }: { visitas: CruceProveedor["visitas"]; conPorque?: boolean; conMotivo?: boolean }) {
   if (!visitas.length) return null;
   const vistas = visitas.slice(0, 6);
   return (
     <>
-      {" "}Las visitas: {vistas.map((v) => unaVisita(v, conPorque)).join("; ")}
+      {" "}Las visitas: {vistas.map((v) => unaVisita(v, conPorque, conMotivo)).join("; ")}
       {visitas.length > vistas.length ? `; y ${numero(visitas.length - vistas.length)} más.` : "."}
       {visitas.length > vistas.length && (
         <details className="group/vis mt-1">
@@ -205,7 +207,7 @@ function VisitasEnLinea({ visitas, conPorque = false }: { visitas: CruceProveedo
           </summary>
           <ol className="mt-1 space-y-0.5 text-meta text-inkSoft">
             {visitas.map((v, i) => (
-              <li key={i} className="tabular-nums">{unaVisita(v, conPorque)}</li>
+              <li key={i} className="tabular-nums">{unaVisita(v, conPorque, conMotivo)}</li>
             ))}
           </ol>
         </details>
@@ -261,6 +263,9 @@ const POR_QUE: Record<string, string> = {
   visita_repetida: "Ir varias veces donde el mismo funcionario puede ser seguir un trámite, pero también la forma de influir en una decisión. Pesa más si ese funcionario decide la compra; el registro de visitas existe para que se vea.",
   visita_fuera_horario: "Las visitas se registran en horario de atención: una de noche, de madrugada o en fin de semana es poco común y vale revisarla junto con el proceso que después ganó.",
   visita_antes_convocatoria: "La semana antes de convocar es cuando la entidad cierra las bases y los requisitos. Una reunión del futuro ganador en esos días merece revisar si las bases quedaron a su medida.",
+  reunion_en_evaluacion: "Con las ofertas ya presentadas, lo que falta es evaluarlas, y el trato con los postores va por el SEACE. Una reunión del futuro ganador con quien decide las compras en esos días merece ver quién integró el comité y cómo se calificó a los demás postores.",
+  visita_personal_decisor: "Una relación personal entre quien vende y quien decide la compra es un posible conflicto de intereses: al funcionario le toca declararlo y apartarse. El registro sólo dice que la visita se anotó como personal; puede ser un familiar o un error al llenar el motivo.",
+  ofertas_a_la_vez: "Dos empresas que compiten y comparten un dueño o representante ya son una señal de competencia aparente. Que además registren sus ofertas una tras otra sugiere que las preparó la misma mano.",
   partido_gobernante: "La empresa, o una persona detrás de ella, aportó dinero al partido que gobierna la entidad que le dio el contrato: un posible conflicto de interés, el más directo de estos cruces.",
   vendio_gobernante: "La empresa, o una persona detrás de ella, le vendió a la campaña del partido que gobierna la entidad. Es una relación comercial, no un aporte: pesa según el monto.",
   proveedor_campana: "Es una relación comercial con un partido político. Pesa más cuando es el partido que gobierna la entidad, y menos en cadenas grandes que le venden a todos.",
@@ -433,6 +438,8 @@ function Texto({ c, gobierna }: { c: CruceProveedor; gobierna?: GobiernoContrato
         <>
           {quien(c, v?.rol ?? null, v?.visitante ?? undefined)} visitó <Entidad nombre={v?.entidad ?? "una entidad"} ruc={c.referencias?.entidadVisitadaRuc} />
           {d.misma_entidad === true ? <b> (la misma entidad que contrató)</b> : ""} el {fechaConAnio(v?.fecha ?? c.fecha)}
+          {/* En qué etapa del procedimiento cayó (migración 329). */}
+          {v?.etapa && ETAPA_VISITA[v.etapa] ? <>, <b>{ETAPA_VISITA[v.etapa]}</b>,</> : ""}
           {/* De quien recibió, sólo su cargo y su área: su nombre no se publica. */}
           {v?.cargoFuncionario || v?.areaFuncionario ? (
             <>
@@ -486,6 +493,60 @@ function Texto({ c, gobierna }: { c: CruceProveedor; gobierna?: GobiernoContrato
           {conv ? ` (convocatoria del ${fechaCorta(conv)})` : ""}
           <Recibio v={v} />.
           {c.visitas.length > 1 && <VisitasEnLinea visitas={c.visitas} />}
+          <Gano c={c} />
+        </>
+      );
+    }
+    case "reunion_en_evaluacion": {
+      const v = c.visitas[c.visitas.length - 1];
+      const dura = n(d.dias_evaluacion);
+      const oferta = txt(d.oferta);
+      return (
+        <>
+          {quien(c, v?.rol ?? null, v?.visitante ?? undefined)} visitó <Entidad nombre={txt(d.entidad_visitada) ?? "la entidad"} ruc={c.referencias?.entidadVisitadaRuc} />{" "}
+          <b>después de presentar su oferta</b>{oferta ? ` (el ${fechaCorta(oferta)})` : ""} y antes de la buena pro
+          {dura != null && dura > 0 ? `, en los ${numero(dura)} días que duró la evaluación` : ""}
+          <Recibio v={v} />.{" "}
+          {d.ya_proveedor === true
+            ? "La empresa ya le vendía a la entidad: la visita puede ser por lo que ya tenía contratado."
+            : <>La empresa <b>no le había vendido</b> a la entidad ese año ni el anterior.</>}
+          <VisitasEnLinea visitas={c.visitas} conMotivo />
+          <Gano c={c} />
+        </>
+      );
+    }
+    case "visita_personal_decisor": {
+      const v = c.visitas[0];
+      const dias = n(d.dias) ?? c.visitas.length;
+      const meses = n(d.meses);
+      return (
+        <>
+          {quien(c, v?.rol ?? null, v?.visitante ?? undefined)} visitó en <b>{numero(dias)} días distintos</b>
+          {meses != null && meses > 1 ? ` de ${numero(meses)} meses` : ""}, declarando «visita personal», a quien tiene el cargo de{" "}
+          {(v?.cargoFuncionario ?? "funcionario").toLowerCase()}
+          {v?.areaFuncionario ? <> en {v.areaFuncionario.toLowerCase()}</> : ""} de <Entidad nombre={txt(d.entidad_visitada) ?? "la entidad"} ruc={c.referencias?.entidadVisitadaRuc} />
+          <b>, que decide las compras de la entidad</b>, en el año anterior a la buena pro.
+          <VisitasEnLinea visitas={c.visitas} />
+          <Gano c={c} dias={n(d.dias_antes)} />
+        </>
+      );
+    }
+    case "ofertas_a_la_vez": {
+      const otros = c.otrosPostores ?? (Array.isArray(d.otros_postores) ? (d.otros_postores as string[]).map((ruc) => ({ ruc, nombre: null })) : []);
+      const rolOtro = Array.isArray(d.rol_en_otros) ? (d.rol_en_otros as string[]).map((r) => r.toLowerCase().replace(/_/g, " ").replace("socio accionista titular", "socio")).join(", ") : null;
+      const min = n(d.minutos);
+      return (
+        <>
+          {quien(c)} también figura{rolOtro ? ` como ${rolOtro}` : ""} en{" "}
+          {otros.map((o, i) => (
+            <span key={o.ruc}>
+              {i > 0 && ", "}
+              <OtraEmpresa ruc={o.ruc} nombre={o.nombre} conRuc />
+            </span>
+          ))}
+          , que compitió en este mismo proceso{n(d.item) != null ? ` (ítem ${numero(n(d.item)!)})` : ""}. Las dos ofertas se registraron en el SEACE con{" "}
+          <b>{min == null ? "pocos minutos" : min < 1 ? "menos de un minuto" : `${numero(Math.round(min))} ${Math.round(min) === 1 ? "minuto" : "minutos"}`} de diferencia</b>
+          {txt(d.hora_ganador) && txt(d.hora_otro) ? ` (a las ${txt(d.hora_ganador)} y a las ${txt(d.hora_otro)})` : ""}.
           <Gano c={c} />
         </>
       );
@@ -1248,11 +1309,15 @@ export function clasificarCruces(todos: CruceProveedor[]) {
   // Un antecedente es lo que ya había pasado cuando se convocó (migración 83) Y está ligado a esta entidad/proceso. Los
   // datos del proveedor (candidatura, aporte, venta a campaña, autoridad) van aparte: hechos de quien ganó, no de esta
   // contratación (migración 115). Lo posterior a la convocatoria, también aparte.
+  // Un indicador en observación (migración 329) no es todavía un antecedente: va en su propio bloque, con su evidencia,
+  // y no entra a la cuenta de antecedentes ni a las banderas de la cabecera.
+  const obs = (c: CruceProveedor) => c.observacion === true || esEnObservacion(c.tipo);
   return {
-    antecedentes: unicos.filter((c) => !c.posterior && !DATOS_PROVEEDOR.has(c.tipo) && !esDelProceso(c.tipo)),
-    delProceso: unicos.filter((c) => !c.posterior && esDelProceso(c.tipo)),
-    datosProv: unicos.filter((c) => !c.posterior && DATOS_PROVEEDOR.has(c.tipo)),
+    antecedentes: unicos.filter((c) => !c.posterior && !obs(c) && !DATOS_PROVEEDOR.has(c.tipo) && !esDelProceso(c.tipo)),
+    delProceso: unicos.filter((c) => !c.posterior && !obs(c) && esDelProceso(c.tipo)),
+    datosProv: unicos.filter((c) => !c.posterior && !obs(c) && DATOS_PROVEEDOR.has(c.tipo)),
     posteriores: unicos.filter((c) => c.posterior),
+    enObservacion: unicos.filter((c) => !c.posterior && obs(c)),
   };
 }
 
@@ -1274,14 +1339,25 @@ const anclaDe = (tipo: string) => `antecedente-${tipo}`;
  * ni lo posterior a la convocatoria.
  */
 export function banderasAntecedentes(cruces: CruceProveedor[], href: string): { tipo: string; severidad: "alta" | "media" | "baja"; nombre: string; n: number; href: string }[] {
-  const { antecedentes, delProceso } = clasificarCruces(cruces);
-  return [...agrupar(antecedentes), ...agrupar(delProceso)].map((g) => ({
-    tipo: g[0].tipo,
-    severidad: peorSeveridad(g) ?? g[0].severidad,
-    nombre: g[0].etiqueta,
-    n: g.length,
-    href: `${href}#${anclaDe(g[0].tipo)}`,
-  }));
+  const { antecedentes, delProceso, enObservacion } = clasificarCruces(cruces);
+  return [
+    ...[...agrupar(antecedentes), ...agrupar(delProceso)].map((g) => ({
+      tipo: g[0].tipo,
+      severidad: peorSeveridad(g) ?? g[0].severidad,
+      nombre: g[0].etiqueta,
+      n: g.length,
+      href: `${href}#${anclaDe(g[0].tipo)}`,
+    })),
+    // Los indicadores en observación (migración 329) también van a la cabecera, al final y sin gravedad (el gris de lo
+    // leve): se ven en todas las pestañas y llevan a su evidencia, pero todavía no cuentan para el riesgo.
+    ...agrupar(enObservacion).map((g) => ({
+      tipo: g[0].tipo,
+      severidad: "baja" as const,
+      nombre: `En observación: ${g[0].etiqueta}`,
+      n: g.length,
+      href: `${href}#${anclaDe(g[0].tipo)}`,
+    })),
+  ];
 }
 
 /**
@@ -1314,6 +1390,7 @@ function GruposCruces({ lista, gobierna, conAnclas = false }: { lista: CruceProv
               {porQue && !primera && <Ayuda titulo="¿Por qué mirarlo?">{porQue}</Ayuda>}
             </div>
             {primera && <p className="mb-2 text-meta leading-relaxed text-inkSoft">{porQue}</p>}
+            <TasaBase t={grupo[0].tasaBase} />
             {TIPOS_SANCION.has(tipo) ? (
               <GrupoSanciones grupo={filas} fuente={FUENTE[grupo[0].fuente] ?? grupo[0].fuente} />
             ) : (
@@ -1335,6 +1412,27 @@ function GruposCruces({ lista, gobierna, conAnclas = false }: { lista: CruceProv
         );
       })}
     </ul>
+  );
+}
+
+/** «0,3 %», «12 %», «menos del 0,1 %»: una proporción chica sin perder el orden de magnitud. */
+function proporcion(casos: number, universo: number): string {
+  const p = (100 * casos) / universo;
+  if (p < 0.1) return "menos del 0,1 %";
+  return `${p < 10 ? p.toFixed(1).replace(".", ",") : String(Math.round(p))} %`;
+}
+
+/** Cuán frecuente es una señal: en cuántos procesos aparece, sobre los que se puede medir (migración 329). */
+function TasaBase({ t }: { t?: CruceProveedor["tasaBase"] }) {
+  if (!t || !t.universo || t.casos > t.universo) return null;
+  return (
+    <p className="mb-2 flex items-start gap-1.5 text-meta leading-snug text-mute">
+      <Scale size={14} aria-hidden className="mt-0.5 shrink-0" />
+      <span>
+        Cuán frecuente es: aparece en <b className="font-semibold text-inkSoft">{proporcion(t.casos, t.universo)}</b> de los {t.que}{" "}
+        <span className="tabular-nums">({numero(t.casos)} de {numero(t.universo)})</span>.
+      </span>
+    </p>
   );
 }
 
@@ -1363,7 +1461,7 @@ function Plegado({ titulo, n, aclaracion, children }: { titulo: string; n: numbe
  */
 export function CrucesProveedor({ cruces: todos, varios, gobierna }: { cruces: CruceProveedor[]; varios?: boolean; gobierna?: GobiernoContrato | null }) {
   if (!todos.length) return null;
-  const { antecedentes, delProceso, datosProv, posteriores } = clasificarCruces(todos);
+  const { antecedentes, delProceso, datosProv, posteriores, enObservacion } = clasificarCruces(todos);
   const titulo = varios ? "Antecedentes de quienes ganaron" : "Antecedentes de quien ganó";
 
   return (
@@ -1402,6 +1500,16 @@ export function CrucesProveedor({ cruces: todos, varios, gobierna }: { cruces: C
               son antecedentes de quien ganó, son hechos de la ejecución. Su detalle completo está en «Adjudicación y contrato».
             </p>
             <GruposCruces lista={delProceso.filter((c) => esTipoObra(c.tipo))} gobierna={gobierna} conAnclas />
+          </div>
+        )}
+        {enObservacion.length > 0 && (
+          <div className="border-t border-line">
+            <h3 className="px-4 pt-3 text-cuerpo font-semibold text-ink">Indicadores en observación</h3>
+            <p className="px-4 pt-1 text-meta leading-relaxed text-inkSoft">
+              Cruces nuevos que Vigía todavía está midiendo. Van con su evidencia para que los revises, pero no cuentan para el
+              riesgo de este contrato hasta saber, con una muestra revisada, cuántas veces aciertan.
+            </p>
+            <GruposCruces lista={enObservacion} gobierna={gobierna} conAnclas />
           </div>
         )}
         {datosProv.length > 0 && (
@@ -1461,8 +1569,9 @@ function RenglonesGrupos({ grupos }: { grupos: CruceProveedor[][] }) {
  * se dice en una línea (y si hay datos del proveedor o algo posterior, cuántos y dónde verlos).
  */
 export function ResumenAntecedentes({ cruces, varios }: { cruces: CruceProveedor[]; varios?: boolean }) {
-  const { antecedentes, delProceso, datosProv, posteriores } = clasificarCruces(cruces);
+  const { antecedentes, delProceso, datosProv, posteriores, enObservacion } = clasificarCruces(cruces);
   const grupos = agrupar(antecedentes);
+  const gruposObservacion = agrupar(enObservacion);
   const gruposProceso = agrupar(delProceso.filter((c) => !esTipoObra(c.tipo)));
   const gruposObra = agrupar(delProceso.filter((c) => esTipoObra(c.tipo)));
   const titulo = varios ? "Antecedentes de quienes ganaron" : "Antecedentes de quien ganó";
@@ -1486,6 +1595,14 @@ export function ResumenAntecedentes({ cruces, varios }: { cruces: CruceProveedor
         <p className="text-meta leading-relaxed text-inkSoft">
           Cuando se convocó este proceso, {varios ? "quienes ganaron no tenían" : "quien ganó no tenía"} antecedentes ligados a esta entidad.
         </p>
+      )}
+      {/* Los indicadores en observación (migración 329), aparte: todavía no cuentan para el riesgo. */}
+      {gruposObservacion.length > 0 && (
+        <div className="space-y-1.5 pt-1">
+          <h3 className="text-cuerpo font-semibold text-ink">En observación</h3>
+          <p className="text-meta leading-snug text-inkSoft">Cruces nuevos que todavía se están midiendo: no cuentan para el riesgo de este contrato.</p>
+          <RenglonesGrupos grupos={gruposObservacion} />
+        </div>
       )}
       {/* Lo que es del proceso y no de quien ganó (un solo postor), aparte: no es un antecedente de la empresa. */}
       {gruposProceso.length > 0 && (

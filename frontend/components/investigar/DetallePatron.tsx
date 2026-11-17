@@ -18,6 +18,7 @@ import {
   type PatronControl,
   type PatronDueno,
   type PatronInhabilitada,
+  type PatronObservacion,
   type PatronObservado,
   type PatronRenovacion,
   type PatronSenal,
@@ -587,6 +588,110 @@ export function detalleRenovacion(p: PatronRenovacion): Detalle {
         enlaces={[
           { texto: "Abrir el contrato de ahora", href: rutaContrato(p.ocid) },
           { texto: "Abrir el anterior", href: rutaContrato(p.ocidAnterior) },
+          esRuc20(p.entidadRuc) && { texto: "Ficha de la entidad", href: `/entidad/${p.entidadRuc}` },
+        ]}
+      />
+    ),
+  };
+}
+
+// ─── Indicadores en observación (migración 329) ──────────────────────────────────
+
+const minutosEntre = (m: number | null) => (m == null ? "pocos minutos" : m < 1 ? "menos de un minuto" : plural(Math.round(m), "minuto", "minutos"));
+const recibio = (p: PatronObservacion) =>
+  p.cargo || p.area ? `quien tiene el cargo de ${(p.cargo ?? "funcionario").toLowerCase()}${p.area ? ` en ${p.area.toLowerCase()}` : ""}` : "un funcionario que decide las compras";
+
+export function detalleObservacion(p: PatronObservacion): Detalle {
+  const emp = empresa(p.empresa);
+  const ent = entidad(p.entidad);
+  const contrato = { etiqueta: "Contrato", valor: <Link href={rutaContrato(p.ocid)} prefetch={false} className={ENLACE}>{p.codigo ?? codigoDeOcid(p.ocid)}</Link>, mono: true } satisfies DatoClave;
+  const comunes: DatoClave[] = [
+    contrato,
+    { etiqueta: "Objeto", valor: p.objeto ? tituloNatural(p.objeto) : null },
+    { etiqueta: "Entidad", valor: ent },
+    { etiqueta: "Buena pro", valor: p.buenaPro ? fechaConAnio(p.buenaPro) : null },
+  ];
+  const frase =
+    p.tipo === "reunion_en_evaluacion" ? (
+      <>
+        Gente de <b>{emp}</b> visitó a {recibio(p)} de <b>{ent}</b> <b>después de presentar su oferta</b> y antes de la buena pro.{" "}
+        {p.yaProveedor ? "La empresa ya le vendía a la entidad: la visita puede ser por lo que ya tenía contratado." : "La empresa no le había vendido a la entidad ese año ni el anterior."}
+      </>
+    ) : p.tipo === "visita_personal_decisor" ? (
+      <>
+        Una misma persona de <b>{emp}</b> visitó en <b>{plural(p.dias ?? 3, "día distinto", "días distintos")}</b>, declarando «visita personal», a{" "}
+        {recibio(p)} de <b>{ent}</b>, en el año anterior a la buena pro.
+      </>
+    ) : (
+      <>
+        <b>{emp}</b> y <b>{empresa(p.otro)}</b> compitieron en este proceso, comparten un socio o representante y registraron sus ofertas con{" "}
+        <b>{minutosEntre(p.minutos)} de diferencia</b>.
+      </>
+    );
+  const propios: DatoClave[] =
+    p.tipo === "reunion_en_evaluacion"
+      ? [
+          { etiqueta: "Visitas en la evaluación", valor: p.visitas != null ? numero(p.visitas) : null, mono: true },
+          { etiqueta: "Presentó su oferta", valor: p.oferta ? fechaConAnio(p.oferta) : null },
+          { etiqueta: "Duró la evaluación", valor: p.diasEvaluacion != null ? plural(p.diasEvaluacion, "día", "días") : null },
+          { etiqueta: "¿Ya le vendía a la entidad?", valor: p.yaProveedor ? "Sí" : "No, ni ese año ni el anterior" },
+        ]
+      : p.tipo === "visita_personal_decisor"
+        ? [
+            { etiqueta: "Días distintos", valor: p.dias != null ? numero(p.dias) : null, mono: true },
+            { etiqueta: "Meses distintos", valor: p.meses != null ? numero(p.meses) : null, mono: true },
+            { etiqueta: "Visitas en total", valor: p.visitas != null ? numero(p.visitas) : null, mono: true },
+            { etiqueta: "Motivo declarado", valor: "Visita personal" },
+            { etiqueta: "Última visita", valor: p.fecha ? fechaConAnio(p.fecha) : null },
+          ]
+        : [
+            { etiqueta: "Entre las dos ofertas", valor: minutosEntre(p.minutos), mono: true },
+            { etiqueta: "Se registraron", valor: p.horaGanador && p.horaOtro ? `A las ${p.horaGanador} y a las ${p.horaOtro}` : null },
+            { etiqueta: "El otro postor", valor: p.otro ? empresa(p.otro) : null },
+            { etiqueta: "Día de las ofertas", valor: p.fecha ? fechaConAnio(p.fecha) : null },
+          ];
+  const pasos =
+    p.tipo === "reunion_en_evaluacion"
+      ? [
+          "Abre el contrato y mira en «Antecedentes» cada visita: su día, su hora y el cargo de quien la recibió.",
+          "Revisa en el acta quiénes integraron el comité de selección y si quien recibió la visita intervino.",
+          "Mira cómo se calificó a los demás postores: si alguno quedó fuera por una formalidad.",
+          "Descarta la explicación sencilla: una subsanación, la firma de otro contrato o un trámite pendiente.",
+        ]
+      : p.tipo === "visita_personal_decisor"
+        ? [
+            "Abre el contrato y mira las fechas de las visitas frente a la convocatoria y la buena pro.",
+            "Revisa si el funcionario intervino en la contratación: área usuaria, logística o comité.",
+            "Busca si declaró el vínculo en su declaración jurada de intereses o si se apartó.",
+            "Descarta la explicación sencilla: un familiar, un excompañero o un motivo mal llenado en el registro.",
+          ]
+        : [
+            "Abre el contrato y compara las dos ofertas: precios, formato y documentos.",
+            "Mira si las dos empresas compiten juntas en otros procesos y quién gana.",
+            "Revisa en el Registro Nacional de Proveedores qué papel tiene la persona común en cada una.",
+            "Descarta la explicación sencilla: el mismo estudio contable o legal que tramita para varios clientes.",
+          ];
+  return {
+    titulo: paraTitulo(p.ruc, p.empresa, "Proveedor"),
+    etiqueta: "Ver el detalle de este indicador en observación",
+    descripcion: <span className="line-clamp-2">{p.etiqueta}</span>,
+    contenido: (
+      <div className="space-y-5">
+        {/* Sin tono de severidad: un indicador en observación todavía no cuenta para el riesgo. */}
+        <EnUnaFrase>{frase}</EnUnaFrase>
+        <DatosClave items={[...propios, ...comunes]} />
+        <QueRevisar pasos={pasos} />
+        <p className="text-meta leading-relaxed text-inkSoft">
+          Indicador en observación: Vigía todavía está midiendo cuántas veces acierta, así que no cuenta para el riesgo del
+          contrato. Es un motivo para mirar, no una acusación.
+        </p>
+      </div>
+    ),
+    pie: (
+      <Pie
+        enlaces={[
+          { texto: "Abrir el contrato", href: rutaContrato(p.ocid) },
+          esRuc20(p.ruc) && { texto: "Ficha de la empresa", href: `/empresa/${p.ruc}` },
           esRuc20(p.entidadRuc) && { texto: "Ficha de la entidad", href: `/entidad/${p.entidadRuc}` },
         ]}
       />

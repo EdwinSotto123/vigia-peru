@@ -23,6 +23,12 @@
  *       con lo que pagaron por ellos 5 entidades o más (cuartil 1, mediana y cuartil 3 por año; sin IGV y con IGV).
  *       `servicio`: el costo MENSUAL de servicios parecidos (monto entre plazo, migración 280), con su contrato.
  *
+ *   GET /patrones/observacion?tipo=&ruc=&page=&size=
+ *       Los indicadores EN OBSERVACIÓN (migración 329), contrato por contrato: una reunión con quien decide las compras
+ *       mientras se evaluaban las ofertas, visitas «personales» repetidas a quien decide, y ofertas de rivales vinculados
+ *       registradas casi a la vez. No entran al riesgo del contrato hasta medir su precisión; aquí está la lista entera
+ *       para revisarlos. De quien recibió una visita, sólo el cargo y el área.
+ *
  * Todo sale de señales y postulaciones ya públicas, sólo de empresas (RUC 20). Un patrón es un motivo para mirar, no una
  * acusación.
  */
@@ -32,7 +38,7 @@ import { pool } from "../lib/db.js";
 import { Memo } from "../lib/cache.js";
 import { cachePublico, parametros } from "../lib/http.js";
 import { publicar } from "../lib/privacidad.js";
-import { nombrePublicable } from "../lib/cruces.js";
+import { ETIQUETA_CRUCE, catalogoSenales, nombrePublicable } from "../lib/cruces.js";
 
 export const patronesRouter = new Hono();
 
@@ -481,6 +487,63 @@ patronesRouter.get("/renovaciones", async (c) => {
       pool.query<{ n: number; exceso: number | null }>(`SELECT count(*)::int AS n, sum(r.exceso)::float AS exceso FROM servicio_renovacion r ${donde}`, vals.slice(0, n)),
     ]);
     return publicar({ total: total.rows[0]?.n ?? 0, exceso: total.rows[0]?.exceso ?? 0, page: q.page, size: q.size, data: filas.rows });
+  });
+  c.header("Cache-Control", CACHE);
+  return c.json(cuerpo);
+});
+
+const TIPOS_OBSERVACION = ["reunion_en_evaluacion", "visita_personal_decisor", "ofertas_a_la_vez"] as const;
+const Observacion = z.object({
+  tipo: z.enum(TIPOS_OBSERVACION).optional(),
+  ruc: z.string().regex(/^20\d{9}$/).optional(),
+  page: z.coerce.number().int().min(1).max(200).default(1),
+  size: z.coerce.number().int().min(1).max(50).default(20),
+});
+
+patronesRouter.get("/observacion", async (c) => {
+  const p = Observacion.safeParse(Object.fromEntries(Object.entries(parametros(c)).filter(([, v]) => v !== "" && v != null)));
+  if (!p.success) return c.json({ error: "invalid_query", issues: p.error.issues }, 400);
+  const q = p.data;
+  const cuerpo = await memo.obtener(`observacion:${JSON.stringify(q)}`, async () => {
+    const vals: unknown[] = [];
+    const add = (v: unknown) => { vals.push(v); return `$${vals.length}`; };
+    // Sólo empresas: de una persona natural no se publica nada de esto.
+    const conds = [`c.tipo = ANY(${add(q.tipo ? [q.tipo] : [...TIPOS_OBSERVACION])}::text[])`, "c.ruc_empresa ~ '^20[0-9]{9}$'"];
+    if (q.ruc) conds.push(`(c.ruc_empresa = ${add(q.ruc)} OR btrim(cv.entidad_ruc::text) = $${vals.length})`);
+    const [r, t, cat] = await Promise.all([
+      pool.query(
+        // De quien recibió la visita, sólo su cargo y su área (nunca su nombre): la última visita en la reunión durante
+        // la evaluación; el funcionario visitado en las visitas personales. Quien visitó no va en la lista: está en la
+        // ficha del contrato, con un apellido tapado.
+        `SELECT c.tipo, c.severidad, c.ocid, cv.codigo, cv.objeto, c.ruc_empresa AS ruc, e.razon_social AS empresa,
+                btrim(cv.entidad_ruc::text) AS "entidadRuc", en.nombre AS entidad,
+                to_char(c.fecha, 'YYYY-MM-DD') AS fecha, c.detalle->>'buena_pro' AS "buenaPro", c.detalle->>'oferta' AS oferta,
+                (c.detalle->>'dias_evaluacion')::int AS "diasEvaluacion", (c.detalle->>'visitas_n')::int AS visitas,
+                (c.detalle->>'dias')::int AS dias, (c.detalle->>'meses')::int AS meses,
+                (c.detalle->>'ya_proveedor')::boolean AS "yaProveedor",
+                COALESCE(c.detalle->>'cargo_funcionario', c.detalle->'visitas'->-1->>'cargo') AS cargo,
+                COALESCE(c.detalle->>'area_funcionario', c.detalle->'visitas'->-1->>'area') AS area,
+                (c.detalle->>'minutos')::float AS minutos, c.detalle->>'hora_ganador' AS "horaGanador", c.detalle->>'hora_otro' AS "horaOtro",
+                c.detalle->'otros_postores'->>0 AS "otroRuc", eo.razon_social AS otro,
+                (count(*) OVER ())::int AS total
+           FROM cruces_proveedor c
+           JOIN convocatorias cv ON cv.ocid = c.ocid
+           LEFT JOIN empresas e ON e.ruc = c.ruc_empresa
+           LEFT JOIN entidades en ON btrim(en.ruc::text) = btrim(cv.entidad_ruc::text)
+           LEFT JOIN empresas eo ON eo.ruc = c.detalle->'otros_postores'->>0
+          WHERE ${conds.join(" AND ")}
+          ORDER BY CASE c.severidad WHEN 'alta' THEN 0 WHEN 'media' THEN 1 ELSE 2 END, c.fecha DESC NULLS LAST, c.ocid, c.ruc_empresa
+          LIMIT ${add(q.size)} OFFSET ${add((q.page - 1) * q.size)}`, vals),
+      pool.query<{ tipo: string; n: number }>(
+        `SELECT tipo, count(*)::int AS n FROM cruces_proveedor
+          WHERE tipo = ANY($1::text[]) AND ruc_empresa ~ '^20[0-9]{9}$' GROUP BY tipo ORDER BY n DESC`, [[...TIPOS_OBSERVACION]]),
+      catalogoSenales(),
+    ]);
+    return publicar({
+      total: r.rows[0]?.total ?? 0, page: q.page, size: q.size,
+      porTipo: t.rows.map((x) => ({ tipo: x.tipo, n: x.n, etiqueta: ETIQUETA_CRUCE[x.tipo] ?? x.tipo, tasaBase: cat.tasas.get(x.tipo) ?? null })),
+      data: r.rows.map(({ total: _t, ...x }) => ({ ...x, etiqueta: ETIQUETA_CRUCE[x.tipo] ?? x.tipo })),
+    });
   });
   c.header("Cache-Control", CACHE);
   return c.json(cuerpo);

@@ -63,6 +63,18 @@ export const VISITAS_EN_LINEA = "https://visitas.servicios.gob.pe/";
 export const VISITAS_CONGRESO = "https://wb2server.congreso.gob.pe/regvisitastransparencia/";
 export const PORTAL_TRANSPARENCIA = "https://www.transparencia.gob.pe/";
 export const DJI_CONSULTA = "https://appdji.contraloria.gob.pe/DJIC/";
+// Las portadas que sólo usaba la web (frontend/lib/fuentes.ts, mismos valores): las enlaza GET /estado/datos.
+export const TALENTO_PERU = "https://app.servir.gob.pe/DifusionOfertasExterno/faces/consultas/ofertas_laborales.xhtml";
+export const PRACTICAS_SERVIR = "https://app.servir.gob.pe/DifusionOfertasExterno/faces/consultas/modalidades_formativas.xhtml";
+export const DATASET_MEF = "https://datosabiertos.mef.gob.pe/dataset/presupuesto-y-ejecucion-de-gasto";
+export const BUSCADOR_CONTRALORIA = "https://buscadorinformes.contraloria.gob.pe/";
+export const INFOBRAS = "https://infobras.contraloria.gob.pe/InfobrasWeb/";
+export const SEGUIMIENTO_INVERSIONES = "https://ofi5.mef.gob.pe/ssi/";
+/** El buscador público de las compras de hasta 8 UIT del SEACE (prod6) y la consulta de contratos (prod4). */
+export const SEACE_MENORES = "https://prod6.seace.gob.pe/buscador-publico";
+export const SEACE_CONTRATOS = "https://prod4.seace.gob.pe/contratos/publico/";
+/** La consulta pública de órdenes de los catálogos electrónicos de Perú Compras. */
+export const CONSULTA_PERU_COMPRAS = "https://www.catalogos.perucompras.gob.pe/ConsultaOrdenesPub/";
 
 export const DATASET_SANCIONADOS = datasetPnda("proveedores-sancionados-2025");
 export const DATASET_PENALIDADES = datasetPnda("penalidades-de-contratistas-organismo-especializado-para-las-contrataciones-p%C3%BAblicas");

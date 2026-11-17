@@ -313,6 +313,32 @@ export function datosDe(a: AntecedenteEmpresa, ruc: string): DatoCaso[] {
       dias != null && { etiqueta: "Después", valor: `${plural(dias, "día", "días")} después ganó la buena pro` },
       delProceso().filter((x) => d.misma_entidad !== true || x.etiqueta !== "Entidad"),
     );
+  } else if (t === "reunion_en_evaluacion") {
+    const v = (a.visitas[a.visitas.length - 1] ?? {}) as Record<string, unknown>;
+    const n = num(d.visitas_n) ?? a.visitas.length;
+    add(
+      visitante(),
+      entidad(d.entidad_visitada ?? v.entidad, r?.entidadVisitadaRuc, "Visitó"),
+      { etiqueta: "Lo recibió", valor: recibio(v) },
+      { etiqueta: "Cuándo", valor: `${plural(n, "visita", "visitas")} después de presentar su oferta y antes de la buena pro` },
+      rangoDe(d.oferta, d.buena_pro) && { etiqueta: "La evaluación", valor: rangoDe(d.oferta, d.buena_pro) },
+      { etiqueta: "¿Ya le vendía a la entidad?", valor: d.ya_proveedor === true ? "Sí: la visita puede ser por lo que ya tenía contratado" : "No, ni ese año ni el anterior" },
+      delProceso().filter((x) => x.etiqueta !== "Entidad"),
+    );
+  } else if (t === "visita_personal_decisor") {
+    const v = (a.visitas[a.visitas.length - 1] ?? {}) as Record<string, unknown>;
+    const dias = num(d.dias) ?? a.visitas.length;
+    const meses = num(d.meses);
+    add(
+      visitante(),
+      entidad(d.entidad_visitada ?? v.entidad, r?.entidadVisitadaRuc, "Visitó"),
+      { etiqueta: "A quién", valor: recibio(v) },
+      { etiqueta: "Cuántas veces", valor: `${plural(dias, "día distinto", "días distintos")}${meses != null && meses > 1 ? ` de ${plural(meses, "mes", "meses")}` : ""}` },
+      { etiqueta: "Motivo declarado", valor: "Visita personal" },
+      rangoDe(d.primera, d.ultima) && { etiqueta: "Entre", valor: rangoDe(d.primera, d.ultima) },
+      num(d.dias_antes) != null && { etiqueta: "Después", valor: `${plural(num(d.dias_antes)!, "día", "días")} después ganó la buena pro` },
+      delProceso().filter((x) => x.etiqueta !== "Entidad"),
+    );
   } else if (t === "visita_repetida" || t === "visita_fuera_horario" || t === "visita_antes_convocatoria") {
     const v = (a.visitas[a.visitas.length - 1] ?? {}) as Record<string, unknown>;
     const n = num(d.visitas_n) ?? a.visitas.length;
@@ -338,7 +364,19 @@ export function datosDe(a: AntecedenteEmpresa, ruc: string): DatoCaso[] {
     );
   }
   // ── Su gente en otras empresas y en el Estado ──
-  else if (t === "socio_comun") {
+  else if (t === "ofertas_a_la_vez") {
+    const otros = empresas(r?.otros ?? (Array.isArray(d.otros_postores) ? (d.otros_postores as string[]).map((x) => ({ ruc: x, nombre: null })) : []));
+    const rolOtro = Array.isArray(d.rol_en_otros) ? papeles((d.rol_en_otros as string[]).join(", ")) : null;
+    const min = num(d.minutos);
+    add(
+      quien(),
+      otros.length > 0 && { etiqueta: "También está en", valor: otros.map((o) => o.texto).join(", "), lista: otros },
+      rolOtro && { etiqueta: "Su papel allá", valor: rolOtro },
+      min != null && { etiqueta: "Entre las dos ofertas", valor: min < 1 ? "Menos de un minuto" : plural(Math.round(min), "minuto", "minutos") },
+      txt(d.hora_ganador) && txt(d.hora_otro) && { etiqueta: "Se registraron", valor: `A las ${txt(d.hora_ganador)} y a las ${txt(d.hora_otro)}` },
+      delProceso(),
+    );
+  } else if (t === "socio_comun") {
     const otros = empresas(r?.otros ?? (Array.isArray(d.otros_postores) ? (d.otros_postores as string[]).map((x) => ({ ruc: x, nombre: null })) : []));
     const rolOtro = Array.isArray(d.rol_en_otros) ? papeles((d.rol_en_otros as string[]).join(", ")) : null;
     add(

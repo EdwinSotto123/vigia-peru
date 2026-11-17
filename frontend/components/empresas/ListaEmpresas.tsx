@@ -16,7 +16,7 @@ import { hoyLima, listaY, numero, plural, soles, solesCompacto } from "@/lib/for
 import { QUIEN_CARGA } from "@/lib/datoDudoso";
 import { BanderaAparte } from "@/components/ui/BanderaAparte";
 import { tituloNatural } from "@/lib/landing";
-import { GRUPOS_CRUCE, TIPO_CRUCE } from "@/lib/cruces";
+import { GRUPO_EN_OBSERVACION, GRUPOS_CRUCE, TIPO_CRUCE } from "@/lib/cruces";
 import {
   ACTIVIDADES,
   CORTO_EMPRESA,
@@ -100,7 +100,7 @@ function Barra({ resumen: r, f, entidad }: { resumen: ResumenEmpresas | null; f:
       // lleva su `grupo` y el filtro las agrupa. Sólo los tipos que aparecen en estas empresas.
       opciones: (() => {
         const conteo = new Map((r?.porTipo ?? []).map((t) => [t.tipo, t.n]));
-        return GRUPOS_CRUCE.flatMap((g) =>
+        return [...GRUPOS_CRUCE, GRUPO_EN_OBSERVACION].flatMap((g) =>
           g.tipos
             .filter((t) => conteo.has(t.tipo))
             .map((t) => ({ valor: t.tipo, etiqueta: CORTO_EMPRESA[t.tipo] ?? t.corto, grupo: g.titulo, conteo: conteo.get(t.tipo) ?? 0 })));

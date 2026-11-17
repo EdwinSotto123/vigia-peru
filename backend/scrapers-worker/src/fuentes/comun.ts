@@ -280,6 +280,9 @@ export function cadenaCruces(): Refresco[] {
     // La competencia de cada proceso según los reportes que genera el SEACE, leídos sin modelo (migración 326): quién
     // presentó oferta, a quién se admitió y calificó, y lo adjudicado por ítem. Va antes de los hechos, que la leen.
     f("refrescar_proceso_postor", true),
+    // El ganador y otro postor comparten una persona y registraron sus ofertas casi a la vez (migración 329): lee la tabla
+    // anterior. Es un indicador en observación: se muestra y no puntúa (senal_en_observacion).
+    f("refrescar_cruce_ofertas_a_la_vez", true),
     // Los datos de los documentos leídos, como hechos con tipo y con su comprobación contra el registro (migraciones 323
     // y 327: también los leídos sin modelo, de los reportes del SEACE y de las secciones de las bases).
     f("refrescar_hecho_documento", true),
@@ -289,6 +292,8 @@ export function cadenaCruces(): Refresco[] {
     // Adjudicaciones de 20 veces su valor referencial o de S/ 1: posible error de carga (migración 102).
     f("refrescar_contratos_dudosos"),
     f("refrescar_casos_cruce_base"),
+    // En cuántos procesos aparece cada tipo de señal y sobre cuántos se puede medir (migración 329).
+    f("refrescar_senal_tasa_base", true),
     // Cuántos contratos con antecedentes tiene cada entidad (migración 175), de casos_cruce recién hecho.
     f("refrescar_entidad_antecedentes", true),
     // Las personas naturales que ganaron procesos de selección (migración 317): su resumen y su código de ficha.

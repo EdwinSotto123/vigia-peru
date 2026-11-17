@@ -510,10 +510,16 @@ export const patrones = definir({
     "«renovacion»: servicios que una entidad volvió a contratar pagando 30 % o más POR MES que en el contrato anterior " +
     "(con cuánto costaba, cuánto cuesta y si el proveedor es el mismo). Con alcance «control»: empresas que ganan con un socio o representante comprendido en un informe de control de la Contraloría anterior (responsabilidad presunta). Con alcance «observado»: proveedores con procesos que la Contraloría observó en un informe de control, por entidad, y cuánto les adjudicó esa misma entidad después del informe. Con alcance «inhabilitada»: empresas que ganan mientras otra empresa del mismo socio está inhabilitada (con ruc: la ganadora, la inhabilitada o la entidad). Con alcance «dueno»: un mismo socio que gana en una " +
     "entidad con dos o más empresas procesos de objeto parecido (reparto de compras entre razones sociales). Con un RUC, los patrones de esa entidad o empresa. Cada patrón trae contratos " +
-    "de ejemplo para abrir con ficha_contrato o dictamen. Un patrón es un motivo para mirar, no una acusación.",
+    "de ejemplo para abrir con ficha_contrato o dictamen. Con alcance «observacion»: los indicadores NUEVOS que Vigía todavía " +
+    "está midiendo, contrato por contrato (una reunión de la empresa con quien decide las compras mientras se evaluaban las " +
+    "ofertas; visitas declaradas «personales» y repetidas a quien decide; dos rivales con un socio común que registran sus " +
+    "ofertas casi a la vez): se muestran con su evidencia y NO cuentan para el puntaje del contrato. " +
+    "Un patrón es un motivo para mirar, no una acusación.",
   cuenta: true,
   entrada: {
-    alcance: z.enum(["entidad", "proveedor", "relleno", "consorcio", "renovacion", "dueno", "inhabilitada", "control", "observado"]).default("entidad"),
+    alcance: z.enum(["entidad", "proveedor", "relleno", "consorcio", "renovacion", "dueno", "inhabilitada", "control", "observado", "observacion"]).default("entidad"),
+    indicador: z.enum(["reunion_en_evaluacion", "visita_personal_decisor", "ofertas_a_la_vez"]).optional()
+      .describe("(observacion) Sólo uno de los tres indicadores en observación."),
     ruc: z.string().min(11).max(14).optional().describe("RUC 20 de la entidad o de la empresa (opcional)."),
     regla: z.string().max(60).optional().describe("Sólo una señal, por su código (p. ej. unica_oferta_valida)."),
     solo_graves: z.boolean().optional().describe("(dueno) Sólo grupos con contratos parecidos a 90 días o menos entre sí. (inhabilitada) Sólo con sanción definitiva o empresa hecha cerca de la sanción. (observado) Sólo con responsabilidad penal presunta en una observación de selección, ejecución o pagos."),
@@ -524,6 +530,40 @@ export const patrones = definir({
   async ejecutar(a, cx) {
     const e = enlaces(cx.env);
     const ruc = a.ruc ? rucJuridico(a.ruc) : undefined;
+    if (a.alcance === "observacion") {
+      const r = await api<Fila>(cx.env, "/patrones/observacion", { ruc, tipo: a.indicador, page: a.pagina, size: 20 });
+      return {
+        total: r.total,
+        por_indicador: ((r.porTipo ?? []) as Fila[]).map((x) => ({
+          indicador: x.tipo, que_es: x.etiqueta, contratos: x.n,
+          cuan_frecuente: x.tasaBase ? { casos: x.tasaBase.casos, de: x.tasaBase.universo, universo: x.tasaBase.que } : undefined,
+        })),
+        casos: ((r.data ?? []) as Fila[]).map((x) => ({
+          indicador: x.tipo, que_es: x.etiqueta, empresa: x.empresa, ruc: x.ruc, enlace_empresa: e.empresa(x.ruc),
+          entidad: x.entidad, ruc_entidad: x.entidadRuc ?? undefined, contrato: e.contrato(x.ocid), codigo: x.codigo ?? undefined,
+          objeto: x.objeto ? recortar(x.objeto, 140) : undefined, buena_pro: x.buenaPro ?? undefined,
+          // De quien recibió la visita, sólo su cargo y su área; quien visitó sale en ficha_contrato, con un apellido tapado.
+          cargo_de_quien_recibio: x.cargo ?? undefined, area: x.area ?? undefined,
+          visitas: x.visitas ?? undefined, dias_distintos: x.dias ?? undefined, meses_distintos: x.meses ?? undefined,
+          presento_su_oferta: x.oferta ?? undefined, dias_de_evaluacion: x.diasEvaluacion ?? undefined,
+          ya_era_proveedor_de_la_entidad: x.yaProveedor ?? undefined,
+          minutos_entre_las_ofertas: x.minutos ?? undefined, horas_de_registro: x.horaGanador && x.horaOtro ? [x.horaGanador, x.horaOtro] : undefined,
+          otro_postor: x.otro ?? undefined, ruc_otro_postor: x.otroRuc ?? undefined,
+        })),
+        como_leerlo:
+          "Son indicadores EN OBSERVACIÓN: Vigía todavía mide cuántas veces aciertan, así que no cuentan para el puntaje del " +
+          "contrato ni lo hacen un «contrato con antecedentes». reunion_en_evaluacion: gente de la empresa visitó a un " +
+          "funcionario que decide las compras después de presentar su oferta y antes de la buena pro; pesa más si la empresa " +
+          "no era proveedora de la entidad (entre quienes no lo eran, 1,01 % de los que ganan tuvo esa reunión contra 0,32 % " +
+          "de los que pierden; entre proveedores previos casi no hay diferencia). visita_personal_decisor: la misma persona " +
+          "visitó al mismo funcionario que decide, declarando «visita personal», en 3 o más días de 2 o más meses, en el año " +
+          "anterior a la buena pro. ofertas_a_la_vez: el ganador y otro postor comparten un socio o representante y " +
+          "registraron sus ofertas con 30 minutos o menos de diferencia. Cada uno tiene una explicación sencilla posible " +
+          "(una subsanación, un familiar, el mismo estudio contable): abre el contrato con ficha_contrato y lee su evidencia.",
+        fuente: "Registro de visitas en línea, Registro Nacional de Proveedores, CONOSCE y el reporte de presentación de ofertas del SEACE",
+        aviso: AVISO,
+      };
+    }
     if (a.alcance === "observado") {
       const r = await api<Fila>(cx.env, "/patrones/observados", { ruc, page: a.pagina, size: 20, graves: a.solo_graves ? 1 : undefined, siguio: a.siguio_ganando ? 1 : undefined });
       return {

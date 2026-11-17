@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { aCruce } from "../src/lib/cruces.js";
+import { aCruce, claseDeMotivo, motivoPublicable } from "../src/lib/cruces.js";
 import { TAPA_NOMBRE, publicar } from "../src/lib/privacidad.js";
 
 process.env.PRIVACIDAD_CLAVE = "clave-de-prueba-de-32-caracteres-o-mas";
@@ -139,4 +139,76 @@ test("ganó tras una observación (migración 315): el informe y el proceso obse
   assert.equal(c.detalle.dias_despues, 412);
   assert.equal(c.detalle.informe_numero, "007-2022-2-4460");
   assert.equal(c.socios.length, 0);
+});
+
+// ── Indicadores en observación y motivo de la visita (migración 329) ──
+
+test("el motivo de una visita: la categoría del registro sale tal cual; el texto libre, sólo su clase", () => {
+  assert.equal(motivoPublicable("Reunión de trabajo."), "Reunión de trabajo");
+  assert.equal(motivoPublicable("OTROS MOTIVOS - VISITA PERSONAL."), "OTROS MOTIVOS - VISITA PERSONAL");
+  // Texto libre con el nombre de un tercero (inventado): no sale ni una palabra de él.
+  const libre = "- ACONDICIONAMIENTO DE OFICINA INGRESA CON EL ING ROBERTINO QUISPEMAYTA";
+  assert.equal(motivoPublicable(libre), "Provisión de un servicio, mantenimiento o entrega");
+  assert.doesNotMatch(String(motivoPublicable(libre)), /QUISPEMAYTA|ROBERTINO/);
+  assert.equal(motivoPublicable("NORMAL - INGRESA CON CCAHUANA TICONA"), "Otro motivo");
+  assert.equal(motivoPublicable(""), null);
+  assert.equal(motivoPublicable(null), null);
+});
+
+test("la clase del motivo: lo operativo antes que la reunión, y «personal» sólo es la visita personal", () => {
+  assert.equal(claseDeMotivo("Reunión de trabajo."), "reunion");
+  assert.equal(claseDeMotivo("Otros motivos - Visita personal."), "personal");
+  assert.equal(claseDeMotivo("PERSONAL DEL CONCESIONARIO"), "operativa");
+  assert.equal(claseDeMotivo("OTROS MOTIVOS-REUNION CON PERSONAL DE LIMPIEZA"), "reunion");
+  assert.equal(claseDeMotivo("Gestión de intereses."), "gestion_intereses");
+  assert.equal(claseDeMotivo("Otros motivos - Procedimiento de selección."), "seleccion");
+  assert.equal(claseDeMotivo("Mantenimiento programado"), "operativa");
+  assert.equal(claseDeMotivo("Otros motivos - Acto público / protocolar."), "protocolar");
+  assert.equal(claseDeMotivo("NORMAL"), "otra");
+});
+
+test("visita previa: lleva la etapa del procedimiento y el motivo saneado", () => {
+  const fila = { ...base, tipo: "visita_previa", severidad: "alta", persona_doc: "00000789", persona_nombre: "CCAHUANA TICONA FILOMENO",
+    persona_rol: "SOCIO_ACCIONISTA_TITULAR", ocid: "ocds-dgv273-seacev3-1",
+    detalle: { entidad_visitada: "GOBIERNO REGIONAL X", misma_entidad: true, cargo_funcionario: "GERENTE", decisor: true,
+      motivo: "NORMAL - AUTORIZA MAMANI APAZA EUSTAQUIO", clase_motivo: "otra", etapa: "evaluacion", dias_antes: 3 } };
+  const c = publicar({ cruces: [aCruce(fila)] }).cruces[0];
+  assert.equal(c.visitas[0].etapa, "evaluacion");
+  assert.equal(c.visitas[0].motivo, "Otro motivo");
+  assert.doesNotMatch(json(c), /EUSTAQUIO|APAZA|00000789/);
+  assert.equal(c.detalle.etapa, "evaluacion");
+});
+
+test("reunión durante la evaluación: las visitas van bajo `visitas` con cargo, área y la clase del motivo; sin DNI", () => {
+  const fila = { ...base, tipo: "reunion_en_evaluacion", severidad: "media", persona_doc: "00000789", persona_nombre: "CCAHUANA TICONA FILOMENO",
+    persona_rol: "REPRESENTANTE_LEGAL", ocid: "ocds-dgv273-seacev3-1",
+    detalle: { entidad_visitada: "GOBIERNO REGIONAL X", misma_entidad: true, decisor: true, visitas_n: 2, oferta: "2025-02-20",
+      buena_pro: "2025-03-04", dias_evaluacion: 12, ya_proveedor: false, en_observacion: true,
+      visitas: [{ fecha: "2025-02-24", hora: "10:15", minutos: 40, cargo: "JEFE DE LOGISTICA", area: "OFICINA DE ABASTECIMIENTO", decisor: true, clase: "reunion" },
+                { fecha: "2025-02-27", hora: "16:02", minutos: 25, cargo: "JEFE DE LOGISTICA", area: "OFICINA DE ABASTECIMIENTO", decisor: true, clase: "personal" }] } };
+  const c = publicar({ cruces: [aCruce(fila)] }).cruces[0];
+  assert.equal(c.etiqueta, "Se reunió con quien decide las compras mientras se evaluaban las ofertas");
+  assert.equal(c.visitas.length, 2);
+  assert.equal(c.visitas[0].cargoFuncionario, "JEFE DE LOGISTICA");
+  assert.equal(c.visitas[0].motivo, "Reunión de trabajo");
+  assert.equal(c.visitas[1].motivo, "Visita personal");
+  assert.equal(c.visitas[0].decisor, true);
+  assert.equal(c.socios.length, 0);
+  assert.equal(c.detalle.ya_proveedor, false);
+  assert.equal(c.detalle.visitas, undefined);
+  assert.doesNotMatch(json(c), /00000789/);
+  assert.doesNotMatch(json(c), /TICONA/);
+});
+
+test("ofertas casi a la vez: la persona común va bajo `socios` tapada y el otro postor por su RUC", () => {
+  const fila = { ...base, tipo: "ofertas_a_la_vez", severidad: "media", persona_doc: "00000001", persona_nombre: "QUISPEMAYTA HUAMANCHUMO ROBERTINO",
+    persona_rol: "SOCIO_ACCIONISTA_TITULAR", ocid: "ocds-dgv273-seacev3-1", fuente: "seace_reporte_presentacion",
+    detalle: { otros_postores: ["20999999992"], rol_en_otros: ["REPRESENTANTE_LEGAL"], minutos: 4.5, hora_ganador: "17:41", hora_otro: "17:46",
+      item: 1, en_observacion: true } };
+  const c = publicar({ cruces: [aCruce(fila)] }).cruces[0];
+  assert.equal(c.etiqueta, "Presentó su oferta casi a la vez que un rival con el que comparte socio");
+  assert.equal(c.socios.length, 1);
+  assert.doesNotMatch(json(c), /00000001|HUAMANCHUMO/);
+  assert.deepEqual(c.detalle.otros_postores, ["20999999992"]);
+  assert.equal(c.detalle.minutos, 4.5);
 });
