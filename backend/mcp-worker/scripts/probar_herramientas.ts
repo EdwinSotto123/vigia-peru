@@ -87,6 +87,15 @@ const CASOS: Caso[] = [
   { h: buscarContratos as never, args: { senal: "unico_postor,socio_de_inhabilitada", todas_las_senales: true, por_pagina: 5 },
     espera: (r) => (Number(r.total) > 0 && Number(r.total) < 2000 ? null : `la combinación de señales dio ${String(r.total)} contratos`) },
   // Lo que la Contraloría observó, atado a su contrato (migración 313): el patrón por proveedor y entidad, y el filtro.
+  // Grupos por dueño y familia (migraciones 343-347): el de la UNI (Valencia) sale grave, con la dependencia y sin RUC 10.
+  { h: patrones as never, args: { alcance: "grupo", ruc: "20605328696" },
+    espera: (r) => {
+      const g = (lista(r, "grupos") as { severidad?: string; integrantes?: { ruc?: string; persona_natural?: boolean }[]; parte_de_sus_ventas_por_ordenes_que_viene_de_esta_entidad?: number }[])[0];
+      if (!g) return "sin grupo para Lima Norte Investment";
+      if (g.severidad !== "alta") return `el grupo de la UNI salió ${g.severidad}`;
+      if ((g.integrantes ?? []).some((m) => m.persona_natural && m.ruc)) return "un integrante persona natural trae su RUC";
+      return (g.parte_de_sus_ventas_por_ordenes_que_viene_de_esta_entidad ?? 0) > 0.5 ? null : "sin la dependencia de la entidad";
+    } },
   { h: patrones as never, args: { alcance: "observado" },
     espera: (r) => (lista(r, "casos").length >= 5 && lista(r, "casos").every((g) => /^20\d{9}$/.test(String((g as { ruc: string }).ruc)) && Number((g as { procesos_observados: number }).procesos_observados) > 0)
       ? null : "la lista de procesos observados por la Contraloría salió vacía o con un RUC que no es de empresa") },
