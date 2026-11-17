@@ -569,6 +569,14 @@ patronesRouter.get("/grupos", async (c) => {
         dias: ((detalle?.dias ?? []) as Record<string, any>[]).map((d) => ({ ...d, detalle: (d.detalle ?? []).map(conNombre) })),
         objetosRepartidos: ((detalle?.repartidos ?? []) as Record<string, any>[]).map((d) => ({ ...d, detalle: (d.detalle ?? []).map(conNombre) })),
         sobreTopeOrdenes: ((detalle?.sobre_tope ?? []) as Record<string, any>[]).map(conNombre),
+        // Un integrante que un funcionario de la misma entidad declaró como pariente (migración 344). Si el funcionario es una
+        // autoridad electa (su nombre es público), su cargo y un parentesco de sangre destaparían el apellido tapado del
+        // pariente: entonces sólo «un funcionario de la entidad» y «pariente».
+        parientesDeFuncionarios: ((detalle?.parientes_de_funcionarios ?? []) as Record<string, any>[]).map((d) => {
+          const electo = /ALCALDE|REGIDOR|GOBERNADOR|CONSEJER|CONGRESISTA|PRESIDENTE REGIONAL/i.test(String(d.cargo ?? ""));
+          return { ...conNombre(d), cargo: electo ? null : d.cargo ?? null, parentesco: electo ? "pariente" : d.parentesco ?? null,
+                   ordenes: d.ordenes ?? null, monto: d.monto ?? null };
+        }),
       };
     });
     return publicar({ total: grupos[0]?.total ?? 0, page: q.page, size: q.size, data,

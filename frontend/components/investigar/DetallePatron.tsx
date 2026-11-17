@@ -447,6 +447,18 @@ export function detalleGrupo(p: PatronGrupo): Detalle {
             ))}
           </ul>
         </Bloque>
+        {(p.parientesDeFuncionarios ?? []).length > 0 && (
+          <Bloque titulo="Parientes declarados de funcionarios de la entidad">
+            <ul className="space-y-1.5 text-meta leading-relaxed text-inkSoft">
+              {p.parientesDeFuncionarios.map((d, i) => (
+                <li key={i}>
+                  {quien(d.ruc, d.nombre)}: {d.cargo ? <>un funcionario de la entidad ({tituloNatural(d.cargo)})</> : "un funcionario de la entidad"} lo declaró
+                  como {(d.parentesco ?? "pariente").toLowerCase()} en su declaración jurada de intereses.
+                </li>
+              ))}
+            </ul>
+          </Bloque>
+        )}
         <Bloque titulo="Por qué están juntos">
           <ul className="space-y-1.5 text-meta leading-relaxed text-inkSoft">
             {/* recorte: los vínculos de un grupo grande se repiten; los primeros doce bastan para ver qué los une */}

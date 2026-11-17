@@ -575,6 +575,7 @@ export const patrones = definir({
           dias_destacados: ((g.dias ?? []) as Fila[]).slice(0, 6).map((d) => ({ fecha: d.fecha, ordenes: d.ordenes, miembros: d.miembros, monto_soles: d.monto, correlativas: d.correlativas,
             ordenes_del_dia: ((d.detalle ?? []) as Fila[]).map((o) => ({ orden: o.orden, a: o.nombre, monto_soles: o.monto })) })),
           objetos_repartidos: ((g.objetosRepartidos ?? []) as Fila[]).slice(0, 6).map((x) => ({ anio: x.anio, objeto: x.objeto, ordenes: x.ordenes, miembros: x.miembros, monto_soles: x.monto, tope_soles: x.tope })),
+          parientes_declarados_de_funcionarios_de_la_entidad: ((g.parientesDeFuncionarios ?? []) as Fila[]).map((d) => ({ integrante: d.nombre, cargo_del_funcionario: d.cargo ?? undefined, parentesco: d.parentesco })),
           enlace_entidad: e.entidad(g.entidadRuc),
         })),
         como_leerlo:
