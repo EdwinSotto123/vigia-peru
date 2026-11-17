@@ -212,6 +212,21 @@ async function itemsDelContrato(ocid: string): Promise<ItemContrato[]> {
   return renglones.length >= 2 && renglones.length > items.length ? renglones : items;
 }
 
+/**
+ * ¿Son los ítems del registro un paquete sin desglosar? Uno o varios ítems cuya descripción es un trámite con un genérico
+ * («Contratación de suministros de bienes para el programa Vaso de Leche», migración 340: `es_descripcion_paquete`) y sin
+ * renglones leídos de los documentos: investigarlos es buscar el paquete entero en las tiendas (2026-212-10). La cola los
+ * deja esperando la lectura por pieza.
+ */
+async function esPaqueteSinRenglones(items: ItemContrato[]): Promise<boolean> {
+  if (!items.length || items.some((f) => f.cubso == null && f.precio_unit_ref == null && f.unit_adj != null)) return false;
+  const r = await pool.query<{ todos: boolean }>(
+    `SELECT bool_and(es_descripcion_paquete(d)) AS todos FROM unnest($1::text[]) d`,
+    [items.map((f) => f.descripcion ?? f.descripcion_corta ?? "")],
+  ).catch(() => ({ rows: [{ todos: false }] }));
+  return !!r.rows[0]?.todos;
+}
+
 /** Los ítems que no se comparan en tiendas: servicios y montos globales. */
 const sinTiendas = (f: ItemContrato) => /^(servicio|global)/i.test(f.unidad ?? "");
 
@@ -358,7 +373,7 @@ const PedidoContrato = z.object({
 type Lanzada = { item: number; id?: string; reutilizada?: boolean; error?: string };
 type ResultadoContrato =
   | { ok: true; ocid: string; lanzadas: Lanzada[]; quedan: number; sinTiendas: number; items: number }
-  | { ok: false; error: "sin_item" | "sin_laboratorio" };
+  | { ok: false; error: "sin_item" | "sin_laboratorio" | "paquete_sin_renglones" };
 
 /**
  * Lanza en el laboratorio los renglones del contrato que faltan (o todos, con `repetir`), hasta `maximo`, escalonados
@@ -370,6 +385,10 @@ async function lanzarContrato(c: Context, ocidPedido: string, o: { web?: boolean
   const [items, invs] = await Promise.all([itemsDelContrato(ocid), investigacionesDe(c, ocid)]);
   if (!items.length) return { ok: false, error: "sin_item" };
   if (!invs) return { ok: false, error: "sin_laboratorio" };
+  // Desde la cola, un paquete sin desglosar espera la lectura; desde el panel, quien pide manda.
+  if (o.autor.startsWith("cola") || o.autor === "procesar_proveedor.py") {
+    if (await esPaqueteSinRenglones(items)) return { ok: false, error: "paquete_sin_renglones" };
+  }
   const pendientes = items.filter((f) => {
     if (sinTiendas(f)) return false;
     const e = ultimaDe(invs, f)?.estado;
@@ -438,7 +457,7 @@ export async function procesarColaPreciosLab(c: Context): Promise<Record<string,
     let r: ResultadoContrato;
     try {
       // `repetir` sólo en la primera vuelta: en las siguientes, los que ya se lanzaron cuentan como hechos.
-      r = await lanzarContrato(c, fila.ocid, { web: fila.web, repetir: fila.repetir && fila.vueltas === 0, autor: fila.autor || "cola-precios-lab",
+      r = await lanzarContrato(c, fila.ocid, { web: fila.web, repetir: fila.repetir && fila.vueltas === 0, autor: `cola:${fila.autor || "precios-lab"}`,
         maximo: RENGLONES_POR_VUELTA - usados, desde: usados });
     } catch (e) {
       await pool.query(`UPDATE precios_lab_cola SET estado = 'error', ultimo_at = now(), vueltas = vueltas + 1, detalle = $2 WHERE ocid = $1`,
@@ -448,7 +467,8 @@ export async function procesarColaPreciosLab(c: Context): Promise<Record<string,
     }
     if (!r.ok) {
       await pool.query(`UPDATE precios_lab_cola SET estado = $2, ultimo_at = now(), vueltas = vueltas + 1, detalle = $3 WHERE ocid = $1`,
-        [fila.ocid, r.error === "sin_item" ? "sin_items" : "error", JSON.stringify({ error: r.error })]);
+        [fila.ocid, r.error === "sin_laboratorio" ? "error" : "sin_items",
+          JSON.stringify(r.error === "paquete_sin_renglones" ? { error: r.error, espera: "lectura por pieza" } : { error: r.error })]);
       hechos.push({ ocid: fila.ocid, error: r.error });
       if (r.error === "sin_laboratorio") break;
       continue;
