@@ -4,6 +4,7 @@ GitLab?»). Entran por el túnel de SSM como `vigia_ci` (miembro de vigia_jobs; 
 
   python -X utf8 backend/scripts/tareas_ci.py prod refrescar-menores   # las señales de los contratos menores
   python -X utf8 backend/scripts/tareas_ci.py prod ordenes-anual       # órdenes de cada entidad por año (migr. 148)
+  python -X utf8 backend/scripts/tareas_ci.py prod refrescar-piezas    # postores e ítems de los reportes del SEACE y hechos
 
 `ordenes-anual` rehace el año en curso (y, en enero y febrero, también el anterior: las órdenes llegan con atraso).
 En el Worker de scrapers ese paso tarda ~150 s y no termina: el 2026-11-05 la tabla seguía en el 5 de octubre.
@@ -40,7 +41,16 @@ def ordenes_anual(cur) -> None:
               flush=True)
 
 
-TAREAS = {"refrescar-menores": refrescar_menores, "ordenes-anual": ordenes_anual}
+def refrescar_piezas(cur) -> None:
+    """Tras registrar piezas nuevas (backend/lector/piezas.py): la competencia de cada proceso según los reportes del
+    SEACE (migración 326) y los hechos de los documentos, que la leen (migraciones 323 y 327)."""
+    for funcion in ("refrescar_proceso_postor", "refrescar_hecho_documento"):
+        t = time.time()
+        cur.execute(f"SELECT {funcion}()")
+        print(f"{funcion}(): {cur.fetchone()[0]} filas ({round(time.time() - t)} s)", flush=True)
+
+
+TAREAS = {"refrescar-menores": refrescar_menores, "ordenes-anual": ordenes_anual, "refrescar-piezas": refrescar_piezas}
 
 
 def main() -> None:

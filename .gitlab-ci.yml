@@ -168,6 +168,22 @@ tarea:ordenes-anual:
       when: manual
       allow_failure: true
 
+# Las piezas de cada proceso (un PDF con su tipo, migración 325) y lo que se lee de ellas SIN modelo: los reportes que
+# genera el SEACE y las secciones de las bases. Parte del texto ya guardado (documentos_texto): no baja archivos ni llama
+# a un modelo, así que no gasta. Después rehace los postores e ítems por proceso y los hechos (migraciones 326-327).
+tarea:piezas:
+  <<: *tarea_con_base
+  timeout: 2h
+  script:
+    - python -X utf8 backend/lector/piezas.py prod
+    - python -X utf8 backend/lector/piezas.py prod --bases
+    - python -X utf8 backend/scripts/tareas_ci.py prod refrescar-piezas
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "schedule" && ($TAREA == "piezas" || $CI_PIPELINE_SCHEDULE_DESCRIPTION =~ /^piezas:/)'
+    - if: '$CI_COMMIT_BRANCH == "main" && $CI_PIPELINE_SOURCE != "schedule"'
+      when: manual
+      allow_failure: true
+
 # La lectura con IA de los contratos menores nuevos (requerimiento, contrato y sus segundas lecturas), con tope de gasto.
 tarea:lector-menores:
   <<: *tarea_con_base
