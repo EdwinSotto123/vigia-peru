@@ -87,11 +87,10 @@ def main() -> None:
                 if not ventanas:
                     c["sin texto con ese monto"] += 1
                     continue
-                roles = {verify._rol_en_ventana(v) for v in ventanas}
-                if None in roles or "cuantia" in roles:
+                rol = verify.rol_de_apariciones(verify._rol_en_ventana(v) for v in ventanas)
+                if not rol:
                     c["el texto no lo contradice"] += 1
                     continue
-                rol = sorted(r for r in roles if r)[0]
                 if verify._bandera_habla_de(ev, raw, rol):
                     c["la bandera ya lo llama por su rol"] += 1
                     continue

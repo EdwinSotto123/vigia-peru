@@ -416,9 +416,17 @@ def _monto_en_texto(texto: str, candidatos: list[float]) -> bool:
 # ─── Qué ES un monto en el documento ─────────────────────────────────────────
 # Que un número exista en un documento no dice qué significa. El 2026-11-16 una bandera «cotejada» decía que «el documento
 # indica S/ 24,98 M» frente a S/ 9,83 M adjudicados: los S/ 24,98 M eran el monto facturado que pedía un factor de
-# evaluación (la experiencia exigida al postor), no la cuantía del proceso. Aquí se mira la palabra que más cerca
-# precede a cada aparición del monto en el texto: si TODAS sus apariciones lo presentan como experiencia, garantía,
-# penalidad o capacidad financiera, ese es su rol, y una bandera que lo use como otra cosa no pasa la verificación.
+# evaluación (la experiencia exigida al postor), no la cuantía del proceso.
+#
+# La prueba es deliberadamente estrecha: descartar una bandera válida es peor que dejar pasar una dudosa. Una primera
+# versión (la palabra clave más cercana en 260 caracteres, todas las apariciones) se probó contra lo publicado y de 15
+# aciertos sólo 1 era un error real: las demás banderas SÍ hablaban de la experiencia con otras palabras («acreditaron»,
+# «el requisito», «pedía reducirlo»), o el monto estaba en una tabla cuya cabecera nombraba una garantía. Por eso:
+#   · en el documento, la palabra clave tiene que estar en la misma frase que el monto: a 140 caracteres o menos y sin
+#     un separador de celda («|») ni un salto de página en medio;
+#   · basta una aparición clara como experiencia, garantía, penalidad o capacidad financiera, siempre que NINGUNA lo
+#     presente como cuantía, precio u oferta;
+#   · y la bandera no se toca si en cualquier parte de su texto ya habla de ese rol.
 _ROL_NO_CUANTIA: tuple[tuple[str, "re.Pattern[str]"], ...] = (
     ("experiencia_exigida", re.compile(r"experiencia|facturad|facturaci[oó]n|monto\s+m[ií]nimo\s+de\s+ventas?", re.I)),
     ("garantia", re.compile(r"garant[ií]a|fiel\s+cumplimiento|carta\s+fianza|p[oó]liza\s+de\s+cauci[oó]n", re.I)),
@@ -427,8 +435,18 @@ _ROL_NO_CUANTIA: tuple[tuple[str, "re.Pattern[str]"], ...] = (
 )
 _ROL_CUANTIA = re.compile(
     r"valor\s+referencial|valor\s+estimado|cuant[ií]a|precio|presupuesto|importe|monto\s+(?:total\s+)?(?:del\s+|de\s+la\s+)?"
-    r"(?:contrat|adjudic|ofert|propuesta)|oferta\s+econ[oó]mica|buena\s+pro|monto\s+del\s+contrato", re.I)
+    r"(?:contrat|adjudic|ofert|propuesta)|oferta|buena\s+pro|monto\s+del\s+contrato", re.I)
+# Con qué palabras una BANDERA habla de cada rol (más amplio que el del documento: el modelo redacta a su manera).
+_ROL_EN_BANDERA: dict[str, "re.Pattern[str]"] = {
+    "experiencia_exigida": re.compile(r"experiencia|facturad|facturaci[oó]n|acredit|requisito|calificaci[oó]n|umbral|monto\s+m[ií]nimo|"
+                                      r"reducirl|barrera|mype", re.I),
+    "garantia": re.compile(r"garant|fianza|fondo|retenci[oó]n|apropiaci[oó]n|cauci[oó]n", re.I),
+    "penalidad": re.compile(r"penalidad|multa|mora", re.I),
+    "capacidad_financiera": re.compile(r"l[ií]nea\s+de\s+cr[eé]dito|solvencia|patrimonio|capital|financier", re.I),
+}
 _VENTANA_ROL = 260
+_CERCA_ROL = 140
+_CORTE_FRASE = re.compile(r"\||⟦p\.\d+⟧")
 
 
 def _variantes_monto(c: float) -> set[str]:
@@ -437,20 +455,36 @@ def _variantes_monto(c: float) -> set[str]:
 
 
 def _rol_en_ventana(antes: str) -> str | None:
-    """El rol que dice la palabra clave MÁS CERCANA antes del monto: uno de `_ROL_NO_CUANTIA`, «cuantia» o None."""
+    """El rol que el texto que PRECEDE a un monto le da, o None si no lo dice con claridad. Manda la palabra clave más
+    cercana, y sólo cuenta si está en la misma frase: a `_CERCA_ROL` caracteres o menos y sin un corte de celda o de
+    página entre ella y el monto."""
     mejor: tuple[int, str] | None = None
     for nombre, pat in (*_ROL_NO_CUANTIA, ("cuantia", _ROL_CUANTIA)):
         for m in pat.finditer(antes):
             if mejor is None or m.end() > mejor[0]:
                 mejor = (m.end(), nombre)
-    return mejor[1] if mejor else None
+    if not mejor:
+        return None
+    entre = antes[mejor[0]:]
+    if len(entre) > _CERCA_ROL or _CORTE_FRASE.search(entre):
+        return None
+    return mejor[1]
+
+
+def rol_de_apariciones(roles: "Iterable[str | None]") -> str | None:
+    """De los roles de cada aparición de un monto: el rol no-cuantía si alguna lo dice con claridad y NINGUNA lo presenta
+    como cuantía, precio u oferta. Las apariciones que no dicen nada (una fila de tabla) no deciden."""
+    vistos = set(roles)
+    if "cuantia" in vistos:
+        return None
+    claros = sorted(r for r in vistos if r)
+    return claros[0] if claros else None
 
 
 def rol_del_monto(textos: "Iterable[str]", candidatos: list[float]) -> str | None:
-    """Qué es un monto según los documentos: el rol (experiencia_exigida, garantia, penalidad, capacidad_financiera) si
-    TODAS sus apariciones lo presentan así; None si alguna lo presenta como cuantía, precio u oferta, si no hay palabra
-    clave cerca o si el monto no aparece. Ante la duda no decide: sólo descarta lo que el texto dice sin ambigüedad."""
-    roles: set[str | None] = set()
+    """Qué es un monto según los documentos (experiencia_exigida, garantia, penalidad, capacidad_financiera), o None si
+    el texto no lo dice con claridad, si alguna aparición lo presenta como cuantía o si el monto no aparece."""
+    roles: list[str | None] = []
     for texto in textos:
         if not texto:
             continue
@@ -463,20 +497,15 @@ def rol_del_monto(textos: "Iterable[str]", candidatos: list[float]) -> str | Non
                     pegado = (i > 0 and (texto[i - 1].isdigit() or texto[i - 1] in ",.")) or texto[i + len(v):i + len(v) + 1].isdigit()
                     if not pegado and not any(abs(i - j) < len(v) for j in vistos):
                         vistos.add(i)
-                        roles.add(_rol_en_ventana(texto[max(0, i - _VENTANA_ROL):i]))
+                        roles.append(_rol_en_ventana(texto[max(0, i - _VENTANA_ROL):i]))
                     i = texto.find(v, i + 1)
-    if not roles or None in roles or "cuantia" in roles:
-        return None
-    return sorted(r for r in roles if r)[0] if len(roles) >= 1 else None
+    return rol_de_apariciones(roles)
 
 
 def _bandera_habla_de(texto_bandera: str, raw: str, rol: str) -> bool:
-    """¿La bandera, cerca de ese monto, ya lo llama por su rol? («exige una experiencia de S/ …»: eso es coherente)."""
-    pat = dict(_ROL_NO_CUANTIA)[rol]
-    i = texto_bandera.find(raw)
-    if i == -1:
-        return bool(pat.search(texto_bandera))
-    return bool(pat.search(texto_bandera[max(0, i - 160):i + len(raw) + 80]))
+    """¿La bandera ya habla de ese rol, con cualquiera de sus palabras y en cualquier parte de su texto? Entonces usa el
+    monto como lo que es («acreditaron entre S/ … y S/ …», «pedía reducir el requisito a S/ …») y no se toca."""
+    return bool(_ROL_EN_BANDERA[rol].search(texto_bandera or ""))
 
 
 _GROUNDING_REDIRECT = "vertexaisearch.cloud.google.com/grounding-api-redirect/"

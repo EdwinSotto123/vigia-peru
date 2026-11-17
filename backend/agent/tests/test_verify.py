@@ -540,6 +540,21 @@ def test_el_rol_de_un_monto_lo_dice_la_palabra_mas_cercana_que_lo_precede():
     # Sin palabra clave cerca, o si el monto no está: tampoco.
     assert verify.rol_del_monto(["Se entregó S/ 12,345.00 al contado."], [12345.0]) is None
     assert verify.rol_del_monto([_BASES_EXPERIENCIA], [777.0]) is None
+    # En una tabla, la cabecera («GARANTÍA COMERCIAL») no dice qué es el monto de una celda: no se decide.
+    tabla = "PRECIO | GARANTÍA COMERCIAL (5 PUNTOS) | PLAZO DE ENTREGA 1 | DECO SAC | 200,000.00 | 36.88 2 | TECNOFARMA SA | S/ 184,375.00"
+    assert verify.rol_del_monto([tabla], [184375.0]) is None
+    # Lejos del monto (otra frase, más de 140 caracteres antes): tampoco.
+    lejos = "Experiencia del postor en la especialidad. " + "Texto de relleno sobre otro asunto del proceso. " * 4 + "Se pagará S/ 61,000.00."
+    assert verify.rol_del_monto([lejos], [61000.0]) is None
+
+
+def test_una_bandera_que_usa_otras_palabras_para_la_experiencia_no_se_descarta():
+    # Casos reales de lo publicado: la bandera habla del requisito de experiencia sin decir «experiencia» junto al monto.
+    st = _state_bases("Al validar la experiencia 03, 05 y 06 llega al monto de S/ 1,970,866.99, que no alcanza el mínimo.")
+    flag = {"regla": "red_flag_documental",
+            "evidencia": "Ese único requisito descartó a los cuatro competidores (acreditaron entre S/ 1,970,866.99 y más), "
+                         "dejando al ganador como único calificado."}
+    assert verify.verificar_bandera(flag, st)["ok"] is True
 
 
 def test_la_experiencia_exigida_usada_como_cuantia_no_pasa_la_verificacion():
