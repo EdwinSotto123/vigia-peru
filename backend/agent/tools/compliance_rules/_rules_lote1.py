@@ -208,6 +208,25 @@ def check_unica_oferta_valida_rule(ocid: str, tool_context: ToolContext,
                  proceso_oece(ocid))
 
 
+def _ruc_en_documentos(shas: set[str], ruc: str) -> bool:
+    """¿Aparece el RUC en el texto guardado de alguno de esos documentos (documentos_texto)? Sin base o sin texto, no."""
+    shas = {s for s in shas if s}
+    if not shas or not ruc:
+        return False
+    try:
+        conn = _pg()
+    except Exception:  # noqa: BLE001
+        return False
+    try:
+        cur = conn.cursor()
+        cur.execute("SELECT 1 FROM documentos_texto WHERE sha256 = ANY(%s) AND position(%s in texto) > 0 LIMIT 1", (list(shas), ruc))
+        return cur.fetchone() is not None
+    except Exception:  # noqa: BLE001
+        return False
+    finally:
+        conn.close()
+
+
 def check_ganador_no_invitado_rule(ocid: str, tool_context: ToolContext,
                                    reglas_activas: frozenset[str] | None = None,
                                    topes_uit: dict | None = None) -> dict:
@@ -258,6 +277,13 @@ def check_ganador_no_invitado_rule(ocid: str, tool_context: ToolContext,
         return False
     result["estado"] = "hallado"
     if any(_match(r, n) for r, n in inv_norm):
+        return result
+    # La lista la extrae un modelo y a veces sale incompleta (1226611: leyó 2 de los 4 invitados y el ganador era uno de los
+    # que faltaron). Antes de alertar, el RUC del ganador se busca en el texto del mismo documento de invitaciones.
+    shas = {str(e.get("documento_sha256") or "") for i in invitados if isinstance(i, dict)
+            for e in ([i] + [x for x in (i.get("evidencia") or []) if isinstance(x, dict)]) if e.get("documento_sha256")}
+    if g_ruc and _ruc_en_documentos(shas, g_ruc):
+        result.update({"estado": "sin_dato", "motivo": "el ganador figura en el documento de invitaciones: la lista extraída estaba incompleta"})
         return result
     sev = "alta" if len(inv_norm) >= 3 else "media"
     ev = (f"El adjudicatario {g_nom or g_ruc} (RUC {g_ruc or 's/d'}) no aparece entre los {len(inv_norm)} proveedores "

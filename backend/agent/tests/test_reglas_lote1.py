@@ -425,6 +425,25 @@ def test_ganador_no_invitado_1225379():
     assert cr.check_ganador_no_invitado_rule(OCID, _Ctx(st4))["estado"] == "sin_dato"
 
 
+def test_ganador_no_invitado_lista_incompleta_1226611(monkeypatch):
+    """El modelo leyó 2 de los 4 invitados; el RUC del ganador está en el mismo documento de invitaciones: no se alerta."""
+    from tools.compliance_rules import _rules_lote1 as l1
+    invitados = [{"razon_social": "SOLVET - PERU E.I.R.L.", "evidencia": [{"documento_sha256": "c7bc9f11", "pagina": 1}]},
+                 {"razon_social": "SOLIDO AGROPECUARIO S.A.C", "evidencia": [{"documento_sha256": "c7bc9f11", "pagina": 1}]}]
+    st = {"ocds": _ocds(ref=65100.0, awards=(65000.0,), ganador="20603127383", ganador_nombre="VETERINARIA TRES CANES S.A.C."),
+          "parser_raw_consolidated": {"lista_invitados": invitados}}
+    vistos = {}
+    def en_docs(shas, ruc):
+        vistos["shas"], vistos["ruc"] = shas, ruc
+        return True
+    monkeypatch.setattr(l1, "_ruc_en_documentos", en_docs)
+    r = cr.check_ganador_no_invitado_rule(OCID, _Ctx(st))
+    assert r["triggered"] is False and r["estado"] == "sin_dato" and "incompleta" in r["motivo"]
+    assert vistos == {"shas": {"c7bc9f11"}, "ruc": "20603127383"}
+    monkeypatch.setattr(l1, "_ruc_en_documentos", lambda shas, ruc: False)
+    assert cr.check_ganador_no_invitado_rule(OCID, _Ctx(st))["triggered"] is True
+
+
 def _st_rnp(rol, identidad, ruc_emp="20607558184", postora=False):
     st = {"ocds": _ocds(),
           "parser_raw_consolidated": {"firmantes_consolidados": [
