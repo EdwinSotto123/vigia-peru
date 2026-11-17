@@ -17,6 +17,7 @@ import { z } from "zod";
 import { OCID_CANDIDATOS, esErrorPg, poolAdmin as pool } from "../lib/db.js";
 import { actor, log } from "../lib/adminlog.js";
 import { itemsDeDocumentos, leerFichasPiezas } from "../lib/fichasPiezas.js";
+import { depurarReferencias } from "../lib/laboratorioPrecios.js";
 
 interface Servicio {
   fetch(req: Request): Promise<Response>;
@@ -158,7 +159,7 @@ async function entradaDeItem(ocid: string, f: ItemContrato) {
     precioReferencia: precioDe(f) ?? undefined,
     ocid,
     item: f.numero_item,
-    referencias: [...porCubso, ...porTexto].slice(0, 10),
+    referencias: depurarReferencias([...porCubso, ...porTexto]).slice(0, 10),
   };
 }
 

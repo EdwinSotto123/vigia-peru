@@ -39,6 +39,7 @@ import { Memo } from "../lib/cache.js";
 import { cachePublico, parametros } from "../lib/http.js";
 import { publicar } from "../lib/privacidad.js";
 import { ETIQUETA_CRUCE, catalogoSenales, nombrePublicable } from "../lib/cruces.js";
+import { depurarReferencias } from "../lib/laboratorioPrecios.js";
 
 export const patronesRouter = new Hono();
 
@@ -483,7 +484,7 @@ patronesRouter.get("/precios-estado", async (c) => {
          FROM precios_por_texto($1, $2, COALESCE($3::date, CURRENT_DATE)) WHERE mediana > 0`,
       [q.q, q.unidad ?? null, q.hasta ?? null],
     ).catch(() => ({ rows: [] as Record<string, unknown>[] }));
-    return { referencias: r.rows };
+    return { referencias: depurarReferencias(r.rows as { unidad: string | null; n: number; mediana: number }[]) };
   });
   c.header("Cache-Control", CACHE);
   return c.json(cuerpo);

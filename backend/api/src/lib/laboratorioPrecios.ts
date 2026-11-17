@@ -59,6 +59,17 @@ export interface PreciosMercado {
   total: { renglones: number; comparados: number; encima: number; pagado: number; mercado: number; exceso: number };
 }
 
+/**
+ * Fuera la referencia que no puede ser el mismo bien en la misma unidad: 10 veces más cara o más barata que otra de la
+ * misma unidad respaldada por 20 compras o más. Leche evaporada «por unidad»: 389 procesos a S/ 4,20 y 3 compras menores
+ * a S/ 622 (cajas leídas como una lata).
+ */
+export function depurarReferencias<T extends { unidad: string | null; n: number; mediana: number }>(refs: T[]): T[] {
+  const norma = (u: string | null) => (u ?? "").trim().toLowerCase();
+  return refs.filter((r) => !refs.some((o) => o !== r && o.n >= 20 && o.n > r.n && norma(o.unidad) === norma(r.unidad)
+    && (r.mediana > o.mediana * 10 || r.mediana < o.mediana / 10)));
+}
+
 const ocidCorto = (ocid: string) => ocid.trim().replace(/^OECE-/i, "").replace(/^ocds-dgv273-seacev3-/i, "");
 const num = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : typeof v === "string" && v.trim() !== "" && Number.isFinite(Number(v)) ? Number(v) : null);
 const MAX_RENGLONES = 40;
