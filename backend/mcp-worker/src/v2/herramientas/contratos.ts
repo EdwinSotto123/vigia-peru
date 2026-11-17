@@ -11,7 +11,12 @@ type Fila = Record<string, any>;
 export function proveedor(nombre: unknown, ruc: unknown) {
   const r = typeof ruc === "string" ? ruc : null;
   const empresa = !!r && /^\d{11}$/.test(r) && !r.startsWith("10");
-  return { proveedor: nombre ?? null, proveedor_ruc: empresa ? r : null, ...(r && !empresa ? { persona_natural: true } : {}) };
+  // Un consorcio sin RUC propio llega con el código que le da el SEACE (menos de 11 cifras): no es una persona natural.
+  const consorcio = !!r && /^\d{1,10}$/.test(r);
+  return {
+    proveedor: nombre ?? null, proveedor_ruc: empresa ? r : null,
+    ...(consorcio ? { codigo_consorcio: r } : r && !empresa ? { persona_natural: true } : {}),
+  };
 }
 
 const pagina = z.number().int().min(1).max(50).default(1).describe("Página de resultados (empieza en 1).");
@@ -224,7 +229,12 @@ export const fichaContrato = definir({
       // Primero las que cuentan para el riesgo; las EN OBSERVACIÓN (migración 329) van marcadas y al final: todavía no se
       // mide cuánto aciertan, así que no deben leerse como una señal más.
       cruces: [...((c.cruces ?? []) as Fila[])].sort((a, b) => Number(a.observacion === true) - Number(b.observacion === true)).slice(0, 15)
-        .map((x: Fila) => ({ ...tomar(x, ["tipo", "etiqueta", "severidad", "fecha", "montoSoles"]), en_observacion: x.observacion === true || undefined })),
+        .map((x: Fila) => ({
+          ...tomar(x, ["tipo", "etiqueta", "severidad", "fecha", "montoSoles"]),
+          // De qué ganador es: con un consorcio, cada integrante trae su propia fila.
+          ...proveedor(x.proveedor, x.rucProveedor), del_consorcio: x.consorcio?.nombre ?? undefined,
+          en_observacion: x.observacion === true || undefined,
+        })),
       cruces_en_observacion: ((c.cruces ?? []) as Fila[]).some((x) => x.observacion === true)
         ? "Las marcadas en_observacion son indicadores nuevos que se muestran con su evidencia pero no cuentan para el puntaje: indicio por revisar, no un hallazgo."
         : undefined,
