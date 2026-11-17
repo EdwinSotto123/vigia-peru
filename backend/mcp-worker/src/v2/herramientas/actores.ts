@@ -533,10 +533,14 @@ export const patrones = definir({
     "ofertas casi a la vez; un funcionario de la entidad que declaró en su DJI haber trabajado en la empresa que ganó " +
     "mientras él ocupaba el cargo; un contrato firmado cuando los otros postores todavía podían apelar la buena pro): " +
     "se muestran con su evidencia y NO cuentan para el puntaje del contrato. " +
+    "Con alcance «grupo»: proveedores de una MISMA entidad unidos por dueño o familia probable (empresas con un socio común, " +
+    "la persona que vende con su RUC y es socia de una de ellas, socios con los mismos dos apellidos poco comunes), con lo que " +
+    "hicieron juntos en las órdenes: al borde del tope de 8 UIT, órdenes el mismo día con números correlativos y el mismo " +
+    "objeto repartido entre miembros (fraccionamiento visto como grupo); con ruc, los de esa entidad o los de esa empresa. " +
     "Un patrón es un motivo para mirar, no una acusación.",
   cuenta: true,
   entrada: {
-    alcance: z.enum(["entidad", "proveedor", "relleno", "consorcio", "renovacion", "dueno", "inhabilitada", "control", "observado", "observacion"]).default("entidad"),
+    alcance: z.enum(["entidad", "proveedor", "relleno", "consorcio", "renovacion", "dueno", "inhabilitada", "control", "observado", "observacion", "grupo"]).default("entidad"),
     indicador: z.enum(["reunion_en_evaluacion", "visita_personal_decisor", "ofertas_a_la_vez", "trabajo_en_el_ganador",
       "firma_en_plazo_de_apelacion"]).optional()
       .describe("(observacion) Sólo uno de los indicadores en observación."),
@@ -550,6 +554,35 @@ export const patrones = definir({
   async ejecutar(a, cx) {
     const e = enlaces(cx.env);
     const ruc = a.ruc ? rucJuridico(a.ruc) : undefined;
+    if (a.alcance === "grupo") {
+      // Con un RUC: si es una entidad, sus grupos; si no, los grupos de esa empresa (en cada entidad a la que vendió).
+      let r = await api<Fila>(cx.env, "/patrones/grupos", { entidad: ruc, severidad: a.solo_graves ? "alta" : undefined, page: a.pagina, size: 10 });
+      if (ruc && !(r.total > 0)) r = await api<Fila>(cx.env, "/patrones/grupos", { ruc, severidad: a.solo_graves ? "alta" : undefined, page: a.pagina, size: 10 });
+      return {
+        total: r.total,
+        grupos: ((r.data ?? []) as Fila[]).map((g) => ({
+          entidad: g.entidad, entidad_ruc: g.entidadRuc, severidad: g.severidad, miembros: g.miembros, empresas: g.empresas, personas: g.personas,
+          ordenes: g.ordenes, monto_soles: g.monto, desde: g.desde, hasta: g.hasta,
+          puesto_del_grupo_entre_los_proveedores: g.puestoGrupo, puesto_de_su_miembro_mayor: g.puestoMayor,
+          al_borde_del_tope: { ordenes: g.borde, de_ordenes_hasta_8_uit: g.hasta8Uit, monto_soles: g.montoBorde },
+          sobre_el_tope: g.sobreTope, dias_con_ordenes_a_varios_miembros: g.diasJuntos, pares_de_ordenes_correlativas: g.correlativas,
+          objetos_repartidos_entre_miembros: g.repartidos, monto_repartido_soles: g.montoRepartido,
+          integrantes: ((g.miembros ?? []) as Fila[]).map((m) => ({
+            nombre: m.nombre, ruc: m.persona ? undefined : m.ruc, persona_natural: m.persona || undefined, ordenes: m.ordenes, monto_soles: m.monto,
+            enlace: m.persona ? (m.codigo ? `${cx.env.VIGIA_URL}/app/personas/${m.codigo}` : undefined) : e.empresa(m.ruc),
+          })),
+          por_que_estan_juntos: ((g.vinculos ?? []) as Fila[]).slice(0, 20).map((v) => ({ entre: [v.nombreA, v.nombreB], vinculo: v.que, persona: v.persona ?? undefined, otra_persona: v.personaB ?? undefined })),
+          dias_destacados: ((g.dias ?? []) as Fila[]).slice(0, 6).map((d) => ({ fecha: d.fecha, ordenes: d.ordenes, miembros: d.miembros, monto_soles: d.monto, correlativas: d.correlativas,
+            ordenes_del_dia: ((d.detalle ?? []) as Fila[]).map((o) => ({ orden: o.orden, a: o.nombre, monto_soles: o.monto })) })),
+          objetos_repartidos: ((g.objetosRepartidos ?? []) as Fila[]).slice(0, 6).map((x) => ({ anio: x.anio, objeto: x.objeto, ordenes: x.ordenes, miembros: x.miembros, monto_soles: x.monto, tope_soles: x.tope })),
+          enlace_entidad: e.entidad(g.entidadRuc),
+        })),
+        como_leerlo:
+          "Un grupo junta proveedores de la misma entidad; cada uno solo puede parecer pequeño. «posibles hermanos» sale de los apellidos y no está comprobado. " +
+          "Para confirmar un fraccionamiento hay que ver si las órdenes del mismo día o del mismo objeto respondían a un solo requerimiento.",
+        aviso: AVISO,
+      };
+    }
     if (a.alcance === "observacion") {
       const r = await api<Fila>(cx.env, "/patrones/observacion", { ruc, tipo: a.indicador, page: a.pagina, size: 20 });
       return {

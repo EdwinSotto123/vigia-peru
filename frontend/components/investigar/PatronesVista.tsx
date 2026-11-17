@@ -8,7 +8,7 @@ import { EVENTO_ACTIVA } from "@/components/patrones/Pestanas";
 import { CeldaBarra, CeldaNumero, CeldaPrincipal, CeldaTexto, CLASE_ENLACE_CELDA, Indicadores, Tabla, type Columna, type Fila, type Indicador } from "@/components/listado";
 import { EstadoCarga, usePoder } from "@/components/grafo/vista";
 import { InformeEnPanel } from "@/components/control/InformeEnPanel";
-import { detalleConsorcio, detalleControl, detalleDueno, detalleInhabilitada, detalleObservacion, detalleObservado, detalleRelleno, detalleRenovacion, detalleSenal } from "./DetallePatron";
+import { detalleConsorcio, detalleControl, detalleDueno, detalleGrupo, detalleInhabilitada, detalleObservacion, detalleObservado, detalleRelleno, detalleRenovacion, detalleSenal } from "./DetallePatron";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Dato } from "@/components/ui/Dato";
@@ -23,6 +23,7 @@ import {
   rutaConsorcios,
   rutaControl,
   rutaDuenos,
+  rutaGrupos,
   rutaInhabilitadas,
   rutaObservacion,
   rutaObservados,
@@ -35,6 +36,8 @@ import {
   type PatronConsorcio,
   type PatronControl,
   type PatronDueno,
+  type PatronGrupo,
+  type PatronesGrupos,
   type PatronesControl,
   type PatronObservacion,
   type PatronesObservacion,
@@ -112,6 +115,13 @@ export function PatronesVista({ activa, inicial, etiquetas }: { activa?: string;
           titulo: "El mismo dueño gana con varias empresas en una entidad",
           icono: <UsersRound size={15} aria-hidden />,
           contenido: <ListaDuenos inicial={de("duenos")} />,
+        },
+        {
+          clave: "grupos",
+          etiqueta: SECCIONES_PATRONES.grupos,
+          titulo: "Empresas y personas del mismo dueño o familia que le venden a una entidad por órdenes",
+          icono: <UsersRound size={15} aria-hidden />,
+          contenido: <ListaGrupos inicial={de("grupos")} />,
         },
         {
           clave: "inhabilitadas",
@@ -830,6 +840,149 @@ function filaDueno(p: PatronDueno, i: number): Fila {
           ))}
         </CeldaTexto>
       ),
+      periodo: anios ? <CeldaTexto>{anios}</CeldaTexto> : undefined,
+    },
+  };
+}
+
+// ─── Grupos por dueño y familia (órdenes de una entidad) ─────────────────────────
+
+const COLUMNAS_GRUPOS: Columna[] = [
+  { clave: "grupo", titulo: "Entidad e integrantes", ancho: "minmax(0,1.8fr)" },
+  {
+    clave: "monto",
+    titulo: "Órdenes del grupo",
+    ancho: "9rem",
+    alinear: "der",
+    corto: "Órdenes",
+    ayuda: (
+      <Ayuda titulo="¿Qué suma?">
+        <span className="block">Las órdenes de compra y de servicio que la entidad les emitió a los integrantes desde 2018, sumadas como si fueran un solo proveedor.</span>
+      </Ayuda>
+    ),
+  },
+  { clave: "borde", titulo: "Al borde del tope", ancho: "9rem", alinear: "der", desde: "md", apilar: "con-rotulo", corto: "Al borde" },
+  {
+    clave: "juntos",
+    titulo: "Juntos el mismo día",
+    ancho: "9.5rem",
+    alinear: "der",
+    desde: "md",
+    apilar: "con-rotulo",
+    corto: "Mismo día",
+    ayuda: (
+      <Ayuda titulo="¿Qué cuenta?">
+        <span className="block">
+          Días en que la entidad le emitió órdenes a dos o más integrantes. Debajo, los pares de órdenes con números correlativos (tres o menos de diferencia):
+          suelen salir del mismo lote de requerimientos.
+        </span>
+      </Ayuda>
+    ),
+  },
+  { clave: "repartidos", titulo: "Objeto repartido", ancho: "8.5rem", alinear: "der", desde: "lg", apilar: "con-rotulo", corto: "Repartido" },
+  { clave: "periodo", titulo: "Años", ancho: "6.5rem", desde: "xl", apilar: "con-rotulo" },
+];
+
+function ListaGrupos({ inicial }: { inicial: InicialPatrones }) {
+  const lista = useListaEnUrl("grupos", inicial);
+  const [ruc, setRuc] = useState("");
+  const rucValido = /^20\d{9}$/.test(ruc.trim()) ? ruc.trim() : undefined;
+  const [graves, setGraves] = useState(false);
+  const filtrada = !!rucValido || graves;
+  const carga = usePoder<PatronesGrupos>(rutaGrupos(filtrada ? 1 : lista.page, rucValido, graves));
+  return (
+    <div className="space-y-4">
+      <CabeceraPestana
+        ayuda={
+          <Ayuda titulo="¿Cómo se arma un grupo?">
+            <span className="block">
+              Con los proveedores de una misma entidad unidos por un socio o representante común (Registro Nacional de Proveedores), por una persona que
+              vende con su RUC y es socia de una empresa del grupo, o por socios con los mismos dos apellidos poco comunes.
+            </span>
+            <span className="mt-1.5 block">
+              El parentesco por apellidos es probable, no comprobado: los registros no lo traen. Cada integrante, solo, puede parecer pequeño; juntos se suman.
+            </span>
+            <span className="mt-1.5 block">Un grupo familiar puede tener negocios legítimos. Un patrón es un motivo para mirar, no una acusación.</span>
+          </Ayuda>
+        }
+      >
+        Empresas y personas del mismo dueño o de una misma familia que le venden a la misma entidad por órdenes, y lo que hicieron juntas.
+      </CabeceraPestana>
+      <label className="block max-w-md">
+        <span className="text-rotulo font-medium text-inkSoft">Filtrar por RUC de la entidad o de una empresa</span>
+        <input
+          type="search"
+          inputMode="numeric"
+          value={ruc}
+          onChange={(e) => setRuc(e.target.value.replace(/\D/g, "").slice(0, 11))}
+          placeholder="RUC de 11 dígitos que empieza en 20"
+          autoComplete="off"
+          className="mt-1 h-11 w-full rounded-xl border border-line bg-paperSoft px-3 text-dato text-ink placeholder:text-mute focus:border-granate focus:bg-paper focus:outline-none focus:ring-2 focus:ring-granate/20"
+        />
+      </label>
+      <label className="flex min-h-11 w-fit cursor-pointer items-center gap-2.5 text-dato text-ink">
+        <input type="checkbox" checked={graves} onChange={(e) => setGraves(e.target.checked)} className="size-5 rounded border-line accent-granate" />
+        Sólo los graves: órdenes correlativas u objeto repartido, con muchas al borde del tope
+      </label>
+      <EstadoCarga carga={carga} columnas={COLUMNAS_GRUPOS}>
+        {(d) => {
+          const filas = d.data ?? [];
+          return (
+            <div className="space-y-4">
+              <Indicadores
+                franja
+                items={[
+                  { valor: numero(d.total), etiqueta: rucValido ? "grupos con ese RUC" : graves ? "grupos graves" : "grupos de entidad", contexto: "de 2 a 25 integrantes, S/ 50 mil o más", icono: <UsersRound size={15} strokeWidth={1.9} aria-hidden />, parte: null },
+                  { valor: "8 UIT", etiqueta: "el tope de una orden", contexto: "por encima hay que convocar un proceso", parte: null },
+                  { valor: "3", etiqueta: "o menos entre dos números de orden", contexto: "cuenta como correlativa", parte: null },
+                ]}
+              />
+              <ZonaLista total={d.total} page={filtrada ? 1 : lista.page} cargando={carga.cargando} nombre="grupos" onPagina={lista.irAPagina} vacio="No hay grupos para ese filtro.">
+                {filas.length > 0 ? <Tabla columnas={COLUMNAS_GRUPOS} filas={filas.map(filaGrupo)} etiqueta="Grupos de proveedores por dueño y familia en una entidad" /> : null}
+              </ZonaLista>
+            </div>
+          );
+        }}
+      </EstadoCarga>
+    </div>
+  );
+}
+
+function filaGrupo(p: PatronGrupo, i: number): Fila {
+  const anios = periodo(p.desde, p.hasta);
+  const integrantes = p.miembros ?? [];
+  return {
+    id: `grupo-${i}`,
+    detalle: detalleGrupo(p),
+    enlaces: true,
+    textos: { periodo: anios },
+    celdas: {
+      grupo: (
+        <CeldaPrincipal
+          dosLineas
+          titulo={<EnlaceEntidad ruc={p.entidadRuc} nombre={p.entidad} />}
+          meta={
+            <span className="block">
+              {/* recorte: cuatro integrantes caben en la celda; los demás se cuentan a continuación */}
+              {integrantes.slice(0, 4).map((m, k) => (
+                <span key={m.ruc}>
+                  {k > 0 ? ", " : ""}
+                  {m.persona ? <span>{m.nombre ? tituloNatural(m.nombre) : "Persona natural"}</span> : <EnlaceEmpresa ruc={m.ruc} nombre={m.nombre} />}
+                </span>
+              ))}
+              {integrantes.length > 4 ? ` y ${integrantes.length - 4} más` : ""}
+            </span>
+          }
+        />
+      ),
+      monto: (
+        <CeldaNumero sub={p.puestoGrupo && p.puestoMayor && p.puestoGrupo < p.puestoMayor ? `juntos, n.° ${numero(p.puestoGrupo)} de la entidad` : plural(p.ordenes, "orden", "órdenes")}>
+          {solesCompacto(p.monto)}
+        </CeldaNumero>
+      ),
+      borde: <CeldaNumero sub={p.sobreTope ? `${numero(p.sobreTope)} por encima` : undefined}>{p.hasta8Uit ? `${numero(p.borde)} de ${numero(p.hasta8Uit)}` : "Ninguna"}</CeldaNumero>,
+      juntos: <CeldaNumero sub={p.correlativas ? plural(p.correlativas, "par correlativo", "pares correlativos") : undefined}>{p.diasJuntos ? plural(p.diasJuntos, "día", "días") : "Ninguno"}</CeldaNumero>,
+      repartidos: <CeldaNumero sub={p.repartidos ? solesCompacto(p.montoRepartido) : undefined}>{p.repartidos ? numero(p.repartidos) : "Ninguno"}</CeldaNumero>,
       periodo: anios ? <CeldaTexto>{anios}</CeldaTexto> : undefined,
     },
   };

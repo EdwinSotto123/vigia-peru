@@ -17,6 +17,7 @@ import {
   type PatronConsorcio,
   type PatronControl,
   type PatronDueno,
+  type PatronGrupo,
   type PatronInhabilitada,
   type PatronObservacion,
   type PatronObservado,
@@ -41,6 +42,13 @@ const ENLACE = "font-medium text-granate underline decoration-granate/35 underli
 const empresa = (n: string | null | undefined) => (n ? tituloNatural(n) : "Empresa sin nombre");
 const entidad = (n: string | null | undefined) => (n ? tituloNatural(n) : "Entidad sin nombre");
 const esRuc20 = (r: string | null | undefined): r is string => !!r && /^20\d{9}$/.test(r);
+/** «ADQUISICION DE PORCELANATO 60X60» → «Adquisición de porcelanato 60X60». */
+const oracionCorta = (t: string) => {
+  const x = t.trim();
+  if (x !== x.toUpperCase()) return x;
+  const b = x.toLowerCase().replace(/\b([a-z]*\d[a-z\d-]*)\b/g, (m) => m.toUpperCase());
+  return b.charAt(0).toUpperCase() + b.slice(1);
+};
 /** El nombre para el TÍTULO del panel (va a `title` y `aria-label`): sólo el de una empresa; una persona natural, un rótulo. */
 const paraTitulo = (ruc: string | null | undefined, nombre: string | null | undefined, rotulo: string) => (esRuc20(ruc) && nombre ? tituloNatural(nombre) : rotulo);
 const anios = (a: string | null, b: string | null) => {
@@ -384,6 +392,109 @@ export function detalleDueno(p: PatronDueno): Detalle {
             "Mira si las compras debieron ser un solo proceso: el mismo objeto, la misma entidad y pocos días entre una y otra.",
             "Confirma en el RNP qué parte del capital tiene el socio en cada empresa y desde cuándo.",
             "Revisa si las empresas compitieron entre sí en algún proceso de la entidad.",
+          ]}
+        />
+      </div>
+    ),
+    pie: <Pie enlaces={[esRuc20(p.entidadRuc) && { texto: "Ficha de la entidad", href: `/entidad/${p.entidadRuc}` }]} />,
+  };
+}
+
+// ─── Grupo por dueño y familia, en las órdenes de una entidad ────────────────────
+
+/** El nombre de un integrante: la empresa con su enlace; la persona (un apellido tapado) con su ficha si la tiene. */
+function Integrante({ m }: { m: { ruc: string; nombre: string | null; persona?: boolean; codigo?: string | null } }) {
+  if (!m.persona && esRuc20(m.ruc)) return <Link href={`/empresa/${m.ruc}`} prefetch={false} className={ENLACE}>{empresa(m.nombre)}</Link>;
+  const n = m.nombre ? tituloNatural(m.nombre) : "Persona natural";
+  return m.codigo ? <Link href={`/app/personas/${m.codigo}`} prefetch={false} className={ENLACE}>{n}</Link> : <span>{n}</span>;
+}
+
+export function detalleGrupo(p: PatronGrupo): Detalle {
+  const ent = entidad(p.entidad);
+  const cuando = anios(p.desde, p.hasta);
+  const porMiembro = new Map(p.miembros.map((m) => [m.ruc, m]));
+  const quien = (ruc: string, nombre: string | null) => <Integrante m={porMiembro.get(ruc) ?? { ruc, nombre }} />;
+  return {
+    titulo: `Grupo de ${plural(p.miembros.length, "proveedor", "proveedores")} en una entidad`,
+    etiqueta: "Ver el detalle de este grupo de proveedores",
+    descripcion: <span className="line-clamp-2">{ent}</span>,
+    contenido: (
+      <div className="space-y-5">
+        <EnUnaFrase tono={p.severidad === "alta" ? "alta" : "media"}>
+          En <b>{ent}</b>, {plural(p.empresas, "empresa", "empresas")}
+          {p.personas ? <> y {plural(p.personas, "persona", "personas")} que venden con su RUC</> : ""} unidas por sus socios recibieron{" "}
+          <b>{plural(p.ordenes, "orden", "órdenes")}</b> por <b>{solesCompacto(p.monto)}</b>{cuando ? `, ${cuando}` : ""}.
+          {p.puestoGrupo && p.puestoMayor && p.puestoGrupo < p.puestoMayor
+            ? <> Juntos serían el proveedor n.° <b>{numero(p.puestoGrupo)}</b> de la entidad; el mayor de ellos, solo, es el n.° {numero(p.puestoMayor)}.</>
+            : ""}
+        </EnUnaFrase>
+        <DatosClave
+          items={[
+            { etiqueta: "Al borde del tope de 8 UIT", valor: p.hasta8Uit ? `${numero(p.borde)} de ${numero(p.hasta8Uit)} órdenes` : "Sin órdenes de hasta 8 UIT", mono: true },
+            { etiqueta: "Por encima del tope", valor: p.sobreTope ? numero(p.sobreTope) : "Ninguna", mono: true },
+            { etiqueta: "Días con órdenes a varios integrantes", valor: p.diasJuntos ? `${numero(p.diasJuntos)} (${solesCompacto(p.montoJuntos)})` : "Ninguno", mono: true },
+            { etiqueta: "Pares de órdenes correlativas", valor: p.correlativas ? numero(p.correlativas) : "Ninguno", mono: true },
+            { etiqueta: "El mismo objeto repartido", valor: p.repartidos ? `${numero(p.repartidos)} (${solesCompacto(p.montoRepartido)})` : "Ninguno", mono: true },
+          ]}
+        />
+        <Bloque titulo="Quiénes son">
+          <ul className="space-y-1.5 text-dato">
+            {p.miembros.map((m) => (
+              <li key={m.ruc} className="flex items-baseline justify-between gap-3">
+                <span className="min-w-0"><Integrante m={m} />{m.persona ? <span className="ml-1.5 text-rotulo text-mute">persona natural</span> : null}</span>
+                <span className="shrink-0 font-mono text-meta tabular-nums text-inkSoft">{solesCompacto(m.monto)}</span>
+              </li>
+            ))}
+          </ul>
+        </Bloque>
+        <Bloque titulo="Por qué están juntos">
+          <ul className="space-y-1.5 text-meta leading-relaxed text-inkSoft">
+            {/* recorte: los vínculos de un grupo grande se repiten; los primeros doce bastan para ver qué los une */}
+            {p.vinculos.slice(0, 12).map((v, i) => (
+              <li key={i}>
+                {quien(v.a, v.nombreA)} y {quien(v.b, v.nombreB)}: {v.que}
+                {v.persona ? <> ({tituloNatural(v.persona)}{v.personaB ? <> y {tituloNatural(v.personaB)}</> : null})</> : null}.
+              </li>
+            ))}
+            {p.vinculos.length > 12 ? <li>Y {plural(p.vinculos.length - 12, "vínculo más", "vínculos más")}.</li> : null}
+          </ul>
+        </Bloque>
+        {p.dias.length > 0 && (
+          <Bloque titulo="Días con órdenes a varios integrantes">
+            <ul className="space-y-2.5 text-meta">
+              {/* recorte: los seis días con más órdenes correlativas o más monto; la API trae hasta quince */}
+              {p.dias.slice(0, 6).map((d) => (
+                <li key={d.fecha} className="rounded-xl border border-line px-3 py-2">
+                  <p className="font-semibold text-ink">
+                    {fechaConAnio(d.fecha)}: {plural(d.ordenes, "orden", "órdenes")} a {plural(d.miembros, "integrante", "integrantes")}, {solesCompacto(d.monto)}
+                    {d.correlativas ? <span className="ml-1.5 text-amberTexto">{plural(d.correlativas, "par correlativo", "pares correlativos")}</span> : null}
+                  </p>
+                  <p className="mt-0.5 text-rotulo text-mute">{d.detalle.map((o) => `${o.orden} (${solesCompacto(o.monto)})`).join(", ")}</p>
+                </li>
+              ))}
+            </ul>
+          </Bloque>
+        )}
+        {p.objetosRepartidos.length > 0 && (
+          <Bloque titulo="El mismo objeto, repartido entre integrantes">
+            <ul className="space-y-2.5 text-meta">
+              {/* recorte: los seis objetos de mayor monto; la API trae hasta quince */}
+              {p.objetosRepartidos.slice(0, 6).map((x, i) => (
+                <li key={i} className="rounded-xl border border-line px-3 py-2">
+                  <p className="font-semibold text-ink">{oracionCorta(x.objeto)} ({x.anio})</p>
+                  <p className="mt-0.5 text-rotulo text-mute">
+                    {plural(x.ordenes, "orden", "órdenes")} a {plural(x.miembros, "integrante", "integrantes")} por {solesCompacto(x.monto)}; el tope de una orden era {solesCompacto(x.tope)}.
+                  </p>
+                </li>
+              ))}
+            </ul>
+          </Bloque>
+        )}
+        <QueRevisar
+          pasos={[
+            "Pide a la entidad los expedientes de las órdenes de los días destacados: si salieron de un mismo requerimiento, es un fraccionamiento.",
+            "Confirma el parentesco con documentos (RENIEC, partidas): aquí sale de los apellidos y del Registro Nacional de Proveedores.",
+            "Revisa quién pidió, cotizó, aprobó y dio conformidad a cada orden, y si los integrantes cotizaron unos contra otros.",
           ]}
         />
       </div>

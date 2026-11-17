@@ -16,6 +16,7 @@ export const SECCIONES_PATRONES = {
   relleno: "Postores de relleno",
   consorcios: "Socias que compiten",
   duenos: "Mismo dueño",
+  grupos: "Grupos por dueño y familia",
   inhabilitadas: "Socio de inhabilitada",
   control: "Socio en informe de control",
   observados: "Observados por la Contraloría",
@@ -124,6 +125,45 @@ export interface PatronDueno {
   desde: string | null;
   hasta: string | null;
   ejemplos: string[];
+}
+
+/**
+ * Un grupo de proveedores de una misma entidad unidos por dueño o por familia probable, con lo que hicieron juntos en las
+ * órdenes (migración 343). Las personas naturales llegan con un apellido tapado y su RUC como referencia opaca.
+ */
+export interface PatronGrupo {
+  entidadRuc: string;
+  entidad: string | null;
+  grupo: string;
+  miembros: { ruc: string; nombre: string | null; ordenes: number; monto: number; persona: boolean; codigo: string | null }[];
+  empresas: number;
+  personas: number;
+  ordenes: number;
+  monto: number;
+  desde: string | null;
+  hasta: string | null;
+  hasta8Uit: number;
+  borde: number;
+  montoBorde: number;
+  sobreTope: number;
+  diasJuntos: number;
+  montoJuntos: number;
+  correlativas: number;
+  repartidos: number;
+  montoRepartido: number;
+  puestoGrupo: number | null;
+  puestoMayor: number | null;
+  severidad: "alta" | "media" | "baja";
+  vinculos: { a: string; nombreA: string | null; b: string; nombreB: string | null; via: string; que: string; persona: string | null; personaB: string | null }[];
+  dias: { fecha: string; ordenes: number; miembros: number; monto: number; correlativas: number; detalle: { ruc: string; nombre: string | null; orden: string; monto: number }[] }[];
+  objetosRepartidos: { anio: number; objeto: string; ordenes: number; miembros: number; monto: number; tope: number; detalle: { ruc: string; nombre: string | null; orden: string; fecha: string; monto: number }[] }[];
+  sobreTopeOrdenes: { ruc: string; nombre: string | null; orden: string; fecha: string; monto: number; tope: number; descripcion: string | null }[];
+}
+export interface PatronesGrupos {
+  total: number;
+  page: number;
+  size: number;
+  data: PatronGrupo[];
 }
 
 /** Una empresa que gana mientras otra del mismo socio está inhabilitada (migración 297). */
@@ -352,6 +392,8 @@ export const rutaAcompanantes = (page = 1) => `/patrones/acompanantes?${consulta
 export const rutaConsorcios = (page = 1) => `/patrones/consorcios?${consulta({ page, size: TAM_PATRONES })}`;
 export const rutaDuenos = (page = 1, ruc?: string, graves = false) =>
   `/patrones/duenos?${consulta({ page, size: TAM_PATRONES, ruc, graves: graves ? 1 : undefined })}`;
+export const rutaGrupos = (page = 1, ruc?: string, graves = false) =>
+  `/patrones/grupos?${consulta({ page, size: TAM_PATRONES, buscar: ruc, severidad: graves ? "alta" : undefined })}`;
 export const rutaInhabilitadas = (page = 1, ruc?: string, graves = false) =>
   `/patrones/inhabilitadas?${consulta({ page, size: TAM_PATRONES, ruc, graves: graves ? 1 : undefined })}`;
 export const rutaControl = (page = 1, ruc?: string, graves = false, misma = false) =>

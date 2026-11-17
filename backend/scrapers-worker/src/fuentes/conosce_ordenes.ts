@@ -279,6 +279,9 @@ export async function correrOrdenes(env: Env, p: ParamsCorrida, step: WorkflowSt
     f("refrescar_compras_anterior", `SELECT refrescar_compras(${anterior})->>'resumen'`, "refrescar_compras(date,date)"),
     // La ola de órdenes a personas tras cada cambio de gestión, sobre lo recién contado (migración 188).
     opcional("refrescar_ola_gestion"),
+    // Grupos de proveedores por dueño y familia en cada entidad, y lo que hicieron juntos con las órdenes (migración 343):
+    // sobre los conteos por empresa y persona recién rehechos. Unos 20-30 min: por la cola, no por Hyperdrive.
+    opcional("refrescar_grupos_proveedor"),
     // Los cruces (el fraccionamiento es uno) y los casos cruzados (migraciones 48 y 57).
     ...cadenaCruces(),
   ]);
@@ -291,6 +294,7 @@ export async function correrOrdenes(env: Env, p: ParamsCorrida, step: WorkflowSt
     ["entidad_ordenes", "refrescar_entidad_ordenes"], ["ordenes_mes", "refrescar_ordenes_mes"],
     ["entidad_ordenes_anterior", "refrescar_entidad_ordenes_anterior"], ["ordenes_mes_anterior", "refrescar_ordenes_mes_anterior"],
     ["compras", "refrescar_compras"], ["compras_anterior", "refrescar_compras_anterior"], ["ola_gestion", "refrescar_ola_gestion"],
+    ["grupos_proveedor", "refrescar_grupos_proveedor"],
   ] as const) {
     resumen[clave] = numeroDe(r, nombre);
   }

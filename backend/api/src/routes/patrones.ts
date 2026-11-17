@@ -40,6 +40,7 @@ import { cachePublico, parametros } from "../lib/http.js";
 import { publicar } from "../lib/privacidad.js";
 import { ETIQUETA_CRUCE, catalogoSenales, nombrePublicable } from "../lib/cruces.js";
 import { depurarReferencias } from "../lib/laboratorioPrecios.js";
+import { taparNombrePropio } from "./personas.js";
 
 export const patronesRouter = new Hono();
 
@@ -485,6 +486,93 @@ patronesRouter.get("/precios-estado", async (c) => {
       [q.q, q.unidad ?? null, q.hasta ?? null],
     ).catch(() => ({ rows: [] as Record<string, unknown>[] }));
     return { referencias: depurarReferencias(r.rows as { unidad: string | null; n: number; mediana: number }[]) };
+  });
+  c.header("Cache-Control", CACHE);
+  return c.json(cuerpo);
+});
+
+const Grupos = z.object({
+  entidad: z.string().regex(/^20\d{9}$/).optional(),
+  ruc: z.string().regex(/^20\d{9}$/).optional(),
+  persona: z.string().regex(/^[0-9a-f]{12}$/).optional(),
+  /** El RUC de la entidad O de una empresa del grupo (el buscador de la web, que no sabe cuál de las dos es). */
+  buscar: z.string().regex(/^20\d{9}$/).optional(),
+  severidad: z.enum(["alta", "media", "baja"]).optional(),
+  page: z.coerce.number().int().min(1).max(200).default(1),
+  size: z.coerce.number().int().min(1).max(50).default(20),
+});
+
+const VIA: Record<string, string> = {
+  socio_comun: "comparten un socio o representante",
+  es_socio: "la persona es socia o representante de la empresa",
+  hermanos_probables: "sus socios comparten los dos apellidos (posibles hermanos)",
+};
+
+/**
+ * GET /patrones/grupos?entidad=&ruc=&persona=&severidad= — grupos de proveedores de una misma entidad unidos por dueño o
+ * por familia probable (migración 343): empresas que comparten un socio, la persona que vende con su RUC 10 y es socia de
+ * una de ellas, y socios con los mismos dos apellidos poco comunes. Con lo que hicieron juntos en las órdenes: al borde del
+ * tope de 8 UIT, órdenes el mismo día con números correlativos y el mismo objeto repartido entre miembros. `persona` es el
+ * código de su ficha (un RUC 10 nunca se recibe ni se muestra).
+ */
+patronesRouter.get("/grupos", async (c) => {
+  const p = Grupos.safeParse(Object.fromEntries(Object.entries(parametros(c)).filter(([, v]) => v !== "" && v != null)));
+  if (!p.success) return c.json({ error: "invalid_query", issues: p.error.issues }, 400);
+  const q = p.data;
+  const cuerpo = await memo.obtener(`grupos:${JSON.stringify(q)}`, async () => {
+    let ruc = q.ruc ?? null;
+    if (q.persona) {
+      const r = await pool.query<{ ruc: string }>(`SELECT ruc FROM persona_codigo WHERE codigo = $1`, [q.persona]);
+      ruc = r.rows[0]?.ruc ?? "sin-persona";
+    }
+    const r = await pool.query(
+      `SELECT r.entidad_ruc AS "entidadRuc", (SELECT es.nombre FROM entidad_stats es WHERE es.ruc = r.entidad_ruc) AS entidad, r.grupo,
+              r.miembros, r.empresas, r.personas, r.ordenes, r.monto::float AS monto, to_char(r.desde, 'YYYY-MM-DD') AS desde,
+              to_char(r.hasta, 'YYYY-MM-DD') AS hasta, r.hasta_8uit AS "hasta8Uit", r.borde, r.monto_borde::float AS "montoBorde",
+              r.sobre_tope AS "sobreTope", r.dias_juntos AS "diasJuntos", r.monto_juntos::float AS "montoJuntos", r.correlativas,
+              r.repartidos, r.monto_repartido::float AS "montoRepartido", r.puesto_grupo AS "puestoGrupo", r.puesto_mayor AS "puestoMayor",
+              r.severidad, r.detalle, (count(*) OVER ())::int AS total
+         FROM grupo_proveedor_resumen r
+        WHERE ($1::text IS NULL OR r.entidad_ruc = $1) AND ($3::text IS NULL OR r.severidad = $3)
+          AND ($2::text IS NULL OR EXISTS (SELECT 1 FROM grupo_proveedor g WHERE g.entidad_ruc = r.entidad_ruc AND g.grupo = r.grupo AND g.ruc = $2))
+          AND ($6::text IS NULL OR r.entidad_ruc = $6
+               OR EXISTS (SELECT 1 FROM grupo_proveedor g WHERE g.entidad_ruc = r.entidad_ruc AND g.grupo = r.grupo AND g.ruc = $6))
+        ORDER BY CASE r.severidad WHEN 'alta' THEN 0 WHEN 'media' THEN 1 ELSE 2 END, r.monto DESC
+        LIMIT $4 OFFSET $5`,
+      [q.entidad ?? null, ruc, q.severidad ?? null, q.size, (q.page - 1) * q.size, q.buscar ?? null],
+    ).catch(() => ({ rows: [] as Record<string, unknown>[] }));
+    const grupos = r.rows as Record<string, any>[];
+    // Por qué están juntos: los vínculos entre sus miembros, con la persona que los une (un apellido tapado).
+    const vinc = grupos.length ? await pool.query(
+      `SELECT v.entidad_ruc, g.grupo, v.a, v.b, v.via, v.persona, v.persona_b
+         FROM grupo_proveedor_vinculo v JOIN grupo_proveedor g ON g.entidad_ruc = v.entidad_ruc AND g.ruc = v.a
+        WHERE (v.entidad_ruc, g.grupo) IN (SELECT * FROM unnest($1::text[], $2::text[]))`,
+      [grupos.map((x) => x.entidadRuc), grupos.map((x) => x.grupo)],
+    ).catch(() => ({ rows: [] as Record<string, any>[] })) : { rows: [] as Record<string, any>[] };
+    // La ficha de cada persona (por su código: el RUC 10 no sale).
+    const personas = grupos.flatMap((x) => ((x.detalle?.miembros ?? []) as { ruc: string }[]).map((m) => m.ruc)).filter((x) => x.startsWith("10"));
+    const codigos = personas.length
+      ? new Map((await pool.query<{ ruc: string; codigo: string }>(`SELECT ruc, codigo FROM persona_codigo WHERE ruc = ANY($1)`, [personas])).rows.map((x) => [x.ruc, x.codigo]))
+      : new Map<string, string>();
+    const data = grupos.map(({ total: _t, detalle, ...x }) => {
+      const miembros = ((detalle?.miembros ?? []) as { ruc: string; nombre: string; ordenes: number; monto: number }[]);
+      const nombreDe = new Map(miembros.map((m) => [m.ruc, m.nombre]));
+      const conNombre = (o: { ruc?: string }) => ({ ...o, nombre: o.ruc ? nombreDe.get(o.ruc) ?? null : null });
+      return {
+        ...x,
+        miembros: miembros.map((m) => ({ ...m, persona: m.ruc.startsWith("10"), codigo: codigos.get(m.ruc) ?? null })),
+        vinculos: vinc.rows.filter((v) => v.entidad_ruc === x.entidadRuc && v.grupo === x.grupo).map((v) => ({
+          a: v.a, nombreA: nombreDe.get(v.a) ?? null, b: v.b, nombreB: nombreDe.get(v.b) ?? null, via: v.via, que: VIA[v.via] ?? v.via,
+          persona: v.persona ? taparNombrePropio(nombrePublicable(v.persona), v.persona) : null,
+          personaB: v.persona_b ? taparNombrePropio(nombrePublicable(v.persona_b), v.persona_b) : null,
+        })),
+        dias: ((detalle?.dias ?? []) as Record<string, any>[]).map((d) => ({ ...d, detalle: (d.detalle ?? []).map(conNombre) })),
+        objetosRepartidos: ((detalle?.repartidos ?? []) as Record<string, any>[]).map((d) => ({ ...d, detalle: (d.detalle ?? []).map(conNombre) })),
+        sobreTopeOrdenes: ((detalle?.sobre_tope ?? []) as Record<string, any>[]).map(conNombre),
+      };
+    });
+    return publicar({ total: grupos[0]?.total ?? 0, page: q.page, size: q.size, data,
+      como_leerlo: "Un grupo junta proveedores de la misma entidad unidos por un socio o representante común, por una persona que vende con su RUC y es socia de una empresa del grupo, o por socios con los mismos dos apellidos poco comunes (parentesco probable, no comprobado: los registros no traen parentescos). Cada uno visto solo puede parecer pequeño; juntos se suman." });
   });
   c.header("Cache-Control", CACHE);
   return c.json(cuerpo);
