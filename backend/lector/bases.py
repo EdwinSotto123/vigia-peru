@@ -83,8 +83,12 @@ de evaluación).
 Extrae SOLO lo que dicen las páginas. Si algo no aparece: null en números, cadena vacía en textos, lista vacía.
 Montos en soles, sin separadores. No inventes montos ni años.
 
-experiencia_postor: la experiencia que se exige al postor como requisito de calificación (monto facturado mínimo,
-en cuántos años, en qué especialidad), con una cita copiada de las bases.
+valor_referencial: el valor referencial, el valor estimado o la cuantía de TODA la contratación, sólo si las páginas lo
+dicen con esas palabras. NO es el monto de experiencia que se exige al postor, ni una garantía, ni una penalidad, ni
+el tramo de un factor de evaluación: si dudas, null. (Medido el 2026-11-16: en 40 lecturas se puso aquí la experiencia.)
+experiencia_postor: la experiencia que se exige al postor como REQUISITO DE CALIFICACIÓN (monto facturado mínimo,
+en cuántos años, en qué especialidad), con una cita copiada de las bases que traiga ese mismo monto. Los tramos de un
+factor de evaluación («más de S/ X: 35 puntos») no son el requisito.
 personal_clave: cada cargo exigido con los años de experiencia que se le piden (nunca nombres de personas).
 marcas: SOLO marcas comerciales, fabricantes o modelos que las bases exigen o nombran para el bien o servicio, con una
 cita copiada palabra por palabra; con_equivalente es true si la misma frase admite «o equivalente» o «similar»."""

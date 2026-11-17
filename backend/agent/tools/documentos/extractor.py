@@ -129,7 +129,12 @@ def _prompt_lote(label: str, bloque: str | None, ocds_ctx: dict, rango: tuple[in
         "consultas absueltas o modificaciones de la integración; `ejecucion_contractual` SOLO en documentos posteriores al "
         "contrato (adendas, resoluciones de ampliación, penalidades, entregas). En cualquier otro caso van null.\n"
         + (f"PASO 6 — {bloque_txt}" if bloque_txt else "")
-        + "PASO FINAL — `cuantia_total`, `fuente_financiamiento`, `modalidad` y `resumen` (3-4 líneas del documento REAL).\n"
+        # `cuantia_total` iba sin definir y el modelo ponía el monto más visible del documento: en unas bases, la
+        # experiencia exigida al postor (S/ 24,98 M contra S/ 9,83 M adjudicados: la bandera falsa del 2026-11-16).
+        + "PASO FINAL — `cuantia_total`: SOLO el valor referencial, el valor estimado o la cuantía de TODA la contratación "
+        "si el documento lo declara con esas palabras (en un contrato u orden, su monto total). NUNCA la experiencia ni el "
+        "monto facturado que se exige al postor, una garantía, una penalidad ni el tramo de un factor de evaluación; si el "
+        "documento no lo dice, null. Después `fuente_financiamiento`, `modalidad` y `resumen` (3-4 líneas del documento REAL).\n"
         "Devolvé SOLO JSON. Sin markdown, sin fences, sin texto antes ni después."
     )
 

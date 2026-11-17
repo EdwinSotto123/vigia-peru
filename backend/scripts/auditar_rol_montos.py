@@ -78,7 +78,8 @@ def main() -> None:
                     continue                              # montos chicos, o del registro: no se discuten
                 c["montos de documento"] += 1
                 variantes = sorted(verify._variantes_monto(valor), key=len, reverse=True)
-                patron = "(.{0,%d}[^0-9.,])(?:%s)(?![0-9])" % (verify._VENTANA_ROL, "|".join(re.escape(v) for v in variantes))
+                # Postgres admite hasta 255 repeticiones en una expresión regular: la ventana de aquí es de 250.
+                patron = "(.{0,%d}[^0-9.,])(?:%s)(?![0-9])" % (min(verify._VENTANA_ROL, 250), "|".join(re.escape(v) for v in variantes))
                 cur.execute("""SELECT (regexp_matches(t.texto, %s, 'g'))[1] FROM documentos_texto t
                                 WHERE t.ocid IN (%s, regexp_replace(%s, '^ocds-[a-z0-9]+-seacev3-', '')) AND position(%s in t.texto) > 0
                                 LIMIT 40""", (patron, ocid, ocid or "", raw))
