@@ -159,16 +159,46 @@ def test_sie_nunca_compara_contra_el_referencial():
     assert r["triggered"] is False
 
 
-def test_cuantia_realmente_distinta_dispara_con_norma_del_regimen():
+def test_cuantia_distinta_del_referencial_es_un_dato_a_verificar_que_no_suma():
+    # El monto de las bases no coincide con el referencial del registro ni con lo adjudicado: se avisa, sin puntaje (el
+    # monto leído no tiene tipo), y se compara SIEMPRE contra el referencial, nunca contra lo adjudicado.
     st = {"ocds": _ocds(ref=100000.0, awards=(98000.0,), desc="ADQUISICION DE LAPTOPS", inicio="2026-02-01T00:00:00Z"),
-          "document_analysis": {"cuantia_total": 50000.0, "items_consolidados": [{"descripcion_corta": "LAPTOP"}]}}
+          "document_analysis": {"cuantia_total": 61000.0, "items_consolidados": [{"descripcion_corta": "LAPTOP"}]}}
     r = cr.check_inconsistencia_doc_vs_ocds_rule(OCID, _Ctx(st))
     assert r["triggered"] is True and r["inconsistencias"][0]["tipo"] == "cuantia_distinta"
-    assert r["inconsistencias"][0]["ocds_base"] == "awards/contracts" and "32069" in r["norma"]
+    assert r["inconsistencias"][0]["ocds_base"] == "tender.value" and "32069" in r["norma"]
+    assert r["puntua"] is False and r["requiere_verificacion"] is True and "No suma al puntaje" in r["evidencia"]
     st2 = {"ocds": _ocds(ref=100000.0, awards=(98000.0,), desc="ADQUISICION DE LAPTOPS", inicio="2024-02-01T00:00:00Z"),
-           "document_analysis": {"cuantia_total": 50000.0, "items_consolidados": [{"descripcion_corta": "LAPTOP"}]}}
+           "document_analysis": {"cuantia_total": 61000.0, "items_consolidados": [{"descripcion_corta": "LAPTOP"}]}}
     r2 = cr.check_inconsistencia_doc_vs_ocds_rule(OCID, _Ctx(st2))
     assert "30225" in r2["norma"]
+
+
+def test_la_experiencia_exigida_en_las_bases_no_es_una_discrepancia_de_cuantia():
+    # Visto en PROD el 2026-11-16: referencial S/ 9,99 M, adjudicado S/ 9,83 M y un factor de evaluación que pide haber
+    # facturado S/ 24,98 M (2,5 veces el referencial). El extractor puso ese monto en `cuantia_total` y la regla decía
+    # «154 % de diferencia» contra lo adjudicado.
+    st = {"ocds": _ocds(ref=9991437.0, awards=(9826530.0,), desc="SERVICIO DE ALIMENTACION PARA INTERNOS"),
+          "document_analysis": {"cuantia_total": 24978592.50, "items_consolidados": [{"descripcion_corta": "SERVICIO DE ALIMENTACION"}]}}
+    r = cr.check_inconsistencia_doc_vs_ocds_rule(OCID, _Ctx(st))
+    assert r["triggered"] is False and not st.get("pending_flags")
+    assert r["cuantia_documento_es_experiencia_exigida"] is True
+    # Aunque no sea un múltiplo redondo: la lectura de las bases dice que ese monto es la experiencia exigida.
+    st2 = {"ocds": _ocds(ref=1000000.0, awards=(950000.0,), desc="SERVICIO DE LIMPIEZA"),
+           "lecturas_documentos": {"bases": {"salida": {"valor_referencial": 1000000.0,
+                                                        "experiencia_postor": {"monto_minimo": 2730000.0, "anios": 8}}}},
+           "document_analysis": {"cuantia_total": 2730000.0, "items_consolidados": [{"descripcion_corta": "SERVICIO DE LIMPIEZA"}]}}
+    r2 = cr.check_inconsistencia_doc_vs_ocds_rule(OCID, _Ctx(st2))
+    assert r2["triggered"] is False and r2["cuantia_documento_es_experiencia_exigida"] is True
+
+
+def test_adjudicar_por_menos_que_el_referencial_no_es_una_discrepancia():
+    # El monto de las bases ES el referencial del registro y se adjudicó por menos: lo normal (82 de las 144 banderas
+    # de PROD eran esto).
+    st = {"ocds": _ocds(ref=500000.0, awards=(431000.0,), desc="ADQUISICION DE LAPTOPS"),
+          "document_analysis": {"cuantia_total": 500000.0, "items_consolidados": [{"descripcion_corta": "LAPTOP"}]}}
+    r = cr.check_inconsistencia_doc_vs_ocds_rule(OCID, _Ctx(st))
+    assert r["triggered"] is False and r["cuantia_documento_coincide_con"] == "tender.value"
 
 
 def test_objeto_hiperonimo_no_dispara_1225062_y_1225266():

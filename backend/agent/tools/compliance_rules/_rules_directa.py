@@ -482,23 +482,49 @@ def check_inconsistencia_doc_vs_ocds_rule(ocid: str, tool_context: ToolContext,
             if m and abs(m - cuantia_doc) / max(m, 1) * 100 <= 0.5:
                 coincide_con = nombre
                 break
+    # `cuantia_total` es un número SIN TIPO: sale de las bases o del requerimiento (tools/documentos/lote.py; el monto de un
+    # acta, un contrato o una orden va aparte, en `monto_adjudicado_doc`) y el extractor lo llena con el monto más visible
+    # del documento. En unas bases ese monto puede ser el valor referencial… o la experiencia que se exige al postor:
+    # el 2026-11-16 un usuario vio «el OCDS publica S/ 9,83 M pero el documento indica S/ 24,98 M (154 % de diferencia)»
+    # donde los S/ 24,98 M eran el monto facturado que pedía un factor de evaluación (2,5 veces el referencial). En PROD
+    # había 144 banderas así: 82 eran el referencial comparado contra lo adjudicado (adjudicar por menos es lo normal) y
+    # 11 un múltiplo exacto del referencial. Por eso ahora:
+    #   · sólo se compara con el VALOR REFERENCIAL del registro (tender.value), nunca con lo adjudicado o lo contratado;
+    #   · no se compara si la lectura de las bases dice que ese monto es la experiencia exigida, ni si es un múltiplo
+    #     redondo del referencial (1,5 a 5 veces: así se fija la experiencia);
+    #   · y lo que quede es un dato a verificar: mientras el monto no tenga tipo, no suma al puntaje.
+    _lb = (state.get("lecturas_documentos") or {}).get("bases") or {}
+    _lb = _lb.get("salida") if isinstance(_lb, dict) and isinstance(_lb.get("salida"), dict) else _lb
+    _lb = _lb if isinstance(_lb, dict) else {}
+
+    def _n(v):
+        try:
+            return float(v) if v not in (None, "") else 0.0
+        except (TypeError, ValueError):
+            return 0.0
+    _exp_min = _n((_lb.get("experiencia_postor") or {}).get("monto_minimo")) if isinstance(_lb.get("experiencia_postor"), dict) else 0.0
+    _vr_bases = _n(_lb.get("valor_referencial"))
+
+    def _cerca(a, b, tol=1.0):
+        return bool(a and b and abs(a - b) / max(b, 1) * 100 <= tol)
+    es_experiencia = bool(cuantia_doc > 0 and (
+        _cerca(cuantia_doc, _exp_min)
+        or any(_cerca(cuantia_doc, k * ref) for ref in (cuantia_ocds, _vr_bases) if ref for k in (1.5, 2, 2.5, 3, 4, 5))))
     result_cuantia = {"cuantia_documento_coincide_con": coincide_con,
-                      "cuantia_documento_es_adjudicada": coincide_con in ("awards", "contracts", "suma_awards", "suma_contracts")}
-    if cuantia_doc > 0 and coincide_con is None and candidatos:
-        base_nombre, base = ("awards/contracts", montos["suma_contracts"] or montos["suma_awards"]) \
-            if (montos["suma_contracts"] or montos["suma_awards"]) else ("tender.value", cuantia_ocds)
+                      "cuantia_documento_es_adjudicada": coincide_con in ("awards", "contracts", "suma_awards", "suma_contracts"),
+                      "cuantia_documento_es_experiencia_exigida": es_experiencia}
+    if cuantia_doc > 0 and coincide_con is None and not es_experiencia and cuantia_ocds > 0 and not es_sie:
         # Un monto del documento que es la cuota o el honorario mensual (S/ 15 000 al mes por 3 meses = S/ 45 000,
         # 1228800) no es una discrepancia: el total es un múltiplo entero exacto (2 a 36).
-        _k = (base / cuantia_doc) if (base and cuantia_doc) else 0
+        _k = cuantia_ocds / cuantia_doc
         _cuota = 2 <= round(_k) <= 36 and abs(_k - round(_k)) <= 0.005 * round(_k)
-        if base and not _cuota:
-            diff_pct = abs(base - cuantia_doc) / max(base, 1) * 100
-            if diff_pct > 5:
-                inconsistencias.append({
-                    "tipo": "cuantia_distinta",
-                    "ocds": base, "ocds_base": base_nombre, "documento": cuantia_doc,
-                    "diff_pct": round(diff_pct, 1),
-                })
+        diff_pct = abs(cuantia_ocds - cuantia_doc) / max(cuantia_ocds, 1) * 100
+        if diff_pct > 5 and not _cuota:
+            inconsistencias.append({
+                "tipo": "cuantia_distinta",
+                "ocds": cuantia_ocds, "ocds_base": "tender.value", "documento": cuantia_doc,
+                "diff_pct": round(diff_pct, 1),
+            })
     # Conteo de ítems: el OCDS suele publicar el lote como 1 ítem mientras las bases desglosan
     # varios (1225416: 1 vs 2). Es informativo, nunca una señal (lote 1 · T2).
     nota_items = None
@@ -663,13 +689,15 @@ def check_inconsistencia_doc_vs_ocds_rule(ocid: str, tool_context: ToolContext,
                   f"escaneado, ser una plantilla o estar mal adjuntado. Por eso el análisis técnico y de precios de "
                   f"este proceso está incompleto. No es un indicio contra el proceso y no suma al puntaje.")
         elif primera["tipo"] == "cuantia_distinta":
-            _base_lbl = ("monto adjudicado/contratado" if primera.get("ocds_base") == "awards/contracts"
-                         else "valor referencial")
-            ev = (f"Discrepancia de cuantía: el OCDS publica S/ {(primera.get('ocds') or 0):,.2f} "
-                  f"({_base_lbl}) pero el documento del expediente indica S/ {(primera.get('documento') or 0):,.2f} "
-                  f"({primera.get('diff_pct')} % de diferencia) y no coincide con ningún monto adjudicado ni "
-                  f"contratado del registro. Requiere verificación manual (acta parcial, ítem desierto o "
-                  f"publicación desactualizada).")
+            # Un dato a verificar, no un indicio: el monto leído no tiene tipo (ver arriba). Se muestra y no suma.
+            result["puntua"] = False
+            result["requiere_verificacion"] = True
+            ev = (f"El registro publica un valor referencial de S/ {(primera.get('ocds') or 0):,.2f} y en las bases o el "
+                  f"requerimiento figura un monto de S/ {(primera.get('documento') or 0):,.2f} "
+                  f"({primera.get('diff_pct')} % de diferencia), que tampoco coincide con lo adjudicado ni con lo "
+                  f"contratado. Vigía no pudo establecer a qué corresponde ese monto (puede ser el referencial de otro "
+                  f"ítem, un total con otros conceptos o un error de publicación): hay que verificarlo en el documento. "
+                  f"No suma al puntaje.")
         else:
             ev = (f"OCDS lista {primera['n_items_ocds']} ítems pero el documento "
                   f"tiene {primera['n_items_documento']} ítems raíz. Discrepancia entre el registro OCDS y "
