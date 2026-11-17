@@ -117,3 +117,12 @@ test("resumir: precios muy dispersos con pocas ofertas (caballa 170 g: latas y p
   const muchas = validar([...Array.from({ length: 12 }, (_, i) => oferta(i + 1, 4 + i * 0.1)), oferta(20, 30)]);
   assert.notEqual(resumir(muchas, 4.5).veredicto, "Precios muy dispersos, no concluyente");
 });
+
+test("envases más chicos que la unidad del contrato: «por debajo» lleva su advertencia", () => {
+  // 2026-397-20: balde de 5 galones a S/ 294; las tiendas venden litros y cuartos (0,05 del balde).
+  const of = (precio: number, unidades: number) => ({ precio, unidades, precioUnitario: precio / unidades, valida: true, fuente: "tienda" }) as never;
+  const r = resumir([of(49.99, 0.053), of(44.9, 0.053), of(59.9, 0.05), of(159.99, 0.212)], 294);
+  assert.match(r.nota, /envases más chicos/);
+  const mismo = resumir([of(330, 1), of(350, 1), of(360, 1)], 294);
+  assert.doesNotMatch(mismo.nota, /envases más chicos/);
+});

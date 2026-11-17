@@ -87,6 +87,13 @@ export function resumir(ofertas: Oferta[], referencia: number | null, refs: Refe
   if (sinComparar && precios.length >= 3) nota += ` No se compara con lo que pagó el Estado: ${sinComparar.replace(/\.$/, "")}.`;
   const caja = precios.length >= 3 ? cajaProbable(razon) : null;
   if (caja) nota += ` Ojo: es casi ${caja} veces la mediana; puede que la entidad compre por caja o paquete de ${caja} y lo llame «unidad». Revisa las bases antes de concluir.`;
+  // Envases más chicos que la unidad del contrato (1 L o un cuarto de galón contra un balde de 5 galones, 2026-397-20): por
+  // litro cuestan más que al por mayor, así que «por debajo» no prueba un buen precio. Por encima, en cambio, vale más.
+  const fracciones = validas.map((o) => o.unidades ?? 1).sort((a, b) => a - b);
+  const envaseChico = precios.length >= 3 && (percentil(fracciones, 0.5) ?? 1) < 0.3;
+  if (envaseChico && razon != null && razon < 0.85) {
+    nota += " Casi todas las ofertas vienen en envases más chicos que la unidad del contrato: por unidad cuestan más que al por mayor, así que esto no prueba que el precio pagado fuera bueno.";
+  }
   const estado = refs.length ? refs.reduce((m, r) => (r.n > m.n ? r : m), refs[0]) : null;
   if (estado && mediana) {
     nota += ` El Estado pagó una mediana de ${soles(estado.mediana)} (${estado.detalle}).`;
