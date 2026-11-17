@@ -267,3 +267,52 @@ export function enLima(iso: string | null | undefined): string | null {
   if (!f || Number.isNaN(f.getTime())) return null;
   return new Intl.DateTimeFormat("sv-SE", { timeZone: "America/Lima", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false }).format(f);
 }
+
+// ─── Gasto por día y actividad en vivo (GET /transparencia/gasto y /ahora) ──────────────────────────────────────────
+
+export type ClaveGasto = "analisis" | "oro" | "fichas" | "transcripcion" | "lectores" | "menores" | "otros";
+
+export interface ComponenteGasto {
+  clave: ClaveGasto;
+  etiqueta: string;
+  /** Qué cubre, en una frase. */
+  que: string;
+  /** Qué cuenta `n30` («análisis», «páginas»…). */
+  unidad: string;
+  usd30: number;
+  usd7: number;
+  usdHoy: number;
+  n30: number;
+}
+
+export interface GastoIa {
+  generado: string;
+  desde: string;
+  hasta: string;
+  componentes: ComponenteGasto[];
+  /** Los 30 días, del más viejo al de hoy; los sin gasto vienen en cero. */
+  dias: { dia: string; total: number; partes: Partial<Record<ClaveGasto, number>> }[];
+  totales: { usd30: number; usd7: number; hoy: number; mes: number; workersAi30: number; anthropic30: number };
+  medios: { porAnalisis: number | null; porFicha: number | null; porPagina: number | null };
+  /** Lo que mide Cloudflare para Workers AI (migración 336); null mientras no se cargue. */
+  factura: { dias: { dia: string; usd: number }[]; usd30: number | null; medidaAt: string | null; cubren: number | null } | null;
+  /** Libros que no respondieron: su gasto no está sumado. */
+  sinLibro: string[];
+}
+
+export interface AhoraVigia {
+  generado: string;
+  /** «2026-11-17 14:32», hora de Lima: el último documento leído o análisis terminado. */
+  ultimaActividad: string | null;
+  enVuelo: { analisis: number; tandaAbierta: boolean; topeTanda: number | null; gastoTanda: number | null } | null;
+  ultimaHora: TramoActividad | null;
+  hoy: TramoActividad | null;
+  /** Las últimas 24 horas («2026-11-17 14»), de la más vieja a la actual. */
+  porHora: { hora: string; analisis: number; documentos: number }[] | null;
+  recientes: { codigo: string | null; ocid: string; objeto: string | null; entidad: string | null; score: number | null; analizado: string }[];
+}
+
+export interface TramoActividad { analisis: number; documentos: number; paginas: number; usd: number }
+
+export const getGasto = () => getJson<GastoIa>("/transparencia/gasto", 600);
+export const getAhora = () => getJson<AhoraVigia>("/transparencia/ahora", 15);

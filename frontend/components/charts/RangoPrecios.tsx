@@ -382,10 +382,17 @@ function Renglon({
               !etiquetaDirecta &&
                 "opacity-0 transition-opacity duration-rapido group-hover:opacity-100 group-focus-visible:opacity-100",
             )}
+            // Siempre dentro del trazo: si no cabe a la derecha del ofertado ni a la izquierda del rango, a la izquierda del
+            // ofertado; y si tampoco, pegada al borde izquierdo. Antes, anclada a un rango que empieza cerca de cero, la
+            // etiqueta salía del trazo y tapaba el nombre del ítem.
             style={
               cabeDerecha
                 ? { left: xOf + 7 }
-                : { right: Math.max(ancho - anclaIzquierda + 7, 2) }
+                : anclaIzquierda - 7 - anchoEtiqueta >= 0
+                  ? { right: Math.max(ancho - anclaIzquierda + 7, 2) }
+                  : xOf - 7 - anchoEtiqueta >= 0
+                    ? { right: ancho - xOf + 7 }
+                    : { left: 2 }
             }
           >
             {etiqueta}

@@ -35,6 +35,7 @@ import { Partes } from "@/components/ui/Partes";
 import { VacioEnLinea } from "@/components/ui/VacioEnLinea";
 import { DesgloseItems } from "./ItemsDocumento";
 import { SeccionPerfil, cuentaPerfil } from "./PerfilContratista";
+import { AvisoMasBaja, ComparacionOfertas, detallePostor } from "./ComparacionOfertas";
 
 export const OCDS = "registro OCDS del OECE (SEACE)";
 
@@ -367,9 +368,14 @@ function SeccionPostores({ c, enRevision }: { c: Detalle; enRevision: boolean })
           ? <Link href={ficha} prefetch={false} className="text-granate underline-offset-2 hover:underline">{p.razonSocial}</Link>
           : p.razonSocial
       : "Sin razón social";
+    const motivo = !p.esGanador && motivoDe(p) ? <TextoRedactado texto={recortarMotivo(oracion(motivoDe(p)!))} personas={personasPostores} /> : null;
     return {
-      id: `${p.ruc ?? p.razonSocial ?? "postor"}-${i}`,
+      // Nunca el RUC (de una persona natural lleva su DNI) en el DOM como id.
+      id: `postor-${i}`,
       resaltada: p.esGanador,
+      enlaces: true,
+      etiqueta: "Ver el detalle de este postor",
+      detalle: detallePostor(p, c, { estado, motivo, dif }),
       celdas: {
         estado: estado ? <Chip ganador={p.esGanador}>{estado}</Chip> : undefined,
         // CeldaTexto y no CeldaPrincipal: el nombre de una persona natural va en vidrio (ReactNode, §10.6).
@@ -424,7 +430,10 @@ function SeccionPostores({ c, enRevision }: { c: Detalle; enRevision: boolean })
   return (
     <>
       <CabeceraPestana>Quién presentó oferta, por cuánto y en qué quedó, según las actas del expediente.</CabeceraPestana>
-      <ResumenEvaluacion c={c} />
+      <div className="mb-4 space-y-3">
+        <AvisoMasBaja c={c} />
+        <ComparacionOfertas c={c} />
+      </div>
       <TablaPaginada
         columnas={columnas}
         filas={filas}
@@ -435,39 +444,6 @@ function SeccionPostores({ c, enRevision }: { c: Detalle; enRevision: boolean })
       />
       <FuenteDato fuente="actas y cuadros comparativos del expediente" enlaces={enlacesProceso(c.ocid, { codigo: c.codigo })} className="mt-2" />
     </>
-  );
-}
-
-/**
- * Lo que el acta o cuadro de evaluación leído por pieza deja ver arriba de la tabla: si la oferta más baja perdió (y por
- * cuánto, con la bonificación que lo decidió) y con qué factores se puntuó. Neutro: la bonificación a la micro y pequeña
- * empresa es legal; es un dato para leer, no una señal.
- */
-function ResumenEvaluacion({ c }: { c: Detalle }) {
-  const ev = c.evaluacion;
-  if (!ev || (!ev.masBajaPerdio && !ev.factores.length)) return null;
-  const m = ev.masBajaPerdio;
-  const pn = (n: { ruc: string | null; nombre: string | null }) =>
-    n.nombre ? (esPersonaNatural(n.ruc) ? <PersonName name={n.nombre} /> : <b>{n.nombre}</b>) : "un postor";
-  const total = ev.factores.reduce((s, f) => s + (f.puntajeMaximo ?? 0), 0);
-  return (
-    <div className="mb-3 space-y-2 rounded-2xl border border-line bg-paper px-4 py-3 text-dato leading-relaxed text-ink">
-      {m && (
-        <p>
-          La oferta más baja, de {pn(m.masBaja)} por <b>{soles(m.masBaja.monto ?? 0)}</b>
-          {m.masBaja.puntajeFinal != null ? ` (${pts(m.masBaja.puntajeFinal)} puntos)` : ""}, no ganó. La buena pro fue a {pn(m.ganador)}, que ofertó{" "}
-          <b>{soles(m.ganador.monto ?? 0)}</b>, {porcentaje(m.diferenciaPct, { decimales: 1 })} más ({soles(m.diferenciaSoles)})
-          {m.ganador.puntajeFinal != null ? `, y sumó ${pts(m.ganador.puntajeFinal)} puntos` : ""}
-          {m.ganador.bonificacion != null ? ` con ${pts(m.ganador.bonificacion)} de bonificación` : ""}.
-        </p>
-      )}
-      {ev.factores.length > 0 && (
-        <p className="text-inkSoft">
-          Se puntuó con {ev.factores.map((f) => `${f.factor ?? "un factor"}${f.puntajeMaximo != null ? ` (${pts(f.puntajeMaximo)})` : ""}`).join(", ")}
-          {total > 0 ? `, ${pts(total)} puntos en total` : ""}.
-        </p>
-      )}
-    </div>
   );
 }
 

@@ -1,6 +1,7 @@
 "use client";
 
-import { Package, Table2 } from "lucide-react";
+import Link from "next/link";
+import { ChevronRight, Package, SearchX, Table2 } from "lucide-react";
 import { DetallePrecioItem, TablaPrecios } from "@/components/charts/DetallePrecioItem";
 import { RangoPrecios } from "@/components/charts/RangoPrecios";
 import { construirFilas, maximoEscala, ordenarPorDiferencia } from "@/components/charts/mercado";
@@ -8,6 +9,7 @@ import { Revelar } from "@/components/ui/Revelar";
 import { Ayuda } from "@/components/patrones/Ayuda";
 import { BloqueDetalle, CuerpoDetalle } from "@/components/patrones/Detalle";
 import { numero, plural } from "@/lib/formato";
+import { rutaContrato } from "@/lib/rutas";
 
 /**
  * Ofertado contra mercado, ítem por ítem.
@@ -33,6 +35,8 @@ export function ItemsConMarketPrice({
   market,
   fmtMoney,
   conEstado = 0,
+  renglonesFicha = 0,
+  ocidFicha = null,
 }: {
   items: any[];
   allItems?: any[];
@@ -43,6 +47,9 @@ export function ItemsConMarketPrice({
    * sin precio de mercado no se rotula «No verificable» a secas (pedido del usuario del 2026-11-16).
    */
   conEstado?: number;
+  /** Cuántos renglones de lo comprado trae la ficha (bases y contrato leídos por pieza) y el contrato al que enlazar. */
+  renglonesFicha?: number;
+  ocidFicha?: string | null;
 }) {
   const armadas = construirFilas({ items, allItems, market });
   const padreLote = armadas.padreLote;
@@ -127,6 +134,8 @@ export function ItemsConMarketPrice({
         )}
       </p>
 
+      {conMedicion === 0 && <SinComparacion n={filas.length} renglones={renglonesFicha} ocid={ocidFicha} conGrafico={orden.length > 0 && maximo > 0} />}
+
       {orden.length > 0 && maximo > 0 ? (
         <RangoPrecios
           filas={orden}
@@ -136,10 +145,9 @@ export function ItemsConMarketPrice({
           titulo={`Comparación de precio ofertado contra el mercado en ${plural(orden.length, "ítem", "ítems")}, ordenados por diferencia en soles. La tabla completa con las mismas cifras está bajo "ver la tabla completa".`}
         />
       ) : (
-        <p className="border-l-2 border-line pl-3 text-rotulo text-mute">
-          Ningún ítem llegó a tener precio de mercado y cantidad a la vez, que es lo mínimo para compararlo. No hay
-          gráfico porque no hay comparación que dibujar. El detalle de por qué está abajo, ítem por ítem.
-        </p>
+        conMedicion > 0 && (
+          <p className="text-rotulo text-mute">No hay gráfico: ningún ítem medido llegó a tener también su cantidad.</p>
+        )
       )}
 
       <div className="flex flex-wrap items-center gap-2">
@@ -204,6 +212,49 @@ export function ItemsConMarketPrice({
           </Revelar>
         )}
       </div>
+    </div>
+  );
+}
+
+/**
+ * Cuando ningún ítem llegó a compararse: qué faltó, dicho con sus causas y sin gráfico. Si la ficha del contrato trae más
+ * renglones que los ítems que miró el agente (el SEACE registró un paquete como un ítem: diez lubricantes en 1225937), lo
+ * dice y lleva a esos renglones, con su marca y su precio contratado.
+ */
+function SinComparacion({ n, renglones, ocid, conGrafico = false }: { n: number; renglones: number; ocid: string | null; conGrafico?: boolean }) {
+  const paquete = renglones > n;
+  return (
+    <div className="rounded-xl border border-line bg-paperSoft px-4 py-3.5">
+      <p className="flex items-center gap-2 text-dato font-semibold text-ink">
+        <SearchX size={16} className="shrink-0 text-mute" aria-hidden />
+        El agente de precios no tuvo con qué comparar
+      </p>
+      <ul className="mt-2 list-disc space-y-1.5 pl-5 text-meta leading-relaxed text-inkSoft marker:text-mute">
+        {paquete && (
+          <li>
+            El SEACE registró la compra como {n === 1 ? "un solo ítem" : plural(n, "ítem", "ítems")} y el agente buscó precio para ese
+            conjunto. Los documentos traen {plural(renglones, "renglón", "renglones")}, cada uno con su marca y su precio contratado.
+          </li>
+        )}
+        <li>
+          Para comparar hace falta, en cada ítem, un precio de mercado con su fuente y la cantidad comprada: ningún ítem llegó a
+          tener las dos cosas.
+        </li>
+        <li>
+          {conGrafico
+            ? "Lo que se dibuja abajo es una estimación del modelo, sin búsqueda que la respalde: no cuenta para el sobreprecio."
+            : "Sin esa base no se dibuja un gráfico ni se afirma un sobreprecio. El detalle de cada ítem está abajo."}
+        </li>
+      </ul>
+      {paquete && ocid && (
+        <Link
+          href={rutaContrato(ocid, "ficha", { seccion: "items" })}
+          prefetch={false}
+          className="mt-2.5 inline-flex items-center gap-1 text-meta font-semibold text-granate underline-offset-2 hover:underline"
+        >
+          Ver los {numero(renglones)} renglones en la ficha del contrato <ChevronRight size={14} aria-hidden />
+        </Link>
+      )}
     </div>
   );
 }

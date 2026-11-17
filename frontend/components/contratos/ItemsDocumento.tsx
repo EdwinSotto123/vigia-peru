@@ -4,7 +4,8 @@
  * traen cada producto con su cantidad y el contrato, su marca y su precio. Sale de las fichas leídas por pieza
  * (backend/lector: «bases» y «contrato»), con la comprobación sin modelo del contrato (cantidad × unitario = total).
  */
-import { ListOrdered, Package, Tag } from "lucide-react";
+import { CircleCheck, CircleAlert, ListOrdered, Package, Tag } from "lucide-react";
+import { BarraSegmentada, MuestraSerie, colorSerie } from "@/components/charts/BarraSegmentada";
 import { Ayuda, DatosClave, EnUnaFrase, FuenteDato } from "@/components/patrones";
 import { CeldaNumero, CeldaPrincipal, TablaPaginada, type Columna, type Fila } from "@/components/listado";
 import { Dato } from "@/components/ui/Dato";
@@ -15,10 +16,62 @@ import type { ContratoDetalle as Detalle } from "@/lib/contratos";
 import { CitaPagina } from "./CitaPagina";
 
 /** «ACEITE DE MOTOR 15W40» → «Aceite de motor 15W40»: sin gritar, sin tocar códigos con números. */
-function oracionCorta(s: string): string {
+function oracionCorta(s0: string): string {
+  // «ACEITE DE TRANSMISION 85W140 , API GL5»: la coma suelta del contrato pegada a lo anterior.
+  const s = s0.replace(/\s+,/g, ",").replace(/\s{2,}/g, " ").trim();
   if (s !== s.toUpperCase()) return s;
   const bajo = s.toLowerCase().replace(/\b([a-z]*\d[a-z\d-]*)\b/g, (m) => m.toUpperCase());
   return bajo.charAt(0).toUpperCase() + bajo.slice(1);
+}
+
+/**
+ * Cómo se reparte el monto contratado entre los renglones: la barra entera (los 6 mayores con su color, el resto en
+ * «otros») y la lista ordenada de mayor a menor con su barra, su total y su parte. Sin precios, no se dibuja.
+ */
+function RepartoGasto({ filas }: { filas: NonNullable<Detalle["itemsDocumento"]>["filas"] }) {
+  const con = filas
+    .map((f) => ({ f, total: f.contratado?.precioTotal ?? null }))
+    .filter((x): x is { f: (typeof filas)[number]; total: number } => x.total != null && x.total > 0)
+    .sort((a, b) => b.total - a.total);
+  if (con.length < 2) return null;
+  const suma = con.reduce((s, x) => s + x.total, 0);
+  const max = con[0].total;
+  const nombre = (f: (typeof filas)[number]) =>
+    oracionCorta(f.contratado?.descripcion?.split(":")[0]?.trim() || f.descripcion?.split(",")[0]?.trim() || `Renglón ${f.numero}`);
+  const top = con.slice(0, 6);
+  const resto = con.slice(6).reduce((s, x) => s + x.total, 0);
+  return (
+    <section aria-labelledby="reparto-gasto" className="rounded-2xl border border-line bg-paper px-4 py-4 sm:px-5">
+      <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+        <h3 id="reparto-gasto" className="font-display text-bloque font-bold text-ink">Cómo se reparte el monto</h3>
+        <span className="text-dato tabular-nums text-inkSoft">{soles(suma)} en {plural(con.length, "renglón", "renglones")}</span>
+      </div>
+      <BarraSegmentada
+        etiqueta="Parte del monto contratado de cada renglón"
+        partes={top.map((x, i) => ({ clave: `r-${i}`, nombre: nombre(x.f), valor: x.total, texto: soles(x.total) }))}
+        otros={resto > 0 ? { clave: "otros", nombre: "Otros renglones", valor: resto, texto: soles(resto) } : null}
+        className="mt-3 h-3"
+      />
+      <ol className="mt-4 space-y-2.5">
+        {con.map((x, i) => (
+          <li key={`r-${i}`} className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-2.5 gap-y-1 sm:grid-cols-[auto_minmax(0,14rem)_minmax(0,1fr)_auto]">
+            <MuestraSerie i={i < 6 ? i : "otros"} />
+            <span className="min-w-0 truncate text-dato text-ink">
+              {nombre(x.f)}
+              {x.f.contratado?.marca && <span className="ml-1.5 text-rotulo text-mute">{x.f.contratado.marca}</span>}
+            </span>
+            <span className="col-span-3 col-start-1 row-start-2 block h-2 overflow-hidden rounded-full bg-paperEdge sm:col-span-1 sm:col-start-3 sm:row-start-1" aria-hidden>
+              <span className="block h-full rounded-full" style={{ width: `${(100 * x.total) / max}%`, background: colorSerie(i < 6 ? i : "otros") }} />
+            </span>
+            <span className="text-right tabular-nums">
+              <b className="text-dato text-ink">{soles(x.total)}</b>
+              <span className="ml-1.5 text-rotulo text-mute">{Math.round((100 * x.total) / suma)} %</span>
+            </span>
+          </li>
+        ))}
+      </ol>
+    </section>
+  );
 }
 
 export function DesgloseItems({ c }: { c: Detalle }) {
@@ -96,8 +149,9 @@ export function DesgloseItems({ c }: { c: Detalle }) {
             meta={
               <Partes
                 partes={[
+                  // La marca primero: es lo que distingue al renglón; el número cabe aunque se recorte.
+                  k?.marca && <Dato key="m" icono={Tag} nombre="Marca ofertada">{k.marca}</Dato>,
                   <Dato key="n" icono={ListOrdered} nombre="Renglón">Renglón {f.numero}</Dato>,
-                  k?.marca && <Dato key="m" icono={Tag} nombre="Marca ofertada">Marca {k.marca}</Dato>,
                   cantidad && <Dato key="c" icono={Package} nombre="Cantidad" className="lg:hidden">{cantidad}</Dato>,
                   k?.precioTotal != null && <span key="t" className="md:hidden">Total {soles(k.precioTotal)}</span>,
                 ]}
@@ -118,7 +172,7 @@ export function DesgloseItems({ c }: { c: Detalle }) {
   const ck = d.contrato;
   const comprobado = ck && ck.renglones ? `${numero(ck.renglonesQueCuadran ?? 0)} de ${plural(ck.renglones, "renglón cuadra", "renglones cuadran")} (cantidad por precio unitario = total)${ck.sumaCuadra ? " y la suma da el monto del contrato" : ck.sumaCuadra === false ? "; la suma no da el monto del contrato" : ""}` : null;
   return (
-    <div className="space-y-2">
+    <div className="space-y-3">
       <p className="text-dato leading-relaxed text-inkSoft">
         {d.bases && d.contrato
           ? `Las bases piden ${plural(d.filas.length, "renglón", "renglones")} y el contrato${ck?.numero ? ` ${ck.numero}` : ""} los trae con su marca y su precio.`
@@ -126,8 +180,16 @@ export function DesgloseItems({ c }: { c: Detalle }) {
             ? `El contrato${ck?.numero ? ` ${ck.numero}` : ""} trae ${plural(d.filas.length, "renglón", "renglones")} con su marca y su precio.`
             : `Las bases piden ${plural(d.filas.length, "renglón", "renglones")}.`}
         {c.items.length < d.filas.length ? ` El registro del SEACE los junta en ${plural(c.items.length, "ítem", "ítems")}.` : ""}
-        {comprobado ? ` Comprobado sin modelo: ${comprobado}.` : ""}
       </p>
+      {comprobado && (
+        <p className="inline-flex items-start gap-1.5 rounded-full bg-paperSoft px-3 py-1 text-rotulo leading-snug text-inkSoft">
+          {ck?.sumaCuadra === false || (ck?.renglonesQueCuadran ?? 0) < (ck?.renglones ?? 0)
+            ? <CircleAlert size={14} className="mt-px shrink-0 text-amberTexto" aria-hidden />
+            : <CircleCheck size={14} className="mt-px shrink-0 text-mossTexto" aria-hidden />}
+          <span>Comprobado sin modelo: {comprobado}.</span>
+        </p>
+      )}
+      <RepartoGasto filas={d.filas} />
       <TablaPaginada
         columnas={columnas}
         filas={filas}

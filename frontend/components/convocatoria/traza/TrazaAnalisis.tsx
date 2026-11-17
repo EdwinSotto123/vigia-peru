@@ -18,6 +18,7 @@ import { ControlesCalidad } from "./ControlesCalidad";
 import { CostoCorrida } from "./CostoCorrida";
 import { construirRecorrido } from "./modelo";
 import { RecorridoAgentes } from "./RecorridoAgentes";
+import { ResumenCorrida } from "./ResumenCorrida";
 import { ProveedorSensibles, sensiblesDeTraza } from "./redaccion";
 import { nombresPrivadosDe } from "../nombresPrivados";
 
@@ -34,6 +35,7 @@ export function TrazaAnalisis({ result }: { result: ApiResult }) {
 
   return (
     <ProveedorSensibles valor={sensibles}>
+      <ResumenCorrida recorrido={recorrido} result={result} />
       <Pestanas
         variante="segunda"
         etiqueta="Partes de cómo se hizo el análisis"

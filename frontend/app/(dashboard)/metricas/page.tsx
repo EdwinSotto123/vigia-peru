@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { unstable_noStore as noStore } from "next/cache";
-import { Banknote, BookOpenText, ScrollText, ShieldCheck, Target } from "lucide-react";
+import { Banknote, BookOpenText, ScrollText, ShieldCheck, Target, Wallet } from "lucide-react";
+import { CuantoCuesta } from "@/components/comotrabaja/CuantoCuesta";
 import { Indicadores } from "@/components/listado";
 import { Agentes } from "@/components/metricas/Agentes";
 import { Bitacora } from "@/components/metricas/Bitacora";
@@ -12,7 +13,7 @@ import { EncabezadoPagina, EstadoError, Migas, Nota, Pagina, Pestanas } from "@/
 import { VistasComoTrabaja } from "@/components/sitio/VistasSeccion";
 import { decimal, numero, plural, porcentaje } from "@/lib/formato";
 import { canonica } from "@/lib/seo";
-import { dolares, enLima, getTransparencia } from "@/lib/transparencia";
+import { dolares, enLima, getGasto, getTransparencia } from "@/lib/transparencia";
 
 export const metadata: Metadata = {
   title: "Métricas y transparencia",
@@ -24,6 +25,9 @@ export const metadata: Metadata = {
 const uno = (v: string | string[] | undefined) => (Array.isArray(v) ? v[0] : v);
 
 /**
+ * 2026-11-17: primera pestaña «Cuánto cuesta» (GET /transparencia/gasto: el gasto por día y por componente y lo que mide
+ * Cloudflare de Workers AI), pedida por el usuario: «falta métricas de gastos».
+ *
  * Métricas y transparencia (2026-11-16, pedido del dueño: «precisión de agentes, porcentaje de alucinación, costos,
  * todo con fecha y logs»). Una vista más de «Cómo trabaja Vigía», con la misma franja. Cinco pestañas, una pregunta
  * cada una: ¿aciertan los agentes?, ¿encuentra la norma correcta?, ¿cuánto de lo publicado pasó un control?, ¿cuánto
@@ -33,7 +37,8 @@ const uno = (v: string | string[] | undefined) => (Array.isArray(v) ? v[0] : v);
 export default async function MetricasPage({ searchParams }: { searchParams?: Record<string, string | string[] | undefined> }) {
   const seccion = uno(searchParams?.seccion);
   const pagina = Math.max(1, Math.floor(Number(uno(searchParams?.pagina))) || 1);
-  const datos = await getTransparencia();
+  // El gasto por día (GET /transparencia/gasto) va aparte: tiene su propia caché de 10 minutos.
+  const [datos, gasto] = await Promise.all([getTransparencia(), getGasto()]);
   if (!datos) noStore();
   const generado = enLima(datos?.generado);
 
@@ -81,13 +86,22 @@ export default async function MetricasPage({ searchParams }: { searchParams?: Re
                 contexto: senales ? `de ${numero(senales.total)} publicadas` : "no medido",
                 icono: <ShieldCheck size={15} aria-hidden />,
               },
-              {
-                valor: analisis ? dolares(analisis.usd) : analizados != null ? numero(analizados) : null,
-                etiqueta: analisis ? "costo de los análisis" : "contratos analizados",
-                contexto: analisis ? `${plural(analisis.n, "contrato", "contratos")}, ${analisis.medioUsd != null ? dolares(analisis.medioUsd, 3) : "sin dato"} cada uno` : undefined,
-                icono: <Banknote size={15} aria-hidden />,
-                parte: null,
-              },
+              gasto
+                ? {
+                    valor: dolares(gasto.totales.usd30, 0),
+                    etiqueta: "gasto en modelos, 30 días",
+                    contexto: `${dolares(gasto.totales.hoy, 0)} hoy, ${gasto.medios.porAnalisis != null ? dolares(gasto.medios.porAnalisis, 2) : "sin dato"} por análisis`,
+                    icono: <Wallet size={15} aria-hidden />,
+                    href: "/metricas?seccion=gasto",
+                    parte: null,
+                  }
+                : {
+                    valor: analisis ? dolares(analisis.usd) : analizados != null ? numero(analizados) : null,
+                    etiqueta: analisis ? "costo de los análisis" : "contratos analizados",
+                    contexto: analisis ? `${plural(analisis.n, "contrato", "contratos")}, ${analisis.medioUsd != null ? dolares(analisis.medioUsd, 3) : "sin dato"} cada uno` : undefined,
+                    icono: <Banknote size={15} aria-hidden />,
+                    parte: null,
+                  },
             ]}
           />
 
@@ -101,6 +115,18 @@ export default async function MetricasPage({ searchParams }: { searchParams?: Re
             etiqueta="Partes de métricas y transparencia"
             activa={seccion}
             pestanas={[
+              ...(gasto
+                ? [{
+                    clave: "gasto",
+                    etiqueta: "Cuánto cuesta",
+                    icono: <Wallet size={15} aria-hidden />,
+                    contenido: (
+                      <div className="rounded-2xl border border-line bg-paper px-4 py-5 sm:px-6">
+                        <CuantoCuesta g={gasto} />
+                      </div>
+                    ),
+                  }]
+                : []),
               { clave: "agentes", etiqueta: "Los agentes", conteo: redes.length || null, icono: <Target size={15} aria-hidden />, contenido: <Agentes agentes={datos.agentes} /> },
               { clave: "rag", etiqueta: "RAG normativo", icono: <BookOpenText size={15} aria-hidden />, contenido: <Rag rag={datos.rag} /> },
               { clave: "verificacion", etiqueta: "Verificación", icono: <ShieldCheck size={15} aria-hidden />, contenido: <Verificacion verificacion={datos.verificacion} agentes={datos.agentes} generado={generado} /> },

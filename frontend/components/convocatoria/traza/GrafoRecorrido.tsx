@@ -13,7 +13,9 @@
  */
 
 import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState, type ReactNode } from "react";
-import { ClipboardCheck, Bot, Cog, Sparkles, Wrench } from "lucide-react";
+import { ClipboardCheck, Bot, Cog, Coins, Sparkles, Wrench } from "lucide-react";
+import { colorSerie } from "@/components/charts/BarraSegmentada";
+import { indiceRama } from "./cifras";
 import { Panel } from "@/components/ui/Panel";
 import { irAPestana } from "@/components/patrones/Pestanas";
 import { cn } from "@/lib/utils";
@@ -267,6 +269,8 @@ export function GrafoRecorrido({ recorrido, result }: { recorrido: Recorrido; re
           <Leyenda icono={<ClipboardCheck size={12} aria-hidden />}>Control de calidad</Leyenda>
           <Leyenda icono={<Sparkles size={12} aria-hidden />}>Llamadas al modelo</Leyenda>
           <Leyenda icono={<Wrench size={12} aria-hidden />}>Consultas a herramientas</Leyenda>
+          <Leyenda icono={<Coins size={12} aria-hidden />}>Costo en dólares</Leyenda>
+          <Leyenda icono={<span className="inline-block h-2.5 w-2.5 rounded-sm" style={{ background: colorSerie(2) }} aria-hidden />}>Color de su rama, como en el resumen</Leyenda>
           {hayTenues && <Leyenda icono={<span className="inline-block h-3 w-4 rounded border border-dashed border-mute" aria-hidden />}>Sin registro o no aplicó</Leyenda>}
         </span>
         <span className="mt-1.5 block">Las flechas dicen qué paso espera a cuál. Toca un paso para ver qué recibió, qué hizo y qué entregó.</span>
@@ -336,7 +340,10 @@ function NodoGrafo({
         className,
       )}
     >
-      <span className="flex min-w-0 items-start gap-1.5">
+      {!tenue && (
+        <span className="absolute right-2 top-2.5 h-2 w-2 rounded-sm" style={{ background: colorSerie(indiceRama(nodo.rama)) }} aria-hidden />
+      )}
+      <span className="flex min-w-0 items-start gap-1.5 pr-3">
         <Icono size={13} className={cn("mt-px shrink-0", tenue ? "text-mute" : "text-inkSoft")} aria-hidden />
         <span className={cn("min-w-0 hyphens-auto text-meta font-semibold leading-tight", tenue ? "text-mute" : "text-ink")}>{nodo.nombre}</span>
       </span>

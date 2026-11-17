@@ -1,7 +1,11 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Database, FileSearch, ListChecks, Scale, ScanText, ShieldCheck, Sigma, TriangleAlert } from "lucide-react";
+import { ListChecks, Scale, ShieldCheck, Sigma, TriangleAlert } from "lucide-react";
 import { EncabezadoPagina, Migas, Nota, Pagina, Pestanas } from "@/components/patrones";
+import { AhoraMismo } from "@/components/comotrabaja/AhoraMismo";
+import { CuantoCuesta } from "@/components/comotrabaja/CuantoCuesta";
+import { RegistroADictamen } from "@/components/comotrabaja/RegistroADictamen";
+import { getAhora, getGasto } from "@/lib/transparencia";
 import { VistasComoTrabaja } from "@/components/sitio/VistasSeccion";
 import { Severidad } from "@/components/ui/Severidad";
 import { CORTE_ALTA, CORTE_MEDIA } from "@/lib/severidad";
@@ -24,34 +28,6 @@ const CAJA = "rounded-2xl border border-line bg-paper p-4 sm:p-5";
 const PESOS: { origen: string; explica: string; alta: number; media: number; baja: number }[] = [
   { origen: "Reglas de cumplimiento de la norma", explica: "Plazos, topes, impedimentos y sanciones que se comprueban contra el registro oficial.", alta: 35, media: 18, baja: 8 },
   { origen: "Las demás señales", explica: "Precio frente al mercado, lectura de documentos, red del proveedor y prensa.", alta: 25, media: 12, baja: 5 },
-];
-
-/** Las cuatro clases de información que muestra Vigía, de la más firme a la más interpretada. */
-const CLASES: { icono: typeof Database; titulo: string; texto: string; ejemplo: string }[] = [
-  {
-    icono: Database,
-    titulo: "Dato oficial",
-    texto: "Lo que publica una entidad del Estado, tal como lo publica. Vigía lo copia y enlaza al registro de origen.",
-    ejemplo: "El monto adjudicado en el SEACE, una sanción del OECE, el presupuesto del MEF.",
-  },
-  {
-    icono: Scale,
-    titulo: "Cruce de registros",
-    texto: "Una regla fija que compara dos registros oficiales. No interviene ningún modelo de IA y no lleva puntaje, solo una gravedad.",
-    ejemplo: "El proveedor tiene una sanción vigente; la empresa se fundó poco antes de ganar.",
-  },
-  {
-    icono: ScanText,
-    titulo: "Lectura con IA",
-    texto: "Un modelo lee el PDF del expediente y llena un formulario con lo que encuentra, con la página de donde lo sacó. La señal sale de una regla sobre ese formulario.",
-    ejemplo: "Cuántos postores quedaron fuera según el acta, qué marca piden las bases.",
-  },
-  {
-    icono: FileSearch,
-    titulo: "Dictamen",
-    texto: "El informe que redacta un modelo con todo lo anterior. Es una interpretación para orientar la revisión, y lleva el puntaje.",
-    ejemplo: "«Qué pasó» y «Por qué importa» en la ficha de un contrato analizado.",
-  },
 ];
 
 const PASOS: { titulo: string; texto: string }[] = [
@@ -77,27 +53,6 @@ const DONDE: { titulo: string; texto: string; href: string; enlace: string }[] =
   { titulo: "Las correcciones", texto: "Si un dato sobre ti es incorrecto, pídelo desde el formulario.", href: "/privacidad#pedido", enlace: "Pedir una corrección" },
   { titulo: "Los términos", texto: "Cada palabra que usa Vigía, explicada en simple.", href: "/glosario", enlace: "Abrir el glosario" },
 ];
-
-function Clases() {
-  return (
-    <ul className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-      {CLASES.map(({ icono: Icono, titulo, texto, ejemplo }, i) => (
-        <li key={titulo} className={CAJA}>
-          <p className="flex items-center gap-2 text-rotulo font-semibold text-mute">
-            <span className="flex h-6 w-6 items-center justify-center rounded-full bg-paperDeep font-mono text-ink" aria-hidden>{i + 1}</span>
-            {i === 0 ? "Lo más firme" : i === CLASES.length - 1 ? "Lo más interpretado" : null}
-          </p>
-          <p className="mt-3 flex items-center gap-2 text-destacado font-semibold text-ink">
-            <Icono size={16} className="shrink-0 text-granate" aria-hidden />
-            {titulo}
-          </p>
-          <p className="mt-1.5 text-meta leading-relaxed text-inkSoft">{texto}</p>
-          <p className="mt-3 border-t border-line pt-2 text-rotulo leading-relaxed text-mute">Por ejemplo: {ejemplo}</p>
-        </li>
-      ))}
-    </ul>
-  );
-}
 
 function Pasos() {
   return (
@@ -208,12 +163,17 @@ function Tarjetas({ items }: { items: { titulo: string; texto: string; href?: st
 }
 
 /**
- * Metodología: cómo se llega de un registro público a una señal y a un puntaje. Una pestaña por pregunta, cada una en
- * sus cajas (2026-11-12, pedido del usuario: nada de secciones apiladas de arriba abajo). La franja de arriba es la de
- * todo «Cómo trabaja Vigía».
+ * Metodología, la entrada de «Cómo trabaja Vigía». Pedido del usuario del 2026-11-17 («lo veo muy soso y plano, no
+ * destacamos la auditoría en tiempo real, falta métricas de gastos»):
+ *   1. «Ahora mismo» arriba: lo que se está leyendo en este momento, con el ritmo de 24 horas (se actualiza solo).
+ *   2. «Del registro al dictamen»: las cuatro clases de dato como un recorrido, con las señales en observación y la
+ *      trazabilidad (antes, cuatro tarjetas iguales en la primera pestaña).
+ *   3. «Cuánto cuesta vigilar»: el gasto de 30 días por día y por componente; el detalle, en Métricas.
+ *   4. Las preguntas de siempre en pestañas: del registro a la señal, el puntaje, lo que no prueba, fuentes.
  */
-export default function MetodologiaPage({ searchParams }: { searchParams?: { seccion?: string | string[] } }) {
+export default async function MetodologiaPage({ searchParams }: { searchParams?: { seccion?: string | string[] } }) {
   const seccion = Array.isArray(searchParams?.seccion) ? searchParams?.seccion[0] : searchParams?.seccion;
+  const [ahora, gasto] = await Promise.all([getAhora(), getGasto()]);
   return (
     <Pagina>
       <Migas items={[{ etiqueta: "Inicio", href: "/app" }, { etiqueta: "Cómo trabaja Vigía", href: "/metodologia" }]} />
@@ -222,6 +182,28 @@ export default function MetodologiaPage({ searchParams }: { searchParams?: { sec
         bajada="Cómo se llega de un registro público a una señal, y qué significa el puntaje de un dictamen."
       />
       <VistasComoTrabaja activa="metodologia" />
+
+      <AhoraMismo inicial={ahora} />
+
+      <section aria-labelledby="recorrido-titulo" className="space-y-3">
+        <div>
+          <h2 id="recorrido-titulo" className="font-display text-bloque font-bold text-ink">Del registro al dictamen</h2>
+          <p className="mt-1 max-w-[70ch] text-dato leading-relaxed text-inkSoft">
+            Todo lo que muestra Vigía es de una de estas cuatro clases. Cada una dice qué la sostiene, y cuanto más a la derecha, más
+            interpretación lleva.
+          </p>
+        </div>
+        <RegistroADictamen />
+      </section>
+
+      <section aria-labelledby="gasto-titulo" className="space-y-3 rounded-2xl border border-line bg-paper px-4 py-5 sm:px-6">
+        <h2 id="gasto-titulo" className="font-display text-bloque font-bold text-ink">Cuánto cuesta vigilar</h2>
+        {gasto ? (
+          <CuantoCuesta g={gasto} compacto />
+        ) : (
+          <p className="text-dato text-inkSoft">No pudimos leer el gasto en este momento. Los libros siguen guardados; vuelve a intentar en unos minutos.</p>
+        )}
+      </section>
 
       <Nota icono={<ShieldCheck size={15} aria-hidden />}>
         Una señal es un indicio para revisar, no una acusación. Vigía no determina responsabilidades: eso le corresponde a
@@ -233,7 +215,6 @@ export default function MetodologiaPage({ searchParams }: { searchParams?: { sec
         etiqueta="Partes de la metodología"
         activa={seccion}
         pestanas={[
-          { clave: "datos", etiqueta: "Qué es cada dato", conteo: CLASES.length, icono: <Database size={15} aria-hidden />, contenido: <Clases /> },
           { clave: "pasos", etiqueta: "Del registro a la señal", conteo: PASOS.length, icono: <ListChecks size={15} aria-hidden />, contenido: <Pasos /> },
           { clave: "puntaje", etiqueta: "El puntaje", icono: <Sigma size={15} aria-hidden />, contenido: <Puntaje /> },
           { clave: "limites", etiqueta: "Lo que no prueba", conteo: NO_PRUEBA.length, icono: <TriangleAlert size={15} aria-hidden />, contenido: <Tarjetas items={NO_PRUEBA} /> },

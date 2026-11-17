@@ -18,3 +18,10 @@ export const RAMA_LABEL: Record<string, string> = {
   sintesis: "Síntesis",
   control: "Control de calidad",
 };
+
+/**
+ * El orden de las ramas del recorrido (el del DAG de backend/agent/deterministic.py) y su color de serie: el resumen de
+ * la corrida reparte el costo por rama en una barra segmentada y cada caja del grafo lleva el cuadrito del mismo color.
+ */
+export const ORDEN_RAMAS = ["inicio", "reglas", "expediente", "proveedor", "sintesis", "control"] as const;
+export const indiceRama = (rama: string): number => Math.max(0, ORDEN_RAMAS.indexOf(rama as (typeof ORDEN_RAMAS)[number]));

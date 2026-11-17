@@ -136,8 +136,12 @@ export default async function ContratoPage({
   let contenido: ReactNode;
   if (activa === "dictamen") {
     // El capítulo «Postores y ofertas» de la historia lee los postores de la ficha (con la evaluación leída por pieza).
-    const postoresContrato = c.postoresDetalle?.length
-      ? { ocid: c.ocid, moneda: c.moneda ?? null, postores: c.postoresDetalle, evaluacion: c.evaluacion ?? null, conPerfil: !!c.perfilContratista }
+    // Lo que la ficha leyó de los documentos y el dictamen cita: los postores (capítulo «Postores y ofertas», sólo si hay
+    // ofertas) y cuántos renglones de lo comprado trae la ficha («Ítems y mercado» lo dice cuando el mercado no tuvo con
+    // qué comparar un paquete).
+    const renglones = c.itemsDocumento?.filas.length ?? 0;
+    const postoresContrato = c.postoresDetalle?.length || renglones
+      ? { ocid: c.ocid, moneda: c.moneda ?? null, postores: c.postoresDetalle ?? [], evaluacion: c.evaluacion ?? null, conPerfil: !!c.perfilContratista, renglones }
       : null;
     contenido = informe ? (
       <ResultadoView result={informe} embebido tabInicial={tab ?? null} postoresContrato={postoresContrato} />

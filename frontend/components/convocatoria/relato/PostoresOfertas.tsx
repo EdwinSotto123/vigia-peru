@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { Award, Clock, Info, ListOrdered, Scale } from "lucide-react";
+import { ArrowDown, Award, Clock, Info, ListOrdered, Scale } from "lucide-react";
+import { colorSerie } from "@/components/charts/BarraSegmentada";
 import { EnUnaFrase } from "@/components/patrones";
 import { Dato } from "@/components/ui/Dato";
 import { Partes } from "@/components/ui/Partes";
@@ -23,6 +24,8 @@ export interface PostoresDelContrato {
   evaluacion: EvaluacionLeida | null;
   /** La ficha tiene la pestaña «Lo que pedían las bases» (perfil del contratista). */
   conPerfil: boolean;
+  /** Cuántos renglones de lo que se compró trae la ficha (bases y contrato leídos por pieza); 0 si ninguno. */
+  renglones?: number;
 }
 
 /** Presentó oferta: tiene monto o puntaje. Los demás son participantes que se registraron y no ofertaron. */
@@ -66,6 +69,56 @@ function desglose(p: PostorContrato): string | null {
   return partes.length > 1 || (partes.length === 1 && p.bonificacion != null) ? partes.join(" + ") : null;
 }
 
+/** Las partes del puntaje final, en el orden en que se suman, con su color de serie. */
+function partesPuntaje(p: PostorContrato): { clave: string; valor: number; color: string }[] {
+  const final = p.puntajeFinal ?? p.puntaje ?? null;
+  if (final == null) return [];
+  const precio = p.puntajePrecio ?? null;
+  const bono = p.bonificacion ?? null;
+  const otros = p.puntajeOtros ?? (precio != null ? Math.max(0, final - precio - (bono ?? 0)) : null);
+  if (precio == null) return [{ clave: "final", valor: final, color: colorSerie(0) }];
+  return [
+    { clave: "precio", valor: precio, color: colorSerie(0) },
+    ...(otros ? [{ clave: "otros", valor: otros, color: colorSerie(1) }] : []),
+    ...(bono ? [{ clave: "bono", valor: bono, color: colorSerie(2) }] : []),
+  ];
+}
+
+/**
+ * Las dos barras de cada oferta: el monto contra la oferta más alta y el puntaje partido en lo que lo forma (precio,
+ * demás factores y bonificación) contra el puntaje más alto. Decorativas (aria-hidden): las cifras están al lado.
+ */
+function Barras({ p, maxMonto, maxPuntos }: { p: PostorContrato; maxMonto: number; maxPuntos: number }) {
+  const partes = partesPuntaje(p);
+  if (p.montoOferta == null && !partes.length) return null;
+  return (
+    <div className="mt-2.5 grid grid-cols-[4.25rem_minmax(0,1fr)] items-center gap-x-3 gap-y-1.5" aria-hidden>
+      {p.montoOferta != null && maxMonto > 0 && (
+        <>
+          <span className="text-rotulo text-mute">Oferta</span>
+          <span className="h-2 overflow-hidden rounded-full bg-paperDeep">
+            {/* El ganador en granate (el acento que ya lo marca); los demás en gris: el azul es el «precio» del puntaje. */}
+            <span
+              className={p.esGanador ? "block h-full rounded-full bg-granate" : "block h-full rounded-full"}
+              style={{ width: `${Math.max(2, (100 * p.montoOferta) / maxMonto)}%`, ...(p.esGanador ? {} : { background: "rgb(var(--serie-otros))" }) }}
+            />
+          </span>
+        </>
+      )}
+      {partes.length > 0 && maxPuntos > 0 && (
+        <>
+          <span className="text-rotulo text-mute">Puntaje</span>
+          <span className="flex h-2 gap-[2px] overflow-hidden rounded-full bg-paperDeep">
+            {partes.map((x) => (
+              <span key={x.clave} className="block h-full min-w-[2px]" style={{ width: `${(100 * x.valor) / maxPuntos}%`, background: x.color }} />
+            ))}
+          </span>
+        </>
+      )}
+    </div>
+  );
+}
+
 export function PostoresOfertas({ datos }: { datos: PostoresDelContrato }) {
   const { ocid, moneda, evaluacion } = datos;
   const ofertas = ordenar(datos.postores.filter(conOferta));
@@ -73,6 +126,11 @@ export function PostoresOfertas({ datos }: { datos: PostoresDelContrato }) {
   const ganador = ofertas.find((p) => p.esGanador) ?? null;
   const m = evaluacion?.masBajaPerdio ?? null;
   const factores = (evaluacion?.factores ?? []).filter((f) => f.factor);
+  const maxMonto = Math.max(0, ...ofertas.map((p) => p.montoOferta ?? 0));
+  const maxPuntos = Math.max(0, ...ofertas.map((p) => partesPuntaje(p).reduce((s, x) => s + x.valor, 0)));
+  const admitidas = ofertas.filter((p) => p.montoOferta != null && p.admitida !== false);
+  const masBaja = admitidas.length > 1 ? admitidas.reduce((a, b) => (b.montoOferta! < a.montoOferta! ? b : a)) : null;
+  const conDesglose = ofertas.some((p) => p.puntajePrecio != null);
   // «… S.R.L.» ya cierra con punto cuando no sigue el monto.
   const cierra = ganador?.razonSocial && ganador.montoOferta == null && /\.$/.test(ganador.razonSocial.trim()) ? "" : ".";
 
@@ -105,6 +163,15 @@ export function PostoresOfertas({ datos }: { datos: PostoresDelContrato }) {
         {cierra}
       </EnUnaFrase>
 
+      {conDesglose && (
+        <p className="flex flex-wrap items-center gap-x-4 gap-y-1 text-rotulo text-mute" aria-hidden>
+          <span>Cómo se forma el puntaje:</span>
+          <span className="inline-flex items-center gap-1.5"><span className="inline-block h-2.5 w-2.5 rounded-sm" style={{ background: colorSerie(0) }} />precio</span>
+          <span className="inline-flex items-center gap-1.5"><span className="inline-block h-2.5 w-2.5 rounded-sm" style={{ background: colorSerie(1) }} />demás factores</span>
+          <span className="inline-flex items-center gap-1.5"><span className="inline-block h-2.5 w-2.5 rounded-sm" style={{ background: colorSerie(2) }} />bonificación</span>
+        </p>
+      )}
+
       <ul className="space-y-2" aria-label="Postores que presentaron oferta">
         {ofertas.map((p, i) => {
           const quedo = enQueQuedo(p);
@@ -115,7 +182,8 @@ export function PostoresOfertas({ datos }: { datos: PostoresDelContrato }) {
               key={`postor-${i}`}
               className={p.esGanador ? "rounded-xl border border-granate/40 bg-paper px-4 py-3" : "rounded-xl border border-line bg-paper px-4 py-3"}
             >
-              <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-1">
+              {/* En el celular se apila (el monto y el desglose no dejaban ancho al nombre); desde sm, dos columnas. */}
+              <div className="flex flex-col gap-1.5 sm:flex-row sm:items-start sm:justify-between sm:gap-x-4">
                 <div className="min-w-0 flex-1">
                   <p className="text-dato font-semibold text-ink">
                     {p.razonSocial ? <NombreProveedor nombre={p.razonSocial} ruc={p.ruc} /> : "Postor sin nombre en el acta"}
@@ -124,6 +192,7 @@ export function PostoresOfertas({ datos }: { datos: PostoresDelContrato }) {
                     <Partes
                       partes={[
                         p.esGanador && <Dato key="g" icono={Award} nombre="Resultado">Ganó la buena pro</Dato>,
+                        p === masBaja && <Dato key="b" icono={ArrowDown} nombre="Oferta">La oferta más baja</Dato>,
                         p.ordenPrelacion != null && <Dato key="o" icono={ListOrdered} nombre="Orden de prelación">Puesto {p.ordenPrelacion}</Dato>,
                         p.horaOferta && (
                           <Dato key="h" icono={Clock} nombre="Hora de la oferta">
@@ -140,12 +209,13 @@ export function PostoresOfertas({ datos }: { datos: PostoresDelContrato }) {
                     </p>
                   )}
                 </div>
-                <div className="text-right">
+                <div className="shrink-0 sm:max-w-[45%] sm:text-right">
                   {p.montoOferta != null && <p className="font-mono text-dato tabular-nums text-ink">{monto(p.montoOferta, moneda)}</p>}
                   {final != null && <p className="text-meta tabular-nums text-inkSoft">{puntos(final)}</p>}
                   {d && <p className="text-rotulo tabular-nums text-mute">{d}</p>}
                 </div>
               </div>
+              <Barras p={p} maxMonto={maxMonto} maxPuntos={maxPuntos} />
             </li>
           );
         })}

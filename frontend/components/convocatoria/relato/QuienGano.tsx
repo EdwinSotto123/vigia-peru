@@ -3,6 +3,7 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { Award, Building2, CalendarDays, FileWarning, Gavel, Landmark, ShieldCheck, Tag, Users, type LucideIcon } from "lucide-react";
+import { Medidor } from "@/components/charts/BarraSegmentada";
 import { listaY, numero, oracion } from "@/lib/formato";
 import { cn } from "@/lib/utils";
 import { PersonName, Ruc, esPersonaNatural } from "../../Redact";
@@ -44,6 +45,10 @@ export function QuienGano({ result, ganador, ganadores, nPostores }: { result: A
   const exp = (result as any).expediente_proveedor ?? null;
   const acta = (result as any).lecturas_documentos?.acta?.salida ?? null;
   const hechos = hechosDelProveedor(exp);
+  // Cuánto de lo que ganó en el Estado salió de esta entidad: la dependencia de un cliente se ve mejor en una barra.
+  const totalBp = Number(exp?.historial?.procesos);
+  const deEsta = Number(exp?.historial?.con_esta_entidad?.procesos);
+  const parte = totalBp > 0 && deEsta > 0 && deEsta <= totalBp ? deEsta / totalBp : null;
   const otrosGanadores = ganadores.filter((g) => g !== ganador);
 
   // Quiénes se presentaron: TODOS los del registro OCDS, con la oferta y el puntaje de los que nombra el acta leída (el
@@ -82,6 +87,15 @@ export function QuienGano({ result, ganador, ganadores, nPostores }: { result: A
             {/* «… S.A.C.» ya cierra con punto. */}
             {/[.…]$/.test(String(otrosGanadores[otrosGanadores.length - 1]?.nombre ?? "").trim()) ? "" : "."}
           </p>
+        )}
+        {parte != null && totalBp >= 3 && (
+          <div className="mt-3 max-w-md">
+            <p className="text-meta text-inkSoft">
+              Esta entidad le dio <strong className="font-semibold text-ink">{numero(deEsta)} de sus {numero(totalBp)}</strong> buenas pro con el
+              Estado (<strong className="font-semibold text-ink">{numero(Math.round(parte * 100))} %</strong>)
+            </p>
+            <Medidor parte={parte} etiqueta={`${deEsta} de ${totalBp} buenas pro con esta entidad`} className="mt-1.5" />
+          </div>
         )}
         {hechos.length > 0 ? (
           <ul className="mt-3 grid gap-x-6 gap-y-2 sm:grid-cols-2" aria-label="Lo que dicen los registros del proveedor">

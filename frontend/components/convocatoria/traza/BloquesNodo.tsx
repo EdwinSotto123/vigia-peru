@@ -9,13 +9,14 @@
  */
 
 import { useState, type ReactNode } from "react";
-import { AlertCircle, ArrowDownRight, Bot, ClipboardCheck, Cog, CornerDownRight, Sparkles, Wrench } from "lucide-react";
+import { AlertCircle, ArrowDownRight, Bot, ClipboardCheck, Cog, Coins, CornerDownRight, Sparkles, Wrench } from "lucide-react";
 import { Severidad } from "@/components/ui/Severidad";
 import { Ayuda } from "@/components/patrones/Ayuda";
 import { reglaLabel } from "@/lib/auditoria";
 import { numero, plural } from "@/lib/formato";
 import { cn } from "@/lib/utils";
 import type { ApiResult } from "../types";
+import { usd } from "./cifras";
 import type { NodoTraza, Paso, Recorrido } from "./modelo";
 import { entregaDe, recepcionDe, todosLosPasos, trabajoDe } from "./nodos";
 import { accionDe, agruparPasos, lineasDeArgs, lineasDeEntrada, lineasDeResultado, type Linea } from "./pasos";
@@ -381,6 +382,7 @@ export function CifrasNodo({ nodo, className }: { nodo: NodoTraza; className?: s
   const pasos = todosLosPasos(nodo);
   const fallidas = pasos.filter((p) => p.error).length;
   const llamadas = nodo.consumo?.llamadas ?? 0;
+  const costo = nodo.consumo?.costo ?? 0;
   if (!llamadas && !pasos.length) return null;
   return (
     <span className={cn("flex flex-wrap items-center gap-x-2.5 gap-y-0.5 text-rotulo tabular-nums text-mute", className)}>
@@ -396,6 +398,13 @@ export function CifrasNodo({ nodo, className }: { nodo: NodoTraza; className?: s
           <Wrench size={11} aria-hidden />
           {numero(pasos.length)}
           <span className="sr-only">{pasos.length === 1 ? " consulta" : " consultas"}</span>
+        </span>
+      )}
+      {costo > 0 && (
+        <span className="inline-flex items-center gap-0.5 font-mono" title={`Costó ${usd(costo)}`}>
+          <Coins size={11} aria-hidden />
+          {usd(costo).replace("US$ ", "")}
+          <span className="sr-only"> dólares</span>
         </span>
       )}
       {fallidas > 0 && (

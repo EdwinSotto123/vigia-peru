@@ -13,7 +13,7 @@ import { PostoresSection } from "./PostoresSection";
 import { PreciosDelEstado } from "./PreciosDelEstado";
 import { SeccionSegura } from "./SeccionSegura";
 
-export function PanelItems({ result, corrida, nItems, nombresPrivados }: PanelDossierProps) {
+export function PanelItems({ result, corrida, nItems, nombresPrivados, postoresContrato }: PanelDossierProps) {
   setRedactNames(nombresPrivados);
   const items = result.items || [];
   const findings = result.market_analysis?.findings || [];
@@ -60,7 +60,15 @@ export function PanelItems({ result, corrida, nItems, nombresPrivados }: PanelDo
                 </p>
               )}
             </div>
-            <ItemsConMarketPrice items={items} allItems={consolidados} market={result.market_analysis} fmtMoney={montoDossier} conEstado={estado?.conReferencia ?? 0} />
+            <ItemsConMarketPrice
+              items={items}
+              allItems={consolidados}
+              market={result.market_analysis}
+              fmtMoney={montoDossier}
+              conEstado={estado?.conReferencia ?? 0}
+              renglonesFicha={postoresContrato?.renglones ?? 0}
+              ocidFicha={postoresContrato?.ocid ?? null}
+            />
           </section>
         </SeccionSegura>
       )}

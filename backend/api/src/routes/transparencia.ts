@@ -5,6 +5,9 @@
  *   GET /transparencia            los cuatro bloques (agentes, rag, verificacion, costos), una hora en caché
  *   GET /transparencia/bitacora   el registro con fecha de validaciones, cargas del RAG, tandas del masivo, refrescos y
  *                                 cargas de datos: ?tipo=&q=&pagina=&tam=
+ *   GET /transparencia/gasto      el gasto en modelos por día (30 días) y por componente, y lo que factura Workers AI
+ *   GET /transparencia/ahora      lo que se está leyendo ahora: en vuelo, última hora, hoy, ritmo por hora y los últimos
+ *                                 dictámenes publicados (código, objeto y entidad, como la lista pública de contratos)
  *
  * Reglas (el repositorio y esta ruta son públicos):
  *   · sólo agregados: ni nombres, ni RUC, ni OCID, ni texto de dictámenes, ni errores internos, ni nombres de funciones
@@ -521,4 +524,222 @@ transparenciaRouter.get("/bitacora", async (c) => {
     if (esErrorPg(e, "42P01", "42883", "42703")) return c.json({ error: "sin_migracion" }, 503);
     throw e;
   }
+});
+
+// ─── 6. Cuánto cuesta vigilar, día por día ────────────────────────────────────────────────────────────────────────
+//
+// GET /transparencia/gasto   el gasto en modelos de los últimos 30 días (hora de Lima), por día y por componente, según
+// los libros de la base: cada análisis (transparencia_analisis y los que terminaron con error en agente_masivo), las
+// pruebas de oro (golden_resultado), las fichas y transcripciones de documentos (pieza_lectura), los lectores de la
+// versión anterior (documento_lectura), las compras menores (menor_lectura) y lo demás (informe_vigia, gobserva_consumo).
+// Lo que la base no anota (laboratorio de precios, lectura de bases de empleo, pruebas sueltas) no está: por eso, si
+// existe la tabla `gasto_ia_dia` (migración 336, la llena backend/scripts/gasto_workers_ai.py con el uso que mide
+// Cloudflare), sale al lado como «lo que factura Workers AI» y la página dice qué parte cubren los libros.
+
+export const COMPONENTES_GASTO = [
+  { clave: "analisis", etiqueta: "Análisis de contratos", que: "Los agentes leen el expediente y escriben el dictamen, también los que terminaron con error", unidad: "análisis" },
+  { clave: "oro", etiqueta: "Pruebas de oro", que: "Cada versión nueva de los agentes se mide contra casos con respuesta conocida antes de usarse", unidad: "casos" },
+  { clave: "fichas", etiqueta: "Fichas de documentos", que: "Un modelo lee cada documento (bases, contrato, actas) y saca sus datos con la página y la frase", unidad: "documentos" },
+  { clave: "transcripcion", etiqueta: "Transcripción de escaneos", que: "Las páginas escaneadas se pasan a texto con un modelo de visión", unidad: "páginas" },
+  { clave: "lectores", etiqueta: "Lectores de la versión anterior", que: "Actas, bases, consultas y contratos leídos por clase de documento, antes de las fichas", unidad: "documentos" },
+  { clave: "menores", etiqueta: "Compras menores", que: "Requerimientos y contratos de las compras de hasta 8 UIT", unidad: "documentos" },
+  { clave: "otros", etiqueta: "Informes y consultas", que: "Informes para control y respuestas del asistente", unidad: "pedidos" },
+] as const;
+export type ClaveGasto = (typeof COMPONENTES_GASTO)[number]["clave"];
+
+/** Una fila de un libro: el día (Lima), de qué, de quién es el modelo, cuánto costó y cuántas unidades. */
+export interface FilaGasto { dia: string; componente: ClaveGasto; proveedor: "workers_ai" | "anthropic"; usd: number; n: number }
+
+const PROVEEDOR = (col: string) => `CASE WHEN COALESCE(${col}, '') ~* '(claude|haiku|sonnet|opus|anthropic)' THEN 'anthropic' ELSE 'workers_ai' END`;
+const DIA = (col: string) => `to_char((${col}) AT TIME ZONE '${LIMA}', 'YYYY-MM-DD')`;
+const DESDE = `now() - interval '31 days'`;
+
+/** Cada libro con su consulta; uno que falta (migración sin aplicar) no tumba a los demás. */
+const LIBROS: { componente: ClaveGasto | "piezas"; sql: string }[] = [
+  { componente: "analisis", sql: `SELECT ${DIA("analizado_en")} AS dia, ${PROVEEDOR("modelo")} AS proveedor, sum(usd)::float AS usd, count(*)::int AS n
+      FROM transparencia_analisis WHERE analizado_en >= ${DESDE} AND usd IS NOT NULL GROUP BY 1, 2` },
+  { componente: "analisis", sql: `SELECT ${DIA("COALESCE(terminado_en, creado_en)")} AS dia, 'workers_ai' AS proveedor, sum(costo)::float AS usd, count(*)::int AS n
+      FROM agente_masivo WHERE estado = 'error' AND COALESCE(terminado_en, creado_en) >= ${DESDE} AND costo IS NOT NULL GROUP BY 1, 2` },
+  { componente: "oro", sql: `SELECT ${DIA("c.ejecutada_at")} AS dia, 'workers_ai' AS proveedor, sum(r.usd)::float AS usd, count(*)::int AS n
+      FROM golden_resultado r JOIN golden_corrida c ON c.id = r.corrida_id WHERE c.ejecutada_at >= ${DESDE} AND r.usd IS NOT NULL GROUP BY 1, 2` },
+  // Las fichas cuentan documentos; la transcripción, páginas (las que se pidieron a la visión).
+  { componente: "piezas", sql: `SELECT ${DIA("leido_at")} AS dia, CASE WHEN lector = 'transcripcion' THEN 'transcripcion' ELSE 'fichas' END AS componente,
+             ${PROVEEDOR("modelo")} AS proveedor, sum(costo_usd)::float AS usd,
+             (CASE WHEN lector = 'transcripcion' THEN sum(COALESCE(jsonb_array_length(CASE WHEN jsonb_typeof(salida -> 'pedidas') = 'array' THEN salida -> 'pedidas' END), 1))
+                   ELSE count(*) END)::int AS n
+        FROM pieza_lectura WHERE leido_at >= ${DESDE} AND modelo <> 'plantilla' AND costo_usd > 0 GROUP BY 1, 2, 3, lector` },
+  { componente: "lectores", sql: `SELECT ${DIA("leido_at")} AS dia, ${PROVEEDOR("modelo")} AS proveedor, sum(costo_usd)::float AS usd, count(*)::int AS n
+      FROM documento_lectura WHERE leido_at >= ${DESDE} AND costo_usd > 0 GROUP BY 1, 2` },
+  { componente: "menores", sql: `SELECT ${DIA("leido_at")} AS dia, ${PROVEEDOR("modelo")} AS proveedor, sum(costo_usd)::float AS usd, count(*)::int AS n
+      FROM menor_lectura WHERE leido_at >= ${DESDE} AND costo_usd > 0 GROUP BY 1, 2` },
+  { componente: "otros", sql: `SELECT ${DIA("generado_at")} AS dia, ${PROVEEDOR("modelo")} AS proveedor, sum(costo_usd)::float AS usd, count(*)::int AS n
+      FROM informe_vigia WHERE generado_at >= ${DESDE} AND costo_usd > 0 GROUP BY 1, 2` },
+  { componente: "otros", sql: `SELECT to_char(dia, 'YYYY-MM-DD') AS dia, 'workers_ai' AS proveedor, sum(costo_usd)::float AS usd, sum(llamadas)::int AS n
+      FROM gobserva_consumo WHERE dia >= (now() AT TIME ZONE '${LIMA}')::date - 31 AND costo_usd > 0 GROUP BY 1, 2` },
+];
+
+const r2 = (n: number) => Math.round(n * 100) / 100;
+const r4 = (n: number) => Math.round(n * 10_000) / 10_000;
+
+/** «2026-11-17» menos `n` días (sin zona horaria: es un día de calendario). */
+export function diaMenos(dia: string, n: number): string {
+  const [y, m, d] = dia.split("-").map(Number);
+  return new Date(Date.UTC(y, m - 1, d) - n * 86_400_000).toISOString().slice(0, 10);
+}
+
+/**
+ * El gasto armado: 30 días con todos sus días (los sin gasto, en cero), cada componente con lo de 30 y 7 días y el de
+ * hoy, los totales por proveedor, el costo medio por unidad y, si hay, lo que factura Workers AI según Cloudflare.
+ */
+export function armarGasto(filas: FilaGasto[], hoy: string, factura: { dia: string; usd: number }[] | null, facturaMedida: string | null) {
+  const desde = diaMenos(hoy, 29);
+  const dentro = filas.filter((f) => f.dia >= desde && f.dia <= hoy);
+  const listaDias = Array.from({ length: 30 }, (_, i) => diaMenos(hoy, 29 - i));
+  const dias = listaDias.map((dia) => {
+    const partes: Record<string, number> = {};
+    for (const f of dentro) if (f.dia === dia) partes[f.componente] = (partes[f.componente] ?? 0) + f.usd;
+    for (const k of Object.keys(partes)) partes[k] = r2(partes[k]);
+    return { dia, total: r2(Object.values(partes).reduce((t, x) => t + x, 0)), partes };
+  });
+  const suma = (pred: (f: FilaGasto) => boolean, campo: "usd" | "n" = "usd") => dentro.filter(pred).reduce((t, f) => t + f[campo], 0);
+  const desde7 = diaMenos(hoy, 6);
+  const componentes = COMPONENTES_GASTO.map((k) => ({
+    clave: k.clave, etiqueta: k.etiqueta, que: k.que, unidad: k.unidad,
+    usd30: r2(suma((f) => f.componente === k.clave)),
+    usd7: r2(suma((f) => f.componente === k.clave && f.dia >= desde7)),
+    usdHoy: r2(suma((f) => f.componente === k.clave && f.dia === hoy)),
+    n30: suma((f) => f.componente === k.clave, "n"),
+  })).filter((k) => k.usd30 > 0 || k.n30 > 0);
+  const medio = (clave: ClaveGasto) => {
+    const k = componentes.find((x) => x.clave === clave);
+    return k && k.n30 > 0 ? r4(k.usd30 / k.n30) : null;
+  };
+  const fact = factura ? factura.filter((f) => f.dia >= desde && f.dia <= hoy) : null;
+  const workersAi30 = r2(suma((f) => f.proveedor === "workers_ai"));
+  const factura30 = fact ? r2(fact.reduce((t, f) => t + f.usd, 0)) : null;
+  return {
+    desde, hasta: hoy,
+    componentes,
+    dias,
+    totales: {
+      usd30: r2(suma(() => true)), usd7: r2(suma((f) => f.dia >= desde7)), hoy: r2(suma((f) => f.dia === hoy)),
+      mes: r2(suma((f) => f.dia.slice(0, 7) === hoy.slice(0, 7))),
+      workersAi30, anthropic30: r2(suma((f) => f.proveedor === "anthropic")),
+    },
+    medios: { porAnalisis: medio("analisis"), porFicha: medio("fichas"), porPagina: medio("transcripcion") },
+    factura: fact && fact.length
+      ? {
+          dias: listaDias.map((dia) => ({ dia, usd: r2(fact.filter((f) => f.dia === dia).reduce((t, f) => t + f.usd, 0)) })),
+          usd30: factura30, medidaAt: facturaMedida,
+          // Qué parte de lo que factura Workers AI está anotada en los libros de la base.
+          cubren: factura30 && factura30 > 0 ? Math.min(1, workersAi30 / factura30) : null,
+        }
+      : null,
+  };
+}
+
+const CACHE_GASTO = cachePublico(600, { maxAge: 120, swr: 3600 });
+const memoGasto = new Memo<Record<string, unknown>>({ nombre: "transparencia:gasto", ttlMs: 600_000, staleMs: 3_600_000, max: 2 });
+
+transparenciaRouter.get("/gasto", async (c) => {
+  const cuerpo = await memoGasto.obtener("gasto", async (ctl) => {
+    const hoy = (await pool.query<{ hoy: string }>(`SELECT to_char(now() AT TIME ZONE '${LIMA}', 'YYYY-MM-DD') AS hoy`)).rows[0].hoy;
+    const partes = await Promise.all(LIBROS.map((l) => bloque(`gasto:${l.componente}`, ctl, () =>
+      pool.query<{ dia: string; componente?: string; proveedor: string; usd: number; n: number }>(l.sql).then((r) =>
+        r.rows.map((x): FilaGasto => ({
+          dia: x.dia, componente: (l.componente === "piezas" ? x.componente : l.componente) as ClaveGasto,
+          proveedor: x.proveedor === "anthropic" ? "anthropic" : "workers_ai", usd: Number(x.usd) || 0, n: Number(x.n) || 0,
+        }))))));
+    const factura = await bloque("gasto:factura", ctl, () => pool.query<{ dia: string; usd: number; medida: string | null }>(
+      `SELECT to_char(dia, 'YYYY-MM-DD') AS dia, sum(usd)::float AS usd, to_char(max(medido_at) AT TIME ZONE '${LIMA}', ${MINUTO}) AS medida
+         FROM gasto_ia_dia WHERE proveedor = 'workers_ai' AND dia >= (now() AT TIME ZONE '${LIMA}')::date - 31 GROUP BY 1`).then((r) => r.rows));
+    const medida = factura?.map((f) => f.medida).filter((x): x is string => !!x).sort().pop() ?? null;
+    return {
+      generado: new Date().toISOString(),
+      ...armarGasto(partes.flatMap((p) => p ?? []), hoy, factura ? factura.map((f) => ({ dia: f.dia, usd: Number(f.usd) || 0 })) : null, medida),
+      // Libros que no respondieron (o cuya tabla falta): la página lo dice en vez de sumar de menos en silencio.
+      sinLibro: [...new Set(LIBROS.filter((_, i) => partes[i] == null).map((l) => l.componente))],
+    };
+  });
+  c.header("Cache-Control", CACHE_GASTO);
+  return c.json(cuerpo);
+});
+
+// ─── 7. Lo que se está leyendo ahora ──────────────────────────────────────────────────────────────────────────────
+//
+// GET /transparencia/ahora   cada 15 s: los análisis en vuelo (masivo y financiados), lo terminado en la última hora y
+// hoy, el ritmo por hora de las últimas 24 (análisis y documentos leídos) y los últimos dictámenes publicados. De estos
+// salen su código, su objeto y su entidad, como en la lista pública de contratos; nada de personas.
+
+export interface HoraActividad { hora: string; analisis: number; documentos: number }
+
+/** Las 24 horas que terminan en `ahoraHora` («2026-11-17 14»), con las que no tuvieron actividad en cero. */
+export function armarHoras(filas: { hora: string; analisis: number; documentos: number }[], ahoraHora: string): HoraActividad[] {
+  const [d, h] = ahoraHora.split(" ");
+  const base = Date.UTC(Number(d.slice(0, 4)), Number(d.slice(5, 7)) - 1, Number(d.slice(8, 10)), Number(h));
+  return Array.from({ length: 24 }, (_, i) => {
+    const t = new Date(base - (23 - i) * 3_600_000).toISOString();
+    const hora = `${t.slice(0, 10)} ${t.slice(11, 13)}`;
+    const f = filas.filter((x) => x.hora === hora);
+    return { hora, analisis: f.reduce((s, x) => s + (Number(x.analisis) || 0), 0), documentos: f.reduce((s, x) => s + (Number(x.documentos) || 0), 0) };
+  });
+}
+
+const CACHE_AHORA = cachePublico(15, { maxAge: 10, swr: 60 });
+const memoAhora = new Memo<Record<string, unknown>>({ nombre: "transparencia:ahora", ttlMs: 15_000, staleMs: 120_000, max: 2 });
+const HORA = (col: string) => `to_char((${col}) AT TIME ZONE '${LIMA}', 'YYYY-MM-DD HH24')`;
+
+transparenciaRouter.get("/ahora", async (c) => {
+  const cuerpo = await memoAhora.obtener("ahora", async (ctl) => {
+    const ahoraHora = (await pool.query<{ h: string }>(`SELECT to_char(now() AT TIME ZONE '${LIMA}', 'YYYY-MM-DD HH24') AS h`)).rows[0].h;
+    const [vuelo, horas, recientes, ultima] = await Promise.all([
+      bloque("ahora:vuelo", ctl, () => pool.query<{ masivo: number; financiados: number; tanda: boolean; tope: number | null; tandaUsd: number | null }>(
+        `SELECT (SELECT count(*) FROM agente_masivo WHERE estado = 'en_vuelo')::int AS masivo,
+                (SELECT count(*) FROM procesamientos WHERE estado = 'procesando')::int AS financiados,
+                EXISTS (SELECT 1 FROM agente_masivo_tanda WHERE fin IS NULL) AS tanda,
+                (SELECT max(tope) FROM agente_masivo_tanda WHERE fin IS NULL)::float AS tope,
+                (SELECT max(costo) FROM agente_masivo_tanda WHERE fin IS NULL)::float AS "tandaUsd"`).then((r) => r.rows[0])),
+      bloque("ahora:horas", ctl, () => pool.query<{ hora: string; analisis: number; documentos: number; paginas: number; usd: number }>(
+        `SELECT hora, sum(analisis)::int AS analisis, sum(documentos)::int AS documentos, sum(paginas)::int AS paginas, sum(usd)::float AS usd FROM (
+           SELECT ${HORA("analizado_en")} AS hora, count(*) AS analisis, 0 AS documentos, 0 AS paginas, COALESCE(sum(usd), 0) AS usd
+             FROM transparencia_analisis WHERE analizado_en >= now() - interval '25 hours' GROUP BY 1
+           UNION ALL
+           SELECT ${HORA("COALESCE(terminado_en, creado_en)")}, count(*), 0, 0, COALESCE(sum(costo), 0)
+             FROM agente_masivo WHERE estado = 'error' AND COALESCE(terminado_en, creado_en) >= now() - interval '25 hours' GROUP BY 1
+           UNION ALL
+           SELECT ${HORA("leido_at")}, 0, count(*),
+                  COALESCE(sum(jsonb_array_length(CASE WHEN lector = 'transcripcion' AND jsonb_typeof(salida -> 'transcritas') = 'array' THEN salida -> 'transcritas' END)), 0),
+                  COALESCE(sum(costo_usd), 0)
+             FROM pieza_lectura WHERE leido_at >= now() - interval '25 hours' AND modelo <> 'plantilla' GROUP BY 1) x
+         GROUP BY 1`).then((r) => r.rows)),
+      bloque("ahora:recientes", ctl, () => pool.query<{ codigo: string | null; ocid: string; objeto: string | null; entidad: string | null; score: number | null; analizado: string }>(
+        `SELECT cv.codigo, a.ocid, left(cv.objeto, 160) AS objeto, e.nombre AS entidad, a.score,
+                to_char(a.analizado_en AT TIME ZONE '${LIMA}', ${MINUTO}) AS analizado
+           FROM alertas a
+           JOIN convocatorias cv ON cv.ocid = a.ocid
+           LEFT JOIN entidades e ON e.ruc = cv.entidad_ruc
+          WHERE a.analizado_en IS NOT NULL AND alerta_publicada(a.estado) AND a.codigo NOT LIKE 'ALT-%' AND a.ocid NOT LIKE 'ocds-vigia-%'
+          ORDER BY a.analizado_en DESC LIMIT 6`).then((r) => r.rows)),
+      bloque("ahora:ultima", ctl, () => pool.query<{ ultima: string | null }>(
+        `SELECT to_char(greatest((SELECT max(leido_at) FROM pieza_lectura WHERE modelo <> 'plantilla'), (SELECT max(analizado_en) FROM transparencia_analisis))
+                        AT TIME ZONE '${LIMA}', ${MINUTO}) AS ultima`).then((r) => r.rows[0]?.ultima ?? null)),
+    ]);
+    const hoy = ahoraHora.slice(0, 10);
+    const de = (pred: (h: string) => boolean, campo: "analisis" | "documentos" | "paginas" | "usd") =>
+      (horas ?? []).filter((x) => pred(x.hora)).reduce((t, x) => t + (Number(x[campo]) || 0), 0);
+    const tramo = (pred: (h: string) => boolean) => ({
+      analisis: de(pred, "analisis"), documentos: de(pred, "documentos"), paginas: de(pred, "paginas"), usd: r2(de(pred, "usd")),
+    });
+    return {
+      generado: new Date().toISOString(),
+      ultimaActividad: ultima,
+      enVuelo: vuelo ? { analisis: vuelo.masivo + vuelo.financiados, tandaAbierta: vuelo.tanda, topeTanda: vuelo.tope, gastoTanda: vuelo.tandaUsd } : null,
+      ultimaHora: horas ? tramo((h) => h === ahoraHora) : null,
+      hoy: horas ? tramo((h) => h.startsWith(hoy)) : null,
+      porHora: horas ? armarHoras(horas, ahoraHora) : null,
+      recientes: recientes ?? [],
+    };
+  });
+  c.header("Cache-Control", CACHE_AHORA);
+  return c.json(cuerpo);
 });
