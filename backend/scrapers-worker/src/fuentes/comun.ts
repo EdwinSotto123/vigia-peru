@@ -298,6 +298,9 @@ export function cadenaCruces(): Refresco[] {
     // Los datos de los documentos leídos, como hechos con tipo y con su comprobación contra el registro (migraciones 323
     // y 327: también los leídos sin modelo, de los reportes del SEACE y de las secciones de las bases).
     f("refrescar_hecho_documento", true),
+    // Las sanciones según la ficha del proveedor en el OECE (migración 337): quita «sanción vigente» y «socio de
+    // inhabilitada» cuando el Tribunal la sustituyó o levantó (ya no figura) y la buena pro es desde la Ley 32069.
+    f("ajustar_sanciones_con_ficha", true),
     // Quita los cruces que algún JOIN multiplica (migración 120), antes de juntarlos en casos_cruce.
     f("dedup_cruces_proveedor"),
     f("refrescar_adjudicado_vigente"),
@@ -317,6 +320,8 @@ export function cadenaCruces(): Refresco[] {
     f("refrescar_borde_empresas", true),
     // empresa_resumen con sus antecedentes y las señales SUNAT de estado (migraciones 109 y 117).
     f("refrescar_empresas"),
+    // «Inhabilitada hoy» según la ficha del OECE, si se consultó en los últimos 45 días (migración 337).
+    f("ajustar_empresas_con_ficha", true),
     // Los candidatos y aportantes de cada partido con sus cruces (migración 299), su DJI, lo que obtuvieron sus familiares y
     // sus informes de control (301): lee empresa_resumen, recién hecho.
     f("refrescar_partido_politicos", true),

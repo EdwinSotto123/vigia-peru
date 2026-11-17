@@ -37,6 +37,16 @@ const dia = (v: unknown): string | null => txt(v)?.slice(0, 10) ?? null;
 export const vigenteEl = (tipo: string | null, desde: string | null, hasta: string | null, fecha: string) =>
   tipo !== "multa" && !!desde && desde <= fecha && (!hasta || hasta >= fecha);
 
+/**
+ * La sanción ya no figura en la ficha del proveedor en el OECE (migración 337): el Tribunal la sustituyó (retroactividad
+ * benigna), la redujo o la anuló. Desde la Ley 32069 (22-04-2025) no se puede decir que siguiera vigente al ganar; antes de
+ * esa fecha sí lo estaba. Caso: A & G INDUSTRIES, definitiva de 2016 sustituida el 11-12-2025 (Res. 8608-2025-TCP-S3).
+ */
+const LEY_32069 = "2025-04-22";
+const sustituida = (c: CruceProveedor) => txt(c.detalle.estado) === "sustituida o levantada";
+const vigenteAlGanar = (c: CruceProveedor, fecha: string) =>
+  vigenteEl(claseDe(c), dia(c.detalle.desde), dia(c.detalle.hasta), fecha) && !(sustituida(c) && fecha >= LEY_32069);
+
 type Clase = "definitivo" | "temporal" | "multa";
 const claseDe = (c: CruceProveedor): Clase => {
   const t = txt(c.detalle.tipo);
@@ -70,7 +80,7 @@ function Resumen({ grupo, buenaPro }: { grupo: CruceProveedor[]; buenaPro: strin
 
   // Lo que pasa con las inhabilitaciones el día que ganó (o, sin esa fecha, hasta hoy).
   const corte = buenaPro ?? hoyLima();
-  const vigentes = buenaPro ? inhab.filter((c) => vigenteEl(claseDe(c), dia(c.detalle.desde), dia(c.detalle.hasta), buenaPro)).length : 0;
+  const vigentes = buenaPro ? inhab.filter((c) => vigenteAlGanar(c, buenaPro)).length : 0;
   const terminadas = inhab.map((c) => dia(c.detalle.hasta)).filter((h): h is string => !!h && h < corte).sort();
   const ultima = terminadas[terminadas.length - 1];
   const masReciente = multas.map((c) => dia(c.fecha) ?? dia(c.detalle.desde)).filter((f): f is string => !!f).sort().pop();
@@ -127,7 +137,10 @@ function AlGanar({ c, buenaPro }: { c: CruceProveedor; buenaPro: string }) {
   const desde = dia(c.detalle.desde);
   const hasta = dia(c.detalle.hasta);
   if (claseDe(c) === "multa") return <span className="text-meta text-mute">No aplica a una multa</span>;
-  if (vigenteEl(claseDe(c), desde, hasta, buenaPro)) {
+  if (sustituida(c) && buenaPro >= LEY_32069) {
+    return <span className="text-meta text-inkSoft">Sustituida o levantada: ya no figura en el OECE</span>;
+  }
+  if (vigenteAlGanar(c, buenaPro)) {
     return (
       <Badge variant="crimson" className="gap-1">
         <AlertTriangle size={12} className="shrink-0" aria-hidden />
@@ -209,7 +222,14 @@ export function GrupoSanciones({ grupo, fuente }: { grupo: CruceProveedor[]; fue
             </span>
           </span>
         ),
-        vigencia: claseDe(c) === "multa" ? <span className="text-meta text-mute">No aplica a una multa</span> : <Vigencia desde={dia(d.desde)} hasta={dia(d.hasta)} />,
+        vigencia: claseDe(c) === "multa" ? (
+          <span className="text-meta text-mute">No aplica a una multa</span>
+        ) : (
+          <span className="block">
+            <Vigencia desde={dia(d.desde)} hasta={dia(d.hasta)} />
+            {sustituida(c) && <span className="mt-0.5 block text-rotulo text-mute">Ya no figura en la ficha del OECE{txt(d.ficha_consultada) ? ` (consultada el ${fechaConAnio(dia(d.ficha_consultada)!)})` : ""}</span>}
+          </span>
+        ),
         multa: claseDe(c) === "multa" ? (c.montoSoles ? <CeldaNumero>{soles(c.montoSoles)}</CeldaNumero> : <span className="text-meta text-mute">Sin monto</span>) : <span className="text-meta text-mute">No aplica</span>,
         alGanar: buenaPro ? <AlGanar c={c} buenaPro={buenaPro} /> : undefined,
       },
