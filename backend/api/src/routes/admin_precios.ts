@@ -14,8 +14,9 @@
  */
 import { Hono, type Context } from "hono";
 import { z } from "zod";
-import { OCID_CANDIDATOS, poolAdmin as pool } from "../lib/db.js";
+import { OCID_CANDIDATOS, esErrorPg, poolAdmin as pool } from "../lib/db.js";
 import { actor, log } from "../lib/adminlog.js";
+import { itemsDeDocumentos, leerFichasPiezas } from "../lib/fichasPiezas.js";
 
 interface Servicio {
   fetch(req: Request): Promise<Response>;
@@ -127,17 +128,37 @@ async function referenciasDe(cubso: string | null, unidad: string | null): Promi
   return referencias;
 }
 
-/** El pedido al laboratorio para un ítem del contrato. */
+/**
+ * Lo que pagó el Estado por un bien nombrado con esas palabras (migración 338, `precios_por_texto`): catálogo de Perú
+ * Compras, procesos adjudicados, compras menores y otros contratos leídos. Para los renglones leídos de las bases y del
+ * contrato, que no traen CUBSO; y como segunda mirada cuando el CUBSO es el de un paquete.
+ */
+export async function referenciasPorTexto(consulta: string, unidad: string | null): Promise<Referencia[]> {
+  if (consulta.trim().length < 5) return [];
+  const r = await pool.query(
+    `SELECT fuente, detalle, unidad, n, p25::float AS p25, mediana::float AS mediana, p75::float AS p75
+       FROM precios_por_texto($1, $2) WHERE mediana > 0`,
+    [consulta.slice(0, 300), unidad],
+  ).catch(() => ({ rows: [] as Record<string, unknown>[] }));
+  return r.rows.map((x) => ({
+    fuente: String(x.fuente), detalle: String(x.detalle), unidad: (x.unidad as string) ?? null, n: Number(x.n) || 0,
+    p25: (x.p25 as number) ?? null, mediana: x.mediana as number, p75: (x.p75 as number) ?? null,
+  }));
+}
+
+/** El pedido al laboratorio para un ítem del contrato: con las referencias del Estado por CUBSO y por texto. */
 async function entradaDeItem(ocid: string, f: ItemContrato) {
+  const consulta = String(f.descripcion_corta || f.descripcion || "").slice(0, 300);
+  const [porCubso, porTexto] = await Promise.all([referenciasDe(f.cubso, f.unidad), referenciasPorTexto(consulta, f.unidad)]);
   return {
-    consulta: String(f.descripcion_corta || f.descripcion || "").slice(0, 300),
+    consulta,
     especificacion: f.descripcion && f.descripcion !== f.descripcion_corta ? String(f.descripcion) : undefined,
     unidad: f.unidad ?? undefined,
     cantidad: f.cantidad ?? undefined,
     precioReferencia: precioDe(f) ?? undefined,
     ocid,
     item: f.numero_item,
-    referencias: await referenciasDe(f.cubso, f.unidad),
+    referencias: [...porCubso, ...porTexto].slice(0, 10),
   };
 }
 
@@ -147,14 +168,47 @@ async function desdeContrato(ocid: string, item: number | undefined) {
   return it.rows[0] ? entradaDeItem(ocidCorto(ocid), it.rows[0]) : null;
 }
 
-/** Los ítems distintos del contrato: algunos vienen repetidos en convocatoria_items (2026-988-2: 12 filas, 6 ítems). */
+/**
+ * Los renglones que leyeron los lectores por pieza (las bases y el contrato, lib/fichasPiezas.ts), como ítems del
+ * laboratorio. El SEACE registra a veces un paquete como UN ítem («insumos para el programa Vaso de Leche», «adquisición
+ * de lubricantes»): investigar su precio era buscar un paquete en las tiendas. Cada renglón lleva lo que pedían las
+ * bases como especificación, la presentación y la marca del contrato, y su precio unitario si cuadra con su total.
+ */
+async function renglonesDelContrato(ocid: string): Promise<ItemContrato[]> {
+  const fichas = await leerFichasPiezas(ocid).catch(() => new Map());
+  const d = itemsDeDocumentos(fichas.get("bases"), fichas.get("contrato"), new Set());
+  if (!d) return [];
+  return d.filas.map((f, i) => {
+    const k = f.contratado;
+    // El producto como lo nombra el contrato («ACEITE DE MOTOR 15W40 : MOBIL DELVAC MODERN»), si no, lo que piden las bases.
+    const nombre = (k?.descripcion ?? f.descripcion ?? "").replace(/\s*:\s*/, " ").trim();
+    return {
+      numero_item: Number(f.numero) || i + 1,
+      descripcion: f.descripcion ?? k?.descripcion ?? null,
+      descripcion_corta: [nombre, k?.marca && !nombre.toUpperCase().includes(k.marca.toUpperCase()) ? k.marca : null].filter(Boolean).join(", ").slice(0, 300) || null,
+      cantidad: f.cantidad ?? k?.cantidad ?? null,
+      // La presentación del contrato («BALDE DE 05 GALONES») dice más que la unidad de las bases («galones»).
+      unidad: k?.unidad ?? f.unidad ?? null,
+      precio_unit_ref: null,
+      cubso: null,
+      unit_adj: k?.cuadra !== false ? k?.precioUnitario ?? null : null,
+    };
+  });
+}
+
+/** Los ítems distintos del contrato: algunos vienen repetidos en convocatoria_items (2026-988-2: 12 filas, 6 ítems). Si
+ * los documentos leídos traen más renglones que el registro (un paquete registrado como un ítem), mandan los renglones. */
 async function itemsDelContrato(ocid: string): Promise<ItemContrato[]> {
-  const r = await pool.query<ItemContrato>(`${ITEMS_SQL} ORDER BY ci.numero_item LIMIT 300`, [ocidCorto(ocid)]);
+  const [r, renglones] = await Promise.all([
+    pool.query<ItemContrato>(`${ITEMS_SQL} ORDER BY ci.numero_item LIMIT 300`, [ocidCorto(ocid)]),
+    renglonesDelContrato(ocidCorto(ocid)),
+  ]);
   const vistos = new Set<string>();
-  return r.rows.filter((f) => {
+  const items = r.rows.filter((f) => {
     const k = [f.descripcion_corta ?? f.descripcion, f.unidad, f.cantidad, f.precio_unit_ref].join("|").toUpperCase();
     return !vistos.has(k) && !!vistos.add(k);
   });
+  return renglones.length >= 2 && renglones.length > items.length ? renglones : items;
 }
 
 /** Los ítems que no se comparan en tiendas: servicios y montos globales. */
@@ -283,24 +337,28 @@ const PedidoContrato = z.object({
   repetir: z.boolean().optional(),
 });
 
+type Lanzada = { item: number; id?: string; reutilizada?: boolean; error?: string };
+type ResultadoContrato =
+  | { ok: true; ocid: string; lanzadas: Lanzada[]; quedan: number; sinTiendas: number; items: number }
+  | { ok: false; error: "sin_item" | "sin_laboratorio" };
+
 /**
- * POST /admin/precios-lab/contrato {ocid, web?, repetir?} — investiga los ítems del contrato (hasta 12), uno cada 40 s
- * para no abrir a la vez las mismas tiendas, el contenedor de Crawl4AI y GLM.
+ * Lanza en el laboratorio los renglones del contrato que faltan (o todos, con `repetir`), hasta `maximo`, escalonados
+ * cada 40 s desde `desde` (para no abrir a la vez las mismas tiendas, el contenedor de Crawl4AI y GLM). La usan el panel y
+ * la cola (`precios_lab_cola`, el cron de 10 min).
  */
-adminPreciosRouter.post("/precios-lab/contrato", async (c) => {
-  const b = PedidoContrato.safeParse(await c.req.json().catch(() => null));
-  if (!b.success) return c.json({ error: "invalid_body" }, 400);
-  const ocid = ocidCorto(b.data.ocid);
+async function lanzarContrato(c: Context, ocidPedido: string, o: { web?: boolean; repetir?: boolean; autor: string; maximo?: number; desde?: number }): Promise<ResultadoContrato> {
+  const ocid = ocidCorto(ocidPedido);
   const [items, invs] = await Promise.all([itemsDelContrato(ocid), investigacionesDe(c, ocid)]);
-  if (!items.length) return c.json({ error: "sin_item", detail: "Ese contrato no tiene ítems cargados." }, 404);
-  if (!invs) return c.json({ error: "sin_laboratorio", detail: "Esta API no tiene el laboratorio de precios conectado." }, 503);
+  if (!items.length) return { ok: false, error: "sin_item" };
+  if (!invs) return { ok: false, error: "sin_laboratorio" };
   const pendientes = items.filter((f) => {
     if (sinTiendas(f)) return false;
     const e = invs.get(f.numero_item)?.estado;
-    return b.data.repetir ? e !== "en_cola" && e !== "corriendo" : !e || e === "error";
+    return o.repetir ? e !== "en_cola" && e !== "corriendo" : !e || e === "error";
   });
-  const lote = pendientes.slice(0, MAX_ITEMS_CONTRATO);
-  const lanzadas: { item: number; id?: string; reutilizada?: boolean; error?: string }[] = [];
+  const lote = pendientes.slice(0, Math.max(0, o.maximo ?? MAX_ITEMS_CONTRATO));
+  const lanzadas: Lanzada[] = [];
   for (const [k, f] of lote.entries()) {
     const entrada = await entradaDeItem(ocid, f);
     if (entrada.consulta.length < 3) {
@@ -310,13 +368,119 @@ adminPreciosRouter.post("/precios-lab/contrato", async (c) => {
     const r = await alLab(c, "/research", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ ...entrada, web: b.data.web, autor: actor(c), espera: k * ESCALON_SEGUNDOS, repetir: b.data.repetir }),
+      body: JSON.stringify({ ...entrada, web: o.web, autor: o.autor, espera: ((o.desde ?? 0) + k) * ESCALON_SEGUNDOS, repetir: o.repetir }),
     });
     const j = (await r.json().catch(() => ({}))) as { id?: string; reutilizada?: boolean; error?: string };
     lanzadas.push({ item: f.numero_item, id: j.id, reutilizada: j.reutilizada, error: r.ok ? undefined : j.error ?? `HTTP ${r.status}` });
   }
-  await log(actor(c), "precios_lab_contrato", `precios_lab:${ocid}`, { ocid, items: lanzadas.filter((x) => x.id && !x.reutilizada).map((x) => x.item) });
-  return c.json({ ocid, lanzadas, quedan: pendientes.length - lote.length, sinTiendas: items.filter(sinTiendas).length }, 202);
+  await log(o.autor, "precios_lab_contrato", `precios_lab:${ocid}`, { ocid, items: lanzadas.filter((x) => x.id && !x.reutilizada).map((x) => x.item) });
+  return { ok: true, ocid, lanzadas, quedan: pendientes.length - lote.length, sinTiendas: items.filter(sinTiendas).length, items: items.length };
+}
+
+/**
+ * POST /admin/precios-lab/contrato {ocid, web?, repetir?} — investiga los ítems del contrato (hasta 12), uno cada 40 s.
+ */
+adminPreciosRouter.post("/precios-lab/contrato", async (c) => {
+  const b = PedidoContrato.safeParse(await c.req.json().catch(() => null));
+  if (!b.success) return c.json({ error: "invalid_body" }, 400);
+  const r = await lanzarContrato(c, b.data.ocid, { web: b.data.web, repetir: b.data.repetir, autor: actor(c) });
+  if (!r.ok) {
+    return r.error === "sin_item"
+      ? c.json({ error: "sin_item", detail: "Ese contrato no tiene ítems cargados." }, 404)
+      : c.json({ error: "sin_laboratorio", detail: "Esta API no tiene el laboratorio de precios conectado." }, 503);
+  }
+  const { ok: _ok, items: _n, ...cuerpo } = r;
+  return c.json(cuerpo, 202);
+});
+
+/** Renglones que la cola lanza en cada vuelta del cron de 10 min (entre todos sus contratos). */
+const RENGLONES_POR_VUELTA = 14;
+
+/**
+ * La cola del laboratorio (migración 338): en cada vuelta del cron toma los contratos pendientes (prioridad y antigüedad)
+ * y lanza hasta RENGLONES_POR_VUELTA renglones entre ellos, escalonados. Un contrato con más renglones sigue «en curso» y
+ * continúa en la vuelta siguiente; sin renglones queda «sin_items» (se vuelve a pedir cuando sus documentos estén leídos).
+ * Sin la migración (42P01) o sin el laboratorio conectado, nada.
+ */
+export async function procesarColaPreciosLab(c: Context): Promise<Record<string, unknown> | null> {
+  if (!lab(c)) return null;
+  const cola = await pool.query<{ ocid: string; web: boolean; repetir: boolean; autor: string | null; vueltas: number }>(
+    `SELECT ocid, web, repetir, autor, vueltas FROM precios_lab_cola
+      WHERE estado IN ('pendiente', 'en_curso') AND (ultimo_at IS NULL OR ultimo_at < now() - interval '8 minutes')
+      ORDER BY prioridad DESC, pedido_at LIMIT 6`,
+  ).catch((e) => {
+    if (!esErrorPg(e, "42P01")) throw e;
+    return null;
+  });
+  if (!cola?.rows.length) return cola ? { contratos: 0 } : null;
+  let usados = 0;
+  const hechos: Record<string, unknown>[] = [];
+  for (const fila of cola.rows) {
+    if (usados >= RENGLONES_POR_VUELTA) break;
+    let r: ResultadoContrato;
+    try {
+      // `repetir` sólo en la primera vuelta: en las siguientes, los que ya se lanzaron cuentan como hechos.
+      r = await lanzarContrato(c, fila.ocid, { web: fila.web, repetir: fila.repetir && fila.vueltas === 0, autor: fila.autor || "cola-precios-lab",
+        maximo: RENGLONES_POR_VUELTA - usados, desde: usados });
+    } catch (e) {
+      await pool.query(`UPDATE precios_lab_cola SET estado = 'error', ultimo_at = now(), vueltas = vueltas + 1, detalle = $2 WHERE ocid = $1`,
+        [fila.ocid, JSON.stringify({ error: (e as Error).message.slice(0, 300) })]);
+      hechos.push({ ocid: fila.ocid, error: "excepcion" });
+      continue;
+    }
+    if (!r.ok) {
+      await pool.query(`UPDATE precios_lab_cola SET estado = $2, ultimo_at = now(), vueltas = vueltas + 1, detalle = $3 WHERE ocid = $1`,
+        [fila.ocid, r.error === "sin_item" ? "sin_items" : "error", JSON.stringify({ error: r.error })]);
+      hechos.push({ ocid: fila.ocid, error: r.error });
+      if (r.error === "sin_laboratorio") break;
+      continue;
+    }
+    const nuevos = r.lanzadas.filter((x) => x.id && !x.reutilizada).length;
+    usados += r.lanzadas.length;
+    await pool.query(
+      `UPDATE precios_lab_cola SET estado = $2, ultimo_at = now(), vueltas = vueltas + 1, lanzados = lanzados + $3, detalle = $4 WHERE ocid = $1`,
+      [fila.ocid, r.quedan > 0 ? "en_curso" : "hecho", nuevos,
+        JSON.stringify({ items: r.items, sinTiendas: r.sinTiendas, quedan: r.quedan, errores: r.lanzadas.filter((x) => x.error).length })],
+    );
+    hechos.push({ ocid: r.ocid, lanzados: nuevos, quedan: r.quedan });
+  }
+  return { contratos: hechos.length, renglones: usados, hechos };
+}
+
+const PedidoCola = z.object({
+  ocids: z.array(z.string().trim().regex(/^[A-Za-z0-9-]{3,80}$/)).min(1).max(2000),
+  motivo: z.string().trim().max(200).optional(),
+  prioridad: z.number().int().min(-10).max(10).optional(),
+  web: z.boolean().optional(),
+  repetir: z.boolean().optional(),
+});
+
+/** POST /admin/precios-lab/cola {ocids[], motivo?, prioridad?, web?, repetir?} — pone contratos en la cola (o los reabre). */
+adminPreciosRouter.post("/precios-lab/cola", async (c) => {
+  const b = PedidoCola.safeParse(await c.req.json().catch(() => null));
+  if (!b.success) return c.json({ error: "invalid_body" }, 400);
+  const p = b.data;
+  const r = await pool.query(
+    `INSERT INTO precios_lab_cola (ocid, prioridad, web, repetir, autor, motivo)
+     SELECT DISTINCT ocid_corto(x), $2, $3, $4, $5, $6 FROM unnest($1::text[]) x
+     ON CONFLICT (ocid) DO UPDATE SET estado = 'pendiente', pedido_at = now(), prioridad = EXCLUDED.prioridad, web = EXCLUDED.web,
+       repetir = EXCLUDED.repetir, autor = EXCLUDED.autor, motivo = EXCLUDED.motivo, vueltas = 0
+     WHERE precios_lab_cola.estado NOT IN ('pendiente', 'en_curso') OR EXCLUDED.repetir`,
+    [p.ocids, p.prioridad ?? 0, p.web ?? true, p.repetir ?? false, actor(c), p.motivo ?? null],
+  );
+  await log(actor(c), "precios_lab_cola", "precios_lab_cola", { contratos: p.ocids.length, motivo: p.motivo ?? null });
+  return c.json({ encolados: r.rowCount ?? 0 }, 202);
+});
+
+/** GET /admin/precios-lab/cola — cuántos contratos hay en cada estado y los últimos movidos. */
+adminPreciosRouter.get("/precios-lab/cola", async (c) => {
+  const [porEstado, ultimos] = await Promise.all([
+    pool.query(`SELECT estado, count(*)::int AS n, sum(lanzados)::int AS lanzados FROM precios_lab_cola GROUP BY 1 ORDER BY 1`),
+    pool.query(`SELECT ocid, estado, motivo, prioridad, vueltas, lanzados, detalle, to_char(pedido_at, 'YYYY-MM-DD"T"HH24:MI:SS') AS "pedidoAt",
+                       to_char(ultimo_at, 'YYYY-MM-DD"T"HH24:MI:SS') AS "ultimoAt"
+                  FROM precios_lab_cola ORDER BY COALESCE(ultimo_at, pedido_at) DESC LIMIT 60`),
+  ]);
+  return c.json({ porEstado: porEstado.rows, ultimos: ultimos.rows });
 });
 
 adminPreciosRouter.get("/precios-lab/:id", async (c) => {

@@ -58,7 +58,7 @@ import { adminEmpleoRouter } from "./admin_empleo.js";
 import { adminChatRouter } from "./admin_chat.js";
 import { adminRagRouter, iaDe } from "./admin_rag.js";
 import { adminGoldenRouter } from "./admin_golden.js";
-import { adminPreciosRouter } from "./admin_precios.js";
+import { adminPreciosRouter, procesarColaPreciosLab } from "./admin_precios.js";
 import { indexarRag } from "../lib/rag.js";
 import { indexarOportunidades } from "../lib/afinidad.js";
 
@@ -629,7 +629,13 @@ adminRouter.post("/asignar", async (c) => {
       if (!esErrorPg(e, "42P01", "42883")) console.warn(`[asignar] afinidad: ${(e as Error).message}`);
       return null;
     });
-  return c.json({ asignados: out, sinCola, refrescado, vencidos: vencidos.rows.length, coberturaMeses: cobertura, agregados, mcp, hallazgos, rag, afinidad });
+  // La cola del laboratorio de precios (migración 338, routes/admin_precios.ts): hasta 14 renglones por vuelta. Si falla,
+  // se anota y sigue.
+  const preciosLab = await procesarColaPreciosLab(c).catch((e) => {
+    console.warn(`[asignar] cola del laboratorio de precios: ${(e as Error).message}`);
+    return null;
+  });
+  return c.json({ asignados: out, sinCola, refrescado, vencidos: vencidos.rows.length, coberturaMeses: cobertura, agregados, mcp, hallazgos, rag, afinidad, preciosLab });
 });
 
 // ─── Monitor del dispatcher (procesamientos) ─────────────────────────────────

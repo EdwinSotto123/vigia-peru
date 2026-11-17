@@ -415,14 +415,17 @@ def main() -> None:
     ap.add_argument("--con-regla", action="store_true", help="sólo piezas que ya tienen su lectura por regla (para comparar)")
     ap.add_argument("--varios-items", action="store_true", help="primero las piezas largas (reportes de varios ítems)")
     ap.add_argument("--ocid", default=None, help="sólo las piezas de este proceso (también las ya leídas por otra pieza)")
+    ap.add_argument("--ocids-archivo", default=None, help="como --ocid, para los procesos de un archivo (uno por línea)")
     ap.add_argument("--con-escaneos", action="store_true",
                     help="bases: leer también las que traen un bloque escaneado (quedan «parcial»); sin esto, esperan la transcripción")
     a = ap.parse_args()
     lector = LECTORES[a.lector]
     motor = MotorWorkers(a.modelo or MODELO_DEFECTO)
-    if a.ocid:
-        # Un proceso: sus piezas de este tipo sin esta lectura. Para la ficha de las bases, las integradas si las hay.
-        filtro = "AND ocid_corto(p.ocid) = ocid_corto(%(ocid)s)" + (
+    ocids = [a.ocid] if a.ocid else ([x.strip() for x in Path(a.ocids_archivo).read_text(encoding="utf-8").splitlines() if x.strip()]
+                                     if a.ocids_archivo else [])
+    if ocids:
+        # Unos procesos: sus piezas de este tipo sin esta lectura. Para la ficha de las bases, las integradas si las hay.
+        filtro = "AND ocid_corto(p.ocid) = ANY (ARRAY(SELECT ocid_corto(x) FROM unnest(%(ocids)s::text[]) x))" + (
             " AND (p.tipo_documento = 'bases_integradas' OR NOT EXISTS (SELECT 1 FROM documento_pieza i"
             " WHERE i.ocid = p.ocid AND i.tipo_documento = 'bases_integradas'))" if a.lector == "bases" else "")
         consulta = PENDIENTES.format(filtro=filtro, orden="p.id DESC")
@@ -434,7 +437,7 @@ def main() -> None:
         cn = pila.enter_context(conexion(a.entorno))
         cur = cn.cursor()
         # Una sola corrida de este lector a la vez (la PC y el CI leen la misma cola): candado de sesión en la base.
-        cur.execute("SELECT pg_try_advisory_lock(hashtext(%s))", (f"lector.por_pieza:{a.lector}" + (f":{a.ocid}" if a.ocid else ""),))
+        cur.execute("SELECT pg_try_advisory_lock(hashtext(%s))", (f"lector.por_pieza:{a.lector}" + (f":{','.join(ocids)[:200]}" if ocids else ""),))
         if not cur.fetchone()[0]:
             sys.exit("otra corrida igual está en curso: no se hace nada")
         cur.execute(GASTADO)
@@ -451,7 +454,7 @@ def main() -> None:
             # Por tandas: cada pieza viaja con el texto de sus páginas (unas bases son cientos de KB).
             while seguir and hechos < a.limite:
                 cur.execute(consulta, {"tipos": lector["tipos"], "lector": a.lector, "version": version_de(a.lector),
-                                       "limite": min(TANDA, a.limite - hechos), "ocid": a.ocid})
+                                       "limite": min(TANDA, a.limite - hechos), "ocids": ocids})
                 piezas = [x for x in cur.fetchall() if x[0] not in vistas]
                 cn.commit()
                 if not piezas:
