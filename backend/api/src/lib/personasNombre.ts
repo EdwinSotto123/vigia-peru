@@ -8,11 +8,12 @@
  * publicar(). Las demás palabras no cuentan: quien escriba el apellido escondido (el nombre completo) recibe lo mismo que
  * quien escriba otra palabra en su lugar, así que encuentra a la persona y no puede confirmar el apellido probando.
  *
- * Fuente: persona_busqueda (migración 320), una fila por persona con las palabras de su nombre (GIN) y sus cifras sumadas;
- * preselecciona a quien trae dos de las palabras buscadas y aquí se publica sólo a quien coincide por lo que se ve. Antes
- * se leía persona_orden_anual por el primer apellido: con uno común eran 50 mil filas y 8 s en frío, que frenaban también
- * el buscador general. Esa lectura queda de respaldo si la tabla no está. Pide un apellido y un nombre como mínimo (dos
- * palabras de 3 letras o más).
+ * Fuente: persona_busqueda (migraciones 320 y 321), una fila por persona con su primer apellido, las palabras de su nombre
+ * (GIN) y sus cifras sumadas. Por cada par ordenado de palabras buscadas (a, b) se piden las personas cuyo primer apellido
+ * es `a` y que traen `b`, las de mayor monto primero, y una persona se publica sólo si `a` y `b` están, enteras, entre lo
+ * que se ve de su nombre. Que alguien salga depende de esas dos palabras y de nada más de lo escrito: ni el corte de cada
+ * lista ni el orden miran el apellido tapado. (Antes se leía persona_orden_anual por el primer apellido: con uno común eran
+ * 50 mil filas y 8 s en frío, que frenaban también el buscador general.) Pide un apellido y un nombre como mínimo.
  */
 import { consultaConPlazo } from "./db.js";
 import { publicar } from "./privacidad.js";
@@ -64,68 +65,42 @@ export function cuantasVisibles(palabras: string[], visibles: string[]): number 
   return palabras.filter((w) => vs.some((v) => v.includes(n(w)))).length;
 }
 
+/** Cuántas personas se piden por cada par (primer apellido, otra palabra): las de mayor monto. */
+const POR_PAR = 80;
+
 export async function personasPorNombreVisible(q: string | undefined, tope = 30): Promise<PersonaHallada[]> {
   const palabras = palabrasDeNombre(q);
   if (palabras.length < 2) return [];
   // En el índice las palabras van como en mef_norm: sin tildes y con la «Ñ» como «N».
-  const enIndice = [...new Set(palabras.map((w) => w.replace(/Ñ/g, "N")))];
-  const pares: string[][] = [];
-  for (let i = 0; i < enIndice.length; i++) for (let j = i + 1; j < enIndice.length; j++) pares.push([enIndice[i], enIndice[j]]);
-  try {
-    const r = await consultaConPlazo<PersonaHallada>(
-      `SELECT b.ruc, b.nombre, pc.codigo, b.ordenes, b.monto::float AS monto, b.entidades, b.entidad, b.procesos, b.monto_procesos::float AS "montoProcesos"
-         FROM persona_busqueda b JOIN persona_codigo pc ON pc.ruc = b.ruc
-        WHERE ${pares.map((_, i) => `b.palabras @> $${i + 2}::text[]`).join(" OR ")}
-        ORDER BY (SELECT count(*) FROM unnest($1::text[]) w WHERE w = ANY (b.palabras)) DESC, (b.monto + b.monto_procesos) DESC, b.ruc
-        LIMIT 400`, [enIndice, ...pares], 5000);
-    return r.rows
-      // La regla de privacidad: sólo quien coincide, en dos palabras o más, por lo que se VE. Lo demás escrito no decide.
-      .map((p) => ({ p, n: cuantasVisibles(palabras, palabrasVisibles(p.nombre.replace(/(?<=\p{L})¿(?=\p{L})/gu, "Ñ"))) }))
-      .filter((x) => x.n >= 2)
-      .sort((a, b) => b.n - a.n || b.p.monto + b.p.montoProcesos - (a.p.monto + a.p.montoProcesos))
-      .slice(0, tope)
-      .map((x) => x.p);
-  } catch {
-    // Sin la tabla (una base sin la migración 320) o si no respondió: la lectura de antes, por el primer apellido.
-    return porPrimerApellido(q, palabras, tope);
+  const sinEnie = (w: string) => w.replace(/Ñ/g, "N");
+  const enIndice = [...new Set(palabras.map(sinEnie))];
+  const as: string[] = [];
+  const bs: string[] = [];
+  for (const a of enIndice) for (const b of enIndice) if (a !== b) { as.push(a); bs.push(b); }
+  if (!as.length) return [];
+  const r = await consultaConPlazo<PersonaHallada & { a: string; b: string }>(
+    `SELECT x.a, x.b, c.ruc, c.nombre, pc.codigo, c.ordenes, c.monto, c.entidades, c.entidad, c.procesos, c."montoProcesos"
+       FROM unnest($1::text[], $2::text[]) AS x(a, b)
+      CROSS JOIN LATERAL (
+        SELECT p.ruc, p.nombre, p.ordenes, p.monto::float AS monto, p.entidades, p.entidad, p.procesos, p.monto_procesos::float AS "montoProcesos"
+          FROM persona_busqueda p
+         WHERE p.ap1 = x.a AND p.palabras @> ARRAY[x.b]
+         ORDER BY (p.monto + p.monto_procesos) DESC, p.ruc LIMIT ${POR_PAR}) c
+       JOIN persona_codigo pc ON pc.ruc = c.ruc`, [as, bs], 5000).then((x) => x.rows).catch(() => null);
+  // Sin respuesta (o una base sin las migraciones 320 y 321): no se inventa nada.
+  if (!r) return [];
+  const halladas = new Map<string, { p: PersonaHallada; n: number }>();
+  for (const { a, b, ...p } of r) {
+    if (halladas.has(p.ruc)) continue;
+    const visibles = palabrasVisibles(p.nombre.replace(/(?<=\p{L})¿(?=\p{L})/gu, "Ñ"));
+    // La regla de privacidad: las DOS palabras del par, enteras, entre lo que se ve. Una que sólo coincide con el apellido
+    // tapado no cuenta, y tampoco una que es parte de otra palabra («LEON» dentro de «LEONARDO»).
+    const seVe = new Set(visibles.map(sinEnie));
+    if (!seVe.has(a) || !seVe.has(b)) continue;
+    halladas.set(p.ruc, { p, n: cuantasVisibles(palabras, visibles) });
   }
-}
-
-/** La lectura anterior, de respaldo: persona_orden_anual y persona_ganadora por el primer apellido (lenta con uno común). */
-async function porPrimerApellido(q: string | undefined, palabras: string[], tope: number): Promise<PersonaHallada[]> {
-  // El primer apellido en la base va como lo deja mef_norm: con «Ñ» o con «N» según la fuente; se prueban las dos. Entran
-  // también las partículas cortas («DE», «LA») por si el nombre empieza con una.
-  const primeras = [...new Set(sinTildes(q ?? "").replace(/[^A-ZÑ ]+/g, " ").split(/\s+/).filter((w) => w.length >= 2).flatMap((w) => [w, w.replace(/Ñ/g, "N")]))];
-  const pats = palabras.map((w) => `%${w.replace(/Ñ/g, "_")}%`);
-  type Fila = { ruc: string; nombre: string; codigo: string; ordenes?: number; monto?: number; entidades?: number; entidad?: string | null; procesos?: number; montoProcesos?: number };
-  const [ordenes, ganadores] = await Promise.all([
-    consultaConPlazo<Fila>(
-      `SELECT o.ruc, max(o.nombre) AS nombre, max(pc.codigo) AS codigo, sum(o.ordenes)::int AS ordenes, COALESCE(sum(o.monto), 0)::float AS monto,
-              count(DISTINCT o.entidad_ruc)::int AS entidades, (array_agg(o.entidad ORDER BY o.monto DESC NULLS LAST))[1] AS entidad
-         FROM persona_orden_anual o JOIN persona_codigo pc ON pc.ruc = o.ruc
-        WHERE o.ap1 = ANY($1::text[]) AND (SELECT count(*) FROM unnest($2::text[]) p WHERE upper(o.nombre) LIKE p) >= 2
-        GROUP BY o.ruc ORDER BY 5 DESC NULLS LAST LIMIT 150`, [primeras, pats], 8000).then((r) => r.rows).catch(() => [] as Fila[]),
-    consultaConPlazo<Fila>(
-      `SELECT g.ruc, g.nombre, pc.codigo, g.procesos, COALESCE(g.monto, 0)::float AS "montoProcesos"
-         FROM persona_ganadora g JOIN persona_codigo pc ON pc.ruc = g.ruc
-        WHERE g.ap1 = ANY($1::text[]) AND (SELECT count(*) FROM unnest($2::text[]) p WHERE upper(g.nombre) LIKE p) >= 2
-        ORDER BY g.monto DESC NULLS LAST LIMIT 150`, [primeras, pats], 8000).then((r) => r.rows).catch(() => [] as Fila[]),
-  ]);
-  const porRuc = new Map<string, PersonaHallada>();
-  for (const f of ordenes) {
-    porRuc.set(f.ruc, { codigo: f.codigo, ruc: f.ruc, nombre: f.nombre, ordenes: f.ordenes ?? 0, monto: f.monto ?? 0, entidades: f.entidades ?? 0,
-                         entidad: f.entidad ?? null, procesos: 0, montoProcesos: 0 });
-  }
-  for (const f of ganadores) {
-    const p = porRuc.get(f.ruc);
-    if (p) Object.assign(p, { procesos: f.procesos ?? 0, montoProcesos: f.montoProcesos ?? 0 });
-    else porRuc.set(f.ruc, { codigo: f.codigo, ruc: f.ruc, nombre: f.nombre, ordenes: 0, monto: 0, entidades: 0, entidad: null, procesos: f.procesos ?? 0, montoProcesos: f.montoProcesos ?? 0 });
-  }
-  return [...porRuc.values()]
-    // La regla de privacidad: sólo quien coincide, en dos palabras o más, por lo que se VE. Lo demás escrito no decide.
-    .map((p) => ({ p, n: cuantasVisibles(palabras, palabrasVisibles(p.nombre.replace(/(?<=\p{L})¿(?=\p{L})/gu, "Ñ"))) }))
-    .filter((x) => x.n >= 2)
-    .sort((a, b) => b.n - a.n || b.p.monto + b.p.montoProcesos - (a.p.monto + a.p.montoProcesos))
+  return [...halladas.values()]
+    .sort((x, y) => y.n - x.n || y.p.monto + y.p.montoProcesos - (x.p.monto + x.p.montoProcesos))
     .slice(0, tope)
     .map((x) => x.p);
 }

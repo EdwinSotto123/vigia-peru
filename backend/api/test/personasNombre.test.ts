@@ -49,3 +49,15 @@ test("con el nombre completo también se encuentra: cuentan dos palabras visible
   // El apellido tapado y un nombre: una sola visible, no alcanza.
   assert.equal(cuantasVisibles(palabrasDeNombre("Huamanchumo Robertino"), v), 1);
 });
+
+test("un par sólo vale si sus dos palabras se ven enteras: ni el apellido tapado ni un trozo de otra palabra", () => {
+  // Lo mismo que hace personasPorNombreVisible con cada fila que le devuelve la base.
+  const vale = (nombre: string, a: string, b: string) => {
+    const seVe = new Set(palabrasVisibles(nombre).map((w) => w.replace(/Ñ/g, "N")));
+    return seVe.has(a) && seVe.has(b);
+  };
+  assert.equal(vale(NOMBRE, "QUISPEMAYTA", "ROBERTINO"), true);
+  assert.equal(vale(NOMBRE, "QUISPEMAYTA", "HUAMANCHUMO"), false);   // el segundo es el apellido tapado
+  assert.equal(vale(NOMBRE, "QUISPEMAYTA", "ROBERT"), false);        // un trozo de «ROBERTINO» no es la palabra
+  assert.equal(vale("QUISPEMAYTA LEON LEONARDO", "QUISPEMAYTA", "LEON"), false);   // el tapado está dentro de un nombre visible
+});
