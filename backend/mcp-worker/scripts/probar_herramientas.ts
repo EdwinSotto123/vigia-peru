@@ -144,8 +144,10 @@ for (const c of CASOS) {
     const r = (await c.h.ejecutar(args as never, { env, usuario: null } as never)) as Record<string, unknown>;
     const mal = c.espera(r);
     const texto = JSON.stringify(r);
-    // Privacidad: ni un documento de 8 dígitos suelto ni un RUC 10 en lo que sale.
-    const dni = /(?<![\d.,])\d{8}(?![\d.,])/.test(texto.replace(/"(ocid|ejemplos_ocid|enlace[a-z_]*)":\s*("[^"]*"|\[[^\]]*\])/g, ""));
+    // Privacidad: ni un documento de 8 dígitos suelto ni un RUC 10 en lo que sale. No cuentan los enlaces, los montos
+    // (un número JSON: «"objeto":13990000») ni la cola de un código con letras («2023CPOL42000030», un informe de control).
+    const sinFalsos = texto.replace(/"(ocid|ejemplos_ocid|enlace[a-z_]*|url[A-Za-z_]*)":\s*("[^"]*"|\[[^\]]*\])/g, "").replace(/:\s*-?\d+(\.\d+)?(?=[,}\]])/g, ":0");
+    const dni = /(?<![\d.,A-Za-z])\d{8}(?![\d.,])/.test(sinFalsos);
     const ruc10 = /(?<!\d)10\d{9}(?!\d)/.test(texto);
     if (mal || ruc10) fallos++;
     console.log(`${mal || ruc10 ? "FALLA" : "ok   "} ${c.h.nombre} ${JSON.stringify(c.args)} ${Date.now() - t0} ms, ${texto.length} bytes` +
