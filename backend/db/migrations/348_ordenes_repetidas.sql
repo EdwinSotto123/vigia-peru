@@ -2,7 +2,8 @@
 -- de 7 a 90 días entre la primera y la última.
 --
 -- Del caso de la UNI (2026-11-17): Pan American recibió la O/C-1883-2024 (11-09, emitida) y la O/C-2364-2024 (24-10,
--- devengada), las dos por S/ 28 190 por una refrigeradora y dos televisores. El fraccionamiento de Vigía (51) mira sólo
+-- devengada), las dos por S/ 28 190 por una refrigeradora y dos televisores (la UNI las registra como «Otras
+-- contrataciones sin proceso de selección previo»: también directas, también entran). El fraccionamiento de Vigía (51) mira sólo
 -- las órdenes del MISMO día. Medido en 2024 (bienes, contrataciones directas de hasta 8 UIT, S/ 5 mil o más): 956 casos,
 -- S/ 55,7 M repetidos. Por ejemplo, dos servidores de S/ 41 188,83 en 27 días (el tope de 2024 era S/ 41 200), o
 -- productos del Vaso de Leche del mismo monto cada mes. Puede ser:
@@ -46,7 +47,9 @@ BEGIN
            COALESCE(substring(tipo_contratacion FROM 'hasta (\d+) UIT')::int, 8) * uit_soles(extract(year FROM fecha_emision)::int) AS tope
       FROM conosce_ordenes
      WHERE fecha_emision >= p_desde AND monto >= 5000 AND moneda = 'Nuevos Soles'
-       AND tipo_orden = 'Orden de Compra' AND tipo_contratacion ILIKE 'Contrataciones hasta%' AND estado IS DISTINCT FROM 'Anulada'
+       AND tipo_orden = 'Orden de Compra'
+       AND (tipo_contratacion ILIKE 'Contrataciones hasta%' OR tipo_contratacion ILIKE 'Otras contrataciones sin proceso%')
+       AND estado IS DISTINCT FROM 'Anulada'
        AND ruc_contratista ~ '^(10|20)\d{9}$'
      ORDER BY entidad_ruc, extract(year FROM fecha_emision), NULLIF(substring(nro_orden FROM '\d+'), ''), anio DESC, mes DESC;
   DELETE FROM ordenes_repetidas;
