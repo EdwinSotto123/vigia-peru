@@ -460,6 +460,35 @@ patronesRouter.get("/precios", async (c) => {
   return c.json(cuerpo);
 });
 
+const PreciosEstado = z.object({
+  q: z.string().trim().min(5).max(300),
+  unidad: z.string().trim().max(60).optional(),
+  hasta: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+});
+
+/**
+ * GET /patrones/precios-estado?q=&unidad=&hasta= — lo que pagó el Estado por un bien nombrado con esas palabras
+ * (migración 338-339, `precios_por_texto`): procesos adjudicados, compras menores, catálogo de Perú Compras y otros
+ * contratos leídos, cada uno con su cuartil 1, mediana y cuartil 3 en una unidad. Para el panel de cada renglón de la
+ * ficha (los renglones leídos de las bases y del contrato no traen CUBSO). `hasta`: la fecha del proceso (precios de
+ * entonces, no de hoy).
+ */
+patronesRouter.get("/precios-estado", async (c) => {
+  const p = PreciosEstado.safeParse(Object.fromEntries(Object.entries(parametros(c)).filter(([, v]) => v !== "" && v != null)));
+  if (!p.success) return c.json({ error: "invalid_query", issues: p.error.issues }, 400);
+  const q = p.data;
+  const cuerpo = await memo.obtener(`precios-estado:${JSON.stringify(q)}`, async () => {
+    const r = await pool.query(
+      `SELECT fuente, detalle, unidad, n, p25::float AS p25, mediana::float AS mediana, p75::float AS p75
+         FROM precios_por_texto($1, $2, COALESCE($3::date, CURRENT_DATE)) WHERE mediana > 0`,
+      [q.q, q.unidad ?? null, q.hasta ?? null],
+    ).catch(() => ({ rows: [] as Record<string, unknown>[] }));
+    return { referencias: r.rows };
+  });
+  c.header("Cache-Control", CACHE);
+  return c.json(cuerpo);
+});
+
 const Renovaciones = z.object({
   ruc: z.string().regex(/^20\d{9}$/).optional(),
   page: z.coerce.number().int().min(1).max(200).default(1),

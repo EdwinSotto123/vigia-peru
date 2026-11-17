@@ -14,6 +14,7 @@ import { enlacesProceso } from "@/lib/fuentes";
 import { numero, plural, soles } from "@/lib/formato";
 import type { ContratoDetalle as Detalle } from "@/lib/contratos";
 import { CitaPagina } from "./CitaPagina";
+import { PreciosEstadoRenglon } from "./PreciosEstadoRenglon";
 
 /** «ACEITE DE MOTOR 15W40» → «Aceite de motor 15W40»: sin gritar, sin tocar códigos con números. */
 function oracionCorta(s0: string): string {
@@ -138,6 +139,12 @@ export function DesgloseItems({ c }: { c: Detalle }) {
                 {k.cita && <CitaPagina ocid={c.ocid} cita={k.cita} />}
               </section>
             )}
+            <PreciosEstadoRenglon
+              producto={k?.descripcion ?? f.descripcion ?? ""}
+              unidad={k?.unidad ?? f.unidad ?? null}
+              fecha={c.fecha ?? null}
+              pagado={k?.cuadra !== false ? k?.precioUnitario ?? null : null}
+            />
           </div>
         ),
       },
