@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Briefcase, Building2, CalendarRange, DoorOpen, Flag, Landmark, ScrollText, Wallet } from "lucide-react";
+import { Briefcase, Building2, CalendarRange, DoorOpen, Flag, Footprints, Landmark, ScrollText, Wallet } from "lucide-react";
 import {
   Ayuda,
   BanderasFicha,
@@ -34,6 +34,7 @@ import {
   type OrdenesDeLaPersona,
   type PlanillaDeLaPersona,
   type VisitaHecha,
+  type VisitaRecibida,
 } from "@/lib/funcionarios";
 import { tituloNatural } from "@/lib/landing";
 import { rutaPersona } from "@/lib/personas";
@@ -73,6 +74,8 @@ function EnlaceEntidad({ ruc, nombre }: { ruc: string | null | undefined; nombre
  *   · Lo que pide revisión (sólo si hay): los cruces entre sus registros que la API ya trae hechos.
  *   · Cargos: su planilla (hoy y antes) y cada cargo que declaró a la Contraloría.
  *   · Visitas: a qué entidades fue, cuántas veces y en nombre de quién; cada fila abre su panel.
+ *   · Visitas que recibió (migración 335): qué empresas lo visitaron en las entidades en que trabajó y cuáles le ganaron
+ *     después a esa entidad; sin quién visitó.
  *   · Empresas: en cuáles es socia o representante (RNP).
  *   · Otros registros: candidaturas (JNE), órdenes como persona natural, informes de control (responsabilidad presunta),
  *     aportes de campaña y cargos de persona expuesta políticamente.
@@ -124,7 +127,7 @@ export default async function FuncionarioPage({ params, searchParams }: { params
           { etiqueta: "Personas", href: "/app/personas" },
           { etiqueta: p.nombre, href: ruta },
         ]}
-        pestanas={{ primera, activa: seccion, etiquetas: { revision: "Lo que pide revisión", cargos: "Cargos", visitas: "Visitas", empresas: "Empresas", otros: "Otros registros" } }}
+        pestanas={{ primera, activa: seccion, etiquetas: { revision: "Lo que pide revisión", cargos: "Cargos", visitas: "Visitas", recibidas: "Visitas que recibió", empresas: "Empresas", otros: "Otros registros" } }}
       />
       <EncabezadoPagina
         titulo={p.nombre}
@@ -279,6 +282,14 @@ export default async function FuncionarioPage({ params, searchParams }: { params
             ),
           },
           {
+            clave: "recibidas",
+            icono: <Footprints size={15} aria-hidden />,
+            etiqueta: "Visitas que recibió",
+            titulo: "Las empresas cuya gente la visitó",
+            conteo: f.recibidas?.empresas ?? 0,
+            contenido: <VisitasRecibidas r={f.recibidas} />,
+          },
+          {
             clave: "empresas",
             icono: <Briefcase size={15} aria-hidden />,
             etiqueta: "Empresas",
@@ -424,6 +435,13 @@ function banderasDe(f: FichaFuncionario, ruta: string): BanderaFicha[] {
   if (c.empresaInhabilitadaYOtraGano.length) b.push({ tipo: "inhabilitada", severidad: "alta", nombre: "Una empresa suya está inhabilitada y otra ganó", n: c.empresaInhabilitadaYOtraGano.length, href });
   if (c.variasEmpresasEnUnaEntidad.length) b.push({ tipo: "varias_empresas", severidad: "media", nombre: "Gana en una entidad con varias empresas", n: c.variasEmpresasEnUnaEntidad.length, href });
   if (c.enInformeYDespuesCobro.length) b.push({ tipo: "informe_y_cobro", severidad: "media", nombre: "Figura en un informe de control y la entidad le pagó después", n: c.enInformeYDespuesCobro.length, href });
+  // Migración 335: en observación, porque el empate del funcionario visitado es por nombre y todavía no se mide.
+  if (f.recibidas?.ganaronDespues) {
+    b.push({
+      tipo: "visitado_y_gano", severidad: "media", observacion: true, n: f.recibidas.ganaronDespues, href: `${ruta}?seccion=recibidas`,
+      nombre: "En observación: recibió visitas de empresas que después le ganaron a su entidad",
+    });
+  }
   return b;
 }
 
@@ -661,6 +679,127 @@ function filaVisita(v: VisitaHecha, i: number): Fila {
       visitas: <CeldaNumero>{numero(v.visitas)}</CeldaNumero>,
       periodo: <CeldaTexto>{entre}</CeldaTexto>,
       organizacion: <CeldaTexto sub={orgs.length > 1 ? `y ${orgs.length - 1} más` : undefined}>{orgs[0] ? tituloNatural(orgs[0]) : "No lo dice"}</CeldaTexto>,
+    },
+  };
+}
+
+// ─── Visitas que recibió ─────────────────────────────────────────────────────────────────────────
+
+const COLUMNAS_RECIBIDAS: Columna[] = [
+  { clave: "empresa", titulo: "Empresa y entidad", ancho: "minmax(0,1.6fr)" },
+  { clave: "visitas", titulo: "Visitas", ancho: "5.5rem", alinear: "der" },
+  { clave: "periodo", titulo: "Entre", ancho: "minmax(10rem,0.9fr)", desde: "md", apilar: "con-rotulo" },
+  { clave: "despues", titulo: "Ganó después", ancho: "minmax(9rem,0.9fr)", desde: "md", apilar: "con-rotulo" },
+];
+
+function VisitasRecibidas({ r }: { r: FichaFuncionario["recibidas"] }) {
+  const ayuda = (
+    <Ayuda titulo="¿Cómo se sabe que la visitaron a ella?">
+      <span className="block">
+        El registro de visitas de cada entidad anota el nombre de quien recibió la visita. Se junta con esta persona cuando ese nombre
+        tiene las mismas palabras que el suyo y la visita fue en una entidad en que declaró un cargo o figuró en planilla.
+      </span>
+      <span className="mt-2 block">
+        La empresa es la de quien visitó: un socio, representante o directivo del Registro Nacional de Proveedores, o alguien que dijo
+        venir de ella. Vigía no muestra quién visitó. Una visita no prueba un favor: es un dato para leer junto a los contratos.
+      </span>
+    </Ayuda>
+  );
+  if (r == null) {
+    return (
+      <CabeceraPestana ayuda={ayuda}>
+        Las visitas que recibió no respondieron a tiempo. Vuelve a abrir la ficha en un momento.
+      </CabeceraPestana>
+    );
+  }
+  return (
+    <div className="space-y-3">
+      <CabeceraPestana ayuda={ayuda}>
+        {r.empresas
+          ? `Gente de ${plural(r.empresas, "empresa", "empresas")} la visitó ${plural(r.visitas, "vez", "veces")} en las entidades en que trabajó${
+              r.ganaronDespues ? `; ${plural(r.ganaronDespues, "de ellas le ganó", "de ellas le ganaron")} después algún proceso a esa entidad` : ""
+            }. Cada fila abre su detalle.`
+          : "En el registro de visitas no figura gente de empresas que la haya visitado en las entidades en que trabajó."}
+      </CabeceraPestana>
+      {r.filas.length > 0 ? (
+        <TablaPaginada
+          columnas={COLUMNAS_RECIBIDAS}
+          filas={r.filas.map(filaRecibida)}
+          etiqueta="Empresas cuya gente la visitó"
+          nombre="empresas"
+          tam={20}
+          buscar={{ placeholder: "Buscar por empresa o entidad…", etiqueta: "Buscar en las empresas que la visitaron" }}
+        />
+      ) : null}
+    </div>
+  );
+}
+
+function filaRecibida(v: VisitaRecibida, i: number): Fila {
+  const empresa = v.empresa ? tituloNatural(v.empresa) : "Empresa sin nombre";
+  const entidad = entidadTexto(v.entidad);
+  const entre = v.primera && v.ultima ? (v.primera === v.ultima ? fechaConAnio(v.primera) : `${fechaConAnio(v.primera)} a ${fechaConAnio(v.ultima)}`) : "Sin fechas";
+  const gano = v.ganoDespues > 0 ? `${plural(v.ganoDespues, "proceso", "procesos")}${v.montoDespues ? ` por ${solesCompacto(v.montoDespues)}` : ""}` : "Ninguno";
+  return {
+    id: `recibida-${i}`,
+    buscable: `${v.empresa ?? ""} ${v.entidad ?? ""}`,
+    enlaces: true,
+    etiqueta: "Ver el detalle de las visitas de esta empresa",
+    magnitudes: { visitas: v.visitas },
+    detalle: {
+      titulo: empresa,
+      etiqueta: "Ver el detalle de las visitas de esta empresa",
+      descripcion: <span className="line-clamp-2">{`${plural(v.visitas, "visita", "visitas")} en ${entidad}`}</span>,
+      contenido: (
+        <div className="space-y-5">
+          <EnUnaFrase>
+            Gente de <b>{empresa}</b> la visitó <b>{plural(v.visitas, "vez", "veces")}</b> en <b>{entidad}</b>
+            {v.primera && v.ultima && v.primera !== v.ultima ? `, entre el ${fechaConAnio(v.primera)} y el ${fechaConAnio(v.ultima)}` : v.primera ? `, el ${fechaConAnio(v.primera)}` : ""}.
+            {v.ganoDespues > 0
+              ? <> Desde su primera visita, la empresa le ganó <b>{gano}</b> a esa entidad{v.primeraBuenaPro ? `, la primera buena pro el ${fechaConAnio(v.primeraBuenaPro)}` : ""}.</>
+              : " Desde su primera visita, la empresa no le ganó ningún proceso a esa entidad por su cuenta."}
+          </EnUnaFrase>
+          <DatosClave
+            items={[
+              { etiqueta: "Visitas", valor: numero(v.visitas), mono: true },
+              { etiqueta: "Primera", valor: v.primera ? fechaConAnio(v.primera) : null },
+              { etiqueta: "Última", valor: v.ultima ? fechaConAnio(v.ultima) : null },
+              { etiqueta: "Procesos ganados después", valor: numero(v.ganoDespues), mono: true },
+              { etiqueta: "Monto adjudicado después", valor: v.montoDespues ? solesCompacto(v.montoDespues) : null },
+            ]}
+          />
+          <p className="text-rotulo leading-relaxed text-mute">
+            Se juntó por el nombre de quien recibió la visita. Revisa en el contrato si esta persona intervino en esa compra: comité,
+            área usuaria o logística.
+          </p>
+        </div>
+      ),
+      pie: (
+        <div className="flex flex-wrap gap-2">
+          {esRuc20(v.ruc) && (
+            <EnlaceAccion href={`/empresa/${v.ruc}?seccion=visitas`} prefetch={false} flecha>
+              Las visitas de la empresa
+            </EnlaceAccion>
+          )}
+          {esRuc20(v.entidadRuc) && (
+            <EnlaceAccion href={`/entidad/${v.entidadRuc}`} prefetch={false} variante="secundario" flecha>
+              Ficha de la entidad
+            </EnlaceAccion>
+          )}
+        </div>
+      ),
+    },
+    celdas: {
+      empresa: (
+        <CeldaPrincipal
+          dosLineas
+          titulo={<EnlaceEmpresa ruc={v.ruc} nombre={v.empresa} />}
+          meta={[<span key="e">{entidad}</span>]}
+        />
+      ),
+      visitas: <CeldaNumero>{numero(v.visitas)}</CeldaNumero>,
+      periodo: <CeldaTexto>{entre}</CeldaTexto>,
+      despues: <CeldaTexto>{gano}</CeldaTexto>,
     },
   };
 }

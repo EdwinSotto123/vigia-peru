@@ -676,7 +676,7 @@ personasRouter.get("/cargo/:codigo", async (c) => {
     const esEl = mismaPersona(f);
     const orgOk = organizacionPublicable(f);
     const requeridas = palabrasRequeridas(f);
-    const [cargos, planilla, rastro, parecidos, candidaturas] = await Promise.all([
+    const [cargos, planilla, rastro, parecidos, candidaturas, recibidas] = await Promise.all([
       // Cada cargo que declaró, por entidad: desde cuándo, hasta cuándo y cuántas declaraciones lo respaldan.
       pool.query(
         `SELECT d.entidad, (SELECT r.ruc FROM dji_entidad_ruc r WHERE r.entidad = d.entidad) AS "entidadRuc", NULLIF(btrim(d.cargo), '') AS cargo,
@@ -713,6 +713,31 @@ personasRouter.get("/cargo/:codigo", async (c) => {
           ORDER BY c."año" DESC NULLS LAST LIMIT 80`, requeridas.map((w) => patronPalabra(w).replace(/N/g, "_")), 8000)
         .then((r) => r.rows.filter((x) => esEl(x.nombre)).map(({ nombre: _n, ...x }) => x))
         .catch(() => null),
+      // Las empresas cuya gente lo visitó (migración 335): sólo en las entidades en que declaró un cargo o figuró en
+      // planilla, para no mezclarlo con un homónimo de otra entidad. Con cuántos procesos le ganó después cada empresa a
+      // esa entidad (sola, desde su primera visita). Nunca quién visitó.
+      consultaConPlazo<{ entidadRuc: string; entidad: string | null; ruc: string; empresa: string | null; visitas: number; primera: string | null;
+                         ultima: string | null; ganoDespues: number; montoDespues: number | null; primeraBuenaPro: string | null }>(
+        `WITH ents AS (
+           SELECT r.ruc FROM dji_funcionarios d JOIN dji_entidad_ruc r ON r.entidad = d.entidad
+            WHERE d.nombre_norm = $1 AND r.como NOT IN ('trigramas', 'empleo_actual')
+           UNION SELECT p.entidad_ruc FROM planilla_persona p WHERE p.nombre_norm = $1
+           UNION SELECT s.entidad_ruc FROM planilla_salida s WHERE s.nombre_norm = $1)
+         SELECT k.entidad_ruc AS "entidadRuc", (SELECT es.nombre FROM entidad_stats es WHERE es.ruc = k.entidad_ruc) AS entidad,
+                k.ruc, COALESCE(er.nombre, e.razon_social) AS empresa, k.visitas, to_char(k.primera, 'YYYY-MM-DD') AS primera,
+                to_char(k.ultima, 'YYYY-MM-DD') AS ultima, COALESCE(g.procesos, 0) AS "ganoDespues", g.monto AS "montoDespues",
+                to_char(g.primera_bp, 'YYYY-MM-DD') AS "primeraBuenaPro"
+           FROM funcionario_visita_empresa k
+           LEFT JOIN empresa_resumen er ON er.ruc = k.ruc
+           LEFT JOIN empresas e ON e.ruc = k.ruc::char(11)
+           LEFT JOIN LATERAL (
+             SELECT count(DISTINCT a.codigo_convocatoria)::int AS procesos, min(a.fecha_buenapro) AS primera_bp,
+                    (sum(a.monto_adjudicado) FILTER (WHERE a.moneda IN ('Soles', 'Nuevos Soles')))::float AS monto
+               FROM conosce_adjudicaciones a
+              WHERE a.ruc_proveedor = k.ruc AND a.entidad_ruc = k.entidad_ruc AND a.fecha_buenapro >= k.primera) g ON true
+          WHERE k.llave = nombre_llave($1) AND k.entidad_ruc IN (SELECT ruc FROM ents)
+          ORDER BY COALESCE(g.procesos, 0) DESC, k.visitas DESC LIMIT 80`, [f.nombreNorm], 8000)
+        .then((r) => r.rows).catch(() => null),
     ]);
     // Las visitas se buscan por palabras (índice de trigramas sobre 12 M de filas): con un nombre muy común puede no
     // responder a tiempo. Entonces, por el nombre exacto en sus formas más usadas (índice btree): apellidos y nombres,
@@ -757,6 +782,13 @@ personasRouter.get("/cargo/:codigo", async (c) => {
         filas: visitas.sort((a, b) => (b.visitas ?? 0) - (a.visitas ?? 0)),
       },
       empresas: sinNombre(rastro.empresas),
+      // Las visitas que RECIBIÓ, por empresa (sólo empresas con RUC 20; quien visitó no sale).
+      recibidas: recibidas == null ? null : {
+        empresas: recibidas.length,
+        visitas: recibidas.reduce((s, x) => s + (x.visitas ?? 0), 0),
+        ganaronDespues: recibidas.filter((x) => x.ganoDespues > 0).length,
+        filas: recibidas,
+      },
       planilla: planilla ?? [],
       ordenes: sinNombre(rastro.ordenes_como_persona_natural),
       aportes: sinNombre(rastro.aportes_de_campana),
@@ -770,7 +802,8 @@ personasRouter.get("/cargo/:codigo", async (c) => {
         empresaInhabilitadaYOtraGano: rastro.empresa_suya_inhabilitada_y_otra_gano,
         enInformeYDespuesCobro: rastro.en_informe_de_control_y_despues_cobro,
       },
-      sinRespuesta: [...rastro.sin_respuesta.filter((x) => x !== "visitas" || visitasDe === null), ...(planilla ? [] : ["planilla"]), ...(candidaturas ? [] : ["candidaturas"])],
+      sinRespuesta: [...rastro.sin_respuesta.filter((x) => x !== "visitas" || visitasDe === null), ...(planilla ? [] : ["planilla"]), ...(candidaturas ? [] : ["candidaturas"]),
+        ...(recibidas ? [] : ["visitas_recibidas"])],
     });
   });
   if (!cuerpo) return c.json({ error: "not_found" }, 404);

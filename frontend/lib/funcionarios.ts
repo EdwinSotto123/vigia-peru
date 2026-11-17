@@ -68,6 +68,22 @@ export interface VisitaHecha {
   a_quien: string[] | null;
 }
 
+/** Una empresa cuya gente (socios, representantes, directivos o quien dijo venir de ella) visitó a la persona en una
+ * entidad en que tuvo un cargo o figuró en planilla (migración 335). Nunca quién visitó. */
+export interface VisitaRecibida {
+  entidadRuc: string;
+  entidad: string | null;
+  ruc: string;
+  empresa: string | null;
+  visitas: number;
+  primera: string | null;
+  ultima: string | null;
+  /** Procesos que la empresa le ganó a esa entidad (sola) desde su primera visita. */
+  ganoDespues: number;
+  montoDespues: number | null;
+  primeraBuenaPro: string | null;
+}
+
 export interface EmpresaDeLaPersona { ruc: string; empresa: string | null; rol: string | null; desde: string | null }
 /** Una planilla en que la persona figura («hoy»: en el último mes de la entidad) o figuró («antes»). */
 export interface PlanillaDeLaPersona {
@@ -134,6 +150,8 @@ export interface FichaFuncionario {
   cargos: CargoDeclarado[];
   visitas: { total: number; entidades: number; primera: string | null; ultima: string | null; filas: VisitaHecha[] };
   empresas: EmpresaDeLaPersona[];
+  /** Las visitas que recibió, por empresa. null: no respondió a tiempo; una API anterior no las trae. */
+  recibidas?: { empresas: number; visitas: number; ganaronDespues: number; filas: VisitaRecibida[] } | null;
   planilla: PlanillaDeLaPersona[];
   ordenes: OrdenesDeLaPersona[];
   aportes: AporteDeLaPersona[];

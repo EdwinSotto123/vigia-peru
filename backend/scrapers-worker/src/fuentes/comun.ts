@@ -91,6 +91,13 @@ export async function refrescarVisitasEmpresas(env: Env, step: WorkflowStep): Pr
   await step.do("visitas de empresas: cerrar", CARGA, () => conDb(env.HYPERDRIVE, async (db) =>
     Number((await db.filas<{ n: number }>("SELECT refrescar_empresa_visitas_cerrar($1, $2) AS n", [plan.desde, plan.hasta]))[0]?.n ?? 0)));
   registrar("INFO", `   visitas de empresas: ${total} atribuidas`, { fuente: "visitas" });
+  // Qué empresas visitaron a cada funcionario, por su nombre (migración 335): la arista «empresa → funcionario visitado»
+  // de la ficha de rastro. ~140 s en producción; en una base sin la 335, nada.
+  await step.do("visitas de empresas: funcionarios visitados", CARGA, () => conDb(env.HYPERDRIVE, async (db) => {
+    const [{ existe }] = await db.filas<{ existe: boolean }>(
+      "SELECT to_regprocedure('refrescar_funcionario_visita_empresa()') IS NOT NULL AS existe");
+    return existe ? Number((await db.filas<{ n: number }>("SELECT refrescar_funcionario_visita_empresa() AS n"))[0]?.n ?? 0) : null;
+  }));
   return total;
 }
 
