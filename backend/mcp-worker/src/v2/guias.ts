@@ -65,8 +65,9 @@ const COMO_USAR = `# Cómo usar el MCP de Vigía
 6. Cifras agregadas: consultar_datos (sin medida devuelve el catálogo de la fuente).
 7. Contexto: historia (línea de tiempo), partido, persona_publica, senales y estado_fuentes.
 9. Lo que se repite: patrones (por entidad, por proveedor, postores de relleno, socias de consorcio que compiten,
-   renovaciones más caras, un mismo dueño con varias empresas y socios de una empresa inhabilitada). Es por donde empieza
-   una investigación.
+   renovaciones más caras, un mismo dueño con varias empresas, socios de una empresa inhabilitada, grupos de proveedores
+   por dueño y familia en las órdenes de una entidad y la misma compra repetida en semanas). Es por donde empieza una
+   investigación.
 10. Antes de investigar a fondo, lee la guía «Método para investigar con Vigía» (vigia://guia/metodo).
 8. Una persona por su nombre: rastro_persona SIEMPRE primero (visitas a entidades, empresas, declaraciones juradas, aportes, planilla, órdenes y candidaturas en una sola llamada). No concluyas «sin registros» sin haberla usado.
 
@@ -84,6 +85,10 @@ Trabaja como un perito, no como un buscador: cada afirmación con su registro, c
 - patrones (alcance renovacion): servicios que la entidad volvió a contratar pagando mucho más por mes.
 - patrones (alcance dueno): un mismo socio que gana en una entidad con dos o más empresas procesos de objeto parecido.
 - patrones (alcance inhabilitada): empresas que ganan mientras otra empresa del mismo socio está inhabilitada.
+- patrones (alcance grupo): empresas y personas (venden con su RUC) de un mismo dueño o de una familia probable que le
+  venden a la misma entidad por órdenes; cada una sola parece pequeña. Trae cuánto dependen de esa entidad, las órdenes
+  de números correlativos, el objeto repartido entre integrantes y si alguno es pariente declarado de un funcionario.
+- patrones (alcance repetida): la misma compra (proveedor, monto y objeto) en varias órdenes directas de 7 a 90 días.
 - buscar_contratos con varias señales y todas_las_senales: los contratos que juntan dos indicios (único postor y socio de
   una inhabilitada, por ejemplo).
 - hallazgos_entidad y ranking_entidades: la entidad frente a sus pares.
@@ -97,6 +102,19 @@ Un contrato raro puede ser un error; diez iguales son un modo de trabajar.
 - red_empresa: socios y representantes, y las otras empresas donde están. Pregunta si esas empresas compiten entre sí.
 - visitas_entidad: quién entró a la entidad antes de la convocatoria y a qué oficina.
 - persona_publica y partido: quién gobierna la entidad y desde cuándo.
+
+## 2b. Lo menudo pasa por las órdenes
+Las órdenes de compra y de servicio se emiten a empresas (RUC 20) y a personas naturales (RUC 10): desde 2022, más del
+doble de órdenes a personas que a empresas. Un proceso de selección deja postores y actas; una orden directa de hasta 8
+UIT, casi nada. Por eso:
+- ordenes con entidad_ruc: cada orden trae sus «banderas». Con bandera=pariente_socio salen las órdenes a empresas donde
+  un socio o representante es pariente declarado (DJI) de un funcionario de la entidad; con bandera=nepotismo, las
+  órdenes a la persona que es ese pariente; con bandera=repetida o fraccionamiento, las compras partidas.
+- Los proveedores no presentan declaración jurada; los funcionarios sí, y en ella declaran a sus parientes (cónyuge,
+  hijos, padres, hermanos, cuñados, suegros, primos). El parentesco que no está declarado sólo es probable (apellidos):
+  dilo así y pide confirmarlo con RENIEC o partidas.
+- Suma al grupo, no a la empresa: cuatro empresas y una persona con S/ 40 mil cada una son un proveedor de S/ 200 mil.
+- Una orden al borde del tope no es nada; veinte del mismo grupo en un mes, con números seguidos, es un modo de comprar.
 
 ## 3. Arma la línea de tiempo
 Ordena por fecha: alta de la empresa en la SUNAT, visitas, convocatoria, consultas, buena pro, contrato, adicionales, pagos.
