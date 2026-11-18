@@ -78,7 +78,10 @@ export default async function CasoPatronPagina({ params }: { params: { tipo: str
                   {c.serie.etiquetaB}
                 </span>
               </p>
-              <ColumnasAnio anios={c.serie.anios} etiquetaA={c.serie.etiquetaA} etiquetaB={c.serie.etiquetaB} etiqueta={c.serie.titulo} />
+              {/* El rótulo de arriba del eje se dibuja por encima de la caja del gráfico: aire para que no pise la leyenda. */}
+              <div className="pt-5">
+                <ColumnasAnio anios={c.serie.anios} etiquetaA={c.serie.etiquetaA} etiquetaB={c.serie.etiquetaB} etiqueta={c.serie.titulo} />
+              </div>
             </section>
           )}
           <CronologiaCaso hitos={c.hitos} nodos={c.nodos} />

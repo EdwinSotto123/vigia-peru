@@ -121,8 +121,9 @@ const titulo = (s: string | null | undefined) =>
     .trim()
     .toLowerCase()
     .replace(/(^|[\s(«"/-])(\p{L})/gu, (_m, a: string, b: string) => a + b.toUpperCase())
-    .replace(/\b(S\.?a\.?c|E\.?i\.?r\.?l|S\.?a\.?a|S\.?r\.?l|S\.?a)\b\.?/gi, (m) => m.toUpperCase())
-    .replace(/\b(De|Del|La|Las|Los|Y|E|En|Para|Por|Con)\b/g, (m) => m.toLowerCase());
+    // Las palabras chicas en minúscula ANTES de las siglas: al revés, la «E» de «E.I.R.L.» volvía a «e».
+    .replace(/(?<=\s)(De|Del|La|Las|Los|Y|E|En|Para|Por|Con)(?=\s)/g, (m) => m.toLowerCase())
+    .replace(/\b(S\.?a\.?c|E\.?i\.?r\.?l|S\.?a\.?a|S\.?r\.?l|S\.?a)\b\.?/gi, (m) => m.toUpperCase());
 const fechaLarga = (f: string) => {
   const [a, m, d] = f.slice(0, 10).split("-").map(Number);
   const MES = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "setiembre", "octubre", "noviembre", "diciembre"];
@@ -510,6 +511,11 @@ export async function casoComprasFamilia(clave: string, pedir: Pedir): Promise<C
   const familiar = `${parentesco.charAt(0).toUpperCase()}${parentesco.slice(1).toLowerCase()}`;
   const cargo = f.cargo ? titulo(f.cargo) : "un puesto de compras";
   const viaEmpresa = f.via === "empresa" && f.empresaRuc;
+  // «socio,representante legal,directivo» → «socio, representante legal y directivo».
+  const papeles = (() => {
+    const xs = String(f.rolEnEmpresa ?? "").split(/\s*,\s*/).filter(Boolean);
+    return xs.length > 1 ? `${xs.slice(0, -1).join(", ")} y ${xs[xs.length - 1]}` : xs[0] ?? "parte de su conformación";
+  })();
   const empNombre = viaEmpresa ? titulo(f.empresa ?? empresa?.nombre ?? "su empresa") : null;
 
   // ── Nodos y aristas ──
@@ -530,7 +536,7 @@ export async function casoComprasFamilia(clave: string, pedir: Pedir): Promise<C
       monto: viaEmpresa ? null : f.monto, ordenes: viaEmpresa ? null : f.ordenes, severidad: f.cercano ? "alta" : "media",
       datos: [
         { etiqueta: "Parentesco", valor: `${familiar}${f.cercano ? " (familiar cercano)" : ""}, según la declaración jurada de intereses del funcionario` },
-        viaEmpresa && f.rolEnEmpresa ? { etiqueta: `En ${empNombre}`, valor: `${String(f.rolEnEmpresa)}${f.parienteDesde ? `, desde ${fechaLarga(f.parienteDesde)}` : ""}` } : null,
+        viaEmpresa && f.rolEnEmpresa ? { etiqueta: `En ${empNombre}`, valor: `${papeles}${f.parienteDesde ? `, desde ${fechaLarga(f.parienteDesde)}` : ""}` } : null,
       ].filter((x): x is { etiqueta: string; valor: string } => !!x),
     },
   ];
@@ -549,7 +555,7 @@ export async function casoComprasFamilia(clave: string, pedir: Pedir): Promise<C
         empresa?.inhabilitada ? { etiqueta: "Sanción", valor: String(empresa.inhabilitada) } : null,
       ].filter((x): x is { etiqueta: string; valor: string } => !!x),
     });
-    aristas.push({ de: "p", a: "m", tipo: "socio", texto: String(f.rolEnEmpresa ?? "figura en su conformación") });
+    aristas.push({ de: "p", a: "m", tipo: "socio", texto: papeles });
     aristas.push({ de: "m", a: "e", tipo: "vende", texto: `${plural(f.ordenes ?? 0, "orden", "órdenes")} por ${soles(f.monto)}${f.procesosEnPuesto ? ` y ${plural(f.procesosEnPuesto, "proceso", "procesos")}` : ""}` });
   } else {
     aristas.push({ de: "p", a: "e", tipo: "vende", texto: `${plural(f.ordenes ?? 0, "orden", "órdenes")} a su nombre por ${soles(f.monto)}` });
@@ -558,7 +564,7 @@ export async function casoComprasFamilia(clave: string, pedir: Pedir): Promise<C
   // ── La historia ──
   const hitos: HitoCaso[] = [];
   if (empresa?.fechaAlta) hitos.push({ fecha: empresa.fechaAlta, tipo: "fundacion", titulo: `Se funda ${empNombre}`, nodos: ["m"], fuente: "SUNAT (padrón RUC)" });
-  if (f.parienteDesde) hitos.push({ fecha: f.parienteDesde, tipo: "socio", titulo: `El familiar (${parentesco.toLowerCase()}) figura en ${empNombre} como ${String(f.rolEnEmpresa ?? "parte de su conformación")}`, nodos: ["p", "m"], fuente: "Registro Nacional de Proveedores (OECE)" });
+  if (f.parienteDesde) hitos.push({ fecha: f.parienteDesde, tipo: "socio", titulo: `El familiar (${parentesco.toLowerCase()}) figura en ${empNombre} como ${papeles}`, nodos: ["p", "m"], fuente: "Registro Nacional de Proveedores (OECE)" });
   if (f.cargoDesde) hitos.push({ fecha: f.cargoDesde, tipo: "otro", severidad: "media", titulo: `Asume el puesto de «${cargo}» en ${entNombre}`, detalle: "La fecha de inicio que declaró en su declaración jurada de intereses.", nodos: ["f", "e"], fuente: "Declaraciones juradas de intereses (Contraloría)" });
   if (f.cargoHasta) hitos.push({ fecha: f.cargoHasta, tipo: "salida", titulo: "Deja el puesto", detalle: "La fecha de cese que declaró.", nodos: ["f"], fuente: "Declaraciones juradas de intereses (Contraloría)" });
   else if (f.vistoHasta) hitos.push({ fecha: f.vistoHasta, tipo: "otro", titulo: "Su última declaración todavía lo nombra en el puesto", nodos: ["f"], fuente: "Declaraciones juradas de intereses (Contraloría)" });

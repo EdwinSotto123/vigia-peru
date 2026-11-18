@@ -34,9 +34,12 @@ export function CronologiaCaso({ hitos, nodos }: { hitos: HitoCaso[]; nodos: Nod
   const [reciente, setReciente] = useState(false);
   const [pagina, setPagina] = useState(1);
   const nombre = useMemo(() => new Map(nodos.map((n) => [n.id, n.nombre])), [nodos]);
-  const cuenta = (c: Clase) => hitos.filter((h) => CLASE[h.tipo] === c).length;
+  // «Lo que llama la atención» es todo hecho con gravedad (la primera orden con la persona en el puesto, un día con
+  // órdenes a varios), sea de la clase que sea; las otras dos, por clase de hecho.
+  const es = (h: HitoCaso, c: Clase) => (c === "senales" ? !!h.severidad : CLASE[h.tipo] === c);
+  const cuenta = (c: Clase) => hitos.filter((h) => es(h, c)).length;
   const vistos = useMemo(() => {
-    const xs = clase ? hitos.filter((h) => CLASE[h.tipo] === clase) : hitos;
+    const xs = clase ? hitos.filter((h) => es(h, clase)) : hitos;
     return reciente ? [...xs].reverse() : xs;
   }, [hitos, clase, reciente]);
   const paginas = Math.max(1, Math.ceil(vistos.length / TAM));
