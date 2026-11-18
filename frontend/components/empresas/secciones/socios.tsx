@@ -137,7 +137,7 @@ function EnElEstado({ e, ruc, tipos }: { e: SocioEnElEstado; ruc: string; tipos:
           enlace={alAntecedente("autoridad")}
         />
       )}
-      {(e.ventasASuEntidad ?? []).map((v, i) => (
+      {(e.ventasASuEntidad ?? []).map((v, i, todas) => (
         <FilaEstado
           key={`venta-${i}`}
           icono={Store}
@@ -146,7 +146,8 @@ function EnElEstado({ e, ruc, tipos }: { e: SocioEnElEstado; ruc: string; tipos:
           detalle={
             <>
               <span className="block">{`${loQueVendio(v)}. ${ventasFrenteALaSalida(v)}`}</span>
-              <span className="mt-1 block">{REGLA_AUTORIDAD_EXSOCIO}</span>
+              {/* La regla, una vez por persona: al pie de su última entidad. */}
+              {i === todas.length - 1 && <span className="mt-1 block">{REGLA_AUTORIDAD_EXSOCIO}</span>}
             </>
           }
           enlace={{ texto: "Ver la entidad", href: `/entidad/${v.entidadRuc}` }}
