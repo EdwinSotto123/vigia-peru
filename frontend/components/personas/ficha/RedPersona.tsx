@@ -26,45 +26,65 @@ const GRUPO: Record<TipoNodoRed, string> = { persona: "La persona", pariente: "S
 const corto = (s: string, n: number) => (s.length > n ? `${s.slice(0, n - 1).trimEnd()}…` : s);
 const columna = (n: NodoRed): keyof typeof X => (n.tipo === "entidad" ? "der" : n.tipo === "empresa" ? "centro" : "izq");
 
-function tonoDe(n: NodoRed): Tono {
-  if (n.tipo === "persona") return "granate";
+function tonoDe(n: NodoRed, foco: string): Tono {
+  if (n.id === foco) return "granate";
   if (n.severidad === "alta") return "crimson";
   if (n.severidad === "media") return "amber";
-  return n.tipo === "pariente" ? "anil" : n.tipo === "empresa" ? "granate" : "neutro";
+  return n.tipo === "pariente" || n.tipo === "persona" ? "anil" : n.tipo === "empresa" ? "granate" : "neutro";
 }
 
+/** Lo que cambia entre la red de una persona y la de una empresa: quién va al centro y cómo se llama cada grupo. */
+interface ConfigRed {
+  /** El nodo de la ficha: la persona (a la izquierda) o la empresa (al centro). */
+  foco?: string;
+  grupos?: Partial<Record<TipoNodoRed, string>>;
+  nombres?: Partial<Record<TipoNodoRed, string>>;
+  /** Cómo se llama la red para el lector de pantalla. */
+  de?: string;
+}
+
+/** La red de una persona (su ficha de cargo público). */
 export function RedPersona({ red }: { red: RedDePersona }) {
+  return <RedFicha red={red} />;
+}
+
+/** El grafo de tres columnas de una ficha: personas, empresas y entidades, con su panel y su lista. */
+export function RedFicha({ red, foco = ID_PERSONA, grupos = {}, nombres = {}, de = "la persona" }: { red: RedDePersona } & ConfigRed) {
   const { nodos, aristas, fuera } = red;
+  const grupo = { ...GRUPO, ...grupos };
+  const nombreTipo = { ...NOMBRE_TIPO, ...nombres };
+  const colFoco = columna(nodos.find((n) => n.id === foco) ?? { tipo: "persona" } as NodoRed);
   const pos = useMemo(() => {
     const cols = { izq: nodos.filter((n) => columna(n) === "izq"), centro: nodos.filter((n) => columna(n) === "centro"), der: nodos.filter((n) => columna(n) === "der") };
     const filas = Math.max(cols.izq.length, cols.centro.length, cols.der.length, 3);
     const alto = 48 + filas * PASO;
     const m = new Map<string, { x: number; y: number; r: number }>();
     const maxMonto = Math.max(1, ...cols.centro.map((n) => n.monto ?? 0));
-    // La persona al medio de su columna; su familia, repartida arriba y abajo de ella.
-    const fam = cols.izq.filter((n) => n.tipo === "pariente");
-    m.set(ID_PERSONA, { x: X.izq, y: alto / 2, r: 15 });
-    fam.forEach((n, i) => {
+    // El foco al medio de su columna y los demás de esa columna repartidos arriba y abajo (en la red de una persona, su
+    // familia, un poco más atrás); las otras columnas, parejas de arriba abajo.
+    m.set(foco, { x: X[colFoco], y: alto / 2, r: 15 });
+    const compañeros = cols[colFoco].filter((n) => n.id !== foco);
+    compañeros.forEach((n, i) => {
       const k = Math.floor(i / 2) + 1;
-      const y = alto / 2 + (i % 2 === 0 ? 1 : -1) * k * Math.min(PASO * 1.4, (alto / 2 - 24) / Math.ceil(fam.length / 2));
-      m.set(n.id, { x: X.izq - 40, y, r: 8 });
+      const y = alto / 2 + (i % 2 === 0 ? 1 : -1) * k * Math.min(PASO * 1.4, (alto / 2 - 24) / Math.max(1, Math.ceil(compañeros.length / 2)));
+      m.set(n.id, { x: colFoco === "izq" ? X.izq - 40 : X[colFoco], y, r: colFoco === "centro" ? 6 + 9 * Math.sqrt((n.monto ?? 0) / maxMonto) : 8 });
     });
-    for (const c of ["centro", "der"] as const) {
+    for (const c of (["izq", "centro", "der"] as const).filter((x) => x !== colFoco)) {
       const xs = cols[c];
       const hueco = alto / (xs.length + 1);
       xs.forEach((n, i) => m.set(n.id, { x: X[c], y: hueco * (i + 1), r: c === "centro" ? 6 + 9 * Math.sqrt((n.monto ?? 0) / maxMonto) : 8 }));
     }
     return { m, alto };
-  }, [nodos]);
+  }, [nodos, foco, colFoco]);
 
-  const [sel, setSel] = useState<string>(ID_PERSONA);
+  const [sel, setSel] = useState<string>(foco);
   const [encima, setEncima] = useState<string | null>(null);
-  const foco = encima ?? sel;
+  const activo = encima ?? sel;
   const vecinos = useMemo(() => {
-    const v = new Set<string>([foco]);
-    for (const a of aristas) if (a.de === foco || a.a === foco) v.add(a.de).add(a.a);
+    const v = new Set<string>([activo]);
+    for (const a of aristas) if (a.de === activo || a.a === activo) v.add(a.de).add(a.a);
     return v;
-  }, [foco, aristas]);
+  }, [activo, aristas]);
   const porId = useMemo(() => new Map(nodos.map((n) => [n.id, n])), [nodos]);
   const elegido = porId.get(sel) ?? nodos[0];
   const hay = (t: TipoAristaRed) => aristas.some((a) => a.tipo === t);
@@ -80,12 +100,12 @@ export function RedPersona({ red }: { red: RedDePersona }) {
       </div>
       <GrafoColumnas>
         <GrafoMarco>
-          <svg viewBox={`0 0 ${ANCHO} ${pos.alto}`} className="block h-auto w-full min-w-[640px]" role="group" aria-label={`Red de la persona: ${plural(nodos.length - 1, "vínculo", "vínculos")}. La lista de abajo dice lo mismo.`}>
+          <svg viewBox={`0 0 ${ANCHO} ${pos.alto}`} className="block h-auto w-full min-w-[640px]" role="group" aria-label={`Red de ${de}: ${plural(nodos.length - 1, "vínculo", "vínculos")}. La lista de abajo dice lo mismo.`}>
             {aristas.map((a, i) => {
               const p = pos.m.get(a.de);
               const q = pos.m.get(a.a);
               if (!p || !q) return null;
-              const on = a.de === foco || a.a === foco;
+              const on = a.de === activo || a.a === activo;
               const dx = Math.max(40, Math.abs(q.x - p.x) / 2.2);
               const s = p.x <= q.x ? 1 : -1;
               return (
@@ -110,35 +130,36 @@ export function RedPersona({ red }: { red: RedDePersona }) {
                   x={p.x}
                   y={p.y}
                   r={p.r}
-                  tono={tonoDe(n)}
+                  tono={tonoDe(n, foco)}
                   label={corto(n.nombre, col === "der" ? 30 : 32)}
                   anchor={col === "der" ? "start" : "end"}
-                  fontSize={n.tipo === "persona" ? 13 : 12}
+                  fontSize={n.id === foco ? 13 : 12}
                   selected={sel === n.id}
                   hovered={encima === n.id}
-                  resalta={n.severidad === "alta" || n.tipo === "persona"}
+                  resalta={n.severidad === "alta" || n.id === foco}
                   atenuado={!vecinos.has(n.id)}
                   onEnter={() => setEncima(n.id)}
                   onLeave={() => setEncima(null)}
                   onClick={() => setSel(n.id)}
-                  aria={`${NOMBRE_TIPO[n.tipo]}: ${n.nombre}. ${n.rol}`}
+                  aria={`${nombreTipo[n.tipo]}: ${n.nombre}. ${n.rol}`}
                 />
               );
             })}
           </svg>
         </GrafoMarco>
         <GrafoAside>
-          <PanelNodo n={elegido} aristas={aristas} porId={porId} elegir={setSel} />
+          <PanelNodo n={elegido} aristas={aristas} porId={porId} elegir={setSel} nombreTipo={nombreTipo} />
         </GrafoAside>
       </GrafoColumnas>
 
-      {fuera.entidades + fuera.empresas + fuera.parientes > 0 && (
+      {fuera.entidades + fuera.empresas + fuera.parientes + (fuera.personas ?? 0) > 0 && (
         <p className="text-rotulo text-mute">
           Para que se lea, la red dibuja lo más unido:{" "}
           {[
             fuera.entidades ? plural(fuera.entidades, "entidad más", "entidades más") : null,
             fuera.empresas ? plural(fuera.empresas, "empresa más", "empresas más") : null,
             fuera.parientes ? plural(fuera.parientes, "familiar más", "familiares más") : null,
+            fuera.personas ? plural(fuera.personas, "persona más", "personas más") : null,
           ].filter(Boolean).join(", ")}{" "}
           están en sus pestañas.
         </p>
@@ -154,7 +175,7 @@ export function RedPersona({ red }: { red: RedDePersona }) {
             <section key={t} className="min-w-0 space-y-1.5">
               <h4 className="flex items-center gap-1.5 text-meta font-semibold text-inkSoft">
                 <Icono size={14} aria-hidden />
-                {GRUPO[t]} {t !== "persona" && <span className="tabular-nums text-mute">{numero(xs.length)}</span>}
+                {grupo[t]} {(t !== "persona" || foco !== ID_PERSONA) && <span className="tabular-nums text-mute">{numero(xs.length)}</span>}
               </h4>
               <ul className="space-y-0.5">
                 {xs.map((n) => (
@@ -184,7 +205,7 @@ export function RedPersona({ red }: { red: RedDePersona }) {
   );
 }
 
-function PanelNodo({ n, aristas, porId, elegir }: { n: NodoRed; aristas: AristaRed[]; porId: Map<string, NodoRed>; elegir: (id: string) => void }) {
+function PanelNodo({ n, aristas, porId, elegir, nombreTipo }: { n: NodoRed; aristas: AristaRed[]; porId: Map<string, NodoRed>; elegir: (id: string) => void; nombreTipo: Record<TipoNodoRed, string> }) {
   const Icono = ICONO[n.tipo];
   const suyas = aristas.filter((a) => a.de === n.id || a.a === n.id);
   return (
@@ -192,7 +213,7 @@ function PanelNodo({ n, aristas, porId, elegir }: { n: NodoRed; aristas: AristaR
       <div className="space-y-1">
         <p className="flex items-center gap-1.5 text-rotulo font-semibold text-mute">
           <Icono size={13} aria-hidden />
-          {NOMBRE_TIPO[n.tipo]}
+          {nombreTipo[n.tipo]}
         </p>
         <p className="font-display text-destacado font-bold leading-snug text-ink text-pretty">{n.nombre}</p>
         <p className="text-meta text-inkSoft">{n.rol}</p>

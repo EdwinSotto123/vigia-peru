@@ -35,6 +35,7 @@ import { Cargando, EstadoVacio } from "@/components/patrones";
 import { ClientesPrincipales, ComoGana, DondeVende, QuienLeGana, SusDatos } from "@/components/empresas/InicioEmpresa";
 import { AntecedentesEmpresa, BANDERAS_CONTRATO, BarraPostulaciones, BarraPostulacionesConConteos, P_ANTECEDENTES, ClientesEmpresa, P_CONTRATOS, P_ORDENES, P_POSTULACIONES, PostulacionesEmpresa, SociosEmpresa, VisitasEmpresa } from "@/components/empresas/SeccionesEmpresa";
 import { conAnio } from "@/components/empresas/secciones/comun";
+import { RedEmpresa } from "@/components/empresas/secciones/red";
 import { fechaCorta, numero, oracion, plural, soles, solesCompacto } from "@/lib/formato";
 import { absoluta, canonica, descripcion } from "@/lib/seo";
 import { DatosEstructurados } from "@/components/seo/DatosEstructurados";
@@ -486,6 +487,16 @@ export default async function EmpresaPage({ params, searchParams: sp }: { params
                             </Suspense>
                           ) : null}
                         </div>
+                      ),
+                    },
+                    {
+                      // Su gente, las otras empresas de esa gente y sus clientes, en un grafo (2026-11-18).
+                      clave: "red",
+                      etiqueta: "Red",
+                      contenido: (
+                        <Suspense fallback={<TablaSkeleton columnas={[{ clave: "a", titulo: "Red", ancho: "1fr" }]} filas={6} />}>
+                          <RedEmpresa empresa={{ ruc: e.ruc, nombre }} socios={sociosP} clientes={clientesP} />
+                        </Suspense>
                       ),
                     },
                     {

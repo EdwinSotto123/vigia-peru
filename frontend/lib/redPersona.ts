@@ -37,8 +37,8 @@ export interface AristaRed {
 export interface RedDePersona {
   nodos: NodoRed[];
   aristas: AristaRed[];
-  /** Lo que no entró en el dibujo (está en sus pestañas). */
-  fuera: { entidades: number; empresas: number; parientes: number };
+  /** Lo que no entró en el dibujo (está en sus pestañas). `personas`: en la red de una empresa, su gente. */
+  fuera: { entidades: number; empresas: number; parientes: number; personas?: number };
 }
 
 export interface FormatoRed {

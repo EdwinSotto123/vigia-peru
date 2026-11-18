@@ -610,7 +610,7 @@ export const PESTANAS_EMPRESA = ["inicio", "historia", "ventas", "clientes", "po
 export type PestanaEmpresa = (typeof PESTANAS_EMPRESA)[number];
 /** Las listas de «Ventas al Estado» y de «Su gente»; la primera de cada una va sin parámetro. */
 export const VISTAS_VENTAS = ["contratos", "ordenes", "menores", "catalogo"] as const;
-export const VISTAS_GENTE = ["socios", "visitas"] as const;
+export const VISTAS_GENTE = ["socios", "red", "visitas"] as const;
 export type VistaEmpresa = (typeof VISTAS_VENTAS)[number] | (typeof VISTAS_GENTE)[number];
 /** Adónde puede llevar un enlace: una pestaña o una de sus listas. */
 export type SeccionEmpresa = PestanaEmpresa | VistaEmpresa;
@@ -630,6 +630,7 @@ const DESTINO: Record<SeccionEmpresa, { seccion: PestanaEmpresa; vista?: VistaEm
   antecedentes: { seccion: "antecedentes" },
   gente: { seccion: "gente" },
   socios: { seccion: "gente" },
+  red: { seccion: "gente", vista: "red" },
   visitas: { seccion: "gente", vista: "visitas" },
   obras: { seccion: "obras" },
 };
