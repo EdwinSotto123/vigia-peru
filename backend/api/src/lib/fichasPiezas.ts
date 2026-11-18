@@ -228,13 +228,17 @@ const normNombre = (t: unknown) => String(t ?? "").toUpperCase().normalize("NFD"
   .replace(/[^A-Z0-9 ]+/g, " ").replace(/\b(S ?A ?C|S ?R ?L|E ?I ?R ?L|S ?A ?A|S ?A|SOCIEDAD|ANONIMA|CERRADA|COMERCIAL|DE|RESPONSABILIDAD|LIMITADA|DEL|LA|EL)\b/g, " ")
   .replace(/\s+/g, " ").trim();
 
-/** ¿Es el mismo postor? Por RUC si los dos lo traen; si no, por el comienzo de su nombre sin la forma societaria. */
-function mismo(a: { ruc?: unknown; nombre?: unknown }, b: { ruc?: unknown; nombre?: unknown }) {
+/**
+ * ¿Es el mismo postor? Por RUC si los dos lo traen; si no, por el comienzo de su nombre sin la forma societaria. Dos RUC
+ * distintos con el MISMO nombre completo también: un modelo transpone dígitos (en 1224107 leyó 20608909958 por
+ * 20609809958, el del reporte del SEACE, CONOSCE y la SUNAT) y el postor salía dos veces.
+ */
+export function mismo(a: { ruc?: unknown; nombre?: unknown }, b: { ruc?: unknown; nombre?: unknown }) {
   const ra = txt(a.ruc)?.replace(/\D/g, "");
   const rb = txt(b.ruc)?.replace(/\D/g, "");
-  if (ra && rb && ra.length === 11 && rb.length === 11) return ra === rb;
   const na = normNombre(a.nombre);
   const nb = normNombre(b.nombre);
+  if (ra && rb && ra.length === 11 && rb.length === 11) return ra === rb || (na.length >= 6 && na === nb);
   if (na.length < 6 || nb.length < 6) return false;
   const n = Math.min(na.length, nb.length, 24);
   return na.slice(0, n) === nb.slice(0, n);
@@ -280,6 +284,12 @@ export function enriquecerPostores(
     return h ? { fechaOferta: h.fecha, horaOferta: h.hora } : {};
   };
   const usados = new Set<any>();
+  // Si el postor de la ficha y el de la lectura traen RUC distintos (un dígito mal leído), vale el que está en el registro.
+  const enRegistro = new Set(participantes.map((x) => x.ruc));
+  const rucPreferido = (a: string | null, b: unknown) => {
+    const rb = txt(b)?.replace(/\D/g, "") ?? null;
+    return a && enRegistro.has(a) ? a : rb && rb.length === 11 && enRegistro.has(rb) ? rb : a ?? rb;
+  };
   const out: PostorDetalle[] = postores.map((p) => {
     const e = ev.find((x) => !usados.has(x) && mismo({ ruc: x?.ruc, nombre: x?.nombre }, { ruc: p.ruc, nombre: p.razonSocial }));
     if (!e) return { ...p, ...horaDe({ ruc: p.ruc, nombre: p.razonSocial }) };
@@ -287,6 +297,7 @@ export function enriquecerPostores(
     const d = datosEv(e);
     return {
       ...p,
+      ruc: rucPreferido(p.ruc, e.ruc),
       montoOferta: p.montoOferta ?? num(e.monto_oferta),
       ordenPrelacion: p.ordenPrelacion ?? num(e.orden_prelacion),
       puntaje: d.puntajeFinal ?? p.puntaje,

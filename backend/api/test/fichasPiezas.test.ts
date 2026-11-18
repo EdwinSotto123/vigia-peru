@@ -88,3 +88,25 @@ test("puntaje de los demás factores: si precio + otros no da el total, se calcu
   assert.equal(otrosDe({ puntaje_precio: 40, puntaje_otros: 60, puntaje_total: 100 }), 60);
   assert.equal(otrosDe({ puntaje_precio: null, puntaje_otros: 12, puntaje_total: 80 }), 12);
 });
+
+test("postores: un RUC mal leído por el modelo no duplica al postor; vale el del registro (proceso 1224107)", () => {
+  const base: PostorDetalle[] = [
+    { ruc: "20608909958", razonSocial: "ENERSAFE S.A.C.", estado: "no_admitido", motivoEstado: null, montoOferta: null, puntaje: null,
+      esGanador: false, ordenPrelacion: null, item: 1, citas: [] },
+  ];
+  // El reporte de evaluación del SEACE leído sin modelo (proceso_postor): el RUC bueno, el de CONOSCE y la SUNAT.
+  const evaluacion: FichaPieza = { lector: "reporte_evaluacion", version: "p1", modelo: "plantilla", tipo: "reporte_evaluacion",
+    documento: null, url: null, leido: null,
+    salida: { postores: [
+      { nombre: "ENERSAFE S.A.C.", ruc: "20609809958", item: 1, admitida: false, calificada: null, ganador: false },
+      { nombre: "AREM PERU S.A.C.", ruc: "20532371342", item: 1, admitida: true, calificada: true, ganador: true },
+    ] } };
+  const participantes = [{ ruc: "20609809958", nombre: "ENERSAFE S.A.C." }, { ruc: "20532371342", nombre: "AREM PERU S.A.C." }];
+  const { postores } = enriquecerPostores(base, evaluacion, undefined, participantes, new Set());
+  assert.equal(postores.length, 2);
+  const enersafe = postores.find((p) => p.razonSocial === "ENERSAFE S.A.C.")!;
+  assert.equal(enersafe.ruc, "20609809958");
+  assert.equal(enersafe.admitida, false);
+  // Dos empresas distintas con RUC distinto siguen separadas.
+  assert.ok(postores.some((p) => p.ruc === "20532371342" && p.esGanador));
+});

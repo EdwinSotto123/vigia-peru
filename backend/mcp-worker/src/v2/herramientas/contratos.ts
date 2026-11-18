@@ -218,9 +218,14 @@ export const fichaContrato = definir({
       postores: c.postores ?? undefined,
       ofertas: c.ofertas ?? undefined,
       items: (c.items ?? []).slice(0, 15).map((i: Fila) => tomar(i, ["descripcion", "cantidad", "unidad", "montoPen", "estado"])),
+      // Con la admisión, la calificación y la hora de cada oferta (los reportes del SEACE, aunque nadie haya leído el acta con
+      // modelo): «a quién dejaron fuera y por qué» y «quién ofertó a la vez» salen de aquí.
       postores_detalle: (c.postoresDetalle ?? []).slice(0, 20).map((p: Fila) => ({
         ...proveedor(p.razonSocial, p.ruc), estado: p.estado, motivo: p.motivoEstado ?? undefined, oferta_soles: p.montoOferta, puntaje: p.puntaje,
         gano: p.esGanador || undefined, item: p.item,
+        admitida: typeof p.admitida === "boolean" ? p.admitida : undefined,
+        calificada: typeof p.calificada === "boolean" ? p.calificada : undefined,
+        oferta_presentada: p.horaOferta ? `${p.fechaOferta ?? ""} ${p.horaOferta}`.trim() : undefined,
       })),
       ganadores: (c.adjudicaciones ?? []).map((g: Fila) => ({ ...proveedor(g.proveedor, g.proveedorRuc), monto_soles: g.montoPen, fecha: g.fecha, vigente: g.vigente })),
       contrato: (c.contrato?.items ?? []).slice(0, 15).map((i: Fila) => tomar(i, ["descripcion", "estado", "referencial", "adjudicado", "porcentaje"])),
