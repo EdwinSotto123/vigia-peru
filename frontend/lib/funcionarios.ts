@@ -53,6 +53,39 @@ export interface CargoDeclarado {
   sinCese: boolean;
   primera: string | null;
   ultima: string | null;
+  /**
+   * El puesto con sus palabras, cuando `cargo` es sólo la categoría del formulario («Colaborador», «Otro cargo, función o
+   * labor»): sale de la sección de empleos de esas mismas declaraciones (migración 357).
+   */
+  cargoReal?: string | null;
+}
+
+/** Un trabajo que la persona escribió en sus declaraciones juradas (sección de empleos). El empleador siempre tiene RUC 20. */
+export interface EmpleoDeclarado {
+  ruc: string;
+  entidad: string | null;
+  /** El empleador es una entidad pública con ficha en Vigía. */
+  publica: boolean;
+  cargo: string;
+  declaraciones: number;
+  inicio: string | null;
+  cese: string | null;
+  /** Ninguna declaración le pone fecha de cese. */
+  sinCese: boolean;
+}
+
+/** Un cargo que tuvo en la planilla de una entidad, con sus meses publicados y lo que cobró en un mes habitual. */
+export interface CargoEnPlanilla {
+  cargo: string | null;
+  dependencia: string | null;
+  regimen: number | null;
+  meses: number;
+  primerMes: string | null;
+  ultimoMes: string | null;
+  /** Remuneración u honorarios de un mes habitual. */
+  base: number | null;
+  /** Todo lo que cobró en un mes habitual, con gratificaciones y otros conceptos. */
+  total: number | null;
 }
 
 /** Las visitas que la persona hizo a una entidad (registro de visitas de esa entidad). */
@@ -97,6 +130,8 @@ export interface PlanillaDeLaPersona {
   primerMes: string | null; ultimoMes: string | null;
   /** Hasta qué mes llega la planilla publicada de esa entidad. */
   ultimoMesEntidad: string | null;
+  /** Los cargos que tuvo en esa entidad, del último al primero; sólo si fueron más de uno (migración 357). */
+  cargos?: CargoEnPlanilla[];
 }
 export interface OrdenesDeLaPersona {
   codigo: string | null; entidad: string | null; entidad_ruc: string; servicio: string | null; ordenes: number; monto: number | null; primera: string | null; ultima: string | null;
@@ -209,6 +244,8 @@ export interface FichaFuncionario {
   /** Otras personas con cargo público que se ven igual (mismo apellido paterno y mismos nombres): son fichas aparte. */
   parecidos: number;
   cargos: CargoDeclarado[];
+  /** Los trabajos que escribió en sus declaraciones. Una API anterior no los trae. */
+  empleos?: EmpleoDeclarado[];
   visitas: { total: number; entidades: number; primera: string | null; ultima: string | null; filas: VisitaHecha[] };
   empresas: EmpresaDeLaPersona[];
   /** Las visitas que recibió, por empresa. null: no respondió a tiempo; una API anterior no las trae. */

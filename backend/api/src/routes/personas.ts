@@ -8,6 +8,7 @@ import { TAPA_NOMBRE, apellidoFuncionario, apellidosSunat, publicar, reservarPar
 import { declaranteElectoSql, esCargoDeEleccion, esElectoSql, marcaElecto } from "../lib/electos.js";
 import { fichasDeContratada, fichasPorNombre } from "../lib/identidadPersona.js";
 import { familiaDelFuncionario } from "../lib/familiaFuncionario.js";
+import { cargoRealDe, cargosEnPlanilla, empleosDeclarados } from "../lib/cargoReal.js";
 import { SENALES_CON_PARIENTES, casoReservado, podarParientes } from "../lib/nepotismo.js";
 import { enlaceFuente } from "../lib/fuentes.js";
 import { motivoPublicable } from "../lib/cruces.js";
@@ -778,7 +779,7 @@ personasRouter.get("/cargo/:codigo", async (c) => {
     // se asume que sí), la familia sale con las reservas de un nombre público (lib/familiaFuncionario.ts).
     const posibleElecto = esCargoDeEleccion(f.cargo) || cargos.rows.some((x) => esCargoDeEleccion(x.cargo))
       || candidaturas === null || candidaturas.some((x) => String(x.resultado ?? "").toLowerCase() === "electo");
-    const [fichas, familia, doble] = await Promise.all([
+    const [fichas, familia, doble, empleos, cargosPlanilla] = await Promise.all([
       fichasPorNombre(f.nombreNorm),
       familiaDelFuncionario(codigo, posibleElecto).catch((e) => { console.warn(`[cargo] familia: ${(e as Error).message}`); return undefined; }),
       // Cobra por dos lados (migración 352): en la planilla de una entidad y, esos mismos meses, con órdenes de servicio de otra.
@@ -787,9 +788,23 @@ personasRouter.get("/cargo/:codigo", async (c) => {
                 to_char(d.desde, 'YYYY-MM') AS desde, to_char(d.hasta, 'YYYY-MM') AS hasta, d.docente, d.severidad
            FROM doble_percepcion d WHERE d.codigo = $1 ORDER BY d.monto DESC LIMIT 20`, [codigo])
         .then((r) => r.rows).catch(() => []),
+      // El puesto con sus palabras (sección de empleos de sus declaraciones) y cada cargo que tuvo en cada planilla
+      // (migración 357): la declaración sólo trae la categoría del formulario y la planilla resumía con el último mes.
+      f.declaraciones > 0 ? empleosDeclarados(f.nombreNorm) : Promise.resolve([]),
+      f.planillaEntidades > 0 ? cargosEnPlanilla(f.nombreNorm) : Promise.resolve([]),
     ]);
+    // Cada planilla con los cargos que tuvo en ella, si fueron más de uno (uno solo ya lo dice la fila).
+    const planillaConCargos = planillaFilas.map((x) => {
+      const suyos = (cargosPlanilla ?? []).filter((k) => k.entidadRuc === (x as { entidadRuc?: string }).entidadRuc);
+      return suyos.length > 1 ? { ...x, cargos: suyos.map(({ entidadRuc: _e, ...k }) => k) } : x;
+    });
+    const cargosConPuesto = (cargos.rows as { cargo: string | null; entidadRuc: string | null }[]).map((x) => {
+      const real = cargoRealDe(x.cargo, x.entidadRuc, empleos ?? []);
+      return real ? { ...x, cargoReal: real } : x;
+    });
     const sinRespuesta = [...rastro.sin_respuesta.filter((x) => x !== "visitas" || visitasDe === null), ...(planilla ? [] : ["planilla"]),
-      ...(candidaturas ? [] : ["candidaturas"]), ...(recibidas ? [] : ["visitas_recibidas"]), ...(familia === undefined ? ["familia"] : [])];
+      ...(candidaturas ? [] : ["candidaturas"]), ...(recibidas ? [] : ["visitas_recibidas"]), ...(familia === undefined ? ["familia"] : []),
+      ...(empleos ? [] : ["empleos"]), ...(cargosPlanilla ? [] : ["cargos_planilla"])];
     // Una ficha a medias no se guarda: el que vuelva a pedirla en un momento la arma entera.
     if (sinRespuesta.length) ctl.noGuardar();
     return publicar({
@@ -805,7 +820,9 @@ personasRouter.get("/cargo/:codigo", async (c) => {
       mismaPersona: fichas,
       // Lo que obtuvo del Estado cada familiar que declaró (migración 351); null: no declaró familiares.
       familia: familia ?? null,
-      cargos: cargos.rows,
+      cargos: cargosConPuesto,
+      // Los trabajos que escribió en sus declaraciones (sólo empleadores con RUC 20), del vigente al más antiguo.
+      empleos: empleos ?? [],
       visitas: {
         total: visitas.reduce((s, v) => s + (v.visitas ?? 0), 0),
         entidades: new Set(visitas.map((v) => v.entidad)).size,
@@ -821,7 +838,7 @@ personasRouter.get("/cargo/:codigo", async (c) => {
         ganaronDespues: recibidas.filter((x) => x.ganoDespues > 0).length,
         filas: recibidas,
       },
-      planilla: planillaFilas,
+      planilla: planillaConCargos,
       ordenes: sinNombre(rastro.ordenes_como_persona_natural),
       aportes: sinNombre(rastro.aportes_de_campana),
       expuesta: sinNombre(rastro.personas_expuestas),

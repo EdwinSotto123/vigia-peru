@@ -27,7 +27,9 @@ import {
   rutaFuncionario,
   totalCruces,
   type CargoDeclarado,
+  type CargoEnPlanilla,
   type CrucesDeLaPersona,
+  type EmpleoDeclarado,
   type EmpresaDeLaPersona,
   type FichaFuncionario,
   type InformeDeLaPersona,
@@ -250,7 +252,7 @@ export default async function FuncionarioPage({ params, searchParams }: { params
             icono: <Landmark size={15} aria-hidden />,
             etiqueta: "Cargos",
             titulo: "Los cargos que tuvo en el Estado",
-            conteo: f.planilla.length + f.cargos.length,
+            conteo: f.planilla.reduce((s, x) => s + Math.max(1, x.cargos?.length ?? 0), 0) + f.cargos.length,
             contenido: (
               <div className="space-y-6">
                 <section className="space-y-3" data-bloque>
@@ -276,7 +278,7 @@ export default async function FuncionarioPage({ params, searchParams }: { params
                         ? `En planilla: ${plural(f.planilla.length, "entidad", "entidades")}${p.planillaHoy ? "" : "; hoy no figura en ninguna"}.`
                         : "No figura en ninguna planilla publicada en el Portal de Transparencia."}
                   </CabeceraPestana>
-                  {f.planilla.length > 0 && <Tabla columnas={COLUMNAS_PLANILLA} filas={f.planilla.map(filaPlanilla)} etiqueta="Planillas en que figura o figuró" />}
+                  {f.planilla.length > 0 && <Tabla columnas={COLUMNAS_PLANILLA} filas={f.planilla.flatMap(filasPlanilla)} etiqueta="Planillas en que figura o figuró" />}
                 </section>
                 <section className="space-y-3" data-bloque>
                   <CabeceraPestana
@@ -288,8 +290,8 @@ export default async function FuncionarioPage({ params, searchParams }: { params
                           administran fondos o integran comités. Dice en qué entidad y con qué cargo.
                         </span>
                         <span className="mt-2 block">
-                          El formulario ofrece pocos cargos: «Colaborador» u «Otro cargo, función o labor» no dicen el puesto real. Si está en
-                          planilla, el cargo de arriba es más preciso.
+                          El formulario ofrece pocas categorías: «Colaborador» u «Otro cargo, función o labor» no dicen el puesto. Cuando la
+                          misma declaración lo escribe en su sección de empleos, aquí sale ese puesto y debajo la categoría.
                         </span>
                       </Ayuda>
                     }
@@ -302,6 +304,28 @@ export default async function FuncionarioPage({ params, searchParams }: { params
                     <TablaPaginada columnas={COLUMNAS_CARGOS} filas={f.cargos.map(filaCargo)} etiqueta="Cargos declarados a la Contraloría" nombre="cargos" tam={15} />
                   )}
                 </section>
+                {(f.empleos ?? []).length > 0 && (
+                  <section className="space-y-3" data-bloque>
+                    <CabeceraPestana
+                      titulo="Los trabajos que declaró"
+                      ayuda={
+                        <Ayuda titulo="¿De dónde salen estos trabajos?">
+                          <span className="block">
+                            De la sección de empleos de sus declaraciones juradas de intereses: ahí la persona escribe, con sus palabras, dónde
+                            trabaja o trabajó y con qué puesto, en el Estado y fuera de él.
+                          </span>
+                          <span className="mt-2 block">
+                            Un mismo trabajo escrito de varias formas entre una declaración y otra sale una sola vez. Sólo figuran empleadores
+                            con RUC de empresa o entidad.
+                          </span>
+                        </Ayuda>
+                      }
+                    >
+                      {resumenEmpleos(f.empleos ?? [])}
+                    </CabeceraPestana>
+                    <TablaPaginada columnas={COLUMNAS_EMPLEOS} filas={(f.empleos ?? []).map(filaEmpleo)} etiqueta="Trabajos que declaró" nombre="empleos" tam={15} />
+                  </section>
+                )}
               </div>
             ),
           },
@@ -762,11 +786,21 @@ const COLUMNAS_PLANILLA: Columna[] = [
   { clave: "sueldo", titulo: "Sueldo al mes", ancho: "7rem", alinear: "der", desde: "md", apilar: "con-rotulo" },
 ];
 
-function filaPlanilla(x: PlanillaDeLaPersona, i: number): Fila {
+/** Una planilla es una fila; si en esa entidad tuvo más de un cargo, una fila por cargo (el último primero). */
+function filasPlanilla(x: PlanillaDeLaPersona, i: number): Fila[] {
+  const cargos = x.cargos ?? [];
+  if (cargos.length < 2) return [filaPlanilla(x, `${i}`)];
+  return cargos.map((k, j) => filaPlanilla({ ...x, ...k }, `${i}-${j}`, { anterior: j > 0, total: k.total }));
+}
+
+function filaPlanilla(x: PlanillaDeLaPersona, clave: string, cargo?: { anterior: boolean; total: CargoEnPlanilla["total"] }): Fila {
   const hoy = x.situacion === "hoy";
   const despues = !hoy && x.ultimoMesEntidad && x.ultimoMes && x.ultimoMesEntidad > x.ultimoMes;
+  // Lo que cobró en un mes habitual con todo (gratificación, otros conceptos), cuando es bastante más que su remuneración:
+  // el mes de la salida suele traer la liquidación.
+  const conTodo = cargo?.total != null && cargo.total > (x.base ?? 0) * 1.15 ? cargo.total : null;
   return {
-    id: `planilla-${i}`,
+    id: `planilla-${clave}`,
     // La planilla de hoy tiene su propia ficha, con lo que cobró cada mes.
     href: hoy && x.ficha ? `/app/personas/planilla/${x.ficha}` : undefined,
     enlaces: true,
@@ -783,9 +817,13 @@ function filaPlanilla(x: PlanillaDeLaPersona, i: number): Fila {
         />
       ),
       situacion: (
-        <CeldaTexto sub={despues ? `la planilla de la entidad llega a ${mes(x.ultimoMesEntidad)}` : undefined}>
-          {hoy ? "En la planilla de hoy" : "Ya no figura"}
-        </CeldaTexto>
+        cargo?.anterior ? (
+          <CeldaTexto sub="después figura con otro cargo">Cargo anterior</CeldaTexto>
+        ) : (
+          <CeldaTexto sub={despues ? `la planilla de la entidad llega a ${mes(x.ultimoMesEntidad)}` : undefined}>
+            {hoy ? "En la planilla de hoy" : "Ya no figura"}
+          </CeldaTexto>
+        )
       ),
       periodo: (
         <CeldaTexto sub={x.meses ? plural(x.meses, "mes publicado", "meses publicados") : undefined}>
@@ -793,7 +831,11 @@ function filaPlanilla(x: PlanillaDeLaPersona, i: number): Fila {
         </CeldaTexto>
       ),
       regimen: <CeldaTexto>{x.regimen != null ? REGIMEN[Number(x.regimen)] ?? `Régimen ${x.regimen}` : "Sin dato"}</CeldaTexto>,
-      sueldo: <CeldaNumero>{x.base != null ? solesCompacto(x.base) : <span className="font-sans text-mute">Sin dato</span>}</CeldaNumero>,
+      sueldo: (
+        <CeldaNumero sub={conTodo != null && x.base != null ? `${solesCompacto(conTodo)} con otros pagos` : undefined}>
+          {x.base != null ? solesCompacto(x.base) : conTodo != null ? solesCompacto(conTodo) : <span className="font-sans text-mute">Sin dato</span>}
+        </CeldaNumero>
+      ),
     },
   };
 }
@@ -809,12 +851,71 @@ function filaCargo(x: CargoDeclarado, i: number): Fila {
   const hasta = x.cese ? `hasta el ${fechaConAnio(x.cese)}` : x.sinCese ? "sin fecha de cese" : null;
   return {
     id: `cargo-${i}`,
-    buscable: `${x.cargo ?? ""} ${x.entidad ?? ""}`,
+    buscable: `${x.cargoReal ?? ""} ${x.cargo ?? ""} ${x.entidad ?? ""}`,
     celdas: {
-      cargo: <CeldaPrincipal dosLineas titulo={cargoTexto(x.cargo)} meta={[<span key="e"><EnlaceEntidad ruc={x.entidadRuc} nombre={x.entidad} /></span>]} />,
+      cargo: (
+        <CeldaPrincipal
+          dosLineas
+          titulo={cargoTexto(x.cargoReal ?? x.cargo)}
+          meta={[
+            <span key="e"><EnlaceEntidad ruc={x.entidadRuc} nombre={x.entidad} /></span>,
+            x.cargoReal && x.cargo ? <span key="c">En el formulario: {cargoTexto(x.cargo).toLowerCase()}</span> : null,
+          ]}
+        />
+      ),
       desde: <CeldaTexto sub={hasta ?? undefined}>{x.inicio ? `Desde el ${fechaConAnio(x.inicio)}` : "Sin fecha de inicio"}</CeldaTexto>,
       declaraciones: <CeldaNumero>{numero(x.declaraciones)}</CeldaNumero>,
       ultima: <span className="text-meta tabular-nums text-inkSoft">{x.ultima ? fechaConAnio(x.ultima) : "Sin fecha"}</span>,
+    },
+  };
+}
+
+const COLUMNAS_EMPLEOS: Columna[] = [
+  { clave: "puesto", titulo: "Puesto y empleador", ancho: "minmax(0,1.7fr)" },
+  { clave: "desde", titulo: "En el puesto", ancho: "minmax(10rem,0.9fr)", desde: "md", apilar: "con-rotulo" },
+  { clave: "tipo", titulo: "Empleador", ancho: "8rem", desde: "lg", apilar: "con-rotulo" },
+  { clave: "declaraciones", titulo: "Declaraciones", ancho: "7rem", alinear: "der", desde: "md", apilar: "con-rotulo" },
+];
+
+/** «Escribió 3 trabajos: 2 en entidades públicas y 1 en una empresa u otra organización.» */
+function resumenEmpleos(empleos: EmpleoDeclarado[]): string {
+  const publicos = empleos.filter((e) => e.publica).length;
+  const otros = empleos.length - publicos;
+  const partes = [
+    publicos ? `${numero(publicos)} en ${publicos === 1 ? "una entidad pública" : "entidades públicas"}` : null,
+    otros ? `${numero(otros)} en ${otros === 1 ? "una empresa u otra organización" : "empresas u otras organizaciones"}` : null,
+  ].filter(Boolean);
+  return `En sus declaraciones escribió ${plural(empleos.length, "trabajo", "trabajos")}: ${partes.join(" y ")}.`;
+}
+
+function filaEmpleo(x: EmpleoDeclarado, i: number): Fila {
+  const hasta = x.cese ? `hasta el ${fechaConAnio(x.cese)}` : x.sinCese ? "sin fecha de cese" : null;
+  const empleador = x.entidad ? tituloNatural(x.entidad) : "Empleador sin nombre";
+  return {
+    id: `empleo-${i}`,
+    buscable: `${x.cargo} ${x.entidad ?? ""}`,
+    enlaces: true,
+    celdas: {
+      puesto: (
+        <CeldaPrincipal
+          dosLineas
+          titulo={cargoTexto(x.cargo)}
+          meta={[
+            <span key="e">
+              {x.publica ? (
+                <EnlaceEntidad ruc={x.ruc} nombre={x.entidad} />
+              ) : (
+                <Link href={`/empresa/${x.ruc}`} prefetch={false} className={CLASE_ENLACE_CELDA}>
+                  {empleador}
+                </Link>
+              )}
+            </span>,
+          ]}
+        />
+      ),
+      desde: <CeldaTexto sub={hasta ?? undefined}>{x.inicio ? `Desde el ${fechaConAnio(x.inicio)}` : "Sin fecha de inicio"}</CeldaTexto>,
+      tipo: <CeldaTexto>{x.publica ? "Entidad pública" : "Empresa u otra"}</CeldaTexto>,
+      declaraciones: <CeldaNumero>{numero(x.declaraciones)}</CeldaNumero>,
     },
   };
 }

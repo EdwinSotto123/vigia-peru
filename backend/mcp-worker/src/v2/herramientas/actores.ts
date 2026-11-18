@@ -410,7 +410,10 @@ export const rastroPersona = definir({
     "le ganó después cada una a esa entidad; nunca quién visitó. Y `familia_declarada`: lo que obtuvo del Estado cada familiar " +
     "que declaró en su declaración jurada (órdenes a su nombre, empresas en que es socio), numerado y sin nombre, con lo que " +
     "salió de la entidad de la persona; y `dos_ingresos_del_estado`: si está en la planilla de una entidad y otra le emitió " +
-    "órdenes de servicio esos mismos meses.",
+    "órdenes de servicio esos mismos meses. `trabajos_declarados` es el PUESTO con sus palabras (la sección de empleos de sus " +
+    "declaraciones: «Rector», «Gerente municipal»), dentro y fuera del Estado: úsalo en vez de la categoría del formulario " +
+    "(«Colaborador», «Otro cargo, función o labor»), que no dice el puesto. `cargos_en_planilla` da cada cargo que tuvo en cada " +
+    "planilla con sus meses y su sueldo de un mes habitual (el último mes de alguien que sale suele ser su liquidación).",
   cuenta: true,
   entrada: { nombre: z.string().min(6).max(80).describe("Apellidos y nombres de la persona, al menos dos palabras.") },
   async ejecutar(a, cx) {
@@ -459,6 +462,22 @@ export const rastroPersona = definir({
       ordenes_de_servicio: x.ordenes, monto_soles: x.monto_soles, meses_que_coinciden: x.meses, desde: x.desde, hasta: x.hasta, docencia: x.docente,
       severidad: x.severidad, ficha: `${e.funcionario(codigo)}?seccion=revision`,
     })));
+    // El puesto con sus palabras (migración 357): la sección de empleos de sus declaraciones juradas (sólo empleadores con
+    // RUC 20) y cada cargo que tuvo en cada planilla, con lo que cobró en un mes habitual.
+    const trabajos = fichas.flatMap(({ codigo, f }) => ((f?.empleos ?? []) as Fila[]).slice(0, 25).map((x) => ({
+      puesto: x.cargo, empleador: x.entidad, ruc: x.ruc, es_entidad_publica: x.publica, desde: x.inicio ?? undefined, hasta: x.cese ?? undefined,
+      sin_fecha_de_cese: x.sinCese || undefined, declaraciones_en_que_figura: x.declaraciones,
+      enlace: x.publica ? e.entidad(x.ruc) : e.empresa(x.ruc), ficha: `${e.funcionario(codigo)}?seccion=cargos`,
+    })));
+    const cargosPlanilla = fichas.flatMap(({ codigo, f }) => ((f?.planilla ?? []) as Fila[]).flatMap((pl2) =>
+      ((pl2.cargos?.length ? pl2.cargos : [pl2]) as Fila[]).map((k, j) => ({
+        entidad: pl2.entidad, entidad_ruc: pl2.entidadRuc, cargo: k.cargo ?? undefined, oficina: k.dependencia ?? undefined,
+        desde_mes: k.primerMes ?? undefined, hasta_mes: k.ultimoMes ?? undefined, meses_publicados: k.meses ?? undefined,
+        sueldo_de_un_mes_habitual_soles: k.base ?? undefined,
+        con_otros_pagos_soles: k.total != null && k.total > (k.base ?? 0) * 1.15 ? k.total : undefined,
+        situacion: j > 0 ? "cargo anterior en la misma entidad" : pl2.situacion === "hoy" ? "en la planilla de hoy" : "ya no figura",
+        ficha: `${e.funcionario(codigo)}?seccion=cargos`,
+      }))));
     const visitas = ((r?.visitas ?? []) as Fila[]).map((v) => ({
       nombre: v.nombre, entidad: v.entidad, entidad_ruc: v.entidad_ruc ?? undefined, visitas: v.visitas, primera: v.primera, ultima: v.ultima,
       en_nombre_de: v.en_nombre_de ?? undefined, a_quien_visito: v.a_quien ?? undefined, motivos: v.motivos ?? undefined,
@@ -487,6 +506,9 @@ export const rastroPersona = definir({
       familia_declarada: familia.length ? familia : undefined,
       // La ley no permite dos ingresos del Estado salvo la docencia y las dietas (art. 40 de la Constitución; art. 3 de la Ley 28175).
       dos_ingresos_del_estado: dosIngresos.length ? dosIngresos : undefined,
+      // Lo que la persona escribió en sus declaraciones: es el puesto real cuando el cargo declarado dice «Colaborador».
+      trabajos_declarados: trabajos.length ? trabajos : undefined,
+      cargos_en_planilla: cargosPlanilla.length ? cargosPlanilla : undefined,
       empresas: ((r?.empresas ?? []) as Fila[]).map((x) => ({ ...x, enlace: x.ruc ? e.empresa(x.ruc) : undefined })),
       // Lo primero que mira un investigador: visitó la entidad y una empresa suya le ganó procesos.
       visito_y_su_empresa_gano: ((r?.visito_y_su_empresa_gano ?? []) as Fila[]).map((x) => ({
