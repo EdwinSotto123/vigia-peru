@@ -292,6 +292,25 @@ export function ListaDePatron({ clave, ruc, titulo, etiquetas = {} }: { clave: S
   );
 }
 
+/**
+ * La página a pedir cuando la lista tiene un filtro de la vista (RUC, «sólo graves»). Sin filtro, la de la URL. Con filtro,
+ * una propia que empieza en la primera y vuelve a ella al cambiar el filtro: antes la lista filtrada quedaba clavada en la
+ * primera página (una entidad con 363 grupos mostraba 25 y el paginador no avanzaba).
+ */
+function usePaginaConFiltro(filtro: string, lista: { page: number; irAPagina: (page: number) => void }) {
+  const [propia, setPropia] = useState(1);
+  const previo = useRef(filtro);
+  useEffect(() => {
+    if (previo.current === filtro) return;
+    previo.current = filtro;
+    setPropia(1);
+  }, [filtro]);
+  const filtrada = filtro !== "";
+  // Mientras llega el efecto que la devuelve a la primera, no se pide la página vieja con el filtro nuevo.
+  const page = filtrada ? (previo.current === filtro ? propia : 1) : lista.page;
+  return { page, irAPagina: filtrada ? setPropia : lista.irAPagina };
+}
+
 /** La lista con su paginador arriba y abajo (el de abajo sube al inicio de la lista) y, mientras llega otra página, atenuada. */
 function ZonaLista({
   total,
@@ -824,12 +843,13 @@ const COLUMNAS_DUENOS: Columna[] = [
 function ListaDuenos({ inicial }: { inicial: InicialPatrones }) {
   const lista = useListaEnUrl("duenos", inicial);
   // El filtro por RUC (de la entidad o de una de las empresas) es de la vista: no viaja a la URL.
-  const [ruc, setRuc] = useState("");
+  const [ruc, setRuc] = useState(inicial.ruc ?? "");
   const rucValido = /^20\d{9}$/.test(ruc.trim()) ? ruc.trim() : undefined;
   // Sólo los grupos con contratos a 90 días o menos entre sí. Como el RUC, es de la vista y vuelve a la primera página.
   const [graves, setGraves] = useState(false);
   const filtrada = !!rucValido || graves;
-  const carga = usePoder<PatronesDuenos>(rutaDuenos(filtrada ? 1 : lista.page, rucValido, graves));
+  const pag = usePaginaConFiltro(filtrada ? `${rucValido ?? ""}|${graves ? 1 : 0}` : "", lista);
+  const carga = usePoder<PatronesDuenos>(rutaDuenos(pag.page, rucValido, graves));
   return (
     <div className="space-y-4">
       <CabeceraPestana
@@ -878,7 +898,7 @@ function ListaDuenos({ inicial }: { inicial: InicialPatrones }) {
                   { valor: "2 a 6", etiqueta: "empresas por socio", contexto: "quien figura en decenas no es el dueño", parte: null },
                 ]}
               />
-              <ZonaLista total={d.total} page={filtrada ? 1 : lista.page} cargando={carga.cargando} nombre="grupos" onPagina={lista.irAPagina} vacio="No hay grupos con este patrón para ese filtro.">
+              <ZonaLista total={d.total} page={pag.page} cargando={carga.cargando} nombre="grupos" onPagina={pag.irAPagina} vacio="No hay grupos con este patrón para ese filtro.">
                 {filas.length > 0 ? <Tabla columnas={COLUMNAS_DUENOS} filas={filas.map(filaDueno)} etiqueta="Socios que ganan en una entidad con varias empresas" /> : null}
               </ZonaLista>
             </div>
@@ -981,7 +1001,8 @@ function ListaGrupos({ inicial }: { inicial: InicialPatrones }) {
   const rucValido = /^20\d{9}$/.test(ruc.trim()) ? ruc.trim() : undefined;
   const [graves, setGraves] = useState(false);
   const filtrada = !!rucValido || graves;
-  const carga = usePoder<PatronesGrupos>(rutaGrupos(filtrada ? 1 : lista.page, rucValido, graves));
+  const pag = usePaginaConFiltro(filtrada ? `${rucValido ?? ""}|${graves ? 1 : 0}` : "", lista);
+  const carga = usePoder<PatronesGrupos>(rutaGrupos(pag.page, rucValido, graves));
   return (
     <div className="space-y-4">
       <CabeceraPestana
@@ -1029,7 +1050,7 @@ function ListaGrupos({ inicial }: { inicial: InicialPatrones }) {
                   { valor: "3", etiqueta: "o menos entre dos números de orden", contexto: "cuenta como correlativa", parte: null },
                 ]}
               />
-              <ZonaLista total={d.total} page={filtrada ? 1 : lista.page} cargando={carga.cargando} nombre="grupos" onPagina={lista.irAPagina} vacio="No hay grupos para ese filtro.">
+              <ZonaLista total={d.total} page={pag.page} cargando={carga.cargando} nombre="grupos" onPagina={pag.irAPagina} vacio="No hay grupos para ese filtro.">
                 {filas.length > 0 ? <Tabla columnas={COLUMNAS_GRUPOS} filas={filas.map(filaGrupo)} etiqueta="Grupos de proveedores por dueño y familia en una entidad" /> : null}
               </ZonaLista>
             </div>
@@ -1114,7 +1135,8 @@ function ListaRepetidas({ inicial }: { inicial: InicialPatrones }) {
   const rucValido = /^20\d{9}$/.test(ruc.trim()) ? ruc.trim() : undefined;
   const [graves, setGraves] = useState(false);
   const filtrada = !!rucValido || graves;
-  const carga = usePoder<PatronesRepetidas>(rutaRepetidas(filtrada ? 1 : lista.page, rucValido, graves));
+  const pag = usePaginaConFiltro(filtrada ? `${rucValido ?? ""}|${graves ? 1 : 0}` : "", lista);
+  const carga = usePoder<PatronesRepetidas>(rutaRepetidas(pag.page, rucValido, graves));
   return (
     <div className="space-y-4">
       <CabeceraPestana
@@ -1163,7 +1185,7 @@ function ListaRepetidas({ inicial }: { inicial: InicialPatrones }) {
                   { valor: "7 a 90", etiqueta: "días entre la primera y la última", contexto: "el mismo día ya lo cubre el fraccionamiento", parte: null },
                 ]}
               />
-              <ZonaLista total={d.total} page={filtrada ? 1 : lista.page} cargando={carga.cargando} nombre="compras" onPagina={lista.irAPagina} vacio="No hay compras repetidas para ese filtro.">
+              <ZonaLista total={d.total} page={pag.page} cargando={carga.cargando} nombre="compras" onPagina={pag.irAPagina} vacio="No hay compras repetidas para ese filtro.">
                 {filas.length > 0 ? <Tabla columnas={COLUMNAS_REPETIDAS} filas={filas.map(filaRepetida)} etiqueta="La misma compra repetida en pocas semanas" /> : null}
               </ZonaLista>
             </div>
@@ -1228,7 +1250,8 @@ function ListaAutoridadExsocio({ inicial }: { inicial: InicialPatrones }) {
   const rucValido = /^20\d{9}$/.test(ruc.trim()) ? ruc.trim() : undefined;
   const [graves, setGraves] = useState(false);
   const filtrada = !!rucValido || graves;
-  const carga = usePoder<PatronesAutoridadExsocio>(rutaAutoridadExsocio(filtrada ? 1 : lista.page, rucValido, graves));
+  const pag = usePaginaConFiltro(filtrada ? `${rucValido ?? ""}|${graves ? 1 : 0}` : "", lista);
+  const carga = usePoder<PatronesAutoridadExsocio>(rutaAutoridadExsocio(pag.page, rucValido, graves));
   return (
     <div className="space-y-4">
       <CabeceraPestana
@@ -1283,7 +1306,7 @@ function ListaAutoridadExsocio({ inicial }: { inicial: InicialPatrones }) {
                   { valor: solesCompacto(r?.montoEnPlazo ?? 0), etiqueta: "vendido dentro del plazo del impedimento", contexto: r ? `de ${solesCompacto(r.monto)} vendidos en su periodo` : "sin casos", parte: null },
                 ]}
               />
-              <ZonaLista total={d.total} page={filtrada ? 1 : lista.page} cargando={carga.cargando} nombre="casos" onPagina={lista.irAPagina} vacio="No hay casos para ese filtro.">
+              <ZonaLista total={d.total} page={pag.page} cargando={carga.cargando} nombre="casos" onPagina={pag.irAPagina} vacio="No hay casos para ese filtro.">
                 {filas.length > 0 ? <Tabla columnas={COLUMNAS_AUTORIDAD_EXSOCIO} filas={filas.map(filaAutoridadExsocio)} etiqueta="Autoridades que dejaron de figurar en una empresa que le vendió a su entidad" /> : null}
               </ZonaLista>
             </div>
@@ -1300,7 +1323,8 @@ function ListaComprasFamilia({ inicial }: { inicial: InicialPatrones }) {
   const rucValido = /^20\d{9}$/.test(ruc.trim()) ? ruc.trim() : undefined;
   const [graves, setGraves] = useState(false);
   const filtrada = !!rucValido || graves;
-  const carga = usePoder<PatronesComprasFamilia>(rutaComprasFamilia(filtrada ? 1 : lista.page, rucValido, graves));
+  const pag = usePaginaConFiltro(filtrada ? `${rucValido ?? ""}|${graves ? 1 : 0}` : "", lista);
+  const carga = usePoder<PatronesComprasFamilia>(rutaComprasFamilia(pag.page, rucValido, graves));
   return (
     <div className="space-y-4">
       <CabeceraPestana
@@ -1360,7 +1384,7 @@ function ListaComprasFamilia({ inicial }: { inicial: InicialPatrones }) {
                   { valor: alta ? solesCompacto(alta.montoEnPuesto ?? alta.monto) : "S/ 0", etiqueta: "en órdenes emitidas con la persona en el puesto", contexto: "sólo los casos graves", parte: null },
                 ]}
               />
-              <ZonaLista total={d.total} page={filtrada ? 1 : lista.page} cargando={carga.cargando} nombre="casos" onPagina={lista.irAPagina} vacio="No hay casos para ese filtro.">
+              <ZonaLista total={d.total} page={pag.page} cargando={carga.cargando} nombre="casos" onPagina={pag.irAPagina} vacio="No hay casos para ese filtro.">
                 {filas.length > 0 ? <Tabla columnas={COLUMNAS_COMPRAS_FAMILIA} filas={filas.map(filaCompraFamilia)} etiqueta="Personas con puesto de compras y un familiar con órdenes de su entidad" /> : null}
               </ZonaLista>
             </div>
@@ -1377,7 +1401,8 @@ function ListaDoble({ inicial }: { inicial: InicialPatrones }) {
   const rucValido = /^20\d{9}$/.test(ruc.trim()) ? ruc.trim() : undefined;
   const [graves, setGraves] = useState(false);
   const filtrada = !!rucValido || graves;
-  const carga = usePoder<PatronesDoble>(rutaDoble(filtrada ? 1 : lista.page, rucValido, graves));
+  const pag = usePaginaConFiltro(filtrada ? `${rucValido ?? ""}|${graves ? 1 : 0}` : "", lista);
+  const carga = usePoder<PatronesDoble>(rutaDoble(pag.page, rucValido, graves));
   return (
     <div className="space-y-4">
       <CabeceraPestana
@@ -1425,7 +1450,7 @@ function ListaDoble({ inicial }: { inicial: InicialPatrones }) {
                   { valor: "2", etiqueta: "excepciones", contexto: "la docencia y las dietas de un directorio", parte: null },
                 ]}
               />
-              <ZonaLista total={d.total} page={filtrada ? 1 : lista.page} cargando={carga.cargando} nombre="casos" onPagina={lista.irAPagina} vacio="No hay casos para ese filtro.">
+              <ZonaLista total={d.total} page={pag.page} cargando={carga.cargando} nombre="casos" onPagina={pag.irAPagina} vacio="No hay casos para ese filtro.">
                 {filas.length > 0 ? <Tabla columnas={COLUMNAS_DOBLE} filas={filas.map(filaDoble)} etiqueta="Personas en planilla con órdenes de servicio de otra entidad" /> : null}
               </ZonaLista>
             </div>
@@ -1500,7 +1525,8 @@ function ListaRecien({ inicial }: { inicial: InicialPatrones }) {
   const rucValido = /^20\d{9}$/.test(ruc.trim()) ? ruc.trim() : undefined;
   const [graves, setGraves] = useState(false);
   const filtrada = !!rucValido || graves;
-  const carga = usePoder<PatronesRecien>(rutaRecien(filtrada ? 1 : lista.page, rucValido, graves));
+  const pag = usePaginaConFiltro(filtrada ? `${rucValido ?? ""}|${graves ? 1 : 0}` : "", lista);
+  const carga = usePoder<PatronesRecien>(rutaRecien(pag.page, rucValido, graves));
   return (
     <div className="space-y-4">
       <CabeceraPestana
@@ -1547,7 +1573,7 @@ function ListaRecien({ inicial }: { inicial: InicialPatrones }) {
                   { valor: "S/ 30 mil", etiqueta: "o más en su primer año", contexto: "en órdenes sin proceso de selección", parte: null },
                 ]}
               />
-              <ZonaLista total={d.total} page={filtrada ? 1 : lista.page} cargando={carga.cargando} nombre="casos" onPagina={lista.irAPagina} vacio="No hay casos para ese filtro.">
+              <ZonaLista total={d.total} page={pag.page} cargando={carga.cargando} nombre="casos" onPagina={pag.irAPagina} vacio="No hay casos para ese filtro.">
                 {filas.length > 0 ? <Tabla columnas={COLUMNAS_RECIEN} filas={filas.map(filaRecien)} etiqueta="Empresas recién creadas que reciben órdenes directas" /> : null}
               </ZonaLista>
             </div>
@@ -1612,11 +1638,12 @@ const COLUMNAS_INHABILITADAS: Columna[] = [
 function ListaInhabilitadas({ inicial }: { inicial: InicialPatrones }) {
   const lista = useListaEnUrl("inhabilitadas", inicial);
   // El filtro por RUC (la ganadora, la inhabilitada o la entidad) y el de graves son de la vista: no viajan a la URL.
-  const [ruc, setRuc] = useState("");
+  const [ruc, setRuc] = useState(inicial.ruc ?? "");
   const rucValido = /^20\d{9}$/.test(ruc.trim()) ? ruc.trim() : undefined;
   const [graves, setGraves] = useState(false);
   const filtrada = !!rucValido || graves;
-  const carga = usePoder<PatronesInhabilitadas>(rutaInhabilitadas(filtrada ? 1 : lista.page, rucValido, graves));
+  const pag = usePaginaConFiltro(filtrada ? `${rucValido ?? ""}|${graves ? 1 : 0}` : "", lista);
+  const carga = usePoder<PatronesInhabilitadas>(rutaInhabilitadas(pag.page, rucValido, graves));
   return (
     <div className="space-y-4">
       <CabeceraPestana
@@ -1669,7 +1696,7 @@ function ListaInhabilitadas({ inicial }: { inicial: InicialPatrones }) {
                   { valor: "6 meses", etiqueta: "antes de la sanción, o después", contexto: "si la empresa nació ahí, es grave", parte: null },
                 ]}
               />
-              <ZonaLista total={d.total} page={filtrada ? 1 : lista.page} cargando={carga.cargando} nombre="casos" onPagina={lista.irAPagina} vacio="No hay casos con este patrón para ese filtro.">
+              <ZonaLista total={d.total} page={pag.page} cargando={carga.cargando} nombre="casos" onPagina={pag.irAPagina} vacio="No hay casos con este patrón para ese filtro.">
                 {filas.length > 0 ? <Tabla columnas={COLUMNAS_INHABILITADAS} filas={filas.map(filaInhabilitada)} etiqueta="Empresas que ganan mientras otra del mismo socio está inhabilitada" /> : null}
               </ZonaLista>
             </div>
@@ -1767,12 +1794,13 @@ const RESPONSABILIDAD_CORTA: Record<string, string> = {
 function ListaControl({ inicial }: { inicial: InicialPatrones }) {
   const lista = useListaEnUrl("control", inicial);
   // Los filtros (RUC, graves, misma entidad) son de la vista: no viajan a la URL y vuelven a la primera página.
-  const [ruc, setRuc] = useState("");
+  const [ruc, setRuc] = useState(inicial.ruc ?? "");
   const rucValido = /^20\d{9}$/.test(ruc.trim()) ? ruc.trim() : undefined;
   const [graves, setGraves] = useState(false);
   const [misma, setMisma] = useState(false);
   const filtrada = !!rucValido || graves || misma;
-  const carga = usePoder<PatronesControl>(rutaControl(filtrada ? 1 : lista.page, rucValido, graves, misma));
+  const pag = usePaginaConFiltro(filtrada ? `${rucValido ?? ""}|${graves ? 1 : 0}` : "", lista);
+  const carga = usePoder<PatronesControl>(rutaControl(pag.page, rucValido, graves, misma));
   return (
     <div className="space-y-4">
       <CabeceraPestana
@@ -1831,7 +1859,7 @@ function ListaControl({ inicial }: { inicial: InicialPatrones }) {
                   { valor: "2 años", etiqueta: "o la misma entidad", contexto: "con responsabilidad penal presunta, es grave", parte: null },
                 ]}
               />
-              <ZonaLista total={d.total} page={filtrada ? 1 : lista.page} cargando={carga.cargando} nombre="casos" onPagina={lista.irAPagina} vacio="No hay casos con este patrón para ese filtro.">
+              <ZonaLista total={d.total} page={pag.page} cargando={carga.cargando} nombre="casos" onPagina={pag.irAPagina} vacio="No hay casos con este patrón para ese filtro.">
                 {filas.length > 0 ? <Tabla columnas={COLUMNAS_CONTROL} filas={filas.map(filaControl)} etiqueta="Empresas que ganan con un socio comprendido en un informe de control" /> : null}
               </ZonaLista>
             </div>
@@ -1948,12 +1976,13 @@ const TEMA_CORTO: Record<string, string> = {
 function ListaObservados({ inicial }: { inicial: InicialPatrones }) {
   const lista = useListaEnUrl("observados", inicial);
   // Los filtros (RUC, graves, siguió ganando) son de la vista: no viajan a la URL y vuelven a la primera página.
-  const [ruc, setRuc] = useState("");
+  const [ruc, setRuc] = useState(inicial.ruc ?? "");
   const rucValido = /^20\d{9}$/.test(ruc.trim()) ? ruc.trim() : undefined;
   const [graves, setGraves] = useState(false);
   const [siguio, setSiguio] = useState(false);
   const filtrada = !!rucValido || graves || siguio;
-  const carga = usePoder<PatronesObservados>(rutaObservados(filtrada ? 1 : lista.page, rucValido, graves, siguio));
+  const pag = usePaginaConFiltro(filtrada ? `${rucValido ?? ""}|${graves ? 1 : 0}` : "", lista);
+  const carga = usePoder<PatronesObservados>(rutaObservados(pag.page, rucValido, graves, siguio));
   return (
     <div className="space-y-4">
       <CabeceraPestana
@@ -2012,7 +2041,7 @@ function ListaObservados({ inicial }: { inicial: InicialPatrones }) {
                   { valor: "Después", etiqueta: "del primer informe", contexto: "se cuenta lo que la entidad le volvió a adjudicar", parte: null },
                 ]}
               />
-              <ZonaLista total={d.total} page={filtrada ? 1 : lista.page} cargando={carga.cargando} nombre="casos" onPagina={lista.irAPagina} vacio="No hay casos con este patrón para ese filtro.">
+              <ZonaLista total={d.total} page={pag.page} cargando={carga.cargando} nombre="casos" onPagina={pag.irAPagina} vacio="No hay casos con este patrón para ese filtro.">
                 {filas.length > 0 ? <Tabla columnas={COLUMNAS_OBSERVADOS} filas={filas.map(filaObservado)} etiqueta="Proveedores con procesos observados por la Contraloría" /> : null}
               </ZonaLista>
             </div>
