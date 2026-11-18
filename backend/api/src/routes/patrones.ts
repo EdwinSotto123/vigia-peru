@@ -37,7 +37,8 @@ import { z } from "zod";
 import { pool } from "../lib/db.js";
 import { Memo } from "../lib/cache.js";
 import { cachePublico, parametros } from "../lib/http.js";
-import { TAPA_NOMBRE, publicar } from "../lib/privacidad.js";
+import { TAPA_NOMBRE, etiquetaParentesco, publicar } from "../lib/privacidad.js";
+import { esCargoDeEleccion } from "../lib/electos.js";
 import { ETIQUETA_CRUCE, catalogoSenales, nombrePublicable } from "../lib/cruces.js";
 import { depurarReferencias } from "../lib/laboratorioPrecios.js";
 import { taparNombrePropio } from "./personas.js";
@@ -729,6 +730,64 @@ patronesRouter.get("/doble", async (c) => {
       // El nombre, ya con el materno tapado (como la planilla): paterno, la tapa y los nombres.
       data: filas.map(({ total_filas: _t, paterno, nombres, ...x }) => ({ ...x, persona: [paterno, TAPA_NOMBRE, nombres].filter(Boolean).join(" ") || null })),
       como_leerlo: "Cada fila es una persona de la planilla de una entidad que, en esos mismos meses, recibió órdenes de servicio de otra. La ley no permite percibir dos ingresos del Estado, salvo la docencia y las dietas (artículo 40 de la Constitución; artículo 3 de la Ley 28175). El empate es por nombre completo: confirma que es la misma persona antes de afirmar nada.",
+    });
+  });
+  c.header("Cache-Control", CACHE);
+  return c.json(cuerpo);
+});
+
+const ComprasFamilia = z.object({
+  /** RUC de la entidad. */
+  buscar: z.string().regex(/^20\d{9}$/).optional(),
+  severidad: z.enum(["alta", "media", "baja"]).optional(),
+  page: z.coerce.number().int().min(1).max(200).default(1),
+  size: z.coerce.number().int().min(1).max(50).default(20),
+});
+
+/**
+ * GET /patrones/compras-familia?buscar=&severidad= — trabaja en compras y un familiar recibe órdenes de su entidad
+ * (migración 364): funcionarios cuyo puesto declarado (sección de empleos de su declaración jurada) es de logística,
+ * abastecimiento o contrataciones, con un familiar declarado en esa misma declaración que recibió órdenes a su nombre de
+ * esa entidad. La ley impide contratar con la entidad al cónyuge, conviviente y parientes hasta el segundo grado de quien
+ * interviene en sus contrataciones. En observación: dice que puesto, parentesco y órdenes coinciden; no que intervino.
+ *
+ * Privacidad: la persona sale con el materno tapado y el enlace a su ficha; el familiar, sólo por su parentesco (nunca su
+ * nombre ni su documento). Sólo puestos de compras: quien «decide» incluye autoridades electas, cuyo parentesco va
+ * reservado, y eso se ve en la ficha de cada una con sus reservas.
+ */
+patronesRouter.get("/compras-familia", async (c) => {
+  const p = ComprasFamilia.safeParse(Object.fromEntries(Object.entries(parametros(c)).filter(([, v]) => v !== "" && v != null)));
+  if (!p.success) return c.json({ error: "invalid_query", issues: p.error.issues }, 400);
+  const q = p.data;
+  const cuerpo = await memo.obtener(`compras-familia:${JSON.stringify(q)}`, async () => {
+    const [r, t] = await Promise.all([
+      pool.query(
+        `SELECT k.entidad_ruc AS "entidadRuc", k.entidad, k.cargo, to_char(k.cargo_desde, 'YYYY-MM-DD') AS "cargoDesde",
+                to_char(k.cargo_hasta, 'YYYY-MM-DD') AS "cargoHasta", k.parentesco, k.cercano, k.ordenes, k.monto::float AS monto, k.desde, k.hasta,
+                k.coincide, k.empezo_despues AS "empezoDespues", k.severidad, k.codigo, fr.paterno, fr.nombres, fr.cargo AS cargo_indice,
+                (count(*) OVER ())::int AS total_filas
+           FROM funcionario_compras_familiar k LEFT JOIN funcionario_resumen fr ON fr.codigo = k.codigo
+          WHERE k.tipo_cargo = 'compras' AND ($1::text IS NULL OR k.entidad_ruc = $1) AND ($2::text IS NULL OR k.severidad = $2)
+          ORDER BY CASE k.severidad WHEN 'alta' THEN 0 WHEN 'media' THEN 1 ELSE 2 END, k.monto DESC, k.codigo
+          LIMIT $3 OFFSET $4`, [q.buscar ?? null, q.severidad ?? null, q.size, (q.page - 1) * q.size]),
+      pool.query<{ severidad: string; casos: number; personas: number; entidades: number; monto: number }>(
+        `SELECT k.severidad, count(*)::int AS casos, count(DISTINCT k.codigo)::int AS personas, count(DISTINCT k.entidad_ruc)::int AS entidades,
+                COALESCE(sum(k.monto), 0)::float AS monto
+           FROM funcionario_compras_familiar k WHERE k.tipo_cargo = 'compras' AND ($1::text IS NULL OR k.entidad_ruc = $1) GROUP BY 1`, [q.buscar ?? null]),
+    ]).catch(() => [{ rows: [] as Record<string, unknown>[] }, { rows: [] as { severidad: string; casos: number; personas: number; entidades: number; monto: number }[] }] as const);
+    const filas = r.rows as Record<string, any>[];
+    return publicar({
+      total: filas[0]?.total_filas ?? 0, page: q.page, size: q.size,
+      resumen: Object.fromEntries(t.rows.map((x) => [x.severidad, { casos: x.casos, personas: x.personas, entidades: x.entidades, monto: x.monto }])),
+      data: filas
+        // Una autoridad electa no entra aquí aunque su puesto declarado diga compras (ver arriba).
+        .filter((x) => !esCargoDeEleccion(x.cargo_indice) && !esCargoDeEleccion(x.cargo))
+        .map(({ total_filas: _t, paterno, nombres, cargo_indice: _c, parentesco, ...x }) => ({
+          ...x, parentesco: etiquetaParentesco(parentesco) ?? "Familiar",
+          persona: [paterno, TAPA_NOMBRE, nombres].filter(Boolean).join(" ") || null,
+        })),
+      enObservacion: true,
+      como_leerlo: "Cada fila es un funcionario cuyo puesto declarado es de compras, logística o contrataciones y un familiar que declaró en su declaración jurada de intereses, con las órdenes que ese familiar recibió a su nombre de la misma entidad. «Alta»: familiar cercano (cónyuge o conviviente, padres, hijos, hermanos) cuyas órdenes empezaron el año en que el funcionario asumió el puesto o siguieron después. La ley impide contratar con la entidad a los parientes hasta el segundo grado de quien interviene en sus contrataciones (artículo 11 del TUO de la Ley 30225; artículo 30 de la Ley 32069). Es una señal en observación: dice que el puesto, el parentesco y las órdenes coinciden, no que la persona intervino. Hay que ver quién pidió y quién aprobó cada orden.",
     });
   });
   c.header("Cache-Control", CACHE);

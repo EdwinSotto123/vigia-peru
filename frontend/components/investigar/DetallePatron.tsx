@@ -15,6 +15,7 @@ import {
   type AlcancePatron,
   type PatronAcompanante,
   type PatronConsorcio,
+  type PatronCompraFamilia,
   type PatronDoble,
   type PatronControl,
   type PatronDueno,
@@ -616,6 +617,63 @@ export function detalleRepetida(p: PatronRepetida): Detalle {
 
 const MESES_CORTOS = ["ene.", "feb.", "mar.", "abr.", "may.", "jun.", "jul.", "ago.", "set.", "oct.", "nov.", "dic."];
 const mesCorto = (m: string | null) => (m && /^\d{4}-\d{2}/.test(m) ? `${MESES_CORTOS[Number(m.slice(5, 7)) - 1] ?? ""} ${m.slice(0, 4)}` : null);
+
+export function detalleCompraFamilia(p: PatronCompraFamilia): Detalle {
+  const ent = entidad(p.entidad);
+  const quien = p.persona ?? "Una persona con cargo público";
+  const anios = p.desde && p.hasta ? (p.desde === p.hasta ? `en ${p.desde}` : `de ${p.desde} a ${p.hasta}`) : null;
+  const enElPuesto = p.cargoDesde ? `desde el ${fechaConAnio(p.cargoDesde)}${p.cargoHasta ? ` hasta el ${fechaConAnio(p.cargoHasta)}` : " (sin cese declarado)"}` : null;
+  return {
+    // El nombre de la persona nunca va al título del panel.
+    titulo: "Trabaja en compras y un familiar recibe órdenes",
+    etiqueta: "Ver el detalle de este caso de compras y familia",
+    descripcion: <span className="line-clamp-2">{ent}</span>,
+    contenido: (
+      <div className="space-y-5">
+        <EnUnaFrase tono={p.severidad === "alta" ? "alta" : p.severidad === "media" ? "media" : "neutro"}>
+          <b>{quien}</b> declara el puesto de <b>{tituloNatural(p.cargo).toLowerCase()}</b> en <b>{ent}</b>
+          {enElPuesto ? `, ${enElPuesto}` : ""}. Un familiar que declaró ({p.parentesco.toLowerCase()}) recibió de esa entidad{" "}
+          <b>{plural(p.ordenes, "orden", "órdenes")}</b> a su nombre por <b>{solesCompacto(p.monto)}</b>
+          {anios ? ` ${anios}` : ""}.
+        </EnUnaFrase>
+        <DatosClave
+          items={[
+            { etiqueta: "Puesto declarado", valor: tituloNatural(p.cargo) },
+            { etiqueta: "En el puesto", valor: enElPuesto ? enElPuesto.charAt(0).toUpperCase() + enElPuesto.slice(1) : "No declaró desde cuándo" },
+            { etiqueta: "Parentesco del familiar", valor: p.parentesco },
+            { etiqueta: "Órdenes al familiar", valor: `${numero(p.ordenes)} por ${solesCompacto(p.monto)}`, mono: true },
+            { etiqueta: "Años de esas órdenes", valor: anios ? anios.replace(/^(en|de) /, "") : null },
+            {
+              etiqueta: "Las fechas",
+              valor: p.empezoDespues
+                ? "El familiar empezó a recibir órdenes el año en que asumió el puesto, o después"
+                : p.coincide
+                  ? "Parte de las órdenes cae en los años del puesto"
+                  : "No coinciden con el puesto, o falta la fecha en que lo asumió",
+            },
+          ]}
+        />
+        <QueRevisar
+          pasos={[
+            "Es una señal en observación: el puesto y el familiar salen de la declaración jurada de la propia persona, y las órdenes, del registro de la entidad. No dice que intervino en esas compras.",
+            "Pide el expediente de cada orden: quién firmó el requerimiento, quién cotizó y quién la aprobó. Si su oficina aparece, hay un impedimento que mirar.",
+            "La ley impide contratar con la entidad al cónyuge, conviviente y parientes hasta el segundo grado de quien interviene en sus contrataciones (artículo 11 del TUO de la Ley 30225; artículo 30 de la Ley 32069).",
+            p.empezoDespues ? "Las órdenes empezaron cuando ya tenía el puesto: mira si el familiar le vendía antes a otras entidades o sólo a esta." : "Compara las fechas de cada orden con las del puesto: el registro de órdenes las trae día por día.",
+          ]}
+        />
+      </div>
+    ),
+    pie: (
+      <Pie
+        enlaces={[
+          p.codigo ? { texto: "Ficha de la persona", href: `/app/personas/cargo/${p.codigo}?seccion=revision` } : false,
+          p.codigo ? { texto: "Su familia declarada", href: `/app/personas/cargo/${p.codigo}?seccion=familia` } : false,
+          esRuc20(p.entidadRuc) && { texto: "La entidad", href: `/entidad/${p.entidadRuc}` },
+        ]}
+      />
+    ),
+  };
+}
 
 export function detalleDoble(p: PatronDoble): Detalle {
   const ent = entidad(p.entidad);

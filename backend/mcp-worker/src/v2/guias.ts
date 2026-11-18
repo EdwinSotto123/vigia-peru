@@ -92,6 +92,8 @@ Trabaja como un perito, no como un buscador: cada afirmación con su registro, c
 - patrones (alcance recien_creada): empresas que se inscriben en la SUNAT y a los pocos días ya reciben órdenes directas
   de una entidad; mira quién las creó (red_empresa) y si viven de ese solo cliente.
 - patrones (alcance doble): personas en la planilla de una entidad con órdenes de servicio de otra los mismos meses.
+- patrones (alcance compras_familia, en observación): quien trabaja en compras o logística de una entidad y tiene un
+  familiar declarado que recibe órdenes de esa misma entidad. Mira si el familiar empezó a cobrar después de que asumió.
 - buscar_contratos con varias señales y todas_las_senales: los contratos que juntan dos indicios (único postor y socio de
   una inhabilitada, por ejemplo).
 - hallazgos_entidad y ranking_entidades: la entidad frente a sus pares.

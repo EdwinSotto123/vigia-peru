@@ -109,3 +109,44 @@ export async function familiaDelFuncionario(codigo: string, declaranteElecto: bo
     masParientes: Math.max(0, todos.length - TOPE_PARIENTES),
   };
 }
+
+/**
+ * Un familiar declarado que recibe órdenes de la MISMA entidad en que el funcionario trabaja en compras o decide el gasto
+ * (migración 364). El puesto sale de la sección de empleos de su declaración jurada; el familiar, de la misma declaración.
+ * En observación: es un hecho para revisar, no una contratación indebida demostrada.
+ */
+export interface CompraFamiliar {
+  entidadRuc: string;
+  entidad: string | null;
+  cargo: string;
+  /** compras: logística, abastecimiento, contrataciones… · decide: administración, gerencia, tesorería, presupuesto. */
+  tipoCargo: "compras" | "decide";
+  cargoDesde: string | null;
+  /** null: sin cese declarado. */
+  cargoHasta: string | null;
+  parentesco: string;
+  cercano: boolean;
+  ordenes: number;
+  monto: number;
+  /** Años de las órdenes del familiar en esa entidad. */
+  desde: number | null;
+  hasta: number | null;
+  /** Las órdenes caen en años en que tenía el puesto. */
+  coincide: boolean;
+  /** La primera orden del familiar en la entidad es del año en que asumió el puesto, o posterior. */
+  empezoDespues: boolean;
+  severidad: "alta" | "media" | "baja";
+}
+
+export async function comprasYFamilia(codigo: string, declaranteElecto: boolean): Promise<CompraFamiliar[]> {
+  // De una autoridad electa el parentesco va reservado (lib/privacidad.ts) y este cruce lo diría: su familia sale sólo en
+  // su pestaña, con esas reservas.
+  if (declaranteElecto) return [];
+  const r = await pool.query<Omit<CompraFamiliar, "parentesco"> & { parentesco: string | null }>(
+    `SELECT c.entidad_ruc AS "entidadRuc", c.entidad, c.cargo, c.tipo_cargo AS "tipoCargo", to_char(c.cargo_desde, 'YYYY-MM-DD') AS "cargoDesde",
+            to_char(c.cargo_hasta, 'YYYY-MM-DD') AS "cargoHasta", c.parentesco, c.cercano, c.ordenes, c.monto::float AS monto, c.desde, c.hasta,
+            c.coincide, c.empezo_despues AS "empezoDespues", c.severidad
+       FROM funcionario_compras_familiar c WHERE c.codigo = $1
+      ORDER BY CASE c.severidad WHEN 'alta' THEN 0 WHEN 'media' THEN 1 ELSE 2 END, c.monto DESC LIMIT 30`, [codigo]);
+  return r.rows.map((x) => ({ ...x, parentesco: etiquetaParentesco(x.parentesco) ?? "Familiar" }));
+}

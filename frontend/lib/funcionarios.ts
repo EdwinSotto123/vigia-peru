@@ -202,6 +202,32 @@ export interface CrucesDeLaPersona {
     entidad: string | null; entidad_ruc: string; cargo: string | null; sueldo: number | null; otra: string | null; otra_ruc: string;
     ordenes: number; monto_soles: number; meses: number; desde: string | null; hasta: string | null; docente: boolean; severidad: "media" | "baja";
   }[];
+  /**
+   * En observación (migración 364): su puesto declarado es de compras o decide el gasto, y un familiar que declaró recibió
+   * órdenes a su nombre de esa misma entidad. El familiar, sólo por su parentesco. Una API anterior no lo trae.
+   */
+  comprasFamiliar?: CompraFamiliar[];
+}
+
+export interface CompraFamiliar {
+  entidadRuc: string;
+  entidad: string | null;
+  cargo: string;
+  tipoCargo: "compras" | "decide";
+  cargoDesde: string | null;
+  /** null: sin cese declarado. */
+  cargoHasta: string | null;
+  parentesco: string;
+  cercano: boolean;
+  ordenes: number;
+  monto: number;
+  /** Años de las órdenes del familiar en esa entidad. */
+  desde: number | null;
+  hasta: number | null;
+  coincide: boolean;
+  /** La primera orden del familiar en la entidad es del año en que asumió el puesto, o posterior. */
+  empezoDespues: boolean;
+  severidad: "alta" | "media" | "baja";
 }
 
 /**
@@ -329,4 +355,6 @@ export const getPersonasEncontradas = (q: string | undefined) => {
 export const totalCruces = (c: CrucesDeLaPersona) =>
   c.visitoYSuEmpresaGano.length + c.salioYSuEmpresaGano.length + c.variasEmpresasEnUnaEntidad.length + c.empresaInhabilitadaYOtraGano.length + c.enInformeYDespuesCobro.length +
   // Sólo los que piden revisión: con docencia (la excepción legal) o pocos meses es un dato, no un caso.
-  (c.doblePercepcion ?? []).filter((x) => x.severidad === "media").length;
+  (c.doblePercepcion ?? []).filter((x) => x.severidad === "media").length +
+  // En observación, pero pide revisión: quien trabaja en compras y un familiar cercano cobra de su entidad.
+  (c.comprasFamiliar ?? []).filter((x) => x.severidad !== "baja").length;

@@ -7,7 +7,7 @@ import { cachePublico, parametros } from "../lib/http.js";
 import { TAPA_NOMBRE, apellidoFuncionario, apellidosSunat, publicar, reservarParentesco, taparNombreSuelto } from "../lib/privacidad.js";
 import { declaranteElectoSql, esCargoDeEleccion, esElectoSql, marcaElecto } from "../lib/electos.js";
 import { fichasDeContratada, fichasPorNombre } from "../lib/identidadPersona.js";
-import { familiaDelFuncionario } from "../lib/familiaFuncionario.js";
+import { comprasYFamilia, familiaDelFuncionario } from "../lib/familiaFuncionario.js";
 import { cargoRealDe, cargosEnPlanilla, cobradoEnPlanilla, empleosDeclarados } from "../lib/cargoReal.js";
 import { SENALES_CON_PARIENTES, casoReservado, podarParientes } from "../lib/nepotismo.js";
 import { enlaceFuente } from "../lib/fuentes.js";
@@ -779,7 +779,7 @@ personasRouter.get("/cargo/:codigo", async (c) => {
     // se asume que sí), la familia sale con las reservas de un nombre público (lib/familiaFuncionario.ts).
     const posibleElecto = esCargoDeEleccion(f.cargo) || cargos.rows.some((x) => esCargoDeEleccion(x.cargo))
       || candidaturas === null || candidaturas.some((x) => String(x.resultado ?? "").toLowerCase() === "electo");
-    const [fichas, familia, doble, empleos, cargosPlanilla, cobrado] = await Promise.all([
+    const [fichas, familia, doble, empleos, cargosPlanilla, cobrado, comprasFamiliar] = await Promise.all([
       fichasPorNombre(f.nombreNorm),
       familiaDelFuncionario(codigo, posibleElecto).catch((e) => { console.warn(`[cargo] familia: ${(e as Error).message}`); return undefined; }),
       // Cobra por dos lados (migración 352): en la planilla de una entidad y, esos mismos meses, con órdenes de servicio de otra.
@@ -794,6 +794,8 @@ personasRouter.get("/cargo/:codigo", async (c) => {
       f.planillaEntidades > 0 ? cargosEnPlanilla(f.nombreNorm) : Promise.resolve([]),
       // Lo que cobró en planilla, por entidad y año: «Lo que cobró» sólo contaba las órdenes de servicio.
       f.planillaEntidades > 0 ? cobradoEnPlanilla(f.nombreNorm) : Promise.resolve([]),
+      // Trabaja en compras (o decide el gasto) y un familiar declarado recibe órdenes de su entidad (migración 364).
+      comprasYFamilia(codigo, posibleElecto).catch((e) => { console.warn(`[cargo] compras y familia: ${(e as Error).message}`); return []; }),
     ]);
     // Cada planilla con los cargos que tuvo en ella, si fueron más de uno (uno solo ya lo dice la fila).
     const planillaConCargos = planillaFilas.map((x) => {
@@ -857,6 +859,7 @@ personasRouter.get("/cargo/:codigo", async (c) => {
         empresaInhabilitadaYOtraGano: rastro.empresa_suya_inhabilitada_y_otra_gano,
         enInformeYDespuesCobro: rastro.en_informe_de_control_y_despues_cobro,
         doblePercepcion: doble,
+        comprasFamiliar,
       },
       sinRespuesta,
     });

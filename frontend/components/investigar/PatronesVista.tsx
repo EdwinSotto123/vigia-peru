@@ -2,13 +2,13 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
-import { Ban, Briefcase, Building2, Coins, CopyCheck, FileSearch, Sprout, FlaskConical, Handshake, ScanSearch, SearchX, TrendingUp, Users, UsersRound } from "lucide-react";
+import { Ban, Briefcase, Building2, Coins, CopyCheck, FileSearch, Sprout, FlaskConical, Handshake, ScanSearch, SearchX, ShoppingCart, TrendingUp, Users, UsersRound } from "lucide-react";
 import { Ayuda, CabeceraPestana, Nota, Pestanas } from "@/components/patrones";
 import { EVENTO_ACTIVA } from "@/components/patrones/Pestanas";
 import { CeldaBarra, CeldaNumero, CeldaPrincipal, CeldaTexto, CLASE_ENLACE_CELDA, Indicadores, Tabla, type Columna, type Fila, type Indicador } from "@/components/listado";
 import { EstadoCarga, usePoder } from "@/components/grafo/vista";
 import { InformeEnPanel } from "@/components/control/InformeEnPanel";
-import { detalleConsorcio, detalleControl, detalleDoble, detalleDueno, detalleGrupo, detalleInhabilitada, detalleObservacion, detalleObservado, detalleRecien, detalleRelleno, detalleRenovacion, detalleRepetida, detalleSenal } from "./DetallePatron";
+import { detalleCompraFamilia, detalleConsorcio, detalleControl, detalleDoble, detalleDueno, detalleGrupo, detalleInhabilitada, detalleObservacion, detalleObservado, detalleRecien, detalleRelleno, detalleRenovacion, detalleRepetida, detalleSenal } from "./DetallePatron";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Dato } from "@/components/ui/Dato";
@@ -21,6 +21,7 @@ import {
   codigoDeOcid,
   rutaAcompanantes,
   rutaConsorcios,
+  rutaComprasFamilia,
   rutaControl,
   rutaDoble,
   rutaDuenos,
@@ -38,6 +39,8 @@ import {
   type PatronAcompanante,
   type PatronConsorcio,
   type PatronControl,
+  type PatronCompraFamilia,
+  type PatronesComprasFamilia,
   type PatronDoble,
   type PatronRecien,
   type PatronesRecien,
@@ -147,6 +150,13 @@ export function PatronesVista({ activa, inicial, etiquetas }: { activa?: string;
           titulo: "En planilla de una entidad y con órdenes de servicio de otra",
           icono: <Coins size={15} aria-hidden />,
           contenido: <ListaDoble inicial={de("doble")} />,
+        },
+        {
+          clave: "compras",
+          etiqueta: SECCIONES_PATRONES.compras,
+          titulo: "Trabaja en compras y un familiar recibe órdenes de su entidad",
+          icono: <ShoppingCart size={15} aria-hidden />,
+          contenido: <ListaComprasFamilia inicial={de("compras")} />,
         },
         {
           clave: "recien",
@@ -1161,6 +1171,120 @@ const COLUMNAS_DOBLE: Columna[] = [
   { clave: "monto", titulo: "Cobró por esas órdenes", ancho: "9rem", alinear: "der", desde: "md", apilar: "con-rotulo", corto: "Órdenes" },
   { clave: "sueldo", titulo: "Sueldo al mes", ancho: "7.5rem", alinear: "der", desde: "lg", apilar: "con-rotulo", corto: "Sueldo" },
 ];
+
+const COLUMNAS_COMPRAS_FAMILIA: Columna[] = [
+  { clave: "persona", titulo: "Persona, puesto y entidad", ancho: "minmax(0,1.7fr)" },
+  { clave: "familiar", titulo: "Familiar que declaró", ancho: "minmax(8rem,0.8fr)", desde: "md", apilar: "con-rotulo", corto: "Familiar" },
+  { clave: "monto", titulo: "Órdenes al familiar", ancho: "9rem", alinear: "der", corto: "Órdenes" },
+  { clave: "anios", titulo: "Años", ancho: "minmax(8rem,0.7fr)", desde: "lg", apilar: "con-rotulo" },
+];
+
+function ListaComprasFamilia({ inicial }: { inicial: InicialPatrones }) {
+  const lista = useListaEnUrl("compras", inicial);
+  const [ruc, setRuc] = useState(inicial.ruc ?? "");
+  const rucValido = /^20\d{9}$/.test(ruc.trim()) ? ruc.trim() : undefined;
+  const [graves, setGraves] = useState(false);
+  const filtrada = !!rucValido || graves;
+  const carga = usePoder<PatronesComprasFamilia>(rutaComprasFamilia(filtrada ? 1 : lista.page, rucValido, graves));
+  return (
+    <div className="space-y-4">
+      <CabeceraPestana
+        ayuda={
+          <Ayuda titulo="¿De dónde sale y por qué importa?">
+            <span className="block">
+              El puesto y el familiar salen de la declaración jurada de intereses de la propia persona: ahí escribe dónde trabaja y con qué cargo, y
+              declara a sus familiares. Las órdenes, del registro de órdenes de la entidad, a nombre del familiar.
+            </span>
+            <span className="mt-1.5 block">
+              La ley impide contratar con la entidad al cónyuge, conviviente y parientes hasta el segundo grado de quien interviene en sus
+              contrataciones (artículo 11 del TUO de la Ley 30225; artículo 30 de la Ley 32069).
+            </span>
+            <span className="mt-1.5 block">
+              Es una señal en observación: dice que el puesto, el parentesco y las órdenes coinciden en la misma entidad, no que la persona
+              intervino. El familiar nunca sale con su nombre.
+            </span>
+          </Ayuda>
+        }
+      >
+        En observación: personas cuyo puesto declarado es de compras, logística o contrataciones, con un familiar que declararon y que recibió órdenes
+        a su nombre de esa misma entidad.
+      </CabeceraPestana>
+      <label className="block max-w-md">
+        <span className="text-rotulo font-medium text-inkSoft">Filtrar por RUC de la entidad</span>
+        <input
+          type="search"
+          inputMode="numeric"
+          value={ruc}
+          onChange={(e) => setRuc(e.target.value.replace(/\D/g, "").slice(0, 11))}
+          placeholder="RUC de 11 dígitos que empieza en 20"
+          autoComplete="off"
+          className="mt-1 h-11 w-full rounded-xl border border-line bg-paperSoft px-3 text-dato text-ink placeholder:text-mute focus:border-granate focus:bg-paper focus:outline-none focus:ring-2 focus:ring-granate/20"
+        />
+      </label>
+      <label className="flex min-h-11 w-fit cursor-pointer items-center gap-2.5 text-dato text-ink">
+        <input type="checkbox" checked={graves} onChange={(e) => setGraves(e.target.checked)} className="size-5 rounded border-line accent-granate" />
+        Sólo familiar cercano con órdenes que empezaron o siguieron después de asumir el puesto
+      </label>
+      <EstadoCarga carga={carga} columnas={COLUMNAS_COMPRAS_FAMILIA}>
+        {(d) => {
+          const filas = d.data ?? [];
+          const alta = d.resumen?.alta;
+          return (
+            <div className="space-y-4">
+              <Indicadores
+                franja
+                items={[
+                  { valor: numero(d.total), etiqueta: rucValido ? "casos en esa entidad" : graves ? "casos graves" : "casos", contexto: "puesto de compras y familiar con órdenes", icono: <ShoppingCart size={15} strokeWidth={1.9} aria-hidden />, parte: null },
+                  { valor: numero(alta?.personas ?? 0), etiqueta: "personas con un caso grave", contexto: alta ? `en ${plural(alta.entidades, "entidad", "entidades")}` : "familiar cercano y fechas que coinciden", parte: null },
+                  { valor: alta ? solesCompacto(alta.monto) : "S/ 0", etiqueta: "en órdenes a esos familiares", contexto: "sólo los casos graves", parte: null },
+                ]}
+              />
+              <ZonaLista total={d.total} page={filtrada ? 1 : lista.page} cargando={carga.cargando} nombre="casos" onPagina={lista.irAPagina} vacio="No hay casos para ese filtro.">
+                {filas.length > 0 ? <Tabla columnas={COLUMNAS_COMPRAS_FAMILIA} filas={filas.map(filaCompraFamilia)} etiqueta="Personas con puesto de compras y un familiar con órdenes de su entidad" /> : null}
+              </ZonaLista>
+            </div>
+          );
+        }}
+      </EstadoCarga>
+    </div>
+  );
+}
+
+function filaCompraFamilia(p: PatronCompraFamilia, i: number): Fila {
+  const anios = p.desde && p.hasta ? (p.desde === p.hasta ? `${p.desde}` : `${p.desde} a ${p.hasta}`) : "Sin años";
+  return {
+    id: `compras-${i}`,
+    detalle: detalleCompraFamilia(p),
+    enlaces: true,
+    celdas: {
+      persona: (
+        <CeldaPrincipal
+          dosLineas
+          titulo={
+            p.codigo ? (
+              <Link href={`/app/personas/cargo/${p.codigo}?seccion=revision`} prefetch={false} className={CLASE_ENLACE_CELDA}>
+                {p.persona ?? "Persona con cargo público"}
+              </Link>
+            ) : (
+              <>{p.persona ?? "Persona con cargo público"}</>
+            )
+          }
+          meta={
+            <span className="block">
+              {`${tituloNatural(p.cargo)}, `}
+              <EnlaceEntidad ruc={p.entidadRuc} nombre={p.entidad} />
+            </span>
+          }
+        />
+      ),
+      familiar: <CeldaTexto sub={p.cercano ? "familiar cercano" : undefined}>{p.parentesco}</CeldaTexto>,
+      monto: <CeldaNumero sub={plural(p.ordenes, "orden", "órdenes")}>{solesCompacto(p.monto)}</CeldaNumero>,
+      anios: (
+        <CeldaTexto sub={p.empezoDespues ? "empezaron tras asumir el puesto" : p.coincide ? "coinciden con el puesto" : "no coinciden"}>{anios}</CeldaTexto>
+      ),
+    },
+  };
+}
 
 function ListaDoble({ inicial }: { inicial: InicialPatrones }) {
   const lista = useListaEnUrl("doble", inicial);

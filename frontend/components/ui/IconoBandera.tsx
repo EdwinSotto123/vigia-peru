@@ -3,7 +3,7 @@ import {
   Anchor, ArrowRightLeft, Ban, Banknote, Briefcase, CalendarPlus, CalendarRange, ChartPie, CircleMinus, CirclePause, CirclePlus,
   ClockAlert, Coins, Construction, Copy, DoorOpen, FileSearch, FileX, Flag, Footprints, Gauge, Gavel, GitFork, Handshake,
   HeartHandshake, IdCard, Landmark, Magnet, MapPinHouse, MapPinOff, Megaphone, Repeat, Replace, Ruler, Scissors, Split, Sprout,
-  Signature, Swords, Timer, TrendingUp, UserRound, UsersRound, Vote, Wallet,
+  ShoppingCart, Signature, Swords, Timer, TrendingUp, UserRound, UsersRound, Vote, Wallet,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -32,7 +32,7 @@ const POR_TIPO: Record<string, LucideIcon> = {
   // Historial
   inhabilitado: Ban, penal: Gavel, sancion_multa: Gavel, inversion_laudo: Gavel, penalidad: CircleMinus,
   // Patrón
-  fraccionamiento: Scissors, repetida: Copy, pariente_socio: HeartHandshake, doble_percepcion: Coins, recien_creada: Sprout, recurrente_dominante: ChartPie, proveedor_cautivo: Anchor, al_borde_del_tope: Gauge, al_borde_del_tope_empresas: Gauge,
+  fraccionamiento: Scissors, repetida: Copy, pariente_socio: HeartHandshake, doble_percepcion: Coins, compras_familiar: ShoppingCart, recien_creada: Sprout, recurrente_dominante: ChartPie, proveedor_cautivo: Anchor, al_borde_del_tope: Gauge, al_borde_del_tope_empresas: Gauge,
   // SUNAT
   dada_de_baja: FileX, suspendida: CirclePause, no_habida: MapPinOff,
   // Personas y planilla

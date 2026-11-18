@@ -19,6 +19,7 @@ export const SECCIONES_PATRONES = {
   grupos: "Grupos por dueño y familia",
   repetidas: "Compras repetidas",
   doble: "Dos ingresos del Estado",
+  compras: "Compras y familia",
   recien: "Recién creadas con órdenes",
   inhabilitadas: "Socio de inhabilitada",
   control: "Socio en informe de control",
@@ -265,6 +266,38 @@ export interface PatronesDoble {
   data: PatronDoble[];
 }
 
+/**
+ * En observación (migración 364): un funcionario cuyo puesto declarado es de compras, logística o contrataciones y un
+ * familiar que declaró en su declaración jurada, con las órdenes que ese familiar recibió de la misma entidad. La persona
+ * llega con el materno tapado; el familiar, sólo por su parentesco.
+ */
+export interface PatronCompraFamilia {
+  entidadRuc: string;
+  entidad: string | null;
+  cargo: string;
+  cargoDesde: string | null;
+  cargoHasta: string | null;
+  parentesco: string;
+  cercano: boolean;
+  ordenes: number;
+  monto: number;
+  desde: number | null;
+  hasta: number | null;
+  coincide: boolean;
+  empezoDespues: boolean;
+  severidad: "alta" | "media" | "baja";
+  codigo: string | null;
+  persona: string | null;
+}
+
+export interface PatronesComprasFamilia {
+  total: number;
+  page: number;
+  size: number;
+  resumen?: Partial<Record<"alta" | "media" | "baja", { casos: number; personas: number; entidades: number; monto: number }>>;
+  data: PatronCompraFamilia[];
+}
+
 /** Una empresa que gana mientras otra del mismo socio está inhabilitada (migración 297). */
 export interface PatronInhabilitada {
   ruc: string;
@@ -497,6 +530,8 @@ export const rutaRepetidas = (page = 1, ruc?: string, graves = false) =>
   `/patrones/repetidas?${consulta({ page, size: TAM_PATRONES, buscar: ruc, severidad: graves ? "alta" : undefined })}`;
 export const rutaRecien = (page = 1, ruc?: string, graves = false) =>
   `/patrones/recien?${consulta({ page, size: TAM_PATRONES, buscar: ruc, severidad: graves ? "alta" : undefined })}`;
+export const rutaComprasFamilia = (page = 1, ruc?: string, graves = false) =>
+  `/patrones/compras-familia?${consulta({ page, size: TAM_PATRONES, buscar: ruc, severidad: graves ? "alta" : undefined })}`;
 export const rutaDoble = (page = 1, ruc?: string, graves = false) =>
   `/patrones/doble?${consulta({ page, size: TAM_PATRONES, buscar: ruc, severidad: graves ? "media" : undefined })}`;
 export const rutaInhabilitadas = (page = 1, ruc?: string, graves = false) =>

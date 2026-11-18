@@ -462,6 +462,14 @@ export const rastroPersona = definir({
       ordenes_de_servicio: x.ordenes, monto_soles: x.monto_soles, meses_que_coinciden: x.meses, desde: x.desde, hasta: x.hasta, docencia: x.docente,
       severidad: x.severidad, ficha: `${e.funcionario(codigo)}?seccion=revision`,
     })));
+    const comprasFamilia = fichas.flatMap(({ codigo, f }) => ((f?.cruces?.comprasFamiliar ?? []) as Fila[]).map((x) => ({
+      puesto_declarado: x.cargo, tipo_de_puesto: x.tipoCargo === "compras" ? "compras, logística o contrataciones" : "decide o paga el gasto",
+      en_el_puesto_desde: x.cargoDesde ?? undefined, hasta: x.cargoHasta ?? "sin cese declarado", entidad: x.entidad, entidad_ruc: x.entidadRuc,
+      parentesco_del_familiar: x.parentesco, familiar_cercano: x.cercano, ordenes_al_familiar: x.ordenes, monto_soles: x.monto,
+      ordenes_desde_el_anio: x.desde ?? undefined, ordenes_hasta_el_anio: x.hasta ?? undefined, las_ordenes_coinciden_con_el_puesto: x.coincide,
+      el_familiar_empezo_a_cobrar_despues_de_que_asumio: x.empezoDespues, severidad: x.severidad, en_observacion: true,
+      ficha: `${e.funcionario(codigo)}?seccion=revision`,
+    })));
     // El puesto con sus palabras (migración 357): la sección de empleos de sus declaraciones juradas (sólo empleadores con
     // RUC 20) y cada cargo que tuvo en cada planilla, con lo que cobró en un mes habitual.
     const trabajos = fichas.flatMap(({ codigo, f }) => ((f?.empleos ?? []) as Fila[]).slice(0, 25).map((x) => ({
@@ -506,6 +514,9 @@ export const rastroPersona = definir({
       familia_declarada: familia.length ? familia : undefined,
       // La ley no permite dos ingresos del Estado salvo la docencia y las dietas (art. 40 de la Constitución; art. 3 de la Ley 28175).
       dos_ingresos_del_estado: dosIngresos.length ? dosIngresos : undefined,
+      // En observación (migración 364): su puesto declarado es de compras o decide el gasto, y un familiar que declaró
+      // recibió órdenes de esa misma entidad. El familiar, sólo por su parentesco.
+      trabaja_en_compras_y_un_familiar_cobra_de_su_entidad: comprasFamilia.length ? comprasFamilia : undefined,
       // Lo que la persona escribió en sus declaraciones: es el puesto real cuando el cargo declarado dice «Colaborador».
       trabajos_declarados: trabajos.length ? trabajos : undefined,
       cargos_en_planilla: cargosPlanilla.length ? cargosPlanilla : undefined,
@@ -595,10 +606,13 @@ export const patrones = definir({
     "(dos ingresos del Estado: sólo lo permite la docencia y las dietas); con ruc, las de esa entidad. " +
     "Con alcance «recien_creada»: empresas que se inscribieron en la SUNAT y a 90 días o menos ya recibían órdenes directas " +
     "(sin proceso) de una entidad; con ruc, las de esa entidad o esa empresa. " +
+    "Con alcance «compras_familia» (en observación): funcionarios cuyo puesto declarado es de compras, logística o " +
+    "contrataciones y un familiar declarado en su declaración jurada que recibió órdenes a su nombre de esa misma entidad, con " +
+    "los años del puesto y de las órdenes; con ruc, los de esa entidad. El familiar sale sólo por su parentesco. " +
     "Un patrón es un motivo para mirar, no una acusación.",
   cuenta: true,
   entrada: {
-    alcance: z.enum(["entidad", "proveedor", "relleno", "consorcio", "renovacion", "dueno", "inhabilitada", "control", "observado", "observacion", "grupo", "repetida", "doble", "recien_creada"]).default("entidad"),
+    alcance: z.enum(["entidad", "proveedor", "relleno", "consorcio", "renovacion", "dueno", "inhabilitada", "control", "observado", "observacion", "grupo", "repetida", "doble", "recien_creada", "compras_familia"]).default("entidad"),
     indicador: z.enum(["reunion_en_evaluacion", "visita_personal_decisor", "ofertas_a_la_vez", "trabajo_en_el_ganador",
       "firma_en_plazo_de_apelacion"]).optional()
       .describe("(observacion) Sólo uno de los indicadores en observación."),
@@ -622,6 +636,24 @@ export const patrones = definir({
           ordenes_en_su_primer_anio: x.ordenesPrimerAnio, monto_en_su_primer_anio_soles: x.montoPrimerAnio,
           parte_de_sus_ventas_por_ordenes_que_viene_de_esta_entidad: x.parteEntidad ?? undefined,
           enlace_empresa: x.ruc ? e.empresa(String(x.ruc)) : undefined, enlace_entidad: e.entidad(String(x.entidadRuc)),
+        })),
+        como_leerlo: r.como_leerlo,
+        aviso: AVISO,
+      };
+    }
+    if (a.alcance === "compras_familia") {
+      const r = await api<Fila>(cx.env, "/patrones/compras-familia", { buscar: ruc, severidad: a.solo_graves ? "alta" : undefined, page: a.pagina, size: 20 });
+      return {
+        total: r.total,
+        en_observacion: true,
+        resumen_por_severidad: r.resumen,
+        casos: ((r.data ?? []) as Fila[]).map((x) => ({
+          persona: x.persona, puesto_declarado: x.cargo, en_el_puesto_desde: x.cargoDesde ?? undefined, hasta: x.cargoHasta ?? "sin cese declarado",
+          entidad: x.entidad, entidad_ruc: x.entidadRuc, parentesco_del_familiar: x.parentesco, familiar_cercano: x.cercano,
+          ordenes_al_familiar: x.ordenes, monto_soles: x.monto, ordenes_desde_el_anio: x.desde ?? undefined, ordenes_hasta_el_anio: x.hasta ?? undefined,
+          las_ordenes_coinciden_con_el_puesto: x.coincide, el_familiar_empezo_a_cobrar_despues_de_que_asumio: x.empezoDespues, severidad: x.severidad,
+          enlace_persona: x.codigo ? `${e.funcionario(String(x.codigo))}?seccion=revision` : undefined,
+          enlace_entidad: x.entidadRuc ? e.entidad(String(x.entidadRuc)) : undefined,
         })),
         como_leerlo: r.como_leerlo,
         aviso: AVISO,
