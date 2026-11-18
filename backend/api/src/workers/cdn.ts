@@ -118,7 +118,7 @@ const GUARDADO = "X-Vigia-Guardado";
  *        grupos recorta su detalle y el gasto por concepto tapa nombres en las descripciones.
  * "111": las órdenes traen `recienCreada` y la ficha de entidad su cuenta (migración 355: empresa recién creada con órdenes directas).
  */
-const VERSION_CACHE = "115";
+const VERSION_CACHE = "116";
 
 function cacheable(req: Request): boolean {
   if (req.method !== "GET") return false;

@@ -875,6 +875,12 @@ function filaPlanilla(x: PlanillaDeLaPersona, clave: string, cargo?: { anterior:
 
 // ─── Lo que cobró en planilla ────────────────────────────────────────────────────────────────────
 
+/** El resultado de una candidatura, en palabras (antes salía el valor crudo: «no_electo»). Sin resultado: aún no publicado. */
+function resultadoCandidatura(r: string | null | undefined): string {
+  const v = (r ?? "").toLowerCase();
+  return v === "electo" ? "salió electa" : v === "no_electo" ? "no salió electa" : "resultado pendiente";
+}
+
 const COLUMNAS_COBRADO: Columna[] = [
   { clave: "anio", titulo: "Año", ancho: "56px", desde: "md", apilar: "con-rotulo" },
   { clave: "cargo", titulo: "Cargo", ancho: "minmax(0,1.4fr)" },
@@ -1391,7 +1397,11 @@ function OtrosRegistros({ f }: { f: FichaFuncionario }) {
               <Ayuda titulo="¿De dónde salen?">
                 <span className="block">
                   Del Jurado Nacional de Elecciones: las listas de candidatos de las elecciones desde 2014. El resultado de 2022 no está completo
-                  en esa fuente: «no electo» puede faltar a la verdad en ese año.
+                  en esa fuente: «no salió electa» puede faltar a la verdad en ese año.
+                </span>
+                <span className="mt-2 block">
+                  De las elecciones regionales y municipales de octubre de 2026 el JNE todavía no publica los electos: esas candidaturas
+                  dicen «resultado pendiente».
                 </span>
               </Ayuda>
             }
@@ -1401,7 +1411,7 @@ function OtrosRegistros({ f }: { f: FichaFuncionario }) {
           <DatosClave
             items={candidaturas.map((c, i) => ({
               etiqueta: `${c.anio ?? "Sin año"}, ${cargoTexto(c.cargo)}${candidaturas.length > 1 ? ` (${i + 1})` : ""}`,
-              valor: `${c.partido ? tituloNatural(c.partido) : "Organización sin nombre"}${lugarDe(c) ? `, ${lugarDe(c)}` : ""}${c.resultado ? `; ${c.resultado.toLowerCase()}` : ""}`,
+              valor: `${c.partido ? tituloNatural(c.partido) : "Organización sin nombre"}${lugarDe(c) ? `, ${lugarDe(c)}` : ""}; ${resultadoCandidatura(c.resultado)}`,
             }))}
           />
         </section>

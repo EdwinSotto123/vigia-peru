@@ -61,7 +61,8 @@ const SEVERIDAD: Record<SenalPolitico, Severidad> = {
 export const ESTADOS_DJI = ["leida", "registro", "no_encontrada", "ambigua"] as const;
 
 const PoliticosQuery = z.object({
-  papel: z.enum(["gano", "no_gano", "aportante"]).optional(),
+  // `pendiente`: postuló en una elección cuyo resultado aún no está cargado (migración 362); no cuenta como «no ganó».
+  papel: z.enum(["gano", "no_gano", "pendiente", "aportante"]).optional(),
   cruces: z.enum(["con", "alta", "sin", "sin_documento"]).optional(),
   senal: z.enum(SENALES_POLITICO).optional(),
   // Su declaración jurada de intereses (sólo quien ganó desde 2022): en el registro o leída, ya leída, con familiares, o
@@ -92,7 +93,7 @@ function palabras(q: string | undefined): string[] {
 }
 
 interface FilaBase {
-  codigo: string; tipo: "persona" | "empresa"; nombre: string; publico: boolean; ruc: string | null; gano: boolean; candidato: boolean;
+  codigo: string; tipo: "persona" | "empresa"; nombre: string; publico: boolean; ruc: string | null; gano: boolean; pendiente: boolean; candidato: boolean;
   aportante: boolean; nCandidaturas: number; elecciones: number[]; cargo: string | null; lugar: string | null; aportesN: number;
   aportesMonto: number; aporteDesde: string | null; aporteHasta: string | null; conDocumento: boolean; personaCodigo: string | null;
   empN: number; empMonto: number; empInhab: number; empGobN: number; empGobMonto: number; ordEntidades: number; ordMonto: number;
@@ -102,7 +103,7 @@ interface FilaBase {
   famSuEntidadN?: number; famSuEntidadMonto?: number; famPartidoN?: number; famPartidoMonto?: number; controlN?: number; controlPenal?: number;
 }
 
-const COLS = `pp.codigo, pp.tipo, pp.nombre, pp.publico, CASE WHEN pp.tipo = 'empresa' THEN pp.doc END AS ruc, pp.gano, pp.candidato, pp.aportante,
+const COLS = `pp.codigo, pp.tipo, pp.nombre, pp.publico, CASE WHEN pp.tipo = 'empresa' THEN pp.doc END AS ruc, pp.gano, pp.pendiente, pp.candidato, pp.aportante,
   pp.n_candidaturas AS "nCandidaturas", pp.anios AS elecciones, pp.cargo, pp.lugar, pp.aportes_n AS "aportesN", pp.aportes_monto::float AS "aportesMonto",
   to_char(pp.aporte_desde, 'YYYY-MM-DD') AS "aporteDesde", to_char(pp.aporte_hasta, 'YYYY-MM-DD') AS "aporteHasta",
   (pp.doc IS NOT NULL) AS "conDocumento", pp.persona_codigo AS "personaCodigo",
@@ -128,6 +129,7 @@ export function filaPolitico(f: FilaBase) {
     ruc: empresa ? f.ruc : null,
     ...(f.publico && !empresa ? { electo: true as const } : {}),
     gano: f.gano,
+    pendiente: f.pendiente === true,
     candidato: f.candidato,
     aportante: f.aportante,
     nCandidaturas: f.nCandidaturas,
@@ -178,7 +180,8 @@ async function resumenDe(clave: string) {
     const [t, d, s, a] = await Promise.all([
       pool.query(
         `SELECT count(*)::int AS total, count(*) FILTER (WHERE pp.gano)::int AS gano,
-                count(*) FILTER (WHERE pp.candidato AND NOT pp.gano)::int AS "noGano", count(*) FILTER (WHERE pp.aportante)::int AS aportantes,
+                count(*) FILTER (WHERE pp.candidato AND NOT pp.gano AND NOT pp.pendiente)::int AS "noGano",
+                count(*) FILTER (WHERE pp.pendiente)::int AS pendientes, count(*) FILTER (WHERE pp.aportante)::int AS aportantes,
                 count(*) FILTER (WHERE pp.tipo = 'empresa')::int AS empresas,
                 count(*) FILTER (WHERE pp.doc IS NOT NULL)::int AS "conDocumento", count(*) FILTER (WHERE pp.n_senales > 0)::int AS "conCruces",
                 -- Se pudo cruzar: con su documento, o (sin él) por su DJI empatada (migración 301).
@@ -221,7 +224,8 @@ export function montarPoliticos(router: Hono): void {
         const add = (v: unknown) => { vals.push(v); return `$${vals.length}`; };
         const conds = ["pp.org_clave = $1"];
         if (q.papel === "gano") conds.push("pp.gano");
-        if (q.papel === "no_gano") conds.push("pp.candidato AND NOT pp.gano");
+        if (q.papel === "no_gano") conds.push("pp.candidato AND NOT pp.gano AND NOT pp.pendiente");
+        if (q.papel === "pendiente") conds.push("pp.pendiente");
         if (q.papel === "aportante") conds.push("pp.aportante");
         if (q.cruces === "con") conds.push("pp.n_senales > 0");
         if (q.cruces === "alta") conds.push("pp.sev = 3");
@@ -293,7 +297,7 @@ async function detallePolitico(clave: string, codigo: string): Promise<Record<st
   const extra = { politicos: [{ nombre: yo.tipo === "empresa" ? null : yo.nombre, ...(yo.publico ? { electo: true } : {}) }] };
   const otros = pool.query(
     `SELECT pp.org_clave AS clave, (SELECT max(g.org_nombre) FROM gobierno_periodo g WHERE g.org_clave = pp.org_clave) AS partido,
-            pp.gano, pp.candidato, pp.aportante, pp.anios AS elecciones, pp.aportes_monto::float AS "aportesMonto"
+            pp.gano, pp.pendiente, pp.candidato, pp.aportante, pp.anios AS elecciones, pp.aportes_monto::float AS "aportesMonto"
        FROM partido_politico pp WHERE pp.codigo = $1 AND pp.org_clave <> $2 ORDER BY pp.gano DESC, pp.org_clave LIMIT 30`, [codigo, clave]);
   // Su DJI, lo que obtuvieron sus familiares y sus informes de control (migración 301): por el código, también sin documento
   // (la DJI se empata por nombre y entidad). Sin esa migración, nada.

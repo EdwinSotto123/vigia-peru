@@ -553,7 +553,8 @@ function Candidaturas({ d }: { d: DetallePolitico }) {
                 </p>
               </div>
               <span className={`shrink-0 text-meta font-semibold ${c.resultado === "electo" ? "text-mossTexto" : "text-inkSoft"}`}>
-                {c.resultado ? RESULTADO[c.resultado] : "Sin resultado"}
+                {/* Del JNE y sin resultado: la elección ya fue, pero sus electos aún no están publicados (migración 362). */}
+                {c.resultado ? RESULTADO[c.resultado] : c.fuente === "JNE" ? "Resultado pendiente" : "Sin resultado"}
               </span>
             </li>
           ))}

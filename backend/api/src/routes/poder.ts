@@ -219,7 +219,7 @@ poderRouter.get("/trayectoria", async (c) => {
   return c.json(publicar({
     q: palabras.join(" "),
     personas: r.rows.map((x) => ({ ...x, electo: true })),
-    nota: "Candidaturas del JNE de 2014 a 2022. Los gobernadores elegidos en segunda vuelta pueden figurar como «no_electo» (faltan esas actas): «en_el_cargo» viene del registro de autoridades vigentes y manda.",
+    nota: "Candidaturas del JNE de 2014 a 2026 (las regionales y municipales de 2026, todavía sin resultado). Los gobernadores elegidos en segunda vuelta pueden figurar como «no_electo» (faltan esas actas): «en_el_cargo» viene del registro de autoridades vigentes y manda.",
     fuente_oficial: { nombre: "JNE, Plataforma Electoral e Infogob", enlace: "https://infogob.jne.gob.pe/" },
   }));
 });

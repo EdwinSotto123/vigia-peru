@@ -129,9 +129,9 @@ export const CATALOGO: FuenteCatalogo[] = [
     que: "Órdenes de los catálogos con sus ítems, precio unitario y fichas-producto (reporte detallado público) y el índice mensual de la PNDA: backend/scripts/cargar_perucompras.py y cargar_perucompras_dab.py." },
   { fuente: "rnp_conformacion_juridica", nombre: "Socios y representantes de proveedores (RNP)", donde: "ci", agenda: "Día 3 de cada mes, 09:00 (tarea rnp de GitLab CI)", cadaDias: 40,
     que: "Conformación jurídica del RNP: socios, representantes y órganos de administración de cada proveedor, del archivo que el OECE reemplaza cada mes en su wiki de datos abiertos. backend/scripts/cargar_rnp.py: agrega los vínculos nuevos y anota los que dejaron de figurar (baja_corte, migración 360)." },
-  { fuente: "jne_candidaturas", nombre: "Candidaturas (JNE)", donde: "pc", agenda: "Sin refresco (carga única)", cadaDias: null,
-    que: "Candidatos y electos de cada elección, de los archivos del JNE: backend/scripts/load_jne_candidaturas.py. Infogob pide captcha: no se actualiza sola, ni anota en datasets_cargas.",
-    situacion: { tipo: "foto", nota: "Es una foto: se cargó una vez y no se actualiza sola. Las candidaturas inscritas después de esa fecha no aparecen." } },
+  { fuente: "jne_candidaturas", nombre: "Candidaturas (JNE)", donde: "pc", agenda: "Por elección, a mano", cadaDias: null,
+    que: "Candidatos y electos de cada elección. De 2014 a 2022, de los archivos del JNE (load_jne_candidaturas.py). Las de 2026, de la Plataforma Electoral y Voto Informado del JNE: backend/scripts/jne_candidatos_2026.py las baja y cargar_jne_2026.py las carga.",
+    situacion: { tipo: "foto", nota: "Llega a las elecciones de 2026 y no se actualiza sola. De las regionales y municipales del 4 de octubre de 2026 el JNE todavía no publica los electos: esas candidaturas salen con el resultado pendiente." } },
   // ── GitLab CI + PC ──────────────────────────────────────────────────────────────────────────────────────────
   { fuente: "dji_familiares", nombre: "Declaraciones de intereses: familiares (DJIC)", donde: "ci", agenda: "Rondas hasta vaciar los pendientes (parada desde el 29-oct-2026)", cadaDias: null,
     que: "PDFs del portal DJIC en GitLab CI (10 IP), procesados en la PC: familiares e intereses. Su bitácora es dji_descargas.",

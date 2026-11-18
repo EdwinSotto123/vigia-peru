@@ -135,6 +135,8 @@ export interface Politico {
   electo?: true;
   /** Ganó una elección con ESTE partido. */
   gano: boolean;
+  /** Postuló en una elección cuyo resultado aún no está cargado y no ganó otra: no es «no ganó». Una API anterior no lo trae. */
+  pendiente?: boolean;
   candidato: boolean;
   aportante: boolean;
   nCandidaturas: number;
@@ -173,6 +175,8 @@ export interface ResumenPoliticos {
   total: number;
   gano: number;
   noGano: number;
+  /** Con el resultado de su elección aún sin publicar. Una API anterior no lo trae. */
+  pendientes?: number;
   aportantes: number;
   empresas: number;
   conDocumento: number;
@@ -203,6 +207,7 @@ export interface PaginaPoliticos {
 export const PAPELES_POLITICO = [
   { valor: "gano", etiqueta: "Ganaron una elección" },
   { valor: "no_gano", etiqueta: "Postularon y no ganaron" },
+  { valor: "pendiente", etiqueta: "Postularon, resultado pendiente" },
   { valor: "aportante", etiqueta: "Aportantes" },
 ] as const;
 export type PapelPolitico = (typeof PAPELES_POLITICO)[number]["valor"];
@@ -385,8 +390,8 @@ export interface DetallePolitico {
 }
 
 /** En qué papel está la persona en el partido, en palabras: «Ganó una elección y aportó». */
-export function papelTexto(p: Pick<Politico, "gano" | "candidato" | "aportante" | "tipo">): string {
+export function papelTexto(p: Pick<Politico, "gano" | "pendiente" | "candidato" | "aportante" | "tipo">): string {
   if (p.tipo === "empresa") return "Empresa que aportó";
-  const partes = [p.gano ? "Ganó una elección" : p.candidato ? "Postuló y no ganó" : null, p.aportante ? (p.candidato ? "aportó" : "Aportó") : null].filter(Boolean);
+  const partes = [p.gano ? "Ganó una elección" : p.pendiente ? "Postuló y el resultado está pendiente" : p.candidato ? "Postuló y no ganó" : null, p.aportante ? (p.candidato ? "aportó" : "Aportó") : null].filter(Boolean);
   return partes.join(" y ");
 }

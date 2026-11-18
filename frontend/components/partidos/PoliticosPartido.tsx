@@ -1,6 +1,6 @@
 import { Suspense } from "react";
 import Link from "next/link";
-import { ArrowRight, BadgeCheck, HandCoins, Scale, UserRoundX } from "lucide-react";
+import { ArrowRight, BadgeCheck, HandCoins, Hourglass, Scale, UserRoundX } from "lucide-react";
 import { Ayuda, ChipsDetalle, CuerpoDetalle, DatosClave, EstadoError, EstadoVacio, Nota, PieDetalle, type DatoClave } from "@/components/patrones";
 import {
   BarraFiltros,
@@ -230,7 +230,7 @@ async function BarraConConteos({ pagina }: { pagina: Promise<PaginaPoliticos | n
 /** El papel (faceta), los cruces, qué cruce y la elección; sin resumen, sin números. */
 function Barra({ resumen: r }: { resumen: ResumenPoliticos | null }) {
   const porSenal = new Map((r?.porSenal ?? []).map((s) => [s.tipo, s.n]));
-  const conteoPapel = { gano: r?.gano, no_gano: r?.noGano, aportante: r?.aportantes } as const;
+  const conteoPapel = { gano: r?.gano, no_gano: r?.noGano, pendiente: r?.pendientes, aportante: r?.aportantes } as const;
   const visibles: FiltroSecundario[] = [
     {
       param: P_POLITICOS.cruces,
@@ -417,7 +417,13 @@ function Papel({ p }: { p: Politico }) {
           Ganó
         </span>
       )}
-      {!p.gano && p.candidato && (
+      {!p.gano && p.pendiente && (
+        <span className={cls}>
+          <Hourglass size={13} className="shrink-0 text-mute" aria-hidden />
+          Resultado pendiente
+        </span>
+      )}
+      {!p.gano && !p.pendiente && p.candidato && (
         <span className={cls}>
           <UserRoundX size={13} className="shrink-0 text-mute" aria-hidden />
           No ganó
