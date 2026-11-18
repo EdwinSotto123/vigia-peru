@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { Building2, Loader2, RotateCcw, UserPlus, Users } from "lucide-react";
 import { usePoder } from "@/components/grafo/vista";
+import { rutaOrdenesPeriodo } from "@/lib/ordenes";
 import { numero, plural, solesCompacto } from "@/lib/formato";
 import { tituloNatural } from "@/lib/landing";
 import { cn } from "@/lib/utils";
@@ -22,6 +23,8 @@ interface Ventana {
   conceptos: { concepto: string; ordenes: number; monto: number; personas: number; empresas: number }[];
   empresas: { ruc: string; empresa: string | null; ordenes: number; monto: number; nueva: boolean }[];
 }
+
+const ENLACE = "inline-flex min-h-[32px] items-center gap-1.5 text-meta font-semibold text-granate underline decoration-granate/40 underline-offset-2 hover:decoration-granate";
 
 /** «2022-10» → «2022-10-01»; el último día del mes de `hasta`. */
 const primerDia = (m: string) => `${m.slice(0, 7)}-01`;
@@ -118,6 +121,16 @@ export function OrdenesDelPeriodo({ entidadRuc, mes, hasta }: { entidadRuc: stri
           </ul>
         </div>
       )}
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+        <Link href={rutaOrdenesPeriodo({ entidad: entidadRuc, desde: v.desde, hasta: v.hasta, persona: "natural" })} prefetch={false} className={ENLACE}>
+          <Users size={14} aria-hidden />
+          Ver las órdenes a personas del periodo
+        </Link>
+        <Link href={rutaOrdenesPeriodo({ entidad: entidadRuc, desde: v.desde, hasta: v.hasta })} prefetch={false} className={ENLACE}>
+          <Building2 size={14} aria-hidden />
+          Ver todas las órdenes del periodo
+        </Link>
+      </div>
       <p className="text-rotulo leading-snug text-mute text-pretty">
         «Nueva»: no había recibido ninguna orden de esta entidad desde 2018. De las personas naturales sólo damos cuentas. Comparado con{" "}
         {v.comparadoCon.desde.slice(0, 4)}. Fuente: órdenes de compra y de servicio de CONOSCE (OECE).

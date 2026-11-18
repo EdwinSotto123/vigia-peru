@@ -83,6 +83,9 @@ const enumDe = <T extends Record<string, unknown>>(o: T) => z.enum(Object.keys(o
 export const ListaOrdenesQuery = z.object({
   q: z.string().trim().min(2).max(80).optional(),
   anio: z.coerce.number().int().min(2018).max(2100).optional(),
+  // Un periodo (AAAA-MM-DD, los dos días incluidos): el de un patrón de la historia (2026-11-18).
+  desde: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  hasta: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
   entidad: z.string().regex(/^\d{11}$/).optional(),
   proveedor: z.string().regex(/^(?!10)\d{11}$/).optional(), // nunca un RUC 10 (sale de un DNI)
   region: z.string().trim().min(2).max(40).optional(), // departamento (nombre); se compara normalizado
@@ -326,6 +329,9 @@ export function sqlListaOrdenes(q: FiltrosListaOrdenes, forzarAcotada = false): 
   if (q.entidad) base.push(`o.entidad_ruc = '${q.entidad}'`);
   if (q.proveedor) base.push(`o.ruc_contratista = '${q.proveedor}'`);
   if (q.anio) base.push(`o.fecha_emision >= make_date(${p(q.anio)}, 1, 1) AND o.fecha_emision < make_date($${vals.length} + 1, 1, 1)`);
+  // Validadas por zod (AAAA-MM-DD): como literal, igual que la entidad, para que el plan use el índice (entidad, fecha).
+  if (q.desde) base.push(`o.fecha_emision >= DATE '${q.desde}'`);
+  if (q.hasta) base.push(`o.fecha_emision <= DATE '${q.hasta}'`);
   if (q.dudosa) base.push(`o.monto_dudoso IS NOT NULL`);
   const columnas: string[] = [];
   if (q.tipo) columnas.push(q.tipo === "compra" ? `o.tipo_orden ILIKE '%compra%'` : `o.tipo_orden NOT ILIKE '%compra%'`);

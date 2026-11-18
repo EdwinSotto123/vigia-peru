@@ -61,6 +61,7 @@ import {
   MONTOS_ORDEN,
   P_ORD,
   montoOrden,
+  periodoDeParametro,
   rutaOrdenes,
   type InhabilitacionProveedor,
   type OrdenFraccionada,
@@ -415,7 +416,13 @@ export async function BarraOrdenesGeneral({
   // Con el filtro puesto, todas las filas son de esa entidad (o proveedor): su nombre sale de la primera.
   const nombreEntidad = entidad ? filas.find((o) => o.entidadRuc === entidad)?.entidad ?? entidadNombre : null;
   const nombreProveedor = proveedor ? filas.find((o) => o.rucContratista === proveedor)?.contratista : null;
+  // Un periodo (el de un patrón de la historia): un chip con sus fechas que se quita entero.
+  const periodo = periodoDeParametro(parametros[P_ORD.periodo]);
+  const filtroPeriodo: FiltroSecundario[] = periodo
+    ? [{ param: P_ORD.periodo, etiqueta: "Periodo", todas: "Todo el periodo", opciones: [{ valor: `${periodo.desde}_${periodo.hasta}`, etiqueta: `Del ${fechaLarga(periodo.desde)} al ${fechaLarga(periodo.hasta)}` }] }]
+    : [];
   const filtros: FiltroSecundario[] = [
+    ...filtroPeriodo,
     ...enSeccion(
       "Quién",
       ...filtroRuc(P_ORD.entidad, "Entidad", "Toda entidad", entidad, nombreEntidad),

@@ -185,7 +185,7 @@ export interface OrdenesPagina {
 }
 
 export type FiltrosOrdenes = {
-  q?: string; anio?: number; entidad?: string; proveedor?: string; region?: string;
+  q?: string; anio?: number; desde?: string; hasta?: string; entidad?: string; proveedor?: string; region?: string;
   tipo?: string; estado?: string; dudosa?: string; persona?: string; como?: string; monto?: string; antecedente?: string;
   orden?: string; page?: number; size?: number;
 };
@@ -324,7 +324,7 @@ export function montoOrden(o: { monto: number | null; montoOtraMoneda?: number |
 
 /** Claves en la URL (prefijo «o»), para no pisar los filtros de la vista Contratos. */
 export const P_ORD = {
-  q: "oq", anio: "oanio", entidad: "oent", proveedor: "oprov", region: "oreg",
+  q: "oq", anio: "oanio", periodo: "operiodo", entidad: "oent", proveedor: "oprov", region: "oreg",
   tipo: "otipo", estado: "oest", dudosa: "odud", persona: "oper", como: "ocomo", monto: "omonto", antecedente: "oant",
   orden: "oord", page: "opag",
 } as const;
@@ -342,15 +342,32 @@ export function rutaOrdenes(f: { entidad?: string | null; proveedor?: string | n
   return `/app/contratos?${q}`;
 }
 
+/** «2022-10-01_2022-12-31» ↔ { desde, hasta }: el periodo va en un solo parámetro (un chip que se quita entero). */
+const PERIODO = /^(\d{4}-\d{2}-\d{2})_(\d{4}-\d{2}-\d{2})$/;
+export const periodoDeParametro = (v: string | undefined) => {
+  const m = v ? PERIODO.exec(v) : null;
+  return m && m[1] <= m[2] ? { desde: m[1], hasta: m[2] } : null;
+};
+
+/** Las órdenes de una entidad en un periodo (el de un patrón de su historia); con `persona`, sólo las de personas o empresas. */
+export function rutaOrdenesPeriodo(f: { entidad: string; desde: string; hasta: string; persona?: "natural" | "empresa" }): string {
+  const q = new URLSearchParams({ vista: "ordenes", [P_ORD.entidad]: f.entidad, [P_ORD.periodo]: `${f.desde}_${f.hasta}` });
+  if (f.persona) q.set(P_ORD.persona, f.persona);
+  return `/app/contratos?${q}`;
+}
+
 export function parseOrdenesQuery(sp?: Record<string, string | string[] | undefined>): FiltrosOrdenes {
   const g = (k: string) => { const v = sp?.[k]; return Array.isArray(v) ? v[0] : v; };
   const num = (k: string) => { const v = g(k); const x = v ? parseInt(v, 10) : NaN; return Number.isFinite(x) ? x : undefined; };
   // Lo que la API no acepta (un RUC mal escrito, un estado que no existe) se ignora: con él respondía 400 y la lista
   // entera decía «No pudimos cargar las órdenes».
   const ruc = (k: string) => (/^\d{11}$/.test(g(k) ?? "") ? g(k) : undefined);
+  const periodo = periodoDeParametro(g(P_ORD.periodo));
   return {
     q: g(P_ORD.q) || undefined,
     anio: num(P_ORD.anio),
+    desde: periodo?.desde,
+    hasta: periodo?.hasta,
     entidad: ruc(P_ORD.entidad),
     proveedor: ruc(P_ORD.proveedor),
     region: g(P_ORD.region) || undefined,
@@ -371,6 +388,7 @@ export function ordenesParametros(q: FiltrosOrdenes): Record<string, string> {
   const out: Record<string, string> = { vista: "ordenes" };
   const set = (k: string, v: unknown) => { if (v != null && v !== "") out[k] = String(v); };
   set(P_ORD.q, q.q); set(P_ORD.anio, q.anio); set(P_ORD.entidad, q.entidad); set(P_ORD.proveedor, q.proveedor);
+  set(P_ORD.periodo, q.desde && q.hasta ? `${q.desde}_${q.hasta}` : undefined);
   set(P_ORD.region, q.region);
   set(P_ORD.tipo, q.tipo); set(P_ORD.estado, q.estado); set(P_ORD.dudosa, q.dudosa);
   set(P_ORD.persona, q.persona); set(P_ORD.como, q.como); set(P_ORD.monto, q.monto); set(P_ORD.antecedente, q.antecedente);
