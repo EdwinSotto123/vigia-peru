@@ -284,6 +284,16 @@ async function recorrerDia(env: Env, dia: string, ix: ZonaIndex, tope: number): 
 // ── carga ───────────────────────────────────────────────────────────────────
 const COLS_CONV = 22;
 
+/**
+ * La columna `col` de la clasificación en el upsert de convocatorias: la del release que llega si no es más viejo que el
+ * payload guardado (su `date`, ISO con la misma zona en todo el SEACE), y si no la que ya estaba. `nuevo`: el valor que
+ * se pone (por omisión, EXCLUDED.col).
+ */
+export function siNoEsViejo(col: string, nuevo = `EXCLUDED.${col}`): string {
+  return `CASE WHEN COALESCE(EXCLUDED.ocds_payload->>'date', '') >= COALESCE(convocatorias.ocds_payload->>'date', '')
+                THEN ${nuevo} ELSE convocatorias.${col} END`;
+}
+
 /** Upsert de entidades y convocatorias (mismo SQL que load() de Python, en tandas de 500). */
 async function cargar(db: Db, filas: Fila[]): Promise<{ convocatorias: number; entidades: number }> {
   const ents = new Map<string, Fila>();
@@ -325,10 +335,14 @@ async function cargar(db: Db, filas: Fila[]): Promise<{ convocatorias: number; e
           `${p(12)}::jsonb, ${p(13)}, ${p(14)}, ${p(15)}, ${p(16)}::boolean, ${p(17)}, ${p(18)}::text[], ${p(19)}::text[], ${p(20)}, ${p(21)}::jsonb, now())`;
       });
       // No se pisa lo que ya cargó el orquestador (objeto, cuantía, payload completo).
-      // La clasificación SÍ se actualiza siempre: el release nuevo trae la etapa más reciente.
       // El payload recortado, sí, si el release es MÁS NUEVO que el guardado: antes quedaba congelado en el primero que
       // se vio (los participantes de cuando recién se convocó, sin el contrato). El record completo (con `parties`, de
       // documentos.ts o del batch) no se toca: trae más que cualquier release recortado.
+      // La clasificación (tipo, etapa, modalidad…) sólo con un release que no sea más viejo que el guardado. Antes se
+      // pisaba siempre, y un relleno de historia que pasa los releases fuera de orden dejaba la del último PROCESADO, no
+      // la del último PUBLICADO: un proceso declarado desierto en su primera convocatoria y contratado en la tercera
+      // quedaba «desierta», con la modalidad de la primera (LP en vez de AS). Medido el 2026-11-18: 1,9 % de los procesos;
+      // con evidencia de CONOSCE, el payload acertaba en 246 de 246 (reclasificar_desfasadas.py los corrigió).
       await db.ejecutar(`
         INSERT INTO convocatorias (ocid, codigo, entidad_ruc, objeto, cuantia_referencial, fecha_convocatoria,
                                    region, ubigeo, categoria, estado_tender, fuente, ocds_payload,
@@ -347,16 +361,16 @@ async function cargar(db: Db, filas: Fila[]): Promise<{ convocatorias: number; e
                                      WHEN COALESCE(EXCLUDED.ocds_payload->>'date', '') > COALESCE(convocatorias.ocds_payload->>'date', '')
                                        THEN EXCLUDED.ocds_payload
                                      ELSE convocatorias.ocds_payload END,
-          tipo_contratacion   = EXCLUDED.tipo_contratacion,
-          etapa               = EXCLUDED.etapa,
-          modalidad           = EXCLUDED.modalidad,
-          procesable          = EXCLUDED.procesable,
-          motivo_no_procesable = EXCLUDED.motivo_no_procesable,
-          agentes_aplicables  = EXCLUDED.agentes_aplicables,
-          validaciones_pendientes = EXCLUDED.validaciones_pendientes,
+          tipo_contratacion   = ${siNoEsViejo("tipo_contratacion")},
+          etapa               = ${siNoEsViejo("etapa")},
+          modalidad           = ${siNoEsViejo("modalidad")},
+          procesable          = ${siNoEsViejo("procesable")},
+          motivo_no_procesable = ${siNoEsViejo("motivo_no_procesable")},
+          agentes_aplicables  = ${siNoEsViejo("agentes_aplicables")},
+          validaciones_pendientes = ${siNoEsViejo("validaciones_pendientes")},
           proveedor_ruc       = COALESCE(EXCLUDED.proveedor_ruc, convocatorias.proveedor_ruc),
           adjudicaciones      = COALESCE(EXCLUDED.adjudicaciones, convocatorias.adjudicaciones),
-          clasificado_at      = now(),
+          clasificado_at      = ${siNoEsViejo("clasificado_at", "now()")},
           updated_at          = now()`, vals);
     }
   });

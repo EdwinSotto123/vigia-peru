@@ -8,7 +8,7 @@ import { readFileSync } from "node:fs";
 import { test } from "node:test";
 import { clasificar } from "../src/clasificacion.ts";
 import {
-  normalizarRelease, payloadDe, recortarAdjudicaciones, recortarContratos, recortarPartes, recortarPresupuesto, ocidCorto, sinEscapes, slugRegion,
+  normalizarRelease, payloadDe, recortarAdjudicaciones, recortarContratos, recortarPartes, recortarPresupuesto, ocidCorto, siNoEsViejo, sinEscapes, slugRegion,
 } from "../src/fuentes/oece_ocds.ts";
 import type { Dict } from "../src/py.ts";
 import { ZonaIndex, norm, resolverUbigeo } from "../src/ubigeo.ts";
@@ -113,4 +113,11 @@ test("objeto: los saltos escritos como texto por el SEACE se vuelven espacios", 
   const conEscapes = String.raw`ADQUISICIÓN E IMPLEMENTACIÓN DE PANEL LED \nPARA LA UNIVERSIDAD\t  NACIONAL`;
   assert.equal(sinEscapes(conEscapes), "ADQUISICIÓN E IMPLEMENTACIÓN DE PANEL LED PARA LA UNIVERSIDAD NACIONAL");
   assert.equal(sinEscapes("SIN NADA RARO"), "SIN NADA RARO");
+});
+
+test("clasificación: un release más viejo que el payload guardado no la pisa (relleno fuera de orden)", () => {
+  const sql = siNoEsViejo("etapa");
+  assert.match(sql, /EXCLUDED\.ocds_payload->>'date', ''\) >= COALESCE\(convocatorias\.ocds_payload->>'date'/);
+  assert.match(sql, /THEN EXCLUDED\.etapa ELSE convocatorias\.etapa END/);
+  assert.match(siNoEsViejo("clasificado_at", "now()"), /THEN now\(\) ELSE convocatorias\.clasificado_at END/);
 });
