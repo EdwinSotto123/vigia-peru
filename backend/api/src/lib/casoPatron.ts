@@ -88,6 +88,8 @@ export interface CasoPatron {
   desde: string | null;
   hasta: string | null;
   cifras: { etiqueta: string; valor: string; contexto?: string | null }[];
+  /** Lo del caso año por año, en dos partes apiladas (en un grupo: el mayor integrante y los demás). */
+  serie?: { titulo: string; etiquetaA: string; etiquetaB: string; anios: { anio: number; a: number; b: number; detalleA: string; detalleB: string }[] } | null;
   nodos: NodoCaso[];
   aristas: AristaCaso[];
   hitos: HitoCaso[];
@@ -113,6 +115,8 @@ const soles = (n: number | null | undefined) => {
 const plural = (n: number, uno: string, varios: string) => `${miles(n)} ${n === 1 ? uno : varios}`;
 const titulo = (s: string | null | undefined) =>
   (s ?? "")
+    .replace(/\s+/g, " ")
+    .trim()
     .toLowerCase()
     .replace(/(^|[\s(«"/-])(\p{L})/gu, (_m, a: string, b: string) => a + b.toUpperCase())
     .replace(/\b(S\.?a\.?c|E\.?i\.?r\.?l|S\.?a\.?a|S\.?r\.?l|S\.?a)\b\.?/gi, (m) => m.toUpperCase())
@@ -123,18 +127,27 @@ const fechaLarga = (f: string) => {
   return `${d} de ${MES[m - 1]} de ${a}`;
 };
 const tapar = (raw: string | null | undefined) => (raw ? taparNombrePropio(nombrePublicable(raw), raw) ?? "Una persona" : null);
-/** El número de una orden («O/C-66-2021-Departamento…» → 66) para buscarla en la lista de compras (3 cifras o más). */
-const numeroDeOrden = (o: string) => /(\d{1,8})/.exec(o)?.[1] ?? "";
+/**
+ * El número de una orden («O/C-66-2021-Departamento…» → 66, «O/S-4505543033-2026-…» → 4505543033) para buscarla en la lista
+ * de compras (3 cifras o más). Entero: cortado a 8 cifras parecía un DNI y publicar() lo tapaba en el enlace.
+ */
+const numeroDeOrden = (o: string) => /(\d+)/.exec(o)?.[1] ?? "";
 
 /** La clave opaca de un caso: los primeros 16 hex del md5 de sus partes, igual en SQL (`left(md5(a||'|'||b), 16)`). */
 export const SQL_CLAVE_GRUPO = `left(md5(r.entidad_ruc || '|' || r.grupo), 16)`;
 
 // ─── Grupo de proveedores en una entidad (migraciones 343-347, 350) ───────────────────────────────
 
+/** Los papeles del RNP en palabras que no dicen el género de la persona (no se sabe). */
 const ROL_RNP: Record<string, string> = {
-  SOCIO_ACCIONISTA_TITULAR: "socia o accionista",
+  SOCIO_ACCIONISTA_TITULAR: "accionista",
   REPRESENTANTE_LEGAL: "representante legal",
-  ORGANO_ADMINISTRACION: "directiva",
+  ORGANO_ADMINISTRACION: "parte de su administración",
+};
+/** «accionista, representante legal y parte de su administración». */
+const roles = (xs: string[]) => {
+  const u = [...new Set(xs.map((x) => ROL_RNP[x] ?? "parte de su conformación"))];
+  return u.length > 1 ? `${u.slice(0, -1).join(", ")} y ${u[u.length - 1]}` : u[0] ?? "parte de su conformación";
 };
 
 export async function casoGrupo(clave: string, pedir: Pedir): Promise<CasoPatron | null> {
@@ -239,18 +252,25 @@ export async function casoGrupo(clave: string, pedir: Pedir): Promise<CasoPatron
     });
     aristas.push({ de: n, a: "e", tipo: "vende", texto: `${plural(tot?.ordenes ?? m?.ordenes ?? 0, "orden", "órdenes")} por ${soles(tot?.monto ?? m?.monto)}` });
   }
+  // Los papeles de cada persona en cada empresa, juntos (el RNP trae una fila por papel: socio, representante, directivo).
+  const porPersonaEmpresa = new Map<string, typeof rnp.rows>();
+  for (const x of rnp.rows) porPersonaEmpresa.set(`${x.nombre}|${x.ruc}`, [...(porPersonaEmpresa.get(`${x.nombre}|${x.ruc}`) ?? []), x]);
   // Las personas que los unen (con un apellido tapado), una vez cada una.
   const nodoPersona = new Map<string, string>();
   const ponerPersona = (raw: string) => {
     if (nodoPersona.has(raw)) return nodoPersona.get(raw)!;
     const idp = `p${nodoPersona.size + 1}`;
     nodoPersona.set(raw, idp);
-    const roles = rnp.rows.filter((x) => x.nombre === raw);
-    const deEmpresas = [...new Set(roles.map((x) => x.ruc))];
+    const suyas = [...porPersonaEmpresa.entries()].filter(([k]) => k.startsWith(`${raw}|`));
+    const deEmpresas = suyas.map(([k]) => k.split("|")[1]);
     nodos.push({
       id: idp, tipo: "persona", nombre: tapar(raw) ?? "Una persona",
-      rol: deEmpresas.length > 1 ? `Figura en ${miles(deEmpresas.length)} empresas del grupo` : "Socia o representante en el grupo",
-      datos: roles.map((x) => ({ etiqueta: nombreDe.get(x.ruc) ?? "Empresa del grupo", valor: `${ROL_RNP[x.rol] ?? "en su conformación"}${x.desde ? `, desde ${fechaLarga(x.desde)}` : ""}${x.baja ? `; ya no figura desde el corte de ${fechaLarga(x.baja)}` : ""}` })),
+      rol: deEmpresas.length > 1 ? `Figura en ${miles(deEmpresas.length)} empresas del grupo` : "Figura en una empresa del grupo",
+      datos: suyas.map(([k, xs]) => {
+        const desde = xs.map((x) => x.desde).filter((z): z is string => !!z).sort()[0];
+        const baja = xs.every((x) => x.baja) ? xs.map((x) => x.baja!).sort().reverse()[0] : null;
+        return { etiqueta: nombreDe.get(k.split("|")[1]) ?? "Empresa del grupo", valor: `${roles(xs.map((x) => x.rol))}${desde ? `, desde ${fechaLarga(desde)}` : ""}${baja ? `; ya no figura desde el corte de ${fechaLarga(baja)}` : ""}` };
+      }),
     });
     return idp;
   };
@@ -268,7 +288,7 @@ export async function casoGrupo(clave: string, pedir: Pedir): Promise<CasoPatron
         const kk = `${p}|${r}`;
         if (!vistos.has(kk) && nodoDe.has(r)) {
           vistos.add(kk);
-          aristas.push({ de: p, a: nodoDe.get(r)!, tipo: "socio", texto: ROL_RNP[rnp.rows.find((x) => x.nombre === (p === p1 ? v.persona : v.persona_b) && x.ruc === r)?.rol ?? ""] ?? "socia o representante" });
+          aristas.push({ de: p, a: nodoDe.get(r)!, tipo: "socio", texto: roles((porPersonaEmpresa.get(`${p === p1 ? v.persona : v.persona_b}|${r}`) ?? []).map((x) => x.rol)) });
         }
       }
     } else if (v.persona) {
@@ -278,8 +298,7 @@ export async function casoGrupo(clave: string, pedir: Pedir): Promise<CasoPatron
         if (vistos.has(kk) || !nodoDe.has(r)) continue;
         vistos.add(kk);
         // «es_socio»: la persona que vende con su RUC es la misma persona (su nodo es el del integrante).
-        const rol = rnp.rows.find((x) => x.nombre === v.persona && x.ruc === r)?.rol;
-        aristas.push({ de: p, a: nodoDe.get(r)!, tipo: "socio", texto: v.via === "es_socio" && !r.startsWith("20") ? "es la misma persona, que vende con su RUC" : ROL_RNP[rol ?? ""] ?? "socia o representante" });
+        aristas.push({ de: p, a: nodoDe.get(r)!, tipo: "socio", texto: v.via === "es_socio" && !r.startsWith("20") ? "es la misma persona, que vende con su RUC" : roles((porPersonaEmpresa.get(`${v.persona}|${r}`) ?? []).map((x) => x.rol)) });
       }
     }
   }
@@ -295,10 +314,14 @@ export async function casoGrupo(clave: string, pedir: Pedir): Promise<CasoPatron
   // ── La historia, hecho por hecho ──
   const hitos: HitoCaso[] = [];
   for (const a of alta.rows) if (a.alta) hitos.push({ fecha: a.alta, tipo: "fundacion", titulo: `Se funda ${nombreDe.get(a.ruc) ?? "una empresa del grupo"}`, nodos: [nodoDe.get(a.ruc)!], fuente: "SUNAT (padrón RUC)" });
-  for (const x of rnp.rows) {
-    const p = nodoPersona.get(x.nombre);
-    if (x.desde) hitos.push({ fecha: x.desde, tipo: "socio", titulo: `${tapar(x.nombre)} figura como ${ROL_RNP[x.rol] ?? "parte"} de ${nombreDe.get(x.ruc) ?? "una empresa del grupo"}`, nodos: [p, nodoDe.get(x.ruc)].filter((z): z is string => !!z), fuente: "Registro Nacional de Proveedores (OECE)" });
-    if (x.baja) hitos.push({ fecha: x.baja, tipo: "salida", titulo: `${tapar(x.nombre)} deja de figurar en ${nombreDe.get(x.ruc) ?? "una empresa del grupo"}`, detalle: "Fecha del corte del registro en que ya no aparece.", nodos: [p, nodoDe.get(x.ruc)].filter((z): z is string => !!z), fuente: "Registro Nacional de Proveedores (OECE)" });
+  for (const [k, xs] of porPersonaEmpresa) {
+    const [nombre, ruc] = k.split("|");
+    const p = nodoPersona.get(nombre);
+    const quienes = [p, nodoDe.get(ruc)].filter((z): z is string => !!z);
+    const desde = xs.map((x) => x.desde).filter((z): z is string => !!z).sort()[0];
+    const baja = xs.every((x) => x.baja) ? xs.map((x) => x.baja!).sort().reverse()[0] : null;
+    if (desde) hitos.push({ fecha: desde, tipo: "socio", titulo: `${tapar(nombre)} figura como ${roles(xs.map((x) => x.rol))} de ${nombreDe.get(ruc) ?? "una empresa del grupo"}`, nodos: quienes, fuente: "Registro Nacional de Proveedores (OECE)" });
+    if (baja) hitos.push({ fecha: baja, tipo: "salida", titulo: `${tapar(nombre)} deja de figurar en ${nombreDe.get(ruc) ?? "una empresa del grupo"}`, detalle: "Fecha del corte del registro en que ya no aparece.", nodos: quienes, fuente: "Registro Nacional de Proveedores (OECE)" });
   }
   // Primera y última orden de cada integrante, y lo de cada año (todas las órdenes, no la muestra).
   const porAnio = await pool.query<{ ruc: string; anio: number; n: number; monto: number; primera: string; ultima: string }>(
@@ -350,6 +373,30 @@ export async function casoGrupo(clave: string, pedir: Pedir): Promise<CasoPatron
   }
   hitos.sort((a, b) => a.fecha.localeCompare(b.fecha) || a.tipo.localeCompare(b.tipo));
 
+  // Año por año: lo del mayor integrante (por todo lo que vendió) y lo de los demás, apilado.
+  const totalDe = new Map<string, number>();
+  for (const x of porAnio.rows) totalDe.set(x.ruc, (totalDe.get(x.ruc) ?? 0) + x.monto);
+  const mayor = [...totalDe.entries()].sort((a, b) => b[1] - a[1])[0]?.[0];
+  const serie = mayor && anios.length > 1
+    ? {
+        titulo: "Lo que la entidad le compró al grupo, año por año",
+        etiquetaA: nombreDe.get(mayor) ?? "El mayor integrante",
+        etiquetaB: "Los demás integrantes",
+        anios: anios.map((a) => {
+          const xs = porAnio.rows.filter((x) => x.anio === a);
+          const delMayor = xs.filter((x) => x.ruc === mayor);
+          const otros = xs.filter((x) => x.ruc !== mayor);
+          const suma = (ys: typeof xs) => ys.reduce((t, y) => t + y.monto, 0);
+          const n = (ys: typeof xs) => ys.reduce((t, y) => t + y.n, 0);
+          return {
+            anio: a, a: suma(delMayor), b: suma(otros),
+            detalleA: `${soles(suma(delMayor))} en ${plural(n(delMayor), "orden", "órdenes")}`,
+            detalleB: `${soles(suma(otros))} en ${plural(n(otros), "orden", "órdenes")} de ${plural(otros.length, "integrante", "integrantes")}`,
+          };
+        }),
+      }
+    : null;
+
   // ── Por qué llama la atención ──
   const razones: RazonCaso[] = ([
     g.puestoGrupo && g.puestoMayor && g.puestoGrupo < g.puestoMayor
@@ -397,7 +444,7 @@ export async function casoGrupo(clave: string, pedir: Pedir): Promise<CasoPatron
       { etiqueta: "Días con órdenes a varios", valor: miles(g.diasJuntos ?? 0), contexto: g.diasJuntos ? `por ${soles(g.montoJuntos)}` : "ninguno" },
       { etiqueta: "Al borde del tope de 8 UIT", valor: miles(g.borde ?? 0), contexto: g.hasta8Uit ? `de ${miles(g.hasta8Uit)} órdenes chicas` : "sin órdenes chicas" },
     ],
-    nodos, aristas, hitos, razones,
+    serie, nodos, aristas, hitos, razones,
     evidencia: {
       titulo: "Las órdenes de la entidad al grupo", total: total.rows[0]?.n ?? filas.length, filas,
       nota: (total.rows[0]?.n ?? 0) > filas.length ? `Aquí van las ${miles(filas.length)} más recientes de ${miles(total.rows[0]?.n ?? 0)}; las demás están en las compras de la entidad.` : null,

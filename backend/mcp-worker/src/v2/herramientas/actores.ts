@@ -869,6 +869,8 @@ export const patrones = definir({
           objetos_repartidos: ((g.objetosRepartidos ?? []) as Fila[]).slice(0, 6).map((x) => ({ anio: x.anio, objeto: x.objeto, ordenes: x.ordenes, miembros: x.miembros, monto_soles: x.monto, tope_soles: x.tope })),
           parientes_declarados_de_funcionarios_de_la_entidad: ((g.parientesDeFuncionarios ?? []) as Fila[]).map((d) => ({ integrante: d.nombre, cargo_del_funcionario: d.cargo ?? undefined, parentesco: d.parentesco,
             como: d.via === "socio" ? "un socio o representante de esta empresa es el pariente declarado" : "el integrante es el pariente declarado (vende con su RUC)" })),
+          // La ficha del caso: su historia hecho por hecho, la red de quiénes son, cada orden y qué revisar.
+          ficha_del_caso: g.clave ? `${cx.env.VIGIA_URL}/app/patrones/caso/grupos/${g.clave}` : undefined,
           enlace_entidad: e.entidad(g.entidadRuc),
         })),
         como_leerlo:

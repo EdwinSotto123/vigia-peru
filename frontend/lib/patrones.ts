@@ -138,6 +138,8 @@ export interface PatronDueno {
  * órdenes (migración 343). Las personas naturales llegan con un apellido tapado y su RUC como referencia opaca.
  */
 export interface PatronGrupo {
+  /** La clave opaca de su ficha de caso (/app/patrones/caso/grupos/<clave>). */
+  clave?: string;
   entidadRuc: string;
   entidad: string | null;
   grupo: string;

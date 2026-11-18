@@ -34,6 +34,7 @@ import {
   type PatronSenal,
 } from "@/lib/patrones";
 import { rutaContrato } from "@/lib/rutas";
+import { rutaCaso } from "@/lib/casoPatron";
 
 /**
  * El panel lateral de una fila de /app/patrones (pedido del dueño del 2026-11-16: «quiero clickear y ver la información
@@ -541,7 +542,16 @@ export function detalleGrupo(p: PatronGrupo): Detalle {
         />
       </div>
     ),
-    pie: <Pie enlaces={[esRuc20(p.entidadRuc) && { texto: "Ficha de la entidad", href: `/entidad/${p.entidadRuc}` }]} />,
+    // La ficha del caso cuenta su historia entera (red, cronología, cada orden): el panel es su vista previa (pedido del
+    // usuario del 2026-11-18: «esto no debería llevar a la ficha de la entidad»).
+    pie: (
+      <Pie
+        enlaces={[
+          !!p.clave && { texto: "Abrir la ficha del caso", href: rutaCaso("grupos", p.clave) },
+          esRuc20(p.entidadRuc) && { texto: "Sus otros patrones en la entidad", href: `/entidad/${p.entidadRuc}?seccion=patrones&patron=grupos` },
+        ]}
+      />
+    ),
   };
 }
 
