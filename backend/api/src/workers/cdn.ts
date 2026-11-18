@@ -109,8 +109,10 @@ const GUARDADO = "X-Vigia-Guardado";
  * "106": una sola ficha por persona (2026-11-17): las fichas de cargo, persona contratada y planilla traen `mismaPersona`
  *        (sus otras fichas) y la de cargo, `familia` (migración 351); las órdenes, `repetida` y `parienteSocio` (348-350).
  *        Las respuestas guardadas antes no los tenían y la web no unía las fichas.
+ * "107": la familia de la ficha de cargo dice qué familiares son cercanos (`cercano`, `cercanosEnSuEntidad`): de eso
+ *        depende que su bandera sea grave o media.
  */
-const VERSION_CACHE = "106";
+const VERSION_CACHE = "107";
 
 function cacheable(req: Request): boolean {
   if (req.method !== "GET") return false;

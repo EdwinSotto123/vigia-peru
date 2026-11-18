@@ -45,7 +45,7 @@ const COLUMNAS: Columna[] = [
   { clave: "periodo", titulo: "Años", ancho: "6.5rem", desde: "lg", apilar: "con-rotulo" },
 ];
 
-function fila(n: number, parentesco: string, x: ItemFamiliar, i: number): Fila {
+function fila(n: number, parentesco: string, cercano: boolean, x: ItemFamiliar, i: number): Fila {
   const quien = `Familiar ${n}: ${parentesco.toLowerCase()}`;
   const periodo = anios(x.desde, x.hasta);
   const esOrden = x.tipo === "orden";
@@ -86,7 +86,7 @@ function fila(n: number, parentesco: string, x: ItemFamiliar, i: number): Fila {
       cuanto: <CeldaNumero sub={cuenta}>{x.monto != null ? solesCompacto(x.monto) : "Reservado"}</CeldaNumero>,
       suya: x.suEntidad ? (
         <span className="flex flex-col items-start gap-0.5 md:items-end">
-          <Badge variant="crimson">En su entidad</Badge>
+          <Badge variant={cercano ? "crimson" : "amber"}>En su entidad</Badge>
           <span className="text-rotulo text-mute">
             {x.reservado
               ? "Cifras reservadas"
@@ -125,7 +125,7 @@ export function PestanaFamilia({ familia: f }: { familia: FamiliaDeLaPersona | n
       </div>
     );
   }
-  const filas = f.parientes.flatMap((p) => p.items.map((x, i) => fila(p.n, p.parentesco, x, i)));
+  const filas = f.parientes.flatMap((p) => p.items.map((x, i) => fila(p.n, p.parentesco, p.cercano === true, x, i)));
   const conAlgo = f.parientes.length + f.masParientes;
   return (
     <div className="space-y-4">
@@ -145,7 +145,7 @@ export function PestanaFamilia({ familia: f }: { familia: FamiliaDeLaPersona | n
             etiqueta: "obtuvieron algo de su entidad",
             contexto: f.enSuEntidad ? (f.montoSuEntidad > 0 ? solesCompacto(f.montoSuEntidad) : "cifras reservadas") : "ninguno",
             icono: <HeartHandshake size={15} strokeWidth={1.9} aria-hidden />,
-            tono: f.enSuEntidad ? "alta" : "neutro",
+            tono: (f.cercanosEnSuEntidad ?? 0) > 0 ? "alta" : f.enSuEntidad ? "media" : "neutro",
             parte: null,
           },
         ]}

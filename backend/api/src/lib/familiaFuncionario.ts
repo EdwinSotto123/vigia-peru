@@ -37,7 +37,13 @@ export interface FamiliaFuncionario {
   conEmpresas: number;
   enSuEntidad: number;
   montoSuEntidad: number;
-  parientes: { n: number; parentesco: string; items: ItemFamiliar[] }[];
+  /**
+   * `cercano`: cónyuge o conviviente, padres, hijos o hermanos. null si el parentesco va reservado (autoridad electa): decir
+   * que es cercano sin decir cuál lo delataría (un cónyuge o un padre sí se nombran; quedarían hermano o hijo).
+   */
+  parientes: { n: number; parentesco: string; cercano: boolean | null; items: ItemFamiliar[] }[];
+  /** Familiares cercanos (y no reservados) que obtuvieron algo de su entidad: lo que hace grave la bandera. */
+  cercanosEnSuEntidad: number;
   /** Familiares con algo del Estado que no entraron en la lista (tope). */
   masParientes: number;
 }
@@ -51,8 +57,8 @@ export async function familiaDelFuncionario(codigo: string, declaranteElecto: bo
       `SELECT r.declarados, r.con_ordenes AS "conOrdenes", r.monto_ordenes::float AS "montoOrdenes", r.con_empresas AS "conEmpresas",
               r.en_su_entidad AS "enSuEntidad", r.monto_su_entidad::float AS "montoSuEntidad"
          FROM funcionario_familia_resumen r WHERE r.codigo = $1`, [codigo]),
-    pool.query<ItemFamiliar & { pariente: number; parentesco: string | null }>(
-      `SELECT f.pariente, f.parentesco, f.tipo, f.entidad_ruc AS "entidadRuc", f.entidad, f.empresa_ruc AS "empresaRuc", f.empresa, f.rol,
+    pool.query<ItemFamiliar & { pariente: number; parentesco: string | null; grado: string | null }>(
+      `SELECT f.pariente, f.parentesco, f.grado, f.tipo, f.entidad_ruc AS "entidadRuc", f.entidad, f.empresa_ruc AS "empresaRuc", f.empresa, f.rol,
               f.ordenes, f.procesos, f.monto::float AS monto, f.desde, f.hasta, f.su_entidad AS "suEntidad",
               f.su_entidad_ordenes AS "suEntidadOrdenes", f.su_entidad_monto::float AS "suEntidadMonto"
          FROM funcionario_familiar f WHERE f.codigo = $1
@@ -60,14 +66,18 @@ export async function familiaDelFuncionario(codigo: string, declaranteElecto: bo
   ]);
   const r = res.rows[0];
   if (!r) return null;
-  const porPariente = new Map<number, { n: number; parentesco: string; reservado: boolean; items: ItemFamiliar[]; peso: number }>();
-  for (const { pariente, parentesco, ...x } of filas.rows) {
+  const porPariente = new Map<number, { n: number; parentesco: string; reservado: boolean; cercano: boolean | null; enSuEntidad: boolean; items: ItemFamiliar[]; peso: number }>();
+  for (const { pariente, parentesco, grado, ...x } of filas.rows) {
     const publicable = parentescoPublicable(parentesco);
     const reservado = declaranteElecto && !publicable;
     const etiqueta = declaranteElecto ? publicable ?? "Familiar" : etiquetaParentesco(parentesco) ?? "Familiar";
     let p = porPariente.get(pariente);
-    if (!p) porPariente.set(pariente, (p = { n: pariente, parentesco: etiqueta, reservado, items: [], peso: 0 }));
+    if (!p) {
+      const cercano = reservado ? null : ["conyuge", "padre", "hijo", "hermano"].includes(String(grado ?? ""));
+      porPariente.set(pariente, (p = { n: pariente, parentesco: etiqueta, reservado, cercano, enSuEntidad: false, items: [], peso: 0 }));
+    }
     const enSuEntidad = x.suEntidad;
+    if (enSuEntidad) p.enSuEntidad = true;
     const item: ItemFamiliar = reservado && enSuEntidad
       ? { ...x, ordenes: x.tipo === "orden" ? null : x.ordenes, monto: x.tipo === "orden" ? null : x.monto, suEntidadOrdenes: null, suEntidadMonto: null, reservado: true }
       : x;
@@ -83,7 +93,8 @@ export async function familiaDelFuncionario(codigo: string, declaranteElecto: bo
     ...r,
     montoSuEntidad,
     // Renumerados en el orden en que se muestran: el número de la base no sale (es estable y serviría para seguir a alguien).
-    parientes: todos.slice(0, TOPE_PARIENTES).map((p, i) => ({ n: i + 1, parentesco: p.parentesco, items: p.items })),
+    parientes: todos.slice(0, TOPE_PARIENTES).map((p, i) => ({ n: i + 1, parentesco: p.parentesco, cercano: p.cercano, items: p.items })),
+    cercanosEnSuEntidad: todos.filter((p) => p.enSuEntidad && p.cercano === true).length,
     masParientes: Math.max(0, todos.length - TOPE_PARIENTES),
   };
 }

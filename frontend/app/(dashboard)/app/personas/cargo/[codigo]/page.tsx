@@ -140,7 +140,11 @@ export default async function FuncionarioPage({ params, searchParams }: { params
   const banderas = [
     ...banderasDe(f, ruta),
     ...(fam && fam.enSuEntidad > 0
-      ? [{ tipo: "nepotismo", severidad: "alta" as const, nombre: "Familiares declarados que obtuvieron algo de su entidad", n: fam.enSuEntidad, href: `${ruta}?seccion=familia` }]
+      ? [{
+          tipo: "nepotismo", severidad: (fam.cercanosEnSuEntidad ?? 0) > 0 ? ("alta" as const) : ("media" as const),
+          nombre: "Familiares declarados que obtuvieron algo de su entidad", n: fam.enSuEntidad, href: `${ruta}?seccion=familia`,
+          explica: "Un familiar que declaró en su declaración jurada recibió órdenes de su entidad, o es socio o representante de una empresa que le vende",
+        }]
       : []),
     ...(cuentaSenales ? banderasPersona(cuentaSenales.lista, `${ruta}?seccion=senales`) : []),
     ...(dPl?.banderas ?? []),
@@ -208,7 +212,7 @@ export default async function FuncionarioPage({ params, searchParams }: { params
           </>
         ) : null}
       </EnUnaFrase>
-      <Indicadores items={[...indicadores(f, ruta), ...indicadoresDeMas(ruta, contratada, dPl, fam)]} />
+      <Indicadores items={cuatroCifras(indicadores(f, ruta), indicadoresDeMas(ruta, contratada, dPl, fam), !!dPl)} />
       {f.sinRespuesta.length > 0 && (
         <Nota>
           No respondieron a tiempo: {f.sinRespuesta.map((x) => x.replace(/_/g, " ")).join(", ")}. Esa parte de la ficha puede estar incompleta: vuelve a
@@ -588,11 +592,23 @@ function indicadoresDeMas(ruta: string, contratada: FichaPersona | null, dPl: Pl
       etiqueta: fam.declarados === 1 ? "familiar declarado" : "familiares declarados",
       contexto: fam.enSuEntidad ? `${fam.enSuEntidad === 1 ? "uno obtuvo" : `${numero(fam.enSuEntidad)} obtuvieron`} algo de su entidad` : "ninguno con órdenes de su entidad",
       icono: <HeartHandshake size={15} strokeWidth={1.9} aria-hidden />,
-      tono: fam.enSuEntidad ? "alta" : "neutro",
+      tono: (fam.cercanosEnSuEntidad ?? 0) > 0 ? "alta" : fam.enSuEntidad ? "media" : "neutro",
       href: `${ruta}?seccion=familia`,
     });
   }
   return items;
+}
+
+/**
+ * La cabecera lleva cuatro cifras (DESIGN_SYSTEM §14.1): las de sus otras fichas primero (su sueldo, lo que cobró por
+ * órdenes, su familia) y después las de su rastro que dicen algo; las que valen cero, sólo si queda sitio. Con sueldo, la
+ * cuenta de planillas sobra.
+ */
+function cuatroCifras(base: Indicador[], mas: Indicador[], conSueldo: boolean): Indicador[] {
+  const propias = conSueldo ? base.slice(1) : base;
+  const todas = [...mas, ...propias];
+  const dice = (x: Indicador) => x.valor != null && x.valor !== "0";
+  return [...todas.filter(dice), ...todas.filter((x) => !dice(x))].slice(0, 4);
 }
 
 /** Los cruces como banderas fijas bajo el nombre: cada una lleva a «Lo que pide revisión». */

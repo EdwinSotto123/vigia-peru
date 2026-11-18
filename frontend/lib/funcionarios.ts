@@ -179,7 +179,10 @@ export interface FamiliaDeLaPersona {
   conEmpresas: number;
   enSuEntidad: number;
   montoSuEntidad: number;
-  parientes: { n: number; parentesco: string; items: ItemFamiliar[] }[];
+  /** `cercano`: cónyuge, padres, hijos o hermanos; null si el parentesco va reservado. */
+  parientes: { n: number; parentesco: string; cercano?: boolean | null; items: ItemFamiliar[] }[];
+  /** Familiares cercanos, no reservados, que obtuvieron algo de su entidad: lo que hace grave la bandera. */
+  cercanosEnSuEntidad?: number;
   masParientes: number;
 }
 
