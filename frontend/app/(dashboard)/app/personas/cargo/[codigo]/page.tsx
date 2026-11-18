@@ -17,7 +17,7 @@ import {
   Pestanas,
   type BanderaFicha,
 } from "@/components/patrones";
-import { CeldaNumero, CeldaPrincipal, CeldaTexto, CLASE_ENLACE_CELDA, Indicadores, Tabla, TablaPaginada, type Columna, type Fila, type Indicador } from "@/components/listado";
+import { CeldaNumero, CeldaPrincipal, CeldaTexto, CLASE_ENLACE_CELDA, CuentaGrupo, Indicadores, Tabla, TablaPaginada, type Columna, type Fila, type GrupoFilas, type Indicador } from "@/components/listado";
 import { InformeEnPanel } from "@/components/control/InformeEnPanel";
 import { Badge } from "@/components/ui/Badge";
 import { EnlaceAccion } from "@/components/ui/EnlaceAccion";
@@ -28,6 +28,7 @@ import {
   totalCruces,
   type CargoDeclarado,
   type CargoEnPlanilla,
+  type CobradoEnPlanilla,
   type CrucesDeLaPersona,
   type EmpleoDeclarado,
   type EmpresaDeLaPersona,
@@ -132,6 +133,8 @@ export default async function FuncionarioPage({ params, searchParams }: { params
     ? pestanasContratada({ f: contratada, codigo: codContratada, ruta, nombre: p.nombre, sent, filtrosOrdenes, ordenesP })
     : [];
   const senalesContratada = deContratada.find((x) => x.clave === "senales");
+  const pagosContratada = deContratada.find((x) => x.clave === "pagos");
+  const cobrado = f.cobradoPlanilla ?? [];
   const cuentaSenales = contratada ? senalesDistintas(contratada.entidades) : null;
   const nSenales = (cuentaSenales?.total ?? 0) + (dPl?.nSenales ?? 0);
   const seccion = uno(searchParams?.seccion) ?? (contratada && hayFiltrosOrdenes(filtrosOrdenes) ? "ordenes" : primera);
@@ -214,7 +217,7 @@ export default async function FuncionarioPage({ params, searchParams }: { params
           </>
         ) : null}
       </EnUnaFrase>
-      <Indicadores items={cuatroCifras(indicadores(f, ruta), indicadoresDeMas(ruta, contratada, dPl, fam), !!dPl)} />
+      <Indicadores items={cuatroCifras(indicadores(f, ruta), indicadoresDeMas(ruta, contratada, dPl, fam, cobrado), !!dPl || cobrado.length > 0)} />
       {f.sinRespuesta.length > 0 && (
         <Nota>
           No respondieron a tiempo: {f.sinRespuesta.map((x) => x.replace(/_/g, " ")).join(", ")}. Esa parte de la ficha puede estar incompleta: vuelve a
@@ -329,15 +332,23 @@ export default async function FuncionarioPage({ params, searchParams }: { params
               </div>
             ),
           },
-          ...(planilla && dPl
+          // Lo que cobró del Estado, cada vía en su pestaña (usuario, 2026-11-17): por planilla, como trabajador de la entidad;
+          // y por órdenes de servicio, como proveedor persona natural. La de planilla sale aunque ya no figure en ninguna.
+          ...((planilla && dPl) || cobrado.length > 0
             ? [
                 {
                   clave: "sueldo",
                   icono: <Wallet size={15} aria-hidden />,
-                  etiqueta: "Sueldo",
-                  titulo: "Lo que cobra en planilla",
+                  etiqueta: "Cobros por planilla",
+                  titulo: "Lo que cobró en planilla",
                   contenido: (
-                    <div className="space-y-3">
+                    <div className="space-y-6">
+                      <CobradoPlanilla filas={cobrado} ruta={ruta} />
+                      {planilla && dPl ? (
+                        <section className="space-y-3" data-bloque>
+                          <CabeceraPestana titulo="Mes a mes en su planilla de hoy">
+                            El detalle de cada mes publicado en {dPl.entidad}.
+                          </CabeceraPestana>
                       {mp && mp.fichasPlanilla.length > 1 ? (
                         <nav aria-label="Sus planillas" className="flex flex-wrap items-center gap-2 text-dato">
                           <span className="text-inkSoft">Está en {plural(mp.fichasPlanilla.length, "planilla", "planillas")}:</span>
@@ -368,11 +379,14 @@ export default async function FuncionarioPage({ params, searchParams }: { params
                           . La ley no permite dos ingresos del Estado, salvo la docencia y las dietas; el empate es por nombre completo.
                         </Nota>
                       ) : null}
+                        </section>
+                      ) : null}
                     </div>
                   ),
                 },
               ]
             : []),
+          ...(pagosContratada ? [pagosContratada] : []),
           ...(senalesContratada || dPl
             ? [
                 {
@@ -408,7 +422,8 @@ export default async function FuncionarioPage({ params, searchParams }: { params
             contenido: <PestanaFamilia familia={fam} />,
           },
           // Lo de su ficha de persona contratada: sus órdenes, lo que cobró, sus entidades, sus procesos y su recorrido.
-          ...["ordenes", "pagos", "entidades", "procesos", "recorrido"].flatMap((k) => deContratada.filter((x) => x.clave === k)),
+          ...deContratada.filter((x) => x.clave === "ordenes"),
+          ...["entidades", "procesos", "recorrido"].flatMap((k) => deContratada.filter((x) => x.clave === k)),
           {
             clave: "visitas",
             icono: <DoorOpen size={15} aria-hidden />,
@@ -603,8 +618,26 @@ function indicadores(f: FichaFuncionario, ruta: string): Indicador[] {
 }
 
 /** Lo que suman sus otras fichas a las cifras de la cabecera: lo que cobró por órdenes, su sueldo y su familia. */
-function indicadoresDeMas(ruta: string, contratada: FichaPersona | null, dPl: PlanillaPreparada | null, fam: FichaFuncionario["familia"]): Indicador[] {
+function indicadoresDeMas(
+  ruta: string,
+  contratada: FichaPersona | null,
+  dPl: PlanillaPreparada | null,
+  fam: FichaFuncionario["familia"],
+  cobrado: CobradoEnPlanilla[],
+): Indicador[] {
   const items: Indicador[] = [];
+  // Lo que cobró en planilla en los meses publicados: la cifra que faltaba junto a lo cobrado por órdenes.
+  const enPlanilla = cobrado.reduce((t, x) => t + x.total, 0);
+  if (enPlanilla > 0) {
+    const meses = cobrado.reduce((t, x) => t + x.meses, 0);
+    items.push({
+      valor: solesCompacto(enPlanilla),
+      etiqueta: "cobrados en planilla",
+      contexto: `en ${plural(meses, "mes publicado", "meses publicados")}`,
+      icono: <Wallet size={15} strokeWidth={1.9} aria-hidden />,
+      href: `${ruta}?seccion=sueldo`,
+    });
+  }
   if (dPl && dPl.p.base != null) {
     items.push({
       valor: solesCompacto(dPl.p.base),
@@ -838,6 +871,148 @@ function filaPlanilla(x: PlanillaDeLaPersona, clave: string, cargo?: { anterior:
       ),
     },
   };
+}
+
+// ─── Lo que cobró en planilla ────────────────────────────────────────────────────────────────────
+
+const COLUMNAS_COBRADO: Columna[] = [
+  { clave: "anio", titulo: "Año", ancho: "56px", desde: "md", apilar: "con-rotulo" },
+  { clave: "cargo", titulo: "Cargo", ancho: "minmax(0,1.4fr)" },
+  { clave: "regimen", titulo: "Régimen", ancho: "8.5rem", desde: "lg", apilar: "con-rotulo" },
+  { clave: "meses", titulo: "Meses publicados", corto: "Meses", ancho: "minmax(9rem,0.8fr)", desde: "md", apilar: "con-rotulo" },
+  { clave: "pormes", titulo: "Por mes", ancho: "104px", alinear: "der", desde: "md", apilar: "con-rotulo" },
+  { clave: "total", titulo: "En el año", ancho: "minmax(8.5rem,0.7fr)", alinear: "der" },
+];
+
+/** Los conceptos de la planilla que la entidad publica, con el nombre con que se leen. */
+const CONCEPTOS_PLANILLA: { clave: "remuneraciones" | "honorarios" | "gratificacion" | "incentivo" | "otros"; nombre: string }[] = [
+  { clave: "remuneraciones", nombre: "remuneraciones" },
+  { clave: "honorarios", nombre: "honorarios" },
+  { clave: "gratificacion", nombre: "gratificaciones" },
+  { clave: "incentivo", nombre: "incentivos" },
+  { clave: "otros", nombre: "otros conceptos" },
+];
+
+/** «S/ 100 mil de remuneraciones y S/ 22 mil de otros conceptos»: de qué se compone lo cobrado. */
+function conceptosDe(filas: CobradoEnPlanilla[]): string | null {
+  const partes = CONCEPTOS_PLANILLA.map((c) => ({ nombre: c.nombre, monto: filas.reduce((t, x) => t + (x[c.clave] ?? 0), 0) })).filter((c) => c.monto > 0);
+  if (!partes.length) return null;
+  const textos = partes.map((c) => `${solesCompacto(c.monto)} de ${c.nombre}`);
+  return textos.length === 1 ? textos[0]! : `${textos.slice(0, -1).join(", ")} y ${textos[textos.length - 1]}`;
+}
+
+function filaCobrado(x: CobradoEnPlanilla): Fila {
+  const periodo = x.primerMes && x.ultimoMes ? (x.primerMes === x.ultimoMes ? mes(x.primerMes) : `${mes(x.primerMes)} a ${mes(x.ultimoMes)}`) : null;
+  const buenos = x.meses - x.mesesDudosos;
+  return {
+    id: `cobrado-${x.entidadRuc}-${x.anio}`,
+    celdas: {
+      anio: <span className="font-mono text-meta tabular-nums text-ink">{x.anio}</span>,
+      cargo: (
+        <CeldaPrincipal
+          dosLineas
+          titulo={x.cargos.length ? x.cargos.map((c) => cargoTexto(c)).join(", ") : "Cargo sin detalle"}
+          meta={x.mesesDudosos > 0 ? [<span key="d">{plural(x.mesesDudosos, "mes con un monto dudoso que no se suma", "meses con un monto dudoso que no se suman")}</span>] : undefined}
+        />
+      ),
+      regimen: <CeldaTexto>{x.regimen != null ? REGIMEN[Number(x.regimen)] ?? `Régimen ${x.regimen}` : "Sin dato"}</CeldaTexto>,
+      meses: <CeldaTexto sub={periodo ?? undefined}>{plural(x.meses, "mes", "meses")}</CeldaTexto>,
+      pormes: <CeldaNumero>{buenos > 0 ? solesCompacto(x.total / buenos) : <span className="font-sans text-mute">Sin dato</span>}</CeldaNumero>,
+      total: (
+        <CeldaNumero sub={buenos > 0 ? conceptosDe([x]) ?? undefined : undefined}>
+          {buenos > 0 ? solesCompacto(x.total) : <span className="font-sans text-mute">Sin dato</span>}
+        </CeldaNumero>
+      ),
+    },
+  };
+}
+
+/** Lo que cobró en planilla: un grupo por entidad (la que más le pagó primero) y una fila por año. */
+function CobradoPlanilla({ filas, ruta }: { filas: CobradoEnPlanilla[]; ruta: string }) {
+  const regimenes = [...new Set(filas.map((x) => x.regimen).filter((r): r is number => r != null))].map((r) => REGIMEN[Number(r)] ?? `Régimen ${r}`);
+  const conceptos = conceptosDe(filas);
+  const porHonorarios = filas.some((x) => (x.honorarios ?? 0) > 0);
+  const total = filas.reduce((s, x) => s + x.total, 0);
+  const meses = filas.reduce((s, x) => s + x.meses, 0);
+  const porEntidad = new Map<string, CobradoEnPlanilla[]>();
+  for (const x of filas) porEntidad.set(x.entidadRuc, [...(porEntidad.get(x.entidadRuc) ?? []), x]);
+  const desde = filas.map((x) => x.primerMes).filter(Boolean).sort()[0] ?? null;
+  const hasta = filas.map((x) => x.ultimoMes).filter(Boolean).sort().pop() ?? null;
+  const grupos: GrupoFilas[] = [...porEntidad.entries()]
+    .map(([ruc, anios]) => ({ ruc, anios, monto: anios.reduce((t, a) => t + a.total, 0), meses: anios.reduce((t, a) => t + a.meses, 0) }))
+    .sort((a, b) => b.monto - a.monto)
+    .map((g) => ({
+      clave: g.ruc,
+      titulo: (
+        <span className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1">
+          <Link href={`/entidad/${g.ruc}`} prefetch={false} className="min-w-0 text-granate underline-offset-2 hover:underline">
+            {entidadTexto(g.anios[0]?.entidad)}
+          </Link>
+          <span className="inline-flex shrink-0 items-center gap-1.5 text-meta font-normal text-mute">
+            <CuentaGrupo>{solesCompacto(g.monto)}</CuentaGrupo>
+            {`en ${plural(g.meses, "mes publicado", "meses publicados")}`}
+          </span>
+        </span>
+      ),
+      filas: [...g.anios].sort((a, b) => b.anio - a.anio).map(filaCobrado),
+    }));
+  return (
+    <section className="space-y-3" data-bloque>
+      <CabeceraPestana
+        titulo="Por entidad y año"
+        ayuda={
+          <Ayuda titulo="¿Qué se suma aquí?">
+            <span className="block">
+              Lo que cada entidad publicó que le pagó cada mes en su planilla (Portal de Transparencia Estándar): sueldo,
+              gratificaciones y otros conceptos. «Por mes» es lo del año entre sus meses publicados.
+            </span>
+            <span className="mt-2 block">
+              Sólo entran los meses que la entidad publicó y que Vigía tiene cargados. Un mes que la entidad no publicó, o un año
+              anterior a lo cargado, no está en la suma: la persona pudo cobrar más que esto.
+            </span>
+          </Ayuda>
+        }
+      >
+        {filas.length
+          ? `En planilla cobró ${solesCompacto(total)} en ${plural(meses, "mes publicado", "meses publicados")}${desde && hasta ? `, de ${mes(desde)} a ${mes(hasta)}` : ""}. Es lo que publicaron sus entidades: lo anterior a esos meses no está cargado.`
+          : "No hay meses de planilla cargados para esta persona."}
+      </CabeceraPestana>
+      {filas.length > 0 && (
+        <section aria-labelledby="como-cobro-planilla" className="tarjeta space-y-3 rounded-2xl border border-line bg-paper p-4 sm:p-5">
+          <h3 id="como-cobro-planilla" className="font-display text-bloque font-bold text-ink">Cómo cobró</h3>
+          <DatosClave
+            items={[
+              {
+                etiqueta: "Cobró como",
+                valor: "Trabajador en la planilla de la entidad",
+                ayuda: (
+                  <Ayuda titulo="¿Qué quiere decir en planilla?">
+                    La entidad le paga cada mes como a su personal, no como a un proveedor: no hay orden de servicio ni recibo con RUC. El
+                    Portal de Transparencia publica su nombre, su cargo y su régimen, sin su documento.
+                  </Ayuda>
+                ),
+              },
+              { etiqueta: regimenes.length === 1 ? "Régimen laboral" : "Regímenes laborales", valor: regimenes.length ? regimenes.join(", ") : null },
+              { etiqueta: "De qué se compone", valor: conceptos },
+              ...(porHonorarios
+                ? [{ etiqueta: "Honorarios en planilla", valor: "La entidad lo publica con honorarios: es personal contratado por servicios que la entidad lista junto a su planilla" }]
+                : []),
+            ]}
+          />
+        </section>
+      )}
+      {grupos.length > 0 && <Tabla columnas={COLUMNAS_COBRADO} grupos={grupos} etiqueta="Lo que cobró en planilla por entidad y año" />}
+      {filas.length > 0 && (
+        <p className="text-meta text-mute">
+          El cargo y el sueldo de cada mes están en{" "}
+          <Link href={`${ruta}?seccion=cargos`} prefetch={false} className="text-granate underline underline-offset-2">
+            Cargos
+          </Link>
+          .
+        </p>
+      )}
+    </section>
+  );
 }
 
 const COLUMNAS_CARGOS: Columna[] = [

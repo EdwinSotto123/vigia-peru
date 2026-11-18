@@ -98,6 +98,54 @@ export async function empleosDeclarados(nombreNorm: string): Promise<EmpleoDecla
     .catch(() => null);
 }
 
+/** Lo que cobró de la planilla de una entidad en un año: la suma de los meses publicados (sin los montos dudosos). */
+export interface CobradoEnPlanilla {
+  entidadRuc: string;
+  entidad: string | null;
+  anio: number;
+  meses: number;
+  primerMes: string | null;
+  ultimoMes: string | null;
+  /** Todo lo que cobró ese año en esa entidad: sueldo, gratificaciones y otros conceptos. */
+  total: number;
+  /** Meses que traen un monto dudoso: no entran en `total`. */
+  mesesDudosos: number;
+  cargos: string[];
+  /** El régimen laboral con que figura (el del mes más reciente del año): CAS, 276, 728… */
+  regimen: number | null;
+  /** De qué se compone `total`, como lo publica la entidad. */
+  remuneraciones: number;
+  honorarios: number;
+  gratificacion: number;
+  incentivo: number;
+  otros: number;
+}
+
+/**
+ * Lo que cobró en planilla, por entidad y año (reporte del usuario, 2026-11-17: «Lo que cobró» sólo contaba sus órdenes de
+ * servicio y a un rector con S/ 25 000 al mes le salía una orden de 2019). null: no respondió a tiempo.
+ */
+export async function cobradoEnPlanilla(nombreNorm: string): Promise<CobradoEnPlanilla[] | null> {
+  return consultaConPlazo<CobradoEnPlanilla>(
+    `SELECT p.entidad_ruc AS "entidadRuc", (SELECT es.nombre FROM entidad_stats es WHERE es.ruc = p.entidad_ruc) AS entidad,
+            p.anio::int AS anio, count(DISTINCT p.mes)::int AS meses,
+            to_char(min(make_date(p.anio, p.mes, 1)), 'YYYY-MM') AS "primerMes", to_char(max(make_date(p.anio, p.mes, 1)), 'YYYY-MM') AS "ultimoMes",
+            COALESCE(sum(CASE WHEN x.dudoso THEN NULL ELSE p.total END), 0)::float AS total,
+            (count(DISTINCT p.mes) FILTER (WHERE x.dudoso))::int AS "mesesDudosos",
+            COALESCE((array_agg(DISTINCT NULLIF(btrim(p.cargo), '')) FILTER (WHERE NULLIF(btrim(p.cargo), '') IS NOT NULL))[1:4], '{}') AS cargos,
+            (array_agg(p.regimen ORDER BY p.mes DESC))[1] AS regimen,
+            COALESCE(sum(p.remuneraciones) FILTER (WHERE NOT x.dudoso), 0)::float AS remuneraciones,
+            COALESCE(sum(p.honorarios) FILTER (WHERE NOT x.dudoso), 0)::float AS honorarios,
+            COALESCE(sum(p.gratificacion) FILTER (WHERE NOT x.dudoso), 0)::float AS gratificacion,
+            COALESCE(sum(p.incentivo) FILTER (WHERE NOT x.dudoso), 0)::float AS incentivo,
+            COALESCE(sum(p.otros) FILTER (WHERE NOT x.dudoso), 0)::float AS otros
+       FROM planilla_pte p,
+            LATERAL (SELECT motivo_planilla_dudosa(p.remuneraciones, p.honorarios, p.incentivo, p.gratificacion, p.otros, p.total) IS NOT NULL AS dudoso) x
+      WHERE p.nombre_norm = $1
+      GROUP BY p.entidad_ruc, p.anio ORDER BY p.entidad_ruc, p.anio DESC LIMIT 120`, [nombreNorm], 8000)
+    .then((r) => r.rows).catch(() => null);
+}
+
 /** Cada cargo que tuvo en cada planilla, del más reciente al más antiguo. null: no respondió a tiempo. */
 export async function cargosEnPlanilla(nombreNorm: string): Promise<CargoEnPlanilla[] | null> {
   return consultaConPlazo<CargoEnPlanilla>(

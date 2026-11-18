@@ -190,6 +190,15 @@ export interface FichaPersona {
   procesos?: ProcesoGanado[];
   entidades: EntidadDePersona[];
   anual: AnioDePersona[];
+  /**
+   * Cómo cobró: con qué clase de documento factura (el RUC de una persona lleva su DNI: nunca sale el número) y por qué tipo
+   * de orden. `clase`: «directa» (sin proceso de selección), «pago» (deviene de un proceso) o «catalogo». Una API anterior
+   * no lo trae.
+   */
+  comoCobro?: {
+    documento: "ruc10" | "ruc_otro_documento" | "ruc20";
+    porTipo: { tipo: string | null; clase: string | null; ordenes: number; monto: number }[];
+  } | null;
   /** Lo cobrado cada mes por órdenes (línea de tiempo); `dudoso`, lo que puede ser un error de CONOSCE, aparte. */
   mensual?: { mes: string; monto: number; dudoso: number; ordenes: number }[];
   /** Los cambios de gobierno en la entidad que más le pagó, mientras tuvo órdenes (para marcarlos en la línea mes a mes). */

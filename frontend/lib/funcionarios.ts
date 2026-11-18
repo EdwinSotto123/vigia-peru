@@ -88,6 +88,28 @@ export interface CargoEnPlanilla {
   total: number | null;
 }
 
+/** Lo que cobró de la planilla de una entidad en un año: la suma de sus meses publicados, sin los montos dudosos. */
+export interface CobradoEnPlanilla {
+  entidadRuc: string;
+  entidad: string | null;
+  anio: number;
+  meses: number;
+  primerMes: string | null;
+  ultimoMes: string | null;
+  total: number;
+  /** Meses con un monto dudoso: no entran en `total`. */
+  mesesDudosos: number;
+  cargos: string[];
+  /** El régimen laboral con que figura ese año (CAS, 276, 728…). Una API anterior no lo trae. */
+  regimen?: number | null;
+  /** De qué se compone `total`, como lo publica la entidad. */
+  remuneraciones?: number;
+  honorarios?: number;
+  gratificacion?: number;
+  incentivo?: number;
+  otros?: number;
+}
+
 /** Las visitas que la persona hizo a una entidad (registro de visitas de esa entidad). */
 export interface VisitaHecha {
   entidad: string;
@@ -251,6 +273,8 @@ export interface FichaFuncionario {
   /** Las visitas que recibió, por empresa. null: no respondió a tiempo; una API anterior no las trae. */
   recibidas?: { empresas: number; visitas: number; ganaronDespues: number; filas: VisitaRecibida[] } | null;
   planilla: PlanillaDeLaPersona[];
+  /** Lo que cobró en planilla, por entidad y año. Una API anterior no lo trae. */
+  cobradoPlanilla?: CobradoEnPlanilla[];
   ordenes: OrdenesDeLaPersona[];
   aportes: AporteDeLaPersona[];
   expuesta: CargoExpuesto[];

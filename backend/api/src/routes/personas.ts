@@ -8,7 +8,7 @@ import { TAPA_NOMBRE, apellidoFuncionario, apellidosSunat, publicar, reservarPar
 import { declaranteElectoSql, esCargoDeEleccion, esElectoSql, marcaElecto } from "../lib/electos.js";
 import { fichasDeContratada, fichasPorNombre } from "../lib/identidadPersona.js";
 import { familiaDelFuncionario } from "../lib/familiaFuncionario.js";
-import { cargoRealDe, cargosEnPlanilla, empleosDeclarados } from "../lib/cargoReal.js";
+import { cargoRealDe, cargosEnPlanilla, cobradoEnPlanilla, empleosDeclarados } from "../lib/cargoReal.js";
 import { SENALES_CON_PARIENTES, casoReservado, podarParientes } from "../lib/nepotismo.js";
 import { enlaceFuente } from "../lib/fuentes.js";
 import { motivoPublicable } from "../lib/cruces.js";
@@ -779,7 +779,7 @@ personasRouter.get("/cargo/:codigo", async (c) => {
     // se asume que sí), la familia sale con las reservas de un nombre público (lib/familiaFuncionario.ts).
     const posibleElecto = esCargoDeEleccion(f.cargo) || cargos.rows.some((x) => esCargoDeEleccion(x.cargo))
       || candidaturas === null || candidaturas.some((x) => String(x.resultado ?? "").toLowerCase() === "electo");
-    const [fichas, familia, doble, empleos, cargosPlanilla] = await Promise.all([
+    const [fichas, familia, doble, empleos, cargosPlanilla, cobrado] = await Promise.all([
       fichasPorNombre(f.nombreNorm),
       familiaDelFuncionario(codigo, posibleElecto).catch((e) => { console.warn(`[cargo] familia: ${(e as Error).message}`); return undefined; }),
       // Cobra por dos lados (migración 352): en la planilla de una entidad y, esos mismos meses, con órdenes de servicio de otra.
@@ -792,6 +792,8 @@ personasRouter.get("/cargo/:codigo", async (c) => {
       // (migración 357): la declaración sólo trae la categoría del formulario y la planilla resumía con el último mes.
       f.declaraciones > 0 ? empleosDeclarados(f.nombreNorm) : Promise.resolve([]),
       f.planillaEntidades > 0 ? cargosEnPlanilla(f.nombreNorm) : Promise.resolve([]),
+      // Lo que cobró en planilla, por entidad y año: «Lo que cobró» sólo contaba las órdenes de servicio.
+      f.planillaEntidades > 0 ? cobradoEnPlanilla(f.nombreNorm) : Promise.resolve([]),
     ]);
     // Cada planilla con los cargos que tuvo en ella, si fueron más de uno (uno solo ya lo dice la fila).
     const planillaConCargos = planillaFilas.map((x) => {
@@ -804,7 +806,7 @@ personasRouter.get("/cargo/:codigo", async (c) => {
     });
     const sinRespuesta = [...rastro.sin_respuesta.filter((x) => x !== "visitas" || visitasDe === null), ...(planilla ? [] : ["planilla"]),
       ...(candidaturas ? [] : ["candidaturas"]), ...(recibidas ? [] : ["visitas_recibidas"]), ...(familia === undefined ? ["familia"] : []),
-      ...(empleos ? [] : ["empleos"]), ...(cargosPlanilla ? [] : ["cargos_planilla"])];
+      ...(empleos ? [] : ["empleos"]), ...(cargosPlanilla ? [] : ["cargos_planilla"]), ...(cobrado ? [] : ["cobrado_planilla"])];
     // Una ficha a medias no se guarda: el que vuelva a pedirla en un momento la arma entera.
     if (sinRespuesta.length) ctl.noGuardar();
     return publicar({
@@ -839,6 +841,10 @@ personasRouter.get("/cargo/:codigo", async (c) => {
         filas: recibidas,
       },
       planilla: planillaConCargos,
+      // Lo cobrado en planilla por entidad y año. El nombre de la entidad, el de su fila de planilla si la vista no lo trae.
+      cobradoPlanilla: (cobrado ?? []).map((x) => ({
+        ...x, entidad: x.entidad ?? (planillaFilas.find((y) => (y as { entidadRuc?: string }).entidadRuc === x.entidadRuc) as { entidad?: string | null } | undefined)?.entidad ?? null,
+      })),
       ordenes: sinNombre(rastro.ordenes_como_persona_natural),
       aportes: sinNombre(rastro.aportes_de_campana),
       expuesta: sinNombre(rastro.personas_expuestas),
@@ -955,6 +961,16 @@ personasRouter.get("/:codigo", async (c) => {
     ]);
     // Sin órdenes de servicio pero con procesos ganados, también tiene ficha.
     if (!ent.rows.length && !ganados.rows.length) return null;
+    // Cómo cobró (usuario, 2026-11-17): por qué tipo de orden y si salió de un proceso. Con qué documento, abajo.
+    const porTipo = await consultaConPlazo<{ tipo: string | null; clase: string | null; ordenes: number; monto: number }>(
+      `WITH o AS (
+         SELECT DISTINCT ON (o.entidad_ruc, o.orden, o.fecha_emision) o.tipo_orden, o.tipo_contratacion, o.monto
+           FROM conosce_ordenes o
+          WHERE o.ruc_contratista = $1 AND o.moneda = 'Nuevos Soles' AND o.estado IS DISTINCT FROM 'Anulada' AND o.monto > 0
+            AND o.monto_dudoso IS NULL AND o.fecha_emision IS NOT NULL
+          ORDER BY o.entidad_ruc, o.orden, o.fecha_emision, o.anio DESC, o.mes DESC)
+       SELECT tipo_orden AS tipo, clase_orden(tipo_contratacion) AS clase, count(*)::int AS ordenes, COALESCE(sum(monto), 0)::float AS monto
+         FROM o GROUP BY 1, 2 ORDER BY 4 DESC`, [ruc], 8000).then((r) => r.rows).catch(() => null);
     const nombreCrudo = ent.rows[0]?.nombre ?? ganados.rows.find((g) => g.proveedor)?.proveedor ?? null;
     const nombrePersona = nombreCrudo ? conEnie(nombreCrudo) : null;
     const procesos = ganados.rows.map(({ proveedor: _p, ...g }) => ({ ...g, objeto: taparNombrePropio(g.objeto, nombrePersona) }));
@@ -1171,6 +1187,11 @@ personasRouter.get("/:codigo", async (c) => {
       procesos,
       entidades,
       anual: anual.rows,
+      // Con qué documento factura (sólo su clase: el RUC de una persona lleva su DNI y nunca sale) y por qué tipo de orden.
+      comoCobro: {
+        documento: /^10/.test(ruc) ? "ruc10" : /^(15|17)/.test(ruc) ? "ruc_otro_documento" : "ruc20",
+        porTipo: porTipo ?? [],
+      },
       mensual: mensual.rows,
       cambios: cambios.rows,
       mismaPersona: fichas,

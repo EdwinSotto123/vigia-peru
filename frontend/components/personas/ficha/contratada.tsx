@@ -191,7 +191,8 @@ export function pestanasContratada({ f, codigo, ruta, nombre, sent, filtrosOrden
           {
             clave: "pagos",
             icono: <Wallet size={15} aria-hidden />,
-            etiqueta: "Lo que cobró",
+            etiqueta: "Cobros por órdenes",
+            titulo: "Lo que cobró por órdenes de servicio",
             contenido: <Pagos ficha={f} nombre={nombre} ruta={ruta} />,
           },
           {
@@ -408,6 +409,55 @@ function cuandoEntro(e: EntidadDePersona): string | null {
   return e.ultima && e.ultima >= g.desde ? `Ya estaba antes de ${cual} y siguió` : `Antes de ${cual}`;
 }
 
+const DOCUMENTO_COBRO: Record<NonNullable<FichaPersona["comoCobro"]>["documento"], string> = {
+  ruc10: "Proveedor persona natural, con RUC 10",
+  ruc_otro_documento: "Proveedor persona natural, con un RUC de otro documento (15 o 17)",
+  ruc20: "Proveedor con RUC de empresa",
+};
+
+/**
+ * Cómo cobró por órdenes: con qué documento (una persona natural factura con su RUC 10, no como trabajador) y por qué tipo
+ * de orden. El número del RUC nunca sale: lleva su DNI.
+ */
+function ComoCobroOrdenes({ como }: { como: NonNullable<FichaPersona["comoCobro"]> }) {
+  const suma = (filtro: (x: (typeof como.porTipo)[number]) => boolean) => {
+    const l = como.porTipo.filter(filtro);
+    return { ordenes: l.reduce((t, x) => t + x.ordenes, 0), monto: l.reduce((t, x) => t + x.monto, 0) };
+  };
+  const cuanto = (x: { ordenes: number; monto: number }) => (x.ordenes ? `${plural(x.ordenes, "orden", "órdenes")} por ${solesCompacto(x.monto)}` : null);
+  const servicio = suma((x) => /servicio/i.test(x.tipo ?? ""));
+  const compra = suma((x) => /compra/i.test(x.tipo ?? ""));
+  const directas = suma((x) => x.clase === "directa");
+  const deProceso = suma((x) => x.clase === "pago");
+  const catalogo = suma((x) => x.clase === "catalogo");
+  return (
+    <section aria-labelledby="como-cobro-ordenes" className="tarjeta space-y-3 rounded-2xl border border-line bg-paper p-4 sm:p-5" data-bloque>
+      <h3 id="como-cobro-ordenes" className="font-display text-bloque font-bold text-ink">Cómo cobró</h3>
+      <DatosClave
+        items={[
+          {
+            etiqueta: "Cobró como",
+            valor: DOCUMENTO_COBRO[como.documento],
+            ayuda:
+              como.documento === "ruc10" ? (
+                <Ayuda titulo="¿Qué es un RUC 10?">
+                  El RUC que la SUNAT le da a una persona natural: empieza en 10 y lleva su DNI, por eso Vigía no lo muestra. Con él la
+                  persona emite recibos por honorarios o facturas: la entidad le paga como a un proveedor, no como a un trabajador de su
+                  planilla.
+                </Ayuda>
+              ) : undefined,
+          },
+          { etiqueta: "Órdenes de servicio", valor: cuanto(servicio) ?? "Ninguna" },
+          ...(compra.ordenes ? [{ etiqueta: "Órdenes de compra", valor: cuanto(compra) }] : []),
+          { etiqueta: "Sin proceso de selección", valor: cuanto(directas) ?? "Ninguna", ayuda: <Ayuda titulo="¿Sin proceso de selección?">Órdenes que la entidad emite directamente, sin concurso: las compras de hasta 8 UIT y otras contrataciones sin proceso.</Ayuda> },
+          ...(deProceso.ordenes ? [{ etiqueta: "De un proceso de selección", valor: cuanto(deProceso) }] : []),
+          ...(catalogo.ordenes ? [{ etiqueta: "Por catálogo electrónico", valor: cuanto(catalogo) }] : []),
+        ]}
+      />
+    </section>
+  );
+}
+
 function Pagos({ ficha: f, nombre, ruta }: { ficha: FichaPersona; nombre: string; ruta: string }) {
   const mensual = f.mensual ?? [];
   // La entidad que más le pagó: la de los cambios de gobierno que se marcan en su línea mes a mes.
@@ -456,6 +506,7 @@ function Pagos({ ficha: f, nombre, ruta }: { ficha: FichaPersona; nombre: string
         Lo que cobró por mes en cada entidad y año, frente a lo que esa entidad y el país pagan por el mismo servicio. Toca un
         año para ver sus órdenes.
       </CabeceraPestana>
+      {f.comoCobro && f.comoCobro.porTipo.length > 0 && <ComoCobroOrdenes como={f.comoCobro} />}
       {mensual.length > 1 && (
         <section aria-labelledby="mes-a-mes" className="tarjeta space-y-2 rounded-2xl border border-line bg-paper p-4 sm:p-5">
           <h3 id="mes-a-mes" className="font-display text-bloque font-bold text-ink">Mes a mes</h3>
