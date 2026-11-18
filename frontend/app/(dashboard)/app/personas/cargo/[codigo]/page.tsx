@@ -22,7 +22,7 @@ import { InformeEnPanel } from "@/components/control/InformeEnPanel";
 import { Badge } from "@/components/ui/Badge";
 import { EnlaceAccion } from "@/components/ui/EnlaceAccion";
 import { fechaConAnio, numero, plural, solesCompacto } from "@/lib/formato";
-import { aniosDeLasOrdenes, ordenesEnElPuesto, ordenesFueraDelPuesto, periodoDelPuesto } from "@/lib/comprasFamilia";
+import { loQueRecibio, ordenesEnElPuesto, ordenesFueraDelPuesto, papelEnLaEmpresa, periodoDelPuesto, reglaCompraFamilia, tituloCompraFamilia } from "@/lib/comprasFamilia";
 import {
   getFichaFuncionario,
   rutaFuncionario,
@@ -706,10 +706,9 @@ function banderasDe(f: FichaFuncionario, ruta: string): BanderaFicha[] {
   if (compras.length) {
     b.push({
       tipo: "compras_familiar", severidad: compras.some((x) => x.severidad === "alta") ? "alta" : "media", observacion: true, n: compras.length, href,
-      nombre: compras.some((x) => x.tipoCargo === "compras")
-        ? "En observación: trabaja en compras y un familiar recibe órdenes de su entidad"
-        : "En observación: decide el gasto y un familiar recibe órdenes de su entidad",
-      explica: "Su puesto y el familiar salen de su propia declaración jurada; las órdenes, del registro de la entidad",
+      // El caso más grave da el nombre (vienen ordenados): a nombre del familiar o con su empresa.
+      nombre: tituloCompraFamilia(compras[0]),
+      explica: "Su puesto y el familiar salen de su propia declaración jurada; las órdenes, del registro de la entidad; la empresa del familiar, del Registro Nacional de Proveedores",
     });
   }
   // Migración 335: en observación, porque el empate del funcionario visitado es por nombre y todavía no se mide.
@@ -811,17 +810,21 @@ function Cruces({ cruces: c }: { cruces: CrucesDeLaPersona }) {
       {(c.comprasFamiliar ?? []).map((x, i) => (
         <Caso
           key={`cf${i}`}
-          titulo={x.tipoCargo === "compras" ? "En observación: trabaja en compras y un familiar recibe órdenes de su entidad" : "En observación: decide el gasto y un familiar recibe órdenes de su entidad"}
+          titulo={tituloCompraFamilia(x)}
           tono={x.severidad === "alta" ? "alta" : x.severidad === "media" ? "media" : "baja"}
         >
           Declara el puesto de <b>{cargoTexto(x.cargo).toLowerCase()}</b> en <EnlaceEntidad ruc={x.entidadRuc} nombre={x.entidad} />
-          {periodoDelPuesto(x) ? `, ${periodoDelPuesto(x)}` : ""}. Un familiar que declaró ({x.parentesco.toLowerCase()}) recibió de esa entidad{" "}
-          {plural(x.ordenes, "orden", "órdenes")} a su nombre por {solesCompacto(x.monto)}
-          {aniosDeLasOrdenes(x) ? `, ${aniosDeLasOrdenes(x)}` : ""}. <b>{ordenesEnElPuesto(x)}</b>{" "}
-          {ordenesFueraDelPuesto(x) ? `${ordenesFueraDelPuesto(x)} ` : ""}
-          La ley impide contratar con la entidad al cónyuge, conviviente y parientes hasta el segundo grado de quien interviene en sus contrataciones
-          (artículo 11 del TUO de la Ley 30225; artículo 30 de la Ley 32069). Esto no dice que intervino: hay que ver quién pidió y quién aprobó cada
-          orden.
+          {periodoDelPuesto(x) ? `, ${periodoDelPuesto(x)}` : ""}. Un familiar que declaró ({x.parentesco.toLowerCase()}){" "}
+          {x.via === "empresa" ? (
+            <>
+              figura como {papelEnLaEmpresa(x)} de <EnlaceEmpresa ruc={x.empresaRuc} nombre={x.empresa} />
+              {x.parienteDesde ? ` desde el ${fechaConAnio(x.parienteDesde)}` : ""}, que {loQueRecibio(x)}.
+            </>
+          ) : (
+            `${loQueRecibio(x)}.`
+          )}{" "}
+          <b>{ordenesEnElPuesto(x)}</b> {ordenesFueraDelPuesto(x) ? `${ordenesFueraDelPuesto(x)} ` : ""}
+          {reglaCompraFamilia(x)} Esto no dice que intervino: hay que ver quién pidió y quién aprobó cada orden.
         </Caso>
       ))}
       {c.enInformeYDespuesCobro.map((x, i) => (

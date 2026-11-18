@@ -219,6 +219,14 @@ export interface CompraFamiliar {
   cargoHasta: string | null;
   /** Sin cese: la fecha de su última declaración jurada que nombra el puesto como vigente (migración 366). */
   vistoHasta?: string | null;
+  /** persona: órdenes a nombre del familiar · empresa: ventas de una empresa en la que figura (migración 368). */
+  via?: "persona" | "empresa";
+  empresaRuc?: string | null;
+  empresa?: string | null;
+  rolEnEmpresa?: string[] | null;
+  parienteDesde?: string | null;
+  procesosEnPuesto?: number | null;
+  montoProcesosEnPuesto?: number | null;
   parentesco: string;
   cercano: boolean;
   ordenes: number;

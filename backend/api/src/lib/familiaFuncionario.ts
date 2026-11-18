@@ -126,6 +126,17 @@ export interface CompraFamiliar {
   cargoHasta: string | null;
   /** Sin cese: la fecha de su última declaración jurada que nombra el puesto como vigente (migración 366). */
   vistoHasta: string | null;
+  /** persona: órdenes a nombre del familiar · empresa: ventas de una empresa en la que el familiar figura (RNP; migración 368). */
+  via: "persona" | "empresa";
+  empresaRuc: string | null;
+  empresa: string | null;
+  /** Los papeles del familiar en esa empresa: socio, representante legal, directivo. */
+  rolEnEmpresa: string[] | null;
+  /** Desde cuándo figura el familiar en la empresa. */
+  parienteDesde: string | null;
+  /** Procesos que la empresa ganó en esa entidad con la persona en el puesto. */
+  procesosEnPuesto: number | null;
+  montoProcesosEnPuesto: number | null;
   parentesco: string;
   cercano: boolean;
   ordenes: number;
@@ -148,18 +159,32 @@ export interface CompraFamiliar {
   severidad: "alta" | "media" | "baja";
 }
 
+const PAPEL_RNP: Record<string, string> = { socio_accionista_titular: "socio", representante_legal: "representante legal", organo_administracion: "directivo" };
+const ORDEN_PAPEL = ["socio", "representante legal", "directivo"];
+
+/** «organo_administracion, socio_accionista_titular» (como lo guarda la migración 351) → ["socio", "directivo"]. */
+export function papelesRnp(texto: string | null | undefined): string[] | null {
+  if (!texto) return null;
+  const r = [...new Set(texto.split(/,\s*/).map((x) => PAPEL_RNP[x.trim().toLowerCase()] ?? x.trim().toLowerCase().replace(/_/g, " ")).filter(Boolean))];
+  return r.length ? r.sort((a, b) => (ORDEN_PAPEL.indexOf(a) + 1 || 9) - (ORDEN_PAPEL.indexOf(b) + 1 || 9)) : null;
+}
+
 export async function comprasYFamilia(codigo: string, declaranteElecto: boolean): Promise<CompraFamiliar[]> {
   // De una autoridad electa el parentesco va reservado (lib/privacidad.ts) y este cruce lo diría: su familia sale sólo en
   // su pestaña, con esas reservas.
   if (declaranteElecto) return [];
-  const r = await pool.query<Omit<CompraFamiliar, "parentesco"> & { parentesco: string | null }>(
+  const r = await pool.query<Omit<CompraFamiliar, "parentesco" | "rolEnEmpresa"> & { parentesco: string | null; rolEnEmpresa: string | null }>(
     `SELECT c.entidad_ruc AS "entidadRuc", c.entidad, c.cargo, c.tipo_cargo AS "tipoCargo", to_char(c.cargo_desde, 'YYYY-MM-DD') AS "cargoDesde",
             to_char(c.cargo_hasta, 'YYYY-MM-DD') AS "cargoHasta", to_char(c.visto_hasta, 'YYYY-MM-DD') AS "vistoHasta",
             c.parentesco, c.cercano, c.ordenes, c.monto::float AS monto, c.desde, c.hasta,
             c.ordenes_en_puesto AS "ordenesEnPuesto", c.monto_en_puesto::float AS "montoEnPuesto", c.ordenes_antes AS "ordenesAntes",
             c.ordenes_luego AS "ordenesLuego", to_char(c.primera_en_puesto, 'YYYY-MM-DD') AS "primeraEnPuesto",
-            to_char(c.ultima_en_puesto, 'YYYY-MM-DD') AS "ultimaEnPuesto", c.coincide, c.empezo_despues AS "empezoDespues", c.severidad
+            to_char(c.ultima_en_puesto, 'YYYY-MM-DD') AS "ultimaEnPuesto", c.coincide, c.empezo_despues AS "empezoDespues", c.severidad,
+            c.via, NULLIF(c.empresa_ruc, '') AS "empresaRuc", c.empresa, c.rol_en_empresa AS "rolEnEmpresa",
+            to_char(c.pariente_desde, 'YYYY-MM-DD') AS "parienteDesde", c.procesos_en_puesto AS "procesosEnPuesto",
+            c.monto_procesos_en_puesto::float AS "montoProcesosEnPuesto"
        FROM funcionario_compras_familiar c WHERE c.codigo = $1
-      ORDER BY CASE c.severidad WHEN 'alta' THEN 0 WHEN 'media' THEN 1 ELSE 2 END, c.monto_en_puesto DESC NULLS LAST, c.monto DESC LIMIT 30`, [codigo]);
-  return r.rows.map((x) => ({ ...x, parentesco: etiquetaParentesco(x.parentesco) ?? "Familiar" }));
+      ORDER BY CASE c.severidad WHEN 'alta' THEN 0 WHEN 'media' THEN 1 ELSE 2 END,
+               COALESCE(c.monto_en_puesto, 0) + COALESCE(c.monto_procesos_en_puesto, 0) DESC, c.monto DESC LIMIT 30`, [codigo]);
+  return r.rows.map((x) => ({ ...x, parentesco: etiquetaParentesco(x.parentesco) ?? "Familiar", rolEnEmpresa: papelesRnp(x.rolEnEmpresa) }));
 }

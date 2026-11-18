@@ -280,6 +280,14 @@ export interface PatronCompraFamilia {
   cargoDesde: string | null;
   cargoHasta: string | null;
   vistoHasta?: string | null;
+  /** persona: órdenes a nombre del familiar · empresa: ventas de una empresa en la que figura (migración 368). */
+  via?: "persona" | "empresa";
+  empresaRuc?: string | null;
+  empresa?: string | null;
+  rolEnEmpresa?: string[] | null;
+  parienteDesde?: string | null;
+  procesosEnPuesto?: number | null;
+  montoProcesosEnPuesto?: number | null;
   parentesco: string;
   cercano: boolean;
   ordenes: number;

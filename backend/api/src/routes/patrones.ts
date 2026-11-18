@@ -39,6 +39,7 @@ import { Memo } from "../lib/cache.js";
 import { cachePublico, parametros } from "../lib/http.js";
 import { TAPA_NOMBRE, etiquetaParentesco, publicar } from "../lib/privacidad.js";
 import { esCargoDeEleccion } from "../lib/electos.js";
+import { papelesRnp } from "../lib/familiaFuncionario.js";
 import { ETIQUETA_CRUCE, catalogoSenales, nombrePublicable } from "../lib/cruces.js";
 import { depurarReferencias } from "../lib/laboratorioPrecios.js";
 import { taparNombrePropio } from "./personas.js";
@@ -768,15 +769,20 @@ patronesRouter.get("/compras-familia", async (c) => {
                 k.ordenes_en_puesto AS "ordenesEnPuesto", k.monto_en_puesto::float AS "montoEnPuesto", k.ordenes_antes AS "ordenesAntes",
                 k.ordenes_luego AS "ordenesLuego", to_char(k.primera_en_puesto, 'YYYY-MM-DD') AS "primeraEnPuesto",
                 to_char(k.ultima_en_puesto, 'YYYY-MM-DD') AS "ultimaEnPuesto",
+                k.via, NULLIF(k.empresa_ruc, '') AS "empresaRuc", k.empresa, k.rol_en_empresa AS "rolEnEmpresa",
+                to_char(k.pariente_desde, 'YYYY-MM-DD') AS "parienteDesde", k.procesos_en_puesto AS "procesosEnPuesto",
+                k.monto_procesos_en_puesto::float AS "montoProcesosEnPuesto",
                 k.coincide, k.empezo_despues AS "empezoDespues", k.severidad, k.codigo, fr.paterno, fr.nombres, fr.cargo AS cargo_indice,
                 (count(*) OVER ())::int AS total_filas
            FROM funcionario_compras_familiar k LEFT JOIN funcionario_resumen fr ON fr.codigo = k.codigo
           WHERE k.tipo_cargo = 'compras' AND ($1::text IS NULL OR k.entidad_ruc = $1) AND ($2::text IS NULL OR k.severidad = $2)
-          ORDER BY CASE k.severidad WHEN 'alta' THEN 0 WHEN 'media' THEN 1 ELSE 2 END, k.monto_en_puesto DESC NULLS LAST, k.monto DESC, k.codigo
+          ORDER BY CASE k.severidad WHEN 'alta' THEN 0 WHEN 'media' THEN 1 ELSE 2 END,
+                   COALESCE(k.monto_en_puesto, 0) + COALESCE(k.monto_procesos_en_puesto, 0) DESC, k.monto DESC, k.codigo, k.empresa_ruc
           LIMIT $3 OFFSET $4`, [q.buscar ?? null, q.severidad ?? null, q.size, (q.page - 1) * q.size]),
       pool.query<{ severidad: string; casos: number; personas: number; entidades: number; monto: number; montoEnPuesto: number }>(
         `SELECT k.severidad, count(*)::int AS casos, count(DISTINCT k.codigo)::int AS personas, count(DISTINCT k.entidad_ruc)::int AS entidades,
-                COALESCE(sum(k.monto), 0)::float AS monto, COALESCE(sum(k.monto_en_puesto), 0)::float AS "montoEnPuesto"
+                COALESCE(sum(k.monto), 0)::float AS monto,
+                COALESCE(sum(COALESCE(k.monto_en_puesto, 0) + COALESCE(k.monto_procesos_en_puesto, 0)), 0)::float AS "montoEnPuesto"
            FROM funcionario_compras_familiar k WHERE k.tipo_cargo = 'compras' AND ($1::text IS NULL OR k.entidad_ruc = $1) GROUP BY 1`, [q.buscar ?? null]),
     ]).catch(() => [{ rows: [] as Record<string, unknown>[] }, { rows: [] as { severidad: string; casos: number; personas: number; entidades: number; monto: number; montoEnPuesto: number }[] }] as const);
     const filas = r.rows as Record<string, any>[];
@@ -786,12 +792,12 @@ patronesRouter.get("/compras-familia", async (c) => {
       data: filas
         // Una autoridad electa no entra aquí aunque su puesto declarado diga compras (ver arriba).
         .filter((x) => !esCargoDeEleccion(x.cargo_indice) && !esCargoDeEleccion(x.cargo))
-        .map(({ total_filas: _t, paterno, nombres, cargo_indice: _c, parentesco, ...x }) => ({
-          ...x, parentesco: etiquetaParentesco(parentesco) ?? "Familiar",
+        .map(({ total_filas: _t, paterno, nombres, cargo_indice: _c, parentesco, rolEnEmpresa, ...x }) => ({
+          ...x, parentesco: etiquetaParentesco(parentesco) ?? "Familiar", rolEnEmpresa: papelesRnp(rolEnEmpresa),
           persona: [paterno, TAPA_NOMBRE, nombres].filter(Boolean).join(" ") || null,
         })),
       enObservacion: true,
-      como_leerlo: "Cada fila es un funcionario cuyo puesto declarado es de compras, logística o contrataciones y un familiar que declaró en su declaración jurada de intereses, con las órdenes que ese familiar recibió a su nombre de la misma entidad. Las órdenes se cuentan por su fecha de emisión frente al puesto: las emitidas mientras lo tenía (del inicio declarado al cese o, sin cese, a su última declaración que lo nombra), las de antes y las de después. «Alta»: familiar cercano (cónyuge o conviviente, padres, hijos, hermanos) con al menos una orden emitida mientras el funcionario tenía el puesto. La ley impide contratar con la entidad a los parientes hasta el segundo grado de quien interviene en sus contrataciones (artículo 11 del TUO de la Ley 30225; artículo 30 de la Ley 32069). Es una señal en observación: dice que el puesto, el parentesco y las órdenes coinciden, no que la persona intervino. Hay que ver quién pidió y quién aprobó cada orden.",
+      como_leerlo: "Cada fila es un funcionario cuyo puesto declarado es de compras, logística o contrataciones y un familiar que declaró en su declaración jurada de intereses, con lo que ese familiar recibió de la misma entidad: órdenes a su nombre (via «persona») o las ventas de una empresa en la que figura como socio, representante o directivo según el RNP (via «empresa», con su RUC y los procesos que ganó en ese tiempo). Las órdenes se cuentan por su fecha de emisión frente al puesto: las emitidas mientras lo tenía (del inicio declarado al cese o, sin cese, a su última declaración que lo nombra), las de antes y las de después. «Alta»: familiar cercano (cónyuge o conviviente, padres, hijos, hermanos) con al menos una orden emitida mientras el funcionario tenía el puesto. La ley impide contratar con la entidad a los parientes hasta el segundo grado de quien interviene en sus contrataciones (artículo 11 del TUO de la Ley 30225; artículo 30 de la Ley 32069). Es una señal en observación: dice que el puesto, el parentesco y las órdenes coinciden, no que la persona intervino. Hay que ver quién pidió y quién aprobó cada orden.",
     });
   });
   c.header("Cache-Control", CACHE);

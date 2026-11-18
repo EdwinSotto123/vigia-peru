@@ -401,6 +401,12 @@ export const personaPublica = definir({
  */
 function ordenesFrenteAlPuesto(x: Fila) {
   return {
+    // Migración 368: el familiar cobra a su nombre o con una empresa en la que figura (RNP).
+    como_cobra_el_familiar: x.via === "empresa" ? "con una empresa en la que figura" : "a su nombre",
+    empresa_del_familiar: x.empresa ?? undefined, empresa_ruc: x.empresaRuc ?? undefined,
+    papel_del_familiar_en_la_empresa: x.rolEnEmpresa ?? undefined, el_familiar_figura_en_la_empresa_desde: x.parienteDesde ?? undefined,
+    procesos_que_gano_la_empresa_con_la_persona_en_el_puesto: x.procesosEnPuesto ?? undefined,
+    monto_de_esos_procesos_soles: x.montoProcesosEnPuesto ?? undefined,
     sin_cese_consta_en_el_puesto_hasta: x.cargoHasta ? undefined : x.vistoHasta ?? undefined,
     ordenes_emitidas_con_la_persona_en_el_puesto: x.ordenesEnPuesto ?? undefined,
     monto_de_esas_ordenes_soles: x.montoEnPuesto ?? undefined,
@@ -627,7 +633,8 @@ export const patrones = definir({
     "Con alcance «recien_creada»: empresas que se inscribieron en la SUNAT y a 90 días o menos ya recibían órdenes directas " +
     "(sin proceso) de una entidad; con ruc, las de esa entidad o esa empresa. " +
     "Con alcance «compras_familia» (en observación): funcionarios cuyo puesto declarado es de compras, logística o " +
-    "contrataciones y un familiar declarado en su declaración jurada que recibió órdenes a su nombre de esa misma entidad, con " +
+    "contrataciones y un familiar declarado en su declaración jurada que recibió órdenes de esa misma entidad, a su nombre o " +
+    "con una empresa en la que figura como socio, representante o directivo (con su RUC y los procesos que ganó), con " +
     "cuántas de esas órdenes se emitieron mientras tenía el puesto, cuántas antes y cuántas después; con ruc, los de esa " +
     "entidad; solo_graves deja los de familiar cercano con órdenes emitidas en el puesto. El familiar sale sólo por su parentesco. " +
     "Con alcance «autoridad_exsocio» (en observación): autoridades electas (alcalde, regidor, gobernador, consejero) que dejaron de " +

@@ -1312,7 +1312,8 @@ function ListaComprasFamilia({ inicial }: { inicial: InicialPatrones }) {
           <Ayuda titulo="¿De dónde sale y por qué importa?">
             <span className="block">
               El puesto y el familiar salen de la declaración jurada de intereses de la propia persona: ahí escribe dónde trabaja y con qué cargo, y
-              declara a sus familiares. Las órdenes, del registro de órdenes de la entidad, a nombre del familiar.
+              declara a sus familiares. Las órdenes, del registro de órdenes de la entidad, a nombre del familiar o de una empresa en la que
+              figura como socio, representante o directivo según el Registro Nacional de Proveedores.
             </span>
             <span className="mt-1.5 block">
               La ley impide contratar con la entidad al cónyuge, conviviente y parientes hasta el segundo grado de quien interviene en sus
@@ -1331,7 +1332,7 @@ function ListaComprasFamilia({ inicial }: { inicial: InicialPatrones }) {
         }
       >
         En observación: personas cuyo puesto declarado es de compras, logística o contrataciones, con un familiar que declararon y que recibió órdenes
-        a su nombre de esa misma entidad.
+        de esa misma entidad, a su nombre o con una empresa en la que figura.
       </CabeceraPestana>
       <label className="block max-w-md">
         <span className="text-rotulo font-medium text-inkSoft">Filtrar por RUC de la entidad</span>
@@ -1401,16 +1402,25 @@ function filaCompraFamilia(p: PatronCompraFamilia, i: number): Fila {
           }
         />
       ),
-      familiar: <CeldaTexto sub={p.cercano ? "familiar cercano" : undefined}>{p.parentesco}</CeldaTexto>,
+      familiar: (
+        <CeldaTexto sub={p.via === "empresa" ? `con ${p.empresa ? tituloNatural(p.empresa) : "su empresa"}` : "a su nombre"}>{p.parentesco}</CeldaTexto>
+      ),
       monto:
         p.ordenesEnPuesto == null ? (
           <CeldaNumero sub={plural(p.ordenes, "orden", "órdenes")}>{solesCompacto(p.monto)}</CeldaNumero>
-        ) : p.ordenesEnPuesto > 0 ? (
-          <CeldaNumero sub={`${plural(p.ordenesEnPuesto, "orden", "órdenes")}${p.empezoDespues ? ", ninguna antes" : ""}`}>{solesCompacto(p.montoEnPuesto ?? 0)}</CeldaNumero>
+        ) : p.ordenesEnPuesto + (p.procesosEnPuesto ?? 0) > 0 ? (
+          <CeldaNumero
+            sub={`${[
+              p.ordenesEnPuesto ? plural(p.ordenesEnPuesto, "orden", "órdenes") : null,
+              p.procesosEnPuesto ? plural(p.procesosEnPuesto, "proceso", "procesos") : null,
+            ].filter(Boolean).join(" y ")}${p.empezoDespues ? ", ninguna antes" : ""}`}
+          >
+            {solesCompacto((p.montoEnPuesto ?? 0) + (p.montoProcesosEnPuesto ?? 0))}
+          </CeldaNumero>
         ) : (
           <CeldaNumero sub="antes o después del puesto"><span className="font-sans text-mute">Ninguna</span></CeldaNumero>
         ),
-      anios: <CeldaTexto sub={anios}>{`${solesCompacto(p.monto)} en ${plural(p.ordenes, "orden", "órdenes")}`}</CeldaTexto>,
+      anios: <CeldaTexto sub={anios}>{p.ordenes ? `${solesCompacto(p.monto)} en ${plural(p.ordenes, "orden", "órdenes")}` : "Sólo procesos"}</CeldaTexto>,
     },
   };
 }

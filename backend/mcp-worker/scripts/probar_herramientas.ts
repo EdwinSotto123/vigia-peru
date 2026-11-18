@@ -119,8 +119,10 @@ const CASOS: Caso[] = [
     espera: (r) => {
       const cs = lista(r, "casos") as Record<string, unknown>[];
       if (cs.length < 5) return "menos de 5 casos graves de compras y familia";
-      if (!cs.every((x) => /•/.test(String(x.persona ?? "•")) && x.familiar_cercano === true && Number(x.ordenes_emitidas_con_la_persona_en_el_puesto) >= 1))
-        return "un caso grave sin tapar, sin familiar cercano o sin órdenes emitidas en el puesto";
+      if (!cs.every((x) => /•/.test(String(x.persona ?? "•")) && x.familiar_cercano === true
+        && Number(x.ordenes_emitidas_con_la_persona_en_el_puesto ?? 0) + Number(x.procesos_que_gano_la_empresa_con_la_persona_en_el_puesto ?? 0) >= 1))
+        return "un caso grave sin tapar, sin familiar cercano o sin ventas en el puesto";
+      if (!cs.every((x) => x.como_cobra_el_familiar === "a su nombre" || /^20\d{9}$/.test(String(x.empresa_ruc)))) return "un caso por empresa sin su RUC 20";
       return cs.some((x) => Object.keys(x).some((k) => /nombre_del_familiar|documento|dni/i.test(k))) ? "el caso trae el nombre o el documento del familiar" : null;
     } },
   // En observación (migración 367): la autoridad electa que dejó de figurar en una empresa y lo que ésta le vendió a su entidad.

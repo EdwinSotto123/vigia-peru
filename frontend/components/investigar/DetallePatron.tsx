@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/Button";
 import { EnlaceAccion } from "@/components/ui/EnlaceAccion";
 import { decimal, fechaConAnio, numero, plural, porcentaje, solesCompacto } from "@/lib/formato";
 import { tituloNatural } from "@/lib/landing";
-import { aniosDeLasOrdenes, fechasEnElPuesto, ordenesEnElPuesto, ordenesFueraDelPuesto, periodoDelPuesto } from "@/lib/comprasFamilia";
+import { aniosDeLasOrdenes, fechasEnElPuesto, loQueRecibio, ordenesEnElPuesto, ordenesFueraDelPuesto, papelEnLaEmpresa, periodoDelPuesto, reglaCompraFamilia } from "@/lib/comprasFamilia";
 import { loQueVendio, ventasFrenteALaSalida } from "@/lib/autoridadExsocio";
 import {
   codigoDeOcid,
@@ -686,18 +686,26 @@ export function detalleCompraFamilia(p: PatronCompraFamilia): Detalle {
   const fechas = fechasEnElPuesto(p);
   const fuera = ordenesFueraDelPuesto(p);
   const conConteo = p.ordenesEnPuesto != null;
+  const conEmpresa = p.via === "empresa";
+  const laEmpresa = p.empresa ? tituloNatural(p.empresa) : "una empresa";
   return {
     // El nombre de la persona nunca va al título del panel.
-    titulo: "Trabaja en compras y un familiar recibe órdenes",
+    titulo: conEmpresa ? "Trabaja en compras y la empresa de un familiar le vende" : "Trabaja en compras y un familiar recibe órdenes",
     etiqueta: "Ver el detalle de este caso de compras y familia",
     descripcion: <span className="line-clamp-2">{ent}</span>,
     contenido: (
       <div className="space-y-5">
         <EnUnaFrase tono={p.severidad === "alta" ? "alta" : p.severidad === "media" ? "media" : "neutro"}>
           <b>{quien}</b> declara el puesto de <b>{tituloNatural(p.cargo).toLowerCase()}</b> en <b>{ent}</b>
-          {enElPuesto ? `, ${enElPuesto}` : ""}. Un familiar que declaró ({p.parentesco.toLowerCase()}) recibió de esa entidad{" "}
-          <b>{plural(p.ordenes, "orden", "órdenes")}</b> a su nombre por <b>{solesCompacto(p.monto)}</b>
-          {anios ? ` ${anios}` : ""}. <b>{ordenesEnElPuesto(p)}</b>
+          {enElPuesto ? `, ${enElPuesto}` : ""}. Un familiar que declaró ({p.parentesco.toLowerCase()}){" "}
+          {conEmpresa ? (
+            <>
+              figura como {papelEnLaEmpresa(p)} de <b>{laEmpresa}</b>, que {loQueRecibio(p)}.
+            </>
+          ) : (
+            `${loQueRecibio(p)}.`
+          )}{" "}
+          <b>{ordenesEnElPuesto(p)}</b>
           {fuera ? ` ${fuera}` : ""}
         </EnUnaFrase>
         <DatosClave
@@ -705,6 +713,13 @@ export function detalleCompraFamilia(p: PatronCompraFamilia): Detalle {
             { etiqueta: "Puesto declarado", valor: tituloNatural(p.cargo) },
             { etiqueta: "En el puesto", valor: enElPuesto ? enElPuesto.charAt(0).toUpperCase() + enElPuesto.slice(1) : "No declaró desde cuándo" },
             { etiqueta: "Parentesco del familiar", valor: p.parentesco },
+            { etiqueta: "Cómo cobra el familiar", valor: conEmpresa ? `Con ${laEmpresa}, de la que es ${papelEnLaEmpresa(p)}` : "A su nombre" },
+            { etiqueta: "El familiar figura en la empresa desde", valor: conEmpresa && p.parienteDesde ? fechaConAnio(p.parienteDesde) : null },
+            {
+              etiqueta: "Procesos ganados con la persona en el puesto",
+              valor: conEmpresa && p.procesosEnPuesto ? `${numero(p.procesosEnPuesto)} por ${solesCompacto(p.montoProcesosEnPuesto ?? 0)}` : null,
+              mono: true,
+            },
             {
               etiqueta: "Órdenes con la persona en el puesto",
               valor: !conConteo ? null : p.ordenesEnPuesto ? `${numero(p.ordenesEnPuesto)} por ${solesCompacto(p.montoEnPuesto ?? 0)}` : "Ninguna",
@@ -713,18 +728,19 @@ export function detalleCompraFamilia(p: PatronCompraFamilia): Detalle {
             { etiqueta: "Fechas de esas órdenes", valor: fechas ? fechas.charAt(0).toUpperCase() + fechas.slice(1) : null },
             { etiqueta: "Antes de que asumiera", valor: !conConteo ? null : p.ordenesAntes ? plural(p.ordenesAntes, "orden", "órdenes") : "Ninguna orden de esa entidad" },
             { etiqueta: p.cargoHasta ? "Después de su cese" : "Después de su última declaración", valor: conConteo && p.ordenesLuego ? plural(p.ordenesLuego, "orden", "órdenes") : null },
-            { etiqueta: "Órdenes al familiar en total", valor: `${numero(p.ordenes)} por ${solesCompacto(p.monto)}${anios ? `, ${anios}` : ""}` },
+            { etiqueta: conEmpresa ? "Órdenes a la empresa en total" : "Órdenes al familiar en total", valor: p.ordenes ? `${numero(p.ordenes)} por ${solesCompacto(p.monto)}${anios ? `, ${anios}` : ""}` : "Ninguna" },
           ]}
         />
         <QueRevisar
           pasos={[
             "Es una señal en observación: el puesto y el familiar salen de la declaración jurada de la propia persona, y las órdenes, del registro de la entidad. No dice que intervino en esas compras.",
             "Pide el expediente de cada orden: quién firmó el requerimiento, quién cotizó y quién la aprobó. Si su oficina aparece, hay un impedimento que mirar.",
-            "La ley impide contratar con la entidad al cónyuge, conviviente y parientes hasta el segundo grado de quien interviene en sus contrataciones (artículo 11 del TUO de la Ley 30225; artículo 30 de la Ley 32069).",
+            reglaCompraFamilia(p),
+            conEmpresa ? "Pide la partida registral de la empresa: el RNP dice que el familiar figura en ella, no cuánto tiene ni desde cuándo exactamente." : null,
             p.empezoDespues
-              ? "El familiar no tenía órdenes de esta entidad antes de que la persona asumiera: mira si le vendía a otras entidades o sólo empezó aquí."
+              ? `${conEmpresa ? "La empresa no le había vendido a" : "El familiar no tenía órdenes de"} esta entidad antes de que la persona asumiera: mira si le vendía a otras entidades o sólo empezó aquí.`
               : p.ordenesEnPuesto
-                ? "El familiar ya recibía órdenes de la entidad antes: compara cuánto recibía antes y cuánto con la persona en el puesto."
+                ? `${conEmpresa ? "La empresa ya le vendía a" : "El familiar ya recibía órdenes de"} la entidad antes: compara cuánto recibía antes y cuánto con la persona en el puesto.`
                 : "Ninguna orden cae dentro del puesto declarado: confirma las fechas del puesto con la entidad antes de sacar una conclusión.",
             !p.cargoHasta && p.ordenesLuego
               ? "No declaró su cese: las órdenes posteriores a su última declaración no se cuentan dentro del puesto. Pregunta a la entidad hasta cuándo estuvo."
@@ -738,6 +754,7 @@ export function detalleCompraFamilia(p: PatronCompraFamilia): Detalle {
         enlaces={[
           p.codigo ? { texto: "Ficha de la persona", href: `/app/personas/cargo/${p.codigo}?seccion=revision` } : false,
           p.codigo ? { texto: "Su familia declarada", href: `/app/personas/cargo/${p.codigo}?seccion=familia` } : false,
+          conEmpresa && esRuc20(p.empresaRuc) && { texto: "La empresa del familiar", href: `/empresa/${p.empresaRuc}` },
           esRuc20(p.entidadRuc) && { texto: "La entidad", href: `/entidad/${p.entidadRuc}` },
         ]}
       />
