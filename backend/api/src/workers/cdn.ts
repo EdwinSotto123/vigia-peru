@@ -106,8 +106,11 @@ const GUARDADO = "X-Vigia-Guardado";
  *        también es nombre de pila ya no deja los dos apellidos a la vista.
  * "105": el anfitrión de una visita con su dependencia pegada («APELLIDOS NOMBRES - OFICINA …») salía entero en el
  *        dossier (visitas relevantes y visitas de cada persona): ahora se tapa (2026-11-16).
+ * "106": una sola ficha por persona (2026-11-17): las fichas de cargo, persona contratada y planilla traen `mismaPersona`
+ *        (sus otras fichas) y la de cargo, `familia` (migración 351); las órdenes, `repetida` y `parienteSocio` (348-350).
+ *        Las respuestas guardadas antes no los tenían y la web no unía las fichas.
  */
-const VERSION_CACHE = "105";
+const VERSION_CACHE = "106";
 
 function cacheable(req: Request): boolean {
   if (req.method !== "GET") return false;
