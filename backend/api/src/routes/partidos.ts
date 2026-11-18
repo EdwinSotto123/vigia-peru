@@ -26,7 +26,7 @@ import { Hono } from "hono";
 import { z } from "zod";
 import { pool } from "../lib/db.js";
 import { publicar } from "../lib/privacidad.js";
-import { LECTURAS, casoLectura, lecturaSql } from "../lib/lectura.js";
+import { LECTURAS, casoLectura, categoriaLectura, lecturaSql } from "../lib/lectura.js";
 import { COLS_ESTADO_FILA, joinsEstadoFila } from "../lib/estadoFila.js";
 import { Memo, responderJson, type Serializado } from "../lib/cache.js";
 import { cachePublico, parametros } from "../lib/http.js";
@@ -136,12 +136,21 @@ partidosRouter.get("/:clave/procesos", async (c) => {
         const k = q.cruces === "alta" ? " AND k.n_alta > 0" : q.cruces === "con" ? "" : ` AND ${add(q.cruces)} = ANY(k.tipos)`;
         conds.push(`EXISTS (SELECT 1 FROM casos_cruce k WHERE k.ocid = pp.ocid${k})`);
       }
-      return { where: conds.join(" AND "), vals };
+      // Sólo partido y elección: esa cuenta ya está en partido_proceso_facetas (migración 383).
+      return { where: conds.join(" AND "), vals, soloPartido: conds.length === 2 };
     };
-    const { where, vals } = armar();
+    const { where, vals, soloPartido } = armar();
     // Conteos de los desplegables: lectura y riesgo son la misma pregunta (se cuentan sin las dos); antecedentes, sin el suyo.
     const fL = armar(["lectura", "riesgo"]);
     const fC = armar(["cruces"]);
+    // Las cuentas sin filtro (o sin el suyo) de la vista: eran de 220 a 340 ms cada una y 5,8 s en frío en el partido más
+    // grande. Sin la vista o sin la fila (partido nuevo antes del refresco), en vivo como antes.
+    const hecha = soloPartido || fL.soloPartido || fC.soloPartido
+      ? await pool.query<{ n: number; monto: number; lecturas: { estado: string | null; riesgo: string | null; n: number }[]; cruces: Record<string, unknown> }>(
+          `SELECT n, monto, lecturas, cruces FROM partido_proceso_facetas WHERE org_clave = $1 AND anio_eleccion = $2`, [clave, q.anio])
+        .then((r) => r.rows[0] ?? null)
+        .catch((e) => { console.warn(`[partidos] facetas precalculadas: ${(e as Error).message}`); return null; })
+      : null;
     const orden = q.orden === "monto" ? "pp.monto_adjudicado_pen DESC NULLS LAST, pp.fecha_convocatoria DESC" : "pp.fecha_convocatoria DESC, pp.monto_adjudicado_pen DESC NULLS LAST";
     const [filas, total, lecturas, cruces] = await Promise.all([
       // La página primero (pag) y después, sólo para esas filas, lo que Vigía sabe de cada una (lib/estadoFila.ts).
@@ -156,18 +165,24 @@ partidosRouter.get("/:clave/procesos", async (c) => {
            FROM pag LEFT JOIN zonas z ON z.ubigeo = pag.gobierno_ubigeo
            ${joinsEstadoFila("pag.ocid")}
           ORDER BY ${orden.replace(/pp\./g, "pag.")}, pag.codigo_convocatoria`, vals),
-      pool.query(`SELECT count(*)::int AS n, COALESCE(sum(pp.monto_adjudicado_pen), 0)::float AS monto FROM partido_proceso pp WHERE ${where}`, vals),
-      pool.query(
-        `SELECT ${casoLectura("ce.")} AS k, ce.riesgo, count(*)::int AS n
-           FROM partido_proceso pp JOIN contrato_estado ce ON ce.ocid = pp.ocid
-          WHERE ${fL.where} GROUP BY 1, 2`, fL.vals),
+      soloPartido && hecha
+        ? { rows: [{ n: hecha.n, monto: hecha.monto }] }
+        : pool.query(`SELECT count(*)::int AS n, COALESCE(sum(pp.monto_adjudicado_pen), 0)::float AS monto FROM partido_proceso pp WHERE ${where}`, vals),
+      fL.soloPartido && hecha
+        ? { rows: hecha.lecturas.map((x) => ({ k: categoriaLectura(x.estado, x.riesgo), riesgo: x.riesgo, n: x.n })) }
+        : pool.query(
+            `SELECT ${casoLectura("ce.")} AS k, ce.riesgo, count(*)::int AS n
+               FROM partido_proceso pp JOIN contrato_estado ce ON ce.ocid = pp.ocid
+              WHERE ${fL.where} GROUP BY 1, 2`, fL.vals),
       // Los distintos por GROUP BY (hash), como el resumen de contratos.
-      pool.query(
-        `WITH k AS MATERIALIZED (SELECT k.ocid, k.n_alta, k.tipos FROM partido_proceso pp JOIN casos_cruce k ON k.ocid = pp.ocid WHERE ${fC.where}),
-              o AS (SELECT k.ocid, bool_or(k.n_alta > 0) AS alta FROM k GROUP BY 1),
-              t AS (SELECT x.t, count(*)::int AS n FROM (SELECT k.ocid, t FROM k, unnest(k.tipos) t GROUP BY 1, 2) x GROUP BY 1)
-         SELECT (SELECT count(*)::int FROM o) AS con, (SELECT count(*)::int FROM o WHERE alta) AS alta,
-                (SELECT COALESCE(jsonb_object_agg(t, n), '{}'::jsonb) FROM t) AS tipos`, fC.vals),
+      fC.soloPartido && hecha
+        ? { rows: [hecha.cruces] }
+        : pool.query(
+            `WITH k AS MATERIALIZED (SELECT k.ocid, k.n_alta, k.tipos FROM partido_proceso pp JOIN casos_cruce k ON k.ocid = pp.ocid WHERE ${fC.where}),
+                  o AS (SELECT k.ocid, bool_or(k.n_alta > 0) AS alta FROM k GROUP BY 1),
+                  t AS (SELECT x.t, count(*)::int AS n FROM (SELECT k.ocid, t FROM k, unnest(k.tipos) t GROUP BY 1, 2) x GROUP BY 1)
+             SELECT (SELECT count(*)::int FROM o) AS con, (SELECT count(*)::int FROM o WHERE alta) AS alta,
+                    (SELECT COALESCE(jsonb_object_agg(t, n), '{}'::jsonb) FROM t) AS tipos`, fC.vals),
     ]);
     const porLectura: Record<string, number> = {};
     const porRiesgo: Record<string, number> = {};

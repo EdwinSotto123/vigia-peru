@@ -19,6 +19,18 @@ export function lecturaSql(l: Lectura, p: string): string {
   }
 }
 
+/**
+ * La misma regla que casoLectura, en JS: para repartir conteos ya agrupados por (estado_proc, riesgo), como los de
+ * partido_proceso_facetas (migración 383). Si cambia una, cambia la otra (lectura.test.ts las compara).
+ */
+export function categoriaLectura(estado: string | null, riesgo: string | null): Lectura | "otro" {
+  if (estado === "encolado" || estado === "procesando") return "leyendo";
+  if (riesgo === "alto" || riesgo === "medio" || riesgo === "bajo") return "publicado";
+  if (riesgo === "en_revision") return "revision";
+  if (riesgo === "sin_analizar") return "sin_leer";
+  return "otro";
+}
+
 /** La categoría de lectura de una fila, para contar (las mismas cuatro, más "otro" para lo descartado). */
 export const casoLectura = (p: string) => `CASE WHEN ${p}estado_proc IN ${LEYENDO} THEN 'leyendo'
                                     WHEN ${p}riesgo IN ('alto', 'medio', 'bajo') THEN 'publicado'

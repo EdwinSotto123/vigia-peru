@@ -37,8 +37,10 @@ CAMPOS = ("tipo_contratacion", "etapa", "modalidad", "procesable")
 
 SQL_LOTE = """SELECT ocid, entidad_ruc, ocds_payload, tipo_contratacion, etapa, modalidad, procesable
                 FROM convocatorias
-               WHERE ocid > %s AND ocid <= %s AND ocid NOT LIKE 'ocds-vigia-%%' AND NOT (ocds_payload ? 'parties')
+               WHERE ocid > %s AND (%s::text IS NULL OR ocid <= %s) AND ocid NOT LIKE 'ocds-vigia-%%'
+                 AND NOT (ocds_payload ? 'parties')
                ORDER BY ocid LIMIT %s"""
+# Sin tope por omisión: con la intercalación de la base, '~' NO ordena después de los dígitos (el tramo final quedaba vacío).
 
 
 def main() -> None:
@@ -47,7 +49,7 @@ def main() -> None:
     ap.add_argument("--aplicar", action="store_true")
     ap.add_argument("--lote", type=int, default=4000)
     ap.add_argument("--desde", default="", help="OCID desde (excluido): para correr tramos en paralelo, p. ej. 2024")
-    ap.add_argument("--hasta", default="~", help="OCID hasta (incluido), p. ej. 2025")
+    ap.add_argument("--hasta", default=None, help="OCID hasta (incluido), p. ej. 2025; sin él, hasta el final")
     ap.add_argument("--antes", default=str(Path.home() / "reclasificar_desfasadas_antes.jsonl"),
                     help="dónde guardar la clasificación anterior de cada fila cambiada (para deshacer)")
     a = ap.parse_args()
@@ -64,7 +66,7 @@ def main() -> None:
         cur = cn.cursor()
         cur.execute("SET statement_timeout = '5min'")
         while True:
-            cur.execute(SQL_LOTE, (ultimo, a.hasta, a.lote))
+            cur.execute(SQL_LOTE, (ultimo, a.hasta, a.hasta, a.lote))
             filas = cur.fetchall()
             if not filas:
                 break
