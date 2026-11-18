@@ -919,7 +919,8 @@ function filaCobrado(x: CobradoEnPlanilla): Fila {
       meses: <CeldaTexto sub={periodo ?? undefined}>{plural(x.meses, "mes", "meses")}</CeldaTexto>,
       pormes: <CeldaNumero>{buenos > 0 ? solesCompacto(x.total / buenos) : <span className="font-sans text-mute">Sin dato</span>}</CeldaNumero>,
       total: (
-        <CeldaNumero sub={buenos > 0 ? conceptosDe([x]) ?? undefined : undefined}>
+        // En el celular el desglose le quita el ancho a las demás celdas: ahí queda el del bloque «Cómo cobró».
+        <CeldaNumero sub={buenos > 0 && conceptosDe([x]) ? <span className="hidden md:inline">{conceptosDe([x])}</span> : undefined}>
           {buenos > 0 ? solesCompacto(x.total) : <span className="font-sans text-mute">Sin dato</span>}
         </CeldaNumero>
       ),
@@ -974,7 +975,7 @@ function CobradoPlanilla({ filas, ruta }: { filas: CobradoEnPlanilla[]; ruta: st
         }
       >
         {filas.length
-          ? `En planilla cobró ${solesCompacto(total)} en ${plural(meses, "mes publicado", "meses publicados")}${desde && hasta ? `, de ${mes(desde)} a ${mes(hasta)}` : ""}. Es lo que publicaron sus entidades: lo anterior a esos meses no está cargado.`
+          ? `En planilla cobró ${solesCompacto(total)} en ${plural(meses, "mes publicado", "meses publicados")}${desde && hasta ? `, de ${mes(desde)} a ${mes(hasta)}` : ""}. Es lo que sus entidades publicaron en el Portal de Transparencia: un mes que no publicaron, o uno anterior que aún no se cargó, no está en la suma.`
           : "No hay meses de planilla cargados para esta persona."}
       </CabeceraPestana>
       {filas.length > 0 && (
@@ -1031,6 +1032,7 @@ function filaCargo(x: CargoDeclarado, i: number): Fila {
       cargo: (
         <CeldaPrincipal
           dosLineas
+          metaEnVarias
           titulo={cargoTexto(x.cargoReal ?? x.cargo)}
           meta={[
             <span key="e"><EnlaceEntidad ruc={x.entidadRuc} nombre={x.entidad} /></span>,
