@@ -117,8 +117,10 @@ const GUARDADO = "X-Vigia-Guardado";
  * "110": auditoría de seguridad del 2026-11-17: la familia de la ficha de cargo redondea lo de otras entidades, la lista de
  *        grupos recorta su detalle y el gasto por concepto tapa nombres en las descripciones.
  * "111": las órdenes traen `recienCreada` y la ficha de entidad su cuenta (migración 355: empresa recién creada con órdenes directas).
+ * "127": las listas de patrones traen `clave` (la de su ficha de caso, /app/patrones/caso/…): guardadas antes, el panel no
+ *        tenía «Abrir la ficha del caso» (2026-11-18).
  */
-const VERSION_CACHE = "126";
+const VERSION_CACHE = "127";
 
 function cacheable(req: Request): boolean {
   if (req.method !== "GET") return false;
