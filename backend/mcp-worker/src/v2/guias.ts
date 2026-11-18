@@ -236,7 +236,8 @@ export function registrarGuias(server: McpServer, cx: Contexto): void {
     ({ entidad, desde }) =>
       pedir(
         `Revisa la entidad «${entidad}»${desde ? ` desde ${desde}` : ""} con el MCP de Vigía. Pasos: buscar, ficha_entidad, ` +
-          `proveedores_de_entidad, ordenes (por vía y año), senales (vista banderas con su RUC), historia (tipo entidad) y ` +
+          `proveedores_de_entidad, ordenes (por vía y año), senales (vista banderas con su RUC), historia (tipo entidad; cada patrón ` +
+          `de órdenes trae su siguiente_paso: ordenes_en_periodo con esas fechas, para ver qué se ordenó y a cuántas personas nuevas) y ` +
           `consultar_datos (fuente adjudicaciones, filtro entidad, por anio, medidas pct_unico_postor y pct_directas). Responde: ` +
           `cuánto gasta y ejecuta, a quién le compra y qué tan concentrado está, cómo compra (procesos, directas, catálogo, menores), ` +
           `qué señales y patrones hay, y qué dijo la Contraloría. ${CIERRE}`,

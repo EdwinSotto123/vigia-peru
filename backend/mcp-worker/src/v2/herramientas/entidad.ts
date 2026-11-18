@@ -287,7 +287,73 @@ export const documentosZip = definir({
   },
 });
 
-export const HERRAMIENTAS_ENTIDAD = [gastoEntidad, planillaEntidad, visitasEntidad, obrasEntidad, informesControl, buscarInformesControl, documentosZip];
+const fecha = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Fecha como AAAA-MM-DD.");
+
+/**
+ * Las órdenes de una entidad en un periodo frente al mismo periodo un año antes (API /ordenes/ventana, 2026-11-18): para
+ * seguir un patrón de la historia (un pico, el cierre de una gestión, diciembre) hasta lo que se compró y a quién.
+ */
+export const ordenesEnPeriodo = definir({
+  nombre: "ordenes_en_periodo",
+  titulo: "Órdenes de una entidad en un periodo",
+  descripcion:
+    "Las órdenes de compra y de servicio de una entidad entre dos fechas (hasta un año), comparadas con las mismas fechas " +
+    "un año antes: cuántas y por cuánto, cuántas fueron a personas naturales y a cuántas personas, cuántas de ellas NUNCA " +
+    "habían recibido una orden de esa entidad desde 2018 (personas nuevas), cuántas empresas y cuáles nuevas, los conceptos " +
+    "que más se repiten y las empresas que más recibieron. Úsala para seguir un patrón de `historia` (un pico, el cierre de " +
+    "una gestión, diciembre): sus fechas `mes` y `hasta` son el periodo. Una ola de personas nuevas al final de una gestión " +
+    "es lo que más se revisa (contrataciones por favores de campaña), pero puede tener razones legítimas. De las personas " +
+    "naturales sólo hay cuentas, nunca nombres.",
+  entrada: {
+    entidad_ruc: rucEntidad,
+    desde: fecha.describe("Primer día del periodo (AAAA-MM-DD; desde 2019)."),
+    hasta: fecha.describe("Último día del periodo (AAAA-MM-DD; a lo sumo un año después de `desde`)."),
+  },
+  async ejecutar(a, cx) {
+    const r = rucJuridico(a.entidad_ruc, "RUC de la entidad");
+    if (a.hasta < a.desde) throw new ErrorUsuario("`hasta` va después de `desde`.");
+    if (a.desde < "2019-01-01") throw new ErrorUsuario("Desde 2019: las órdenes empiezan en 2018 y se comparan con un año antes.");
+    if ((Date.parse(a.hasta) - Date.parse(a.desde)) / 86_400_000 > 366) throw new ErrorUsuario("El periodo puede ser de un año como mucho.");
+    const v = await api<Fila>(cx.env, "/ordenes/ventana", { entidad: r, desde: a.desde, hasta: a.hasta });
+    const cifras = (c: Fila) => ({
+      ordenes: c.ordenes, monto_soles: c.monto,
+      ordenes_a_personas_naturales: c.ordenesAPersonas, monto_a_personas_soles: c.montoAPersonas,
+      personas_naturales: c.personas, personas_nuevas: c.personasNuevas, ordenes_a_personas_nuevas: c.ordenesAPersonasNuevas,
+      empresas: c.empresas, empresas_nuevas: c.empresasNuevas, monto_a_empresas_nuevas_soles: c.montoEmpresasNuevas,
+    });
+    const veces = (x: number, y: number) => (y > 0 ? Math.round((x / y) * 10) / 10 : null);
+    const ven = v.ventana as Fila;
+    const ant = v.unAnioAntes as Fila;
+    return {
+      entidad: v.entidad?.nombre ?? r, entidad_ruc: r,
+      periodo: { desde: v.desde, hasta: v.hasta },
+      comparado_con: v.comparadoCon,
+      en_el_periodo: cifras(ven),
+      un_anio_antes: cifras(ant),
+      cambio: {
+        ordenes_veces: veces(ven.ordenes, ant.ordenes),
+        ordenes_a_personas_veces: veces(ven.ordenesAPersonas, ant.ordenesAPersonas),
+        personas_veces: veces(ven.personas, ant.personas),
+        personas_nuevas_veces: veces(ven.personasNuevas, ant.personasNuevas),
+      },
+      conceptos_que_mas_se_repiten: ((v.conceptos ?? []) as Fila[]).map((c) => ({
+        concepto: c.concepto, ordenes: c.ordenes, monto_soles: c.monto, personas_naturales: c.personas, empresas: c.empresas,
+      })),
+      empresas_que_mas_recibieron: ((v.empresas ?? []) as Fila[]).map((e) => ({
+        empresa: e.empresa, ruc: e.ruc, ordenes: e.ordenes, monto_soles: e.monto,
+        nueva_para_la_entidad: e.nueva, enlace: enlaces(cx.env).empresa(e.ruc),
+      })),
+      como_leerlo:
+        "«Nueva» es que no había recibido ninguna orden de esta entidad desde 2018 antes del periodo. El concepto son las " +
+        "primeras palabras de la descripción de la orden (sólo los que comparten tres proveedores o más). Las personas " +
+        "naturales van sólo como cuentas. Una subida es un motivo para revisar, no una acusación.",
+      enlace: `${enlaces(cx.env).entidad(r)}?seccion=historia`,
+      fuente: "CONOSCE (OECE): órdenes de compra y de servicio.",
+    };
+  },
+});
+
+export const HERRAMIENTAS_ENTIDAD = [gastoEntidad, planillaEntidad, visitasEntidad, obrasEntidad, informesControl, buscarInformesControl, documentosZip, ordenesEnPeriodo];
 
 export const gastoPorConcepto = definir({
   nombre: "gasto_por_concepto",

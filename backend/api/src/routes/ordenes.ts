@@ -569,6 +569,100 @@ ordenesRouter.get("/resumen", async (c) => {
   return c.json(cuerpo);
 });
 
+// ─── GET /ordenes/ventana — las órdenes de una entidad en un periodo, frente al mismo periodo un año antes ─────────────
+
+/**
+ * Para seguir un patrón de la historia (un pico, el cierre de una gestión, diciembre): qué se ordenó entre `desde` y
+ * `hasta`, a cuántas personas naturales (y cuántas no habían recibido nunca una orden de la entidad desde 2018), a cuántas
+ * empresas, por qué conceptos y quiénes fueron las empresas, contra las mismas fechas un año antes.
+ *
+ * Privacidad: de las personas naturales (RUC que no empieza en 20) sólo cuentas; un concepto sale si lo comparten tres
+ * proveedores o más (las primeras palabras de una descripción pueden ser un nombre). Las empresas, con su nombre.
+ *
+ * Rendimiento: cada periodo por su rango del índice (entidad, fecha) y «nuevo» una vez por proveedor por el índice
+ * (entidad, proveedor, fecha): San Borja, octubre a diciembre de 2022 (4 742 órdenes), 0,14 s (la versión con un OR de
+ * fechas y la prueba por orden tardaba 31 s).
+ */
+const VentanaQuery = z.object({
+  entidad: z.string().regex(/^\d{11}$/),
+  desde: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  hasta: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+}).refine((x) => x.desde <= x.hasta && x.desde >= "2019-01-01", { message: "desde ≤ hasta, desde 2019 (la comparación es con un año antes)" })
+  .refine((x) => (Date.parse(x.hasta) - Date.parse(x.desde)) / 86_400_000 <= 366, { message: "a lo sumo un año" });
+const memoVentana = new Memo<Record<string, unknown>>({ nombre: "ordenes:ventana", ttlMs: 3_600_000, staleMs: 3_600_000, max: 200 });
+
+const unAnioAntes = (d: string) => `${Number(d.slice(0, 4)) - 1}${d.slice(4)}`.replace(/-02-29$/, "-02-28");
+
+function periodoOrdenes(desde: string, hasta: string, antes: boolean): string {
+  return `SELECT DISTINCT ON (o.orden, o.fecha_emision) o.ruc_contratista AS ruc, o.contratista, o.descripcion, ${antes} AS antes,
+                 CASE WHEN o.moneda = 'Nuevos Soles' AND o.monto_dudoso IS NULL THEN o.monto END AS monto
+            FROM conosce_ordenes o
+           WHERE o.entidad_ruc = $1 AND o.fecha_emision >= ${desde}::date AND o.fecha_emision <= ${hasta}::date AND ${ORDEN_LISTADA}
+           ORDER BY o.orden, o.fecha_emision, o.anio DESC, o.mes DESC`;
+}
+
+async function ventanaOrdenes(q: z.infer<typeof VentanaQuery>): Promise<Record<string, unknown>> {
+  const antesDesde = unAnioAntes(q.desde);
+  const antesHasta = unAnioAntes(q.hasta);
+  const r = await consultaConPlazo(sqlVentanaOrdenes(), [q.entidad, q.desde, q.hasta, antesDesde, antesHasta], 20_000);
+  const f = r.rows[0] as Record<string, unknown>;
+  const vacio = { ordenes: 0, monto: 0, ordenesAPersonas: 0, montoAPersonas: 0, personas: 0, personasNuevas: 0, ordenesAPersonasNuevas: 0, empresas: 0, empresasNuevas: 0, montoEmpresasNuevas: 0 };
+  const limpiar = (c: unknown) => { const { antes: _a, ...resto } = (c ?? vacio) as Record<string, unknown>; return resto; };
+  return publicar({
+    entidad: { ruc: q.entidad, nombre: f.entidad ?? null },
+    desde: q.desde, hasta: q.hasta, comparadoCon: { desde: antesDesde, hasta: antesHasta },
+    ventana: limpiar(f.ventana), unAnioAntes: limpiar(f.unAnioAntes),
+    conceptos: f.conceptos, empresas: f.empresas,
+  });
+}
+
+/** La consulta de /ordenes/ventana: $1 entidad, $2-$3 el periodo, $4-$5 el mismo periodo un año antes. */
+export function sqlVentanaOrdenes(): string {
+  return `
+    WITH o AS MATERIALIZED ((${periodoOrdenes("$2", "$3", false)}) UNION ALL (${periodoOrdenes("$4", "$5", true)})),
+    pr AS MATERIALIZED (
+      SELECT x.ruc, x.antes,
+             NOT EXISTS (SELECT 1 FROM conosce_ordenes p WHERE p.entidad_ruc = $1 AND p.ruc_contratista = x.ruc
+                            AND p.fecha_emision >= DATE '2018-01-01'
+                            AND p.fecha_emision < CASE WHEN x.antes THEN $4::date ELSE $2::date END) AS nuevo
+        FROM (SELECT DISTINCT ruc, antes FROM o WHERE ruc IS NOT NULL) x),
+    w AS (SELECT o.*, o.ruc !~ '^20' AS persona, COALESCE(pr.nuevo, false) AS nuevo FROM o LEFT JOIN pr ON pr.ruc = o.ruc AND pr.antes = o.antes),
+    cifras AS (
+      SELECT antes, count(*)::int AS ordenes, COALESCE(sum(monto), 0)::float AS monto,
+             (count(*) FILTER (WHERE persona))::int AS "ordenesAPersonas", COALESCE(sum(monto) FILTER (WHERE persona), 0)::float AS "montoAPersonas",
+             (count(DISTINCT ruc) FILTER (WHERE persona))::int AS personas, (count(DISTINCT ruc) FILTER (WHERE persona AND nuevo))::int AS "personasNuevas",
+             (count(*) FILTER (WHERE persona AND nuevo))::int AS "ordenesAPersonasNuevas",
+             (count(DISTINCT ruc) FILTER (WHERE NOT persona))::int AS empresas, (count(DISTINCT ruc) FILTER (WHERE NOT persona AND nuevo))::int AS "empresasNuevas",
+             COALESCE(sum(monto) FILTER (WHERE NOT persona AND nuevo), 0)::float AS "montoEmpresasNuevas"
+        FROM w GROUP BY antes)
+    SELECT (SELECT es.nombre FROM entidad_stats es WHERE es.ruc = $1) AS entidad,
+           (SELECT row_to_json(c) FROM cifras c WHERE NOT c.antes) AS ventana,
+           (SELECT row_to_json(c) FROM cifras c WHERE c.antes) AS "unAnioAntes",
+           (SELECT COALESCE(json_agg(y ORDER BY y.ordenes DESC), '[]') FROM (SELECT x.* FROM (
+              SELECT array_to_string((regexp_split_to_array(btrim(regexp_replace(upper(unaccent(COALESCE(descripcion, ''))), '[^A-Z ]', ' ', 'g')), '\\s+'))[1:5], ' ') AS concepto,
+                     count(*)::int AS ordenes, COALESCE(sum(monto), 0)::float AS monto,
+                     (count(DISTINCT ruc) FILTER (WHERE persona))::int AS personas, (count(DISTINCT ruc) FILTER (WHERE NOT persona))::int AS empresas
+                FROM w WHERE NOT antes GROUP BY 1 HAVING count(DISTINCT ruc) >= 3) x WHERE x.concepto <> '' ORDER BY x.ordenes DESC LIMIT 12) y) AS conceptos,
+           (SELECT COALESCE(json_agg(x ORDER BY x.monto DESC), '[]') FROM (
+              SELECT ruc, max(contratista) AS empresa, count(*)::int AS ordenes, COALESCE(sum(monto), 0)::float AS monto, bool_or(nuevo) AS nueva
+                FROM w WHERE NOT antes AND NOT persona GROUP BY 1 ORDER BY 4 DESC LIMIT 12) x) AS empresas`;
+}
+
+ordenesRouter.get("/ventana", async (c) => {
+  const parsed = VentanaQuery.safeParse(sinVacios(c));
+  if (!parsed.success) return c.json({ error: "invalid_query", issues: parsed.error.issues }, 400);
+  try {
+    const cuerpo = await memoVentana.obtener(JSON.stringify(parsed.data), () => ventanaOrdenes(parsed.data));
+    c.header("Cache-Control", cachePublico(3600, { maxAge: 600, swr: 86_400 }));
+    return c.json(cuerpo);
+  } catch (e) {
+    // Plazo vencido o base ocupada: un 503 que no se guarda (la próxima lo intenta de nuevo).
+    console.warn(`[ordenes] ventana: ${(e as Error).message}`);
+    c.header("Cache-Control", "no-store");
+    return c.json({ error: "no_disponible" }, 503);
+  }
+});
+
 // ─── GET /ordenes/siaf — el expediente SIAF de sus órdenes de un mes, a pedido ─────────────────────────────────────────
 
 /**

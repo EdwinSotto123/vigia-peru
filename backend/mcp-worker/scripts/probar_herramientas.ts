@@ -11,7 +11,7 @@
  */
 import { z } from "zod";
 import { buscarContratos, ordenes, preciosDeMercado } from "../src/v2/herramientas/contratos";
-import { buscarInformesControl, informesControl } from "../src/v2/herramientas/entidad";
+import { buscarInformesControl, informesControl, ordenesEnPeriodo } from "../src/v2/herramientas/entidad";
 import { fichaEntidad, historia, normaAplicable, patrones, personaPublica, preciosReferencia, redEmpresa } from "../src/v2/herramientas/actores";
 import { informeControlContrato } from "../src/v2/herramientas/control";
 
@@ -61,6 +61,24 @@ const CASOS: Caso[] = [
     espera: (r) => {
       const ev = lista(r, "eventos") as { renglon?: string; fecha?: string }[];
       return ev.length >= 1 && ev.every((x) => x.renglon === "Control" && String(x.fecha) >= "2022-12-01") ? null : `eventos de control desde 2022-12: ${ev.length}, alguno fuera del filtro`;
+    } },
+  // El cierre de gestión de San Borja (oct.-dic. 2022): la historia lo marca y dice cómo seguirlo; ordenes_en_periodo da las
+  // cifras contra un año antes, con personas sólo como cuentas (2026-11-18).
+  { h: historia as never, args: { tipo: "entidad", id: "20131373741" },
+    espera: (r) => {
+      const ps = lista(r, "patrones") as { tipo?: string; siguiente_paso?: { herramienta?: string; desde?: string; hasta?: string } }[];
+      const c = ps.find((x) => x.tipo === "cierre_gestion");
+      return c && c.siguiente_paso?.herramienta === "ordenes_en_periodo" && c.siguiente_paso.desde === "2022-10-01" && c.siguiente_paso.hasta === "2022-12-31"
+        ? null : `sin cierre_gestion con su siguiente_paso: ${JSON.stringify(c ?? null)}`;
+    } },
+  { h: ordenesEnPeriodo as never, args: { entidad_ruc: "20131373741", desde: "2022-10-01", hasta: "2022-12-31" },
+    espera: (r) => {
+      const p = r.en_el_periodo as { ordenes?: number; personas_nuevas?: number } | undefined;
+      const a = r.un_anio_antes as { ordenes?: number } | undefined;
+      const emp = lista(r, "empresas_que_mas_recibieron") as { ruc?: string }[];
+      return p && a && (p.ordenes ?? 0) > 2 * (a.ordenes ?? 0) && (p.personas_nuevas ?? 0) > 0 && lista(r, "conceptos_que_mas_se_repiten").length > 0
+        && emp.length > 0 && emp.every((e) => /^20\d{9}$/.test(String(e.ruc)))
+        ? null : `periodo: ${JSON.stringify(p)} contra ${JSON.stringify(a)}, empresas ${emp.length}`;
     } },
   // Cada caso de un patrón trae su ficha propia (/app/patrones/caso/<tipo>/<clave>, 2026-11-18), con una clave opaca.
   { h: patrones as never, args: { alcance: "grupo", solo_graves: true },

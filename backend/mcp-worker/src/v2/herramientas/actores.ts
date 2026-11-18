@@ -388,7 +388,14 @@ export const historia = definir({
       enlace_vigia: enVigia(q.href),
     });
     for (const q of secuencias) graves.push({ clase: "secuencias", severidad: String(q.severidad), peso: 0, fecha: String(((q.pasos ?? []) as Fila[])[0]?.fecha ?? ""), cuerpo: { clase: "una cosa llevó a otra", ...deSecuencia(q) } });
-    for (const q of patronesSerie) graves.push({ clase: "ritmo", severidad: String(q.severidad), peso: 0, fecha: `${q.mes}-01`, cuerpo: { clase: "fuera de lo normal", ...tomar(q, ["titulo", "explica", "mes", "hasta", "severidad"]), renglon: renglon.get(String(q.carril)) ?? q.carril } });
+    // De un patrón de órdenes de una entidad, cómo ver qué se ordenó y a quién: ordenes_en_periodo con esas fechas.
+    const finDeMes = (m: string) => new Date(Date.UTC(Number(m.slice(0, 4)), Number(m.slice(5, 7)), 0)).toISOString().slice(0, 10);
+    const pasoSiguiente = (q: Fila) =>
+      a.tipo === "entidad" && (q.carril === "ordenes" || q.carril === "personas") && String(q.mes) >= "2019-01"
+        ? { herramienta: "ordenes_en_periodo", entidad_ruc: id, desde: `${q.mes}-01`, hasta: finDeMes(String(q.hasta ?? q.mes)),
+            para: "ver qué se ordenó en ese periodo, a cuántas personas nuevas y a qué empresas, frente al año anterior" }
+        : undefined;
+    for (const q of patronesSerie) graves.push({ clase: "ritmo", severidad: String(q.severidad), peso: 0, fecha: `${q.mes}-01`, cuerpo: { clase: "fuera de lo normal", ...tomar(q, ["titulo", "explica", "mes", "hasta", "severidad"]), renglon: renglon.get(String(q.carril)) ?? q.carril, siguiente_paso: pasoSiguiente(q) } });
     const ordenados: Grave[] = [];
     for (const sev of ["alta", "media", "baja"]) {
       if (a.solo_graves && sev !== "alta") break;
@@ -407,7 +414,7 @@ export const historia = definir({
       lo_mas_grave_total: ordenados.length,
       lo_mas_grave: ordenados.slice(0, a.max_eventos).map((g) => g.cuerpo),
       secuencias: secuencias.map(deSecuencia),
-      patrones: patronesSerie.map((q) => tomar(q, ["tipo", "titulo", "explica", "mes", "severidad"])),
+      patrones: patronesSerie.map((q) => ({ ...tomar(q, ["tipo", "titulo", "explica", "mes", "hasta", "severidad"]), siguiente_paso: pasoSiguiente(q) })),
       eventos_total: eventos.length,
       eventos: eventos.slice(0, a.max_eventos).map(decir),
       no_entraron: omitidos.length
