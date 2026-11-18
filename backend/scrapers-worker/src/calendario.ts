@@ -78,6 +78,16 @@ export const CRON_MENORES = "0 10 * * 2";
 export const CRON_PRACTICAS = "0 14 * * *";
 
 /** Fuentes que corren en `cron` (expresión de wrangler.jsonc) en el instante `ms`. */
+/**
+ * La segunda vuelta del día (2026-11-18: SERVIR devolvió su página sin el listado a las 08:00 y los reintentos del paso
+ * se acabaron en 45 minutos; Empleo se quedaba un día entero sin plazas nuevas). A las 15:40 de Lima, el cron de cada
+ * hora vuelve a lanzar, UNA vez, cada fuente diaria cuya última corrida del día terminó en error.
+ */
+export const SEGUNDA_VUELTA = ["oece_ocds", "servir_convocatorias", "servir_practicas"] as const;
+export function esSegundaVuelta(cron: string, ms: number): boolean {
+  return cron === CRON_DOCUMENTOS && new Date(ms - 5 * 3600 * 1000).getUTCHours() === 15;
+}
+
 export function fuentesDelCron(cron: string, ms: number): string[] {
   if (cron === CRON_DIARIO) return ["oece_ocds"];
   // Cada hora también las contrataciones menores abiertas (seace_cotizaciones): sus ventanas duran horas.

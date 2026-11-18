@@ -10,7 +10,7 @@
  */
 
 import { autorizado } from "./auth.ts";
-import { fuentesDelCron } from "./calendario.ts";
+import { SEGUNDA_VUELTA, esSegundaVuelta, fuentesDelCron } from "./calendario.ts";
 import { activo } from "./config.ts";
 import type { Env, ParamsCorrida } from "./config.ts";
 import { conDb } from "./db.ts";
@@ -43,6 +43,26 @@ async function cerrarColgadas(env: Env): Promise<void> {
     if (n) registrar("WARNING", `bitácora: ${n} corridas colgadas cerradas como error`);
   } catch (e) {
     registrar("WARNING", `bitácora: no pude cerrar las colgadas: ${String((e as Error)?.message ?? e).slice(0, 200)}`);
+  }
+}
+
+/** Las fuentes diarias cuya última corrida de hoy (hora de Lima) terminó en error: se lanzan otra vez (una vez al día). */
+async function segundaVuelta(env: Env): Promise<void> {
+  try {
+    const fallidas = await conDb(env.HYPERDRIVE, (db) => db.filas<{ fuente: string }>(
+      `SELECT fuente FROM (
+         SELECT fuente, (array_agg(estado ORDER BY inicio DESC))[1] AS ultima
+           FROM corridas_fuente
+          WHERE fuente = ANY($1) AND inicio >= (date_trunc('day', now() AT TIME ZONE 'America/Lima') AT TIME ZONE 'America/Lima')
+          GROUP BY fuente) x
+        WHERE ultima = 'error'`, [[...SEGUNDA_VUELTA]]));
+    for (const { fuente } of fallidas) {
+      await lanzar(env, { fuente, origen: "segunda vuelta" }).catch((e) =>
+        registrar("ERROR", `segunda vuelta: no pude lanzar ${fuente}: ${String((e as Error)?.message ?? e)}`, { fuente }));
+    }
+    if (fallidas.length) registrar("WARNING", `segunda vuelta: ${fallidas.map((x) => x.fuente).join(", ")}`);
+  } catch (e) {
+    registrar("WARNING", `segunda vuelta: no pude revisar la bitácora: ${String((e as Error)?.message ?? e).slice(0, 200)}`);
   }
 }
 
@@ -112,6 +132,7 @@ export default {
 
   async scheduled(controlador, env): Promise<void> {
     await cerrarColgadas(env);
+    if (esSegundaVuelta(controlador.cron, controlador.scheduledTime) && activo(env)) await segundaVuelta(env);
     const fuentes = fuentesDelCron(controlador.cron, controlador.scheduledTime);
     if (!fuentes.length) return;
     if (!activo(env)) {
