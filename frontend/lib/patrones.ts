@@ -540,8 +540,9 @@ const consulta = (p: Record<string, string | number | undefined>) => {
 
 export const rutaPatrones = (alcance: AlcancePatron, page = 1, regla?: string, ruc?: string) =>
   `/patrones?${consulta({ alcance, page, size: TAM_PATRONES, regla, ruc })}`;
-export const rutaAcompanantes = (page = 1) => `/patrones/acompanantes?${consulta({ solo: "fuertes", page, size: TAM_PATRONES })}`;
-export const rutaConsorcios = (page = 1) => `/patrones/consorcios?${consulta({ page, size: TAM_PATRONES })}`;
+// Con el RUC de una empresa, todas sus parejas (no sólo las fuertes): la API ignora `solo` si hay RUC.
+export const rutaAcompanantes = (page = 1, ruc?: string) => `/patrones/acompanantes?${consulta({ solo: ruc ? undefined : "fuertes", page, size: TAM_PATRONES, ruc })}`;
+export const rutaConsorcios = (page = 1, ruc?: string) => `/patrones/consorcios?${consulta({ page, size: TAM_PATRONES, ruc })}`;
 export const rutaDuenos = (page = 1, ruc?: string, graves = false) =>
   `/patrones/duenos?${consulta({ page, size: TAM_PATRONES, ruc, graves: graves ? 1 : undefined })}`;
 export const rutaGrupos = (page = 1, ruc?: string, graves = false) =>
@@ -613,6 +614,8 @@ export interface PatronesDeEntidad {
   }[];
 }
 export const getPatronesDeEntidad = (ruc: string) => leer<PatronesDeEntidad>(`/patrones/entidad/${ruc}`);
+/** En qué patrones aparece una empresa (API GET /patrones/empresa/:ruc): arriba de su pestaña «Antecedentes». */
+export const getPatronesDeEmpresa = (ruc: string) => leer<Pick<PatronesDeEntidad, "ruc" | "listas">>(`/patrones/empresa/${ruc}`);
 
 /** Los casos en observación de una ficha (entidad o empresa), para pintarlos en ella: sólo los graves y medios. */
 export const getCasosComprasFamilia = (ruc: string) => leer<PatronesComprasFamilia>(`/patrones/compras-familia?buscar=${ruc}&relevantes=1&size=50`);

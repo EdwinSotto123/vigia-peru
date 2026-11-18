@@ -268,6 +268,9 @@ export function ListaDePatron({ clave, ruc, titulo, etiquetas = {} }: { clave: S
   const inicial: InicialPatrones = { page: 1, ruc };
   const lista =
     clave === "entidades" ? <ListaSenales alcance="entidad" clave="entidades" inicial={inicial} etiquetas={etiquetas} />
+    : clave === "proveedores" ? <ListaSenales alcance="proveedor" clave="proveedores" inicial={inicial} etiquetas={etiquetas} />
+    : clave === "relleno" ? <ListaRelleno inicial={inicial} />
+    : clave === "consorcios" ? <ListaConsorcios inicial={inicial} />
     : clave === "duenos" ? <ListaDuenos inicial={inicial} />
     : clave === "grupos" ? <ListaGrupos inicial={inicial} />
     : clave === "repetidas" ? <ListaRepetidas inicial={inicial} />
@@ -643,7 +646,7 @@ const COLUMNAS_RELLENO: Columna[] = [
 
 function ListaRelleno({ inicial }: { inicial: InicialPatrones }) {
   const lista = useListaEnUrl("relleno", inicial);
-  const carga = usePoder<PatronesAcompanantes>(rutaAcompanantes(lista.page));
+  const carga = usePoder<PatronesAcompanantes>(rutaAcompanantes(lista.page, inicial.ruc));
   return (
     <div className="space-y-4">
       <CabeceraPestana
@@ -741,7 +744,7 @@ const COLUMNAS_CONSORCIOS: Columna[] = [
 
 function ListaConsorcios({ inicial }: { inicial: InicialPatrones }) {
   const lista = useListaEnUrl("consorcios", inicial);
-  const carga = usePoder<PatronesConsorcios>(rutaConsorcios(lista.page));
+  const carga = usePoder<PatronesConsorcios>(rutaConsorcios(lista.page, inicial.ruc));
   return (
     <div className="space-y-4">
       <CabeceraPestana

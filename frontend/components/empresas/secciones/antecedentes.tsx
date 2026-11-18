@@ -1,4 +1,5 @@
 import { Fragment } from "react";
+import dynamic from "next/dynamic";
 import Link from "next/link";
 import {
   Banknote,
@@ -20,7 +21,8 @@ import {
   Users,
   type LucideIcon,
 } from "lucide-react";
-import { Ayuda, BloqueDetalle, CuerpoDetalle, DatosClave, EstadoVacio, FuenteDato, PieDetalle } from "@/components/patrones";
+import { Ayuda, BloqueDetalle, CuerpoDetalle, DatosClave, EstadoVacio, FuenteDato, Nota, PieDetalle } from "@/components/patrones";
+import { Badge } from "@/components/ui/Badge";
 import { ListaPaginada } from "@/components/listado";
 import { BotonFila, ProveedorDetalle, type DetalleFila } from "@/components/listado/DetalleFilas";
 import { recortar } from "@/components/contratos/recortar";
@@ -51,6 +53,9 @@ import { rutaContrato } from "@/lib/rutas";
 import { CORTO_EMPRESA, rutaEmpresa, type AntecedenteEmpresa, type ClienteEmpresa, type ReferenciasAntecedente } from "@/lib/empresas";
 import { P_CONTRATOS } from "@/lib/parametrosEmpresa";
 import { RANGO_SEVERIDAD, peorSeveridad } from "@/lib/severidad";
+import { getPatronesDeEmpresa, type SeccionPatrones } from "@/lib/patrones";
+import { PATRON_EMPRESA } from "@/lib/patronesEntidad";
+import { etiquetaRegla, getCatalogoReglas, type CatalogoReglas } from "@/lib/revision";
 import { cn, txtONumero } from "@/lib/utils";
 import { NoCargo, paraClave } from "./comun";
 import { P_ORDENES } from "./ordenes";
@@ -454,6 +459,33 @@ function CasosDelTipo({ tipo, casos, ruc, rucDe }: { tipo: string; casos: Antece
   );
 }
 
+/** La lista de un patrón con el RUC de la empresa: un trozo aparte (carga todas las listas y su panel de detalle). */
+const ListaDePatron = dynamic(() => import("@/components/investigar/PatronesVista").then((m) => m.ListaDePatron));
+
+/**
+ * La ficha de un patrón en que aparece la empresa (pedido del usuario del 2026-11-18: «armar fichas por cada patrón»): la
+ * misma lista de /app/patrones con su RUC ya puesto (cada fila abre su panel con la evidencia) y qué conviene mirar.
+ */
+function FichaDePatron({ clave, ruc, etiquetas }: { clave: SeccionPatrones; ruc: string; etiquetas: Record<string, string> }) {
+  const p = PATRON_EMPRESA[clave];
+  if (!p) return null;
+  return (
+    <div className="space-y-4">
+      <p className="flex flex-wrap items-center gap-2">
+        <Badge variant="neutral">Patrón en que aparece</Badge>
+        {p.observacion ? <Badge variant="amber">En observación: todavía no cuenta para el puntaje</Badge> : null}
+      </p>
+      <ListaDePatron clave={clave} ruc={ruc} titulo={p.nombre} etiquetas={etiquetas} />
+      <Nota>
+        <b className="font-semibold text-ink">Qué conviene mirar.</b> {p.mirar}{" "}
+        <Link href={`/app/patrones?seccion=${clave}`} prefetch={false} className="font-medium text-granate underline decoration-granate/35 underline-offset-2 hover:decoration-granate">
+          Ver este patrón en todo el país
+        </Link>
+      </Nota>
+    </div>
+  );
+}
+
 /**
  * La pestaña Antecedentes como lista y detalle (pedido del usuario del 2026-11-05: 11 pantallas en el escritorio y 30.5
  * en el celular para MEDIFARMA, con los 16 tipos apilados): a la izquierda el índice de tipos, de la señal más alta a la
@@ -471,9 +503,32 @@ export async function AntecedentesEmpresa({
   clientes: Promise<{ total: number; data: ClienteEmpresa[] } | null>;
   ruc: string;
 }) {
-  const [d, cl] = await Promise.all([datos, clientes]);
-  if (!d) return <NoCargo que="sus antecedentes" />;
-  if (!d.total) {
+  const [d, cl, pat, cat] = await Promise.all([datos, clientes, getPatronesDeEmpresa(ruc).catch(() => null), getCatalogoReglas().catch(() => ({}) as CatalogoReglas)]);
+  // Los patrones en que aparece (postor de relleno, mismo dueño, grupos, compras repetidas…): arriba de lo que dicen de
+  // ella los demás registros, cada uno con su ficha. Lo grave primero y, dentro, el que más casos tiene.
+  const etiquetas: Record<string, string> = {};
+  for (const id of [...Object.keys(cat), "red_flag_documental"]) etiquetas[id] = etiquetaRegla(id, cat);
+  const patrones: TipoDelIndice[] = (pat?.listas ?? [])
+    .flatMap(({ clave, casos }) => {
+      const x = PATRON_EMPRESA[clave];
+      return x && casos ? [{ clave, casos, x }] : [];
+    })
+    .sort((a, b) => RANGO_SEVERIDAD[a.x.severidad] - RANGO_SEVERIDAD[b.x.severidad] || b.casos - a.casos)
+    .map(({ clave, casos, x }) => ({
+      clave: `patron-${clave}`,
+      nombre: x.nombre,
+      corto: x.corto,
+      severidad: x.severidad,
+      n: casos,
+      resumen: `${plural(casos, "caso", "casos")}${x.observacion ? ", en observación" : ""}`,
+      grupo: "Patrones en que aparece",
+      contenido: <FichaDePatron clave={clave} ruc={ruc} etiquetas={etiquetas} />,
+    }));
+  if (!d && !patrones.length) return <NoCargo que="sus antecedentes" />;
+  if (!d?.total) {
+    if (patrones.length) {
+      return <IndiceAntecedentes tipos={patrones} param={P_ANTECEDENTES.tipo} titulo={plural(patrones.length, "patrón en que aparece", "patrones en que aparece")} />;
+    }
     return (
       <EstadoVacio compacto titulo="Ningún otro registro la nombra">
         No figura en las sanciones del Tribunal, las penalidades, los aportes y gastos de campaña, las autoridades y candidatos,
@@ -502,14 +557,20 @@ export async function AntecedentesEmpresa({
         porSev.length > 1
           ? `${plural(casos.length, "vez", "veces")}: ${listaY(porSev.map((x, i) => `${numero(x.n)} de ${i === 0 ? "señal " : ""}${x.sv}`))}`
           : plural(casos.length, "vez", "veces"),
+      // Con patrones arriba, el índice lleva dos rótulos: sus patrones y lo que dicen los demás registros.
+      grupo: patrones.length ? "Lo que dicen de ella otros registros" : undefined,
       contenido: <CasosDelTipo tipo={tipo} casos={casos} ruc={ruc} rucDe={rucDe} />,
     };
   });
   return (
     <IndiceAntecedentes
-      tipos={indice}
+      tipos={[...patrones, ...indice]}
       param={P_ANTECEDENTES.tipo}
-      titulo={`${plural(indice.length, "tipo de registro", "tipos de registro")}, lo más grave primero`}
+      titulo={
+        patrones.length
+          ? `${plural(patrones.length, "patrón", "patrones")} y ${plural(indice.length, "tipo de registro", "tipos de registro")}, lo más grave primero`
+          : `${plural(indice.length, "tipo de registro", "tipos de registro")}, lo más grave primero`
+      }
     />
   );
 }

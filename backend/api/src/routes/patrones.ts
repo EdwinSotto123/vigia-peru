@@ -1046,26 +1046,62 @@ const LISTAS_DE_ENTIDAD: [clave: string, ruta: (ruc: string) => string][] = [
  * la entidad, y suma los antecedentes de los ganadores de sus contratos por tipo (casos_cruce), con seis contratos de
  * ejemplo de cada uno. En tandas de cinco, para no ocupar el pozo de conexiones. `casos: null` = esa lista no respondió.
  */
+/** Las mismas listas, por la empresa (como ganadora, acompañante, socia de consorcio, integrante de un grupo…). */
+const LISTAS_DE_EMPRESA: [clave: string, ruta: (ruc: string) => string][] = [
+  ["proveedores", (r) => `/?alcance=proveedor&ruc=${r}&size=1`],
+  ["relleno", (r) => `/acompanantes?ruc=${r}&size=1`],
+  ["consorcios", (r) => `/consorcios?ruc=${r}&size=1`],
+  ["duenos", (r) => `/duenos?ruc=${r}&size=1`],
+  ["grupos", (r) => `/grupos?buscar=${r}&size=1`],
+  ["repetidas", (r) => `/repetidas?buscar=${r}&size=1`],
+  ["recien", (r) => `/recien?buscar=${r}&size=1`],
+  ["renovaciones", (r) => `/renovaciones?ruc=${r}&size=1`],
+  ["compras", (r) => `/compras-familia?buscar=${r}&relevantes=1&size=1`],
+  ["autoridad", (r) => `/autoridad-exsocio?buscar=${r}&size=1`],
+  ["inhabilitadas", (r) => `/inhabilitadas?ruc=${r}&size=1`],
+  ["control", (r) => `/control?ruc=${r}&size=1`],
+  ["observados", (r) => `/observados?ruc=${r}&size=1`],
+  ["observacion", (r) => `/observacion?ruc=${r}&size=1`],
+];
+
+/** Cuántos casos tiene cada lista con ese RUC: se le pregunta a cada una por dentro, en tandas de cinco. */
+async function casosPorLista(listasDe: typeof LISTAS_DE_ENTIDAD, ruc: string, env: unknown): Promise<{ clave: string; casos: number | null }[]> {
+  const contar = async (ruta: string): Promise<number | null> => {
+    try {
+      const r = await patronesRouter.request(ruta, undefined, env as object);
+      if (!r.ok) return null;
+      return Number(((await r.json()) as { total?: number }).total ?? 0);
+    } catch (e) {
+      console.warn(`[patrones] índice de ${ruc}, ${ruta}: ${(e as Error).message}`);
+      return null;
+    }
+  };
+  const listas: { clave: string; casos: number | null }[] = [];
+  for (let i = 0; i < listasDe.length; i += 5) {
+    const tanda = listasDe.slice(i, i + 5);
+    const ns = await Promise.all(tanda.map(([, ruta]) => contar(ruta(ruc))));
+    tanda.forEach(([clave], j) => listas.push({ clave, casos: ns[j] }));
+  }
+  return listas;
+}
+
+/**
+ * GET /patrones/empresa/:ruc — en qué patrones aparece una empresa y con cuántos casos: lo que su pestaña «Antecedentes»
+ * pone arriba de lo que dicen de ella los demás registros.
+ */
+patronesRouter.get("/empresa/:ruc", async (c) => {
+  const ruc = c.req.param("ruc");
+  if (!/^20\d{9}$/.test(ruc)) return c.json({ error: "not_found" }, 404);
+  const cuerpo = await memo.obtener(`de-empresa:${ruc}`, async () => publicar({ ruc, listas: await casosPorLista(LISTAS_DE_EMPRESA, ruc, c.env) }));
+  c.header("Cache-Control", CACHE);
+  return c.json(cuerpo);
+});
+
 patronesRouter.get("/entidad/:ruc", async (c) => {
   const ruc = c.req.param("ruc");
   if (!/^20\d{9}$/.test(ruc)) return c.json({ error: "not_found" }, 404);
   const cuerpo = await memo.obtener(`de-entidad:${ruc}`, async () => {
-    const contar = async (ruta: string): Promise<number | null> => {
-      try {
-        const r = await patronesRouter.request(ruta, undefined, c.env as object);
-        if (!r.ok) return null;
-        return Number(((await r.json()) as { total?: number }).total ?? 0);
-      } catch (e) {
-        console.warn(`[patrones] índice de ${ruc}, ${ruta}: ${(e as Error).message}`);
-        return null;
-      }
-    };
-    const listas: { clave: string; casos: number | null }[] = [];
-    for (let i = 0; i < LISTAS_DE_ENTIDAD.length; i += 5) {
-      const tanda = LISTAS_DE_ENTIDAD.slice(i, i + 5);
-      const ns = await Promise.all(tanda.map(([, ruta]) => contar(ruta(ruc))));
-      tanda.forEach(([clave], j) => listas.push({ clave, casos: ns[j] }));
-    }
+    const listas = await casosPorLista(LISTAS_DE_ENTIDAD, ruc, c.env);
     // Los antecedentes de quienes ganaron sus contratos, por tipo: cuántos contratos, cuántos de señal alta, cuánto suman,
     // cuántas empresas y los seis contratos más pesados (lo grave primero).
     const cruces = await pool.query(

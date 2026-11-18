@@ -168,8 +168,9 @@ export async function PatronesEntidad({ ruc }: { ruc: string }) {
   const entradas: Entrada[] = [];
   const sinCasos: string[] = [];
   const sinRespuesta: string[] = [];
-  for (const [clave, p] of Object.entries(PATRON_LISTA) as [SeccionPatrones, PatronDeLista][]) {
-    const casos = casosDe.get(clave);
+  for (const { clave, casos } of d.listas) {
+    const p = PATRON_LISTA[clave];
+    if (!p) continue;
     if (casos == null) {
       sinRespuesta.push(p.corto);
       continue;

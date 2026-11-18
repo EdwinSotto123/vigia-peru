@@ -121,6 +121,69 @@ export const PATRON_LISTA: Partial<Record<SeccionPatrones, PatronDeLista>> = {
   },
 };
 
+/**
+ * Las mismas listas vistas desde una EMPRESA (API GET /patrones/empresa/:ruc): cómo se llama cada patrón en su ficha y
+ * qué conviene mirar. Van arriba de su pestaña «Antecedentes».
+ */
+export const PATRON_EMPRESA: Partial<Record<SeccionPatrones, Pick<PatronDeLista, "nombre" | "corto" | "severidad" | "mirar" | "observacion">>> = {
+  relleno: {
+    nombre: "Postor de relleno: acompaña, o la acompañan, casi siempre", corto: "Postor de relleno", severidad: "alta",
+    mirar: "Una de las dos casi nunca gana y postula sobre todo donde gana la otra. Mira si comparten socio, domicilio o representante.",
+  },
+  consorcios: {
+    nombre: "Compite contra quien fue su socia de consorcio", corto: "Socias que compiten", severidad: "media",
+    mirar: "Postularon juntas en un consorcio y después por separado, en procesos de pocos postores que gana siempre la misma.",
+  },
+  duenos: {
+    nombre: "Su dueño gana con varias empresas en la misma entidad", corto: "Mismo dueño", severidad: "alta",
+    mirar: "Si las empresas del mismo socio se presentaron al mismo proceso, o ganaron por separado contratos parecidos en pocas semanas.",
+  },
+  grupos: {
+    nombre: "Es parte de un grupo de proveedores por dueño o familia", corto: "Grupo por dueño o familia", severidad: "alta",
+    mirar: "Las órdenes de números seguidos y el mismo objeto repartido entre los integrantes del grupo.",
+  },
+  repetidas: {
+    nombre: "Le repitieron la misma compra en pocas semanas", corto: "Compras repetidas", severidad: "media",
+    mirar: "Si salieron de una sola necesidad es una compra partida en el tiempo; si la entrega fue una sola, un posible pago doble.",
+  },
+  recien: {
+    nombre: "Recibió órdenes directas recién creada", corto: "Recién creada", severidad: "media",
+    mirar: "Quién la creó y si vive de ese solo cliente.",
+  },
+  renovaciones: {
+    nombre: "Le renovaron el mismo servicio más caro", corto: "Renovación más cara", severidad: "media",
+    mirar: "Si cambió el alcance (más personal, más sedes) o sólo el precio.",
+  },
+  compras: {
+    nombre: "Un familiar de quien trabaja en las compras de un cliente figura en ella", corto: "Compras y familia", severidad: "alta", observacion: true,
+    mirar: "Las órdenes emitidas con esa persona en el puesto, y quién las pidió y las aprobó.",
+  },
+  autoridad: {
+    nombre: "Una autoridad dejó de figurar en ella y le vendió a su entidad", corto: "Autoridad que la dejó", severidad: "alta", observacion: true,
+    mirar: "Cuánto tenía y a quién pasó su parte: el impedimento sigue 12 meses después de salir.",
+  },
+  inhabilitadas: {
+    nombre: "Ella o una empresa de su socio está inhabilitada, y la otra ganó", corto: "Socio de inhabilitada", severidad: "alta",
+    mirar: "El porcentaje del socio en las dos empresas y si son del mismo rubro.",
+  },
+  control: {
+    nombre: "Un socio o representante suyo figura en un informe de control", corto: "Socio en informe de control", severidad: "media",
+    mirar: "De qué entidad es el informe y qué observó.",
+  },
+  observados: {
+    nombre: "Ganó procesos que la Contraloría observó", corto: "Observada por la Contraloría", severidad: "alta",
+    mirar: "Qué dijo la observación y si la misma entidad le volvió a adjudicar después.",
+  },
+  observacion: {
+    nombre: "Indicadores en observación", corto: "En observación", severidad: "media", observacion: true,
+    mirar: "La evidencia de cada uno: todavía no cuentan para el puntaje.",
+  },
+  proveedores: {
+    nombre: "Señales de sus documentos que se repiten", corto: "Señales que se repiten", severidad: "media",
+    mirar: "La misma señal de los documentos en varios de sus contratos y en más de una entidad.",
+  },
+};
+
 /** Tipos de antecedente que ya tienen su lista aquí: si la lista trae casos, el tipo no se repite en el índice. */
 export const CRUCE_CON_LISTA: Record<string, SeccionPatrones> = {
   mismo_dueno: "duenos",
