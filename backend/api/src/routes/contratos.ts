@@ -143,6 +143,8 @@ function filtros(q: Partial<Filtros>, vals: unknown[], m: Mapa, excluir = new Se
 
 // ─── ¿Sale del agregado? ─────────────────────────────────────────────────────
 const esPrimeroDeMes = (d: string) => d.endsWith("-01");
+/** «2026-03-17» → «2026-03-01». */
+const primeroDelMes = (d: string) => `${d.slice(0, 7)}-01`;
 function esFinDeMes(d: string): boolean {
   const [a, m, dia] = d.split("-").map(Number);
   return new Date(Date.UTC(a, m, 0)).getUTCDate() === dia;
@@ -163,8 +165,10 @@ function filtrosAgregado(q: Partial<Filtros>, vals: unknown[], excluir = new Set
   if (q.lectura && !excluir.has("lectura")) w.push(lecturaSql(q.lectura, ""));
   if (q.estado && !excluir.has("estado")) w.push(`estado_proc = ${add(q.estado)}`);
   if (q.operativo && !excluir.has("operativo")) w.push(`operativo = ${add(q.operativo)}`);
-  if (q.desde) w.push(`mes >= date_trunc('month', ${add(q.desde)}::date)::date`);
-  if (q.hasta) w.push(`mes <= date_trunc('month', ${add(q.hasta)}::date)::date`);
+  // El primer día de su mes, calculado aquí: `date_trunc('month', $1::date)` pasa por timestamptz (estable, no inmutable) y
+  // se evaluaba fila por fila sobre los 286 mil del agregado (2026-11-18: 221 → 171 ms).
+  if (q.desde) w.push(`mes >= ${add(primeroDelMes(q.desde))}::date`);
+  if (q.hasta) w.push(`mes <= ${add(primeroDelMes(q.hasta))}::date`);
   return w.join(" AND ");
 }
 
@@ -302,6 +306,27 @@ async function contarCruces(q: z.infer<typeof ResumenQuery>, sin: "cruces" | "ob
   if (conds.length === 1) {
     const r = await pool.query<ConteoCruces>(`SELECT con, alta, tipos, NULL::int AS obra FROM casos_cruce_totales`);
     return r.rows[0] ?? { con: 0, alta: 0, tipos: {}, obra: null };
+  }
+  // Sólo un rango de fechas: la faceta por día de convocatoria (migración 375), sumada en el rango. Cada contrato tiene una
+  // sola fecha, así que la suma no cuenta a nadie dos veces (comprobado igual a la consulta de abajo en cinco rangos el
+  // 2026-11-18). La de abajo tardaba de 0,5 s (un año) a 2,9 s (toda la historia); en PROD, 5 s de media.
+  if ((q.desde || q.hasta) && filtros({ ...q, [sin]: undefined, desde: undefined, hasta: undefined }, [], MAPA_CE).conds.length === 1) {
+    const v: unknown[] = [];
+    const w = ["TRUE"];
+    if (q.desde) w.push(`dia >= $${v.push(q.desde)}::date`);
+    if (q.hasta) w.push(`dia < ($${v.push(q.hasta)}::date + 1)`);
+    try {
+      const r = await pool.query<ConteoCruces>(
+        `SELECT COALESCE(sum(con) FILTER (WHERE tipo = ''), 0)::int AS con, COALESCE(sum(alta) FILTER (WHERE tipo = ''), 0)::int AS alta,
+                COALESCE(jsonb_object_agg(tipo, con) FILTER (WHERE tipo <> ''), '{}'::jsonb) AS tipos,
+                COALESCE(sum(obra) FILTER (WHERE tipo = ''), 0)::int AS obra
+           FROM (SELECT tipo, sum(con)::int AS con, sum(alta)::int AS alta, sum(obra)::int AS obra
+                   FROM casos_cruce_dia WHERE ${w.join(" AND ")} GROUP BY tipo) x`, v);
+      if (r.rows[0]) return r.rows[0];
+    } catch (e) {
+      // Una base sin la migración 375: se cuenta al vuelo, como antes.
+      console.warn(`[contratos] faceta por día: ${(e as Error).message}`);
+    }
   }
   const base = `SELECT k.ocid, k.n_alta, k.tipos FROM contrato_estado ce JOIN casos_cruce k ON k.ocid = ce.ocid WHERE ${conds.join(" AND ")}`;
   const r = await pool.query(

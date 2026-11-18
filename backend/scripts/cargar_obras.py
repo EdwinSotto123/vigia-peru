@@ -762,6 +762,7 @@ def main() -> int:
                 print("propagar:")
                 paso(con, "refrescar_casos_cruce_base", "SELECT refrescar_casos_cruce_base()")
                 paso(con, "casos_cruce_totales", "REFRESH MATERIALIZED VIEW CONCURRENTLY casos_cruce_totales")
+                paso(con, "casos_cruce_dia", "REFRESH MATERIALIZED VIEW CONCURRENTLY casos_cruce_dia")
                 paso(con, "refrescar_empresas", "SELECT refrescar_empresas()")
         finally:
             latido.parar.set()
