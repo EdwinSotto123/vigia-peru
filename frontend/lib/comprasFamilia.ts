@@ -7,6 +7,8 @@ import { fechaConAnio, numero, plural, solesCompacto } from "@/lib/formato";
  * a la migración 366; `via` y los de la empresa, en una anterior a la 368.
  */
 export interface PuestoYOrdenes {
+  /** La llave del caso para pedir su evidencia venta por venta (migración 369). */
+  clave?: string;
   cargoDesde: string | null;
   /** null: sin cese declarado. */
   cargoHasta: string | null;
@@ -133,3 +135,57 @@ export function reglaCompraFamilia(x: PuestoYOrdenes): string {
     ? "La ley impide contratar con la entidad a la empresa en la que el cónyuge, conviviente o un pariente hasta el segundo grado de quien interviene en sus contrataciones tenga o haya tenido más del 30 % del capital en los 12 meses anteriores a la convocatoria, o que integre o represente (artículo 11 del TUO de la Ley 30225; artículo 30 de la Ley 32069). El RNP no publica el porcentaje."
     : "La ley impide contratar con la entidad al cónyuge, conviviente y parientes hasta el segundo grado de quien interviene en sus contrataciones (artículo 11 del TUO de la Ley 30225; artículo 30 de la Ley 32069).";
 }
+
+// ─── La evidencia, venta por venta (migración 369) ──────────────────────────────────────────────
+
+/** Cuándo cayó una venta frente al puesto. */
+export type MomentoVenta = "antes" | "sin_familiar" | "en_puesto" | "despues" | "sin_fecha";
+
+/** En el orden del tiempo: así se pintan la barra y su leyenda. */
+export const MOMENTOS_VENTA: { clave: MomentoVenta; nombre: string; corto: string }[] = [
+  { clave: "antes", nombre: "Antes de que asumiera el puesto", corto: "Antes del puesto" },
+  { clave: "sin_familiar", nombre: "En el puesto, cuando el familiar aún no figuraba en la empresa", corto: "En el puesto, sin el familiar en la empresa" },
+  { clave: "en_puesto", nombre: "Con la persona en el puesto", corto: "Con la persona en el puesto" },
+  { clave: "despues", nombre: "Después del puesto o de su última declaración", corto: "Después del puesto" },
+  { clave: "sin_fecha", nombre: "Sin fecha de inicio del puesto", corto: "Sin fecha del puesto" },
+];
+
+export interface VentaCompraFamilia {
+  tipo: "orden" | "proceso";
+  fecha: string;
+  monto: number | null;
+  momento: MomentoVenta;
+  /** Sólo con la empresa del familiar: una orden a su nombre no trae número ni descripción. */
+  orden: string | null;
+  tipoOrden: string | null;
+  estado: string | null;
+  descripcion: string | null;
+  nomenclatura: string | null;
+  ocid: string | null;
+}
+
+export interface EvidenciaCompraFamilia {
+  via: "persona" | "empresa";
+  entidadRuc: string;
+  empresaRuc: string | null;
+  ventas: VentaCompraFamilia[];
+  resumen: { momento: MomentoVenta; tipo: "orden" | "proceso"; n: number; monto: number; desde: string | null; hasta: string | null }[];
+  /** La empresa del familiar, de su resumen: desde cuándo existe, a cuántas entidades vende y cuánto viene de ésta. */
+  empresa: {
+    nombre: string | null;
+    fechaAlta: string | null;
+    estadoSunat: string | null;
+    entidades: number | null;
+    ordenes: number;
+    monto: number;
+    procesos: number;
+    montoProcesos: number;
+    socios: number | null;
+    representantes: number | null;
+    inhabilitada: string | null;
+    montoDeEstaEntidad: number;
+    ordenesDeEstaEntidad: number;
+  } | null;
+}
+
+export const rutaVentasCompraFamilia = (clave: string) => `/patrones/compras-familia/ventas?clave=${encodeURIComponent(clave)}`;

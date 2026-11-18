@@ -773,6 +773,8 @@ patronesRouter.get("/compras-familia", async (c) => {
                 to_char(k.pariente_desde, 'YYYY-MM-DD') AS "parienteDesde", k.procesos_en_puesto AS "procesosEnPuesto",
                 k.monto_procesos_en_puesto::float AS "montoProcesosEnPuesto",
                 k.coincide, k.empezo_despues AS "empezoDespues", k.severidad, k.codigo, fr.paterno, fr.nombres, fr.cargo AS cargo_indice,
+                -- La llave del caso para pedir su evidencia (el número del familiar no sale de la base).
+                md5(k.codigo || '|' || k.entidad_ruc || '|' || k.pariente || '|' || k.empresa_ruc) AS clave,
                 (count(*) OVER ())::int AS total_filas
            FROM funcionario_compras_familiar k LEFT JOIN funcionario_resumen fr ON fr.codigo = k.codigo
           WHERE k.tipo_cargo = 'compras' AND ($1::text IS NULL OR k.entidad_ruc = $1) AND ($2::text IS NULL OR k.severidad = $2)
@@ -800,6 +802,59 @@ patronesRouter.get("/compras-familia", async (c) => {
       como_leerlo: "Cada fila es un funcionario cuyo puesto declarado es de compras, logística o contrataciones y un familiar que declaró en su declaración jurada de intereses, con lo que ese familiar recibió de la misma entidad: órdenes a su nombre (via «persona») o las ventas de una empresa en la que figura como socio, representante o directivo según el RNP (via «empresa», con su RUC y los procesos que ganó en ese tiempo). Las órdenes se cuentan por su fecha de emisión frente al puesto: las emitidas mientras lo tenía (del inicio declarado al cese o, sin cese, a su última declaración que lo nombra), las de antes y las de después. «Alta»: familiar cercano (cónyuge o conviviente, padres, hijos, hermanos) con al menos una orden emitida mientras el funcionario tenía el puesto. La ley impide contratar con la entidad a los parientes hasta el segundo grado de quien interviene en sus contrataciones (artículo 11 del TUO de la Ley 30225; artículo 30 de la Ley 32069). Es una señal en observación: dice que el puesto, el parentesco y las órdenes coinciden, no que la persona intervino. Hay que ver quién pidió y quién aprobó cada orden.",
     });
   });
+  c.header("Cache-Control", CACHE);
+  return c.json(cuerpo);
+});
+
+const VentasCompraFamilia = z.object({ clave: z.string().regex(/^[0-9a-f]{32}$/) });
+
+/**
+ * GET /patrones/compras-familia/ventas?clave= — la evidencia de un caso (migración 369): cada orden y cada proceso frente
+ * al puesto (`momento`), el reparto por momento y, si el familiar vende con una empresa, los datos de esa empresa.
+ *
+ * Privacidad: con la empresa (pública) cada orden trae su número y su descripción; a nombre del familiar, sólo la fecha y
+ * el monto (así las guarda la tabla). Una autoridad electa no tiene evidencia aquí (su parentesco va reservado).
+ */
+patronesRouter.get("/compras-familia/ventas", async (c) => {
+  const p = VentasCompraFamilia.safeParse(parametros(c));
+  if (!p.success) return c.json({ error: "invalid_query", issues: p.error.issues }, 400);
+  const { clave } = p.data;
+  const cuerpo = await memo.obtener(`compras-familia-ventas:${clave}`, async () => {
+    const caso = (await pool.query<{ codigo: string; entidad_ruc: string; pariente: number; empresa_ruc: string; via: string; cargo: string; cargo_indice: string | null }>(
+      `SELECT k.codigo, k.entidad_ruc, k.pariente, k.empresa_ruc, k.via, k.cargo, fr.cargo AS cargo_indice
+         FROM funcionario_compras_familiar k LEFT JOIN funcionario_resumen fr ON fr.codigo = k.codigo
+        WHERE md5(k.codigo || '|' || k.entidad_ruc || '|' || k.pariente || '|' || k.empresa_ruc) = $1 LIMIT 1`, [clave])).rows[0];
+    if (!caso || esCargoDeEleccion(caso.cargo_indice) || esCargoDeEleccion(caso.cargo)) return { vacio: true };
+    const del = [caso.codigo, caso.entidad_ruc, caso.pariente, caso.empresa_ruc];
+    const [ventas, resumen, empresa] = await Promise.all([
+      pool.query(
+        `SELECT v.tipo, to_char(v.fecha, 'YYYY-MM-DD') AS fecha, v.monto::float AS monto, v.momento, v.orden, v.tipo_orden AS "tipoOrden", v.estado,
+                v.descripcion, v.nomenclatura, v.ocid
+           FROM funcionario_compras_familiar_venta v
+          WHERE v.codigo = $1 AND v.entidad_ruc = $2 AND v.pariente = $3 AND v.empresa_ruc = $4
+          ORDER BY v.fecha DESC, v.orden NULLS LAST LIMIT 600`, del),
+      pool.query(
+        `SELECT v.momento, v.tipo, count(*)::int AS n, COALESCE(sum(v.monto), 0)::float AS monto,
+                to_char(min(v.fecha), 'YYYY-MM-DD') AS desde, to_char(max(v.fecha), 'YYYY-MM-DD') AS hasta
+           FROM funcionario_compras_familiar_venta v
+          WHERE v.codigo = $1 AND v.entidad_ruc = $2 AND v.pariente = $3 AND v.empresa_ruc = $4
+          GROUP BY 1, 2`, del),
+      caso.via === "empresa"
+        ? pool.query(
+            `SELECT e.nombre, to_char(e.fecha_alta, 'YYYY-MM-DD') AS "fechaAlta", e.estado_sunat AS "estadoSunat", e.entidades, COALESCE(e.ord_n, 0) AS ordenes,
+                    COALESCE(e.ord_monto, 0)::float AS monto, COALESCE(e.adj_procesos, 0) AS procesos, COALESCE(e.adj_monto, 0)::float AS "montoProcesos",
+                    e.socios, e.representantes, e.inhabilitada,
+                    (SELECT COALESCE(sum(o.monto), 0)::float FROM empresa_orden_anual o WHERE o.ruc = e.ruc AND o.entidad_ruc = $2) AS "montoDeEstaEntidad",
+                    (SELECT COALESCE(sum(o.ordenes), 0)::int FROM empresa_orden_anual o WHERE o.ruc = e.ruc AND o.entidad_ruc = $2) AS "ordenesDeEstaEntidad"
+               FROM empresa_resumen e WHERE e.ruc = $1`, [caso.empresa_ruc, caso.entidad_ruc]).catch(() => null)
+        : null,
+    ]);
+    return publicar({
+      via: caso.via, entidadRuc: caso.entidad_ruc, empresaRuc: caso.empresa_ruc || null,
+      ventas: ventas.rows, resumen: resumen.rows, empresa: empresa?.rows[0] ?? null,
+    });
+  });
+  if ((cuerpo as { vacio?: boolean }).vacio) return c.json({ error: "not_found" }, 404);
   c.header("Cache-Control", CACHE);
   return c.json(cuerpo);
 });

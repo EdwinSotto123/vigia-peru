@@ -706,6 +706,9 @@ export const patrones = definir({
           ...ordenesFrenteAlPuesto(x), severidad: x.severidad,
           enlace_persona: x.codigo ? `${e.funcionario(String(x.codigo))}?seccion=revision` : undefined,
           enlace_entidad: x.entidadRuc ? e.entidad(String(x.entidadRuc)) : undefined,
+          enlace_empresa_del_familiar: x.empresaRuc ? e.empresa(String(x.empresaRuc)) : undefined,
+          // Todo lo que la entidad le compró a esa empresa, en la lista de compras de la entidad.
+          enlace_compras_a_esa_empresa: x.empresaRuc && x.entidadRuc ? `${e.entidad(String(x.entidadRuc))}?seccion=contratos&ccon=${x.empresaRuc}` : undefined,
         })),
         como_leerlo: r.como_leerlo,
         aviso: AVISO,

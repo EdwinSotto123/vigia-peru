@@ -137,6 +137,8 @@ export interface CompraFamiliar {
   /** Procesos que la empresa ganó en esa entidad con la persona en el puesto. */
   procesosEnPuesto: number | null;
   montoProcesosEnPuesto: number | null;
+  /** La llave del caso para pedir su evidencia (GET /patrones/compras-familia/ventas). */
+  clave: string;
   parentesco: string;
   cercano: boolean;
   ordenes: number;
@@ -182,7 +184,8 @@ export async function comprasYFamilia(codigo: string, declaranteElecto: boolean)
             to_char(c.ultima_en_puesto, 'YYYY-MM-DD') AS "ultimaEnPuesto", c.coincide, c.empezo_despues AS "empezoDespues", c.severidad,
             c.via, NULLIF(c.empresa_ruc, '') AS "empresaRuc", c.empresa, c.rol_en_empresa AS "rolEnEmpresa",
             to_char(c.pariente_desde, 'YYYY-MM-DD') AS "parienteDesde", c.procesos_en_puesto AS "procesosEnPuesto",
-            c.monto_procesos_en_puesto::float AS "montoProcesosEnPuesto"
+            c.monto_procesos_en_puesto::float AS "montoProcesosEnPuesto",
+            md5(c.codigo || '|' || c.entidad_ruc || '|' || c.pariente || '|' || c.empresa_ruc) AS clave
        FROM funcionario_compras_familiar c WHERE c.codigo = $1
       ORDER BY CASE c.severidad WHEN 'alta' THEN 0 WHEN 'media' THEN 1 ELSE 2 END,
                COALESCE(c.monto_en_puesto, 0) + COALESCE(c.monto_procesos_en_puesto, 0) DESC, c.monto DESC LIMIT 30`, [codigo]);

@@ -22,6 +22,7 @@ import { InformeEnPanel } from "@/components/control/InformeEnPanel";
 import { Badge } from "@/components/ui/Badge";
 import { EnlaceAccion } from "@/components/ui/EnlaceAccion";
 import { fechaConAnio, numero, plural, solesCompacto } from "@/lib/formato";
+import { VentasCompraFamilia } from "@/components/investigar/VentasCompraFamilia";
 import { loQueRecibio, ordenesEnElPuesto, ordenesFueraDelPuesto, papelEnLaEmpresa, periodoDelPuesto, reglaCompraFamilia, tituloCompraFamilia } from "@/lib/comprasFamilia";
 import {
   getFichaFuncionario,
@@ -825,6 +826,11 @@ function Cruces({ cruces: c }: { cruces: CrucesDeLaPersona }) {
           )}{" "}
           <b>{ordenesEnElPuesto(x)}</b> {ordenesFueraDelPuesto(x) ? `${ordenesFueraDelPuesto(x)} ` : ""}
           {reglaCompraFamilia(x)} Esto no dice que intervino: hay que ver quién pidió y quién aprobó cada orden.
+          {x.clave ? (
+            <span className="mt-2 block">
+              <VentasCompraFamilia clave={x.clave} entidadRuc={x.entidadRuc} aPedido />
+            </span>
+          ) : null}
         </Caso>
       ))}
       {c.enInformeYDespuesCobro.map((x, i) => (

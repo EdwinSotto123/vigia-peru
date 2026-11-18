@@ -3,7 +3,7 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { Loader2 } from "lucide-react";
-import { DatosClave, EnUnaFrase, type DatoClave } from "@/components/patrones";
+import { DatosClave, EnUnaFrase, FuenteDato, type DatoClave } from "@/components/patrones";
 import { usePoder } from "@/components/grafo/vista";
 import type { Fila } from "@/components/listado";
 import { Button } from "@/components/ui/Button";
@@ -12,6 +12,8 @@ import { decimal, fechaConAnio, numero, plural, porcentaje, solesCompacto } from
 import { tituloNatural } from "@/lib/landing";
 import { aniosDeLasOrdenes, fechasEnElPuesto, loQueRecibio, ordenesEnElPuesto, ordenesFueraDelPuesto, papelEnLaEmpresa, periodoDelPuesto, reglaCompraFamilia } from "@/lib/comprasFamilia";
 import { loQueVendio, ventasFrenteALaSalida } from "@/lib/autoridadExsocio";
+import { CONOSCE_BUSCADOR, DATASET_AUTORIDADES_JNE, DATASET_DJI, DATASET_SOCIOS_RNP, djiEntidad, fichaRnp } from "@/lib/fuentes";
+import { VentasCompraFamilia } from "./VentasCompraFamilia";
 import {
   codigoDeOcid,
   type AlcancePatron,
@@ -81,7 +83,9 @@ function Bloque({ titulo, children }: { titulo: string; children: ReactNode }) {
 }
 
 /** Qué conviene revisar: pasos numerados (nunca un párrafo). */
-function QueRevisar({ pasos }: { pasos: ReactNode[] }) {
+function QueRevisar({ pasos: todos }: { pasos: ReactNode[] }) {
+  // Un paso que no aplica llega vacío: sin esto quedaba un número suelto al final de la lista.
+  const pasos = todos.filter((x) => x != null && x !== false && x !== "");
   return (
     <Bloque titulo="Qué conviene revisar">
       <ol className="space-y-1.5">
@@ -127,6 +131,9 @@ function Contratos({ ocids, total, que }: { ocids: string[]; total?: number | nu
     </Bloque>
   );
 }
+
+/** Sin las filas vacías: un «Sin dato» por algo que no aplica al caso (los procesos de una persona natural) confunde. */
+const conValor = (items: (DatoClave | null | false | undefined)[]) => items.filter((d): d is DatoClave => !!d && d.valor != null && d.valor !== "");
 
 function Pie({ enlaces }: { enlaces: ({ texto: string; href: string } | null | false | undefined)[] }) {
   const xs = enlaces.filter((e): e is { texto: string; href: string } => !!e);
@@ -636,11 +643,22 @@ export function detalleAutoridadExsocio(p: PatronAutoridadExsocio): Detalle {
       <div className="space-y-5">
         <EnUnaFrase tono={p.severidad === "alta" ? "alta" : "media"}>
           <b>{quien}</b>, {cargo}
-          {p.lugar ? ` de ${tituloNatural(p.lugar)}` : ""}, figuraba como <b>{p.roles.join(", ")}</b> de <b>{empresa}</b> y dejó de figurar en el corte
-          del {fechaConAnio(p.bajaCorte)}. Durante su periodo, <b>{ent}</b> le compró a esa empresa <b>{loQueVendio(p)}</b>. {ventasFrenteALaSalida(p)}
+          {p.lugar ? ` de ${tituloNatural(p.lugar)}` : ""}, figuraba como <b>{p.roles.join(", ")}</b> de{" "}
+          {esRuc20(p.empresaRuc) ? (
+            <Link href={`/empresa/${p.empresaRuc}?seccion=gente`} prefetch={false} className={ENLACE}>{empresa}</Link>
+          ) : (
+            <b>{empresa}</b>
+          )}{" "}
+          y dejó de figurar en el corte del {fechaConAnio(p.bajaCorte)}. Durante su periodo,{" "}
+          {esRuc20(p.entidadRuc) ? (
+            <Link href={`/entidad/${p.entidadRuc}`} prefetch={false} className={ENLACE}>{ent}</Link>
+          ) : (
+            <b>{ent}</b>
+          )}{" "}
+          le compró a esa empresa <b>{loQueVendio(p)}</b>. {ventasFrenteALaSalida(p)}
         </EnUnaFrase>
         <DatosClave
-          items={[
+          items={conValor([
             { etiqueta: "Cargo electo", valor: `${tituloNatural(p.cargo)}${p.lugar ? `, ${tituloNatural(p.lugar)}` : ""}` },
             { etiqueta: "Su periodo", valor: periodo.charAt(0).toUpperCase() + periodo.slice(1) },
             { etiqueta: "Papel en la empresa", valor: p.roles.join(", ").replace(/^./, (x) => x.toUpperCase()) },
@@ -652,7 +670,7 @@ export function detalleAutoridadExsocio(p: PatronAutoridadExsocio): Detalle {
             { etiqueta: "Hasta 12 meses después de salir", valor: p.ventasEnPlazo ? `${plural(p.ventasEnPlazo, "venta", "ventas")} por ${solesCompacto(p.montoEnPlazo)}` : "Ninguna" },
             { etiqueta: "Más de 12 meses después", valor: p.ventasDespues ? plural(p.ventasDespues, "venta", "ventas") : null },
             { etiqueta: "Primera y última venta", valor: p.primera && p.ultima ? `${fechaConAnio(p.primera)} a ${fechaConAnio(p.ultima)}` : null },
-          ]}
+          ])}
         />
         <QueRevisar
           pasos={[
@@ -665,12 +683,23 @@ export function detalleAutoridadExsocio(p: PatronAutoridadExsocio): Detalle {
               : "Mira quién quedó como socio tras su salida: si es su cónyuge, conviviente o un pariente hasta el segundo grado, el impedimento sigue.",
           ]}
         />
+        <FuenteDato
+          fuente="Jurado Nacional de Elecciones (autoridades), Registro Nacional de Proveedores y órdenes y procesos de CONOSCE (OECE)"
+          href={DATASET_AUTORIDADES_JNE}
+          enlaces={[
+            { texto: "Ficha de la empresa en el RNP (OECE)", href: fichaRnp(p.empresaRuc) },
+            { texto: "Conformación jurídica de proveedores (datos abiertos)", href: DATASET_SOCIOS_RNP },
+            { texto: "Órdenes y procesos en CONOSCE (OECE)", href: CONOSCE_BUSCADOR },
+          ]}
+        />
       </div>
     ),
     pie: (
       <Pie
         enlaces={[
+          esRuc20(p.empresaRuc) && esRuc20(p.entidadRuc) && { texto: "Lo que la entidad le compró a esta empresa", href: `/entidad/${p.entidadRuc}?seccion=contratos&ccon=${p.empresaRuc}` },
           esRuc20(p.empresaRuc) && { texto: "Ficha de la empresa: su gente", href: `/empresa/${p.empresaRuc}?seccion=gente` },
+          esRuc20(p.empresaRuc) && { texto: "Su historia", href: `/empresa/${p.empresaRuc}?seccion=historia` },
           esRuc20(p.entidadRuc) && { texto: "La entidad", href: `/entidad/${p.entidadRuc}` },
         ]}
       />
@@ -688,6 +717,7 @@ export function detalleCompraFamilia(p: PatronCompraFamilia): Detalle {
   const conConteo = p.ordenesEnPuesto != null;
   const conEmpresa = p.via === "empresa";
   const laEmpresa = p.empresa ? tituloNatural(p.empresa) : "una empresa";
+  const ficha = p.codigo ? `/app/personas/cargo/${p.codigo}?seccion=revision` : null;
   return {
     // El nombre de la persona nunca va al título del panel.
     titulo: conEmpresa ? "Trabaja en compras y la empresa de un familiar le vende" : "Trabaja en compras y un familiar recibe órdenes",
@@ -696,11 +726,27 @@ export function detalleCompraFamilia(p: PatronCompraFamilia): Detalle {
     contenido: (
       <div className="space-y-5">
         <EnUnaFrase tono={p.severidad === "alta" ? "alta" : p.severidad === "media" ? "media" : "neutro"}>
-          <b>{quien}</b> declara el puesto de <b>{tituloNatural(p.cargo).toLowerCase()}</b> en <b>{ent}</b>
+          {ficha ? (
+            <Link href={ficha} prefetch={false} className={ENLACE}>{quien}</Link>
+          ) : (
+            <b>{quien}</b>
+          )}{" "}
+          declara el puesto de <b>{tituloNatural(p.cargo).toLowerCase()}</b> en{" "}
+          {esRuc20(p.entidadRuc) ? (
+            <Link href={`/entidad/${p.entidadRuc}`} prefetch={false} className={ENLACE}>{ent}</Link>
+          ) : (
+            <b>{ent}</b>
+          )}
           {enElPuesto ? `, ${enElPuesto}` : ""}. Un familiar que declaró ({p.parentesco.toLowerCase()}){" "}
           {conEmpresa ? (
             <>
-              figura como {papelEnLaEmpresa(p)} de <b>{laEmpresa}</b>, que {loQueRecibio(p)}.
+              figura como {papelEnLaEmpresa(p)} de{" "}
+              {esRuc20(p.empresaRuc) ? (
+                <Link href={`/empresa/${p.empresaRuc}`} prefetch={false} className={ENLACE}>{laEmpresa}</Link>
+              ) : (
+                <b>{laEmpresa}</b>
+              )}
+              , que {loQueRecibio(p)}.
             </>
           ) : (
             `${loQueRecibio(p)}.`
@@ -709,28 +755,35 @@ export function detalleCompraFamilia(p: PatronCompraFamilia): Detalle {
           {fuera ? ` ${fuera}` : ""}
         </EnUnaFrase>
         <DatosClave
-          items={[
+          items={conValor([
             { etiqueta: "Puesto declarado", valor: tituloNatural(p.cargo) },
             { etiqueta: "En el puesto", valor: enElPuesto ? enElPuesto.charAt(0).toUpperCase() + enElPuesto.slice(1) : "No declaró desde cuándo" },
             { etiqueta: "Parentesco del familiar", valor: p.parentesco },
-            { etiqueta: "Cómo cobra el familiar", valor: conEmpresa ? `Con ${laEmpresa}, de la que es ${papelEnLaEmpresa(p)}` : "A su nombre" },
-            { etiqueta: "El familiar figura en la empresa desde", valor: conEmpresa && p.parienteDesde ? fechaConAnio(p.parienteDesde) : null },
+            { etiqueta: "Cómo cobra el familiar", valor: conEmpresa ? `Con ${laEmpresa}, de la que es ${papelEnLaEmpresa(p)}` : "A su nombre, con órdenes de servicio" },
+            conEmpresa && p.parienteDesde ? { etiqueta: "El familiar figura en la empresa desde", valor: fechaConAnio(p.parienteDesde) } : null,
+            conConteo
+              ? {
+                  etiqueta: "Órdenes con la persona en el puesto",
+                  valor: p.ordenesEnPuesto ? `${numero(p.ordenesEnPuesto)} por ${solesCompacto(p.montoEnPuesto ?? 0)}` : "Ninguna",
+                  mono: !!p.ordenesEnPuesto,
+                }
+              : null,
+            conEmpresa && p.procesosEnPuesto
+              ? { etiqueta: "Procesos ganados con la persona en el puesto", valor: `${numero(p.procesosEnPuesto)} por ${solesCompacto(p.montoProcesosEnPuesto ?? 0)}`, mono: true }
+              : null,
+            fechas ? { etiqueta: "Fechas de esas ventas", valor: fechas.charAt(0).toUpperCase() + fechas.slice(1) } : null,
+            conConteo ? { etiqueta: "Antes de que asumiera", valor: p.ordenesAntes ? plural(p.ordenesAntes, "orden", "órdenes") : "Ninguna orden de esa entidad" } : null,
+            conConteo && p.ordenesLuego
+              ? { etiqueta: p.cargoHasta ? "Después de su cese" : "Después de su última declaración", valor: plural(p.ordenesLuego, "orden", "órdenes") }
+              : null,
             {
-              etiqueta: "Procesos ganados con la persona en el puesto",
-              valor: conEmpresa && p.procesosEnPuesto ? `${numero(p.procesosEnPuesto)} por ${solesCompacto(p.montoProcesosEnPuesto ?? 0)}` : null,
-              mono: true,
+              etiqueta: conEmpresa ? "Órdenes a la empresa en total" : "Órdenes al familiar en total",
+              valor: p.ordenes ? `${numero(p.ordenes)} por ${solesCompacto(p.monto)}${anios ? `, ${anios}` : ""}` : "Ninguna: sólo procesos de selección",
             },
-            {
-              etiqueta: "Órdenes con la persona en el puesto",
-              valor: !conConteo ? null : p.ordenesEnPuesto ? `${numero(p.ordenesEnPuesto)} por ${solesCompacto(p.montoEnPuesto ?? 0)}` : "Ninguna",
-              mono: !!p.ordenesEnPuesto,
-            },
-            { etiqueta: "Fechas de esas órdenes", valor: fechas ? fechas.charAt(0).toUpperCase() + fechas.slice(1) : null },
-            { etiqueta: "Antes de que asumiera", valor: !conConteo ? null : p.ordenesAntes ? plural(p.ordenesAntes, "orden", "órdenes") : "Ninguna orden de esa entidad" },
-            { etiqueta: p.cargoHasta ? "Después de su cese" : "Después de su última declaración", valor: conConteo && p.ordenesLuego ? plural(p.ordenesLuego, "orden", "órdenes") : null },
-            { etiqueta: conEmpresa ? "Órdenes a la empresa en total" : "Órdenes al familiar en total", valor: p.ordenes ? `${numero(p.ordenes)} por ${solesCompacto(p.monto)}${anios ? `, ${anios}` : ""}` : "Ninguna" },
-          ]}
+          ])}
         />
+        {/* La evidencia: cada orden y cada proceso frente al puesto, con su enlace, y la empresa del familiar. */}
+        {p.clave ? <VentasCompraFamilia clave={p.clave} entidadRuc={p.entidadRuc} /> : null}
         <QueRevisar
           pasos={[
             "Es una señal en observación: el puesto y el familiar salen de la declaración jurada de la propia persona, y las órdenes, del registro de la entidad. No dice que intervino en esas compras.",
@@ -747,14 +800,24 @@ export function detalleCompraFamilia(p: PatronCompraFamilia): Detalle {
               : null,
           ]}
         />
+        <FuenteDato
+          fuente="Contraloría (declaraciones juradas de intereses), Registro Nacional de Proveedores y órdenes de CONOSCE (OECE)"
+          href={DATASET_DJI}
+          enlaces={[
+            { texto: "Declaraciones juradas de esta entidad (Contraloría)", href: djiEntidad(p.entidadRuc) },
+            ...(conEmpresa ? [{ texto: "Ficha de la empresa en el RNP (OECE)", href: fichaRnp(p.empresaRuc) }] : []),
+            { texto: "Órdenes y procesos en CONOSCE (OECE)", href: CONOSCE_BUSCADOR },
+          ]}
+        />
       </div>
     ),
     pie: (
       <Pie
         enlaces={[
-          p.codigo ? { texto: "Ficha de la persona", href: `/app/personas/cargo/${p.codigo}?seccion=revision` } : false,
-          p.codigo ? { texto: "Su familia declarada", href: `/app/personas/cargo/${p.codigo}?seccion=familia` } : false,
+          ficha ? { texto: "Ficha de la persona", href: ficha } : false,
+          conEmpresa && esRuc20(p.empresaRuc) && esRuc20(p.entidadRuc) && { texto: "Lo que la entidad le compró a esta empresa", href: `/entidad/${p.entidadRuc}?seccion=contratos&ccon=${p.empresaRuc}` },
           conEmpresa && esRuc20(p.empresaRuc) && { texto: "La empresa del familiar", href: `/empresa/${p.empresaRuc}` },
+          p.codigo ? { texto: "Su familia declarada", href: `/app/personas/cargo/${p.codigo}?seccion=familia` } : false,
           esRuc20(p.entidadRuc) && { texto: "La entidad", href: `/entidad/${p.entidadRuc}` },
         ]}
       />

@@ -288,6 +288,8 @@ export interface PatronCompraFamilia {
   parienteDesde?: string | null;
   procesosEnPuesto?: number | null;
   montoProcesosEnPuesto?: number | null;
+  /** La llave del caso para pedir su evidencia (migración 369). */
+  clave?: string;
   parentesco: string;
   cercano: boolean;
   ordenes: number;
