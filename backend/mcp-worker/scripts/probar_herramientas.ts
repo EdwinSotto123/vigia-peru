@@ -12,7 +12,7 @@
 import { z } from "zod";
 import { buscarContratos, ordenes, preciosDeMercado } from "../src/v2/herramientas/contratos";
 import { buscarInformesControl, informesControl } from "../src/v2/herramientas/entidad";
-import { fichaEntidad, normaAplicable, patrones, personaPublica, preciosReferencia, redEmpresa } from "../src/v2/herramientas/actores";
+import { fichaEntidad, historia, normaAplicable, patrones, personaPublica, preciosReferencia, redEmpresa } from "../src/v2/herramientas/actores";
 import { informeControlContrato } from "../src/v2/herramientas/control";
 
 const PRUEBA = process.env.GOBSERVA_PRUEBA ?? "";
@@ -47,6 +47,21 @@ const CASOS: Caso[] = [
     espera: (r) => (lista(r, "con_cargo_publico").length >= 5
       && lista(r, "con_cargo_publico").every((x) => /•/.test(String((x as { nombre?: string }).nombre ?? "")) && /\/app\/personas\/cargo\/[0-9a-f]{12}$/.test(String((x as { enlace?: string }).enlace ?? "")))
       ? null : "sin personas con cargo público, o sin tapar o sin enlace a su ficha") },
+  // La historia de una entidad grande: lo más grave va primero y trae contratos con banderas e informes de control, no sólo
+  // picos de visitas; cada hecho con su gravedad, su renglón y su enlace. Con una clase, sólo los de ese renglón.
+  { h: historia as never, args: { tipo: "entidad", id: "20153408191" },
+    espera: (r) => {
+      const g = lista(r, "lo_mas_grave") as { renglon?: string; severidad?: string; enlace_vigia?: string; clase?: string }[];
+      const renglones = new Set(g.map((x) => x.renglon));
+      return g.length >= 20 && g[0].severidad === "alta" && renglones.has("Contratos con banderas") && renglones.has("Control")
+        && g.filter((x) => x.clase === "hecho").every((x) => !x.enlace_vigia || x.enlace_vigia.startsWith("https://vigia.gobserva.cloud/"))
+        ? null : `lo_mas_grave trae ${g.length} y renglones ${[...renglones].join(", ")}`;
+    } },
+  { h: historia as never, args: { tipo: "entidad", id: "20153408191", clase: "control", desde: "2022-12", solo_graves: false },
+    espera: (r) => {
+      const ev = lista(r, "eventos") as { renglon?: string; fecha?: string }[];
+      return ev.length >= 1 && ev.every((x) => x.renglon === "Control" && String(x.fecha) >= "2022-12-01") ? null : `eventos de control desde 2022-12: ${ev.length}, alguno fuera del filtro`;
+    } },
   { h: patrones as never, args: { alcance: "entidad" }, espera: hay("patrones") },
   { h: patrones as never, args: { alcance: "proveedor" }, espera: hay("patrones") },
   { h: patrones as never, args: { alcance: "relleno" }, espera: hay("pares") },
@@ -167,7 +182,11 @@ const CASOS: Caso[] = [
       const rs = lista(r, "resultados") as { observacion?: string; informe?: string; entidad?: string }[];
       if (rs.length < 3) return `la búsqueda de informes de control dio ${rs.length} resultados`;
       if (!rs.some((x) => /valoriz|partidas/i.test(String(x.observacion)))) return "ningún resultado habla de valorizaciones ni partidas";
-      return /(?<![0-9])[0-9]{8}(?![0-9-])/.test(JSON.stringify(rs.map((x) => x.observacion))) ? "una observación trae un número de 8 cifras sin tapar" : null;
+      // Un número de 8 cifras suelto, con la misma regla que publicar() (lib/privacidad.ts de la API): no cuenta el que es
+      // parte de un código público (la factura «E001-12345678», la orden «O/C-…», un comprobante SIAF) ni el que va detrás
+      // de una moneda. Antes la prueba marcaba esos y fallaba cada vez que la búsqueda iba sólo por palabras.
+      const suelto = /(?<!(?:S\/\.?|US\$|\$|€)\s{0,2})(?<![\p{L}\d./-])\d{8}(?![\p{L}\d/-]|[.,]\d)/u;
+      return rs.some((x) => suelto.test(String(x.observacion ?? ""))) ? "una observación trae un número de 8 cifras sin tapar" : null;
     } },
   { h: informesControl as never, args: { ruc: "20154477374" },
     espera: (r) => ((lista(r, "informes") as { ficha?: { observaciones?: unknown[] } | null }[]).some((x) => (x.ficha?.observaciones?.length ?? 0) > 0)

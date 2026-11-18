@@ -481,14 +481,26 @@ patronesRouter.get("/precios-estado", async (c) => {
   const p = PreciosEstado.safeParse(Object.fromEntries(Object.entries(parametros(c)).filter(([, v]) => v !== "" && v != null)));
   if (!p.success) return c.json({ error: "invalid_query", issues: p.error.issues }, 400);
   const q = p.data;
-  const cuerpo = await memo.obtener(`precios-estado:${JSON.stringify(q)}`, async () => {
+  // Si la consulta falla (un tiempo de espera con la base cargada), NO es un cero: antes devolvía la lista vacía, la
+  // guardaba en la memoria y la CDN la servía una hora, y el MCP decía «sin compras del Estado» (2026-11-18). Ahora: 503,
+  // sin guardar y sin caché; quien la pide dice que no respondió.
+  const cuerpo = await memo.obtener(`precios-estado:${JSON.stringify(q)}`, async (ctl) => {
     const r = await pool.query(
       `SELECT fuente, detalle, unidad, n, p25::float AS p25, mediana::float AS mediana, p75::float AS p75
          FROM precios_por_texto($1, $2, COALESCE($3::date, CURRENT_DATE)) WHERE mediana > 0`,
       [q.q, q.unidad ?? null, q.hasta ?? null],
-    ).catch(() => ({ rows: [] as Record<string, unknown>[] }));
+    ).catch((err: Error) => {
+      console.warn(`[precios-estado] no respondió: ${err.message}`);
+      ctl.noGuardar();
+      return null;
+    });
+    if (!r) return { referencias: [], noRespondio: true };
     return { referencias: depurarReferencias(r.rows as { unidad: string | null; n: number; mediana: number }[]) };
   });
+  if (cuerpo.noRespondio) {
+    c.header("Cache-Control", "no-store");
+    return c.json(cuerpo, 503);
+  }
   c.header("Cache-Control", CACHE);
   return c.json(cuerpo);
 });

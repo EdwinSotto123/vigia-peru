@@ -43,9 +43,9 @@ import { ELEGIDO_EN_LINEA, VER_EN_LINEA, idLinea, type ElegidoLinea, type Pedido
  * 2023-2026), en número o en soles. En el celular el lienzo se desliza y arranca en lo más reciente. La lista completa,
  * con su buscador, es otra pestaña de HistoriaFicha: es también la versión accesible.
  *
- * Lo que llama la atención (las secuencias y los patrones) va arriba de las pestañas, en `Destacados`: «Verlo en la
- * línea» pide por un evento de la ventana (VER_EN_LINEA, con la `clave` de la historia) que la línea lo marque, y la
- * línea avisa qué quedó elegido (ELEGIDO_EN_LINEA) para que la tarjeta se marque igual.
+ * Lo más grave (los hechos con gravedad, las secuencias y los patrones) va en la pestaña de al lado, `Destacados`:
+ * «Verlo en la línea de tiempo» abre ésta y pide por un evento de la ventana (VER_EN_LINEA, con la `clave` de la
+ * historia) que la línea lo marque; la línea avisa qué quedó elegido (ELEGIDO_EN_LINEA).
  */
 
 type Medida = "n" | "monto";
@@ -195,9 +195,15 @@ export function LineaDeTiempo({ h, etiqueta, clave }: { h: Historia; etiqueta: s
     setSel({ tipo: "secuencia", id: s.id });
     if (s.pasos[0]) mostrarMes(mesDe(s.pasos[0].fecha));
   };
-  // «Verlo en la línea» desde las tarjetas de arriba (Destacados).
-  const verRef = useRef({ verPatron, verSecuencia });
-  verRef.current = { verPatron, verSecuencia };
+  const verEvento = (e: EventoHistoria) => {
+    setTramo("todo");
+    setPatronSel(null);
+    setSel({ tipo: "evento", id: e.id });
+    mostrarMes(mesDe(e.fecha));
+  };
+  // «Verlo en la línea de tiempo» desde «Lo más grave» (Destacados).
+  const verRef = useRef({ verPatron, verSecuencia, verEvento });
+  verRef.current = { verPatron, verSecuencia, verEvento };
   useEffect(() => {
     const alPedir = (e: Event) => {
       const d = (e as CustomEvent<PedidoLinea>).detail;
@@ -205,6 +211,9 @@ export function LineaDeTiempo({ h, etiqueta, clave }: { h: Historia; etiqueta: s
       if (d.tipo === "patron") {
         const p = (h.patrones ?? []).find((x) => x.id === d.id);
         if (p) verRef.current.verPatron(p);
+      } else if (d.tipo === "evento") {
+        const ev = h.eventos.find((x) => x.id === d.id);
+        if (ev) verRef.current.verEvento(ev);
       } else {
         const s = h.secuencias.find((x) => x.id === d.id);
         if (s) verRef.current.verSecuencia(s);

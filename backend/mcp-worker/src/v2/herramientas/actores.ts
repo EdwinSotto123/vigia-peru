@@ -211,9 +211,9 @@ export const fichaEntidad = definir({
             })),
             antecedentes_de_quienes_ganaron_sus_contratos: ((pat.cruces ?? []) as Fila[]).slice(0, 30).map((x) => ({
               antecedente: x.etiqueta, tipo: x.tipo, contratos: x.contratos, de_senal_alta: x.graves, monto_soles: x.monto, proveedores: x.empresas,
-              enlace: `${e.entidad(r)}?seccion=patrones&patron=c-${x.tipo}`,
+              enlace: `${e.entidad(r)}?seccion=patrones&pv=antecedentes&antecedente=${x.tipo}`,
             })),
-            como_leerlo: "Lo que se repite en la entidad. «patrones_con_casos»: cada uno se detalla con la herramienta patrones (el alcance que se indica) y este RUC. «antecedentes…»: cuántos contratos de la entidad ganó alguien con ese antecedente (postor único, socio común entre postores, rival que fue su socia, fraccionamiento…); para verlos, buscar_contratos con la entidad y esa señal. Un patrón es un motivo para mirar, no una acusación.",
+            como_leerlo: "Dos cosas distintas. «patrones_con_casos»: lo que se repite ENTRE VARIOS contratos u órdenes de la entidad; cada uno se detalla con la herramienta patrones (el alcance que se indica) y este RUC. «antecedentes…»: lo que pesa sobre CADA contrato, es decir cuántos contratos de la entidad ganó alguien con ese antecedente (postor único, socio común entre postores, rival que fue su socia, fraccionamiento…); para verlos, buscar_contratos con la entidad y esa señal. Un patrón es un motivo para mirar, no una acusación.",
           }
         : undefined,
       gobierno: poder
@@ -318,36 +318,110 @@ export const partido = definir({
   },
 });
 
+/** Los renglones de una historia (los de la línea de tiempo de la ficha), para filtrar sus hechos. */
+const RENGLONES_HISTORIA = ["banderas", "control", "obras", "visitas", "politica", "empresa", "compras", "ordenes", "personas", "menores", "planilla", "plazas", "gobierno"] as const;
+/** A igual gravedad, en qué orden van las clases (el mismo de «Lo más grave» en la ficha: frontend/lib/historiaGrave.ts). */
+const ORDEN_GRAVE = ["control", "banderas", "obras", "secuencias", "visitas", "politica", "empresa", "compras", "ordenes", "personas", "menores", "planilla", "plazas", "ritmo"];
+
 export const historia = definir({
   nombre: "historia",
   titulo: "Línea de tiempo",
   descripcion:
-    "La historia de una entidad, empresa, partido o contrato: hechos fechados (fundación, socios que entran, contratos, " +
-    "órdenes, cambios de gestión, visitas, informes), patrones que Vigía detectó (por ejemplo órdenes concentradas en " +
-    "diciembre u olas tras un cambio de gestión) y las series por mes.",
+    "La historia de una entidad, empresa, partido o contrato. Primero «lo_mas_grave»: todo lo que tiene gravedad, lo más grave " +
+    "primero y una clase por vuelta (contratos con banderas y por qué, informes de control con su responsabilidad, obras " +
+    "paralizadas, visitas de la gente de una empresa que terminaron en una compra, sanciones). Después las secuencias (una cosa " +
+    "llevó a otra: visitó y ganó, la ola de contrataciones tras un cambio de gestión), los meses fuera de lo normal, los hechos " +
+    "fechados y las series por mes. Se puede pedir sólo un renglón (clase), sólo un periodo (desde, hasta: por ejemplo una " +
+    "gestión) o sólo lo de señal alta.",
   cuenta: true,
   entrada: {
     tipo: z.enum(["entidad", "empresa", "partido", "contrato"]),
     id: z.string().min(1).max(100).describe("RUC (entidad o empresa), clave del partido u OCID."),
+    clase: z.enum(RENGLONES_HISTORIA).optional().describe("Sólo los hechos de un renglón: banderas (contratos con banderas), control (informes de la Contraloría; en una empresa, sanciones y penalidades), obras, visitas, politica, empresa (socios y fundación), compras, ordenes…"),
+    desde: z.string().regex(/^\d{4}(-\d{2}(-\d{2})?)?$/).optional().describe("Sólo lo ocurrido desde esta fecha (AAAA, AAAA-MM o AAAA-MM-DD): por ejemplo el inicio de una gestión."),
+    hasta: z.string().regex(/^\d{4}(-\d{2}(-\d{2})?)?$/).optional().describe("Sólo lo ocurrido hasta esta fecha (AAAA, AAAA-MM o AAAA-MM-DD)."),
+    solo_graves: z.boolean().default(false).describe("Sólo lo de señal alta."),
     max_eventos: z.number().int().min(5).max(120).default(40),
   },
   async ejecutar(a, cx) {
     const id = a.tipo === "entidad" || a.tipo === "empresa" ? rucJuridico(a.id) : a.id.trim();
     const h = await api<Fila>(cx.env, `/historia/${a.tipo}/${encodeURIComponent(id)}`);
-    const eventos = ((h.eventos ?? []) as Fila[]).sort((x, y) => String(y.fecha).localeCompare(String(x.fecha)));
+    const sitio = cx.env.VIGIA_URL;
+    const enVigia = (href: unknown) => (typeof href === "string" && href.startsWith("/") ? `${sitio}${href}` : undefined);
+    const desde = a.desde ? a.desde.padEnd(10, a.desde.length === 4 ? "-01-01" : "-01").slice(0, 10) : null;
+    const hasta = a.hasta ? (a.hasta.length === 4 ? `${a.hasta}-12-31` : a.hasta.length === 7 ? `${a.hasta}-31` : a.hasta) : null;
+    const enRango = (f: unknown) => (!desde || String(f) >= desde) && (!hasta || String(f).slice(0, 10) <= hasta);
+    const renglon = new Map(((h.carriles ?? []) as Fila[]).map((c) => [String(c.clave), String(c.titulo)]));
+    const PESO: Record<string, number> = { alta: 0, media: 1, baja: 2 };
+
+    const todos = ((h.eventos ?? []) as Fila[]).filter((x) => enRango(x.hasta ?? x.fecha) && (!a.clase || x.carril === a.clase));
+    const decir = (x: Fila) => ({
+      ...tomar(x, ["fecha", "hasta", "titulo", "detalle"]),
+      renglon: renglon.get(String(x.carril)) ?? x.carril,
+      severidad: x.carril === "gobierno" ? undefined : x.severidad ?? undefined,
+      monto_soles: x.monto ?? undefined,
+      quien: x.quien ? `${(x.quien as Fila).rol}: ${(x.quien as Fila).nombre}` : undefined,
+      por_que: ((x.banderas ?? []) as Fila[]).length ? ((x.banderas ?? []) as Fila[]).map((b) => `${b.texto} (${b.severidad})`) : undefined,
+      datos: ((x.datos ?? []) as Fila[]).length ? Object.fromEntries(((x.datos ?? []) as Fila[]).map((d) => [String(d.etiqueta), d.valor])) : undefined,
+      enlace_vigia: enVigia(x.href),
+      fuente: x.fuente,
+      fuente_oficial: x.enlace ?? undefined,
+    });
+    // Lo más grave: los hechos con gravedad, las secuencias y los meses fuera de lo normal, en el orden de la ficha (lo de
+    // señal alta primero y, dentro, una clase por vuelta: así no son cuarenta contratos seguidos).
+    type Grave = { clase: string; severidad: string; peso: number; fecha: string; cuerpo: Fila };
+    const graves: Grave[] = [];
+    for (const x of todos) {
+      if (x.carril === "gobierno" || !x.severidad) continue;
+      const altas = ((x.banderas ?? []) as Fila[]).filter((b) => b.severidad === "alta").length;
+      graves.push({ clase: String(x.carril), severidad: String(x.severidad), peso: altas * 1e13 + Number(x.monto ?? 0), fecha: String(x.fecha), cuerpo: { clase: "hecho", ...decir(x) } });
+    }
+    const secuencias = ((h.secuencias ?? []) as Fila[]).filter((q) => {
+      const pasos = (q.pasos ?? []) as Fila[];
+      return pasos.length > 0 && enRango(pasos[pasos.length - 1].fecha) && (!a.clase || a.clase === "visitas" === (q.tipo === "visito_gano"));
+    });
+    const patronesSerie = ((h.patrones ?? []) as Fila[]).filter((q) => enRango(`${q.mes}-01`) && (!a.clase || q.carril === a.clase));
+    const deSecuencia = (q: Fila) => ({
+      ...tomar(q, ["titulo", "explica", "severidad", "fuente"]),
+      pasos: ((q.pasos ?? []) as Fila[]).map((s) => ({ fecha: s.fecha, que: s.texto, enlace_vigia: enVigia(s.href) })),
+      enlace_vigia: enVigia(q.href),
+    });
+    for (const q of secuencias) graves.push({ clase: "secuencias", severidad: String(q.severidad), peso: 0, fecha: String(((q.pasos ?? []) as Fila[])[0]?.fecha ?? ""), cuerpo: { clase: "una cosa llevó a otra", ...deSecuencia(q) } });
+    for (const q of patronesSerie) graves.push({ clase: "ritmo", severidad: String(q.severidad), peso: 0, fecha: `${q.mes}-01`, cuerpo: { clase: "fuera de lo normal", ...tomar(q, ["titulo", "explica", "mes", "hasta", "severidad"]), renglon: renglon.get(String(q.carril)) ?? q.carril } });
+    const ordenados: Grave[] = [];
+    for (const sev of ["alta", "media", "baja"]) {
+      if (a.solo_graves && sev !== "alta") break;
+      const colas = ORDEN_GRAVE.map((c) => graves.filter((g) => g.severidad === sev && g.clase === c).sort((x, y) => y.peso - x.peso || y.fecha.localeCompare(x.fecha))).filter((q) => q.length > 0);
+      for (let i = 0; colas.some((q) => i < q.length); i++) for (const q of colas) if (i < q.length) ordenados.push(q[i]);
+    }
+    const eventos = todos.filter((x) => !a.solo_graves || x.severidad === "alta").sort((x, y) => String(y.fecha).localeCompare(String(x.fecha)));
+    const omitidos = Object.entries((h.omitidos ?? {}) as Record<string, number>).filter(([, n]) => n > 0);
+    const ficha = a.tipo === "entidad" ? `${sitio}/entidad/${id}?seccion=historia` : a.tipo === "empresa" ? `${sitio}/empresa/${id}?seccion=historia` : undefined;
     return {
       sujeto: h.sujeto,
       desde: h.desde,
       hasta: h.hasta,
-      patrones: (h.patrones ?? []).map((p: Fila) => tomar(p, ["tipo", "titulo", "explica", "mes", "severidad"])),
+      filtros: a.clase || desde || hasta || a.solo_graves ? { clase: a.clase, desde: desde ?? undefined, hasta: hasta ?? undefined, solo_graves: a.solo_graves || undefined } : undefined,
+      gestiones: ((h.eventos ?? []) as Fila[]).filter((x) => x.carril === "gobierno").map((x) => tomar(x, ["titulo", "fecha", "hasta", "detalle"])),
+      lo_mas_grave_total: ordenados.length,
+      lo_mas_grave: ordenados.slice(0, a.max_eventos).map((g) => g.cuerpo),
+      secuencias: secuencias.map(deSecuencia),
+      patrones: patronesSerie.map((q) => tomar(q, ["tipo", "titulo", "explica", "mes", "severidad"])),
       eventos_total: eventos.length,
-      eventos: eventos.slice(0, a.max_eventos).map((x: Fila) => tomar(x, ["fecha", "tipo", "titulo", "detalle", "fuente", "enlace"])),
+      eventos: eventos.slice(0, a.max_eventos).map(decir),
+      no_entraron: omitidos.length
+        ? { cuantos: Object.fromEntries(omitidos.map(([c, n]) => [renglon.get(c) ?? c, n])), nota: "La historia trae los hechos más graves y más grandes de cada renglón. Los demás están en la lista de su pestaña: para los contratos con banderas, buscar_contratos con la entidad." }
+        : undefined,
       series: (h.series ?? []).map((s: Fila) => ({
         titulo: s.titulo, unidad: s.unidad, fuente: s.fuente,
-        puntos: ((s.puntos ?? []) as Fila[]).slice(-36),
+        puntos: ((s.puntos ?? []) as Fila[]).filter((q) => enRango(String(q.periodo).length === 4 ? `${q.periodo}-12-31` : `${q.periodo}-15`)).slice(-36),
       })),
-      marcas: (h.marcas ?? []).map((m: Fila) => tomar(m, ["fecha", "texto"])),
+      marcas: ((h.marcas ?? []) as Fila[]).filter((m) => enRango(m.fecha)).map((m: Fila) => tomar(m, ["fecha", "texto"])),
+      enlace: ficha,
       fuentes: h.fuentes,
+      como_leerlo:
+        "«lo_mas_grave» va primero: es lo que conviene mirar. Cada hecho trae por qué está marcado, quién, cuánto, su enlace en Vigía y la fuente oficial. " +
+        "Un pico de visitas o de entradas a la planilla no es señal alta por sí solo. Una señal es un motivo para revisar, no una acusación.",
     };
   },
 });
@@ -1037,9 +1111,12 @@ export const preciosReferencia = definir({
       const estado = await api<Fila>(cx.env, "/patrones/precios-estado", { q: a.que }).catch(() => null);
       return {
         total: r.total,
-        compras_del_estado: (((estado as { referencias?: Fila[] } | null)?.referencias ?? []) as Fila[]).map((x) => ({
-          fuente: x.fuente, que: x.detalle, unidad: x.unidad ?? undefined, compras: x.n, cuartil_1: x.p25, mediana: x.mediana, cuartil_3: x.p75,
-        })),
+        // Si no respondió (la base cargada), se dice: no es «sin compras del Estado».
+        compras_del_estado: estado
+          ? (((estado as { referencias?: Fila[] }).referencias ?? []) as Fila[]).map((x) => ({
+              fuente: x.fuente, que: x.detalle, unidad: x.unidad ?? undefined, compras: x.n, cuartil_1: x.p25, mediana: x.mediana, cuartil_3: x.p75,
+            }))
+          : "no respondió ahora (no es un cero): vuelve a pedirlo en un momento",
         productos: ((r.data ?? []) as Fila[]).map((x) => ({
           producto: x.descripcion, marca: x.marca ?? undefined, numero_de_parte: x.nroParte ?? undefined, catalogo: x.catalogo, anio: x.anio,
           ordenes: x.lineas, entidades: x.entidades, mediana_sin_igv: x.mediana, mediana_con_igv: x.medianaConIgv,

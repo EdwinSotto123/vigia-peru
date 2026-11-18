@@ -1,4 +1,4 @@
-import { Building2, CalendarRange, CloudOff, History, List } from "lucide-react";
+import { Building2, CalendarRange, CloudOff, History, List, Siren } from "lucide-react";
 import Link from "next/link";
 import { Fragment } from "react";
 import { CeldaNumero, CeldaPrincipal, TablaFiltrable, type Columna, type FilaFiltrable } from "@/components/listado";
@@ -7,6 +7,7 @@ import { Dato } from "@/components/ui/Dato";
 import { VacioEnLinea } from "@/components/ui/VacioEnLinea";
 import { fechaConAnio, numero, solesCompacto } from "@/lib/formato";
 import { getHistoria, type Carril, type Historia } from "@/lib/historia";
+import { hallazgosDe } from "@/lib/historiaGrave";
 import { AccionesHecho, DetalleHecho } from "./DetalleHecho";
 import { Destacados } from "./Destacados";
 import { HilosHistoria } from "./HilosHistoria";
@@ -14,14 +15,19 @@ import { LineaDeTiempo } from "./LineaDeTiempo";
 import { TextoPaso } from "./TextoPaso";
 
 /**
- * La pestaña «Historia» de una entidad, una empresa, un partido o un contrato (fase 3 del plan del 2026-10-27), ordenada
- * para no repetir (pedido del usuario del 2026-10-28: «ordénalo más adecuadamente, parece que se repite información»):
+ * La pestaña «Historia» de una entidad, una empresa, un partido o un contrato (fase 3 del plan del 2026-10-27). Son
+ * formas de ver LOS MISMOS hechos, en pestañas (`?hv=`) y de a una (pedido del usuario del 2026-11-18: «scrolleamos y hay
+ * secciones de texto… tenerlo ordenado, sin scroll infinito»; antes «Lo que llama la atención» iba apilado sobre la
+ * línea, y sólo traía picos de visitas y de planilla):
  *
- *   1. Lo que llama la atención (`Destacados`): las secuencias y los meses fuera de lo normal, juntos y lo más grave
- *      primero (antes eran dos grillas de tarjetas seguidas).
- *   2. Tres formas de ver LOS MISMOS hechos, en pestañas (`?hv=`) en vez de apiladas: en el tiempo (la línea con todos
- *      sus renglones), empresa por empresa (los hilos, en una entidad) y todos los hechos en una lista con su buscador,
- *      sus filtros y su CSV (también es la versión accesible).
+ *   1. Lo más grave (`Destacados`, `?hv=grave`): todo lo que tiene gravedad (contratos con banderas, informes de control,
+ *      obras paralizadas, visitas que terminaron en compra, secuencias, meses fuera de lo normal) en una lista con su
+ *      detalle al lado, con filtros por clase, por gestión y por gravedad, y las cifras del periodo arriba.
+ *   2. En el tiempo: la línea con todos sus renglones.
+ *   3. Empresa por empresa: los hilos, en una entidad.
+ *   4. Todos los hechos, en una lista con su buscador, sus filtros y su CSV (también es la versión accesible).
+ *
+ * En un contrato la cronología es lo principal: «En el tiempo» va primero.
  *
  * El detalle de cada hecho (`DetalleHecho`) es el mismo en la línea y en la lista. Server component: pide
  * GET /historia/... una vez (CDN de una hora) y le pasa todo a la línea.
@@ -35,7 +41,7 @@ export async function HistoriaFicha({
   tipo: Historia["sujeto"]["tipo"];
   id: string;
   nombre: string;
-  /** La forma de verla al abrir (`?hv=`): «tiempo», «empresas» o «lista». */
+  /** La forma de verla al abrir (`?hv=`): «grave», «tiempo», «empresas» o «lista». */
   vista?: string;
 }) {
   const h = await getHistoria(tipo, id);
@@ -85,7 +91,19 @@ export async function HistoriaFicha({
       </Nota>
     ) : null;
 
-  const formas: Pestana[] = [
+  const graves = hallazgosDe(h);
+  const loMasGrave: Pestana[] = graves.length
+    ? [
+        {
+          clave: "grave",
+          etiqueta: "Lo más grave",
+          conteo: graves.length,
+          icono: <Siren size={15} aria-hidden />,
+          contenido: <Destacados clave={clave} h={h} />,
+        },
+      ]
+    : [];
+  const enElTiempo: Pestana[] = [
     {
       clave: "tiempo",
       etiqueta: "En el tiempo",
@@ -97,6 +115,10 @@ export async function HistoriaFicha({
         </div>
       ),
     },
+  ];
+  const formas: Pestana[] = [
+    // En un contrato manda su cronología; en lo demás, lo más grave va primero.
+    ...(tipo === "contrato" ? [...enElTiempo, ...loMasGrave] : [...loMasGrave, ...enElTiempo]),
     ...(hilos.length
       ? [
           {
@@ -131,8 +153,7 @@ export async function HistoriaFicha({
   ];
 
   return (
-    <div className="space-y-6">
-      <Destacados clave={clave} secuencias={h.secuencias} patrones={h.patrones ?? []} />
+    <div className="space-y-4">
       <section aria-label="Sus hechos" className="space-y-2">
         <Pestanas param="hv" variante="segunda" etiqueta="Cómo ver sus hechos" activa={vista} pestanas={formas} />
       </section>

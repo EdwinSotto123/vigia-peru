@@ -41,12 +41,23 @@ export interface TipoDelIndice {
  * - Sólo se monta el tipo elegido: el panel de un caso abierto (anclado a la derecha) se cierra al cambiar de tipo.
  * - Patrón de pestañas de WAI-ARIA: flechas (las cuatro), Inicio y Fin.
  */
-export function IndiceAntecedentes({ tipos, param, titulo }: { tipos: TipoDelIndice[]; param: string; titulo: string }) {
+export function IndiceAntecedentes({
+  tipos,
+  param,
+  titulo,
+  inicial,
+}: {
+  tipos: TipoDelIndice[];
+  param: string;
+  titulo: string;
+  /** El elegido al abrir si la URL no trae `param` (un enlace viejo que lo nombraba con otro parámetro). */
+  inicial?: string;
+}) {
   const primera = tipos[0]?.clave;
   const valido = (t: string | null | undefined) => (t && tipos.some((x) => x.clave === t) ? t : undefined);
   // Desde Next 14.1 el router se entera de `history.replaceState`: lo que se elige aquí también cambia `useSearchParams`.
   const enUrl = valido(useSearchParams()?.get(param));
-  const [actual, setActual] = useState(enUrl ?? primera);
+  const [actual, setActual] = useState(enUrl ?? valido(inicial) ?? primera);
   const id = useId();
   const lista = useRef<HTMLDivElement>(null);
   const botones = useRef<(HTMLButtonElement | null)[]>([]);

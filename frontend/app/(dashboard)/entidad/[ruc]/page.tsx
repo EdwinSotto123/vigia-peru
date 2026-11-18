@@ -94,7 +94,7 @@ interface EntidadFicha {
 type Busqueda = Record<string, string | string[] | undefined> | undefined;
 
 /** El nombre de cada pestaña en la ruta de navegación (la primera, Inicio, no se agrega). */
-const ETIQUETAS: Record<string, string> = { historia: "Historia", patrones: "Patrones", contratos: "Compras", obras: "Obras", personas: "Personas contratadas", planilla: "Planilla", organizacion: "Organización", plazas: "Plazas CAS", visitas: "Visitas", presupuesto: "Cuánto gasta", control: "Control" };
+const ETIQUETAS: Record<string, string> = { historia: "Historia", patrones: "Antecedentes y patrones", contratos: "Compras", obras: "Obras", personas: "Personas contratadas", planilla: "Planilla", organizacion: "Organización", plazas: "Plazas CAS", visitas: "Visitas", presupuesto: "Cuánto gasta", control: "Control" };
 /** Una sociedad anónima (S.A., S.A.C., S.A.A.): una empresa del Estado aunque su tipo declarado diga otra cosa (Petroperú). */
 const SOCIEDAD = /\bS\.?\s?A\.?(?:\s?[AC]\.?)?\s*$/i;
 
@@ -290,11 +290,10 @@ export default async function EntidadProfile({
       // sueltas en la cabecera y listas filtradas; nada decía «aquí hay patrones de concertación».
       clave: "patrones",
       icono: <Repeat size={15} aria-hidden />,
-      etiqueta: "Patrones",
-      titulo: "Antecedentes y patrones",
+      etiqueta: "Antecedentes y patrones",
       contenido: (
         <Suspense fallback={<Cargando texto="Buscando lo que se repite en esta entidad…" />}>
-          <PatronesEntidad ruc={e.ruc} />
+          <PatronesEntidad ruc={e.ruc} sub={uno(searchParams?.pv)} patron={uno(searchParams?.patron)} />
         </Suspense>
       ),
     },
@@ -307,7 +306,7 @@ export default async function EntidadProfile({
       contenido: (
         <div className="space-y-4">
           <CabeceraPestana ayuda={<AyudaHistoria />}>
-            Lo que pasó con ella mes a mes: quién gobernaba, cuánto compró y a quién, su planilla, sus visitas y lo que encontró la Contraloría.
+            Primero lo más grave; después, todo mes a mes: quién gobernaba, cuánto compró y a quién, su planilla, sus visitas y lo que encontró la Contraloría.
           </CabeceraPestana>
           <Suspense fallback={<Cargando texto="Armando su historia…" />}>
             <HistoriaFicha tipo="entidad" id={e.ruc} nombre={nombre} vista={uno(searchParams?.hv)} />
@@ -760,12 +759,17 @@ function AyudaHistoria() {
   return (
     <Ayuda titulo="¿Cómo se lee su historia?">
       <span className="block">
+        «Lo más grave» junta todo lo que tiene gravedad (contratos con banderas, informes de control, obras paralizadas, visitas que
+        terminaron en una compra), lo más grave primero. Se filtra por clase de hecho, por gestión y por gravedad; cada uno abre su
+        detalle con la fuente.
+      </span>
+      <span className="mt-2 block">
         Cada renglón es una fuente oficial, mes a mes, sobre el mismo eje: quién gobernaba (JNE), sus procesos y órdenes (OECE), su
         planilla (Portal de Transparencia), sus plazas (SERVIR), sus visitas, los informes de la Contraloría y sus obras (INFOBRAS).
         Las líneas verticales son los cambios de gobierno y las elecciones.
       </span>
       <span className="mt-2 block">
-        «Una cosa lleva a otra» marca, por ejemplo, cuando las órdenes a personas se duplicaron en los seis meses después de que
+        «Una cosa llevó a otra» marca, por ejemplo, cuando las órdenes a personas se duplicaron en los seis meses después de que
         asumió una gestión, frente a los mismos meses del año anterior. No prueba nada: es para revisar.
       </span>
     </Ayuda>

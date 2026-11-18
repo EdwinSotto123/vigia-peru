@@ -616,9 +616,14 @@ export function patronesDeSeries(series: SerieHistoria[], marcas: MarcaHistoria[
       // Diciembre: muchas entidades apuran sus compras al cierre del año; cuenta un grado menos.
       const diciembre = tope.mes.endsWith("-12");
       const fuerte = !diciembre && rTope >= 4 && (tambien.length > 0 || (mesesGob != null && mesesGob <= 6) || !!eleccion);
+      // Un mes con muchas visitas, plazas o entradas a la planilla no mueve plata por sí solo: nunca es señal alta (pedido
+      // del usuario del 2026-11-18: «sólo muestra cosas irrelevantes como visitas»). Lo que sí puede serlo es lo que se
+      // compró: los procesos, las órdenes y las órdenes a personas. La ola de contrataciones tras un cambio de gestión
+      // tiene su propia regla (olasDeGestion), con base de comparación.
+      const sinPlata = s.carril === "visitas" || s.carril === "planilla" || s.carril === "plazas";
       out.push({
         id: `pico:${s.carril}:${tope.mes}`, tipo: "pico", carril: s.carril, mes: xs[i].mes, hasta: j > i ? xs[j].mes : null,
-        severidad: fuerte ? "alta" : rTope >= 4 && !diciembre ? "media" : "baja",
+        severidad: fuerte && !sinPlata ? "alta" : rTope >= 4 && !diciembre ? "media" : "baja",
         titulo: `${capital(nombre(s))}: ${veces(rTope)} en ${mesLargo(tope.mes)}`,
         explica: [
           `${miles(tope.v)} ${s.carril === "planilla" ? "personas entraron" : s.unidad} en ${mesLargo(tope.mes)}, cuando lo normal en los doce meses anteriores era ${miles(med)}${j > i ? ` (siguió así hasta ${mesLargo(xs[j].mes)})` : ""}.`,
