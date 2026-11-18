@@ -1202,3 +1202,143 @@ export async function casoRelleno(clave: string, pedir: Pedir): Promise<CasoPatr
     como_leerlo: "Una empresa que postula casi siempre junto a la misma ganadora y casi nunca gana puede estar completando el número de postores. Un patrón es un motivo para mirar, no una acusación.",
   };
 }
+
+// ─── Gana mientras otra empresa del mismo socio está inhabilitada (migración 297) ───────────────
+
+export const sqlClaveInhabilitada = (sal: string, ruc: string, sancionada: string) => `left(md5(${sal} || ${ruc} || '|' || ${sancionada}), 16)`;
+const SANCION: Record<string, string> = { temporal: "inhabilitación temporal", definitiva: "inhabilitación definitiva" };
+
+export async function casoInhabilitada(clave: string, pedir: Pedir): Promise<CasoPatron | null> {
+  const k = await pool.query<{ ruc: string; sancionada: string }>(
+    `SELECT DISTINCT c.ruc_empresa AS ruc, c.detalle->>'sancionada_ruc' AS sancionada FROM cruces_proveedor c
+      WHERE c.tipo = 'socio_de_inhabilitada' AND ${sqlClaveInhabilitada("$2", "c.ruc_empresa", "(c.detalle->>'sancionada_ruc')")} = $1 LIMIT 1`, [clave, salDeClaves()]);
+  const id = k.rows[0];
+  if (!id) return null;
+  const [lista, contratos, sG, sS] = await Promise.all([
+    pedir(`/inhabilitadas?ruc=${id.ruc}&size=50`),
+    pool.query<{ ocid: string; severidad: string | null; fecha: string | null; monto: number | null; detalle: Record<string, any>; persona_doc: string | null; persona_rol: string | null; entidad_ruc: string | null; entidad: string | null; objeto: string | null; codigo: string | null }>(
+      `SELECT DISTINCT ON (c.ocid) c.ocid, c.severidad, to_char(c.fecha, 'YYYY-MM-DD') AS fecha, c.monto::float AS monto, c.detalle, c.persona_doc, c.persona_rol,
+              cv.entidad_ruc, (SELECT es.nombre FROM entidad_stats es WHERE es.ruc = cv.entidad_ruc) AS entidad, left(cv.objeto, 220) AS objeto, cv.codigo
+         FROM cruces_proveedor c JOIN convocatorias cv ON cv.ocid = c.ocid
+        WHERE c.tipo = 'socio_de_inhabilitada' AND c.ruc_empresa = $1 AND c.detalle->>'sancionada_ruc' = $2
+        ORDER BY c.ocid, (c.severidad = 'alta') DESC`, [id.ruc, id.sancionada]),
+    empresaSunat(id.ruc), empresaSunat(id.sancionada),
+  ]);
+  const f = ((lista?.data ?? []) as Record<string, any>[]).find((x) => x.sancionadaRuc === id.sancionada);
+  if (!f || !contratos.rows.length) return null;
+  const d0 = contratos.rows[0].detalle ?? {};
+  const gan = titulo(f.empresa ?? sG?.nombre ?? "La empresa que gana");
+  const san = titulo(f.sancionada ?? sS?.nombre ?? "La empresa inhabilitada");
+  const socio = String(((f.socios ?? [])[0] as { nombre?: string } | undefined)?.nombre ?? "Una persona");
+  const sancion = SANCION[String(f.sancion ?? d0.sancion ?? "")] ?? "inhabilitación";
+  // Lo que el socio es en cada empresa (por su documento, sólo dentro de la consulta).
+  const doc = contratos.rows.find((x) => x.persona_doc)?.persona_doc ?? null;
+  const rnp = doc
+    ? (await pool.query<{ ruc: string; rol: string; desde: string | null; baja: string | null }>(
+        `SELECT ruc_empresa::text AS ruc, tipo_rol AS rol, to_char(min(fecha_inicio_vigencia), 'YYYY-MM-DD') AS desde, to_char(max(baja_corte), 'YYYY-MM-DD') AS baja
+           FROM rnp_conformacion_juridica WHERE numero_documento = $1 AND ruc_empresa = ANY($2::bpchar[]) GROUP BY 1, 2`, [doc, [id.ruc, id.sancionada]]).catch(() => ({ rows: [] }))).rows
+    : [];
+  const papel = (r: string) => roles(rnp.filter((x) => x.ruc === r).map((x) => x.rol));
+  const desdeEn = (r: string) => rnp.filter((x) => x.ruc === r).map((x) => x.desde).filter((z): z is string => !!z).sort()[0] ?? null;
+  const cs = [...contratos.rows].sort((a, b) => (b.fecha ?? "").localeCompare(a.fecha ?? ""));
+  const enSancion = (fecha: string | null) => !!fecha && (!f.sancionDesde || fecha >= f.sancionDesde) && (!f.sancionHasta || fecha <= f.sancionHasta);
+
+  // Las entidades que le adjudicaron (hasta seis).
+  const porEntidad = new Map<string, { nombre: string; n: number; monto: number }>();
+  for (const c of cs) {
+    if (!c.entidad_ruc) continue;
+    const x = porEntidad.get(c.entidad_ruc) ?? { nombre: titulo(c.entidad ?? "Entidad"), n: 0, monto: 0 };
+    x.n += 1;
+    x.monto += c.monto ?? 0;
+    porEntidad.set(c.entidad_ruc, x);
+  }
+  const entidades = [...porEntidad.entries()].sort((a, b) => b[1].monto - a[1].monto).slice(0, 6);
+  const nodos: NodoCaso[] = [
+    { id: "p1", tipo: "persona", nombre: socio, rol: "Figura en las dos empresas", severidad: "alta",
+      datos: [
+        { etiqueta: san, valor: rnp.some((x) => x.ruc === id.sancionada) ? `${papel(id.sancionada)}${desdeEn(id.sancionada) ? `, desde ${fechaLarga(desdeEn(id.sancionada)!)}` : ""}` : "figura en su conformación" },
+        { etiqueta: gan, valor: rnp.some((x) => x.ruc === id.ruc) ? `${papel(id.ruc)}${desdeEn(id.ruc) ? `, desde ${fechaLarga(desdeEn(id.ruc)!)}` : ""}` : `figura en su conformación${d0.socio_desde ? `, desde ${fechaLarga(d0.socio_desde)}` : ""}` },
+      ] },
+    { id: "s", tipo: "empresa", nombre: san, rol: `Con ${sancion} del Tribunal de Contrataciones`, href: `/empresa/${id.sancionada}?seccion=antecedentes`, severidad: "alta",
+      datos: [
+        f.sancionDesde ? { etiqueta: "Inhabilitada desde", valor: fechaLarga(f.sancionDesde) } : null,
+        f.sancionHasta ? { etiqueta: "Hasta", valor: fechaLarga(f.sancionHasta) } : null,
+        d0.resolucion ? { etiqueta: "Resolución", valor: String(d0.resolucion) } : null,
+      ].filter((x): x is { etiqueta: string; valor: string } => !!x) },
+    { id: "m", tipo: "empresa", nombre: gan, rol: "Gana contratos mientras la otra está inhabilitada", href: `/empresa/${id.ruc}?seccion=antecedentes&atipo=patron-inhabilitadas`,
+      monto: f.monto, ordenes: f.contratos, severidad: f.graves ? "alta" : "media",
+      datos: [
+        (f.fundada ?? sG?.alta) ? { etiqueta: "Fundada (SUNAT)", valor: fechaLarga(f.fundada ?? sG!.alta!) } : null,
+        f.hechaParaSeguir ? { etiqueta: "Cuándo nació", valor: "Cerca del inicio de la sanción de la otra" } : null,
+      ].filter((x): x is { etiqueta: string; valor: string } => !!x) },
+  ];
+  const aristas: AristaCaso[] = [
+    { de: "p1", a: "s", tipo: "socio", texto: rnp.some((x) => x.ruc === id.sancionada) ? papel(id.sancionada) : "figura en su conformación" },
+    { de: "p1", a: "m", tipo: "socio", texto: rnp.some((x) => x.ruc === id.ruc) ? papel(id.ruc) : String(f.socios?.[0]?.rol ?? "figura en su conformación").toLowerCase() },
+  ];
+  entidades.forEach(([ruc, x], i) => {
+    nodos.push({ id: `e${i + 1}`, tipo: "entidad", nombre: x.nombre, rol: `Le adjudicó ${plural(x.n, "contrato", "contratos")}`, monto: x.monto, href: `/entidad/${ruc}?seccion=patrones&patron=inhabilitadas` });
+    aristas.push({ de: "m", a: `e${i + 1}`, tipo: "vende", texto: `${plural(x.n, "contrato", "contratos")} por ${soles(x.monto)}` });
+  });
+
+  const hitos: HitoCaso[] = [];
+  if (sS?.alta) hitos.push({ fecha: sS.alta, tipo: "fundacion", titulo: `Se funda ${san}`, nodos: ["s"], fuente: "SUNAT (padrón RUC)" });
+  if (desdeEn(id.sancionada)) hitos.push({ fecha: desdeEn(id.sancionada)!, tipo: "socio", titulo: `${socio} figura como ${papel(id.sancionada)} de ${san}`, nodos: ["p1", "s"], fuente: "Registro Nacional de Proveedores (OECE)" });
+  if (f.sancionDesde) hitos.push({ fecha: f.sancionDesde, hasta: f.sancionHasta ?? null, tipo: "otro", severidad: "alta", titulo: `El Tribunal inhabilita a ${san}${f.sancionHasta ? ` hasta el ${fechaLarga(f.sancionHasta)}` : ""}`, detalle: `${sancion.charAt(0).toUpperCase()}${sancion.slice(1)}${d0.resolucion ? `, resolución ${d0.resolucion}` : ""}.`, nodos: ["s"], fuente: "Tribunal de Contrataciones (OECE)" });
+  const fundada = f.fundada ?? sG?.alta ?? null;
+  if (fundada) hitos.push({ fecha: fundada, tipo: "fundacion", severidad: f.hechaParaSeguir ? "alta" : null, titulo: `Se funda ${gan}`, detalle: f.hechaParaSeguir ? "Cerca del inicio de la sanción de la otra empresa del mismo socio." : null, nodos: ["m"], fuente: "SUNAT (padrón RUC)" });
+  const socioDesde = desdeEn(id.ruc) ?? d0.socio_desde ?? null;
+  if (socioDesde) hitos.push({ fecha: socioDesde, tipo: "socio", severidad: enSancion(socioDesde) ? "alta" : null, titulo: `${socio} figura en ${gan}${enSancion(socioDesde) ? ", con la otra todavía inhabilitada" : ""}`, nodos: ["p1", "m"], fuente: "Registro Nacional de Proveedores (OECE)" });
+  for (const c of cs.slice(0, 40)) {
+    if (!c.fecha) continue;
+    hitos.push({
+      fecha: c.fecha, tipo: "dia", severidad: c.severidad === "alta" ? "alta" : "media", monto: c.monto,
+      titulo: `${gan} gana${c.entidad ? ` en ${titulo(c.entidad)}` : ""}${enSancion(c.fecha) ? ", con la otra inhabilitada" : ""}`,
+      detalle: c.objeto ? `«${c.objeto.slice(0, 140)}»` : c.codigo, nodos: ["m"], fuente: "SEACE (OECE)", href: rutaContrato(c.ocid),
+    });
+  }
+  hitos.sort((a, b) => a.fecha.localeCompare(b.fecha) || a.tipo.localeCompare(b.tipo));
+
+  const razones: RazonCaso[] = ([
+    { titulo: "Ganó con la otra empresa inhabilitada", cifra: plural(f.contratos, "contrato", "contratos"), texto: `Por ${soles(f.monto)}, mientras ${san} cumplía su ${sancion}. La ley impide contratar a las empresas cuyos integrantes lo son de una persona jurídica inhabilitada (${String(d0.norma ?? "artículo 11 de la Ley 30225").replace(/^Art\./, "artículo")}).`, severidad: "alta" },
+    f.hechaParaSeguir ? { titulo: "Nació para seguir", cifra: "Sí", texto: "Se fundó, o el socio entró, cerca del inicio de la sanción: la forma de seguir contratando con otro RUC.", severidad: "alta" } : null,
+    f.sancion === "definitiva" ? { titulo: "La sanción es definitiva", cifra: "Definitiva", texto: "La otra empresa no puede volver a contratar con el Estado.", severidad: "alta" } : null,
+    { titulo: "En cuántas entidades", cifra: plural(f.entidades, "entidad", "entidades"), texto: "Cada entidad debió verificar el impedimento antes de firmar.", severidad: null },
+  ] as (RazonCaso | null)[]).filter((x): x is RazonCaso => !!x);
+
+  const filas: FilaEvidencia[] = cs.map((c, i) => ({
+    id: `c${i}`, fecha: c.fecha, documento: c.codigo ?? c.ocid, quien: c.entidad ? titulo(c.entidad) : null, que: c.objeto, monto: c.monto,
+    marcas: [enSancion(c.fecha) ? "con la otra empresa inhabilitada" : "fuera del periodo de la sanción"], href: rutaContrato(c.ocid),
+  }));
+  return {
+    tipo: "inhabilitadas", clave, patron: "Socio de una empresa inhabilitada",
+    titulo: `${gan} ganó mientras ${san}, del mismo socio, estaba inhabilitada`,
+    severidad: f.graves ? "alta" : "media",
+    frase: `El Tribunal de Contrataciones inhabilitó a ${san}${f.sancionDesde ? ` desde el ${fechaLarga(f.sancionDesde)}` : ""}${f.sancionHasta ? ` hasta el ${fechaLarga(f.sancionHasta)}` : ""}. ${socio}, que figura en ella, también figura en ${gan}${fundada ? `, fundada el ${fechaLarga(fundada)}` : ""}, que en ese tiempo ganó ${plural(f.contratos, "contrato", "contratos")} por ${soles(f.monto)} en ${plural(f.entidades, "entidad", "entidades")}.`,
+    entidad: null, desde: f.desde ?? null, hasta: f.hasta ?? null,
+    cifras: [
+      { etiqueta: "Contratos ganados", valor: miles(f.contratos), contexto: `por ${soles(f.monto)}` },
+      { etiqueta: "De señal alta", valor: miles(f.graves ?? 0), contexto: null },
+      { etiqueta: "Entidades", valor: miles(f.entidades), contexto: null },
+      { etiqueta: "La sanción", valor: f.sancion === "definitiva" ? "Definitiva" : "Temporal", contexto: f.sancionDesde && f.sancionHasta ? `${String(f.sancionDesde).slice(0, 4)} a ${String(f.sancionHasta).slice(0, 4)}` : null },
+    ],
+    serie: null, nodos, aristas, hitos, razones,
+    evidencia: { titulo: `Los contratos que ganó ${gan}`, unidad: "contratos", total: cs.length, filas, nota: null, masHref: `/empresa/${id.ruc}?seccion=antecedentes` },
+    revisar: [
+      "Confirma la sanción y su periodo en el registro de inhabilitados del OECE y la resolución del Tribunal.",
+      "Confirma que la persona es la misma en las dos empresas y su participación (SUNARP): el RNP no publica porcentajes.",
+      "En cada contrato, revisa la declaración jurada de no estar impedido que presentó la empresa: si es falsa, es una infracción y un posible delito.",
+    ],
+    fuentes: [
+      { texto: "Sanciones del Tribunal de Contrataciones (OECE)", href: CONOSCE_BUSCADOR },
+      { texto: "Socios, representantes y directivos (Registro Nacional de Proveedores)", href: DATASET_SOCIOS_RNP },
+      { texto: "Consulta RUC (SUNAT)", href: CONSULTA_RUC_SUNAT },
+    ],
+    relacionados: [
+      { texto: `Ficha de ${gan}`, href: `/empresa/${id.ruc}` },
+      { texto: `Ficha de ${san}`, href: `/empresa/${id.sancionada}` },
+      { texto: "Todos los casos del país", href: "/app/patrones?seccion=inhabilitadas" },
+    ],
+    como_leerlo: "Una empresa gana contratos mientras otra empresa del mismo socio cumple una inhabilitación del Tribunal de Contrataciones. Un patrón es un motivo para mirar, no una acusación.",
+  };
+}

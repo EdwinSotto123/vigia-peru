@@ -979,6 +979,7 @@ export const patrones = definir({
         casos: ((r.data ?? []) as Fila[]).map((x) => ({
           empresa_que_gana: x.empresa, ruc: x.ruc, enlace: e.empresa(x.ruc), socio: x.socios?.[0]?.nombre ?? undefined,
           empresa_inhabilitada: x.sancionada, ruc_inhabilitada: x.sancionadaRuc, enlace_inhabilitada: x.sancionadaRuc ? e.empresa(x.sancionadaRuc) : undefined,
+          ficha_del_caso: x.clave ? `${cx.env.VIGIA_URL}/app/patrones/caso/inhabilitadas/${x.clave}` : undefined,
           sancion: x.sancion === "definitivo" ? "inhabilitación definitiva" : "inhabilitación temporal", sancion_desde: x.sancionDesde, sancion_hasta: x.sancionHasta ?? undefined,
           contratos_ganados_durante_la_sancion: x.contratos, graves: x.graves, monto_de_los_procesos_soles: x.monto, entidades: x.entidades,
           ganadora_fundada: x.fundada ?? undefined, hecha_cerca_de_la_sancion: x.hechaParaSeguir === true ? true : undefined,

@@ -977,8 +977,8 @@ export function detalleInhabilitada(p: PatronInhabilitada): Detalle {
     pie: (
       <Pie
         enlaces={[
+          !!p.clave && { texto: "Abrir la ficha del caso", href: rutaCaso("inhabilitadas", p.clave) },
           esRuc20(p.ruc) && { texto: "Ficha de la que gana", href: `/empresa/${p.ruc}` },
-          esRuc20(p.sancionadaRuc) && { texto: "Ficha de la inhabilitada", href: `/empresa/${p.sancionadaRuc}` },
         ]}
       />
     ),

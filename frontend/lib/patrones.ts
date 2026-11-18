@@ -330,6 +330,8 @@ export interface PatronesComprasFamilia {
 
 /** Una empresa que gana mientras otra del mismo socio está inhabilitada (migración 297). */
 export interface PatronInhabilitada {
+  /** La clave opaca de su ficha de caso. */
+  clave?: string;
   ruc: string;
   empresa: string | null;
   sancionadaRuc: string | null;

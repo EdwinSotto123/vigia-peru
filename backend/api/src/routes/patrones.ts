@@ -43,7 +43,7 @@ import { papelesRnp } from "../lib/familiaFuncionario.js";
 import { ETIQUETA_CRUCE, catalogoSenales, nombrePublicable } from "../lib/cruces.js";
 import { depurarReferencias } from "../lib/laboratorioPrecios.js";
 import { taparNombrePropio } from "./personas.js";
-import { casoComprasFamilia, casoDueno, casoGrupo, casoRecien, casoRelleno, casoRepetida, salDeClaves, sqlClaveDueno, sqlClaveGrupo, sqlClaveRecien, sqlClaveRelleno, sqlClaveRepetida, type CasoPatron, type Pedir } from "../lib/casoPatron.js";
+import { casoComprasFamilia, casoDueno, casoGrupo, casoInhabilitada, casoRecien, casoRelleno, casoRepetida, salDeClaves, sqlClaveInhabilitada, sqlClaveDueno, sqlClaveGrupo, sqlClaveRecien, sqlClaveRelleno, sqlClaveRepetida, type CasoPatron, type Pedir } from "../lib/casoPatron.js";
 
 export const patronesRouter = new Hono();
 
@@ -275,6 +275,7 @@ patronesRouter.get("/inhabilitadas", async (c) => {
           GROUP BY 1, 2)
        SELECT x.ruc, e.razon_social AS empresa, x.sancionada_ruc AS "sancionadaRuc", x.sancionada, x.sancion, x.sancion_desde AS "sancionDesde",
               x.sancion_hasta AS "sancionHasta", x.nombre, x.contratos, x.graves, x.monto, x.entidades,
+              ${sqlClaveInhabilitada(add(salDeClaves()), "x.ruc", "x.sancionada_ruc")} AS clave,
               to_char(x.desde, 'YYYY-MM-DD') AS desde, to_char(x.hasta, 'YYYY-MM-DD') AS hasta, x.hecha AS "hechaParaSeguir", x.fundada, x.ejemplos,
               (count(*) OVER ())::int AS total
          FROM x LEFT JOIN empresas e ON e.ruc = x.ruc ${donde}
@@ -1173,6 +1174,7 @@ const CASOS: Record<string, (clave: string, pedir: Pedir) => Promise<CasoPatron 
   compras: casoComprasFamilia,
   duenos: casoDueno,
   relleno: casoRelleno,
+  inhabilitadas: casoInhabilitada,
   repetidas: casoRepetida,
   recien: casoRecien,
 };
