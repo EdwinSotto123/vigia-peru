@@ -24,6 +24,8 @@ export interface ParamsCorrida {
    * refrescos se corren una vez, al terminar). conosce_ordenes y pte_personal: tampoco se refresca nada al final.
    */
   relleno?: boolean;
+  /** pte_personal: sólo la planilla de esta entidad (su RUC). Para traer la historia de una sin recorrer las demás. */
+  entidad?: string;
 }
 
 export interface Env {

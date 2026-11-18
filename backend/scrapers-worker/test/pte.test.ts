@@ -38,9 +38,9 @@ test("pte_personal: el id de la entidad sólo con el mismo nombre (o uno solo mu
   assert.deepEqual(terminosDe("GOBIERNO REGIONAL DE PUNO-SALUD PUNO"), ["GOBIERNO REGIONAL DE PUNO SALUD PUNO", "SALUD PUNO"]);
 });
 
-test("pte_personal: por defecto los dos meses anteriores; con desde/hasta, ese rango", () => {
-  assert.deepEqual(mesesPte({}, "2026-10-20"), [[2026, 8], [2026, 9]]);
-  assert.deepEqual(mesesPte({}, "2026-01-20"), [[2025, 11], [2025, 12]]);
+test("pte_personal: por defecto los cuatro meses anteriores (las entidades publican tarde); con desde/hasta, ese rango", () => {
+  assert.deepEqual(mesesPte({}, "2026-10-20"), [[2026, 6], [2026, 7], [2026, 8], [2026, 9]]);
+  assert.deepEqual(mesesPte({}, "2026-02-20"), [[2025, 10], [2025, 11], [2025, 12], [2026, 1]]);
   assert.deepEqual(mesesPte({ desde: "2025-11", hasta: "2026-01" }, "2026-10-20"), [[2025, 11], [2025, 12], [2026, 1]]);
 });
 

@@ -16,10 +16,15 @@
  * muchas unidades ejecutoras (UGEL, redes de salud, hospitales) que CONOSCE nombra distinto. Se recorren también: el
  * CSV dice su RUC.
  *
- * Por defecto los dos meses anteriores al actual (las entidades publican con atraso): se bajan siempre (una entidad
- * corrige o completa lo publicado). Con `desde`/`hasta` (AAAA-MM), ese rango, y lo que ya está en la base no se vuelve
- * a bajar (`forzar` sí). Al final: refrescar_planilla() y refrescar_personas_senales() (las órdenes ven la planilla);
- * con `relleno`, nada.
+ * Por defecto los cuatro meses anteriores al actual: las entidades publican con atraso (medido el 2026-11-17: el mes de
+ * hace dos tenía 344 entidades y el de hace cinco, 577; con sólo dos meses, lo que se publicaba tarde no entraba nunca).
+ * Se bajan siempre (una entidad corrige o completa lo publicado); lo que no cambió (sha256) no se vuelve a cargar. Con
+ * `desde`/`hasta` (AAAA-MM), ese rango, y lo que ya está en la base no se vuelve a bajar (`forzar` sí). Al final:
+ * refrescar_planilla(), refrescar_personas_senales() y sus cadenas, por la cola de refrescos; con `relleno`, nada.
+ *
+ * La historia (`relleno` con un rango largo; el PTE trae planillas desde 2014): la corrida baja los meses MÁS RECIENTES del
+ * rango que le caben (un Workflow tiene tope de pasos) y, al terminar, lanza otra con el resto, hasta llegar a `desde`.
+ * Así el relleno de años corre solo y en fila, sin encimar corridas. Con `entidad` (un RUC), sólo esa entidad.
  */
 
 import type { WorkflowStep } from "cloudflare:workers";
@@ -29,7 +34,7 @@ import { filasDict, leerCsv } from "../csv.ts";
 import { conDb } from "../db.ts";
 import { UA, dormir } from "../http.ts";
 import { registrar } from "../registro.ts";
-import { CARGA, fechaLima } from "./comun.ts";
+import { CARGA, fechaLima, refrescar, type Refresco } from "./comun.ts";
 import { mesesEntre } from "./pnda_visitas.ts";
 
 const FUENTE = "pte_personal";
@@ -39,6 +44,8 @@ const FUENTE_URL = `${BASE}/`;
 const POR_PASO = 15;
 const BUSQUEDAS_POR_PASO = 60;
 const PASO = { retries: { limit: 2, delay: "1 minute", backoff: "exponential" }, timeout: "15 minutes" } as const;
+/** Pasos de planilla que una corrida de relleno se permite antes de pasar el resto a la siguiente (el tope del Workflow es 1 024). */
+const PASOS_POR_CORRIDA = 560;
 /** Los regímenes que se cargan (8 = pensionistas: no trabajan en la entidad). */
 const REGIMENES = new Set([1, 2, 3, 4, 5, 6, 7, 9]);
 
@@ -203,12 +210,12 @@ async function sha256(t: string): Promise<string> {
   return [...new Uint8Array(h)].map((b) => b.toString(16).padStart(2, "0")).join("");
 }
 
-/** Los dos meses anteriores al de hoy; con `desde`/`hasta` (AAAA-MM), ese rango (desde 2013, cuando empieza el PTE). */
+/** Los cuatro meses anteriores al de hoy; con `desde`/`hasta` (AAAA-MM), ese rango (el PTE trae planillas desde 2014). */
 export function mesesPte(p: Pick<ParamsCorrida, "desde" | "hasta">, hoy: string): [number, number][] {
   const [a, m] = hoy.split("-").map(Number);
   if (!p.desde && !p.hasta) {
     const antes = (k: number): [number, number] => { const t = a * 12 + (m - 1) - k; return [Math.floor(t / 12), (t % 12) + 1]; };
-    return [antes(2), antes(1)];
+    return [antes(4), antes(3), antes(2), antes(1)];
   }
   const leer = (t: string, fin: boolean): [number, number] => { const [x, y] = t.split("-").map(Number); return [x, y || (fin ? 12 : 1)]; };
   return mesesEntre(leer(p.desde ?? p.hasta!, false), leer(p.hasta ?? p.desde!, true));
@@ -280,12 +287,20 @@ export async function correrPte(env: Env, p: ParamsCorrida, step: WorkflowStep, 
         ORDER BY id_pte, ruc NULLS LAST`)));
   // En un relleno (desde/hasta) no se vuelve a bajar un mes que ya está en la base.
   const relleno = !!(p.desde || p.hasta) && !p.forzar;
+  // Sólo una entidad: la de ese RUC (su id del buscador o el del directorio).
+  const lasEntidades = p.entidad ? entidades.filter((e) => e.ruc === p.entidad) : entidades;
+  if (p.entidad && !lasEntidades.length) throw new Error(`la entidad ${p.entidad} no tiene id en el Portal de Transparencia (pte_entidad, pte_directorio)`);
+  // La historia, por tramos: esta corrida toma los meses más recientes que le caben y deja el resto a la siguiente.
+  const todos = mesesPte(p, fechaLima());
+  const porCorrida = Math.max(1, Math.floor(PASOS_POR_CORRIDA / Math.max(1, Math.ceil(lasEntidades.length / POR_PASO))));
+  const meses = p.relleno && todos.length > porCorrida ? todos.slice(-porCorrida) : todos;
+  const resto = todos.slice(0, todos.length - meses.length);
   let cargadas = 0;
-  for (const [anio, mes] of mesesPte(p, fechaLima())) {
+  for (const [anio, mes] of meses) {
     const clave = `${anio}-${String(mes).padStart(2, "0")}`;
     const r = { conDatos: 0, filas: 0, sinCambios: 0, rucDistinto: 0, errores: 0 };
-    for (let i = 0; i < entidades.length; i += POR_PASO) {
-      const lote = entidades.slice(i, i + POR_PASO);
+    for (let i = 0; i < lasEntidades.length; i += POR_PASO) {
+      const lote = lasEntidades.slice(i, i + POR_PASO);
       const x = await step.do(`planilla ${clave} ${i / POR_PASO + 1}`, PASO, async () => {
         const out = { conDatos: 0, filas: 0, sinCambios: 0, rucDistinto: 0, errores: 0 };
         const yaEstan = relleno && !p.seco
@@ -341,18 +356,29 @@ export async function correrPte(env: Env, p: ParamsCorrida, step: WorkflowStep, 
     resumen[clave] = r;
     cargadas += r.filas;
   }
-  // Con `relleno` (la historia, en tramos que corren a la vez) no se rehace nada: refrescar_planilla() y
-  // refrescar_personas_senales(NULL) se corren una vez al terminar, desde la PC (las señales de toda la historia pasan
-  // los ~10 min de Hyperdrive).
+  // La historia sigue en otra corrida con los meses que quedan (los más antiguos), hasta llegar a `desde`.
+  if (p.relleno && resto.length && !p.seco) {
+    const mm = (x: [number, number]) => `${x[0]}-${String(x[1]).padStart(2, "0")}`;
+    resumen.siguiente = await step.do("lanzar el tramo anterior", CARGA, async () => {
+      const sig = await env.CORRER.create({
+        id: `${FUENTE}-relleno-${mm(resto[resto.length - 1])}-${id.slice(-4)}`,
+        params: { ...p, desde: mm(resto[0]), hasta: mm(resto[resto.length - 1]), origen: `relleno ${id}` },
+      });
+      registrar("INFO", `   relleno: sigue ${mm(resto[0])} a ${mm(resto[resto.length - 1])} en ${sig.id}`, { fuente: FUENTE, instancia: id });
+      return sig.id;
+    });
+  }
+  // Con `relleno` no se rehace nada: los refrescos se corren una vez al terminar toda la historia.
   if (p.seco || !cargadas || p.relleno) return resumen;
 
-  // 3. Las señales de la planilla y las de las órdenes (que ven la planilla).
-  const uno = (nombre: string, sql: string) =>
-    step.do(nombre, CARGA, () => conDb(env.HYPERDRIVE, async (db) => Number((await db.filas<{ n: number }>(sql))[0]?.n ?? 0)));
-  resumen.planilla = await uno("refrescar_planilla", "SELECT refrescar_planilla() AS n");
-  // Las órdenes de los años de la planilla cargada (tambien_planilla, paso_a_planilla) y el resumen.
-  const [primerAnio] = mesesPte(p, fechaLima())[0];
-  resumen.personas = await uno("refrescar_personas_senales", `SELECT refrescar_personas_senales(make_date(${Number(primerAnio)}, 1, 1)) AS n`);
+  // 3. Las señales de la planilla y las de las órdenes (que ven la planilla). Por la cola de refrescos (migración 260):
+  //    con más historia, refrescar_planilla() pasa los ~10 min que Hyperdrive espera una sentencia.
+  const [primerAnio] = meses[0];
+  const lista: Refresco[] = [
+    { nombre: "refrescar_planilla", sql: "SELECT refrescar_planilla()" },
+    // Las órdenes de los años de la planilla cargada (tambien_planilla, paso_a_planilla) y el resumen.
+    { nombre: "refrescar_personas_senales", sql: `SELECT refrescar_personas_senales(make_date(${Number(primerAnio)}, 1, 1))` },
+  ];
   // Lo que refrescar_planilla() y refrescar_personas_senales() acaban de borrar: el nepotismo (137) y las señales de
   // aportes y del partido del Presidente (177), que parchan persona_entidad, planilla_persona y su resumen; y la familia en el
   // Estado (180), el locador socio de un proveedor (181) y, en la planilla, el pariente de un funcionario, el ascenso
@@ -365,11 +391,9 @@ export async function correrPte(env: Env, p: ParamsCorrida, step: WorkflowStep, 
                    "planilla_salida_cargo_principal",
                    // El índice de personas con cargo público (planilla de hoy y de antes, y declaraciones juradas; migración 319).
                    "refrescar_funcionario_resumen"]) {
-    resumen[f] = await step.do(f, CARGA, () => conDb(env.HYPERDRIVE, async (db) => {
-      const [{ existe }] = await db.filas<{ existe: boolean }>("SELECT to_regprocedure($1) IS NOT NULL AS existe", [`${f}()`]);
-      return existe ? Number((await db.filas<{ n: number }>(`SELECT ${f}() AS n`))[0]?.n ?? 0) : null;
-    }));
+    lista.push({ nombre: f, sql: `SELECT ${f}()`, requiere: `${f}()` });
   }
-  resumen.personas_resumen = await uno("refrescar_personas_resumen", "SELECT refrescar_personas_resumen() AS n");
+  lista.push({ nombre: "refrescar_personas_resumen", sql: "SELECT refrescar_personas_resumen()" });
+  resumen.refrescos = await refrescar(env, step, id, lista);
   return resumen;
 }
