@@ -739,6 +739,11 @@ export function patronesDeSeries(series: SerieHistoria[], marcas: MarcaHistoria[
       if (previos.some((m) => !por.has(m))) continue;
       const nivelPrevio = previos.reduce((x, m) => x + (por.get(m) ?? 0), 0) / 6;
       if (a / meses.length < 1.5 * Math.max(nivelPrevio, 1)) continue;
+      // Y frente a la gestión que vino: si un año después (los mismos meses) la entidad gasta igual, el salto es un nivel
+      // nuevo, no el cierre. San Borja: octubre a diciembre de 2022, 2 888 órdenes a personas; un año después, 1 326.
+      const hayDespues = meses.every((m) => por.has(sumarMeses(m, 12)));
+      const despues = hayDespues ? meses.reduce((x, m) => x + (por.get(sumarMeses(m, 12)) ?? 0), 0) : null;
+      if (despues != null && a < 1.5 * despues) continue;
       const r = a / b;
       const tramo = meses.length === 1 ? mesLargo(meses[0]) : `${mesLargo(meses[0])} a ${mesLargo(meses[meses.length - 1])}`;
       const antes = `los mismos meses de ${Number(meses[0].slice(0, 4)) - 1}${hay2 ? ` y ${Number(meses[0].slice(0, 4)) - 2}` : ""}`;
@@ -751,7 +756,8 @@ export function patronesDeSeries(series: SerieHistoria[], marcas: MarcaHistoria[
           : `${capital(nombre(s))} en la gestión saliente: ${veces(r, "que un año antes", "lo de un año antes")}${eleccionTexto ? ` desde las ${eleccionTexto}` : ""}`,
         explica:
           `De ${tramo}${t.eleccion ? `, después de las ${eleccionTexto}` : ""}${t.cambio ? ` y antes de que ${t.cambio.texto.replace(/^Asumió/, "asumiera")}` : " (la gestión sigue hasta que asuma la siguiente)"}: ` +
-          `${miles(a)} ${s.unidad}; en ${antes}, ${miles(b)}${hay2 ? " como mucho" : ""}. ` +
+          `${miles(a)} ${s.unidad}; en ${antes}, ${miles(b)}${hay2 ? " como mucho" : ""}` +
+          `${despues != null ? `, y un año después, con la gestión nueva, ${miles(despues)}` : ""}. ` +
           "Una gestión que se va puede apurar compras y contratos: es la ventana que más se revisa, pero un cambio así puede tener razones legítimas.",
         peso: (t.cambio ? 14 : 18) + Math.min(r, 20),
       });

@@ -200,6 +200,10 @@ test("patrones: el cierre de una gestión y la gestión saliente, contra los dos
   // anteriores del mismo año y no es un patrón (el caso de Pichari, medido el 2026-11-18).
   const nueva: SerieHistoria = { ...ordenes, puntos: [...serie("2019-01", "2021-12", 15), ...serie("2022-01", "2023-06", 800, { "2022-10": 700, "2022-11": 850, "2022-12": 600 })] };
   assert.equal(patronesDeSeries([nueva], marcas, 20).filter((p) => p.tipo === "cierre_gestion").length, 0);
+  // La gestión nueva gasta lo mismo un año después: es un nivel nuevo, no el cierre.
+  const nivel: SerieHistoria = { ...ordenes, puntos: serie("2019-01", "2026-10", 50, { ...altos, "2023-10": 140, "2023-11": 140, "2023-12": 140 }) };
+  assert.equal(patronesDeSeries([nivel], marcas, 20).filter((p) => p.id === "cierre_gestion:ordenes:2022-12").length, 0);
+  assert.match(cierre!.explica, /y un año después, con la gestión nueva, 150/);
 });
 
 test("hilos: la empresa que visitó y ganó, con banderas, obra paralizada y sanción", () => {
