@@ -348,6 +348,9 @@ export const ordenesEnPeriodo = definir({
         "primeras palabras de la descripción de la orden (sólo los que comparten tres proveedores o más). Las personas " +
         "naturales van sólo como cuentas. Una subida es un motivo para revisar, no una acusación.",
       enlace: `${enlaces(cx.env).entidad(r)}?seccion=historia`,
+      // La lista de esas órdenes en Vigía (vista Órdenes con el periodo como filtro; las personas, con un apellido tapado).
+      enlace_ordenes_a_personas: `${cx.env.VIGIA_URL}/app/contratos?vista=ordenes&oent=${r}&operiodo=${v.desde}_${v.hasta}&oper=natural`,
+      enlace_todas_las_ordenes: `${cx.env.VIGIA_URL}/app/contratos?vista=ordenes&oent=${r}&operiodo=${v.desde}_${v.hasta}`,
       fuente: "CONOSCE (OECE): órdenes de compra y de servicio.",
     };
   },
