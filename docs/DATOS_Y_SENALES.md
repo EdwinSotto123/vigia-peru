@@ -739,6 +739,11 @@ positivo), y qué dato adicional la volvería más fuerte. Mantener siempre el e
   que abre una nueva razón social. *Reforzaría:* ver socios con historial previo en otras empresas.
 - **`dada_de_baja` / `no_habida`.** Ganó/contrató estando de baja o no habida en SUNAT. *Falso positivo:* baja posterior
   al contrato (importa la fecha). *Reforzaría:* guardar el estado SUNAT a la FECHA del contrato, no solo el actual.
+  **Desde el 18-nov-2026 (migración 374)** cada cambio de estado o condición queda en `empresa_estado_sunat_cambio`
+  con la ventana en que pasó (`desde_tras`, `visto`]: lo anota un trigger de `empresas` (padrón semanal, Consulta
+  Múltiple o a mano). `estado_sunat_en(ruc, fecha)` dice el estado de ese día, o NULL si no se sabe (antes del padrón
+  del 17-nov o dentro de la ventana de un cambio). Cuando haya cambios suficientes (unas 6 semanas): señal «orden
+  emitida a una empresa ya de baja / no habida», atada a la orden con fecha de emisión posterior a `visto`.
 
 ### 20.5 Menores (nuevo)
 - **proveedor no activo / no habido.** El Estado compró (menor) a un proveedor dado de baja o que SUNAT no ubica. *Falso
