@@ -310,9 +310,12 @@ async function contarCruces(q: z.infer<typeof ResumenQuery>, sin: "cruces" | "ob
   // Sólo un rango de fechas: la faceta por día de convocatoria (migración 375), sumada en el rango. Cada contrato tiene una
   // sola fecha, así que la suma no cuenta a nadie dos veces (comprobado igual a la consulta de abajo en cinco rangos el
   // 2026-11-18). La de abajo tardaba de 0,5 s (un año) a 2,9 s (toda la historia); en PROD, 5 s de media.
-  if ((q.desde || q.hasta) && filtros({ ...q, [sin]: undefined, desde: undefined, hasta: undefined }, [], MAPA_CE).conds.length === 1) {
+  // Con el tipo de contrato además (migración 377: la vista lleva `ce_tipo`). Sin ninguna fecha no: la vista deja fuera los
+  // contratos sin fecha de convocatoria y el conteo al vuelo no.
+  if ((q.desde || q.hasta) && filtros({ ...q, [sin]: undefined, desde: undefined, hasta: undefined, tipo: undefined }, [], MAPA_CE).conds.length === 1) {
     const v: unknown[] = [];
     const w = ["TRUE"];
+    if (q.tipo) w.push(`ce_tipo = $${v.push(q.tipo)}`);
     if (q.desde) w.push(`dia >= $${v.push(q.desde)}::date`);
     if (q.hasta) w.push(`dia < ($${v.push(q.hasta)}::date + 1)`);
     try {
