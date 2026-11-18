@@ -462,6 +462,24 @@ Lo que se aprendió al medirlas:
 Privacidad: el familiar nunca sale con su nombre ni su documento (su parentesco y, si es el caso, la empresa, como en la
 pestaña Familia). La autoridad electa va con su nombre, como en el resto del sistema. Las tablas sólo las lee la API.
 
+**Dónde se ve cada caso** (pedido del 2026-11-18: «que aparezcan en las fichas, citadas y ordenadas»):
+
+| Lugar | Qué muestra |
+|---|---|
+| `/app/patrones` (pestañas «Compras y familia» y «Autoridad que dejó su empresa») | la lista entera; cada fila abre su panel |
+| Panel del caso (`DetallePatron.tsx`) | en una frase con la persona, la entidad y la empresa enlazadas; datos sin filas vacías; **la evidencia** (`VentasCompraFamilia.tsx`): barra antes / en el puesto / después, cada orden con su número enlazado a la lista de compras de la entidad y cada proceso a su ficha, la empresa del familiar; qué revisar; fuentes |
+| Ficha de la entidad | bandera en observación en la cabecera y, en su Inicio, la sección «En observación» (`EnObservacionFicha.tsx`) con los casos |
+| Ficha de la empresa | bandera en la cabecera, la misma sección en «Su gente» y el renglón en la tarjeta de la autoridad que dejó de figurar |
+| Ficha de la persona (`/app/personas/cargo/<código>`) | bandera y caso en «Lo que pide revisión», con «Ver cada orden» |
+| La orden concreta (listas de órdenes y de compras) | bandera `compras_familiar` en la fila, su tarjeta en el panel y filtro por esa bandera (`csenal=` / `oant=`) |
+| MCP | `patrones` (alcances `compras_familia` y `autoridad_exsocio`), `rastro_persona`, `red_empresa` y la bandera en `ordenes` |
+
+La evidencia de compras y familia sale de `funcionario_compras_familiar_venta` (migración 369): una fila por orden o
+proceso con su `momento` frente al puesto. A nombre del familiar sólo van la fecha y el monto (el número de la orden
+llevaría a su nombre); con su empresa, el número, la descripción y el OCID. La llena el mismo refresco que las cuentas:
+no pueden diferir (0 diferencias en 1 002 casos). Las filas de los dos patrones viven en `filasCasos.tsx` y las comparten
+Patrones y las fichas: la misma fila dice lo mismo en los dos lados.
+
 ---
 
 ## 10. Catálogo de cruces — Registro SUNAT (a nivel empresa)

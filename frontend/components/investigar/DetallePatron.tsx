@@ -698,9 +698,7 @@ export function detalleAutoridadExsocio(p: PatronAutoridadExsocio): Detalle {
       <Pie
         enlaces={[
           esRuc20(p.empresaRuc) && esRuc20(p.entidadRuc) && { texto: "Lo que la entidad le compró a esta empresa", href: `/entidad/${p.entidadRuc}?seccion=contratos&ccon=${p.empresaRuc}` },
-          esRuc20(p.empresaRuc) && { texto: "Ficha de la empresa: su gente", href: `/empresa/${p.empresaRuc}?seccion=gente` },
-          esRuc20(p.empresaRuc) && { texto: "Su historia", href: `/empresa/${p.empresaRuc}?seccion=historia` },
-          esRuc20(p.entidadRuc) && { texto: "La entidad", href: `/entidad/${p.entidadRuc}` },
+          esRuc20(p.empresaRuc) && { texto: "La empresa: su gente y su historia", href: `/empresa/${p.empresaRuc}?seccion=gente` },
         ]}
       />
     ),
@@ -814,11 +812,12 @@ export function detalleCompraFamilia(p: PatronCompraFamilia): Detalle {
     pie: (
       <Pie
         enlaces={[
+          // Dos, no cinco: en el celular el pie le quitaba casi la mitad de la hoja al contenido, y la entidad, la empresa y
+          // la persona ya van enlazadas en el texto.
           ficha ? { texto: "Ficha de la persona", href: ficha } : false,
-          conEmpresa && esRuc20(p.empresaRuc) && esRuc20(p.entidadRuc) && { texto: "Lo que la entidad le compró a esta empresa", href: `/entidad/${p.entidadRuc}?seccion=contratos&ccon=${p.empresaRuc}` },
-          conEmpresa && esRuc20(p.empresaRuc) && { texto: "La empresa del familiar", href: `/empresa/${p.empresaRuc}` },
-          p.codigo ? { texto: "Su familia declarada", href: `/app/personas/cargo/${p.codigo}?seccion=familia` } : false,
-          esRuc20(p.entidadRuc) && { texto: "La entidad", href: `/entidad/${p.entidadRuc}` },
+          conEmpresa && esRuc20(p.empresaRuc) && esRuc20(p.entidadRuc)
+            ? { texto: "Lo que la entidad le compró a esta empresa", href: `/entidad/${p.entidadRuc}?seccion=contratos&ccon=${p.empresaRuc}` }
+            : p.codigo ? { texto: "Su familia declarada", href: `/app/personas/cargo/${p.codigo}?seccion=familia` } : false,
         ]}
       />
     ),
