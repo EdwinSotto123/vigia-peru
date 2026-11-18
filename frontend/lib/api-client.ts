@@ -124,6 +124,14 @@ export interface ApiEntidad {
     /** Empresas recién creadas con órdenes directas a los pocos días de su alta (migración 355) y lo de su primer año. */
     recienCreadas?: number;
     recienCreadasMonto?: number;
+    /** En observación (migraciones 364-369): casos graves o medios de quien tiene un puesto de compras y un familiar que
+     *  cobra de la entidad (y lo que suman las ventas con la persona en el puesto), y autoridades que dejaron de figurar
+     *  en una empresa que le vende. */
+    comprasFamilia?: number;
+    comprasFamiliaGraves?: number;
+    comprasFamiliaMonto?: number;
+    exAutoridad?: number;
+    exAutoridadGraves?: number;
     nepotismoGobierno?: number;
     doblePlanilla?: number;
     socioProveedor?: number;

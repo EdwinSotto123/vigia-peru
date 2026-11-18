@@ -129,6 +129,8 @@ export interface FichaEmpresa {
     bordeOrdenes?: number;
     /** En observación (migración 367): autoridades electas que dejaron de figurar en la empresa y a cuya entidad le vendió. */
     exAutoridad?: { casos: number; graves: number } | null;
+    /** En observación (migraciones 364-369): un familiar de quien tiene un puesto de compras en una entidad cliente figura en la empresa. */
+    comprasFamilia?: { casos: number; graves: number } | null;
     /** Lo que vendió por los Catálogos de Perú Compras (migraciones 236-237): órdenes, monto, en cuántas cobró el doble o
      *  más de la mediana de la misma ficha ese año y cuánto por encima. null = sin las tablas. */
     catalogo?: { ordenes: number; monto: number; sobreprecio: number; exceso: number } | null;

@@ -73,7 +73,7 @@ export const MONTO_ORDEN = {
  * órdenes de la franja). Los de la orden misma: partida con otras del mismo día y emitida a un proveedor inhabilitado.
  */
 export const ANTECEDENTES_ORDEN = ["nepotismo", "financio_campana", "candidato_gobierna", "autoridad_contratada", "al_borde_del_tope",
-                                   "fraccionamiento", "inhabilitado", "repetida", "pariente_socio", "recien_creada"] as const;
+                                   "fraccionamiento", "inhabilitado", "repetida", "pariente_socio", "recien_creada", "compras_familiar"] as const;
 const DE_PERSONA = new Set<string>(["nepotismo", "financio_campana", "candidato_gobierna", "autoridad_contratada", "al_borde_del_tope"]);
 /** Las señales de la persona con la entidad que la fila muestra como bandera (el nepotismo va aparte, en `conNepotismo`). */
 const SENALES_FILA = ["financio_campana", "candidato_gobierna", "autoridad_contratada", "aporte_gobierna", "nepotismo_gobierno"];
@@ -147,6 +147,18 @@ const RECIEN_CREADA = `FROM empresa_recien_creada_ordenes rc WHERE rc.ruc_empres
  */
 const PARIENTE_SOCIO = `FROM empresa_pariente_funcionario x WHERE x.entidad_ruc = o.entidad_ruc AND x.ruc_empresa = o.ruc_contratista
                           AND o.fecha_emision >= DATE '2023-01-01' AND o.fecha_emision >= COALESCE(x.en_empresa_desde, DATE '1900-01-01')`;
+/**
+ * En observación (migraciones 364-370): la orden se emitió a la empresa de un familiar de quien tenía un puesto de compras
+ * en la entidad, CON esa persona en el puesto. Sólo casos graves o medios, y nunca de una autoridad electa (su parentesco
+ * va reservado).
+ */
+const ELECTO_CK = `'(ALCALDE|REGIDOR|GOBERNADOR|CONSEJER|CONGRESISTA|PRESIDENTE REGIONAL)'`;
+const COMPRAS_FAMILIAR = `FROM funcionario_compras_familiar_venta cv
+     JOIN funcionario_compras_familiar ck ON ck.codigo = cv.codigo AND ck.entidad_ruc = cv.entidad_ruc AND ck.pariente = cv.pariente AND ck.empresa_ruc = cv.empresa_ruc
+    WHERE cv.entidad_ruc = o.entidad_ruc AND cv.empresa_ruc = o.ruc_contratista AND cv.orden = o.orden AND cv.fecha = o.fecha_emision
+      AND cv.momento = 'en_puesto' AND cv.tipo = 'orden' AND cv.empresa_ruc <> ''
+      AND ck.tipo_cargo = 'compras' AND ck.severidad IN ('alta', 'media') AND ck.cargo !~* ${ELECTO_CK}
+      AND NOT EXISTS (SELECT 1 FROM funcionario_resumen fr WHERE fr.codigo = ck.codigo AND fr.cargo ~* ${ELECTO_CK})`;
 /** Una autoridad electa tiene nombre público: su cargo con un parentesco de sangre destaparía un apellido tapado. */
 const CARGO_ELECTO = `x.cargo ~* '(ALCALDE|REGIDOR|GOBERNADOR|CONSEJER|CONGRESISTA|PRESIDENTE REGIONAL)'`;
 
@@ -269,6 +281,12 @@ const COLS = `to_char(o.fecha_emision, 'YYYY-MM-DD') AS fecha, o.entidad, o.enti
               (SELECT jsonb_build_object('alta', to_char(rc.fecha_alta, 'YYYY-MM-DD'), 'primera', to_char(rc.primera_orden, 'YYYY-MM-DD'), 'dias', rc.dias,
                                          'ordenes', rc.ordenes_1a, 'monto', rc.monto_1a::float, 'parte', rc.parte_entidad::float, 'severidad', rc.severidad)
                  ${RECIEN_CREADA} LIMIT 1) AS "recienCreada",
+              (SELECT jsonb_build_object('cargo', ck.cargo, 'parentesco', ck.parentesco, 'cercano', ck.cercano, 'rol', ck.rol_en_empresa,
+                                         'desde', to_char(ck.cargo_desde, 'YYYY-MM-DD'), 'hasta', to_char(COALESCE(ck.cargo_hasta, ck.visto_hasta), 'YYYY-MM-DD'),
+                                         'sinCese', ck.cargo_hasta IS NULL, 'ordenes', ck.ordenes_en_puesto, 'monto', ck.monto_en_puesto::float,
+                                         'antes', ck.ordenes_antes, 'codigo', ck.codigo, 'severidad', ck.severidad,
+                                         'clave', md5(ck.codigo || '|' || ck.entidad_ruc || '|' || ck.pariente || '|' || ck.empresa_ruc))
+                 ${COMPRAS_FAMILIAR} ORDER BY (ck.severidad = 'alta') DESC, ck.monto_en_puesto DESC NULLS LAST LIMIT 1) AS "comprasFamiliar",
               -- Con la infracción por la que lo inhabilitó (pedido del usuario del 2026-11-05: el panel no decía por qué).
               (SELECT jsonb_build_object('tipo', s.tipo, 'resolucion', s.resolucion, 'desde', to_char(s.fecha_desde, 'YYYY-MM-DD'),
                                          'hasta', to_char(s.fecha_hasta, 'YYYY-MM-DD'), 'infraccion', left(s.infraccion, 900))
@@ -348,6 +366,16 @@ export function sqlListaOrdenes(q: FiltrosListaOrdenes, forzarAcotada = false): 
         ? `(SELECT * FROM empresa_recien_creada_ordenes WHERE severidad IN ('alta', 'media')${q.entidad ? ` AND entidad_ruc = '${q.entidad}'` : ""}${q.proveedor ? ` AND ruc_empresa = '${q.proveedor}'` : ""}) rc
            CROSS JOIN LATERAL (SELECT y.* FROM conosce_ordenes y WHERE y.ruc_contratista = rc.ruc_empresa AND y.entidad_ruc = rc.entidad_ruc
              AND y.fecha_emision BETWEEN rc.fecha_alta AND rc.fecha_alta + 365 OFFSET 0) o`
+      : q.antecedente === "compras_familiar"
+        // Desde las ~2 mil ventas «en el puesto» de la migración 369 (entidad, empresa, número y fecha de cada orden).
+        ? `(SELECT DISTINCT cv.entidad_ruc, cv.empresa_ruc, cv.orden, cv.fecha
+              FROM funcionario_compras_familiar_venta cv
+              JOIN funcionario_compras_familiar ck ON ck.codigo = cv.codigo AND ck.entidad_ruc = cv.entidad_ruc AND ck.pariente = cv.pariente AND ck.empresa_ruc = cv.empresa_ruc
+             WHERE cv.momento = 'en_puesto' AND cv.tipo = 'orden' AND cv.empresa_ruc <> '' AND ck.tipo_cargo = 'compras' AND ck.severidad IN ('alta', 'media')
+               AND ck.cargo !~* ${ELECTO_CK}
+               AND NOT EXISTS (SELECT 1 FROM funcionario_resumen fr WHERE fr.codigo = ck.codigo AND fr.cargo ~* ${ELECTO_CK})${q.entidad ? ` AND cv.entidad_ruc = '${q.entidad}'` : ""}${q.proveedor ? ` AND cv.empresa_ruc = '${q.proveedor}'` : ""}) cf
+           CROSS JOIN LATERAL (SELECT y.* FROM conosce_ordenes y WHERE y.ruc_contratista = cf.empresa_ruc AND y.entidad_ruc = cf.entidad_ruc
+             AND y.orden = cf.orden AND y.fecha_emision = cf.fecha OFFSET 0) o`
       : q.antecedente === "pariente_socio"
         // Desde los ~700 pares entidad-empresa de la migración 350, por el índice del proveedor.
         // Con una entidad o un proveedor elegidos, sólo sus pares: el LATERAL (con OFFSET 0) no deja pasar ese filtro hacia
@@ -369,6 +397,7 @@ export function sqlListaOrdenes(q: FiltrosListaOrdenes, forzarAcotada = false): 
   // Con esos puntos de partida se ordena por `fecha_emision + 0`: una expresión sin índice, para que el planificador no
   // vuelva a recorrer el de fecha con el LIMIT (un top-N sobre las candidatas: 0,2-0,6 s en caliente, medido 2026-10-27).
   const porFecha = dePersona || q.antecedente === "inhabilitado" || q.antecedente === "repetida" || q.antecedente === "pariente_socio" || q.antecedente === "recien_creada"
+    || q.antecedente === "compras_familiar"
     ? "o.fecha_emision + 0" : "o.fecha_emision";
   const dir = q.orden === "antiguo" ? "ASC" : "DESC";
   const offset = (q.page - 1) * q.size;

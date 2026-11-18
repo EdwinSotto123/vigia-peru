@@ -591,6 +591,10 @@ export const rutaObservacion = (page = 1, tipo?: string, ruc?: string) =>
 
 // ─── Lecturas (servidor) ─────────────────────────────────────────────────────────
 
+/** Los casos en observación de una ficha (entidad o empresa), para pintarlos en ella: sólo los graves y medios. */
+export const getCasosComprasFamilia = (ruc: string) => leer<PatronesComprasFamilia>(`/patrones/compras-familia?buscar=${ruc}&relevantes=1&size=50`);
+export const getCasosAutoridadExsocio = (ruc: string) => leer<PatronesAutoridadExsocio>(`/patrones/autoridad-exsocio?buscar=${ruc}&size=50`);
+
 async function leer<T>(ruta: string, revalidate = 600): Promise<T | null> {
   try {
     const r = await fetch(`${API_BASE}${ruta}`, { next: { revalidate } } as RequestInit);

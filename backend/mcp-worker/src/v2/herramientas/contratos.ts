@@ -425,6 +425,18 @@ function banderasDeOrden(o: Fila): { banderas?: Fila[] } {
       que: "un socio, representante o directivo de la empresa es pariente que un funcionario de la entidad declaró en su DJI",
     });
   }
+  // En observación (migraciones 364-370): la orden se emitió con un familiar del socio en un puesto de compras de la entidad.
+  const cf = o.comprasFamiliar as Fila | null;
+  if (cf) {
+    b.push({
+      tipo: "compras_familiar", severidad: cf.severidad, en_observacion: true, puesto_de_compras: cf.cargo, parentesco_del_familiar: cf.parentesco,
+      papel_del_familiar_en_la_empresa: cf.rol, en_el_puesto_desde: cf.desde ?? undefined,
+      hasta: cf.sinCese ? undefined : cf.hasta ?? undefined, sin_cese_consta_en_el_puesto_hasta: cf.sinCese ? cf.hasta ?? undefined : undefined,
+      ordenes_a_la_empresa_con_la_persona_en_el_puesto: cf.ordenes ?? undefined, monto_de_esas_ordenes_soles: cf.monto ?? undefined,
+      ordenes_de_antes_de_que_asumiera: cf.antes ?? undefined,
+      que: "la empresa tiene como socio, representante o directivo a un familiar declarado de quien tenía un puesto de compras en la entidad, y la orden se emitió con esa persona en el puesto",
+    });
+  }
   const rc = o.recienCreada as Fila | null;
   if (rc) {
     b.push({
@@ -464,10 +476,11 @@ export const ordenes = definir({
     como: z.string().max(40).optional().describe("Por qué vía: proceso, catalogo, menor (compra menor), directa (orden directa) o pago."),
     con: z.string().optional().describe("RUC de la otra parte (la empresa si filtras por entidad, o al revés)."),
     anio: anio.optional(),
-    bandera: z.enum(["pariente_socio", "recien_creada", "nepotismo", "repetida", "fraccionamiento", "inhabilitado", "al_borde_del_tope", "financio_campana",
+    bandera: z.enum(["pariente_socio", "compras_familiar", "recien_creada", "nepotismo", "repetida", "fraccionamiento", "inhabilitado", "al_borde_del_tope", "financio_campana",
                      "candidato_gobierna", "autoridad_contratada", "sobreprecio", "antecedentes", "sunat"]).optional().describe(
       "Sólo las compras con esa bandera. De la orden: pariente_socio (un socio o representante de la empresa es pariente " +
-      "declarado de un funcionario de la entidad), recien_creada (la empresa recibió su primera orden directa a 90 días o menos " +
+      "declarado de un funcionario de la entidad), compras_familiar (en observación: emitida a la empresa de un familiar de quien " +
+      "tenía un puesto de compras en la entidad, con esa persona en el puesto), recien_creada (la empresa recibió su primera orden directa a 90 días o menos " +
       "de crearse), nepotismo (el proveedor persona es ese pariente), repetida (la misma compra " +
       "en varias órdenes de 7 a 90 días), fraccionamiento (órdenes del mismo día que pasan 8 UIT), inhabilitado, " +
       "al_borde_del_tope, financio_campana, candidato_gobierna, autoridad_contratada. sobreprecio: catálogo; antecedentes: " +

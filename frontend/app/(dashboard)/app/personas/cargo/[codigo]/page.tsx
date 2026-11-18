@@ -23,6 +23,7 @@ import { Badge } from "@/components/ui/Badge";
 import { EnlaceAccion } from "@/components/ui/EnlaceAccion";
 import { fechaConAnio, numero, plural, solesCompacto } from "@/lib/formato";
 import { VentasCompraFamilia } from "@/components/investigar/VentasCompraFamilia";
+import { REGLA_AUTORIDAD_EXSOCIO, loQueVendio, ventasFrenteALaSalida } from "@/lib/autoridadExsocio";
 import { loQueRecibio, ordenesEnElPuesto, ordenesFueraDelPuesto, papelEnLaEmpresa, periodoDelPuesto, reglaCompraFamilia, tituloCompraFamilia } from "@/lib/comprasFamilia";
 import {
   getFichaFuncionario,
@@ -712,6 +713,15 @@ function banderasDe(f: FichaFuncionario, ruta: string): BanderaFicha[] {
       explica: "Su puesto y el familiar salen de su propia declaración jurada; las órdenes, del registro de la entidad; la empresa del familiar, del Registro Nacional de Proveedores",
     });
   }
+  // Migración 367: en observación. Es una autoridad electa que dejó de figurar en una empresa que le vendió a su entidad.
+  const exAutoridad = c.exAutoridad ?? [];
+  if (exAutoridad.length) {
+    b.push({
+      tipo: "autoridad_exsocio", severidad: exAutoridad.some((x) => x.severidad === "alta") ? "alta" : "media", observacion: true, n: exAutoridad.length, href,
+      nombre: "En observación: dejó de figurar en una empresa que le vendió a su entidad",
+      explica: "Su cargo electo sale del Jurado Nacional de Elecciones; su salida de la empresa, del Registro Nacional de Proveedores; las ventas, del registro de la entidad",
+    });
+  }
   // Migración 335: en observación, porque el empate del funcionario visitado es por nombre y todavía no se mide.
   if (f.recibidas?.ganaronDespues) {
     b.push({
@@ -831,6 +841,17 @@ function Cruces({ cruces: c }: { cruces: CrucesDeLaPersona }) {
               <VentasCompraFamilia clave={x.clave} entidadRuc={x.entidadRuc} aPedido />
             </span>
           ) : null}
+        </Caso>
+      ))}
+      {(c.exAutoridad ?? []).map((x, i) => (
+        <Caso key={`ea${i}`} titulo="En observación: dejó de figurar en una empresa que le vendió a su entidad" tono={x.severidad === "alta" ? "alta" : "media"}>
+          Figuraba como <b>{x.roles.join(", ")}</b> de <EnlaceEmpresa ruc={x.empresaRuc} nombre={x.empresa} />
+          {x.desde ? ` desde el ${fechaConAnio(x.desde)}` : ""} y dejó de figurar en el corte del Registro Nacional de Proveedores del {fechaConAnio(x.bajaCorte)}. Durante
+          su periodo como {cargoTexto(x.cargo).toLowerCase()}, <EnlaceEntidad ruc={x.entidadRuc} nombre={x.entidad} /> le compró a esa empresa{" "}
+          <b>{loQueVendio(x)}</b>. {ventasFrenteALaSalida(x)} {REGLA_AUTORIDAD_EXSOCIO}{" "}
+          <Link href={`/entidad/${x.entidadRuc}?seccion=contratos&ccon=${x.empresaRuc}`} prefetch={false} className={CLASE_ENLACE_CELDA}>
+            Ver lo que la entidad le compró a esa empresa
+          </Link>
         </Caso>
       ))}
       {c.enInformeYDespuesCobro.map((x, i) => (

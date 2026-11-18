@@ -23,10 +23,19 @@ import { MOMENTOS_VENTA, rutaVentasCompraFamilia, type EvidenciaCompraFamilia, t
 const ENLACE = "font-medium text-granate underline decoration-granate/35 underline-offset-2 hover:decoration-granate";
 const ESTADO_ORDEN: Record<string, string> = { Devengada: "devengada", Emitida: "emitida", Comprometida: "comprometida" };
 
-/** Una orden no tiene ficha propia: la lista de compras de la entidad, buscando su número en el año de la orden. */
-const rutaOrden = (entidadRuc: string, orden: string, fecha: string) => {
-  const n = /(\d{3,8})/.exec(orden)?.[1];
-  const q = new URLSearchParams({ seccion: "contratos", ...(n ? { cq: n } : {}), canio: fecha.slice(0, 4) });
+/**
+ * Una orden no tiene ficha propia: la lista de compras de la entidad, sólo con lo que le compró a esa empresa ese año y,
+ * si su número tiene tres cifras o más (lo mínimo que acepta el buscador), buscándolo. El número es lo primero después del
+ * prefijo («O/C-17-2026-SALUD»: 17, no 2026).
+ */
+const rutaOrden = (entidadRuc: string, orden: string, fecha: string, empresaRuc: string | null) => {
+  const n = /^\D*(\d+)/.exec(orden)?.[1];
+  const q = new URLSearchParams({
+    seccion: "contratos",
+    ...(empresaRuc ? { ccon: empresaRuc } : {}),
+    ...(n && n.length >= 3 ? { cq: n } : {}),
+    canio: fecha.slice(0, 4),
+  });
   return `/entidad/${entidadRuc}?${q}`;
 };
 
@@ -79,7 +88,7 @@ function CuandoSeEmitieron({ d }: { d: EvidenciaCompraFamilia }) {
   );
 }
 
-function FilaVenta({ v, entidadRuc, indice }: { v: VentaCompraFamilia; entidadRuc: string; indice: Map<MomentoVenta, number> }) {
+function FilaVenta({ v, entidadRuc, empresaRuc, indice }: { v: VentaCompraFamilia; entidadRuc: string; empresaRuc: string | null; indice: Map<MomentoVenta, number> }) {
   const momento = MOMENTOS_VENTA.find((m) => m.clave === v.momento);
   const i = indice.get(v.momento);
   const titulo =
@@ -92,7 +101,7 @@ function FilaVenta({ v, entidadRuc, indice }: { v: VentaCompraFamilia; entidadRu
         <span className="font-mono text-ink">{v.nomenclatura ?? "Proceso de selección"}</span>
       )
     ) : v.orden ? (
-      <Link href={rutaOrden(entidadRuc, v.orden, v.fecha)} prefetch={false} className={`${ENLACE} font-mono`}>
+      <Link href={rutaOrden(entidadRuc, v.orden, v.fecha, empresaRuc)} prefetch={false} className={`${ENLACE} font-mono`}>
         {v.orden}
       </Link>
     ) : (
@@ -186,7 +195,7 @@ function Cuerpo({ clave, entidadRuc }: { clave: string; entidadRuc: string }) {
   const total = d.resumen.reduce((s, r) => s + r.n, 0);
   const items = d.ventas.map((v, i) => ({
     id: `${v.tipo}-${v.orden ?? v.nomenclatura ?? ""}-${v.fecha}-${i}`,
-    contenido: <FilaVenta v={v} entidadRuc={entidadRuc} indice={indice} />,
+    contenido: <FilaVenta v={v} entidadRuc={entidadRuc} empresaRuc={d.empresaRuc} indice={indice} />,
     buscable: [v.orden, v.nomenclatura, v.descripcion, v.fecha.slice(0, 4), MOMENTOS_VENTA.find((m) => m.clave === v.momento)?.corto].filter(Boolean).join(" "),
   }));
   return (

@@ -1077,7 +1077,7 @@ entidadesRouter.get("/:ruc", async (c) => {
   const ruc = c.req.param("ruc");
   if (!/^\d{11}$/.test(ruc)) return c.json({ error: "not_found" }, 404);
   const modelos = await hayModelosLectura();
-  const [ent, mef, alertas, nep, ban, gente, visitasYOlas, catalogo, red] = await Promise.all([
+  const [ent, mef, alertas, nep, ban, gente, visitasYOlas, catalogo, red, observacion] = await Promise.all([
     pool.query(modelos
       // alertas, monto y contratos desde entidad_stats; la cola, en vivo (EN_COLA).
       ? `SELECT e.*,
@@ -1255,6 +1255,17 @@ entidadesRouter.get("/:ruc", async (c) => {
               (SELECT COALESCE(sum(rc.monto_1a), 0) FROM empresa_recien_creada_ordenes rc WHERE rc.entidad_ruc = $1 AND rc.severidad IN ('alta', 'media'))::float AS "recienCreadasMonto"`,
       [ruc],
     ).catch((e) => { console.warn(`[entidades] red de ${ruc}: ${(e as Error).message}`); return null; }),
+    // En observación (migraciones 364-369): quien tiene un puesto de compras y un familiar que cobra de la entidad (a su
+    // nombre o con su empresa), y las autoridades electas que dejaron de figurar en una empresa que le vende (367).
+    pool.query<{ comprasFamilia: number; comprasFamiliaGraves: number; comprasFamiliaMonto: number; exAutoridad: number; exAutoridadGraves: number }>(
+      `SELECT (SELECT count(*) FROM funcionario_compras_familiar k WHERE k.entidad_ruc = $1 AND k.tipo_cargo = 'compras' AND k.severidad IN ('alta', 'media'))::int AS "comprasFamilia",
+              (SELECT count(*) FROM funcionario_compras_familiar k WHERE k.entidad_ruc = $1 AND k.tipo_cargo = 'compras' AND k.severidad = 'alta')::int AS "comprasFamiliaGraves",
+              (SELECT COALESCE(sum(COALESCE(k.monto_en_puesto, 0) + COALESCE(k.monto_procesos_en_puesto, 0)), 0)
+                 FROM funcionario_compras_familiar k WHERE k.entidad_ruc = $1 AND k.tipo_cargo = 'compras' AND k.severidad = 'alta')::float AS "comprasFamiliaMonto",
+              (SELECT count(*) FROM autoridad_exsocio_venta v WHERE v.entidad_ruc = $1)::int AS "exAutoridad",
+              (SELECT count(*) FROM autoridad_exsocio_venta v WHERE v.entidad_ruc = $1 AND v.severidad = 'alta')::int AS "exAutoridadGraves"`,
+      [ruc],
+    ).catch((e) => { console.warn(`[entidades] en observación de ${ruc}: ${(e as Error).message}`); return null; }),
   ]);
   if (ent.rows.length === 0) return c.json({ error: "not_found" }, 404);
   // metadata sin las claves `*_mock` de seed_db.py (cifras inventadas).
@@ -1299,6 +1310,7 @@ entidadesRouter.get("/:ruc", async (c) => {
           } : {}),
           ...(catalogo?.rows[0] ? { sobreprecioCatalogo: catalogo.rows[0].ordenes, sobreprecioCatalogoExceso: catalogo.rows[0].exceso } : {}),
           ...(red?.rows[0] ?? {}),
+          ...(observacion?.rows[0] ?? {}),
           ...(visitasYOlas?.rows[0] ? {
             visitaPariente: visitasYOlas.rows[0].visitaPariente,
             olaGestion: visitasYOlas.rows[0].olaGestion,

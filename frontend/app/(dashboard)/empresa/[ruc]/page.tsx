@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { Suspense, type ReactNode } from "react";
+import { EnObservacionFicha } from "@/components/investigar/EnObservacionFicha";
 import {
   Ban,
   Briefcase,
@@ -258,6 +259,16 @@ export default async function EmpresaPage({ params, searchParams: sp }: { params
           href: `${ruta}?seccion=ventas&${P_COMPRAS.como}=catalogo&${P_COMPRAS.bandera}=sobreprecio`,
         }]
       : []),
+    // En observación (migraciones 364-369): un familiar de quien tiene un puesto de compras en una entidad cliente figura en
+    // la empresa, y le vendió a esa entidad con esa persona en el puesto.
+    ...((e.comprasFamilia?.casos ?? 0) > 0
+      ? [{
+          tipo: "compras_familiar", severidad: (e.comprasFamilia!.graves > 0 ? "alta" : "media") as "alta" | "media", observacion: true,
+          nombre: "En observación: un familiar de quien trabaja en compras de un cliente figura en la empresa", n: e.comprasFamilia!.casos > 1 ? e.comprasFamilia!.casos : null,
+          explica: "Quien tiene un puesto de compras en una entidad que le compra declaró como familiar a un socio, representante o directivo suyo. Cada caso, con sus órdenes, está en «Su gente»",
+          href: `${ruta}?seccion=gente#en-observacion`,
+        }]
+      : []),
     // En observación (migración 367): una autoridad electa dejó de figurar en la empresa y ésta le vendió a su entidad.
     ...((e.exAutoridad?.casos ?? 0) > 0
       ? [{
@@ -459,9 +470,22 @@ export default async function EmpresaPage({ params, searchParams: sp }: { params
                       etiqueta: "Socios y vínculos",
                       conteo: personas || null,
                       contenido: (
-                        <Suspense fallback={<TablaSkeleton columnas={[{ clave: "a", titulo: "Persona", ancho: "1fr" }]} filas={6} />}>
-                          <SociosEmpresa datos={sociosP} ruc={e.ruc} tipos={f.antecedentes.map((x) => x.tipo)} />
-                        </Suspense>
+                        <div className="space-y-8">
+                          <Suspense fallback={<TablaSkeleton columnas={[{ clave: "a", titulo: "Persona", ancho: "1fr" }]} filas={6} />}>
+                            <SociosEmpresa datos={sociosP} ruc={e.ruc} tipos={f.antecedentes.map((x) => x.tipo)} />
+                          </Suspense>
+                          {/* En observación (migraciones 364-370): los casos de sus banderas, cada uno con su panel. */}
+                          {(e.comprasFamilia?.casos ?? 0) > 0 || (e.exAutoridad?.casos ?? 0) > 0 ? (
+                            <Suspense fallback={null}>
+                              <EnObservacionFicha
+                                ruc={e.ruc}
+                                de="empresa"
+                                compras={(e.comprasFamilia?.casos ?? 0) > 0}
+                                autoridad={(e.exAutoridad?.casos ?? 0) > 0}
+                              />
+                            </Suspense>
+                          ) : null}
+                        </div>
                       ),
                     },
                     {

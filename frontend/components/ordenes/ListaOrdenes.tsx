@@ -65,6 +65,7 @@ import {
   type InhabilitacionProveedor,
   type OrdenFraccionada,
   type OrdenRepetida,
+  type ComprasFamiliarOrden,
   type ParienteSocio,
   type RecienCreada,
   type OrdenGeneral,
@@ -533,6 +534,10 @@ const CHIP_INHABILITADO = "Inhabilitado al emitirse";
 const CHIP_FRACCIONAMIENTO = TIPO_CRUCE.fraccionamiento?.chip ?? "Pasan 8 UIT";
 const CHIP_REPETIDA = "Compra repetida";
 const CHIP_PARIENTE_SOCIO = "Empresa de un pariente";
+const CHIP_COMPRAS_FAMILIAR = "En observación: familiar en compras";
+/** «…es cónyuge de quien declara el puesto de jefe de adquisiciones en la entidad.» */
+const fraseComprasFamiliar = (cf: ComprasFamiliarOrden) =>
+  `Un ${rolLegible(cf.rol)} de la empresa es ${parentescoLegible(cf.parentesco)} de quien declara el puesto de ${oracion(cf.cargo.toLocaleLowerCase("es")).toLocaleLowerCase("es")} en la entidad: la orden se emitió con esa persona en el puesto.`;
 const CHIP_RECIEN_CREADA = "Empresa recién creada";
 /** «CUÑADO(A)» → «cuñado o cuñada»; «HERMANO(A) DEL DECLARANTE» → «hermano o hermana». */
 const parentescoLegible = (p: string | null | undefined) => {
@@ -583,6 +588,10 @@ export function antecedentesOrden(o: OrdenGeneral): Antecedente[] {
       chip: CHIP_PARIENTE_SOCIO,
       explica: `Un ${rolLegible(ps.rol)} de la empresa es ${parentescoLegible(ps.parentesco)} de ${ps.cargo ? `un funcionario de la entidad (${oracion(ps.cargo.toLocaleLowerCase("es"))})` : "un funcionario de la entidad"}, según su declaración jurada de intereses.`,
     });
+  }
+  const cf = o.comprasFamiliar;
+  if (cf) {
+    out.push({ tipo: "compras_familiar", severidad: cf.severidad === "alta" ? "alta" : "media", chip: CHIP_COMPRAS_FAMILIAR, explica: fraseComprasFamiliar(cf) });
   }
   const rc = o.recienCreada;
   if (rc) {
@@ -1228,6 +1237,64 @@ function TarjetaParienteSocio({ o, ps, id }: { o: OrdenGeneral; ps: ParienteSoci
   );
 }
 
+/**
+ * En observación (migraciones 364-370): la orden se emitió a la empresa de un familiar de quien tenía un puesto de compras en
+ * la entidad. Dice el puesto, el parentesco y cuántas órdenes cayeron en ese tiempo; lleva al caso en la ficha de la persona.
+ */
+function TarjetaComprasFamiliar({ o, cf, id }: { o: OrdenGeneral; cf: ComprasFamiliarOrden; id: string }) {
+  return (
+    <TarjetaBandera
+      id={id}
+      tipo="compras_familiar"
+      severidad={cf.severidad === "alta" ? "alta" : "media"}
+      nombre="En observación: se emitió con un familiar del socio en un puesto de compras de la entidad"
+      pie={
+        <>
+          <AccionesBandera
+            acciones={[
+              cf.codigo ? { href: `/app/personas/cargo/${cf.codigo}?seccion=revision`, texto: "Ver el caso en la ficha de esa persona" } : null,
+              esEmpresa(o.rucContratista) && o.entidadRuc
+                ? { href: rutaOrdenes({ entidad: o.entidadRuc, proveedor: o.rucContratista, antecedente: "compras_familiar" }), texto: "Ver las órdenes emitidas con esa persona en el puesto" }
+                : null,
+            ]}
+          />
+          <DondeComprobarlo
+            enlaces={[
+              { texto: "Declaraciones juradas de intereses (Contraloría)", href: djiEntidad(o.entidadRuc), pista: "busca a quien tiene el puesto: ahí declara su empleo y a sus familiares" },
+              ...(esEmpresa(o.rucContratista) ? [{ texto: "Registro Nacional de Proveedores (RNP)", href: fichaRnp(o.rucContratista), pista: "mira sus socios y representantes" }] : []),
+            ]}
+          />
+        </>
+      }
+    >
+      <p>
+        {fraseComprasFamiliar(cf)} El puesto y el familiar salen de la declaración jurada de intereses de esa persona; el familiar figura en la empresa en el
+        Registro Nacional de Proveedores. No prueba que haya intervenido en la compra: hay que ver quién pidió y quién aprobó la orden. La ley impide
+        contratar con la entidad a la empresa de ciertos parientes de quien interviene en sus contrataciones.
+      </p>
+      <HechosBandera>
+        {cf.ordenes ? (
+          <Dato icono={ReceiptText} nombre="Órdenes a la empresa con esa persona en el puesto">
+            {plural(cf.ordenes, "orden", "órdenes")} con esa persona en el puesto
+          </Dato>
+        ) : null}
+        {cf.monto ? (
+          <Dato icono={Banknote} nombre="Lo que suman">
+            Suman <Monto n={cf.monto} />
+          </Dato>
+        ) : null}
+        {cf.desde ? (
+          <Dato icono={CalendarRange} nombre="En el puesto">
+            En el puesto desde {fechaLarga(cf.desde)}
+            {cf.hasta ? (cf.sinCese ? `; su última declaración que lo nombra es del ${fechaLarga(cf.hasta)}` : ` hasta ${fechaLarga(cf.hasta)}`) : ""}
+          </Dato>
+        ) : null}
+        {cf.antes === 0 ? <Dato icono={UsersRound} nombre="Antes de que asumiera">Antes de que asumiera, la empresa no le había vendido a la entidad</Dato> : null}
+      </HechosBandera>
+    </TarjetaBandera>
+  );
+}
+
 /** Las órdenes iguales en pocas semanas: cuántas, en cuántos días, cuánto suman frente al tope y cada una con su estado. */
 function TarjetaRepetida({ o, r, id }: { o: OrdenGeneral; r: OrdenRepetida; id: string }) {
   const pasa = r.total > r.tope;
@@ -1360,6 +1427,10 @@ function banderasDeOrden(o: OrdenGeneral): BanderaOrden[] {
       `Un ${rolLegible(ps.rol)} de la empresa es ${parentescoLegible(ps.parentesco)} de ` +
       `${ps.cargo ? `un funcionario de la entidad (${oracion(ps.cargo.toLocaleLowerCase("es"))})` : "un funcionario de la entidad"}, según su declaración jurada.`;
     poner("pariente_socio", ps.severidad === "alta" ? "alta" : "media", CHIP_PARIENTE_SOCIO, frase, (id) => <TarjetaParienteSocio o={o} ps={ps} id={id} />);
+  }
+  const cf = o.comprasFamiliar;
+  if (cf) {
+    poner("compras_familiar", cf.severidad === "alta" ? "alta" : "media", CHIP_COMPRAS_FAMILIAR, fraseComprasFamiliar(cf), (id) => <TarjetaComprasFamiliar o={o} cf={cf} id={id} />);
   }
   const rc = o.recienCreada;
   if (rc) {

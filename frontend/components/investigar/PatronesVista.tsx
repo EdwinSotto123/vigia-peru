@@ -8,7 +8,8 @@ import { EVENTO_ACTIVA } from "@/components/patrones/Pestanas";
 import { CeldaBarra, CeldaNumero, CeldaPrincipal, CeldaTexto, CLASE_ENLACE_CELDA, Indicadores, Tabla, type Columna, type Fila, type Indicador } from "@/components/listado";
 import { EstadoCarga, usePoder } from "@/components/grafo/vista";
 import { InformeEnPanel } from "@/components/control/InformeEnPanel";
-import { detalleAutoridadExsocio, detalleCompraFamilia, detalleConsorcio, detalleControl, detalleDoble, detalleDueno, detalleGrupo, detalleInhabilitada, detalleObservacion, detalleObservado, detalleRecien, detalleRelleno, detalleRenovacion, detalleRepetida, detalleSenal } from "./DetallePatron";
+import { COLUMNAS_AUTORIDAD_EXSOCIO, COLUMNAS_COMPRAS_FAMILIA, filaAutoridadExsocio, filaCompraFamilia } from "./filasCasos";
+import { detalleConsorcio, detalleControl, detalleDoble, detalleDueno, detalleGrupo, detalleInhabilitada, detalleObservacion, detalleObservado, detalleRecien, detalleRelleno, detalleRenovacion, detalleRepetida, detalleSenal } from "./DetallePatron";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Dato } from "@/components/ui/Dato";
@@ -1182,13 +1183,6 @@ const COLUMNAS_DOBLE: Columna[] = [
   { clave: "sueldo", titulo: "Sueldo al mes", ancho: "7.5rem", alinear: "der", desde: "lg", apilar: "con-rotulo", corto: "Sueldo" },
 ];
 
-const COLUMNAS_AUTORIDAD_EXSOCIO: Columna[] = [
-  { clave: "autoridad", titulo: "Autoridad, cargo y entidad", ancho: "minmax(0,1.5fr)" },
-  { clave: "empresa", titulo: "Empresa en la que figuraba", ancho: "minmax(0,1.2fr)", desde: "md", apilar: "con-rotulo", corto: "Empresa" },
-  { clave: "monto", titulo: "Le vendió en su periodo", ancho: "10rem", alinear: "der", corto: "Le vendió" },
-  { clave: "salida", titulo: "Dejó de figurar", ancho: "minmax(8rem,0.7fr)", desde: "lg", apilar: "con-rotulo" },
-];
-
 function ListaAutoridadExsocio({ inicial }: { inicial: InicialPatrones }) {
   const lista = useListaEnUrl("autoridad", inicial);
   const [ruc, setRuc] = useState(inicial.ruc ?? "");
@@ -1260,43 +1254,6 @@ function ListaAutoridadExsocio({ inicial }: { inicial: InicialPatrones }) {
     </div>
   );
 }
-
-function filaAutoridadExsocio(p: PatronAutoridadExsocio, i: number): Fila {
-  const total = p.ordenes + p.procesos;
-  return {
-    id: `autoridad-${i}`,
-    detalle: detalleAutoridadExsocio(p),
-    enlaces: true,
-    celdas: {
-      autoridad: (
-        <CeldaPrincipal
-          dosLineas
-          titulo={<>{p.autoridad ? tituloNatural(p.autoridad) : "Autoridad electa"}</>}
-          meta={
-            <span className="block">
-              {`${tituloNatural(p.cargo)}, `}
-              <EnlaceEntidad ruc={p.entidadRuc} nombre={p.entidad} />
-            </span>
-          }
-        />
-      ),
-      empresa: (
-        <CeldaTexto sub={p.roles.join(", ")}>
-          <EnlaceEmpresa ruc={p.empresaRuc} nombre={p.empresa} />
-        </CeldaTexto>
-      ),
-      monto: <CeldaNumero sub={`${plural(total, "venta", "ventas")}, ${numero(p.ventasEnPlazo)} en el plazo`}>{solesCompacto(p.montoOrdenes + p.montoProcesos)}</CeldaNumero>,
-      salida: <CeldaTexto sub="corte mensual del RNP">{fechaConAnio(p.bajaCorte)}</CeldaTexto>,
-    },
-  };
-}
-
-const COLUMNAS_COMPRAS_FAMILIA: Columna[] = [
-  { clave: "persona", titulo: "Persona, puesto y entidad", ancho: "minmax(0,1.7fr)" },
-  { clave: "familiar", titulo: "Familiar que declaró", ancho: "minmax(8rem,0.8fr)", desde: "md", apilar: "con-rotulo", corto: "Familiar" },
-  { clave: "monto", titulo: "Con la persona en el puesto", ancho: "11rem", alinear: "der", corto: "En el puesto" },
-  { clave: "anios", titulo: "Órdenes en total", ancho: "minmax(8rem,0.7fr)", desde: "lg", apilar: "con-rotulo", corto: "En total" },
-];
 
 function ListaComprasFamilia({ inicial }: { inicial: InicialPatrones }) {
   const lista = useListaEnUrl("compras", inicial);
@@ -1373,56 +1330,6 @@ function ListaComprasFamilia({ inicial }: { inicial: InicialPatrones }) {
       </EstadoCarga>
     </div>
   );
-}
-
-function filaCompraFamilia(p: PatronCompraFamilia, i: number): Fila {
-  const anios = p.desde && p.hasta ? (p.desde === p.hasta ? `${p.desde}` : `${p.desde} a ${p.hasta}`) : "Sin años";
-  return {
-    id: `compras-${i}`,
-    detalle: detalleCompraFamilia(p),
-    enlaces: true,
-    celdas: {
-      persona: (
-        <CeldaPrincipal
-          dosLineas
-          titulo={
-            p.codigo ? (
-              <Link href={`/app/personas/cargo/${p.codigo}?seccion=revision`} prefetch={false} className={CLASE_ENLACE_CELDA}>
-                {p.persona ?? "Persona con cargo público"}
-              </Link>
-            ) : (
-              <>{p.persona ?? "Persona con cargo público"}</>
-            )
-          }
-          meta={
-            <span className="block">
-              {`${tituloNatural(p.cargo)}, `}
-              <EnlaceEntidad ruc={p.entidadRuc} nombre={p.entidad} />
-            </span>
-          }
-        />
-      ),
-      familiar: (
-        <CeldaTexto sub={p.via === "empresa" ? `con ${p.empresa ? tituloNatural(p.empresa) : "su empresa"}` : "a su nombre"}>{p.parentesco}</CeldaTexto>
-      ),
-      monto:
-        p.ordenesEnPuesto == null ? (
-          <CeldaNumero sub={plural(p.ordenes, "orden", "órdenes")}>{solesCompacto(p.monto)}</CeldaNumero>
-        ) : p.ordenesEnPuesto + (p.procesosEnPuesto ?? 0) > 0 ? (
-          <CeldaNumero
-            sub={`${[
-              p.ordenesEnPuesto ? plural(p.ordenesEnPuesto, "orden", "órdenes") : null,
-              p.procesosEnPuesto ? plural(p.procesosEnPuesto, "proceso", "procesos") : null,
-            ].filter(Boolean).join(" y ")}${p.empezoDespues ? ", ninguna antes" : ""}`}
-          >
-            {solesCompacto((p.montoEnPuesto ?? 0) + (p.montoProcesosEnPuesto ?? 0))}
-          </CeldaNumero>
-        ) : (
-          <CeldaNumero sub="antes o después del puesto"><span className="font-sans text-mute">Ninguna</span></CeldaNumero>
-        ),
-      anios: <CeldaTexto sub={anios}>{p.ordenes ? `${solesCompacto(p.monto)} en ${plural(p.ordenes, "orden", "órdenes")}` : "Sólo procesos"}</CeldaTexto>,
-    },
-  };
 }
 
 function ListaDoble({ inicial }: { inicial: InicialPatrones }) {

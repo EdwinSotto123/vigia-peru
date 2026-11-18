@@ -738,9 +738,11 @@ patronesRouter.get("/doble", async (c) => {
 });
 
 const ComprasFamilia = z.object({
-  /** RUC de la entidad. */
+  /** RUC de la entidad, o de la empresa del familiar. */
   buscar: z.string().regex(/^20\d{9}$/).optional(),
   severidad: z.enum(["alta", "media", "baja"]).optional(),
+  /** Sólo los casos graves y medios (los que cuenta la bandera de una ficha). */
+  relevantes: z.enum(["1"]).optional(),
   page: z.coerce.number().int().min(1).max(200).default(1),
   size: z.coerce.number().int().min(1).max(50).default(20),
 });
@@ -777,15 +779,17 @@ patronesRouter.get("/compras-familia", async (c) => {
                 md5(k.codigo || '|' || k.entidad_ruc || '|' || k.pariente || '|' || k.empresa_ruc) AS clave,
                 (count(*) OVER ())::int AS total_filas
            FROM funcionario_compras_familiar k LEFT JOIN funcionario_resumen fr ON fr.codigo = k.codigo
-          WHERE k.tipo_cargo = 'compras' AND ($1::text IS NULL OR k.entidad_ruc = $1) AND ($2::text IS NULL OR k.severidad = $2)
+          WHERE k.tipo_cargo = 'compras' AND ($1::text IS NULL OR k.entidad_ruc = $1 OR k.empresa_ruc = $1) AND ($2::text IS NULL OR k.severidad = $2)
+            AND ($5::boolean IS NOT TRUE OR k.severidad IN ('alta', 'media'))
           ORDER BY CASE k.severidad WHEN 'alta' THEN 0 WHEN 'media' THEN 1 ELSE 2 END,
                    COALESCE(k.monto_en_puesto, 0) + COALESCE(k.monto_procesos_en_puesto, 0) DESC, k.monto DESC, k.codigo, k.empresa_ruc
-          LIMIT $3 OFFSET $4`, [q.buscar ?? null, q.severidad ?? null, q.size, (q.page - 1) * q.size]),
+          LIMIT $3 OFFSET $4`, [q.buscar ?? null, q.severidad ?? null, q.size, (q.page - 1) * q.size, q.relevantes === "1"]),
       pool.query<{ severidad: string; casos: number; personas: number; entidades: number; monto: number; montoEnPuesto: number }>(
         `SELECT k.severidad, count(*)::int AS casos, count(DISTINCT k.codigo)::int AS personas, count(DISTINCT k.entidad_ruc)::int AS entidades,
                 COALESCE(sum(k.monto), 0)::float AS monto,
                 COALESCE(sum(COALESCE(k.monto_en_puesto, 0) + COALESCE(k.monto_procesos_en_puesto, 0)), 0)::float AS "montoEnPuesto"
-           FROM funcionario_compras_familiar k WHERE k.tipo_cargo = 'compras' AND ($1::text IS NULL OR k.entidad_ruc = $1) GROUP BY 1`, [q.buscar ?? null]),
+           FROM funcionario_compras_familiar k
+          WHERE k.tipo_cargo = 'compras' AND ($1::text IS NULL OR k.entidad_ruc = $1 OR k.empresa_ruc = $1) GROUP BY 1`, [q.buscar ?? null]),
     ]).catch(() => [{ rows: [] as Record<string, unknown>[] }, { rows: [] as { severidad: string; casos: number; personas: number; entidades: number; monto: number; montoEnPuesto: number }[] }] as const);
     const filas = r.rows as Record<string, any>[];
     return publicar({

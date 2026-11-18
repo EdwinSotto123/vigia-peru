@@ -7,6 +7,7 @@
  * Privacidad: el nombre llega con el apellido materno tapado y una sola vez (las filas de cada registro no traen nombre);
  * la ficha se pide por un código al azar; no hay documentos. El empate con los otros registros es por nombre completo.
  */
+import type { PatronAutoridadExsocio } from "@/lib/patrones";
 import { API_BASE } from "./api-client";
 import type { PersonaPorNombre } from "./personas";
 
@@ -207,6 +208,11 @@ export interface CrucesDeLaPersona {
    * órdenes a su nombre de esa misma entidad. El familiar, sólo por su parentesco. Una API anterior no lo trae.
    */
   comprasFamiliar?: CompraFamiliar[];
+  /**
+   * En observación (migración 367): es una autoridad electa que dejó de figurar en una empresa, y esa empresa le vendió a
+   * su entidad dentro de su periodo. Una API anterior no lo trae.
+   */
+  exAutoridad?: PatronAutoridadExsocio[];
 }
 
 export interface CompraFamiliar {
@@ -376,4 +382,5 @@ export const totalCruces = (c: CrucesDeLaPersona) =>
   // Sólo los que piden revisión: con docencia (la excepción legal) o pocos meses es un dato, no un caso.
   (c.doblePercepcion ?? []).filter((x) => x.severidad === "media").length +
   // En observación, pero pide revisión: quien trabaja en compras y un familiar cercano cobra de su entidad.
-  (c.comprasFamiliar ?? []).filter((x) => x.severidad !== "baja").length;
+  (c.comprasFamiliar ?? []).filter((x) => x.severidad !== "baja").length +
+  (c.exAutoridad ?? []).length;

@@ -161,6 +161,25 @@ export interface CompraFamiliar {
   severidad: "alta" | "media" | "baja";
 }
 
+/**
+ * En observación (migración 367): la persona es una autoridad electa (JNE, por su nombre completo) que dejó de figurar en
+ * una empresa del RNP, y esa empresa le vendió a su entidad dentro de su periodo. Es un nombre público: va entero.
+ */
+export async function ventasComoExsocio(nombreNorm: string): Promise<Record<string, unknown>[]> {
+  if (!nombreNorm) return [];
+  const r = await pool.query(
+    `SELECT v.ruc_empresa AS "empresaRuc", v.empresa, v.cargo, v.lugar, v.entidad_ruc AS "entidadRuc", v.entidad,
+            to_char(v.periodo_inicio, 'YYYY-MM-DD') AS "periodoInicio", to_char(v.periodo_fin, 'YYYY-MM-DD') AS "periodoFin", v.roles,
+            v.fue_socio AS "fueSocio", to_char(v.desde, 'YYYY-MM-DD') AS desde, to_char(v.baja_corte, 'YYYY-MM-DD') AS "bajaCorte",
+            v.ordenes, v.monto_ordenes::float AS "montoOrdenes", v.procesos, v.monto_procesos::float AS "montoProcesos",
+            v.ventas_mientras AS "ventasMientras", v.ventas_en_plazo AS "ventasEnPlazo", v.monto_en_plazo::float AS "montoEnPlazo",
+            v.ventas_despues AS "ventasDespues", to_char(v.primera, 'YYYY-MM-DD') AS primera, to_char(v.ultima, 'YYYY-MM-DD') AS ultima, v.severidad
+       FROM autoridad_exsocio_venta v JOIN jne_autoridades ja ON ja.id = v.autoridad_id
+      WHERE ja.nombre_norm = $1
+      ORDER BY v.monto_en_plazo DESC, v.monto_ordenes + v.monto_procesos DESC`, [nombreNorm]);
+  return r.rows.map(({ roles, ...x }) => ({ ...x, roles: ((roles ?? []) as string[]).map((y) => PAPEL_RNP[y.toLowerCase()] ?? y.toLowerCase().replace(/_/g, " ")) }));
+}
+
 const PAPEL_RNP: Record<string, string> = { socio_accionista_titular: "socio", representante_legal: "representante legal", organo_administracion: "directivo" };
 const ORDEN_PAPEL = ["socio", "representante legal", "directivo"];
 

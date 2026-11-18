@@ -33,6 +33,7 @@ import { CLASE_ACCION_LISTA, EnlaceAccion } from "@/components/ui/EnlaceAccion";
 import { VacioEnLinea as AvisoEnLinea } from "@/components/ui/VacioEnLinea";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { InicioEntidad } from "@/components/inicio/InicioEntidad";
+import { EnObservacionFicha } from "@/components/investigar/EnObservacionFicha";
 import { InformesContraloria } from "@/components/inicio/CasosCorrupcion";
 import { AyudaCompras, ComprasEntidad, TAM } from "@/components/entidad/ComprasEntidad";
 import { P_COMPRAS, parseCompras } from "@/lib/compras";
@@ -253,6 +254,7 @@ export default async function EntidadProfile({
       // Las cifras → qué se encontró → dinero → control, con la columna lateral de quién la gobierna y quién decide.
       // Cada parte espera lo suyo (Suspense adentro).
       contenido: (
+        <div className="space-y-8">
         <InicioEntidad
           ruc={e.ruc}
           ruta={ruta}
@@ -268,6 +270,18 @@ export default async function EntidadProfile({
           // Dónde comprobarlo: una tarjeta de la columna lateral (antes, cinco enlaces sueltos al pie del Inicio).
           fuentes={{ fuente: `OECE${enElMef ? ", MEF" : ""}, Contraloría y Portal de Transparencia`, enlaces: fuentesEntidad }}
         />
+        {/* En observación (migraciones 364-370): los casos de sus banderas, cada uno con su panel. Sólo si los tiene. */}
+        {(apiResp?.senales?.comprasFamilia ?? 0) > 0 || (apiResp?.senales?.exAutoridad ?? 0) > 0 ? (
+          <Suspense fallback={null}>
+            <EnObservacionFicha
+              ruc={e.ruc}
+              de="entidad"
+              compras={(apiResp?.senales?.comprasFamilia ?? 0) > 0}
+              autoridad={(apiResp?.senales?.exAutoridad ?? 0) > 0}
+            />
+          </Suspense>
+        ) : null}
+        </div>
       ),
     },
     {
@@ -577,7 +591,7 @@ export default async function EntidadProfile({
             banderas.length ? (
               <BanderasFicha
                 etiqueta="Banderas de esta entidad"
-                banderas={banderas.map((b) => ({ tipo: b.tipo, severidad: b.severidad, nombre: b.chip, n: b.n, explica: b.titulo, href: b.href }))}
+                banderas={banderas.map((b) => ({ tipo: b.tipo, severidad: b.severidad, nombre: b.chip, n: b.n, explica: b.titulo, href: b.href, observacion: b.observacion }))}
               />
             ) : undefined
           }

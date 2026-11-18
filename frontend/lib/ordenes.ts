@@ -33,6 +33,8 @@ export type OrdenGeneral = OrdenEmpresa & {
   parienteSocio?: ParienteSocio | null;
   /** La empresa se creó poco antes de esta orden: su primera orden directa de la entidad fue a 90 días o menos de su alta (migración 355). */
   recienCreada?: RecienCreada | null;
+  /** En observación (migraciones 364-370): se emitió a la empresa de un familiar de quien tenía un puesto de compras en la entidad. */
+  comprasFamiliar?: ComprasFamiliarOrden | null;
   /** El Tribunal de Contrataciones tenía inhabilitado al proveedor el día en que se emitió. Falta en la API vieja. */
   inhabilitacion?: InhabilitacionProveedor | null;
   /** Las demás señales de la persona con esta entidad (financió la campaña, candidato del que gobierna…): sólo el tipo. */
@@ -82,6 +84,33 @@ export interface OrdenFraccionada {
 }
 
 /** El pariente declarado en la DJI que figura en la empresa (sin nombre ni documento: el parentesco, el cargo y su papel). */
+/**
+ * En observación (migraciones 364-370): la orden se emitió a una empresa en la que figura un familiar declarado de quien
+ * tenía un puesto de compras en la entidad, con esa persona en el puesto.
+ */
+export interface ComprasFamiliarOrden {
+  /** El puesto de compras, con las palabras de su declaración jurada. */
+  cargo: string;
+  /** Como lo escribe la DJI («CONYUGE», «HERMANO(A) DEL DECLARANTE»). */
+  parentesco: string | null;
+  cercano: boolean;
+  /** El papel del familiar en la empresa (RNP), separado por comas. */
+  rol: string | null;
+  desde: string | null;
+  /** El cese o, sin cese (`sinCese`), la fecha de su última declaración que nombra el puesto. */
+  hasta: string | null;
+  sinCese: boolean;
+  /** Órdenes de la entidad a la empresa con la persona en el puesto, y lo que suman. */
+  ordenes: number | null;
+  monto: number | null;
+  /** Órdenes de la entidad a la empresa antes de que asumiera. */
+  antes: number | null;
+  /** La ficha de quien tiene el puesto. */
+  codigo: string | null;
+  severidad: "alta" | "media" | "baja";
+  clave: string;
+}
+
 export interface ParienteSocio {
   /** Como lo escribe la DJI («CUÑADO(A)», «HERMANO(A) DEL DECLARANTE»); «pariente» si el funcionario es autoridad electa. */
   parentesco: string | null;
@@ -205,6 +234,8 @@ export const ANTECEDENTES_ORDEN = [
   { valor: "pariente_socio", etiqueta: "Empresa de un pariente de un funcionario", grupo: DE_LA_ORDEN },
   // La empresa recibió su primera orden directa a 90 días o menos de crearse (migración 355).
   { valor: "recien_creada", etiqueta: "Empresa recién creada", grupo: DE_LA_ORDEN },
+  // En observación (migraciones 364-370): emitida a la empresa de un familiar de quien tenía un puesto de compras.
+  { valor: "compras_familiar", etiqueta: "Empresa de un familiar de quien trabaja en compras (en observación)", grupo: DE_LA_ORDEN },
   // Persona o empresa con la mitad o más de las órdenes de la entidad así (migraciones 179 y 207).
   { valor: "al_borde_del_tope", etiqueta: "Al borde del tope (95 % a 100 %)", grupo: DE_LA_ORDEN },
   { valor: "inhabilitado", etiqueta: "Proveedor inhabilitado al emitirse", grupo: DE_LA_ORDEN },

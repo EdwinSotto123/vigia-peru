@@ -280,7 +280,7 @@ empresasRouter.get("/:ruc", async (c) => {
   const ruc = c.req.param("ruc");
   if (!RUC_EMPRESA.test(ruc)) return c.json({ error: "not_found" }, 404);
   const cuerpo = await fichaMemo.obtener(`ficha:${ruc}`, async () => {
-    const [e, anual, catalogo, exAutoridad] = await Promise.all([
+    const [e, anual, catalogo, exAutoridad, comprasFamilia] = await Promise.all([
       pool.query(
         `SELECT ${FILA_EMPRESA}, e.adj_monto_dudoso::float AS "adjMontoDudoso", e.adj_otra_moneda AS "adjOtraMoneda",
                 e.ord_monto_dudoso::float AS "ordMontoDudoso", to_char(e.fecha_alta, 'YYYY-MM-DD') AS "fechaAlta", e.domicilio,
@@ -342,6 +342,12 @@ empresasRouter.get("/:ruc", async (c) => {
       pool.query<{ casos: number; graves: number }>(
         `SELECT count(*)::int AS casos, (count(*) FILTER (WHERE severidad = 'alta'))::int AS graves FROM autoridad_exsocio_venta WHERE ruc_empresa = $1`, [ruc])
         .then((r) => r.rows[0] ?? null).catch(() => null),
+      // En observación (migraciones 364-369): un socio, representante o directivo suyo es familiar declarado de quien
+      // tiene un puesto de compras en una entidad que le compra.
+      pool.query<{ casos: number; graves: number }>(
+        `SELECT count(*)::int AS casos, (count(*) FILTER (WHERE severidad = 'alta'))::int AS graves
+           FROM funcionario_compras_familiar WHERE empresa_ruc = $1 AND tipo_cargo = 'compras' AND severidad IN ('alta', 'media')`, [ruc])
+        .then((r) => r.rows[0] ?? null).catch(() => null),
     ]);
     const fila = e.rows[0];
     if (!fila) return fichaMenoresOnly(ruc);
@@ -349,7 +355,10 @@ empresasRouter.get("/:ruc", async (c) => {
     const antecedentes = ((fila.cruces as { tipo: string; severidad: string; n: number }[] | null) ?? [])
       .map((x) => ({ ...x, etiqueta: ETIQUETA_CRUCE[x.tipo] ?? x.tipo }));
     return publicar({
-      empresa: { ...conNombre(fila), catalogo: catalogo?.rows[0] ?? null, exAutoridad: exAutoridad?.casos ? exAutoridad : null },
+      empresa: {
+        ...conNombre(fila), catalogo: catalogo?.rows[0] ?? null, exAutoridad: exAutoridad?.casos ? exAutoridad : null,
+        comprasFamilia: comprasFamilia?.casos ? comprasFamilia : null,
+      },
       antecedentes, anual: anual.rows,
     });
   });
