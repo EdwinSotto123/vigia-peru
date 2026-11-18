@@ -231,6 +231,12 @@ function PersonaDeLaEmpresa({ p, ruc, tipos }: { p: Persona; ruc: string; tipos:
             <dt className="text-mute">En la empresa desde</dt>
             <dd className="font-mono tabular-nums text-ink">{p.desde ? fechaCorta(p.desde) : <span className="font-sans text-mute">Sin fecha</span>}</dd>
           </div>
+          {p.salio && (
+            <div>
+              <dt className="text-mute">Ya no figura</dt>
+              <dd className="text-ink">desde el corte del {fechaCorta(p.salio)}</dd>
+            </div>
+          )}
           <div>
             <dt className="text-mute">En otras empresas</dt>
             <dd className="text-ink">
@@ -318,7 +324,15 @@ export async function SociosEmpresa({
       id: `e-${i}`,
       href: s.ruc ? rutaEmpresa(s.ruc) : undefined,
       celdas: {
-        persona: <CeldaPrincipal titulo={s.nombre} meta={s.ruc ? [<Dato key="ruc" tipo="ruc" mono>{s.ruc}</Dato>] : undefined} />,
+        persona: (
+          <CeldaPrincipal
+            titulo={s.nombre}
+            meta={[
+              s.ruc ? <Dato key="ruc" tipo="ruc" mono>{s.ruc}</Dato> : null,
+              s.salio ? <span key="salio">Ya no figura desde el corte del {fechaCorta(s.salio)}</span> : null,
+            ]}
+          />
+        ),
         papel: <span className="text-meta text-ink">{papeles(s.roles)}</span>,
         desde: <CeldaFecha fecha={s.desde} />,
         otras: <CeldaNumero><span className="font-sans text-mute">No aplica</span></CeldaNumero>,

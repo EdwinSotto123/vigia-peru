@@ -964,7 +964,12 @@ empresasRouter.get("/:ruc/socios", async (c) => {
                 -- (1,241 casos en PROD, 2026-10-29), que salían como «empresa socia» con el nombre completo. Van a personas.
                 r.numero_documento ~ '^20[0-9]{9}$' AS es_empresa,
                 CASE WHEN r.numero_documento ~ '^20[0-9]{9}$' THEN r.numero_documento END AS ruc,
-                max(r.forma_societaria) AS forma, to_char(max(r.fecha_corte), 'YYYY-MM-DD') AS corte,
+                max(r.forma_societaria) AS forma,
+                -- El archivo del RNP es el registro entero de cada mes: vale el último corte cargado (la fila más nueva), no
+                -- el corte en que entró cada vínculo (migración 360).
+                (SELECT to_char(u.fecha_corte, 'YYYY-MM-DD') FROM rnp_conformacion_juridica u ORDER BY u.id DESC LIMIT 1) AS corte,
+                -- Dejó de figurar en la empresa: todos sus papeles tienen baja; desde qué corte.
+                CASE WHEN bool_and(r.baja_corte IS NOT NULL) THEN to_char(max(r.baja_corte), 'YYYY-MM-DD') END AS salio,
                 (SELECT count(DISTINCT r2.ruc_empresa)::int FROM rnp_conformacion_juridica r2
                   WHERE r2.numero_documento = r.numero_documento AND r2.ruc_empresa <> $1 AND r2.ruc_empresa LIKE '20%') AS "otrasEmpresas",
                 -- Lo que la persona es en el Estado, por su DNI (que no sale de aquí; plan 2026-10-27, fase 2): locador (y
@@ -1040,7 +1045,7 @@ empresasRouter.get("/:ruc/socios", async (c) => {
       // Las personas bajo `socios` (publicar() les tapa un apellido, en orden SUNAT, salvo a las autoridades electas); las
       // empresas socias, aparte y completas.
       socios: socios.rows.filter((s) => !s.es_empresa).map((s) => ({
-        nombre: s.nombre, ...marcaElecto(s.electo), roles: roles(s.roles), desde: s.desde, otrasEmpresas: s.otrasEmpresas,
+        nombre: s.nombre, ...marcaElecto(s.electo), roles: roles(s.roles), desde: s.desde, salio: s.salio ?? null, otrasEmpresas: s.otrasEmpresas,
         enElEstado: s.locador || s.autoridad || s.candidaturas || s.aportes
           ? {
               locador: s.locador ?? null, autoridad: s.autoridad ?? null, candidaturas: s.candidaturas ?? 0, aportes: s.aportes ?? null,
@@ -1049,7 +1054,7 @@ empresasRouter.get("/:ruc/socios", async (c) => {
           : null,
       })),
       declaradaDji: declarada.rows,
-      empresasSocias: socios.rows.filter((s) => s.es_empresa && /^20\d{9}$/.test(s.ruc ?? "")).map((s) => ({ ruc: s.ruc, nombre: s.nombre, roles: roles(s.roles), desde: s.desde })),
+      empresasSocias: socios.rows.filter((s) => s.es_empresa && /^20\d{9}$/.test(s.ruc ?? "")).map((s) => ({ ruc: s.ruc, nombre: s.nombre, roles: roles(s.roles), desde: s.desde, salio: s.salio ?? null })),
       sociaDe: sociaDe.rows.map((s) => ({ ...s, roles: roles(s.roles) })),
       corte: socios.rows[0]?.corte ?? null,
       vinculadas: vinculadas.rows.map((v) => ({
