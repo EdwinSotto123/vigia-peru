@@ -51,7 +51,9 @@ export const SEGUIMIENTO_INVERSIONES = "https://ofi5.mef.gob.pe/ssi/";
 export const SEACE_MENORES = "https://prod6.seace.gob.pe/buscador-publico";
 export const SEACE_CONTRATOS = "https://prod4.seace.gob.pe/contratos/publico/";
 
-export const DATASET_SANCIONADOS = datasetPnda("proveedores-sancionados-2025");
+/** Proveedores sancionados por el Tribunal: la página de la wiki de datos abiertos del OECE de la que se cargan (semanal;
+ * el dataset de la PNDA dejó de actualizarse en junio de 2026). */
+export const DATASET_SANCIONADOS = "https://osce-gob-pe.atlassian.net/wiki/pages/viewpage.action?pageId=106889269";
 export const DATASET_PENALIDADES = datasetPnda("penalidades-de-contratistas-organismo-especializado-para-las-contrataciones-p%C3%BAblicas");
 export const DATASET_AUTORIDADES_JNE = datasetPnda("autoridades-vigentes-nivel-nacional-jurado-nacional-de-elecciones");
 export const DATASET_SOCIOS_RNP = datasetPnda("personas-declaradas-en-la-conformaci%C3%B3n-jur%C3%ADdica-de-proveedores-en-el-registro-nacional-de");

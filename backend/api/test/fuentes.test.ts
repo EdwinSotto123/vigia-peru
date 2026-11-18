@@ -13,7 +13,8 @@ test("el proceso del OECE va siempre con el OCID completo (con el código solo n
 });
 
 test("las direcciones rotas que guardó la base se arreglan al leer", () => {
-  assert.match(arreglarUrl("osce_sancionados", "https://www.gob.pe/tce")!, /dataset\/proveedores-sancionados-2025$/);
+  // Desde el 2026-11-18 las sanciones se cargan de la wiki de datos abiertos del OECE (la PNDA dejó de actualizarse).
+  assert.match(arreglarUrl("osce_sancionados", "https://www.gob.pe/tce")!, /osce-gob-pe\.atlassian\.net\/wiki\/.*pageId=106889269$/);
   assert.match(arreglarUrl("penalidades", "https://www.datosabiertos.gob.pe/dataset/penalidades-aplicadas-contratos-oece")!, /penalidades-de-contratistas/);
   assert.match(arreglarUrl("jne_autoridades", "https://www.datosabiertos.gob.pe/dataset/autoridades-vigentes-jne")!, /autoridades-vigentes-nivel-nacional/);
   assert.equal(arreglarUrl("x", "https://contratacionesabiertas.oece.gob.pe/proceso/84547"),

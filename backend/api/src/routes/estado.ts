@@ -73,7 +73,9 @@ export const FUENTES: FuentePublica[] = [
     hasta: `SELECT to_char(max(creado_at) AT TIME ZONE 'America/Lima', 'YYYY-MM-DD') AS v FROM documentos_gcs` },
   { clave: "sancionados", nombre: "Sanciones del Tribunal", que: "Proveedores inhabilitados y multados (OECE).", cada: 10, cadencia: "Semanal", claves: ["pnda_sancionados"],
     enlace: DATASET_SANCIONADOS,
-    hasta: `SELECT to_char(max(fecha_resolucion), 'YYYY-MM-DD') AS v FROM osce_sancionados WHERE fecha_resolucion <= current_date` },
+    // La wiki del OECE (desde el 2026-11-18) no trae la fecha de la resolución: vale el inicio de la sanción.
+    hasta: `SELECT to_char(max(COALESCE(fecha_resolucion, fecha_desde)), 'YYYY-MM-DD') AS v FROM osce_sancionados
+             WHERE COALESCE(fecha_resolucion, fecha_desde) <= current_date` },
   { clave: "penalidades", nombre: "Penalidades a contratistas", que: "Las penalidades que las entidades aplicaron por incumplir un contrato (OECE).", cada: 10, cadencia: "Semanal", claves: ["osce_penalidades"],
     enlace: DATASET_PENALIDADES,
     hasta: `SELECT to_char(max(fecha), 'YYYY-MM-DD') AS v FROM penalidades WHERE fecha <= current_date` },
