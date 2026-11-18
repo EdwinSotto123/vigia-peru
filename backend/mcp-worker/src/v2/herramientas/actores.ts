@@ -957,6 +957,7 @@ export const patrones = definir({
         total: r.total,
         casos: ((r.data ?? []) as Fila[]).map((x) => ({
           empresa_que_gana: x.empresa, ruc: x.ruc, enlace: e.empresa(x.ruc), persona: x.socios?.[0]?.nombre ?? undefined, papel_en_la_empresa: x.socios?.[0]?.rol,
+          ficha_del_caso: x.clave ? `${cx.env.VIGIA_URL}/app/patrones/caso/control/${x.clave}` : undefined,
           informe_de_control: x.informeNumero ?? x.informeCodigo, entidad_del_informe: x.informeEntidad, fecha_del_informe: x.emision,
           responsabilidad_presunta: x.responsabilidades, otros_informes_de_la_persona: Math.max(0, Number(x.informes ?? 1) - 1),
           ficha_del_informe: x.ficha ?? undefined, informe_de_la_misma_entidad_que_contrato: x.mismaEntidad === true ? true : undefined,

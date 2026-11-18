@@ -1026,7 +1026,7 @@ export function detalleControl(p: PatronControl): Detalle {
         <p className="text-rotulo leading-relaxed text-mute">La responsabilidad es presunta: la Contraloría la señala y la deriva; no es una condena ni un impedimento para contratar.</p>
       </div>
     ),
-    pie: <Pie enlaces={[esRuc20(p.ruc) && { texto: "Ficha de la empresa", href: `/empresa/${p.ruc}` }, esRuc20(p.informeEntidadRuc) && { texto: "Informes de esa entidad", href: `/entidad/${p.informeEntidadRuc}?seccion=control` }]} />,
+    pie: <Pie enlaces={[!!p.clave && { texto: "Abrir la ficha del caso", href: rutaCaso("control", p.clave) }, esRuc20(p.ruc) && { texto: "Ficha de la empresa", href: `/empresa/${p.ruc}` }]} />,
   };
 }
 

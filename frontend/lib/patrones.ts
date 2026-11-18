@@ -364,6 +364,8 @@ export interface PatronesInhabilitadas {
 
 /** Una empresa que gana con un socio o representante comprendido en un informe de control anterior (migraciones 303 y 307). */
 export interface PatronControl {
+  /** La clave opaca de su ficha de caso. */
+  clave?: string;
   ruc: string;
   empresa: string | null;
   /** La persona, con un apellido tapado, y su papel en la empresa. */

@@ -43,7 +43,7 @@ import { papelesRnp } from "../lib/familiaFuncionario.js";
 import { ETIQUETA_CRUCE, catalogoSenales, nombrePublicable } from "../lib/cruces.js";
 import { depurarReferencias } from "../lib/laboratorioPrecios.js";
 import { taparNombrePropio } from "./personas.js";
-import { casoAutoridad, casoComprasFamilia, casoDueno, casoGrupo, casoInhabilitada, casoRenovacion, sqlClaveAutoridad, sqlClaveRenovacion, casoRecien, casoRelleno, casoRepetida, salDeClaves, sqlClaveInhabilitada, sqlClaveDueno, sqlClaveGrupo, sqlClaveRecien, sqlClaveRelleno, sqlClaveRepetida, type CasoPatron, type Pedir } from "../lib/casoPatron.js";
+import { casoAutoridad, casoComprasFamilia, casoControl, sqlClaveControl, casoDueno, casoGrupo, casoInhabilitada, casoRenovacion, sqlClaveAutoridad, sqlClaveRenovacion, casoRecien, casoRelleno, casoRepetida, salDeClaves, sqlClaveInhabilitada, sqlClaveDueno, sqlClaveGrupo, sqlClaveRecien, sqlClaveRelleno, sqlClaveRepetida, type CasoPatron, type Pedir } from "../lib/casoPatron.js";
 
 export const patronesRouter = new Hono();
 
@@ -310,6 +310,7 @@ patronesRouter.get("/control", async (c) => {
     if (q.ruc) conds.push(`(x.ruc = ${add(q.ruc)} OR x.informe_entidad_ruc = $${vals.length} OR $${vals.length} = ANY(x.ents))`);
     if (q.graves) conds.push("x.graves > 0");
     if (q.misma) conds.push("x.misma");
+    if (q.clave) conds.push(`x.clave = ${add(q.clave)}`);
     const donde = conds.length ? `WHERE ${conds.join(" AND ")}` : "";
     // Unas 6 700 banderas: se agrupan al vuelo (la respuesta queda en memoria). El documento de la persona no sale de la
     // consulta: sólo agrupa. El informe que se muestra es el MÁS ANTIGUO de la persona entre los de sus banderas: así
@@ -318,6 +319,7 @@ patronesRouter.get("/control", async (c) => {
     const r = await pool.query(
       `WITH x AS (
          SELECT c.ruc_empresa AS ruc, max(c.persona_nombre) AS nombre, max(c.detalle->>'rol_en_empresa') AS rol,
+                ${sqlClaveControl(add(salDeClaves()), "c.ruc_empresa", "c.persona_doc")} AS clave,
                 (array_agg(c.detalle->>'informe_codigo' ORDER BY c.detalle->>'emision', c.fecha))[1] AS informe_codigo,
                 (array_agg(c.detalle->>'informe_numero' ORDER BY c.detalle->>'emision', c.fecha))[1] AS informe_numero,
                 (array_agg(c.detalle->>'informe_entidad' ORDER BY c.detalle->>'emision', c.fecha))[1] AS informe_entidad,
@@ -337,7 +339,7 @@ patronesRouter.get("/control", async (c) => {
           GROUP BY c.ruc_empresa, c.persona_doc)
        SELECT x.ruc, e.razon_social AS empresa, x.nombre, x.rol, x.informe_codigo AS "informeCodigo", x.informe_numero AS "informeNumero",
               x.informe_entidad AS "informeEntidad", x.informe_entidad_ruc AS "informeEntidadRuc", x.emision, x.responsabilidades, x.ficha,
-              x.informes, x.contratos, x.graves, x.monto, x.entidades, x.misma AS "mismaEntidad",
+              x.informes, x.contratos, x.graves, x.monto, x.entidades, x.misma AS "mismaEntidad", x.clave,
               to_char(x.desde, 'YYYY-MM-DD') AS desde, to_char(x.hasta, 'YYYY-MM-DD') AS hasta, x.ejemplos, (count(*) OVER ())::int AS total
          FROM x LEFT JOIN empresas e ON e.ruc = x.ruc ${donde}
         ORDER BY x.misma DESC, x.graves DESC, x.contratos DESC, x.monto DESC NULLS LAST, x.ruc LIMIT ${add(q.size)} OFFSET ${add((q.page - 1) * q.size)}`, vals);
@@ -1180,6 +1182,7 @@ const CASOS: Record<string, (clave: string, pedir: Pedir) => Promise<CasoPatron 
   relleno: casoRelleno,
   inhabilitadas: casoInhabilitada,
   autoridad: casoAutoridad,
+  control: casoControl,
   renovaciones: casoRenovacion,
   repetidas: casoRepetida,
   recien: casoRecien,

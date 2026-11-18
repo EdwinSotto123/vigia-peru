@@ -1538,3 +1538,127 @@ export async function casoRenovacion(clave: string, pedir: Pedir): Promise<CasoP
     como_leerlo: "Un servicio que la entidad volvió a contratar pagando 30 % o más por mes que en el contrato anterior. Un patrón es un motivo para mirar, no una acusación.",
   };
 }
+
+// ─── Gana contratos una empresa cuyo socio o representante figura en un informe de control (migración 302-308) ──
+
+/** Agrupa por el documento de la persona: con sal, la clave no lo revela. */
+export const sqlClaveControl = (sal: string, ruc: string, doc: string) => `left(md5(${sal} || ${ruc} || '|' || ${doc}), 16)`;
+const RESP: Record<string, string> = { penal: "penal", civil: "civil", administrativa_entidad: "administrativa", administrativa_pas: "administrativa", administrativa: "administrativa" };
+
+export async function casoControl(clave: string, pedir: Pedir): Promise<CasoPatron | null> {
+  const k = await pool.query<{ ruc: string; doc: string }>(
+    `SELECT DISTINCT c.ruc_empresa AS ruc, c.persona_doc AS doc FROM cruces_proveedor c
+      WHERE c.tipo = 'socio_con_informe_control' AND c.persona_doc IS NOT NULL
+        AND ${sqlClaveControl("$2", "c.ruc_empresa", "c.persona_doc")} = $1 LIMIT 1`, [clave, salDeClaves()]);
+  const id = k.rows[0];
+  if (!id) return null;
+  const [lista, contratos, sunat] = await Promise.all([
+    pedir(`/control?ruc=${id.ruc}&clave=${clave}&size=1`),
+    pool.query<{ ocid: string; severidad: string | null; fecha: string | null; monto: number | null; detalle: Record<string, any>; entidad_ruc: string | null; entidad: string | null; objeto: string | null; codigo: string | null }>(
+      `SELECT DISTINCT ON (c.ocid) c.ocid, c.severidad, to_char(c.fecha, 'YYYY-MM-DD') AS fecha, c.monto::float AS monto, c.detalle,
+              cv.entidad_ruc, (SELECT es.nombre FROM entidad_stats es WHERE es.ruc = cv.entidad_ruc) AS entidad, left(cv.objeto, 220) AS objeto, cv.codigo
+         FROM cruces_proveedor c JOIN convocatorias cv ON cv.ocid = c.ocid
+        WHERE c.tipo = 'socio_con_informe_control' AND c.ruc_empresa = $1 AND c.persona_doc = $2
+        ORDER BY c.ocid, (c.severidad = 'alta') DESC`, [id.ruc, id.doc]),
+    empresaSunat(id.ruc),
+  ]);
+  const f = (lista?.data ?? [])[0] as Record<string, any> | undefined;
+  if (!f || !contratos.rows.length) return null;
+  const emp = titulo(f.empresa ?? sunat?.nombre ?? "La empresa");
+  const persona = String(((f.socios ?? [])[0] as { nombre?: string } | undefined)?.nombre ?? "Una persona");
+  const rol = String(((f.socios ?? [])[0] as { rol?: string } | undefined)?.rol ?? "Socio").toLowerCase();
+  const infEnt = f.informeEntidad ? titulo(f.informeEntidad) : "una entidad";
+  const resp = [...new Set(((f.responsabilidades ?? []) as string[]).map((r) => RESP[r] ?? r))];
+  const respTexto = resp.length ? (resp.length > 1 ? `${resp.slice(0, -1).join(", ")} y ${resp[resp.length - 1]}` : resp[0]) : null;
+  const cs = [...contratos.rows].sort((a, b) => (b.fecha ?? "").localeCompare(a.fecha ?? ""));
+  const despues = (fecha: string | null) => !!fecha && !!f.emision && fecha >= String(f.emision).slice(0, 10);
+
+  const porEntidad = new Map<string, { nombre: string; n: number; monto: number }>();
+  for (const c of cs) {
+    if (!c.entidad_ruc) continue;
+    const x = porEntidad.get(c.entidad_ruc) ?? { nombre: titulo(c.entidad ?? "Entidad"), n: 0, monto: 0 };
+    x.n += 1;
+    x.monto += c.monto ?? 0;
+    porEntidad.set(c.entidad_ruc, x);
+  }
+  const entidades = [...porEntidad.entries()].sort((a, b) => b[1].monto - a[1].monto).slice(0, 6);
+  const nodos: NodoCaso[] = [
+    { id: "p1", tipo: "persona", nombre: persona, rol: `Comprendido en un informe de control; ${rol} de la empresa`, severidad: resp.includes("penal") ? "alta" : "media",
+      datos: [
+        { etiqueta: "Informe", valor: `${f.informeNumero ?? f.informeCodigo ?? "Sin número"}${f.emision ? `, del ${fechaLarga(String(f.emision))}` : ""}` },
+        { etiqueta: "Entidad controlada", valor: infEnt },
+        respTexto ? { etiqueta: "Responsabilidad que señala", valor: respTexto } : null,
+        f.informes > 1 ? { etiqueta: "Informes en que figura", valor: miles(f.informes) } : null,
+      ].filter((x): x is { etiqueta: string; valor: string } => !!x) },
+    { id: "m", tipo: "empresa", nombre: emp, rol: "Gana contratos con esa persona en su conformación", href: `/empresa/${id.ruc}?seccion=antecedentes&atipo=patron-control`, monto: f.monto, ordenes: f.contratos, severidad: f.graves ? "alta" : "media",
+      datos: [sunat?.alta ? { etiqueta: "Fundada (SUNAT)", valor: fechaLarga(sunat.alta) } : null].filter((x): x is { etiqueta: string; valor: string } => !!x) },
+  ];
+  const aristas: AristaCaso[] = [{ de: "p1", a: "m", tipo: "socio", texto: rol }];
+  if (f.informeEntidadRuc && !porEntidad.has(f.informeEntidadRuc)) {
+    nodos.push({ id: "c", tipo: "entidad", nombre: infEnt, rol: "La entidad del informe de control", href: `/entidad/${f.informeEntidadRuc}?seccion=control` });
+    aristas.push({ de: "p1", a: "c", tipo: "otro", texto: "comprendido en su informe de control" });
+  }
+  entidades.forEach(([ruc, x], i) => {
+    const misma = ruc === f.informeEntidadRuc;
+    nodos.push({ id: `e${i + 1}`, tipo: "entidad", nombre: x.nombre, rol: misma ? "La misma entidad del informe, y le adjudicó" : `Le adjudicó ${plural(x.n, "contrato", "contratos")}`, monto: x.monto, severidad: misma ? "alta" : null, href: `/entidad/${ruc}?seccion=patrones&patron=control` });
+    aristas.push({ de: "m", a: `e${i + 1}`, tipo: "vende", texto: `${plural(x.n, "contrato", "contratos")} por ${soles(x.monto)}` });
+    if (misma) aristas.push({ de: "p1", a: `e${i + 1}`, tipo: "otro", texto: "comprendido en su informe de control" });
+  });
+
+  const hitos: HitoCaso[] = [];
+  if (sunat?.alta) hitos.push({ fecha: sunat.alta, tipo: "fundacion", titulo: `Se funda ${emp}`, nodos: ["m"], fuente: "SUNAT (padrón RUC)" });
+  if (f.emision) hitos.push({ fecha: String(f.emision).slice(0, 10), tipo: "otro", severidad: resp.includes("penal") ? "alta" : "media", titulo: `La Contraloría emite el informe ${f.informeNumero ?? ""} sobre ${infEnt}`.replace(/\s+/g, " "), detalle: `${persona} figura entre los comprendidos${respTexto ? `; responsabilidad ${respTexto} (presunta)` : ""}.`, nodos: ["p1"], fuente: "Contraloría General de la República", href: f.informeEntidadRuc ? `/entidad/${f.informeEntidadRuc}?seccion=control` : null });
+  for (const c of cs.slice(0, 40)) {
+    if (!c.fecha) continue;
+    const misma = c.entidad_ruc === f.informeEntidadRuc;
+    hitos.push({
+      fecha: c.fecha, tipo: "dia", severidad: c.severidad === "alta" ? "alta" : "media", monto: c.monto,
+      titulo: `${emp} gana${c.entidad ? ` en ${titulo(c.entidad)}` : ""}${misma ? ", la misma entidad del informe" : ""}${despues(c.fecha) ? "" : " (antes del informe)"}`,
+      detalle: c.objeto ? `«${c.objeto.slice(0, 140)}»` : c.codigo, nodos: ["m"], fuente: "SEACE (OECE)", href: rutaContrato(c.ocid),
+    });
+  }
+  hitos.sort((a, b) => a.fecha.localeCompare(b.fecha) || a.tipo.localeCompare(b.tipo));
+
+  const razones: RazonCaso[] = ([
+    { titulo: "Ganó después del informe", cifra: plural(cs.filter((c) => despues(c.fecha)).length, "contrato", "contratos"), texto: `Contratos que ganó la empresa con ${persona} en su conformación, después de que la Contraloría lo comprendiera en un informe.`, severidad: "media" },
+    f.mismaEntidad ? { titulo: "En la misma entidad del informe", cifra: "Sí", texto: "La entidad que la Contraloría revisó le volvió a adjudicar.", severidad: "alta" } : null,
+    respTexto ? { titulo: "Lo que señaló la Contraloría", cifra: respTexto.charAt(0).toUpperCase() + respTexto.slice(1), texto: "Una responsabilidad presunta, no una condena: la deriva a quien corresponde (la entidad, el procurador, la Fiscalía).", severidad: resp.includes("penal") ? "alta" : "media" } : null,
+    { titulo: "Lo que no dice", cifra: "Presunta", texto: "Figurar en un informe no impide contratar por sí solo; lo que pesa es que la misma entidad o el mismo tipo de hecho se repita.", severidad: null },
+  ] as (RazonCaso | null)[]).filter((x): x is RazonCaso => !!x);
+
+  const filas: FilaEvidencia[] = cs.map((c, i) => ({
+    id: `c${i}`, fecha: c.fecha, documento: c.codigo ?? c.ocid, quien: c.entidad ? titulo(c.entidad) : null, que: c.objeto, monto: c.monto,
+    marcas: [...(c.entidad_ruc === f.informeEntidadRuc ? ["la misma entidad del informe"] : []), despues(c.fecha) ? "después del informe" : "antes del informe"], href: rutaContrato(c.ocid),
+  }));
+  return {
+    tipo: "control", clave, patron: "Socio o representante en un informe de control",
+    titulo: `${emp} gana contratos con alguien comprendido en un informe de control`,
+    severidad: f.graves ? "alta" : "media",
+    frase: `La Contraloría comprendió a ${persona} en el informe ${f.informeNumero ?? f.informeCodigo ?? ""} sobre ${infEnt}${f.emision ? `, del ${fechaLarga(String(f.emision))}` : ""}${respTexto ? ` (responsabilidad ${respTexto}, presunta)` : ""}. Es ${rol} de ${emp}, que ganó ${plural(f.contratos, "contrato", "contratos")} por ${soles(f.monto)} en ${plural(f.entidades, "entidad", "entidades")}${f.mismaEntidad ? ", entre ellas la misma entidad del informe" : ""}.`.replace(/\s+/g, " "),
+    entidad: null, desde: f.desde ?? null, hasta: f.hasta ?? null,
+    cifras: [
+      { etiqueta: "Contratos ganados", valor: miles(f.contratos), contexto: `por ${soles(f.monto)}` },
+      { etiqueta: "De señal alta", valor: miles(f.graves ?? 0), contexto: null },
+      { etiqueta: "Entidades", valor: miles(f.entidades), contexto: f.mismaEntidad ? "incluida la del informe" : null },
+      { etiqueta: "Informes en que figura", valor: miles(f.informes ?? 1), contexto: null },
+    ],
+    serie: null, nodos, aristas, hitos, razones,
+    evidencia: { titulo: `Los contratos que ganó ${emp}`, unidad: "contratos", total: cs.length, filas, nota: null, masHref: `/empresa/${id.ruc}?seccion=antecedentes` },
+    revisar: [
+      "Lee la ficha resumen del informe: qué hecho encontró la Contraloría y qué papel tuvo la persona.",
+      "En la misma entidad, revisa si los contratos posteriores repiten el tipo de hecho observado.",
+      "Pregunta a la Procuraduría o a la Fiscalía en qué quedó la responsabilidad que señaló el informe.",
+    ],
+    fuentes: [
+      { texto: "Informes de control (Contraloría General de la República)", href: "https://www.gob.pe/contraloria" },
+      { texto: "Socios, representantes y directivos (Registro Nacional de Proveedores)", href: DATASET_SOCIOS_RNP },
+      { texto: "Procesos y contratos (SEACE, OECE)", href: CONOSCE_BUSCADOR },
+    ],
+    relacionados: [
+      { texto: `Ficha de ${emp}`, href: `/empresa/${id.ruc}` },
+      ...(f.informeEntidadRuc ? [{ texto: `Los informes de control de ${infEnt}`, href: `/entidad/${f.informeEntidadRuc}?seccion=control` }] : []),
+      { texto: "Todos los casos del país", href: "/app/patrones?seccion=control" },
+    ],
+    como_leerlo: "Una empresa gana contratos con un socio o representante que la Contraloría comprendió en un informe de control. Figurar en un informe es una responsabilidad presunta, no una condena. Un patrón es un motivo para mirar, no una acusación.",
+  };
+}

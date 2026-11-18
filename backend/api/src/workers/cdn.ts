@@ -120,8 +120,9 @@ const GUARDADO = "X-Vigia-Guardado";
  * "127": las listas de patrones traen `clave` (la de su ficha de caso, /app/patrones/caso/…): guardadas antes, el panel no
  *        tenía «Abrir la ficha del caso» (2026-11-18).
  * "128": también las de autoridad que dejó su empresa y renovaciones más caras.
+ * "129": y la de socios con informe de control.
  */
-const VERSION_CACHE = "128";
+const VERSION_CACHE = "129";
 
 function cacheable(req: Request): boolean {
   if (req.method !== "GET") return false;
