@@ -576,7 +576,8 @@ ordenesRouter.get("/resumen", async (c) => {
  * `hasta`, a cuántas personas naturales (y cuántas no habían recibido nunca una orden de la entidad desde 2018), a cuántas
  * empresas, por qué conceptos y quiénes fueron las empresas, contra las mismas fechas un año antes.
  *
- * Privacidad: de las personas naturales (RUC que no empieza en 20) sólo cuentas; un concepto sale si lo comparten tres
+ * Personas = RUC 10 (como la serie «órdenes a personas» de la historia); empresas = RUC 20; los RUC 15 y 17 (también
+ * personas naturales) sólo cuentan en el total. Privacidad: de las personas naturales sólo cuentas; un concepto sale si lo comparten tres
  * proveedores o más (las primeras palabras de una descripción pueden ser un nombre). Las empresas, con su nombre.
  *
  * Rendimiento: cada periodo por su rango del índice (entidad, fecha) y «nuevo» una vez por proveedor por el índice
@@ -626,14 +627,14 @@ export function sqlVentanaOrdenes(): string {
                             AND p.fecha_emision >= DATE '2018-01-01'
                             AND p.fecha_emision < CASE WHEN x.antes THEN $4::date ELSE $2::date END) AS nuevo
         FROM (SELECT DISTINCT ruc, antes FROM o WHERE ruc IS NOT NULL) x),
-    w AS (SELECT o.*, o.ruc !~ '^20' AS persona, COALESCE(pr.nuevo, false) AS nuevo FROM o LEFT JOIN pr ON pr.ruc = o.ruc AND pr.antes = o.antes),
+    w AS (SELECT o.*, o.ruc ~ '^10' AS persona, o.ruc ~ '^20' AS empresa, COALESCE(pr.nuevo, false) AS nuevo FROM o LEFT JOIN pr ON pr.ruc = o.ruc AND pr.antes = o.antes),
     cifras AS (
       SELECT antes, count(*)::int AS ordenes, COALESCE(sum(monto), 0)::float AS monto,
              (count(*) FILTER (WHERE persona))::int AS "ordenesAPersonas", COALESCE(sum(monto) FILTER (WHERE persona), 0)::float AS "montoAPersonas",
              (count(DISTINCT ruc) FILTER (WHERE persona))::int AS personas, (count(DISTINCT ruc) FILTER (WHERE persona AND nuevo))::int AS "personasNuevas",
              (count(*) FILTER (WHERE persona AND nuevo))::int AS "ordenesAPersonasNuevas",
-             (count(DISTINCT ruc) FILTER (WHERE NOT persona))::int AS empresas, (count(DISTINCT ruc) FILTER (WHERE NOT persona AND nuevo))::int AS "empresasNuevas",
-             COALESCE(sum(monto) FILTER (WHERE NOT persona AND nuevo), 0)::float AS "montoEmpresasNuevas"
+             (count(DISTINCT ruc) FILTER (WHERE empresa))::int AS empresas, (count(DISTINCT ruc) FILTER (WHERE empresa AND nuevo))::int AS "empresasNuevas",
+             COALESCE(sum(monto) FILTER (WHERE empresa AND nuevo), 0)::float AS "montoEmpresasNuevas"
         FROM w GROUP BY antes)
     SELECT (SELECT es.nombre FROM entidad_stats es WHERE es.ruc = $1) AS entidad,
            (SELECT row_to_json(c) FROM cifras c WHERE NOT c.antes) AS ventana,
@@ -641,11 +642,11 @@ export function sqlVentanaOrdenes(): string {
            (SELECT COALESCE(json_agg(y ORDER BY y.ordenes DESC), '[]') FROM (SELECT x.* FROM (
               SELECT array_to_string((regexp_split_to_array(btrim(regexp_replace(upper(unaccent(COALESCE(descripcion, ''))), '[^A-Z ]', ' ', 'g')), '\\s+'))[1:5], ' ') AS concepto,
                      count(*)::int AS ordenes, COALESCE(sum(monto), 0)::float AS monto,
-                     (count(DISTINCT ruc) FILTER (WHERE persona))::int AS personas, (count(DISTINCT ruc) FILTER (WHERE NOT persona))::int AS empresas
+                     (count(DISTINCT ruc) FILTER (WHERE persona))::int AS personas, (count(DISTINCT ruc) FILTER (WHERE empresa))::int AS empresas
                 FROM w WHERE NOT antes GROUP BY 1 HAVING count(DISTINCT ruc) >= 3) x WHERE x.concepto <> '' ORDER BY x.ordenes DESC LIMIT 12) y) AS conceptos,
            (SELECT COALESCE(json_agg(x ORDER BY x.monto DESC), '[]') FROM (
               SELECT ruc, max(contratista) AS empresa, count(*)::int AS ordenes, COALESCE(sum(monto), 0)::float AS monto, bool_or(nuevo) AS nueva
-                FROM w WHERE NOT antes AND NOT persona GROUP BY 1 ORDER BY 4 DESC LIMIT 12) x) AS empresas`;
+                FROM w WHERE NOT antes AND empresa GROUP BY 1 ORDER BY 4 DESC LIMIT 12) x) AS empresas`;
 }
 
 ordenesRouter.get("/ventana", async (c) => {
