@@ -19,6 +19,21 @@ import { fetchLargo } from "@/lib/fetch-largo";
 export const dynamic = "force-dynamic";
 export const maxDuration = 3600;  // 60 min — Cloud Run max es 3600s
 
+/**
+ * Las direcciones de documentos que se le pasan al agente salen de /api/agent/upload-doc: el almacén de documentos de los
+ * procesos (`gs://` o su forma https). Cualquier otra se descarta: el agente las descarga con sus credenciales, y con
+ * `gs://vigia-peru-privado/…` (comprobantes) o una URL ajena una sesión del equipo podía hacerle leer lo que no es un
+ * documento de un proceso (auditoría del 2026-11-17).
+ */
+const DOCUMENTO_PROPIO = /^(?:gs:\/\/|https:\/\/storage\.googleapis\.com\/)(?:vigia-peru-documentos|vigia-peru-batch)\/[A-Za-z0-9._\/-]{1,600}$/;
+/** Un tramo «.» o «..»: el cliente HTTP del agente lo resuelve y saldría del almacén permitido. */
+const TRAMO_RELATIVO = /(?:^|\/)\.{1,2}(?:\/|$)/;
+function soloDocumentosPropios(v: unknown): Record<string, string> {
+  if (!v || typeof v !== "object") return {};
+  const propio = (u: unknown): u is string => typeof u === "string" && DOCUMENTO_PROPIO.test(u) && !TRAMO_RELATIVO.test(u.replace(/^[a-z]+:\/\//, ""));
+  return Object.fromEntries(Object.entries(v as Record<string, unknown>).filter((x): x is [string, string] => propio(x[1])).slice(0, 200));
+}
+
 export async function POST(req: NextRequest) {
   // Cada corrida cuesta: solo el equipo (cookie de admin verificada) puede dispararla.
   const noAdmin = await exigirAdmin(req);
@@ -51,7 +66,7 @@ export async function POST(req: NextRequest) {
         input,
         ocds: body.ocds ?? null,
         docs_b64: body.docs_b64 || {},
-        doc_urls: body.doc_urls || {},
+        doc_urls: soloDocumentosPropios(body.doc_urls),
       }),
     });
   } catch (e) {

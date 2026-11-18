@@ -132,6 +132,31 @@ def _fetch_doc_bytes(document_url: str, tool_context: ToolContext) -> tuple[byte
     parts.append(direct_error)
     return None, "failed", " · ".join(parts)
 
+# Los almacenes de donde el agente puede leer un documento. El lector de R2 (vigia-r2-sync) abre con el mismo token también
+# el almacén privado (comprobantes de pago) y el de reportes: una dirección que llega en `doc_urls` no debe poder pedirlos
+# (auditoría del 2026-11-17). Lista cerrada; un almacén nuevo se añade aquí.
+ALMACENES_DE_DOCUMENTOS = frozenset({"vigia-peru-documentos", "vigia-peru-batch"})
+
+
+def _almacen_permitido(url: str) -> bool:
+    """True si la dirección (gs://almacén/ruta o https://storage.googleapis.com/almacén/ruta) cae en un almacén de documentos.
+
+    En `gs://` la ruta es el nombre literal del objeto (no hay tramos que resolver). En la forma https el cliente HTTP sí
+    resuelve «.» y «..» (también escritos %2e): con uno de esos la petición saldría del almacén, y se rechaza."""
+    if url.startswith("gs://"):
+        almacen, _, ruta = url[5:].partition("/")
+        return almacen in ALMACENES_DE_DOCUMENTOS and bool(ruta)
+    prefijo = "https://storage.googleapis.com/"
+    if not url.startswith(prefijo):
+        return False
+    from urllib.parse import unquote
+    almacen, _, ruta = url[len(prefijo):].split("?", 1)[0].split("#", 1)[0].partition("/")
+    if almacen not in ALMACENES_DE_DOCUMENTOS or not ruta:
+        return False
+    ruta = unquote(unquote(ruta))
+    return "\\" not in ruta and not any(tramo in (".", "..") for tramo in ruta.split("/"))
+
+
 def _descargar_de_r2(gs_url: str) -> tuple[bytes | None, str | None]:
     """gs://bucket/ruta → el mismo objeto en R2, por el Worker vigia-r2-sync (réplica de GCS)."""
     base = os.getenv("R2_LECTOR_URL", "https://vigia-r2-sync.vigiaperu.workers.dev").rstrip("/")
@@ -140,6 +165,8 @@ def _descargar_de_r2(gs_url: str) -> tuple[bytes | None, str | None]:
     if "/" not in rest:
         return None, f"url GCS no parseable: {gs_url[:120]}"
     bucket_name, key = rest.split("/", 1)
+    if bucket_name not in ALMACENES_DE_DOCUMENTOS:
+        return None, "almacén no permitido"
     try:
         r = requests.get(f"{base}/objeto", params={"bucket": bucket_name, "key": key},
                          headers={"Authorization": f"Bearer {token}"}, timeout=120)
@@ -159,6 +186,8 @@ def _download_from_gcs(gcs_or_https_url: str) -> tuple[bytes | None, str | None]
     Para buckets privados con SA en Cloud Run, el path SDK se autentica con
     Application Default Credentials.
     """
+    if not _almacen_permitido(gcs_or_https_url):
+        return None, "almacén no permitido"
     if gcs_or_https_url.startswith("https://"):
         try:
             r = requests.get(gcs_or_https_url, timeout=60)

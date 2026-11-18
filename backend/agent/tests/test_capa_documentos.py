@@ -207,6 +207,38 @@ def test_la_descarga_no_casa_otro_documento_de_la_misma_ruta(monkeypatch):
     assert fuente == "gcs" and pedidos == ["gs://b/contrato.pdf"] and blob
 
 
+@pytest.mark.parametrize("url, permitido", [
+    ("gs://vigia-peru-batch/docs/ocds-dgv273-seacev3-1230001/bases (1) 100%.pdf", True),
+    ("gs://vigia-peru-documentos/convocatorias/1230001/BASES.pdf", True),
+    ("https://storage.googleapis.com/vigia-peru-documentos/convocatorias/1230001/BASES%20INTEGRADAS.pdf", True),
+    ("gs://vigia-peru-privado/comprobantes/1.jpg", False),
+    ("gs://vigia-peru-reportes/x.pdf", False),
+    ("gs://vigia-peru-batch", False),
+    ("https://storage.googleapis.com/vigia-peru-privado/comprobantes/1.jpg", False),
+    ("https://storage.googleapis.com/vigia-peru-documentos/../vigia-peru-privado/1.jpg", False),
+    ("https://storage.googleapis.com/vigia-peru-documentos/%2e%2e/vigia-peru-privado/1.jpg", False),
+    ("https://storage.googleapis.com/vigia-peru-documentos/%252e%252e/vigia-peru-privado/1.jpg", False),
+    ("https://storage.googleapis.com.ejemplo.pe/vigia-peru-documentos/x.pdf", False),
+    ("http://storage.googleapis.com/vigia-peru-documentos/x.pdf", False),
+    ("https://169.254.169.254/latest/meta-data/", False),
+    ("file:///etc/passwd", False),
+])
+def test_el_agente_solo_lee_de_los_almacenes_de_documentos(url, permitido):
+    """Una dirección de `doc_urls` no puede pedir el almacén privado (comprobantes) ni una máquina ajena."""
+    assert D.fetch._almacen_permitido(url) is permitido
+
+
+def test_la_descarga_rechaza_un_almacen_ajeno_sin_salir_a_la_red(monkeypatch):
+    def _no(*a, **k):
+        raise AssertionError("no debió salir a la red")
+    monkeypatch.setattr(D.fetch.requests, "get", _no)
+    monkeypatch.setenv("ALMACEN_DOCS", "r2")
+    for url in ("gs://vigia-peru-privado/comprobantes/1.jpg", "https://storage.googleapis.com/vigia-peru-privado/1.jpg",
+                "https://ejemplo.pe/x.pdf"):
+        assert D.fetch._download_from_gcs(url) == (None, "almacén no permitido")
+    assert D.fetch._descargar_de_r2("gs://vigia-peru-privado/comprobantes/1.jpg") == (None, "almacén no permitido")
+
+
 # ─── 1 · OCR fallido no se cachea ────────────────────────────────────────────
 
 def test_ocr_fallido_marca_el_texto_y_no_se_lee_de_la_cache():
