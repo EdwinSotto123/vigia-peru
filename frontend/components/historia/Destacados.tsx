@@ -12,6 +12,7 @@ import { mesLargo, normalDeSerie, type Historia, type SeveridadHistoria } from "
 import { cifrasDe, clasesDe, enPeriodo, hallazgosDe, nombreDeClase, omitidosDe, periodosDe, type ClaseHallazgo, type Hallazgo } from "@/lib/historiaGrave";
 import { cn } from "@/lib/utils";
 import { DetalleHecho } from "./DetalleHecho";
+import { OrdenesDelPeriodo, tieneVentana } from "./OrdenesDelPeriodo";
 import { TextoPaso } from "./TextoPaso";
 
 /** Lo que pide «Verlo en la línea» a la línea de tiempo de la misma historia (`clave`): un hecho, un patrón o una secuencia. */
@@ -335,6 +336,9 @@ function Detalle({ h, x, ver, bajoSuFila = false }: { h: Historia; x: Hallazgo; 
         <>
           <CifrasDelPico h={h} x={x} />
           <p className="text-meta leading-relaxed text-inkSoft text-pretty">{x.p.explica}</p>
+          {tieneVentana(h.sujeto.tipo, x.p.carril, x.p.mes) && (
+            <OrdenesDelPeriodo key={x.p.id} entidadRuc={h.sujeto.id} mes={x.p.mes} hasta={x.p.hasta} />
+          )}
         </>
       )}
       <div className="flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-line pt-2">
