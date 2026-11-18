@@ -49,8 +49,11 @@ test("lo rota, lo parado, lo que no trae archivo nuevo y las fotos están declar
   const tipo = (clave: string) => situacionDe(FUENTES.find((f) => f.clave === clave)!)?.tipo ?? null;
   assert.equal(tipo("procuraduria"), "rota");
   assert.equal(tipo("dji_familiares"), "parada");
-  for (const k of ["visitas_pnda", "dji", "jne"]) assert.equal(tipo(k), "sin_novedad", k);
-  for (const k of ["rnp", "jne_candidaturas"]) assert.equal(tipo(k), "foto", k);
+  for (const k of ["visitas_pnda", "jne"]) assert.equal(tipo(k), "sin_novedad", k);
+  assert.equal(tipo("jne_candidaturas"), "foto");
+  // Desde el 2026-11-18 ya no son foto ni «sin novedad»: las declaraciones juradas toman el CSV más reciente del dataset
+  // y los socios del RNP se cargan cada mes de la wiki del OECE.
+  for (const k of ["dji", "rnp"]) assert.equal(tipo(k), null, k);
   assert.equal(tipo("oece_ocds"), null);
   assert.ok(!Object.values(ESTADO_DE_SITUACION).includes("al_dia"));
   // La nota es de UNA fuente: una fila que junta varias claves no puede heredar la de una sola.

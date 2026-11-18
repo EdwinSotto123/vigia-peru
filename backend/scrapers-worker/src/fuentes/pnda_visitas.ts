@@ -40,13 +40,17 @@ export function mesesEntre(desde: [number, number], hasta: [number, number]): [n
   return out;
 }
 
-/** Por defecto los últimos 4 meses y el actual; con `desde`/`hasta` (AAAA-MM), ese rango. */
+/**
+ * Por defecto los últimos 8 meses y el actual; con `desde`/`hasta` (AAAA-MM), ese rango. Ocho y no cuatro: quien publica
+ * lo hace por tandas (el Gobierno Regional de Loreto subió enero a mayo de 2026 juntos, el 12 de junio), y con cuatro
+ * meses los primeros de una tanda larga quedaban fuera.
+ */
 export function mesesPedidos(p: Pick<ParamsCorrida, "desde" | "hasta">, hoy: string): [number, number][] {
   const [ah, mh] = hoy.split("-").map(Number);
   let hasta: [number, number] = [ah, mh];
   if (p.hasta) hasta = p.hasta.split("-").slice(0, 2).map(Number) as [number, number];
   if (p.desde) return mesesEntre(p.desde.split("-").slice(0, 2).map(Number) as [number, number], hasta);
-  let m = mh - 4;
+  let m = mh - 8;
   let a = ah;
   while (m < 1) {
     m += 12;

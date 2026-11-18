@@ -168,6 +168,20 @@ tarea:ordenes-anual:
       when: manual
       allow_failure: true
 
+# Los socios, representantes y órganos de administración de los proveedores del RNP (migración 360): el OECE reemplaza
+# el archivo (230 MB) el primer día hábil de cada mes en su wiki de datos abiertos. Sólo agrega los vínculos nuevos y
+# anota los que dejaron de figurar. Antes era una foto de mayo de 2026 cargada a mano.
+tarea:rnp:
+  <<: *tarea_con_base
+  timeout: 1h
+  script:
+    - python -X utf8 backend/scripts/cargar_rnp.py --entorno prod
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "schedule" && ($TAREA == "rnp" || $CI_PIPELINE_SCHEDULE_DESCRIPTION =~ /^rnp:/)'
+    - if: '$CI_COMMIT_BRANCH == "main" && $CI_PIPELINE_SOURCE != "schedule"'
+      when: manual
+      allow_failure: true
+
 # La lectura de documentos en capas (backend/lector), cada documento una sola vez:
 #   1. el texto por página de los archivos nuevos (texto.py, sin modelo);
 #   2. las piezas con su tipo y lo que se lee por plantilla y por regla (piezas.py, sin modelo);

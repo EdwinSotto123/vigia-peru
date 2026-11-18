@@ -11,6 +11,13 @@
  * - El `UPDATE … ruc_entidad` de dji_empleos va por rangos de páginas (ctid), cada uno corto.
  * - En seco carga en una tabla temporal igual a la destino y la descarta (cuenta filas reales sin
  *   tocar las tablas).
+ *
+ * Qué archivo (2026-11-18): la Contraloría sube cada corte como un recurso NUEVO del mismo dataset, con otro nombre, y
+ * deja el anterior en la página. El 2 de noviembre de 2026 publicó `ListadoDDJJ.csv` y `ListadoEmpleos.csv` (al 28 de
+ * octubre) junto a los `Reporte1.csv` y `Reporte3.csv` de julio; el cargador pedía los Reporte por su nombre y seguía
+ * tomando julio (109 mil declaraciones de atraso, y el catálogo decía «el portal no trae archivo nuevo»). Ahora toma el
+ * CSV más reciente del dataset (Last-Modified de cada recurso) y, antes de vaciar la tabla, comprueba que su cabecera sea
+ * la que el COPY espera: un archivo con otras columnas detiene la carga en vez de entrar corrido.
  */
 
 import type { WorkflowStep } from "cloudflare:workers";
@@ -21,15 +28,23 @@ import type { Env, ParamsCorrida } from "../config.ts";
 import { CortadorCsv } from "../csv.ts";
 import { conDb } from "../db.ts";
 import type { Copia, Db } from "../db.ts";
-import { obtenerDataset, urlDataset, urlRecurso } from "../pnda.ts";
+import { UA } from "../http.ts";
+import { obtenerDataset, recursosDeDatos, urlDataset, type Dataset, type Recurso } from "../pnda.ts";
 import { registrar } from "../registro.ts";
 import { DESCARGA } from "./comun.ts";
 
 const FUENTE = "pnda_dji";
-const DATASETS: Record<string, [slug: string, archivo: string]> = {
-  funcionarios: ["declaraciones-juradas-de-intereses-presentadas-ante-la-contraloría", "Reporte1.csv"],
-  empleos: ["empleos-declarados-en-las-declaraciones-juradas-de-intereses-contraloría", "Reporte3.csv"],
-  familiares: ["familiares-declarados-en-las-declaraciones-juradas-de-intereses-contraloría", "Reporte2.csv"],
+const DATASETS: Record<string, string> = {
+  funcionarios: "declaraciones-juradas-de-intereses-presentadas-ante-la-contraloría",
+  empleos: "empleos-declarados-en-las-declaraciones-juradas-de-intereses-contraloría",
+  familiares: "familiares-declarados-en-las-declaraciones-juradas-de-intereses-contraloría",
+};
+/** La cabecera del CSV de cada parte, en el orden de las columnas del COPY (la de Reporte1/3 y la de Listado*). */
+export const CABECERAS: Record<string, string[]> = {
+  funcionarios: ["CODIGO_DDJJ", "TIPO_DOCUMENTO_FUNCIONARIO", "APELLIDO_PATERNO", "APELLIDO_MATERNO", "NOMBRES", "ENTIDAD", "CARGO",
+    "FECHA_ELABORACION_DDJJ", "FECHA_PRESENTACION_DDJJ", "FECHA_INICIO_CARGO", "FECHA_CESE_CARGO"],
+  empleos: ["CODIGO_DDJJ", "RUC_ENTIDAD_LABORO", "NOMBRE_ENTIDAD_LABORO", "CARGO_ENTIDAD_LABORO", "FECHA_INICIO_CARGO", "FECHA_CESE_CARGO",
+    "FECHA_ELABORACION_DDJJ", "FECHA_PRESENTACION_DDJJ"],
 };
 /** (tabla destino, columnas en el orden del CSV). familiares (723 MB, sin nombres) queda solo como crudo. */
 const DESTINOS: Record<string, [tabla: string, cols: string[]]> = {
@@ -107,21 +122,71 @@ interface Bajado {
   parte: string;
   entrada: Entrada;
   fuente_url: string;
+  /** El nombre con que la Contraloría publicó el archivo elegido. */
+  origen: string;
+}
+
+/** De varios recursos con su fecha (ms; 0 si el portal no la dio), el más reciente; si empatan, el último de la página. */
+export function elegirMasReciente<T extends { modificado: number }>(recursos: T[]): T | null {
+  let mejor: T | null = null;
+  for (const r of recursos) if (!mejor || r.modificado >= mejor.modificado) mejor = r;
+  return mejor;
+}
+
+/** El CSV más reciente de un dataset, por el Last-Modified de cada recurso (un HEAD por archivo). */
+async function csvMasReciente(ds: Dataset): Promise<(Recurso & { modificado: number; cuando: string | null }) | null> {
+  const csvs = recursosDeDatos(ds, [".csv"]);
+  const conFecha = [];
+  for (const r of csvs) {
+    let cuando: string | null = null;
+    try {
+      const h = await fetch(r.url, { method: "HEAD", headers: { "User-Agent": UA }, signal: AbortSignal.timeout(60_000) });
+      cuando = h.ok ? h.headers.get("last-modified") : null;
+    } catch {
+      cuando = null;
+    }
+    conFecha.push({ ...r, cuando, modificado: cuando ? Date.parse(cuando) || 0 : 0 });
+  }
+  return elegirMasReciente(conFecha);
+}
+
+/** Los nombres de columna de la primera línea de un CSV (sin BOM ni comillas, en mayúsculas). */
+export function cabeceraCsv(inicio: string): string[] {
+  const linea = inicio.replace(/^\uFEFF/, "").split(/\r?\n/)[0] ?? "";
+  return linea.split(",").map((c) => c.trim().replace(/^"|"$/g, "").toUpperCase());
+}
+
+/** La primera línea del archivo guardado, sin leerlo entero. */
+async function primeraLinea(env: Env, e: Entrada): Promise<string> {
+  const cuerpo = (await new Almacen(env, FUENTE).abrir(e)).body;
+  const lector = cuerpo.getReader();
+  let texto = "";
+  const dec = new TextDecoder("utf-8");
+  while (!texto.includes("\n") && texto.length < 8192) {
+    const { value, done } = await lector.read();
+    if (done) break;
+    texto += dec.decode(value, { stream: true });
+  }
+  await lector.cancel().catch(() => undefined);
+  return texto;
 }
 
 export async function correrDji(env: Env, p: ParamsCorrida, step: WorkflowStep, id: string): Promise<unknown> {
   const bajados: Bajado[] = [];
   for (const parte of PARTES) {
-    const [slug, archivo] = DATASETS[parte];
+    const slug = DATASETS[parte];
     const b = await step.do(`descargar ${parte}`, DESCARGA, async (): Promise<Bajado | null> => {
       const ds = await obtenerDataset(env, slug);
-      const url = urlRecurso(ds, archivo);
-      if (!url) {
-        registrar("WARNING", `${parte}: no encontré ${archivo} en ${urlDataset(slug)}`, { fuente: FUENTE, instancia: id });
+      const r = await csvMasReciente(ds);
+      if (!r) {
+        registrar("WARNING", `${parte}: no encontré ningún CSV en ${urlDataset(slug)}`, { fuente: FUENTE, instancia: id });
         return null;
       }
-      const entrada = await new Almacen(env, FUENTE).bajar(url, { archivo: `dji_${parte}.csv`, modificado: ds.modificado, forzar: p.forzar, subdir: parte });
-      return { parte, entrada, fuente_url: urlDataset(slug) };
+      registrar("INFO", `   ${parte}: ${r.archivo} (${r.cuando ?? "sin fecha"}), de ${ds.recursos.filter((x) => x.ext === ".csv").length} CSV del dataset`,
+        { fuente: FUENTE, instancia: id });
+      // La fecha del recurso, no la del dataset: con un archivo nuevo de otro nombre, la del dataset puede no cambiar.
+      const entrada = await new Almacen(env, FUENTE).bajar(r.url, { archivo: `dji_${parte}.csv`, modificado: r.cuando ?? ds.modificado, forzar: p.forzar, subdir: parte });
+      return { parte, entrada, fuente_url: urlDataset(slug), origen: r.archivo };
     });
     if (b) bajados.push(b);
   }
@@ -133,6 +198,12 @@ export async function correrDji(env: Env, p: ParamsCorrida, step: WorkflowStep, 
       if (!p.seco && !p.forzar && (await yaCargado(db, FUENTE, b.parte, b.entrada.sha256))) {
         registrar("INFO", `   ${b.parte}: ya cargado con el mismo sha256, se salta`, { fuente: FUENTE, instancia: id });
         return { ya_cargado: true, sha256: b.entrada.sha256 };
+      }
+      // Antes de vaciar nada: el archivo trae las columnas que el COPY espera, en ese orden.
+      const cabecera = cabeceraCsv(await primeraLinea(env, b.entrada));
+      const esperada = CABECERAS[b.parte];
+      if (cabecera.length !== esperada.length || cabecera.some((c, k) => c !== esperada[k])) {
+        throw new Error(`[${FUENTE}] ${b.origen} trae otra cabecera (${cabecera.join(", ").slice(0, 300)}): no se carga ${tabla}`);
       }
       const t0 = Date.now();
       await db.ejecutar("BEGIN");

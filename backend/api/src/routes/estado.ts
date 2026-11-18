@@ -88,7 +88,7 @@ export const FUENTES: FuentePublica[] = [
   { clave: "sunat_ruc", nombre: "Fichas de las empresas", que: "Domicilio, actividad y fecha de alta de los proveedores (Consulta RUC de la SUNAT).", cada: null, cadencia: "A mano, cuando entran proveedores nuevos", claves: ["sunat_ruc"],
     enlace: CONSULTA_RUC_SUNAT,
     hasta: deLaBitacora("sunat_ruc", "descargado_at") },
-  { clave: "rnp", nombre: "Socios y representantes", que: "Quién está detrás de cada proveedor: socios, representantes y directivos (RNP del OECE).", cada: null, cadencia: "Sin actualización", claves: ["rnp_conformacion_juridica"],
+  { clave: "rnp", nombre: "Socios y representantes", que: "Quién está detrás de cada proveedor: socios, representantes y directivos (RNP del OECE).", cada: 40, cadencia: "Mensual", claves: ["rnp_conformacion_juridica"],
     enlace: DATASET_SOCIOS_RNP,
     // La fecha de corte de la última fila cargada, por la llave primaria: no hay índice por fecha en 1,4 M de filas.
     hasta: `SELECT to_char(fecha_corte, 'YYYY-MM-DD') AS v FROM rnp_conformacion_juridica ORDER BY id DESC LIMIT 1` },
