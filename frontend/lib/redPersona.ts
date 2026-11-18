@@ -228,8 +228,10 @@ export function redDePersona(f: FichaFuncionario, opciones: OpcionesRed = {}): R
       }
       const id = `f:${i}`;
       const enSu = g.items.some((x) => x.suEntidad);
+      // `n` es el número del familiar en su declaración (no una cantidad): sólo se dice si dos comparten parentesco.
+      const repetido = orden.filter((o) => o.items.length && o.parentesco === g.parentesco).length > 1;
       const nodo: NodoRed = {
-        id, tipo: "pariente", nombre: g.n > 1 ? `${g.parentesco} (${g.n})` : g.parentesco,
+        id, tipo: "pariente", nombre: repetido ? `${g.parentesco} (familiar ${g.n})` : g.parentesco,
         rol: "Familiar que declaró (sin nombre)", severidad: enSu ? (g.cercano ? "alta" : "media") : null, datos: [],
       };
       parientes.push(nodo);

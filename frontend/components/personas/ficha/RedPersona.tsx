@@ -17,7 +17,8 @@ import { cn } from "@/lib/utils";
  */
 const ANCHO = 1000;
 const PASO = 50;
-const X = { izq: 190, centro: 500, der: 790 } as const;
+// La persona a 270: su nombre (hasta 32 caracteres, a la izquierda del nodo) no se corta; la familia, un poco más atrás.
+const X = { izq: 270, centro: 520, der: 790 } as const;
 const TONO_ARISTA: Record<TipoAristaRed, Tono> = { trabajo: "neutro", visita: "amber", socio: "anil", vende: "granate", cobra: "granate", pariente: "crimson" };
 const ICONO: Record<TipoNodoRed, typeof Landmark> = { entidad: Landmark, empresa: Building2, persona: UserRound, pariente: HeartHandshake };
 const NOMBRE_TIPO: Record<TipoNodoRed, string> = { entidad: "Entidad", empresa: "Empresa", persona: "La persona", pariente: "Familiar declarado" };
@@ -150,7 +151,7 @@ export function RedPersona({ red }: { red: RedDePersona }) {
           if (!xs.length) return null;
           const Icono = ICONO[t];
           return (
-            <section key={t} className="space-y-1.5">
+            <section key={t} className="min-w-0 space-y-1.5">
               <h4 className="flex items-center gap-1.5 text-meta font-semibold text-inkSoft">
                 <Icono size={14} aria-hidden />
                 {GRUPO[t]} {t !== "persona" && <span className="tabular-nums text-mute">{numero(xs.length)}</span>}

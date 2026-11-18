@@ -55,7 +55,8 @@ test("redDePersona: entidades, empresas, visitas y familia, sin nombres de famil
   assert.deepEqual(ids, [`e:${E1}`, `e:${E2}`, "f:0", `m:${M1}`, `m:${M2}`, ID_PERSONA].sort());
   // Una sola entidad por RUC, aunque llegue por planilla, cargo declarado y familia.
   assert.equal(r.nodos.filter((n) => n.id === `e:${E1}`).length, 1);
-  // El familiar: sólo su parentesco, y grave porque es cercano y obtuvo algo de su entidad. El primo sin nada no se dibuja.
+  // El familiar: sólo su parentesco (sin su número: es el único hermano), y grave porque es cercano y obtuvo algo de su
+  // entidad. El primo sin nada no se dibuja.
   const fam = r.nodos.find((n) => n.tipo === "pariente")!;
   assert.equal(fam.nombre, "Hermano");
   assert.equal(fam.severidad, "alta");
@@ -82,6 +83,17 @@ test("redDePersona: con tope, lo que no entra se cuenta y nada queda suelto", ()
   for (const a of r.aristas) assert.ok(ids.has(a.de) && ids.has(a.a), `${a.de} → ${a.a}`);
   // Las entidades con señal alta entran primero (la de la empresa que ganó tras la visita).
   assert.ok(ids.has(`e:${E2}`) || r.nodos.some((n) => n.severidad === "alta"));
+});
+
+test("redDePersona: dos familiares con el mismo parentesco se distinguen por su número en la declaración", () => {
+  const item = { tipo: "orden", entidadRuc: E2, entidad: "MUNICIPALIDAD B", empresaRuc: null, empresa: null, rol: null, ordenes: 1, procesos: null, monto: 5000, desde: 2024, hasta: 2024, suEntidad: false, suEntidadOrdenes: null, suEntidadMonto: null };
+  const r = redDePersona(ficha({
+    familia: {
+      declarados: 2, conOrdenes: 2, montoOrdenes: 10000, conEmpresas: 0, enSuEntidad: 0, montoSuEntidad: 0, masParientes: 0,
+      parientes: [{ n: 2, parentesco: "Hijo o hija", cercano: true, items: [item] }, { n: 3, parentesco: "Hijo o hija", cercano: true, items: [item] }],
+    },
+  } as never));
+  assert.deepEqual(r.nodos.filter((n) => n.tipo === "pariente").map((n) => n.nombre).sort(), ["Hijo o hija (familiar 2)", "Hijo o hija (familiar 3)"]);
 });
 
 test("redDePersona: sin nada que unir, sólo la persona", () => {
