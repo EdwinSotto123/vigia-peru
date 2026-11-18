@@ -203,7 +203,7 @@ function Grafico({ d }: { d: PlanillaMensual }) {
         Entrar o salir es frente al mes anterior que la entidad publicó: un mes sin publicar no cuenta como salida.
       </p>
       {/* La página de personal de la entidad en el portal (por su id; sin él, la portada del portal). */}
-      <FuenteDato fuente="Portal de Transparencia Estándar, personal de la entidad (desde enero de 2025)" href={personalPte(d.idPte)} />
+      <FuenteDato fuente="Portal de Transparencia Estándar, personal de la entidad (los meses que la entidad publicó)" href={personalPte(d.idPte)} />
     </section>
   );
 }

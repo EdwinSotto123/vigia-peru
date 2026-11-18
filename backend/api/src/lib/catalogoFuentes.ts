@@ -93,7 +93,7 @@ export const CATALOGO: FuenteCatalogo[] = [
   { fuente: "pnda_oece", nombre: "Datasets del OECE en la PNDA", donde: "cloudflare", agenda: "Día 1, 08:00", cadaDias: 33,
     que: "Ofertantes, consorcios, SICAN, pronunciamientos y cuadernos de obra: sólo crudos en R2 (carga manual)." },
   { fuente: "pte_personal", nombre: "Planilla del Estado (Portal de Transparencia)", donde: "cloudflare", agenda: "Día 20, 08:00", cadaDias: 33,
-    que: "Planilla de cada entidad de los dos meses anteriores; después señales de personas." },
+    que: "Planilla de cada entidad de los cuatro meses anteriores (publican tarde); después señales de personas. La historia desde 2014 entra por relleno encadenado." },
   { fuente: "oece_historico", nombre: "OECE: procesos 2015-2017", donde: "zurich", agenda: "A mano (relleno)", cadaDias: null,
     que: "Procesos adjudicados antes de 2018, que CONOSCE no trae." },
   // ── Desde una PC en el Perú: la fuente bloquea la nube o pide captcha ──────────────────────────────────────────

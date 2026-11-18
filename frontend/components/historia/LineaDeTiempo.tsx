@@ -936,7 +936,7 @@ function Leyenda({ hayPicos }: { hayPicos: boolean }) {
           <li>«Lo normal» de un mes es la mediana de los doce meses anteriores de ese mismo renglón. Una barra ámbar es un pico de 2.5 veces lo normal; roja, de 4 veces o más.</li>
           <li>Las líneas verticales cruzan todos los renglones: la continua es un cambio de gobierno y la punteada, una elección. Mira qué cambia justo después.</li>
           <li>Pasa el mouse por un mes para ver lo de todos los renglones juntos, en qué gestión cae y cuánto se aleja de lo normal. Tócalo para ver cada hecho con su fuente.</li>
-          <li>Lo rayado en gris es lo que NO tenemos: antes de que empiece la fuente (las órdenes de CONOSCE desde 2018, la planilla desde 2025), después de donde llega, o los meses que la entidad no publicó. Ahí no hay ceros: no hay datos.</li>
+          <li>Lo rayado en gris es lo que NO tenemos: antes de que empiece la fuente (las órdenes de CONOSCE desde 2018, la planilla desde el primer mes que la entidad publicó), después de donde llega, o los meses que la entidad no publicó. Ahí no hay ceros: no hay datos.</li>
           <li>Un pico o una coincidencia no prueba nada: dice dónde mirar. Las razones pueden ser legítimas (una emergencia, un programa, el cierre del año).</li>
         </ul>
       </details>
