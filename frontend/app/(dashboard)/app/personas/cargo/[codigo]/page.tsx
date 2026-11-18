@@ -22,6 +22,7 @@ import { InformeEnPanel } from "@/components/control/InformeEnPanel";
 import { Badge } from "@/components/ui/Badge";
 import { EnlaceAccion } from "@/components/ui/EnlaceAccion";
 import { fechaConAnio, numero, plural, solesCompacto } from "@/lib/formato";
+import { aniosDeLasOrdenes, ordenesEnElPuesto, ordenesFueraDelPuesto, periodoDelPuesto } from "@/lib/comprasFamilia";
 import {
   getFichaFuncionario,
   rutaFuncionario,
@@ -814,15 +815,10 @@ function Cruces({ cruces: c }: { cruces: CrucesDeLaPersona }) {
           tono={x.severidad === "alta" ? "alta" : x.severidad === "media" ? "media" : "baja"}
         >
           Declara el puesto de <b>{cargoTexto(x.cargo).toLowerCase()}</b> en <EnlaceEntidad ruc={x.entidadRuc} nombre={x.entidad} />
-          {x.cargoDesde ? `, desde el ${fechaConAnio(x.cargoDesde)}` : ""}
-          {x.cargoHasta ? ` hasta el ${fechaConAnio(x.cargoHasta)}` : x.cargoDesde ? " (sin cese declarado)" : ""}. Un familiar que declaró ({x.parentesco.toLowerCase()})
-          recibió de esa entidad {plural(x.ordenes, "orden", "órdenes")} a su nombre por {solesCompacto(x.monto)}
-          {x.desde && x.hasta ? (x.desde === x.hasta ? ` en ${x.desde}` : `, de ${x.desde} a ${x.hasta}`) : ""}.{" "}
-          {x.empezoDespues
-            ? "La primera de esas órdenes es del año en que asumió el puesto, o posterior. "
-            : x.coincide
-              ? "Parte de esas órdenes cae en los años en que tenía el puesto. "
-              : "Las fechas no coinciden con el puesto, o no declaró cuándo lo asumió. "}
+          {periodoDelPuesto(x) ? `, ${periodoDelPuesto(x)}` : ""}. Un familiar que declaró ({x.parentesco.toLowerCase()}) recibió de esa entidad{" "}
+          {plural(x.ordenes, "orden", "órdenes")} a su nombre por {solesCompacto(x.monto)}
+          {aniosDeLasOrdenes(x) ? `, ${aniosDeLasOrdenes(x)}` : ""}. <b>{ordenesEnElPuesto(x)}</b>{" "}
+          {ordenesFueraDelPuesto(x) ? `${ordenesFueraDelPuesto(x)} ` : ""}
           La ley impide contratar con la entidad al cónyuge, conviviente y parientes hasta el segundo grado de quien interviene en sus contrataciones
           (artículo 11 del TUO de la Ley 30225; artículo 30 de la Ley 32069). Esto no dice que intervino: hay que ver quién pidió y quién aprobó cada
           orden.

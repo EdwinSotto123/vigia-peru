@@ -221,10 +221,16 @@ function PersonaDeLaEmpresa({ p, ruc, tipos }: { p: Persona; ruc: string; tipos:
           <ul className="flex flex-wrap gap-1.5" aria-label="Su papel en la empresa">
             {porPapel(p.roles).map((r) => (
               <li key={r}>
-                <Badge variant={r === "representante legal" ? "ink" : "neutral"}>{mayus(r)}</Badge>
+                <Badge variant={r === "representante legal" && !p.salio ? "ink" : "neutral"}>{mayus(r)}</Badge>
               </li>
             ))}
           </ul>
+          {p.rolesAntes && p.rolesAntes.length > 0 && (
+            <p className="text-meta text-inkSoft">
+              {`Antes también fue ${p.rolesAntes.join(", ")}`}
+              {p.dejoRol ? `: ya no figura con ese papel desde el corte del ${fechaCorta(p.dejoRol)}` : ""}
+            </p>
+          )}
         </div>
         <dl className="flex flex-wrap gap-x-6 gap-y-1 text-meta">
           <div>
@@ -294,11 +300,16 @@ export async function SociosEmpresa({
       </EstadoVacio>
     );
   }
-  // Primero quien tiene algo en el Estado (lo que más pesa); después, en el orden de la API (representantes, socios, nombre).
+  // Primero quien tiene algo en el Estado (lo que más pesa); después, en el orden de la API (quienes figuran hoy:
+  // representantes, socios, nombre; al final quienes ya salieron, los más recientes arriba).
   const personas = [...d.socios].sort((a, b) => Number(!!b.enElEstado) - Number(!!a.enElEstado));
   const enEstado = personas.filter((p) => p.enElEstado).length;
   const conOtras = personas.filter((p) => p.otrasEmpresas > 0).length;
-  const cuenta = (r: string) => personas.filter((p) => p.roles.includes(r)).length;
+  // Quienes figuran hoy y quienes ya no (el RNP los quitó en un corte desde diciembre de 2022; migraciones 360 y 365).
+  const figuran = personas.filter((p) => !p.salio);
+  const salieron = personas.filter((p) => p.salio);
+  const aniosSalida = salieron.map((p) => (p.salio ?? "").slice(0, 4)).filter(Boolean).sort();
+  const cuenta = (r: string) => figuran.filter((p) => p.roles.includes(r)).length;
   const reparto = [
     cuenta("representante legal") ? plural(cuenta("representante legal"), "representante legal", "representantes legales") : null,
     cuenta("socio") ? plural(cuenta("socio"), "socio", "socios") : null,
@@ -311,6 +322,7 @@ export async function SociosEmpresa({
     // Sin el nombre (no se busca a una persona por su nombre: docs/PRIVACIDAD.md): sus papeles y lo que es en el Estado.
     buscable: [
       ...p.roles,
+      p.salio ? "ya no figura salió ex" : "figura hoy",
       p.enElEstado?.autoridad?.cargo, p.enElEstado?.autoridad?.distrito, p.enElEstado?.autoridad?.provincia, p.enElEstado?.autoridad?.departamento,
       p.enElEstado?.autoridad?.organizacion,
       ...(p.enElEstado?.postulaciones ?? []).flatMap((x) => [x.cargo, x.partido, x.distrito, x.provincia, x.departamento]),
@@ -398,12 +410,26 @@ export async function SociosEmpresa({
             <p className="max-w-prose text-meta text-inkSoft">
               Lo que la empresa declaró al Registro Nacional de Proveedores{d.corte ? ` (corte del ${fechaCorta(d.corte)})` : ""}. Sin
               documento y con un apellido tapado, salvo las autoridades electas, que van completas.
+              {salieron.length > 0 ? " Quien dejó de figurar desde diciembre de 2022 sigue en la lista, con el corte en que salió." : ""}
             </p>
           </div>
           {personas.length > 0 && (
             <Indicadores
               items={[
-                { etiqueta: personas.length === 1 ? "Persona" : "Personas", valor: numero(personas.length), contexto: reparto || undefined },
+                {
+                  etiqueta: figuran.length === 1 ? "Persona que figura hoy" : "Personas que figuran hoy",
+                  valor: numero(figuran.length),
+                  contexto: reparto || (salieron.length ? "Todas las de la lista ya salieron" : undefined),
+                },
+                ...(salieron.length
+                  ? [{
+                      etiqueta: salieron.length === 1 ? "Ya no figura" : "Ya no figuran",
+                      valor: numero(salieron.length),
+                      contexto: aniosSalida[0] === aniosSalida[aniosSalida.length - 1]
+                        ? `Dejó de figurar en ${aniosSalida[0]}`
+                        : `Dejaron de figurar entre ${aniosSalida[0]} y ${aniosSalida[aniosSalida.length - 1]}`,
+                    }]
+                  : []),
                 {
                   etiqueta: "Con un cargo o un vínculo en el Estado",
                   valor: numero(enEstado),
@@ -424,7 +450,10 @@ export async function SociosEmpresa({
               items={tarjetas}
               tam={8}
               nombre="personas"
-              buscar={{ placeholder: "Buscar por papel, cargo, lugar o partido…", etiqueta: "Buscar en su gente por papel, cargo, lugar o partido" }}
+              buscar={{
+                placeholder: salieron.length ? "Buscar por papel, cargo, lugar, partido o «ya no figura»…" : "Buscar por papel, cargo, lugar o partido…",
+                etiqueta: "Buscar en su gente por papel, cargo, lugar o partido",
+              }}
             />
           )}
           {filasEmpresas.length > 0 && (

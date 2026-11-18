@@ -100,7 +100,12 @@ export const redEmpresa = definir({
           entidades: x.entidades, mercado_nacional: x.mercadoNacional === true ? true : undefined,
         };
       }),
-      personas: (s.socios ?? []).map((p: Fila) => tomar(p, ["nombre", "roles", "desde", "otrasEmpresas", "enElEstado"])),
+      // Con quienes dejaron de figurar desde diciembre de 2022 (migraciones 360 y 365): el corte del RNP en que salieron.
+      personas: (s.socios ?? []).map((p: Fila) => ({
+        ...tomar(p, ["nombre", "roles", "desde", "otrasEmpresas", "enElEstado"]),
+        ya_no_figura_desde_el_corte: p.salio ?? undefined,
+        papeles_que_dejo: p.rolesAntes?.length ? p.rolesAntes : undefined, dejo_esos_papeles_en_el_corte: p.dejoRol ?? undefined,
+      })),
       empresas_vinculadas: (s.vinculadas ?? []).map((v: Fila) => ({
         ruc: v.ruc, nombre: v.nombre, le_vende_al_estado: v.vende, antecedentes: v.antecedentes, graves: v.graves, inhabilitada: v.inhabilitada ?? undefined,
         monto_soles: v.monto, contratos: v.contratos, por: v.socios, enlace: e.empresa(v.ruc),
@@ -390,6 +395,21 @@ export const personaPublica = definir({
   },
 });
 
+/**
+ * Las órdenes del familiar frente al puesto (migración 366): por fecha de emisión, las de mientras lo tenía, las de antes y
+ * las de después. El fin del puesto es el cese declarado o, sin cese, su última declaración jurada que lo nombra.
+ */
+function ordenesFrenteAlPuesto(x: Fila) {
+  return {
+    sin_cese_consta_en_el_puesto_hasta: x.cargoHasta ? undefined : x.vistoHasta ?? undefined,
+    ordenes_emitidas_con_la_persona_en_el_puesto: x.ordenesEnPuesto ?? undefined,
+    monto_de_esas_ordenes_soles: x.montoEnPuesto ?? undefined,
+    primera_orden_en_el_puesto: x.primeraEnPuesto ?? undefined, ultima_orden_en_el_puesto: x.ultimaEnPuesto ?? undefined,
+    ordenes_de_antes_de_que_asumiera: x.ordenesAntes ?? undefined, ordenes_de_despues_del_puesto: x.ordenesLuego ?? undefined,
+    el_familiar_no_tenia_ordenes_de_la_entidad_antes_de_que_asumiera: x.empezoDespues,
+  };
+}
+
 export const rastroPersona = definir({
   nombre: "rastro_persona",
   titulo: "Rastro de una persona",
@@ -466,8 +486,8 @@ export const rastroPersona = definir({
       puesto_declarado: x.cargo, tipo_de_puesto: x.tipoCargo === "compras" ? "compras, logística o contrataciones" : "decide o paga el gasto",
       en_el_puesto_desde: x.cargoDesde ?? undefined, hasta: x.cargoHasta ?? "sin cese declarado", entidad: x.entidad, entidad_ruc: x.entidadRuc,
       parentesco_del_familiar: x.parentesco, familiar_cercano: x.cercano, ordenes_al_familiar: x.ordenes, monto_soles: x.monto,
-      ordenes_desde_el_anio: x.desde ?? undefined, ordenes_hasta_el_anio: x.hasta ?? undefined, las_ordenes_coinciden_con_el_puesto: x.coincide,
-      el_familiar_empezo_a_cobrar_despues_de_que_asumio: x.empezoDespues, severidad: x.severidad, en_observacion: true,
+      ordenes_desde_el_anio: x.desde ?? undefined, ordenes_hasta_el_anio: x.hasta ?? undefined,
+      ...ordenesFrenteAlPuesto(x), severidad: x.severidad, en_observacion: true,
       ficha: `${e.funcionario(codigo)}?seccion=revision`,
     })));
     // El puesto con sus palabras (migración 357): la sección de empleos de sus declaraciones juradas (sólo empleadores con
@@ -608,7 +628,8 @@ export const patrones = definir({
     "(sin proceso) de una entidad; con ruc, las de esa entidad o esa empresa. " +
     "Con alcance «compras_familia» (en observación): funcionarios cuyo puesto declarado es de compras, logística o " +
     "contrataciones y un familiar declarado en su declaración jurada que recibió órdenes a su nombre de esa misma entidad, con " +
-    "los años del puesto y de las órdenes; con ruc, los de esa entidad. El familiar sale sólo por su parentesco. " +
+    "cuántas de esas órdenes se emitieron mientras tenía el puesto, cuántas antes y cuántas después; con ruc, los de esa " +
+    "entidad; solo_graves deja los de familiar cercano con órdenes emitidas en el puesto. El familiar sale sólo por su parentesco. " +
     "Un patrón es un motivo para mirar, no una acusación.",
   cuenta: true,
   entrada: {
@@ -651,7 +672,7 @@ export const patrones = definir({
           persona: x.persona, puesto_declarado: x.cargo, en_el_puesto_desde: x.cargoDesde ?? undefined, hasta: x.cargoHasta ?? "sin cese declarado",
           entidad: x.entidad, entidad_ruc: x.entidadRuc, parentesco_del_familiar: x.parentesco, familiar_cercano: x.cercano,
           ordenes_al_familiar: x.ordenes, monto_soles: x.monto, ordenes_desde_el_anio: x.desde ?? undefined, ordenes_hasta_el_anio: x.hasta ?? undefined,
-          las_ordenes_coinciden_con_el_puesto: x.coincide, el_familiar_empezo_a_cobrar_despues_de_que_asumio: x.empezoDespues, severidad: x.severidad,
+          ...ordenesFrenteAlPuesto(x), severidad: x.severidad,
           enlace_persona: x.codigo ? `${e.funcionario(String(x.codigo))}?seccion=revision` : undefined,
           enlace_entidad: x.entidadRuc ? e.entidad(String(x.entidadRuc)) : undefined,
         })),

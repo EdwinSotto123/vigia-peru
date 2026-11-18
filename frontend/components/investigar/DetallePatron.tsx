@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/Button";
 import { EnlaceAccion } from "@/components/ui/EnlaceAccion";
 import { decimal, fechaConAnio, numero, plural, porcentaje, solesCompacto } from "@/lib/formato";
 import { tituloNatural } from "@/lib/landing";
+import { aniosDeLasOrdenes, fechasEnElPuesto, ordenesEnElPuesto, ordenesFueraDelPuesto, periodoDelPuesto } from "@/lib/comprasFamilia";
 import {
   codigoDeOcid,
   type AlcancePatron,
@@ -621,8 +622,11 @@ const mesCorto = (m: string | null) => (m && /^\d{4}-\d{2}/.test(m) ? `${MESES_C
 export function detalleCompraFamilia(p: PatronCompraFamilia): Detalle {
   const ent = entidad(p.entidad);
   const quien = p.persona ?? "Una persona con cargo público";
-  const anios = p.desde && p.hasta ? (p.desde === p.hasta ? `en ${p.desde}` : `de ${p.desde} a ${p.hasta}`) : null;
-  const enElPuesto = p.cargoDesde ? `desde el ${fechaConAnio(p.cargoDesde)}${p.cargoHasta ? ` hasta el ${fechaConAnio(p.cargoHasta)}` : " (sin cese declarado)"}` : null;
+  const anios = aniosDeLasOrdenes(p);
+  const enElPuesto = periodoDelPuesto(p);
+  const fechas = fechasEnElPuesto(p);
+  const fuera = ordenesFueraDelPuesto(p);
+  const conConteo = p.ordenesEnPuesto != null;
   return {
     // El nombre de la persona nunca va al título del panel.
     titulo: "Trabaja en compras y un familiar recibe órdenes",
@@ -634,23 +638,23 @@ export function detalleCompraFamilia(p: PatronCompraFamilia): Detalle {
           <b>{quien}</b> declara el puesto de <b>{tituloNatural(p.cargo).toLowerCase()}</b> en <b>{ent}</b>
           {enElPuesto ? `, ${enElPuesto}` : ""}. Un familiar que declaró ({p.parentesco.toLowerCase()}) recibió de esa entidad{" "}
           <b>{plural(p.ordenes, "orden", "órdenes")}</b> a su nombre por <b>{solesCompacto(p.monto)}</b>
-          {anios ? ` ${anios}` : ""}.
+          {anios ? ` ${anios}` : ""}. <b>{ordenesEnElPuesto(p)}</b>
+          {fuera ? ` ${fuera}` : ""}
         </EnUnaFrase>
         <DatosClave
           items={[
             { etiqueta: "Puesto declarado", valor: tituloNatural(p.cargo) },
             { etiqueta: "En el puesto", valor: enElPuesto ? enElPuesto.charAt(0).toUpperCase() + enElPuesto.slice(1) : "No declaró desde cuándo" },
             { etiqueta: "Parentesco del familiar", valor: p.parentesco },
-            { etiqueta: "Órdenes al familiar", valor: `${numero(p.ordenes)} por ${solesCompacto(p.monto)}`, mono: true },
-            { etiqueta: "Años de esas órdenes", valor: anios ? anios.replace(/^(en|de) /, "") : null },
             {
-              etiqueta: "Las fechas",
-              valor: p.empezoDespues
-                ? "El familiar empezó a recibir órdenes el año en que asumió el puesto, o después"
-                : p.coincide
-                  ? "Parte de las órdenes cae en los años del puesto"
-                  : "No coinciden con el puesto, o falta la fecha en que lo asumió",
+              etiqueta: "Órdenes con la persona en el puesto",
+              valor: !conConteo ? null : p.ordenesEnPuesto ? `${numero(p.ordenesEnPuesto)} por ${solesCompacto(p.montoEnPuesto ?? 0)}` : "Ninguna",
+              mono: !!p.ordenesEnPuesto,
             },
+            { etiqueta: "Fechas de esas órdenes", valor: fechas ? fechas.charAt(0).toUpperCase() + fechas.slice(1) : null },
+            { etiqueta: "Antes de que asumiera", valor: !conConteo ? null : p.ordenesAntes ? plural(p.ordenesAntes, "orden", "órdenes") : "Ninguna orden de esa entidad" },
+            { etiqueta: p.cargoHasta ? "Después de su cese" : "Después de su última declaración", valor: conConteo && p.ordenesLuego ? plural(p.ordenesLuego, "orden", "órdenes") : null },
+            { etiqueta: "Órdenes al familiar en total", valor: `${numero(p.ordenes)} por ${solesCompacto(p.monto)}${anios ? `, ${anios}` : ""}` },
           ]}
         />
         <QueRevisar
@@ -658,7 +662,14 @@ export function detalleCompraFamilia(p: PatronCompraFamilia): Detalle {
             "Es una señal en observación: el puesto y el familiar salen de la declaración jurada de la propia persona, y las órdenes, del registro de la entidad. No dice que intervino en esas compras.",
             "Pide el expediente de cada orden: quién firmó el requerimiento, quién cotizó y quién la aprobó. Si su oficina aparece, hay un impedimento que mirar.",
             "La ley impide contratar con la entidad al cónyuge, conviviente y parientes hasta el segundo grado de quien interviene en sus contrataciones (artículo 11 del TUO de la Ley 30225; artículo 30 de la Ley 32069).",
-            p.empezoDespues ? "Las órdenes empezaron cuando ya tenía el puesto: mira si el familiar le vendía antes a otras entidades o sólo a esta." : "Compara las fechas de cada orden con las del puesto: el registro de órdenes las trae día por día.",
+            p.empezoDespues
+              ? "El familiar no tenía órdenes de esta entidad antes de que la persona asumiera: mira si le vendía a otras entidades o sólo empezó aquí."
+              : p.ordenesEnPuesto
+                ? "El familiar ya recibía órdenes de la entidad antes: compara cuánto recibía antes y cuánto con la persona en el puesto."
+                : "Ninguna orden cae dentro del puesto declarado: confirma las fechas del puesto con la entidad antes de sacar una conclusión.",
+            !p.cargoHasta && p.ordenesLuego
+              ? "No declaró su cese: las órdenes posteriores a su última declaración no se cuentan dentro del puesto. Pregunta a la entidad hasta cuándo estuvo."
+              : null,
           ]}
         />
       </div>

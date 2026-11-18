@@ -217,6 +217,8 @@ export interface CompraFamiliar {
   cargoDesde: string | null;
   /** null: sin cese declarado. */
   cargoHasta: string | null;
+  /** Sin cese: la fecha de su última declaración jurada que nombra el puesto como vigente (migración 366). */
+  vistoHasta?: string | null;
   parentesco: string;
   cercano: boolean;
   ordenes: number;
@@ -224,8 +226,15 @@ export interface CompraFamiliar {
   /** Años de las órdenes del familiar en esa entidad. */
   desde: number | null;
   hasta: number | null;
+  /** Órdenes emitidas con la persona en el puesto, antes de que asumiera y después (migración 366; ver lib/comprasFamilia.ts). */
+  ordenesEnPuesto?: number | null;
+  montoEnPuesto?: number | null;
+  ordenesAntes?: number | null;
+  ordenesLuego?: number | null;
+  primeraEnPuesto?: string | null;
+  ultimaEnPuesto?: string | null;
   coincide: boolean;
-  /** La primera orden del familiar en la entidad es del año en que asumió el puesto, o posterior. */
+  /** El familiar no tenía órdenes de esa entidad antes de que la persona asumiera, y sí con ella en el puesto. */
   empezoDespues: boolean;
   severidad: "alta" | "media" | "baja";
 }

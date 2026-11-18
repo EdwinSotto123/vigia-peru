@@ -956,10 +956,15 @@ empresasRouter.get("/:ruc/socios", async (c) => {
   const ruc = c.req.param("ruc");
   const cuerpo = await fichaMemo.obtener(`socios:${ruc}`, async () => {
     if (!(await existe(ruc))) return null;
-    const [socios, vinculadas, sociaDe, declarada] = await Promise.all([
-      // Cada persona una vez, con todos sus papeles. Una empresa socia sale con su RUC (las empresas son públicas).
-      pool.query(
+    // Cada persona una vez, con todos sus papeles. Una empresa socia sale con su RUC (las empresas son públicas). La misma
+    // consulta corre sobre quienes están en la tabla del RNP (figuran, o salieron desde mayo de 2026) y sobre quienes
+    // salieron antes de nuestra primera carga (rnp_exsocio, migración 365). `k` junta a la misma persona de las dos
+    // (su documento no sale de la consulta).
+    const COLUMNAS_RNP = "numero_documento, nombre, tipo_rol, fecha_inicio_vigencia, forma_societaria, baja_corte";
+    const sqlSocios = (origen: string) =>
         `SELECT max(r.nombre) AS nombre, array_agg(DISTINCT r.tipo_rol) AS roles, to_char(min(r.fecha_inicio_vigencia), 'YYYY-MM-DD') AS desde,
+                array_agg(DISTINCT r.tipo_rol) FILTER (WHERE r.baja_corte IS NULL) AS roles_hoy,
+                to_char(max(r.baja_corte), 'YYYY-MM-DD') AS ultima_baja, md5(r.numero_documento || $1::text) AS k,
                 -- Empresa socia sólo con un RUC 20: el RNP tipa como «RUC» a personas con su DNI de 8 cifras o su RUC 10
                 -- (1,241 casos en PROD, 2026-10-29), que salían como «empresa socia» con el nombre completo. Van a personas.
                 r.numero_documento ~ '^20[0-9]{9}$' AS es_empresa,
@@ -1005,9 +1010,14 @@ empresasRouter.get("/:ruc/socios", async (c) => {
                                                           WHERE o2.numero_documento = r.numero_documento AND o2.partido IS NOT NULL),
                                             'desde', min(o."año"), 'hasta', max(o."año"))
                     FROM onpe_aporte_unico o WHERE o.numero_documento = r.numero_documento HAVING count(*) > 0) END AS aportes
-           FROM rnp_conformacion_juridica r WHERE r.ruc_empresa = $1 AND r.numero_documento IS NOT NULL
+           FROM ${origen} r
           GROUP BY r.numero_documento
-          ORDER BY bool_or(r.tipo_rol = 'REPRESENTANTE_LEGAL') DESC, bool_or(r.tipo_rol = 'SOCIO_ACCIONISTA_TITULAR') DESC, max(r.nombre)`, [ruc]),
+          ORDER BY bool_or(r.tipo_rol = 'REPRESENTANTE_LEGAL') DESC, bool_or(r.tipo_rol = 'SOCIO_ACCIONISTA_TITULAR') DESC, max(r.nombre)`;
+    const [socios, antes, vinculadas, sociaDe, declarada] = await Promise.all([
+      pool.query(sqlSocios(`(SELECT ${COLUMNAS_RNP} FROM rnp_conformacion_juridica WHERE ruc_empresa = $1 AND numero_documento IS NOT NULL)`), [ruc]),
+      // Sin la tabla (un entorno sin la migración 365) la ficha sigue: sólo faltan los de antes.
+      pool.query(sqlSocios(`(SELECT ${COLUMNAS_RNP} FROM rnp_exsocio WHERE ruc_empresa = $1)`), [ruc])
+        .catch((e) => { console.warn(`[socios] ex socios: ${(e as Error).message}`); return { rows: [] as Record<string, any>[] }; }),
       // Otras empresas con alguien en común, y quiénes: cada persona una vez, con sus papeles aquí y allá.
       pool.query(
         `WITH par AS (
@@ -1041,11 +1051,31 @@ empresasRouter.get("/:ruc/socios", async (c) => {
           ORDER BY 9 DESC, d.seccion, d.entidad LIMIT 100`, [ruc]).catch(() => ({ rows: [] })),
     ]);
     const roles = (rs: string[] | null) => (rs ?? []).map((x) => ROL[x] ?? x.toLowerCase().replace(/_/g, " "));
+    // Quien sigue en la empresa sale con los papeles que tiene HOY; los que dejó, aparte (`roles_antes`, con el corte).
+    const gente: Record<string, any>[] = socios.rows.map((s: Record<string, any>) => {
+      const hoy: string[] = s.roles_hoy ?? [];
+      const dejados = hoy.length ? (s.roles as string[]).filter((x) => !hoy.includes(x)) : [];
+      return { ...s, roles: hoy.length ? hoy : s.roles, roles_antes: dejados, dejo_rol: dejados.length ? s.ultima_baja : null };
+    });
+    const porLlave = new Map(gente.map((s) => [s.k as string, s]));
+    for (const x of antes.rows as Record<string, any>[]) {
+      const s = porLlave.get(x.k);
+      // Salió antes de mayo de 2026 y no está en la tabla de hoy: una persona más, con el corte en que dejó de figurar.
+      if (!s) { gente.push({ ...x, roles_antes: [], dejo_rol: null }); continue; }
+      const otros = (x.roles as string[]).filter((r) => !(s.roles as string[]).includes(r) && !(s.roles_antes as string[]).includes(r));
+      if (!otros.length) continue;
+      // Ya salió del todo: todos sus papeles juntos. Sigue con otro papel: el que dejó, aparte.
+      if (s.salio) s.roles = [...s.roles, ...otros];
+      else { s.roles_antes = [...s.roles_antes, ...otros]; s.dejo_rol = [s.dejo_rol, x.salio].filter(Boolean).sort().pop() ?? null; }
+    }
+    // Primero quienes figuran hoy (en el orden de la consulta); después quienes salieron, los más recientes arriba.
+    gente.sort((a, b) => Number(!!a.salio) - Number(!!b.salio) || String(b.salio ?? "").localeCompare(String(a.salio ?? "")));
     return publicar({
       // Las personas bajo `socios` (publicar() les tapa un apellido, en orden SUNAT, salvo a las autoridades electas); las
       // empresas socias, aparte y completas.
-      socios: socios.rows.filter((s) => !s.es_empresa).map((s) => ({
+      socios: gente.filter((s) => !s.es_empresa).map((s) => ({
         nombre: s.nombre, ...marcaElecto(s.electo), roles: roles(s.roles), desde: s.desde, salio: s.salio ?? null, otrasEmpresas: s.otrasEmpresas,
+        rolesAntes: s.roles_antes.length ? roles(s.roles_antes) : undefined, dejoRol: s.roles_antes.length ? s.dejo_rol ?? null : undefined,
         enElEstado: s.locador || s.autoridad || s.candidaturas || s.aportes
           ? {
               locador: s.locador ?? null, autoridad: s.autoridad ?? null, candidaturas: s.candidaturas ?? 0, aportes: s.aportes ?? null,
@@ -1054,9 +1084,9 @@ empresasRouter.get("/:ruc/socios", async (c) => {
           : null,
       })),
       declaradaDji: declarada.rows,
-      empresasSocias: socios.rows.filter((s) => s.es_empresa && /^20\d{9}$/.test(s.ruc ?? "")).map((s) => ({ ruc: s.ruc, nombre: s.nombre, roles: roles(s.roles), desde: s.desde, salio: s.salio ?? null })),
+      empresasSocias: gente.filter((s) => s.es_empresa && /^20\d{9}$/.test(s.ruc ?? "")).map((s) => ({ ruc: s.ruc, nombre: s.nombre, roles: roles(s.roles), desde: s.desde, salio: s.salio ?? null })),
       sociaDe: sociaDe.rows.map((s) => ({ ...s, roles: roles(s.roles) })),
-      corte: socios.rows[0]?.corte ?? null,
+      corte: socios.rows[0]?.corte ?? antes.rows[0]?.corte ?? null,
       vinculadas: vinculadas.rows.map((v) => ({
         ruc: v.ruc, nombre: v.nombre ?? null, vende: v.vende === true, antecedentes: v.antecedentes ?? 0, graves: v.graves ?? 0, inhabilitada: v.inhabilitada ?? null,
         monto: v.monto ?? 0, contratos: v.contratos ?? 0,

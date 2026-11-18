@@ -367,7 +367,11 @@ export interface DeclaracionDji {
 
 export interface SociosEmpresa {
   /** `salio`: el corte del RNP (AAAA-MM-DD) desde el que la persona ya no figura en la empresa; null si sigue. */
-  socios: { nombre: string; roles: string[]; desde: string | null; salio?: string | null; otrasEmpresas: number; enElEstado?: SocioEnElEstado | null }[];
+  socios: {
+    nombre: string; roles: string[]; desde: string | null; salio?: string | null; otrasEmpresas: number; enElEstado?: SocioEnElEstado | null;
+    /** Sigue en la empresa, pero dejó estos papeles; `dejoRol`: el corte del RNP desde el que ya no los tiene. */
+    rolesAntes?: string[]; dejoRol?: string | null;
+  }[];
   declaradaDji?: DeclaracionDji[];
   empresasSocias: { ruc: string | null; nombre: string; roles: string[]; desde: string | null; salio?: string | null }[];
   sociaDe: { ruc: string; nombre: string | null; roles: string[] }[];

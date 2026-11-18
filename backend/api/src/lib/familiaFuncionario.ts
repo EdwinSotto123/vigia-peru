@@ -124,6 +124,8 @@ export interface CompraFamiliar {
   cargoDesde: string | null;
   /** null: sin cese declarado. */
   cargoHasta: string | null;
+  /** Sin cese: la fecha de su última declaración jurada que nombra el puesto como vigente (migración 366). */
+  vistoHasta: string | null;
   parentesco: string;
   cercano: boolean;
   ordenes: number;
@@ -131,9 +133,17 @@ export interface CompraFamiliar {
   /** Años de las órdenes del familiar en esa entidad. */
   desde: number | null;
   hasta: number | null;
-  /** Las órdenes caen en años en que tenía el puesto. */
+  /** Órdenes del familiar emitidas entre el inicio del puesto y su fin (cese o, sin cese, la última declaración). */
+  ordenesEnPuesto: number | null;
+  montoEnPuesto: number | null;
+  /** Emitidas antes de que asumiera, y después del fin del puesto. */
+  ordenesAntes: number | null;
+  ordenesLuego: number | null;
+  primeraEnPuesto: string | null;
+  ultimaEnPuesto: string | null;
+  /** Hay al menos una orden emitida con la persona en el puesto. */
   coincide: boolean;
-  /** La primera orden del familiar en la entidad es del año en que asumió el puesto, o posterior. */
+  /** Además, el familiar no tenía órdenes de esa entidad antes de que la persona asumiera. */
   empezoDespues: boolean;
   severidad: "alta" | "media" | "baja";
 }
@@ -144,9 +154,12 @@ export async function comprasYFamilia(codigo: string, declaranteElecto: boolean)
   if (declaranteElecto) return [];
   const r = await pool.query<Omit<CompraFamiliar, "parentesco"> & { parentesco: string | null }>(
     `SELECT c.entidad_ruc AS "entidadRuc", c.entidad, c.cargo, c.tipo_cargo AS "tipoCargo", to_char(c.cargo_desde, 'YYYY-MM-DD') AS "cargoDesde",
-            to_char(c.cargo_hasta, 'YYYY-MM-DD') AS "cargoHasta", c.parentesco, c.cercano, c.ordenes, c.monto::float AS monto, c.desde, c.hasta,
-            c.coincide, c.empezo_despues AS "empezoDespues", c.severidad
+            to_char(c.cargo_hasta, 'YYYY-MM-DD') AS "cargoHasta", to_char(c.visto_hasta, 'YYYY-MM-DD') AS "vistoHasta",
+            c.parentesco, c.cercano, c.ordenes, c.monto::float AS monto, c.desde, c.hasta,
+            c.ordenes_en_puesto AS "ordenesEnPuesto", c.monto_en_puesto::float AS "montoEnPuesto", c.ordenes_antes AS "ordenesAntes",
+            c.ordenes_luego AS "ordenesLuego", to_char(c.primera_en_puesto, 'YYYY-MM-DD') AS "primeraEnPuesto",
+            to_char(c.ultima_en_puesto, 'YYYY-MM-DD') AS "ultimaEnPuesto", c.coincide, c.empezo_despues AS "empezoDespues", c.severidad
        FROM funcionario_compras_familiar c WHERE c.codigo = $1
-      ORDER BY CASE c.severidad WHEN 'alta' THEN 0 WHEN 'media' THEN 1 ELSE 2 END, c.monto DESC LIMIT 30`, [codigo]);
+      ORDER BY CASE c.severidad WHEN 'alta' THEN 0 WHEN 'media' THEN 1 ELSE 2 END, c.monto_en_puesto DESC NULLS LAST, c.monto DESC LIMIT 30`, [codigo]);
   return r.rows.map((x) => ({ ...x, parentesco: etiquetaParentesco(x.parentesco) ?? "Familiar" }));
 }

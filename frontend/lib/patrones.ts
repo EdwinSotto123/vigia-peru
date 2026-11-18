@@ -277,12 +277,20 @@ export interface PatronCompraFamilia {
   cargo: string;
   cargoDesde: string | null;
   cargoHasta: string | null;
+  vistoHasta?: string | null;
   parentesco: string;
   cercano: boolean;
   ordenes: number;
   monto: number;
   desde: number | null;
   hasta: number | null;
+  /** Por fecha de emisión frente al puesto (migración 366; ver lib/comprasFamilia.ts). */
+  ordenesEnPuesto?: number | null;
+  montoEnPuesto?: number | null;
+  ordenesAntes?: number | null;
+  ordenesLuego?: number | null;
+  primeraEnPuesto?: string | null;
+  ultimaEnPuesto?: string | null;
   coincide: boolean;
   empezoDespues: boolean;
   severidad: "alta" | "media" | "baja";
@@ -294,7 +302,7 @@ export interface PatronesComprasFamilia {
   total: number;
   page: number;
   size: number;
-  resumen?: Partial<Record<"alta" | "media" | "baja", { casos: number; personas: number; entidades: number; monto: number }>>;
+  resumen?: Partial<Record<"alta" | "media" | "baja", { casos: number; personas: number; entidades: number; monto: number; montoEnPuesto?: number }>>;
   data: PatronCompraFamilia[];
 }
 

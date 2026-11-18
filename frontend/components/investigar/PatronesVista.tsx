@@ -1175,8 +1175,8 @@ const COLUMNAS_DOBLE: Columna[] = [
 const COLUMNAS_COMPRAS_FAMILIA: Columna[] = [
   { clave: "persona", titulo: "Persona, puesto y entidad", ancho: "minmax(0,1.7fr)" },
   { clave: "familiar", titulo: "Familiar que declaró", ancho: "minmax(8rem,0.8fr)", desde: "md", apilar: "con-rotulo", corto: "Familiar" },
-  { clave: "monto", titulo: "Órdenes al familiar", ancho: "9rem", alinear: "der", corto: "Órdenes" },
-  { clave: "anios", titulo: "Años", ancho: "minmax(8rem,0.7fr)", desde: "lg", apilar: "con-rotulo" },
+  { clave: "monto", titulo: "Con la persona en el puesto", ancho: "11rem", alinear: "der", corto: "En el puesto" },
+  { clave: "anios", titulo: "Órdenes en total", ancho: "minmax(8rem,0.7fr)", desde: "lg", apilar: "con-rotulo", corto: "En total" },
 ];
 
 function ListaComprasFamilia({ inicial }: { inicial: InicialPatrones }) {
@@ -1198,6 +1198,11 @@ function ListaComprasFamilia({ inicial }: { inicial: InicialPatrones }) {
             <span className="mt-1.5 block">
               La ley impide contratar con la entidad al cónyuge, conviviente y parientes hasta el segundo grado de quien interviene en sus
               contrataciones (artículo 11 del TUO de la Ley 30225; artículo 30 de la Ley 32069).
+            </span>
+            <span className="mt-1.5 block">
+              Las órdenes se cuentan por su fecha de emisión: las de mientras tenía el puesto (del inicio que declaró a su cese o, sin cese, a su
+              última declaración que lo nombra), las de antes y las de después. Un caso es grave cuando un familiar cercano tiene al menos una
+              orden emitida con la persona en el puesto.
             </span>
             <span className="mt-1.5 block">
               Es una señal en observación: dice que el puesto, el parentesco y las órdenes coinciden en la misma entidad, no que la persona
@@ -1223,7 +1228,7 @@ function ListaComprasFamilia({ inicial }: { inicial: InicialPatrones }) {
       </label>
       <label className="flex min-h-11 w-fit cursor-pointer items-center gap-2.5 text-dato text-ink">
         <input type="checkbox" checked={graves} onChange={(e) => setGraves(e.target.checked)} className="size-5 rounded border-line accent-granate" />
-        Sólo familiar cercano con órdenes que empezaron o siguieron después de asumir el puesto
+        Sólo familiar cercano con órdenes emitidas mientras la persona tenía el puesto
       </label>
       <EstadoCarga carga={carga} columnas={COLUMNAS_COMPRAS_FAMILIA}>
         {(d) => {
@@ -1235,8 +1240,8 @@ function ListaComprasFamilia({ inicial }: { inicial: InicialPatrones }) {
                 franja
                 items={[
                   { valor: numero(d.total), etiqueta: rucValido ? "casos en esa entidad" : graves ? "casos graves" : "casos", contexto: "puesto de compras y familiar con órdenes", icono: <ShoppingCart size={15} strokeWidth={1.9} aria-hidden />, parte: null },
-                  { valor: numero(alta?.personas ?? 0), etiqueta: "personas con un caso grave", contexto: alta ? `en ${plural(alta.entidades, "entidad", "entidades")}` : "familiar cercano y fechas que coinciden", parte: null },
-                  { valor: alta ? solesCompacto(alta.monto) : "S/ 0", etiqueta: "en órdenes a esos familiares", contexto: "sólo los casos graves", parte: null },
+                  { valor: numero(alta?.personas ?? 0), etiqueta: "personas con un caso grave", contexto: alta ? `en ${plural(alta.entidades, "entidad", "entidades")}` : "familiar cercano con órdenes en el puesto", parte: null },
+                  { valor: alta ? solesCompacto(alta.montoEnPuesto ?? alta.monto) : "S/ 0", etiqueta: "en órdenes emitidas con la persona en el puesto", contexto: "sólo los casos graves", parte: null },
                 ]}
               />
               <ZonaLista total={d.total} page={filtrada ? 1 : lista.page} cargando={carga.cargando} nombre="casos" onPagina={lista.irAPagina} vacio="No hay casos para ese filtro.">
@@ -1278,10 +1283,15 @@ function filaCompraFamilia(p: PatronCompraFamilia, i: number): Fila {
         />
       ),
       familiar: <CeldaTexto sub={p.cercano ? "familiar cercano" : undefined}>{p.parentesco}</CeldaTexto>,
-      monto: <CeldaNumero sub={plural(p.ordenes, "orden", "órdenes")}>{solesCompacto(p.monto)}</CeldaNumero>,
-      anios: (
-        <CeldaTexto sub={p.empezoDespues ? "empezaron tras asumir el puesto" : p.coincide ? "coinciden con el puesto" : "no coinciden"}>{anios}</CeldaTexto>
-      ),
+      monto:
+        p.ordenesEnPuesto == null ? (
+          <CeldaNumero sub={plural(p.ordenes, "orden", "órdenes")}>{solesCompacto(p.monto)}</CeldaNumero>
+        ) : p.ordenesEnPuesto > 0 ? (
+          <CeldaNumero sub={`${plural(p.ordenesEnPuesto, "orden", "órdenes")}${p.empezoDespues ? ", ninguna antes" : ""}`}>{solesCompacto(p.montoEnPuesto ?? 0)}</CeldaNumero>
+        ) : (
+          <CeldaNumero sub="antes o después del puesto"><span className="font-sans text-mute">Ninguna</span></CeldaNumero>
+        ),
+      anios: <CeldaTexto sub={anios}>{`${solesCompacto(p.monto)} en ${plural(p.ordenes, "orden", "órdenes")}`}</CeldaTexto>,
     },
   };
 }
