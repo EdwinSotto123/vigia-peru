@@ -2,7 +2,7 @@ import { Children, type ReactElement } from "react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Briefcase, Building2, CalendarRange, DoorOpen, Flag, Footprints, HeartHandshake, Landmark, Receipt, ScrollText, Wallet } from "lucide-react";
+import { Briefcase, Building2, CalendarRange, DoorOpen, Flag, Footprints, HeartHandshake, Landmark, Network, Receipt, ScrollText, Wallet } from "lucide-react";
 import { Ayuda, BanderasFicha, CabeceraPestana, DatosClave, EncabezadoPagina, EnUnaFrase, EstadoVacio, FichaNoLeida, Migas, Nota, Pagina, Pestanas, type BanderaFicha, FuenteDato } from "@/components/patrones";
 import { CeldaNumero, CeldaPrincipal, CeldaTexto, CLASE_ENLACE_CELDA, CuentaGrupo, Indicadores, Tabla, TablaPaginada, type Columna, type Fila, type GrupoFilas, type Indicador } from "@/components/listado";
 import { InformeEnPanel } from "@/components/control/InformeEnPanel";
@@ -38,6 +38,8 @@ import { TAM_ORDENES } from "@/components/personas/OrdenesPersona";
 import { pestanasContratada } from "@/components/personas/ficha/contratada";
 import { PestanaSueldo, SenalesDePlanilla, prepararPlanilla, type PlanillaPreparada } from "@/components/personas/ficha/planilla";
 import { PestanaFamilia } from "@/components/personas/ficha/familia";
+import { RedPersona } from "@/components/personas/ficha/RedPersona";
+import { redDePersona } from "@/lib/redPersona";
 
 export const revalidate = 600;
 
@@ -131,6 +133,9 @@ export default async function FuncionarioPage({ params, searchParams }: { params
   const seccion = uno(searchParams?.seccion) ?? (contratada && hayFiltrosOrdenes(filtrosOrdenes) ? "ordenes" : primera);
   const otros = f.ordenes.length + f.informes.length + f.aportes.length + f.expuesta.length + (f.candidaturas?.length ?? 0);
   const fam = f.familia ?? null;
+  // Su red (lo mismo que las pestañas, en un dibujo): sólo si une algo más que una entidad.
+  const red = redDePersona(f, { formato: { nombre: tituloNatural, soles: solesCompacto, mes: (m) => mes(m) ?? m, fecha: fechaConAnio } });
+  const conRed = red.nodos.length >= 3;
   // Las banderas de las tres fuentes, una vez cada una: los cruces de su rastro, su familia, sus órdenes y su planilla.
   const vistas = new Set<string>();
   const banderas = [
@@ -168,7 +173,7 @@ export default async function FuncionarioPage({ params, searchParams }: { params
           { etiqueta: "Personas", href: "/app/personas" },
           { etiqueta: p.nombre, href: ruta },
         ]}
-        pestanas={{ primera, activa: seccion, etiquetas: { revision: "Lo que pide revisión", cargos: "Cargos", sueldo: "Cobros por planilla", senales: "Señales", familia: "Familia", ordenes: "Órdenes", pagos: "Cobros por órdenes", entidades: "Entidades", procesos: "Procesos", recorrido: "Recorrido", visitas: "Visitas", recibidas: "Visitas que recibió", empresas: "Empresas", otros: "Otros registros" } }}
+        pestanas={{ primera, activa: seccion, etiquetas: { revision: "Lo que pide revisión", red: "Red", cargos: "Cargos", sueldo: "Cobros por planilla", senales: "Señales", familia: "Familia", ordenes: "Órdenes", pagos: "Cobros por órdenes", entidades: "Entidades", procesos: "Procesos", recorrido: "Recorrido", visitas: "Visitas", recibidas: "Visitas que recibió", empresas: "Empresas", otros: "Otros registros" } }}
       />
       <EncabezadoPagina
         titulo={p.nombre}
@@ -323,6 +328,39 @@ export default async function FuncionarioPage({ params, searchParams }: { params
               </div>
             ),
           },
+          ...(conRed
+            ? [
+                {
+                  clave: "red",
+                  icono: <Network size={15} aria-hidden />,
+                  etiqueta: "Red",
+                  titulo: "Con quién y con qué está unida",
+                  conteo: red.nodos.length - 1,
+                  contenido: (
+                    <div className="space-y-4">
+                      <CabeceraPestana
+                        ayuda={
+                          <Ayuda titulo="¿Cómo se arma esta red?">
+                            <span className="block">
+                              Con lo mismo que las demás pestañas: su planilla y sus declaraciones juradas (dónde trabajó), el registro de visitas,
+                              el Registro Nacional de Proveedores (sus empresas y las de su familia), los procesos y órdenes de CONOSCE y los
+                              familiares que declaró a la Contraloría, de los que sólo se muestra el parentesco.
+                            </span>
+                            <span className="mt-2 block">
+                              Los registros no comparten un documento: se unieron por su nombre completo. Una línea no prueba nada; dice dónde mirar.
+                            </span>
+                          </Ayuda>
+                        }
+                      >
+                        Las entidades en que trabajó o que visitó, sus empresas y a quién le vendieron, y lo que su familia declarada obtuvo del
+                        Estado. Lo marcado en rojo o ámbar es lo que pide revisión.
+                      </CabeceraPestana>
+                      <RedPersona red={red} />
+                    </div>
+                  ),
+                },
+              ]
+            : []),
           // Lo que cobró del Estado, cada vía en su pestaña (usuario, 2026-11-17): por planilla, como trabajador de la entidad;
           // y por órdenes de servicio, como proveedor persona natural. La de planilla sale aunque ya no figure en ninguna.
           ...((planilla && dPl) || cobrado.length > 0
