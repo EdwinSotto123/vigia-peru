@@ -12,6 +12,7 @@
 import { API_BASE } from "./api-client";
 import type { DiaFraccionado, EvidenciaCruce } from "./contratos";
 import { uno } from "@/lib/utils";
+import type { VentaASuEntidad } from "@/lib/autoridadExsocio";
 
 export type Severidad = "alta" | "media" | "baja";
 
@@ -126,6 +127,8 @@ export interface FichaEmpresa {
     /** Con cuántas entidades la mitad o más de sus órdenes quedaron al borde del tope, y cuántas órdenes (migración 207). */
     bordeEntidades?: number;
     bordeOrdenes?: number;
+    /** En observación (migración 367): autoridades electas que dejaron de figurar en la empresa y a cuya entidad le vendió. */
+    exAutoridad?: { casos: number; graves: number } | null;
     /** Lo que vendió por los Catálogos de Perú Compras (migraciones 236-237): órdenes, monto, en cuántas cobró el doble o
      *  más de la mediana de la misma ficha ese año y cuánto por encima. null = sin las tablas. */
     catalogo?: { ordenes: number; monto: number; sobreprecio: number; exceso: number } | null;
@@ -320,6 +323,7 @@ export interface EvidenciaAntecedente {
   dias: DiaFraccionado[];
 }
 
+export type { VentaASuEntidad } from "@/lib/autoridadExsocio";
 /** Lo que una persona de la empresa es en el Estado, por su DNI (que no sale de la API): fase 2 del plan del 2026-10-27. */
 export interface SocioEnElEstado {
   /** Locador: en cuántas entidades, cuánto cobró, su ficha y en cuántas de ellas le vende esta empresa. */
@@ -348,6 +352,8 @@ export interface SocioEnElEstado {
   }[];
   /** Sus aportes (ONPE): cuántos, cuánto, a qué partidos y entre qué años. */
   aportes: { n: number; monto: number; partidos?: string[] | null; desde?: number | null; hasta?: number | null } | null;
+  /** En observación (migración 367): dejó de figurar en la empresa y ésta le vendió a la entidad de su cargo electo. */
+  ventasASuEntidad?: VentaASuEntidad[];
 }
 
 /** Lo que un funcionario declaró en su DJI sobre la empresa (secciones 1 a 4): cargo, entidad y primer apellido. */

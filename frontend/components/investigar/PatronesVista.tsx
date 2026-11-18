@@ -2,13 +2,13 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
-import { Ban, Briefcase, Building2, Coins, CopyCheck, FileSearch, Sprout, FlaskConical, Handshake, ScanSearch, SearchX, ShoppingCart, TrendingUp, Users, UsersRound } from "lucide-react";
+import { Ban, Briefcase, Building2, Coins, CopyCheck, FileSearch, Sprout, FlaskConical, Handshake, Landmark, ScanSearch, SearchX, ShoppingCart, TrendingUp, Users, UsersRound } from "lucide-react";
 import { Ayuda, CabeceraPestana, Nota, Pestanas } from "@/components/patrones";
 import { EVENTO_ACTIVA } from "@/components/patrones/Pestanas";
 import { CeldaBarra, CeldaNumero, CeldaPrincipal, CeldaTexto, CLASE_ENLACE_CELDA, Indicadores, Tabla, type Columna, type Fila, type Indicador } from "@/components/listado";
 import { EstadoCarga, usePoder } from "@/components/grafo/vista";
 import { InformeEnPanel } from "@/components/control/InformeEnPanel";
-import { detalleCompraFamilia, detalleConsorcio, detalleControl, detalleDoble, detalleDueno, detalleGrupo, detalleInhabilitada, detalleObservacion, detalleObservado, detalleRecien, detalleRelleno, detalleRenovacion, detalleRepetida, detalleSenal } from "./DetallePatron";
+import { detalleAutoridadExsocio, detalleCompraFamilia, detalleConsorcio, detalleControl, detalleDoble, detalleDueno, detalleGrupo, detalleInhabilitada, detalleObservacion, detalleObservado, detalleRecien, detalleRelleno, detalleRenovacion, detalleRepetida, detalleSenal } from "./DetallePatron";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Dato } from "@/components/ui/Dato";
@@ -21,6 +21,7 @@ import {
   codigoDeOcid,
   rutaAcompanantes,
   rutaConsorcios,
+  rutaAutoridadExsocio,
   rutaComprasFamilia,
   rutaControl,
   rutaDoble,
@@ -39,6 +40,8 @@ import {
   type PatronAcompanante,
   type PatronConsorcio,
   type PatronControl,
+  type PatronAutoridadExsocio,
+  type PatronesAutoridadExsocio,
   type PatronCompraFamilia,
   type PatronesComprasFamilia,
   type PatronDoble,
@@ -157,6 +160,13 @@ export function PatronesVista({ activa, inicial, etiquetas }: { activa?: string;
           titulo: "Trabaja en compras y un familiar recibe órdenes de su entidad",
           icono: <ShoppingCart size={15} aria-hidden />,
           contenido: <ListaComprasFamilia inicial={de("compras")} />,
+        },
+        {
+          clave: "autoridad",
+          etiqueta: SECCIONES_PATRONES.autoridad,
+          titulo: "La autoridad dejó de figurar en una empresa y ésta le vendió a su entidad",
+          icono: <Landmark size={15} aria-hidden />,
+          contenido: <ListaAutoridadExsocio inicial={de("autoridad")} />,
         },
         {
           clave: "recien",
@@ -1171,6 +1181,115 @@ const COLUMNAS_DOBLE: Columna[] = [
   { clave: "monto", titulo: "Cobró por esas órdenes", ancho: "9rem", alinear: "der", desde: "md", apilar: "con-rotulo", corto: "Órdenes" },
   { clave: "sueldo", titulo: "Sueldo al mes", ancho: "7.5rem", alinear: "der", desde: "lg", apilar: "con-rotulo", corto: "Sueldo" },
 ];
+
+const COLUMNAS_AUTORIDAD_EXSOCIO: Columna[] = [
+  { clave: "autoridad", titulo: "Autoridad, cargo y entidad", ancho: "minmax(0,1.5fr)" },
+  { clave: "empresa", titulo: "Empresa en la que figuraba", ancho: "minmax(0,1.2fr)", desde: "md", apilar: "con-rotulo", corto: "Empresa" },
+  { clave: "monto", titulo: "Le vendió en su periodo", ancho: "10rem", alinear: "der", corto: "Le vendió" },
+  { clave: "salida", titulo: "Dejó de figurar", ancho: "minmax(8rem,0.7fr)", desde: "lg", apilar: "con-rotulo" },
+];
+
+function ListaAutoridadExsocio({ inicial }: { inicial: InicialPatrones }) {
+  const lista = useListaEnUrl("autoridad", inicial);
+  const [ruc, setRuc] = useState(inicial.ruc ?? "");
+  const rucValido = /^20\d{9}$/.test(ruc.trim()) ? ruc.trim() : undefined;
+  const [graves, setGraves] = useState(false);
+  const filtrada = !!rucValido || graves;
+  const carga = usePoder<PatronesAutoridadExsocio>(rutaAutoridadExsocio(filtrada ? 1 : lista.page, rucValido, graves));
+  return (
+    <div className="space-y-4">
+      <CabeceraPestana
+        ayuda={
+          <Ayuda titulo="¿De dónde sale y por qué importa?">
+            <span className="block">
+              El Registro Nacional de Proveedores publica cada mes quiénes son socios, representantes y directivos de cada proveedor. Comparando
+              los cortes desde diciembre de 2022 se sabe quién dejó de figurar y cuándo. Las autoridades electas son las del Jurado Nacional de
+              Elecciones; las ventas, las órdenes y los procesos adjudicados por su entidad dentro de su periodo.
+            </span>
+            <span className="mt-1.5 block">
+              El impedimento para contratar alcanza a la empresa en la que la autoridad tenga o haya tenido más del 30 % del capital dentro de los
+              12 meses anteriores a la convocatoria, y a la que integra o representa (artículo 11 de la Ley 30225; artículo 30 de la Ley 32069).
+              Salir de la empresa no lo levanta de inmediato.
+            </span>
+            <span className="mt-1.5 block">
+              Es una señal en observación: el RNP no publica el porcentaje de participación y el corte en que dejó de figurar es mensual.
+            </span>
+          </Ayuda>
+        }
+      >
+        En observación: autoridades electas que dejaron de figurar en una empresa proveedora, con lo que esa empresa le vendió durante su periodo a
+        la entidad que gobiernan o fiscalizan.
+      </CabeceraPestana>
+      <label className="block max-w-md">
+        <span className="text-rotulo font-medium text-inkSoft">Filtrar por RUC de la entidad o de la empresa</span>
+        <input
+          type="search"
+          inputMode="numeric"
+          value={ruc}
+          onChange={(e) => setRuc(e.target.value.replace(/\D/g, "").slice(0, 11))}
+          placeholder="RUC de 11 dígitos que empieza en 20"
+          autoComplete="off"
+          className="mt-1 h-11 w-full rounded-xl border border-line bg-paperSoft px-3 text-dato text-ink placeholder:text-mute focus:border-granate focus:bg-paper focus:outline-none focus:ring-2 focus:ring-granate/20"
+        />
+      </label>
+      <label className="flex min-h-11 w-fit cursor-pointer items-center gap-2.5 text-dato text-ink">
+        <input type="checkbox" checked={graves} onChange={(e) => setGraves(e.target.checked)} className="size-5 rounded border-line accent-granate" />
+        Sólo con ventas de cuando figuraba en la empresa o de los 12 meses siguientes a su salida
+      </label>
+      <EstadoCarga carga={carga} columnas={COLUMNAS_AUTORIDAD_EXSOCIO}>
+        {(d) => {
+          const filas = d.data ?? [];
+          const r = d.resumen;
+          return (
+            <div className="space-y-4">
+              <Indicadores
+                franja
+                items={[
+                  { valor: numero(d.total), etiqueta: d.total === 1 ? "caso" : "casos", contexto: "autoridad, empresa y entidad", icono: <Landmark size={15} strokeWidth={1.9} aria-hidden />, parte: null },
+                  { valor: numero(r?.autoridades ?? 0), etiqueta: "autoridades electas", contexto: r ? `${plural(r.empresas, "empresa", "empresas")} y ${plural(r.entidades, "entidad", "entidades")}` : "sin casos", parte: null },
+                  { valor: solesCompacto(r?.montoEnPlazo ?? 0), etiqueta: "vendido dentro del plazo del impedimento", contexto: r ? `de ${solesCompacto(r.monto)} vendidos en su periodo` : "sin casos", parte: null },
+                ]}
+              />
+              <ZonaLista total={d.total} page={filtrada ? 1 : lista.page} cargando={carga.cargando} nombre="casos" onPagina={lista.irAPagina} vacio="No hay casos para ese filtro.">
+                {filas.length > 0 ? <Tabla columnas={COLUMNAS_AUTORIDAD_EXSOCIO} filas={filas.map(filaAutoridadExsocio)} etiqueta="Autoridades que dejaron de figurar en una empresa que le vendió a su entidad" /> : null}
+              </ZonaLista>
+            </div>
+          );
+        }}
+      </EstadoCarga>
+    </div>
+  );
+}
+
+function filaAutoridadExsocio(p: PatronAutoridadExsocio, i: number): Fila {
+  const total = p.ordenes + p.procesos;
+  return {
+    id: `autoridad-${i}`,
+    detalle: detalleAutoridadExsocio(p),
+    enlaces: true,
+    celdas: {
+      autoridad: (
+        <CeldaPrincipal
+          dosLineas
+          titulo={<>{p.autoridad ? tituloNatural(p.autoridad) : "Autoridad electa"}</>}
+          meta={
+            <span className="block">
+              {`${tituloNatural(p.cargo)}, `}
+              <EnlaceEntidad ruc={p.entidadRuc} nombre={p.entidad} />
+            </span>
+          }
+        />
+      ),
+      empresa: (
+        <CeldaTexto sub={p.roles.join(", ")}>
+          <EnlaceEmpresa ruc={p.empresaRuc} nombre={p.empresa} />
+        </CeldaTexto>
+      ),
+      monto: <CeldaNumero sub={`${plural(total, "venta", "ventas")}, ${numero(p.ventasEnPlazo)} en el plazo`}>{solesCompacto(p.montoOrdenes + p.montoProcesos)}</CeldaNumero>,
+      salida: <CeldaTexto sub="corte mensual del RNP">{fechaConAnio(p.bajaCorte)}</CeldaTexto>,
+    },
+  };
+}
 
 const COLUMNAS_COMPRAS_FAMILIA: Columna[] = [
   { clave: "persona", titulo: "Persona, puesto y entidad", ancho: "minmax(0,1.7fr)" },

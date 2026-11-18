@@ -8,6 +8,7 @@
  * la API (`ruta…`) y las mismas lecturas para un componente de servidor (`get…`).
  */
 import { API_BASE } from "./api-client";
+import type { VentaASuEntidad } from "@/lib/autoridadExsocio";
 
 /** Las pestañas de /app/patrones, en su orden: clave de `?seccion=` y nombre. */
 export const SECCIONES_PATRONES = {
@@ -20,6 +21,7 @@ export const SECCIONES_PATRONES = {
   repetidas: "Compras repetidas",
   doble: "Dos ingresos del Estado",
   compras: "Compras y familia",
+  autoridad: "Autoridad que dejó su empresa",
   recien: "Recién creadas con órdenes",
   inhabilitadas: "Socio de inhabilitada",
   control: "Socio en informe de control",
@@ -538,6 +540,31 @@ export const rutaRepetidas = (page = 1, ruc?: string, graves = false) =>
   `/patrones/repetidas?${consulta({ page, size: TAM_PATRONES, buscar: ruc, severidad: graves ? "alta" : undefined })}`;
 export const rutaRecien = (page = 1, ruc?: string, graves = false) =>
   `/patrones/recien?${consulta({ page, size: TAM_PATRONES, buscar: ruc, severidad: graves ? "alta" : undefined })}`;
+/**
+ * En observación (migración 367): una autoridad electa dejó de figurar en una empresa del RNP y esa empresa le vendió a la
+ * entidad que gobierna o fiscaliza, dentro de su periodo. La autoridad va con su nombre completo (es electa).
+ */
+export interface PatronAutoridadExsocio extends VentaASuEntidad {
+  empresaRuc: string;
+  empresa: string | null;
+  autoridad: string | null;
+  periodoInicio: string;
+  periodoFin: string | null;
+  /** Los papeles que tuvo en la empresa: socio, representante legal, directivo. */
+  roles: string[];
+  desde: string | null;
+}
+
+export interface PatronesAutoridadExsocio {
+  total: number;
+  page: number;
+  size: number;
+  resumen?: { casos: number; autoridades: number; empresas: number; entidades: number; monto: number; montoEnPlazo: number } | null;
+  data: PatronAutoridadExsocio[];
+}
+
+export const rutaAutoridadExsocio = (page = 1, ruc?: string, graves = false) =>
+  `/patrones/autoridad-exsocio?${consulta({ page, size: TAM_PATRONES, buscar: ruc, severidad: graves ? "alta" : undefined })}`;
 export const rutaComprasFamilia = (page = 1, ruc?: string, graves = false) =>
   `/patrones/compras-familia?${consulta({ page, size: TAM_PATRONES, buscar: ruc, severidad: graves ? "alta" : undefined })}`;
 export const rutaDoble = (page = 1, ruc?: string, graves = false) =>

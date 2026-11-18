@@ -798,6 +798,61 @@ patronesRouter.get("/compras-familia", async (c) => {
   return c.json(cuerpo);
 });
 
+const AutoridadExsocio = z.object({
+  /** RUC de la entidad o de la empresa. */
+  buscar: z.string().regex(/^20\d{9}$/).optional(),
+  severidad: z.enum(["alta", "media"]).optional(),
+  page: z.coerce.number().int().min(1).max(200).default(1),
+  size: z.coerce.number().int().min(1).max(50).default(20),
+});
+
+const ROL_RNP: Record<string, string> = { SOCIO_ACCIONISTA_TITULAR: "socio", REPRESENTANTE_LEGAL: "representante legal", ORGANO_ADMINISTRACION: "directivo" };
+
+/**
+ * GET /patrones/autoridad-exsocio?buscar=&severidad= — la autoridad electa dejó de figurar en una empresa y esa empresa le
+ * vendió a la entidad que gobierna o fiscaliza (migración 367). El impedimento para contratar alcanza a la persona jurídica
+ * en la que la autoridad tenga o haya tenido más del 30 % dentro de los 12 meses anteriores a la convocatoria. En
+ * observación: el RNP no publica el porcentaje y el corte en que dejó de figurar es mensual.
+ *
+ * Privacidad: es una autoridad electa y va con su nombre completo, como en el resto del sistema; su documento no sale.
+ */
+patronesRouter.get("/autoridad-exsocio", async (c) => {
+  const p = AutoridadExsocio.safeParse(Object.fromEntries(Object.entries(parametros(c)).filter(([, v]) => v !== "" && v != null)));
+  if (!p.success) return c.json({ error: "invalid_query", issues: p.error.issues }, 400);
+  const q = p.data;
+  const cuerpo = await memo.obtener(`autoridad-exsocio:${JSON.stringify(q)}`, async () => {
+    const [r, t] = await Promise.all([
+      pool.query(
+        `SELECT v.ruc_empresa AS "empresaRuc", v.empresa, v.autoridad, v.cargo, v.lugar, v.entidad_ruc AS "entidadRuc", v.entidad,
+                to_char(v.periodo_inicio, 'YYYY-MM-DD') AS "periodoInicio", to_char(v.periodo_fin, 'YYYY-MM-DD') AS "periodoFin", v.roles,
+                v.fue_socio AS "fueSocio", to_char(v.desde, 'YYYY-MM-DD') AS desde, to_char(v.baja_corte, 'YYYY-MM-DD') AS "bajaCorte",
+                v.ordenes, v.monto_ordenes::float AS "montoOrdenes", v.procesos, v.monto_procesos::float AS "montoProcesos",
+                v.ventas_mientras AS "ventasMientras", v.ventas_en_plazo AS "ventasEnPlazo", v.monto_en_plazo::float AS "montoEnPlazo",
+                v.ventas_despues AS "ventasDespues", to_char(v.primera, 'YYYY-MM-DD') AS primera, to_char(v.ultima, 'YYYY-MM-DD') AS ultima,
+                v.severidad, (count(*) OVER ())::int AS total_filas
+           FROM autoridad_exsocio_venta v
+          WHERE ($1::text IS NULL OR v.entidad_ruc = $1 OR v.ruc_empresa = $1) AND ($2::text IS NULL OR v.severidad = $2)
+          ORDER BY CASE v.severidad WHEN 'alta' THEN 0 ELSE 1 END, v.monto_en_plazo DESC, v.monto_ordenes + v.monto_procesos DESC, v.ruc_empresa, v.entidad_ruc
+          LIMIT $3 OFFSET $4`, [q.buscar ?? null, q.severidad ?? null, q.size, (q.page - 1) * q.size]),
+      pool.query<{ casos: number; autoridades: number; empresas: number; entidades: number; monto: number; montoEnPlazo: number }>(
+        `SELECT count(*)::int AS casos, count(DISTINCT v.autoridad_id)::int AS autoridades, count(DISTINCT v.ruc_empresa)::int AS empresas,
+                count(DISTINCT v.entidad_ruc)::int AS entidades, COALESCE(sum(v.monto_ordenes + v.monto_procesos), 0)::float AS monto,
+                COALESCE(sum(v.monto_en_plazo), 0)::float AS "montoEnPlazo"
+           FROM autoridad_exsocio_venta v WHERE ($1::text IS NULL OR v.entidad_ruc = $1 OR v.ruc_empresa = $1)`, [q.buscar ?? null]),
+    ]).catch(() => [{ rows: [] as Record<string, unknown>[] }, { rows: [] as { casos: number; autoridades: number; empresas: number; entidades: number; monto: number; montoEnPlazo: number }[] }] as const);
+    const filas = r.rows as Record<string, any>[];
+    return publicar({
+      total: filas[0]?.total_filas ?? 0, page: q.page, size: q.size,
+      resumen: t.rows[0] ?? null,
+      data: filas.map(({ total_filas: _t, roles, ...x }) => ({ ...x, roles: ((roles ?? []) as string[]).map((y) => ROL_RNP[y] ?? y.toLowerCase().replace(/_/g, " ")) })),
+      enObservacion: true,
+      como_leerlo: "Cada fila es una autoridad electa (alcalde, regidor, gobernador, consejero) que dejó de figurar en la conformación jurídica de una empresa del Registro Nacional de Proveedores, con lo que esa empresa le vendió, dentro de su periodo, a la entidad que gobierna o fiscaliza: órdenes por su fecha de emisión y procesos por su buena pro. «ventasEnPlazo» cuenta las ventas de cuando todavía figuraba en la empresa o de los 12 meses siguientes al corte en que dejó de figurar. El impedimento para contratar alcanza a la persona jurídica en la que la autoridad tenga o haya tenido más del 30 % del capital dentro de los 12 meses anteriores a la convocatoria, y a la que integra o representa (literal i del numeral 11.1 del artículo 11 de la Ley 30225; tipo 3.A del numeral 3 del párrafo 30.1 del artículo 30 de la Ley 32069). Es una señal en observación: el RNP no publica el porcentaje de participación y el corte en que dejó de figurar es mensual. Hay que pedir la partida registral de la empresa y los expedientes de esas compras.",
+    });
+  });
+  c.header("Cache-Control", CACHE);
+  return c.json(cuerpo);
+});
+
 const Renovaciones = z.object({
   ruc: z.string().regex(/^20\d{9}$/).optional(),
   page: z.coerce.number().int().min(1).max(200).default(1),

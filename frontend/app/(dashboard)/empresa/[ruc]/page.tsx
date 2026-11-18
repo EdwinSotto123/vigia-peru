@@ -258,6 +258,15 @@ export default async function EmpresaPage({ params, searchParams: sp }: { params
           href: `${ruta}?seccion=ventas&${P_COMPRAS.como}=catalogo&${P_COMPRAS.bandera}=sobreprecio`,
         }]
       : []),
+    // En observación (migración 367): una autoridad electa dejó de figurar en la empresa y ésta le vendió a su entidad.
+    ...((e.exAutoridad?.casos ?? 0) > 0
+      ? [{
+          tipo: "autoridad_exsocio", severidad: (e.exAutoridad!.graves > 0 ? "alta" : "media") as "alta" | "media", observacion: true,
+          nombre: "En observación: una autoridad dejó la empresa y ésta le vendió a su entidad", n: e.exAutoridad!.casos > 1 ? e.exAutoridad!.casos : null,
+          explica: "Una autoridad electa dejó de figurar entre sus socios o representantes y la empresa le vendió, durante su periodo, a la entidad que esa autoridad gobierna o fiscaliza. El detalle está en la tarjeta de esa persona",
+          href: `${ruta}?seccion=gente`,
+        }]
+      : []),
     ...(e.visitasClientes > 0
       ? [{
           tipo: "visitas_clientes", severidad: "media" as const, nombre: "Visitó a sus clientes", n: e.visitasClientes,

@@ -280,7 +280,7 @@ empresasRouter.get("/:ruc", async (c) => {
   const ruc = c.req.param("ruc");
   if (!RUC_EMPRESA.test(ruc)) return c.json({ error: "not_found" }, 404);
   const cuerpo = await fichaMemo.obtener(`ficha:${ruc}`, async () => {
-    const [e, anual, catalogo] = await Promise.all([
+    const [e, anual, catalogo, exAutoridad] = await Promise.all([
       pool.query(
         `SELECT ${FILA_EMPRESA}, e.adj_monto_dudoso::float AS "adjMontoDudoso", e.adj_otra_moneda AS "adjOtraMoneda",
                 e.ord_monto_dudoso::float AS "ordMontoDudoso", to_char(e.fecha_alta, 'YYYY-MM-DD') AS "fechaAlta", e.domicilio,
@@ -338,13 +338,20 @@ empresasRouter.get("/:ruc", async (c) => {
                       (SELECT COALESCE(sum(s.exceso), 0) FROM perucompras_sobreprecio s WHERE s.proveedor_ruc = $1)::float AS exceso`, [ruc])
           : null)
         .catch((err) => { console.warn(`[empresas] catálogo de ${ruc}: ${(err as Error).message}`); return null; }),
+      // En observación (migración 367): una autoridad electa dejó de figurar en la empresa y ésta le vendió a su entidad.
+      pool.query<{ casos: number; graves: number }>(
+        `SELECT count(*)::int AS casos, (count(*) FILTER (WHERE severidad = 'alta'))::int AS graves FROM autoridad_exsocio_venta WHERE ruc_empresa = $1`, [ruc])
+        .then((r) => r.rows[0] ?? null).catch(() => null),
     ]);
     const fila = e.rows[0];
     if (!fila) return fichaMenoresOnly(ruc);
     // Sus antecedentes por tipo: qué registro la nombra, cuántas veces y con qué gravedad (sin puntos ni puntaje).
     const antecedentes = ((fila.cruces as { tipo: string; severidad: string; n: number }[] | null) ?? [])
       .map((x) => ({ ...x, etiqueta: ETIQUETA_CRUCE[x.tipo] ?? x.tipo }));
-    return publicar({ empresa: { ...conNombre(fila), catalogo: catalogo?.rows[0] ?? null }, antecedentes, anual: anual.rows });
+    return publicar({
+      empresa: { ...conNombre(fila), catalogo: catalogo?.rows[0] ?? null, exAutoridad: exAutoridad?.casos ? exAutoridad : null },
+      antecedentes, anual: anual.rows,
+    });
   });
   if (!cuerpo) return c.json({ error: "not_found" }, 404);
   c.header("Cache-Control", CACHE);
@@ -1013,11 +1020,21 @@ empresasRouter.get("/:ruc/socios", async (c) => {
            FROM ${origen} r
           GROUP BY r.numero_documento
           ORDER BY bool_or(r.tipo_rol = 'REPRESENTANTE_LEGAL') DESC, bool_or(r.tipo_rol = 'SOCIO_ACCIONISTA_TITULAR') DESC, max(r.nombre)`;
-    const [socios, antes, vinculadas, sociaDe, declarada] = await Promise.all([
+    const [socios, antes, ventasAutoridad, vinculadas, sociaDe, declarada] = await Promise.all([
       pool.query(sqlSocios(`(SELECT ${COLUMNAS_RNP} FROM rnp_conformacion_juridica WHERE ruc_empresa = $1 AND numero_documento IS NOT NULL)`), [ruc]),
       // Sin la tabla (un entorno sin la migración 365) la ficha sigue: sólo faltan los de antes.
       pool.query(sqlSocios(`(SELECT ${COLUMNAS_RNP} FROM rnp_exsocio WHERE ruc_empresa = $1)`), [ruc])
         .catch((e) => { console.warn(`[socios] ex socios: ${(e as Error).message}`); return { rows: [] as Record<string, any>[] }; }),
+      // En observación (migración 367): lo que la empresa le vendió, dentro de su periodo, a la entidad de una autoridad
+      // electa que dejó de figurar en ella. `k` la junta con su tarjeta.
+      pool.query(
+        `SELECT md5(ja.dni || $1::text) AS k, v.entidad_ruc AS "entidadRuc", v.entidad, v.cargo, v.lugar, to_char(v.baja_corte, 'YYYY-MM-DD') AS "bajaCorte",
+                v.fue_socio AS "fueSocio", v.ordenes, v.monto_ordenes::float AS "montoOrdenes", v.procesos, v.monto_procesos::float AS "montoProcesos",
+                v.ventas_mientras AS "ventasMientras", v.ventas_en_plazo AS "ventasEnPlazo", v.monto_en_plazo::float AS "montoEnPlazo",
+                v.ventas_despues AS "ventasDespues", to_char(v.primera, 'YYYY-MM-DD') AS primera, to_char(v.ultima, 'YYYY-MM-DD') AS ultima, v.severidad
+           FROM autoridad_exsocio_venta v JOIN jne_autoridades ja ON ja.id = v.autoridad_id
+          WHERE v.ruc_empresa = $1 ORDER BY v.monto_en_plazo DESC, v.monto_ordenes + v.monto_procesos DESC`, [ruc])
+        .catch(() => ({ rows: [] as Record<string, any>[] })),
       // Otras empresas con alguien en común, y quiénes: cada persona una vez, con sus papeles aquí y allá.
       pool.query(
         `WITH par AS (
@@ -1068,6 +1085,8 @@ empresasRouter.get("/:ruc/socios", async (c) => {
       if (s.salio) s.roles = [...s.roles, ...otros];
       else { s.roles_antes = [...s.roles_antes, ...otros]; s.dejo_rol = [s.dejo_rol, x.salio].filter(Boolean).sort().pop() ?? null; }
     }
+    const ventasPorLlave = new Map<string, Record<string, any>[]>();
+    for (const { k, ...v } of ventasAutoridad.rows as Record<string, any>[]) ventasPorLlave.set(k, [...(ventasPorLlave.get(k) ?? []), v]);
     // Primero quienes figuran hoy (en el orden de la consulta); después quienes salieron, los más recientes arriba.
     gente.sort((a, b) => Number(!!a.salio) - Number(!!b.salio) || String(b.salio ?? "").localeCompare(String(a.salio ?? "")));
     return publicar({
@@ -1080,6 +1099,7 @@ empresasRouter.get("/:ruc/socios", async (c) => {
           ? {
               locador: s.locador ?? null, autoridad: s.autoridad ?? null, candidaturas: s.candidaturas ?? 0, aportes: s.aportes ?? null,
               postulaciones: s.postulaciones ?? [],
+              ventasASuEntidad: ventasPorLlave.get(s.k),
             }
           : null,
       })),

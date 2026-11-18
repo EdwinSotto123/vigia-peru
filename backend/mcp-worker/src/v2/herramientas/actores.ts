@@ -630,10 +630,13 @@ export const patrones = definir({
     "contrataciones y un familiar declarado en su declaración jurada que recibió órdenes a su nombre de esa misma entidad, con " +
     "cuántas de esas órdenes se emitieron mientras tenía el puesto, cuántas antes y cuántas después; con ruc, los de esa " +
     "entidad; solo_graves deja los de familiar cercano con órdenes emitidas en el puesto. El familiar sale sólo por su parentesco. " +
+    "Con alcance «autoridad_exsocio» (en observación): autoridades electas (alcalde, regidor, gobernador, consejero) que dejaron de " +
+    "figurar en una empresa del RNP y lo que esa empresa le vendió a su entidad dentro de su periodo, con cuántas ventas caen " +
+    "hasta 12 meses después de su salida (el plazo del impedimento por participación); con ruc, los de esa entidad o empresa. " +
     "Un patrón es un motivo para mirar, no una acusación.",
   cuenta: true,
   entrada: {
-    alcance: z.enum(["entidad", "proveedor", "relleno", "consorcio", "renovacion", "dueno", "inhabilitada", "control", "observado", "observacion", "grupo", "repetida", "doble", "recien_creada", "compras_familia"]).default("entidad"),
+    alcance: z.enum(["entidad", "proveedor", "relleno", "consorcio", "renovacion", "dueno", "inhabilitada", "control", "observado", "observacion", "grupo", "repetida", "doble", "recien_creada", "compras_familia", "autoridad_exsocio"]).default("entidad"),
     indicador: z.enum(["reunion_en_evaluacion", "visita_personal_decisor", "ofertas_a_la_vez", "trabajo_en_el_ganador",
       "firma_en_plazo_de_apelacion"]).optional()
       .describe("(observacion) Sólo uno de los indicadores en observación."),
@@ -657,6 +660,27 @@ export const patrones = definir({
           ordenes_en_su_primer_anio: x.ordenesPrimerAnio, monto_en_su_primer_anio_soles: x.montoPrimerAnio,
           parte_de_sus_ventas_por_ordenes_que_viene_de_esta_entidad: x.parteEntidad ?? undefined,
           enlace_empresa: x.ruc ? e.empresa(String(x.ruc)) : undefined, enlace_entidad: e.entidad(String(x.entidadRuc)),
+        })),
+        como_leerlo: r.como_leerlo,
+        aviso: AVISO,
+      };
+    }
+    if (a.alcance === "autoridad_exsocio") {
+      const r = await api<Fila>(cx.env, "/patrones/autoridad-exsocio", { buscar: ruc, severidad: a.solo_graves ? "alta" : undefined, page: a.pagina, size: 20 });
+      return {
+        total: r.total,
+        en_observacion: true,
+        resumen: r.resumen ?? undefined,
+        casos: ((r.data ?? []) as Fila[]).map((x) => ({
+          autoridad: x.autoridad, cargo: x.cargo, lugar: x.lugar ?? undefined, periodo_desde: x.periodoInicio, periodo_hasta: x.periodoFin ?? undefined,
+          entidad: x.entidad, entidad_ruc: x.entidadRuc, empresa: x.empresa, empresa_ruc: x.empresaRuc,
+          papeles_que_tuvo_en_la_empresa: x.roles, fue_socio: x.fueSocio, figuraba_desde: x.desde ?? undefined,
+          dejo_de_figurar_en_el_corte_del_rnp: x.bajaCorte,
+          ordenes_en_su_periodo: x.ordenes, monto_ordenes_soles: x.montoOrdenes, procesos_adjudicados_en_su_periodo: x.procesos, monto_procesos_soles: x.montoProcesos,
+          ventas_cuando_aun_figuraba: x.ventasMientras, ventas_hasta_12_meses_despues_de_su_salida: x.ventasEnPlazo, monto_de_esas_ventas_soles: x.montoEnPlazo,
+          ventas_de_mas_de_12_meses_despues: x.ventasDespues, primera_venta: x.primera ?? undefined, ultima_venta: x.ultima ?? undefined, severidad: x.severidad,
+          enlace_empresa: x.empresaRuc ? `${e.empresa(String(x.empresaRuc))}?seccion=gente` : undefined,
+          enlace_entidad: x.entidadRuc ? e.entidad(String(x.entidadRuc)) : undefined,
         })),
         como_leerlo: r.como_leerlo,
         aviso: AVISO,

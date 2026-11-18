@@ -294,6 +294,8 @@ export async function correrOrdenes(env: Env, p: ParamsCorrida, step: WorkflowSt
     // Quien trabaja en compras o decide el gasto y tiene un familiar con órdenes de su entidad (migración 364): sobre la red
     // de familia recién rehecha. En observación.
     opcional("refrescar_funcionario_compras_familiar"),
+    // La autoridad electa que dejó de figurar en una empresa y lo que ésta le vendió a su entidad (migración 367). En observación.
+    opcional("refrescar_autoridad_exsocio_venta"),
     // Cobra del Estado por dos lados (migración 352): planilla de una entidad y órdenes de servicio de otra, los mismos meses.
     opcional("refrescar_doble_percepcion"),
     // Empresas recién creadas que reciben órdenes directas a los pocos días de su alta (migración 355).

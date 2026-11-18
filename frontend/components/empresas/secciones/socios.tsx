@@ -1,6 +1,6 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
-import { BriefcaseBusiness, HandCoins, Landmark, Vote, type LucideIcon } from "lucide-react";
+import { BriefcaseBusiness, HandCoins, Landmark, Store, Vote, type LucideIcon } from "lucide-react";
 import { EstadoVacio, FuenteDato } from "@/components/patrones";
 import {
   CeldaFecha,
@@ -22,6 +22,7 @@ import { BUSCADOR_RNP, CLARIDAD_ONPE, DATASET_SOCIOS_RNP, DJI_CONSULTA, PLATAFOR
 import { tituloNatural } from "@/lib/landing";
 import { rutaEmpresa, type DeclaracionDji, type SocioEnElEstado, type SociosEmpresa } from "@/lib/empresas";
 import { rutaPartido } from "@/lib/partidos";
+import { REGLA_AUTORIDAD_EXSOCIO, loQueVendio, ventasFrenteALaSalida } from "@/lib/autoridadExsocio";
 import { cargoEnOracion } from "@/lib/planilla";
 import { rutaPersona } from "@/lib/personas";
 import { lugarDelCargo } from "./casoAntecedente";
@@ -136,6 +137,21 @@ function EnElEstado({ e, ruc, tipos }: { e: SocioEnElEstado; ruc: string; tipos:
           enlace={alAntecedente("autoridad")}
         />
       )}
+      {(e.ventasASuEntidad ?? []).map((v, i) => (
+        <FilaEstado
+          key={`venta-${i}`}
+          icono={Store}
+          alerta={v.severidad === "alta"}
+          titulo={`En observación: la empresa le vendió a ${v.entidad ? tituloNatural(v.entidad) : "su entidad"} durante su periodo`}
+          detalle={
+            <>
+              <span className="block">{`${loQueVendio(v)}. ${ventasFrenteALaSalida(v)}`}</span>
+              <span className="mt-1 block">{REGLA_AUTORIDAD_EXSOCIO}</span>
+            </>
+          }
+          enlace={{ texto: "Ver la entidad", href: `/entidad/${v.entidadRuc}` }}
+        />
+      ))}
       {posts.length > 0 && (
         <FilaEstado
           icono={Vote}

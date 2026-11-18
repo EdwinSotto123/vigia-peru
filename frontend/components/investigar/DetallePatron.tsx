@@ -11,11 +11,13 @@ import { EnlaceAccion } from "@/components/ui/EnlaceAccion";
 import { decimal, fechaConAnio, numero, plural, porcentaje, solesCompacto } from "@/lib/formato";
 import { tituloNatural } from "@/lib/landing";
 import { aniosDeLasOrdenes, fechasEnElPuesto, ordenesEnElPuesto, ordenesFueraDelPuesto, periodoDelPuesto } from "@/lib/comprasFamilia";
+import { loQueVendio, ventasFrenteALaSalida } from "@/lib/autoridadExsocio";
 import {
   codigoDeOcid,
   type AlcancePatron,
   type PatronAcompanante,
   type PatronConsorcio,
+  type PatronAutoridadExsocio,
   type PatronCompraFamilia,
   type PatronDoble,
   type PatronControl,
@@ -618,6 +620,63 @@ export function detalleRepetida(p: PatronRepetida): Detalle {
 
 const MESES_CORTOS = ["ene.", "feb.", "mar.", "abr.", "may.", "jun.", "jul.", "ago.", "set.", "oct.", "nov.", "dic."];
 const mesCorto = (m: string | null) => (m && /^\d{4}-\d{2}/.test(m) ? `${MESES_CORTOS[Number(m.slice(5, 7)) - 1] ?? ""} ${m.slice(0, 4)}` : null);
+
+export function detalleAutoridadExsocio(p: PatronAutoridadExsocio): Detalle {
+  const ent = entidad(p.entidad);
+  const cargo = tituloNatural(p.cargo).toLowerCase();
+  const empresa = p.empresa ? tituloNatural(p.empresa) : `la empresa con RUC ${p.empresaRuc}`;
+  const quien = p.autoridad ? tituloNatural(p.autoridad) : "Una autoridad electa";
+  const periodo = `del ${fechaConAnio(p.periodoInicio)}${p.periodoFin ? ` al ${fechaConAnio(p.periodoFin)}` : " a hoy"}`;
+  return {
+    // El nombre de la autoridad nunca va al título del panel.
+    titulo: "Autoridad que dejó su empresa",
+    etiqueta: "Ver el detalle de este caso de una autoridad que dejó su empresa",
+    descripcion: <span className="line-clamp-2">{ent}</span>,
+    contenido: (
+      <div className="space-y-5">
+        <EnUnaFrase tono={p.severidad === "alta" ? "alta" : "media"}>
+          <b>{quien}</b>, {cargo}
+          {p.lugar ? ` de ${tituloNatural(p.lugar)}` : ""}, figuraba como <b>{p.roles.join(", ")}</b> de <b>{empresa}</b> y dejó de figurar en el corte
+          del {fechaConAnio(p.bajaCorte)}. Durante su periodo, <b>{ent}</b> le compró a esa empresa <b>{loQueVendio(p)}</b>. {ventasFrenteALaSalida(p)}
+        </EnUnaFrase>
+        <DatosClave
+          items={[
+            { etiqueta: "Cargo electo", valor: `${tituloNatural(p.cargo)}${p.lugar ? `, ${tituloNatural(p.lugar)}` : ""}` },
+            { etiqueta: "Su periodo", valor: periodo.charAt(0).toUpperCase() + periodo.slice(1) },
+            { etiqueta: "Papel en la empresa", valor: p.roles.join(", ").replace(/^./, (x) => x.toUpperCase()) },
+            { etiqueta: "Figuraba desde", valor: p.desde ? fechaConAnio(p.desde) : null },
+            { etiqueta: "Dejó de figurar (corte del RNP)", valor: fechaConAnio(p.bajaCorte) },
+            { etiqueta: "Órdenes en su periodo", valor: p.ordenes ? `${numero(p.ordenes)} por ${solesCompacto(p.montoOrdenes)}` : "Ninguna", mono: !!p.ordenes },
+            { etiqueta: "Procesos adjudicados en su periodo", valor: p.procesos ? `${numero(p.procesos)} por ${solesCompacto(p.montoProcesos)}` : "Ninguno", mono: !!p.procesos },
+            { etiqueta: "Cuando todavía figuraba", valor: p.ventasMientras ? plural(p.ventasMientras, "venta", "ventas") : "Ninguna" },
+            { etiqueta: "Hasta 12 meses después de salir", valor: p.ventasEnPlazo ? `${plural(p.ventasEnPlazo, "venta", "ventas")} por ${solesCompacto(p.montoEnPlazo)}` : "Ninguna" },
+            { etiqueta: "Más de 12 meses después", valor: p.ventasDespues ? plural(p.ventasDespues, "venta", "ventas") : null },
+            { etiqueta: "Primera y última venta", valor: p.primera && p.ultima ? `${fechaConAnio(p.primera)} a ${fechaConAnio(p.ultima)}` : null },
+          ]}
+        />
+        <QueRevisar
+          pasos={[
+            "Es una señal en observación: dice que una autoridad figuró en la empresa y que la empresa le vendió a su entidad. No dice que hubo una contratación indebida.",
+            "El impedimento alcanza a la empresa en la que la autoridad tenga o haya tenido más del 30 % del capital dentro de los 12 meses anteriores a la convocatoria, y a la que integra o representa (literal i del numeral 11.1 del artículo 11 de la Ley 30225; tipo 3.A del párrafo 30.1 del artículo 30 de la Ley 32069).",
+            "El RNP no publica el porcentaje: pide la partida registral de la empresa en la SUNARP para ver cuánto tenía y a quién transfirió su parte.",
+            "El corte en que dejó de figurar es mensual: la salida real puede ser unas semanas antes. Compara la fecha de la transferencia con la de cada convocatoria u orden.",
+            p.ventasDespues > 0 && p.ventasEnPlazo === 0
+              ? "Las ventas son de más de 12 meses después de su salida: mira quién quedó como socio (un familiar mantiene el impedimento)."
+              : "Mira quién quedó como socio tras su salida: si es su cónyuge, conviviente o un pariente hasta el segundo grado, el impedimento sigue.",
+          ]}
+        />
+      </div>
+    ),
+    pie: (
+      <Pie
+        enlaces={[
+          esRuc20(p.empresaRuc) && { texto: "Ficha de la empresa: su gente", href: `/empresa/${p.empresaRuc}?seccion=gente` },
+          esRuc20(p.entidadRuc) && { texto: "La entidad", href: `/entidad/${p.entidadRuc}` },
+        ]}
+      />
+    ),
+  };
+}
 
 export function detalleCompraFamilia(p: PatronCompraFamilia): Detalle {
   const ent = entidad(p.entidad);
