@@ -41,9 +41,16 @@ from backend.core.clasificacion import _UPDATE_SQL, _UPDATE_TEMPLATE, _fila, cla
 
 CAMPOS = ("tipo_contratacion", "etapa", "modalidad", "procesable")
 CON_ADJUDICACION = {"adjudicada", "contratada", "en_ejecucion", "finalizada"}
+# Orden de avance entre las que tienen adjudicación: el payload guardado va recortado (sin `awards` ni la ejecución), así
+# que reclasificarlo nunca puede BAJAR a un proceso desde una de ellas, ni dentro de ellas (en ejecución → contratada).
+AVANCE = {"adjudicada": 1, "contratada": 2, "en_ejecucion": 3, "finalizada": 4}
 
-SQL_LOTE = """SELECT ocid, entidad_ruc, ocds_payload, tipo_contratacion, etapa, modalidad, procesable,
-                     COALESCE(jsonb_array_length(adjudicaciones), 0) > 0 AS con_adj
+
+def baja(antes: str, despues: str) -> bool:
+    """De una etapa con adjudicación a una menos avanzada (o sin adjudicación)."""
+    return antes in AVANCE and AVANCE.get(despues, 0) < AVANCE[antes]
+
+SQL_LOTE = """SELECT ocid, entidad_ruc, ocds_payload, tipo_contratacion, etapa, modalidad, procesable
                 FROM convocatorias
                WHERE ocid > %s AND (%s::text IS NULL OR ocid <= %s) AND ocid NOT LIKE 'ocds-vigia-%%'
                  AND NOT (ocds_payload ? 'parties')
@@ -62,14 +69,13 @@ def revertir(entorno: str, archivos: list[str], aplicar: bool) -> None:
     for f in archivos:
         for linea in open(f, encoding="utf-8"):
             d = json.loads(linea)
-            if d["antes"]["etapa"] in CON_ADJUDICACION and d["despues"]["etapa"] not in CON_ADJUDICACION:
+            if baja(d["antes"]["etapa"], d["despues"]["etapa"]):
                 antes[d["ocid"]] = d["antes"]
     print("bajaron de una etapa con adjudicación:", len(antes))
     with conexion(entorno) as cn:
         cur = cn.cursor()
         cur.execute("""SELECT ocid, entidad_ruc, ocds_payload FROM convocatorias
-                        WHERE ocid = ANY(%s) AND COALESCE(jsonb_array_length(adjudicaciones), 0) > 0
-                          AND NOT (ocds_payload ? 'parties')""", (list(antes),))
+                        WHERE ocid = ANY(%s) AND NOT (ocds_payload ? 'parties')""", (list(antes),))
         filas = []
         originales = cl.derivar_tipo, cl.derivar_etapa
         try:
@@ -82,7 +88,7 @@ def revertir(entorno: str, archivos: list[str], aplicar: bool) -> None:
                 filas.append(_fila(ocid, c))
         finally:
             cl.derivar_tipo, cl.derivar_etapa = originales
-        print("con adjudicaciones guardadas (se revierten):", len(filas))
+        print("se revierten:", len(filas))
         if aplicar and filas:
             for i in range(0, len(filas), 2000):
                 execute_values(cur, _UPDATE_SQL, filas[i:i + 2000], template=_UPDATE_TEMPLATE, page_size=2000)
@@ -125,14 +131,14 @@ def main() -> None:
             ultimo = filas[-1][0]
             vistos += len(filas)
             nuevas = []
-            for ocid, ruc, payload, tipo, etapa, modalidad, procesable, con_adj in filas:
+            for ocid, ruc, payload, tipo, etapa, modalidad, procesable in filas:
                 if etapa == "nula":
                     continue
                 c = clasificar(payload or {}, entidad_ruc_hint=ruc)
                 if c.etapa == "nula":
                     continue
-                if con_adj and etapa in CON_ADJUDICACION and c.etapa not in CON_ADJUDICACION:
-                    continue  # el payload es de una convocatoria anterior a la adjudicación guardada
+                if baja(etapa, c.etapa):
+                    continue  # el payload no trae las adjudicaciones ni la ejecución, o es de una convocatoria anterior
                 antes = {"tipo_contratacion": tipo, "etapa": etapa, "modalidad": modalidad, "procesable": procesable}
                 despues = {"tipo_contratacion": c.tipo, "etapa": c.etapa, "modalidad": c.modalidad, "procesable": c.procesable}
                 distintos = [k for k in CAMPOS if antes[k] != despues[k]]
