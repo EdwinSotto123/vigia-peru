@@ -469,6 +469,7 @@ pestaña Familia). La autoridad electa va con su nombre, como en el resto del si
 | `/app/patrones` (pestañas «Compras y familia» y «Autoridad que dejó su empresa») | la lista entera; cada fila abre su panel |
 | Panel del caso (`DetallePatron.tsx`) | en una frase con la persona, la entidad y la empresa enlazadas; datos sin filas vacías; **la evidencia** (`VentasCompraFamilia.tsx`): barra antes / en el puesto / después, cada orden con su número enlazado a la lista de compras de la entidad y cada proceso a su ficha, la empresa del familiar; qué revisar; fuentes |
 | Ficha de la entidad | bandera en observación en la cabecera y, en su Inicio, la sección «En observación» (`EnObservacionFicha.tsx`) con los casos |
+| Ficha de la entidad, pestaña «Patrones» | el índice de TODO lo que se repite en ella, por familias, y la ficha de cada patrón (ver 9.8) |
 | Ficha de la empresa | bandera en la cabecera, la misma sección en «Su gente» y el renglón en la tarjeta de la autoridad que dejó de figurar |
 | Ficha de la persona (`/app/personas/cargo/<código>`) | bandera y caso en «Lo que pide revisión», con «Ver cada orden» |
 | La orden concreta (listas de órdenes y de compras) | bandera `compras_familiar` en la fila, su tarjeta en el panel y filtro por esa bandera (`csenal=` / `oant=`) |
@@ -479,6 +480,27 @@ proceso con su `momento` frente al puesto. A nombre del familiar sólo van la fe
 llevaría a su nombre); con su empresa, el número, la descripción y el OCID. La llena el mismo refresco que las cuentas:
 no pueden diferir (0 diferencias en 1 002 casos). Las filas de los dos patrones viven en `filasCasos.tsx` y las comparten
 Patrones y las fichas: la misma fila dice lo mismo en los dos lados.
+
+### 9.8 La pestaña «Patrones» de una entidad (2026-11-18)
+Pedido del usuario: una lista de órdenes filtrada por una bandera «no dice mucho»; la ficha de la entidad debe decir qué
+patrones hay en ella («patrones de concertación y demás») y tener una ficha por cada patrón.
+
+- **API `GET /patrones/entidad/:ruc`:** el índice. Cuántos casos tiene en la entidad cada lista de patrones (le pregunta
+  por dentro a cada lista de `routes/patrones.ts` con el RUC, en tandas de cinco: no repite ninguna regla) y los
+  antecedentes de quienes ganaron sus contratos por tipo (`casos_cruce`), con seis contratos de ejemplo y los cinco
+  proveedores que más lo repiten.
+- **Familias** (`frontend/lib/patronesEntidad.ts`): concertación y competencia aparente; compras partidas, repetidas o a
+  la medida; familia, política y trato previo; proveedores con sanción, impedimento u observación; lo que leyeron los
+  agentes; obras y otros. Un tipo de antecedente nuevo cae en su familia por el catálogo o por su nombre.
+- **Web** (`components/entidad/PatronesEntidad.tsx`, pestaña a pedido): las familias con cuántos patrones tienen casos,
+  el índice con detalle de los antecedentes de empresa (`IndiceAntecedentes`, con rótulos de familia; el elegido va en
+  `?patron=`) y la ficha del patrón. Si el patrón tiene lista, la ficha ES esa lista con el RUC de la entidad
+  (`ListaDePatron`: mismas filas y mismo panel por caso); si es un antecedente de sus contratos, sus cifras, quiénes lo
+  repiten, los contratos de más peso y el enlace a todos en sus compras (`?cruce=`). Al pie, lo que se buscó y no tiene
+  casos.
+- **De paso:** una lista de Patrones con filtro de RUC no pasaba de la primera página, y cuatro (mismo dueño, socio de
+  inhabilitada, socio en informe de control, observados) no abrían filtradas con `?ruc=`.
+- **MCP:** `ficha_entidad` trae `patrones_en_la_entidad` (cada patrón con casos y cada antecedente, con su enlace).
 
 ---
 
