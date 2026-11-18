@@ -226,6 +226,9 @@ def main() -> None:
                     help="bases: las que esperan visión para su ficha; cortos: garantías, adicionales, resoluciones, desiertos; "
                          "proceso: contrato, acta de buena pro y cuadro de evaluación")
     ap.add_argument("--ocids-archivo", default=None, help="sólo los documentos de estos procesos (uno por línea)")
+    ap.add_argument("--minutos", type=float, default=None,
+                    help="no toma documentos nuevos pasado este tiempo; los que están en curso terminan (para que la tarea "
+                         "de CI deje tiempo a los pasos que siguen)")
     a = ap.parse_args()
     ocids = ocids_de_archivo(a.ocids_archivo)
     t0 = time.time()
@@ -263,6 +266,9 @@ def main() -> None:
             pendientes = list(cola)
             futuros = {}
             while pendientes or futuros:
+                if a.minutos is not None and pendientes and time.time() - t0 > a.minutos * 60:
+                    print(f"  {a.minutos:.0f} min: no se toman más documentos ({len(pendientes)} quedan para la próxima)", flush=True)
+                    pendientes = []
                 while pendientes and len(futuros) < a.hilos and gastado < a.tope_usd and total + gastado < TOPE_TOTAL_USD:
                     f = pendientes.pop(0)
                     futuros[pool.submit(uno, motor, f, a.max_paginas)] = f

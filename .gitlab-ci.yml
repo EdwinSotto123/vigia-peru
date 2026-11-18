@@ -199,10 +199,12 @@ tarea:piezas:
     - python -X utf8 backend/lector/texto.py prod --max-mb 25 --limite 4000 || echo "texto cortado; la siguiente corrida retoma"
     - python -X utf8 backend/lector/piezas.py prod
     - python -X utf8 backend/lector/piezas.py prod --bases
-    - python -X utf8 backend/lector/transcribir.py prod --cola cortos --limite 400 --tope-usd 1 || true
-    - python -X utf8 backend/lector/transcribir.py prod --limite 150 --tope-usd 2 || true
+    # Cada transcripción con su tiempo (--minutos: deja de tomar documentos y termina los que tiene): el 18-nov las tres
+    # se comieron las 3 h del job y no corrieron los lectores ni el refresco. Lo que no entra queda para la próxima.
+    - python -X utf8 backend/lector/transcribir.py prod --cola cortos --limite 400 --tope-usd 1 --minutos 30 || true
+    - python -X utf8 backend/lector/transcribir.py prod --limite 150 --tope-usd 2 --minutos 30 || true
     # Contratos, actas y cuadros de evaluación escaneados (63 % de las actas firmadas): sin esto no hay renglones ni ofertas.
-    - python -X utf8 backend/lector/transcribir.py prod --cola proceso --limite 300 --tope-usd 2 || true
+    - python -X utf8 backend/lector/transcribir.py prod --cola proceso --limite 300 --tope-usd 2 --minutos 30 || true
     - python -X utf8 backend/lector/piezas.py prod
     - for l in garantia modificacion resolucion desierto; do python -X utf8 backend/lector/por_pieza.py prod --lector $l --limite 400 --tope-usd 0.5 || true; done
     # Los renglones del contrato (marca, cantidad y precio unitario comprobado) y los postores del acta: los usan la ficha,
