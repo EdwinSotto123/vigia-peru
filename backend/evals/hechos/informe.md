@@ -73,3 +73,29 @@ En ningún caso el modelo dio como cuantía un monto de experiencia distinto del
 - Los escaneados, con transcripción por visión.
 - Una verdad escrita a mano por tipo de documento (el conjunto de oro de extracción), para medir también los casos en que
   las dos lecturas coinciden y las dos se equivocan.
+
+## 6. Primer oro de extracción escrito a mano (2026-11-18)
+
+La verdad de cada pieza la escribió quien la leyó entera, a ciegas de la lectura del modelo (`muestra_oro.py` imprime sólo
+el texto; la lectura del modelo queda aparte, fuera del repositorio). Verdades en `oro/<lector>.json`; se califican con
+`calificar_oro.py` (acierto, error, omisión, invento por dato). Muestra estable, mitad de piezas transcritas por visión.
+
+| Lector (GLM 5.3 flash, m1) | Piezas | Datos | Exactitud | Lo que falló |
+|---|---|---|---|---|
+| Garantía | 12 | 118 | 93 % | una autorización de retención de una MYPE (Ley 32077) que no reconoció como garantía; un vencimiento calculado sumando 120 días cuando el escaneo era ilegible (un día corrido) |
+| Modificación | 8 | 32 | 94 % | un adicional con deductivo vinculado: dio el NETO como monto y la incidencia ACUMULADA como la del adicional |
+
+Además:
+
+- **El clasificador de piezas se equivoca en las modificaciones:** en 5 de 8 el casillero del SEACE no era el documento
+  (el contrato mismo, un memorando de presupuesto, adicionales archivados como «reducción» o «ampliación»). El lector lo
+  corrigió en todos: dijo `es_del_tipo` = false en los dos que no eran modificaciones y la clase correcta en los otros.
+  Para modificaciones, manda la clase del lector, no la del casillero.
+- **Lo que se le enseñó (versión m2 de los dos lectores, `version` propia en `fichas_cortas.py`):** la retención como
+  garantía (tipo «retencion»), la fecha de emisión de una prórroga, copiar el vencimiento y no calcularlo, y en un adicional
+  con deductivo: monto = adicional, `monto_deductivo_vinculado` y `monto_neto` aparte, incidencia acumulada sólo en su campo.
+  La tarea nocturna `tarea:piezas` relee con m2; después, `muestra_oro.py` toma la lectura más reciente de cada pieza y la
+  misma muestra mide m2 contra la misma verdad.
+- **Del comparador también se aprendió:** tres «errores» eran del comparador (formatos `prestaciones_accesorias`,
+  `{sentido: aprueba}`) y uno de la verdad (la fecha de emisión de una prórroga es la de la fianza). Antes de culpar al
+  lector, mirar cada diferencia.

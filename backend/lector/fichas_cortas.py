@@ -51,6 +51,9 @@ con el esquema pedido. Reglas que no se rompen:
 
 GARANTIA = {
     "tipos": ["garantia"],
+    # m2 (2026-11-18, oro de extracción: 93 % sobre 12 garantías escritas a mano): la retención de las MYPE es una garantía,
+    # en una prórroga la emisión es la de la fianza, y el vencimiento se copia, no se calcula.
+    "version": "m2",
     "SISTEMA": _REGLAS + """
 
 El documento debería ser una GARANTÍA de un contrato: una carta fianza de un banco, una financiera, una cooperativa o una
@@ -62,14 +65,21 @@ aseguradora, o una póliza de caución. Lo que importa:
   seriedad de la oferta u otra cosa.
 - La VIGENCIA: desde cuándo y hasta cuándo, como lo dice la garantía.
 - Las condiciones que la ley exige: solidaria, irrevocable, incondicional y de realización automática. Cada una va true si
-  el texto la dice, false si dice lo contrario o pone condiciones, null si no se lee.""",
+  el texto la dice, false si dice lo contrario o pone condiciones, null si no se lee.
+- Una AUTORIZACIÓN DE RETENCIÓN (las MYPE pueden garantizar el fiel cumplimiento con la retención de un porcentaje de cada
+  pago: Ley 32077, numeral 61.8 del artículo 61 de la Ley 32069) ES una garantía: `es_del_tipo` true, tipo «retencion»,
+  sin emisor ni número; el afianzado es la empresa que autoriza y el beneficiario la entidad; el monto, sólo si lo dice.
+- Una PRÓRROGA o renovación de una fianza: `es_renovacion` true, y `fecha_emision` es la de la fianza que se prorroga si
+  la carta la dice (la fecha de la carta de prórroga no es la de emisión).
+- El VENCIMIENTO se copia como está escrito (en la cabecera o en el cuerpo). Nunca lo calcules sumando los días de
+  vigencia a la fecha de inicio: si no se lee, va null.""",
     "PEDIDO": "De esta garantía: su tipo, el emisor, el número, el monto, qué garantiza, el beneficiario, el afianzado, las "
               "fechas de emisión y de vigencia, las condiciones, el procedimiento o contrato que cita y un resumen de una frase.",
     "ESQUEMA": _objeto(
         ["es_del_tipo", "tipo", "emisor", "numero", "monto", "garantiza", "beneficiario", "afianzado", "fecha_emision", "vigencia_desde",
          "vigencia_hasta", "condiciones", "procedimiento_citado", "es_renovacion", "resumen"], {
             "es_del_tipo": {"type": "boolean"},
-            "tipo": {"type": ["string", "null"], "enum": ["carta_fianza", "poliza_caucion", "fideicomiso", "certificado", "otro", None]},
+            "tipo": {"type": ["string", "null"], "enum": ["carta_fianza", "poliza_caucion", "retencion", "fideicomiso", "certificado", "otro", None]},
             "emisor": _objeto(["nombre", "ruc", "clase"], {
                 "nombre": {"type": _NULO}, "ruc": {"type": _NULO},
                 "clase": {"type": ["string", "null"], "enum": ["banco", "financiera", "caja", "cooperativa", "aseguradora", "afianzadora", "otro", None]}}),
@@ -93,6 +103,9 @@ aseguradora, o una póliza de caución. Lo que importa:
 
 MODIFICACION = {
     "tipos": ["adicional", "reduccion", "ampliacion_plazo", "adenda"],
+    # m2 (2026-11-18, oro de extracción: 94 % sobre 8 piezas escritas a mano): con un adicional y su deductivo vinculado,
+    # el monto es el del ADICIONAL y el deductivo y el neto van en sus campos; la incidencia acumulada, sólo en la suya.
+    "version": "m2",
     "SISTEMA": _REGLAS + """
 
 El documento debería ser el acto que MODIFICA un contrato: una resolución (o una adenda) sobre una prestación adicional,
@@ -103,6 +116,10 @@ una reducción de prestaciones (deductivo) o una ampliación de plazo. Lo que im
 - El NÚMERO de la modificación («Adicional de obra N.º 02», «Ampliación de plazo N.º 03»).
 - En un adicional o una reducción: el monto y su incidencia sobre el contrato original en porcentaje (y la acumulada, si
   la dice). En una ampliación: los días solicitados y los otorgados.
+- Un ADICIONAL CON DEDUCTIVO VINCULADO (modificacion «adicional_y_deductivo»): `monto` es el del ADICIONAL (no el neto) e
+  `incidencia_pct` la del adicional; el deductivo va en `monto_deductivo_vinculado` y el neto (adicional menos deductivo)
+  en `monto_neto`. La incidencia ACUMULADA («incidencia acumulada de 29.83 %») va sólo en `incidencia_acumulada_pct`, nunca
+  en `incidencia_pct`.
 - La CAUSAL: por qué se pide (deficiencias del expediente, atrasos no imputables al contratista, lluvias, mayores
   metrados…), en una frase fiel.
 - El contrato y el contratista a los que se refiere.""",
@@ -110,8 +127,9 @@ una reducción de prestaciones (deductivo) o una ampliación de plazo. Lo que im
               "el monto y su incidencia, los días solicitados y otorgados, la causal, el contrato y el contratista, el cargo de "
               "quien firma y un resumen de una frase.",
     "ESQUEMA": _objeto(
-        ["es_del_tipo", "modificacion", "numero_modificacion", "acto", "decision", "monto", "incidencia_pct", "incidencia_acumulada_pct",
-         "dias_solicitados", "dias_otorgados", "causal", "contrato_citado", "contratista", "cargo_firmante", "resumen"], {
+        ["es_del_tipo", "modificacion", "numero_modificacion", "acto", "decision", "monto", "monto_deductivo_vinculado", "monto_neto",
+         "incidencia_pct", "incidencia_acumulada_pct", "dias_solicitados", "dias_otorgados", "causal", "contrato_citado", "contratista",
+         "cargo_firmante", "resumen"], {
             "es_del_tipo": {"type": "boolean"},
             "modificacion": {"type": ["string", "null"], "enum": ["adicional", "reduccion", "ampliacion_plazo", "adicional_y_deductivo",
                                                                   "otra", None]},
@@ -120,6 +138,8 @@ una reducción de prestaciones (deductivo) o una ampliación de plazo. Lo que im
             "decision": _objeto(["sentido", "pagina", "cita"], {
                 "sentido": {"type": ["string", "null"], "enum": ["aprueba", "aprueba_en_parte", "deniega", "otro", None]}, **_CITA}),
             "monto": _monto(),
+            "monto_deductivo_vinculado": _monto(),
+            "monto_neto": {"type": _NUM},
             "incidencia_pct": _citado(_NUM),
             "incidencia_acumulada_pct": {"type": _NUM},
             "dias_solicitados": {"type": _ENT},

@@ -1,0 +1,14 @@
+{
+  "_como": "Verdad escrita leyendo el inicio y la parte resolutiva de cada pieza (2026-11-18), a ciegas de la lectura del modelo. es_del_tipo false: el documento no es una modificación (los demás datos no se puntúan). _casillero: el tipo que le puso el clasificador de piezas.",
+  "20445": {"_casillero": "ampliacion_plazo", "es_del_tipo": true, "modificacion": "ampliacion_plazo", "decision": "denegada", "monto": null, "incidencia_pct": null},
+  "495":   {"_casillero": "ampliacion_plazo", "es_del_tipo": false, "_nota": "Es el contrato de adquisición, no una ampliación."},
+  "42067": {"_casillero": "reduccion", "es_del_tipo": true, "modificacion": "reduccion", "decision": "aprobada", "monto": 700026.40, "incidencia_pct": 5.65},
+  "56362": {"_casillero": "ampliacion_plazo", "es_del_tipo": true, "modificacion": "adicional", "decision": "aprobada", "monto": 47256.40, "incidencia_pct": 24.147},
+  "37298": {"_casillero": "reduccion", "es_del_tipo": true, "modificacion": "adicional", "decision": "aprobada", "monto": 156617.69, "incidencia_pct": "no_visto",
+            "_nota": "Adicional de obra N° 01 con deductivo vinculado N° 01 de S/ 57,545.01."},
+  "54299": {"_casillero": "adicional", "es_del_tipo": false, "_nota": "Memorando de presupuesto sobre la rebaja de una certificación de crédito; no aprueba ni deniega nada."},
+  "53507": {"_casillero": "ampliacion_plazo", "es_del_tipo": true, "modificacion": "ampliacion_plazo", "decision": "denegada", "monto": null, "incidencia_pct": null,
+            "_nota": "Improcedente por extemporánea."},
+  "19252": {"_casillero": "reduccion", "es_del_tipo": true, "modificacion": "adicional", "decision": "aprobada", "monto": 480708.60, "incidencia_pct": 66.30,
+            "incidencia_acumulada_pct": 29.83, "_nota": "Adicional de obra N° 01 y deductivo vinculante N° 01 (S/ 264,389.94); neto S/ 216,318.66."}
+}

@@ -168,6 +168,10 @@ LECTORES = {"reporte_presentacion": REPORTE_PRESENTACION, "reporte_evaluacion": 
 
 
 def version_de(nombre: str) -> str:
+    """La versión de un lector: la suya si la declara (las fichas cortas desde m2: releer un lector no relee los demás)."""
+    propia = (LECTORES.get(nombre) or {}).get("version")
+    if propia:
+        return propia
     return ficha_bases.VERSION if nombre == "bases" else VERSION
 
 
