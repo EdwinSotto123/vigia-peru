@@ -118,16 +118,25 @@ export type ResultadoInformeControl =
   | { tipo: "generando"; reintentarEn: number }
   | { tipo: "sin_senales"; detalle: string }
   | { tipo: "tope"; detalle: string; reintentarEn: number }
+  /** Sin redactar todavía y sin sesión: redactarlo cuesta, así que se pide con una cuenta (2026-11-18). */
+  | { tipo: "requiere_cuenta"; detalle: string; senales: number }
   | { tipo: "error"; detalle: string };
+
+/** Para qué usa Vigía quien crea la cuenta desde el informe (voluntario; PUT /cuentas/me/perfil-uso, migración 388). */
+export const PERFILES_USO = ["periodista", "investigador", "control", "ciudadano"] as const;
+export type PerfilUso = (typeof PERFILES_USO)[number];
+export const esPerfilUso = (v: unknown): v is PerfilUso => typeof v === "string" && (PERFILES_USO as readonly string[]).includes(v);
 
 /**
  * Pide el documento. La primera vez se redacta (unos 20 a 60 segundos): el pedido queda abierto hasta que termina. Si otro
  * pedido lo está redactando, «generando» con cuándo volver a preguntar.
  */
-export async function pedirInformeControl(ocid: string, senal?: AbortSignal): Promise<ResultadoInformeControl> {
+export async function pedirInformeControl(ocid: string, senal?: AbortSignal, token?: string | null): Promise<ResultadoInformeControl> {
   let r: Response;
   try {
-    r = await fetch(`${API_BASE}/contratos/${encodeURIComponent(ocid)}/informe-control`, { signal: senal, cache: "no-store" });
+    // Con sesión, el token: sólo una cuenta puede hacer que se redacte (lo guardado lo ve cualquiera).
+    const headers: HeadersInit = token ? { Authorization: `Bearer ${token}` } : {};
+    r = await fetch(`${API_BASE}/contratos/${encodeURIComponent(ocid)}/informe-control`, { signal: senal, cache: "no-store", headers });
   } catch (e) {
     if ((e as Error)?.name === "AbortError") throw e;
     return { tipo: "error", detalle: "No pudimos conectarnos con Vigía. Revisa tu conexión y vuelve a intentarlo." };
@@ -137,6 +146,9 @@ export async function pedirInformeControl(ocid: string, senal?: AbortSignal): Pr
   if (r.status === 200 && j?.informe) return { tipo: "listo", datos: j as unknown as RespuestaInformeControl };
   if (r.status === 202) return { tipo: "generando", reintentarEn: Number(j?.reintentarEn) || 30 };
   if (r.status === 404 && j?.error === "sin_senales") return { tipo: "sin_senales", detalle: detalle ?? "Este contrato no tiene señales." };
+  if (r.status === 401 && j?.error === "requiere_cuenta") {
+    return { tipo: "requiere_cuenta", detalle: detalle ?? "Entra con tu cuenta para pedir este informe.", senales: Number(j?.senales) || 0 };
+  }
   if (r.status === 429) return { tipo: "tope", detalle: detalle ?? "Se pidieron muchos informes seguidos.", reintentarEn: Number(j?.reintentarEn) || 60 };
   return { tipo: "error", detalle: detalle ?? "No se pudo preparar el informe en este momento." };
 }

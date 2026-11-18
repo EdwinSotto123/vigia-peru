@@ -13,6 +13,7 @@ import {
   Eye,
   EyeOff,
   KeyRound,
+  FileText,
 } from "lucide-react";
 import {
   destinoSeguro,
@@ -24,6 +25,16 @@ import { useAuth } from "@/components/auth/AuthProvider";
 import { Button } from "@/components/ui/Button";
 import { Cargando } from "@/components/patrones";
 import { cn } from "@/lib/utils";
+import { authFetch } from "@/lib/cuentas";
+import { esPerfilUso, type PerfilUso } from "@/lib/informeControl";
+
+/** Quien llega desde el informe para control eligió para qué lo quiere (voluntario; se guarda al crear la cuenta). */
+const PARA_QUE: Record<PerfilUso, string> = {
+  periodista: "Cuenta de periodista",
+  investigador: "Cuenta de investigación",
+  control: "Cuenta para control",
+  ciudadano: "Cuenta para vigilar tu localidad",
+};
 
 export default function SignupPage() {
   return (
@@ -42,6 +53,8 @@ function SignupInner() {
   // Al saltar a "Entrar" se conserva el destino, si era válido.
   const loginHref = nextCrudo && next === nextCrudo ? `/login?next=${encodeURIComponent(next)}` : "/login";
   const { user, loading } = useAuth();
+  const perfilCrudo = search.get("perfil");
+  const perfil: PerfilUso | null = esPerfilUso(perfilCrudo) ? perfilCrudo : null;
 
   const [userId, setUserId] = useState("");
   const [password, setPassword] = useState("");
@@ -67,6 +80,8 @@ function SignupInner() {
     setSubmitting(true);
     try {
       await signUpWithUserId(userId, password);
+      // Para qué usa Vigía, si lo eligió en el informe para control: un dato voluntario; si falla, la cuenta igual queda.
+      if (perfil) await authFetch("/cuentas/me/perfil-uso", { method: "PUT", body: JSON.stringify({ perfil }) }).catch(() => null);
       router.replace(next);
     } catch (e: any) {
       setError(e?.message || "No se pudo crear la cuenta. Inténtalo de nuevo.");
@@ -89,9 +104,20 @@ function SignupInner() {
             Crea tu cuenta
           </h1>
           <p className="mt-2 text-pretty text-cuerpo leading-relaxed text-inkSoft">
-            Elige un nombre de usuario y una contraseña. Sin correo y sin rastreo: la cuenta solo sirve para seguir tus denuncias y aportes.
+            Elige un nombre de usuario y una contraseña. Sin correo y sin rastreo: la cuenta sirve para seguir tus denuncias y aportes y
+            para pedir informes para control.
           </p>
         </div>
+
+        {perfil && (
+          <div className="mb-4 flex items-start gap-3 rounded-xl border border-line bg-paperSoft p-3">
+            <FileText size={18} aria-hidden className="mt-0.5 shrink-0 text-granate" />
+            <p className="text-meta leading-snug text-inkSoft">
+              <span className="block font-semibold text-ink">{PARA_QUE[perfil]}</span>
+              Al crearla vuelves al contrato y su informe para control se redacta en menos de un minuto.
+            </p>
+          </div>
+        )}
 
         <form onSubmit={submit} className="space-y-4 rounded-2xl border border-line bg-paper p-5 sm:p-6" noValidate>
           {/* Nombre de usuario */}

@@ -14,11 +14,14 @@
  */
 
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import Link from "next/link";
 import {
   BookMarked, CalendarDays, ChevronDown, CircleHelp, Download, ExternalLink, FileSearch, FileText, Gavel, Hash, Landmark, ListChecks,
   Loader2, MapPin, Printer, RefreshCw, Scale, ScanSearch, ShieldAlert, Table2, Target, TriangleAlert, Building2, BriefcaseBusiness,
-  Coins, Link2, ListOrdered,
+  Coins, Link2, ListOrdered, Newspaper, GraduationCap, Users, ArrowRight, LogIn,
 } from "lucide-react";
+import { useAuth } from "@/components/auth/AuthProvider";
+import { idToken } from "@/lib/cuentas";
 import type { PanelDossierProps } from "./PanelesDossier";
 import { AvisoSeccion } from "./AvisoSeccion";
 import { Nota } from "@/components/patrones";
@@ -28,7 +31,7 @@ import { SEVERIDAD } from "@/lib/severidad";
 import { cn } from "@/lib/utils";
 import { descargarTexto, imprimirParte } from "@/lib/imprimir";
 import {
-  fechaInforme, pedirInformeControl, solesExactos, type InformeControl, type ObservacionInforme, type PrecedenteInforme,
+  fechaInforme, pedirInformeControl, solesExactos, type InformeControl, type ObservacionInforme, type PerfilUso, type PrecedenteInforme,
   type RespuestaInformeControl, type ResultadoInformeControl, type SeveridadInforme,
 } from "@/lib/informeControl";
 
@@ -41,32 +44,37 @@ const montos = (t: string) => t.replace(/S\/ (?=\d)/g, "S/\u00a0");
 export function PanelInformeControl({ ocidContrato }: PanelDossierProps) {
   const [resultado, setResultado] = useState<ResultadoInformeControl | null>(null);
   const [intento, setIntento] = useState(0);
+  // Con sesión, el pedido lleva el token: sólo una cuenta puede hacer que se redacte (lo guardado lo ve cualquiera).
+  const { user, loading } = useAuth();
+  const uid = user?.uid ?? null;
 
   useEffect(() => {
-    if (!ocidContrato) return;
+    if (!ocidContrato || loading) return;
     const control = new AbortController();
     let espera: ReturnType<typeof setTimeout> | undefined;
     let vueltas = 0;
-    const pedir = () => {
+    const pedir = async () => {
       setResultado(null);
-      pedirInformeControl(ocidContrato, control.signal)
+      const token = uid ? await idToken() : null;
+      if (control.signal.aborted) return;
+      pedirInformeControl(ocidContrato, control.signal, token)
         .then((r) => {
           if (r.tipo === "generando" && vueltas < REINTENTOS) {
             vueltas++;
             setResultado(r);
-            espera = setTimeout(pedir, Math.min(60, Math.max(10, r.reintentarEn)) * 1000);
+            espera = setTimeout(() => void pedir(), Math.min(60, Math.max(10, r.reintentarEn)) * 1000);
             return;
           }
           setResultado(r);
         })
         .catch(() => undefined);
     };
-    pedir();
+    void pedir();
     return () => {
       control.abort();
       if (espera) clearTimeout(espera);
     };
-  }, [ocidContrato, intento]);
+  }, [ocidContrato, intento, uid, loading]);
 
   const reintentar = useCallback(() => setIntento((n) => n + 1), []);
 
@@ -74,6 +82,7 @@ export function PanelInformeControl({ ocidContrato }: PanelDossierProps) {
     return <AvisoSeccion titulo="Sin código del proceso">No se pudo identificar el contrato para armar su informe.</AvisoSeccion>;
   }
   if (!resultado || resultado.tipo === "generando") return <Redactando enCurso={resultado?.tipo === "generando"} />;
+  if (resultado.tipo === "requiere_cuenta") return <PedirConCuenta senales={resultado.senales} />;
   if (resultado.tipo === "sin_senales") {
     return (
       <AvisoSeccion titulo="Este contrato no tiene señales" icono={<ScanSearch size={16} aria-hidden />}>
@@ -97,6 +106,97 @@ export function PanelInformeControl({ ocidContrato }: PanelDossierProps) {
 const BOTON = "inline-flex min-h-[40px] items-center gap-2 rounded-full px-4 text-dato font-semibold transition-colors duration-rapido";
 const BOTON_PRIMARIO = cn(BOTON, "bg-granate text-paper hover:bg-granate-deep");
 const BOTON_SECUNDARIO = cn(BOTON, "mt-3 border border-line bg-paper text-ink hover:border-granate/40");
+
+/** La página de este contrato con su pestaña (el panel sólo se monta en el navegador: PanelesDossier, sin SSR). */
+const aquiActual = () => (typeof window === "undefined" ? "/" : `${window.location.pathname}${window.location.search}`);
+
+/** Para qué lo pide cada quien: la tarjeta lleva a crear la cuenta con ese perfil y vuelve a este contrato. */
+const PERFILES: { clave: PerfilUso; titulo: string; para: string; icono: ReactNode }[] = [
+  { clave: "periodista", titulo: "Soy periodista", para: "Para una nota: cada indicio con su evidencia y la norma de su fecha.", icono: <Newspaper size={18} aria-hidden /> },
+  { clave: "investigador", titulo: "Investigo o enseño", para: "Para un estudio, una tesis o una auditoría ciudadana.", icono: <GraduationCap size={18} aria-hidden /> },
+  { clave: "control", titulo: "Trabajo en control", para: "Contraloría u OCI: para evaluar si amerita un servicio de control.", icono: <Landmark size={18} aria-hidden /> },
+  { clave: "ciudadano", titulo: "Vigilo mi localidad", para: "Para presentar una denuncia con sustento o seguir el caso.", icono: <Users size={18} aria-hidden /> },
+];
+
+const PASOS = [
+  { titulo: "Crea tu cuenta", texto: "Un nombre de usuario y una contraseña. Sin correo." },
+  { titulo: "Vuelves a este contrato", texto: "Te traemos de regreso a esta pestaña." },
+  { titulo: "Se redacta y queda guardado", texto: "Menos de un minuto; después lo ve cualquiera." },
+];
+
+/**
+ * Sin cuenta y sin informe guardado (pedido del dueño, 2026-11-18): redactarlo usa un modelo con costo, así que en vez de
+ * redactarlo para cualquier visita (o un rastreador) se pide con una cuenta. Quién es y para qué lo quiere, en tarjetas;
+ * los tres pasos numerados; y las señales del contrato, que se ven sin cuenta, a un clic.
+ */
+function PedirConCuenta({ senales }: { senales: number }) {
+  const aqui = aquiActual();
+  const conTab = (tab: string) => {
+    const u = new URL(aqui, "https://vigia.local");
+    u.searchParams.set("vista", "dictamen");
+    u.searchParams.set("tab", tab);
+    return `${u.pathname}${u.search}`;
+  };
+  const crear = (perfil: PerfilUso) => `/signup?perfil=${perfil}&next=${encodeURIComponent(aqui)}`;
+  return (
+    <section aria-labelledby="informe-cuenta" className="rounded-2xl border border-line bg-paper p-5 sm:p-6">
+      <div className="flex items-start gap-3">
+        <span className="grid size-10 shrink-0 place-items-center rounded-xl border border-line bg-paperSoft text-granate">
+          <FileText size={18} aria-hidden />
+        </span>
+        <div className="min-w-0">
+          <h3 id="informe-cuenta" className="text-destacado font-semibold leading-snug text-ink">El informe para control se pide con una cuenta</h3>
+          <p className="mt-1 max-w-3xl text-meta leading-relaxed text-inkSoft">
+            {senales > 0 ? `Reúne ${senales === 1 ? "la señal" : `las ${senales} señales`} de este contrato` : "Reúne las señales de este contrato"} con su
+            evidencia y la norma de su fecha. Redactarlo usa un modelo de inteligencia artificial: lo hacemos para quien lo va a usar.
+          </p>
+        </div>
+      </div>
+
+      <h4 className="mt-5 text-meta font-semibold uppercase tracking-wide text-mute">¿Para qué lo necesitas?</h4>
+      <ul className="mt-2 grid gap-2 sm:grid-cols-2">
+        {PERFILES.map((p) => (
+          <li key={p.clave}>
+            <Link
+              href={crear(p.clave)}
+              className="group flex h-full items-start gap-3 rounded-xl border border-line p-3 transition-colors duration-rapido hover:border-granate/50 hover:bg-paperSoft focus-visible:outline focus-visible:outline-2 focus-visible:outline-granate"
+            >
+              <span className="mt-0.5 shrink-0 text-granate">{p.icono}</span>
+              <span className="min-w-0 flex-1">
+                <span className="block text-dato font-semibold text-ink">{p.titulo}</span>
+                <span className="mt-0.5 block text-meta leading-snug text-inkSoft">{p.para}</span>
+              </span>
+              <ArrowRight size={16} aria-hidden className="mt-1 shrink-0 text-mute transition-transform duration-rapido group-hover:translate-x-0.5 group-hover:text-granate" />
+            </Link>
+          </li>
+        ))}
+      </ul>
+
+      <ol className="mt-5 grid gap-3 border-t border-line pt-4 sm:grid-cols-3">
+        {PASOS.map((p, i) => (
+          <li key={p.titulo} className="flex items-start gap-2.5">
+            <span className="grid size-6 shrink-0 place-items-center rounded-full border border-granate/40 text-meta font-semibold tabular-nums text-granate">{i + 1}</span>
+            <span className="min-w-0">
+              <span className="block text-meta font-semibold text-ink">{p.titulo}</span>
+              <span className="block text-meta leading-snug text-inkSoft">{p.texto}</span>
+            </span>
+          </li>
+        ))}
+      </ol>
+
+      <div className="mt-5 flex flex-wrap items-center gap-2 border-t border-line pt-4">
+        <Link href={`/login?next=${encodeURIComponent(aqui)}`} className={BOTON_PRIMARIO}>
+          <LogIn size={15} aria-hidden /> Ya tengo cuenta: entrar
+        </Link>
+        {senales > 0 && (
+          <Link href={conTab("resumen")} className={cn(BOTON, "border border-line bg-paper text-ink hover:border-granate/40")}>
+            <ShieldAlert size={15} aria-hidden /> Ver las señales sin cuenta
+          </Link>
+        )}
+      </div>
+    </section>
+  );
+}
 
 /** Mientras se redacta: la forma del documento y qué está pasando (la primera vez tarda). */
 function Redactando({ enCurso }: { enCurso: boolean }) {
@@ -139,6 +239,7 @@ body[data-imprimir], #vigia-impresion { background: rgb(var(--paper)) !important
 function DocumentoControl({ datos }: { datos: RespuestaInformeControl }) {
   const d = datos.informe;
   const doc = useRef<HTMLElement>(null);
+  const aqui = aquiActual();
   const [todas, setTodas] = useState(false);
 
   const imprimir = () => {
@@ -184,7 +285,19 @@ function DocumentoControl({ datos }: { datos: RespuestaInformeControl }) {
           </button>
         </div>
       </div>
-      {datos.aviso && <Nota icono={<TriangleAlert size={15} aria-hidden />}>{datos.aviso}</Nota>}
+      {datos.aviso && (
+        <Nota icono={<TriangleAlert size={15} aria-hidden />}>
+          {datos.aviso}
+          {/entra con tu cuenta/i.test(datos.aviso) && (
+            <>
+              {" "}
+              <Link href={`/login?next=${encodeURIComponent(aqui)}`} className="font-semibold text-granate underline underline-offset-2">
+                Entrar
+              </Link>
+            </>
+          )}
+        </Nota>
+      )}
 
       <article ref={doc} data-informe-control aria-labelledby="ic-titulo" className="rounded-2xl border border-line bg-paper px-4 py-6 text-ink sm:px-8 sm:py-8">
         <header className="space-y-3 border-b border-line pb-5">

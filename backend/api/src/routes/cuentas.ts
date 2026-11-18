@@ -119,6 +119,24 @@ cuentasRouter.get("/me", async (c) => {
   return c.json({ ...(await perfil(u.uid)), userId: u.userId });
 });
 
+// ─── PUT /cuentas/me/perfil-uso ──────────────────────────────────────────────
+// Para qué usa Vigía (voluntario, migración 388): lo elige quien crea la cuenta para pedir un informe para control.
+export const PERFILES_USO = ["periodista", "investigador", "control", "ciudadano"] as const;
+cuentasRouter.put("/me/perfil-uso", limiteEscritura, async (c) => {
+  const u = c.get("user");
+  const body = z.object({ perfil: z.enum(PERFILES_USO) }).safeParse(await c.req.json().catch(() => null));
+  if (!body.success) return c.json({ error: "invalid_body" }, 400);
+  await asegurarUsuario(u.uid);
+  try {
+    await pool.query(`UPDATE usuarios SET perfil_uso = $2, updated_at = now() WHERE firebase_uid = $1`, [u.uid, body.data.perfil]);
+  } catch (e) {
+    // Sin la migración 388 la cuenta funciona igual: el perfil es sólo un dato voluntario.
+    if (!esErrorPg(e, "42703")) throw e;
+  }
+  c.header("Cache-Control", "private, no-store");
+  return c.json({ ok: true, perfil: body.data.perfil });
+});
+
 // ─── PUT /cuentas/me ─────────────────────────────────────────────────────────
 // RUC: "" o null cuentan como no enviado (un formulario que manda el campo vacío no es un error).
 const Ruc = z.preprocess((v) => (v === "" || v === null ? undefined : typeof v === "string" ? v.trim() : v),

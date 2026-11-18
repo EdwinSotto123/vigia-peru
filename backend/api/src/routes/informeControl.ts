@@ -24,6 +24,7 @@ import { publicar, limpiarTexto } from "../lib/privacidad.js";
 import { esPublicada } from "../lib/publicacion.js";
 import { SIN_CACHE, cachePublico } from "../lib/http.js";
 import { claveIp, dentroDeTope, ipCliente, pedidoInterno } from "../lib/antibots.js";
+import { optionalAuth, type AuthedUser } from "../lib/auth.js";
 import { tokenAdminValido } from "../lib/adminlog.js";
 import { registrar } from "../lib/registro.js";
 import { embeber, vectorLiteral, type IaWorkers } from "../lib/rag.js";
@@ -39,7 +40,21 @@ export const informeControlRouter = new Hono();
 type Fila = Record<string, any>;
 
 /** Topes de redacción (ver la cabecera). */
-export const TOPES = { aLaVez: 2, porHora: 40, porDia: 250, usdPorDia: 6, ipPorHora: 4, ipPorDia: 12 } as const;
+export const TOPES = { aLaVez: 2, porHora: 40, porDia: 250, usdPorDia: 6, ipPorHora: 4, ipPorDia: 12, cuentaPorDia: 15 } as const;
+
+/**
+ * ¿Quién puede hacer que se REDACTE un informe (lo que cuesta)? Lo ya guardado lo ve cualquiera. Redactar, sólo una cuenta
+ * con sesión o un pedido interno (el MCP, que exige un plan pagado). Pedido del dueño (2026-11-18): a una visita anónima,
+ * «¿eres periodista o investigador? ¿o de Contraloría? regístrate», para no gastar en vano: hasta ese día cualquier visita
+ * que abriera la pestaña (también un rastreador que ejecuta JavaScript) disparaba la redacción.
+ */
+function quienRedacta(c: Context): { uid: string | null } | null {
+  const u = c.get("user") as AuthedUser | undefined;
+  if (u?.uid) return { uid: u.uid };
+  return pedidoInterno(c) ? { uid: null } : null;
+}
+
+const REQUIERE_CUENTA = "El informe de este contrato todavía no está redactado. Redactarlo usa un modelo de inteligencia artificial: entra con tu cuenta (o créala gratis) y se redacta en menos de un minuto; después queda guardado para todos.";
 /** Un «generando» más viejo que esto se da por muerto (el pedido se cortó). */
 const VIVO_MIN = 5;
 const CACHE_LISTO = cachePublico(300, { maxAge: 60, swr: 600 });
@@ -437,7 +452,7 @@ function anotarHuella(ocid: string, huella: string): void {
 }
 
 /** ¿Se puede redactar uno más? null si sí; si no, el motivo para quien lo pidió. */
-async function topeAlcanzado(c: Context, porAdmin: boolean): Promise<{ error: string; detail: string; reintentarEn: number } | null> {
+async function topeAlcanzado(c: Context, porAdmin: boolean, uid: string | null = null): Promise<{ error: string; detail: string; reintentarEn: number } | null> {
   const r = await pool.query(
     `SELECT count(*) FILTER (WHERE estado = 'generando' AND generado_at > now() - make_interval(mins => $1))::int AS a_la_vez,
             count(*) FILTER (WHERE generado_at > now() - interval '1 hour')::int AS hora,
@@ -448,6 +463,13 @@ async function topeAlcanzado(c: Context, porAdmin: boolean): Promise<{ error: st
   if (porAdmin) return null;
   if (t.hora >= TOPES.porHora) return { error: "tope_diario", detail: "Se alcanzó el número de informes que Vigía redacta por hora: vuelve a intentarlo más tarde.", reintentarEn: 900 };
   if (t.dia >= TOPES.porDia || t.usd >= TOPES.usdPorDia) return { error: "tope_diario", detail: "Se alcanzó el número de informes que Vigía redacta por día: vuelve a intentarlo mañana.", reintentarEn: 3600 };
+  if (uid) {
+    const p = await pool.query<{ n: number }>(
+      `SELECT count(*)::int AS n FROM informe_vigia WHERE pedido_por = $1 AND generado_at > now() - interval '1 day'`, [`web:${uid}`]);
+    if ((p.rows[0]?.n ?? 0) >= TOPES.cuentaPorDia) {
+      return { error: "tope_cuenta", detail: `Pediste ${TOPES.cuentaPorDia} informes nuevos hoy, el máximo por cuenta: los ya redactados se siguen viendo; mañana puedes pedir más.`, reintentarEn: 3600 };
+    }
+  }
   if (!pedidoInterno(c)) {
     const ip = claveIp(ipCliente(c));
     const hora = await dentroDeTope(`informe-control|h|${ip}`, TOPES.ipPorHora, 3600, true);
@@ -458,15 +480,15 @@ async function topeAlcanzado(c: Context, porAdmin: boolean): Promise<{ error: st
 }
 
 /** Redacta, guarda y responde (GET con entradas nuevas, o POST del panel). */
-async function generarYResponder(c: Context, e: EntradasInforme, anterior: Guardado | null, porAdmin: boolean): Promise<Response> {
-  const tope = await topeAlcanzado(c, porAdmin);
+async function generarYResponder(c: Context, e: EntradasInforme, anterior: Guardado | null, porAdmin: boolean, uid: string | null = null): Promise<Response> {
+  const tope = await topeAlcanzado(c, porAdmin, uid);
   if (tope) {
     c.header("Cache-Control", SIN_CACHE);
     if (anterior) return c.json(respuesta(e.ocid, anterior, { desactualizado: true, aviso: tope.detail }));
     c.header("Retry-After", String(tope.reintentarEn));
     return c.json(tope, 429);
   }
-  const pedidoPor = porAdmin ? "admin" : /^vigia-mcp/i.test(c.req.header("user-agent") ?? "") ? "mcp" : "web";
+  const pedidoPor = porAdmin ? "admin" : /^vigia-mcp/i.test(c.req.header("user-agent") ?? "") ? "mcp" : uid ? `web:${uid}` : "web";
   // Un «generando» viejo es un pedido que se cortó (quien lo pidió cerró la pestaña): queda como error, con su motivo.
   await pool.query(
     `UPDATE informe_vigia SET estado = 'error', error = 'el pedido se cortó antes de terminar', terminado_at = now()
@@ -536,7 +558,7 @@ const SIN_SENALES = {
   detail: "Este contrato no tiene señales: no hay indicios que reunir en un informe para control.",
 };
 
-informeControlRouter.get("/:ocid/informe-control", async (c) => {
+informeControlRouter.get("/:ocid/informe-control", optionalAuth, async (c) => {
   const ocid = c.req.param("ocid").replace(/^OECE-/i, "");
   if (!OCID_VALIDO.test(ocid)) return c.json({ error: "invalid_ocid" }, 400);
   const { listo, enCurso } = await guardadoDe(ocid);
@@ -564,7 +586,18 @@ informeControlRouter.get("/:ocid/informe-control", async (c) => {
     if (guardado.listo) return c.json(respuesta(e.ocid, guardado.listo, { desactualizado: true, aviso: "Se está redactando una versión nueva con datos más recientes." }));
     return c.json({ ocid: e.ocid, estado: "generando", reintentarEn: 30 }, 202);
   }
-  return generarYResponder(c, e, guardado.listo, false);
+  const quien = quienRedacta(c);
+  if (!quien) {
+    // Sin cuenta: lo guardado (aunque haya datos más nuevos) o la invitación a entrar; nunca se redacta.
+    c.header("Cache-Control", SIN_CACHE);
+    if (guardado.listo) {
+      return c.json(respuesta(e.ocid, guardado.listo, {
+        desactualizado: true, aviso: "Hay datos más nuevos que esta versión: entra con tu cuenta para pedir la de hoy.",
+      }));
+    }
+    return c.json({ ocid: e.ocid, error: "requiere_cuenta", detail: REQUIERE_CUENTA, senales: e.senales.length }, 401);
+  }
+  return generarYResponder(c, e, guardado.listo, false, quien.uid);
 });
 
 // Volver a redactarlo aunque nada haya cambiado (otra versión del redactor, una revisión del equipo): sólo el panel.
