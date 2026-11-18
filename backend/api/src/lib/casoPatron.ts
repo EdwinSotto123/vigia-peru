@@ -510,7 +510,7 @@ export async function casoComprasFamilia(clave: string, pedir: Pedir): Promise<C
   const nodos: NodoCaso[] = [
     { id: "e", tipo: "entidad", nombre: entNombre, rol: "La entidad que compró", href: `/entidad/${ent.ruc}?seccion=patrones&patron=compras` },
     {
-      id: "f", tipo: "funcionario", nombre: f.persona ?? "Funcionario de la entidad", rol: `Declaró trabajar en ${cargo}`, severidad: f.severidad === "alta" ? "alta" : "media",
+      id: "f", tipo: "funcionario", nombre: f.persona ?? "Quien trabaja en compras", rol: `Declaró el puesto de «${cargo}»`, severidad: f.severidad === "alta" ? "alta" : "media",
       href: f.codigo ? `/app/personas/cargo/${f.codigo}` : null,
       datos: [
         { etiqueta: "Puesto declarado", valor: cargo },
@@ -529,7 +529,7 @@ export async function casoComprasFamilia(clave: string, pedir: Pedir): Promise<C
     },
   ];
   const aristas: AristaCaso[] = [
-    { de: "f", a: "e", tipo: "otro", texto: `trabaja en ${cargo}` },
+    { de: "f", a: "e", tipo: "otro", texto: `declaró el puesto de «${cargo}»` },
     { de: "f", a: "p", tipo: "pariente", texto: `${parentesco.toLowerCase()}, según su declaración jurada de intereses` },
   ];
   if (viaEmpresa) {
@@ -553,7 +553,7 @@ export async function casoComprasFamilia(clave: string, pedir: Pedir): Promise<C
   const hitos: HitoCaso[] = [];
   if (empresa?.fechaAlta) hitos.push({ fecha: empresa.fechaAlta, tipo: "fundacion", titulo: `Se funda ${empNombre}`, nodos: ["m"], fuente: "SUNAT (padrón RUC)" });
   if (f.parienteDesde) hitos.push({ fecha: f.parienteDesde, tipo: "socio", titulo: `El familiar (${parentesco.toLowerCase()}) figura en ${empNombre} como ${String(f.rolEnEmpresa ?? "parte de su conformación")}`, nodos: ["p", "m"], fuente: "Registro Nacional de Proveedores (OECE)" });
-  if (f.cargoDesde) hitos.push({ fecha: f.cargoDesde, tipo: "otro", severidad: "media", titulo: `El funcionario asume ${cargo} en ${entNombre}`, detalle: "La fecha de inicio que declaró en su declaración jurada de intereses.", nodos: ["f", "e"], fuente: "Declaraciones juradas de intereses (Contraloría)" });
+  if (f.cargoDesde) hitos.push({ fecha: f.cargoDesde, tipo: "otro", severidad: "media", titulo: `Asume el puesto de «${cargo}» en ${entNombre}`, detalle: "La fecha de inicio que declaró en su declaración jurada de intereses.", nodos: ["f", "e"], fuente: "Declaraciones juradas de intereses (Contraloría)" });
   if (f.cargoHasta) hitos.push({ fecha: f.cargoHasta, tipo: "salida", titulo: "Deja el puesto", detalle: "La fecha de cese que declaró.", nodos: ["f"], fuente: "Declaraciones juradas de intereses (Contraloría)" });
   else if (f.vistoHasta) hitos.push({ fecha: f.vistoHasta, tipo: "otro", titulo: "Su última declaración todavía lo nombra en el puesto", nodos: ["f"], fuente: "Declaraciones juradas de intereses (Contraloría)" });
   if (f.primeraEnPuesto) hitos.push({ fecha: f.primeraEnPuesto, tipo: "primera", severidad: f.cercano ? "alta" : "media", titulo: `Primera orden ${viaEmpresa ? `a ${empNombre}` : "al familiar"} con la persona en el puesto`, nodos: [viaEmpresa ? "m" : "p", "e"], fuente: "CONOSCE (OECE)", href: `/entidad/${ent.ruc}?seccion=contratos&canio=${String(f.primeraEnPuesto).slice(0, 4)}${viaEmpresa ? `&ccon=${f.empresaRuc}` : ""}` });
@@ -593,7 +593,7 @@ export async function casoComprasFamilia(clave: string, pedir: Pedir): Promise<C
   // ── Por qué ──
   const razones: RazonCaso[] = ([
     f.ordenesEnPuesto
-      ? { titulo: "Órdenes con la persona en el puesto", cifra: miles(f.ordenesEnPuesto), texto: `Por ${soles(f.montoEnPuesto)}, emitidas mientras declaraba trabajar en ${cargo}.`, severidad: f.cercano ? "alta" : "media" }
+      ? { titulo: "Órdenes con la persona en el puesto", cifra: miles(f.ordenesEnPuesto), texto: `Por ${soles(f.montoEnPuesto)}, emitidas mientras tenía el puesto de «${cargo}».`, severidad: f.cercano ? "alta" : "media" }
       : { titulo: "Ninguna orden con la persona en el puesto", cifra: "0", texto: "Las ventas son de antes o de después del puesto: el impedimento rige mientras se interviene en las contrataciones.", severidad: null },
     f.procesosEnPuesto ? { titulo: "Procesos ganados con la persona en el puesto", cifra: miles(f.procesosEnPuesto), texto: `Por ${soles(f.montoProcesosEnPuesto)}.`, severidad: "alta" } : null,
     { titulo: "Parentesco", cifra: familiar, texto: f.cercano ? "Familiar cercano (cónyuge o conviviente, padres, hijos, hermanos): dentro del segundo grado que alcanza el impedimento." : "Familiar declarado; hay que ver si está dentro del segundo grado que alcanza el impedimento.", severidad: f.cercano ? "alta" : "media" },
@@ -620,10 +620,10 @@ export async function casoComprasFamilia(clave: string, pedir: Pedir): Promise<C
   const sev: Severidad = f.severidad === "alta" ? "alta" : f.severidad === "media" ? "media" : "baja";
   return {
     tipo: "compras", clave, patron: "Trabaja en compras y un familiar le vende a su entidad", observacion: true,
-    titulo: `Un funcionario de compras y ${viaEmpresa ? `la empresa de su familiar` : "su familiar"} en ${entNombre}`,
+    titulo: `Trabaja en compras y ${viaEmpresa ? "la empresa de su familiar" : "su familiar"} le vende a ${entNombre}`,
     severidad: sev,
     frase:
-      `${f.persona ?? "Un funcionario"} declaró trabajar en ${cargo} de ${entNombre}${f.cargoDesde ? ` desde ${fechaLarga(f.cargoDesde)}` : ""}. ` +
+      `${f.persona ?? "Quien trabaja en compras"} declaró el puesto de «${cargo}» en ${entNombre}${f.cargoDesde ? ` desde el ${fechaLarga(f.cargoDesde)}` : ""}. ` +
       `Su ${parentesco.toLowerCase()}${viaEmpresa ? ` figura en ${empNombre}, que` : ""} recibió ${plural(f.ordenes ?? 0, "orden", "órdenes")} de esa entidad por ${soles(f.monto)}` +
       (f.ordenesEnPuesto ? `; ${miles(f.ordenesEnPuesto)} de ellas, por ${soles(f.montoEnPuesto)}, mientras tenía el puesto.` : ", ninguna mientras tenía el puesto."),
     entidad: ent, desde: f.desde ?? null, hasta: f.hasta ?? null,
@@ -652,11 +652,277 @@ export async function casoComprasFamilia(clave: string, pedir: Pedir): Promise<C
       ...(viaEmpresa ? [{ texto: "Socios, representantes y directivos (Registro Nacional de Proveedores)", href: DATASET_SOCIOS_RNP }, { texto: "Consulta RUC (SUNAT)", href: CONSULTA_RUC_SUNAT }] : []),
     ],
     relacionados: [
-      ...(f.codigo ? [{ texto: "Ficha del funcionario", href: `/app/personas/cargo/${f.codigo}` }] : []),
+      ...(f.codigo ? [{ texto: "Ficha de la persona", href: `/app/personas/cargo/${f.codigo}` }] : []),
       { texto: `Antecedentes y patrones de ${entNombre}`, href: `/entidad/${ent.ruc}?seccion=patrones&patron=compras` },
       ...(viaEmpresa ? [{ texto: `Ficha de ${empNombre}`, href: `/empresa/${f.empresaRuc}` }] : []),
       { texto: "Todos los casos del país", href: "/app/patrones?seccion=compras" },
     ],
     como_leerlo: String(lista?.como_leerlo ?? "Un funcionario de compras y un familiar declarado que le vende a su entidad. Es una señal en observación: dice que el puesto, el parentesco y las órdenes coinciden, no que la persona intervino."),
+  };
+}
+
+// ─── Lo que comparten los casos de un proveedor en una entidad ─────────────────────────────────
+
+/** Las claves opacas de las listas de un proveedor en una entidad (iguales en SQL y aquí). */
+export const SQL_CLAVE_REPETIDA = `left(md5(x.entidad_ruc || '|' || x.ruc_contratista || '|' || x.desde || '|' || x.monto || '|' || COALESCE(x.objeto, '')), 16)`;
+export const SQL_CLAVE_RECIEN = `left(md5(x.entidad_ruc || '|' || x.ruc_empresa), 16)`;
+
+type FilaOrden = { fecha: string | null; orden: string | null; nro: string | null; que: string | null; estado: string | null; monto: number | null; moneda: string | null; contratacion: string | null };
+
+/** Las órdenes de un proveedor a una entidad (las más recientes, con tope), cuántas son y lo de cada año. */
+async function ordenesDelProveedor(entidad: string, ruc: string, tope = 1000) {
+  const [filas, anios] = await Promise.all([
+    pool.query<FilaOrden>(
+      `SELECT to_char(fecha_emision, 'YYYY-MM-DD') AS fecha, orden, nro_orden AS nro, left(COALESCE(descripcion, objeto), 220) AS que, estado,
+              monto::float AS monto, moneda, tipo_contratacion AS contratacion
+         FROM conosce_ordenes WHERE entidad_ruc = $1 AND ruc_contratista = $2 ORDER BY fecha_emision DESC NULLS LAST LIMIT $3`, [entidad, ruc, tope]),
+    pool.query<{ anio: number; n: number; monto: number; primera: string; ultima: string }>(
+      `SELECT extract(year FROM fecha_emision)::int AS anio, count(*)::int AS n, COALESCE(sum(monto), 0)::float AS monto,
+              to_char(min(fecha_emision), 'YYYY-MM-DD') AS primera, to_char(max(fecha_emision), 'YYYY-MM-DD') AS ultima
+         FROM conosce_ordenes WHERE entidad_ruc = $1 AND ruc_contratista = $2 AND fecha_emision IS NOT NULL GROUP BY 1 ORDER BY 1`, [entidad, ruc]),
+  ]);
+  const total = anios.rows.reduce((t, x) => t + x.n, 0);
+  return { filas: filas.rows, anios: anios.rows, total, primera: anios.rows[0]?.primera ?? null };
+}
+
+/** Una orden como fila de la evidencia, con su enlace a las compras de la entidad (sin el RUC de una persona). */
+function filaDeOrden(o: FilaOrden, i: number, entidad: string, ruc: string, quien: string, marcas: string[]): FilaEvidencia {
+  const n = numeroDeOrden(o.orden ?? o.nro ?? "");
+  const q = new URLSearchParams({ seccion: "contratos", ...(ruc.startsWith("20") ? { ccon: ruc } : {}), ...(n.length >= 3 ? { cq: n } : {}), ...(o.fecha ? { canio: o.fecha.slice(0, 4) } : {}) });
+  return {
+    id: `o${i}`, fecha: o.fecha, documento: o.orden ?? o.nro ?? "Orden sin número", quien, nodo: "m", que: o.que, monto: o.monto,
+    moneda: o.moneda && !/sol/i.test(o.moneda) ? o.moneda : null, estado: o.estado, marcas, href: `/entidad/${entidad}?${q}`,
+  };
+}
+
+/** Los socios, representantes y directivos de una empresa en el RNP (nombres tapados), cuándo entraron y si salieron. */
+async function genteDeEmpresa(ruc: string) {
+  const r = await pool.query<{ nombre: string; rol: string; desde: string | null; baja: string | null }>(
+    `SELECT nombre, tipo_rol AS rol, to_char(min(fecha_inicio_vigencia), 'YYYY-MM-DD') AS desde, to_char(max(baja_corte), 'YYYY-MM-DD') AS baja
+       FROM rnp_conformacion_juridica WHERE ruc_empresa = $1::bpchar GROUP BY 1, 2 ORDER BY 3 NULLS LAST LIMIT 60`, [ruc]).catch(() => ({ rows: [] }));
+  const porPersona = new Map<string, typeof r.rows>();
+  for (const x of r.rows) porPersona.set(x.nombre, [...(porPersona.get(x.nombre) ?? []), x]);
+  return [...porPersona.entries()].slice(0, 12).map(([nombre, xs]) => ({
+    nombre: tapar(nombre) ?? "Una persona",
+    papeles: roles(xs.map((x) => x.rol)),
+    desde: xs.map((x) => x.desde).filter((z): z is string => !!z).sort()[0] ?? null,
+    baja: xs.every((x) => x.baja) ? xs.map((x) => x.baja!).sort().reverse()[0] : null,
+  }));
+}
+
+/** La empresa en la SUNAT: alta y estado. */
+async function empresaSunat(ruc: string) {
+  if (!ruc.startsWith("20")) return null;
+  const r = await pool.query<{ nombre: string | null; alta: string | null; estado: string | null; entidades: number | null }>(
+    `SELECT nombre, to_char(fecha_alta, 'YYYY-MM-DD') AS alta, estado_sunat AS estado, entidades FROM empresa_resumen WHERE ruc = $1`, [ruc]).catch(() => ({ rows: [] }));
+  return r.rows[0] ?? null;
+}
+
+/** La serie por año: lo marcado por el patrón y lo demás que le compró la entidad. */
+function serieDeAnios(titulo: string, etiquetaA: string, etiquetaB: string, anios: { anio: number; n: number; monto: number }[], marcadoDe: (anio: number) => { n: number; monto: number }) {
+  if (anios.length < 2) return null;
+  return {
+    titulo, etiquetaA, etiquetaB,
+    anios: anios.map((x) => {
+      const m = marcadoDe(x.anio);
+      const resto = { n: Math.max(0, x.n - m.n), monto: Math.max(0, x.monto - m.monto) };
+      return { anio: x.anio, a: m.monto, b: resto.monto, detalleA: `${soles(m.monto)} en ${plural(m.n, "orden", "órdenes")}`, detalleB: `${soles(resto.monto)} en ${plural(resto.n, "orden", "órdenes")}` };
+    }),
+  };
+}
+
+// ─── La misma compra repetida en semanas (migraciones 348-349) ─────────────────────────────────
+
+export async function casoRepetida(clave: string, pedir: Pedir): Promise<CasoPatron | null> {
+  const k = await pool.query<{ entidad_ruc: string; ruc_contratista: string; contratista: string | null }>(
+    `SELECT x.entidad_ruc, x.ruc_contratista, x.contratista FROM ordenes_repetidas x WHERE ${SQL_CLAVE_REPETIDA} = $1 LIMIT 1`, [clave]);
+  const id = k.rows[0];
+  if (!id) return null;
+  const lista = await pedir(`/repetidas?entidad=${id.entidad_ruc}&clave=${clave}&size=1`);
+  const f = (lista?.data ?? [])[0] as Record<string, any> | undefined;
+  if (!f) return null;
+  const persona = !id.ruc_contratista.startsWith("20");
+  const [ords, sunat, gente] = await Promise.all([
+    ordenesDelProveedor(id.entidad_ruc, id.ruc_contratista),
+    empresaSunat(id.ruc_contratista),
+    persona ? Promise.resolve([]) : genteDeEmpresa(id.ruc_contratista),
+  ]);
+  const ent = { ruc: id.entidad_ruc, nombre: (f.entidad as string | null) ?? null };
+  const entNombre = ent.nombre ? titulo(ent.nombre) : "la entidad";
+  const prov = persona ? tapar(id.contratista) ?? "Una persona que vende con su RUC" : titulo(f.nombre ?? sunat?.nombre ?? "El proveedor");
+  const det = (f.detalle ?? []) as { orden: string; fecha: string; estado: string | null }[];
+  const repetidas = new Set(det.map((d) => d.orden));
+  const objeto = f.objeto ? String(f.objeto) : "el mismo objeto";
+  const pasa = Number(f.total) > Number(f.tope);
+
+  const nodos: NodoCaso[] = [
+    { id: "e", tipo: "entidad", nombre: entNombre, rol: "La entidad que compró", href: `/entidad/${ent.ruc}?seccion=patrones&patron=repetidas` },
+    {
+      id: "m", tipo: persona ? "persona" : "empresa", nombre: prov, rol: persona ? "Vende con su RUC de persona natural" : "El proveedor",
+      href: persona ? null : `/empresa/${id.ruc_contratista}?seccion=antecedentes&atipo=patron-repetidas`,
+      monto: ords.anios.reduce((t, x) => t + x.monto, 0), ordenes: ords.total, severidad: f.severidad === "alta" ? "alta" : "media",
+      datos: [
+        sunat?.alta ? { etiqueta: "Fundada (SUNAT)", valor: fechaLarga(sunat.alta) } : null,
+        sunat?.estado && !/ACTIVO/i.test(sunat.estado) ? { etiqueta: "Estado en la SUNAT", valor: titulo(sunat.estado) } : null,
+        ords.primera ? { etiqueta: "Le vende a la entidad desde", valor: fechaLarga(ords.primera) } : null,
+      ].filter((x): x is { etiqueta: string; valor: string } => !!x),
+    },
+  ];
+  const aristas: AristaCaso[] = [{ de: "m", a: "e", tipo: "vende", texto: `${plural(ords.total, "orden", "órdenes")}; ${plural(f.ordenes, "repetida", "repetidas")} por ${soles(f.total)}` }];
+  gente.forEach((g, i) => {
+    nodos.push({ id: `p${i + 1}`, tipo: "persona", nombre: g.nombre, rol: `${g.papeles.charAt(0).toUpperCase()}${g.papeles.slice(1)} de la empresa`, datos: [g.desde ? { etiqueta: "Desde", valor: fechaLarga(g.desde) } : null, g.baja ? { etiqueta: "Ya no figura desde el corte de", valor: fechaLarga(g.baja) } : null].filter((x): x is { etiqueta: string; valor: string } => !!x) });
+    aristas.push({ de: `p${i + 1}`, a: "m", tipo: "socio", texto: g.papeles });
+  });
+
+  const hitos: HitoCaso[] = [];
+  if (sunat?.alta) hitos.push({ fecha: sunat.alta, tipo: "fundacion", titulo: `Se funda ${prov}`, nodos: ["m"], fuente: "SUNAT (padrón RUC)" });
+  gente.forEach((g, i) => { if (g.desde) hitos.push({ fecha: g.desde, tipo: "socio", titulo: `${g.nombre} figura como ${g.papeles}`, nodos: [`p${i + 1}`, "m"], fuente: "Registro Nacional de Proveedores (OECE)" }); });
+  if (ords.primera) hitos.push({ fecha: ords.primera, tipo: "primera", titulo: `Primera orden de ${entNombre} a ${prov}`, nodos: ["m", "e"], fuente: "CONOSCE (OECE)" });
+  det.forEach((d, i) => {
+    hitos.push({
+      fecha: d.fecha, tipo: i === 0 ? "dia" : "repartido", severidad: f.severidad === "alta" ? "alta" : "media", monto: Number(f.monto),
+      titulo: i === 0 ? `La compra: ${soles(f.monto)} por «${objeto.slice(0, 90)}»` : `La misma compra otra vez (${i + 1}.ª): ${soles(f.monto)}`,
+      detalle: `${d.orden}${d.estado ? `, ${d.estado.toLowerCase()}` : ""}.${i === det.length - 1 && pasa ? ` Juntas suman ${soles(f.total)}: pasan el tope de una orden directa (${soles(f.tope)}).` : ""}`,
+      nodos: ["m", "e"], fuente: "CONOSCE (OECE)", href: `/entidad/${ent.ruc}?seccion=contratos&cq=${numeroDeOrden(d.orden)}&canio=${d.fecha.slice(0, 4)}${persona ? "" : `&ccon=${id.ruc_contratista}`}`,
+    });
+  });
+  for (const a of ords.anios) hitos.push({ fecha: `${a.anio}-12-31`, tipo: "anio", titulo: `${a.anio}: ${plural(a.n, "orden", "órdenes")} por ${soles(a.monto)}`, monto: a.monto, nodos: ["m", "e"], fuente: "CONOSCE (OECE)", href: `/entidad/${ent.ruc}?seccion=contratos&canio=${a.anio}${persona ? "" : `&ccon=${id.ruc_contratista}`}` });
+  hitos.sort((a, b) => a.fecha.localeCompare(b.fecha) || a.tipo.localeCompare(b.tipo));
+
+  const razones: RazonCaso[] = ([
+    { titulo: "La misma compra, varias veces", cifra: `${miles(f.ordenes)} órdenes`, texto: `Mismo proveedor, mismo monto (${soles(f.monto)}) y mismo objeto, en ${plural(f.dias, "día", "días")}.`, severidad: f.severidad === "alta" ? "alta" : "media" },
+    pasa ? { titulo: "Juntas pasan el tope", cifra: soles(f.total), texto: `Una orden directa podía llegar a ${soles(f.tope)} (8 UIT). Partir una compra para quedar debajo del tope es fraccionamiento, que la ley prohíbe.`, severidad: "alta" } : { titulo: "Juntas no pasan el tope", cifra: soles(f.total), texto: `El tope de una orden directa era ${soles(f.tope)}.`, severidad: null },
+    f.devengadas >= 2 ? { titulo: "Se devengaron", cifra: `${miles(f.devengadas)} de ${miles(f.ordenes)}`, texto: "Si eran la misma compra registrada dos veces y las dos se devengaron, pregunta si se pagó dos veces.", severidad: "media" } : null,
+    { titulo: "Lo que puede explicarlo", cifra: "Suministro", texto: "Un suministro mensual o una compra periódica puede repetirse legítimamente: el requerimiento lo dice.", severidad: null },
+  ] as (RazonCaso | null)[]).filter((x): x is RazonCaso => !!x);
+
+  const filas = ords.filas.map((o, i) => filaDeOrden(o, i, ent.ruc, id.ruc_contratista, prov, repetidas.has(o.orden ?? "") ? ["la misma compra repetida"] : []));
+  const sev: Severidad = f.severidad === "alta" ? "alta" : f.severidad === "media" ? "media" : "baja";
+  return {
+    tipo: "repetidas", clave, patron: "La misma compra repetida en semanas",
+    titulo: persona ? `La misma compra repetida a una persona en ${entNombre}` : `La misma compra repetida a ${prov} en ${entNombre}`,
+    severidad: sev,
+    frase: `${entNombre} le compró a ${prov} lo mismo (${objeto.slice(0, 120)}), por el mismo monto (${soles(f.monto)}), ${plural(f.ordenes, "vez", "veces")} en ${plural(f.dias, "día", "días")}: ${soles(f.total)} en total${pasa ? `, por encima del tope de una orden directa (${soles(f.tope)})` : ""}.`,
+    entidad: ent, desde: f.desde ?? null, hasta: f.hasta ?? null,
+    cifras: [
+      { etiqueta: "Órdenes repetidas", valor: miles(f.ordenes), contexto: `en ${plural(f.dias, "día", "días")}` },
+      { etiqueta: "Juntas suman", valor: soles(f.total), contexto: `el tope era ${soles(f.tope)}` },
+      { etiqueta: "Devengadas", valor: miles(f.devengadas ?? 0), contexto: `de ${miles(f.ordenes)}` },
+      { etiqueta: "Todas sus órdenes de la entidad", valor: miles(ords.total), contexto: `por ${soles(ords.anios.reduce((t, x) => t + x.monto, 0))}` },
+    ],
+    serie: serieDeAnios("Lo que la entidad le compró, año por año", "La compra repetida", "Sus demás órdenes", ords.anios, (a) => {
+      const n = det.filter((d) => d.fecha.startsWith(String(a))).length;
+      return { n, monto: n * Number(f.monto) };
+    }),
+    nodos, aristas, hitos, razones,
+    evidencia: {
+      titulo: `Las órdenes de ${entNombre} a este proveedor`, total: ords.total, filas,
+      nota: ords.total > filas.length ? `Aquí van las ${miles(filas.length)} más recientes de ${miles(ords.total)}.` : "Las repetidas van marcadas; las demás son el resto de lo que le compró.",
+      masHref: `/entidad/${ent.ruc}?seccion=contratos${persona ? "" : `&ccon=${id.ruc_contratista}`}`,
+    },
+    revisar: [
+      "Pide a la entidad los requerimientos de las órdenes repetidas: si son una sola necesidad partida, es un fraccionamiento.",
+      "Compara las fechas de entrega y las conformidades: si se entregó una vez y se registraron dos órdenes, pregunta por el pago.",
+      "Mira si en esos meses la entidad tenía un proceso para lo mismo (un proceso desierto o en curso explica compras de emergencia, no repetidas).",
+    ],
+    fuentes: [
+      { texto: "Órdenes de compra y de servicio (CONOSCE, OECE)", href: CONOSCE_BUSCADOR },
+      ...(persona ? [] : [{ texto: "Consulta RUC (SUNAT)", href: CONSULTA_RUC_SUNAT }, { texto: "Socios y representantes (Registro Nacional de Proveedores)", href: DATASET_SOCIOS_RNP }]),
+    ],
+    relacionados: [
+      { texto: `Antecedentes y patrones de ${entNombre}`, href: `/entidad/${ent.ruc}?seccion=patrones&patron=repetidas` },
+      ...(persona ? [] : [{ texto: `Ficha de ${prov}`, href: `/empresa/${id.ruc_contratista}` }]),
+      { texto: "Todas las compras repetidas del país", href: "/app/patrones?seccion=repetidas" },
+    ],
+    como_leerlo: String(lista?.como_leerlo ?? "La misma compra en varias órdenes directas de 7 a 90 días entre sí."),
+  };
+}
+
+// ─── Empresa recién creada con órdenes directas (migración 355) ────────────────────────────────
+
+export async function casoRecien(clave: string, pedir: Pedir): Promise<CasoPatron | null> {
+  const k = await pool.query<{ entidad_ruc: string; ruc_empresa: string }>(
+    `SELECT x.entidad_ruc, x.ruc_empresa FROM empresa_recien_creada_ordenes x WHERE ${SQL_CLAVE_RECIEN} = $1 LIMIT 1`, [clave]);
+  const id = k.rows[0];
+  if (!id) return null;
+  const lista = await pedir(`/recien?buscar=${id.entidad_ruc}&clave=${clave}&size=1`);
+  const f = (lista?.data ?? [])[0] as Record<string, any> | undefined;
+  if (!f) return null;
+  const [ords, sunat, gente] = await Promise.all([ordenesDelProveedor(id.entidad_ruc, id.ruc_empresa), empresaSunat(id.ruc_empresa), genteDeEmpresa(id.ruc_empresa)]);
+  const ent = { ruc: id.entidad_ruc, nombre: (f.entidad as string | null) ?? null };
+  const entNombre = ent.nombre ? titulo(ent.nombre) : "la entidad";
+  const emp = titulo(f.nombre ?? sunat?.nombre ?? "La empresa");
+  const finPrimerAnio = f.primeraOrden ? `${Number(String(f.primeraOrden).slice(0, 4)) + 1}${String(f.primeraOrden).slice(4)}` : null;
+
+  const nodos: NodoCaso[] = [
+    { id: "e", tipo: "entidad", nombre: entNombre, rol: "La entidad que le compró", href: `/entidad/${ent.ruc}?seccion=patrones&patron=recien` },
+    {
+      id: "m", tipo: "empresa", nombre: emp, rol: `Recibió su primera orden ${plural(f.dias, "día", "días")} después de inscribirse`, href: `/empresa/${id.ruc_empresa}?seccion=antecedentes&atipo=patron-recien`,
+      monto: f.monto, ordenes: f.ordenes, severidad: f.severidad === "alta" ? "alta" : "media",
+      datos: [
+        f.fechaAlta ? { etiqueta: "Fundada (SUNAT)", valor: fechaLarga(f.fechaAlta) } : null,
+        sunat?.estado && !/ACTIVO/i.test(sunat.estado) ? { etiqueta: "Estado en la SUNAT", valor: titulo(sunat.estado) } : null,
+        f.parteEntidad != null ? { etiqueta: "De sus ventas por órdenes, de esta entidad", valor: `${Math.round(f.parteEntidad * 100)} %` } : null,
+        sunat?.entidades ? { etiqueta: "Le vende a", valor: plural(sunat.entidades, "entidad", "entidades") } : null,
+      ].filter((x): x is { etiqueta: string; valor: string } => !!x),
+    },
+  ];
+  const aristas: AristaCaso[] = [{ de: "m", a: "e", tipo: "vende", texto: `${plural(f.ordenes, "orden", "órdenes")} por ${soles(f.monto)}` }];
+  gente.forEach((g, i) => {
+    nodos.push({ id: `p${i + 1}`, tipo: "persona", nombre: g.nombre, rol: `${g.papeles.charAt(0).toUpperCase()}${g.papeles.slice(1)} de la empresa`, datos: [g.desde ? { etiqueta: "Desde", valor: fechaLarga(g.desde) } : null, g.baja ? { etiqueta: "Ya no figura desde el corte de", valor: fechaLarga(g.baja) } : null].filter((x): x is { etiqueta: string; valor: string } => !!x) });
+    aristas.push({ de: `p${i + 1}`, a: "m", tipo: "socio", texto: g.papeles });
+  });
+
+  const hitos: HitoCaso[] = [];
+  if (f.fechaAlta) hitos.push({ fecha: f.fechaAlta, tipo: "fundacion", titulo: `Se inscribe ${emp} en la SUNAT`, nodos: ["m"], fuente: "SUNAT (padrón RUC)" });
+  gente.forEach((g, i) => { if (g.desde) hitos.push({ fecha: g.desde, tipo: "socio", titulo: `${g.nombre} figura como ${g.papeles}`, nodos: [`p${i + 1}`, "m"], fuente: "Registro Nacional de Proveedores (OECE)" }); });
+  if (f.primeraOrden) hitos.push({ fecha: f.primeraOrden, tipo: "primera", severidad: f.severidad === "alta" ? "alta" : "media", titulo: `Primera orden directa de ${entNombre}, ${plural(f.dias, "día", "días")} después de inscribirse`, nodos: ["m", "e"], fuente: "CONOSCE (OECE)", href: `/entidad/${ent.ruc}?seccion=contratos&ccon=${id.ruc_empresa}&canio=${String(f.primeraOrden).slice(0, 4)}` });
+  if (finPrimerAnio) hitos.push({ fecha: finPrimerAnio, tipo: "otro", severidad: f.severidad === "alta" ? "alta" : null, titulo: `En su primer año: ${plural(f.ordenesPrimerAnio, "orden", "órdenes")} por ${soles(f.montoPrimerAnio)}`, nodos: ["m", "e"], fuente: "CONOSCE (OECE)" });
+  for (const a of ords.anios) hitos.push({ fecha: `${a.anio}-12-31`, tipo: "anio", titulo: `${a.anio}: ${plural(a.n, "orden", "órdenes")} por ${soles(a.monto)}`, monto: a.monto, nodos: ["m", "e"], fuente: "CONOSCE (OECE)", href: `/entidad/${ent.ruc}?seccion=contratos&ccon=${id.ruc_empresa}&canio=${a.anio}` });
+  hitos.sort((a, b) => a.fecha.localeCompare(b.fecha) || a.tipo.localeCompare(b.tipo));
+
+  const razones: RazonCaso[] = ([
+    { titulo: "De la inscripción a la primera orden", cifra: plural(f.dias, "día", "días"), texto: "Una orden directa (sin proceso) a una empresa que recién se había inscrito en la SUNAT: no tenía historia que mostrar.", severidad: f.dias <= 30 ? "alta" : "media" },
+    { titulo: "Su primer año", cifra: soles(f.montoPrimerAnio), texto: `${plural(f.ordenesPrimerAnio, "orden", "órdenes")} de esta entidad en sus primeros doce meses.`, severidad: f.montoPrimerAnio >= 100000 ? "alta" : "media" },
+    f.parteEntidad != null ? { titulo: "Cuánto depende de esta entidad", cifra: `${Math.round(f.parteEntidad * 100)} %`, texto: "De todo lo que le vendió al Estado por órdenes, esa parte vino de esta entidad.", severidad: f.parteEntidad >= 0.8 ? "media" : null } : null,
+    gente.length ? { titulo: "Quién la creó", cifra: plural(gente.length, "persona", "personas"), texto: "Sus socios, representantes y directivos en el Registro Nacional de Proveedores, con la fecha en que figuran: mira si alguno trabajó en la entidad o ya le vendía con otra empresa.", severidad: null } : null,
+  ] as (RazonCaso | null)[]).filter((x): x is RazonCaso => !!x);
+
+  const filas = ords.filas.map((o, i) => filaDeOrden(o, i, ent.ruc, id.ruc_empresa, emp, o.fecha && finPrimerAnio && o.fecha < finPrimerAnio ? ["en su primer año"] : []));
+  const sev: Severidad = f.severidad === "alta" ? "alta" : f.severidad === "media" ? "media" : "baja";
+  return {
+    tipo: "recien", clave, patron: "Empresa recién creada con órdenes directas",
+    titulo: `${emp}: recién creada y ya le vendía a ${entNombre}`,
+    severidad: sev,
+    frase: `${emp} se inscribió en la SUNAT el ${f.fechaAlta ? fechaLarga(f.fechaAlta) : "(sin fecha)"} y ${plural(f.dias, "día", "días")} después ya tenía su primera orden directa de ${entNombre}. En su primer año recibió ${plural(f.ordenesPrimerAnio, "orden", "órdenes")} por ${soles(f.montoPrimerAnio)}; en total, ${plural(f.ordenes, "orden", "órdenes")} por ${soles(f.monto)}.`,
+    entidad: ent, desde: f.primeraOrden ?? null, hasta: ords.anios[ords.anios.length - 1]?.ultima ?? null,
+    cifras: [
+      { etiqueta: "Días de la inscripción a la primera orden", valor: miles(f.dias), contexto: null },
+      { etiqueta: "En su primer año", valor: soles(f.montoPrimerAnio), contexto: plural(f.ordenesPrimerAnio, "orden", "órdenes") },
+      { etiqueta: "En total", valor: soles(f.monto), contexto: plural(f.ordenes, "orden", "órdenes") },
+      { etiqueta: "De sus ventas, de esta entidad", valor: f.parteEntidad != null ? `${Math.round(f.parteEntidad * 100)} %` : "Sin dato", contexto: null },
+    ],
+    serie: null, nodos, aristas, hitos, razones,
+    evidencia: {
+      titulo: `Las órdenes de ${entNombre} a ${emp}`, total: ords.total, filas,
+      nota: ords.total > filas.length ? `Aquí van las ${miles(filas.length)} más recientes de ${miles(ords.total)}.` : null,
+      masHref: `/entidad/${ent.ruc}?seccion=contratos&ccon=${id.ruc_empresa}`,
+    },
+    revisar: [
+      "Pide a la entidad el requerimiento y las cotizaciones de la primera orden: quién propuso a la empresa y contra quién cotizó.",
+      "Mira quiénes son sus socios y representantes: si alguno trabajó en la entidad o ya le vendía con otra empresa, el negocio no es nuevo.",
+      "Revisa su domicilio fiscal y su actividad en la SUNAT frente a lo que vendió.",
+    ],
+    fuentes: [
+      { texto: "Consulta RUC (SUNAT)", href: CONSULTA_RUC_SUNAT },
+      { texto: "Órdenes de compra y de servicio (CONOSCE, OECE)", href: CONOSCE_BUSCADOR },
+      { texto: "Socios y representantes (Registro Nacional de Proveedores)", href: DATASET_SOCIOS_RNP },
+    ],
+    relacionados: [
+      { texto: `Ficha de ${emp}`, href: `/empresa/${id.ruc_empresa}` },
+      { texto: `Antecedentes y patrones de ${entNombre}`, href: `/entidad/${ent.ruc}?seccion=patrones&patron=recien` },
+      { texto: "Todas las empresas recién creadas del país", href: "/app/patrones?seccion=recien" },
+    ],
+    como_leerlo: String(lista?.como_leerlo ?? "Una empresa que se inscribió en la SUNAT y a los pocos días ya recibía órdenes directas de una entidad."),
   };
 }

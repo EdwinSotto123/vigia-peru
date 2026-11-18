@@ -625,7 +625,7 @@ export function detalleRepetida(p: PatronRepetida): Detalle {
     pie: (
       <Pie
         enlaces={[
-          esRuc20(p.entidadRuc) && { texto: "Ficha de la entidad", href: `/entidad/${p.entidadRuc}` },
+          !!p.clave && { texto: "Abrir la ficha del caso", href: rutaCaso("repetidas", p.clave) },
           esRuc20(p.ruc) && { texto: "Ficha del proveedor", href: `/empresa/${p.ruc}` },
         ]}
       />
@@ -920,8 +920,8 @@ export function detalleRecien(p: PatronRecien): Detalle {
     pie: (
       <Pie
         enlaces={[
+          !!p.clave && { texto: "Abrir la ficha del caso", href: rutaCaso("recien", p.clave) },
           esRuc20(p.ruc) && { texto: "Ficha de la empresa", href: `/empresa/${p.ruc}` },
-          esRuc20(p.entidadRuc) && { texto: "Sus órdenes en la entidad", href: `/entidad/${p.entidadRuc}?seccion=contratos&csenal=recien_creada&ccon=${p.ruc}` },
         ]}
       />
     ),

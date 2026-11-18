@@ -81,7 +81,7 @@ export interface CasoPatron {
 }
 
 /** Los patrones que ya tienen su ficha de caso (la sección de /app/patrones de cada uno). */
-export const PATRONES_CON_CASO = new Set(["grupos", "compras"]);
+export const PATRONES_CON_CASO = new Set(["grupos", "compras", "repetidas", "recien"]);
 
 /** La ficha de un caso: /app/patrones/caso/grupos/56ccbe973e4e3e3d. */
 export const rutaCaso = (tipo: string, clave: string) => `/app/patrones/caso/${tipo}/${clave}`;

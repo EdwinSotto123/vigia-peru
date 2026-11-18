@@ -185,6 +185,8 @@ export interface PatronesGrupos {
  * su RUC como referencia opaca.
  */
 export interface PatronRepetida {
+  /** La clave opaca de su ficha de caso. */
+  clave?: string;
   entidadRuc: string;
   entidad: string | null;
   ruc: string;
@@ -214,6 +216,8 @@ export interface PatronesRepetidas {
 
 /** Una empresa recién creada que recibe órdenes directas de una entidad a los pocos días de su alta (migración 355). */
 export interface PatronRecien {
+  /** La clave opaca de su ficha de caso. */
+  clave?: string;
   entidadRuc: string;
   entidad: string | null;
   ruc: string;

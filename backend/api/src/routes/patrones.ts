@@ -43,7 +43,7 @@ import { papelesRnp } from "../lib/familiaFuncionario.js";
 import { ETIQUETA_CRUCE, catalogoSenales, nombrePublicable } from "../lib/cruces.js";
 import { depurarReferencias } from "../lib/laboratorioPrecios.js";
 import { taparNombrePropio } from "./personas.js";
-import { SQL_CLAVE_GRUPO, casoComprasFamilia, casoGrupo, type CasoPatron, type Pedir } from "../lib/casoPatron.js";
+import { SQL_CLAVE_GRUPO, SQL_CLAVE_RECIEN, SQL_CLAVE_REPETIDA, casoComprasFamilia, casoGrupo, casoRecien, casoRepetida, type CasoPatron, type Pedir } from "../lib/casoPatron.js";
 
 export const patronesRouter = new Hono();
 
@@ -631,6 +631,8 @@ const Repetidas = z.object({
   ruc: z.string().regex(/^20\d{9}$/).optional(),
   /** El RUC de la entidad o el de la empresa: la web tiene un solo filtro. */
   buscar: z.string().regex(/^20\d{9}$/).optional(),
+  /** La clave opaca de un caso (su ficha de caso). */
+  clave: z.string().regex(/^[0-9a-f]{16}$/).optional(),
   severidad: z.enum(["alta", "media", "baja"]).optional(),
   page: z.coerce.number().int().min(1).max(200).default(1),
   size: z.coerce.number().int().min(1).max(50).default(20),
@@ -651,13 +653,13 @@ patronesRouter.get("/repetidas", async (c) => {
       `SELECT x.entidad_ruc AS "entidadRuc", (SELECT es.nombre FROM entidad_stats es WHERE es.ruc = x.entidad_ruc) AS entidad,
               x.ruc_contratista AS ruc, x.contratista AS nombre, x.monto::float AS monto, x.ordenes, x.total::float AS total, x.tope::float AS tope,
               to_char(x.desde, 'YYYY-MM-DD') AS desde, to_char(x.hasta, 'YYYY-MM-DD') AS hasta, x.dias, x.devengadas, x.objeto, x.severidad, x.detalle,
-              (count(*) OVER ())::int AS total_filas
+              ${SQL_CLAVE_REPETIDA} AS clave, (count(*) OVER ())::int AS total_filas
          FROM ordenes_repetidas x
         WHERE ($1::text IS NULL OR x.entidad_ruc = $1) AND ($2::text IS NULL OR x.ruc_contratista = $2) AND ($3::text IS NULL OR x.severidad = $3)
-          AND ($6::text IS NULL OR x.entidad_ruc = $6 OR x.ruc_contratista = $6)
+          AND ($6::text IS NULL OR x.entidad_ruc = $6 OR x.ruc_contratista = $6) AND ($7::text IS NULL OR ${SQL_CLAVE_REPETIDA} = $7)
         ORDER BY CASE x.severidad WHEN 'alta' THEN 0 WHEN 'media' THEN 1 ELSE 2 END, x.total DESC
         LIMIT $4 OFFSET $5`,
-      [q.entidad ?? null, q.ruc ?? null, q.severidad ?? null, q.size, (q.page - 1) * q.size, q.buscar ?? null],
+      [q.entidad ?? null, q.ruc ?? null, q.severidad ?? null, q.size, (q.page - 1) * q.size, q.buscar ?? null, q.clave ?? null],
     ).catch(() => ({ rows: [] as Record<string, unknown>[] }));
     const filas = r.rows as Record<string, any>[];
     return publicar({
@@ -673,6 +675,8 @@ patronesRouter.get("/repetidas", async (c) => {
 const Recien = z.object({
   /** RUC de la entidad o de la empresa. */
   buscar: z.string().regex(/^20\d{9}$/).optional(),
+  /** La clave opaca de un caso (su ficha de caso). */
+  clave: z.string().regex(/^[0-9a-f]{16}$/).optional(),
   severidad: z.enum(["alta", "media", "baja"]).optional(),
   page: z.coerce.number().int().min(1).max(200).default(1),
   size: z.coerce.number().int().min(1).max(50).default(20),
@@ -692,12 +696,14 @@ patronesRouter.get("/recien", async (c) => {
       `SELECT x.entidad_ruc AS "entidadRuc", (SELECT es.nombre FROM entidad_stats es WHERE es.ruc = x.entidad_ruc) AS entidad,
               x.ruc_empresa AS ruc, x.empresa AS nombre, to_char(x.fecha_alta, 'YYYY-MM-DD') AS "fechaAlta",
               to_char(x.primera_orden, 'YYYY-MM-DD') AS "primeraOrden", x.dias, x.ordenes_1a AS "ordenesPrimerAnio", x.monto_1a::float AS "montoPrimerAnio",
-              x.ordenes, x.monto::float AS monto, x.parte_entidad::float AS "parteEntidad", x.severidad, (count(*) OVER ())::int AS total_filas
+              x.ordenes, x.monto::float AS monto, x.parte_entidad::float AS "parteEntidad", x.severidad, ${SQL_CLAVE_RECIEN} AS clave,
+              (count(*) OVER ())::int AS total_filas
          FROM empresa_recien_creada_ordenes x
         WHERE ($1::text IS NULL OR x.entidad_ruc = $1 OR x.ruc_empresa = $1) AND ($2::text IS NULL OR x.severidad = $2)
+          AND ($5::text IS NULL OR ${SQL_CLAVE_RECIEN} = $5)
         ORDER BY CASE x.severidad WHEN 'alta' THEN 0 WHEN 'media' THEN 1 ELSE 2 END, x.monto_1a DESC
         LIMIT $3 OFFSET $4`,
-      [q.buscar ?? null, q.severidad ?? null, q.size, (q.page - 1) * q.size],
+      [q.buscar ?? null, q.severidad ?? null, q.size, (q.page - 1) * q.size, q.clave ?? null],
     ).catch(() => ({ rows: [] as Record<string, unknown>[] }));
     const filas = r.rows as Record<string, any>[];
     return publicar({
@@ -1157,6 +1163,8 @@ patronesRouter.get("/entidad/:ruc", async (c) => {
 const CASOS: Record<string, (clave: string, pedir: Pedir) => Promise<CasoPatron | null>> = {
   grupos: casoGrupo,
   compras: casoComprasFamilia,
+  repetidas: casoRepetida,
+  recien: casoRecien,
 };
 
 /**
