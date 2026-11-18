@@ -608,6 +608,8 @@ export interface PatronesDeEntidad {
     monto: number;
     empresas: number;
     ejemplos: { ocid: string; codigo: string | null; objeto: string | null; proveedor: string | null; ruc: string | null; monto: number | null; fecha: string | null; severidad: string }[] | null;
+    /** Los proveedores con dos o más contratos de la entidad con ese antecedente (hasta cinco): quiénes lo repiten. */
+    repiten?: { ruc: string | null; proveedor: string | null; contratos: number; monto: number }[] | null;
   }[];
 }
 export const getPatronesDeEntidad = (ruc: string) => leer<PatronesDeEntidad>(`/patrones/entidad/${ruc}`);

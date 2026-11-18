@@ -1073,13 +1073,20 @@ patronesRouter.get("/entidad/:ruc", async (c) => {
          SELECT t.tipo, t.severidad, k.ocid, k.codigo, k.objeto, k.proveedor, k.ruc, k.monto, k.fecha_buena_pro,
                 row_number() OVER (PARTITION BY t.tipo ORDER BY (t.severidad = 'alta') DESC, k.monto DESC NULLS LAST, k.ocid) AS rn
            FROM casos_cruce k CROSS JOIN LATERAL jsonb_to_recordset(k.cruces) AS t(tipo text, severidad text)
-          WHERE k.entidad_ruc = $1 AND t.tipo IS NOT NULL)
+          WHERE k.entidad_ruc = $1 AND t.tipo IS NOT NULL),
+       -- Quiénes lo repiten: los proveedores con más contratos de la entidad con ese antecedente.
+       p AS (
+         SELECT x.tipo, x.ruc, max(x.proveedor) AS proveedor, count(*)::int AS contratos, COALESCE(sum(x.monto), 0)::float AS monto,
+                row_number() OVER (PARTITION BY x.tipo ORDER BY count(*) DESC, sum(x.monto) DESC NULLS LAST, x.ruc) AS rn
+           FROM x GROUP BY x.tipo, x.ruc)
        SELECT x.tipo, count(*)::int AS contratos, (count(*) FILTER (WHERE x.severidad = 'alta'))::int AS graves,
               (count(*) FILTER (WHERE x.severidad = 'media'))::int AS medias,
               COALESCE(sum(x.monto), 0)::float AS monto, count(DISTINCT x.ruc)::int AS empresas,
               jsonb_agg(jsonb_build_object('ocid', x.ocid, 'codigo', x.codigo, 'objeto', left(x.objeto, 180), 'proveedor', x.proveedor, 'ruc', x.ruc,
                                            'monto', x.monto, 'fecha', to_char(x.fecha_buena_pro, 'YYYY-MM-DD'), 'severidad', x.severidad)
-                        ORDER BY x.rn) FILTER (WHERE x.rn <= 6) AS ejemplos
+                        ORDER BY x.rn) FILTER (WHERE x.rn <= 6) AS ejemplos,
+              (SELECT jsonb_agg(jsonb_build_object('ruc', p.ruc, 'proveedor', p.proveedor, 'contratos', p.contratos, 'monto', p.monto) ORDER BY p.rn)
+                 FROM p WHERE p.tipo = x.tipo AND p.rn <= 5 AND p.contratos > 1) AS repiten
          FROM x GROUP BY x.tipo ORDER BY 3 DESC, 2 DESC`, [ruc])
       .catch((e) => { console.warn(`[patrones] cruces de ${ruc}: ${(e as Error).message}`); return { rows: [] as Record<string, any>[] }; });
     return publicar({

@@ -66,6 +66,7 @@ function FichaDeLista({ clave, p, ruc, etiquetas }: { clave: SeccionPatrones; p:
 function FichaDeCruce({ c, ruc }: { c: PatronesDeEntidad["cruces"][number]; ruc: string }) {
   const info = TIPO_CRUCE[c.tipo] as { corto?: string; explica?: string } | undefined;
   const ejemplos = c.ejemplos ?? [];
+  const repiten = c.repiten ?? [];
   return (
     <div className="space-y-4">
       <CabeceraFicha familia={familiaDeCruce(c.tipo)} />
@@ -81,6 +82,30 @@ function FichaDeCruce({ c, ruc }: { c: PatronesDeEntidad["cruces"][number]; ruc:
           { valor: solesCompacto(c.monto), etiqueta: "suman esos contratos", contexto: plural(c.empresas, "proveedor distinto", "proveedores distintos"), parte: null },
         ]}
       />
+      {repiten.length > 0 && (
+        <section className="space-y-2">
+          <h4 className="text-cuerpo font-semibold text-ink">Quiénes lo repiten en esta entidad</h4>
+          <ul className="divide-y divide-line/70 overflow-hidden rounded-xl border border-line">
+            {repiten.map((x, i) => (
+              <li key={`${x.ruc ?? "sin"}-${i}`} className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5 px-3.5 py-2 text-dato">
+                <span className="min-w-0">
+                  {x.ruc && /^20\d{9}$/.test(x.ruc) ? (
+                    <Link href={`/empresa/${x.ruc}?seccion=antecedentes`} prefetch={false} className={ENLACE}>
+                      {x.proveedor ? tituloNatural(x.proveedor) : `RUC ${x.ruc}`}
+                    </Link>
+                  ) : (
+                    <span className="text-ink">{x.proveedor ? tituloNatural(x.proveedor) : "Persona natural"}</span>
+                  )}
+                </span>
+                <span className="shrink-0 text-meta text-inkSoft">
+                  <span className="font-mono tabular-nums text-ink">{numero(x.contratos)}</span> contratos por{" "}
+                  <span className="font-mono tabular-nums text-ink">{solesCompacto(x.monto)}</span>
+                </span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
       {ejemplos.length > 0 && (
         <section className="space-y-2">
           <h4 className="text-cuerpo font-semibold text-ink">
