@@ -202,6 +202,10 @@ async function autorizar(request: Request, env: EnvV2): Promise<Response> {
     } catch {
       return paginaError("No pudimos verificar tu sesión de Gobserva.");
     }
+    // Sin el token de refresco de la sesión no se concede nada: con él se vuelve a leer el plan cada vez que el cliente
+    // renueva su acceso. Quitándolo del formulario, la concesión guardaba el plan de hoy y lo seguía dando hasta 90 días
+    // después de vencido (auditoría del 2026-11-17).
+    if (refresco.length < 20) return paginaError("No pudimos mantener tu sesión de Gobserva. Vuelve a entrar y conecta de nuevo.");
     const { planes, mcp } = await planesDe(env, idToken);
     if (!planes.length) return paginaSinPlan(grupo?.app ?? null);
     const elegidos = form.getAll("scope").map(String).filter((s) => SCOPES.includes(s));
@@ -278,7 +282,9 @@ export function proveedorOAuth(env: EnvV2, conCuenta: Manejador): OAuthProvider<
     refreshTokenIdleTTL: 30 * 86_400,
     async tokenExchangeCallback({ grantType, props, env: e }) {
       const actual = props as PropsCuenta | undefined;
-      if (grantType !== "refresh_token" || !actual || (!actual.frt && !actual.crt)) return;
+      if (grantType !== "refresh_token" || !actual) return;
+      // Una concesión sin token de refresco no puede volver a leer su plan: se corta y el cliente vuelve a conectar.
+      if (!actual.frt && !actual.crt) throw new OAuthError("invalid_grant", { description: "La sesión de Gobserva ya no es válida: vuelve a conectar." });
       try {
         let nuevas: PropsCuenta;
         if (actual.app) {

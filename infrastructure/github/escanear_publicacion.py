@@ -19,6 +19,10 @@ PATRONES = {
     "clave Google AIza": re.compile(r"\bAIza[0-9A-Za-z_-]{35}\b"),
     "contraseña en URL": re.compile(r"\b(?:postgres(?:ql)?|mysql|redis|amqp|mongodb(?:\+srv)?)://[^:\s/'\"]+:[^@\s'\"$<{]+@"),
     "secreto asignado": re.compile(r"(?i)\b(?:ADMIN_TOKEN|PRIVACIDAD_CLAVE|TURNSTILE_SECRET_KEY|BUILD_TOKEN|DISPATCHER_TOKEN|SCRAPERS_TOKEN|VIGIA_DL_TOKEN|PGPASSWORD|API_KEY|SECRET_KEY|password)\s*[:=]\s*[\"']?[A-Za-z0-9_+/=.-]{16,}"),
+    # Cualquier variable en MAYÚSCULAS que termine en TOKEN, SECRET, KEY, CLAVE o PASSWORD (RESEND_API_KEY, AGENTE_TOKEN,
+    # CLOUDFLARE_API_TOKEN, ADMIN_SESSION_SECRET…) con un valor que parece al azar (letras y dígitos, 20 o más). La regla de
+    # arriba no las veía: antes de «API_KEY» va un «_», que no es un límite de palabra (auditoría del 2026-11-17).
+    "secreto en variable": re.compile(r"(?<![A-Za-z0-9_])[A-Z][A-Z0-9_]*(?:TOKEN|SECRET|KEY|CLAVE|PASSWORD|PASSWD)[A-Z0-9_]*\s*[:=]\s*[\"']?(?=[A-Za-z0-9_+/=.-]{0,60}\d)(?=[A-Za-z0-9_+/=.-]{0,60}[A-Za-z])[A-Za-z0-9_+/=-]{20,}"),
     "DNI en campo": re.compile(r"(?i)[\"']?(?:dni|doc|documento|numero_documento|nro_documento|pariente_doc|num_doc)[\"']?\s*[:=,]\s*[\"']?\d{8}\b"),
     "RUC 10": re.compile(r"\b10\d{9}\b"),
 }

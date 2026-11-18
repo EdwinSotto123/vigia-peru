@@ -170,7 +170,7 @@ def get_ganador(ocid: str, tool_context: ToolContext) -> dict:
 
     # Si el ganador es persona natural (RUC empieza con '10'), extraer el DNI
     # subyacente — los dígitos 3-10 del RUC peruano persona natural son el DNI
-    # de la persona. Ej: RUC 10444256279 → DNI 44425627.
+    # de la persona. Ej: RUC 10000022212 → DNI 00002221.
     # Esto permite al orchestrator llamar `detect_puerta_giratoria(dni)` y
     # `detect_aporte_a_partido_del_alcalde(dni)` sin pedírselo al LLM.
     if ganador and ganador.get("ruc"):

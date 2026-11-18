@@ -94,7 +94,7 @@ def entorno(monkeypatch):
     T.query_edad_ciiu_web = _mk_tool(log, "query_edad_ciiu_web")
     T.read_sunat_profile = _mk_tool(log, "read_sunat_profile", {"sunat_decolecta": {"ruc": "20100000001"}}, dur=0.05)
     T.batch_person_lookup = _mk_tool(log, "batch_person_lookup", {"batch_person_lookup_result": {"n": 1}})
-    T.query_rnp_empresa = _mk_tool(log, "query_rnp_empresa", ret={"socios": [{"numero_documento": "12345678", "nombre": "JUAN"}]})
+    T.query_rnp_empresa = _mk_tool(log, "query_rnp_empresa", ret={"socios": [{"numero_documento": "00005555", "nombre": "JUAN"}]})
     T.detect_puerta_giratoria = _mk_tool(log, "detect_puerta_giratoria")
     T.read_person_network_context = _mk_tool(log, "read_person_network_context", {"person_network_context": "ctx"})
     T.evaluate_normative_compliance = _mk_tool(log, "evaluate_normative_compliance", {"normative_compliance": {"ok": True}})
@@ -115,7 +115,7 @@ def entorno(monkeypatch):
         a = time.monotonic()
         time.sleep(0.15)
         state["parser_raw_consolidated"] = {"items_consolidados": [{"numero": 1, "descripcion_corta": "laptop"}],
-                                            "firmantes_consolidados": [{"nombre_completo": "ANA", "dni": "11111111"}]}
+                                            "firmantes_consolidados": [{"nombre_completo": "ANA", "dni": "00004444"}]}
         state["documentos_texto"] = {"sha1": {"n_paginas": 3}}
         state.setdefault("recortes", []).append({"donde": "parser_lote", "limite": 1, "omitido": "x"})
         log.span("parse_documentos_lote", a, time.monotonic())

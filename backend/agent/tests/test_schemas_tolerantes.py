@@ -170,7 +170,7 @@ def test_web_research_categoria_fuera_de_enum_monto_texto_y_ciiu_largo():
     en texto y CIIU > 40 chars → bloques enteros descartados y `estado: no_verificable`."""
     w = S.WebResearchOutput.model_validate({
         "estado": "hallado",
-        "empresa": {"ruc": "10426100725", "razon_social": "CARPIO COBOS ABEL",
+        "empresa": {"ruc": "10000088884", "razon_social": "CARPIO COBOS ABEL",
                     "ciiu": "7710 - ALQUILER Y ARRENDAMIENTO DE VEHICULOS AUTOMOTORES SIN CONDUCTOR"},
         "hallazgos_por_fuente": [
             {"fuente": "SUNAT", "categoria": "registro tributario", "estado": "OK", "mensaje": "activo y habido"},
@@ -261,8 +261,8 @@ def test_validar_schema_propaga_descartes_y_avisa_listas_vaciadas(monkeypatch):
 RUC_ENTIDAD = "20177217043"
 RUC_INVENTADO = "20177743016"      # 1225062: "Hechos clave" con RUC de la entidad inventado
 RUC_PROV = "20600616235"
-DNI_PART = "41156031"              # 1225062: DNI del gerente (particular) publicado
-DNI_FUNC = "48258523"
+DNI_PART = "00007777"              # documento inventado de un particular (un gerente)
+DNI_FUNC = "00003332"
 
 
 def _state_dictamen(**extra):
@@ -282,8 +282,8 @@ def _state_dictamen(**extra):
                         "value": {"amount": 97950.0, "currency": "PEN"}, "date": "2026-06-22"}],
             "contracts": [{"id": "1", "value": {"amount": 97950.0, "currency": "PEN"}}],
         },
-        "person_network_context": {"rnp_proveedor": {"socios": [{"nombre": "ARIAS OBLITAS JUAN FERNANDO", "dni": DNI_PART}]},
-                                   "firmantes": [{"nombre_completo": "SANDRO HERSON SALCEDO CASTILLO", "dni": DNI_FUNC}]},
+        "person_network_context": {"rnp_proveedor": {"socios": [{"nombre": "ARANDA OLIVOS JUAN FERNANDO", "dni": DNI_PART}]},
+                                   "firmantes": [{"nombre_completo": "CARLOS ALBERTO RAMOS DIAZ", "dni": DNI_FUNC}]},
         "banderas": [{"regla": "objeto_no_corresponde_documento", "severidad": "alta", "evidencia": "x"}],
         "grounding_urls": ["https://www.munisantiago.gob.pe/normas/rgm-079-2024"],
     }
@@ -303,8 +303,8 @@ def _sin_bd_ni_red(monkeypatch):
 
 def test_dictamen_ruc_inventado_y_dni_se_sustituyen_y_enmascaran():
     md = (f"## Hechos clave\n- Entidad: Municipalidad Provincial del Cusco (RUC {RUC_INVENTADO})\n"
-          f"- Proveedor: PROMAINGSA S.A.C. (RUC {RUC_PROV}), gerente Juan Fernando Arias Oblitas (DNI {DNI_PART})\n"
-          f"- Oficial de compra: Sandro Herson Salcedo Castillo, DNI N° {DNI_FUNC}\n"
+          f"- Proveedor: PROMAINGSA S.A.C. (RUC {RUC_PROV}), gerente Juan Fernando Aranda Olivos (DNI {DNI_PART})\n"
+          f"- Oficial de compra: Carlos Alberto Ramos Diaz, DNI N° {DNI_FUNC}\n"
           f"- Bandera `objeto_no_corresponde_documento`.")
     ver = verify.verificar_dictamen(md, _state_dictamen())
     assert ver["rucs_no_respaldados"] == [RUC_INVENTADO] and ver["dnis_no_respaldados"] == []
@@ -314,7 +314,7 @@ def test_dictamen_ruc_inventado_y_dni_se_sustituyen_y_enmascaran():
     assert cambios["dnis_enmascarados"] == 2
     assert RUC_INVENTADO not in md2 and "[RUC no verificado]" in md2
     assert DNI_PART not in md2 and DNI_FUNC not in md2
-    assert "DNI 41****31" in md2 and "DNI N° 48****23" in md2
+    assert "DNI 00****77" in md2 and "DNI N° 00****32" in md2
     assert RUC_PROV in md2                      # el RUC respaldado se conserva
 
 

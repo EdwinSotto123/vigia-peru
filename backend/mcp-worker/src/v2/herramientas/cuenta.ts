@@ -40,6 +40,13 @@ function resumenSeguidos(p: Fila) {
   };
 }
 
+/** Escribir en la cuenta pide el permiso «seguimiento» de la conexión (un token con sólo «datos» no sigue ni deja de seguir). */
+function conPermisoDeSeguimiento(cx: { usuario?: { scope?: string[] } | null }): void {
+  if (!cx.usuario?.scope?.includes("seguimiento")) {
+    throw new ErrorUsuario("Esta conexión no tiene el permiso de seguimiento: vuelve a conectar Gobserva y márcalo para seguir o dejar de seguir.");
+  }
+}
+
 export const seguir = definir({
   nombre: "seguir",
   titulo: "Seguir",
@@ -50,6 +57,7 @@ export const seguir = definir({
   escritura: "crear",
   entrada: entradaSeguir,
   async ejecutar({ tipo, id }, cx) {
+    conPermisoDeSeguimiento(cx as never);
     const d = destino(tipo, id);
     const p = await api<Fila>(cx.env, "/cuentas/me/seguir", {}, { metodo: "POST", cuerpo: d, token: await tokenDe(cx) });
     return { listo: `Ahora sigues ${tipo} ${id}.`, siguiendo: resumenSeguidos(p) };
@@ -64,6 +72,7 @@ export const dejarDeSeguir = definir({
   escritura: "borrar",
   entrada: entradaSeguir,
   async ejecutar({ tipo, id }, cx) {
+    conPermisoDeSeguimiento(cx as never);
     const d = destino(tipo, id);
     const p = await api<Fila>(cx.env, "/cuentas/me/seguir", {}, { metodo: "DELETE", cuerpo: d, token: await tokenDe(cx) });
     return { listo: `Ya no sigues ${tipo} ${id}.`, siguiendo: resumenSeguidos(p) };

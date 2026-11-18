@@ -27,7 +27,7 @@ RUC_GANADOR = "20123456789"
 RUC_ENTIDAD = "20131380951"
 RUC_FALSO = "20999999991"
 DNI_REAL = "45678901"
-DNI_FALSO = "11111111"
+DNI_FALSO = "00004444"
 SHA = "a" * 64
 
 
@@ -157,7 +157,7 @@ def test_dni_con_contexto_en_batch_lookup_o_descartado():
 
 
 def test_ocho_digitos_sin_contexto_no_se_toman_como_dni():
-    res = verify.verificar_bandera({"evidencia": "Resolución N° 12345678-2026 emitida."}, _state())
+    res = verify.verificar_bandera({"evidencia": "Resolución N° 00005555-2026 emitida."}, _state())
     assert res["ok"] is True
     assert not any(m.startswith("dni:") for m in res["motivos"])
 
@@ -482,19 +482,19 @@ def test_numeros_de_url_no_son_montos():
 def test_sanitizar_tapa_dni_en_todas_sus_formas_y_el_ruc_10():
     """Auditoría 2026-11-13: «DNI n.° …», «DNI Nro. …», negrita y «documento de identidad» salían en claro; el RUC 10 también."""
     from tools.verify import sanitizar_dictamen
-    md = ("Firmó con DNI n.° 43960880, su socio con DNI Nro. 41234567, otro con DNI No 40111222, "
+    md = ("Firmó con DNI n.° 00001110, su socio con DNI Nro. 41234567, otro con DNI No 40111222, "
           "DNI: **40333444**, DNI `40555666` y documento de identidad 40777888. "
-          "El proveedor (RUC 10439608801) ganó; la empresa RUC 20131378972 no. Resolución 12345678-2026.")
+          "El proveedor (RUC 10000011105) ganó; la empresa RUC 20131378972 no. Resolución 00005555-2026.")
     limpio, cambios = sanitizar_dictamen(md, {})
-    for d in ("43960880", "41234567", "40111222", "40333444", "40555666", "40777888", "10439608801"):
+    for d in ("00001110", "41234567", "40111222", "40333444", "40555666", "40777888", "10000011105"):
         assert d not in limpio, (d, limpio)
-    assert "20131378972" in limpio and "12345678-2026" in limpio      # un RUC 20 y un número de resolución siguen
+    assert "20131378972" in limpio and "00005555-2026" in limpio      # un RUC 20 y un número de resolución siguen
     assert cambios["ruc10_reservados"] == 1 and cambios["modificado"]
 
 
 def test_un_codigo_de_consorcio_no_es_persona_natural():
     from tools.privacidad import es_persona_natural
-    assert es_persona_natural("10439608801") and not es_persona_natural("1016604") and not es_persona_natural(None)
+    assert es_persona_natural("10000011105") and not es_persona_natural("1016604") and not es_persona_natural(None)
 
 
 def test_el_dictamen_sale_sin_jerga_tecnica():
@@ -514,8 +514,8 @@ def test_el_dictamen_sale_sin_jerga_tecnica():
 
 def test_la_evidencia_de_una_bandera_se_guarda_sin_ruc_10_ni_dni():
     from tools.verify import sin_datos_personales
-    t = sin_datos_personales("El OECE registra 3 penalidades al RUC 10439608801; su titular, con DNI 43960880, es socio de RUC 20131378972.")
-    assert "10439608801" not in t and "43960880" not in t and "20131378972" in t
+    t = sin_datos_personales("El OECE registra 3 penalidades al RUC 10000011105; su titular, con DNI 00001110, es socio de RUC 20131378972.")
+    assert "10000011105" not in t and "00001110" not in t and "20131378972" in t
 
 
 # ─── Qué ES un monto en el documento (2026-11-16) ────────────────────────────

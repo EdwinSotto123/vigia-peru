@@ -155,12 +155,14 @@ def orchestrate(request):
         return ("", 204, cors)
 
     # Fuera de Cloud Run (p. ej. Lambda con Function URL pública) no hay IAM delante: AGENTE_TOKEN exige
-    # `Authorization: Bearer <token>`. Sin la variable no cambia nada.
-    token = os.getenv("AGENTE_TOKEN")
-    if token:
+    # `Authorization: Bearer <token>`. En Lambda la variable es OBLIGATORIA: si falta o es corta (un despliegue que no pudo
+    # leerla de SSM), no se atiende a nadie. Antes, sin la variable, la función quedaba abierta a quien conociera su URL y
+    # corría análisis pagados que escriben en la base (auditoría del 2026-11-17).
+    token = os.getenv("AGENTE_TOKEN") or ""
+    if token or os.getenv("AWS_LAMBDA_FUNCTION_NAME"):
         import hmac
         dado = (request.headers.get("Authorization") or "").removeprefix("Bearer ").strip()
-        if not hmac.compare_digest(dado.encode(), token.encode()):
+        if len(token) < 32 or not hmac.compare_digest(dado.encode(), token.encode()):
             return (json.dumps({"error": "no autorizado"}), 401, {"Content-Type": "application/json", **cors})
 
     # Cada pedido empieza sin plazo de lector: el del análisis anterior (misma Lambda, ya vencido) no debe frenar a éste.

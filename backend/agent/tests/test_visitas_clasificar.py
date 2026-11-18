@@ -5,7 +5,7 @@ GAN = "CONSTRUCTORA Y CONSULTORA PUSAY S.A.C."
 
 
 def _v(**kw):
-    base = {"dni": "12345678", "match_score": 1.0, "entidad_visitada": "CONGRESO DE LA REPUBLICA",
+    base = {"dni": "00005555", "match_score": 1.0, "entidad_visitada": "CONGRESO DE LA REPUBLICA",
             "entidad_visitante": "MUNICIPALIDAD PROVINCIAL DE ALTO AMAZONAS", "motivo": "Reunión de trabajo",
             "fecha": "2026-03-02", "funcionario": "X"}
     base.update(kw)

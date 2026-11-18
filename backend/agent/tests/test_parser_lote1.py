@@ -174,16 +174,16 @@ def test_documento_de_contratacion_remapea_precio_y_marca_a_ofertado():
 def test_postores_repetidos_se_fusionan_y_conservan_montos_del_acta(monkeypatch):
     prop = _doc("p", "Documentos de Presentación de Propuestas", "biddingDocuments", "sha_prop", formato="zip")
     acta = _doc("a", "Documentos de Otorgamiento de Buena Pro", "awardNotice", "sha_acta", seccion="award", formato="zip")
-    pag_prop = ["1 ABEL CARPIO COBOS 10426100725 18/06/2026 14:49:46\n2 GREEN STONE INVERSIONES S.A.C 20600501381\n"
+    pag_prop = ["1 ABEL CARPIO COBOS 10000088884 18/06/2026 14:49:46\n2 GREEN STONE INVERSIONES S.A.C 20600501381\n"
                 "3 CONSTRUCTORA ANDINA PARA EL DESARROLLO COANDE S.A.C 20607620718"]
     pag_acta = ["FORMATO N° 11\n9.1 DETALLE DEL PRECIO DE LA OFERTA\n1 ABEL CARPIO COBOS 95,000.00\n"
                 "2 GREEN STONE INVERSIONES S.A.C 97,960.00\n3 CONSTRUCTORA ANDINA PARA EL DESARROLLO COANDE S.A.C 99,940.00"]
     ext_prop = {"tipo_documento_detectado": "propuesta_economica",
-                "postores": [{"ruc": "10426100725", "razon_social": "ABEL CARPIO COBOS", "evidencia": [{"pagina": 1, "cita": "ABEL CARPIO COBOS 10426100725"}]},
+                "postores": [{"ruc": "10000088884", "razon_social": "ABEL CARPIO COBOS", "evidencia": [{"pagina": 1, "cita": "ABEL CARPIO COBOS 10000088884"}]},
                              {"ruc": "20600501381", "razon_social": "GREEN STONE INVERSIONES S.A.C", "evidencia": []},
                              {"ruc": "20607620718", "razon_social": "CONSTRUCTORA ANDINA PARA EL DESARROLLO COANDE S.A.C", "evidencia": []}]}
     ext_acta = {"tipo_documento_detectado": "acta_buena_pro",
-                "postores": [{"ruc": "10426100725", "razon_social": "CARPIO COBOS ABEL", "monto_oferta": 95000.0, "es_ganador": True,
+                "postores": [{"ruc": "10000088884", "razon_social": "CARPIO COBOS ABEL", "monto_oferta": 95000.0, "es_ganador": True,
                               "orden_prelacion": 1, "estado": "admitido", "puntaje": 100.0,
                               "evidencia": [{"pagina": 1, "cita": "1 ABEL CARPIO COBOS 95,000.00"}]},
                              {"ruc": "20600501381", "razon_social": "GREEN STONE INVERSIONES S.A.C", "monto_oferta": 97960.0,
@@ -194,23 +194,23 @@ def test_postores_repetidos_se_fusionan_y_conservan_montos_del_acta(monkeypatch)
                 "items": [{"descripcion_corta": "ADQUISICION DE EQUIPOS TOPOGRAFICOS", "cuantia_referencial_item": 95000.0}]}
     fake = {"sha_prop": lambda d: _res(d, ext_prop, pag_prop), "sha_acta": lambda d: _res(d, ext_acta, pag_acta)}
     state = {"ocid": "1225392", "ocds": {"tender": {"description": "EQUIPOS TOPOGRAFICOS", "value": {"amount": 95000.0},
-                                                    "tenderers": [{"id": "PE-RUC-10426100725", "name": "CARPIO COBOS ABEL"}]},
-                                         "awards": [{"suppliers": [{"id": "PE-RUC-10426100725"}]}]}}
+                                                    "tenderers": [{"id": "PE-RUC-10000088884", "name": "CARPIO COBOS ABEL"}]},
+                                         "awards": [{"suppliers": [{"id": "PE-RUC-10000088884"}]}]}}
     _lote(monkeypatch, [prop, acta], fake, state)   # el reporte de propuestas se procesa ANTES que el acta
     raw = state["parser_raw_consolidated"]
 
     posts = raw["postores"]
     assert posts is raw["postores_consolidados"] and len(posts) == 3
     by_ruc = {p["ruc"]: p for p in posts}
-    assert by_ruc["10426100725"]["monto_oferta"] == 95000.0 and by_ruc["10426100725"]["es_ganador"] is True
+    assert by_ruc["10000088884"]["monto_oferta"] == 95000.0 and by_ruc["10000088884"]["es_ganador"] is True
     assert by_ruc["20600501381"]["monto_oferta"] == 97960.0 and by_ruc["20607620718"]["monto_oferta"] == 99940.0
-    assert by_ruc["10426100725"]["puntaje"] == 100.0 and by_ruc["10426100725"]["estado"] == "admitido"
-    assert by_ruc["10426100725"]["documento_sha256"] == "sha_acta" and by_ruc["10426100725"]["pagina"] == 1
-    assert sorted(by_ruc["10426100725"]["fuentes"]) == ["sha_acta", "sha_prop"]
-    assert by_ruc["10426100725"]["razon_social_ocds"] == "CARPIO COBOS ABEL"
+    assert by_ruc["10000088884"]["puntaje"] == 100.0 and by_ruc["10000088884"]["estado"] == "admitido"
+    assert by_ruc["10000088884"]["documento_sha256"] == "sha_acta" and by_ruc["10000088884"]["pagina"] == 1
+    assert sorted(by_ruc["10000088884"]["fuentes"]) == ["sha_acta", "sha_prop"]
+    assert by_ruc["10000088884"]["razon_social_ocds"] == "CARPIO COBOS ABEL"
     assert [o["monto"] for o in raw["ofertas"]] == [95000.0, 97960.0, 99940.0]
     assert [o["orden"] for o in raw["ofertas"]] == [1, 2, 3] and raw["ofertas"][0]["es_ganador"] is True
-    assert raw["ofertas"][0]["fuente"] == "sha_acta" and raw["ofertas"][0]["ruc"] == "10426100725"
+    assert raw["ofertas"][0]["fuente"] == "sha_acta" and raw["ofertas"][0]["ruc"] == "10000088884"
     # el acta no es fuente de requerimiento ni su cuantía pisa el referencial de las bases
     assert raw["items_consolidados"] == [] and raw.get("cuantia_total") is None
     assert all("_fuente_adjudicacion" not in p for p in posts)
@@ -218,16 +218,16 @@ def test_postores_repetidos_se_fusionan_y_conservan_montos_del_acta(monkeypatch)
 
 def test_acta_procesada_antes_que_propuestas_no_pierde_montos():
     lista: list[dict] = []
-    D._fusionar_postor(lista, {"ruc": "10426100725", "razon_social": "ABEL CARPIO COBOS", "monto_oferta": 95000.0,
+    D._fusionar_postor(lista, {"ruc": "10000088884", "razon_social": "ABEL CARPIO COBOS", "monto_oferta": 95000.0,
                                "es_ganador": True}, True, "sha_acta")
-    D._fusionar_postor(lista, {"ruc": "10426100725", "razon_social": "CARPIO COBOS ABEL", "monto_oferta": None,
+    D._fusionar_postor(lista, {"ruc": "10000088884", "razon_social": "CARPIO COBOS ABEL", "monto_oferta": None,
                                "es_ganador": None}, False, "sha_prop")
     assert len(lista) == 1 and lista[0]["monto_oferta"] == 95000.0 and lista[0]["es_ganador"] is True
     assert lista[0]["documento_sha256"] == "sha_acta"
     # un dato del acta manda sobre uno previo de un documento no adjudicatorio
     lista2: list[dict] = []
-    D._fusionar_postor(lista2, {"ruc": "10426100725", "razon_social": "ABEL CARPIO COBOS", "monto_oferta": 1.0}, False, "s1")
-    D._fusionar_postor(lista2, {"ruc": "10426100725", "razon_social": "ABEL CARPIO COBOS", "monto_oferta": 95000.0}, True, "s2")
+    D._fusionar_postor(lista2, {"ruc": "10000088884", "razon_social": "ABEL CARPIO COBOS", "monto_oferta": 1.0}, False, "s1")
+    D._fusionar_postor(lista2, {"ruc": "10000088884", "razon_social": "ABEL CARPIO COBOS", "monto_oferta": 95000.0}, True, "s2")
     assert lista2[0]["monto_oferta"] == 95000.0 and lista2[0]["documento_sha256"] == "s2"
 
 
@@ -256,10 +256,10 @@ def test_ruc_invalido_se_fusiona_por_nombre_o_se_corrige_con_ocds():
 
 def test_rucs_y_ganadores_desde_ocds():
     state = {"ocds": {"tender": {"tenderers": [{"id": "PE-RUC-20600501381", "name": "GREEN STONE"}]},
-                      "parties": [{"identifier": {"scheme": "PE-RUC", "id": "10426100725"}, "roles": ["tenderer", "supplier"], "name": "CARPIO"}],
-                      "awards": [{"suppliers": [{"id": "PE-RUC-10426100725"}]}]}}
-    assert D._rucs_ocds(state) == {"20600501381": "GREEN STONE", "10426100725": "CARPIO"}
-    assert D._ganadores_ocds(state) == {"10426100725"}
+                      "parties": [{"identifier": {"scheme": "PE-RUC", "id": "10000088884"}, "roles": ["tenderer", "supplier"], "name": "CARPIO"}],
+                      "awards": [{"suppliers": [{"id": "PE-RUC-10000088884"}]}]}}
+    assert D._rucs_ocds(state) == {"20600501381": "GREEN STONE", "10000088884": "CARPIO"}
+    assert D._ganadores_ocds(state) == {"10000088884"}
 
 
 # ── 1225379: lista de invitados (Comparación de Precios) y ganador no invitado ───────────
@@ -269,17 +269,17 @@ def test_lista_invitados_y_ganador_no_invitado(monkeypatch):
     ext_b = {"tipo_documento_detectado": "bases_administrativas", "contiene_requerimiento": True,
              "items": [{"descripcion_corta": "POSTES DE CONCRETO", "texto_literal": "Poste de concreto armado centrifugado " * 3, "evidencia": []}],
              "invitados": [{"ruc": "10445949499", "razon_social": "MOISES ROMERO VILLAFUERTE", "evidencia": [{"pagina": 1, "cita": "MOISES ROMERO VILLAFUERTE"}]},
-                           {"ruc": "10615661959", "razon_social": "DALIA SEGURA ORTEGA", "evidencia": []},
-                           {"ruc": "10430797366", "razon_social": "JHON ROGER FLORES TTITO", "evidencia": []}]}
+                           {"ruc": "10000044437", "razon_social": "DALIA SEGURA ORTEGA", "evidencia": []},
+                           {"ruc": "10000099991", "razon_social": "JHON ROGER FLORES TTITO", "evidencia": []}]}
     ext_a = {"tipo_documento_detectado": "acta_buena_pro",
              "postores": [{"ruc": "20601234567", "razon_social": "CONSTRUCTORA Y CONSULTORIA PUSAY SAC", "monto_oferta": 65000.0, "es_ganador": True, "evidencia": []},
-                          {"ruc": "10615661959", "razon_social": "SEGURA ORTEGA DALIA", "monto_oferta": 68500.0, "es_ganador": False, "evidencia": []},
-                          {"ruc": "10430797366", "razon_social": "FLORES TTITO JHON ROGER", "monto_oferta": 72650.0, "es_ganador": False, "evidencia": []}]}
+                          {"ruc": "10000044437", "razon_social": "SEGURA ORTEGA DALIA", "monto_oferta": 68500.0, "es_ganador": False, "evidencia": []},
+                          {"ruc": "10000099991", "razon_social": "FLORES TTITO JHON ROGER", "monto_oferta": 72650.0, "es_ganador": False, "evidencia": []}]}
     fake = {"sha_b": lambda d: _res(d, ext_b, ["FORMATO DE INVITACION\nMOISES ROMERO VILLAFUERTE"]),
             "sha_a": lambda d: _res(d, ext_a, ["acta"])}
     state = _lote(monkeypatch, [bases, acta], fake)
     raw = state["parser_raw_consolidated"]
-    assert [i["ruc"] for i in raw["lista_invitados"]] == ["10445949499", "10615661959", "10430797366"]
+    assert [i["ruc"] for i in raw["lista_invitados"]] == ["10445949499", "10000044437", "10000099991"]
     assert raw["lista_invitados"][0]["estado"] == "invitado" and raw["lista_invitados"][0]["pagina"] == 1
     by = {p["razon_social"]: p for p in raw["postores"]}
     pusay = by["CONSTRUCTORA Y CONSULTORIA PUSAY SAC"]
@@ -292,12 +292,12 @@ def test_lista_invitados_y_ganador_no_invitado(monkeypatch):
 def test_ganador_desde_ocds_si_ningun_documento_lo_marca(monkeypatch):
     acta = _doc("a", "Acta", "awardNotice", "sha_a", seccion="award")
     ext_a = {"tipo_documento_detectado": "acta_buena_pro",
-             "postores": [{"ruc": "10426100725", "razon_social": "CARPIO COBOS ABEL", "monto_oferta": 95000.0, "evidencia": []},
+             "postores": [{"ruc": "10000088884", "razon_social": "CARPIO COBOS ABEL", "monto_oferta": 95000.0, "evidencia": []},
                           {"ruc": "20600501381", "razon_social": "GREEN STONE", "monto_oferta": 97960.0, "evidencia": []}]}
-    state = {"ocid": "1", "ocds": {"tender": {}, "awards": [{"suppliers": [{"id": "PE-RUC-10426100725"}]}]}}
+    state = {"ocid": "1", "ocds": {"tender": {}, "awards": [{"suppliers": [{"id": "PE-RUC-10000088884"}]}]}}
     _lote(monkeypatch, [acta], {"sha_a": lambda d: _res(d, ext_a, ["x"])}, state)
     posts = {p["ruc"]: p for p in state["parser_raw_consolidated"]["postores"]}
-    assert posts["10426100725"]["es_ganador"] is True and posts["10426100725"]["es_ganador_fuente"] == "ocds"
+    assert posts["10000088884"]["es_ganador"] is True and posts["10000088884"]["es_ganador_fuente"] == "ocds"
     assert posts["20600501381"].get("es_ganador") is None
 
 
@@ -655,7 +655,7 @@ def test_live_1225392_postores_con_los_tres_montos():
     montos = sorted(o["monto"] for o in raw["ofertas"])
     assert montos == [95000.0, 97960.0, 99940.0], montos
     ganador = [p for p in raw["postores"] if p.get("es_ganador")]
-    assert len(ganador) == 1 and ganador[0]["ruc"] == "10426100725" and ganador[0]["monto_oferta"] == 95000.0
+    assert len(ganador) == 1 and ganador[0]["ruc"] == "10000088884" and ganador[0]["monto_oferta"] == 95000.0
     assert len(raw["postores"]) == 3 and all(D.ruc_valido(p["ruc"]) for p in raw["postores"])
     # las bases no exigen la marca LEICA (solo códigos de parte); la marca vive en la OC
     assert all(not it.get("marca_o_modelo_exigido") for it in raw["items_consolidados"])

@@ -97,7 +97,7 @@ const ETIQUETAS: Record<string, string> = { historia: "Historia", contratos: "Co
 const SOCIEDAD = /\bS\.?\s?A\.?(?:\s?[AC]\.?)?\s*$/i;
 
 export async function generateMetadata({ params }: { params: { ruc: string } }): Promise<Metadata> {
-  const r = await getEntidad(params.ruc).catch(() => null);
+  const r = /^\d{11}$/.test(params.ruc) ? await getEntidad(params.ruc).catch(() => null) : null;
   const nombre = r?.entidad?.nombre as string | undefined;
   if (!nombre) return { title: `Entidad ${params.ruc}` };
   const titulo = tituloNatural(nombre);
@@ -123,6 +123,9 @@ export default async function EntidadProfile({
   /** Los filtros de sus listas (los de contratos, con los mismos parámetros que /app/contratos). */
   searchParams?: Busqueda;
 }) {
+  // Sólo un RUC: el parámetro va a rutas de la API que la web pide como Worker propio; con «..%2F…» armaba otra ruta
+  // (auditoría del 2026-11-17).
+  if (!/^\d{11}$/.test(params.ruc)) notFound();
   const ruc = params.ruc;
   const ruta = `/entidad/${ruc}`;
   // «Menores» era una pestaña; hoy es una vista de Contratos. El enlace viejo lleva a la vista, con sus filtros.

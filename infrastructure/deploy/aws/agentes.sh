@@ -30,6 +30,9 @@ trap 'rm -rf "$TMP"' EXIT
   export PGUSER_V="vigia_$ROL" PGPASSWORD_V="$(ssm "/vigia/vigia-db/password-$ROL")" LLM_T="$(ssm /vigia/llm/token)" \
          R2_T="$(ssm /vigia/r2/lector-token)" AG_T="$(ssm /vigia/agente/token)" CH_K="$(ssm /vigia/chroma/api-key)" \
          TV_K="$(ssm /vigia/tavily/api-key)" PR_T="$(ssm /vigia/precios/token)"
+  # `export X="$(…)"` no corta el guion si el comando falla (`set -e` mira el `export`): sin esto, un SSM caído dejaba la
+  # función desplegada con el token vacío (auditoría del 2026-11-17).
+  [ "${#AG_T}" -ge 32 ] && [ -n "$PGPASSWORD_V" ] || { echo "No se pudo leer el token del agente o la clave de la base (SSM): no se despliega." >&2; exit 1; }
   "$PY" - "$TMP/env.json" "${EXTRA_ENV_JSON:-}" <<'PY'
 import json, os, sys
 e = {

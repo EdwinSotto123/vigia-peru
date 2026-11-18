@@ -308,7 +308,9 @@ deploy:agentes:prod:
   script:
     - cd backend/api
     - npm ci --no-audit --no-fund
-    - npx wrangler deploy $DEPLOY_ENV
+    # Versión fijada: sin wrangler en el package.json de la API, «npx wrangler» bajaba la última de npm con el token de
+    # Cloudflare en el entorno (auditoría del 2026-11-17).
+    - npx --yes wrangler@4.151.0 deploy $DEPLOY_ENV
 
 # ─── Verificación (auditoría de producto del 2026-11-12, decisión D3) ─────────────────────────────
 # Tipos, pruebas y guardia de estilo en cada push a main o dev. Van en la misma etapa que los despliegues y no los

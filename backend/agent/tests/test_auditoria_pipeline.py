@@ -69,10 +69,10 @@ def test_un_integrante_del_consorcio_y_un_postor_repetido_no_son_otra_oferta():
 def test_el_resumen_del_expediente_no_lleva_el_ruc_de_una_persona_natural():
     from tools.expediente import resumen_para_agentes
     exp = {"consorcio": True, "nombre": "CONSORCIO X", "integrantes": [
-        {"ruc": "10123456789", "persona_natural": True, "nombre": "PEREZ ••• JUAN", "historial": {"procesos": 2}},
+        {"ruc": "10000055552", "persona_natural": True, "nombre": "PEREZ ••• JUAN", "historial": {"procesos": 2}},
         {"ruc": "20100000001", "persona_natural": False, "nombre": "EMPRESA SAC", "historial": {"procesos": 8, "con_esta_entidad": {"procesos": 3}}}]}
     r = resumen_para_agentes(exp)
-    assert "10123456789" not in str(r) and r["integrantes"][1]["contratos_con_el_estado"]["procesos"] == 8
+    assert "10000055552" not in str(r) and r["integrantes"][1]["contratos_con_el_estado"]["procesos"] == 8
 
 
 def test_lo_verificado_en_codigo_no_pasa_por_el_juez_de_respaldo():

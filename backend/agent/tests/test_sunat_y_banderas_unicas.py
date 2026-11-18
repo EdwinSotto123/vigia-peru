@@ -69,7 +69,7 @@ def test_una_persona_natural_lleva_su_trayectoria_y_no_un_sunat_no_disponible(mo
     monkeypatch.setattr(expediente, "expediente_proveedor_bd", lambda ruc, *a, **kw: {
         "ruc": ruc, "persona_natural": True, "rnp": [], "historial": {"procesos": 2, "primera": "2021-03-01"},
         "persona": {"ordenes": 14, "primera": "2019-05-02"}})
-    out = sunat.query_sunat_decolecta("10439608801", SimpleNamespace(state={}))
+    out = sunat.query_sunat_decolecta("10000011105", SimpleNamespace(state={}))
     assert out["tipo"] == "PERSONA NATURAL" and out["contrata_con_el_estado_desde"] == "2019-05-02"
     assert "error" not in out and out.get("found") is not False
 
@@ -92,7 +92,7 @@ class _Cur:
 
 def test_insert_bandera_omite_duplicados_con_la_expresion_del_indice():
     cur = _Cur()
-    shared._insert_bandera(cur, "00000000-0000-0000-0000-000000000001", "c2_unico_postor", "alta",
+    shared._insert_bandera(cur, "00001111-0000-0000-0000-000000000001", "c2_unico_postor", "alta",
                            "Un solo postor.", "Art. 5", None, "compliance_agent", {"ok": True})
     sql, params = cur.calls[0]
     assert sql.startswith("insert into banderas")

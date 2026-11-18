@@ -323,7 +323,7 @@ def test_tipo_proceso_vs_monto_ley_32069(monkeypatch):
 
 
 def test_ciiu_vs_objeto_categoriza_equipos_y_alquiler_1225392(monkeypatch):
-    ruc = "10426100725"
+    ruc = "10000088884"
     monkeypatch.setattr(cr._rules_provider, "_pg", lambda: _FakeConn({
         "select c.objeto, e.ruc, e.razon_social": ("MEJORAMIENTO DE LA CARRETERA PAUCARTAMBO - ABRA ACJANACU", ruc, "CARPIO COBOS ABEL"),
         "select descripcion from convocatoria_items": [("ESTACION TOTAL",), ("PRISMA PENTAGONAL",)]}))
@@ -351,7 +351,7 @@ def test_procedimiento_no_competitivo_lee_modalidad_y_ocds(monkeypatch):
 
 def _postores_1225030():
     return [{"ruc": "20563926377", "razon_social": "GRUPO G-B-K S.R.L.", "monto_oferta": 734010.0, "es_ganador": True, "puntaje": 100},
-            {"ruc": "10123456781", "razon_social": "CORNEJO CALA DANITZA", "monto_oferta": 741750.0, "es_ganador": False, "puntaje": 99.58},
+            {"ruc": "10000055552", "razon_social": "CORNEJO CALA DANITZA", "monto_oferta": 741750.0, "es_ganador": False, "puntaje": 99.58},
             {"ruc": "20600000002", "razon_social": "CONSORCIO ATHENEA", "monto_oferta": None, "es_ganador": False, "estado": "no admitido"}]
 
 
@@ -367,9 +367,9 @@ def test_oferta_igual_valor_referencial_reservada_1225030():
 
 
 def test_oferta_igual_valor_referencial_publica_es_media_1225392():
-    st = {"ocds": _ocds(ref=95000.0, awards=(95000.0,), ganador="10426100725", desc="EQUIPOS TOPOGRAFICOS"),
+    st = {"ocds": _ocds(ref=95000.0, awards=(95000.0,), ganador="10000088884", desc="EQUIPOS TOPOGRAFICOS"),
           "parser_raw_consolidated": {"postores_consolidados": [
-              {"ruc": "10426100725", "razon_social": "CARPIO COBOS ABEL", "monto_oferta": 95000.0, "es_ganador": True},
+              {"ruc": "10000088884", "razon_social": "CARPIO COBOS ABEL", "monto_oferta": 95000.0, "es_ganador": True},
               {"ruc": "20600501381", "razon_social": "GREEN STONE", "monto_oferta": 97960.0},
               {"ruc": "20607620718", "razon_social": "COANDE", "monto_oferta": 99940.0}]}}
     r = cr.check_oferta_igual_valor_referencial_rule(OCID, _Ctx(st))
@@ -398,8 +398,8 @@ def test_unica_oferta_valida_1225379_alta_y_lp_no():
     st = {"ocds": _ocds(ref=65100.0, awards=(65000.0,), ganador="20604700109", desc="POSTES DE CONCRETO"),
           "parser_raw_consolidated": {"postores": [
               {"ruc": "20604700109", "razon_social": "CONSTRUCTORA Y CONSULTORA PUSAY S.A.C.", "monto_oferta": 65000.0, "es_ganador": True},
-              {"ruc": "10615661959", "razon_social": "SEGURA ORTEGA DALIA", "monto_oferta": 68500.0},
-              {"ruc": "10430797366", "razon_social": "FLORES TTITO JHON ROGER", "monto_oferta": 72650.0}]}}
+              {"ruc": "10000044437", "razon_social": "SEGURA ORTEGA DALIA", "monto_oferta": 68500.0},
+              {"ruc": "10000099991", "razon_social": "FLORES TTITO JHON ROGER", "monto_oferta": 72650.0}]}}
     r = cr.check_unica_oferta_valida_rule(OCID, _Ctx(st))
     assert r["triggered"] is True and r["severidad"] == "alta" and r["n_validas"] == 1 and r["n_invalidas"] == 2
     assert "99.85" in r["evidencia"]
@@ -411,8 +411,8 @@ def test_unica_oferta_valida_1225379_alta_y_lp_no():
 
 
 def test_ganador_no_invitado_1225379():
-    invitados = [{"nombre": "MOISES ROMERO VILLAFUERTE", "ruc": "10445949499"}, {"nombre": "DALIA SEGURA ORTEGA", "ruc": "10615661959"},
-                 {"nombre": "JHON ROGER FLORES TTITO", "ruc": "10430797366"}]
+    invitados = [{"nombre": "MOISES ROMERO VILLAFUERTE", "ruc": "10445949499"}, {"nombre": "DALIA SEGURA ORTEGA", "ruc": "10000044437"},
+                 {"nombre": "JHON ROGER FLORES TTITO", "ruc": "10000099991"}]
     st = {"ocds": _ocds(ref=65100.0, awards=(65000.0,), ganador="20604700109", ganador_nombre="CONSTRUCTORA Y CONSULTORA PUSAY S.A.C."),
           "parser_raw_consolidated": {"lista_invitados": invitados}}
     r = cr.check_ganador_no_invitado_rule(OCID, _Ctx(st))
@@ -494,15 +494,15 @@ def test_postores_vinculados_rnp_1225062_dos_apellidos_y_dni():
     st = {"ocds": _ocds(ganador="20600616235", ganador_nombre="PROMAINGSA S.A.C."),
           "person_network_context": {
               "rnp_proveedor": {"ruc": "20600616235", "razon_social": "PROMAINGSA S.A.C.",
-                                "socios": [{"nombre": "ARIAS OBLITAS JUAN FERNANDO", "numero_documento": "41156031"}]},
+                                "socios": [{"nombre": "ARANDA OLIVOS JUAN FERNANDO", "numero_documento": "00007777"}]},
               "socios_postores_rivales": [
                   {"ruc_postor": "20600000009", "razon_social": "METRICA INGENIERIA", "socios": [
-                      {"nombre": "ARIAS OBLITAS LUIS ROLANDO", "dni": None}, {"nombre": "BENAVIDES SALAZAR ANA", "dni": None}]},
+                      {"nombre": "ARANDA OLIVOS LUIS ROLANDO", "dni": None}, {"nombre": "BENAVIDES SALAZAR ANA", "dni": None}]},
                   {"ruc_postor": "20600000010", "razon_social": "CORFEMA", "socios": [{"nombre": "OBLITAS ROJAS PEDRO", "dni": None}]}]}}
     r = cr.check_postores_vinculados_rnp_rule(OCID, _Ctx(st))
     assert r["triggered"] is True and r["severidad"] == "media" and r["n_pares"] == 1
-    assert "ARIAS OBLITAS" in r["evidencia"] and "no acredita parentesco" in r["evidencia"]
-    st["person_network_context"]["socios_postores_rivales"][0]["socios"][0]["dni"] = "41156031"
+    assert "ARANDA OLIVOS" in r["evidencia"] and "no acredita parentesco" in r["evidencia"]
+    st["person_network_context"]["socios_postores_rivales"][0]["socios"][0]["dni"] = "00007777"
     st.pop("pending_flags")
     r2 = cr.check_postores_vinculados_rnp_rule(OCID, _Ctx(st))
     assert r2["severidad"] == "alta" and r2["detalle"][0]["tipo"] == "mismo_dni"
@@ -559,7 +559,7 @@ def test_run_reglas_lote1_idempotente_y_registradas():
     st = {"ocds": _ocds(ref=65100.0, awards=(65000.0,), ganador="20604700109"),
           "parser_raw_consolidated": {"postores": [
               {"ruc": "20604700109", "razon_social": "PUSAY", "monto_oferta": 65000.0, "es_ganador": True},
-              {"ruc": "10615661959", "razon_social": "SEGURA", "monto_oferta": 68500.0}]}}
+              {"ruc": "10000044437", "razon_social": "SEGURA", "monto_oferta": 68500.0}]}}
     out = cr.run_reglas_lote1(OCID, _Ctx(st))
     assert "unica_oferta_valida" in out["_disparadas"]
     n = len(st["pending_flags"])
@@ -695,7 +695,7 @@ def test_persist_analysis_outputs_legal_summary_puente_y_sin_alter(monkeypatch):
           "person_network": {"banderas_red": [
               {"regla": "parentesco_postores_rivales", "severidad": "alta", "confianza": "alta",
                "descripcion": "Socios de dos postores rivales comparten apellidos",
-               "evidencia": [{"cita": "RNP: ARIAS OBLITAS en ambos postores",
+               "evidencia": [{"cita": "RNP: ARANDA OLIVOS en ambos postores",
                               "url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/abc"}]},
               {"regla": "sin_url", "severidad": "alta", "confianza": "alta", "descripcion": "sin respaldo",
                "evidencia": [{"cita": "algo"}]},

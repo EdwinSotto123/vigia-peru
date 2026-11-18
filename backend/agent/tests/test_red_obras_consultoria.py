@@ -153,22 +153,22 @@ def test_la_inversion_llega_por_el_cui_del_proceso_aunque_no_haya_obra_en_infobr
 
 # ── Privacidad: una persona natural no deja su RUC (lleva el DNI) ───────────────────────────────────────────────────
 def test_ejecutor_persona_natural_sale_con_un_apellido_tapado_y_sin_ruc(monkeypatch):
-    obra = _obra(ejecutor_ruc="10444256279", ejecutor_nombre="ROJAS QUISPE ELENA", ruc_contrato="10444256279")
+    obra = _obra(ejecutor_ruc="10000022212", ejecutor_nombre="ROJAS QUISPE ELENA", ruc_contrato="10000022212")
     monkeypatch.setattr(O, "_pg", lambda: _Conn(_rutas(obra)))
     ctx = SimpleNamespace(state={})
     r = O.query_obra_ejecucion(OCID_2026, ctx, ruc=None)
     bloque = ctx.state["obra_ejecucion"]
     o = bloque["obras"][0]
     assert o["ejecutor_nombre"] == "ROJAS ••• ELENA" and o["ejecutor_ruc"] is None and o["ejecutor_persona_natural"] is True
-    assert "10444256279" not in json.dumps(bloque, ensure_ascii=False, default=str) and "44425627" not in json.dumps(bloque, default=str)
+    assert "10000022212" not in json.dumps(bloque, ensure_ascii=False, default=str) and "00002221" not in json.dumps(bloque, default=str)
     # El orquestador sí lo recibe: lo necesita para pedir el expediente cuando el OCDS no trae ganador.
-    assert r["ruc_contrato"] == "10444256279"
-    monkeypatch.setattr(C, "_pg", lambda: _Conn(_rutas(_obra(supervisor_ruc="10444256279", supervisor_nombre="ROJAS QUISPE ELENA",
-                                                             ruc_contrato="10444256279"))))
+    assert r["ruc_contrato"] == "10000022212"
+    monkeypatch.setattr(C, "_pg", lambda: _Conn(_rutas(_obra(supervisor_ruc="10000022212", supervisor_nombre="ROJAS QUISPE ELENA",
+                                                             ruc_contrato="10000022212"))))
     ctx = SimpleNamespace(state={})
     r = C.query_supervision_obra(OCID_2026, ctx, ruc=None)
-    assert "10444256279" not in json.dumps(ctx.state["supervision_obra"], ensure_ascii=False, default=str)
-    assert ctx.state["supervision_obra"]["obras"][0]["supervisor_nombre"] == "ROJAS ••• ELENA" and r["ruc_contrato"] == "10444256279"
+    assert "10000022212" not in json.dumps(ctx.state["supervision_obra"], ensure_ascii=False, default=str)
+    assert ctx.state["supervision_obra"]["obras"][0]["supervisor_nombre"] == "ROJAS ••• ELENA" and r["ruc_contrato"] == "10000022212"
 
 
 # ── Señales de la supervisión: lo que el texto afirma tiene que ser cierto ──────────────────────────────────────────

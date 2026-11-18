@@ -100,7 +100,9 @@ export async function manejarV2(request: Request, env: EnvV2, ctx: ExecutionCont
   // El chat del panel (vigia-api por service binding) entra como la cuenta del equipo: todas las herramientas, sin cupo.
   const interno = request.headers.get("x-vigia-interno");
   const perfil = perfilDeRuta(url.pathname);
-  if (perfil && interno && env.MCP_INTERNO_TOKEN && iguales(interno, env.MCP_INTERNO_TOKEN)) {
+  // Sólo por service binding (la API): un pedido que viene de internet trae `CF-Connecting-IP` y no entra como equipo
+  // aunque traiga la cabecera, así un token interno filtrado no abre todas las herramientas sin cupo (auditoría 2026-11-17).
+  if (perfil && interno && !request.headers.get("cf-connecting-ip") && env.MCP_INTERNO_TOKEN && iguales(interno, env.MCP_INTERNO_TOKEN)) {
     return atenderMcp(request, {
       env, ctx, ip: null, perfil,
       usuario: { uid: "equipo-vigia", planes: ["interno"], planesAl: Date.now(), scope: [...SCOPES] },

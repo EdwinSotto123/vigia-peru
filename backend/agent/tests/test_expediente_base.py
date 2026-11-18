@@ -157,7 +157,7 @@ class _Conn:
 
 
 def test_lecturas_confirman_con_dos_y_tapan_a_las_personas():
-    acta = {"postores": [{"nombre": "YAÑEZ BARBARAN ADOLFO", "ruc": "10314833193", "ganador": False, "motivo_fuera": "x"},
+    acta = {"postores": [{"nombre": "YAÑEZ BARBARAN ADOLFO", "ruc": "10000066660", "ganador": False, "motivo_fuera": "x"},
                          {"nombre": "CHASKA E.I.R.L.", "ruc": "20600000001", "ganador": True}]}
     filas = [("buena_pro", "v2", acta, ["solo_queda_el_ganador", "descalificados_por_formalidad"], dt.datetime(2026, 11, 4)),
              ("buena_pro", "v2-2", acta, ["solo_queda_el_ganador"], dt.datetime(2026, 11, 4)),
@@ -217,7 +217,7 @@ def test_apellido_compuesto_cuenta_como_uno():
 
 def test_consorcio_junta_a_sus_integrantes(monkeypatch):
     miembros = [{"ruc": "20568595948", "consorcio": "CONSORCIO MATIBAMBA", "nombre": "CONSTRUCTORA AH & D S.A.C."},
-                {"ruc": "10123456789", "consorcio": "CONSORCIO MATIBAMBA", "nombre": "PEREZ QUISPE JUAN"}]
+                {"ruc": "10000055552", "consorcio": "CONSORCIO MATIBAMBA", "nombre": "PEREZ QUISPE JUAN"}]
     monkeypatch.setattr(E, "integrantes_consorcio", lambda codigo, conn=None: miembros)
     sanc = {"tipo": "temporal", "fecha_desde": "2025-01-01", "fecha_hasta": "2027-01-01", "estado": "VIGENTE"}
     monkeypatch.setattr(E, "expediente_proveedor_bd", lambda ruc, *a, **k: {
@@ -231,7 +231,7 @@ def test_consorcio_junta_a_sus_integrantes(monkeypatch):
     assert any("Integrante PEREZ ••• JUAN" in s["evidencia"] for s in r["senales"])
     assert "PEREZ QUISPE JUAN" in ctx.state["_nombres_tapar"]
     md = E.ficha_md(exp)
-    assert "del CONSORCIO MATIBAMBA, con 2 integrante(s)" in md and "**PEREZ ••• JUAN**" in md and "10123456789" not in md
+    assert "del CONSORCIO MATIBAMBA, con 2 integrante(s)" in md and "**PEREZ ••• JUAN**" in md and "10000055552" not in md
 
 
 
@@ -280,7 +280,7 @@ def test_fecha_de_alta_posterior_a_la_primera_buena_pro_no_hace_nueva_a_la_empre
 def test_las_senales_de_la_persona_con_esta_entidad_son_una_bandera_sin_nombres():
     """Persona natural: lo que Vigía ya calculó (declaraciones juradas, planilla, visitas) va al contrato."""
     from tools.expediente import ficha_md, senales_de_persona
-    exp = {"ruc": "10439608801", "persona_natural": True, "rnp": [], "sanciones": [], "penalidades": {}, "historial": {},
+    exp = {"ruc": "10000011105", "persona_natural": True, "rnp": [], "sanciones": [], "penalidades": {}, "historial": {},
            "persona": {"ordenes": 14, "monto": 52000.0, "entidades": 2, "primera": "2019-05-02", "ultima": "2026-03-10",
                        "con_esta_entidad": {"ordenes": 9, "meses": 9, "monto": 31500.0, "primera": "2025-01-10", "ultima": "2026-03-10"},
                        "senales": [
@@ -289,11 +289,11 @@ def test_las_senales_de_la_persona_con_esta_entidad_son_una_bandera_sin_nombres(
                            {"tipo": "candidato", "severidad": "baja", "con_esta_entidad": True, "entidades": 1, "que": "fue candidato en una elección"},
                            {"tipo": "nepotismo", "severidad": "alta", "con_esta_entidad": False, "entidades": 1,
                             "que": "tiene un pariente declarado entre los funcionarios de la entidad"}]}}
-    s = senales_de_persona("10439608801", exp)
+    s = senales_de_persona("10000011105", exp)
     assert len(s) == 1 and s[0]["regla"] == "persona_contratada_senales" and s[0]["severidad"] == "alta"
     assert "planilla" in s[0]["evidencia"] and "pariente" not in s[0]["evidencia"] and "candidato" not in s[0]["evidencia"]
-    assert "10439608801" not in s[0]["evidencia"] and "43960880" not in s[0]["evidencia"]
+    assert "10000011105" not in s[0]["evidencia"] and "00001110" not in s[0]["evidencia"]
     md = ficha_md(exp)
     assert "persona natural" in md and "14 por" in md and "Señales con esta entidad" in md and "no disponible" not in md
-    assert senales_de_persona("10439608801", {"persona": {"senales": exp["persona"]["senales"][1:]}}) == []
+    assert senales_de_persona("10000011105", {"persona": {"senales": exp["persona"]["senales"][1:]}}) == []
 

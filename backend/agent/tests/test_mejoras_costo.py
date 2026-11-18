@@ -99,9 +99,9 @@ def test_juez_caido_no_inventa_veredictos(monkeypatch):
 
 # ── Privacidad ──────────────────────────────────────────────────────────────────
 def test_redaccion_de_dni():
-    assert pii.redactar_texto('{"dni": "08049411"}') == '{"dni": "[DNI]"}'
+    assert pii.redactar_texto('{"dni": "00003333"}') == '{"dni": "[DNI]"}'
     assert pii.redactar_texto("identificado con DNI N° 28305511") == "identificado con DNI N° [DNI]"
-    assert pii.redactar_texto("monto 12345678 soles; RUC 10223344556") == "monto 12345678 soles; RUC 10223344556"
+    assert pii.redactar_texto("monto 00005555 soles; RUC 10223344556") == "monto 00005555 soles; RUC 10223344556"
     assert pii.redactar({"socios": [{"dni": 8049411}]}) == {"socios": [{"dni": "[DNI]"}]}
 
 

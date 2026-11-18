@@ -91,6 +91,8 @@ export function fueraDeRobots(req, url) {
 
 // ─── Páginas: límite por IP y trampa (worker-prod.js; en DEV, worker-dev.js con un veto corto para probarla) ──────────
 const TOPE_PAGINAS = 300;
+/** Prefetch de Next por IP y por minuto: una persona navegando rápido hace unos cientos; un programa, miles. */
+const TOPE_PREFETCH = 900;
 const VENTANA_S = 60;
 /** El enlace escondido de app/layout.tsx, prohibido en app/robots.ts. */
 export const TRAMPA = /^\/app\/indice-completo(?:\/|$)/;
@@ -126,6 +128,14 @@ export async function frenoDePaginas(req, env, url, ip) {
   const vetoS = Number(env.VETO_S) || 3600;
   const objeto = env.LIMITADOR.get(env.LIMITADOR.idFromName(`paginas|${claveIp(ip)}`));
   if (TRAMPA.test(url.pathname)) {
+    // Sólo se veta a quien LLEGÓ a la trampa por su cuenta (un programa que sigue el enlace escondido: sin `Sec-Fetch-Site`,
+    // o navegando dentro del sitio). Si la pide el navegador de una persona porque OTRA página la incrustó (una imagen, un
+    // marco, un enlace ajeno), no: con eso cualquiera dejaba una hora sin Vigía a quien abriera su página o su correo, y a
+    // toda su red si sale por una misma IP (auditoría del 2026-11-17).
+    const sitio = req.headers.get("sec-fetch-site");
+    const destino = req.headers.get("sec-fetch-dest");
+    const ajeno = (sitio && sitio !== "same-origin" && sitio !== "none") || (destino && destino !== "document" && destino !== "empty");
+    if (ajeno) return new Response("Not Found", { status: 404, headers: { "Cache-Control": "no-store" } });
     try {
       await objeto.vetar(vetoS * 1000);
     } catch {
@@ -134,8 +144,21 @@ export async function frenoDePaginas(req, env, url, ip) {
     console.log(JSON.stringify({ severity: "WARNING", message: `[trampa] una IP pidió el enlace escondido: vetada ${vetoS} s` }));
     return pagina(VETADO, 403, vetoS);
   }
-  // Los prefetch de Next y los estáticos (en DEV pasan por el Worker: run_worker_first) no cuentan.
-  if (req.headers.has("next-router-prefetch") || url.pathname.startsWith("/_next/static/")) return null;
+  // Los estáticos (en DEV pasan por el Worker: run_worker_first) no cuentan.
+  if (url.pathname.startsWith("/_next/static/")) return null;
+  // Los prefetch de Next no cuentan como páginas, pero sólo los de verdad (un GET de RSC a una página, nunca /v1) y con su
+  // propio tope: antes bastaba mandar la cabecera `Next-Router-Prefetch` en cualquier pedido para saltarse la cuenta y el
+  // veto, y Next armaba la página entera igual (auditoría del 2026-11-17).
+  const prefetch = req.method === "GET" && req.headers.get("rsc") === "1" && req.headers.has("next-router-prefetch") && !RUTA_API.test(url.pathname);
+  if (prefetch) {
+    try {
+      const aparte = env.LIMITADOR.get(env.LIMITADOR.idFromName(`prefetch|${claveIp(ip)}`));
+      if ((await aparte.pasar(TOPE_PREFETCH, VENTANA_S * 1000)) === "lleno") return pagina(ESPERA, 429, VENTANA_S);
+    } catch {
+      // ver arriba
+    }
+    return null;
+  }
   let paso = "ok";
   try {
     paso = await objeto.pasar(TOPE_PAGINAS, VENTANA_S * 1000);
