@@ -286,5 +286,16 @@ export async function correrJne(env: Env, p: ParamsCorrida, step: WorkflowStep, 
     registrar("INFO", `   ${msg}`, { fuente: FUENTE, instancia: id });
     return msg;
   })));
+  // El resultado de las candidaturas que se cargaron sin él (migración 363): las regionales y municipales de 2026 están
+  // pendientes hasta que este archivo traiga sus electos. Mientras no los traiga, la función no hace nada y dice por qué.
+  // La sección Políticos lo recoge en la cadena diaria (refrescar_partido_politicos).
+  resumen.resultados = await step.do("resultados de las candidaturas de 2026", CARGA, () => conDb(env.HYPERDRIVE, async (db) => {
+    const [{ existe }] = await db.filas<{ existe: boolean }>(
+      "SELECT to_regprocedure('jne_marcar_resultados(text,integer,text,boolean,integer)') IS NOT NULL AS existe");
+    if (!existe) return null;
+    const [f] = await db.filas<{ r: unknown }>("SELECT jne_marcar_resultados('ERM2026', 2026, 'JNE_VotoInformado', true) AS r");
+    registrar("INFO", `   resultados de las ERM 2026: ${JSON.stringify(f?.r ?? null).slice(0, 400)}`, { fuente: FUENTE, instancia: id });
+    return f?.r ?? null;
+  }));
   return resumen;
 }
