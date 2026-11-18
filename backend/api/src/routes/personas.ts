@@ -5,7 +5,9 @@ import { consultaConPlazo, pool } from "../lib/db.js";
 import { Memo } from "../lib/cache.js";
 import { cachePublico, parametros } from "../lib/http.js";
 import { TAPA_NOMBRE, apellidoFuncionario, apellidosSunat, publicar, reservarParentesco } from "../lib/privacidad.js";
-import { declaranteElectoSql, esElectoSql, marcaElecto } from "../lib/electos.js";
+import { declaranteElectoSql, esCargoDeEleccion, esElectoSql, marcaElecto } from "../lib/electos.js";
+import { fichasDeContratada, fichasPorNombre } from "../lib/identidadPersona.js";
+import { familiaDelFuncionario } from "../lib/familiaFuncionario.js";
 import { SENALES_CON_PARIENTES, casoReservado, podarParientes } from "../lib/nepotismo.js";
 import { enlaceFuente } from "../lib/fuentes.js";
 import { motivoPublicable } from "../lib/cruces.js";
@@ -771,8 +773,16 @@ personasRouter.get("/cargo/:codigo", async (c) => {
            base: null, meses: null, primerMes: null, ultimoMes: f.planillaHasta ? String(f.planillaHasta).slice(0, 7) : null, ultimoMesEntidad: null,
            resumida: true }]
       : []);
+    // Si puede ser una autoridad electa (cargo de elección en una DJI, o salió electa en el JNE; si el JNE no respondió,
+    // se asume que sí), la familia sale con las reservas de un nombre público (lib/familiaFuncionario.ts).
+    const posibleElecto = esCargoDeEleccion(f.cargo) || cargos.rows.some((x) => esCargoDeEleccion(x.cargo))
+      || candidaturas === null || candidaturas.some((x) => String(x.resultado ?? "").toLowerCase() === "electo");
+    const [fichas, familia] = await Promise.all([
+      fichasPorNombre(f.nombreNorm),
+      familiaDelFuncionario(codigo, posibleElecto).catch((e) => { console.warn(`[cargo] familia: ${(e as Error).message}`); return undefined; }),
+    ]);
     const sinRespuesta = [...rastro.sin_respuesta.filter((x) => x !== "visitas" || visitasDe === null), ...(planilla ? [] : ["planilla"]),
-      ...(candidaturas ? [] : ["candidaturas"]), ...(recibidas ? [] : ["visitas_recibidas"])];
+      ...(candidaturas ? [] : ["candidaturas"]), ...(recibidas ? [] : ["visitas_recibidas"]), ...(familia === undefined ? ["familia"] : [])];
     // Una ficha a medias no se guarda: el que vuelva a pedirla en un momento la arma entera.
     if (sinRespuesta.length) ctl.noGuardar();
     return publicar({
@@ -784,6 +794,10 @@ personasRouter.get("/cargo/:codigo", async (c) => {
       },
       // Otras personas con cargo público que se ven igual (mismo apellido paterno y nombres): son fichas aparte.
       parecidos,
+      // Sus otras fichas (persona contratada, planilla): la ficha de cargo las reúne (lib/identidadPersona.ts).
+      mismaPersona: fichas,
+      // Lo que obtuvo del Estado cada familiar que declaró (migración 351); null: no declaró familiares.
+      familia: familia ?? null,
       cargos: cargos.rows,
       visitas: {
         total: visitas.reduce((s, v) => s + (v.visitas ?? 0), 0),
@@ -1113,6 +1127,8 @@ personasRouter.get("/:codigo", async (c) => {
     });
     const sum = (k: "ordenes" | "monto" | "meses") => entidades.reduce((t, e) => t + Number(e[k] ?? 0), 0);
     const fechas = (k: "primera" | "ultima") => entidades.map((e) => e[k]).filter(Boolean).sort();
+    // Sus otras fichas (cargo público, planilla), sólo si el enlace es seguro (lib/identidadPersona.ts).
+    const fichas = /^10\d{9}$/.test(ruc) ? await fichasDeContratada(ruc, codigo) : null;
     const fechasGanados = procesos.map((g) => g.fecha).filter((f): f is string => !!f).sort();
     return publicar({
       persona: {
@@ -1132,6 +1148,7 @@ personasRouter.get("/:codigo", async (c) => {
       anual: anual.rows,
       mensual: mensual.rows,
       cambios: cambios.rows,
+      mismaPersona: fichas,
     });
   });
   if (!cuerpo) return c.json({ error: "not_found" }, 404);

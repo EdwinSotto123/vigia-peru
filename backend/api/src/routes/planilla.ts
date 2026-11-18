@@ -6,6 +6,7 @@ import { cachePublico, parametros } from "../lib/http.js";
 import { TAPA_NOMBRE, publicar } from "../lib/privacidad.js";
 import { declaranteElectoSql, esElectoSql } from "../lib/electos.js";
 import { casoDelDeclarante } from "../lib/nepotismo.js";
+import { fichasPorNombre } from "../lib/identidadPersona.js";
 import { djiEntidad, personalPte } from "../lib/fuentes.js";
 import { visitasHasta } from "../lib/visitas.js";
 import { adscritosDe, armarOrganigrama, plantillaPorNombre, type CargoDji, type NombreGlobal, type OficinaPlanilla, type PlantillaId, type UnidadGobierno, type VisitaArea } from "../lib/organigrama.js";
@@ -389,7 +390,7 @@ planillaRouter.get("/ficha/:codigo", async (c) => {
         WHERE p.ficha = $1`, [codigo]);
     const f = r.rows[0];
     if (!f) return null;
-    const [historia, otras, nepotismo] = await Promise.all([
+    const [historia, otras, nepotismo, fichas] = await Promise.all([
       pool.query(HISTORIA_SQL, [f.entidadRuc, f._nn]),
       // El mismo nombre completo (con el materno) en la planilla de otra entidad: suele ser la misma persona.
       pool.query(
@@ -409,12 +410,15 @@ planillaRouter.get("/ficha/:codigo", async (c) => {
            FROM dji_nepotismo n LEFT JOIN persona_codigo pc ON pc.ruc = n.proveedor_ruc
           WHERE n.declarante_norm = $1 AND n.entidad_ruc = $2 ORDER BY n.monto DESC NULLS LAST LIMIT 20`,
         [f._nn, f.entidadRuc, f.cargo ?? ""]),
+      // Sus otras fichas (cargo público, persona contratada): lib/identidadPersona.ts.
+      fichasPorNombre(f._nn),
     ]);
     const { _nn, paterno, nombres, ...resto } = f;
     return publicar({
       persona: { ...resto, nombre: [paterno, TAPA_NOMBRE, nombres].filter(Boolean).join(" ") },
       historia: historia.rows,
       otras: otras.rows,
+      mismaPersona: fichas,
       // Si es una autoridad electa y el parentesco destaparía el apellido tapado del familiar (hermano, hijo, sobrino,
       // primo, nieto o desconocido), el familiar no se identifica: ni su nombre, ni su ficha, ni sus órdenes, ni el monto.
       // Si el electo es el familiar y el parentesco destaparía el apellido tapado de esta persona, el caso no sale aquí

@@ -289,6 +289,8 @@ export async function correrOrdenes(env: Env, p: ParamsCorrida, step: WorkflowSt
     // La empresa de un pariente declarado en la DJI que recibe órdenes de esa misma entidad (migración 350), antes de marcar
     // los grupos: marcar_grupos_parientes suma también esos casos.
     opcional("refrescar_empresa_pariente_funcionario"),
+    // La red de familia de quien tiene cargo público (migración 351): lo que obtuvo cada familiar que declaró.
+    opcional("refrescar_funcionario_familiar"),
     // Y los que tienen un integrante declarado como pariente por un funcionario de la misma entidad (migración 344).
     opcional("marcar_grupos_parientes"),
     // Los cruces (el fraccionamiento es uno) y los casos cruzados (migraciones 48 y 57).
