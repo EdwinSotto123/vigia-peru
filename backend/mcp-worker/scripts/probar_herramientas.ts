@@ -10,7 +10,7 @@
  * `rastro_persona` necesita además MCP_INTERNO_TOKEN; sin él esa prueba se salta. No imprime secretos ni nombres enteros.
  */
 import { z } from "zod";
-import { buscarContratos, preciosDeMercado } from "../src/v2/herramientas/contratos";
+import { buscarContratos, ordenes, preciosDeMercado } from "../src/v2/herramientas/contratos";
 import { buscarInformesControl, informesControl } from "../src/v2/herramientas/entidad";
 import { fichaEntidad, normaAplicable, patrones, personaPublica, preciosReferencia, redEmpresa } from "../src/v2/herramientas/actores";
 import { informeControlContrato } from "../src/v2/herramientas/control";
@@ -87,6 +87,17 @@ const CASOS: Caso[] = [
   { h: buscarContratos as never, args: { senal: "unico_postor,socio_de_inhabilitada", todas_las_senales: true, por_pagina: 5 },
     espera: (r) => (Number(r.total) > 0 && Number(r.total) < 2000 ? null : `la combinación de señales dio ${String(r.total)} contratos`) },
   // Lo que la Contraloría observó, atado a su contrato (migración 313): el patrón por proveedor y entidad, y el filtro.
+  // Las banderas de cada orden y el filtro por bandera (migración 350): en Coronel Portillo, la empresa del hermano de un
+  // funcionario que vende diésel por órdenes.
+  { h: ordenes as never, args: { entidad_ruc: "20154572792", bandera: "pariente_socio" },
+    espera: (r) => {
+      const cs = lista(r, "compras") as { banderas?: { tipo: string; parentesco?: string }[] }[];
+      if (!cs.length) return "sin compras con la bandera pariente_socio";
+      return cs.every((c) => (c.banderas ?? []).some((b) => b.tipo === "pariente_socio" && !!b.parentesco)) ? null : "una compra sin su bandera pariente_socio";
+    } },
+  { h: ordenes as never, args: { entidad_ruc: "20169004359", bandera: "repetida" },
+    espera: (r) => ((lista(r, "compras") as { banderas?: { tipo: string; ordenes?: unknown[] }[] }[]).some((c) => (c.banderas ?? []).some((b) => b.tipo === "repetida" && (b.ordenes ?? []).length >= 2))
+      ? null : "sin la compra repetida de la UNI con sus órdenes") },
   // La misma compra repetida en semanas (migraciones 348-349): en la UNI, el posible duplicado de Pan American (O/C-1883 y 2364-2024).
   { h: patrones as never, args: { alcance: "repetida", ruc: "20169004359" },
     espera: (r) => ((lista(r, "compras_repetidas") as { proveedor_ruc?: string; monto_de_cada_orden?: number }[]).some((x) => x.proveedor_ruc === "20603050747" && x.monto_de_cada_orden === 28190)

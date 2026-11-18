@@ -410,18 +410,59 @@ function viaDeCompra(texto: string | undefined): string | undefined {
   throw new ErrorUsuario(`como: «${texto}» no es una vía. Usa proceso, catalogo, menor, directa o pago (o nada para todas).`);
 }
 
+/**
+ * Las banderas de una orden (las mismas de su fila en Vigía) con lo esencial de su evidencia. Sin nombres ni documentos:
+ * el pariente declarado sale por su parentesco y el cargo del funcionario (ninguno si es autoridad electa).
+ */
+function banderasDeOrden(o: Fila): { banderas?: Fila[] } {
+  const b: Fila[] = [];
+  if (o.conNepotismo) b.push({ tipo: "nepotismo", severidad: "alta", que: "el proveedor (persona natural) es pariente declarado de un funcionario de la entidad (DJI)" });
+  const ps = o.parienteSocio as Fila | null;
+  if (ps) {
+    b.push({
+      tipo: "pariente_socio", severidad: ps.severidad, parentesco: ps.parentesco, cargo_del_funcionario: ps.cargo ?? undefined,
+      papel_en_la_empresa: ps.rol, en_la_empresa_desde: ps.desde ?? undefined, ordenes_desde_2023: ps.ordenes, monto_desde_2023_soles: ps.monto,
+      que: "un socio, representante o directivo de la empresa es pariente que un funcionario de la entidad declaró en su DJI",
+    });
+  }
+  const inh = o.inhabilitacion as Fila | null;
+  if (inh) b.push({ tipo: "inhabilitado", severidad: "alta", sancion: inh.tipo, resolucion: inh.resolucion, desde: inh.desde, hasta: inh.hasta ?? undefined });
+  const f = o.fraccionamiento as Fila | null;
+  if (f) b.push({ tipo: "fraccionamiento", severidad: f.severidad, ordenes_ese_dia: f.ordenes, suman_soles: f.total, tope_soles: f.tope, misma_descripcion: f.mismaDescripcion });
+  const r = o.repetida as Fila | null;
+  if (r) {
+    b.push({
+      tipo: "repetida", severidad: r.severidad, ordenes_iguales: r.ordenes, dias: r.dias, suman_soles: r.total, tope_soles: r.tope, devengadas: r.devengadas,
+      ordenes: ((r.detalle ?? []) as Fila[]).map((d) => ({ orden: d.orden, fecha: d.fecha, estado: d.estado })),
+    });
+  }
+  if (o.alBorde) b.push({ tipo: "al_borde_del_tope", severidad: "media", tope_soles: (o.alBorde as Fila).tope });
+  for (const s of (o.senalesPersona ?? []) as Fila[]) b.push({ tipo: s.tipo, severidad: s.severidad });
+  return b.length ? { banderas: b } : {};
+}
+
 export const ordenes = definir({
   nombre: "ordenes",
   titulo: "Compras y órdenes",
   descripcion:
     "Todo lo que compró una entidad o le vendió una empresa, en una sola lista: procesos, catálogo electrónico de Perú " +
-    "Compras, compras menores, órdenes directas y pagos. Con totales y años. Pide entidad_ruc o proveedor_ruc (uno de los dos).",
+    "Compras, compras menores, órdenes directas y pagos. Con totales y años. Pide entidad_ruc o proveedor_ruc (uno de los dos). " +
+    "Cada orden trae sus `banderas` con la evidencia (pariente declarado que vende o que es socio de la empresa, proveedor " +
+    "inhabilitado, órdenes del mismo día que pasan 8 UIT, la misma compra repetida en semanas, al borde del tope…); con " +
+    "`bandera` la lista trae sólo las compras que la tienen.",
   entrada: {
     entidad_ruc: z.string().optional(),
     proveedor_ruc: z.string().optional().describe("RUC 20 de la empresa."),
     como: z.string().max(40).optional().describe("Por qué vía: proceso, catalogo, menor (compra menor), directa (orden directa) o pago."),
     con: z.string().optional().describe("RUC de la otra parte (la empresa si filtras por entidad, o al revés)."),
     anio: anio.optional(),
+    bandera: z.enum(["pariente_socio", "nepotismo", "repetida", "fraccionamiento", "inhabilitado", "al_borde_del_tope", "financio_campana",
+                     "candidato_gobierna", "autoridad_contratada", "sobreprecio", "antecedentes", "sunat"]).optional().describe(
+      "Sólo las compras con esa bandera. De la orden: pariente_socio (un socio o representante de la empresa es pariente " +
+      "declarado de un funcionario de la entidad), nepotismo (el proveedor persona es ese pariente), repetida (la misma compra " +
+      "en varias órdenes de 7 a 90 días), fraccionamiento (órdenes del mismo día que pasan 8 UIT), inhabilitado, " +
+      "al_borde_del_tope, financio_campana, candidato_gobierna, autoridad_contratada. sobreprecio: catálogo; antecedentes: " +
+      "procesos con cruces; sunat: compras menores a empresas con problemas en SUNAT."),
     texto: z.string().min(3).max(80).optional().describe(
       "Busca TODAS estas palabras en lo que se compró, en todos los años (con sus plurales: «aniversario» encuentra «aniversarios»). " +
       "Un número solo es un número de orden («6076»). El nombre del proveedor sólo se busca en las órdenes más recientes: para " +
@@ -434,7 +475,7 @@ export const ordenes = definir({
     const como = viaDeCompra(a.como);
     const r = await api<Fila>(cx.env, "/compras", {
       entidad: a.entidad_ruc ? rucJuridico(a.entidad_ruc) : undefined, proveedor: a.proveedor_ruc ? rucJuridico(a.proveedor_ruc) : undefined,
-      como, con: a.con ? rucJuridico(a.con) : undefined, anio: a.anio, q: a.texto, page: a.pagina, size: a.por_pagina,
+      como, con: a.con ? rucJuridico(a.con) : undefined, anio: a.anio, q: a.texto, bandera: a.bandera, page: a.pagina, size: a.por_pagina,
     });
     const e = enlaces(cx.env);
     const fila = (x: Fila) => {
@@ -446,6 +487,7 @@ export const ordenes = definir({
           ...base, orden: x.orden.orden, tipo: x.orden.tipoOrden, objeto: recortar(x.orden.descripcion, 140), entidad: x.orden.entidad,
           ...proveedor(x.orden.contratista, x.orden.rucContratista), estado: x.orden.estado,
           ...(entidadRuc ? { enlace: e.orden(String(entidadRuc), x.orden.orden, x.fecha, x.orden.nroOrden) } : {}),
+          ...banderasDeOrden(x.orden),
         };
       }
       if (x.catalogo) return { ...base, orden: x.catalogo.orden, acuerdo: x.catalogo.acuerdo, entidad: x.catalogo.entidad, ...proveedor(x.catalogo.proveedor, x.catalogo.proveedorRuc), estado: x.catalogo.estado, pdf: x.catalogo.pdfOrden };
