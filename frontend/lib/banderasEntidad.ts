@@ -69,6 +69,44 @@ export function banderasEntidad(
       href: `${ficha}?seccion=planilla&lsev=alta`,
     });
   }
+  // La red de sus proveedores (migraciones 343-350, sólo la ficha): parientes de sus funcionarios detrás de empresas que le
+  // venden, grupos de un mismo dueño o familia y la misma compra repetida.
+  if ((s.empresasPariente ?? 0) > 0) {
+    const n = s.empresasPariente!;
+    out.push({
+      tipo: "pariente_socio", severidad: "alta", chip: "Empresas de parientes de sus funcionarios", n,
+      titulo: `${plural(n, "empresa que le vende tiene", "empresas que le venden tienen")} como socio o representante a un pariente declarado de un funcionario suyo`,
+      explica: `El funcionario lo declaró en su Declaración Jurada de Intereses y el mismo documento figura en la empresa en el Registro Nacional de Proveedores. Órdenes desde 2023${s.empresasParienteMonto ? ` por ${soles(s.empresasParienteMonto)}` : ""}. No prueba que el funcionario haya intervenido.`,
+      href: `${ficha}?seccion=contratos&csenal=pariente_socio`,
+    });
+  }
+  if ((s.gruposAlta ?? 0) > 0) {
+    const n = s.gruposAlta!;
+    out.push({
+      tipo: "mismo_dueno", severidad: "alta", chip: "Grupos de proveedores por dueño o familia", n,
+      titulo: `${plural(n, "grupo de proveedores unidos", "grupos de proveedores unidos")} por dueño o familia que ${n === 1 ? "vive" : "viven"} de sus órdenes`,
+      explica: `Empresas y personas del mismo socio, o con los mismos apellidos poco comunes, que dependen de la entidad y recibieron órdenes de números seguidos, el mismo objeto repartido o muchas al borde del tope${s.gruposMonto ? `: ${soles(s.gruposMonto)} en órdenes` : ""}. El parentesco por apellidos es probable, no comprobado.`,
+      href: `/app/patrones?seccion=grupos&ruc=${ruc}`,
+    });
+  }
+  if ((s.comprasRepetidas ?? 0) > 0) {
+    const n = s.comprasRepetidas!;
+    out.push({
+      tipo: "repetida", severidad: "media", chip: "Compras repetidas", n,
+      titulo: `${plural(n, "compra repetida", "compras repetidas")}: la misma orden al mismo proveedor por el mismo monto en pocas semanas`,
+      explica: "Órdenes de compra directas iguales (proveedor, monto y descripción) de 7 a 90 días entre sí, que juntas pasan el tope de 8 UIT o que se devengaron todas. Puede ser una compra partida en el tiempo, un pago doble o un suministro periódico.",
+      href: `${ficha}?seccion=contratos&csenal=repetida`,
+    });
+  }
+  if ((s.dobleIngreso ?? 0) > 0) {
+    const n = s.dobleIngreso!;
+    out.push({
+      tipo: "doble_percepcion", severidad: "media", chip: "Dos ingresos del Estado", n,
+      titulo: `${plural(n, "persona de su planilla recibió", "personas de su planilla recibieron")} órdenes de servicio de otra entidad esos mismos meses`,
+      explica: "Seis meses o más con sueldo en su planilla y órdenes de servicio de otra entidad, sin docencia. La ley no permite dos ingresos del Estado salvo la docencia y las dietas. Coincide por el nombre completo: es un dato para revisar.",
+      href: `/app/patrones?seccion=doble&ruc=${ruc}`,
+    });
+  }
   // Las señales de su gente de la migración 179 (sólo la ficha las trae): cada una lleva a sus casos.
   if ((s.socioProveedor ?? 0) > 0) {
     const n = s.socioProveedor!;

@@ -77,6 +77,8 @@ import { cn } from "@/lib/utils";
 export interface InicialPatrones {
   page: number;
   regla?: string;
+  /** `?ruc=`: el RUC con que abre filtrada la lista (las banderas de una entidad enlazan así a sus grupos y sus casos). */
+  ruc?: string;
 }
 
 export function PatronesVista({ activa, inicial, etiquetas }: { activa?: string; inicial: InicialPatrones; etiquetas: Record<string, string> }) {
@@ -905,7 +907,7 @@ const COLUMNAS_GRUPOS: Columna[] = [
 
 function ListaGrupos({ inicial }: { inicial: InicialPatrones }) {
   const lista = useListaEnUrl("grupos", inicial);
-  const [ruc, setRuc] = useState("");
+  const [ruc, setRuc] = useState(inicial.ruc ?? "");
   const rucValido = /^20\d{9}$/.test(ruc.trim()) ? ruc.trim() : undefined;
   const [graves, setGraves] = useState(false);
   const filtrada = !!rucValido || graves;
@@ -1038,7 +1040,7 @@ const COLUMNAS_REPETIDAS: Columna[] = [
 
 function ListaRepetidas({ inicial }: { inicial: InicialPatrones }) {
   const lista = useListaEnUrl("repetidas", inicial);
-  const [ruc, setRuc] = useState("");
+  const [ruc, setRuc] = useState(inicial.ruc ?? "");
   const rucValido = /^20\d{9}$/.test(ruc.trim()) ? ruc.trim() : undefined;
   const [graves, setGraves] = useState(false);
   const filtrada = !!rucValido || graves;
@@ -1152,7 +1154,7 @@ const COLUMNAS_DOBLE: Columna[] = [
 
 function ListaDoble({ inicial }: { inicial: InicialPatrones }) {
   const lista = useListaEnUrl("doble", inicial);
-  const [ruc, setRuc] = useState("");
+  const [ruc, setRuc] = useState(inicial.ruc ?? "");
   const rucValido = /^20\d{9}$/.test(ruc.trim()) ? ruc.trim() : undefined;
   const [graves, setGraves] = useState(false);
   const filtrada = !!rucValido || graves;

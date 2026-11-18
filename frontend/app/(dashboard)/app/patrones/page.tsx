@@ -53,7 +53,11 @@ export default async function PatronesPage({ searchParams }: { searchParams?: Re
         }
       />
 
-      <PatronesVista activa={activa} inicial={{ page: paginaDe(uno(searchParams?.page)), regla }} etiquetas={etiquetas} />
+      <PatronesVista
+        activa={activa}
+        inicial={{ page: paginaDe(uno(searchParams?.page)), regla, ruc: /^20\d{9}$/.test(uno(searchParams?.ruc) ?? "") ? uno(searchParams?.ruc) : undefined }}
+        etiquetas={etiquetas}
+      />
 
       <Nota>
         Los patrones salen de cruzar los procesos publicados en el SEACE con lo que los agentes de Vigía leyeron en sus

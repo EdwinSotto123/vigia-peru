@@ -112,6 +112,15 @@ export interface ApiEntidad {
     alBorde?: number;
     /** Empresas con la mitad o más de sus órdenes al borde del tope (migración 207). */
     alBordeEmpresas?: number;
+    /** Sólo en la ficha (migraciones 343-352): grupos de proveedores por dueño y familia de gravedad alta y lo que suman,
+     *  compras repetidas en semanas, empresas de parientes declarados de sus funcionarios y personas de su planilla con
+     *  órdenes de servicio de otra entidad. */
+    gruposAlta?: number;
+    gruposMonto?: number;
+    comprasRepetidas?: number;
+    empresasPariente?: number;
+    empresasParienteMonto?: number;
+    dobleIngreso?: number;
     nepotismoGobierno?: number;
     doblePlanilla?: number;
     socioProveedor?: number;
