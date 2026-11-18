@@ -714,8 +714,8 @@ export function detalleAutoridadExsocio(p: PatronAutoridadExsocio): Detalle {
     pie: (
       <Pie
         enlaces={[
+          !!p.clave && { texto: "Abrir la ficha del caso", href: rutaCaso("autoridad", p.clave) },
           esRuc20(p.empresaRuc) && esRuc20(p.entidadRuc) && { texto: "Lo que la entidad le compró a esta empresa", href: `/entidad/${p.entidadRuc}?seccion=contratos&ccon=${p.empresaRuc}` },
-          esRuc20(p.empresaRuc) && { texto: "La empresa: su gente y su historia", href: `/empresa/${p.empresaRuc}?seccion=gente` },
         ]}
       />
     ),
@@ -1129,9 +1129,8 @@ export function detalleRenovacion(p: PatronRenovacion): Detalle {
     pie: (
       <Pie
         enlaces={[
+          !!p.clave && { texto: "Abrir la ficha del caso", href: rutaCaso("renovaciones", p.clave) },
           { texto: "Abrir el contrato de ahora", href: rutaContrato(p.ocid) },
-          { texto: "Abrir el anterior", href: rutaContrato(p.ocidAnterior) },
-          esRuc20(p.entidadRuc) && { texto: "Ficha de la entidad", href: `/entidad/${p.entidadRuc}` },
         ]}
       />
     ),

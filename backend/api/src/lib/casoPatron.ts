@@ -1342,3 +1342,199 @@ export async function casoInhabilitada(clave: string, pedir: Pedir): Promise<Cas
     como_leerlo: "Una empresa gana contratos mientras otra empresa del mismo socio cumple una inhabilitación del Tribunal de Contrataciones. Un patrón es un motivo para mirar, no una acusación.",
   };
 }
+
+// ─── La autoridad dejó de figurar en una empresa que le vende a su entidad (migración 367) ─────
+
+export const sqlClaveAutoridad = (sal: string) => `left(md5(${sal} || v.autoridad_id || '|' || v.ruc_empresa || '|' || v.entidad_ruc), 16)`;
+const sumarMesesF = (f: string, k: number) => {
+  const [a, m, d] = f.slice(0, 10).split("-").map(Number);
+  const t = new Date(Date.UTC(a, m - 1 + k, d));
+  return t.toISOString().slice(0, 10);
+};
+
+export async function casoAutoridad(clave: string, pedir: Pedir): Promise<CasoPatron | null> {
+  const k = await pool.query<{ ruc_empresa: string; entidad_ruc: string }>(
+    `SELECT v.ruc_empresa, v.entidad_ruc FROM autoridad_exsocio_venta v WHERE ${sqlClaveAutoridad("$2")} = $1 LIMIT 1`, [clave, salDeClaves()]);
+  const id = k.rows[0];
+  if (!id) return null;
+  const lista = await pedir(`/autoridad-exsocio?buscar=${id.entidad_ruc}&clave=${clave}&size=1`);
+  const f = (lista?.data ?? [])[0] as Record<string, any> | undefined;
+  if (!f) return null;
+  const [ords, sunat, gente] = await Promise.all([ordenesDelProveedor(id.entidad_ruc, id.ruc_empresa), empresaSunat(id.ruc_empresa), genteDeEmpresa(id.ruc_empresa)]);
+  const ent = { ruc: id.entidad_ruc, nombre: (f.entidad as string | null) ?? null };
+  const entNombre = ent.nombre ? titulo(ent.nombre) : "la entidad";
+  const emp = titulo(f.empresa ?? sunat?.nombre ?? "La empresa");
+  // Una autoridad electa va con su nombre (es público); su documento nunca.
+  const autoridad = titulo(f.autoridad ?? "La autoridad");
+  const cargo = f.cargo ? titulo(f.cargo) : "Autoridad electa";
+  const papeles = ((f.roles ?? []) as string[]).join(", ") || "socio, representante o directivo";
+  const finPlazo = f.bajaCorte ? sumarMesesF(f.bajaCorte, 12) : null;
+  const momento = (fecha: string | null) =>
+    !fecha ? "sin fecha" : f.bajaCorte && fecha < f.bajaCorte ? "cuando todavía figuraba en la empresa" : finPlazo && fecha <= finPlazo ? "en los 12 meses después de dejarla" : "después de los 12 meses";
+  const enPeriodo = (fecha: string | null) => !!fecha && (!f.periodoInicio || fecha >= f.periodoInicio) && (!f.periodoFin || fecha <= f.periodoFin);
+
+  const nodos: NodoCaso[] = [
+    { id: "e", tipo: "entidad", nombre: entNombre, rol: "La entidad que gobierna o fiscaliza", href: `/entidad/${ent.ruc}?seccion=patrones&patron=autoridad` },
+    { id: "a", tipo: "funcionario", nombre: autoridad, rol: `${cargo}${f.lugar ? ` de ${titulo(f.lugar)}` : ""}`, severidad: f.severidad === "alta" ? "alta" : "media",
+      datos: [
+        f.periodoInicio ? { etiqueta: "Periodo", valor: `${fechaLarga(f.periodoInicio)}${f.periodoFin ? ` al ${fechaLarga(f.periodoFin)}` : ""}` } : null,
+        { etiqueta: `En ${emp}`, valor: `${papeles}${f.desde ? `, desde ${fechaLarga(f.desde)}` : ""}${f.bajaCorte ? `; dejó de figurar en el corte de ${fechaLarga(f.bajaCorte)}` : ""}` },
+      ].filter((x): x is { etiqueta: string; valor: string } => !!x) },
+    { id: "m", tipo: "empresa", nombre: emp, rol: "La empresa que dejó", href: `/empresa/${id.ruc_empresa}?seccion=antecedentes&atipo=patron-autoridad`,
+      monto: (f.montoOrdenes ?? 0) + (f.montoProcesos ?? 0), ordenes: (f.ordenes ?? 0) + (f.procesos ?? 0), severidad: f.severidad === "alta" ? "alta" : "media",
+      datos: [sunat?.alta ? { etiqueta: "Fundada (SUNAT)", valor: fechaLarga(sunat.alta) } : null].filter((x): x is { etiqueta: string; valor: string } => !!x) },
+  ];
+  const aristas: AristaCaso[] = [
+    { de: "a", a: "e", tipo: "otro", texto: `${cargo.toLowerCase()} en su periodo` },
+    { de: "a", a: "m", tipo: "socio", texto: `${papeles}${f.bajaCorte ? `, hasta ${fechaLarga(f.bajaCorte)}` : ""}` },
+    { de: "m", a: "e", tipo: "vende", texto: `${plural(f.ordenes ?? 0, "orden", "órdenes")} y ${plural(f.procesos ?? 0, "proceso", "procesos")} en su periodo` },
+  ];
+  // Los demás de la empresa (sin la autoridad, que ya es un nodo).
+  gente.filter((g) => !g.nombre.toUpperCase().startsWith(autoridad.split(" ")[0].toUpperCase())).slice(0, 6).forEach((g, i) => {
+    nodos.push({ id: `p${i + 1}`, tipo: "persona", nombre: g.nombre, rol: `${g.papeles.charAt(0).toUpperCase()}${g.papeles.slice(1)} de la empresa` });
+    aristas.push({ de: `p${i + 1}`, a: "m", tipo: "socio", texto: g.papeles });
+  });
+
+  const hitos: HitoCaso[] = [];
+  if (sunat?.alta) hitos.push({ fecha: sunat.alta, tipo: "fundacion", titulo: `Se funda ${emp}`, nodos: ["m"], fuente: "SUNAT (padrón RUC)" });
+  if (f.desde) hitos.push({ fecha: f.desde, tipo: "socio", titulo: `${autoridad} figura en ${emp} como ${papeles}`, nodos: ["a", "m"], fuente: "Registro Nacional de Proveedores (OECE)" });
+  if (f.periodoInicio) hitos.push({ fecha: f.periodoInicio, tipo: "otro", severidad: "media", titulo: `Asume como ${cargo.toLowerCase()}`, nodos: ["a", "e"], fuente: "JNE (Infogob)" });
+  if (f.bajaCorte) hitos.push({ fecha: f.bajaCorte, tipo: "salida", titulo: `Deja de figurar en ${emp}`, detalle: "Fecha del corte mensual del registro en que ya no aparece.", nodos: ["a", "m"], fuente: "Registro Nacional de Proveedores (OECE)" });
+  if (finPlazo) hitos.push({ fecha: finPlazo, tipo: "otro", titulo: "Terminan los 12 meses del impedimento", detalle: "El impedimento alcanza a la empresa en que tuvo o tuvo más del 30 % dentro de los 12 meses anteriores a la convocatoria.", nodos: ["m"], fuente: "Ley 30225, art. 11; Ley 32069, art. 30" });
+  if (f.periodoFin) hitos.push({ fecha: f.periodoFin, tipo: "otro", titulo: "Termina su periodo", nodos: ["a"], fuente: "JNE (Infogob)" });
+  for (const a of ords.anios) {
+    const xs = ords.filas.filter((o) => o.fecha?.startsWith(String(a.anio)) && enPeriodo(o.fecha));
+    if (!xs.length) continue;
+    const plazo = xs.filter((o) => momento(o.fecha) !== "después de los 12 meses");
+    hitos.push({ fecha: `${a.anio}-12-31`, tipo: "anio", severidad: plazo.length ? "alta" : null, titulo: `${a.anio}: ${plural(xs.length, "orden", "órdenes")} en su periodo${plazo.length ? `, ${miles(plazo.length)} cuando figuraba o en los 12 meses siguientes` : ""}`, monto: xs.reduce((t, o) => t + (o.monto ?? 0), 0), nodos: ["m", "e"], fuente: "CONOSCE (OECE)", href: `/entidad/${ent.ruc}?seccion=contratos&ccon=${id.ruc_empresa}&canio=${a.anio}` });
+  }
+  hitos.sort((a, b) => a.fecha.localeCompare(b.fecha) || a.tipo.localeCompare(b.tipo));
+
+  const razones: RazonCaso[] = ([
+    { titulo: "Ventas cuando figuraba o en los 12 meses siguientes", cifra: miles(f.ventasEnPlazo ?? 0), texto: `Por ${soles(f.montoEnPlazo)}: dentro del plazo del impedimento, si su participación pasaba del 30 % o la integraba o representaba.`, severidad: (f.ventasEnPlazo ?? 0) > 0 ? "alta" : null },
+    { titulo: "Ventas en su periodo", cifra: miles((f.ordenes ?? 0) + (f.procesos ?? 0)), texto: `${plural(f.ordenes ?? 0, "orden", "órdenes")} por ${soles(f.montoOrdenes)} y ${plural(f.procesos ?? 0, "proceso", "procesos")} por ${soles(f.montoProcesos)} a la entidad que gobierna o fiscaliza.`, severidad: "media" },
+    { titulo: "Lo que no se sabe", cifra: "% de capital", texto: "El RNP no publica el porcentaje de participación y su corte es mensual: hay que pedir la partida registral.", severidad: null },
+  ] as (RazonCaso | null)[]).filter((x): x is RazonCaso => !!x);
+
+  const filas = ords.filas.filter((o) => enPeriodo(o.fecha)).map((o, i) => filaDeOrden(o, i, ent.ruc, id.ruc_empresa, emp, [momento(o.fecha)]));
+  return {
+    tipo: "autoridad", clave, patron: "La autoridad dejó su empresa y ésta le vende a su entidad", observacion: true,
+    titulo: `${autoridad} dejó ${emp}, que le vende a ${entNombre}`,
+    severidad: f.severidad === "alta" ? "alta" : "media",
+    frase: `${autoridad}, ${cargo.toLowerCase()}${f.lugar ? ` de ${titulo(f.lugar)}` : ""}, figuraba en ${emp} como ${papeles}${f.bajaCorte ? ` hasta el corte de ${fechaLarga(f.bajaCorte)}` : ""}. En su periodo, esa empresa le vendió a ${entNombre} ${plural(f.ordenes ?? 0, "orden", "órdenes")} y ${plural(f.procesos ?? 0, "proceso", "procesos")}; ${miles(f.ventasEnPlazo ?? 0)} de esas ventas, por ${soles(f.montoEnPlazo)}, cuando todavía figuraba o en los 12 meses siguientes.`,
+    entidad: ent, desde: f.primera ?? null, hasta: f.ultima ?? null,
+    cifras: [
+      { etiqueta: "Ventas en su periodo", valor: miles((f.ordenes ?? 0) + (f.procesos ?? 0)), contexto: `por ${soles((f.montoOrdenes ?? 0) + (f.montoProcesos ?? 0))}` },
+      { etiqueta: "Dentro del plazo del impedimento", valor: miles(f.ventasEnPlazo ?? 0), contexto: `por ${soles(f.montoEnPlazo)}` },
+      { etiqueta: "Mientras figuraba", valor: miles(f.ventasMientras ?? 0), contexto: null },
+      { etiqueta: "Después del plazo", valor: miles(f.ventasDespues ?? 0), contexto: null },
+    ],
+    serie: null, nodos, aristas, hitos, razones,
+    evidencia: { titulo: `Las órdenes de ${entNombre} a ${emp} en su periodo`, unidad: "órdenes", total: filas.length, filas, nota: (f.procesos ?? 0) > 0 ? "Los procesos que ganó en su periodo están en la ficha de la empresa." : null, masHref: `/entidad/${ent.ruc}?seccion=contratos&ccon=${id.ruc_empresa}` },
+    revisar: [
+      "Pide la partida registral de la empresa (SUNARP): cuánto capital tenía la autoridad y cuándo transfirió sus acciones.",
+      "Pide los expedientes de las compras dentro del plazo: la declaración jurada de no estar impedida que firmó la empresa.",
+      "Revisa si la autoridad intervino en esas compras o si alguien de la empresa trabaja en la entidad.",
+    ],
+    fuentes: [
+      { texto: "Socios, representantes y directivos (Registro Nacional de Proveedores)", href: DATASET_SOCIOS_RNP },
+      { texto: "Órdenes de compra y de servicio (CONOSCE, OECE)", href: CONOSCE_BUSCADOR },
+      { texto: "Consulta RUC (SUNAT)", href: CONSULTA_RUC_SUNAT },
+    ],
+    relacionados: [
+      { texto: `Ficha de ${emp}`, href: `/empresa/${id.ruc_empresa}` },
+      { texto: `Antecedentes y patrones de ${entNombre}`, href: `/entidad/${ent.ruc}?seccion=patrones&patron=autoridad` },
+      { texto: "Todos los casos del país", href: "/app/patrones?seccion=autoridad" },
+    ],
+    como_leerlo: String(lista?.como_leerlo ?? "Una autoridad electa dejó de figurar en una empresa que le vende a la entidad que gobierna o fiscaliza."),
+  };
+}
+
+// ─── El mismo servicio, más caro al renovarlo (migración 283) ─────────────────────────────────
+
+export const sqlClaveRenovacion = (sal: string) => `left(md5(${sal} || r.ocid || '|' || r.ocid_anterior), 16)`;
+
+export async function casoRenovacion(clave: string, pedir: Pedir): Promise<CasoPatron | null> {
+  const k = await pool.query<{ entidad_ruc: string; ocid: string; ocid_anterior: string }>(
+    `SELECT r.entidad_ruc, r.ocid, r.ocid_anterior FROM servicio_renovacion r WHERE ${sqlClaveRenovacion("$2")} = $1 LIMIT 1`, [clave, salDeClaves()]);
+  const id = k.rows[0];
+  if (!id) return null;
+  const ant = await pool.query<{ proveedor_ruc: string | null; codigo: string | null; objeto: string | null }>(
+    `SELECT proveedor_ruc, codigo, left(objeto, 220) AS objeto FROM convocatorias WHERE ocid = $1`, [id.ocid_anterior]);
+  // Las renovaciones de la entidad, de a 50, hasta encontrar ésta (pocas entidades tienen más de 50).
+  const todas: Record<string, any>[] = [];
+  let f: Record<string, any> | undefined;
+  for (let pagina = 1; pagina <= 6 && !f; pagina++) {
+    const lista = await pedir(`/renovaciones?ruc=${id.entidad_ruc}&size=50&page=${pagina}`);
+    const xs = (lista?.data ?? []) as Record<string, any>[];
+    todas.push(...xs);
+    f = xs.find((x) => x.ocid === id.ocid && x.ocidAnterior === id.ocid_anterior);
+    if (xs.length < 50) break;
+  }
+  if (!f) return null;
+  const ent = { ruc: id.entidad_ruc, nombre: (f.entidad as string | null) ?? null };
+  const entNombre = ent.nombre ? titulo(ent.nombre) : "la entidad";
+  const provRuc = f.proveedorRuc && /^20\d{9}$/.test(f.proveedorRuc) ? (f.proveedorRuc as string) : null;
+  const prov = f.proveedor ? titulo(f.proveedor) : "El proveedor";
+  const antRuc = ant.rows[0]?.proveedor_ruc && /^20\d{9}$/.test(ant.rows[0].proveedor_ruc) ? ant.rows[0].proveedor_ruc : null;
+  const antS = antRuc && antRuc !== provRuc ? await empresaSunat(antRuc) : null;
+  const antNombre = f.mismoProveedor ? prov : antS?.nombre ? titulo(antS.nombre) : "El proveedor anterior";
+  const meses = (d: number | null) => (d ? Math.max(1, Math.round(d / 30)) : null);
+  const objeto = f.objeto ? String(f.objeto) : "el mismo servicio";
+
+  const nodos: NodoCaso[] = [
+    { id: "e", tipo: "entidad", nombre: entNombre, rol: "Renovó el servicio", href: `/entidad/${ent.ruc}?seccion=patrones&patron=renovaciones` },
+    { id: "m", tipo: "empresa", nombre: prov, rol: f.mismoProveedor ? "Lo da antes y después" : "El que lo da ahora", href: provRuc ? `/empresa/${provRuc}?seccion=antecedentes&atipo=patron-renovaciones` : null, monto: f.monto, severidad: Number(f.diffPct) >= 100 ? "alta" : "media",
+      datos: [{ etiqueta: "Costo mensual", valor: `${soles(f.costoMensual)} (antes ${soles(f.costoMensualAnterior)})` }] },
+  ];
+  const aristas: AristaCaso[] = [{ de: "m", a: "e", tipo: "vende", texto: `${soles(f.monto)} por ${meses(f.plazoDias) ?? "?"} meses` }];
+  if (!f.mismoProveedor) {
+    nodos.push({ id: "a", tipo: "empresa", nombre: antNombre, rol: "El que lo daba antes", href: antRuc ? `/empresa/${antRuc}` : null, monto: f.montoAnterior });
+    aristas.push({ de: "a", a: "e", tipo: "vende", texto: `${soles(f.montoAnterior)} por ${meses(f.plazoAnterior) ?? "?"} meses` });
+  }
+  const hitos: HitoCaso[] = [
+    ...(f.fechaAnterior ? [{ fecha: f.fechaAnterior, tipo: "primera" as const, titulo: `El contrato anterior: ${soles(f.montoAnterior)} por ${meses(f.plazoAnterior) ?? "?"} meses`, detalle: `${soles(f.costoMensualAnterior)} al mes${ant.rows[0]?.objeto ? `. «${ant.rows[0].objeto.slice(0, 140)}»` : ""}`, monto: f.montoAnterior, nodos: [f.mismoProveedor ? "m" : "a", "e"], fuente: "SEACE (OECE)", href: rutaContrato(id.ocid_anterior) }] : []),
+    ...(f.fecha ? [{ fecha: f.fecha, tipo: "dia" as const, severidad: (Number(f.diffPct) >= 100 ? "alta" : "media") as Severidad, titulo: `La renovación: ${soles(f.monto)} por ${meses(f.plazoDias) ?? "?"} meses, ${Math.round(Number(f.diffPct))} % más por mes`, detalle: `${soles(f.costoMensual)} al mes. «${objeto.slice(0, 140)}»`, monto: f.monto, nodos: ["m", "e"], fuente: "SEACE (OECE)", href: rutaContrato(id.ocid) }] : []),
+  ];
+  // Las demás renovaciones más caras de la misma entidad, como contexto.
+  const otras = todas.filter((x) => x.ocid !== id.ocid);
+  const razones: RazonCaso[] = ([
+    { titulo: "Más caro por mes", cifra: `+${Math.round(Number(f.diffPct))} %`, texto: `De ${soles(f.costoMensualAnterior)} a ${soles(f.costoMensual)} al mes por un servicio de objeto parecido (similitud ${Math.round(Number(f.similitud) * 100)} %).`, severidad: Number(f.diffPct) >= 100 ? "alta" : "media" },
+    f.exceso ? { titulo: "Lo que se paga de más", cifra: soles(f.exceso), texto: "Si el servicio fuera el mismo, lo que costaría de más en todo el plazo nuevo frente al precio mensual anterior.", severidad: "media" } : null,
+    { titulo: f.mismoProveedor ? "El mismo proveedor" : "Otro proveedor", cifra: f.mismoProveedor ? "Mismo" : "Distinto", texto: f.mismoProveedor ? "El mismo proveedor cobra más por lo mismo al renovar." : "Cambió el proveedor y subió el precio.", severidad: f.mismoProveedor ? "media" : null },
+    otras.length ? { titulo: "Otras renovaciones más caras en la entidad", cifra: miles(otras.length), texto: "La entidad tiene más servicios renovados con un costo mensual 30 % o más alto.", severidad: null } : null,
+    { titulo: "Lo que puede explicarlo", cifra: "Alcance", texto: "Más sedes, más personal, otro horario o un reajuste por ley (remuneración mínima) pueden subir el precio: compara los términos de referencia.", severidad: null },
+  ] as (RazonCaso | null)[]).filter((x): x is RazonCaso => !!x);
+  const filas: FilaEvidencia[] = [
+    { id: "n", fecha: f.fecha ?? null, documento: "La renovación", quien: prov, que: objeto, monto: f.monto, estado: `${soles(f.costoMensual)} al mes`, marcas: ["el contrato nuevo"], href: rutaContrato(id.ocid) },
+    { id: "a", fecha: f.fechaAnterior ?? null, documento: "El contrato anterior", quien: antNombre, que: ant.rows[0]?.objeto ?? null, monto: f.montoAnterior, estado: `${soles(f.costoMensualAnterior)} al mes`, marcas: ["el contrato anterior"], href: rutaContrato(id.ocid_anterior) },
+    ...otras.slice(0, 40).map((x, i) => ({ id: `o${i}`, fecha: x.fecha ?? null, documento: "Otra renovación", quien: x.proveedor ? titulo(x.proveedor) : null, que: x.objeto ?? null, monto: x.monto ?? null, estado: `+${Math.round(Number(x.diffPct))} % por mes`, marcas: [] as string[], href: rutaContrato(x.ocid) })),
+  ];
+  return {
+    tipo: "renovaciones", clave, patron: "El mismo servicio, más caro al renovarlo",
+    titulo: `${entNombre} renovó un servicio pagando ${Math.round(Number(f.diffPct))} % más por mes`,
+    severidad: Number(f.diffPct) >= 100 ? "alta" : "media",
+    frase: `${entNombre} contrató «${objeto.slice(0, 120)}» a ${soles(f.costoMensualAnterior)} al mes${f.fechaAnterior ? ` (${String(f.fechaAnterior).slice(0, 4)})` : ""} y lo renovó a ${soles(f.costoMensual)} al mes${f.fecha ? ` (${String(f.fecha).slice(0, 4)})` : ""}, un ${Math.round(Number(f.diffPct))} % más${f.mismoProveedor ? ", con el mismo proveedor" : ""}.`,
+    entidad: ent, desde: f.fechaAnterior ?? null, hasta: f.fecha ?? null,
+    cifras: [
+      { etiqueta: "Costo mensual antes", valor: soles(f.costoMensualAnterior), contexto: null },
+      { etiqueta: "Costo mensual ahora", valor: soles(f.costoMensual), contexto: `+${Math.round(Number(f.diffPct))} %` },
+      { etiqueta: "De más en el plazo", valor: soles(f.exceso), contexto: null },
+      { etiqueta: "Proveedor", valor: f.mismoProveedor ? "El mismo" : "Otro", contexto: null },
+    ],
+    serie: null, nodos, aristas, hitos, razones,
+    evidencia: { titulo: "Los dos contratos y las otras renovaciones de la entidad", unidad: "contratos", total: filas.length, filas, nota: null, masHref: `/entidad/${ent.ruc}?seccion=contratos&vista=contratos` },
+    revisar: [
+      "Compara los términos de referencia de los dos contratos: sedes, personal, horario y entregables.",
+      "Pide el estudio de mercado de la renovación: con qué cotizaciones se fijó el nuevo valor.",
+      "Si el alcance es el mismo, pregunta por qué subió el costo mensual.",
+    ],
+    fuentes: [{ texto: "Procesos y contratos (SEACE, OECE)", href: CONOSCE_BUSCADOR }],
+    relacionados: [
+      ...(provRuc ? [{ texto: `Ficha de ${prov}`, href: `/empresa/${provRuc}` }] : []),
+      { texto: `Antecedentes y patrones de ${entNombre}`, href: `/entidad/${ent.ruc}?seccion=patrones&patron=renovaciones` },
+      { texto: "Todas las renovaciones más caras del país", href: "/app/patrones?seccion=renovaciones" },
+    ],
+    como_leerlo: "Un servicio que la entidad volvió a contratar pagando 30 % o más por mes que en el contrato anterior. Un patrón es un motivo para mirar, no una acusación.",
+  };
+}

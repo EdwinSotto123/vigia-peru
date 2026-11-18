@@ -43,7 +43,7 @@ import { papelesRnp } from "../lib/familiaFuncionario.js";
 import { ETIQUETA_CRUCE, catalogoSenales, nombrePublicable } from "../lib/cruces.js";
 import { depurarReferencias } from "../lib/laboratorioPrecios.js";
 import { taparNombrePropio } from "./personas.js";
-import { casoComprasFamilia, casoDueno, casoGrupo, casoInhabilitada, casoRecien, casoRelleno, casoRepetida, salDeClaves, sqlClaveInhabilitada, sqlClaveDueno, sqlClaveGrupo, sqlClaveRecien, sqlClaveRelleno, sqlClaveRepetida, type CasoPatron, type Pedir } from "../lib/casoPatron.js";
+import { casoAutoridad, casoComprasFamilia, casoDueno, casoGrupo, casoInhabilitada, casoRenovacion, sqlClaveAutoridad, sqlClaveRenovacion, casoRecien, casoRelleno, casoRepetida, salDeClaves, sqlClaveInhabilitada, sqlClaveDueno, sqlClaveGrupo, sqlClaveRecien, sqlClaveRelleno, sqlClaveRepetida, type CasoPatron, type Pedir } from "../lib/casoPatron.js";
 
 export const patronesRouter = new Hono();
 
@@ -900,6 +900,8 @@ patronesRouter.get("/compras-familia/ventas", async (c) => {
 const AutoridadExsocio = z.object({
   /** RUC de la entidad o de la empresa. */
   buscar: z.string().regex(/^20\d{9}$/).optional(),
+  /** La clave opaca de un caso (su ficha de caso). */
+  clave: z.string().regex(/^[0-9a-f]{16}$/).optional(),
   severidad: z.enum(["alta", "media"]).optional(),
   page: z.coerce.number().int().min(1).max(200).default(1),
   size: z.coerce.number().int().min(1).max(50).default(20),
@@ -928,11 +930,12 @@ patronesRouter.get("/autoridad-exsocio", async (c) => {
                 v.ordenes, v.monto_ordenes::float AS "montoOrdenes", v.procesos, v.monto_procesos::float AS "montoProcesos",
                 v.ventas_mientras AS "ventasMientras", v.ventas_en_plazo AS "ventasEnPlazo", v.monto_en_plazo::float AS "montoEnPlazo",
                 v.ventas_despues AS "ventasDespues", to_char(v.primera, 'YYYY-MM-DD') AS primera, to_char(v.ultima, 'YYYY-MM-DD') AS ultima,
-                v.severidad, (count(*) OVER ())::int AS total_filas
+                v.severidad, ${sqlClaveAutoridad("$6")} AS clave, (count(*) OVER ())::int AS total_filas
            FROM autoridad_exsocio_venta v
           WHERE ($1::text IS NULL OR v.entidad_ruc = $1 OR v.ruc_empresa = $1) AND ($2::text IS NULL OR v.severidad = $2)
+            AND ($5::text IS NULL OR ${sqlClaveAutoridad("$6")} = $5)
           ORDER BY CASE v.severidad WHEN 'alta' THEN 0 ELSE 1 END, v.monto_en_plazo DESC, v.monto_ordenes + v.monto_procesos DESC, v.ruc_empresa, v.entidad_ruc
-          LIMIT $3 OFFSET $4`, [q.buscar ?? null, q.severidad ?? null, q.size, (q.page - 1) * q.size]),
+          LIMIT $3 OFFSET $4`, [q.buscar ?? null, q.severidad ?? null, q.size, (q.page - 1) * q.size, q.clave ?? null, salDeClaves()]),
       pool.query<{ casos: number; autoridades: number; empresas: number; entidades: number; monto: number; montoEnPlazo: number }>(
         `SELECT count(*)::int AS casos, count(DISTINCT v.autoridad_id)::int AS autoridades, count(DISTINCT v.ruc_empresa)::int AS empresas,
                 count(DISTINCT v.entidad_ruc)::int AS entidades, COALESCE(sum(v.monto_ordenes + v.monto_procesos), 0)::float AS monto,
@@ -973,7 +976,8 @@ patronesRouter.get("/renovaciones", async (c) => {
                 to_char(r.fecha_anterior, 'YYYY-MM-DD') AS "fechaAnterior", r.monto::float AS monto, r.monto_anterior::float AS "montoAnterior",
                 r.plazo_dias AS "plazoDias", r.plazo_anterior AS "plazoAnterior", r.costo_mensual::float AS "costoMensual",
                 r.costo_mensual_anterior::float AS "costoMensualAnterior", r.diff_pct::float AS "diffPct", r.similitud::float AS similitud,
-                r.exceso::float AS exceso, r.proveedor_ruc AS "proveedorRuc", e.nombre AS proveedor, r.mismo_proveedor AS "mismoProveedor"
+                r.exceso::float AS exceso, r.proveedor_ruc AS "proveedorRuc", e.nombre AS proveedor, r.mismo_proveedor AS "mismoProveedor",
+                ${sqlClaveRenovacion(add(salDeClaves()))} AS clave
            FROM servicio_renovacion r LEFT JOIN empresa_resumen e ON e.ruc = r.proveedor_ruc ${donde}
           ORDER BY r.fecha DESC NULLS LAST, r.diff_pct DESC, r.ocid LIMIT ${add(q.size)} OFFSET ${add((q.page - 1) * q.size)}`, vals),
       pool.query<{ n: number; exceso: number | null }>(`SELECT count(*)::int AS n, sum(r.exceso)::float AS exceso FROM servicio_renovacion r ${donde}`, vals.slice(0, n)),
@@ -1175,6 +1179,8 @@ const CASOS: Record<string, (clave: string, pedir: Pedir) => Promise<CasoPatron 
   duenos: casoDueno,
   relleno: casoRelleno,
   inhabilitadas: casoInhabilitada,
+  autoridad: casoAutoridad,
+  renovaciones: casoRenovacion,
   repetidas: casoRepetida,
   recien: casoRecien,
 };

@@ -451,6 +451,8 @@ export interface PatronesConsorcios {
 
 /** Una entidad volvió a contratar el mismo servicio continuo y el costo por mes subió 30 % o más. */
 export interface PatronRenovacion {
+  /** La clave opaca de su ficha de caso. */
+  clave?: string;
   ocid: string;
   ocidAnterior: string;
   entidadRuc: string;
@@ -568,6 +570,8 @@ export const rutaRecien = (page = 1, ruc?: string, graves = false) =>
  * entidad que gobierna o fiscaliza, dentro de su periodo. La autoridad va con su nombre completo (es electa).
  */
 export interface PatronAutoridadExsocio extends VentaASuEntidad {
+  /** La clave opaca de su ficha de caso. */
+  clave?: string;
   empresaRuc: string;
   empresa: string | null;
   autoridad: string | null;

@@ -119,8 +119,9 @@ const GUARDADO = "X-Vigia-Guardado";
  * "111": las órdenes traen `recienCreada` y la ficha de entidad su cuenta (migración 355: empresa recién creada con órdenes directas).
  * "127": las listas de patrones traen `clave` (la de su ficha de caso, /app/patrones/caso/…): guardadas antes, el panel no
  *        tenía «Abrir la ficha del caso» (2026-11-18).
+ * "128": también las de autoridad que dejó su empresa y renovaciones más caras.
  */
-const VERSION_CACHE = "127";
+const VERSION_CACHE = "128";
 
 function cacheable(req: Request): boolean {
   if (req.method !== "GET") return false;

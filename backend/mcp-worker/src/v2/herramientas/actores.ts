@@ -788,6 +788,7 @@ export const patrones = definir({
           ventas_de_mas_de_12_meses_despues: x.ventasDespues, primera_venta: x.primera ?? undefined, ultima_venta: x.ultima ?? undefined, severidad: x.severidad,
           enlace_empresa: x.empresaRuc ? `${e.empresa(String(x.empresaRuc))}?seccion=gente` : undefined,
           enlace_entidad: x.entidadRuc ? e.entidad(String(x.entidadRuc)) : undefined,
+          ficha_del_caso: x.clave ? `${cx.env.VIGIA_URL}/app/patrones/caso/autoridad/${x.clave}` : undefined,
         })),
         como_leerlo: r.como_leerlo,
         aviso: AVISO,
@@ -1028,6 +1029,7 @@ export const patrones = definir({
           subio_pct: x.diffPct, de_mas_en_el_plazo_soles: x.exceso, plazo_dias: x.plazoDias, plazo_anterior_dias: x.plazoAnterior,
           fecha: x.fecha, fecha_anterior: x.fechaAnterior, parecido_del_objeto: x.similitud,
           enlace: e.contrato(x.ocid), enlace_contrato_anterior: e.contrato(x.ocidAnterior), enlace_entidad: e.entidad(x.entidadRuc),
+          ficha_del_caso: x.clave ? `${cx.env.VIGIA_URL}/app/patrones/caso/renovaciones/${x.clave}` : undefined,
         })),
         como_leerlo:
           "El costo mensual es el monto entre el plazo. Sólo servicios continuos (cinco meses o más), con objeto casi igual y cuando el " +
