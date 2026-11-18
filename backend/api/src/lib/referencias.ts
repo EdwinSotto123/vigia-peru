@@ -160,7 +160,7 @@ export async function referenciasDe(filas: Record<string, any>[]): Promise<Refer
     otros.length
       ? pool.query(
         `SELECT k.ruc, COALESCE(r.nombre, e.razon_social) AS nombre
-           FROM unnest($1::text[]) AS k(ruc) LEFT JOIN empresa_resumen r ON r.ruc = k.ruc LEFT JOIN empresas e ON e.ruc = k.ruc`, [otros])
+           FROM unnest($1::text[]) AS k(ruc) LEFT JOIN empresa_resumen r ON r.ruc = k.ruc LEFT JOIN empresas e ON e.ruc = k.ruc::bpchar`, [otros])
         .then((r) => r.rows).catch(() => [] as Record<string, any>[])
       : [],
   ]);

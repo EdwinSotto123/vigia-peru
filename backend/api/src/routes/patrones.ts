@@ -321,7 +321,7 @@ patronesRouter.get("/inhabilitadas", async (c) => {
               ${sqlClaveInhabilitada("$1", "x.ruc", "x.sancionada_ruc")} AS clave,
               to_char(x.desde, 'YYYY-MM-DD') AS desde, to_char(x.hasta, 'YYYY-MM-DD') AS hasta, x.hecha AS "hechaParaSeguir", x.fundada, x.ejemplos,
               x.ents
-         FROM x LEFT JOIN empresas e ON e.ruc = x.ruc
+         FROM x LEFT JOIN empresas e ON e.ruc = x.ruc::bpchar
         ORDER BY x.graves DESC, x.contratos DESC, x.monto DESC NULLS LAST, x.ruc`, [salDeClaves()]);
     const r = q.ruc;
     const pg = pagina(todas.filter((x) => (!r || x.ruc === r || x.sancionadaRuc === r || (x.ents ?? []).includes(r)) && (!q.graves || x.graves > 0)), q);
@@ -378,7 +378,7 @@ patronesRouter.get("/control", async (c) => {
               x.informe_entidad AS "informeEntidad", x.informe_entidad_ruc AS "informeEntidadRuc", x.emision, x.responsabilidades, x.ficha,
               x.informes, x.contratos, x.graves, x.monto, x.entidades, x.misma AS "mismaEntidad", x.clave,
               to_char(x.desde, 'YYYY-MM-DD') AS desde, to_char(x.hasta, 'YYYY-MM-DD') AS hasta, x.ejemplos, x.ents
-         FROM x LEFT JOIN empresas e ON e.ruc = x.ruc
+         FROM x LEFT JOIN empresas e ON e.ruc = x.ruc::bpchar
         ORDER BY x.misma DESC, x.graves DESC, x.contratos DESC, x.monto DESC NULLS LAST, x.ruc`, [salDeClaves()]);
     const r = q.ruc;
     const pg = pagina(todas.filter((x) =>
@@ -449,7 +449,7 @@ patronesRouter.get("/observados", async (c) => {
               COALESCE(d.despues, 0) AS despues, d.monto_despues AS "montoDespues", to_char(d.ultima, 'YYYY-MM-DD') AS "ultimaDespues"
          FROM x
          LEFT JOIN o ON o.ruc = x.ruc AND o.entidad_ruc = x.entidad_ruc
-         LEFT JOIN empresas e ON e.ruc = x.ruc
+         LEFT JOIN empresas e ON e.ruc = x.ruc::bpchar
          LEFT JOIN entidades en ON btrim(en.ruc::text) = x.entidad_ruc
          LEFT JOIN LATERAL (
            SELECT count(DISTINCT a.codigo_convocatoria)::int AS despues, sum(a.monto_adjudicado)::float AS monto_despues, max(a.fecha_buenapro) AS ultima

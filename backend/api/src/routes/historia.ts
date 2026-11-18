@@ -704,7 +704,7 @@ async function historiaEmpresa(ruc: string): Promise<(Historia & { registro: unk
             COALESCE(r.estado_sunat, e.estado_sunat) AS estado
        FROM (SELECT $1::text AS ruc) k
        LEFT JOIN empresa_resumen r ON r.ruc = k.ruc
-       LEFT JOIN empresas e ON e.ruc = k.ruc
+       LEFT JOIN empresas e ON e.ruc = k.ruc::bpchar
       WHERE r.ruc IS NOT NULL OR e.ruc IS NOT NULL`, [ruc]);
   if (!emp) return null;
   // Su gente (las personas de su conformación jurídica en el RNP) entra en las consultas de aportes, candidaturas,

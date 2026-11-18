@@ -267,7 +267,7 @@ poderRouter.get("/partido/:partido/grafo", async (c) => {
          FROM convocatorias c
          JOIN ents ON ents.entidad_ruc = c.entidad_ruc
          JOIN cruces_proveedor cp ON cp.ocid = c.ocid
-         LEFT JOIN empresas e ON e.ruc = cp.ruc_empresa
+         LEFT JOIN empresas e ON e.ruc = cp.ruc_empresa::bpchar
         WHERE cp.tipo IN ('partido_gobernante', 'vendio_gobernante', 'socio_en_entidad')
           AND cp.ruc_empresa ~ '^20[0-9]{9}$'
         GROUP BY cp.ruc_empresa
@@ -297,7 +297,7 @@ poderRouter.get("/entidad/:ruc/grafo", async (c) => {
        -- cuentan lo mismo. Todas las empresas (antes cortaba en 18): la tabla de la ficha tiene buscador.
        JOIN convocatorias c ON c.ocid = cp.ocid AND c.entidad_ruc = $1
         AND c.fecha_convocatoria >= COALESCE($2::date, '-infinity') AND c.fecha_convocatoria <= COALESCE($3::date, 'infinity')
-       LEFT JOIN empresas e ON e.ruc = cp.ruc_empresa
+       LEFT JOIN empresas e ON e.ruc = cp.ruc_empresa::bpchar
       WHERE cp.tipo IN ('partido_gobernante', 'vendio_gobernante', 'socio_en_entidad')
         AND cp.ruc_empresa ~ '^20[0-9]{9}$'
       GROUP BY cp.ruc_empresa

@@ -43,7 +43,7 @@ cadenaRouter.get("/entidad/:ruc", async (c) => {
               COALESCE(sum(cp.monto), 0)::float AS monto
          FROM cruces_proveedor cp
          JOIN convocatorias c ON c.ocid = cp.ocid AND c.entidad_ruc = $1
-         LEFT JOIN empresas e ON e.ruc = cp.ruc_empresa
+         LEFT JOIN empresas e ON e.ruc = cp.ruc_empresa::bpchar
         WHERE cp.tipo IN ('partido_gobernante', 'vendio_gobernante', 'socio_en_entidad')
           AND cp.ruc_empresa ~ '^20[0-9]{9}$'
         GROUP BY cp.ruc_empresa
