@@ -588,22 +588,30 @@ patronesRouter.get("/grupos", async (c) => {
       const r = await pool.query<{ ruc: string }>(`SELECT ruc FROM persona_codigo WHERE codigo = $1`, [q.persona]);
       ruc = r.rows[0]?.ruc ?? "sin-persona";
     }
+    // Sólo las condiciones que vienen: con parámetros opcionales genéricos ($1 IS NULL OR …) había un solo plan, que recorría
+    // los 80 mil grupos con un EXISTS por fila aunque se pidiera una empresa (30-40 ms en cada ficha de empresa; un
+    // rastreador las recorre). Los grupos de una empresa salen del índice grupo_proveedor_ruc: 0,1 ms (2026-11-18).
+    const vals: unknown[] = [salDeClaves()];
+    const add = (v: unknown) => `$${vals.push(v)}`;
+    const conds = ["TRUE"];
+    const gruposDe = (p: string) => `(r.entidad_ruc, r.grupo) IN (SELECT g.entidad_ruc, g.grupo FROM grupo_proveedor g WHERE g.ruc = ${p})`;
+    if (q.entidad) conds.push(`r.entidad_ruc = ${add(q.entidad)}`);
+    if (q.severidad) conds.push(`r.severidad = ${add(q.severidad)}`);
+    if (q.clave) conds.push(`${sqlClaveGrupo("$1")} = ${add(q.clave)}`);
+    if (ruc) conds.push(gruposDe(add(ruc)));
+    if (q.buscar) { const p = add(q.buscar); conds.push(`(r.entidad_ruc = ${p} OR ${gruposDe(p)})`); }
     const r = await pool.query(
       `SELECT r.entidad_ruc AS "entidadRuc", (SELECT es.nombre FROM entidad_stats es WHERE es.ruc = r.entidad_ruc) AS entidad, r.grupo,
               r.miembros, r.empresas, r.personas, r.ordenes, r.monto::float AS monto, to_char(r.desde, 'YYYY-MM-DD') AS desde,
               to_char(r.hasta, 'YYYY-MM-DD') AS hasta, r.hasta_8uit AS "hasta8Uit", r.borde, r.monto_borde::float AS "montoBorde",
               r.sobre_tope AS "sobreTope", r.dias_juntos AS "diasJuntos", r.monto_juntos::float AS "montoJuntos", r.correlativas,
               r.repartidos, r.monto_repartido::float AS "montoRepartido", r.puesto_grupo AS "puestoGrupo", r.puesto_mayor AS "puestoMayor", r.parte_entidad::float AS "parteEntidad",
-              r.severidad, r.detalle, ${sqlClaveGrupo("$8")} AS clave, (count(*) OVER ())::int AS total
+              r.severidad, r.detalle, ${sqlClaveGrupo("$1")} AS clave, (count(*) OVER ())::int AS total
          FROM grupo_proveedor_resumen r
-        WHERE ($1::text IS NULL OR r.entidad_ruc = $1) AND ($3::text IS NULL OR r.severidad = $3)
-          AND ($7::text IS NULL OR ${sqlClaveGrupo("$8")} = $7)
-          AND ($2::text IS NULL OR EXISTS (SELECT 1 FROM grupo_proveedor g WHERE g.entidad_ruc = r.entidad_ruc AND g.grupo = r.grupo AND g.ruc = $2))
-          AND ($6::text IS NULL OR r.entidad_ruc = $6
-               OR EXISTS (SELECT 1 FROM grupo_proveedor g WHERE g.entidad_ruc = r.entidad_ruc AND g.grupo = r.grupo AND g.ruc = $6))
+        WHERE ${conds.join(" AND ")}
         ORDER BY CASE r.severidad WHEN 'alta' THEN 0 WHEN 'media' THEN 1 ELSE 2 END, r.monto DESC
-        LIMIT $4 OFFSET $5`,
-      [q.entidad ?? null, ruc, q.severidad ?? null, q.size, (q.page - 1) * q.size, q.buscar ?? null, q.clave ?? null, salDeClaves()],
+        LIMIT ${add(q.size)} OFFSET ${add((q.page - 1) * q.size)}`,
+      vals,
     ).catch(() => ({ rows: [] as Record<string, unknown>[] }));
     const grupos = r.rows as Record<string, any>[];
     // Por qué están juntos: los vínculos entre sus miembros, con la persona que los une (un apellido tapado).
