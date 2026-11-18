@@ -53,6 +53,10 @@ const COMO_USAR = `# Cómo usar el MCP de Vigía
 2. Un contrato: ficha_contrato (datos, postores, documentos del SEACE), dictamen (puntaje y señales con evidencia) e
    informe_control_contrato (sus señales como observaciones en formato de informe de control: condición, criterio de la
    ley de esa fecha, efecto, causa, evidencia y precedentes de informes reales de la Contraloría).
+   En ficha_contrato, `postores_detalle` dice de cada oferta si fue admitida y calificada y a qué hora se presentó (de los
+   reportes del SEACE); `ofertas` es cuántos ofertaron y `participantes_registrados` cuántos sólo se inscribieron. Si todos
+   menos el ganador quedaron fuera en la admisión, mira los motivos en el acta (documentos) y las consultas: es la señal
+   «Todos los demás postores quedaron fuera», un indicio, no una falta.
 3. Una empresa: ficha_empresa (SUNAT, cifras, antecedentes) y red_empresa (socios, empresas vinculadas, clientes).
 4. Una entidad: ficha_entidad (resumen), gasto_entidad (en qué gasta), proveedores_de_entidad (concentración), ordenes, obras_entidad,
    informes_control (Contraloría: cada informe con su objetivo, sus observaciones y los funcionarios comprendidos, con

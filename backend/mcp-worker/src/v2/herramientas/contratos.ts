@@ -215,7 +215,9 @@ export const fichaContrato = definir({
       monto_soles: c.montoPen || null,
       fecha_convocatoria: c.fecha,
       fecha_buena_pro: c.fechaBuenaPro ?? undefined,
-      postores: c.postores ?? undefined,
+      // `postores` del OCDS son los que se REGISTRARON como participantes (29 en 1224107), no los que ofertaron (6): con
+      // ese nombre se leía como competencia.
+      participantes_registrados: c.postores ?? undefined,
       ofertas: c.ofertas ?? undefined,
       items: (c.items ?? []).slice(0, 15).map((i: Fila) => tomar(i, ["descripcion", "cantidad", "unidad", "montoPen", "estado"])),
       // Con la admisión, la calificación y la hora de cada oferta (los reportes del SEACE, aunque nadie haya leído el acta con
