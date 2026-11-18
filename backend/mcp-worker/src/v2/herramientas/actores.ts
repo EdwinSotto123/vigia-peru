@@ -1086,6 +1086,7 @@ export const patrones = definir({
         entidades: x.entidades ?? undefined, parte: x.tasa, parte_en_el_pais: x.tasaPais, veces_la_del_pais: x.veces,
         monto_soles: x.monto ?? undefined, ejemplos_ocid: x.ejemplos,
         enlace: a.alcance === "entidad" ? e.entidad(x.ruc) : e.empresa(x.ruc),
+        ficha_del_caso: x.clave ? `${cx.env.VIGIA_URL}/app/patrones/caso/senales/${x.clave}` : undefined,
       })),
       como_leerlo:
         "«parte» es la fracción de los contratos LEÍDOS (no de todos los publicados) que tienen la señal. Vigía lee primero lo " +

@@ -124,8 +124,9 @@ const GUARDADO = "X-Vigia-Guardado";
  * "130": la persona que une a un grupo y la gente de un caso se tapan por pesos (con taparNombrePropio, un nombre
  *        escrito con los nombres primero dejaba los dos apellidos a la vista).
  * "131": las listas de consorcios que compiten y de contratos observados traen la clave de su ficha de caso.
+ * "132": y la de señales de los agentes que se repiten (por entidad y por proveedor).
  */
-const VERSION_CACHE = "131";
+const VERSION_CACHE = "132";
 
 function cacheable(req: Request): boolean {
   if (req.method !== "GET") return false;

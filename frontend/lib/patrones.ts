@@ -38,6 +38,8 @@ export type AlcancePatron = "entidad" | "proveedor";
 
 /** Una señal de proceso que se repite en una entidad o en una empresa. */
 export interface PatronSenal {
+  /** La clave opaca de su ficha de caso. */
+  clave?: string;
   ruc: string;
   nombre: string | null;
   regla: string;

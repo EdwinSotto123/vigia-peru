@@ -16,6 +16,7 @@ import { pool } from "./db.js";
 import { CONOSCE_BUSCADOR, CONSULTA_RUC_SUNAT, DATASET_DJI, DATASET_SOCIOS_RNP } from "./fuentes.js";
 import { nombrePublicable } from "./cruces.js";
 import { salDeClaves, taparNombreSuelto } from "./privacidad.js";
+import { etiquetaRegla, reglasJson } from "./reglas.js";
 
 export type Severidad = "alta" | "media" | "baja";
 
@@ -1934,5 +1935,129 @@ export async function casoObservado(clave: string, pedir: Pedir): Promise<CasoPa
       { texto: "Todos los casos del país", href: "/app/patrones?seccion=observados" },
     ],
     como_leerlo: "Contratos de una empresa que la Contraloría observó en una entidad, y lo que esa entidad le adjudicó después del informe. Una observación es una responsabilidad presunta, no una condena. Un patrón es un motivo para mirar, no una acusación.",
+  };
+}
+
+// ─── La misma señal de los agentes, repetida en una entidad o en un proveedor (migración 276) ──
+
+export const sqlClaveSenal = (sal: string) => `left(md5(${sal} || alcance || '|' || ruc || '|' || regla), 16)`;
+
+/** El nombre y la descripción de una regla de los agentes, del mismo catálogo que muestra la web. */
+function reglaLegible(id: string): { etiqueta: string; descripcion: string | null } {
+  const rj = reglasJson as { perfiles: Record<string, { reglas?: { id: string; descripcion?: string }[] }>; otras_senales?: Record<string, { descripcion?: string }> };
+  let descripcion: string | null = rj.otras_senales?.[id]?.descripcion ?? null;
+  for (const p of Object.values(rj.perfiles)) {
+    const r = (p.reglas ?? []).find((x) => x.id === id);
+    if (r?.descripcion) { descripcion = r.descripcion; break; }
+  }
+  return { etiqueta: etiquetaRegla(id), descripcion };
+}
+
+export async function casoSenal(clave: string, pedir: Pedir): Promise<CasoPatron | null> {
+  const k = await pool.query<{ alcance: string; ruc: string; regla: string }>(
+    `SELECT alcance, ruc, regla FROM patron_agentes WHERE ${sqlClaveSenal("$2")} = $1 LIMIT 1`, [clave, salDeClaves()]);
+  const id = k.rows[0];
+  if (!id) return null;
+  const lista = await pedir(`/?alcance=${id.alcance}&ruc=${id.ruc}&clave=${clave}&size=1`);
+  const f = (lista?.data ?? [])[0] as Record<string, any> | undefined;
+  if (!f) return null;
+  const porEntidad = id.alcance === "entidad";
+  const contratos = await pool.query<{ ocid: string; score: number | null; codigo: string | null; objeto: string | null; entidad_ruc: string | null; entidad: string | null; proveedor_ruc: string | null; proveedor: string | null; monto: number | null; fecha: string | null; severidad: string | null; evidencia: string | null }>(
+    `SELECT DISTINCT ON (a.id) ocid_corto(a.ocid) AS ocid, a.score::float AS score, a.codigo_convocatoria AS codigo, left(a.objeto, 220) AS objeto,
+            a.entidad_ruc, (SELECT es.nombre FROM entidad_stats es WHERE es.ruc = a.entidad_ruc) AS entidad,
+            a.proveedor_ruc, (SELECT er.nombre FROM empresa_resumen er WHERE er.ruc = a.proveedor_ruc) AS proveedor,
+            a.monto_adjudicado::float AS monto, to_char(a.fecha_buena_pro, 'YYYY-MM-DD') AS fecha, b.severidad, left(b.evidencia, 320) AS evidencia
+       FROM alertas a JOIN banderas b ON b.alerta_id = a.id AND COALESCE(b.puntua, true) AND b.regla = $2
+      WHERE alerta_publicada(a.estado) AND a.ocid NOT LIKE 'ocds-vigia-%'
+        AND ${porEntidad ? "a.entidad_ruc = $1" : "a.proveedor_ruc = $1"}
+      ORDER BY a.id, CASE b.severidad WHEN 'alta' THEN 0 WHEN 'media' THEN 1 ELSE 2 END LIMIT 400`, [id.ruc, id.regla]);
+  const cs = [...contratos.rows].sort((a, b) => (b.fecha ?? "").localeCompare(a.fecha ?? ""));
+  const regla = reglaLegible(id.regla);
+  const sujeto = titulo(f.nombre ?? (porEntidad ? "La entidad" : "El proveedor"));
+  // La contraparte de cada contrato: los proveedores de la entidad o las entidades del proveedor (las seis de más peso).
+  const contraparte = new Map<string, { nombre: string; n: number; monto: number }>();
+  for (const c of cs) {
+    const r = porEntidad ? c.proveedor_ruc : c.entidad_ruc;
+    if (!r || !/^20\d{9}$/.test(r)) continue;
+    const x = contraparte.get(r) ?? { nombre: titulo((porEntidad ? c.proveedor : c.entidad) ?? (porEntidad ? "Proveedor" : "Entidad")), n: 0, monto: 0 };
+    x.n += 1;
+    x.monto += c.monto ?? 0;
+    contraparte.set(r, x);
+  }
+  const top = [...contraparte.entries()].sort((a, b) => b[1].n - a[1].n || b[1].monto - a[1].monto).slice(0, 8);
+  const nodos: NodoCaso[] = [
+    porEntidad
+      ? { id: "s", tipo: "entidad", nombre: sujeto, rol: `La señal está en ${plural(f.casos, "contrato", "contratos")} de sus ${miles(f.leidos)} leídos`, href: `/entidad/${id.ruc}?seccion=patrones`, monto: f.monto, ordenes: f.casos }
+      : { id: "s", tipo: "empresa", nombre: sujeto, rol: `La señal está en ${plural(f.casos, "contrato", "contratos")} que ganó, en ${plural(f.entidades ?? 0, "entidad", "entidades")}`, href: `/empresa/${id.ruc}?seccion=antecedentes&atipo=patron-proveedores`, monto: f.monto, ordenes: f.casos, severidad: "media" },
+  ];
+  const aristas: AristaCaso[] = [];
+  top.forEach(([ruc, x], i) => {
+    nodos.push(porEntidad
+      ? { id: `c${i + 1}`, tipo: "empresa", nombre: x.nombre, rol: `Ganó ${plural(x.n, "contrato", "contratos")} con la señal`, href: `/empresa/${ruc}?seccion=antecedentes`, monto: x.monto, ordenes: x.n, severidad: x.n >= 3 ? "media" : null }
+      : { id: `c${i + 1}`, tipo: "entidad", nombre: x.nombre, rol: `Le adjudicó ${plural(x.n, "contrato", "contratos")} con la señal`, href: `/entidad/${ruc}?seccion=patrones`, monto: x.monto, ordenes: x.n });
+    aristas.push(porEntidad ? { de: `c${i + 1}`, a: "s", tipo: "vende", texto: `${plural(x.n, "contrato", "contratos")} con la señal` } : { de: "s", a: `c${i + 1}`, tipo: "vende", texto: `${plural(x.n, "contrato", "contratos")} con la señal` });
+  });
+
+  const hitos: HitoCaso[] = [];
+  for (const c of cs.slice(0, 60)) {
+    if (!c.fecha) continue;
+    const otro = porEntidad ? (c.proveedor_ruc && /^20\d{9}$/.test(c.proveedor_ruc) ? titulo(c.proveedor ?? "un proveedor") : "una persona natural") : titulo(c.entidad ?? "una entidad");
+    hitos.push({
+      fecha: c.fecha, tipo: "dia", severidad: c.severidad === "alta" ? "alta" : c.severidad === "media" ? "media" : null, monto: c.monto,
+      titulo: porEntidad ? `Buena pro a ${otro}, con «${regla.etiqueta.toLowerCase()}»` : `Gana en ${otro}, con «${regla.etiqueta.toLowerCase()}»`,
+      detalle: c.evidencia ? c.evidencia : c.objeto ? `«${limpiarObjeto(c.objeto)!.slice(0, 140)}»` : null,
+      nodos: ["s"], fuente: "Análisis de Vigía sobre el expediente del SEACE", href: rutaContrato(c.ocid),
+    });
+  }
+  hitos.sort((a, b) => a.fecha.localeCompare(b.fecha) || a.tipo.localeCompare(b.tipo));
+  const anios = [...new Set(cs.filter((c) => c.fecha).map((c) => Number(c.fecha!.slice(0, 4))))].sort();
+
+  const razones: RazonCaso[] = ([
+    { titulo: `Qué es «${regla.etiqueta}»`, cifra: plural(f.casos, "caso", "casos"), texto: regla.descripcion ?? "Una señal que los agentes de Vigía encuentran al leer el expediente de cada contrato.", severidad: "media" },
+    porEntidad
+      ? { titulo: "Más que en el resto del país", cifra: `${Number(f.veces).toLocaleString("es-PE", { maximumFractionDigits: 1 })} veces`, texto: `Aparece en el ${Math.round(Number(f.tasa) * 100)} % de sus contratos leídos; en el país, en el ${Math.round(Number(f.tasaPais) * 100)} %.`, severidad: Number(f.veces) >= 3 ? "alta" : "media" }
+      : { titulo: "En varias entidades", cifra: plural(f.entidades ?? 0, "entidad", "entidades"), texto: `La misma señal de proceso en ${plural(f.casos, "contrato", "contratos")} de sus ${miles(f.leidos)} leídos: no es cosa de una sola entidad.`, severidad: (f.entidades ?? 0) >= 3 ? "alta" : "media" },
+    { titulo: "Lo que suman esos contratos", cifra: soles(f.monto), texto: "El monto adjudicado de los contratos con la señal.", severidad: null },
+  ] as (RazonCaso | null)[]).filter((x): x is RazonCaso => !!x);
+
+  const filas: FilaEvidencia[] = cs.map((c, i) => ({
+    id: `c${i}`, fecha: c.fecha, documento: c.codigo ?? c.ocid,
+    quien: porEntidad ? (c.proveedor_ruc && /^20\d{9}$/.test(c.proveedor_ruc) ? titulo(c.proveedor ?? "Proveedor") : "Persona natural") : titulo(c.entidad ?? "Entidad"),
+    que: limpiarObjeto(c.objeto), monto: c.monto, estado: c.severidad ? `Señal ${c.severidad}` : null,
+    marcas: c.evidencia ? [c.evidencia.slice(0, 90)] : [], href: rutaContrato(c.ocid),
+  }));
+  return {
+    tipo: "senales", clave, patron: porEntidad ? "Una señal que se repite en una entidad" : "Una señal que se repite en un proveedor",
+    titulo: porEntidad ? `«${regla.etiqueta}» se repite en ${sujeto}` : `«${regla.etiqueta}» se repite en los contratos de ${sujeto}`,
+    severidad: (porEntidad ? Number(f.veces) >= 3 : (f.entidades ?? 0) >= 3) ? "alta" : "media",
+    frase: porEntidad
+      ? `Los agentes de Vigía encontraron «${regla.etiqueta.toLowerCase()}» en ${plural(f.casos, "contrato", "contratos")} de ${sujeto}: el ${Math.round(Number(f.tasa) * 100)} % de los que leyeron, ${Number(f.veces).toLocaleString("es-PE", { maximumFractionDigits: 1 })} veces lo que se ve en el resto del país.`
+      : `Los agentes de Vigía encontraron «${regla.etiqueta.toLowerCase()}» en ${plural(f.casos, "contrato", "contratos")} que ganó ${sujeto}, en ${plural(f.entidades ?? 0, "entidad", "entidades")} distintas, por ${soles(f.monto)}.`,
+    entidad: porEntidad ? { ruc: id.ruc, nombre: f.nombre ?? null } : null,
+    desde: cs[cs.length - 1]?.fecha ?? null, hasta: cs[0]?.fecha ?? null,
+    cifras: [
+      { etiqueta: "Contratos con la señal", valor: miles(f.casos), contexto: `de ${miles(f.leidos)} leídos` },
+      porEntidad ? { etiqueta: "Frente al país", valor: `${Number(f.veces).toLocaleString("es-PE", { maximumFractionDigits: 1 })} veces`, contexto: `${Math.round(Number(f.tasa) * 100)} % aquí, ${Math.round(Number(f.tasaPais) * 100)} % en el país` } : { etiqueta: "Entidades", valor: miles(f.entidades ?? 0), contexto: null },
+      { etiqueta: "Suman", valor: soles(f.monto), contexto: null },
+      { etiqueta: porEntidad ? "Proveedores distintos" : "Años", valor: porEntidad ? miles(contraparte.size) : anios.length ? `${anios[0]} a ${anios[anios.length - 1]}` : "Sin fecha", contexto: null },
+    ],
+    serie: null, nodos, aristas, hitos, razones,
+    evidencia: { titulo: "Los contratos en que aparece la señal", unidad: "contratos", total: cs.length, filas, nota: "Cada contrato abre su ficha, con la evidencia de la señal y el documento de donde sale.", masHref: null },
+    revisar: [
+      "Abre los contratos de mayor monto: la ficha de cada uno trae la evidencia de la señal y la cita del documento.",
+      porEntidad ? "Mira si la señal se concentra en una oficina, un tipo de compra o unos pocos proveedores." : "Mira si la señal se repite con las mismas entidades o con los mismos funcionarios.",
+      "Una señal de los agentes es un indicio para revisar el expediente, no una conclusión.",
+    ],
+    fuentes: [
+      { texto: "Expedientes de cada proceso (SEACE, OECE)", href: CONOSCE_BUSCADOR },
+      { texto: "Cómo leen los agentes de Vigía", href: "https://vigia.gobserva.cloud/metodologia" },
+    ],
+    relacionados: [
+      porEntidad ? { texto: `Antecedentes y patrones de ${sujeto}`, href: `/entidad/${id.ruc}?seccion=patrones` } : { texto: `Ficha de ${sujeto}`, href: `/empresa/${id.ruc}` },
+      { texto: "Todas las señales que se repiten", href: `/app/patrones?seccion=${porEntidad ? "entidades" : "proveedores"}` },
+    ],
+    como_leerlo: porEntidad
+      ? "Una señal de los agentes que aparece en una parte de los contratos leídos de la entidad que es al menos el doble de la del país (y el 40 % o más). Un patrón es un motivo para mirar, no una acusación."
+      : "La misma señal de proceso en 3 o más contratos y 2 o más entidades del mismo proveedor. Un patrón es un motivo para mirar, no una acusación.",
   };
 }

@@ -42,7 +42,7 @@ import { esCargoDeEleccion } from "../lib/electos.js";
 import { papelesRnp } from "../lib/familiaFuncionario.js";
 import { ETIQUETA_CRUCE, catalogoSenales, nombrePublicable } from "../lib/cruces.js";
 import { depurarReferencias } from "../lib/laboratorioPrecios.js";
-import { agruparSocios, casoAutoridad, casoComprasFamilia, casoConsorcio, casoControl, casoObservado, sqlClaveConsorcio, sqlClaveControl, sqlClaveObservado, casoDueno, casoGrupo, casoInhabilitada, casoRenovacion, sqlClaveAutoridad, sqlClaveRenovacion, casoRecien, casoRelleno, casoRepetida, salDeClaves, sqlClaveInhabilitada, sqlClaveDueno, sqlClaveGrupo, sqlClaveRecien, sqlClaveRelleno, sqlClaveRepetida, type CasoPatron, type Pedir } from "../lib/casoPatron.js";
+import { agruparSocios, casoAutoridad, casoComprasFamilia, casoConsorcio, casoControl, casoObservado, casoSenal, sqlClaveSenal, sqlClaveConsorcio, sqlClaveControl, sqlClaveObservado, casoDueno, casoGrupo, casoInhabilitada, casoRenovacion, sqlClaveAutoridad, sqlClaveRenovacion, casoRecien, casoRelleno, casoRepetida, salDeClaves, sqlClaveInhabilitada, sqlClaveDueno, sqlClaveGrupo, sqlClaveRecien, sqlClaveRelleno, sqlClaveRepetida, type CasoPatron, type Pedir } from "../lib/casoPatron.js";
 
 export const patronesRouter = new Hono();
 
@@ -53,6 +53,8 @@ const Lista = z.object({
   alcance: z.enum(["entidad", "proveedor"]).default("entidad"),
   ruc: z.string().regex(/^20\d{9}$/).optional(),
   regla: z.string().trim().regex(/^[a-z_0-9]{3,60}$/).optional(),
+  /** La clave opaca de un caso (su ficha de caso). */
+  clave: z.string().regex(/^[0-9a-f]{16}$/).optional(),
   page: z.coerce.number().int().min(1).max(200).default(1),
   size: z.coerce.number().int().min(1).max(50).default(20),
 });
@@ -67,14 +69,18 @@ patronesRouter.get("/", async (c) => {
     const conds = ["alcance = $1"];
     if (q.ruc) conds.push(`ruc = ${add(q.ruc)}`);
     if (q.regla) conds.push(`regla = ${add(q.regla)}`);
+    if (q.clave) conds.push(`${sqlClaveSenal(add(salDeClaves()))} = ${add(q.clave)}`);
     const donde = conds.join(" AND ");
+    // Los parámetros de las condiciones (el conteo usa sólo éstos: la sal de la columna `clave` y el paginado van después).
+    const n = vals.length;
     const [filas, total, reglas] = await Promise.all([
       pool.query(
         `SELECT ruc, nombre, regla, casos, leidos, entidades, tasa::float AS tasa, tasa_pais::float AS "tasaPais", veces::float AS veces,
+                ${sqlClaveSenal(add(salDeClaves()))} AS clave,
                 monto::float AS monto, ejemplos, to_char(refrescado_at, 'YYYY-MM-DD') AS "calculadoEl"
            FROM patron_agentes WHERE ${donde}
           ORDER BY veces DESC, casos DESC, ruc LIMIT ${add(q.size)} OFFSET ${add((q.page - 1) * q.size)}`, vals),
-      pool.query<{ n: number }>(`SELECT count(*)::int AS n FROM patron_agentes WHERE ${donde}`, vals.slice(0, vals.length - 2)),
+      pool.query<{ n: number }>(`SELECT count(*)::int AS n FROM patron_agentes WHERE ${donde}`, vals.slice(0, n)),
       pool.query(`SELECT regla, count(*)::int AS n FROM patron_agentes WHERE alcance = $1 GROUP BY 1 ORDER BY 2 DESC`, [q.alcance]),
     ]);
     return publicar({ total: total.rows[0]?.n ?? 0, page: q.page, size: q.size, porRegla: reglas.rows, data: filas.rows });
@@ -1190,6 +1196,7 @@ const CASOS: Record<string, (clave: string, pedir: Pedir) => Promise<CasoPatron 
   control: casoControl,
   consorcios: casoConsorcio,
   observados: casoObservado,
+  senales: casoSenal,
   renovaciones: casoRenovacion,
   repetidas: casoRepetida,
   recien: casoRecien,

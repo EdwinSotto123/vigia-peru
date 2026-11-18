@@ -198,8 +198,8 @@ export function detalleSenal(p: PatronSenal, alcance: AlcancePatron, senal: stri
     pie: (
       <Pie
         enlaces={[
+          !!p.clave && { texto: "Abrir la ficha del caso", href: rutaCaso("senales", p.clave) },
           alcance === "entidad" && esRuc20(p.ruc) && { texto: "Ficha de la entidad", href: `/entidad/${p.ruc}` },
-          alcance === "entidad" && esRuc20(p.ruc) && { texto: "Sus contratos", href: `/entidad/${p.ruc}?seccion=contratos` },
           alcance === "proveedor" && esRuc20(p.ruc) && { texto: "Ficha de la empresa", href: `/empresa/${p.ruc}` },
         ]}
       />
