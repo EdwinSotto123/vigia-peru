@@ -119,7 +119,7 @@ export interface HiloHistoria {
 /** Un patrón de sus series: un pico fuera de lo normal, el gasto al cierre del año o lo de antes de una elección. */
 export interface PatronHistoria {
   id: string;
-  tipo: "pico" | "fin_de_anio" | "antes_eleccion";
+  tipo: "pico" | "fin_de_anio" | "antes_eleccion" | "cierre_gestion";
   severidad: SeveridadHistoria;
   titulo: string;
   explica: string;

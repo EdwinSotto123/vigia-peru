@@ -171,6 +171,33 @@ test("patrones: un pico con su contexto, el cierre del año y antes de una elecc
   assert.match(antes!.titulo, /el triple que un año antes, en los seis meses previos a las elecciones regionales y municipales 2022/);
 });
 
+test("patrones: el cierre de una gestión y la gestión saliente, contra los dos años anteriores", () => {
+  // Órdenes: 50 por mes. Tras las ERM 2022 (2 de octubre) y hasta que asume la gestión nueva (1 de enero de 2023), 150 por
+  // mes: el triple. Tras las ERM 2026 (4 de octubre), con la gestión todavía en el cargo, 200 en octubre.
+  const altos = Object.fromEntries(["2022-10", "2022-11", "2022-12"].map((m) => [m, 150]));
+  const ordenes: SerieHistoria = {
+    carril: "ordenes", titulo: "Órdenes de compra y de servicio", medida: "n", unidad: "órdenes", huecos: "cero",
+    puntos: serie("2019-01", "2026-10", 50, { ...altos, "2026-10": 200 }), fuente: "CONOSCE (OECE)",
+  };
+  const marcas = [
+    { fecha: "2022-10-02", tipo: "eleccion" as const, texto: "Elecciones regionales y municipales 2022" },
+    { fecha: "2023-01-01", tipo: "gobierno" as const, texto: "Asumió la gestión de Somos Perú" },
+    { fecha: "2026-10-04", tipo: "eleccion" as const, texto: "Elecciones regionales y municipales 2026" },
+  ];
+  const ps = patronesDeSeries([ordenes], marcas, 20).filter((p) => p.tipo === "cierre_gestion");
+  const cierre = ps.find((p) => p.id === "cierre_gestion:ordenes:2022-12");
+  assert.ok(cierre, "el cierre de la gestión 2019-2022");
+  assert.equal(cierre!.severidad, "alta");
+  assert.equal(cierre!.mes, "2022-10");
+  assert.match(cierre!.explica, /antes de que asumiera la gestión de Somos Perú/);
+  const saliente = ps.find((p) => p.id === "cierre_gestion:ordenes:2026-10");
+  assert.ok(saliente, "la gestión saliente de 2026");
+  assert.match(saliente!.titulo, /en la gestión saliente: cuatro veces lo de un año antes desde las elecciones regionales y municipales 2026/);
+  // Un año raro de base (la mitad) no infla: se compara contra el mayor de los dos años anteriores.
+  const raro: SerieHistoria = { ...ordenes, puntos: serie("2019-01", "2026-10", 50, { "2025-10": 25, "2026-10": 90 }) };
+  assert.equal(patronesDeSeries([raro], marcas, 20).filter((p) => p.tipo === "cierre_gestion" && p.id.endsWith("2026-10")).length, 0);
+});
+
 test("hilos: la empresa que visitó y ganó, con banderas, obra paralizada y sanción", () => {
   const rutas = { contrato: (o: string) => `/app/contratos/${o}`, empresa: (r: string, v?: string) => `/empresa/${r}${v ? `?vista=${v}` : ""}` };
   const hilos = armarHilos({

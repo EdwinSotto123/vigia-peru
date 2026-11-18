@@ -162,7 +162,7 @@ export interface HiloHistoria {
 /** Un patrón de sus series: un pico fuera de lo normal, el gasto al cierre del año o lo de antes de una elección. */
 export interface PatronHistoria {
   id: string;
-  tipo: "pico" | "fin_de_anio" | "antes_eleccion";
+  tipo: "pico" | "fin_de_anio" | "antes_eleccion" | "cierre_gestion";
   severidad: Severidad;
   titulo: string;
   explica: string;
@@ -690,6 +690,62 @@ export function patronesDeSeries(series: SerieHistoria[], marcas: MarcaHistoria[
           `De ${mesLargo(antes[5])} a ${mesLargo(fin)}: ${miles(a)} ${s.unidad}; en los mismos meses del año anterior, ${miles(b)}. ` +
           "Contratar más justo antes de una elección puede usarse para la campaña: es para revisar, no prueba nada.",
         peso: 15 + Math.min(r, 20),
+      });
+    }
+  }
+
+  // 4. El cierre de una gestión (2026-11-18): desde la elección hasta que entra la gestión siguiente (o, sin elección cerca,
+  //    los tres meses antes del cambio), y la gestión SALIENTE en curso (una elección cuyo cambio de gestión todavía no
+  //    llega: hasta el último mes con datos). Contra los mismos meses de los dos años anteriores, el MAYOR de los dos: un
+  //    año raro (la pandemia de 2020) no infla la comparación, y la misma época controla el gasto de diciembre. Una
+  //    gestión que se va puede apurar compras y contratos a sus proveedores: es la ventana que más se revisa.
+  for (const s of mensuales.filter((x) => x.carril === "personas" || x.carril === "ordenes")) {
+    const xs = valores.get(s.carril) ?? [];
+    if (!xs.length) continue;
+    const por = new Map(xs.map((x) => [x.mes, x.v]));
+    const ultimo = xs[xs.length - 1].mes;
+    // El primer mes que cuenta tras una fecha: el mismo si fue hasta el 15; si no, el siguiente.
+    const desdeFecha = (f: string) => (Number(f.slice(8, 10)) <= 15 ? f.slice(0, 7) : sumarMeses(f.slice(0, 7), 1));
+    const tramos: { inicio: string; fin: string; cambio: MarcaHistoria | null; eleccion: MarcaHistoria | null }[] = [];
+    for (const g of gobiernos) {
+      const mesCambio = desdeFecha(g.fecha);
+      const fin = sumarMeses(mesCambio, -1);
+      const eleccion = [...elecciones].filter((e) => e.fecha < g.fecha && mesesEntre(e.fecha.slice(0, 7), mesCambio) <= 6).sort((a, b) => b.fecha.localeCompare(a.fecha))[0] ?? null;
+      const inicio = eleccion ? desdeFecha(eleccion.fecha) : sumarMeses(mesCambio, -3);
+      if (inicio <= fin) tramos.push({ inicio, fin, cambio: g, eleccion });
+    }
+    // La gestión saliente: la última elección, si después de ella no asumió nadie todavía.
+    const ultEleccion = [...elecciones].filter((e) => e.fecha.slice(0, 7) <= ultimo).sort((a, b) => b.fecha.localeCompare(a.fecha))[0];
+    if (ultEleccion && !gobiernos.some((g) => g.fecha > ultEleccion.fecha) && mesesEntre(ultEleccion.fecha.slice(0, 7), ultimo) <= 6) {
+      const inicio = desdeFecha(ultEleccion.fecha);
+      if (inicio <= ultimo) tramos.push({ inicio, fin: ultimo, cambio: null, eleccion: ultEleccion });
+    }
+    for (const t of tramos) {
+      const meses: string[] = [];
+      for (let m = t.inicio; m <= t.fin && meses.length < 6; m = sumarMeses(m, 1)) meses.push(m);
+      if (!meses.length || meses.some((m) => !por.has(m) || !por.has(sumarMeses(m, -12)))) continue;
+      const a = meses.reduce((x, m) => x + (por.get(m) ?? 0), 0);
+      const b1 = meses.reduce((x, m) => x + (por.get(sumarMeses(m, -12)) ?? 0), 0);
+      const hay2 = meses.every((m) => por.has(sumarMeses(m, -24)));
+      const b2 = hay2 ? meses.reduce((x, m) => x + (por.get(sumarMeses(m, -24)) ?? 0), 0) : 0;
+      const b = Math.max(b1, b2);
+      const minimo = (MINIMO_PICO[s.carril] ?? 10) * meses.length;
+      if (b < 5 || a < 2 * b || a - b < minimo) continue;
+      const r = a / b;
+      const tramo = meses.length === 1 ? mesLargo(meses[0]) : `${mesLargo(meses[0])} a ${mesLargo(meses[meses.length - 1])}`;
+      const antes = `los mismos meses de ${Number(meses[0].slice(0, 4)) - 1}${hay2 ? ` y ${Number(meses[0].slice(0, 4)) - 2}` : ""}`;
+      const eleccionTexto = t.eleccion ? t.eleccion.texto.replace(/^Elecciones/, "elecciones") : null;
+      out.push({
+        id: `cierre_gestion:${s.carril}:${t.fin}`, tipo: "cierre_gestion", carril: s.carril, mes: meses[0], hasta: meses[meses.length - 1],
+        severidad: r >= 3 ? "alta" : "media",
+        titulo: t.cambio
+          ? `${capital(nombre(s))} al cierre de una gestión: ${veces(r, "que un año antes", "lo de un año antes")}`
+          : `${capital(nombre(s))} en la gestión saliente: ${veces(r, "que un año antes", "lo de un año antes")}${eleccionTexto ? ` desde las ${eleccionTexto}` : ""}`,
+        explica:
+          `De ${tramo}${t.eleccion ? `, después de las ${eleccionTexto}` : ""}${t.cambio ? ` y antes de que ${t.cambio.texto.replace(/^Asumió/, "asumiera")}` : " (la gestión sigue hasta que asuma la siguiente)"}: ` +
+          `${miles(a)} ${s.unidad}; en ${antes}, ${miles(b)}${hay2 ? " como mucho" : ""}. ` +
+          "Una gestión que se va puede apurar compras y contratos: es la ventana que más se revisa, pero un cambio así puede tener razones legítimas.",
+        peso: (t.cambio ? 14 : 18) + Math.min(r, 20),
       });
     }
   }

@@ -330,7 +330,8 @@ export const historia = definir({
     "La historia de una entidad, empresa, partido o contrato. Primero «lo_mas_grave»: todo lo que tiene gravedad, lo más grave " +
     "primero y una clase por vuelta (contratos con banderas y por qué, informes de control con su responsabilidad, obras " +
     "paralizadas, visitas de la gente de una empresa que terminaron en una compra, sanciones). Después las secuencias (una cosa " +
-    "llevó a otra: visitó y ganó, la ola de contrataciones tras un cambio de gestión), los meses fuera de lo normal, los hechos " +
+    "llevó a otra: visitó y ganó, la ola de contrataciones tras un cambio de gestión), los meses fuera de lo normal (incluido el " +
+    "cierre de una gestión: lo que compró desde la elección hasta que entró la siguiente, y la gestión saliente en curso), los hechos " +
     "fechados y las series por mes. Se puede pedir sólo un renglón (clase), sólo un periodo (desde, hasta: por ejemplo una " +
     "gestión) o sólo lo de señal alta.",
   cuenta: true,
