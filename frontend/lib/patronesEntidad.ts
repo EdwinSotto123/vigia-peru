@@ -84,6 +84,11 @@ export const PATRON_LISTA: Partial<Record<SeccionPatrones, PatronDeLista>> = {
     queEs: "Quien declara un puesto de compras, logística o contrataciones tiene un familiar declarado que recibió órdenes de la entidad, a su nombre o con su empresa.",
     mirar: "Las órdenes emitidas con la persona en el puesto, y quién las pidió y las aprobó.",
   },
+  cierres: {
+    familia: "familia", nombre: "Una ola de personas nuevas al cierre de la gestión", corto: "Cierre de gestión", severidad: "media", observacion: true,
+    queEs: "Entre la elección de 2022 y el cambio de mando dio órdenes a muchas más personas que nunca había contratado que un año antes y que un año después.",
+    mirar: "Quiénes eran esas personas, qué servicio hicieron y si tenían relación con la campaña de la gestión que se iba.",
+  },
   autoridad: {
     familia: "familia", nombre: "Una autoridad suya dejó una empresa que le vende", corto: "Autoridad que dejó su empresa", severidad: "alta", observacion: true,
     queEs: "Una autoridad electa de la entidad dejó de figurar en una empresa, y esa empresa le vendió a la entidad dentro de su periodo.",

@@ -1163,6 +1163,7 @@ const LISTAS_DE_ENTIDAD: [clave: string, ruta: (ruc: string) => string][] = [
   ["control", (r) => `/control?ruc=${r}&size=1`],
   ["observados", (r) => `/observados?ruc=${r}&size=1`],
   ["observacion", (r) => `/observacion?ruc=${r}&size=1`],
+  ["cierres", (r) => `/cierres?buscar=${r}&size=1`],
 ];
 
 /**
