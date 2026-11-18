@@ -17,7 +17,7 @@ import { convocatoriaNoDemo, esPublicada, redactarResultado } from "../lib/publi
 import { cachePublico } from "../lib/http.js";
 import { crearCitador } from "../lib/citas.js";
 import { crucesDeProceso, type Ganador } from "../lib/cruces.js";
-import { enriquecerPostores, itemsDeDocumentos, leerFichasPiezas, perfilDeBases, type FichaPieza, type PostorDetalle } from "../lib/fichasPiezas.js";
+import { enriquecerPostores, fichasDeReportes, itemsDeDocumentos, leerFichasPiezas, perfilDeBases, type FichaPieza, type PostorDetalle } from "../lib/fichasPiezas.js";
 import { obraDelContrato } from "../lib/obras.js";
 import { preciosDeMercado } from "../lib/laboratorioPrecios.js";
 import {
@@ -216,8 +216,12 @@ contratosDetalleRouter.get("/:ocid", async (c) => {
   const lecturas = await lecturasDe(row.ocid).catch(() => [] as FilaLectura[]);
   // Los datos de esos documentos como hechos con tipo y con su comprobación (migración 323). Sin la tabla, nada.
   const hechos = await hechosDe(row.ocid).catch(() => [] as HechoDocumento[]);
-  // Lo que leyeron los lectores por pieza (lib/fichasPiezas.ts): las bases, el contrato, la evaluación, los reportes.
-  const fichas = await leerFichasPiezas(row.ocid).catch(() => new Map<string, FichaPieza>());
+  // Lo que leyeron los lectores por pieza (lib/fichasPiezas.ts): las bases, el contrato, la evaluación, los reportes. Y los
+  // reportes del SEACE leídos sin modelo, para la admisión, calificación y hora de cada oferta cuando no hay lectura con modelo.
+  const [fichas, reportes] = await Promise.all([
+    leerFichasPiezas(row.ocid).catch(() => new Map<string, FichaPieza>()),
+    fichasDeReportes(row.ocid).catch((e) => { console.warn(`[contratos] reportes del SEACE: ${(e as Error).message}`); return {} as Awaited<ReturnType<typeof fichasDeReportes>>; }),
+  ]);
 
   // Alerta no publicada (revision/descartada): sin score, señales, mercado ni reglas, y sin lo que los
   // agentes leyeron del expediente — el análisis entero está sin publicar (lib/publicacion.ts §2).
@@ -328,8 +332,13 @@ contratosDetalleRouter.get("/:ocid", async (c) => {
   const postoresBase = postoresAgentes.length || !actaLeida ? postoresAgentes : postoresDeLectura(actaLeida.salida);
   // Con el acta o cuadro de evaluación leído por pieza: admisión, calificación y su motivo, puntajes, bonificación y la hora
   // de cada oferta (reporte de presentación). Sin esa lectura, los postores quedan como estaban.
-  const { postores, evaluacion } = enriquecerPostores(postoresBase as PostorDetalle[], fichas.get("evaluacion"), fichas.get("reporte_presentacion"),
+  const fichaEvaluacion = fichas.get("evaluacion") ?? reportes.evaluacion;
+  const enriquecido = enriquecerPostores(postoresBase as PostorDetalle[], fichaEvaluacion, fichas.get("reporte_presentacion") ?? reportes.presentacion,
     participantes.map((p) => ({ ruc: p.ruc, nombre: p.nombre })), enVigiaUrls);
+  const postores = enriquecido.postores;
+  // El resumen de la evaluación (factores, oferta más baja que perdió) sale sólo de una lectura con modelo: la plantilla
+  // no trae montos ni factores, y diría «0 ofertas».
+  const evaluacion = fichaEvaluacion?.modelo === "plantilla" ? null : enriquecido.evaluacion;
   const itemsAnalizados = ((expediente?.items ?? []) as any[]).map((it, i) => {
     const num = String(it?.numero ?? i + 1);
     const ocds = items.find((x) => x.id === num || String(x.posicion) === num);

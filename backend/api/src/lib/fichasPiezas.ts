@@ -15,6 +15,7 @@
  */
 import { pool } from "./db.js";
 import type { CitaPublica } from "./citas.js";
+import { pareceEmpresa, taparNombreSuelto } from "./privacidad.js";
 
 export interface FichaPieza {
   lector: string;
@@ -42,6 +43,59 @@ export async function leerFichasPiezas(ocid: string): Promise<Map<string, FichaP
         AND l.modelo <> 'plantilla' AND jsonb_typeof(l.salida) = 'object'
       ORDER BY l.lector, (p.tipo_documento = 'bases_integradas') DESC, l.leido_at DESC`, [ocid, LECTORES]);
   return new Map(r.rows.map((x: FichaPieza) => [x.lector, x]));
+}
+
+/**
+ * Los reportes del SEACE leídos SIN modelo (proceso_postor, migraciones 326 y 384: presentación, evaluación, otorgamiento
+ * y desempate unidos por postor) en la forma de las fichas «evaluacion» y «reporte_presentacion», para cuando no hay
+ * lectura con modelo: leerFichasPiezas deja fuera las plantillas y el 2026-11-18 había 14 708 reportes de evaluación
+ * leídos así frente a 2 con modelo. Sin montos de oferta ni citas (la plantilla no los trae). Un postor sin RUC que no
+ * parece empresa sale con el apellido tapado aquí mismo: publicar() sólo lo reconoce por su RUC 10.
+ */
+export async function fichasDeReportes(ocid: string): Promise<{ evaluacion?: FichaPieza; presentacion?: FichaPieza }> {
+  const [r, d] = await Promise.all([
+    pool.query(
+      `SELECT pp.item, pp.nombre, pp.codigo, pp.admitida, pp.calificada, pp.puntaje_tecnico::float AS puntaje_tecnico,
+              pp.orden_prelacion, pp.puntaje_total::float AS puntaje_total, pp.gano, pp.fuentes,
+              to_char(pp.presento_at, 'YYYY-MM-DD') AS fecha, to_char(pp.presento_at, 'HH24:MI:SS') AS hora
+         FROM proceso_postor pp WHERE ocid_corto(pp.ocid) = ocid_corto($1)
+        ORDER BY pp.item, pp.gano DESC, pp.orden_prelacion NULLS LAST, pp.nombre`, [ocid]),
+    pool.query(
+      `SELECT DISTINCT ON (l.lector) l.lector, g.titulo AS documento, g.url_origen AS url, to_char(l.leido_at, 'YYYY-MM-DD') AS leido
+         FROM documento_pieza p JOIN pieza_lectura l ON l.pieza_id = p.id LEFT JOIN documentos_gcs g ON g.id = p.doc_id
+        WHERE ocid_corto(p.ocid) = ocid_corto($1) AND l.modelo = 'plantilla' AND l.estado = 'ok'
+          AND l.lector IN ('reporte_evaluacion', 'reporte_presentacion')
+        ORDER BY l.lector, l.leido_at DESC`, [ocid]),
+  ]);
+  if (!r.rows.length) return {};
+  const doc = new Map(d.rows.map((x: any) => [x.lector, x]));
+  const nombreDe = (x: any) => {
+    const n = txt(x.nombre) ?? "";
+    return /^\d{11}$/.test(x.codigo ?? "") || pareceEmpresa(n) ? n : taparNombreSuelto(n);
+  };
+  const ficha = (lector: string, salida: Record<string, any>): FichaPieza => ({
+    lector, version: "p1", modelo: "plantilla", salida, tipo: lector,
+    documento: doc.get(lector)?.documento ?? null, url: doc.get(lector)?.url ?? null, leido: doc.get(lector)?.leido ?? null,
+  });
+  const evaluados = r.rows.filter((x: any) => x.fuentes?.includes("reporte_evaluacion"));
+  const presentados = r.rows.filter((x: any) => x.hora);
+  const items = [...new Set(presentados.map((x: any) => x.item))];
+  return {
+    evaluacion: evaluados.length ? ficha("reporte_evaluacion", {
+      postores: evaluados.map((x: any) => ({
+        nombre: nombreDe(x), ruc: /^\d{11}$/.test(x.codigo ?? "") ? x.codigo : null, item: x.item,
+        admitida: x.admitida, calificada: x.calificada, ganador: x.gano === true,
+        puntaje_total: x.puntaje_total ?? x.puntaje_tecnico, orden_prelacion: x.orden_prelacion,
+      })),
+    }) : undefined,
+    presentacion: presentados.length ? ficha("reporte_presentacion", {
+      items: items.map((it) => ({
+        item: it,
+        ofertas: presentados.filter((x: any) => x.item === it)
+          .map((x: any) => ({ nombre: nombreDe(x), ruc: /^\d{11}$/.test(x.codigo ?? "") ? x.codigo : null, fecha: x.fecha, hora: x.hora })),
+      })),
+    }) : undefined,
+  };
 }
 
 const num = (v: unknown): number | null => (typeof v === "number" && Number.isFinite(v) ? v : null);
