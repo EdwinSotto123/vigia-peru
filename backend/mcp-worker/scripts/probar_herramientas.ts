@@ -62,6 +62,13 @@ const CASOS: Caso[] = [
       const ev = lista(r, "eventos") as { renglon?: string; fecha?: string }[];
       return ev.length >= 1 && ev.every((x) => x.renglon === "Control" && String(x.fecha) >= "2022-12-01") ? null : `eventos de control desde 2022-12: ${ev.length}, alguno fuera del filtro`;
     } },
+  // Cada caso de un patrón trae su ficha propia (/app/patrones/caso/<tipo>/<clave>, 2026-11-18), con una clave opaca.
+  { h: patrones as never, args: { alcance: "grupo", solo_graves: true },
+    espera: (r) => {
+      const gs = lista(r, "grupos") as { ficha_del_caso?: string }[];
+      return gs.length >= 3 && gs.every((g) => /^https:\/\/vigia\.gobserva\.cloud\/app\/patrones\/caso\/grupos\/[0-9a-f]{16}$/.test(String(g.ficha_del_caso ?? "")))
+        ? null : "algún grupo sin ficha_del_caso válida";
+    } },
   { h: patrones as never, args: { alcance: "entidad" }, espera: hay("patrones") },
   { h: patrones as never, args: { alcance: "proveedor" }, espera: hay("patrones") },
   { h: patrones as never, args: { alcance: "relleno" }, espera: hay("pares") },
