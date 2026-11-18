@@ -547,6 +547,11 @@ async function resumenDe(ancla: "entidad" | "proveedor", ruc: string, q: Filtros
       const r = await consultaConPlazo(`SELECT clase, anio, compras, monto::float AS monto FROM compra_resumen WHERE entidad_ruc = '${ruc}'`, []);
       return r.rows as FilaResumen[];
     }
+    // Las empresas con muchas órdenes lo traen precalculado (migración 356: 500 órdenes o más); las demás, en vivo. En un
+    // proveedor grande la consulta en vivo recorría todas sus órdenes: hasta 24 s (pg_stat_statements, 2026-11-17).
+    const pre = await consultaConPlazo(`SELECT clase, anio, compras, monto::float AS monto FROM compra_resumen_proveedor WHERE ruc = '${ruc}'`, [])
+      .then((x) => x.rows as FilaResumen[]).catch(() => [] as FilaResumen[]);
+    if (pre.length) return pre;
     const r = await consultaConPlazo(sqlResumenProveedor(ruc), [], 25_000);
     return r.rows as FilaResumen[];
   });
