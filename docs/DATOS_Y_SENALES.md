@@ -434,6 +434,34 @@ Además, la 329 agrega:
 Se midió y NO se implementó la contratación directa repetida a la misma empresa: sin la causal, marca sobre todo a
 proveedores únicos naturales.
 
+### 9.7 Personas y dueños, en observación (2026-11-18, migraciones 364–368)
+Tres piezas que no pasan por `cruces_proveedor`: cada una tiene su tabla, su lista en `/app/patrones`, su alcance en la
+herramienta `patrones` del MCP y su bandera «en observación» en la ficha. Ninguna puntúa.
+
+| Señal | Tabla y refresco | Filas (PROD) | Cruza | Regla |
+|---|---|---|---|---|
+| Trabaja en compras y un familiar recibe órdenes de su entidad | `funcionario_compras_familiar`, `refrescar_funcionario_compras_familiar()` (cadena semanal de órdenes) | 1 002; 77 graves de 65 personas, S/ 3,3 M en el puesto | `dji_empleos` (el puesto con sus palabras) × `funcionario_familiar` (migr. 351) × `conosce_ordenes` y `conosce_adjudicaciones` | el puesto declarado es de compras, logística o contrataciones (`tipo_cargo = compras`) o decide el gasto (`decide`), y un familiar declarado recibió órdenes de esa entidad a su nombre (`via = persona`) o con una empresa en la que figura en el RNP (`via = empresa`). Las ventas se cuentan una por una por su fecha: con la persona en el puesto, antes y después. Sin cese declarado, el puesto llega hasta su última declaración que lo nombra. Grave: compras + familiar cercano + al menos una venta en el puesto |
+| La autoridad dejó de figurar en una empresa y ésta le vendió a su entidad | `autoridad_exsocio_venta`, `refrescar_autoridad_exsocio_venta()` | 5; 4 graves, S/ 2,0 M en el plazo | `jne_autoridades` × salidas del RNP (`rnp_exsocio` y `baja_corte`) × `entidad_gobierno_amplia` × órdenes y adjudicaciones | la autoridad electa dejó de figurar en la empresa cuando ya tenía el cargo o hasta 12 meses antes, y la empresa le vendió a su entidad dentro de su periodo. Grave: fue socio y hay ventas hasta 12 meses después de su salida, o figuraba con cualquier papel cuando la empresa vendió |
+| Quiénes ya no figuran en una empresa | `rnp_exsocio` (carga única, `cargar_rnp_exsocios.py`) | 33 918 vínculos de 11 196 empresas | 65 versiones mensuales del RNP | no es una señal: es el dato que faltaba. La ficha de la empresa los muestra con el corte en que salieron |
+
+Lo que se aprendió al medirlas:
+
+- **Comparar años no alcanza.** La primera versión de compras y familia daba «grave» a un puesto de dos meses porque
+  las órdenes del familiar iban de 2018 a 2025. Hay que contar cada orden por su fecha frente al puesto.
+- **El puesto es texto libre.** «Contratación de servicios de alquiler de maquinaria» no es un cargo de compras: es el
+  encargo por el que contrataron a la persona. Cuenta «contrataciones» o «contratación pública». Y se clasifica sin
+  tildes: «LOGÍSTICA» y «ADQUISICIÓN» no entraban.
+- **El familiar casi nunca cobra a su nombre.** Con su empresa aparecen casos que la versión por persona no veía
+  (S/ 1,5 M en órdenes con la persona en el puesto).
+- **Salir de la empresa no levanta el impedimento.** Alcanza a la persona jurídica en la que el impedido tenga o haya
+  tenido más del 30 % dentro de los 12 meses anteriores a la convocatoria (literal i del 11.1 del artículo 11 de la Ley
+  30225; tipo 3.A del 30.1 del artículo 30 de la Ley 32069). El RNP no publica el porcentaje: la señal siempre pide
+  confirmar con la partida registral.
+- **El corte de noviembre de 2022 del RNP no sirve:** «da de baja» a 219 mil vínculos por un cambio de formato.
+
+Privacidad: el familiar nunca sale con su nombre ni su documento (su parentesco y, si es el caso, la empresa, como en la
+pestaña Familia). La autoridad electa va con su nombre, como en el resto del sistema. Las tablas sólo las lee la API.
+
 ---
 
 ## 10. Catálogo de cruces — Registro SUNAT (a nivel empresa)
