@@ -95,7 +95,11 @@ async function asegurarCuenta(u: AuthedUser, producto?: ProductoPago): Promise<v
     `INSERT INTO gobserva_cuentas (firebase_uid, email, email_verificado, producto_origen, ultimo_ingreso_at)
      VALUES ($1, lower($2), $3, $4, now())
      ON CONFLICT (firebase_uid) DO UPDATE
-       SET email = EXCLUDED.email, email_verificado = EXCLUDED.email_verificado OR gobserva_cuentas.email_verificado,
+       -- El «verificado» de antes vale sólo si el correo es el mismo: con otro correo manda lo que dice el token de ahora
+       -- (si no, un cambio de correo sin verificar heredaba la marca y, con un correo del equipo, sus planes).
+       SET email = EXCLUDED.email,
+           email_verificado = EXCLUDED.email_verificado
+             OR (gobserva_cuentas.email_verificado AND lower(gobserva_cuentas.email) IS NOT DISTINCT FROM EXCLUDED.email),
            ultimo_ingreso_at = now(), baja_at = NULL`,
     [u.uid, u.email, u.emailVerificado, producto ?? null]);
 }

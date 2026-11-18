@@ -74,6 +74,9 @@ function nombres(docs: Doc[]): string[] {
 const csv = (v: unknown) => `"${String(v ?? "").replace(/"/g, '""')}"`;
 
 documentosRouter.get("/indice", async (c) => {
+  // Sólo para el MCP y el chat, que entran por nuestros Workers: desde un navegador (por /v1) no existe. Es lo mismo que
+  // el MCP cobra en créditos y la web no lo usa (auditoría del 2026-11-17).
+  if (!pedidoInterno(c)) return c.json({ error: "not_found" }, 404);
   const ocids = ocidsDe(new URL(c.req.url));
   if (typeof ocids === "string") return c.json({ error: "pedido_invalido", detail: ocids }, 400);
   const docs = await documentos(ocids);
@@ -93,7 +96,7 @@ documentosRouter.get("/indice", async (c) => {
 documentosRouter.get("/zip", async (c) => {
   const ocids = ocidsDe(new URL(c.req.url));
   if (typeof ocids === "string") return c.json({ error: "pedido_invalido", detail: ocids }, 400);
-  if (!(await dentroDeTope(`zip|${ipCliente(c)}`, 6, 600))) {
+  if (!(await dentroDeTope(`zip|${claveIp(ipCliente(c))}`, 6, 600))) {
     return c.json({ error: "demasiados_pedidos", detail: "Son muchos ZIP seguidos: espera unos minutos.", reintentarEn: 600 }, 429);
   }
   const docs = await documentos(ocids);
@@ -167,7 +170,7 @@ const ORIGEN_SEACE = /^https:\/\/prod[0-9]\.seace\.gob\.pe(:9000)?\/[\w./?=&%-]{
 documentosRouter.get("/copia", async (c) => {
   const u = new URL(c.req.url).searchParams.get("u") ?? "";
   if (!ORIGEN_SEACE.test(u)) return c.json({ error: "pedido_invalido", detail: "Indica la dirección de descarga del SEACE del documento." }, 400);
-  if (!(await dentroDeTope(`copia|${ipCliente(c)}`, 40, 600))) {
+  if (!(await dentroDeTope(`copia|${claveIp(ipCliente(c))}`, 40, 600))) {
     return c.json({ error: "demasiados_pedidos", detail: "Son muchas descargas seguidas: espera unos minutos.", reintentarEn: 600 }, 429);
   }
   const r = await pool.query<{ titulo: string | null; formato: string | null; urlGcs: string }>(

@@ -585,8 +585,10 @@ patronesRouter.get("/grupos", async (c) => {
           persona: v.persona ? taparNombrePropio(nombrePublicable(v.persona), v.persona) : null,
           personaB: v.persona_b ? taparNombrePropio(nombrePublicable(v.persona_b), v.persona_b) : null,
         })),
-        dias: ((detalle?.dias ?? []) as Record<string, any>[]).map((d) => ({ ...d, detalle: (d.detalle ?? []).map(conNombre) })),
-        objetosRepartidos: ((detalle?.repartidos ?? []) as Record<string, any>[]).map((d) => ({ ...d, detalle: (d.detalle ?? []).map(conNombre) })),
+        // El detalle de cada día y de cada objeto, con tope: un objeto repartido llegó a traer 538 órdenes y la página de 20
+        // grupos pesaba 1,5 MB (medido el 2026-11-17). Las cuentas (ordenes, miembros, monto) siguen completas.
+        dias: ((detalle?.dias ?? []) as Record<string, any>[]).map((d) => ({ ...d, detalle: (d.detalle ?? []).slice(0, 30).map(conNombre) })),
+        objetosRepartidos: ((detalle?.repartidos ?? []) as Record<string, any>[]).map((d) => ({ ...d, detalle: (d.detalle ?? []).slice(0, 12).map(conNombre) })),
         sobreTopeOrdenes: ((detalle?.sobre_tope ?? []) as Record<string, any>[]).map(conNombre),
         // Un integrante que un funcionario de la misma entidad declaró como pariente (migración 344). Si el funcionario es una
         // autoridad electa (su nombre es público), su cargo y un parentesco de sangre destaparían el apellido tapado del

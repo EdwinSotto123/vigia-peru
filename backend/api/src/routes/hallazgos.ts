@@ -16,6 +16,7 @@
  * los percentiles se calculan aquí. Las entidades son públicas; las personas naturales sólo se cuentan (nunca un nombre
  * ni un RUC 10). Igual todo sale por publicar().
  */
+import { pedidoInterno } from "../lib/antibots.js";
 import { Hono, type Context } from "hono";
 import { esErrorPg, pool } from "../lib/db.js";
 import { Memo } from "../lib/cache.js";
@@ -148,6 +149,9 @@ export async function hallazgosDeEntidad(c: Context) {
 // ─── GET /hallazgos/ranking ──────────────────────────────────────────────────────────────────────────────────────────
 
 hallazgosRouter.get("/ranking", async (c) => {
+  // Sólo para el MCP y el chat, que entran por nuestros Workers: desde un navegador (por /v1) no existe. Es lo mismo que
+  // el MCP cobra en créditos y la web no lo usa (auditoría del 2026-11-17).
+  if (!pedidoInterno(c)) return c.json({ error: "not_found" }, 404);
   const q = parametros(c);
   let t: Tabla;
   try {

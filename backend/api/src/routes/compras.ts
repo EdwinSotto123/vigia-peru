@@ -237,8 +237,9 @@ async function ramaOrdenes(q: FiltrosCompras, n: number, dir: "DESC" | "ASC"): P
   else if (q.como === "catalogo") conds.push(`o.tipo_contratacion ~* '${CATALOGO}'`);
   else if (q.como === "directa") conds.push(`COALESCE(o.tipo_contratacion, '') !~* '${PAGO}' AND COALESCE(o.tipo_contratacion, '') !~* '${CATALOGO}'`);
   const palabras = palabrasBusqueda(q.q);
+  // Sin el nombre de una persona natural (RUC 10): buscar por su apellido tapado lo destapaba (auditoría del 2026-11-17).
   const texto = palabras.map((w) =>
-    `mef_norm(COALESCE(o.descripcion, '') || ' ' || COALESCE(o.entidad, '') || ' ' || COALESCE(o.contratista, '') || ' ' || COALESCE(o.nro_orden, '')) LIKE ${p(`%${w}%`)}`);
+    `mef_norm(COALESCE(o.descripcion, '') || ' ' || COALESCE(o.entidad, '') || ' ' || CASE WHEN o.ruc_contratista LIKE '10%' THEN '' ELSE COALESCE(o.contratista, '') END || ' ' || COALESCE(o.nro_orden, '')) LIKE ${p(`%${w}%`)}`);
   const ventana = texto.length ? Math.max(1500, n * 6) : Math.ceil(n * 1.02) + 20;
   const columnas = `o.entidad_ruc, o.orden, o.fecha_emision, o.anio, o.mes, o.monto, o.monto_dudoso, o.moneda, o.tipo_contratacion,
                     o.ruc_contratista, o.descripcion, o.entidad, o.contratista, o.nro_orden`;

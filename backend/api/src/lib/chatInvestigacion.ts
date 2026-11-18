@@ -27,7 +27,10 @@ export interface PedidoChat {
    * El chat de una app de Gobserva (2026-11-08, lib/chatApp.ts): la dirección del MCP de su producto (sus herramientas),
    * sus instrucciones y sus topes. Sin esto, el chat del panel con todas las herramientas.
    */
-  app?: { ruta: string; sistema: string; vueltas: number; max: number };
+  app?: { ruta: string; sistema: string; vueltas: number; max: number;
+    /** Herramientas del MCP que este chat NO ofrece ni ejecuta (el chat de las cuentas: las que buscan a un particular por su nombre completo). */
+    sin?: string[];
+  };
 }
 
 /** Cómo terminó: `ok` si hubo respuesta; `costo` en US$ (lo que se cobra en créditos lo decide quien llama). */
@@ -181,7 +184,9 @@ export async function correrChat(env: EnvChat, p: PedidoChat, emitir: Emitir, se
   // Lo que devolvió cada herramienta, entero: contra eso se revisan los enlaces y los montos de la respuesta.
   const fuentes: string[] = [];
   try {
-    const lista = await herramientas(env, ruta);
+    // Lo que este chat no ofrece queda fuera de la lista Y de la ejecución (abajo): no depende de que el modelo obedezca.
+    const vetadas = new Set(p.app?.sin ?? []);
+    const lista = (await herramientas(env, ruta)).filter((h) => !vetadas.has(h.name));
     const titulos = new Map(lista.map((h) => [h.name, h.title ?? h.name]));
     const tools = paraElModelo(lista);
     // El historial alterna usuario/asistente; dos seguidos del mismo rol se juntan.
@@ -247,6 +252,7 @@ export async function correrChat(env: EnvChat, p: PedidoChat, emitir: Emitir, se
           let contenido = "";
           let ok = true;
           try {
+            if (!titulos.has(l.name)) throw new Error("esa herramienta no está disponible en este chat");
             const res = await mcp(env, "tools/call", { name: l.name, arguments: l.input ?? {} }, ruta);
             contenido = ((res.content ?? []) as { type: string; text?: string }[]).map((b) => b.text ?? "").join("\n");
             ok = !res.isError;

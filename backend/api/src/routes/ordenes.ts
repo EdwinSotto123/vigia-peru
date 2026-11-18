@@ -313,8 +313,10 @@ export function sqlListaOrdenes(q: FiltrosListaOrdenes, forzarAcotada = false): 
   // 130 órdenes recientes, ~50 ms la primera página). Con un EXISTS el planificador la volvía un semi-join que leía las
   // 128 mil filas de ordenes_fraccionadas y las ordenaba en disco (1,2 s).
   if (q.antecedente === "fraccionamiento") columnas.push(`(SELECT true ${FRACCIONADA} LIMIT 1) IS NOT NULL`);
+  // El nombre de una persona natural (RUC 10) no se busca: sale con un apellido tapado, y buscar por el apellido oculto
+  // y ver si la fila sigue ahí lo destapaba letra por letra (auditoría del 2026-11-17). Como en entidades, menores y partidos.
   const texto = palabrasBusqueda(q.q).map((w) =>
-    `mef_norm(COALESCE(o.descripcion, '') || ' ' || COALESCE(o.entidad, '') || ' ' || COALESCE(o.contratista, '') || ' ' || COALESCE(o.nro_orden, '')) LIKE ${p(`%${w}%`)}`);
+    `mef_norm(COALESCE(o.descripcion, '') || ' ' || COALESCE(o.entidad, '') || ' ' || CASE WHEN o.ruc_contratista LIKE '10%' THEN '' ELSE COALESCE(o.contratista, '') END || ' ' || COALESCE(o.nro_orden, '')) LIKE ${p(`%${w}%`)}`);
   const acotada = texto.length > 0 || (forzarAcotada && columnas.length > 0);
   const enVentana = acotada ? base : [...base, ...columnas];
   const despuesDe = acotada ? [...columnas, ...texto] : [];
@@ -333,13 +335,17 @@ export function sqlListaOrdenes(q: FiltrosListaOrdenes, forzarAcotada = false): 
            AND x.fecha_emision BETWEEN s.desde AND s.hasta OFFSET 0) o`
       : q.antecedente === "pariente_socio"
         // Desde los ~700 pares entidad-empresa de la migración 350, por el índice del proveedor.
-        ? `empresa_pariente_funcionario x CROSS JOIN LATERAL (SELECT y.* FROM conosce_ordenes y WHERE y.ruc_contratista = x.ruc_empresa
+        // Con una entidad o un proveedor elegidos, sólo sus pares: el LATERAL (con OFFSET 0) no deja pasar ese filtro hacia
+        // adentro y recorría las 700 empresas (7 s en frío, medido el 2026-11-17). Son 11 dígitos validados por zod.
+        ? `(SELECT * FROM empresa_pariente_funcionario WHERE true${q.entidad ? ` AND entidad_ruc = '${q.entidad}'` : ""}${q.proveedor ? ` AND ruc_empresa = '${q.proveedor}'` : ""}) x
+           CROSS JOIN LATERAL (SELECT y.* FROM conosce_ordenes y WHERE y.ruc_contratista = x.ruc_empresa
              AND y.entidad_ruc = x.entidad_ruc AND y.fecha_emision >= GREATEST(DATE '2023-01-01', COALESCE(x.en_empresa_desde, DATE '1900-01-01')) OFFSET 0) o`
       : q.antecedente === "repetida"
         // Desde las ~5 mil órdenes de ordenes_repetidas (proveedor, entidad, fecha y monto), por el índice del proveedor.
         // Recorrer el índice por fecha probando cada orden tardaba 7 s la primera página (medido 2026-11-17).
         ? `(SELECT DISTINCT r.entidad_ruc, r.ruc_contratista, r.monto, (e->>'fecha')::date AS fecha
-              FROM ordenes_repetidas r, jsonb_array_elements(r.detalle) e WHERE r.severidad IN ('alta', 'media')) rr
+              FROM ordenes_repetidas r, jsonb_array_elements(r.detalle) e
+             WHERE r.severidad IN ('alta', 'media')${q.entidad ? ` AND r.entidad_ruc = '${q.entidad}'` : ""}${q.proveedor ? ` AND r.ruc_contratista = '${q.proveedor}'` : ""}) rr
            CROSS JOIN LATERAL (SELECT x.* FROM conosce_ordenes x WHERE x.ruc_contratista = rr.ruc_contratista
              AND x.fecha_emision = rr.fecha AND x.entidad_ruc = rr.entidad_ruc AND x.monto = rr.monto AND x.moneda = 'Nuevos Soles' OFFSET 0) o`
         : `conosce_ordenes o`;

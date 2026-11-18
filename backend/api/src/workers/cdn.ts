@@ -114,8 +114,10 @@ const GUARDADO = "X-Vigia-Guardado";
  * "108": la ficha de cargo trae `cruces.doblePercepcion` (migración 352): planilla de una entidad y órdenes de servicio de otra.
  * "109": la ficha de una entidad trae en `senales` las cuentas de su red (grupos por dueño y familia, compras repetidas,
  *        empresas de parientes de sus funcionarios y dos ingresos del Estado; migraciones 343-352).
+ * "110": auditoría de seguridad del 2026-11-17: la familia de la ficha de cargo redondea lo de otras entidades, la lista de
+ *        grupos recorta su detalle y el gasto por concepto tapa nombres en las descripciones.
  */
-const VERSION_CACHE = "109";
+const VERSION_CACHE = "110";
 
 function cacheable(req: Request): boolean {
   if (req.method !== "GET") return false;

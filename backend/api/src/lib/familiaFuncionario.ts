@@ -78,9 +78,20 @@ export async function familiaDelFuncionario(codigo: string, declaranteElecto: bo
     }
     const enSuEntidad = x.suEntidad;
     if (enSuEntidad) p.enSuEntidad = true;
+    // Las órdenes de un familiar en OTRA entidad: el monto a dos cifras significativas y sin la cuenta de órdenes. Con la
+    // entidad, la cuenta y el monto exactos se lo podía ubicar en la lista de personas de esa entidad y atarlo al
+    // funcionario (auditoría del 2026-11-17). En la entidad del propio funcionario es el indicio que se muestra entero,
+    // como en «Posible nepotismo» (y reservado si es autoridad electa).
+    const aGrandes = (m: number | null) => {
+      if (m == null || m === 0) return m;
+      const e = Math.pow(10, Math.max(0, Math.floor(Math.log10(Math.abs(m))) - 1));
+      return Math.round(m / e) * e;
+    };
     const item: ItemFamiliar = reservado && enSuEntidad
       ? { ...x, ordenes: x.tipo === "orden" ? null : x.ordenes, monto: x.tipo === "orden" ? null : x.monto, suEntidadOrdenes: null, suEntidadMonto: null, reservado: true }
-      : x;
+      : x.tipo === "orden" && !enSuEntidad
+        ? { ...x, ordenes: null, monto: aGrandes(x.monto) }
+        : x;
     p.peso += (enSuEntidad ? 1e12 : 0) + Number(x.monto ?? 0);
     if (p.items.length < TOPE_ITEMS) p.items.push(item);
   }

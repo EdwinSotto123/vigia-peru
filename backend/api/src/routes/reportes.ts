@@ -123,8 +123,17 @@ reportesRouter.get("/convergencias", async (c) => {
 });
 
 // ─── POST /reportes — crear denuncia ciudadana ──────────────────
+/**
+ * Las fotos y archivos de una denuncia salen de nuestra subida (/api/upload de la web): el dominio público de R2, el
+ * bucket de antes en GCS o una referencia interna `r2://`. Antes valía cualquier URL: una denuncia anónima (pendiente, y
+ * por eso pública) podía hacer que el navegador de cada visitante pidiera una imagen a un servidor ajeno, que así veía su
+ * IP o mostraba lo que quisiera (auditoría del 2026-11-17).
+ */
+const MEDIO_PROPIO = /^(https:\/\/medios\.gobserva\.cloud\/|https:\/\/storage\.googleapis\.com\/vigia-peru-reportes\/|r2:\/\/[a-z0-9-]{3,63}\/)[A-Za-z0-9._~%\/-]{1,400}$/;
+const urlPropia = z.string().max(500).regex(MEDIO_PROPIO, "La foto o el archivo tiene que subirse desde el formulario.");
+
 const MediaItem = z.object({
-  url: z.string().url(),
+  url: urlPropia,
   tipo: z.enum(["foto", "video", "documento", "audio"]).default("foto"),
   filename: z.string().max(200).optional().nullable(),
   size_bytes: z.number().optional().nullable(),
@@ -136,7 +145,7 @@ const CreateReporte = z.object({
   categoria: z.string().min(2).max(80),
   descripcion: z.string().min(10).max(4000),
   // Legacy: una sola foto. Sigue soportado para compatibilidad.
-  fotoUrl: z.string().url().optional().nullable(),
+  fotoUrl: urlPropia.optional().nullable(),
   // Nuevo: múltiples archivos (fotos, videos, documentos)
   media: z.array(MediaItem).max(20).optional().nullable(),
   lat: z.number().min(-90).max(90).optional().nullable(),

@@ -4,7 +4,7 @@ import { z } from "zod";
 import { consultaConPlazo, pool } from "../lib/db.js";
 import { Memo } from "../lib/cache.js";
 import { cachePublico, parametros } from "../lib/http.js";
-import { TAPA_NOMBRE, apellidoFuncionario, apellidosSunat, publicar, reservarParentesco } from "../lib/privacidad.js";
+import { TAPA_NOMBRE, apellidoFuncionario, apellidosSunat, publicar, reservarParentesco, taparNombreSuelto } from "../lib/privacidad.js";
 import { declaranteElectoSql, esCargoDeEleccion, esElectoSql, marcaElecto } from "../lib/electos.js";
 import { fichasDeContratada, fichasPorNombre } from "../lib/identidadPersona.js";
 import { familiaDelFuncionario } from "../lib/familiaFuncionario.js";
@@ -606,7 +606,8 @@ async function armarRastro(palabras: string[], acepta?: (nombre: string) => bool
       filas?.map((f) => ({ ...f, nombre: taparNombrePropio(f.nombre, f.nombre) ?? f.nombre })) ?? null;
     return {
       buscado: palabras.length,
-      visitas: tapar(visitas),
+      // Los visitantes van en el orden que escribió cada portería: se decide por pesos cuál es el apellido que se tapa.
+      visitas: visitas?.map((f) => ({ ...f, nombre: taparNombreSuelto(f.nombre) })) ?? null,
       empresas: tapar(rnp),
       declaraciones_juradas: tapar(dji),
       aportes_de_campana: tapar(aportes),

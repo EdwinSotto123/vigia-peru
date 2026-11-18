@@ -95,7 +95,7 @@ function condiciones(q: FiltrosCatalogo, vals: unknown[]) {
       const v = p(`%${w}%`);
       filtros.push({
         faceta: null,
-        sql: `(upper(immutable_unaccent(x.orden || ' ' || COALESCE(x.proveedor, '') || ' ' || COALESCE(x.nro_orden_fisica, ''))) LIKE ${v}
+        sql: `(upper(immutable_unaccent(x.orden || ' ' || CASE WHEN x.proveedor_ruc LIKE '10%' THEN '' ELSE COALESCE(x.proveedor, '') END || ' ' || COALESCE(x.nro_orden_fisica, ''))) LIKE ${v}
                OR EXISTS (SELECT 1 FROM perucompras_item i WHERE i.orden = x.orden AND i.version = 0
                            AND upper(immutable_unaccent(COALESCE(i.descripcion, '') || ' ' || COALESCE(i.marca, '') || ' ' || COALESCE(i.nro_parte, ''))) LIKE ${v}))`,
       });

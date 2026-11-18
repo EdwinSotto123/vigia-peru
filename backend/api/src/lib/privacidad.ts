@@ -946,6 +946,33 @@ export function reservarParentesco(o: { parentesco: unknown; declaranteElecto: b
   return (o.declaranteElecto && !parentescoPublicable(o.parentesco)) || (o.familiarPublico && !parentescoInversoPublicable(o.parentesco));
 }
 
+/**
+ * Un nombre de persona SUELTO, sin un campo que diga su orden (el visitante de un registro de visitas: cada portería lo
+ * escribe a su modo), con el apellido materno tapado. El orden se decide por pesos, como en publicar(). Con
+ * taparNombrePropio(nombre, nombre), que asume apellidos primero, «JUAN CARLOS PEREZ QUISPE» salía «JUAN ••• PEREZ
+ * QUISPE»: los dos apellidos a la vista (auditoría del 2026-11-17).
+ */
+export function taparNombreSuelto(nombre: string): string {
+  if (typeof nombre !== "string" || !nombre.trim() || pareceEmpresa(nombre)) return nombre;
+  const texto = nombre.normalize("NFC");
+  const toks = [...texto.matchAll(PALABRA)];
+  const claves = toks.map((m) => normal(m[0]));
+  if (claves.length < 2 || claves.length > 8) return nombre;
+  const iComa = texto.indexOf(",");
+  const coma = iComa > 0 ? toks.findIndex((m) => m.index! > iComa) : -1;
+  const orden = coma > 0 ? "sunat" : ordenProbable(claves, "sunat");
+  const { oculto } = partes(claves, orden, coma);
+  if (!oculto.length) return nombre;
+  // Dónde está lo oculto: apellidos primero, la primera vez que aparece después del primer apellido; nombres primero, al final.
+  const calza = (i: number) => oculto.every((w, k) => claves[i + k] === w);
+  let desde = -1;
+  if (orden === "sunat") { for (let i = 0; i + oculto.length <= claves.length; i++) if (calza(i)) { desde = i; break; } }
+  else { for (let i = claves.length - oculto.length; i >= 0; i--) if (calza(i)) { desde = i; break; } }
+  if (desde < 0) return nombre;
+  const fin = toks[desde + oculto.length - 1];
+  return `${texto.slice(0, toks[desde].index!)}${TAPA_NOMBRE}${texto.slice(fin.index! + fin[0].length)}`;
+}
+
 export function publicar<T>(valor: T, opts: { correos?: boolean; extra?: unknown } = {}): T {
   const r = new Recolector();
   const v = conEnie(valor);

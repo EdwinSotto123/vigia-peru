@@ -14,6 +14,8 @@
  * marcado como dudoso se cuenta pero no se suma. Lo que no es una empresa (RUC 20) va sumado en un grupo: nunca el nombre
  * ni el RUC de una persona natural.
  */
+import { taparNombrePropio } from "./personas.js";
+import { pedidoInterno } from "../lib/antibots.js";
 import { Hono } from "hono";
 import { consultaConPlazo, pool } from "../lib/db.js";
 import { publicar } from "../lib/privacidad.js";
@@ -131,6 +133,8 @@ async function sumar(f: Fuente, alcance: Alcance, desde: number, hasta: number, 
       (SELECT json_agg(y) FROM (
          SELECT x.fecha, x.anio, left(x.descripcion, 180) AS descripcion, x.monto, x.ref, x.nro, x.entidad, x.entidad_ruc, x.dudoso,
                 CASE WHEN ${empresa} THEN x.ruc END AS ruc, CASE WHEN ${empresa} THEN x.nombre END AS proveedor,
+                -- Sólo para tapar su nombre si la descripción lo trae; no sale (ver taparDescripciones).
+                CASE WHEN NOT (${empresa}) THEN x.nombre END AS _persona,
                 NOT (${empresa}) AS persona_natural_u_otro
            FROM x ORDER BY x.monto DESC NULLS LAST LIMIT 60) y) AS mayores,
       (SELECT json_agg(y ORDER BY y.monto DESC NULLS LAST) FROM (
@@ -138,10 +142,22 @@ async function sumar(f: Fuente, alcance: Alcance, desde: number, hasta: number, 
            FROM x, unnest(${terms}::text[], ${consultas}::text[]) AS t(termino, q)
           WHERE x.tsv @@ to_tsquery('spanish', t.q) GROUP BY t.termino) y) AS por_termino`;
   const r = await consultaConPlazo(sql, vals, PLAZO_MS, { memoriaMb: 64 });
-  return r.rows[0] as Record<string, any>;
+  const fila = r.rows[0] as Record<string, any>;
+  // El nombre de una persona natural dentro de la descripción de su orden («APOYO … DE QUISPE MAMANI JUAN») sale con el
+  // apellido tapado, como en su ficha. publicar() no lo sabe tapar aquí: el RUC y el nombre ya van en blanco (auditoría del
+  // 2026-11-17). `_persona` sólo sirve para esto y no sale.
+  if (Array.isArray(fila?.mayores)) {
+    fila.mayores = fila.mayores.map(({ _persona, ...m }: Record<string, any>) => ({
+      ...m, descripcion: _persona ? taparNombrePropio(m.descripcion ?? null, _persona) : m.descripcion,
+    }));
+  }
+  return fila;
 }
 
 gastoRouter.get("/concepto", async (c) => {
+  // Sólo para el MCP y el chat, que entran por nuestros Workers: desde un navegador (por /v1) no existe. Es lo mismo que
+  // el MCP cobra en créditos y la web no lo usa (auditoría del 2026-11-17).
+  if (!pedidoInterno(c)) return c.json({ error: "not_found" }, 404);
   try {
     const q = (k: string) => c.req.query(k)?.trim() || undefined;
     const incl = terminos(q("terminos"), "terminos", MAX_TERMINOS);

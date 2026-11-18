@@ -105,8 +105,12 @@ Límites que no se negocian:
 }
 
 /** Con qué se llama al motor: todas las herramientas del MCP (ruta «»), el modelo rápido y topes cortos. */
-export function pedidoVigia(): { ruta: string; sistema: string; vueltas: number; max: number } {
-  return { ruta: "", sistema: sistemaVigia(), vueltas: 10, max: 6000 };
+export function pedidoVigia(): { ruta: string; sistema: string; vueltas: number; max: number; sin: string[] } {
+  // El chat de las cuentas entra al MCP como equipo interno (sin créditos): por eso lo que no debe hacer se quita aquí, en
+  // el servidor, y no sólo en el texto del sistema. `rastro_persona` busca a cualquier persona por su nombre COMPLETO (con
+  // el apellido que Vigía tapa) y devuelve el código de su ficha: desde una cuenta gratuita ataba un nombre entero a una
+  // ficha tapada (auditoría del 2026-11-17). La búsqueda pública de personas sólo usa las palabras visibles.
+  return { ruta: "", sistema: sistemaVigia(), vueltas: 10, max: 6000, sin: ["rastro_persona"] };
 }
 
 /**
