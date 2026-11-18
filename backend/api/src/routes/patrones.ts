@@ -55,10 +55,36 @@ const memo = new Memo<Record<string, unknown>>({ nombre: "patrones", ttlMs: 900_
  * pedido agrupaba las miles de banderas para quedarse con las de un RUC (248, 170 y 139 ms; los índices de patrones de
  * cada ficha de entidad y empresa las piden todas, 293 veces cada una en 20 minutos, medido el 2026-11-18).
  */
-async function listaEntera(nombre: string, sql: string, args: unknown[]): Promise<Record<string, any>[]> {
-  const r = await memo.obtener(`entera:${nombre}`, async () => ({ filas: (await pool.query(sql, args)).rows }));
+async function listaEntera(nombre: string, vista: string, alterna: string, args: unknown[]): Promise<Record<string, any>[]> {
+  const r = await memo.obtener(`entera:${nombre}`, async () => {
+    // La vista precalculada (migración 372, refrescada cada 30 minutos por pg_cron); sin ella (una base sin migrar),
+    // agrupar las banderas como antes.
+    try {
+      return { filas: (await pool.query(vista, args)).rows };
+    } catch (e) {
+      console.warn(`[patrones] ${nombre}: sin su vista precalculada (${(e as Error).message}); se agrupa al vuelo`);
+      return { filas: (await pool.query(alterna, args)).rows };
+    }
+  });
   return r.filas as Record<string, any>[];
 }
+
+/** Las listas precalculadas de la migración 372, con las mismas columnas que su consulta al vuelo (y la clave, con su sal). */
+const VISTA_INHABILITADAS = `SELECT ruc, empresa, sancionada_ruc AS "sancionadaRuc", sancionada, sancion, sancion_desde AS "sancionDesde",
+       sancion_hasta AS "sancionHasta", nombre, contratos, graves, monto, entidades, ${sqlClaveInhabilitada("$1", "ruc", "sancionada_ruc")} AS clave,
+       to_char(desde, 'YYYY-MM-DD') AS desde, to_char(hasta, 'YYYY-MM-DD') AS hasta, hecha AS "hechaParaSeguir", fundada, ejemplos, ents
+  FROM patron_lista_inhabilitada ORDER BY orden`;
+const VISTA_CONTROL = `SELECT ruc, empresa, nombre, rol, informe_codigo AS "informeCodigo", informe_numero AS "informeNumero",
+       informe_entidad AS "informeEntidad", informe_entidad_ruc AS "informeEntidadRuc", emision, responsabilidades, ficha,
+       informes, contratos, graves, monto, entidades, misma AS "mismaEntidad", ${sqlClaveControl("$1", "ruc", "persona_doc")} AS clave,
+       to_char(desde, 'YYYY-MM-DD') AS desde, to_char(hasta, 'YYYY-MM-DD') AS hasta, ejemplos, ents
+  FROM patron_lista_control ORDER BY orden`;
+const VISTA_OBSERVADOS = `SELECT ruc, empresa, entidad_ruc AS "entidadRuc", entidad, observados, graves, monto, perjuicio,
+       ${sqlClaveObservado("$1", "ruc", "entidad_ruc")} AS clave, observaciones, informes, temas, informe_codigo AS "informeCodigo",
+       informe_numero AS "informeNumero", to_char(emision, 'YYYY-MM-DD') AS emision, responsabilidades, ficha, ejemplos,
+       to_char(desde, 'YYYY-MM-DD') AS desde, to_char(hasta, 'YYYY-MM-DD') AS hasta, despues, monto_despues AS "montoDespues",
+       to_char(ultima_despues, 'YYYY-MM-DD') AS "ultimaDespues"
+  FROM patron_lista_observado ORDER BY orden`;
 
 /** Una página de una lista ya filtrada, con su total. */
 const pagina = <T>(xs: T[], q: { page: number; size: number }) => ({ total: xs.length, page: q.page, size: q.size, filas: xs.slice((q.page - 1) * q.size, q.page * q.size) });
@@ -278,7 +304,7 @@ patronesRouter.get("/inhabilitadas", async (c) => {
   const q = p.data;
   const cuerpo = await memo.obtener(`inhabilitadas:${JSON.stringify(q)}`, async () => {
     // Unas 2 400 banderas: la lista entera una vez (listaEntera) y el filtro aquí.
-    const todas = await listaEntera("inhabilitadas",
+    const todas = await listaEntera("inhabilitadas", VISTA_INHABILITADAS,
       `WITH x AS (
          SELECT c.ruc_empresa AS ruc, c.detalle->>'sancionada_ruc' AS sancionada_ruc, max(c.detalle->>'sancionada') AS sancionada,
                 max(c.detalle->>'sancion') AS sancion, min(c.detalle->>'sancion_desde') AS sancion_desde, max(c.detalle->>'sancion_hasta') AS sancion_hasta,
@@ -327,7 +353,7 @@ patronesRouter.get("/control", async (c) => {
     // consulta: sólo agrupa. El informe que se muestra es el MÁS ANTIGUO de la persona entre los de sus banderas: así
     // todos los contratos contados son posteriores a él (con el más reciente, «ganados después» no era cierto para los
     // contratos anteriores a ese informe).
-    const todas = await listaEntera("control",
+    const todas = await listaEntera("control", VISTA_CONTROL,
       `WITH x AS (
          SELECT c.ruc_empresa AS ruc, max(c.persona_nombre) AS nombre, max(c.detalle->>'rol_en_empresa') AS rol,
                 ${sqlClaveControl("$1", "c.ruc_empresa", "c.persona_doc")} AS clave,
@@ -388,7 +414,7 @@ patronesRouter.get("/observados", async (c) => {
     // Unas mil banderas: se agrupan al vuelo (la respuesta queda en memoria) y lo adjudicado después sale del índice
     // (ruc_proveedor, entidad_ruc) de CONOSCE. El informe que se muestra es el MÁS ANTIGUO del par: todo lo contado como
     // «después» es posterior a él. La lista entera una vez (listaEntera) y el filtro aquí.
-    const todas = await listaEntera("observados",
+    const todas = await listaEntera("observados", VISTA_OBSERVADOS,
       `WITH b AS (
          SELECT c.ruc_empresa AS ruc, btrim(cv.entidad_ruc::text) AS entidad_ruc, c.ocid, c.severidad, c.monto, c.fecha,
                 c.detalle->>'informe_codigo' AS codigo, c.detalle->>'informe_numero' AS numero, NULLIF(c.detalle->>'emision', '')::date AS emision,
