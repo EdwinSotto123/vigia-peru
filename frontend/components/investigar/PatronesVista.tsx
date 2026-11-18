@@ -8,6 +8,7 @@ import { EVENTO_ACTIVA } from "@/components/patrones/Pestanas";
 import { CeldaBarra, CeldaNumero, CeldaPrincipal, CeldaTexto, CLASE_ENLACE_CELDA, Indicadores, Tabla, type Columna, type Fila, type Indicador } from "@/components/listado";
 import { EstadoCarga, usePoder } from "@/components/grafo/vista";
 import { InformeEnPanel } from "@/components/control/InformeEnPanel";
+import { OrdenesDelPeriodo } from "@/components/historia/OrdenesDelPeriodo";
 import { COLUMNAS_AUTORIDAD_EXSOCIO, COLUMNAS_COMPRAS_FAMILIA, filaAutoridadExsocio, filaCompraFamilia } from "./filasCasos";
 import { detalleConsorcio, detalleControl, detalleDoble, detalleDueno, detalleGrupo, detalleInhabilitada, detalleObservacion, detalleObservado, detalleRecien, detalleRelleno, detalleRenovacion, detalleRepetida, detalleSenal } from "./DetallePatron";
 import { Badge } from "@/components/ui/Badge";
@@ -23,6 +24,7 @@ import {
   rutaAcompanantes,
   rutaConsorcios,
   rutaAutoridadExsocio,
+  rutaCierres,
   rutaComprasFamilia,
   rutaControl,
   rutaDoble,
@@ -43,6 +45,8 @@ import {
   type PatronControl,
   type PatronAutoridadExsocio,
   type PatronesAutoridadExsocio,
+  type PatronesCierres,
+  type PatronCierre,
   type PatronCompraFamilia,
   type PatronesComprasFamilia,
   type PatronDoble,
@@ -205,6 +209,13 @@ export function PatronesVista({ activa, inicial, etiquetas }: { activa?: string;
           contenido: <ListaRenovaciones inicial={de("renovaciones")} />,
         },
         {
+          clave: "cierres",
+          etiqueta: SECCIONES_PATRONES.cierres,
+          titulo: "Ola de personas nuevas al cierre de una gestión",
+          icono: <UsersRound size={15} aria-hidden />,
+          contenido: <ListaCierres inicial={de("cierres")} />,
+        },
+        {
           clave: "observacion",
           etiqueta: SECCIONES_PATRONES.observacion,
           titulo: "Indicadores nuevos que todavía se están midiendo",
@@ -282,6 +293,7 @@ export function ListaDePatron({ clave, ruc, titulo, etiquetas = {} }: { clave: S
     : clave === "inhabilitadas" ? <ListaInhabilitadas inicial={inicial} />
     : clave === "control" ? <ListaControl inicial={inicial} />
     : clave === "observados" ? <ListaObservados inicial={inicial} />
+    : clave === "cierres" ? <ListaCierres inicial={inicial} />
     : clave === "observacion" ? <ListaObservacion inicial={inicial} />
     : null;
   if (!lista) return null;
@@ -1311,6 +1323,136 @@ function ListaAutoridadExsocio({ inicial }: { inicial: InicialPatrones }) {
               />
               <ZonaLista total={d.total} page={pag.page} cargando={carga.cargando} nombre="casos" onPagina={pag.irAPagina} vacio="No hay casos para ese filtro.">
                 {filas.length > 0 ? <Tabla columnas={COLUMNAS_AUTORIDAD_EXSOCIO} filas={filas.map(filaAutoridadExsocio)} etiqueta="Autoridades que dejaron de figurar en una empresa que le vendió a su entidad" /> : null}
+              </ZonaLista>
+            </div>
+          );
+        }}
+      </EstadoCarga>
+    </div>
+  );
+}
+
+const COLUMNAS_CIERRES: Columna[] = [
+  { clave: "entidad", titulo: "Entidad", ancho: "minmax(0,1.6fr)" },
+  { clave: "nuevas", titulo: "Personas nuevas", ancho: "10rem", alinear: "der", corto: "Nuevas" },
+  { clave: "antes", titulo: "Un año antes y uno después", ancho: "minmax(9rem,0.8fr)", desde: "md", apilar: "con-rotulo", corto: "Antes y después" },
+  { clave: "monto", titulo: "Les pagó", ancho: "8rem", alinear: "der", desde: "lg", apilar: "con-rotulo" },
+];
+
+/** «2023-01-01» → «2022-12»: el último mes de la gestión que se va. */
+function mesAnterior(f: string): string {
+  const d = new Date(Date.UTC(Number(f.slice(0, 4)), Number(f.slice(5, 7)) - 2, 1));
+  return d.toISOString().slice(0, 7);
+}
+
+function filaCierre(p: PatronCierre): Fila {
+  const lugar = [p.distrito, p.provincia, p.region].filter(Boolean).map((x) => tituloNatural(String(x))).join(", ");
+  const veces = p.personasNuevas / Math.max(p.personasNuevasBase, 5);
+  return {
+    id: `cierre-${p.entidadRuc}`,
+    enlaces: true,
+    detalle: {
+      titulo: p.entidad ? tituloNatural(p.entidad) : `RUC ${p.entidadRuc}`,
+      etiqueta: p.severidad === "alta" ? "Señal alta, en observación" : "Señal media, en observación",
+      descripcion: (
+        <>
+          Entre las elecciones del {fechaConAnio(p.eleccion)} y el cambio de mando del {fechaConAnio(p.cambio)}, {plural(p.personasNuevas, "persona natural", "personas naturales")}{" "}
+          que nunca habían recibido una orden de la entidad recibieron {plural(p.ordenesNuevas, "orden", "órdenes")} por {solesCompacto(p.montoNuevas)}. En las mismas fechas un año
+          antes fueron {numero(p.personasNuevasBase)}
+          {p.personasNuevasDespues != null ? ` y un año después, con la gestión nueva, ${numero(p.personasNuevasDespues)}` : ""}.
+        </>
+      ),
+      contenido: <OrdenesDelPeriodo entidadRuc={p.entidadRuc} mes={p.eleccion.slice(0, 7)} hasta={mesAnterior(p.cambio)} />,
+      ficha: `/entidad/${p.entidadRuc}?seccion=historia`,
+    },
+    celdas: {
+      entidad: (
+        <CeldaPrincipal
+          dosLineas
+          titulo={
+            <Link href={`/entidad/${p.entidadRuc}?seccion=historia`} prefetch={false} className={CLASE_ENLACE_CELDA}>
+              {p.entidad ? tituloNatural(p.entidad) : `RUC ${p.entidadRuc}`}
+            </Link>
+          }
+          meta={lugar || undefined}
+        />
+      ),
+      nuevas: <CeldaNumero sub={`${decimal(veces, 1)} veces un año antes`}>{numero(p.personasNuevas)}</CeldaNumero>,
+      antes: <CeldaTexto sub={p.personasNuevasDespues != null ? `después: ${numero(p.personasNuevasDespues)}` : "después: sin datos completos"}>{`antes: ${numero(p.personasNuevasBase)}`}</CeldaTexto>,
+      monto: <CeldaNumero sub={plural(p.ordenesNuevas, "orden", "órdenes")}>{solesCompacto(p.montoNuevas)}</CeldaNumero>,
+    },
+  };
+}
+
+function ListaCierres({ inicial }: { inicial: InicialPatrones }) {
+  const lista = useListaEnUrl("cierres", inicial);
+  const [ruc, setRuc] = useState(inicial.ruc ?? "");
+  const rucValido = /^20\d{9}$/.test(ruc.trim()) ? ruc.trim() : undefined;
+  const [graves, setGraves] = useState(false);
+  const filtrada = !!rucValido || graves;
+  const pag = usePaginaConFiltro(filtrada ? `${rucValido ?? ""}|${graves ? 1 : 0}` : "", lista);
+  const carga = usePoder<PatronesCierres>(rutaCierres(pag.page, rucValido, graves));
+  return (
+    <div className="space-y-4">
+      <CabeceraPestana
+        ayuda={
+          <Ayuda titulo="¿De dónde sale y por qué importa?">
+            <span className="block">
+              De las órdenes de compra y de servicio de CONOSCE (OECE): las que cada gobierno local y regional dio a personas naturales entre la
+              elección de 2022 y el cambio de mando del 1 de enero de 2023, frente a las mismas fechas un año antes y un año después. «Nueva» es
+              una persona que no había recibido ninguna orden de esa entidad desde 2018.
+            </span>
+            <span className="mt-1.5 block">
+              Sólo entran entidades con datos los tres meses de cada periodo y al menos 20 personas el año anterior: sin eso, una entidad que
+              empezó a publicar sus órdenes parecía una ola. Y la gestión nueva no trajo tanta gente nueva un año después: si la trajo, es un nivel
+              nuevo, no el cierre.
+            </span>
+            <span className="mt-1.5 block">
+              Una gestión que se va puede pagar favores de campaña con órdenes a personas que nunca trabajaron para la entidad. También hay
+              razones legítimas: un programa nuevo, una emergencia. Las personas van sólo como cuentas. 2026 todavía no: faltan órdenes en la
+              fuente.
+            </span>
+          </Ayuda>
+        }
+      >
+        En observación: gobiernos locales y regionales que, al cierre de la gestión 2019-2022, dieron órdenes a muchas más personas nuevas para
+        la entidad que un año antes y que un año después.
+      </CabeceraPestana>
+      <label className="block max-w-md">
+        <span className="text-rotulo font-medium text-inkSoft">Filtrar por RUC de la entidad</span>
+        <input
+          type="search"
+          inputMode="numeric"
+          value={ruc}
+          onChange={(e) => setRuc(e.target.value.replace(/\D/g, "").slice(0, 11))}
+          placeholder="RUC de 11 dígitos que empieza en 20"
+          autoComplete="off"
+          className="mt-1 h-11 w-full rounded-xl border border-line bg-paperSoft px-3 text-dato text-ink placeholder:text-mute focus:border-granate focus:bg-paper focus:outline-none focus:ring-2 focus:ring-granate/20"
+        />
+      </label>
+      <label className="flex min-h-11 w-fit cursor-pointer items-center gap-2.5 text-dato text-ink">
+        <input type="checkbox" checked={graves} onChange={(e) => setGraves(e.target.checked)} className="size-5 rounded border-line accent-granate" />
+        Sólo señal alta (cinco veces o más y 50 personas nuevas o más)
+      </label>
+      <EstadoCarga carga={carga} columnas={COLUMNAS_CIERRES}>
+        {(d) => {
+          const filas = d.data ?? [];
+          const alta = d.resumen?.alta;
+          const media = d.resumen?.media;
+          const entidades = (alta?.entidades ?? 0) + (media?.entidades ?? 0);
+          const nuevas = (alta?.personasNuevas ?? 0) + (media?.personasNuevas ?? 0);
+          return (
+            <div className="space-y-4">
+              <Indicadores
+                franja
+                items={[
+                  { valor: numero(entidades), etiqueta: entidades === 1 ? "entidad" : "entidades", contexto: `${numero(alta?.entidades ?? 0)} de señal alta`, icono: <Landmark size={15} strokeWidth={1.9} aria-hidden />, parte: null },
+                  { valor: numero(nuevas), etiqueta: "personas nuevas", contexto: "en el cierre de la gestión 2019-2022", icono: <UsersRound size={15} strokeWidth={1.9} aria-hidden />, parte: null },
+                  { valor: solesCompacto((alta?.montoNuevas ?? 0) + (media?.montoNuevas ?? 0)), etiqueta: "en órdenes a ellas", contexto: "sin montos con posible error", parte: null },
+                ]}
+              />
+              <ZonaLista total={d.total} page={pag.page} cargando={carga.cargando} nombre="entidades" onPagina={pag.irAPagina} vacio="No hay entidades para ese filtro.">
+                {filas.length > 0 ? <Tabla columnas={COLUMNAS_CIERRES} filas={filas.map(filaCierre)} etiqueta="Gobiernos con una ola de personas nuevas al cierre de la gestión" /> : null}
               </ZonaLista>
             </div>
           );

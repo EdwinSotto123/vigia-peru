@@ -993,6 +993,58 @@ patronesRouter.get("/autoridad-exsocio", async (c) => {
   return c.json(cuerpo);
 });
 
+// ─── GET /patrones/cierres — ola de personas nuevas al cierre de una gestión (migración 380) ─────────────────────────
+const Cierres = z.object({
+  /** La elección (por ahora sólo la de 2022: en 2026 faltan órdenes en la fuente). */
+  eleccion: z.enum(["2022-10-02"]).default("2022-10-02"),
+  /** RUC de la entidad. */
+  buscar: z.string().regex(/^20\d{9}$/).optional(),
+  severidad: z.enum(["alta", "media"]).optional(),
+  page: z.coerce.number().int().min(1).max(200).default(1),
+  size: z.coerce.number().int().min(1).max(50).default(20),
+});
+
+patronesRouter.get("/cierres", async (c) => {
+  const p = Cierres.safeParse(Object.fromEntries(Object.entries(parametros(c)).filter(([, v]) => v !== "" && v != null)));
+  if (!p.success) return c.json({ error: "invalid_query", issues: p.error.issues }, 400);
+  const q = p.data;
+  try {
+    const cuerpo = await memo.obtener(`cierres:${JSON.stringify(q)}`, async () => {
+      const [r, t] = await Promise.all([
+        pool.query(
+          `SELECT k.entidad_ruc AS "entidadRuc", es.nombre AS entidad, es.region, es.provincia, es.distrito,
+                  to_char(k.eleccion, 'YYYY-MM-DD') AS eleccion, to_char(k.cambio, 'YYYY-MM-DD') AS cambio,
+                  k.personas, k.personas_nuevas AS "personasNuevas", k.ordenes_nuevas AS "ordenesNuevas", k.monto_nuevas::float AS "montoNuevas",
+                  k.personas_base AS "personasBase", k.personas_nuevas_base AS "personasNuevasBase",
+                  k.personas_nuevas_despues AS "personasNuevasDespues", k.severidad, (count(*) OVER ())::int AS total_filas
+             FROM cierre_gestion_personas k LEFT JOIN entidad_stats es ON es.ruc = k.entidad_ruc
+            WHERE k.eleccion = $1::date AND ($2::text IS NULL OR k.entidad_ruc = $2) AND ($3::text IS NULL OR k.severidad = $3)
+            ORDER BY CASE k.severidad WHEN 'alta' THEN 0 ELSE 1 END,
+                     k.personas_nuevas::numeric / GREATEST(k.personas_nuevas_base, 5) DESC, k.personas_nuevas DESC, k.entidad_ruc
+            LIMIT $4 OFFSET $5`, [q.eleccion, q.buscar ?? null, q.severidad ?? null, q.size, (q.page - 1) * q.size]),
+        pool.query<{ severidad: string; entidades: number; personasNuevas: number; montoNuevas: number }>(
+          `SELECT k.severidad, count(*)::int AS entidades, COALESCE(sum(k.personas_nuevas), 0)::int AS "personasNuevas",
+                  COALESCE(sum(k.monto_nuevas), 0)::float AS "montoNuevas"
+             FROM cierre_gestion_personas k WHERE k.eleccion = $1::date GROUP BY 1`, [q.eleccion]),
+      ]);
+      const filas = r.rows as Record<string, any>[];
+      return publicar({
+        total: filas[0]?.total_filas ?? 0, page: q.page, size: q.size, eleccion: q.eleccion,
+        resumen: Object.fromEntries(t.rows.map((x) => [x.severidad, { entidades: x.entidades, personasNuevas: x.personasNuevas, montoNuevas: x.montoNuevas }])),
+        data: filas.map(({ total_filas: _t, ...x }) => x),
+        enObservacion: true,
+        como_leerlo: "Cada fila es un gobierno local o regional que, entre la elección y el cambio de mando, dio órdenes de servicio a muchas más personas naturales NUEVAS para la entidad (sin ninguna orden suya desde 2018) que en las mismas fechas un año antes, y también más que un año después con la gestión nueva. Sólo entra con datos completos los tres meses de cada periodo y una base de 20 personas o más. Una gestión que se va puede pagar favores de campaña con órdenes a personas que nunca trabajaron para la entidad; también puede haber razones legítimas (un programa nuevo, una emergencia). Es una señal en observación: las personas van sólo como cuentas; la lista de esas órdenes está en la historia de la entidad.",
+      });
+    });
+    c.header("Cache-Control", CACHE);
+    return c.json(cuerpo);
+  } catch (e) {
+    console.warn(`[patrones] cierres: ${(e as Error).message}`);
+    c.header("Cache-Control", "no-store");
+    return c.json({ error: "no_disponible" }, 503);
+  }
+});
+
 const Renovaciones = z.object({
   ruc: z.string().regex(/^20\d{9}$/).optional(),
   page: z.coerce.number().int().min(1).max(200).default(1),

@@ -767,10 +767,13 @@ export const patrones = definir({
     "Con alcance «autoridad_exsocio» (en observación): autoridades electas (alcalde, regidor, gobernador, consejero) que dejaron de " +
     "figurar en una empresa del RNP y lo que esa empresa le vendió a su entidad dentro de su periodo, con cuántas ventas caen " +
     "hasta 12 meses después de su salida (el plazo del impedimento por participación); con ruc, los de esa entidad o empresa. " +
+    "Con alcance «cierre_gestion» (en observación): gobiernos locales y regionales que, entre la elección de 2022 y el cambio de " +
+    "mando, dieron órdenes a muchas más personas naturales NUEVAS para la entidad (sin órdenes suyas desde 2018) que un año antes " +
+    "y que un año después; personas sólo como cuentas; cada caso trae su siguiente_paso con ordenes_en_periodo. " +
     "Un patrón es un motivo para mirar, no una acusación.",
   cuenta: true,
   entrada: {
-    alcance: z.enum(["entidad", "proveedor", "relleno", "consorcio", "renovacion", "dueno", "inhabilitada", "control", "observado", "observacion", "grupo", "repetida", "doble", "recien_creada", "compras_familia", "autoridad_exsocio"]).default("entidad"),
+    alcance: z.enum(["entidad", "proveedor", "relleno", "consorcio", "renovacion", "dueno", "inhabilitada", "control", "observado", "observacion", "grupo", "repetida", "doble", "recien_creada", "compras_familia", "autoridad_exsocio", "cierre_gestion"]).default("entidad"),
     indicador: z.enum(["reunion_en_evaluacion", "visita_personal_decisor", "ofertas_a_la_vez", "trabajo_en_el_ganador",
       "firma_en_plazo_de_apelacion"]).optional()
       .describe("(observacion) Sólo uno de los indicadores en observación."),
@@ -796,6 +799,28 @@ export const patrones = definir({
           enlace_empresa: x.ruc ? e.empresa(String(x.ruc)) : undefined, enlace_entidad: e.entidad(String(x.entidadRuc)),
           ficha_del_caso: x.clave ? `${cx.env.VIGIA_URL}/app/patrones/caso/recien/${x.clave}` : undefined,
         })),
+        como_leerlo: r.como_leerlo,
+        aviso: AVISO,
+      };
+    }
+    if (a.alcance === "cierre_gestion") {
+      const r = await api<Fila>(cx.env, "/patrones/cierres", { buscar: ruc, severidad: a.solo_graves ? "alta" : undefined, page: a.pagina, size: 20 });
+      const mesAntes = (f: string) => new Date(Date.UTC(Number(f.slice(0, 4)), Number(f.slice(5, 7)) - 1, 0)).toISOString().slice(0, 10);
+      return {
+        total: r.total,
+        en_observacion: true,
+        eleccion: r.eleccion,
+        resumen_por_severidad: r.resumen,
+        casos: ((r.data ?? []) as Fila[]).map((x) => ({
+          entidad: x.entidad, entidad_ruc: x.entidadRuc, lugar: [x.distrito, x.provincia, x.region].filter(Boolean).join(", ") || undefined,
+          severidad: x.severidad, eleccion: x.eleccion, cambio_de_mando: x.cambio,
+          personas_nuevas: x.personasNuevas, ordenes_a_personas_nuevas: x.ordenesNuevas, monto_a_personas_nuevas_soles: x.montoNuevas,
+          personas_nuevas_un_anio_antes: x.personasNuevasBase, personas_nuevas_un_anio_despues: x.personasNuevasDespues ?? undefined,
+          personas_en_el_periodo: x.personas, personas_un_anio_antes: x.personasBase,
+          siguiente_paso: { herramienta: "ordenes_en_periodo", entidad_ruc: x.entidadRuc, desde: `${String(x.eleccion).slice(0, 7)}-01`, hasta: mesAntes(String(x.cambio)) },
+          enlace_entidad: `${e.entidad(String(x.entidadRuc))}?seccion=historia`,
+        })),
+        enlace: `${cx.env.VIGIA_URL}/app/patrones?seccion=cierres`,
         como_leerlo: r.como_leerlo,
         aviso: AVISO,
       };

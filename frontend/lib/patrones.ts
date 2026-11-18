@@ -27,6 +27,7 @@ export const SECCIONES_PATRONES = {
   control: "Socio en informe de control",
   observados: "Observados por la Contraloría",
   renovaciones: "Renovaciones más caras",
+  cierres: "Cierre de gestión",
   observacion: "En observación",
 } as const;
 export type SeccionPatrones = keyof typeof SECCIONES_PATRONES;
@@ -597,6 +598,35 @@ export interface PatronesAutoridadExsocio {
   resumen?: { casos: number; autoridades: number; empresas: number; entidades: number; monto: number; montoEnPlazo: number } | null;
   data: PatronAutoridadExsocio[];
 }
+
+/** Un gobierno local o regional con una ola de personas nuevas al cierre de una gestión (migración 380). */
+export interface PatronCierre {
+  entidadRuc: string;
+  entidad: string | null;
+  region: string | null;
+  provincia: string | null;
+  distrito: string | null;
+  eleccion: string;
+  cambio: string;
+  personas: number;
+  personasNuevas: number;
+  ordenesNuevas: number;
+  montoNuevas: number;
+  personasBase: number;
+  personasNuevasBase: number;
+  personasNuevasDespues: number | null;
+  severidad: "alta" | "media";
+}
+export interface PatronesCierres {
+  total: number;
+  page: number;
+  size: number;
+  eleccion: string;
+  resumen?: Record<string, { entidades: number; personasNuevas: number; montoNuevas: number }>;
+  data: PatronCierre[];
+}
+export const rutaCierres = (page = 1, ruc?: string, graves = false) =>
+  `/patrones/cierres?${consulta({ page, size: TAM_PATRONES, buscar: ruc, severidad: graves ? "alta" : undefined })}`;
 
 export const rutaAutoridadExsocio = (page = 1, ruc?: string, graves = false) =>
   `/patrones/autoridad-exsocio?${consulta({ page, size: TAM_PATRONES, buscar: ruc, severidad: graves ? "alta" : undefined })}`;

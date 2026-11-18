@@ -172,6 +172,13 @@ const CASOS: Caso[] = [
       return cs.some((x) => Object.keys(x).some((k) => /nombre_del_familiar|documento|dni/i.test(k))) ? "el caso trae el nombre o el documento del familiar" : null;
     } },
   // En observación (migración 367): la autoridad electa que dejó de figurar en una empresa y lo que ésta le vendió a su entidad.
+  // La ola de personas nuevas al cierre de la gestión 2022 (migración 380): entidades con cifras y su siguiente paso.
+  { h: patrones as never, args: { alcance: "cierre_gestion" },
+    espera: (r) => {
+      const cs = lista(r, "casos") as { personas_nuevas?: number; siguiente_paso?: { desde?: string; hasta?: string } }[];
+      return cs.length >= 5 && cs.every((x) => (x.personas_nuevas ?? 0) >= 20 && x.siguiente_paso?.desde === "2022-10-01" && x.siguiente_paso?.hasta === "2022-12-31")
+        ? null : `casos: ${cs.length}; ${JSON.stringify(cs[0] ?? null).slice(0, 160)}`;
+    } },
   { h: patrones as never, args: { alcance: "autoridad_exsocio" },
     espera: (r) => {
       const cs = lista(r, "casos") as Record<string, unknown>[];
