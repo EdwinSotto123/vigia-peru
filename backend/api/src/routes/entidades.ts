@@ -1243,13 +1243,16 @@ entidadesRouter.get("/:ruc", async (c) => {
     // La red de sus proveedores y de su gente (migraciones 343-352): grupos por dueño y familia de gravedad alta, compras
     // repetidas en semanas, empresas de parientes declarados de sus funcionarios y personas de su planilla con órdenes de
     // servicio de otra entidad. Aparte: sin esas tablas la consulta falla y las demás banderas siguen.
-    pool.query<{ gruposAlta: number; gruposMonto: number; comprasRepetidas: number; empresasPariente: number; empresasParienteMonto: number; dobleIngreso: number }>(
+    pool.query<{ gruposAlta: number; gruposMonto: number; comprasRepetidas: number; empresasPariente: number; empresasParienteMonto: number; dobleIngreso: number;
+                 recienCreadas: number; recienCreadasMonto: number }>(
       `SELECT (SELECT count(*) FROM grupo_proveedor_resumen g WHERE g.entidad_ruc = $1 AND g.severidad = 'alta')::int AS "gruposAlta",
               (SELECT COALESCE(sum(g.monto), 0) FROM grupo_proveedor_resumen g WHERE g.entidad_ruc = $1 AND g.severidad = 'alta')::float AS "gruposMonto",
               (SELECT count(*) FROM ordenes_repetidas o WHERE o.entidad_ruc = $1 AND o.severidad IN ('alta', 'media'))::int AS "comprasRepetidas",
               (SELECT count(*) FROM empresa_pariente_funcionario e WHERE e.entidad_ruc = $1)::int AS "empresasPariente",
               (SELECT COALESCE(sum(e.monto), 0) FROM empresa_pariente_funcionario e WHERE e.entidad_ruc = $1)::float AS "empresasParienteMonto",
-              (SELECT count(*) FROM doble_percepcion d WHERE d.entidad_ruc = $1 AND d.severidad = 'media')::int AS "dobleIngreso"`,
+              (SELECT count(*) FROM doble_percepcion d WHERE d.entidad_ruc = $1 AND d.severidad = 'media')::int AS "dobleIngreso",
+              (SELECT count(*) FROM empresa_recien_creada_ordenes rc WHERE rc.entidad_ruc = $1 AND rc.severidad IN ('alta', 'media'))::int AS "recienCreadas",
+              (SELECT COALESCE(sum(rc.monto_1a), 0) FROM empresa_recien_creada_ordenes rc WHERE rc.entidad_ruc = $1 AND rc.severidad IN ('alta', 'media'))::float AS "recienCreadasMonto"`,
       [ruc],
     ).catch((e) => { console.warn(`[entidades] red de ${ruc}: ${(e as Error).message}`); return null; }),
   ]);

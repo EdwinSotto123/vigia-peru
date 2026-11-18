@@ -22,6 +22,7 @@ import {
   type PatronInhabilitada,
   type PatronObservacion,
   type PatronObservado,
+  type PatronRecien,
   type PatronRenovacion,
   type PatronRepetida,
   type PatronSenal,
@@ -660,6 +661,52 @@ export function detalleDoble(p: PatronDoble): Detalle {
           p.codigo ? { texto: "Ficha de la persona", href: `/app/personas/cargo/${p.codigo}?seccion=revision` } : false,
           esRuc20(p.entidadRuc) && { texto: "Entidad de su planilla", href: `/entidad/${p.entidadRuc}?seccion=planilla` },
           esRuc20(p.otraRuc) && { texto: "Entidad de las órdenes", href: `/entidad/${p.otraRuc}` },
+        ]}
+      />
+    ),
+  };
+}
+
+// ─── Empresa recién creada con órdenes directas ──────────────────────────────────
+
+export function detalleRecien(p: PatronRecien): Detalle {
+  const e = empresa(p.nombre);
+  const ent = entidad(p.entidad);
+  const vive = p.parteEntidad != null && p.parteEntidad >= 0.8;
+  return {
+    titulo: e,
+    etiqueta: "Ver el detalle de esta empresa recién creada",
+    descripcion: <span className="line-clamp-2">{ent}</span>,
+    contenido: (
+      <div className="space-y-5">
+        <EnUnaFrase tono={p.severidad === "alta" ? "alta" : "media"}>
+          <b>{e}</b> se inscribió en la SUNAT el {fechaConAnio(p.fechaAlta)} y <b>{plural(p.dias, "día", "días")}</b> después <b>{ent}</b> le emitió su primera
+          orden directa. En su primer año recibió <b>{plural(p.ordenesPrimerAnio, "orden", "órdenes")}</b> por <b>{solesCompacto(p.montoPrimerAnio)}</b>, sin
+          proceso de selección.{vive ? " Casi todo lo que le vendió al Estado por órdenes es a esta entidad." : ""}
+        </EnUnaFrase>
+        <DatosClave
+          items={[
+            { etiqueta: "Alta en la SUNAT", valor: fechaConAnio(p.fechaAlta) },
+            { etiqueta: "Primera orden directa", valor: `${fechaConAnio(p.primeraOrden)} (${plural(p.dias, "día", "días")} después)` },
+            { etiqueta: "En su primer año", valor: `${numero(p.ordenesPrimerAnio)} por ${solesCompacto(p.montoPrimerAnio)}`, mono: true },
+            { etiqueta: "Órdenes directas de la entidad, todas", valor: `${numero(p.ordenes)} por ${solesCompacto(p.monto)}`, mono: true },
+            { etiqueta: "De sus ventas por órdenes, de esta entidad", valor: p.parteEntidad != null ? porcentaje(p.parteEntidad * 100) : null, mono: true },
+          ]}
+        />
+        <QueRevisar
+          pasos={[
+            "Mira quién la creó: sus socios y representantes (en su ficha) y si son parientes o exfuncionarios de la entidad, o socios de otro proveedor suyo.",
+            "Pide el requerimiento y las cotizaciones de sus primeras órdenes: quién la invitó a cotizar si tenía días de existir y ninguna experiencia.",
+            "Comprueba si es un negocio que ya existía con otro RUC (una persona natural que pasó a ser empresa): eso lo explicaría.",
+          ]}
+        />
+      </div>
+    ),
+    pie: (
+      <Pie
+        enlaces={[
+          esRuc20(p.ruc) && { texto: "Ficha de la empresa", href: `/empresa/${p.ruc}` },
+          esRuc20(p.entidadRuc) && { texto: "Sus órdenes en la entidad", href: `/entidad/${p.entidadRuc}?seccion=contratos&csenal=recien_creada&ccon=${p.ruc}` },
         ]}
       />
     ),

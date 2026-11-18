@@ -425,6 +425,14 @@ function banderasDeOrden(o: Fila): { banderas?: Fila[] } {
       que: "un socio, representante o directivo de la empresa es pariente que un funcionario de la entidad declaró en su DJI",
     });
   }
+  const rc = o.recienCreada as Fila | null;
+  if (rc) {
+    b.push({
+      tipo: "recien_creada", severidad: rc.severidad, alta_en_sunat: rc.alta, primera_orden_directa: rc.primera, dias_del_alta_a_la_primera_orden: rc.dias,
+      ordenes_en_su_primer_anio: rc.ordenes, monto_en_su_primer_anio_soles: rc.monto, parte_de_sus_ventas_que_viene_de_esta_entidad: rc.parte ?? undefined,
+      que: "la empresa recibió su primera orden directa de la entidad a 90 días o menos de inscribirse en la SUNAT",
+    });
+  }
   const inh = o.inhabilitacion as Fila | null;
   if (inh) b.push({ tipo: "inhabilitado", severidad: "alta", sancion: inh.tipo, resolucion: inh.resolucion, desde: inh.desde, hasta: inh.hasta ?? undefined });
   const f = o.fraccionamiento as Fila | null;
@@ -456,10 +464,11 @@ export const ordenes = definir({
     como: z.string().max(40).optional().describe("Por qué vía: proceso, catalogo, menor (compra menor), directa (orden directa) o pago."),
     con: z.string().optional().describe("RUC de la otra parte (la empresa si filtras por entidad, o al revés)."),
     anio: anio.optional(),
-    bandera: z.enum(["pariente_socio", "nepotismo", "repetida", "fraccionamiento", "inhabilitado", "al_borde_del_tope", "financio_campana",
+    bandera: z.enum(["pariente_socio", "recien_creada", "nepotismo", "repetida", "fraccionamiento", "inhabilitado", "al_borde_del_tope", "financio_campana",
                      "candidato_gobierna", "autoridad_contratada", "sobreprecio", "antecedentes", "sunat"]).optional().describe(
       "Sólo las compras con esa bandera. De la orden: pariente_socio (un socio o representante de la empresa es pariente " +
-      "declarado de un funcionario de la entidad), nepotismo (el proveedor persona es ese pariente), repetida (la misma compra " +
+      "declarado de un funcionario de la entidad), recien_creada (la empresa recibió su primera orden directa a 90 días o menos " +
+      "de crearse), nepotismo (el proveedor persona es ese pariente), repetida (la misma compra " +
       "en varias órdenes de 7 a 90 días), fraccionamiento (órdenes del mismo día que pasan 8 UIT), inhabilitado, " +
       "al_borde_del_tope, financio_campana, candidato_gobierna, autoridad_contratada. sobreprecio: catálogo; antecedentes: " +
       "procesos con cruces; sunat: compras menores a empresas con problemas en SUNAT."),

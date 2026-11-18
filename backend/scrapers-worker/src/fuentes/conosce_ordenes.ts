@@ -293,6 +293,8 @@ export async function correrOrdenes(env: Env, p: ParamsCorrida, step: WorkflowSt
     opcional("refrescar_funcionario_familiar"),
     // Cobra del Estado por dos lados (migración 352): planilla de una entidad y órdenes de servicio de otra, los mismos meses.
     opcional("refrescar_doble_percepcion"),
+    // Empresas recién creadas que reciben órdenes directas a los pocos días de su alta (migración 355).
+    opcional("refrescar_empresa_recien_creada_ordenes"),
     // Y los que tienen un integrante declarado como pariente por un funcionario de la misma entidad (migración 344).
     opcional("marcar_grupos_parientes"),
     // Los cruces (el fraccionamiento es uno) y los casos cruzados (migraciones 48 y 57).

@@ -571,10 +571,12 @@ export const patrones = definir({
     "fraccionamiento en el tiempo si juntas pasan el tope y cada una queda al borde, o posible pago doble si todas se devengaron. " +
     "Con alcance «doble»: personas de la planilla de una entidad que, esos mismos meses, recibieron órdenes de servicio de otra " +
     "(dos ingresos del Estado: sólo lo permite la docencia y las dietas); con ruc, las de esa entidad. " +
+    "Con alcance «recien_creada»: empresas que se inscribieron en la SUNAT y a 90 días o menos ya recibían órdenes directas " +
+    "(sin proceso) de una entidad; con ruc, las de esa entidad o esa empresa. " +
     "Un patrón es un motivo para mirar, no una acusación.",
   cuenta: true,
   entrada: {
-    alcance: z.enum(["entidad", "proveedor", "relleno", "consorcio", "renovacion", "dueno", "inhabilitada", "control", "observado", "observacion", "grupo", "repetida", "doble"]).default("entidad"),
+    alcance: z.enum(["entidad", "proveedor", "relleno", "consorcio", "renovacion", "dueno", "inhabilitada", "control", "observado", "observacion", "grupo", "repetida", "doble", "recien_creada"]).default("entidad"),
     indicador: z.enum(["reunion_en_evaluacion", "visita_personal_decisor", "ofertas_a_la_vez", "trabajo_en_el_ganador",
       "firma_en_plazo_de_apelacion"]).optional()
       .describe("(observacion) Sólo uno de los indicadores en observación."),
@@ -588,6 +590,21 @@ export const patrones = definir({
   async ejecutar(a, cx) {
     const e = enlaces(cx.env);
     const ruc = a.ruc ? rucJuridico(a.ruc) : undefined;
+    if (a.alcance === "recien_creada") {
+      const r = await api<Fila>(cx.env, "/patrones/recien", { buscar: ruc, severidad: a.solo_graves ? "alta" : undefined, page: a.pagina, size: 20 });
+      return {
+        total: r.total,
+        casos: ((r.data ?? []) as Fila[]).map((x) => ({
+          empresa: x.nombre, ruc: x.ruc, entidad: x.entidad, entidad_ruc: x.entidadRuc, severidad: x.severidad,
+          alta_en_sunat: x.fechaAlta, primera_orden_directa: x.primeraOrden, dias_del_alta_a_la_primera_orden: x.dias,
+          ordenes_en_su_primer_anio: x.ordenesPrimerAnio, monto_en_su_primer_anio_soles: x.montoPrimerAnio,
+          parte_de_sus_ventas_por_ordenes_que_viene_de_esta_entidad: x.parteEntidad ?? undefined,
+          enlace_empresa: x.ruc ? e.empresa(String(x.ruc)) : undefined, enlace_entidad: e.entidad(String(x.entidadRuc)),
+        })),
+        como_leerlo: r.como_leerlo,
+        aviso: AVISO,
+      };
+    }
     if (a.alcance === "doble") {
       const r = await api<Fila>(cx.env, "/patrones/doble", { buscar: ruc, severidad: a.solo_graves ? "media" : undefined, page: a.pagina, size: 20 });
       return {

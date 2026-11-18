@@ -2,13 +2,13 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
-import { Ban, Briefcase, Building2, Coins, CopyCheck, FileSearch, FlaskConical, Handshake, ScanSearch, SearchX, TrendingUp, Users, UsersRound } from "lucide-react";
+import { Ban, Briefcase, Building2, Coins, CopyCheck, FileSearch, Sprout, FlaskConical, Handshake, ScanSearch, SearchX, TrendingUp, Users, UsersRound } from "lucide-react";
 import { Ayuda, CabeceraPestana, Nota, Pestanas } from "@/components/patrones";
 import { EVENTO_ACTIVA } from "@/components/patrones/Pestanas";
 import { CeldaBarra, CeldaNumero, CeldaPrincipal, CeldaTexto, CLASE_ENLACE_CELDA, Indicadores, Tabla, type Columna, type Fila, type Indicador } from "@/components/listado";
 import { EstadoCarga, usePoder } from "@/components/grafo/vista";
 import { InformeEnPanel } from "@/components/control/InformeEnPanel";
-import { detalleConsorcio, detalleControl, detalleDoble, detalleDueno, detalleGrupo, detalleInhabilitada, detalleObservacion, detalleObservado, detalleRelleno, detalleRenovacion, detalleRepetida, detalleSenal } from "./DetallePatron";
+import { detalleConsorcio, detalleControl, detalleDoble, detalleDueno, detalleGrupo, detalleInhabilitada, detalleObservacion, detalleObservado, detalleRecien, detalleRelleno, detalleRenovacion, detalleRepetida, detalleSenal } from "./DetallePatron";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Dato } from "@/components/ui/Dato";
@@ -29,6 +29,7 @@ import {
   rutaObservacion,
   rutaObservados,
   rutaPatrones,
+  rutaRecien,
   rutaRenovaciones,
   rutaRepetidas,
   SECCIONES_PATRONES,
@@ -38,6 +39,8 @@ import {
   type PatronConsorcio,
   type PatronControl,
   type PatronDoble,
+  type PatronRecien,
+  type PatronesRecien,
   type PatronesDoble,
   type PatronDueno,
   type PatronGrupo,
@@ -144,6 +147,13 @@ export function PatronesVista({ activa, inicial, etiquetas }: { activa?: string;
           titulo: "En planilla de una entidad y con órdenes de servicio de otra",
           icono: <Coins size={15} aria-hidden />,
           contenido: <ListaDoble inicial={de("doble")} />,
+        },
+        {
+          clave: "recien",
+          etiqueta: SECCIONES_PATRONES.recien,
+          titulo: "Empresas que reciben órdenes a pocos días de crearse",
+          icono: <Sprout size={15} aria-hidden />,
+          contenido: <ListaRecien inicial={de("recien")} />,
         },
         {
           clave: "inhabilitadas",
@@ -1251,6 +1261,114 @@ function filaDoble(p: PatronDoble, i: number): Fila {
       meses: <CeldaNumero sub={p.docente ? "docencia: excepción" : undefined}>{plural(p.meses, "mes", "meses")}</CeldaNumero>,
       monto: <CeldaNumero sub={plural(p.ordenes, "orden", "órdenes")}>{solesCompacto(p.monto)}</CeldaNumero>,
       sueldo: <CeldaNumero>{p.sueldo ? solesCompacto(p.sueldo) : "Sin dato"}</CeldaNumero>,
+    },
+  };
+}
+
+// ─── Empresas recién creadas con órdenes directas ────────────────────────────────
+
+const COLUMNAS_RECIEN: Columna[] = [
+  { clave: "empresa", titulo: "Empresa y entidad", ancho: "minmax(0,1.7fr)" },
+  {
+    clave: "dias",
+    titulo: "Del alta a su primera orden",
+    ancho: "10rem",
+    alinear: "der",
+    corto: "Días",
+    ayuda: (
+      <Ayuda titulo="¿Qué cuenta?">
+        <span className="block">Los días entre su inscripción en la SUNAT y la primera orden directa (sin proceso de selección) que le emitió la entidad.</span>
+      </Ayuda>
+    ),
+  },
+  { clave: "primer", titulo: "En su primer año", ancho: "9rem", alinear: "der", desde: "md", apilar: "con-rotulo", corto: "Primer año" },
+  { clave: "parte", titulo: "De sus ventas, de esta entidad", ancho: "9.5rem", alinear: "der", desde: "lg", apilar: "con-rotulo", corto: "De la entidad" },
+];
+
+function ListaRecien({ inicial }: { inicial: InicialPatrones }) {
+  const lista = useListaEnUrl("recien", inicial);
+  const [ruc, setRuc] = useState(inicial.ruc ?? "");
+  const rucValido = /^20\d{9}$/.test(ruc.trim()) ? ruc.trim() : undefined;
+  const [graves, setGraves] = useState(false);
+  const filtrada = !!rucValido || graves;
+  const carga = usePoder<PatronesRecien>(rutaRecien(filtrada ? 1 : lista.page, rucValido, graves));
+  return (
+    <div className="space-y-4">
+      <CabeceraPestana
+        ayuda={
+          <Ayuda titulo="¿Por qué mirar a una empresa nueva?">
+            <span className="block">
+              Una empresa que se inscribe y a los pocos días ya recibe órdenes sin proceso de selección puede haberse creado para esa compra. Sin consorcios:
+              esos nacen con su RUC al ganar un proceso.
+            </span>
+            <span className="mt-1.5 block">
+              También puede ser un negocio que ya existía con otro RUC (una persona que pasa a ser E.I.R.L.). Mira quién la creó y quién pidió la compra.
+            </span>
+          </Ayuda>
+        }
+      >
+        Empresas que se inscribieron en la SUNAT y a 90 días o menos ya recibían órdenes directas de una entidad, con S/ 30 mil o más en su primer año.
+      </CabeceraPestana>
+      <label className="block max-w-md">
+        <span className="text-rotulo font-medium text-inkSoft">Filtrar por RUC de la entidad o de la empresa</span>
+        <input
+          type="search"
+          inputMode="numeric"
+          value={ruc}
+          onChange={(e) => setRuc(e.target.value.replace(/\D/g, "").slice(0, 11))}
+          placeholder="RUC de 11 dígitos que empieza en 20"
+          autoComplete="off"
+          className="mt-1 h-11 w-full rounded-xl border border-line bg-paperSoft px-3 text-dato text-ink placeholder:text-mute focus:border-granate focus:bg-paper focus:outline-none focus:ring-2 focus:ring-granate/20"
+        />
+      </label>
+      <label className="flex min-h-11 w-fit cursor-pointer items-center gap-2.5 text-dato text-ink">
+        <input type="checkbox" checked={graves} onChange={(e) => setGraves(e.target.checked)} className="size-5 rounded border-line accent-granate" />
+        Sólo las graves: a 30 días o menos, S/ 100 mil o más y casi todo lo que vende es a esa entidad
+      </label>
+      <EstadoCarga carga={carga} columnas={COLUMNAS_RECIEN}>
+        {(d) => {
+          const filas = d.data ?? [];
+          return (
+            <div className="space-y-4">
+              <Indicadores
+                franja
+                items={[
+                  { valor: numero(d.total), etiqueta: rucValido ? "casos con ese RUC" : graves ? "casos graves" : "casos", contexto: "empresas con alta desde 2019, sin consorcios", icono: <Sprout size={15} strokeWidth={1.9} aria-hidden />, parte: null },
+                  { valor: "90", etiqueta: "días o menos del alta a la primera orden", contexto: "30 o menos, entre lo grave", parte: null },
+                  { valor: "S/ 30 mil", etiqueta: "o más en su primer año", contexto: "en órdenes sin proceso de selección", parte: null },
+                ]}
+              />
+              <ZonaLista total={d.total} page={filtrada ? 1 : lista.page} cargando={carga.cargando} nombre="casos" onPagina={lista.irAPagina} vacio="No hay casos para ese filtro.">
+                {filas.length > 0 ? <Tabla columnas={COLUMNAS_RECIEN} filas={filas.map(filaRecien)} etiqueta="Empresas recién creadas que reciben órdenes directas" /> : null}
+              </ZonaLista>
+            </div>
+          );
+        }}
+      </EstadoCarga>
+    </div>
+  );
+}
+
+function filaRecien(p: PatronRecien, i: number): Fila {
+  return {
+    id: `recien-${i}`,
+    detalle: detalleRecien(p),
+    enlaces: true,
+    celdas: {
+      empresa: (
+        <CeldaPrincipal
+          dosLineas
+          titulo={<EnlaceEmpresa ruc={p.ruc} nombre={p.nombre} />}
+          meta={
+            <span className="block">
+              <EnlaceEntidad ruc={p.entidadRuc} nombre={p.entidad} />
+            </span>
+          }
+        />
+      ),
+      dias: <CeldaNumero sub={`alta: ${fechaConAnio(p.fechaAlta)}`}>{plural(p.dias, "día", "días")}</CeldaNumero>,
+      primer: <CeldaNumero sub={plural(p.ordenesPrimerAnio, "orden", "órdenes")}>{solesCompacto(p.montoPrimerAnio)}</CeldaNumero>,
+      parte: <CeldaNumero>{p.parteEntidad != null ? porcentaje(p.parteEntidad * 100) : "Sin dato"}</CeldaNumero>,
     },
   };
 }

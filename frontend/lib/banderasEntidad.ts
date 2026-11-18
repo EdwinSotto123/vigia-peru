@@ -89,6 +89,15 @@ export function banderasEntidad(
       href: `/app/patrones?seccion=grupos&ruc=${ruc}`,
     });
   }
+  if ((s.recienCreadas ?? 0) > 0) {
+    const n = s.recienCreadas!;
+    out.push({
+      tipo: "recien_creada", severidad: "media", chip: "Empresas recién creadas", n,
+      titulo: `${plural(n, "empresa recibió", "empresas recibieron")} su primera orden directa a pocos días de crearse`,
+      explica: `Se inscribieron en la SUNAT y a 90 días o menos ya recibían órdenes sin proceso de selección${s.recienCreadasMonto ? `: ${soles(s.recienCreadasMonto)} en su primer año` : ""}. Puede ser un negocio que ya existía con otro RUC: mira quién la creó y quién pidió la compra.`,
+      href: `${ficha}?seccion=contratos&csenal=recien_creada`,
+    });
+  }
   if ((s.comprasRepetidas ?? 0) > 0) {
     const n = s.comprasRepetidas!;
     out.push({

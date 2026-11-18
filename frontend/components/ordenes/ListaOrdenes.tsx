@@ -66,6 +66,7 @@ import {
   type OrdenFraccionada,
   type OrdenRepetida,
   type ParienteSocio,
+  type RecienCreada,
   type OrdenGeneral,
   type OrdenesPagina,
   type ProcesoCandidato,
@@ -532,6 +533,7 @@ const CHIP_INHABILITADO = "Inhabilitado al emitirse";
 const CHIP_FRACCIONAMIENTO = TIPO_CRUCE.fraccionamiento?.chip ?? "Pasan 8 UIT";
 const CHIP_REPETIDA = "Compra repetida";
 const CHIP_PARIENTE_SOCIO = "Empresa de un pariente";
+const CHIP_RECIEN_CREADA = "Empresa recién creada";
 /** «CUÑADO(A)» → «cuñado o cuñada»; «HERMANO(A) DEL DECLARANTE» → «hermano o hermana». */
 const parentescoLegible = (p: string | null | undefined) => {
   const t = (p ?? "pariente").toLocaleLowerCase("es").replace(/\s+del declarante$/, "").replace(/\s*\(\s*a\s*\)/g, "(a)").replace(/conyuge/g, "cónyuge").trim();
@@ -580,6 +582,15 @@ export function antecedentesOrden(o: OrdenGeneral): Antecedente[] {
       severidad: ps.severidad === "alta" ? "alta" : "media",
       chip: CHIP_PARIENTE_SOCIO,
       explica: `Un ${rolLegible(ps.rol)} de la empresa es ${parentescoLegible(ps.parentesco)} de ${ps.cargo ? `un funcionario de la entidad (${oracion(ps.cargo.toLocaleLowerCase("es"))})` : "un funcionario de la entidad"}, según su declaración jurada de intereses.`,
+    });
+  }
+  const rc = o.recienCreada;
+  if (rc) {
+    out.push({
+      tipo: "recien_creada",
+      severidad: rc.severidad === "alta" ? "alta" : "media",
+      chip: CHIP_RECIEN_CREADA,
+      explica: `La empresa se inscribió en la SUNAT el ${fechaLarga(rc.alta)} y la entidad le emitió su primera orden directa ${plural(rc.dias, "día", "días")} después.`,
     });
   }
   const r = o.repetida;
@@ -1131,6 +1142,48 @@ function TarjetaFraccionamiento({ o, f, id }: { o: OrdenGeneral; f: OrdenFraccio
   );
 }
 
+/** La empresa recién creada: cuándo se creó, a cuántos días llegó su primera orden y cuánto le compró la entidad en su primer año. */
+function TarjetaRecienCreada({ o, rc, id }: { o: OrdenGeneral; rc: RecienCreada; id: string }) {
+  const vive = rc.parte != null && rc.parte >= 0.8;
+  return (
+    <TarjetaBandera
+      id={id}
+      tipo="recien_creada"
+      severidad={rc.severidad === "alta" ? "alta" : "media"}
+      nombre="Empresa recién creada que recibe órdenes directas"
+      pie={
+        <>
+          <AccionesBandera
+            acciones={[
+              esEmpresa(o.rucContratista) && o.entidadRuc
+                ? { href: rutaOrdenes({ entidad: o.entidadRuc, proveedor: o.rucContratista, antecedente: "recien_creada" }), texto: "Ver sus órdenes del primer año" }
+                : null,
+              esEmpresa(o.rucContratista) ? { href: `/empresa/${o.rucContratista}`, texto: "Ver quién la creó: socios y representantes" } : null,
+            ]}
+          />
+          <DondeComprobarlo
+            enlaces={esEmpresa(o.rucContratista) ? [{ texto: "Registro Nacional de Proveedores (RNP)", href: fichaRnp(o.rucContratista), pista: "mira sus socios, su fecha de inscripción y su experiencia" }] : []}
+          />
+        </>
+      }
+    >
+      <p>
+        La empresa se inscribió en la SUNAT el {fechaLarga(rc.alta)} y la entidad le emitió su primera orden directa (sin proceso de selección){" "}
+        {plural(rc.dias, "día", "días")} después. {vive ? "Casi todo lo que le vendió al Estado por órdenes viene de esta entidad. " : ""}
+        Puede ser un negocio que ya existía con otro RUC; también, una empresa hecha para esta compra. No lo prueba.
+      </p>
+      <HechosBandera>
+        <Dato icono={CalendarRange} nombre="Del alta a su primera orden">{plural(rc.dias, "día", "días")} del alta a su primera orden</Dato>
+        <Dato icono={ReceiptText} nombre="Órdenes directas en su primer año">{plural(rc.ordenes, "orden directa", "órdenes directas")} en su primer año</Dato>
+        <Dato icono={Banknote} nombre="Lo que suman">
+          Suman <Monto n={rc.monto} />
+        </Dato>
+        {rc.parte != null ? <Dato icono={Gauge} nombre="De sus ventas por órdenes, de esta entidad">{porcentaje(rc.parte * 100)} de sus ventas por órdenes</Dato> : null}
+      </HechosBandera>
+    </TarjetaBandera>
+  );
+}
+
 /** La empresa de un pariente declarado: quién en la empresa, qué parentesco, qué cargo y cuánto le compró la entidad. */
 function TarjetaParienteSocio({ o, ps, id }: { o: OrdenGeneral; ps: ParienteSocio; id: string }) {
   return (
@@ -1307,6 +1360,11 @@ function banderasDeOrden(o: OrdenGeneral): BanderaOrden[] {
       `Un ${rolLegible(ps.rol)} de la empresa es ${parentescoLegible(ps.parentesco)} de ` +
       `${ps.cargo ? `un funcionario de la entidad (${oracion(ps.cargo.toLocaleLowerCase("es"))})` : "un funcionario de la entidad"}, según su declaración jurada.`;
     poner("pariente_socio", ps.severidad === "alta" ? "alta" : "media", CHIP_PARIENTE_SOCIO, frase, (id) => <TarjetaParienteSocio o={o} ps={ps} id={id} />);
+  }
+  const rc = o.recienCreada;
+  if (rc) {
+    const frase = `La empresa se creó el ${fechaLarga(rc.alta)} y recibió su primera orden directa de la entidad ${plural(rc.dias, "día", "días")} después.`;
+    poner("recien_creada", rc.severidad === "alta" ? "alta" : "media", CHIP_RECIEN_CREADA, frase, (id) => <TarjetaRecienCreada o={o} rc={rc} id={id} />);
   }
   const r = o.repetida;
   if (r) {

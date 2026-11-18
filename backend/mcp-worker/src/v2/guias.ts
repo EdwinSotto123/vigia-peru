@@ -89,6 +89,9 @@ Trabaja como un perito, no como un buscador: cada afirmación con su registro, c
   venden a la misma entidad por órdenes; cada una sola parece pequeña. Trae cuánto dependen de esa entidad, las órdenes
   de números correlativos, el objeto repartido entre integrantes y si alguno es pariente declarado de un funcionario.
 - patrones (alcance repetida): la misma compra (proveedor, monto y objeto) en varias órdenes directas de 7 a 90 días.
+- patrones (alcance recien_creada): empresas que se inscriben en la SUNAT y a los pocos días ya reciben órdenes directas
+  de una entidad; mira quién las creó (red_empresa) y si viven de ese solo cliente.
+- patrones (alcance doble): personas en la planilla de una entidad con órdenes de servicio de otra los mismos meses.
 - buscar_contratos con varias señales y todas_las_senales: los contratos que juntan dos indicios (único postor y socio de
   una inhabilitada, por ejemplo).
 - hallazgos_entidad y ranking_entidades: la entidad frente a sus pares.

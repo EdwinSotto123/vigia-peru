@@ -652,6 +652,46 @@ patronesRouter.get("/repetidas", async (c) => {
   return c.json(cuerpo);
 });
 
+const Recien = z.object({
+  /** RUC de la entidad o de la empresa. */
+  buscar: z.string().regex(/^20\d{9}$/).optional(),
+  severidad: z.enum(["alta", "media", "baja"]).optional(),
+  page: z.coerce.number().int().min(1).max(200).default(1),
+  size: z.coerce.number().int().min(1).max(50).default(20),
+});
+
+/**
+ * GET /patrones/recien?buscar=&severidad= — empresas recién creadas que reciben órdenes directas (migración 355): la
+ * entidad les emitió su primera orden sin proceso a 90 días o menos de su alta en la SUNAT, con S/ 30 mil o más en su
+ * primer año. Sin consorcios (nacen al ganar un proceso). Sólo empresas (RUC 20).
+ */
+patronesRouter.get("/recien", async (c) => {
+  const p = Recien.safeParse(Object.fromEntries(Object.entries(parametros(c)).filter(([, v]) => v !== "" && v != null)));
+  if (!p.success) return c.json({ error: "invalid_query", issues: p.error.issues }, 400);
+  const q = p.data;
+  const cuerpo = await memo.obtener(`recien:${JSON.stringify(q)}`, async () => {
+    const r = await pool.query(
+      `SELECT x.entidad_ruc AS "entidadRuc", (SELECT es.nombre FROM entidad_stats es WHERE es.ruc = x.entidad_ruc) AS entidad,
+              x.ruc_empresa AS ruc, x.empresa AS nombre, to_char(x.fecha_alta, 'YYYY-MM-DD') AS "fechaAlta",
+              to_char(x.primera_orden, 'YYYY-MM-DD') AS "primeraOrden", x.dias, x.ordenes_1a AS "ordenesPrimerAnio", x.monto_1a::float AS "montoPrimerAnio",
+              x.ordenes, x.monto::float AS monto, x.parte_entidad::float AS "parteEntidad", x.severidad, (count(*) OVER ())::int AS total_filas
+         FROM empresa_recien_creada_ordenes x
+        WHERE ($1::text IS NULL OR x.entidad_ruc = $1 OR x.ruc_empresa = $1) AND ($2::text IS NULL OR x.severidad = $2)
+        ORDER BY CASE x.severidad WHEN 'alta' THEN 0 WHEN 'media' THEN 1 ELSE 2 END, x.monto_1a DESC
+        LIMIT $3 OFFSET $4`,
+      [q.buscar ?? null, q.severidad ?? null, q.size, (q.page - 1) * q.size],
+    ).catch(() => ({ rows: [] as Record<string, unknown>[] }));
+    const filas = r.rows as Record<string, any>[];
+    return publicar({
+      total: filas[0]?.total_filas ?? 0, page: q.page, size: q.size,
+      data: filas.map(({ total_filas: _t, ...x }) => x),
+      como_leerlo: "Empresas que se inscribieron en la SUNAT y a los pocos días ya recibían órdenes directas (sin proceso de selección) de una entidad. Grave: primera orden a 30 días o menos, S/ 100 mil o más en su primer año y la entidad es casi todo lo que le vendieron al Estado. Puede ser un negocio que ya existía con otro RUC: mira quién la creó (sus socios) y quién pidió la compra.",
+    });
+  });
+  c.header("Cache-Control", CACHE);
+  return c.json(cuerpo);
+});
+
 const Doble = z.object({
   /** RUC de la entidad de la planilla o de la que emitió las órdenes. */
   buscar: z.string().regex(/^20\d{9}$/).optional(),

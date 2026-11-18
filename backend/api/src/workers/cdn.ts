@@ -116,8 +116,9 @@ const GUARDADO = "X-Vigia-Guardado";
  *        empresas de parientes de sus funcionarios y dos ingresos del Estado; migraciones 343-352).
  * "110": auditoría de seguridad del 2026-11-17: la familia de la ficha de cargo redondea lo de otras entidades, la lista de
  *        grupos recorta su detalle y el gasto por concepto tapa nombres en las descripciones.
+ * "111": las órdenes traen `recienCreada` y la ficha de entidad su cuenta (migración 355: empresa recién creada con órdenes directas).
  */
-const VERSION_CACHE = "110";
+const VERSION_CACHE = "111";
 
 function cacheable(req: Request): boolean {
   if (req.method !== "GET") return false;

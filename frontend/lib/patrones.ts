@@ -19,6 +19,7 @@ export const SECCIONES_PATRONES = {
   grupos: "Grupos por dueño y familia",
   repetidas: "Compras repetidas",
   doble: "Dos ingresos del Estado",
+  recien: "Recién creadas con órdenes",
   inhabilitadas: "Socio de inhabilitada",
   control: "Socio en informe de control",
   observados: "Observados por la Contraloría",
@@ -204,6 +205,32 @@ export interface PatronesRepetidas {
   page: number;
   size: number;
   data: PatronRepetida[];
+}
+
+/** Una empresa recién creada que recibe órdenes directas de una entidad a los pocos días de su alta (migración 355). */
+export interface PatronRecien {
+  entidadRuc: string;
+  entidad: string | null;
+  ruc: string;
+  nombre: string | null;
+  fechaAlta: string;
+  primeraOrden: string;
+  /** Del alta en la SUNAT a su primera orden directa de la entidad. */
+  dias: number;
+  ordenesPrimerAnio: number;
+  montoPrimerAnio: number;
+  ordenes: number;
+  monto: number;
+  /** Qué parte de lo que vendió por órdenes al Estado viene de esta entidad (0 a 1). */
+  parteEntidad: number | null;
+  severidad: "alta" | "media" | "baja";
+}
+
+export interface PatronesRecien {
+  total: number;
+  page: number;
+  size: number;
+  data: PatronRecien[];
 }
 
 /**
@@ -468,6 +495,8 @@ export const rutaGrupos = (page = 1, ruc?: string, graves = false) =>
   `/patrones/grupos?${consulta({ page, size: TAM_PATRONES, buscar: ruc, severidad: graves ? "alta" : undefined })}`;
 export const rutaRepetidas = (page = 1, ruc?: string, graves = false) =>
   `/patrones/repetidas?${consulta({ page, size: TAM_PATRONES, buscar: ruc, severidad: graves ? "alta" : undefined })}`;
+export const rutaRecien = (page = 1, ruc?: string, graves = false) =>
+  `/patrones/recien?${consulta({ page, size: TAM_PATRONES, buscar: ruc, severidad: graves ? "alta" : undefined })}`;
 export const rutaDoble = (page = 1, ruc?: string, graves = false) =>
   `/patrones/doble?${consulta({ page, size: TAM_PATRONES, buscar: ruc, severidad: graves ? "media" : undefined })}`;
 export const rutaInhabilitadas = (page = 1, ruc?: string, graves = false) =>

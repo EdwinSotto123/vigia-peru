@@ -31,6 +31,8 @@ export type OrdenGeneral = OrdenEmpresa & {
   repetida?: OrdenRepetida | null;
   /** Un socio, representante o directivo de la empresa es pariente declarado de un funcionario de esta entidad (migración 350). */
   parienteSocio?: ParienteSocio | null;
+  /** La empresa se creó poco antes de esta orden: su primera orden directa de la entidad fue a 90 días o menos de su alta (migración 355). */
+  recienCreada?: RecienCreada | null;
   /** El Tribunal de Contrataciones tenía inhabilitado al proveedor el día en que se emitió. Falta en la API vieja. */
   inhabilitacion?: InhabilitacionProveedor | null;
   /** Las demás señales de la persona con esta entidad (financió la campaña, candidato del que gobierna…): sólo el tipo. */
@@ -94,6 +96,21 @@ export interface ParienteSocio {
   /** Órdenes de la entidad a la empresa desde 2023. */
   ordenes: number;
   monto: number;
+  severidad: "alta" | "media" | "baja";
+}
+
+/** La empresa recién creada que recibe órdenes directas: la evidencia de su bandera. */
+export interface RecienCreada {
+  /** Su alta en la SUNAT. */
+  alta: string;
+  /** La primera orden directa de la entidad y a cuántos días del alta fue. */
+  primera: string;
+  dias: number;
+  /** Órdenes directas de la entidad en su primer año desde el alta, y lo que suman. */
+  ordenes: number;
+  monto: number;
+  /** Qué parte de lo que la empresa le vendió al Estado por órdenes viene de esta entidad (0 a 1). */
+  parte: number | null;
   severidad: "alta" | "media" | "baja";
 }
 
@@ -186,6 +203,8 @@ export const ANTECEDENTES_ORDEN = [
   { valor: "repetida", etiqueta: "Compra repetida en pocas semanas", grupo: DE_LA_ORDEN },
   // Un socio o representante de la empresa es pariente declarado de un funcionario de la entidad (migración 350).
   { valor: "pariente_socio", etiqueta: "Empresa de un pariente de un funcionario", grupo: DE_LA_ORDEN },
+  // La empresa recibió su primera orden directa a 90 días o menos de crearse (migración 355).
+  { valor: "recien_creada", etiqueta: "Empresa recién creada", grupo: DE_LA_ORDEN },
   // Persona o empresa con la mitad o más de las órdenes de la entidad así (migraciones 179 y 207).
   { valor: "al_borde_del_tope", etiqueta: "Al borde del tope (95 % a 100 %)", grupo: DE_LA_ORDEN },
   { valor: "inhabilitado", etiqueta: "Proveedor inhabilitado al emitirse", grupo: DE_LA_ORDEN },

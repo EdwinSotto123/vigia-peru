@@ -73,7 +73,7 @@ export const MONTO_ORDEN = {
  * órdenes de la franja). Los de la orden misma: partida con otras del mismo día y emitida a un proveedor inhabilitado.
  */
 export const ANTECEDENTES_ORDEN = ["nepotismo", "financio_campana", "candidato_gobierna", "autoridad_contratada", "al_borde_del_tope",
-                                   "fraccionamiento", "inhabilitado", "repetida", "pariente_socio"] as const;
+                                   "fraccionamiento", "inhabilitado", "repetida", "pariente_socio", "recien_creada"] as const;
 const DE_PERSONA = new Set<string>(["nepotismo", "financio_campana", "candidato_gobierna", "autoridad_contratada", "al_borde_del_tope"]);
 /** Las señales de la persona con la entidad que la fila muestra como bandera (el nepotismo va aparte, en `conNepotismo`). */
 const SENALES_FILA = ["financio_campana", "candidato_gobierna", "autoridad_contratada", "aporte_gobierna", "nepotismo_gobierno"];
@@ -132,6 +132,13 @@ const FRACCIONADA = `FROM ordenes_fraccionadas f WHERE f.entidad_ruc = o.entidad
 const REPETIDA = `FROM ordenes_repetidas r WHERE r.ruc_contratista = o.ruc_contratista AND r.entidad_ruc = o.entidad_ruc
                     AND r.monto = o.monto AND o.moneda = 'Nuevos Soles' AND o.fecha_emision BETWEEN r.desde AND r.hasta
                     AND r.severidad IN ('alta', 'media') AND r.detalle @> jsonb_build_array(jsonb_build_object('fecha', o.fecha_emision))`;
+
+/**
+ * Empresa recién creada (migración 355): la entidad le emitió su primera orden directa a 90 días o menos de su alta en la
+ * SUNAT. La bandera va en las órdenes de su primer año desde el alta, y sólo con severidad alta o media.
+ */
+const RECIEN_CREADA = `FROM empresa_recien_creada_ordenes rc WHERE rc.ruc_empresa = o.ruc_contratista AND rc.entidad_ruc = o.entidad_ruc
+                         AND rc.severidad IN ('alta', 'media') AND o.fecha_emision BETWEEN rc.fecha_alta AND rc.fecha_alta + 365`;
 
 /**
  * La empresa de un pariente (migración 350): un socio, representante o directivo de la empresa es pariente que un
@@ -259,6 +266,9 @@ const COLS = `to_char(o.fecha_emision, 'YYYY-MM-DD') AS fecha, o.entidad, o.enti
                                          'rol', x.rol, 'desde', to_char(x.en_empresa_desde, 'YYYY-MM-DD'), 'parientes', x.parientes,
                                          'ordenes', x.ordenes, 'monto', x.monto::float, 'severidad', x.severidad)
                  ${PARIENTE_SOCIO} LIMIT 1) AS "parienteSocio",
+              (SELECT jsonb_build_object('alta', to_char(rc.fecha_alta, 'YYYY-MM-DD'), 'primera', to_char(rc.primera_orden, 'YYYY-MM-DD'), 'dias', rc.dias,
+                                         'ordenes', rc.ordenes_1a, 'monto', rc.monto_1a::float, 'parte', rc.parte_entidad::float, 'severidad', rc.severidad)
+                 ${RECIEN_CREADA} LIMIT 1) AS "recienCreada",
               -- Con la infracción por la que lo inhabilitó (pedido del usuario del 2026-11-05: el panel no decía por qué).
               (SELECT jsonb_build_object('tipo', s.tipo, 'resolucion', s.resolucion, 'desde', to_char(s.fecha_desde, 'YYYY-MM-DD'),
                                          'hasta', to_char(s.fecha_hasta, 'YYYY-MM-DD'), 'infraccion', left(s.infraccion, 900))
@@ -333,6 +343,11 @@ export function sqlListaOrdenes(q: FiltrosListaOrdenes, forzarAcotada = false): 
       // de 45 s); así lee sólo las ~64 mil órdenes emitidas a inhabilitados y después filtra la entidad (unos segundos).
       ? `(${periodosInhabilitado(q.proveedor)}) s CROSS JOIN LATERAL (SELECT x.* FROM conosce_ordenes x WHERE x.ruc_contratista = s.ruc
            AND x.fecha_emision BETWEEN s.desde AND s.hasta OFFSET 0) o`
+      : q.antecedente === "recien_creada"
+        // Desde los pares entidad-empresa de la migración 355 (con la entidad o el proveedor elegidos, sólo los suyos).
+        ? `(SELECT * FROM empresa_recien_creada_ordenes WHERE severidad IN ('alta', 'media')${q.entidad ? ` AND entidad_ruc = '${q.entidad}'` : ""}${q.proveedor ? ` AND ruc_empresa = '${q.proveedor}'` : ""}) rc
+           CROSS JOIN LATERAL (SELECT y.* FROM conosce_ordenes y WHERE y.ruc_contratista = rc.ruc_empresa AND y.entidad_ruc = rc.entidad_ruc
+             AND y.fecha_emision BETWEEN rc.fecha_alta AND rc.fecha_alta + 365 OFFSET 0) o`
       : q.antecedente === "pariente_socio"
         // Desde los ~700 pares entidad-empresa de la migración 350, por el índice del proveedor.
         // Con una entidad o un proveedor elegidos, sólo sus pares: el LATERAL (con OFFSET 0) no deja pasar ese filtro hacia
@@ -353,7 +368,7 @@ export function sqlListaOrdenes(q: FiltrosListaOrdenes, forzarAcotada = false): 
   if (q.antecedente === "al_borde_del_tope") enVentana.push(EN_EL_BORDE);
   // Con esos puntos de partida se ordena por `fecha_emision + 0`: una expresión sin índice, para que el planificador no
   // vuelva a recorrer el de fecha con el LIMIT (un top-N sobre las candidatas: 0,2-0,6 s en caliente, medido 2026-10-27).
-  const porFecha = dePersona || q.antecedente === "inhabilitado" || q.antecedente === "repetida" || q.antecedente === "pariente_socio"
+  const porFecha = dePersona || q.antecedente === "inhabilitado" || q.antecedente === "repetida" || q.antecedente === "pariente_socio" || q.antecedente === "recien_creada"
     ? "o.fecha_emision + 0" : "o.fecha_emision";
   const dir = q.orden === "antiguo" ? "ASC" : "DESC";
   const offset = (q.page - 1) * q.size;

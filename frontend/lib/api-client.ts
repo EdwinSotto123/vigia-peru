@@ -121,6 +121,9 @@ export interface ApiEntidad {
     empresasPariente?: number;
     empresasParienteMonto?: number;
     dobleIngreso?: number;
+    /** Empresas recién creadas con órdenes directas a los pocos días de su alta (migración 355) y lo de su primer año. */
+    recienCreadas?: number;
+    recienCreadasMonto?: number;
     nepotismoGobierno?: number;
     doblePlanilla?: number;
     socioProveedor?: number;

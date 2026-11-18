@@ -98,6 +98,14 @@ const CASOS: Caso[] = [
   { h: ordenes as never, args: { entidad_ruc: "20169004359", bandera: "repetida" },
     espera: (r) => ((lista(r, "compras") as { banderas?: { tipo: string; ordenes?: unknown[] }[] }[]).some((c) => (c.banderas ?? []).some((b) => b.tipo === "repetida" && (b.ordenes ?? []).length >= 2))
       ? null : "sin la compra repetida de la UNI con sus órdenes") },
+  // Empresas recién creadas con órdenes directas (migración 355): las graves llegan a 30 días o menos de su alta.
+  { h: patrones as never, args: { alcance: "recien_creada", solo_graves: true },
+    espera: (r) => {
+      const cs = lista(r, "casos") as { ruc?: string; dias_del_alta_a_la_primera_orden?: number; monto_en_su_primer_anio_soles?: number }[];
+      if (cs.length < 5) return "menos de 5 empresas recién creadas graves";
+      return cs.every((x) => /^20/.test(String(x.ruc)) && Number(x.dias_del_alta_a_la_primera_orden) <= 30 && Number(x.monto_en_su_primer_anio_soles) >= 100000)
+        ? null : "un caso grave con más de 30 días, menos de S/ 100 mil o sin RUC 20";
+    } },
   // Dos ingresos del Estado (migración 352): planilla de una entidad y órdenes de servicio de otra; la persona, tapada.
   { h: patrones as never, args: { alcance: "doble", solo_graves: true },
     espera: (r) => {
