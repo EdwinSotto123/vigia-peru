@@ -138,8 +138,57 @@ export interface CrucesDeLaPersona {
   }[];
 }
 
+/**
+ * Las otras fichas de la MISMA persona (API lib/identidadPersona.ts): códigos al azar, nunca un nombre ni un documento.
+ * La persona contratada se une sólo si una planilla ya la empató (misma entidad y mismo nombre) o si su nombre completo,
+ * de 4 palabras o más, lo lleva un solo RUC 10 de todo el registro de órdenes.
+ */
+export interface FichasDeLaPersona {
+  fichaCargo: string | null;
+  fichaContratada: { codigo: string; via: "planilla" | "nombre" } | null;
+  fichasPlanilla: { ficha: string; entidadRuc: string; entidad: string | null }[];
+  /** RUC 10 distintos con ese nombre completo en las órdenes: con 2 o más (homónimos) no se une ninguno. */
+  homonimos: number;
+}
+
+/** Lo que obtuvo del Estado un familiar que la persona declaró en su DJI (migración 351): sin nombre ni documento. */
+export interface ItemFamiliar {
+  tipo: "orden" | "empresa";
+  entidadRuc: string | null;
+  entidad: string | null;
+  empresaRuc: string | null;
+  empresa: string | null;
+  rol: string | null;
+  ordenes: number | null;
+  procesos: number | null;
+  monto: number | null;
+  desde: number | null;
+  hasta: number | null;
+  /** Lo obtuvo de una entidad en la que la persona presentó declaración. */
+  suEntidad: boolean;
+  suEntidadOrdenes: number | null;
+  suEntidadMonto: number | null;
+  /** Autoridad electa y parentesco que destaparía un apellido: en su entidad no se dan las cifras. */
+  reservado?: true;
+}
+
+export interface FamiliaDeLaPersona {
+  declarados: number;
+  conOrdenes: number;
+  montoOrdenes: number;
+  conEmpresas: number;
+  enSuEntidad: number;
+  montoSuEntidad: number;
+  parientes: { n: number; parentesco: string; items: ItemFamiliar[] }[];
+  masParientes: number;
+}
+
 export interface FichaFuncionario {
   codigo: string;
+  /** Sus otras fichas. Una API anterior no las trae. */
+  mismaPersona?: FichasDeLaPersona | null;
+  /** Su red de familia; null: no declaró familiares (o una API anterior). */
+  familia?: FamiliaDeLaPersona | null;
   persona: {
     nombre: string; cargo: string | null; entidad: string | null; entidadRuc: string | null; cargoDe: "planilla" | "dji" | null;
     declaraciones: number; entidades: number; primera: string | null; ultima: string | null;
@@ -171,6 +220,25 @@ async function leer<T>(ruta: string, revalidate = 600): Promise<T | null> {
   } catch {
     return null;
   }
+}
+
+/**
+ * La dirección de la ficha única de una persona (/app/personas/cargo/<código>) desde otra de sus fichas: conserva la
+ * pestaña y los filtros de la dirección de origen (`?seccion=`, `?sent=`, `?oent=`…) y aplica `cambios` (una clave con
+ * `undefined` se quita). `directo` nunca viaja: es el que pide ver la ficha de origen sola.
+ */
+export function rutaFichaUnica(codigo: string, sp?: Record<string, string | string[] | undefined>, cambios: Record<string, string | undefined> = {}): string {
+  const q = new URLSearchParams();
+  for (const [k, v] of Object.entries(sp ?? {})) {
+    const uno = Array.isArray(v) ? v[0] : v;
+    if (uno != null && uno !== "" && k !== "directo") q.set(k, uno);
+  }
+  for (const [k, v] of Object.entries(cambios)) {
+    if (v == null || v === "") q.delete(k);
+    else q.set(k, v);
+  }
+  const s = q.toString();
+  return `/app/personas/cargo/${codigo}${s ? `?${s}` : ""}`;
 }
 
 export const getFichaFuncionario = (codigo: string) =>

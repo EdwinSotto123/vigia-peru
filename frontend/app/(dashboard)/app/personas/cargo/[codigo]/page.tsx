@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Briefcase, Building2, CalendarRange, DoorOpen, Flag, Footprints, Landmark, ScrollText, Wallet } from "lucide-react";
+import { Briefcase, Building2, CalendarRange, DoorOpen, Flag, Footprints, HeartHandshake, Landmark, Receipt, ScrollText, Wallet } from "lucide-react";
 import {
   Ayuda,
   BanderasFicha,
@@ -37,9 +37,13 @@ import {
   type VisitaRecibida,
 } from "@/lib/funcionarios";
 import { tituloNatural } from "@/lib/landing";
-import { rutaPersona } from "@/lib/personas";
-import { REGIMEN } from "@/lib/planilla";
+import { banderasPersona, filtrosOrdenesDeUrl, getFichaPersona, getOrdenesPersona, hayFiltrosOrdenes, rutaPersona, senalesDistintas, type FichaPersona } from "@/lib/personas";
+import { REGIMEN, getFichaPlanilla, rutaPlanilla } from "@/lib/planilla";
 import { uno } from "@/lib/utils";
+import { TAM_ORDENES } from "@/components/personas/OrdenesPersona";
+import { pestanasContratada } from "@/components/personas/ficha/contratada";
+import { PestanaSueldo, SenalesDePlanilla, prepararPlanilla, type PlanillaPreparada } from "@/components/personas/ficha/planilla";
+import { PestanaFamilia } from "@/components/personas/ficha/familia";
 
 export const revalidate = 600;
 
@@ -81,6 +85,13 @@ function EnlaceEntidad({ ruc, nombre }: { ruc: string | null | undefined; nombre
  *     aportes de campaña y cargos de persona expuesta políticamente.
  * El nombre va una sola vez, con el apellido materno tapado. El empate entre registros es por nombre completo y la página
  * lo dice. No se indexa en buscadores.
+ *
+ * Es la FICHA ÚNICA de la persona (pedido del dueño del 2026-11-17: «para la misma persona se encuentra en diversas
+ * fuentes, unifícalo»). Si la API reconoce su ficha de planilla y su ficha de persona contratada (`mismaPersona`,
+ * lib/identidadPersona.ts de la API), aquí van también sus pestañas: Sueldo (planilla, `?pl=` elige la entidad), Señales
+ * (de su planilla y de sus órdenes), Órdenes, Lo que cobró, Entidades, Procesos y Recorrido (persona contratada). Y la
+ * pestaña Familia: lo que obtuvo del Estado cada familiar que declaró (migración 351). Las otras dos direcciones
+ * (/app/personas/<código> y /app/personas/planilla/<código>) redirigen aquí.
  */
 export default async function FuncionarioPage({ params, searchParams }: { params: { codigo: string }; searchParams?: Record<string, string | string[] | undefined> }) {
   const f = await getFichaFuncionario(params.codigo);
@@ -101,9 +112,39 @@ export default async function FuncionarioPage({ params, searchParams }: { params
   const p = f.persona;
   const nCruces = totalCruces(f.cruces);
   const primera = nCruces > 0 ? "revision" : "cargos";
-  const seccion = uno(searchParams?.seccion) ?? primera;
+  // Sus otras fichas: la de persona contratada (sus órdenes) y la de planilla (su sueldo). `?pl=` elige la planilla.
+  const mp = f.mismaPersona ?? null;
+  const codContratada = mp?.fichaContratada?.codigo ?? null;
+  const plPedida = uno(searchParams?.pl);
+  const fichaPl = mp?.fichasPlanilla.find((x) => x.ficha === plPedida)?.ficha ?? mp?.fichasPlanilla[0]?.ficha ?? null;
+  const filtrosOrdenes = filtrosOrdenesDeUrl(searchParams);
+  const [contratada, planilla] = await Promise.all([
+    codContratada ? getFichaPersona(codContratada) : Promise.resolve(null),
+    fichaPl ? getFichaPlanilla(fichaPl) : Promise.resolve(null),
+  ]);
+  const dPl = planilla ? await prepararPlanilla(planilla, ruta) : null;
+  const ordenesP = contratada && codContratada ? getOrdenesPersona(codContratada, { ...filtrosOrdenes, size: TAM_ORDENES }) : null;
+  const sentUrl = uno(searchParams?.sent);
+  const sent = sentUrl && contratada?.entidades.some((e) => e.entidadRuc === sentUrl) ? sentUrl : undefined;
+  const deContratada = contratada && codContratada && ordenesP
+    ? pestanasContratada({ f: contratada, codigo: codContratada, ruta, nombre: p.nombre, sent, filtrosOrdenes, ordenesP })
+    : [];
+  const senalesContratada = deContratada.find((x) => x.clave === "senales");
+  const cuentaSenales = contratada ? senalesDistintas(contratada.entidades) : null;
+  const nSenales = (cuentaSenales?.total ?? 0) + (dPl?.nSenales ?? 0);
+  const seccion = uno(searchParams?.seccion) ?? (contratada && hayFiltrosOrdenes(filtrosOrdenes) ? "ordenes" : primera);
   const otros = f.ordenes.length + f.informes.length + f.aportes.length + f.expuesta.length + (f.candidaturas?.length ?? 0);
-  const banderas = banderasDe(f, ruta);
+  const fam = f.familia ?? null;
+  // Las banderas de las tres fuentes, una vez cada una: los cruces de su rastro, su familia, sus órdenes y su planilla.
+  const vistas = new Set<string>();
+  const banderas = [
+    ...banderasDe(f, ruta),
+    ...(fam && fam.enSuEntidad > 0
+      ? [{ tipo: "nepotismo", severidad: "alta" as const, nombre: "Familiares declarados que obtuvieron algo de su entidad", n: fam.enSuEntidad, href: `${ruta}?seccion=familia` }]
+      : []),
+    ...(cuentaSenales ? banderasPersona(cuentaSenales.lista, `${ruta}?seccion=senales`) : []),
+    ...(dPl?.banderas ?? []),
+  ].filter((b) => (vistas.has(b.tipo) ? false : (vistas.add(b.tipo), true)));
 
   const ayuda = (
     <Ayuda titulo="¿Por qué está esta persona aquí?">
@@ -127,7 +168,7 @@ export default async function FuncionarioPage({ params, searchParams }: { params
           { etiqueta: "Personas", href: "/app/personas" },
           { etiqueta: p.nombre, href: ruta },
         ]}
-        pestanas={{ primera, activa: seccion, etiquetas: { revision: "Lo que pide revisión", cargos: "Cargos", visitas: "Visitas", recibidas: "Visitas que recibió", empresas: "Empresas", otros: "Otros registros" } }}
+        pestanas={{ primera, activa: seccion, etiquetas: { revision: "Lo que pide revisión", cargos: "Cargos", sueldo: "Sueldo", senales: "Señales", familia: "Familia", ordenes: "Órdenes", pagos: "Lo que cobró", entidades: "Entidades", procesos: "Procesos", recorrido: "Recorrido", visitas: "Visitas", recibidas: "Visitas que recibió", empresas: "Empresas", otros: "Otros registros" } }}
       />
       <EncabezadoPagina
         titulo={p.nombre}
@@ -152,8 +193,22 @@ export default async function FuncionarioPage({ params, searchParams }: { params
         }
         banderas={banderas.length ? <BanderasFicha etiqueta="Lo que pide revisión de esta persona" banderas={banderas} /> : undefined}
       />
-      <EnUnaFrase tono={nCruces > 0 ? "media" : "neutro"}>{frase(f)}</EnUnaFrase>
-      <Indicadores items={indicadores(f, ruta)} />
+      <EnUnaFrase tono={nCruces > 0 ? "media" : "neutro"}>
+        {frase(f)}
+        {contratada ? (
+          <>
+            {" "}Recibió <b>{plural(contratada.persona.ordenes, "orden de servicio", "órdenes de servicio")}</b> a su nombre por{" "}
+            <b>{solesCompacto(contratada.persona.monto)}</b>.
+          </>
+        ) : null}
+        {fam && fam.enSuEntidad > 0 ? (
+          <>
+            {" "}<b>{fam.enSuEntidad === 1 ? "Un familiar que declaró obtuvo" : `${numero(fam.enSuEntidad)} familiares que declaró obtuvieron`}</b> órdenes o contratos de
+            su propia entidad.
+          </>
+        ) : null}
+      </EnUnaFrase>
+      <Indicadores items={[...indicadores(f, ruta), ...indicadoresDeMas(ruta, contratada, dPl, fam)]} />
       {f.sinRespuesta.length > 0 && (
         <Nota>
           No respondieron a tiempo: {f.sinRespuesta.map((x) => x.replace(/_/g, " ")).join(", ")}. Esa parte de la ficha puede estar incompleta: vuelve a
@@ -163,7 +218,7 @@ export default async function FuncionarioPage({ params, searchParams }: { params
 
       <Pestanas
         fija
-        key={seccion}
+        key={`${seccion}|${sent ?? ""}|${fichaPl ?? ""}`}
         etiqueta="Secciones de la persona"
         activa={seccion}
         pestanas={[
@@ -246,6 +301,73 @@ export default async function FuncionarioPage({ params, searchParams }: { params
               </div>
             ),
           },
+          ...(planilla && dPl
+            ? [
+                {
+                  clave: "sueldo",
+                  icono: <Wallet size={15} aria-hidden />,
+                  etiqueta: "Sueldo",
+                  titulo: "Lo que cobra en planilla",
+                  contenido: (
+                    <div className="space-y-3">
+                      {mp && mp.fichasPlanilla.length > 1 ? (
+                        <nav aria-label="Sus planillas" className="flex flex-wrap items-center gap-2 text-dato">
+                          <span className="text-inkSoft">Está en {plural(mp.fichasPlanilla.length, "planilla", "planillas")}:</span>
+                          {mp.fichasPlanilla.map((x) => (
+                            <Link
+                              key={x.ficha}
+                              href={`${ruta}?seccion=sueldo&pl=${x.ficha}`}
+                              prefetch={false}
+                              aria-current={x.ficha === fichaPl ? "true" : undefined}
+                              className={x.ficha === fichaPl ? "pill border-granate/30 bg-granate-soft text-granate" : "pill border-line bg-paperSoft text-ink hover:border-granate/40"}
+                            >
+                              {entidadTexto(x.entidad)}
+                            </Link>
+                          ))}
+                        </nav>
+                      ) : null}
+                      <PestanaSueldo f={planilla} entidad={dPl.entidad} mesesOrden={dPl.mesesOrden} montoOrden={dPl.montoOrden} />
+                    </div>
+                  ),
+                },
+              ]
+            : []),
+          ...(senalesContratada || dPl
+            ? [
+                {
+                  clave: "senales",
+                  icono: <Flag size={15} aria-hidden />,
+                  etiqueta: "Señales",
+                  titulo: senalesContratada ? "Las señales de sus órdenes" : "Las señales de su planilla",
+                  conteo: nSenales,
+                  contenido: (
+                    <div className="space-y-6">
+                      {senalesContratada ? <section data-bloque>{senalesContratada.contenido}</section> : null}
+                      {dPl ? (
+                        <section className="space-y-3" data-bloque>
+                          <CabeceraPestana titulo={senalesContratada ? `En su planilla de ${dPl.entidad}` : undefined}>
+                            {dPl.nSenales
+                              ? `${plural(dPl.nSenales, "señal", "señales")} en ${dPl.entidad}, de la más grave a la más leve.`
+                              : `En ${dPl.entidad}, qué dicen de esta persona otros registros públicos.`}
+                          </CabeceraPestana>
+                          <SenalesDePlanilla d={dPl} />
+                        </section>
+                      ) : null}
+                    </div>
+                  ),
+                },
+              ]
+            : []),
+          {
+            clave: "familia",
+            icono: <HeartHandshake size={15} aria-hidden />,
+            etiqueta: "Familia",
+            titulo: "Su familia declarada y el Estado",
+            conteo: fam ? fam.parientes.length + fam.masParientes : null,
+            contenido: <PestanaFamilia familia={fam} />,
+          },
+          // Lo de su ficha de persona contratada: sus órdenes, lo que cobró, sus entidades, sus procesos y su recorrido.
+          ...["ordenes", "pagos", "entidades", "procesos", "recorrido"].flatMap((k) => deContratada.filter((x) => x.clave === k)),
           {
             clave: "visitas",
             icono: <DoorOpen size={15} aria-hidden />,
@@ -336,7 +458,19 @@ export default async function FuncionarioPage({ params, searchParams }: { params
           : ""}
         Los registros no comparten un documento: las visitas, las empresas, las órdenes y los informes se juntaron por nombre completo. Antes de
         afirmar algo, confirma que es la misma persona.
+        {mp?.fichaContratada?.via === "planilla" ? " Sus órdenes se unieron a esta ficha porque la planilla de su entidad trae el mismo nombre completo que quien las recibe." : ""}
+        {mp?.fichaContratada?.via === "nombre" ? " Sus órdenes se unieron a esta ficha porque una sola persona de todo el registro de órdenes lleva su nombre completo." : ""}
+        {mp && !mp.fichaContratada && mp.homonimos > 1 ? ` Hay ${numero(mp.homonimos)} personas con órdenes y este mismo nombre completo: no se unió ninguna (están en Otros registros).` : ""}
       </Nota>
+      {contratada || planilla ? (
+        <p className="text-rotulo text-mute">
+          Esta ficha reúne lo que antes estaba en fichas separadas.{" "}
+          {codContratada ? <Link href={`${rutaPersona(codContratada)}?directo=1`} prefetch={false} className="underline underline-offset-2 hover:text-granate">Ver sólo su ficha de persona contratada</Link> : null}
+          {codContratada && fichaPl ? ", " : ""}
+          {fichaPl ? <Link href={`${rutaPlanilla(fichaPl)}?directo=1`} prefetch={false} className="underline underline-offset-2 hover:text-granate">ver sólo su ficha de planilla</Link> : null}
+          .
+        </p>
+      ) : null}
     </Pagina>
   );
 }
@@ -425,6 +559,40 @@ function indicadores(f: FichaFuncionario, ruta: string): Indicador[] {
       href: `${ruta}?seccion=empresas`,
     },
   ];
+}
+
+/** Lo que suman sus otras fichas a las cifras de la cabecera: lo que cobró por órdenes, su sueldo y su familia. */
+function indicadoresDeMas(ruta: string, contratada: FichaPersona | null, dPl: PlanillaPreparada | null, fam: FichaFuncionario["familia"]): Indicador[] {
+  const items: Indicador[] = [];
+  if (dPl && dPl.p.base != null) {
+    items.push({
+      valor: solesCompacto(dPl.p.base),
+      etiqueta: "sueldo del último mes",
+      contexto: `en ${dPl.entidad}`,
+      icono: <Wallet size={15} strokeWidth={1.9} aria-hidden />,
+      href: `${ruta}?seccion=sueldo`,
+    });
+  }
+  if (contratada) {
+    items.push({
+      valor: solesCompacto(contratada.persona.monto),
+      etiqueta: "cobrados por órdenes a su nombre",
+      contexto: `${plural(contratada.persona.ordenes, "orden", "órdenes")} de ${plural(contratada.persona.entidades, "entidad", "entidades")}`,
+      icono: <Receipt size={15} strokeWidth={1.9} aria-hidden />,
+      href: `${ruta}?seccion=ordenes`,
+    });
+  }
+  if (fam) {
+    items.push({
+      valor: numero(fam.declarados),
+      etiqueta: fam.declarados === 1 ? "familiar declarado" : "familiares declarados",
+      contexto: fam.enSuEntidad ? `${fam.enSuEntidad === 1 ? "uno obtuvo" : `${numero(fam.enSuEntidad)} obtuvieron`} algo de su entidad` : "ninguno con órdenes de su entidad",
+      icono: <HeartHandshake size={15} strokeWidth={1.9} aria-hidden />,
+      tono: fam.enSuEntidad ? "alta" : "neutro",
+      href: `${ruta}?seccion=familia`,
+    });
+  }
+  return items;
 }
 
 /** Los cruces como banderas fijas bajo el nombre: cada una lleva a «Lo que pide revisión». */

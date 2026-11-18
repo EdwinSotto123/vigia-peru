@@ -641,6 +641,8 @@ export const getPlanillaMensual = (entidad: string) =>
 
 /** La ficha de una persona de la planilla: sus datos, lo que cobró cada mes y la misma persona en otras planillas. */
 export interface FichaPlanilla {
+  /** Sus otras fichas (cargo público, persona contratada). Una API anterior no las trae. */
+  mismaPersona?: import("./funcionarios").FichasDeLaPersona | null;
   /** `idPte`: el id de su entidad en el Portal de Transparencia (su página de personal), null si no se sabe. */
   persona: PersonaPlanilla & { dep: string | null; depNombre: string | null; idPte?: number | null };
   historia: { mes: string; base: number | null; extra: number; total: number | null; dudoso: boolean; filas: number; cargo: string | null }[];

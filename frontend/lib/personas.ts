@@ -164,6 +164,8 @@ export interface PersonaPorNombre {
 }
 
 export interface FichaPersona {
+  /** Sus otras fichas (cargo público, planilla), si el enlace es seguro. Una API anterior no las trae. */
+  mismaPersona?: import("./funcionarios").FichasDeLaPersona | null;
   persona: {
     codigo: string;
     ruc: string;
