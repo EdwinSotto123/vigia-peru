@@ -125,7 +125,7 @@ export const CATALOGO: FuenteCatalogo[] = [
     que: "Une el RUC de cada entidad con su código del MEF (registro de la OECE); después refrescar_mef_presupuesto()." },
   { fuente: "portal_visitas_manual", nombre: "Visitas: exportación manual del portal (legado)", donde: "pc", agenda: "Legado (mayo de 2026)", cadaDias: null,
     que: "La exportación de ~345 entidades de mayo de 2026; la reemplaza la plataforma nacional." },
-  { fuente: "perucompras", nombre: "Catálogos electrónicos (Perú Compras)", donde: "pc", agenda: "A mano, sin fecha fija", cadaDias: null,
+  { fuente: "perucompras", nombre: "Catálogos electrónicos (Perú Compras)", donde: "pc", agenda: "Domingos, 04:00 (tarea de Windows VigiaPeruCompras)", cadaDias: 9,
     que: "Órdenes de los catálogos con sus ítems, precio unitario y fichas-producto (reporte detallado público) y el índice mensual de la PNDA: backend/scripts/cargar_perucompras.py y cargar_perucompras_dab.py." },
   { fuente: "rnp_conformacion_juridica", nombre: "Socios y representantes de proveedores (RNP)", donde: "ci", agenda: "Día 3 de cada mes, 09:00 (tarea rnp de GitLab CI)", cadaDias: 40,
     que: "Conformación jurídica del RNP: socios, representantes y órganos de administración de cada proveedor, del archivo que el OECE reemplaza cada mes en su wiki de datos abiertos. backend/scripts/cargar_rnp.py: agrega los vínculos nuevos y anota los que dejaron de figurar (baja_corte, migración 360)." },
