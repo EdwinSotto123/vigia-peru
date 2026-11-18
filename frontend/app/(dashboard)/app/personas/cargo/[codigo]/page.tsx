@@ -177,7 +177,7 @@ export default async function FuncionarioPage({ params, searchParams }: { params
           { etiqueta: "Personas", href: "/app/personas" },
           { etiqueta: p.nombre, href: ruta },
         ]}
-        pestanas={{ primera, activa: seccion, etiquetas: { revision: "Lo que pide revisión", cargos: "Cargos", sueldo: "Sueldo", senales: "Señales", familia: "Familia", ordenes: "Órdenes", pagos: "Lo que cobró", entidades: "Entidades", procesos: "Procesos", recorrido: "Recorrido", visitas: "Visitas", recibidas: "Visitas que recibió", empresas: "Empresas", otros: "Otros registros" } }}
+        pestanas={{ primera, activa: seccion, etiquetas: { revision: "Lo que pide revisión", cargos: "Cargos", sueldo: "Cobros por planilla", senales: "Señales", familia: "Familia", ordenes: "Órdenes", pagos: "Cobros por órdenes", entidades: "Entidades", procesos: "Procesos", recorrido: "Recorrido", visitas: "Visitas", recibidas: "Visitas que recibió", empresas: "Empresas", otros: "Otros registros" } }}
       />
       <EncabezadoPagina
         titulo={p.nombre}

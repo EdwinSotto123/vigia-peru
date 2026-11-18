@@ -125,6 +125,24 @@ export interface Aporte {
 
 const txt = (v: unknown) => (typeof v === "string" ? v : v === null || v === undefined ? "" : String(v));
 
+/**
+ * Una fecha de aporte con el año mal tecleado en el portal («0217», «1919», «2916»: 7 filas el 2026-11-17, que ponían el
+ * primer aporte de un partido en el año 217). Si el proceso dice su año («IFA2017», «EG2021») y la fecha se aleja más de 3
+ * años, vale el del proceso con el mismo día y mes; sin año en el proceso, una fecha fuera de 2000 a hoy no se guarda.
+ */
+export function fechaAporteCreible(f: string | null, proceso: string, anioHoy = new Date().getUTCFullYear()): string | null {
+  if (!f) return null;
+  const anio = Number(f.slice(0, 4));
+  const delProceso = Number(/(\d{4})$/.exec(proceso)?.[1] ?? NaN);
+  if (Number.isFinite(delProceso)) {
+    if (Math.abs(anio - delProceso) <= 3) return f;
+    const corregida = `${delProceso}${f.slice(4)}`;
+    // Un 29 de febrero que no existe en el año del proceso: sin fecha antes que una inventada.
+    return new Date(`${corregida}T00:00:00Z`).toISOString().slice(0, 10) === corregida ? corregida : null;
+  }
+  return anio >= 2000 && anio <= anioHoy + 1 ? f : null;
+}
+
 /** `normalize_detail`: el documento de un par (organización, proceso) → filas de onpe_aportantes. */
 export async function normalizarDetalle(doc: DocDetalle): Promise<Aporte[]> {
   const proceso = doc.proceso;
@@ -138,7 +156,7 @@ export async function normalizarDetalle(doc: DocDetalle): Promise<Aporte[]> {
     const nombres = strip(txt(a.nombres) || "");
     const nombreOrig = razon && razon.toUpperCase() !== "N/A" ? razon : [apellidos, nombres].filter(Boolean).join(" ");
     if (!nombreOrig && !docn) continue;
-    const f = fecha(a.fechaAporte);
+    const f = fechaAporteCreible(fecha(a.fechaAporte), proceso);
     const tipoCrudo = a.tipoAporte;
     const tipo = TIPO_APORTE[strip(txt(tipoCrudo) || "").toUpperCase()] ?? (tipoCrudo ? txt(tipoCrudo) : null);
     const anioElec = txt(a.anioEleccion);
