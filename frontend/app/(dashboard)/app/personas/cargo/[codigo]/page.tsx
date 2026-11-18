@@ -1,28 +1,16 @@
+import { Children, type ReactElement } from "react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Briefcase, Building2, CalendarRange, DoorOpen, Flag, Footprints, HeartHandshake, Landmark, Receipt, ScrollText, Wallet } from "lucide-react";
-import {
-  Ayuda,
-  BanderasFicha,
-  CabeceraPestana,
-  DatosClave,
-  EncabezadoPagina,
-  EnUnaFrase,
-  EstadoVacio,
-  FichaNoLeida,
-  Migas,
-  Nota,
-  Pagina,
-  Pestanas,
-  type BanderaFicha,
-} from "@/components/patrones";
+import { Ayuda, BanderasFicha, CabeceraPestana, DatosClave, EncabezadoPagina, EnUnaFrase, EstadoVacio, FichaNoLeida, Migas, Nota, Pagina, Pestanas, type BanderaFicha, FuenteDato } from "@/components/patrones";
 import { CeldaNumero, CeldaPrincipal, CeldaTexto, CLASE_ENLACE_CELDA, CuentaGrupo, Indicadores, Tabla, TablaPaginada, type Columna, type Fila, type GrupoFilas, type Indicador } from "@/components/listado";
 import { InformeEnPanel } from "@/components/control/InformeEnPanel";
 import { Badge } from "@/components/ui/Badge";
 import { EnlaceAccion } from "@/components/ui/EnlaceAccion";
 import { fechaConAnio, numero, plural, solesCompacto } from "@/lib/formato";
 import { VentasCompraFamilia } from "@/components/investigar/VentasCompraFamilia";
+import { BUSCADOR_CONTRALORIA, CONOSCE_BUSCADOR, DATASET_AUTORIDADES_JNE, DATASET_DJI, DATASET_SANCIONADOS, DATASET_SOCIOS_RNP, PORTAL_TRANSPARENCIA, VISITAS_EN_LINEA } from "@/lib/fuentes";
 import { REGLA_AUTORIDAD_EXSOCIO, loQueVendio, ventasFrenteALaSalida } from "@/lib/autoridadExsocio";
 import { loQueRecibio, ordenesEnElPuesto, ordenesFueraDelPuesto, papelEnLaEmpresa, periodoDelPuesto, reglaCompraFamilia, tituloCompraFamilia } from "@/lib/comprasFamilia";
 import {
@@ -745,7 +733,31 @@ function EnlaceEmpresa({ ruc, nombre }: { ruc: string | null | undefined; nombre
   );
 }
 
-function Caso({ titulo, tono, children }: { titulo: string; tono: "alta" | "media" | "baja"; children: React.ReactNode }) {
+type TonoCaso = "alta" | "media" | "baja";
+interface FuenteCaso {
+  fuente: string;
+  href: string;
+  enlaces: { texto: string; href: string }[];
+}
+const EN_RNP = { texto: "Conformación jurídica de proveedores (RNP, datos abiertos)", href: DATASET_SOCIOS_RNP };
+const EN_CONOSCE = { texto: "Órdenes y procesos en CONOSCE (OECE)", href: CONOSCE_BUSCADOR };
+/** De dónde sale cada conclusión de «Lo que pide revisión»: ninguna va sin su fuente (pedido del 2026-11-18). */
+const FUENTE_CASO: Record<"visitas" | "planilla" | "inhabilitada" | "dueno" | "doble" | "compras" | "autoridad" | "control", FuenteCaso> = {
+  visitas: { fuente: "Registro de visitas en línea, Registro Nacional de Proveedores y procesos de CONOSCE (OECE)", href: VISITAS_EN_LINEA, enlaces: [EN_RNP, EN_CONOSCE] },
+  planilla: { fuente: "Portal de Transparencia Estándar (planilla), Registro Nacional de Proveedores y procesos de CONOSCE (OECE)", href: PORTAL_TRANSPARENCIA, enlaces: [EN_RNP, EN_CONOSCE] },
+  inhabilitada: { fuente: "Tribunal de Contrataciones (proveedores sancionados), Registro Nacional de Proveedores y procesos de CONOSCE (OECE)", href: DATASET_SANCIONADOS, enlaces: [EN_RNP, EN_CONOSCE] },
+  dueno: { fuente: "Registro Nacional de Proveedores y procesos de CONOSCE (OECE)", href: DATASET_SOCIOS_RNP, enlaces: [EN_CONOSCE] },
+  doble: { fuente: "Portal de Transparencia Estándar (planilla) y órdenes de servicio de CONOSCE (OECE)", href: PORTAL_TRANSPARENCIA, enlaces: [EN_CONOSCE] },
+  compras: { fuente: "Contraloría (declaraciones juradas de intereses), Registro Nacional de Proveedores y órdenes de CONOSCE (OECE)", href: DATASET_DJI, enlaces: [EN_RNP, EN_CONOSCE] },
+  autoridad: { fuente: "Jurado Nacional de Elecciones (autoridades electas), Registro Nacional de Proveedores y órdenes de CONOSCE (OECE)", href: DATASET_AUTORIDADES_JNE, enlaces: [EN_RNP, EN_CONOSCE] },
+  control: { fuente: "Contraloría (informes de control) y órdenes de servicio de CONOSCE (OECE)", href: BUSCADOR_CONTRALORIA, enlaces: [EN_CONOSCE] },
+};
+
+/**
+ * Un caso de «Lo que pide revisión»: qué se encontró, con sus enlaces; `detalle`, la evidencia que se abre debajo (va
+ * fuera del párrafo: trae listas y tablas); y, al pie, la fuente de la que sale.
+ */
+function Caso({ titulo, tono, fuente, detalle, children }: { titulo: string; tono: TonoCaso; fuente?: FuenteCaso; detalle?: React.ReactNode; children: React.ReactNode }) {
   return (
     <li className="rounded-xl border border-line bg-paper px-4 py-3">
       <div className="flex flex-wrap items-center gap-2">
@@ -753,16 +765,19 @@ function Caso({ titulo, tono, children }: { titulo: string; tono: "alta" | "medi
         <h3 className="text-cuerpo font-semibold text-ink">{titulo}</h3>
       </div>
       <p className="mt-1.5 text-dato leading-relaxed text-inkSoft">{children}</p>
+      {detalle ? <div className="mt-3">{detalle}</div> : null}
+      {fuente ? <FuenteDato className="mt-2.5" fuente={fuente.fuente} href={fuente.href} enlaces={fuente.enlaces} /> : null}
     </li>
   );
 }
 
 function Cruces({ cruces: c }: { cruces: CrucesDeLaPersona }) {
   const monto = (m: number | null) => (m != null && m > 0 ? ` por ${solesCompacto(m)}` : "");
-  return (
-    <ul className="space-y-3">
+  // Todos los casos, y después ordenados: lo grave primero (dentro de cada gravedad, en el orden en que se arman).
+  const casos = (
+    <>
       {c.visitoYSuEmpresaGano.map((x, i) => (
-        <Caso key={`v${i}`} titulo="Visitó la entidad y una empresa suya le ganó" tono={x.visito_antes_de_ganar ? "alta" : "media"}>
+        <Caso key={`v${i}`} titulo="Visitó la entidad y una empresa suya le ganó" tono={x.visito_antes_de_ganar ? "alta" : "media"} fuente={FUENTE_CASO.visitas}>
           Hizo {plural(x.visitas, "visita", "visitas")} a <EnlaceEntidad ruc={x.entidad_ruc} nombre={x.entidad} />
           {x.primera_visita ? `, la primera el ${fechaConAnio(x.primera_visita)}` : ""}. <EnlaceEmpresa ruc={x.empresa_ruc} nombre={x.empresa} />
           {x.rol_en_la_empresa ? `, donde figura como ${x.rol_en_la_empresa.toLowerCase()},` : ""} le ganó a esa entidad{" "}
@@ -773,7 +788,7 @@ function Cruces({ cruces: c }: { cruces: CrucesDeLaPersona }) {
         </Caso>
       ))}
       {c.salioYSuEmpresaGano.map((x, i) => (
-        <Caso key={`s${i}`} titulo="Dejó la entidad y una empresa suya le ganó después" tono="alta">
+        <Caso key={`s${i}`} titulo="Dejó la entidad y una empresa suya le ganó después" tono="alta" fuente={FUENTE_CASO.planilla}>
           Figuró en la planilla de <EnlaceEntidad ruc={x.entidad_ruc} nombre={x.entidad} />
           {x.cargo_que_tenia ? ` como ${cargoTexto(x.cargo_que_tenia)}` : ""}
           {x.salio_de_planilla ? ` hasta ${mes(x.salio_de_planilla)}` : ""}. Después, <EnlaceEmpresa ruc={x.empresa_ruc} nombre={x.empresa} />
@@ -783,7 +798,7 @@ function Cruces({ cruces: c }: { cruces: CrucesDeLaPersona }) {
         </Caso>
       ))}
       {c.empresaInhabilitadaYOtraGano.map((x, i) => (
-        <Caso key={`i${i}`} titulo="Una empresa suya está inhabilitada y otra ganó" tono="alta">
+        <Caso key={`i${i}`} titulo="Una empresa suya está inhabilitada y otra ganó" tono="alta" fuente={FUENTE_CASO.inhabilitada}>
           <EnlaceEmpresa ruc={x.empresa_inhabilitada_ruc} nombre={x.empresa_inhabilitada} /> tiene una {x.sancion ?? "inhabilitación"}
           {x.sancion_desde ? ` desde el ${fechaConAnio(x.sancion_desde)}` : ""}
           {x.sancion_hasta ? ` hasta el ${fechaConAnio(x.sancion_hasta)}` : ""}. Dentro de esa sanción, <EnlaceEmpresa ruc={x.empresa_que_gano_ruc} nombre={x.empresa_que_gano} /> ganó{" "}
@@ -792,7 +807,7 @@ function Cruces({ cruces: c }: { cruces: CrucesDeLaPersona }) {
         </Caso>
       ))}
       {c.variasEmpresasEnUnaEntidad.map((x, i) => (
-        <Caso key={`e${i}`} titulo="Gana en una entidad con varias empresas" tono={x.con_90_dias_o_menos_entre_si > 0 ? "alta" : "media"}>
+        <Caso key={`e${i}`} titulo="Gana en una entidad con varias empresas" tono={x.con_90_dias_o_menos_entre_si > 0 ? "alta" : "media"} fuente={FUENTE_CASO.dueno}>
           En <EnlaceEntidad ruc={x.entidad_ruc} nombre={x.entidad} />, {plural((x.empresas ?? []).length, "empresa suya ganó", "empresas suyas ganaron")}{" "}
           {plural(x.contratos_con_objeto_parecido, "contrato", "contratos")} de objeto parecido
           {x.con_90_dias_o_menos_entre_si > 0 ? `, ${numero(x.con_90_dias_o_menos_entre_si)} de ellos a 90 días o menos de otro` : ""}
@@ -807,7 +822,7 @@ function Cruces({ cruces: c }: { cruces: CrucesDeLaPersona }) {
         </Caso>
       ))}
       {(c.doblePercepcion ?? []).map((x, i) => (
-        <Caso key={`d${i}`} titulo="Cobra del Estado por dos lados" tono={x.severidad === "media" ? "media" : "baja"}>
+        <Caso key={`d${i}`} titulo="Cobra del Estado por dos lados" tono={x.severidad === "media" ? "media" : "baja"} fuente={FUENTE_CASO.doble}>
           Figura en la planilla de <EnlaceEntidad ruc={x.entidad_ruc} nombre={x.entidad} />
           {x.cargo ? ` como ${cargoTexto(x.cargo)}` : ""}
           {x.sueldo ? `, con un sueldo de ${solesCompacto(x.sueldo)} al mes` : ""}. En {plural(x.meses, "mes", "meses")} de esos
@@ -823,6 +838,9 @@ function Cruces({ cruces: c }: { cruces: CrucesDeLaPersona }) {
           key={`cf${i}`}
           titulo={tituloCompraFamilia(x)}
           tono={x.severidad === "alta" ? "alta" : x.severidad === "media" ? "media" : "baja"}
+          fuente={FUENTE_CASO.compras}
+          // La evidencia, orden por orden, se pide al abrirla.
+          detalle={x.clave ? <VentasCompraFamilia clave={x.clave} entidadRuc={x.entidadRuc} aPedido /> : undefined}
         >
           Declara el puesto de <b>{cargoTexto(x.cargo).toLowerCase()}</b> en <EnlaceEntidad ruc={x.entidadRuc} nombre={x.entidad} />
           {periodoDelPuesto(x) ? `, ${periodoDelPuesto(x)}` : ""}. Un familiar que declaró ({x.parentesco.toLowerCase()}){" "}
@@ -836,15 +854,10 @@ function Cruces({ cruces: c }: { cruces: CrucesDeLaPersona }) {
           )}{" "}
           <b>{ordenesEnElPuesto(x)}</b> {ordenesFueraDelPuesto(x) ? `${ordenesFueraDelPuesto(x)} ` : ""}
           {reglaCompraFamilia(x)} Esto no dice que intervino: hay que ver quién pidió y quién aprobó cada orden.
-          {x.clave ? (
-            <span className="mt-2 block">
-              <VentasCompraFamilia clave={x.clave} entidadRuc={x.entidadRuc} aPedido />
-            </span>
-          ) : null}
         </Caso>
       ))}
       {(c.exAutoridad ?? []).map((x, i) => (
-        <Caso key={`ea${i}`} titulo="En observación: dejó de figurar en una empresa que le vendió a su entidad" tono={x.severidad === "alta" ? "alta" : "media"}>
+        <Caso key={`ea${i}`} titulo="En observación: dejó de figurar en una empresa que le vendió a su entidad" tono={x.severidad === "alta" ? "alta" : "media"} fuente={FUENTE_CASO.autoridad}>
           Figuraba como <b>{x.roles.join(", ")}</b> de <EnlaceEmpresa ruc={x.empresaRuc} nombre={x.empresa} />
           {x.desde ? ` desde el ${fechaConAnio(x.desde)}` : ""} y dejó de figurar en el corte del Registro Nacional de Proveedores del {fechaConAnio(x.bajaCorte)}. Durante
           su periodo como {cargoTexto(x.cargo).toLowerCase()}, <EnlaceEntidad ruc={x.entidadRuc} nombre={x.entidad} /> le compró a esa empresa{" "}
@@ -855,7 +868,7 @@ function Cruces({ cruces: c }: { cruces: CrucesDeLaPersona }) {
         </Caso>
       ))}
       {c.enInformeYDespuesCobro.map((x, i) => (
-        <Caso key={`c${i}`} titulo="Figura en un informe de control y la entidad le pagó después" tono="media">
+        <Caso key={`c${i}`} titulo="Figura en un informe de control y la entidad le pagó después" tono="media" fuente={FUENTE_CASO.control}>
           El informe {x.informe ?? "sin número"} de <EnlaceEntidad ruc={x.entidad_ruc} nombre={x.entidad} />
           {x.fecha_del_informe ? `, del ${fechaConAnio(x.fecha_del_informe)},` : ""} la comprende con responsabilidad presunta. Esa entidad le dio{" "}
           {plural(x.ordenes_de_esa_entidad, "orden de servicio", "órdenes de servicio")}
@@ -863,8 +876,14 @@ function Cruces({ cruces: c }: { cruces: CrucesDeLaPersona }) {
           {x.ultima_orden ? `; la última, el ${fechaConAnio(x.ultima_orden)}` : ""}. Falta ver cuántas son posteriores al informe.
         </Caso>
       ))}
-    </ul>
+    </>
   );
+  const PESO: Record<TonoCaso, number> = { alta: 0, media: 1, baja: 2 };
+  const ordenados = (Children.toArray(casos.props.children) as ReactElement<{ tono: TonoCaso }>[])
+    .map((nodo, i) => ({ nodo, i }))
+    .sort((x, y) => PESO[x.nodo.props.tono] - PESO[y.nodo.props.tono] || x.i - y.i)
+    .map((x) => x.nodo);
+  return <ul className="space-y-3">{ordenados}</ul>;
 }
 
 // ─── Cargos ──────────────────────────────────────────────────────────────────────────────────────
