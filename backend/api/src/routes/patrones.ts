@@ -43,7 +43,7 @@ import { papelesRnp } from "../lib/familiaFuncionario.js";
 import { ETIQUETA_CRUCE, catalogoSenales, nombrePublicable } from "../lib/cruces.js";
 import { depurarReferencias } from "../lib/laboratorioPrecios.js";
 import { taparNombrePropio } from "./personas.js";
-import { SQL_CLAVE_GRUPO, casoGrupo, type CasoPatron, type Pedir } from "../lib/casoPatron.js";
+import { SQL_CLAVE_GRUPO, casoComprasFamilia, casoGrupo, type CasoPatron, type Pedir } from "../lib/casoPatron.js";
 
 export const patronesRouter = new Hono();
 
@@ -759,6 +759,8 @@ const ComprasFamilia = z.object({
   severidad: z.enum(["alta", "media", "baja"]).optional(),
   /** Sólo los casos graves y medios (los que cuenta la bandera de una ficha). */
   relevantes: z.enum(["1"]).optional(),
+  /** La clave de un caso (su ficha de caso). */
+  clave: z.string().regex(/^[0-9a-f]{32}$/).optional(),
   page: z.coerce.number().int().min(1).max(200).default(1),
   size: z.coerce.number().int().min(1).max(50).default(20),
 });
@@ -797,9 +799,10 @@ patronesRouter.get("/compras-familia", async (c) => {
            FROM funcionario_compras_familiar k LEFT JOIN funcionario_resumen fr ON fr.codigo = k.codigo
           WHERE k.tipo_cargo = 'compras' AND ($1::text IS NULL OR k.entidad_ruc = $1 OR k.empresa_ruc = $1) AND ($2::text IS NULL OR k.severidad = $2)
             AND ($5::boolean IS NOT TRUE OR k.severidad IN ('alta', 'media'))
+            AND ($6::text IS NULL OR md5(k.codigo || '|' || k.entidad_ruc || '|' || k.pariente || '|' || k.empresa_ruc) = $6)
           ORDER BY CASE k.severidad WHEN 'alta' THEN 0 WHEN 'media' THEN 1 ELSE 2 END,
                    COALESCE(k.monto_en_puesto, 0) + COALESCE(k.monto_procesos_en_puesto, 0) DESC, k.monto DESC, k.codigo, k.empresa_ruc
-          LIMIT $3 OFFSET $4`, [q.buscar ?? null, q.severidad ?? null, q.size, (q.page - 1) * q.size, q.relevantes === "1"]),
+          LIMIT $3 OFFSET $4`, [q.buscar ?? null, q.severidad ?? null, q.size, (q.page - 1) * q.size, q.relevantes === "1", q.clave ?? null]),
       pool.query<{ severidad: string; casos: number; personas: number; entidades: number; monto: number; montoEnPuesto: number }>(
         `SELECT k.severidad, count(*)::int AS casos, count(DISTINCT k.codigo)::int AS personas, count(DISTINCT k.entidad_ruc)::int AS entidades,
                 COALESCE(sum(k.monto), 0)::float AS monto,
@@ -1153,6 +1156,7 @@ patronesRouter.get("/entidad/:ruc", async (c) => {
 /** Qué patrones ya tienen su ficha de caso, y quién la arma. */
 const CASOS: Record<string, (clave: string, pedir: Pedir) => Promise<CasoPatron | null>> = {
   grupos: casoGrupo,
+  compras: casoComprasFamilia,
 };
 
 /**
@@ -1164,7 +1168,8 @@ patronesRouter.get("/caso/:tipo/:clave", async (c) => {
   const tipo = c.req.param("tipo");
   const clave = c.req.param("clave");
   const armar = CASOS[tipo];
-  if (!armar || !/^[0-9a-f]{16}$/.test(clave)) return c.json({ error: "not_found" }, 404);
+  // 16 hex (los grupos) o 32 (compras y familia, que ya tenía su clave entera).
+  if (!armar || !/^(?:[0-9a-f]{16}|[0-9a-f]{32})$/.test(clave)) return c.json({ error: "not_found" }, 404);
   const pedir: Pedir = async (ruta) => {
     const r = await patronesRouter.request(ruta, undefined, c.env as object);
     return r.ok ? ((await r.json()) as Record<string, any>) : null;

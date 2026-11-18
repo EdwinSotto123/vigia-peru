@@ -67,6 +67,17 @@ export default async function CasoPatronPagina({ params }: { params: { tipo: str
           {c.serie && c.serie.anios.length > 1 && (
             <section className="space-y-2">
               <h3 className="text-cuerpo font-semibold text-ink">{c.serie.titulo}</h3>
+              {/* La leyenda a la vista (la del gráfico sólo sale al pasar por un año); también separa el título del eje. */}
+              <p className="flex flex-wrap gap-x-4 gap-y-1 pb-3 text-rotulo text-inkSoft">
+                <span className="inline-flex items-center gap-1.5">
+                  <span className="size-2.5 shrink-0 rounded-sm" style={{ background: "rgb(var(--serie-1))" }} aria-hidden />
+                  {c.serie.etiquetaA}
+                </span>
+                <span className="inline-flex items-center gap-1.5">
+                  <span className="size-2.5 shrink-0 rounded-sm" style={{ background: "rgb(var(--serie-2))" }} aria-hidden />
+                  {c.serie.etiquetaB}
+                </span>
+              </p>
               <ColumnasAnio anios={c.serie.anios} etiquetaA={c.serie.etiquetaA} etiquetaB={c.serie.etiquetaB} etiqueta={c.serie.titulo} />
             </section>
           )}

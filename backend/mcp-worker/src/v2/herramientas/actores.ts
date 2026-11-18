@@ -803,6 +803,7 @@ export const patrones = definir({
           entidad: x.entidad, entidad_ruc: x.entidadRuc, parentesco_del_familiar: x.parentesco, familiar_cercano: x.cercano,
           ordenes_al_familiar: x.ordenes, monto_soles: x.monto, ordenes_desde_el_anio: x.desde ?? undefined, ordenes_hasta_el_anio: x.hasta ?? undefined,
           ...ordenesFrenteAlPuesto(x), severidad: x.severidad,
+          ficha_del_caso: x.clave ? `${cx.env.VIGIA_URL}/app/patrones/caso/compras/${x.clave}` : undefined,
           enlace_persona: x.codigo ? `${e.funcionario(String(x.codigo))}?seccion=revision` : undefined,
           enlace_entidad: x.entidadRuc ? e.entidad(String(x.entidadRuc)) : undefined,
           enlace_empresa_del_familiar: x.empresaRuc ? e.empresa(String(x.empresaRuc)) : undefined,

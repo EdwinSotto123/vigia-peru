@@ -81,14 +81,14 @@ export interface CasoPatron {
 }
 
 /** Los patrones que ya tienen su ficha de caso (la sección de /app/patrones de cada uno). */
-export const PATRONES_CON_CASO = new Set(["grupos"]);
+export const PATRONES_CON_CASO = new Set(["grupos", "compras"]);
 
 /** La ficha de un caso: /app/patrones/caso/grupos/56ccbe973e4e3e3d. */
 export const rutaCaso = (tipo: string, clave: string) => `/app/patrones/caso/${tipo}/${clave}`;
 
 /** `null` = no existe; `"error"` = la API no respondió (no es lo mismo: la página lo dice distinto). */
 export async function getCasoPatron(tipo: string, clave: string): Promise<CasoPatron | null | "error"> {
-  if (!/^[a-z_]{3,30}$/.test(tipo) || !/^[0-9a-f]{16}$/.test(clave)) return null;
+  if (!/^[a-z_]{3,30}$/.test(tipo) || !/^(?:[0-9a-f]{16}|[0-9a-f]{32})$/.test(clave)) return null;
   try {
     const r = await fetch(`${API_BASE}/patrones/caso/${tipo}/${clave}`, { next: { revalidate: 900 } } as RequestInit);
     if (r.status === 404) return null;

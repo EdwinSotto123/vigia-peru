@@ -16,9 +16,10 @@ import { cn } from "@/lib/utils";
  * apellidos (ámbar, punteada) y pariente declarado (rojo). Tocar un nodo apaga lo que no está unido a él y abre su panel:
  * qué papel tiene, sus cifras, cada vínculo y su ficha. Debajo, la misma red en una lista (la versión accesible).
  */
-const ANCHO = 860;
+// Ancho para que entre el nombre de la entidad a la derecha (con 860 se cortaba «Seguro Social de Salu…»).
+const ANCHO = 980;
 const PASO = 58;
-const X: Record<NodoCaso["tipo"], number> = { persona: 170, empresa: 450, entidad: 720, funcionario: 720 };
+const X: Record<NodoCaso["tipo"], number> = { persona: 190, empresa: 470, entidad: 760, funcionario: 760 };
 const TONO_ARISTA: Record<AristaCaso["tipo"], Tono> = { vende: "granate", socio: "anil", pariente: "crimson", apellidos: "amber", otro: "neutro" };
 const ICONO = { entidad: Landmark, empresa: Building2, persona: UserRound, funcionario: UserSquare2 } as const;
 const NOMBRE_TIPO: Record<NodoCaso["tipo"], string> = { entidad: "Entidad", empresa: "Empresa", persona: "Persona", funcionario: "Funcionario" };

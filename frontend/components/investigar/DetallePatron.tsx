@@ -823,11 +823,9 @@ export function detalleCompraFamilia(p: PatronCompraFamilia): Detalle {
       <Pie
         enlaces={[
           // Dos, no cinco: en el celular el pie le quitaba casi la mitad de la hoja al contenido, y la entidad, la empresa y
-          // la persona ya van enlazadas en el texto.
+          // la persona ya van enlazadas en el texto. Primero la ficha del caso (su historia entera, 2026-11-18).
+          p.clave ? { texto: "Abrir la ficha del caso", href: rutaCaso("compras", p.clave) } : false,
           ficha ? { texto: "Ficha de la persona", href: ficha } : false,
-          conEmpresa && esRuc20(p.empresaRuc) && esRuc20(p.entidadRuc)
-            ? { texto: "Lo que la entidad le compró a esta empresa", href: `/entidad/${p.entidadRuc}?seccion=contratos&ccon=${p.empresaRuc}` }
-            : p.codigo ? { texto: "Su familia declarada", href: `/app/personas/cargo/${p.codigo}?seccion=familia` } : false,
         ]}
       />
     ),

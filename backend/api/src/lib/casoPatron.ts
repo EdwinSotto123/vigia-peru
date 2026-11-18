@@ -471,3 +471,192 @@ export async function casoGrupo(clave: string, pedir: Pedir): Promise<CasoPatron
       "Un grupo junta proveedores de una misma entidad unidos por un socio o representante común, por una persona que vende con su RUC y es socia de una empresa del grupo, o por socios con los mismos dos apellidos poco comunes (parentesco probable, no comprobado). Un patrón es un motivo para mirar, no una acusación.",
   };
 }
+
+// ─── Trabaja en compras y un familiar le vende a su entidad (migraciones 364-370) ────────────────
+
+const MOMENTO: Record<string, string> = {
+  en_puesto: "con la persona en el puesto",
+  sin_familiar: "en el puesto, cuando el familiar aún no figuraba en la empresa",
+  antes: "antes de que asumiera el puesto",
+  despues: "después del puesto o de su última declaración",
+  sin_fecha: "sin fecha de inicio del puesto",
+};
+const rutaContrato = (ocid: string) => `/app/contratos/${encodeURIComponent(ocid.replace(/^OECE-/i, ""))}`;
+
+export async function casoComprasFamilia(clave: string, pedir: Pedir): Promise<CasoPatron | null> {
+  const k = await pool.query<{ entidad_ruc: string }>(
+    `SELECT k.entidad_ruc FROM funcionario_compras_familiar k
+      WHERE md5(k.codigo || '|' || k.entidad_ruc || '|' || k.pariente || '|' || k.empresa_ruc) = $1 LIMIT 1`, [clave]);
+  const ent0 = k.rows[0]?.entidad_ruc;
+  if (!ent0) return null;
+  const [lista, ventas] = await Promise.all([
+    pedir(`/compras-familia?buscar=${ent0}&clave=${clave}&size=1`),
+    pedir(`/compras-familia/ventas?clave=${clave}`),
+  ]);
+  const f = (lista?.data ?? [])[0] as Record<string, any> | undefined;
+  // Sin fila (una autoridad electa: su parentesco va reservado) no hay caso.
+  if (!f) return null;
+  const v = (ventas?.ventas ?? []) as { tipo: string; fecha: string | null; monto: number | null; momento: string; orden: string | null; tipoOrden: string | null; estado: string | null; descripcion: string | null; nomenclatura: string | null; ocid: string | null }[];
+  const empresa = (ventas?.empresa ?? null) as Record<string, any> | null;
+  const ent = { ruc: f.entidadRuc as string, nombre: (f.entidad as string | null) ?? null };
+  const entNombre = ent.nombre ? titulo(ent.nombre) : "la entidad";
+  const parentesco = String(f.parentesco ?? "Familiar");
+  const familiar = `${parentesco.charAt(0).toUpperCase()}${parentesco.slice(1).toLowerCase()}`;
+  const cargo = f.cargo ? titulo(f.cargo) : "un puesto de compras";
+  const viaEmpresa = f.via === "empresa" && f.empresaRuc;
+  const empNombre = viaEmpresa ? titulo(f.empresa ?? empresa?.nombre ?? "su empresa") : null;
+
+  // ── Nodos y aristas ──
+  const nodos: NodoCaso[] = [
+    { id: "e", tipo: "entidad", nombre: entNombre, rol: "La entidad que compró", href: `/entidad/${ent.ruc}?seccion=patrones&patron=compras` },
+    {
+      id: "f", tipo: "funcionario", nombre: f.persona ?? "Funcionario de la entidad", rol: `Declaró trabajar en ${cargo}`, severidad: f.severidad === "alta" ? "alta" : "media",
+      href: f.codigo ? `/app/personas/cargo/${f.codigo}` : null,
+      datos: [
+        { etiqueta: "Puesto declarado", valor: cargo },
+        f.cargoDesde ? { etiqueta: "Desde", valor: fechaLarga(f.cargoDesde) } : null,
+        f.cargoHasta ? { etiqueta: "Hasta", valor: fechaLarga(f.cargoHasta) } : f.vistoHasta ? { etiqueta: "Sigue en su última declaración", valor: fechaLarga(f.vistoHasta) } : null,
+      ].filter((x): x is { etiqueta: string; valor: string } => !!x),
+    },
+    {
+      // El familiar nunca se nombra: sólo su parentesco.
+      id: "p", tipo: "persona", nombre: familiar, rol: viaEmpresa ? `Figura en ${empNombre}` : "Recibe órdenes a su nombre",
+      monto: viaEmpresa ? null : f.monto, ordenes: viaEmpresa ? null : f.ordenes, severidad: f.cercano ? "alta" : "media",
+      datos: [
+        { etiqueta: "Parentesco", valor: `${familiar}${f.cercano ? " (familiar cercano)" : ""}, según la declaración jurada de intereses del funcionario` },
+        viaEmpresa && f.rolEnEmpresa ? { etiqueta: `En ${empNombre}`, valor: `${String(f.rolEnEmpresa)}${f.parienteDesde ? `, desde ${fechaLarga(f.parienteDesde)}` : ""}` } : null,
+      ].filter((x): x is { etiqueta: string; valor: string } => !!x),
+    },
+  ];
+  const aristas: AristaCaso[] = [
+    { de: "f", a: "e", tipo: "otro", texto: `trabaja en ${cargo}` },
+    { de: "f", a: "p", tipo: "pariente", texto: `${parentesco.toLowerCase()}, según su declaración jurada de intereses` },
+  ];
+  if (viaEmpresa) {
+    nodos.push({
+      id: "m", tipo: "empresa", nombre: empNombre!, rol: "La empresa del familiar", href: `/empresa/${f.empresaRuc}?seccion=antecedentes&atipo=patron-compras`,
+      monto: f.monto, ordenes: f.ordenes, severidad: f.severidad === "alta" ? "alta" : "media",
+      datos: [
+        empresa?.fechaAlta ? { etiqueta: "Fundada (SUNAT)", valor: fechaLarga(empresa.fechaAlta) } : null,
+        empresa?.estadoSunat && !/ACTIVO/i.test(empresa.estadoSunat) ? { etiqueta: "Estado en la SUNAT", valor: titulo(empresa.estadoSunat) } : null,
+        empresa?.entidades ? { etiqueta: "Le vende a", valor: plural(empresa.entidades, "entidad", "entidades") } : null,
+        empresa?.inhabilitada ? { etiqueta: "Sanción", valor: String(empresa.inhabilitada) } : null,
+      ].filter((x): x is { etiqueta: string; valor: string } => !!x),
+    });
+    aristas.push({ de: "p", a: "m", tipo: "socio", texto: String(f.rolEnEmpresa ?? "figura en su conformación") });
+    aristas.push({ de: "m", a: "e", tipo: "vende", texto: `${plural(f.ordenes ?? 0, "orden", "órdenes")} por ${soles(f.monto)}${f.procesosEnPuesto ? ` y ${plural(f.procesosEnPuesto, "proceso", "procesos")}` : ""}` });
+  } else {
+    aristas.push({ de: "p", a: "e", tipo: "vende", texto: `${plural(f.ordenes ?? 0, "orden", "órdenes")} a su nombre por ${soles(f.monto)}` });
+  }
+
+  // ── La historia ──
+  const hitos: HitoCaso[] = [];
+  if (empresa?.fechaAlta) hitos.push({ fecha: empresa.fechaAlta, tipo: "fundacion", titulo: `Se funda ${empNombre}`, nodos: ["m"], fuente: "SUNAT (padrón RUC)" });
+  if (f.parienteDesde) hitos.push({ fecha: f.parienteDesde, tipo: "socio", titulo: `El familiar (${parentesco.toLowerCase()}) figura en ${empNombre} como ${String(f.rolEnEmpresa ?? "parte de su conformación")}`, nodos: ["p", "m"], fuente: "Registro Nacional de Proveedores (OECE)" });
+  if (f.cargoDesde) hitos.push({ fecha: f.cargoDesde, tipo: "otro", severidad: "media", titulo: `El funcionario asume ${cargo} en ${entNombre}`, detalle: "La fecha de inicio que declaró en su declaración jurada de intereses.", nodos: ["f", "e"], fuente: "Declaraciones juradas de intereses (Contraloría)" });
+  if (f.cargoHasta) hitos.push({ fecha: f.cargoHasta, tipo: "salida", titulo: "Deja el puesto", detalle: "La fecha de cese que declaró.", nodos: ["f"], fuente: "Declaraciones juradas de intereses (Contraloría)" });
+  else if (f.vistoHasta) hitos.push({ fecha: f.vistoHasta, tipo: "otro", titulo: "Su última declaración todavía lo nombra en el puesto", nodos: ["f"], fuente: "Declaraciones juradas de intereses (Contraloría)" });
+  if (f.primeraEnPuesto) hitos.push({ fecha: f.primeraEnPuesto, tipo: "primera", severidad: f.cercano ? "alta" : "media", titulo: `Primera orden ${viaEmpresa ? `a ${empNombre}` : "al familiar"} con la persona en el puesto`, nodos: [viaEmpresa ? "m" : "p", "e"], fuente: "CONOSCE (OECE)", href: `/entidad/${ent.ruc}?seccion=contratos&canio=${String(f.primeraEnPuesto).slice(0, 4)}${viaEmpresa ? `&ccon=${f.empresaRuc}` : ""}` });
+  if (f.ultimaEnPuesto && f.ultimaEnPuesto !== f.primeraEnPuesto) hitos.push({ fecha: f.ultimaEnPuesto, tipo: "ultima", titulo: "Última orden con la persona en el puesto", nodos: [viaEmpresa ? "m" : "p", "e"], fuente: "CONOSCE (OECE)", href: `/entidad/${ent.ruc}?seccion=contratos&canio=${String(f.ultimaEnPuesto).slice(0, 4)}${viaEmpresa ? `&ccon=${f.empresaRuc}` : ""}` });
+  // Cada año: cuánto, y cuánto con la persona en el puesto.
+  const anios = [...new Set(v.filter((x) => x.fecha).map((x) => Number(x.fecha!.slice(0, 4))))].sort();
+  for (const a of anios) {
+    const xs = v.filter((x) => x.fecha?.startsWith(String(a)));
+    const enPuesto = xs.filter((x) => x.momento === "en_puesto");
+    const suma = (ys: typeof xs) => ys.reduce((t, y) => t + (y.monto ?? 0), 0);
+    hitos.push({
+      fecha: `${a}-12-31`, tipo: "anio", severidad: enPuesto.length ? (f.cercano ? "alta" : "media") : null,
+      titulo: `${a}: ${plural(xs.length, "venta", "ventas")} por ${soles(suma(xs))}${enPuesto.length ? `, ${miles(enPuesto.length)} con la persona en el puesto` : ""}`,
+      detalle: [...new Set(xs.map((x) => x.momento))].map((m) => `${MOMENTO[m] ?? m}: ${plural(xs.filter((x) => x.momento === m).length, "venta", "ventas")}, ${soles(suma(xs.filter((x) => x.momento === m)))}`).join("; "),
+      monto: suma(xs), nodos: [viaEmpresa ? "m" : "p", "e"], fuente: "CONOSCE y SEACE (OECE)",
+      href: `/entidad/${ent.ruc}?seccion=contratos&canio=${a}${viaEmpresa ? `&ccon=${f.empresaRuc}` : ""}`,
+    });
+  }
+  hitos.sort((a, b) => a.fecha.localeCompare(b.fecha) || a.tipo.localeCompare(b.tipo));
+
+  // Año por año: con la persona en el puesto y fuera de él.
+  const serie = anios.length > 1
+    ? {
+        titulo: "Lo que la entidad le compró, año por año",
+        etiquetaA: "Con la persona en el puesto",
+        etiquetaB: "Antes, después o sin el familiar",
+        anios: anios.map((a) => {
+          const xs = v.filter((x) => x.fecha?.startsWith(String(a)));
+          const dentro = xs.filter((x) => x.momento === "en_puesto");
+          const fuera = xs.filter((x) => x.momento !== "en_puesto");
+          const suma = (ys: typeof xs) => ys.reduce((t, y) => t + (y.monto ?? 0), 0);
+          return { anio: a, a: suma(dentro), b: suma(fuera), detalleA: `${soles(suma(dentro))} en ${plural(dentro.length, "venta", "ventas")}`, detalleB: `${soles(suma(fuera))} en ${plural(fuera.length, "venta", "ventas")}` };
+        }),
+      }
+    : null;
+
+  // ── Por qué ──
+  const razones: RazonCaso[] = ([
+    f.ordenesEnPuesto
+      ? { titulo: "Órdenes con la persona en el puesto", cifra: miles(f.ordenesEnPuesto), texto: `Por ${soles(f.montoEnPuesto)}, emitidas mientras declaraba trabajar en ${cargo}.`, severidad: f.cercano ? "alta" : "media" }
+      : { titulo: "Ninguna orden con la persona en el puesto", cifra: "0", texto: "Las ventas son de antes o de después del puesto: el impedimento rige mientras se interviene en las contrataciones.", severidad: null },
+    f.procesosEnPuesto ? { titulo: "Procesos ganados con la persona en el puesto", cifra: miles(f.procesosEnPuesto), texto: `Por ${soles(f.montoProcesosEnPuesto)}.`, severidad: "alta" } : null,
+    { titulo: "Parentesco", cifra: familiar, texto: f.cercano ? "Familiar cercano (cónyuge o conviviente, padres, hijos, hermanos): dentro del segundo grado que alcanza el impedimento." : "Familiar declarado; hay que ver si está dentro del segundo grado que alcanza el impedimento.", severidad: f.cercano ? "alta" : "media" },
+    f.empezoDespues ? { titulo: "Empezó a venderle después de que asumiera", cifra: "Sí", texto: "Antes del puesto no le vendía a la entidad.", severidad: "media" } : null,
+    { titulo: "Qué dice la ley", cifra: "Impedimento", texto: "La ley impide contratar con la entidad al cónyuge, conviviente y parientes hasta el segundo grado de quien interviene en sus contrataciones (artículo 11 del TUO de la Ley 30225; artículo 30 de la Ley 32069).", severidad: null },
+  ] as (RazonCaso | null)[]).filter((x): x is RazonCaso => !!x);
+
+  // ── Evidencia ──
+  const filas: FilaEvidencia[] = v.map((x, i) => {
+    const anio = x.fecha?.slice(0, 4);
+    const n = x.orden ? numeroDeOrden(x.orden) : "";
+    const q = new URLSearchParams({ seccion: "contratos", ...(viaEmpresa ? { ccon: f.empresaRuc } : {}), ...(n.length >= 3 ? { cq: n } : {}), ...(anio ? { canio: anio } : {}) });
+    return {
+      id: `v${i}`, fecha: x.fecha,
+      // A nombre del familiar sólo hay fecha y monto (no se publica más).
+      documento: x.tipo === "proceso" ? x.nomenclatura ?? "Proceso" : x.orden ?? (viaEmpresa ? "Orden" : "Orden a nombre del familiar"),
+      quien: viaEmpresa ? empNombre : familiar, nodo: viaEmpresa ? "m" : "p",
+      que: x.descripcion, monto: x.monto, estado: x.estado,
+      marcas: [MOMENTO[x.momento] ?? x.momento],
+      href: x.ocid ? rutaContrato(x.ocid) : `/entidad/${ent.ruc}?${q}`,
+    };
+  });
+
+  const sev: Severidad = f.severidad === "alta" ? "alta" : f.severidad === "media" ? "media" : "baja";
+  return {
+    tipo: "compras", clave, patron: "Trabaja en compras y un familiar le vende a su entidad", observacion: true,
+    titulo: `Un funcionario de compras y ${viaEmpresa ? `la empresa de su familiar` : "su familiar"} en ${entNombre}`,
+    severidad: sev,
+    frase:
+      `${f.persona ?? "Un funcionario"} declaró trabajar en ${cargo} de ${entNombre}${f.cargoDesde ? ` desde ${fechaLarga(f.cargoDesde)}` : ""}. ` +
+      `Su ${parentesco.toLowerCase()}${viaEmpresa ? ` figura en ${empNombre}, que` : ""} recibió ${plural(f.ordenes ?? 0, "orden", "órdenes")} de esa entidad por ${soles(f.monto)}` +
+      (f.ordenesEnPuesto ? `; ${miles(f.ordenesEnPuesto)} de ellas, por ${soles(f.montoEnPuesto)}, mientras tenía el puesto.` : ", ninguna mientras tenía el puesto."),
+    entidad: ent, desde: f.desde ?? null, hasta: f.hasta ?? null,
+    cifras: [
+      { etiqueta: "Ventas a la entidad", valor: miles(f.ordenes ?? 0), contexto: `por ${soles(f.monto)}` },
+      { etiqueta: "Con la persona en el puesto", valor: miles(f.ordenesEnPuesto ?? 0), contexto: f.ordenesEnPuesto ? `por ${soles(f.montoEnPuesto)}` : "ninguna" },
+      { etiqueta: "Antes del puesto", valor: miles(f.ordenesAntes ?? 0), contexto: null },
+      { etiqueta: "Después del puesto", valor: miles(f.ordenesLuego ?? 0), contexto: null },
+    ],
+    serie, nodos, aristas, hitos, razones,
+    evidencia: {
+      titulo: viaEmpresa ? `Lo que ${entNombre} le compró a la empresa del familiar` : `Lo que ${entNombre} le compró al familiar`,
+      total: v.length, filas,
+      nota: viaEmpresa ? null : "Las órdenes a nombre del familiar van sólo con su fecha y su monto: su nombre y su documento no se publican.",
+      masHref: `/entidad/${ent.ruc}?seccion=contratos${viaEmpresa ? `&ccon=${f.empresaRuc}` : ""}`,
+    },
+    revisar: [
+      "Pide a la entidad los expedientes de las órdenes emitidas mientras la persona tenía el puesto: quién hizo el requerimiento, quién cotizó, quién aprobó y quién dio la conformidad.",
+      "Comprueba si la persona intervino en esas contrataciones (firmas, cuadros comparativos, actas) o si se abstuvo por escrito.",
+      "Confirma el parentesco con documentos (RENIEC, partidas): aquí sale de su declaración jurada de intereses.",
+      viaEmpresa ? "Revisa la participación del familiar en la empresa (el RNP no publica el porcentaje) y si la empresa declaró no estar impedida." : "Revisa si el familiar declaró no estar impedido al aceptar cada orden.",
+    ],
+    fuentes: [
+      { texto: "Declaraciones juradas de intereses (Contraloría)", href: DATASET_DJI },
+      { texto: "Órdenes de compra y de servicio (CONOSCE, OECE)", href: CONOSCE_BUSCADOR },
+      ...(viaEmpresa ? [{ texto: "Socios, representantes y directivos (Registro Nacional de Proveedores)", href: DATASET_SOCIOS_RNP }, { texto: "Consulta RUC (SUNAT)", href: CONSULTA_RUC_SUNAT }] : []),
+    ],
+    relacionados: [
+      ...(f.codigo ? [{ texto: "Ficha del funcionario", href: `/app/personas/cargo/${f.codigo}` }] : []),
+      { texto: `Antecedentes y patrones de ${entNombre}`, href: `/entidad/${ent.ruc}?seccion=patrones&patron=compras` },
+      ...(viaEmpresa ? [{ texto: `Ficha de ${empNombre}`, href: `/empresa/${f.empresaRuc}` }] : []),
+      { texto: "Todos los casos del país", href: "/app/patrones?seccion=compras" },
+    ],
+    como_leerlo: String(lista?.como_leerlo ?? "Un funcionario de compras y un familiar declarado que le vende a su entidad. Es una señal en observación: dice que el puesto, el parentesco y las órdenes coinciden, no que la persona intervino."),
+  };
+}
