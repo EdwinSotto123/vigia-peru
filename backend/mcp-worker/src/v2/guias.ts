@@ -99,6 +99,10 @@ Un contrato raro puede ser un error; diez iguales son un modo de trabajar.
   Si tiene cargo público (declaró intereses o está o estuvo en una planilla), trae el enlace a su ficha de rastro en la web.
   También dice si figura en informes de control (responsabilidad presunta) y si la entidad del informe le dio órdenes
   después, y si una empresa suya está inhabilitada mientras otra suya gana.
+  Con cargo público trae además su FAMILIA DECLARADA (lo que obtuvo del Estado cada familiar que puso en su declaración
+  jurada: órdenes a su nombre y empresas en que es socio, y cuánto salió de la entidad de la persona) y si cobra del
+  Estado por DOS LADOS (planilla de una entidad y órdenes de servicio de otra los mismos meses). Su ficha en la web reúne
+  cargo, planilla, órdenes y familia en una sola página: da ese enlace.
 - red_empresa: socios y representantes, y las otras empresas donde están. Pregunta si esas empresas compiten entre sí.
 - visitas_entidad: quién entró a la entidad antes de la convocatoria y a qué oficina.
 - persona_publica y partido: quién gobierna la entidad y desde cuándo.

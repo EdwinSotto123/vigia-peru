@@ -407,7 +407,10 @@ export const rastroPersona = definir({
     "persona tiene cargo público (presentó declaraciones juradas de intereses), `con_cargo_publico` trae su último cargo y " +
     "el enlace a su ficha de rastro en Vigía: dáselo a quien pregunta. Con cargo público trae también `visitas_que_recibio`: " +
     "qué empresas la visitaron en las entidades en que trabajó (por el nombre de quien recibió la visita) y cuántos procesos " +
-    "le ganó después cada una a esa entidad; nunca quién visitó.",
+    "le ganó después cada una a esa entidad; nunca quién visitó. Y `familia_declarada`: lo que obtuvo del Estado cada familiar " +
+    "que declaró en su declaración jurada (órdenes a su nombre, empresas en que es socio), numerado y sin nombre, con lo que " +
+    "salió de la entidad de la persona; y `dos_ingresos_del_estado`: si está en la planilla de una entidad y otra le emitió " +
+    "órdenes de servicio esos mismos meses.",
   cuenta: true,
   entrada: { nombre: z.string().min(6).max(80).describe("Apellidos y nombres de la persona, al menos dos palabras.") },
   async ejecutar(a, cx) {
@@ -434,6 +437,28 @@ export const rastroPersona = definir({
         monto_adjudicado_despues_soles: x.montoDespues ?? undefined, primera_buena_pro_despues: x.primeraBuenaPro ?? undefined,
       })),
     }));
+    // Su red de familia (migración 351): lo que obtuvo del Estado cada familiar que declaró en su DJI, sin nombre ni
+    // documento del familiar; `en_su_entidad` es lo que salió de una entidad en la que la persona declaró.
+    const familia = fichas.filter(({ f }) => f?.familia).map(({ codigo, f }) => ({
+      ficha: `${e.funcionario(codigo)}?seccion=familia`,
+      familiares_declarados: f!.familia.declarados, con_ordenes_del_estado: f!.familia.conOrdenes, en_empresas_que_venden_al_estado: f!.familia.conEmpresas,
+      obtuvieron_algo_de_su_entidad: f!.familia.enSuEntidad, de_ellos_cercanos: f!.familia.cercanosEnSuEntidad ?? undefined,
+      familiares: ((f!.familia.parientes ?? []) as Fila[]).slice(0, 15).map((x) => ({
+        familiar: `Familiar ${x.n}`, parentesco: x.parentesco,
+        obtuvo: ((x.items ?? []) as Fila[]).map((i) => i.tipo === "orden"
+          ? { que: "órdenes a su nombre", entidad: i.entidad, entidad_ruc: i.entidadRuc ?? undefined, ordenes: i.ordenes ?? undefined, monto_soles: i.monto ?? undefined,
+              desde: i.desde ?? undefined, hasta: i.hasta ?? undefined, en_su_entidad: i.suEntidad, cifras_reservadas: i.reservado ? true : undefined }
+          : { que: "empresa en que es socio, representante o directivo", empresa: i.empresa, ruc: i.empresaRuc ?? undefined, enlace_empresa: i.empresaRuc ? e.empresa(i.empresaRuc) : undefined,
+              le_vendio_al_estado_soles: i.monto ?? undefined, procesos_ganados: i.procesos ?? undefined, en_su_entidad: i.suEntidad,
+              ordenes_de_su_entidad: i.suEntidadOrdenes ?? undefined, monto_de_su_entidad_soles: i.suEntidadMonto ?? undefined, cifras_reservadas: i.reservado ? true : undefined }),
+      })),
+    }));
+    // Dos ingresos del Estado (migración 352): en la planilla de una entidad y con órdenes de servicio de otra, los mismos meses.
+    const dosIngresos = fichas.flatMap(({ codigo, f }) => ((f?.cruces?.doblePercepcion ?? []) as Fila[]).map((x) => ({
+      entidad_de_su_planilla: x.entidad, cargo: x.cargo ?? undefined, sueldo_mensual_soles: x.sueldo ?? undefined, entidad_que_le_emitio_ordenes: x.otra,
+      ordenes_de_servicio: x.ordenes, monto_soles: x.monto_soles, meses_que_coinciden: x.meses, desde: x.desde, hasta: x.hasta, docencia: x.docente,
+      severidad: x.severidad, ficha: `${e.funcionario(codigo)}?seccion=revision`,
+    })));
     const visitas = ((r?.visitas ?? []) as Fila[]).map((v) => ({
       nombre: v.nombre, entidad: v.entidad, entidad_ruc: v.entidad_ruc ?? undefined, visitas: v.visitas, primera: v.primera, ultima: v.ultima,
       en_nombre_de: v.en_nombre_de ?? undefined, a_quien_visito: v.a_quien ?? undefined, motivos: v.motivos ?? undefined,
@@ -457,6 +482,11 @@ export const rastroPersona = definir({
       // Por el nombre de quien recibió la visita, sólo en entidades en que la persona tuvo cargo o planilla: un homónimo
       // exacto en la misma entidad saldría también.
       visitas_que_recibio: visitasQueRecibio.length ? visitasQueRecibio : undefined,
+      // Lo que obtuvo del Estado su familia declarada. Los proveedores no presentan declaración jurada: esto sólo existe para
+      // quien tiene cargo público. Un familiar con órdenes o empresas no es una falta; en la entidad de la persona es un indicio.
+      familia_declarada: familia.length ? familia : undefined,
+      // La ley no permite dos ingresos del Estado salvo la docencia y las dietas (art. 40 de la Constitución; art. 3 de la Ley 28175).
+      dos_ingresos_del_estado: dosIngresos.length ? dosIngresos : undefined,
       empresas: ((r?.empresas ?? []) as Fila[]).map((x) => ({ ...x, enlace: x.ruc ? e.empresa(x.ruc) : undefined })),
       // Lo primero que mira un investigador: visitó la entidad y una empresa suya le ganó procesos.
       visito_y_su_empresa_gano: ((r?.visito_y_su_empresa_gano ?? []) as Fila[]).map((x) => ({
