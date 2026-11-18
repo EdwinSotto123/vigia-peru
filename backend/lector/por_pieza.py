@@ -34,7 +34,7 @@ from pathlib import Path
 RAIZ = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(RAIZ / "backend"))
 sys.path.insert(0, str(RAIZ / "infrastructure" / "aws"))
-from lector import ficha_bases, fichas_cortas, secciones  # noqa: E402
+from lector import ficha_bases, fichas_cortas, rucs, secciones  # noqa: E402
 
 VERSION = "m1"
 TOPE_TOTAL_USD = 315.0
@@ -315,6 +315,21 @@ ON CONFLICT (pieza_id, lector, version) DO UPDATE SET
 GASTADO = "SELECT COALESCE(sum(costo_usd), 0)::float FROM pieza_lectura WHERE modelo <> 'plantilla'"
 
 
+def corregir_rucs(cur, fila: dict) -> dict:
+    """Los RUC de la salida que no pasan el dígito verificador: corregidos contra los conocidos del proceso de la pieza o en
+    null (lector/rucs.py: el 5,1 % de los del lector de garantías no lo pasaba)."""
+    salida = fila.get("salida")
+    datos = json.loads(salida) if isinstance(salida, str) else salida
+    if not isinstance(datos, dict):
+        return fila
+    cur.execute("SELECT ocid FROM documento_pieza WHERE id = %s", (fila["pieza_id"],))
+    r = cur.fetchone()
+    datos, corregidos, anulados = rucs.corregir(datos, rucs.conocidos(cur, [r[0]]).get(r[0], set()) if r else set())
+    if not (corregidos or anulados):
+        return fila
+    return {**fila, "salida": json.dumps(datos, ensure_ascii=False) if isinstance(salida, str) else datos}
+
+
 def leer_ficha_bases(motor, fila: dict, paginas: list[dict], con_escaneos: bool = False) -> dict:
     """La ficha completa de unas bases: la parte específica entera, por tramos seguidos, con el mismo esquema en cada uno;
     después se juntan, se comprueban las citas y se dice qué quedó sin leer (páginas escaneadas, tramos que fallaron).
@@ -474,6 +489,7 @@ def main() -> None:
                         fila = {"pieza_id": pid, "lector": a.lector, "version": version_de(a.lector), "modelo": motor.nombre,
                                 "estado": "error", "salida": None, "tokens_in": None, "tokens_out": None, "costo_usd": 0,
                                 "detalle": f"{type(e).__name__}: {str(e)[:200]}"}
+                    fila = corregir_rucs(cur, fila)
                     cur.execute(GUARDAR, fila)
                     cn.commit()
                     gastado += float(fila["costo_usd"] or 0)

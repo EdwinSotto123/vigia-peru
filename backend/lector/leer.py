@@ -34,6 +34,7 @@ RAIZ = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(RAIZ / "backend"))
 sys.path.insert(0, str(RAIZ / "infrastructure" / "aws"))
 from lector.base import bajar_r2, bloques_pdf, cliente_claude, costo_usd, pdfs_de  # noqa: E402
+from lector import rucs  # noqa: E402
 from tunel_rds import conexion  # noqa: E402
 
 MODELO = "claude-haiku-5-5"
@@ -332,6 +333,10 @@ def main() -> None:
             listo = next(as_completed(futuros))
             futuros.discard(listo)
             fila = listo.result()
+            # Los RUC que no pasan el dígito verificador se corrigen contra los conocidos del proceso o quedan en null
+            # (lector/rucs.py: 6,7 % de los del acta no lo pasaban).
+            if isinstance(fila.get("salida"), dict):
+                base.hacer(lambda cur, f=fila: rucs.corregir(f["salida"], rucs.conocidos(cur, [f["ocid"]]).get(f["ocid"], set())))
             guardable = {**fila, "salida": json.dumps(fila["salida"], ensure_ascii=False) if fila["salida"] is not None else None}
             base.hacer(lambda cur, f=guardable: cur.execute(GUARDAR, f))
             with candado:
