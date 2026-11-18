@@ -51,13 +51,17 @@ def main() -> None:
         raise SystemExit("sin OCID")
     M._db["entorno"] = a.entorno
     por_red, tok = M.urls(), M.token()
+    # La red de todos en UNA consulta: de uno en uno, con 1 245 OCID, eran más de 20 minutos sin lanzar nada (2026-11-18).
+    tipo_de = dict(M.base(lambda cu: (cu.execute(
+        "SELECT ocid, lower(tipo_contratacion) FROM convocatorias WHERE ocid = ANY(%s)", (ocids,)), cu.fetchall())[1]))
     trabajos = []
     for o in ocids:
-        r = M.base(lambda cu: red_de(cu, o))
+        r = next((red for red, tipos in M.TIPOS.items() if tipo_de.get(o) in tipos), None)
         if not r or r not in por_red:
             M.log(f"[--] {o}: sin red o sin Lambda ({r})")
             continue
         trabajos.append((o, r))
+    M.log(f"{len(trabajos)} contratos para reanalizar, {a.hilos} a la vez")
     hecho = {"ok": 0, "error": 0, "usd": 0.0}
 
     def uno(job):
