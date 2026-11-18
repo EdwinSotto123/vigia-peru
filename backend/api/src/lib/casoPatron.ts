@@ -16,6 +16,7 @@ import { pool } from "./db.js";
 import { CONOSCE_BUSCADOR, CONSULTA_RUC_SUNAT, DATASET_DJI, DATASET_SOCIOS_RNP } from "./fuentes.js";
 import { taparNombrePropio } from "../routes/personas.js";
 import { nombrePublicable } from "./cruces.js";
+import { salDeClaves } from "./privacidad.js";
 
 export type Severidad = "alta" | "media" | "baja";
 
@@ -133,8 +134,12 @@ const tapar = (raw: string | null | undefined) => (raw ? taparNombrePropio(nombr
  */
 const numeroDeOrden = (o: string) => /(\d+)/.exec(o)?.[1] ?? "";
 
-/** La clave opaca de un caso: los primeros 16 hex del md5 de sus partes, igual en SQL (`left(md5(a||'|'||b), 16)`). */
-export const SQL_CLAVE_GRUPO = `left(md5(r.entidad_ruc || '|' || r.grupo), 16)`;
+/**
+ * La clave opaca de un caso: 16 hex del md5 de una sal secreta y sus partes, calculada en SQL. `sal` es el número del
+ * parámetro que lleva `salDeClaves()` («$8»). Sin sal, la de un grupo con un RUC 10 de identificador se revertía.
+ */
+export const sqlClaveGrupo = (sal: string) => `left(md5(${sal} || r.entidad_ruc || '|' || r.grupo), 16)`;
+export { salDeClaves };
 
 // ─── Grupo de proveedores en una entidad (migraciones 343-347, 350) ───────────────────────────────
 
@@ -152,7 +157,7 @@ const roles = (xs: string[]) => {
 
 export async function casoGrupo(clave: string, pedir: Pedir): Promise<CasoPatron | null> {
   const k = await pool.query<{ entidad_ruc: string; grupo: string }>(
-    `SELECT r.entidad_ruc, r.grupo FROM grupo_proveedor_resumen r WHERE ${SQL_CLAVE_GRUPO} = $1 LIMIT 1`, [clave]);
+    `SELECT r.entidad_ruc, r.grupo FROM grupo_proveedor_resumen r WHERE ${sqlClaveGrupo("$2")} = $1 LIMIT 1`, [clave, salDeClaves()]);
   const id = k.rows[0];
   if (!id) return null;
   const lista = await pedir(`/grupos?entidad=${id.entidad_ruc}&clave=${clave}&size=1`);
@@ -663,9 +668,9 @@ export async function casoComprasFamilia(clave: string, pedir: Pedir): Promise<C
 
 // ─── Lo que comparten los casos de un proveedor en una entidad ─────────────────────────────────
 
-/** Las claves opacas de las listas de un proveedor en una entidad (iguales en SQL y aquí). */
-export const SQL_CLAVE_REPETIDA = `left(md5(x.entidad_ruc || '|' || x.ruc_contratista || '|' || x.desde || '|' || x.monto || '|' || COALESCE(x.objeto, '')), 16)`;
-export const SQL_CLAVE_RECIEN = `left(md5(x.entidad_ruc || '|' || x.ruc_empresa), 16)`;
+/** Las claves opacas de las listas de un proveedor en una entidad (con la sal: `sal` es el número de su parámetro). */
+export const sqlClaveRepetida = (sal: string) => `left(md5(${sal} || x.entidad_ruc || '|' || x.ruc_contratista || '|' || x.desde || '|' || x.monto || '|' || COALESCE(x.objeto, '')), 16)`;
+export const sqlClaveRecien = (sal: string) => `left(md5(${sal} || x.entidad_ruc || '|' || x.ruc_empresa), 16)`;
 
 type FilaOrden = { fecha: string | null; orden: string | null; nro: string | null; que: string | null; estado: string | null; monto: number | null; moneda: string | null; contratacion: string | null };
 
@@ -735,7 +740,7 @@ function serieDeAnios(titulo: string, etiquetaA: string, etiquetaB: string, anio
 
 export async function casoRepetida(clave: string, pedir: Pedir): Promise<CasoPatron | null> {
   const k = await pool.query<{ entidad_ruc: string; ruc_contratista: string; contratista: string | null }>(
-    `SELECT x.entidad_ruc, x.ruc_contratista, x.contratista FROM ordenes_repetidas x WHERE ${SQL_CLAVE_REPETIDA} = $1 LIMIT 1`, [clave]);
+    `SELECT x.entidad_ruc, x.ruc_contratista, x.contratista FROM ordenes_repetidas x WHERE ${sqlClaveRepetida("$2")} = $1 LIMIT 1`, [clave, salDeClaves()]);
   const id = k.rows[0];
   if (!id) return null;
   const lista = await pedir(`/repetidas?entidad=${id.entidad_ruc}&clave=${clave}&size=1`);
@@ -842,7 +847,7 @@ export async function casoRepetida(clave: string, pedir: Pedir): Promise<CasoPat
 
 export async function casoRecien(clave: string, pedir: Pedir): Promise<CasoPatron | null> {
   const k = await pool.query<{ entidad_ruc: string; ruc_empresa: string }>(
-    `SELECT x.entidad_ruc, x.ruc_empresa FROM empresa_recien_creada_ordenes x WHERE ${SQL_CLAVE_RECIEN} = $1 LIMIT 1`, [clave]);
+    `SELECT x.entidad_ruc, x.ruc_empresa FROM empresa_recien_creada_ordenes x WHERE ${sqlClaveRecien("$2")} = $1 LIMIT 1`, [clave, salDeClaves()]);
   const id = k.rows[0];
   if (!id) return null;
   const lista = await pedir(`/recien?buscar=${id.entidad_ruc}&clave=${clave}&size=1`);

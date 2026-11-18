@@ -43,7 +43,7 @@ import { papelesRnp } from "../lib/familiaFuncionario.js";
 import { ETIQUETA_CRUCE, catalogoSenales, nombrePublicable } from "../lib/cruces.js";
 import { depurarReferencias } from "../lib/laboratorioPrecios.js";
 import { taparNombrePropio } from "./personas.js";
-import { SQL_CLAVE_GRUPO, SQL_CLAVE_RECIEN, SQL_CLAVE_REPETIDA, casoComprasFamilia, casoGrupo, casoRecien, casoRepetida, type CasoPatron, type Pedir } from "../lib/casoPatron.js";
+import { casoComprasFamilia, casoGrupo, casoRecien, casoRepetida, salDeClaves, sqlClaveGrupo, sqlClaveRecien, sqlClaveRepetida, type CasoPatron, type Pedir } from "../lib/casoPatron.js";
 
 export const patronesRouter = new Hono();
 
@@ -548,16 +548,16 @@ patronesRouter.get("/grupos", async (c) => {
               to_char(r.hasta, 'YYYY-MM-DD') AS hasta, r.hasta_8uit AS "hasta8Uit", r.borde, r.monto_borde::float AS "montoBorde",
               r.sobre_tope AS "sobreTope", r.dias_juntos AS "diasJuntos", r.monto_juntos::float AS "montoJuntos", r.correlativas,
               r.repartidos, r.monto_repartido::float AS "montoRepartido", r.puesto_grupo AS "puestoGrupo", r.puesto_mayor AS "puestoMayor", r.parte_entidad::float AS "parteEntidad",
-              r.severidad, r.detalle, ${SQL_CLAVE_GRUPO} AS clave, (count(*) OVER ())::int AS total
+              r.severidad, r.detalle, ${sqlClaveGrupo("$8")} AS clave, (count(*) OVER ())::int AS total
          FROM grupo_proveedor_resumen r
         WHERE ($1::text IS NULL OR r.entidad_ruc = $1) AND ($3::text IS NULL OR r.severidad = $3)
-          AND ($7::text IS NULL OR ${SQL_CLAVE_GRUPO} = $7)
+          AND ($7::text IS NULL OR ${sqlClaveGrupo("$8")} = $7)
           AND ($2::text IS NULL OR EXISTS (SELECT 1 FROM grupo_proveedor g WHERE g.entidad_ruc = r.entidad_ruc AND g.grupo = r.grupo AND g.ruc = $2))
           AND ($6::text IS NULL OR r.entidad_ruc = $6
                OR EXISTS (SELECT 1 FROM grupo_proveedor g WHERE g.entidad_ruc = r.entidad_ruc AND g.grupo = r.grupo AND g.ruc = $6))
         ORDER BY CASE r.severidad WHEN 'alta' THEN 0 WHEN 'media' THEN 1 ELSE 2 END, r.monto DESC
         LIMIT $4 OFFSET $5`,
-      [q.entidad ?? null, ruc, q.severidad ?? null, q.size, (q.page - 1) * q.size, q.buscar ?? null, q.clave ?? null],
+      [q.entidad ?? null, ruc, q.severidad ?? null, q.size, (q.page - 1) * q.size, q.buscar ?? null, q.clave ?? null, salDeClaves()],
     ).catch(() => ({ rows: [] as Record<string, unknown>[] }));
     const grupos = r.rows as Record<string, any>[];
     // Por qué están juntos: los vínculos entre sus miembros, con la persona que los une (un apellido tapado).
@@ -653,13 +653,13 @@ patronesRouter.get("/repetidas", async (c) => {
       `SELECT x.entidad_ruc AS "entidadRuc", (SELECT es.nombre FROM entidad_stats es WHERE es.ruc = x.entidad_ruc) AS entidad,
               x.ruc_contratista AS ruc, x.contratista AS nombre, x.monto::float AS monto, x.ordenes, x.total::float AS total, x.tope::float AS tope,
               to_char(x.desde, 'YYYY-MM-DD') AS desde, to_char(x.hasta, 'YYYY-MM-DD') AS hasta, x.dias, x.devengadas, x.objeto, x.severidad, x.detalle,
-              ${SQL_CLAVE_REPETIDA} AS clave, (count(*) OVER ())::int AS total_filas
+              ${sqlClaveRepetida("$8")} AS clave, (count(*) OVER ())::int AS total_filas
          FROM ordenes_repetidas x
         WHERE ($1::text IS NULL OR x.entidad_ruc = $1) AND ($2::text IS NULL OR x.ruc_contratista = $2) AND ($3::text IS NULL OR x.severidad = $3)
-          AND ($6::text IS NULL OR x.entidad_ruc = $6 OR x.ruc_contratista = $6) AND ($7::text IS NULL OR ${SQL_CLAVE_REPETIDA} = $7)
+          AND ($6::text IS NULL OR x.entidad_ruc = $6 OR x.ruc_contratista = $6) AND ($7::text IS NULL OR ${sqlClaveRepetida("$8")} = $7)
         ORDER BY CASE x.severidad WHEN 'alta' THEN 0 WHEN 'media' THEN 1 ELSE 2 END, x.total DESC
         LIMIT $4 OFFSET $5`,
-      [q.entidad ?? null, q.ruc ?? null, q.severidad ?? null, q.size, (q.page - 1) * q.size, q.buscar ?? null, q.clave ?? null],
+      [q.entidad ?? null, q.ruc ?? null, q.severidad ?? null, q.size, (q.page - 1) * q.size, q.buscar ?? null, q.clave ?? null, salDeClaves()],
     ).catch(() => ({ rows: [] as Record<string, unknown>[] }));
     const filas = r.rows as Record<string, any>[];
     return publicar({
@@ -696,14 +696,14 @@ patronesRouter.get("/recien", async (c) => {
       `SELECT x.entidad_ruc AS "entidadRuc", (SELECT es.nombre FROM entidad_stats es WHERE es.ruc = x.entidad_ruc) AS entidad,
               x.ruc_empresa AS ruc, x.empresa AS nombre, to_char(x.fecha_alta, 'YYYY-MM-DD') AS "fechaAlta",
               to_char(x.primera_orden, 'YYYY-MM-DD') AS "primeraOrden", x.dias, x.ordenes_1a AS "ordenesPrimerAnio", x.monto_1a::float AS "montoPrimerAnio",
-              x.ordenes, x.monto::float AS monto, x.parte_entidad::float AS "parteEntidad", x.severidad, ${SQL_CLAVE_RECIEN} AS clave,
+              x.ordenes, x.monto::float AS monto, x.parte_entidad::float AS "parteEntidad", x.severidad, ${sqlClaveRecien("$6")} AS clave,
               (count(*) OVER ())::int AS total_filas
          FROM empresa_recien_creada_ordenes x
         WHERE ($1::text IS NULL OR x.entidad_ruc = $1 OR x.ruc_empresa = $1) AND ($2::text IS NULL OR x.severidad = $2)
-          AND ($5::text IS NULL OR ${SQL_CLAVE_RECIEN} = $5)
+          AND ($5::text IS NULL OR ${sqlClaveRecien("$6")} = $5)
         ORDER BY CASE x.severidad WHEN 'alta' THEN 0 WHEN 'media' THEN 1 ELSE 2 END, x.monto_1a DESC
         LIMIT $3 OFFSET $4`,
-      [q.buscar ?? null, q.severidad ?? null, q.size, (q.page - 1) * q.size, q.clave ?? null],
+      [q.buscar ?? null, q.severidad ?? null, q.size, (q.page - 1) * q.size, q.clave ?? null, salDeClaves()],
     ).catch(() => ({ rows: [] as Record<string, unknown>[] }));
     const filas = r.rows as Record<string, any>[];
     return publicar({

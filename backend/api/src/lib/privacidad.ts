@@ -56,6 +56,15 @@ function claveSecreta(): Buffer {
   return secreto;
 }
 
+/**
+ * La sal de las claves opacas de los casos de patrones (lib/casoPatron.ts): sin ella, la clave de un caso cuyo
+ * identificador lleva un RUC 10 (md5 de entidad y RUC) se revertía recorriendo los 10^8 DNI. Derivada del secreto, nunca
+ * sale en una respuesta: se pasa a la base como parámetro.
+ */
+export function salDeClaves(): string {
+  return createHmac("sha256", claveSecreta()).update("claves-de-caso-de-patron").digest("hex").slice(0, 32);
+}
+
 const CROCKFORD = "0123456789ABCDEFGHJKMNPQRSTVWXYZ";
 
 /** `ref·XXXXXX` de un documento (DNI, carné…): 30 bits del HMAC-SHA256, en base 32 de Crockford. */
