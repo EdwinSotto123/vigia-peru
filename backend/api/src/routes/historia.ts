@@ -642,7 +642,7 @@ historiaRouter.get("/entidad/:ruc", async (c) => {
 // ─── Empresa ────────────────────────────────────────────────────────────────────────────────────
 
 const CARRILES_EMPRESA: CarrilHistoria[] = [
-  { clave: "empresa", titulo: "La empresa", explica: "Cuándo se fundó (SUNAT) y cuándo entraron sus socios, representantes y directivos (RNP), por su papel." },
+  { clave: "empresa", titulo: "La empresa", explica: "Cuándo se fundó (SUNAT), cuándo entraron sus socios, representantes y directivos (RNP) y cuándo dejaron de figurar, por su papel." },
   { clave: "compras", titulo: "Contratos que ganó", explica: "Las buenas pro que le dieron en procesos del SEACE (OECE), por mes; los puntos son los más grandes y los que tienen banderas." },
   { clave: "ordenes", titulo: "Órdenes que recibió", explica: "Sus órdenes de compra y de servicio en CONOSCE (OECE), por mes, desde 2018." },
   { clave: "menores", titulo: "Contratos menores", explica: "Sus contratos de hasta 8 UIT en el SEACE, por mes." },
@@ -711,7 +711,7 @@ async function historiaEmpresa(ruc: string): Promise<(Historia & { registro: unk
   // autoridades y visitas por su DNI, que nunca sale de aquí: los hechos dicen QUIÉN fue (su nombre, tapado por
   // publicar(), y su papel en la empresa). Pedido del 2026-10-29: «faltan varios detalles, mencionar quién hizo esa acción».
   const GENTE = `SELECT numero_documento FROM rnp_conformacion_juridica WHERE ruc_empresa = $1 AND numero_documento ~ '^[0-9]{8}$'`;
-  const [adj, ord, men, san, pen, cru, vis, obr, soc, ban, banMes, gen, aut, cand, apo] = await Promise.all([
+  const [adj, ord, men, san, pen, cru, vis, obr, soc, ban, banMes, gen, aut, cand, apo, salHoy, salAntes] = await Promise.all([
     filas<{ codigo: string; entidad_ruc: string | null; entidad: string | null; fecha: string | null; monto: number | null; referencial: number | null; descripcion: string | null; consorcio: string | null; ocid: string | null }>(
       "contratos",
       `WITH a AS (
@@ -825,7 +825,22 @@ async function historiaEmpresa(ruc: string): Promise<(Historia & { registro: unk
       `SELECT o.numero_documento AS doc, to_char(o.fecha_aporte, 'YYYY-MM-DD') AS fecha, o."año" AS anio, o.monto::float AS monto, o.partido,
               o.tipo_aporte AS tipo, o.proceso, o.nivel
          FROM onpe_aporte_unico o WHERE o.numero_documento IN (${GENTE})`, [ruc]),
+    // Quién dejó de figurar y como qué: el corte mensual del RNP en que ya no aparece. Desde mayo de 2026 la baja queda en
+    // la tabla principal (migración 360); las anteriores, desde diciembre de 2022, en rnp_exsocio (migración 365).
+    filas<{ fecha: string; rol: string; n: number; nombres: string[] | null }>(
+      "salidas de socios",
+      `SELECT to_char(baja_corte, 'YYYY-MM-DD') AS fecha, tipo_rol AS rol, count(DISTINCT numero_documento)::int AS n,
+              array_agg(DISTINCT nombre) FILTER (WHERE nombre IS NOT NULL) AS nombres
+         FROM rnp_conformacion_juridica WHERE ruc_empresa = $1 AND baja_corte IS NOT NULL
+        GROUP BY 1, 2 ORDER BY 1`, [ruc]),
+    filas<{ fecha: string; rol: string; n: number; nombres: string[] | null }>(
+      "salidas de socios de antes",
+      `SELECT to_char(baja_corte, 'YYYY-MM-DD') AS fecha, tipo_rol AS rol, count(DISTINCT numero_documento)::int AS n,
+              array_agg(DISTINCT nombre) FILTER (WHERE nombre IS NOT NULL) AS nombres
+         FROM rnp_exsocio WHERE ruc_empresa = $1
+        GROUP BY 1, 2 ORDER BY 1`, [ruc]),
   ]);
+  const sal = [...salAntes, ...salHoy];
 
   const hasta = hoy();
   const base = `/empresa/${ruc}`;
@@ -947,6 +962,37 @@ async function historiaEmpresa(ruc: string): Promise<(Historia & { registro: unk
           { etiqueta: "Como", valor: oracionMayus(n === 1 ? comoUno : varios) },
           ...(n > 1 && nombres.length ? [{ etiqueta: "Quiénes", valor: listaY(nombres) }] : []),
           { etiqueta: "Desde", valor: fechaLarga(fecha) },
+        ],
+        href: hrefGente, fuente: "Registro Nacional de Proveedores (OECE)", enlace: DATASET_SOCIOS_RNP,
+      });
+    }
+  }
+
+  // Quién dejó de figurar y como qué, con la misma regla: una persona que salió el mismo corte de varios papeles es un
+  // solo hecho. La fecha es la del corte mensual del RNP en que ya no aparece, no la de su salida.
+  const salidasPorFecha = new Map<string, typeof sal>();
+  for (const x of sal) salidasPorFecha.set(x.fecha, [...(salidasPorFecha.get(x.fecha) ?? []), x]);
+  for (const [fecha, grupo] of salidasPorFecha) {
+    const nombresDia = [...new Set(grupo.flatMap((x) => x.nombres ?? []))];
+    const unaPersona = nombresDia.length === 1 && grupo.every((x) => x.n === 1);
+    const partes = unaPersona ? [grupo] : grupo.map((x) => [x]);
+    for (const g of partes) {
+      const roles = ORDEN_ROL.filter((r) => g.some((x) => x.rol === r));
+      const otros = g.filter((x) => !ORDEN_ROL.includes(x.rol)).map((x) => x.rol);
+      const n = g.length === 1 ? g[0].n : 1;
+      const nombres = [...new Set(g.flatMap((x) => x.nombres ?? []))].sort();
+      const comoUno = listaY([...roles.map((r) => PAPEL[r]), ...otros.map((o) => o.toLowerCase().replace(/_/g, " "))]);
+      const [uno, varios] = g.length === 1 ? (ROL_EMPRESA[g[0].rol] ?? ["una persona", "personas"]) : ["", ""];
+      eventos.push({
+        id: `rnp-salida:${fecha}:${g.map((x) => x.rol).join("+")}`, carril: "empresa", tipo: "conformacion", fecha,
+        titulo: g.length > 1 ? `Dejó de figurar como ${comoUno}` : n === 1 ? `Dejó de figurar ${uno}` : `Dejaron de figurar ${n} ${varios}`,
+        detalle: "Corte mensual del RNP en que ya no aparece en su conformación jurídica: la salida puede ser de unas semanas antes",
+        quien: n === 1 && nombres[0] && !pareceEmpresa(nombres[0]) ? { nombre: nombres[0], rol: `Era ${comoUno}`, href: hrefGente, tipo: "persona" } : null,
+        datos: [
+          { etiqueta: "Como", valor: oracionMayus(n === 1 ? comoUno : varios) },
+          // Hasta doce nombres: una cooperativa puede perder cientos de socios en un corte.
+          ...(n > 1 && nombres.length && nombres.length <= 12 ? [{ etiqueta: "Quiénes", valor: listaY(nombres) }] : []),
+          { etiqueta: "Ya no figura desde el corte del", valor: fechaLarga(fecha) },
         ],
         href: hrefGente, fuente: "Registro Nacional de Proveedores (OECE)", enlace: DATASET_SOCIOS_RNP,
       });
@@ -1130,6 +1176,8 @@ async function historiaEmpresa(ruc: string): Promise<(Historia & { registro: unk
         // Quien es o fue autoridad electa va completo (lib/electos.ts): lo dicen sus filas de autoridad y de candidaturas ganadas.
         ...gen.map((g) => ({ nombre: g.nombre, ...marcaElecto(electos.has(g.doc)) })),
         ...soc.flatMap((s) => (s.nombres ?? []).filter((n) => !pareceEmpresa(n)).map((n) => ({ nombre: n }))),
+        // Y quienes dejaron de figurar: sus nombres salen en los hechos de salida y se tapan igual.
+        ...sal.flatMap((x) => (x.nombres ?? []).filter((n) => !pareceEmpresa(n)).map((n) => ({ nombre: n }))),
       ],
       visitas: vis.filter((v) => v.visitante).map((v) => ({ visitante: v.visitante })),
     },
