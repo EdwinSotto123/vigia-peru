@@ -615,6 +615,9 @@ export interface PatronCierre {
   personasBase: number;
   personasNuevasBase: number;
   personasNuevasDespues: number | null;
+  /** educacion, salud, municipalidad u otro; y cuántas veces subieron las personas nuevas de todo ese sector. */
+  sector?: string | null;
+  vecesSector?: number | null;
   severidad: "alta" | "media";
 }
 export interface PatronesCierres {

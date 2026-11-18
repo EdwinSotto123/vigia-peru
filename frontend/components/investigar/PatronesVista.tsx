@@ -1339,6 +1339,8 @@ const COLUMNAS_CIERRES: Columna[] = [
   { clave: "monto", titulo: "Les pagó", ancho: "8rem", alinear: "der", desde: "lg", apilar: "con-rotulo" },
 ];
 
+const NOMBRE_SECTOR: Record<string, string> = { educacion: "educación", salud: "salud", municipalidad: "municipalidades", otro: "el resto del gobierno regional" };
+
 /** «2023-01-01» → «2022-12»: el último mes de la gestión que se va. */
 function mesAnterior(f: string): string {
   const d = new Date(Date.UTC(Number(f.slice(0, 4)), Number(f.slice(5, 7)) - 2, 1));
@@ -1360,6 +1362,7 @@ function filaCierre(p: PatronCierre): Fila {
           que nunca habían recibido una orden de la entidad recibieron {plural(p.ordenesNuevas, "orden", "órdenes")} por {solesCompacto(p.montoNuevas)}. En las mismas fechas un año
           antes fueron {numero(p.personasNuevasBase)}
           {p.personasNuevasDespues != null ? ` y un año después, con la gestión nueva, ${numero(p.personasNuevasDespues)}` : ""}.
+          {p.vecesSector != null ? ` En todo su sector (${NOMBRE_SECTOR[p.sector ?? ""] ?? "el resto del gobierno regional"}) las personas nuevas fueron ${decimal(p.vecesSector, 1)} veces las de un año antes.` : ""}
         </>
       ),
       contenido: <OrdenesDelPeriodo entidadRuc={p.entidadRuc} mes={p.eleccion.slice(0, 7)} hasta={mesAnterior(p.cambio)} />,
@@ -1404,8 +1407,9 @@ function ListaCierres({ inicial }: { inicial: InicialPatrones }) {
             </span>
             <span className="mt-1.5 block">
               Sólo entran entidades con datos los tres meses de cada periodo y al menos 20 personas el año anterior: sin eso, una entidad que
-              empezó a publicar sus órdenes parecía una ola. Y la gestión nueva no trajo tanta gente nueva un año después: si la trajo, es un nivel
-              nuevo, no el cierre.
+              empezó a publicar sus órdenes parecía una ola. La gestión nueva no trajo tanta gente nueva un año después: si la trajo, es un nivel
+              nuevo, no el cierre. Y subió al menos el doble que su sector (educación, salud, municipalidades): en 2022 volvieron las clases
+              presenciales y todas las unidades de educación contrataron más.
             </span>
             <span className="mt-1.5 block">
               Una gestión que se va puede pagar favores de campaña con órdenes a personas que nunca trabajaron para la entidad. También hay

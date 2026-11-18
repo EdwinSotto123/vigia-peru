@@ -11,7 +11,10 @@
 --   · el periodo tiene órdenes los tres meses;
 --   · 20 personas nuevas o más, y al menos el triple de las nuevas del año base (con un piso de 5);
 --   · y al menos 1,5 veces las nuevas de las mismas fechas un año DESPUÉS, con la gestión nueva (si esos meses tienen
---     datos): sin esto salían sobre todo las UGEL, cuyo año base (2021) fue de clases a distancia.
+--     datos): sin esto salían sobre todo las UGEL, cuyo año base (2021) fue de clases a distancia;
+--   · y al menos el doble de lo que subió su SECTOR en las mismas fechas (educación, salud, municipalidades o el resto
+--     del gobierno regional; por el nombre de la entidad): con las dos guardas anteriores, 11 de 18 seguían siendo
+--     unidades de educación, porque en 2022 volvieron las clases presenciales en todo el país.
 -- Alta: cinco veces o más y 50 personas nuevas o más; media: lo demás que pasa las guardas.
 --
 -- Sólo cuentas por entidad: ninguna persona sale con nombre ni RUC. Para ver las órdenes: /ordenes/ventana y la lista de
@@ -32,6 +35,8 @@ CREATE TABLE cierre_gestion_personas (
   personas_base       int     NOT NULL,   -- lo mismo, las mismas fechas un año antes
   personas_nuevas_base int    NOT NULL,
   personas_nuevas_despues int,              -- las mismas fechas un año después (NULL: sin datos esos meses)
+  sector              text,                 -- educacion, salud, municipalidad u otro (por el nombre de la entidad)
+  veces_sector        numeric,              -- cuántas veces subieron las personas nuevas de todo su sector
   severidad           text    NOT NULL,
   calculado_at        timestamptz NOT NULL DEFAULT now(),
   PRIMARY KEY (eleccion, entidad_ruc)
@@ -67,6 +72,16 @@ BEGIN
                                AND q.fecha_emision >= DATE '2018-01-01'
                                AND q.fecha_emision < CASE x.periodo WHEN -1 THEN v_bd WHEN 1 THEN v_ad ELSE v_d END) AS nueva
       FROM _cgp_o x;
+  -- El sector de cada entidad (por su nombre) y cuánto subieron las personas nuevas de todo el sector.
+  CREATE TEMP TABLE _cgp_s ON COMMIT DROP AS
+    SELECT x.e, CASE WHEN es.nombre ~* '(UGEL|GESTION EDUCATIVA|EDUCACION|\mUSE\M)' THEN 'educacion'
+                     WHEN es.nombre ~* '(SALUD|HOSPITAL|DIRESA|GERESA|RED ASISTENCIAL)' THEN 'salud'
+                     WHEN es.nombre ~* '^MUNICIPALIDAD' THEN 'municipalidad' ELSE 'otro' END AS sector
+      FROM (SELECT DISTINCT e FROM _cgp_n) x LEFT JOIN entidad_stats es ON es.ruc = x.e;
+  CREATE TEMP TABLE _cgp_sv ON COMMIT DROP AS
+    SELECT s.sector, (count(*) FILTER (WHERE n.nueva AND n.periodo = 0))::numeric
+                     / GREATEST((count(*) FILTER (WHERE n.nueva AND n.periodo = -1))::numeric, 1) AS veces
+      FROM _cgp_n n JOIN _cgp_s s ON s.e = n.e GROUP BY s.sector;
   -- Los meses con órdenes a personas de cada entidad en cada periodo (de todas sus personas).
   CREATE TEMP TABLE _cgp_m ON COMMIT DROP AS
     SELECT o.entidad_ruc AS e, (CASE WHEN o.fecha_emision < v_d THEN -1 WHEN o.fecha_emision > v_h THEN 1 ELSE 0 END) AS periodo,
@@ -78,9 +93,9 @@ BEGIN
 
   DELETE FROM cierre_gestion_personas WHERE eleccion = p_eleccion;
   INSERT INTO cierre_gestion_personas (eleccion, cambio, entidad_ruc, personas, personas_nuevas, ordenes_nuevas, monto_nuevas,
-                                       personas_base, personas_nuevas_base, personas_nuevas_despues, severidad)
+                                       personas_base, personas_nuevas_base, personas_nuevas_despues, sector, veces_sector, severidad)
   SELECT p_eleccion, p_cambio, a.e, a.personas, a.nuevas, a.ordenes_nuevas, a.monto_nuevas, b.personas, b.nuevas,
-         CASE WHEN md.meses >= 3 THEN COALESCE(d.nuevas, 0) END,
+         CASE WHEN md.meses >= 3 THEN COALESCE(d.nuevas, 0) END, s.sector, round(sv.veces, 2),
          CASE WHEN a.nuevas >= 5 * GREATEST(b.nuevas, 5) AND a.nuevas >= 50 THEN 'alta' ELSE 'media' END
     FROM (SELECT e, count(*)::int AS personas, (count(*) FILTER (WHERE nueva))::int AS nuevas,
                  COALESCE(sum(ordenes) FILTER (WHERE nueva), 0)::int AS ordenes_nuevas, COALESCE(sum(monto) FILTER (WHERE nueva), 0) AS monto_nuevas
@@ -90,9 +105,12 @@ BEGIN
     JOIN _cgp_m ma ON ma.e = a.e AND ma.periodo = 0
     JOIN _cgp_m mb ON mb.e = a.e AND mb.periodo = -1
     LEFT JOIN _cgp_m md ON md.e = a.e AND md.periodo = 1
+    JOIN _cgp_s s ON s.e = a.e
+    JOIN _cgp_sv sv ON sv.sector = s.sector
    WHERE ma.meses >= 3 AND mb.meses >= 3 AND b.personas >= 20
      AND a.nuevas >= 20 AND a.nuevas >= 3 * GREATEST(b.nuevas, 5)
-     AND (md.meses IS NULL OR md.meses < 3 OR a.nuevas >= 1.5 * COALESCE(d.nuevas, 0));
+     AND (md.meses IS NULL OR md.meses < 3 OR a.nuevas >= 1.5 * COALESCE(d.nuevas, 0))
+     AND a.nuevas::numeric / GREATEST(b.nuevas, 5) >= 2 * GREATEST(sv.veces, 1);
   GET DIAGNOSTICS n = ROW_COUNT;
   RETURN n;
 END $$;

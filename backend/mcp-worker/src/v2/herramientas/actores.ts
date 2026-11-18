@@ -817,6 +817,7 @@ export const patrones = definir({
           personas_nuevas: x.personasNuevas, ordenes_a_personas_nuevas: x.ordenesNuevas, monto_a_personas_nuevas_soles: x.montoNuevas,
           personas_nuevas_un_anio_antes: x.personasNuevasBase, personas_nuevas_un_anio_despues: x.personasNuevasDespues ?? undefined,
           personas_en_el_periodo: x.personas, personas_un_anio_antes: x.personasBase,
+          sector: x.sector ?? undefined, veces_que_subio_su_sector: x.vecesSector ?? undefined,
           siguiente_paso: { herramienta: "ordenes_en_periodo", entidad_ruc: x.entidadRuc, desde: `${String(x.eleccion).slice(0, 7)}-01`, hasta: mesAntes(String(x.cambio)) },
           enlace_entidad: `${e.entidad(String(x.entidadRuc))}?seccion=historia`,
         })),

@@ -1016,7 +1016,8 @@ patronesRouter.get("/cierres", async (c) => {
                   to_char(k.eleccion, 'YYYY-MM-DD') AS eleccion, to_char(k.cambio, 'YYYY-MM-DD') AS cambio,
                   k.personas, k.personas_nuevas AS "personasNuevas", k.ordenes_nuevas AS "ordenesNuevas", k.monto_nuevas::float AS "montoNuevas",
                   k.personas_base AS "personasBase", k.personas_nuevas_base AS "personasNuevasBase",
-                  k.personas_nuevas_despues AS "personasNuevasDespues", k.severidad, (count(*) OVER ())::int AS total_filas
+                  k.personas_nuevas_despues AS "personasNuevasDespues", k.sector, k.veces_sector::float AS "vecesSector",
+                  k.severidad, (count(*) OVER ())::int AS total_filas
              FROM cierre_gestion_personas k LEFT JOIN entidad_stats es ON es.ruc = k.entidad_ruc
             WHERE k.eleccion = $1::date AND ($2::text IS NULL OR k.entidad_ruc = $2) AND ($3::text IS NULL OR k.severidad = $3)
             ORDER BY CASE k.severidad WHEN 'alta' THEN 0 ELSE 1 END,
@@ -1033,7 +1034,7 @@ patronesRouter.get("/cierres", async (c) => {
         resumen: Object.fromEntries(t.rows.map((x) => [x.severidad, { entidades: x.entidades, personasNuevas: x.personasNuevas, montoNuevas: x.montoNuevas }])),
         data: filas.map(({ total_filas: _t, ...x }) => x),
         enObservacion: true,
-        como_leerlo: "Cada fila es un gobierno local o regional que, entre la elección y el cambio de mando, dio órdenes de servicio a muchas más personas naturales NUEVAS para la entidad (sin ninguna orden suya desde 2018) que en las mismas fechas un año antes, y también más que un año después con la gestión nueva. Sólo entra con datos completos los tres meses de cada periodo y una base de 20 personas o más. Una gestión que se va puede pagar favores de campaña con órdenes a personas que nunca trabajaron para la entidad; también puede haber razones legítimas (un programa nuevo, una emergencia). Es una señal en observación: las personas van sólo como cuentas; la lista de esas órdenes está en la historia de la entidad.",
+        como_leerlo: "Cada fila es un gobierno local o regional que, entre la elección y el cambio de mando, dio órdenes de servicio a muchas más personas naturales NUEVAS para la entidad (sin ninguna orden suya desde 2018) que en las mismas fechas un año antes, y también más que un año después con la gestión nueva, y que subió al menos el doble que su sector (educación, salud, municipalidades o el resto del gobierno regional; «vecesSector» es cuánto subió todo el sector). Sólo entra con datos completos los tres meses de cada periodo y una base de 20 personas o más. Una gestión que se va puede pagar favores de campaña con órdenes a personas que nunca trabajaron para la entidad; también puede haber razones legítimas (un programa nuevo, una emergencia). Es una señal en observación: las personas van sólo como cuentas; la lista de esas órdenes está en la historia de la entidad.",
       });
     });
     c.header("Cache-Control", CACHE);
