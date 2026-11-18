@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { Suspense } from "react";
-import { Building2, CloudOff, DoorOpen, ExternalLink, FileSearch, FileText, Flag, HardHat, Hash, History, IdCard, LayoutDashboard, MapPin, Network, Ruler, Scale, Users, Wallet } from "lucide-react";
+import { Building2, CloudOff, DoorOpen, ExternalLink, FileSearch, FileText, Flag, HardHat, Hash, History, IdCard, LayoutDashboard, MapPin, Network, Repeat, Ruler, Scale, Users, Wallet } from "lucide-react";
 import { etiquetaTipoVisible, tipoEntidad } from "@/lib/entidad-tipo";
 import { migasConDesde, leerDesde } from "@/lib/desde";
 import { fecha, numero, plural, porcentaje, solesCompacto } from "@/lib/formato";
@@ -34,6 +34,7 @@ import { VacioEnLinea as AvisoEnLinea } from "@/components/ui/VacioEnLinea";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { InicioEntidad } from "@/components/inicio/InicioEntidad";
 import { EnObservacionFicha } from "@/components/investigar/EnObservacionFicha";
+import { PatronesEntidad } from "@/components/entidad/PatronesEntidad";
 import { InformesContraloria } from "@/components/inicio/CasosCorrupcion";
 import { AyudaCompras, ComprasEntidad, TAM } from "@/components/entidad/ComprasEntidad";
 import { P_COMPRAS, parseCompras } from "@/lib/compras";
@@ -93,7 +94,7 @@ interface EntidadFicha {
 type Busqueda = Record<string, string | string[] | undefined> | undefined;
 
 /** El nombre de cada pestaña en la ruta de navegación (la primera, Inicio, no se agrega). */
-const ETIQUETAS: Record<string, string> = { historia: "Historia", contratos: "Compras", obras: "Obras", personas: "Personas contratadas", planilla: "Planilla", organizacion: "Organización", plazas: "Plazas CAS", visitas: "Visitas", presupuesto: "Cuánto gasta", control: "Control" };
+const ETIQUETAS: Record<string, string> = { historia: "Historia", patrones: "Patrones", contratos: "Compras", obras: "Obras", personas: "Personas contratadas", planilla: "Planilla", organizacion: "Organización", plazas: "Plazas CAS", visitas: "Visitas", presupuesto: "Cuánto gasta", control: "Control" };
 /** Una sociedad anónima (S.A., S.A.C., S.A.A.): una empresa del Estado aunque su tipo declarado diga otra cosa (Petroperú). */
 const SOCIEDAD = /\bS\.?\s?A\.?(?:\s?[AC]\.?)?\s*$/i;
 
@@ -282,6 +283,19 @@ export default async function EntidadProfile({
           </Suspense>
         ) : null}
         </div>
+      ),
+    },
+    {
+      // Lo que se repite en la entidad, por familias, y la ficha de cada patrón (pedido del 2026-11-18): antes eran banderas
+      // sueltas en la cabecera y listas filtradas; nada decía «aquí hay patrones de concertación».
+      clave: "patrones",
+      icono: <Repeat size={15} aria-hidden />,
+      etiqueta: "Patrones",
+      titulo: "Antecedentes y patrones",
+      contenido: (
+        <Suspense fallback={<Cargando texto="Buscando lo que se repite en esta entidad…" />}>
+          <PatronesEntidad ruc={e.ruc} />
+        </Suspense>
       ),
     },
     {
@@ -645,7 +659,7 @@ function conCambios(ruta: string, sp: Busqueda, cambios: Record<string, string>)
  * 2026-10-29 en el Minsa (28 MB de ficha abriendo sólo el Inicio): visitas 12 MB, organización 5,8 MB, historia 3,7 MB,
  * planilla 1 MB; en el INEN, sus obras e inversiones 0,9 MB. Las demás pesan menos de 400 KB y siguen viajando.
  */
-const A_PEDIDO = new Set(["historia", "organizacion", "visitas", "planilla", "obras"]);
+const A_PEDIDO = new Set(["historia", "patrones", "organizacion", "visitas", "planilla", "obras"]);
 
 /** Mientras llega una pestaña que no se abrió al cargar, con la forma de lo suyo. */
 function Espera({ clave }: { clave: string }) {

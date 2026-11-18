@@ -88,7 +88,7 @@ export function banderasEntidad(
       tipo: "mismo_dueno", severidad: "alta", chip: "Grupos de proveedores por dueño o familia", n,
       titulo: `${plural(n, "grupo de proveedores unidos", "grupos de proveedores unidos")} por dueño o familia que ${n === 1 ? "vive" : "viven"} de sus órdenes`,
       explica: `Empresas y personas del mismo socio, o con los mismos apellidos poco comunes, que dependen de la entidad y recibieron órdenes de números seguidos, el mismo objeto repartido o muchas al borde del tope${s.gruposMonto ? `: ${soles(s.gruposMonto)} en órdenes` : ""}. El parentesco por apellidos es probable, no comprobado.`,
-      href: `/app/patrones?seccion=grupos&ruc=${ruc}`,
+      href: `${ficha}?seccion=patrones&patron=grupos`,
     });
   }
   // En observación (migraciones 364-369): los casos están en su Inicio, cada uno con sus órdenes.
@@ -99,7 +99,7 @@ export function banderasEntidad(
       chip: "En observación: trabajan en sus compras y un familiar cobra de la entidad",
       titulo: `${plural(n, "persona con un puesto de compras tiene", "casos de personas con un puesto de compras que tienen")} un familiar declarado que recibió órdenes de la entidad`,
       explica: `El puesto y el familiar salen de su declaración jurada de intereses; las órdenes, a nombre del familiar o de una empresa en la que figura, del registro de la entidad${s.comprasFamiliaMonto ? `: ${soles(s.comprasFamiliaMonto)} con la persona en el puesto` : ""}. La ley impide contratar con parientes de quien interviene en las contrataciones. Es un dato para revisar, no una acusación.`,
-      href: `${ficha}?seccion=inicio#en-observacion`,
+      href: `${ficha}?seccion=patrones&patron=compras`,
     });
   }
   if ((s.exAutoridad ?? 0) > 0) {
@@ -109,7 +109,7 @@ export function banderasEntidad(
       chip: "En observación: una autoridad suya dejó una empresa que le vende",
       titulo: `${plural(n, "empresa le vendió", "empresas le vendieron")} durante el periodo de una autoridad que figuraba en ella`,
       explica: "Una autoridad electa de la entidad dejó de figurar entre los socios o representantes de una empresa, y esa empresa le vendió a la entidad dentro de su periodo. El impedimento sigue 12 meses después de salir si tenía más del 30 %. El RNP no publica el porcentaje: es un dato para revisar.",
-      href: `${ficha}?seccion=inicio#en-observacion`,
+      href: `${ficha}?seccion=patrones&patron=autoridad`,
     });
   }
   if ((s.recienCreadas ?? 0) > 0) {

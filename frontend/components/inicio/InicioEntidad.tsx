@@ -1,5 +1,5 @@
 import { Suspense } from "react";
-import { Briefcase, Building2, FileSearch, FileText, Flag, HardHat, Landmark, MapPin, Network, UserRoundSearch, Users, Wallet } from "lucide-react";
+import { Briefcase, Building2, FileSearch, FileText, Flag, HardHat, Landmark, MapPin, Network, UserRoundSearch, Users, Wallet, Repeat } from "lucide-react";
 import { Ayuda } from "@/components/patrones/Ayuda";
 import { DatosClave } from "@/components/patrones/Detalle";
 import { FuenteDato } from "@/components/patrones/Estructura";
@@ -272,6 +272,8 @@ async function Resumen({
           },
         ]
       : []),
+    // Lo que se repite en la entidad, por familias: concertación, compras partidas, familia y política, sanciones.
+    { clave: "patrones", icono: Repeat, titulo: "Antecedentes y patrones", texto: "Lo que se repite: concertación, compras partidas, familia y sanciones", href: enSeccion("patrones") },
     { clave: "proveedores", icono: Briefcase, titulo: "Quiénes le venden", texto: "Sus proveedores, con sus antecedentes", href: `/app/empresas?entidad=${ruc}` },
     // Los registros oficiales, su región (con la Procuraduría, que publica por departamento) y sus obras denunciadas, en un
     // panel: antes eran dos tarjetas de enlaces en una columna lateral y, después, tres renglones al pie.

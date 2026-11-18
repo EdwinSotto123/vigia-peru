@@ -538,8 +538,8 @@ const consulta = (p: Record<string, string | number | undefined>) => {
   return q.toString();
 };
 
-export const rutaPatrones = (alcance: AlcancePatron, page = 1, regla?: string) =>
-  `/patrones?${consulta({ alcance, page, size: TAM_PATRONES, regla })}`;
+export const rutaPatrones = (alcance: AlcancePatron, page = 1, regla?: string, ruc?: string) =>
+  `/patrones?${consulta({ alcance, page, size: TAM_PATRONES, regla, ruc })}`;
 export const rutaAcompanantes = (page = 1) => `/patrones/acompanantes?${consulta({ solo: "fuertes", page, size: TAM_PATRONES })}`;
 export const rutaConsorcios = (page = 1) => `/patrones/consorcios?${consulta({ page, size: TAM_PATRONES })}`;
 export const rutaDuenos = (page = 1, ruc?: string, graves = false) =>
@@ -585,11 +585,32 @@ export const rutaControl = (page = 1, ruc?: string, graves = false, misma = fals
   `/patrones/control?${consulta({ page, size: TAM_PATRONES, ruc, graves: graves ? 1 : undefined, misma: misma ? 1 : undefined })}`;
 export const rutaObservados = (page = 1, ruc?: string, graves = false, siguio = false) =>
   `/patrones/observados?${consulta({ page, size: TAM_PATRONES, ruc, graves: graves ? 1 : undefined, siguio: siguio ? 1 : undefined })}`;
-export const rutaRenovaciones = (page = 1) => `/patrones/renovaciones?${consulta({ page, size: TAM_PATRONES })}`;
+export const rutaRenovaciones = (page = 1, ruc?: string) => `/patrones/renovaciones?${consulta({ page, size: TAM_PATRONES, ruc })}`;
 export const rutaObservacion = (page = 1, tipo?: string, ruc?: string) =>
   `/patrones/observacion?${consulta({ page, size: TAM_PATRONES, tipo, ruc })}`;
 
 // ─── Lecturas (servidor) ─────────────────────────────────────────────────────────
+
+/**
+ * El índice de la pestaña «Patrones» de una entidad (API GET /patrones/entidad/:ruc): cuántos casos tiene cada lista de
+ * patrones en ella y los antecedentes de quienes ganaron sus contratos, por tipo, con contratos de ejemplo.
+ */
+export interface PatronesDeEntidad {
+  ruc: string;
+  /** `casos: null`: esa lista no respondió (no es un cero). */
+  listas: { clave: SeccionPatrones; casos: number | null }[];
+  cruces: {
+    tipo: string;
+    etiqueta: string;
+    contratos: number;
+    graves: number;
+    medias: number;
+    monto: number;
+    empresas: number;
+    ejemplos: { ocid: string; codigo: string | null; objeto: string | null; proveedor: string | null; ruc: string | null; monto: number | null; fecha: string | null; severidad: string }[] | null;
+  }[];
+}
+export const getPatronesDeEntidad = (ruc: string) => leer<PatronesDeEntidad>(`/patrones/entidad/${ruc}`);
 
 /** Los casos en observación de una ficha (entidad o empresa), para pintarlos en ella: sólo los graves y medios. */
 export const getCasosComprasFamilia = (ruc: string) => leer<PatronesComprasFamilia>(`/patrones/compras-familia?buscar=${ruc}&relevantes=1&size=50`);

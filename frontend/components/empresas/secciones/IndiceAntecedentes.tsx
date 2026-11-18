@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
+import { Fragment, useEffect, useId, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import { useSearchParams } from "next/navigation";
 import { Severidad } from "@/components/ui/Severidad";
 import { numero } from "@/lib/formato";
@@ -20,6 +20,8 @@ export interface TipoDelIndice {
   n: number;
   /** «12 veces: 2 de señal alta y 10 de media», bajo el nombre en el escritorio. */
   resumen: string;
+  /** La familia a la que pertenece (los patrones de una entidad): un rótulo en el índice del escritorio al cambiar. */
+  grupo?: string;
   contenido: ReactNode;
 }
 
@@ -123,9 +125,15 @@ export function IndiceAntecedentes({ tipos, param, titulo }: { tipos: TipoDelInd
         >
           {tipos.map((t, i) => {
             const sel = t.clave === actual;
+            const abreGrupo = !!t.grupo && t.grupo !== tipos[i - 1]?.grupo;
             return (
+              <Fragment key={t.clave}>
+              {abreGrupo ? (
+                <p role="presentation" className={cn("hidden px-3 text-rotulo font-semibold text-mute lg:block", i > 0 ? "pt-3" : "pt-0.5")}>
+                  {t.grupo}
+                </p>
+              ) : null}
               <button
-                key={t.clave}
                 ref={(el) => {
                   botones.current[i] = el;
                 }}
@@ -157,6 +165,7 @@ export function IndiceAntecedentes({ tipos, param, titulo }: { tipos: TipoDelInd
                   <span className="mt-0.5 block text-meta tabular-nums text-mute">{t.resumen}</span>
                 </span>
               </button>
+              </Fragment>
             );
           })}
         </div>

@@ -1018,3 +1018,75 @@ patronesRouter.get("/observacion", async (c) => {
   c.header("Cache-Control", CACHE);
   return c.json(cuerpo);
 });
+
+// ─── GET /patrones/entidad/:ruc ──────────────────────────────────────────────────────────────────
+/** Las listas de este archivo que se pueden pedir por entidad, con su ruta para una sola fila (interesa el total). */
+const LISTAS_DE_ENTIDAD: [clave: string, ruta: (ruc: string) => string][] = [
+  ["entidades", (r) => `/?alcance=entidad&ruc=${r}&size=1`],
+  ["duenos", (r) => `/duenos?ruc=${r}&size=1`],
+  ["grupos", (r) => `/grupos?buscar=${r}&size=1`],
+  ["repetidas", (r) => `/repetidas?buscar=${r}&size=1`],
+  ["recien", (r) => `/recien?buscar=${r}&size=1`],
+  ["renovaciones", (r) => `/renovaciones?ruc=${r}&size=1`],
+  ["compras", (r) => `/compras-familia?buscar=${r}&relevantes=1&size=1`],
+  ["autoridad", (r) => `/autoridad-exsocio?buscar=${r}&size=1`],
+  ["doble", (r) => `/doble?buscar=${r}&size=1`],
+  ["inhabilitadas", (r) => `/inhabilitadas?ruc=${r}&size=1`],
+  ["control", (r) => `/control?ruc=${r}&size=1`],
+  ["observados", (r) => `/observados?ruc=${r}&size=1`],
+  ["observacion", (r) => `/observacion?ruc=${r}&size=1`],
+];
+
+/**
+ * GET /patrones/entidad/:ruc — el índice de la pestaña «Patrones» de una entidad: qué patrones tienen casos en ella y
+ * cuántos. Pedido del usuario del 2026-11-18: la ficha de la entidad tenía banderas sueltas y listas filtradas, pero
+ * no decía «aquí hay patrones de concertación» ni tenía una ficha por patrón.
+ *
+ * No repite ninguna regla: le pregunta a cada lista de este mismo archivo (por dentro, sin salir a la red) con el RUC de
+ * la entidad, y suma los antecedentes de los ganadores de sus contratos por tipo (casos_cruce), con seis contratos de
+ * ejemplo de cada uno. En tandas de cinco, para no ocupar el pozo de conexiones. `casos: null` = esa lista no respondió.
+ */
+patronesRouter.get("/entidad/:ruc", async (c) => {
+  const ruc = c.req.param("ruc");
+  if (!/^20\d{9}$/.test(ruc)) return c.json({ error: "not_found" }, 404);
+  const cuerpo = await memo.obtener(`de-entidad:${ruc}`, async () => {
+    const contar = async (ruta: string): Promise<number | null> => {
+      try {
+        const r = await patronesRouter.request(ruta, undefined, c.env as object);
+        if (!r.ok) return null;
+        return Number(((await r.json()) as { total?: number }).total ?? 0);
+      } catch (e) {
+        console.warn(`[patrones] índice de ${ruc}, ${ruta}: ${(e as Error).message}`);
+        return null;
+      }
+    };
+    const listas: { clave: string; casos: number | null }[] = [];
+    for (let i = 0; i < LISTAS_DE_ENTIDAD.length; i += 5) {
+      const tanda = LISTAS_DE_ENTIDAD.slice(i, i + 5);
+      const ns = await Promise.all(tanda.map(([, ruta]) => contar(ruta(ruc))));
+      tanda.forEach(([clave], j) => listas.push({ clave, casos: ns[j] }));
+    }
+    // Los antecedentes de quienes ganaron sus contratos, por tipo: cuántos contratos, cuántos de señal alta, cuánto suman,
+    // cuántas empresas y los seis contratos más pesados (lo grave primero).
+    const cruces = await pool.query(
+      `WITH x AS (
+         SELECT t.tipo, t.severidad, k.ocid, k.codigo, k.objeto, k.proveedor, k.ruc, k.monto, k.fecha_buena_pro,
+                row_number() OVER (PARTITION BY t.tipo ORDER BY (t.severidad = 'alta') DESC, k.monto DESC NULLS LAST, k.ocid) AS rn
+           FROM casos_cruce k CROSS JOIN LATERAL jsonb_to_recordset(k.cruces) AS t(tipo text, severidad text)
+          WHERE k.entidad_ruc = $1 AND t.tipo IS NOT NULL)
+       SELECT x.tipo, count(*)::int AS contratos, (count(*) FILTER (WHERE x.severidad = 'alta'))::int AS graves,
+              (count(*) FILTER (WHERE x.severidad = 'media'))::int AS medias,
+              COALESCE(sum(x.monto), 0)::float AS monto, count(DISTINCT x.ruc)::int AS empresas,
+              jsonb_agg(jsonb_build_object('ocid', x.ocid, 'codigo', x.codigo, 'objeto', left(x.objeto, 180), 'proveedor', x.proveedor, 'ruc', x.ruc,
+                                           'monto', x.monto, 'fecha', to_char(x.fecha_buena_pro, 'YYYY-MM-DD'), 'severidad', x.severidad)
+                        ORDER BY x.rn) FILTER (WHERE x.rn <= 6) AS ejemplos
+         FROM x GROUP BY x.tipo ORDER BY 3 DESC, 2 DESC`, [ruc])
+      .catch((e) => { console.warn(`[patrones] cruces de ${ruc}: ${(e as Error).message}`); return { rows: [] as Record<string, any>[] }; });
+    return publicar({
+      ruc, listas,
+      cruces: (cruces.rows as Record<string, any>[]).map((x) => ({ ...x, etiqueta: ETIQUETA_CRUCE[x.tipo] ?? x.tipo })),
+    });
+  });
+  c.header("Cache-Control", CACHE);
+  return c.json(cuerpo);
+});

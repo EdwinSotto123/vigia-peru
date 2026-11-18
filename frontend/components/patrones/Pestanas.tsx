@@ -308,6 +308,14 @@ function FlechaRiel({ lado, onClick }: { lado: "izq" | "der"; onClick: () => voi
  * una línea, la ⓘ y las acciones a la derecha. Antes era una caja de texto sin título ("textos sueltos sin títulos"), y
  * bajo el h1 de la ficha no había ningún h2.
  */
+/**
+ * Da nombre a un bloque que no es una pestaña (la ficha de un patrón dentro de la pestaña «Patrones» de una entidad): las
+ * `CabeceraPestana` de adentro lo usan como su título (h3) en vez del nombre de la pestaña que las contiene.
+ */
+export function PanelConTitulo({ titulo, children }: { titulo: string; children: ReactNode }) {
+  return <PanelActual.Provider value={{ titulo, nivel: 3 }}>{children}</PanelActual.Provider>;
+}
+
 export function CabeceraPestana({ titulo, children, ayuda, acciones }: { titulo?: ReactNode; children?: ReactNode; ayuda?: ReactNode; acciones?: ReactNode }) {
   const panel = useContext(PanelActual);
   const nombre = titulo ?? panel?.titulo;

@@ -1,9 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { Ban, Briefcase, Building2, Coins, CopyCheck, FileSearch, Sprout, FlaskConical, Handshake, Landmark, ScanSearch, SearchX, ShoppingCart, TrendingUp, Users, UsersRound } from "lucide-react";
-import { Ayuda, CabeceraPestana, Nota, Pestanas } from "@/components/patrones";
+import { Ayuda, CabeceraPestana, Nota, PanelConTitulo, Pestanas } from "@/components/patrones";
 import { EVENTO_ACTIVA } from "@/components/patrones/Pestanas";
 import { CeldaBarra, CeldaNumero, CeldaPrincipal, CeldaTexto, CLASE_ENLACE_CELDA, Indicadores, Tabla, type Columna, type Fila, type Indicador } from "@/components/listado";
 import { EstadoCarga, usePoder } from "@/components/grafo/vista";
@@ -223,11 +223,17 @@ export function PatronesVista({ activa, inicial, etiquetas }: { activa?: string;
  * vez que la pestaña vuelve a abrirse (`Pestanas` avisa con un evento): si no, al pasar de una pestaña en la página 3 a
  * otra, la URL seguiría diciendo `page=3`.
  */
+/** La lista va dentro de la ficha de una entidad (ListaDePatron): no escribe su página en la URL de la ficha. */
+const EnFicha = createContext(false);
+
 function useListaEnUrl(clave: SeccionPatrones, inicial: InicialPatrones) {
   const [estado, setEstado] = useState<InicialPatrones>(inicial);
   const actual = useRef(estado);
   actual.current = estado;
+  const enFicha = useContext(EnFicha);
   const escribir = useCallback((e: InicialPatrones) => {
+    // En la ficha de una entidad, `?page=` abriría su pestaña de compras al recargar.
+    if (enFicha) return;
     try {
       const url = new URL(window.location.href);
       if (e.page > 1) url.searchParams.set("page", String(e.page));
@@ -238,7 +244,7 @@ function useListaEnUrl(clave: SeccionPatrones, inicial: InicialPatrones) {
     } catch {
       /* sin URL no se comparte la vista, pero la lista cambia igual */
     }
-  }, []);
+  }, [enFicha]);
   useEffect(() => escribir(estado), [escribir, estado]);
   useEffect(() => {
     const alAbrir = (ev: Event) => {
@@ -251,6 +257,39 @@ function useListaEnUrl(clave: SeccionPatrones, inicial: InicialPatrones) {
   const irAPagina = useCallback((page: number) => setEstado((e) => ({ ...e, page })), []);
   const elegirRegla = useCallback((regla: string) => setEstado({ page: 1, regla: regla || undefined }), []);
   return { ...estado, irAPagina, elegirRegla };
+}
+
+/**
+ * La lista de UN patrón con el RUC ya puesto, para la pestaña «Patrones» de la ficha de una entidad: la misma lista de
+ * /app/patrones (mismas filas, mismo panel por caso), con el nombre del patrón como título, sin su filtro de RUC (es el de
+ * la ficha) y sin escribir su página en la URL.
+ */
+export function ListaDePatron({ clave, ruc, titulo, etiquetas = {} }: { clave: SeccionPatrones; ruc: string; titulo: string; etiquetas?: Record<string, string> }) {
+  const inicial: InicialPatrones = { page: 1, ruc };
+  const lista =
+    clave === "entidades" ? <ListaSenales alcance="entidad" clave="entidades" inicial={inicial} etiquetas={etiquetas} />
+    : clave === "duenos" ? <ListaDuenos inicial={inicial} />
+    : clave === "grupos" ? <ListaGrupos inicial={inicial} />
+    : clave === "repetidas" ? <ListaRepetidas inicial={inicial} />
+    : clave === "recien" ? <ListaRecien inicial={inicial} />
+    : clave === "renovaciones" ? <ListaRenovaciones inicial={inicial} />
+    : clave === "compras" ? <ListaComprasFamilia inicial={inicial} />
+    : clave === "autoridad" ? <ListaAutoridadExsocio inicial={inicial} />
+    : clave === "doble" ? <ListaDoble inicial={inicial} />
+    : clave === "inhabilitadas" ? <ListaInhabilitadas inicial={inicial} />
+    : clave === "control" ? <ListaControl inicial={inicial} />
+    : clave === "observados" ? <ListaObservados inicial={inicial} />
+    : clave === "observacion" ? <ListaObservacion inicial={inicial} />
+    : null;
+  if (!lista) return null;
+  return (
+    <EnFicha.Provider value>
+      <PanelConTitulo titulo={titulo}>
+        {/* El filtro por RUC de cada lista (un campo numérico) sobra aquí: el RUC es el de la ficha. */}
+        <div className="[&_label:has(input[inputmode=numeric])]:hidden">{lista}</div>
+      </PanelConTitulo>
+    </EnFicha.Provider>
+  );
 }
 
 /** La lista con su paginador arriba y abajo (el de abajo sube al inicio de la lista) y, mientras llega otra página, atenuada. */
@@ -421,7 +460,7 @@ const CAMPO =
 
 function ListaSenales({ alcance, clave, inicial, etiquetas }: { alcance: AlcancePatron; clave: SeccionPatrones; inicial: InicialPatrones; etiquetas: Record<string, string> }) {
   const lista = useListaEnUrl(clave, inicial);
-  const carga = usePoder<PatronesSenal>(rutaPatrones(alcance, lista.page, lista.regla));
+  const carga = usePoder<PatronesSenal>(rutaPatrones(alcance, lista.page, lista.regla, inicial.ruc));
   const columnas = useMemo(() => columnasSenal(alcance), [alcance]);
   const nombreRegla = useCallback((regla: string) => etiquetas[regla] ?? reglaLabel(regla), [etiquetas]);
   const esEntidad = alcance === "entidad";
@@ -2080,7 +2119,7 @@ const COLUMNAS_RENOVACIONES: Columna[] = [
 
 function ListaRenovaciones({ inicial }: { inicial: InicialPatrones }) {
   const lista = useListaEnUrl("renovaciones", inicial);
-  const carga = usePoder<PatronesRenovaciones>(rutaRenovaciones(lista.page));
+  const carga = usePoder<PatronesRenovaciones>(rutaRenovaciones(lista.page, inicial.ruc));
   return (
     <div className="space-y-4">
       <CabeceraPestana
@@ -2230,7 +2269,7 @@ function proporcionChica(casos: number, universo: number): string {
 function ListaObservacion({ inicial }: { inicial: InicialPatrones }) {
   const lista = useListaEnUrl("observacion", inicial);
   const tipo = lista.regla && lista.regla in NOMBRE_OBSERVACION ? lista.regla : undefined;
-  const carga = usePoder<PatronesObservacion>(rutaObservacion(lista.page, tipo));
+  const carga = usePoder<PatronesObservacion>(rutaObservacion(lista.page, tipo, inicial.ruc));
   return (
     <div className="space-y-4">
       <CabeceraPestana
