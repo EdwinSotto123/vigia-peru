@@ -1,6 +1,6 @@
 import dynamic from "next/dynamic";
 import Link from "next/link";
-import { Eye, Search, SearchCheck } from "lucide-react";
+import { Search, SearchCheck } from "lucide-react";
 import { IndiceAntecedentes, type TipoDelIndice } from "@/components/empresas/secciones/IndiceAntecedentes";
 import { Indicadores } from "@/components/listado";
 import { Ayuda, CabeceraPestana, EstadoVacio, FuenteDato, Nota } from "@/components/patrones";
@@ -15,6 +15,7 @@ import { getPatronesDeEntidad, type PatronesDeEntidad, type SeccionPatrones } fr
 import { CRUCE_CON_LISTA, FAMILIAS_PATRON, PATRON_LISTA, familiaDeCruce, type FamiliaPatron, type PatronDeLista } from "@/lib/patronesEntidad";
 import { etiquetaRegla, getCatalogoReglas, type CatalogoReglas } from "@/lib/revision";
 import { rutaContrato } from "@/lib/rutas";
+import { cn } from "@/lib/utils";
 
 /**
  * La pestaña «Patrones» de la ficha de una entidad (pedido del usuario del 2026-11-18): un índice de TODO lo que se repite
@@ -208,17 +209,27 @@ export async function PatronesEntidad({ ruc }: { ruc: string }) {
       >
         Lo que se repite en esta entidad, por familias. Elige un patrón para ver su ficha, con sus casos y su evidencia.
       </CabeceraPestana>
-      <Indicadores
-        franja
-        items={familias.map((f) => ({
-          valor: numero(f.patrones),
-          etiqueta: f.corto,
-          contexto: `${plural(f.patrones, "patrón con casos", "patrones con casos")}${f.graves ? `, ${numero(f.graves)} de señal alta` : ""}`,
-          icono: <Eye size={15} strokeWidth={1.9} aria-hidden />,
-          tono: f.graves ? ("alta" as const) : undefined,
-          parte: null,
-        }))}
-      />
+      {/* Las familias, todas (la franja de cifras muestra cuatro como mucho): cada una lleva a su primer patrón. */}
+      <ul className="grid grid-cols-2 gap-2 md:grid-cols-3 xl:grid-cols-6" aria-label="Familias de patrones con casos en esta entidad">
+        {familias.map((f) => (
+          <li key={f.clave}>
+            <Link
+              href={`/entidad/${ruc}?seccion=patrones&patron=${encodeURIComponent(f.primera ?? "")}`}
+              scroll={false}
+              prefetch={false}
+              title={f.explica}
+              className="block h-full rounded-xl border border-line bg-paper px-3 py-2.5 transition-colors hover:border-granate/40 hover:bg-paperSoft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-granate"
+            >
+              <span className="block text-meta font-medium text-inkSoft">{f.corto}</span>
+              <span className="mt-0.5 flex items-baseline gap-1.5">
+                <span className={cn("font-display text-seccion font-bold tabular-nums", f.graves ? "text-crimsonTexto" : "text-ink")}>{numero(f.patrones)}</span>
+                <span className="text-rotulo text-mute">{f.patrones === 1 ? "patrón con casos" : "patrones con casos"}</span>
+              </span>
+              <span className="mt-0.5 block text-rotulo text-mute">{f.graves ? `${numero(f.graves)} de señal alta` : "ninguno de señal alta"}</span>
+            </Link>
+          </li>
+        ))}
+      </ul>
       <IndiceAntecedentes tipos={tipos} param="patron" titulo={`${plural(tipos.length, "patrón con casos", "patrones con casos")} en esta entidad`} />
       {(sinCasos.length > 0 || sinRespuesta.length > 0) && (
         <section className="space-y-2 border-t border-line pt-4" aria-labelledby="patrones-sin-casos">

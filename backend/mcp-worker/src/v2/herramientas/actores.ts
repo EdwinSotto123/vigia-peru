@@ -145,6 +145,13 @@ const SENALES_ENTIDAD: Record<string, string> = {
   financioPlanilla: "personas de su planilla que aportaron a la campaña del partido que gobierna",
 };
 
+/** La lista de la pestaña «Patrones» de una entidad y el alcance con que la herramienta `patrones` da su detalle. */
+const ALCANCE_DE_PATRON: Record<string, string> = {
+  entidades: "entidad", duenos: "dueno", grupos: "grupo", repetidas: "repetida", recien: "recien_creada", renovaciones: "renovacion",
+  compras: "compras_familia", autoridad: "autoridad_exsocio", doble: "doble", inhabilitadas: "inhabilitada", control: "control",
+  observados: "observado", observacion: "observacion",
+};
+
 export const fichaEntidad = definir({
   nombre: "ficha_entidad",
   titulo: "Ficha de una entidad",
@@ -152,16 +159,19 @@ export const fichaEntidad = definir({
     "Una entidad pública por su RUC: lugar, contratos, presupuesto del MEF por año (PIA, PIM, devengado y % de ejecución), " +
     "quién la gobierna y de qué partido, señales sobre su planilla, locadores y proveedores, posible nepotismo, informes " +
     "de la Contraloría con su PDF y casos de la Procuraduría en su departamento. También los socios que le ganan con dos o " +
-    "más empresas procesos de objeto parecido.",
+    "más empresas procesos de objeto parecido, y el índice de TODOS los patrones con casos en ella (concertación y " +
+    "competencia aparente, compras partidas o repetidas, familia y política, sanciones) con cuántos tiene cada uno.",
   entrada: { ruc: rucEntrada("la entidad") },
   async ejecutar({ ruc }, cx) {
     const r = rucJuridico(ruc, "RUC de la entidad");
-    const [f, poder, control, du] = await Promise.all([
+    const [f, poder, control, du, pat] = await Promise.all([
       api<Fila>(cx.env, `/entidades/${r}`),
       api<Fila>(cx.env, `/poder/entidad/${r}`).catch(() => null),
       api<Fila>(cx.env, `/corrupcion/entidad/${r}`, { size: 5 }).catch(() => null),
       // Socios que le ganan a esta entidad con dos o más empresas (migraciones 292 y 293).
       api<Fila>(cx.env, "/patrones/duenos", { ruc: r, size: 8 }).catch(() => null),
+      // El índice de su pestaña «Patrones»: cuántos casos tiene cada patrón en ella y los antecedentes de sus ganadores.
+      api<Fila>(cx.env, `/patrones/entidad/${r}`).catch(() => null),
     ]);
     const ent = f.entidad ?? {};
     const e = enlaces(cx.env);
@@ -189,6 +199,21 @@ export const fichaEntidad = definir({
               ejemplos: ((x.ejemplos ?? []) as string[]).map((o) => e.contrato(o)),
             })),
             como_leerlo: "Un socio que le gana a esta entidad, con dos o más empresas, procesos de objeto parecido. Para la lista entera: patrones con alcance «dueno» y este RUC.",
+          }
+        : undefined,
+      // Todo lo que se repite en la entidad (su pestaña «Patrones»): cada lista con casos y cada antecedente de quienes le
+      // ganaron, con su enlace a la ficha de ese patrón.
+      patrones_en_la_entidad: pat
+        ? {
+            patrones_con_casos: ((pat.listas ?? []) as Fila[]).filter((x) => Number(x.casos ?? 0) > 0).map((x) => ({
+              patron: x.clave, casos: x.casos, alcance_en_la_herramienta_patrones: ALCANCE_DE_PATRON[String(x.clave)] ?? undefined,
+              enlace: `${e.entidad(r)}?seccion=patrones&patron=${x.clave}`,
+            })),
+            antecedentes_de_quienes_ganaron_sus_contratos: ((pat.cruces ?? []) as Fila[]).slice(0, 30).map((x) => ({
+              antecedente: x.etiqueta, tipo: x.tipo, contratos: x.contratos, de_senal_alta: x.graves, monto_soles: x.monto, proveedores: x.empresas,
+              enlace: `${e.entidad(r)}?seccion=patrones&patron=c-${x.tipo}`,
+            })),
+            como_leerlo: "Lo que se repite en la entidad. «patrones_con_casos»: cada uno se detalla con la herramienta patrones (el alcance que se indica) y este RUC. «antecedentes…»: cuántos contratos de la entidad ganó alguien con ese antecedente (postor único, socio común entre postores, rival que fue su socia, fraccionamiento…); para verlos, buscar_contratos con la entidad y esa señal. Un patrón es un motivo para mirar, no una acusación.",
           }
         : undefined,
       gobierno: poder
