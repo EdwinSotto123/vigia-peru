@@ -99,6 +99,8 @@ export interface PatronesAcompanantes {
 
 /** Dos empresas que postularon juntas en consorcio y después se enfrentan por separado. */
 export interface PatronConsorcio {
+  /** La clave opaca de su ficha de caso. */
+  clave?: string;
   rucA: string;
   nombreA: string | null;
   rucB: string;
@@ -402,6 +404,8 @@ export interface PatronesControl {
 
 /** Un proveedor con procesos que la Contraloría observó en una entidad (migración 313) y lo que ella le adjudicó después. */
 export interface PatronObservado {
+  /** La clave opaca de su ficha de caso. */
+  clave?: string;
   ruc: string;
   empresa: string | null;
   entidadRuc: string;

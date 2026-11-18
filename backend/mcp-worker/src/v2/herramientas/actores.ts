@@ -933,6 +933,7 @@ export const patrones = definir({
         total: r.total,
         casos: ((r.data ?? []) as Fila[]).map((x) => ({
           empresa: x.empresa, ruc: x.ruc, enlace: e.empresa(x.ruc), entidad: x.entidad, ruc_entidad: x.entidadRuc,
+          ficha_del_caso: x.clave ? `${cx.env.VIGIA_URL}/app/patrones/caso/observados/${x.clave}` : undefined,
           procesos_observados: x.observados, graves: x.graves, observaciones: x.observaciones, informes: x.informes, temas: x.temas ?? undefined,
           monto_de_los_procesos_soles: x.monto, perjuicio_que_cuantifican_soles: x.perjuicio ?? undefined,
           primer_informe: x.informeNumero ?? x.informeCodigo, fecha_del_informe: x.emision, responsabilidad_presunta: x.responsabilidades,
@@ -1048,6 +1049,7 @@ export const patrones = definir({
           procesos_como_rivales: x.rivales, solas_las_dos: x.solas, gano_a: x.ganoA, gano_b: x.ganoB, se_turnan: x.ganoA > 0 && x.ganoB > 0,
           entidades: x.entidades, desde: x.desde, hasta: x.hasta, mercado_nacional: x.mercadoNacional === true ? true : undefined,
           enlace_a: e.empresa(x.rucA), enlace_b: e.empresa(x.rucB),
+          ficha_del_caso: x.clave ? `${cx.env.VIGIA_URL}/app/patrones/caso/consorcios/${x.clave}` : undefined,
         })),
         como_leerlo:
           "Sólo cuenta procesos de 2 a 4 postores en que las dos postularon por separado y ganó exactamente una. «solas_las_dos»: " +

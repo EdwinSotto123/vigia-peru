@@ -359,7 +359,7 @@ export function detalleConsorcio(p: PatronConsorcio): Detalle {
         />
       </div>
     ),
-    pie: <Pie enlaces={[esRuc20(p.rucA) && { texto: "Ficha de la primera", href: `/empresa/${p.rucA}` }, esRuc20(p.rucB) && { texto: "Ficha de la segunda", href: `/empresa/${p.rucB}` }]} />,
+    pie: <Pie enlaces={[!!p.clave && { texto: "Abrir la ficha del caso", href: rutaCaso("consorcios", p.clave) }, esRuc20(p.rucA) && { texto: "Ficha de la primera", href: `/empresa/${p.rucA}` }]} />,
   };
 }
 
@@ -1081,8 +1081,7 @@ export function detalleObservado(p: PatronObservado): Detalle {
     pie: (
       <Pie
         enlaces={[
-          esRuc20(p.entidadRuc) && { texto: "Contratos observados de la entidad", href: `/app/contratos?entidad=${p.entidadRuc}&cruce=observado_por_contraloria` },
-          esRuc20(p.entidadRuc) && p.despues > 0 && { texto: "Los adjudicados después", href: `/app/contratos?entidad=${p.entidadRuc}&cruce=gano_tras_observacion` },
+          !!p.clave && { texto: "Abrir la ficha del caso", href: rutaCaso("observados", p.clave) },
           esRuc20(p.ruc) && { texto: "Ficha de la empresa", href: `/empresa/${p.ruc}` },
         ]}
       />

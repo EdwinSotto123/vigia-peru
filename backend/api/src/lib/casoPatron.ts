@@ -1704,3 +1704,235 @@ export async function casoControl(clave: string, pedir: Pedir): Promise<CasoPatr
     como_leerlo: "Una empresa gana contratos con un socio o representante que la Contraloría comprendió en un informe de control. Figurar en un informe es una responsabilidad presunta, no una condena. Un patrón es un motivo para mirar, no una acusación.",
   };
 }
+
+// ─── Socios de consorcio que después compiten (migración 278) ──────────────────────────────────
+
+export const sqlClaveConsorcio = (sal: string) => `left(md5(${sal} || ruc_a || '|' || ruc_b), 16)`;
+
+export async function casoConsorcio(clave: string, pedir: Pedir): Promise<CasoPatron | null> {
+  const k = await pool.query<{ ruc_a: string; ruc_b: string }>(`SELECT ruc_a, ruc_b FROM consorcio_rival WHERE ${sqlClaveConsorcio("$2")} = $1 LIMIT 1`, [clave, salDeClaves()]);
+  const id = k.rows[0];
+  if (!id) return null;
+  const [lista, rivales, juntos, sA, sB, gA, gB] = await Promise.all([
+    pedir(`/consorcios?ruc=${id.ruc_a}&clave=${clave}&size=1`),
+    pedir(`/acompanantes/procesos?acompanante=${id.ruc_b}&ganador=${id.ruc_a}`),
+    pool.query<{ ruc: string; nombre: string | null; anio: number | null }>(
+      `SELECT a.ruc_consorcio AS ruc, max(a.consorcio) AS nombre, min(a.anio)::int AS anio
+         FROM conosce_consorcios a JOIN conosce_consorcios b ON b.ruc_consorcio = a.ruc_consorcio AND b.ruc_miembro = $2
+        WHERE a.ruc_miembro = $1 GROUP BY 1 ORDER BY 3 NULLS LAST LIMIT 20`, [id.ruc_a, id.ruc_b]),
+    empresaSunat(id.ruc_a), empresaSunat(id.ruc_b), genteDeEmpresa(id.ruc_a), genteDeEmpresa(id.ruc_b),
+  ]);
+  const f = (lista?.data ?? [])[0] as Record<string, any> | undefined;
+  if (!f) return null;
+  const A = titulo(f.nombreA ?? sA?.nombre ?? "Una empresa");
+  const B = titulo(f.nombreB ?? sB?.nombre ?? "La otra empresa");
+  const ps = ((rivales?.data ?? []) as { codigo: string; ocid: string | null; entidadRuc: string | null; entidad: string | null; objeto: string | null; fecha: string | null; monto: number | null; ganoElGanador: boolean; ganoElAcompanante: boolean; postores: number }[]);
+  // Lo que ganaron juntas (los consorcios que formaron).
+  const rucsC = juntos.rows.map((x) => x.ruc);
+  const ganadoJuntas = rucsC.length
+    ? (await pool.query<{ codigo: string; ruc: string; fecha: string | null; monto: number | null; entidad: string | null; objeto: string | null }>(
+        `SELECT a.codigo_convocatoria AS codigo, a.ruc_proveedor AS ruc, to_char(max(a.fecha_buenapro), 'YYYY-MM-DD') AS fecha, sum(a.monto_adjudicado)::float AS monto,
+                max(a.entidad) AS entidad, left(max(a.descripcion_proceso), 220) AS objeto
+           FROM conosce_adjudicaciones a WHERE a.ruc_proveedor = ANY($1) GROUP BY 1, 2 ORDER BY 3 DESC NULLS LAST LIMIT 200`, [rucsC])).rows
+    : [];
+
+  const nodos: NodoCaso[] = [
+    { id: "a", tipo: "empresa", nombre: A, rol: `Ganó ${plural(f.ganoA ?? 0, "proceso", "procesos")} contra la otra`, href: `/empresa/${id.ruc_a}?seccion=antecedentes&atipo=patron-consorcios`, severidad: "media",
+      datos: [sA?.alta ? { etiqueta: "Fundada (SUNAT)", valor: fechaLarga(sA.alta) } : null].filter((x): x is { etiqueta: string; valor: string } => !!x) },
+    { id: "b", tipo: "empresa", nombre: B, rol: `Ganó ${plural(f.ganoB ?? 0, "proceso", "procesos")} contra la otra`, href: `/empresa/${id.ruc_b}?seccion=antecedentes&atipo=patron-consorcios`, severidad: "media",
+      datos: [sB?.alta ? { etiqueta: "Fundada (SUNAT)", valor: fechaLarga(sB.alta) } : null].filter((x): x is { etiqueta: string; valor: string } => !!x) },
+  ];
+  const aristas: AristaCaso[] = [{ de: "a", a: "b", tipo: "otro", texto: `rivales en ${plural(f.rivales ?? 0, "proceso", "procesos")}` }];
+  juntos.rows.slice(0, 6).forEach((c, i) => {
+    const gano = ganadoJuntas.filter((g) => g.ruc === c.ruc);
+    nodos.push({ id: `c${i + 1}`, tipo: "empresa", nombre: titulo(c.nombre ?? "Consorcio"), rol: `Consorcio que formaron juntas${c.anio ? ` (${c.anio})` : ""}`, monto: gano.reduce((t, g) => t + (g.monto ?? 0), 0), ordenes: gano.length });
+    aristas.push({ de: "a", a: `c${i + 1}`, tipo: "socio", texto: "integrante del consorcio" });
+    aristas.push({ de: "b", a: `c${i + 1}`, tipo: "socio", texto: "integrante del consorcio" });
+  });
+  const comunes = gA.filter((p) => gB.some((q) => q.nombre === p.nombre));
+  comunes.forEach((p, i) => {
+    nodos.push({ id: `p${i + 1}`, tipo: "persona", nombre: p.nombre, rol: "Figura en las dos empresas", severidad: "alta" });
+    aristas.push({ de: `p${i + 1}`, a: "a", tipo: "socio", texto: p.papeles });
+    aristas.push({ de: `p${i + 1}`, a: "b", tipo: "socio", texto: gB.find((q) => q.nombre === p.nombre)!.papeles });
+  });
+
+  const hitos: HitoCaso[] = [];
+  if (sA?.alta) hitos.push({ fecha: sA.alta, tipo: "fundacion", titulo: `Se funda ${A}`, nodos: ["a"], fuente: "SUNAT (padrón RUC)" });
+  if (sB?.alta) hitos.push({ fecha: sB.alta, tipo: "fundacion", titulo: `Se funda ${B}`, nodos: ["b"], fuente: "SUNAT (padrón RUC)" });
+  juntos.rows.forEach((c, i) => {
+    if (!c.anio) return;
+    const gano = ganadoJuntas.filter((g) => g.ruc === c.ruc);
+    hitos.push({ fecha: `${c.anio}-01-01`, tipo: "socio", titulo: `Forman juntas el ${titulo(c.nombre ?? "consorcio")}`, detalle: gano.length ? `Ganó ${plural(gano.length, "proceso", "procesos")} por ${soles(gano.reduce((t, g) => t + (g.monto ?? 0), 0))}.` : null, nodos: ["a", "b", ...(i < 6 ? [`c${i + 1}`] : [])], fuente: "CONOSCE (OECE)" });
+  });
+  for (const p of ps) {
+    if (!p.fecha) continue;
+    const quien = p.ganoElGanador ? A : p.ganoElAcompanante ? B : "otra empresa";
+    hitos.push({
+      fecha: p.fecha, tipo: p.ganoElGanador || p.ganoElAcompanante ? "dia" : "otro", severidad: (p.ganoElGanador || p.ganoElAcompanante) && p.postores <= 4 ? "media" : null, monto: p.monto,
+      titulo: `Compiten por separado; gana ${quien}${p.postores ? ` (${plural(p.postores, "postor", "postores")})` : ""}`,
+      detalle: `${p.entidad ? titulo(p.entidad) : "Entidad"}${p.objeto ? `: «${limpiarObjeto(p.objeto)!.slice(0, 120)}»` : ""}`,
+      nodos: ["a", "b"], fuente: "CONOSCE (OECE)", href: p.ocid ? rutaContrato(p.ocid) : null,
+    });
+  }
+  hitos.sort((a, b) => a.fecha.localeCompare(b.fecha) || a.tipo.localeCompare(b.tipo));
+
+  const razones: RazonCaso[] = ([
+    { titulo: "Socias en un consorcio", cifra: plural(f.consorcios ?? juntos.rows.length, "consorcio", "consorcios"), texto: "Cuando una empresa conoce los costos y los precios de la otra, competir de verdad es difícil.", severidad: "media" },
+    { titulo: "Y después rivales", cifra: plural(f.rivales ?? 0, "proceso", "procesos"), texto: `De pocos postores, en ${plural(f.entidades ?? 0, "entidad", "entidades")}: ganó una de las dos ${miles((f.ganoA ?? 0) + (f.ganoB ?? 0))} veces.`, severidad: "alta" },
+    f.solas ? { titulo: "Solas frente a frente", cifra: miles(f.solas), texto: "Procesos en que las dos fueron las únicas postoras, o casi.", severidad: "alta" } : null,
+    comunes.length ? { titulo: "Comparten gente", cifra: plural(comunes.length, "persona", "personas"), texto: "Figuran en las dos empresas: no son rivales independientes.", severidad: "alta" } : null,
+    f.mercadoNacional ? { titulo: "Mercado de alcance nacional", cifra: "Amplio", texto: "Compiten en muchas entidades del país: puede ser un mercado chico con pocos proveedores.", severidad: null } : null,
+  ] as (RazonCaso | null)[]).filter((x): x is RazonCaso => !!x);
+
+  const filas: FilaEvidencia[] = [
+    ...ps.map((p, i) => ({ id: `r${i}`, fecha: p.fecha, documento: p.codigo, quien: p.entidad ? titulo(p.entidad) : null, que: limpiarObjeto(p.objeto), monto: p.monto,
+      estado: p.ganoElGanador ? `Ganó ${A}` : p.ganoElAcompanante ? `Ganó ${B}` : "Ganó otra", marcas: ["compitieron por separado"], href: p.ocid ? rutaContrato(p.ocid) : null })),
+    ...ganadoJuntas.map((g, i) => ({ id: `j${i}`, fecha: g.fecha, documento: g.codigo, quien: g.entidad ? titulo(g.entidad) : null, que: limpiarObjeto(g.objeto), monto: g.monto,
+      estado: "Ganó el consorcio de las dos", marcas: ["juntas en consorcio"], href: null })),
+  ];
+  return {
+    tipo: "consorcios", clave, patron: "Socios de consorcio que compiten",
+    titulo: `${A} y ${B}: socias en un consorcio y después rivales`,
+    severidad: (f.solas ?? 0) > 0 || comunes.length ? "alta" : "media",
+    frase: `${A} y ${B} postularon juntas en ${plural(f.consorcios ?? juntos.rows.length, "consorcio", "consorcios")} y después compitieron por separado en ${plural(f.rivales ?? 0, "proceso", "procesos")} de pocos postores, en ${plural(f.entidades ?? 0, "entidad", "entidades")}: ${A} ganó ${miles(f.ganoA ?? 0)} y ${B}, ${miles(f.ganoB ?? 0)}.`,
+    entidad: null, desde: f.desde ?? null, hasta: f.hasta ?? null,
+    cifras: [
+      { etiqueta: "Consorcios juntas", valor: miles(f.consorcios ?? juntos.rows.length), contexto: null },
+      { etiqueta: "Procesos como rivales", valor: miles(f.rivales ?? 0), contexto: `en ${plural(f.entidades ?? 0, "entidad", "entidades")}` },
+      { etiqueta: "Ganados por una de las dos", valor: miles((f.ganoA ?? 0) + (f.ganoB ?? 0)), contexto: null },
+      { etiqueta: "Solas frente a frente", valor: miles(f.solas ?? 0), contexto: null },
+    ],
+    serie: null, nodos, aristas, hitos, razones,
+    evidencia: { titulo: "Los procesos en que compitieron y lo que ganaron juntas", unidad: "procesos", total: filas.length, filas, nota: ps.length >= 80 ? "De los procesos en que compitieron van los 80 más recientes." : null, masHref: null },
+    revisar: [
+      "Compara las ofertas de los procesos en que compitieron: precios, formatos, errores y horas de registro parecidos delatan ofertas armadas juntas.",
+      "Mira si en los procesos que perdió una, la otra ganó con poca diferencia: es la forma de un reparto.",
+      "La autoridad en libre competencia es el INDECOPI; en contrataciones, el Tribunal de Contrataciones.",
+    ],
+    fuentes: [
+      { texto: "Postores y consorcios (CONOSCE, OECE)", href: CONOSCE_BUSCADOR },
+      { texto: "Socios, representantes y directivos (Registro Nacional de Proveedores)", href: DATASET_SOCIOS_RNP },
+    ],
+    relacionados: [
+      { texto: `Ficha de ${A}`, href: `/empresa/${id.ruc_a}` },
+      { texto: `Ficha de ${B}`, href: `/empresa/${id.ruc_b}` },
+      { texto: "Todos los casos del país", href: "/app/patrones?seccion=consorcios" },
+    ],
+    como_leerlo: "Dos empresas que postularon juntas en un consorcio y después compiten por separado en procesos de pocos postores que gana una de las dos. Un patrón es un motivo para mirar, no una acusación.",
+  };
+}
+
+// ─── Contratos observados por la Contraloría y lo que siguió (migraciones 304-314) ─────────────
+
+export const sqlClaveObservado = (sal: string, ruc: string, entidad: string) => `left(md5(${sal} || ${ruc} || '|' || ${entidad}), 16)`;
+const RESP_O: Record<string, string> = { penal: "penal", civil: "civil", administrativa_entidad: "administrativa", administrativa_pas: "administrativa", administrativa: "administrativa" };
+
+export async function casoObservado(clave: string, pedir: Pedir): Promise<CasoPatron | null> {
+  const k = await pool.query<{ ruc: string; entidad_ruc: string }>(
+    `SELECT DISTINCT c.ruc_empresa AS ruc, btrim(cv.entidad_ruc::text) AS entidad_ruc FROM cruces_proveedor c JOIN convocatorias cv ON cv.ocid = c.ocid
+      WHERE c.tipo = 'observado_por_contraloria' AND ${sqlClaveObservado("$2", "c.ruc_empresa", "btrim(cv.entidad_ruc::text)")} = $1 LIMIT 1`, [clave, salDeClaves()]);
+  const id = k.rows[0];
+  if (!id) return null;
+  const [lista, obs, sunat] = await Promise.all([
+    pedir(`/observados?ruc=${id.ruc}&size=50`),
+    pool.query<{ ocid: string; severidad: string | null; fecha: string | null; monto: number | null; detalle: Record<string, any>; objeto: string | null; codigo: string | null }>(
+      `SELECT DISTINCT ON (c.ocid) c.ocid, c.severidad, to_char(c.fecha, 'YYYY-MM-DD') AS fecha, c.monto::float AS monto, c.detalle, left(cv.objeto, 220) AS objeto, cv.codigo
+         FROM cruces_proveedor c JOIN convocatorias cv ON cv.ocid = c.ocid
+        WHERE c.tipo = 'observado_por_contraloria' AND c.ruc_empresa = $1 AND btrim(cv.entidad_ruc::text) = $2
+        ORDER BY c.ocid, (c.severidad = 'alta') DESC`, [id.ruc, id.entidad_ruc]),
+    empresaSunat(id.ruc),
+  ]);
+  const f = ((lista?.data ?? []) as Record<string, any>[]).find((x) => x.entidadRuc === id.entidad_ruc);
+  if (!f || !obs.rows.length) return null;
+  const emision = (f.emision as string | null) ?? null;
+  const despues = emision
+    ? (await pool.query<{ codigo: string; fecha: string | null; monto: number | null; objeto: string | null; nomenclatura: string | null }>(
+        `SELECT a.codigo_convocatoria AS codigo, to_char(max(a.fecha_buenapro), 'YYYY-MM-DD') AS fecha, sum(a.monto_adjudicado)::float AS monto,
+                left(max(a.descripcion_proceso), 220) AS objeto, max(a.nomenclatura) AS nomenclatura
+           FROM conosce_adjudicaciones a WHERE a.ruc_proveedor = $1 AND a.entidad_ruc = $2 AND a.fecha_buenapro > $3::date AND a.monto_adjudicado > 0
+          GROUP BY 1 ORDER BY 2 DESC NULLS LAST LIMIT 200`, [id.ruc, id.entidad_ruc, emision])).rows
+    : [];
+  const ent = { ruc: id.entidad_ruc, nombre: (f.entidad as string | null) ?? null };
+  const entNombre = ent.nombre ? titulo(ent.nombre) : "la entidad";
+  const emp = titulo(f.empresa ?? sunat?.nombre ?? "La empresa");
+  const resp = [...new Set(((f.responsabilidades ?? []) as string[]).map((r) => RESP_O[r] ?? r))];
+  const respTexto = resp.length ? (resp.length > 1 ? `${resp.slice(0, -1).join(", ")} y ${resp[resp.length - 1]}` : resp[0]) : null;
+  // Los informes, uno por código, con su título y su perjuicio.
+  const informes = new Map<string, { numero: string | null; emision: string | null; titulo: string | null; perjuicio: number | null; modalidad: string | null }>();
+  for (const o of obs.rows) {
+    const d = o.detalle ?? {};
+    if (!d.informe_codigo || informes.has(d.informe_codigo)) continue;
+    informes.set(d.informe_codigo, { numero: d.informe_numero ?? null, emision: d.emision ?? null, titulo: d.informe_titulo ?? null, perjuicio: Number(d.perjuicio_total ?? d.perjuicio ?? 0) || null, modalidad: d.modalidad ?? null });
+  }
+
+  const nodos: NodoCaso[] = [
+    { id: "e", tipo: "entidad", nombre: entNombre, rol: "La entidad que contrató", href: `/entidad/${ent.ruc}?seccion=control` },
+    { id: "m", tipo: "empresa", nombre: emp, rol: `${plural(f.observados, "contrato observado", "contratos observados")}${f.despues ? `; ${plural(f.despues, "proceso", "procesos")} después` : ""}`, href: `/empresa/${id.ruc}?seccion=antecedentes&atipo=patron-observados`, monto: f.monto, ordenes: f.observados, severidad: f.despues ? "alta" : "media",
+      datos: [sunat?.alta ? { etiqueta: "Fundada (SUNAT)", valor: fechaLarga(sunat.alta) } : null].filter((x): x is { etiqueta: string; valor: string } => !!x) },
+    { id: "k", tipo: "entidad", nombre: "Contraloría General de la República", rol: `Observó sus contratos en ${plural(informes.size || (f.informes ?? 1), "informe", "informes")}`,
+      datos: [...informes.values()].slice(0, 4).map((x) => ({ etiqueta: x.numero ?? "Informe", valor: `${x.titulo ? `${x.titulo.slice(0, 120)}` : "Sin título"}${x.perjuicio ? `; perjuicio ${soles(x.perjuicio)}` : ""}` })) },
+  ];
+  const aristas: AristaCaso[] = [
+    { de: "m", a: "e", tipo: "vende", texto: `${plural(f.observados, "contrato observado", "contratos observados")} por ${soles(f.monto)}` },
+    { de: "k", a: "e", tipo: "otro", texto: `la auditó (${plural(informes.size || (f.informes ?? 1), "informe", "informes")})` },
+    { de: "k", a: "m", tipo: "pariente", texto: "observó sus contratos" },
+  ];
+
+  const hitos: HitoCaso[] = [];
+  if (sunat?.alta) hitos.push({ fecha: sunat.alta, tipo: "fundacion", titulo: `Se funda ${emp}`, nodos: ["m"], fuente: "SUNAT (padrón RUC)" });
+  for (const o of obs.rows) {
+    if (!o.fecha) continue;
+    hitos.push({ fecha: o.fecha, tipo: "primera", severidad: o.severidad === "alta" ? "alta" : "media", monto: o.monto, titulo: `Gana el contrato que después se observa`, detalle: o.objeto ? `«${limpiarObjeto(o.objeto)!.slice(0, 140)}»` : o.codigo, nodos: ["m", "e"], fuente: "SEACE (OECE)", href: rutaContrato(o.ocid) });
+  }
+  for (const [, x] of informes) {
+    if (!x.emision) continue;
+    hitos.push({ fecha: String(x.emision).slice(0, 10), tipo: "otro", severidad: "alta", monto: x.perjuicio, titulo: `La Contraloría emite el informe ${x.numero ?? ""}`.trim(), detalle: `${x.titulo ? `«${x.titulo.slice(0, 140)}»` : ""}${x.perjuicio ? ` Perjuicio estimado: ${soles(x.perjuicio)}.` : ""}${respTexto ? ` Responsabilidad ${respTexto} (presunta).` : ""}`.trim(), nodos: ["k", "e", "m"], fuente: "Contraloría General de la República", href: `/entidad/${ent.ruc}?seccion=control` });
+  }
+  for (const d of despues.slice(0, 40)) {
+    if (!d.fecha) continue;
+    hitos.push({ fecha: d.fecha, tipo: "dia", severidad: "alta", monto: d.monto, titulo: "La entidad le vuelve a adjudicar, después del informe", detalle: d.objeto ? `«${limpiarObjeto(d.objeto)!.slice(0, 140)}»` : d.nomenclatura, nodos: ["m", "e"], fuente: "CONOSCE (OECE)" });
+  }
+  hitos.sort((a, b) => a.fecha.localeCompare(b.fecha) || a.tipo.localeCompare(b.tipo));
+
+  const razones: RazonCaso[] = ([
+    { titulo: "Contratos observados", cifra: miles(f.observados), texto: `La Contraloría observó ${plural(f.observados, "contrato", "contratos")} de ${emp} con ${entNombre}${(f.temas ?? []).length ? ` (${(f.temas as string[]).map((t) => t.replace(/_/g, " ")).join(", ")})` : ""}.`, severidad: f.graves ? "alta" : "media" },
+    f.perjuicio ? { titulo: "Perjuicio estimado", cifra: soles(f.perjuicio), texto: "Lo que la Contraloría calculó como perjuicio en esas observaciones (cada informe una vez).", severidad: "alta" } : null,
+    f.despues ? { titulo: "Y le volvieron a adjudicar", cifra: plural(f.despues, "proceso", "procesos"), texto: `Después del informe, la misma entidad le adjudicó ${soles(f.montoDespues)}.`, severidad: "alta" } : { titulo: "No le volvieron a adjudicar", cifra: "0", texto: "Después del informe, la entidad no le adjudicó más procesos.", severidad: null },
+    respTexto ? { titulo: "Responsabilidad que señala", cifra: respTexto.charAt(0).toUpperCase() + respTexto.slice(1), texto: "Presunta: la Contraloría la deriva a quien corresponde.", severidad: resp.includes("penal") ? "alta" : "media" } : null,
+  ] as (RazonCaso | null)[]).filter((x): x is RazonCaso => !!x);
+
+  const filas: FilaEvidencia[] = [
+    ...obs.rows.map((o, i) => ({ id: `o${i}`, fecha: o.fecha, documento: o.codigo ?? o.ocid, quien: emp, que: limpiarObjeto(o.objeto), monto: o.monto, estado: o.detalle?.informe_numero ? `Informe ${o.detalle.informe_numero}` : null, marcas: ["observado por la Contraloría"], href: rutaContrato(o.ocid) })),
+    ...despues.map((d, i) => ({ id: `d${i}`, fecha: d.fecha, documento: d.nomenclatura ?? d.codigo, quien: emp, que: limpiarObjeto(d.objeto), monto: d.monto, estado: "Adjudicado", marcas: ["después del informe"], href: null })),
+  ];
+  return {
+    tipo: "observados", clave, patron: "Contratos observados por la Contraloría",
+    titulo: `La Contraloría observó contratos de ${emp} en ${entNombre}${f.despues ? ", y le volvieron a adjudicar" : ""}`,
+    severidad: f.despues || f.graves ? "alta" : "media",
+    frase: `La Contraloría observó ${plural(f.observados, "contrato", "contratos")} de ${emp} con ${entNombre}${f.perjuicio ? `, con un perjuicio estimado de ${soles(f.perjuicio)}` : ""}${emision ? ` (informe del ${fechaLarga(emision)})` : ""}.${f.despues ? ` Después de ese informe, la misma entidad le adjudicó ${plural(f.despues, "proceso", "procesos")} por ${soles(f.montoDespues)}.` : ""}`,
+    entidad: ent, desde: f.desde ?? null, hasta: f.ultimaDespues ?? f.hasta ?? null,
+    cifras: [
+      { etiqueta: "Contratos observados", valor: miles(f.observados), contexto: `por ${soles(f.monto)}` },
+      { etiqueta: "Perjuicio estimado", valor: f.perjuicio ? soles(f.perjuicio) : "Sin dato", contexto: null },
+      { etiqueta: "Informes", valor: miles(f.informes ?? informes.size), contexto: null },
+      { etiqueta: "Adjudicado después", valor: miles(f.despues ?? 0), contexto: f.despues ? `por ${soles(f.montoDespues)}` : "ninguno" },
+    ],
+    serie: null, nodos, aristas, hitos, razones,
+    evidencia: { titulo: "Los contratos observados y lo adjudicado después", unidad: "contratos", total: filas.length, filas, nota: null, masHref: `/entidad/${ent.ruc}?seccion=control` },
+    revisar: [
+      "Lee la ficha resumen de cada informe: qué se observó en el contrato, cuánto perjuicio calculó y a quiénes comprende.",
+      "En lo adjudicado después, revisa si se repite lo observado (el mismo tipo de bien, el mismo área usuaria, la misma forma de contratar).",
+      "Pregunta a la entidad qué hizo con las recomendaciones del informe y en qué quedó el proceso de responsabilidades.",
+    ],
+    fuentes: [
+      { texto: "Informes de control (Contraloría General de la República)", href: "https://www.gob.pe/contraloria" },
+      { texto: "Procesos y adjudicaciones (SEACE y CONOSCE, OECE)", href: CONOSCE_BUSCADOR },
+    ],
+    relacionados: [
+      { texto: `Ficha de ${emp}`, href: `/empresa/${id.ruc}` },
+      { texto: `Los informes de control de ${entNombre}`, href: `/entidad/${ent.ruc}?seccion=control` },
+      { texto: "Todos los casos del país", href: "/app/patrones?seccion=observados" },
+    ],
+    como_leerlo: "Contratos de una empresa que la Contraloría observó en una entidad, y lo que esa entidad le adjudicó después del informe. Una observación es una responsabilidad presunta, no una condena. Un patrón es un motivo para mirar, no una acusación.",
+  };
+}

@@ -42,7 +42,7 @@ import { esCargoDeEleccion } from "../lib/electos.js";
 import { papelesRnp } from "../lib/familiaFuncionario.js";
 import { ETIQUETA_CRUCE, catalogoSenales, nombrePublicable } from "../lib/cruces.js";
 import { depurarReferencias } from "../lib/laboratorioPrecios.js";
-import { agruparSocios, casoAutoridad, casoComprasFamilia, casoControl, sqlClaveControl, casoDueno, casoGrupo, casoInhabilitada, casoRenovacion, sqlClaveAutoridad, sqlClaveRenovacion, casoRecien, casoRelleno, casoRepetida, salDeClaves, sqlClaveInhabilitada, sqlClaveDueno, sqlClaveGrupo, sqlClaveRecien, sqlClaveRelleno, sqlClaveRepetida, type CasoPatron, type Pedir } from "../lib/casoPatron.js";
+import { agruparSocios, casoAutoridad, casoComprasFamilia, casoConsorcio, casoControl, casoObservado, sqlClaveConsorcio, sqlClaveControl, sqlClaveObservado, casoDueno, casoGrupo, casoInhabilitada, casoRenovacion, sqlClaveAutoridad, sqlClaveRenovacion, casoRecien, casoRelleno, casoRepetida, salDeClaves, sqlClaveInhabilitada, sqlClaveDueno, sqlClaveGrupo, sqlClaveRecien, sqlClaveRelleno, sqlClaveRepetida, type CasoPatron, type Pedir } from "../lib/casoPatron.js";
 
 export const patronesRouter = new Hono();
 
@@ -177,11 +177,15 @@ patronesRouter.get("/consorcios", async (c) => {
   const cuerpo = await memo.obtener(`consorcios:${JSON.stringify(q)}`, async () => {
     const vals: unknown[] = [];
     const add = (v: unknown) => { vals.push(v); return `$${vals.length}`; };
-    const donde = q.ruc ? `WHERE ruc_a = ${add(q.ruc)} OR ruc_b = $${vals.length}` : "";
+    const conds: string[] = [];
+    if (q.ruc) conds.push(`(ruc_a = ${add(q.ruc)} OR ruc_b = $${vals.length})`);
+    if (q.clave) conds.push(`${sqlClaveConsorcio(add(salDeClaves()))} = ${add(q.clave)}`);
+    const donde = conds.length ? `WHERE ${conds.join(" AND ")}` : "";
     const n = vals.length;
     const [filas, total] = await Promise.all([
       pool.query(
         `SELECT ruc_a AS "rucA", nombre_a AS "nombreA", ruc_b AS "rucB", nombre_b AS "nombreB", consorcios, rivales, solas,
+                ${sqlClaveConsorcio(add(salDeClaves()))} AS clave,
                 gano_a AS "ganoA", gano_b AS "ganoB", entidades, to_char(desde, 'YYYY-MM-DD') AS desde, to_char(hasta, 'YYYY-MM-DD') AS hasta,
                 amplio AS "mercadoNacional"
            FROM consorcio_rival ${donde}
@@ -407,6 +411,7 @@ patronesRouter.get("/observados", async (c) => {
                         FROM (SELECT DISTINCT ruc, entidad_ruc, codigo, perjuicio FROM k WHERE perjuicio IS NOT NULL) u GROUP BY 1, 2) m
              ON m.ruc = n.ruc AND m.entidad_ruc = n.entidad_ruc)
        SELECT x.ruc, e.razon_social AS empresa, x.entidad_ruc AS "entidadRuc", en.nombre AS entidad, x.observados, x.graves, x.monto, o.perjuicio,
+              ${sqlClaveObservado(add(salDeClaves()), "x.ruc", "x.entidad_ruc")} AS clave,
               o.observaciones, x.informes, x.temas, x.informe_codigo AS "informeCodigo", x.informe_numero AS "informeNumero",
               to_char(x.emision, 'YYYY-MM-DD') AS emision, x.responsabilidades, x.ficha, x.ejemplos,
               to_char(x.desde, 'YYYY-MM-DD') AS desde, to_char(x.hasta, 'YYYY-MM-DD') AS hasta,
@@ -1183,6 +1188,8 @@ const CASOS: Record<string, (clave: string, pedir: Pedir) => Promise<CasoPatron 
   inhabilitadas: casoInhabilitada,
   autoridad: casoAutoridad,
   control: casoControl,
+  consorcios: casoConsorcio,
+  observados: casoObservado,
   renovaciones: casoRenovacion,
   repetidas: casoRepetida,
   recien: casoRecien,
