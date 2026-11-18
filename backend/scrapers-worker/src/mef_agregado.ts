@@ -295,13 +295,35 @@ export function montosGasto(a: Agregado, clave: string): [number, number, number
   return i === undefined ? null : [a.gastoMontos[i], a.gastoMontos[i + 1], a.gastoMontos[i + 2]];
 }
 
-/** Corta el texto en líneas (\n o \r\n) entre trozos y las pasa a `procesar`. */
+/** Un registro partido que no cierra en este largo se da por perdido y se pasa como está (no retiene el archivo entero). */
+const MAX_REGISTRO_PARTIDO = 20_000;
+
+/**
+ * Corta el texto en registros (\n o \r\n) entre trozos y los pasa a `procesar`.
+ *
+ * Un registro puede venir partido en dos líneas: el nombre de un proyecto con un salto de línea dentro (el archivo de 2011
+ * trae 123: «…INFRAESTRUCTURA DEL CAMAL MUNICI⏎","08","COMERCIO",…»). Leída como fila aparte, la segunda mitad ponía un
+ * código de función en la columna del nivel de gobierno y la carga del año caía con «value too long for type
+ * character(1)». Como todos los campos van entre comillas, un registro completo termina en comilla: la línea que no,
+ * espera a la siguiente y se junta con un espacio.
+ */
 class Cortador {
   private resto = "";
+  private partido = "";
   private readonly procesar: (linea: string) => void;
 
   constructor(procesar: (linea: string) => void) {
     this.procesar = procesar;
+  }
+
+  private linea(l: string): void {
+    const todo = this.partido ? `${this.partido} ${l}` : l;
+    if (todo.charCodeAt(todo.length - 1) === 34 || todo.length > MAX_REGISTRO_PARTIDO) {
+      this.partido = "";
+      this.procesar(todo);
+    } else {
+      this.partido = todo;
+    }
   }
 
   agregar(trozo: string): void {
@@ -310,15 +332,18 @@ class Cortador {
     let k: number;
     while ((k = t.indexOf("\n", desde)) >= 0) {
       const fin = t.charCodeAt(k - 1) === 13 ? k - 1 : k;
-      if (fin > desde) this.procesar(t.slice(desde, fin));
+      if (fin > desde) this.linea(t.slice(desde, fin));
       desde = k + 1;
     }
     this.resto = t.slice(desde);
   }
 
   fin(): void {
-    if (this.resto.trim()) this.procesar(this.resto.replace(/\r$/, ""));
+    if (this.resto.trim()) this.linea(this.resto.replace(/\r$/, ""));
     this.resto = "";
+    // Lo que quedó sin cerrar al final del archivo, como está.
+    if (this.partido) this.procesar(this.partido);
+    this.partido = "";
   }
 }
 
