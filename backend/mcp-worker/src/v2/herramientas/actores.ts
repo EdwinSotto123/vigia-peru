@@ -164,7 +164,7 @@ export const fichaEntidad = definir({
   entrada: { ruc: rucEntrada("la entidad") },
   async ejecutar({ ruc }, cx) {
     const r = rucJuridico(ruc, "RUC de la entidad");
-    const [f, poder, control, du, pat] = await Promise.all([
+    const [f, poder, control, du, pat, hist] = await Promise.all([
       api<Fila>(cx.env, `/entidades/${r}`),
       api<Fila>(cx.env, `/poder/entidad/${r}`).catch(() => null),
       api<Fila>(cx.env, `/corrupcion/entidad/${r}`, { size: 5 }).catch(() => null),
@@ -172,8 +172,16 @@ export const fichaEntidad = definir({
       api<Fila>(cx.env, "/patrones/duenos", { ruc: r, size: 8 }).catch(() => null),
       // El índice de su pestaña «Patrones»: cuántos casos tiene cada patrón en ella y los antecedentes de sus ganadores.
       api<Fila>(cx.env, `/patrones/entidad/${r}`).catch(() => null),
+      // Los patrones de ritmo de su historia (un pico, el cierre de una gestión, diciembre): si falla o tarda más de 3 s (una
+      // entidad grande en frío), la ficha sale igual, sin ellos (con ella esperando, la ficha llegó a 8,6 s).
+      Promise.race([
+        api<Fila>(cx.env, `/historia/entidad/${r}`).catch(() => null),
+        new Promise<null>((ok) => setTimeout(() => ok(null), 3000)),
+      ]),
     ]);
     const ent = f.entidad ?? {};
+    const finDeMes = (m: string) => new Date(Date.UTC(Number(m.slice(0, 4)), Number(m.slice(5, 7)), 0)).toISOString().slice(0, 10);
+    const ritmo = ((hist?.patrones ?? []) as Fila[]).filter((q) => q.severidad === "alta" || q.severidad === "media").slice(0, 8);
     const e = enlaces(cx.env);
     const anios = ((f.mef?.by_year ?? []) as Fila[]).slice(-6).map((y) => ({
       anio: y.year, pia: y.pia, pim: y.pim, devengado: y.devengado, ejecucion_pct: y.pim ? Math.round((1000 * y.devengado) / y.pim) / 10 : null,
@@ -214,6 +222,18 @@ export const fichaEntidad = definir({
               enlace: `${e.entidad(r)}?seccion=patrones&pv=antecedentes&antecedente=${x.tipo}`,
             })),
             como_leerlo: "Dos cosas distintas. «patrones_con_casos»: lo que se repite ENTRE VARIOS contratos u órdenes de la entidad; cada uno se detalla con la herramienta patrones (el alcance que se indica) y este RUC. «antecedentes…»: lo que pesa sobre CADA contrato, es decir cuántos contratos de la entidad ganó alguien con ese antecedente (postor único, socio común entre postores, rival que fue su socia, fraccionamiento…); para verlos, buscar_contratos con la entidad y esa señal. Un patrón es un motivo para mirar, no una acusación.",
+          }
+        : undefined,
+      ritmo_de_compras: ritmo.length
+        ? {
+            patrones: ritmo.map((q) => ({
+              tipo: q.tipo, severidad: q.severidad, titulo: q.titulo, explica: q.explica, desde_mes: q.mes, hasta_mes: q.hasta ?? q.mes,
+              siguiente_paso: (q.carril === "ordenes" || q.carril === "personas") && String(q.mes) >= "2019-01"
+                ? { herramienta: "ordenes_en_periodo", entidad_ruc: r, desde: `${q.mes}-01`, hasta: finDeMes(String(q.hasta ?? q.mes)) }
+                : undefined,
+            })),
+            enlace: `${e.entidad(r)}?seccion=historia`,
+            como_leerlo: "Meses fuera de lo normal en su historia (picos, el cierre de una gestión, diciembre). Para ver qué se ordenó y a quién, ordenes_en_periodo con las fechas del siguiente_paso. Un cambio así puede tener razones legítimas.",
           }
         : undefined,
       gobierno: poder

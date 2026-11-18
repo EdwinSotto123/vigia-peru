@@ -71,6 +71,12 @@ const CASOS: Caso[] = [
       return c && c.siguiente_paso?.herramienta === "ordenes_en_periodo" && c.siguiente_paso.desde === "2022-10-01" && c.siguiente_paso.hasta === "2022-12-31"
         ? null : `sin cierre_gestion con su siguiente_paso: ${JSON.stringify(c ?? null)}`;
     } },
+  // La ficha de la entidad trae los patrones de ritmo de su historia con cómo seguirlos (2026-11-18).
+  { h: fichaEntidad as never, args: { ruc: "20131373741" },
+    espera: (r) => {
+      const rt = (r.ritmo_de_compras as { patrones?: { tipo?: string; siguiente_paso?: { herramienta?: string } }[] } | undefined)?.patrones ?? [];
+      return rt.some((q) => q.tipo === "cierre_gestion" && q.siguiente_paso?.herramienta === "ordenes_en_periodo") ? null : `ritmo_de_compras: ${JSON.stringify(rt).slice(0, 200)}`;
+    } },
   { h: ordenesEnPeriodo as never, args: { entidad_ruc: "20131373741", desde: "2022-10-01", hasta: "2022-12-31" },
     espera: (r) => {
       const p = r.en_el_periodo as { ordenes?: number; personas_nuevas?: number } | undefined;
