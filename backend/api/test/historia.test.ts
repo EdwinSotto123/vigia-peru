@@ -196,6 +196,10 @@ test("patrones: el cierre de una gestión y la gestión saliente, contra los dos
   // Un año raro de base (la mitad) no infla: se compara contra el mayor de los dos años anteriores.
   const raro: SerieHistoria = { ...ordenes, puntos: serie("2019-01", "2026-10", 50, { "2025-10": 25, "2026-10": 90 }) };
   assert.equal(patronesDeSeries([raro], marcas, 20).filter((p) => p.tipo === "cierre_gestion" && p.id.endsWith("2026-10")).length, 0);
+  // Una entidad que empezó a publicar sus órdenes en 2022 (de 15 a 800 por mes): su cierre no sube frente a los meses
+  // anteriores del mismo año y no es un patrón (el caso de Pichari, medido el 2026-11-18).
+  const nueva: SerieHistoria = { ...ordenes, puntos: [...serie("2019-01", "2021-12", 15), ...serie("2022-01", "2023-06", 800, { "2022-10": 700, "2022-11": 850, "2022-12": 600 })] };
+  assert.equal(patronesDeSeries([nueva], marcas, 20).filter((p) => p.tipo === "cierre_gestion").length, 0);
 });
 
 test("hilos: la empresa que visitó y ganó, con banderas, obra paralizada y sanción", () => {

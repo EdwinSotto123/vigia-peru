@@ -731,6 +731,14 @@ export function patronesDeSeries(series: SerieHistoria[], marcas: MarcaHistoria[
       const b = Math.max(b1, b2);
       const minimo = (MINIMO_PICO[s.carril] ?? 10) * meses.length;
       if (b < 5 || a < 2 * b || a - b < minimo) continue;
+      // Con una base de verdad (por mes, la misma que pide un pico) y que el tramo suba también frente a los seis meses que
+      // lo preceden: si no, es una entidad que empezó a publicar sus órdenes ese año (Pichari: de 15 por mes a 800 desde
+      // enero de 2022, y su octubre a diciembre fue MENOS que su julio a setiembre).
+      if (b / meses.length < Math.max(2, (MINIMO_PICO[s.carril] ?? 10) / 3)) continue;
+      const previos = Array.from({ length: 6 }, (_, k) => sumarMeses(meses[0], -(k + 1)));
+      if (previos.some((m) => !por.has(m))) continue;
+      const nivelPrevio = previos.reduce((x, m) => x + (por.get(m) ?? 0), 0) / 6;
+      if (a / meses.length < 1.5 * Math.max(nivelPrevio, 1)) continue;
       const r = a / b;
       const tramo = meses.length === 1 ? mesLargo(meses[0]) : `${mesLargo(meses[0])} a ${mesLargo(meses[meses.length - 1])}`;
       const antes = `los mismos meses de ${Number(meses[0].slice(0, 4)) - 1}${hay2 ? ` y ${Number(meses[0].slice(0, 4)) - 2}` : ""}`;
