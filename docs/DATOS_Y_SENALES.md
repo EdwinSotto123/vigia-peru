@@ -398,7 +398,10 @@ Cuando gana un consorcio (CONOSCE lo registra con un código de 7 dígitos), la 
 | `gano_tras_observacion` | alta/media/baja | banderas `observado_por_contraloria` (313) × adjudicaciones de CONOSCE (solo o en consorcio) | la misma entidad le adjudica DESPUÉS de emitido un informe de control que observó otro proceso que ese proveedor había ganado ahí. Alta si aquella bandera es alta y esta buena pro es de los dos años siguientes al informe; media si es más antigua o aquélla es media; baja si aquélla es baja. El detalle trae el proceso observado, el informe, los días transcurridos y cuántos procesos suyos se observaron antes. El informe no sanciona al proveedor: sirve para ver si la entidad corrigió lo observado |
 
 Trampas que ya costaron: `empresas.fecha_alta_ruc` no siempre es la fundación (un RUC reactivado tiene alta posterior a
-su primera buena pro: sólo vale si es anterior a la primera adjudicación); las tablas temporales de una función pesada
+su primera buena pro: sólo vale si es anterior a la primera adjudicación). Desde la migración 373 (2026-11-18) guarda la
+fecha MÁS ANTIGUA entre la inscripción en el RUC y el inicio de actividades (el inicio cambia al reiniciar actividades:
+9 998 empresas vendían antes de su «alta»), y «empresa recién creada con órdenes» descarta, como la recién fundada, a la
+que ya le vendía al Estado antes de esa fecha (13 122 → 10 514 casos; señal alta 925 → 559). Las tablas temporales de una función pesada
 necesitan `ANALYZE` y `statement_timeout` (sin estadísticas, un cruce llenó el disco temporal de producción).
 Vistas agrupadas para el investigador: `/patrones/duenos`, `/patrones/inhabilitadas`, `/patrones/consorcios`,
 `/patrones/acompanantes` (pestañas de `/app/patrones` y herramienta `patrones` del MCP).
