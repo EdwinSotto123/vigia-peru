@@ -37,7 +37,7 @@ from pathlib import Path
 RAIZ = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(RAIZ / "backend"))
 sys.path.insert(0, str(RAIZ / "infrastructure" / "aws"))
-from lector.base import bajar_r2, ocids_de_archivo  # noqa: E402
+from lector.base import bajar_r2, docx_a_pdf, ocids_de_archivo  # noqa: E402
 
 MIN_LETRAS_PAGINA = 300                # menos que esto, la página es un escaneo (el mismo umbral que los agentes)
 TOPE_PAGINAS = 1500                    # por archivo
@@ -49,7 +49,7 @@ SELECT g.sha256, min(g.ocid) AS ocid, min(g.url_gcs) AS url, max(lower(g.formato
        max(upper(g.titulo)) AS casillero
   FROM documentos_gcs g
  WHERE g.borrado_at IS NULL AND g.sha256 IS NOT NULL AND g.url_gcs IS NOT NULL AND g.ocid IS NOT NULL
-   AND lower(g.formato) IN ('pdf', 'zip') AND g.bytes <= %(max_bytes)s
+   AND lower(g.formato) IN ('pdf', 'zip', 'docx') AND g.bytes <= %(max_bytes)s
    AND (%(patron)s::text IS NULL OR upper(g.titulo) ~ %(patron)s)
    AND (%(ocids)s::text[] IS NULL OR ocid_corto(g.ocid) = ANY (%(ocids)s::text[]))
    AND NOT EXISTS (SELECT 1 FROM documentos_texto t WHERE t.sha256 = g.sha256)
@@ -84,7 +84,16 @@ def extraer(datos: bytes, formato: str, nombre: str) -> dict:
     paginas: list[dict] = []
     recortes: list[dict] = []
     es_zip = (formato or "").lower() == "zip" and not datos.startswith(b"%PDF")
-    if not es_zip:
+    if (formato or "").lower() == "docx" and not datos.startswith(b"%PDF"):
+        # Word: su texto como PDF (lector/base.py docx_a_pdf); la página es la del PDF armado, no la del Word.
+        pdf = docx_a_pdf(datos)
+        if pdf:
+            datos = pdf
+            recortes.append({"donde": "docx", "limite": "convertido_de_word", "omitido": "páginas del PDF armado con su texto"})
+        else:
+            recortes.append({"donde": "docx", "limite": "docx_sin_texto", "omitido": nombre})
+            datos = b""
+    if not es_zip and datos:
         try:
             paginas = _paginas_pdf(datos, nombre, 0)
         except Exception as e:  # noqa: BLE001 — un PDF roto
@@ -95,6 +104,12 @@ def extraer(datos: bytes, formato: str, nombre: str) -> dict:
                 for m in sorted(z.infolist(), key=lambda x: x.filename):
                     if m.is_dir():
                         continue
+                    if m.filename.lower().endswith(".docx") and m.file_size <= TOPE_MIEMBRO_MB * 1024 * 1024 and len(paginas) < TOPE_PAGINAS:
+                        pdf = docx_a_pdf(z.read(m))
+                        if pdf:
+                            paginas.extend(_paginas_pdf(pdf, m.filename[:200], len(paginas)))
+                            recortes.append({"donde": "contenedor", "limite": "convertido_de_word", "omitido": m.filename[:200]})
+                            continue
                     if not m.filename.lower().endswith(".pdf"):
                         recortes.append({"donde": "contenedor", "limite": "no_es_pdf", "omitido": m.filename[:200]})
                         continue
@@ -119,7 +134,7 @@ def extraer(datos: bytes, formato: str, nombre: str) -> dict:
             partes.append(f"⟦archivo: {actual}⟧")
         partes.append(f"⟦p.{p['n']}⟧\n{p['texto']}")
     # Igual a lo que sacaría un agente sólo si es un PDF suelto y ninguna página necesita OCR.
-    completo = not es_zip and bool(paginas) and escaneadas == 0
+    completo = not es_zip and bool(paginas) and escaneadas == 0 and (formato or "").lower() != "docx"
     return {"paginas": paginas, "texto": "\n".join(partes).strip(), "n_paginas": len(paginas), "recortes": recortes,
             "escaneadas": escaneadas, "version_parser": "texto-v1" if completo else "lector-v1"}
 

@@ -49,7 +49,7 @@ SELECT d.ocid,
        array_agg(lower(d.formato) ORDER BY array_position(%(tipos)s::text[], d.tipo), d.creado_at)
   FROM documentos_gcs d
   LEFT JOIN contrato_estado c ON c.ocid = d.ocid
- WHERE d.borrado_at IS NULL AND d.tipo = ANY(%(tipos)s) AND lower(d.formato) IN ('pdf', 'zip')
+ WHERE d.borrado_at IS NULL AND d.tipo = ANY(%(tipos)s) AND lower(d.formato) IN ('pdf', 'zip', 'docx')
    AND NOT EXISTS (SELECT 1 FROM documento_lectura l
                     WHERE l.ocid = d.ocid AND l.clase = %(clase)s AND l.version = %(version)s AND l.estado <> 'error')
  GROUP BY d.ocid

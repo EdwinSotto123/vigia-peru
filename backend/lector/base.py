@@ -81,22 +81,90 @@ def bajar_r2(url_gcs: str) -> bytes:
     return r.content
 
 
+_W = "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}"
+
+
+def texto_docx(datos: bytes) -> list[str]:
+    """Los párrafos de un .docx en orden (las celdas de una tabla, en una línea separadas por « | »). Sólo lee
+    word/document.xml con ElementTree: nada se ejecuta. Vacío si no es un .docx."""
+    import xml.etree.ElementTree as ET
+    try:
+        with zipfile.ZipFile(io.BytesIO(datos)) as z:
+            raiz = ET.fromstring(z.read("word/document.xml"))
+    except (zipfile.BadZipFile, KeyError, ET.ParseError):
+        return []
+    cuerpo = raiz.find(f"{_W}body")
+    if cuerpo is None:
+        return []
+
+    def texto(p) -> str:
+        return "".join(t.text or "" for t in p.iter(f"{_W}t")).strip()
+
+    out: list[str] = []
+    for hijo in cuerpo:
+        if hijo.tag == f"{_W}p":
+            t = texto(hijo)
+            if t:
+                out.append(t)
+        elif hijo.tag == f"{_W}tbl":
+            for fila in hijo.iter(f"{_W}tr"):
+                celdas = [" ".join(texto(p) for p in c.iter(f"{_W}p") if texto(p)) for c in fila.iter(f"{_W}tc")]
+                if any(celdas):
+                    out.append(" | ".join(celdas))
+    return out
+
+
+def docx_a_pdf(datos: bytes) -> bytes | None:
+    """Un .docx como PDF con su texto (seleccionable, A4, paginado por PyMuPDF): así lo leen igual los lectores, el texto
+    por página y las citas. La página es la del PDF armado, no la del Word original. None si no tiene texto."""
+    import html
+
+    import fitz  # PyMuPDF
+
+    parrafos = texto_docx(datos)
+    if not parrafos:
+        return None
+    cuerpo = "".join(f"<p>{html.escape(p)}</p>" for p in parrafos)
+    story = fitz.Story(html=f"<body style='font-family: sans-serif; font-size: 9pt'>{cuerpo}</body>")
+    buf = io.BytesIO()
+    escritor = fitz.DocumentWriter(buf)
+    hoja = fitz.paper_rect("a4")
+    caja = hoja + (40, 40, -40, -40)
+    mas = 1
+    while mas:
+        dispositivo = escritor.begin_page(hoja)
+        mas, _ = story.place(caja)
+        story.draw(dispositivo)
+        escritor.end_page()
+    escritor.close()
+    return buf.getvalue()
+
+
 def pdfs_de(datos: bytes, formato: str, tope_bytes: int = 20 * 1024 * 1024) -> list[tuple[str, bytes]]:
     """Los PDF de un documento: él mismo si es PDF, o los PDF de adentro si es ZIP (en memoria; nada se ejecuta ni se
-    descomprime a disco). Los demás formatos (RAR, DOCX) no se leen."""
+    descomprime a disco). Un .docx (suelto o dentro del ZIP) se convierte a PDF con su texto: en 2026, 139 procesos tenían
+    las bases sólo en Word y no se leían (2026-11-18). RAR y 7z no se leen."""
     f = (formato or "").lower()
     if f == "pdf" or datos.startswith(b"%PDF"):
         return [("documento.pdf", datos)] if datos.startswith(b"%PDF") and len(datos) <= tope_bytes else []
+    if f == "docx":
+        # El tope va sobre el PDF armado: un Word pesa por sus imágenes (unas bases de 39 MB son sólo texto aquí).
+        pdf = docx_a_pdf(datos)
+        return [("documento.pdf", pdf)] if pdf and len(pdf) <= tope_bytes else []
     if f != "zip":
         return []
     out, total = [], 0
     try:
         with zipfile.ZipFile(io.BytesIO(datos)) as z:
             for i in sorted(z.infolist(), key=lambda x: x.filename):
-                if i.is_dir() or not i.filename.lower().endswith(".pdf") or total + i.file_size > tope_bytes:
+                nombre = i.filename.lower()
+                es_docx = nombre.endswith(".docx")
+                if i.is_dir() or not (nombre.endswith(".pdf") or es_docx) or (not es_docx and total + i.file_size > tope_bytes):
                     continue
                 b = z.read(i)
-                if b.startswith(b"%PDF"):
+                if es_docx:
+                    b = docx_a_pdf(b) or b""
+                if b.startswith(b"%PDF") and total + len(b) <= tope_bytes:
                     out.append((Path(i.filename).name[:200], b))
                     total += len(b)
     except zipfile.BadZipFile:
