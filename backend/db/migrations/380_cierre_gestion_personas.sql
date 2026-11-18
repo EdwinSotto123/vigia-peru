@@ -97,3 +97,12 @@ BEGIN
   RETURN n;
 END $$;
 COMMENT ON FUNCTION refrescar_cierre_gestion_personas(date, date) IS 'Rehace cierre_gestion_personas para una elección (p. ej. 2022-10-02, 2023-01-01). Migración 380.';
+
+-- Tarda 15-25 minutos: por el túnel se corta (SSL EOF y la base deshace todo). Se corre por la cola de refrescos
+-- (migración 260, pg_cron como vigia_jobs, sin límite de tiempo):
+--   INSERT INTO refresco_cola (lote, nombre, sql, requiere) VALUES ('manual-cierres-AAAAMMDD', 'cierre de gestión 2022',
+--     'SELECT refrescar_cierre_gestion_personas(DATE ''2022-10-02'', DATE ''2023-01-01'')', 'refrescar_cierre_gestion_personas(date,date)');
+-- La tabla es de postgres: la función escribe como su dueña.
+ALTER FUNCTION refrescar_cierre_gestion_personas(date, date) SECURITY DEFINER SET search_path = public, pg_temp;
+REVOKE ALL ON FUNCTION refrescar_cierre_gestion_personas(date, date) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION refrescar_cierre_gestion_personas(date, date) TO vigia_jobs;
