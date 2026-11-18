@@ -15,6 +15,7 @@ import {
   type AlcancePatron,
   type PatronAcompanante,
   type PatronConsorcio,
+  type PatronDoble,
   type PatronControl,
   type PatronDueno,
   type PatronGrupo,
@@ -604,6 +605,61 @@ export function detalleRepetida(p: PatronRepetida): Detalle {
         enlaces={[
           esRuc20(p.entidadRuc) && { texto: "Ficha de la entidad", href: `/entidad/${p.entidadRuc}` },
           esRuc20(p.ruc) && { texto: "Ficha del proveedor", href: `/empresa/${p.ruc}` },
+        ]}
+      />
+    ),
+  };
+}
+
+// ─── Dos ingresos del Estado: planilla y órdenes de servicio de otra entidad ─────
+
+const MESES_CORTOS = ["ene.", "feb.", "mar.", "abr.", "may.", "jun.", "jul.", "ago.", "set.", "oct.", "nov.", "dic."];
+const mesCorto = (m: string | null) => (m && /^\d{4}-\d{2}/.test(m) ? `${MESES_CORTOS[Number(m.slice(5, 7)) - 1] ?? ""} ${m.slice(0, 4)}` : null);
+
+export function detalleDoble(p: PatronDoble): Detalle {
+  const ent = entidad(p.entidad);
+  const otra = entidad(p.otra);
+  const quien = p.persona ?? "Una persona de la planilla";
+  const entre = mesCorto(p.desde) && mesCorto(p.hasta) ? `entre ${mesCorto(p.desde)} y ${mesCorto(p.hasta)}` : null;
+  return {
+    // El nombre de la persona nunca va al título del panel (va a `title` y `aria-label`).
+    titulo: "Dos ingresos del Estado",
+    etiqueta: "Ver el detalle de este caso de dos ingresos del Estado",
+    descripcion: <span className="line-clamp-2">{ent}</span>,
+    contenido: (
+      <div className="space-y-5">
+        <EnUnaFrase tono={p.severidad === "media" ? "media" : "neutro"}>
+          <b>{quien}</b> figura en la planilla de <b>{ent}</b>
+          {p.cargo ? <> como {tituloNatural(p.cargo).toLowerCase()}</> : ""} y, en <b>{plural(p.meses, "mes", "meses")}</b> de esos{entre ? ` (${entre})` : ""},{" "}
+          <b>{otra}</b> le emitió {plural(p.ordenes, "orden de servicio", "órdenes de servicio")} por <b>{solesCompacto(p.monto)}</b>.
+          {p.docente ? " Hay docencia de por medio: es la excepción que la ley permite." : ""}
+        </EnUnaFrase>
+        <DatosClave
+          items={[
+            { etiqueta: "Sueldo al mes en su planilla", valor: p.sueldo ? solesCompacto(p.sueldo) : null, mono: true },
+            { etiqueta: "Órdenes de servicio de la otra entidad", valor: `${numero(p.ordenes)} por ${solesCompacto(p.monto)}`, mono: true },
+            { etiqueta: "Meses que coinciden", valor: numero(p.meses), mono: true },
+            { etiqueta: "Entre", valor: entre ? entre.replace(/^entre /, "") : null },
+            { etiqueta: "Docencia", valor: p.docente ? "Sí: la excepción legal" : "No" },
+          ]}
+        />
+        <QueRevisar
+          pasos={[
+            "Confirma que es la misma persona: el empate es por nombre completo (la planilla no trae documento). Su ficha reúne sus dos registros.",
+            "Mira si las órdenes son por un servicio personal (una retribución) y no por la venta de un bien o un alquiler.",
+            p.docente
+              ? "Con docencia la ley permite el segundo ingreso: comprueba que una de las dos labores sea de enseñanza y que los horarios no se crucen."
+              : "Pide a las dos entidades la declaración jurada de no percibir otro ingreso del Estado y los horarios de las dos labores.",
+          ]}
+        />
+      </div>
+    ),
+    pie: (
+      <Pie
+        enlaces={[
+          p.codigo ? { texto: "Ficha de la persona", href: `/app/personas/cargo/${p.codigo}?seccion=revision` } : false,
+          esRuc20(p.entidadRuc) && { texto: "Entidad de su planilla", href: `/entidad/${p.entidadRuc}?seccion=planilla` },
+          esRuc20(p.otraRuc) && { texto: "Entidad de las órdenes", href: `/entidad/${p.otraRuc}` },
         ]}
       />
     ),

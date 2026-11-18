@@ -18,6 +18,7 @@ export const SECCIONES_PATRONES = {
   duenos: "Mismo dueño",
   grupos: "Grupos por dueño y familia",
   repetidas: "Compras repetidas",
+  doble: "Dos ingresos del Estado",
   inhabilitadas: "Socio de inhabilitada",
   control: "Socio en informe de control",
   observados: "Observados por la Contraloría",
@@ -203,6 +204,38 @@ export interface PatronesRepetidas {
   page: number;
   size: number;
   data: PatronRepetida[];
+}
+
+/**
+ * Cobra del Estado por dos lados (migración 352): una persona de la planilla de `entidad` que, esos mismos meses, recibió
+ * órdenes de servicio de `otra`. La persona llega con el materno tapado; `codigo` es su ficha única.
+ */
+export interface PatronDoble {
+  entidadRuc: string;
+  entidad: string | null;
+  cargo: string | null;
+  regimen: number | null;
+  sueldo: number | null;
+  otraRuc: string;
+  otra: string | null;
+  ordenes: number;
+  monto: number;
+  /** Meses en que estuvo en la planilla y recibió una orden de servicio de la otra entidad. */
+  meses: number;
+  desde: string | null;
+  hasta: string | null;
+  /** Su cargo o la otra entidad son de docencia: la excepción que la ley permite. */
+  docente: boolean;
+  severidad: "media" | "baja";
+  codigo: string | null;
+  persona: string | null;
+}
+
+export interface PatronesDoble {
+  total: number;
+  page: number;
+  size: number;
+  data: PatronDoble[];
 }
 
 /** Una empresa que gana mientras otra del mismo socio está inhabilitada (migración 297). */
@@ -435,6 +468,8 @@ export const rutaGrupos = (page = 1, ruc?: string, graves = false) =>
   `/patrones/grupos?${consulta({ page, size: TAM_PATRONES, buscar: ruc, severidad: graves ? "alta" : undefined })}`;
 export const rutaRepetidas = (page = 1, ruc?: string, graves = false) =>
   `/patrones/repetidas?${consulta({ page, size: TAM_PATRONES, buscar: ruc, severidad: graves ? "alta" : undefined })}`;
+export const rutaDoble = (page = 1, ruc?: string, graves = false) =>
+  `/patrones/doble?${consulta({ page, size: TAM_PATRONES, buscar: ruc, severidad: graves ? "media" : undefined })}`;
 export const rutaInhabilitadas = (page = 1, ruc?: string, graves = false) =>
   `/patrones/inhabilitadas?${consulta({ page, size: TAM_PATRONES, ruc, graves: graves ? 1 : undefined })}`;
 export const rutaControl = (page = 1, ruc?: string, graves = false, misma = false) =>

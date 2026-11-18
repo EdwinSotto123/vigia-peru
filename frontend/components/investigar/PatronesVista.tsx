@@ -2,13 +2,13 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
-import { Ban, Briefcase, Building2, CopyCheck, FileSearch, FlaskConical, Handshake, ScanSearch, SearchX, TrendingUp, Users, UsersRound } from "lucide-react";
+import { Ban, Briefcase, Building2, Coins, CopyCheck, FileSearch, FlaskConical, Handshake, ScanSearch, SearchX, TrendingUp, Users, UsersRound } from "lucide-react";
 import { Ayuda, CabeceraPestana, Nota, Pestanas } from "@/components/patrones";
 import { EVENTO_ACTIVA } from "@/components/patrones/Pestanas";
 import { CeldaBarra, CeldaNumero, CeldaPrincipal, CeldaTexto, CLASE_ENLACE_CELDA, Indicadores, Tabla, type Columna, type Fila, type Indicador } from "@/components/listado";
 import { EstadoCarga, usePoder } from "@/components/grafo/vista";
 import { InformeEnPanel } from "@/components/control/InformeEnPanel";
-import { detalleConsorcio, detalleControl, detalleDueno, detalleGrupo, detalleInhabilitada, detalleObservacion, detalleObservado, detalleRelleno, detalleRenovacion, detalleRepetida, detalleSenal } from "./DetallePatron";
+import { detalleConsorcio, detalleControl, detalleDoble, detalleDueno, detalleGrupo, detalleInhabilitada, detalleObservacion, detalleObservado, detalleRelleno, detalleRenovacion, detalleRepetida, detalleSenal } from "./DetallePatron";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Dato } from "@/components/ui/Dato";
@@ -22,6 +22,7 @@ import {
   rutaAcompanantes,
   rutaConsorcios,
   rutaControl,
+  rutaDoble,
   rutaDuenos,
   rutaGrupos,
   rutaInhabilitadas,
@@ -36,6 +37,8 @@ import {
   type PatronAcompanante,
   type PatronConsorcio,
   type PatronControl,
+  type PatronDoble,
+  type PatronesDoble,
   type PatronDueno,
   type PatronGrupo,
   type PatronesGrupos,
@@ -132,6 +135,13 @@ export function PatronesVista({ activa, inicial, etiquetas }: { activa?: string;
           titulo: "La misma compra, repetida en pocas semanas",
           icono: <CopyCheck size={15} aria-hidden />,
           contenido: <ListaRepetidas inicial={de("repetidas")} />,
+        },
+        {
+          clave: "doble",
+          etiqueta: SECCIONES_PATRONES.doble,
+          titulo: "En planilla de una entidad y con órdenes de servicio de otra",
+          icono: <Coins size={15} aria-hidden />,
+          contenido: <ListaDoble inicial={de("doble")} />,
         },
         {
           clave: "inhabilitadas",
@@ -1115,6 +1125,130 @@ function filaRepetida(p: PatronRepetida, i: number): Fila {
       total: <CeldaNumero sub={pasa ? `pasa el tope de ${solesCompacto(p.tope)}` : `tope ${solesCompacto(p.tope)}`}>{solesCompacto(p.total)}</CeldaNumero>,
       dias: <CeldaNumero sub={fechaConAnio(p.desde)}>{plural(p.dias, "día", "días")}</CeldaNumero>,
       estado: <CeldaNumero>{p.devengadas === p.ordenes ? "Todas" : `${numero(p.devengadas)} de ${numero(p.ordenes)}`}</CeldaNumero>,
+    },
+  };
+}
+
+// ─── Dos ingresos del Estado: planilla y órdenes de servicio de otra entidad ─────
+
+const COLUMNAS_DOBLE: Columna[] = [
+  { clave: "persona", titulo: "Persona y su planilla", ancho: "minmax(0,1.6fr)" },
+  { clave: "otra", titulo: "Le emitió órdenes de servicio", ancho: "minmax(0,1.2fr)", desde: "md", apilar: "con-rotulo", corto: "Órdenes de" },
+  {
+    clave: "meses",
+    titulo: "Meses que coinciden",
+    ancho: "8.5rem",
+    alinear: "der",
+    corto: "Meses",
+    ayuda: (
+      <Ayuda titulo="¿Qué cuenta?">
+        <span className="block">Los meses en que figura en la planilla de su entidad y, ese mismo mes, la otra entidad le emitió al menos una orden de servicio.</span>
+      </Ayuda>
+    ),
+  },
+  { clave: "monto", titulo: "Cobró por esas órdenes", ancho: "9rem", alinear: "der", desde: "md", apilar: "con-rotulo", corto: "Órdenes" },
+  { clave: "sueldo", titulo: "Sueldo al mes", ancho: "7.5rem", alinear: "der", desde: "lg", apilar: "con-rotulo", corto: "Sueldo" },
+];
+
+function ListaDoble({ inicial }: { inicial: InicialPatrones }) {
+  const lista = useListaEnUrl("doble", inicial);
+  const [ruc, setRuc] = useState("");
+  const rucValido = /^20\d{9}$/.test(ruc.trim()) ? ruc.trim() : undefined;
+  const [graves, setGraves] = useState(false);
+  const filtrada = !!rucValido || graves;
+  const carga = usePoder<PatronesDoble>(rutaDoble(filtrada ? 1 : lista.page, rucValido, graves));
+  return (
+    <div className="space-y-4">
+      <CabeceraPestana
+        ayuda={
+          <Ayuda titulo="¿Por qué importa?">
+            <span className="block">
+              Ningún empleado público puede percibir del Estado más de una remuneración o retribución, salvo por la docencia y por las dietas de un
+              directorio (artículo 40 de la Constitución; artículo 3 de la Ley 28175). Una orden de servicio es una retribución.
+            </span>
+            <span className="mt-1.5 block">
+              La planilla no trae documento: Vigía une a la persona por su nombre completo, y sólo si un único RUC lo lleva en todo el registro de
+              órdenes. Un homónimo exacto saldría aquí: confirma que es la misma persona.
+            </span>
+          </Ayuda>
+        }
+      >
+        Personas que figuran en la planilla de una entidad y que, en esos mismos meses, recibieron órdenes de servicio de otra entidad.
+      </CabeceraPestana>
+      <label className="block max-w-md">
+        <span className="text-rotulo font-medium text-inkSoft">Filtrar por RUC de una de las dos entidades</span>
+        <input
+          type="search"
+          inputMode="numeric"
+          value={ruc}
+          onChange={(e) => setRuc(e.target.value.replace(/\D/g, "").slice(0, 11))}
+          placeholder="RUC de 11 dígitos que empieza en 20"
+          autoComplete="off"
+          className="mt-1 h-11 w-full rounded-xl border border-line bg-paperSoft px-3 text-dato text-ink placeholder:text-mute focus:border-granate focus:bg-paper focus:outline-none focus:ring-2 focus:ring-granate/20"
+        />
+      </label>
+      <label className="flex min-h-11 w-fit cursor-pointer items-center gap-2.5 text-dato text-ink">
+        <input type="checkbox" checked={graves} onChange={(e) => setGraves(e.target.checked)} className="size-5 rounded border-line accent-granate" />
+        Sólo los de 6 meses o más, sin docencia
+      </label>
+      <EstadoCarga carga={carga} columnas={COLUMNAS_DOBLE}>
+        {(d) => {
+          const filas = d.data ?? [];
+          return (
+            <div className="space-y-4">
+              <Indicadores
+                franja
+                items={[
+                  { valor: numero(d.total), etiqueta: rucValido ? "casos con ese RUC" : graves ? "casos de 6 meses o más" : "casos", contexto: "3 meses o más y S/ 5 mil o más, desde 2023", icono: <Coins size={15} strokeWidth={1.9} aria-hidden />, parte: null },
+                  { valor: "1", etiqueta: "ingreso del Estado por persona", contexto: "lo que permite la ley", parte: null },
+                  { valor: "2", etiqueta: "excepciones", contexto: "la docencia y las dietas de un directorio", parte: null },
+                ]}
+              />
+              <ZonaLista total={d.total} page={filtrada ? 1 : lista.page} cargando={carga.cargando} nombre="casos" onPagina={lista.irAPagina} vacio="No hay casos para ese filtro.">
+                {filas.length > 0 ? <Tabla columnas={COLUMNAS_DOBLE} filas={filas.map(filaDoble)} etiqueta="Personas en planilla con órdenes de servicio de otra entidad" /> : null}
+              </ZonaLista>
+            </div>
+          );
+        }}
+      </EstadoCarga>
+    </div>
+  );
+}
+
+function filaDoble(p: PatronDoble, i: number): Fila {
+  return {
+    id: `doble-${i}`,
+    detalle: detalleDoble(p),
+    enlaces: true,
+    celdas: {
+      persona: (
+        <CeldaPrincipal
+          dosLineas
+          titulo={
+            p.codigo ? (
+              <Link href={`/app/personas/cargo/${p.codigo}?seccion=revision`} prefetch={false} className={CLASE_ENLACE_CELDA}>
+                {p.persona ?? "Persona de planilla"}
+              </Link>
+            ) : (
+              <>{p.persona ?? "Persona de planilla"}</>
+            )
+          }
+          meta={
+            <span className="block">
+              {p.cargo ? `${tituloNatural(p.cargo)}, ` : ""}
+              <EnlaceEntidad ruc={p.entidadRuc} nombre={p.entidad} />
+            </span>
+          }
+        />
+      ),
+      otra: (
+        <CeldaTexto>
+          <EnlaceEntidad ruc={p.otraRuc} nombre={p.otra} />
+        </CeldaTexto>
+      ),
+      meses: <CeldaNumero sub={p.docente ? "docencia: excepción" : undefined}>{plural(p.meses, "mes", "meses")}</CeldaNumero>,
+      monto: <CeldaNumero sub={plural(p.ordenes, "orden", "órdenes")}>{solesCompacto(p.monto)}</CeldaNumero>,
+      sueldo: <CeldaNumero>{p.sueldo ? solesCompacto(p.sueldo) : "Sin dato"}</CeldaNumero>,
     },
   };
 }

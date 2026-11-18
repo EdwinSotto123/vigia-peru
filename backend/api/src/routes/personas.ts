@@ -777,9 +777,15 @@ personasRouter.get("/cargo/:codigo", async (c) => {
     // se asume que sí), la familia sale con las reservas de un nombre público (lib/familiaFuncionario.ts).
     const posibleElecto = esCargoDeEleccion(f.cargo) || cargos.rows.some((x) => esCargoDeEleccion(x.cargo))
       || candidaturas === null || candidaturas.some((x) => String(x.resultado ?? "").toLowerCase() === "electo");
-    const [fichas, familia] = await Promise.all([
+    const [fichas, familia, doble] = await Promise.all([
       fichasPorNombre(f.nombreNorm),
       familiaDelFuncionario(codigo, posibleElecto).catch((e) => { console.warn(`[cargo] familia: ${(e as Error).message}`); return undefined; }),
+      // Cobra por dos lados (migración 352): en la planilla de una entidad y, esos mismos meses, con órdenes de servicio de otra.
+      pool.query(
+        `SELECT d.entidad_ruc, d.entidad, d.cargo, d.sueldo::float AS sueldo, d.otra_ruc, d.otra, d.ordenes, d.monto::float AS monto_soles, d.meses,
+                to_char(d.desde, 'YYYY-MM') AS desde, to_char(d.hasta, 'YYYY-MM') AS hasta, d.docente, d.severidad
+           FROM doble_percepcion d WHERE d.codigo = $1 ORDER BY d.monto DESC LIMIT 20`, [codigo])
+        .then((r) => r.rows).catch(() => []),
     ]);
     const sinRespuesta = [...rastro.sin_respuesta.filter((x) => x !== "visitas" || visitasDe === null), ...(planilla ? [] : ["planilla"]),
       ...(candidaturas ? [] : ["candidaturas"]), ...(recibidas ? [] : ["visitas_recibidas"]), ...(familia === undefined ? ["familia"] : [])];
@@ -826,6 +832,7 @@ personasRouter.get("/cargo/:codigo", async (c) => {
         variasEmpresasEnUnaEntidad: rastro.gana_en_la_misma_entidad_con_varias_empresas,
         empresaInhabilitadaYOtraGano: rastro.empresa_suya_inhabilitada_y_otra_gano,
         enInformeYDespuesCobro: rastro.en_informe_de_control_y_despues_cobro,
+        doblePercepcion: doble,
       },
       sinRespuesta,
     });

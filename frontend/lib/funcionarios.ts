@@ -136,6 +136,15 @@ export interface CrucesDeLaPersona {
     entidad: string | null; entidad_ruc: string; informe: string | null; fecha_del_informe: string | null; ordenes_de_esa_entidad: number; monto_soles: number | null;
     ultima_orden: string | null;
   }[];
+  /**
+   * Cobra del Estado por dos lados (migración 352): en la planilla de `entidad` y, esos mismos meses, con órdenes de servicio
+   * de `otra`. `docente`: su cargo o la otra entidad son de docencia, la excepción que la ley permite (entonces «baja»).
+   * Una API anterior no lo trae.
+   */
+  doblePercepcion?: {
+    entidad: string | null; entidad_ruc: string; cargo: string | null; sueldo: number | null; otra: string | null; otra_ruc: string;
+    ordenes: number; monto_soles: number; meses: number; desde: string | null; hasta: string | null; docente: boolean; severidad: "media" | "baja";
+  }[];
 }
 
 /**
@@ -257,4 +266,6 @@ export const getPersonasEncontradas = (q: string | undefined) => {
 
 /** Cuántos cruces trae la ficha, sumados. */
 export const totalCruces = (c: CrucesDeLaPersona) =>
-  c.visitoYSuEmpresaGano.length + c.salioYSuEmpresaGano.length + c.variasEmpresasEnUnaEntidad.length + c.empresaInhabilitadaYOtraGano.length + c.enInformeYDespuesCobro.length;
+  c.visitoYSuEmpresaGano.length + c.salioYSuEmpresaGano.length + c.variasEmpresasEnUnaEntidad.length + c.empresaInhabilitadaYOtraGano.length + c.enInformeYDespuesCobro.length +
+  // Sólo los que piden revisión: con docencia (la excepción legal) o pocos meses es un dato, no un caso.
+  (c.doblePercepcion ?? []).filter((x) => x.severidad === "media").length;

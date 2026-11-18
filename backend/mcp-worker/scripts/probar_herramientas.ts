@@ -98,6 +98,13 @@ const CASOS: Caso[] = [
   { h: ordenes as never, args: { entidad_ruc: "20169004359", bandera: "repetida" },
     espera: (r) => ((lista(r, "compras") as { banderas?: { tipo: string; ordenes?: unknown[] }[] }[]).some((c) => (c.banderas ?? []).some((b) => b.tipo === "repetida" && (b.ordenes ?? []).length >= 2))
       ? null : "sin la compra repetida de la UNI con sus órdenes") },
+  // Dos ingresos del Estado (migración 352): planilla de una entidad y órdenes de servicio de otra; la persona, tapada.
+  { h: patrones as never, args: { alcance: "doble", solo_graves: true },
+    espera: (r) => {
+      const cs = lista(r, "casos") as { persona?: string; meses_que_coinciden?: number; docencia?: boolean; enlace_persona?: string }[];
+      if (cs.length < 5) return "menos de 5 casos de dos ingresos del Estado";
+      return cs.every((x) => /•/.test(String(x.persona ?? "•")) && Number(x.meses_que_coinciden) >= 6 && x.docencia === false) ? null : "un caso sin tapar, con menos de 6 meses o con docencia entre los graves";
+    } },
   // La misma compra repetida en semanas (migraciones 348-349): en la UNI, el posible duplicado de Pan American (O/C-1883 y 2364-2024).
   { h: patrones as never, args: { alcance: "repetida", ruc: "20169004359" },
     espera: (r) => ((lista(r, "compras_repetidas") as { proveedor_ruc?: string; monto_de_cada_orden?: number }[]).some((x) => x.proveedor_ruc === "20603050747" && x.monto_de_cada_orden === 28190)

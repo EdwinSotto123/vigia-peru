@@ -331,6 +331,19 @@ export default async function FuncionarioPage({ params, searchParams }: { params
                         </nav>
                       ) : null}
                       <PestanaSueldo f={planilla} entidad={dPl.entidad} mesesOrden={dPl.mesesOrden} montoOrden={dPl.montoOrden} />
+                      {(f.cruces.doblePercepcion ?? []).length > 0 ? (
+                        <Nota>
+                          Además de su sueldo:{" "}
+                          {(f.cruces.doblePercepcion ?? []).map((x, i) => (
+                            <span key={i}>
+                              {i > 0 ? "; " : ""}
+                              {plural(x.ordenes, "orden de servicio", "órdenes de servicio")} de {entidadTexto(x.otra)} por {solesCompacto(x.monto_soles)} en{" "}
+                              {plural(x.meses, "mes", "meses")} en que estaba en la planilla de {entidadTexto(x.entidad)}
+                            </span>
+                          ))}
+                          . La ley no permite dos ingresos del Estado, salvo la docencia y las dietas; el empate es por nombre completo.
+                        </Nota>
+                      ) : null}
                     </div>
                   ),
                 },
@@ -623,6 +636,13 @@ function banderasDe(f: FichaFuncionario, ruta: string): BanderaFicha[] {
   if (c.empresaInhabilitadaYOtraGano.length) b.push({ tipo: "inhabilitada", severidad: "alta", nombre: "Una empresa suya está inhabilitada y otra ganó", n: c.empresaInhabilitadaYOtraGano.length, href });
   if (c.variasEmpresasEnUnaEntidad.length) b.push({ tipo: "varias_empresas", severidad: "media", nombre: "Gana en una entidad con varias empresas", n: c.variasEmpresasEnUnaEntidad.length, href });
   if (c.enInformeYDespuesCobro.length) b.push({ tipo: "informe_y_cobro", severidad: "media", nombre: "Figura en un informe de control y la entidad le pagó después", n: c.enInformeYDespuesCobro.length, href });
+  const dobles = (c.doblePercepcion ?? []).filter((x) => x.severidad === "media");
+  if (dobles.length) {
+    b.push({
+      tipo: "doble_percepcion", severidad: "media", nombre: "Cobra del Estado por dos lados", n: dobles.length, href,
+      explica: "Está en la planilla de una entidad y, esos mismos meses, otra entidad le emitió órdenes de servicio",
+    });
+  }
   // Migración 335: en observación, porque el empate del funcionario visitado es por nombre y todavía no se mide.
   if (f.recibidas?.ganaronDespues) {
     b.push({
@@ -646,11 +666,11 @@ function EnlaceEmpresa({ ruc, nombre }: { ruc: string | null | undefined; nombre
   );
 }
 
-function Caso({ titulo, tono, children }: { titulo: string; tono: "alta" | "media"; children: React.ReactNode }) {
+function Caso({ titulo, tono, children }: { titulo: string; tono: "alta" | "media" | "baja"; children: React.ReactNode }) {
   return (
     <li className="rounded-xl border border-line bg-paper px-4 py-3">
       <div className="flex flex-wrap items-center gap-2">
-        <Badge variant={tono === "alta" ? "crimson" : "amber"}>{tono === "alta" ? "Señal alta" : "Señal media"}</Badge>
+        <Badge variant={tono === "alta" ? "crimson" : tono === "media" ? "amber" : "neutral"}>{tono === "alta" ? "Señal alta" : tono === "media" ? "Señal media" : "Para tener en cuenta"}</Badge>
         <h3 className="text-cuerpo font-semibold text-ink">{titulo}</h3>
       </div>
       <p className="mt-1.5 text-dato leading-relaxed text-inkSoft">{children}</p>
@@ -705,6 +725,18 @@ function Cruces({ cruces: c }: { cruces: CrucesDeLaPersona }) {
             </span>
           ))}
           .
+        </Caso>
+      ))}
+      {(c.doblePercepcion ?? []).map((x, i) => (
+        <Caso key={`d${i}`} titulo="Cobra del Estado por dos lados" tono={x.severidad === "media" ? "media" : "baja"}>
+          Figura en la planilla de <EnlaceEntidad ruc={x.entidad_ruc} nombre={x.entidad} />
+          {x.cargo ? ` como ${cargoTexto(x.cargo)}` : ""}
+          {x.sueldo ? `, con un sueldo de ${solesCompacto(x.sueldo)} al mes` : ""}. En {plural(x.meses, "mes", "meses")} de esos
+          {x.desde && x.hasta ? ` (entre ${mes(x.desde)} y ${mes(x.hasta)})` : ""}, <EnlaceEntidad ruc={x.otra_ruc} nombre={x.otra} /> le emitió{" "}
+          {plural(x.ordenes, "orden de servicio", "órdenes de servicio")} por {solesCompacto(x.monto_soles)}.{" "}
+          {x.docente
+            ? "La docencia es la excepción que la ley permite: por eso no cuenta como señal."
+            : "La ley no permite percibir dos ingresos del Estado, salvo la docencia y las dietas (artículo 40 de la Constitución; artículo 3 de la Ley 28175). El empate es por nombre completo: confírmalo."}
         </Caso>
       ))}
       {c.enInformeYDespuesCobro.map((x, i) => (

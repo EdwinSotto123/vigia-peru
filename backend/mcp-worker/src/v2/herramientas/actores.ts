@@ -539,10 +539,12 @@ export const patrones = definir({
     "objeto repartido entre miembros (fraccionamiento visto como grupo); con ruc, los de esa entidad o los de esa empresa. " +
     "Con alcance «repetida»: la misma compra (proveedor, monto y objeto) en varias órdenes directas de 7 a 90 días entre sí: " +
     "fraccionamiento en el tiempo si juntas pasan el tope y cada una queda al borde, o posible pago doble si todas se devengaron. " +
+    "Con alcance «doble»: personas de la planilla de una entidad que, esos mismos meses, recibieron órdenes de servicio de otra " +
+    "(dos ingresos del Estado: sólo lo permite la docencia y las dietas); con ruc, las de esa entidad. " +
     "Un patrón es un motivo para mirar, no una acusación.",
   cuenta: true,
   entrada: {
-    alcance: z.enum(["entidad", "proveedor", "relleno", "consorcio", "renovacion", "dueno", "inhabilitada", "control", "observado", "observacion", "grupo", "repetida"]).default("entidad"),
+    alcance: z.enum(["entidad", "proveedor", "relleno", "consorcio", "renovacion", "dueno", "inhabilitada", "control", "observado", "observacion", "grupo", "repetida", "doble"]).default("entidad"),
     indicador: z.enum(["reunion_en_evaluacion", "visita_personal_decisor", "ofertas_a_la_vez", "trabajo_en_el_ganador",
       "firma_en_plazo_de_apelacion"]).optional()
       .describe("(observacion) Sólo uno de los indicadores en observación."),
@@ -556,6 +558,20 @@ export const patrones = definir({
   async ejecutar(a, cx) {
     const e = enlaces(cx.env);
     const ruc = a.ruc ? rucJuridico(a.ruc) : undefined;
+    if (a.alcance === "doble") {
+      const r = await api<Fila>(cx.env, "/patrones/doble", { buscar: ruc, severidad: a.solo_graves ? "media" : undefined, page: a.pagina, size: 20 });
+      return {
+        total: r.total,
+        casos: ((r.data ?? []) as Fila[]).map((x) => ({
+          persona: x.persona, cargo: x.cargo, entidad_de_su_planilla: x.entidad, entidad_ruc: x.entidadRuc, sueldo_mensual_soles: x.sueldo ?? undefined,
+          entidad_que_le_emitio_ordenes: x.otra, otra_entidad_ruc: x.otraRuc, ordenes_de_servicio: x.ordenes, monto_soles: x.monto,
+          meses_que_coinciden: x.meses, desde: x.desde, hasta: x.hasta, docencia: x.docente, severidad: x.severidad,
+          enlace_persona: x.codigo ? e.funcionario(String(x.codigo)) : undefined,
+        })),
+        como_leerlo: r.como_leerlo,
+        aviso: AVISO,
+      };
+    }
     if (a.alcance === "repetida") {
       // Con un RUC: primero como entidad; si no hay nada, como empresa proveedora.
       let r = await api<Fila>(cx.env, "/patrones/repetidas", { entidad: ruc, severidad: a.solo_graves ? "alta" : undefined, page: a.pagina, size: 20 });

@@ -111,8 +111,9 @@ const GUARDADO = "X-Vigia-Guardado";
  *        Las respuestas guardadas antes no los tenían y la web no unía las fichas.
  * "107": la familia de la ficha de cargo dice qué familiares son cercanos (`cercano`, `cercanosEnSuEntidad`): de eso
  *        depende que su bandera sea grave o media.
+ * "108": la ficha de cargo trae `cruces.doblePercepcion` (migración 352): planilla de una entidad y órdenes de servicio de otra.
  */
-const VERSION_CACHE = "107";
+const VERSION_CACHE = "108";
 
 function cacheable(req: Request): boolean {
   if (req.method !== "GET") return false;

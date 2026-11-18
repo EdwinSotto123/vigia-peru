@@ -37,7 +37,7 @@ import { z } from "zod";
 import { pool } from "../lib/db.js";
 import { Memo } from "../lib/cache.js";
 import { cachePublico, parametros } from "../lib/http.js";
-import { publicar } from "../lib/privacidad.js";
+import { TAPA_NOMBRE, publicar } from "../lib/privacidad.js";
 import { ETIQUETA_CRUCE, catalogoSenales, nombrePublicable } from "../lib/cruces.js";
 import { depurarReferencias } from "../lib/laboratorioPrecios.js";
 import { taparNombrePropio } from "./personas.js";
@@ -644,6 +644,49 @@ patronesRouter.get("/repetidas", async (c) => {
       total: filas[0]?.total_filas ?? 0, page: q.page, size: q.size,
       data: filas.map(({ total_filas: _t, ...x }) => x),
       como_leerlo: "La misma compra (proveedor, monto y objeto) en varias órdenes directas de 7 a 90 días entre sí. Si juntas pasan el tope de 8 UIT y cada una queda al borde, es la forma de un fraccionamiento en el tiempo; si todas se devengaron, pregunta si se pagó dos veces. Un suministro mensual puede explicarlo: mira el requerimiento.",
+    });
+  });
+  c.header("Cache-Control", CACHE);
+  return c.json(cuerpo);
+});
+
+const Doble = z.object({
+  /** RUC de la entidad de la planilla o de la que emitió las órdenes. */
+  buscar: z.string().regex(/^20\d{9}$/).optional(),
+  severidad: z.enum(["media", "baja"]).optional(),
+  page: z.coerce.number().int().min(1).max(200).default(1),
+  size: z.coerce.number().int().min(1).max(50).default(20),
+});
+
+/**
+ * GET /patrones/doble?buscar=&severidad= — cobran del Estado por dos lados (migración 352): personas que están en la
+ * planilla de una entidad y, esos mismos meses, recibieron órdenes de servicio de otra. La ley no permite dos ingresos del
+ * Estado salvo la docencia y las dietas (art. 40 de la Constitución; art. 3 de la Ley 28175): con docencia el caso va
+ * como «baja». El empate es por nombre completo (un solo RUC 10 lo lleva): la persona sale con el materno tapado y el
+ * enlace a su ficha única; nunca su documento.
+ */
+patronesRouter.get("/doble", async (c) => {
+  const p = Doble.safeParse(Object.fromEntries(Object.entries(parametros(c)).filter(([, v]) => v !== "" && v != null)));
+  if (!p.success) return c.json({ error: "invalid_query", issues: p.error.issues }, 400);
+  const q = p.data;
+  const cuerpo = await memo.obtener(`doble:${JSON.stringify(q)}`, async () => {
+    const r = await pool.query(
+      `SELECT d.entidad_ruc AS "entidadRuc", d.entidad, d.cargo, d.regimen, d.sueldo::float AS sueldo, d.otra_ruc AS "otraRuc", d.otra,
+              d.ordenes, d.monto::float AS monto, d.meses, to_char(d.desde, 'YYYY-MM') AS desde, to_char(d.hasta, 'YYYY-MM') AS hasta,
+              d.docente, d.severidad, d.codigo, pp.paterno, pp.nombres, (count(*) OVER ())::int AS total_filas
+         FROM doble_percepcion d
+         LEFT JOIN planilla_persona pp ON pp.entidad_ruc = d.entidad_ruc AND pp.nombre_norm = d.nombre_norm
+        WHERE ($1::text IS NULL OR d.entidad_ruc = $1 OR d.otra_ruc = $1) AND ($2::text IS NULL OR d.severidad = $2)
+        ORDER BY CASE d.severidad WHEN 'media' THEN 0 ELSE 1 END, d.monto DESC
+        LIMIT $3 OFFSET $4`,
+      [q.buscar ?? null, q.severidad ?? null, q.size, (q.page - 1) * q.size],
+    ).catch(() => ({ rows: [] as Record<string, unknown>[] }));
+    const filas = r.rows as Record<string, any>[];
+    return publicar({
+      total: filas[0]?.total_filas ?? 0, page: q.page, size: q.size,
+      // El nombre, ya con el materno tapado (como la planilla): paterno, la tapa y los nombres.
+      data: filas.map(({ total_filas: _t, paterno, nombres, ...x }) => ({ ...x, persona: [paterno, TAPA_NOMBRE, nombres].filter(Boolean).join(" ") || null })),
+      como_leerlo: "Cada fila es una persona de la planilla de una entidad que, en esos mismos meses, recibió órdenes de servicio de otra. La ley no permite percibir dos ingresos del Estado, salvo la docencia y las dietas (artículo 40 de la Constitución; artículo 3 de la Ley 28175). El empate es por nombre completo: confirma que es la misma persona antes de afirmar nada.",
     });
   });
   c.header("Cache-Control", CACHE);
