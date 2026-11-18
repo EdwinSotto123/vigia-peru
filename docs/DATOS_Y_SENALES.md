@@ -645,6 +645,12 @@ muestra los antecedentes como hechos: `cruces` (cada tipo con su gravedad más a
 - **44 proveedores jurídicos solo-menores** sin ficha de empresa (no están en `empresa_resumen`).
 - **Menores**: solo 2025–26 (el módulo es nuevo); el requerimiento se espeja a R2 por el relay (backfill en curso).
 - **Scrapers mensuales** (JNE, PNDA/DJI, visitas, sancionados): vigilar que el cron corra (se atrasaron ~39 días en oct).
+- **Órdenes de 2026 (CONOSCE):** de 1 933 entidades que publicaron órdenes los doce meses de 2025, 1 092 publicaron en
+  setiembre de 2026 y 188 no publican desde diciembre de 2025 (medido el 2026-11-18; la carga baja el año entero en cada
+  corrida, así que no es lo registrado tarde). Casi ninguna de ellas aparece en las compras menores del SEACE. Una baja de
+  órdenes en 2026 frente a 2025 puede ser falta de datos: `/ordenes/ventana` cuenta los meses con órdenes de cada periodo y
+  la web y el MCP avisan; `/estado/datos` lo dice en la nota de la fuente. Los patrones de la historia buscan subidas, así
+  que este hueco esconde casos pero no inventa.
 
 ### 17.4 Preguntas abiertas para la otra IA
 1. ¿Qué señal de **alto valor** se puede construir cruzando `dji` (patrimonio) con contratos/sueldos, respetando
