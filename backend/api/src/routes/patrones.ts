@@ -43,6 +43,7 @@ import { papelesRnp } from "../lib/familiaFuncionario.js";
 import { ETIQUETA_CRUCE, catalogoSenales, nombrePublicable } from "../lib/cruces.js";
 import { depurarReferencias } from "../lib/laboratorioPrecios.js";
 import { taparNombrePropio } from "./personas.js";
+import { SQL_CLAVE_GRUPO, casoGrupo, type CasoPatron, type Pedir } from "../lib/casoPatron.js";
 
 export const patronesRouter = new Hono();
 
@@ -511,6 +512,8 @@ const Grupos = z.object({
   persona: z.string().regex(/^[0-9a-f]{12}$/).optional(),
   /** El RUC de la entidad O de una empresa del grupo (el buscador de la web, que no sabe cuál de las dos es). */
   buscar: z.string().regex(/^20\d{9}$/).optional(),
+  /** La clave opaca de un grupo (su ficha de caso): 16 hex del md5 de la entidad y el grupo. */
+  clave: z.string().regex(/^[0-9a-f]{16}$/).optional(),
   severidad: z.enum(["alta", "media", "baja"]).optional(),
   page: z.coerce.number().int().min(1).max(200).default(1),
   size: z.coerce.number().int().min(1).max(50).default(20),
@@ -545,15 +548,16 @@ patronesRouter.get("/grupos", async (c) => {
               to_char(r.hasta, 'YYYY-MM-DD') AS hasta, r.hasta_8uit AS "hasta8Uit", r.borde, r.monto_borde::float AS "montoBorde",
               r.sobre_tope AS "sobreTope", r.dias_juntos AS "diasJuntos", r.monto_juntos::float AS "montoJuntos", r.correlativas,
               r.repartidos, r.monto_repartido::float AS "montoRepartido", r.puesto_grupo AS "puestoGrupo", r.puesto_mayor AS "puestoMayor", r.parte_entidad::float AS "parteEntidad",
-              r.severidad, r.detalle, (count(*) OVER ())::int AS total
+              r.severidad, r.detalle, ${SQL_CLAVE_GRUPO} AS clave, (count(*) OVER ())::int AS total
          FROM grupo_proveedor_resumen r
         WHERE ($1::text IS NULL OR r.entidad_ruc = $1) AND ($3::text IS NULL OR r.severidad = $3)
+          AND ($7::text IS NULL OR ${SQL_CLAVE_GRUPO} = $7)
           AND ($2::text IS NULL OR EXISTS (SELECT 1 FROM grupo_proveedor g WHERE g.entidad_ruc = r.entidad_ruc AND g.grupo = r.grupo AND g.ruc = $2))
           AND ($6::text IS NULL OR r.entidad_ruc = $6
                OR EXISTS (SELECT 1 FROM grupo_proveedor g WHERE g.entidad_ruc = r.entidad_ruc AND g.grupo = r.grupo AND g.ruc = $6))
         ORDER BY CASE r.severidad WHEN 'alta' THEN 0 WHEN 'media' THEN 1 ELSE 2 END, r.monto DESC
         LIMIT $4 OFFSET $5`,
-      [q.entidad ?? null, ruc, q.severidad ?? null, q.size, (q.page - 1) * q.size, q.buscar ?? null],
+      [q.entidad ?? null, ruc, q.severidad ?? null, q.size, (q.page - 1) * q.size, q.buscar ?? null, q.clave ?? null],
     ).catch(() => ({ rows: [] as Record<string, unknown>[] }));
     const grupos = r.rows as Record<string, any>[];
     // Por qué están juntos: los vínculos entre sus miembros, con la persona que los une (un apellido tapado).
@@ -1142,6 +1146,44 @@ patronesRouter.get("/entidad/:ruc", async (c) => {
       cruces: (cruces.rows as Record<string, any>[]).map((x) => ({ ...x, etiqueta: ETIQUETA_CRUCE[x.tipo] ?? x.tipo })),
     });
   });
+  c.header("Cache-Control", CACHE);
+  return c.json(cuerpo);
+});
+
+/** Qué patrones ya tienen su ficha de caso, y quién la arma. */
+const CASOS: Record<string, (clave: string, pedir: Pedir) => Promise<CasoPatron | null>> = {
+  grupos: casoGrupo,
+};
+
+/**
+ * GET /patrones/caso/:tipo/:clave — la ficha de UN caso de un patrón (pedido del usuario del 2026-11-18): su historia hecho
+ * por hecho, quiénes son (nodos y vínculos), por qué llama la atención, cada orden o contrato con su enlace, qué revisar y
+ * sus fuentes, en un solo molde para todos los patrones (lib/casoPatron.ts). La clave es opaca (nunca un RUC 10).
+ */
+patronesRouter.get("/caso/:tipo/:clave", async (c) => {
+  const tipo = c.req.param("tipo");
+  const clave = c.req.param("clave");
+  const armar = CASOS[tipo];
+  if (!armar || !/^[0-9a-f]{16}$/.test(clave)) return c.json({ error: "not_found" }, 404);
+  const pedir: Pedir = async (ruta) => {
+    const r = await patronesRouter.request(ruta, undefined, c.env as object);
+    return r.ok ? ((await r.json()) as Record<string, any>) : null;
+  };
+  const cuerpo = await memo.obtener(`caso:${tipo}:${clave}`, async (ctl) => {
+    try {
+      const caso = await armar(clave, pedir);
+      return caso ? publicar(caso as unknown as Record<string, unknown>) : { noEncontrado: true };
+    } catch (e) {
+      console.warn(`[patrones] caso ${tipo}/${clave}: ${(e as Error).message}`);
+      ctl.noGuardar();
+      return { noRespondio: true };
+    }
+  });
+  if (cuerpo.noRespondio) {
+    c.header("Cache-Control", "no-store");
+    return c.json({ error: "no_respondio" }, 503);
+  }
+  if (cuerpo.noEncontrado) return c.json({ error: "not_found" }, 404);
   c.header("Cache-Control", CACHE);
   return c.json(cuerpo);
 });
