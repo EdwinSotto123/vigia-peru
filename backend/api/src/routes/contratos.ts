@@ -331,6 +331,24 @@ async function contarCruces(q: z.infer<typeof ResumenQuery>, sin: "cruces" | "ob
       console.warn(`[contratos] faceta por día: ${(e as Error).message}`);
     }
   }
+  // Sólo una entidad (su ficha y su lista de contratos), con o sin tipo de contrato: la faceta por entidad (migración 386,
+  // con los contratos sin fecha). Al vuelo eran 120 ms y 231 bloques por llamada; igual en 21 casos comparados (2026-11-18).
+  if (q.entidad && !q.desde && !q.hasta && filtros({ ...q, [sin]: undefined, entidad: undefined, tipo: undefined }, [], MAPA_CE).conds.length === 1) {
+    const v: unknown[] = [q.entidad];
+    const w = ["entidad_ruc = $1"];
+    if (q.tipo) w.push(`ce_tipo = $${v.push(q.tipo)}`);
+    try {
+      const r = await pool.query<ConteoCruces>(
+        `SELECT COALESCE(sum(con) FILTER (WHERE tipo = ''), 0)::int AS con, COALESCE(sum(alta) FILTER (WHERE tipo = ''), 0)::int AS alta,
+                COALESCE(jsonb_object_agg(tipo, con) FILTER (WHERE tipo <> ''), '{}'::jsonb) AS tipos,
+                COALESCE(sum(obra) FILTER (WHERE tipo = ''), 0)::int AS obra
+           FROM (SELECT tipo, sum(con)::int AS con, sum(alta)::int AS alta, sum(obra)::int AS obra
+                   FROM casos_cruce_por_entidad WHERE ${w.join(" AND ")} GROUP BY tipo) x`, v);
+      if (r.rows[0]) return r.rows[0];
+    } catch (e) {
+      console.warn(`[contratos] faceta por entidad: ${(e as Error).message}`);
+    }
+  }
   const base = `SELECT k.ocid, k.n_alta, k.tipos FROM contrato_estado ce JOIN casos_cruce k ON k.ocid = ce.ocid WHERE ${conds.join(" AND ")}`;
   const r = await pool.query(
     `WITH k AS MATERIALIZED (${base}),
