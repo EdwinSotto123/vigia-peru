@@ -51,6 +51,9 @@ PASOS = [
     "refrescar_socio_proveedor_locador()", "refrescar_persona_informe_control()", "refrescar_planilla_extra()",
     "refrescar_reserva_parientes()", "refrescar_entidad_senal_politica()",
     "refrescar_organo_nombre_global()",
+    # Quien salió de una planilla queda con el cargo que tuvo más meses y su sueldo habitual (migración 357): antes del
+    # índice, que lee ese cargo.
+    "planilla_salida_cargo_principal()",
     # El índice de personas con cargo público (planilla de hoy y de antes, y declaraciones juradas; migración 319).
     "refrescar_funcionario_resumen()",
     "refrescar_personas_resumen()",
