@@ -70,6 +70,8 @@ export interface PatronesSenal {
 
 /** Un ganador y la empresa que casi siempre postula a su lado sin ganar. */
 export interface PatronAcompanante {
+  /** La clave opaca de su ficha de caso. */
+  clave?: string;
   rucGanador: string;
   ganador: string | null;
   rucAcompanante: string;
@@ -118,6 +120,8 @@ export interface PatronConsorcio {
 
 /** Un socio que gana en una entidad con dos o más empresas, procesos de objeto parecido (migraciones 292 y 293). */
 export interface PatronDueno {
+  /** La clave opaca de su ficha de caso. */
+  clave?: string;
   entidadRuc: string;
   entidad: string | null;
   /** El socio, con un apellido tapado (o un rótulo si es una sucesión). */

@@ -1004,6 +1004,7 @@ export const patrones = definir({
           empresas: ((x.empresas ?? []) as Fila[]).map((y) => ({ empresa: y.nombre, ruc: y.ruc, enlace: e.empresa(y.ruc) })),
           contratos_con_objeto_parecido: x.contratos, con_90_dias_o_menos_entre_si: x.seguidos, monto_soles: x.monto, desde: x.desde, hasta: x.hasta,
           ejemplos: ((x.ejemplos ?? []) as string[]).map((o) => e.contrato(o)), enlace_entidad: e.entidad(x.entidadRuc),
+          ficha_del_caso: x.clave ? `${cx.env.VIGIA_URL}/app/patrones/caso/duenos/${x.clave}` : undefined,
         })),
         como_leerlo:
           "Cada fila es un socio que tiene dos o más empresas ganando en la misma entidad procesos de objeto parecido. " +
@@ -1062,6 +1063,7 @@ export const patrones = definir({
           ganadas_del_acompanante: x.ganadasDelAcompanante, parte_de_sus_postulaciones: x.parte, desde: x.desde, hasta: x.hasta,
           comparten_socio: x.vinculo === "socio_comun" ? true : undefined, fuerte: x.fuerte,
           enlace_ganador: e.empresa(x.rucGanador), enlace_acompanante: e.empresa(x.rucAcompanante),
+          ficha_del_caso: x.clave ? `${cx.env.VIGIA_URL}/app/patrones/caso/relleno/${x.clave}` : undefined,
         })),
         como_leerlo:
           "«Fuerte»: el acompañante dedica 60 % o más de sus postulaciones a ese ganador y gana 1 de cada 10 o menos. Sólo cuenta " +

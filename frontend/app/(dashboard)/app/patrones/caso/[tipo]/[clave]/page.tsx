@@ -60,7 +60,7 @@ export default async function CasoPatronPagina({ params }: { params: { tipo: str
       id: "que-paso",
       titulo: "Qué pasó",
       tituloLargo: "La historia, hecho por hecho",
-      bajada: "Cuándo se fundó cada empresa, cuándo entró cada socio, qué le compró la entidad cada año y lo que llama la atención en su fecha.",
+      bajada: "Lo que pasó, en orden: cuándo nacieron las empresas y entró su gente, cada compra o proceso y lo que llama la atención en su fecha.",
       conteo: c.hitos.length,
       contenido: (
         <div className="space-y-5">
@@ -105,7 +105,7 @@ export default async function CasoPatronPagina({ params }: { params: { tipo: str
       id: "evidencia",
       titulo: "La evidencia",
       tituloLargo: c.evidencia.titulo,
-      bajada: "Una por una, con su enlace a las compras de la entidad. Se buscan, se filtran por integrante y por lo que las marca, y se descargan.",
+      bajada: "Una por una, con su enlace. Se buscan, se filtran por quién y por lo que las marca, y se descargan.",
       conteo: c.evidencia.total,
       contenido: (
         <div className="space-y-3">
@@ -119,7 +119,7 @@ export default async function CasoPatronPagina({ params }: { params: { tipo: str
               )}
             </p>
           )}
-          <EvidenciaCaso filas={c.evidencia.filas} nodos={c.nodos} nombre={`caso-${c.tipo}-${c.clave}`} />
+          <EvidenciaCaso filas={c.evidencia.filas} nodos={c.nodos} nombre={`caso-${c.tipo}-${c.clave}`} unidad={c.evidencia.unidad} />
         </div>
       ),
     },

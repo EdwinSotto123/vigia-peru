@@ -73,7 +73,7 @@ export interface CasoPatron {
   aristas: AristaCaso[];
   hitos: HitoCaso[];
   razones: RazonCaso[];
-  evidencia: { titulo: string; total: number; filas: FilaEvidencia[]; nota?: string | null; masHref?: string | null };
+  evidencia: { titulo: string; unidad?: string; total: number; filas: FilaEvidencia[]; nota?: string | null; masHref?: string | null };
   revisar: string[];
   fuentes: { texto: string; href: string }[];
   relacionados: { texto: string; href: string }[];
@@ -81,7 +81,7 @@ export interface CasoPatron {
 }
 
 /** Los patrones que ya tienen su ficha de caso (la sección de /app/patrones de cada uno). */
-export const PATRONES_CON_CASO = new Set(["grupos", "compras", "repetidas", "recien"]);
+export const PATRONES_CON_CASO = new Set(["grupos", "compras", "repetidas", "recien", "duenos", "relleno"]);
 
 /** La ficha de un caso: /app/patrones/caso/grupos/56ccbe973e4e3e3d. */
 export const rutaCaso = (tipo: string, clave: string) => `/app/patrones/caso/${tipo}/${clave}`;

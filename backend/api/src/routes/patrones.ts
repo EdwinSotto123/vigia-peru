@@ -43,7 +43,7 @@ import { papelesRnp } from "../lib/familiaFuncionario.js";
 import { ETIQUETA_CRUCE, catalogoSenales, nombrePublicable } from "../lib/cruces.js";
 import { depurarReferencias } from "../lib/laboratorioPrecios.js";
 import { taparNombrePropio } from "./personas.js";
-import { casoComprasFamilia, casoGrupo, casoRecien, casoRepetida, salDeClaves, sqlClaveGrupo, sqlClaveRecien, sqlClaveRepetida, type CasoPatron, type Pedir } from "../lib/casoPatron.js";
+import { casoComprasFamilia, casoDueno, casoGrupo, casoRecien, casoRelleno, casoRepetida, salDeClaves, sqlClaveDueno, sqlClaveGrupo, sqlClaveRecien, sqlClaveRelleno, sqlClaveRepetida, type CasoPatron, type Pedir } from "../lib/casoPatron.js";
 
 export const patronesRouter = new Hono();
 
@@ -87,6 +87,8 @@ patronesRouter.get("/", async (c) => {
 const Acompanantes = z.object({
   ruc: z.string().regex(/^20\d{9}$/).optional(),
   solo: z.enum(["fuertes", "todos"]).default("fuertes"),
+  /** La clave opaca de un caso (su ficha de caso). */
+  clave: z.string().regex(/^[0-9a-f]{16}$/).optional(),
   page: z.coerce.number().int().min(1).max(200).default(1),
   size: z.coerce.number().int().min(1).max(50).default(20),
 });
@@ -101,11 +103,13 @@ patronesRouter.get("/acompanantes", async (c) => {
     const conds: string[] = [];
     if (q.ruc) conds.push(`(ruc_ganador = ${add(q.ruc)} OR ruc_acompanante = $${vals.length})`);
     if (q.solo === "fuertes" && !q.ruc) conds.push("fuerte");
+    if (q.clave) conds.push(`${sqlClaveRelleno(add(salDeClaves()))} = ${add(q.clave)}`);
     const donde = conds.length ? `WHERE ${conds.join(" AND ")}` : "";
     const n = vals.length;
     const [filas, total] = await Promise.all([
       pool.query(
         `SELECT ruc_ganador AS "rucGanador", ganador, ruc_acompanante AS "rucAcompanante", acompanante, juntos, entidades,
+                ${sqlClaveRelleno(add(salDeClaves()))} AS clave,
                 postulo AS "postulacionesDelAcompanante", gano AS "ganadasDelAcompanante", parte::float AS parte,
                 to_char(desde, 'YYYY-MM-DD') AS desde, to_char(hasta, 'YYYY-MM-DD') AS hasta, vinculo, fuerte
            FROM postor_acompanante ${donde}
@@ -161,6 +165,8 @@ patronesRouter.get("/acompanantes/procesos", async (c) => {
 
 const Consorcios = z.object({
   ruc: z.string().regex(/^20\d{9}$/).optional(),
+  /** La clave opaca de un caso (su ficha de caso). */
+  clave: z.string().regex(/^[0-9a-f]{16}$/).optional(),
   page: z.coerce.number().int().min(1).max(200).default(1),
   size: z.coerce.number().int().min(1).max(50).default(20),
 });
@@ -213,11 +219,13 @@ patronesRouter.get("/duenos", async (c) => {
     if (q.ruc) conds.push(`(g.entidad_ruc = ${add(q.ruc)} OR g.rucs @> ARRAY[$${vals.length}])`);
     if (q.graves) conds.push("g.seguidos > 0");
     if (q.min) conds.push(`g.contratos >= ${add(q.min)}`);
+    if (q.clave) conds.push(`${sqlClaveDueno(add(salDeClaves()))} = ${add(q.clave)}`);
     const donde = conds.length ? `WHERE ${conds.join(" AND ")}` : "";
     const n = vals.length;
     const [filas, total] = await Promise.all([
       pool.query(
         `SELECT g.entidad_ruc AS "entidadRuc", en.nombre AS entidad, g.nombre, g.contratos, g.seguidos, g.monto::float AS monto,
+                ${sqlClaveDueno(add(salDeClaves()))} AS clave,
                 to_char(g.desde, 'YYYY-MM-DD') AS desde, to_char(g.hasta, 'YYYY-MM-DD') AS hasta, g.ejemplos, g.empresas
            FROM mismo_dueno_grupo g LEFT JOIN entidades en ON en.ruc = g.entidad_ruc ${donde}
           ORDER BY g.seguidos DESC, g.contratos DESC, g.entidad_ruc LIMIT ${add(q.size)} OFFSET ${add((q.page - 1) * q.size)}`, vals),
@@ -1163,6 +1171,8 @@ patronesRouter.get("/entidad/:ruc", async (c) => {
 const CASOS: Record<string, (clave: string, pedir: Pedir) => Promise<CasoPatron | null>> = {
   grupos: casoGrupo,
   compras: casoComprasFamilia,
+  duenos: casoDueno,
+  relleno: casoRelleno,
   repetidas: casoRepetida,
   recien: casoRecien,
 };

@@ -95,7 +95,8 @@ export interface CasoPatron {
   aristas: AristaCaso[];
   hitos: HitoCaso[];
   razones: RazonCaso[];
-  evidencia: { titulo: string; total: number; filas: FilaEvidencia[]; nota?: string | null; masHref?: string | null };
+  /** `unidad`: qué son las filas, en plural («órdenes», «ventas», «contratos», «procesos»). */
+  evidencia: { titulo: string; unidad?: string; total: number; filas: FilaEvidencia[]; nota?: string | null; masHref?: string | null };
   revisar: string[];
   fuentes: { texto: string; href: string }[];
   /** A dónde seguir en Vigía: la entidad, las empresas, el patrón en todo el país. */
@@ -451,7 +452,7 @@ export async function casoGrupo(clave: string, pedir: Pedir): Promise<CasoPatron
     ],
     serie, nodos, aristas, hitos, razones,
     evidencia: {
-      titulo: "Las órdenes de la entidad al grupo", total: total.rows[0]?.n ?? filas.length, filas,
+      titulo: "Las órdenes de la entidad al grupo", unidad: "órdenes", total: total.rows[0]?.n ?? filas.length, filas,
       nota: (total.rows[0]?.n ?? 0) > filas.length ? `Aquí van las ${miles(filas.length)} más recientes de ${miles(total.rows[0]?.n ?? 0)}; las demás están en las compras de la entidad.` : null,
       masHref: `/entidad/${ent.ruc}?seccion=contratos`,
     },
@@ -640,7 +641,7 @@ export async function casoComprasFamilia(clave: string, pedir: Pedir): Promise<C
     ],
     serie, nodos, aristas, hitos, razones,
     evidencia: {
-      titulo: viaEmpresa ? `Lo que ${entNombre} le compró a la empresa del familiar` : `Lo que ${entNombre} le compró al familiar`,
+      titulo: viaEmpresa ? `Lo que ${entNombre} le compró a la empresa del familiar` : `Lo que ${entNombre} le compró al familiar`, unidad: "ventas",
       total: v.length, filas,
       nota: viaEmpresa ? null : "Las órdenes a nombre del familiar van sólo con su fecha y su monto: su nombre y su documento no se publican.",
       masHref: `/entidad/${ent.ruc}?seccion=contratos${viaEmpresa ? `&ccon=${f.empresaRuc}` : ""}`,
@@ -821,7 +822,7 @@ export async function casoRepetida(clave: string, pedir: Pedir): Promise<CasoPat
     }),
     nodos, aristas, hitos, razones,
     evidencia: {
-      titulo: `Las órdenes de ${entNombre} a este proveedor`, total: ords.total, filas,
+      titulo: `Las órdenes de ${entNombre} a este proveedor`, unidad: "órdenes", total: ords.total, filas,
       nota: ords.total > filas.length ? `Aquí van las ${miles(filas.length)} más recientes de ${miles(ords.total)}.` : "Las repetidas van marcadas; las demás son el resto de lo que le compró.",
       masHref: `/entidad/${ent.ruc}?seccion=contratos${persona ? "" : `&ccon=${id.ruc_contratista}`}`,
     },
@@ -909,7 +910,7 @@ export async function casoRecien(clave: string, pedir: Pedir): Promise<CasoPatro
     ],
     serie: null, nodos, aristas, hitos, razones,
     evidencia: {
-      titulo: `Las órdenes de ${entNombre} a ${emp}`, total: ords.total, filas,
+      titulo: `Las órdenes de ${entNombre} a ${emp}`, unidad: "órdenes", total: ords.total, filas,
       nota: ords.total > filas.length ? `Aquí van las ${miles(filas.length)} más recientes de ${miles(ords.total)}.` : null,
       masHref: `/entidad/${ent.ruc}?seccion=contratos&ccon=${id.ruc_empresa}`,
     },
@@ -929,5 +930,269 @@ export async function casoRecien(clave: string, pedir: Pedir): Promise<CasoPatro
       { texto: "Todas las empresas recién creadas del país", href: "/app/patrones?seccion=recien" },
     ],
     como_leerlo: String(lista?.como_leerlo ?? "Una empresa que se inscribió en la SUNAT y a los pocos días ya recibía órdenes directas de una entidad."),
+  };
+}
+
+// ─── Un mismo dueño gana en una entidad con varias empresas (migraciones 292-293) ──────────────
+
+export const sqlClaveDueno = (sal: string) => `left(md5(${sal} || g.entidad_ruc || '|' || g.nombre), 16)`;
+const NOTA_SEGUIDO = "a 90 días o menos de otro parecido de una empresa hermana";
+
+export async function casoDueno(clave: string, pedir: Pedir): Promise<CasoPatron | null> {
+  // El documento del socio sólo sirve aquí adentro para encontrar sus filas: nunca sale.
+  const k = await pool.query<{ entidad_ruc: string; persona_doc: string; rucs: string[] }>(
+    `SELECT g.entidad_ruc, g.persona_doc, g.rucs FROM mismo_dueno_grupo g WHERE ${sqlClaveDueno("$2")} = $1 LIMIT 1`, [clave, salDeClaves()]);
+  const id = k.rows[0];
+  if (!id) return null;
+  const lista = await pedir(`/duenos?ruc=${id.entidad_ruc}&clave=${clave}&size=1`);
+  const f = (lista?.data ?? [])[0] as Record<string, any> | undefined;
+  if (!f) return null;
+  const rucs = id.rucs.filter((r) => /^20\d{9}$/.test(r));
+  const [contratos, rnp, sunat] = await Promise.all([
+    pool.query<{ ocid: string; ruc: string; severidad: string | null; fecha: string | null; monto: number | null; objeto: string | null; codigo: string | null; tipo: string | null }>(
+      `SELECT DISTINCT ON (x.ocid, x.ruc_empresa) x.ocid, x.ruc_empresa AS ruc, x.severidad, to_char(x.fecha, 'YYYY-MM-DD') AS fecha, x.monto::float AS monto,
+              left(c.objeto, 220) AS objeto, c.codigo, c.tipo_proceso AS tipo
+         FROM cruces_proveedor x JOIN convocatorias c ON c.ocid = x.ocid
+        WHERE x.tipo = 'mismo_dueno' AND x.persona_doc = $1 AND c.entidad_ruc = $2 AND x.ruc_empresa = ANY($3)
+        ORDER BY x.ocid, x.ruc_empresa, (x.severidad = 'alta') DESC LIMIT 800`, [id.persona_doc, id.entidad_ruc, rucs]),
+    pool.query<{ ruc: string; rol: string; desde: string | null; baja: string | null }>(
+      `SELECT ruc_empresa::text AS ruc, tipo_rol AS rol, to_char(min(fecha_inicio_vigencia), 'YYYY-MM-DD') AS desde, to_char(max(baja_corte), 'YYYY-MM-DD') AS baja
+         FROM rnp_conformacion_juridica WHERE numero_documento = $1 AND ruc_empresa = ANY($2::bpchar[]) GROUP BY 1, 2`, [id.persona_doc, rucs]).catch(() => ({ rows: [] })),
+    pool.query<{ ruc: string; nombre: string | null; alta: string | null; estado: string | null }>(
+      `SELECT ruc, nombre, to_char(fecha_alta, 'YYYY-MM-DD') AS alta, estado_sunat AS estado FROM empresa_resumen WHERE ruc = ANY($1)`, [rucs]),
+  ]);
+  const ent = { ruc: id.entidad_ruc, nombre: (f.entidad as string | null) ?? null };
+  const entNombre = ent.nombre ? titulo(ent.nombre) : "la entidad";
+  const socio = String(((f.socios ?? [])[0] as { nombre?: string } | undefined)?.nombre ?? "Una persona");
+  const nombreDe = new Map<string, string>();
+  for (const e of (f.empresas ?? []) as { ruc: string; nombre: string | null }[]) nombreDe.set(e.ruc, titulo(e.nombre ?? "Empresa"));
+  for (const s of sunat.rows) if (!nombreDe.has(s.ruc)) nombreDe.set(s.ruc, titulo(s.nombre ?? "Empresa"));
+  const nodoDe = new Map(rucs.map((r, i) => [r, `m${i + 1}`]));
+  const cs = [...contratos.rows].sort((a, b) => (b.fecha ?? "").localeCompare(a.fecha ?? ""));
+
+  const nodos: NodoCaso[] = [
+    { id: "e", tipo: "entidad", nombre: entNombre, rol: "La entidad que contrató", href: `/entidad/${ent.ruc}?seccion=patrones&patron=duenos` },
+    { id: "p1", tipo: "persona", nombre: socio, rol: `Figura en ${plural(rucs.length, "empresa", "empresas")} que le ganan a la entidad`, severidad: f.seguidos ? "alta" : "media",
+      datos: rucs.map((r) => {
+        const xs = rnp.rows.filter((x) => x.ruc === r);
+        const desde = xs.map((x) => x.desde).filter((z): z is string => !!z).sort()[0];
+        return { etiqueta: nombreDe.get(r) ?? "Empresa", valor: xs.length ? `${roles(xs.map((x) => x.rol))}${desde ? `, desde ${fechaLarga(desde)}` : ""}` : "figura en su conformación" };
+      }) },
+  ];
+  const aristas: AristaCaso[] = [];
+  for (const r of rucs) {
+    const suyos = cs.filter((c) => c.ruc === r);
+    const s = sunat.rows.find((x) => x.ruc === r);
+    nodos.push({
+      id: nodoDe.get(r)!, tipo: "empresa", nombre: nombreDe.get(r) ?? "Empresa", rol: "Empresa del mismo dueño", href: `/empresa/${r}?seccion=antecedentes&atipo=patron-duenos`,
+      monto: suyos.reduce((t, c) => t + (c.monto ?? 0), 0), ordenes: suyos.length, severidad: suyos.some((c) => c.severidad === "alta") ? "alta" : null,
+      datos: [s?.alta ? { etiqueta: "Fundada (SUNAT)", valor: fechaLarga(s.alta) } : null, s?.estado && !/ACTIVO/i.test(s.estado) ? { etiqueta: "Estado en la SUNAT", valor: titulo(s.estado) } : null].filter((x): x is { etiqueta: string; valor: string } => !!x),
+    });
+    aristas.push({ de: "p1", a: nodoDe.get(r)!, tipo: "socio", texto: roles(rnp.rows.filter((x) => x.ruc === r).map((x) => x.rol)) });
+    aristas.push({ de: nodoDe.get(r)!, a: "e", tipo: "vende", texto: `${plural(suyos.length, "contrato", "contratos")} por ${soles(suyos.reduce((t, c) => t + (c.monto ?? 0), 0))}` });
+  }
+
+  const hitos: HitoCaso[] = [];
+  for (const s of sunat.rows) if (s.alta) hitos.push({ fecha: s.alta, tipo: "fundacion", titulo: `Se funda ${nombreDe.get(s.ruc)}`, nodos: [nodoDe.get(s.ruc)!], fuente: "SUNAT (padrón RUC)" });
+  for (const r of rucs) {
+    const xs = rnp.rows.filter((x) => x.ruc === r);
+    const desde = xs.map((x) => x.desde).filter((z): z is string => !!z).sort()[0];
+    if (desde) hitos.push({ fecha: desde, tipo: "socio", titulo: `${socio} figura como ${roles(xs.map((x) => x.rol))} de ${nombreDe.get(r)}`, nodos: ["p1", nodoDe.get(r)!], fuente: "Registro Nacional de Proveedores (OECE)" });
+    const baja = xs.length && xs.every((x) => x.baja) ? xs.map((x) => x.baja!).sort().reverse()[0] : null;
+    if (baja) hitos.push({ fecha: baja, tipo: "salida", titulo: `${socio} deja de figurar en ${nombreDe.get(r)}`, nodos: ["p1", nodoDe.get(r)!], fuente: "Registro Nacional de Proveedores (OECE)" });
+  }
+  // Cada contrato si son pocos; si no, los seguidos uno por uno y lo demás por año.
+  const sueltos = cs.length <= 30 ? cs : cs.filter((c) => c.severidad === "alta").slice(0, 30);
+  for (const c of sueltos) {
+    if (!c.fecha) continue;
+    hitos.push({
+      fecha: c.fecha, tipo: c.severidad === "alta" ? "dia" : "otro", severidad: c.severidad === "alta" ? "alta" : null, monto: c.monto,
+      titulo: `Gana ${nombreDe.get(c.ruc)}: ${c.objeto ? `«${c.objeto.slice(0, 90)}»` : c.codigo ?? "un contrato"}`,
+      detalle: c.severidad === "alta" ? `Un contrato ${NOTA_SEGUIDO}.` : null,
+      nodos: [nodoDe.get(c.ruc)!, "e"], fuente: "SEACE (OECE)", href: rutaContrato(c.ocid),
+    });
+  }
+  const anios = [...new Set(cs.filter((c) => c.fecha).map((c) => Number(c.fecha!.slice(0, 4))))].sort();
+  if (cs.length > 30) {
+    for (const a of anios) {
+      const xs = cs.filter((c) => c.fecha?.startsWith(String(a)));
+      hitos.push({ fecha: `${a}-12-31`, tipo: "anio", titulo: `${a}: ${plural(xs.length, "contrato", "contratos")} por ${soles(xs.reduce((t, c) => t + (c.monto ?? 0), 0))} a ${plural(new Set(xs.map((c) => c.ruc)).size, "empresa", "empresas")} del mismo dueño`, nodos: [...new Set(xs.map((c) => nodoDe.get(c.ruc)!)), "e"], fuente: "SEACE (OECE)" });
+    }
+  }
+  hitos.sort((a, b) => a.fecha.localeCompare(b.fecha) || a.tipo.localeCompare(b.tipo));
+
+  const totalDe = new Map<string, number>();
+  for (const c of cs) totalDe.set(c.ruc, (totalDe.get(c.ruc) ?? 0) + (c.monto ?? 0));
+  const mayor = [...totalDe.entries()].sort((a, b) => b[1] - a[1])[0]?.[0];
+  const serie = mayor && anios.length > 1 ? {
+    titulo: "Lo que la entidad les adjudicó, año por año", etiquetaA: nombreDe.get(mayor) ?? "La empresa mayor", etiquetaB: "Las demás empresas del mismo dueño",
+    anios: anios.map((a) => {
+      const xs = cs.filter((c) => c.fecha?.startsWith(String(a)));
+      const da = xs.filter((c) => c.ruc === mayor);
+      const db = xs.filter((c) => c.ruc !== mayor);
+      const s = (ys: typeof xs) => ys.reduce((t, c) => t + (c.monto ?? 0), 0);
+      return { anio: a, a: s(da), b: s(db), detalleA: `${soles(s(da))} en ${plural(da.length, "contrato", "contratos")}`, detalleB: `${soles(s(db))} en ${plural(db.length, "contrato", "contratos")}` };
+    }),
+  } : null;
+
+  const razones: RazonCaso[] = ([
+    { titulo: "Varias empresas, un mismo dueño", cifra: plural(rucs.length, "empresa", "empresas"), texto: `${socio} figura en todas, según el Registro Nacional de Proveedores, y todas le ganan contratos parecidos a ${entNombre}.`, severidad: "media" },
+    f.seguidos ? { titulo: "Contratos seguidos", cifra: miles(f.seguidos), texto: `Contratos ${NOTA_SEGUIDO}: la misma necesidad repartida entre razones sociales, o empresas que no compiten de verdad.`, severidad: "alta" } : null,
+    { titulo: "Lo que suman", cifra: soles(f.monto), texto: `${plural(f.contratos, "contrato", "contratos")} de objeto parecido.`, severidad: null },
+    { titulo: "Lo que puede explicarlo", cifra: "Grupo", texto: "Un grupo empresarial puede tener varias empresas legítimas; lo que pesa es que compitan entre sí en el mismo proceso o se repartan la misma necesidad.", severidad: null },
+  ] as (RazonCaso | null)[]).filter((x): x is RazonCaso => !!x);
+
+  const filas: FilaEvidencia[] = cs.map((c, i) => ({
+    id: `c${i}`, fecha: c.fecha, documento: c.codigo ?? c.ocid, quien: nombreDe.get(c.ruc) ?? null, nodo: nodoDe.get(c.ruc) ?? null,
+    que: c.objeto, monto: c.monto, estado: c.tipo, marcas: c.severidad === "alta" ? [NOTA_SEGUIDO] : [], href: rutaContrato(c.ocid),
+  }));
+  return {
+    tipo: "duenos", clave, patron: "Un mismo dueño gana con varias empresas",
+    titulo: `${plural(rucs.length, "empresa", "empresas")} del mismo dueño le ganan a ${entNombre}`,
+    severidad: f.seguidos ? "alta" : "media",
+    frase: `${socio} figura en ${plural(rucs.length, "empresa", "empresas")} (${rucs.map((r) => nombreDe.get(r)).join(", ")}) que le ganaron a ${entNombre} ${plural(f.contratos, "contrato", "contratos")} de objeto parecido por ${soles(f.monto)}${f.seguidos ? `; ${miles(f.seguidos)} de ellos ${NOTA_SEGUIDO}` : ""}.`,
+    entidad: ent, desde: f.desde ?? null, hasta: f.hasta ?? null,
+    cifras: [
+      { etiqueta: "Empresas del mismo dueño", valor: miles(rucs.length), contexto: null },
+      { etiqueta: "Contratos parecidos", valor: miles(f.contratos), contexto: `por ${soles(f.monto)}` },
+      { etiqueta: "Seguidos (90 días o menos)", valor: miles(f.seguidos ?? 0), contexto: f.seguidos ? "entre empresas hermanas" : "ninguno" },
+      { etiqueta: "Periodo", valor: f.desde && f.hasta ? `${String(f.desde).slice(0, 4)} a ${String(f.hasta).slice(0, 4)}` : "Sin fecha", contexto: null },
+    ],
+    serie, nodos, aristas, hitos, razones,
+    evidencia: { titulo: `Los contratos de sus empresas en ${entNombre}`, unidad: "contratos", total: cs.length, filas, nota: null, masHref: `/entidad/${ent.ruc}?seccion=contratos&vista=contratos` },
+    revisar: [
+      "Revisa en cada proceso si las empresas del mismo dueño postularon unas contra otras: competir consigo mismo es concertación.",
+      "Para los contratos seguidos, pide los requerimientos: si eran la misma necesidad, se partió para darla a varias razones sociales.",
+      "Confirma la participación del socio en cada empresa con la SUNARP: el RNP no publica porcentajes.",
+    ],
+    fuentes: [
+      { texto: "Socios, representantes y directivos (Registro Nacional de Proveedores)", href: DATASET_SOCIOS_RNP },
+      { texto: "Procesos y contratos (SEACE y CONOSCE, OECE)", href: CONOSCE_BUSCADOR },
+      { texto: "Consulta RUC (SUNAT)", href: CONSULTA_RUC_SUNAT },
+    ],
+    relacionados: [
+      { texto: `Antecedentes y patrones de ${entNombre}`, href: `/entidad/${ent.ruc}?seccion=patrones&patron=duenos` },
+      ...rucs.slice(0, 5).map((r) => ({ texto: `Ficha de ${nombreDe.get(r) ?? "la empresa"}`, href: `/empresa/${r}` })),
+      { texto: "Todos los casos de mismo dueño", href: "/app/patrones?seccion=duenos" },
+    ],
+    como_leerlo: "Un mismo socio, representante o directivo figura en varias empresas que le ganan contratos de objeto parecido a una misma entidad. Un patrón es un motivo para mirar, no una acusación.",
+  };
+}
+
+// ─── Postor de relleno (migración 276) ─────────────────────────────────────────────────────────
+
+export const sqlClaveRelleno = (sal: string) => `left(md5(${sal} || ruc_ganador || '|' || ruc_acompanante), 16)`;
+
+export async function casoRelleno(clave: string, pedir: Pedir): Promise<CasoPatron | null> {
+  const k = await pool.query<{ ruc_ganador: string; ruc_acompanante: string }>(
+    `SELECT ruc_ganador, ruc_acompanante FROM postor_acompanante WHERE ${sqlClaveRelleno("$2")} = $1 LIMIT 1`, [clave, salDeClaves()]);
+  const id = k.rows[0];
+  if (!id) return null;
+  const [lista, procesos, sG, sA, gG, gA] = await Promise.all([
+    pedir(`/acompanantes?ruc=${id.ruc_ganador}&clave=${clave}&size=1`),
+    pedir(`/acompanantes/procesos?acompanante=${id.ruc_acompanante}&ganador=${id.ruc_ganador}`),
+    empresaSunat(id.ruc_ganador), empresaSunat(id.ruc_acompanante),
+    genteDeEmpresa(id.ruc_ganador), genteDeEmpresa(id.ruc_acompanante),
+  ]);
+  const f = (lista?.data ?? [])[0] as Record<string, any> | undefined;
+  if (!f) return null;
+  const ps = ((procesos?.data ?? []) as { codigo: string; ocid: string | null; entidadRuc: string | null; entidad: string | null; objeto: string | null; fecha: string | null; monto: number | null; ganoElGanador: boolean; ganoElAcompanante: boolean; postores: number }[]);
+  const gan = titulo(f.ganador ?? sG?.nombre ?? "El ganador");
+  const aco = titulo(f.acompanante ?? sA?.nombre ?? "El acompañante");
+  const delPatron = (p: (typeof ps)[number]) => p.ganoElGanador && !p.ganoElAcompanante && p.postores >= 2 && p.postores <= 4;
+
+  // Las entidades donde coincidieron (las seis con más procesos).
+  const porEntidad = new Map<string, { nombre: string; n: number; gano: number }>();
+  for (const p of ps) {
+    if (!p.entidadRuc) continue;
+    const x = porEntidad.get(p.entidadRuc) ?? { nombre: titulo(p.entidad ?? "Entidad"), n: 0, gano: 0 };
+    x.n += 1;
+    if (p.ganoElGanador) x.gano += 1;
+    porEntidad.set(p.entidadRuc, x);
+  }
+  const entidades = [...porEntidad.entries()].sort((a, b) => b[1].n - a[1].n).slice(0, 6);
+  const nodos: NodoCaso[] = [
+    { id: "g", tipo: "empresa", nombre: gan, rol: "La que gana", href: `/empresa/${id.ruc_ganador}?seccion=antecedentes&atipo=patron-relleno`, severidad: f.fuerte ? "alta" : "media",
+      datos: [sG?.alta ? { etiqueta: "Fundada (SUNAT)", valor: fechaLarga(sG.alta) } : null].filter((x): x is { etiqueta: string; valor: string } => !!x) },
+    { id: "a", tipo: "empresa", nombre: aco, rol: "La que la acompaña y casi nunca gana", href: `/empresa/${id.ruc_acompanante}?seccion=antecedentes&atipo=patron-relleno`, severidad: f.fuerte ? "alta" : "media",
+      datos: [
+        sA?.alta ? { etiqueta: "Fundada (SUNAT)", valor: fechaLarga(sA.alta) } : null,
+        { etiqueta: "Postulaciones", valor: `${miles(f.postulacionesDelAcompanante)}; ganó ${miles(f.ganadasDelAcompanante)}` },
+        { etiqueta: "Junto a esta ganadora", valor: `${Math.round(Number(f.parte) * 100)} % de sus postulaciones` },
+      ].filter((x): x is { etiqueta: string; valor: string } => !!x) },
+  ];
+  const aristas: AristaCaso[] = [{ de: "a", a: "g", tipo: "otro", texto: `postularon juntas ${plural(f.juntos, "vez", "veces")}` }];
+  entidades.forEach(([ruc, x], i) => {
+    nodos.push({ id: `e${i + 1}`, tipo: "entidad", nombre: x.nombre, rol: `${plural(x.n, "proceso", "procesos")} con las dos; ganó la acompañada ${miles(x.gano)}`, href: `/entidad/${ruc}?seccion=patrones&patron=relleno` });
+    aristas.push({ de: "g", a: `e${i + 1}`, tipo: "vende", texto: `ganó ${plural(x.gano, "proceso", "procesos")} con la otra de postora` });
+  });
+  // Las personas que figuran en las dos (el vínculo «socio común»).
+  const comunes = gG.filter((p) => gA.some((q) => q.nombre === p.nombre));
+  comunes.forEach((p, i) => {
+    const q = gA.find((z) => z.nombre === p.nombre)!;
+    nodos.push({ id: `p${i + 1}`, tipo: "persona", nombre: p.nombre, rol: "Figura en las dos empresas", severidad: "alta", datos: [{ etiqueta: gan, valor: p.papeles }, { etiqueta: aco, valor: q.papeles }] });
+    aristas.push({ de: `p${i + 1}`, a: "g", tipo: "socio", texto: p.papeles });
+    aristas.push({ de: `p${i + 1}`, a: "a", tipo: "socio", texto: q.papeles });
+  });
+
+  const hitos: HitoCaso[] = [];
+  if (sG?.alta) hitos.push({ fecha: sG.alta, tipo: "fundacion", titulo: `Se funda ${gan}`, nodos: ["g"], fuente: "SUNAT (padrón RUC)" });
+  if (sA?.alta) hitos.push({ fecha: sA.alta, tipo: "fundacion", titulo: `Se funda ${aco}`, nodos: ["a"], fuente: "SUNAT (padrón RUC)" });
+  comunes.forEach((p, i) => { if (p.desde) hitos.push({ fecha: p.desde, tipo: "socio", titulo: `${p.nombre} figura en ${gan}`, nodos: [`p${i + 1}`, "g"], fuente: "Registro Nacional de Proveedores (OECE)" }); });
+  for (const p of ps) {
+    if (!p.fecha) continue;
+    const quienGano = p.ganoElGanador ? gan : p.ganoElAcompanante ? aco : "otra empresa";
+    hitos.push({
+      fecha: p.fecha, tipo: delPatron(p) ? "dia" : "otro", severidad: delPatron(p) ? "media" : null, monto: p.monto,
+      titulo: `Postulan las dos; gana ${quienGano}${p.postores ? ` (${plural(p.postores, "postor", "postores")})` : ""}`,
+      detalle: `${p.entidad ? titulo(p.entidad) : "Entidad"}${p.objeto ? `: «${p.objeto.slice(0, 120)}»` : ""}`,
+      nodos: ["g", "a"], fuente: "CONOSCE (OECE)", href: p.ocid ? rutaContrato(p.ocid) : null,
+    });
+  }
+  hitos.sort((a, b) => a.fecha.localeCompare(b.fecha) || a.tipo.localeCompare(b.tipo));
+
+  const nPatron = ps.filter(delPatron).length;
+  const razones: RazonCaso[] = ([
+    { titulo: "Postula casi siempre con ella", cifra: `${Math.round(Number(f.parte) * 100)} %`, texto: `De las ${miles(f.postulacionesDelAcompanante)} postulaciones de ${aco}, esa parte fue junto a ${gan}.`, severidad: Number(f.parte) >= 0.5 ? "alta" : "media" },
+    { titulo: "Y casi nunca gana", cifra: `${miles(f.ganadasDelAcompanante)} de ${miles(f.postulacionesDelAcompanante)}`, texto: "Una empresa que postula y no gana, siempre junto a la misma ganadora, cumple el papel de completar el número de postores.", severidad: "media" },
+    { titulo: "Procesos con pocos postores que ganó la acompañada", cifra: miles(nPatron), texto: "De 2 a 4 postores: con tan pocos, un postor de relleno decide que el proceso no quede desierto.", severidad: nPatron >= 3 ? "alta" : "media" },
+    comunes.length ? { titulo: "Comparten gente", cifra: plural(comunes.length, "persona", "personas"), texto: "Figuran en las dos empresas como socios, representantes o directivos: no son rivales.", severidad: "alta" } : null,
+  ] as (RazonCaso | null)[]).filter((x): x is RazonCaso => !!x);
+
+  const filas: FilaEvidencia[] = ps.map((p, i) => ({
+    id: `p${i}`, fecha: p.fecha, documento: p.codigo, quien: p.entidad ? titulo(p.entidad) : null, que: p.objeto, monto: p.monto,
+    estado: p.ganoElGanador ? `Ganó ${gan}` : p.ganoElAcompanante ? `Ganó ${aco}` : "Ganó otra",
+    marcas: delPatron(p) ? ["ganó la acompañada con 2 a 4 postores"] : [], href: p.ocid ? rutaContrato(p.ocid) : null,
+  }));
+  return {
+    tipo: "relleno", clave, patron: "Postor de relleno",
+    titulo: `${aco} acompaña a ${gan}`,
+    severidad: f.fuerte ? "alta" : "media",
+    frase: `${aco} postuló ${plural(f.postulacionesDelAcompanante, "vez", "veces")} y ganó ${miles(f.ganadasDelAcompanante)}. El ${Math.round(Number(f.parte) * 100)} % de esas postulaciones fue junto a ${gan}, que ganó ${plural(nPatron, "proceso", "procesos")} de 2 a 4 postores con ella al lado${comunes.length ? `. Además comparten ${plural(comunes.length, "persona", "personas")} en su conformación` : ""}.`,
+    entidad: null, desde: f.desde ?? null, hasta: f.hasta ?? null,
+    cifras: [
+      { etiqueta: "Procesos en que postularon las dos", valor: miles(f.juntos), contexto: `en ${plural(f.entidades, "entidad", "entidades")}` },
+      { etiqueta: "De sus postulaciones, junto a ella", valor: `${Math.round(Number(f.parte) * 100)} %`, contexto: null },
+      { etiqueta: "Ganadas por la acompañante", valor: miles(f.ganadasDelAcompanante), contexto: `de ${miles(f.postulacionesDelAcompanante)}` },
+      { etiqueta: "Ganó la acompañada con 2 a 4 postores", valor: miles(nPatron), contexto: null },
+    ],
+    serie: null, nodos, aristas, hitos, razones,
+    evidencia: { titulo: "Los procesos en que postularon las dos", unidad: "procesos", total: ps.length, filas, nota: ps.length >= 80 ? "Aquí van los 80 más recientes." : null, masHref: null },
+    revisar: [
+      "Abre las ofertas de los procesos marcados: precios calcados, errores repetidos, el mismo formato o la misma hora de registro delatan ofertas armadas juntas.",
+      "Compara domicilios, teléfonos, correos y personas de las dos empresas (SUNAT, RNP, SUNARP).",
+      "Si es un caso de concertación, la autoridad es el INDECOPI (libre competencia) y el Tribunal de Contrataciones.",
+    ],
+    fuentes: [
+      { texto: "Postores de cada proceso (CONOSCE, OECE)", href: CONOSCE_BUSCADOR },
+      { texto: "Socios, representantes y directivos (Registro Nacional de Proveedores)", href: DATASET_SOCIOS_RNP },
+      { texto: "Consulta RUC (SUNAT)", href: CONSULTA_RUC_SUNAT },
+    ],
+    relacionados: [
+      { texto: `Ficha de ${gan}`, href: `/empresa/${id.ruc_ganador}` },
+      { texto: `Ficha de ${aco}`, href: `/empresa/${id.ruc_acompanante}` },
+      { texto: "Todos los postores de relleno del país", href: "/app/patrones?seccion=relleno" },
+    ],
+    como_leerlo: "Una empresa que postula casi siempre junto a la misma ganadora y casi nunca gana puede estar completando el número de postores. Un patrón es un motivo para mirar, no una acusación.",
   };
 }

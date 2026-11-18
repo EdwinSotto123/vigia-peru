@@ -44,13 +44,18 @@ export function RedCaso({ caso }: { caso: CasoPatron }) {
     const maxMonto = Math.max(1, ...cols.centro.map((n) => n.monto ?? 0));
     for (const [c, xs] of Object.entries(cols) as ["izq" | "centro" | "der", NodoCaso[]][]) {
       const x = c === "izq" ? X.persona : c === "centro" ? X.empresa : X.entidad;
-      // La entidad, al medio de la altura; sus funcionarios, debajo.
+      // Una sola entidad, al medio de la altura y con sus funcionarios debajo; varias (los procesos de dos postores), apiladas.
       if (c === "der") {
         const ent = xs.filter((n) => n.tipo === "entidad");
         const fun = xs.filter((n) => n.tipo === "funcionario");
-        const y0 = alto / 2 - (fun.length * PASO) / 2;
-        ent.forEach((n) => m.set(n.id, { x, y: y0, r: 16 }));
-        fun.forEach((n, i) => m.set(n.id, { x, y: y0 + (i + 1) * PASO, r: 8 }));
+        if (ent.length === 1) {
+          const y0 = alto / 2 - (fun.length * PASO) / 2;
+          m.set(ent[0].id, { x, y: y0, r: 16 });
+          fun.forEach((n, i) => m.set(n.id, { x, y: y0 + (i + 1) * PASO, r: 8 }));
+          continue;
+        }
+        const hueco = alto / (xs.length + 1);
+        [...ent, ...fun].forEach((n, i) => m.set(n.id, { x, y: hueco * (i + 1), r: n.tipo === "entidad" ? 11 : 8 }));
         continue;
       }
       const hueco = alto / (xs.length + 1);

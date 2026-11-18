@@ -314,8 +314,8 @@ export function detalleRelleno(p: PatronAcompanante): Detalle {
     pie: (
       <Pie
         enlaces={[
+          !!p.clave && { texto: "Abrir la ficha del caso", href: rutaCaso("relleno", p.clave) },
           esRuc20(p.rucGanador) && { texto: "Ficha de quien gana", href: `/empresa/${p.rucGanador}` },
-          esRuc20(p.rucAcompanante) && { texto: "Ficha de la que acompaña", href: `/empresa/${p.rucAcompanante}` },
         ]}
       />
     ),
@@ -411,7 +411,14 @@ export function detalleDueno(p: PatronDueno): Detalle {
         />
       </div>
     ),
-    pie: <Pie enlaces={[esRuc20(p.entidadRuc) && { texto: "Ficha de la entidad", href: `/entidad/${p.entidadRuc}` }]} />,
+    pie: (
+      <Pie
+        enlaces={[
+          !!p.clave && { texto: "Abrir la ficha del caso", href: rutaCaso("duenos", p.clave) },
+          esRuc20(p.entidadRuc) && { texto: "Sus otros patrones en la entidad", href: `/entidad/${p.entidadRuc}?seccion=patrones&patron=duenos` },
+        ]}
+      />
+    ),
   };
 }
 

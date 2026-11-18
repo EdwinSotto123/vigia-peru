@@ -10,10 +10,10 @@ import type { FilaEvidencia, NodoCaso } from "@/lib/casoPatron";
  * ya filtrada): con buscador, filtros por integrante y por lo que la marca (el mismo día que otra del grupo, sobre el tope,
  * el mismo objeto repartido), orden y CSV. El nombre de una persona natural no entra en lo que se busca (docs/PRIVACIDAD.md).
  */
-export function EvidenciaCaso({ filas, nodos, nombre }: { filas: FilaEvidencia[]; nodos: NodoCaso[]; nombre: string }) {
+export function EvidenciaCaso({ filas, nodos, nombre, unidad = "órdenes" }: { filas: FilaEvidencia[]; nodos: NodoCaso[]; nombre: string; unidad?: string }) {
   const tipoDe = new Map(nodos.map((n) => [n.id, n.tipo]));
   const columnas: Columna[] = [
-    { clave: "que", titulo: "Orden", ancho: "minmax(0,1fr)" },
+    { clave: "que", titulo: unidad.charAt(0).toUpperCase() + unidad.slice(1), ancho: "minmax(0,1fr)" },
     { clave: "monto", titulo: "Monto", ancho: "8rem", alinear: "der", desde: "md", apilar: "con-rotulo" },
   ];
   const sinMarca = "Sin marca";
@@ -29,7 +29,7 @@ export function EvidenciaCaso({ filas, nodos, nombre }: { filas: FilaEvidencia[]
             textoCompleto={f.que ?? undefined}
             dosLineas
             meta={[
-              f.que ? <Dato key="d" tipo="codigo" nombre="Orden">{f.documento}</Dato> : null,
+              f.que ? <Dato key="d" tipo="codigo" nombre="Código">{f.documento}</Dato> : null,
               f.quien ? <Dato key="q" tipo={esPersona ? "personas" : "entidad"} nombre="Proveedor">{f.quien}</Dato> : null,
               f.fecha ? <Dato key="f" tipo="fecha" nombre="Emitida">{fechaConAnio(f.fecha)}</Dato> : null,
               f.estado ? <Dato key="e" tipo="tipo" nombre="Estado">{f.estado}</Dato> : null,
@@ -55,13 +55,13 @@ export function EvidenciaCaso({ filas, nodos, nombre }: { filas: FilaEvidencia[]
     <TablaFiltrable
       columnas={columnas}
       filas={datos}
-      etiqueta="Órdenes del caso (toca una para verla en las compras de la entidad)"
+      etiqueta={`${unidad.charAt(0).toUpperCase() + unidad.slice(1)} del caso (toca una fila para abrirla)`}
       tam={15}
-      nombre="órdenes"
+      nombre={unidad}
       descargar={{ archivo: nombre }}
-      buscar={{ placeholder: "Buscar por número, objeto o empresa…", etiqueta: "Buscar entre las órdenes del caso" }}
+      buscar={{ placeholder: "Buscar por código, objeto o nombre…", etiqueta: `Buscar entre ${unidad === "ventas" ? "las" : unidad === "órdenes" ? "las" : "los"} ${unidad} del caso` }}
       filtros={[
-        ...(quienes.length > 1 ? [{ clave: "quien", etiqueta: "Integrante", corta: "Integrante", opciones: quienes.map((q) => ({ valor: q, etiqueta: q })) }] : []),
+        ...(quienes.length > 1 ? [{ clave: "quien", etiqueta: "Quién", corta: "Quién", opciones: quienes.map((q) => ({ valor: q, etiqueta: q })) }] : []),
         ...(marcas.length ? [{ clave: "marca", etiqueta: "Lo que la marca", corta: "Marca", opciones: [...marcas.map((m) => ({ valor: m, etiqueta: m.charAt(0).toUpperCase() + m.slice(1) })), { valor: sinMarca, etiqueta: sinMarca }] }] : []),
       ]}
       ordenes={[
