@@ -91,6 +91,20 @@ Toda señal tiene una de tres severidades, con tres canales (color + ícono + pa
   sha256 en `datasets_cargas`; bitácora en `corridas_fuente`. Un relay en **Zúrich** (`vigia-relay`) pasa el WAF del
   SEACE que bloquea el egress de datacenter.
 
+**El modelo lee, el código comprueba (capa de comprobación, 2026-11-18).** Lo que extrae un modelo (agentes o lectores)
+no entra a una ficha, un hecho o una bandera sin pasar por una regla determinista contra el registro:
+
+| Qué se comprueba | Dónde | Lo que atrapó |
+|---|---|---|
+| Dígito verificador del RUC; si falla, el único conocido del proceso a ≤2 cifras con nombre parecido, o null | `backend/lector/rucs.py` (al guardar cada lectura), `agent/tools/documentos/entidades.py` | 6,7 % de los RUC del lector de actas eran inválidos; reparados 1 765 y anulados 1 588 |
+| Postores por reporte del SEACE leído SIN modelo (plantilla), unidos aunque cada reporte corte el nombre | `refrescar_proceso_postor()` (migr. 326 y 384) | 1 de cada 4 ítems tenía un postor partido; la bandera del acta del LLM concuerda 95 % con la plantilla |
+| Etapa y modalidad del proceso: un release más viejo que el guardado no pisa la clasificación | `siNoEsViejo()` en `scrapers-worker/src/fuentes/oece_ocds.ts` | 1,9 % de los procesos con la etapa de una convocatoria anterior; 8 463 corregidos (99,8 % confirmados por CONOSCE) |
+| La cita está en esa página y trae el valor; la aritmética de los ítems | `agent/tools/documentos/evidencia.py`, hechos (migr. 323) | montos de experiencia leídos como cuantía (11-16) |
+
+Al reclasificar o reparar desde lo guardado: el payload del OCDS va recortado (sin `awards`), así que nunca se baja de una
+etapa con adjudicación (`reclasificar_desfasadas.py`, guarda y `--revertir`). Toda reparación se mide antes contra una
+fuente independiente (CONOSCE, la SUNAT) sobre una muestra.
+
 **Frescura por fuente (prod, 2026-10-25):**
 
 | Fuente | Última | Qué carga |
