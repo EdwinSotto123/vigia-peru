@@ -85,7 +85,9 @@ export async function fichasDeReportes(ocid: string): Promise<{ evaluacion?: Fic
       postores: evaluados.map((x: any) => ({
         nombre: nombreDe(x), ruc: /^\d{11}$/.test(x.codigo ?? "") ? x.codigo : null, item: x.item,
         admitida: x.admitida, calificada: x.calificada, ganador: x.gano === true,
-        puntaje_total: x.puntaje_total ?? x.puntaje_tecnico, orden_prelacion: x.orden_prelacion,
+        // El reporte de evaluación TÉCNICA trae el puntaje técnico, no el total (en 1224107: 60 técnico, 105 final según
+        // el acta): no se mezclan. El total sólo si lo trae el reporte de desempate.
+        puntaje_tecnico: x.puntaje_tecnico, puntaje_total: x.puntaje_total, orden_prelacion: x.orden_prelacion,
       })),
     }) : undefined,
     presentacion: presentados.length ? ficha("reporte_presentacion", {
@@ -276,6 +278,7 @@ export function enriquecerPostores(
     calificada: typeof e?.calificada === "boolean" ? e.calificada : null,
     motivoNoCalificada: txt(e?.motivo_no_calificada)?.slice(0, 400) ?? null,
     puntajePrecio: num(e?.puntaje_precio), puntajeOtros: otrosDe(e), puntajeTotal: num(e?.puntaje_total),
+    puntajeTecnico: num(e?.puntaje_tecnico),
     bonificacion: num(e?.bonificacion), puntajeFinal: num(e?.puntaje_final),
     citaEvaluacion: evaluacion ? citaDe(e, evaluacion, enVigia) : null,
   });

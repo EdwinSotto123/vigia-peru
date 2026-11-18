@@ -110,3 +110,19 @@ test("postores: un RUC mal leído por el modelo no duplica al postor; vale el de
   // Dos empresas distintas con RUC distinto siguen separadas.
   assert.ok(postores.some((p) => p.ruc === "20532371342" && p.esGanador));
 });
+
+test("postores: el puntaje TÉCNICO del reporte del SEACE no reemplaza al final del acta (1224107: 60 frente a 105)", () => {
+  const base: PostorDetalle[] = [
+    { ruc: "20532371342", razonSocial: "AREM PERU S.A.C.", estado: "ganador", motivoEstado: null, montoOferta: 770000, puntaje: 105,
+      esGanador: true, ordenPrelacion: null, item: 1, citas: [] },
+  ];
+  const evaluacion: FichaPieza = { lector: "reporte_evaluacion", version: "p1", modelo: "plantilla", tipo: "reporte_evaluacion",
+    documento: null, url: null, leido: null,
+    salida: { postores: [{ nombre: "AREM PERU S.A.C.", ruc: "20532371342", item: 1, admitida: true, calificada: true, ganador: true,
+                           puntaje_tecnico: 60, puntaje_total: null }] } };
+  const [p] = enriquecerPostores(base, evaluacion, undefined, [], new Set()).postores;
+  assert.equal(p.puntaje, 105);
+  assert.equal(p.puntajeTotal, null);
+  assert.equal(p.puntajeTecnico, 60);
+  assert.equal(p.admitida, true);
+});
