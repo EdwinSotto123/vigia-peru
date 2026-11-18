@@ -601,7 +601,7 @@ const memoVentana = new Memo<Record<string, unknown>>({ nombre: "ordenes:ventana
 const unAnioAntes = (d: string) => `${Number(d.slice(0, 4)) - 1}${d.slice(4)}`.replace(/-02-29$/, "-02-28");
 
 function periodoOrdenes(desde: string, hasta: string, antes: boolean): string {
-  return `SELECT DISTINCT ON (o.orden, o.fecha_emision) o.ruc_contratista AS ruc, o.contratista, o.descripcion, ${antes} AS antes,
+  return `SELECT DISTINCT ON (o.orden, o.fecha_emision) o.ruc_contratista AS ruc, o.contratista, o.descripcion, o.fecha_emision AS fecha, ${antes} AS antes,
                  CASE WHEN o.moneda = 'Nuevos Soles' AND o.monto_dudoso IS NULL THEN o.monto END AS monto
             FROM conosce_ordenes o
            WHERE o.entidad_ruc = $1 AND o.fecha_emision >= ${desde}::date AND o.fecha_emision <= ${hasta}::date AND ${ORDEN_LISTADA}
@@ -613,7 +613,7 @@ async function ventanaOrdenes(q: z.infer<typeof VentanaQuery>): Promise<Record<s
   const antesHasta = unAnioAntes(q.hasta);
   const r = await consultaConPlazo(sqlVentanaOrdenes(), [q.entidad, q.desde, q.hasta, antesDesde, antesHasta], 20_000);
   const f = r.rows[0] as Record<string, unknown>;
-  const vacio = { ordenes: 0, monto: 0, ordenesAPersonas: 0, montoAPersonas: 0, personas: 0, personasNuevas: 0, ordenesAPersonasNuevas: 0, empresas: 0, empresasNuevas: 0, montoEmpresasNuevas: 0 };
+  const vacio = { ordenes: 0, monto: 0, mesesConOrdenes: 0, ordenesAPersonas: 0, montoAPersonas: 0, personas: 0, personasNuevas: 0, ordenesAPersonasNuevas: 0, empresas: 0, empresasNuevas: 0, montoEmpresasNuevas: 0 };
   const limpiar = (c: unknown) => { const { antes: _a, ...resto } = (c ?? vacio) as Record<string, unknown>; return resto; };
   return publicar({
     entidad: { ruc: q.entidad, nombre: f.entidad ?? null },
@@ -636,6 +636,7 @@ export function sqlVentanaOrdenes(): string {
     w AS (SELECT o.*, o.ruc ~ '^10' AS persona, o.ruc ~ '^20' AS empresa, COALESCE(pr.nuevo, false) AS nuevo FROM o LEFT JOIN pr ON pr.ruc = o.ruc AND pr.antes = o.antes),
     cifras AS (
       SELECT antes, count(*)::int AS ordenes, COALESCE(sum(monto), 0)::float AS monto,
+             (count(DISTINCT date_trunc('month', fecha)))::int AS "mesesConOrdenes",
              (count(*) FILTER (WHERE persona))::int AS "ordenesAPersonas", COALESCE(sum(monto) FILTER (WHERE persona), 0)::float AS "montoAPersonas",
              (count(DISTINCT ruc) FILTER (WHERE persona))::int AS personas, (count(DISTINCT ruc) FILTER (WHERE persona AND nuevo))::int AS "personasNuevas",
              (count(*) FILTER (WHERE persona AND nuevo))::int AS "ordenesAPersonasNuevas",

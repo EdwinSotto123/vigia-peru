@@ -316,7 +316,7 @@ export const ordenesEnPeriodo = definir({
     if ((Date.parse(a.hasta) - Date.parse(a.desde)) / 86_400_000 > 366) throw new ErrorUsuario("El periodo puede ser de un año como mucho.");
     const v = await api<Fila>(cx.env, "/ordenes/ventana", { entidad: r, desde: a.desde, hasta: a.hasta });
     const cifras = (c: Fila) => ({
-      ordenes: c.ordenes, monto_soles: c.monto,
+      ordenes: c.ordenes, monto_soles: c.monto, meses_con_ordenes: c.mesesConOrdenes,
       ordenes_a_personas_naturales: c.ordenesAPersonas, monto_a_personas_soles: c.montoAPersonas,
       personas_naturales: c.personas, personas_nuevas: c.personasNuevas, ordenes_a_personas_nuevas: c.ordenesAPersonasNuevas,
       empresas: c.empresas, empresas_nuevas: c.empresasNuevas, monto_a_empresas_nuevas_soles: c.montoEmpresasNuevas,
@@ -336,6 +336,10 @@ export const ordenesEnPeriodo = definir({
         personas_veces: veces(ven.personas, ant.personas),
         personas_nuevas_veces: veces(ven.personasNuevas, ant.personasNuevas),
       },
+      // En 2026 publican sus órdenes en CONOSCE menos entidades que en 2025: una baja puede ser falta de datos.
+      aviso_datos: (ven.mesesConOrdenes ?? 0) < (ant.mesesConOrdenes ?? 0)
+        ? `La entidad publicó órdenes en ${ven.mesesConOrdenes} meses del periodo y en ${ant.mesesConOrdenes} un año antes: pueden faltar órdenes del periodo (no leas una baja como un hecho).`
+        : undefined,
       conceptos_que_mas_se_repiten: ((v.conceptos ?? []) as Fila[]).map((c) => ({
         concepto: c.concepto, ordenes: c.ordenes, monto_soles: c.monto, personas_naturales: c.personas, empresas: c.empresas,
       })),

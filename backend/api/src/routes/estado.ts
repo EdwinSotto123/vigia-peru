@@ -39,6 +39,8 @@ export interface FuentePublica {
   claves: string[];
   /** Hasta qué fecha llegan sus datos (AAAA-MM-DD). */
   hasta: string;
+  /** Algo que conviene saber al leerla y que no cambia su estado (la situación del catálogo sí lo cambia). */
+  nota?: string;
   /** Dónde ver el registro oficial. */
   enlace?: string;
 }
@@ -58,7 +60,11 @@ export const FUENTES: FuentePublica[] = [
     hasta: `SELECT to_char(max(fecha_buenapro), 'YYYY-MM-DD') AS v FROM conosce_adjudicaciones WHERE anio >= extract(year FROM current_date)::int - 1 AND fecha_buenapro <= current_date` },
   { clave: "conosce_ordenes", nombre: "Órdenes de compra y de servicio", que: "Cada orden de cada entidad (OECE, CONOSCE).", cada: 10, cadencia: "Semanal", claves: ["conosce_ordenes"],
     enlace: CONOSCE_BUSCADOR,
-    hasta: `SELECT to_char(max(fecha_emision), 'YYYY-MM-DD') AS v FROM conosce_ordenes WHERE fecha_emision <= current_date` },
+    hasta: `SELECT to_char(max(fecha_emision), 'YYYY-MM-DD') AS v FROM conosce_ordenes WHERE fecha_emision <= current_date`,
+    // Medido el 2026-11-18 (la carga baja cada vez el año entero, con lo registrado tarde): de 1 933 entidades que
+    // publicaron órdenes los doce meses de 2025, 1 092 publicaron en setiembre de 2026 y 188 no publican desde diciembre.
+    nota: "En 2026 publican sus órdenes en CONOSCE menos entidades que en 2025 (de las 1 933 que publicaron todos los meses de " +
+      "2025, unas 1 100 lo hicieron en setiembre de 2026). Una baja de órdenes en 2026 puede ser falta de datos de la fuente." },
   { clave: "seace_menores", nombre: "Contratos menores", que: "Contratos de hasta 8 UIT (SEACE).", cada: 10, cadencia: "Semanal", claves: ["seace_menores"],
     enlace: SEACE_MENORES,
     hasta: `SELECT to_char(max(fecha_suscripcion), 'YYYY-MM-DD') AS v FROM seace_menores WHERE fecha_suscripcion <= current_date` },
@@ -240,7 +246,7 @@ estadoRouter.get("/datos", async (c) => {
       return {
         clave: f.clave, nombre: f.nombre, que: f.que, cadencia: f.cadencia, hasta, ultimaCarga: ultimaOk, estado,
         // Lo declarado a mano en el catálogo: manda sobre el estado calculado y trae su explicación.
-        situacion: situacion?.tipo ?? null, nota: situacion?.nota ?? null, enlace: f.enlace ?? null,
+        situacion: situacion?.tipo ?? null, nota: situacion?.nota ?? f.nota ?? null, enlace: f.enlace ?? null,
       };
     });
     return { fuentes, generado: new Date().toISOString() };

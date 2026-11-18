@@ -14,7 +14,7 @@ import { cn } from "@/lib/utils";
  * De las personas naturales sólo cuentas; las empresas, con su ficha. Se pide al abrir el detalle del patrón.
  */
 interface Cifras {
-  ordenes: number; monto: number; ordenesAPersonas: number; montoAPersonas: number; personas: number; personasNuevas: number;
+  ordenes: number; monto: number; mesesConOrdenes?: number; ordenesAPersonas: number; montoAPersonas: number; personas: number; personasNuevas: number;
   ordenesAPersonasNuevas: number; empresas: number; empresasNuevas: number; montoEmpresasNuevas: number;
 }
 interface Ventana {
@@ -81,6 +81,12 @@ export function OrdenesDelPeriodo({ entidadRuc, mes, hasta }: { entidadRuc: stri
   return (
     <section className="space-y-3" aria-label="Qué se ordenó en ese periodo">
       <h4 className="text-meta font-semibold text-ink">Qué se ordenó en ese periodo, frente al mismo periodo un año antes</h4>
+      {(a.mesesConOrdenes ?? 0) < (b.mesesConOrdenes ?? 0) && (
+        <p className="rounded-xl border border-amber/40 bg-amber/10 px-3 py-2 text-meta leading-snug text-ink text-pretty">
+          La entidad publicó órdenes en {plural(a.mesesConOrdenes ?? 0, "mes", "meses")} de este periodo y en {numero(b.mesesConOrdenes ?? 0)} un año antes:
+          pueden faltar órdenes. No leas una baja como un hecho.
+        </p>
+      )}
       <dl className="grid grid-cols-2 gap-2">
         <Cifra icono={<Users size={13} aria-hidden />} etiqueta="Órdenes a personas" ahora={a.ordenesAPersonas} antes={b.ordenesAPersonas} unidad={plural(a.personas, "persona", "personas")} />
         <Cifra icono={<UserPlus size={13} aria-hidden />} etiqueta="Personas nuevas para la entidad" ahora={a.personasNuevas} antes={b.personasNuevas} unidad="sin órdenes suyas antes" />
