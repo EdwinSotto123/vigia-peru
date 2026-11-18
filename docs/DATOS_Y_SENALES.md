@@ -651,6 +651,11 @@ muestra los antecedentes como hechos: `cruces` (cada tipo con su gravedad más a
   órdenes en 2026 frente a 2025 puede ser falta de datos: `/ordenes/ventana` cuenta los meses con órdenes de cada periodo y
   la web y el MCP avisan; `/estado/datos` lo dice en la nota de la fuente. Los patrones de la historia buscan subidas, así
   que este hueco esconde casos pero no inventa.
+- **Medido y descartado como señal por caso (2026-11-18): «obra atrasada sin penalidad».** De 990 obras de INFOBRAS desde
+  2019 con 40 puntos o más de atraso físico o paralizadas por incumplimiento, sólo 16 (1,6 %) tienen una penalidad
+  registrada por su propia entidad (155 tienen alguna, de cualquier entidad). La falta de penalidad es la norma: como
+  bandera marcaría casi todo. Sirve como hallazgo del sistema (las entidades casi no registran las penalidades que el
+  contrato obliga a aplicar), no para señalar un contrato.
 
 ### 17.4 Preguntas abiertas para la otra IA
 1. ¿Qué señal de **alto valor** se puede construir cruzando `dji` (patrimonio) con contratos/sueldos, respetando
