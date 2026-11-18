@@ -113,6 +113,34 @@ const CASOS: Caso[] = [
       if (cs.length < 5) return "menos de 5 casos de dos ingresos del Estado";
       return cs.every((x) => /•/.test(String(x.persona ?? "•")) && Number(x.meses_que_coinciden) >= 6 && x.docencia === false) ? null : "un caso sin tapar, con menos de 6 meses o con docencia entre los graves";
     } },
+  // En observación (migraciones 364 y 366): trabaja en compras y un familiar cercano recibió órdenes emitidas con la persona
+  // en el puesto. La persona, con un apellido tapado; del familiar, sólo el parentesco.
+  { h: patrones as never, args: { alcance: "compras_familia", solo_graves: true },
+    espera: (r) => {
+      const cs = lista(r, "casos") as Record<string, unknown>[];
+      if (cs.length < 5) return "menos de 5 casos graves de compras y familia";
+      if (!cs.every((x) => /•/.test(String(x.persona ?? "•")) && x.familiar_cercano === true && Number(x.ordenes_emitidas_con_la_persona_en_el_puesto) >= 1))
+        return "un caso grave sin tapar, sin familiar cercano o sin órdenes emitidas en el puesto";
+      return cs.some((x) => Object.keys(x).some((k) => /nombre_del_familiar|documento|dni/i.test(k))) ? "el caso trae el nombre o el documento del familiar" : null;
+    } },
+  // En observación (migración 367): la autoridad electa que dejó de figurar en una empresa y lo que ésta le vendió a su entidad.
+  { h: patrones as never, args: { alcance: "autoridad_exsocio" },
+    espera: (r) => {
+      const cs = lista(r, "casos") as Record<string, unknown>[];
+      if (cs.length < 3) return "menos de 3 autoridades que dejaron su empresa";
+      if (!cs.every((x) => /^20\d{9}$/.test(String(x.empresa_ruc)) && /^20\d{9}$/.test(String(x.entidad_ruc)) && typeof x.ventas_hasta_12_meses_despues_de_su_salida === "number"
+        && Number(x.ordenes_en_su_periodo) + Number(x.procesos_adjudicados_en_su_periodo) >= 1))
+        return "un caso sin RUC 20, sin ventas en el periodo o sin el conteo del plazo";
+      return JSON.stringify(cs).match(/"\d{8}"/) ? "un caso trae un número de 8 cifras (¿documento?)" : null;
+    } },
+  // Quienes ya no figuran en la empresa (migración 365) salen en la red con el corte en que salieron, y la autoridad que
+  // la dejó trae lo que la empresa le vendió a su entidad.
+  { h: redEmpresa as never, args: { ruc: "20541275453" },
+    espera: (r) => {
+      const ps = lista(r, "personas") as { ya_no_figura_desde_el_corte?: string; enElEstado?: { ventasASuEntidad?: unknown[] } }[];
+      if (!ps.some((x) => /^\d{4}-\d{2}-\d{2}$/.test(String(x.ya_no_figura_desde_el_corte ?? "")))) return "la red no trae a quienes ya no figuran";
+      return ps.some((x) => (x.enElEstado?.ventasASuEntidad ?? []).length > 0) ? null : "la autoridad que dejó la empresa no trae las ventas a su entidad";
+    } },
   // La misma compra repetida en semanas (migraciones 348-349): en la UNI, el posible duplicado de Pan American (O/C-1883 y 2364-2024).
   { h: patrones as never, args: { alcance: "repetida", ruc: "20169004359" },
     espera: (r) => ((lista(r, "compras_repetidas") as { proveedor_ruc?: string; monto_de_cada_orden?: number }[]).some((x) => x.proveedor_ruc === "20603050747" && x.monto_de_cada_orden === 28190)
