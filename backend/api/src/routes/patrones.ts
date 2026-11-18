@@ -37,13 +37,12 @@ import { z } from "zod";
 import { pool } from "../lib/db.js";
 import { Memo } from "../lib/cache.js";
 import { cachePublico, parametros } from "../lib/http.js";
-import { TAPA_NOMBRE, etiquetaParentesco, publicar } from "../lib/privacidad.js";
+import { TAPA_NOMBRE, etiquetaParentesco, publicar, taparNombreSuelto } from "../lib/privacidad.js";
 import { esCargoDeEleccion } from "../lib/electos.js";
 import { papelesRnp } from "../lib/familiaFuncionario.js";
 import { ETIQUETA_CRUCE, catalogoSenales, nombrePublicable } from "../lib/cruces.js";
 import { depurarReferencias } from "../lib/laboratorioPrecios.js";
-import { taparNombrePropio } from "./personas.js";
-import { casoAutoridad, casoComprasFamilia, casoControl, sqlClaveControl, casoDueno, casoGrupo, casoInhabilitada, casoRenovacion, sqlClaveAutoridad, sqlClaveRenovacion, casoRecien, casoRelleno, casoRepetida, salDeClaves, sqlClaveInhabilitada, sqlClaveDueno, sqlClaveGrupo, sqlClaveRecien, sqlClaveRelleno, sqlClaveRepetida, type CasoPatron, type Pedir } from "../lib/casoPatron.js";
+import { agruparSocios, casoAutoridad, casoComprasFamilia, casoControl, sqlClaveControl, casoDueno, casoGrupo, casoInhabilitada, casoRenovacion, sqlClaveAutoridad, sqlClaveRenovacion, casoRecien, casoRelleno, casoRepetida, salDeClaves, sqlClaveInhabilitada, sqlClaveDueno, sqlClaveGrupo, sqlClaveRecien, sqlClaveRelleno, sqlClaveRepetida, type CasoPatron, type Pedir } from "../lib/casoPatron.js";
 
 export const patronesRouter = new Hono();
 
@@ -611,8 +610,9 @@ patronesRouter.get("/grupos", async (c) => {
           parteDeSusVentas: dependencia.get(`${x.entidadRuc}|${m.ruc}`) ?? null })),
         vinculos: vinc.rows.filter((v) => v.entidad_ruc === x.entidadRuc && v.grupo === x.grupo).map((v) => ({
           a: v.a, nombreA: nombreDe.get(v.a) ?? null, b: v.b, nombreB: nombreDe.get(v.b) ?? null, via: v.via, que: VIA[v.via] ?? v.via,
-          persona: v.persona ? taparNombrePropio(nombrePublicable(v.persona), v.persona) : null,
-          personaB: v.persona_b ? taparNombrePropio(nombrePublicable(v.persona_b), v.persona_b) : null,
+          // Por pesos: el RNP no siempre escribe los apellidos primero (con taparNombrePropio quedaban los dos a la vista).
+          persona: v.persona ? (nombrePublicable(v.persona) === v.persona ? taparNombreSuelto(v.persona) : nombrePublicable(v.persona)) : null,
+          personaB: v.persona_b ? (nombrePublicable(v.persona_b) === v.persona_b ? taparNombreSuelto(v.persona_b) : nombrePublicable(v.persona_b)) : null,
         })),
         // El detalle de cada día y de cada objeto, con tope: un objeto repartido llegó a traer 538 órdenes y la página de 20
         // grupos pesaba 1,5 MB (medido el 2026-11-17). Las cuentas (ordenes, miembros, monto) siguen completas.
@@ -1206,6 +1206,7 @@ patronesRouter.get("/caso/:tipo/:clave", async (c) => {
   const cuerpo = await memo.obtener(`caso:${tipo}:${clave}`, async (ctl) => {
     try {
       const caso = await armar(clave, pedir);
+      if (caso) caso.hitos = agruparSocios(caso.hitos, caso.nodos);
       return caso ? publicar(caso as unknown as Record<string, unknown>) : { noEncontrado: true };
     } catch (e) {
       console.warn(`[patrones] caso ${tipo}/${clave}: ${(e as Error).message}`);

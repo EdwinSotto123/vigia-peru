@@ -121,8 +121,10 @@ const GUARDADO = "X-Vigia-Guardado";
  *        tenía «Abrir la ficha del caso» (2026-11-18).
  * "128": también las de autoridad que dejó su empresa y renovaciones más caras.
  * "129": y la de socios con informe de control.
+ * "130": la persona que une a un grupo y la gente de un caso se tapan por pesos (con taparNombrePropio, un nombre
+ *        escrito con los nombres primero dejaba los dos apellidos a la vista).
  */
-const VERSION_CACHE = "129";
+const VERSION_CACHE = "130";
 
 function cacheable(req: Request): boolean {
   if (req.method !== "GET") return false;

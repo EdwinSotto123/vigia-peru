@@ -14,9 +14,8 @@
  */
 import { pool } from "./db.js";
 import { CONOSCE_BUSCADOR, CONSULTA_RUC_SUNAT, DATASET_DJI, DATASET_SOCIOS_RNP } from "./fuentes.js";
-import { taparNombrePropio } from "../routes/personas.js";
 import { nombrePublicable } from "./cruces.js";
-import { salDeClaves } from "./privacidad.js";
+import { salDeClaves, taparNombreSuelto } from "./privacidad.js";
 
 export type Severidad = "alta" | "media" | "baja";
 
@@ -104,6 +103,35 @@ export interface CasoPatron {
   como_leerlo: string;
 }
 
+/**
+ * Varios que entran el mismo día a la misma empresa (12 socios el 2022-01-07 llenaban la cronología): desde tres, un solo
+ * hito con todos en el detalle. Lo usa la ruta sobre el caso armado (sirve para todos los patrones).
+ */
+export function agruparSocios(hitos: HitoCaso[], nodos: NodoCaso[]): HitoCaso[] {
+  const nombre = new Map(nodos.map((n) => [n.id, n.nombre]));
+  const grupos = new Map<string, HitoCaso[]>();
+  for (const h of hitos) {
+    if (h.tipo !== "socio" || !h.nodos?.length) continue;
+    const empresa = h.nodos[h.nodos.length - 1];
+    const k = `${h.fecha}|${empresa}`;
+    grupos.set(k, [...(grupos.get(k) ?? []), h]);
+  }
+  const fuera = new Set<HitoCaso>();
+  const nuevos: HitoCaso[] = [];
+  for (const [k, xs] of grupos) {
+    if (xs.length < 3) continue;
+    const empresa = k.split("|")[1];
+    xs.forEach((x) => fuera.add(x));
+    nuevos.push({
+      fecha: xs[0].fecha, tipo: "socio", fuente: xs[0].fuente,
+      titulo: `${miles(xs.length)} personas figuran el mismo día en ${nombre.get(empresa) ?? "la empresa"}`,
+      detalle: xs.map((x) => x.titulo).join("; "),
+      nodos: [...new Set(xs.flatMap((x) => x.nodos ?? []))],
+    });
+  }
+  return nuevos.length ? [...hitos.filter((h) => !fuera.has(h)), ...nuevos].sort((a, b) => a.fecha.localeCompare(b.fecha) || a.tipo.localeCompare(b.tipo)) : hitos;
+}
+
 /** Pide una ruta de las listas de patrones por dentro (sin salir a la red): la pasa el router. */
 export type Pedir = (ruta: string) => Promise<Record<string, any> | null>;
 
@@ -123,13 +151,27 @@ const titulo = (s: string | null | undefined) =>
     .replace(/(^|[\s(«"/-])(\p{L})/gu, (_m, a: string, b: string) => a + b.toUpperCase())
     // Las palabras chicas en minúscula ANTES de las siglas: al revés, la «E» de «E.I.R.L.» volvía a «e».
     .replace(/(?<=\s)(De|Del|La|Las|Los|Y|E|En|Para|Por|Con)(?=\s)/g, (m) => m.toLowerCase())
-    .replace(/\b(S\.?a\.?c|E\.?i\.?r\.?l|S\.?a\.?a|S\.?r\.?l|S\.?a)\b\.?/gi, (m) => m.toUpperCase());
+    .replace(/\b(S\.?a\.?c|E\.?i\.?r\.?l|S\.?a\.?a|S\.?r\.?l|S\.?a)\b\.?/gi, (m) => m.toUpperCase())
+    // Una sigla sin vocales («JP 14», «HNR») vuelve a mayúsculas: «Jp 14» no es un nombre.
+    .replace(/\b[b-df-hj-np-tv-zñ]{2,4}\b/gi, (m) => (/^[A-Z]/.test(m) ? m.toUpperCase() : m));
 const fechaLarga = (f: string) => {
   const [a, m, d] = f.slice(0, 10).split("-").map(Number);
   const MES = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "setiembre", "octubre", "noviembre", "diciembre"];
   return `${d} de ${MES[m - 1]} de ${a}`;
 };
-const tapar = (raw: string | null | undefined) => (raw ? taparNombrePropio(nombrePublicable(raw), raw) ?? "Una persona" : null);
+/**
+ * Un nombre de persona del RNP o de una orden, con un apellido tapado. Por pesos (taparNombreSuelto), no asumiendo los
+ * apellidos primero: con taparNombrePropio, «JORGE LUIS DELGADO HERRERA» salía «JORGE ••• DELGADO HERRERA», los dos
+ * apellidos a la vista (lo encontró el paquete del pitch, 2026-11-18). Una sucesión va con su rótulo.
+ */
+const tapar = (raw: string | null | undefined) => {
+  if (!raw) return null;
+  const p = nombrePublicable(raw);
+  return p === raw ? taparNombreSuelto(raw) : p;
+};
+/** «EXP:05549020250005729ADQUISICION DE…» → «Adquisición de…»: el número de expediente pegado no se lee. */
+export const limpiarObjeto = (t: string | null | undefined) =>
+  t ? t.replace(/^\s*EXP(?:EDIENTE)?\.?\s*(?:N[°º.]?\s*)?:?\s*\d+[-/\d]*\s*/i, "").replace(/\s+/g, " ").trim() || t : t ?? null;
 /**
  * El número de una orden («O/C-66-2021-Departamento…» → 66, «O/S-4505543033-2026-…» → 4505543033) para buscarla en la lista
  * de compras (3 cifras o más). Entero: cortado a 8 cifras parecía un DNI y publicar() lo tapaba en el enlace.
@@ -702,7 +744,7 @@ function filaDeOrden(o: FilaOrden, i: number, entidad: string, ruc: string, quie
   const n = numeroDeOrden(o.orden ?? o.nro ?? "");
   const q = new URLSearchParams({ seccion: "contratos", ...(ruc.startsWith("20") ? { ccon: ruc } : {}), ...(n.length >= 3 ? { cq: n } : {}), ...(o.fecha ? { canio: o.fecha.slice(0, 4) } : {}) });
   return {
-    id: `o${i}`, fecha: o.fecha, documento: o.orden ?? o.nro ?? "Orden sin número", quien, nodo: "m", que: o.que, monto: o.monto,
+    id: `o${i}`, fecha: o.fecha, documento: o.orden ?? o.nro ?? "Orden sin número", quien, nodo: "m", que: limpiarObjeto(o.que), monto: o.monto,
     moneda: o.moneda && !/sol/i.test(o.moneda) ? o.moneda : null, estado: o.estado, marcas, href: `/entidad/${entidad}?${q}`,
   };
 }
@@ -764,7 +806,7 @@ export async function casoRepetida(clave: string, pedir: Pedir): Promise<CasoPat
   const prov = persona ? tapar(id.contratista) ?? "Una persona que vende con su RUC" : titulo(f.nombre ?? sunat?.nombre ?? "El proveedor");
   const det = (f.detalle ?? []) as { orden: string; fecha: string; estado: string | null }[];
   const repetidas = new Set(det.map((d) => d.orden));
-  const objeto = f.objeto ? String(f.objeto) : "el mismo objeto";
+  const objeto = limpiarObjeto(f.objeto) ?? "el mismo objeto";
   const pasa = Number(f.total) > Number(f.tope);
 
   const nodos: NodoCaso[] = [

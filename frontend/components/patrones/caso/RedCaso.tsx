@@ -251,7 +251,7 @@ function PanelNodo({ n, aristas, porId, elegir }: { n: NodoCaso; aristas: Arista
       {n.tipo === "funcionario" && (
         <p className="text-rotulo text-mute">
           Sólo su cargo: el nombre de un funcionario que declaró a un pariente no se publica aquí.{" "}
-          <Link href="/metodo" prefetch={false} className="underline">Cómo se cruza</Link>
+          <Link href="/metodologia" prefetch={false} className="underline">Cómo se cruza</Link>
         </p>
       )}
     </div>
