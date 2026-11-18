@@ -49,6 +49,20 @@ export const patronesRouter = new Hono();
 const CACHE = cachePublico(3600, { maxAge: 300, swr: 86400 });
 const memo = new Memo<Record<string, unknown>>({ nombre: "patrones", ttlMs: 900_000, staleMs: 3_600_000, max: 400 });
 
+/**
+ * Una lista de patrones entera (todo el país, ya agrupada y en su orden), una vez por instancia y cada 15 minutos. Las
+ * que agrupan banderas al vuelo (inhabilitadas, control, observados) la piden y filtran por RUC en el código: antes cada
+ * pedido agrupaba las miles de banderas para quedarse con las de un RUC (248, 170 y 139 ms; los índices de patrones de
+ * cada ficha de entidad y empresa las piden todas, 293 veces cada una en 20 minutos, medido el 2026-11-18).
+ */
+async function listaEntera(nombre: string, sql: string, args: unknown[]): Promise<Record<string, any>[]> {
+  const r = await memo.obtener(`entera:${nombre}`, async () => ({ filas: (await pool.query(sql, args)).rows }));
+  return r.filas as Record<string, any>[];
+}
+
+/** Una página de una lista ya filtrada, con su total. */
+const pagina = <T>(xs: T[], q: { page: number; size: number }) => ({ total: xs.length, page: q.page, size: q.size, filas: xs.slice((q.page - 1) * q.size, q.page * q.size) });
+
 const Lista = z.object({
   alcance: z.enum(["entidad", "proveedor"]).default("entidad"),
   ruc: z.string().regex(/^20\d{9}$/).optional(),
@@ -263,14 +277,8 @@ patronesRouter.get("/inhabilitadas", async (c) => {
   if (!p.success) return c.json({ error: "invalid_query", issues: p.error.issues }, 400);
   const q = p.data;
   const cuerpo = await memo.obtener(`inhabilitadas:${JSON.stringify(q)}`, async () => {
-    const vals: unknown[] = [];
-    const add = (v: unknown) => { vals.push(v); return `$${vals.length}`; };
-    const conds: string[] = [];
-    if (q.ruc) conds.push(`(x.ruc = ${add(q.ruc)} OR x.sancionada_ruc = $${vals.length} OR $${vals.length} = ANY(x.ents))`);
-    if (q.graves) conds.push("x.graves > 0");
-    const donde = conds.length ? `WHERE ${conds.join(" AND ")}` : "";
-    // Unas 2 400 banderas: se agrupan al vuelo (la respuesta queda en memoria).
-    const r = await pool.query(
+    // Unas 2 400 banderas: la lista entera una vez (listaEntera) y el filtro aquí.
+    const todas = await listaEntera("inhabilitadas",
       `WITH x AS (
          SELECT c.ruc_empresa AS ruc, c.detalle->>'sancionada_ruc' AS sancionada_ruc, max(c.detalle->>'sancionada') AS sancionada,
                 max(c.detalle->>'sancion') AS sancion, min(c.detalle->>'sancion_desde') AS sancion_desde, max(c.detalle->>'sancion_hasta') AS sancion_hasta,
@@ -284,15 +292,17 @@ patronesRouter.get("/inhabilitadas", async (c) => {
           GROUP BY 1, 2)
        SELECT x.ruc, e.razon_social AS empresa, x.sancionada_ruc AS "sancionadaRuc", x.sancionada, x.sancion, x.sancion_desde AS "sancionDesde",
               x.sancion_hasta AS "sancionHasta", x.nombre, x.contratos, x.graves, x.monto, x.entidades,
-              ${sqlClaveInhabilitada(add(salDeClaves()), "x.ruc", "x.sancionada_ruc")} AS clave,
+              ${sqlClaveInhabilitada("$1", "x.ruc", "x.sancionada_ruc")} AS clave,
               to_char(x.desde, 'YYYY-MM-DD') AS desde, to_char(x.hasta, 'YYYY-MM-DD') AS hasta, x.hecha AS "hechaParaSeguir", x.fundada, x.ejemplos,
-              (count(*) OVER ())::int AS total
-         FROM x LEFT JOIN empresas e ON e.ruc = x.ruc ${donde}
-        ORDER BY x.graves DESC, x.contratos DESC, x.monto DESC NULLS LAST, x.ruc LIMIT ${add(q.size)} OFFSET ${add((q.page - 1) * q.size)}`, vals);
+              x.ents
+         FROM x LEFT JOIN empresas e ON e.ruc = x.ruc
+        ORDER BY x.graves DESC, x.contratos DESC, x.monto DESC NULLS LAST, x.ruc`, [salDeClaves()]);
+    const r = q.ruc;
+    const pg = pagina(todas.filter((x) => (!r || x.ruc === r || x.sancionadaRuc === r || (x.ents ?? []).includes(r)) && (!q.graves || x.graves > 0)), q);
     return publicar({
-      total: r.rows[0]?.total ?? 0, page: q.page, size: q.size,
+      total: pg.total, page: pg.page, size: pg.size,
       // `socios` es la forma que `publicar()` ya conoce de los cruces: tapa un apellido.
-      data: r.rows.map(({ nombre, total: _t, ...x }) => ({ ...x, socios: [{ nombre: nombrePublicable(nombre), rol: "Socio" }] })),
+      data: pg.filas.map(({ nombre, ents: _e, ...x }) => ({ ...x, socios: [{ nombre: nombrePublicable(nombre), rol: "Socio" }] })),
     });
   });
   c.header("Cache-Control", CACHE);
@@ -313,22 +323,14 @@ patronesRouter.get("/control", async (c) => {
   if (!p.success) return c.json({ error: "invalid_query", issues: p.error.issues }, 400);
   const q = p.data;
   const cuerpo = await memo.obtener(`control:${JSON.stringify(q)}`, async () => {
-    const vals: unknown[] = [];
-    const add = (v: unknown) => { vals.push(v); return `$${vals.length}`; };
-    const conds: string[] = [];
-    if (q.ruc) conds.push(`(x.ruc = ${add(q.ruc)} OR x.informe_entidad_ruc = $${vals.length} OR $${vals.length} = ANY(x.ents))`);
-    if (q.graves) conds.push("x.graves > 0");
-    if (q.misma) conds.push("x.misma");
-    if (q.clave) conds.push(`x.clave = ${add(q.clave)}`);
-    const donde = conds.length ? `WHERE ${conds.join(" AND ")}` : "";
-    // Unas 6 700 banderas: se agrupan al vuelo (la respuesta queda en memoria). El documento de la persona no sale de la
+    // Unas 6 700 banderas: la lista entera una vez (listaEntera) y el filtro aquí. El documento de la persona no sale de la
     // consulta: sólo agrupa. El informe que se muestra es el MÁS ANTIGUO de la persona entre los de sus banderas: así
     // todos los contratos contados son posteriores a él (con el más reciente, «ganados después» no era cierto para los
     // contratos anteriores a ese informe).
-    const r = await pool.query(
+    const todas = await listaEntera("control",
       `WITH x AS (
          SELECT c.ruc_empresa AS ruc, max(c.persona_nombre) AS nombre, max(c.detalle->>'rol_en_empresa') AS rol,
-                ${sqlClaveControl(add(salDeClaves()), "c.ruc_empresa", "c.persona_doc")} AS clave,
+                ${sqlClaveControl("$1", "c.ruc_empresa", "c.persona_doc")} AS clave,
                 (array_agg(c.detalle->>'informe_codigo' ORDER BY c.detalle->>'emision', c.fecha))[1] AS informe_codigo,
                 (array_agg(c.detalle->>'informe_numero' ORDER BY c.detalle->>'emision', c.fecha))[1] AS informe_numero,
                 (array_agg(c.detalle->>'informe_entidad' ORDER BY c.detalle->>'emision', c.fecha))[1] AS informe_entidad,
@@ -349,13 +351,17 @@ patronesRouter.get("/control", async (c) => {
        SELECT x.ruc, e.razon_social AS empresa, x.nombre, x.rol, x.informe_codigo AS "informeCodigo", x.informe_numero AS "informeNumero",
               x.informe_entidad AS "informeEntidad", x.informe_entidad_ruc AS "informeEntidadRuc", x.emision, x.responsabilidades, x.ficha,
               x.informes, x.contratos, x.graves, x.monto, x.entidades, x.misma AS "mismaEntidad", x.clave,
-              to_char(x.desde, 'YYYY-MM-DD') AS desde, to_char(x.hasta, 'YYYY-MM-DD') AS hasta, x.ejemplos, (count(*) OVER ())::int AS total
-         FROM x LEFT JOIN empresas e ON e.ruc = x.ruc ${donde}
-        ORDER BY x.misma DESC, x.graves DESC, x.contratos DESC, x.monto DESC NULLS LAST, x.ruc LIMIT ${add(q.size)} OFFSET ${add((q.page - 1) * q.size)}`, vals);
+              to_char(x.desde, 'YYYY-MM-DD') AS desde, to_char(x.hasta, 'YYYY-MM-DD') AS hasta, x.ejemplos, x.ents
+         FROM x LEFT JOIN empresas e ON e.ruc = x.ruc
+        ORDER BY x.misma DESC, x.graves DESC, x.contratos DESC, x.monto DESC NULLS LAST, x.ruc`, [salDeClaves()]);
+    const r = q.ruc;
+    const pg = pagina(todas.filter((x) =>
+      (!r || x.ruc === r || x.informeEntidadRuc === r || (x.ents ?? []).includes(r)) && (!q.graves || x.graves > 0)
+      && (!q.misma || x.mismaEntidad) && (!q.clave || x.clave === q.clave)), q);
     return publicar({
-      total: r.rows[0]?.total ?? 0, page: q.page, size: q.size,
+      total: pg.total, page: pg.page, size: pg.size,
       // `socios` es la forma que `publicar()` ya conoce de los cruces: tapa un apellido.
-      data: r.rows.map(({ nombre, rol, total: _t, ...x }) => ({
+      data: pg.filas.map(({ nombre, rol, ents: _e, ...x }) => ({
         ...x, socios: [{ nombre: nombrePublicable(nombre), rol: /SOCIO/.test(String(rol)) ? "Socio" : "Representante legal" }],
       })),
     });
@@ -379,17 +385,10 @@ patronesRouter.get("/observados", async (c) => {
   if (!p.success) return c.json({ error: "invalid_query", issues: p.error.issues }, 400);
   const q = p.data;
   const cuerpo = await memo.obtener(`observados:${JSON.stringify(q)}`, async () => {
-    const vals: unknown[] = [];
-    const add = (v: unknown) => { vals.push(v); return `$${vals.length}`; };
-    const conds: string[] = [];
-    if (q.ruc) conds.push(`(x.ruc = ${add(q.ruc)} OR x.entidad_ruc = $${vals.length})`);
-    if (q.graves) conds.push("x.graves > 0");
-    if (q.siguio) conds.push("d.despues > 0");
-    const donde = conds.length ? `WHERE ${conds.join(" AND ")}` : "";
     // Unas mil banderas: se agrupan al vuelo (la respuesta queda en memoria) y lo adjudicado después sale del índice
     // (ruc_proveedor, entidad_ruc) de CONOSCE. El informe que se muestra es el MÁS ANTIGUO del par: todo lo contado como
-    // «después» es posterior a él.
-    const r = await pool.query(
+    // «después» es posterior a él. La lista entera una vez (listaEntera) y el filtro aquí.
+    const todas = await listaEntera("observados",
       `WITH b AS (
          SELECT c.ruc_empresa AS ruc, btrim(cv.entidad_ruc::text) AS entidad_ruc, c.ocid, c.severidad, c.monto, c.fecha,
                 c.detalle->>'informe_codigo' AS codigo, c.detalle->>'informe_numero' AS numero, NULLIF(c.detalle->>'emision', '')::date AS emision,
@@ -417,12 +416,11 @@ patronesRouter.get("/observados", async (c) => {
                         FROM (SELECT DISTINCT ruc, entidad_ruc, codigo, perjuicio FROM k WHERE perjuicio IS NOT NULL) u GROUP BY 1, 2) m
              ON m.ruc = n.ruc AND m.entidad_ruc = n.entidad_ruc)
        SELECT x.ruc, e.razon_social AS empresa, x.entidad_ruc AS "entidadRuc", en.nombre AS entidad, x.observados, x.graves, x.monto, o.perjuicio,
-              ${sqlClaveObservado(add(salDeClaves()), "x.ruc", "x.entidad_ruc")} AS clave,
+              ${sqlClaveObservado("$1", "x.ruc", "x.entidad_ruc")} AS clave,
               o.observaciones, x.informes, x.temas, x.informe_codigo AS "informeCodigo", x.informe_numero AS "informeNumero",
               to_char(x.emision, 'YYYY-MM-DD') AS emision, x.responsabilidades, x.ficha, x.ejemplos,
               to_char(x.desde, 'YYYY-MM-DD') AS desde, to_char(x.hasta, 'YYYY-MM-DD') AS hasta,
-              COALESCE(d.despues, 0) AS despues, d.monto_despues AS "montoDespues", to_char(d.ultima, 'YYYY-MM-DD') AS "ultimaDespues",
-              (count(*) OVER ())::int AS total
+              COALESCE(d.despues, 0) AS despues, d.monto_despues AS "montoDespues", to_char(d.ultima, 'YYYY-MM-DD') AS "ultimaDespues"
          FROM x
          LEFT JOIN o ON o.ruc = x.ruc AND o.entidad_ruc = x.entidad_ruc
          LEFT JOIN empresas e ON e.ruc = x.ruc
@@ -432,10 +430,11 @@ patronesRouter.get("/observados", async (c) => {
              FROM conosce_adjudicaciones a
             WHERE x.emision IS NOT NULL AND a.ruc_proveedor = x.ruc AND a.entidad_ruc = x.entidad_ruc
               AND a.fecha_buenapro > x.emision AND a.monto_adjudicado > 0) d ON true
-         ${donde}
-        ORDER BY (COALESCE(d.despues, 0) > 0) DESC, x.graves DESC, COALESCE(d.despues, 0) DESC, o.perjuicio DESC NULLS LAST, x.ruc, x.entidad_ruc
-        LIMIT ${add(q.size)} OFFSET ${add((q.page - 1) * q.size)}`, vals);
-    return publicar({ total: r.rows[0]?.total ?? 0, page: q.page, size: q.size, data: r.rows.map(({ total: _t, ...x }) => x) });
+        ORDER BY (COALESCE(d.despues, 0) > 0) DESC, x.graves DESC, COALESCE(d.despues, 0) DESC, o.perjuicio DESC NULLS LAST, x.ruc, x.entidad_ruc`,
+      [salDeClaves()]);
+    const r = q.ruc;
+    const pg = pagina(todas.filter((x) => (!r || x.ruc === r || x.entidadRuc === r) && (!q.graves || x.graves > 0) && (!q.siguio || x.despues > 0)), q);
+    return publicar({ total: pg.total, page: pg.page, size: pg.size, data: pg.filas });
   });
   c.header("Cache-Control", CACHE);
   return c.json(cuerpo);
