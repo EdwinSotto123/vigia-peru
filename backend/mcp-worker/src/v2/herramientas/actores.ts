@@ -16,13 +16,17 @@ export const fichaEmpresa = definir({
   descripcion:
     "Una empresa proveedora del Estado por su RUC 20: estado en SUNAT, actividad, fecha de alta, cuánto ganó en procesos y " +
     "órdenes, con cuántas entidades, inhabilitaciones, cuántos socios y representantes tiene, sus antecedentes (sanciones, " +
-    "penalidades, señales) con su fuente, y sus cifras por año. Las personas naturales (RUC 10) no se muestran.",
+    "penalidades, señales) con su fuente, sus cifras por año y, si aparece en apelaciones del Tribunal de Contrataciones, " +
+    "cuántas veces le quitaron la buena pro y si el Tribunal ordenó abrirle un procedimiento sancionador. Las personas " +
+    "naturales (RUC 10) no se muestran.",
   entrada: { ruc: rucEntrada("la empresa") },
   async ejecutar({ ruc }, cx) {
     const r = rucJuridico(ruc);
-    const [f, ant] = await Promise.all([
+    const [f, ant, trib] = await Promise.all([
       api<Fila>(cx.env, `/empresas/${r}`),
       api<Fila>(cx.env, `/empresas/${r}/antecedentes`).catch(() => null),
+      // Las apelaciones leídas del Tribunal (migración 424): si falla, la ficha sale igual.
+      api<Fila>(cx.env, `/empresas/${r}/tribunal`).catch(() => null),
     ]);
     const e = f.empresa ?? {};
     const orden = { alta: 0, media: 1, baja: 2 } as Record<string, number>;
@@ -46,6 +50,23 @@ export const fichaEmpresa = definir({
         ocid: x.ocid ?? undefined, fuente: x.fuenteUrl ?? x.fuente,
       })),
       por_anio: f.anual,
+      tribunal: trib && (trib.adjudicataria || trib.sancionadores)
+        ? {
+            tenia_la_buena_pro_en_apelaciones: trib.adjudicataria,
+            se_la_quito_el_tribunal: trib.leQuitaron,
+            entidades_donde_se_la_quitaron: trib.entidadesDondeLeQuitaron,
+            sancionadores_ordenados: trib.sancionadores,
+            resoluciones: ((trib.data ?? []) as Fila[]).slice(0, 10).map((x) => ({
+              resolucion: x.titulo, fecha: x.fecha,
+              papel: x.rol === "sancionador" ? "el Tribunal ordenó abrirle un sancionador" : x.leQuitaron ? "tenía la buena pro y se la quitaron" : "tenía la buena pro",
+              infraccion: x.infraccion?.length ? x.infraccion : undefined,
+              entidad: x.entidad ?? undefined, ocid: x.ocid ?? undefined, contrato: x.ocid ? enlaces(cx.env).contrato(x.ocid) : undefined,
+              fuente: x.enlace,
+            })),
+            nota: "Resoluciones de apelaciones leídas por Vigía, con el nombre comprobado en el texto. Un sancionador ordenado " +
+              "es la orden de investigar (documentación falsa o información inexacta), no la sanción.",
+          }
+        : undefined,
       solo_compras_menores: f.soloMenores ? true : undefined,
       leyenda: "adjProcesos/adjMonto: procesos ganados sola y su monto; consProcesos/consMonto: en consorcio; ordN/ordMonto: órdenes de compra o servicio.",
       enlace: enlaces(cx.env).empresa(r),

@@ -922,6 +922,48 @@ empresasRouter.get("/:ruc/antecedentes", async (c) => {
   return c.json(cuerpo);
 });
 
+// ─── GET /empresas/:ruc/tribunal — la empresa en las apelaciones que leyó Vigía (migración 424) ──────────────────
+/**
+ * Las resoluciones del Tribunal de Contrataciones en las que la empresa tenía la buena pro (y si se la quitaron) o en las
+ * que el Tribunal ordenó abrirle un procedimiento sancionador, con su proceso y su entidad. Sólo RUC 20 (la vista
+ * tribunal_parte_empresa no tiene nombres). El resultado exacto, sólo si está comprobado (migración 423).
+ */
+empresasRouter.get("/:ruc/tribunal", async (c) => {
+  const ruc = c.req.param("ruc");
+  if (!/^20\d{9}$/.test(ruc)) return c.json({ error: "invalid_ruc" }, 400);
+  c.header("Cache-Control", cachePublico(3600, { maxAge: 600, swr: 3600 }));
+  try {
+    const r = await pool.query(
+      `SELECT DISTINCT ON (r.id, pe.rol) r.titulo, to_char(r.fecha, 'YYYY-MM-DD') AS fecha, pe.rol,
+              CASE WHEN r.resultado_ok THEN r.resultado END AS resultado,
+              CASE WHEN r.resultado_ok THEN r.efectos ELSE '{}' END AS efectos,
+              tribunal_corrigio(r) AND r.efectos && ARRAY['revoca_buena_pro', 'descalifica_al_adjudicatario'] AS "leQuitaron",
+              CASE WHEN pe.rol = 'sancionador' THEN r.infraccion ELSE '{}' END AS infraccion,
+              COALESCE(r.pdf, r.url) AS enlace, p.ocid, cv.codigo, e.nombre AS entidad, btrim(cv.entidad_ruc::text) AS "entidadRuc"
+         FROM tribunal_parte_empresa pe
+         JOIN tribunal_resolucion r ON r.id = pe.resolucion_id
+         LEFT JOIN tribunal_proceso p ON p.resolucion_id = r.id AND p.ocid IS NOT NULL
+         LEFT JOIN convocatorias cv ON cv.ocid = p.ocid
+         LEFT JOIN entidades e ON e.ruc = cv.entidad_ruc
+        WHERE pe.ruc = $1
+        ORDER BY r.id, pe.rol, p.n`, [ruc]);
+    const filas = r.rows.sort((a, b) => String(b.fecha ?? "").localeCompare(String(a.fecha ?? "")));
+    return c.json(publicar({
+      // Tenía la buena pro: cuántas veces el Tribunal se la quitó (revocó o descalificó su oferta) y cuántas la confirmó.
+      adjudicataria: filas.filter((x) => x.rol === "adjudicatario").length,
+      leQuitaron: filas.filter((x) => x.rol === "adjudicatario" && x.leQuitaron).length,
+      entidadesDondeLeQuitaron: new Set(filas.filter((x) => x.rol === "adjudicatario" && x.leQuitaron).map((x) => x.entidadRuc)).size,
+      sancionadores: filas.filter((x) => x.rol === "sancionador").length,
+      data: filas.slice(0, 50),
+    }));
+  } catch (e) {
+    if ((e as { code?: string }).code === "42P01" || (e as { code?: string }).code === "42883") {
+      return c.json({ adjudicataria: 0, leQuitaron: 0, entidadesDondeLeQuitaron: 0, sancionadores: 0, data: [] });
+    }
+    throw e;
+  }
+});
+
 // ─── GET /empresas/:ruc/antecedentes/evidencia ──────────────────────────────────────────────────
 /**
  * Los registros oficiales de UN antecedente, a pedido (el panel del caso los pide al abrirse): los mismos de la ficha del

@@ -12,7 +12,7 @@
 import { z } from "zod";
 import { buscarContratos, fichaContrato, ordenes, preciosDeMercado, senales } from "../src/v2/herramientas/contratos";
 import { buscarInformesControl, informesControl, ordenesEnPeriodo } from "../src/v2/herramientas/entidad";
-import { fichaEntidad, historia, normaAplicable, patrones, personaPublica, preciosReferencia, redEmpresa } from "../src/v2/herramientas/actores";
+import { fichaEmpresa, fichaEntidad, historia, normaAplicable, patrones, personaPublica, preciosReferencia, redEmpresa } from "../src/v2/herramientas/actores";
 import { informeControlContrato } from "../src/v2/herramientas/control";
 
 const PRUEBA = process.env.GOBSERVA_PRUEBA ?? "";
@@ -87,6 +87,14 @@ const CASOS: Caso[] = [
       const e = lista(r, "entidades") as { destaca?: boolean; probabilidad_de_azar?: number; ruc?: string }[];
       return e.length >= 1 && e.every((x) => x.destaca === true && typeof x.probabilidad_de_azar === "number" && /^\d{11}$/.test(String(x.ruc)))
         ? null : `entidades destacadas: ${e.length}`;
+    } },
+  // La empresa ante el Tribunal (migración 424): 20408114943 tenía la buena pro de 1219540 y el Tribunal la revocó
+  // (Resolución 9747-2026-TCP-S1). Sin nombres leídos: sólo la resolución, su papel y la fuente.
+  { h: fichaEmpresa as never, args: { ruc: "20408114943" },
+    espera: (r) => {
+      const t = r.tribunal as { se_la_quito_el_tribunal?: number; resoluciones?: { papel?: string; fuente?: string }[] } | undefined;
+      return t && (t.se_la_quito_el_tribunal ?? 0) >= 1 && (t.resoluciones ?? []).some((x) => /se la quitaron/.test(x.papel ?? "") && /^https:/.test(x.fuente ?? ""))
+        ? null : "sin «tribunal» con la buena pro revocada";
     } },
   // Cuán confiable es cada señal (migraciones 401, 404, 419, 421): con las dos verdades y sin la circular.
   { h: senales as never, args: { vista: "confiabilidad" },
