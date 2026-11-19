@@ -1181,7 +1181,8 @@ entidadesRouter.get("/:ruc", async (c) => {
     ),
     // Nepotismo (indicio, no acusación): parientes declarados en la DJI que son locadores de ESTA entidad.
     // Detalle: el FUNCIONARIO (cargo público, su DJI es pública) + el parentesco + el PROVEEDOR (RUC-10). El nombre
-    // del proveedor lo tapa publicar() como a cualquier locador (un apellido). Ver vista dji_nepotismo (migr. 136).
+    // del proveedor lo tapa publicar() como a cualquier locador (un apellido). Ver vista dji_nepotismo (migr. 136), precalculada en
+    // dji_nepotismo_mat (417: en vivo, 2,1 s en la entidad con más parientes declarados; se refresca cada día).
     // El detalle va hasta 40 casos; el total, el monto y por grado, de TODOS (antes salían de esos 40: EsSalud tiene 353 y
     // su bandera decía 40). La vista se calcula una vez (MATERIALIZED). Si falla, la ficha sale sin él (antes, 500: la
     // vista pasaba los 10 s en el Minsa hasta la migración 208). `electo`: el declarante es una autoridad electa (su nombre
@@ -1191,7 +1192,7 @@ entidadesRouter.get("/:ruc", async (c) => {
       `WITH n AS MATERIALIZED (
               SELECT x.*, ${declaranteElectoSql("x.declarante_norm", "x.entidad_ruc", "x.cargo")} AS electo,
                      ${esElectoSql("substr(x.proveedor_ruc, 3, 8)")} AS locador_electo
-                FROM dji_nepotismo x WHERE x.entidad_ruc = $1),
+                FROM dji_nepotismo_mat x WHERE x.entidad_ruc = $1),
             g AS (SELECT grado, parentesco, electo, locador_electo AS "locadorElecto", count(*)::int AS n, COALESCE(sum(monto), 0)::float AS monto
                     FROM n GROUP BY 1, 2, 3, 4)
        SELECT n.declarante_norm AS declarante, n.cargo, pp.ficha AS "declaranteFicha", n.grado, n.parentesco, n.electo,

@@ -842,17 +842,33 @@ patronesRouter.get("/doble", async (c) => {
   if (!p.success) return c.json({ error: "invalid_query", issues: p.error.issues }, 400);
   const q = p.data;
   const cuerpo = await memo.obtener(`doble:${JSON.stringify(q)}`, async () => {
+    // Primero la página y el total sobre doble_percepcion sola; después el nombre de la planilla, sólo para esas filas
+    // (su clave es única: no cambia el total). Antes se unía TODA la tabla con planilla_persona para contarla: la lista
+    // nacional tardaba 3,6 s en frío (2026-11-19). Y sólo las condiciones que vienen: con ($1 IS NULL OR …) había un único
+    // plan genérico.
+    const vals: unknown[] = [];
+    const add = (v: unknown) => `$${vals.push(v)}`;
+    const conds = ["TRUE"];
+    if (q.buscar) { const b = add(q.buscar); conds.push(`(d.entidad_ruc = ${b} OR d.otra_ruc = ${b})`); }
+    if (q.severidad) conds.push(`d.severidad = ${add(q.severidad)}`);
     const r = await pool.query(
-      `SELECT d.entidad_ruc AS "entidadRuc", d.entidad, d.cargo, d.regimen, d.sueldo::float AS sueldo, d.otra_ruc AS "otraRuc", d.otra,
-              d.ordenes, d.monto::float AS monto, d.meses, to_char(d.desde, 'YYYY-MM') AS desde, to_char(d.hasta, 'YYYY-MM') AS hasta,
-              d.docente, d.severidad, d.codigo, pp.paterno, pp.nombres, (count(*) OVER ())::int AS total_filas
-         FROM doble_percepcion d
-         LEFT JOIN planilla_persona pp ON pp.entidad_ruc = d.entidad_ruc AND pp.nombre_norm = d.nombre_norm
-        WHERE ($1::text IS NULL OR d.entidad_ruc = $1 OR d.otra_ruc = $1) AND ($2::text IS NULL OR d.severidad = $2)
-        ORDER BY CASE d.severidad WHEN 'media' THEN 0 ELSE 1 END, d.monto DESC
-        LIMIT $3 OFFSET $4`,
-      [q.buscar ?? null, q.severidad ?? null, q.size, (q.page - 1) * q.size],
-    ).catch(() => ({ rows: [] as Record<string, unknown>[] }));
+      `WITH p AS (
+         SELECT d.*, (count(*) OVER ())::int AS total_filas FROM doble_percepcion d
+          WHERE ${conds.join(" AND ")}
+          ORDER BY CASE d.severidad WHEN 'media' THEN 0 ELSE 1 END, d.monto DESC
+          LIMIT ${add(q.size)} OFFSET ${add((q.page - 1) * q.size)})
+       SELECT p.entidad_ruc AS "entidadRuc", p.entidad, p.cargo, p.regimen, p.sueldo::float AS sueldo, p.otra_ruc AS "otraRuc", p.otra,
+              p.ordenes, p.monto::float AS monto, p.meses, to_char(p.desde, 'YYYY-MM') AS desde, to_char(p.hasta, 'YYYY-MM') AS hasta,
+              p.docente, p.severidad, p.codigo, pp.paterno, pp.nombres, p.total_filas
+         FROM p
+         LEFT JOIN planilla_persona pp ON pp.entidad_ruc = p.entidad_ruc AND pp.nombre_norm = p.nombre_norm
+        ORDER BY CASE p.severidad WHEN 'media' THEN 0 ELSE 1 END, p.monto DESC`,
+      vals,
+    ).catch((e) => {
+      // Sólo una base sin la tabla (migración 352) responde vacío; cualquier otro error sube (si no, se guardaba vacío).
+      if (esErrorPg(e, "42P01")) return { rows: [] as Record<string, unknown>[] };
+      throw e;
+    });
     const filas = r.rows as Record<string, any>[];
     return publicar({
       total: filas[0]?.total_filas ?? 0, page: q.page, size: q.size,

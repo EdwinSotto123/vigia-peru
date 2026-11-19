@@ -407,7 +407,7 @@ planillaRouter.get("/ficha/:codigo", async (c) => {
         `SELECT n.grado, n.parentesco, n.proveedor_ruc AS "proveedorRuc", n.proveedor_nombre AS "proveedorNombre",
                 pc.codigo AS "proveedorCodigo", n.ordenes, n.monto, ${declaranteElectoSql("$1::text", "$2::text", "$3::text")} AS electo,
                 ${esElectoSql("substr(n.proveedor_ruc, 3, 8)")} AS "locadorElecto"
-           FROM dji_nepotismo n LEFT JOIN persona_codigo pc ON pc.ruc = n.proveedor_ruc
+           FROM dji_nepotismo_mat n LEFT JOIN persona_codigo pc ON pc.ruc = n.proveedor_ruc
           WHERE n.declarante_norm = $1 AND n.entidad_ruc = $2 ORDER BY n.monto DESC NULLS LAST LIMIT 20`,
         [f._nn, f.entidadRuc, f.cargo ?? ""]),
       // Sus otras fichas (cargo público, persona contratada): lib/identidadPersona.ts.
