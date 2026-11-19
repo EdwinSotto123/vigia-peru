@@ -109,7 +109,8 @@ export function useDespacho(): Despacho {
               throw new Error(`upload ${d.filename}: respuesta no-JSON (${r.status}) ${text.slice(0, 150)}`);
             }
             if (!r.ok || !data?.ok) throw new Error(`upload ${d.filename}: ${data?.error || r.status} ${data?.detail || ""}`);
-            return { ...d, gcs_url: data.gcs_url };
+            // La forma gs://: el agente la lee de R2 (vigia-r2-sync); la https de storage.googleapis.com iría a GCS (403).
+            return { ...d, gcs_url: data.gcs_path ?? data.gcs_url };
           }),
         );
         if (subidas.some((res) => res.status === "rejected" && res.reason instanceof SesionVencida)) throw new SesionVencida(MSG_SESION);

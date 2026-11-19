@@ -20,8 +20,52 @@
 
 import { idTokenDeCuenta } from "@/lib/cuenta-google";
 import { EN_WORKERS } from "@/lib/entorno";
+import { API_BASE } from "@/lib/api-client";
 
+/**
+ * Las Lambdas de agentes de AWS, una por red (las mismas de backend/dispatcher-worker/wrangler.jsonc): desde el
+ * 2026-11-18 «Analizar» del panel corre aquí y no en Cloud Run (GCP sin facturación, servicios internos). Cada Lambda
+ * corre el mismo main.py con su PIPELINE_PROFILE: un contrato de servicios en la de bienes se analizaría mal, así que la
+ * red sale del tipo del contrato (`urlAgente`).
+ */
+const RED_DE_TIPO: Record<string, string> = {
+  bienes: "BIENES", servicios: "SERVICIOS", obras: "OBRAS", consultoria: "CONSULTORIA",
+  convenio: "OTROS", directa: "OTROS", otro: "OTROS",
+};
+
+/** La Lambda de la red de ese tipo de contrato, o null si no hay (sin la variable, o un tipo desconocido). */
+export function urlAgente(tipo: string | null | undefined): string | null {
+  const red = RED_DE_TIPO[(tipo ?? "").toLowerCase()];
+  return (red && process.env[`AGENT_URL_${red}`]?.trim()) || null;
+}
+
+/** ¿Hay Lambdas configuradas? Con ellas, nada va a Cloud Run. */
+export const HAY_LAMBDAS = Boolean(process.env.AGENT_URL_BIENES?.trim());
+
+const esLambda = (url: string) => /\.lambda-url\.[a-z0-9-]+\.on\.aws$/.test(new URL(url).host);
+
+/**
+ * El tipo del contrato (bienes, servicios, obras, consultoria, convenio, directa, otro) según la API de Vigía; si no lo
+ * tiene, por la categoría del OCDS que trajo el navegador (goods, services, works). Null si no se sabe.
+ */
+export async function tipoDeContrato(input: string, ocds?: unknown): Promise<string | null> {
+  try {
+    const r = await fetch(`${API_BASE}/contratos/${encodeURIComponent(input)}`, { cache: "no-store", signal: AbortSignal.timeout(10_000) });
+    if (r.ok) {
+      const tipo = ((await r.json()) as { tipo?: unknown }).tipo;
+      if (typeof tipo === "string" && tipo) return tipo.toLowerCase();
+    }
+  } catch {
+    /* sigue con el OCDS */
+  }
+  const o = ocds as { tender?: { mainProcurementCategory?: string }; compiledRelease?: { tender?: { mainProcurementCategory?: string } } } | null;
+  const cat = o?.compiledRelease?.tender?.mainProcurementCategory ?? o?.tender?.mainProcurementCategory;
+  return ({ goods: "bienes", services: "servicios", works: "obras" } as Record<string, string>)[cat ?? ""] ?? null;
+}
+
+/** El orquestador por omisión (lecturas que no dependen del tipo, como «sortear»): la Lambda de bienes si existe. */
 export const ORCHESTRATOR_URL =
+  process.env.AGENT_URL_BIENES?.trim() ||
   process.env.VIGIA_AGENT_URL ||
   "https://agent-orchestrator-adk-oq3gq6a4ka-uc.a.run.app";
 
@@ -99,8 +143,16 @@ export async function idTokenPara(url: string): Promise<string | null> {
   return p;
 }
 
-/** Cabeceras para una llamada al orquestador: `Authorization: Bearer <ID token>` si hay token. */
+/**
+ * Cabeceras para una llamada al orquestador. Lambda: `Authorization: Bearer <AGENTE_TOKEN>` (secreto de la web, el mismo
+ * del SSM /vigia/agente/token que usan el dispatcher y el masivo). Cloud Run: el ID token de Google, si hay.
+ */
 export async function cabecerasOrquestador(url: string = ORCHESTRATOR_URL): Promise<Record<string, string>> {
+  if (esLambda(url)) {
+    const t = process.env.AGENTE_TOKEN?.trim();
+    if (!t) console.warn("[orquestador] falta el secreto AGENTE_TOKEN: la Lambda responderá 401");
+    return t ? { Authorization: `Bearer ${t}` } : {};
+  }
   const token = await idTokenPara(url);
   return token ? { Authorization: `Bearer ${token}` } : {};
 }

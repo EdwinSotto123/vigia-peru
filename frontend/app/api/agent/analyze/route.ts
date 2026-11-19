@@ -16,7 +16,7 @@
 
 import { NextResponse, type NextRequest } from "next/server";
 import { exigirAdmin } from "./_admin";
-import { ORCHESTRATOR_URL, cabecerasOrquestador } from "../_orquestador";
+import { HAY_LAMBDAS, ORCHESTRATOR_URL, cabecerasOrquestador, tipoDeContrato, urlAgente } from "../_orquestador";
 import { fetchLargo } from "@/lib/fetch-largo";
 import { guardarObjeto, leerObjeto } from "@/lib/gcs";
 
@@ -542,10 +542,15 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  // La Lambda de la red del contrato (ver _orquestador.ts); sin Lambdas configuradas, el orquestador de siempre.
+  const base = HAY_LAMBDAS ? urlAgente(await tipoDeContrato(input, cr)) : ORCHESTRATOR_URL;
+  if (!base) {
+    return NextResponse.json({ error: "red_desconocida", detail: "No se pudo saber el tipo del contrato para elegir su red de agentes." }, { status: 422 });
+  }
   try {
-    const r = await fetchLargo(ORCHESTRATOR_URL, {
+    const r = await fetchLargo(base, {
       method: "POST",
-      headers: { "Content-Type": "application/json", ...(await cabecerasOrquestador(ORCHESTRATOR_URL)) },
+      headers: { "Content-Type": "application/json", ...(await cabecerasOrquestador(base)) },
       body: JSON.stringify({ input, ocds: cr, docs_b64: body_docs_b64, doc_urls }),
     });
     if (!r.ok) {

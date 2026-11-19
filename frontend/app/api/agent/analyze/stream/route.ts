@@ -13,11 +13,11 @@
 
 import type { NextRequest } from "next/server";
 import { exigirAdmin } from "../_admin";
-import { ORCHESTRATOR_URL, cabecerasOrquestador } from "../../_orquestador";
+import { HAY_LAMBDAS, ORCHESTRATOR_URL, cabecerasOrquestador, tipoDeContrato, urlAgente } from "../../_orquestador";
 import { fetchLargo } from "@/lib/fetch-largo";
 
 export const dynamic = "force-dynamic";
-export const maxDuration = 3600;  // 60 min — Cloud Run max es 3600s
+export const maxDuration = 900;  // 15 min: lo más que corre una Lambda
 
 /**
  * Las direcciones de documentos que se le pasan al agente salen de /api/agent/upload-doc: el almacén de documentos de los
@@ -51,17 +51,31 @@ export async function POST(req: NextRequest) {
   // relay con 403), lo mandamos vacío y el orquestador lo trae por el
   // downloader local (IP residencial PE). Igual con los documentos.
 
-  // Proxy del stream hacia el orchestrator. No archivamos a GCS acá — el
-  // path streaming asume que el non-streaming fue llamado antes o que el
-  // orchestrator puede operar con `docs_b64` inline. Esto simplifica el
-  // pipeline y minimiza latencia para mostrar la primera bandera.
-  const orchUrl = `${ORCHESTRATOR_URL}?stream=1`;
+  // La Lambda de la red del contrato (AWS). Sin Lambdas configuradas, el orquestador de siempre.
+  let base = ORCHESTRATOR_URL;
+  if (HAY_LAMBDAS) {
+    const tipo = await tipoDeContrato(input, body.ocds);
+    const url = urlAgente(tipo);
+    if (!url) {
+      return new Response(
+        JSON.stringify({
+          error: "red_desconocida",
+          detail: tipo
+            ? `No hay red de agentes para contratos de tipo «${tipo}».`
+            : "No se pudo saber el tipo del contrato (bienes, servicios, obras…): Vigía no lo tiene y el OCDS no lo dice.",
+        }),
+        { status: 422, headers: { "Content-Type": "application/json" } },
+      );
+    }
+    base = url;
+  }
+  const orchUrl = `${base}?stream=1`;
 
   let upstream: Response;
   try {
     upstream = await fetchLargo(orchUrl, {
       method: "POST",
-      headers: { "Content-Type": "application/json", ...(await cabecerasOrquestador(ORCHESTRATOR_URL)) },
+      headers: { "Content-Type": "application/json", ...(await cabecerasOrquestador(base)) },
       body: JSON.stringify({
         input,
         ocds: body.ocds ?? null,

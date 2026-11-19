@@ -16,7 +16,7 @@
   "images": { "binding": "IMAGES" },
   // Caché de páginas (ISR) compartida entre instancias: open-next.config.ts.
   // Subidas (lib/gcs.ts): MEDIOS es lo público (medios.gobserva.cloud), PRIVADO los comprobantes. Antes, GCS.
-  "r2_buckets": [{ "binding": "NEXT_INC_CACHE_R2_BUCKET", "bucket_name": "vigia-web-cache" }, { "binding": "MEDIOS", "bucket_name": "vigia-peru-reportes" }, { "binding": "PRIVADO", "bucket_name": "vigia-peru-privado" }],
+  "r2_buckets": [{ "binding": "NEXT_INC_CACHE_R2_BUCKET", "bucket_name": "vigia-web-cache" }, { "binding": "MEDIOS", "bucket_name": "vigia-peru-reportes" }, { "binding": "PRIVADO", "bucket_name": "vigia-peru-privado" }, { "binding": "DOCUMENTOS", "bucket_name": "vigia-peru-documentos" }],
   "services": [
     // Revalidación ISR: el worker se pide a sí mismo la página vencida (open-next.config.ts).
     { "binding": "WORKER_SELF_REFERENCE", "service": "vigia-web" }
@@ -29,6 +29,13 @@
   "vars": {
     "VIGIA_API_URL": "https://vigia-api.vigiaperu.workers.dev",
     "VIGIA_AGENT_URL": "https://agent-orchestrator-adk-753067078557.us-central1.run.app",
+    // «Analizar» del panel (2026-11-18): las Lambdas de agentes por red, las mismas de backend/dispatcher-worker. Con
+    // ellas nada va a Cloud Run; el token es el secreto AGENTE_TOKEN (SSM /vigia/agente/token).
+    "AGENT_URL_BIENES": "https://ntasl5bxctnf6l46pqnf2zsfrq0pbajw.lambda-url.us-east-2.on.aws",
+    "AGENT_URL_SERVICIOS": "https://rek7rzzvza7q7j6fn3cxxveqgm0dumuw.lambda-url.us-east-2.on.aws",
+    "AGENT_URL_OBRAS": "https://uyp5wgfvicnfbzobcin6knx3340iujdc.lambda-url.us-east-2.on.aws",
+    "AGENT_URL_CONSULTORIA": "https://v436ckrco2yia5r6jd63chpcge0vohif.lambda-url.us-east-2.on.aws",
+    "AGENT_URL_OTROS": "https://4dbb4zoipvyjsq64noauxtufqq0pekyj.lambda-url.us-east-2.on.aws",
     "GOOGLE_CLOUD_PROJECT": "vivid-spot-480905-a4",
     "DOCS_BUCKET": "vigia-peru-documentos",
     "REPORTES_BUCKET": "vigia-peru-reportes",

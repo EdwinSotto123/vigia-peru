@@ -17,7 +17,11 @@ import { bindingCloudflare, EN_WORKERS } from "./entorno";
  * Desde el 2026-11-06 GCP está sin facturación (sus buckets responden 403): en Workers se escribe en R2, en el bucket
  * que tiene el mismo nombre (copias con las mismas rutas). Lo público se sirve en MEDIOS_URL (dominio de R2).
  */
-const R2_POR_BUCKET: Record<string, string> = { "vigia-peru-reportes": "MEDIOS", "vigia-peru-privado": "PRIVADO" };
+// vigia-peru-documentos (2026-11-18): lo que sube «Analizar» del panel; los agentes lo leen de R2 por vigia-r2-sync
+// (GET /objeto, ALMACEN_DOCS=r2) con la misma dirección gs://vigia-peru-documentos/<ruta>.
+const R2_POR_BUCKET: Record<string, string> = {
+  "vigia-peru-reportes": "MEDIOS", "vigia-peru-privado": "PRIVADO", "vigia-peru-documentos": "DOCUMENTOS",
+};
 export const MEDIOS_URL = "https://medios.gobserva.cloud";
 
 interface BucketR2 {
