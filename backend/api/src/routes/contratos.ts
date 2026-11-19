@@ -122,12 +122,17 @@ function filtros(q: Partial<Filtros>, vals: unknown[], m: Mapa, excluir = new Se
     conds.push(`EXISTS (SELECT 1 FROM contrato_partido_idx cp WHERE cp.org_clave = ${add(q.partido)} AND cp.ocid = ${m.ocid})`);
   }
   if ((q.cruces || q.cruce) && !excluir.has("cruces")) {
-    const k = [`k.ocid = ${m.ocid}`];
+    const k: string[] = [];
     if (q.cruces === "alta") k.push("k.n_alta > 0");
     else if (q.cruces && q.cruces !== "con") k.push(`${add(q.cruces)} = ANY(k.tipos)`);
     // Varios tipos: alguno (&&) o, con cruce_todas, todos a la vez (@>): «único postor Y socio de inhabilitada».
     if (q.cruce) k.push(`k.tipos ${q.cruce_todas ? "@>" : "&&"} ${add(q.cruce.split(","))}::text[]`);
-    conds.push(`EXISTS (SELECT 1 FROM casos_cruce k WHERE ${k.join(" AND ")})`);
+    // Un tipo con pocos contratos: primero el conjunto (índice GIN de `tipos`), después el orden. Con EXISTS la base
+    // recorría las convocatorias por fecha probando cada una: «observado por la Contraloría» (1 130, casi todos de
+    // 2024-2025) tocaba 502 mil páginas para la primera página (623 ms en caliente; en frío pasaba el plazo y la API daba
+    // 500). Con un tipo frecuente (único postor, 9 700) el recorrido encuentra enseguida: EXISTS sigue siendo mejor.
+    if (tipoRaro(q)) conds.push(`${m.ocid} IN (SELECT k.ocid FROM casos_cruce k WHERE ${k.join(" AND ")} OFFSET 0)`);
+    else conds.push(`EXISTS (SELECT 1 FROM casos_cruce k WHERE k.ocid = ${m.ocid}${k.length ? ` AND ${k.join(" AND ")}` : ""})`);
   }
   // La obra del contrato (INFOBRAS e Invierte.pe): sus banderas viven en casos_cruce como las demás, pero son hechos de la
   // ejecución, no antecedentes de quien ganó. Filtro aparte, que se combina con el de antecedentes. Como conjunto de
@@ -146,6 +151,35 @@ function filtros(q: Partial<Filtros>, vals: unknown[], m: Mapa, excluir = new Se
   return { conds, usaCe };
 }
 
+
+// ─── ¿Un tipo de antecedente con pocos contratos? ────────────────────────────
+/** Por debajo de esto, el filtro de antecedentes arma primero el conjunto de contratos (ver `filtros`). */
+export const TOPE_TIPO_RARO = 3_000;
+/** Contratos por tipo de antecedente (casos_cruce_totales, migración 114), por instancia, a lo más una hora. */
+let conteoTipos: { m: Record<string, number>; t: number } | null = null;
+export async function cargarConteoTipos(): Promise<void> {
+  if (conteoTipos && Date.now() - conteoTipos.t < 3_600_000) return;
+  try {
+    const r = await pool.query<{ tipos: Record<string, number> }>(`SELECT tipos FROM casos_cruce_totales`);
+    conteoTipos = { m: r.rows[0]?.tipos ?? {}, t: Date.now() };
+  } catch (e) {
+    // Sin conteos, el filtro sigue como antes (EXISTS); se vuelve a intentar en un minuto.
+    console.warn(`[contratos] conteo por tipo: ${(e as Error).message}`);
+    conteoTipos = { m: {}, t: Date.now() - 3_540_000 };
+  }
+}
+/**
+ * ¿El filtro de antecedentes pide tipos con pocos contratos? Alguno de varios (&&): la suma; todos a la vez (@>): el menor.
+ * Sin tipo concreto («con», «alta») o sin conteos cargados: no (queda el recorrido de siempre).
+ */
+export function tipoRaro(q: Partial<Filtros>, conteos: Record<string, number> | undefined = conteoTipos?.m): boolean {
+  if (!conteos || !Object.keys(conteos).length) return false;
+  const tipos = [...(q.cruce ? q.cruce.split(",") : []), ...(q.cruces && q.cruces !== "con" && q.cruces !== "alta" ? [q.cruces] : [])];
+  if (!tipos.length) return false;
+  const n = tipos.map((t) => conteos[t] ?? 0);
+  const estimado = q.cruce_todas || (q.cruce && q.cruces && q.cruces !== "con" && q.cruces !== "alta") ? Math.min(...n) : n.reduce((a, b) => a + b, 0);
+  return estimado < TOPE_TIPO_RARO;
+}
 
 // ─── ¿Sale del agregado? ─────────────────────────────────────────────────────
 const esPrimeroDeMes = (d: string) => d.endsWith("-01");
@@ -224,6 +258,7 @@ contratosRouter.get("/resumen", async (c) => {
   const parsed = ResumenQuery.safeParse(parametros(c));
   if (!parsed.success) return c.json({ error: "invalid_query", issues: parsed.error.issues }, 400);
   const q = parsed.data;
+  await cargarConteoTipos();
   const { tipo: _t, operativo: _o, riesgo: _r, ...base } = q;
   // Sólo texto: los cuatro conteos en una consulta (resumenTexto); si falla, por separado como antes.
   const rt = soloTexto(q)
@@ -731,6 +766,7 @@ async function contarTotal(q: ListaQ): Promise<{ total: number; totalExacto: boo
 }
 
 async function lista(q: ListaQ) {
+  await cargarConteoTipos();
   const o = ordenDe(q);
   const tipo = q.orden === "monto" ? "m" : q.orden === "score" ? "s" : "f";
   const n = tipo === "m" ? 2 : tipo === "s" ? 4 : 3;
@@ -812,6 +848,7 @@ const COLS_GEO_BASE = `count(*)::int AS total,
 async function geo(q: z.infer<typeof GeoQuery>) {
   const len = q.nivel === "distrito" ? 6 : q.nivel === "provincia" ? 4 : 2;
   if (!(await hayModelosLectura())) return geoAnterior({ ...q, page: 1, size: 1, orden: "fecha" }, len);
+  await cargarConteoTipos();
   const vals: unknown[] = [];
   let agg: string;
   if (agregable(q)) {
