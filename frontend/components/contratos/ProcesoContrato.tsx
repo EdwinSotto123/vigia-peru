@@ -248,7 +248,8 @@ function BloqueTribunal({ resoluciones }: { resoluciones: NonNullable<Detalle["t
               ) : null,
             },
             { etiqueta: "Lo que dice", valor: r.cita ? `«${r.cita}»` : null },
-          ];
+            // Las dos filas de la 424 sólo cuando hay algo: «Sin dato» en «Sancionador ordenado contra» se leía como duda.
+          ].filter((x) => !(x.valor == null && (x.etiqueta === "Tenía la buena pro" || x.etiqueta === "Sancionador ordenado contra")));
           return (
             <BloqueDetalle key={r.url} titulo={r.titulo}>
               <DatosClave items={datos} />
