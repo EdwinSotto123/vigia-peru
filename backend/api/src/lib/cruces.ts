@@ -409,8 +409,12 @@ export async function crucesDeProceso(ocid: string, ganadores: Ganador[]): Promi
     // él, la evidencia de una persona vinculada se buscaba con el RUC de la empresa.
     `SELECT ${COLS}, persona_doc, (ocid IS NOT NULL OR cruce_es_antecedente(tipo, fecha, detalle,
               (SELECT c.fecha_convocatoria FROM convocatorias c WHERE ocid_corto(c.ocid) = ocid_corto($2) LIMIT 1))) AS antecedente
-       FROM cruces_proveedor
-     WHERE ruc_empresa = ANY($1::text[]) AND (ocid IS NULL OR ocid_corto(ocid) = ocid_corto($2))
+       -- Las dos ramas por separado, cada una con su índice parcial (migración 410): con el OR, una empresa con miles de
+       -- cruces se leía entera para quedarse con los de este contrato (1,2 s en frío → 0,4 ms).
+       FROM (SELECT * FROM cruces_proveedor WHERE ruc_empresa = ANY($1::text[]) AND ocid IS NULL
+             UNION ALL
+             SELECT * FROM cruces_proveedor WHERE ruc_empresa = ANY($1::text[]) AND ocid IS NOT NULL
+                                              AND ocid_corto(ocid) = ocid_corto($2)) cruces_proveedor
      ORDER BY ${ORDEN_SEVERIDAD}, tipo, fecha DESC NULLS LAST LIMIT 200`, [[...porRuc.keys()], ocid]).catch(() => null);
   const crudas = q?.rows ?? [];
   const cruces = crudas.map(aCruce);
