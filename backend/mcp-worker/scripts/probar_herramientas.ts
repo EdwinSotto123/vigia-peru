@@ -76,6 +76,11 @@ const CASOS: Caso[] = [
       const fuga = filas.match(/"(persona|nombre_completo|integrante_nombre|dni|numero_documento|persona_doc)":/);
       return ok && !fuga ? null : fuga ? `sale un nombre o un número de documento (${fuga[0]})` : "sin identidad, papel en la empresa o clave";
     } },
+  // Y en la ficha de un contrato, junto a cada bandera: 1241973 tiene «el acta deja sólo al ganador» y «recurrente»,
+  // medidas contra las dos verdades (las en observación con pocos casos no dicen nada).
+  { h: fichaContrato as never, args: { ocid: "1241973" },
+    espera: (r) => ((lista(r, "cruces") as { tipo?: string; evidencia_externa?: string }[]).some((x) => /Contraloría|Tribunal/.test(x.evidencia_externa ?? ""))
+      ? null : "ningún cruce con evidencia_externa") },
   // Cuán confiable es cada señal (migraciones 401, 404, 419, 421): con las dos verdades y sin la circular.
   { h: senales as never, args: { vista: "confiabilidad" },
     espera: (r) => {

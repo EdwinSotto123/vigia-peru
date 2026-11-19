@@ -273,6 +273,26 @@ function resumenDictamen(a: Fila | null, ocid: string, cx: Contexto) {
   };
 }
 
+/**
+ * Lo medido de cada tipo de bandera contra las dos verdades (GET /senales/validacion: migraciones 401, 404, 419 y 421), en
+ * una línea por tipo: «Contraloría: 2,75 veces lo esperado (1,18–5,45), con evidencia; Tribunal: no se distingue del azar».
+ * Con pocos casos no se dice nada (no hay con qué).
+ */
+export function evidenciaPorTipo(v: Fila | null): Map<string, string> {
+  const partes = new Map<string, string[]>();
+  const f = (n: number) => n.toFixed(2).replace(".", ",");
+  for (const [nombre, x] of [["Contraloría", v?.contraloria], ["Tribunal", v?.tribunal]] as const) {
+    for (const s of ((x?.senales ?? []) as Fila[])) {
+      let t: string | null = null;
+      if (s.lectura === "mas_de_lo_esperado" && s.oe != null) t = `${nombre}: ${f(s.oe)} veces lo esperado (${f(s.oeMin)}–${f(s.oeMax)}), con evidencia`;
+      else if (s.lectura === "menos_de_lo_esperado" && s.oe != null) t = `${nombre}: menos de lo esperado (${f(s.oe)} veces)`;
+      else if (s.lectura === "como_lo_esperado") t = `${nombre}: no se distingue del azar`;
+      if (t) partes.set(s.tipo, [...(partes.get(s.tipo) ?? []), t]);
+    }
+  }
+  return new Map([...partes].map(([k, v]) => [k, v.join("; ")]));
+}
+
 export const fichaContrato = definir({
   nombre: "ficha_contrato",
   titulo: "Ficha de un contrato",
@@ -283,7 +303,12 @@ export const fichaContrato = definir({
   entrada: { ocid: z.string().min(1).max(64).describe("OCID o código: «1228227», «OECE-1228227» o el OCID completo.") },
   async ejecutar({ ocid }, cx) {
     const id = aOcid(ocid);
-    const c = await api<Fila>(cx.env, `/contratos/${encodeURIComponent(id)}`);
+    // La confiabilidad de cada tipo de bandera (GET /senales/validacion, en caché una hora): sin ella, la ficha sale igual.
+    const [c, validacion] = await Promise.all([
+      api<Fila>(cx.env, `/contratos/${encodeURIComponent(id)}`),
+      api<Fila>(cx.env, "/senales/validacion").catch(() => null),
+    ]);
+    const evidencia = evidenciaPorTipo(validacion);
     const e = enlaces(cx.env);
     const fuenteOcds = (c.cruces ?? []).find((x: Fila) => typeof x.fuenteUrl === "string")?.fuenteUrl;
     return {
@@ -327,6 +352,9 @@ export const fichaContrato = definir({
           ...proveedor(x.proveedor, x.rucProveedor), del_consorcio: x.consorcio?.nombre ?? undefined,
           en_observacion: x.observacion === true || undefined,
           por_que_pesa: porQuePesa(x),
+          // Cuánto acierta ESE tipo de bandera contra lo que observó la Contraloría y lo que anuló el Tribunal (vista
+          // «confiabilidad» de `senales`); con pocos casos no se dice nada.
+          evidencia_externa: evidencia.get(String(x.tipo)),
         })),
       // Las apelaciones de este proceso que resolvió el Tribunal de Contrataciones (migración 402): un registro oficial del
       // proceso, no una bandera de quien ganó. Fundada o con nulidad = el comité se equivocó o el proceso tenía un vicio.
