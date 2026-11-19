@@ -678,6 +678,16 @@ del contrato y en el MCP, y `refrescar_validacion_tribunal()` mide las señales 
 competitivos desde 2024 con dos postores o más). Primera corrida, con las primeras resoluciones: 10 procesos con la
 etiqueta en 65 214, sin conclusión todavía.
 
+Cómo se comprueba el resultado (migración 423). Lo lee GLM 5.3 flash y una regla sin modelo lee el primer punto
+resolutivo: el ancla es «LA SALA RESUELVE:», «La Sala resuelve:» o «…por unanimidad; 1.», y gana lo que aparece primero
+en ese punto. Si no dicen lo mismo, el modelo grande (GLM 5.3) relee la resolución y su lectura reemplaza a la del chico
+sólo si pasa la comprobación. Hay dos marcas. `resultado_ok` (el mismo resultado) decide qué publica la ficha.
+`corregido_ok` (el Tribunal corrigió el proceso o no) es la etiqueta de la validación y de `tribunal_entidad`. Con 914
+resoluciones (2026-11-19), el resultado exacto está comprobado en 895 (antes 782 de 904), con US$ 0,26 de relecturas, y
+hay 133 procesos con la etiqueta. Ninguna señal pasa todavía su intervalo. La que más se acerca es
+`consultas_denuncia_direccionamiento`, O/E 1,43 (0,86-2,24): un postor denunció en las consultas que las bases apuntaban a
+alguien y después el Tribunal corrigió el proceso.
+
 Cómo leerlo: la Contraloría audita sobre todo cumplimiento y obras grandes; lo que marca Vigía (competencia aparente,
 vínculos, proveedores cautivos) casi no llega a sus informes. Un O/E bajo no prueba que una bandera falle: dice que mide
 algo que el control no está mirando. Sí obliga a no presentar el puntaje como «probabilidad de irregularidad»: ordena por

@@ -8,6 +8,9 @@
 3. Cada procedimiento se parte en tipo, número, año y siglas y se busca en convocatoria_nomenclatura. Se une sólo si
    queda UN contrato: por la nomenclatura escrita igual («exacta») o por siglas compatibles y el nombre de la entidad
    («sigla_y_entidad»). Con dos candidatos parecidos no se une: mejor perder un caso que atar mal uno.
+4. Recomprueba con la regla vigente (lector/tribunal.VERSION_REGLA) las resoluciones que se comprobaron con otra.
+5. Cascada (migración 423): las que quedan en disputa (el modelo chico y la regla no dicen lo mismo) las relee el modelo
+   grande (GLM 5.3), hasta --releer por corrida; si su lectura pasa la comprobación, reemplaza a la del chico.
 Reanudable: las resoluciones ya cargadas se saltan.
 """
 from __future__ import annotations
@@ -120,11 +123,87 @@ def unir(cur, texto: str, entidad: str) -> tuple[str | None, str | None]:
     return sorted(c[0] for c in grupo)[0] if all(not c[0].isdigit() for c in grupo) else min(c[0] for c in grupo if c[0].isdigit()), via
 
 
+def _texto(por_id: dict, pid) -> str | None:
+    f = por_id.get(str(pid))
+    if not f:
+        return None
+    try:
+        return json.loads(f.read_text(encoding="utf-8")).get("texto") or ""
+    except (ValueError, OSError):
+        return None
+
+
+def recomprobar(cn, cur, por_id: dict) -> int:
+    """La regla mejora (VERSION_REGLA): las ya cargadas se vuelven a comprobar contra su texto, sin modelo."""
+    cur.execute("SELECT id, resultado FROM tribunal_resolucion WHERE regla_version IS DISTINCT FROM %s", (T.VERSION_REGLA,))
+    n = 0
+    for pid, resultado in cur.fetchall():
+        texto = _texto(por_id, pid)
+        if texto is None:
+            continue
+        s = T.comprobar({"resultado": resultado, "cita_resolutivo": "", "procedimientos": []}, texto)
+        cur.execute("""UPDATE tribunal_resolucion SET resultado_regla = %s, resultado_ok = %s, corregido_ok = %s, regla_version = %s
+                        WHERE id = %s""", (s["_resultado_regla"], s["_resultado_ok"], s["_corregido_ok"], T.VERSION_REGLA, pid))
+        n += 1
+        if n % 500 == 0:
+            cn.commit()
+    cn.commit()
+    if n:
+        print(f"recomprobadas con la regla {T.VERSION_REGLA}: {n}", flush=True)
+    return n
+
+
+def releer_disputas(cn, cur, por_id: dict, maximo: int, hechos: dict) -> dict:
+    """El modelo grande relee las que el chico y la regla no leen igual. Si su resultado pasa la comprobación exacta, o
+    coincide con la regla en si el Tribunal corrigió el proceso y el chico no, su lectura reemplaza a la del chico. Lo
+    que dijo queda en segunda_lectura y no se relee otra vez."""
+    if maximo <= 0:
+        return {}
+    cur.execute("""SELECT id, resultado, corregido_ok FROM tribunal_resolucion
+                    WHERE NOT resultado_ok AND resultado_regla IS NOT NULL AND segunda_lectura IS NULL
+                    ORDER BY id DESC LIMIT %s""", (maximo,))
+    filas = cur.fetchall()
+    if not filas:
+        return {}
+    grande = MotorWorkers(T.MODELO_GRANDE)
+    hecho = {"releidas": 0, "reemplazadas": 0}
+    for pid, resultado, corregido_ok in filas:
+        texto = _texto(por_id, pid)
+        if texto is None:
+            continue
+        r = grande.llamar_texto(T, T.recorte(texto))
+        s = r.get("salida")
+        hechos["usd"] += r.get("costo_usd") or 0
+        if r.get("estado") != "ok" or not s:
+            hechos["errores"] += 1
+            continue
+        s = T.comprobar(T.normalizar(s), texto)
+        hecho["releidas"] += 1
+        mejor = s["_resultado_ok"] or (s["_corregido_ok"] and not corregido_ok)
+        if mejor:
+            cur.execute(
+                """UPDATE tribunal_resolucion SET resultado = %s, efectos = %s, motivo = %s, cita = %s, cita_ok = %s,
+                          modelo = %s, costo_usd = COALESCE(costo_usd, 0) + %s, resultado_ok = %s, corregido_ok = %s,
+                          segunda_lectura = %s
+                    WHERE id = %s""",
+                (s.get("resultado"), s.get("efectos") or [], (s.get("motivo") or "")[:600], (s.get("cita_resolutivo") or "")[:400],
+                 bool(s.get("_cita_ok")), r.get("modelo"), r.get("costo_usd") or 0, s["_resultado_ok"], s["_corregido_ok"],
+                 s.get("resultado"), pid))
+            hecho["reemplazadas"] += 1
+        else:
+            cur.execute("UPDATE tribunal_resolucion SET segunda_lectura = %s, costo_usd = COALESCE(costo_usd, 0) + %s WHERE id = %s",
+                        (s.get("resultado") or "otro", r.get("costo_usd") or 0, pid))
+        cn.commit()
+    print(f"disputas releídas con {T.MODELO_GRANDE}: {hecho['releidas']}, reemplazadas {hecho['reemplazadas']}", flush=True)
+    return hecho
+
+
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("entorno", choices=["prod", "dev"])
     ap.add_argument("--max", type=int, default=0)
     ap.add_argument("--hilos", type=int, default=2)
+    ap.add_argument("--releer", type=int, default=40, help="disputas que relee el modelo grande por corrida (0: ninguna)")
     a = ap.parse_args()
     sys.stdout.reconfigure(encoding="utf-8")
     raiz = Path(os.environ["NORMAS_DESCARGAS"]) / "tribunal"
@@ -173,13 +252,14 @@ def main() -> None:
                 cur.execute(
                     """INSERT INTO tribunal_resolucion (id, titulo, numero, anio, sala, tribunal, fecha, resultado, efectos,
                                                          entidad, impugnante, motivo, cita, cita_ok, url, pdf, modelo, version, costo_usd,
-                                                         resultado_regla, resultado_ok)
-                       VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) ON CONFLICT (id) DO NOTHING""",
+                                                         resultado_regla, resultado_ok, corregido_ok, regla_version)
+                       VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) ON CONFLICT (id) DO NOTHING""",
                     (d["id"], d.get("titulo") or "", int(m.group(1)) if m else None, int(m.group(2)) if m else d.get("anio"),
                      m.group(4).upper() if m else None, m.group(3).upper() if m else None, fecha, s.get("resultado"),
                      s.get("efectos") or [], s.get("entidad"), s.get("impugnante"), (s.get("motivo") or "")[:600],
                      (s.get("cita_resolutivo") or "")[:400], bool(s.get("_cita_ok")), d["url"], d.get("pdf"),
-                     r.get("modelo"), T.VERSION, r.get("costo_usd"), s.get("_resultado_regla"), bool(s.get("_resultado_ok"))))
+                     r.get("modelo"), T.VERSION, r.get("costo_usd"), s.get("_resultado_regla"), bool(s.get("_resultado_ok")),
+                     bool(s.get("_corregido_ok")), T.VERSION_REGLA))
                 for i, ptxt in enumerate(s.get("_procedimientos_ok") or [], 1):
                     ocid, via = unir(cur, ptxt, s.get("entidad") or "")
                     cur.execute("INSERT INTO tribunal_proceso (resolucion_id, n, texto, ocid, via) VALUES (%s,%s,%s,%s,%s) ON CONFLICT DO NOTHING",
@@ -191,6 +271,9 @@ def main() -> None:
                 hechos["usd"] += r.get("costo_usd") or 0
                 if hechos["apelaciones"] % 25 == 0:
                     print(f"{hechos['apelaciones']} cargadas; procesos unidos {hechos['unidas']} de {hechos['procesos']}; US$ {hechos['usd']:.3f}", flush=True)
+        por_id = {f.stem: f for f in archivos}
+        hechos["recomprobadas"] = recomprobar(cn, cur, por_id)
+        hechos.update(releer_disputas(cn, cur, por_id, a.releer, hechos))
         # La bitácora de las fuentes que se cargan desde la PC (GET /estado/datos, estado_fuentes del MCP): una fila por
         # corrida, también sin apelaciones nuevas, para que se vea que la tarea sigue viva.
         clave = datetime.datetime.now().strftime("%Y-%m-%dT%H")
@@ -203,7 +286,7 @@ def main() -> None:
              "https://www.gob.pe/institucion/oece/colecciones/68030-resoluciones-del-tribunal-de-contrataciones-publicas"))
         cn.commit()
         # Las entidades cuyos procesos el Tribunal corrige más que el resto del país (migración 422), con lo recién leído.
-        if hechos["apelaciones"]:
+        if hechos["apelaciones"] or hechos["recomprobadas"] or hechos.get("reemplazadas"):
             try:
                 cur.execute("SET statement_timeout = 0")
                 cur.execute("SELECT refrescar_tribunal_entidad()")
