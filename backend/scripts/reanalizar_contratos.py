@@ -40,13 +40,7 @@ def red_de(cu, ocid: str) -> str | None:
     return next((r for r, tipos in M.TIPOS.items() if t in tipos), None)
 
 
-# Los dictámenes de procesos con OCID con guiones hechos ANTES del arreglo (e267f269, en PROD el 2026-11-16 05:40 de Lima)
-# que tenían lecturas que el agente no vio; los ya rehechos (updated_at posterior) no entran. Primero los más riesgosos.
-SQL_GUIONES = """
-SELECT a.ocid FROM alertas a
- WHERE a.ocid ~ '-' AND a.updated_at < TIMESTAMPTZ '2026-11-16 10:40+00'
-   AND EXISTS (SELECT 1 FROM documento_lectura l WHERE l.ocid = a.ocid AND l.estado = 'ok')
- ORDER BY COALESCE(riesgo_contrato(a.ocid), 0) DESC, a.updated_at DESC"""
+SQL_GUIONES = M.SQL_GUIONES  # la misma lista que mira el masivo para cederle hilos
 
 
 def main() -> None:

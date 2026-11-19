@@ -194,6 +194,31 @@ def token() -> str:
                           capture_output=True, text=True, check=True, env=env).stdout.strip()
 
 
+# Los dictámenes de procesos con OCID con guiones hechos ANTES del arreglo (e267f269, en PROD el 2026-11-16 05:40 de Lima)
+# que tenían lecturas que el agente no vio; los ya rehechos (updated_at posterior) no entran. Primero los más riesgosos.
+# Los rehace reanalizar_contratos.py --guiones (tarea:reanalisis del CI).
+SQL_GUIONES = """
+SELECT a.ocid FROM alertas a
+ WHERE a.ocid ~ '-' AND a.updated_at < TIMESTAMPTZ '2026-11-16 10:40+00'
+   AND EXISTS (SELECT 1 FROM documento_lectura l WHERE l.ocid = a.ocid AND l.estado = 'ok')
+ ORDER BY COALESCE(riesgo_contrato(a.ocid), 0) DESC, a.updated_at DESC"""
+
+# Mientras haya reanálisis pendientes, el masivo deja lugar a sus 3 hilos: ≤ 9 análisis a la vez en total (Workers AI).
+HILOS_CON_REANALISIS = 6
+
+
+def ceder_a_reanalisis(grupos: list[tuple[list[str], int]], tope: int = HILOS_CON_REANALISIS) -> list[tuple[list[str], int]]:
+    """El plan con a lo más `tope` hilos en total, en proporción y con uno por grupo como mínimo (9 = 2+2+5 → 1+1+4)."""
+    total = sum(h for _, h in grupos)
+    if total <= tope:
+        return grupos
+    nuevos = [max(1, (h * tope) // total) for _, h in grupos]
+    while sum(nuevos) < tope:
+        i = max(range(len(nuevos)), key=lambda j: grupos[j][1] - nuevos[j])
+        nuevos[i] += 1
+    return [(redes, n) for (redes, _), n in zip(grupos, nuevos)]
+
+
 def plan(texto: str) -> list[tuple[list[str], int]]:
     """«bienes=2 servicios,consultoria=2 obras=5» → [(['bienes'], 2), (['servicios', 'consultoria'], 2), (['obras'], 5)]."""
     grupos = []
@@ -375,7 +400,13 @@ def main() -> None:
         else:
             if a.tope is None:
                 raise SystemExit("falta --tope (US$)")
-            correr(plan(a.plan), a.tope, a.minutos, a.max, a.seco, a.plan)
+            grupos = plan(a.plan)
+            # Sin la variable MASIVO_PLAN a mano: mientras el reanálisis tenga pendientes, menos hilos; al terminar, todos.
+            pendientes = base(lambda cu: (cu.execute(f"SELECT count(*) FROM ({SQL_GUIONES}) x"), cu.fetchone()[0])[1])
+            if pendientes:
+                grupos = ceder_a_reanalisis(grupos)
+                log(f"{pendientes} reanálisis pendientes: el masivo usa {sum(h for _, h in grupos)} hilos")
+            correr(grupos, a.tope, a.minutos, a.max, a.seco, a.plan)
     finally:
         if _db["cm"] is not None:
             try:
