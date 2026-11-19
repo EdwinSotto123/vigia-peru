@@ -128,8 +128,10 @@ const GUARDADO = "X-Vigia-Guardado";
  * "133": (sin nota en su momento).
  * "134": búsquedas de personas guardadas vacías («nadie») cuando sí había resultados; además, los cruces recalibrados
  *        (migraciones 392-396) traen detalle nuevo (competencia, cuando, integrante).
+ * "135": grupos por dueño guardados vacíos (un error de la base salía como «ningún grupo» y /patrones guarda una hora)
+ *        durante la construcción de índices del 2026-11-19 de madrugada; y la señal 407 (comité socio del proveedor).
  */
-const VERSION_CACHE = "134";
+const VERSION_CACHE = "135";
 
 function cacheable(req: Request): boolean {
   if (req.method !== "GET") return false;

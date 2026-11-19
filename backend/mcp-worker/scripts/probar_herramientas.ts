@@ -288,7 +288,10 @@ const CASOS: Caso[] = [
 ];
 
 let fallos = 0;
+// SOLO=<texto>: sólo los casos cuyo nombre o argumentos lo contienen. VER=1: imprime la respuesta de los que fallan.
+const SOLO = process.env.SOLO ?? "";
 for (const c of CASOS) {
+  if (SOLO && !`${c.h.nombre} ${JSON.stringify(c.args)}`.includes(SOLO)) continue;
   const t0 = Date.now();
   try {
     const args = z.object(c.h.entrada).parse(c.args);
@@ -303,6 +306,7 @@ for (const c of CASOS) {
     if (mal || ruc10) fallos++;
     console.log(`${mal || ruc10 ? "FALLA" : "ok   "} ${c.h.nombre} ${JSON.stringify(c.args)} ${Date.now() - t0} ms, ${texto.length} bytes` +
       (mal ? ` → ${mal}` : "") + (ruc10 ? " → sale un RUC 10" : "") + (dni ? " (hay un número de 8 dígitos: revisar)" : ""));
+    if ((mal || ruc10) && process.env.VER) console.log(texto.slice(0, 1500));
   } catch (e) {
     fallos++;
     console.log(`FALLA ${c.h.nombre} ${JSON.stringify(c.args)} → ${(e as Error).message.slice(0, 200)}`);
