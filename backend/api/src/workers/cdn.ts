@@ -125,8 +125,11 @@ const GUARDADO = "X-Vigia-Guardado";
  *        escrito con los nombres primero dejaba los dos apellidos a la vista).
  * "131": las listas de consorcios que compiten y de contratos observados traen la clave de su ficha de caso.
  * "132": y la de señales de los agentes que se repiten (por entidad y por proveedor).
+ * "133": (sin nota en su momento).
+ * "134": búsquedas de personas guardadas vacías («nadie») cuando sí había resultados; además, los cruces recalibrados
+ *        (migraciones 392-396) traen detalle nuevo (competencia, cuando, integrante).
  */
-const VERSION_CACHE = "133";
+const VERSION_CACHE = "134";
 
 function cacheable(req: Request): boolean {
   if (req.method !== "GET") return false;

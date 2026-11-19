@@ -715,7 +715,11 @@ personasRouter.get("/buscar", async (c) => {
     if (sinRespuesta.length) ctl.noGuardar();
     return publicar({ q, conCargo, contratadas, ...(sinRespuesta.length ? { sinRespuesta } : {}) });
   });
-  if (((cuerpo as { sinRespuesta?: string[] }).sinRespuesta ?? []).length) c.header("Cache-Control", "no-store");
+  const b = cuerpo as { sinRespuesta?: string[]; conCargo?: unknown[]; contratadas?: unknown[] };
+  if ((b.sinRespuesta ?? []).length) c.header("Cache-Control", "no-store");
+  // «Nadie se llama así» se guarda un minuto, no una hora: recalcularlo es barato y un vacío equivocado guardado en el
+  // borde le dice a quien investiga que alguien no tiene cargo público cuando sí lo tiene (visto el 2026-11-19).
+  else if (!(b.conCargo ?? []).length && !(b.contratadas ?? []).length) c.header("Cache-Control", cachePublico(60, { maxAge: 30, swr: 120 }));
   return c.json(cuerpo);
 });
 
