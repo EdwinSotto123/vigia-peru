@@ -858,6 +858,15 @@ export function datosDe(a: AntecedenteEmpresa, ruc: string): DatoCaso[] {
           valor: cita(denuncias[0]?.cita, 240) ?? "Que las bases favorecen a una marca, un fabricante o un proveedor",
         },
         denuncias.length > 1 && { etiqueta: "Denuncias en el pliego", valor: numero(denuncias.length) },
+        // Migración 394: lo que pasó después con la competencia (reporte de evaluación del SEACE).
+        d.competencia === "desaparecio" && {
+          etiqueta: "Después",
+          valor: num(d.ofertas) === 1 ? "Se presentó una sola oferta" : "Se admitió una sola oferta",
+        },
+        d.competencia === "se_mantuvo" && {
+          etiqueta: "Después",
+          valor: `Hubo competencia: se admitieron al menos ${numero(num(d.admitidas) ?? 2)} ofertas`,
+        },
         { etiqueta: "Qué es", valor: "La denuncia de un participante, no una prueba", soloPanel: true },
       );
     } else if (t === "consultas_observaciones_a_requisitos_rechazadas") {

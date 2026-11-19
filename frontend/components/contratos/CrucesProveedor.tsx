@@ -1288,8 +1288,16 @@ function TextoLeido({ c }: { c: CruceProveedor }) {
   if (c.tipo.startsWith("consultas_")) {
     const denuncias = (Array.isArray(d.denuncias) ? d.denuncias : []) as { cita?: unknown }[];
     const cita = txt(String(denuncias[0]?.cita ?? ""));
+    // Migración 394: qué pasó después con la competencia, según el reporte de evaluación del SEACE.
+    const ofertas = n(d.ofertas);
+    const despues =
+      d.competencia === "desaparecio" ? (
+        <> Después, la competencia desapareció: {ofertas === 1 ? "se presentó una sola oferta" : "se admitió una sola oferta"}.</>
+      ) : d.competencia === "se_mantuvo" ? (
+        <> Después hubo competencia: se admitieron al menos {numero(n(d.admitidas) ?? 2)} ofertas, así que pesa poco.</>
+      ) : null;
     return c.tipo === "consultas_denuncia_direccionamiento" ? (
-      <>En el pliego de consultas, un participante escribió{cita ? <>: <i>«{recortar(cita, 260)}»</i></> : " que las bases favorecen a alguien"}. Es su denuncia, no una prueba.{fuente}{leido}</>
+      <>En el pliego de consultas, un participante escribió{cita ? <>: <i>«{recortar(cita, 260)}»</i></> : " que las bases favorecen a alguien"}. Es su denuncia, no una prueba.{despues}{fuente}{leido}</>
     ) : (
       <>Los participantes observaron {numero(n(d.observaciones) ?? 0)} veces las bases y la entidad no acogió ninguna observación a los requisitos.{fuente}{leido}</>
     );

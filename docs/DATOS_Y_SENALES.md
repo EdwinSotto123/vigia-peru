@@ -445,6 +445,10 @@ más sigue «media». Los motivos de los que quedaron fuera son reales (se revis
 `acta_descalificados_por_formalidad` sube con los postores (15 % con 2, 23 % con 3, 30 % con 4, 40 % con 5 o más) y, con
 2, es el mismo hecho que «sólo quedó el ganador» (14 de esos 15 puntos): con 2 postores pasa a «baja» (533 procesos) para
 no contar dos veces lo mismo. No se usó «el que sacaron ofrecía menos»: el acta no trae ese monto en 1 876 de 2 504 casos.
+`consultas_denuncia_direccionamiento` (migración 394): donde un participante denunció bases dirigidas hubo MÁS competencia
+(3,17 ofertas de media contra 2,65; una sola oferta en el 29,7 % contra el 40,4 %). La denuncia marca procesos disputados.
+Sigue «media» si después la competencia desapareció (una oferta o una admitida: 577) o no hay reporte para saberlo
+(106); pasa a «baja» si en todos los ítems adjudicados se admitieron dos o más (684). El detalle trae `competencia`.
 
 Además, la 329 agrega:
 
