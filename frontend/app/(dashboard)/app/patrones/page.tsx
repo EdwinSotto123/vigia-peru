@@ -55,7 +55,13 @@ export default async function PatronesPage({ searchParams }: { searchParams?: Re
 
       <PatronesVista
         activa={activa}
-        inicial={{ page: paginaDe(uno(searchParams?.page)), regla, ruc: /^20\d{9}$/.test(uno(searchParams?.ruc) ?? "") ? uno(searchParams?.ruc) : undefined }}
+        inicial={{
+          page: paginaDe(uno(searchParams?.page)),
+          regla,
+          ruc: /^20\d{9}$/.test(uno(searchParams?.ruc) ?? "") ? uno(searchParams?.ruc) : undefined,
+          // La clave de una persona del comité (comite_mismo_ganador, migración 396): sus contratos, sin su nombre.
+          integrante: /^[0-9a-f]{10}$/.test(uno(searchParams?.integrante) ?? "") ? uno(searchParams?.integrante) : undefined,
+        }}
         etiquetas={etiquetas}
       />
 

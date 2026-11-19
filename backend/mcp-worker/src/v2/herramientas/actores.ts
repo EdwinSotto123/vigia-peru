@@ -782,6 +782,8 @@ export const patrones = definir({
     indicador: z.enum(["reunion_en_evaluacion", "visita_personal_decisor", "ofertas_a_la_vez", "trabajo_en_el_ganador",
       "firma_en_plazo_de_apelacion", "solo_admitido_el_ganador", "comite_mismo_ganador"]).optional()
       .describe("(observacion) Sólo uno de los indicadores en observación."),
+    integrante_del_comite: z.string().regex(/^[0-9a-f]{10}$/).optional()
+      .describe("(observacion) La clave de una persona del comité (integrante_del_comite de comite_mismo_ganador): todos sus contratos marcados, sin su nombre."),
     ruc: z.string().min(11).max(14).optional().describe("RUC 20 de la entidad o de la empresa (opcional)."),
     regla: z.string().max(60).optional().describe("Sólo una señal, por su código (p. ej. unica_oferta_valida)."),
     solo_graves: z.boolean().optional().describe("(dueno) Sólo grupos con contratos parecidos a 90 días o menos entre sí. (inhabilitada) Sólo con sanción definitiva o empresa hecha cerca de la sanción. (observado) Sólo con responsabilidad penal presunta en una observación de selección, ejecución o pagos."),
@@ -943,7 +945,9 @@ export const patrones = definir({
       };
     }
     if (a.alcance === "observacion") {
-      const r = await api<Fila>(cx.env, "/patrones/observacion", { ruc, tipo: a.indicador, page: a.pagina, size: 20 });
+      const r = await api<Fila>(cx.env, "/patrones/observacion", {
+        ruc, tipo: a.integrante_del_comite ? "comite_mismo_ganador" : a.indicador, integrante: a.integrante_del_comite, page: a.pagina, size: 20,
+      });
       return {
         total: r.total,
         por_indicador: ((r.porTipo ?? []) as Fila[]).map((x) => ({

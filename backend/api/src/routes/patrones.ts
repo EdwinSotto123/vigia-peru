@@ -1131,6 +1131,8 @@ const TIPOS_OBSERVACION = ["reunion_en_evaluacion", "visita_personal_decisor", "
 const Observacion = z.object({
   tipo: z.enum(TIPOS_OBSERVACION).optional(),
   ruc: z.string().regex(/^20\d{9}$/).optional(),
+  // comite_mismo_ganador (migración 396): todos los contratos de la misma persona del comité, por su clave estable.
+  integrante: z.string().regex(/^[0-9a-f]{10}$/).optional(),
   page: z.coerce.number().int().min(1).max(200).default(1),
   size: z.coerce.number().int().min(1).max(50).default(20),
 });
@@ -1145,6 +1147,7 @@ patronesRouter.get("/observacion", async (c) => {
     // Sólo empresas: de una persona natural no se publica nada de esto.
     const conds = [`c.tipo = ANY(${add(q.tipo ? [q.tipo] : [...TIPOS_OBSERVACION])}::text[])`, "c.ruc_empresa ~ '^20[0-9]{9}$'"];
     if (q.ruc) conds.push(`(c.ruc_empresa = ${add(q.ruc)} OR btrim(cv.entidad_ruc::text) = $${vals.length})`);
+    if (q.integrante) conds.push(`c.detalle->>'integrante' = ${add(q.integrante)}`);
     const [r, t, cat] = await Promise.all([
       pool.query(
         // De quien recibió la visita, sólo su cargo y su área (nunca su nombre): la última visita en la reunión durante

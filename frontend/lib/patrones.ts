@@ -665,8 +665,8 @@ export const rutaControl = (page = 1, ruc?: string, graves = false, misma = fals
 export const rutaObservados = (page = 1, ruc?: string, graves = false, siguio = false) =>
   `/patrones/observados?${consulta({ page, size: TAM_PATRONES, ruc, graves: graves ? 1 : undefined, siguio: siguio ? 1 : undefined })}`;
 export const rutaRenovaciones = (page = 1, ruc?: string) => `/patrones/renovaciones?${consulta({ page, size: TAM_PATRONES, ruc })}`;
-export const rutaObservacion = (page = 1, tipo?: string, ruc?: string) =>
-  `/patrones/observacion?${consulta({ page, size: TAM_PATRONES, tipo, ruc })}`;
+export const rutaObservacion = (page = 1, tipo?: string, ruc?: string, integrante?: string) =>
+  `/patrones/observacion?${consulta({ page, size: TAM_PATRONES, tipo, ruc, integrante })}`;
 
 // ─── Lecturas (servidor) ─────────────────────────────────────────────────────────
 

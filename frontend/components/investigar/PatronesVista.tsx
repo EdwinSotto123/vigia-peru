@@ -94,6 +94,8 @@ export interface InicialPatrones {
   regla?: string;
   /** `?ruc=`: el RUC con que abre filtrada la lista (las banderas de una entidad enlazan así a sus grupos y sus casos). */
   ruc?: string;
+  /** `?integrante=`: la clave de una persona del comité (comite_mismo_ganador): sus contratos marcados, sin su nombre. */
+  integrante?: string;
 }
 
 export function PatronesVista({ activa, inicial, etiquetas }: { activa?: string; inicial: InicialPatrones; etiquetas: Record<string, string> }) {
@@ -2600,7 +2602,7 @@ function proporcionChica(casos: number, universo: number): string {
 function ListaObservacion({ inicial }: { inicial: InicialPatrones }) {
   const lista = useListaEnUrl("observacion", inicial);
   const tipo = lista.regla && lista.regla in NOMBRE_OBSERVACION ? lista.regla : undefined;
-  const carga = usePoder<PatronesObservacion>(rutaObservacion(lista.page, tipo, inicial.ruc));
+  const carga = usePoder<PatronesObservacion>(rutaObservacion(lista.page, inicial.integrante ? "comite_mismo_ganador" : tipo, inicial.ruc, inicial.integrante));
   return (
     <div className="space-y-4">
       <CabeceraPestana

@@ -57,6 +57,14 @@ const CASOS: Caso[] = [
       const conNombre = /"(persona|nombre_completo|integrante_nombre)"/.test(filas);
       return conClave && !conNombre ? null : conNombre ? "sale el nombre del integrante" : "sin la clave del integrante";
     } },
+  // Y por su clave se llega a todos sus contratos marcados (la misma persona del comité, 8 casos el 2026-11-19).
+  { h: patrones as never, args: { alcance: "observacion", integrante_del_comite: "3293672db9" },
+    espera: (r) => {
+      const filas = lista(r, "contratos") as { integrante_del_comite?: string }[];
+      const todas = JSON.stringify(r).match(/"integrante_del_comite":"([0-9a-f]{10})"/g) ?? [];
+      return todas.length >= 2 && todas.every((x) => x.includes("3293672db9")) ? null
+        : `por la clave del integrante llegan ${todas.length} filas (o de otra persona); ${filas.length} en «contratos»`;
+    } },
   // Personas con cargo público (migraciones 318 y 319): un apellido y un nombre muy comunes traen varias, todas con el
   // apellido materno tapado y con el enlace a su ficha de rastro.
   { h: personaPublica as never, args: { nombre: "Quispe Juan", donde: "planilla" },

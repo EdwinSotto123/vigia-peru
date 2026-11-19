@@ -1332,6 +1332,11 @@ export function detalleObservacion(p: PatronObservacion): Detalle {
           { texto: "Abrir el contrato", href: rutaContrato(p.ocid) },
           esRuc20(p.ruc) && { texto: "Ficha de la empresa", href: `/empresa/${p.ruc}` },
           esRuc20(p.entidadRuc) && { texto: "Ficha de la entidad", href: `/entidad/${p.entidadRuc}` },
+          // La misma persona del comité en sus otros contratos marcados (por su clave, nunca por su nombre).
+          p.tipo === "comite_mismo_ganador" && !!p.integrante && {
+            texto: "Otros contratos de esa persona del comité",
+            href: `/app/patrones?seccion=observacion&regla=comite_mismo_ganador&integrante=${p.integrante}`,
+          },
         ]}
       />
     ),
