@@ -48,7 +48,7 @@ interface Resumen {
   porEtapa: Record<string, number>;
   motivosNoProcesable: { motivo: string; n: number }[];
   validacionesPendientes: { validacion: string; n: number }[];
-  /** De cuándo son las sumas (se guardan y se recalculan cada 25 min); los pendientes de procesamiento van en vivo. */
+  /** De cuándo son las sumas (se guardan y se recalculan cada 6 h); los pendientes de procesamiento van en vivo. */
   calculadoAt?: string;
 }
 interface ProcConfig { valor: { tipos_activos: string[]; etapas_activas: string[]; nota?: string; cola_desde?: string | null }; updatedAt?: string; updatedBy?: string; cola: number | null }

@@ -82,7 +82,7 @@ interface Datos {
     porAnio: { anio: number | null; contratos: number; enCola: number; leidos: number; conGanador: number | null }[];
     procesos: { anio: number; procesos: number; fuente: string }[];
     cola: { desde: string | null; financiable: number | null } | null;
-    /** De cuándo son las cifras por año (se guardan y se recalculan cada 25 min). */
+    /** De cuándo son las cifras por año (se guardan y se recalculan cada 6 h). */
     calculadoAt?: string | null;
   };
   derivados: { nombre: string; refrescadoAt: string | null; duracionMs: number | null; refrescos: number }[];
@@ -668,7 +668,7 @@ function TabBase({ d, cargando }: { d?: Datos; cargando: boolean }) {
       ayuda={
         <Ayuda titulo="¿De dónde salen estas cifras?">
           Los contratos del OECE desde 2015 (el registro con su ganador), los procesos adjudicados por año (CONOSCE desde 2018, OCDS antes) y lo que entra
-          a la cola de lectura. Contarlos recorre cientos de miles de filas, así que las cifras se guardan y se recalculan solas cada 25 minutos.
+          a la cola de lectura. Contarlos recorre cientos de miles de filas, así que las cifras se guardan y se recalculan solas cada 6 horas.
         </Ayuda>
       }
     >

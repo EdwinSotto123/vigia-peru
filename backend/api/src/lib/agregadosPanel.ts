@@ -5,9 +5,14 @@
  * lento» (2026-10-31).
  *
  *   agregado(clave)            el último resultado guardado; si no hay, lo calcula ahora y lo guarda. Si el guardado
- *                              tiene más de 50 min (el cron no corrió), se sirve igual y se recalcula en segundo plano.
+ *                              tiene más de 12 h (el cron no corrió), se sirve igual y se recalcula en segundo plano.
  *   refrescarAgregadosPanel()  lo llama el cron de cada 10 min (POST /admin/asignar): recalcula, uno por uno, los que
- *                              tienen más de 25 min.
+ *                              tienen más de 6 h.
+ *
+ * Vigencia de 6 h (antes 25 min, 2026-11-19): los cinco cálculos recorren las ~830 mil convocatorias y los procesos de
+ * CONOSCE, ~15 s de base por vuelta, 57 vueltas al día (pg_stat_statements: 13 900 s acumulados), y cada pasada sacaba
+ * de la memoria las páginas que usan las fichas públicas. Son conteos por año y por tipo que cambian con las cargas
+ * diarias: el panel dice cuándo se calcularon.
  *
  * Sin la migración 219 (tabla inexistente) todo se calcula en vivo, como antes.
  */
@@ -16,7 +21,7 @@ import { esErrorPg, poolAdmin as pool } from "./db.js";
 import { enSegundoPlano } from "./plataforma.js";
 
 /** Edad a partir de la cual el cron recalcula una cuenta. */
-const VIGENCIA_S = 25 * 60;
+const VIGENCIA_S = 6 * 3600;
 
 const filas = async (sql: string) => (await pool.query(sql)).rows;
 
