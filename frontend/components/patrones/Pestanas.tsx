@@ -194,7 +194,9 @@ export function Pestanas({
     // Con la barra fija, lo que se pega arriba dentro de la pestaña (rótulos de grupo de una Tabla) va debajo de ella:
     // `--alto-barra-fija` es su alto (en el celular, más la barra del sitio de 3 rem).
     <div className={cn(fija && !segunda && "[--alto-barra-fija:6.5rem] md:[--alto-barra-fija:3.5rem]", className)}>
-      <div className={cn("relative", fija && !segunda && "sticky top-0 z-barra")}>
+      {/* Con fondo: sin él, al bajar el texto de la pestaña pasaba por debajo de los rótulos y se leían encimados (2026-11-19,
+          fichas de contrato a 1440 y 390 px). `bg-fondo` es el del cuerpo: la barra se funde con la página en día y noche. */}
+      <div className={cn("relative", fija && !segunda && "sticky top-0 z-barra bg-fondo")}>
         <div
           ref={riel}
           role="tablist"
