@@ -588,6 +588,12 @@ export interface PatronObservacion {
   pValor?: number | null;
   qValor?: number | null;
   marcas?: string[] | null;
+  /** Las del Tribunal (migraciones 424 y 427): procesos de la persona del comité corregidos por el Tribunal, la
+   * resolución, la infracción del sancionador y cuántos días después de esa orden ganó. */
+  corregidos?: number | null;
+  resolucion?: string | null;
+  infraccion?: string[] | null;
+  diasDespues?: number | null;
 }
 
 export interface PatronesObservacion {

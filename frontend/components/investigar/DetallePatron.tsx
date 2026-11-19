@@ -8,7 +8,7 @@ import { usePoder } from "@/components/grafo/vista";
 import type { Fila } from "@/components/listado";
 import { Button } from "@/components/ui/Button";
 import { EnlaceAccion } from "@/components/ui/EnlaceAccion";
-import { decimal, fechaConAnio, numero, plural, porcentaje, solesCompacto } from "@/lib/formato";
+import { decimal, fechaConAnio, numero, oracion, plural, porcentaje, solesCompacto } from "@/lib/formato";
 import { tituloNatural } from "@/lib/landing";
 import { aniosDeLasOrdenes, fechasEnElPuesto, loQueRecibio, ordenesEnElPuesto, ordenesFueraDelPuesto, papelEnLaEmpresa, periodoDelPuesto, reglaCompraFamilia } from "@/lib/comprasFamilia";
 import { loQueVendio, ventasFrenteALaSalida } from "@/lib/autoridadExsocio";
@@ -1162,6 +1162,15 @@ const IDENTIDAD_COMITE: Record<string, string> = {
   nombre: "Coincide un nombre de tres palabras: puede ser un homónimo.",
 };
 
+/** La infracción por la que el Tribunal ordena un sancionador (migración 424), en palabras. */
+function infraccionPalabras(inf: string[] | null | undefined): string | null {
+  const x = inf ?? [];
+  if (x.includes("documentacion_falsa") && x.includes("informacion_inexacta")) return "documentación falsa o información inexacta";
+  if (x.includes("documentacion_falsa")) return "documentación falsa";
+  if (x.includes("informacion_inexacta")) return "información inexacta";
+  return null;
+}
+
 export function detalleObservacion(p: PatronObservacion): Detalle {
   const emp = empresa(p.empresa);
   const ent = entidad(p.entidad);
@@ -1198,6 +1207,32 @@ export function detalleObservacion(p: PatronObservacion): Detalle {
         <b>{p.restringidos ?? "muchos"}</b> la competencia quedó restringida
         {p.tasaEntidad != null ? <>; en los demás procesos de la entidad pasa en el <b>{Math.round(p.tasaEntidad * 100)} %</b></> : ""}. Este, que ganó{" "}
         <b>{emp}</b>, es uno de ellos.
+      </>
+    ) : p.tipo === "comite_corregido_tribunal" ? (
+      <>
+        Una misma persona del comité de selección de <b>{ent}</b>
+        {p.rolComite ? ` (${p.rolComite.toLowerCase()})` : ""} estuvo en {plural(p.procesosPersona ?? 3, "proceso", "procesos")} y el Tribunal de
+        Contrataciones corrigió <b>{p.corregidos ?? "varios"}</b> al resolver una apelación
+        {p.tasaEntidad != null ? <>; en los demás procesos de la entidad le pasa al <b>{(p.tasaEntidad * 100).toLocaleString("es-PE", { maximumFractionDigits: 1 })} %</b></> : ""}.
+        Este, que ganó <b>{emp}</b>, es uno de ellos.
+      </>
+    ) : p.tipo === "tribunal_sancionador" ? (
+      <>
+        Al resolver una apelación en este proceso de <b>{ent}</b>, el Tribunal de Contrataciones ordenó abrirle a <b>{emp}</b> un procedimiento
+        sancionador{infraccionPalabras(p.infraccion) ? <> por presunta <b>{infraccionPalabras(p.infraccion)}</b> en su oferta</> : ""}. Es la orden de
+        investigar, no la sanción.
+      </>
+    ) : p.tipo === "tribunal_revoco_buena_pro" ? (
+      <>
+        El comité de <b>{ent}</b> le dio la buena pro a <b>{emp}</b> y el Tribunal de Contrataciones <b>se la quitó</b> al resolver la apelación de
+        otro postor.
+      </>
+    ) : p.tipo === "gana_con_sancionador_abierto" ? (
+      <>
+        <b>{emp}</b> ganó este proceso de <b>{ent}</b>
+        {p.diasDespues != null ? <> <b>{plural(p.diasDespues, "día", "días")} después</b></> : " después"} de que el Tribunal ordenara abrirle un
+        procedimiento sancionador en otro proceso{infraccionPalabras(p.infraccion) ? <> por presunta {infraccionPalabras(p.infraccion)}</> : ""}, y antes de
+        cualquier sanción registrada.
       </>
     ) : p.tipo === "comite_socio_proveedor" ? (
       <>
@@ -1262,6 +1297,23 @@ export function detalleObservacion(p: PatronObservacion): Detalle {
             { etiqueta: "Probabilidad de que sea azar", valor: p.pValor != null ? (p.pValor < 0.001 ? "Menos de 1 en 1 000" : `1 en ${numero(Math.round(1 / p.pValor))}`) : null },
             { etiqueta: "En este proceso", valor: p.marcas?.length ? p.marcas.map((x) => MARCAS_COMPETENCIA[x] ?? x).join(", ") : null },
             { etiqueta: "De dónde sale", valor: "Actas leídas por Vigía y sus agentes (nombres comprobados) y las banderas de competencia de cada proceso" },
+          ]
+      : p.tipo === "comite_corregido_tribunal"
+        ? [
+            { etiqueta: "Papel en el comité", valor: p.rolComite ? tituloNatural(p.rolComite) : null },
+            { etiqueta: "Sus procesos en la entidad", valor: p.procesosPersona != null ? numero(p.procesosPersona) : null, mono: true },
+            { etiqueta: "Corregidos por el Tribunal", valor: p.corregidos != null ? numero(p.corregidos) : null, mono: true },
+            { etiqueta: "En el resto de la entidad", valor: p.tasaEntidad != null ? `${(p.tasaEntidad * 100).toLocaleString("es-PE", { maximumFractionDigits: 1 })} %` : null, mono: true },
+            { etiqueta: "Probabilidad de que sea azar", valor: p.pValor != null ? (p.pValor < 0.001 ? "Menos de 1 en 1 000" : `1 en ${numero(Math.round(1 / p.pValor))}`) : null },
+            { etiqueta: "Resolución de este proceso", valor: p.resolucion ?? null },
+            { etiqueta: "De dónde sale", valor: "Actas leídas por Vigía y sus agentes (nombres comprobados) y resoluciones del Tribunal leídas por Vigía" },
+          ]
+      : p.tipo === "tribunal_sancionador" || p.tipo === "tribunal_revoco_buena_pro" || p.tipo === "gana_con_sancionador_abierto"
+        ? [
+            { etiqueta: "Resolución del Tribunal", valor: p.resolucion ?? null },
+            { etiqueta: "Por presunta", valor: p.tipo !== "tribunal_revoco_buena_pro" ? (infraccionPalabras(p.infraccion) ? oracion(infraccionPalabras(p.infraccion)!) : null) : null },
+            { etiqueta: "Ganó después de la orden", valor: p.diasDespues != null ? plural(p.diasDespues, "día", "días") : null, mono: true },
+            { etiqueta: "De dónde sale", valor: "Resolución del Tribunal de Contrataciones leída por Vigía, con el nombre comprobado en su texto" },
           ]
       : p.tipo === "comite_socio_proveedor"
         ? [
@@ -1355,6 +1407,20 @@ export function detalleObservacion(p: PatronObservacion): Detalle {
             "Mira si los postores descalificados apelaron y qué resolvió el Tribunal.",
             "Descarta la explicación sencilla: un área que compra algo muy específico, donde casi nadie cumple.",
           ]
+      : p.tipo === "comite_corregido_tribunal"
+        ? [
+            "Lee las resoluciones del Tribunal de los procesos de esa persona: qué calificó o descalificó mal cada vez.",
+            "Mira si los errores benefician siempre a la misma empresa o al mismo tipo de postor.",
+            "Compara con otros comités de la entidad: si el problema son las bases del área o la persona.",
+            "Descarta la explicación sencilla: un área con procesos muy disputados, donde se apela casi todo.",
+          ]
+      : p.tipo === "tribunal_sancionador" || p.tipo === "tribunal_revoco_buena_pro" || p.tipo === "gana_con_sancionador_abierto"
+        ? [
+            "Lee la resolución del Tribunal: qué documento o requisito cuestionó y por qué.",
+            "Mira en la ficha de la empresa si le pasó en otras entidades y si ya fue sancionada (Historial).",
+            "Revisa los procesos que ganó después: qué documentos presentó y quién los evaluó.",
+            "Descarta la explicación sencilla: un error de forma corregido o un sancionador que terminó sin sanción.",
+          ]
       : p.tipo === "comite_socio_proveedor"
         ? [
             "Confirma que sea la misma persona: su cargo en la entidad, su Declaración Jurada de Intereses y la ficha de la empresa en el RNP.",
@@ -1412,7 +1478,7 @@ export function detalleObservacion(p: PatronObservacion): Detalle {
           esRuc20(p.ruc) && { texto: "Ficha de la empresa", href: `/empresa/${p.ruc}` },
           esRuc20(p.entidadRuc) && { texto: "Ficha de la entidad", href: `/entidad/${p.entidadRuc}` },
           // La misma persona del comité en sus otros contratos marcados (por su clave, nunca por su nombre).
-          (p.tipo === "comite_mismo_ganador" || p.tipo === "comite_socio_proveedor" || p.tipo === "comite_competencia_restringida") && !!p.integrante && {
+          (p.tipo === "comite_mismo_ganador" || p.tipo === "comite_socio_proveedor" || p.tipo === "comite_competencia_restringida" || p.tipo === "comite_corregido_tribunal") && !!p.integrante && {
             texto: "Otros contratos de esa persona del comité",
             href: `/app/patrones?seccion=observacion&integrante=${p.integrante}`,
           },

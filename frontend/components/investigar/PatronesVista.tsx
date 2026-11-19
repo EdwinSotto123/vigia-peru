@@ -2686,6 +2686,15 @@ function ListaObservacion({ inicial }: { inicial: InicialPatrones }) {
 }
 
 /** Lo que se encontró, en una línea: sin nombres de personas (de quien recibió, sólo el cargo). */
+/** La infracción por la que el Tribunal ordena un sancionador (migración 424), en palabras. */
+function infraccionEnPalabras(inf: string[] | null | undefined): string | null {
+  const x = inf ?? [];
+  if (x.includes("documentacion_falsa") && x.includes("informacion_inexacta")) return "documentación falsa o información inexacta";
+  if (x.includes("documentacion_falsa")) return "documentación falsa";
+  if (x.includes("informacion_inexacta")) return "información inexacta";
+  return null;
+}
+
 function evidenciaObservacion(p: PatronObservacion): string {
   const quien = p.cargo ? p.cargo.toLowerCase() : "quien decide las compras";
   if (p.tipo === "reunion_en_evaluacion") {
@@ -2707,6 +2716,19 @@ function evidenciaObservacion(p: PatronObservacion): string {
     const rol = p.rolComite ? ` (${p.rolComite.toLowerCase()})` : "";
     const base = p.tasaEntidad != null ? `; en el resto de la entidad, ${Math.round(p.tasaEntidad * 100)} %` : "";
     return `Integrante del comité${rol}: competencia restringida en ${p.restringidos ?? "varios"} de sus ${plural(p.procesosPersona ?? 4, "proceso", "procesos")}${base}`;
+  }
+  if (p.tipo === "comite_corregido_tribunal") {
+    const rol = p.rolComite ? ` (${p.rolComite.toLowerCase()})` : "";
+    return `Integrante del comité${rol}: el Tribunal corrigió ${p.corregidos ?? "varios"} de sus ${plural(p.procesosPersona ?? 3, "proceso", "procesos")}${p.resolucion ? `; este, en la ${p.resolucion}` : ""}`;
+  }
+  if (p.tipo === "tribunal_sancionador") {
+    return `El Tribunal ordenó abrirle un sancionador${infraccionEnPalabras(p.infraccion) ? ` por presunta ${infraccionEnPalabras(p.infraccion)}` : ""}${p.resolucion ? ` (${p.resolucion})` : ""}`;
+  }
+  if (p.tipo === "tribunal_revoco_buena_pro") {
+    return `El comité le dio la buena pro y el Tribunal se la quitó${p.resolucion ? ` (${p.resolucion})` : ""}`;
+  }
+  if (p.tipo === "gana_con_sancionador_abierto") {
+    return `Ganó ${p.diasDespues != null ? `${plural(p.diasDespues, "día", "días")} ` : ""}después de que el Tribunal ordenara abrirle un sancionador${p.resolucion ? ` (${p.resolucion})` : ""}`;
   }
   if (p.tipo === "comite_socio_proveedor") {
     // Migración 407: del integrante, su papel en el comité y en la empresa; nunca su nombre.
