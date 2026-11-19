@@ -252,6 +252,16 @@ function porQuePesa(x: Fila): string | undefined {
         (base != null ? `; en los demás procesos de la entidad pasa en el ${base} %` : "") +
         (pv != null ? `. Que sea azar tiene una probabilidad de ${pv < 0.001 ? "menos de 1 en 1 000" : `1 en ${Math.round(1 / pv)}`} (control de falsos descubrimientos al 10 %).` : ".");
     }
+    case "comite_corregido_tribunal": {
+      // Migración 427: la persona, por su papel; sus procesos corregidos frente a la entidad sin ella.
+      const m = n(d.corregidos);
+      const tot = n(d.procesos_de_la_persona);
+      const pv = typeof d.p_valor === "number" ? d.p_valor : null;
+      if (m == null || tot == null) return undefined;
+      return `La misma persona del comité (${d.rol ?? "integrante"}) estuvo en ${tot} procesos de la entidad y el Tribunal corrigió ${m}` +
+        (typeof d.tasa_entidad === "number" ? `; en los demás procesos de la entidad, el ${(d.tasa_entidad * 100).toFixed(1)} %` : "") +
+        (pv != null ? `. Que sea azar: ${pv < 0.001 ? "menos de 1 en 1 000" : `1 en ${Math.round(1 / pv)}`}.` : ".");
+    }
     case "tribunal_sancionador":
     case "tribunal_revoco_buena_pro":
     case "gana_con_sancionador_abierto": {

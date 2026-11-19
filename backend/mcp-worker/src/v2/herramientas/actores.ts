@@ -829,7 +829,8 @@ export const patrones = definir({
     alcance: z.enum(["entidad", "proveedor", "relleno", "consorcio", "renovacion", "dueno", "inhabilitada", "control", "observado", "observacion", "grupo", "repetida", "doble", "recien_creada", "compras_familia", "autoridad_exsocio", "cierre_gestion", "tribunal"]).default("entidad"),
     indicador: z.enum(["reunion_en_evaluacion", "visita_personal_decisor", "ofertas_a_la_vez", "trabajo_en_el_ganador",
       "firma_en_plazo_de_apelacion", "solo_admitido_el_ganador", "comite_mismo_ganador", "comite_socio_proveedor",
-      "comite_competencia_restringida"]).optional()
+      "comite_competencia_restringida", "comite_corregido_tribunal", "tribunal_sancionador", "tribunal_revoco_buena_pro",
+      "gana_con_sancionador_abierto"]).optional()
       .describe("(observacion) Sólo uno de los indicadores en observación."),
     integrante_del_comite: z.string().regex(/^[0-9a-f]{10}$/).optional()
       .describe("(observacion) La clave de una persona del comité (integrante_del_comite de comite_mismo_ganador o comite_socio_proveedor): todos sus contratos marcados en las dos señales, sin su nombre."),
@@ -1057,6 +1058,11 @@ export const patrones = definir({
           tasa_de_la_entidad_sin_esa_persona: x.tasaEntidad ?? undefined,
           probabilidad_de_azar: x.pValor ?? undefined,
           marcas_de_este_proceso: Array.isArray(x.marcas) && x.marcas.length ? x.marcas : undefined,
+          // comite_corregido_tribunal (427) y las del Tribunal (424).
+          procesos_corregidos_por_el_tribunal: x.corregidos ?? undefined,
+          resolucion_del_tribunal: x.resolucion ?? undefined,
+          infraccion: Array.isArray(x.infraccion) && x.infraccion.length ? x.infraccion : undefined,
+          dias_despues_de_la_orden: x.diasDespues ?? undefined,
         })),
         como_leerlo:
           "Son indicadores EN OBSERVACIÓN: Vigía todavía mide cuántas veces aciertan, así que no cuentan para el puntaje del " +
@@ -1090,6 +1096,13 @@ export const patrones = definir({
           "(tasa_de_la_entidad_sin_esa_persona); probabilidad_de_azar es la binomial de tantos restringidos con esa tasa y " +
           "sólo salen las personas que pasan un control de falsos descubrimientos al 10 % sobre todas las probadas. Se marca " +
           "cada proceso restringido de esa persona; marcas_de_este_proceso dice qué pasó en él. " +
+          "comite_corregido_tribunal: lo mismo con los procesos que el Tribunal de Contrataciones corrigió al resolver una " +
+          "apelación (fundada, en parte o nulidad, comprobado contra el primer punto resolutivo): la persona del comité tiene " +
+          "dos o más corregidos, mucho más que el resto de su entidad; resolucion_del_tribunal es la del proceso marcado. " +
+          "tribunal_sancionador: al resolver una apelación, el Tribunal ordenó abrirle a la empresa un procedimiento " +
+          "sancionador (infraccion: documentacion_falsa o informacion_inexacta); es la orden de investigar, no la sanción. " +
+          "tribunal_revoco_buena_pro: el comité le dio la buena pro y el Tribunal se la quitó. gana_con_sancionador_abierto: " +
+          "ganó este proceso dias_despues_de_la_orden días después de esa orden y antes de cualquier sanción registrada. " +
           "firma_en_plazo_de_apelacion: en un ítem con dos o más ofertas, el " +
           "contrato se firmó antes del 5.º día hábil siguiente a la buena pro, cuando los otros postores todavía podían " +
           "apelarla (el contrato se perfecciona después del consentimiento: arts. 64 y 141 del reglamento de la Ley 30225; " +

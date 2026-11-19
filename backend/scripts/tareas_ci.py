@@ -49,7 +49,7 @@ def refrescar_piezas(cur) -> None:
     for funcion in ("refrescar_proceso_postor", "refrescar_hecho_documento", "refrescar_cruce_solo_admitido",
                     "refrescar_comite_integrante", "refrescar_cruce_comite_mismo_ganador",
                     "refrescar_cruce_comite_socio_proveedor", "refrescar_cruce_comite_competencia_restringida",
-                    "refrescar_senal_tasa_base"):
+                    "refrescar_cruce_comite_corregido_tribunal", "refrescar_senal_tasa_base"):
         t = time.time()
         cur.execute(f"SELECT {funcion}()")
         print(f"{funcion}(): {cur.fetchone()[0]} filas ({round(time.time() - t)} s)", flush=True)

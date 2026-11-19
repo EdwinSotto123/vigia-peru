@@ -283,6 +283,7 @@ const POR_QUE: Record<string, string> = {
   otro_postor: "Cuando el ganador no firma o pierde la buena pro, se adjudica al siguiente postor con su propia oferta: el Estado paga más. Vale ver en el expediente por qué no firmó el primero.",
   fraccionamiento: "Partir una compra en órdenes pequeñas para no hacer un proceso de selección está prohibido. Varias órdenes el mismo día, al mismo proveedor y por encima del tope, son el patrón que se busca.",
   unico_postor: "Un proceso con un solo postor no tuvo competencia: puede ser un rubro muy chico o un requerimiento hecho a la medida de un proveedor. Vale ver si las bases eran restrictivas, sobre todo si el monto es alto o se adjudicó al tope del valor referencial.",
+  comite_corregido_tribunal: "Cada vez que el Tribunal declara fundada una apelación o anula el proceso, dice que el comité calificó mal, descalificó mal o aceptó bases con un vicio. Que le pase una y otra vez a la misma persona del comité es el patrón de un evaluador que favorece a alguien o no respeta las reglas. Vale leer las resoluciones: si el error se repite y si beneficia siempre a la misma empresa.",
   tribunal_sancionador: "Presentar documentos falsos o información inexacta es la infracción más grave de la ley de contrataciones: se sanciona con inhabilitación de hasta diez años. Vale ver qué documento cuestionó el Tribunal, si la empresa ya fue sancionada (Historial) y si sigue ganando contratos mientras se investiga.",
   tribunal_revoco_buena_pro: "Que el Tribunal revoque una buena pro dice que el comité calificó mal: dejó pasar una oferta que no cumplía o descalificó mal a otra. Vale leer la resolución para ver qué no cumplía y mirar si a la misma empresa le pasó en otras entidades.",
   gana_con_sancionador_abierto: "La entidad no puede rechazar una oferta por un sancionador en trámite, pero sí debe verificar los documentos de la oferta. Si la empresa ya estaba bajo investigación por documentos falsos, vale revisar con lupa la experiencia y los certificados que presentó en este proceso.",
@@ -664,6 +665,23 @@ function Texto({ c, gobierna }: { c: CruceProveedor; gobierna?: GobiernoContrato
           {identidad[txt(d.identidad) ?? ""] ?? ""}{" "}
           Sale de las actas que leyeron los agentes, con el nombre comprobado en el documento
           {n(d.pagina) != null ? ` (página ${numero(n(d.pagina)!)} del acta)` : ""}.
+        </>
+      );
+    }
+    case "comite_corregido_tribunal": {
+      // Migración 427. Del integrante del comité, sólo su papel: nunca su nombre.
+      const rol = txt(d.rol)?.toLowerCase();
+      const m = n(d.corregidos);
+      const total = n(d.procesos_de_la_persona);
+      const base = typeof d.tasa_entidad === "number" ? d.tasa_entidad * 100 : null;
+      const pv = typeof d.p_valor === "number" ? d.p_valor : null;
+      return (
+        <>
+          Una misma persona del comité de selección{rol ? ` (${rol})` : ""} estuvo en {total != null ? `${numero(total)} procesos` : "varios procesos"} de esta
+          entidad y el Tribunal de Contrataciones corrigió <b>{m != null ? numero(m) : "varios"}</b>
+          {base != null ? <>; en los demás procesos de la entidad le pasa al <b>{base < 1 ? base.toLocaleString("es-PE", { maximumFractionDigits: 1 }) : Math.round(base)} %</b></> : ""}.{" "}
+          {pv != null ? `Que sea azar tiene una probabilidad de ${pv < 0.001 ? "menos de 1 en 1 000" : `1 en ${numero(Math.round(1 / pv))}`}. ` : ""}
+          Este lo corrigió {txt(d.resolucion) ? <>la <b>{txt(d.resolucion)}</b></> : "una resolución del Tribunal"}; lo ganó <Emp c={c} />.
         </>
       );
     }

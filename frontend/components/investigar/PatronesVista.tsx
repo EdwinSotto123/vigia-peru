@@ -2583,6 +2583,10 @@ const NOMBRE_OBSERVACION: Record<PatronObservacion["tipo"], string> = {
   comite_mismo_ganador: "El mismo integrante del comité, el mismo ganador",
   comite_socio_proveedor: "Un integrante del comité es socio del proveedor",
   comite_competencia_restringida: "Un integrante del comité con la competencia restringida en sus procesos",
+  comite_corregido_tribunal: "Un integrante del comité corregido una y otra vez por el Tribunal",
+  tribunal_sancionador: "El Tribunal ordenó abrirle un sancionador por su oferta",
+  tribunal_revoco_buena_pro: "El Tribunal le quitó la buena pro",
+  gana_con_sancionador_abierto: "Ganó con un sancionador del Tribunal abierto",
 };
 
 /** Cuándo fue el empleo frente a la buena pro (trabajo_en_el_ganador). */

@@ -206,6 +206,7 @@ const FAMILIA_CRUCE: Record<string, FamiliaPatron> = {
   mismo_dueno: "concertacion", turno_postores: "concertacion", domicilio_compartido: "concertacion", unico_postor: "concertacion",
   otro_postor: "concertacion", empresa_espejo: "concertacion", solo_admitido_el_ganador: "concertacion",
   comite_competencia_restringida: "concertacion",
+  comite_corregido_tribunal: "concertacion",
   // Compras partidas, repetidas o a la medida.
   fraccionamiento: "compras", recurrente_dominante: "compras", recurrente_frecuente: "compras", recurrente: "compras", proveedor_cautivo: "compras",
   renovacion_mas_cara: "compras", contrato_sobre_adjudicado: "compras", retencion_sobre_tope: "compras",

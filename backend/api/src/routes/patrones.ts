@@ -1199,7 +1199,8 @@ patronesRouter.get("/renovaciones", async (c) => {
 
 const TIPOS_OBSERVACION = ["reunion_en_evaluacion", "visita_personal_decisor", "ofertas_a_la_vez", "trabajo_en_el_ganador",
   "firma_en_plazo_de_apelacion", "solo_admitido_el_ganador", "comite_mismo_ganador", "comite_socio_proveedor",
-  "comite_competencia_restringida"] as const;
+  "comite_competencia_restringida", "comite_corregido_tribunal", "tribunal_sancionador", "tribunal_revoco_buena_pro",
+  "gana_con_sancionador_abierto"] as const;
 const Observacion = z.object({
   tipo: z.enum(TIPOS_OBSERVACION).optional(),
   ruc: z.string().regex(/^20\d{9}$/).optional(),
@@ -1263,6 +1264,10 @@ patronesRouter.get("/observacion", async (c) => {
                 -- restringida, la tasa de la entidad sin esa persona, la probabilidad de que sea azar y las marcas del proceso.
                 (k.detalle->>'restringidos')::int AS restringidos, (k.detalle->>'tasa_entidad')::float AS "tasaEntidad",
                 (k.detalle->>'p_valor')::float AS "pValor", (k.detalle->>'q_valor')::float AS "qValor", k.detalle->'marcas' AS marcas,
+                -- comite_corregido_tribunal (427) y las del Tribunal (424): cuántos de sus procesos corrigió el Tribunal, la
+                -- resolución, la infracción del sancionador y cuántos días después ganó.
+                (k.detalle->>'corregidos')::int AS corregidos, k.detalle->>'resolucion' AS resolucion,
+                k.detalle->'infraccion' AS infraccion, (k.detalle->>'dias_despues')::int AS "diasDespues",
                 k.detalle->>'consentimiento_registrado' AS consentimiento, k.detalle->>'norma' AS norma,
                 COALESCE(k.detalle->>'area_funcionario', k.detalle->'visitas'->-1->>'area') AS area,
                 (k.detalle->>'minutos')::float AS minutos, k.detalle->>'hora_ganador' AS "horaGanador", k.detalle->>'hora_otro' AS "horaOtro",

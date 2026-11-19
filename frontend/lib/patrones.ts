@@ -515,7 +515,11 @@ export interface PatronObservacion {
     | "solo_admitido_el_ganador"
     | "comite_mismo_ganador"
     | "comite_socio_proveedor"
-    | "comite_competencia_restringida";
+    | "comite_competencia_restringida"
+    | "comite_corregido_tribunal"
+    | "tribunal_sancionador"
+    | "tribunal_revoco_buena_pro"
+    | "gana_con_sancionador_abierto";
   etiqueta: string;
   severidad: "alta" | "media" | "baja";
   ocid: string;
