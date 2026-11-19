@@ -514,7 +514,8 @@ export interface PatronObservacion {
     | "firma_en_plazo_de_apelacion"
     | "solo_admitido_el_ganador"
     | "comite_mismo_ganador"
-    | "comite_socio_proveedor";
+    | "comite_socio_proveedor"
+    | "comite_competencia_restringida";
   etiqueta: string;
   severidad: "alta" | "media" | "baja";
   ocid: string;
@@ -576,6 +577,13 @@ export interface PatronObservacion {
   ocidComite?: string | null;
   comiteDesde?: string | null;
   comiteHasta?: string | null;
+  /** El evaluador que restringe la competencia (migración 415): sus procesos restringidos, la tasa de la entidad sin esa
+   * persona, la probabilidad de azar y las marcas de este proceso. */
+  restringidos?: number | null;
+  tasaEntidad?: number | null;
+  pValor?: number | null;
+  qValor?: number | null;
+  marcas?: string[] | null;
 }
 
 export interface PatronesObservacion {

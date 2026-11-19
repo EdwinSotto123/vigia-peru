@@ -1139,7 +1139,8 @@ patronesRouter.get("/renovaciones", async (c) => {
 });
 
 const TIPOS_OBSERVACION = ["reunion_en_evaluacion", "visita_personal_decisor", "ofertas_a_la_vez", "trabajo_en_el_ganador",
-  "firma_en_plazo_de_apelacion", "solo_admitido_el_ganador", "comite_mismo_ganador", "comite_socio_proveedor"] as const;
+  "firma_en_plazo_de_apelacion", "solo_admitido_el_ganador", "comite_mismo_ganador", "comite_socio_proveedor",
+  "comite_competencia_restringida"] as const;
 const Observacion = z.object({
   tipo: z.enum(TIPOS_OBSERVACION).optional(),
   ruc: z.string().regex(/^20\d{9}$/).optional(),
@@ -1199,6 +1200,10 @@ patronesRouter.get("/observacion", async (c) => {
                 (k.detalle->>'socio_al_ganar')::boolean AS "socioAlGanar", k.detalle->>'identidad' AS identidad,
                 (k.detalle->>'en_su_comite')::boolean AS "enSuComite", k.detalle->>'ocid_comite' AS "ocidComite",
                 k.detalle->>'comite_desde' AS "comiteDesde", k.detalle->>'comite_hasta' AS "comiteHasta",
+                -- comite_competencia_restringida (migración 415): cuántos de sus procesos quedaron con la competencia
+                -- restringida, la tasa de la entidad sin esa persona, la probabilidad de que sea azar y las marcas del proceso.
+                (k.detalle->>'restringidos')::int AS restringidos, (k.detalle->>'tasa_entidad')::float AS "tasaEntidad",
+                (k.detalle->>'p_valor')::float AS "pValor", (k.detalle->>'q_valor')::float AS "qValor", k.detalle->'marcas' AS marcas,
                 k.detalle->>'consentimiento_registrado' AS consentimiento, k.detalle->>'norma' AS norma,
                 COALESCE(k.detalle->>'area_funcionario', k.detalle->'visitas'->-1->>'area') AS area,
                 (k.detalle->>'minutos')::float AS minutos, k.detalle->>'hora_ganador' AS "horaGanador", k.detalle->>'hora_otro' AS "horaOtro",

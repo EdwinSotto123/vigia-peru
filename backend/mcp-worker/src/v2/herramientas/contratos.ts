@@ -241,6 +241,17 @@ function porQuePesa(x: Fila): string | undefined {
       ].filter(Boolean);
       return `Un integrante del comité (${d.rol ?? "integrante"}) es socio o representante de la empresa. ${partes.join("; ")}.`;
     }
+    case "comite_competencia_restringida": {
+      // Migración 415: la persona, por su papel; la comparación con la entidad sin ella y la probabilidad de azar.
+      const m = n(d.restringidos);
+      const tot = n(d.procesos_de_la_persona);
+      const base = typeof d.tasa_entidad === "number" ? Math.round(d.tasa_entidad * 100) : null;
+      const pv = typeof d.p_valor === "number" ? d.p_valor : null;
+      if (m == null || tot == null) return undefined;
+      return `La misma persona del comité (${d.rol ?? "integrante"}) estuvo en ${tot} procesos de la entidad y en ${m} la competencia quedó restringida` +
+        (base != null ? `; en los demás procesos de la entidad pasa en el ${base} %` : "") +
+        (pv != null ? `. Que sea azar tiene una probabilidad de ${pv < 0.001 ? "menos de 1 en 1 000" : `1 en ${Math.round(1 / pv)}`} (control de falsos descubrimientos al 10 %).` : ".");
+    }
     case "firma_en_plazo_de_apelacion": {
       const dh = n(d.dias_habiles);
       return dh != null ? `Firmado ${dh === 0 ? "el mismo día de la buena pro" : `${dh} días hábiles después de la buena pro`}, antes del plazo para apelar.` : undefined;

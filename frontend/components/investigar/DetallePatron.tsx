@@ -1152,6 +1152,9 @@ function papelEmpresa(roles: string[] | null | undefined, todos = false): string
   return nombres[r.find((x) => x === "REPRESENTANTE_LEGAL") ?? r.find((x) => x === "ORGANO_ADMINISTRACION") ?? "SOCIO_ACCIONISTA_TITULAR"];
 }
 
+/** Las marcas de competencia de un proceso (comite_competencia_restringida, migración 415), en palabras. */
+const MARCAS_COMPETENCIA: Record<string, string> = { unico_postor: "un solo postor", acta_solo_queda_el_ganador: "el acta deja sólo al ganador", acta_descalificados_por_formalidad: "descalificaciones por formalidad", acta_oferta_mas_baja_descartada: "la oferta más baja descartada", solo_admitido_el_ganador: "sólo se admitió al ganador" };
+
 /** Cuán firme es que sea la misma persona (el emparejamiento es por nombre, sin DNI del acta). */
 const IDENTIDAD_COMITE: Record<string, string> = {
   documento: "El DNI que figura en el registro aparece entre las personas con órdenes de la entidad: es la misma persona.",
@@ -1187,6 +1190,14 @@ export function detalleObservacion(p: PatronObservacion): Detalle {
         {p.rolComite ? ` (${p.rolComite.toLowerCase()})` : ""} estuvo en <b>{plural(p.veces ?? 3, "proceso", "procesos")}</b> que ganó{" "}
         <b>{emp}</b>
         {p.parteSin != null ? <>; sin esa persona, la empresa gana el <b>{Math.round(p.parteSin * 100)} %</b> de los procesos de la entidad</> : ""}.
+      </>
+    ) : p.tipo === "comite_competencia_restringida" ? (
+      <>
+        Una misma persona del comité de selección de <b>{ent}</b>
+        {p.rolComite ? ` (${p.rolComite.toLowerCase()})` : ""} estuvo en {plural(p.procesosPersona ?? 4, "proceso", "procesos")} y en{" "}
+        <b>{p.restringidos ?? "muchos"}</b> la competencia quedó restringida
+        {p.tasaEntidad != null ? <>; en los demás procesos de la entidad pasa en el <b>{Math.round(p.tasaEntidad * 100)} %</b></> : ""}. Este, que ganó{" "}
+        <b>{emp}</b>, es uno de ellos.
       </>
     ) : p.tipo === "comite_socio_proveedor" ? (
       <>
@@ -1241,6 +1252,16 @@ export function detalleObservacion(p: PatronObservacion): Detalle {
             { etiqueta: "Gana sin esa persona", valor: p.parteSin != null ? `${Math.round(p.parteSin * 100)} %` : "Sin procesos para comparar" },
             { etiqueta: "Papel en el comité", valor: p.rolComite ? tituloNatural(p.rolComite) : null },
             { etiqueta: "De dónde sale", valor: "Actas leídas por los agentes de Vigía, con cada nombre comprobado en el documento" },
+          ]
+      : p.tipo === "comite_competencia_restringida"
+        ? [
+            { etiqueta: "Papel en el comité", valor: p.rolComite ? tituloNatural(p.rolComite) : null },
+            { etiqueta: "Sus procesos en la entidad", valor: p.procesosPersona != null ? numero(p.procesosPersona) : null, mono: true },
+            { etiqueta: "Con la competencia restringida", valor: p.restringidos != null ? numero(p.restringidos) : null, mono: true },
+            { etiqueta: "En el resto de la entidad", valor: p.tasaEntidad != null ? `${Math.round(p.tasaEntidad * 100)} %` : null, mono: true },
+            { etiqueta: "Probabilidad de que sea azar", valor: p.pValor != null ? (p.pValor < 0.001 ? "Menos de 1 en 1 000" : `1 en ${numero(Math.round(1 / p.pValor))}`) : null },
+            { etiqueta: "En este proceso", valor: p.marcas?.length ? p.marcas.map((x) => MARCAS_COMPETENCIA[x] ?? x).join(", ") : null },
+            { etiqueta: "De dónde sale", valor: "Actas leídas por Vigía y sus agentes (nombres comprobados) y las banderas de competencia de cada proceso" },
           ]
       : p.tipo === "comite_socio_proveedor"
         ? [
@@ -1327,6 +1348,13 @@ export function detalleObservacion(p: PatronObservacion): Detalle {
             "Busca si esa persona declaró algún vínculo con la empresa en su Declaración Jurada de Intereses.",
             "Descarta la explicación sencilla: el único proveedor del rubro o un área que compra siempre lo mismo.",
           ]
+      : p.tipo === "comite_competencia_restringida"
+        ? [
+            "Abre los procesos de esa persona del comité y lee en cada acta por qué quedaron fuera los demás postores.",
+            "Compara los requisitos de las bases entre sus procesos y los de otros comités de la misma entidad.",
+            "Mira si los postores descalificados apelaron y qué resolvió el Tribunal.",
+            "Descarta la explicación sencilla: un área que compra algo muy específico, donde casi nadie cumple.",
+          ]
       : p.tipo === "comite_socio_proveedor"
         ? [
             "Confirma que sea la misma persona: su cargo en la entidad, su Declaración Jurada de Intereses y la ficha de la empresa en el RNP.",
@@ -1384,7 +1412,7 @@ export function detalleObservacion(p: PatronObservacion): Detalle {
           esRuc20(p.ruc) && { texto: "Ficha de la empresa", href: `/empresa/${p.ruc}` },
           esRuc20(p.entidadRuc) && { texto: "Ficha de la entidad", href: `/entidad/${p.entidadRuc}` },
           // La misma persona del comité en sus otros contratos marcados (por su clave, nunca por su nombre).
-          (p.tipo === "comite_mismo_ganador" || p.tipo === "comite_socio_proveedor") && !!p.integrante && {
+          (p.tipo === "comite_mismo_ganador" || p.tipo === "comite_socio_proveedor" || p.tipo === "comite_competencia_restringida") && !!p.integrante && {
             texto: "Otros contratos de esa persona del comité",
             href: `/app/patrones?seccion=observacion&integrante=${p.integrante}`,
           },

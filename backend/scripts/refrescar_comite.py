@@ -16,7 +16,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "infrastructure" / 
 from tunel_rds import conexion  # noqa: E402
 
 FUNCIONES = ("refrescar_comite_integrante", "refrescar_cruce_comite_mismo_ganador",
-             "refrescar_cruce_comite_socio_proveedor", "refrescar_senal_tasa_base")
+             "refrescar_cruce_comite_socio_proveedor", "refrescar_cruce_comite_competencia_restringida",
+             "refrescar_senal_tasa_base")
 
 
 def main() -> None:

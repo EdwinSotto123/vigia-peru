@@ -283,6 +283,7 @@ const POR_QUE: Record<string, string> = {
   otro_postor: "Cuando el ganador no firma o pierde la buena pro, se adjudica al siguiente postor con su propia oferta: el Estado paga más. Vale ver en el expediente por qué no firmó el primero.",
   fraccionamiento: "Partir una compra en órdenes pequeñas para no hacer un proceso de selección está prohibido. Varias órdenes el mismo día, al mismo proveedor y por encima del tope, son el patrón que se busca.",
   unico_postor: "Un proceso con un solo postor no tuvo competencia: puede ser un rubro muy chico o un requerimiento hecho a la medida de un proveedor. Vale ver si las bases eran restrictivas, sobre todo si el monto es alto o se adjudicó al tope del valor referencial.",
+  comite_competencia_restringida: "Quien integra el comité decide quién cumple los requisitos. Si en los procesos de una misma persona la competencia queda restringida (un solo postor, descalificaciones, sólo el ganador admitido) mucho más que en el resto de la entidad, y eso no se explica por azar, es el patrón del evaluador que filtra a los postores. Vale leer en las actas por qué quedaron fuera los demás y si los requisitos se pidieron igual en todos los procesos.",
   comite_socio_proveedor: "Quien integra el comité decide quién cumple y cómo se puntúa. Si además es socio, gerente o representante de una empresa que le vende a su entidad, está en el impedimento de la ley de contrataciones: el funcionario y sus empresas no pueden contratar con su entidad mientras ejerce y hasta doce meses después. Vale confirmar que sea la misma persona, ver si se apartó del comité y revisar cómo se evaluó a los demás postores.",
   socio_en_entidad: "Que un dueño o representante del proveedor esté en la planilla o la lista de locadores de la MISMA entidad que lo contrata es un conflicto de interés directo: quien decide y quien vende pueden ser la misma red. Merece revisar el expediente.",
   pariente_funcionario: "La Ley 32069 impide contratar con la entidad a los parientes de ciertos funcionarios (los que deciden o influyen en la compra). Que un familiar declarado de un funcionario de la misma entidad sea dueño o representante del ganador merece ver en el expediente quién intervino y si se apartó.",
@@ -607,6 +608,25 @@ function Texto({ c, gobierna }: { c: CruceProveedor; gobierna?: GobiernoContrato
           )}{" "}
           Sale de las actas que leyeron los agentes, con cada nombre comprobado en el documento
           {n(d.pagina) != null ? ` (página ${numero(n(d.pagina)!)} del acta)` : ""}.
+        </>
+      );
+    }
+    case "comite_competencia_restringida": {
+      // Migración 415. Del integrante, sólo su papel en el comité: nunca su nombre.
+      const rol = txt(d.rol)?.toLowerCase();
+      const m = n(d.restringidos);
+      const total = n(d.procesos_de_la_persona);
+      const base = typeof d.tasa_entidad === "number" ? Math.round(d.tasa_entidad * 100) : null;
+      const pv = typeof d.p_valor === "number" ? d.p_valor : null;
+      const nombres: Record<string, string> = { unico_postor: "un solo postor", acta_solo_queda_el_ganador: "el acta deja sólo al ganador", acta_descalificados_por_formalidad: "descalificaciones por formalidad", acta_oferta_mas_baja_descartada: "la oferta más baja descartada", solo_admitido_el_ganador: "sólo se admitió al ganador" };
+      const marcas = Array.isArray(d.marcas) ? (d.marcas as string[]).map((x) => nombres[x] ?? x) : [];
+      return (
+        <>
+          Una misma persona del comité de selección{rol ? ` (${rol})` : ""} estuvo en {total != null ? `${numero(total)} procesos` : "varios procesos"} de esta
+          entidad y en <b>{m != null ? numero(m) : "muchos"}</b> la competencia quedó restringida{base != null ? <>; en los demás procesos de la entidad pasa en el <b>{base} %</b></> : ""}.{" "}
+          {pv != null ? `Que sea azar tiene una probabilidad de ${pv < 0.001 ? "menos de 1 en 1 000" : `1 en ${numero(Math.round(1 / pv))}`}. ` : ""}
+          {marcas.length ? `En este proceso: ${marcas.join(", ")}. ` : ""}
+          Sale de las actas que leyeron Vigía y sus agentes, con cada nombre comprobado en el documento.
         </>
       );
     }

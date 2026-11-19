@@ -2582,6 +2582,7 @@ const NOMBRE_OBSERVACION: Record<PatronObservacion["tipo"], string> = {
   solo_admitido_el_ganador: "Entre cuatro o más ofertas, sólo se admitió la del ganador",
   comite_mismo_ganador: "El mismo integrante del comité, el mismo ganador",
   comite_socio_proveedor: "Un integrante del comité es socio del proveedor",
+  comite_competencia_restringida: "Un integrante del comité con la competencia restringida en sus procesos",
 };
 
 /** Cuándo fue el empleo frente a la buena pro (trabajo_en_el_ganador). */
@@ -2614,12 +2615,13 @@ function ListaObservacion({ inicial }: { inicial: InicialPatrones }) {
               cuenta para el riesgo del contrato hasta saber, con una muestra revisada, cuántas veces acierta.
             </span>
             <span className="mt-1.5 block">
-              Hoy son ocho: una reunión de la empresa con quien decide las compras mientras se evaluaban las ofertas, visitas
+              Hoy son nueve: una reunión de la empresa con quien decide las compras mientras se evaluaban las ofertas, visitas
               declaradas «personales» y repetidas a quien decide, dos rivales con un socio común que registran sus ofertas
               casi a la vez, un funcionario de la entidad que declaró en su DJI haber trabajado en la empresa que ganó, un
               contrato firmado antes de que los otros postores pudieran apelar, un ítem de cuatro o más ofertas en el que sólo
               se admitió la del ganador, la misma persona del comité de selección en varios procesos que ganó la misma empresa, y
-              una persona del comité que es socia o representante de una empresa que le vende a su entidad.
+              una persona del comité que es socia o representante de una empresa que le vende a su entidad, y una persona del
+              comité en cuyos procesos la competencia queda restringida mucho más que en el resto de la entidad.
             </span>
             <span className="mt-1.5 block">De quien recibió una visita se muestra sólo el cargo. Es un motivo para mirar, no una acusación.</span>
           </Ayuda>
@@ -2696,6 +2698,11 @@ function evidenciaObservacion(p: PatronObservacion): string {
     const sin = p.parteSin != null ? `; sin esa persona gana el ${Math.round(p.parteSin * 100)} %` : "; sin otros procesos para comparar";
     const rol = p.rolComite ? ` (${p.rolComite.toLowerCase()})` : "";
     return `La misma persona del comité${rol} en ${plural(p.veces ?? 3, "proceso", "procesos")} que ganó, de ${plural(p.procesosPersona ?? p.veces ?? 3, "proceso suyo", "procesos suyos")}${sin}`;
+  }
+  if (p.tipo === "comite_competencia_restringida") {
+    const rol = p.rolComite ? ` (${p.rolComite.toLowerCase()})` : "";
+    const base = p.tasaEntidad != null ? `; en el resto de la entidad, ${Math.round(p.tasaEntidad * 100)} %` : "";
+    return `Integrante del comité${rol}: competencia restringida en ${p.restringidos ?? "varios"} de sus ${plural(p.procesosPersona ?? 4, "proceso", "procesos")}${base}`;
   }
   if (p.tipo === "comite_socio_proveedor") {
     // Migración 407: del integrante, su papel en el comité y en la empresa; nunca su nombre.

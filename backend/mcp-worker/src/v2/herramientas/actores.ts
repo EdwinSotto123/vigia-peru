@@ -793,7 +793,8 @@ export const patrones = definir({
   entrada: {
     alcance: z.enum(["entidad", "proveedor", "relleno", "consorcio", "renovacion", "dueno", "inhabilitada", "control", "observado", "observacion", "grupo", "repetida", "doble", "recien_creada", "compras_familia", "autoridad_exsocio", "cierre_gestion"]).default("entidad"),
     indicador: z.enum(["reunion_en_evaluacion", "visita_personal_decisor", "ofertas_a_la_vez", "trabajo_en_el_ganador",
-      "firma_en_plazo_de_apelacion", "solo_admitido_el_ganador", "comite_mismo_ganador", "comite_socio_proveedor"]).optional()
+      "firma_en_plazo_de_apelacion", "solo_admitido_el_ganador", "comite_mismo_ganador", "comite_socio_proveedor",
+      "comite_competencia_restringida"]).optional()
       .describe("(observacion) Sólo uno de los indicadores en observación."),
     integrante_del_comite: z.string().regex(/^[0-9a-f]{10}$/).optional()
       .describe("(observacion) La clave de una persona del comité (integrante_del_comite de comite_mismo_ganador o comite_socio_proveedor): todos sus contratos marcados en las dos señales, sin su nombre."),
@@ -1000,6 +1001,11 @@ export const patrones = definir({
           estuvo_en_el_comite_de_este_proceso: x.enSuComite ?? undefined,
           ultimo_proceso_en_el_comite: x.ocidComite ? e.contrato(x.ocidComite) : undefined,
           comite_entre: x.comiteDesde ? [x.comiteDesde, x.comiteHasta ?? x.comiteDesde] : undefined,
+          // comite_competencia_restringida (migración 415): sus procesos restringidos frente a la entidad sin esa persona.
+          procesos_con_competencia_restringida: x.restringidos ?? undefined,
+          tasa_de_la_entidad_sin_esa_persona: x.tasaEntidad ?? undefined,
+          probabilidad_de_azar: x.pValor ?? undefined,
+          marcas_de_este_proceso: Array.isArray(x.marcas) && x.marcas.length ? x.marcas : undefined,
         })),
         como_leerlo:
           "Son indicadores EN OBSERVACIÓN: Vigía todavía mide cuántas veces aciertan, así que no cuentan para el puntaje del " +
@@ -1027,6 +1033,12 @@ export const patrones = definir({
           "cuando_fue_el_empleo aquí es la buena pro frente a sus procesos en el comité (a_la_vez, cerca: a un año o menos, " +
           "lejos); estuvo_en_el_comite_de_este_proceso es lo más grave; integrante_del_comite es la misma clave que en " +
           "comite_mismo_ganador. " +
+          "comite_competencia_restringida: en los procesos de la entidad en que estuvo una misma persona del comité, la " +
+          "competencia quedó restringida (único postor, el acta deja sólo al ganador, descalificaciones por formalidad, la " +
+          "oferta más baja descartada, sólo admitieron al ganador) mucho más que en los demás procesos de la entidad " +
+          "(tasa_de_la_entidad_sin_esa_persona); probabilidad_de_azar es la binomial de tantos restringidos con esa tasa y " +
+          "sólo salen las personas que pasan un control de falsos descubrimientos al 10 % sobre todas las probadas. Se marca " +
+          "cada proceso restringido de esa persona; marcas_de_este_proceso dice qué pasó en él. " +
           "firma_en_plazo_de_apelacion: en un ítem con dos o más ofertas, el " +
           "contrato se firmó antes del 5.º día hábil siguiente a la buena pro, cuando los otros postores todavía podían " +
           "apelarla (el contrato se perfecciona después del consentimiento: arts. 64 y 141 del reglamento de la Ley 30225; " +

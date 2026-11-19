@@ -76,6 +76,15 @@ const CASOS: Caso[] = [
       const fuga = filas.match(/"(persona|nombre_completo|integrante_nombre|dni|numero_documento|persona_doc)":/);
       return ok && !fuga ? null : fuga ? `sale un nombre o un número de documento (${fuga[0]})` : "sin identidad, papel en la empresa o clave";
     } },
+  // El evaluador que filtra la competencia (migración 415): la comparación con la entidad y la probabilidad de azar.
+  { h: patrones as never, args: { alcance: "observacion", indicador: "comite_competencia_restringida" },
+    espera: (r) => {
+      const filas = JSON.stringify(r);
+      const ok = /"probabilidad_de_azar":0\.\d+/.test(filas) && /"tasa_de_la_entidad_sin_esa_persona":/.test(filas)
+        && /"integrante_del_comite":"[0-9a-f]{10}"/.test(filas);
+      const fuga = filas.match(/"(persona|nombre_completo|integrante_nombre|dni|numero_documento|persona_doc)":/);
+      return ok && !fuga ? null : fuga ? `sale un nombre o un número de documento (${fuga[0]})` : "sin probabilidad, tasa o clave";
+    } },
   { h: fichaContrato as never, args: { ocid: "1196243" },
     espera: (r) => ((lista(r, "cruces") as { tipo?: string; por_que_pesa?: string }[]).some((x) => x.tipo === "comite_socio_proveedor" && /socio o representante/.test(x.por_que_pesa ?? ""))
       ? null : "sin «por_que_pesa» en el integrante del comité socio del proveedor") },

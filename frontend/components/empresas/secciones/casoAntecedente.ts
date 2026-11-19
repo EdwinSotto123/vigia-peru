@@ -410,6 +410,18 @@ export function datosDe(a: AntecedenteEmpresa, ruc: string): DatoCaso[] {
       { etiqueta: "De dónde sale", valor: "Actas leídas por los agentes de Vigía, con cada nombre comprobado", soloPanel: true },
       delProceso(),
     );
+  } else if (t === "comite_competencia_restringida") {
+    // Migración 415. Del integrante del comité, sólo su papel.
+    const m = num(d.restringidos);
+    const total = num(d.procesos_de_la_persona);
+    const base = num(d.tasa_entidad);
+    add(
+      txt(d.rol) && { etiqueta: "Papel en el comité", valor: oracion(txt(d.rol)!.toLowerCase()) },
+      m != null && total != null && { etiqueta: "Competencia restringida", valor: `En ${m} de sus ${plural(total, "proceso", "procesos")} en la entidad` },
+      base != null && { etiqueta: "En el resto de la entidad", valor: `${Math.round(base * 100)} %` },
+      { etiqueta: "De dónde sale", valor: "Actas leídas por Vigía y sus agentes y las banderas de competencia de cada proceso", soloPanel: true },
+      delProceso(),
+    );
   } else if (t === "comite_socio_proveedor") {
     // Migración 407. Del integrante del comité, su papel en el comité y en la empresa; nunca su nombre ni su DNI.
     const roles = Array.isArray(d.rol_en_empresa) ? papeles((d.rol_en_empresa as string[]).join(", ")) : null;
