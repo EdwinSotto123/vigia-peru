@@ -302,8 +302,11 @@ export async function buscarInformesControl(b: BusquedaControl, ia?: IaWorkers):
     // Con la tabla fuera de la memoria (un refresco grande la desaloja), el índice de significado puede tardar segundos
     // en frío: medido el 2026-11-17, 54 ms la parte de palabras y 9 ms la de significado en caliente, 2,6 s la búsqueda
     // entera en frío. Si se pasa del tope, la misma búsqueda sólo por palabras antes que un error.
-    if (!vector || !/statement timeout|canceling statement/i.test(String((e as Error).message))) throw e;
-    console.warn(`[control] búsqueda híbrida lenta, sigue sólo por palabras: ${b.q}`);
+    // Cualquier falla de la parte de significado (no sólo el tope de tiempo: recién desplegada la API, en frío, la prueba
+    // del MCP vio dos veces un 500 que al reintentar no se repitió), se reintenta sólo por palabras; si eso también
+    // falla, el error sube como antes.
+    if (!vector) throw e;
+    console.warn(`[control] búsqueda híbrida falló (${String((e as Error).message).slice(0, 120)}), sigue sólo por palabras: ${b.q}`);
     vector = null;
     filas = await buscar(null, 6000);
   }
