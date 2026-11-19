@@ -6,7 +6,8 @@ import { publicar } from "../lib/privacidad.js";
 import { motivoPublicable } from "../lib/cruces.js";
 import { marcaElecto } from "../lib/electos.js";
 import { datasetVisitas, VISITAS_CONGRESO, VISITAS_EN_LINEA } from "../lib/fuentes.js";
-import { FUERA_DE_HORA, capacidades, leerPedido, paginaLista } from "../lib/visitasLista.js";
+import { FUERA_DE_HORA, capacidades, leerPedido, paginaLista, type PedidoLista, type ResultadoLista } from "../lib/visitasLista.js";
+import { filasACsv } from "../lib/csv.js";
 
 /**
  * Las visitas que recibió una entidad (fase 2.3 del plan del 2026-10-27; rediseño del 2026-11-18):
@@ -152,8 +153,11 @@ visitasRouter.get("/entidad/:ruc", async (c) => {
 visitasRouter.get("/entidad/:ruc/lista", async (c) => {
   const ruc = c.req.param("ruc");
   if (!/^\d{11}$/.test(ruc)) return c.json({ error: "invalid_ruc" }, 400);
-  const p = leerPedido(c.req.query("que"), c.req.query());
-  if (!p) return c.json({ error: "consulta_invalida", detail: "que = empresas, organizaciones, areas, parientes o visitas" }, 400);
+  const p0 = leerPedido(c.req.query("que"), c.req.query());
+  if (!p0) return c.json({ error: "consulta_invalida", detail: "que = empresas, organizaciones, areas, parientes o visitas" }, 400);
+  // ?formato=csv: la lista ENTERA con los filtros puestos (hasta TOPE_CSV filas), las mismas filas públicas que la web.
+  const csv = c.req.query("formato") === "csv";
+  const p: PedidoLista = csv ? { ...p0, page: 1, size: TOPE_CSV, offset: 0 } : p0;
   let res: Awaited<ReturnType<typeof paginaLista>>;
   try {
     res = await paginaLista(ruc, p);
@@ -164,8 +168,27 @@ visitasRouter.get("/entidad/:ruc/lista", async (c) => {
     throw e;
   }
   if ("error" in res) return c.json({ ...res, detail: "Esa página está muy lejos: elige un año o el orden «Lo más antiguo»." }, 400);
+  const filas = await filasPublicas(p, res);
+  if (csv) {
+    const nombre = `vigia-visitas-${ruc}-${p.que}${Object.values(p.f).length ? "-filtrada" : ""}.csv`;
+    return new Response(filasACsv(filas, ["clave"]), {
+      headers: {
+        "Content-Type": "text/csv; charset=utf-8",
+        "Content-Disposition": `attachment; filename="${nombre}"`,
+        "Cache-Control": CACHE,
+      },
+    });
+  }
   c.header("Cache-Control", CACHE);
-  if (p.que !== "visitas") return c.json({ ...res, filas: publicar({ [p.que]: res.filas })[p.que] });
+  return c.json({ ...res, filas });
+});
+
+/** Hasta cuántas filas trae un CSV (el Congreso tiene 1,2 M de visitas: con un año o una búsqueda se baja todo). */
+const TOPE_CSV = 50_000;
+
+/** Las filas que se pueden mostrar o descargar: con publicar() y, en las visitas, sin el nombre del familiar ni su id. */
+async function filasPublicas(p: PedidoLista, res: ResultadoLista): Promise<Record<string, unknown>[]> {
+  if (p.que !== "visitas") return publicar({ [p.que]: res.filas })[p.que] as Record<string, unknown>[];
   // Bajo `visitas`: publicar() le tapa un apellido a quien visita, salvo a una autoridad electa (lib/electos.ts). El
   // familiar de un funcionario va sin nombre y su clave no es el id de la visita (con él se lo buscaría en otra lista).
   const filas = res.filas.map(({ id, ruc: rucEmpresa, electo, ...v }, i) => ({
@@ -185,8 +208,8 @@ visitasRouter.get("/entidad/:ruc/lista", async (c) => {
     ? new Map((await pool.query<{ ruc: string; nombre: string }>(`SELECT ruc, nombre FROM empresa_resumen WHERE ruc = ANY($1)`, [rucs])).rows.map((x) => [x.ruc, x.nombre]))
     : new Map<string, string>();
   const visitas = filas.map(({ rucEmpresa, ...v }) => ({ ...v, empresa: rucEmpresa ? { ruc: rucEmpresa, nombre: nombres.get(rucEmpresa) ?? null } : null }));
-  return c.json({ ...res, filas: publicar({ visitas }).visitas });
-});
+  return publicar({ visitas }).visitas as Record<string, unknown>[];
+}
 
 /**
  * GET /visitas/entidad/:ruc/buscar?en=organizaciones|areas&q=  — la búsqueda de la web anterior al 2026-11-18 (las listas

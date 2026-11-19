@@ -1,5 +1,8 @@
 import { Suspense, type ReactNode } from "react";
 import Link from "next/link";
+import { Download } from "lucide-react";
+import { API_PUBLICA } from "@/lib/api-client";
+import { numero } from "@/lib/formato";
 import { BarraFiltros, Listado, Tabla, TablaSkeleton, ZonaResultados, type Columna, type Fila, type FiltroSecundario, type OpcionFaceta, type Parametros } from "@/components/listado";
 import { Ayuda, AyudaTermino, CabeceraPestana, EstadoError, EstadoVacio } from "@/components/patrones";
 import { PaginadorHayMas, hrefPagina } from "@/components/ordenes/ListaOrdenes";
@@ -75,7 +78,10 @@ async function Lista<L extends ListaVisitas>({ ruc, sp, cfg, cabecera }: { ruc: 
         ayuda={cabecera.ayuda}
         acciones={
           <Suspense fallback={null}>
-            <Paginador pagina={paginaP} ruta={ruta} parametros={parametros} paramPagina={P.page} actual={actual} nombre={cfg.nombre} />
+            <div className="flex flex-wrap items-center justify-end gap-2">
+              <Descarga pagina={paginaP} href={hrefCsv(ruc, cfg.que, api)} />
+              <Paginador pagina={paginaP} ruta={ruta} parametros={parametros} paramPagina={P.page} actual={actual} nombre={cfg.nombre} />
+            </div>
           </Suspense>
         }
       >
@@ -116,6 +122,37 @@ function Control({ p, ruta, parametros, paramPagina, actual, nombre, subir }: { 
   }
   if (actual === 1 && !p.hayMas) return null;
   return <PaginadorHayMas ruta={ruta} parametros={parametros} paramPagina={paramPagina} actual={actual} tam={p.size} enPagina={p.filas.length} hayMas={p.hayMas} subir={subir} />;
+}
+
+/** La lista ENTERA en CSV, con los filtros y la búsqueda de ahora (GET /visitas/entidad/:ruc/lista?formato=csv). */
+function hrefCsv(ruc: string, que: ListaVisitas, api: Record<string, string | undefined>): string {
+  const q = new URLSearchParams({ que, formato: "csv" });
+  for (const [k, v] of Object.entries(api)) if (v) q.set(k, v);
+  return `${API_PUBLICA}/visitas/entidad/${ruc}/lista?${q}`;
+}
+
+/**
+ * «Descargar CSV (n)»: lo que la API puede dar entero (hasta 50 mil filas). Volvió el 2026-11-18 tras la paginación en el
+ * servidor: antes bajaba sólo lo que llegaba al navegador (las primeras 1,000).
+ */
+async function Descarga({ pagina, href }: { pagina: Promise<RespuestaLista<ListaVisitas>>; href: string }) {
+  const r = await pagina;
+  if (!r.ok || !r.pagina.filas.length) return null;
+  const n = r.pagina.total;
+  return (
+    <a
+      href={href}
+      download
+      rel="nofollow"
+      className="inline-flex h-10 items-center justify-center gap-1.5 whitespace-nowrap rounded-full border border-line bg-paper px-3.5 text-meta font-semibold text-inkSoft transition-colors duration-rapido hover:border-granate/40 hover:text-ink"
+    >
+      <Download size={14} aria-hidden />
+      <span>
+        Descargar<span className="sr-only sm:not-sr-only"> CSV</span>
+        {n != null && <> ({numero(Math.min(n, 50_000))})</>}
+      </span>
+    </a>
+  );
 }
 
 async function Paginador({ pagina, ...props }: { pagina: Promise<RespuestaLista<ListaVisitas>>; ruta: string; parametros: Parametros; paramPagina: string; actual: number; nombre: string }) {
