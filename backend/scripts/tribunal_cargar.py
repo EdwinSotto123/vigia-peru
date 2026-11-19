@@ -165,13 +165,14 @@ def main() -> None:
                 fecha = s.get("fecha") if re.match(r"^\d{4}-\d{2}-\d{2}$", s.get("fecha") or "") else None
                 cur.execute(
                     """INSERT INTO tribunal_resolucion (id, titulo, numero, anio, sala, tribunal, fecha, resultado, efectos,
-                                                         entidad, impugnante, motivo, cita, cita_ok, url, pdf, modelo, version, costo_usd)
-                       VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) ON CONFLICT (id) DO NOTHING""",
+                                                         entidad, impugnante, motivo, cita, cita_ok, url, pdf, modelo, version, costo_usd,
+                                                         resultado_regla, resultado_ok)
+                       VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) ON CONFLICT (id) DO NOTHING""",
                     (d["id"], d.get("titulo") or "", int(m.group(1)) if m else None, int(m.group(2)) if m else d.get("anio"),
                      m.group(4).upper() if m else None, m.group(3).upper() if m else None, fecha, s.get("resultado"),
                      s.get("efectos") or [], s.get("entidad"), s.get("impugnante"), (s.get("motivo") or "")[:600],
                      (s.get("cita_resolutivo") or "")[:400], bool(s.get("_cita_ok")), d["url"], d.get("pdf"),
-                     r.get("modelo"), T.VERSION, r.get("costo_usd")))
+                     r.get("modelo"), T.VERSION, r.get("costo_usd"), s.get("_resultado_regla"), bool(s.get("_resultado_ok"))))
                 for i, ptxt in enumerate(s.get("_procedimientos_ok") or [], 1):
                     ocid, via = unir(cur, ptxt, s.get("entidad") or "")
                     cur.execute("INSERT INTO tribunal_proceso (resolucion_id, n, texto, ocid, via) VALUES (%s,%s,%s,%s,%s) ON CONFLICT DO NOTHING",

@@ -50,7 +50,22 @@ ESQUEMA = {
 PEDIDO = "Lee esta resolución del Tribunal y devuelve sus datos con la herramienta «salida»."
 
 _ESPACIOS = re.compile(r"\s+")
+# La parte resolutiva se escribe en mayúsculas («LA SALA RESUELVE:»). Sin distinguir mayúsculas también calzaba «la
+# resolución que resuelve el recurso de apelación» de un párrafo posterior, y el resultado salía vacío.
+_RESUELVE_MAYUS = re.compile(r"(?:LA SALA RESUELVE|SE RESUELVE|RESUELVE)\s*:")
 _RESUELVE = re.compile(r"(?:LA SALA RESUELVE|SE RESUELVE|RESUELVE)\s*:?", re.I)
+
+
+def _resolutivo(t: str):
+    """El comienzo de la parte resolutiva: la última «RESUELVE:» en mayúsculas o, si no hay, la última en cualquier forma."""
+    m = None
+    for m in _RESUELVE_MAYUS.finditer(t):
+        pass
+    if m:
+        return m
+    for m in _RESUELVE.finditer(t):
+        pass
+    return m
 
 
 def plano(t: str) -> str:
@@ -70,9 +85,7 @@ def tipo_de(texto: str) -> str:
 def recorte(texto: str, cabeza: int = 7000, cola: int = 5000) -> str:
     """Lo que el modelo necesita: el encabezado (sumilla, visto, el procedimiento y las partes) y la parte resolutiva."""
     t = plano(texto)
-    m = None
-    for m in _RESUELVE.finditer(t):   # la última «RESUELVE» es la parte resolutiva
-        pass
+    m = _resolutivo(t)
     fin = t[m.start():m.start() + cola] if m else t[-cola:]
     return t[:cabeza] + "\n\n[…]\n\n" + fin
 
@@ -81,12 +94,34 @@ def _compacto(s: str) -> str:
     return re.sub(r"[^a-z0-9]", "", plano(s).lower().replace("°", "").replace("º", ""))
 
 
+def resultado_de_texto(texto: str) -> str | None:
+    """Segunda lectura, sin modelo, del resultado: el primer punto de la parte resolutiva tal como está escrito. La nulidad
+    va primero porque el Tribunal la declara aunque también se pronuncie sobre el recurso."""
+    t = plano(texto)
+    m = _resolutivo(t)
+    if not m:
+        return None
+    primero = t[m.end():m.end() + 500]
+    corte = re.search(r"\s2\s*[.)]\s", primero)
+    primero = (primero[:corte.start()] if corte else primero).lower()
+    for patron, valor in ((r"nulidad", "nulidad_de_oficio"), (r"fundad[oa] en parte", "fundado_en_parte"),
+                          (r"infundad[oa]", "infundado"), (r"improcedente", "improcedente"),
+                          (r"desist", "desistimiento"), (r"\bfundad[oa]\b", "fundado")):
+        if re.search(patron, primero):
+            return valor
+    return None
+
+
 def comprobar(salida: dict, texto: str) -> dict:
-    """La cita del resolutivo y cada procedimiento deben estar en el texto (sin espacios ni signos): si no, no se usan."""
+    """La cita del resolutivo y cada procedimiento deben estar en el texto (sin espacios ni signos): si no, no se usan. El
+    resultado se compara con la lectura sin modelo del primer punto resolutivo: si no coinciden, queda en disputa."""
     t = _compacto(texto)
     cita = salida.get("cita_resolutivo") or ""
     salida["_cita_ok"] = bool(cita) and _compacto(cita[:160]) in t
     salida["_procedimientos_ok"] = [p for p in (salida.get("procedimientos") or []) if len(_compacto(p)) >= 8 and _compacto(p) in t]
+    regla = resultado_de_texto(texto)
+    salida["_resultado_regla"] = regla
+    salida["_resultado_ok"] = regla is not None and regla == salida.get("resultado")
     return salida
 
 

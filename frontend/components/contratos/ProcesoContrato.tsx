@@ -42,7 +42,7 @@ export function pestanasProceso({ c }: { c: Detalle }): { participantes: Pestana
   return {
     participantes: !conActas && ps.length > 0 ? { clave: "participantes", etiqueta: "Participantes", conteo: ps.length, contenido: <SeccionParticipantes c={c} /> } : null,
     // También con sólo la obra de INFOBRAS o la inversión de Invierte.pe de su CUI (migración 160).
-    adjudicacion: hayAdjudicado || c.presupuesto || (c.obras?.length ?? 0) > 0 || (c.inversiones?.length ?? 0) > 0
+    adjudicacion: hayAdjudicado || c.presupuesto || (c.obras?.length ?? 0) > 0 || (c.inversiones?.length ?? 0) > 0 || (c.tribunal?.length ?? 0) > 0
       ? { clave: "adjudicacion", etiqueta: "Adjudicación y contrato", contenido: <SeccionAdjudicacion c={c} /> }
       : null,
     cronograma: hitos.length >= 2 ? { clave: "cronograma", etiqueta: "Cronograma", conteo: hitos.length, contenido: <SeccionCronograma c={c} /> } : null,
@@ -134,6 +134,8 @@ function SeccionAdjudicacion({ c }: { c: Detalle }) {
         Cuánto se adjudicó en cada ítem frente a su valor referencial, el contrato firmado y, si es un proyecto de inversión, su presupuesto.
       </CabeceraPestana>
       <div className="space-y-5">
+        {/* Si el Tribunal anuló el proceso o corrigió la buena pro, es lo primero que hay que saber al leer lo adjudicado. */}
+        <BloqueTribunal resoluciones={c.tribunal ?? []} />
         <section aria-labelledby="adjudicado-titulo" className="tarjeta overflow-clip rounded-2xl border border-line bg-paper">
           <div className="space-y-4 p-4 sm:p-5">
             <h3 id="adjudicado-titulo" className="font-display text-bloque font-bold text-ink">Lo adjudicado</h3>
@@ -168,6 +170,64 @@ function SeccionAdjudicacion({ c }: { c: Detalle }) {
         <ObrasDelContrato obras={c.obras} inversiones={c.inversiones} />
       </div>
     </>
+  );
+}
+
+// ─── Lo que resolvió el Tribunal de Contrataciones (migración 402) ───────────
+
+const RESULTADO_TRIBUNAL: Record<string, string> = {
+  fundado: "Declaró fundada la apelación",
+  fundado_en_parte: "Declaró fundada en parte la apelación",
+  infundado: "Declaró infundada la apelación",
+  improcedente: "Declaró improcedente la apelación",
+  nulidad_de_oficio: "Declaró la nulidad del procedimiento",
+  desistimiento: "Aceptó el desistimiento de quien apeló",
+  otro: "Resolvió la apelación",
+};
+const EFECTO_TRIBUNAL: Record<string, string> = {
+  revoca_buena_pro: "revocó la buena pro",
+  otorga_buena_pro_al_impugnante: "le otorgó la buena pro a quien apeló",
+  retrotrae: "devolvió el proceso a una etapa anterior",
+  nulidad: "anuló el procedimiento o parte de él",
+  descalifica_al_adjudicatario: "descalificó a quien había ganado",
+  confirma_buena_pro: "confirmó la buena pro",
+};
+
+/**
+ * Las apelaciones de este proceso que resolvió el Tribunal (resoluciones de gob.pe leídas por Vigía, con la cita del
+ * resolutivo comprobada). Es un registro oficial del proceso, no una bandera de quien ganó: si el Tribunal le quitó la
+ * buena pro a uno y se la dio a otro, el ganador final no hizo nada.
+ */
+function BloqueTribunal({ resoluciones }: { resoluciones: NonNullable<Detalle["tribunal"]> }) {
+  if (!resoluciones.length) return null;
+  return (
+    <section aria-labelledby="tribunal-titulo" className="tarjeta overflow-clip rounded-2xl border border-line bg-paper">
+      <div className="space-y-4 p-4 sm:p-5">
+        <h3 id="tribunal-titulo" className="font-display text-bloque font-bold text-ink">
+          Lo que resolvió el Tribunal de Contrataciones
+        </h3>
+        {resoluciones.map((r) => {
+          const efectos = r.efectos.map((e) => EFECTO_TRIBUNAL[e]).filter(Boolean);
+          const datos: DatoClave[] = [
+            { etiqueta: "Resultado", valor: RESULTADO_TRIBUNAL[r.resultado ?? "otro"] ?? "Resolvió la apelación" },
+            { etiqueta: "Fecha", valor: r.fecha ? fechaConAnio(r.fecha) : null },
+            { etiqueta: "Qué ordenó", valor: efectos.length ? oracion(listaY(efectos)) : null },
+            { etiqueta: "Por qué", valor: r.motivo ? oracion(r.motivo) : null },
+            { etiqueta: "Quién apeló", valor: r.impugnante },
+            { etiqueta: "Lo que dice", valor: r.cita ? `«${r.cita}»` : null },
+          ];
+          return (
+            <BloqueDetalle key={r.url} titulo={r.titulo}>
+              <DatosClave items={datos} />
+              <EnlaceFuente href={r.pdf ?? r.url} className="mt-2">
+                Leer la resolución
+              </EnlaceFuente>
+            </BloqueDetalle>
+          );
+        })}
+      </div>
+      <FuenteDato fuente="Resoluciones del Tribunal de Contrataciones en gob.pe, leídas por Vigía" className="border-t border-line px-4 py-2 sm:px-5" />
+    </section>
   );
 }
 

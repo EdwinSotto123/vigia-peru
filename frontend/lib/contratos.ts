@@ -440,6 +440,8 @@ export interface ContratoDetalle extends ContratoResumen, ProcesoContrato {
   lecturaIA?: LecturaIA | null;
   /** Cada dato leído de un documento, con qué es y si se comprobó sin modelo (migración 323). Una API anterior no lo trae. */
   hechosDocumentos?: HechoDocumento[];
+  /** Las apelaciones que resolvió el Tribunal de Contrataciones sobre este proceso (migración 402). Una API anterior no lo trae. */
+  tribunal?: ResolucionTribunal[];
   procesamiento: Procesamiento | null;
   clasificacion: Clasificacion;
   /** Documentos vigentes en el almacén de Vigía (retención 90 días). null si la migración 15 no está. */
@@ -709,6 +711,23 @@ const PALABRA_CON_TILDE: Record<string, string> = {
  * "CONTRATADO") como texto para leer: minúsculas, sin guiones bajos, con tildes en
  * las palabras conocidas y la primera en mayúscula. No le inventa significado.
  */
+/** Una resolución del Tribunal de Contrataciones sobre una apelación de este proceso (migración 402). */
+export interface ResolucionTribunal {
+  /** «Resolución N.° 9712-2026-TCP-S4» */
+  titulo: string;
+  fecha: string | null;
+  resultado: "fundado" | "fundado_en_parte" | "infundado" | "improcedente" | "nulidad_de_oficio" | "desistimiento" | "otro" | null;
+  efectos: string[];
+  motivo: string | null;
+  /** El primer punto del resolutivo, comprobado en el texto de la resolución. */
+  cita: string | null;
+  /** Quién apeló, sólo si es una empresa o un consorcio. */
+  impugnante: string | null;
+  url: string;
+  pdf: string | null;
+  via: string | null;
+}
+
 /** Un dato leído de un documento del expediente: qué es, de dónde salió y si se pudo comprobar. */
 export interface HechoDocumento {
   tipo: string;

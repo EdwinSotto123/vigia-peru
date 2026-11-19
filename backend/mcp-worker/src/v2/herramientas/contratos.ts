@@ -298,6 +298,15 @@ export const fichaContrato = definir({
           en_observacion: x.observacion === true || undefined,
           por_que_pesa: porQuePesa(x),
         })),
+      // Las apelaciones de este proceso que resolvió el Tribunal de Contrataciones (migración 402): un registro oficial del
+      // proceso, no una bandera de quien ganó. Fundada o con nulidad = el comité se equivocó o el proceso tenía un vicio.
+      tribunal: ((c.tribunal ?? []) as Fila[]).length
+        ? ((c.tribunal ?? []) as Fila[]).map((t) => ({
+            resolucion: t.titulo, fecha: t.fecha ?? undefined, resultado: t.resultado, efectos: t.efectos?.length ? t.efectos : undefined,
+            motivo: t.motivo ?? undefined, cita_del_resolutivo: t.cita ?? undefined, impugnante: t.impugnante ?? undefined,
+            enlace_resolucion: t.pdf ?? t.url,
+          }))
+        : undefined,
       cruces_en_observacion: ((c.cruces ?? []) as Fila[]).some((x) => x.observacion === true)
         ? "Las marcadas en_observacion son indicadores nuevos que se muestran con su evidencia pero no cuentan para el puntaje: indicio por revisar, no un hallazgo."
         : undefined,

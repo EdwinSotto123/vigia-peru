@@ -216,6 +216,8 @@ contratosDetalleRouter.get("/:ocid", async (c) => {
   const lecturas = await lecturasDe(row.ocid).catch(() => [] as FilaLectura[]);
   // Los datos de esos documentos como hechos con tipo y con su comprobación (migración 323). Sin la tabla, nada.
   const hechos = await hechosDe(row.ocid).catch(() => [] as HechoDocumento[]);
+  // Lo que el Tribunal de Contrataciones resolvió sobre este proceso (migración 402). Sin la tabla, nada.
+  const tribunal = await tribunalDe(row.ocid).catch(() => [] as ResolucionTribunal[]);
   // Lo que leyeron los lectores por pieza (lib/fichasPiezas.ts): las bases, el contrato, la evaluación, los reportes. Y los
   // reportes del SEACE leídos sin modelo, para la admisión, calificación y hora de cada oferta cuando no hay lectura con modelo.
   const [fichas, reportes] = await Promise.all([
@@ -410,6 +412,8 @@ contratosDetalleRouter.get("/:ocid", async (c) => {
     // Cada dato leído de un documento, con qué es y si se pudo comprobar sin modelo (contra un registro oficial, contra
     // su propia cita o contra una segunda lectura).
     hechosDocumentos: hechos,
+    // Las apelaciones que resolvió el Tribunal de Contrataciones sobre este proceso, con su resolución oficial.
+    tribunal,
     procesamiento: proc.rows[0] ?? null,
     documentosEnVigia: docsGcsResumen,
     pedidoDescarga: pedido,
@@ -425,6 +429,44 @@ contratosDetalleRouter.get("/:ocid", async (c) => {
     },
   }));
 });
+
+// ─── Lo que resolvió el Tribunal de Contrataciones (migración 402) ──────────
+
+export interface ResolucionTribunal {
+  /** «Resolución N.° 9712-2026-TCP-S4» */
+  titulo: string;
+  fecha: string | null;
+  /** fundado | fundado_en_parte | infundado | improcedente | nulidad_de_oficio | desistimiento | otro */
+  resultado: string | null;
+  /** revoca_buena_pro, otorga_buena_pro_al_impugnante, retrotrae, nulidad, descalifica_al_adjudicatario, confirma_buena_pro */
+  efectos: string[];
+  motivo: string | null;
+  /** El primer punto del resolutivo, copiado de la resolución y comprobado en su texto. */
+  cita: string | null;
+  /** Quién apeló, sólo si es una empresa o un consorcio: a una persona natural no se la nombra. */
+  impugnante: string | null;
+  /** La página de la resolución en gob.pe y su PDF. */
+  url: string;
+  pdf: string | null;
+  /** Cómo se unió al proceso: la nomenclatura escrita igual, o siglas y entidad. */
+  via: string | null;
+}
+
+const ES_EMPRESA = /CONSORCIO|S\.?\s?A\.?\s?C\b|E\.?\s?I\.?\s?R\.?\s?L|S\.?\s?R\.?\s?L|\bS\.?\s?A\.?(\s|$)|SOCIEDAD|EMPRESA|CORPORACI|INVERSIONES|CONSTRUCTORA|SERVICIOS/i;
+
+async function tribunalDe(ocid: string): Promise<ResolucionTribunal[]> {
+  const r = await pool.query(
+    // El resultado y lo que ordenó, sólo si la lectura del modelo coincide con el primer punto resolutivo tal como está
+    // escrito (migración 403); si no, queda la cita literal sin calificar.
+    `SELECT r.titulo, to_char(r.fecha, 'YYYY-MM-DD') AS fecha,
+            CASE WHEN r.resultado_ok THEN r.resultado END AS resultado,
+            CASE WHEN r.resultado_ok THEN r.efectos ELSE '{}' END AS efectos, r.motivo,
+            CASE WHEN r.cita_ok THEN r.cita END AS cita, r.impugnante, r.url, r.pdf, p.via
+       FROM tribunal_proceso p JOIN tribunal_resolucion r ON r.id = p.resolucion_id
+      WHERE p.ocid = $1
+      ORDER BY r.fecha DESC NULLS LAST, r.id DESC`, [ocid]);
+  return r.rows.map((x) => ({ ...x, efectos: x.efectos ?? [], impugnante: x.impugnante && ES_EMPRESA.test(x.impugnante) ? x.impugnante : null }));
+}
 
 // ─── Los hechos de los documentos, con su comprobación (migración 323) ──────
 

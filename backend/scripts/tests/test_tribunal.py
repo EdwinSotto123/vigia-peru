@@ -27,6 +27,16 @@ def test_la_cita_y_los_procedimientos_se_comprueban_en_el_texto():
     assert s["_procedimientos_ok"] == ["Licitación Pública N° 2-2026-CS-MDCH-1"]
 
 
+def test_el_resultado_sale_del_resolutivo_en_mayusculas():
+    texto = ("… por unanimidad; LA SALA RESUELVE: 1. Declarar la nulidad de oficio de la Licitación Pública N° 1-2026-X-1. "
+             "2. Devolver la garantía. … n) Registro de la resolución que resuelve el recurso de apelación: la entidad …")
+    assert T.resultado_de_texto(texto) == "nulidad_de_oficio"
+    texto = "LA SALA RESUELVE: 1. Declarar INFUNDADO el recurso de apelación. 2. Ejecutar la garantía."
+    assert T.resultado_de_texto(texto) == "infundado"
+    s = T.comprobar({"resultado": "fundado", "cita_resolutivo": "", "procedimientos": []}, texto)
+    assert s["_resultado_ok"] is False and s["_resultado_regla"] == "infundado"
+
+
 def test_parte_la_nomenclatura_escrita_en_palabras():
     p = C.partir("Licitación Pública Abreviada de Obras N° 003-2026-MDH/C-1")
     assert (p["tipo"], p["num"], p["anio"], p["conv"]) == ("LP", 3, 2026, 1)
