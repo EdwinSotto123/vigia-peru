@@ -150,6 +150,10 @@ export const FUENTES: FuentePublica[] = [
   { clave: "contraloria_fichas", nombre: "Fichas de los informes de control", que: "El resumen de cada informe: objetivo, montos y observaciones (Contraloría).", cada: null, cadencia: "Mensual, a mano", claves: ["contraloria_fichas"],
     enlace: BUSCADOR_CONTRALORIA,
     hasta: `SELECT to_char(max(descargado_at) AT TIME ZONE 'America/Lima', 'YYYY-MM-DD') AS v FROM informe_control_ficha` },
+  // Las apelaciones que resolvió el Tribunal de Contrataciones (migraciones 402-404): hasta la fecha de la última leída.
+  { clave: "tribunal", nombre: "Apelaciones del Tribunal de Contrataciones", que: "Resoluciones del Tribunal que resuelven apelaciones de los procesos, leídas y unidas a su contrato.", cada: 3, cadencia: "Cada hora", claves: ["tribunal_apelaciones"],
+    enlace: "https://www.gob.pe/institucion/oece/colecciones/68030-resoluciones-del-tribunal-de-contrataciones-publicas",
+    hasta: `SELECT to_char(max(fecha), 'YYYY-MM-DD') AS v FROM tribunal_resolucion WHERE fecha <= current_date` },
   // Sin enlace: su sitio no responde (ver su `situacion` en el catálogo).
   { clave: "procuraduria", nombre: "Casos de la Procuraduría Anticorrupción", que: "Casos en trámite y con sentencia firme por sede, de su boletín mensual.", cada: 50, cadencia: "Mensual, a mano", claves: ["ppedc_boletin"],
     hasta: `SELECT to_char(max(corte), 'YYYY-MM-DD') AS v FROM procuraduria_casos_sede` },

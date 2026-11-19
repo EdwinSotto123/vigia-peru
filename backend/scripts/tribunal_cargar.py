@@ -13,6 +13,8 @@ Reanudable: las resoluciones ya cargadas se saltan.
 from __future__ import annotations
 
 import argparse
+import datetime
+import hashlib
 import json
 import os
 import re
@@ -184,6 +186,17 @@ def main() -> None:
                 hechos["usd"] += r.get("costo_usd") or 0
                 if hechos["apelaciones"] % 25 == 0:
                     print(f"{hechos['apelaciones']} cargadas; procesos unidos {hechos['unidas']} de {hechos['procesos']}; US$ {hechos['usd']:.3f}", flush=True)
+        # La bitácora de las fuentes que se cargan desde la PC (GET /estado/datos, estado_fuentes del MCP): una fila por
+        # corrida, también sin apelaciones nuevas, para que se vea que la tarea sigue viva.
+        clave = datetime.datetime.now().strftime("%Y-%m-%dT%H")
+        resumen = json.dumps(hechos, sort_keys=True)
+        cur.execute(
+            """INSERT INTO datasets_cargas (fuente, clave, tabla, sha256, filas, fuente_url, descargado_at, cargado_at, estado)
+               VALUES ('tribunal_apelaciones', %s, 'tribunal_resolucion', %s, %s, %s, now(), now(), 'ok')
+               ON CONFLICT (fuente, clave) DO UPDATE SET sha256 = EXCLUDED.sha256, filas = EXCLUDED.filas, cargado_at = now(), estado = 'ok'""",
+            (clave, hashlib.sha256(resumen.encode()).hexdigest(), hechos["apelaciones"],
+             "https://www.gob.pe/institucion/oece/colecciones/68030-resoluciones-del-tribunal-de-contrataciones-publicas"))
+        cn.commit()
     print(f"fin: {hechos}", flush=True)
 
 

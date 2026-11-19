@@ -100,6 +100,8 @@ export const CATALOGO: FuenteCatalogo[] = [
     que: "Informes con responsabilidad presunta. Sólo responde a IP peruana: sale por el relay de Lima (backend/relay-lima)." },
   { fuente: "contraloria_fichas", nombre: "Fichas resumen de los informes de control (Contraloría)", donde: "pc", agenda: "Mensual, a mano, después del día 10", cadaDias: null,
     que: "La ficha resumen de cada informe (PDF de texto): objetivo, montos y observaciones, leídas y atadas al contrato que nombran. backend/scripts/actualizar_contraloria.sh; no anota en datasets_cargas (su fecha es informe_control_ficha.descargado_at)." },
+  { fuente: "tribunal_apelaciones", nombre: "Apelaciones del Tribunal de Contrataciones (OECE)", donde: "pc", agenda: "Cada hora (tarea de Windows VigiaTribunal)", cadaDias: 3,
+    que: "Las resoluciones del Tribunal que resuelven apelaciones (gob.pe; sólo responde a IP peruana): se bajan desde la PC (backend/scripts/normas_descarga/bajar_tribunal.py), las lee GLM con el resultado comprobado contra el resolutivo (backend/lector/tribunal.py) y se unen a su contrato (backend/scripts/tribunal_cargar.py; migraciones 402-404). No anota en datasets_cargas: su fecha es tribunal_resolucion.leido_at." },
   { fuente: "ppedc_boletin", nombre: "Casos de la Procuraduría Anticorrupción", donde: "pc", agenda: "Mensual, a mano (cuando sale el boletín)", cadaDias: 45,
     que: "Casos por sede del boletín mensual (PDF): backend/scripts/cargar_ppedc_boletin.py.",
     situacion: { tipo: "rota", nota: "El sitio de la Procuraduría Anticorrupción no responde desde el 30 de octubre de 2026, así que no hay de dónde bajar su boletín mensual. Ves lo del último boletín que se cargó." } },
