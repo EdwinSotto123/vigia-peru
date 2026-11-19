@@ -96,6 +96,9 @@ const CASOS: Caso[] = [
       return t && (t.se_la_quito_el_tribunal ?? 0) >= 1 && (t.resoluciones ?? []).some((x) => /se la quitaron/.test(x.papel ?? "") && /^https:/.test(x.enlace_resolucion ?? ""))
         ? null : "sin «tribunal» con la buena pro revocada";
     } },
+  // Y en la lista de indicadores en observación, con la resolución (424).
+  { h: patrones as never, args: { alcance: "observacion", indicador: "tribunal_revoco_buena_pro" },
+    espera: (r) => (/"resolucion_del_tribunal":"Resoluci/.test(JSON.stringify(r)) ? null : "sin la resolución del Tribunal en la lista") },
   // Cuán confiable es cada señal (migraciones 401, 404, 419, 421): con las dos verdades y sin la circular.
   { h: senales as never, args: { vista: "confiabilidad" },
     espera: (r) => {
