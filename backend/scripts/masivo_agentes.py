@@ -207,16 +207,28 @@ SELECT a.ocid FROM alertas a
 HILOS_CON_REANALISIS = 6
 
 
-def ceder_a_reanalisis(grupos: list[tuple[list[str], int]], tope: int = HILOS_CON_REANALISIS) -> list[tuple[list[str], int]]:
-    """El plan con a lo más `tope` hilos en total, en proporción y con uno por grupo como mínimo (9 = 2+2+5 → 1+1+4)."""
-    total = sum(h for _, h in grupos)
-    if total <= tope:
-        return grupos
-    nuevos = [max(1, (h * tope) // total) for _, h in grupos]
-    while sum(nuevos) < tope:
-        i = max(range(len(nuevos)), key=lambda j: grupos[j][1] - nuevos[j])
-        nuevos[i] += 1
-    return [(redes, n) for (redes, _), n in zip(grupos, nuevos)]
+def repartir(hilos: dict[str, int], pendientes: dict[str, int], total: int) -> dict[str, int]:
+    """Los `total` hilos van sólo a las colas con pendientes, en proporción a su peso en el plan, con uno como mínimo y
+    nunca más que sus pendientes. Antes, una red sin trabajo se quedaba con los suyos: con obras en 0, el plan de 9
+    (2+2+5) corría con 4. Ej.: {bienes: 2, serv: 2, obras: 5}, obras sin pendientes, total 9 → {5, 4, 0}."""
+    con = [k for k in hilos if pendientes.get(k, 0) > 0]
+    nuevos = {k: 0 for k in hilos}
+    if not con or total <= 0:
+        return nuevos
+    peso = {k: max(1, hilos[k]) for k in con}
+    suma = sum(peso.values())
+    for k in con:
+        nuevos[k] = min(pendientes[k], max(1, peso[k] * total // suma))
+    # Lo que sobra por el redondeo, a la cola que más se aleja de su parte y todavía tiene trabajo para otro hilo.
+    while sum(nuevos.values()) < total:
+        libres = [k for k in con if nuevos[k] < pendientes[k]]
+        if not libres:
+            break
+        nuevos[max(libres, key=lambda k: peso[k] * total / suma - nuevos[k])] += 1
+    # Con más colas que hilos (el mínimo de uno), se quita a la que más tiene.
+    while sum(nuevos.values()) > total:
+        nuevos[max(con, key=lambda k: nuevos[k])] -= 1
+    return nuevos
 
 
 def plan(texto: str) -> list[tuple[list[str], int]]:
@@ -284,14 +296,20 @@ def anotar_tanda(**c) -> None:
 
 
 def correr(grupos: list[tuple[list[str], int]], tope: float, minutos: float, maximo: int, seco: bool,
-           plan_txt: str = "") -> None:
+           plan_txt: str = "", total_hilos: int | None = None) -> None:
     t0 = time.time()
     todas = sorted({r for redes, _ in grupos for r in redes})
     lista = base(lambda cu: candidatos(cu, todas), 900)
     colas = {}
     for redes, hilos in grupos:
         cola = [(o, r) for o, r in lista if r in redes]
-        colas[",".join(redes)] = {"cola": iter(cola[:maximo] if maximo else cola), "hilos": hilos, "n": len(cola)}
+        if maximo:
+            cola = cola[:maximo]
+        colas[",".join(redes)] = {"cola": iter(cola), "hilos": hilos, "n": len(cola)}
+    reparto = repartir({k: v["hilos"] for k, v in colas.items()}, {k: v["n"] for k, v in colas.items()},
+                       total_hilos if total_hilos is not None else sum(h for _, h in grupos))
+    for k, h in reparto.items():
+        colas[k]["hilos"] = h
     g, n = base(gasto)
     log(f"inicio ({ORIGEN}): " + "; ".join(f"{k} {v['n']} pendientes, {v['hilos']} hilos" for k, v in colas.items())
         + f"; gastado {g:.2f} (en vuelo {n}) de {tope:.2f}; lanza hasta {minutos:.0f} min; filtro: {FILTRO}")
@@ -369,6 +387,9 @@ def correr(grupos: list[tuple[list[str], int]], tope: float, minutos: float, max
             log(f"[{'ok ' if fila['estado'] == 'ok' else 'ERR'}] {ocid} {red} {fila['segundos']}s "
                 f"USD {fila['costo']:.4f} score {fila['score']} {(fila['error'] or '')[:120]}")
 
+    if not any(v["hilos"] for v in colas.values()):
+        log("sin pendientes en ninguna red: no lanzo nada")
+        return
     with ThreadPoolExecutor(sum(v["hilos"] for v in colas.values())) as ex:
         for clave, v in colas.items():
             for _ in range(v["hilos"]):
@@ -403,10 +424,11 @@ def main() -> None:
             grupos = plan(a.plan)
             # Sin la variable MASIVO_PLAN a mano: mientras el reanálisis tenga pendientes, menos hilos; al terminar, todos.
             pendientes = base(lambda cu: (cu.execute(f"SELECT count(*) FROM ({SQL_GUIONES}) x"), cu.fetchone()[0])[1])
+            total = sum(h for _, h in grupos)
             if pendientes:
-                grupos = ceder_a_reanalisis(grupos)
-                log(f"{pendientes} reanálisis pendientes: el masivo usa {sum(h for _, h in grupos)} hilos")
-            correr(grupos, a.tope, a.minutos, a.max, a.seco, a.plan)
+                total = min(total, HILOS_CON_REANALISIS)
+                log(f"{pendientes} reanálisis pendientes: el masivo usa a lo más {total} hilos")
+            correr(grupos, a.tope, a.minutos, a.max, a.seco, a.plan, total_hilos=total)
     finally:
         if _db["cm"] is not None:
             try:
