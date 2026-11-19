@@ -253,7 +253,7 @@ async function ramaOrdenes(q: FiltrosCompras, n: number, dir: "DESC" | "ASC"): P
             c AS (SELECT x.*, bool_or(x.h) OVER (PARTITION BY x.entidad_ruc, x.orden, x.fecha_emision) AS en_historia
                     FROM (SELECT * FROM a UNION ALL SELECT * FROM w) x),
             d AS (SELECT DISTINCT ON (o.entidad_ruc, o.orden, o.fecha_emision) o.* FROM c o
-                   ORDER BY o.entidad_ruc, o.orden, o.fecha_emision, o.anio DESC, o.mes DESC)
+                   ORDER BY o.entidad_ruc, o.orden, o.fecha_emision, o.anio DESC, o.mes DESC, o.tipo_contratacion, o.monto DESC)
        SELECT o.entidad_ruc AS e, o.orden AS n, to_char(o.fecha_emision, 'YYYY-MM-DD') AS fecha, o.ruc_contratista AS p,
               CASE WHEN o.moneda = 'Nuevos Soles' THEN COALESCE(o.monto, o.monto_dudoso)::float END AS monto,
               clase_orden(o.tipo_contratacion) AS clase
@@ -261,7 +261,7 @@ async function ramaOrdenes(q: FiltrosCompras, n: number, dir: "DESC" | "ASC"): P
         ORDER BY o.fecha_emision ${dir}, o.orden ${dir} LIMIT ${n}`
     : `WITH c AS (SELECT ${columnas} FROM conosce_ordenes o WHERE ${conds.join(" AND ")} ORDER BY o.fecha_emision ${dir} LIMIT ${ventana}),
           d AS (SELECT DISTINCT ON (o.entidad_ruc, o.orden, o.fecha_emision) o.* FROM c o
-                 ORDER BY o.entidad_ruc, o.orden, o.fecha_emision, o.anio DESC, o.mes DESC)
+                 ORDER BY o.entidad_ruc, o.orden, o.fecha_emision, o.anio DESC, o.mes DESC, o.tipo_contratacion, o.monto DESC)
      SELECT o.entidad_ruc AS e, o.orden AS n, to_char(o.fecha_emision, 'YYYY-MM-DD') AS fecha, o.ruc_contratista AS p,
             CASE WHEN o.moneda = 'Nuevos Soles' THEN COALESCE(o.monto, o.monto_dudoso)::float END AS monto,
             clase_orden(o.tipo_contratacion) AS clase
@@ -578,10 +578,14 @@ function sqlResumenProveedor(ruc: string): string {
   return `SELECT clase, anio, count(*)::int AS compras, COALESCE(sum(monto), 0)::float AS monto FROM (
       SELECT clase_orden(o.tipo_contratacion) AS clase, extract(year FROM o.fecha_emision)::int AS anio,
              CASE WHEN o.monto_dudoso IS NULL AND o.moneda = 'Nuevos Soles' THEN o.monto END AS monto
-        FROM (SELECT DISTINCT ON (o.entidad_ruc, o.orden, o.fecha_emision) o.*
+        -- Sólo las columnas que se usan (con o.* se ordenaban 75 mil filas de 516 bytes en la empresa más grande), y los
+        -- vínculos de ESTA empresa por su índice (migración 399): antes se recorrían los 1,56 millones. 2,1 s → ver abajo.
+        FROM (SELECT DISTINCT ON (o.entidad_ruc, o.orden, o.fecha_emision)
+                     o.entidad_ruc, o.orden, o.fecha_emision, o.tipo_contratacion, o.monto, o.monto_dudoso, o.moneda
                 FROM conosce_ordenes o WHERE o.ruc_contratista = '${ruc}' AND ${ORDEN_LISTADA}
-               ORDER BY o.entidad_ruc, o.orden, o.fecha_emision, o.anio DESC, o.mes DESC) o
-       WHERE NOT EXISTS (SELECT 1 FROM compra_vinculo v WHERE v.entidad_ruc = o.entidad_ruc AND v.orden = o.orden AND v.fecha_emision = o.fecha_emision)
+               ORDER BY o.entidad_ruc, o.orden, o.fecha_emision, o.anio DESC, o.mes DESC, o.tipo_contratacion, o.monto DESC) o
+       WHERE NOT EXISTS (SELECT 1 FROM compra_vinculo v
+                          WHERE v.proveedor_ruc = '${ruc}' AND v.entidad_ruc = o.entidad_ruc AND v.orden = o.orden AND v.fecha_emision = o.fecha_emision)
       UNION ALL
       SELECT 'catalogo', extract(year FROM p.fecha_publicacion)::int,
              CASE WHEN p.estado NOT IN ('ORDEN DE COMPRA NULA', 'RECHAZADA') THEN p.total END

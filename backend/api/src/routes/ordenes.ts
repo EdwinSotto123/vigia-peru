@@ -415,7 +415,7 @@ export function sqlListaOrdenes(q: FiltrosListaOrdenes, forzarAcotada = false): 
     ? Math.ceil((offset + lim) * 1.02) + 20
     : q.region && !anclado ? Math.max(12000, (offset + lim) * 24) : Math.max(1500, (offset + lim) * 6);
   const despues = despuesDe.length ? `WHERE ${despuesDe.join(" AND ")}` : "";
-  const dedupOrden = `o.entidad_ruc, o.orden, o.fecha_emision, o.anio DESC, o.mes DESC`;
+  const dedupOrden = `o.entidad_ruc, o.orden, o.fecha_emision, o.anio DESC, o.mes DESC, o.tipo_contratacion, o.monto DESC`;
   // UNA sola consulta con VENTANA para todos los casos. El WHERE lleva el filtro de entidad/proveedor (o ninguno) y el
   // ORDER BY o.fecha_emision + LIMIT deja que el planner elija el índice que da ese orden YA filtrado, sin traer toda la
   // historia de la entidad/proveedor (una entidad grande tiene ~44 k filas; ordenarlas enteras en disco tardaba ~39 s):
@@ -454,7 +454,7 @@ export async function filasOrdenes(claves: ClaveOrden[]): Promise<Record<string,
     `WITH k AS (SELECT * FROM unnest($1::text[], $2::text[], $3::date[], $4::text[]) AS k(e, n, f, p)),
           d AS (SELECT DISTINCT ON (o.entidad_ruc, o.orden, o.fecha_emision) o.*
                   FROM k JOIN conosce_ordenes o ON o.entidad_ruc = k.e AND o.ruc_contratista = k.p AND o.fecha_emision = k.f AND o.orden = k.n
-                 ORDER BY o.entidad_ruc, o.orden, o.fecha_emision, o.anio DESC, o.mes DESC)
+                 ORDER BY o.entidad_ruc, o.orden, o.fecha_emision, o.anio DESC, o.mes DESC, o.tipo_contratacion, o.monto DESC)
      SELECT ${COLS} FROM d o`,
     [claves.map((k) => k.entidad), claves.map((k) => k.orden), claves.map((k) => k.fecha), claves.map((k) => k.proveedor)]);
   return r.rows as Record<string, unknown>[];
@@ -473,7 +473,7 @@ export async function ordenesLigeras(claves: ClaveOrden[]): Promise<Record<strin
             o.tipo_orden AS "tipoOrden", ${MONTOS}, o.estado,
             to_char(o.fecha_compromiso, 'YYYY-MM-DD') AS "fechaCompromiso"
        FROM k JOIN conosce_ordenes o ON o.entidad_ruc = k.e AND o.ruc_contratista = k.p AND o.fecha_emision = k.f AND o.orden = k.n
-      ORDER BY o.entidad_ruc, o.orden, o.fecha_emision, o.anio DESC, o.mes DESC`,
+      ORDER BY o.entidad_ruc, o.orden, o.fecha_emision, o.anio DESC, o.mes DESC, o.tipo_contratacion, o.monto DESC`,
     [claves.map((k) => k.entidad), claves.map((k) => k.orden), claves.map((k) => k.fecha), claves.map((k) => k.proveedor)]);
   return r.rows as Record<string, unknown>[];
 }
@@ -605,7 +605,7 @@ function periodoOrdenes(desde: string, hasta: string, antes: boolean): string {
                  CASE WHEN o.moneda = 'Nuevos Soles' AND o.monto_dudoso IS NULL THEN o.monto END AS monto
             FROM conosce_ordenes o
            WHERE o.entidad_ruc = $1 AND o.fecha_emision >= ${desde}::date AND o.fecha_emision <= ${hasta}::date AND ${ORDEN_LISTADA}
-           ORDER BY o.orden, o.fecha_emision, o.anio DESC, o.mes DESC`;
+           ORDER BY o.orden, o.fecha_emision, o.anio DESC, o.mes DESC, o.tipo_contratacion, o.monto DESC`;
 }
 
 async function ventanaOrdenes(q: z.infer<typeof VentanaQuery>): Promise<Record<string, unknown>> {

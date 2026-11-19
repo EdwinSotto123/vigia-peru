@@ -81,7 +81,7 @@ const FUENTES: Fuente[] = [
     // órdenes de Ate de 2023 están con anio 2024) y el desglose por año no mostraba 2023.
     rango: (d, h) => `o.fecha_emision >= make_date(${d}::int, 1, 1) AND o.fecha_emision < make_date(${h}::int + 1, 1, 1)`, texto: "o.descripcion",
     anio: "extract(year FROM o.fecha_emision)::int", fecha: "o.fecha_emision", monto: "o.monto", nro: "o.nro_orden",
-    unico: { distinto: "DISTINCT ON (o.entidad_ruc, o.orden, o.fecha_emision)", orden: "ORDER BY o.entidad_ruc, o.orden, o.fecha_emision, o.anio DESC, o.mes DESC" },
+    unico: { distinto: "DISTINCT ON (o.entidad_ruc, o.orden, o.fecha_emision)", orden: "ORDER BY o.entidad_ruc, o.orden, o.fecha_emision, o.anio DESC, o.mes DESC, o.tipo_contratacion, o.monto DESC" },
     ruc: "o.ruc_contratista", nombre: "o.contratista", ref: "o.orden", entidad: "o.entidad", dudoso: "o.monto_dudoso IS NOT NULL",
     soles: "COALESCE(o.moneda, 'Nuevos Soles') IN ('Nuevos Soles', 'Soles', 'PEN')", porEntidad: "o.entidad_ruc", porProveedor: "o.ruc_contratista",
   },

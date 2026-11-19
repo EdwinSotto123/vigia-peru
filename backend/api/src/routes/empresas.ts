@@ -664,7 +664,7 @@ empresasRouter.get("/:ruc/ordenes", async (c) => {
                   o.orden, o.tipo_orden AS "tipoOrden", o.descripcion, COALESCE(o.monto, o.monto_dudoso)::float AS monto,
                   o.monto_dudoso::float AS "montoDudoso", o.dudoso_motivo AS "dudosoMotivo", o.tipo_contratacion AS "tipoContratacion", o.estado`;
     const DEDUP = `DISTINCT ON (o.entidad_ruc, o.orden, o.fecha_emision)`;
-    const DEDUP_ORDEN = `o.entidad_ruc, o.orden, o.fecha_emision, o.anio DESC, o.mes DESC`;
+    const DEDUP_ORDEN = `o.entidad_ruc, o.orden, o.fecha_emision, o.anio DESC, o.mes DESC, o.tipo_contratacion, o.monto DESC`;
     // El total sin recorrer sus órdenes: exacto desde empresa_orden_anual (cada orden ya contada una vez, en su versión
     // más nueva, por entidad, año y región). Sólo sin filtros variables; con ellos, la consulta completa cuenta el suyo.
     const totalAnual = async () => {

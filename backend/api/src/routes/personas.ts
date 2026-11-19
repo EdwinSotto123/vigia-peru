@@ -212,7 +212,7 @@ async function dudosasDe(q: ListaQ): Promise<{ ordenes: number; monto: number } 
          FROM conosce_ordenes o
         WHERE o.monto_dudoso IS NOT NULL AND o.ruc_contratista LIKE '10%' AND length(o.ruc_contratista) = 11 AND o.tipo_orden = 'Orden de Servicio'
           AND o.moneda = 'Nuevos Soles' ${ent}
-        ORDER BY o.entidad_ruc, o.orden, o.fecha_emision, o.ruc_contratista, o.anio DESC, o.mes DESC)
+        ORDER BY o.entidad_ruc, o.orden, o.fecha_emision, o.ruc_contratista, o.anio DESC, o.mes DESC, o.tipo_contratacion, o.monto DESC)
      SELECT count(*)::int AS ordenes, COALESCE(sum(monto_dudoso), 0)::float AS monto FROM d`, vals);
   const d = r.rows[0];
   return d && d.ordenes > 0 ? { ordenes: d.ordenes, monto: Number(d.monto) } : null;
@@ -986,7 +986,7 @@ personasRouter.get("/:codigo", async (c) => {
              FROM conosce_ordenes o
             WHERE o.ruc_contratista = $1 AND o.tipo_orden = 'Orden de Servicio' AND o.moneda = 'Nuevos Soles'
               AND o.estado IS DISTINCT FROM 'Anulada' AND (o.monto > 0 OR o.monto_dudoso IS NOT NULL) AND o.fecha_emision IS NOT NULL
-            ORDER BY o.entidad_ruc, o.orden, o.fecha_emision, o.anio DESC, o.mes DESC)
+            ORDER BY o.entidad_ruc, o.orden, o.fecha_emision, o.anio DESC, o.mes DESC, o.tipo_contratacion, o.monto DESC)
          SELECT to_char(date_trunc('month', fecha_emision), 'YYYY-MM') AS mes, COALESCE(sum(monto), 0)::float AS monto,
                 COALESCE(sum(monto_dudoso), 0)::float AS dudoso, count(*)::int AS ordenes
            FROM o GROUP BY 1 ORDER BY 1`, [ruc]),
@@ -996,7 +996,7 @@ personasRouter.get("/:codigo", async (c) => {
            SELECT DISTINCT ON (o.entidad_ruc, o.orden, o.fecha_emision) o.monto_dudoso, o.dudoso_motivo
              FROM conosce_ordenes o
             WHERE o.ruc_contratista = $1 AND o.tipo_orden = 'Orden de Servicio' AND o.moneda = 'Nuevos Soles' AND o.monto_dudoso IS NOT NULL
-            ORDER BY o.entidad_ruc, o.orden, o.fecha_emision, o.anio DESC, o.mes DESC)
+            ORDER BY o.entidad_ruc, o.orden, o.fecha_emision, o.anio DESC, o.mes DESC, o.tipo_contratacion, o.monto DESC)
          SELECT count(*)::int AS ordenes, sum(monto_dudoso)::float AS monto, array_agg(DISTINCT dudoso_motivo) AS motivos FROM d`, [ruc]),
       // Los cambios de gobierno en la entidad que más le pagó mientras tuvo órdenes (para marcarlos en su línea mes a mes):
       // la nueva gestión municipal o regional, o el Presidente que asumió si es del Ejecutivo.
@@ -1041,7 +1041,7 @@ personasRouter.get("/:codigo", async (c) => {
            FROM conosce_ordenes o
           WHERE o.ruc_contratista = $1 AND o.moneda = 'Nuevos Soles' AND o.estado IS DISTINCT FROM 'Anulada' AND o.monto > 0
             AND o.monto_dudoso IS NULL AND o.fecha_emision IS NOT NULL
-          ORDER BY o.entidad_ruc, o.orden, o.fecha_emision, o.anio DESC, o.mes DESC)
+          ORDER BY o.entidad_ruc, o.orden, o.fecha_emision, o.anio DESC, o.mes DESC, o.tipo_contratacion, o.monto DESC)
        SELECT tipo_orden AS tipo, clase_orden(tipo_contratacion) AS clase, count(*)::int AS ordenes, COALESCE(sum(monto), 0)::float AS monto
          FROM o GROUP BY 1, 2 ORDER BY 4 DESC`, [ruc], 8000).then((r) => r.rows).catch(() => null);
     const nombreCrudo = ent.rows[0]?.nombre ?? ganados.rows.find((g) => g.proveedor)?.proveedor ?? null;
@@ -1470,7 +1470,7 @@ personasRouter.get("/:codigo/ordenes", async (c) => {
       `WITH o AS (
          SELECT DISTINCT ON (o.entidad_ruc, o.orden, o.fecha_emision) o.*
            FROM conosce_ordenes o WHERE ${conds.join(" AND ")}
-          ORDER BY o.entidad_ruc, o.orden, o.fecha_emision, o.anio DESC, o.mes DESC)
+          ORDER BY o.entidad_ruc, o.orden, o.fecha_emision, o.anio DESC, o.mes DESC, o.tipo_contratacion, o.monto DESC)
        SELECT to_char(o.fecha_emision, 'YYYY-MM-DD') AS fecha, o.entidad, o.entidad_ruc AS "entidadRuc", o.nro_orden AS numero,
               o.orden, o.descripcion, COALESCE(o.monto, o.monto_dudoso)::float AS monto, o.monto_dudoso::float AS "montoDudoso",
               o.dudoso_motivo AS "dudosoMotivo",
