@@ -27,7 +27,8 @@
 import { publicar } from "../lib/privacidad.js";
 import { Hono } from "hono";
 import { z } from "zod";
-import { escaparLike, pool } from "../lib/db.js";
+import { esErrorPg, escaparLike, pool } from "../lib/db.js";
+import { leerValidacion } from "../lib/validacion.js";
 import { Memo, responderJson, type Serializado } from "../lib/cache.js";
 import { cachePublico, parametros } from "../lib/http.js";
 import { codificarCursor, decodificarCursor, MAX_TOKEN } from "../lib/cursor.js";
@@ -62,6 +63,27 @@ type Q = z.infer<typeof SenalesQuery>;
 
 const memo = new Memo<Serializado>({ nombre: "senales", ttlMs: 60_000, staleMs: 60_000, max: 300 });
 const memoTexto = new Memo<Serializado>({ nombre: "senales:texto", ttlMs: 60_000, max: 40 });
+
+/**
+ * GET /senales/validacion — cuán confiable es cada tipo de bandera (migraciones 401, 404 y 419): la última validación
+ * contra lo que observó la Contraloría y contra lo que el Tribunal declaró fundado o anuló, con observados / esperados y
+ * su intervalo, y el AUC del puntaje frente al del monto. Sólo agregados (ni procesos ni personas). La lee el MCP
+ * (`senales`, vista «confiabilidad»): que un investigador sepa qué señales tienen evidencia de acertar y cuáles no.
+ */
+const memoValidacion = new Memo<Record<string, unknown>>({ nombre: "senales:validacion", ttlMs: 3_600_000, staleMs: 3_600_000, max: 2 });
+senalesRouter.get("/validacion", async (c) => {
+  try {
+    const cuerpo = await memoValidacion.obtener("v", async () => {
+      const [contraloria, tribunal] = await Promise.all([leerValidacion(pool, "contraloria"), leerValidacion(pool, "tribunal")]);
+      return { contraloria, tribunal };
+    });
+    c.header("Cache-Control", cachePublico(3600, { maxAge: 600, swr: 86_400 }));
+    return c.json(cuerpo);
+  } catch (e) {
+    if (esErrorPg(e, "42P01", "42501")) return c.json({ error: "no_disponible", detail: "La validación externa todavía no está en esta base." }, 503);
+    throw e;
+  }
+});
 
 senalesRouter.get("/", async (c) => {
   // Sin la migración 35 no hay vista: 404, que el frontend lee como "API vieja" y usa su ruta anterior.

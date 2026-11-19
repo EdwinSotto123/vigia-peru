@@ -16,6 +16,7 @@ import { z } from "zod";
 import { esErrorPg, poolAdmin as pool } from "../lib/db.js";
 import { actor, esRevisor, log } from "../lib/adminlog.js";
 import { ETIQUETA_CRUCE } from "../lib/cruces.js";
+import { leerValidacion } from "../lib/validacion.js";
 
 export const adminSenalesRouter = new Hono();
 
@@ -149,29 +150,7 @@ adminSenalesRouter.get("/senales-validacion", async (c) => {
   // La verdad contra la que se mide: lo que observó la Contraloría (401) o lo que el Tribunal declaró fundado o anuló (404).
   const etiqueta = c.req.query("etiqueta") === "tribunal" ? "tribunal" : "contraloria";
   try {
-    const corrida = await pool.query(
-      `SELECT id, calculado_at AS "calculadoAt", to_char(desde, 'YYYY') AS desde, to_char(hasta, 'YYYY') AS hasta, universo,
-              observados, entidades, auc_puntaje::float AS "aucPuntaje", auc_monto::float AS "aucMonto",
-              top1_puntaje AS "top1Puntaje", top1_monto AS "top1Monto", top1_azar::float AS "top1Azar",
-              top5_puntaje AS "top5Puntaje", top5_monto AS "top5Monto", top5_azar::float AS "top5Azar"
-         FROM validacion_corrida WHERE etiqueta = $1 ORDER BY id DESC LIMIT 1`, [etiqueta]);
-    const ultima = corrida.rows[0];
-    if (!ultima) return c.json({ etiqueta, corrida: null, senales: [] });
-    const r = await pool.query(
-      `SELECT v.tipo, v.procesos, v.observados, v.esperados::float AS esperados, v.oe::float AS oe,
-              v.oe_min::float AS "oeMin", v.oe_max::float AS "oeMax",
-              EXISTS (SELECT 1 FROM senal_en_observacion o WHERE o.tipo = v.tipo) AS "enObservacion"
-         FROM validacion_senal v WHERE v.corrida_id = $1 ORDER BY v.oe DESC NULLS LAST, v.procesos DESC`, [ultima.id]);
-    return c.json({
-      etiqueta,
-      corrida: ultima,
-      senales: r.rows.map((x) => ({
-        ...x,
-        etiqueta: ETIQUETA_CRUCE[x.tipo] ?? x.tipo,
-        // Con menos de 200 procesos el intervalo es demasiado ancho para decir algo.
-        lectura: x.procesos < 200 ? "pocos_casos" : x.oeMin > 1 ? "mas_de_lo_esperado" : x.oeMax < 1 ? "menos_de_lo_esperado" : "como_lo_esperado",
-      })),
-    });
+    return c.json(await leerValidacion(pool, etiqueta));
   } catch (e) {
     if (esErrorPg(e, "42P01", "42883")) return c.json({ error: "sin_migracion", detail: "Falta la migración 401 (validacion_*)." }, 503);
     throw e;

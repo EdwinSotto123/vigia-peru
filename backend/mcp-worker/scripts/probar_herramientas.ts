@@ -10,7 +10,7 @@
  * `rastro_persona` necesita además MCP_INTERNO_TOKEN; sin él esa prueba se salta. No imprime secretos ni nombres enteros.
  */
 import { z } from "zod";
-import { buscarContratos, fichaContrato, ordenes, preciosDeMercado } from "../src/v2/herramientas/contratos";
+import { buscarContratos, fichaContrato, ordenes, preciosDeMercado, senales } from "../src/v2/herramientas/contratos";
 import { buscarInformesControl, informesControl, ordenesEnPeriodo } from "../src/v2/herramientas/entidad";
 import { fichaEntidad, historia, normaAplicable, patrones, personaPublica, preciosReferencia, redEmpresa } from "../src/v2/herramientas/actores";
 import { informeControlContrato } from "../src/v2/herramientas/control";
@@ -75,6 +75,15 @@ const CASOS: Caso[] = [
       // Sólo como CLAVE (seguida de «:»): "nombre_completo" es también un valor de `identidad`.
       const fuga = filas.match(/"(persona|nombre_completo|integrante_nombre|dni|numero_documento|persona_doc)":/);
       return ok && !fuga ? null : fuga ? `sale un nombre o un número de documento (${fuga[0]})` : "sin identidad, papel en la empresa o clave";
+    } },
+  // Cuán confiable es cada señal (migraciones 401, 404, 419, 421): con las dos verdades y sin la circular.
+  { h: senales as never, args: { vista: "confiabilidad" },
+    espera: (r) => {
+      const s = lista(r, "senales") as { tipo?: string; contra_contraloria?: unknown; contra_tribunal?: unknown }[];
+      const v = r.verdades as { contraloria?: { auc_del_puntaje?: number }; tribunal?: { auc_del_puntaje?: number } } | undefined;
+      if (!v?.contraloria?.auc_del_puntaje || !v?.tribunal?.auc_del_puntaje) return "sin las dos verdades";
+      if (s.some((x) => x.tipo === "otro_postor" && x.contra_tribunal)) return "otro_postor medido contra el Tribunal (es circular)";
+      return s.some((x) => x.tipo === "recien_fundada_medio_ano" && x.contra_contraloria) ? null : "sin recien_fundada_medio_ano";
     } },
   // El evaluador que filtra la competencia (migración 415): la comparación con la entidad y la probabilidad de azar.
   { h: patrones as never, args: { alcance: "observacion", indicador: "comite_competencia_restringida" },

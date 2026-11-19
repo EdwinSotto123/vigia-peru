@@ -639,9 +639,11 @@ export const senales = definir({
   descripcion:
     "Las señales de riesgo que encontró Vigía. vista «banderas»: cada señal de los dictámenes con su evidencia y norma, " +
     "filtrable por severidad, regla, entidad o texto (trae el conteo por regla). vista «dictamenes»: los contratos " +
-    "analizados con su puntaje, filtrables por región y puntaje mínimo.",
+    "analizados con su puntaje, filtrables por región y puntaje mínimo. vista «confiabilidad»: cuánta evidencia hay de que " +
+    "cada tipo de bandera acierte, medida contra lo que observó la Contraloría y contra lo que el Tribunal de " +
+    "Contrataciones declaró fundado o anuló (observados / esperados con su intervalo), y si el puntaje predice mejor que el monto.",
   entrada: {
-    vista: z.enum(["banderas", "dictamenes"]).default("banderas"),
+    vista: z.enum(["banderas", "dictamenes", "confiabilidad"]).default("banderas"),
     severidad: z.enum(["alta", "media", "baja"]).optional(),
     regla: z.string().max(60).optional().describe("Clave de la regla, por ejemplo «unico_postor_alto» (la lista sale en el conteo por regla)."),
     entidad_ruc: z.string().optional(),
@@ -652,6 +654,47 @@ export const senales = definir({
   },
   async ejecutar(a, cx) {
     const e = enlaces(cx.env);
+    if (a.vista === "confiabilidad") {
+      // Migraciones 401, 404, 419 y 421: sólo agregados. Una fila por tipo de bandera con lo medido contra cada verdad.
+      const r = await api<Fila>(cx.env, "/senales/validacion");
+      const LECTURA: Record<string, string> = {
+        mas_de_lo_esperado: "aparece MÁS de lo esperado donde hubo un hallazgo (el intervalo deja fuera al 1): hay evidencia de que acierta",
+        menos_de_lo_esperado: "aparece MENOS de lo esperado: no anticipa ese hallazgo (puede medir otra cosa)",
+        como_lo_esperado: "no se distingue del azar con esta verdad",
+        pocos_casos: "muy pocos procesos para decir algo todavía",
+      };
+      const porTipo = new Map<string, Fila>();
+      for (const [verdad, v] of [["contraloria", r.contraloria], ["tribunal", r.tribunal]] as const) {
+        for (const s of ((v?.senales ?? []) as Fila[])) {
+          const fila = porTipo.get(s.tipo) ?? { tipo: s.tipo, que_es: s.etiqueta, en_observacion: s.enObservacion || undefined };
+          fila[`contra_${verdad}`] = {
+            procesos: s.procesos, con_hallazgo: s.observados, esperados: Math.round(s.esperados * 100) / 100,
+            observados_sobre_esperados: s.oe != null ? Math.round(s.oe * 100) / 100 : null,
+            intervalo: s.oeMin != null && s.oeMax != null ? [Math.round(s.oeMin * 100) / 100, Math.round(s.oeMax * 100) / 100] : null,
+            lectura: LECTURA[s.lectura] ?? s.lectura,
+          };
+          porTipo.set(s.tipo, fila);
+        }
+      }
+      const corrida = (v: Fila | undefined) => v?.corrida ? {
+        calculada: v.corrida.calculadoAt, periodo: `${v.corrida.desde}-${v.corrida.hasta}`, procesos: v.corrida.universo, con_hallazgo: v.corrida.observados,
+        auc_del_puntaje: v.corrida.aucPuntaje != null ? Math.round(v.corrida.aucPuntaje * 1000) / 1000 : null,
+        auc_del_monto: v.corrida.aucMonto != null ? Math.round(v.corrida.aucMonto * 1000) / 1000 : null,
+      } : null;
+      const orden = (f: Fila) => -Math.max(f.contra_contraloria?.intervalo?.[0] ?? 0, f.contra_tribunal?.intervalo?.[0] ?? 0);
+      return {
+        verdades: { contraloria: corrida(r.contraloria), tribunal: corrida(r.tribunal) },
+        senales: [...porTipo.values()].sort((x, y) => orden(x) - orden(y)),
+        como_leerlo:
+          "Dos verdades distintas: la Contraloría (informes de control con responsabilidad presunta: mira sobre todo cumplimiento " +
+          "y obras grandes, y llega años después) y el Tribunal de Contrataciones (apelaciones declaradas fundadas o nulidades, desde " +
+          "2024: mira la etapa de selección). observados_sobre_esperados compara los procesos con esa bandera que tuvieron un hallazgo " +
+          "con los que se esperaban por su tipo, año y tamaño; sólo vale si el intervalo deja fuera al 1 y hay 200 procesos o más. " +
+          "AUC 0,5 es azar: si el del puntaje no supera al del monto, el puntaje no ordena mejor que mirar los contratos más grandes. " +
+          "Las señales que son consecuencia de la propia verdad (que la buena pro pase a otro postor, frente al Tribunal) no se miden. " +
+          "Una señal sin evidencia no es inútil (puede servir para mirar), pero no conviene apoyar en ella sola una conclusión.",
+      };
+    }
     if (a.vista === "dictamenes") {
       const r = await api<Fila>(cx.env, "/alertas", { region: region(a.region)?.nombre, scoreMin: a.puntaje_min, conSenales: "true", limit: a.limite });
       return {
