@@ -147,8 +147,9 @@ function PedirConCuenta({ senales }: { senales: number }) {
         <div className="min-w-0">
           <h3 id="informe-cuenta" className="text-destacado font-semibold leading-snug text-ink">El informe para control se pide con una cuenta</h3>
           <p className="mt-1 max-w-3xl text-meta leading-relaxed text-inkSoft">
-            {senales > 0 ? `Reúne ${senales === 1 ? "la señal" : `las ${senales} señales`} de este contrato` : "Reúne las señales de este contrato"} con su
-            evidencia y la norma de su fecha. Redactarlo usa un modelo de inteligencia artificial: lo hacemos para quien lo va a usar.
+            {/* Sin el número: la API cuenta también los antecedentes del ganador y la pestaña «Señales» cuenta otra cosa. */}
+            Reúne las señales de este contrato y los antecedentes de quien lo ganó, con su evidencia y la norma de su fecha.
+            Redactarlo usa un modelo de inteligencia artificial: lo hacemos para quien lo va a usar.
           </p>
         </div>
       </div>
