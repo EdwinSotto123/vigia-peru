@@ -438,6 +438,11 @@ Hoy son seis (conteos en producción del 2026-11-17; el sexto, del 2026-11-18):
 | `firma_en_plazo_de_apelacion` | media | ver abajo | CONOSCE: adjudicaciones × contratos × postores (migración 334) | en un ítem con dos o más ofertas, el contrato se firmó antes del 5.º día hábil siguiente a la buena pro, cuando los otros postores todavía podían apelarla (D.S. 344-2018-EF arts. 64 y 141; D.S. 009-2025-EF arts. 82, 90 y 304). Fuera: una sola oferta, buena pro con más de una fecha, firma anterior a la buena pro, directas y regímenes especiales |
 | `solo_admitido_el_ganador` | alta/media | 194 (57 altas) | `proceso_item` × `proceso_postor` (reporte de evaluación del SEACE, leído sin modelo; migraciones 326, 384 y 390) | en un ítem adjudicado con 4 o más ofertas se admitió una sola, la del ganador. Alta con 6 o más ofertas. Tasa base medida: con 3 ofertas pasa en el 14 % de los ítems, con 4 en el 10 %, con 5 en el 8 % y con 8 o más en el 1-4 %; concuerda 95 % con la bandera del acta leída con modelo (`acta_solo_queda_el_ganador`). Va al ganador si es RUC 20, o a cada integrante RUC 20 del consorcio; las empresas no admitidas van en `detalle.fuera_empresas` (sólo RUC 20). Se rehace con `refrescar_cruce_solo_admitido()` en `tarea:piezas`. Se midió y se descartó «sólo calificó el ganador»: en la adjudicación simplificada la calificación se detiene en el primero que cumple |
 
+**Calibración de la bandera publicada del acta (migración 392, 2026-11-18).** `acta_solo_queda_el_ganador` (acta leída
+con modelo, puntúa) salía siempre «media». Su frecuencia según los postores del acta: 50,6 % de los procesos con 2,
+35,0 % con 3, 26,3 % con 4, 22,3 % con 5 y 9,6 % con 6 o más. Con 2 postores pasa a «baja» (2 069 procesos); con 3 o
+más sigue «media». Los motivos de los que quedaron fuera son reales (se revisaron los 10 618), no «no se evaluó».
+
 Además, la 329 agrega:
 
 - **Etapa y motivo de cada `visita_previa`** (el cruce del contrato, `refrescar_cruce_visita_previa()`): la etapa del
