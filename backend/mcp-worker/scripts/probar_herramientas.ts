@@ -81,6 +81,13 @@ const CASOS: Caso[] = [
   { h: fichaContrato as never, args: { ocid: "1241973" },
     espera: (r) => ((lista(r, "cruces") as { tipo?: string; evidencia_externa?: string }[]).some((x) => /Contraloría|Tribunal/.test(x.evidencia_externa ?? ""))
       ? null : "ningún cruce con evidencia_externa") },
+  // Las entidades que el Tribunal corrige más que el resto del país (migración 422): las destacadas, con su probabilidad.
+  { h: patrones as never, args: { alcance: "tribunal", solo_graves: true },
+    espera: (r) => {
+      const e = lista(r, "entidades") as { destaca?: boolean; probabilidad_de_azar?: number; ruc?: string }[];
+      return e.length >= 1 && e.every((x) => x.destaca === true && typeof x.probabilidad_de_azar === "number" && /^\d{11}$/.test(String(x.ruc)))
+        ? null : `entidades destacadas: ${e.length}`;
+    } },
   // Cuán confiable es cada señal (migraciones 401, 404, 419, 421): con las dos verdades y sin la circular.
   { h: senales as never, args: { vista: "confiabilidad" },
     espera: (r) => {

@@ -799,10 +799,13 @@ export const patrones = definir({
     "Con alcance «cierre_gestion» (en observación): gobiernos locales y regionales que, entre la elección de 2022 y el cambio de " +
     "mando, dieron órdenes a muchas más personas naturales NUEVAS para la entidad (sin órdenes suyas desde 2018) que un año antes " +
     "y que un año después; personas sólo como cuentas; cada caso trae su siguiente_paso con ordenes_en_periodo. " +
+    "Con alcance «tribunal»: entidades cuyos procesos el Tribunal de Contrataciones corrige (apelación fundada o nulidad) " +
+    "más que el resto del país, con la probabilidad de que sea azar; solo_graves deja las que pasan el control de falsos " +
+    "descubrimientos. " +
     "Un patrón es un motivo para mirar, no una acusación.",
   cuenta: true,
   entrada: {
-    alcance: z.enum(["entidad", "proveedor", "relleno", "consorcio", "renovacion", "dueno", "inhabilitada", "control", "observado", "observacion", "grupo", "repetida", "doble", "recien_creada", "compras_familia", "autoridad_exsocio", "cierre_gestion"]).default("entidad"),
+    alcance: z.enum(["entidad", "proveedor", "relleno", "consorcio", "renovacion", "dueno", "inhabilitada", "control", "observado", "observacion", "grupo", "repetida", "doble", "recien_creada", "compras_familia", "autoridad_exsocio", "cierre_gestion", "tribunal"]).default("entidad"),
     indicador: z.enum(["reunion_en_evaluacion", "visita_personal_decisor", "ofertas_a_la_vez", "trabajo_en_el_ganador",
       "firma_en_plazo_de_apelacion", "solo_admitido_el_ganador", "comite_mismo_ganador", "comite_socio_proveedor",
       "comite_competencia_restringida"]).optional()
@@ -966,6 +969,22 @@ export const patrones = definir({
         como_leerlo:
           "Un grupo junta proveedores de la misma entidad; cada uno solo puede parecer pequeño. «posibles hermanos» sale de los apellidos y no está comprobado. " +
           "Para confirmar un fraccionamiento hay que ver si las órdenes del mismo día o del mismo objeto respondían a un solo requerimiento.",
+        aviso: AVISO,
+      };
+    }
+    if (a.alcance === "tribunal") {
+      // Migración 422: sólo cifras de entidades.
+      const r = await api<Fila>(cx.env, "/patrones/tribunal", { destacadas: a.solo_graves ? "1" : undefined, page: a.pagina, size: 20 });
+      return {
+        total: r.total,
+        entidades: ((r.data ?? []) as Fila[]).map((x) => ({
+          entidad: x.entidad, ruc: x.entidadRuc, enlace: enlaces(cx.env).entidad(x.entidadRuc),
+          procesos_apelables: x.procesos, corregidos_por_el_tribunal: x.corregidos,
+          tasa: Math.round(x.tasa * 10000) / 100, tasa_del_resto_del_pais: Math.round(x.tasaResto * 10000) / 100,
+          veces: x.veces != null ? Math.round(x.veces * 10) / 10 : undefined,
+          probabilidad_de_azar: x.pValor, destaca: x.destacada, calculado: x.calculado,
+        })),
+        como_leerlo: r.como_leerlo,
         aviso: AVISO,
       };
     }

@@ -881,6 +881,49 @@ patronesRouter.get("/doble", async (c) => {
   return c.json(cuerpo);
 });
 
+const TribunalLista = z.object({
+  /** Sólo las que pasan el control de falsos descubrimientos. */
+  destacadas: z.enum(["1"]).optional(),
+  page: z.coerce.number().int().min(1).max(200).default(1),
+  size: z.coerce.number().int().min(1).max(50).default(20),
+});
+
+/**
+ * GET /patrones/tribunal?destacadas=1 — las entidades cuyos procesos el Tribunal de Contrataciones corrige (apelación
+ * fundada o nulidad) más que el resto del país (migración 422, tribunal_entidad): con 10 procesos apelables o más, de la
+ * menor probabilidad de azar a la mayor; primero las que pasan Benjamini-Hochberg al 10 %. Sólo cifras de entidades.
+ */
+patronesRouter.get("/tribunal", async (c) => {
+  const p = TribunalLista.safeParse(Object.fromEntries(Object.entries(parametros(c)).filter(([, v]) => v !== "" && v != null)));
+  if (!p.success) return c.json({ error: "invalid_query", issues: p.error.issues }, 400);
+  const q = p.data;
+  const cuerpo = await memo.obtener(`tribunal:${JSON.stringify(q)}`, async () => {
+    const r = await pool.query(
+      `SELECT t.entidad_ruc AS "entidadRuc", e.nombre AS entidad, t.procesos, t.corregidos, t.tasa, t.tasa_resto AS "tasaResto",
+              t.veces, t.p_valor AS "pValor", t.q_valor AS "qValor", t.destacada, to_char(t.calculado_at, 'YYYY-MM-DD') AS calculado,
+              (count(*) OVER ())::int AS total
+         FROM tribunal_entidad t LEFT JOIN entidad_stats e ON e.ruc = t.entidad_ruc::bpchar
+        WHERE t.procesos >= 10 ${q.destacadas ? "AND t.destacada" : ""}
+        ORDER BY t.destacada DESC, t.p_valor, t.entidad_ruc
+        LIMIT $1 OFFSET $2`, [q.size, (q.page - 1) * q.size],
+    ).catch((e) => {
+      if (esErrorPg(e, "42P01")) return { rows: [] as Record<string, unknown>[] };
+      throw e;
+    });
+    const filas = r.rows as Record<string, any>[];
+    return {
+      total: filas[0]?.total ?? 0, page: q.page, size: q.size,
+      data: filas.map(({ total: _t, ...x }) => x),
+      como_leerlo: "Procesos apelables (licitaciones, concursos y adjudicaciones simplificadas desde 2024 con dos postores o " +
+        "más) que el Tribunal de Contrataciones corrigió: apelación fundada o nulidad del procedimiento. Se compara con la tasa " +
+        "del resto del país; «destacada» si no se explica por azar (control de falsos descubrimientos al 10 %). Las resoluciones " +
+        "se siguen leyendo: la lista cambia.",
+    };
+  });
+  c.header("Cache-Control", CACHE);
+  return c.json(cuerpo);
+});
+
 const ComprasFamilia = z.object({
   /** RUC de la entidad, o de la empresa del familiar. */
   buscar: z.string().regex(/^20\d{9}$/).optional(),
