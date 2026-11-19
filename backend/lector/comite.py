@@ -66,7 +66,13 @@ ESQUEMA = {
     },
 }
 
-BANDERAS: list[str] = []
+# No son banderas de riesgo: «sin_verificar» marca las actas con algún nombre que no se pudo comprobar con el texto (un
+# escaneo) para que la segunda lectura (`leer.py --clase comite --segunda --solo-con-banderas --motor workers --modelo
+# @cf/google/gemma-4-26b-a4b-it`, otro modelo, otra familia) vuelva a leer sólo ésas. Un nombre que las dos leen igual
+# entra a comite_integrante (migración 411). Piloto del 2026-11-19 contra los agentes: 22 de 22 confirmados correctos; los
+# leídos por un solo modelo, 16 de 19 (quedan fuera).
+BANDERAS = ["sin_verificar"]
+BANDERAS_A_CONFIRMAR = ["sin_verificar"]
 
 # Los mismos títulos que quitan las funciones SQL (396, 407): el nombre debe compararse igual en los dos lados.
 _TITULOS = re.compile(r"^((ING|ARQ|ABOG|ABG|LIC|DR|DRA|SR|SRA|SRTA|CPC|C P C|ECON|ECO|BLGO|BIOL|MG|MBA|PROF|TEC|BACH|OBST|"
@@ -131,4 +137,4 @@ def comprobar_pdfs(salida: dict, pdfs: list[tuple[str, bytes]]) -> dict:
 
 
 def banderas_de(salida: dict) -> list[str]:
-    return []
+    return ["sin_verificar"] if any(not m.get("verificada") for m in salida.get("comite") or []) else []

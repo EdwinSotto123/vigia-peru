@@ -52,6 +52,13 @@ def test_la_cita_no_guarda_un_numero_de_documento():
     assert "12345678" not in r["comite"][0]["cita"] and r["comite"][0]["verificada"]
 
 
+def test_sin_verificar_pide_la_segunda_lectura():
+    from lector.comite import banderas_de
+    assert banderas_de({"comite": [{"verificada": True}, {"verificada": False}]}) == ["sin_verificar"]
+    assert banderas_de({"comite": [{"verificada": True}]}) == []
+    assert banderas_de({"comite": []}) == []
+
+
 def test_elige_las_primeras_y_las_ultimas_paginas():
     b = pdf(*[f"pagina {i}" for i in range(10)])
     assert elegir_paginas(b, 14) == [0, 1, 7, 8, 9]
