@@ -141,8 +141,13 @@ def main() -> None:
             pid = int(f.stem)
             if pid in ya:
                 continue
-            d = json.loads(f.read_text(encoding="utf-8"))
-            if T.tipo_de(d["texto"]) != "apelacion":
+            try:
+                d = json.loads(f.read_text(encoding="utf-8"))
+            except (ValueError, OSError) as e:
+                # Uno a medio escribir por una versión vieja del bajador, o en uso: queda para la próxima corrida.
+                print(f"   salto {f.name}: {e}", flush=True)
+                continue
+            if T.tipo_de(d.get("texto") or "") != "apelacion":
                 continue
             pendientes.append(d)
             if a.max and len(pendientes) >= a.max:

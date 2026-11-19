@@ -71,11 +71,15 @@ def main() -> None:
             doc = fitz.open(stream=pedir(pdf.group(1)), filetype="pdf")
             texto = "\n".join(p.get_text() for p in doc)
             destino.parent.mkdir(parents=True, exist_ok=True)
-            destino.write_text(json.dumps({
+            # A un temporal y después el cambio de nombre (atómico): el lector (tribunal_cargar.py) puede correr a la vez
+            # y no debe encontrar un .json a medio escribir.
+            tmp = destino.with_suffix(".tmp")
+            tmp.write_text(json.dumps({
                 "id": pid, "anio": anio, "url": url, "pdf": pdf.group(1),
                 "titulo": re.sub(r"\s+", " ", titulo.group(1)).split(" - ")[0].strip() if titulo else None,
                 "paginas": len(doc), "texto": texto,
             }, ensure_ascii=False), encoding="utf-8")
+            tmp.replace(destino)
             fallos = 0
             nuevas += 1
             if nuevas % 50 == 0:
