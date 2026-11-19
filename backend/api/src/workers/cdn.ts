@@ -130,8 +130,10 @@ const GUARDADO = "X-Vigia-Guardado";
  *        (migraciones 392-396) traen detalle nuevo (competencia, cuando, integrante).
  * "135": grupos por dueño guardados vacíos (un error de la base salía como «ningún grupo» y /patrones guarda una hora)
  *        durante la construcción de índices del 2026-11-19 de madrugada; y la señal 407 (comité socio del proveedor).
+ * "136": fichas guardadas mientras la cadena de cruces dejaba en cero «sólo admitieron al ganador» y las del comité
+ *        (corregido en scrapers-worker/comun.ts); y la señal 415 (evaluador que restringe la competencia).
  */
-const VERSION_CACHE = "135";
+const VERSION_CACHE = "136";
 
 function cacheable(req: Request): boolean {
   if (req.method !== "GET") return false;
