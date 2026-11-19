@@ -246,11 +246,12 @@ tarea:masivo-agentes:
 
 # Reanálisis de dictámenes ya publicados con las mismas Lambdas (reanalizar_contratos.py --guiones): los de OCID con
 # guiones hechos antes del arreglo e267f269 (el agente no vio sus lecturas). La lista sale de la base en cada corrida (los
-# rehechos quedan fuera), así que el horario lo repite hasta terminar. Mismo resource_group que el masivo: se turnan y no
-# pasan juntos el límite de Workers AI. El gasto va al libro del masivo cada 25 análisis (cuenta para MASIVO_TOPE).
+# rehechos quedan fuera), así que el horario lo repite hasta terminar. Corre A LA VEZ que el masivo con 3 hilos: mientras
+# dure, MASIVO_PLAN baja el masivo a 6 (≤ 9 análisis a la vez en total, el límite de Workers AI); al terminar, devolverlo.
+# El gasto va al libro del masivo cada 25 análisis (cuenta para MASIVO_TOPE).
 tarea:reanalisis:
   <<: *tarea_con_base
-  resource_group: masivo-agentes
+  resource_group: reanalisis
   script:
     - timeout 175m python -X utf8 backend/scripts/reanalizar_contratos.py prod --guiones --minutos 150 --hilos 3 --tope "${REANALISIS_TOPE:-120}" --motivo "OCID con guiones, el agente no vio sus lecturas (arreglado en e267f269)"
   rules:
