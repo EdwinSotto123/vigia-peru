@@ -506,7 +506,13 @@ export interface PatronesRenovaciones {
  * hasta medir su precisión. De quien recibió una visita llega sólo el cargo y el área; quien visitó está en la ficha.
  */
 export interface PatronObservacion {
-  tipo: "reunion_en_evaluacion" | "visita_personal_decisor" | "ofertas_a_la_vez" | "trabajo_en_el_ganador" | "firma_en_plazo_de_apelacion";
+  tipo:
+    | "reunion_en_evaluacion"
+    | "visita_personal_decisor"
+    | "ofertas_a_la_vez"
+    | "trabajo_en_el_ganador"
+    | "firma_en_plazo_de_apelacion"
+    | "solo_admitido_el_ganador";
   etiqueta: string;
   severidad: "alta" | "media" | "baja";
   ocid: string;
@@ -547,6 +553,9 @@ export interface PatronObservacion {
   ofertas?: number | null;
   consentimiento?: string | null;
   norma?: string | null;
+  /** Sólo admitieron al ganador: cuántas ofertas no se admitieron y cuáles eran de empresas (RUC 20). */
+  noAdmitidas?: number | null;
+  fueraEmpresas?: { ruc: string; nombre: string | null }[] | null;
 }
 
 export interface PatronesObservacion {

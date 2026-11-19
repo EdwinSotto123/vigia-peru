@@ -267,6 +267,7 @@ const POR_QUE: Record<string, string> = {
   visita_personal_decisor: "Una relación personal entre quien vende y quien decide la compra es un posible conflicto de intereses: al funcionario le toca declararlo y apartarse. El registro sólo dice que la visita se anotó como personal; puede ser un familiar o un error al llenar el motivo.",
   ofertas_a_la_vez: "Dos empresas que compiten y comparten un dueño o representante ya son una señal de competencia aparente. Que además registren sus ofertas una tras otra sugiere que las preparó la misma mano.",
   firma_en_plazo_de_apelacion: "Mientras corre el plazo para apelar, los otros postores pueden pedir que se revise la buena pro. Firmar antes deja el contrato hecho antes de que nadie pueda reclamar: la norma manda esperar el consentimiento. Vale mirar si alguien apeló y qué pasó con esa apelación.",
+  solo_admitido_el_ganador: "La admisión sólo revisa que cada oferta traiga los documentos obligatorios. Que con cuatro o más ofertas pase sólo la del ganador sugiere un requisito formal que sólo él podía cumplir, o postores puestos para aparentar competencia. Vale leer en el reporte el motivo de cada no admisión y comparar con las bases: si el requisito que dejó fuera a todos era razonable, si alguien lo consultó y si se repite en esa entidad.",
   trabajo_en_el_ganador: "Quien trabajó en una empresa, o todavía trabaja ahí, tiene un vínculo con ella que debe declarar y que lo obliga a apartarse de lo que la toque. Vale ver si el funcionario intervino en esta contratación: su área, si firmó el requerimiento o si integró el comité.",
   partido_gobernante: "La empresa, o una persona detrás de ella, aportó dinero al partido que gobierna la entidad que le dio el contrato: un posible conflicto de interés, el más directo de estos cruces.",
   vendio_gobernante: "La empresa, o una persona detrás de ella, le vendió a la campaña del partido que gobierna la entidad. Es una relación comercial, no un aporte: pesa según el monto.",
@@ -578,6 +579,34 @@ function Texto({ c, gobierna }: { c: CruceProveedor; gobierna?: GobiernoContrato
           {ofertas != null ? `${numero(ofertas)} ofertas` : "más de una oferta"}: los otros postores tenían al menos 5 días hábiles para apelar, y el
           contrato se firma recién después del consentimiento{txt(d.norma) ? ` (${txt(d.norma)})` : ""}.
           {cons ? ` CONOSCE registra el consentimiento el ${fechaConAnio(cons)}.` : ""}
+        </>
+      );
+    }
+    case "solo_admitido_el_ganador": {
+      const ofertas = n(d.ofertas);
+      const fuera = n(d.no_admitidas);
+      const item = n(d.item);
+      const empresas = Array.isArray(d.fuera_empresas) ? (d.fuera_empresas as { ruc: string; nombre: string | null }[]) : [];
+      const desc = txt(d.descripcion_item);
+      return (
+        <>
+          En {item != null ? `el ítem ${numero(item)}` : "este ítem"}
+          {desc ? <> («{desc}»)</> : null} se presentaron <b>{ofertas != null ? `${numero(ofertas)} ofertas` : "cuatro o más ofertas"}</b> y el
+          comité admitió <b>sólo la oferta</b> de <Emp c={c} />, que ganó
+          {fuera != null ? `: ${numero(fuera)} ${fuera === 1 ? "quedó fuera" : "quedaron fuera"} antes de comparar precios` : ""}, según el
+          reporte de evaluación que genera el SEACE.
+          {empresas.length > 0 ? (
+            <>
+              {" "}No se admitió a{" "}
+              {empresas.map((o, i) => (
+                <span key={o.ruc}>
+                  {i > 0 ? (i === empresas.length - 1 ? " ni a " : ", ") : ""}
+                  <OtraEmpresa ruc={o.ruc} nombre={o.nombre} />
+                </span>
+              ))}
+              {fuera != null && fuera > empresas.length ? `, ni a ${numero(fuera - empresas.length)} ${fuera - empresas.length === 1 ? "persona natural" : "personas naturales"}` : ""}.
+            </>
+          ) : null}
         </>
       );
     }

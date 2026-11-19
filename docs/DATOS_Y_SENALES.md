@@ -427,7 +427,7 @@ cuentan para el puntaje ni para «contratos con antecedentes»: no entran a `cas
 muestra revisada. Quitar la fila de un tipo lo hace puntuar en el siguiente refresco. Es el mismo trato que ya tienen
 los datos del proveedor (migración 115).
 
-Hoy son cinco (conteos en producción del 2026-11-17):
+Hoy son seis (conteos en producción del 2026-11-17; el sexto, del 2026-11-18):
 
 | Tipo | Sev. | Filas | Cruza | Umbral |
 |---|---|---|---|---|
@@ -436,6 +436,7 @@ Hoy son cinco (conteos en producción del 2026-11-17):
 | `ofertas_a_la_vez` | media | 11 | `proceso_postor` (reporte de presentación de ofertas del SEACE) × RNP | el ganador y otro postor del mismo ítem comparten un socio, representante o directivo (no cuentan quienes figuran en más de 10 empresas) y registraron sus ofertas con 30 minutos o menos de diferencia |
 | `trabajo_en_el_ganador` | media/baja | 1 227 | DJI de datos abiertos (`dji_empleos` × `dji_funcionarios` por `codigo_ddjj`; migraciones 330-333) × adjudicaciones | un funcionario de la entidad declaró un empleo en la empresa que ganó y la buena pro cayó mientras él ocupaba su cargo. Baja si dejó el empleo más de dos años antes o la declaración no trae fechas. No repite los procesos que ya marca `empleo_declarado` |
 | `firma_en_plazo_de_apelacion` | media | ver abajo | CONOSCE: adjudicaciones × contratos × postores (migración 334) | en un ítem con dos o más ofertas, el contrato se firmó antes del 5.º día hábil siguiente a la buena pro, cuando los otros postores todavía podían apelarla (D.S. 344-2018-EF arts. 64 y 141; D.S. 009-2025-EF arts. 82, 90 y 304). Fuera: una sola oferta, buena pro con más de una fecha, firma anterior a la buena pro, directas y regímenes especiales |
+| `solo_admitido_el_ganador` | alta/media | 194 (57 altas) | `proceso_item` × `proceso_postor` (reporte de evaluación del SEACE, leído sin modelo; migraciones 326, 384 y 390) | en un ítem adjudicado con 4 o más ofertas se admitió una sola, la del ganador. Alta con 6 o más ofertas. Tasa base medida: con 3 ofertas pasa en el 14 % de los ítems, con 4 en el 10 %, con 5 en el 8 % y con 8 o más en el 1-4 %; concuerda 95 % con la bandera del acta leída con modelo (`acta_solo_queda_el_ganador`). Va al ganador si es RUC 20, o a cada integrante RUC 20 del consorcio; las empresas no admitidas van en `detalle.fuera_empresas` (sólo RUC 20). Se rehace con `refrescar_cruce_solo_admitido()` en `tarea:piezas`. Se midió y se descartó «sólo calificó el ganador»: en la adjudicación simplificada la calificación se detiene en el primero que cumple |
 
 Además, la 329 agrega:
 

@@ -392,6 +392,18 @@ export function datosDe(a: AntecedenteEmpresa, ruc: string): DatoCaso[] {
       { etiqueta: "De dónde sale", valor: "CONOSCE: adjudicaciones, contratos y postores del OECE", soloPanel: true },
       delProceso(),
     );
+  } else if (t === "solo_admitido_el_ganador") {
+    const ofertas = num(d.ofertas);
+    const fuera = num(d.no_admitidas);
+    const otras = empresas(Array.isArray(d.fuera_empresas) ? (d.fuera_empresas as { ruc: string; nombre: string | null }[]) : []);
+    add(
+      ofertas != null && { etiqueta: "Ofertas en el ítem", valor: `${plural(ofertas, "oferta", "ofertas")}: sólo se admitió la de esta empresa` },
+      fuera != null && { etiqueta: "No admitidas", valor: plural(fuera, "oferta", "ofertas") },
+      otras.length > 0 && { etiqueta: "Empresas que quedaron fuera", valor: otras.map((o) => o.texto).join(", "), lista: otras },
+      txt(d.descripcion_item) && { etiqueta: "El ítem", valor: txt(d.descripcion_item), soloPanel: true },
+      { etiqueta: "De dónde sale", valor: "El reporte de evaluación que genera el SEACE", soloPanel: true },
+      delProceso(),
+    );
   } else if (t === "ofertas_a_la_vez") {
     const otros = empresas(r?.otros ?? (Array.isArray(d.otros_postores) ? (d.otros_postores as string[]).map((x) => ({ ruc: x, nombre: null })) : []));
     const rolOtro = Array.isArray(d.rol_en_otros) ? papeles((d.rol_en_otros as string[]).join(", ")) : null;

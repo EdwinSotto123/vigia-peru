@@ -1164,6 +1164,11 @@ export function detalleObservacion(p: PatronObservacion): Detalle {
         <b>{p.diasHabiles === 0 ? "el mismo día de la buena pro" : `${plural(p.diasHabiles ?? 1, "día hábil", "días hábiles")} después de la buena pro`}</b>, cuando los
         otros postores del ítem todavía podían apelarla.
       </>
+    ) : p.tipo === "solo_admitido_el_ganador" ? (
+      <>
+        En este ítem de <b>{ent}</b> se presentaron <b>{plural(p.ofertas ?? 4, "oferta", "ofertas")}</b> y el comité{" "}
+        <b>sólo admitió la de {emp}</b>, que ganó: las demás quedaron fuera antes de comparar precios.
+      </>
     ) : p.tipo === "trabajo_en_el_ganador" ? (
       <>
         Un funcionario de <b>{ent}</b>, con el cargo de {(p.cargo ?? "funcionario").toLowerCase()}, declaró en su Declaración Jurada de Intereses
@@ -1195,6 +1200,27 @@ export function detalleObservacion(p: PatronObservacion): Detalle {
             { etiqueta: "Ofertas en el ítem", valor: p.ofertas != null ? numero(p.ofertas) : null, mono: true },
             { etiqueta: "Consentimiento en CONOSCE", valor: p.consentimiento ? fechaConAnio(p.consentimiento) : null },
             { etiqueta: "Norma", valor: p.norma ?? null },
+          ]
+      : p.tipo === "solo_admitido_el_ganador"
+        ? [
+            { etiqueta: "Ofertas en el ítem", valor: p.ofertas != null ? numero(p.ofertas) : null, mono: true },
+            { etiqueta: "No admitidas", valor: p.noAdmitidas != null ? numero(p.noAdmitidas) : null, mono: true },
+            {
+              etiqueta: "Empresas que quedaron fuera",
+              valor: p.fueraEmpresas?.length ? (
+                <>
+                  {p.fueraEmpresas.map((o, i) => (
+                    <span key={o.ruc}>
+                      {i > 0 && ", "}
+                      <Link href={`/empresa/${o.ruc}`} prefetch={false} className={ENLACE}>
+                        {empresa(o.nombre)}
+                      </Link>
+                    </span>
+                  ))}
+                </>
+              ) : null,
+            },
+            { etiqueta: "De dónde sale", valor: "Reporte de evaluación que genera el SEACE" },
           ]
       : p.tipo === "trabajo_en_el_ganador"
         ? [
@@ -1233,6 +1259,13 @@ export function detalleObservacion(p: PatronObservacion): Detalle {
             "Revisa en el SEACE si algún postor apeló la buena pro y qué resolvió la entidad o el Tribunal.",
             "Mira cuántas ofertas hubo y si las demás quedaron descalificadas: con una sola válida el riesgo de apelación es menor.",
             "Descarta la explicación sencilla: una fecha mal registrada en CONOSCE o un contrato de otro ítem.",
+          ]
+      : p.tipo === "solo_admitido_el_ganador"
+        ? [
+            "Abre el contrato y lee en el reporte de evaluación el motivo de cada oferta no admitida.",
+            "Busca ese requisito en las bases: si es razonable para lo que se compra o parece hecho a la medida del ganador.",
+            "Mira en el pliego de consultas si algún participante lo observó y qué respondió la entidad.",
+            "Descarta la explicación sencilla: postores que no traían documentos que cualquiera podía conseguir.",
           ]
       : p.tipo === "trabajo_en_el_ganador"
         ? [

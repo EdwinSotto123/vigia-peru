@@ -2577,6 +2577,7 @@ const NOMBRE_OBSERVACION: Record<PatronObservacion["tipo"], string> = {
   ofertas_a_la_vez: "Ofertas casi a la vez, con un socio común",
   trabajo_en_el_ganador: "Un funcionario declaró haber trabajado en el ganador",
   firma_en_plazo_de_apelacion: "Contrato firmado antes de que se pudiera apelar",
+  solo_admitido_el_ganador: "Entre cuatro o más ofertas, sólo se admitió la del ganador",
 };
 
 /** Cuándo fue el empleo frente a la buena pro (trabajo_en_el_ganador). */
@@ -2609,9 +2610,11 @@ function ListaObservacion({ inicial }: { inicial: InicialPatrones }) {
               cuenta para el riesgo del contrato hasta saber, con una muestra revisada, cuántas veces acierta.
             </span>
             <span className="mt-1.5 block">
-              Hoy son cuatro: una reunión de la empresa con quien decide las compras mientras se evaluaban las ofertas, visitas
+              Hoy son seis: una reunión de la empresa con quien decide las compras mientras se evaluaban las ofertas, visitas
               declaradas «personales» y repetidas a quien decide, dos rivales con un socio común que registran sus ofertas
-              casi a la vez, y un funcionario de la entidad que declaró en su DJI haber trabajado en la empresa que ganó.
+              casi a la vez, un funcionario de la entidad que declaró en su DJI haber trabajado en la empresa que ganó, un
+              contrato firmado antes de que los otros postores pudieran apelar, y un ítem de cuatro o más ofertas en el que sólo
+              se admitió la del ganador.
             </span>
             <span className="mt-1.5 block">De quien recibió una visita se muestra sólo el cargo. Es un motivo para mirar, no una acusación.</span>
           </Ayuda>
@@ -2683,6 +2686,12 @@ function evidenciaObservacion(p: PatronObservacion): string {
   if (p.tipo === "firma_en_plazo_de_apelacion") {
     const cuando = p.diasHabiles === 0 ? "el mismo día de la buena pro" : `${plural(p.diasHabiles ?? 1, "día hábil", "días hábiles")} después de la buena pro`;
     return `Firmado ${cuando}, con ${plural(p.ofertas ?? 2, "oferta", "ofertas")} en el ítem`;
+  }
+  if (p.tipo === "solo_admitido_el_ganador") {
+    const fuera = p.noAdmitidas ?? (p.ofertas != null ? p.ofertas - 1 : null);
+    const empresas = (p.fueraEmpresas ?? []).map((e) => e.nombre).filter((x): x is string => !!x);
+    const quienes = empresas.length ? `: entre ellas, ${empresas.slice(0, 2).join(" y ")}${empresas.length > 2 ? ` y ${plural(empresas.length - 2, "empresa más", "empresas más")}` : ""}` : "";
+    return `De ${plural(p.ofertas ?? 4, "oferta", "ofertas")} sólo se admitió la del ganador${fuera != null ? `; ${plural(fuera, "quedó fuera", "quedaron fuera")}` : ""}${quienes}`;
   }
   if (p.tipo === "trabajo_en_el_ganador") {
     return `Quien tiene el cargo de ${quien} declaró un empleo en la empresa: ${CUANDO_EMPLEO[p.cuando ?? ""] ?? "sin fechas"}`;
