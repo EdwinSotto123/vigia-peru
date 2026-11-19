@@ -563,6 +563,8 @@ export interface ContratosQuery {
   ganadora?: string;
   /** Sólo los contratos con posible error de carga del OECE. */
   dudoso?: "si";
+  /** Ante el Tribunal de Contrataciones: con una apelación resuelta, o corregidos por él (fundada o nulidad). */
+  tribunal?: "apelado" | "corregido";
 }
 
 export const TIPOS: { value: TipoContrato; label: string }[] = [
@@ -880,6 +882,7 @@ export function parseContratosQuery(sp: Record<string, string | string[] | undef
     partido: /^[a-z0-9-]{2,120}$/.test(s("partido") ?? "") ? s("partido") : undefined,
     ganadora: conDatosGanadora && DATOS_GANADORA.some((d) => d.valor === s("ganadora")) ? s("ganadora") : undefined,
     dudoso: conDatosGanadora && s("dudoso") === "si" ? "si" : undefined,
+    tribunal: s("tribunal") === "apelado" || s("tribunal") === "corregido" ? (s("tribunal") as "apelado" | "corregido") : undefined,
   };
 }
 
@@ -912,6 +915,7 @@ export function contratosParametros(q: ContratosQuery): Record<string, string | 
     partido: txt(q.partido),
     ganadora: txt(q.ganadora),
     dudoso: txt(q.dudoso),
+    tribunal: txt(q.tribunal),
   };
 }
 

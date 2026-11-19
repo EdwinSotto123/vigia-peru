@@ -172,7 +172,15 @@ export const ListQuery = z.object({
   ganadora: z.enum(["dada_de_baja", "suspendida", "no_habida", "candidato", "autoridad", "aporte", "aporte_empresa", "proveedor_campana"]).optional(),
   // Posible error de carga del OECE (contrato_dudoso, migración 102).
   dudoso: z.enum(["si"]).optional(),
+  // Ante el Tribunal de Contrataciones (migraciones 402-423): con una apelación resuelta, o corregidos por él (fundada,
+  // en parte o nulidad, comprobado contra el primer punto resolutivo).
+  tribunal: z.enum(["apelado", "corregido"]).optional(),
 });
+
+/** Los procesos ante el Tribunal: pocos (cientos), así que como conjunto, no como EXISTS por fila. */
+export const ocidsTribunal = (q: { tribunal?: "apelado" | "corregido" }) =>
+  `IN (SELECT tp.ocid FROM tribunal_proceso tp JOIN tribunal_resolucion tr ON tr.id = tp.resolucion_id
+                    WHERE tp.ocid IS NOT NULL${q.tribunal === "corregido" ? " AND tribunal_corrigio(tr)" : ""} OFFSET 0)`;
 
 /**
  * Los contratos cuyo ganador (el primer proveedor del OCDS, `proveedor_ruc`) es una empresa con ese dato en su ficha.
@@ -217,6 +225,7 @@ export function buildWhere(q: z.infer<typeof ListQuery>, ex: Exprs, vals: unknow
   if (q.operativo && !salta("operativo")) w.push(`${ex.operativo} = ${add(q.operativo)}`);
   if (q.ganadora && !salta("ganadora")) w.push(`c.ocid IN (${ocidsDeGanadora(q.ganadora)})`);
   if (q.dudoso && !salta("dudoso")) w.push(`c.ocid IN (SELECT cdu.ocid FROM contrato_dudoso cdu)`);
+  if (q.tribunal && !salta("tribunal")) w.push(`c.ocid ${ocidsTribunal(q)}`);
   return w;
 }
 

@@ -194,6 +194,21 @@ export const filtroDudoso = (resumen: Pick<ResumenContratos, "porDudoso"> | null
   opciones: [{ valor: "si", etiqueta: "Con posible error de carga", conteo: resumen?.porDudoso ?? null }],
 });
 
+/**
+ * Ante el Tribunal de Contrataciones (apelaciones leídas por Vigía, migraciones 402-423): los procesos con una apelación
+ * resuelta, o los que el Tribunal corrigió (fundada o nulidad). Sin conteo: son pocos y crecen cada hora.
+ */
+export const filtroTribunal = (): FiltroSecundario => ({
+  param: "tribunal",
+  etiqueta: "Ante el Tribunal de Contrataciones",
+  corta: "Tribunal",
+  todas: "Con o sin apelación",
+  opciones: [
+    { valor: "apelado", etiqueta: "Con una apelación resuelta" },
+    { valor: "corregido", etiqueta: "Corregidos por el Tribunal (fundada o nulidad)" },
+  ],
+});
+
 /** Pone esos filtros bajo un subtítulo del menú «Filtros». */
 export const enSeccion = (seccion: string, ...filtros: FiltroSecundario[]): FiltroSecundario[] => filtros.map((f) => ({ ...f, seccion }));
 

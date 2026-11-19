@@ -39,7 +39,7 @@ import { casoLectura, lecturaSql } from "../lib/lectura.js";
 import { BANDERAS_DE_FILA, COL_DUDOSO, crucesDeFila, joinDudoso } from "../lib/estadoFila.js";
 import { COL_GOBIERNO, gobiernoDeFila } from "../lib/gobiernoFila.js";
 import { conGanadores } from "../lib/ganadores.js";
-import { ListQuery, cuboAnterior, geoAnterior, listaAnterior, ocidsDeGanadora } from "./contratos_sql.js";
+import { ListQuery, cuboAnterior, geoAnterior, listaAnterior, ocidsDeGanadora, ocidsTribunal } from "./contratos_sql.js";
 import { contratosDetalleRouter } from "./contratos_detalle.js";
 
 export const contratosRouter = new Hono();
@@ -148,6 +148,8 @@ function filtros(q: Partial<Filtros>, vals: unknown[], m: Mapa, excluir = new Se
   if (q.ganadora && !excluir.has("ganadora")) conds.push(`${m.ocid} IN (${ocidsDeGanadora(q.ganadora)})`);
   // Posible error de carga del OECE: son ~20 contratos (contrato_dudoso), se buscan por su PK.
   if (q.dudoso && !excluir.has("dudoso")) conds.push(`${m.ocid} IN (SELECT cdu.ocid FROM contrato_dudoso cdu)`);
+  // Ante el Tribunal: unos cientos de procesos, como conjunto (OFFSET 0), igual que los antecedentes raros.
+  if (q.tribunal && !excluir.has("tribunal")) conds.push(`${m.ocid} ${ocidsTribunal(q)}`);
   return { conds, usaCe };
 }
 
@@ -191,7 +193,7 @@ function esFinDeMes(d: string): boolean {
 }
 /** Filtros que `contratos_agregado` responde exacto: sin q, entidad ni montos, y fechas en meses enteros. */
 const agregable = (q: Partial<Filtros>) =>
-  !q.q && !q.cruces && !q.cruce && !q.obra && !q.partido && !q.entidad && q.monto_min == null && q.monto_max == null && !q.ganadora && !q.dudoso
+  !q.q && !q.cruces && !q.cruce && !q.obra && !q.partido && !q.entidad && q.monto_min == null && q.monto_max == null && !q.ganadora && !q.dudoso && !q.tribunal
   && (!q.desde || esPrimeroDeMes(q.desde)) && (!q.hasta || esFinDeMes(q.hasta));
 
 /**
@@ -635,7 +637,7 @@ function ordenDe(q: ListaQ): Orden {
 /** Sólo texto libre, sin otro filtro: la página y el total salen de las coincidencias mismas. */
 function soloTexto(q: Partial<Filtros>): boolean {
   return !!q.q && !esCodigo(q.q) && !q.tipo && !q.etapa && !q.ubigeo && !q.entidad && q.monto_min == null && q.monto_max == null
-    && !q.desde && !q.hasta && !q.riesgo && !q.lectura && !q.estado && !q.operativo && !q.partido && !q.cruces && !q.cruce && !q.obra && !q.ganadora && !q.dudoso;
+    && !q.desde && !q.hasta && !q.riesgo && !q.lectura && !q.estado && !q.operativo && !q.partido && !q.cruces && !q.cruce && !q.obra && !q.ganadora && !q.dudoso && !q.tribunal;
 }
 
 /**

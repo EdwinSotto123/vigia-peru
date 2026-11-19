@@ -136,6 +136,7 @@ export const buscarContratos = definir({
     senal: z.string().max(200).regex(/^[a-z_]+(,[a-z_]+)*$/).optional().describe("Tipo de señal de los cruces (varios, separados por coma), por ejemplo «unico_postor», «socio_comun», «recien_fundada», «mismo_dueno» (el mismo socio gana ahí con otra empresa), «socio_de_inhabilitada» (su socio tiene otra empresa inhabilitada el día de la buena pro), «socio_con_informe_control» (un socio o representante tiene responsabilidad presunta en un informe de control de la Contraloría anterior a la buena pro), «observado_por_contraloria» (una observación de un informe de control nombra ESE proceso o la obra de ese contrato: lo que la Contraloría ya encontró ahí), «gano_tras_observacion» (la entidad le adjudicó DESPUÉS de un informe de control que observó otro proceso que ese proveedor había ganado ahí), «retencion_sobre_tope», «contrato_sobre_adjudicado», «puerta_giratoria», «renovacion_mas_cara»."),
     todas_las_senales: z.boolean().optional().describe("Con varias señales en `senal`: sólo los contratos que las tienen TODAS (por defecto, alguna). Sirve para combinar, p. ej. «unico_postor,socio_de_inhabilitada»."),
     solo_senales_graves: z.boolean().optional().describe("Sólo contratos con al menos una señal grave de los cruces."),
+    tribunal: z.enum(["apelado", "corregido"]).optional().describe("Ante el Tribunal de Contrataciones: «apelado» (con una apelación resuelta) o «corregido» (el Tribunal la declaró fundada o anuló el procedimiento). Las resoluciones están en ficha_contrato (`tribunal`)."),
     orden: z.enum(["fecha", "monto", "puntaje"]).default("fecha"),
     pagina,
     por_pagina: porPagina,
@@ -164,6 +165,7 @@ export const buscarContratos = definir({
     const r = await api<Fila>(env, "/contratos", {
       q: a.texto, entidad, ubigeo: reg?.ubigeo, tipo: a.tipo, desde, hasta, monto_min: a.monto_min, monto_max: a.monto_max,
       riesgo: a.riesgo, cruce: a.senal, cruce_todas: a.todas_las_senales && a.senal ? 1 : undefined, cruces: a.solo_senales_graves ? "alta" : undefined, orden: a.orden === "puntaje" ? "score" : a.orden, page: a.pagina, size: a.por_pagina,
+      tribunal: a.tribunal,
     });
     return {
       total: r.total,

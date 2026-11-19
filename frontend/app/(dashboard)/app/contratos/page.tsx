@@ -18,7 +18,7 @@ import { Repartos, RepartoPartes } from "@/components/listado/Repartos";
 import { RepartoInicio, partesPorTipo } from "@/components/inicio/BloquesInicio";
 import { PROVINCIA_NOMBRE } from "@/components/mapa/provincias";
 import {
-  chipsDeEnlace, enSeccion, filtroDudoso, filtroEtapa, filtroGanadora, filtroMesVisible, filtroObra, filtroOperativo, filtroOtroAntecedente, filtrosMonto,
+  chipsDeEnlace, enSeccion, filtroDudoso, filtroEtapa, filtroGanadora, filtroMesVisible, filtroObra, filtroOperativo, filtroOtroAntecedente, filtroTribunal, filtrosMonto,
   filtrosVisibles, filtroTipo, SECCIONES_FILTRO,
 } from "@/components/contratos/filtros";
 import { getEntidad, getRegionesEntidades } from "@/lib/api-client";
@@ -386,7 +386,7 @@ function filtros({
   entidadNombre: string | null;
 }): FiltroSecundario[] {
   return [
-    ...enSeccion(SECCIONES_FILTRO.que, filtroTipo(resumen), filtroEtapa(), filtroObra(resumen)),
+    ...enSeccion(SECCIONES_FILTRO.que, filtroTipo(resumen), filtroEtapa(), filtroObra(resumen), filtroTribunal()),
     ...enSeccion(
       SECCIONES_FILTRO.quien,
       // La entidad se elige desde el panel de un contrato («Ver sólo los contratos de esta entidad»), su ficha o un
