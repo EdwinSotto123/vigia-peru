@@ -666,6 +666,14 @@ Lo que se midió además (scripts en el scratchpad de la sesión; no publicados 
   referencial (el piso legal), y la dispersión de las ofertas no separa a los postores vinculados (AUC 0,613 con y sin
   screens, 2 760 procesos de un ítem con tres o más ofertas leídas del acta).
 
+**Segunda verdad: el Tribunal de Contrataciones (migraciones 402-404).** Las apelaciones que el Tribunal declara
+fundadas y los procedimientos que anula miran justo la etapa de selección. Las resoluciones de gob.pe se bajan y leen
+cada hora desde la PC (tarea VigiaTribunal; `bajar_tribunal.py`, `lector/tribunal.py`, `tribunal_cargar.py`), con el
+resultado comprobado contra el primer punto resolutivo, y se unen a su contrato (`tribunal_proceso`). Se ven en la ficha
+del contrato y en el MCP, y `refrescar_validacion_tribunal()` mide las señales contra ellas cada lunes (universo: procesos
+competitivos desde 2024 con dos postores o más). Primera corrida, con las primeras resoluciones: 10 procesos con la
+etiqueta en 65 214, sin conclusión todavía.
+
 Cómo leerlo: la Contraloría audita sobre todo cumplimiento y obras grandes; lo que marca Vigía (competencia aparente,
 vínculos, proveedores cautivos) casi no llega a sus informes. Un O/E bajo no prueba que una bandera falle: dice que mide
 algo que el control no está mirando. Sí obliga a no presentar el puntaje como «probabilidad de irregularidad»: ordena por

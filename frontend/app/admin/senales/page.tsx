@@ -259,8 +259,25 @@ function Contenido() {
 }
 
 /** La validación externa (migración 401): cuánto encuentran el puntaje y cada bandera de lo que la Contraloría observó. */
+type Verdad = "contraloria" | "tribunal";
+
+/** Cómo leer cada verdad: qué es la etiqueta y qué no prueba un O/E bajo. */
+const LECTURA_VERDAD: Record<Verdad, string> = {
+  contraloria:
+    "La etiqueta es que un informe de control observó el proceso; lo esperado de cada proceso sale de los de su tipo, su " +
+    "tamaño y su año. Un O/E mayor que 1 dice que con esa bandera hay más observaciones de las que su tipo y tamaño " +
+    "explican. La Contraloría audita sobre todo cumplimiento y obras grandes, y observa menos los procesos con un solo " +
+    "postor: un O/E bajo no prueba que la bandera falle, pero sí que mide algo que el control no está mirando.",
+  tribunal:
+    "La etiqueta es que el Tribunal de Contrataciones declaró fundada una apelación del proceso o lo anuló: el comité se " +
+    "equivocó o el proceso tenía un vicio en la etapa de selección. El universo son los procesos competitivos desde 2024 " +
+    "con dos postores o más (sin otro postor no hay quien apele). Las resoluciones se bajan y leen cada hora: mientras no " +
+    "estén todas, la medida es parcial y los intervalos, anchos.",
+};
+
 function PanelValidacion() {
-  const { data, error, isLoading, mutate } = useAdmin<Validacion>("/senales-validacion");
+  const [verdad, setVerdad] = useState<Verdad>("contraloria");
+  const { data, error, isLoading, mutate } = useAdmin<Validacion>(`/senales-validacion?etiqueta=${verdad}`);
   const k = data?.corrida;
   const columnas: Columna<SenalValidada>[] = [
     {
@@ -291,6 +308,15 @@ function PanelValidacion() {
   ];
   return (
     <div className="space-y-5">
+      <FilterChips<Verdad>
+        etiqueta="Contra qué se mide"
+        valor={verdad}
+        onCambiar={setVerdad}
+        opciones={[
+          { valor: "contraloria", etiqueta: "Lo que observó la Contraloría" },
+          { valor: "tribunal", etiqueta: "Lo que el Tribunal declaró fundado o anuló" },
+        ]}
+      />
       <ErrorBanner error={error} onReintentar={() => mutate()} />
       {isLoading && !data ? <SkeletonPanel lineas={6} /> : null}
       {data && !k ? (
@@ -311,13 +337,14 @@ function PanelValidacion() {
               valor={`${fmtNum(k.top1Puntaje ?? 0)} de ${fmtNum(k.observados)}`}
               pista={`por el puntaje; por el monto, ${fmtNum(k.top1Monto ?? 0)}; al azar, ${decimal(k.top1Azar, 0)}`}
             />
-            <StatCard etiqueta="Universo" valor={fmtNum(k.universo)} pista={`procesos de ${k.desde} a ${k.hasta} en ${fmtNum(k.entidades)} entidades auditadas`} />
+            <StatCard
+              etiqueta="Universo"
+              valor={fmtNum(k.universo)}
+              pista={`procesos de ${k.desde} a ${k.hasta} en ${fmtNum(k.entidades)} entidades${verdad === "contraloria" ? " auditadas" : ""}; ${fmtNum(k.observados)} con la etiqueta`}
+            />
           </StatGrid>
           <Aviso tono="neutral" titulo="Cómo leerlo">
-            La etiqueta es que un informe de control observó el proceso; lo esperado de cada proceso sale de los de su tipo, su
-            tamaño y su año. Un O/E mayor que 1 dice que con esa bandera hay más observaciones de las que su tipo y tamaño
-            explican. La Contraloría audita sobre todo cumplimiento y obras grandes, y observa menos los procesos con un solo
-            postor: un O/E bajo no prueba que la bandera falle, pero sí que mide algo que el control no está mirando.
+            {LECTURA_VERDAD[verdad]}
           </Aviso>
           <DataTable
             columnas={columnas}
