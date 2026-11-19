@@ -164,7 +164,7 @@ export const fichaEntidad = definir({
   entrada: { ruc: rucEntrada("la entidad") },
   async ejecutar({ ruc }, cx) {
     const r = rucJuridico(ruc, "RUC de la entidad");
-    const [f, poder, control, du, pat, hist] = await Promise.all([
+    const [f, poder, control, du, pat, hist, trib] = await Promise.all([
       api<Fila>(cx.env, `/entidades/${r}`),
       api<Fila>(cx.env, `/poder/entidad/${r}`).catch(() => null),
       api<Fila>(cx.env, `/corrupcion/entidad/${r}`, { size: 5 }).catch(() => null),
@@ -178,6 +178,8 @@ export const fichaEntidad = definir({
         api<Fila>(cx.env, `/historia/entidad/${r}`).catch(() => null),
         new Promise<null>((ok) => setTimeout(() => ok(null), 3000)),
       ]),
+      // Sus procesos ante el Tribunal de Contrataciones (migraciones 402-403).
+      api<Fila>(cx.env, `/entidades/${r}/tribunal`).catch(() => null),
     ]);
     const ent = f.entidad ?? {};
     const finDeMes = (m: string) => new Date(Date.UTC(Number(m.slice(0, 4)), Number(m.slice(5, 7)), 0)).toISOString().slice(0, 10);
@@ -197,6 +199,17 @@ export const fichaEntidad = definir({
       provincia: ent.provincia,
       distrito: ent.distrito,
       contratos: ent.contratos,
+      // Sus procesos ante el Tribunal de Contrataciones: fundadas o con nulidad = su comité se equivocó o el proceso tenía
+      // un vicio. Sólo las apelaciones ya leídas y unidas a un contrato (se bajan cada hora; la cobertura crece).
+      tribunal: trib && trib.apelaciones
+        ? {
+            apelaciones_resueltas: trib.apelaciones, fundadas: trib.fundadas, nulidades_de_oficio: trib.nulidades,
+            recientes: ((trib.recientes ?? []) as Fila[]).map((x) => ({
+              resolucion: x.titulo, fecha: x.fecha, resultado: x.resultado, motivo: x.motivo ?? undefined,
+              enlace_resolucion: x.enlace, contrato: x.ocid ? e.contrato(x.ocid) : undefined,
+            })),
+          }
+        : undefined,
       presupuesto: anios.length ? { fuente: "MEF (Consulta Amigable, SIAF)", por_anio: anios } : undefined,
       duenos_con_varias_empresas: du && (du.total ?? 0) > 0
         ? {

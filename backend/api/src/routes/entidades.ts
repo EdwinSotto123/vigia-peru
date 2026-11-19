@@ -549,6 +549,39 @@ entidadesRouter.get("/:ruc/cruces", async (c) => {
   return c.json(publicar(await crucesDeEntidad(ruc)));
 });
 
+// ─── GET /entidades/:ruc/tribunal — sus procesos ante el Tribunal de Contrataciones (migraciones 402-403) ─────────
+/**
+ * Cuántas apelaciones de los procesos de la entidad resolvió el Tribunal y cuántas fueron fundadas o terminaron en la
+ * nulidad del procedimiento (el comité se equivocó o el proceso tenía un vicio), con las más recientes. Sólo las que se
+ * unieron a un contrato de la entidad y con el resultado comprobado; quién apeló no va (puede ser una persona natural).
+ */
+entidadesRouter.get("/:ruc/tribunal", async (c) => {
+  const ruc = c.req.param("ruc");
+  if (!/^\d{11}$/.test(ruc)) return c.json({ error: "invalid_ruc" }, 400);
+  c.header("Cache-Control", cachePublico(3600, { maxAge: 600, swr: 3600 }));
+  try {
+    const r = await pool.query(
+      `WITH x AS (
+         SELECT DISTINCT ON (r.id) r.id, r.titulo, to_char(r.fecha, 'YYYY-MM-DD') AS fecha, r.resultado, r.efectos, r.motivo,
+                COALESCE(r.pdf, r.url) AS enlace, p.ocid, cv.codigo
+           FROM tribunal_proceso p
+           JOIN tribunal_resolucion r ON r.id = p.resolucion_id AND r.resultado_ok
+           JOIN convocatorias cv ON cv.ocid = p.ocid
+          WHERE cv.entidad_ruc = $1::bpchar
+          ORDER BY r.id)
+       SELECT (SELECT count(*)::int FROM x) AS apelaciones,
+              (SELECT count(*)::int FROM x WHERE resultado IN ('fundado', 'fundado_en_parte')) AS fundadas,
+              (SELECT count(*)::int FROM x WHERE resultado = 'nulidad_de_oficio') AS nulidades,
+              (SELECT COALESCE(jsonb_agg(to_jsonb(y) ORDER BY y.fecha DESC NULLS LAST), '[]')
+                 FROM (SELECT titulo, fecha, resultado, efectos, motivo, enlace, ocid, codigo FROM x
+                        ORDER BY fecha DESC NULLS LAST LIMIT 10) y) AS recientes`, [ruc]);
+    return c.json(publicar(r.rows[0]));
+  } catch (e) {
+    if ((e as { code?: string }).code === "42P01") return c.json({ apelaciones: 0, fundadas: 0, nulidades: 0, recientes: [] });
+    throw e;
+  }
+});
+
 // ─── GET /entidades/:ruc/fraccionamiento — órdenes menores de un mismo día que juntas pasan 8 UIT (migración 51) ─
 entidadesRouter.get("/:ruc/fraccionamiento", async (c) => {
   const ruc = c.req.param("ruc");
