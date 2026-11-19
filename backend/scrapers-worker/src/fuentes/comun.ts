@@ -298,6 +298,15 @@ export function cadenaCruces(): Refresco[] {
     f("refrescar_cruce_ofertas_a_la_vez", true),
     // Contrato firmado cuando los otros postores todavía podían apelar la buena pro (migración 334, en observación).
     f("refrescar_cruce_firma_apelacion", true),
+    // Los indicadores en observación que se rehacían sólo en tarea:refrescar-piezas del CI: como refrescar_cruces() vacía
+    // la tabla, cada corrida de esta cadena los borraba hasta la próxima tarea (2026-11-19: «sólo admitieron al ganador»
+    // en 0 habiendo 194). Sólo admitido lee proceso_postor (arriba); el comité, la vista de la 408 (agentes + lector) y la
+    // señal del evaluador que restringe la competencia (415) lee las de competencia de arriba y la de admisión.
+    f("refrescar_cruce_solo_admitido", true),
+    f("refrescar_comite_integrante", true),
+    f("refrescar_cruce_comite_mismo_ganador", true),
+    f("refrescar_cruce_comite_socio_proveedor", true),
+    f("refrescar_cruce_comite_competencia_restringida", true),
     // Los datos de los documentos leídos, como hechos con tipo y con su comprobación contra el registro (migraciones 323
     // y 327: también los leídos sin modelo, de los reportes del SEACE y de las secciones de las bases).
     f("refrescar_hecho_documento", true),
