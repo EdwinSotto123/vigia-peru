@@ -1,19 +1,6 @@
 import { Suspense } from "react";
-import {
-  BarraFiltros,
-  Indicadores,
-  IndicadoresSkeleton,
-  Listado,
-  ZonaResultados,
-  cuotaDe,
-  paletaGravedad,
-  type FiltroSecundario,
-  type Indicador,
-  type Parametros,
-} from "@/components/listado";
-import { BarraSegmentada, MuestraSerie, type ParteBarra } from "@/components/charts/BarraSegmentada";
-import { fechaCorta, numero, plural, soles, solesCompacto } from "@/lib/formato";
-import { BanderaAparte } from "@/components/ui/BanderaAparte";
+import { BarraFiltros, Listado, ZonaResultados, type FiltroSecundario, type Parametros } from "@/components/listado";
+import { fechaCorta } from "@/lib/formato";
 import { tituloNatural } from "@/lib/landing";
 import { esAnioGobierno, periodoTexto } from "@/lib/partidosApi";
 import {
@@ -30,6 +17,7 @@ import {
   type PaginaPersonas,
   type ParamsPersonas,
   type ResumenPersonas, GRUPO_SENAL, GRUPOS_SENAL } from "@/lib/personas";
+import { PanoramaPersonas, PanoramaPersonasSkeleton } from "./PanoramaPersonas";
 import { TablaPersonas, TablaPersonasSkeleton } from "./TablaPersonas";
 import { PersonasPorNombre } from "./PersonasPorNombre";
 import { PersonasConCargo } from "./PersonasConCargo";
@@ -90,9 +78,10 @@ export function ListaPersonas({
   const conGobierno = !alcance.partido;
   return (
     <div className="space-y-4">
+      {/* Lo de arriba (la conclusión, las cifras, cada año y por servicio): del alcance, sin los filtros de la lista. */}
       {conIndicadores && (
-        <Suspense fallback={<IndicadoresSkeleton n={2} />}>
-          <CifrasPersonas pagina={paginaP} deEntidad={deEntidad} />
+        <Suspense fallback={<PanoramaPersonasSkeleton />}>
+          <Panorama pagina={paginaP} deEntidad={deEntidad} P={P} ruta={ruta} base={base} />
         </Suspense>
       )}
       <Listado ruta={ruta} parametros={parametros} paramPagina={P.page}>
@@ -301,83 +290,21 @@ function Barra({
   );
 }
 
-async function CifrasPersonas({ pagina, deEntidad }: { pagina: Promise<PaginaPersonas | null>; deEntidad: boolean }) {
+/** El panorama del alcance (components/personas/PanoramaPersonas.tsx), con el resumen de la misma página. */
+async function Panorama({
+  pagina,
+  deEntidad,
+  P,
+  ruta,
+  base,
+}: {
+  pagina: Promise<PaginaPersonas | null>;
+  deEntidad: boolean;
+  P: ParamsPersonas;
+  ruta: string;
+  base: Parametros;
+}) {
   const r = (await pagina)?.resumen;
   if (!r) return null;
-  return <Indicadores items={cifras(r, deEntidad)} pie={<RepartoSenales r={r} porPersona={deEntidad || r.filas === r.personas} />} />;
-}
-
-/**
- * Cómo se reparten las contrataciones por su señal más grave: una barra partida y su leyenda con la PARTE de cada una
- * (pedido del usuario del 2026-11-05: alta 25,183, media 182,552, baja 321,115 y sin 2,661,498 iban sólo como chips de
- * texto, y las mismas cifras se repetían en la franja, en los chips, en la pestaña y en el paginador). Los números van en
- * los chips de la barra de filtros, que también filtran y llevan el cuadrito de su parte; aquí, qué parte del todo es
- * cada uno. La leyenda se queda aunque los chips tengan su color: van en otro bloque (la barra de filtros, después del
- * buscador), en el celular se deslizan de costado y «Sin señales» queda fuera de la pantalla, y sólo aquí va la parte.
- * La paleta y la cuota, de `paletaSeveridad` (las mismas que los chips).
- */
-function RepartoSenales({ r, porPersona }: { r: ResumenPersonas; porPersona: boolean }) {
-  const unidad = (n: number) => (porPersona ? plural(n, "persona", "personas") : plural(n, "contratación", "contrataciones"));
-  // Las mismas cuentas que los chips: la baja es lo que queda de «con señales» sin las altas ni las medias.
-  const baja = Math.max(0, r.conSenales - (r.alta ?? 0) - (r.media ?? 0));
-  const sin = Math.max(0, r.filas - r.conSenales);
-  const partes: ParteBarra[] = [
-    { clave: "alta", nombre: "Con señal alta", valor: r.alta ?? 0, texto: unidad(r.alta ?? 0) },
-    { clave: "media", nombre: "Con señal media", valor: r.media ?? 0, texto: unidad(r.media ?? 0) },
-    { clave: "baja", nombre: "Con señal baja", valor: baja, texto: unidad(baja) },
-  ].filter((p) => p.valor > 0);
-  const otros: ParteBarra = { clave: "sin", nombre: "Sin señales", valor: sin, texto: unidad(sin) };
-  if (!r.filas) return null;
-  return (
-    <div style={paletaGravedad(partes)}>
-      <BarraSegmentada partes={partes} otros={otros} etiqueta={porPersona ? "Personas por su señal más grave" : "Contrataciones por su señal más grave"} />
-      {/* La leyenda (el nombre accesible de la barra ya dice lo mismo), en el orden y con el color de la barra. */}
-      <ul aria-hidden className="mt-1.5 flex flex-wrap gap-x-4 gap-y-0.5 text-rotulo text-inkSoft">
-        {[...partes.map((p, i) => ({ p, i: i as number | "otros" })), ...(sin > 0 ? [{ p: otros, i: "otros" as const }] : [])].map(({ p, i }) => (
-          <li key={p.clave} className="inline-flex items-center gap-1.5">
-            <MuestraSerie i={i} />
-            {p.nombre}
-            <span className="font-mono font-semibold tabular-nums text-ink">{cuotaDe(p.valor, r.filas)}</span>
-          </li>
-        ))}
-      </ul>
-    </div>
-  );
-}
-
-/**
- * Personas y monto. Con señales y con una señal alta ya no van aquí (pedido del usuario del 2026-11-05): son los chips de
- * la barra de filtros, con su número, y el reparto por gravedad va debajo de la franja (`RepartoSenales`). Cada cifra dice
- * su unidad: las personas son personas distintas y las señales se cuentan por contratación (como la lista y la faceta).
- * En una entidad las dos unidades son la misma.
- */
-export function cifras(r: ResumenPersonas, deEntidad = false): Indicador[] {
-  const porPersona = deEntidad || r.filas === r.personas;
-  const anios = r.porAnio.map((a) => a.anio).sort((a, b) => a - b);
-  const periodo = anios.length ? (anios[0] === anios[anios.length - 1] ? `en ${anios[0]}` : `de ${anios[0]} a ${anios[anios.length - 1]}`) : null;
-  const pagos = [porPersona ? null : `en ${plural(r.ordenes, "orden", "órdenes")}`, periodo].filter(Boolean).join(", ");
-  return [
-    {
-      valor: numero(r.personas),
-      etiqueta: "personas contratadas",
-      contexto: porPersona ? `con ${plural(r.ordenes, "orden de servicio", "órdenes de servicio")}` : `en ${plural(r.filas, "contratación", "contrataciones")}: una persona en una entidad`,
-    },
-    {
-      valor: solesCompacto(r.monto),
-      etiqueta: "pagados por órdenes",
-      // Lo que CONOSCE publicó con posibles errores (el RUC escrito como monto…) no se borra: se nombra aparte, como
-      // bandera chica debajo del primer dato y con su explicación al tocarla. Antes era la cola de la frase («…; aparte,
-      // S/ 1.6 billones en 412 órdenes con posible error de CONOSCE»): cuatro o cinco renglones dentro de la tarjeta.
-      contexto: r.dudosas?.ordenes ? (
-        <>
-          {pagos}
-          <BanderaAparte monto={solesCompacto(r.dudosas.monto)} titulo="Posible error de CONOSCE" className={pagos ? "mt-1.5" : undefined}>
-            {`${plural(r.dudosas.ordenes, "orden", "órdenes")} ${r.dudosas.ordenes === 1 ? "trae" : "traen"} ${soles(r.dudosas.monto)}${r.dudosas.ordenes === 1 ? "" : " en total"}. Puede ser un error de CONOSCE al subir el dato: Vigía no lo borra, pero lo deja fuera de este total para que no infle la cifra.`}
-          </BanderaAparte>
-        </>
-      ) : (
-        pagos || undefined
-      ),
-    },
-  ];
+  return <PanoramaPersonas r={r} deEntidad={deEntidad} P={P} ruta={ruta} base={base} />;
 }

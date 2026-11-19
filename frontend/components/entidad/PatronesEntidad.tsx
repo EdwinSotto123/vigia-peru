@@ -1,44 +1,55 @@
 import dynamic from "next/dynamic";
 import Link from "next/link";
-import { FileWarning, Repeat2, Search, SearchCheck } from "lucide-react";
+import { FileWarning, Repeat2, SearchCheck } from "lucide-react";
 import { IndiceAntecedentes, type TipoDelIndice } from "@/components/empresas/secciones/IndiceAntecedentes";
 import { Indicadores } from "@/components/listado";
 import { Ayuda, CabeceraPestana, EstadoVacio, FuenteDato, Nota, Pestanas } from "@/components/patrones";
 import { Badge } from "@/components/ui/Badge";
 import { EnlaceAccion } from "@/components/ui/EnlaceAccion";
-import { Severidad } from "@/components/ui/Severidad";
 import { TIPO_CRUCE, chipCruce } from "@/lib/cruces";
-import { fechaConAnio, numero, plural, solesCompacto } from "@/lib/formato";
+import { numero, plural, solesCompacto } from "@/lib/formato";
 import { CONOSCE_BUSCADOR, CONTRATACIONES_ABIERTAS, DATASET_SOCIOS_RNP } from "@/lib/fuentes";
-import { tituloNatural } from "@/lib/landing";
 import { getPatronesDeEntidad, type PatronesDeEntidad, type SeccionPatrones } from "@/lib/patrones";
-import { CRUCE_CON_LISTA, FAMILIAS_PATRON, PATRON_LISTA, familiaDeCruce, type FamiliaPatron, type PatronDeLista } from "@/lib/patronesEntidad";
+import {
+  CRUCE_CON_LISTA,
+  FAMILIAS_PATRON,
+  PATRON_LISTA,
+  familiaDeCruce,
+  familiasDeEntradas,
+  indicePorFamilia,
+  primeraOracion,
+  type EntradaConFamilia,
+  type FamiliaPatron,
+  type PatronDeLista,
+} from "@/lib/patronesEntidad";
 import { etiquetaRegla, getCatalogoReglas, type CatalogoReglas } from "@/lib/revision";
-import { rutaContrato } from "@/lib/rutas";
-import { EnIndice, FamiliasDePatron, type FamiliaConCasos } from "./FamiliasDePatron";
+import { AntecedenteEnEntidad } from "./AntecedenteEnEntidad";
+import { EnIndice, RepartoFamilias } from "./FamiliasDePatron";
 
 /**
- * La pestaña «Antecedentes y patrones» de la ficha de una entidad (pedidos del usuario del 2026-11-18). Antes eran banderas
- * sueltas en la cabecera y listas filtradas: nada decía «aquí hay concertación». Son DOS subpestañas, porque son dos cosas
- * («antecedente sería del contrato, mientras patrones es de varios contratos»):
+ * La pestaña «Antecedentes y patrones» de la ficha de una entidad (pedidos del usuario del 2026-11-18). Son DOS
+ * subpestañas, porque son dos cosas («antecedente sería del contrato, mientras patrones es de varios contratos») y nunca
+ * se mezclan en un mismo índice:
  *
  *   · Patrones (`?pv=patrones`, `?patron=`): lo que se repite ENTRE VARIOS contratos u órdenes. Cada uno es una lista de
  *     /app/patrones (mismo dueño, grupos, compras repetidas, compras y familia…) con el RUC de la entidad ya puesto; cada
  *     fila abre su panel con la evidencia.
  *   · Antecedentes (`?pv=antecedentes`, `?antecedente=`): lo que pesa sobre CADA contrato, por quien lo ganó o por cómo se
- *     adjudicó (postor único, sanción vigente, socio común entre postores, fraccionamiento…): sus cifras, quiénes lo
- *     repiten, los contratos de más peso y el enlace a todos, filtrados en su lista de compras.
+ *     adjudicó (postor único, sanción vigente, socio común entre postores…): sus cifras, año por año, quiénes lo tienen
+ *     y TODOS sus contratos, con buscador (`AntecedenteEnEntidad`, que se pide al elegirlo).
  *
- * Las dos llevan sus familias arriba (concertación, compras partidas, familia y política, sanciones, documentos) y un
- * índice con la ficha del elegido. Las banderas de la cabecera enlazan a su patrón (`?seccion=patrones&patron=`).
+ * Cada subpestaña abre con cómo se reparten sus casos por familia (`RepartoFamilias`: una barra a todo el ancho y una
+ * celda por familia con sus casos y lo grave; antes, cinco cajitas que sólo decían «2 patrones con casos») y sigue con el
+ * índice (ícono de severidad, cifra y barra, agrupado por familia con su color) y la ficha del elegido. Las banderas de la
+ * cabecera enlazan a su patrón (`?seccion=patrones&patron=`).
  *
  * La lista de cada patrón va en un trozo aparte (dynamic): carga todas las listas y su panel de detalle, que pesan.
  */
 const ListaDePatron = dynamic(() => import("@/components/investigar/PatronesVista").then((m) => m.ListaDePatron));
 
 const ENLACE = "font-medium text-granate underline decoration-granate/35 underline-offset-2 hover:decoration-granate";
-const PESO = { alta: 0, media: 1, baja: 2 } as const;
 
+/** Arriba de cada ficha: su familia y, si nace en observación, que todavía no cuenta para el puntaje. */
 function CabeceraFicha({ familia, observacion }: { familia: FamiliaPatron; observacion?: boolean }) {
   const f = FAMILIAS_PATRON.find((x) => x.clave === familia);
   return (
@@ -54,7 +65,7 @@ function FichaDeLista({ clave, p, ruc, etiquetas }: { clave: SeccionPatrones; p:
   return (
     <div className="space-y-4">
       <CabeceraFicha familia={p.familia} observacion={p.observacion} />
-      <ListaDePatron clave={clave} ruc={ruc} titulo={p.nombre} etiquetas={etiquetas} />
+      <ListaDePatron clave={clave} ruc={ruc} titulo={p.nombre} etiquetas={etiquetas} vista="entidad" />
       <Nota>
         <b className="font-semibold text-ink">Qué conviene mirar.</b> {p.mirar}{" "}
         <Link href={`/app/patrones?seccion=${clave}`} prefetch={false} className={ENLACE}>
@@ -65,14 +76,49 @@ function FichaDeLista({ clave, p, ruc, etiquetas }: { clave: SeccionPatrones; p:
   );
 }
 
-/** La ficha de un antecedente de sus contratos: qué es, cuántos y cuánto, los contratos de más peso y el enlace a todos. */
+/**
+ * La ficha de un antecedente de sus contratos: qué es (su nombre y una oración; lo demás en su ⓘ), sus cifras en franja
+ * (contratos, de señal alta con su parte, cuánto suman, cuántos proveedores) y lo que cuenta `AntecedenteEnEntidad`: año
+ * por año, quiénes y todos sus contratos. Al pie, el mismo filtro en Compras (con sus demás filtros) y la fuente.
+ */
 function FichaDeCruce({ c, ruc, patron }: { c: PatronesDeEntidad["cruces"][number]; ruc: string; patron?: { clave: SeccionPatrones; nombre: string; casos: number } }) {
   const info = TIPO_CRUCE[c.tipo] as { corto?: string; explica?: string } | undefined;
-  const ejemplos = c.ejemplos ?? [];
-  const repiten = c.repiten ?? [];
+  const nombre = info?.corto ?? c.etiqueta;
+  const bajada = primeraOracion(info?.explica);
   return (
-    <div className="space-y-4">
+    <div className="space-y-5">
       <CabeceraFicha familia={familiaDeCruce(c.tipo)} />
+      <div className="space-y-1">
+        <div className="flex items-start gap-1">
+          <h3 className="font-display text-bloque font-bold leading-snug text-ink text-pretty">{nombre}</h3>
+          {info?.explica && (
+            <Ayuda titulo="¿Qué quiere decir?" etiqueta={`Qué quiere decir «${nombre}»`} className="mt-0.5">
+              {info.explica}
+            </Ayuda>
+          )}
+        </div>
+        {bajada && <p className="max-w-[80ch] text-dato leading-snug text-inkSoft">{bajada}</p>}
+      </div>
+      <Indicadores
+        franja
+        items={[
+          { valor: numero(c.contratos), etiqueta: c.contratos === 1 ? "contrato de la entidad" : "contratos de la entidad", contexto: "su ganador tiene este antecedente", parte: null },
+          {
+            valor: numero(c.graves),
+            etiqueta: "de señal alta",
+            contexto: c.graves ? `de ${numero(c.contratos)}: van primero en la lista` : "ninguno de señal alta",
+            tono: c.graves ? "alta" : "neutro",
+            parte: c.contratos ? c.graves / c.contratos : null,
+          },
+          { valor: solesCompacto(c.monto), etiqueta: "suman esos contratos", contexto: "por el monto adjudicado", parte: null },
+          {
+            valor: numero(c.empresas),
+            etiqueta: c.empresas === 1 ? "proveedor" : "proveedores distintos",
+            contexto: (c.repiten ?? []).length ? "algunos lo repiten: abajo, quiénes" : "cada uno con su contrato",
+            parte: null,
+          },
+        ]}
+      />
       {patron ? (
         <Nota>
           <b className="font-semibold text-ink">También es un patrón.</b> Entre varios contratos de la entidad se repite{" "}
@@ -82,106 +128,26 @@ function FichaDeCruce({ c, ruc, patron }: { c: PatronesDeEntidad["cruces"][numbe
           : ahí están juntos, con su evidencia.
         </Nota>
       ) : null}
-      <div className="space-y-1">
-        <h3 className="font-display text-bloque font-bold text-ink">{info?.corto ?? c.etiqueta}</h3>
-        <p className="max-w-[80ch] text-dato leading-snug text-inkSoft">{info?.explica ?? c.etiqueta}</p>
+      <AntecedenteEnEntidad ruc={ruc} tipo={c.tipo} nombre={nombre} contratos={c.contratos} graves={c.graves} />
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-line pt-4">
+        <EnlaceAccion href={`/entidad/${ruc}?seccion=contratos&vista=contratos&cruce=${encodeURIComponent(c.tipo)}`} prefetch={false} variante="secundario" flecha>
+          {c.contratos === 1 ? "Verlo en sus compras" : "Verlos en sus compras, con más filtros"}
+        </EnlaceAccion>
+        <FuenteDato
+          fuente="Procesos de la entidad (SEACE y CONOSCE, OECE), cruzados con los registros públicos del ganador"
+          href={CONTRATACIONES_ABIERTAS}
+          enlaces={[
+            { texto: "Procesos en CONOSCE (OECE)", href: CONOSCE_BUSCADOR },
+            { texto: "Conformación jurídica de proveedores (RNP)", href: DATASET_SOCIOS_RNP },
+          ]}
+        />
       </div>
-      <Indicadores
-        franja
-        items={[
-          { valor: numero(c.contratos), etiqueta: c.contratos === 1 ? "contrato de la entidad" : "contratos de la entidad", contexto: "cuyo ganador tiene este antecedente", icono: <Search size={15} strokeWidth={1.9} aria-hidden />, parte: null },
-          { valor: numero(c.graves), etiqueta: "de señal alta", contexto: c.graves ? "van primero en la lista" : "ninguno de señal alta", parte: null },
-          { valor: solesCompacto(c.monto), etiqueta: "suman esos contratos", contexto: plural(c.empresas, "proveedor distinto", "proveedores distintos"), parte: null },
-        ]}
-      />
-      {repiten.length > 0 && (
-        <section className="space-y-2">
-          <h4 className="text-cuerpo font-semibold text-ink">Quiénes lo repiten en esta entidad</h4>
-          <ul className="divide-y divide-line/70 overflow-hidden rounded-xl border border-line">
-            {repiten.map((x, i) => (
-              <li key={`${x.ruc ?? "sin"}-${i}`} className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5 px-3.5 py-2 text-dato">
-                <span className="min-w-0">
-                  {x.ruc && /^20\d{9}$/.test(x.ruc) ? (
-                    <Link href={`/empresa/${x.ruc}?seccion=antecedentes`} prefetch={false} className={ENLACE}>
-                      {x.proveedor ? tituloNatural(x.proveedor) : `RUC ${x.ruc}`}
-                    </Link>
-                  ) : (
-                    <span className="text-ink">{x.proveedor ? tituloNatural(x.proveedor) : "Persona natural"}</span>
-                  )}
-                </span>
-                <span className="shrink-0 text-meta text-inkSoft">
-                  <span className="font-mono tabular-nums text-ink">{numero(x.contratos)}</span> contratos por{" "}
-                  <span className="font-mono tabular-nums text-ink">{solesCompacto(x.monto)}</span>
-                </span>
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
-      {ejemplos.length > 0 && (
-        <section className="space-y-2">
-          <h4 className="text-cuerpo font-semibold text-ink">
-            {c.contratos > ejemplos.length ? `Los ${numero(ejemplos.length)} contratos de más peso` : c.contratos === 1 ? "El contrato" : "Los contratos"}
-          </h4>
-          <ul className="divide-y divide-line/70 overflow-hidden rounded-xl border border-line" data-lista="avance">
-            {ejemplos.map((x) => (
-              <li key={`${x.ocid}-${x.ruc ?? ""}`}>
-                <Link
-                  href={rutaContrato(x.ocid, "ficha", { seccion: "antecedentes" })}
-                  prefetch={false}
-                  className="block px-3.5 py-2.5 transition-colors hover:bg-paperSoft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-granate"
-                >
-                  <span className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5">
-                    <span className="min-w-0 text-dato font-medium text-ink">{x.objeto ? tituloNatural(x.objeto) : `Proceso ${x.codigo ?? x.ocid}`}</span>
-                    <span className="shrink-0 font-mono text-meta tabular-nums text-inkSoft">{x.monto != null ? solesCompacto(x.monto) : "Sin monto"}</span>
-                  </span>
-                  <span className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-rotulo text-mute">
-                    <Severidad bandera={x.severidad === "alta" ? "alta" : x.severidad === "media" ? "media" : "baja"} formato="punto" />
-                    <span>
-                      {x.fecha ? `Buena pro del ${fechaConAnio(x.fecha)}` : "Sin fecha de buena pro"}, ganó {x.proveedor ? tituloNatural(x.proveedor) : "un proveedor sin nombre en el registro"}
-                    </span>
-                  </span>
-                </Link>
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
-      <EnlaceAccion href={`/entidad/${ruc}?seccion=contratos&vista=contratos&cruce=${encodeURIComponent(c.tipo)}`} prefetch={false} flecha>
-        {c.contratos === 1 ? "Ver ese contrato en sus compras" : `Ver los ${numero(c.contratos)} contratos en sus compras`}
-      </EnlaceAccion>
-      <FuenteDato
-        fuente="Procesos de la entidad (SEACE y CONOSCE, OECE), cruzados con los registros públicos del ganador"
-        href={CONTRATACIONES_ABIERTAS}
-        enlaces={[
-          { texto: "Procesos en CONOSCE (OECE)", href: CONOSCE_BUSCADOR },
-          { texto: "Conformación jurídica de proveedores (RNP)", href: DATASET_SOCIOS_RNP },
-        ]}
-      />
     </div>
   );
 }
 
 const PV = "pv";
-type Entrada = TipoDelIndice & { familia: FamiliaPatron };
-
-/** Las familias con entradas, en su orden, con cuántas tiene cada una y la primera que abre. */
-function familiasDe(entradas: Entrada[]): FamiliaConCasos[] {
-  return FAMILIAS_PATRON.flatMap((f) => {
-    const suyas = entradas.filter((e) => e.familia === f.clave);
-    return suyas.length ? [{ clave: f.clave, corto: f.corto, explica: f.explica, n: suyas.length, graves: suyas.filter((e) => e.severidad === "alta").length, primera: suyas[0].clave }] : [];
-  });
-}
-
-/** Por familia (en su orden), lo grave primero y, dentro, lo que más casos tiene; cada entrada con el rótulo de su familia. */
-function ordenar(entradas: Entrada[]): Entrada[] {
-  const orden = new Map(FAMILIAS_PATRON.map((f, i) => [f.clave, i]));
-  return entradas
-    .sort((a, b) => orden.get(a.familia)! - orden.get(b.familia)! || PESO[a.severidad] - PESO[b.severidad] || b.n - a.n)
-    .map((e) => ({ ...e, grupo: FAMILIAS_PATRON.find((f) => f.clave === e.familia)?.nombre }));
-}
-
-const sinFamilia = ({ familia: _familia, ...t }: Entrada): TipoDelIndice => t;
+type Entrada = TipoDelIndice & EntradaConFamilia;
 
 export async function PatronesEntidad({
   ruc,
@@ -237,13 +203,13 @@ export async function PatronesEntidad({
     const casos = lista ? casosDe.get(lista) ?? 0 : 0;
     return {
       clave: c.tipo, familia: familiaDeCruce(c.tipo), nombre: info?.corto ?? c.etiqueta, corto: chipCruce(c.tipo),
-      severidad: c.graves > 0 ? "alta" : c.medias > 0 ? "media" : "baja", n: c.contratos,
+      severidad: c.graves > 0 ? "alta" : c.medias > 0 ? "media" : "baja", n: c.contratos, graves: c.graves,
       resumen: `${plural(c.contratos, "contrato", "contratos")}${c.graves ? `, ${numero(c.graves)} de señal alta` : ""}`,
       contenido: <FichaDeCruce c={c} ruc={ruc} patron={lista && p && casos > 0 ? { clave: lista, nombre: p.nombre, casos } : undefined} />,
     };
   });
-  const tiposPatron = ordenar(patrones);
-  const tiposAntecedente = ordenar(antecedentes);
+  const tiposPatron: TipoDelIndice[] = indicePorFamilia(patrones);
+  const tiposAntecedente: TipoDelIndice[] = indicePorFamilia(antecedentes);
 
   if (!tiposPatron.length && !tiposAntecedente.length) {
     return (
@@ -256,6 +222,15 @@ export async function PatronesEntidad({
   // Un enlace de antes del 2026-11-18 nombraba el antecedente como `patron=c-<tipo>`: abre su subpestaña y lo elige.
   const viejo = patron?.startsWith("c-") ? patron.slice(2) : undefined;
   const activa = sub === "patrones" || sub === "antecedentes" ? sub : viejo ? "antecedentes" : tiposPatron.length ? "patrones" : "antecedentes";
+  const ayudaReparto = (que: string, nota?: string) => (
+    <Ayuda titulo="¿Cómo se cuentan?">
+      <span className="block">
+        Cada familia junta {que} parecidos. La barra reparte sus casos entre las familias; cada celda dice cuántos tiene, qué parte del total es y
+        cuánto de eso es grave. Tócala para abrir la primera de esa familia en el índice.
+      </span>
+      {nota ? <span className="mt-1.5 block">{nota}</span> : null}
+    </Ayuda>
+  );
 
   return (
     <div className="space-y-4">
@@ -271,8 +246,8 @@ export async function PatronesEntidad({
               postor, una sanción vigente, una empresa recién fundada).
             </span>
             <span className="mt-1.5 block">
-              En las dos, arriba van las familias y a la izquierda el índice con cuántos casos hay aquí. Al elegir uno se abre su ficha: qué es,
-              sus cifras, sus casos y la fuente. Es un motivo para mirar, no una acusación.
+              En las dos, arriba va cómo se reparten por familia y a la izquierda el índice con cuántos casos hay aquí. Al elegir uno se abre su
+              ficha: qué es, sus cifras, sus casos y la fuente. Es un motivo para mirar, no una acusación.
             </span>
           </Ayuda>
         }
@@ -294,14 +269,22 @@ export async function PatronesEntidad({
               <div className="space-y-4">
                 {tiposPatron.length ? (
                   <>
-                    <FamiliasDePatron
-                      familias={familiasDe(tiposPatron)}
+                    <RepartoFamilias
+                      familias={familiasDeEntradas(patrones, { uno: "patrón", varios: "patrones", casoAcaso: false })}
                       param="patron"
-                      uno="patrón con casos"
-                      varios="patrones con casos"
-                      etiqueta="Familias de patrones con casos en esta entidad"
+                      inicial={tiposPatron[0]?.clave}
+                      unidad={["caso", "casos"]}
+                      entradas={["patrón", "patrones"]}
+                      etiqueta="Casos de patrones en esta entidad, por familia"
+                      ayuda={ayudaReparto("patrones", "Lo grave se cuenta por patrón: cada uno tiene su severidad, y sus casos se ordenan de lo grave a lo leve en su lista.")}
                     />
-                    <IndiceAntecedentes tipos={tiposPatron.map(sinFamilia)} param="patron" titulo={`${plural(tiposPatron.length, "patrón", "patrones")} entre varios contratos`} />
+                    <IndiceAntecedentes
+                      tipos={tiposPatron}
+                      param="patron"
+                      que="Patrón"
+                      columna="Casos"
+                      titulo={`${plural(tiposPatron.length, "patrón", "patrones")} entre varios contratos`}
+                    />
                   </>
                 ) : (
                   <EstadoVacio compacto titulo="Sin patrones entre varios contratos">
@@ -323,11 +306,15 @@ export async function PatronesEntidad({
                     {sinRespuesta.length > 0 && <p className="text-meta text-mute">No respondieron ahora (no es un cero): {sinRespuesta.join(", ")}.</p>}
                   </section>
                 )}
-                <p className="text-meta">
-                  <Link href="/app/patrones" prefetch={false} className={ENLACE}>
+                <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-2">
+                  <Link href="/app/patrones" prefetch={false} className={`text-meta ${ENLACE}`}>
                     Ver todos los patrones, en todo el país
                   </Link>
-                </p>
+                  <FuenteDato
+                    fuente="OECE (SEACE, CONOSCE y Registro Nacional de Proveedores), SUNAT, Contraloría, JNE, ONPE y lo que los agentes de Vigía leyeron en sus documentos"
+                    href={CONTRATACIONES_ABIERTAS}
+                  />
+                </div>
               </div>
             ),
           },
@@ -338,17 +325,21 @@ export async function PatronesEntidad({
             icono: <FileWarning size={15} aria-hidden />,
             contenido: tiposAntecedente.length ? (
               <div className="space-y-4">
-                <FamiliasDePatron
-                  familias={familiasDe(tiposAntecedente)}
+                <RepartoFamilias
+                  familias={familiasDeEntradas(antecedentes, { uno: "antecedente", varios: "antecedentes", casoAcaso: true })}
                   param="antecedente"
-                  uno="antecedente"
-                  varios="antecedentes"
-                  etiqueta="Familias de antecedentes en los contratos de esta entidad"
+                  inicial={viejo ?? tiposAntecedente[0]?.clave}
+                  unidad={["caso", "casos"]}
+                  entradas={["antecedente", "antecedentes"]}
+                  etiqueta="Casos de antecedentes en los contratos de esta entidad, por familia"
+                  ayuda={ayudaReparto("antecedentes", "Un caso es un contrato con ese antecedente: un contrato con dos antecedentes cuenta en los dos.")}
                 />
                 <IndiceAntecedentes
-                  tipos={tiposAntecedente.map(sinFamilia)}
+                  tipos={tiposAntecedente}
                   param="antecedente"
                   inicial={viejo}
+                  que="Antecedente"
+                  columna="Contratos"
                   titulo={`${plural(tiposAntecedente.length, "antecedente", "antecedentes")} en sus contratos`}
                 />
               </div>
@@ -359,10 +350,6 @@ export async function PatronesEntidad({
             ),
           },
         ]}
-      />
-      <FuenteDato
-        fuente="OECE (SEACE, CONOSCE y Registro Nacional de Proveedores), SUNAT, Contraloría, JNE, ONPE y lo que los agentes de Vigía leyeron en sus documentos"
-        href={CONTRATACIONES_ABIERTAS}
       />
     </div>
   );

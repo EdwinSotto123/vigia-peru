@@ -1,170 +1,80 @@
 import { Hono } from "hono";
-import { pool } from "../lib/db.js";
+import { esErrorPg, pool } from "../lib/db.js";
 import { Memo } from "../lib/cache.js";
 import { cachePublico } from "../lib/http.js";
 import { publicar } from "../lib/privacidad.js";
 import { motivoPublicable } from "../lib/cruces.js";
-import { esElectoSql, marcaElecto } from "../lib/electos.js";
+import { marcaElecto } from "../lib/electos.js";
 import { datasetVisitas, VISITAS_CONGRESO, VISITAS_EN_LINEA } from "../lib/fuentes.js";
+import { FUERA_DE_HORA, capacidades, leerPedido, paginaLista } from "../lib/visitasLista.js";
 
 /**
- * Las visitas que recibió una entidad (fase 2.3 del plan del 2026-10-27):
+ * Las visitas que recibió una entidad (fase 2.3 del plan del 2026-10-27; rediseño del 2026-11-18):
  *
- *   GET /visitas/entidad/:ruc   cuántas y desde cuándo; quiénes la visitan (cada organización, la empresa que es si se
- *                               reconoce y si después le ganó un contrato o le dio órdenes), las empresas cuya gente la
- *                               visitó (por su socio, representante o directivo, aunque no la declarara) y lo que ganaron
- *                               después (migración 203), a qué oficinas (cargo y área de quien recibe, y si decide la
- *                               compra), las de familiares declarados de sus funcionarios (migración 188) y las 1,000 más
- *                               recientes.
+ *   GET /visitas/entidad/:ruc         el resumen de la pestaña: cuántas y desde cuándo, cómo se reparten (privadas,
+ *                                     públicas, a título personal, a quien decide, fuera del horario), las visitas por mes
+ *                                     (migración 205), cuántas empresas cuya gente la visitó ganaron algo después
+ *                                     (migración 203) y cuántas filas tiene cada lista. Sin las listas: desde el
+ *                                     2026-11-18 cada una llega entera y de a una página por GET /visitas/entidad/:ruc/lista
+ *                                     (antes iban aquí recortadas a las 1,000 de más visitas: varios MB en las grandes).
+ *                                     Lleva una muestra corta de organizaciones, empresas y oficinas para la herramienta
+ *                                     `visitas_entidad` del MCP, que la leía de aquí.
+ *   GET /visitas/entidad/:ruc/lista   una página de una lista (`que` = empresas, organizaciones, areas, parientes o
+ *                                     visitas) con `page`, `size`, `q`, `orden` y sus filtros: lib/visitasLista.ts.
  *
  * Privacidad: nunca el documento de quien visita; su nombre con un apellido tapado (publicar), y ni eso si es el familiar
- * de un funcionario (no se lo identifica). De quien recibe, sólo su cargo y su área.
+ * de un funcionario (no se lo identifica). De quien recibe, sólo su cargo y su área. Nunca se busca a una persona por su
+ * nombre: la búsqueda de la lista de visitas es por la organización que declaró.
  */
 export const visitasRouter = new Hono();
 
 const CACHE = cachePublico(3600, { maxAge: 300, swr: 86400 });
-/** Cuántas filas de cada lista van en la respuesta: el resto se busca en el servidor (GET /entidad/:ruc/buscar). */
-const TOPE_ORGS = 1000;
-const TOPE_AREAS = 300;
-const TOPE_PARIENTES = 1000;
+/** La muestra para el MCP (herramienta visitas_entidad: toma 20 organizaciones, 15 empresas y 12 oficinas). */
+const MUESTRA = { organizaciones: 20, empresas: 15, areas: 12 };
 const memo = new Memo<Record<string, unknown> | null>({ nombre: "visitas:entidad", ttlMs: 900_000, staleMs: 3_600_000, max: 300 });
-
-/** Fuera del horario de oficina: antes de las 7, desde las 19 o en fin de semana. */
-const FUERA_DE_HORA = `(v.hora_ingreso < TIME '07:00' OR v.hora_ingreso >= TIME '19:00' OR extract(isodow FROM v.fecha_visita) IN (6, 7))`;
-const DECISOR = `visita_decisor(v.funcionario_cargo, v.funcionario_area)`;
-
-async function tabla(nombre: string): Promise<boolean> {
-  const r = await pool.query<{ ok: boolean }>(`SELECT to_regclass($1) IS NOT NULL AS ok`, [nombre]).catch(() => null);
-  return !!r?.rows[0]?.ok;
-}
 
 visitasRouter.get("/entidad/:ruc", async (c) => {
   const ruc = c.req.param("ruc");
   if (!/^\d{11}$/.test(ruc)) return c.json({ error: "invalid_ruc" }, 400);
   const cuerpo = await memo.obtener(ruc, async () => {
-    const [conParientes, conDecisor, pre, conEmpresas] = await Promise.all([
-      tabla("entidad_visita_pariente"),
-      pool.query(`SELECT 1 FROM pg_proc WHERE proname = 'visita_decisor'`).then((r) => r.rowCount! > 0).catch(() => false),
-      // El resumen, las organizaciones y las oficinas precalculados (migración 188): en vivo, el GORE Loreto tardaba 12 s.
-      tabla("entidad_visita_resumen"),
-      tabla("entidad_visita_empresa"),
-    ]);
-    // La marca de quien decide ya va en la visita (migración 188); la de una visita recién cargada, en vivo.
-    const decisor = pre ? `COALESCE(v.decisor, ${DECISOR})` : conDecisor ? DECISOR : "false";
-    // Las visitas de la entidad por todos los nombres con que la registra el portal (migración 186).
+    const cap = await capacidades();
+    // Las visitas de la entidad por todos los nombres con que la registra el portal (migración 186). Sólo sin el resumen
+    // precalculado (una base sin la migración 188).
     const V = `(SELECT v.* FROM visitas_entidades v WHERE v.entidad_visitada IN (SELECT entidad_visitada FROM visita_entidad_ruc WHERE ruc = $1))`;
-    let despuesSinCalcular = false;
-    const [resumen, orgs, areas, parientes, lista, empresas, totales] = await Promise.all([
-      pre
+    const decisor = cap.decisor ? `COALESCE(v.decisor, visita_decisor(v.funcionario_cargo, v.funcionario_area), false)` : "COALESCE(v.decisor, false)";
+    const [resumen, totales, meses, empresas, orgs, areas] = await Promise.all([
+      cap.pre
         ? pool.query(
             `SELECT total, to_char(desde, 'YYYY-MM-DD') AS desde, to_char(hasta, 'YYYY-MM-DD') AS hasta, privadas, publicas, personas,
                     visitantes, decisores, fuera_de_hora AS "fueraDeHora", largas, fuentes
                FROM entidad_visita_resumen WHERE entidad_ruc = $1`, [ruc])
         : pool.query(
-        `SELECT count(*)::int AS total, to_char(min(v.fecha_visita), 'YYYY-MM-DD') AS desde, to_char(max(v.fecha_visita), 'YYYY-MM-DD') AS hasta,
-                count(*) FILTER (WHERE v.tipo_entidad_visitante = 'privada')::int AS privadas,
-                count(*) FILTER (WHERE v.tipo_entidad_visitante = 'publica')::int AS publicas,
-                count(*) FILTER (WHERE v.tipo_entidad_visitante = 'persona_natural')::int AS personas,
-                count(DISTINCT v.numero_documento)::int AS visitantes,
-                count(*) FILTER (WHERE ${decisor})::int AS decisores,
-                count(*) FILTER (WHERE ${FUERA_DE_HORA})::int AS "fueraDeHora",
-                count(*) FILTER (WHERE v.duracion_min >= 240)::int AS largas,
-                array_agg(DISTINCT v.fuente) AS fuentes
-           FROM ${V} v`, [ruc]),
-      // Quiénes la visitan: cada organización declarada, la empresa que es (por las visitas que ya se le atribuyen) y lo
-      // primero que le dio la entidad después de la primera visita de su gente, con CUÁL fue: precalculado en
-      // entidad_visita_empresa (migraciones 203 y 204). En vivo (sin esa tabla) tardaba hasta 90 s en EsSalud.
-      conEmpresas && pre
+            `SELECT count(*)::int AS total, to_char(min(v.fecha_visita), 'YYYY-MM-DD') AS desde, to_char(max(v.fecha_visita), 'YYYY-MM-DD') AS hasta,
+                    count(*) FILTER (WHERE v.tipo_entidad_visitante = 'privada')::int AS privadas,
+                    count(*) FILTER (WHERE v.tipo_entidad_visitante = 'publica')::int AS publicas,
+                    count(*) FILTER (WHERE v.tipo_entidad_visitante = 'persona_natural')::int AS personas,
+                    count(DISTINCT v.numero_documento)::int AS visitantes,
+                    count(*) FILTER (WHERE ${decisor})::int AS decisores,
+                    count(*) FILTER (WHERE ${FUERA_DE_HORA})::int AS "fueraDeHora",
+                    count(*) FILTER (WHERE v.duracion_min >= 240)::int AS largas,
+                    array_agg(DISTINCT v.fuente) AS fuentes
+               FROM ${V} v`, [ruc]),
+      // Cuántas filas tiene cada lista (sus pestañas llevan ese número).
+      cap.pre
+        ? pool.query<{ o: number; a: number; p: number | null }>(
+            `SELECT (SELECT count(*)::int FROM entidad_visita_org WHERE entidad_ruc = $1) AS o,
+                    (SELECT count(*)::int FROM entidad_visita_area WHERE entidad_ruc = $1) AS a,
+                    ${cap.parientes ? "(SELECT count(*)::int FROM entidad_visita_pariente WHERE entidad_ruc = $1)" : "NULL::int"} AS p`, [ruc])
+            .then((x) => x.rows[0] ?? null).catch(() => null)
+        : Promise.resolve(null),
+      // Las visitas de cada mes, con cuántas fueron de empresas, a quien decide y cuántas empresas distintas (migración 205).
+      cap.meses
         ? pool.query(
-            `SELECT o.org, o.tipo, o.visitas, o.visitantes, to_char(o.primera, 'YYYY-MM-DD') AS primera, to_char(o.ultima, 'YYYY-MM-DD') AS ultima,
-                    o.decisores, o.ruc, r.nombre AS empresa,
-                    to_char(e.despues, 'YYYY-MM-DD') AS "despues", e.despues_tipo AS "despuesTipo", e.monto::float AS "montoDespues",
-                    e.despues_numero AS "despuesNumero", e.despues_monto::float AS "despuesMonto"
-               FROM (SELECT * FROM entidad_visita_org WHERE entidad_ruc = $1 ORDER BY visitas DESC LIMIT ${TOPE_ORGS}) o
-               LEFT JOIN empresa_resumen r ON r.ruc = o.ruc
-               LEFT JOIN entidad_visita_empresa e ON e.entidad_ruc = $1 AND e.ruc = o.ruc
-              ORDER BY o.visitas DESC`, [ruc]).catch(() => {
-            // Sin las columnas de la 204 (una base sin migrar): las organizaciones van sin «después».
-            despuesSinCalcular = true;
-            return pool.query(
-              `SELECT o.org, o.tipo, o.visitas, o.visitantes, to_char(o.primera, 'YYYY-MM-DD') AS primera, to_char(o.ultima, 'YYYY-MM-DD') AS ultima,
-                      o.decisores, o.ruc, r.nombre AS empresa, NULL::text AS "despues", NULL::text AS "despuesTipo", NULL::float AS "montoDespues"
-                 FROM entidad_visita_org o LEFT JOIN empresa_resumen r ON r.ruc = o.ruc
-                WHERE o.entidad_ruc = $1 ORDER BY o.visitas DESC LIMIT ${TOPE_ORGS}`, [ruc]);
-          })
-        : pool.query(
-        `WITH o AS (${pre
-           ? `SELECT org, tipo, visitas, visitantes, primera, ultima, decisores, ruc FROM entidad_visita_org
-               WHERE entidad_ruc = $1 ORDER BY visitas DESC LIMIT 300`
-           : `
-           SELECT upper(btrim(v.entidad_visitante)) AS org, max(v.tipo_entidad_visitante) AS tipo, count(*)::int AS visitas,
-                  count(DISTINCT v.numero_documento)::int AS visitantes, min(v.fecha_visita) AS primera, max(v.fecha_visita) AS ultima,
-                  count(*) FILTER (WHERE ${decisor})::int AS decisores,
-                  mode() WITHIN GROUP (ORDER BY ev.ruc) AS ruc
-             FROM ${V} v LEFT JOIN empresa_visita ev ON ev.visita_id = v.id
-            WHERE v.entidad_visitante IS NOT NULL AND btrim(v.entidad_visitante) <> '' AND v.tipo_entidad_visitante <> 'persona_natural'
-            GROUP BY 1 ORDER BY 3 DESC LIMIT 300`})
-         SELECT o.org, o.tipo, o.visitas, o.visitantes, to_char(o.primera, 'YYYY-MM-DD') AS primera, to_char(o.ultima, 'YYYY-MM-DD') AS ultima,
-                o.decisores, o.ruc, r.nombre AS empresa,
-                to_char(LEAST(ad.f, od.f), 'YYYY-MM-DD') AS "despues",
-                CASE WHEN ad.f IS NOT NULL AND (od.f IS NULL OR ad.f <= od.f) THEN 'contrato' WHEN od.f IS NOT NULL THEN 'orden' END AS "despuesTipo",
-                (COALESCE(ad.monto, 0) + COALESCE(od.monto, 0))::float AS "montoDespues"
-           FROM o
-           LEFT JOIN empresa_resumen r ON r.ruc = o.ruc
-           LEFT JOIN LATERAL (SELECT min(a.fecha_buenapro) AS f, sum(a.monto_adjudicado) FILTER (WHERE a.moneda IN ('Soles', 'Nuevos Soles')) AS monto
-                                FROM conosce_adjudicaciones a
-                               WHERE o.ruc IS NOT NULL AND a.ruc_proveedor = o.ruc AND a.entidad_ruc = $1 AND a.fecha_buenapro >= o.primera) ad ON true
-           LEFT JOIN LATERAL (SELECT min(x.fecha_emision) AS f, sum(x.monto) FILTER (WHERE x.monto_dudoso IS NULL) AS monto
-                                FROM conosce_ordenes x
-                               WHERE o.ruc IS NOT NULL AND x.entidad_ruc = $1 AND x.ruc_contratista = o.ruc AND x.fecha_emision >= o.primera
-                                 AND x.estado IS DISTINCT FROM 'Anulada') od ON true
-          ORDER BY o.visitas DESC`, [ruc]).catch((e: { code?: string }) => {
-        // Si «lo que le dio después» no alcanza el plazo (EsSalud: miles de órdenes por proveedor), las organizaciones
-        // salen igual, sin esa columna, y la respuesta lo dice: antes la pestaña entera daba 500.
-        if (e?.code !== "57014" || !pre) throw e;
-        despuesSinCalcular = true;
-        return pool.query(
-          `SELECT o.org, o.tipo, o.visitas, o.visitantes, to_char(o.primera, 'YYYY-MM-DD') AS primera, to_char(o.ultima, 'YYYY-MM-DD') AS ultima,
-                  o.decisores, o.ruc, r.nombre AS empresa, NULL::text AS "despues", NULL::text AS "despuesTipo", NULL::float AS "montoDespues"
-             FROM entidad_visita_org o LEFT JOIN empresa_resumen r ON r.ruc = o.ruc
-            WHERE o.entidad_ruc = $1 ORDER BY o.visitas DESC LIMIT 300`, [ruc]);
-      }),
-      // A qué oficinas: el área y el cargo de quien recibe (nunca su nombre).
-      pre
-        ? pool.query(
-            `SELECT area, NULLIF(cargo, '') AS cargo, visitas, privadas, decisor FROM entidad_visita_area
-              WHERE entidad_ruc = $1 ORDER BY visitas DESC LIMIT ${TOPE_AREAS}`, [ruc])
-        : pool.query(
-        `SELECT COALESCE(NULLIF(btrim(v.funcionario_area), ''), 'Sin área en el registro') AS area, v.funcionario_cargo AS cargo,
-                count(*)::int AS visitas, count(*) FILTER (WHERE v.tipo_entidad_visitante = 'privada')::int AS privadas,
-                bool_or(${decisor}) AS decisor
-           FROM ${V} v GROUP BY 1, 2 ORDER BY 3 DESC LIMIT 60`, [ruc]),
-      conParientes
-        ? pool.query(
-            `SELECT to_char(p.fecha, 'YYYY-MM-DD') AS fecha, p.parentesco, p.cargo, p.area, p.decisor, p.proveedor
-               FROM entidad_visita_pariente p WHERE p.entidad_ruc = $1 ORDER BY p.fecha DESC LIMIT ${TOPE_PARIENTES}`, [ruc])
-        : Promise.resolve({ rows: [] }),
-      pool.query(
-        `SELECT v.id, to_char(v.fecha_visita, 'YYYY-MM-DD') AS fecha, to_char(v.hora_ingreso, 'HH24:MI') AS hora, v.duracion_min AS duracion,
-                v.visitante, (v.numero_documento ~ '^[0-9]{8}$' AND ${esElectoSql("v.numero_documento")}) AS electo,
-                v.tipo_entidad_visitante AS tipo, v.entidad_visitante AS organizacion,
-                v.funcionario_cargo AS cargo, v.funcionario_area AS area, left(v.motivo, 160) AS motivo, v.fuente,
-                ${decisor} AS decisor, ${FUERA_DE_HORA} AS "fueraDeHora",
-                ${conParientes ? `EXISTS (SELECT 1 FROM entidad_visita_pariente p WHERE p.entidad_ruc = $1 AND p.visita_id = v.id)` : "false"} AS pariente,
-                (SELECT ev.ruc FROM empresa_visita ev WHERE ev.visita_id = v.id LIMIT 1) AS ruc
-           -- Las 1,000 más recientes de cada nombre de la entidad (el índice entidad_visitada + fecha las da en orden, sin
-           -- leer las demás) y de ellas, las 1,000 más recientes. Con «IN (nombres)» la base leía TODAS las visitas de la
-           -- entidad para ordenarlas: el Congreso (1,2 M) o el MIMP (357 mil) pasaban los 10 s y la API daba 500.
-           FROM visita_entidad_ruc m
-           CROSS JOIN LATERAL (
-             SELECT x.* FROM visitas_entidades x
-              WHERE x.entidad_visitada = m.entidad_visitada AND x.fecha_visita IS NOT NULL
-              ORDER BY x.fecha_visita DESC, x.id DESC LIMIT 1000) v
-          WHERE m.ruc = $1
-          ORDER BY v.fecha_visita DESC, v.id DESC LIMIT 1000`, [ruc]),
-      // Las empresas cuya gente la visitó (migración 203) y, de ellas, las que recibieron algo desde la primera visita: en
-      // PROD a lo más 930 por entidad. Sin nombres ni documentos de quienes visitan.
-      conEmpresas
+            `SELECT to_char(mes, 'YYYY-MM') AS mes, visitas, privadas, decisores, empresas
+               FROM entidad_visita_mes WHERE entidad_ruc = $1 ORDER BY mes`, [ruc]).then((x) => x.rows).catch(() => [])
+        : Promise.resolve([]),
+      // Las empresas cuya gente la visitó (migración 203) y, de ellas, las que recibieron algo desde la primera visita.
+      cap.empresas
         ? Promise.all([
             pool.query(
               `SELECT count(*)::int AS empresas, count(*) FILTER (WHERE declaradas = 0)::int AS "soloSuGente",
@@ -173,74 +83,49 @@ visitasRouter.get("/entidad/:ruc", async (c) => {
                       count(*) FILTER (WHERE despues IS NOT NULL AND antes = 0)::int AS "primeraVez"
                  FROM entidad_visita_empresa WHERE entidad_ruc = $1`, [ruc]),
             pool.query(
-              `SELECT e.ruc, r.nombre AS empresa, e.visitas, e.visitantes, e.decisores, e.socio, e.representante, e.directivo,
-                      e.nombre AS "porNombre", e.declaradas, e.personal, e.compartidas, e.otra_org AS "otraOrg",
-                      to_char(e.primera, 'YYYY-MM-DD') AS primera, to_char(e.ultima, 'YYYY-MM-DD') AS ultima, e.antes,
-                      to_char(e.despues, 'YYYY-MM-DD') AS despues, e.despues_tipo AS "despuesTipo", e.dias,
-                      e.contratos, e.consorcios, e.ordenes, e.monto::float AS monto,
-                      e.despues_numero AS "despuesNumero", e.despues_detalle AS "despuesDetalle", e.despues_monto::float AS "despuesMonto",
-                      e.despues_codigo AS "despuesCodigo", e.despues_orden AS "despuesOrden", e.despues_ocid AS "despuesOcid"
+              `SELECT e.ruc, r.nombre AS empresa, e.visitas, e.visitantes, e.decisores, e.antes,
+                      to_char(e.primera, 'YYYY-MM-DD') AS primera, to_char(e.despues, 'YYYY-MM-DD') AS despues,
+                      e.despues_tipo AS "despuesTipo", e.dias, e.monto::float AS monto,
+                      e.despues_numero AS "despuesNumero", e.despues_monto::float AS "despuesMonto"
                  FROM entidad_visita_empresa e LEFT JOIN empresa_resumen r ON r.ruc = e.ruc
                 WHERE e.entidad_ruc = $1 AND e.despues IS NOT NULL
-                -- Primero las que nunca le habían vendido (como la web por defecto), luego por lo que ganaron.
-                ORDER BY (e.antes = 0) DESC, e.monto DESC, e.visitas DESC, e.ruc LIMIT 1000`, [ruc]),
+                ORDER BY (e.antes = 0) DESC, e.monto DESC, e.visitas DESC, e.ruc LIMIT ${MUESTRA.empresas}`, [ruc]),
           ]).catch((e) => { console.warn(`[visitas] empresas: ${(e as Error).message}`); return null; })
         : Promise.resolve(null),
-      // Cuántas son en total (auditoría del 2026-10-29): la cifra de familiares contaba sólo las 500 que llegaban (hay
-      // entidades con 6,748) y las organizaciones (300) y las oficinas (60) se cortaban sin decirlo.
-      pre
-        ? pool.query<{ o: number; a: number; p: number | null }>(
-            `SELECT (SELECT count(*)::int FROM entidad_visita_org WHERE entidad_ruc = $1) AS o,
-                    (SELECT count(*)::int FROM entidad_visita_area WHERE entidad_ruc = $1) AS a,
-                    ${conParientes ? "(SELECT count(*)::int FROM entidad_visita_pariente WHERE entidad_ruc = $1)" : "NULL::int"} AS p`, [ruc])
-            .then((x) => x.rows[0] ?? null).catch(() => null)
-        : Promise.resolve(null),
+      cap.pre
+        ? pool.query(
+            `SELECT o.org, o.tipo, o.visitas, o.visitantes, to_char(o.primera, 'YYYY-MM-DD') AS primera, to_char(o.ultima, 'YYYY-MM-DD') AS ultima,
+                    o.decisores, o.ruc, r.nombre AS empresa,
+                    ${cap.empresas ? `e.despues_tipo AS "despuesTipo", e.despues_monto::float AS "despuesMonto"` : `NULL::text AS "despuesTipo", NULL::float AS "despuesMonto"`}
+               FROM (SELECT * FROM entidad_visita_org WHERE entidad_ruc = $1 ORDER BY visitas DESC, org LIMIT ${MUESTRA.organizaciones}) o
+               LEFT JOIN empresa_resumen r ON r.ruc = o.ruc
+               ${cap.empresas ? "LEFT JOIN entidad_visita_empresa e ON e.entidad_ruc = $1 AND e.ruc = o.ruc" : ""}
+              ORDER BY o.visitas DESC, o.org`, [ruc]).then((x) => x.rows).catch(() => [])
+        : Promise.resolve([]),
+      cap.pre
+        ? pool.query(
+            `SELECT area, NULLIF(cargo, '') AS cargo, visitas, privadas, decisor FROM entidad_visita_area
+              WHERE entidad_ruc = $1 ORDER BY visitas DESC, area LIMIT ${MUESTRA.areas}`, [ruc]).then((x) => x.rows).catch(() => [])
+        : Promise.resolve([]),
     ]);
     const r = resumen.rows[0];
     if (!r || !r.total) return { total: 0, hasta: null };
-    // La empresa de cada visita, con su nombre (una consulta para todas).
-    const rucs = [...new Set(lista.rows.map((x) => x.ruc).filter(Boolean))];
-    const nombres = rucs.length
-      ? new Map((await pool.query<{ ruc: string; nombre: string }>(`SELECT ruc, nombre FROM empresa_resumen WHERE ruc = ANY($1)`, [rucs])).rows.map((x) => [x.ruc, x.nombre]))
-      : new Map<string, string>();
     const fuentes: string[] = r.fuentes ?? [];
+    const solo20 = (x: unknown) => (typeof x === "string" && /^20\d{9}$/.test(x) ? x : null);
     return publicar({
       total: r.total,
       desde: r.desde,
       hasta: r.hasta,
       resumen: {
         privadas: r.privadas, publicas: r.publicas, personas: r.personas, visitantes: r.visitantes, decisores: r.decisores,
-        fueraDeHora: r.fueraDeHora, largas: r.largas, parientes: totales?.p ?? parientes.rows.length,
+        fueraDeHora: r.fueraDeHora, largas: r.largas, parientes: totales?.p ?? 0,
       },
       totales: { organizaciones: totales?.o ?? null, areas: totales?.a ?? null, parientes: totales?.p ?? null },
-      organizaciones: orgs.rows.map((o) => ({ ...o, ruc: o.ruc && /^20\d{9}$/.test(o.ruc) ? o.ruc : null, empresa: o.ruc && /^20\d{9}$/.test(o.ruc) ? o.empresa : null })),
-      // «Lo que le dio después» no alcanzó el plazo: las organizaciones van sin esa columna (la web no dice «nada después»).
-      ...(despuesSinCalcular ? { despuesSinCalcular: true } : {}),
-      // Las empresas de quienes la visitan (también por su socio, representante o directivo) y lo que ganaron después.
-      ...(empresas
-        ? {
-            empresas: {
-              ...empresas[0].rows[0],
-              lista: empresas[1].rows,
-            },
-          }
-        : {}),
-      areas: areas.rows,
-      parientes: parientes.rows,
-      // Bajo `visitas`: publicar() le tapa un apellido a quien visita, salvo a una autoridad electa (lib/electos.ts). El
-      // familiar de un funcionario va sin nombre.
-      visitas: lista.rows.map(({ id, ruc: rucEmpresa, electo, ...v }) => ({
-        ...v,
-        // El motivo en texto libre puede nombrar a otras personas: sale la categoría del registro o su clase.
-        motivo: motivoPublicable(v.motivo),
-        visitante: v.pariente ? null : v.visitante,
-        ...marcaElecto(electo === true && !v.pariente),
-        empresa: rucEmpresa && /^20\d{9}$/.test(rucEmpresa) ? { ruc: rucEmpresa, nombre: nombres.get(rucEmpresa) ?? null } : null,
-        // Su registro: el del Congreso, el reporte mensual de la PNDA (que es sólo de Loreto) o el registro en línea de la
-        // PCM (la plataforma nacional y su exportación). Antes una visita nacional de 2025 iba al reporte de Loreto.
-        enlace: v.fuente === "congreso_visitas" ? VISITAS_CONGRESO : v.fuente === "pnda_visitas" ? datasetVisitas(v.fecha) : VISITAS_EN_LINEA,
-        clave: String(id),
-      })),
+      meses,
+      ...(empresas ? { empresas: { ...empresas[0].rows[0], lista: empresas[1].rows } } : {}),
+      // La muestra del MCP (las listas enteras van por /lista).
+      organizaciones: orgs.map((o) => ({ ...o, ruc: solo20(o.ruc), empresa: solo20(o.ruc) ? o.empresa : null })),
+      areas,
       fuentes: [
         fuentes.includes("congreso_visitas") && { texto: "Registro de visitas del Congreso de la República", href: VISITAS_CONGRESO },
         { texto: "Registro de Visitas en Línea (PCM)", href: VISITAS_EN_LINEA },
@@ -253,41 +138,68 @@ visitasRouter.get("/entidad/:ruc", async (c) => {
 });
 
 /**
- * GET /visitas/entidad/:ruc/buscar?en=organizaciones|areas&q=  — busca en TODAS las organizaciones que la visitaron o en
- * todas sus oficinas, no sólo en las que llegaron con la pestaña (las 1,000 que más la visitan y las 300 oficinas con más
- * visitas: hay entidades con 41,952 organizaciones). A lo más 200, las de más visitas primero; misma forma que la pestaña.
+ * GET /visitas/entidad/:ruc/lista?que=…&page=&size=&q=&orden=&…  — una página de una de las listas de la pestaña, entera
+ * (nada recortado a las N primeras). Filtros de cada lista (lib/visitasLista.ts):
+ *   empresas        via (representante|socio|directivo|nombre), declaro, antes, decisor (si|no), tipo (contrato|consorcio|orden);
+ *                   orden nueva|monto|visitas|dias|reciente; q: la empresa, su RUC o la organización que declaró
+ *   organizaciones  tipo (privada|publica), despues (si|no), decisor (si|no); orden visitas|monto|reciente; q: la organización o su RUC 20
+ *   areas           decisor (si|no); orden visitas|privadas; q: la oficina o el cargo
+ *   parientes       proveedor (si|no), decisor (si|no); orden reciente|antiguo; q: el parentesco, el cargo o la oficina
+ *   visitas         tipo (privada|publica|persona_natural|pariente), decisor (si|no), hora (fuera|dentro), anio, org (una
+ *                   organización exacta); orden reciente|antiguo; q: la organización de quien visita (nunca su nombre)
+ * Responde { que, page, size, total (null si no se sabe sin recorrer), hayMas, filas, facetas, anios?, organizaciones? }.
+ */
+visitasRouter.get("/entidad/:ruc/lista", async (c) => {
+  const ruc = c.req.param("ruc");
+  if (!/^\d{11}$/.test(ruc)) return c.json({ error: "invalid_ruc" }, 400);
+  const p = leerPedido(c.req.query("que"), c.req.query());
+  if (!p) return c.json({ error: "consulta_invalida", detail: "que = empresas, organizaciones, areas, parientes o visitas" }, 400);
+  let res: Awaited<ReturnType<typeof paginaLista>>;
+  try {
+    res = await paginaLista(ruc, p);
+  } catch (e) {
+    // Pasó el plazo de la base (filtros raros combinados que recorren las 1,2 M visitas del Congreso): se dice, y la web
+    // propone elegir un año.
+    if (esErrorPg(e, "57014")) return c.json({ error: "consulta_lenta", detail: "La lista tardó demasiado: elige un año o acota la búsqueda." }, 504);
+    throw e;
+  }
+  if ("error" in res) return c.json({ ...res, detail: "Esa página está muy lejos: elige un año o el orden «Lo más antiguo»." }, 400);
+  c.header("Cache-Control", CACHE);
+  if (p.que !== "visitas") return c.json({ ...res, filas: publicar({ [p.que]: res.filas })[p.que] });
+  // Bajo `visitas`: publicar() le tapa un apellido a quien visita, salvo a una autoridad electa (lib/electos.ts). El
+  // familiar de un funcionario va sin nombre y su clave no es el id de la visita (con él se lo buscaría en otra lista).
+  const filas = res.filas.map(({ id, ruc: rucEmpresa, electo, ...v }, i) => ({
+    ...v,
+    // El motivo en texto libre puede nombrar a otras personas: sale la categoría del registro o su clase.
+    motivo: motivoPublicable(v.motivo),
+    visitante: v.pariente ? null : v.visitante,
+    ...marcaElecto(electo === true && !v.pariente),
+    rucEmpresa: typeof rucEmpresa === "string" && /^20\d{9}$/.test(rucEmpresa) ? rucEmpresa : null,
+    // Su registro: el del Congreso, el reporte mensual de la PNDA (que es sólo de Loreto) o el registro en línea de la PCM.
+    enlace: v.fuente === "congreso_visitas" ? VISITAS_CONGRESO : v.fuente === "pnda_visitas" ? datasetVisitas(v.fecha as string | null) : VISITAS_EN_LINEA,
+    clave: v.pariente ? `f${p.offset + i + 1}` : String(id),
+  }));
+  // La empresa de cada visita, con su nombre (una consulta para la página).
+  const rucs = [...new Set(filas.map((x) => x.rucEmpresa).filter((x): x is string => !!x))];
+  const nombres = rucs.length
+    ? new Map((await pool.query<{ ruc: string; nombre: string }>(`SELECT ruc, nombre FROM empresa_resumen WHERE ruc = ANY($1)`, [rucs])).rows.map((x) => [x.ruc, x.nombre]))
+    : new Map<string, string>();
+  const visitas = filas.map(({ rucEmpresa, ...v }) => ({ ...v, empresa: rucEmpresa ? { ruc: rucEmpresa, nombre: nombres.get(rucEmpresa) ?? null } : null }));
+  return c.json({ ...res, filas: publicar({ visitas }).visitas });
+});
+
+/**
+ * GET /visitas/entidad/:ruc/buscar?en=organizaciones|areas&q=  — la búsqueda de la web anterior al 2026-11-18 (las listas
+ * llegaban recortadas y ésta buscaba en todas). La web nueva usa /lista; ésta queda mientras haya páginas viejas abiertas.
  */
 visitasRouter.get("/entidad/:ruc/buscar", async (c) => {
   const ruc = c.req.param("ruc");
   const en = c.req.query("en");
   const q = (c.req.query("q") ?? "").replace(/\s+/g, " ").trim().slice(0, 80);
   if (!/^\d{11}$/.test(ruc) || (en !== "organizaciones" && en !== "areas") || q.length < 3) return c.json({ error: "consulta_invalida" }, 400);
-  if (!(await tabla("entidad_visita_org"))) return c.json({ [en]: [] });
-  // Lo que escribe la persona va como texto, no como comodín de LIKE.
-  const patron = `%${q.replace(/[\\%_]/g, (m) => "\\" + m)}%`;
-  if (en === "areas") {
-    const r = await pool.query(
-      `SELECT area, NULLIF(cargo, '') AS cargo, visitas, privadas, decisor FROM entidad_visita_area
-        WHERE entidad_ruc = $1 AND (unaccent(area) ILIKE unaccent($2) OR unaccent(COALESCE(cargo, '')) ILIKE unaccent($2))
-        ORDER BY visitas DESC LIMIT 200`, [ruc, patron]);
-    c.header("Cache-Control", CACHE);
-    return c.json(publicar({ areas: r.rows }));
-  }
-  const r = await pool.query(
-    `SELECT o.org, o.tipo, o.visitas, o.visitantes, to_char(o.primera, 'YYYY-MM-DD') AS primera, to_char(o.ultima, 'YYYY-MM-DD') AS ultima,
-            o.decisores, o.ruc, r.nombre AS empresa,
-            to_char(e.despues, 'YYYY-MM-DD') AS "despues", e.despues_tipo AS "despuesTipo", e.monto::float AS "montoDespues",
-            e.despues_numero AS "despuesNumero", e.despues_monto::float AS "despuesMonto"
-       -- Primero las organizaciones que coinciden (por lo que declararon o por el RUC) y después sus empresas: con el nombre de
-       -- la empresa en el filtro, la unión recorría las 41,952 del Congreso (8.8 s).
-       FROM (SELECT * FROM entidad_visita_org o
-              WHERE o.entidad_ruc = $1 AND (unaccent(o.org) ILIKE unaccent($2) OR (o.ruc = $3 AND o.ruc LIKE '20%'))
-              ORDER BY o.visitas DESC LIMIT 200) o
-       LEFT JOIN empresa_resumen r ON r.ruc = o.ruc
-       LEFT JOIN entidad_visita_empresa e ON e.entidad_ruc = $1 AND e.ruc = o.ruc
-      ORDER BY o.visitas DESC`, [ruc, patron, q]).catch(() => null);
+  const p = leerPedido(en, { q, size: "50" });
+  if (!p) return c.json({ error: "consulta_invalida" }, 400);
+  const res = await paginaLista(ruc, p).catch(() => null);
   c.header("Cache-Control", CACHE);
-  return c.json(publicar({
-    organizaciones: (r?.rows ?? []).map((o) => ({ ...o, ruc: o.ruc && /^20\d{9}$/.test(o.ruc) ? o.ruc : null, empresa: o.ruc && /^20\d{9}$/.test(o.ruc) ? o.empresa : null })),
-  }));
+  return c.json(publicar({ [en]: res && !("error" in res) ? res.filas : [] }));
 });

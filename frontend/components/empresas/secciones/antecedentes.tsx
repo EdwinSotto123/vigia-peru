@@ -1,5 +1,4 @@
 import { Fragment } from "react";
-import dynamic from "next/dynamic";
 import Link from "next/link";
 import {
   Banknote,
@@ -21,9 +20,9 @@ import {
   Users,
   type LucideIcon,
 } from "lucide-react";
-import { Ayuda, BloqueDetalle, CuerpoDetalle, DatosClave, EstadoVacio, FuenteDato, Nota, PieDetalle } from "@/components/patrones";
-import { Badge } from "@/components/ui/Badge";
+import { Ayuda, BloqueDetalle, CuerpoDetalle, DatosClave, EstadoVacio, FuenteDato, PieDetalle } from "@/components/patrones";
 import { ListaPaginada } from "@/components/listado";
+import { RepartoFamilias } from "@/components/entidad/FamiliasDePatron";
 import { BotonFila, ProveedorDetalle, type DetalleFila } from "@/components/listado/DetalleFilas";
 import { recortar } from "@/components/contratos/recortar";
 import { Dato } from "@/components/ui/Dato";
@@ -52,16 +51,19 @@ import { tituloNatural } from "@/lib/landing";
 import { rutaContrato } from "@/lib/rutas";
 import { CORTO_EMPRESA, rutaEmpresa, type AntecedenteEmpresa, type ClienteEmpresa, type ReferenciasAntecedente } from "@/lib/empresas";
 import { P_CONTRATOS } from "@/lib/parametrosEmpresa";
-import { RANGO_SEVERIDAD, peorSeveridad } from "@/lib/severidad";
-import { getPatronesDeEmpresa, type SeccionPatrones } from "@/lib/patrones";
-import { PATRON_EMPRESA } from "@/lib/patronesEntidad";
-import { etiquetaRegla, getCatalogoReglas, type CatalogoReglas } from "@/lib/revision";
+import { peorSeveridad } from "@/lib/severidad";
+import { getPatronesDeEmpresa } from "@/lib/patrones";
+import { familiaDeCruce, familiasDeEntradas, indicePorFamilia, type EntradaConFamilia } from "@/lib/patronesEntidad";
+import { getCatalogoReglas, type CatalogoReglas } from "@/lib/revision";
 import { cn, txtONumero } from "@/lib/utils";
 import { NoCargo, paraClave } from "./comun";
 import { P_ORDENES } from "./ordenes";
 import { aSuGente, datosDe, type DatoCaso } from "./casoAntecedente";
 import { EvidenciaDelAntecedente } from "./EvidenciaAntecedente";
+import { CifrasDelTipo } from "./CifrasDelTipo";
 import { IndiceAntecedentes, type TipoDelIndice } from "./IndiceAntecedentes";
+import { vistaDePatrones } from "./PatronesDeEmpresa";
+import { SubpestanasAntecedentes } from "./SubpestanasAntecedentes";
 import { CON_EVIDENCIA, ValorCaso, VisitasDelCaso } from "./PanelAntecedente";
 
 /** La pestaña Antecedentes: sanciones, penalidades, aportes y demás cruces, como hechos. (Partido de SeccionesEmpresa.tsx, 2026-10-22.) */
@@ -441,6 +443,11 @@ function CasosDelTipo({ tipo, casos, ruc, rucDe }: { tipo: string; casos: Antece
           {filas.length < casos.length && <li className="text-meta text-mute">Un mismo registro que pesa en varios procesos va en una fila</li>}
         </ul>
       </header>
+      <CifrasDelTipo
+        titulo={titulo}
+        casos={casos.map((c) => ({ severidad: c.severidad, fecha: c.fecha, entidad: c.entidadRuc ?? (c.entidad ? claveEntidad(c.entidad) : null), ocid: c.ocid }))}
+        registros={filas.length}
+      />
       <div className="px-4 sm:px-5">
         <ProveedorDetalle detalles={detalles} nombre={titulo}>
           <ListaPaginada
@@ -459,39 +466,16 @@ function CasosDelTipo({ tipo, casos, ruc, rucDe }: { tipo: string; casos: Antece
   );
 }
 
-/** La lista de un patrón con el RUC de la empresa: un trozo aparte (carga todas las listas y su panel de detalle). */
-const ListaDePatron = dynamic(() => import("@/components/investigar/PatronesVista").then((m) => m.ListaDePatron));
-
-/**
- * La ficha de un patrón en que aparece la empresa (pedido del usuario del 2026-11-18: «armar fichas por cada patrón»): la
- * misma lista de /app/patrones con su RUC ya puesto (cada fila abre su panel con la evidencia) y qué conviene mirar.
- */
-function FichaDePatron({ clave, ruc, etiquetas }: { clave: SeccionPatrones; ruc: string; etiquetas: Record<string, string> }) {
-  const p = PATRON_EMPRESA[clave];
-  if (!p) return null;
-  return (
-    <div className="space-y-4">
-      <p className="flex flex-wrap items-center gap-2">
-        <Badge variant="neutral">Patrón en que aparece</Badge>
-        {p.observacion ? <Badge variant="amber">En observación: todavía no cuenta para el puntaje</Badge> : null}
-      </p>
-      <ListaDePatron clave={clave} ruc={ruc} titulo={p.nombre} etiquetas={etiquetas} />
-      <Nota>
-        <b className="font-semibold text-ink">Qué conviene mirar.</b> {p.mirar}{" "}
-        <Link href={`/app/patrones?seccion=${clave}`} prefetch={false} className="font-medium text-granate underline decoration-granate/35 underline-offset-2 hover:decoration-granate">
-          Ver este patrón en todo el país
-        </Link>
-      </Nota>
-    </div>
-  );
-}
-
 /**
  * La pestaña Antecedentes como lista y detalle (pedido del usuario del 2026-11-05: 11 pantallas en el escritorio y 30.5
  * en el celular para MEDIFARMA, con los 16 tipos apilados): a la izquierda el índice de tipos, de la señal más alta a la
  * más baja y, a igual severidad, el que más veces aparece; a la derecha los casos del elegido (`?atipo=`, el mismo
  * parámetro que usan las banderas de la cabecera y los enlaces de Su gente). El índice reemplaza al filtro de tipo y al
  * de severidad: la severidad de cada tipo se ve en su entrada.
+ *
+ * Desde el 2026-11-18, como la ficha de una entidad: los antecedentes (lo que dicen de ella otros registros) y los
+ * patrones en que aparece van en dos subpestañas, nunca en el mismo índice (`SubpestanasAntecedentes`); cada una abre con
+ * cómo se reparten sus casos por familia (`RepartoFamilias`) y su índice agrupado por familia, con la cifra y su barra.
  */
 export async function AntecedentesEmpresa({
   datos,
@@ -504,31 +488,11 @@ export async function AntecedentesEmpresa({
   ruc: string;
 }) {
   const [d, cl, pat, cat] = await Promise.all([datos, clientes, getPatronesDeEmpresa(ruc).catch(() => null), getCatalogoReglas().catch(() => ({}) as CatalogoReglas)]);
-  // Los patrones en que aparece (postor de relleno, mismo dueño, grupos, compras repetidas…): arriba de lo que dicen de
-  // ella los demás registros, cada uno con su ficha. Lo grave primero y, dentro, el que más casos tiene.
-  const etiquetas: Record<string, string> = {};
-  for (const id of [...Object.keys(cat), "red_flag_documental"]) etiquetas[id] = etiquetaRegla(id, cat);
-  const patrones: TipoDelIndice[] = (pat?.listas ?? [])
-    .flatMap(({ clave, casos }) => {
-      const x = PATRON_EMPRESA[clave];
-      return x && casos ? [{ clave, casos, x }] : [];
-    })
-    .sort((a, b) => RANGO_SEVERIDAD[a.x.severidad] - RANGO_SEVERIDAD[b.x.severidad] || b.casos - a.casos)
-    .map(({ clave, casos, x }) => ({
-      clave: `patron-${clave}`,
-      nombre: x.nombre,
-      corto: x.corto,
-      severidad: x.severidad,
-      n: casos,
-      resumen: `${plural(casos, "caso", "casos")}${x.observacion ? ", en observación" : ""}`,
-      grupo: "Patrones en que aparece",
-      contenido: <FichaDePatron clave={clave} ruc={ruc} etiquetas={etiquetas} />,
-    }));
-  if (!d && !patrones.length) return <NoCargo que="sus antecedentes" />;
+  // Los patrones en que aparece, en su propia subpestaña y su propio índice (`?apat=`), por familia.
+  const { vista: vistaPatrones, n: nPatrones } = vistaDePatrones(pat?.listas ?? [], ruc, cat);
+  if (!d && !vistaPatrones) return <NoCargo que="sus antecedentes" />;
   if (!d?.total) {
-    if (patrones.length) {
-      return <IndiceAntecedentes tipos={patrones} param={P_ANTECEDENTES.tipo} titulo={plural(patrones.length, "patrón en que aparece", "patrones en que aparece")} />;
-    }
+    if (vistaPatrones) return vistaPatrones;
     return (
       <EstadoVacio compacto titulo="Ningún otro registro la nombra">
         No figura en las sanciones del Tribunal, las penalidades, los aportes y gastos de campaña, las autoridades y candidatos,
@@ -536,41 +500,59 @@ export async function AntecedentesEmpresa({
       </EstadoVacio>
     );
   }
+  // Lo que dicen de ella los demás registros, por tipo y por familia (como en la ficha de una entidad): lo grave primero
+  // dentro de cada familia y, a igual severidad, el que más veces aparece.
   const rucDe = rucPorNombre(cl?.data ?? []);
   const grupos = new Map<string, AntecedenteEmpresa[]>();
   for (const a of d.data) grupos.set(a.tipo, [...(grupos.get(a.tipo) ?? []), a]);
-  const tipos = [...grupos.entries()].sort(
-    ([, a], [, b]) => RANGO_SEVERIDAD[peorSeveridad(a) ?? "baja"] - RANGO_SEVERIDAD[peorSeveridad(b) ?? "baja"] || b.length - a.length,
-  );
-  const indice: TipoDelIndice[] = tipos.map(([tipo, casos]) => {
+  const entradas: (TipoDelIndice & EntradaConFamilia)[] = [...grupos.entries()].map(([tipo, casos]) => {
     const porSev = (["alta", "media", "baja"] as const).map((sv) => ({ sv, n: casos.filter((c) => c.severidad === sv).length })).filter((x) => x.n);
     const nombre = casos[0].etiqueta;
     // El chip del celular: el nombre corto del cruce si entra en un chip; si no, el de su bandera («Fuera por formalidad»).
     const corto = TIPO_CRUCE[tipo]?.corto;
     return {
       clave: tipo,
+      familia: familiaDeCruce(tipo),
       nombre,
       corto: CORTO_EMPRESA[tipo] ?? (corto && corto.length <= 32 ? corto : TIPO_CRUCE[tipo]?.chip ?? corto) ?? nombre,
       severidad: peorSeveridad(casos) ?? "baja",
       n: casos.length,
+      graves: casos.filter((c) => c.severidad === "alta").length,
       resumen:
         porSev.length > 1
           ? `${plural(casos.length, "vez", "veces")}: ${listaY(porSev.map((x, i) => `${numero(x.n)} de ${i === 0 ? "señal " : ""}${x.sv}`))}`
           : plural(casos.length, "vez", "veces"),
-      // Con patrones arriba, el índice lleva dos rótulos: sus patrones y lo que dicen los demás registros.
-      grupo: patrones.length ? "Lo que dicen de ella otros registros" : undefined,
       contenido: <CasosDelTipo tipo={tipo} casos={casos} ruc={ruc} rucDe={rucDe} />,
     };
   });
+  const indice: TipoDelIndice[] = indicePorFamilia(entradas);
+  const vistaAntecedentes = (
+    <div className="space-y-4">
+      <RepartoFamilias
+        familias={familiasDeEntradas(entradas, { uno: "tipo", varios: "tipos", casoAcaso: true })}
+        param={P_ANTECEDENTES.tipo}
+        inicial={indice[0]?.clave}
+        unidad={["vez", "veces"]}
+        entradas={["tipo de registro", "tipos de registro"]}
+        etiqueta="Lo que dicen de ella otros registros, por familia"
+      />
+      <IndiceAntecedentes
+        tipos={indice}
+        param={P_ANTECEDENTES.tipo}
+        que="Antecedente"
+        columna="Veces"
+        titulo={`${plural(indice.length, "tipo de registro", "tipos de registro")}, por familia`}
+      />
+    </div>
+  );
+  if (!vistaPatrones) return vistaAntecedentes;
   return (
-    <IndiceAntecedentes
-      tipos={[...patrones, ...indice]}
-      param={P_ANTECEDENTES.tipo}
-      titulo={
-        patrones.length
-          ? `${plural(patrones.length, "patrón", "patrones")} y ${plural(indice.length, "tipo de registro", "tipos de registro")}, lo más grave primero`
-          : `${plural(indice.length, "tipo de registro", "tipos de registro")}, lo más grave primero`
-      }
+    <SubpestanasAntecedentes
+      antecedentes={vistaAntecedentes}
+      patrones={vistaPatrones}
+      nAntecedentes={indice.length}
+      nPatrones={nPatrones}
+      paramTipo={P_ANTECEDENTES.tipo}
     />
   );
 }

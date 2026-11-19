@@ -62,6 +62,23 @@ export interface ResumenPersonas {
   porAnio: { anio: number; n: number }[];
   /** En el país o una entidad: órdenes con un monto que puede ser un error de CONOSCE (aparte del total). */
   dudosas?: { ordenes: number; monto: number } | null;
+  /**
+   * Sólo en la lista de UNA entidad (no en el país, una región o un partido, ni con size=0): lo que pagó cada año, a
+   * cuántas personas y cuánto de eso fue a quienes tienen alguna señal. Una API anterior no lo trae.
+   */
+  anual?: AnioPersonas[] | null;
+}
+
+/** Un año de las órdenes de servicio de una entidad a personas (GET /personas, `resumen.anual`). */
+export interface AnioPersonas {
+  anio: number;
+  /** Personas con al menos una orden ese año. */
+  personas: number;
+  ordenes: number;
+  monto: number;
+  /** Cuántas de esas personas tienen alguna señal en la entidad, y cuánto se les pagó ese año. */
+  conSenal: number;
+  montoConSenal: number;
 }
 
 export interface PaginaPersonas {
@@ -404,6 +421,37 @@ export const SENAL: Record<TipoSenal, { corto: string; titulo: string; explica: 
     explica:
       "La Contraloría lo comprendió, por su DNI, en un informe de control sobre esta misma entidad, con presunta responsabilidad penal, civil o administrativa, y después de emitido el informe la entidad le dio órdenes de servicio. La responsabilidad presunta no es una condena ni le impide contratar con el Estado: vale ver si la entidad conocía el informe y qué le encargó. Es grave si la responsabilidad es penal y la primera orden llegó dentro del año siguiente al informe.",
   },
+};
+
+/**
+ * El nombre de la señal en la celda de una fila (y en los chips de «las más comunes»): 20 caracteres o poco más, para que
+ * quepa en UNA línea junto a su ícono y el «+n» en la columna de escritorio (~150 px de texto) y apilada bajo el nombre
+ * en el celular. Antes iba `corto` («Órdenes tras un informe de control», «Comparte apellidos con un funcionario»): partía
+ * en dos renglones dentro de su píldora y la fila crecía a 64 px (pedido del dueño del 2026-11-18). El nombre entero
+ * (`titulo`) y qué significa (`explica`) van en el panel de la fila.
+ */
+export const CHIP_SENAL: Record<TipoSenal, string> = {
+  nepotismo: "Posible nepotismo",
+  financio_campana: "Financió la campaña",
+  candidato_gobierna: "Candidato oficialista",
+  autoridad_contratada: "Autoridad electa",
+  inhabilitado: "Inhabilitado",
+  aporte_gobierna: "Aportó al que gobierna",
+  nepotismo_gobierno: "Pariente en el gobierno",
+  apellidos_autoridad: "Apellidos de autoridad",
+  apellidos_funcionario: "Apellidos de funcionario",
+  funcionario_contratado: "Trabaja en la entidad",
+  meses_seguidos: "Casi todos los meses",
+  pago_alto: "Cobra mucho más",
+  al_borde_del_tope: "Al borde del tope",
+  candidato: "Fue candidato",
+  aporte: "Aportó a un partido",
+  visita_previa: "Visitó antes",
+  tambien_planilla: "También en planilla",
+  paso_a_planilla: "Pasó a planilla",
+  familia_estado: "Familia en el Estado",
+  socio_proveedor: "Socio de un proveedor",
+  ordenes_tras_informe: "Tras informe de control",
 };
 
 export const SEVERIDAD_TEXTO: Record<Severidad, string> = { alta: "Grave", media: "Para revisar", baja: "Dato" };

@@ -1,21 +1,26 @@
 import { Ayuda, BloqueDetalle, ChipsDetalle, CuerpoDetalle, DatosClave, EstadoError, EstadoVacio, type DatoClave } from "@/components/patrones";
 import { Dato } from "@/components/ui/Dato";
 import { Severidad } from "@/components/ui/Severidad";
-import { CeldaFecha, CeldaNumero, CeldaPrincipal, Tabla, TablaSkeleton, type Columna, type Fila, type Parametros } from "@/components/listado";
+import { CeldaNumero, CeldaPrincipal, Tabla, TablaSkeleton, type Columna, type Fila, type Parametros } from "@/components/listado";
 import { CrucesCelda } from "@/components/contratos/CrucesCelda";
 import { Paginacion } from "@/components/ui/Paginacion";
 import { fecha, listaY, numero, plural, soles, solesCompacto } from "@/lib/formato";
 import { tituloNatural } from "@/lib/landing";
 import { urlDesde } from "@/lib/desde";
-import { SENAL, TIPOS_SENAL, aniosTexto, rutaPersona, type PaginaPersonas, type PersonaEntidad } from "@/lib/personas";
+import { CHIP_SENAL, SENAL, TIPOS_SENAL, aniosTexto, rutaPersona, type PaginaPersonas, type PersonaEntidad } from "@/lib/personas";
 import { peorSeveridad } from "@/lib/severidad";
 import { CLASE_ACCION_LISTA } from "@/components/ui/EnlaceAccion";
 
 /**
  * Personas contratadas por órdenes de servicio en la `Tabla` del kit, una fila por persona y entidad (una
- * «contratación»): quién (con un apellido tapado), en qué entidad y qué servicio da, lo que dicen otros registros
- * (señales, en una línea), órdenes, meses, monto y su última orden. La usan /app/personas, la ficha de una entidad (sin
- * la entidad en cada fila) y la de un partido. Paginado por URL (`paramPagina`). Server-safe.
+ * «contratación»): quién (con un apellido tapado), su señal más grave (una línea, «+n»), cuántas órdenes, en cuántos
+ * meses, cuánto y en qué años. La usan /app/personas, la ficha de una entidad (sin la entidad en cada fila) y la de un
+ * partido. Paginado por URL (`paramPagina`). Server-safe.
+ *
+ * Filas de 42 px (`densidad="compacta"`; el pedido del dueño del 2026-11-18 era ≤ 48): el nombre y su contexto en una
+ * línea, la bandera en una línea, el monto sin línea debajo. Antes medían 64 px: los años iban bajo el monto, que además
+ * se repetían en «Última orden» («2018 a 2020» y «6 ago. 2020»), y la bandera larga partía en dos renglones. Ahora los años
+ * tienen su columna (xl) y la primera y la última orden van en el panel. En el celular: persona, señal y monto.
  *
  * Cada fila abre una VISTA PREVIA en el panel lateral (`detalle.ficha`), armada sólo con lo que la fila ya trae, y
  * «Abrir la ficha» al pie: se miran varias seguidas sin ir y volver a una ficha pesada.
@@ -28,21 +33,30 @@ import { CLASE_ACCION_LISTA } from "@/components/ui/EnlaceAccion";
  * La celda de señales es `CrucesCelda` (una línea, la más grave primero, con su ícono). Busca la explicación de cada tipo
  * en el catálogo de cruces de EMPRESAS, donde tres tipos de persona se llaman igual con otro sentido (`aporte`,
  * `candidato`, `visita_previa`: «un socio… antes de la buena pro»): con la clave prefijada no hereda una explicación
- * ajena. La etiqueta corta sale de `SENAL`.
+ * ajena. La etiqueta de la celda es la de `CHIP_SENAL` (cabe en una línea); el nombre entero, en el panel.
  */
 const clave = (t: string) => `persona:${t}`;
-const CORTO_SENAL = Object.fromEntries(TIPOS_SENAL.map((t) => [clave(t), SENAL[t].corto]));
+const CORTO_SENAL = Object.fromEntries(TIPOS_SENAL.map((t) => [clave(t), CHIP_SENAL[t]]));
+// La bandera en una línea con «…» (`truncar` de CrucesCelda): el nombre corto casi siempre entra; el entero y su
+// explicación, en el `title` y en el panel.
+const UNA_LINEA = "block min-w-0 max-w-full";
 // Y su explicación, la de la señal de PERSONA (CrucesCelda `explicaciones`): sin ella el title quedaba en «Etiqueta: ».
 const EXPLICA_SENAL = Object.fromEntries(TIPOS_SENAL.map((t) => [clave(t), SENAL[t].explica]));
 // A igual severidad, el orden del catálogo (el nepotismo primero): la celda muestra una bandera entera y es la que más pesa.
 const ORDEN_SENAL = new Map<string, number>(TIPOS_SENAL.map((t, i): [string, number] => [t, i]));
 const porCatalogo = (a: { tipo: string }, b: { tipo: string }) => (ORDEN_SENAL.get(a.tipo) ?? 99) - (ORDEN_SENAL.get(b.tipo) ?? 99);
 
+/**
+ * Quién | señal más grave | órdenes y en cuántos meses | cuánto | en qué años. Los cortes, medidos con la barra lateral
+ * de la app (~256 px): desde lg la señal tiene su columna (antes, desde md, le quedaban ~110 px y la píldora partía); en
+ * md va apilada bajo el nombre, como en el celular. Órdenes y años, desde xl. «Órdenes» dice también en cuántos meses
+ * («28 en 28 meses»): eran dos columnas casi siempre con el mismo número.
+ */
 const columnas = (deEntidad: boolean): Columna[] => [
   {
     clave: "persona",
     titulo: "Persona",
-    ancho: "minmax(0,1.4fr)",
+    ancho: "minmax(0,1.5fr)",
     // La unidad de la lista: cada fila es una persona EN una entidad (en una sola entidad, una persona).
     ayuda: deEntidad ? undefined : (
       <Ayuda titulo="¿Qué es cada fila?">
@@ -52,19 +66,28 @@ const columnas = (deEntidad: boolean): Columna[] => [
     ),
   },
   {
-    clave: "senales", titulo: "Señales", ancho: "minmax(0,1fr)", desde: "md", apilar: true,
+    clave: "senales", titulo: "Señal más grave", ancho: "minmax(0,1fr)", desde: "lg", apilar: true,
+    igual: { frases: { "Sin señales": "Ninguna tiene señales" } },
     ayuda: (
       <Ayuda titulo="¿Qué son estas señales?">
         Lo que otros registros públicos dicen de esta persona en esta entidad: si fue candidata o aportó al partido que la
         gobernaba, si es autoridad electa, si tiene los apellidos de una autoridad o un funcionario, si recibió órdenes casi
-        todos los meses o cobra mucho más que otros por lo mismo. Ninguna prueba un delito ni un parentesco.
+        todos los meses o cobra mucho más que otros por lo mismo. Va la más grave y, con «+n», cuántas más; todas, al abrir
+        la fila. Ninguna prueba un delito ni un parentesco.
       </Ayuda>
     ),
   },
-  { clave: "ordenes", titulo: "Órdenes", ancho: "76px", alinear: "der", desde: "lg" },
-  { clave: "meses", titulo: "Meses", ancho: "68px", alinear: "der", desde: "lg" },
-  { clave: "monto", titulo: "Monto", ancho: "104px", alinear: "der" },
-  { clave: "ultima", titulo: deEntidad ? "Última orden" : "Última", ancho: "92px", desde: "xl" },
+  {
+    clave: "ordenes", titulo: "Órdenes", ancho: "128px", alinear: "der", desde: "xl",
+    ayuda: (
+      <Ayuda titulo="¿Qué cuenta?">
+        Cuántas órdenes de servicio le dio la entidad y en cuántos meses distintos (sumados año por año). Una orden casi
+        todos los meses es un puesto pagado como locación; muchas órdenes en pocos meses, otra cosa: la ficha muestra cada una.
+      </Ayuda>
+    ),
+  },
+  { clave: "monto", titulo: "Monto", ancho: "112px", alinear: "der" },
+  { clave: "anios", titulo: "Años", ancho: "92px", desde: "xl", igual: { texto: "Años de todas: {}" } },
 ];
 
 export function TablaPersonasSkeleton({ deEntidad = false }: { deEntidad?: boolean }) {
@@ -130,7 +153,12 @@ export function TablaPersonas({
   return (
     <div className="space-y-3">
       <div className="flex justify-end">{pag(false)}</div>
-      <Tabla columnas={columnas(deEntidad)} filas={pagina.data.map((p) => filaDe(p, deEntidad))} etiqueta="Personas contratadas por órdenes de servicio" />
+      <Tabla
+        columnas={columnas(deEntidad)}
+        filas={pagina.data.map((p) => filaDe(p, deEntidad))}
+        etiqueta="Personas contratadas por órdenes de servicio"
+        densidad="compacta"
+      />
       {paginas > 1 && <div className="flex justify-end">{pag(true)}</div>}
     </div>
   );
@@ -151,30 +179,45 @@ function filaDe(p: PersonaEntidad, deEntidad: boolean): Fila {
   const anios = aniosTexto(p.anios);
   return {
     id: `${p.codigo}-${p.entidadRuc}`,
-    magnitudes: { monto: p.monto, ordenes: p.ordenes },
+    // Una sola barra, la del monto: con otra bajo las órdenes la fila tenía dos barras casi iguales.
+    magnitudes: { monto: p.monto },
+    // Lo que dicen en texto las celdas que pueden repetirse en toda la página (`colapsarIguales`): «Sin señales» con el
+    // filtro «Sin señales», el mismo año con el filtro de un año. Las banderas no tienen texto: su columna se queda.
+    textos: { senales: p.senales?.length ? undefined : "Sin señales", anios },
     celdas: {
       persona: (
         <CeldaPrincipal
           // Un nodo y no el texto: así el nombre no va al `title` de la celda (privacidad).
           titulo={<>{nombre}</>}
+          // El nombre y su contexto en una línea desde sm (la fila de 42 px); en el celular, uno bajo el otro.
+          enLinea
           // La entidad primero: en el celular la línea se recorta al final y la entidad era lo que se perdía.
           meta={deEntidad ? [servicio, partido] : [<Dato key="entidad" tipo="entidad">{entidad}</Dato>, servicio, partido]}
         />
       ),
       senales: p.senales?.length ? (
-        <CrucesCelda
-          cruces={[...p.senales].sort(porCatalogo).map((s) => ({ tipo: clave(s.tipo), severidad: s.severidad }))}
-          etiquetas={CORTO_SENAL}
-          explicaciones={EXPLICA_SENAL}
-          etiquetaLista="Señales de la persona"
-        />
+        <span className={UNA_LINEA}>
+          <CrucesCelda
+            cruces={[...p.senales].sort(porCatalogo).map((s) => ({ tipo: clave(s.tipo), severidad: s.severidad }))}
+            etiquetas={CORTO_SENAL}
+            explicaciones={EXPLICA_SENAL}
+            etiquetaLista="Señales de la persona"
+            truncar
+          />
+        </span>
       ) : (
-        <span className="text-meta text-mute">Sin señales</span>
+        // Sólo en su columna: apilado bajo el nombre (md y el celular), «Sin señales» en cada fila era una línea más de ruido.
+        <span data-solo-columna className="text-meta text-mute">
+          Sin señales
+        </span>
       ),
-      ordenes: <CeldaNumero>{numero(p.ordenes)}</CeldaNumero>,
-      meses: <CeldaNumero>{numero(p.meses)}</CeldaNumero>,
-      monto: <CeldaNumero sub={anios ?? undefined}>{solesCompacto(p.monto)}</CeldaNumero>,
-      ultima: <CeldaFecha fecha={p.ultima} />,
+      ordenes: (
+        <span className="block whitespace-nowrap text-right text-meta tabular-nums">
+          <span className="font-mono text-ink">{numero(p.ordenes)}</span> <span className="text-mute">en {plural(p.meses, "mes", "meses")}</span>
+        </span>
+      ),
+      monto: <CeldaNumero>{solesCompacto(p.monto)}</CeldaNumero>,
+      anios: anios ? <span className="text-meta tabular-nums text-inkSoft">{anios}</span> : null,
     },
     detalle: {
       // Ni el título ni la etiqueta llevan el nombre: van a `title` y `aria-label` (docs/PRIVACIDAD.md).
@@ -197,6 +240,8 @@ function VistaPrevia({ p, entidad, anios, gobiernos, deEntidad }: { p: PersonaEn
     { etiqueta: "Órdenes", valor: numero(p.ordenes), mono: true },
     { etiqueta: "Meses con órdenes", valor: numero(p.meses), mono: true },
     { etiqueta: "Años", valor: anios, mono: true },
+    // La primera y la última ya no van en la fila (los años lo dicen en corto): aquí, con su día.
+    { etiqueta: "Primera orden", valor: p.primera ? fecha(p.primera) : null },
     { etiqueta: "Última orden", valor: p.ultima ? fecha(p.ultima) : null },
     // Sin `null` en el valor cuando la entidad no tiene partido: las nacionales no se eligen.
     ...(gobiernos.length ? [{ etiqueta: gobiernos.length === 1 ? "Partido que gobernaba" : "Partidos que gobernaban", valor: listaY([...new Set(gobiernos)]) }] : []),

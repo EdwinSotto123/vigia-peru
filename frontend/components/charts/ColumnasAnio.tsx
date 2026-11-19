@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useId, useState } from "react";
 import { numero, solesCompacto } from "@/lib/formato";
 import { cn } from "@/lib/utils";
 
@@ -54,6 +54,8 @@ export function ColumnasAnio({
   const marca = (n: number) => formato(n).replace(/([.,]0)(?=\s|$)/, "");
   const orden = [...anios].sort((x, y) => x.anio - y.anio);
   const [activo, setActivo] = useState<number | null>(null);
+  // Un id por gráfico (useId): con el largo de la etiqueta, dos gráficos de una página con etiquetas del mismo largo chocaban.
+  const base = useId();
   if (!orden.length) return null;
   const tope = techo(Math.max(...orden.map((x) => x.a + x.b)));
   const marcas = [0, tope / 2, tope];
@@ -63,7 +65,7 @@ export function ColumnasAnio({
   const mover = (i: number) => {
     const j = Math.max(0, Math.min(orden.length - 1, i));
     setActivo(orden[j].anio);
-    (document.getElementById(`col-${etiqueta.length}-${orden[j].anio}`) as HTMLElement | null)?.focus();
+    (document.getElementById(`${base}-col-${orden[j].anio}`) as HTMLElement | null)?.focus();
   };
   return (
     <figure className={cn("min-w-0", className)} aria-label={etiqueta}>
@@ -91,7 +93,7 @@ export function ColumnasAnio({
                 <li key={x.anio} className="relative flex h-full min-w-0 flex-1 justify-center">
                   <button
                     type="button"
-                    id={`col-${etiqueta.length}-${x.anio}`}
+                    id={`${base}-col-${x.anio}`}
                     className="group relative flex h-full w-full max-w-[48px] items-end justify-center rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-granate"
                     aria-label={`${x.anio}: ${etiquetaA} ${x.detalleA}; ${etiquetaB} ${x.detalleB}; en total ${formato(total)}${x.aparte ? "; con montos de un posible error de carga aparte" : ""}`}
                     onMouseEnter={() => setActivo(x.anio)}

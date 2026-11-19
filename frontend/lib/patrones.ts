@@ -185,6 +185,8 @@ export interface PatronesGrupos {
   total: number;
   page: number;
   size: number;
+  /** Lo que suman TODOS los grupos del filtro (no sólo los de la página); null sin grupos. */
+  resumen?: { monto: number; altas: number; conCorrelativas: number; conRepartidos: number } | null;
   data: PatronGrupo[];
 }
 
@@ -568,12 +570,13 @@ export const rutaAcompanantes = (page = 1, ruc?: string) => `/patrones/acompanan
 export const rutaConsorcios = (page = 1, ruc?: string) => `/patrones/consorcios?${consulta({ page, size: TAM_PATRONES, ruc })}`;
 export const rutaDuenos = (page = 1, ruc?: string, graves = false) =>
   `/patrones/duenos?${consulta({ page, size: TAM_PATRONES, ruc, graves: graves ? 1 : undefined })}`;
-export const rutaGrupos = (page = 1, ruc?: string, graves = false) =>
-  `/patrones/grupos?${consulta({ page, size: TAM_PATRONES, buscar: ruc, severidad: graves ? "alta" : undefined })}`;
-export const rutaRepetidas = (page = 1, ruc?: string, graves = false) =>
-  `/patrones/repetidas?${consulta({ page, size: TAM_PATRONES, buscar: ruc, severidad: graves ? "alta" : undefined })}`;
-export const rutaRecien = (page = 1, ruc?: string, graves = false) =>
-  `/patrones/recien?${consulta({ page, size: TAM_PATRONES, buscar: ruc, severidad: graves ? "alta" : undefined })}`;
+// `q`: el buscador de una ficha (la API lo usa sólo con el RUC puesto, y nunca busca el nombre de una persona natural).
+export const rutaGrupos = (page = 1, ruc?: string, graves = false, q?: string) =>
+  `/patrones/grupos?${consulta({ page, size: TAM_PATRONES, buscar: ruc, severidad: graves ? "alta" : undefined, q: q?.trim().slice(0, 80) })}`;
+export const rutaRepetidas = (page = 1, ruc?: string, graves = false, q?: string) =>
+  `/patrones/repetidas?${consulta({ page, size: TAM_PATRONES, buscar: ruc, severidad: graves ? "alta" : undefined, q: q?.trim().slice(0, 80) })}`;
+export const rutaRecien = (page = 1, ruc?: string, graves = false, q?: string) =>
+  `/patrones/recien?${consulta({ page, size: TAM_PATRONES, buscar: ruc, severidad: graves ? "alta" : undefined, q: q?.trim().slice(0, 80) })}`;
 /**
  * En observación (migración 367): una autoridad electa dejó de figurar en una empresa del RNP y esa empresa le vendió a la
  * entidad que gobierna o fiscaliza, dentro de su periodo. La autoridad va con su nombre completo (es electa).
@@ -671,6 +674,48 @@ export interface PatronesDeEntidad {
   }[];
 }
 export const getPatronesDeEntidad = (ruc: string) => leer<PatronesDeEntidad>(`/patrones/entidad/${ruc}`);
+
+/**
+ * Un antecedente en una entidad (API GET /patrones/entidad/:ruc/cruce/:tipo): año por año y quiénes ganaron esos
+ * contratos, todos. Se pide en el navegador al elegirlo en el índice: con los 44 de EsSalud armados en el servidor, la
+ * página cargaba todas sus listas.
+ */
+export interface AntecedenteDeEntidad {
+  ruc: string;
+  tipo: string;
+  etiqueta: string;
+  contratos: number;
+  graves: number;
+  medias: number;
+  monto: number;
+  empresas: number;
+  /** Contratos sin fecha de buena pro: no entran al gráfico por año. */
+  sinFecha: number;
+  porAnio: { anio: number; contratos: number; graves: number; monto: number }[];
+  /** Una persona natural llega con su RUC como referencia opaca y un apellido tapado: sin enlace. */
+  proveedores: { ruc: string; proveedor: string | null; contratos: number; graves: number; monto: number }[];
+}
+/** Un contrato con ese antecedente (la severidad es la de ESE antecedente en él). */
+export interface ContratoDelAntecedente {
+  ocid: string;
+  codigo: string | null;
+  objeto: string | null;
+  proveedor: string | null;
+  ruc: string | null;
+  monto: number | null;
+  fecha: string | null;
+  severidad: "alta" | "media" | "baja" | null;
+  tipoContratacion: string | null;
+}
+export interface ContratosDelAntecedente {
+  total: number;
+  page: number;
+  size: number;
+  data: ContratoDelAntecedente[];
+}
+export const rutaAntecedenteEntidad = (ruc: string, tipo: string) => `/patrones/entidad/${ruc}/cruce/${encodeURIComponent(tipo)}`;
+export const rutaContratosAntecedente = (ruc: string, tipo: string, page = 1, q?: string, severidad?: string) =>
+  `/patrones/entidad/${ruc}/cruce/${encodeURIComponent(tipo)}/contratos?${consulta({ page, size: TAM_PATRONES, q: q?.trim().slice(0, 80), severidad })}`;
 /** En qué patrones aparece una empresa (API GET /patrones/empresa/:ruc): arriba de su pestaña «Antecedentes». */
 export const getPatronesDeEmpresa = (ruc: string) => leer<Pick<PatronesDeEntidad, "ruc" | "listas">>(`/patrones/empresa/${ruc}`);
 

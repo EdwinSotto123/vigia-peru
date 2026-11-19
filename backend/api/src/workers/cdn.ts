@@ -126,7 +126,7 @@ const GUARDADO = "X-Vigia-Guardado";
  * "131": las listas de consorcios que compiten y de contratos observados traen la clave de su ficha de caso.
  * "132": y la de señales de los agentes que se repiten (por entidad y por proveedor).
  */
-const VERSION_CACHE = "132";
+const VERSION_CACHE = "133";
 
 function cacheable(req: Request): boolean {
   if (req.method !== "GET") return false;

@@ -112,7 +112,7 @@ const SIN_VENTAS = (
   </EstadoVacio>
 );
 /** El nombre de cada pestaña en la ruta de navegación (la primera, Inicio, no se agrega). */
-const ETIQUETAS_PESTANA: Record<string, string> = { historia: "Historia", ventas: "Ventas al Estado", clientes: "Clientes", postulaciones: "Postulaciones", antecedentes: "Antecedentes", gente: "Su gente", obras: "Obras" };
+const ETIQUETAS_PESTANA: Record<string, string> = { historia: "Historia", ventas: "Ventas al Estado", clientes: "Clientes", postulaciones: "Postulaciones", antecedentes: "Antecedentes y patrones", gente: "Su gente", obras: "Obras" };
 /** Los parámetros de la URL menos la pestaña y la vista (para llevar un enlace viejo a la pestaña nueva sin perder filtros). */
 const sinSeccion = (sp: Busqueda): Record<string, string | undefined> =>
   Object.fromEntries(Object.entries(sp ?? {}).filter(([k]) => k !== "seccion" && k !== P_VISTA).map(([k, v]) => [k, uno(v)]));
@@ -433,12 +433,12 @@ export default async function EmpresaPage({ params, searchParams: sp }: { params
           },
           {
             clave: "antecedentes",
-            etiqueta: "Antecedentes",
+            etiqueta: "Antecedentes y patrones",
             icono: <FileSearch size={15} aria-hidden />,
             conteo: nAntecedentes,
             contenido: (
               <div className="space-y-4">
-                <CabeceraPestana>Lo que dicen de la empresa otros registros públicos: elige un tipo para ver cada caso con su fuente.</CabeceraPestana>
+                <CabeceraPestana>Antecedentes: lo que dicen de la empresa otros registros públicos, caso por caso. Patrones: lo que se repite entre varios de sus contratos.</CabeceraPestana>
                 {/* Lista y detalle (pedido del usuario del 2026-11-05): el índice de tipos elige en el navegador y lo deja en
                     `?atipo=` (lo lee de la URL, como las banderas de la cabecera); ya no hay barra de filtros ni `Listado`. */}
                 <Suspense fallback={<TablaSkeleton columnas={[{ clave: "a", titulo: "Antecedente", ancho: "1fr" }]} filas={6} />}>

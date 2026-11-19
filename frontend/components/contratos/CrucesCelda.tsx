@@ -29,6 +29,7 @@ export function CrucesCelda({
   explicaciones,
   etiquetaLista = "Registros donde aparece el ganador",
   max = MAX_CRUCES,
+  truncar = false,
 }: {
   cruces: { tipo: string; severidad: "alta" | "media" | "baja" }[] | null | undefined;
   /** Otra etiqueta corta para algún tipo (la lista de empresas: «Sancionada», no «Sancionado antes» de un proceso). */
@@ -41,6 +42,8 @@ export function CrucesCelda({
   etiquetaLista?: string;
   /** Cuántas banderas a la vista antes del «+n» (en una columna angosta, una entera se lee mejor que dos recortadas). */
   max?: number;
+  /** El nombre de la bandera en UNA línea con «…» (el entero queda en su title y en el panel): filas de ≤ 48 px. */
+  truncar?: boolean;
 }) {
   // En el chip, el nombre breve; el completo (y qué significa) en su title, y la lista entera en el de la fila.
   const corto = (t: string) => etiquetas?.[t] ?? chipCruce(t);
@@ -67,7 +70,7 @@ export function CrucesCelda({
             ) : (
               <span className={`inline-flex max-w-full items-center gap-1 rounded-full border bg-paper px-2 py-0.5 text-rotulo font-semibold leading-tight text-ink ${BORDE_FILA[x.severidad]}`}>
                 <Icono size={12} className={`shrink-0 ${ICONO_FILA[x.severidad]}`} aria-hidden />
-                <span className="min-w-0 break-words">{corto(x.tipo)}</span>
+                <span className={`min-w-0 ${truncar ? "truncate" : "break-words"}`}>{corto(x.tipo)}</span>
               </span>
             )}
           </li>

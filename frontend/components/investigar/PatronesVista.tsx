@@ -1,11 +1,12 @@
 "use client";
 
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { Ban, Briefcase, Building2, Coins, CopyCheck, FileSearch, Sprout, FlaskConical, Handshake, Landmark, ScanSearch, SearchX, ShoppingCart, TrendingUp, Users, UsersRound } from "lucide-react";
 import { Ayuda, CabeceraPestana, Nota, PanelConTitulo, Pestanas } from "@/components/patrones";
 import { EVENTO_ACTIVA } from "@/components/patrones/Pestanas";
-import { CeldaBarra, CeldaNumero, CeldaPrincipal, CeldaTexto, CLASE_ENLACE_CELDA, Indicadores, Tabla, type Columna, type Fila, type Indicador } from "@/components/listado";
+import { Buscador, CeldaBarra, CeldaNumero, CeldaPrincipal, CeldaTexto, CLASE_ENLACE_CELDA, Indicadores, Tabla, type Columna, type Fila, type Indicador } from "@/components/listado";
+import { CIFRA_EN_FICHA, COLUMNAS_GRUPOS_EMPRESA, COLUMNAS_GRUPOS_ENTIDAD, EnFicha, filaGrupoEnFicha, paraFicha, useFicha, type VistaFicha } from "./filasFicha";
 import { EstadoCarga, usePoder } from "@/components/grafo/vista";
 import { InformeEnPanel } from "@/components/control/InformeEnPanel";
 import { OrdenesDelPeriodo } from "@/components/historia/OrdenesDelPeriodo";
@@ -234,9 +235,7 @@ export function PatronesVista({ activa, inicial, etiquetas }: { activa?: string;
  * vez que la pestaña vuelve a abrirse (`Pestanas` avisa con un evento): si no, al pasar de una pestaña en la página 3 a
  * otra, la URL seguiría diciendo `page=3`.
  */
-/** La lista va dentro de la ficha de una entidad (ListaDePatron): no escribe su página en la URL de la ficha. */
-const EnFicha = createContext(false);
-
+/** La lista va dentro de la ficha de una entidad o empresa (ListaDePatron, `EnFicha`): no escribe su página en su URL. */
 function useListaEnUrl(clave: SeccionPatrones, inicial: InicialPatrones) {
   const [estado, setEstado] = useState<InicialPatrones>(inicial);
   const actual = useRef(estado);
@@ -275,8 +274,22 @@ function useListaEnUrl(clave: SeccionPatrones, inicial: InicialPatrones) {
  * /app/patrones (mismas filas, mismo panel por caso), con el nombre del patrón como título, sin su filtro de RUC (es el de
  * la ficha) y sin escribir su página en la URL.
  */
-export function ListaDePatron({ clave, ruc, titulo, etiquetas = {} }: { clave: SeccionPatrones; ruc: string; titulo: string; etiquetas?: Record<string, string> }) {
+export function ListaDePatron({
+  clave,
+  ruc,
+  titulo,
+  etiquetas = {},
+  vista = "entidad",
+}: {
+  clave: SeccionPatrones;
+  ruc: string;
+  titulo: string;
+  etiquetas?: Record<string, string>;
+  /** De quién es la ficha: su nombre no se repite en cada fila (ver filasFicha.tsx). */
+  vista?: VistaFicha;
+}) {
   const inicial: InicialPatrones = { page: 1, ruc };
+  const ficha = useMemo(() => ({ vista, ruc }), [vista, ruc]);
   const lista =
     clave === "entidades" ? <ListaSenales alcance="entidad" clave="entidades" inicial={inicial} etiquetas={etiquetas} />
     : clave === "proveedores" ? <ListaSenales alcance="proveedor" clave="proveedores" inicial={inicial} etiquetas={etiquetas} />
@@ -298,13 +311,31 @@ export function ListaDePatron({ clave, ruc, titulo, etiquetas = {} }: { clave: S
     : null;
   if (!lista) return null;
   return (
-    <EnFicha.Provider value>
+    <EnFicha.Provider value={ficha}>
       <PanelConTitulo titulo={titulo}>
         {/* El filtro por RUC de cada lista (un campo numérico) sobra aquí: el RUC es el de la ficha. */}
         <div className="[&_label:has(input[inputmode=numeric])]:hidden">{lista}</div>
       </PanelConTitulo>
     </EnFicha.Provider>
   );
+}
+
+/**
+ * La tabla de una lista. En una ficha (ver filasFicha.tsx): sus cortes por el ancho de la TABLA (a la derecha del índice
+ * no entraban las columnas de la pantalla y la principal quedaba en 0 px), filas compactas y nada apilado en el celular,
+ * salvo la cifra que da sentido a la fila (`CIFRA_EN_FICHA`).
+ */
+function TablaLista({ clave, columnas, filas, etiqueta }: { clave: SeccionPatrones; columnas: Columna[]; filas: Fila[]; etiqueta: string }) {
+  const ficha = useFicha();
+  const cols = useMemo(() => (ficha ? paraFicha(columnas, CIFRA_EN_FICHA[clave]) : columnas), [ficha, columnas, clave]);
+  return <Tabla columnas={cols} filas={filas} etiqueta={etiqueta} medida={ficha ? "contenedor" : undefined} densidad={ficha ? "compacta" : undefined} />;
+}
+
+/** El buscador de una lista en una ficha (la API busca con el RUC de la ficha ya puesto; nunca el nombre de una persona). */
+function BuscarEnFicha({ valor, onBuscar, placeholder, cargando }: { valor: string; onBuscar: (v: string) => void; placeholder: string; cargando: boolean }) {
+  const ficha = useFicha();
+  if (!ficha) return null;
+  return <Buscador placeholder={placeholder} etiqueta={placeholder.replace(/…$/, "")} valor={valor} min={3} onBuscar={onBuscar} cargando={cargando} className="sm:max-w-md" />;
 }
 
 /**
@@ -489,13 +520,30 @@ const columnasSenal = (alcance: AlcancePatron): Columna[] => [
   { clave: "ejemplos", titulo: "Contratos de ejemplo", ancho: "minmax(0,1fr)", desde: "xl", apilar: true },
 ];
 
+/**
+ * En la ficha de una entidad o empresa todas las filas son de ELLA: la columna principal es la señal (con sus contratos
+ * de ejemplo debajo) y la cifra que se ve en todo ancho, cuántas veces más que en el país.
+ */
+const columnasSenalFicha = (alcance: AlcancePatron): Columna[] => {
+  const base = columnasSenal(alcance);
+  const de = (clave: string) => base.find((c) => c.clave === clave)!;
+  return [
+    { clave: "senal", titulo: "Señal que se repite y contratos de ejemplo", ancho: "minmax(0,1fr)" },
+    { ...de("tasa"), apilar: undefined, ancho: "minmax(8.5rem,0.55fr)" },
+    ...(alcance === "proveedor" ? [{ ...de("entidades"), apilar: undefined }] : []),
+    { ...de("veces"), desde: undefined, apilar: undefined },
+    { ...de("monto"), apilar: undefined },
+  ];
+};
+
 const CAMPO =
   "h-10 w-full rounded-xl border border-line bg-paper px-3 text-dato text-ink transition-colors duration-rapido hover:border-paperEdge focus:border-granate";
 
 function ListaSenales({ alcance, clave, inicial, etiquetas }: { alcance: AlcancePatron; clave: SeccionPatrones; inicial: InicialPatrones; etiquetas: Record<string, string> }) {
   const lista = useListaEnUrl(clave, inicial);
   const carga = usePoder<PatronesSenal>(rutaPatrones(alcance, lista.page, lista.regla, inicial.ruc));
-  const columnas = useMemo(() => columnasSenal(alcance), [alcance]);
+  const ficha = useFicha();
+  const columnas = useMemo(() => (ficha ? columnasSenalFicha(alcance) : columnasSenal(alcance)), [alcance, ficha]);
   const nombreRegla = useCallback((regla: string) => etiquetas[regla] ?? reglaLabel(regla), [etiquetas]);
   const esEntidad = alcance === "entidad";
 
@@ -584,8 +632,10 @@ function ListaSenales({ alcance, clave, inicial, etiquetas }: { alcance: Alcance
                 {filas.length > 0 ? (
                   <Tabla
                     columnas={columnas}
-                    filas={filas.map((p, i) => filaSenal(p, i, alcance, nombreRegla))}
+                    filas={filas.map((p, i) => filaSenal(p, i, alcance, nombreRegla, !!ficha))}
                     etiqueta={esEntidad ? "Señales que se repiten, por entidad" : "Señales que se repiten, por empresa"}
+                    medida={ficha ? "contenedor" : undefined}
+                    densidad={ficha ? "compacta" : undefined}
                   />
                 ) : null}
               </ZonaLista>
@@ -604,7 +654,7 @@ function ListaSenales({ alcance, clave, inicial, etiquetas }: { alcance: Alcance
   );
 }
 
-function filaSenal(p: PatronSenal, i: number, alcance: AlcancePatron, nombreRegla: (r: string) => string): Fila {
+function filaSenal(p: PatronSenal, i: number, alcance: AlcancePatron, nombreRegla: (r: string) => string, enFicha = false): Fila {
   const senal = nombreRegla(p.regla);
   const tasa = p.tasa ?? (p.leidos > 0 ? p.casos / p.leidos : 0);
   return {
@@ -620,7 +670,11 @@ function filaSenal(p: PatronSenal, i: number, alcance: AlcancePatron, nombreRegl
     },
     celdas: {
       quien: <CeldaPrincipal titulo={alcance === "entidad" ? <EnlaceEntidad ruc={p.ruc} nombre={p.nombre} /> : <EnlaceEmpresa ruc={p.ruc} nombre={p.nombre} />} dosLineas />,
-      senal: <span className="min-w-0 text-meta font-medium text-ink">{senal}</span>,
+      senal: enFicha ? (
+        <CeldaPrincipal titulo={senal} meta={p.ejemplos?.length ? <Ejemplos ocids={p.ejemplos} casos={p.casos} /> : undefined} />
+      ) : (
+        <span className="min-w-0 text-meta font-medium text-ink">{senal}</span>
+      ),
       tasa: <CeldaParte con={p.casos} de={p.leidos} parte={tasa} que="contratos leídos con la señal" />,
       entidades: p.entidades != null ? <CeldaNumero>{numero(p.entidades)}</CeldaNumero> : undefined,
       veces:
@@ -692,7 +746,7 @@ function ListaRelleno({ inicial }: { inicial: InicialPatrones }) {
                 ]}
               />
               <ZonaLista total={d.total} page={lista.page} cargando={carga.cargando} nombre="parejas" onPagina={lista.irAPagina} vacio="Todavía no hay parejas con este patrón.">
-                {filas.length > 0 ? <Tabla columnas={COLUMNAS_RELLENO} filas={filas.map(filaRelleno)} etiqueta="Postores que acompañan siempre al mismo ganador" /> : null}
+                {filas.length > 0 ? <TablaLista clave="relleno" columnas={COLUMNAS_RELLENO} filas={filas.map(filaRelleno)} etiqueta="Postores que acompañan siempre al mismo ganador" /> : null}
               </ZonaLista>
             </div>
           );
@@ -790,7 +844,7 @@ function ListaConsorcios({ inicial }: { inicial: InicialPatrones }) {
                 ]}
               />
               <ZonaLista total={d.total} page={lista.page} cargando={carga.cargando} nombre="pares" onPagina={lista.irAPagina} vacio="Todavía no hay pares con este patrón.">
-                {filas.length > 0 ? <Tabla columnas={COLUMNAS_CONSORCIOS} filas={filas.map(filaConsorcio)} etiqueta="Socias de consorcio que después compiten" /> : null}
+                {filas.length > 0 ? <TablaLista clave="consorcios" columnas={COLUMNAS_CONSORCIOS} filas={filas.map(filaConsorcio)} etiqueta="Socias de consorcio que después compiten" /> : null}
               </ZonaLista>
             </div>
           );
@@ -855,8 +909,12 @@ const COLUMNAS_DUENOS: Columna[] = [
   { clave: "periodo", titulo: "Años", ancho: "6.5rem", desde: "xl", apilar: "con-rotulo" },
 ];
 
+/** En la ficha de una entidad el socio va bajo las empresas (la fila nombra a quiénes): sin su columna. */
+const COLUMNAS_DUENOS_ENTIDAD = COLUMNAS_DUENOS.filter((c) => c.clave !== "socio").map((c) => (c.clave === "grupo" ? { ...c, titulo: "Empresas del mismo socio" } : c));
+
 function ListaDuenos({ inicial }: { inicial: InicialPatrones }) {
   const lista = useListaEnUrl("duenos", inicial);
+  const ficha = useFicha();
   // El filtro por RUC (de la entidad o de una de las empresas) es de la vista: no viaja a la URL.
   const [ruc, setRuc] = useState(inicial.ruc ?? "");
   const rucValido = /^20\d{9}$/.test(ruc.trim()) ? ruc.trim() : undefined;
@@ -914,7 +972,7 @@ function ListaDuenos({ inicial }: { inicial: InicialPatrones }) {
                 ]}
               />
               <ZonaLista total={d.total} page={pag.page} cargando={carga.cargando} nombre="grupos" onPagina={pag.irAPagina} vacio="No hay grupos con este patrón para ese filtro.">
-                {filas.length > 0 ? <Tabla columnas={COLUMNAS_DUENOS} filas={filas.map(filaDueno)} etiqueta="Socios que ganan en una entidad con varias empresas" /> : null}
+                {filas.length > 0 ? <TablaLista clave="duenos" columnas={ficha?.vista === "entidad" ? COLUMNAS_DUENOS_ENTIDAD : COLUMNAS_DUENOS} filas={filas.map((p, i) => filaDueno(p, i, ficha?.vista))} etiqueta="Socios que ganan en una entidad con varias empresas" /> : null}
               </ZonaLista>
             </div>
           );
@@ -924,7 +982,7 @@ function ListaDuenos({ inicial }: { inicial: InicialPatrones }) {
   );
 }
 
-function filaDueno(p: PatronDueno, i: number): Fila {
+function filaDueno(p: PatronDueno, i: number, vista?: VistaFicha): Fila {
   const anios = periodo(p.desde, p.hasta);
   const empresas = p.empresas ?? [];
   return {
@@ -933,7 +991,22 @@ function filaDueno(p: PatronDueno, i: number): Fila {
     enlaces: true,
     textos: { periodo: anios },
     celdas: {
-      grupo: (
+      // En la ficha de la entidad (la misma en todas las filas): quiénes, las empresas del socio, y el socio debajo.
+      grupo: vista === "entidad" ? (
+        <CeldaPrincipal
+          titulo={
+            <>
+              {empresas.map((e, k) => (
+                <span key={e.ruc}>
+                  {k > 0 ? ", " : ""}
+                  <EnlaceEmpresa ruc={e.ruc} nombre={e.nombre} />
+                </span>
+              ))}
+            </>
+          }
+          meta={[<Dato key="s" tipo="personas" nombre="Socio en común">{p.socios?.[0]?.nombre ?? "Socio sin nombre publicado"}</Dato>]}
+        />
+      ) : (
         <CeldaPrincipal
           dosLineas
           titulo={<EnlaceEntidad ruc={p.entidadRuc} nombre={p.entidad} />}
@@ -1012,12 +1085,17 @@ const COLUMNAS_GRUPOS: Columna[] = [
 
 function ListaGrupos({ inicial }: { inicial: InicialPatrones }) {
   const lista = useListaEnUrl("grupos", inicial);
+  const ficha = useFicha();
   const [ruc, setRuc] = useState(inicial.ruc ?? "");
   const rucValido = /^20\d{9}$/.test(ruc.trim()) ? ruc.trim() : undefined;
   const [graves, setGraves] = useState(false);
-  const filtrada = !!rucValido || graves;
-  const pag = usePaginaConFiltro(filtrada ? `${rucValido ?? ""}|${graves ? 1 : 0}` : "", lista);
-  const carga = usePoder<PatronesGrupos>(rutaGrupos(pag.page, rucValido, graves));
+  // El buscador de la ficha: el nombre de una empresa del grupo (la API no busca personas).
+  const [q, setQ] = useState("");
+  const consulta = ficha && q.trim().length >= 3 ? q.trim() : undefined;
+  const filtrada = !!rucValido || graves || !!consulta;
+  const pag = usePaginaConFiltro(filtrada ? `${rucValido ?? ""}|${graves ? 1 : 0}|${consulta ?? ""}` : "", lista);
+  const carga = usePoder<PatronesGrupos>(rutaGrupos(pag.page, rucValido, graves, consulta));
+  const columnasFicha = ficha?.vista === "empresa" ? COLUMNAS_GRUPOS_EMPRESA : COLUMNAS_GRUPOS_ENTIDAD;
   return (
     <div className="space-y-4">
       <CabeceraPestana
@@ -1048,25 +1126,70 @@ function ListaGrupos({ inicial }: { inicial: InicialPatrones }) {
           className="mt-1 h-11 w-full rounded-xl border border-line bg-paperSoft px-3 text-dato text-ink placeholder:text-mute focus:border-granate focus:bg-paper focus:outline-none focus:ring-2 focus:ring-granate/20"
         />
       </label>
-      <label className="flex min-h-11 w-fit cursor-pointer items-center gap-2.5 text-dato text-ink">
-        <input type="checkbox" checked={graves} onChange={(e) => setGraves(e.target.checked)} className="size-5 rounded border-line accent-granate" />
-        Sólo los graves: órdenes correlativas u objeto repartido, con muchas al borde del tope
-      </label>
-      <EstadoCarga carga={carga} columnas={COLUMNAS_GRUPOS}>
+      <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:gap-x-5">
+        <BuscarEnFicha
+          valor={q}
+          onBuscar={setQ}
+          placeholder="Buscar una empresa del grupo…"
+          cargando={carga.cargando && !!consulta}
+        />
+        <label className="flex min-h-11 w-fit cursor-pointer items-center gap-2.5 text-dato text-ink">
+          <input type="checkbox" checked={graves} onChange={(e) => setGraves(e.target.checked)} className="size-5 rounded border-line accent-granate" />
+          {ficha ? "Sólo los graves" : "Sólo los graves: órdenes correlativas u objeto repartido, con muchas al borde del tope"}
+          {ficha ? (
+            <Ayuda titulo="¿Cuáles son graves?">
+              <span className="block">Los de órdenes con números correlativos o el mismo objeto repartido entre sus integrantes, con muchas órdenes al borde del tope.</span>
+            </Ayuda>
+          ) : null}
+        </label>
+      </div>
+      <EstadoCarga carga={carga} columnas={ficha ? columnasFicha : COLUMNAS_GRUPOS}>
         {(d) => {
           const filas = d.data ?? [];
-          return (
-            <div className="space-y-4">
-              <Indicadores
-                franja
-                items={[
+          const r = d.resumen;
+          // En una ficha, lo que suman sus grupos (no el umbral de la lista del país): cuántos, cuánto, cuántos graves y
+          // cuántos con órdenes correlativas.
+          const cifras: Indicador[] =
+            ficha && r && d.total > 0
+              ? [
+                  {
+                    valor: numero(d.total),
+                    etiqueta: d.total === 1 ? (ficha.vista === "empresa" ? "grupo en que está" : "grupo de proveedores") : ficha.vista === "empresa" ? "grupos en que está" : "grupos de proveedores",
+                    contexto: consulta ? `con «${consulta}»` : "unidos por un socio o por sus apellidos",
+                    icono: <UsersRound size={15} strokeWidth={1.9} aria-hidden />,
+                    parte: null,
+                  },
+                  { valor: solesCompacto(r.monto), etiqueta: "en órdenes de sus integrantes", contexto: "cada grupo sumado como un solo proveedor", parte: null },
+                  { valor: numero(r.altas), etiqueta: "de señal alta", contexto: `de ${numero(d.total)}`, tono: r.altas ? "alta" : "neutro", parte: r.altas / d.total },
+                  { valor: numero(r.conCorrelativas), etiqueta: "con órdenes correlativas", contexto: `de ${numero(d.total)}, el mismo día`, parte: r.conCorrelativas / d.total },
+                ]
+              : [
                   { valor: numero(d.total), etiqueta: rucValido ? "grupos con ese RUC" : graves ? "grupos graves" : "grupos de entidad", contexto: "de 2 a 25 integrantes, S/ 50 mil o más", icono: <UsersRound size={15} strokeWidth={1.9} aria-hidden />, parte: null },
                   { valor: "8 UIT", etiqueta: "el tope de una orden", contexto: "por encima hay que convocar un proceso", parte: null },
                   { valor: "3", etiqueta: "o menos entre dos números de orden", contexto: "cuenta como correlativa", parte: null },
-                ]}
-              />
-              <ZonaLista total={d.total} page={pag.page} cargando={carga.cargando} nombre="grupos" onPagina={pag.irAPagina} vacio="No hay grupos para ese filtro.">
-                {filas.length > 0 ? <Tabla columnas={COLUMNAS_GRUPOS} filas={filas.map(filaGrupo)} etiqueta="Grupos de proveedores por dueño y familia en una entidad" /> : null}
+                ];
+          return (
+            <div className="space-y-4">
+              <Indicadores franja items={cifras} />
+              <ZonaLista
+                total={d.total}
+                page={pag.page}
+                cargando={carga.cargando}
+                nombre="grupos"
+                onPagina={pag.irAPagina}
+                vacio={consulta ? `Ningún grupo con una empresa que se llame «${consulta}».` : "No hay grupos para ese filtro."}
+              >
+                {filas.length === 0 ? null : ficha ? (
+                  <Tabla
+                    columnas={columnasFicha}
+                    filas={filas.map((p, i) => filaGrupoEnFicha(p, i, ficha))}
+                    etiqueta={ficha.vista === "empresa" ? "Grupos de proveedores en que está la empresa" : "Grupos de proveedores por dueño y familia en esta entidad"}
+                    medida="contenedor"
+                    densidad="compacta"
+                  />
+                ) : (
+                  <Tabla columnas={COLUMNAS_GRUPOS} filas={filas.map(filaGrupo)} etiqueta="Grupos de proveedores por dueño y familia en una entidad" />
+                )}
               </ZonaLista>
             </div>
           );
@@ -1144,14 +1267,20 @@ const COLUMNAS_REPETIDAS: Columna[] = [
   { clave: "estado", titulo: "Devengadas", ancho: "7.5rem", alinear: "der", desde: "lg", apilar: "con-rotulo" },
 ];
 
+/** En la ficha de una entidad la fila nombra al proveedor y lo que se compró (la entidad es la de la ficha). */
+const COLUMNAS_REPETIDAS_ENTIDAD = COLUMNAS_REPETIDAS.map((c) => (c.clave === "compra" ? { ...c, titulo: "Proveedor y lo que se compró" } : c));
+
 function ListaRepetidas({ inicial }: { inicial: InicialPatrones }) {
   const lista = useListaEnUrl("repetidas", inicial);
+  const ficha = useFicha();
   const [ruc, setRuc] = useState(inicial.ruc ?? "");
   const rucValido = /^20\d{9}$/.test(ruc.trim()) ? ruc.trim() : undefined;
   const [graves, setGraves] = useState(false);
-  const filtrada = !!rucValido || graves;
-  const pag = usePaginaConFiltro(filtrada ? `${rucValido ?? ""}|${graves ? 1 : 0}` : "", lista);
-  const carga = usePoder<PatronesRepetidas>(rutaRepetidas(pag.page, rucValido, graves));
+  const [q, setQ] = useState("");
+  const consulta = ficha && q.trim().length >= 3 ? q.trim() : undefined;
+  const filtrada = !!rucValido || graves || !!consulta;
+  const pag = usePaginaConFiltro(filtrada ? `${rucValido ?? ""}|${graves ? 1 : 0}|${consulta ?? ""}` : "", lista);
+  const carga = usePoder<PatronesRepetidas>(rutaRepetidas(pag.page, rucValido, graves, consulta));
   return (
     <div className="space-y-4">
       <CabeceraPestana
@@ -1183,10 +1312,13 @@ function ListaRepetidas({ inicial }: { inicial: InicialPatrones }) {
           className="mt-1 h-11 w-full rounded-xl border border-line bg-paperSoft px-3 text-dato text-ink placeholder:text-mute focus:border-granate focus:bg-paper focus:outline-none focus:ring-2 focus:ring-granate/20"
         />
       </label>
-      <label className="flex min-h-11 w-fit cursor-pointer items-center gap-2.5 text-dato text-ink">
-        <input type="checkbox" checked={graves} onChange={(e) => setGraves(e.target.checked)} className="size-5 rounded border-line accent-granate" />
-        Sólo los graves: juntas pasan el tope y cada una queda al borde
-      </label>
+      <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:gap-x-5">
+        <BuscarEnFicha valor={q} onBuscar={setQ} placeholder="Buscar por lo que se compró o la empresa…" cargando={carga.cargando && !!consulta} />
+        <label className="flex min-h-11 w-fit cursor-pointer items-center gap-2.5 text-dato text-ink">
+          <input type="checkbox" checked={graves} onChange={(e) => setGraves(e.target.checked)} className="size-5 rounded border-line accent-granate" />
+          Sólo los graves: juntas pasan el tope y cada una queda al borde
+        </label>
+      </div>
       <EstadoCarga carga={carga} columnas={COLUMNAS_REPETIDAS}>
         {(d) => {
           const filas = d.data ?? [];
@@ -1201,7 +1333,14 @@ function ListaRepetidas({ inicial }: { inicial: InicialPatrones }) {
                 ]}
               />
               <ZonaLista total={d.total} page={pag.page} cargando={carga.cargando} nombre="compras" onPagina={pag.irAPagina} vacio="No hay compras repetidas para ese filtro.">
-                {filas.length > 0 ? <Tabla columnas={COLUMNAS_REPETIDAS} filas={filas.map(filaRepetida)} etiqueta="La misma compra repetida en pocas semanas" /> : null}
+                {filas.length > 0 ? (
+                  <TablaLista
+                    clave="repetidas"
+                    columnas={ficha?.vista === "entidad" ? COLUMNAS_REPETIDAS_ENTIDAD : COLUMNAS_REPETIDAS}
+                    filas={filas.map((p, i) => filaRepetida(p, i, ficha?.vista))}
+                    etiqueta="La misma compra repetida en pocas semanas"
+                  />
+                ) : null}
               </ZonaLista>
             </div>
           );
@@ -1211,14 +1350,20 @@ function ListaRepetidas({ inicial }: { inicial: InicialPatrones }) {
   );
 }
 
-function filaRepetida(p: PatronRepetida, i: number): Fila {
+function filaRepetida(p: PatronRepetida, i: number, vista?: VistaFicha): Fila {
   const pasa = p.total > p.tope;
+  const proveedor = esRucEnClaro(p.ruc) && !esRucPersonaNatural(p.ruc) ? <EnlaceEmpresa ruc={p.ruc} nombre={p.nombre} /> : <span>{p.nombre ? tituloNatural(p.nombre) : "Persona natural"}</span>;
   return {
     id: `repetida-${i}`,
     detalle: detalleRepetida(p),
     enlaces: true,
     celdas: {
-      compra: (
+      compra: vista === "entidad" ? (
+        <CeldaPrincipal
+          titulo={proveedor}
+          meta={p.objeto ? [<Dato key="o" tipo="servicio" nombre="Lo que se compró">{oracion(p.objeto.toLowerCase())}</Dato>] : undefined}
+        />
+      ) : (
         <CeldaPrincipal
           dosLineas
           titulo={<EnlaceEntidad ruc={p.entidadRuc} nombre={p.entidad} />}
@@ -1322,7 +1467,7 @@ function ListaAutoridadExsocio({ inicial }: { inicial: InicialPatrones }) {
                 ]}
               />
               <ZonaLista total={d.total} page={pag.page} cargando={carga.cargando} nombre="casos" onPagina={pag.irAPagina} vacio="No hay casos para ese filtro.">
-                {filas.length > 0 ? <Tabla columnas={COLUMNAS_AUTORIDAD_EXSOCIO} filas={filas.map(filaAutoridadExsocio)} etiqueta="Autoridades que dejaron de figurar en una empresa que le vendió a su entidad" /> : null}
+                {filas.length > 0 ? <TablaLista clave="autoridad" columnas={COLUMNAS_AUTORIDAD_EXSOCIO} filas={filas.map(filaAutoridadExsocio)} etiqueta="Autoridades que dejaron de figurar en una empresa que le vendió a su entidad" /> : null}
               </ZonaLista>
             </div>
           );
@@ -1456,7 +1601,7 @@ function ListaCierres({ inicial }: { inicial: InicialPatrones }) {
                 ]}
               />
               <ZonaLista total={d.total} page={pag.page} cargando={carga.cargando} nombre="entidades" onPagina={pag.irAPagina} vacio="No hay entidades para ese filtro.">
-                {filas.length > 0 ? <Tabla columnas={COLUMNAS_CIERRES} filas={filas.map(filaCierre)} etiqueta="Gobiernos con una ola de personas nuevas al cierre de la gestión" /> : null}
+                {filas.length > 0 ? <TablaLista clave="cierres" columnas={COLUMNAS_CIERRES} filas={filas.map(filaCierre)} etiqueta="Gobiernos con una ola de personas nuevas al cierre de la gestión" /> : null}
               </ZonaLista>
             </div>
           );
@@ -1534,7 +1679,7 @@ function ListaComprasFamilia({ inicial }: { inicial: InicialPatrones }) {
                 ]}
               />
               <ZonaLista total={d.total} page={pag.page} cargando={carga.cargando} nombre="casos" onPagina={pag.irAPagina} vacio="No hay casos para ese filtro.">
-                {filas.length > 0 ? <Tabla columnas={COLUMNAS_COMPRAS_FAMILIA} filas={filas.map(filaCompraFamilia)} etiqueta="Personas con puesto de compras y un familiar con órdenes de su entidad" /> : null}
+                {filas.length > 0 ? <TablaLista clave="compras" columnas={COLUMNAS_COMPRAS_FAMILIA} filas={filas.map(filaCompraFamilia)} etiqueta="Personas con puesto de compras y un familiar con órdenes de su entidad" /> : null}
               </ZonaLista>
             </div>
           );
@@ -1600,7 +1745,7 @@ function ListaDoble({ inicial }: { inicial: InicialPatrones }) {
                 ]}
               />
               <ZonaLista total={d.total} page={pag.page} cargando={carga.cargando} nombre="casos" onPagina={pag.irAPagina} vacio="No hay casos para ese filtro.">
-                {filas.length > 0 ? <Tabla columnas={COLUMNAS_DOBLE} filas={filas.map(filaDoble)} etiqueta="Personas en planilla con órdenes de servicio de otra entidad" /> : null}
+                {filas.length > 0 ? <TablaLista clave="doble" columnas={COLUMNAS_DOBLE} filas={filas.map(filaDoble)} etiqueta="Personas en planilla con órdenes de servicio de otra entidad" /> : null}
               </ZonaLista>
             </div>
           );
@@ -1670,12 +1815,15 @@ const COLUMNAS_RECIEN: Columna[] = [
 
 function ListaRecien({ inicial }: { inicial: InicialPatrones }) {
   const lista = useListaEnUrl("recien", inicial);
+  const ficha = useFicha();
   const [ruc, setRuc] = useState(inicial.ruc ?? "");
   const rucValido = /^20\d{9}$/.test(ruc.trim()) ? ruc.trim() : undefined;
   const [graves, setGraves] = useState(false);
-  const filtrada = !!rucValido || graves;
-  const pag = usePaginaConFiltro(filtrada ? `${rucValido ?? ""}|${graves ? 1 : 0}` : "", lista);
-  const carga = usePoder<PatronesRecien>(rutaRecien(pag.page, rucValido, graves));
+  const [q, setQ] = useState("");
+  const consulta = ficha && q.trim().length >= 3 ? q.trim() : undefined;
+  const filtrada = !!rucValido || graves || !!consulta;
+  const pag = usePaginaConFiltro(filtrada ? `${rucValido ?? ""}|${graves ? 1 : 0}|${consulta ?? ""}` : "", lista);
+  const carga = usePoder<PatronesRecien>(rutaRecien(pag.page, rucValido, graves, consulta));
   return (
     <div className="space-y-4">
       <CabeceraPestana
@@ -1705,10 +1853,13 @@ function ListaRecien({ inicial }: { inicial: InicialPatrones }) {
           className="mt-1 h-11 w-full rounded-xl border border-line bg-paperSoft px-3 text-dato text-ink placeholder:text-mute focus:border-granate focus:bg-paper focus:outline-none focus:ring-2 focus:ring-granate/20"
         />
       </label>
-      <label className="flex min-h-11 w-fit cursor-pointer items-center gap-2.5 text-dato text-ink">
-        <input type="checkbox" checked={graves} onChange={(e) => setGraves(e.target.checked)} className="size-5 rounded border-line accent-granate" />
-        Sólo las graves: a 30 días o menos, S/ 100 mil o más y casi todo lo que vende es a esa entidad
-      </label>
+      <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:gap-x-5">
+        <BuscarEnFicha valor={q} onBuscar={setQ} placeholder="Buscar una empresa por su nombre…" cargando={carga.cargando && !!consulta} />
+        <label className="flex min-h-11 w-fit cursor-pointer items-center gap-2.5 text-dato text-ink">
+          <input type="checkbox" checked={graves} onChange={(e) => setGraves(e.target.checked)} className="size-5 rounded border-line accent-granate" />
+          Sólo las graves: a 30 días o menos, S/ 100 mil o más y casi todo lo que vende es a esa entidad
+        </label>
+      </div>
       <EstadoCarga carga={carga} columnas={COLUMNAS_RECIEN}>
         {(d) => {
           const filas = d.data ?? [];
@@ -1723,7 +1874,7 @@ function ListaRecien({ inicial }: { inicial: InicialPatrones }) {
                 ]}
               />
               <ZonaLista total={d.total} page={pag.page} cargando={carga.cargando} nombre="casos" onPagina={pag.irAPagina} vacio="No hay casos para ese filtro.">
-                {filas.length > 0 ? <Tabla columnas={COLUMNAS_RECIEN} filas={filas.map(filaRecien)} etiqueta="Empresas recién creadas que reciben órdenes directas" /> : null}
+                {filas.length > 0 ? <TablaLista clave="recien" columnas={COLUMNAS_RECIEN} filas={filas.map(filaRecien)} etiqueta="Empresas recién creadas que reciben órdenes directas" /> : null}
               </ZonaLista>
             </div>
           );
@@ -1846,7 +1997,7 @@ function ListaInhabilitadas({ inicial }: { inicial: InicialPatrones }) {
                 ]}
               />
               <ZonaLista total={d.total} page={pag.page} cargando={carga.cargando} nombre="casos" onPagina={pag.irAPagina} vacio="No hay casos con este patrón para ese filtro.">
-                {filas.length > 0 ? <Tabla columnas={COLUMNAS_INHABILITADAS} filas={filas.map(filaInhabilitada)} etiqueta="Empresas que ganan mientras otra del mismo socio está inhabilitada" /> : null}
+                {filas.length > 0 ? <TablaLista clave="inhabilitadas" columnas={COLUMNAS_INHABILITADAS} filas={filas.map(filaInhabilitada)} etiqueta="Empresas que ganan mientras otra del mismo socio está inhabilitada" /> : null}
               </ZonaLista>
             </div>
           );
@@ -2009,7 +2160,7 @@ function ListaControl({ inicial }: { inicial: InicialPatrones }) {
                 ]}
               />
               <ZonaLista total={d.total} page={pag.page} cargando={carga.cargando} nombre="casos" onPagina={pag.irAPagina} vacio="No hay casos con este patrón para ese filtro.">
-                {filas.length > 0 ? <Tabla columnas={COLUMNAS_CONTROL} filas={filas.map(filaControl)} etiqueta="Empresas que ganan con un socio comprendido en un informe de control" /> : null}
+                {filas.length > 0 ? <TablaLista clave="control" columnas={COLUMNAS_CONTROL} filas={filas.map(filaControl)} etiqueta="Empresas que ganan con un socio comprendido en un informe de control" /> : null}
               </ZonaLista>
             </div>
           );
@@ -2191,7 +2342,7 @@ function ListaObservados({ inicial }: { inicial: InicialPatrones }) {
                 ]}
               />
               <ZonaLista total={d.total} page={pag.page} cargando={carga.cargando} nombre="casos" onPagina={pag.irAPagina} vacio="No hay casos con este patrón para ese filtro.">
-                {filas.length > 0 ? <Tabla columnas={COLUMNAS_OBSERVADOS} filas={filas.map(filaObservado)} etiqueta="Proveedores con procesos observados por la Contraloría" /> : null}
+                {filas.length > 0 ? <TablaLista clave="observados" columnas={COLUMNAS_OBSERVADOS} filas={filas.map(filaObservado)} etiqueta="Proveedores con procesos observados por la Contraloría" /> : null}
               </ZonaLista>
             </div>
           );
@@ -2334,7 +2485,7 @@ function ListaRenovaciones({ inicial }: { inicial: InicialPatrones }) {
                 ]}
               />
               <ZonaLista total={d.total} page={lista.page} cargando={carga.cargando} nombre="renovaciones" onPagina={lista.irAPagina} vacio="Todavía no hay renovaciones con este patrón.">
-                {filas.length > 0 ? <Tabla columnas={COLUMNAS_RENOVACIONES} filas={filas.map(filaRenovacion)} etiqueta="Servicios renovados con un costo al mes mayor" /> : null}
+                {filas.length > 0 ? <TablaLista clave="renovaciones" columnas={COLUMNAS_RENOVACIONES} filas={filas.map(filaRenovacion)} etiqueta="Servicios renovados con un costo al mes mayor" /> : null}
               </ZonaLista>
               <Nota>
                 Una subida puede tener explicación: más sedes, más personal, más alcance. Antes de afirmar algo, abre los dos
@@ -2506,7 +2657,7 @@ function ListaObservacion({ inicial }: { inicial: InicialPatrones }) {
                   ) : undefined
                 }
               >
-                {filas.length > 0 ? <Tabla columnas={COLUMNAS_OBSERVACION} filas={filas.map(filaObservacion)} etiqueta="Contratos con un indicador en observación" /> : null}
+                {filas.length > 0 ? <TablaLista clave="observacion" columnas={COLUMNAS_OBSERVACION} filas={filas.map(filaObservacion)} etiqueta="Contratos con un indicador en observación" /> : null}
               </ZonaLista>
               <Nota>
                 Cada uno tiene una explicación sencilla posible: una subsanación, un familiar, el mismo estudio contable. Antes de

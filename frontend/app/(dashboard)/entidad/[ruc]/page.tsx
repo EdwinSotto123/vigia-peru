@@ -436,7 +436,8 @@ export default async function EntidadProfile({
       ),
     },
     {
-      // Quiénes la visitan, a qué oficinas y qué ganaron después (fase 2.3 del plan del 2026-10-27).
+      // Quiénes la visitan, a qué oficinas y qué ganaron después (fase 2.3 del plan del 2026-10-27). Desde el 2026-11-18,
+      // un resumen y una subpestaña por lista (`?vv=`), cada lista entera y paginada en el servidor con sus filtros en la URL.
       clave: "visitas",
       icono: <DoorOpen size={15} aria-hidden />,
       etiqueta: "Visitas",
@@ -450,7 +451,7 @@ export default async function EntidadProfile({
         <div className="space-y-4">
           <CabeceraPestana ayuda={<AyudaVisitas />}>Quiénes la visitan, a qué oficinas y si después le ganaron un contrato o una orden.</CabeceraPestana>
           <Suspense fallback={<Cargando texto="Leyendo sus visitas…" />}>
-            <VisitasEntidad ruc={e.ruc} />
+            <VisitasEntidad ruc={e.ruc} sp={searchParams} />
           </Suspense>
         </div>
       ),
