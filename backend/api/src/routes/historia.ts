@@ -314,17 +314,21 @@ async function historiaEntidad(ruc: string): Promise<Historia | null> {
         ORDER BY contrato_monto DESC NULLS LAST LIMIT 300`, [ruc]),
     filas<{ ocid: string; ruc: string; proveedor: string | null; objeto: string | null; tipo: string | null; fecha: string; monto: number | null; severidad: string; n_alta: number; tipos: string[]; cruces: { tipo: string; severidad: string; n?: number }[] | null; codigo: string | null }>(
       "banderas",
-      `SELECT b.*, COALESCE(n.nomenclatura, b.convocatoria) AS codigo
-         FROM (SELECT * FROM (
-                 SELECT ocid, ruc, proveedor, objeto, tipo_contratacion AS tipo, to_char(fecha_buena_pro, 'YYYY-MM-DD') AS fecha, monto::float AS monto,
-                        severidad, n_alta, tipos, cruces, codigo AS convocatoria, fecha_buena_pro,
-                        row_number() OVER (PARTITION BY date_part('year', fecha_buena_pro)
-                                           ORDER BY (severidad = 'alta') DESC, n_alta DESC, monto DESC NULLS LAST) AS rn
-                   FROM casos_cruce WHERE entidad_ruc = $1 AND severidad IN ('alta', 'media') AND fecha_buena_pro IS NOT NULL) x
-                WHERE rn <= 14) b
+      // En dos pasos (migración 418): el orden por año sale del índice (entidad, fecha) INCLUDE (severidad, n_alta, monto, ocid,
+      // ruc) y del heap sólo se leen las 14 de cada año; antes se numeraban todas las filas anchas de la entidad (8 690 en la
+      // más grande, con su JSON de cruces). Desempate completo (ocid, ruc): un contrato aparece una vez por integrante del
+      // consorcio y sin él el orden cambiaba entre dos consultas.
+      `WITH r AS (
+         SELECT ocid, ruc, row_number() OVER (PARTITION BY date_part('year', fecha_buena_pro)
+                                              ORDER BY (severidad = 'alta') DESC, n_alta DESC, monto DESC NULLS LAST, ocid, ruc) AS rn
+           FROM casos_cruce WHERE entidad_ruc = $1 AND severidad IN ('alta', 'media') AND fecha_buena_pro IS NOT NULL)
+       SELECT b.*, COALESCE(n.nomenclatura, b.convocatoria) AS codigo
+         FROM (SELECT k.ocid, k.ruc, k.proveedor, k.objeto, k.tipo_contratacion AS tipo, to_char(k.fecha_buena_pro, 'YYYY-MM-DD') AS fecha,
+                      k.monto::float AS monto, k.severidad, k.n_alta, k.tipos, k.cruces, k.codigo AS convocatoria, k.fecha_buena_pro, r.rn
+                 FROM r JOIN casos_cruce k ON k.ocid = r.ocid AND k.ruc = r.ruc WHERE r.rn <= 14) b
          LEFT JOIN LATERAL (SELECT a.nomenclatura FROM conosce_adjudicaciones a
-                             WHERE a.codigo_convocatoria = b.convocatoria AND a.nomenclatura IS NOT NULL LIMIT 1) n ON true
-        ORDER BY b.fecha_buena_pro DESC`, [ruc]),
+                             WHERE a.codigo_convocatoria = b.convocatoria AND a.nomenclatura IS NOT NULL ORDER BY a.nomenclatura LIMIT 1) n ON true
+        ORDER BY b.fecha_buena_pro DESC, b.ocid, b.ruc`, [ruc]),
     filas<{ mes: string; n: number; altas: number }>(
       "banderas por mes",
       `SELECT to_char(date_trunc('month', fecha_buena_pro), 'YYYY-MM') AS mes, count(*)::int AS n,
@@ -786,17 +790,18 @@ async function historiaEmpresa(ruc: string): Promise<(Historia & { registro: unk
         GROUP BY 1, 2 ORDER BY 1`, [ruc]),
     filas<{ ocid: string; entidad: string | null; entidad_ruc: string | null; objeto: string | null; tipo: string | null; fecha: string; monto: number | null; severidad: string; n_alta: number; cruces: { tipo: string; severidad: string; n?: number }[] | null; codigo: string | null }>(
       "banderas",
-      `SELECT b.*, COALESCE(n.nomenclatura, b.convocatoria) AS codigo
-         FROM (SELECT * FROM (
-                 SELECT ocid, entidad, entidad_ruc, objeto, tipo_contratacion AS tipo, to_char(fecha_buena_pro, 'YYYY-MM-DD') AS fecha, monto::float AS monto,
-                        severidad, n_alta, cruces, codigo AS convocatoria, fecha_buena_pro,
-                        row_number() OVER (PARTITION BY date_part('year', fecha_buena_pro)
-                                           ORDER BY (severidad = 'alta') DESC, n_alta DESC, monto DESC NULLS LAST) AS rn
-                   FROM casos_cruce WHERE ruc = $1 AND severidad IN ('alta', 'media') AND fecha_buena_pro IS NOT NULL) x
-                WHERE rn <= 14) b
+      // En dos pasos, como la de la entidad (migración 418: índice (ruc, fecha) INCLUDE (severidad, n_alta, monto, ocid)).
+      `WITH r AS (
+         SELECT ocid, row_number() OVER (PARTITION BY date_part('year', fecha_buena_pro)
+                                         ORDER BY (severidad = 'alta') DESC, n_alta DESC, monto DESC NULLS LAST, ocid) AS rn
+           FROM casos_cruce WHERE ruc = $1 AND severidad IN ('alta', 'media') AND fecha_buena_pro IS NOT NULL)
+       SELECT b.*, COALESCE(n.nomenclatura, b.convocatoria) AS codigo
+         FROM (SELECT k.ocid, k.entidad, k.entidad_ruc, k.objeto, k.tipo_contratacion AS tipo, to_char(k.fecha_buena_pro, 'YYYY-MM-DD') AS fecha,
+                      k.monto::float AS monto, k.severidad, k.n_alta, k.cruces, k.codigo AS convocatoria, k.fecha_buena_pro, r.rn
+                 FROM r JOIN casos_cruce k ON k.ocid = r.ocid AND k.ruc = $1 WHERE r.rn <= 14) b
          LEFT JOIN LATERAL (SELECT a.nomenclatura FROM conosce_adjudicaciones a
-                             WHERE a.codigo_convocatoria = b.convocatoria AND a.nomenclatura IS NOT NULL LIMIT 1) n ON true
-        ORDER BY b.fecha_buena_pro DESC`, [ruc]),
+                             WHERE a.codigo_convocatoria = b.convocatoria AND a.nomenclatura IS NOT NULL ORDER BY a.nomenclatura LIMIT 1) n ON true
+        ORDER BY b.fecha_buena_pro DESC, b.ocid`, [ruc]),
     filas<{ mes: string; n: number; altas: number }>(
       "banderas por mes",
       `SELECT to_char(date_trunc('month', fecha_buena_pro), 'YYYY-MM') AS mes, count(*)::int AS n,
