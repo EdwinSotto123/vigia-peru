@@ -61,7 +61,7 @@ export const fichaEmpresa = definir({
               papel: x.rol === "sancionador" ? "el Tribunal ordenó abrirle un sancionador" : x.leQuitaron ? "tenía la buena pro y se la quitaron" : "tenía la buena pro",
               infraccion: x.infraccion?.length ? x.infraccion : undefined,
               entidad: x.entidad ?? undefined, ocid: x.ocid ?? undefined, contrato: x.ocid ? enlaces(cx.env).contrato(x.ocid) : undefined,
-              fuente: x.enlace,
+              enlace_resolucion: x.enlace,
             })),
             nota: "Resoluciones de apelaciones leídas por Vigía, con el nombre comprobado en el texto. Un sancionador ordenado " +
               "es la orden de investigar (documentación falsa o información inexacta), no la sanción.",

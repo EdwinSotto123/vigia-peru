@@ -92,8 +92,8 @@ const CASOS: Caso[] = [
   // (Resolución 9747-2026-TCP-S1). Sin nombres leídos: sólo la resolución, su papel y la fuente.
   { h: fichaEmpresa as never, args: { ruc: "20408114943" },
     espera: (r) => {
-      const t = r.tribunal as { se_la_quito_el_tribunal?: number; resoluciones?: { papel?: string; fuente?: string }[] } | undefined;
-      return t && (t.se_la_quito_el_tribunal ?? 0) >= 1 && (t.resoluciones ?? []).some((x) => /se la quitaron/.test(x.papel ?? "") && /^https:/.test(x.fuente ?? ""))
+      const t = r.tribunal as { se_la_quito_el_tribunal?: number; resoluciones?: { papel?: string; enlace_resolucion?: string }[] } | undefined;
+      return t && (t.se_la_quito_el_tribunal ?? 0) >= 1 && (t.resoluciones ?? []).some((x) => /se la quitaron/.test(x.papel ?? "") && /^https:/.test(x.enlace_resolucion ?? ""))
         ? null : "sin «tribunal» con la buena pro revocada";
     } },
   // Cuán confiable es cada señal (migraciones 401, 404, 419, 421): con las dos verdades y sin la circular.
@@ -340,6 +340,8 @@ for (const c of CASOS) {
     // (un número JSON: «"objeto":13990000») ni la cola de un código con letras («2023CPOL42000030», un informe de control).
     const sinFalsos = texto.replace(/"(ocid|ejemplos_ocid|enlace[a-z_]*|url[A-Za-z_]*)":\s*("[^"]*"|\[[^\]]*\])/g, "").replace(/:\s*-?\d+(\.\d+)?(?=[,}\]])/g, ":0");
     const dni = /(?<![\d.,A-Za-z])\d{8}(?![\d.,])/.test(sinFalsos);
+    // VER8=1: dónde está ese número, para revisarlo (suele ser el número de un archivo en un enlace de gob.pe).
+    if (dni && process.env.VER8) console.log("   8 dígitos en:", (sinFalsos.match(/.{0,60}(?<![\d.,A-Za-z])\d{8}(?![\d.,]).{0,20}/g) ?? []).slice(0, 3));
     const ruc10 = /(?<!\d)10\d{9}(?!\d)/.test(texto);
     if (mal || ruc10) fallos++;
     console.log(`${mal || ruc10 ? "FALLA" : "ok   "} ${c.h.nombre} ${JSON.stringify(c.args)} ${Date.now() - t0} ms, ${texto.length} bytes` +
