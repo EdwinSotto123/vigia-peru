@@ -13,6 +13,8 @@ import {
   EmptyState,
   ErrorBanner,
   FilterChips,
+  PanelPestana,
+  Pestanas,
   SkeletonPanel,
   StatCard,
   StatGrid,
@@ -21,6 +23,7 @@ import {
   plural,
   type Columna,
   type Tone,
+  usePestana,
 } from "@/components/admin/ui";
 import { adminFetch } from "@/lib/admin";
 import { refrescarAdmin, useAdmin } from "@/lib/useAdmin";
@@ -80,6 +83,47 @@ interface Cola {
 }
 type Veredicto = "acierta" | "no_acierta" | "dudoso";
 
+/** Una bandera frente a lo que observó la Contraloría (migración 401). */
+interface SenalValidada {
+  tipo: string;
+  etiqueta: string;
+  procesos: number;
+  observados: number;
+  esperados: number;
+  oe: number | null;
+  oeMin: number | null;
+  oeMax: number | null;
+  enObservacion: boolean;
+  lectura: "pocos_casos" | "mas_de_lo_esperado" | "menos_de_lo_esperado" | "como_lo_esperado";
+}
+interface Validacion {
+  corrida: {
+    desde: string;
+    hasta: string;
+    universo: number;
+    observados: number;
+    entidades: number;
+    aucPuntaje: number | null;
+    aucMonto: number | null;
+    top1Puntaje: number | null;
+    top1Monto: number | null;
+    top1Azar: number | null;
+  } | null;
+  senales: SenalValidada[];
+}
+
+const PESTANAS = ["revision", "validacion"] as const;
+type Pestana = (typeof PESTANAS)[number];
+
+const LECTURA: Record<SenalValidada["lectura"], { etiqueta: string; tono: Tone }> = {
+  mas_de_lo_esperado: { etiqueta: "Más de lo esperado", tono: "ok" },
+  como_lo_esperado: { etiqueta: "Como lo esperado", tono: "neutral" },
+  menos_de_lo_esperado: { etiqueta: "Menos de lo esperado", tono: "warn" },
+  pocos_casos: { etiqueta: "Pocos casos", tono: "muted" },
+};
+const decimal = (v: number | null, d = 2) =>
+  v == null ? "Sin dato" : v.toLocaleString("es-PE", { minimumFractionDigits: d, maximumFractionDigits: d });
+
 const VEREDICTOS: { valor: Veredicto; etiqueta: string; icono: React.ReactNode; tono: Tone }[] = [
   { valor: "acierta", etiqueta: "Acierta", icono: <CheckCircle2 size={15} aria-hidden />, tono: "ok" },
   { valor: "no_acierta", etiqueta: "No acierta", icono: <XCircle size={15} aria-hidden />, tono: "danger" },
@@ -126,6 +170,8 @@ function Contenido() {
   const porRevisar = pendientes.reduce((s, x) => s + Math.max(0, (data?.minimo ?? 40) - x.decididos), 0);
   const revisados = (data?.data ?? []).reduce((s, x) => s + x.aciertan + x.noAciertan + x.dudosos, 0);
 
+  const [tab, setTab] = usePestana(PESTANAS);
+
   if (tipo && elegido) return <ColaDeRevision indicador={elegido} minimo={data!.minimo} ver={ver} poner={poner} onCambio={() => mutate()} />;
 
   const columnas: Columna<Indicador>[] = [
@@ -166,31 +212,123 @@ function Contenido() {
 
   return (
     <div className="space-y-5">
-      <ErrorBanner error={error} onReintentar={() => mutate()} />
-      <StatGrid columnas={3}>
-        <StatCard etiqueta="En observación" valor={data ? pendientes.length : null} pista="indicadores que todavía no puntúan" cargando={isLoading} />
-        <StatCard etiqueta="Casos por decidir" valor={data ? porRevisar : null} pista={`hasta ${data?.minimo ?? 40} por indicador`} cargando={isLoading} />
-        <StatCard etiqueta="Revisados" valor={data ? revisados : null} pista="entre todos los indicadores" cargando={isLoading} />
-      </StatGrid>
-      <Card>
-        <ol className="list-decimal space-y-1.5 pl-5 text-meta leading-relaxed text-inkSoft">
-          <li>Elige un indicador y abre cada caso de la muestra: el orden es al azar, para que la precisión valga para todo el indicador.</li>
-          <li>Lee la evidencia en la ficha del contrato y marca <b>Acierta</b> si el hecho es cierto y merece que un investigador lo mire.</li>
-          <li>
-            Marca <b>No acierta</b> si el dato está mal (lectura equivocada, homónimo, fecha) o si el hecho es normal y no dice nada; <b>Dudoso</b> si
-            no se puede saber sin más documentos.
-          </li>
-        </ol>
-      </Card>
-      <DataTable
-        columnas={columnas}
-        filas={data?.data}
-        claveFila={(x) => x.tipo}
-        etiqueta="Indicadores en observación"
-        onFila={(x) => poner({ tipo: x.tipo, ver: null })}
-        cargando={isLoading}
-        vacio={<EmptyState titulo="Sin indicadores en observación" descripcion="Todos los indicadores nuevos ya se midieron." />}
+      <Pestanas<Pestana>
+        etiqueta="Secciones de indicadores"
+        activa={tab}
+        onCambiar={setTab}
+        pestanas={[
+          { clave: "revision", etiqueta: "Revisión a mano", conteo: data ? pendientes.length : null },
+          { clave: "validacion", etiqueta: "Frente a la Contraloría" },
+        ]}
       />
+      <PanelPestana clave={tab}>
+        {tab === "validacion" ? (
+          <PanelValidacion />
+        ) : (
+          <div className="space-y-5">
+            <ErrorBanner error={error} onReintentar={() => mutate()} />
+            <StatGrid columnas={3}>
+              <StatCard etiqueta="En observación" valor={data ? pendientes.length : null} pista="indicadores que todavía no puntúan" cargando={isLoading} />
+              <StatCard etiqueta="Casos por decidir" valor={data ? porRevisar : null} pista={`hasta ${data?.minimo ?? 40} por indicador`} cargando={isLoading} />
+              <StatCard etiqueta="Revisados" valor={data ? revisados : null} pista="entre todos los indicadores" cargando={isLoading} />
+            </StatGrid>
+            <Card>
+              <ol className="list-decimal space-y-1.5 pl-5 text-meta leading-relaxed text-inkSoft">
+                <li>Elige un indicador y abre cada caso de la muestra: el orden es al azar, para que la precisión valga para todo el indicador.</li>
+                <li>Lee la evidencia en la ficha del contrato y marca <b>Acierta</b> si el hecho es cierto y merece que un investigador lo mire.</li>
+                <li>
+                  Marca <b>No acierta</b> si el dato está mal (lectura equivocada, homónimo, fecha) o si el hecho es normal y no dice nada; <b>Dudoso</b> si
+                  no se puede saber sin más documentos.
+                </li>
+              </ol>
+            </Card>
+            <DataTable
+              columnas={columnas}
+              filas={data?.data}
+              claveFila={(x) => x.tipo}
+              etiqueta="Indicadores en observación"
+              onFila={(x) => poner({ tipo: x.tipo, ver: null })}
+              cargando={isLoading}
+              vacio={<EmptyState titulo="Sin indicadores en observación" descripcion="Todos los indicadores nuevos ya se midieron." />}
+            />
+          </div>
+        )}
+      </PanelPestana>
+    </div>
+  );
+}
+
+/** La validación externa (migración 401): cuánto encuentran el puntaje y cada bandera de lo que la Contraloría observó. */
+function PanelValidacion() {
+  const { data, error, isLoading, mutate } = useAdmin<Validacion>("/senales-validacion");
+  const k = data?.corrida;
+  const columnas: Columna<SenalValidada>[] = [
+    {
+      clave: "bandera",
+      titulo: "Bandera",
+      principal: true,
+      celda: (x) => (
+        <span className="text-ink">
+          {x.etiqueta}
+          {x.enObservacion ? <span className="ml-2 text-meta text-inkSoft">(en observación)</span> : null}
+        </span>
+      ),
+    },
+    { clave: "procesos", titulo: "Procesos", alinear: "derecha", celda: (x) => <span className="font-mono">{fmtNum(x.procesos)}</span> },
+    { clave: "obs", titulo: "Observados", alinear: "derecha", celda: (x) => <span className="font-mono">{fmtNum(x.observados)}</span> },
+    { clave: "esp", titulo: "Esperados", alinear: "derecha", celda: (x) => <span className="font-mono">{decimal(x.esperados, 1)}</span> },
+    {
+      clave: "oe",
+      titulo: "O/E (95 %)",
+      alinear: "derecha",
+      celda: (x) => (
+        <span className="font-mono">
+          {decimal(x.oe)} <span className="text-inkSoft">[{decimal(x.oeMin)} a {decimal(x.oeMax)}]</span>
+        </span>
+      ),
+    },
+    { clave: "lectura", titulo: "Lectura", celda: (x) => <Badge tono={LECTURA[x.lectura].tono}>{LECTURA[x.lectura].etiqueta}</Badge> },
+  ];
+  return (
+    <div className="space-y-5">
+      <ErrorBanner error={error} onReintentar={() => mutate()} />
+      {isLoading && !data ? <SkeletonPanel lineas={6} /> : null}
+      {data && !k ? (
+        <EmptyState titulo="Todavía no hay una validación" descripcion="Corre cada lunes; también se puede llamar a refrescar_validacion_senales()." />
+      ) : null}
+      {k ? (
+        <>
+          <StatGrid columnas={4}>
+            <StatCard
+              etiqueta="Puntaje de riesgo (AUC)"
+              valor={decimal(k.aucPuntaje)}
+              tono={k.aucPuntaje != null && k.aucPuntaje < 0.55 ? "warn" : "neutral"}
+              pista="0,50 es el azar; 1 ordena perfecto"
+            />
+            <StatCard etiqueta="Sólo el monto (AUC)" valor={decimal(k.aucMonto)} pista="lo que explica el tamaño del contrato" />
+            <StatCard
+              etiqueta="En el 1 % de arriba"
+              valor={`${fmtNum(k.top1Puntaje ?? 0)} de ${fmtNum(k.observados)}`}
+              pista={`por el puntaje; por el monto, ${fmtNum(k.top1Monto ?? 0)}; al azar, ${decimal(k.top1Azar, 0)}`}
+            />
+            <StatCard etiqueta="Universo" valor={fmtNum(k.universo)} pista={`procesos de ${k.desde} a ${k.hasta} en ${fmtNum(k.entidades)} entidades auditadas`} />
+          </StatGrid>
+          <Aviso tono="neutral" titulo="Cómo leerlo">
+            La etiqueta es que un informe de control observó el proceso; lo esperado de cada proceso sale de los de su tipo, su
+            tamaño y su año. Un O/E mayor que 1 dice que con esa bandera hay más observaciones de las que su tipo y tamaño
+            explican. La Contraloría audita sobre todo cumplimiento y obras grandes, y observa menos los procesos con un solo
+            postor: un O/E bajo no prueba que la bandera falle, pero sí que mide algo que el control no está mirando.
+          </Aviso>
+          <DataTable
+            columnas={columnas}
+            filas={data?.senales}
+            claveFila={(x) => x.tipo}
+            etiqueta="Banderas frente a lo que observó la Contraloría"
+            cargando={isLoading}
+            vacio={<EmptyState titulo="Sin banderas que medir" descripcion="" />}
+          />
+        </>
+      ) : null}
     </div>
   );
 }

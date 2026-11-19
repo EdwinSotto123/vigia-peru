@@ -638,6 +638,39 @@ indicadores en observación (§9.6). El orden de la lista usa ese puntaje.
 muestra los antecedentes como hechos: `cruces` (cada tipo con su gravedad más alta y cuántos registros) y los conteos
 `n_alta`, `n_media` y `n_baja`. No hay un número que ordene empresas.
 
+### 15.1 Validación externa: el puntaje frente a la Contraloría (migración 401, 2026-11-19)
+
+Hasta esta fecha ni el puntaje ni las señales se habían medido contra un hecho de afuera. `refrescar_validacion_senales()`
+(cada lunes por pg_cron; panel `/admin/senales`, pestaña «Frente a la Contraloría») toma los procesos adjudicados de
+2018 al año pasado en las entidades con algún proceso observado por un informe de control, y mide cuántos de los
+observados encuentra el puntaje. Primera corrida (166 895 procesos, 539 entidades, 1 129 observados):
+
+| Orden | AUC | Observados en el 1 % de arriba | En el 5 % |
+|---|---|---|---|
+| Azar | 0,50 | 11 | 56 |
+| Puntaje de riesgo (10/3/1) | 0,48 | 9 | 48 |
+| Sólo el monto adjudicado | 0,80 | 89 | 334 |
+
+Lo que se midió además (scripts en el scratchpad de la sesión; no publicados como señal):
+
+- **A igual tipo y tamaño, los procesos con más banderas se observan menos** (AUC del puntaje de 0,39 a 0,50 en cada
+  estrato). Ninguna bandera tiene más observaciones de las que su tipo y tamaño explican, salvo «recién fundada, menos de
+  medio año» (O/E 2,46; 1,05 a 4,86). Varias tienen menos: recurrente (0,57), recurrente frecuente (0,44), único postor
+  (0,38), visita previa (0,48), fraccionamiento (0,69).
+- **Con un solo postor, la Contraloría observa 14 % menos** de lo esperado por tipo y tamaño (en obras de más de
+  S/ 10 M, 32 por mil contra 98-145 con cuatro o cinco postores): sus observaciones de selección siguen, en parte, a que
+  haya alguien que reclame.
+- **Un orden aprendido de las observaciones no le gana al monto** sin el año (que sólo refleja cuándo terminan las
+  auditorías): no se publicó una «prioridad de control» porque sería ordenar por monto con otro nombre.
+- **Los screens de colusión sobre los precios no sirven aquí**: en obras la oferta ganadora cae en el 90 % del valor
+  referencial (el piso legal), y la dispersión de las ofertas no separa a los postores vinculados (AUC 0,613 con y sin
+  screens, 2 760 procesos de un ítem con tres o más ofertas leídas del acta).
+
+Cómo leerlo: la Contraloría audita sobre todo cumplimiento y obras grandes; lo que marca Vigía (competencia aparente,
+vínculos, proveedores cautivos) casi no llega a sus informes. Un O/E bajo no prueba que una bandera falle: dice que mide
+algo que el control no está mirando. Sí obliga a no presentar el puntaje como «probabilidad de irregularidad»: ordena por
+cantidad de patrones de riesgo, no por lo que una auditoría encontraría.
+
 ---
 
 ## 16. Privacidad y encuadre

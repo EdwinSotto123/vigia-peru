@@ -141,6 +141,40 @@ adminSenalesRouter.post("/senales-observacion/:tipo/veredicto", async (c) => {
   }
 });
 
+/**
+ * GET /admin/senales-validacion: la última validación externa (migración 401): cuánto encuentra el puntaje de lo que la
+ * Contraloría observó, frente al monto y al azar, y por tipo de bandera observados / esperados con su intervalo.
+ */
+adminSenalesRouter.get("/senales-validacion", async (c) => {
+  try {
+    const corrida = await pool.query(
+      `SELECT id, calculado_at AS "calculadoAt", to_char(desde, 'YYYY') AS desde, to_char(hasta, 'YYYY') AS hasta, universo,
+              observados, entidades, auc_puntaje::float AS "aucPuntaje", auc_monto::float AS "aucMonto",
+              top1_puntaje AS "top1Puntaje", top1_monto AS "top1Monto", top1_azar::float AS "top1Azar",
+              top5_puntaje AS "top5Puntaje", top5_monto AS "top5Monto", top5_azar::float AS "top5Azar"
+         FROM validacion_corrida ORDER BY id DESC LIMIT 1`);
+    const ultima = corrida.rows[0];
+    if (!ultima) return c.json({ corrida: null, senales: [] });
+    const r = await pool.query(
+      `SELECT v.tipo, v.procesos, v.observados, v.esperados::float AS esperados, v.oe::float AS oe,
+              v.oe_min::float AS "oeMin", v.oe_max::float AS "oeMax",
+              EXISTS (SELECT 1 FROM senal_en_observacion o WHERE o.tipo = v.tipo) AS "enObservacion"
+         FROM validacion_senal v WHERE v.corrida_id = $1 ORDER BY v.oe DESC NULLS LAST, v.procesos DESC`, [ultima.id]);
+    return c.json({
+      corrida: ultima,
+      senales: r.rows.map((x) => ({
+        ...x,
+        etiqueta: ETIQUETA_CRUCE[x.tipo] ?? x.tipo,
+        // Con menos de 200 procesos el intervalo es demasiado ancho para decir algo.
+        lectura: x.procesos < 200 ? "pocos_casos" : x.oeMin > 1 ? "mas_de_lo_esperado" : x.oeMax < 1 ? "menos_de_lo_esperado" : "como_lo_esperado",
+      })),
+    });
+  } catch (e) {
+    if (esErrorPg(e, "42P01", "42883")) return c.json({ error: "sin_migracion", detail: "Falta la migración 401 (validacion_*)." }, 503);
+    throw e;
+  }
+});
+
 adminSenalesRouter.post("/senales-observacion/:tipo/graduar", async (c) => {
   if (esRevisor(c)) return c.json({ error: "solo_admin", detail: "Graduar un indicador lo decide un administrador." }, 403);
   const tipo = c.req.param("tipo");

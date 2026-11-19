@@ -66,6 +66,8 @@ const REVISOR_API: [metodo: string, ruta: RegExp][] = [
   // Revisar casos de los indicadores en observación (migración 398). Graduarlos es sólo del admin.
   ["GET", /^\/senales-observacion(\/[a-z_]+)?$/],
   ["POST", /^\/senales-observacion\/[a-z_]+\/veredicto$/],
+  // La validación externa de las señales (migración 401): sólo lectura.
+  ["GET", /^\/senales-validacion$/],
 ];
 
 /** ¿Este perfil puede hacer `metodo` sobre `/admin<ruta>` del API? `ruta` sin query string. */
