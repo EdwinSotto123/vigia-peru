@@ -96,6 +96,9 @@ const CASOS: Caso[] = [
       return t && (t.se_la_quito_el_tribunal ?? 0) >= 1 && (t.resoluciones ?? []).some((x) => /se la quitaron/.test(x.papel ?? "") && /^https:/.test(x.enlace_resolucion ?? ""))
         ? null : "sin «tribunal» con la buena pro revocada";
     } },
+  // Los contratos que el Tribunal corrigió (filtro ?tribunal=, 423): cientos, en orden de fecha.
+  { h: buscarContratos as never, args: { tribunal: "corregido", por_pagina: 5 },
+    espera: (r) => (typeof r.total === "number" && r.total >= 100 && lista(r, "contratos").length === 5 ? null : `total ${String(r.total)}`) },
   // Y en la lista de indicadores en observación, con la resolución (424).
   { h: patrones as never, args: { alcance: "observacion", indicador: "tribunal_revoco_buena_pro" },
     espera: (r) => (/"resolucion_del_tribunal":"Resoluci/.test(JSON.stringify(r)) ? null : "sin la resolución del Tribunal en la lista") },
