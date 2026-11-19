@@ -539,7 +539,12 @@ function ordenDe(q: ListaQ): Orden {
   }
   // Fecha (por defecto): índice convocatorias_keyset_fecha_idx (con texto libre, contrato_estado).
   if (soloTexto(q)) return ordenTexto(q);
-  const d = driverDe(q);
+  // Con tipo, etapa, región, riesgo u operativo (sin entidad), también contrato_estado: tiene esas columnas idénticas a
+  // convocatorias y es angosta. Recorrer convocatorias por fecha descartando lo que no es de la región o del tipo leía
+  // cientos de miles de filas anchas en las combinaciones raras y en las páginas profundas (2026-11-19: obras de una
+  // provincia del Cusco desde la página 10, 11 s → 0,18 s; el mismo resultado en los cinco casos medidos).
+  const filtrosAngostos = !q.entidad && !!(q.tipo || q.etapa || q.ubigeo || q.riesgo || q.operativo);
+  const d = filtrosAngostos ? DRIVER_CE : driverDe(q);
   const F = `COALESCE(${d.fecha}, '-infinity'::date)`;
   return {
     pagina(vals, dir, claves, n, offset) {
