@@ -51,7 +51,9 @@ export function ColumnasSerie({
         {puntos.map((p, i) => {
           const v = typeof p.valor === "number" ? p.valor : null;
           const altura = v == null ? 0 : Math.max(v > 0 ? 3 : 0, Math.min(100, (v / techo) * 100));
-          const rotular = v != null && (i === iMayor || i === iUltimo);
+          // La mayor y la última; la última no si está a menos de un octavo del ancho de la mayor: con 36 meses los dos
+          // rótulos se pisaban (visitas de EsSalud, 2026-11-18). Su valor sigue en el title.
+          const rotular = v != null && (i === iMayor || (i === iUltimo && iUltimo - iMayor > Math.max(1, Math.ceil(puntos.length / 8))));
           return (
             <li key={p.clave} title={p.detalle} aria-label={p.detalle} className="relative flex h-full min-w-0 flex-1 items-end justify-center">
               {v == null ? (

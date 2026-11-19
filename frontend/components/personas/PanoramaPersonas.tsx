@@ -301,7 +301,7 @@ function SerieMontos({ anual, actual, className }: { anual: AnioPersonas[]; actu
     <div className={className}>
       <h3 className={TITULO}>Cuánto pagó cada año</h3>
       <ColumnasAnio
-        className="mt-2"
+        className="mt-5"
         etiqueta="Lo que pagó cada año a personas por órdenes de servicio"
         etiquetaA="A personas sin señales"
         etiquetaB="A personas con alguna señal"

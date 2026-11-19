@@ -66,6 +66,7 @@ export async function VisitasEntidad({ ruc, sp }: { ruc: string; sp?: Busqueda }
             valor: numero(emp.primeraVez),
             etiqueta: "le vendieron por primera vez",
             contexto: "nunca le habían vendido antes de la visita",
+            icono: <Handshake size={15} strokeWidth={1.9} aria-hidden />,
             tono: emp.primeraVez > 0 ? ("media" as const) : ("neutro" as const),
             href: enlace("empresas", { [P_VISITAS.empresas.antes]: "no" }),
           },

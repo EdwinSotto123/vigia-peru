@@ -87,7 +87,10 @@ export function ColumnasAnio({
               const total = x.a + x.b;
               const alto = (total / tope) * 100;
               const partA = total ? (x.a / total) * 100 : 0;
-              const rotular = x.anio === maxAnio || x.anio === ultimo;
+              // La mayor y la última; la última no si es vecina de la mayor: su rótulo, anclado a la derecha, se montaba
+              // sobre la columna mayor (personas de EsSalud, 2025 y 2026; 2026-11-18).
+              const iMayor = orden.findIndex((y) => y.anio === maxAnio);
+              const rotular = x.anio === maxAnio || (x.anio === ultimo && orden.length - 1 - iMayor > 1);
               const on = activo === x.anio;
               return (
                 <li key={x.anio} className="relative flex h-full min-w-0 flex-1 justify-center">

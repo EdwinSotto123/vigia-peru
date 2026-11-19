@@ -38,17 +38,55 @@ import { cn } from "@/lib/utils";
  */
 export function AntecedenteEnEntidad({ ruc, tipo, nombre, contratos, graves }: { ruc: string; tipo: string; nombre: string; contratos: number; graves: number }) {
   const carga = usePoder<AntecedenteDeEntidad>(rutaAntecedenteEntidad(ruc, tipo));
+  // Una lista a la vez (2026-11-18: apiladas, «quiénes» y «sus contratos» hacían 3 pantallas). Estado local: cambiar de lista
+  // con un enlace volvía a pedir al servidor la ficha entera de la entidad.
+  const [lista, setLista] = useState<"quienes" | "contratos">("quienes");
   return (
     <div className="space-y-6">
       <EstadoCarga carga={carga} columnas={COLUMNAS_PROVEEDORES}>
         {(d) => (
           <>
             <AnioPorAnio d={d} nombre={nombre} />
-            <QuienesLoTienen d={d} nombre={nombre} />
+            <ElegirLista
+              actual={lista}
+              alElegir={setLista}
+              opciones={[
+                { clave: "quienes", etiqueta: "Quiénes ganaron esos contratos", conteo: d.empresas },
+                { clave: "contratos", etiqueta: "Sus contratos", conteo: contratos },
+              ]}
+            />
+            {lista === "quienes" && <QuienesLoTienen d={d} nombre={nombre} />}
           </>
         )}
       </EstadoCarga>
-      <SusContratos ruc={ruc} tipo={tipo} nombre={nombre} contratos={contratos} graves={graves} />
+      {lista === "contratos" && <SusContratos ruc={ruc} tipo={tipo} nombre={nombre} contratos={contratos} graves={graves} />}
+    </div>
+  );
+}
+
+/** El conmutador de la lista que se ve (mismo aspecto que `Vistas` secundaria, sin navegar). */
+function ElegirLista<T extends string>({ actual, alElegir, opciones }: { actual: T; alElegir: (v: T) => void; opciones: { clave: T; etiqueta: string; conteo: number }[] }) {
+  return (
+    <div role="tablist" aria-label="Qué lista ver" className="flex max-w-full gap-1 overflow-x-auto rounded-full border border-line bg-paperSoft p-1 [scrollbar-width:none]">
+      {opciones.map((o) => {
+        const on = o.clave === actual;
+        return (
+          <button
+            key={o.clave}
+            type="button"
+            role="tab"
+            aria-selected={on}
+            onClick={() => alElegir(o.clave)}
+            className={cn(
+              "inline-flex min-h-[36px] shrink-0 items-center gap-2 whitespace-nowrap rounded-full px-3.5 text-meta font-semibold transition-colors duration-rapido",
+              on ? "border border-line bg-paper text-ink shadow-sm" : "text-inkSoft hover:text-ink",
+            )}
+          >
+            {o.etiqueta}
+            <span className="font-mono tabular-nums text-mute">{numero(o.conteo)}</span>
+          </button>
+        );
+      })}
     </div>
   );
 }
@@ -208,7 +246,6 @@ function filaContrato(x: ContratoDelAntecedente): Fila {
     celdas: {
       contrato: (
         <CeldaPrincipal
-          enLinea
           textoCompleto={objeto}
           titulo={
             <>
