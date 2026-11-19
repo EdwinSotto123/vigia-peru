@@ -61,6 +61,16 @@ def main() -> None:
     if a.guiones:
         ocids += [o for o in M.base(lambda cu: (cu.execute(SQL_GUIONES), [f[0] for f in cu.fetchall()])[1]) if o not in ocids]
     if not ocids:
+        # Con --guiones, la lista vacía es el final del trabajo, no un error: el horario del CI (tarea:reanalisis) puede
+        # seguir activo sin fallar ni gastar; cada corrida termina aquí en segundos.
+        if a.guiones:
+            M.log("nada pendiente: todos los dictámenes con guiones ya se rehicieron")
+            if M._db.get("cm") is not None:   # el túnel que abrió la consulta de la lista
+                try:
+                    M._db["cm"].__exit__(None, None, None)
+                except Exception:  # noqa: BLE001
+                    pass
+            return
         raise SystemExit("sin OCID")
     por_red, tok = M.urls(), M.token()
     # La red de todos en UNA consulta: de uno en uno, con 1 245 OCID, eran más de 20 minutos sin lanzar nada (2026-11-18).
