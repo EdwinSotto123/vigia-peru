@@ -38,7 +38,7 @@
  */
 import { Hono } from "hono";
 import { z } from "zod";
-import { pool } from "../lib/db.js";
+import { esErrorPg, pool } from "../lib/db.js";
 import { Memo } from "../lib/cache.js";
 import { cachePublico, parametros } from "../lib/http.js";
 import { TAPA_NOMBRE, etiquetaParentesco, publicar, taparNombreSuelto } from "../lib/privacidad.js";
@@ -631,7 +631,8 @@ patronesRouter.get("/grupos", async (c) => {
                            WHERE m->>'ruc' LIKE '20%' AND immutable_unaccent(lower(m->>'nombre')) LIKE ALL(${add(like)}::text[]))`);
     }
     const r = await pool.query(
-      `SELECT r.entidad_ruc AS "entidadRuc", (SELECT es.nombre FROM entidad_stats es WHERE es.ruc = r.entidad_ruc) AS entidad, r.grupo,
+      // entidad_stats.ruc es character(11): con el texto de este lado, la base recorría las 3 mil entidades por fila.
+      `SELECT r.entidad_ruc AS "entidadRuc", (SELECT es.nombre FROM entidad_stats es WHERE es.ruc = r.entidad_ruc::bpchar) AS entidad, r.grupo,
               r.miembros, r.empresas, r.personas, r.ordenes, r.monto::float AS monto, to_char(r.desde, 'YYYY-MM-DD') AS desde,
               to_char(r.hasta, 'YYYY-MM-DD') AS hasta, r.hasta_8uit AS "hasta8Uit", r.borde, r.monto_borde::float AS "montoBorde",
               r.sobre_tope AS "sobreTope", r.dias_juntos AS "diasJuntos", r.monto_juntos::float AS "montoJuntos", r.correlativas,
@@ -646,7 +647,12 @@ patronesRouter.get("/grupos", async (c) => {
         ORDER BY CASE r.severidad WHEN 'alta' THEN 0 WHEN 'media' THEN 1 ELSE 2 END, r.monto DESC
         LIMIT ${add(q.size)} OFFSET ${add((q.page - 1) * q.size)}`,
       vals,
-    ).catch(() => ({ rows: [] as Record<string, unknown>[] }));
+    ).catch((e) => {
+      // Sólo una base sin la tabla (migraciones 343-347) responde vacío. Cualquier otro error sube: antes salía como «ningún
+      // grupo» y quedaba guardado en la caché (2026-11-19: el MCP vio 0 grupos «alta» habiendo 6 415).
+      if (esErrorPg(e, "42P01")) return { rows: [] as Record<string, unknown>[] };
+      throw e;
+    });
     const grupos = r.rows as Record<string, any>[];
     // Por qué están juntos: los vínculos entre sus miembros, con la persona que los une (un apellido tapado).
     const vinc = grupos.length ? await pool.query(

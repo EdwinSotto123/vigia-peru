@@ -72,8 +72,9 @@ const CASOS: Caso[] = [
       const filas = JSON.stringify(r);
       const ok = /"identidad":"(documento|nombre_completo|nombre)"/.test(filas) && /"papel_en_la_empresa":\[/.test(filas)
         && /"integrante_del_comite":"[0-9a-f]{10}"/.test(filas);
-      const fuga = /"(persona|nombre_completo|integrante_nombre|dni|numero_documento|persona_doc)"/.test(filas);
-      return ok && !fuga ? null : fuga ? "sale un nombre o un número de documento" : "sin identidad, papel en la empresa o clave";
+      // Sólo como CLAVE (seguida de «:»): "nombre_completo" es también un valor de `identidad`.
+      const fuga = filas.match(/"(persona|nombre_completo|integrante_nombre|dni|numero_documento|persona_doc)":/);
+      return ok && !fuga ? null : fuga ? `sale un nombre o un número de documento (${fuga[0]})` : "sin identidad, papel en la empresa o clave";
     } },
   { h: fichaContrato as never, args: { ocid: "1196243" },
     espera: (r) => ((lista(r, "cruces") as { tipo?: string; por_que_pesa?: string }[]).some((x) => x.tipo === "comite_socio_proveedor" && /socio o representante/.test(x.por_que_pesa ?? ""))
