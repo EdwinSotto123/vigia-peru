@@ -1164,6 +1164,13 @@ export function detalleObservacion(p: PatronObservacion): Detalle {
         <b>{p.diasHabiles === 0 ? "el mismo día de la buena pro" : `${plural(p.diasHabiles ?? 1, "día hábil", "días hábiles")} después de la buena pro`}</b>, cuando los
         otros postores del ítem todavía podían apelarla.
       </>
+    ) : p.tipo === "comite_mismo_ganador" ? (
+      <>
+        Una misma persona del comité de selección de <b>{ent}</b>
+        {p.rolComite ? ` (${p.rolComite.toLowerCase()})` : ""} estuvo en <b>{plural(p.veces ?? 3, "proceso", "procesos")}</b> que ganó{" "}
+        <b>{emp}</b>
+        {p.parteSin != null ? <>; sin esa persona, la empresa gana el <b>{Math.round(p.parteSin * 100)} %</b> de los procesos de la entidad</> : ""}.
+      </>
     ) : p.tipo === "solo_admitido_el_ganador" ? (
       <>
         En este ítem de <b>{ent}</b> se presentaron <b>{plural(p.ofertas ?? 4, "oferta", "ofertas")}</b> y el comité{" "}
@@ -1200,6 +1207,15 @@ export function detalleObservacion(p: PatronObservacion): Detalle {
             { etiqueta: "Ofertas en el ítem", valor: p.ofertas != null ? numero(p.ofertas) : null, mono: true },
             { etiqueta: "Consentimiento en CONOSCE", valor: p.consentimiento ? fechaConAnio(p.consentimiento) : null },
             { etiqueta: "Norma", valor: p.norma ?? null },
+          ]
+      : p.tipo === "comite_mismo_ganador"
+        ? [
+            { etiqueta: "Procesos juntos", valor: p.veces != null ? numero(p.veces) : null, mono: true },
+            { etiqueta: "Procesos de esa persona en la entidad", valor: p.procesosPersona != null ? numero(p.procesosPersona) : null, mono: true },
+            { etiqueta: "Gana con esa persona", valor: p.parteCon != null ? `${Math.round(p.parteCon * 100)} %` : null, mono: true },
+            { etiqueta: "Gana sin esa persona", valor: p.parteSin != null ? `${Math.round(p.parteSin * 100)} %` : "Sin procesos para comparar" },
+            { etiqueta: "Papel en el comité", valor: p.rolComite ? tituloNatural(p.rolComite) : null },
+            { etiqueta: "De dónde sale", valor: "Actas leídas por los agentes de Vigía, con cada nombre comprobado en el documento" },
           ]
       : p.tipo === "solo_admitido_el_ganador"
         ? [
@@ -1259,6 +1275,13 @@ export function detalleObservacion(p: PatronObservacion): Detalle {
             "Revisa en el SEACE si algún postor apeló la buena pro y qué resolvió la entidad o el Tribunal.",
             "Mira cuántas ofertas hubo y si las demás quedaron descalificadas: con una sola válida el riesgo de apelación es menor.",
             "Descarta la explicación sencilla: una fecha mal registrada en CONOSCE o un contrato de otro ítem.",
+          ]
+      : p.tipo === "comite_mismo_ganador"
+        ? [
+            "Abre los contratos de la misma empresa en la entidad y mira quién integró cada comité (en el acta).",
+            "Compara cómo se calificó a los demás postores en los procesos con esa persona y en los procesos sin ella.",
+            "Busca si esa persona declaró algún vínculo con la empresa en su Declaración Jurada de Intereses.",
+            "Descarta la explicación sencilla: el único proveedor del rubro o un área que compra siempre lo mismo.",
           ]
       : p.tipo === "solo_admitido_el_ganador"
         ? [

@@ -80,6 +80,8 @@ const FUENTE: Record<string, string> = {
   bases_seace: "Bases del procedimiento en el SEACE, leídas con IA",
   // Los reportes que genera el propio SEACE, leídos sin modelo (migraciones 326, 384 y 390).
   reporte_evaluacion: "Reporte de evaluación del SEACE",
+  // El comité de cada acta, leído por los agentes con la cita comprobada (migración 396).
+  comite_dictamen: "Actas leídas por los agentes de Vigía",
 };
 /** Cuántas filas de un mismo tipo se ven antes de "ver más". */
 const VISIBLES = 3;
@@ -269,6 +271,7 @@ const POR_QUE: Record<string, string> = {
   visita_personal_decisor: "Una relación personal entre quien vende y quien decide la compra es un posible conflicto de intereses: al funcionario le toca declararlo y apartarse. El registro sólo dice que la visita se anotó como personal; puede ser un familiar o un error al llenar el motivo.",
   ofertas_a_la_vez: "Dos empresas que compiten y comparten un dueño o representante ya son una señal de competencia aparente. Que además registren sus ofertas una tras otra sugiere que las preparó la misma mano.",
   firma_en_plazo_de_apelacion: "Mientras corre el plazo para apelar, los otros postores pueden pedir que se revise la buena pro. Firmar antes deja el contrato hecho antes de que nadie pueda reclamar: la norma manda esperar el consentimiento. Vale mirar si alguien apeló y qué pasó con esa apelación.",
+  comite_mismo_ganador: "Quien integra el comité decide quién cumple los requisitos y cómo se puntúa. Que la misma persona esté una y otra vez donde gana la misma empresa, y que esa empresa gane mucho menos cuando ella no está, es el patrón del evaluador que favorece a un proveedor. Vale ver los otros procesos de esa persona, cómo se calificó a los demás postores y si declaró algún vínculo con la empresa.",
   solo_admitido_el_ganador: "La admisión sólo revisa que cada oferta traiga los documentos obligatorios. Que con cuatro o más ofertas pase sólo la del ganador sugiere un requisito formal que sólo él podía cumplir, o postores puestos para aparentar competencia. Vale leer en el reporte el motivo de cada no admisión y comparar con las bases: si el requisito que dejó fuera a todos era razonable, si alguien lo consultó y si se repite en esa entidad.",
   trabajo_en_el_ganador: "Quien trabajó en una empresa, o todavía trabaja ahí, tiene un vínculo con ella que debe declarar y que lo obliga a apartarse de lo que la toque. Vale ver si el funcionario intervino en esta contratación: su área, si firmó el requerimiento o si integró el comité.",
   partido_gobernante: "La empresa, o una persona detrás de ella, aportó dinero al partido que gobierna la entidad que le dio el contrato: un posible conflicto de interés, el más directo de estos cruces.",
@@ -581,6 +584,28 @@ function Texto({ c, gobierna }: { c: CruceProveedor; gobierna?: GobiernoContrato
           {ofertas != null ? `${numero(ofertas)} ofertas` : "más de una oferta"}: los otros postores tenían al menos 5 días hábiles para apelar, y el
           contrato se firma recién después del consentimiento{txt(d.norma) ? ` (${txt(d.norma)})` : ""}.
           {cons ? ` CONOSCE registra el consentimiento el ${fechaConAnio(cons)}.` : ""}
+        </>
+      );
+    }
+    case "comite_mismo_ganador": {
+      // Del integrante, sólo su papel en el comité: nunca su nombre (como los demás indicadores en observación).
+      const k = n(d.veces);
+      const total = n(d.procesos_de_la_persona);
+      const con = typeof d.parte_con_la_persona === "number" ? Math.round(d.parte_con_la_persona * 100) : null;
+      const sin = typeof d.parte_sin_la_persona === "number" ? Math.round(d.parte_sin_la_persona * 100) : null;
+      const rol = txt(d.rol)?.toLowerCase();
+      return (
+        <>
+          Una misma persona del comité de selección{rol ? ` (${rol})` : ""} estuvo en <b>{k != null ? `${numero(k)} procesos` : "varios procesos"}</b> de
+          esta entidad que ganó <Emp c={c} />
+          {total != null ? <>: {numero(k ?? 0)} de sus {numero(total)} procesos{con != null ? ` (${con} %)` : ""}</> : ""}.{" "}
+          {sin != null ? (
+            <>En los procesos de la entidad sin esa persona, la empresa gana el <b>{sin} %</b>.</>
+          ) : (
+            <>La entidad no tiene otros procesos leídos sin esa persona para comparar: pesa poco.</>
+          )}{" "}
+          Sale de las actas que leyeron los agentes, con cada nombre comprobado en el documento
+          {n(d.pagina) != null ? ` (página ${numero(n(d.pagina)!)} del acta)` : ""}.
         </>
       );
     }

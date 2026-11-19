@@ -427,7 +427,7 @@ cuentan para el puntaje ni para «contratos con antecedentes»: no entran a `cas
 muestra revisada. Quitar la fila de un tipo lo hace puntuar en el siguiente refresco. Es el mismo trato que ya tienen
 los datos del proveedor (migración 115).
 
-Hoy son seis (conteos en producción del 2026-11-17; el sexto, del 2026-11-18):
+Hoy son siete (conteos en producción del 2026-11-17; los dos últimos, del 2026-11-18):
 
 | Tipo | Sev. | Filas | Cruza | Umbral |
 |---|---|---|---|---|
@@ -437,6 +437,7 @@ Hoy son seis (conteos en producción del 2026-11-17; el sexto, del 2026-11-18):
 | `trabajo_en_el_ganador` | media/baja | 1 227 | DJI de datos abiertos (`dji_empleos` × `dji_funcionarios` por `codigo_ddjj`; migraciones 330-333) × adjudicaciones | un funcionario de la entidad declaró un empleo en la empresa que ganó y la buena pro cayó mientras él ocupaba su cargo. Baja si dejó el empleo más de dos años antes o la declaración no trae fechas. No repite los procesos que ya marca `empleo_declarado` |
 | `firma_en_plazo_de_apelacion` | media | ver abajo | CONOSCE: adjudicaciones × contratos × postores (migración 334) | en un ítem con dos o más ofertas, el contrato se firmó antes del 5.º día hábil siguiente a la buena pro, cuando los otros postores todavía podían apelarla (D.S. 344-2018-EF arts. 64 y 141; D.S. 009-2025-EF arts. 82, 90 y 304). Fuera: una sola oferta, buena pro con más de una fecha, firma anterior a la buena pro, directas y regímenes especiales |
 | `solo_admitido_el_ganador` | alta/media | 194 (57 altas) | `proceso_item` × `proceso_postor` (reporte de evaluación del SEACE, leído sin modelo; migraciones 326, 384 y 390) | en un ítem adjudicado con 4 o más ofertas se admitió una sola, la del ganador. Alta con 6 o más ofertas. Tasa base medida: con 3 ofertas pasa en el 14 % de los ítems, con 4 en el 10 %, con 5 en el 8 % y con 8 o más en el 1-4 %; concuerda 95 % con la bandera del acta leída con modelo (`acta_solo_queda_el_ganador`). Va al ganador si es RUC 20, o a cada integrante RUC 20 del consorcio; las empresas no admitidas van en `detalle.fuera_empresas` (sólo RUC 20). Se rehace con `refrescar_cruce_solo_admitido()` en `tarea:piezas`. Se midió y se descartó «sólo calificó el ganador»: en la adjudicación simplificada la calificación se detiene en el primero que cumple |
+| `comite_mismo_ganador` | media/baja | 57 (53 procesos) | comité de selección del acta leído por los agentes (`alertas.analisis_full->document_analysis->comite_evaluacion`, sólo nombres con la cita comprobada) × adjudicaciones (migraciones 396-397) | la misma persona (nombre completo de 3 palabras o más, sin títulos, en la misma entidad) integró el comité en 3 o más procesos que ganó la empresa, la mitad o más de los suyos, y la empresa gana al menos el doble con ella que sin ella. Alta con 5 o más y 10 % o menos sin ella; baja si la entidad no tiene procesos leídos sin esa persona. Del integrante sólo sale su papel y `integrante` (md5 de entidad y nombre, 10 caracteres): ni su nombre ni la cita. Tasa base sobre los 3 152 procesos con comité leído; crece con el análisis masivo. Se rehace en `tarea:piezas` |
 
 **Calibración de las banderas publicadas del acta (migraciones 392 y 393, 2026-11-18).** `acta_solo_queda_el_ganador` (acta leída
 con modelo, puntúa) salía siempre «media». Su frecuencia según los postores del acta: 50,6 % de los procesos con 2,

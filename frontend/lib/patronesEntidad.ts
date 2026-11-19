@@ -212,7 +212,7 @@ const FAMILIA_CRUCE: Record<string, FamiliaPatron> = {
   partido_gobernante: "familia", vendio_gobernante: "familia", aporte: "familia", aporte_empresa: "familia", proveedor_campana: "familia",
   candidato: "familia", autoridad: "familia", socio_en_entidad: "familia", interes_declarado: "familia", pariente_funcionario: "familia",
   puerta_giratoria: "familia", empleo_declarado: "familia", reunion_en_evaluacion: "familia", visita_personal_decisor: "familia",
-  trabajo_en_el_ganador: "familia",
+  trabajo_en_el_ganador: "familia", comite_mismo_ganador: "familia",
   // Sanción, impedimento u observación.
   socio_de_inhabilitada: "impedimento", penalidad: "impedimento", dada_de_baja: "impedimento", suspendida: "impedimento", no_habida: "impedimento",
   observado_por_contraloria: "impedimento", gano_tras_observacion: "impedimento", socio_con_informe_control: "impedimento",

@@ -213,6 +213,15 @@ function porQuePesa(x: Fila): string | undefined {
       const f = n(d.no_admitidas);
       return o != null ? `${o} ofertas en el ítem y sólo se admitió la del ganador${f != null ? ` (${f} fuera)` : ""}; con 6 o más es grave.` : undefined;
     }
+    case "comite_mismo_ganador": {
+      const k = n(d.veces);
+      const con = typeof d.parte_con_la_persona === "number" ? Math.round(d.parte_con_la_persona * 100) : null;
+      const sin = typeof d.parte_sin_la_persona === "number" ? Math.round(d.parte_sin_la_persona * 100) : null;
+      if (k == null) return undefined;
+      return `La misma persona del comité (${d.rol ?? "integrante"}) estuvo en ${k} procesos que ganó esta empresa` +
+        (con != null ? `, el ${con} % de los suyos en la entidad` : "") +
+        (sin != null ? `; sin esa persona, la empresa gana el ${sin} %.` : "; la entidad no tiene procesos leídos sin ella para comparar, así que pesa poco.");
+    }
     case "firma_en_plazo_de_apelacion": {
       const dh = n(d.dias_habiles);
       return dh != null ? `Firmado ${dh === 0 ? "el mismo día de la buena pro" : `${dh} días hábiles después de la buena pro`}, antes del plazo para apelar.` : undefined;

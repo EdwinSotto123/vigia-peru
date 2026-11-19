@@ -1127,7 +1127,7 @@ patronesRouter.get("/renovaciones", async (c) => {
 });
 
 const TIPOS_OBSERVACION = ["reunion_en_evaluacion", "visita_personal_decisor", "ofertas_a_la_vez", "trabajo_en_el_ganador",
-  "firma_en_plazo_de_apelacion", "solo_admitido_el_ganador"] as const;
+  "firma_en_plazo_de_apelacion", "solo_admitido_el_ganador", "comite_mismo_ganador"] as const;
 const Observacion = z.object({
   tipo: z.enum(TIPOS_OBSERVACION).optional(),
   ruc: z.string().regex(/^20\d{9}$/).optional(),
@@ -1172,6 +1172,10 @@ patronesRouter.get("/observacion", async (c) => {
                 k.detalle->>'firma' AS firma, (k.detalle->>'dias_habiles')::int AS "diasHabiles", (k.detalle->>'ofertas')::int AS ofertas,
                 -- solo_admitido_el_ganador (migración 390): cuántas no se admitieron y qué empresas.
                 (k.detalle->>'no_admitidas')::int AS "noAdmitidas", k.detalle->'fuera_empresas' AS "fueraEmpresas",
+                -- comite_mismo_ganador (migración 396): del integrante, sólo su papel y una clave estable (nunca su nombre).
+                (k.detalle->>'veces')::int AS veces, (k.detalle->>'procesos_de_la_persona')::int AS "procesosPersona",
+                (k.detalle->>'parte_con_la_persona')::float AS "parteCon", (k.detalle->>'parte_sin_la_persona')::float AS "parteSin",
+                k.detalle->>'rol' AS "rolComite", k.detalle->>'integrante' AS integrante,
                 k.detalle->>'consentimiento_registrado' AS consentimiento, k.detalle->>'norma' AS norma,
                 COALESCE(k.detalle->>'area_funcionario', k.detalle->'visitas'->-1->>'area') AS area,
                 (k.detalle->>'minutos')::float AS minutos, k.detalle->>'hora_ganador' AS "horaGanador", k.detalle->>'hora_otro' AS "horaOtro",

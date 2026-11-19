@@ -780,7 +780,7 @@ export const patrones = definir({
   entrada: {
     alcance: z.enum(["entidad", "proveedor", "relleno", "consorcio", "renovacion", "dueno", "inhabilitada", "control", "observado", "observacion", "grupo", "repetida", "doble", "recien_creada", "compras_familia", "autoridad_exsocio", "cierre_gestion"]).default("entidad"),
     indicador: z.enum(["reunion_en_evaluacion", "visita_personal_decisor", "ofertas_a_la_vez", "trabajo_en_el_ganador",
-      "firma_en_plazo_de_apelacion", "solo_admitido_el_ganador"]).optional()
+      "firma_en_plazo_de_apelacion", "solo_admitido_el_ganador", "comite_mismo_ganador"]).optional()
       .describe("(observacion) Sólo uno de los indicadores en observación."),
     ruc: z.string().min(11).max(14).optional().describe("RUC 20 de la entidad o de la empresa (opcional)."),
     regla: z.string().max(60).optional().describe("Sólo una señal, por su código (p. ej. unica_oferta_valida)."),
@@ -968,6 +968,13 @@ export const patrones = definir({
           empresas_no_admitidas: Array.isArray(x.fueraEmpresas) && x.fueraEmpresas.length
             ? (x.fueraEmpresas as Fila[]).slice(0, 20).map((f) => ({ empresa: f.nombre, ruc: f.ruc, enlace: f.ruc ? enlaces(cx.env).empresa(f.ruc) : undefined }))
             : undefined,
+          // comite_mismo_ganador (migración 396): del integrante, su papel y una clave estable, nunca su nombre.
+          veces_con_esa_persona_en_el_comite: x.veces ?? undefined,
+          procesos_de_esa_persona_en_la_entidad: x.procesosPersona ?? undefined,
+          parte_que_gano_con_esa_persona: x.parteCon ?? undefined,
+          parte_que_gana_sin_esa_persona: x.parteSin ?? undefined,
+          papel_en_el_comite: x.rolComite ?? undefined,
+          integrante_del_comite: x.integrante ?? undefined,
         })),
         como_leerlo:
           "Son indicadores EN OBSERVACIÓN: Vigía todavía mide cuántas veces aciertan, así que no cuentan para el puntaje del " +
@@ -982,7 +989,12 @@ export const patrones = definir({
           "cuando_fue_el_empleo dice si el empleo seguía vigente (a_la_vez), si empezó después (despues), si lo dejó en los " +
           "dos años anteriores (hasta_2_anios) o antes. solo_admitido_el_ganador: en un ítem con cuatro o más ofertas, el " +
           "reporte de evaluación del SEACE dice que sólo se admitió la del ganador (todas las demás quedaron fuera por sus " +
-          "documentos antes de comparar precios; no_admitidas y las empresas que quedaron fuera). firma_en_plazo_de_apelacion: en un ítem con dos o más ofertas, el " +
+          "documentos antes de comparar precios; no_admitidas y las empresas que quedaron fuera). comite_mismo_ganador: una " +
+          "misma persona integró el comité de selección (acta leída por los agentes, cita comprobada) en 3 o más procesos " +
+          "de la entidad que ganó esta empresa, la mitad o más de los suyos, y la empresa gana al menos el doble de eso en " +
+          "los procesos sin esa persona; integrante_del_comite es una clave estable para ver a la misma persona en otros " +
+          "contratos (no se da su nombre); sin parte_que_gana_sin_esa_persona no hay con qué comparar y pesa poco. " +
+          "firma_en_plazo_de_apelacion: en un ítem con dos o más ofertas, el " +
           "contrato se firmó antes del 5.º día hábil siguiente a la buena pro, cuando los otros postores todavía podían " +
           "apelarla (el contrato se perfecciona después del consentimiento: arts. 64 y 141 del reglamento de la Ley 30225; " +
           "arts. 82, 90 y 304 del de la Ley 32069); puede ser también un error de fecha en CONOSCE. " +

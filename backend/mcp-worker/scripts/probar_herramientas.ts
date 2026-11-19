@@ -49,6 +49,14 @@ const CASOS: Caso[] = [
   { h: fichaContrato as never, args: { ocid: "2026-1689-3" },
     espera: (r) => ((lista(r, "cruces") as { tipo?: string; por_que_pesa?: string }[]).some((x) => x.tipo === "consultas_denuncia_direccionamiento" && /desapareció/.test(x.por_que_pesa ?? ""))
       ? null : "sin «por_que_pesa» en la denuncia de bases dirigidas") },
+  // El mismo integrante del comité (migración 396): filas con su clave estable y su papel, y NINGÚN nombre de la persona.
+  { h: patrones as never, args: { alcance: "observacion", indicador: "comite_mismo_ganador" },
+    espera: (r) => {
+      const filas = JSON.stringify(r);
+      const conClave = /"integrante_del_comite":"[0-9a-f]{10}"/.test(filas);
+      const conNombre = /"(persona|nombre_completo|integrante_nombre)"/.test(filas);
+      return conClave && !conNombre ? null : conNombre ? "sale el nombre del integrante" : "sin la clave del integrante";
+    } },
   // Personas con cargo público (migraciones 318 y 319): un apellido y un nombre muy comunes traen varias, todas con el
   // apellido materno tapado y con el enlace a su ficha de rastro.
   { h: personaPublica as never, args: { nombre: "Quispe Juan", donde: "planilla" },

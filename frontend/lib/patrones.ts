@@ -512,7 +512,8 @@ export interface PatronObservacion {
     | "ofertas_a_la_vez"
     | "trabajo_en_el_ganador"
     | "firma_en_plazo_de_apelacion"
-    | "solo_admitido_el_ganador";
+    | "solo_admitido_el_ganador"
+    | "comite_mismo_ganador";
   etiqueta: string;
   severidad: "alta" | "media" | "baja";
   ocid: string;
@@ -556,6 +557,14 @@ export interface PatronObservacion {
   /** Sólo admitieron al ganador: cuántas ofertas no se admitieron y cuáles eran de empresas (RUC 20). */
   noAdmitidas?: number | null;
   fueraEmpresas?: { ruc: string; nombre: string | null }[] | null;
+  /** El mismo integrante del comité (migración 396): cuántas veces juntos, de cuántos procesos suyos, la parte que la
+   * empresa gana con y sin esa persona, su papel en el comité y una clave estable (nunca su nombre). */
+  veces?: number | null;
+  procesosPersona?: number | null;
+  parteCon?: number | null;
+  parteSin?: number | null;
+  rolComite?: string | null;
+  integrante?: string | null;
 }
 
 export interface PatronesObservacion {

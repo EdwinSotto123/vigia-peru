@@ -45,7 +45,8 @@ def refrescar_piezas(cur) -> None:
     """Tras registrar piezas nuevas (backend/lector/piezas.py): la competencia de cada proceso según los reportes del
     SEACE (migración 326) y los hechos de los documentos, que la leen (migraciones 323 y 327)."""
     # La señal en observación de la admisión (migración 390) lee proceso_postor: va después de refrescarlo.
-    for funcion in ("refrescar_proceso_postor", "refrescar_hecho_documento", "refrescar_cruce_solo_admitido"):
+    for funcion in ("refrescar_proceso_postor", "refrescar_hecho_documento", "refrescar_cruce_solo_admitido",
+                    "refrescar_cruce_comite_mismo_ganador"):
         t = time.time()
         cur.execute(f"SELECT {funcion}()")
         print(f"{funcion}(): {cur.fetchone()[0]} filas ({round(time.time() - t)} s)", flush=True)

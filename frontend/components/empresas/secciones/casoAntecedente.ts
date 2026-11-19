@@ -392,6 +392,24 @@ export function datosDe(a: AntecedenteEmpresa, ruc: string): DatoCaso[] {
       { etiqueta: "De dónde sale", valor: "CONOSCE: adjudicaciones, contratos y postores del OECE", soloPanel: true },
       delProceso(),
     );
+  } else if (t === "comite_mismo_ganador") {
+    // Del integrante del comité, sólo su papel (nunca su nombre).
+    const k = num(d.veces);
+    const total = num(d.procesos_de_la_persona);
+    const sin = num(d.parte_sin_la_persona);
+    add(
+      txt(d.rol) && { etiqueta: "Papel en el comité", valor: oracion(txt(d.rol)!.toLowerCase()) },
+      k != null && {
+        etiqueta: "Procesos juntos",
+        valor: `${plural(k, "proceso", "procesos")}${total != null ? ` de ${plural(total, "proceso suyo", "procesos suyos")}` : ""}`,
+      },
+      {
+        etiqueta: "Sin esa persona",
+        valor: sin != null ? `La empresa gana el ${Math.round(sin * 100)} % de los procesos de la entidad` : "Sin otros procesos leídos para comparar",
+      },
+      { etiqueta: "De dónde sale", valor: "Actas leídas por los agentes de Vigía, con cada nombre comprobado", soloPanel: true },
+      delProceso(),
+    );
   } else if (t === "solo_admitido_el_ganador") {
     const ofertas = num(d.ofertas);
     const fuera = num(d.no_admitidas);
