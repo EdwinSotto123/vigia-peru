@@ -283,6 +283,7 @@ const POR_QUE: Record<string, string> = {
   otro_postor: "Cuando el ganador no firma o pierde la buena pro, se adjudica al siguiente postor con su propia oferta: el Estado paga más. Vale ver en el expediente por qué no firmó el primero.",
   fraccionamiento: "Partir una compra en órdenes pequeñas para no hacer un proceso de selección está prohibido. Varias órdenes el mismo día, al mismo proveedor y por encima del tope, son el patrón que se busca.",
   unico_postor: "Un proceso con un solo postor no tuvo competencia: puede ser un rubro muy chico o un requerimiento hecho a la medida de un proveedor. Vale ver si las bases eran restrictivas, sobre todo si el monto es alto o se adjudicó al tope del valor referencial.",
+  comite_socio_proveedor: "Quien integra el comité decide quién cumple y cómo se puntúa. Si además es socio, gerente o representante de una empresa que le vende a su entidad, está en el impedimento de la ley de contrataciones: el funcionario y sus empresas no pueden contratar con su entidad mientras ejerce y hasta doce meses después. Vale confirmar que sea la misma persona, ver si se apartó del comité y revisar cómo se evaluó a los demás postores.",
   socio_en_entidad: "Que un dueño o representante del proveedor esté en la planilla o la lista de locadores de la MISMA entidad que lo contrata es un conflicto de interés directo: quien decide y quien vende pueden ser la misma red. Merece revisar el expediente.",
   pariente_funcionario: "La Ley 32069 impide contratar con la entidad a los parientes de ciertos funcionarios (los que deciden o influyen en la compra). Que un familiar declarado de un funcionario de la misma entidad sea dueño o representante del ganador merece ver en el expediente quién intervino y si se apartó.",
   turno_postores: "Cuando dos empresas con los mismos dueños o la misma dirección compiten una y otra vez y se reparten las buenas pro, la competencia puede ser sólo aparente: es el patrón de la rotación de ofertas. Vale ver quién más se presentó y a qué precios.",
@@ -605,6 +606,40 @@ function Texto({ c, gobierna }: { c: CruceProveedor; gobierna?: GobiernoContrato
             <>La entidad no tiene otros procesos leídos sin esa persona para comparar: pesa poco.</>
           )}{" "}
           Sale de las actas que leyeron los agentes, con cada nombre comprobado en el documento
+          {n(d.pagina) != null ? ` (página ${numero(n(d.pagina)!)} del acta)` : ""}.
+        </>
+      );
+    }
+    case "comite_socio_proveedor": {
+      // Migración 407. Del integrante, sólo su papel en el comité y en la empresa: nunca su nombre ni su DNI.
+      const rol = txt(d.rol)?.toLowerCase();
+      const roles = Array.isArray(d.rol_en_empresa) ? (d.rol_en_empresa as string[]) : [];
+      const papel = roles.includes("REPRESENTANTE_LEGAL") ? "representante legal"
+        : roles.includes("ORGANO_ADMINISTRACION") ? "gerente o directivo" : "socio";
+      const total = n(d.procesos_de_la_persona);
+      const desde = txt(d.socio_desde);
+      const identidad: Record<string, string> = {
+        documento: "Su DNI del registro aparece entre las personas con órdenes de esta entidad: es la misma persona.",
+        nombre_completo: "Coincide su nombre completo, de cuatro palabras o más: muy probablemente es la misma persona.",
+        nombre: "Coincide un nombre de tres palabras: hay que confirmar que no sea un homónimo.",
+      };
+      const cuando: Record<string, string> = {
+        a_la_vez: "La buena pro cayó mientras esa persona integraba comités en la entidad.",
+        cerca: "La buena pro cayó a un año o menos de sus procesos en el comité.",
+        lejos: "La buena pro queda a más de un año de sus procesos en el comité: no se sabe si entonces trabajaba en la entidad, pesa poco.",
+      };
+      return (
+        <>
+          {d.en_su_comite ? (
+            <><b>Esta empresa ganó un proceso en cuyo comité estuvo esa persona.</b>{" "}</>
+          ) : null}
+          Una persona que integró el comité de selección de esta entidad{rol ? ` (${rol})` : ""}
+          {total != null ? ` en ${numero(total)} ${total === 1 ? "proceso" : "procesos"}` : ""} figura en el Registro Nacional de
+          Proveedores como <b>{papel}</b> de <Emp c={c} />{desde ? ` desde ${fechaConAnio(desde)}` : ""}.{" "}
+          {cuando[txt(d.cuando) ?? ""] ?? ""}{" "}
+          {d.socio_al_ganar === false ? "El vínculo con la empresa no regía el día de la buena pro. " : ""}
+          {identidad[txt(d.identidad) ?? ""] ?? ""}{" "}
+          Sale de las actas que leyeron los agentes, con el nombre comprobado en el documento
           {n(d.pagina) != null ? ` (página ${numero(n(d.pagina)!)} del acta)` : ""}.
         </>
       );

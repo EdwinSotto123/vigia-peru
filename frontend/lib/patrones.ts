@@ -513,7 +513,8 @@ export interface PatronObservacion {
     | "trabajo_en_el_ganador"
     | "firma_en_plazo_de_apelacion"
     | "solo_admitido_el_ganador"
-    | "comite_mismo_ganador";
+    | "comite_mismo_ganador"
+    | "comite_socio_proveedor";
   etiqueta: string;
   severidad: "alta" | "media" | "baja";
   ocid: string;
@@ -565,6 +566,16 @@ export interface PatronObservacion {
   parteSin?: number | null;
   rolComite?: string | null;
   integrante?: string | null;
+  /** Integrante del comité socio del proveedor (migración 407): su papel en la empresa (RNP), desde cuándo, si regía al
+   * ganar, cuán firme es la identidad, si estuvo en el comité de ESE proceso y su último proceso en el comité. */
+  rolEmpresa?: string[] | null;
+  socioDesde?: string | null;
+  socioAlGanar?: boolean | null;
+  identidad?: "documento" | "nombre_completo" | "nombre" | null;
+  enSuComite?: boolean | null;
+  ocidComite?: string | null;
+  comiteDesde?: string | null;
+  comiteHasta?: string | null;
 }
 
 export interface PatronesObservacion {

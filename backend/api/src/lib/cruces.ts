@@ -42,6 +42,7 @@ export const ETIQUETA_CRUCE: Record<string, string> = {
   firma_en_plazo_de_apelacion: "Se firmó el contrato cuando los otros postores todavía podían apelar la buena pro",
   solo_admitido_el_ganador: "Entre cuatro o más ofertas, sólo se admitió la del ganador",
   comite_mismo_ganador: "El mismo integrante del comité le adjudicó varias veces a esta empresa",
+  comite_socio_proveedor: "Un integrante del comité de la entidad es socio o representante de esta empresa",
   socio_comun: "Comparte socio o representante con otro postor",
   // Competencia y conflicto en el proceso (migración 122).
   unico_postor: "Único postor del proceso",

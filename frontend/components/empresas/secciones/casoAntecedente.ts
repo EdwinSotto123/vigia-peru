@@ -410,6 +410,21 @@ export function datosDe(a: AntecedenteEmpresa, ruc: string): DatoCaso[] {
       { etiqueta: "De dónde sale", valor: "Actas leídas por los agentes de Vigía, con cada nombre comprobado", soloPanel: true },
       delProceso(),
     );
+  } else if (t === "comite_socio_proveedor") {
+    // Migración 407. Del integrante del comité, su papel en el comité y en la empresa; nunca su nombre ni su DNI.
+    const roles = Array.isArray(d.rol_en_empresa) ? papeles((d.rol_en_empresa as string[]).join(", ")) : null;
+    const frente = ({ a_la_vez: "Mientras integraba comités en la entidad", cerca: "A un año o menos de sus comités", lejos: "A más de un año de sus comités: pesa poco" } as Record<string, string>)[txt(d.cuando) ?? ""];
+    const firme = ({ documento: "Por su DNI del registro, que aparece en la entidad", nombre_completo: "Por su nombre completo (cuatro palabras o más)", nombre: "Por un nombre de tres palabras: confirmar" } as Record<string, string>)[txt(d.identidad) ?? ""];
+    add(
+      txt(d.rol) && { etiqueta: "Papel en el comité", valor: oracion(txt(d.rol)!.toLowerCase()) },
+      roles && { etiqueta: "Papel en la empresa", valor: roles },
+      d.en_su_comite === true && { etiqueta: "En este proceso", valor: "Integró el comité del proceso que ganó la empresa" },
+      frente && { etiqueta: "La buena pro", valor: frente },
+      d.socio_al_ganar === false && { etiqueta: "Su vínculo", valor: "No regía el día de la buena pro" },
+      firme && { etiqueta: "Misma persona", valor: firme, soloPanel: true },
+      { etiqueta: "De dónde sale", valor: "Actas leídas por los agentes de Vigía y Registro Nacional de Proveedores", soloPanel: true },
+      delProceso(),
+    );
   } else if (t === "solo_admitido_el_ganador") {
     const ofertas = num(d.ofertas);
     const fuera = num(d.no_admitidas);

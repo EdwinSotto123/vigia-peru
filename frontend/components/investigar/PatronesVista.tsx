@@ -2581,6 +2581,7 @@ const NOMBRE_OBSERVACION: Record<PatronObservacion["tipo"], string> = {
   firma_en_plazo_de_apelacion: "Contrato firmado antes de que se pudiera apelar",
   solo_admitido_el_ganador: "Entre cuatro o más ofertas, sólo se admitió la del ganador",
   comite_mismo_ganador: "El mismo integrante del comité, el mismo ganador",
+  comite_socio_proveedor: "Un integrante del comité es socio del proveedor",
 };
 
 /** Cuándo fue el empleo frente a la buena pro (trabajo_en_el_ganador). */
@@ -2602,7 +2603,7 @@ function proporcionChica(casos: number, universo: number): string {
 function ListaObservacion({ inicial }: { inicial: InicialPatrones }) {
   const lista = useListaEnUrl("observacion", inicial);
   const tipo = lista.regla && lista.regla in NOMBRE_OBSERVACION ? lista.regla : undefined;
-  const carga = usePoder<PatronesObservacion>(rutaObservacion(lista.page, inicial.integrante ? "comite_mismo_ganador" : tipo, inicial.ruc, inicial.integrante));
+  const carga = usePoder<PatronesObservacion>(rutaObservacion(lista.page, tipo, inicial.ruc, inicial.integrante));
   return (
     <div className="space-y-4">
       <CabeceraPestana
@@ -2613,11 +2614,12 @@ function ListaObservacion({ inicial }: { inicial: InicialPatrones }) {
               cuenta para el riesgo del contrato hasta saber, con una muestra revisada, cuántas veces acierta.
             </span>
             <span className="mt-1.5 block">
-              Hoy son siete: una reunión de la empresa con quien decide las compras mientras se evaluaban las ofertas, visitas
+              Hoy son ocho: una reunión de la empresa con quien decide las compras mientras se evaluaban las ofertas, visitas
               declaradas «personales» y repetidas a quien decide, dos rivales con un socio común que registran sus ofertas
               casi a la vez, un funcionario de la entidad que declaró en su DJI haber trabajado en la empresa que ganó, un
               contrato firmado antes de que los otros postores pudieran apelar, un ítem de cuatro o más ofertas en el que sólo
-              se admitió la del ganador, y la misma persona del comité de selección en varios procesos que ganó la misma empresa.
+              se admitió la del ganador, la misma persona del comité de selección en varios procesos que ganó la misma empresa, y
+              una persona del comité que es socia o representante de una empresa que le vende a su entidad.
             </span>
             <span className="mt-1.5 block">De quien recibió una visita se muestra sólo el cargo. Es un motivo para mirar, no una acusación.</span>
           </Ayuda>
@@ -2694,6 +2696,14 @@ function evidenciaObservacion(p: PatronObservacion): string {
     const sin = p.parteSin != null ? `; sin esa persona gana el ${Math.round(p.parteSin * 100)} %` : "; sin otros procesos para comparar";
     const rol = p.rolComite ? ` (${p.rolComite.toLowerCase()})` : "";
     return `La misma persona del comité${rol} en ${plural(p.veces ?? 3, "proceso", "procesos")} que ganó, de ${plural(p.procesosPersona ?? p.veces ?? 3, "proceso suyo", "procesos suyos")}${sin}`;
+  }
+  if (p.tipo === "comite_socio_proveedor") {
+    // Migración 407: del integrante, su papel en el comité y en la empresa; nunca su nombre.
+    const rol = p.rolComite ? ` (${p.rolComite.toLowerCase()})` : "";
+    const papel = p.rolEmpresa?.includes("REPRESENTANTE_LEGAL") ? "representante" : p.rolEmpresa?.includes("ORGANO_ADMINISTRACION") ? "gerente o directivo" : "socio";
+    const cuando = p.enSuComite ? "; estuvo en el comité de este proceso" : p.cuando === "a_la_vez" ? "; ganó mientras integraba comités" : p.cuando === "cerca" ? "; ganó a un año o menos de sus comités" : "; ganó lejos de sus comités";
+    const firme = p.identidad === "documento" ? ", confirmado por DNI" : p.identidad === "nombre" ? ", por un nombre de tres palabras" : "";
+    return `Integrante del comité${rol} es ${papel} de la empresa${firme}${cuando}`;
   }
   if (p.tipo === "solo_admitido_el_ganador") {
     const fuera = p.noAdmitidas ?? (p.ofertas != null ? p.ofertas - 1 : null);

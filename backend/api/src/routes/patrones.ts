@@ -1133,11 +1133,12 @@ patronesRouter.get("/renovaciones", async (c) => {
 });
 
 const TIPOS_OBSERVACION = ["reunion_en_evaluacion", "visita_personal_decisor", "ofertas_a_la_vez", "trabajo_en_el_ganador",
-  "firma_en_plazo_de_apelacion", "solo_admitido_el_ganador", "comite_mismo_ganador"] as const;
+  "firma_en_plazo_de_apelacion", "solo_admitido_el_ganador", "comite_mismo_ganador", "comite_socio_proveedor"] as const;
 const Observacion = z.object({
   tipo: z.enum(TIPOS_OBSERVACION).optional(),
   ruc: z.string().regex(/^20\d{9}$/).optional(),
-  // comite_mismo_ganador (migración 396): todos los contratos de la misma persona del comité, por su clave estable.
+  // comite_mismo_ganador (396) y comite_socio_proveedor (407): todos los contratos de la misma persona del comité, por su
+  // clave estable (la misma en las dos señales).
   integrante: z.string().regex(/^[0-9a-f]{10}$/).optional(),
   page: z.coerce.number().int().min(1).max(200).default(1),
   size: z.coerce.number().int().min(1).max(50).default(20),
@@ -1186,6 +1187,12 @@ patronesRouter.get("/observacion", async (c) => {
                 (k.detalle->>'veces')::int AS veces, (k.detalle->>'procesos_de_la_persona')::int AS "procesosPersona",
                 (k.detalle->>'parte_con_la_persona')::float AS "parteCon", (k.detalle->>'parte_sin_la_persona')::float AS "parteSin",
                 k.detalle->>'rol' AS "rolComite", k.detalle->>'integrante' AS integrante,
+                -- comite_socio_proveedor (migración 407): su papel en la empresa, desde cuándo, cuán firme es la identidad, si
+                -- estuvo en el comité de ESE proceso y el último proceso en que integró el comité (con sus fechas).
+                k.detalle->'rol_en_empresa' AS "rolEmpresa", k.detalle->>'socio_desde' AS "socioDesde",
+                (k.detalle->>'socio_al_ganar')::boolean AS "socioAlGanar", k.detalle->>'identidad' AS identidad,
+                (k.detalle->>'en_su_comite')::boolean AS "enSuComite", k.detalle->>'ocid_comite' AS "ocidComite",
+                k.detalle->>'comite_desde' AS "comiteDesde", k.detalle->>'comite_hasta' AS "comiteHasta",
                 k.detalle->>'consentimiento_registrado' AS consentimiento, k.detalle->>'norma' AS norma,
                 COALESCE(k.detalle->>'area_funcionario', k.detalle->'visitas'->-1->>'area') AS area,
                 (k.detalle->>'minutos')::float AS minutos, k.detalle->>'hora_ganador' AS "horaGanador", k.detalle->>'hora_otro' AS "horaOtro",

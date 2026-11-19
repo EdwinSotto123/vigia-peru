@@ -28,6 +28,7 @@ const POR_TIPO: Record<string, LucideIcon> = {
   // En observación (migración 329)
   reunion_en_evaluacion: Footprints, visita_personal_decisor: Footprints, ofertas_a_la_vez: Timer, trabajo_en_el_ganador: DoorOpen,
   firma_en_plazo_de_apelacion: Signature, solo_admitido_el_ganador: UserRound, comite_mismo_ganador: Handshake,
+  comite_socio_proveedor: ArrowRightLeft,
   visitado_y_gano: Footprints,
   // Historial
   inhabilitado: Ban, penal: Gavel, sancion_multa: Gavel, inversion_laudo: Gavel, penalidad: CircleMinus,

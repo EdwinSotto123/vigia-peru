@@ -222,6 +222,25 @@ function porQuePesa(x: Fila): string | undefined {
         (con != null ? `, el ${con} % de los suyos en la entidad` : "") +
         (sin != null ? `; sin esa persona, la empresa gana el ${sin} %.` : "; la entidad no tiene procesos leídos sin ella para comparar, así que pesa poco.");
     }
+    case "comite_socio_proveedor": {
+      // Migración 407: del integrante, sólo su papel; la identidad dice cuán firme es el emparejamiento por nombre.
+      const ident: Record<string, string> = {
+        documento: "su DNI del RNP aparece entre las personas con órdenes de la entidad",
+        nombre_completo: "coincide su nombre completo (4 palabras o más)",
+        nombre: "coincide un nombre de 3 palabras: confirmar que es la misma persona",
+      };
+      const cuando: Record<string, string> = {
+        a_la_vez: "mientras integraba comités en la entidad",
+        cerca: "a un año o menos de sus procesos en el comité",
+        lejos: "a más de un año de sus procesos en el comité: pesa poco",
+      };
+      const partes = [
+        d.en_su_comite ? "Esta empresa ganó un proceso en cuyo comité estuvo esa persona" : `La empresa ganó ${cuando[String(d.cuando ?? "")] ?? "en la entidad"}`,
+        ident[String(d.identidad ?? "")],
+        d.socio_al_ganar === false ? "el vínculo con la empresa no regía el día de la buena pro" : undefined,
+      ].filter(Boolean);
+      return `Un integrante del comité (${d.rol ?? "integrante"}) es socio o representante de la empresa. ${partes.join("; ")}.`;
+    }
     case "firma_en_plazo_de_apelacion": {
       const dh = n(d.dias_habiles);
       return dh != null ? `Firmado ${dh === 0 ? "el mismo día de la buena pro" : `${dh} días hábiles después de la buena pro`}, antes del plazo para apelar.` : undefined;

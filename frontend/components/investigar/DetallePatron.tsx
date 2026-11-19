@@ -1142,6 +1142,23 @@ const minutosEntre = (m: number | null) => (m == null ? "pocos minutos" : m < 1 
 const recibio = (p: PatronObservacion) =>
   p.cargo || p.area ? `quien tiene el cargo de ${(p.cargo ?? "funcionario").toLowerCase()}${p.area ? ` en ${p.area.toLowerCase()}` : ""}` : "un funcionario que decide las compras";
 
+/** Papel en la empresa según el RNP (comite_socio_proveedor, migración 407): el de más peso, o todos. */
+function papelEmpresa(roles: string[] | null | undefined, todos = false): string {
+  const nombres: Record<string, string> = {
+    REPRESENTANTE_LEGAL: "representante legal", ORGANO_ADMINISTRACION: "gerente o directivo", SOCIO_ACCIONISTA_TITULAR: "socio",
+  };
+  const r = (roles ?? []).filter((x) => x in nombres);
+  if (todos) return r.length ? r.map((x) => nombres[x]).join(", ").replace(/^./, (c) => c.toUpperCase()) : "Socio";
+  return nombres[r.find((x) => x === "REPRESENTANTE_LEGAL") ?? r.find((x) => x === "ORGANO_ADMINISTRACION") ?? "SOCIO_ACCIONISTA_TITULAR"];
+}
+
+/** Cuán firme es que sea la misma persona (el emparejamiento es por nombre, sin DNI del acta). */
+const IDENTIDAD_COMITE: Record<string, string> = {
+  documento: "El DNI que figura en el registro aparece entre las personas con órdenes de la entidad: es la misma persona.",
+  nombre_completo: "Coincide su nombre completo, de cuatro palabras o más.",
+  nombre: "Coincide un nombre de tres palabras: puede ser un homónimo.",
+};
+
 export function detalleObservacion(p: PatronObservacion): Detalle {
   const emp = empresa(p.empresa);
   const ent = entidad(p.entidad);
@@ -1170,6 +1187,14 @@ export function detalleObservacion(p: PatronObservacion): Detalle {
         {p.rolComite ? ` (${p.rolComite.toLowerCase()})` : ""} estuvo en <b>{plural(p.veces ?? 3, "proceso", "procesos")}</b> que ganó{" "}
         <b>{emp}</b>
         {p.parteSin != null ? <>; sin esa persona, la empresa gana el <b>{Math.round(p.parteSin * 100)} %</b> de los procesos de la entidad</> : ""}.
+      </>
+    ) : p.tipo === "comite_socio_proveedor" ? (
+      <>
+        Una persona que integró el comité de selección de <b>{ent}</b>
+        {p.rolComite ? ` (${p.rolComite.toLowerCase()})` : ""}
+        {p.enSuComite ? <b> en este mismo proceso</b> : null} figura en el Registro Nacional de Proveedores como{" "}
+        <b>{papelEmpresa(p.rolEmpresa)}</b> de <b>{emp}</b>, {p.enSuComite ? "que lo ganó" : "que le gana contratos a esa entidad"}.{" "}
+        {IDENTIDAD_COMITE[p.identidad ?? ""] ?? ""}
       </>
     ) : p.tipo === "solo_admitido_el_ganador" ? (
       <>
@@ -1216,6 +1241,25 @@ export function detalleObservacion(p: PatronObservacion): Detalle {
             { etiqueta: "Gana sin esa persona", valor: p.parteSin != null ? `${Math.round(p.parteSin * 100)} %` : "Sin procesos para comparar" },
             { etiqueta: "Papel en el comité", valor: p.rolComite ? tituloNatural(p.rolComite) : null },
             { etiqueta: "De dónde sale", valor: "Actas leídas por los agentes de Vigía, con cada nombre comprobado en el documento" },
+          ]
+      : p.tipo === "comite_socio_proveedor"
+        ? [
+            { etiqueta: "Papel en el comité", valor: p.rolComite ? tituloNatural(p.rolComite) : null },
+            { etiqueta: "Papel en la empresa", valor: papelEmpresa(p.rolEmpresa, true) },
+            { etiqueta: "En la empresa desde", valor: p.socioDesde ? fechaConAnio(p.socioDesde) : null },
+            { etiqueta: "¿Regía al ganar?", valor: p.socioAlGanar == null ? null : p.socioAlGanar ? "Sí" : "No: el vínculo no regía ese día" },
+            { etiqueta: "¿Estuvo en el comité de este proceso?", valor: p.enSuComite ? "Sí" : "No: integró comités de otros procesos" },
+            {
+              etiqueta: "Sus procesos en el comité",
+              valor: p.comiteDesde
+                ? `${p.procesosPersona != null ? `${plural(p.procesosPersona, "proceso", "procesos")}, ` : ""}${p.comiteHasta && p.comiteHasta !== p.comiteDesde ? `de ${fechaConAnio(p.comiteDesde)} a ${fechaConAnio(p.comiteHasta)}` : fechaConAnio(p.comiteDesde)}`
+                : null,
+            },
+            {
+              etiqueta: "La buena pro, frente a eso",
+              valor: ({ a_la_vez: "Mientras integraba comités", cerca: "A un año o menos", lejos: "A más de un año: pesa poco", sin_fechas: "Sin fechas" } as Record<string, string>)[p.cuando ?? ""] ?? null,
+            },
+            { etiqueta: "De dónde sale", valor: "Actas leídas por los agentes de Vigía (nombre comprobado en el documento) y Registro Nacional de Proveedores" },
           ]
       : p.tipo === "solo_admitido_el_ganador"
         ? [
@@ -1283,6 +1327,13 @@ export function detalleObservacion(p: PatronObservacion): Detalle {
             "Busca si esa persona declaró algún vínculo con la empresa en su Declaración Jurada de Intereses.",
             "Descarta la explicación sencilla: el único proveedor del rubro o un área que compra siempre lo mismo.",
           ]
+      : p.tipo === "comite_socio_proveedor"
+        ? [
+            "Confirma que sea la misma persona: su cargo en la entidad, su Declaración Jurada de Intereses y la ficha de la empresa en el RNP.",
+            "Abre el proceso en el que integró el comité y mira si se apartó o declaró el vínculo.",
+            "Revisa los contratos que la empresa le ganó a la entidad: fechas, montos y quién los evaluó.",
+            "Descarta la explicación sencilla: un homónimo, o un vínculo que terminó antes de que entrara a la entidad.",
+          ]
       : p.tipo === "solo_admitido_el_ganador"
         ? [
             "Abre el contrato y lee en el reporte de evaluación el motivo de cada oferta no admitida.",
@@ -1333,9 +1384,13 @@ export function detalleObservacion(p: PatronObservacion): Detalle {
           esRuc20(p.ruc) && { texto: "Ficha de la empresa", href: `/empresa/${p.ruc}` },
           esRuc20(p.entidadRuc) && { texto: "Ficha de la entidad", href: `/entidad/${p.entidadRuc}` },
           // La misma persona del comité en sus otros contratos marcados (por su clave, nunca por su nombre).
-          p.tipo === "comite_mismo_ganador" && !!p.integrante && {
+          (p.tipo === "comite_mismo_ganador" || p.tipo === "comite_socio_proveedor") && !!p.integrante && {
             texto: "Otros contratos de esa persona del comité",
-            href: `/app/patrones?seccion=observacion&regla=comite_mismo_ganador&integrante=${p.integrante}`,
+            href: `/app/patrones?seccion=observacion&integrante=${p.integrante}`,
+          },
+          p.tipo === "comite_socio_proveedor" && !!p.ocidComite && p.ocidComite !== p.ocid && {
+            texto: "El proceso en el que integró el comité",
+            href: rutaContrato(p.ocidComite),
           },
         ]}
       />

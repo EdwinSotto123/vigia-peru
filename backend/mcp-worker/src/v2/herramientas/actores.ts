@@ -793,10 +793,10 @@ export const patrones = definir({
   entrada: {
     alcance: z.enum(["entidad", "proveedor", "relleno", "consorcio", "renovacion", "dueno", "inhabilitada", "control", "observado", "observacion", "grupo", "repetida", "doble", "recien_creada", "compras_familia", "autoridad_exsocio", "cierre_gestion"]).default("entidad"),
     indicador: z.enum(["reunion_en_evaluacion", "visita_personal_decisor", "ofertas_a_la_vez", "trabajo_en_el_ganador",
-      "firma_en_plazo_de_apelacion", "solo_admitido_el_ganador", "comite_mismo_ganador"]).optional()
+      "firma_en_plazo_de_apelacion", "solo_admitido_el_ganador", "comite_mismo_ganador", "comite_socio_proveedor"]).optional()
       .describe("(observacion) Sólo uno de los indicadores en observación."),
     integrante_del_comite: z.string().regex(/^[0-9a-f]{10}$/).optional()
-      .describe("(observacion) La clave de una persona del comité (integrante_del_comite de comite_mismo_ganador): todos sus contratos marcados, sin su nombre."),
+      .describe("(observacion) La clave de una persona del comité (integrante_del_comite de comite_mismo_ganador o comite_socio_proveedor): todos sus contratos marcados en las dos señales, sin su nombre."),
     ruc: z.string().min(11).max(14).optional().describe("RUC 20 de la entidad o de la empresa (opcional)."),
     regla: z.string().max(60).optional().describe("Sólo una señal, por su código (p. ej. unica_oferta_valida)."),
     solo_graves: z.boolean().optional().describe("(dueno) Sólo grupos con contratos parecidos a 90 días o menos entre sí. (inhabilitada) Sólo con sanción definitiva o empresa hecha cerca de la sanción. (observado) Sólo con responsabilidad penal presunta en una observación de selección, ejecución o pagos."),
@@ -959,7 +959,7 @@ export const patrones = definir({
     }
     if (a.alcance === "observacion") {
       const r = await api<Fila>(cx.env, "/patrones/observacion", {
-        ruc, tipo: a.integrante_del_comite ? "comite_mismo_ganador" : a.indicador, integrante: a.integrante_del_comite, page: a.pagina, size: 20,
+        ruc, tipo: a.indicador, integrante: a.integrante_del_comite, page: a.pagina, size: 20,
       });
       return {
         total: r.total,
@@ -992,6 +992,14 @@ export const patrones = definir({
           parte_que_gana_sin_esa_persona: x.parteSin ?? undefined,
           papel_en_el_comite: x.rolComite ?? undefined,
           integrante_del_comite: x.integrante ?? undefined,
+          // comite_socio_proveedor (migración 407): su papel en la empresa (RNP), sin nombre ni DNI.
+          papel_en_la_empresa: Array.isArray(x.rolEmpresa) && x.rolEmpresa.length ? x.rolEmpresa : undefined,
+          en_la_empresa_desde: x.socioDesde ?? undefined,
+          vinculo_vigente_al_ganar: x.socioAlGanar ?? undefined,
+          identidad: x.identidad ?? undefined,
+          estuvo_en_el_comite_de_este_proceso: x.enSuComite ?? undefined,
+          ultimo_proceso_en_el_comite: x.ocidComite ? e.contrato(x.ocidComite) : undefined,
+          comite_entre: x.comiteDesde ? [x.comiteDesde, x.comiteHasta ?? x.comiteDesde] : undefined,
         })),
         como_leerlo:
           "Son indicadores EN OBSERVACIÓN: Vigía todavía mide cuántas veces aciertan, así que no cuentan para el puntaje del " +
@@ -1011,6 +1019,14 @@ export const patrones = definir({
           "de la entidad que ganó esta empresa, la mitad o más de los suyos, y la empresa gana al menos el doble de eso en " +
           "los procesos sin esa persona; integrante_del_comite es una clave estable para ver a la misma persona en otros " +
           "contratos (no se da su nombre); sin parte_que_gana_sin_esa_persona no hay con qué comparar y pesa poco. " +
+          "comite_socio_proveedor: una persona que integró el comité de selección en la entidad (acta, cita comprobada) es " +
+          "socio, gerente o representante (RNP) de esta empresa, que le gana a esa entidad: el impedimento de la ley de " +
+          "contrataciones (el funcionario y sus empresas no pueden contratar con su entidad mientras ejerce y hasta 12 meses " +
+          "después). Se empareja por el nombre: identidad dice cuán firme es (documento: el DNI del RNP aparece entre las " +
+          "personas con órdenes de la entidad; nombre_completo: 4 palabras o más; nombre: 3, hay que confirmarlo). " +
+          "cuando_fue_el_empleo aquí es la buena pro frente a sus procesos en el comité (a_la_vez, cerca: a un año o menos, " +
+          "lejos); estuvo_en_el_comite_de_este_proceso es lo más grave; integrante_del_comite es la misma clave que en " +
+          "comite_mismo_ganador. " +
           "firma_en_plazo_de_apelacion: en un ítem con dos o más ofertas, el " +
           "contrato se firmó antes del 5.º día hábil siguiente a la buena pro, cuando los otros postores todavía podían " +
           "apelarla (el contrato se perfecciona después del consentimiento: arts. 64 y 141 del reglamento de la Ley 30225; " +
