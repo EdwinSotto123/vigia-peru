@@ -697,15 +697,25 @@ personasRouter.get("/buscar", async (c) => {
   const palabras = palabrasDeBusqueda(q);
   c.header("Cache-Control", CACHE);
   if (palabras.length < 2) return c.json({ q, falta: "Escribe un apellido y un nombre.", conCargo: [], contratadas: [] });
-  const cuerpo = await buscarMemo.obtener(palabras.join(" "), async () => {
+  const cuerpo = await buscarMemo.obtener(palabras.join(" "), async (ctl) => {
+    // Una búsqueda que falló (tiempo agotado, base ocupada) no es «nadie se llama así»: se dice en `sinRespuesta` y esa
+    // respuesta no se guarda en ninguna caché. Antes quedaba vacía 20 minutos en memoria y en el borde.
+    const sinRespuesta: string[] = [];
+    const fallo = (que: string) => (err: unknown) => {
+      console.warn(`[personas:buscar] ${que}: ${(err as Error).message}`);
+      sinRespuesta.push(que);
+      return [];
+    };
     const [conCargo, contratadas] = await Promise.all([
-      funcionariosPorNombreVisible(q, 25).catch(() => []),
+      funcionariosPorNombreVisible(q, 25).catch(fallo("conCargo")),
       // Hasta 30: quien escribe el nombre completo trae también a quienes coinciden por el otro apellido, y no deben
       // sacar de la lista a la persona buscada.
-      personasPorNombreVisible(q, 30).catch(() => []),
+      personasPorNombreVisible(q, 30).catch(fallo("contratadas")),
     ]);
-    return publicar({ q, conCargo, contratadas });
+    if (sinRespuesta.length) ctl.noGuardar();
+    return publicar({ q, conCargo, contratadas, ...(sinRespuesta.length ? { sinRespuesta } : {}) });
   });
+  if (((cuerpo as { sinRespuesta?: string[] }).sinRespuesta ?? []).length) c.header("Cache-Control", "no-store");
   return c.json(cuerpo);
 });
 

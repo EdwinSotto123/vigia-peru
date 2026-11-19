@@ -517,6 +517,11 @@ export const personaPublica = definir({
             .filter((x) => buscadas.every((w) => normal(String(x.autoridad ?? "")).includes(w)))
             .map((x) => ({ autoridad: x.autoridad, cargo: x.cargo_gob, entidad: x.entidad, entidad_ruc: x.entidad_ruc, partido: x.partido, desde: x.periodoInicio, hasta: x.periodoFin }))
         : undefined,
+      // Una lista vacía porque la búsqueda no respondió no es «no tiene cargo público»: se dice.
+      aviso:
+        cc === null || ((cc?.sinRespuesta ?? []) as string[]).length
+          ? "La búsqueda de personas con cargo público no respondió esta vez: `con_cargo_publico` puede estar incompleta. Vuelve a intentarlo en un minuto antes de concluir que no tiene cargo."
+          : undefined,
       fuente: "JNE (candidaturas 2014 a 2026; las regionales y municipales de 2026 aún sin resultado publicado), registro de autoridades vigentes, planillas del Portal de Transparencia Estándar y declaraciones juradas de intereses (Contraloría).",
     };
   },
