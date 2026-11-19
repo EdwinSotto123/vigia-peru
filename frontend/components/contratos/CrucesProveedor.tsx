@@ -625,7 +625,7 @@ function Texto({ c, gobierna }: { c: CruceProveedor; gobierna?: GobiernoContrato
           Una misma persona del comité de selección{rol ? ` (${rol})` : ""} estuvo en {total != null ? `${numero(total)} procesos` : "varios procesos"} de esta
           entidad y en <b>{m != null ? numero(m) : "muchos"}</b> la competencia quedó restringida{base != null ? <>; en los demás procesos de la entidad pasa en el <b>{base} %</b></> : ""}.{" "}
           {pv != null ? `Que sea azar tiene una probabilidad de ${pv < 0.001 ? "menos de 1 en 1 000" : `1 en ${numero(Math.round(1 / pv))}`}. ` : ""}
-          {marcas.length ? `En este proceso: ${marcas.join(", ")}. ` : ""}
+          {marcas.length ? `En este proceso: ${marcas.join(", ")}; lo ganó ` : "Este proceso lo ganó "}<Emp c={c} />.{" "}
           Sale de las actas que leyeron Vigía y sus agentes, con cada nombre comprobado en el documento.
         </>
       );
