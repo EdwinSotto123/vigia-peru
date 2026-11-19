@@ -515,7 +515,7 @@ async function lecturasDe(ocid: string): Promise<FilaLectura[]> {
     `SELECT DISTINCT ON (l.clase) l.clase, l.version, l.modelo, l.salida, l.banderas, l.paginas,
             to_char(l.leido_at, 'YYYY-MM-DD') AS "leidoAt", d.url_origen AS url
        FROM documento_lectura l LEFT JOIN documentos_gcs d ON d.id = l.documentos[1]
-      WHERE l.ocid = $1 AND l.estado = 'ok' AND l.version NOT LIKE '%-2'
+      WHERE l.ocid = $1 AND l.estado = 'ok' AND l.version NOT LIKE '%-2' AND l.clase <> 'comite'
       ORDER BY l.clase, l.leido_at DESC`, [ocid]);
   return r.rows as FilaLectura[];
 }

@@ -111,7 +111,8 @@ const DESEADAS = `
   UNION ALL
   SELECT 'lectura', l.ocid || ':' || l.clase, concat_ws('@', l.version, extract(epoch FROM l.leido_at)::bigint, '${VERSION_TROCEO}'), 1
     FROM (SELECT DISTINCT ON (ocid, clase) ocid, clase, version, leido_at FROM documento_lectura
-           WHERE estado = 'ok' AND version NOT LIKE '%-2' AND salida IS NOT NULL
+           -- El comité (lector/comite.py) son nombres de funcionarios para cruzar por dentro: nunca al índice.
+           WHERE estado = 'ok' AND version NOT LIKE '%-2' AND salida IS NOT NULL AND clase <> 'comite'
            ORDER BY ocid, clase, leido_at DESC) l
   UNION ALL
   SELECT 'dictamen', a.id::text, md5(a.dictamen_markdown) || '@${VERSION_TROCEO}', 0
@@ -170,7 +171,7 @@ async function cargarLecturas(ps: Pendiente[]): Promise<FuenteLista[]> {
     `SELECT l.ocid || ':' || l.clase AS id, ocid_corto(l.ocid) AS ocid, l.clase, l.salida, l.banderas, d.url_origen AS url,
             c.entidad_ruc, c.anio, c.objeto
        FROM (SELECT DISTINCT ON (ocid, clase) ocid, clase, salida, banderas, documentos FROM documento_lectura
-              WHERE ocid = ANY($1::text[]) AND estado = 'ok' AND version NOT LIKE '%-2' AND salida IS NOT NULL
+              WHERE ocid = ANY($1::text[]) AND estado = 'ok' AND version NOT LIKE '%-2' AND salida IS NOT NULL AND clase <> 'comite'
               ORDER BY ocid, clase, leido_at DESC) l
        LEFT JOIN documentos_gcs d ON d.id = l.documentos[1]
        ${CONVOCATORIA("l.ocid")}`, [Array.from(new Set(claves.map((k) => k.ocid)))]);
