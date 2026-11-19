@@ -38,6 +38,16 @@ TOKENS_POR_IMAGEN = 1_600         # estimado, para el tope de tokens del pedido
 DPI = 110
 
 
+def primer_json(texto: str):
+    """El primer valor JSON del texto, sin lo que venga después. Un modelo que contesta en texto en vez de llamar a la
+    herramienta a veces cierra con una cerca de markdown («```»): con json.loads, el 23 % de las segundas lecturas del
+    comité (Gemma 4, 2026-11-19) quedaba como json_invalido teniendo el objeto entero. Lanza JSONDecodeError si no hay."""
+    t = texto.strip()
+    if t.startswith("```"):
+        t = t.split("\n", 1)[1] if "\n" in t else ""
+    return json.JSONDecoder().raw_decode(t)[0]
+
+
 def letras(t: str) -> int:
     return len(re.findall(r"[A-Za-zÁÉÍÓÚÑáéíóúñ]", t or ""))
 
@@ -166,9 +176,11 @@ class MotorWorkers:
         if args is None:
             return {**res, "estado": "truncada" if fin == "length" else "json_invalido", "detalle": str(msj)[:300]}
         try:
-            salida = args if isinstance(args, dict) else json.loads(args)
+            salida = args if isinstance(args, dict) else primer_json(args)
         except json.JSONDecodeError:
-            return {**res, "estado": "truncada" if fin == "length" else "json_invalido", "detalle": str(args)[:300]}
+            # Sin el texto crudo: puede traer nombres o un número de documento (el lector del comité). Sólo su forma.
+            return {**res, "estado": "truncada" if fin == "length" else "json_invalido",
+                    "detalle": f"{len(str(args))} caracteres, termina en {str(args)[-12:]!r}"}
         if not isinstance(salida, dict):
             return {**res, "estado": "json_invalido", "detalle": str(salida)[:300]}
         if hasattr(lector, "normalizar"):
