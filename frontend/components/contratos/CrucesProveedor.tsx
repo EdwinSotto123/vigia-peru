@@ -78,6 +78,8 @@ const FUENTE: Record<string, string> = {
   acta_buena_pro: "Acta de buena pro del SEACE, leída con IA",
   consultas_bases: "Pliego de consultas del SEACE, leído con IA",
   bases_seace: "Bases del procedimiento en el SEACE, leídas con IA",
+  // Los reportes que genera el propio SEACE, leídos sin modelo (migraciones 326, 384 y 390).
+  reporte_evaluacion: "Reporte de evaluación del SEACE",
 };
 /** Cuántas filas de un mismo tipo se ven antes de "ver más". */
 const VISIBLES = 3;
@@ -587,7 +589,9 @@ function Texto({ c, gobierna }: { c: CruceProveedor; gobierna?: GobiernoContrato
       const fuera = n(d.no_admitidas);
       const item = n(d.item);
       const empresas = Array.isArray(d.fuera_empresas) ? (d.fuera_empresas as { ruc: string; nombre: string | null }[]) : [];
-      const desc = txt(d.descripcion_item);
+      // La descripción del ítem viene cortada a 200 caracteres: se corta antes, en un espacio, y se dice que sigue.
+      const largo = txt(d.descripcion_item);
+      const desc = largo && largo.length > 110 ? `${largo.slice(0, 110).replace(/\s+\S*$/, "")}…` : largo;
       return (
         <>
           En {item != null ? `el ítem ${numero(item)}` : "este ítem"}
