@@ -176,6 +176,52 @@ export const buscarContratos = definir({
   },
 });
 
+/**
+ * Por qué una bandera pesa lo que pesa, con los datos de su evidencia que la deciden (migraciones 390-395). Sólo números
+ * y categorías: el detalle de un cruce puede traer nombres de personas, y esos no salen por aquí.
+ */
+function porQuePesa(x: Fila): string | undefined {
+  const d = (x.detalle ?? {}) as Fila;
+  const n = (v: unknown) => (typeof v === "number" ? v : typeof v === "string" && /^\d+$/.test(v) ? Number(v) : null);
+  switch (x.tipo) {
+    case "acta_solo_queda_el_ganador":
+    case "acta_descalificados_por_formalidad": {
+      const p = n(d.postores);
+      if (p == null) return undefined;
+      return p <= 2
+        ? `${p} postores según el acta: con dos, que el otro quede fuera pasa en la mitad de los procesos, así que pesa poco.`
+        : `${p} postores según el acta.`;
+    }
+    case "consultas_denuncia_direccionamiento":
+      return d.competencia === "desaparecio"
+        ? "Después de la denuncia la competencia desapareció: una sola oferta, o una sola admitida (reporte de evaluación del SEACE)."
+        : d.competencia === "se_mantuvo"
+          ? "Después de la denuncia hubo competencia (se admitieron dos o más ofertas): pesa poco. Donde hay denuncia suele haber más postores, no menos."
+          : "Sin reporte de evaluación para saber qué pasó después con la competencia.";
+    case "socio_en_entidad": {
+      const rango = d.primera_orden ? `${d.primera_orden}${d.ultima_orden && d.ultima_orden !== d.primera_orden ? ` a ${d.ultima_orden}` : ""}` : null;
+      const cuando: Record<string, string> = {
+        a_la_vez: "tenía órdenes de la entidad cuando se dio la buena pro",
+        cerca: "sus órdenes quedan a menos de dos años de la buena pro",
+        lejos: "sus órdenes quedan a más de dos años de la buena pro: pesa poco",
+      };
+      const c = cuando[String(d.cuando ?? "")];
+      return c ? `La persona ${c}${rango ? ` (órdenes: ${rango})` : ""}.` : undefined;
+    }
+    case "solo_admitido_el_ganador": {
+      const o = n(d.ofertas);
+      const f = n(d.no_admitidas);
+      return o != null ? `${o} ofertas en el ítem y sólo se admitió la del ganador${f != null ? ` (${f} fuera)` : ""}; con 6 o más es grave.` : undefined;
+    }
+    case "firma_en_plazo_de_apelacion": {
+      const dh = n(d.dias_habiles);
+      return dh != null ? `Firmado ${dh === 0 ? "el mismo día de la buena pro" : `${dh} días hábiles después de la buena pro`}, antes del plazo para apelar.` : undefined;
+    }
+    default:
+      return undefined;
+  }
+}
+
 function resumenDictamen(a: Fila | null, ocid: string, cx: Contexto) {
   if (!a) return null;
   return {
@@ -241,6 +287,7 @@ export const fichaContrato = definir({
           // De qué ganador es: con un consorcio, cada integrante trae su propia fila.
           ...proveedor(x.proveedor, x.rucProveedor), del_consorcio: x.consorcio?.nombre ?? undefined,
           en_observacion: x.observacion === true || undefined,
+          por_que_pesa: porQuePesa(x),
         })),
       cruces_en_observacion: ((c.cruces ?? []) as Fila[]).some((x) => x.observacion === true)
         ? "Las marcadas en_observacion son indicadores nuevos que se muestran con su evidencia pero no cuentan para el puntaje: indicio por revisar, no un hallazgo."

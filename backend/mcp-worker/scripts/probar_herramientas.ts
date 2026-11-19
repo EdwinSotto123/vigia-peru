@@ -10,7 +10,7 @@
  * `rastro_persona` necesita además MCP_INTERNO_TOKEN; sin él esa prueba se salta. No imprime secretos ni nombres enteros.
  */
 import { z } from "zod";
-import { buscarContratos, ordenes, preciosDeMercado } from "../src/v2/herramientas/contratos";
+import { buscarContratos, fichaContrato, ordenes, preciosDeMercado } from "../src/v2/herramientas/contratos";
 import { buscarInformesControl, informesControl, ordenesEnPeriodo } from "../src/v2/herramientas/entidad";
 import { fichaEntidad, historia, normaAplicable, patrones, personaPublica, preciosReferencia, redEmpresa } from "../src/v2/herramientas/actores";
 import { informeControlContrato } from "../src/v2/herramientas/control";
@@ -41,6 +41,14 @@ const lista = (r: Record<string, unknown>, k: string) => (Array.isArray(r[k]) ? 
 const hay = (k: string, min = 1) => (r: Record<string, unknown>) => (lista(r, k).length >= min ? null : `«${k}» trae ${lista(r, k).length} filas (se esperaban ${min} o más)`);
 
 const CASOS: Caso[] = [
+  // Las banderas recalibradas dicen por qué pesan (migraciones 390-395): el contrato 1241973 tiene «sólo admitieron al
+  // ganador» (6 ofertas) y el 2026-1689-3 una denuncia de bases dirigidas tras la que la competencia desapareció.
+  { h: fichaContrato as never, args: { ocid: "1241973" },
+    espera: (r) => ((lista(r, "cruces") as { tipo?: string; por_que_pesa?: string }[]).some((x) => x.tipo === "solo_admitido_el_ganador" && /6 ofertas/.test(x.por_que_pesa ?? ""))
+      ? null : "sin «por_que_pesa» en sólo admitieron al ganador") },
+  { h: fichaContrato as never, args: { ocid: "2026-1689-3" },
+    espera: (r) => ((lista(r, "cruces") as { tipo?: string; por_que_pesa?: string }[]).some((x) => x.tipo === "consultas_denuncia_direccionamiento" && /desapareció/.test(x.por_que_pesa ?? ""))
+      ? null : "sin «por_que_pesa» en la denuncia de bases dirigidas") },
   // Personas con cargo público (migraciones 318 y 319): un apellido y un nombre muy comunes traen varias, todas con el
   // apellido materno tapado y con el enlace a su ficha de rastro.
   { h: personaPublica as never, args: { nombre: "Quispe Juan", donde: "planilla" },
