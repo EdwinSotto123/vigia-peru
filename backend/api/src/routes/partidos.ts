@@ -225,23 +225,35 @@ partidosRouter.get("/:clave", async (c) => {
       pool.query(
         `SELECT mes, contratos, leidos, con_senales AS "conSenales"
            FROM partido_resumen_mes WHERE org_clave = $1 AND anio_eleccion = $2 AND contratos > 0 ORDER BY mes`, [clave, anio]),
+      // Sus entidades y sus regiones, ya contadas en la misma foto que los totales (migraciones 78 y 426): contarlas en
+      // vivo leía entero contrato_estado en un partido grande (1 s en frío). Sin la 426, en vivo como antes.
       pool.query(
-        `SELECT e.ruc, e.nombre, cp.nivel, z.nombre AS lugar, cp.autoridad, ${CONTEOS}
-           FROM contrato_partido cp
-           JOIN contrato_estado ce ON ce.ocid = cp.ocid
-           JOIN entidades e ON e.ruc = cp.entidad_ruc
-           LEFT JOIN zonas z ON z.ubigeo = cp.gobierno_ubigeo
-          WHERE cp.org_clave = $1 AND cp.anio_eleccion = $2
-          GROUP BY e.ruc, e.nombre, cp.nivel, z.nombre, cp.autoridad
+        `SELECT e.ruc, e.nombre, r.nivel, z.nombre AS lugar, r.autoridad, r.contratos, r.leidos, r.con_senales AS "conSenales",
+                r.en_cola AS "enCola", r.documentos_listos AS "documentosListos", r.monto_pen::float AS "montoPen"
+           FROM partido_resumen_entidad r
+           JOIN entidades e ON e.ruc = r.entidad_ruc::bpchar
+           LEFT JOIN zonas z ON z.ubigeo = r.gobierno_ubigeo
+          WHERE r.org_clave = $1 AND r.anio_eleccion = $2
           -- Todas (antes, las 15 con más contratos): la web las pagina y las busca.
-          ORDER BY count(*) DESC, e.nombre`, [clave, anio]),
+          ORDER BY r.contratos DESC, e.nombre, e.ruc`, [clave, anio]).catch((e) => {
+        if ((e as { code?: string }).code !== "42P01") throw e;
+        return pool.query(
+          `SELECT e.ruc, e.nombre, cp.nivel, z.nombre AS lugar, cp.autoridad, ${CONTEOS}
+             FROM contrato_partido cp
+             JOIN contrato_estado ce ON ce.ocid = cp.ocid
+             JOIN entidades e ON e.ruc = cp.entidad_ruc
+             LEFT JOIN zonas z ON z.ubigeo = cp.gobierno_ubigeo
+            WHERE cp.org_clave = $1 AND cp.anio_eleccion = $2
+            GROUP BY e.ruc, e.nombre, cp.nivel, z.nombre, cp.autoridad
+            ORDER BY count(*) DESC, e.nombre`, [clave, anio]);
+      }),
       pool.query(
-        `SELECT left(cp.gobierno_ubigeo, 2) AS ubigeo, z.nombre, ${CONTEOS}
-           FROM contrato_partido cp
-           JOIN contrato_estado ce ON ce.ocid = cp.ocid
-           LEFT JOIN zonas z ON z.ubigeo = left(cp.gobierno_ubigeo, 2)
-          WHERE cp.org_clave = $1 AND cp.anio_eleccion = $2
-          GROUP BY 1, 2 ORDER BY count(*) DESC`, [clave, anio]),
+        `SELECT r.region AS ubigeo, z.nombre, r.contratos, r.leidos, r.con_senales AS "conSenales", r.en_cola AS "enCola",
+                r.documentos_listos AS "documentosListos", r.monto_pen::float AS "montoPen"
+           FROM partido_resumen_vigia r
+           LEFT JOIN zonas z ON z.ubigeo = r.region
+          WHERE r.org_clave = $1 AND r.anio_eleccion = $2
+          ORDER BY r.contratos DESC, r.region`, [clave, anio]),
       // CONOSCE (migración 65): sus procesos adjudicados en el período, aunque no estén en la base de Vigía.
       // Ya calculados (migración 79): con count DISTINCT sobre las filas de partido_proceso tardaba 4,6 s en un partido
       // grande y las demás consultas se quedaban sin conexión. Siempre una fila (en cero si no tiene procesos).
