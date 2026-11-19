@@ -36,6 +36,7 @@ import { InicioEntidad } from "@/components/inicio/InicioEntidad";
 import { EnObservacionFicha } from "@/components/investigar/EnObservacionFicha";
 import { PatronesEntidad } from "@/components/entidad/PatronesEntidad";
 import { InformesContraloria } from "@/components/inicio/CasosCorrupcion";
+import { TribunalEntidad } from "@/components/entidad/TribunalEntidad";
 import { AyudaCompras, ComprasEntidad, TAM } from "@/components/entidad/ComprasEntidad";
 import { P_COMPRAS, parseCompras } from "@/lib/compras";
 import { MarcoFicha } from "@/components/entidad/MarcoFicha";
@@ -492,19 +493,25 @@ export default async function EntidadProfile({
       titulo: "Informes de la Contraloría",
       conteo: n.informes,
       contenido: vacias.has("control") ? (
-        <PestanaVacia
-          titulo="Sin informes de control"
-          ayuda={<AyudaControl />}
-          accion={
-            <Acciones>
-              {dep && accion(rutaRegion(dep), `Ver los casos de ${region ?? "su región"}`)}
-              {externa(BUSCADOR_CONTRALORIA, "Buscador de la Contraloría")}
-            </Acciones>
-          }
-        >
-          La Contraloría no tiene informes con responsabilidad sobre esta entidad en su buscador. Lo comprobado (casos con
-          sentencia firme) lo publica la Procuraduría Anticorrupción por departamento.
-        </PestanaVacia>
+        <>
+          <PestanaVacia
+            titulo="Sin informes de control"
+            ayuda={<AyudaControl />}
+            accion={
+              <Acciones>
+                {dep && accion(rutaRegion(dep), `Ver los casos de ${region ?? "su región"}`)}
+                {externa(BUSCADOR_CONTRALORIA, "Buscador de la Contraloría")}
+              </Acciones>
+            }
+          >
+            La Contraloría no tiene informes con responsabilidad sobre esta entidad en su buscador. Lo comprobado (casos con
+            sentencia firme) lo publica la Procuraduría Anticorrupción por departamento.
+          </PestanaVacia>
+          {/* Sin informes de control puede tener apelaciones perdidas ante el Tribunal (migraciones 402-403). */}
+          <Suspense fallback={null}>
+            <TribunalEntidad ruc={e.ruc} />
+          </Suspense>
+        </>
       ) : (
         <div>
           <CabeceraPestana ayuda={<AyudaControl />}>
@@ -520,6 +527,10 @@ export default async function EntidadProfile({
             }
           >
             <InformesEntidad ruc={e.ruc} nombre={nombre} />
+          </Suspense>
+          {/* Sus procesos ante el Tribunal de Contrataciones (migraciones 402-403): sin datos, nada. */}
+          <Suspense fallback={null}>
+            <TribunalEntidad ruc={e.ruc} />
           </Suspense>
         </div>
       ),
