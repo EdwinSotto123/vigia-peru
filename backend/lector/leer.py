@@ -232,6 +232,9 @@ def leer_contrato(claude, lector, ocid: str, ids: list[int], urls: list[str], fo
         return {**fila, "estado": malo["estado"], "detalle": malo.get("detalle")}
     salidas = [r["salida"] for r in resultados]
     salida = salidas[0] if len(salidas) == 1 else lector.juntar(salidas)
+    # Un lector puede comprobar lo leído contra el texto de los mismos PDF, sin modelo (el comité: cada nombre en su página).
+    if hasattr(lector, "comprobar_pdfs"):
+        salida = lector.comprobar_pdfs(salida, [p for t in tramos for p in t])
     return {**fila, "estado": "ok", "salida": salida, "banderas": lector.banderas_de(salida)}
 
 

@@ -135,7 +135,8 @@ FILTRO = "acta y bases leídas, más el contrato o las consultas"
 # Las lecturas de cada contrato: `docs` = cuántas clases leídas (3 o 4) y `rico` = tiene información bastante.
 _LEIDOS = """
         leidos AS (
-          SELECT ocid, count(DISTINCT clase) FILTER (WHERE estado = 'ok') AS docs,
+          -- El comité (lector/comite.py) no es un documento más para el agente: no suma a `docs` ni cambia la prioridad.
+          SELECT ocid, count(DISTINCT clase) FILTER (WHERE estado = 'ok' AND clase <> 'comite') AS docs,
                  bool_or(clase = 'contrato' AND estado = 'ok') OR bool_or(clase = 'consultas' AND estado = 'ok') AS rico
             FROM documento_lectura GROUP BY ocid
           HAVING bool_or(clase = 'buena_pro' AND estado = 'ok') AND bool_or(clase = 'bases' AND estado = 'ok')),
