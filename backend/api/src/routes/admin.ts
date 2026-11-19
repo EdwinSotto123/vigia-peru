@@ -58,6 +58,7 @@ import { adminEmpleoRouter } from "./admin_empleo.js";
 import { adminChatRouter } from "./admin_chat.js";
 import { adminRagRouter, iaDe } from "./admin_rag.js";
 import { adminGoldenRouter } from "./admin_golden.js";
+import { adminSenalesRouter } from "./admin_senales.js";
 import { adminPreciosRouter, procesarColaPreciosLab } from "./admin_precios.js";
 import { indexarRag } from "../lib/rag.js";
 import { indexarOportunidades } from "../lib/afinidad.js";
@@ -103,6 +104,8 @@ adminRouter.route("/", adminEmpleoRouter);
 adminRouter.route("/", adminRagRouter);
 // Pruebas de oro y RAG normativo: GET /golden…, /normas… (admin_golden.ts, migraciones 284-285).
 adminRouter.route("/", adminGoldenRouter);
+// Revisión a mano de los indicadores en observación: GET /senales-observacion…, veredicto, graduar (migración 398).
+adminRouter.route("/", adminSenalesRouter);
 // Laboratorio de precios: investigaciones en el Worker vigia-precios-lab (admin_precios.ts).
 adminRouter.route("/", adminPreciosRouter);
 
