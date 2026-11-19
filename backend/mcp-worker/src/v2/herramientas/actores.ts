@@ -208,6 +208,17 @@ export const fichaEntidad = definir({
               resolucion: x.titulo, fecha: x.fecha, resultado: x.resultado, motivo: x.motivo ?? undefined,
               enlace_resolucion: x.enlace, contrato: x.ocid ? e.contrato(x.ocid) : undefined,
             })),
+            // Frente al resto del país (migración 422): sus procesos apelables (LP, CP o AS desde 2024 con dos postores o
+            // más) corregidos por el Tribunal, la tasa del resto, la probabilidad de azar y si destaca (falsos
+            // descubrimientos al 10 % sobre todas las entidades). Con pocas resoluciones bajadas todavía, cambia.
+            frente_al_pais: trib.comparacion
+              ? {
+                  procesos_apelables: trib.comparacion.procesos, corregidos: trib.comparacion.corregidos,
+                  tasa: Math.round(trib.comparacion.tasa * 10000) / 100, tasa_del_resto: Math.round(trib.comparacion.tasaResto * 10000) / 100,
+                  veces: trib.comparacion.veces != null ? Math.round(trib.comparacion.veces * 10) / 10 : undefined,
+                  probabilidad_de_azar: trib.comparacion.pValor, destaca: trib.comparacion.destacada,
+                }
+              : undefined,
           }
         : undefined,
       presupuesto: anios.length ? { fuente: "MEF (Consulta Amigable, SIAF)", por_anio: anios } : undefined,

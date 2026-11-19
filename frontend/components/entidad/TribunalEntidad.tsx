@@ -24,6 +24,9 @@ interface TribunalDeEntidad {
   fundadas: number;
   nulidades: number;
   recientes: Reciente[];
+  /** Frente al resto del país (migración 422): procesos apelables corregidos, la tasa del resto, cuántas veces más, la
+   * probabilidad de azar y si destaca (falsos descubrimientos al 10 % sobre todas las entidades). */
+  comparacion?: { procesos: number; corregidos: number; tasa: number; tasaResto: number; veces: number | null; pValor: number; destacada: boolean } | null;
 }
 
 const RESULTADO: Record<string, string> = {
@@ -45,6 +48,29 @@ async function leer(ruc: string): Promise<TribunalDeEntidad | null> {
   }
 }
 
+/** «Pct» con coma decimal: 0,8 %, 12 %. */
+const pct = (x: number) => { const p = 100 * x; return `${p < 10 ? p.toFixed(1).replace(".", ",") : String(Math.round(p))} %`; };
+
+/**
+ * Sus procesos corregidos por el Tribunal frente al resto del país. Sólo se afirma un exceso si pasa el control de falsos
+ * descubrimientos (destacada); si no, se dan las cifras sin juicio. Con pocos procesos apelables, nada.
+ */
+function FrenteAlPais({ c }: { c?: TribunalDeEntidad["comparacion"] }) {
+  if (!c || c.procesos < 10) return null;
+  return (
+    <p className="text-meta leading-relaxed text-inkSoft">
+      De sus <b>{numero(c.procesos)}</b> procesos apelables desde 2024 (licitaciones, concursos y adjudicaciones con dos
+      postores o más), el Tribunal corrigió <b>{numero(c.corregidos)}</b> ({pct(c.tasa)}); en el resto del país, el {pct(c.tasaResto)}.{" "}
+      {c.destacada && c.veces != null ? (
+        <>Es <b>{c.veces.toFixed(1).replace(".", ",")} veces</b> lo del resto del país y no se explica por azar: sus comités se equivocan, o sus procesos tienen vicios, más que en otras entidades.</>
+      ) : (
+        <>La diferencia con el resto del país no basta para descartar el azar.</>
+      )}{" "}
+      Todavía se están leyendo resoluciones: la cifra puede cambiar.
+    </p>
+  );
+}
+
 export async function TribunalEntidad({ ruc }: { ruc: string }) {
   const d = await leer(ruc);
   if (!d || !d.apelaciones) return null;
@@ -60,6 +86,7 @@ export async function TribunalEntidad({ ruc }: { ruc: string }) {
           Ante el Tribunal de Contrataciones
         </h3>
         <CifrasEnFila items={cifras} chico />
+        <FrenteAlPais c={d.comparacion} />
         {d.recientes.map((x) => {
           const datos: DatoClave[] = [
             { etiqueta: "Resultado", valor: RESULTADO[x.resultado ?? "otro"] ?? "Resuelta" },

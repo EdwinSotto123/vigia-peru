@@ -575,7 +575,13 @@ entidadesRouter.get("/:ruc/tribunal", async (c) => {
               (SELECT COALESCE(jsonb_agg(to_jsonb(y) ORDER BY y.fecha DESC NULLS LAST), '[]')
                  FROM (SELECT titulo, fecha, resultado, efectos, motivo, enlace, ocid, codigo FROM x
                         ORDER BY fecha DESC NULLS LAST LIMIT 10) y) AS recientes`, [ruc]);
-    return c.json(publicar(r.rows[0]));
+    // Frente al resto del país (migración 422): de sus procesos apelables, cuántos corrigió el Tribunal, la probabilidad
+    // de que sea azar y si la entidad pasa el control de falsos descubrimientos. Sin la tabla, sin comparación.
+    const comp = await pool.query(
+      `SELECT procesos, corregidos, tasa, tasa_resto AS "tasaResto", veces, p_valor AS "pValor", destacada,
+              to_char(calculado_at, 'YYYY-MM-DD') AS calculado
+         FROM tribunal_entidad WHERE entidad_ruc = $1`, [ruc]).then((x) => x.rows[0] ?? null).catch(() => null);
+    return c.json(publicar({ ...r.rows[0], comparacion: comp }));
   } catch (e) {
     if ((e as { code?: string }).code === "42P01") return c.json({ apelaciones: 0, fundadas: 0, nulidades: 0, recientes: [] });
     throw e;

@@ -202,6 +202,16 @@ def main() -> None:
             (clave, hashlib.sha256(resumen.encode()).hexdigest(), hechos["apelaciones"],
              "https://www.gob.pe/institucion/oece/colecciones/68030-resoluciones-del-tribunal-de-contrataciones-publicas"))
         cn.commit()
+        # Las entidades cuyos procesos el Tribunal corrige más que el resto del país (migración 422), con lo recién leído.
+        if hechos["apelaciones"]:
+            try:
+                cur.execute("SET statement_timeout = 0")
+                cur.execute("SELECT refrescar_tribunal_entidad()")
+                print(f"tribunal_entidad: {cur.fetchone()[0]} entidades", flush=True)
+                cn.commit()
+            except Exception as e:  # noqa: BLE001 — sin la 422 (o la base ocupada), la carga ya quedó hecha
+                cn.rollback()
+                print(f"tribunal_entidad no se refrescó: {str(e)[:160]}", flush=True)
     print(f"fin: {hechos}", flush=True)
 
 
