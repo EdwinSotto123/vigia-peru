@@ -16,6 +16,7 @@ import { evidenciasDe, ofertasDe, type Evidencia, type FilaCruce, type ProcesoCr
 import { CONSULTA_RUC_SUNAT, enlaceFuente } from "./fuentes.js";
 import { ETIQUETA_OBRA } from "./obras.js";
 import { referenciasDe, type Referencias } from "./referencias.js";
+import { lecturaOE, type Etiqueta, type Lectura } from "./validacion.js";
 
 export const ETIQUETA_CRUCE: Record<string, string> = {
   aporte: "Aportó a una organización política",
@@ -165,6 +166,8 @@ export interface Cruce {
   observacion?: boolean;
   /** En cuántos procesos aparece este tipo y sobre cuántos se puede medir (migración 329, `senal_tasa_base`). */
   tasaBase?: TasaBase | null;
+  /** Cuánto acierta este tipo de bandera contra la Contraloría y el Tribunal (validación externa). */
+  confiabilidad?: Confiabilidad[];
   /** socio_comun y ofertas_a_la_vez: los otros postores del proceso con el mismo socio, con su razón social. */
   otrosPostores?: { ruc: string; nombre: string | null }[];
   /** Las referencias del antecedente (lib/referencias.ts): la entidad visitada por su RUC, la elección, el cargo… */
@@ -342,25 +345,42 @@ const CON_OTROS_POSTORES = new Set(["socio_comun", "ofertas_a_la_vez"]);
 
 /** En cuántos procesos aparece un tipo de señal y sobre cuántos se puede medir. */
 export interface TasaBase { casos: number; universo: number; que: string }
+/** Lo medido de un tipo de bandera contra una verdad (validación externa, migraciones 401, 404, 419): sin «pocos_casos». */
+export interface Confiabilidad { verdad: Etiqueta; oe: number; oeMin: number; oeMax: number; procesos: number; lectura: Lectura }
 let catalogoEn = 0;
-let catalogoDe: { observacion: Set<string>; tasas: Map<string, TasaBase> } = { observacion: new Set(), tasas: new Map() };
+let catalogoDe: { observacion: Set<string>; tasas: Map<string, TasaBase>; confiabilidad: Map<string, Confiabilidad[]> } =
+  { observacion: new Set(), tasas: new Map(), confiabilidad: new Map() };
 
 /**
  * Qué tipos están en observación y la tasa base de cada tipo (migración 329). Dos tablas chicas que cambian con el
  * refresco diario: se leen una vez cada diez minutos. Sin la migración, vacío.
  */
-export async function catalogoSenales(): Promise<{ observacion: Set<string>; tasas: Map<string, TasaBase> }> {
+export async function catalogoSenales(): Promise<{ observacion: Set<string>; tasas: Map<string, TasaBase>; confiabilidad: Map<string, Confiabilidad[]> }> {
   if (Date.now() - catalogoEn < 600_000) return catalogoDe;
-  const [o, t] = await Promise.all([
+  const [o, t, v] = await Promise.all([
     pool.query<{ tipo: string }>(`SELECT tipo FROM senal_en_observacion`).catch(() => null),
     pool.query<{ tipo: string; casos: number; universo: number; que: string }>(
       `SELECT tipo, casos, universo, universo_que AS que FROM senal_tasa_base WHERE universo > 0 AND universo_que IS NOT NULL`).catch(() => null),
+    // La última validación contra cada verdad (sin ella, o sin la migración 421, la ficha sale igual).
+    pool.query<{ verdad: Etiqueta; tipo: string; procesos: number; oe: number; oe_min: number; oe_max: number }>(
+      `SELECT c.etiqueta AS verdad, s.tipo, s.procesos, s.oe::float AS oe, s.oe_min::float AS oe_min, s.oe_max::float AS oe_max
+         FROM validacion_senal s
+         JOIN (SELECT DISTINCT ON (etiqueta) id, etiqueta FROM validacion_corrida ORDER BY etiqueta, id DESC) c ON c.id = s.corrida_id
+        WHERE s.oe IS NOT NULL`).catch(() => null),
   ]);
   if (o && t) {
     catalogoDe = {
       observacion: new Set(o.rows.map((r) => r.tipo)),
       tasas: new Map(t.rows.map((r) => [r.tipo, { casos: Number(r.casos), universo: Number(r.universo), que: r.que }])),
+      confiabilidad: new Map(),
     };
+    for (const r of v?.rows ?? []) {
+      const lectura = lecturaOE(r.procesos, r.oe_min, r.oe_max);
+      if (lectura === "pocos_casos") continue;
+      const lista = catalogoDe.confiabilidad.get(r.tipo) ?? [];
+      lista.push({ verdad: r.verdad, oe: r.oe, oeMin: r.oe_min, oeMax: r.oe_max, procesos: r.procesos, lectura });
+      catalogoDe.confiabilidad.set(r.tipo, lista);
+    }
     catalogoEn = Date.now();
   }
   return catalogoDe;
@@ -485,6 +505,7 @@ export async function crucesDeProceso(ocid: string, ganadores: Ganador[]): Promi
         : {}),
       ...(catalogo.observacion.has(c.tipo) ? { observacion: true } : {}),
       ...(catalogo.tasas.has(c.tipo) ? { tasaBase: catalogo.tasas.get(c.tipo) } : {}),
+      ...(catalogo.confiabilidad.has(c.tipo) ? { confiabilidad: catalogo.confiabilidad.get(c.tipo) } : {}),
       ...(c.tipo === "fraccionamiento" ? { ordenesDias: fracc.get(c.rucProveedor) ?? [] } : {}),
       ...(evidencias[i]?.length ? { evidencia: marcarPosteriores(evidencias[i], proceso.fecha) } : {}),
       ...anteriores,

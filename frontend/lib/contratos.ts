@@ -334,6 +334,10 @@ export interface CruceProveedor {
   observacion?: boolean;
   /** En cuántos procesos aparece este tipo y sobre cuántos se puede medir (migración 329). */
   tasaBase?: { casos: number; universo: number; que: string } | null;
+  /** Cuánto acierta este tipo de bandera contra lo que observó la Contraloría y lo que el Tribunal declaró fundado o anuló
+   * (validación externa, migraciones 401, 404 y 419): observados / esperados con su intervalo; sin los de pocos casos. */
+  confiabilidad?: { verdad: "contraloria" | "tribunal"; oe: number; oeMin: number; oeMax: number; procesos: number;
+                    lectura: "mas_de_lo_esperado" | "menos_de_lo_esperado" | "como_lo_esperado" | "pocos_casos" }[];
   /** El ganador es un consorcio y el cruce es de este integrante. */
   consorcio?: { codigo: string; nombre: string | null } | null;
   /** fraccionamiento: cada día con sus órdenes. Falta en la API vieja. */

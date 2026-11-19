@@ -18,7 +18,7 @@ import { Ayuda, CabeceraPestana } from "@/components/patrones";
 import { Badge } from "@/components/ui/Badge";
 import { IconoBandera } from "@/components/ui/IconoBandera";
 import { CuentaGrupo } from "@/components/listado";
-import { ChevronDown, ChevronRight, CircleAlert, Scale } from "lucide-react";
+import { ChevronDown, ChevronRight, CircleAlert, Scale, Target } from "lucide-react";
 import { ICONO_NIVEL } from "@/components/ui/Severidad";
 import type { CruceProveedor } from "@/lib/contratos";
 import { fechaConAnio, fechaCorta, numero, oracion, soles, solesCompacto } from "@/lib/formato";
@@ -1580,6 +1580,7 @@ function GruposCruces({ lista, gobierna, conAnclas = false }: { lista: CruceProv
             </div>
             {primera && <p className="mb-2 text-meta leading-relaxed text-inkSoft">{porQue}</p>}
             <TasaBase t={grupo[0].tasaBase} />
+            <Confiabilidad c={grupo[0].confiabilidad} />
             {TIPOS_SANCION.has(tipo) ? (
               <GrupoSanciones grupo={filas} fuente={FUENTE[grupo[0].fuente] ?? grupo[0].fuente} />
             ) : (
@@ -1620,6 +1621,35 @@ function TasaBase({ t }: { t?: CruceProveedor["tasaBase"] }) {
       <span>
         Cuán frecuente es: aparece en <b className="font-semibold text-inkSoft">{proporcion(t.casos, t.universo)}</b> de los {t.que}{" "}
         <span className="tabular-nums">({numero(t.casos)} de {numero(t.universo)})</span>.
+      </span>
+    </p>
+  );
+}
+
+/**
+ * Cuánto acierta este tipo de bandera (validación externa): frente a lo que observó la Contraloría y a lo que el Tribunal
+ * declaró fundado o anuló, si aparece más, menos o igual que lo esperado. Dice en qué banderas apoyarse; sin medida, nada.
+ */
+function Confiabilidad({ c }: { c?: CruceProveedor["confiabilidad"] }) {
+  const partes = (c ?? []).filter((x) => x.lectura !== "pocos_casos");
+  if (!partes.length) return null;
+  const f = (n: number) => n.toFixed(2).replace(".", ",");
+  const quien = { contraloria: "lo que encontró la Contraloría", tribunal: "lo que anuló el Tribunal de Contrataciones" } as const;
+  const que = (x: (typeof partes)[number]) =>
+    x.lectura === "mas_de_lo_esperado" ? <>aparece <b className="font-semibold text-inkSoft">{f(x.oe)} veces</b> lo esperado</>
+      : x.lectura === "menos_de_lo_esperado" ? <>aparece menos de lo esperado ({f(x.oe)} veces)</>
+        : <>no se distingue del azar</>;
+  return (
+    <p className="mb-2 flex items-start gap-1.5 text-meta leading-snug text-mute">
+      <Target size={14} aria-hidden className="mt-0.5 shrink-0" />
+      <span>
+        Cuánto acierta:{" "}
+        {partes.map((x, i) => (
+          <span key={x.verdad}>
+            {i > 0 ? "; " : ""}frente a {quien[x.verdad]}, {que(x)}
+          </span>
+        ))}
+        .
       </span>
     </p>
   );
