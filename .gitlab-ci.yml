@@ -244,6 +244,21 @@ tarea:masivo-agentes:
       when: manual
       allow_failure: true
 
+# Reanálisis de dictámenes ya publicados con las mismas Lambdas (reanalizar_contratos.py --guiones): los de OCID con
+# guiones hechos antes del arreglo e267f269 (el agente no vio sus lecturas). La lista sale de la base en cada corrida (los
+# rehechos quedan fuera), así que el horario lo repite hasta terminar. Mismo resource_group que el masivo: se turnan y no
+# pasan juntos el límite de Workers AI. El gasto va al libro del masivo cada 25 análisis (cuenta para MASIVO_TOPE).
+tarea:reanalisis:
+  <<: *tarea_con_base
+  resource_group: masivo-agentes
+  script:
+    - timeout 175m python -X utf8 backend/scripts/reanalizar_contratos.py prod --guiones --minutos 150 --hilos 3 --tope "${REANALISIS_TOPE:-120}" --motivo "OCID con guiones, el agente no vio sus lecturas (arreglado en e267f269)"
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "schedule" && ($TAREA == "reanalisis" || $CI_PIPELINE_SCHEDULE_DESCRIPTION =~ /^reanalisis:/)'
+    - if: '$CI_COMMIT_BRANCH == "main" && $CI_PIPELINE_SOURCE != "schedule"'
+      when: manual
+      allow_failure: true
+
 # ─── Agentes (AWS Lambda) ────────────────────────────────────────────────────────────────────────
 # Sin llaves: el job pide un token OIDC de GitLab y asume el rol vigia-gitlab-agentes (infrastructure/deploy/aws/
 # gitlab_oidc.sh, sólo desde main). La imagen es la base de ECR ($AGENTE_BASE, con las dependencias ya instaladas)

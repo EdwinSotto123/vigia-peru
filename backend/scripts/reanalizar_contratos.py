@@ -8,6 +8,11 @@ masivo no sirve para esto: salta los contratos que ya tienen alerta. El gasto se
 
   python -X utf8 backend/scripts/reanalizar_contratos.py prod 1250529 1191481 --motivo "regla testaferro corregida"
   python -X utf8 backend/scripts/reanalizar_contratos.py prod --archivo ocids.txt --tope 40 --hilos 2 --motivo "…"
+  python -X utf8 backend/scripts/reanalizar_contratos.py prod --guiones --minutos 150 --tope 120 --hilos 3 --motivo "…"
+
+`--guiones`: la lista sale de la base (los dictámenes de OCID con guiones hechos antes del arreglo de e267f269 que tenían
+lecturas; los ya rehechos quedan fuera): cada corrida retoma donde quedó la anterior, como el job `tarea:reanalisis` del CI.
+`--minutos`: deja de lanzar al llegar y espera a los que están en vuelo. El gasto se anota en el libro cada 25 análisis.
 
 La red sale del tipo de contratación de la convocatoria (como en masivo_agentes.py). Workers AI admite ≤ 9 análisis a la
 vez en total y el masivo puede estar corriendo: por defecto 2 hilos.
@@ -35,6 +40,15 @@ def red_de(cu, ocid: str) -> str | None:
     return next((r for r, tipos in M.TIPOS.items() if t in tipos), None)
 
 
+# Los dictámenes de procesos con OCID con guiones hechos ANTES del arreglo (e267f269, en PROD el 2026-11-16 05:40 de Lima)
+# que tenían lecturas que el agente no vio; los ya rehechos (updated_at posterior) no entran. Primero los más riesgosos.
+SQL_GUIONES = """
+SELECT a.ocid FROM alertas a
+ WHERE a.ocid ~ '-' AND a.updated_at < TIMESTAMPTZ '2026-11-16 10:40+00'
+   AND EXISTS (SELECT 1 FROM documento_lectura l WHERE l.ocid = a.ocid AND l.estado = 'ok')
+ ORDER BY COALESCE(riesgo_contrato(a.ocid), 0) DESC, a.updated_at DESC"""
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(description="Reanaliza contratos con dictamen en las Lambdas de producción.")
     ap.add_argument("entorno", choices=["prod"])
@@ -43,13 +57,17 @@ def main() -> None:
     ap.add_argument("--motivo", required=True, help="por qué se reanaliza (queda en el libro)")
     ap.add_argument("--tope", type=float, default=20.0, help="US$ máximos para esta corrida (se corta antes de pasarlos)")
     ap.add_argument("--hilos", type=int, default=2)
+    ap.add_argument("--guiones", action="store_true", help="la lista de los dictámenes de OCID con guiones hechos sin sus lecturas")
+    ap.add_argument("--minutos", type=float, default=None, help="deja de lanzar análisis pasados estos minutos")
     a = ap.parse_args()
     sys.stdout.reconfigure(encoding="utf-8")
+    M._db["entorno"] = a.entorno
     ocids = list(dict.fromkeys(a.ocids + ([x.strip() for x in Path(a.archivo).read_text(encoding="utf-8").splitlines() if x.strip()]
                                              if a.archivo else [])))
+    if a.guiones:
+        ocids += [o for o in M.base(lambda cu: (cu.execute(SQL_GUIONES), [f[0] for f in cu.fetchall()])[1]) if o not in ocids]
     if not ocids:
         raise SystemExit("sin OCID")
-    M._db["entorno"] = a.entorno
     por_red, tok = M.urls(), M.token()
     # La red de todos en UNA consulta: de uno en uno, con 1 245 OCID, eran más de 20 minutos sin lanzar nada (2026-11-18).
     tipo_de = dict(M.base(lambda cu: (cu.execute(
@@ -62,11 +80,25 @@ def main() -> None:
             continue
         trabajos.append((o, r))
     M.log(f"{len(trabajos)} contratos para reanalizar, {a.hilos} a la vez")
-    hecho = {"ok": 0, "error": 0, "usd": 0.0}
+    hecho = {"ok": 0, "error": 0, "usd": 0.0, "anotado": 0.0, "desde_nota": 0}
+    hasta = time.time() + a.minutos * 60 if a.minutos else None
+
+    def anotar(final: bool = False) -> None:
+        """Lo gastado desde la última nota, al libro del masivo (cada 25 análisis y al final: si la corrida se corta, sólo se
+        pierde la cuenta de lo último)."""
+        with _lock:
+            nuevo = round(hecho["usd"] - hecho["anotado"], 4)
+            if nuevo <= 0 or (not final and hecho["desde_nota"] < 25):
+                return
+            hecho["anotado"] += nuevo
+            hecho["desde_nota"] = 0
+        M.anotar(nuevo, f"reanálisis: {a.motivo} ({hecho['ok']} ok, {hecho['error']} con error hasta ahora)")
 
     def uno(job):
         o, r = job
         with _lock:
+            if hasta and time.time() > hasta:
+                return
             if hecho["usd"] + M.COSTO_SUPUESTO > a.tope:
                 M.log(f"[--] {o}: tope de US$ {a.tope} alcanzado")
                 return
@@ -85,14 +117,15 @@ def main() -> None:
         with _lock:
             hecho["usd"] += costo - M.COSTO_SUPUESTO
             hecho["ok" if ok else "error"] += 1
+            hecho["desde_nota"] += 1
+        anotar()
         M.log(f"[{'ok ' if ok else 'ERR'}] {o} {r} {res.get('segundos')}s USD {costo:.4f} score {st.get('score')} "
               f"{str(res.get('error') or '')[:120]}")
 
     try:
         with ThreadPoolExecutor(max(1, a.hilos)) as ex:
             list(ex.map(uno, trabajos))
-        if hecho["usd"] > 0:
-            M.anotar(round(hecho["usd"], 4), f"reanálisis: {a.motivo} ({hecho['ok']} ok, {hecho['error']} con error)")
+        anotar(final=True)
         M.log(f"fin: {hecho['ok']} ok, {hecho['error']} con error, USD {hecho['usd']:.2f} (anotado en el libro del masivo)")
     finally:
         # El túnel se cierra aquí: al apagarse el intérprete ya no puede (y quedaba la sesión de SSM abierta).
