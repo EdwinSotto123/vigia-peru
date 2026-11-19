@@ -29,6 +29,10 @@
  *       registradas casi a la vez. No entran al riesgo del contrato hasta medir su precisión; aquí está la lista entera
  *       para revisarlos. De quien recibió una visita, sólo el cargo y el área.
  *
+ *   GET /patrones/entidad/:ruc/cruce/:tipo             un antecedente en una entidad: año por año y quiénes lo tienen
+ *   GET /patrones/entidad/:ruc/cruce/:tipo/contratos   sus contratos, todos, paginados y con buscador (`q`)
+ *   `q` en /grupos, /repetidas y /recien: el buscador de una ficha (con su RUC ya puesto; nunca el nombre de una persona)
+ *
  * Todo sale de señales y postulaciones ya públicas, sólo de empresas (RUC 20). Un patrón es un motivo para mirar, no una
  * acusación.
  */
@@ -42,6 +46,7 @@ import { esCargoDeEleccion } from "../lib/electos.js";
 import { papelesRnp } from "../lib/familiaFuncionario.js";
 import { ETIQUETA_CRUCE, catalogoSenales, nombrePublicable } from "../lib/cruces.js";
 import { depurarReferencias } from "../lib/laboratorioPrecios.js";
+import { palabras } from "../lib/obras.js";
 import { agruparSocios, casoAutoridad, casoComprasFamilia, casoConsorcio, casoControl, casoObservado, casoSenal, sqlClaveSenal, sqlClaveConsorcio, sqlClaveControl, sqlClaveObservado, casoDueno, casoGrupo, casoInhabilitada, casoRenovacion, sqlClaveAutoridad, sqlClaveRenovacion, casoRecien, casoRelleno, casoRepetida, salDeClaves, sqlClaveInhabilitada, sqlClaveDueno, sqlClaveGrupo, sqlClaveRecien, sqlClaveRelleno, sqlClaveRepetida, type CasoPatron, type Pedir } from "../lib/casoPatron.js";
 
 export const patronesRouter = new Hono();
@@ -85,6 +90,17 @@ const VISTA_OBSERVADOS = `SELECT ruc, empresa, entidad_ruc AS "entidadRuc", enti
        to_char(desde, 'YYYY-MM-DD') AS desde, to_char(hasta, 'YYYY-MM-DD') AS hasta, despues, monto_despues AS "montoDespues",
        to_char(ultima_despues, 'YYYY-MM-DD') AS "ultimaDespues"
   FROM patron_lista_observado ORDER BY orden`;
+
+/**
+ * Lo escrito en el buscador de una lista (ficha de entidad o de empresa) como patrones de LIKE, una palabra de 3 letras o
+ * más por patrón (hasta cinco), sin tildes ni mayúsculas: todas tienen que estar (`LIKE ALL`). Sólo con un RUC ya puesto
+ * (la entidad o la empresa de la ficha): sin él, una búsqueda por nombre recorrería la lista entera del país.
+ */
+const comoLike = (q: string | undefined, conRuc: boolean): string[] | null => {
+  const ws = conRuc ? palabras(q) : [];
+  return ws.length ? ws.map((w) => `%${w}%`) : null;
+};
+const Buscar = z.string().trim().min(3).max(80).optional();
 
 /** Una página de una lista ya filtrada, con su total. */
 const pagina = <T>(xs: T[], q: { page: number; size: number }) => ({ total: xs.length, page: q.page, size: q.size, filas: xs.slice((q.page - 1) * q.size, q.page * q.size) });
@@ -561,6 +577,8 @@ const Grupos = z.object({
   /** La clave opaca de un grupo (su ficha de caso): 16 hex del md5 de la entidad y el grupo. */
   clave: z.string().regex(/^[0-9a-f]{16}$/).optional(),
   severidad: z.enum(["alta", "media", "baja"]).optional(),
+  /** El nombre de una empresa del grupo (nunca el de una persona natural), con un RUC ya puesto: el buscador de la ficha. */
+  q: Buscar,
   page: z.coerce.number().int().min(1).max(200).default(1),
   size: z.coerce.number().int().min(1).max(50).default(20),
 });
@@ -600,13 +618,23 @@ patronesRouter.get("/grupos", async (c) => {
     if (q.clave) conds.push(`${sqlClaveGrupo("$1")} = ${add(q.clave)}`);
     if (ruc) conds.push(gruposDe(add(ruc)));
     if (q.buscar) { const p = add(q.buscar); conds.push(`(r.entidad_ruc = ${p} OR ${gruposDe(p)})`); }
+    // El buscador de la ficha: el nombre de una EMPRESA del grupo (una persona natural no se busca por su nombre).
+    const like = comoLike(q.q, !!(q.entidad || ruc || q.buscar));
+    if (like) {
+      conds.push(`EXISTS (SELECT 1 FROM jsonb_array_elements(r.detalle->'miembros') m
+                           WHERE m->>'ruc' LIKE '20%' AND immutable_unaccent(lower(m->>'nombre')) LIKE ALL(${add(like)}::text[]))`);
+    }
     const r = await pool.query(
       `SELECT r.entidad_ruc AS "entidadRuc", (SELECT es.nombre FROM entidad_stats es WHERE es.ruc = r.entidad_ruc) AS entidad, r.grupo,
               r.miembros, r.empresas, r.personas, r.ordenes, r.monto::float AS monto, to_char(r.desde, 'YYYY-MM-DD') AS desde,
               to_char(r.hasta, 'YYYY-MM-DD') AS hasta, r.hasta_8uit AS "hasta8Uit", r.borde, r.monto_borde::float AS "montoBorde",
               r.sobre_tope AS "sobreTope", r.dias_juntos AS "diasJuntos", r.monto_juntos::float AS "montoJuntos", r.correlativas,
               r.repartidos, r.monto_repartido::float AS "montoRepartido", r.puesto_grupo AS "puestoGrupo", r.puesto_mayor AS "puestoMayor", r.parte_entidad::float AS "parteEntidad",
-              r.severidad, r.detalle, ${sqlClaveGrupo("$1")} AS clave, (count(*) OVER ())::int AS total
+              r.severidad, r.detalle, ${sqlClaveGrupo("$1")} AS clave, (count(*) OVER ())::int AS total,
+              -- Lo que suman todos los grupos del filtro (no sólo los de la página): las cifras de la ficha.
+              (sum(r.monto) OVER ())::float AS suma_filtro, (count(*) FILTER (WHERE r.severidad = 'alta') OVER ())::int AS altas_filtro,
+              (count(*) FILTER (WHERE r.correlativas > 0) OVER ())::int AS correlativas_filtro,
+              (count(*) FILTER (WHERE r.repartidos > 0) OVER ())::int AS repartidos_filtro
          FROM grupo_proveedor_resumen r
         WHERE ${conds.join(" AND ")}
         ORDER BY CASE r.severidad WHEN 'alta' THEN 0 WHEN 'media' THEN 1 ELSE 2 END, r.monto DESC
@@ -644,7 +672,11 @@ patronesRouter.get("/grupos", async (c) => {
       ).catch(() => ({ rows: [] as { entidad: string; ruc: string; parte: number }[] }));
       for (const r of d.rows) if (r.parte != null) dependencia.set(`${r.entidad}|${r.ruc}`, Math.round(r.parte * 1000) / 1000);
     }
-    const data = grupos.map(({ total: _t, detalle, ...x }) => {
+    const g0 = grupos[0];
+    const resumen = g0
+      ? { monto: g0.suma_filtro ?? 0, altas: g0.altas_filtro ?? 0, conCorrelativas: g0.correlativas_filtro ?? 0, conRepartidos: g0.repartidos_filtro ?? 0 }
+      : null;
+    const data = grupos.map(({ total: _t, detalle, suma_filtro: _s, altas_filtro: _a, correlativas_filtro: _c, repartidos_filtro: _r, ...x }) => {
       const miembros = ((detalle?.miembros ?? []) as { ruc: string; nombre: string; ordenes: number; monto: number }[]);
       const nombreDe = new Map(miembros.map((m) => [m.ruc, m.nombre]));
       const conNombre = (o: { ruc?: string }) => ({ ...o, nombre: o.ruc ? nombreDe.get(o.ruc) ?? null : null });
@@ -674,7 +706,7 @@ patronesRouter.get("/grupos", async (c) => {
         }),
       };
     });
-    return publicar({ total: grupos[0]?.total ?? 0, page: q.page, size: q.size, data,
+    return publicar({ total: grupos[0]?.total ?? 0, page: q.page, size: q.size, resumen, data,
       como_leerlo: "Un grupo junta proveedores de la misma entidad unidos por un socio o representante común, por una persona que vende con su RUC y es socia de una empresa del grupo, o por socios con los mismos dos apellidos poco comunes (parentesco probable, no comprobado: los registros no traen parentescos). Cada uno visto solo puede parecer pequeño; juntos se suman." });
   });
   c.header("Cache-Control", CACHE);
@@ -689,12 +721,14 @@ const Repetidas = z.object({
   /** La clave opaca de un caso (su ficha de caso). */
   clave: z.string().regex(/^[0-9a-f]{16}$/).optional(),
   severidad: z.enum(["alta", "media", "baja"]).optional(),
+  /** El objeto o la empresa (nunca una persona natural), con un RUC ya puesto: el buscador de la ficha. */
+  q: Buscar,
   page: z.coerce.number().int().min(1).max(200).default(1),
   size: z.coerce.number().int().min(1).max(50).default(20),
 });
 
 /**
- * GET /patrones/repetidas?entidad=&ruc=&buscar=&severidad= — la misma compra repetida en semanas (migración 348): órdenes directas
+ * GET /patrones/repetidas?entidad=&ruc=&buscar=&severidad=&q= — la misma compra repetida en semanas (migración 348): órdenes directas
  * de bienes del mismo proveedor, el mismo monto y el mismo objeto, de 7 a 90 días entre la primera y la última. Puede ser
  * un fraccionamiento en el tiempo (juntas pasan el tope de 8 UIT), una orden registrada dos veces (si las dos se devengaron,
  * un posible pago doble) o un suministro periódico legítimo. `ruc` es el de una empresa (un RUC 10 no se recibe).
@@ -712,9 +746,11 @@ patronesRouter.get("/repetidas", async (c) => {
          FROM ordenes_repetidas x
         WHERE ($1::text IS NULL OR x.entidad_ruc = $1) AND ($2::text IS NULL OR x.ruc_contratista = $2) AND ($3::text IS NULL OR x.severidad = $3)
           AND ($6::text IS NULL OR x.entidad_ruc = $6 OR x.ruc_contratista = $6) AND ($7::text IS NULL OR ${sqlClaveRepetida("$8")} = $7)
+          AND ($9::text[] IS NULL OR immutable_unaccent(lower(concat_ws(' ', x.objeto, CASE WHEN x.ruc_contratista LIKE '20%' THEN x.contratista END))) LIKE ALL($9::text[]))
         ORDER BY CASE x.severidad WHEN 'alta' THEN 0 WHEN 'media' THEN 1 ELSE 2 END, x.total DESC
         LIMIT $4 OFFSET $5`,
-      [q.entidad ?? null, q.ruc ?? null, q.severidad ?? null, q.size, (q.page - 1) * q.size, q.buscar ?? null, q.clave ?? null, salDeClaves()],
+      [q.entidad ?? null, q.ruc ?? null, q.severidad ?? null, q.size, (q.page - 1) * q.size, q.buscar ?? null, q.clave ?? null, salDeClaves(),
+       comoLike(q.q, !!(q.entidad || q.ruc || q.buscar))],
     ).catch(() => ({ rows: [] as Record<string, unknown>[] }));
     const filas = r.rows as Record<string, any>[];
     return publicar({
@@ -733,6 +769,8 @@ const Recien = z.object({
   /** La clave opaca de un caso (su ficha de caso). */
   clave: z.string().regex(/^[0-9a-f]{16}$/).optional(),
   severidad: z.enum(["alta", "media", "baja"]).optional(),
+  /** El nombre de la empresa, con `buscar` ya puesto: el buscador de la ficha. */
+  q: Buscar,
   page: z.coerce.number().int().min(1).max(200).default(1),
   size: z.coerce.number().int().min(1).max(50).default(20),
 });
@@ -756,9 +794,10 @@ patronesRouter.get("/recien", async (c) => {
          FROM empresa_recien_creada_ordenes x
         WHERE ($1::text IS NULL OR x.entidad_ruc = $1 OR x.ruc_empresa = $1) AND ($2::text IS NULL OR x.severidad = $2)
           AND ($5::text IS NULL OR ${sqlClaveRecien("$6")} = $5)
+          AND ($7::text[] IS NULL OR immutable_unaccent(lower(coalesce(x.empresa, ''))) LIKE ALL($7::text[]))
         ORDER BY CASE x.severidad WHEN 'alta' THEN 0 WHEN 'media' THEN 1 ELSE 2 END, x.monto_1a DESC
         LIMIT $3 OFFSET $4`,
-      [q.buscar ?? null, q.severidad ?? null, q.size, (q.page - 1) * q.size, q.clave ?? null, salDeClaves()],
+      [q.buscar ?? null, q.severidad ?? null, q.size, (q.page - 1) * q.size, q.clave ?? null, salDeClaves(), comoLike(q.q, !!q.buscar)],
     ).catch(() => ({ rows: [] as Record<string, unknown>[] }));
     const filas = r.rows as Record<string, any>[];
     return publicar({
@@ -1268,6 +1307,112 @@ patronesRouter.get("/entidad/:ruc", async (c) => {
       cruces: (cruces.rows as Record<string, any>[]).map((x) => ({ ...x, etiqueta: ETIQUETA_CRUCE[x.tipo] ?? x.tipo })),
     });
   });
+  c.header("Cache-Control", CACHE);
+  return c.json(cuerpo);
+});
+
+/** El tipo de un antecedente (`unico_postor`, `sancion_temporal`…). */
+const TIPO_CRUCE_RE = /^[a-z_0-9]{3,60}$/;
+
+/**
+ * GET /patrones/entidad/:ruc/cruce/:tipo — la ficha de UN antecedente en una entidad (pedido del usuario del 2026-11-18:
+ * «lo veo sin forma»): cuántos contratos tiene, año por año (cuántos, de señal alta y cuánto suman, por la fecha de la
+ * buena pro) y quiénes los ganaron, todos (hasta 500), del que más contratos tiene al que menos. Antes la ficha mostraba
+ * los cinco que más lo repiten y los seis contratos de más peso. Una persona natural llega tapada (`publicar`).
+ */
+patronesRouter.get("/entidad/:ruc/cruce/:tipo", async (c) => {
+  const ruc = c.req.param("ruc");
+  const tipo = c.req.param("tipo");
+  if (!/^20\d{9}$/.test(ruc) || !TIPO_CRUCE_RE.test(tipo)) return c.json({ error: "not_found" }, 404);
+  const cuerpo = await memo.obtener(`cruce-entidad:${ruc}:${tipo}`, async (ctl) => {
+    const r = await pool.query(
+      `WITH x AS (
+         SELECT k.ruc, k.proveedor, k.monto, k.fecha_buena_pro,
+                (SELECT t->>'severidad' FROM jsonb_array_elements(k.cruces) t WHERE t->>'tipo' = $2 LIMIT 1) AS severidad
+           FROM casos_cruce k
+          WHERE k.entidad_ruc = $1 AND k.tipos @> ARRAY[$2]::text[])
+       SELECT (SELECT count(*)::int FROM x) AS contratos,
+              (SELECT (count(*) FILTER (WHERE severidad = 'alta'))::int FROM x) AS graves,
+              (SELECT (count(*) FILTER (WHERE severidad = 'media'))::int FROM x) AS medias,
+              (SELECT COALESCE(sum(monto), 0)::float FROM x) AS monto,
+              (SELECT count(DISTINCT ruc)::int FROM x) AS empresas,
+              (SELECT count(*)::int FROM x WHERE fecha_buena_pro IS NULL) AS "sinFecha",
+              (SELECT jsonb_agg(a ORDER BY a.anio) FROM (
+                 SELECT extract(year FROM fecha_buena_pro)::int AS anio, count(*)::int AS contratos,
+                        (count(*) FILTER (WHERE severidad = 'alta'))::int AS graves, COALESCE(sum(monto), 0)::float AS monto
+                   FROM x WHERE fecha_buena_pro IS NOT NULL GROUP BY 1) a) AS "porAnio",
+              (SELECT jsonb_agg(p ORDER BY p.contratos DESC, p.monto DESC, p.ruc) FROM (
+                 SELECT ruc, max(proveedor) AS proveedor, count(*)::int AS contratos,
+                        (count(*) FILTER (WHERE severidad = 'alta'))::int AS graves, COALESCE(sum(monto), 0)::float AS monto
+                   FROM x GROUP BY ruc ORDER BY 3 DESC, 5 DESC, ruc LIMIT 500) p) AS proveedores`,
+      [ruc, tipo],
+    ).catch((e) => {
+      console.warn(`[patrones] antecedente ${tipo} de ${ruc}: ${(e as Error).message}`);
+      ctl.noGuardar();
+      return null;
+    });
+    if (!r) return { noRespondio: true };
+    const x = (r.rows[0] ?? {}) as Record<string, any>;
+    return publicar({
+      ruc, tipo, etiqueta: ETIQUETA_CRUCE[tipo] ?? tipo,
+      contratos: x.contratos ?? 0, graves: x.graves ?? 0, medias: x.medias ?? 0, monto: x.monto ?? 0, empresas: x.empresas ?? 0,
+      sinFecha: x.sinFecha ?? 0, porAnio: x.porAnio ?? [], proveedores: x.proveedores ?? [],
+    });
+  });
+  if (cuerpo.noRespondio) {
+    c.header("Cache-Control", "no-store");
+    return c.json({ error: "no_respondio" }, 503);
+  }
+  c.header("Cache-Control", CACHE);
+  return c.json(cuerpo);
+});
+
+const ContratosCruce = z.object({
+  /** Palabras del objeto, el código o la empresa (la columna `texto` no lleva a las personas naturales). */
+  q: Buscar,
+  severidad: z.enum(["alta", "media", "baja"]).optional(),
+  page: z.coerce.number().int().min(1).max(400).default(1),
+  size: z.coerce.number().int().min(1).max(50).default(25),
+});
+
+/**
+ * GET /patrones/entidad/:ruc/cruce/:tipo/contratos?q=&severidad=&page=&size= — TODOS los contratos de la entidad cuyo
+ * ganador tiene ese antecedente, paginados y con buscador: lo grave primero y, dentro, lo de más monto. Cada uno con la
+ * severidad de ESE antecedente en él (no la del contrato).
+ */
+patronesRouter.get("/entidad/:ruc/cruce/:tipo/contratos", async (c) => {
+  const ruc = c.req.param("ruc");
+  const tipo = c.req.param("tipo");
+  if (!/^20\d{9}$/.test(ruc) || !TIPO_CRUCE_RE.test(tipo)) return c.json({ error: "not_found" }, 404);
+  const p = ContratosCruce.safeParse(Object.fromEntries(Object.entries(parametros(c)).filter(([, v]) => v !== "" && v != null)));
+  if (!p.success) return c.json({ error: "invalid_query", issues: p.error.issues }, 400);
+  const q = p.data;
+  const cuerpo = await memo.obtener(`cruce-contratos:${ruc}:${tipo}:${JSON.stringify(q)}`, async (ctl) => {
+    const r = await pool.query(
+      `SELECT k.ocid, k.codigo, left(k.objeto, 240) AS objeto, k.proveedor, k.ruc, k.monto::float AS monto,
+              to_char(k.fecha_buena_pro, 'YYYY-MM-DD') AS fecha, s.severidad, k.tipo_contratacion AS "tipoContratacion",
+              (count(*) OVER ())::int AS total_filas
+         FROM casos_cruce k
+         CROSS JOIN LATERAL (SELECT t->>'severidad' AS severidad FROM jsonb_array_elements(k.cruces) t WHERE t->>'tipo' = $2 LIMIT 1) s
+        WHERE k.entidad_ruc = $1 AND k.tipos @> ARRAY[$2]::text[]
+          AND ($3::text IS NULL OR s.severidad = $3)
+          AND ($4::text[] IS NULL OR k.texto LIKE ALL($4::text[]))
+        ORDER BY (s.severidad = 'alta') DESC, k.monto DESC NULLS LAST, k.ocid
+        LIMIT $5 OFFSET $6`,
+      [ruc, tipo, q.severidad ?? null, comoLike(q.q, true), q.size, (q.page - 1) * q.size],
+    ).catch((e) => {
+      console.warn(`[patrones] contratos del antecedente ${tipo} de ${ruc}: ${(e as Error).message}`);
+      ctl.noGuardar();
+      return null;
+    });
+    if (!r) return { noRespondio: true };
+    const filas = r.rows as Record<string, any>[];
+    return publicar({ total: filas[0]?.total_filas ?? 0, page: q.page, size: q.size, data: filas.map(({ total_filas: _t, ...x }) => x) });
+  });
+  if (cuerpo.noRespondio) {
+    c.header("Cache-Control", "no-store");
+    return c.json({ error: "no_respondio" }, 503);
+  }
   c.header("Cache-Control", CACHE);
   return c.json(cuerpo);
 });

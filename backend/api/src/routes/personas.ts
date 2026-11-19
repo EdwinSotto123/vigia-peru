@@ -238,6 +238,57 @@ async function resumen(conds: string[], vals: unknown[]) {
   return r.rows[0];
 }
 
+/** Un año de las órdenes de servicio de una entidad a personas (`resumen.anual`). */
+export type AnioPersonas = {
+  anio: number;
+  /** Personas con al menos una orden ese año. */
+  personas: number;
+  ordenes: number;
+  monto: number;
+  /** De esas personas, cuántas tienen alguna señal en esta entidad (persona_entidad.sev), y cuánto se les pagó ese año. */
+  conSenal: number;
+  montoConSenal: number;
+};
+
+/**
+ * Lo que la entidad pagó a personas cada año: cuántas, en cuántas órdenes y cuánto, y qué parte fue a quienes tienen
+ * alguna señal (persona_orden_anual de la migración 91, por su clave primaria; la señal, de persona_entidad). Es el
+ * gráfico «cada año» de la pestaña (pedido del dueño del 2026-11-18: las dos cajas de arriba no decían cuándo). El
+ * subselect con OFFSET 0 evalúa el «tiene señal» una vez por fila con el semijoin hasheado.
+ *
+ * Sólo con el alcance de UNA entidad: EsSalud, la mayor (49 560 personas, 96 mil filas), tarda 0,1 s con la caché
+ * caliente y 0,5-0,8 s en frío (PROD, 2026-11-18); el país serían 5,5 M filas (26 s en frío) y una región o un partido,
+ * cientos de miles, así que ahí no va (la lista dibuja `porAnio`, ya contado en persona_resumen). Se guarda por entidad,
+ * no por los demás filtros (como las facetas); con size=0 (los bloques del Inicio) no se pide. Si tarda o falla, la
+ * lista sale igual, sin la serie.
+ */
+const SQL_ANUAL = `
+  SELECT a.anio, count(*)::int AS personas, sum(a.ordenes)::int AS ordenes, COALESCE(sum(a.monto), 0)::float AS monto,
+         count(*) FILTER (WHERE a.con)::int AS "conSenal", COALESCE(sum(a.monto) FILTER (WHERE a.con), 0)::float AS "montoConSenal"
+    FROM (SELECT o.anio, o.ordenes, o.monto,
+                 o.ruc IN (SELECT pe.ruc FROM persona_entidad pe WHERE pe.entidad_ruc = $1 AND pe.sev > 0) AS con
+            FROM persona_orden_anual o
+           WHERE o.entidad_ruc = $1
+          OFFSET 0) a
+   GROUP BY a.anio
+   ORDER BY a.anio`;
+const anualMemo = new Memo<AnioPersonas[]>({ nombre: "personas:anual", ttlMs: 3_600_000, staleMs: 3_600_000, max: 400 });
+
+export function conSerieAnual(q: Pick<ListaQ, "entidad" | "dep" | "partido" | "size">): boolean {
+  return !!q.entidad && !q.dep && !q.partido && q.size > 0;
+}
+
+async function anualDe(q: ListaQ): Promise<AnioPersonas[] | null> {
+  if (!conSerieAnual(q) || !q.entidad) return null;
+  const entidad = q.entidad;
+  return anualMemo
+    .obtener(entidad, async () => (await consultaConPlazo<AnioPersonas>(SQL_ANUAL, [entidad], 8_000)).rows)
+    .catch((e) => {
+      console.warn(`[personas] anual: ${(e as Error).message}`);
+      return null;
+    });
+}
+
 const facetasMemo = new Memo<Record<string, unknown> | null>({ nombre: "personas:facetas", ttlMs: 600_000, staleMs: 3_600_000, max: 400 });
 
 /** Cuántas contrataciones del alcance caen en cada tramo de `TRAMOS_PERSONA`, en una pasada. */
@@ -299,7 +350,9 @@ personasRouter.get("/", async (c) => {
   const q = parsed.data;
   const cuerpo = await listaMemo.obtener(JSON.stringify(q), async () => {
     const { conds, vals } = alcance(q);
-    const res = Promise.all([resumenDe(q, [...conds], [...vals]), dudosasDe(q)]).then(([r, dudosas]) => ({ ...r, dudosas }));
+    // `anual`: lo pagado cada año, sólo en una entidad y con la lista (ver `anualDe`); fuera de eso la clave no va.
+    const res = Promise.all([resumenDe(q, [...conds], [...vals]), dudosasDe(q), anualDe(q)])
+      .then(([r, dudosas, anual]) => ({ ...r, dudosas, ...(anual ? { anual } : {}) }));
     if (q.size === 0) return publicar({ total: 0, page: 1, size: 0, data: [], resumen: await res });
     const sinFiltros = conds.length;
     filtros(q, conds, vals);

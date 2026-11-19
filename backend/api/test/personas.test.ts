@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { conEnie, palabrasBusqueda, taparNombrePropio } from "../src/routes/personas.js";
+import { conEnie, conSerieAnual, palabrasBusqueda, taparNombrePropio } from "../src/routes/personas.js";
 import { publicar } from "../src/lib/privacidad.js";
 import { TAPA_NOMBRE } from "../src/lib/privacidad.js";
 
@@ -25,6 +25,16 @@ test("el buscador deja las palabras como mef_norm: mayúsculas, sin tildes, de 3
   assert.deepEqual(palabrasBusqueda("a b"), []);
   assert.deepEqual(palabrasBusqueda(undefined), []);
   assert.equal(palabrasBusqueda("uno dos tres cuatro cinco seis siete").length, 5);
+});
+
+test("la serie de cada año (`resumen.anual`) va sólo en la lista de UNA entidad: ni en el país, ni en una región o un partido, ni con size=0", () => {
+  const ent = "20131257750";
+  assert.equal(conSerieAnual({ entidad: ent, size: 20 }), true);
+  assert.equal(conSerieAnual({ entidad: ent, size: 0 }), false);
+  assert.equal(conSerieAnual({ size: 20 }), false);
+  assert.equal(conSerieAnual({ dep: "15", size: 20 }), false);
+  assert.equal(conSerieAnual({ entidad: ent, dep: "15", size: 20 }), false);
+  assert.equal(conSerieAnual({ entidad: ent, partido: "app", size: 20 }), false);
 });
 
 test("órdenes tras un informe de control (migración 308): el RUC 10 no sale y el informe queda con su código y su enlace", () => {
