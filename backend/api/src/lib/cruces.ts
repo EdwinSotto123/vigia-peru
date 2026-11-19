@@ -45,6 +45,10 @@ export const ETIQUETA_CRUCE: Record<string, string> = {
   comite_mismo_ganador: "El mismo integrante del comité le adjudicó varias veces a esta empresa",
   comite_socio_proveedor: "Un integrante del comité de la entidad es socio o representante de esta empresa",
   comite_competencia_restringida: "En los procesos de un mismo integrante del comité, la competencia queda restringida más que en el resto de la entidad",
+  // Las partes de las apelaciones que leyó Vigía (migración 424).
+  tribunal_sancionador: "El Tribunal de Contrataciones ordenó abrirle un procedimiento sancionador por lo que presentó en su oferta",
+  tribunal_revoco_buena_pro: "El Tribunal de Contrataciones le quitó la buena pro que le había dado el comité",
+  gana_con_sancionador_abierto: "Ganó mientras tenía abierto un procedimiento sancionador que ordenó el Tribunal",
   socio_comun: "Comparte socio o representante con otro postor",
   // Competencia y conflicto en el proceso (migración 122).
   unico_postor: "Único postor del proceso",

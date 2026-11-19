@@ -307,6 +307,9 @@ export function cadenaCruces(): Refresco[] {
     f("refrescar_cruce_comite_mismo_ganador", true),
     f("refrescar_cruce_comite_socio_proveedor", true),
     f("refrescar_cruce_comite_competencia_restringida", true),
+    // Las partes de las apelaciones leídas del Tribunal (424): a quién le quitó la buena pro, contra quién ordenó un
+    // sancionador y lo que esa empresa ganó después con el sancionador abierto.
+    f("refrescar_cruce_tribunal", true),
     // Los datos de los documentos leídos, como hechos con tipo y con su comprobación contra el registro (migraciones 323
     // y 327: también los leídos sin modelo, de los reportes del SEACE y de las secciones de las bases).
     f("refrescar_hecho_documento", true),

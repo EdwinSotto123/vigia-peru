@@ -252,6 +252,20 @@ function porQuePesa(x: Fila): string | undefined {
         (base != null ? `; en los demás procesos de la entidad pasa en el ${base} %` : "") +
         (pv != null ? `. Que sea azar tiene una probabilidad de ${pv < 0.001 ? "menos de 1 en 1 000" : `1 en ${Math.round(1 / pv)}`} (control de falsos descubrimientos al 10 %).` : ".");
     }
+    case "tribunal_sancionador":
+    case "tribunal_revoco_buena_pro":
+    case "gana_con_sancionador_abierto": {
+      // Migración 424: las partes de una apelación leída del Tribunal; la resolución va en la fuente.
+      const inf = Array.isArray(d.infraccion) ? (d.infraccion as string[]) : [];
+      const que = inf.includes("documentacion_falsa") ? "documentación falsa" : inf.includes("informacion_inexacta") ? "información inexacta" : "lo que presentó en su oferta";
+      const res = d.resolucion ? ` (${d.resolucion})` : "";
+      if (x.tipo === "tribunal_revoco_buena_pro")
+        return `El comité le dio la buena pro y el Tribunal se la quitó al resolver la apelación de otro postor${res}: calificó mal. Pesa si se repite con la misma empresa en otras entidades.`;
+      if (x.tipo === "tribunal_sancionador")
+        return `El Tribunal ordenó abrirle un procedimiento sancionador por presunta ${que}${res}. Es la orden de investigar, no la sanción.`;
+      const dias = n(d.dias_despues);
+      return `Ganó ${dias != null ? `${dias} días ` : ""}después de que el Tribunal ordenara abrirle un sancionador por presunta ${que} en otro proceso${res}${d.ocid_origen ? ` (OCID ${d.ocid_origen})` : ""}, sin sanción registrada antes de la buena pro.`;
+    }
     case "firma_en_plazo_de_apelacion": {
       const dh = n(d.dias_habiles);
       return dh != null ? `Firmado ${dh === 0 ? "el mismo día de la buena pro" : `${dh} días hábiles después de la buena pro`}, antes del plazo para apelar.` : undefined;

@@ -133,6 +133,72 @@ def _texto(por_id: dict, pid) -> str | None:
         return None
 
 
+def guardar_partes(cur, pid: int, s: dict) -> int:
+    """El adjudicatario y los destinatarios del sancionador (migración 424), cada nombre comprobado en el texto, unidos a
+    su RUC 20 con tribunal_ruc_de() en los procesos de la resolución. Un consorcio se parte en sus integrantes."""
+    cur.execute("SELECT array_agg(ocid) FROM tribunal_proceso WHERE resolucion_id = %s AND ocid IS NOT NULL", (pid,))
+    ocids = cur.fetchone()[0] or []
+    cur.execute("DELETE FROM tribunal_parte WHERE resolucion_id = %s", (pid,))
+    partes = [("adjudicatario", s.get("_adjudicatario_ok"))] if s.get("_adjudicatario_ok") else []
+    partes += [("sancionador", x) for x in s.get("_sancionador_ok") or []]
+    unidas = 0
+    for n, (rol, nombre) in enumerate(partes, 1):
+        rucs: dict[str, str] = {}
+        for cand in T.nombres_de(nombre):
+            cur.execute("SELECT ruc, via FROM tribunal_ruc_de(%s, %s)", (cand, ocids))
+            for ruc, via in cur.fetchall():
+                rucs.setdefault(ruc, via)
+        for ruc, via in (list(rucs.items()) or [(None, None)]):
+            cur.execute("""INSERT INTO tribunal_parte (resolucion_id, rol, n, nombre, ruc, via) VALUES (%s,%s,%s,%s,%s,%s)
+                           ON CONFLICT DO NOTHING""", (pid, rol, n, nombre[:300], ruc, via))
+        unidas += bool(rucs)
+    return unidas
+
+
+def actualizar_version(cn, cur, por_id: dict, motor, maximo: int, hechos: dict, hilos: int = 3) -> int:
+    """Las leídas con un lector anterior (VERSION) se releen con el modelo chico por tramos, para sumar lo que el lector
+    nuevo trae (v2: adjudicatario, sancionador, infracción). El resultado comprobado NO se toca, salvo que estuviera en
+    disputa y la lectura nueva pase la comprobación: la relectura del modelo grande no se pierde. El modelo lee en
+    `hilos` a la vez (~45 s cada lectura); la base se escribe en este hilo."""
+    if maximo <= 0:
+        return 0
+    cur.execute("SELECT id, resultado_ok FROM tribunal_resolucion WHERE version IS DISTINCT FROM %s ORDER BY id DESC LIMIT %s",
+                (T.VERSION, maximo))
+    filas = [(pid, ok, t) for pid, ok in cur.fetchall() if (t := _texto(por_id, pid)) is not None]
+
+    def leer(fila):
+        pid, ok, texto = fila
+        r = motor.llamar_texto(T, T.recorte(texto))
+        s = r.get("salida")
+        if r.get("estado") != "ok" or not s:
+            return pid, ok, None, r
+        return pid, ok, T.comprobar(T.normalizar(s), texto), r
+
+    n = 0
+    with ThreadPoolExecutor(max(1, hilos)) as ex:
+        for pid, ok, s, r in ex.map(leer, filas):
+            hechos["usd"] += r.get("costo_usd") or 0
+            if s is None:
+                hechos["errores"] += 1
+                continue
+            cur.execute("""UPDATE tribunal_resolucion SET adjudicatario = %s, infraccion = %s, version = %s,
+                                  costo_usd = COALESCE(costo_usd, 0) + %s WHERE id = %s""",
+                        (s.get("_adjudicatario_ok") or None, (s.get("infraccion") or []) if s.get("_sancionador_ok") else [],
+                         T.VERSION, r.get("costo_usd") or 0, pid))
+            if not ok and s["_resultado_ok"]:
+                cur.execute("""UPDATE tribunal_resolucion SET resultado = %s, efectos = %s, motivo = %s, cita = %s, cita_ok = %s,
+                                      modelo = %s, resultado_regla = %s, resultado_ok = true, corregido_ok = %s WHERE id = %s""",
+                            (s.get("resultado"), s.get("efectos") or [], (s.get("motivo") or "")[:600],
+                             (s.get("cita_resolutivo") or "")[:400], bool(s.get("_cita_ok")), r.get("modelo"),
+                             s.get("_resultado_regla"), s["_corregido_ok"], pid))
+            hechos["partes_unidas"] = hechos.get("partes_unidas", 0) + guardar_partes(cur, pid, s)
+            cn.commit()
+            n += 1
+    if n:
+        print(f"releídas con el lector {T.VERSION}: {n}", flush=True)
+    return n
+
+
 def recomprobar(cn, cur, por_id: dict) -> int:
     """La regla mejora (VERSION_REGLA): las ya cargadas se vuelven a comprobar contra su texto, sin modelo."""
     cur.execute("SELECT id, resultado FROM tribunal_resolucion WHERE regla_version IS DISTINCT FROM %s", (T.VERSION_REGLA,))
@@ -204,6 +270,8 @@ def main() -> None:
     ap.add_argument("--max", type=int, default=0)
     ap.add_argument("--hilos", type=int, default=2)
     ap.add_argument("--releer", type=int, default=40, help="disputas que relee el modelo grande por corrida (0: ninguna)")
+    ap.add_argument("--actualizar", type=int, default=60,
+                    help="leídas con un lector anterior que se releen por corrida (0: ninguna)")
     a = ap.parse_args()
     sys.stdout.reconfigure(encoding="utf-8")
     raiz = Path(os.environ["NORMAS_DESCARGAS"]) / "tribunal"
@@ -240,7 +308,7 @@ def main() -> None:
                 with lock:
                     hechos["errores"] += 1
                 return None
-            return d, T.comprobar(s, d["texto"]), r
+            return d, T.comprobar(T.normalizar(s), d["texto"]), r
 
         with ThreadPoolExecutor(max(1, a.hilos)) as ex:
             for res in ex.map(leer, pendientes):
@@ -252,20 +320,23 @@ def main() -> None:
                 cur.execute(
                     """INSERT INTO tribunal_resolucion (id, titulo, numero, anio, sala, tribunal, fecha, resultado, efectos,
                                                          entidad, impugnante, motivo, cita, cita_ok, url, pdf, modelo, version, costo_usd,
-                                                         resultado_regla, resultado_ok, corregido_ok, regla_version)
-                       VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) ON CONFLICT (id) DO NOTHING""",
+                                                         resultado_regla, resultado_ok, corregido_ok, regla_version,
+                                                         adjudicatario, infraccion)
+                       VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) ON CONFLICT (id) DO NOTHING""",
                     (d["id"], d.get("titulo") or "", int(m.group(1)) if m else None, int(m.group(2)) if m else d.get("anio"),
                      m.group(4).upper() if m else None, m.group(3).upper() if m else None, fecha, s.get("resultado"),
                      s.get("efectos") or [], s.get("entidad"), s.get("impugnante"), (s.get("motivo") or "")[:600],
                      (s.get("cita_resolutivo") or "")[:400], bool(s.get("_cita_ok")), d["url"], d.get("pdf"),
                      r.get("modelo"), T.VERSION, r.get("costo_usd"), s.get("_resultado_regla"), bool(s.get("_resultado_ok")),
-                     bool(s.get("_corregido_ok")), T.VERSION_REGLA))
+                     bool(s.get("_corregido_ok")), T.VERSION_REGLA, s.get("_adjudicatario_ok") or None,
+                     (s.get("infraccion") or []) if s.get("_sancionador_ok") else []))
                 for i, ptxt in enumerate(s.get("_procedimientos_ok") or [], 1):
                     ocid, via = unir(cur, ptxt, s.get("entidad") or "")
                     cur.execute("INSERT INTO tribunal_proceso (resolucion_id, n, texto, ocid, via) VALUES (%s,%s,%s,%s,%s) ON CONFLICT DO NOTHING",
                                 (d["id"], i, ptxt[:400], ocid, via))
                     hechos["procesos"] += 1
                     hechos["unidas"] += ocid is not None
+                hechos["partes_unidas"] = hechos.get("partes_unidas", 0) + guardar_partes(cur, d["id"], s)
                 cn.commit()
                 hechos["apelaciones"] += 1
                 hechos["usd"] += r.get("costo_usd") or 0
@@ -273,6 +344,7 @@ def main() -> None:
                     print(f"{hechos['apelaciones']} cargadas; procesos unidos {hechos['unidas']} de {hechos['procesos']}; US$ {hechos['usd']:.3f}", flush=True)
         por_id = {f.stem: f for f in archivos}
         hechos["recomprobadas"] = recomprobar(cn, cur, por_id)
+        hechos["actualizadas"] = actualizar_version(cn, cur, por_id, motor, a.actualizar, hechos, a.hilos)
         hechos.update(releer_disputas(cn, cur, por_id, a.releer, hechos))
         # La bitácora de las fuentes que se cargan desde la PC (GET /estado/datos, estado_fuentes del MCP): una fila por
         # corrida, también sin apelaciones nuevas, para que se vea que la tarea sigue viva.
@@ -286,15 +358,17 @@ def main() -> None:
              "https://www.gob.pe/institucion/oece/colecciones/68030-resoluciones-del-tribunal-de-contrataciones-publicas"))
         cn.commit()
         # Las entidades cuyos procesos el Tribunal corrige más que el resto del país (migración 422), con lo recién leído.
-        if hechos["apelaciones"] or hechos["recomprobadas"] or hechos.get("reemplazadas"):
-            try:
-                cur.execute("SET statement_timeout = 0")
-                cur.execute("SELECT refrescar_tribunal_entidad()")
-                print(f"tribunal_entidad: {cur.fetchone()[0]} entidades", flush=True)
-                cn.commit()
-            except Exception as e:  # noqa: BLE001 — sin la 422 (o la base ocupada), la carga ya quedó hecha
-                cn.rollback()
-                print(f"tribunal_entidad no se refrescó: {str(e)[:160]}", flush=True)
+        if hechos["apelaciones"] or hechos["recomprobadas"] or hechos.get("reemplazadas") or hechos["actualizadas"]:
+            # Las entidades cuyos procesos el Tribunal corrige (422) y las señales de las partes (424).
+            for funcion in ("refrescar_tribunal_entidad", "refrescar_cruce_tribunal"):
+                try:
+                    cur.execute("SET statement_timeout = 0")
+                    cur.execute(f"SELECT {funcion}()")
+                    print(f"{funcion}: {cur.fetchone()[0]}", flush=True)
+                    cn.commit()
+                except Exception as e:  # noqa: BLE001 — la carga ya quedó hecha
+                    cn.rollback()
+                    print(f"{funcion} no se refrescó: {str(e)[:160]}", flush=True)
     print(f"fin: {hechos}", flush=True)
 
 

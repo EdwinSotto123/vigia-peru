@@ -730,6 +730,10 @@ export interface ResolucionTribunal {
   url: string;
   pdf: string | null;
   via: string | null;
+  /** Migración 424: quién tenía la buena pro y contra quién se ordenó un sancionador (sólo empresas, RUC 20). Falta en la API vieja. */
+  adjudicatario?: { ruc: string; nombre: string | null }[];
+  sancionadorContra?: { ruc: string; nombre: string | null }[];
+  infraccion?: string[];
 }
 
 /** Un dato leído de un documento del expediente: qué es, de dónde salió y si se pudo comprobar. */

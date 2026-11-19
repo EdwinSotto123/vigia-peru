@@ -9,7 +9,9 @@ from __future__ import annotations
 
 import re
 
-VERSION = "v1"
+# v2 (2026-11-19): también a quién se le revocó la buena pro (adjudicatario) y contra quién se ordena abrir un
+# procedimiento sancionador (sancionador_contra, infraccion). tribunal_cargar.py relee las v1 por tramos.
+VERSION = "v2"
 # La regla que comprueba el resultado (resultado_de_texto). Al cambiarla, tribunal_cargar.py recomprueba las cargadas.
 VERSION_REGLA = "2"
 # El que relee las disputas (migración 423): el modelo chico y la regla no leen lo mismo.
@@ -31,7 +33,13 @@ Devuelves sólo lo que la resolución dice, con sus palabras. No inventes: si un
   nulidad (anula el procedimiento o ítems), descalifica_al_adjudicatario, confirma_buena_pro.
 - «motivo»: en una oración, por qué decide así (el vicio que encontró o por qué no lo encontró).
 - «cita_resolutivo»: copia LITERAL del primer punto de la parte resolutiva («1. Declarar …»), hasta 300 caracteres.
-- «fecha»: la fecha de la resolución (AAAA-MM-DD)."""
+- «fecha»: la fecha de la resolución (AAAA-MM-DD).
+- «adjudicatario»: el postor que tenía la buena pro cuando se apeló (empresa o consorcio), como figura. Vacío si no había
+  buena pro (por ejemplo, se apeló una descalificación de un procedimiento declarado desierto).
+- «sancionador_contra»: cada proveedor contra el que la parte resolutiva ordena abrir un procedimiento administrativo
+  sancionador (o remitir los actuados a la Secretaría del Tribunal para que lo abra), como figura. Si es un consorcio y
+  la resolución nombra a sus integrantes, cada integrante. Vacío si la parte resolutiva no lo ordena.
+- «infraccion»: por qué se ordena ese procedimiento: documentacion_falsa | informacion_inexacta | otra. Vacío si no hay."""
 
 ESQUEMA = {
     "type": "object",
@@ -47,6 +55,10 @@ ESQUEMA = {
         "motivo": {"type": "string"},
         "cita_resolutivo": {"type": "string"},
         "fecha": {"type": "string"},
+        "adjudicatario": {"type": "string"},
+        "sancionador_contra": {"type": "array", "items": {"type": "string"}, "maxItems": 6},
+        "infraccion": {"type": "array", "items": {"type": "string", "enum": [
+            "documentacion_falsa", "informacion_inexacta", "otra"]}},
     },
     "required": ["procedimientos", "entidad", "resultado", "cita_resolutivo"],
 }
@@ -178,12 +190,79 @@ def comprobar(salida: dict, texto: str) -> dict:
     salida["_resultado_regla"] = regla
     salida["_resultado_ok"] = regla is not None and (regla == modelo or (modelo == "otro" and regla in NO_RESUELVEN_APELACION))
     salida["_corregido_ok"] = grupo(regla) is not None and grupo(regla) == grupo(modelo)
+    # Las partes: cada nombre debe estar en el texto. El procedimiento sancionador, además, sólo si la parte resolutiva lo
+    # ordena (la palabra está en ella): un modelo que lo deduce de los fundamentos no basta.
+    adj = plano(salida.get("adjudicatario") or "")
+    salida["_adjudicatario_ok"] = adj if len(_compacto(adj)) >= 6 and _compacto(adj) in t else ""
+    salida["_sancionador_ok"] = [n for n in (salida.get("sancionador_contra") or [])
+                                 if len(_compacto(n)) >= 6 and _compacto(n) in t] if ordena_sancionador(texto) else []
     return salida
+
+
+def parte_resolutiva(texto: str) -> str:
+    """De «RESUELVE:» (o su ancla) hasta «Regístrese», o 5 000 caracteres."""
+    t = plano(texto)
+    m = _resolutivo(t)
+    if not m:
+        return ""
+    resto = t[m.end():m.end() + 5000]
+    fin = re.search(r"Reg[ií]strese", resto)
+    return resto[:fin.start()] if fin else resto
+
+
+def ordena_sancionador(texto: str) -> bool:
+    """La parte resolutiva ordena abrir (o remitir para que se abra) un procedimiento sancionador."""
+    return bool(re.search(r"sancionador", parte_resolutiva(texto), re.I))
+
+
+_INTEGRADO = re.compile(r",?\s*(?:integrad[oa]|conformad[oa]|compuest[oa])s?\s+por\s+", re.I)
+_TRATAMIENTO = re.compile(r"^(?:las?|los?|el|sus?)\s+(?:empresas?|señor(?:es|as?)?|señora|proveedor(?:es)?|postor(?:es)?)\s+", re.I)
+_INTEGRANTES_DE = re.compile(r",?\s*(?:integrantes?|miembros?)\s+del?\s+", re.I)
+
+
+def nombres_de(parte: str) -> list[str]:
+    """«Consorcio Piura, conformado por las empresas A S.C.R.L. y B E.I.R.L.» → ["Consorcio Piura", "A S.C.R.L.",
+    "B E.I.R.L."]: el consorcio y cada integrante, para unir cada uno a su RUC. También «las empresas A y B, integrantes
+    del Consorcio C». Un nombre suelto vuelve tal cual."""
+    t = plano(parte).strip(" .;,")
+    m = _INTEGRADO.search(t)
+    if m:
+        cabeza, cola = t[:m.start()].strip(" ,"), t[m.end():]
+    else:
+        m = _INTEGRANTES_DE.search(t)
+        if not m:
+            return [_TRATAMIENTO.sub("", t)] if t else []
+        cabeza, cola = t[m.end():].strip(" ,"), t[:m.start()]
+    cola = _TRATAMIENTO.sub("", cola.strip())
+    # Los integrantes van separados por comas y la última «y» / «e». Pero «Construcciones, Ventas y Servicios Octalier
+    # E.I.R.L.» es UN nombre: se juntan los trozos hasta uno que cierra con una forma societaria. Si ninguno cierra así
+    # (personas, nombres sin forma), se parte sólo en las «y».
+    trozos = re.split(r"(,\s*|\s+y\s+|\s+e\s+)", cola)
+    piezas, actual = [], ""
+    for i, trozo in enumerate(trozos):
+        if i % 2 == 1 and not actual:
+            continue  # el separador que sigue a un nombre ya cerrado
+        actual += trozo
+        if i % 2 == 0 and _FORMA_FINAL.search(trozo.strip(" .;")):
+            piezas.append(actual)
+            actual = ""
+    if actual.strip(" .;,"):
+        piezas.append(actual)
+    if len(piezas) <= 1:
+        piezas = re.split(r"\s+y\s+", cola)
+    piezas = [_TRATAMIENTO.sub("", p.strip(" .;,")) for p in piezas]
+    return [x for x in [cabeza, *piezas] if len(x) >= 3]
+
+
+_FORMA_FINAL = re.compile(
+    r"(?:\bS\.?\s?A\.?\s?C|\bS\.?\s?A\.?\s?A|\bS\.?\s?A|\bE\.?\s?I\.?\s?R\.?\s?L|\bS\.?\s?R\.?\s?L(?:TDA)?|\bS\.?\s?C\.?\s?R\.?\s?L"
+    r"|SOCIEDAD AN[OÓ]NIMA(?: CERRADA| ABIERTA)?|RESPONSABILIDAD LIMITADA)\.?$", re.I)
 
 
 def normalizar(salida: dict) -> dict:
     salida["procedimientos"] = [plano(p) for p in (salida.get("procedimientos") or []) if plano(p)][:6]
-    for k in ("entidad", "impugnante", "motivo", "cita_resolutivo", "fecha"):
+    salida["sancionador_contra"] = [plano(p) for p in (salida.get("sancionador_contra") or []) if plano(p)][:6]
+    for k in ("entidad", "impugnante", "motivo", "cita_resolutivo", "fecha", "adjudicatario"):
         if k in salida:
             salida[k] = plano(salida.get(k) or "")
     return salida

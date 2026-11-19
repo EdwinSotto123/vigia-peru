@@ -450,6 +450,12 @@ export interface ResolucionTribunal {
   pdf: string | null;
   /** Cómo se unió al proceso: la nomenclatura escrita igual, o siglas y entidad. */
   via: string | null;
+  /** Migración 424: quién tenía la buena pro cuando se apeló y contra quién ordenó el Tribunal abrir un sancionador.
+   * Sólo empresas (RUC 20) con su razón social del padrón; nunca una persona natural ni el nombre leído. */
+  adjudicatario: { ruc: string; nombre: string | null }[];
+  sancionadorContra: { ruc: string; nombre: string | null }[];
+  /** Por qué el sancionador: documentacion_falsa | informacion_inexacta | otra. */
+  infraccion: string[];
 }
 
 const ES_EMPRESA = /CONSORCIO|S\.?\s?A\.?\s?C\b|E\.?\s?I\.?\s?R\.?\s?L|S\.?\s?R\.?\s?L|\bS\.?\s?A\.?(\s|$)|SOCIEDAD|EMPRESA|CORPORACI|INVERSIONES|CONSTRUCTORA|SERVICIOS/i;
@@ -461,11 +467,30 @@ async function tribunalDe(ocid: string): Promise<ResolucionTribunal[]> {
     `SELECT r.titulo, to_char(r.fecha, 'YYYY-MM-DD') AS fecha,
             CASE WHEN r.resultado_ok THEN r.resultado END AS resultado,
             CASE WHEN r.resultado_ok THEN r.efectos ELSE '{}' END AS efectos, r.motivo,
-            CASE WHEN r.cita_ok THEN r.cita END AS cita, r.impugnante, r.url, r.pdf, p.via
+            CASE WHEN r.cita_ok THEN r.cita END AS cita, r.impugnante, r.url, r.pdf, p.via,
+            COALESCE(r.infraccion, '{}') AS infraccion,
+            COALESCE((SELECT jsonb_agg(DISTINCT jsonb_build_object('ruc', pe.ruc, 'nombre', e.razon_social))
+                        FROM tribunal_parte_empresa pe LEFT JOIN empresas e ON e.ruc = pe.ruc::bpchar
+                       WHERE pe.resolucion_id = r.id AND pe.rol = 'adjudicatario'), '[]') AS adjudicatario,
+            COALESCE((SELECT jsonb_agg(DISTINCT jsonb_build_object('ruc', pe.ruc, 'nombre', e.razon_social))
+                        FROM tribunal_parte_empresa pe LEFT JOIN empresas e ON e.ruc = pe.ruc::bpchar
+                       WHERE pe.resolucion_id = r.id AND pe.rol = 'sancionador'), '[]') AS "sancionadorContra"
        FROM tribunal_proceso p JOIN tribunal_resolucion r ON r.id = p.resolucion_id
       WHERE p.ocid = $1
-      ORDER BY r.fecha DESC NULLS LAST, r.id DESC`, [ocid]);
-  return r.rows.map((x) => ({ ...x, efectos: x.efectos ?? [], impugnante: x.impugnante && ES_EMPRESA.test(x.impugnante) ? x.impugnante : null }));
+      ORDER BY r.fecha DESC NULLS LAST, r.id DESC`, [ocid]).catch(async (e) => {
+    // Sin la 424 (DEV atrasado): la consulta de antes, sin las partes.
+    if ((e as { code?: string }).code !== "42P01" && (e as { code?: string }).code !== "42703") throw e;
+    return pool.query(
+      `SELECT r.titulo, to_char(r.fecha, 'YYYY-MM-DD') AS fecha, CASE WHEN r.resultado_ok THEN r.resultado END AS resultado,
+              CASE WHEN r.resultado_ok THEN r.efectos ELSE '{}' END AS efectos, r.motivo, CASE WHEN r.cita_ok THEN r.cita END AS cita,
+              r.impugnante, r.url, r.pdf, p.via
+         FROM tribunal_proceso p JOIN tribunal_resolucion r ON r.id = p.resolucion_id
+        WHERE p.ocid = $1 ORDER BY r.fecha DESC NULLS LAST, r.id DESC`, [ocid]);
+  });
+  return r.rows.map((x) => ({
+    ...x, efectos: x.efectos ?? [], impugnante: x.impugnante && ES_EMPRESA.test(x.impugnante) ? x.impugnante : null,
+    infraccion: x.infraccion ?? [], adjudicatario: x.adjudicatario ?? [], sancionadorContra: x.sancionadorContra ?? [],
+  }));
 }
 
 // ─── Los hechos de los documentos, con su comprobación (migración 323) ──────

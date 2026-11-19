@@ -26,6 +26,7 @@ import { adjudicacionesVigentes, esPersonaNatural, humanizarCodigo, type Contrat
 import { enlaceProveedor } from "@/lib/empresas";
 import { FUENTE_HITO, numeroContrato, tituloContrato, type ContratoFirmado, type HitoProceso, type ItemAdjudicado, type PersonaProceso } from "@/lib/procesoContrato";
 import { ObrasDelContrato } from "@/components/obras/ObraContrato";
+import { nombreModelo } from "@/lib/modelos";
 import { EnlaceDocumento, copiaDeDocumento, esDocumentoSeace } from "@/components/convocatoria/sections/EnlaceDocumento";
 
 /**
@@ -193,6 +194,27 @@ const EFECTO_TRIBUNAL: Record<string, string> = {
   confirma_buena_pro: "confirmó la buena pro",
 };
 
+/** Las empresas de una resolución del Tribunal (RUC 20), enlazadas a su ficha. */
+function empresasTribunal(lista: { ruc: string; nombre: string | null }[] | undefined): ReactNode {
+  if (!lista?.length) return null;
+  return lista.map((e, i) => (
+    <span key={e.ruc}>
+      {i > 0 ? (i === lista.length - 1 ? " y " : ", ") : ""}
+      <Link href={`/empresa/${e.ruc}`} prefetch={false} className="font-semibold text-ink underline decoration-line underline-offset-2 hover:decoration-ink">
+        {e.nombre ?? e.ruc}
+      </Link>
+    </span>
+  ));
+}
+
+function infraccionTribunal(inf: string[] | undefined): string | null {
+  const x = inf ?? [];
+  if (x.includes("documentacion_falsa") && x.includes("informacion_inexacta")) return "documentación falsa o información inexacta";
+  if (x.includes("documentacion_falsa")) return "documentación falsa";
+  if (x.includes("informacion_inexacta")) return "información inexacta";
+  return null;
+}
+
 /**
  * Las apelaciones de este proceso que resolvió el Tribunal (resoluciones de gob.pe leídas por Vigía, con la cita del
  * resolutivo comprobada). Es un registro oficial del proceso, no una bandera de quien ganó: si el Tribunal le quitó la
@@ -214,6 +236,17 @@ function BloqueTribunal({ resoluciones }: { resoluciones: NonNullable<Detalle["t
             { etiqueta: "Qué ordenó", valor: efectos.length ? oracion(listaY(efectos)) : null },
             { etiqueta: "Por qué", valor: r.motivo ? oracion(r.motivo) : null },
             { etiqueta: "Quién apeló", valor: r.impugnante },
+            // Migración 424: sólo empresas (RUC 20), con su razón social del padrón y enlazadas a su ficha.
+            { etiqueta: "Tenía la buena pro", valor: empresasTribunal(r.adjudicatario) },
+            {
+              etiqueta: "Sancionador ordenado contra",
+              valor: r.sancionadorContra?.length ? (
+                <>
+                  {empresasTribunal(r.sancionadorContra)}
+                  {infraccionTribunal(r.infraccion) ? <>, por presunta {infraccionTribunal(r.infraccion)} en su oferta</> : null}
+                </>
+              ) : null,
+            },
             { etiqueta: "Lo que dice", valor: r.cita ? `«${r.cita}»` : null },
           ];
           return (
@@ -348,7 +381,7 @@ function HechosComprobados({ c }: { c: Detalle }) {
   );
 }
 
-/** Las condiciones del contrato firmado, leídas del PDF con Claude (backend/lector/contrato.py): lo que CONOSCE no trae. */
+/** Las condiciones del contrato firmado, leídas del PDF con IA (backend/lector/contrato.py): lo que CONOSCE no trae. */
 function CondicionesLeidas({ c }: { c: Detalle }) {
   const k = c.lecturaIA?.contrato;
   if (!k) return null;
@@ -373,7 +406,7 @@ function CondicionesLeidas({ c }: { c: Detalle }) {
   return (
     <div className="border-t border-line px-4 py-4 sm:px-5">
       <h3 className="font-display text-bloque font-bold text-ink">Lo que dice el contrato</h3>
-      <p className="mt-1 text-meta text-inkSoft">Condiciones leídas del contrato firmado con IA ({k.modelo.replace(/^claude-/, "Claude ").replace(/-/g, " ")}). Revisa el documento antes de citarlas.</p>
+      <p className="mt-1 text-meta text-inkSoft">Condiciones leídas del contrato firmado con IA ({nombreModelo(k.modelo) ?? "modelo abierto"}). Revisa el documento antes de citarlas.</p>
       <DatosClave items={items} className="mt-2" />
       <FuenteDato fuente="Contrato firmado (SEACE), leído con IA" fecha={k.leidoAt} href={k.url ? (esDocumentoSeace(k.url) ? copiaDeDocumento(k.url) : k.url) : undefined} className="mt-2" />
     </div>

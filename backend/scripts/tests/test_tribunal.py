@@ -92,3 +92,26 @@ def test_corregido_coincide_aunque_el_resultado_exacto_no():
     assert s["_resultado_ok"] is False and s["_corregido_ok"] is True
     s = T.comprobar({"resultado": "infundado", "cita_resolutivo": "", "procedimientos": []}, texto)
     assert s["_corregido_ok"] is False
+
+
+def test_un_consorcio_se_parte_en_sus_integrantes():
+    assert T.nombres_de("Consorcio Piura, conformado por las empresas Corporativo Maralex S.C.R.L. y Construcciones, "
+                        "Ventas y Servicios Octalier E.I.R.L.") == [
+        "Consorcio Piura", "Corporativo Maralex S.C.R.L", "Construcciones, Ventas y Servicios Octalier E.I.R.L"]
+    assert T.nombres_de("las empresas A Inversiones E.I.R.L. y B Contratistas S.A.C., integrantes del Consorcio C") == [
+        "Consorcio C", "A Inversiones E.I.R.L", "B Contratistas S.A.C"]
+    assert T.nombres_de("la empresa Buildtech S.A.C.") == ["Buildtech S.A.C"]
+
+
+def test_el_sancionador_solo_si_la_parte_resolutiva_lo_ordena():
+    texto = ("VISTO … la buena pro otorgada a la empresa Beta Obras S.A.C. … LA SALA RESUELVE: 1. Declarar FUNDADO el recurso. "
+             "2. Remitir los actuados a la Secretaría del Tribunal para que abra expediente administrativo sancionador contra "
+             "la empresa Beta Obras S.A.C. por presentar información inexacta. Regístrese, comuníquese y publíquese.")
+    s = T.comprobar({"resultado": "fundado", "cita_resolutivo": "", "procedimientos": [], "adjudicatario": "Beta Obras S.A.C.",
+                     "sancionador_contra": ["Beta Obras S.A.C.", "Gamma Inventada S.A.C."]}, texto)
+    assert s["_adjudicatario_ok"] == "Beta Obras S.A.C."
+    assert s["_sancionador_ok"] == ["Beta Obras S.A.C."]
+    sin = texto.replace("abra expediente administrativo sancionador contra", "evalúe a")
+    s = T.comprobar({"resultado": "fundado", "cita_resolutivo": "", "procedimientos": [],
+                     "sancionador_contra": ["Beta Obras S.A.C."]}, sin)
+    assert s["_sancionador_ok"] == []

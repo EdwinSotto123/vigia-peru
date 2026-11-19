@@ -283,6 +283,9 @@ const POR_QUE: Record<string, string> = {
   otro_postor: "Cuando el ganador no firma o pierde la buena pro, se adjudica al siguiente postor con su propia oferta: el Estado paga más. Vale ver en el expediente por qué no firmó el primero.",
   fraccionamiento: "Partir una compra en órdenes pequeñas para no hacer un proceso de selección está prohibido. Varias órdenes el mismo día, al mismo proveedor y por encima del tope, son el patrón que se busca.",
   unico_postor: "Un proceso con un solo postor no tuvo competencia: puede ser un rubro muy chico o un requerimiento hecho a la medida de un proveedor. Vale ver si las bases eran restrictivas, sobre todo si el monto es alto o se adjudicó al tope del valor referencial.",
+  tribunal_sancionador: "Presentar documentos falsos o información inexacta es la infracción más grave de la ley de contrataciones: se sanciona con inhabilitación de hasta diez años. Vale ver qué documento cuestionó el Tribunal, si la empresa ya fue sancionada (Historial) y si sigue ganando contratos mientras se investiga.",
+  tribunal_revoco_buena_pro: "Que el Tribunal revoque una buena pro dice que el comité calificó mal: dejó pasar una oferta que no cumplía o descalificó mal a otra. Vale leer la resolución para ver qué no cumplía y mirar si a la misma empresa le pasó en otras entidades.",
+  gana_con_sancionador_abierto: "La entidad no puede rechazar una oferta por un sancionador en trámite, pero sí debe verificar los documentos de la oferta. Si la empresa ya estaba bajo investigación por documentos falsos, vale revisar con lupa la experiencia y los certificados que presentó en este proceso.",
   comite_competencia_restringida: "Quien integra el comité decide quién cumple los requisitos. Si en los procesos de una misma persona la competencia queda restringida (un solo postor, descalificaciones, sólo el ganador admitido) mucho más que en el resto de la entidad, y eso no se explica por azar, es el patrón del evaluador que filtra a los postores. Vale leer en las actas por qué quedaron fuera los demás y si los requisitos se pidieron igual en todos los procesos.",
   comite_socio_proveedor: "Quien integra el comité decide quién cumple y cómo se puntúa. Si además es socio, gerente o representante de una empresa que le vende a su entidad, está en el impedimento de la ley de contrataciones: el funcionario y sus empresas no pueden contratar con su entidad mientras ejerce y hasta doce meses después. Vale confirmar que sea la misma persona, ver si se apartó del comité y revisar cómo se evaluó a los demás postores.",
   socio_en_entidad: "Que un dueño o representante del proveedor esté en la planilla o la lista de locadores de la MISMA entidad que lo contrata es un conflicto de interés directo: quien decide y quien vende pueden ser la misma red. Merece revisar el expediente.",
@@ -661,6 +664,50 @@ function Texto({ c, gobierna }: { c: CruceProveedor; gobierna?: GobiernoContrato
           {identidad[txt(d.identidad) ?? ""] ?? ""}{" "}
           Sale de las actas que leyeron los agentes, con el nombre comprobado en el documento
           {n(d.pagina) != null ? ` (página ${numero(n(d.pagina)!)} del acta)` : ""}.
+        </>
+      );
+    }
+    case "tribunal_sancionador":
+    case "tribunal_revoco_buena_pro":
+    case "gana_con_sancionador_abierto": {
+      // Migración 424: las partes de una apelación que leyó Vigía. La resolución va como fuente (fuenteUrl).
+      const res = txt(d.resolucion);
+      const inf = Array.isArray(d.infraccion) ? (d.infraccion as string[]) : [];
+      const infraccion = inf.includes("documentacion_falsa") && inf.includes("informacion_inexacta")
+        ? "documentación falsa o información inexacta"
+        : inf.includes("documentacion_falsa") ? "documentación falsa"
+          : inf.includes("informacion_inexacta") ? "información inexacta" : null;
+      const laResolucion = res ? <>la <b>{res}</b></> : "una resolución";
+      if (c.tipo === "tribunal_revoco_buena_pro") {
+        const ef = Array.isArray(d.efectos) ? (d.efectos as string[]) : [];
+        return (
+          <>
+            El comité le dio la buena pro a <Emp c={c} /> y el Tribunal de Contrataciones, al resolver la apelación de otro postor
+            en {laResolucion}{c.fecha ? <> del {fechaConAnio(c.fecha)}</> : ""}, {ef.includes("revoca_buena_pro") ? "la revocó" : "descalificó su oferta"}.
+            Lo leyó Vigía en la resolución, con el nombre comprobado en el texto.
+          </>
+        );
+      }
+      if (c.tipo === "tribunal_sancionador") {
+        return (
+          <>
+            Al resolver una apelación en este proceso, el Tribunal de Contrataciones ordenó en {laResolucion}
+            {c.fecha ? <> del {fechaConAnio(c.fecha)}</> : ""} abrir un procedimiento administrativo sancionador contra <Emp c={c} />
+            {infraccion ? <> por presunta <b>{infraccion}</b> en su oferta</> : " por lo que presentó en su oferta"}. Es la orden de
+            investigar, no la sanción.
+          </>
+        );
+      }
+      const dias = n(d.dias_despues);
+      const origen = txt(d.ocid_origen);
+      return (
+        <>
+          <Emp c={c} /> ganó este proceso{dias != null ? <> <b>{numero(dias)} días</b> después</> : " después"} de que el Tribunal de
+          Contrataciones ordenara abrirle un procedimiento sancionador{infraccion ? <> por presunta <b>{infraccion}</b></> : ""} en{" "}
+          {origen ? (
+            <Link href={rutaContrato(origen, "ficha")} prefetch={false} className={ENLACE_TXT}>otro proceso</Link>
+          ) : "otro proceso"}
+          {res ? <> ({res})</> : ""}, y sin una sanción registrada antes de la buena pro.
         </>
       );
     }

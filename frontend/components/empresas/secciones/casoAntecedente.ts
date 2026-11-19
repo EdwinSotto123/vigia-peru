@@ -1,3 +1,4 @@
+import { nombreModelo } from "@/lib/modelos";
 import { recortar } from "@/components/contratos/recortar";
 import { TEMA_OBSERVACION_CONTROL, esTipoLeido, esTipoObra, responsabilidadesEnPalabras } from "@/lib/cruces";
 import { rutaEmpresa, type AntecedenteEmpresa, type ReferenciasAntecedente } from "@/lib/empresas";
@@ -933,9 +934,22 @@ export function datosDe(a: AntecedenteEmpresa, ruc: string): DatoCaso[] {
     add(
       {
         etiqueta: "Cómo se leyó",
-        valor: `${documento ? `${mayus(documento)} del SEACE` : "El documento del SEACE"}, leído con IA (Claude)${t.startsWith("acta_") ? "" : "; lo encontraron dos lecturas independientes"}`,
+        valor: `${documento ? `${mayus(documento)} del SEACE` : "El documento del SEACE"}, leído con IA${nombreModelo(txt(d.modelo)) ? ` (${nombreModelo(txt(d.modelo))})` : ""}${t.startsWith("acta_") ? "" : "; lo encontraron dos lecturas independientes"}`,
         soloPanel: true,
       },
+      delProceso(),
+    );
+  } else if (t === "tribunal_sancionador" || t === "tribunal_revoco_buena_pro" || t === "gana_con_sancionador_abierto") {
+    // Migración 424: las partes de una apelación que leyó Vigía.
+    const inf = Array.isArray(d.infraccion) ? (d.infraccion as string[]) : [];
+    const infraccion = inf.includes("documentacion_falsa") ? "Documentación falsa" : inf.includes("informacion_inexacta") ? "Información inexacta" : null;
+    const dias = num(d.dias_despues);
+    add(
+      txt(d.resolucion) && { etiqueta: "Resolución del Tribunal", valor: txt(d.resolucion)! },
+      t !== "tribunal_revoco_buena_pro" && infraccion && { etiqueta: "Por presunta", valor: infraccion },
+      t === "gana_con_sancionador_abierto" && dias != null && { etiqueta: "Ganó", valor: `${plural(dias, "día", "días")} después de la orden` },
+      { etiqueta: "De dónde sale", valor: "Resolución del Tribunal de Contrataciones leída por Vigía, con el nombre comprobado en su texto", soloPanel: true },
+      monto(),
       delProceso(),
     );
   } else {

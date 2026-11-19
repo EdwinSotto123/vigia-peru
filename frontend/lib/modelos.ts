@@ -7,6 +7,7 @@ const CONOCIDOS: Record<string, string> = {
   respaldo: "Claude Haiku 5.5",
   "@cf/zai-org/glm-5.3-flash": "GLM 5.3 Flash",
   "@cf/zai-org/glm-5.3": "GLM 5.3",
+  "@cf/google/gemma-4-26b-a4b-it": "Gemma 4 26B",
 };
 
 export function nombreModelo(id: string | null | undefined): string | null {
