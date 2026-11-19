@@ -617,7 +617,13 @@ patronesRouter.get("/grupos", async (c) => {
     if (q.severidad) conds.push(`r.severidad = ${add(q.severidad)}`);
     if (q.clave) conds.push(`${sqlClaveGrupo("$1")} = ${add(q.clave)}`);
     if (ruc) conds.push(gruposDe(add(ruc)));
-    if (q.buscar) { const p = add(q.buscar); conds.push(`(r.entidad_ruc = ${p} OR ${gruposDe(p)})`); }
+    // Entidad o empresa: la unión de las dos búsquedas por índice. Con `OR` y la subconsulta, la base recorría los 80 mil
+    // grupos en cada ficha de entidad (50-56 ms; 3 569 llamadas en 171 min): ahora 0,3-10 ms, mismo resultado (2026-11-19).
+    if (q.buscar) {
+      const p = add(q.buscar);
+      conds.push(`(r.entidad_ruc, r.grupo) IN (SELECT x.entidad_ruc, x.grupo FROM grupo_proveedor_resumen x WHERE x.entidad_ruc = ${p}
+                                               UNION SELECT g.entidad_ruc, g.grupo FROM grupo_proveedor g WHERE g.ruc = ${p})`);
+    }
     // El buscador de la ficha: el nombre de una EMPRESA del grupo (una persona natural no se busca por su nombre).
     const like = comoLike(q.q, !!(q.entidad || ruc || q.buscar));
     if (like) {
@@ -1146,7 +1152,9 @@ patronesRouter.get("/observacion", async (c) => {
     const add = (v: unknown) => { vals.push(v); return `$${vals.length}`; };
     // Sólo empresas: de una persona natural no se publica nada de esto.
     const conds = [`c.tipo = ANY(${add(q.tipo ? [q.tipo] : [...TIPOS_OBSERVACION])}::text[])`, "c.ruc_empresa ~ '^20[0-9]{9}$'"];
-    if (q.ruc) conds.push(`(c.ruc_empresa = ${add(q.ruc)} OR btrim(cv.entidad_ruc::text) = $${vals.length})`);
+    // La entidad por un semi-join con sus procesos (índice de convocatorias por entidad), no uniendo cada cruce con su
+    // convocatoria: 72 → 26 ms en la entidad más grande, mismo resultado (2026-11-19; la piden todas las fichas de entidad).
+    if (q.ruc) conds.push(`(c.ruc_empresa = ${add(q.ruc)} OR c.ocid IN (SELECT cv2.ocid FROM convocatorias cv2 WHERE cv2.entidad_ruc = $${vals.length}::bpchar))`);
     if (q.integrante) conds.push(`c.detalle->>'integrante' = ${add(q.integrante)}`);
     const [r, t, cat] = await Promise.all([
       pool.query(
@@ -1158,7 +1166,6 @@ patronesRouter.get("/observacion", async (c) => {
         `WITH k AS MATERIALIZED (
            SELECT c.tipo, c.severidad, c.ocid, c.ruc_empresa, c.fecha, c.detalle, (count(*) OVER ())::int AS total
              FROM cruces_proveedor c
-             JOIN convocatorias cv ON cv.ocid = c.ocid
             WHERE ${conds.join(" AND ")}
             ORDER BY CASE c.severidad WHEN 'alta' THEN 0 WHEN 'media' THEN 1 ELSE 2 END, c.fecha DESC NULLS LAST, c.ocid, c.ruc_empresa
             LIMIT ${add(q.size)} OFFSET ${add((q.page - 1) * q.size)})
