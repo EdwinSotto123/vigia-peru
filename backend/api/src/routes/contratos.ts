@@ -101,7 +101,13 @@ function filtros(q: Partial<Filtros>, vals: unknown[], m: Mapa, excluir = new Se
   }
   if (q.tipo && !excluir.has("tipo")) ce(`ce.tipo = ${add(q.tipo)}`);
   if (q.etapa && !excluir.has("etapa")) conds.push(`${m.etapa} = ${add(q.etapa)}`);
-  if (q.ubigeo && !excluir.has("ubigeo")) conds.push(`${m.ubigeo} LIKE ${add(`${q.ubigeo}%`)}`);
+  if (q.ubigeo && !excluir.has("ubigeo")) {
+    // Con tipo, sobre contrato_estado: la zona como prefijo exacto, que usan los índices por tipo y zona (migración 412) y
+    // la página sale filtrada y en orden; con LIKE se recorría el índice por fecha descartando las otras zonas (181 ms
+    // de media, 3 663 páginas en una provincia). El ubigeo viene validado: 2, 4 o 6 dígitos.
+    if (m === MAPA_CE && q.tipo && !excluir.has("tipo")) conds.push(`left(ce.ubigeo_zona, ${q.ubigeo.length}) = ${add(q.ubigeo)}`);
+    else conds.push(`${m.ubigeo} LIKE ${add(`${q.ubigeo}%`)}`);
+  }
   if (q.entidad && !excluir.has("entidad")) conds.push(`${m.entidad} = ${add(q.entidad)}`);
   if (q.monto_min != null && !excluir.has("monto")) conds.push(`${m.monto} >= ${add(q.monto_min)}`);
   if (q.monto_max != null && !excluir.has("monto")) conds.push(`${m.monto} <= ${add(q.monto_max)}`);
