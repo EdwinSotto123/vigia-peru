@@ -429,11 +429,15 @@ export function datosDe(a: AntecedenteEmpresa, ruc: string): DatoCaso[] {
   } else if (t === "socio_en_entidad") {
     const mp = num(d.monto_persona);
     const op = num(d.ordenes_persona);
+    const frente = ({ a_la_vez: "Tenía órdenes de la entidad cuando se dio", cerca: "A menos de dos años", lejos: "A más de dos años: pesa poco" } as Record<string, string>)[txt(d.cuando) ?? ""];
     add(
       quien(),
       entidad(txt(d.entidad) ?? a.entidad, a.entidadRuc, "También le hizo órdenes"),
       txt(d.servicio) && { etiqueta: "Servicio", valor: oracion(txt(d.servicio)!) },
       mp != null && { etiqueta: "Le pagaron", valor: `${soles(mp)}${op ? ` en ${plural(op, "orden", "órdenes")}` : ""}` },
+      // Migración 395: cuándo tuvo esas órdenes frente a la buena pro.
+      rangoDe(d.primera_orden, d.ultima_orden) && { etiqueta: "Sus órdenes", valor: rangoDe(d.primera_orden, d.ultima_orden) },
+      frente && { etiqueta: "Frente a la buena pro", valor: frente },
       delProceso().filter((x) => x.etiqueta !== "Entidad"),
     );
   } else if (t === "pariente_funcionario") {

@@ -828,6 +828,14 @@ function Texto({ c, gobierna }: { c: CruceProveedor; gobierna?: GobiernoContrato
           {quien(c)} es, además, <b>persona contratada por</b> <Entidad nombre={ent ? tituloNatural(ent) : "esta entidad"} ruc={c.entidadRuc} />
           {txt(d.servicio) ? <> ({oracion(txt(d.servicio)!).slice(0, 90)})</> : ""}
           {n(d.monto_persona) ? <>, por <b>{solesCompacto(n(d.monto_persona))}</b></> : ""}: la misma entidad que le dio el contrato a <Emp c={c} />.
+          {/* Migración 395: cuán cerca estuvieron sus órdenes de la buena pro. */}
+          {d.cuando === "a_la_vez" ? (
+            <> <b>Tenía órdenes de la entidad cuando se dio la buena pro</b>{rango(d.primera_orden, d.ultima_orden) ? ` (sus órdenes: ${rango(d.primera_orden, d.ultima_orden)})` : ""}.</>
+          ) : d.cuando === "cerca" ? (
+            <> Sus órdenes ({rango(d.primera_orden, d.ultima_orden)}) quedan a menos de dos años de la buena pro.</>
+          ) : d.cuando === "lejos" ? (
+            <> Sus órdenes ({rango(d.primera_orden, d.ultima_orden)}) quedan a más de dos años de la buena pro: pesa poco.</>
+          ) : null}
         </>
       );
     }

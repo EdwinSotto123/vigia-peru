@@ -450,6 +450,12 @@ no contar dos veces lo mismo. No se usó «el que sacaron ofrecía menos»: el a
 Sigue «media» si después la competencia desapareció (una oferta o una admitida: 577) o no hay reporte para saberlo
 (106); pasa a «baja» si en todos los ítems adjudicados se admitieron dos o más (684). El detalle trae `competencia`.
 
+**`socio_en_entidad` por tiempo (migración 395, 2026-11-18).** Marcaba «alta» todo proceso en que un socio o
+representante del ganador tuvo órdenes de la misma entidad, en cualquier año (13 165 procesos, 3,1 % de los
+adjudicados). Ahora: «alta» si la buena pro cae dentro de sus órdenes ± 6 meses (5 185), «media» a menos de dos años
+(3 805), «baja» más lejos (4 208). El detalle trae `primera_orden`, `ultima_orden` y `cuando`; de varias personas de la
+misma empresa, la más cercana a la buena pro.
+
 Además, la 329 agrega:
 
 - **Etapa y motivo de cada `visita_previa`** (el cruce del contrato, `refrescar_cruce_visita_previa()`): la etapa del
