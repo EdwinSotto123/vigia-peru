@@ -34,7 +34,7 @@ import { OCID_CANDIDATOS, consultaConPlazo, escaparLike, pool } from "../lib/db.
 import { Memo, responderConEtag, responderJson, type Serializado } from "../lib/cache.js";
 import { cachePublico, parametros } from "../lib/http.js";
 import { codificarCursor, decodificarCursor } from "../lib/cursor.js";
-import { hayModelosLectura } from "../lib/esquema.js";
+import { hayAgregadoRegion, hayModelosLectura } from "../lib/esquema.js";
 import { casoLectura, lecturaSql } from "../lib/lectura.js";
 import { BANDERAS_DE_FILA, COL_DUDOSO, crucesDeFila, joinDudoso } from "../lib/estadoFila.js";
 import { COL_GOBIERNO, gobiernoDeFila } from "../lib/gobiernoFila.js";
@@ -154,13 +154,34 @@ const agregable = (q: Partial<Filtros>) =>
   !q.q && !q.cruces && !q.cruce && !q.obra && !q.partido && !q.entidad && q.monto_min == null && q.monto_max == null && !q.ganadora && !q.dudoso
   && (!q.desde || esPrimeroDeMes(q.desde)) && (!q.hasta || esFinDeMes(q.hasta));
 
-/** WHERE sobre contratos_agregado (columnas: ubigeo, tipo, etapa, mes, riesgo, estado_proc, operativo). */
-function filtrosAgregado(q: Partial<Filtros>, vals: unknown[], excluir = new Set<string>()): string {
+/**
+ * La vista agregada más chica que responde exacto (migración 406). contratos_agregado tiene una fila por distrito (285 mil):
+ * sin zona, cada faceta la sumaba entera (0,2-1 s). Sin zona → la del país (5 mil filas); un departamento, o el mapa por
+ * departamento → la de regiones (60 mil, filtro por igualdad); provincia o distrito → la de distritos, por prefijo.
+ * `porZona`: el largo del ubigeo por el que se agrupa (el mapa), si se agrupa.
+ */
+type NivelAgregado = "pais" | "region" | "distrito";
+const TABLA_AGREGADO: Record<NivelAgregado, string> = {
+  pais: "contratos_agregado_pais", region: "contratos_agregado_region", distrito: "contratos_agregado",
+};
+export function nivelAgregado(q: Partial<Filtros>, hay406: boolean, excluir = new Set<string>(), porZona = 0): NivelAgregado {
+  if (!hay406 || porZona > 2) return "distrito";
+  const ub = q.ubigeo && !excluir.has("ubigeo") ? q.ubigeo : "";
+  if (ub.length > 2) return "distrito";
+  return ub || porZona ? "region" : "pais";
+}
+
+/** WHERE sobre la vista agregada de `nivel` (columnas: ubigeo o region, tipo, etapa, mes, riesgo, estado_proc, operativo). */
+function filtrosAgregado(q: Partial<Filtros>, vals: unknown[], excluir = new Set<string>(), nivel: NivelAgregado = "distrito"): string {
   const add = (v: unknown) => { vals.push(v); return `$${vals.length}`; };
   const w = ["TRUE"];
   if (q.tipo && !excluir.has("tipo")) w.push(`tipo = ${add(q.tipo)}`);
   if (q.etapa && !excluir.has("etapa")) w.push(`etapa = ${add(q.etapa)}`);
-  if (q.ubigeo && !excluir.has("ubigeo")) w.push(`ubigeo LIKE ${add(`${q.ubigeo}%`)}`);
+  if (q.ubigeo && !excluir.has("ubigeo")) {
+    // nivelAgregado nunca da «pais» con zona, ni «region» con más de dos dígitos.
+    if (nivel === "region") w.push(`region = ${add(q.ubigeo)}`);
+    else w.push(`ubigeo LIKE ${add(`${q.ubigeo}%`)}`);
+  }
   if (q.riesgo && !excluir.has("riesgo")) w.push(`riesgo = ${add(q.riesgo)}`);
   if (q.lectura && !excluir.has("lectura")) w.push(lecturaSql(q.lectura, ""));
   if (q.estado && !excluir.has("estado")) w.push(`estado_proc = ${add(q.estado)}`);
@@ -368,8 +389,9 @@ async function contarLectura(q: z.infer<typeof ResumenQuery>): Promise<Record<st
   const base = { ...q, lectura: undefined, riesgo: undefined };
   const vals: unknown[] = [];
   const casos = casoLectura;
+  const nivel = nivelAgregado(base, await hayAgregadoRegion());
   const r = agregable(base)
-    ? await pool.query(`SELECT ${casos("")} AS k, sum(n)::int AS n FROM contratos_agregado WHERE ${filtrosAgregado(base, vals)} GROUP BY 1`, vals)
+    ? await pool.query(`SELECT ${casos("")} AS k, sum(n)::int AS n FROM ${TABLA_AGREGADO[nivel]} WHERE ${filtrosAgregado(base, vals, undefined, nivel)} GROUP BY 1`, vals)
     : await (async () => {
         const { conds } = filtros(base, vals, MAPA_CE);
         return pool.query(`SELECT ${casos("ce.")} AS k, count(*)::int AS n FROM contrato_estado ce WHERE ${conds.join(" AND ")} GROUP BY 1`, vals);
@@ -382,9 +404,10 @@ async function cubo(q: z.infer<typeof ResumenQuery>): Promise<Celda[]> {
   if (!(await hayModelosLectura())) return cuboAnterior({ ...q, page: 1, size: 1, orden: "fecha" });
   const vals: unknown[] = [];
   if (agregable(q)) {
+    const nivel = nivelAgregado(q, await hayAgregadoRegion(), sinFacetas);
     const r = await pool.query<Celda>(
-      `SELECT tipo, operativo, riesgo, sum(n)::int AS n FROM contratos_agregado
-        WHERE ${filtrosAgregado(q, vals, sinFacetas)} GROUP BY 1, 2, 3`, vals);
+      `SELECT tipo, operativo, riesgo, sum(n)::int AS n FROM ${TABLA_AGREGADO[nivel]}
+        WHERE ${filtrosAgregado(q, vals, sinFacetas, nivel)} GROUP BY 1, 2, 3`, vals);
     return r.rows;
   }
   // q, entidad o montos: la consulta base sobre contrato_estado (+ convocatorias sólo para `q`). Con su propio plazo: con
@@ -668,7 +691,8 @@ export async function clavesContratos(q: Partial<Filtros>, n: number, dir: "DESC
 async function contarTotal(q: ListaQ): Promise<{ total: number; totalExacto: boolean }> {
   const vals: unknown[] = [];
   if (agregable(q)) {
-    const r = await pool.query(`SELECT COALESCE(sum(n), 0)::int AS n FROM contratos_agregado WHERE ${filtrosAgregado(q, vals)}`, vals);
+    const nivel = nivelAgregado(q, await hayAgregadoRegion());
+    const r = await pool.query(`SELECT COALESCE(sum(n), 0)::int AS n FROM ${TABLA_AGREGADO[nivel]} WHERE ${filtrosAgregado(q, vals, undefined, nivel)}`, vals);
     return { total: r.rows[0].n, totalExacto: true };
   }
   // Sólo texto (sin otros filtros): se cuenta sobre las coincidencias mismas (convocatoria_texto, en memoria), sin
@@ -785,8 +809,11 @@ async function geo(q: z.infer<typeof GeoQuery>) {
   const vals: unknown[] = [];
   let agg: string;
   if (agregable(q)) {
-    const w = filtrosAgregado(q, vals);
-    agg = `SELECT left(ubigeo, ${len}) AS ubigeo, ${COLS_GEO_AGREGADO} FROM contratos_agregado WHERE ubigeo IS NOT NULL AND ${w} GROUP BY 1`;
+    const nivel = nivelAgregado(q, await hayAgregadoRegion(), undefined, len);
+    const w = filtrosAgregado(q, vals, undefined, nivel);
+    agg = nivel === "region"
+      ? `SELECT region AS ubigeo, ${COLS_GEO_AGREGADO} FROM contratos_agregado_region WHERE region IS NOT NULL AND ${w} GROUP BY 1`
+      : `SELECT left(ubigeo, ${len}) AS ubigeo, ${COLS_GEO_AGREGADO} FROM contratos_agregado WHERE ubigeo IS NOT NULL AND ${w} GROUP BY 1`;
   } else {
     // entidad, q o fechas sueltas: la consulta base sobre contrato_estado (sin las CASE de antes).
     const { conds } = filtros(q, vals, MAPA_CE);

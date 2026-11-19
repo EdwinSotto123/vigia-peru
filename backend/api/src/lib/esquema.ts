@@ -97,6 +97,24 @@ export async function perfilEditableDesdeCuenta(): Promise<boolean> {
   return perfilEditable.ok;
 }
 
+// ─── Agregados por región y país (migración 406) ─────────────────────────────
+// Sin la 406, los resúmenes de /contratos siguen saliendo de contratos_agregado (por distrito), como antes.
+let agregadoRegion: { ok: boolean; at: number } | null = null;
+
+export async function hayAgregadoRegion(): Promise<boolean> {
+  if (agregadoRegion && (agregadoRegion.ok || Date.now() - agregadoRegion.at < 60_000)) return agregadoRegion.ok;
+  try {
+    const r = await pool.query<{ ok: boolean }>(
+      `SELECT to_regclass('public.contratos_agregado_region') IS NOT NULL
+              AND to_regclass('public.contratos_agregado_pais') IS NOT NULL AS ok`);
+    agregadoRegion = { ok: !!r.rows[0]?.ok, at: Date.now() };
+  } catch (e) {
+    console.warn(`[esquema] no se pudo verificar la migración 406: ${(e as Error).message}`);
+    return false;
+  }
+  return agregadoRegion.ok;
+}
+
 // ─── Aporte por entidad (migración 39) ───────────────────────────────────────
 // Sin la 39, las lecturas de aportes salen con `entidad: null` y financiar una entidad responde 503
 // `sin_migracion` (financiar una zona sigue igual).
