@@ -391,6 +391,8 @@ def get_dictamen_context(tool_context: ToolContext) -> dict:
         "compliance_result", "normative_compliance", "alerta_codigo",
         "estado_real", "analisis_postores", "causal_directa_invocada",
         "acto_resolutivo_directa", "sunat_decolecta", "expediente_proveedor", "lecturas_documentos", "precios_internos", "supervision_obra", "obra_ejecucion",
+        # Lo que resolvió el Tribunal de Contrataciones sobre ESTE proceso (tools/lecturas.py, 2026-11-20).
+        "tribunal_del_proceso",
         # Bloques tipados por documento (ruteo incremental): estudio de mercado +
         # causal (Resumen Ejecutivo) y condiciones FINALES (Orden de Compra).
         "estudio_mercado", "contrato_final", "parser_bloque_servicio", "parser_bloque_sustento_directa",

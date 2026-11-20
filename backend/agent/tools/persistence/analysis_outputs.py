@@ -213,6 +213,7 @@ def persist_analysis_outputs(alerta_codigo: str, tool_context: ToolContext) -> d
         # tapado) y lo que ya leyeron los lectores de documentos (tools/lecturas.py).
         "expediente_proveedor": state.get("expediente_proveedor"),
         "lecturas_documentos":  state.get("lecturas_documentos"),
+        "tribunal_del_proceso": state.get("tribunal_del_proceso"),
         "precios_internos":     state.get("precios_internos"),
         "supervision_obra":     state.get("supervision_obra"),
         "obra_ejecucion":       state.get("obra_ejecucion"),

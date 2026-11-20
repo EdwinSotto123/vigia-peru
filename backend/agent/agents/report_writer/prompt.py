@@ -59,7 +59,12 @@ GUIA_SECCION: dict[str, str] = {
         "(un identificador tipo PE-CONSUCODE-NNNN no es un RUC). Distingue valor estimado/referencial "
         "(`tender.value`) de monto adjudicado (`awards[].value`) y contratado (`contracts[].value`); en subasta "
         "inversa o con lances, la diferencia entre ambos es la rebaja normal del procedimiento, no una inconsistencia. "
-        "Postores: registrados (`numberOfTenderers`) ≠ ofertas válidas (acta): si el acta trae menos ofertas, dilo."
+        "Postores: registrados (`numberOfTenderers`) ≠ ofertas válidas (acta): si el acta trae menos ofertas, dilo. "
+        "Si `tribunal_del_proceso` trae resoluciones, el Tribunal de Contrataciones ya resolvió una apelación de ESTE "
+        "proceso: un bullet por resolución con su número, fecha, `resultado` (sólo si no es null; si es null, «resultado "
+        "sin comprobar»), el `motivo` en una frase y su `enlace`. Si `corrigio` es true, el Tribunal corrigió al comité; si "
+        "`corregido_otra_vez`, lo corrigió en más de una ronda: dilo. Una «sancionador ordenado» es la orden de investigar, "
+        "no una sanción. Es un hecho oficial, no una bandera: no le sumes severidad ni lo cuentes entre las banderas."
     ),
     "Análisis de banderas detectadas": (
         "### UNA sub-sección por cada bandera de `banderas` (las persistidas en BD; incluyen compliance, "
