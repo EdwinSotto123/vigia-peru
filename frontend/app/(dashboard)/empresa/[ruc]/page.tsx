@@ -442,12 +442,13 @@ export default async function EmpresaPage({ params, searchParams: sp }: { params
                 <CabeceraPestana>Antecedentes: lo que dicen de la empresa otros registros públicos, caso por caso. Patrones: lo que se repite entre varios de sus contratos.</CabeceraPestana>
                 {/* Lista y detalle (pedido del usuario del 2026-11-05): el índice de tipos elige en el navegador y lo deja en
                     `?atipo=` (lo lee de la URL, como las banderas de la cabecera); ya no hay barra de filtros ni `Listado`. */}
-                <Suspense fallback={<TablaSkeleton columnas={[{ clave: "a", titulo: "Antecedente", ancho: "1fr" }]} filas={6} />}>
-                  <AntecedentesEmpresa datos={antecedentesP} clientes={clientesP} ruc={e.ruc} />
-                </Suspense>
-                {/* Las apelaciones en que tenía la buena pro y los sancionadores que el Tribunal le ordenó (migración 424). */}
+                {/* Las apelaciones en que tenía la buena pro y los sancionadores que el Tribunal le ordenó (migración 424). Antes
+                    de la lista: con 1 445 antecedentes la página pasa los 2 MB y el flujo se cortaba antes de llegar a lo de abajo. */}
                 <Suspense fallback={null}>
                   <TribunalEmpresa ruc={e.ruc} />
+                </Suspense>
+                <Suspense fallback={<TablaSkeleton columnas={[{ clave: "a", titulo: "Antecedente", ancho: "1fr" }]} filas={6} />}>
+                  <AntecedentesEmpresa datos={antecedentesP} clientes={clientesP} ruc={e.ruc} />
                 </Suspense>
               </div>
             ),
