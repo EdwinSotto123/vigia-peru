@@ -105,6 +105,11 @@ export const CATALOGO: FuenteCatalogo[] = [
   { fuente: "ppedc_boletin", nombre: "Casos de la Procuraduría Anticorrupción", donde: "pc", agenda: "Mensual, a mano (cuando sale el boletín)", cadaDias: 45,
     que: "Casos por sede del boletín mensual (PDF): backend/scripts/cargar_ppedc_boletin.py.",
     situacion: { tipo: "rota", nota: "El sitio de la Procuraduría Anticorrupción no responde desde el 30 de octubre de 2026, así que no hay de dónde bajar su boletín mensual. Ves lo del último boletín que se cargó." } },
+  // Gobserva Salud (migración 432): su página de fuentes es salud.gobserva.cloud/fuentes, no la de Vigía.
+  { fuente: "susalud", nombre: "SUSALUD: RENIPRESS, sanciones, denuncias, recursos y cirugías", donde: "cloudflare", agenda: "Viernes, 08:00", cadaDias: 9,
+    que: "Gobserva Salud: el registro de establecimientos, el Registro de Sanciones firmes y los datos abiertos de SUSALUD (src/fuentes/susalud.ts); por la salida de Lima si SUSALUD no responde." },
+  { fuente: "susalud_detalle", nombre: "SUSALUD: detalle de cada establecimiento (RENIPRESS)", donde: "cloudflare", agenda: "Diario, 03:40", cadaDias: 2,
+    que: "Gobserva Salud: servicios, especialidades, documentos y categorización de ~1 200 IPRESS por noche, lo más abierto primero (src/fuentes/susalud_detalle.ts)." },
   { fuente: "salud_lima", nombre: "Salida peruana (tu PC)", donde: "lima", agenda: "Diario, 12:40", cadaDias: 2,
     que: "Prueba diaria de la salida con IP del Perú (backend/scrapers-pc/salida_peru): que responda y llegue a la Contraloría, INFOBRAS y SERVIR." },
   { fuente: "oece_fichas", nombre: "Ficha del proveedor en el OECE (sanciones vigentes)", donde: "lima", agenda: "Lunes, 08:00 (hasta 700 empresas)", cadaDias: 8,
