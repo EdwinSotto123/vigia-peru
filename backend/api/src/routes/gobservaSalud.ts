@@ -111,7 +111,10 @@ export function condiciones(f: Partial<FiltrosSalud>, vals: unknown[] = []): { s
       // Relevancia: la palabra entera en el nombre pesa más que el parecido de letras; un hospital o una clínica con
       // internamiento va antes que un laboratorio con un nombre parecido («anglo» → Clínica Angloamericana, no Anglolab).
       if (ps.length) {
-        const k = p(ps.join(" "));
+        // Literal y no parámetro: la lista, el conteo y las facetas comparten `vals` y sólo la lista ordena; un
+        // parámetro que una consulta no usa es un error de Postgres («bind message supplies N parameters»). Las palabras
+        // ya vienen normalizadas a [A-Z0-9 ], así que el literal es seguro.
+        const k = `'${ps.join(" ").replace(/[^A-Z0-9 ]/g, "")}'`;
         relevancia = `(word_similarity(${k}, i.nombre_norm) + 0.5 * similarity(i.nombre_norm, ${k})
           + CASE WHEN i.tipo ILIKE '%CON INTERNAMIENTO%' THEN 0.25 WHEN i.categoria IS NOT NULL THEN 0.1 ELSE 0 END
           + CASE WHEN i.activo THEN 0.1 ELSE 0 END)`;

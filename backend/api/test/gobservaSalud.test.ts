@@ -85,3 +85,12 @@ test("las instrucciones del asistente traen las reglas que no se rompen", () => 
   assert.match(s, /Nunca digas «no tiene sanciones»/);
   assert.match(s, /106/);
 });
+
+test("condiciones: la relevancia no agrega parámetros (la comparten la lista, el conteo y las facetas)", async () => {
+  const { condiciones } = await import("../src/routes/gobservaSalud.js");
+  const { sql, vals, relevancia } = condiciones({ q: "Clínica Angloamericana", estado: "activos" });
+  const usados = new Set([...sql.matchAll(/\$(\d+)/g)].map((m) => Number(m[1])));
+  assert.equal(usados.size, vals.length);
+  assert.ok(relevancia && !/\$\d/.test(relevancia));
+  assert.match(relevancia!, /'CLINICA ANGLOAMERICANA'/);
+});
