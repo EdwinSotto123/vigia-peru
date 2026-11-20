@@ -271,8 +271,14 @@ function porQuePesa(x: Fila): string | undefined {
       const inf = Array.isArray(d.infraccion) ? (d.infraccion as string[]) : [];
       const que = inf.includes("documentacion_falsa") ? "documentación falsa" : inf.includes("informacion_inexacta") ? "información inexacta" : "lo que presentó en su oferta";
       const res = d.resolucion ? ` (${d.resolucion})` : "";
-      if (x.tipo === "tribunal_revoco_buena_pro")
-        return `El comité le dio la buena pro y el Tribunal se la quitó al resolver la apelación de otro postor${res}: calificó mal. Pesa si se repite con la misma empresa en otras entidades.`;
+      if (x.tipo === "tribunal_revoco_buena_pro") {
+        // Migración 440: dos veces o más en la MISMA entidad sube a media.
+        const veces = n(d.veces_en_la_entidad);
+        return `El comité le dio la buena pro y el Tribunal se la quitó al resolver la apelación de otro postor${res}: calificó mal.` +
+          (veces != null && veces >= 2
+            ? ` Es la ${veces}.ª vez que le pasa en esta misma entidad: un comité que vuelve a premiar ofertas que no cumplían.`
+            : " Pesa si se repite con la misma empresa, sobre todo en la misma entidad.");
+      }
       if (x.tipo === "tribunal_sancionador")
         return `El Tribunal ordenó abrirle un procedimiento sancionador por presunta ${que}${res}. Es la orden de investigar, no la sanción.`;
       const dias = n(d.dias_despues);

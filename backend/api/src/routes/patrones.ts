@@ -1482,6 +1482,8 @@ patronesRouter.get("/observacion", async (c) => {
                 k.detalle->'resoluciones' AS resoluciones,
                 -- gano_pese_al_tribunal (439): cuándo volvió a figurar como ganadora y de qué fuente.
                 k.detalle->>'buena_pro_despues' AS "buenaProDespues", k.detalle->>'fuente_adjudicacion' AS "fuenteAdjudicacion",
+                -- tribunal_revoco_buena_pro (440): cuántas veces le quitó la buena pro en esta misma entidad.
+                (k.detalle->>'veces_en_la_entidad')::int AS "vecesEntidad",
                 k.detalle->>'consentimiento_registrado' AS consentimiento, k.detalle->>'norma' AS norma,
                 COALESCE(k.detalle->>'area_funcionario', k.detalle->'visitas'->-1->>'area') AS area,
                 (k.detalle->>'minutos')::float AS minutos, k.detalle->>'hora_ganador' AS "horaGanador", k.detalle->>'hora_otro' AS "horaOtro",

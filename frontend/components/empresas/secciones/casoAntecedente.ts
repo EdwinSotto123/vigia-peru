@@ -970,6 +970,8 @@ export function datosDe(a: AntecedenteEmpresa, ruc: string): DatoCaso[] {
       txt(d.resolucion) && { etiqueta: "Resolución del Tribunal", valor: txt(d.resolucion)! },
       t !== "tribunal_revoco_buena_pro" && infraccion && { etiqueta: "Por presunta", valor: infraccion },
       t === "gana_con_sancionador_abierto" && dias != null && { etiqueta: "Ganó", valor: `${plural(dias, "día", "días")} después de la orden` },
+      t === "tribunal_revoco_buena_pro" && (num(d.veces_en_la_entidad) ?? 0) >= 2 &&
+        { etiqueta: "En esta entidad", valor: `El Tribunal le quitó la buena pro ${plural(num(d.veces_en_la_entidad)!, "vez", "veces")}` },
       { etiqueta: "De dónde sale", valor: "Resolución del Tribunal de Contrataciones leída por Vigía, con el nombre comprobado en su texto", soloPanel: true },
       monto(),
       delProceso(),

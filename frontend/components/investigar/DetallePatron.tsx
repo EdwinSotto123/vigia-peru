@@ -1326,6 +1326,7 @@ export function detalleObservacion(p: PatronObservacion): Detalle {
             { etiqueta: "Resolución del Tribunal", valor: p.resolucion ?? null },
             { etiqueta: "Por presunta", valor: p.tipo !== "tribunal_revoco_buena_pro" ? (infraccionPalabras(p.infraccion) ? oracion(infraccionPalabras(p.infraccion)!) : null) : null },
             { etiqueta: "Ganó después de la orden", valor: p.diasDespues != null ? plural(p.diasDespues, "día", "días") : null, mono: true },
+            { etiqueta: "Veces en esta entidad", valor: p.tipo === "tribunal_revoco_buena_pro" && (p.vecesEntidad ?? 0) >= 2 ? numero(p.vecesEntidad!) : null, mono: true },
             { etiqueta: "De dónde sale", valor: "Resolución del Tribunal de Contrataciones leída por Vigía, con el nombre comprobado en su texto" },
           ]
       : p.tipo === "gano_pese_al_tribunal"

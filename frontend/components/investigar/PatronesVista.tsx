@@ -3076,7 +3076,8 @@ function evidenciaObservacion(p: PatronObservacion): string {
     return `El Tribunal ordenó abrirle un sancionador${infraccionEnPalabras(p.infraccion) ? ` por presunta ${infraccionEnPalabras(p.infraccion)}` : ""}${p.resolucion ? ` (${p.resolucion})` : ""}`;
   }
   if (p.tipo === "tribunal_revoco_buena_pro") {
-    return `El comité le dio la buena pro y el Tribunal se la quitó${p.resolucion ? ` (${p.resolucion})` : ""}`;
+    const veces = (p.vecesEntidad ?? 0) >= 2 ? `; ${plural(p.vecesEntidad!, "vez", "veces")} en esta entidad` : "";
+    return `El comité le dio la buena pro y el Tribunal se la quitó${p.resolucion ? ` (${p.resolucion})` : ""}${veces}`;
   }
   if (p.tipo === "gana_con_sancionador_abierto") {
     return `Ganó ${p.diasDespues != null ? `${plural(p.diasDespues, "día", "días")} ` : ""}después de que el Tribunal ordenara abrirle un sancionador${p.resolucion ? ` (${p.resolucion})` : ""}`;

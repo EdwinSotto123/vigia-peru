@@ -700,11 +700,26 @@ function Texto({ c, gobierna }: { c: CruceProveedor; gobierna?: GobiernoContrato
       const laResolucion = res ? <>la <b>{res}</b></> : "una resolución";
       if (c.tipo === "tribunal_revoco_buena_pro") {
         const ef = Array.isArray(d.efectos) ? (d.efectos as string[]) : [];
+        // Migración 440: los otros procesos de la misma entidad en que el Tribunal también se la quitó.
+        const otrosRv = (Array.isArray(d.otros_procesos_de_la_entidad) ? (d.otros_procesos_de_la_entidad as { ocid?: unknown }[]) : [])
+          .filter((o): o is { ocid: string } => typeof o.ocid === "string");
         return (
           <>
             El comité le dio la buena pro a <Emp c={c} /> y el Tribunal de Contrataciones, al resolver la apelación de otro postor
             en {laResolucion}{c.fecha ? <> del {fechaConAnio(c.fecha)}</> : ""}, {ef.includes("revoca_buena_pro") ? "la revocó" : "descalificó su oferta"}.
             Lo leyó Vigía en la resolución, con el nombre comprobado en el texto.
+            {otrosRv.length ? (
+              <>
+                {" "}No es la primera vez en esta entidad: el Tribunal también le quitó la buena pro en{" "}
+                {otrosRv.map((o, i) => (
+                  <span key={o.ocid}>
+                    {i ? ", " : ""}
+                    <Link href={rutaContrato(o.ocid, "ficha")} prefetch={false} className={ENLACE_TXT}>{o.ocid}</Link>
+                  </span>
+                ))}
+                .
+              </>
+            ) : null}
           </>
         );
       }

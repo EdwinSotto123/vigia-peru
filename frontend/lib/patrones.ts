@@ -607,6 +607,8 @@ export interface PatronObservacion {
   /** Ganó pese al Tribunal (migración 439): cuándo volvió a figurar como ganadora y de qué fuente (ocds o conosce). */
   buenaProDespues?: string | null;
   fuenteAdjudicacion?: string | null;
+  /** El Tribunal le quitó la buena pro (440): cuántas veces en esta misma entidad. */
+  vecesEntidad?: number | null;
 }
 
 export interface PatronesObservacion {

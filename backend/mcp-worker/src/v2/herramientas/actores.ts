@@ -1131,6 +1131,8 @@ export const patrones = definir({
           resoluciones: Array.isArray(x.resoluciones) && x.resoluciones.length > 1 ? x.resoluciones : undefined,
           // gano_pese_al_tribunal (439).
           gano_de_nuevo_el: x.buenaProDespues ?? undefined,
+          // tribunal_revoco_buena_pro (440): cuántas veces le pasó en esta misma entidad.
+          revocadas_en_la_misma_entidad: x.vecesEntidad ?? undefined,
         })),
         como_leerlo:
           "Son indicadores EN OBSERVACIÓN: Vigía todavía mide cuántas veces aciertan, así que no cuentan para el puntaje del " +
