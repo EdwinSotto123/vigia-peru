@@ -1,4 +1,4 @@
-import { ArrowRight, Search } from "lucide-react";
+import { Search } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 /**
@@ -54,7 +54,7 @@ export function BuscadorSalud({
           oscuro ? "bg-maiz text-sobreMaiz hover:bg-maiz/85 focus-visible:ring-maiz focus-visible:ring-offset-ink" : "bg-granate text-paper hover:bg-granate-deep focus-visible:ring-granate",
         )}
       >
-        Verificar <ArrowRight size={17} aria-hidden />
+        Verificar
       </button>
     </form>
   );

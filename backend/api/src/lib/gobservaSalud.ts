@@ -187,7 +187,7 @@ export function verificar(v: DatosVerificacion): Chequeo[] {
   if (cat && CATEGORIAS[cat]) {
     const doc = v.detalle?.categoriaDocumento;
     out.push({ clave: "categoria", titulo: "Categoría", estado: "ok", tipo: "registro_administrativo", fuente: ren, url: urlRen, al: v.detalle?.categoriaFecha ?? v.vistoAl,
-      detalle: `Categoría ${cat}: ${CATEGORIAS[cat].nombre.toLowerCase()} (${CATEGORIAS[cat].nivel.toLowerCase()}).${doc ? ` Según ${doc}${v.detalle?.categoriaFecha ? ` del ${fechaLarga(v.detalle.categoriaFecha)}` : ""}.` : ""}` });
+      detalle: `Categoría ${cat}: ${minusculaInicial(CATEGORIAS[cat].nombre)} (${CATEGORIAS[cat].nivel.toLowerCase()}).${doc ? ` Según ${doc}${v.detalle?.categoriaFecha ? ` del ${fechaLarga(v.detalle.categoriaFecha)}` : ""}.` : ""}` });
   } else {
     out.push({ clave: "categoria", titulo: "Categoría", estado: "sin_dato", tipo: "registro_administrativo", fuente: ren, url: urlRen, al: v.vistoAl,
       detalle: "RENIPRESS no registra una categoría para esta IPRESS (pasa con los servicios médicos de apoyo y muchos consultorios)." });
@@ -233,6 +233,9 @@ export function verificar(v: DatosVerificacion): Chequeo[] {
   }
   return out;
 }
+
+/** «Hospital de atención general (II-1)» → «hospital de atención general (II-1)»: sólo la inicial (la categoría queda). */
+const minusculaInicial = (t: string) => t.charAt(0).toLowerCase() + t.slice(1);
 
 /** «COLEGIO MEDICO DEL PERU» → «Colegio Médico del Perú». */
 export function tituloColegio(c: string | null | undefined): string {

@@ -5,6 +5,7 @@ import { Dato } from "@/components/ui/Dato";
 import { InsigniaCategoria, InsigniaSector } from "@/components/salud/comun";
 import { nombrePropio, type FichaIpress } from "@/lib/gobserva-salud";
 import { direccionLegible } from "./piezas";
+import { conTildes } from "@/lib/tildes";
 
 /** El estado de la IPRESS en RENIPRESS, en una insignia (siempre con su palabra). */
 export function estadoRegistro(f: Pick<FichaIpress, "enRegistro" | "activo" | "estado">): { texto: string; tono: Tono; Icono: typeof ShieldCheck } {
@@ -79,7 +80,7 @@ export function CabeceraFicha({ f }: { f: FichaIpress }) {
           <li className="min-w-0">
             <Dato icono={Hospital} nombre="Tipo">
               {oracion(f.tipo)}
-              {f.clasificacion ? <span className="text-mute"> ({f.clasificacion.toLowerCase()})</span> : null}
+              {f.clasificacion ? <span className="text-mute"> ({conTildes(f.clasificacion.toLowerCase())})</span> : null}
             </Dato>
           </li>
         )}
@@ -116,7 +117,7 @@ export function CabeceraFicha({ f }: { f: FichaIpress }) {
         {f.horario && (
           <li className="min-w-0">
             <Dato icono={Clock} nombre="Horario">
-              {f.horario}
+              {/^[^a-z]*$/.test(f.horario) && /[A-Z]{4,}/.test(f.horario) ? oracion(f.horario) : f.horario}
             </Dato>
           </li>
         )}
@@ -129,4 +130,10 @@ export function CabeceraFicha({ f }: { f: FichaIpress }) {
       </ul>
     </header>
   );
+}
+
+/** «LUNES A DOMINGO 24 HORAS ATENCION DE EMERGENCIAS» → «Lunes a domingo 24 horas atención de emergencias» (RENIPRESS lo trae en mayúsculas). */
+function oracion(t: string): string {
+  const b = conTildes(t.toLowerCase());
+  return b.charAt(0).toUpperCase() + b.slice(1);
 }
