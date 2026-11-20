@@ -234,6 +234,8 @@ def recomprobar(cn, cur, por_id: dict) -> int:
     cur.execute("SELECT id, resultado FROM tribunal_resolucion WHERE regla_version IS DISTINCT FROM %s", (T.VERSION_REGLA,))
     n = 0
     for pid, resultado in cur.fetchall():
+        if not hay_tiempo():
+            break   # lo que falta queda con la regla anterior: la próxima corrida sigue
         texto = _texto(por_id, pid)
         if texto is None:
             continue
