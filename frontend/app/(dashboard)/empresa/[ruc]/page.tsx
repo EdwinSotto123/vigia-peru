@@ -452,7 +452,7 @@ export default async function EmpresaPage({ params, searchParams: sp }: { params
                   <TribunalEmpresa ruc={e.ruc} />
                 </Suspense>
                 <Suspense fallback={<TablaSkeleton columnas={[{ clave: "a", titulo: "Antecedente", ancho: "1fr" }]} filas={6} />}>
-                  <AntecedentesEmpresa datos={antecedentesP} clientes={clientesP} ruc={e.ruc} />
+                  <AntecedentesEmpresa datos={antecedentesP} clientes={clientesP} ruc={e.ruc} tipoAbierto={fa.tipo} />
                 </Suspense>
               </div>
             ),

@@ -1,4 +1,4 @@
-import { Fragment } from "react";
+import { Fragment, type ReactNode } from "react";
 import Link from "next/link";
 import {
   Banknote,
@@ -20,7 +20,8 @@ import {
   Users,
   type LucideIcon,
 } from "lucide-react";
-import { Ayuda, BloqueDetalle, CuerpoDetalle, DatosClave, EstadoVacio, FuenteDato, PieDetalle } from "@/components/patrones";
+import { Ayuda, BloqueDetalle, CuerpoDetalle, DatosClave, EstadoVacio, FuenteDato, PestanaAPedido, PieDetalle } from "@/components/patrones";
+import { EsqueletoPestana } from "@/components/entidad/PestanasEntidad";
 import { ListaPaginada } from "@/components/listado";
 import { RepartoFamilias } from "@/components/entidad/FamiliasDePatron";
 import { BotonFila, ProveedorDetalle, type DetalleFila } from "@/components/listado/DetalleFilas";
@@ -481,8 +482,11 @@ export async function AntecedentesEmpresa({
   datos,
   clientes,
   ruc,
+  tipoAbierto,
 }: {
   datos: Promise<{ total: number; data: AntecedenteEmpresa[] } | null>;
+  /** El tipo elegido en el índice (`?atipo=`). Sólo sus casos se arman aquí; los demás tipos se piden al elegirlos. */
+  tipoAbierto?: string;
   /** Sus clientes (la misma promesa de la pestaña Clientes): el RUC de la entidad de cada caso, por su nombre. */
   clientes: Promise<{ total: number; data: ClienteEmpresa[] } | null>;
   ruc: string;
@@ -505,7 +509,7 @@ export async function AntecedentesEmpresa({
   const rucDe = rucPorNombre(cl?.data ?? []);
   const grupos = new Map<string, AntecedenteEmpresa[]>();
   for (const a of d.data) grupos.set(a.tipo, [...(grupos.get(a.tipo) ?? []), a]);
-  const entradas: (TipoDelIndice & EntradaConFamilia)[] = [...grupos.entries()].map(([tipo, casos]) => {
+  const entradas: (TipoDelIndice & EntradaConFamilia & { casos: AntecedenteEmpresa[] })[] = [...grupos.entries()].map(([tipo, casos]) => {
     const porSev = (["alta", "media", "baja"] as const).map((sv) => ({ sv, n: casos.filter((c) => c.severidad === sv).length })).filter((x) => x.n);
     const nombre = casos[0].etiqueta;
     // El chip del celular: el nombre corto del cruce si entra en un chip; si no, el de su bandera («Fuera por formalidad»).
@@ -522,16 +526,31 @@ export async function AntecedentesEmpresa({
         porSev.length > 1
           ? `${plural(casos.length, "vez", "veces")}: ${listaY(porSev.map((x, i) => `${numero(x.n)} de ${i === 0 ? "señal " : ""}${x.sv}`))}`
           : plural(casos.length, "vez", "veces"),
-      contenido: <CasosDelTipo tipo={tipo} casos={casos} ruc={ruc} rucDe={rucDe} />,
+      contenido: null as ReactNode,
+      casos,
     };
   });
-  const indice: TipoDelIndice[] = indicePorFamilia(entradas);
+  // Sólo el tipo abierto arma sus casos (fila y panel de cada uno). Con todos a la vez, una empresa con 1 445 antecedentes
+  // (558 «socio con informe de control») pasaba el tiempo del Worker y el flujo se cortaba («Connection closed», 2026-11-20).
+  // Los demás tipos llevan un esqueleto que, al elegirlos, pone `?atipo=` en la URL y el servidor arma ese tipo.
+  const orden = indicePorFamilia(entradas);
+  const abierto = tipoAbierto && entradas.some((x) => x.clave === tipoAbierto) ? tipoAbierto : orden[0]?.clave;
+  for (const x of entradas) {
+    x.contenido = x.clave === abierto
+      ? <CasosDelTipo tipo={x.clave} casos={x.casos} ruc={ruc} rucDe={rucDe} />
+      : (
+          <PestanaAPedido clave={x.clave} param={P_ANTECEDENTES.tipo}>
+            <EsqueletoPestana columna="Antecedente" />
+          </PestanaAPedido>
+        );
+  }
+  const indice: TipoDelIndice[] = indicePorFamilia(entradas.map(({ casos: _c, ...x }) => x));
   const vistaAntecedentes = (
     <div className="space-y-4">
       <RepartoFamilias
         familias={familiasDeEntradas(entradas, { uno: "tipo", varios: "tipos", casoAcaso: true })}
         param={P_ANTECEDENTES.tipo}
-        inicial={indice[0]?.clave}
+        inicial={abierto}
         unidad={["vez", "veces"]}
         entradas={["tipo de registro", "tipos de registro"]}
         etiqueta="Lo que dicen de ella otros registros, por familia"
