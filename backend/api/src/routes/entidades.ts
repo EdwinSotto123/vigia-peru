@@ -581,7 +581,18 @@ entidadesRouter.get("/:ruc/tribunal", async (c) => {
       `SELECT procesos, corregidos, tasa, tasa_resto AS "tasaResto", veces, p_valor AS "pValor", destacada,
               to_char(calculado_at, 'YYYY-MM-DD') AS calculado
          FROM tribunal_entidad WHERE entidad_ruc = $1`, [ruc]).then((x) => x.rows[0] ?? null).catch(() => null);
-    return c.json(publicar({ ...r.rows[0], comparacion: comp }));
+    // A quiénes les adjudicó mientras tenían abierto un sancionador que ordenó el Tribunal (gana_con_sancionador_abierto,
+    // migración 424): procesos, empresas y monto, con las que más.
+    const sanc = await pool.query(
+      `WITH k AS (SELECT k.ruc_empresa, k.ocid, k.monto FROM cruces_proveedor k JOIN convocatorias cv ON cv.ocid = k.ocid
+                   WHERE k.tipo = 'gana_con_sancionador_abierto' AND cv.entidad_ruc = $1::bpchar)
+       SELECT (SELECT count(DISTINCT ocid) FROM k)::int AS procesos, (SELECT count(DISTINCT ruc_empresa) FROM k)::int AS empresas,
+              (SELECT sum(monto) FROM k)::float AS monto,
+              COALESCE((SELECT jsonb_agg(x ORDER BY x.procesos DESC, x.ruc) FROM (
+                SELECT k.ruc_empresa AS ruc, e.razon_social AS nombre, count(DISTINCT k.ocid)::int AS procesos, sum(k.monto)::float AS monto
+                  FROM k LEFT JOIN empresas e ON e.ruc = k.ruc_empresa::bpchar GROUP BY 1, 2 ORDER BY 3 DESC, 1 LIMIT 5) x), '[]') AS principales`,
+      [ruc]).then((x) => x.rows[0] ?? null).catch(() => null);
+    return c.json(publicar({ ...r.rows[0], comparacion: comp, conSancionadorAbierto: sanc?.procesos ? sanc : null }));
   } catch (e) {
     if ((e as { code?: string }).code === "42P01") return c.json({ apelaciones: 0, fundadas: 0, nulidades: 0, recientes: [] });
     throw e;

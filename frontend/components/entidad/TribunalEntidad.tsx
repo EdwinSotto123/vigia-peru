@@ -8,7 +8,7 @@ import Link from "next/link";
 import { BloqueDetalle, DatosClave, EnlaceFuente, FuenteDato, type DatoClave } from "@/components/patrones";
 import { CifrasEnFila, type Cifra } from "@/components/ui/CifrasEnFila";
 import { API_BASE } from "@/lib/api-client";
-import { fechaConAnio, numero, oracion } from "@/lib/formato";
+import { fechaConAnio, numero, oracion, plural, solesCompacto } from "@/lib/formato";
 
 interface Reciente {
   titulo: string;
@@ -27,6 +27,8 @@ interface TribunalDeEntidad {
   /** Frente al resto del país (migración 422): procesos apelables corregidos, la tasa del resto, cuántas veces más, la
    * probabilidad de azar y si destaca (falsos descubrimientos al 10 % sobre todas las entidades). */
   comparacion?: { procesos: number; corregidos: number; tasa: number; tasaResto: number; veces: number | null; pValor: number; destacada: boolean } | null;
+  /** Lo que adjudicó a empresas con un sancionador del Tribunal abierto (migración 424). */
+  conSancionadorAbierto?: { procesos: number; empresas: number; monto: number | null; principales: { ruc: string; nombre: string | null; procesos: number; monto: number | null }[] } | null;
 }
 
 const RESULTADO: Record<string, string> = {
@@ -71,9 +73,38 @@ function FrenteAlPais({ c }: { c?: TribunalDeEntidad["comparacion"] }) {
   );
 }
 
+/**
+ * Las empresas a las que la entidad adjudicó mientras tenían abierto un procedimiento sancionador que ordenó el Tribunal
+ * (por documentación falsa o información inexacta en otra oferta). No está prohibido; la entidad pudo revisar con más
+ * cuidado los documentos de su oferta.
+ */
+function ConSancionadorAbierto({ s }: { s?: TribunalDeEntidad["conSancionadorAbierto"] }) {
+  if (!s?.procesos) return null;
+  return (
+    <div className="space-y-2">
+      <p className="text-meta leading-relaxed text-inkSoft">
+        Le adjudicó <b>{plural(s.procesos, "proceso", "procesos")}</b>{s.monto ? <> por <b>{solesCompacto(s.monto)}</b></> : null} a{" "}
+        {plural(s.empresas, "empresa", "empresas")} mientras tenían abierto un procedimiento sancionador que ordenó el Tribunal por lo
+        que presentaron en otra oferta. No está prohibido: la orden es de investigar, no una sanción. Pero la entidad pudo revisar
+        con más cuidado sus documentos.
+      </p>
+      <ul className="space-y-1 text-dato">
+        {s.principales.map((x) => (
+          <li key={x.ruc}>
+            <Link href={`/empresa/${x.ruc}?seccion=antecedentes`} prefetch={false} className="font-medium text-granate underline-offset-2 hover:underline">
+              {x.nombre ?? x.ruc}
+            </Link>
+            <span className="text-mute"> {plural(x.procesos, "proceso", "procesos")}{x.monto ? `, ${solesCompacto(x.monto)}` : ""}</span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
 export async function TribunalEntidad({ ruc }: { ruc: string }) {
   const d = await leer(ruc);
-  if (!d || !d.apelaciones) return null;
+  if (!d || (!d.apelaciones && !d.conSancionadorAbierto?.procesos)) return null;
   const cifras: Cifra[] = [
     { valor: numero(d.apelaciones), etiqueta: "apelaciones resueltas", contexto: "de sus procesos, ya leídas" },
     { valor: numero(d.fundadas), etiqueta: "fundadas", contexto: "el comité se equivocó al calificar o al otorgar" },
@@ -85,8 +116,9 @@ export async function TribunalEntidad({ ruc }: { ruc: string }) {
         <h3 id="tribunal-entidad" className="font-display text-bloque font-bold text-ink">
           Ante el Tribunal de Contrataciones
         </h3>
-        <CifrasEnFila items={cifras} chico />
+        {d.apelaciones ? <CifrasEnFila items={cifras} chico /> : null}
         <FrenteAlPais c={d.comparacion} />
+        <ConSancionadorAbierto s={d.conSancionadorAbierto} />
         {d.recientes.map((x) => {
           const datos: DatoClave[] = [
             { etiqueta: "Resultado", valor: RESULTADO[x.resultado ?? "otro"] ?? "Resuelta" },

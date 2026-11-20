@@ -225,7 +225,7 @@ export const fichaEntidad = definir({
       contratos: ent.contratos,
       // Sus procesos ante el Tribunal de Contrataciones: fundadas o con nulidad = su comité se equivocó o el proceso tenía
       // un vicio. Sólo las apelaciones ya leídas y unidas a un contrato (se bajan cada hora; la cobertura crece).
-      tribunal: trib && trib.apelaciones
+      tribunal: trib && (trib.apelaciones || trib.conSancionadorAbierto?.procesos)
         ? {
             apelaciones_resueltas: trib.apelaciones, fundadas: trib.fundadas, nulidades_de_oficio: trib.nulidades,
             recientes: ((trib.recientes ?? []) as Fila[]).map((x) => ({
@@ -241,6 +241,17 @@ export const fichaEntidad = definir({
                   tasa: Math.round(trib.comparacion.tasa * 10000) / 100, tasa_del_resto: Math.round(trib.comparacion.tasaResto * 10000) / 100,
                   veces: trib.comparacion.veces != null ? Math.round(trib.comparacion.veces * 10) / 10 : undefined,
                   probabilidad_de_azar: trib.comparacion.pValor, destaca: trib.comparacion.destacada,
+                }
+              : undefined,
+            // Migración 424: lo que adjudicó a empresas con un sancionador del Tribunal abierto (orden de investigar por
+            // documentación falsa o información inexacta en otra oferta; no es una sanción).
+            adjudico_con_sancionador_abierto: trib.conSancionadorAbierto
+              ? {
+                  procesos: trib.conSancionadorAbierto.procesos, empresas: trib.conSancionadorAbierto.empresas,
+                  monto_soles: trib.conSancionadorAbierto.monto ?? undefined,
+                  principales: ((trib.conSancionadorAbierto.principales ?? []) as Fila[]).map((x) => ({
+                    empresa: x.nombre, ruc: x.ruc, procesos: x.procesos, monto_soles: x.monto ?? undefined, enlace: e.empresa(x.ruc),
+                  })),
                 }
               : undefined,
           }
