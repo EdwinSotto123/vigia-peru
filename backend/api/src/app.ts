@@ -62,6 +62,7 @@ import { iaRouter } from "./routes/ia.js";
 import { datosRouter } from "./routes/datos.js";
 import { hallazgosRouter } from "./routes/hallazgos.js";
 import { transparenciaRouter } from "./routes/transparencia.js";
+import { saludRouter } from "./routes/gobservaSalud.js";
 
 export const app = new Hono();
 
@@ -170,6 +171,7 @@ api.route("/documentos", documentosRouter);
 api.route("/gasto", gastoRouter);
 api.route("/ordenes", ordenesRouter);
 api.route("/menores", menoresRouter);
+api.route("/salud", saludRouter); // Gobserva Salud (salud.gobserva.cloud): IPRESS, sanciones de SUSALUD y médicos (migr. 432)
 api.route("/catalogo", catalogoRouter);
 api.route("/compras", comprasRouter);
 api.route("/obras", obrasRouter);

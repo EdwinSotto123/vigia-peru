@@ -58,11 +58,13 @@ test("calendario: mismas agendas que Cloud Scheduler (hora de Lima)", () => {
   assert.deepEqual(fuentesDelCron(CRON_DATOS, en("2026-10-15T13:00:00Z")), ["congreso_visitas", "servir_convocatorias", "infobras", "pnda_visitas"]);  // jueves 15
   assert.deepEqual(fuentesDelCron(CRON_DATOS, en("2026-10-22T13:00:00Z")), ["congreso_visitas", "servir_convocatorias", "infobras"]);                 // jueves
   assert.deepEqual(fuentesDelCron(CRON_DATOS, en("2026-11-05T13:00:00Z")), ["congreso_visitas", "servir_convocatorias", "infobras", "pnda_dji", "jne_infogob"]);  // jueves 5
-  assert.deepEqual(fuentesDelCron(CRON_DATOS, en("2026-10-16T13:00:00Z")), ["invierte_pe", "servir_convocatorias"]);                      // viernes
+  assert.deepEqual(fuentesDelCron(CRON_DATOS, en("2026-10-16T13:00:00Z")), ["invierte_pe", "susalud", "servir_convocatorias"]);           // viernes
   assert.deepEqual(fuentesDelCron(CRON_DATOS, en("2026-11-02T13:00:00Z")), ["mef_presupuesto", "oece_fichas", "servir_convocatorias", "oece_entidades"]);  // lunes 2
   assert.deepEqual(fuentesDelCron(CRON_DATOS, en("2026-11-10T13:00:00Z")), ["mef_opds_etes", "sunat_padron", "servir_convocatorias", "contraloria_informes"]);  // martes 10
   assert.deepEqual(fuentesDelCron(CRON_DOCUMENTOS, en("2026-11-03T17:40:00Z")), ["documentos", "salud_lima", "seace_cotizaciones"]);  // 12:40 en Lima
   assert.deepEqual(fuentesDelCron(CRON_DOCUMENTOS, en("2026-11-03T18:40:00Z")), ["documentos", "seace_cotizaciones"]);
+  // 03:40 de Lima: el detalle de RENIPRESS (Gobserva Salud).
+  assert.deepEqual(fuentesDelCron(CRON_DOCUMENTOS, en("2026-11-20T08:40:00Z")), ["documentos", "seace_cotizaciones", "susalud_detalle"]);
   assert.deepEqual(fuentesDelCron("*/5 * * * *", en("2026-11-05T13:00:00Z")), []);
 });
 

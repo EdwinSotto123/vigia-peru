@@ -59,6 +59,12 @@
  *                      150); antes, backend/scripts/cargar_entidades_oece.py a mano. Casi no cambia: con el mismo
  *                      sha256 no hace nada.
  *
+ *   susalud            viernes 08:00: Gobserva Salud (migración 432): RENIPRESS, el Registro de Sanciones, las consultas y
+ *                      denuncias, los recursos y las cirugías de SUSALUD (src/fuentes/susalud.ts). Con el mismo sha256 no
+ *                      recarga nada.
+ *   susalud_detalle    todos los días a las 03:40 (cron de cada hora): el detalle por IPRESS de la consulta pública de
+ *                      RENIPRESS, ~1 200 por corrida, lo que la gente abrió primero (src/fuentes/susalud_detalle.ts).
+ *
  *   oece_fichas        lunes 08:00: la ficha del proveedor en el OECE de las empresas sancionadas (migración 337), por el relay
  *                      de Lima, hasta 700 por semana; corrige «sanción vigente» cuando el Tribunal sustituyó una sanción.
  *
@@ -91,7 +97,13 @@ export function esSegundaVuelta(cron: string, ms: number): boolean {
 export function fuentesDelCron(cron: string, ms: number): string[] {
   if (cron === CRON_DIARIO) return ["oece_ocds"];
   // Cada hora también las contrataciones menores abiertas (seace_cotizaciones): sus ventanas duran horas.
-  if (cron === CRON_DOCUMENTOS) return new Date(ms - 5 * 3600 * 1000).getUTCHours() === 12 ? ["documentos", "salud_lima", "seace_cotizaciones"] : ["documentos", "seace_cotizaciones"];
+  if (cron === CRON_DOCUMENTOS) {
+    const hora = new Date(ms - 5 * 3600 * 1000).getUTCHours();
+    if (hora === 12) return ["documentos", "salud_lima", "seace_cotizaciones"];
+    // El detalle de RENIPRESS (Gobserva Salud): de madrugada, cuando nadie más usa el relay de Lima.
+    if (hora === 3) return ["documentos", "seace_cotizaciones", "susalud_detalle"];
+    return ["documentos", "seace_cotizaciones"];
+  }
   if (cron === CRON_MENORES) return ["seace_menores"];
   if (cron === CRON_PRACTICAS) return ["servir_practicas"];
   if (cron !== CRON_DATOS) return [];
@@ -103,7 +115,7 @@ export function fuentesDelCron(cron: string, ms: number): string[] {
   if (lima.getUTCDay() === 2) out.push("mef_opds_etes", "sunat_padron");
   if (lima.getUTCDay() === 3) out.push("onpe_claridad", "onpe_gastos");
   if (lima.getUTCDay() === 4) out.push("congreso_visitas", "servir_convocatorias", "infobras");
-  if (lima.getUTCDay() === 5) out.push("invierte_pe");
+  if (lima.getUTCDay() === 5) out.push("invierte_pe", "susalud");
   if (lima.getUTCDay() === 6) out.push("conosce");
   // SERVIR todos los días (la corrida decide: completa los jueves, arriba; incremental los demás).
   if (lima.getUTCDay() !== 4) out.push("servir_convocatorias");
