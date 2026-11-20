@@ -98,6 +98,46 @@ INTEGRIDAD = {
                                              "funcionarios"},
 }
 AJUSTES.update({k: {"materia": "integridad", "regimen": "ambos", **v} for k, v in INTEGRIDAD.items()})
+# Lote 9 (Gobserva Salud): normas de salud, ya cortadas por artículo en <NORMAS_DESCARGAS>/salud/<ID>.json (su manifiesto está en
+# salud/00_manifiesto/lote9_resultado.json). Materia `salud`: sólo la trae buscar_norma_salud (migración 432), no la búsqueda
+# general. Aquí va lo que no se deduce del manifiesto: el slug y el nombre de las que no son ley ni decreto, y el tipo de las que
+# clasificar() no reconoce (las normas internas del Colegio Médico van como `otra`; las R.S. de SUSALUD, como directiva).
+SALUD = {
+    "SAL-LEY-26842": {}, "SAL-DS-013-2006-SA": {}, "SAL-DS-024-2001-SA": {}, "SAL-LEY-31014": {}, "SAL-DS-031-2014-SA": {},
+    "SAL-LEY-29414": {}, "SAL-DS-027-2015-SA": {}, "SAL-DS-023-2024-SA": {},
+    # Sin fecha de vigencia comprobada (rigen a «días hábiles» o «días» sin precisar, o la publicación no consta): no se inventa.
+    "SAL-DS-002-2019-SA": {"vigencia_desde": None},
+    "SAL-DL-1158": {"slug": "dl-1158", "tipo": "ley", "numero": "1158",
+                    "documento": "D. Leg. N° 1158, Decreto Legislativo que dispone medidas destinadas al fortalecimiento y cambio de denominación de "
+                                 "la Superintendencia Nacional de Aseguramiento en Salud"},
+    "SAL-LEY-15173": {"slug": "ley-15173", "numero": "15173",
+                      "documento": "Ley N° 15173, Ley del Colegio Médico del Perú: artículos 3, 4, 8, 10 y 12 y disposiciones complementarias "
+                                   "finales, en el texto de la Ley N° 31679"},
+    "SAL-RM-546-2011-MINSA": {"slug": "nts-021-minsa-dgsp-v03", "tipo": "directiva", "numero": "NTS N° 021-MINSA/DGSP-V.03", "vigencia_desde": None,
+                              "documento": "NTS N° 021-MINSA/DGSP-V.03, Norma Técnica de Salud «Categorías de Establecimientos del Sector "
+                                           "Salud» (R.M. N° 546-2011/MINSA)"},
+    "SAL-RM-280-2013-MINSA": {"slug": "nts-101-minsa-dgsp-v01", "tipo": "directiva", "numero": "NTS N° 101-MINSA/DGSP-V.01",
+                              "documento": "NTS N° 101-MINSA/DGSP-V.01, de los Establecimientos de Salud que realizan Cirugía Ambulatoria y/o "
+                                           "Cirugía de Corta Estancia (R.M. N° 280-2013/MINSA)"},
+    "SAL-RS-098-2014-SUSALUD": {"slug": "rs-098-2014-susalud-s", "tipo": "directiva", "numero": "R.S. N° 098-2014-SUSALUD/S", "vigencia_desde": None,
+                                "documento": "R.S. N° 098-2014-SUSALUD/S, Reglamento para el Registro de Sanciones aplicable a las IAFAS, IPRESS "
+                                             "y UGIPRESS"},
+    "SAL-RS-004-2021-SUSALUD": {"slug": "rs-004-2021-susalud-s", "tipo": "directiva", "numero": "R.S. N° 004-2021-SUSALUD/S",
+                                "documento": "R.S. N° 004-2021-SUSALUD/S, Reglamento para el Registro Nacional de Instituciones Prestadoras de "
+                                             "Servicios de Salud (RENIPRESS)"},
+    "SAL-RS-006-2021-SUSALUD": {"slug": "rs-006-2021-susalud-s", "tipo": "directiva", "numero": "R.S. N° 006-2021-SUSALUD/S",
+                                "documento": "R.S. N° 006-2021-SUSALUD/S, Reglamento del Registro de Sanciones impuestas por los Colegios "
+                                             "Profesionales de la Salud (REPROS)"},
+    "SAL-CMP-CODIGO-ETICA-2023": {"slug": "cmp-codigo-etica-deontologia-2023", "tipo": "otra", "numero": "Res. N° 216-CN-CMP-2023", "vigencia_desde": None,
+                                  "documento": "Código de Ética y Deontología del Colegio Médico del Perú (Res. N° 216-CN-CMP-2023)"},
+    "SAL-CMP-ESTATUTO-2023": {"slug": "cmp-estatuto-2023", "tipo": "otra", "numero": "Res. N° 242-CN-CMP-2023",
+                              "documento": "Estatuto del Colegio Médico del Perú (Res. N° 242-CN-CMP-2023 y N° 293-CN-CMP-2023)"},
+    "SAL-CMP-RES-282-2025": {"slug": "cmp-res-282-cn-cmp-2025-registros-posgrado", "tipo": "otra", "numero": "Res. N° 282-CN-CMP-2025",
+                             "documento": "Reglamento de Registros Nacionales de Estudios de Posgrado del Colegio Médico del Perú, incluido el "
+                                          "Registro Nacional de Especialistas (Res. N° 282-CN-CMP-2025)"},
+}
+# `vigencia_hasta` vacía: clasificar() no conoce la materia y a una directiva anterior a 2025 le pondría el corte del régimen 30225.
+AJUSTES.update({k: {"materia": "salud", "regimen": "ambos", "vigencia_hasta": None, **v} for k, v in SALUD.items()})
 
 RE_ART = re.compile(r"^[ \t]*(?:Art[íi]culo|ART[ÍI]CULO)\s+(\d{1,3}(?:\s?-\s?[A-Z])?)\s*[°º]?\s*[.\-–:]*[ \t]*(.*)$", re.M)
 RE_SECCION_DISP = re.compile(r"^[ \t]*(DISPOSICI[OÓ]N(?:ES)?\s+COMPLEMENTARIAS?\s+(FINAL(?:ES)?|TRANSITORIAS?|MODIFICATORIAS?|DEROGATORIAS?))[ \t]*$", re.M | re.I)
@@ -367,7 +407,8 @@ def fragmentos_unidades(unidades: list[dict], documento: str) -> list[dict]:
             if art and art.startswith("DC"):
                 cab = f"{documento} — {epi or art}"
             elif art:
-                cab = f"{documento} — Artículo {art}" + (f" — {epi}" if epi else "")
+                # Las normas técnicas vienen por numeral (6.1.5): «Numeral», como en fragmentos().
+                cab = f"{documento} — {'Artículo' if re.match(r'^\d+(-[A-Z])?$', art) else 'Numeral'} {art}" + (f" — {epi}" if epi else "")
             else:
                 cab = documento + (f" — {epi}" if epi else "")
             if len(piezas) > 1:
