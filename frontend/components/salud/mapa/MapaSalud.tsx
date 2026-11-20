@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent as EventoTeclado, type PointerEvent as EventoPuntero } from "react";
 import { geoMercator, geoPath, type ExtendedFeature, type ExtendedFeatureCollection, type GeoProjection } from "d3-geo";
-import { ArrowRight, Gavel, List, Loader2, Maximize2, Minus, MousePointerClick, Plus, RotateCw, SlidersHorizontal, X } from "lucide-react";
+import { ArrowRight, Gavel, List, Loader2, LocateFixed, Maximize2, Minus, MousePointerClick, Plus, RotateCw, SlidersHorizontal, X } from "lucide-react";
 import { useGeoPeru } from "@/components/mapa/useGeoPeru";
 import { FuenteFecha, InsigniaCategoria, InsigniaSector } from "@/components/salud/comun";
 import { URL_RENIPRESS_CONSULTA } from "@/components/salud/fuentes/urls";
@@ -140,6 +140,10 @@ export function MapaSalud({
   const [codigo, setCodigo] = useState<string | null>(null);
   const [detalle, setDetalle] = useState<Detalle | null>(null);
   const cache = useRef(new Map<string, FilaIpress>());
+  // «Mi ubicación»: se usa sólo aquí, para dibujar el punto y centrar el mapa; no sale del teléfono.
+  const [yo, setYo] = useState<{ lat: number; lon: number } | null>(null);
+  const [ubicacion, setUbicacion] = useState<"" | "buscando" | "denegado" | "error" | "fuera">("");
+  const [centrar, setCentrar] = useState(false);
 
   const alto = ancho === 0 ? 0 : ancho < 640 ? Math.round(ancho * 1.25) : limitar(Math.round(ancho * 1.02), 480, 760);
   const qs = paramsMapa(filtros);
@@ -206,6 +210,16 @@ export function MapaSalud({
   }, [objetivo, ancho, alto]);
 
   useEffect(() => setT(IDENTIDAD), [proyeccion]);
+
+  // Centrar en la ubicación (después del efecto de arriba: si el departamento cambió, la vista nueva ya está puesta).
+  useEffect(() => {
+    if (!centrar || !yo || !proyeccion || !ancho || !alto || filtros.departamento) return;
+    const xy = proyeccion([yo.lon, yo.lat]);
+    if (!xy) return;
+    const k = K_MAX;
+    setT(encuadrar({ k, x: ancho / 2 - xy[0] * k, y: alto / 2 - xy[1] * k }, ancho, alto));
+    setCentrar(false);
+  }, [centrar, yo, proyeccion, ancho, alto, filtros.departamento]);
 
   const puntos = useMemo<Puntos | null>(() => {
     if (!datos || !proyeccion) return null;
@@ -343,9 +357,21 @@ export function MapaSalud({
       };
       if (hover && hover.i < puntos.n && hover.i !== seleccionado) marcar(hover.i, false);
       if (seleccionado >= 0) marcar(seleccionado, true);
+      // Tú: un punto oscuro con anillo claro y centro claro, encima de todo (no se parece a ningún establecimiento).
+      const aqui = yo ? proyeccion([yo.lon, yo.lat]) : null;
+      if (aqui) {
+        const x = aqui[0] * t.k + t.x;
+        const y = aqui[1] * t.k + t.y;
+        for (const [radio, color] of [[10, colores.paper], [7, colores.ink], [2.75, colores.paper]] as const) {
+          ctx.beginPath();
+          ctx.arc(x, y, radio, 0, Math.PI * 2);
+          ctx.fillStyle = color;
+          ctx.fill();
+        }
+      }
     });
     return () => cancelAnimationFrame(id);
-  }, [proyeccion, colores, ancho, alto, t, deptData, puntos, hover, seleccionado, filtros.departamento, objetivo]);
+  }, [proyeccion, colores, ancho, alto, t, deptData, puntos, hover, seleccionado, filtros.departamento, objetivo, yo]);
 
   // ── Interacción ─────────────────────────────────────────────────────────────────────────────────
   const tRef = useRef(t);
@@ -451,6 +477,24 @@ export function MapaSalud({
     c.addEventListener("wheel", alGirar, { passive: false });
     return () => c.removeEventListener("wheel", alGirar);
   }, []);
+
+  const miUbicacion = () => {
+    if (typeof navigator === "undefined" || !("geolocation" in navigator)) return setUbicacion("error");
+    setUbicacion("buscando");
+    navigator.geolocation.getCurrentPosition(
+      (p) => {
+        const { latitude: lat, longitude: lon } = p.coords;
+        if (lat < -18.6 || lat > 0.2 || lon < -81.6 || lon > -68.4) return setUbicacion("fuera");
+        setYo({ lat, lon });
+        setUbicacion("");
+        // Con un departamento elegido el mapa muestra sólo ese: se vuelve al país para que tu punto se vea.
+        if (filtros.departamento) setFiltros((f) => ({ ...f, departamento: "" }));
+        setCentrar(true);
+      },
+      (e) => setUbicacion(e.code === e.PERMISSION_DENIED ? "denegado" : "error"),
+      { enableHighAccuracy: true, timeout: 20000, maximumAge: 60000 },
+    );
+  };
 
   const acercar = (factor: number) => setT((t0) => encuadrar(zoomEn(t0, ancho / 2, alto / 2, factor), ancho, alto));
 
@@ -638,6 +682,9 @@ export function MapaSalud({
               <BotonMapa etiqueta="Ver todo" onClick={() => setT(IDENTIDAD)} borde>
                 <Maximize2 size={15} aria-hidden />
               </BotonMapa>
+              <BotonMapa etiqueta="Ir a mi ubicación" onClick={miUbicacion} borde>
+                {ubicacion === "buscando" ? <Loader2 size={16} aria-hidden className="motion-safe:animate-spin" /> : <LocateFixed size={16} aria-hidden />}
+              </BotonMapa>
             </div>
 
             {hoverInfo && puntos && (
@@ -693,6 +740,24 @@ export function MapaSalud({
           <p className="mt-2 flex flex-wrap items-center justify-between gap-x-4 gap-y-1">
             <FuenteFecha nombre="RENIPRESS (SUSALUD)" url={URL_RENIPRESS_CONSULTA} al={renipressAl} />
             <span className="text-rotulo text-mute">Arrastra para moverte; rueda, pellizco o botones para acercar.</span>
+          </p>
+          <p role="status" className="mt-1 text-dato leading-relaxed text-inkSoft empty:hidden">
+            {ubicacion === "denegado"
+              ? "No diste permiso para usar tu ubicación: puedes permitirlo en la configuración del navegador."
+              : ubicacion === "error"
+                ? "No pudimos saber dónde estás. Revisa que la ubicación del teléfono esté activada."
+                : ubicacion === "fuera"
+                  ? "Tu ubicación está fuera del Perú."
+                  : yo
+                    ? (
+                        <>
+                          El punto oscuro con centro claro eres tú; tu ubicación no sale de tu teléfono.{" "}
+                          <Link href={`${rutaEn(base, "/cerca")}?ubicar=1`} className="font-semibold text-granate underline-offset-4 hover:underline">
+                            Ver la lista de los más cercanos
+                          </Link>
+                        </>
+                      )
+                    : null}
           </p>
         </div>
 

@@ -13,6 +13,7 @@ export async function GET() {
     { ruta: "/", prioridad: 1 },
     { ruta: "/establecimientos", prioridad: 0.9 },
     { ruta: "/medico", prioridad: 0.9 },
+    { ruta: "/cerca", prioridad: 0.8 },
     { ruta: "/mapa", prioridad: 0.7 },
     { ruta: "/sanciones", prioridad: 0.8 },
     { ruta: "/asistente", prioridad: 0.6 },

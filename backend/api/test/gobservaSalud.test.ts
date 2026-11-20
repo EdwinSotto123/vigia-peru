@@ -94,3 +94,15 @@ test("condiciones: la relevancia no agrega parámetros (la comparten la lista, e
   assert.ok(relevancia && !/\$\d/.test(relevancia));
   assert.match(relevancia!, /'CLINICA ANGLOAMERICANA'/);
 });
+
+test("cerca: la ubicación se redondea a ~110 m y fuera del Perú no se consulta la base", async () => {
+  const { redondearCoordenada, saludRouter } = await import("../src/routes/gobservaSalud.js");
+  assert.equal(redondearCoordenada(-12.0912345), -12.091);
+  assert.equal(redondearCoordenada(-77.0287651), -77.029);
+  const pedir = (cuerpo: unknown) => saludRouter.request("/cerca", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(cuerpo) });
+  const fuera = await pedir({ lat: 40.4, lon: -3.7 });
+  assert.equal(fuera.status, 400);
+  assert.equal((await fuera.json()).error, "fuera_del_peru");
+  assert.equal(fuera.headers.get("Cache-Control"), "private, no-store");
+  assert.equal((await pedir({ lat: "-12" })).status, 400);
+});

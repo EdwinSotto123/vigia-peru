@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ArrowRight, ArrowUpRight, BadgeCheck, Building2, Gavel, Hash, IdCard, ListChecks, MapPinned, RotateCw, Search, ShieldCheck, Stethoscope, UserX } from "lucide-react";
+import { ArrowRight, ArrowUpRight, BadgeCheck, Building2, Gavel, Hash, IdCard, ListChecks, LocateFixed, MapPinned, RotateCw, Search, ShieldCheck, Stethoscope, UserX } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { EstadoError, EstadoVacio } from "@/components/gobserva/ui/Estados";
 import { FuenteFecha, InsigniaHecho } from "@/components/salud/comun";
@@ -58,6 +58,12 @@ export default async function Buscar({ searchParams }: Props) {
       <div className="mt-5 max-w-3xl">
         <BuscadorSalud accion={ruta("/buscar")} q={q} autoFocus={!q} />
         <p className="mt-2 text-meta text-mute">No buscamos personas por su nombre: un médico se verifica con su número de colegiatura.</p>
+        <Link
+          href={`${ruta("/cerca")}?ubicar=1`}
+          className="mt-2 inline-flex min-h-11 items-center gap-1.5 text-dato font-semibold text-granate underline-offset-4 hover:underline"
+        >
+          <LocateFixed size={16} aria-hidden /> ¿Ya estás adentro? Busca con tu ubicación
+        </Link>
       </div>
 
       {!q && <Guia ruta={ruta} />}

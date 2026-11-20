@@ -6,7 +6,9 @@ import { Memo } from "../lib/cache.js";
 import { cachePublico, parametros, SIN_CACHE } from "../lib/http.js";
 import { publicar } from "../lib/privacidad.js";
 import { enSegundoPlano } from "../lib/plataforma.js";
-import { claveIp, cuantasEn, dentroDeTope, HEADER_TURNSTILE, ipCliente, pedidoInterno, verificarTurnstile } from "../lib/antibots.js";
+import {
+  claveIp, cuantasEn, dentroDeTope, HEADER_TURNSTILE, ipCliente, LIMITE_BUSQUEDAS, pedidoInterno, VENTANA_S, verificarTurnstile,
+} from "../lib/antibots.js";
 import { correrChat, type EnvChat } from "../lib/chatInvestigacion.js";
 import { eventoPublico, huellaIp, enListaFija } from "../lib/chatVigia.js";
 import { registrarConsumo } from "../lib/consumo.js";
@@ -27,6 +29,7 @@ import {
  *   GET  /salud/establecimientos        la lista con filtros (texto, región, provincia, distrito, categoría, sector, tipo,
  *                                       estado, con sanciones, quirúrgico, internamiento), orden, páginas y facetas.
  *   GET  /salud/mapa                    los puntos (con los mismos filtros), compactos.
+ *   POST /salud/cerca {lat, lon}        las más cercanas a un punto (redondeado a ~110 m), para quien ya está adentro.
  *   GET  /salud/establecimiento/:codigo la ficha: registro, detalle, chequeos de verificación, sanciones, denuncias,
  *                                       recursos, cirugías, historial, fuentes y lo que Vigía sabe de su RUC.
  *   GET  /salud/medico/:colegiatura     lo que dicen las fuentes abiertas de una colegiatura (RENIPRESS) y cómo verificarla.
@@ -319,6 +322,62 @@ saludRouter.get("/mapa", async (c) => {
   });
   c.header("Cache-Control", CACHE_LARGO);
   return c.json(cuerpo);
+});
+
+// ─── GET /salud/cerca ─────────────────────────────────────────────────────────────────────────────
+
+/** El Perú con un margen: fuera de este recuadro no hay IPRESS que buscar. */
+const PERU = { latMin: -18.6, latMax: 0.2, lonMin: -81.6, lonMax: -68.4 } as const;
+/** Cuántas devuelve y hasta dónde busca (grados): primero cerca; si no hay nada, en ~170 km a la redonda. */
+const CERCA_MAX = 30;
+const CERCA_RADIOS = [0.15, 1.5] as const;
+
+/** Redondea una coordenada a 3 decimales (unos 110 m): lo único de la ubicación de una persona que llega aquí. */
+export function redondearCoordenada(v: number): number {
+  return Math.round(v * 1000) / 1000;
+}
+
+const CuerpoCerca = z.object({ lat: z.number().finite(), lon: z.number().finite() });
+
+/**
+ * Las IPRESS más cercanas a un punto, para quien ya está dentro de un establecimiento. POST y no GET: el registro de
+ * pedidos (lib/registro.ts) anota la ruta con su query, y la ubicación de una persona no debe quedar en ningún registro;
+ * el cuerpo no se anota. La página la manda redondeada a unos 110 m (y aquí se redondea de nuevo, por si acaso); la
+ * distancia exacta y el orden final los calcula el teléfono con su ubicación real, que nunca sale de él. Sin caché ni
+ * memoria: no se guarda nada. Trae también las que tienen baja o cierre y las que ya no figuran en RENIPRESS: justo eso
+ * es lo que alguien adentro necesita saber.
+ */
+saludRouter.post("/cerca", async (c) => {
+  c.header("Cache-Control", SIN_CACHE);
+  // limiteLectura sólo cuenta los GET: este POST lleva su propio tope, el de las búsquedas (30 por minuto por IP).
+  if (!pedidoInterno(c) && !(await dentroDeTope(`cerca:${claveIp(ipCliente(c))}`, LIMITE_BUSQUEDAS, VENTANA_S))) {
+    c.header("Retry-After", String(VENTANA_S));
+    return c.json({ error: "demasiados_pedidos", detail: "Espera un minuto y vuelve a intentarlo." }, 429);
+  }
+  const b = CuerpoCerca.safeParse(await c.req.json().catch(() => null));
+  if (!b.success) return c.json({ error: "ubicacion_invalida", detail: "Faltan lat y lon." }, 400);
+  const { lat, lon } = b.data;
+  if (lat < PERU.latMin || lat > PERU.latMax || lon < PERU.lonMin || lon > PERU.lonMax) {
+    return c.json({ error: "fuera_del_peru", detail: "Tu ubicación está fuera del Perú: aquí sólo hay establecimientos de salud peruanos." }, 400);
+  }
+  const o = { lat: redondearCoordenada(lat), lon: redondearCoordenada(lon) };
+  // Distancia en metros (haversine) desde el punto redondeado; el recuadro deja usar sólo las de la zona.
+  const distancia = `6371000 * 2 * asin(sqrt(power(sin(radians(i.lat - $1) / 2), 2)
+    + cos(radians($1)) * cos(radians(i.lat)) * power(sin(radians(i.lon - $2) / 2), 2)))`;
+  let filas: Record<string, unknown>[] = [];
+  let radio = 0;
+  for (const r of CERCA_RADIOS) {
+    radio = r;
+    const q = await pool.query(`
+      SELECT ${COLS}, i.en_registro AS "enRegistro", round(${distancia})::int AS distancia
+        FROM salud_ipress i LEFT JOIN salud_indicador x ON x.codigo = i.codigo
+       WHERE i.lat BETWEEN $1::float8 - $3::float8 AND $1::float8 + $3::float8
+         AND i.lon BETWEEN $2::float8 - $3::float8 AND $2::float8 + $3::float8
+       ORDER BY distancia, i.activo DESC, i.nombre LIMIT ${CERCA_MAX}`, [o.lat, o.lon, r]);
+    filas = q.rows;
+    if (filas.length) break;
+  }
+  return c.json(publicar({ origen: o, radioKm: Math.round(radio * 111), filas }));
 });
 
 // ─── GET /salud/establecimiento/:codigo ───────────────────────────────────────────────────────────

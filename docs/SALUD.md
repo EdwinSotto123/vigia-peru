@@ -59,6 +59,11 @@ Trampas de las fuentes:
 - Propietario: sólo RUC 20 (persona jurídica o entidad). Un RUC 10 no se guarda (lleva el DNI).
 - No se busca a personas por nombre. Un número de colegiatura sólo dice en qué IPRESS figura como responsable.
 - Los teléfonos que parecen celulares personales los tapa `publicar()` como en todo Vigía.
+- «Estoy en un establecimiento» (`/cerca`, botón en la portada, el buscador y el mapa): la ubicación de quien busca se
+  manda redondeada a 3 decimales (~110 m) y por POST (`/salud/cerca`), porque el registro de pedidos anota la URL con su
+  query y no el cuerpo. Sin caché ni memoria; la distancia exacta y el orden final se calculan en el teléfono. En el mapa
+  la ubicación no sale del teléfono. Nunca se dice «estás en tal clínica»: el GPS se desvía adentro de un edificio y la
+  ubicación de cada IPRESS la declaró ella misma (un tercio no la declaró).
 
 ## Arquitectura (sobre lo que ya existía)
 

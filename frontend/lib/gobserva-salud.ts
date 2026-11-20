@@ -325,6 +325,39 @@ export const getSitemapSalud = () => pedir<{ establecimientos: { codigo: string;
 /** La dirección del asistente (POST, NDJSON; cabecera cf-turnstile-response). */
 export const URL_ASISTENTE_SALUD = `${API_BASE}/salud/asistente`;
 
+// ─── Cerca de ti ──────────────────────────────────────────────────────────────────────────────────
+
+/** Una IPRESS cercana: la fila de siempre, si sigue en RENIPRESS y su distancia (al punto redondeado que llegó a la API). */
+export interface FilaCercana extends FilaIpress {
+  enRegistro: boolean;
+  distancia: number;
+}
+export interface Cercanos {
+  origen: { lat: number; lon: number };
+  radioKm: number;
+  filas: FilaCercana[];
+}
+
+/** La dirección de «cerca de ti» (POST {lat, lon}: la ubicación va en el cuerpo, que la API no registra). */
+export const URL_CERCA_SALUD = `${API_BASE}/salud/cerca`;
+
+/** Una coordenada redondeada a 3 decimales (unos 110 m): lo único de la ubicación que sale del teléfono. */
+export const redondearCoordenada = (v: number) => Math.round(v * 1000) / 1000;
+
+/** Distancia en metros entre dos puntos (haversine). */
+export function distanciaMetros(a: { lat: number; lon: number }, b: { lat: number; lon: number }): number {
+  const r = (g: number) => (g * Math.PI) / 180;
+  const h = Math.sin(r(b.lat - a.lat) / 2) ** 2 + Math.cos(r(a.lat)) * Math.cos(r(b.lat)) * Math.sin(r(b.lon - a.lon) / 2) ** 2;
+  return 6371000 * 2 * Math.asin(Math.min(1, Math.sqrt(h)));
+}
+
+/** «A 40 m», «a 350 m», «a 1,2 km», «a 25 km». */
+export function textoDistancia(m: number): string {
+  if (m < 1000) return `a ${Math.max(10, Math.round(m / 10) * 10)} m`;
+  if (m < 10000) return `a ${new Intl.NumberFormat("es-PE", { maximumFractionDigits: 1 }).format(m / 1000)} km`;
+  return `a ${numero(Math.round(m / 1000))} km`;
+}
+
 // ─── Palabras ─────────────────────────────────────────────────────────────────────────────────────
 
 /** Las cuatro clases de hecho: cada una con su rótulo, su explicación de un renglón y su tono (variables de globals.css). */

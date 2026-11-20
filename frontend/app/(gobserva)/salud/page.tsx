@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import {
-  Activity, BadgeCheck, Building2, CalendarClock, CircleSlash, FileSearch, Gavel, GraduationCap, MapPinned, MessageSquareWarning,
+  Activity, BadgeCheck, Building2, CalendarClock, CircleSlash, FileSearch, Gavel, GraduationCap, LocateFixed, MapPinned, MessageSquareWarning,
   Scissors, Search, Stethoscope, type LucideIcon,
 } from "lucide-react";
 import { FuenteFecha, InsigniaEstado, InsigniaHecho } from "@/components/salud/comun";
@@ -96,6 +96,9 @@ export default async function InicioSalud() {
               ))}
             </ul>
             <div className="mt-7 flex flex-col gap-2.5 border-t border-paper/10 pt-6 sm:flex-row sm:flex-wrap">
+              <Link href={`${ruta("/cerca")}?ubicar=1`} className={claseAccion("contornoOscuro", "min-h-12 justify-start sm:justify-center", "sm")}>
+                <LocateFixed size={17} aria-hidden /> Estoy adentro: buscar con mi ubicación
+              </Link>
               <Link href={ruta("/medico")} className={claseAccion("contornoOscuro", "min-h-12 justify-start sm:justify-center", "sm")}>
                 <Stethoscope size={17} aria-hidden /> Verificar a un médico
               </Link>

@@ -34,6 +34,7 @@ export default function LayoutSalud({ children }: { children: ReactNode }) {
       producto="salud"
       base={base}
       menu={[
+        { ruta: "/cerca", etiqueta: "Cerca de mí" },
         { ruta: "/medico", etiqueta: "Verificar médico" },
         { ruta: "/establecimientos", etiqueta: "Establecimientos" },
         { ruta: "/mapa", etiqueta: "Mapa" },
