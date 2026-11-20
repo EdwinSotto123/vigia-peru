@@ -24,8 +24,11 @@ export function lugarCompleto(f: Pick<FichaIpress, "direccion" | "distrito" | "p
   return partes.join(", ");
 }
 
-/** «ESTABLECIMIENTO DE SALUD CON INTERNAMIENTO» → «Establecimiento de salud con internamiento». */
-const oracion = (t: string) => t.charAt(0).toUpperCase() + t.slice(1).toLowerCase();
+/** «ESTABLECIMIENTO DE SALUD CON INTERNAMIENTO» → «Establecimiento de salud con internamiento» (con tildes: «ATENCION» → «atención»). */
+const oracion = (t: string) => {
+  const b = conTildes(t.toLowerCase());
+  return b.charAt(0).toUpperCase() + b.slice(1);
+};
 
 /** Un teléfono que la privacidad tapó (un celular): se muestra tapado, sin enlace. */
 const tapado = (t: string) => t.includes("•");
@@ -130,10 +133,4 @@ export function CabeceraFicha({ f }: { f: FichaIpress }) {
       </ul>
     </header>
   );
-}
-
-/** «LUNES A DOMINGO 24 HORAS ATENCION DE EMERGENCIAS» → «Lunes a domingo 24 horas atención de emergencias» (RENIPRESS lo trae en mayúsculas). */
-function oracion(t: string): string {
-  const b = conTildes(t.toLowerCase());
-  return b.charAt(0).toUpperCase() + b.slice(1);
 }
