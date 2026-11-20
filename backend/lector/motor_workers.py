@@ -18,7 +18,9 @@ import urllib.request
 from lector.base import CLIENTE, ssm
 
 URL = "https://vigia-llm.vigiaperu.workers.dev/v1/chat/completions"
-MODELO_DEFECTO = "@cf/zai-org/glm-5.3-flash"
+# GLM 5.3 flash lo retiró Workers AI el 2026-11-20 (5028). DeepSeek V4.1 flash: herramientas, imágenes y 1 M de contexto;
+# releyó 24 de 24 apelaciones del Tribunal ya comprobadas con el mismo resultado y la cita en el texto (US$ 0,0029 c/u).
+MODELO_DEFECTO = "@cf/deepseek-ai/deepseek-v4.1-flash-1017"
 # USD por millón de tokens, precios de lista de Workers AI (2026-11).
 PRECIOS = {
     "@cf/zai-org/glm-5.3-flash": (0.15, 0.50),

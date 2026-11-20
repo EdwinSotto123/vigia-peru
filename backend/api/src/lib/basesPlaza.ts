@@ -730,8 +730,9 @@ interface EnvLlm {
 }
 
 /** El modelo que lee las bases con texto (Workers AI, por vigia-llm). */
-export const MODELO_BASES = "@cf/zai-org/glm-5.3-flash";
-export const NOMBRE_MODELO_BASES = "glm-5.3-flash";
+// GLM 5.3 flash lo retiró Workers AI el 2026-11-20: su reemplazo, DeepSeek V4.1 flash (herramientas e imágenes).
+export const MODELO_BASES = "@cf/deepseek-ai/deepseek-v4.1-flash-1017";
+export const NOMBRE_MODELO_BASES = "deepseek-v4.1-flash";
 /** Menos letras que esto en todos los PDF: son escaneos (imágenes), sin texto que leer. */
 export const MIN_TEXTO = 600;
 /** Páginas escaneadas por pedido a GLM (8 páginas ≈ 42 mil tokens: entra; 12 ya no) y como mucho por lectura. */

@@ -71,10 +71,10 @@ test("el texto de los PDF por Workers AI; sin binding o con error, vacío", asyn
 test("con texto, lee GLM 5.3 flash (chat/completions, herramienta forzada, razonamiento bajo)", async () => {
   const env = { ...llm(), AI: ai("x".repeat(MIN_TEXTO + 10)) };
   const r = await leerBases(env, PLAZA, [PDF], true);
-  assert.equal(r.modelo, "glm-5.3-flash");
+  assert.equal(r.modelo, "deepseek-v4.1-flash");
   assert.deepEqual(env.rutas, ["/v1/chat/completions"]);
   const cuerpo = env.cuerpos[0] as { model: string; tool_choice: unknown; reasoning_effort: string; messages: { content: string }[] };
-  assert.equal(cuerpo.model, "@cf/zai-org/glm-5.3-flash");
+  assert.equal(cuerpo.model, "@cf/deepseek-ai/deepseek-v4.1-flash-1017");
   assert.deepEqual(cuerpo.tool_choice, { type: "function", function: { name: "bases" } });
   assert.equal(cuerpo.reasoning_effort, "low");
   assert.match(cuerpo.messages[1].content, /<documento titulo="Bases">/);
@@ -154,7 +154,7 @@ test("juntar las lecturas de varios pedidos: listas sin repetir, el cronograma c
 test("un escaneo con JPEG lo lee GLM con imágenes, de a 8 páginas por pedido; Haiku no se usa", async () => {
   const env = { ...llm(), AI: ai("") };
   const r = await leerBases(env, PLAZA, [{ titulo: "Bases", bytes: pdfEscaneado(18) }], true);
-  assert.equal(r.modelo, "glm-5.3-flash-imagen");
+  assert.equal(r.modelo, "deepseek-v4.1-flash-imagen");
   assert.deepEqual(env.rutas, ["/v1/chat/completions", "/v1/chat/completions", "/v1/chat/completions"]);
   const imagenes = env.cuerpos.map((c) => ((c as { messages: { content: { type: string }[] }[] }).messages[1].content).filter((x) => x.type === "image_url").length);
   assert.deepEqual(imagenes, [8, 8, 2]);
@@ -180,7 +180,7 @@ test("un «no corresponde» leyendo sólo la resolución con texto: antes de des
   const r = await leerBases(env, PLAZA, docs, false);
   assert.deepEqual(pedidos, ["texto", "imagen"]);
   assert.equal(r.lectura.corresponde, true);
-  assert.equal(r.modelo, "glm-5.3-flash-imagen");
+  assert.equal(r.modelo, "deepseek-v4.1-flash-imagen");
   // Si todo tiene texto, el «no» vale de una.
   pedidos.length = 0;
   const soloTexto = { ...env, AI: ai("x".repeat(MIN_TEXTO + 10)) };

@@ -85,8 +85,11 @@ def test_tarifa_glm_en_workers_ai_y_litellm():
     class _LiteLlm:  # forma de google.adk.models.lite_llm.LiteLlm: el id va en `.model`
         model = "openai/@cf/zai-org/glm-5.3-flash"
 
-    assert tarifa(_LiteLlm()) == (0.15, 0.50)
-    assert tarifa("@cf/zai-org/glm-5.3-flash") == (0.15, 0.50)
+    # GLM 5.3 flash se retiró el 2026-11-20: lo atiende DeepSeek V4.1 flash y se cobra a su precio.
+    assert tarifa(_LiteLlm()) == (0.30, 1.20)
+    assert tarifa("@cf/zai-org/glm-5.3-flash") == (0.30, 1.20)
+    assert tarifa("@cf/deepseek-ai/deepseek-v4.1-flash-1017") == (0.30, 1.20)
+    assert tarifa("@cf/deepseek-ai/deepseek-v4-pro-0813") == tarifa("@cf/zai-org/glm-5.3")
     assert tarifa("gemini-3.6-flash") == (0.75, 3.75)   # Gemini no cambia
 
 
@@ -103,7 +106,8 @@ def test_llamadas_de_workers_ai_entran_al_resumen():
                          thoughts_token_count=0, traffic_type=None)
     c.registrar_externo(_L(), "legal_agent", um)
     r = c.resumen()
-    assert r["llamadas"] == 1 and abs(r["costo_usd"] - 0.65) < 1e-6      # 0,15 + 0,50 por millón
+    # GLM 5.3 flash retirado el 2026-11-20: se cobra lo de su reemplazo, DeepSeek V4.1 flash (0,30 + 1,20 por millón).
+    assert r["llamadas"] == 1 and abs(r["costo_usd"] - 1.50) < 1e-6
     assert r["por_etapa"][0]["etapa"] == "legal_agent"
 
 

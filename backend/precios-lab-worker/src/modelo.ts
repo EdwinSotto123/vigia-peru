@@ -16,7 +16,7 @@ export interface EnvModelo {
   EMBEDDINGS?: string;
 }
 
-const MODELO_DEFECTO = "@cf/zai-org/glm-5.3-flash";
+const MODELO_DEFECTO = "@cf/deepseek-ai/deepseek-v4.1-flash-1017"; // GLM 5.3 flash retirado el 2026-11-20
 const PRECIO = { entrada: 0.15 / 1e6, salida: 0.5 / 1e6 };
 
 interface Herramienta {

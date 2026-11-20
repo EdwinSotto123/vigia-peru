@@ -47,7 +47,7 @@ _MODEL_JUDGE = os.getenv("GEMINI_MODEL_JUDGE", "gemini-3.5-flash-lite")
 
 # ── Proveedor de modelos: Gemini (Vertex) o Cloudflare Workers AI ─────────────────────────────────
 _VERDADERO = ("1", "true", "yes", "si", "sí", "on")
-WORKERS_AI_MODEL = os.getenv("WORKERS_AI_MODEL", "@cf/zai-org/glm-5.3-flash")  # verificado 2026-10-12: ~9x más barato que glm-5.3
+WORKERS_AI_MODEL = os.getenv("WORKERS_AI_MODEL", "@cf/deepseek-ai/deepseek-v4.1-flash-1017")  # GLM 5.3 flash retirado el 2026-11-20
 WORKERS_AI_MODEL_FAST = os.getenv("WORKERS_AI_MODEL_FAST", WORKERS_AI_MODEL)
 WORKERS_AI_MODEL_SMART = os.getenv("WORKERS_AI_MODEL_SMART", WORKERS_AI_MODEL)
 _AGENTES_SMART = {a.strip() for a in os.getenv(

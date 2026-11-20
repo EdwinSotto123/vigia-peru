@@ -39,7 +39,7 @@
 
   "vars": {
     // El usuario, 2026-11-12: «usando modelos de GLM 5.3 FLASH para el agente de precios».
-    "MODELO": "@cf/zai-org/glm-5.3-flash",
+    "MODELO": "@cf/deepseek-ai/deepseek-v4.1-flash-1017",
     "EMBEDDINGS": "@cf/baai/bge-m3"
   }
   // Secretos (wrangler secret put): LLM_TOKEN (= /vigia/llm/token), PRECIOS_TOKEN (= /vigia/precios/token),

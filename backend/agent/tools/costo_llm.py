@@ -34,6 +34,9 @@ TARIFAS = {
     # razón de neuronas observada (8,8×) en la misma petición: reconfirmar antes de usarlo.
     "glm-5.3-flash":         (0.15, 0.50),
     "glm-5.3":               (1.32, 4.40),
+    # Reemplazo de GLM 5.3 flash desde el 2026-11-20 (Workers AI lo retiró): precio de lista.
+    "deepseek-v4.1-flash":   (0.30, 1.20),
+    "gemma-4-26b":           (0.10, 0.30),
     # Anthropic. Haiku 5.5: US$0,10/0,50 hasta 100K tokens de prompt (por encima 0,50/2,50), según fuentes de terceros
     # 2026-10-12: se contrasta con el uso medido en la prueba antes de darlo por bueno.
     "claude-haiku-5-5":      (0.10, 0.50),
@@ -42,12 +45,22 @@ TARIFA_DEFAULT = TARIFAS["gemini-3.6-flash"]
 FACTOR_CACHE = 0.10
 
 
+# Los que Workers AI retiró el 2026-11-20: vigia-llm los atiende con su reemplazo (MODELOS_RETIRADOS), y se cobra a
+# su precio. Las Lambdas siguen pidiendo glm-5.3-flash en WORKERS_AI_MODEL.
+RETIRADOS = {"glm-5.3-flash": "deepseek-v4.1-flash", "deepseek-v4-pro": "glm-5.3", "kimi-k2.6": "glm-5.3", "glm-5.2": "glm-5.3"}
+RETIRO = "2026-11-20"
+
+
 def tarifa(model) -> tuple[float, float]:
     """(entrada, salida) USD/1M según el id del modelo (prefijo más largo; 'lite' antes que su
     base). Robusto a None o a un objeto Model."""
     m = str(getattr(model, "model", None) or model or "").lower()   # LiteLlm trae el id en `.model`
     if "/" in m:
         m = m.rsplit("/", 1)[-1]
+    for viejo, nuevo in RETIRADOS.items():
+        if m.startswith(viejo):
+            m = nuevo
+            break
     # Alias del Worker vigia-llm ("respaldo"): su id no dice qué modelo es; la tarifa va por env "entrada,salida".
     if m == "respaldo" and os.getenv("TARIFA_RESPALDO"):
         try:
@@ -182,7 +195,7 @@ def modelo_agentes() -> str:
     if e("MOTOR_AGENTES").lower() == "sdk":
         return e("MOTOR_SDK_MODELO") or "sdk"
     if e("USAR_WORKERS_AI").lower() in ("1", "true", "yes", "si", "sí", "on"):
-        return e("WORKERS_AI_MODEL") or "@cf/zai-org/glm-5.3-flash"
+        return e("WORKERS_AI_MODEL") or "@cf/deepseek-ai/deepseek-v4.1-flash-1017"
     if e("LLM_BACKEND").lower() == "anthropic":
         return e("ANTHROPIC_MODEL") or "claude-haiku-5-5"
     return e("GEMINI_MODEL") or "gemini-3.6-flash"

@@ -608,7 +608,7 @@ def cargar(entorno: str, carpeta: Path, todas: bool) -> None:
 
 LLM_URL = "https://vigia-llm.vigiaperu.workers.dev/v1/chat/completions"
 EMB_URL = "https://vigia-llm.vigiaperu.workers.dev/v1/embeddings"
-MODELO = "@cf/zai-org/glm-5.3-flash"
+MODELO = "@cf/deepseek-ai/deepseek-v4.1-flash-1017"  # GLM 5.3 flash retirado el 2026-11-20
 PRECIO = (0.15, 0.50)               # USD por millón de tokens de entrada y salida (lista de Workers AI, 2026-11)
 VERSION_LECTURA = "obs-1"
 CLIENTE_IA = "vigia-rag/1.0"

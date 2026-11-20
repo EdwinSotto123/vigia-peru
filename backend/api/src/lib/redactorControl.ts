@@ -18,7 +18,8 @@ import {
 
 /** GLM 5.3 escribe mejor el registro formal; GLM 5.3 flash es el de respaldo (más rápido y barato). */
 export const MODELO_REDACTOR = "@cf/zai-org/glm-5.3";
-export const MODELO_REDACTOR_RAPIDO = "@cf/zai-org/glm-5.3-flash";
+// GLM 5.3 flash lo retiró Workers AI el 2026-11-20: su reemplazo.
+export const MODELO_REDACTOR_RAPIDO = "@cf/deepseek-ai/deepseek-v4.1-flash-1017";
 
 /**
  * USD por millón de tokens (entrada, salida), los de backend/agent/tools/costo_llm.py: GLM 5.3 flash medido el
@@ -28,6 +29,8 @@ export const MODELO_REDACTOR_RAPIDO = "@cf/zai-org/glm-5.3-flash";
 const TARIFAS: Record<string, [number, number]> = {
   "@cf/zai-org/glm-5.3-flash": [0.15, 0.5],
   "@cf/zai-org/glm-5.3": [1.32, 4.4],
+  "@cf/deepseek-ai/deepseek-v4.1-flash-1017": [0.3, 1.2],
+  "@cf/google/gemma-4-26b-a4b-it": [0.1, 0.3],
 };
 const TARIFA_DESCONOCIDA: [number, number] = [1.32, 4.4];
 export const costoUsd = (modelo: string, entrada: number, salida: number) => {

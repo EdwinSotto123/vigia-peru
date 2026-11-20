@@ -21,6 +21,7 @@ export interface EnvNativo {
     toMarkdown?(docs: { name: string; blob: Blob }[]): Promise<{ name?: string; format?: string; data?: string }[] | { data?: string }>;
   };
   MODELO_DEFECTO?: string;
+  MODELOS_RETIRADOS?: string;
   NATIVO_MODELOS?: string;
   NATIVO_MODELO_VISION?: string;
   REASONING_EFFORT_DEFECTO?: string;
@@ -29,7 +30,7 @@ export interface EnvNativo {
 type Bloque = Record<string, any>;
 type MensajeOpenAI = Record<string, any>;
 
-const VISION = /glm-5\.3-flash|deepseek-v4\.1-flash|kimi-k2\.6|qwen3\.8|llama-4-scout|llama-3\.2-11b-vision|mistral-small-3\.1/;
+const VISION = /deepseek-v4\.1-flash|gemma-4|inkling|qwen3\.8|llama-4-scout|llama-3\.2-11b-vision|mistral-small-3\.1/;
 const MAX_IMAGENES = 8;
 
 /** El id de Workers AI para el modelo pedido (p. ej. «claude-haiku-5-5» → GLM 5.3 flash). */
@@ -40,7 +41,7 @@ export function modeloPara(env: EnvNativo, pedido: string): string {
   } catch {
     /* mapa vacío */
   }
-  return mapa[pedido] ?? mapa["*"] ?? env.MODELO_DEFECTO ?? "@cf/zai-org/glm-5.3-flash";
+  return mapa[pedido] ?? mapa["*"] ?? env.MODELO_DEFECTO ?? "@cf/deepseek-ai/deepseek-v4.1-flash-1017";
 }
 
 const textoDe = (c: unknown): string =>
@@ -176,7 +177,7 @@ export async function traducirMensajes(env: EnvNativo, cuerpo: Record<string, an
 export async function pedidoWorkers(env: EnvNativo, cuerpo: Record<string, any>): Promise<{ modelo: string; entrada: Record<string, any>; salidaJson: boolean }> {
   const { mensajes, imagenes } = await traducirMensajes(env, cuerpo);
   let modelo = modeloPara(env, String(cuerpo.model ?? ""));
-  if (imagenes && !VISION.test(modelo)) modelo = env.NATIVO_MODELO_VISION ?? "@cf/zai-org/glm-5.3-flash";
+  if (imagenes && !VISION.test(modelo)) modelo = env.NATIVO_MODELO_VISION ?? "@cf/deepseek-ai/deepseek-v4.1-flash-1017";
   const entrada: Record<string, any> = {
     messages: mensajes,
     max_tokens: Math.max(Number(cuerpo.max_tokens) || 4000, 2000),

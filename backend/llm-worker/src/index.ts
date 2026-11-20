@@ -46,6 +46,8 @@ interface Env extends EnvNativo {
   RESPALDO_APAGADO?: string;
   /** "1": `/nativo/v1/messages` lo responde Workers AI, traducido (src/nativoWorkers.ts). */
   NATIVO_EN_WORKERS_AI?: string;
+  /** JSON id → id: los modelos que Workers AI retiró y cuál responde por ellos (vigente). */
+  MODELOS_RETIRADOS?: string;
   /** JSON id → [ids]: a quién pasar el pedido si el modelo está en su tope por minuto (correrConHermanos). */
   MODELOS_HERMANOS?: string;
 }
@@ -102,7 +104,7 @@ async function nativo(req: Request, env: Env, url: URL): Promise<Response> {
  * agentes y los lectores en paralelo pasaban el tope de GLM 5.3 flash y el 10 % de los pedidos fallaba. Con imágenes,
  * sólo los hermanos que las leen.
  */
-const VISION_HERMANOS = /glm-5\.3-flash|deepseek-v4\.1-flash|kimi-k2\.6|qwen3\.8|llama-4-scout|mistral-small-3\.1/;
+const VISION_HERMANOS = /deepseek-v4\.1-flash|gemma-4|inkling|qwen3\.8|llama-4-scout|mistral-small-3\.1/;
 const SATURADO = /3021|3040|rate limit|capacity|too many requests/i;
 
 function hermanos(env: Env, modelo: string, conImagenes: boolean): string[] {
@@ -118,9 +120,27 @@ function hermanos(env: Env, modelo: string, conImagenes: boolean): string[] {
 const tieneImagenes = (entrada: Record<string, any>) =>
   JSON.stringify(entrada.messages ?? []).includes('"image_url"');
 
+/**
+ * El modelo que responde por uno que Workers AI retiró (MODELOS_RETIRADOS). El 2026-11-20 Cloudflare retiró de golpe
+ * GLM 5.3 flash (el de defecto de los lectores, los agentes y la API), DeepSeek V4 Pro, Kimi K2.6 y otros: todo pedido
+ * a ellos devolvía 5028 y los clientes reintentaban hasta agotarse. Así, quien siga pidiendo el viejo recibe el vigente
+ * y `x-vigia-modelo` dice cuál contestó (los libros de costo cobran a ese precio).
+ */
+export function vigente(env: { MODELOS_RETIRADOS?: string }, modelo: string): string {
+  let mapa: Record<string, string> = {};
+  try {
+    mapa = JSON.parse(env.MODELOS_RETIRADOS ?? "{}");
+  } catch {
+    /* sin mapa */
+  }
+  let m = modelo;
+  for (let i = 0; i < 3 && mapa[m]; i++) m = mapa[m];
+  return m;
+}
+
 /** Corre el pedido en el modelo y, si está saturado, en sus hermanos. Devuelve quién contestó o el último error. */
 export async function correrConHermanos(env: Env, modelo: string, entrada: Record<string, any>): Promise<{ salida?: unknown; quien: string; falla?: string }> {
-  const lista = [modelo, ...hermanos(env, modelo, tieneImagenes(entrada))];
+  const lista = [...new Set([modelo, ...hermanos(env, modelo, tieneImagenes(entrada))].map((m) => vigente(env, m)))];
   let falla = "";
   for (const m of lista) {
     try {
