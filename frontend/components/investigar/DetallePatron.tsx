@@ -1234,6 +1234,12 @@ export function detalleObservacion(p: PatronObservacion): Detalle {
         procedimiento sancionador en otro proceso{infraccionPalabras(p.infraccion) ? <> por presunta {infraccionPalabras(p.infraccion)}</> : ""}, y antes de
         cualquier sanción registrada.
       </>
+    ) : p.tipo === "gano_pese_al_tribunal" ? (
+      <>
+        El Tribunal de Contrataciones le quitó a <b>{emp}</b> la buena pro de este proceso de <b>{ent}</b> y se la otorgó al postor que apeló,
+        sin anular el proceso. {p.diasDespues != null ? <><b>{plural(p.diasDespues, "día", "días")}</b> después</> : "Después"}, la misma empresa
+        figura como ganadora.
+      </>
     ) : p.tipo === "tribunal_corrigio_otra_vez" ? (
       <>
         El Tribunal de Contrataciones corrigió este proceso de <b>{ent}</b> y, cuando la entidad volvió a decidir, lo corrigió otra vez
@@ -1321,6 +1327,14 @@ export function detalleObservacion(p: PatronObservacion): Detalle {
             { etiqueta: "Por presunta", valor: p.tipo !== "tribunal_revoco_buena_pro" ? (infraccionPalabras(p.infraccion) ? oracion(infraccionPalabras(p.infraccion)!) : null) : null },
             { etiqueta: "Ganó después de la orden", valor: p.diasDespues != null ? plural(p.diasDespues, "día", "días") : null, mono: true },
             { etiqueta: "De dónde sale", valor: "Resolución del Tribunal de Contrataciones leída por Vigía, con el nombre comprobado en su texto" },
+          ]
+      : p.tipo === "gano_pese_al_tribunal"
+        ? [
+            { etiqueta: "Resolución del Tribunal", valor: p.resolucion ?? null },
+            { etiqueta: "Qué ordenó", valor: "Quitarle la buena pro y otorgársela al postor que apeló" },
+            { etiqueta: "Volvió a figurar como ganadora", valor: p.buenaProDespues ? fechaConAnio(p.buenaProDespues) : null },
+            { etiqueta: "Días después de la resolución", valor: p.diasDespues != null ? numero(p.diasDespues) : null, mono: true },
+            { etiqueta: "De dónde sale", valor: p.fuenteAdjudicacion === "conosce" ? "Resolución leída por Vigía y CONOSCE" : "Resolución leída por Vigía y la adjudicación publicada en el SEACE (OCDS)" },
           ]
       : p.tipo === "tribunal_corrigio_otra_vez"
         ? [
@@ -1441,6 +1455,13 @@ export function detalleObservacion(p: PatronObservacion): Detalle {
             "Mira en la ficha de la empresa si le pasó en otras entidades y si ya fue sancionada (Historial).",
             "Revisa los procesos que ganó después: qué documentos presentó y quién los evaluó.",
             "Descarta la explicación sencilla: un error de forma corregido o un sancionador que terminó sin sanción.",
+          ]
+      : p.tipo === "gano_pese_al_tribunal"
+        ? [
+            "Lee la parte resolutiva: a quién le otorgó la buena pro el Tribunal.",
+            "Pide a la entidad el acto que adjudicó después: si el otro postor no firmó o perdió la buena pro, debe constar.",
+            "Mira si el Tribunal dispuso informar al titular de la entidad o al órgano de control (suele estar en los puntos finales).",
+            "Descarta la explicación sencilla: un ítem distinto del mismo proceso, o una adjudicación con fecha mal registrada.",
           ]
       : p.tipo === "tribunal_corrigio_otra_vez"
         ? [

@@ -123,6 +123,9 @@ const CASOS: Caso[] = [
       return c.length >= 5 && c.every((x) => (x.rondas_de_correccion ?? 0) >= 2) && /"el_tribunal_dice_que_no_acataron":true/.test(j)
         ? null : `casos: ${c.length}`;
     } },
+  // Ganó pese al Tribunal (439): TRADING CEAR en 1214248, con la fecha en que volvió a figurar como ganadora.
+  { h: patrones as never, args: { alcance: "observacion", indicador: "gano_pese_al_tribunal" },
+    espera: (r) => (/"gano_de_nuevo_el":"2026-06-02"/.test(JSON.stringify(r)) ? null : "sin el caso de 1214248") },
   // Buscador de resoluciones (434): por palabras sin tildes, por número, por empresa y sin filtros (error de usuario).
   { h: buscarResolucionesTribunal as never, args: { pregunta: "experiencia del personal clave", corrigio: true, por_relevancia: true },
     espera: (r) => {

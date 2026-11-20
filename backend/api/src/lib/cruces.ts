@@ -51,6 +51,7 @@ export const ETIQUETA_CRUCE: Record<string, string> = {
   gana_con_sancionador_abierto: "Ganó mientras tenía abierto un procedimiento sancionador que ordenó el Tribunal",
   comite_corregido_tribunal: "Un integrante del comité cuyas evaluaciones el Tribunal corrige más que en el resto de la entidad",
   tribunal_corrigio_otra_vez: "El Tribunal de Contrataciones corrigió el proceso y, cuando la entidad volvió a decidir, lo corrigió otra vez",
+  gano_pese_al_tribunal: "Ganó el proceso después de que el Tribunal le quitara la buena pro para dársela al postor que apeló",
   socio_comun: "Comparte socio o representante con otro postor",
   // Competencia y conflicto en el proceso (migración 122).
   unico_postor: "Único postor del proceso",
@@ -431,7 +432,7 @@ async function abrirConsorcios(ganadores: Ganador[]): Promise<Ganador[]> {
  * o el Tribunal le ordenó un sancionador), no necesariamente quien terminó ganando. Van en la ficha aunque el proceso no
  * tenga ganador (sigue trabado en el Tribunal: 1218922, corregido en tres rondas, no mostraba nada) o lo haya ganado otra.
  */
-const DEL_PROCESO_TRIBUNAL = ["tribunal_revoco_buena_pro", "tribunal_sancionador", "tribunal_corrigio_otra_vez"];
+const DEL_PROCESO_TRIBUNAL = ["tribunal_revoco_buena_pro", "tribunal_sancionador", "tribunal_corrigio_otra_vez", "gano_pese_al_tribunal"];
 
 export async function crucesDeProceso(ocid: string, ganadores: Ganador[]): Promise<Cruce[]> {
   const porRuc = new Map<string, Ganador>();

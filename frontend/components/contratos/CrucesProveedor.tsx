@@ -286,6 +286,7 @@ const POR_QUE: Record<string, string> = {
   comite_corregido_tribunal: "Cada vez que el Tribunal declara fundada una apelación o anula el proceso, dice que el comité calificó mal, descalificó mal o aceptó bases con un vicio. Que le pase una y otra vez a la misma persona del comité es el patrón de un evaluador que favorece a alguien o no respeta las reglas. Vale leer las resoluciones: si el error se repite y si beneficia siempre a la misma empresa.",
   tribunal_sancionador: "Presentar documentos falsos o información inexacta es la infracción más grave de la ley de contrataciones: se sanciona con inhabilitación de hasta diez años. Vale ver qué documento cuestionó el Tribunal, si la empresa ya fue sancionada (Historial) y si sigue ganando contratos mientras se investiga.",
   tribunal_revoco_buena_pro: "Que el Tribunal revoque una buena pro dice que el comité calificó mal: dejó pasar una oferta que no cumplía o descalificó mal a otra. Vale leer la resolución para ver qué no cumplía y mirar si a la misma empresa le pasó en otras entidades.",
+  gano_pese_al_tribunal: "Una resolución del Tribunal que otorga la buena pro a otro postor es vinculante. Si la empresa revocada termina ganando el mismo proceso, hay que ver el acto que lo permitió: si el otro postor no firmó, la buena pro pasa al siguiente en el orden y puede ser legítimo; si no, la entidad no cumplió lo ordenado.",
   tribunal_corrigio_otra_vez: "Cuando el Tribunal declara fundada una apelación, le ordena al comité qué rehacer. Si el mismo proceso vuelve y el Tribunal lo corrige otra vez, el comité repitió el error o no cumplió lo ordenado: por torpeza o por empeño en un resultado. Vale leer las resoluciones en orden y ver a quién favorecía cada decisión.",
   gana_con_sancionador_abierto: "La entidad no puede rechazar una oferta por un sancionador en trámite, pero sí debe verificar los documentos de la oferta. Si la empresa ya estaba bajo investigación por documentos falsos, vale revisar con lupa la experiencia y los certificados que presentó en este proceso.",
   comite_competencia_restringida: "Quien integra el comité decide quién cumple los requisitos. Si en los procesos de una misma persona la competencia queda restringida (un solo postor, descalificaciones, sólo el ganador admitido) mucho más que en el resto de la entidad, y eso no se explica por azar, es el patrón del evaluador que filtra a los postores. Vale leer en las actas por qué quedaron fuera los demás y si los requisitos se pidieron igual en todos los procesos.",
@@ -727,6 +728,18 @@ function Texto({ c, gobierna }: { c: CruceProveedor; gobierna?: GobiernoContrato
             <Link href={rutaContrato(origen, "ficha")} prefetch={false} className={ENLACE_TXT}>otro proceso</Link>
           ) : "otro proceso"}
           {res ? <> ({res})</> : ""}, y sin una sanción registrada antes de la buena pro.
+        </>
+      );
+    }
+    case "gano_pese_al_tribunal": {
+      // Migración 439: la resolución otorgó la buena pro al impugnante y la empresa revocada figura después como ganadora.
+      const res = txt(d.resolucion);
+      const dias = n(d.dias_despues);
+      return (
+        <>
+          El Tribunal de Contrataciones le quitó la buena pro a <Emp c={c} />{res ? <> en la <b>{res}</b></> : null} y se la otorgó al postor
+          que apeló, sin anular el proceso. {dias != null ? <><b>{numero(dias)} días</b> después</> : "Después"}, la misma empresa figura como
+          ganadora en {d.fuente_adjudicacion === "conosce" ? "CONOSCE" : "la adjudicación publicada en el SEACE"}.
         </>
       );
     }

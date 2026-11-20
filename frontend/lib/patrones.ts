@@ -521,7 +521,8 @@ export interface PatronObservacion {
     | "tribunal_sancionador"
     | "tribunal_revoco_buena_pro"
     | "gana_con_sancionador_abierto"
-    | "tribunal_corrigio_otra_vez";
+    | "tribunal_corrigio_otra_vez"
+    | "gano_pese_al_tribunal";
   etiqueta: string;
   severidad: "alta" | "media" | "baja";
   ocid: string;
@@ -603,6 +604,9 @@ export interface PatronObservacion {
   desacato?: boolean | null;
   motivoDesacato?: string | null;
   resoluciones?: { titulo: string; fecha: string; resultado: string | null; ronda: number; enlace: string }[] | null;
+  /** Ganó pese al Tribunal (migración 439): cuándo volvió a figurar como ganadora y de qué fuente (ocds o conosce). */
+  buenaProDespues?: string | null;
+  fuenteAdjudicacion?: string | null;
 }
 
 export interface PatronesObservacion {

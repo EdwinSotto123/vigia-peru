@@ -1407,7 +1407,7 @@ patronesRouter.get("/renovaciones", async (c) => {
 const TIPOS_OBSERVACION = ["reunion_en_evaluacion", "visita_personal_decisor", "ofertas_a_la_vez", "trabajo_en_el_ganador",
   "firma_en_plazo_de_apelacion", "solo_admitido_el_ganador", "comite_mismo_ganador", "comite_socio_proveedor",
   "comite_competencia_restringida", "comite_corregido_tribunal", "tribunal_sancionador", "tribunal_revoco_buena_pro",
-  "gana_con_sancionador_abierto", "tribunal_corrigio_otra_vez"] as const;
+  "gana_con_sancionador_abierto", "tribunal_corrigio_otra_vez", "gano_pese_al_tribunal"] as const;
 const Observacion = z.object({
   tipo: z.enum(TIPOS_OBSERVACION).optional(),
   ruc: z.string().regex(/^20\d{9}$/).optional(),
@@ -1480,6 +1480,8 @@ patronesRouter.get("/observacion", async (c) => {
                 (k.detalle->>'rondas')::int AS rondas, (k.detalle->>'misma_empresa')::boolean AS "mismaEmpresa",
                 (k.detalle->>'desacato')::boolean AS desacato, k.detalle->>'motivo_desacato' AS "motivoDesacato",
                 k.detalle->'resoluciones' AS resoluciones,
+                -- gano_pese_al_tribunal (439): cuándo volvió a figurar como ganadora y de qué fuente.
+                k.detalle->>'buena_pro_despues' AS "buenaProDespues", k.detalle->>'fuente_adjudicacion' AS "fuenteAdjudicacion",
                 k.detalle->>'consentimiento_registrado' AS consentimiento, k.detalle->>'norma' AS norma,
                 COALESCE(k.detalle->>'area_funcionario', k.detalle->'visitas'->-1->>'area') AS area,
                 (k.detalle->>'minutos')::float AS minutos, k.detalle->>'hora_ganador' AS "horaGanador", k.detalle->>'hora_otro' AS "horaOtro",

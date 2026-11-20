@@ -278,6 +278,13 @@ function porQuePesa(x: Fila): string | undefined {
       const dias = n(d.dias_despues);
       return `Ganó ${dias != null ? `${dias} días ` : ""}después de que el Tribunal ordenara abrirle un sancionador por presunta ${que} en otro proceso${res}${d.ocid_origen ? ` (OCID ${d.ocid_origen})` : ""}, sin sanción registrada antes de la buena pro.`;
     }
+    case "gano_pese_al_tribunal": {
+      // Migración 439: la resolución otorgó la buena pro al impugnante y la empresa revocada figura después como ganadora.
+      const dias = n(d.dias_despues);
+      return `El Tribunal le quitó la buena pro${d.resolucion ? ` (${d.resolucion})` : ""} y se la otorgó al postor que apeló, sin anular el proceso; ` +
+        `${dias != null ? `${dias} días después` : "después"} la misma empresa figura como ganadora (${d.fuente_adjudicacion === "conosce" ? "CONOSCE" : "OCDS del SEACE"}). ` +
+        "Puede explicarse si el otro postor no firmó y la buena pro pasó al siguiente; si no, la entidad no cumplió una resolución vinculante.";
+    }
     case "tribunal_corrigio_otra_vez": {
       // Migración 434: rondas de corrección del mismo proceso; si la empresa tuvo la buena pro en dos y si hubo desacato.
       const rondas = n(d.rondas);

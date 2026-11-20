@@ -859,7 +859,7 @@ export const patrones = definir({
     indicador: z.enum(["reunion_en_evaluacion", "visita_personal_decisor", "ofertas_a_la_vez", "trabajo_en_el_ganador",
       "firma_en_plazo_de_apelacion", "solo_admitido_el_ganador", "comite_mismo_ganador", "comite_socio_proveedor",
       "comite_competencia_restringida", "comite_corregido_tribunal", "tribunal_sancionador", "tribunal_revoco_buena_pro",
-      "gana_con_sancionador_abierto", "tribunal_corrigio_otra_vez"]).optional()
+      "gana_con_sancionador_abierto", "tribunal_corrigio_otra_vez", "gano_pese_al_tribunal"]).optional()
       .describe("(observacion) Sólo uno de los indicadores en observación."),
     integrante_del_comite: z.string().regex(/^[0-9a-f]{10}$/).optional()
       .describe("(observacion) La clave de una persona del comité (integrante_del_comite de comite_mismo_ganador o comite_socio_proveedor): todos sus contratos marcados en las dos señales, sin su nombre."),
@@ -1129,6 +1129,8 @@ export const patrones = definir({
           el_tribunal_dice_que_no_acataron: x.desacato === true ? true : undefined,
           motivo_del_desacato: x.motivoDesacato ?? undefined,
           resoluciones: Array.isArray(x.resoluciones) && x.resoluciones.length > 1 ? x.resoluciones : undefined,
+          // gano_pese_al_tribunal (439).
+          gano_de_nuevo_el: x.buenaProDespues ?? undefined,
         })),
         como_leerlo:
           "Son indicadores EN OBSERVACIÓN: Vigía todavía mide cuántas veces aciertan, así que no cuentan para el puntaje del " +
@@ -1173,6 +1175,9 @@ export const patrones = definir({
           "decidir (7 días o más después), lo corrigió otra vez; rondas_de_correccion las cuenta. Pesa más si la entidad " +
           "mantuvo a la misma empresa con la buena pro en dos rondas o si el Tribunal escribe que el comité no acató lo que " +
           "le ordenó (motivo_del_desacato). " +
+          "gano_pese_al_tribunal: el Tribunal le quitó la buena pro y se la otorgó al postor que apeló, sin anular el " +
+          "proceso, y la empresa revocada figura después como ganadora (gano_de_nuevo_el). Puede explicarse si el otro " +
+          "postor no firmó; si no, la entidad no cumplió una resolución vinculante. " +
           "firma_en_plazo_de_apelacion: en un ítem con dos o más ofertas, el " +
           "contrato se firmó antes del 5.º día hábil siguiente a la buena pro, cuando los otros postores todavía podían " +
           "apelarla (el contrato se perfecciona después del consentimiento: arts. 64 y 141 del reglamento de la Ley 30225; " +

@@ -2937,6 +2937,7 @@ const NOMBRE_OBSERVACION: Record<PatronObservacion["tipo"], string> = {
   tribunal_revoco_buena_pro: "El Tribunal le quitó la buena pro",
   gana_con_sancionador_abierto: "Ganó con un sancionador del Tribunal abierto",
   tribunal_corrigio_otra_vez: "El Tribunal corrigió el proceso otra vez",
+  gano_pese_al_tribunal: "Ganó pese a que el Tribunal le dio la buena pro a otro",
 };
 
 /** Cuándo fue el empleo frente a la buena pro (trabajo_en_el_ganador). */
@@ -3079,6 +3080,9 @@ function evidenciaObservacion(p: PatronObservacion): string {
   }
   if (p.tipo === "gana_con_sancionador_abierto") {
     return `Ganó ${p.diasDespues != null ? `${plural(p.diasDespues, "día", "días")} ` : ""}después de que el Tribunal ordenara abrirle un sancionador${p.resolucion ? ` (${p.resolucion})` : ""}`;
+  }
+  if (p.tipo === "gano_pese_al_tribunal") {
+    return `El Tribunal le quitó la buena pro${p.resolucion ? ` (${p.resolucion})` : ""} para dársela a quien apeló; después figura como ganadora${p.diasDespues != null ? ` (${plural(p.diasDespues, "día", "días")} más tarde)` : ""}`;
   }
   if (p.tipo === "tribunal_corrigio_otra_vez") {
     return `El Tribunal lo corrigió en ${plural(p.rondas ?? 2, "ronda", "rondas")}${p.mismaEmpresa ? "; la misma empresa tuvo la buena pro en más de una" : ""}${p.desacato ? "; el comité no acató lo que le ordenó" : ""}`;

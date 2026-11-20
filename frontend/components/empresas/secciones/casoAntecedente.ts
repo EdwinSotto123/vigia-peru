@@ -939,6 +939,17 @@ export function datosDe(a: AntecedenteEmpresa, ruc: string): DatoCaso[] {
       },
       delProceso(),
     );
+  } else if (t === "gano_pese_al_tribunal") {
+    // Migración 439.
+    const dias = num(d.dias_despues);
+    add(
+      txt(d.resolucion) && { etiqueta: "Resolución del Tribunal", valor: txt(d.resolucion)! },
+      { etiqueta: "Qué ordenó", valor: "Quitarle la buena pro y otorgársela al postor que apeló" },
+      dias != null && { etiqueta: "Volvió a figurar como ganadora", valor: `${plural(dias, "día", "días")} después` },
+      { etiqueta: "De dónde sale", valor: "Resolución del Tribunal leída por Vigía y la adjudicación publicada en el SEACE", soloPanel: true },
+      monto(),
+      delProceso(),
+    );
   } else if (t === "tribunal_corrigio_otra_vez") {
     // Migración 434: el Tribunal corrigió el proceso en dos rondas o más.
     const rondas = num(d.rondas);
