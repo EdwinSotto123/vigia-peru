@@ -138,6 +138,22 @@ def _texto(por_id: dict, pid) -> str | None:
         return None
 
 
+def insertar_parte(cur, pid: int, rol: str, n: int, nombre: str, ocids: list[str] | None = None) -> bool:
+    """Una parte con su RUC 20 (tribunal_ruc_de en los procesos de la resolución); un consorcio, por sus integrantes."""
+    if ocids is None:
+        cur.execute("SELECT array_agg(ocid) FROM tribunal_proceso WHERE resolucion_id = %s AND ocid IS NOT NULL", (pid,))
+        ocids = cur.fetchone()[0] or []
+    rucs: dict[str, str] = {}
+    for cand in T.nombres_de(nombre):
+        cur.execute("SELECT ruc, via FROM tribunal_ruc_de(%s, %s)", (cand, ocids))
+        for ruc, via in cur.fetchall():
+            rucs.setdefault(ruc, via)
+    for ruc, via in (list(rucs.items()) or [(None, None)]):
+        cur.execute("""INSERT INTO tribunal_parte (resolucion_id, rol, n, nombre, ruc, via) VALUES (%s,%s,%s,%s,%s,%s)
+                       ON CONFLICT DO NOTHING""", (pid, rol, n, nombre[:300], ruc, via))
+    return bool(rucs)
+
+
 def guardar_partes(cur, pid: int, s: dict) -> int:
     """El adjudicatario y los destinatarios del sancionador (migración 424), cada nombre comprobado en el texto, unidos a
     su RUC 20 con tribunal_ruc_de() en los procesos de la resolución. Un consorcio se parte en sus integrantes."""
@@ -146,18 +162,7 @@ def guardar_partes(cur, pid: int, s: dict) -> int:
     cur.execute("DELETE FROM tribunal_parte WHERE resolucion_id = %s", (pid,))
     partes = [("adjudicatario", s.get("_adjudicatario_ok"))] if s.get("_adjudicatario_ok") else []
     partes += [("sancionador", x) for x in s.get("_sancionador_ok") or []]
-    unidas = 0
-    for n, (rol, nombre) in enumerate(partes, 1):
-        rucs: dict[str, str] = {}
-        for cand in T.nombres_de(nombre):
-            cur.execute("SELECT ruc, via FROM tribunal_ruc_de(%s, %s)", (cand, ocids))
-            for ruc, via in cur.fetchall():
-                rucs.setdefault(ruc, via)
-        for ruc, via in (list(rucs.items()) or [(None, None)]):
-            cur.execute("""INSERT INTO tribunal_parte (resolucion_id, rol, n, nombre, ruc, via) VALUES (%s,%s,%s,%s,%s,%s)
-                           ON CONFLICT DO NOTHING""", (pid, rol, n, nombre[:300], ruc, via))
-        unidas += bool(rucs)
-    return unidas
+    return sum(insertar_parte(cur, pid, rol, n, nombre, ocids) for n, (rol, nombre) in enumerate(partes, 1))
 
 
 # Hasta cuándo se puede empezar algo nuevo (time.monotonic). Lo fija main() con --tope-min.
@@ -235,6 +240,20 @@ def recomprobar(cn, cur, por_id: dict) -> int:
         s = T.comprobar({"resultado": resultado, "cita_resolutivo": "", "procedimientos": []}, texto)
         cur.execute("""UPDATE tribunal_resolucion SET resultado_regla = %s, resultado_ok = %s, corregido_ok = %s, regla_version = %s
                         WHERE id = %s""", (s["_resultado_regla"], s["_resultado_ok"], s["_corregido_ok"], T.VERSION_REGLA, pid))
+        # Regla 3: los destinatarios del sancionador ya guardados se recomprueban en el punto que lo ordena.
+        cur.execute("SELECT DISTINCT n, nombre FROM tribunal_parte WHERE resolucion_id = %s AND rol = 'sancionador' ORDER BY n", (pid,))
+        previos = [x[1] for x in cur.fetchall()]
+        if previos:
+            quedan = T.sancionados_en(texto, previos)
+            if quedan != previos:
+                cur.execute("DELETE FROM tribunal_parte WHERE resolucion_id = %s AND rol = 'sancionador'", (pid,))
+                cur.execute("SELECT COALESCE(max(n), 0) FROM tribunal_parte WHERE resolucion_id = %s", (pid,))
+                base = cur.fetchone()[0]
+                for i, nombre in enumerate(quedan, base + 1):
+                    insertar_parte(cur, pid, "sancionador", i, nombre)
+                if not quedan:
+                    cur.execute("UPDATE tribunal_resolucion SET infraccion = '{}' WHERE id = %s", (pid,))
+                print(f"   {pid}: sancionador {len(previos)} → {len(quedan)}", flush=True)
         n += 1
         if n % 500 == 0:
             cn.commit()

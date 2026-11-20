@@ -13,7 +13,10 @@ import re
 # procedimiento sancionador (sancionador_contra, infraccion). tribunal_cargar.py relee las v1 por tramos.
 VERSION = "v2"
 # La regla que comprueba el resultado (resultado_de_texto). Al cambiarla, tribunal_cargar.py recomprueba las cargadas.
-VERSION_REGLA = "2"
+VERSION_REGLA = "3"
+# 3 (2026-11-20): el destinatario del sancionador debe estar en un punto resolutivo que ORDENE abrirlo (antes bastaba
+# que la palabra «sancionador» estuviera en la parte resolutiva y el nombre en cualquier parte del texto: salían como
+# sancionadas empresas de puntos que ARCHIVAN un sancionador o mandan copias de uno a la Fiscalía).
 # El que relee las disputas (migración 423): el modelo chico y la regla no leen lo mismo.
 MODELO_GRANDE = "@cf/zai-org/glm-5.3"
 
@@ -194,8 +197,7 @@ def comprobar(salida: dict, texto: str) -> dict:
     # ordena (la palabra está en ella): un modelo que lo deduce de los fundamentos no basta.
     adj = plano(salida.get("adjudicatario") or "")
     salida["_adjudicatario_ok"] = adj if len(_compacto(adj)) >= 6 and _compacto(adj) in t else ""
-    salida["_sancionador_ok"] = [n for n in (salida.get("sancionador_contra") or [])
-                                 if len(_compacto(n)) >= 6 and _compacto(n) in t] if ordena_sancionador(texto) else []
+    salida["_sancionador_ok"] = sancionados_en(texto, salida.get("sancionador_contra") or [])
     return salida
 
 
@@ -208,6 +210,45 @@ def parte_resolutiva(texto: str) -> str:
     resto = t[m.end():m.end() + 5000]
     fin = re.search(r"Reg[ií]strese", resto)
     return resto[:fin.start()] if fin else resto
+
+
+_PUNTO = re.compile(r"(?:^|\s)\d{1,2}\s*[.)]\s")
+
+
+def puntos_con_sancionador(texto: str) -> list[str]:
+    """Los puntos de la parte resolutiva («3. Abrir expediente administrativo sancionador contra …») que ordenan abrir
+    un procedimiento sancionador, cada uno entero. Sin puntos numerados, la parte resolutiva entera si lo menciona."""
+    res = parte_resolutiva(texto)
+    cortes = [m.start() for m in _PUNTO.finditer(res)] or [0]
+    if cortes[0] != 0:
+        cortes = [0, *cortes]
+    trozos = [res[a:b] for a, b in zip(cortes, [*cortes[1:], len(res)])]
+    # Que ORDENE abrirlo: un verbo de apertura antes de «sancionador» en la misma oración («abrir expediente
+    # administrativo sancionador», «disponga el inicio del procedimiento sancionador») o «sancionador contra …». No
+    # cuenta el punto que archiva uno («el archivo definitivo del expediente administrativo sancionador seguido a …»)
+    # ni el que manda copias de un expediente sancionador a la Fiscalía.
+    return [x for x in trozos if _ORDENA.search(x)]
+
+
+_ORDENA = re.compile(r"\b(?:abr[aei]\w*|inici\w*|apertur\w*)\b[^.;]{0,120}?sancionador|sancionador\s+contra\b", re.I)
+
+
+def sancionados_en(texto: str, nombres: list[str]) -> list[str]:
+    """De los nombres que dio el modelo, los que están en un punto resolutivo que ordena el sancionador. Un consorcio con
+    sus integrantes («Consorcio X, integrado por A y B»): vale entero, o cada integrante que figure en ese punto."""
+    puntos = [_compacto(x) for x in puntos_con_sancionador(texto)]
+    if not puntos:
+        return []
+    salen: list[str] = []
+    for n in nombres:
+        n = plano(n)
+        c = _compacto(n)
+        if len(c) >= 6 and any(c in p for p in puntos):
+            candidatos = [n]
+        else:
+            candidatos = [x for x in nombres_de(n)[1:] if len(_compacto(x)) >= 6 and any(_compacto(x) in p for p in puntos)]
+        salen += [x for x in candidatos if x not in salen]
+    return salen
 
 
 def ordena_sancionador(texto: str) -> bool:

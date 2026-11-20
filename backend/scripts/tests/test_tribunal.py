@@ -115,3 +115,27 @@ def test_el_sancionador_solo_si_la_parte_resolutiva_lo_ordena():
     s = T.comprobar({"resultado": "fundado", "cita_resolutivo": "", "procedimientos": [],
                      "sancionador_contra": ["Beta Obras S.A.C."]}, sin)
     assert s["_sancionador_ok"] == []
+
+
+def test_el_sancionado_debe_estar_en_el_punto_que_lo_ordena():
+    # Una empresa del proceso aparece en el texto, pero el punto que ordena el sancionador nombra a otra.
+    texto = ("… la buena pro otorgada a JLA Ingeniería y Construcción S.A.C. … LA SALA RESUELVE: 1. Declarar FUNDADO el "
+             "recurso de apelación interpuesto por JLA Ingeniería y Construcción S.A.C. 2. Poner en conocimiento de la "
+             "Secretaría del Tribunal, a efectos que disponga abrir procedimiento administrativo sancionador contra la "
+             "empresa CONSTRUCTORA TORRE VIALES S.A.C., por la presunta comisión de la infracción. 3. Devolver la "
+             "garantía. Regístrese, comuníquese y publíquese.")
+    assert T.sancionados_en(texto, ["JLA Ingeniería y Construcción S.A.C.", "Constructora Torre Viales S.A.C."]) == [
+        "Constructora Torre Viales S.A.C."]
+    # Un consorcio: vale cada integrante que figure en el punto.
+    texto = ("LA SALA RESUELVE: 1. Declarar INFUNDADO el recurso. 2. Remitir a la Secretaría para que inicie el "
+             "Procedimiento Administrativo Sancionador contra los integrantes del CONSORCIO SUPERVISOR ACTIVO 1, "
+             "conformado por los proveedores R&C INGENIEROS CONSULTORES Y CONSTRUCTORES SRL y DELTA OBRAS S.A.C. "
+             "Regístrese, comuníquese y publíquese.")
+    assert T.sancionados_en(texto, ["Consorcio Supervisor Activo 2, integrado por R&C Ingenieros Consultores y "
+                                    "Constructores SRL y Gamma S.A.C."]) == ["R&C Ingenieros Consultores y Constructores SRL"]
+
+
+def test_archivar_un_sancionador_no_es_ordenarlo():
+    texto = ("LA SALA RESUELVE: 1. Declarar NO HA LUGAR a la imposición de sanción contra Delta Obras S.A.C. 2. Disponer el "
+             "archivo definitivo del expediente administrativo sancionador seguido a Delta Obras S.A.C. Regístrese.")
+    assert T.sancionados_en(texto, ["Delta Obras S.A.C."]) == []
