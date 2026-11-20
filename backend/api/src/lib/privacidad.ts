@@ -127,7 +127,9 @@ export function esClaveDocumento(k: string): boolean {
 }
 
 /** Campos de identificadores técnicos: un valor de 8 dígitos ahí es un código, no un DNI. */
-const esClaveId = (k: string) => /^(id|ocid|uuid|cui|snip|hash|codigo|cod)$|(_id|Id|_sha256|sha256|_codigo|_cod)$|^codigo_|^cod_/i.test(k);
+// `ipressCodigo` (Gobserva Salud, 2026-11-20): el código de 8 cifras de una IPRESS de RENIPRESS se tapaba como un DNI y
+// rompía los enlaces a su ficha. Va por nombre exacto: un sufijo «Codigo» en general podría esconder un documento.
+const esClaveId = (k: string) => /^(id|ocid|uuid|cui|snip|hash|codigo|cod|ipressCodigo)$|(_id|Id|_sha256|sha256|_codigo|_cod)$|^codigo_|^cod_/i.test(k);
 
 // ─── Nombres ──────────────────────────────────────────────────────────────────
 

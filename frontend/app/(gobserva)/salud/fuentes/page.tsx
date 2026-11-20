@@ -1,0 +1,362 @@
+import type { Metadata } from "next";
+import Link from "next/link";
+import {
+  Activity, ArrowRight, ArrowUpRight, Building2, Cable, ClipboardList, Database, EyeOff, FileClock, Fingerprint, Gavel, GraduationCap, History, IdCard, Landmark,
+  MessageSquareWarning, Phone, RefreshCw, RotateCw, Rows3, Scissors, ShieldOff, Stethoscope, TriangleAlert, UserX, type LucideIcon,
+} from "lucide-react";
+import { EstadoError } from "@/components/gobserva/ui/Estados";
+import { FuenteFecha, InsigniaHecho } from "@/components/salud/comun";
+import { ClasesDeHecho } from "@/components/salud/fuentes/ClasesDeHecho";
+import { URL_CMP, URL_SUNEDU } from "@/components/salud/fuentes/urls";
+import { CabeceraSeccion, Encabezado, Ruta } from "@/components/salud/portada/Piezas";
+import { claseAccion } from "@/components/ui/EnlaceAccion";
+import { rutaEn, urlCanonica } from "@/lib/gobserva";
+import { fechaCorta, getFuentesSalud, numero, type EstadoFuentes, type FuenteSalud } from "@/lib/gobserva-salud";
+import { baseProducto } from "@/lib/gobserva-servidor";
+
+export const dynamic = "force-dynamic";
+
+export const metadata: Metadata = {
+  title: "Fuentes y método",
+  description:
+    "De dónde sale cada dato de Gobserva Salud: RENIPRESS, el Registro de Sanciones y los datos abiertos de SUSALUD, con la fecha, las filas y la huella de cada carga, qué clase de hecho aporta cada fuente y lo que no verificamos de forma automática.",
+  alternates: { canonical: urlCanonica("salud", "/fuentes") },
+};
+
+const ICONO: Record<string, LucideIcon> = {
+  renipress: Building2,
+  sanciones: Gavel,
+  denuncias: MessageSquareWarning,
+  recursos: Activity,
+  cirugias: Scissors,
+  cmp: Stethoscope,
+  sunedu: GraduationCap,
+};
+
+/** La fecha de la tabla de cada fuente (lo que hay cargado), cuando no hay una carga registrada con su archivo. */
+function fechaTabla(clave: string, e: EstadoFuentes): string | number | null {
+  switch (clave) {
+    case "renipress":
+      return e.renipressAl;
+    case "sanciones":
+      return e.sancionesAl;
+    case "denuncias":
+      return e.denunciasAl;
+    case "recursos":
+      return e.recursosAl ? e.recursosAl.slice(0, 7) : null;
+    case "cirugias":
+      return e.cirugiasAl ? e.cirugiasAl.slice(0, 7) : null;
+    default:
+      return null;
+  }
+}
+
+/** «2026-11-20T09:41» → «20 nov. 2026, 09:41». */
+const fechaHora = (t: string | null) => (t ? `${fechaCorta(t)}${t.length > 10 ? `, ${t.slice(11, 16)}` : ""}` : "sin fecha");
+
+/**
+ * /fuentes de Gobserva Salud (2026-11-20): el método y la trazabilidad. Cada fuente con qué es, qué clase de hecho aporta,
+ * su «ojo», cada cuánto se actualiza, su enlace oficial y su última carga (archivo, fecha, filas y el comienzo de su
+ * sha256); la cobertura del detalle por establecimiento; las cuatro clases de hecho; la privacidad; y lo que no se verifica
+ * de forma automática y por qué. GET /salud/fuentes.
+ */
+export default async function Fuentes() {
+  const base = baseProducto("salud");
+  const d = await getFuentesSalud();
+  const ruta = (p: string) => rutaEn(base, p);
+  const e = d?.estado;
+  const pct = e && e.detalle.total ? Math.round((e.detalle.leidas / e.detalle.total) * 1000) / 10 : 0;
+
+  return (
+    <div className="container-page pb-10 pt-5 sm:pb-14 sm:pt-6">
+      <Ruta items={[{ etiqueta: "Inicio", href: ruta("/") }, { etiqueta: "Fuentes y método" }]} />
+      <Encabezado
+        className="mt-2"
+        titulo="Fuentes y método"
+        bajada="Cada dato de Gobserva Salud sale de un registro oficial, con su fecha. Aquí está cada fuente, qué aporta, qué hay que saber de ella y la última vez que la cargamos."
+      />
+
+      {!d || !e ? (
+        <div className="mt-8 rounded-2xl border border-line bg-paper">
+          <EstadoError
+            texto="No pudimos leer el estado de las fuentes ahora. Vuelve a intentarlo en unos segundos."
+            acciones={
+              <a href={ruta("/fuentes")} className={claseAccion("secundario", "min-h-11")}>
+                <RotateCw size={15} aria-hidden /> Volver a intentar
+              </a>
+            }
+          />
+        </div>
+      ) : (
+        <div className="mt-10 space-y-16 sm:space-y-20">
+          {/* ── Cada fuente ────────────────────────────────────────────────────── */}
+          <section aria-labelledby="cada-t">
+            <CabeceraSeccion id="cada-t" titulo="Cada fuente, con su última carga" />
+            <ol className="mt-6 space-y-4">
+              {d.fuentes.map((f) => (
+                <Fuente key={f.clave} f={f} e={e} />
+              ))}
+            </ol>
+          </section>
+
+          {/* ── Cobertura del detalle ────────────────────────────────────────── */}
+          <section aria-labelledby="detalle-t" className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] lg:items-center lg:gap-12">
+            <div className="min-w-0">
+              <CabeceraSeccion
+                id="detalle-t"
+                titulo="El detalle de cada establecimiento"
+                bajada="Los servicios autorizados (UPSS), las especialidades, los documentos declarados y la colegiatura del responsable no vienen en el archivo de RENIPRESS: se leen de la ficha de cada IPRESS, una por una, cada 30 días o al abrir su ficha aquí."
+              />
+            </div>
+            <div className="min-w-0 rounded-2xl border border-line bg-paper p-5 sm:p-6">
+              <p className="flex items-baseline justify-between gap-3">
+                <span className="text-dato font-semibold text-ink">Detalle leído</span>
+                <span className="font-display text-seccion font-bold tabular-nums text-ink">
+                  {numero(e.detalle.leidas)} <span className="text-dato font-medium text-inkSoft">de {numero(e.detalle.total)}</span>
+                </span>
+              </p>
+              <div
+                role="progressbar"
+                aria-valuemin={0}
+                aria-valuemax={e.detalle.total}
+                aria-valuenow={e.detalle.leidas}
+                aria-label="Establecimientos con el detalle leído"
+                className="mt-3 h-2.5 overflow-hidden rounded-full bg-paperDeep"
+              >
+                <div className="h-full rounded-full bg-granate" style={{ width: `${Math.max(pct, 0.6)}%` }} />
+              </div>
+              <p className="mt-2 text-meta text-inkSoft">
+                {pct.toLocaleString("es-PE")} % de los establecimientos registrados. Mientras no se lea el detalle de uno, su ficha dice «sin dato» en lo
+                que depende de él, nunca que no lo tiene.
+              </p>
+              <p className="mt-3 border-t border-line pt-3">
+                <FuenteFecha nombre="RENIPRESS, ficha de cada IPRESS (SUSALUD)" url={null}>
+                  RENIPRESS, ficha de cada IPRESS (SUSALUD), última lectura el {fechaHora(e.detalle.ultimaLectura)}
+                </FuenteFecha>
+              </p>
+            </div>
+          </section>
+
+          {/* ── Clases de hecho ─────────────────────────────────────────────────── */}
+          <section aria-labelledby="hechos-t">
+            <CabeceraSeccion
+              id="hechos-t"
+              titulo="Cuatro clases de hecho"
+              bajada="Cada fuente aporta una sola clase de hecho, con su rótulo. Nunca se suman entre ellas ni se presentan una como otra."
+            />
+            <ClasesDeHecho conFuente className="mt-6" />
+          </section>
+
+          {/* ── Privacidad ──────────────────────────────────────────────────────── */}
+          <section aria-labelledby="privacidad-t">
+            <CabeceraSeccion id="privacidad-t" titulo="Privacidad" bajada="Verificar a un establecimiento o a un médico no exige exponer a nadie." />
+            <ul className="mt-6 grid gap-x-8 gap-y-5 md:grid-cols-2">
+              <Punto Icono={UserX} titulo="Sin nombres ni documentos de profesionales">
+                Ninguna tabla de Gobserva Salud guarda nombres ni documentos de profesionales, pacientes o denunciantes. El buscador busca establecimientos: algunos consultorios están inscritos en RENIPRESS con el nombre de su titular, y así aparecen.
+              </Punto>
+              <Punto Icono={IdCard} titulo="Del responsable, sólo lo que sirve para verificarlo">
+                De quien figura como responsable de una IPRESS mostramos su colegio, su número de colegiatura y su especialidad registrada (RNE): lo
+                que se necesita para confirmarlo en su colegio.
+              </Punto>
+              <Punto Icono={EyeOff} titulo="Denuncias sin datos de quien denuncia">
+                SUSALUD publica las denuncias anonimizadas y por año: mostramos cuántas recibió cada institución, nunca quién las presentó ni de qué
+                trataba cada una.
+              </Punto>
+              <Punto Icono={Phone} titulo="Lo que parece personal, tapado">
+                Si un dato de RENIPRESS parece de una persona, como un número de celular, se muestra tapado.
+              </Punto>
+            </ul>
+          </section>
+
+          {/* ── Lo que no verificamos automáticamente ───────────────────────────── */}
+          <section aria-labelledby="fuera-t">
+            <CabeceraSeccion
+              id="fuera-t"
+              titulo="Lo que no verificamos de forma automática"
+              bajada="Estas fuentes existen, pero no se pueden leer de forma automática o no son públicas por establecimiento. Te decimos cómo consultarlas tú."
+            />
+            <ul className="mt-6 divide-y divide-line rounded-2xl border border-line bg-paper">
+              <Fuera Icono={Stethoscope} titulo="La habilitación de un médico (Colegio Médico del Perú)" href={URL_CMP} enlace="Abrir «Conoce a tu médico»">
+                Su consulta pide una cuenta y un captcha, y limita las consultas. Si un médico está hábil, su especialidad registrada (RNE) y su
+                recertificación las confirma sólo el CMP: te llevamos ahí con su número de colegiatura.
+              </Fuera>
+              <Fuera Icono={GraduationCap} titulo="El título universitario (SUNEDU)" href={URL_SUNEDU} enlace="Abrir el registro de SUNEDU">
+                El Registro Nacional de Grados y Títulos tiene captcha. Ahí se ve el título de médico cirujano y la segunda especialidad.
+              </Fuera>
+              <Fuera Icono={Landmark} titulo="La licencia municipal de funcionamiento">
+                La otorga la municipalidad de cada distrito y no hay un registro nacional abierto. Mostramos si la IPRESS declaró una licencia en
+                RENIPRESS; para confirmarla, pídela en el establecimiento o en la municipalidad.
+              </Fuera>
+              <Fuera Icono={ClipboardList} titulo="Los reclamos">
+                Se presentan en el libro de reclamaciones de cada establecimiento, que los resuelve. No hay una fuente pública de reclamos por IPRESS.
+              </Fuera>
+            </ul>
+          </section>
+
+          {/* ── Más ─────────────────────────────────────────────────────────────── */}
+          <section aria-labelledby="mas-t" className="grid gap-3 sm:grid-cols-2">
+            <h2 id="mas-t" className="sr-only">
+              Más sobre los datos
+            </h2>
+            <Link href={ruta("/cambios")} className="flex min-h-16 items-center gap-3.5 rounded-2xl border border-line bg-paper px-5 py-4 transition-colors duration-rapido hover:border-granate/40">
+              <span aria-hidden className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-granate-50 text-granate">
+                <History size={19} />
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block text-dato font-semibold text-ink">Historial de actualizaciones</span>
+                <span className="block text-meta text-inkSoft">Altas, bajas y cambios de estado o categoría en RENIPRESS, semana a semana.</span>
+              </span>
+              <ArrowRight size={16} aria-hidden className="shrink-0 text-mute" />
+            </Link>
+            <Link href={ruta("/mcp")} className="flex min-h-16 items-center gap-3.5 rounded-2xl border border-line bg-paper px-5 py-4 transition-colors duration-rapido hover:border-granate/40">
+              <span aria-hidden className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-granate-50 text-granate">
+                <Cable size={19} />
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block text-dato font-semibold text-ink">Los mismos datos en tu IA</span>
+                <span className="block text-meta text-inkSoft">El MCP abierto de Gobserva Salud, con la herramienta fuentes_salud.</span>
+              </span>
+              <ArrowRight size={16} aria-hidden className="shrink-0 text-mute" />
+            </Link>
+          </section>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** Una fuente: quién, qué clase de hecho, qué trae, el «ojo», cada cuánto, su última carga y sus enlaces. */
+function Fuente({ f, e }: { f: FuenteSalud; e: EstadoFuentes }) {
+  const Icono = ICONO[f.clave] ?? Database;
+  const carga = e.cargas[f.clave];
+  const externa = f.tipo === "verificacion_externa";
+  const tabla = fechaTabla(f.clave, e);
+  return (
+    <li className="grid gap-x-8 gap-y-4 rounded-2xl border border-line bg-paper p-5 sm:p-6 lg:grid-cols-[minmax(0,0.85fr)_minmax(0,1.6fr)]">
+      <div className="min-w-0">
+        <div className="flex items-start gap-3">
+          <span aria-hidden className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-granate-50 text-granate">
+            <Icono size={19} />
+          </span>
+          <div className="min-w-0">
+            <h3 className="font-display text-bloque font-bold leading-snug text-ink">{f.nombre}</h3>
+            <p className="mt-0.5 text-meta text-inkSoft">{f.entidad}</p>
+            <InsigniaHecho tipo={f.tipo} className="mt-2" />
+          </div>
+        </div>
+        <ul className="mt-4 space-y-1.5 text-meta">
+          <li>
+            <a href={f.consulta} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-11 items-center gap-1 font-semibold text-granate underline-offset-2 hover:underline sm:min-h-0">
+              {externa ? "Consultar en su sitio" : "Consulta oficial"} <ArrowUpRight size={13} aria-hidden />
+              <span className="sr-only"> (se abre en otra pestaña)</span>
+            </a>
+          </li>
+          {f.url !== f.consulta && (
+            <li>
+              <a href={f.url} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-11 items-center gap-1 font-semibold text-granate underline-offset-2 hover:underline sm:min-h-0">
+                Datos abiertos <ArrowUpRight size={13} aria-hidden />
+                <span className="sr-only"> (se abre en otra pestaña)</span>
+              </a>
+            </li>
+          )}
+        </ul>
+      </div>
+
+      <div className="min-w-0 space-y-3">
+        <p className="text-dato leading-relaxed text-ink">{f.que}</p>
+        <p className="flex items-start gap-2 rounded-xl bg-amber-soft px-3.5 py-2.5 text-meta leading-relaxed text-ink">
+          <TriangleAlert size={15} aria-hidden className="mt-0.5 shrink-0 text-amberTexto" />
+          <span>
+            <b className="font-semibold">Ojo:</b> {f.ojo}
+          </span>
+        </p>
+        <dl className="grid gap-x-6 gap-y-2.5 text-meta sm:grid-cols-2">
+          <Meta Icono={RefreshCw} rotulo="Cada cuánto">
+            {f.frecuencia}
+          </Meta>
+          {externa ? (
+            <Meta Icono={ShieldOff} rotulo="Carga">
+              No se carga: se consulta en vivo en su sitio.
+            </Meta>
+          ) : carga ? (
+            <>
+              <Meta Icono={FileClock} rotulo="Última carga">
+                {fechaHora(carga.cargadoAl)}
+              </Meta>
+              <Meta Icono={Rows3} rotulo="Filas">
+                <span className="tabular-nums">{numero(carga.filas)}</span>
+              </Meta>
+              {carga.sha256 && (
+                <Meta Icono={Fingerprint} rotulo="Huella (comienzo del sha256)">
+                  <span className="break-all font-mono text-rotulo">{carga.sha256}</span>
+                </Meta>
+              )}
+              <Meta Icono={Database} rotulo="Archivo" className="sm:col-span-2">
+                <span className="break-all font-mono text-rotulo">
+                  {carga.url ? (
+                    <a href={carga.url} target="_blank" rel="noopener noreferrer" className="underline decoration-line underline-offset-2 hover:text-ink">
+                      {(carga.archivo ?? "archivo").replace(/\?.*$/, "")}
+                    </a>
+                  ) : (
+                    (carga.archivo ?? "sin nombre").replace(/\?.*$/, "")
+                  )}
+                </span>
+              </Meta>
+            </>
+          ) : (
+            <Meta Icono={FileClock} rotulo="Datos cargados">
+              {tabla == null ? "Sin fecha registrada" : `Al ${typeof tabla === "number" || /^\d{4}$/.test(tabla) ? tabla : fechaCorta(tabla)}`}
+            </Meta>
+          )}
+        </dl>
+      </div>
+    </li>
+  );
+}
+
+/** Un dato de la carga: su ícono y su rótulo arriba, el valor debajo (un par dt/dd de la lista). */
+function Meta({ Icono, rotulo, children, className }: { Icono: LucideIcon; rotulo: string; children: React.ReactNode; className?: string }) {
+  return (
+    <div className={className}>
+      <dt className="flex items-center gap-2 font-semibold text-ink">
+        <Icono size={14} aria-hidden className="shrink-0 text-mute" />
+        {rotulo}
+      </dt>
+      <dd className="mt-0.5 pl-[22px] text-inkSoft">{children}</dd>
+    </div>
+  );
+}
+
+function Punto({ Icono, titulo, children }: { Icono: LucideIcon; titulo: string; children: React.ReactNode }) {
+  return (
+    <li className="flex gap-3.5">
+      <span aria-hidden className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-paperDeep text-ink">
+        <Icono size={18} />
+      </span>
+      <span className="min-w-0">
+        <span className="block text-dato font-semibold leading-snug text-ink">{titulo}</span>
+        <span className="mt-1 block text-meta leading-relaxed text-inkSoft">{children}</span>
+      </span>
+    </li>
+  );
+}
+
+function Fuera({ Icono, titulo, href, enlace, children }: { Icono: LucideIcon; titulo: string; href?: string; enlace?: string; children: React.ReactNode }) {
+  return (
+    <li className="flex gap-3.5 px-4 py-4 sm:px-5">
+      <span aria-hidden className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-paperDeep text-ink">
+        <Icono size={18} />
+      </span>
+      <div className="min-w-0">
+        <h3 className="text-cuerpo font-semibold leading-snug text-ink">{titulo}</h3>
+        <p className="mt-1 max-w-[80ch] text-meta leading-relaxed text-inkSoft">{children}</p>
+        {href && enlace && (
+          <a href={href} target="_blank" rel="noopener noreferrer" className="mt-1 inline-flex min-h-11 items-center gap-1 text-meta font-semibold text-granate underline-offset-2 hover:underline sm:min-h-8">
+            {enlace} <ArrowUpRight size={13} aria-hidden />
+            <span className="sr-only"> (se abre en otra pestaña)</span>
+          </a>
+        )}
+      </div>
+    </li>
+  );
+}

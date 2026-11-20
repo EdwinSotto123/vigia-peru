@@ -15,7 +15,7 @@ import { COOKIE_SESION, PRODUCTO_POR_HOST, PRODUCTOS, hostLimpio, type Producto 
  *   · Protege /admin/*: sin la cookie de sesión admin (httpOnly, la pone /api/admin/login tras validar el token contra
  *     el API) redirige al login. La validez real del token la verifica el API en cada request proxeado.
  */
-const PRODUCTOS_CON_RUTA: Producto[] = ["empleo", "licitaciones", "obras"];
+const PRODUCTOS_CON_RUTA: Producto[] = ["empleo", "licitaciones", "obras", "salud"];
 
 export function middleware(req: NextRequest) {
   const { pathname, search } = req.nextUrl;

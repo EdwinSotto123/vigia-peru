@@ -200,8 +200,8 @@ async function estadoFuentes() {
                        (SELECT count(*)::int FROM salud_ipress WHERE en_registro) AS total,
                        (SELECT to_char(max(visto_at) AT TIME ZONE 'America/Lima', 'YYYY-MM-DD') FROM salud_ipress) AS "renipressAl",
                        (SELECT to_char(max(visto_at) AT TIME ZONE 'America/Lima', 'YYYY-MM-DD') FROM salud_sancion) AS "sancionesAl",
-                       (SELECT max(make_date(anio, mes, 1))::text FROM salud_recursos) AS "recursosAl",
-                       (SELECT max(make_date(anio, mes, 1))::text FROM salud_cirugia_mes) AS "cirugiasAl",
+                       (SELECT to_char(max(make_date(anio, mes, 1)), 'YYYY-MM') FROM salud_recursos) AS "recursosAl",
+                       (SELECT to_char(max(make_date(anio, mes, 1)), 'YYYY-MM') FROM salud_cirugia_mes) AS "cirugiasAl",
                        (SELECT max(anio) FROM salud_denuncia_anual) AS "denunciasAl"
                   FROM salud_ipress_detalle`),
   ]);

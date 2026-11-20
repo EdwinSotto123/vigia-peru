@@ -4,7 +4,7 @@ import type { ReactNode } from "react";
 import { ArrowUpRight } from "lucide-react";
 import { BotonModo } from "@/components/ui/BotonModo";
 import { claseAccion } from "@/components/ui/EnlaceAccion";
-import { COOKIE_SESION, CORREO_GOBSERVA, PRODUCTOS, PRODUCTOS_CON_APP, otrosProductos, rutaEn, type Producto } from "@/lib/gobserva";
+import { COOKIE_SESION, CORREO_GOBSERVA, PRODUCTOS, PRODUCTOS_CON_APP, PRODUCTOS_SIN_CUENTA, otrosProductos, rutaEn, type Producto } from "@/lib/gobserva";
 import { cn } from "@/lib/utils";
 import { MarcaGobserva } from "./MarcaGobserva";
 import { MarcoApp } from "./app/MarcoApp";
@@ -66,13 +66,18 @@ export function MarcoProducto({
           <MenuProducto base={base} menu={menu} titulo={p.titulo} />
           <div className="flex shrink-0 items-center gap-2">
             <BotonModo />
-            <span className="sm:hidden">
-              {/* «Entrar» con su palabra cuando la marca es corta (empleo, obras); con «licitaciones» no entra a 390 px. */}
-              <MenuCuenta base={base} compacto entrarConTexto={p.nombre.length <= 6} />
-            </span>
-            <span className="hidden sm:inline-flex">
-              <MenuCuenta base={base} />
-            </span>
+            {/* Gobserva Salud es abierto: sin cuenta, no hay «Entrar». */}
+            {!PRODUCTOS_SIN_CUENTA.includes(producto) && (
+              <>
+                <span className="sm:hidden">
+                  {/* «Entrar» con su palabra cuando la marca es corta (empleo, obras); con «licitaciones» no entra a 390 px. */}
+                  <MenuCuenta base={base} compacto entrarConTexto={p.nombre.length <= 6} />
+                </span>
+                <span className="hidden sm:inline-flex">
+                  <MenuCuenta base={base} />
+                </span>
+              </>
+            )}
             {/* En el celular no entra junto a la marca: va primera en la fila del menú, abajo. */}
             <Link href={rutaEn(base, accion.ruta)} className={claseAccion("primario", "hidden whitespace-nowrap sm:inline-flex")}>
               {accion.etiqueta}

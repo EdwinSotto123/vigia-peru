@@ -45,7 +45,7 @@ const CLAVE_INDEXNOW = "70c4458a363841ee4aef67be90cc8565";
 // La fecha de la última versión de la portada (sitemap y datos estructurados): cambiarla al cambiar el contenido.
 const ACTUALIZADA = "2026-11-01";
 // Va en la URL de los scripts de publico/: subirla al cambiarlos (Cloudflare los guarda un día en el navegador).
-const VERSION_JS = "2026-11-01s";
+const VERSION_JS = "2026-11-20a";
 const ESLOGAN = "Lo de todos, a la vista de todos.";
 
 // Una lista y no un objeto: en un objeto, JavaScript pone las claves "10" a "25" (índices) antes que "01" a "09".
@@ -325,6 +325,15 @@ const PRODUCTOS_GOB = [
     "Los proyectos de inversión de tu región y tu sector: los viables que todavía no se licitan, las obras en marcha y las paralizadas, con su costo, su avance y quién las ejecuta. Alertas diarias y MCP para conectar tu IA.",
     "https://obras.gobserva.cloud",
     "Ver proyectos",
+  ],
+  [
+    "salud",
+    "Gobserva Salud",
+    "salud.gobserva.cloud",
+    "Verifica tu clínica y a tu médico con fuentes oficiales.",
+    "Las 36 mil instituciones prestadoras de salud del RENIPRESS: si están activas, su categoría, si tienen centro quirúrgico y sus sanciones firmes de SUSALUD, cada dato con su fecha. Cómo verificar a un médico en el Colegio Médico. Abierto y gratis, con un asistente y un MCP sin cuenta.",
+    "https://salud.gobserva.cloud",
+    "Verificar ahora",
   ],
 ];
 

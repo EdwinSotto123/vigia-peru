@@ -12,7 +12,9 @@
  * Sin JSX ni imports de servidor: lo usan el middleware, las páginas y los componentes de cliente.
  */
 
-export type Producto = "empleo" | "licitaciones" | "obras";
+export type Producto = "empleo" | "licitaciones" | "obras" | "salud";
+/** Los productos que se venden con planes y cuentas. Gobserva Salud (2026-11-20) es abierto: sin cuenta ni planes. */
+export const PRODUCTOS_SIN_CUENTA: readonly Producto[] = ["salud"];
 
 export interface InfoProducto {
   clave: Producto;
@@ -51,6 +53,14 @@ export const PRODUCTOS: Record<Producto, InfoProducto> = {
     lema: "Las obras públicas que se vienen y las que están en marcha, con su plata, su avance y quién las construye.",
     host: "obras.gobserva.cloud",
     hostDev: "obras-dev.gobserva.cloud",
+  },
+  salud: {
+    clave: "salud",
+    nombre: "salud",
+    titulo: "Gobserva Salud",
+    lema: "Verifica tu clínica y a tu médico con fuentes oficiales: registro, servicios autorizados y sanciones firmes, con su fecha.",
+    host: "salud.gobserva.cloud",
+    hostDev: "salud-dev.gobserva.cloud",
   },
 };
 
@@ -106,6 +116,8 @@ export const URL_MCP = "https://mcp.gobserva.cloud/mcp";
 /** Una dirección por producto, con sus herramientas (las de Obras van en la de Licitaciones). */
 export const URL_MCP_EMPLEO = `${URL_MCP}/empleo`;
 export const URL_MCP_LICITACIONES = `${URL_MCP}/licitaciones`;
+/** El de Gobserva Salud es abierto: no pide cuenta ni plan. */
+export const URL_MCP_SALUD = `${URL_MCP}/salud`;
 
 /**
  * La ficha de una empresa en Vigía (sus contratos, sus antecedentes y su gente): sólo con un RUC 20, el de una persona

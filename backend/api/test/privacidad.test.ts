@@ -906,3 +906,10 @@ test("el anfitrión de una visita con su dependencia pegada se tapa (visitas rel
   const c = publicar({ socios: [{ nombre: "PEREZ-GODOY HUAMANCHUMO ROBERTINO" }] });
   assert.doesNotMatch(JSON.stringify(c), /HUAMANCHUMO/);
 });
+
+test("Gobserva Salud: el código de IPRESS (8 cifras) no se tapa; un DNI suelto en otra clave sí", () => {
+  const r = publicar({ filas: [{ ipressCodigo: "00009123", codigo: "00006207", nota: "43960880" }] });
+  assert.equal(r.filas[0].ipressCodigo, "00009123");
+  assert.equal(r.filas[0].codigo, "00006207");
+  assert.notEqual(r.filas[0].nota, "43960880");
+});

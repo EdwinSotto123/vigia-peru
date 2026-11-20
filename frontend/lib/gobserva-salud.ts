@@ -1,0 +1,422 @@
+import { API_BASE } from "@/lib/api-client";
+import { tildesEnTitulo } from "@/lib/tildes";
+
+/**
+ * Gobserva Salud (salud.gobserva.cloud, 2026-11-20): los datos de la API /salud (backend/api/src/routes/gobservaSalud.ts)
+ * y las palabras con que se muestran. Sin JSX: lo usan páginas del servidor y componentes de cliente.
+ *
+ * Reglas que la web no rompe (las mismas del asistente y del MCP):
+ *   · Cada dato con su fuente y su fecha. Lo que una fuente no trae no se afirma: «no figura en … al <fecha>».
+ *   · Cuatro clases de hecho con su rótulo y color propios, nunca mezclados: sanción firme, denuncia, reclamo y registro
+ *     administrativo (lo que la IPRESS declaró en RENIPRESS).
+ *   · La sanción de una IPRESS no es de quien la dirige. De los profesionales, sólo colegio, colegiatura y RNE.
+ */
+
+// ─── Tipos (la forma de las respuestas de la API) ──────────────────────────────────────────────────
+
+export type Sector = "publico" | "privado" | "otro";
+export type EstadoChequeo = "ok" | "atencion" | "alerta" | "sin_dato" | "externo";
+export type TipoHecho = "registro_administrativo" | "sancion_firme" | "denuncia" | "verificacion_externa";
+
+/** Una IPRESS en una lista, en la búsqueda o en el mapa. */
+export interface FilaIpress {
+  codigo: string;
+  nombre: string;
+  categoria: string | null;
+  sector: Sector;
+  institucion: string | null;
+  clasificacion: string | null;
+  tipo: string | null;
+  estado: string | null;
+  activo: boolean;
+  departamento: string | null;
+  provincia: string | null;
+  distrito: string | null;
+  direccion: string | null;
+  lat: number | null;
+  lon: number | null;
+  telefono: string | null;
+  horario: string | null;
+  sanciones: number;
+  ultimaSancion: string | null;
+  cierreDefinitivo: boolean;
+  /** Denuncias ante SUSALUD en `denunciasDe` (el último año publicado). */
+  denuncias: number | null;
+  denunciasDe: number | null;
+  cirugias12m: number | null;
+  /** Tiene la UPSS de centro quirúrgico activa según el detalle; null si aún no se leyó el detalle. */
+  quirurgico: boolean | null;
+  internamiento: boolean;
+  conDetalle: boolean;
+  ruc: string | null;
+  razonSocial: string | null;
+  medicos: number | null;
+  camas: number | null;
+}
+
+export interface Chequeo {
+  clave: "registro" | "categoria" | "quirurgico" | "licencia" | "sanciones" | "denuncias" | "responsable" | string;
+  titulo: string;
+  estado: EstadoChequeo;
+  /** La frase que se puede afirmar, con su fuente dentro. */
+  detalle: string;
+  tipo: TipoHecho;
+  fuente: string;
+  url: string | null;
+  /** AAAA-MM-DD. */
+  al: string | null;
+}
+
+export interface Servicio { codigo: string | null; nombre: string | null; estado?: string | null }
+export interface DocumentoDeclarado { tipo: string | null; numero: string | null; fecha: string | null; adjunto: boolean; id: string | null }
+
+export interface DetalleIpress {
+  ruc: string | null;
+  razonSocial: string | null;
+  propietarioNatural: boolean | null;
+  categoria: string | null;
+  categoriaDocumento: string | null;
+  categoriaFecha: string | null;
+  resolucionCreacion: string | null;
+  fechaRegistro: string | null;
+  ambientes: number | null;
+  camas: number | null;
+  telefonoEmergencia: string | null;
+  upss: Servicio[];
+  ups: Servicio[];
+  upssSuspendidas: Servicio[];
+  especialidades: Servicio[];
+  cartera: Servicio[];
+  documentos: DocumentoDeclarado[];
+  consultores: Servicio[];
+  responsableColegio: string | null;
+  colegio: string | null;
+  responsableColegiatura: string | null;
+  responsableRne: string | null;
+  situacionEstado: string | null;
+  situacionCondicion: string | null;
+  historial: Record<string, string | null>[];
+  /** null: todavía no se leyó (o la última lectura falló: `error`). */
+  leidoAl: string | null;
+  error: string | null;
+}
+
+export interface Sancion {
+  id: string;
+  /** Como lo registró SUSALUD (razón social o nombre comercial). */
+  nombre: string;
+  /** codigo | codigo_otro_nombre (SUSALUD la registró con este código a otro nombre) | nombre | null. */
+  enlace: string | null;
+  pas: string | null;
+  resolucion: string | null;
+  fechaEmision: string | null;
+  fechaNotificacion: string | null;
+  fechaInscripcion: string | null;
+  tipoSancion: "amonestacion" | "multa" | "cierre_definitivo" | "cierre_temporal" | "revocacion" | "otra";
+  tipoSancionTexto: string | null;
+  multaUit: number | null;
+  medidasCorrectivas: string | null;
+  judicializacion: string | null;
+  judicializada: boolean;
+  cancelacion: string | null;
+  infraccionCodigo: string | null;
+  gravedad: "leve" | "grave" | "muy_grave" | null;
+  infraccion: string | null;
+  normas: string | null;
+  /** La infracción explicada con las palabras del Reglamento (catálogo RIS de SUSALUD). */
+  infraccionDetalle: string | null;
+  fuenteUrl: string | null;
+  vistoAl: string | null;
+}
+
+export interface FichaIpress extends Omit<FilaIpress, "sanciones"> {
+  ubigeo: string | null;
+  disa: string | null;
+  red: string | null;
+  microred: string | null;
+  unidadEjecutora: string | null;
+  imagenes: string[] | null;
+  inicioActividad: string | null;
+  enRegistro: boolean;
+  vistoAl: string | null;
+  primeraVez: string | null;
+  fuenteArchivo: string | null;
+  multasUit: number | null;
+  sancionesJudicializadas: number;
+  consultas: number | null;
+  cirugiasHasta: string | null;
+  recursosAl: string | null;
+  categoriaInfo: { nivel: string; nombre: string; detalle: string } | null;
+  detalle: DetalleIpress | null;
+  verificacion: Chequeo[];
+  registroSanciones: Sancion[];
+  denunciasPorAnio: { anio: number; consultas: number; denuncias: number; deOficio: number }[];
+  recursos: Record<string, number | null> | null;
+  cirugiasPorMes: { anio: number; mes: number; mayores: number | null; menores: number | null; suspendidas: number | null; programadas: number | null; emergencia: number | null }[];
+  cambios: { campo: string; antes: string | null; despues: string | null; fecha: string; fuente: string }[];
+  mismaEmpresa: { codigo: string; nombre: string; categoria: string | null; estado: string | null; activo: boolean; distrito: string | null; departamento: string | null }[];
+  vigia: {
+    ruc: string;
+    sunat: { estado: string | null; condicion: string | null } | null;
+    empresa: { nombre: string; estadoSunat: string | null; procesos: number | null; monto: number | null; ordenes: number | null; ordenesMonto: number | null; entidades: number | null; inhabilitada: string | null; inhabilitadaHasta: string | null; url: string } | null;
+    entidad: { nombre: string; url: string } | null;
+    informesControl: { total: number; ultimo: string | null; url: string } | null;
+  } | null;
+  fuentes: Record<"renipress" | "detalle" | "sanciones" | "denuncias" | "recursos" | "cirugias", { url: string; al: string | number | null; archivo?: string | null } | null>;
+  aviso: string;
+}
+
+export interface Facetas {
+  departamento: { clave: string; n: number }[];
+  provincia: { clave: string; n: number }[];
+  categoria: { clave: string; n: number }[];
+  sector: { clave: string; n: number }[];
+  tipo: { clave: string; n: number }[];
+}
+
+export interface PaginaIpress {
+  filas: FilaIpress[];
+  total: number;
+  conSanciones: number;
+  pagina: number;
+  tamano: number;
+  facetas: Facetas;
+}
+
+export interface EstadoFuentes {
+  renipressAl: string | null;
+  sancionesAl: string | null;
+  recursosAl: string | null;
+  cirugiasAl: string | null;
+  denunciasAl: number | null;
+  detalle: { leidas: number; total: number; ultimaLectura: string | null };
+  cargas: Record<string, { clave: string; archivo: string | null; url: string | null; cargadoAl: string | null; filas: number | null; sha256: string | null }>;
+}
+
+export interface ResumenSalud {
+  ipress: number;
+  activas: number;
+  publicas: number;
+  privadas: number;
+  conInternamiento: number;
+  inactivas: number;
+  conSanciones: number;
+  conUbicacion: number;
+  conDetalle: number;
+  sanciones: number;
+  multas: number;
+  multasUit: number;
+  sancionesUltimoAnio: number;
+  denunciasAnio: number | null;
+  denuncias: number;
+  porDepartamento: { clave: string; activas: number; privadas: number; conSanciones: number; sanciones: number }[];
+  fuentes: EstadoFuentes;
+  categorias: Record<string, { nivel: string; nombre: string; detalle: string }>;
+}
+
+export interface PasoVerificar { paso: string; detalle: string; url: string }
+
+export interface ResultadoBusqueda {
+  q: string;
+  establecimientos: FilaIpress[];
+  colegiatura: { numero: string; responsableDe: (FilaIpress & { colegio: string; responsableRne: string | null; leidoAl: string | null })[]; verificar: PasoVerificar[] } | null;
+  sancionesSinEstablecimiento: { id: string; nombre: string; administradaTipo: string | null; tipoSancion: string; fechaEmision: string | null; ipressCodigo: string | null }[];
+  nota: string | null;
+  urlCmp: string;
+}
+
+export interface Medico {
+  colegiatura: string;
+  colegio: string | null;
+  rne: string[];
+  responsableDe: (FilaIpress & { colegio: string; responsableRne: string | null; leidoAl: string | null })[];
+  cobertura: { leidas: number; total: number; al: string | null };
+  resumen: string;
+  habilitacion: { estado: "verificar_en_cmp"; detalle: string; url: string };
+  verificar: PasoVerificar[];
+  fuentes: { nombre: string; url: string; al: string | null }[];
+  aviso: string;
+}
+
+export interface FilaSancion {
+  id: string;
+  nombre: string;
+  administradaTipo: "IPRESS" | "IAFAS" | "UGIPRESS" | null;
+  naturaleza: string | null;
+  institucion: string | null;
+  ipressCodigo: string | null;
+  enlace: string | null;
+  ipressNombre: string | null;
+  pas: string | null;
+  resolucion: string | null;
+  fechaEmision: string | null;
+  tipoSancion: Sancion["tipoSancion"];
+  multaUit: number | null;
+  gravedad: Sancion["gravedad"];
+  infraccionCodigo: string | null;
+  infraccion: string | null;
+  judicializada: boolean;
+  departamento: string | null;
+  provincia: string | null;
+  distrito: string | null;
+}
+
+export interface PaginaSanciones {
+  filas: FilaSancion[];
+  n: number;
+  uit: number;
+  multas: number;
+  amonestaciones: number;
+  cierres: number;
+  judicializadas: number;
+  porAnio: { anio: number; n: number }[];
+  pagina: number;
+  tamano: number;
+  fuente: { url: string; al: string | null };
+}
+
+export interface FuenteSalud {
+  clave: string;
+  nombre: string;
+  entidad: string;
+  tipo: TipoHecho;
+  que: string;
+  ojo: string;
+  url: string;
+  consulta: string;
+  frecuencia: string;
+}
+
+export interface Mapa {
+  /** [codigo, lat, lon, categoria, sector (p|v|o), activo (1|0), sanciones, quirurgico (1|0|null)] */
+  puntos: [string, number, number, string | null, "p" | "v" | "o", 0 | 1, number, 0 | 1 | null][];
+  total: number;
+  sinUbicacion: number;
+}
+
+export interface Cambio { codigo: string; nombre: string; departamento: string | null; distrito: string | null; categoria: string | null; campo: string; antes: string | null; despues: string | null; fuente: string; fecha: string }
+
+export interface NormaSalud { slug: string; documento: string; numero: string | null; tipo: string; fechaEmision: string | null; articulo: string | null; epigrafe: string | null; texto: string; url: string | null; puntaje: number }
+
+// ─── Lecturas (servidor: con revalidación; cliente: tal cual) ─────────────────────────────────────
+
+async function pedir<T>(ruta: string, revalidate = 600): Promise<T | null> {
+  try {
+    const r = await fetch(`${API_BASE}/salud${ruta}`, { next: { revalidate } } as RequestInit);
+    if (!r.ok) return null;
+    return (await r.json()) as T;
+  } catch {
+    return null;
+  }
+}
+
+export const getResumenSalud = () => pedir<ResumenSalud>("/resumen");
+export const buscarSalud = (q: string) => pedir<ResultadoBusqueda>(`/buscar?q=${encodeURIComponent(q)}`, 300);
+export const getEstablecimientos = (params: URLSearchParams) => pedir<PaginaIpress>(`/establecimientos?${params.toString()}`);
+export const getMapaSalud = (params: URLSearchParams) => pedir<Mapa>(`/mapa?${params.toString()}`, 3600);
+export const getFichaIpress = (codigo: string) => (/^\d{1,8}$/.test(codigo) ? pedir<FichaIpress>(`/establecimiento/${codigo}`, 900) : Promise.resolve(null));
+export const getMedico = (colegiatura: string) => (/^\d{1,7}$/.test(colegiatura) ? pedir<Medico>(`/medico/${colegiatura}`, 900) : Promise.resolve(null));
+export const getSanciones = (params: URLSearchParams) => pedir<PaginaSanciones>(`/sanciones?${params.toString()}`);
+export const getCambios = (params: URLSearchParams) => pedir<{ filas: Cambio[]; total: number; pagina: number; tamano: number }>(`/cambios?${params.toString()}`);
+export const getFuentesSalud = () => pedir<{ fuentes: FuenteSalud[]; estado: EstadoFuentes }>("/fuentes");
+export const getNormasSalud = (q: string) => pedir<{ q: string; normas: NormaSalud[] }>(`/normas?q=${encodeURIComponent(q)}`, 3600);
+export const getSitemapSalud = () => pedir<{ establecimientos: { codigo: string; al: string | null }[] }>("/sitemap", 3600);
+
+/** La dirección del asistente (POST, NDJSON; cabecera cf-turnstile-response). */
+export const URL_ASISTENTE_SALUD = `${API_BASE}/salud/asistente`;
+
+// ─── Palabras ─────────────────────────────────────────────────────────────────────────────────────
+
+/** Las cuatro clases de hecho: cada una con su rótulo, su explicación de un renglón y su tono (variables de globals.css). */
+export const CLASES_DE_HECHO: Record<TipoHecho | "reclamo", { rotulo: string; explica: string }> = {
+  sancion_firme: { rotulo: "Sanción firme", explica: "Impuesta por SUSALUD al terminar un procedimiento sancionador; ya no se puede apelar en la vía administrativa." },
+  denuncia: { rotulo: "Denuncia", explica: "Un ciudadano la presentó ante SUSALUD. No es un hecho comprobado ni una sanción." },
+  reclamo: { rotulo: "Reclamo", explica: "Se presentó ante la propia IPRESS. Lo resuelve ella; no es una sanción." },
+  registro_administrativo: { rotulo: "Registro administrativo", explica: "Lo que la IPRESS declaró en RENIPRESS, con carácter de declaración jurada." },
+  verificacion_externa: { rotulo: "Se verifica en la fuente", explica: "Lo confirma otra institución (el Colegio Médico, SUNEDU): te llevamos ahí." },
+};
+
+export const ESTADOS_CHEQUEO: Record<EstadoChequeo, { rotulo: string }> = {
+  ok: { rotulo: "Conforme" },
+  atencion: { rotulo: "Revisa" },
+  alerta: { rotulo: "Alerta" },
+  sin_dato: { rotulo: "Sin dato" },
+  externo: { rotulo: "Verifica fuera" },
+};
+
+export const TIPO_SANCION: Record<string, string> = {
+  amonestacion: "Amonestación escrita",
+  multa: "Multa",
+  cierre_definitivo: "Cierre definitivo",
+  cierre_temporal: "Cierre temporal",
+  revocacion: "Revocación",
+  otra: "Otra sanción",
+};
+
+export const GRAVEDAD: Record<string, string> = { leve: "Leve", grave: "Grave", muy_grave: "Muy grave" };
+
+export const SECTORES: Record<Sector, string> = { publico: "Público", privado: "Privado", otro: "Otro" };
+
+export const TIPOS_IPRESS: { clave: string; nombre: string; detalle: string }[] = [
+  { clave: "con_internamiento", nombre: "Con internamiento", detalle: "Hospitales y clínicas con camas." },
+  { clave: "sin_internamiento", nombre: "Sin internamiento", detalle: "Centros, puestos y consultorios." },
+  { clave: "apoyo", nombre: "Servicio médico de apoyo", detalle: "Laboratorios, imágenes, ambulancias." },
+  { clave: "oferta_flexible", nombre: "Oferta flexible", detalle: "Atención itinerante o campañas." },
+  { clave: "terapeuticas", nombre: "Comunidad terapéutica", detalle: "Rehabilitación de adicciones." },
+];
+
+/** Del texto del tipo de RENIPRESS a su clave de filtro. */
+export function claveTipo(tipo: string | null | undefined): string | null {
+  const t = (tipo ?? "").toUpperCase();
+  if (t.includes("CON INTERNAMIENTO")) return "con_internamiento";
+  if (t.includes("SIN INTERNAMIENTO")) return "sin_internamiento";
+  if (t.includes("APOYO")) return "apoyo";
+  if (t.includes("FLEXIBLE")) return "oferta_flexible";
+  if (t.includes("TERAP")) return "terapeuticas";
+  return null;
+}
+
+export const CATEGORIAS_ORDEN = ["I-1", "I-2", "I-3", "I-4", "II-1", "II-2", "II-E", "III-1", "III-2", "III-E"] as const;
+
+/**
+ * «HOSPITAL NACIONAL ARZOBISPO LOAYZA» → «Hospital Nacional Arzobispo Loayza»; «CLINICA» → «Clínica» (las tildes, con el
+ * diccionario de lib/tildes.ts). Siglas y números quedan.
+ */
+export function nombrePropio(t: string | null | undefined): string {
+  if (!t) return "";
+  return tildesEnTitulo(capitalizar(t));
+}
+
+function capitalizar(t: string): string {
+  const minus = new Set(["de", "del", "la", "las", "los", "el", "y", "e", "o", "u", "en", "a", "con", "sin", "por", "para"]);
+  return t
+    .toLowerCase()
+    .split(/(\s+)/)
+    .map((w, i) => {
+      if (/^\s+$/.test(w)) return w;
+      if (/^(s\.?a\.?c\.?|e\.?i\.?r\.?l\.?|s\.?r\.?l\.?|s\.?a\.?|ii|iii|iv|vi|vii|viii|ix|xi|xii|essalud|minsa|ipress|sis|clas)$/i.test(w)) return w.toUpperCase();
+      if (i > 0 && minus.has(w)) return w;
+      return w.charAt(0).toUpperCase() + w.slice(1);
+    })
+    .join("");
+}
+
+/** «2026-11-19» → «19 nov. 2026». */
+export function fechaCorta(f: string | null | undefined): string {
+  if (!f) return "sin fecha";
+  const [a, m, d] = f.slice(0, 10).split("-").map(Number);
+  if (!a || !m) return f;
+  const meses = ["ene.", "feb.", "mar.", "abr.", "may.", "jun.", "jul.", "ago.", "set.", "oct.", "nov.", "dic."];
+  return d ? `${d} ${meses[m - 1]} ${a}` : `${meses[m - 1]} ${a}`;
+}
+
+export const numero = (n: number | null | undefined) => (n == null ? "sin dato" : new Intl.NumberFormat("es-PE").format(n));
+
+/**
+ * Las multas van en UIT, como las publica SUSALUD (la UIT cambia cada año y la multa se paga con la del año del pago):
+ * no se convierten a soles.
+ */
+
+/** Una IPRESS por su código, en esta web. */
+export const rutaFicha = (codigo: string) => `/establecimiento/${codigo}`;
+export const rutaMedico = (colegiatura: string) => `/medico/${colegiatura}`;

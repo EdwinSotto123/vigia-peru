@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useId } from "react";
 import { Check, Copy } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -10,7 +10,9 @@ import { cn } from "@/lib/utils";
  */
 export function Copiar({ texto, etiqueta = "Copiar", bloque = false, className }: { texto: string; etiqueta?: string; bloque?: boolean; className?: string }) {
   const [copiado, setCopiado] = useState(false);
-  const [id] = useState(() => `copiar-${Math.random().toString(36).slice(2, 9)}`);
+  // useId y no Math.random: el id del servidor y el del navegador tienen que ser iguales (aviso de hidratación en Obras
+  // y en Salud).
+  const id = `copiar-${useId().replace(/:/g, "")}`;
   const copiar = async () => {
     try {
       await navigator.clipboard.writeText(texto);

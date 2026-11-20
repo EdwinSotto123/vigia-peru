@@ -2,6 +2,21 @@
 // «#» es un píxel del color del ícono; «+» uno del mismo color, más tenue; «.» vacío. pixel() los vuelve SVG nítido.
 
 export const ICONOS_PIXEL = {
+  // Gobserva Salud (2026-11-20): la cruz de un establecimiento de salud, con el borde tenue.
+  salud: [
+    "............",
+    "....++++....",
+    "....+##+....",
+    "....+##+....",
+    ".+++####+++.",
+    ".+########+.",
+    ".+########+.",
+    ".+++####+++.",
+    "....+##+....",
+    "....+##+....",
+    "....++++....",
+    "............",
+  ],
   lupa: [
     "..####......",
     ".#....#.....",

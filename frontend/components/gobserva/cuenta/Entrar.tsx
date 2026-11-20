@@ -52,6 +52,8 @@ const GANAS: Record<Producto, { titulo: string; puntos: Promesa[]; ejemplo: { as
     ],
     ejemplo: { asunto: "2 proyectos nuevos de agua potable en Puno", lineas: ["Mejoramiento del servicio de agua potable", "Pasó a ejecución"] },
   },
+  // Gobserva Salud no tiene cuentas (es abierto): nunca se muestra; sólo para que el tipo cierre.
+  salud: { titulo: "Gobserva Salud es abierto", puntos: [], ejemplo: { asunto: "", lineas: [] } },
 };
 
 type Modo = "entrar" | "crear" | "codigo" | "recuperar" | "nueva";
