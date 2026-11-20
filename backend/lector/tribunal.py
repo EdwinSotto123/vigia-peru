@@ -91,7 +91,13 @@ def _resolutivo(t: str):
     return None
 
 
-def plano(t: str) -> str:
+def plano(t) -> str:
+    """El texto en una línea. DeepSeek V4.1 flash (desde el 2026-11-20) a veces devuelve una lista en un campo de texto
+    (dos adjudicatarios): se juntan con comas en vez de tumbar la lectura."""
+    if isinstance(t, (list, tuple)):
+        t = ", ".join(str(x) for x in t if x)
+    elif t is not None and not isinstance(t, str):
+        t = str(t)
     return _ESPACIOS.sub(" ", t or "").strip()
 
 

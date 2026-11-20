@@ -371,13 +371,17 @@ def main() -> None:
         def leer(d):
             if not hay_tiempo():
                 return None
-            r = motor.llamar_texto(T, T.recorte(d["texto"]))
-            s = r.get("salida")
-            if r.get("estado") != "ok" or not s:
+            try:
+                r = motor.llamar_texto(T, T.recorte(d["texto"]))
+                s = r.get("salida")
+                if r.get("estado") != "ok" or not s:
+                    raise ValueError(r.get("detalle") or "sin salida")
+                return d, T.comprobar(T.normalizar(s), d["texto"]), r
+            except Exception as e:  # noqa: BLE001 — una lectura rara no tumba la corrida (2026-11-20: una lista en un texto)
                 with lock:
                     hechos["errores"] += 1
+                print(f"   error en {d.get('id')}: {type(e).__name__}: {str(e)[:150]}", flush=True)
                 return None
-            return d, T.comprobar(T.normalizar(s), d["texto"]), r
 
         with ThreadPoolExecutor(max(1, a.hilos)) as ex:
             for res in ex.map(leer, pendientes):

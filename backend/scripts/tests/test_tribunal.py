@@ -139,3 +139,10 @@ def test_archivar_un_sancionador_no_es_ordenarlo():
     texto = ("LA SALA RESUELVE: 1. Declarar NO HA LUGAR a la imposición de sanción contra Delta Obras S.A.C. 2. Disponer el "
              "archivo definitivo del expediente administrativo sancionador seguido a Delta Obras S.A.C. Regístrese.")
     assert T.sancionados_en(texto, ["Delta Obras S.A.C."]) == []
+
+
+def test_un_campo_de_texto_que_llega_como_lista():
+    # DeepSeek V4.1 flash a veces devuelve una lista en un campo de texto.
+    s = T.normalizar({"procedimientos": ["LP N° 1-2026-X-1"], "adjudicatario": ["Alfa S.A.C.", "Beta E.I.R.L."], "motivo": None})
+    assert s["adjudicatario"] == "Alfa S.A.C., Beta E.I.R.L."
+    assert T.plano(None) == "" and T.plano(12) == "12"
