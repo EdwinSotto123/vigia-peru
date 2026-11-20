@@ -426,10 +426,16 @@ async function abrirConsorcios(ganadores: Ganador[]): Promise<Ganador[]> {
  * ganador y lo que ganó (fecha y monto de la buena pro), y el socio común con los nombres de los otros
  * postores: así el texto dice de qué empresa se habla. Sin la migración 48 devuelve [].
  */
+/**
+ * Las señales del Tribunal son del PROCESO (migraciones 424 y 434): la empresa es parte de la apelación (tenía la buena pro
+ * o el Tribunal le ordenó un sancionador), no necesariamente quien terminó ganando. Van en la ficha aunque el proceso no
+ * tenga ganador (sigue trabado en el Tribunal: 1218922, corregido en tres rondas, no mostraba nada) o lo haya ganado otra.
+ */
+const DEL_PROCESO_TRIBUNAL = ["tribunal_revoco_buena_pro", "tribunal_sancionador", "tribunal_corrigio_otra_vez"];
+
 export async function crucesDeProceso(ocid: string, ganadores: Ganador[]): Promise<Cruce[]> {
   const porRuc = new Map<string, Ganador>();
   for (const g of await abrirConsorcios(ganadores)) if (g.proveedorRuc && /^\d{11}$/.test(g.proveedorRuc) && !porRuc.has(g.proveedorRuc)) porRuc.set(g.proveedorRuc, g);
-  if (!porRuc.size) return [];
   const q = await pool.query(
     // `antecedente` (migración 83): lo de la empresa que ya había pasado cuando se convocó; lo demás es posterior.
     // persona_doc: sólo para buscar la evidencia de un socio o representante (aCruce no lo copia a la respuesta). Sin
@@ -441,10 +447,23 @@ export async function crucesDeProceso(ocid: string, ganadores: Ganador[]): Promi
        FROM (SELECT * FROM cruces_proveedor WHERE ruc_empresa = ANY($1::text[]) AND ocid IS NULL
              UNION ALL
              SELECT * FROM cruces_proveedor WHERE ruc_empresa = ANY($1::text[]) AND ocid IS NOT NULL
-                                              AND ocid_corto(ocid) = ocid_corto($2)) cruces_proveedor
-     ORDER BY ${ORDEN_SEVERIDAD}, tipo, fecha DESC NULLS LAST LIMIT 200`, [[...porRuc.keys()], ocid]).catch(() => null);
+                                              AND ocid_corto(ocid) = ocid_corto($2)
+             UNION ALL
+             -- Las del Tribunal de este proceso de empresas que no son las ganadoras, por el índice (tipo, ocid).
+             SELECT * FROM cruces_proveedor WHERE tipo = ANY($3::text[]) AND ocid IN ($2, ocid_corto($2))
+                                              AND ruc_empresa <> ALL($1::text[])) cruces_proveedor
+     ORDER BY ${ORDEN_SEVERIDAD}, tipo, fecha DESC NULLS LAST LIMIT 200`, [[...porRuc.keys()], ocid, DEL_PROCESO_TRIBUNAL]).catch(() => null);
   const crudas = q?.rows ?? [];
+  if (!crudas.length) return [];
   const cruces = crudas.map(aCruce);
+  // El nombre de las empresas que no ganaron (las del Tribunal): sin él, la ficha decía «la empresa ganadora».
+  const razon = new Map<string, string>();
+  const ajenas = [...new Set(crudas.map((r) => String(r.ruc_empresa)).filter((r) => !porRuc.has(r)))];
+  if (ajenas.length) {
+    const n = await pool.query<{ ruc: string; nombre: string }>(
+      `SELECT btrim(ruc::text) AS ruc, razon_social AS nombre FROM empresas WHERE ruc = ANY($1::bpchar[])`, [ajenas]).catch(() => null);
+    for (const r of n?.rows ?? []) if (r.nombre) razon.set(r.ruc, r.nombre);
+  }
   const otros = [...new Set(cruces.flatMap((c) => (CON_OTROS_POSTORES.has(c.tipo) && Array.isArray(c.detalle.otros_postores) ? c.detalle.otros_postores as string[] : [])))];
   const catalogo = await catalogoSenales();
   // Fraccionamiento: los días y sus órdenes, de la entidad de ESTE proceso (el cruce sólo trae cuántos y cuánto).
@@ -501,7 +520,7 @@ export async function crucesDeProceso(ocid: string, ganadores: Ganador[]): Promi
     const posterior = crudas[i]?.antecedente === false || anteriores.posterior === true;
     return {
       ...c,
-      proveedor: g?.proveedor ?? null,
+      proveedor: g?.proveedor ?? razon.get(c.rucProveedor) ?? null,
       buenaPro: g ? { fecha: g.fecha, montoSoles: g.montoPen } : null,
       consorcio: g?.consorcio ?? null,
       referencias: refs[i] ?? null,
