@@ -823,10 +823,13 @@ export const patrones = definir({
     "Con alcance «tribunal»: entidades cuyos procesos el Tribunal de Contrataciones corrige (apelación fundada o nulidad) " +
     "más que el resto del país, con la probabilidad de que sea azar; solo_graves deja las que pasan el control de falsos " +
     "descubrimientos. " +
+    "Con alcance «tribunal_empresas»: empresas a las que el Tribunal les quitó la buena pro dos o más veces (y en cuántas " +
+    "entidades) o les ordenó abrir un procedimiento sancionador por su oferta, con lo que ganaron después con ese " +
+    "sancionador abierto; solo_graves ordena por sancionadores. " +
     "Un patrón es un motivo para mirar, no una acusación.",
   cuenta: true,
   entrada: {
-    alcance: z.enum(["entidad", "proveedor", "relleno", "consorcio", "renovacion", "dueno", "inhabilitada", "control", "observado", "observacion", "grupo", "repetida", "doble", "recien_creada", "compras_familia", "autoridad_exsocio", "cierre_gestion", "tribunal"]).default("entidad"),
+    alcance: z.enum(["entidad", "proveedor", "relleno", "consorcio", "renovacion", "dueno", "inhabilitada", "control", "observado", "observacion", "grupo", "repetida", "doble", "recien_creada", "compras_familia", "autoridad_exsocio", "cierre_gestion", "tribunal", "tribunal_empresas"]).default("entidad"),
     indicador: z.enum(["reunion_en_evaluacion", "visita_personal_decisor", "ofertas_a_la_vez", "trabajo_en_el_ganador",
       "firma_en_plazo_de_apelacion", "solo_admitido_el_ganador", "comite_mismo_ganador", "comite_socio_proveedor",
       "comite_competencia_restringida", "comite_corregido_tribunal", "tribunal_sancionador", "tribunal_revoco_buena_pro",
@@ -1007,6 +1010,23 @@ export const patrones = definir({
           probabilidad_de_azar: x.pValor, destaca: x.destacada, calculado: x.calculado,
         })),
         como_leerlo: r.como_leerlo,
+        aviso: AVISO,
+      };
+    }
+    if (a.alcance === "tribunal_empresas") {
+      // Migración 424: empresas con buenas pro revocadas por el Tribunal y sancionadores ordenados (con solo_graves, por
+      // sancionadores; si no, por buenas pro revocadas).
+      const r = await api<Fila>(cx.env, "/patrones/tribunal/empresas", { orden: a.solo_graves ? "sancionadores" : "revocadas", page: a.pagina, size: 20 });
+      return {
+        total: r.total,
+        empresas: ((r.data ?? []) as Fila[]).map((x) => ({
+          empresa: x.nombre, ruc: x.ruc, enlace: enlaces(cx.env).empresa(x.ruc),
+          buenas_pro_revocadas: x.revocadas, en_entidades_distintas: x.entidades, sancionadores_ordenados: x.sancionadores,
+          procesos_ganados_con_sancionador_abierto: x.ganadasConSancionador || undefined,
+          monto_ganado_con_sancionador_abierto: x.montoConSancionador ?? undefined,
+        })),
+        como_leerlo: r.como_leerlo,
+        siguiente_paso: "ficha_empresa de cada una trae sus resoluciones (`tribunal`) con su proceso y su entidad.",
         aviso: AVISO,
       };
     }

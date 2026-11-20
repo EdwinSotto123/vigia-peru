@@ -99,6 +99,13 @@ const CASOS: Caso[] = [
   // Los contratos que el Tribunal corrigió (filtro ?tribunal=, 423): cientos, en orden de fecha.
   { h: buscarContratos as never, args: { tribunal: "corregido", por_pagina: 5 },
     espera: (r) => (typeof r.total === "number" && r.total >= 100 && lista(r, "contratos").length === 5 ? null : `total ${String(r.total)}`) },
+  // Las empresas ante el Tribunal (424): con buenas pro revocadas en varias entidades, sin nombres de personas.
+  { h: patrones as never, args: { alcance: "tribunal_empresas" },
+    espera: (r) => {
+      const e = lista(r, "empresas") as { ruc?: string; buenas_pro_revocadas?: number }[];
+      return e.length >= 3 && e.every((x) => /^20\d{9}$/.test(String(x.ruc))) && (e[0].buenas_pro_revocadas ?? 0) >= 2
+        ? null : `empresas: ${e.length}`;
+    } },
   // Y en la lista de indicadores en observación, con la resolución (424).
   { h: patrones as never, args: { alcance: "observacion", indicador: "tribunal_revoco_buena_pro" },
     espera: (r) => (/"resolucion_del_tribunal":"Resoluci/.test(JSON.stringify(r)) ? null : "sin la resolución del Tribunal en la lista") },

@@ -924,6 +924,65 @@ patronesRouter.get("/tribunal", async (c) => {
   return c.json(cuerpo);
 });
 
+const TribunalEmpresas = z.object({
+  /** revocadas: las que más veces perdieron la buena pro ante el Tribunal; sancionadores: las que más sancionadores tienen. */
+  orden: z.enum(["revocadas", "sancionadores"]).default("revocadas"),
+  page: z.coerce.number().int().min(1).max(200).default(1),
+  size: z.coerce.number().int().min(1).max(50).default(20),
+});
+
+/**
+ * GET /patrones/tribunal/empresas — las empresas (RUC 20) en las apelaciones leídas del Tribunal (migración 424): cuántas
+ * veces el Tribunal les quitó la buena pro y en cuántas entidades distintas, cuántos sancionadores les ordenó abrir y
+ * cuántos procesos ganaron después con uno abierto (y por cuánto). Sólo las que tienen dos o más buenas pro revocadas o
+ * algún sancionador.
+ */
+patronesRouter.get("/tribunal/empresas", async (c) => {
+  const p = TribunalEmpresas.safeParse(Object.fromEntries(Object.entries(parametros(c)).filter(([, v]) => v !== "" && v != null)));
+  if (!p.success) return c.json({ error: "invalid_query", issues: p.error.issues }, 400);
+  const q = p.data;
+  const cuerpo = await memo.obtener(`tribunal-empresas:${JSON.stringify(q)}`, async () => {
+    const r = await pool.query(
+      `WITH partes AS (
+         SELECT pe.ruc, pe.rol, r.id,
+                tribunal_corrigio(r) AND r.efectos && ARRAY['revoca_buena_pro', 'descalifica_al_adjudicatario'] AS quito,
+                (SELECT btrim(cv.entidad_ruc::text) FROM tribunal_proceso tp JOIN convocatorias cv ON cv.ocid = tp.ocid
+                  WHERE tp.resolucion_id = r.id AND tp.ocid IS NOT NULL ORDER BY tp.n LIMIT 1) AS ent
+           FROM tribunal_parte_empresa pe JOIN tribunal_resolucion r ON r.id = pe.resolucion_id),
+       emp AS (
+         SELECT ruc, (count(DISTINCT id) FILTER (WHERE rol = 'adjudicatario' AND quito))::int AS revocadas,
+                (count(DISTINCT ent) FILTER (WHERE rol = 'adjudicatario' AND quito))::int AS entidades,
+                (count(DISTINCT id) FILTER (WHERE rol = 'sancionador'))::int AS sancionadores
+           FROM partes GROUP BY ruc),
+       gan AS (
+         SELECT ruc_empresa AS ruc, count(DISTINCT ocid)::int AS ganadas, sum(monto)::float AS monto
+           FROM cruces_proveedor WHERE tipo = 'gana_con_sancionador_abierto' GROUP BY 1)
+       SELECT emp.ruc, e.razon_social AS nombre, emp.revocadas, emp.entidades, emp.sancionadores,
+              COALESCE(gan.ganadas, 0) AS "ganadasConSancionador", gan.monto AS "montoConSancionador",
+              (count(*) OVER ())::int AS total
+         FROM emp LEFT JOIN gan ON gan.ruc = emp.ruc LEFT JOIN empresas e ON e.ruc = emp.ruc::bpchar
+        WHERE emp.revocadas >= 2 OR emp.sancionadores >= 1
+        ORDER BY ${q.orden === "sancionadores" ? "emp.sancionadores DESC, COALESCE(gan.ganadas, 0) DESC" : "emp.revocadas DESC, emp.entidades DESC"}, emp.ruc
+        LIMIT $1 OFFSET $2`, [q.size, (q.page - 1) * q.size],
+    ).catch((e) => {
+      if (esErrorPg(e, "42P01")) return { rows: [] as Record<string, unknown>[] };
+      throw e;
+    });
+    const filas = r.rows as Record<string, any>[];
+    return publicar({
+      total: filas[0]?.total ?? 0, page: q.page, size: q.size,
+      data: filas.map(({ total: _t, ...x }) => x),
+      como_leerlo: "Empresas en las apelaciones que resolvió el Tribunal de Contrataciones, leídas por Vigía con el nombre " +
+        "comprobado en el texto. «revocadas»: el comité le dio la buena pro y el Tribunal se la quitó (revocó o descalificó su " +
+        "oferta); en varias entidades distintas es un patrón. «sancionadores»: el Tribunal ordenó abrirle un procedimiento por " +
+        "lo que presentó en su oferta (la orden de investigar, no la sanción). «ganadasConSancionador»: procesos que ganó " +
+        "después de esa orden y antes de cualquier sanción. Las resoluciones se siguen leyendo: la lista crece.",
+    });
+  });
+  c.header("Cache-Control", CACHE);
+  return c.json(cuerpo);
+});
+
 const ComprasFamilia = z.object({
   /** RUC de la entidad, o de la empresa del familiar. */
   buscar: z.string().regex(/^20\d{9}$/).optional(),
