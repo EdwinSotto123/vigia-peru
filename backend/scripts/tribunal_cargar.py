@@ -12,6 +12,10 @@
 5. Cascada (migración 423): las que quedan en disputa (el modelo chico y la regla no dicen lo mismo) las relee el modelo
    grande (GLM 5.3), hasta --releer por corrida; si su lectura pasa la comprobación, reemplaza a la del chico.
 Reanudable: las resoluciones ya cargadas se saltan.
+
+Tope de tiempo (--tope-min, 50 por defecto): pasado el tope no se empieza ninguna lectura ni paso nuevo, y a los 5 minutos
+más un vigilante cierra el proceso. El 2026-11-20 una corrida quedó colgada 6 h en una consulta: el túnel murió del lado
+de AWS con el puerto local abierto (las keepalives no lo ven) y, con el log tomado, ninguna corrida siguiente leyó nada.
 """
 from __future__ import annotations
 
@@ -23,6 +27,7 @@ import os
 import re
 import sys
 import threading
+import time
 import unicodedata
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
@@ -155,6 +160,24 @@ def guardar_partes(cur, pid: int, s: dict) -> int:
     return unidas
 
 
+# Hasta cuándo se puede empezar algo nuevo (time.monotonic). Lo fija main() con --tope-min.
+LIMITE = float("inf")
+
+
+def hay_tiempo() -> bool:
+    return time.monotonic() < LIMITE
+
+
+def vigilante(minutos: float) -> None:
+    """Cierra el proceso pase lo que pase (una consulta colgada no termina nunca): libera el log para la corrida siguiente."""
+    def cortar():
+        print(f"vigilante: {minutos:.0f} min sin terminar, se cierra el proceso", flush=True)
+        os._exit(3)
+    t = threading.Timer(minutos * 60, cortar)
+    t.daemon = True
+    t.start()
+
+
 def actualizar_version(cn, cur, por_id: dict, motor, maximo: int, hechos: dict, hilos: int = 3) -> int:
     """Las leídas con un lector anterior (VERSION) se releen con el modelo chico por tramos, para sumar lo que el lector
     nuevo trae (v2: adjudicatario, sancionador, infracción). El resultado comprobado NO se toca, salvo que estuviera en
@@ -168,6 +191,8 @@ def actualizar_version(cn, cur, por_id: dict, motor, maximo: int, hechos: dict, 
 
     def leer(fila):
         pid, ok, texto = fila
+        if not hay_tiempo():
+            return pid, ok, None, {"estado": "tope"}
         r = motor.llamar_texto(T, T.recorte(texto))
         s = r.get("salida")
         if r.get("estado") != "ok" or not s:
@@ -179,7 +204,7 @@ def actualizar_version(cn, cur, por_id: dict, motor, maximo: int, hechos: dict, 
         for pid, ok, s, r in ex.map(leer, filas):
             hechos["usd"] += r.get("costo_usd") or 0
             if s is None:
-                hechos["errores"] += 1
+                hechos["errores"] += r.get("estado") != "tope"
                 continue
             cur.execute("""UPDATE tribunal_resolucion SET adjudicatario = %s, infraccion = %s, version = %s,
                                   costo_usd = COALESCE(costo_usd, 0) + %s WHERE id = %s""",
@@ -234,6 +259,8 @@ def releer_disputas(cn, cur, por_id: dict, maximo: int, hechos: dict) -> dict:
     grande = MotorWorkers(T.MODELO_GRANDE)
     hecho = {"releidas": 0, "reemplazadas": 0}
     for pid, resultado, corregido_ok in filas:
+        if not hay_tiempo():
+            break
         texto = _texto(por_id, pid)
         if texto is None:
             continue
@@ -270,9 +297,14 @@ def main() -> None:
     ap.add_argument("--max", type=int, default=0)
     ap.add_argument("--hilos", type=int, default=2)
     ap.add_argument("--releer", type=int, default=40, help="disputas que relee el modelo grande por corrida (0: ninguna)")
+    ap.add_argument("--tope-min", type=float, default=50,
+                    help="minutos tras los que no se empieza nada nuevo; a los 5 más, el vigilante cierra el proceso")
     ap.add_argument("--actualizar", type=int, default=60,
                     help="leídas con un lector anterior que se releen por corrida (0: ninguna)")
     a = ap.parse_args()
+    global LIMITE
+    LIMITE = time.monotonic() + a.tope_min * 60
+    vigilante(a.tope_min + 5)
     sys.stdout.reconfigure(encoding="utf-8")
     raiz = Path(os.environ["NORMAS_DESCARGAS"]) / "tribunal"
     archivos = sorted(raiz.glob("*/*.json"), reverse=True)
@@ -302,6 +334,8 @@ def main() -> None:
         print(f"{len(pendientes)} apelaciones por leer", flush=True)
 
         def leer(d):
+            if not hay_tiempo():
+                return None
             r = motor.llamar_texto(T, T.recorte(d["texto"]))
             s = r.get("salida")
             if r.get("estado") != "ok" or not s:
@@ -344,8 +378,8 @@ def main() -> None:
                     print(f"{hechos['apelaciones']} cargadas; procesos unidos {hechos['unidas']} de {hechos['procesos']}; US$ {hechos['usd']:.3f}", flush=True)
         por_id = {f.stem: f for f in archivos}
         hechos["recomprobadas"] = recomprobar(cn, cur, por_id)
-        hechos["actualizadas"] = actualizar_version(cn, cur, por_id, motor, a.actualizar, hechos, a.hilos)
-        hechos.update(releer_disputas(cn, cur, por_id, a.releer, hechos))
+        hechos["actualizadas"] = actualizar_version(cn, cur, por_id, motor, a.actualizar, hechos, a.hilos) if hay_tiempo() else 0
+        hechos.update(releer_disputas(cn, cur, por_id, a.releer, hechos) if hay_tiempo() else {})
         # La bitácora de las fuentes que se cargan desde la PC (GET /estado/datos, estado_fuentes del MCP): una fila por
         # corrida, también sin apelaciones nuevas, para que se vea que la tarea sigue viva.
         clave = datetime.datetime.now().strftime("%Y-%m-%dT%H")
