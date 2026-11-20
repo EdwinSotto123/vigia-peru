@@ -914,8 +914,8 @@ patronesRouter.get("/tribunal", async (c) => {
     return {
       total: filas[0]?.total ?? 0, page: q.page, size: q.size,
       data: filas.map(({ total: _t, ...x }) => x),
-      como_leerlo: "Procesos apelables (licitaciones, concursos y adjudicaciones simplificadas desde 2024 con dos postores o " +
-        "más) que el Tribunal de Contrataciones corrigió: apelación fundada o nulidad del procedimiento. Se compara con la tasa " +
+      como_leerlo: "Licitaciones, concursos y adjudicaciones simplificadas desde 2024 (todas, migración 436) que el Tribunal " +
+        "de Contrataciones corrigió: apelación fundada o nulidad del procedimiento. Se compara con la tasa " +
         "del resto del país; «destacada» si no se explica por azar (control de falsos descubrimientos al 10 %). Las resoluciones " +
         "se siguen leyendo: la lista cambia.",
     };

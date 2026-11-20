@@ -63,8 +63,7 @@ function FrenteAlPais({ c }: { c?: TribunalDeEntidad["comparacion"] }) {
   if (!c || c.procesos < 10) return null;
   return (
     <p className="text-meta leading-relaxed text-inkSoft">
-      De sus <b>{numero(c.procesos)}</b> procesos apelables desde 2024 (licitaciones, concursos y adjudicaciones con dos
-      postores o más), el Tribunal corrigió <b>{numero(c.corregidos)}</b> ({pct(c.tasa)}); en el resto del país, el {pct(c.tasaResto)}.{" "}
+      De sus <b>{numero(c.procesos)}</b> licitaciones, concursos y adjudicaciones simplificadas desde 2024, el Tribunal corrigió <b>{numero(c.corregidos)}</b> ({pct(c.tasa)}); en el resto del país, el {pct(c.tasaResto)}.{" "}
       {c.destacada && c.veces != null ? (
         <>Es <b>{c.veces.toFixed(1).replace(".", ",")} veces</b> lo del resto del país y no se explica por azar: sus comités se equivocan, o sus procesos tienen vicios, más que en otras entidades.</>
       ) : (
