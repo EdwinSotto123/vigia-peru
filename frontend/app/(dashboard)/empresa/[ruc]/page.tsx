@@ -216,18 +216,22 @@ export default async function EmpresaPage({ params, searchParams: sp }: { params
   const seccion = destino.seccion;
   const vistaGente = (seccion === "gente" && VISTAS_GENTE.find((v) => v === destino.vista)) || "socios";
 
-  const contratosP = getContratosEmpresa(e.ruc, { ...fc, size: TAM });
-  const ventasP = getCompras({ proveedor: e.ruc }, fv, TAM);
-  const postulacionesP = getPostulacionesEmpresa(e.ruc, { ...fp, size: TAM });
-  const clientesP = getClientesEmpresa(e.ruc);
-  const antecedentesP = getAntecedentesEmpresa(e.ruc);
+  // Sólo lo que pide la pestaña abierta (las demás viajan a pedido, abajo): antes se pedían las cinco listas siempre.
+  const abierta = (...s: PestanaEmpresa[]) => s.includes(seccion);
+  const contratosP = abierta("inicio") ? getContratosEmpresa(e.ruc, { ...fc, size: TAM }) : Promise.resolve(null);
+  const ventasP = abierta("ventas") ? getCompras({ proveedor: e.ruc }, fv, TAM) : Promise.resolve(null);
+  const postulacionesP = abierta("inicio", "postulaciones") ? getPostulacionesEmpresa(e.ruc, { ...fp, size: TAM }) : Promise.resolve(null);
+  const clientesP = abierta("inicio", "clientes", "antecedentes") ? getClientesEmpresa(e.ruc) : Promise.resolve(null);
+  const antecedentesP = abierta("antecedentes") ? getAntecedentesEmpresa(e.ruc) : Promise.resolve(null);
   // Sólo los pide «Su gente»: abierta en otra pestaña, viaja a pedido (abajo) y no hace falta leerlos.
   const sociosP = seccion === "gente" ? getSociosEmpresa(e.ruc) : Promise.resolve(null);
   const visitasP = seccion === "gente" ? getVisitasEmpresa(e.ruc) : Promise.resolve(null);
 
   const contratos = e.adjProcesos + e.consProcesos;
   // Las pestañas pesadas no viajan si no están abiertas: se piden al abrirlas (PestanaAPedido). En Cardio Equipos, abierta
-  // en Antecedentes, su historia eran 2,5 MB y sus visitas 0,8 MB de los 6 MB de la ficha.
+  // en Antecedentes, su historia eran 2,5 MB y sus visitas 0,8 MB de los 6 MB de la ficha. Desde el 2026-11-20 TODAS van
+  // así: con ventas, clientes, postulaciones y antecedentes a la vez, una empresa con 1 445 antecedentes pasaba los 2,2 MB y
+  // el flujo se cortaba («Connection closed»): lo de abajo de la pestaña abierta no llegaba.
   const aPedido = (clave: PestanaEmpresa, columna: string) => (
     <PestanaAPedido clave={clave}>
       <EsqueletoPestana columna={columna} />
@@ -320,7 +324,7 @@ export default async function EmpresaPage({ params, searchParams: sp }: { params
             clave: "inicio",
             etiqueta: "Inicio",
             icono: <LayoutDashboard size={15} aria-hidden />,
-            contenido: <Inicio f={f} contratos={contratosP} clientes={clientesP} postulaciones={postulacionesP} />,
+            contenido: seccion !== "inicio" ? aPedido("inicio", "Dato") : <Inicio f={f} contratos={contratosP} clientes={clientesP} postulaciones={postulacionesP} />,
           },
           {
             // Todo en una línea de tiempo (fase 3 del plan del 2026-10-27): su fundación y su gente, lo que ganó y le
@@ -358,7 +362,7 @@ export default async function EmpresaPage({ params, searchParams: sp }: { params
             clave: "ventas",
             etiqueta: "Ventas al Estado",
             icono: <HandCoins size={15} aria-hidden />,
-            contenido: (
+            contenido: seccion !== "ventas" ? aPedido("ventas", "Venta") : (
               <div>
                 {/* Una línea y una sola ⓘ (pedido del usuario del 2026-11-05): antes, un párrafo suelto con tres ⓘ de glosario
                     que contaba qué entra en la lista; eso va ahora en la ⓘ, con el enlace al glosario. */}
@@ -402,7 +406,7 @@ export default async function EmpresaPage({ params, searchParams: sp }: { params
             etiqueta: "Clientes",
             icono: <Building2 size={15} aria-hidden />,
             conteo: e.entidades,
-            contenido: (
+            contenido: seccion !== "clientes" ? aPedido("clientes", "Entidad") : (
               <div className="space-y-4">
                 <CabeceraPestana>Las entidades que le adjudicaron un proceso o le compraron por órdenes.</CabeceraPestana>
                 <Suspense fallback={<TablaSkeleton columnas={[{ clave: "a", titulo: "Entidad", ancho: "1fr" }]} filas={8} />}>
@@ -416,7 +420,7 @@ export default async function EmpresaPage({ params, searchParams: sp }: { params
             etiqueta: "Postulaciones",
             icono: <ClipboardList size={15} aria-hidden />,
             conteo: e.postulaciones,
-            contenido: (
+            contenido: seccion !== "postulaciones" ? aPedido("postulaciones", "Proceso") : (
               <div className="space-y-4">
                 <CabeceraPestana>Los procesos en que fue postor, sola o en consorcio, y quién ganó cada uno.</CabeceraPestana>
                 <Listado ruta={ruta} parametros={pp} paramPagina={P_POSTULACIONES.page} conservar={SIN_CONSERVAR}>
@@ -437,7 +441,7 @@ export default async function EmpresaPage({ params, searchParams: sp }: { params
             etiqueta: "Antecedentes y patrones",
             icono: <FileSearch size={15} aria-hidden />,
             conteo: nAntecedentes,
-            contenido: (
+            contenido: seccion !== "antecedentes" ? aPedido("antecedentes", "Antecedente") : (
               <div className="space-y-4">
                 <CabeceraPestana>Antecedentes: lo que dicen de la empresa otros registros públicos, caso por caso. Patrones: lo que se repite entre varios de sus contratos.</CabeceraPestana>
                 {/* Lista y detalle (pedido del usuario del 2026-11-05): el índice de tipos elige en el navegador y lo deja en
@@ -527,7 +531,7 @@ export default async function EmpresaPage({ params, searchParams: sp }: { params
                 etiqueta: "Obras",
                 icono: <HardHat size={15} aria-hidden />,
                 conteo: nObras,
-                contenido: <ObrasEmpresa ruc={e.ruc} ruta={ruta} sp={sp} pagina={obras.pagina} base={lista("obras", {})} />,
+                contenido: seccion !== "obras" ? aPedido("obras", "Obra") : <ObrasEmpresa ruc={e.ruc} ruta={ruta} sp={sp} pagina={obras.pagina} base={lista("obras", {})} />,
               }]
             : []),
         ]}
