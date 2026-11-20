@@ -939,6 +939,17 @@ export function datosDe(a: AntecedenteEmpresa, ruc: string): DatoCaso[] {
       },
       delProceso(),
     );
+  } else if (t === "tribunal_corrigio_otra_vez") {
+    // Migración 434: el Tribunal corrigió el proceso en dos rondas o más.
+    const rondas = num(d.rondas);
+    add(
+      rondas != null && { etiqueta: "Rondas de corrección", valor: plural(rondas, "ronda", "rondas") },
+      d.misma_empresa === true && { etiqueta: "La buena pro", valor: "La tuvo en más de una ronda" },
+      d.desacato === true && { etiqueta: "El Tribunal escribe", valor: "Que el comité no acató lo que le ordenó" },
+      txt(d.resolucion) && { etiqueta: "Última resolución", valor: txt(d.resolucion)! },
+      { etiqueta: "De dónde sale", valor: "Resoluciones del Tribunal de Contrataciones leídas por Vigía, unidas al proceso", soloPanel: true },
+      delProceso(),
+    );
   } else if (t === "tribunal_sancionador" || t === "tribunal_revoco_buena_pro" || t === "gana_con_sancionador_abierto") {
     // Migración 424: las partes de una apelación que leyó Vigía.
     const inf = Array.isArray(d.infraccion) ? (d.infraccion as string[]) : [];

@@ -29,6 +29,8 @@ interface TribunalDeEntidad {
   comparacion?: { procesos: number; corregidos: number; tasa: number; tasaResto: number; veces: number | null; pValor: number; destacada: boolean } | null;
   /** Lo que adjudicó a empresas con un sancionador del Tribunal abierto (migración 424). */
   conSancionadorAbierto?: { procesos: number; empresas: number; monto: number | null; principales: { ruc: string; nombre: string | null; procesos: number; monto: number | null }[] } | null;
+  /** Procesos que el Tribunal corrigió y, cuando la entidad volvió a decidir, corrigió otra vez (migración 434). */
+  corregidosOtraVez?: { procesos: number; recientes: { ocid: string; codigo: string | null; rondas: number; correcciones: number; ultima: string }[] } | null;
 }
 
 const RESULTADO: Record<string, string> = {
@@ -102,9 +104,33 @@ function ConSancionadorAbierto({ s }: { s?: TribunalDeEntidad["conSancionadorAbi
   );
 }
 
+/** Los procesos en que el comité repitió el error después de una orden del Tribunal (o no la cumplió). */
+function CorregidosOtraVez({ c }: { c?: TribunalDeEntidad["corregidosOtraVez"] }) {
+  if (!c?.procesos) return null;
+  return (
+    <div className="space-y-2">
+      <p className="text-meta leading-relaxed text-inkSoft">
+        En <b>{plural(c.procesos, "proceso", "procesos")}</b> el Tribunal corrigió al comité y, cuando la entidad volvió a decidir, lo
+        corrigió otra vez: el error se repitió después de una orden del Tribunal, o la orden no se cumplió.
+        {c.procesos > c.recientes.length ? ` Van los ${numero(c.recientes.length)} más recientes.` : ""}
+      </p>
+      <ul className="space-y-1 text-dato">
+        {c.recientes.map((x) => (
+          <li key={x.ocid}>
+            <Link href={`/app/contratos/${encodeURIComponent(x.ocid)}`} prefetch={false} className="font-medium text-granate underline-offset-2 hover:underline">
+              {x.codigo ?? x.ocid}
+            </Link>
+            <span className="text-mute"> {plural(x.rondas, "ronda", "rondas")}, la última el {fechaConAnio(x.ultima)}</span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
 export async function TribunalEntidad({ ruc }: { ruc: string }) {
   const d = await leer(ruc);
-  if (!d || (!d.apelaciones && !d.conSancionadorAbierto?.procesos)) return null;
+  if (!d || (!d.apelaciones && !d.conSancionadorAbierto?.procesos && !d.corregidosOtraVez?.procesos)) return null;
   const cifras: Cifra[] = [
     { valor: numero(d.apelaciones), etiqueta: "apelaciones resueltas", contexto: "de sus procesos, ya leídas" },
     { valor: numero(d.fundadas), etiqueta: "fundadas", contexto: "el comité se equivocó al calificar o al otorgar" },
@@ -118,6 +144,7 @@ export async function TribunalEntidad({ ruc }: { ruc: string }) {
         </h3>
         {d.apelaciones ? <CifrasEnFila items={cifras} chico /> : null}
         <FrenteAlPais c={d.comparacion} />
+        <CorregidosOtraVez c={d.corregidosOtraVez} />
         <ConSancionadorAbierto s={d.conSancionadorAbierto} />
         {d.recientes.map((x) => {
           const datos: DatoClave[] = [
@@ -142,6 +169,11 @@ export async function TribunalEntidad({ ruc }: { ruc: string }) {
             </BloqueDetalle>
           );
         })}
+        {/^20\d{9}$/.test(ruc) && d.apelaciones > d.recientes.length ? (
+          <Link href={`/app/patrones?seccion=tribunal&ruc=${ruc}`} prefetch={false} className="inline-flex min-h-11 items-center text-meta font-medium text-granate underline-offset-2 hover:underline">
+            Ver las {numero(d.apelaciones)} resoluciones y buscar en ellas
+          </Link>
+        ) : null}
       </div>
       <FuenteDato fuente="Resoluciones del Tribunal de Contrataciones en gob.pe, leídas por Vigía" className="border-t border-line px-4 py-2 sm:px-5" />
     </section>

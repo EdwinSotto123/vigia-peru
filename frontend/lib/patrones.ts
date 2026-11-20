@@ -520,7 +520,8 @@ export interface PatronObservacion {
     | "comite_corregido_tribunal"
     | "tribunal_sancionador"
     | "tribunal_revoco_buena_pro"
-    | "gana_con_sancionador_abierto";
+    | "gana_con_sancionador_abierto"
+    | "tribunal_corrigio_otra_vez";
   etiqueta: string;
   severidad: "alta" | "media" | "baja";
   ocid: string;
@@ -595,6 +596,13 @@ export interface PatronObservacion {
   resolucion?: string | null;
   infraccion?: string[] | null;
   diasDespues?: number | null;
+  /** El Tribunal corrigió el proceso otra vez (migración 434): en cuántas rondas, si la empresa tuvo la buena pro en dos,
+   * si el Tribunal dice que el comité no acató (con su motivo) y las resoluciones en orden. */
+  rondas?: number | null;
+  mismaEmpresa?: boolean | null;
+  desacato?: boolean | null;
+  motivoDesacato?: string | null;
+  resoluciones?: { titulo: string; fecha: string; resultado: string | null; ronda: number; enlace: string }[] | null;
 }
 
 export interface PatronesObservacion {
@@ -707,6 +715,36 @@ export interface PatronesTribunal<T> {
 export const rutaTribunalEmpresas = (page = 1, orden: "revocadas" | "sancionadores" = "revocadas") =>
   `/patrones/tribunal/empresas?${consulta({ page, size: TAM_PATRONES, orden })}`;
 export const rutaTribunalEntidades = (page = 1) => `/patrones/tribunal/entidades-sancionador?${consulta({ page, size: TAM_PATRONES })}`;
+
+/** Una resolución del Tribunal de Contrataciones leída por Vigía (GET /patrones/tribunal/resoluciones, migración 434). */
+export interface PatronTribunalResolucion {
+  titulo: string;
+  fecha: string | null;
+  sala: string | null;
+  /** Sólo si se comprobó contra la parte resolutiva. */
+  resultado: string | null;
+  efectos: string[];
+  /** Fundada, fundada en parte o nulidad de oficio: el comité o las bases se equivocaron. */
+  corrigio: boolean;
+  motivo: string | null;
+  /** La frase literal comprobada en el texto. */
+  cita: string | null;
+  /** Quien apeló, sólo si es una empresa. */
+  impugnante: string | null;
+  infraccion: string[];
+  enlace: string;
+  entidadTexto: string | null;
+  ocid: string | null;
+  codigo: string | null;
+  entidadRuc: string | null;
+  entidad: string | null;
+  empresas: { ruc: string; nombre: string | null; rol: "adjudicatario" | "sancionador" }[];
+}
+export interface PatronesTribunalResoluciones extends PatronesTribunal<PatronTribunalResolucion> {
+  porResultado?: Record<string, number>;
+}
+export const rutaTribunalResoluciones = (page = 1, f: { q?: string; ruc?: string; corrigio?: "si" | "no" } = {}) =>
+  `/patrones/tribunal/resoluciones?${consulta({ page, size: TAM_PATRONES, q: f.q, ruc: f.ruc, corrigio: f.corrigio })}`;
 
 export const rutaCierres = (page = 1, ruc?: string, graves = false) =>
   `/patrones/cierres?${consulta({ page, size: TAM_PATRONES, buscar: ruc, severidad: graves ? "alta" : undefined })}`;

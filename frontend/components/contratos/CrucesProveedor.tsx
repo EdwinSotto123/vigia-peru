@@ -286,6 +286,7 @@ const POR_QUE: Record<string, string> = {
   comite_corregido_tribunal: "Cada vez que el Tribunal declara fundada una apelación o anula el proceso, dice que el comité calificó mal, descalificó mal o aceptó bases con un vicio. Que le pase una y otra vez a la misma persona del comité es el patrón de un evaluador que favorece a alguien o no respeta las reglas. Vale leer las resoluciones: si el error se repite y si beneficia siempre a la misma empresa.",
   tribunal_sancionador: "Presentar documentos falsos o información inexacta es la infracción más grave de la ley de contrataciones: se sanciona con inhabilitación de hasta diez años. Vale ver qué documento cuestionó el Tribunal, si la empresa ya fue sancionada (Historial) y si sigue ganando contratos mientras se investiga.",
   tribunal_revoco_buena_pro: "Que el Tribunal revoque una buena pro dice que el comité calificó mal: dejó pasar una oferta que no cumplía o descalificó mal a otra. Vale leer la resolución para ver qué no cumplía y mirar si a la misma empresa le pasó en otras entidades.",
+  tribunal_corrigio_otra_vez: "Cuando el Tribunal declara fundada una apelación, le ordena al comité qué rehacer. Si el mismo proceso vuelve y el Tribunal lo corrige otra vez, el comité repitió el error o no cumplió lo ordenado: por torpeza o por empeño en un resultado. Vale leer las resoluciones en orden y ver a quién favorecía cada decisión.",
   gana_con_sancionador_abierto: "La entidad no puede rechazar una oferta por un sancionador en trámite, pero sí debe verificar los documentos de la oferta. Si la empresa ya estaba bajo investigación por documentos falsos, vale revisar con lupa la experiencia y los certificados que presentó en este proceso.",
   comite_competencia_restringida: "Quien integra el comité decide quién cumple los requisitos. Si en los procesos de una misma persona la competencia queda restringida (un solo postor, descalificaciones, sólo el ganador admitido) mucho más que en el resto de la entidad, y eso no se explica por azar, es el patrón del evaluador que filtra a los postores. Vale leer en las actas por qué quedaron fuera los demás y si los requisitos se pidieron igual en todos los procesos.",
   comite_socio_proveedor: "Quien integra el comité decide quién cumple y cómo se puntúa. Si además es socio, gerente o representante de una empresa que le vende a su entidad, está en el impedimento de la ley de contrataciones: el funcionario y sus empresas no pueden contratar con su entidad mientras ejerce y hasta doce meses después. Vale confirmar que sea la misma persona, ver si se apartó del comité y revisar cómo se evaluó a los demás postores.",
@@ -726,6 +727,19 @@ function Texto({ c, gobierna }: { c: CruceProveedor; gobierna?: GobiernoContrato
             <Link href={rutaContrato(origen, "ficha")} prefetch={false} className={ENLACE_TXT}>otro proceso</Link>
           ) : "otro proceso"}
           {res ? <> ({res})</> : ""}, y sin una sanción registrada antes de la buena pro.
+        </>
+      );
+    }
+    case "tribunal_corrigio_otra_vez": {
+      // Migración 434: las rondas de corrección del mismo proceso.
+      const rondas = n(d.rondas);
+      const motivo = txt(d.motivo_desacato);
+      return (
+        <>
+          El Tribunal de Contrataciones corrigió este proceso y, cuando la entidad volvió a decidir, lo corrigió otra vez
+          {rondas != null ? <> (<b>{numero(rondas)} rondas</b>)</> : ""}.{" "}
+          {d.misma_empresa === true ? <>En más de una ronda la buena pro la tenía <Emp c={c} />.</> : <>En la última ronda la buena pro la tenía <Emp c={c} />.</>}
+          {d.desacato === true ? <> El Tribunal escribe que el comité no cumplió lo que le había ordenado{motivo ? <>: «{motivo}»</> : ""}.</> : null}
         </>
       );
     }

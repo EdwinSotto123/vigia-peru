@@ -29,7 +29,7 @@ const POR_TIPO: Record<string, LucideIcon> = {
   reunion_en_evaluacion: Footprints, visita_personal_decisor: Footprints, ofertas_a_la_vez: Timer, trabajo_en_el_ganador: DoorOpen,
   firma_en_plazo_de_apelacion: Signature, solo_admitido_el_ganador: UserRound, comite_mismo_ganador: Handshake,
   comite_socio_proveedor: ArrowRightLeft, comite_competencia_restringida: UserRound,
-  tribunal_sancionador: Gavel, tribunal_revoco_buena_pro: Gavel, gana_con_sancionador_abierto: Gavel, comite_corregido_tribunal: Gavel,
+  tribunal_sancionador: Gavel, tribunal_revoco_buena_pro: Gavel, gana_con_sancionador_abierto: Gavel, comite_corregido_tribunal: Gavel, tribunal_corrigio_otra_vez: Gavel,
   visitado_y_gano: Footprints,
   // Historial
   inhabilitado: Ban, penal: Gavel, sancion_multa: Gavel, inversion_laudo: Gavel, penalidad: CircleMinus,

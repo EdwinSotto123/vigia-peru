@@ -3,7 +3,8 @@
 import { useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { Ban, Briefcase, Building2, Coins, CopyCheck, FileSearch, Gavel, Sprout, FlaskConical, Handshake, Landmark, ScanSearch, SearchX, ShoppingCart, TrendingUp, Users, UsersRound } from "lucide-react";
-import { Ayuda, CabeceraPestana, Nota, PanelConTitulo, Pestanas } from "@/components/patrones";
+import { Ayuda, CabeceraPestana, DatosClave, EnlaceFuente, Nota, PanelConTitulo, Pestanas, type DatoClave } from "@/components/patrones";
+import { rutaContrato } from "@/lib/rutas";
 import { EVENTO_ACTIVA } from "@/components/patrones/Pestanas";
 import { Buscador, CeldaBarra, CeldaNumero, CeldaPrincipal, CeldaTexto, CLASE_ENLACE_CELDA, Indicadores, Tabla, type Columna, type Fila, type Indicador } from "@/components/listado";
 import { CIFRA_EN_FICHA, COLUMNAS_GRUPOS_EMPRESA, COLUMNAS_GRUPOS_ENTIDAD, EnFicha, filaGrupoEnFicha, paraFicha, useFicha, type VistaFicha } from "./filasFicha";
@@ -39,6 +40,9 @@ import {
   rutaRenovaciones,
   rutaRepetidas,
   rutaTribunalEmpresas,
+  rutaTribunalResoluciones,
+  type PatronesTribunalResoluciones,
+  type PatronTribunalResolucion,
   rutaTribunalEntidades,
   SECCIONES_PATRONES,
   TAM_PATRONES,
@@ -1731,12 +1735,108 @@ function filaTribunalEntidad(p: PatronTribunalEntidad): Fila {
   };
 }
 
-/** Empresas y entidades ante el Tribunal de Contrataciones (migración 424): dos vistas de la misma fuente. */
+const COLUMNAS_TRIBUNAL_RESOLUCIONES: Columna[] = [
+  { clave: "resolucion", titulo: "Qué resolvió y por qué", ancho: "minmax(0,1.8fr)" },
+  { clave: "resultado", titulo: "Resultado", ancho: "11rem", desde: "md", apilar: "con-rotulo" },
+  { clave: "entidad", titulo: "Entidad", ancho: "minmax(0,1fr)", desde: "lg", apilar: "con-rotulo" },
+];
+const RESULTADO_TRIBUNAL: Record<string, string> = {
+  fundado: "Fundada",
+  fundado_en_parte: "Fundada en parte",
+  nulidad_de_oficio: "Nulidad de oficio",
+  infundado: "Infundada",
+  improcedente: "Improcedente",
+  desistimiento: "Desistimiento",
+  otro: "Otra decisión",
+};
+
+function filaTribunalResolucion(x: PatronTribunalResolucion): Fila {
+  const resultado = x.resultado ? (RESULTADO_TRIBUNAL[x.resultado] ?? "Resuelta") : "Sin comprobar";
+  const entidad = x.entidad ?? x.entidadTexto;
+  const nombreEntidad = entidad ? tituloNatural(entidad) : null;
+  const datos: DatoClave[] = [
+    { etiqueta: "Resultado", valor: x.corrigio ? `${resultado}: el Tribunal corrigió al comité` : resultado },
+    { etiqueta: "Fecha", valor: x.fecha ? fechaConAnio(x.fecha) : null },
+    { etiqueta: "Sala", valor: x.sala },
+    {
+      etiqueta: "Entidad",
+      valor: nombreEntidad && x.entidadRuc ? (
+        <Link href={`/entidad/${x.entidadRuc}?seccion=control`} prefetch={false} className={CLASE_ENLACE_CELDA}>
+          {nombreEntidad}
+        </Link>
+      ) : nombreEntidad,
+    },
+    {
+      etiqueta: "El proceso",
+      valor: x.ocid ? (
+        <Link href={rutaContrato(x.ocid)} prefetch={false} className={CLASE_ENLACE_CELDA}>
+          {x.codigo ?? x.ocid}
+        </Link>
+      ) : null,
+    },
+    {
+      etiqueta: "Empresas",
+      valor: x.empresas.length ? (
+        <ul className="space-y-1">
+          {x.empresas.map((e) => (
+            <li key={`${e.ruc}-${e.rol}`}>
+              <Link href={`/empresa/${e.ruc}?seccion=antecedentes`} prefetch={false} className={CLASE_ENLACE_CELDA}>
+                {e.nombre ? tituloNatural(e.nombre) : `RUC ${e.ruc}`}
+              </Link>
+              <span className="text-mute">{e.rol === "sancionador" ? ": el Tribunal ordenó abrirle un sancionador" : ": tenía la buena pro"}</span>
+            </li>
+          ))}
+        </ul>
+      ) : null,
+    },
+    { etiqueta: "Quién apeló", valor: x.impugnante ? tituloNatural(x.impugnante) : null },
+    { etiqueta: "Lo que dice la resolución", valor: x.cita ? `«${x.cita}»` : null },
+  ].filter((y) => y.valor != null && y.valor !== "");
+  return {
+    id: `tribunal-resolucion-${x.titulo}`,
+    enlaces: true,
+    detalle: {
+      titulo: x.titulo,
+      etiqueta: resultado,
+      descripcion: x.motivo ? oracion(x.motivo) : undefined,
+      contenido: (
+        <>
+          <DatosClave items={datos} />
+          <EnlaceFuente href={x.enlace} className="mt-3">
+            Leer la resolución
+          </EnlaceFuente>
+        </>
+      ),
+      ficha: x.ocid ? rutaContrato(x.ocid) : undefined,
+    },
+    celdas: {
+      resolucion: (
+        <CeldaPrincipal
+          titulo={x.motivo ? oracion(x.motivo) : x.titulo}
+          textoCompleto={x.motivo ?? undefined}
+          dosLineas
+          meta={[x.titulo, x.fecha ? fechaConAnio(x.fecha) : null].filter(Boolean)}
+        />
+      ),
+      resultado: (
+        <CeldaTexto sub={x.corrigio ? "Corrigió al comité" : undefined}>{resultado}</CeldaTexto>
+      ),
+      entidad: <CeldaTexto>{nombreEntidad ?? "Sin entidad unida"}</CeldaTexto>,
+    },
+  };
+}
+
+/** Empresas y entidades ante el Tribunal de Contrataciones (migración 424) y sus resoluciones (434): tres vistas. */
 function ListaTribunal({ inicial }: { inicial: InicialPatrones }) {
   const lista = useListaEnUrl("tribunal", inicial);
-  const [vista, setVista] = useState<"empresas" | "entidades">("empresas");
+  // Con `?ruc=` (la ficha de una entidad o de una empresa enlaza así) abre en sus resoluciones.
+  const [vista, setVista] = useState<"empresas" | "entidades" | "resoluciones">(inicial.ruc ? "resoluciones" : "empresas");
   const [porSancionador, setPorSancionador] = useState(false);
-  const pag = usePaginaConFiltro(`${vista}|${porSancionador ? 1 : 0}`, lista);
+  const [q, setQ] = useState("");
+  const [ruc, setRuc] = useState(inicial.ruc ?? "");
+  const [corrigio, setCorrigio] = useState<"" | "si" | "no">("");
+  const rucValido = /^20\d{9}$/.test(ruc.trim()) ? ruc.trim() : undefined;
+  const pag = usePaginaConFiltro(`${vista}|${porSancionador ? 1 : 0}|${q}|${rucValido ?? ""}|${corrigio}`, lista);
   return (
     <div className="space-y-4">
       <CabeceraPestana
@@ -1755,16 +1855,50 @@ function ListaTribunal({ inicial }: { inicial: InicialPatrones }) {
           </Ayuda>
         }
       >
-        Las empresas a las que el Tribunal les quitó la buena pro o les ordenó un sancionador, y las entidades que les siguieron adjudicando.
+        Las empresas a las que el Tribunal les quitó la buena pro o les ordenó un sancionador, las entidades que les siguieron adjudicando
+        y cada resolución leída, con su buscador.
       </CabeceraPestana>
       <div className="flex flex-wrap items-center gap-2" role="group" aria-label="Qué lista ver">
-        {(["empresas", "entidades"] as const).map((v) => (
+        {(["empresas", "entidades", "resoluciones"] as const).map((v) => (
           <Button key={v} variant={vista === v ? "primary" : "secondary"} onClick={() => setVista(v)} aria-pressed={vista === v}>
-            {v === "empresas" ? "Empresas" : "Entidades que les adjudican"}
+            {v === "empresas" ? "Empresas" : v === "entidades" ? "Entidades que les adjudican" : "Resoluciones"}
           </Button>
         ))}
       </div>
-      {vista === "empresas" ? (
+      {vista === "resoluciones" ? (
+        <>
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+            <Buscador
+              placeholder="Palabras del motivo o número de resolución…"
+              etiqueta="Buscar en las resoluciones"
+              valor={q}
+              min={2}
+              onBuscar={setQ}
+              className="sm:max-w-md"
+            />
+            <label className="block w-full sm:max-w-xs">
+              <span className="text-rotulo font-medium text-inkSoft">RUC de la empresa o de la entidad</span>
+              <input
+                type="search"
+                inputMode="numeric"
+                value={ruc}
+                onChange={(e) => setRuc(e.target.value.replace(/\D/g, "").slice(0, 11))}
+                placeholder="11 dígitos que empiezan en 20"
+                autoComplete="off"
+                className="mt-1 h-11 w-full rounded-xl border border-line bg-paperSoft px-3 text-dato text-ink placeholder:text-mute focus:border-granate focus:bg-paper focus:outline-none focus:ring-2 focus:ring-granate/20"
+              />
+            </label>
+          </div>
+          <div className="flex flex-wrap items-center gap-2" role="group" aria-label="Qué resoluciones ver">
+            {([["", "Todas"], ["si", "Corrigieron al comité"], ["no", "No lo corrigieron"]] as const).map(([v, t]) => (
+              <Button key={v || "todas"} variant={corrigio === v ? "primary" : "secondary"} onClick={() => setCorrigio(v)} aria-pressed={corrigio === v}>
+                {t}
+              </Button>
+            ))}
+          </div>
+          <TribunalResoluciones page={pag.page} q={q} ruc={rucValido} corrigio={corrigio || undefined} onPagina={pag.irAPagina} />
+        </>
+      ) : vista === "empresas" ? (
         <>
           <label className="flex min-h-11 w-fit cursor-pointer items-center gap-2.5 text-dato text-ink">
             <input type="checkbox" checked={porSancionador} onChange={(e) => setPorSancionador(e.target.checked)} className="size-5 rounded border-line accent-granate" />
@@ -1786,6 +1920,29 @@ function TribunalEmpresas({ page, porSancionador, onPagina }: { page: number; po
       {(d) => (
         <ZonaLista total={d.total} page={page} cargando={carga.cargando} nombre="empresas" onPagina={onPagina} vacio="Todavía no hay empresas con dos buenas pro revocadas ni sancionadores.">
           {d.data.length > 0 ? <TablaLista clave="tribunal" columnas={COLUMNAS_TRIBUNAL_EMPRESAS} filas={d.data.map(filaTribunalEmpresa)} etiqueta="Empresas ante el Tribunal de Contrataciones" /> : null}
+        </ZonaLista>
+      )}
+    </EstadoCarga>
+  );
+}
+
+function TribunalResoluciones({ page, q, ruc, corrigio, onPagina }: { page: number; q: string; ruc?: string; corrigio?: "si" | "no"; onPagina: (n: number) => void }) {
+  const texto = q.trim().length >= 2 ? q.trim() : undefined;
+  const carga = usePoder<PatronesTribunalResoluciones>(rutaTribunalResoluciones(page, { q: texto, ruc, corrigio }));
+  return (
+    <EstadoCarga carga={carga} columnas={COLUMNAS_TRIBUNAL_RESOLUCIONES}>
+      {(d) => (
+        <ZonaLista
+          total={d.total}
+          page={page}
+          cargando={carga.cargando}
+          nombre="resoluciones"
+          onPagina={onPagina}
+          vacio={texto || ruc ? "Ninguna resolución leída calza con esa búsqueda." : "Todavía no hay resoluciones leídas."}
+        >
+          {d.data.length > 0 ? (
+            <TablaLista clave="tribunal" columnas={COLUMNAS_TRIBUNAL_RESOLUCIONES} filas={d.data.map(filaTribunalResolucion)} etiqueta="Resoluciones del Tribunal de Contrataciones" />
+          ) : null}
         </ZonaLista>
       )}
     </EstadoCarga>
@@ -2779,6 +2936,7 @@ const NOMBRE_OBSERVACION: Record<PatronObservacion["tipo"], string> = {
   tribunal_sancionador: "El Tribunal ordenó abrirle un sancionador por su oferta",
   tribunal_revoco_buena_pro: "El Tribunal le quitó la buena pro",
   gana_con_sancionador_abierto: "Ganó con un sancionador del Tribunal abierto",
+  tribunal_corrigio_otra_vez: "El Tribunal corrigió el proceso otra vez",
 };
 
 /** Cuándo fue el empleo frente a la buena pro (trabajo_en_el_ganador). */
@@ -2921,6 +3079,9 @@ function evidenciaObservacion(p: PatronObservacion): string {
   }
   if (p.tipo === "gana_con_sancionador_abierto") {
     return `Ganó ${p.diasDespues != null ? `${plural(p.diasDespues, "día", "días")} ` : ""}después de que el Tribunal ordenara abrirle un sancionador${p.resolucion ? ` (${p.resolucion})` : ""}`;
+  }
+  if (p.tipo === "tribunal_corrigio_otra_vez") {
+    return `El Tribunal lo corrigió en ${plural(p.rondas ?? 2, "ronda", "rondas")}${p.mismaEmpresa ? "; la misma empresa tuvo la buena pro en más de una" : ""}${p.desacato ? "; el comité no acató lo que le ordenó" : ""}`;
   }
   if (p.tipo === "comite_socio_proveedor") {
     // Migración 407: del integrante, su papel en el comité y en la empresa; nunca su nombre.

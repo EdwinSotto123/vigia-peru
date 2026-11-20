@@ -990,6 +990,8 @@ const TribunalResoluciones = z.object({
   q: z.string().trim().min(2).max(200).optional(),
   empresa: z.string().regex(/^20\d{9}$/).optional(),
   entidad: z.string().regex(/^\d{11}$/).optional(),
+  /** Un RUC 20 sin decir de qué: las resoluciones en que esa empresa es parte o las de los procesos de esa entidad. */
+  ruc: z.string().regex(/^20\d{9}$/).optional(),
   resultado: z.enum(RESULTADOS_TRIBUNAL).optional(),
   /** si: fundadas o nulidad (el Tribunal corrigió); no: infundadas, improcedentes y el resto, con el resultado comprobado. */
   corrigio: z.enum(["si", "no"]).optional(),
@@ -1027,6 +1029,11 @@ patronesRouter.get("/tribunal/resoluciones", async (c) => {
     if (q.empresa) conds.push(`r.id IN (SELECT pa.resolucion_id FROM tribunal_parte pa WHERE pa.ruc = ${add(q.empresa)})`);
     if (q.entidad) conds.push(`r.id IN (SELECT tp.resolucion_id FROM tribunal_proceso tp JOIN convocatorias cv ON cv.ocid = tp.ocid
                                          WHERE cv.entidad_ruc = ${add(q.entidad)}::bpchar)`);
+    if (q.ruc) {
+      conds.push(`(r.id IN (SELECT pa.resolucion_id FROM tribunal_parte pa WHERE pa.ruc = ${add(q.ruc)})
+                   OR r.id IN (SELECT tp.resolucion_id FROM tribunal_proceso tp JOIN convocatorias cv ON cv.ocid = tp.ocid
+                                WHERE cv.entidad_ruc = $${vals.length}::bpchar))`);
+    }
     if (q.resultado) conds.push(`r.resultado_ok AND r.resultado = ${add(q.resultado)}`);
     if (q.corrigio === "si") conds.push("tribunal_corrigio(r)");
     if (q.corrigio === "no") conds.push("r.resultado_ok AND NOT tribunal_corrigio(r)");

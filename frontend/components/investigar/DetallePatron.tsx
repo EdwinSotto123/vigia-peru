@@ -1234,6 +1234,13 @@ export function detalleObservacion(p: PatronObservacion): Detalle {
         procedimiento sancionador en otro proceso{infraccionPalabras(p.infraccion) ? <> por presunta {infraccionPalabras(p.infraccion)}</> : ""}, y antes de
         cualquier sanción registrada.
       </>
+    ) : p.tipo === "tribunal_corrigio_otra_vez" ? (
+      <>
+        El Tribunal de Contrataciones corrigió este proceso de <b>{ent}</b> y, cuando la entidad volvió a decidir, lo corrigió otra vez
+        ({plural(p.rondas ?? 2, "ronda", "rondas")}).{" "}
+        {p.mismaEmpresa ? <>En más de una ronda la buena pro la tenía <b>{emp}</b>.</> : <>En la última ronda la buena pro la tenía <b>{emp}</b>.</>}
+        {p.desacato ? <> El Tribunal escribe que el comité <b>no acató</b> lo que le había ordenado.</> : null}
+      </>
     ) : p.tipo === "comite_socio_proveedor" ? (
       <>
         Una persona que integró el comité de selección de <b>{ent}</b>
@@ -1314,6 +1321,20 @@ export function detalleObservacion(p: PatronObservacion): Detalle {
             { etiqueta: "Por presunta", valor: p.tipo !== "tribunal_revoco_buena_pro" ? (infraccionPalabras(p.infraccion) ? oracion(infraccionPalabras(p.infraccion)!) : null) : null },
             { etiqueta: "Ganó después de la orden", valor: p.diasDespues != null ? plural(p.diasDespues, "día", "días") : null, mono: true },
             { etiqueta: "De dónde sale", valor: "Resolución del Tribunal de Contrataciones leída por Vigía, con el nombre comprobado en su texto" },
+          ]
+      : p.tipo === "tribunal_corrigio_otra_vez"
+        ? [
+            { etiqueta: "Rondas de corrección", valor: p.rondas != null ? numero(p.rondas) : null, mono: true },
+            { etiqueta: "¿La misma empresa en más de una ronda?", valor: p.mismaEmpresa == null ? null : p.mismaEmpresa ? "Sí" : "No" },
+            { etiqueta: "¿El Tribunal dice que no acataron?", valor: p.desacato ? "Sí" : null },
+            { etiqueta: "Lo que escribe el Tribunal", valor: p.motivoDesacato ? oracion(p.motivoDesacato) : null },
+            {
+              etiqueta: "Resoluciones, en orden",
+              valor: (p.resoluciones ?? []).length
+                ? (p.resoluciones ?? []).map((r) => `${r.titulo} (${fechaConAnio(r.fecha)}, ronda ${r.ronda})`).join("; ")
+                : p.resolucion ?? null,
+            },
+            { etiqueta: "De dónde sale", valor: "Resoluciones del Tribunal de Contrataciones leídas por Vigía, unidas al proceso" },
           ]
       : p.tipo === "comite_socio_proveedor"
         ? [
@@ -1420,6 +1441,13 @@ export function detalleObservacion(p: PatronObservacion): Detalle {
             "Mira en la ficha de la empresa si le pasó en otras entidades y si ya fue sancionada (Historial).",
             "Revisa los procesos que ganó después: qué documentos presentó y quién los evaluó.",
             "Descarta la explicación sencilla: un error de forma corregido o un sancionador que terminó sin sanción.",
+          ]
+      : p.tipo === "tribunal_corrigio_otra_vez"
+        ? [
+            "Lee las resoluciones en orden: qué ordenó el Tribunal la primera vez y qué hizo el comité después.",
+            "Mira si la entidad volvió a dejar la buena pro a la misma empresa o volvió a sacar al mismo postor.",
+            "Busca otros procesos de la entidad corregidos por lo mismo (Patrones, Ante el Tribunal, Resoluciones, con su RUC).",
+            "Descarta la explicación sencilla: bases mal hechas que el comité no podía cambiar, o un ítem distinto en cada ronda.",
           ]
       : p.tipo === "comite_socio_proveedor"
         ? [
