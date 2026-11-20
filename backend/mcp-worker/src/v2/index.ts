@@ -114,7 +114,7 @@ export async function manejarV2(request: Request, env: EnvV2, ctx: ExecutionCont
     return new Response(null, { status: 307, headers: { Location: url.toString() } });
   }
   if (url.pathname.startsWith("/mcp/") && !perfil) {
-    return Response.json({ error: "no_encontrado", detail: "Las direcciones son /mcp, /mcp/empleo y /mcp/licitaciones." }, { status: 404 });
+    return Response.json({ error: "no_encontrado", detail: "Las direcciones son /mcp, /mcp/empleo, /mcp/licitaciones y /mcp/salud." }, { status: 404 });
   }
   if (perfil && !request.headers.has("authorization")) {
     if (request.method === "POST") {

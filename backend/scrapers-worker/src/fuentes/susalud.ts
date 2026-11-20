@@ -122,25 +122,66 @@ export function sectorDe(institucion: string | null): "publico" | "privado" | "o
   return "publico";
 }
 
-/** Separa por `;` (o `,`) un CSV de SUSALUD (UTF-8 con BOM; si no es UTF-8 válido, latin-1). */
-export function textoCsv(datos: Uint8Array): string {
+const utf8 = new TextDecoder("utf-8", { fatal: true, ignoreBOM: false });
+
+/** Un registro (bytes) como texto: UTF-8 y, si no lo es, Windows-1252. */
+function decodificar(b: Uint8Array): string {
   try {
-    return new TextDecoder("utf-8", { fatal: true, ignoreBOM: false }).decode(datos).replace(/^﻿/, "");
+    return utf8.decode(b);
   } catch {
-    return decodificarCp1252(datos);
+    return decodificarCp1252(b);
   }
 }
 
+/**
+ * Los registros de un CSV, de a uno, sin armar el archivo entero como texto ni como tabla: un Worker tiene 128 MB y
+ * RENIPRESS (19 MB) o un año de denuncias (23 MB) los pasaban así (2026-11-20, «Worker exceeded memory limit»). Respeta las
+ * comillas: un salto de línea dentro de un campo entre comillas no corta el registro (RENIPRESS trae 3, denuncias cientos).
+ */
+export function* registrosCsv(datos: Uint8Array): Generator<string> {
+  let inicio = datos[0] === 0xef && datos[1] === 0xbb && datos[2] === 0xbf ? 3 : 0;
+  let comillas = false;
+  for (let k = inicio; k < datos.length; k++) {
+    const c = datos[k];
+    if (c === 0x22) comillas = !comillas;
+    else if (c === 0x0a && !comillas) {
+      const fin = k > inicio && datos[k - 1] === 0x0d ? k - 1 : k;
+      if (fin > inicio) yield decodificar(datos.subarray(inicio, fin));
+      inicio = k + 1;
+    }
+  }
+  if (inicio < datos.length) {
+    const fin = datos[datos.length - 1] === 0x0d ? datos.length - 1 : datos.length;
+    if (fin > inicio) yield decodificar(datos.subarray(inicio, fin));
+  }
+}
+
+/** Las filas de un CSV de SUSALUD como objetos (cabecera en mayúsculas), de a una. Separador `;` o `,`, el que más haya en la cabecera. */
+export function* filasCsv(datos: Uint8Array): Generator<Record<string, string>> {
+  let cab: string[] | null = null;
+  let sep = ";";
+  for (const reg of registrosCsv(datos)) {
+    if (!cab) {
+      sep = (reg.match(/;/g)?.length ?? 0) >= (reg.match(/,/g)?.length ?? 0) ? ";" : ",";
+      cab = (leerCsv(reg, sep)[0] ?? []).map((c) => c.replace(/^\uFEFF/, "").trim().toUpperCase());
+      continue;
+    }
+    const campos = leerCsv(reg, sep)[0] ?? [];
+    if (!campos.some((c) => c.trim())) continue;
+    const fila: Record<string, string> = {};
+    for (let i = 0; i < cab.length; i++) fila[cab[i]] = campos[i] ?? "";
+    yield fila;
+  }
+}
+
+/** Todo el CSV en una lista (sólo para archivos chicos y para las pruebas). */
 export function tablaCsv(datos: Uint8Array): Record<string, string>[] {
-  const texto = textoCsv(datos);
-  const fin = texto.indexOf("\n");
-  const primera = texto.slice(0, fin < 0 ? 2000 : fin);
-  const sep = (primera.match(/;/g)?.length ?? 0) >= (primera.match(/,/g)?.length ?? 0) ? ";" : ",";
-  const filas = leerCsv(texto, sep);
-  const cab = (filas.shift() ?? []).map((c) => c.replace(/^﻿/, "").trim().toUpperCase());
-  return filas
-    .filter((f) => f.some((c) => c.trim()))
-    .map((f) => Object.fromEntries(cab.map((c, i) => [c, f[i] ?? ""])));
+  return [...filasCsv(datos)];
+}
+
+/** El texto de un CSV de SUSALUD (UTF-8 con BOM; si no es UTF-8 válido, Windows-1252). Para archivos chicos. */
+export function textoCsv(datos: Uint8Array): string {
+  return decodificar(datos).replace(/^\uFEFF/, "");
 }
 
 // ─── RENIPRESS ─────────────────────────────────────────────────────────────────────────────────────
@@ -157,14 +198,16 @@ const CATEGORIAS = new Set(["I-1", "I-2", "I-3", "I-4", "II-1", "II-2", "II-E", 
 const RE_COLUMNAS_RENIPRESS = ["COD_IPRESS", "NOMBRE", "CATEGORIA", "ESTADO", "UBIGEO", "NORTE", "ESTE"];
 
 export function leerRenipress(datos: Uint8Array): { filas: FilaIpress[]; cuenta: Record<string, number> } {
-  const tabla = tablaCsv(datos);
   const cuenta: Record<string, number> = {};
   const sumar = (k: string) => { cuenta[k] = (cuenta[k] ?? 0) + 1; };
-  if (!tabla.length) throw new Error("RENIPRESS vacío");
-  const faltan = RE_COLUMNAS_RENIPRESS.filter((c) => !(c in tabla[0]));
-  if (faltan.length) throw new Error(`RENIPRESS sin las columnas ${faltan.join(", ")}: cambió el formato`);
   const porCodigo = new Map<string, FilaIpress>();
-  for (const f of tabla) {
+  let revisada = false;
+  for (const f of filasCsv(datos)) {
+    if (!revisada) {
+      const faltan = RE_COLUMNAS_RENIPRESS.filter((c) => !(c in f));
+      if (faltan.length) throw new Error(`RENIPRESS sin las columnas ${faltan.join(", ")}: cambió el formato`);
+      revisada = true;
+    }
     sumar("leidas");
     const codigo = codigoIpress(f.COD_IPRESS);
     const nombre = limpio(f.NOMBRE);
@@ -299,7 +342,8 @@ function nada(v: unknown): string | null {
 const celda = (v: unknown): unknown => (v instanceof Date ? v : v === undefined ? null : v);
 
 export function leerSanciones(datos: Uint8Array): { filas: FilaSancion[]; infracciones: FilaInfraccion[]; cuenta: Record<string, number> } {
-  const libro = XLSX.read(datos, { type: "array", cellDates: true, sheets: ["BasedeDatos", "RIS"] });
+  // Hoja densa (menos memoria que la dispersa) y sólo las dos hojas que se usan.
+  const libro = XLSX.read(datos, { type: "array", cellDates: true, sheets: ["BasedeDatos", "RIS"], dense: true });
   const hoja = libro.Sheets.BasedeDatos;
   if (!hoja) throw new Error("el Registro de Sanciones no trae la hoja BasedeDatos: cambió el formato");
   const filas = XLSX.utils.sheet_to_json<unknown[]>(hoja, { header: 1, raw: true, defval: null });
@@ -407,11 +451,10 @@ export interface FilaDenuncia { codigo: string; anio: number; tipo_inst: string 
 
 /** Cuenta, por institución y año, las consultas, las denuncias y las intervenciones de oficio. Nada más del archivo se guarda. */
 export function leerDenuncias(datos: Uint8Array, anioArchivo: number): { filas: FilaDenuncia[]; cuenta: Record<string, number> } {
-  const tabla = tablaCsv(datos);
   const cuenta: Record<string, number> = {};
   const sumar = (k: string) => { cuenta[k] = (cuenta[k] ?? 0) + 1; };
   const por = new Map<string, FilaDenuncia>();
-  for (const f of tabla) {
+  for (const f of filasCsv(datos)) {
     sumar("leidas");
     const tipoInst = limpio(f.DE_TIPO_INST);
     const crudo = (f.CO_INSTITUCION ?? "").trim();
@@ -444,20 +487,22 @@ export async function cargarDenuncias(db: Db, filas: FilaDenuncia[], anio: numbe
 // ─── Recursos (Consulta A) y cirugías (Consulta H) ────────────────────────────────────────────────
 
 export function leerRecursos(datos: Uint8Array): Record<string, unknown>[] {
-  return tablaCsv(datos).flatMap((f) => {
+  const out: Record<string, unknown>[] = [];
+  for (const f of filasCsv(datos)) {
     const codigo = codigoIpress(f.CO_IPRESS);
     const anio = entero(f.ANHO);
     const mes = entero(f.MES);
-    if (!codigo || !anio || !mes) return [];
-    return [{
+    if (!codigo || !anio || !mes) continue;
+    out.push({
       codigo, anio, mes, consultorios: entero(f.CA_CONSULTORIOS), consultorios_funcionales: entero(f.CA_CONSULTORIOS_FN), camas: entero(f.CA_CAMAS),
       medicos: entero(f.CA_MEDICOS_TOTAL), medicos_serums: entero(f.CA_MEDICOS_SERUM), medicos_residentes: entero(f.CA_MEDICOS_RESIDENTES),
       enfermeras: entero(f.CA_ENFERMERAS), odontologos: entero(f.CA_ODONTOLOGOS), psicologos: entero(f.CA_PSICOLOGOS),
       nutricionistas: entero(f.CA_NUTRICIONISTAS), tecnologos: entero(f.CA_TECNOLOGOS_MEDICOS), obstetrices: entero(f.CA_OBSTETRICES),
       farmaceuticos: entero(f.CA_FARMACEUTICOS), auxiliares: entero(f.CA_AUXILIARES), otros_profesionales: entero(f.CA_OTROS_PROF),
       ambulancias: entero(f.CA_AMBULANCIAS),
-    }];
-  });
+    });
+  }
+  return out;
 }
 const CAMPOS_RECURSOS = ["codigo", "anio", "mes", "consultorios", "consultorios_funcionales", "camas", "medicos", "medicos_serums",
   "medicos_residentes", "enfermeras", "odontologos", "psicologos", "nutricionistas", "tecnologos", "obstetrices", "farmaceuticos", "auxiliares",
@@ -476,7 +521,7 @@ export async function cargarRecursos(db: Db, filas: Record<string, unknown>[], a
 
 export function leerCirugias(datos: Uint8Array): Record<string, unknown>[] {
   const por = new Map<string, Record<string, unknown>>();
-  for (const f of tablaCsv(datos)) {
+  for (const f of filasCsv(datos)) {
     const codigo = codigoIpress(f.CO_IPRESS);
     const anio = entero(f.ANHO);
     const mes = entero(f.MES);

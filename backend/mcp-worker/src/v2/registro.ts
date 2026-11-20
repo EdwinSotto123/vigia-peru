@@ -20,8 +20,8 @@ export interface Contexto {
   perfil?: Perfil;
 }
 
-/** «todo» (/mcp), «empleo» (/mcp/empleo) o «licitaciones» (/mcp/licitaciones, con Obras). */
-export type Perfil = "todo" | "empleo" | "licitaciones";
+/** «todo» (/mcp), «empleo» (/mcp/empleo), «licitaciones» (/mcp/licitaciones, con Obras) o «salud» (/mcp/salud, abierta). */
+export type Perfil = "todo" | "empleo" | "licitaciones" | "salud";
 
 export interface Herramienta<S extends z.ZodRawShape = z.ZodRawShape> {
   nombre: string;
@@ -35,6 +35,11 @@ export interface Herramienta<S extends z.ZodRawShape = z.ZodRawShape> {
   cuenta?: boolean;
   /** De qué producto es (pide el plan de ese producto; Obras va con Licitaciones). Sin producto: cualquier plan. */
   producto?: "empleo" | "licitaciones";
+  /**
+   * Abierta (Gobserva Salud, 2026-11-20): sin cuenta ni plan, porque verificar una clínica o un médico es de interés
+   * público. Sólo el tope por conexión del MCP; no descuenta créditos a quien sí tiene cuenta.
+   */
+  abierta?: boolean;
   /** Escribe en la cuenta de quien la usa. «borrar» además es destructiva: Claude siempre pide confirmación. */
   escritura?: "crear" | "borrar";
   ejecutar(args: z.infer<z.ZodObject<S>>, cx: Contexto): Promise<Record<string, unknown> | CallToolResult>;
@@ -65,6 +70,14 @@ export function registrar(server: McpServer, h: Herramienta, cx: Contexto): void
       const inicio = Date.now();
       let ok = false;
       try {
+        if (h.abierta) {
+          const interno = !!cx.usuario?.planes.includes("interno");
+          const sinCupo = interno ? null : await pasarCupo(cx.env, cx.ip, null, h.nombre, null);
+          if (sinCupo) return fallo(sinCupo);
+          const r = await h.ejecutar(args as never, cx);
+          ok = true;
+          return esResultado(r) ? r : resultado(r);
+        }
         const acceso = await revisarPlan(cx.env, cx.usuario, h.producto);
         if ("error" in acceso) return fallo(acceso.error);
         const sinCupo = await pasarCupo(cx.env, cx.ip, cx.usuario, h.nombre, acceso.mcp);

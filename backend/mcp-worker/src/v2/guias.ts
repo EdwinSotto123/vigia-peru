@@ -28,6 +28,17 @@ export const INSTRUCCIONES = [
 ].join(" ");
 
 /** /mcp/empleo: las plazas CAS para quien busca trabajo en el Estado. */
+export const INSTRUCCIONES_SALUD = [
+  "Gobserva Salud: verifica establecimientos de salud (IPRESS) y médicos del Perú con fuentes oficiales de SUSALUD. Es abierto:",
+  "no pide cuenta. buscar_establecimiento_salud encuentra una IPRESS por nombre, código o RUC; ficha_establecimiento_salud trae su",
+  "estado y categoría en RENIPRESS, servicios (centro quirúrgico), especialidades, cartera, documentos declarados, sanciones firmes,",
+  "denuncias y `verificacion` (chequeos con fuente y fecha: cítalos). verificar_medico usa el número de colegiatura; la",
+  "habilitación SÓLO la confirma el Colegio Médico del Perú (da los pasos). normas_salud cita la norma y el artículo.",
+  "Reglas: una SANCIÓN FIRME (registro de SUSALUD) no es una DENUNCIA (pedido de un ciudadano) ni un REGISTRO ADMINISTRATIVO (lo que",
+  "declaró la IPRESS); nunca digas «no tiene sanciones» sino «no figura en el registro revisado el …»; la sanción de una clínica no",
+  "es del médico que la dirige; no califiques a nadie de peligroso; no busques personas por nombre; ante una emergencia, 106 o 113.",
+].join(" ");
+
 export const INSTRUCCIONES_EMPLEO = [
   "Gobserva Empleo: las plazas CAS que el Estado peruano publica en SERVIR, abiertas hoy (se leen cada día).",
   "buscar_plazas_cas busca por puesto o carrera, región, sueldo mínimo y experiencia; ficha_plaza_cas trae los requisitos,",

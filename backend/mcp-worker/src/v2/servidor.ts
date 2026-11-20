@@ -2,7 +2,7 @@
 // arma su servidor y su transporte; nada depende de la sesión).
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
-import { INSTRUCCIONES, INSTRUCCIONES_EMPLEO, INSTRUCCIONES_LICITACIONES, registrarGuias } from "./guias";
+import { INSTRUCCIONES, INSTRUCCIONES_EMPLEO, INSTRUCCIONES_LICITACIONES, INSTRUCCIONES_SALUD, registrarGuias } from "./guias";
 import { HERRAMIENTAS_ACTORES } from "./herramientas/actores";
 import { HERRAMIENTAS_CONTRATOS } from "./herramientas/contratos";
 import { HERRAMIENTAS_CONTROL } from "./herramientas/control";
@@ -10,6 +10,7 @@ import { HERRAMIENTAS_CUENTA } from "./herramientas/cuenta";
 import { HERRAMIENTAS_DATOS } from "./herramientas/datos";
 import { HERRAMIENTAS_ENTIDAD } from "./herramientas/entidad";
 import { HERRAMIENTAS_PRODUCTOS } from "./herramientas/productos";
+import { HERRAMIENTAS_SALUD } from "./herramientas/salud";
 import { registrar, type Contexto, type Perfil } from "./registro";
 
 export const HERRAMIENTAS = [
@@ -20,6 +21,7 @@ export const HERRAMIENTAS = [
   ...HERRAMIENTAS_DATOS,
   ...HERRAMIENTAS_CUENTA,
   ...HERRAMIENTAS_PRODUCTOS,
+  ...HERRAMIENTAS_SALUD,
 ];
 
 /**
@@ -27,7 +29,9 @@ export const HERRAMIENTAS = [
  * 401 y Claude muestra «Conectar» (autenticación perezosa); initialize, tools/list, los recursos y los prompts siguen
  * abiertos para que el cliente sepa qué hay.
  */
-export const PROTEGIDAS = new Set(HERRAMIENTAS.map((h) => h.nombre));
+export const PROTEGIDAS = new Set(HERRAMIENTAS.filter((h) => !h.abierta).map((h) => h.nombre));
+/** Las de Gobserva Salud (abiertas, sin cuenta): /mcp/salud. */
+const DE_SALUD = new Set(HERRAMIENTAS_SALUD.map((h) => h.nombre));
 
 /**
  * Una dirección por producto (2026-11-08): la IA elige mejor entre pocas herramientas, el conector se llama como el
@@ -45,16 +49,18 @@ export function perfilDeRuta(ruta: string): Perfil | null {
   if (ruta === "/mcp") return "todo";
   if (ruta === "/mcp/empleo") return "empleo";
   if (ruta === "/mcp/licitaciones" || ruta === "/mcp/obras") return "licitaciones";
+  if (ruta === "/mcp/salud") return "salud";
   return null;
 }
 
 export const herramientasDe = (p: Perfil = "todo") =>
-  p === "todo" ? HERRAMIENTAS : HERRAMIENTAS.filter((h) => (p === "empleo" ? DE_EMPLEO : DE_LICITACIONES).has(h.nombre));
+  p === "todo" ? HERRAMIENTAS : HERRAMIENTAS.filter((h) => (p === "empleo" ? DE_EMPLEO : p === "salud" ? DE_SALUD : DE_LICITACIONES).has(h.nombre));
 
 const SERVIDOR: Record<Perfil, { name: string; title: string; instrucciones: string; web: (cx: Contexto) => string }> = {
   todo: { name: "vigia", title: "Vigía by Gobserva", instrucciones: INSTRUCCIONES, web: (cx) => cx.env.VIGIA_URL },
   empleo: { name: "gobserva-empleo", title: "Gobserva Empleo", instrucciones: INSTRUCCIONES_EMPLEO, web: () => "https://empleo.gobserva.cloud" },
   licitaciones: { name: "gobserva-licitaciones", title: "Gobserva Licitaciones", instrucciones: INSTRUCCIONES_LICITACIONES, web: () => "https://licitaciones.gobserva.cloud" },
+  salud: { name: "gobserva-salud", title: "Gobserva Salud", instrucciones: INSTRUCCIONES_SALUD, web: () => "https://salud.gobserva.cloud" },
 };
 
 export function crearServidor(cx: Contexto): McpServer {
@@ -82,12 +88,12 @@ export async function atenderMcp(request: Request, cx: Contexto): Promise<Respon
   return transporte.handleRequest(request);
 }
 
-/** ¿El cuerpo JSON-RPC (uno o un lote) llama a una herramienta? (todas piden cuenta: PROTEGIDAS) */
+/** ¿El cuerpo JSON-RPC (uno o un lote) llama a una herramienta que pide cuenta? (PROTEGIDAS: todas menos las abiertas de Salud) */
 export function llamaProtegida(cuerpo: unknown): boolean {
   const mensajes = Array.isArray(cuerpo) ? cuerpo : [cuerpo];
   return mensajes.some((m) => {
     if (!m || typeof m !== "object") return false;
     const x = m as { method?: unknown; params?: { name?: unknown } };
-    return x.method === "tools/call";
+    return x.method === "tools/call" && !(typeof x.params?.name === "string" && !PROTEGIDAS.has(x.params.name) && HERRAMIENTAS.some((h) => h.nombre === x.params?.name));
   });
 }
