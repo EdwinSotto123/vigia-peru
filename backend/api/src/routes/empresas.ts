@@ -948,7 +948,14 @@ empresasRouter.get("/:ruc/tribunal", async (c) => {
         WHERE pe.ruc = $1
         ORDER BY r.id, pe.rol, p.n`, [ruc]);
     const filas = r.rows.sort((a, b) => String(b.fecha ?? "").localeCompare(String(a.fecha ?? "")));
+    // Lo que ganó DESPUÉS de una orden de sancionador y antes de cualquier sanción (gana_con_sancionador_abierto, 424).
+    const g = await pool.query<{ procesos: number; monto: number | null; desde: string | null }>(
+      `SELECT count(DISTINCT ocid)::int AS procesos, sum(monto)::float AS monto, min(detalle->>'orden_desde') AS desde
+         FROM cruces_proveedor WHERE tipo = 'gana_con_sancionador_abierto' AND ruc_empresa = $1`, [ruc]);
     return c.json(publicar({
+      ganadasConSancionador: g.rows[0]?.procesos ?? 0,
+      montoConSancionador: g.rows[0]?.monto ?? null,
+      sancionadorDesde: g.rows[0]?.desde ?? null,
       // Tenía la buena pro: cuántas veces el Tribunal se la quitó (revocó o descalificó su oferta) y cuántas la confirmó.
       adjudicataria: filas.filter((x) => x.rol === "adjudicatario").length,
       leQuitaron: filas.filter((x) => x.rol === "adjudicatario" && x.leQuitaron).length,

@@ -8,7 +8,7 @@ import Link from "next/link";
 import { BloqueDetalle, DatosClave, EnlaceFuente, FuenteDato, type DatoClave } from "@/components/patrones";
 import { CifrasEnFila, type Cifra } from "@/components/ui/CifrasEnFila";
 import { API_BASE } from "@/lib/api-client";
-import { fechaConAnio, numero } from "@/lib/formato";
+import { fechaConAnio, numero, solesCompacto } from "@/lib/formato";
 import { rutaContrato } from "@/lib/rutas";
 
 interface Resolucion {
@@ -29,6 +29,10 @@ interface TribunalDeEmpresa {
   leQuitaron: number;
   entidadesDondeLeQuitaron: number;
   sancionadores: number;
+  /** Procesos que ganó después de una orden de sancionador y antes de cualquier sanción, su monto y la primera orden. */
+  ganadasConSancionador?: number;
+  montoConSancionador?: number | null;
+  sancionadorDesde?: string | null;
   data: Resolucion[];
 }
 
@@ -64,6 +68,13 @@ export async function TribunalEmpresa({ ruc }: { ruc: string }) {
       contexto: d.entidadesDondeLeQuitaron > 1 ? `en ${numero(d.entidadesDondeLeQuitaron)} entidades distintas` : "revocó o descalificó su oferta",
     },
     { valor: numero(d.sancionadores), etiqueta: "sancionadores ordenados", contexto: "por lo que presentó en su oferta" },
+    ...(d.ganadasConSancionador
+      ? [{
+          valor: numero(d.ganadasConSancionador),
+          etiqueta: "procesos ganados con un sancionador abierto",
+          contexto: `${d.montoConSancionador ? `${solesCompacto(d.montoConSancionador)}, ` : ""}${d.sancionadorDesde ? `desde la orden del ${fechaConAnio(d.sancionadorDesde)}` : "después de la orden"}`,
+        }]
+      : []),
   ];
   return (
     <section aria-labelledby="tribunal-empresa" className="tarjeta overflow-clip rounded-2xl border border-line bg-paper">

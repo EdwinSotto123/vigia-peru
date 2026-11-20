@@ -56,6 +56,9 @@ export const fichaEmpresa = definir({
             se_la_quito_el_tribunal: trib.leQuitaron,
             entidades_donde_se_la_quitaron: trib.entidadesDondeLeQuitaron,
             sancionadores_ordenados: trib.sancionadores,
+            procesos_ganados_con_sancionador_abierto: trib.ganadasConSancionador || undefined,
+            monto_ganado_con_sancionador_abierto: trib.montoConSancionador ?? undefined,
+            primera_orden_de_sancionador: trib.sancionadorDesde ?? undefined,
             resoluciones: ((trib.data ?? []) as Fila[]).slice(0, 10).map((x) => ({
               resolucion: x.titulo, fecha: x.fecha,
               papel: x.rol === "sancionador" ? "el Tribunal ordenó abrirle un sancionador" : x.leQuitaron ? "tenía la buena pro y se la quitaron" : "tenía la buena pro",
