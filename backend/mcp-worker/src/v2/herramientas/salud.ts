@@ -18,8 +18,8 @@ function fila(x: J): J {
     codigo: x.codigo, nombre: x.nombre, categoria: x.categoria, sector: x.sector, institucion: x.institucion, tipo: x.tipo,
     estado: x.estado, departamento: x.departamento, provincia: x.provincia, distrito: x.distrito, direccion: x.direccion,
     sanciones_firmes: x.sanciones, ultima_sancion: x.ultimaSancion, denuncias_ultimo_anio: x.denuncias, anio_denuncias: x.denunciasDe,
-    // null = todavía no se leyó el detalle de RENIPRESS (no es «no tiene»).
-    centro_quirurgico: x.quirurgico === null || x.quirurgico === undefined ? "detalle de RENIPRESS aún no leído" : x.quirurgico,
+    // null = todavía no se leyó el detalle de RENIPRESS (no es «no tiene» ni un error): la ficha lo dice.
+    centro_quirurgico: x.quirurgico === null || x.quirurgico === undefined ? "ver ficha_establecimiento_salud" : x.quirurgico,
     ruc: x.ruc, razon_social: x.razonSocial, ficha: `${WEB}/establecimiento/${x.codigo}`,
   };
 }
@@ -51,9 +51,15 @@ export const HERRAMIENTAS_SALUD: Herramienta[] = [
     },
     async ejecutar(a, cx) {
       const r = await api<J>(cx.env, "/salud/establecimientos", { ...a, tamano: 20 });
+      const filas = ((r.filas as J[]) ?? []).map(fila);
       return {
         total: r.total, con_sanciones: r.conSanciones, pagina: r.pagina,
-        establecimientos: ((r.filas as J[]) ?? []).map(fila),
+        siguiente_paso: filas.length === 1
+          ? `Abre su ficha: ficha_establecimiento_salud con codigo ${filas[0].codigo} (trae servicios, sanciones y los chequeos con fuente y fecha).`
+          : filas.length > 1
+            ? "Si sabes cuál es (por distrito o dirección), abre su ficha con ficha_establecimiento_salud; si no, pregunta cuál. No respondas sólo con esta lista."
+            : "No hay resultados: prueba con menos palabras o sin el tipo («clínica», «hospital»).",
+        establecimientos: filas,
         fuente: "RENIPRESS y Registro de Sanciones de SUSALUD (salud.gobserva.cloud/fuentes).",
       };
     },
