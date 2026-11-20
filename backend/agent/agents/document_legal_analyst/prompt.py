@@ -57,6 +57,20 @@ acta que no cuadran por un error de transcripción; y lo que ya evalúan las reg
 igual al valor referencial, única oferta válida, la oferta más barata que no gana): no lo repitas como bandera
 documental. Ante la duda, no la emitas.
 
+FUENTE 3 — `lecturas_legal.tribunal` (sólo si el proceso llegó al Tribunal de Contrataciones): cada resolución con
+`resolucion`, `fecha`, `resultado` (sólo si se comprobó contra la parte resolutiva; si es null, no afirmes cómo
+terminó), `corrigio` (true: fundada, fundada en parte o nulidad de oficio), `motivo`, `cita` (frase literal comprobada),
+`empresas` con su papel y `corregido_otra_vez`. Es una decisión oficial, no un indicio:
+  · `corrigio` true: el comité o las bases se equivocaron en LO QUE DICE EL MOTIVO. Úsalo como evidencia del vector que
+    corresponda (descalificación indebida, requisito restrictivo, bases contra las bases estándar), media, con
+    `documento`: "tribunal:<resolucion>", `pagina`: null y en `cita` la `cita` literal o, si no hay, el `motivo` exacto;
+  · `corregido_otra_vez` true: el Tribunal corrigió el proceso y lo volvió a corregir; el comité repitió el error o no
+    cumplió lo ordenado: dilo en la justificación del vector;
+  · infundada o improcedente: el Tribunal respaldó al comité en ese punto: NO emitas una bandera que lo contradiga;
+  · «sancionador ordenado» contra una empresa: la orden de investigar su oferta por documentación falsa o información
+    inexacta, no la sanción: no digas que fue sancionada.
+No agregues lo que la resolución no dice.
+
 Si la tool devuelve `error` o `items: []` (ningún bloque del perfil) Y `lecturas_legal` no está o no trae nada útil,
 responde:
   {"estado": "sin_dato", "red_flags_documentales": [], "cumplimiento_principios": null,

@@ -1,6 +1,6 @@
-"""Lo que ya leyeron los lectores de documentos (backend/lector, Claude Haiku 5.5) de este proceso, desde
+"""Lo que ya leyeron los lectores de documentos (backend/lector, modelos abiertos por vigia-llm) de este proceso, desde
 `documento_lectura` (migración 245): el acta de buena pro, el contrato firmado, el pliego de consultas y las bases.
-Plan 2026-11-04, parte 1.
+Plan 2026-11-04, parte 1. Y lo que resolvió el Tribunal de Contrataciones sobre el proceso (migraciones 402-434).
 
 Las banderas que dependen del juicio del modelo valen sólo si las dos lecturas (versión y versión-2) coinciden, igual
 que al publicarlas (migraciones 246-248). Los postores que son personas naturales (RUC 10) van con un apellido tapado;
@@ -83,8 +83,64 @@ def lecturas_bd(ocid: str, conn=None) -> tuple[dict, set[str]]:
             "lecturas": 2 if dos else 1, "leido": leido.isoformat() if hasattr(leido, "isoformat") else leido,
         }
     if out:
-        out["fuente"] = "lectores de documentos de Vigía (Claude Haiku 5.5 sobre los PDF del SEACE)"
+        out["fuente"] = "lectores de documentos de Vigía (modelos abiertos sobre los PDF del SEACE)"
     return out, nombres
+
+
+_SQL_TRIBUNAL = """
+SELECT r.titulo, to_char(r.fecha, 'YYYY-MM-DD'), CASE WHEN r.resultado_ok THEN r.resultado END,
+       CASE WHEN r.resultado_ok THEN r.efectos ELSE '{}' END, tribunal_corrigio(r), r.motivo,
+       CASE WHEN r.cita_ok THEN r.cita END, COALESCE(r.infraccion, '{}'), COALESCE(r.pdf, r.url),
+       COALESCE((SELECT json_agg(json_build_object('ruc', pe.ruc, 'rol', pe.rol, 'nombre', e.razon_social) ORDER BY pe.rol, pe.ruc)
+                   FROM tribunal_parte_empresa pe LEFT JOIN empresas e ON e.ruc = pe.ruc::bpchar
+                  WHERE pe.resolucion_id = r.id), '[]')
+  FROM tribunal_resolucion r
+ WHERE r.id IN (SELECT p.resolucion_id FROM tribunal_proceso p WHERE p.ocid = %s)
+ ORDER BY r.fecha NULLS LAST, r.id"""
+
+
+def tribunal_de_filas(filas) -> list[dict]:
+    """Las resoluciones del Tribunal como las ve el analista legal: el resultado sólo si se comprobó contra la parte
+    resolutiva (si no, None), `corrigio` (fundada, en parte o nulidad: el comité o las bases se equivocaron), el motivo
+    que resumió el lector, la cita literal comprobada y las empresas (RUC 20, nombre comprobado) con su papel. Quien
+    apeló no va: puede ser una persona natural."""
+    out = []
+    for titulo, fecha, resultado, efectos, corrigio, motivo, cita, infraccion, enlace, partes in filas:
+        if isinstance(partes, str):
+            partes = json.loads(partes)
+        out.append({
+            "resolucion": titulo, "fecha": fecha, "resultado": resultado, "efectos": list(efectos or []),
+            "corrigio": bool(corrigio), "motivo": (str(motivo)[:600] if motivo else None), "cita": cita,
+            "infraccion": list(infraccion or []), "enlace": enlace,
+            "empresas": [{"ruc": p.get("ruc"), "nombre": p.get("nombre"),
+                          "papel": "sancionador ordenado" if p.get("rol") == "sancionador" else "tenía la buena pro"}
+                         for p in (partes or []) if isinstance(p, dict)],
+        })
+    # Dos correcciones del mismo proceso separadas por 7 días o más: el comité repitió el error (migración 434).
+    fechas = sorted(x["fecha"] for x in out if x["corrigio"] and x["fecha"])
+    if len(fechas) >= 2:
+        from datetime import date
+        d = [date.fromisoformat(f) for f in fechas]
+        if any((b - a).days >= 7 for a, b in zip(d, d[1:])):
+            for x in out:
+                x["corregido_otra_vez"] = True
+    return out
+
+
+def tribunal_bd(ocid: str, conn=None) -> list[dict]:
+    """Las resoluciones del Tribunal de Contrataciones unidas a este proceso, en orden de fecha."""
+    propia = conn is None
+    conn = conn or _pg()
+    try:
+        cur = conn.cursor()
+        cur.execute(_SQL_TRIBUNAL, (_ocid_corto(ocid),))
+        return tribunal_de_filas(cur.fetchall())
+    finally:
+        if propia:
+            try:
+                conn.close()
+            except Exception:  # noqa: BLE001
+                pass
 
 
 def lecturas_para_legal(lect: dict) -> dict:
@@ -139,14 +195,24 @@ def query_lecturas_documentos(ocid: str, tool_context: ToolContext) -> dict:
         lect, nombres = lecturas_bd(ocid)
     except Exception as e:  # noqa: BLE001 — sin base, el análisis sigue con el parser
         return {"error": f"base no disponible: {str(e)[:160]}"}
+    # Lo que resolvió el Tribunal (2026-11-20): sin permiso o sin la tabla, el análisis sigue sin él.
+    try:
+        trib = tribunal_bd(ocid)
+    except Exception as e:  # noqa: BLE001
+        print(f"[lecturas] tribunal no disponible: {str(e)[:160]}", flush=True)
+        trib = []
     state = tool_context.state
     if lect:
         state["lecturas_documentos"] = lect
         state["lecturas_legal"] = lecturas_para_legal(lect)
         state["_nombres_tapar"] = sorted({*state.get("_nombres_tapar", []), *nombres})
+    if trib:
+        state["tribunal_del_proceso"] = trib
+        state["lecturas_legal"] = {**(state.get("lecturas_legal") or {}), "tribunal": trib}
     return {"documentos": sorted(k for k in lect if k != "fuente"),
             "banderas": {k: v["banderas_confirmadas"] if v["banderas_confirmadas"] is not None else v["banderas"]
-                         for k, v in lect.items() if k != "fuente"}}
+                         for k, v in lect.items() if k != "fuente"},
+            "resoluciones_del_tribunal": len(trib)}
 
 
 query_lecturas_documentos_tool = FunctionTool(query_lecturas_documentos)

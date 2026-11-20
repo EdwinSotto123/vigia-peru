@@ -165,8 +165,9 @@ _STRONG_KEYS = ("ocds", "ocds_preloaded", "sunat_decolecta", "sunat_profiles",
 _STRONG_PREFIXES = ("rnp_", "batch_person_lookup")
 _PARSER_KEYS = ("parser_raw_consolidated", "document_analysis", "estudio_mercado",
                 "contrato_final", "legal_analysis",
-                # Lo que leyeron los lectores de Vigía (Haiku sobre los PDF): extraído por un modelo, como el parser.
-                "lecturas_documentos")
+                # Lo que leyeron los lectores de Vigía (modelos abiertos sobre los PDF): extraído por un modelo, como el
+                # parser. Y las resoluciones del Tribunal del proceso (motivo resumido por un modelo; resultado comprobado).
+                "lecturas_documentos", "tribunal_del_proceso")
 _MARKET_KEYS = ("market_analysis", "market_input")
 _RESEARCH_KEYS = ("entity_personnel", "web_research", "news_research", "person_network")
 
