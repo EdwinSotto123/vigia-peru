@@ -28,6 +28,7 @@ export const SECCIONES_PATRONES = {
   observados: "Observados por la Contraloría",
   renovaciones: "Renovaciones más caras",
   cierres: "Cierre de gestión",
+  tribunal: "Ante el Tribunal",
   observacion: "En observación",
 } as const;
 export type SeccionPatrones = keyof typeof SECCIONES_PATRONES;
@@ -678,6 +679,35 @@ export interface PatronesCierres {
   resumen?: Record<string, { entidades: number; personasNuevas: number; montoNuevas: number }>;
   data: PatronCierre[];
 }
+/** Empresas ante el Tribunal de Contrataciones (migración 424): buenas pro revocadas, sancionadores y lo que ganó después. */
+export interface PatronTribunalEmpresa {
+  ruc: string;
+  nombre: string | null;
+  revocadas: number;
+  entidades: number;
+  sancionadores: number;
+  ganadasConSancionador: number;
+  montoConSancionador: number | null;
+}
+/** Entidades que adjudicaron a empresas con un sancionador del Tribunal abierto (migración 424). */
+export interface PatronTribunalEntidad {
+  ruc: string;
+  nombre: string | null;
+  procesos: number;
+  empresas: number;
+  monto: number | null;
+}
+export interface PatronesTribunal<T> {
+  total: number;
+  page: number;
+  size: number;
+  data: T[];
+  como_leerlo?: string;
+}
+export const rutaTribunalEmpresas = (page = 1, orden: "revocadas" | "sancionadores" = "revocadas") =>
+  `/patrones/tribunal/empresas?${consulta({ page, size: TAM_PATRONES, orden })}`;
+export const rutaTribunalEntidades = (page = 1) => `/patrones/tribunal/entidades-sancionador?${consulta({ page, size: TAM_PATRONES })}`;
+
 export const rutaCierres = (page = 1, ruc?: string, graves = false) =>
   `/patrones/cierres?${consulta({ page, size: TAM_PATRONES, buscar: ruc, severidad: graves ? "alta" : undefined })}`;
 

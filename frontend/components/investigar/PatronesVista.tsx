@@ -2,7 +2,7 @@
 
 import { useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
-import { Ban, Briefcase, Building2, Coins, CopyCheck, FileSearch, Sprout, FlaskConical, Handshake, Landmark, ScanSearch, SearchX, ShoppingCart, TrendingUp, Users, UsersRound } from "lucide-react";
+import { Ban, Briefcase, Building2, Coins, CopyCheck, FileSearch, Gavel, Sprout, FlaskConical, Handshake, Landmark, ScanSearch, SearchX, ShoppingCart, TrendingUp, Users, UsersRound } from "lucide-react";
 import { Ayuda, CabeceraPestana, Nota, PanelConTitulo, Pestanas } from "@/components/patrones";
 import { EVENTO_ACTIVA } from "@/components/patrones/Pestanas";
 import { Buscador, CeldaBarra, CeldaNumero, CeldaPrincipal, CeldaTexto, CLASE_ENLACE_CELDA, Indicadores, Tabla, type Columna, type Fila, type Indicador } from "@/components/listado";
@@ -38,6 +38,8 @@ import {
   rutaRecien,
   rutaRenovaciones,
   rutaRepetidas,
+  rutaTribunalEmpresas,
+  rutaTribunalEntidades,
   SECCIONES_PATRONES,
   TAM_PATRONES,
   type AlcancePatron,
@@ -74,6 +76,9 @@ import {
   type PatronesSenal,
   type PatronSenal,
   type SeccionPatrones,
+  type PatronTribunalEmpresa,
+  type PatronTribunalEntidad,
+  type PatronesTribunal,
 } from "@/lib/patrones";
 import { esRucEnClaro, esRucPersonaNatural } from "@/lib/privacidad";
 import { cn } from "@/lib/utils";
@@ -217,6 +222,13 @@ export function PatronesVista({ activa, inicial, etiquetas }: { activa?: string;
           titulo: "Ola de personas nuevas al cierre de una gestión",
           icono: <UsersRound size={15} aria-hidden />,
           contenido: <ListaCierres inicial={de("cierres")} />,
+        },
+        {
+          clave: "tribunal",
+          etiqueta: SECCIONES_PATRONES.tribunal,
+          titulo: "Empresas y entidades ante el Tribunal de Contrataciones",
+          icono: <Gavel size={15} aria-hidden />,
+          contenido: <ListaTribunal inicial={de("tribunal")} />,
         },
         {
           clave: "observacion",
@@ -1610,6 +1622,186 @@ function ListaCierres({ inicial }: { inicial: InicialPatrones }) {
         }}
       </EstadoCarga>
     </div>
+  );
+}
+
+const COLUMNAS_TRIBUNAL_EMPRESAS: Columna[] = [
+  { clave: "empresa", titulo: "Empresa", ancho: "minmax(0,1.6fr)" },
+  { clave: "revocadas", titulo: "Le quitaron la buena pro", ancho: "10rem", alinear: "der", corto: "Revocadas" },
+  { clave: "sancionadores", titulo: "Sancionadores", ancho: "8rem", alinear: "der", desde: "md", apilar: "con-rotulo" },
+  { clave: "ganadas", titulo: "Ganó con uno abierto", ancho: "minmax(9rem,0.9fr)", alinear: "der", desde: "md", apilar: "con-rotulo", corto: "Con sancionador" },
+];
+const COLUMNAS_TRIBUNAL_ENTIDADES: Columna[] = [
+  { clave: "entidad", titulo: "Entidad", ancho: "minmax(0,1.6fr)" },
+  { clave: "procesos", titulo: "Procesos", ancho: "8rem", alinear: "der" },
+  { clave: "empresas", titulo: "Empresas", ancho: "8rem", alinear: "der", desde: "md", apilar: "con-rotulo" },
+  { clave: "monto", titulo: "Adjudicado", ancho: "9rem", alinear: "der", desde: "lg", apilar: "con-rotulo" },
+];
+
+function filaTribunalEmpresa(p: PatronTribunalEmpresa): Fila {
+  const nombre = p.nombre ? tituloNatural(p.nombre) : `RUC ${p.ruc}`;
+  return {
+    id: `tribunal-empresa-${p.ruc}`,
+    enlaces: true,
+    detalle: {
+      titulo: nombre,
+      etiqueta: "Ante el Tribunal de Contrataciones",
+      descripcion: (
+        <>
+          El comité le dio la buena pro y el Tribunal se la quitó {plural(p.revocadas, "vez", "veces")}
+          {p.entidades > 1 ? `, en ${plural(p.entidades, "entidad distinta", "entidades distintas")}` : ""}. El Tribunal le ordenó abrir{" "}
+          {plural(p.sancionadores, "procedimiento sancionador", "procedimientos sancionadores")} por lo que presentó en su oferta
+          {p.ganadasConSancionador ? (
+            <>
+              ; después ganó {plural(p.ganadasConSancionador, "proceso", "procesos")}
+              {p.montoConSancionador ? ` por ${solesCompacto(p.montoConSancionador)}` : ""} sin una sanción registrada
+            </>
+          ) : null}
+          .
+        </>
+      ),
+      contenido: (
+        <p className="text-meta leading-relaxed text-inkSoft">
+          Un sancionador ordenado es la orden de investigar (documentación falsa o información inexacta), no la sanción. Cada resolución, con su
+          proceso y su entidad, está en la ficha de la empresa, pestaña Antecedentes.
+        </p>
+      ),
+      ficha: `/empresa/${p.ruc}?seccion=antecedentes`,
+    },
+    celdas: {
+      empresa: (
+        <CeldaPrincipal
+          titulo={
+            <Link href={`/empresa/${p.ruc}?seccion=antecedentes`} prefetch={false} className={CLASE_ENLACE_CELDA}>
+              {nombre}
+            </Link>
+          }
+          meta={`RUC ${p.ruc}`}
+        />
+      ),
+      revocadas: <CeldaNumero sub={p.entidades > 1 ? `en ${numero(p.entidades)} entidades` : undefined}>{numero(p.revocadas)}</CeldaNumero>,
+      sancionadores: <CeldaNumero>{numero(p.sancionadores)}</CeldaNumero>,
+      ganadas: (
+        <CeldaNumero sub={p.montoConSancionador ? solesCompacto(p.montoConSancionador) : undefined}>
+          {p.ganadasConSancionador ? plural(p.ganadasConSancionador, "proceso", "procesos") : "Ninguno"}
+        </CeldaNumero>
+      ),
+    },
+  };
+}
+
+function filaTribunalEntidad(p: PatronTribunalEntidad): Fila {
+  const nombre = p.nombre ? tituloNatural(p.nombre) : `RUC ${p.ruc}`;
+  return {
+    id: `tribunal-entidad-${p.ruc}`,
+    enlaces: true,
+    detalle: {
+      titulo: nombre,
+      etiqueta: "Adjudicó a empresas con un sancionador del Tribunal abierto",
+      descripcion: (
+        <>
+          Le adjudicó {plural(p.procesos, "proceso", "procesos")}
+          {p.monto ? ` por ${solesCompacto(p.monto)}` : ""} a {plural(p.empresas, "empresa", "empresas")} mientras tenían abierto un procedimiento
+          sancionador que ordenó el Tribunal por lo que presentaron en otra oferta.
+        </>
+      ),
+      contenido: (
+        <p className="text-meta leading-relaxed text-inkSoft">
+          No está prohibido contratarlas: la orden es de investigar. Pero la entidad pudo revisar con más cuidado sus documentos. Las empresas
+          están en la ficha de la entidad, pestaña Control, bloque «Ante el Tribunal de Contrataciones».
+        </p>
+      ),
+      ficha: `/entidad/${p.ruc}?seccion=control`,
+    },
+    celdas: {
+      entidad: (
+        <CeldaPrincipal
+          titulo={
+            <Link href={`/entidad/${p.ruc}?seccion=control`} prefetch={false} className={CLASE_ENLACE_CELDA}>
+              {nombre}
+            </Link>
+          }
+          meta={`RUC ${p.ruc}`}
+        />
+      ),
+      procesos: <CeldaNumero>{numero(p.procesos)}</CeldaNumero>,
+      empresas: <CeldaNumero>{numero(p.empresas)}</CeldaNumero>,
+      monto: <CeldaNumero>{p.monto ? solesCompacto(p.monto) : "Sin monto"}</CeldaNumero>,
+    },
+  };
+}
+
+/** Empresas y entidades ante el Tribunal de Contrataciones (migración 424): dos vistas de la misma fuente. */
+function ListaTribunal({ inicial }: { inicial: InicialPatrones }) {
+  const lista = useListaEnUrl("tribunal", inicial);
+  const [vista, setVista] = useState<"empresas" | "entidades">("empresas");
+  const [porSancionador, setPorSancionador] = useState(false);
+  const pag = usePaginaConFiltro(`${vista}|${porSancionador ? 1 : 0}`, lista);
+  return (
+    <div className="space-y-4">
+      <CabeceraPestana
+        ayuda={
+          <Ayuda titulo="¿De dónde sale y por qué importa?">
+            <span className="block">
+              De las resoluciones del Tribunal de Contrataciones que resuelven apelaciones, publicadas en gob.pe y leídas por Vigía. Cada empresa
+              se nombra sólo si su nombre está en la parte resolutiva (el sancionador) o en el texto (quien tenía la buena pro), y se une a su
+              RUC entre los postores del proceso.
+            </span>
+            <span className="mt-1.5 block">
+              Que el Tribunal quite una buena pro dice que el comité calificó mal; en varias entidades, un patrón. Un sancionador ordenado es la
+              orden de investigar por documentación falsa o información inexacta, no la sanción. Las resoluciones se siguen leyendo: las listas
+              crecen.
+            </span>
+          </Ayuda>
+        }
+      >
+        Las empresas a las que el Tribunal les quitó la buena pro o les ordenó un sancionador, y las entidades que les siguieron adjudicando.
+      </CabeceraPestana>
+      <div className="flex flex-wrap items-center gap-2" role="group" aria-label="Qué lista ver">
+        {(["empresas", "entidades"] as const).map((v) => (
+          <Button key={v} variant={vista === v ? "primary" : "secondary"} onClick={() => setVista(v)} aria-pressed={vista === v}>
+            {v === "empresas" ? "Empresas" : "Entidades que les adjudican"}
+          </Button>
+        ))}
+      </div>
+      {vista === "empresas" ? (
+        <>
+          <label className="flex min-h-11 w-fit cursor-pointer items-center gap-2.5 text-dato text-ink">
+            <input type="checkbox" checked={porSancionador} onChange={(e) => setPorSancionador(e.target.checked)} className="size-5 rounded border-line accent-granate" />
+            Ordenar por sancionadores ordenados
+          </label>
+          <TribunalEmpresas page={pag.page} porSancionador={porSancionador} onPagina={pag.irAPagina} />
+        </>
+      ) : (
+        <TribunalEntidades page={pag.page} onPagina={pag.irAPagina} />
+      )}
+    </div>
+  );
+}
+
+function TribunalEmpresas({ page, porSancionador, onPagina }: { page: number; porSancionador: boolean; onPagina: (n: number) => void }) {
+  const carga = usePoder<PatronesTribunal<PatronTribunalEmpresa>>(rutaTribunalEmpresas(page, porSancionador ? "sancionadores" : "revocadas"));
+  return (
+    <EstadoCarga carga={carga} columnas={COLUMNAS_TRIBUNAL_EMPRESAS}>
+      {(d) => (
+        <ZonaLista total={d.total} page={page} cargando={carga.cargando} nombre="empresas" onPagina={onPagina} vacio="Todavía no hay empresas con dos buenas pro revocadas ni sancionadores.">
+          {d.data.length > 0 ? <TablaLista clave="tribunal" columnas={COLUMNAS_TRIBUNAL_EMPRESAS} filas={d.data.map(filaTribunalEmpresa)} etiqueta="Empresas ante el Tribunal de Contrataciones" /> : null}
+        </ZonaLista>
+      )}
+    </EstadoCarga>
+  );
+}
+
+function TribunalEntidades({ page, onPagina }: { page: number; onPagina: (n: number) => void }) {
+  const carga = usePoder<PatronesTribunal<PatronTribunalEntidad>>(rutaTribunalEntidades(page));
+  return (
+    <EstadoCarga carga={carga} columnas={COLUMNAS_TRIBUNAL_ENTIDADES}>
+      {(d) => (
+        <ZonaLista total={d.total} page={page} cargando={carga.cargando} nombre="entidades" onPagina={onPagina} vacio="Todavía no hay entidades con estos casos.">
+          {d.data.length > 0 ? <TablaLista clave="tribunal" columnas={COLUMNAS_TRIBUNAL_ENTIDADES} filas={d.data.map(filaTribunalEntidad)} etiqueta="Entidades que adjudicaron a empresas con un sancionador abierto" /> : null}
+        </ZonaLista>
+      )}
+    </EstadoCarga>
   );
 }
 
