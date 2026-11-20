@@ -983,6 +983,45 @@ patronesRouter.get("/tribunal/empresas", async (c) => {
   return c.json(cuerpo);
 });
 
+const EntidadesSancionador = z.object({
+  page: z.coerce.number().int().min(1).max(200).default(1),
+  size: z.coerce.number().int().min(1).max(50).default(20),
+});
+
+/**
+ * GET /patrones/tribunal/entidades-sancionador — las entidades que más adjudicaron a empresas mientras tenían abierto un
+ * procedimiento sancionador que ordenó el Tribunal (gana_con_sancionador_abierto, migración 424): procesos, empresas y
+ * monto. No está prohibido contratarlas; es un indicio de que la entidad no revisó con más cuidado sus documentos.
+ */
+patronesRouter.get("/tribunal/entidades-sancionador", async (c) => {
+  const p = EntidadesSancionador.safeParse(Object.fromEntries(Object.entries(parametros(c)).filter(([, v]) => v !== "" && v != null)));
+  if (!p.success) return c.json({ error: "invalid_query", issues: p.error.issues }, 400);
+  const q = p.data;
+  const cuerpo = await memo.obtener(`tribunal-entidades-sancionador:${JSON.stringify(q)}`, async () => {
+    const r = await pool.query(
+      `WITH k AS (SELECT cv.entidad_ruc, k.ruc_empresa, k.ocid, k.monto FROM cruces_proveedor k JOIN convocatorias cv ON cv.ocid = k.ocid
+                   WHERE k.tipo = 'gana_con_sancionador_abierto')
+       SELECT btrim(k.entidad_ruc::text) AS ruc, e.nombre, count(DISTINCT k.ocid)::int AS procesos,
+              count(DISTINCT k.ruc_empresa)::int AS empresas, sum(k.monto)::float AS monto, (count(*) OVER ())::int AS total
+         FROM k LEFT JOIN entidades e ON e.ruc = k.entidad_ruc
+        GROUP BY 1, 2
+        ORDER BY 3 DESC, 5 DESC NULLS LAST, 1
+        LIMIT $1 OFFSET $2`, [q.size, (q.page - 1) * q.size],
+    );
+    const filas = r.rows as Record<string, any>[];
+    return {
+      total: filas[0]?.total ?? 0, page: q.page, size: q.size,
+      data: filas.map(({ total: _t, ...x }) => x),
+      como_leerlo: "Entidades que adjudicaron procesos a empresas mientras tenían abierto un procedimiento sancionador que " +
+        "ordenó el Tribunal de Contrataciones por documentación falsa o información inexacta en otra oferta (hasta dos años o " +
+        "hasta su sanción). No está prohibido: la orden es de investigar. Las entidades grandes contratan más: compara con " +
+        "su volumen. Las resoluciones se siguen leyendo: la lista crece.",
+    };
+  });
+  c.header("Cache-Control", CACHE);
+  return c.json(cuerpo);
+});
+
 const ComprasFamilia = z.object({
   /** RUC de la entidad, o de la empresa del familiar. */
   buscar: z.string().regex(/^20\d{9}$/).optional(),

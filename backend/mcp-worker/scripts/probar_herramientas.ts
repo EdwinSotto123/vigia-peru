@@ -106,6 +106,12 @@ const CASOS: Caso[] = [
       return e.length >= 3 && e.every((x) => /^20\d{9}$/.test(String(x.ruc))) && (e[0].buenas_pro_revocadas ?? 0) >= 2
         ? null : `empresas: ${e.length}`;
     } },
+  // Las entidades que adjudican a empresas con un sancionador del Tribunal abierto (424).
+  { h: patrones as never, args: { alcance: "tribunal_entidades_sancionador" },
+    espera: (r) => {
+      const e = lista(r, "entidades") as { ruc?: string; procesos_con_sancionador_abierto?: number }[];
+      return e.length >= 3 && e.every((x) => /^\d{11}$/.test(String(x.ruc)) && (x.procesos_con_sancionador_abierto ?? 0) >= 1) ? null : `entidades: ${e.length}`;
+    } },
   // Y en la lista de indicadores en observación, con la resolución (424).
   { h: patrones as never, args: { alcance: "observacion", indicador: "tribunal_revoco_buena_pro" },
     espera: (r) => (/"resolucion_del_tribunal":"Resoluci/.test(JSON.stringify(r)) ? null : "sin la resolución del Tribunal en la lista") },
