@@ -331,11 +331,15 @@ export const URL_ASISTENTE_SALUD = `${API_BASE}/salud/asistente`;
 export interface FilaCercana extends FilaIpress {
   enRegistro: boolean;
   distancia: number;
+  /** Con una necesidad: el nombre (como en RENIPRESS) de lo que declaró y coincidió. */
+  coincide?: string | null;
 }
 export interface Cercanos {
   origen: { lat: number; lon: number };
   radioKm: number;
   filas: FilaCercana[];
+  /** Con una necesidad: cuántas activas de la zona ya tienen sus servicios leídos (las únicas que pueden aparecer). */
+  cobertura?: { revisados: number; total: number } | null;
 }
 
 /** La dirección de «cerca de ti» (POST {lat, lon}: la ubicación va en el cuerpo, que la API no registra). */

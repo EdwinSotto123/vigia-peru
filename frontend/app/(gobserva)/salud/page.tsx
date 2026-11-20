@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import {
-  Activity, BadgeCheck, Building2, CalendarClock, CircleSlash, FileSearch, Gavel, GraduationCap, LocateFixed, MapPinned, MessageSquareWarning,
-  Scissors, Search, Stethoscope, type LucideIcon,
+  Activity, Baby, BadgeCheck, Bone, Brain, Building2, CalendarClock, CircleSlash, Eye, FileSearch, Gavel, GraduationCap, Hand, HeartHandshake, HeartPulse,
+  LocateFixed, MapPinned, MessageSquareWarning, Microscope, ScanLine, Scissors, Search, Siren, Smile, Stethoscope, Users, type LucideIcon,
 } from "lucide-react";
 import { FuenteFecha, InsigniaEstado, InsigniaHecho } from "@/components/salud/comun";
 import { ClasesDeHecho } from "@/components/salud/fuentes/ClasesDeHecho";
@@ -18,6 +18,7 @@ import { claseAccion } from "@/components/ui/EnlaceAccion";
 import { rutaEn, urlCanonica } from "@/lib/gobserva";
 import { ESTADOS_CHEQUEO, getResumenSalud, numero, type EstadoChequeo, type TipoHecho } from "@/lib/gobserva-salud";
 import { baseProducto } from "@/lib/gobserva-servidor";
+import { NECESIDADES_RAPIDAS } from "@/lib/salud-necesidades";
 
 export const dynamic = "force-dynamic";
 
@@ -26,6 +27,12 @@ export const metadata: Metadata = {
   description:
     "Antes de atenderte, revisa si el establecimiento está registrado y activo en RENIPRESS, su categoría, sus servicios y si tiene sanciones firmes de SUSALUD, y cómo verificar a tu médico en el Colegio Médico. Cada dato con su fuente y su fecha. Gratis y sin cuenta.",
   alternates: { canonical: urlCanonica("salud", "/") },
+};
+
+/** El ícono de cada necesidad de la portada (lib/salud-necesidades.ts). */
+const ICONO_NECESIDAD: Record<string, LucideIcon> = {
+  emergencia: Siren, dientes: Smile, parto: HeartHandshake, ninos: Baby, ojos: Eye, piel: Hand, corazon: HeartPulse, huesos: Bone,
+  mental: Brain, analisis: Microscope, imagenes: ScanLine, operacion: Scissors,
 };
 
 /** Lo que significa cada estado de un chequeo (los de la ficha), en una línea. */
@@ -113,6 +120,37 @@ export default async function InicioSalud() {
       </section>
 
       <div className="container-page space-y-20 py-14 sm:space-y-24 sm:py-20">
+        {/* ── Dónde te atienden cerca, por lo que necesitas ───────────────────── */}
+        <section aria-labelledby="necesidad-t">
+          <CabeceraSeccion
+            id="necesidad-t"
+            grande
+            titulo="¿Dónde te pueden atender cerca?"
+            bajada="Elige lo que necesitas y usa tu ubicación: te mostramos los establecimientos cercanos que lo declararon en RENIPRESS, si están activos y si tienen sanciones firmes."
+          />
+          <ul className="mt-6 grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-6" aria-label="Lo que necesitas">
+            {NECESIDADES_RAPIDAS.map((n) => {
+              const Icono = ICONO_NECESIDAD[n.clave] ?? Users;
+              return (
+                <li key={n.clave} className="min-w-0">
+                  <Link
+                    href={`${ruta("/cerca")}?ubicar=1&necesidad=${n.clave}`}
+                    prefetch={false}
+                    className="flex min-h-14 items-center gap-2.5 rounded-2xl border border-line bg-paper px-3.5 py-2.5 text-dato font-semibold leading-snug text-ink transition-colors duration-rapido hover:border-granate/50 hover:bg-granate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-granate"
+                  >
+                    <Icono size={19} aria-hidden className={n.clave === "emergencia" ? "shrink-0 text-crimsonTexto" : "shrink-0 text-granate"} />
+                    <span className="min-w-0">{n.etiqueta}</span>
+                  </Link>
+                </li>
+              );
+            })}
+          </ul>
+          <p className="mt-3 flex items-start gap-1.5 text-meta leading-relaxed text-inkSoft">
+            <LocateFixed size={14} aria-hidden className="mt-0.5 shrink-0 text-mute" />
+            <span>Tu ubicación no se guarda. En una emergencia no busques: llama al 106.</span>
+          </p>
+        </section>
+
         {/* ── Lo que no se ve desde la puerta ────────────────────────────────── */}
         <section aria-labelledby="problema-t" className="grid gap-8 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)] lg:gap-14">
           <div className="min-w-0">

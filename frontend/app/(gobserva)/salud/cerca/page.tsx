@@ -9,34 +9,40 @@ import { getResumenSalud } from "@/lib/gobserva-salud";
 import { baseProducto } from "@/lib/gobserva-servidor";
 
 export const metadata: Metadata = {
-  title: "Estoy en un establecimiento",
+  title: "Establecimientos de salud cerca de ti",
   description:
-    "Si ya estás adentro de una clínica, un consultorio o un hospital, usa tu ubicación para ver los establecimientos registrados más cercanos: si están activos en RENIPRESS, su categoría y si tienen sanciones firmes de SUSALUD. Tu ubicación no se guarda.",
+    "Con tu ubicación: los establecimientos registrados más cercanos, si están activos en RENIPRESS, su categoría y si tienen sanciones firmes de SUSALUD. Si ya estás adentro de una clínica, para verificarla; si buscas dónde atenderte de algo, los cercanos que lo declararon. Tu ubicación no se guarda.",
   alternates: { canonical: urlCanonica("salud", "/cerca") },
 };
 
 /**
- * «Estoy en un establecimiento» (Gobserva Salud, 2026-11-20): para quien ya está adentro y quiere verificar el lugar sin
- * saber su nombre exacto. El botón de la portada llega con ?ubicar=1 y la ubicación se pide al abrir; sin eso, con el
- * botón. Al lado (debajo en el celular), qué revisar ya adentro: la ficha, la colegiatura de quien atiende y qué hacer si
- * algo no cuadra.
+ * «Cerca de ti» (Gobserva Salud, 2026-11-20): para quien ya está adentro y quiere verificar el lugar sin saber su nombre
+ * exacto, y para quien busca dónde atenderse de algo (?necesidad=dientes, desde «¿Te pueden atender aquí?» de una ficha).
+ * El botón de la portada llega con ?ubicar=1 y la ubicación se pide al abrir; sin eso, con el botón. Al lado (debajo en
+ * el celular), qué revisar ya adentro: la ficha, la colegiatura de quien atiende y qué hacer si algo no cuadra.
  */
-export default async function CercaDeTi({ searchParams }: { searchParams: { ubicar?: string } }) {
+export default async function CercaDeTi({ searchParams }: { searchParams: { ubicar?: string; necesidad?: string } }) {
   const base = baseProducto("salud");
   const r = await getResumenSalud();
   return (
     <div className="container-page pb-10 pt-5 sm:pt-8">
-      <Migas items={[{ etiqueta: "Inicio", href: rutaEn(base, "/") }, { etiqueta: "Estoy en un establecimiento" }]} />
+      <Migas items={[{ etiqueta: "Inicio", href: rutaEn(base, "/") }, { etiqueta: "Cerca de ti" }]} />
 
       <div className="mt-4 grid gap-x-12 gap-y-10 lg:grid-cols-[minmax(0,1fr)_22rem] lg:items-start">
         <div className="min-w-0">
-          <h1 className="text-balance font-display text-cifra font-bold leading-tight tracking-tight text-ink sm:text-titulo">Estoy en un establecimiento</h1>
+          <h1 className="text-balance font-display text-cifra font-bold leading-tight tracking-tight text-ink sm:text-titulo">Cerca de ti</h1>
           <p className="mt-2 max-w-[62ch] text-pretty text-cuerpo leading-relaxed text-inkSoft">
-            Si ya estás adentro de una clínica, un consultorio o un hospital y no sabes su nombre exacto, usa tu ubicación. Te mostramos los
-            establecimientos registrados más cercanos, si están activos y si tienen sanciones firmes.
+            ¿Ya estás adentro de una clínica y no sabes su nombre exacto? ¿Buscas dónde atenderte de algo? Con tu ubicación te mostramos los
+            establecimientos registrados más cercanos, si están activos, si tienen sanciones firmes y, si eliges qué necesitas, cuáles lo declararon.
           </p>
           <div className="mt-6">
-            <CercaDeMi base={base} auto={searchParams.ubicar === "1"} conUbicacion={r?.conUbicacion ?? null} total={r?.ipress ?? null} />
+            <CercaDeMi
+              base={base}
+              auto={searchParams.ubicar === "1"}
+              necesidadInicial={typeof searchParams.necesidad === "string" ? searchParams.necesidad : null}
+              conUbicacion={r?.conUbicacion ?? null}
+              total={r?.ipress ?? null}
+            />
           </div>
         </div>
 

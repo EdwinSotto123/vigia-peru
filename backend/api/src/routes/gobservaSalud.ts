@@ -337,7 +337,13 @@ export function redondearCoordenada(v: number): number {
   return Math.round(v * 1000) / 1000;
 }
 
-const CuerpoCerca = z.object({ lat: z.number().finite(), lon: z.number().finite() });
+const CuerpoCerca = z.object({
+  lat: z.number().finite(),
+  lon: z.number().finite(),
+  // Lo que la persona necesita, como el comienzo de palabra que se busca en lo que cada IPRESS declaró en RENIPRESS
+  // («ODONTOLOG», «CENTRO OBSTETRICO»): los arma la web (frontend/lib/salud-necesidades.ts). Sólo letras y espacios.
+  terminos: z.array(z.string().regex(/^[A-Z][A-Z ]{2,39}$/)).min(1).max(16).optional(),
+});
 
 /**
  * Las IPRESS más cercanas a un punto, para quien ya está dentro de un establecimiento. POST y no GET: el registro de
@@ -364,20 +370,53 @@ saludRouter.post("/cerca", async (c) => {
   // Distancia en metros (haversine) desde el punto redondeado; el recuadro deja usar sólo las de la zona.
   const distancia = `6371000 * 2 * asin(sqrt(power(sin(radians(i.lat - $1) / 2), 2)
     + cos(radians($1)) * cos(radians(i.lat)) * power(sin(radians(i.lon - $2) / 2), 2)))`;
+  const caja = `i.lat BETWEEN $1::float8 - $3::float8 AND $1::float8 + $3::float8
+         AND i.lon BETWEEN $2::float8 - $3::float8 AND $2::float8 + $3::float8`;
+  const terminos = b.data.terminos;
   let filas: Record<string, unknown>[] = [];
   let radio = 0;
+  let cobertura: { revisados: number; total: number } | null = null;
   for (const r of CERCA_RADIOS) {
     radio = r;
-    const q = await pool.query(`
-      SELECT ${COLS}, i.en_registro AS "enRegistro", round(${distancia})::int AS distancia
-        FROM salud_ipress i LEFT JOIN salud_indicador x ON x.codigo = i.codigo
-       WHERE i.lat BETWEEN $1::float8 - $3::float8 AND $1::float8 + $3::float8
-         AND i.lon BETWEEN $2::float8 - $3::float8 AND $2::float8 + $3::float8
-       ORDER BY distancia, i.activo DESC, i.nombre LIMIT ${CERCA_MAX}`, [o.lat, o.lon, r]);
-    filas = q.rows;
+    if (!terminos) {
+      const q = await pool.query(`
+        SELECT ${COLS}, i.en_registro AS "enRegistro", round(${distancia})::int AS distancia
+          FROM salud_ipress i LEFT JOIN salud_indicador x ON x.codigo = i.codigo
+         WHERE ${caja}
+         ORDER BY distancia, i.activo DESC, i.nombre LIMIT ${CERCA_MAX}`, [o.lat, o.lon, r]);
+      filas = q.rows;
+    } else {
+      // Con una necesidad: sólo las activas cuyo detalle ya se leyó y que declararon algo que empieza con un término
+      // (especialidad, UPSS, cartera o unidad), de la más cercana a la más lejana, con el nombre más corto que coincidió
+      // («Odontología» antes que «Carielogía y endodoncia»).
+      // Las 800 más cercanas con detalle bastan para hallar 30 en una ciudad y no recorren todo el país.
+      const patrones = terminos.map((t) => `% ${t}%`);
+      const [q, n] = await Promise.all([
+        pool.query(`
+          WITH cerca AS MATERIALIZED (
+            SELECT i.codigo, ${distancia} AS d
+              FROM salud_ipress i JOIN salud_ipress_detalle dd ON dd.codigo = i.codigo AND dd.leido_at IS NOT NULL AND dd.error IS NULL
+             WHERE ${caja} AND i.en_registro AND i.activo
+             ORDER BY d LIMIT 800)
+          SELECT ${COLS}, i.en_registro AS "enRegistro", round(c.d)::int AS distancia, m.nombre AS coincide
+            FROM cerca c JOIN salud_ipress i ON i.codigo = c.codigo LEFT JOIN salud_indicador x ON x.codigo = i.codigo
+            JOIN LATERAL (
+              SELECT e->>'nombre' AS nombre
+                FROM salud_ipress_detalle d2, jsonb_array_elements(d2.especialidades || d2.upss || d2.cartera || d2.ups) e
+               WHERE d2.codigo = c.codigo AND ' ' || mef_norm(e->>'nombre') LIKE ANY ($4::text[])
+               ORDER BY length(e->>'nombre') LIMIT 1) m ON true
+           ORDER BY c.d, i.nombre LIMIT ${CERCA_MAX}`, [o.lat, o.lon, r, patrones]),
+        pool.query(`
+          SELECT count(*)::int AS total, count(dd.codigo)::int AS revisados
+            FROM salud_ipress i LEFT JOIN salud_ipress_detalle dd ON dd.codigo = i.codigo AND dd.leido_at IS NOT NULL AND dd.error IS NULL
+           WHERE ${caja} AND i.en_registro AND i.activo`, [o.lat, o.lon, r]),
+      ]);
+      filas = q.rows;
+      cobertura = n.rows[0];
+    }
     if (filas.length) break;
   }
-  return c.json(publicar({ origen: o, radioKm: Math.round(radio * 111), filas }));
+  return c.json(publicar({ origen: o, radioKm: Math.round(radio * 111), filas, cobertura }));
 });
 
 // ─── GET /salud/establecimiento/:codigo ───────────────────────────────────────────────────────────

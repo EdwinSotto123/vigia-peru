@@ -1,21 +1,30 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Crosshair, Loader2, LocateFixed, Navigation, RotateCw, ShieldCheck, TriangleAlert } from "lucide-react";
-import { direccionLegible } from "@/components/salud/ficha/piezas";
+import { CircleCheck, Crosshair, Loader2, LocateFixed, Navigation, RotateCw, ShieldCheck, TriangleAlert } from "lucide-react";
+import { direccionLegible, nombreServicio } from "@/components/salud/ficha/piezas";
 import { FilaEstablecimiento } from "@/components/salud/lista/FilaEstablecimiento";
 import { BuscadorSalud } from "@/components/salud/portada/BuscadorSalud";
 import { claseAccion } from "@/components/ui/EnlaceAccion";
 import { Dato } from "@/components/ui/Dato";
 import { rutaEn } from "@/lib/gobserva";
 import { URL_CERCA_SALUD, distanciaMetros, numero, redondearCoordenada, textoDistancia, type Cercanos, type FilaCercana } from "@/lib/gobserva-salud";
+import { NECESIDADES_RAPIDAS, necesidadDe, type Necesidad } from "@/lib/salud-necesidades";
+import { cn } from "@/lib/utils";
 
 type Motivo = "denegado" | "no_disponible" | "tiempo" | "sin_soporte" | "fuera" | "limite" | "red";
 type Estado =
   | { fase: "inicio" }
   | { fase: "ubicando" }
   | { fase: "buscando" }
-  | { fase: "listo"; filas: (FilaCercana & { metros: number })[]; margen: number }
+  | {
+      fase: "listo";
+      filas: (FilaCercana & { metros: number })[];
+      margen: number;
+      necesidad: Necesidad | null;
+      radioKm: number;
+      cobertura: Cercanos["cobertura"];
+    }
   | { fase: "error"; motivo: Motivo };
 
 const PRIMERAS = 8;
@@ -37,37 +46,43 @@ const MENSAJE: Record<Motivo, { titulo: string; texto: string }> = {
 };
 
 /**
- * «Estoy en un establecimiento» (Gobserva Salud): para quien ya está adentro de una clínica y quiere verificarla sin saber
- * su nombre exacto. Pide la ubicación al tocar el botón (o al abrir la página desde el botón de la portada, `auto`), manda
- * a la API sólo la ubicación redondeada a unos 110 m (POST /salud/cerca, en el cuerpo) y con la ubicación exacta, que no
- * sale del teléfono, calcula la distancia y ordena. Muestra las más cercanas con la fila de siempre (estado, categoría,
- * sanciones) y su distancia; también las que tienen baja o ya no figuran en RENIPRESS. Nunca dice «estás en tal clínica»:
- * el GPS se equivoca adentro de un edificio y la ubicación de cada IPRESS la declaró ella misma.
+ * «Cerca de ti» (Gobserva Salud): para quien ya está adentro de una clínica y quiere verificarla sin saber su nombre
+ * exacto, y para quien busca dónde atenderse de algo («dientes», «embarazo y parto»). Pide la ubicación al tocar el botón
+ * (o al abrir la página desde el botón de la portada, `auto`), manda a la API sólo la ubicación redondeada a unos 110 m
+ * (POST /salud/cerca, en el cuerpo) y, con la ubicación exacta, que no sale del teléfono, calcula la distancia y ordena.
+ * Sin necesidad: las más cercanas, también las de baja o que ya no figuran en RENIPRESS. Con una: sólo las activas que la
+ * declararon, con lo que declararon y cuántas de la zona ya tienen sus servicios leídos. Nunca dice «estás en tal
+ * clínica» (el GPS se desvía adentro de un edificio) ni «aquí no te atienden» (sólo «no lo declaró»).
  */
 export function CercaDeMi({
   base,
   auto = false,
+  necesidadInicial = null,
   conUbicacion,
   total,
 }: {
   base: string;
   auto?: boolean;
+  /** La clave de una necesidad (lib/salud-necesidades.ts) que llega en la URL: ?necesidad=dientes. */
+  necesidadInicial?: string | null;
   /** Cuántas IPRESS tienen ubicación en RENIPRESS y cuántas hay (GET /salud/resumen), para decir cuántas no se pueden encontrar así. */
   conUbicacion: number | null;
   total: number | null;
 }) {
   const [estado, setEstado] = useState<Estado>({ fase: "inicio" });
+  const [necesidad, setNecesidad] = useState<Necesidad | null>(necesidadDe(necesidadInicial));
   const [todas, setTodas] = useState(false);
   const titulo = useRef<HTMLHeadingElement>(null);
   const pedido = useRef(0);
+  const posicion = useRef<{ lat: number; lon: number; margen: number } | null>(null);
 
-  const buscar = useCallback(async (lat: number, lon: number, margen: number, n: number) => {
+  const buscar = useCallback(async (lat: number, lon: number, margen: number, n: number, nec: Necesidad | null) => {
     setEstado({ fase: "buscando" });
     try {
       const r = await fetch(URL_CERCA_SALUD, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ lat: redondearCoordenada(lat), lon: redondearCoordenada(lon) }),
+        body: JSON.stringify({ lat: redondearCoordenada(lat), lon: redondearCoordenada(lon), ...(nec ? { terminos: nec.terminos } : {}) }),
         cache: "no-store",
       });
       if (n !== pedido.current) return;
@@ -84,37 +99,57 @@ export function CercaDeMi({
         .map((x) => ({ ...x, metros: distanciaMetros({ lat, lon }, { lat: x.lat as number, lon: x.lon as number }) }))
         .sort((a, b) => a.metros - b.metros || Number(b.activo) - Number(a.activo));
       setTodas(false);
-      setEstado({ fase: "listo", filas, margen });
+      setEstado({ fase: "listo", filas, margen, necesidad: nec, radioKm: d.radioKm, cobertura: d.cobertura ?? null });
     } catch {
       if (n === pedido.current) setEstado({ fase: "error", motivo: "red" });
     }
   }, []);
 
-  const ubicar = useCallback(() => {
-    const n = ++pedido.current;
-    if (typeof navigator === "undefined" || !("geolocation" in navigator)) return setEstado({ fase: "error", motivo: "sin_soporte" });
-    setEstado({ fase: "ubicando" });
-    navigator.geolocation.getCurrentPosition(
-      (p) => {
-        if (n !== pedido.current) return;
-        void buscar(p.coords.latitude, p.coords.longitude, p.coords.accuracy, n);
-      },
-      (e) => {
-        if (n !== pedido.current) return;
-        setEstado({ fase: "error", motivo: e.code === e.PERMISSION_DENIED ? "denegado" : e.code === e.TIMEOUT ? "tiempo" : "no_disponible" });
-      },
-      { enableHighAccuracy: true, timeout: 20000, maximumAge: 60000 },
-    );
-  }, [buscar]);
+  const ubicar = useCallback(
+    (nec: Necesidad | null) => {
+      const n = ++pedido.current;
+      if (typeof navigator === "undefined" || !("geolocation" in navigator)) return setEstado({ fase: "error", motivo: "sin_soporte" });
+      setEstado({ fase: "ubicando" });
+      navigator.geolocation.getCurrentPosition(
+        (p) => {
+          if (n !== pedido.current) return;
+          posicion.current = { lat: p.coords.latitude, lon: p.coords.longitude, margen: p.coords.accuracy };
+          void buscar(p.coords.latitude, p.coords.longitude, p.coords.accuracy, n, nec);
+        },
+        (e) => {
+          if (n !== pedido.current) return;
+          setEstado({ fase: "error", motivo: e.code === e.PERMISSION_DENIED ? "denegado" : e.code === e.TIMEOUT ? "tiempo" : "no_disponible" });
+        },
+        { enableHighAccuracy: true, timeout: 20000, maximumAge: 60000 },
+      );
+    },
+    [buscar],
+  );
 
-  // Desde el botón de la portada («Estoy en un establecimiento»): esa fue la intención, se pide la ubicación al llegar.
+  // Cambiar lo que se necesita: con la ubicación ya tomada se vuelve a buscar sin pedirla de nuevo.
+  const elegir = (nec: Necesidad | null) => {
+    setNecesidad(nec);
+    const p = posicion.current;
+    if (p) void buscar(p.lat, p.lon, p.margen, ++pedido.current, nec);
+    try {
+      const u = new URL(window.location.href);
+      if (nec) u.searchParams.set("necesidad", nec.clave);
+      else u.searchParams.delete("necesidad");
+      u.searchParams.delete("ubicar");
+      window.history.replaceState(window.history.state, "", u.toString());
+    } catch {
+      /* la URL no se pudo cambiar: no importa */
+    }
+  };
+
+  // Desde el botón de la portada o de una ficha: esa fue la intención, se pide la ubicación al llegar.
   const yaPidio = useRef(false);
   useEffect(() => {
     if (auto && !yaPidio.current) {
       yaPidio.current = true;
-      ubicar();
+      ubicar(necesidad);
     }
-  }, [auto, ubicar]);
+  }, [auto, ubicar, necesidad]);
 
   // Con los resultados, el foco va a su título (el lector de pantalla lo anuncia y el teclado sigue desde ahí).
   useEffect(() => {
@@ -123,13 +158,32 @@ export function CercaDeMi({
 
   const ocupado = estado.fase === "ubicando" || estado.fase === "buscando";
   const sinUbicacion = conUbicacion != null && total != null && total > conUbicacion ? total - conUbicacion : null;
+  const opciones = necesidad && !NECESIDADES_RAPIDAS.includes(necesidad) ? [necesidad, ...NECESIDADES_RAPIDAS] : NECESIDADES_RAPIDAS;
 
   return (
     <div className="min-w-0">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+      <fieldset className="min-w-0">
+        <legend className="text-dato font-semibold text-ink">¿Qué necesitas? Opcional</legend>
+        <ul className="mt-2 flex flex-wrap gap-2">
+          <li>
+            <Opcion activa={!necesidad} onClick={() => elegir(null)} deshabilitada={ocupado}>
+              Ver todos
+            </Opcion>
+          </li>
+          {opciones.map((n) => (
+            <li key={n.clave}>
+              <Opcion activa={necesidad?.clave === n.clave} onClick={() => elegir(necesidad?.clave === n.clave ? null : n)} deshabilitada={ocupado}>
+                {n.etiqueta}
+              </Opcion>
+            </li>
+          ))}
+        </ul>
+      </fieldset>
+
+      <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:items-center">
         <button
           type="button"
-          onClick={ubicar}
+          onClick={() => ubicar(necesidad)}
           disabled={ocupado}
           aria-describedby="cerca-privacidad"
           className={claseAccion("primario", "min-h-14 w-full px-7 text-cuerpo disabled:cursor-wait disabled:opacity-80 sm:w-auto", "md")}
@@ -164,7 +218,13 @@ export function CercaDeMi({
         <section aria-labelledby="cerca-t" className="mt-8">
           <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-2">
             <h2 id="cerca-t" ref={titulo} tabIndex={-1} className="font-display text-seccion font-bold leading-tight text-ink focus:outline-none">
-              {estado.filas.length ? "Lo más cercano a ti" : "No hay establecimientos registrados cerca"}
+              {estado.necesidad
+                ? estado.filas.length
+                  ? `Lo más cercano que declaró ${estado.necesidad.tecnico}`
+                  : `Ninguno cerca declaró ${estado.necesidad.tecnico}`
+                : estado.filas.length
+                  ? "Lo más cercano a ti"
+                  : "No hay establecimientos registrados cerca"}
             </h2>
             {estado.filas.length > 0 && (
               <p className="flex items-center gap-1.5 text-meta text-inkSoft">
@@ -173,11 +233,19 @@ export function CercaDeMi({
               </p>
             )}
           </div>
-          {estado.margen > 100 && estado.filas.length > 0 && (
+
+          {estado.necesidad && estado.cobertura && (
+            <p className="mt-2 max-w-[72ch] text-dato leading-relaxed text-inkSoft">
+              Sólo aparecen los activos que lo declararon en RENIPRESS y cuyos servicios ya leímos: {numero(estado.cobertura.revisados)} de{" "}
+              {numero(estado.cobertura.total)} en unos {estado.radioKm} km a la redonda. Que lo hayan declarado no asegura cupo hoy: llama antes de ir.
+            </p>
+          )}
+          {!estado.necesidad && estado.margen > 100 && estado.filas.length > 0 && (
             <p className="mt-2 max-w-[70ch] text-dato leading-relaxed text-inkSoft">
               Dentro de un edificio la ubicación se desvía: si el tuyo no es el primero, revisa los que siguen.
             </p>
           )}
+
           {estado.filas.length > 0 ? (
             <>
               <ol className="mt-4 space-y-3" aria-label="Establecimientos de salud, del más cercano al más lejano">
@@ -192,6 +260,13 @@ export function CercaDeMi({
                           </Dato>
                           {x.direccion && <span className="min-w-0 text-inkSoft">{direccionLegible(x.direccion)}</span>}
                         </p>
+                        {x.coincide && (
+                          <p className="mt-1.5 text-meta">
+                            <Dato icono={CircleCheck} nombre="Declaró en RENIPRESS" className="font-semibold text-mossTexto">
+                              Declaró: {nombreServicio(x.coincide)}
+                            </Dato>
+                          </p>
+                        )}
                       </FilaEstablecimiento>
                     </li>
                   );
@@ -203,23 +278,46 @@ export function CercaDeMi({
                 </button>
               )}
             </>
+          ) : estado.necesidad ? (
+            <p className="mt-2 max-w-[70ch] text-dato leading-relaxed text-inkSoft">
+              Eso no prueba que no lo atiendan: de muchos todavía no leemos sus servicios. Mira todos los cercanos y llama para preguntar.
+            </p>
           ) : (
             <p className="mt-2 max-w-[70ch] text-dato leading-relaxed text-inkSoft">
               En unos 170 km a la redonda ningún establecimiento declaró su ubicación en RENIPRESS. Búscalo por su nombre.
             </p>
           )}
 
-          <div className="mt-6 rounded-2xl border border-line bg-paperSoft p-4 sm:p-5">
-            <h3 className="font-display text-bloque font-bold leading-snug text-ink">¿No está el tuyo?</h3>
-            <p className="mt-1 max-w-[70ch] text-dato leading-relaxed text-inkSoft">
-              La ubicación de cada establecimiento la declara él mismo en RENIPRESS
-              {sinUbicacion ? <>, y {numero(sinUbicacion)} de {numero(total)} no la declararon</> : null}. Búscalo por su nombre, o pregunta en recepción con qué
-              nombre o RUC está registrado.
-            </p>
-            <BuscadorSalud accion={rutaEn(base, "/buscar")} id="cerca-buscar" className="mt-4" />
-          </div>
+          {!estado.necesidad && (
+            <div className="mt-6 rounded-2xl border border-line bg-paperSoft p-4 sm:p-5">
+              <h3 className="font-display text-bloque font-bold leading-snug text-ink">¿No está el tuyo?</h3>
+              <p className="mt-1 max-w-[70ch] text-dato leading-relaxed text-inkSoft">
+                La ubicación de cada establecimiento la declara él mismo en RENIPRESS
+                {sinUbicacion ? <>, y {numero(sinUbicacion)} de {numero(total)} no la declararon</> : null}. Búscalo por su nombre, o pregunta en recepción con qué
+                nombre o RUC está registrado.
+              </p>
+              <BuscadorSalud accion={rutaEn(base, "/buscar")} id="cerca-buscar" className="mt-4" />
+            </div>
+          )}
         </section>
       )}
     </div>
+  );
+}
+
+function Opcion({ activa, onClick, deshabilitada, children }: { activa: boolean; onClick: () => void; deshabilitada: boolean; children: React.ReactNode }) {
+  return (
+    <button
+      type="button"
+      aria-pressed={activa}
+      onClick={onClick}
+      disabled={deshabilitada}
+      className={cn(
+        "inline-flex min-h-11 items-center rounded-full border px-3.5 text-meta font-semibold transition-colors duration-rapido disabled:cursor-wait sm:min-h-9",
+        activa ? "border-granate bg-granate text-paper" : "border-line bg-paper text-ink hover:border-granate/50 hover:bg-granate-50",
+      )}
+    >
+      {children}
+    </button>
   );
 }

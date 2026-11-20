@@ -89,6 +89,23 @@ vigia-api /salud/* (Hono en Workers, caché de borde) ──► vigia-web: app/(
 - Reutiliza de Vigía: lo que se sabe del RUC del propietario (SUNAT, contratos con el Estado, informes de control de la
   entidad pública), el kit de diseño, el motor del asistente (`correrChat`), el MCP v2, Turnstile y los topes por IP.
 
+## Para la persona de a pie
+
+- **Ficha, «Para atenderte aquí»** (`components/salud/ficha/ResumenAtencion.tsx`), arriba de la verificación: la frase de
+  la verificación; qué servicios declaró en RENIPRESS (emergencia, hospitalización, partos, centro quirúrgico, cuidados
+  intensivos, laboratorio, imágenes, farmacia, rehabilitación, diálisis, teleconsulta), cada uno como «Sí», «No lo
+  declaró», «Suspendido» o «Sin dato todavía» (`atencion.ts`); su personal declarado a SUSALUD el último mes (cuántos
+  médicos, enfermeras, obstetras…: nunca quién está hoy); «¿Te pueden atender aquí?» (`TeAtiendenAqui.tsx`), que busca
+  lo que la persona escribe con sus palabras en lo que declaró; y dos preguntas listas para el asistente.
+- **Necesidades** (`frontend/lib/salud-necesidades.ts`): «dientes», «embarazo y parto», «mi hijo tiene fiebre» → los
+  comienzos de palabra con que RENIPRESS lo nombra («ODONTOLOG», «CENTRO OBSTETRICO», «PEDIATR»). Se compara por
+  comienzo de palabra, sin tildes: «PARTO» no encuentra «Departamento».
+- **Cerca de ti** (`/cerca`, `?necesidad=dientes`): con una necesidad, `POST /salud/cerca` recibe esos términos (sólo
+  `[A-Z ]`) y devuelve las activas más cercanas que lo declararon, con lo que coincidió y cuántas de la zona ya tienen su
+  detalle leído (la cobertura se dice en pantalla). La portada tiene un botón por necesidad.
+- Lo que nunca se dice: «aquí no te atienden» (sólo «no lo declaró», y que se pregunte) ni «hay cupo» (lo declarado no
+  dice si hoy hay un especialista de turno: «llama antes»).
+
 ## Agente de IA: decisión sobre Google ADK, RAG y MCP
 
 - **MCP: sí.** `https://mcp.gobserva.cloud/mcp/salud`, abierto (sin cuenta ni plan, con el tope por conexión). Las mismas

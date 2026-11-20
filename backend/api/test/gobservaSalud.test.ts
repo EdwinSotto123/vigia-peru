@@ -106,3 +106,12 @@ test("cerca: la ubicación se redondea a ~110 m y fuera del Perú no se consulta
   assert.equal(fuera.headers.get("Cache-Control"), "private, no-store");
   assert.equal((await pedir({ lat: "-12" })).status, 400);
 });
+
+test("cerca: los términos de una necesidad son sólo letras y espacios en mayúsculas (nada llega crudo al SQL)", async () => {
+  const { saludRouter } = await import("../src/routes/gobservaSalud.js");
+  const pedir = (cuerpo: unknown) => saludRouter.request("/cerca", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(cuerpo) });
+  assert.equal((await pedir({ lat: -12.05, lon: -77.04, terminos: ["ODONTOLOG'; DROP TABLE x"] })).status, 400);
+  assert.equal((await pedir({ lat: -12.05, lon: -77.04, terminos: ["odontolog"] })).status, 400);
+  assert.equal((await pedir({ lat: -12.05, lon: -77.04, terminos: [] })).status, 400);
+  assert.equal((await pedir({ lat: -12.05, lon: -77.04, terminos: Array(17).fill("ODONTOLOG") })).status, 400);
+});

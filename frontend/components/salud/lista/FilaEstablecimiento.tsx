@@ -1,10 +1,10 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
-import { Clock3 } from "lucide-react";
+import { Clock3, Stethoscope } from "lucide-react";
 import { InsigniaCategoria, InsigniaSector } from "@/components/salud/comun";
 import { Dato } from "@/components/ui/Dato";
 import { rutaEn } from "@/lib/gobserva";
-import { nombrePropio, rutaFicha, type FilaIpress } from "@/lib/gobserva-salud";
+import { nombrePropio, numero, rutaFicha, type FilaIpress } from "@/lib/gobserva-salud";
 import { cn } from "@/lib/utils";
 import { lugarIpress } from "./filtros";
 import { ConteoDenuncias, ConteoSanciones, InsigniaInternamiento, InsigniaQuirurgico, InsigniaRegistro } from "./Insignias";
@@ -51,6 +51,11 @@ export function FilaEstablecimiento({ x, base, children, className }: { x: FilaI
               Atiende las 24 horas
             </Dato>
           )}
+          {x.medicos ? (
+            <Dato icono={Stethoscope} nombre="Médicos que declaró a SUSALUD">
+              {x.medicos === 1 ? "1 médico" : `${numero(x.medicos)} médicos`}
+            </Dato>
+          ) : null}
         </p>
         {children}
       </div>

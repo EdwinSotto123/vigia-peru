@@ -13,6 +13,7 @@ import { PestanaRecursos } from "@/components/salud/ficha/PestanaRecursos";
 import { PestanaSanciones } from "@/components/salud/ficha/PestanaSanciones";
 import { PestanaServicios } from "@/components/salud/ficha/PestanaServicios";
 import { RelacionadosFicha } from "@/components/salud/ficha/Relacionados";
+import { ResumenAtencion } from "@/components/salud/ficha/ResumenAtencion";
 import { VerificacionFicha, resumenVerificacion } from "@/components/salud/ficha/Verificacion";
 import { detalleLeido } from "@/components/salud/ficha/piezas";
 import { rutaEn, urlCanonica } from "@/lib/gobserva";
@@ -44,7 +45,8 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 /**
  * La ficha de un establecimiento de salud (IPRESS) en Gobserva Salud, en el orden decidir → actuar → detalle: arriba
- * quién es (nombre, categoría con lo que significa, sector, estado, dirección, teléfono y horario); luego la verificación
+ * quién es (nombre, categoría con lo que significa, sector, estado, dirección, teléfono y horario); después «Para atenderte
+ * aquí» (qué servicios y cuánto personal declaró y si te pueden atender por lo que necesitas); luego la verificación
  * (una frase hecha con los chequeos y cada chequeo con su fuente y su fecha) y lo que se puede hacer (llegar, el mapa,
  * la consulta oficial, denunciar, copiar el enlace, preguntar); y en pestañas fijas el detalle: servicios, sanciones
  * firmes, denuncias, recursos y cirugías, documentos, historial y fuentes. Al final, lo que Vigía sabe de su RUC y sus
@@ -84,6 +86,10 @@ export default async function FichaEstablecimiento({ params, searchParams }: Pro
 
       <div className="mt-4">
         <CabeceraFicha f={f} />
+      </div>
+      {/* Lo que una persona quiere saber antes de atenderse, en palabras simples: arriba de todo. */}
+      <div className="mt-6">
+        <ResumenAtencion f={f} base={base} />
       </div>
 
       <div className="mt-6 grid gap-5 lg:grid-cols-[minmax(0,1fr)_22rem] lg:items-start">
