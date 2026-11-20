@@ -318,6 +318,8 @@ def main() -> None:
     ap.add_argument("--max", type=int, default=0)
     ap.add_argument("--hilos", type=int, default=2)
     ap.add_argument("--releer", type=int, default=40, help="disputas que relee el modelo grande por corrida (0: ninguna)")
+    ap.add_argument("--solo-recomprobar", action="store_true",
+                    help="sólo la recomprobación con la regla vigente (sin modelo) y el refresco de las señales")
     ap.add_argument("--tope-min", type=float, default=50,
                     help="minutos tras los que no se empieza nada nuevo; a los 5 más, el vigilante cierra el proceso")
     ap.add_argument("--actualizar", type=int, default=60,
@@ -334,6 +336,18 @@ def main() -> None:
     hechos = {"leidas": 0, "apelaciones": 0, "unidas": 0, "procesos": 0, "usd": 0.0, "errores": 0}
     with conexion(a.entorno) as cn:
         cur = cn.cursor()
+        # La recomprobación va PRIMERO: no usa el modelo y, al cambiar VERSION_REGLA, rehace todas las cargadas. Después
+        # de la lectura no llegaba nunca: leer 250 con el modelo nuevo se come el tope de 50 min (2026-11-20).
+        por_id = {f.stem: f for f in archivos}
+        hechos["recomprobadas"] = recomprobar(cn, cur, por_id)
+        if a.solo_recomprobar:
+            for funcion in ("refrescar_tribunal_entidad", "refrescar_cruce_tribunal"):
+                cur.execute("SET statement_timeout = 0")
+                cur.execute(f"SELECT {funcion}()")
+                print(f"{funcion}: {cur.fetchone()[0]}", flush=True)
+                cn.commit()
+            print(f"fin: {hechos}", flush=True)
+            return
         cur.execute("SELECT id FROM tribunal_resolucion")
         ya = {r[0] for r in cur.fetchall()}
         pendientes = []
@@ -397,8 +411,6 @@ def main() -> None:
                 hechos["usd"] += r.get("costo_usd") or 0
                 if hechos["apelaciones"] % 25 == 0:
                     print(f"{hechos['apelaciones']} cargadas; procesos unidos {hechos['unidas']} de {hechos['procesos']}; US$ {hechos['usd']:.3f}", flush=True)
-        por_id = {f.stem: f for f in archivos}
-        hechos["recomprobadas"] = recomprobar(cn, cur, por_id)
         hechos["actualizadas"] = actualizar_version(cn, cur, por_id, motor, a.actualizar, hechos, a.hilos) if hay_tiempo() else 0
         hechos.update(releer_disputas(cn, cur, por_id, a.releer, hechos) if hay_tiempo() else {})
         # La bitácora de las fuentes que se cargan desde la PC (GET /estado/datos, estado_fuentes del MCP): una fila por
