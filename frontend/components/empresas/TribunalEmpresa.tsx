@@ -57,9 +57,42 @@ function papel(x: Resolucion): string {
   return x.leQuitaron ? "Tenía la buena pro y el Tribunal se la quitó" : "Tenía la buena pro";
 }
 
+function ResolucionDeEmpresa({ x }: { x: Resolucion }) {
+  const datos: DatoClave[] = [
+    { etiqueta: "Qué pasó", valor: papel(x) },
+    { etiqueta: "Fecha", valor: x.fecha ? fechaConAnio(x.fecha) : null },
+    { etiqueta: "Por presunta", valor: x.rol === "sancionador" ? infraccionEnPalabras(x.infraccion ?? []) : null },
+    {
+      etiqueta: "Entidad",
+      valor: x.entidad && x.entidadRuc ? (
+        <Link href={`/entidad/${x.entidadRuc}`} prefetch={false} className="font-medium text-granate underline-offset-2 hover:underline">
+          {x.entidad}
+        </Link>
+      ) : x.entidad,
+    },
+    {
+      etiqueta: "El proceso",
+      valor: x.ocid ? (
+        <Link href={rutaContrato(x.ocid)} prefetch={false} className="font-medium text-granate underline-offset-2 hover:underline">
+          {x.codigo ?? x.ocid}
+        </Link>
+      ) : null,
+    },
+  ].filter((y) => y.valor != null && y.valor !== "");
+  return (
+    <BloqueDetalle titulo={x.titulo}>
+      <DatosClave items={datos} />
+      <EnlaceFuente href={x.enlace} className="mt-2">
+        Leer la resolución
+      </EnlaceFuente>
+    </BloqueDetalle>
+  );
+}
+
 export async function TribunalEmpresa({ ruc }: { ruc: string }) {
   const d = await leer(ruc);
   if (!d || (!d.adjudicataria && !d.sancionadores)) return null;
+  const total = d.adjudicataria + d.sancionadores;
   const cifras: Cifra[] = [
     { valor: numero(d.adjudicataria), etiqueta: "apelaciones contra su buena pro", contexto: "otro postor apeló lo que ganó" },
     {
@@ -88,37 +121,20 @@ export async function TribunalEmpresa({ ruc }: { ruc: string }) {
           historial de sanciones). Que le quiten la buena pro una vez puede ser un error del comité; varias, en entidades distintas,
           es un patrón. Todavía se están leyendo resoluciones: las cifras pueden crecer.
         </p>
-        {d.data.slice(0, 12).map((x) => {
-          const datos: DatoClave[] = [
-            { etiqueta: "Qué pasó", valor: papel(x) },
-            { etiqueta: "Fecha", valor: x.fecha ? fechaConAnio(x.fecha) : null },
-            { etiqueta: "Por presunta", valor: x.rol === "sancionador" ? infraccionEnPalabras(x.infraccion ?? []) : null },
-            {
-              etiqueta: "Entidad",
-              valor: x.entidad && x.entidadRuc ? (
-                <Link href={`/entidad/${x.entidadRuc}`} prefetch={false} className="font-medium text-granate underline-offset-2 hover:underline">
-                  {x.entidad}
-                </Link>
-              ) : x.entidad,
-            },
-            {
-              etiqueta: "El proceso",
-              valor: x.ocid ? (
-                <Link href={rutaContrato(x.ocid)} prefetch={false} className="font-medium text-granate underline-offset-2 hover:underline">
-                  {x.codigo ?? x.ocid}
-                </Link>
-              ) : null,
-            },
-          ].filter((y) => y.valor != null && y.valor !== "");
-          return (
-            <BloqueDetalle key={`${x.enlace}-${x.rol}`} titulo={x.titulo}>
-              <DatosClave items={datos} />
-              <EnlaceFuente href={x.enlace} className="mt-2">
-                Leer la resolución
-              </EnlaceFuente>
-            </BloqueDetalle>
-          );
-        })}
+        {d.data.slice(0, 12).map((x) => <ResolucionDeEmpresa key={`${x.enlace}-${x.rol}`} x={x} />)}
+        {d.data.length > 12 ? (
+          <details className="group">
+            <summary className="cursor-pointer text-meta font-medium text-granate underline-offset-2 hover:underline">
+              Ver {numero(d.data.length - 12)} resoluciones más
+            </summary>
+            <div className="mt-3 space-y-4">
+              {d.data.slice(12).map((x) => <ResolucionDeEmpresa key={`${x.enlace}-${x.rol}`} x={x} />)}
+            </div>
+          </details>
+        ) : null}
+        {total > d.data.length ? (
+          <p className="text-meta text-mute">Se muestran las {numero(d.data.length)} más recientes de {numero(total)}.</p>
+        ) : null}
       </div>
       <FuenteDato fuente="Resoluciones del Tribunal de Contrataciones en gob.pe, leídas por Vigía" className="border-t border-line px-4 py-2 sm:px-5" />
     </section>
