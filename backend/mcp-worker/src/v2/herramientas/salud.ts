@@ -18,7 +18,9 @@ function fila(x: J): J {
     codigo: x.codigo, nombre: x.nombre, categoria: x.categoria, sector: x.sector, institucion: x.institucion, tipo: x.tipo,
     estado: x.estado, departamento: x.departamento, provincia: x.provincia, distrito: x.distrito, direccion: x.direccion,
     sanciones_firmes: x.sanciones, ultima_sancion: x.ultimaSancion, denuncias_ultimo_anio: x.denuncias, anio_denuncias: x.denunciasDe,
-    centro_quirurgico: x.quirurgico, ruc: x.ruc, razon_social: x.razonSocial, ficha: `${WEB}/establecimiento/${x.codigo}`,
+    // null = todavía no se leyó el detalle de RENIPRESS (no es «no tiene»).
+    centro_quirurgico: x.quirurgico === null || x.quirurgico === undefined ? "detalle de RENIPRESS aún no leído" : x.quirurgico,
+    ruc: x.ruc, razon_social: x.razonSocial, ficha: `${WEB}/establecimiento/${x.codigo}`,
   };
 }
 
