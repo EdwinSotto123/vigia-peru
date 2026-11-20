@@ -412,8 +412,14 @@ export async function fichaOportunidad(ocid: string): Promise<Record<string, unk
             `SELECT p.ocid, p.codigo, p.descripcion, p.objeto, p.entidad_ruc AS "entidadRuc", e.nombre AS entidad, p.departamento,
                     to_char(p.fecha, 'YYYY-MM-DD') AS fecha, p.unidad, p.cantidad::float, p.unit_ref::float AS "unitRef", p.unit_adj::float AS "unitAdj",
                     p.adjudicado::float, p.ruc_proveedor AS ruc, p.proveedor
-               FROM precio_item p LEFT JOIN entidades e ON e.ruc = p.entidad_ruc
-              WHERE p.cubso = ANY($1::text[]) AND p.anio >= $2 AND p.adjudicado > 0 AND p.ocid <> $3
+               -- Por CUBSO sus 10 más recientes, ya en orden por el índice (cubso, fecha) de los adjudicados (migración
+               -- 433); antes se leían y ordenaban todos los ítems de esos CUBSO (1,97 s en frío con uno de 4 237).
+               FROM unnest($1::text[]) AS u(cubso)
+               CROSS JOIN LATERAL (
+                 SELECT q.* FROM precio_item q
+                  WHERE q.cubso = u.cubso AND q.anio >= $2 AND q.adjudicado > 0 AND q.ocid <> $3
+                  ORDER BY q.fecha DESC NULLS LAST LIMIT 10) p
+               LEFT JOIN entidades e ON e.ruc = p.entidad_ruc
               ORDER BY p.fecha DESC NULLS LAST
               LIMIT 10`,
             [cubsos, anioDesde(), k.ocid],
