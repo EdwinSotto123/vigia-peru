@@ -254,6 +254,79 @@ export const buscarInformesControl = definir({
   },
 });
 
+const RESULTADOS = ["fundado", "fundado_en_parte", "nulidad_de_oficio", "infundado", "improcedente", "desistimiento", "otro"] as const;
+
+/**
+ * Las resoluciones del Tribunal de Contrataciones que leyó Vigía (API /patrones/tribunal/resoluciones, migración 434):
+ * precedentes por palabras del motivo, la historia de una empresa o de una entidad ante el Tribunal, y las órdenes de
+ * sancionador por infracción. Cada una con su proceso, lo que resolvió (comprobado), la cita literal y su enlace.
+ */
+export const buscarResolucionesTribunal = definir({
+  nombre: "buscar_resoluciones_tribunal",
+  titulo: "Buscar resoluciones del Tribunal de Contrataciones",
+  descripcion:
+    "Busca en las resoluciones del Tribunal de Contrataciones del Estado que leyó Vigía (apelaciones desde 2025): por " +
+    "palabras del motivo («experiencia del personal clave», «carta fianza», «error aritmético», con o sin tildes; admite " +
+    "\"frase exacta\", OR y -palabra) o por su número; por la empresa (RUC 20: las que tenían la buena pro o a las que " +
+    "ordenó abrir un sancionador), por la entidad, por resultado (fundado, nulidad_de_oficio…), sólo las que corrigieron " +
+    "al comité, por infracción del sancionador y por fechas. Cada resultado trae la resolución, la fecha, la sala, lo que " +
+    "resolvió (sólo si está comprobado contra la parte resolutiva), el motivo, la cita literal comprobada, el proceso con " +
+    "su enlace, la entidad, las empresas con su papel y el enlace a la resolución. Sirve para encontrar precedentes, ver " +
+    "si una entidad repite el mismo error y seguir a una empresa ante el Tribunal.",
+  entrada: {
+    pregunta: z.string().min(2).max(200).optional().describe("Palabras del motivo, o el número de la resolución (p. ej. 9173-2026)."),
+    empresa_ruc: z.string().min(11).max(14).optional().describe("RUC 20 de una empresa."),
+    entidad_ruc: z.string().min(11).max(14).optional().describe("RUC de la entidad (11 dígitos)."),
+    resultado: z.enum(RESULTADOS).optional().describe("Sólo un resultado comprobado."),
+    corrigio: z.boolean().optional().describe("true: sólo las fundadas, fundadas en parte o nulidades (el Tribunal corrigió); false: las que no."),
+    infraccion: z.enum(["documentacion_falsa", "informacion_inexacta"]).optional().describe("Sólo las que ordenaron un sancionador por esa infracción."),
+    desde: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().describe("Fecha mínima (AAAA-MM-DD)."),
+    hasta: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().describe("Fecha máxima (AAAA-MM-DD)."),
+    por_relevancia: z.boolean().optional().describe("Con `pregunta`: primero las que más se parecen (si no, las más recientes)."),
+    pagina: z.number().int().min(1).max(50).default(1),
+  },
+  async ejecutar(a, cx) {
+    const e = enlaces(cx.env);
+    if (!a.pregunta && !a.empresa_ruc && !a.entidad_ruc && !a.resultado && a.corrigio == null && !a.infraccion && !a.desde) {
+      throw new ErrorUsuario("Da al menos un filtro: palabras, empresa, entidad, resultado, infracción o fecha.");
+    }
+    const empresa = a.empresa_ruc ? rucJuridico(a.empresa_ruc, "RUC de la empresa") : undefined;
+    const entidad = a.entidad_ruc ? rucJuridico(a.entidad_ruc, "RUC de la entidad") : undefined;
+    const r = await api<Fila>(cx.env, "/patrones/tribunal/resoluciones", {
+      q: a.pregunta, empresa, entidad, resultado: a.resultado,
+      corrigio: a.corrigio == null ? undefined : a.corrigio ? "si" : "no", infraccion: a.infraccion,
+      desde: a.desde, hasta: a.hasta, orden: a.por_relevancia ? "relevancia" : undefined, page: a.pagina, size: 15,
+    });
+    return {
+      total: r.total,
+      pagina: a.pagina,
+      por_resultado: r.porResultado,
+      resoluciones: ((r.data ?? []) as Fila[]).map((x) => ({
+        resolucion: x.titulo, fecha: x.fecha, sala: x.sala ?? undefined,
+        resultado: x.resultado ?? "sin comprobar", corrigio_al_comite: x.corrigio === true,
+        efectos: Array.isArray(x.efectos) && x.efectos.length ? x.efectos : undefined,
+        motivo: x.motivo ?? undefined, cita_literal: x.cita ?? undefined,
+        infraccion: Array.isArray(x.infraccion) && x.infraccion.length ? x.infraccion : undefined,
+        entidad: x.entidad ?? x.entidadTexto ?? undefined, entidad_ruc: x.entidadRuc ?? undefined,
+        enlace_entidad: x.entidadRuc ? e.entidad(x.entidadRuc) : undefined,
+        proceso: x.ocid ? { codigo: x.codigo ?? x.ocid, ocid: x.ocid, enlace: e.contrato(x.ocid) } : undefined,
+        impugnante: x.impugnante ?? undefined,
+        empresas: ((x.empresas ?? []) as Fila[]).map((p) => ({
+          empresa: p.nombre ?? p.ruc, ruc: p.ruc,
+          papel: p.rol === "sancionador" ? "el Tribunal ordenó abrirle un sancionador" : "tenía la buena pro",
+          enlace: e.empresa(p.ruc),
+        })),
+        enlace_resolucion: x.enlace ?? undefined,
+      })),
+      como_leerlo: r.como_leerlo,
+      siguiente_paso: "ficha_contrato del proceso trae su historia completa; patrones con alcance «tribunal_empresas» o " +
+        "«observacion» e indicador tribunal_corrigio_otra_vez muestra lo que se repite.",
+      fuente: "Resoluciones del Tribunal de Contrataciones del Estado (gob.pe), leídas por Vigía con un modelo abierto y comprobadas contra la parte resolutiva.",
+      aviso: AVISO,
+    };
+  },
+});
+
 export const documentosZip = definir({
   nombre: "documentos_zip",
   titulo: "Documentos de contratos en ZIP",
@@ -360,7 +433,7 @@ export const ordenesEnPeriodo = definir({
   },
 });
 
-export const HERRAMIENTAS_ENTIDAD = [gastoEntidad, planillaEntidad, visitasEntidad, obrasEntidad, informesControl, buscarInformesControl, documentosZip, ordenesEnPeriodo];
+export const HERRAMIENTAS_ENTIDAD = [gastoEntidad, planillaEntidad, visitasEntidad, obrasEntidad, informesControl, buscarInformesControl, buscarResolucionesTribunal, documentosZip, ordenesEnPeriodo];
 
 export const gastoPorConcepto = definir({
   nombre: "gasto_por_concepto",

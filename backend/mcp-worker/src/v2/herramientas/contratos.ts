@@ -278,6 +278,15 @@ function porQuePesa(x: Fila): string | undefined {
       const dias = n(d.dias_despues);
       return `Ganó ${dias != null ? `${dias} días ` : ""}después de que el Tribunal ordenara abrirle un sancionador por presunta ${que} en otro proceso${res}${d.ocid_origen ? ` (OCID ${d.ocid_origen})` : ""}, sin sanción registrada antes de la buena pro.`;
     }
+    case "tribunal_corrigio_otra_vez": {
+      // Migración 434: rondas de corrección del mismo proceso; si la empresa tuvo la buena pro en dos y si hubo desacato.
+      const rondas = n(d.rondas);
+      if (rondas == null) return undefined;
+      return `El Tribunal corrigió este proceso y, cuando la entidad volvió a decidir, lo corrigió otra vez (${rondas} rondas)` +
+        (d.misma_empresa === true ? "; la entidad mantuvo a esta empresa con la buena pro en más de una ronda" : "") +
+        (d.desacato === true ? `. El Tribunal escribe que el comité no cumplió lo que le había ordenado${d.motivo_desacato ? `: «${String(d.motivo_desacato).slice(0, 220)}»` : ""}` : "") +
+        ". Repetir el error después de una orden del Tribunal es lo que se revisa: puede ser torpeza o empeño en un resultado.";
+    }
     case "firma_en_plazo_de_apelacion": {
       const dh = n(d.dias_habiles);
       return dh != null ? `Firmado ${dh === 0 ? "el mismo día de la buena pro" : `${dh} días hábiles después de la buena pro`}, antes del plazo para apelar.` : undefined;

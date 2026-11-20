@@ -225,7 +225,7 @@ export const fichaEntidad = definir({
       contratos: ent.contratos,
       // Sus procesos ante el Tribunal de Contrataciones: fundadas o con nulidad = su comité se equivocó o el proceso tenía
       // un vicio. Sólo las apelaciones ya leídas y unidas a un contrato (se bajan cada hora; la cobertura crece).
-      tribunal: trib && (trib.apelaciones || trib.conSancionadorAbierto?.procesos)
+      tribunal: trib && (trib.apelaciones || trib.conSancionadorAbierto?.procesos || trib.corregidosOtraVez?.procesos)
         ? {
             apelaciones_resueltas: trib.apelaciones, fundadas: trib.fundadas, nulidades_de_oficio: trib.nulidades,
             recientes: ((trib.recientes ?? []) as Fila[]).map((x) => ({
@@ -252,6 +252,16 @@ export const fichaEntidad = definir({
                   principales: ((trib.conSancionadorAbierto.principales ?? []) as Fila[]).map((x) => ({
                     empresa: x.nombre, ruc: x.ruc, procesos: x.procesos, monto_soles: x.monto ?? undefined, enlace: e.empresa(x.ruc),
                   })),
+                }
+              : undefined,
+            // Migración 434: procesos que el Tribunal corrigió y, cuando la entidad volvió a decidir, corrigió otra vez.
+            corregidos_otra_vez: trib.corregidosOtraVez
+              ? {
+                  procesos: trib.corregidosOtraVez.procesos,
+                  recientes: ((trib.corregidosOtraVez.recientes ?? []) as Fila[]).map((x) => ({
+                    proceso: x.codigo ?? x.ocid, rondas: x.rondas, correcciones: x.correcciones, ultima: x.ultima, enlace: e.contrato(x.ocid),
+                  })),
+                  buscar: "buscar_resoluciones_tribunal con esta entidad trae cada resolución y su motivo.",
                 }
               : undefined,
           }
@@ -849,7 +859,7 @@ export const patrones = definir({
     indicador: z.enum(["reunion_en_evaluacion", "visita_personal_decisor", "ofertas_a_la_vez", "trabajo_en_el_ganador",
       "firma_en_plazo_de_apelacion", "solo_admitido_el_ganador", "comite_mismo_ganador", "comite_socio_proveedor",
       "comite_competencia_restringida", "comite_corregido_tribunal", "tribunal_sancionador", "tribunal_revoco_buena_pro",
-      "gana_con_sancionador_abierto"]).optional()
+      "gana_con_sancionador_abierto", "tribunal_corrigio_otra_vez"]).optional()
       .describe("(observacion) Sólo uno de los indicadores en observación."),
     integrante_del_comite: z.string().regex(/^[0-9a-f]{10}$/).optional()
       .describe("(observacion) La clave de una persona del comité (integrante_del_comite de comite_mismo_ganador o comite_socio_proveedor): todos sus contratos marcados en las dos señales, sin su nombre."),
@@ -1113,6 +1123,12 @@ export const patrones = definir({
           resolucion_del_tribunal: x.resolucion ?? undefined,
           infraccion: Array.isArray(x.infraccion) && x.infraccion.length ? x.infraccion : undefined,
           dias_despues_de_la_orden: x.diasDespues ?? undefined,
+          // tribunal_corrigio_otra_vez (434).
+          rondas_de_correccion: x.rondas ?? undefined,
+          la_misma_empresa_en_dos_rondas: x.mismaEmpresa === true ? true : undefined,
+          el_tribunal_dice_que_no_acataron: x.desacato === true ? true : undefined,
+          motivo_del_desacato: x.motivoDesacato ?? undefined,
+          resoluciones: Array.isArray(x.resoluciones) && x.resoluciones.length > 1 ? x.resoluciones : undefined,
         })),
         como_leerlo:
           "Son indicadores EN OBSERVACIÓN: Vigía todavía mide cuántas veces aciertan, así que no cuentan para el puntaje del " +
@@ -1153,6 +1169,10 @@ export const patrones = definir({
           "sancionador (infraccion: documentacion_falsa o informacion_inexacta); es la orden de investigar, no la sanción. " +
           "tribunal_revoco_buena_pro: el comité le dio la buena pro y el Tribunal se la quitó. gana_con_sancionador_abierto: " +
           "ganó este proceso dias_despues_de_la_orden días después de esa orden y antes de cualquier sanción registrada. " +
+          "tribunal_corrigio_otra_vez: el Tribunal corrigió el proceso (fundada o nulidad) y, cuando la entidad volvió a " +
+          "decidir (7 días o más después), lo corrigió otra vez; rondas_de_correccion las cuenta. Pesa más si la entidad " +
+          "mantuvo a la misma empresa con la buena pro en dos rondas o si el Tribunal escribe que el comité no acató lo que " +
+          "le ordenó (motivo_del_desacato). " +
           "firma_en_plazo_de_apelacion: en un ítem con dos o más ofertas, el " +
           "contrato se firmó antes del 5.º día hábil siguiente a la buena pro, cuando los otros postores todavía podían " +
           "apelarla (el contrato se perfecciona después del consentimiento: arts. 64 y 141 del reglamento de la Ley 30225; " +

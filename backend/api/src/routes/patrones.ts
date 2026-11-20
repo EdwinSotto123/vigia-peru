@@ -41,7 +41,7 @@ import { z } from "zod";
 import { esErrorPg, pool } from "../lib/db.js";
 import { Memo } from "../lib/cache.js";
 import { cachePublico, parametros } from "../lib/http.js";
-import { TAPA_NOMBRE, etiquetaParentesco, publicar, taparNombreSuelto } from "../lib/privacidad.js";
+import { TAPA_NOMBRE, etiquetaParentesco, pareceEmpresa, publicar, taparNombreSuelto } from "../lib/privacidad.js";
 import { esCargoDeEleccion } from "../lib/electos.js";
 import { papelesRnp } from "../lib/familiaFuncionario.js";
 import { ETIQUETA_CRUCE, catalogoSenales, nombrePublicable } from "../lib/cruces.js";
@@ -983,6 +983,108 @@ patronesRouter.get("/tribunal/empresas", async (c) => {
   return c.json(cuerpo);
 });
 
+export const RESULTADOS_TRIBUNAL = ["fundado", "fundado_en_parte", "nulidad_de_oficio", "infundado", "improcedente", "desistimiento", "otro"] as const;
+const fecha = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
+const TribunalResoluciones = z.object({
+  /** Palabras (en español, con o sin tildes; admite "frase exacta", OR y -palabra) o el número de la resolución. */
+  q: z.string().trim().min(2).max(200).optional(),
+  empresa: z.string().regex(/^20\d{9}$/).optional(),
+  entidad: z.string().regex(/^\d{11}$/).optional(),
+  resultado: z.enum(RESULTADOS_TRIBUNAL).optional(),
+  /** si: fundadas o nulidad (el Tribunal corrigió); no: infundadas, improcedentes y el resto, con el resultado comprobado. */
+  corrigio: z.enum(["si", "no"]).optional(),
+  infraccion: z.enum(["documentacion_falsa", "informacion_inexacta"]).optional(),
+  desde: fecha.optional(),
+  hasta: fecha.optional(),
+  orden: z.enum(["reciente", "relevancia"]).default("reciente"),
+  page: z.coerce.number().int().min(1).max(200).default(1),
+  size: z.coerce.number().int().min(1).max(50).default(20),
+});
+// La misma expresión que el índice tribunal_resolucion_busqueda (migración 434): si cambia una, cambia la otra.
+const TEXTO_TRIBUNAL = "to_tsvector('spanish', immutable_unaccent(COALESCE(r.titulo, '') || ' ' || COALESCE(r.entidad, '') || ' ' || COALESCE(r.motivo, '')))";
+
+/**
+ * GET /patrones/tribunal/resoluciones — buscador de las resoluciones del Tribunal de Contrataciones que leyó Vigía
+ * (migraciones 402-434): por palabras del motivo (precedentes: «experiencia del personal clave», «carta fianza»), por la
+ * empresa (RUC 20, con su papel), por la entidad, por resultado y por fechas. Cada una con su proceso, lo que resolvió (si
+ * está comprobado), la cita literal comprobada y el enlace a la resolución. Quien apeló, sólo si es una empresa.
+ */
+patronesRouter.get("/tribunal/resoluciones", async (c) => {
+  const p = TribunalResoluciones.safeParse(Object.fromEntries(Object.entries(parametros(c)).filter(([, v]) => v !== "" && v != null)));
+  if (!p.success) return c.json({ error: "invalid_query", issues: p.error.issues }, 400);
+  const q = p.data;
+  const cuerpo = await memo.obtener(`tribunal-resoluciones:${JSON.stringify(q)}`, async () => {
+    const vals: unknown[] = [];
+    const add = (v: unknown) => { vals.push(v); return `$${vals.length}`; };
+    const conds: string[] = ["TRUE"];
+    let rel = "0::real";
+    if (q.q) {
+      const numero = q.q.match(/\b\d{3,5}-20\d{2}(?:-[A-Z]{3})?/i)?.[0];
+      const tq = `websearch_to_tsquery('spanish', immutable_unaccent(${add(q.q)}))`;
+      conds.push(numero ? `(${TEXTO_TRIBUNAL} @@ ${tq} OR r.titulo ILIKE ${add(`%${numero}%`)})` : `${TEXTO_TRIBUNAL} @@ ${tq}`);
+      rel = `ts_rank(${TEXTO_TRIBUNAL}, ${tq})`;
+    }
+    if (q.empresa) conds.push(`r.id IN (SELECT pa.resolucion_id FROM tribunal_parte pa WHERE pa.ruc = ${add(q.empresa)})`);
+    if (q.entidad) conds.push(`r.id IN (SELECT tp.resolucion_id FROM tribunal_proceso tp JOIN convocatorias cv ON cv.ocid = tp.ocid
+                                         WHERE cv.entidad_ruc = ${add(q.entidad)}::bpchar)`);
+    if (q.resultado) conds.push(`r.resultado_ok AND r.resultado = ${add(q.resultado)}`);
+    if (q.corrigio === "si") conds.push("tribunal_corrigio(r)");
+    if (q.corrigio === "no") conds.push("r.resultado_ok AND NOT tribunal_corrigio(r)");
+    if (q.infraccion) conds.push(`${add(q.infraccion)} = ANY(r.infraccion)`);
+    if (q.desde) conds.push(`r.fecha >= ${add(q.desde)}::date`);
+    if (q.hasta) conds.push(`r.fecha <= ${add(q.hasta)}::date`);
+    const donde = conds.join(" AND ");
+    const nFiltro = vals.length;
+    const orden = q.orden === "relevancia" && q.q ? `${rel} DESC, r.fecha DESC NULLS LAST, r.id DESC` : "r.fecha DESC NULLS LAST, r.id DESC";
+    const [filas, facetas] = await Promise.all([
+      pool.query(
+        `WITH f AS MATERIALIZED (
+           SELECT r.id, ${rel} AS rel, (count(*) OVER ())::int AS total, row_number() OVER (ORDER BY ${orden}) AS n
+             FROM tribunal_resolucion r WHERE ${donde}
+            ORDER BY ${orden} LIMIT ${add(q.size)} OFFSET ${add((q.page - 1) * q.size)})
+         SELECT r.titulo, to_char(r.fecha, 'YYYY-MM-DD') AS fecha, r.sala,
+                CASE WHEN r.resultado_ok THEN r.resultado END AS resultado,
+                CASE WHEN r.resultado_ok THEN r.efectos ELSE '{}' END AS efectos, tribunal_corrigio(r) AS corrigio,
+                r.motivo, CASE WHEN r.cita_ok THEN r.cita END AS cita, r.impugnante, COALESCE(r.infraccion, '{}') AS infraccion,
+                COALESCE(r.pdf, r.url) AS enlace, r.entidad AS "entidadTexto", pr.ocid, pr.codigo, pr."entidadRuc", pr.entidad,
+                COALESCE(pt.empresas, '[]') AS empresas, f.total
+           FROM f JOIN tribunal_resolucion r ON r.id = f.id
+           LEFT JOIN LATERAL (
+             SELECT tp.ocid, cv.codigo, btrim(cv.entidad_ruc::text) AS "entidadRuc", en.nombre AS entidad
+               FROM tribunal_proceso tp JOIN convocatorias cv ON cv.ocid = tp.ocid LEFT JOIN entidades en ON en.ruc = cv.entidad_ruc
+              WHERE tp.resolucion_id = r.id AND tp.ocid IS NOT NULL ORDER BY tp.n LIMIT 1) pr ON true
+           LEFT JOIN LATERAL (
+             SELECT jsonb_agg(DISTINCT jsonb_build_object('ruc', pe.ruc, 'nombre', e.razon_social, 'rol', pe.rol)) AS empresas
+               FROM tribunal_parte_empresa pe LEFT JOIN empresas e ON e.ruc = pe.ruc::bpchar
+              WHERE pe.resolucion_id = r.id) pt ON true
+          ORDER BY f.n`, vals),
+      pool.query<{ resultado: string; n: number }>(
+        `SELECT CASE WHEN r.resultado_ok THEN r.resultado ELSE 'sin_comprobar' END AS resultado, count(*)::int AS n
+           FROM tribunal_resolucion r WHERE ${donde} GROUP BY 1 ORDER BY 2 DESC`, vals.slice(0, nFiltro)),
+    ]).catch((e) => {
+      if (esErrorPg(e, "42P01") || esErrorPg(e, "42883")) return [{ rows: [] as Record<string, unknown>[] }, { rows: [] as { resultado: string; n: number }[] }] as const;
+      throw e;
+    });
+    const data = (filas.rows as Record<string, any>[]).map(({ total: _t, impugnante, ...x }) => ({
+      ...x,
+      // Quien apeló puede ser una persona natural: sólo se publica si es una empresa.
+      impugnante: typeof impugnante === "string" && pareceEmpresa(impugnante) ? impugnante : null,
+    }));
+    return publicar({
+      total: (filas.rows[0] as { total?: number } | undefined)?.total ?? 0, page: q.page, size: q.size,
+      porResultado: Object.fromEntries(facetas.rows.map((x) => [x.resultado, x.n])),
+      data,
+      como_leerlo: "Resoluciones del Tribunal de Contrataciones leídas por Vigía (las de 2025 en adelante; se siguen leyendo). " +
+        "«resultado» va sólo si se comprobó contra la parte resolutiva; «corrigio» es fundada, fundada en parte o nulidad de " +
+        "oficio: el comité o las bases se equivocaron. «motivo» lo resume el lector; «cita» es la frase literal comprobada. " +
+        "«empresas»: las que tenían la buena pro (adjudicatario) o a las que el Tribunal ordenó abrir un sancionador, con el " +
+        "nombre comprobado en el texto y sólo RUC 20.",
+    });
+  });
+  c.header("Cache-Control", CACHE);
+  return c.json(cuerpo);
+});
+
 const EntidadesSancionador = z.object({
   page: z.coerce.number().int().min(1).max(200).default(1),
   size: z.coerce.number().int().min(1).max(50).default(20),
@@ -1298,7 +1400,7 @@ patronesRouter.get("/renovaciones", async (c) => {
 const TIPOS_OBSERVACION = ["reunion_en_evaluacion", "visita_personal_decisor", "ofertas_a_la_vez", "trabajo_en_el_ganador",
   "firma_en_plazo_de_apelacion", "solo_admitido_el_ganador", "comite_mismo_ganador", "comite_socio_proveedor",
   "comite_competencia_restringida", "comite_corregido_tribunal", "tribunal_sancionador", "tribunal_revoco_buena_pro",
-  "gana_con_sancionador_abierto"] as const;
+  "gana_con_sancionador_abierto", "tribunal_corrigio_otra_vez"] as const;
 const Observacion = z.object({
   tipo: z.enum(TIPOS_OBSERVACION).optional(),
   ruc: z.string().regex(/^20\d{9}$/).optional(),
@@ -1366,6 +1468,11 @@ patronesRouter.get("/observacion", async (c) => {
                 -- resolución, la infracción del sancionador y cuántos días después ganó.
                 (k.detalle->>'corregidos')::int AS corregidos, k.detalle->>'resolucion' AS resolucion,
                 k.detalle->'infraccion' AS infraccion, (k.detalle->>'dias_despues')::int AS "diasDespues",
+                -- tribunal_corrigio_otra_vez (434): en cuántas rondas lo corrigió, si la empresa tuvo la buena pro en dos y
+                -- si el Tribunal dice que el comité no acató lo que le ordenó (con el motivo), y las resoluciones.
+                (k.detalle->>'rondas')::int AS rondas, (k.detalle->>'misma_empresa')::boolean AS "mismaEmpresa",
+                (k.detalle->>'desacato')::boolean AS desacato, k.detalle->>'motivo_desacato' AS "motivoDesacato",
+                k.detalle->'resoluciones' AS resoluciones,
                 k.detalle->>'consentimiento_registrado' AS consentimiento, k.detalle->>'norma' AS norma,
                 COALESCE(k.detalle->>'area_funcionario', k.detalle->'visitas'->-1->>'area') AS area,
                 (k.detalle->>'minutos')::float AS minutos, k.detalle->>'hora_ganador' AS "horaGanador", k.detalle->>'hora_otro' AS "horaOtro",

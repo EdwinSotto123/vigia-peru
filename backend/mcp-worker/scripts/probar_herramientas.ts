@@ -11,7 +11,7 @@
  */
 import { z } from "zod";
 import { buscarContratos, fichaContrato, ordenes, preciosDeMercado, senales } from "../src/v2/herramientas/contratos";
-import { buscarInformesControl, informesControl, ordenesEnPeriodo } from "../src/v2/herramientas/entidad";
+import { buscarInformesControl, buscarResolucionesTribunal, informesControl, ordenesEnPeriodo } from "../src/v2/herramientas/entidad";
 import { fichaEmpresa, fichaEntidad, historia, normaAplicable, patrones, personaPublica, preciosReferencia, redEmpresa } from "../src/v2/herramientas/actores";
 import { informeControlContrato } from "../src/v2/herramientas/control";
 
@@ -115,6 +115,30 @@ const CASOS: Caso[] = [
   // Y en la lista de indicadores en observación, con la resolución (424).
   { h: patrones as never, args: { alcance: "observacion", indicador: "tribunal_revoco_buena_pro" },
     espera: (r) => (/"resolucion_del_tribunal":"Resoluci/.test(JSON.stringify(r)) ? null : "sin la resolución del Tribunal en la lista") },
+  // El Tribunal corrigió el mismo proceso otra vez (434): con sus rondas y, en Casma (1218922), el desacato.
+  { h: patrones as never, args: { alcance: "observacion", indicador: "tribunal_corrigio_otra_vez" },
+    espera: (r) => {
+      const c = lista(r, "casos") as { rondas_de_correccion?: number }[];
+      const j = JSON.stringify(r);
+      return c.length >= 5 && c.every((x) => (x.rondas_de_correccion ?? 0) >= 2) && /"el_tribunal_dice_que_no_acataron":true/.test(j)
+        ? null : `casos: ${c.length}`;
+    } },
+  // Buscador de resoluciones (434): por palabras sin tildes, por número, por empresa y sin filtros (error de usuario).
+  { h: buscarResolucionesTribunal as never, args: { pregunta: "experiencia del personal clave", corrigio: true, por_relevancia: true },
+    espera: (r) => {
+      const x = lista(r, "resoluciones") as { resolucion?: string; corrigio_al_comite?: boolean; enlace_resolucion?: string }[];
+      return typeof r.total === "number" && r.total >= 50 && x.length >= 10 && x.every((y) => y.corrigio_al_comite === true && /^https:/.test(y.enlace_resolucion ?? ""))
+        ? null : `total ${String(r.total)}, ${x.length}`;
+    } },
+  { h: buscarResolucionesTribunal as never, args: { pregunta: "9173-2026" },
+    espera: (r) => (lista(r, "resoluciones").length === 1 && /9173-2026/.test(JSON.stringify(r)) ? null : "no encontró la 9173-2026") },
+  { h: buscarResolucionesTribunal as never, args: { empresa_ruc: "20542191059" },
+    espera: (r) => {
+      const x = lista(r, "resoluciones") as { empresas?: { ruc?: string; papel?: string }[] }[];
+      return x.length >= 5 && x.every((y) => (y.empresas ?? []).some((e) => e.ruc === "20542191059")) &&
+        x.some((y) => (y.empresas ?? []).some((e) => e.ruc === "20542191059" && /sancionador/.test(e.papel ?? "")))
+        ? null : `resoluciones: ${x.length}`;
+    } },
   // Cuán confiable es cada señal (migraciones 401, 404, 419, 421): con las dos verdades y sin la circular.
   { h: senales as never, args: { vista: "confiabilidad" },
     espera: (r) => {

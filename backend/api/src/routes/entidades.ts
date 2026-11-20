@@ -592,7 +592,25 @@ entidadesRouter.get("/:ruc/tribunal", async (c) => {
                 SELECT k.ruc_empresa AS ruc, e.razon_social AS nombre, count(DISTINCT k.ocid)::int AS procesos, sum(k.monto)::float AS monto
                   FROM k LEFT JOIN empresas e ON e.ruc = k.ruc_empresa::bpchar GROUP BY 1, 2 ORDER BY 3 DESC, 1 LIMIT 5) x), '[]') AS principales`,
       [ruc]).then((x) => x.rows[0] ?? null).catch(() => null);
-    return c.json(publicar({ ...r.rows[0], comparacion: comp, conSancionadorAbierto: sanc?.procesos ? sanc : null }));
+    // Procesos que el Tribunal corrigió en dos rondas o más (migración 434): corrigió, la entidad volvió a decidir (7 días
+    // o más después) y lo volvió a corregir. Con o sin empresa identificada (un desierto también cuenta), con los últimos.
+    const otraVez = await pool.query(
+      `WITH d AS (SELECT DISTINCT p.ocid, r.id, r.fecha FROM tribunal_proceso p
+                    JOIN tribunal_resolucion r ON r.id = p.resolucion_id JOIN convocatorias cv ON cv.ocid = p.ocid
+                   WHERE cv.entidad_ruc = $1::bpchar AND r.fecha IS NOT NULL AND tribunal_corrigio(r)),
+            g AS (SELECT ocid, count(*)::int AS correcciones, max(fecha) AS ultima,
+                         1 + count(*) FILTER (WHERE salto >= 7)::int AS rondas
+                    FROM (SELECT ocid, fecha, fecha - lag(fecha) OVER (PARTITION BY ocid ORDER BY fecha, id) AS salto FROM d) x
+                   GROUP BY ocid HAVING count(*) FILTER (WHERE salto >= 7) > 0)
+       SELECT (SELECT count(*) FROM g)::int AS procesos,
+              COALESCE((SELECT jsonb_agg(jsonb_build_object('ocid', g.ocid, 'codigo', cv.codigo, 'rondas', g.rondas,
+                                                            'correcciones', g.correcciones, 'ultima', g.ultima) ORDER BY g.ultima DESC)
+                          FROM (SELECT * FROM g ORDER BY ultima DESC LIMIT 8) g JOIN convocatorias cv ON cv.ocid = g.ocid), '[]') AS recientes`,
+      [ruc]).then((x) => x.rows[0] ?? null).catch(() => null);
+    return c.json(publicar({
+      ...r.rows[0], comparacion: comp, conSancionadorAbierto: sanc?.procesos ? sanc : null,
+      corregidosOtraVez: otraVez?.procesos ? otraVez : null,
+    }));
   } catch (e) {
     if ((e as { code?: string }).code === "42P01") return c.json({ apelaciones: 0, fundadas: 0, nulidades: 0, recientes: [] });
     throw e;

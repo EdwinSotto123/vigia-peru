@@ -50,6 +50,7 @@ export const ETIQUETA_CRUCE: Record<string, string> = {
   tribunal_revoco_buena_pro: "El Tribunal de Contrataciones le quitó la buena pro que le había dado el comité",
   gana_con_sancionador_abierto: "Ganó mientras tenía abierto un procedimiento sancionador que ordenó el Tribunal",
   comite_corregido_tribunal: "Un integrante del comité cuyas evaluaciones el Tribunal corrige más que en el resto de la entidad",
+  tribunal_corrigio_otra_vez: "El Tribunal de Contrataciones corrigió el proceso y, cuando la entidad volvió a decidir, lo corrigió otra vez",
   socio_comun: "Comparte socio o representante con otro postor",
   // Competencia y conflicto en el proceso (migración 122).
   unico_postor: "Único postor del proceso",

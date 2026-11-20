@@ -22,6 +22,8 @@ export const INSTRUCCIONES = [
   "buscar_informes_control (por palabras o por sentido en las observaciones de todo el país, para hallar precedentes); la",
   "responsabilidad que señalan es presunta, no una condena. informe_control_contrato entrega las señales de un contrato como",
   "observaciones con condición, criterio, efecto y causa, listas para un órgano de control.",
+  "Lo que resolvió el Tribunal de Contrataciones: buscar_resoluciones_tribunal (precedentes por palabras del motivo, y la historia",
+  "de una empresa o de una entidad ante el Tribunal: buenas pro revocadas, nulidades y sancionadores ordenados).",
   "Por privacidad no hay DNI, las personas naturales salen con un apellido tapado y un RUC 10 nunca se muestra ni se busca.",
   "Todas las herramientas piden conectar una cuenta de Gobserva con un plan de pago vigente: las de plazas CAS, el plan de Empleo; las de licitaciones, obras y mercado, el de Licitaciones; las demás, cualquier plan.",
   "Cada llamada descuenta créditos del mes de ese plan: 1 las búsquedas y fichas, 3 los análisis, 10 consultar_datos y documentos_zip; mi_cupo dice cuántos quedan. Pide solo lo necesario y reutiliza lo que ya trajiste.",
@@ -74,6 +76,7 @@ const COMO_USAR = `# Cómo usar el MCP de Vigía
    responsabilidad presunta), planilla_entidad y visitas_entidad.
    Lo que encontró la Contraloría en todo el país: buscar_informes_control (por palabras o por sentido) e
    informes_control SIN ruc (el mapa: perjuicio que cuantifican las observaciones por tema y por año, y las entidades con más).
+   Lo que resolvió el Tribunal de Contrataciones: buscar_resoluciones_tribunal (por palabras, empresa, entidad o resultado).
 5. Documentos: documentos_zip arma un ZIP con bases, actas y contratos de hasta 10 procesos.
    Lo raro: hallazgos_entidad (la entidad frente a sus pares) y ranking_entidades (quién destaca en una métrica).
    Contenido de documentos: buscar_documentos (bases, actas, contratos, lecturas de la IA y dictámenes).
@@ -163,6 +166,9 @@ historia y ficha_contrato dan las fechas.
   la misma entidad después del informe, y cada uno de esos contratos nuevos lleva la señal «gano_tras_observacion».
 - ¿La Contraloría ya observó algo parecido? buscar_informes_control trae observaciones reales (con número de informe,
   entidad y fecha): sirven de precedente, no de prueba de este caso. informes_control da las de la misma entidad.
+- ¿El Tribunal ya corrigió a esta entidad, o a este comité, por lo mismo? buscar_resoluciones_tribunal con la entidad y
+  corrigio=true trae cada resolución con su motivo; si el mismo proceso vuelve corregido (tribunal_corrigio_otra_vez), el
+  comité repitió el error después de una orden: léelas en orden.
 - ¿La relación entre personas está en un registro (RNP, declaración jurada, planilla) o es sólo un apellido igual?
 - ¿El documento publicado es de este proceso? Fecha, proveedor y monto tienen que cuadrar con el registro.
 - ¿El patrón sobrevive si quitas el caso más llamativo?
