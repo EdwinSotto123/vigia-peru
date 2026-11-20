@@ -692,6 +692,13 @@ hay 133 procesos con la etiqueta. Ninguna señal pasa todavía su intervalo. La 
 `consultas_denuncia_direccionamiento`, O/E 1,43 (0,86-2,24): un postor denunció en las consultas que las bases apuntaban a
 alguien y después el Tribunal corrigió el proceso.
 
+Corrida del 2026-11-20 (1 762 resoluciones, 238 procesos corregidos en 65 214): `consultas_denuncia_direccionamiento`
+pasa su intervalo por primera vez, O/E 1,49 (1,03-2,10): donde un postor denunció en las consultas que las bases apuntaban
+a alguien, el Tribunal corrige el proceso casi la mitad más de lo esperado. `acta_solo_queda_el_ganador` sale baja, 0,40
+(0,25-0,60): esos procesos se corrigen menos (¿los que quedaron fuera no apelan?). Se prueban decenas de señales a la vez:
+una que apenas pasa su cota puede ser azar, y hay que confirmarla cuando se lean más resoluciones. El puntaje sigue sin
+ganarle al monto (AUC 0,60 contra 0,65); en el 5 % de arriba, los dos encuentran el doble que el azar (26 y 25 contra 12).
+
 Cómo leerlo: la Contraloría audita sobre todo cumplimiento y obras grandes; lo que marca Vigía (competencia aparente,
 vínculos, proveedores cautivos) casi no llega a sus informes. Un O/E bajo no prueba que una bandera falle: dice que mide
 algo que el control no está mirando. Sí obliga a no presentar el puntaje como «probabilidad de irregularidad»: ordena por
