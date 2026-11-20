@@ -28,7 +28,7 @@ asistente).
 | Consultas y denuncias | Datos abiertos de SUSALUD, un CSV por año (anonimizado) | CSV | `susalud`, año en curso y anterior |
 | Recursos (Consulta A) | Datos abiertos de SUSALUD, un CSV por mes | CSV | el último mes |
 | Intervenciones quirúrgicas (Consulta H) | Datos abiertos de SUSALUD, un CSV por mes | CSV | los últimos 13 meses |
-| Normas de salud | gob.pe / El Peruano / MINSA / CMP, en `norma` con `materia = 'salud'` | fichas por artículo | `backend/scripts/cargar_normas.py` |
+| Normas de salud | gob.pe / El Peruano / MINSA / CMP, en `norma` con `materia = 'salud'`: 19 normas, 1 311 artículos (lote 9 de `normas_fichas.py`) | fichas por artículo | `backend/scripts/cargar_normas.py` |
 
 **No se leen de forma automática** (y por qué):
 
@@ -99,7 +99,7 @@ vigia-api /salud/* (Hono en Workers, caché de borde) ──► vigia-web: app/(
   sin mejorar la verificación. Si más adelante se quiere un **informe** de una red de clínicas (varias IPRESS, sus
   empresas, sus contratos con el Estado), ese sí es un trabajo para un agente ADK como los de contratos.
 
-Topes del asistente (`TOPES_ASISTENTE_SALUD`): Turnstile en cada pregunta, 4 por minuto y 25 al día por conexión, 1 500
+Topes del asistente (`TOPES_ASISTENTE_SALUD`; Turnstile es el widget de siempre, ahora con el dominio `gobserva.cloud`, que cubre todos los subdominios —el plan admite 10 dominios—): Turnstile en cada pregunta, 4 por minuto y 25 al día por conexión, 1 500
 al día en total, bloqueo automático de 24 h ante ráfagas; modelo abierto por vigia-llm (sin Claude); no guarda
 conversaciones.
 
@@ -112,6 +112,13 @@ conversaciones.
 - Una ficha abierta sin detalle (o con uno de más de 30 días) queda en `salud_detalle_pedido` y se lee primero.
 
 ## Pendiente
+
+- **REPROS** (Registro de Sanciones de los Profesionales de la Salud, R.S. N.° 006-2021-SUSALUD/S): por norma SUSALUD
+  publica las sanciones firmes que los colegios imponen a sus miembros. Es la fuente oficial de sanciones a médicos
+  que falta, pero el 2026-11-20 no se encontró publicado (ni en gob.pe ni en el portal de SUSALUD). Pedirlo por acceso
+  a la información pública o vigilar su publicación; hasta entonces no se muestra ninguna sanción a un médico.
+- Normas del corpus que no entraron por falta de texto oficial con capa de texto: D. Leg. 559 (Ley del Trabajo
+  Médico) y la Ley 15173 completa; la NTS 021 y la NTS 101 salen de escaneos con OCR (sin sus anexos).
 
 - Completar el detalle de las 36 mil IPRESS (a ~1 200 por noche, un mes; prioriza sancionadas, privadas con
   internamiento, categorías II-III y lo que la gente abre).
