@@ -220,6 +220,9 @@ def metricas_finales(agentes: dict, extra: dict | None = None) -> dict:
         "agentes": {"n_llm_calls": agentes.get("calls", 0), "cost_usd": agentes.get("cost", 0.0),
                     "tokens_prompt": agentes.get("prompt", 0), "tokens_cached": agentes.get("cached", 0)},
         "modelos": {"agentes": modelo_agentes()},
+        # Con qué tabla de tarifas se cobró: desde el retiro del 2026-11-20 los modelos retirados van al precio de su
+        # reemplazo. Sin este campo, el costo viene de una imagen vieja (masivo_agentes.py lo corrige).
+        "tarifas": RETIRO,
     }
     out.update(extra or {})
     return out

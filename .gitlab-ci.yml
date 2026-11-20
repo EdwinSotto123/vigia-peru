@@ -278,7 +278,8 @@ tarea:reanalisis:
     AWS_DEFAULT_REGION: us-east-2
     AWS_ROLE_ARN: arn:aws:iam::416689419419:role/vigia-gitlab-agentes
     REPO: 416689419419.dkr.ecr.us-east-2.amazonaws.com/vigia-agente
-    # Base protegida en ECR (prefijo base-: la regla de ciclo de vida guarda las 2 últimas; las demás imágenes, 10).
+    # Base protegida en ECR (prefijo base-: la regla de ciclo de vida guarda las 2 últimas; las desplegadas, prod-, las 5
+    # últimas; las demás imágenes, 10).
     AGENTE_BASE: base-a774ed8
     # Una Lambda por red (PIPELINE_PROFILE en su configuración): bienes, consultoría, obras, servicios, directas.
     FUNCIONES: "vigia-agente-sdk-v2 vigia-agente-consultoria vigia-agente-obras vigia-agente-servicios vigia-agente-directas"
@@ -298,7 +299,10 @@ build:agente:
   rules:
     - if: '$CI_PIPELINE_SOURCE == "schedule"'
       when: never
-    - if: '$CI_COMMIT_BRANCH == "main"'
+    # Sólo un PUSH que cambia backend/agent construye solo. En un pipeline de API o web (`glab ci run`) `changes` da
+    # siempre verdadero: cada uno construía una imagen de 540 MB, y el 2026-11-19 la regla «las 10 últimas» de ECR borró
+    # la que usaban las cinco Lambdas (Inactive, ImageDeleted: todo análisis dio 502 durante 16 h).
+    - if: '$CI_COMMIT_BRANCH == "main" && $CI_PIPELINE_SOURCE == "push"'
       changes: [backend/agent/**/*]
     - if: '$CI_COMMIT_BRANCH == "main"'
       when: manual
@@ -315,6 +319,10 @@ deploy:agentes:prod:
         aws lambda update-function-code --function-name "$f" --image-uri "$REPO:$CI_COMMIT_SHORT_SHA-sdk" --query LastUpdateStatus --output text
       done
       for f in $FUNCIONES; do aws lambda wait function-updated-v2 --function-name "$f" && echo "$f listo"; done
+      # La imagen desplegada lleva además «prod-<sha>»: la regla de ciclo de vida de ECR guarda las 5 últimas prod- antes
+      # que la de las 10 últimas de todas, así una imagen en uso nunca se expira (2026-11-20).
+      M=$(aws ecr batch-get-image --repository-name vigia-agente --image-ids imageTag=$CI_COMMIT_SHORT_SHA-sdk --query 'images[0].imageManifest' --output text)
+      aws ecr put-image --repository-name vigia-agente --image-tag "prod-$CI_COMMIT_SHORT_SHA" --image-manifest "$M" --query 'image.imageId.imageTag' --output text || echo "AVISO: no pude etiquetar prod-$CI_COMMIT_SHORT_SHA"
   environment:
     name: production
   rules:
