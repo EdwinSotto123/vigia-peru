@@ -36,6 +36,7 @@ import { ClientesPrincipales, ComoGana, DondeVende, QuienLeGana, SusDatos } from
 import { AntecedentesEmpresa, BANDERAS_CONTRATO, BarraPostulaciones, BarraPostulacionesConConteos, P_ANTECEDENTES, ClientesEmpresa, P_CONTRATOS, P_ORDENES, P_POSTULACIONES, PostulacionesEmpresa, SociosEmpresa, VisitasEmpresa } from "@/components/empresas/SeccionesEmpresa";
 import { conAnio } from "@/components/empresas/secciones/comun";
 import { RedEmpresa } from "@/components/empresas/secciones/red";
+import { TribunalEmpresa } from "@/components/empresas/TribunalEmpresa";
 import { fechaCorta, numero, oracion, plural, soles, solesCompacto } from "@/lib/formato";
 import { absoluta, canonica, descripcion } from "@/lib/seo";
 import { DatosEstructurados } from "@/components/seo/DatosEstructurados";
@@ -443,6 +444,10 @@ export default async function EmpresaPage({ params, searchParams: sp }: { params
                     `?atipo=` (lo lee de la URL, como las banderas de la cabecera); ya no hay barra de filtros ni `Listado`. */}
                 <Suspense fallback={<TablaSkeleton columnas={[{ clave: "a", titulo: "Antecedente", ancho: "1fr" }]} filas={6} />}>
                   <AntecedentesEmpresa datos={antecedentesP} clientes={clientesP} ruc={e.ruc} />
+                </Suspense>
+                {/* Las apelaciones en que tenía la buena pro y los sancionadores que el Tribunal le ordenó (migración 424). */}
+                <Suspense fallback={null}>
+                  <TribunalEmpresa ruc={e.ruc} />
                 </Suspense>
               </div>
             ),
