@@ -6,7 +6,6 @@ import { CifrasEnFila, type Cifra } from "@/components/ui/CifrasEnFila";
 import { dolares, getRecientesPagina, getVigilancia } from "@/lib/financiamiento";
 import { numero } from "@/lib/formato";
 import { EnlaceAccion } from "./EnlaceAccion";
-import { EtiquetaPaso } from "@/components/landing/Recorrido";
 import { ExpansionSection } from "./ExpansionSection";
 
 /**
@@ -105,7 +104,6 @@ export async function Participar({ enCola }: { enCola: number | null }) {
             {/* El ojo, decorativo: acompaña la invitación, no una señal ni un nombre. */}
             <OjoPixel animado tamano={220} className="h-auto w-16 sm:w-24 lg:w-36" />
             <div className="min-w-0">
-              <EtiquetaPaso id="denunciar" oscuro />
               <h2 id="participar-titulo" className="max-w-[26ch] text-balance font-display text-cifra font-bold leading-[1.08] sm:text-titulo">
                 {enCola != null && enCola > 0 ? `Hay ${numero(enCola)} contratos esperando que alguien los lea.` : "Empieza por los contratos de tu región."}
               </h2>

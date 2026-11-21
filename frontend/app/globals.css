@@ -345,8 +345,16 @@ html[data-modo="dia"] {
 }
 
 /* La franja de puntos de la cabecera y el pie (components/marca/FranjaTextil): una baldosa por modo. */
-.franja-textil { background-image: var(--franja-noche); }
-html[data-modo="dia"] .franja-textil { background-image: var(--franja-dia); }
+/* La franja de puntos, del color de la marca (2026-11-21: antes una baldosa SVG con el lima fijo). La baldosa de 28 x 12
+   de antes, en proporción: mide 2,33 veces el alto de la franja (el alto va en `font-size`, components/marca/FranjaTextil),
+   con un punto grande de --marca-acento y uno chico del texto de marca. Sin fondo propio: toma el de donde está, también
+   dentro de una banda (donde --marca-acento y --marca-texto ya son los de la banda). */
+.franja-textil {
+  background-image:
+    radial-gradient(circle closest-side at 25% 37.5%, rgb(var(--marca-acento)) 56%, transparent 59%),
+    radial-gradient(circle closest-side at 75% 62.5%, rgb(var(--marca-texto) / 0.55) 29%, transparent 32%);
+  background-size: 2.3333em 100%;
+}
 
 /* En modo día el lavado de color de cada pantalla es más tenue: sobre blanco el 14 % ya pesa. */
 html[data-modo="dia"] .fondo-intencion {
@@ -1028,5 +1036,81 @@ html[data-modo="dia"] [data-producto="obras"] :is(.bg-ink, .bg-granate-deep, .so
   --marca-nota: 206 198 194;
   --sobre-maiz: 59 28 9;
   --px-fondo: 59 28 9;
+}
+[data-producto="vigia"] {
+  --granate: 140 157 255;
+  --granate-50: 19 24 29;
+  --granate-soft: 26 32 44;
+  --granate-200: 57 66 101;
+  --granate-300: 94 106 169;
+  --granate-400: 117 131 212;
+  --granate-500: 186 196 255;
+  --granate-700: 98 110 178;
+  --granate-deep: 120 135 219;
+  --granate-900: 16 21 25;
+  --maiz: 140 157 255;
+  --maiz-soft: 26 32 44;
+  --marca-acento: 140 157 255;
+  --acento: 140 157 255;
+  --acento-soft: 21 26 34;
+  --acento-borde: 57 66 101;
+}
+[data-producto="vigia"] .sobre-oscuro {
+  --granate: 51 70 168;
+  --granate-soft: 222 225 241;
+  --granate-50: 241 242 249;
+  --granate-deep: 11 14 19;
+}
+html[data-modo="dia"][data-producto="vigia"],
+html[data-modo="dia"] [data-producto="vigia"] {
+  --granate: 51 70 168;
+  --granate-50: 243 244 250;
+  --granate-soft: 224 227 242;
+  --granate-200: 173 181 220;
+  --granate-300: 129 140 201;
+  --granate-400: 88 103 184;
+  --granate-500: 38 52 126;
+  --granate-700: 42 57 138;
+  --granate-deep: 40 55 131;
+  --granate-900: 20 27 69;
+  --maiz: 51 70 168;
+  --maiz-soft: 224 227 242;
+  --marca-acento: 51 70 168;
+  --marca-pupila: 20 27 69;
+  --acento: 51 70 168;
+  --acento-soft: 239 240 248;
+  --acento-borde: 163 172 216;
+}
+html[data-modo="dia"][data-producto="vigia"] :is(.bg-ink, .bg-granate-deep, .sobre-oscuro),
+html[data-modo="dia"] [data-producto="vigia"] :is(.bg-ink, .bg-granate-deep, .sobre-oscuro) {
+  --ink: 20 27 69;
+  --granate-deep: 20 27 69;
+  --granate-900: 20 27 69;
+  --maiz: 188 198 255;
+  --maiz-soft: 225 229 255;
+  --marca-acento: 188 198 255;
+  --marca-nota: 196 198 208;
+  --sobre-maiz: 20 27 69;
+  --px-fondo: 20 27 69;
+}
+[data-producto="vigia"] :is([data-intencion="participar"], [data-intencion="admin"]) {
+  --acento: 140 157 255;
+  --acento-soft: 24 29 39;
+  --acento-borde: 57 66 101;
+  --acento-texto: 140 157 255;
+}
+[data-producto="vigia"] [data-intencion="participar"] {
+  --acento-cifra: 140 157 255;
+}
+html[data-modo="dia"][data-producto="vigia"] :is([data-intencion="participar"], [data-intencion="admin"]),
+html[data-modo="dia"] [data-producto="vigia"] :is([data-intencion="participar"], [data-intencion="admin"]) {
+  --acento: 51 70 168;
+  --acento-soft: 239 240 248;
+  --acento-borde: 163 172 216;
+  --acento-texto: 43 60 143;
+}
+html[data-modo="dia"][data-producto="vigia"] [data-intencion="participar"],
+html[data-modo="dia"] [data-producto="vigia"] [data-intencion="participar"] {
+  --acento-cifra: 43 60 143;
 }
 /* ── Color por producto: fin ── */

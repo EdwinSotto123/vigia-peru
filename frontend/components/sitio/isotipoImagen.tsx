@@ -17,7 +17,7 @@ export const COLOR = {
   granate: "#0B0F0F",
   granateDeep: "#070A0A",
   granate900: "#050808",
-  maiz: "#D4FF3F",
+  maiz: "#8C9DFF", // añil (lib/colores-producto.ts → COLOR_VIGIA); hasta 2026-11-21, lima
   paper: "#FFFFFF",
   ink: "#0B0F0F",
 } as const;
@@ -48,7 +48,7 @@ export function franjaTextilUri(ancho: number, alto: number): string {
   const anchoCaja = ((ancho * 12) / alto).toFixed(2);
   const baldosa =
     "<rect width='28' height='12' fill='#0B0F0F'/>" +
-    "<circle cx='7' cy='4.5' r='2.6' fill='#D4FF3F'/><circle cx='21' cy='7.5' r='1.4' fill='#E7F0EE'/>";
+    "<circle cx='7' cy='4.5' r='2.6' fill='#8C9DFF'/><circle cx='21' cy='7.5' r='1.4' fill='#E7F0EE'/>";
   const svg =
     `<svg xmlns='http://www.w3.org/2000/svg' width='${ancho}' height='${alto}' viewBox='0 0 ${anchoCaja} 12'>` +
     `<defs><pattern id='baldosa' width='28' height='12' patternUnits='userSpaceOnUse'>${baldosa}</pattern></defs>` +

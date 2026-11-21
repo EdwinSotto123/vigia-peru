@@ -16,12 +16,12 @@ const PAPER = "#0B0F0F";
 const INK = "#E7F0EE";
 const INK_SOFT = "#BECDCA";
 const MUTE = "#8FA3A0";
-const GRANATE = "#D4FF3F";
+const GRANATE = "#8C9DFF"; // añil, el color de Vigía
 
 // La franja textil de la cabecera, en CSS puro: los hilos del tejido del isotipo
 // (ladrillo, maíz, verde, ocre, añil). Sin SVG ni imagen que cargar.
 const FRANJA =
-  "repeating-linear-gradient(90deg, #D4FF3F 0 6px, #0B0F0F 6px 14px)";
+  "repeating-linear-gradient(90deg, #8C9DFF 0 6px, #0B0F0F 6px 14px)";
 
 // `reset` no se usa: re-renderizar el layout raíz que acaba de fallar suele fallar
 // igual. Recargar la página completa trae también el JS nuevo si hubo un deploy.

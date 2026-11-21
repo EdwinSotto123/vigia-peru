@@ -1,7 +1,6 @@
 import { Database, ListChecks, ShieldCheck } from "lucide-react";
 import { Pestanas } from "@/components/patrones";
 import { EnlaceAccion } from "./EnlaceAccion";
-import { EtiquetaPaso } from "@/components/landing/Recorrido";
 import { PipelineAgentes } from "./PipelineAgentes";
 import { FuentesSection } from "./FuentesSection";
 import { ConfianzaSection } from "./ConfianzaSection";
@@ -31,7 +30,6 @@ export function ComoFunciona({ cifras, enRevision }: { cifras: CifrasFlujo | nul
       <div className="container-page">
         <div className="flex flex-wrap items-end justify-between gap-x-10 gap-y-4">
           <div className="min-w-0 max-w-[62ch]">
-            <EtiquetaPaso id="como" />
             <h2 id="como-titulo" className="text-balance font-display text-cifra font-bold leading-[1.08] text-ink sm:text-titulo">
               Vigía no inventa nada. <span className="text-granate">Así trabaja.</span>
             </h2>

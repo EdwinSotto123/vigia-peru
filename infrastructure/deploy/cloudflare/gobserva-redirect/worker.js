@@ -432,9 +432,9 @@ const CHEURON = `<svg class="cheuron" viewBox="0 0 6 10" shape-rendering="crispE
 
 /** Las cinco puertas: cada persona parada en la misma calle, con lo que necesita y el producto que se lo resuelve. Toda la
  * puerta es el enlace. La gente entra en escena una tras otra (a pasos, como píxeles) y parpadea a destiempo. */
-/** ` data-producto="salud"` para la puerta de un producto (su color: el bloque «Color por producto» del CSS); Vigía, nada. */
+/** ` data-producto="salud"` para la puerta de un producto o de Vigía (su color: el bloque «Color por producto» del CSS). */
 function productoDe(enlace) {
-  const m = /^https:\/\/(empleo|licitaciones|obras|salud)\.gobserva\.cloud/.exec(enlace);
+  const m = /^https:\/\/(vigia|empleo|licitaciones|obras|salud)\.gobserva\.cloud/.exec(enlace);
   return m ? ` data-producto="${m[1]}"` : "";
 }
 
@@ -523,10 +523,12 @@ const CSS = `
 .puerta[data-producto="empleo"] { --px-marca: #B9A0FF; --fosforo: #B9A0FF; }
 .puerta[data-producto="licitaciones"] { --px-marca: #6DB4FF; --fosforo: #6DB4FF; }
 .puerta[data-producto="obras"] { --px-marca: #FF9A55; --fosforo: #FF9A55; }
+.puerta[data-producto="vigia"] { --px-marca: #8C9DFF; --fosforo: #8C9DFF; }
 :root[data-modo="dia"] .puerta[data-producto="salud"] { --px-marca: #0A7266; --fosforo: #0A7266; }
 :root[data-modo="dia"] .puerta[data-producto="empleo"] { --px-marca: #5B35C9; --fosforo: #5B35C9; }
 :root[data-modo="dia"] .puerta[data-producto="licitaciones"] { --px-marca: #1D5DB8; --fosforo: #1D5DB8; }
 :root[data-modo="dia"] .puerta[data-producto="obras"] { --px-marca: #A9480C; --fosforo: #A9480C; }
+:root[data-modo="dia"] .puerta[data-producto="vigia"] { --px-marca: #3346A8; --fosforo: #3346A8; }
 /* Color por producto: fin */
 * { box-sizing: border-box; }
 html { -webkit-text-size-adjust: 100%; scroll-behavior: smooth; scroll-padding-top: 5rem; scrollbar-color: var(--borde) var(--fondo); -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; background: var(--fondo); }

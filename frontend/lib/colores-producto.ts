@@ -11,3 +11,6 @@ export const COLOR_PRODUCTO: Record<Producto, { noche: string; dia: string; band
   licitaciones: { noche: "#6DB4FF", dia: "#1D5DB8", banda: "#0B2748", bandaAcento: "#A8D1FF" },
   obras: { noche: "#FF9A55", dia: "#A9480C", banda: "#3B1C09", bandaAcento: "#FFC08F" },
 };
+
+/** Vigía: añil (las imágenes, el favicon y lo que pinta en un canvas). */
+export const COLOR_VIGIA = { noche: "#8C9DFF", dia: "#3346A8", banda: "#141B45", bandaAcento: "#BCC6FF" } as const;

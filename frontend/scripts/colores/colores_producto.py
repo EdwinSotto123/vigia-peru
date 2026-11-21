@@ -1,4 +1,5 @@
-"""El color de cada producto de Gobserva (2026-11-21: el dueño eligió «un color por producto»; antes todos eran lima).
+"""El color de cada producto de Gobserva (2026-11-21: el dueño eligió «un color por producto»; antes todos eran lima)
+y el de Vigía (añil, el mismo día: «usa un color más adecuado»; el lima queda sólo para gobserva.cloud).
 
 Una sola fuente para los cuatro colores. Este script:
   1. comprueba el contraste de cada par que se lee (texto y botones, de noche, de día y en las bandas);
@@ -31,6 +32,12 @@ PRODUCTOS = {
     "licitaciones": dict(nombre="azul", noche="#6DB4FF", dia="#1D5DB8", banda="#0B2748", banda_acento="#A8D1FF"),
     "obras": dict(nombre="naranja", noche="#FF9A55", dia="#A9480C", banda="#3B1C09", banda_acento="#FFC08F"),
 }
+
+# Vigía: añil, el azul de los tejidos andinos. Se probó el fucsia y se descartó: de noche se confundía con el rojo de las
+# señales («con riesgo alto»), que es lo que más importa leer en Vigía. `data-producto="vigia"` es el de toda página que
+# no es de un producto (lib/modoScript.ts y app/layout.tsx).
+VIGIA = dict(nombre="añil", noche="#8C9DFF", dia="#3346A8", banda="#141B45", banda_acento="#BCC6FF")
+TODAS = {**PRODUCTOS, "vigia": VIGIA}
 
 # La base que no cambia (globals.css): el carbón de noche, sus bandas, el papel y el fondo de día, las placas claras.
 CARBON = "#0B0F0F"
@@ -139,7 +146,7 @@ def escala(p):
 def revisar():
     """Cada par que se lee, a 4,5:1 o más. Devuelve las líneas del informe y si todo pasó."""
     filas, ok = [], True
-    for clave, p in PRODUCTOS.items():
+    for clave, p in TODAS.items():
         n, d, b, ba = p["noche"], p["dia"], p["banda"], p["banda_acento"]
         pares = [
             ("noche: acento sobre carbón", n, CARBON),
@@ -170,7 +177,7 @@ def bloque_css():
         l.extend(f"  --{k}: {tri(v)};" for k, v in tokens.items())
         l.append("}")
 
-    for clave, p in PRODUCTOS.items():
+    for clave, p in TODAS.items():
         noche, banda_noche, dia, banda_dia = escala(p)
         a = f'[data-producto="{clave}"]'
         bandas = ":is(.bg-ink, .bg-granate-deep, .sobre-oscuro)"
@@ -178,6 +185,15 @@ def bloque_css():
         regla([f"{a} .sobre-oscuro"], banda_noche)
         regla([f'html[data-modo="dia"]{a}', f'html[data-modo="dia"] {a}'], dia)
         regla([f'html[data-modo="dia"]{a} {bandas}', f'html[data-modo="dia"] {a} {bandas}'], banda_dia)
+    # Vigía: las dos intenciones que eran lima (participar y el panel admin) pasan a su color.
+    n, d = VIGIA["noche"], VIGIA["dia"]
+    v = '[data-producto="vigia"]'
+    lima = ':is([data-intencion="participar"], [data-intencion="admin"])'
+    regla([f"{v} {lima}"], {"acento": n, "acento-soft": mezcla(n, CARBON, 0.1), "acento-borde": mezcla(n, CARBON, 0.36), "acento-texto": n})
+    regla([f'{v} [data-intencion="participar"]'], {"acento-cifra": n})
+    regla([f'html[data-modo="dia"]{v} {lima}', f'html[data-modo="dia"] {v} {lima}'],
+          {"acento": d, "acento-soft": mezcla(d, BLANCO, 0.08), "acento-borde": mezcla(d, BLANCO, 0.45), "acento-texto": mezcla(d, NEGRO, 0.85)})
+    regla([f'html[data-modo="dia"]{v} [data-intencion="participar"]', f'html[data-modo="dia"] {v} [data-intencion="participar"]'], {"acento-cifra": mezcla(d, NEGRO, 0.85)})
     l.append("/* ── Color por producto: fin ── */")
     return "\n".join(l) + "\n"
 
@@ -196,14 +212,17 @@ import type {{ Producto }} from "./gobserva";
 export const COLOR_PRODUCTO: Record<Producto, {{ noche: string; dia: string; banda: string; bandaAcento: string }}> = {{
 {filas}
 }};
+
+/** Vigía: añil (las imágenes, el favicon y lo que pinta en un canvas). */
+export const COLOR_VIGIA = {{ noche: "{VIGIA['noche']}", dia: "{VIGIA['dia']}", banda: "{VIGIA['banda']}", bandaAcento: "{VIGIA['banda_acento']}" }} as const;
 """
 
 
 def bloque_worker():
     l = ["/* Color por producto (generado por frontend/scripts/colores/colores_producto.py): cada puerta lleva el color de su producto. */"]
-    for clave, p in PRODUCTOS.items():
+    for clave, p in TODAS.items():
         l.append(f'.puerta[data-producto="{clave}"] {{ --px-marca: {p["noche"]}; --fosforo: {p["noche"]}; }}')
-    for clave, p in PRODUCTOS.items():
+    for clave, p in TODAS.items():
         l.append(f':root[data-modo="dia"] .puerta[data-producto="{clave}"] {{ --px-marca: {p["dia"]}; --fosforo: {p["dia"]}; }}')
     l.append("/* Color por producto: fin */")
     return "\n".join(l) + "\n"

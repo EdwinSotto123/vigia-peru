@@ -8,13 +8,12 @@ import { ComoFunciona } from "@/components/landing/ComoFunciona";
 import { PartidosSeccion } from "@/components/landing/PartidosSeccion";
 import { Participar } from "@/components/landing/Participar";
 import { PausaFueraDePantalla } from "@/components/landing/PausaFueraDePantalla";
-import { IndiceRecorrido } from "@/components/landing/Recorrido";
 import { getAlertas } from "@/lib/api-client";
 import { getEstadoGlobal, getRankingPaginado, getVigilancia } from "@/lib/financiamiento";
 import { clasificar } from "@/components/aliados/ranking";
 import { anioLectura, desdeLectura, getContratosGeo, getResumenContratos, TIPOS } from "@/lib/contratos";
 import type { CifrasFlujo } from "@/components/landing/ExploradorFuentes";
-import { contarLeidos, elegirCasos, esReglaDeProceso, type AlertaReal, type AnioEscala, type CasoPortada, type OtraSenal, type TipoEscala } from "@/lib/landing";
+import { contarLeidos, elegirCasos, esReglaDeProceso, type AlertaReal, type AnioEscala, type CasoPortada, type OtraSenal } from "@/lib/landing";
 import { reglaLabel } from "@/lib/auditoria";
 import { OG_BASE, TWITTER_BASE } from "@/lib/compartir";
 
@@ -47,6 +46,10 @@ export const metadata: Metadata = {
  *  6. Cómo sumarse (Participar): la cifra que espera, aportar, denunciar o investigar, lo que cuesta, por qué aportar no
  *     compra nada y adónde va.
  *
+ * 2026-11-21 (el usuario: «El recorrido… esto ni debe estar, está horrible»): sin la barra de los cinco pasos ni el
+ * «Paso N de 5» que abría cada sección; el orden lo dan los titulares. El problema dice menos (tres cifras, sin las
+ * barras por tipo: cuatro pedidos menos a la API) y Vigía tiene su color, añil (scripts/colores/colores_producto.py).
+ *
  * Toda cifra sale del API. Si una lectura falla, la sección que depende de ella
  * no se dibuja: una portada que estima lo que no sabe es exactamente lo que este
  * producto le reprocha al Estado. Nada cae a datos de maqueta.
@@ -58,7 +61,7 @@ export default async function LandingPage() {
   // eso "leídos" quedaba en 0,0 %. Las cifras de la portada (publicados, leídos, escala, regiones) son del año.
   const anio = anioLectura();
   const desde = desdeLectura();
-  const [alertas, estado, resumen, regiones, ranking, vigilancia, ...porTipo] = await Promise.all([
+  const [alertas, estado, resumen, regiones, ranking, vigilancia] = await Promise.all([
     getAlertas({ limit: 100 }).catch(() => []),
     getEstadoGlobal().catch(() => null),
     getResumenContratos({ desde }).catch(() => null),
@@ -67,9 +70,6 @@ export default async function LandingPage() {
     getRankingPaginado({ periodo: "todo", limit: 12 }).catch(() => null),
     // Lo que cuesta mantener Vigía al mes (migración 206): el pedido de la portada dejó de ser «S/ 3 por contrato».
     getVigilancia().catch(() => null),
-    // Las cajitas de la escala: cuántos leyó Vigía de cada tipo (el resumen general
-    // trae el total por tipo, pero no los leídos por tipo).
-    ...TIPOS_ESCALA.map((t) => getResumenContratos({ tipo: t.clave, desde }).catch(() => null)),
   ]);
 
   const montoTotal = (regiones ?? []).reduce((s, r) => s + (r.montoPen ?? 0), 0);
@@ -100,7 +100,6 @@ export default async function LandingPage() {
       : null,
   };
 
-  const tiposEscala = resumen ? armarTiposEscala(resumen.porTipo, publicados, leidos, porTipo) : [];
   // La escala es del año en curso, como todas las cifras de la portada; el ⓘ lo dice.
   const anioEscala: AnioEscala | null = resumen && publicados > 0 ? { anio, enAnio: publicados } : null;
 
@@ -114,9 +113,6 @@ export default async function LandingPage() {
     <>
       <HeroPixel aliados={clasificar(ranking?.data ?? []).slice(0, 3)} piso={vigilancia?.meta.pisoPen ?? null} />
 
-      {/* El orden, a la vista: los cinco pasos de la historia, pegados bajo la cabecera, con el que se está leyendo. */}
-      <IndiceRecorrido />
-
       {/* El pitch en dos secciones. A: el problema, como tablero de cifras. */}
       {publicados > 0 && montoTotal > 0 && (
         <EscalaDinero
@@ -124,10 +120,8 @@ export default async function LandingPage() {
           publicados={publicados}
           leidos={leidos}
           senalAlta={senalAlta}
-          tipos={tiposEscala}
           anio={anioEscala}
           financiables={estado?.colaGlobal ?? null}
-          regionesConLectura={regiones?.length ? regiones.filter((z) => z.procesados > 0).length : null}
         />
       )}
 
@@ -187,41 +181,6 @@ function otrasSenalesDelCaso(alertas: AlertaReal[], caso: CasoPortada, reglaMost
   return otras;
 }
 
-/** Los cuatro tipos con cajita propia, en palabras de persona. El resto va en "Convenios y otros". */
-const TIPOS_ESCALA: { clave: Exclude<TipoEscala["clave"], "otros">; etiqueta: string }[] = [
-  { clave: "bienes", etiqueta: "Bienes" },
-  { clave: "servicios", etiqueta: "Servicios" },
-  { clave: "obras", etiqueta: "Obras" },
-  { clave: "consultoria", etiqueta: "Consultorías" },
-];
-
-/**
- * Las cajitas de la escala: los cuatro tipos grandes y "Convenios y otros" con lo que
- * falta para llegar al total, así las cajitas suman el número del titular. Los leídos de
- * "otros" sólo se calculan si se conocen los de los cuatro tipos (si no, "Sin dato").
- */
-function armarTiposEscala(
-  porTipo: Partial<Record<string, number>>,
-  total: number,
-  leidosTotal: number,
-  resumenes: ({ porRiesgo: Partial<Record<string, number>> } | null)[],
-): TipoEscala[] {
-  const grandes: TipoEscala[] = TIPOS_ESCALA.map((t, i) => ({
-    clave: t.clave,
-    etiqueta: t.etiqueta,
-    total: porTipo[t.clave] ?? 0,
-    leidos: contarLeidos(resumenes[i]?.porRiesgo),
-  }));
-  const resto = total - grandes.reduce((s, t) => s + t.total, 0);
-  const conocidos = grandes.every((t) => t.leidos != null);
-  const otros: TipoEscala = {
-    clave: "otros",
-    etiqueta: "Convenios y otros",
-    total: resto,
-    leidos: conocidos ? Math.max(0, leidosTotal - grandes.reduce((s, t) => s + (t.leidos ?? 0), 0)) : null,
-  };
-  return [...grandes.filter((t) => t.total > 0).sort((a, b) => b.total - a.total), ...(resto > 0 ? [otros] : [])];
-}
 
 /**
  * Los cinco tipos de contrato más comunes y una última barra con lo que falta

@@ -74,6 +74,9 @@ export function PixelReveal({
     let chispas: boolean[] = [];
     let inicio = 0;
     let revelando = false;
+    // Las chispas, del color de la marca (--marca-acento; antes lima fijo).
+    const marca = getComputedStyle(el).getPropertyValue("--marca-acento").trim().split(/[\s,]+/).map(Number);
+    const chispa = marca.length >= 3 && marca.every((x) => Number.isFinite(x)) ? `rgb(${marca.slice(0, 3).join(",")})` : "#8C9DFF";
     const DUR = 520; // cuánto tarda UNA celda en desvanecerse
     const BARRIDO = 780; // cuánto tarda el barrido completo
 
@@ -116,7 +119,7 @@ export function PixelReveal({
           if (a <= 0) continue;
           quedan = true;
           ctx.globalAlpha = a;
-          ctx.fillStyle = chispas[k] && a < 1 ? "#D4FF3F" : "#0B0F0F";
+          ctx.fillStyle = chispas[k] && a < 1 ? chispa : "#0B0F0F";
           ctx.fillRect(i * celda, j * celda, celda + 0.5, celda + 0.5);
         }
       }

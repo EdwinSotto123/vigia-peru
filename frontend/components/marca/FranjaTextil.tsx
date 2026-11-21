@@ -1,41 +1,20 @@
 import { cn } from "@/lib/utils";
 
 /**
- * La franja de puntos (identidad Píxel): una hilera de puntos lima y blancos, como la
- * trama del ojo. Mantiene el nombre `FranjaTextil` y su API (la cabecera, el pie y
- * varias portadas ya la importaban). Es un patrón SVG repetible, no una imagen.
+ * La franja de puntos (identidad Píxel): una hilera de puntos del color de la marca y de tinta, como la trama del ojo.
+ * Mantiene el nombre `FranjaTextil` y su API (la cabecera, el pie y varias portadas ya la importaban).
+ *
+ * Desde 2026-11-21 los puntos los dibuja `.franja-textil` (globals.css) con los tokens: el color de la marca
+ * (--marca-acento: añil en Vigía, el de cada producto) y el texto de marca de cada modo. Antes era una baldosa SVG con el lima fijo.
  *
  * Reglas: 4 px en la cabecera (la firma del sitio); una franja más por pantalla como
  * mucho; nunca detrás de texto, en tablas, formularios ni informes. Decorativa.
  */
-
-// Baldosa de 28 x 12: un punto lima grande y uno blanco pequeño debajo, sobre carbón.
-const BALDOSA = `<svg xmlns='http://www.w3.org/2000/svg' width='28' height='12' viewBox='0 0 28 12'>
-<rect width='28' height='12' fill='#0B0F0F'/>
-<circle cx='7' cy='4.5' r='2.6' fill='#D4FF3F'/><circle cx='21' cy='7.5' r='1.4' fill='#E7F0EE'/>
-</svg>`;
-
-// Modo día (lib/modo.ts): la misma baldosa en claro, con el verde profundo en vez del lima.
-const BALDOSA_DIA = `<svg xmlns='http://www.w3.org/2000/svg' width='28' height='12' viewBox='0 0 28 12'>
-<rect width='28' height='12' fill='#ECF1EF'/>
-<circle cx='7' cy='4.5' r='2.6' fill='#2F6B10'/><circle cx='21' cy='7.5' r='1.4' fill='#8EC157'/>
-</svg>`;
-
-const url = (svg: string) => `url("data:image/svg+xml,${encodeURIComponent(svg.replace(/\n/g, ""))}")`;
-const FONDO = url(BALDOSA);
-const FONDO_DIA = url(BALDOSA_DIA);
-
 const ALTOS = { 4: "h-1", 8: "h-2", 12: "h-3", 16: "h-4" } as const;
 
 export function FranjaTextil({ alto = 8, className }: { alto?: keyof typeof ALTOS; className?: string }) {
-  return (
-    <div
-      aria-hidden
-      // `.franja-textil` (globals.css) elige la baldosa del modo: --franja-noche o --franja-dia.
-      className={cn("franja-textil w-full bg-repeat-x", ALTOS[alto], className)}
-      style={{ "--franja-noche": FONDO, "--franja-dia": FONDO_DIA, backgroundSize: "auto 100%" } as React.CSSProperties}
-    />
-  );
+  // El alto también como `font-size`: la baldosa de .franja-textil se mide en `em`.
+  return <div aria-hidden className={cn("franja-textil w-full bg-repeat-x", ALTOS[alto], className)} style={{ fontSize: alto }} />;
 }
 
 /**

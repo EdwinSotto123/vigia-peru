@@ -89,7 +89,7 @@ const LUGAR_DESTACADO: Record<Lugar, Medidas> = {
   1: {
     orden: "order-2",
     alto: "h-24 sm:h-40 lg:h-52",
-    cara: "border-maiz bg-gradient-to-b from-maiz/55 via-maiz/20 to-maiz/[0.05] shadow-[0_-18px_60px_-12px_rgba(212,255,63,0.45)]",
+    cara: "border-maiz bg-gradient-to-b from-maiz/55 via-maiz/20 to-maiz/[0.05] shadow-[0_-18px_60px_-12px_rgb(var(--maiz)/0.45)]",
     numeral: "text-5xl text-maiz sm:text-7xl lg:text-8xl",
     cifra: "text-maiz",
     medalla: 96,
@@ -180,7 +180,7 @@ export function PodioRanking({
       className={cn(
         "sobre-oscuro relative overflow-hidden bg-granate-deep text-paper",
         destacado
-          ? "rounded-3xl border border-maiz/30 shadow-[0_0_0_1px_rgba(212,255,63,0.12),0_30px_90px_-30px_rgba(212,255,63,0.35)]"
+          ? "rounded-3xl border border-maiz/30 shadow-[0_0_0_1px_rgb(var(--maiz)/0.12),0_30px_90px_-30px_rgb(var(--maiz)/0.35)]"
           : "rounded-2xl",
       )}
     >

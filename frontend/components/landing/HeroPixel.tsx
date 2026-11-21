@@ -55,16 +55,6 @@ export function HeroPixel({ aliados = [], piso = null }: { aliados?: FilaRanking
 
       <div className="container-page grid w-full max-w-7xl items-center gap-x-10 gap-y-5 py-8 sm:py-12 lg:grid-cols-[minmax(0,1.3fr)_minmax(0,0.7fr)] lg:py-14">
         <header className="relative z-10 min-w-0">
-          {/* Quién la hace: Vigía es un producto de Gobserva, GovTech (pedido del usuario, 2026-10-29). */}
-          <p className="mb-4 inline-flex flex-wrap items-center gap-x-2 gap-y-1 rounded-full border border-line bg-paper px-3.5 py-1.5 text-meta text-inkSoft">
-            <span className="font-mono font-bold text-ink">
-              vigía<span className="text-granate">_</span>
-            </span>
-            <span>
-              by <strong className="font-semibold text-ink">Gobserva</strong>
-            </span>
-            <span className="text-mute">GovTech para vigilar el gasto público</span>
-          </p>
           <h1
             id="hero-titulo"
             className="max-w-[20ch] text-balance font-display text-titulo font-bold leading-[1.06] tracking-tight text-ink sm:text-portada lg:text-vitrina"
@@ -107,6 +97,14 @@ export function HeroPixel({ aliados = [], piso = null }: { aliados?: FilaRanking
             </div>
           </div>
           <LoHacenPosible aliados={aliados} />
+          {/* Quién la hace: Vigía es un producto de Gobserva, GovTech (pedido del usuario, 2026-10-29). Hasta 2026-11-21 iba en
+              una píldora encima del titular (un antetítulo); ahora cierra la primera pantalla, en una línea. */}
+          <p className="mt-6 text-meta text-mute">
+            <span className="font-mono font-bold text-inkSoft">
+              vigía<span className="text-granate">_</span>
+            </span>{" "}
+            es un proyecto de <strong className="font-semibold text-inkSoft">Gobserva</strong>, GovTech para vigilar el gasto público.
+          </p>
         </header>
 
         {/* El ojo: la marca. En el celular, chico y arriba del titular (antes, 300 px debajo de los botones, empujaba la

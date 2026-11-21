@@ -1,42 +1,26 @@
 "use client";
 
-import { EtiquetaPaso } from "@/components/landing/Recorrido";
-
 import { useRef } from "react";
 import Link from "next/link";
-import {
-  AlertTriangle,
-  ArrowRight,
-  ClipboardList,
-  Eye,
-  FileText,
-  HandCoins,
-  HardHat,
-  Hourglass,
-  MapPinned,
-  Package,
-  Wrench,
-  type LucideIcon,
-} from "lucide-react";
+import { AlertTriangle, ArrowRight, Eye, HandCoins, type LucideIcon } from "lucide-react";
 import { SIN_REDUCIR, useEscenaGsap } from "@/lib/gsap";
 import { numero, porcentaje } from "@/lib/formato";
 import { cn } from "@/lib/utils";
 import { Ayuda } from "@/components/patrones";
-import type { AnioEscala, TipoEscala } from "@/lib/landing";
+import type { AnioEscala } from "@/lib/landing";
 import { DeCadaCien } from "@/components/financiar/DeCadaCien";
 
 /**
  * "El problema", la primera mitad del pitch: el Estado publica miles de contratos y casi nadie los
  * lee. La segunda mitad es el mapa (PartidosSeccion): lo que Vigía hace al respecto.
  *
- * Es UNA banda, armada como un tablero (2026-11-13): antes era una pila de cuatro bloques a lo ancho, con las seis cifras
- * en un carrusel que mostraba una y media y cortaba la siguiente en el borde, y los tipos en una fila de chips que
- * también se cortaba. Ahora:
+ * Es UNA banda (2026-11-13: antes una pila de cuatro bloques con un carrusel de cifras cortado en el borde). Desde
+ * 2026-11-21 (el usuario: la portada se veía saturada) dice menos: se fueron las barras por tipo de contrato y tres de
+ * las seis cifras (publicados, que ya está en el titular; faltan por leer, que es la resta; regiones, que es del mapa).
  *  1. El titular, en una frase, con el monto total al lado.
- *  2. A la izquierda, la franja de puntos (cada punto, 20 contratos) que hace VER que los leídos son una rendija, y
- *     debajo cada tipo de contrato con su barra: el largo es lo publicado y lo lima, lo leído.
- *  3. A la derecha (desde xl; antes, debajo), las seis cifras en una grilla, todas a la vista, cada una con su barra cuando es parte de algo.
- *     La acción de leer vive en la cifra de "listos para leer": una sola. Debajo, lo que cuesta no leerlos.
+ *  2. A la izquierda, la franja de puntos (cada punto, 20 contratos) que hace VER que los leídos son una rendija.
+ *  3. A la derecha (desde xl; antes, debajo), tres cifras: leídos a fondo, con riesgo alto y listos para leer (con la
+ *     única acción de la banda). Debajo, lo que cuesta no leerlos.
  *
  * Cada cifra llega por props desde el servidor, que las lee de la API. Si la API no responde, la
  * sección no se dibuja: una portada que estima cuántos contratos quedaron sin leer es lo que este
@@ -51,14 +35,6 @@ import { DeCadaCien } from "@/components/financiar/DeCadaCien";
 const POR_PUNTO = 20;
 const COLUMNAS = 100;
 
-const ICONO: Record<TipoEscala["clave"], LucideIcon> = {
-  bienes: Package,
-  servicios: Wrench,
-  obras: HardHat,
-  consultoria: ClipboardList,
-  otros: FileText,
-};
-
 type Tono = "neutro" | "lima" | "alerta";
 
 /** El ⓘ sobre la banda oscura. */
@@ -69,26 +45,18 @@ export function EscalaDinero({
   publicados,
   leidos,
   senalAlta,
-  tipos,
   anio,
   financiables,
-  regionesConLectura,
-  regionesTotal = 25,
 }: {
   /** Suma del monto de los contratos de las 25 regiones, en soles. */
   montoTotal: number;
   publicados: number;
   leidos: number;
   senalAlta: number;
-  /** El desglose por tipo; suma `publicados`. Vacío si su lectura falló. */
-  tipos: TipoEscala[];
   /** El año de la convocatoria, sólo si casi todo es de ese año. */
   anio: AnioEscala | null;
   /** Contratos que ya se pueden financiar hoy (adjudicados y con documentos). null si no se pudo leer. */
   financiables: number | null;
-  /** Regiones donde Vigía ya leyó al menos un contrato. null si no se pudo leer. */
-  regionesConLectura: number | null;
-  regionesTotal?: number;
 }) {
   const raiz = useRef<HTMLElement>(null);
 
@@ -98,8 +66,6 @@ export function EscalaDinero({
   const milMillones = Math.floor(montoTotal / 1e9);
   const pct = publicados > 0 ? (leidos / publicados) * 100 : 0;
   const unaDeCada = leidos > 0 ? Math.round(publicados / leidos) : null;
-  const faltan = Math.max(0, publicados - leidos);
-  const sinLectura = regionesConLectura != null ? Math.max(0, regionesTotal - regionesConLectura) : null;
 
   useEscenaGsap(
     raiz,
@@ -151,7 +117,6 @@ export function EscalaDinero({
     >
       <div className="container-page relative py-10 sm:py-12">
         {/* ── La idea, en una frase ─────────────────────────────── */}
-        <EtiquetaPaso id="escala" oscuro />
         <div className="flex flex-wrap items-end justify-between gap-x-10 gap-y-2">
           <h2 id="escala-titulo" className="max-w-3xl text-balance font-display text-cifra font-bold leading-[1.08] tracking-tight sm:text-titulo">
             El Estado publicó <span className="text-maiz">{numero(publicados)}</span> contratos{anio ? ` en ${anio.anio}` : ""} y casi nadie los
@@ -172,8 +137,8 @@ export function EscalaDinero({
         </div>
 
         <div className="mt-6 grid gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] xl:gap-6">
-          {/* ── Izquierda: la imagen que lo dice sin números, y los tipos ── */}
-          <div className="min-w-0 space-y-5">
+          {/* ── Izquierda: la imagen que lo dice sin números ── */}
+          <div className="min-w-0">
             <figure className="matriz rounded-2xl border border-paper/15 p-4">
               <svg
                 viewBox={`0 0 ${COLUMNAS} ${filas}`}
@@ -204,19 +169,11 @@ export function EscalaDinero({
               </figcaption>
             </figure>
 
-            {tipos.length > 0 && <PorTipo tipos={tipos} />}
           </div>
 
-          {/* ── Derecha: las cifras, todas a la vista ──────────────── */}
+          {/* ── Derecha: tres cifras y lo que cuesta no leerlos ──────── */}
           <div className="min-w-0 space-y-5">
-            <ul aria-label="Las cifras del problema" className="cifras-escala grid grid-cols-2 gap-2.5 sm:grid-cols-3">
-              <Cifra
-                Icono={FileText}
-                titulo="Publicados"
-                valor={publicados}
-                apoyo="en el SEACE"
-                ayuda="Todo lo que las entidades subieron al SEACE, el portal de compras del Estado."
-              />
+            <ul aria-label="Las cifras del problema" className="cifras-escala grid gap-2.5 sm:grid-cols-3">
               <Cifra
                 Icono={Eye}
                 titulo="Leídos a fondo"
@@ -235,14 +192,6 @@ export function EscalaDinero({
                 apoyo={`de los ${numero(leidos)} leídos`}
                 ayuda="Los primeros que conviene revisar. Una señal es para revisar, nunca una acusación."
               />
-              <Cifra
-                Icono={Hourglass}
-                titulo="Faltan por leer"
-                valor={faltan}
-                parte={publicados > 0 ? faltan / publicados : null}
-                apoyo="de los publicados"
-                ayuda="Se leen según lo que aportamos entre todos."
-              />
               {financiables != null && (
                 <Cifra
                   Icono={HandCoins}
@@ -251,17 +200,6 @@ export function EscalaDinero({
                   tono="lima"
                   ayuda="Ya están adjudicados y con documentos. Se leen primero los más graves, con lo que aportamos entre todos."
                   accion={{ href: "/app/apoyar", texto: "Ayúdanos a leerlos" }}
-                />
-              )}
-              {regionesConLectura != null && (
-                <Cifra
-                  Icono={MapPinned}
-                  titulo="Regiones"
-                  valor={regionesConLectura}
-                  sufijo={` de ${numero(regionesTotal)}`}
-                  parte={regionesConLectura / regionesTotal}
-                  apoyo={sinLectura && sinLectura > 0 ? `con algo leído; ${numero(sinLectura)} sin ninguno` : "Todas con algo leído"}
-                  ayuda="Regiones donde Vigía ya leyó al menos un contrato. La región es la sede de la entidad que contrata."
                 />
               )}
             </ul>
@@ -279,48 +217,6 @@ export function EscalaDinero({
   );
 }
 
-/**
- * Los contratos por tipo, como barras (antes, una fila de chips que se cortaba en el borde): el largo es lo publicado
- * de ese tipo frente al mayor, y la parte lima lo que Vigía ya leyó. El número de leídos va escrito, porque una rendija
- * de 1 % no se mide a ojo.
- */
-function PorTipo({ tipos }: { tipos: TipoEscala[] }) {
-  const maximo = Math.max(1, ...tipos.map((t) => t.total));
-  return (
-    <div className="rounded-2xl border border-paper/15 p-4">
-      <h3 className="text-cuerpo font-semibold text-paper/85">Por tipo de contrato</h3>
-      <ul aria-label="Contratos publicados y leídos por tipo" className="mt-3 space-y-2.5">
-        {tipos.map((t) => {
-          const Icono = ICONO[t.clave];
-          const leidos = t.leidos ?? 0;
-          return (
-            <li key={t.clave} className="grid grid-cols-[minmax(0,8.5rem)_minmax(0,1fr)_auto] items-center gap-x-3">
-              <span className="flex min-w-0 items-center gap-2 text-dato text-paper/90">
-                <Icono size={15} className="shrink-0 text-maiz/90" aria-hidden />
-                <span className="truncate">{t.etiqueta}</span>
-              </span>
-              <span
-                role="img"
-                aria-label={`${t.etiqueta}: ${numero(t.total)} publicados${t.leidos != null ? `, ${numero(leidos)} leídos` : ""}`}
-                className="block h-2.5 overflow-hidden rounded-full bg-paper/[0.06]"
-              >
-                <span className="relative block h-full rounded-full bg-paper/30" style={{ width: `${Math.max(3, (t.total / maximo) * 100)}%` }}>
-                  {leidos > 0 && (
-                    <span className="absolute inset-y-0 left-0 rounded-full bg-maiz" style={{ width: `${Math.max(4, (leidos / Math.max(1, t.total)) * 100)}%` }} />
-                  )}
-                </span>
-              </span>
-              <span className="text-right font-mono text-meta leading-tight tabular-nums">
-                <span className="block text-paper">{numero(t.total)}</span>
-                <span className="block text-rotulo text-maiz">{t.leidos == null ? "Sin dato" : `${numero(leidos)} leídos`}</span>
-              </span>
-            </li>
-          );
-        })}
-      </ul>
-    </div>
-  );
-}
 
 /**
  * Una cifra de la grilla: el nombre (con su ⓘ), UNA cifra grande, su barra cuando es parte de un todo y una línea de

@@ -87,7 +87,7 @@ export default function RootLayout({
 }) {
   return (
     // suppressHydrationWarning: SCRIPT_MODO pone `data-modo` en <html> antes de que React hidrate.
-    <html lang="es-PE" className={`${inter.variable} ${display.variable} ${mono.variable}`} suppressHydrationWarning>
+    <html lang="es-PE" data-producto="vigia" className={`${inter.variable} ${display.variable} ${mono.variable}`} suppressHydrationWarning>
       <head>
         <script dangerouslySetInnerHTML={{ __html: SCRIPT_MODO }} />
       </head>

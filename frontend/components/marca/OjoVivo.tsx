@@ -194,6 +194,16 @@ export function OjoVivo({
     ultR.fill(-1);
     ultO.fill(-1);
     const ultTono = new Int8Array(IRIS.length).fill(-1);
+    // El color de la marca (--marca-acento: añil en Vigía, el de cada producto), releído cuando cambia el modo.
+    let acento: number[] = [140, 157, 255];
+    const leerAcento = () => {
+      const v = getComputedStyle(si).getPropertyValue("--marca-acento").trim().split(/[\s,]+/).map(Number);
+      if (v.length >= 3 && v.every((x) => Number.isFinite(x))) acento = v.slice(0, 3);
+      ultTono.fill(-1);
+    };
+    leerAcento();
+    const obsModo = new MutationObserver(leerAcento);
+    obsModo.observe(document.documentElement, { attributes: true, attributeFilter: ["data-modo", "data-producto"] });
     const tInclina = { v: "" };
     const tOjo = { v: "" };
     const tIris = { v: "" };
@@ -306,7 +316,7 @@ export function OjoVivo({
       ceja += (cerca - ceja) * 0.1;
       ponerTransform(sc, `translate(0, ${(((-1.1 * S * ceja + (cerrando ? 0.5 : 0)) / FILAS) * 100).toFixed(2)}%)`, tCeja);
 
-      // El anillo que se abre con la pupila: blanco cuando está abierta hasta ahí, lima cuando no.
+      // El anillo que se abre con la pupila: blanco cuando está abierta hasta ahí, del color de la marca cuando no.
       for (let n = 0; n < IRIS.length; n++) {
         const p = IRIS[n];
         if (p.clase !== "dilata") continue;
@@ -314,7 +324,7 @@ export function OjoVivo({
         if (tono !== ultTono[n]) {
           ultTono[n] = tono;
           const m = tono / 6;
-          cIris[n].setAttribute("fill", `rgb(${Math.round(212 + 43 * m)},255,${Math.round(63 + 192 * m)})`);
+          cIris[n].setAttribute("fill", `rgb(${acento.map((c) => Math.round(c + (255 - c) * m)).join(",")})`);
         }
       }
 
@@ -378,6 +388,7 @@ export function OjoVivo({
     el.addEventListener("pointerdown", alTocar);
     return () => {
       io.disconnect();
+      obsModo.disconnect();
       cancelAnimationFrame(raf);
       window.removeEventListener("pointermove", alPuntero);
       el.removeEventListener("pointerdown", alTocar);

@@ -530,8 +530,8 @@ export const ESTADO_PUNTO: Record<ZonaEstado, string> = {
 export const ESTADO_FILL: Record<ZonaEstado, string> = {
   sin_datos: "#1A2323",
   pendiente: "#2C3939",
-  parcial: "#6D8A15",
-  financiada: "#D4FF3F",
+  parcial: "#454F7B",
+  financiada: "#8C9DFF",
   procesada: "#3DDC97",
 };
 
