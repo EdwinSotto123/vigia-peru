@@ -97,7 +97,10 @@ const ESTADO = `SELECT to_char(refrescado_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"H
 // ─── GET /proyectos/resumen ──────────────────────────────────────────────────────────────────────────────────────────
 
 proyectosRouter.get("/resumen", async (c) => {
-  const cuerpo = await memo.obtener("resumen", async () => {
+  // En frío recorre gobserva_proyecto (~150 mil filas) tres veces: ~40 s medidos el 2026-11-20, más de lo que espera la
+  // portada de Obras («las cifras no cargaron»). La tabla se refresca una vez al día: caché larga en memoria y en el
+  // borde, que sirve la copia anterior mientras rehace la nueva.
+  const cuerpo = await memoLargo.obtener("resumen", async () => {
     // Tres sentencias (y no ocho): cada una abre su conexión, y en frío eso pesaba más que las consultas.
     const lista = (donde: string, orden: string, n: number) =>
       `COALESCE((SELECT json_agg(t) FROM (SELECT ${COLS} FROM gobserva_proyecto p WHERE ${donde} ORDER BY ${orden} LIMIT ${n}) t), '[]')`;
@@ -156,7 +159,7 @@ proyectosRouter.get("/resumen", async (c) => {
     refrescarSiHaceFalta(est?.refrescado);
     return publicar({ ...cifras.rows[0], ...listas.rows[0], estado: est });
   });
-  c.header("Cache-Control", CACHE);
+  c.header("Cache-Control", CACHE_LARGO);
   return c.json(cuerpo);
 });
 
