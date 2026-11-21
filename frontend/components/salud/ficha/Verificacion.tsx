@@ -91,18 +91,17 @@ export function VerificacionFicha({ f, base }: { f: FichaIpress; base: string })
   const leido = detalleLeido(f);
   return (
     <section aria-labelledby="verificacion-t" className="tarjeta min-w-0 rounded-2xl border border-line bg-paper">
-      <header className="border-b border-line px-4 pb-3.5 pt-4 sm:px-6 sm:pt-5">
+      <header className="border-b border-line px-4 py-3 sm:px-6">
         <div className="flex items-center gap-1.5">
-          <h2 id="verificacion-t" className="font-display text-seccion font-bold leading-tight text-ink">
-            Cómo lo verificamos
-          </h2>
+          <p id="verificacion-t" className="text-dato font-semibold leading-snug text-inkSoft">
+            Cada casilla de «Lo esencial», con la fuente oficial y su fecha
+          </p>
           <Ayuda titulo="¿Cómo se lee la verificación?" etiqueta="Cómo se lee la verificación">
             Cada fila es lo que afirma una fuente oficial, con su fecha. El color dice si conviene revisar algo. No todo es lo
             mismo: una sanción firme no es una denuncia, y lo que dice RENIPRESS lo declaró la propia IPRESS.
             <span className="mt-1.5 block">Nada de esto califica a un establecimiento como seguro o peligroso.</span>
           </Ayuda>
         </div>
-        <p className="mt-1 text-dato text-inkSoft">Cada chequeo de «Lo esencial», con la fuente oficial y su fecha.</p>
       </header>
       {/* 2026-11-21 («atosigante, sin jerarquías»): una fila por chequeo, con el ícono de su estado en su color y el
           nombre del estado a la derecha; sin el disco, sin la etiqueta de clase de hecho (está en el ⓘ) y sin repetir la

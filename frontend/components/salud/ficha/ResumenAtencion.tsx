@@ -40,14 +40,10 @@ export function ResumenAtencion({ f, base }: { f: FichaIpress; base: string }) {
 
   return (
     <section aria-labelledby="atencion-t" className="tarjeta min-w-0 rounded-2xl border border-line bg-paper">
-      <header className="border-b border-line px-4 pb-4 pt-4 sm:px-6 sm:pt-5">
-        <h2 id="atencion-t" className="font-display text-seccion font-bold leading-tight text-ink">
-          Para atenderte aquí
-        </h2>
-        <p className="mt-1 max-w-[72ch] text-pretty text-dato leading-relaxed text-inkSoft">
-          Lo que declaró a SUSALUD: qué servicios tiene, cuánto personal y si te pueden atender por lo que necesitas.
-        </p>
-      </header>
+      {/* Vive en la pestaña «Para atenderte» de la ficha: el nombre lo da la pestaña (sólo para lectores de pantalla). */}
+      <h2 id="atencion-t" className="sr-only">
+        Para atenderte aquí
+      </h2>
 
       <div className="grid gap-px bg-line lg:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)]">
         {/* ── Qué servicios declaró ─────────────────────────────────────────────── */}

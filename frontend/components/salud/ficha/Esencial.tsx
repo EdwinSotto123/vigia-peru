@@ -84,7 +84,7 @@ function destino(c: Chequeo, f: FichaIpress, base: string): string {
   const ficha = rutaEn(base, rutaFicha(f.codigo));
   switch (c.clave) {
     case "sanciones":
-      return f.registroSanciones.length ? `${ficha}?seccion=sanciones#secciones` : "#verificacion-t";
+      return f.registroSanciones.length ? `${ficha}?seccion=sanciones#secciones` : `${ficha}?seccion=verificacion#secciones`;
     case "denuncias":
       return `${ficha}?seccion=denuncias#secciones`;
     case "quirurgico":
@@ -92,27 +92,27 @@ function destino(c: Chequeo, f: FichaIpress, base: string): string {
     case "licencia":
       return `${ficha}?seccion=documentos#secciones`;
     case "responsable":
-      return detalleLeido(f) && f.detalle.responsableColegiatura ? rutaEn(base, rutaMedico(f.detalle.responsableColegiatura)) : "#verificacion-t";
+      return detalleLeido(f) && f.detalle.responsableColegiatura ? rutaEn(base, rutaMedico(f.detalle.responsableColegiatura)) : `${ficha}?seccion=verificacion#secciones`;
     default:
-      return "#verificacion-t";
+      return `${ficha}?seccion=verificacion#secciones`;
   }
 }
 
-export function EsencialFicha({ f, base }: { f: FichaIpress; base: string }) {
+export function EsencialFicha({ f, base, className }: { f: FichaIpress; base: string; className?: string }) {
   return (
-    <section aria-labelledby="esencial-t" className="min-w-0">
+    <section aria-labelledby="esencial-t" className={cn("min-w-0", className)}>
       <div className="flex items-center gap-1.5">
         <h2 id="esencial-t" className="font-display text-seccion font-bold leading-tight text-ink">
           Lo esencial
         </h2>
         <Ayuda titulo="¿Cómo se lee?" etiqueta="Cómo se leen las casillas">
           Cada casilla es lo que dice una fuente oficial. En rojo o ámbar, lo que conviene revisar; el resto está conforme o
-          no tiene dato. Abajo, en «Cómo lo verificamos», cada una con su fuente y su fecha.
+          no tiene dato. En la pestaña «Verificación», cada una con su fuente y su fecha.
           <span className="mt-1.5 block">Nada de esto califica a un establecimiento como seguro o peligroso.</span>
         </Ayuda>
       </div>
       <p className="mt-1.5 max-w-[70ch] text-pretty text-cuerpo leading-relaxed text-inkSoft">{resumenVerificacion(f)}</p>
-      <ul className="mt-4 grid grid-cols-2 gap-2.5 sm:grid-cols-3 xl:grid-cols-4" aria-label="Lo esencial, chequeo por chequeo">
+      <ul className="mt-4 grid grid-cols-2 gap-2.5 sm:grid-cols-4 xl:grid-cols-7" aria-label="Lo esencial, chequeo por chequeo">
         {f.verificacion.map((c) => {
           // Una sanción firme va en el rojo de las sanciones firmes de todo Salud (las listas, el registro), aunque el chequeo diga «Revisa».
           const tono: Tono = c.clave === "sanciones" && f.registroSanciones.length > 0 ? "urgente" : tonoEstado(c.estado);

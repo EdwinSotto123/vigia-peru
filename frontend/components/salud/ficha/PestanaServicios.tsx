@@ -1,4 +1,4 @@
-import { ChevronDown, ClipboardList, Layers, Stethoscope, Video, Ban } from "lucide-react";
+import { Ban, ChevronDown, Layers, Stethoscope, Video } from "lucide-react";
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { ListaPaginada } from "@/components/listado/Paginado";
@@ -157,23 +157,20 @@ export function PestanaServicios({ f, base }: { f: FichaIpress; base: string }) 
         )}
       </Bloque>
 
-      <div className="grid gap-5 xl:grid-cols-2">
-        <Bloque id="especialidades" titulo="Especialidades" icono={Stethoscope} cuenta={numero(d.especialidades.length)}>
-          {d.especialidades.length ? (
-            <Fichas items={d.especialidades} nombre="las especialidades" placeholder="Buscar: cirugía plástica, pediatría…" />
-          ) : (
-            <p className="text-dato text-inkSoft">No figura ninguna especialidad en RENIPRESS (consultado el {fechaCorta(d.leidoAl)}).</p>
-          )}
-        </Bloque>
-        <Bloque id="cartera" titulo="Cartera de servicios" icono={ClipboardList} cuenta={numero(d.cartera.length)}>
-          {d.cartera.length ? (
-            <Filas items={d.cartera} nombre="la cartera de servicios" placeholder="Buscar un servicio: parto, ecografía…" tam={10} />
-          ) : (
-            <p className="text-dato text-inkSoft">No figura una cartera de servicios en RENIPRESS (consultado el {fechaCorta(d.leidoAl)}).</p>
-          )}
-        </Bloque>
-      </div>
+      <Bloque id="especialidades" titulo="Especialidades" icono={Stethoscope} cuenta={numero(d.especialidades.length)}>
+        {d.especialidades.length ? (
+          <Fichas items={d.especialidades} nombre="las especialidades" placeholder="Buscar: cirugía plástica, pediatría…" tam={24} />
+        ) : (
+          <p className="text-dato text-inkSoft">No figura ninguna especialidad en RENIPRESS (consultado el {fechaCorta(d.leidoAl)}).</p>
+        )}
+      </Bloque>
 
+      {/* La cartera y el desglose son frases largas y, en un hospital, cientos: plegados, se abren si se buscan. */}
+      {d.cartera.length > 0 && (
+        <Plegado resumen={`La cartera de servicios, en las palabras de RENIPRESS (${numero(d.cartera.length)})`}>
+          <Filas items={d.cartera} nombre="la cartera de servicios" placeholder="Buscar un servicio: parto, ecografía…" dos />
+        </Plegado>
+      )}
       {d.ups.length > 0 && (
         <Plegado resumen={`El desglose de cada unidad en sus servicios (${numero(d.ups.length)})`}>
           <Filas items={d.ups} nombre="los servicios por unidad (UPS)" placeholder="Buscar un servicio de una unidad…" dos />

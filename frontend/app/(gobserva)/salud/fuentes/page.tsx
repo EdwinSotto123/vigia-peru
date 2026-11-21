@@ -7,7 +7,8 @@ import {
 import { EstadoError } from "@/components/gobserva/ui/Estados";
 import { FuenteFecha, InsigniaEstado, InsigniaHecho } from "@/components/salud/comun";
 import { ClasesDeHecho } from "@/components/salud/fuentes/ClasesDeHecho";
-import { URL_CMP, URL_SUNEDU } from "@/components/salud/fuentes/urls";
+import { URL_CMP, URL_DENUNCIA_SUSALUD, URL_SUNEDU } from "@/components/salud/fuentes/urls";
+import { Faq } from "@/components/licitaciones/Faq";
 import { CabeceraSeccion, Encabezado, Ruta } from "@/components/salud/portada/Piezas";
 import { claseAccion } from "@/components/ui/EnlaceAccion";
 import { rutaEn, urlCanonica } from "@/lib/gobserva";
@@ -247,6 +248,72 @@ export default async function Fuentes() {
           </section>
         </div>
       )}
+      {/* Las preguntas frecuentes (2026-11-21: vivían en la portada, que se hacía interminable). */}
+      <section aria-labelledby="preguntas-t" className="mt-12">
+        <h2 id="preguntas-t" className="font-display text-seccion font-bold leading-tight text-ink">Preguntas frecuentes</h2>
+        <div className="mt-4">
+            <Faq
+              preguntas={[
+                {
+                  p: "¿De dónde salen los datos?",
+                  r: "De registros oficiales: RENIPRESS, el Registro de Sanciones y los datos abiertos de SUSALUD (denuncias, recursos y cirugías). La habilitación de un médico la confirma el Colegio Médico del Perú y su título, SUNEDU: te llevamos a sus sitios. Cada dato dice de qué fuente sale y a qué fecha.",
+                },
+                {
+                  p: "¿Qué es una IPRESS y qué es RENIPRESS?",
+                  r: "IPRESS quiere decir Institución Prestadora de Servicios de Salud: hospitales, clínicas, centros y puestos de salud, consultorios, laboratorios. RENIPRESS es el registro donde SUSALUD las inscribe, con su estado, su categoría y lo que cada una declaró.",
+                },
+                {
+                  p: "¿Qué quiere decir la categoría (I-1, II-1, III-1…)?",
+                  r: "El nivel de complejidad del establecimiento: el primer nivel (I-1 a I-4) son puestos, consultorios y centros de salud; el segundo (II-1, II-2, II-E), hospitales y clínicas con especialidades; el tercero (III-1, III-2, III-E), hospitales e institutos de alta complejidad. Muchos consultorios y servicios de apoyo no tienen una categoría registrada.",
+                },
+                {
+                  p: "Si no figura en el Registro de Sanciones, ¿nunca lo sancionaron?",
+                  r: "No necesariamente. El registro sólo trae sanciones firmes y SUSALUD puede retirar las que tienen más de un año. Por eso decimos «no figura en el Registro de Sanciones de SUSALUD revisado el…» y no «no tiene sanciones».",
+                },
+                {
+                  p: "¿Una denuncia quiere decir que la clínica hizo algo mal?",
+                  r: "No. Una denuncia es el pedido de un ciudadano ante SUSALUD: no es un hecho comprobado ni una sanción. Mostramos cuántas recibió cada institución por año, siempre aparte de las sanciones.",
+                },
+                {
+                  p: "¿La sanción de una clínica es una sanción a sus médicos?",
+                  r: "No. La sanción es de la institución. De los profesionales sólo mostramos el colegio, el número de colegiatura y la especialidad registrada (RNE) de quien figura como responsable en RENIPRESS, para que lo verifiques en su colegio.",
+                },
+                {
+                  p: "¿Por qué no puedo buscar a un médico por su nombre?",
+                  r: (
+                    <>
+                      Porque no guardamos nombres de personas. La habilitación y la especialidad de un médico las confirma el Colegio Médico del Perú en{" "}
+                      <a href={URL_CMP} target="_blank" rel="noopener noreferrer" className="font-semibold text-granate underline-offset-2 hover:underline">
+                        Conoce a tu médico
+                      </a>
+                      , con su número de colegiatura o sus apellidos. Aquí te llevamos paso a paso.
+                    </>
+                  ),
+                },
+                {
+                  p: "¿Cada cuánto se actualiza?",
+                  r: "RENIPRESS, el Registro de Sanciones y los datos abiertos de SUSALUD se cargan cada viernes, con el archivo que SUSALUD publique ese día. El detalle de cada establecimiento (sus servicios y documentos) se vuelve a leer cada 30 días o al abrir su ficha.",
+                },
+                {
+                  p: "¿Dónde presento una denuncia?",
+                  r: (
+                    <>
+                      Ante SUSALUD, en{" "}
+                      <a href={URL_DENUNCIA_SUSALUD} target="_blank" rel="noopener noreferrer" className="font-semibold text-granate underline-offset-2 hover:underline">
+                        su página de consultas y denuncias
+                      </a>
+                      . Un reclamo se presenta primero en el libro de reclamaciones del propio establecimiento. Gobserva Salud no recibe denuncias ni reclamos.
+                    </>
+                  ),
+                },
+                {
+                  p: "¿Cuánto cuesta? ¿Gobserva es del Estado?",
+                  r: "Es gratis y no pide cuenta. Gobserva no es una entidad del Estado: ordena datos públicos y enlaza siempre a la fuente oficial.",
+                },
+              ]}
+            />
+        </div>
+      </section>
     </div>
   );
 }

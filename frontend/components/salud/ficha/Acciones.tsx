@@ -72,3 +72,55 @@ export function AccionesFicha({ f, base, className }: { f: FichaIpress; base: st
     </aside>
   );
 }
+
+/**
+ * Las mismas acciones en UNA fila bajo la cabecera (2026-11-21: la columna lateral alargaba la ficha y en el celular
+ * caía al final). Cómo llegar va primero cuando hay ubicación; el resto, del mismo peso. El aviso de que la denuncia la
+ * recibe SUSALUD queda en la línea de abajo, corto. Server-safe (copiar es una hoja de cliente).
+ */
+export function AccionesFila({ f, base, className }: { f: FichaIpress; base: string; className?: string }) {
+  const conPunto = f.lat != null && f.lon != null;
+  const renipress = f.fuentes.renipress?.url ?? null;
+  const boton = "min-h-10 px-4";
+  return (
+    <div className={cn("min-w-0", className)}>
+      <ul className="flex flex-wrap gap-2" aria-label="Qué puedes hacer">
+        {conPunto && (
+          <li>
+            <a href={urlComoLlegar(f.lat!, f.lon!)} target="_blank" rel="noopener noreferrer" className={claseAccion("primario", boton)}>
+              <Navigation size={15} aria-hidden /> Cómo llegar
+              {EXTERNO}
+            </a>
+          </li>
+        )}
+        {conPunto && (
+          <li>
+            <Link href={rutaEn(base, `/mapa?${new URLSearchParams({ codigo: f.codigo })}`)} prefetch={false} className={claseAccion("secundario", boton)}>
+              <Mapa size={15} aria-hidden /> Mapa
+            </Link>
+          </li>
+        )}
+        {renipress && (
+          <li>
+            <a href={renipress} target="_blank" rel="noopener noreferrer" className={claseAccion(conPunto ? "secundario" : "primario", boton)}>
+              <FileSearch size={15} aria-hidden /> Consulta oficial
+              <ArrowUpRight size={13} aria-hidden className="shrink-0" />
+              {EXTERNO}
+            </a>
+          </li>
+        )}
+        <li>
+          <a href={URL_DENUNCIA_SUSALUD} target="_blank" rel="noopener noreferrer" className={claseAccion("secundario", boton)}>
+            <Megaphone size={15} aria-hidden /> Denunciar ante SUSALUD
+            <ArrowUpRight size={13} aria-hidden className="shrink-0" />
+            {EXTERNO}
+          </a>
+        </li>
+        <li>
+          <CopiarEnlace className="[&>button]:min-h-10 [&>button]:w-auto" />
+        </li>
+      </ul>
+      <p className="mt-2 text-meta text-mute">La denuncia la recibe SUSALUD, no Gobserva. En una emergencia, llama al 106 (SAMU) o al 113.</p>
+    </div>
+  );
+}

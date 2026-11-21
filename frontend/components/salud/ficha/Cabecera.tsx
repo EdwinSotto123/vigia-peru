@@ -78,12 +78,11 @@ export function CabeceraFicha({ f }: { f: FichaIpress }) {
         </li>
       </ul>
 
-      <ul aria-label="Datos del establecimiento" className="mt-4 grid gap-x-6 gap-y-2 text-dato text-inkSoft sm:grid-cols-2 [&_svg]:text-mute">
+      <ul aria-label="Datos del establecimiento" className="mt-3 flex flex-wrap gap-x-6 gap-y-1.5 text-dato text-inkSoft [&_svg]:text-mute">
         {f.tipo && (
           <li className="min-w-0">
             <Dato icono={Hospital} nombre="Tipo">
               {oracion(f.tipo)}
-              {f.clasificacion ? <span className="text-mute"> ({conTildes(f.clasificacion.toLowerCase())})</span> : null}
             </Dato>
           </li>
         )}
@@ -96,7 +95,7 @@ export function CabeceraFicha({ f }: { f: FichaIpress }) {
           </li>
         )}
         {lugar && (
-          <li className="min-w-0 sm:col-span-2">
+          <li className="min-w-0">
             <Dato icono={MapPin} nombre="Dirección">
               {lugar}
             </Dato>

@@ -17,7 +17,8 @@ import { cn } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 
-const POR_PAGINA = 25;
+// 10 por página (2026-11-21: con 25, la lista era un scroll sin fin, sobre todo en el celular).
+const POR_PAGINA = 10;
 
 type Props = { searchParams?: Record<string, string | string[] | undefined> };
 

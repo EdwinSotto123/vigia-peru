@@ -1,9 +1,9 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { Activity, Database, FileText, Gavel, History, MessageSquareWarning, Stethoscope } from "lucide-react";
+import { Activity, Building2, Database, FileText, Gavel, HeartPulse, History, MessageSquareWarning, ShieldCheck, Stethoscope } from "lucide-react";
 import { Migas } from "@/components/patrones/Migas";
 import { Pestanas, type Pestana } from "@/components/patrones/Pestanas";
-import { AccionesFicha } from "@/components/salud/ficha/Acciones";
+import { AccionesFila } from "@/components/salud/ficha/Acciones";
 import { CabeceraFicha } from "@/components/salud/ficha/Cabecera";
 import { EsencialFicha } from "@/components/salud/ficha/Esencial";
 import { PestanaDenuncias } from "@/components/salud/ficha/PestanaDenuncias";
@@ -67,13 +67,19 @@ export default async function FichaEstablecimiento({ params, searchParams }: Pro
   const leido = detalleLeido(f);
   const ico = (I: typeof Gavel) => <I size={15} aria-hidden />;
 
+  // 2026-11-21, segunda vuelta (el usuario: «todo desordenado en subsecciones… ¿por qué generas scrolls infinitos?»): nada
+  // se apila. Arriba quién es, qué hacer y lo esencial; TODO lo demás en una sola fila de pestañas, una a la vez.
+  const conEmpresa = !!f.vigia || f.mismaEmpresa.length > 0;
   const pestanas: Pestana[] = [
+    { clave: "atencion", etiqueta: "Para atenderte", icono: ico(HeartPulse), contenido: <ResumenAtencion f={f} base={base} /> },
+    { clave: "verificacion", etiqueta: "Verificación", icono: ico(ShieldCheck), contenido: <VerificacionFicha f={f} base={base} /> },
     { clave: "servicios", etiqueta: "Servicios", icono: ico(Stethoscope), conteo: leido ? f.detalle!.upss.length || null : null, contenido: <PestanaServicios f={f} base={base} /> },
     { clave: "sanciones", etiqueta: "Sanciones", icono: ico(Gavel), conteo: f.registroSanciones.length || null, contenido: <PestanaSanciones f={f} /> },
     { clave: "denuncias", etiqueta: "Denuncias", icono: ico(MessageSquareWarning), contenido: <PestanaDenuncias f={f} /> },
     { clave: "recursos", etiqueta: "Recursos y cirugías", icono: ico(Activity), contenido: <PestanaRecursos f={f} /> },
     { clave: "documentos", etiqueta: "Documentos", icono: ico(FileText), conteo: leido ? f.detalle!.documentos.length || null : null, contenido: <PestanaDocumentos f={f} base={base} /> },
     { clave: "historial", etiqueta: "Historial", icono: ico(History), conteo: f.cambios.length || null, contenido: <PestanaHistorial f={f} /> },
+    ...(conEmpresa ? [{ clave: "empresa", etiqueta: "Empresa y sedes", icono: ico(Building2), contenido: <RelacionadosFicha f={f} base={base} /> }] : []),
     { clave: "fuentes", etiqueta: "Fuentes", icono: ico(Database), contenido: <PestanaFuentes f={f} base={base} /> },
   ];
 
@@ -88,23 +94,14 @@ export default async function FichaEstablecimiento({ params, searchParams }: Pro
         pestanas={{ etiquetas: Object.fromEntries(pestanas.map((p) => [p.clave, p.etiqueta])), primera: pestanas[0].clave, activa: seccion }}
       />
 
-      {/* Dos columnas en la computadora: a la izquierda, de lo más corto a lo más largo (quién es, lo esencial de un
-          vistazo, para atenderte, cómo lo verificamos); a la derecha, fijo, lo que se puede hacer. En el celular, lo que se
-          puede hacer va después de «Para atenderte aquí» y antes del detalle de la verificación. */}
-      <div className="mt-4 grid gap-x-8 gap-y-8 lg:grid-cols-[minmax(0,1fr)_19rem]">
-        <div className="min-w-0 space-y-8 lg:col-start-1">
-          <CabeceraFicha f={f} />
-          <EsencialFicha f={f} base={base} />
-          <ResumenAtencion f={f} base={base} />
-        </div>
-        <AccionesFicha f={f} base={base} className="lg:sticky lg:top-20 lg:col-start-2 lg:row-span-2 lg:row-start-1 lg:self-start" />
-        <div className="min-w-0 lg:col-start-1">
-          <VerificacionFicha f={f} base={base} />
-        </div>
+      <div className="mt-4">
+        <CabeceraFicha f={f} />
+        <AccionesFila f={f} base={base} className="mt-4" />
       </div>
+      <EsencialFicha f={f} base={base} className="mt-7" />
 
       {/* Las pestañas se pegan bajo la cabecera del producto (64 px), no detrás de ella. */}
-      <div id="secciones" className="mt-10 scroll-mt-16">
+      <div id="secciones" className="mt-8 scroll-mt-16">
         <Pestanas
           pestanas={pestanas}
           activa={seccion}
@@ -113,9 +110,6 @@ export default async function FichaEstablecimiento({ params, searchParams }: Pro
           className="[&>div:first-child]:top-16"
         />
       </div>
-
-      <RelacionadosFicha f={f} base={base} />
-
     </div>
   );
 }
