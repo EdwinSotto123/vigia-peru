@@ -236,6 +236,40 @@ def agregar(S, h):
         "########",
     ], "capas": []}
 
+    # ── La vigía (Vigía): anteojos de marco, saco lima y corbata, y la lupa de Gobserva en alto, con su brillo ─
+    # 20 de ancho (la lupa sobresale a la derecha); la misma altura y los mismos ojos que los demás.
+    S["vigia"] = {"base": [
+        "....................",
+        "....HHHHHHH.........",
+        "...HHHHHHHHHH.......",
+        "..HHHHHHHHHHHH......",
+        "..HHHHHHHHSSHH......",
+        "..HSSSSSSSSSSH......",
+        "..S====SS====S......",
+        "..S=SS====SS=S......",
+        "..S=SS=SS=SS=S..LLL.",
+        "..S====SS====S.LlllL",
+        "...SSSSkkSSSS..LlllL",
+        "....SSSSSSSS...LlllL",
+        ".......SS.......LLL.",
+        "....LLCSSCLL...=....",
+        "...LLLCCCCLLLSS.....",
+        "..LLLLCkkCLLL.......",
+        "..LLLLCkkCLLL.......",
+        "..LLLLCkkCLLL.......",
+        "..SLLLCCCCLLL.......",
+        "...LLLCCCCLLL.......",
+        "...LLLLLLLLLL.......",
+        "....========........",
+        ".....==..==.........",
+        ".....==..==.........",
+        ".....==..==.........",
+        "....HHH..HHH........",
+    ], "capas": [
+        {"nombre": "ojos", "anim": "parpadeo", "filas": capa(20, H, [(5, 7, "k"), (10, 7, "k"), (5, 8, "k"), (10, 8, "k")])},
+        {"nombre": "brillo", "anim": "late", "filas": capa(20, H, [(17, 9, "C"), (16, 10, "C")])},
+    ]}
+
     # ── Íconos de 12 x 12 (en el color de la marca) ───────────────────────────────────────────
     I = {
         "calendario": [

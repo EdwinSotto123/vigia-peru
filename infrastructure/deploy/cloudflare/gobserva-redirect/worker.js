@@ -30,6 +30,13 @@
 // secciones numeradas en orden (SECCIONES), con un índice en la cabecera que marca la que se está leyendo; y dos modos,
 // noche (el de siempre, el radar) y día (papel verde claro, sin neón), con el botón Día | Noche (publico/interfaz.js).
 //
+// Rediseño del 2026-11-21 («se ve muy saturada e info, no comunica bien qué hacemos»): la portada dice qué es Gobserva en
+// una frase y abre con cinco puertas, una por producto, cada una con su persona de píxeles (personajes.js) parada en la
+// misma calle y lo que necesita dicho por ella («Busco trabajo en el Estado»). Después, cómo funciona en tres pasos, el
+// radar como muestra en vivo, cuatro reglas y lo que viene. Se fueron la consola, la cinta de cifras, los cuatro paneles,
+// «Para quién», la ficha grande de Vigía, la lista de fuentes (sus siglas van en el primer paso) y los números de sección.
+// Quedó en unas 4 pantallas de computadora (antes casi 8) y menos de la mitad en el celular (antes 17).
+//
 // Los archivos de publico/ (portada.js, mapa-peru.js, favicon, logo.png, og.png y el logo para descargar en /marca/) los
 // sirve Cloudflare tal cual, antes de llegar a este código (wrangler.jsonc, "assets"). El logo va en línea desde marca.js
 // (marca/generar_marca.py); la malla, desde publico/mapa-peru.js (mapa/generar_mapa.py).
@@ -37,14 +44,14 @@
 // El nombre del Worker (gobserva-redirect) se mantiene: los custom domains están atados a él. Despliegue: README.md.
 
 import { LOGO_INTERIOR, LOGO_VIEWBOX } from "./marca.js";
-import { ojoVigia, pixel } from "./pixeles.js";
+import { pixel } from "./pixeles.js";
 import { personaje } from "./personajes.js";
 
 const RAIZ = "https://gobserva.cloud";
 const VIGIA = "https://vigia.gobserva.cloud";
 const CLAVE_INDEXNOW = "70c4458a363841ee4aef67be90cc8565";
 // La fecha de la última versión de la portada (sitemap y datos estructurados): cambiarla al cambiar el contenido.
-const ACTUALIZADA = "2026-11-01";
+const ACTUALIZADA = "2026-11-21";
 // Va en la URL de los scripts de publico/: subirla al cambiarlos (Cloudflare los guarda un día en el navegador).
 const VERSION_JS = "2026-11-20a";
 const ESLOGAN = "Lo de todos, a la vista de todos.";
@@ -109,19 +116,17 @@ const ORGANIZACION = {
 
 const TITULO = "Gobserva: tecnología cívica para vigilar el Estado peruano";
 const DESCRIPCION =
-  "Gobserva hace tecnología cívica con datos del Estado peruano. Su primer producto, Vigía, revisa los contratos públicos y te muestra cuáles mirar dos veces.";
+  "Gobserva convierte lo que publica el Estado peruano en respuestas: revisa contratos, encuentra plazas CAS, véndele al Estado, sigue las obras y verifica tu clínica.";
 
 // ─── Los datos de cada región (API de Vigía, con caché) ─────────────────────────────────────────────────────────────
 // La API sólo atiende a los Workers de Vigía: los reconoce por el encabezado CF-Worker, que Cloudflare pone con la zona del
-// que llama (gobserva.cloud está en WORKERS_PROPIOS de backend/api/wrangler.jsonc). Son unos 40 pedidos (contratos por
-// departamento, la corrupción de cada uno, lo leído este año y los procesos de cada año desde 2016; el plan gratis de
-// Workers admite 50), así que se guardan en la caché de Cloudflare y se renuevan cada 6 horas en segundo plano: un
-// visitante nunca espera por ellos, salvo el primero de cada centro de datos.
+// que llama (gobserva.cloud está en WORKERS_PROPIOS de backend/api/wrangler.jsonc). Son 26 pedidos (los contratos por
+// departamento y la corrupción de cada uno; el plan gratis de Workers admite 50), así que se guardan en la caché de
+// Cloudflare y se renuevan cada 6 horas en segundo plano: un visitante nunca espera por ellos, salvo el primero de cada
+// centro de datos. Hasta el rediseño del 2026-11-21 también se pedían lo leído este año y los procesos de cada año (38
+// pedidos): eran para los paneles de cifras, que ya no están.
 const CACHE_REGIONES = `${RAIZ}/__cache/regiones-v2`;
 const RENOVAR_MS = 6 * 3600 * 1000;
-/** El año en Lima (UTC-5): el de las cifras «de este año», como en Vigía (frontend/lib/contratos.ts, anioLectura). */
-const anioLima = () => new Date(Date.now() - 5 * 3600 * 1000).getUTCFullYear();
-
 async function pedirJson(base, ruta) {
   const r = await fetch(`${base}${ruta}`, { headers: { Accept: "application/json" }, signal: AbortSignal.timeout(10000) });
   if (!r.ok) throw new Error(`${ruta}: HTTP ${r.status}`);
@@ -130,19 +135,10 @@ async function pedirJson(base, ruta) {
 
 async function bajarRegiones(base) {
   const codigos = REGIONES_LISTA.map(([c]) => c);
-  const anio = anioLima();
-  // La serie de procesos por año empieza en 2016: el 2015 de la base trae el relleno histórico del OECE (125 mil, el
-  // doble que cualquier otro año) y no se compara con los demás.
-  const anios = Array.from({ length: anio - 2015 }, (_, k) => 2016 + k);
-  const opcional = (ruta) => pedirJson(base, ruta).catch(() => null);
-  const [geo, resumen, ...resto] = await Promise.all([
+  const [geo, ...corrupcion] = await Promise.all([
     pedirJson(base, "/v1/contratos/geo?nivel=departamento"),
-    opcional(`/v1/contratos/resumen?desde=${anio}-01-01`),
     ...codigos.map((c) => pedirJson(base, `/v1/corrupcion/region/${c}?size=1`)),
-    ...anios.map((a) => opcional(`/v1/contratos/resumen?desde=${a}-01-01&hasta=${a}-12-31`)),
   ]);
-  const corrupcion = resto.slice(0, codigos.length);
-  const porAnio = resto.slice(codigos.length);
   const compras = new Map((geo.data ?? []).map((g) => [g.ubigeo, g]));
   let corte = null;
   let fuente = null;
@@ -167,13 +163,7 @@ async function bajarRegiones(base) {
       monto: n(g.montoPen), // su valor referencial, en soles
     };
   });
-  // Lo que Vigía leyó este año: «leído» es tener puntaje, la misma cuenta de su portada (frontend/lib/landing.ts).
-  const r = resumen?.porRiesgo;
-  const lectura = r && resumen.total
-    ? { anio, publicados: resumen.total, leidos: (r.alto ?? 0) + (r.medio ?? 0) + (r.bajo ?? 0) + (r.en_revision ?? 0) + (r.descartado ?? 0), alto: r.alto ?? 0 }
-    : null;
-  const serie = anios.map((a, k) => ({ anio: a, total: typeof porAnio[k]?.total === "number" ? porAnio[k].total : null }));
-  return { guardado: new Date().toISOString(), corte, fuente, regiones, lectura, serie };
+  return { guardado: new Date().toISOString(), corte, fuente, regiones };
 }
 
 async function guardarRegiones(base, cache, clave) {
@@ -242,200 +232,79 @@ const logo = (clase) =>
 
 // La estimación de la Contraloría, la misma de Vigía (frontend/lib/costoCorrupcion.ts): es una ESTIMACIÓN, no un conteo,
 // y así se dice. Cuando publique la del año siguiente, se cambia en los dos lugares.
-const CONTRALORIA = {
-  anio: 2023,
-  millones: 24268,
-  porCien: 12.7,
-  inversionMillones: 8963,
-  url: "https://www.gob.pe/institucion/contraloria/noticias/912182-corrupcion-e-inconducta-funcional-habrian-ocasionado-perdidas-por-s-24-268-millones-en-el-2023",
-};
+// ─── Lo que dice la portada ─────────────────────────────────────────────────────────────────────────────────────────
+// Rediseño del 2026-11-21 (pedido del usuario: «se ve muy saturada e info, no comunica bien qué hacemos»). Antes eran seis
+// secciones numeradas, una consola, una cinta y cuatro paneles de cifras: casi 8 pantallas en la computadora y 17 en el
+// celular, y los productos recién en la cuarta sección. Ahora la página responde en orden lo que se pregunta quien llega:
+// qué es Gobserva (una frase), qué puede hacer con ella (las cinco puertas, ahí mismo), cómo funciona, una prueba en vivo
+// (el radar de las regiones) y en qué reglas confiar.
 
-// Lo que sale del cruce: señales que Vigía ya marca (SCRAPERS.md y las migraciones de cruces).
-const SENALES = [
-  "Empresa recién creada que gana un contrato grande",
-  "Proveedor que aportó a la campaña de quien gobierna",
-  "Visita a la entidad días antes de la buena pro",
-  "Proveedor sancionado por el Tribunal de Contrataciones",
+// [sigla, qué da, nombre completo]. Las que se leen para algún producto (SCRAPERS.md); la cuenta va en letras en la página.
+const FUENTES = [
+  ["OECE", "Contratos, órdenes de compra y servicio, postores y proveedores sancionados.", "Organismo Especializado para las Contrataciones Públicas Eficientes (antes OSCE), con el SEACE"],
+  ["MEF", "Presupuesto y gasto de cada entidad, y los proyectos de Invierte.pe.", "Ministerio de Economía y Finanzas"],
+  ["Contraloría", "Informes de control, obras de INFOBRAS y declaraciones juradas de intereses.", "Contraloría General de la República"],
+  ["Procuraduría", "Casos de corrupción en trámite y con sentencia firme.", "Procuraduría Pública Especializada en Delitos de Corrupción"],
+  ["SERVIR", "Plazas CAS que convoca cada entidad.", "Autoridad Nacional del Servicio Civil"],
+  ["SUSALUD", "Establecimientos de salud registrados (RENIPRESS) y sus sanciones firmes.", "Superintendencia Nacional de Salud"],
+  ["SUNAT", "Estado y domicilio fiscal de las empresas.", "Superintendencia Nacional de Aduanas y de Administración Tributaria"],
+  ["JNE", "Autoridades electas y candidatos.", "Jurado Nacional de Elecciones"],
+  ["ONPE", "Aportes y gastos de campaña.", "Oficina Nacional de Procesos Electorales"],
+  ["Congreso", "Registro de visitas al Congreso.", "Congreso de la República"],
+  ["PCM", "Visitas a las entidades, planillas del Portal de Transparencia y datos abiertos.", "Presidencia del Consejo de Ministros"],
+];
+const EN_LETRAS = { 9: "nueve", 10: "diez", 11: "once", 12: "doce", 13: "trece", 14: "catorce" };
+const enLetras = (n) => EN_LETRAS[n] ?? String(n);
+
+// Las puertas de la portada, una por producto: [su gente (personajes.js), lo que la persona necesita, dicho por ella,
+// el producto, qué hace en una línea, enlace, nombre corto (el del «Entrar a…», que no se parta en dos líneas)].
+// Primero lo cívico, después lo de todos los días.
+const PRODUCTOS = [
+  ["vigia", "Quiero saber en qué se gasta el dinero público", "Vigía", "Revisa los contratos del Estado y te dice cuáles mirar dos veces.", `${VIGIA}/`, "Vigía"],
+  ["postulante", "Busco trabajo en el Estado", "Gobserva Empleo", "Todas las plazas CAS, con su sueldo, sus requisitos y cuándo cierran.", "https://empleo.gobserva.cloud", "Empleo"],
+  ["emprendedora", "Quiero venderle al Estado", "Gobserva Licitaciones", "Las convocatorias de tu rubro y tu región, cada día, con quién gana y a qué precio.", "https://licitaciones.gobserva.cloud", "Licitaciones"],
+  ["obrero", "Quiero saber qué obras se vienen", "Gobserva Obras", "Los proyectos de tu región antes de que se liciten, con su costo y su avance.", "https://obras.gobserva.cloud", "Obras"],
+  ["vecina", "Quiero verificar una clínica o a un médico", "Gobserva Salud", "Si el establecimiento está registrado y activo, su categoría y sus sanciones.", "https://salud.gobserva.cloud", "Salud"],
 ];
 
-// Para quién: [ícono, quién, qué gana, qué hace con Vigía].
-const PUBLICOS = [
-  [
-    "ciudadania",
-    "Ciudadanía",
-    "Entiende en qué se gasta el dinero de tu distrito, sin saber de contrataciones.",
-    ["Busca tu región, tu municipalidad o una empresa", "Mira quién ganó cada contrato y con qué banderas", "Comparte la evidencia oficial"],
-  ],
-  [
-    "entiende",
-    "Periodismo",
-    "Encuentra el hilo y la evidencia para publicarlo sin que te desmientan.",
-    ["Cruces ya hechos entre contratos, empresas, aportes y visitas", "La norma citada y el documento original al lado", "La evidencia lista para descargar en PDF"],
-  ],
-  [
-    "escudo",
-    "Control y fiscalización",
-    "Señales trazables para actuar rápido: qué fuente, qué documento y qué norma.",
-    ["Cada señal con su traza y su fuente", "Prioridad por riesgo, región y entidad", "La misma regla para todos, con código abierto"],
-  ],
+// Cómo funciona: [ícono (pixeles.js), paso, qué pasa]. El primero lleva las siglas de las fuentes; el segundo, por dónde
+// se cruza; el tercero, qué es una señal.
+const PASOS = [
+  ["institucion", "Leemos", `Cada día bajamos lo que publican ${enLetras(FUENTES.length)} instituciones del Estado: contratos, plazas, obras, presupuesto, empresas y establecimientos de salud.`],
+  ["nodos", "Cruzamos", "Unimos sus registros por RUC, por entidad y por fecha, para que un dato explique al otro."],
+  ["entiende", "Te lo explicamos", "En palabras simples y con el documento original al lado, para que lo compruebes tú. Una señal es una razón para mirar de nuevo, no una acusación."],
 ];
 
-// Lo que muestra el radar: [valor, nombre, pie, institución]. El mapa es siempre verde, como la pantalla de un radar; cada
-// institución tiene su luz (la misma en los canales, la lectura de la región y las fuentes).
+// Lo que viene (pedido del usuario: «secciones de próximos, por ejemplo Monitoreo del Congreso, Monitoreo histórico de
+// políticos»): [ícono, nombre, qué hará]. Nada de esto está en línea todavía.
+const PROXIMOS = [
+  ["congreso", "Monitoreo del Congreso", "Cómo vota cada congresista, a quién recibe y qué leyes impulsa."],
+  ["politicos", "Historia de cada político", "Partidos, cargos, declaraciones juradas, aportes de campaña y sentencias, en una línea de tiempo."],
+  ["alertas", "Alertas de tu distrito", "Un aviso cuando tu municipalidad firme un contrato con señales o la Contraloría la revise."],
+];
+
+const PRINCIPIOS = [
+  ["institucion", "Sólo datos oficiales", "Lo que el propio Estado publica, tal como lo publica cada institución y con la fecha de cada carga.", [`${VIGIA}/fuentes`, "Ver las fuentes"]],
+  ["bandera", "Indicios, no acusaciones", "Una señal es una razón para mirar de nuevo, no una prueba. Aparecer en Gobserva no significa haber hecho algo malo.", [`${VIGIA}/glosario`, "Qué significa cada señal"]],
+  ["escudo", "Las personas, protegidas", "Nunca publicamos un DNI, y de quien no es autoridad electa tapamos un apellido. Puedes pedir que corrijamos un dato.", [`${VIGIA}/privacidad`, "Cómo cuidamos tus datos"]],
+  ["codigo", "Abierto y con cuentas claras", "Cualquiera puede revisar cómo se calcula cada señal, y publicamos cuánto cuesta mantener Vigía.", ["https://github.com/EdwinSotto123/vigia-peru", "Ver el código"]],
+];
+
+// Lo que mide el radar: [valor, nombre, pie, institución]. El mapa es siempre verde, como la pantalla de un radar; cada
+// institución tiene su luz (la misma en los canales y en la lectura de la región).
 const METRICAS = [
   ["tramite", "Corrupción", "casos en trámite en el país", "Procuraduría Anticorrupción"],
   ["penal", "Control", "informes con presunta responsabilidad penal", "Contraloría"],
   ["procesos", "Compras", "procesos de compra desde 2015", "OECE"],
 ];
 
-const FUNCIONES = [
-  ["Contratos", "con sus banderas, postores e historia", "/app/contratos"],
-  ["Empresas", "cuánto ganaron, sus socios y antecedentes", "/app/empresas"],
-  ["Mapa del Perú", "tu región, provincia o distrito", "/app/mapa"],
-  ["Partidos y gobiernos", "qué contrató cada uno desde 2015", "/app/partidos"],
-  ["Mapa de poder", "quién gobierna cada entidad", "/app/poder"],
-  ["Personas contratadas", "locadores, planillas y plazas CAS", "/app/personas"],
-];
-
-// Los productos de Gobserva en línea además de Vigía (2026-11-01, pedido del usuario: ganar plata con lo que Vigía ya
-// captura): [ícono, nombre, dominio, lema, qué hace, enlace, acción]. Marca propia, planes con precio de fundador.
-// La gente de cada producto (personajes.js): quién lo usa y dónde. Decorativa.
-const ESCENA_PRODUCTO = {
-  ciudadania: ["postulante", "tablero"],
-  institucion: ["emprendedora", "camion"],
-  obras: ["obrero", "grua"],
-  salud: ["vecina", "clinica"],
-};
-
-const PRODUCTOS_GOB = [
-  [
-    "ciudadania",
-    "Gobserva Empleo",
-    "empleo.gobserva.cloud",
-    "Todas las plazas CAS del Estado, con sus requisitos claros.",
-    "Miles de plazas abiertas a la vez, con sueldo, vacantes, cuándo cierran y lo que nadie te dice: si la plaza se repite o si ya hay alguien haciendo ese trabajo. Alertas por correo: gratis cada semana o cada mañana con precio de fundador.",
-    "https://empleo.gobserva.cloud",
-    "Buscar plazas",
-  ],
-  [
-    "institucion",
-    "Gobserva Licitaciones",
-    "licitaciones.gobserva.cloud",
-    "Las oportunidades para venderle al Estado, cada día.",
-    "Las convocatorias del SEACE de tu rubro y tu región, con inteligencia de mercado: qué entidades compran, quién gana y a qué precio. Alertas diarias, API y MCP para conectar tu IA.",
-    "https://licitaciones.gobserva.cloud",
-    "Ver oportunidades",
-  ],
-  [
-    "obras",
-    "Gobserva Obras",
-    "obras.gobserva.cloud",
-    "Las obras públicas que se vienen, antes de que se liciten.",
-    "Los proyectos de inversión de tu región y tu sector: los viables que todavía no se licitan, las obras en marcha y las paralizadas, con su costo, su avance y quién las ejecuta. Alertas diarias y MCP para conectar tu IA.",
-    "https://obras.gobserva.cloud",
-    "Ver proyectos",
-  ],
-  [
-    "salud",
-    "Gobserva Salud",
-    "salud.gobserva.cloud",
-    "Verifica tu clínica y a tu médico con fuentes oficiales.",
-    "Las 36 mil instituciones prestadoras de salud del RENIPRESS: si están activas, su categoría, si tienen centro quirúrgico y sus sanciones firmes de SUSALUD, cada dato con su fecha. Cómo verificar a un médico en el Colegio Médico. Abierto y gratis, con un asistente y un MCP sin cuenta.",
-    "https://salud.gobserva.cloud",
-    "Verificar ahora",
-  ],
-];
-
-// Los monitores que vienen (pedido del usuario: «secciones de próximos, por ejemplo Monitoreo del Congreso, Monitoreo
-// histórico de políticos»): [ícono, nombre, qué hará, qué fuente ya carga Vigía hoy (SCRAPERS.md)]. Nada de esto está en
-// línea todavía.
-const PROXIMOS = [
-  [
-    "congreso",
-    "Monitoreo del Congreso",
-    "Cómo vota cada congresista, a quién recibe en su despacho y qué leyes impulsa, con el registro oficial de cada sesión.",
-    "Ya leemos las visitas al Congreso.",
-  ],
-  [
-    "politicos",
-    "Monitoreo histórico de políticos",
-    "La trayectoria de cada político en una línea de tiempo: partidos, cargos, declaraciones juradas, aportes de campaña y sentencias.",
-    "Ya leemos el JNE, la ONPE y las declaraciones juradas.",
-  ],
-  [
-    "alertas",
-    "Alertas de tu distrito",
-    "Un aviso cuando tu municipalidad firme un contrato con banderas o la Contraloría publique un informe sobre ella.",
-    "Ya leemos los contratos y los informes de control.",
-  ],
-];
-
-const PRINCIPIOS = [
-  [
-    "institucion",
-    "Sólo datos oficiales",
-    "Registros que el propio Estado publica, tal como los publica cada institución y con la fecha de cada carga.",
-    ["#fuentes", "Ver las diez fuentes"],
-  ],
-  [
-    "enlace",
-    "La fuente al lado",
-    "Cada cifra y cada bandera enlaza a su documento original y dice qué norma la sustenta. Lo compruebas tú.",
-  ],
-  [
-    "bandera",
-    "Indicios, no acusaciones",
-    "Una bandera es una razón para mirar de nuevo, no una prueba. Aparecer en Vigía no significa haber hecho algo malo.",
-    [`${VIGIA}/glosario`, "Qué significa cada señal"],
-  ],
-  [
-    "escudo",
-    "Las personas, protegidas",
-    "Nunca publicamos un DNI, y de quien no es autoridad electa tapamos un apellido. Puedes pedir que corrijamos un dato.",
-    [`${VIGIA}/privacidad`, "Cómo cuidamos tus datos"],
-  ],
-  [
-    "codigo",
-    "Código abierto",
-    "Cualquiera puede revisar cómo se calcula cada bandera y que la regla es la misma para toda entidad, empresa y partido.",
-    ["https://github.com/EdwinSotto123/vigia-peru", "Ver el código"],
-  ],
-  [
-    "cuentas",
-    "Cuentas claras",
-    "Consultar Vigía es gratis, y publicamos cuánto cuesta mantenerlo, rubro por rubro y con la fuente de cada cifra.",
-    [`${VIGIA}/app/cuanto-cuesta`, "Ver cuánto cuesta"],
-  ],
-];
-
-// [sigla, qué da, nombre completo, la métrica del radar que mide (si mide una): su luz es la de esa métrica]
-const FUENTES = [
-  ["OECE", "Contratos, órdenes de compra y servicio, postores y proveedores sancionados.", "Organismo Especializado para las Contrataciones Públicas Eficientes (antes OSCE), con el SEACE", "procesos"],
-  ["Procuraduría", "Casos de corrupción en trámite y con sentencia firme.", "Procuraduría Pública Especializada en Delitos de Corrupción", "tramite"],
-  ["Contraloría", "Informes de control, obras de INFOBRAS y declaraciones juradas de intereses.", "Contraloría General de la República", "penal"],
-  ["MEF", "Presupuesto y gasto de cada entidad, y los proyectos de Invierte.pe.", "Ministerio de Economía y Finanzas"],
-  ["SUNAT", "Estado y domicilio fiscal de las empresas.", "Superintendencia Nacional de Aduanas y de Administración Tributaria"],
-  ["JNE", "Autoridades electas y candidatos.", "Jurado Nacional de Elecciones"],
-  ["ONPE", "Aportes y gastos de campaña.", "Oficina Nacional de Procesos Electorales"],
-  ["SERVIR", "Plazas CAS que convoca cada entidad.", "Autoridad Nacional del Servicio Civil"],
-  ["Congreso", "Registro de visitas al Congreso.", "Congreso de la República"],
-  ["PCM", "Visitas a las entidades, planillas del Portal de Transparencia y datos abiertos.", "Presidencia del Consejo de Ministros"],
-];
-
-// Las secciones, en el orden de la página (del problema a la confianza): [id, nombre en el índice de la cabecera]. El
-// número de cada una (01 a 06) sale de este orden: va en su título y en el índice, que marca la que se está leyendo.
+// Las secciones, en el orden de la página: [id, nombre en el índice de la cabecera, que marca la que se está leyendo].
 const SECCIONES = [
-  ["datos", "Datos"],
+  ["productos", "Productos"],
   ["como-funciona", "Cómo funciona"],
-  ["para-quien", "Para quién"],
-  ["monitores", "Monitores"],
+  ["region", "Tu región"],
   ["principios", "Principios"],
-  ["fuentes", "Fuentes"],
 ];
-const numeroSeccion = (id) => String(SECCIONES.findIndex(([s]) => s === id) + 1).padStart(2, "0");
-/** El título de una sección, con su número. */
-const tituloSeccion = (id, tituloId, texto) =>
-  `<h2 id="${tituloId}"><span class="sec-num" aria-hidden="true">${numeroSeccion(id)}</span>${texto}</h2>`;
 
 /** La lectura de una región: lo que dice cada institución, sin sumar unas con otras (docs/CORRUPCION.md). */
 function ficha(datos, codigo) {
@@ -558,157 +427,21 @@ function instrumento(datos) {
     </div>`;
 }
 
-/** Lo que escribe la consola de la portada: preguntas y respuestas con las cifras de esta misma página. Sin JavaScript se
- * ve así, quieta; con él, animaciones.js la escribe letra por letra y sigue al radar región por región. */
-function lineasConsola(datos) {
-  const l = [["cmd", "fuentes"], ["res", "10 instituciones del Estado, más de 20 registros públicos"]];
-  const lect = datos?.lectura;
-  if (lect) {
-    l.push(["cmd", `procesos ${lect.anio}`], ["res", `${NUM.format(lect.publicados)} publicados en el SEACE`]);
-    l.push(["cmd", "leídos a fondo"], ["res", `${NUM.format(lect.leidos)} por Vigía`], ["res alerta", `${NUM.format(lect.alto)} con riesgo alto`]);
-  }
-  l.push(["cmd", "privacidad"], ["res", "nunca publicamos un DNI"]);
-  const inicial = datos?.regiones?.find((r) => r.c === INICIAL);
-  if (inicial?.tramite != null) {
-    l.push(["cmd", `región ${REGIONES[INICIAL]}`], ["res", `${NUM.format(inicial.tramite)} casos de corrupción en trámite`]);
-    if (inicial.firme != null) l.push(["res alerta", `${NUM.format(inicial.firme)} con sentencia firme`]);
-  }
-  return l;
+/** El «entrar» de cada puerta: un cheurón de píxeles (un ícono, no una flecha de texto). */
+const CHEURON = `<svg class="cheuron" viewBox="0 0 6 10" shape-rendering="crispEdges" aria-hidden="true" focusable="false"><path fill="currentColor" d="M0 0h2v2H0zM2 2h2v2H2zM4 4h2v2H4zM2 6h2v2H2zM0 8h2v2H0z"/></svg>`;
+
+/** Las cinco puertas: cada persona parada en la misma calle, con lo que necesita y el producto que se lo resuelve. Toda la
+ * puerta es el enlace. La gente entra en escena una tras otra (a pasos, como píxeles) y parpadea a destiempo. */
+function puertas() {
+  return `<ul class="calle">
+        ${PRODUCTOS.map(([gente, necesidad, nombre, que, enlace, corto], k) => `<li style="--i:${k}"><a class="puerta" href="${enlace}" aria-label="${necesidad}: ${nombre}" aria-describedby="puerta-${k}">
+          <span class="puerta-gente">${personaje(gente, 4, "", 900 * k)}</span>
+          <span class="puerta-necesidad">${necesidad}</span>
+          <span class="puerta-que" id="puerta-${k}">${que}</span>
+          <span class="puerta-ir" aria-hidden="true"><span>Entrar a ${corto}</span>${CHEURON}</span>
+        </a></li>`).join("\n        ")}
+      </ul>`;
 }
-
-function consola(datos) {
-  return `<div class="consola" aria-hidden="true">
-        <p class="consola-barra"><span>gobserva / consola</span><span class="estado">En línea</span></p>
-        <ol class="consola-lineas">${lineasConsola(datos).map(([clase, t]) => `<li class="${clase}">${escapar(t)}</li>`).join("")}<li class="cmd escribiendo"></li></ol>
-      </div>`;
-}
-
-/** La cinta de cifras bajo la portada. Va dos veces para dar la vuelta sin corte; la copia no se lee. */
-function cinta(datos) {
-  const t = [];
-  const pais = (campo) => suma(datos, campo);
-  if (pais("procesos") != null) t.push([pais("procesos"), "procesos de compra desde 2015", "OECE"]);
-  if (pais("tramite") != null) t.push([pais("tramite"), "casos de corrupción en trámite", "Procuraduría"]);
-  if (pais("penal") != null) t.push([pais("penal"), "informes con presunta responsabilidad penal", "Contraloría"]);
-  const lect = datos?.lectura;
-  if (lect) t.push([lect.publicados, `procesos publicados en ${lect.anio}`, "OECE"], [lect.leidos, "leídos a fondo", "Vigía"], [lect.alto, "con riesgo alto", "Vigía"]);
-  t.push([`S/ ${NUM.format(CONTRALORIA.millones)} millones`, `perdidos en ${CONTRALORIA.anio}, según su estimación`, "Contraloría"]);
-  t.push([10, "instituciones conectadas", "Gobserva"]);
-  const fila = t.map(([v, d, f]) => `<li><b>${typeof v === "number" ? NUM.format(v) : v}</b>${d}<span>${f}</span></li>`).join("");
-  return `<div class="cinta">
-    <ul class="cinta-fila" aria-label="Cifras del Estado peruano">${fila}</ul>
-    <ul class="cinta-fila" aria-hidden="true">${fila}</ul>
-  </div>`;
-}
-
-// ─── 01, lo que el radar detecta: cuatro paneles de instrumentos (pedido del usuario: «es la presentación: gráficas,
-// datos, propuestas, valor»). Cada uno dice de qué institución sale (su luz, en la cabecera) y, abajo, la fuente
-// completa. Cada gráfica se arma al entrar en pantalla (publico/animaciones.js) y, sin JavaScript o con movimiento
-// reducido, se ve quieta y completa.
-
-/** Un panel de instrumento: su título, de dónde sale, lo de adentro, la fuente y, si hace falta, algo más al pie. */
-function panel(clase, [luz, institucion], id, titulo, cuerpo, pie, extra = "") {
-  return `<div class="panel ${clase}" data-anima>
-        <div class="panel-cabeza"><h3 id="${id}">${titulo}</h3><span class="panel-fuente ${luz}"><i class="led"></i>${institucion}</span></div>
-        ${cuerpo}
-        ${pie ? `<p class="panel-pie">${pie}</p>` : ""}
-        ${extra}
-      </div>`;
-}
-
-/** Lo que se pierde, según la Contraloría. Cien cuadros, uno por cada sol de cien. */
-function panelPerdida() {
-  const marcados = Math.round(CONTRALORIA.porCien);
-  const cuadros = Array.from({ length: 100 }, (_, k) => (k < marcados ? `<i class="on" style="--i:${k}"></i>` : "<i></i>")).join("");
-  return panel("p-perdida", ["m-penal", "Contraloría"], "t-perdida", "Casi 13 de cada 100 soles se pierden", `<div class="perdida">
-          <figure class="waffle-fig">
-            <div class="waffle" role="img" aria-label="Cien cuadros, trece en rojo: casi 13 de cada 100 soles">${cuadros}</div>
-            <figcaption>1 cuadro = 1 de cada 100 soles ejecutados en ${CONTRALORIA.anio}</figcaption>
-          </figure>
-          <div class="cifras-grandes">
-            <p class="cifra-grande"><b>S/ <span data-contar="${CONTRALORIA.millones}">${NUM.format(CONTRALORIA.millones)}</span> millones</b><span>se habrían perdido en ${CONTRALORIA.anio} por corrupción e inconducta funcional: el ${NUM1.format(CONTRALORIA.porCien)} % del presupuesto que ejecutó el Estado</span></p>
-            <p class="cifra-grande"><b>S/ <span data-contar="${CONTRALORIA.inversionMillones}">${NUM.format(CONTRALORIA.inversionMillones)}</span> millones</b><span>de eso, en inversión: carreteras, hospitales y colegios</span></p>
-          </div>
-        </div>`, `Es una estimación de la Contraloría General de la República, no un conteo. <a class="enlace" href="${CONTRALORIA.url}">Ver la fuente</a>`);
-}
-
-/** Los procesos de compra de cada año (la serie empieza en 2016: ver bajarRegiones). */
-function panelAnios(datos) {
-  const serie = (datos?.serie ?? []).filter((x) => x.total != null);
-  if (!serie.length) return "";
-  const anio = anioLima();
-  const completos = serie.filter((x) => x.anio < anio);
-  const minimo = completos.length ? Math.min(...completos.map((x) => x.total)) : Math.min(...serie.map((x) => x.total));
-  const max = Math.max(1, ...serie.map((x) => x.total));
-  const barras = serie
-    .map((x, k) => `<li style="--v:${(x.total / max).toFixed(3)};--i:${k}"><span class="sr">${x.anio}: ${NUM.format(x.total)} procesos</span><span class="valor-v" aria-hidden="true">${NUM.format(Math.round(x.total / 1000))}</span><span class="barra-v" aria-hidden="true"></span><span class="anio" aria-hidden="true">${String(x.anio).slice(2)}${x.anio === anio ? "*" : ""}</span></li>`)
-    .join("");
-  const hoy = serie.some((x) => x.anio === anio) ? ` * ${anio}, hasta hoy.` : "";
-  return panel("p-anios", ["m-procesos", "OECE"], "t-anios", `Más de ${NUM.format(Math.floor(minimo / 1000))} mil procesos de compra al año`,
-    `<ol class="anios" style="--n:${serie.length}" aria-label="Procesos de compra publicados por año">${barras}</ol>`,
-    `Procesos publicados en el SEACE por año, en miles, de ${serie[0].anio} a ${serie[serie.length - 1].anio}.${hoy}`);
-}
-
-// El orden en que se encienden los mil cuadros de la aguja: una baraja (Fisher-Yates) con semilla fija, la misma en cada
-// visita, hecha una sola vez. Antes se sacaban al azar hasta juntar los leídos, multiplicando en coma flotante: el
-// producto pasaba de 2^53, perdía los bits bajos y el generador sólo alcanzaba 170 cuadros distintos. Con más de 17 % de
-// leídos el bucle no terminaba y Cloudflare cortaba la portada a los 30 s de CPU (error 1102, 2026-11-21). Math.imul
-// multiplica en 32 bits exactos, y la baraja termina siempre en mil pasos, sea cual sea la cifra.
-const MIL = 1000;
-const ORDEN_AGUJA = (() => {
-  const orden = Array.from({ length: MIL }, (_, k) => k);
-  let x = 11;
-  for (let k = MIL - 1; k > 0; k--) {
-    x = (Math.imul(x, 1664525) + 1013904223) >>> 0;
-    const j = Math.floor((x / 4294967296) * (k + 1)); // los bits altos: los bajos de un congruencial se repiten pronto
-    [orden[k], orden[j]] = [orden[j], orden[k]];
-  }
-  return orden;
-})();
-
-/** Mil cuadros por los procesos publicados este año; los pocos leídos a fondo se encienden. */
-function panelAguja(datos) {
-  const lect = datos?.lectura;
-  if (!lect) return "";
-  const total = MIL;
-  const leidos = Math.min(total, Math.max(1, Math.round((lect.leidos / lect.publicados) * total)));
-  const altos = lect.alto ? Math.min(leidos, Math.max(1, Math.round((lect.alto / lect.publicados) * total))) : 0;
-  // Repartidos con una semilla fija (no al azar en cada visita): buscarlos es como buscar una aguja en un pajar.
-  const pos = ORDEN_AGUJA.slice(0, leidos);
-  const altosEn = new Set(pos.slice(0, altos));
-  const leidosEn = new Set(pos);
-  const cuadros = Array.from({ length: total }, (_, k) => (leidosEn.has(k) ? `<i class="${altosEn.has(k) ? "alto" : "leido"}"></i>` : "<i></i>")).join("");
-  return panel("p-aguja", ["m-vigia", "Vigía"], "t-aguja", "Una aguja en un pajar", `<figure class="mil-fig">
-          <div class="mil" role="img" aria-label="Mil cuadros por los procesos publicados en ${lect.anio}: ${leidos} encendidos, los leídos a fondo; ${altos} en rojo, con riesgo alto">${cuadros}</div>
-          <figcaption class="mil-datos">
-            <span class="mil-dato"><b data-contar="${lect.publicados}">${NUM.format(lect.publicados)}</b>procesos publicados en ${lect.anio}</span>
-            <span class="mil-dato m-procesos"><i class="led"></i><b data-contar="${lect.leidos}">${NUM.format(lect.leidos)}</b>leídos a fondo por Vigía</span>
-            <span class="mil-dato m-tramite"><i class="led"></i><b data-contar="${lect.alto}">${NUM.format(lect.alto)}</b>con riesgo alto</span>
-          </figcaption>
-        </figure>`, `Cada cuadro son unos ${NUM.format(Math.round(lect.publicados / total))} procesos publicados en el SEACE (OECE). Hallar las señales a mano es buscar una aguja en un pajar: para eso es la lupa.`);
-}
-
-/** Dónde: las diez regiones con más casos en trámite y, dentro de cada barra, los que ya tienen sentencia firme. Debajo,
- * las 25 regiones en una tabla. */
-function panelDonde(datos) {
-  const regs = (datos?.regiones ?? []).filter((r) => r.tramite).sort((a, b) => b.tramite - a.tramite).slice(0, 10);
-  if (!regs.length) return "";
-  const max = regs[0].tramite;
-  const filas = regs
-    .map((r, k) => `<li style="--v:${(r.tramite / max).toFixed(3)};--f:${r.firme != null ? Math.min(1, r.firme / r.tramite).toFixed(3) : 0};--i:${k}">
-            <a class="ranking-nombre" href="${VIGIA}/region/${r.c}">${REGIONES[r.c]}</a>
-            <span class="pista-barra" aria-hidden="true"><span class="barra-h"><span class="firme"></span></span></span>
-            <span class="ranking-cifra"><b data-contar="${r.tramite}">${NUM.format(r.tramite)}</b>${r.firme != null ? `<span>${NUM.format(r.firme)} con sentencia firme</span>` : ""}</span>
-          </li>`)
-    .join("");
-  return panel("p-donde", ["m-tramite", "Procuraduría"], "t-donde", "Dónde están los casos", `<p class="ranking-leyenda" aria-hidden="true"><span><i></i>En trámite</span><span><i class="firme"></i>Con sentencia firme</span></p>
-        <ol class="ranking" aria-labelledby="t-donde">${filas}</ol>`,
-    `Casos de corrupción en trámite en la Procuraduría Pública Especializada en Delitos de Corrupción${datos.fuente ? ` (<a class="enlace" href="${escapar(datos.fuente)}">boletín</a>${datos.corte ? ` al ${fechaLarga(datos.corte)}` : ""})` : ""}, en las diez regiones con más. Cuenta cada caso en la región de la sede que lo lleva.`,
-    tabla(datos));
-}
-
-/** La lupa de Gobserva, grande, para la etapa «Conecta» (las mismas clases del logo: sus colores y su latido). */
-const LUPA_GRANDE = `<svg class="lupa-grande" viewBox="0 0 64 64" aria-hidden="true" focusable="false"><path class="gl-aro" d="M38.6 38.6L53 53" stroke-width="8.6"/><circle class="gl-aro" cx="27" cy="27" r="16.2" fill="none" stroke-width="7.2"/><path class="gl-arista" d="M27 20.2L21.4 30.4M27 20.2L32.6 30.4M21.4 30.4H32.6" stroke-width="1.3" stroke-linecap="round"/><circle class="gl-nodo" cx="27" cy="20.2" r="2.7"/><circle class="gl-nodo" cx="21.4" cy="30.4" r="2.7"/><circle class="gl-nodo" cx="32.6" cy="30.4" r="2.7"/></svg>`;
 
 /** El botón de día y noche (publico/interfaz.js): dos opciones, una apretada. Sin JavaScript no sirve, así que llega
  * oculto y el script lo muestra. */
@@ -734,33 +467,27 @@ const CSS = `
   --mapa-sin: #0B2417;
   --lupa-aro: #A8FFD0; --lupa-vidrio: rgba(61, 255, 138, .06); --rotulo: rgba(4, 16, 10, .92);
   --logo-tinta: var(--tinta); --logo-aro: var(--lima); --logo-nodo: #FFFFFF; --ojo: var(--lima);
-  --cabecera-fondo: rgba(3, 11, 7, .84); --consola-fondo: rgba(5, 18, 9, .88);
-  /* El brillo del fósforo: halos, luces y sombras de color. De día no hay. */
+  --cabecera-fondo: rgba(3, 11, 7, .84);
+  /* El brillo del fósforo: halos y luces de color. De día no hay. */
   --halo: 0 0 14px rgba(61, 255, 138, .4);
-  --halo-alerta: 0 0 14px rgba(255, 90, 77, .4);
-  --halo-lima: 0 0 24px rgba(212, 255, 63, .22);
   --halo-sel: 0 0 20px rgba(61, 255, 138, .12);
-  --halo-filtro: drop-shadow(0 0 6px rgba(61, 255, 138, .28));
-  --halo-lupa: drop-shadow(0 0 14px rgba(212, 255, 63, .3));
   --luz: 8px;
   /* El radar: cómo se suma el barrido a la pantalla, su luz y las líneas del tubo. */
   --mezcla: screen;
   --barrido: conic-gradient(from 0deg, transparent 0deg 285deg, rgba(61, 255, 138, .035) 285deg, rgba(61, 255, 138, .2) 356deg, rgba(168, 255, 208, .75) 359.5deg, transparent 360deg);
   --tubo: rgba(0, 0, 0, .2);
+  /* El suelo de cuadros donde se para la gente de cada puerta. */
+  --suelo: color-mix(in srgb, var(--tinta) 24%, transparent);
   --f-texto: Archivo, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   --f-mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
   --f-led: Doto, "JetBrains Mono", monospace;
-  --t-display: clamp(1.5rem, 1.1rem + 1.4vw, 2.125rem);
-  --t-title: clamp(1.375rem, 1.15rem + .7vw, 1.875rem);
-  --t-heading: 1.0625rem;
-  --t-body: 1rem;
   --t-small: .875rem;
   --t-caption: .8125rem;
   --t-mono: .75rem;
   /* Una vuelta del barrido del radar (portada.js lo lee para encender las regiones a su paso). */
   --periodo: 6s;
   /* Los personajes de píxeles de cada producto (personajes.js): la piel y los rasgos son los mismos de día y de noche. */
-  --px-linea: var(--tinta); --px-fondo: var(--panel); --px-marca: var(--lima);
+  --px-linea: var(--tinta); --px-fondo: var(--fondo); --px-marca: var(--lima);
   --px-piel: #C98E5F; --px-pelo: #8B644A; --px-rasgo: #281C16; --px-bata: #DCE6E3;
 }
 :root[data-modo="dia"] {
@@ -777,9 +504,8 @@ const CSS = `
   --mapa-sin: #DDE9E1;
   --lupa-aro: #0A3F22; --lupa-vidrio: rgba(8, 122, 59, .07); --rotulo: rgba(255, 255, 255, .95);
   --logo-tinta: #0A1C12; --logo-aro: #2F6B10; --logo-nodo: #0A1C12; --ojo: #2F6B10;
-  --cabecera-fondo: rgba(237, 244, 239, .88); --consola-fondo: var(--panel);
-  --halo: 0 0 0 transparent; --halo-alerta: 0 0 0 transparent; --halo-lima: 0 0 0 transparent; --halo-sel: 0 0 0 transparent;
-  --halo-filtro: drop-shadow(0 0 0 transparent); --halo-lupa: drop-shadow(0 0 0 transparent);
+  --cabecera-fondo: rgba(237, 244, 239, .88);
+  --halo: 0 0 0 transparent; --halo-sel: 0 0 0 transparent;
   --luz: 0px;
   --mezcla: multiply;
   --barrido: conic-gradient(from 0deg, transparent 0deg 285deg, rgba(8, 122, 59, .03) 285deg, rgba(8, 122, 59, .14) 356deg, rgba(7, 92, 44, .45) 359.5deg, transparent 360deg);
@@ -791,7 +517,7 @@ html { -webkit-text-size-adjust: 100%; scroll-behavior: smooth; scroll-padding-t
 @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
 body {
   margin: 0; color: var(--tinta); caret-color: var(--fosforo);
-  font: 400 var(--t-body)/1.6 var(--f-texto);
+  font: 400 1rem/1.6 var(--f-texto);
   /* La cuadrícula de un visor. */
   background: linear-gradient(var(--reticula) 1px, transparent 1px) 0 0 / 48px 48px, linear-gradient(90deg, var(--reticula) 1px, transparent 1px) 0 0 / 48px 48px, var(--fondo);
 }
@@ -806,11 +532,8 @@ a { color: inherit; text-underline-offset: .22em; text-decoration-thickness: 1px
   padding-left: max(1.25rem, env(safe-area-inset-left, 0px)); padding-right: max(1.25rem, env(safe-area-inset-right, 0px));
 }
 h1, h2, h3 { margin: 0; text-wrap: balance; }
-h2 { font: 700 var(--t-title)/1.2 var(--f-texto); font-stretch: 115%; letter-spacing: -0.01em; max-width: 34ch; }
-h3 { font: 700 var(--t-heading)/1.3 var(--f-texto); font-stretch: 108%; }
+h3 { font: 700 1.125rem/1.3 var(--f-texto); font-stretch: 108%; }
 p { text-wrap: pretty; }
-/* El número de cada sección, el mismo del índice de la cabecera. */
-.sec-num { display: inline-block; margin-right: .75rem; padding: .3rem .45rem .28rem; font: 600 .8125rem/1 var(--f-mono); letter-spacing: .02em; color: var(--sobre-fosforo); background: var(--fosforo); box-shadow: var(--halo); vertical-align: .3em; }
 .logo { display: block; width: auto; max-width: 100%; }
 .logo .gl-letras { fill: var(--logo-tinta); }
 .logo .gl-aro { stroke: var(--logo-aro); }
@@ -818,47 +541,28 @@ p { text-wrap: pretty; }
 .logo .gl-arista { fill: none; stroke: var(--logo-nodo); }
 .logo .gl-cursor { fill: var(--logo-aro); }
 /* El cursor titila, como el de «vigía_». */
-@media (prefers-reduced-motion: no-preference) { .logo-portada .gl-cursor, .logo-cabecera .gl-cursor { animation: titila 1.1s steps(1) infinite; } }
+@media (prefers-reduced-motion: no-preference) { .logo-cabecera .gl-cursor { animation: titila 1.1s steps(1) infinite; } }
 @keyframes titila { 50% { opacity: 0; } }
 .px { display: block; width: 1.5rem; height: 1.5rem; fill: currentColor; flex: none; }
 .enlace { color: var(--fosforo); font-weight: 600; text-decoration: underline; }
 .enlace:hover { text-decoration-thickness: 2px; }
-/* La luz de una institución o de un estado. */
+/* La luz de una institución. */
 .led { display: inline-block; width: .5rem; height: .5rem; border-radius: 50%; background: var(--c, var(--fosforo)); box-shadow: 0 0 var(--luz) var(--c, var(--fosforo)); flex: none; }
 .m-tramite { --c: var(--c-tramite); } .m-penal { --c: var(--c-penal); } .m-procesos { --c: var(--c-procesos); } .m-vigia { --c: var(--c-vigia); }
-.estado { display: inline-flex; align-items: center; gap: .45rem; margin: 0; font: 500 var(--t-mono)/1 var(--f-mono); letter-spacing: .06em; text-transform: uppercase; color: var(--c, var(--fosforo)); white-space: nowrap; }
-.estado::before { content: ""; width: .45rem; height: .45rem; border-radius: 50%; background: currentColor; box-shadow: 0 0 var(--luz) currentColor; }
-.estado.apagado { color: var(--tenue); }
-.estado.apagado::before { background: transparent; box-shadow: inset 0 0 0 1px currentColor; }
 
-/* Botones */
-.boton {
-  display: inline-flex; align-items: center; justify-content: center; gap: .5rem; min-height: 2.75rem; padding: .625rem 1.125rem;
-  font: 600 .9375rem/1.2 var(--f-texto); text-decoration: none; border: 0;
-}
-.boton.lima { background: var(--lima); color: var(--sobre-lima); box-shadow: var(--halo-lima), inset 0 0 0 1px var(--borde-lima); }
-.boton.lima:hover { filter: brightness(1.07); }
-.boton.borde { color: var(--tinta); background: color-mix(in srgb, var(--fosforo) 4%, transparent); box-shadow: inset 0 0 0 1px var(--borde); }
-.boton.borde:hover { color: var(--fosforo); box-shadow: inset 0 0 0 1px var(--fosforo); }
-.boton.chico { min-height: 2.375rem; padding: .5rem .875rem; font-size: .875rem; }
-.acciones { display: flex; flex-wrap: wrap; gap: .625rem; margin-top: 1.5rem; }
-
-/* Cabecera: la marca, el índice de secciones (marca la que se está leyendo), día o noche y la entrada a Vigía; debajo, la
-   regla de un instrumento */
+/* Cabecera: la marca, el índice de secciones (marca la que se está leyendo) y día o noche; debajo, la regla de un
+   instrumento */
 .cabecera { position: sticky; top: 0; z-index: 10; background: var(--cabecera-fondo); -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px); }
 .cabecera::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 7px; pointer-events: none;
   background: linear-gradient(90deg, color-mix(in srgb, var(--fosforo) 50%, transparent) 1px, transparent 1px) 0 100% / 8px 3px repeat-x, linear-gradient(90deg, color-mix(in srgb, var(--fosforo) 80%, transparent) 1px, transparent 1px) 0 100% / 64px 7px repeat-x, linear-gradient(var(--linea), var(--linea)) 0 100% / 100% 1px no-repeat; }
 .cabecera-fila { display: flex; align-items: center; justify-content: space-between; gap: 1rem 1.5rem; min-height: 3.75rem; }
 .marca { display: block; padding-block: .5rem; }
 .logo-cabecera { height: 1.875rem; }
-.indice ol { display: flex; align-items: center; gap: .25rem 1.25rem; list-style: none; margin: 0; padding: 0; }
-.indice a { display: inline-flex; align-items: baseline; gap: .375rem; padding-block: .375rem; border-bottom: 2px solid transparent; font-weight: 500; font-size: var(--t-small); color: var(--tinta-suave); text-decoration: none; white-space: nowrap; }
-.indice .nav-num { font: 500 .6875rem/1 var(--f-mono); color: var(--tenue); }
+.indice ol { display: flex; align-items: center; gap: .25rem 1.75rem; list-style: none; margin: 0; padding: 0; }
+.indice a { display: inline-block; padding-block: .375rem; border-bottom: 2px solid transparent; font-weight: 500; font-size: var(--t-small); color: var(--tinta-suave); text-decoration: none; white-space: nowrap; }
 .indice a:hover { color: var(--fosforo); }
 .indice a[aria-current="true"] { color: var(--tinta); border-bottom-color: var(--fosforo); }
-.indice a[aria-current="true"] .nav-num { color: var(--fosforo); }
 .cabecera-acciones { display: flex; align-items: center; gap: .625rem; }
-.cabecera-acciones .boton { white-space: nowrap; }
 /* Día o noche: un interruptor de dos posiciones, como el de un instrumento. */
 .modo { display: inline-flex; border: 1px solid var(--borde); background: var(--panel); }
 .modo[hidden] { display: none; }
@@ -868,8 +572,56 @@ p { text-wrap: pretty; }
 .modo button[aria-pressed="true"] { color: var(--sobre-fosforo); background: var(--fosforo); }
 .modo .px { width: .875rem; height: .875rem; }
 
-/* Paneles: el bisel de un instrumento, con escuadras de fósforo en las esquinas */
-.panel { position: relative; min-width: 0; background: linear-gradient(180deg, var(--panel), var(--fondo-2)); border: 1px solid var(--linea); }
+/* La portada: qué es Gobserva en una frase y, ahí mismo, las cinco puertas. */
+.portada { border-bottom: 1px solid var(--linea); }
+.portada > .marco { padding-block: clamp(2.5rem, 6vw, 4.75rem) 0; }
+.portada-texto { display: grid; gap: 1.25rem 3rem; align-items: end; }
+.portada h1 { font: 800 clamp(2.25rem, 1.2rem + 3.6vw, 4.5rem)/1.02 var(--f-texto); font-stretch: 112%; letter-spacing: -0.025em; max-width: 15ch; }
+.portada h1 em { font-style: normal; color: var(--fosforo); }
+.entrada { margin: 0; max-width: 42ch; font-size: clamp(1.0625rem, 1rem + .35vw, 1.25rem); line-height: 1.55; color: var(--tinta-suave); }
+.pregunta { margin: clamp(2.5rem, 5vw, 3.5rem) 0 0; font: 700 1.25rem/1.3 var(--f-texto); font-stretch: 108%; }
+
+/* La calle: cinco puertas en fila sobre un mismo suelo de cuadros. Toda la puerta es el enlace. */
+.calle { list-style: none; margin: .5rem 0 0; padding: 0; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); }
+.calle > li { display: flex; min-width: 0; }
+.puerta { flex: 1; display: flex; flex-direction: column; gap: .5rem; padding: 0 1.125rem 2rem; color: inherit; text-decoration: none; }
+.puerta-gente { display: flex; align-items: flex-end; justify-content: center; height: 8rem; margin: 0 -1.125rem 1rem; border-bottom: 4px dashed var(--suelo); }
+.puerta-gente .px-sprite { display: block; width: auto; height: 6.5rem; }
+.puerta-necesidad { font: 700 1.125rem/1.3 var(--f-texto); font-stretch: 106%; text-wrap: balance; }
+.puerta-que { color: var(--tinta-suave); font-size: .9375rem; line-height: 1.5; text-wrap: pretty; }
+.puerta-ir { display: inline-flex; align-items: center; gap: .5rem; margin-top: auto; padding-top: .5rem; font-weight: 600; font-size: .9375rem; color: var(--fosforo); white-space: nowrap; }
+.puerta-ir > span { text-decoration: underline; text-underline-offset: .22em; text-decoration-thickness: 1px; }
+.cheuron { width: .4375rem; height: .75rem; flex: none; }
+.puerta:hover { background: color-mix(in srgb, var(--fosforo) 6%, transparent); }
+.puerta:hover .puerta-ir > span { text-decoration-thickness: 2px; }
+.puerta:focus-visible { outline-offset: -2px; }
+@media (prefers-reduced-motion: no-preference) {
+  /* La gente entra en escena una tras otra, a pasos; al pasar el mouse, la de esa puerta da un saltito. */
+  .puerta-gente .px-sprite { animation: entra .56s steps(4, end) calc(120ms + var(--i) * 150ms) both; }
+  .puerta:hover .px-sprite { animation: salta .42s steps(3, end) 1; }
+  .puerta:hover .cheuron { translate: 3px 0; }
+  .puerta, .cheuron { transition: background-color .15s, translate .15s steps(2, end); }
+}
+@keyframes entra { from { opacity: 0; transform: translateY(16px); } }
+@keyframes salta { 50% { transform: translateY(-8px); } }
+
+/* Secciones */
+.seccion { padding-block: clamp(4.5rem, 9vw, 7rem) 0; }
+.seccion > h2 { font: 800 clamp(1.75rem, 1.15rem + 2.2vw, 2.875rem)/1.08 var(--f-texto); font-stretch: 110%; letter-spacing: -0.02em; max-width: 22ch; }
+.intro { margin: 1rem 0 0; max-width: 58ch; font-size: 1.0625rem; color: var(--tinta-suave); }
+
+/* Cómo funciona: tres pasos sobre un mismo riel punteado (el riel corre mientras se ve). */
+.pasos { position: relative; list-style: none; margin: clamp(2.25rem, 4vw, 3rem) 0 0; padding: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 2rem 3rem; }
+.pasos::before { content: ""; position: absolute; left: 1.5rem; right: 0; top: 1.5rem; border-top: 3px dotted var(--fosforo-2); }
+.paso { position: relative; display: flex; flex-direction: column; align-items: flex-start; gap: .75rem; }
+.paso-icono { display: grid; place-items: center; width: 3rem; height: 3rem; color: var(--fosforo); background: var(--fondo); border: 1px solid var(--fosforo-2); box-shadow: var(--halo-sel); }
+.paso h3 { margin-top: .5rem; font-size: 1.375rem; font-stretch: 110%; }
+.paso p { margin: 0; color: var(--tinta-suave); max-width: 38ch; }
+.chips { list-style: none; margin: .25rem 0 0; padding: 0; display: flex; flex-wrap: wrap; gap: .375rem; }
+.chip { padding: .3rem .5rem; font: 500 .75rem/1.2 var(--f-mono); color: var(--tinta); background: var(--panel); border: 1px solid var(--linea); }
+
+/* Tu región: el radar, entero, como prueba en vivo. Paneles con el bisel de un instrumento (escuadras en las esquinas). */
+.panel { position: relative; min-width: 0; background: var(--panel); border: 1px solid var(--linea); }
 .panel::before {
   content: ""; position: absolute; inset: -1px; pointer-events: none;
   background:
@@ -879,41 +631,12 @@ p { text-wrap: pretty; }
     linear-gradient(var(--fosforo-2), var(--fosforo-2)) 100% 100% / 14px 1px, linear-gradient(var(--fosforo-2), var(--fosforo-2)) 100% 100% / 1px 14px;
   background-repeat: no-repeat;
 }
-
-/* Portada. Teléfono: el texto, el instrumento y la consola, uno debajo del otro. Desde 48rem: el texto y la consola arriba,
-   el instrumento entero debajo. Desde 80rem: el texto arriba y la consola abajo a la izquierda (al ras del instrumento),
-   y el instrumento a la derecha. */
-.portada { position: relative; background: radial-gradient(55% 60% at 64% 36%, color-mix(in srgb, var(--fosforo) 8.5%, transparent), transparent 72%); border-bottom: 1px solid var(--linea); }
-.portada-grilla { display: grid; grid-template-columns: minmax(0, 1fr); grid-template-areas: "texto" "instrumento" "consola"; gap: 1.5rem; align-items: start; padding-block: 1.75rem 2.25rem; }
-.portada-texto { grid-area: texto; }
-.instrumento { grid-area: instrumento; }
-.consola { grid-area: consola; }
-.portada h1 { margin: 0; line-height: 0; }
-.logo-portada { height: clamp(3rem, 2rem + 3vw, 4.75rem); }
-.eslogan { margin: 1rem 0 0; font: 800 var(--t-display)/1.18 var(--f-led); color: var(--menta); text-shadow: var(--halo); text-wrap: balance; }
-.entrada { margin: .875rem 0 0; max-width: 44ch; color: var(--tinta-suave); }
-
-/* La consola */
-.consola { border: 1px solid var(--borde); background: var(--consola-fondo); font: 400 .8125rem/1.65 var(--f-mono); }
-.consola-barra { display: flex; justify-content: space-between; align-items: center; gap: 1rem; margin: 0; padding: .45rem .75rem; border-bottom: 1px solid var(--linea); color: var(--tenue); font-size: .6875rem; letter-spacing: .03em; }
-.consola-barra .estado { font-size: .625rem; }
-.consola-lineas { list-style: none; margin: 0; padding: .625rem .875rem .75rem; height: calc(10 * 1.65em + 1.375rem); overflow: hidden; display: flex; flex-direction: column; justify-content: flex-end; -webkit-mask-image: linear-gradient(transparent, #000 3.5em); mask-image: linear-gradient(transparent, #000 3.5em); }
-.consola li { flex: none; min-height: 1.65em; overflow-wrap: anywhere; }
-.consola .cmd { color: var(--tinta); }
-.consola .cmd::before { content: "gobserva ›"; margin-right: .6em; color: var(--fosforo); }
-.consola .res { padding-left: 1.4em; color: var(--fosforo-2); }
-.consola .res.alerta { color: var(--alerta); }
-.consola .escribiendo::after { content: "_"; margin-left: .1em; color: var(--fosforo); font-weight: 700; }
-@media (prefers-reduced-motion: no-preference) { .consola .escribiendo::after { animation: titila 1s steps(1) infinite; } }
-
-/* El instrumento: un solo marco con los canales arriba, el visor del radar y la lectura de la región. Se acomoda a su
-   propio ancho: angosto (teléfono), la lectura va debajo del visor; desde 42rem, al lado. */
-.instrumento { display: grid; gap: .625rem; padding: .625rem; container-type: inline-size; }
+.instrumento { display: grid; gap: .625rem; margin-top: clamp(2rem, 4vw, 2.75rem); padding: .625rem; container-type: inline-size; }
 .instrumento-cuerpo { display: grid; gap: .625rem; }
 .metricas { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .5rem; width: 100%; margin: 0; padding: 0; border: 0; min-width: 0; }
 .metrica { position: relative; display: grid; align-content: start; gap: .1rem; padding: .5rem .65rem .55rem; cursor: pointer; background: var(--fondo-2); border: 1px solid var(--linea); }
 .metrica:hover { border-color: var(--borde); }
-.metrica:has(input:checked) { border-color: var(--fosforo); background: linear-gradient(180deg, color-mix(in srgb, var(--fosforo) 11%, transparent), color-mix(in srgb, var(--fosforo) 2%, transparent)); box-shadow: var(--halo-sel); }
+.metrica:has(input:checked) { border-color: var(--fosforo); background: color-mix(in srgb, var(--fosforo) 8%, var(--fondo-2)); box-shadow: var(--halo-sel); }
 .metrica:has(input:focus-visible) { outline: 2px solid var(--fosforo); outline-offset: 2px; }
 .metrica input { position: absolute; opacity: 0; inset: 0; margin: 0; cursor: pointer; }
 .metrica-nombre { display: flex; align-items: center; gap: .45rem; font-weight: 600; font-size: var(--t-small); }
@@ -921,7 +644,7 @@ p { text-wrap: pretty; }
 .metrica-pie { font-size: .6875rem; line-height: 1.3; color: var(--tenue); }
 
 /* El visor del radar */
-.visor { position: relative; display: flex; flex-direction: column; min-width: 0; border: 1px solid var(--linea); background: radial-gradient(closest-side, color-mix(in srgb, var(--fosforo) 7%, transparent), transparent), var(--fondo-2); }
+.visor { position: relative; display: flex; flex-direction: column; min-width: 0; border: 1px solid var(--linea); background: var(--fondo-2); }
 .visor::before {
   content: ""; position: absolute; inset: -1px; z-index: 3; pointer-events: none;
   background:
@@ -1011,87 +734,16 @@ p { text-wrap: pretty; }
    sobre el visor (en el mar y en las esquinas vacías del mapa). */
 @container (min-width: 42rem) {
   .instrumento-cuerpo { grid-template-columns: minmax(0, 1.3fr) minmax(16rem, 1fr); }
-  .mapa { flex: 1 1 auto; max-width: none; aspect-ratio: auto; min-height: clamp(24rem, calc(100svh - 18rem), 40rem); }
+  .mapa { flex: 1 1 auto; max-width: none; aspect-ratio: auto; min-height: clamp(24rem, calc(100svh - 18rem), 38rem); }
   .pista { position: absolute; left: .75rem; top: .625rem; z-index: 3; max-width: 11rem; padding: 0; text-align: left; pointer-events: none; }
   .mapa-pie { position: absolute; left: .75rem; bottom: .625rem; z-index: 3; justify-items: start; padding: 0; text-align: left; max-width: 12.5rem; pointer-events: none; }
   .leyenda { justify-items: start; }
   .visor-coords { position: absolute; right: .75rem; bottom: .625rem; z-index: 3; grid-auto-flow: row; justify-items: end; gap: .2rem; padding: 0; }
 }
 
-/* La cinta de cifras */
-.cinta { display: flex; overflow: hidden; border-bottom: 1px solid var(--linea); background: var(--fondo-2); font: 500 .8125rem/1.2 var(--f-mono); color: var(--tinta-suave); }
-.cinta-fila { display: flex; flex: none; gap: 2.75rem; margin: 0; padding: .8rem 1.375rem; list-style: none; white-space: nowrap; }
-.cinta-fila li { display: flex; align-items: baseline; gap: .5rem; }
-.cinta-fila li::before { content: ""; align-self: center; width: .375rem; height: .375rem; background: var(--fosforo); box-shadow: 0 0 calc(var(--luz) * .75) var(--fosforo); }
-.cinta b { font: 800 1rem/1 var(--f-led); color: var(--fosforo); font-variant-numeric: tabular-nums; }
-.cinta span { color: var(--tenue); }
-html:not(.anima) .cinta-fila { flex: 1 1 100%; min-width: 0; flex-wrap: wrap; white-space: normal; gap: .5rem 2rem; }
-html:not(.anima) .cinta-fila + .cinta-fila { display: none; }
-
-/* Secciones: todas con el mismo encabezado (número, título y una línea que dice de qué se trata) */
-.seccion { padding-block: clamp(3.5rem, 7vw, 5.5rem) 0; }
-.intro { margin: .75rem 0 0; color: var(--tinta-suave); max-width: 62ch; }
-
-/* 01: los cuatro paneles. Arriba la pérdida y los procesos por año; debajo, la aguja y las regiones, a lo ancho. */
-.tablero { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 1rem; margin-top: 2rem; }
-.tablero > .panel { display: flex; flex-direction: column; padding: 1.25rem 1.375rem 1.125rem; }
-.p-perdida { grid-column: span 7; }
-.p-anios { grid-column: span 5; }
-.p-aguja, .p-donde { grid-column: 1 / -1; }
-.tablero:not(:has(.p-anios)) > .panel { grid-column: 1 / -1; }
-.panel-cabeza { display: flex; align-items: center; justify-content: space-between; gap: .5rem 1rem; padding-bottom: .875rem; margin-bottom: 1.125rem; border-bottom: 1px dashed var(--linea); }
-.panel-cabeza h3 { font-size: 1.125rem; }
-.panel-fuente { display: inline-flex; align-items: center; gap: .45rem; flex: none; font: 500 var(--t-mono)/1 var(--f-mono); letter-spacing: .04em; color: var(--tenue); white-space: nowrap; }
-.panel-pie { margin: auto 0 0; padding-top: 1rem; color: var(--tenue); font-size: var(--t-caption); }
-
-.perdida { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 1.5rem 2.25rem; align-items: center; }
-.waffle-fig { margin: 0; }
-.waffle { display: grid; grid-template-columns: repeat(10, 1fr); gap: 3px; width: clamp(10rem, 15vw, 13rem); }
-.waffle i { aspect-ratio: 1; background: var(--musgo); }
-.waffle i.on { background: var(--alerta); box-shadow: 0 0 var(--luz) color-mix(in srgb, var(--alerta) 55%, transparent); }
-.waffle-fig figcaption { margin-top: .625rem; max-width: 13rem; color: var(--tenue); font: 400 .6875rem/1.45 var(--f-mono); }
-.cifras-grandes { display: grid; gap: 1.25rem; }
-.cifra-grande { margin: 0; display: grid; gap: .25rem; }
-.cifra-grande b { font: 800 clamp(1.625rem, 1.2rem + 1.3vw, 2.25rem)/1.1 var(--f-led); color: var(--alerta); text-shadow: var(--halo-alerta); font-variant-numeric: tabular-nums; }
-.cifra-grande > span { color: var(--tinta-suave); font-size: .9375rem; max-width: 42ch; }
-
-.tablero > .p-anios { display: grid; grid-template-rows: auto minmax(12rem, 1fr) auto; }
-.anios { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(var(--n), minmax(0, 1fr)); grid-template-rows: 100%; gap: .3rem; min-height: 12rem; filter: var(--halo-filtro); }
-.anios li { position: relative; display: flex; flex-direction: column; justify-content: flex-end; text-align: center; min-width: 0; }
-.valor-v { font: 800 .75rem/1.2 var(--f-led); color: var(--tinta-suave); margin-bottom: .25rem; }
-.barra-v { display: block; height: calc(var(--v) * 80%); background: repeating-linear-gradient(0deg, var(--fosforo) 0 5px, transparent 5px 7px); transform-origin: bottom; }
-.anio { margin-top: .4rem; font: 500 .6875rem/1 var(--f-mono); color: var(--tenue); }
-
-.mil-fig { margin: 0; display: grid; grid-template-columns: minmax(0, 1fr) minmax(12rem, 15rem); gap: 1.25rem 2rem; align-items: center; }
-.mil { --cols: 100; display: grid; grid-template-columns: repeat(var(--cols), 1fr); gap: 2px; }
-.mil i { aspect-ratio: 1; background: color-mix(in srgb, var(--fosforo) 10%, transparent); }
-.mil i.leido { background: var(--fosforo); box-shadow: 0 0 calc(var(--luz) * .75) var(--fosforo); }
-.mil i.alto { background: var(--alerta); box-shadow: 0 0 calc(var(--luz) * .75) var(--alerta); }
-.mil-datos { display: grid; gap: .4rem; font-size: var(--t-small); color: var(--tinta-suave); }
-.mil-dato { display: flex; align-items: baseline; flex-wrap: wrap; gap: .1rem .5rem; }
-.mil-dato b { font: 800 1.375rem/1.15 var(--f-led); color: var(--tinta); font-variant-numeric: tabular-nums; }
-.mil-dato.m-procesos b { color: var(--fosforo); }
-.mil-dato.m-tramite b { color: var(--alerta); }
-.mil-dato .led { align-self: center; }
-
-.ranking-leyenda { display: flex; flex-wrap: wrap; gap: .5rem 1.25rem; margin: 0 0 .875rem; font-size: var(--t-caption); color: var(--tinta-suave); }
-.ranking-leyenda span { display: inline-flex; align-items: center; gap: .4rem; }
-.ranking-leyenda i { width: .625rem; height: .625rem; background: color-mix(in srgb, var(--fosforo) 55%, transparent); }
-.ranking-leyenda i.firme { background: var(--alerta); }
-/* Una sola grilla para las diez filas (subgrid): la columna de las cifras toma el ancho de la más larga y todas las barras
-   miden sobre la misma pista, así se comparan entre sí. */
-.ranking { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: 7.5rem minmax(0, 1fr) max-content; gap: .5rem .875rem; }
-.ranking li { grid-column: 1 / -1; display: grid; grid-template-columns: 7.5rem minmax(0, 1fr) 15.5rem; grid-template-columns: subgrid; row-gap: .25rem; align-items: center; }
-.ranking-nombre { font-weight: 600; font-size: var(--t-small); text-decoration: none; }
-.ranking-nombre:hover { color: var(--fosforo); text-decoration: underline; }
-.pista-barra { display: block; height: 1.125rem; }
-.barra-h { position: relative; display: block; height: 100%; width: calc(var(--v) * 100%); transform-origin: left; background: repeating-linear-gradient(90deg, color-mix(in srgb, var(--fosforo) 55%, transparent) 0 6px, transparent 6px 8px); }
-.barra-h .firme { position: absolute; inset: 0 auto 0 0; width: calc(var(--f) * 100%); background: repeating-linear-gradient(90deg, var(--alerta) 0 6px, transparent 6px 8px); }
-.ranking-cifra { display: flex; align-items: baseline; gap: .5rem; font-size: var(--t-caption); color: var(--tenue); white-space: nowrap; }
-.ranking-cifra b { font: 800 1.0625rem/1.2 var(--f-led); color: var(--fosforo); font-variant-numeric: tabular-nums; }
-
-.tabla-regiones { margin-top: 1rem; padding-top: .875rem; border-top: 1px dashed var(--linea); }
-.tabla-regiones summary { cursor: pointer; width: fit-content; color: var(--fosforo); font: 600 var(--t-small) var(--f-mono); text-decoration: underline; text-underline-offset: .22em; }
+/* Las 25 regiones en una tabla, plegada bajo el radar (para leerlo de corrido, y sin JavaScript). */
+.tabla-regiones { margin-top: 1rem; }
+.tabla-regiones summary { cursor: pointer; width: fit-content; color: var(--fosforo); font-weight: 600; font-size: var(--t-small); text-decoration: underline; text-underline-offset: .22em; }
 .tabla-caja { overflow-x: auto; margin-top: .875rem; background: var(--fondo-2); border: 1px solid var(--linea); }
 .tabla-caja table { width: 100%; border-collapse: collapse; font-size: var(--t-small); }
 .tabla-caja caption { caption-side: bottom; text-align: left; padding: .625rem 1rem; color: var(--tenue); font-size: .75rem; }
@@ -1100,63 +752,33 @@ html:not(.anima) .cinta-fila + .cinta-fila { display: none; }
 .tabla-caja th[scope="row"], .tabla-caja thead th:first-child { text-align: left; }
 .tabla-caja td { font: 800 .9375rem var(--f-led); color: var(--fosforo); font-variant-numeric: tabular-nums; }
 
-/* 02: la cadena. Cuatro etapas parejas sobre un mismo riel; los paquetes corren por el riel entre una y otra. */
-.cadena { position: relative; list-style: none; margin: 2.25rem 0 0; padding: 0; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1.5rem; align-items: stretch; }
-.cadena::before { content: ""; position: absolute; left: 0; right: 0; top: 2rem; height: 4px; translate: 0 -50%; background: radial-gradient(circle, var(--fosforo) 1.5px, transparent 2px) 0 50% / 10px 4px repeat-x; }
-.etapa { position: relative; display: flex; flex-direction: column; gap: .875rem; padding: 1.125rem 1.25rem 1.25rem; }
-.etapa-cabeza { display: flex; align-items: center; gap: .625rem; }
-.etapa-cabeza h3 { font-size: 1.125rem; }
-.etapa-cabeza .px { margin-left: auto; width: 1.5rem; height: 1.5rem; color: var(--fosforo); }
-.etapa-num { display: inline-flex; align-items: center; justify-content: center; width: 1.75rem; height: 1.75rem; flex: none; font: 600 .75rem/1 var(--f-mono); color: var(--fosforo); border: 1px solid var(--fosforo); background: var(--panel); box-shadow: var(--halo); }
-.etapa p { margin: 0; color: var(--tinta-suave); font-size: .9375rem; }
-.etapa .enlace { margin-top: auto; font-size: var(--t-small); }
-.etapa-lupa { display: grid; place-items: center; margin-top: auto; padding-top: .25rem; }
-.lupa-grande { width: 5.5rem; height: 5.5rem; display: block; filter: var(--halo-lupa); }
-.lupa-grande .gl-aro { fill: none; stroke: var(--logo-aro); }
-.lupa-grande .gl-arista { fill: none; stroke: var(--logo-nodo); }
-.lupa-grande .gl-nodo { fill: var(--logo-nodo); }
-.chips { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: .375rem; }
-.chip { padding: .3rem .5rem; font: 500 .75rem/1.2 var(--f-mono); color: var(--tinta); background: color-mix(in srgb, var(--fosforo) 5%, transparent); border: 1px solid var(--linea); }
-.senales { list-style: none; margin: 0; padding: 0; display: grid; gap: .375rem; }
-.senal { display: flex; align-items: center; gap: .55rem; padding: .4rem .55rem; font-size: .8125rem; line-height: 1.35; background: color-mix(in srgb, var(--alerta) 8%, transparent); border: 1px solid color-mix(in srgb, var(--alerta) 30%, transparent); }
-.senal .px { width: 1rem; height: 1rem; color: var(--alerta); }
+/* Principios: cuatro reglas en fila, cada una bajo su raya. */
+.principios { list-style: none; margin: clamp(2.25rem, 4vw, 3rem) 0 0; padding: 0; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 2rem 2.5rem; }
+.principios li { display: flex; flex-direction: column; align-items: flex-start; gap: .5rem; padding-top: 1.25rem; border-top: 2px solid var(--fosforo-2); }
+.principios .px { color: var(--fosforo); margin-bottom: .25rem; }
+.principios p { margin: 0; color: var(--tinta-suave); font-size: .9375rem; }
+.principios .enlace { margin-top: auto; padding-top: .25rem; font-size: var(--t-small); }
 
-/* 03: para quién, una ficha técnica de tres filas */
-.publicos { list-style: none; margin: 2rem 0 0; padding: 0; border-top: 1px solid var(--linea); }
-.publico { display: grid; grid-template-columns: 2.75rem minmax(0, 19rem) minmax(0, 1fr); gap: .75rem 2rem; align-items: start; padding-block: 1.25rem; border-bottom: 1px solid var(--linea); }
-.publico .px { width: 2.25rem; height: 2.25rem; color: var(--fosforo); }
-.publico h3 { font-size: 1.125rem; margin-bottom: .3rem; }
-.publico .valor { margin: 0; color: var(--tinta-suave); font-size: .9375rem; }
-.publico ul { list-style: none; margin: 0; padding: 0; display: grid; gap: .4rem; font-size: .9375rem; }
-.publico ul li { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: .55rem; align-items: baseline; }
-.publico ul li::before { content: "›"; color: var(--fosforo); font: 700 1rem/1 var(--f-mono); }
+/* Lo que viene: en preparación, de borde punteado. */
+.seccion-chica > h2 { font-size: clamp(1.375rem, 1.1rem + 1vw, 1.75rem); }
+.proximos { list-style: none; margin: 1.5rem 0 0; padding: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1rem; }
+.proximo { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: .25rem .875rem; align-items: start; padding: 1rem 1.125rem; border: 1px dashed var(--borde); }
+.proximo .px { grid-row: span 2; width: 1.75rem; height: 1.75rem; color: var(--fosforo-2); }
+.proximo h3 { font-size: 1rem; }
+.proximo p { margin: 0; color: var(--tinta-suave); font-size: .875rem; line-height: 1.5; }
 
-/* 04: los monitores. Vigía en línea y los que vienen, de borde punteado mientras se arman. */
-.monitores { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: 1rem; margin-top: 2rem; align-items: stretch; }
-.monitor-vigia { display: grid; gap: 1rem; align-content: start; padding: clamp(1.25rem, 2.5vw, 1.75rem); background: radial-gradient(80% 60% at 0% 0%, color-mix(in srgb, var(--c-vigia) 8%, transparent), transparent 60%), linear-gradient(180deg, var(--panel), var(--fondo-2)); }
-.vigia-cabeza { display: flex; flex-wrap: wrap; align-items: center; gap: .75rem 1.25rem; }
-.vigia-cabeza .ojo { width: 5.5rem; display: block; }
-.ojo-parpado { fill: var(--ojo); }
-.ojo-pupila { fill: var(--tinta); }
-.vigia-cabeza h3 { font-size: 1.5rem; font-stretch: 115%; }
-.vigia-dominio { margin: .2rem 0 0; color: var(--tenue); font: 400 var(--t-mono) var(--f-mono); }
-.vigia-lema { margin: 0; font-size: 1.0625rem; color: var(--tinta); }
-.monitor-vigia > p:not(.vigia-lema) { margin: 0; color: var(--tinta-suave); font-size: .9375rem; }
-.monitor-vigia .acciones { margin-top: .25rem; }
-.funciones { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 1.5rem; }
-.funciones a { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: .6rem; align-items: baseline; padding: .55rem 0; border-bottom: 1px dashed var(--linea); text-decoration: none; font-size: .9375rem; }
-.funciones .led { transform: translateY(-.1rem); }
-.funciones strong { font-weight: 600; }
-.funciones .d { display: block; color: var(--tenue); font-size: .8125rem; line-height: 1.4; }
-.funciones a:hover strong { color: var(--fosforo); text-decoration: underline; }
-.proximos { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; }
-.productos-gob { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; margin-top: 1rem; }
-/* La gente de cada producto, parada sobre su suelo de cuadros. */
-.monitor-producto { display: flex; flex-direction: column; }
-.monitor-producto .escena-producto { margin-top: auto; }
-.escena-producto { display: flex; align-items: flex-end; justify-content: space-between; gap: .75rem; padding: .25rem .5rem 0; border-bottom: 5px dashed color-mix(in srgb, var(--tinta) 25%, transparent); min-height: 6.5rem; }
-.escena-producto .px-sprite { display: block; flex: none; }
-.escena-producto .px-lugar { max-width: 62%; height: auto; }
+/* Pie */
+.pie { margin-top: clamp(4.5rem, 9vw, 7rem); border-top: 1px solid var(--linea); background: var(--fondo-2); }
+.pie .marco { display: grid; grid-template-columns: minmax(0, 1.4fr) repeat(3, minmax(0, 1fr)); gap: 2rem; padding-block: 2.5rem 3rem; }
+.logo-pie { height: 2.125rem; }
+.pie .pie-eslogan { margin: .875rem 0 0; font: 800 1.0625rem/1.3 var(--f-led); color: var(--menta); }
+.pie p { margin: .375rem 0 0; color: var(--tenue); font-size: var(--t-small); }
+.pie h2 { margin: .25rem 0 .875rem; font: 500 var(--t-mono)/1.2 var(--f-mono); letter-spacing: .06em; text-transform: uppercase; color: var(--tenue); }
+.pie ul { list-style: none; margin: 0; padding: 0; display: grid; gap: .5rem; font-size: var(--t-small); }
+.pie a { text-decoration: none; }
+.pie a:hover { color: var(--fosforo); text-decoration: underline; }
+
+/* Los personajes de píxeles (personajes.js): capas que parpadean o laten, a pasos. */
 @keyframes pxParpadeo { 0%, 94%, 100% { opacity: 1; } 95%, 98% { opacity: 0; } }
 @keyframes pxLate { 0%, 100% { opacity: 1; } 50% { opacity: .3; } }
 @keyframes pxAlternaA { 0%, 49.9% { opacity: 1; } 50%, 100% { opacity: 0; } }
@@ -1168,47 +790,9 @@ html:not(.anima) .cinta-fila + .cinta-fila { display: none; }
   .px-alternaA { animation: pxAlternaA .6s steps(1, end) infinite; }
   .px-alternaB { animation: pxAlternaB .6s steps(1, end) infinite; }
 }
-.monitor-producto .vigia-cabeza svg { width: 3rem; height: 3rem; display: block; }
-@media (max-width: 64rem) { .productos-gob { grid-template-columns: minmax(0, 1fr); } }
-.proximos > li:last-child:nth-child(odd) { grid-column: 1 / -1; }
-.proximo { display: flex; flex-direction: column; gap: .5rem; padding: 1rem 1.125rem; border: 1px dashed var(--borde); background: color-mix(in srgb, var(--fosforo) 2.5%, transparent); }
-.proximo .px { width: 2rem; height: 2rem; color: var(--fosforo-2); }
-.proximo h3 { font-size: 1rem; }
-.proximo p { margin: 0; color: var(--tinta-suave); font-size: .875rem; line-height: 1.5; }
-.proximo .ya { margin-top: auto; padding-top: .5rem; border-top: 1px dashed var(--linea); color: var(--tenue); font: 400 .75rem/1.45 var(--f-mono); }
 
-/* 05: los principios, el protocolo, en una grilla de celdas */
-.principios { list-style: none; margin: 2rem 0 0; padding: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); border-top: 1px solid var(--linea); border-left: 1px solid var(--linea); }
-.principios li { display: grid; grid-template-columns: auto minmax(0, 1fr); column-gap: .875rem; align-items: start; padding: 1.25rem 1.25rem 1.375rem; border-right: 1px solid var(--linea); border-bottom: 1px solid var(--linea); }
-.principios .px { color: var(--fosforo); width: 1.5rem; height: 1.5rem; margin-top: .1rem; }
-.principios h3 { margin-bottom: .3rem; }
-.principios p { margin: 0; color: var(--tinta-suave); font-size: .9375rem; }
-.principios .enlace { display: inline-block; margin-top: .4rem; font-size: var(--t-small); }
-
-/* 06: las fuentes */
-.fuentes { list-style: none; margin: 2rem 0 0; padding: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 3rem; }
-.fuentes li { display: grid; grid-template-columns: 8rem minmax(0, 1fr); gap: .25rem 1rem; padding-block: .8rem; border-top: 1px dashed var(--linea); font-size: .9375rem; }
-.sigla { display: flex; align-items: center; gap: .55rem; font: 600 .875rem/1.5 var(--f-mono); color: var(--fosforo); }
-.fuentes .que { margin: 0; }
-.fuentes .nombre { margin: .125rem 0 0; color: var(--tenue); font-size: .8125rem; line-height: 1.45; }
-.ver-mas { margin: 1.25rem 0 0; font-size: var(--t-small); }
-
-/* Llamado y pie */
-.llamado { margin-top: clamp(3.5rem, 7vw, 5.5rem); border-block: 1px solid var(--linea); background: radial-gradient(45% 140% at 88% 50%, color-mix(in srgb, var(--c-vigia) 9%, transparent), transparent 70%), var(--fondo-2); }
-.llamado .marco { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 1.25rem 2.5rem; padding-block: clamp(2.25rem, 5vw, 3.25rem); }
-.llamado .intro { margin-top: .5rem; }
-.pie .marco { display: grid; grid-template-columns: minmax(0, 1.5fr) repeat(2, minmax(0, 1fr)); gap: 2rem; padding-block: 2.25rem 2.5rem; }
-.logo-pie { height: 2.125rem; }
-.pie .pie-eslogan { font: 800 1.0625rem/1.3 var(--f-led); margin: .875rem 0 0; color: var(--menta); }
-.pie p { margin: .375rem 0 0; color: var(--tenue); font-size: var(--t-small); }
-.pie .pie-datos { font: 400 .6875rem/1.5 var(--f-mono); }
-.pie h2 { font: 500 var(--t-mono)/1.2 var(--f-mono); letter-spacing: .06em; text-transform: uppercase; color: var(--tenue); margin: .25rem 0 .875rem; max-width: none; }
-.pie ul { list-style: none; margin: 0; padding: 0; display: grid; gap: .5rem; font-size: var(--t-small); }
-.pie a { text-decoration: none; }
-.pie a:hover { color: var(--fosforo); text-decoration: underline; }
-
-/* Las animaciones: sólo con JavaScript y sin movimiento reducido (la clase .anima la pone animaciones.js). */
-/* El radar: gira mientras se ve; el visor se enciende al abrir la página. */
+/* Las animaciones del radar: sólo con JavaScript y sin movimiento reducido (la clase .anima la pone animaciones.js). El
+   barrido gira mientras se ve; el visor se enciende la primera vez. */
 .anima .radar-barrido { opacity: 1; animation: gira var(--periodo) linear infinite; }
 .anima .blip { opacity: .3; animation: blip var(--periodo) linear var(--retraso, 0s) infinite; }
 .anima .blip::after { animation: onda var(--periodo) cubic-bezier(.2, .7, .3, 1) var(--retraso, 0s) infinite; }
@@ -1216,100 +800,59 @@ html:not(.anima) .cinta-fila + .cinta-fila { display: none; }
 @keyframes gira { from { rotate: 0deg; } to { rotate: 360deg; } }
 @keyframes blip { 0%, 3% { opacity: 1; } 55% { opacity: .3; } 100% { opacity: .3; } }
 @keyframes onda { 0% { opacity: .9; scale: .3; } 30% { opacity: 0; scale: 2.4; } 100% { opacity: 0; scale: 2.4; } }
-.anima .visor { animation: enciende 1s steps(8) both; }
-@keyframes enciende { 0% { opacity: 0; } 30% { opacity: .5; filter: brightness(1.8); } 60% { opacity: .35; } 100% { opacity: 1; filter: none; } }
-/* La cinta corre sola y se detiene bajo el mouse. */
-.anima .cinta-fila { animation: desliza 75s linear infinite; }
-.anima .cinta:hover .cinta-fila { animation-play-state: paused; }
-@keyframes desliza { to { translate: -100% 0; } }
 /* Pausar detiene todo lo que se mueve (botón del radar). */
 .pausado *, .pausado *::before, .pausado *::after { animation-play-state: paused !important; }
-/* Cada panel se enciende con una línea que lo recorre de arriba abajo; lo de adentro se arma en escalones, como píxeles. */
-.anima .panel[data-anima]::after { content: ""; position: absolute; inset: 0; pointer-events: none; opacity: 0; background: linear-gradient(180deg, transparent 0 45%, color-mix(in srgb, var(--fosforo) 10%, transparent) 48%, color-mix(in srgb, var(--menta) 45%, transparent) 50%, transparent 51%) 0 100% / 100% 220% no-repeat; }
-.anima .panel.visible::after { animation: escanea 1.1s ease-out 1; }
-@keyframes escanea { 0% { opacity: 1; background-position: 0 100%; } 90% { opacity: 1; } 100% { opacity: 0; background-position: 0 0; } }
-.anima [data-anima]:not(.visible) .waffle i.on { background: var(--musgo); box-shadow: none; }
-.anima .p-perdida .waffle i.on { transition: background-color 0s linear calc(250ms + var(--i) * 110ms), box-shadow 0s linear calc(250ms + var(--i) * 110ms); }
-.anima .p-anios:not(.visible) .barra-v { transform: scaleY(0); }
-.anima .p-anios .barra-v { transition: transform .9s steps(9) calc(var(--i) * 80ms); }
-.anima .p-anios:not(.visible) .valor-v { opacity: 0; }
-.anima .p-anios .valor-v { transition: opacity .2s steps(2) calc(.8s + var(--i) * 80ms); }
-.anima .p-aguja:not(.visible) .mil { clip-path: inset(0 0 100% 0); }
-.anima .p-aguja .mil { transition: clip-path 1.2s steps(20); }
-.anima .p-aguja.visible .mil i.leido, .anima .p-aguja.visible .mil i.alto { animation: destella .5s steps(2) 1.4s 4; }
-@keyframes destella { 50% { background: var(--tinta); } }
-.anima .p-donde:not(.visible) .barra-h { transform: scaleX(0); }
-.anima .p-donde .barra-h { transition: transform .8s steps(12) calc(var(--i) * 70ms); }
-.anima .cadena:not(.visible) .senal { opacity: 0; transform: translateX(8px); }
-.anima .cadena .senal { transition: opacity .3s steps(3) calc(.5s + var(--i) * 260ms), transform .3s steps(3) calc(.5s + var(--i) * 260ms); }
-.anima .cadena.andando::before { animation: fluye .8s linear infinite; }
-.anima .cadena.andando .lupa-grande .gl-nodo { animation: late 1.8s ease-in-out infinite; }
-@keyframes fluye { to { background-position: 10px 50%; } }
-@keyframes late { 50% { opacity: .3; } }
-.anima .publicos:not(.visible) > li, .anima .proximos:not(.visible) > li { opacity: 0; transform: translateY(10px); }
-.anima .publicos > li, .anima .proximos > li { transition: opacity .45s steps(5) calc(var(--i) * 120ms), transform .45s steps(5) calc(var(--i) * 120ms); }
-.anima .monitor-vigia:not(.visible) .ojo circle { transform: scale(0); }
-.anima .monitor-vigia .ojo circle { transform-box: fill-box; transform-origin: center; transition: transform .4s cubic-bezier(.22, 1, .36, 1) calc(var(--i) * 45ms); }
 @media (prefers-reduced-motion: no-preference) {
-  .boton, .funciones a, .metrica, .pausa, .modo button, .indice a { transition: filter .15s, background-color .15s, box-shadow .15s, color .15s, border-color .15s; }
+  .metrica, .pausa, .modo button, .indice a { transition: background-color .15s, box-shadow .15s, color .15s, border-color .15s; }
 }
 /* El cambio de día a noche: un fundido corto de toda la página (View Transitions, donde el navegador lo tiene). */
 ::view-transition-old(root), ::view-transition-new(root) { animation-duration: .35s; }
 
-/* La portada desde 48rem y desde 80rem (ver arriba) */
-@media (min-width: 48rem) {
-  .portada-grilla { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); grid-template-areas: "texto consola" "instrumento instrumento"; gap: 1.75rem 2rem; }
-  .consola { align-self: end; }
+/* Desde la computadora: el título y la entrada lado a lado. */
+@media (min-width: 64rem) {
+  .portada-texto { grid-template-columns: minmax(0, 7fr) minmax(0, 5fr); }
+  .entrada { padding-bottom: .5rem; }
 }
-@media (min-width: 80rem) {
-  .portada-grilla { grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); grid-template-rows: auto 1fr; grid-template-areas: "texto instrumento" "consola instrumento"; gap: 1.5rem 2.5rem; }
-  .consola { align-self: stretch; display: flex; flex-direction: column; }
-  .consola-lineas { flex: 1 1 auto; height: auto; min-height: calc(8 * 1.65em + 1.375rem); }
+/* Tableta: las puertas pasan a filas (la persona a la izquierda, sobre su propio suelo) en dos columnas. */
+@media (max-width: 63.99rem) {
+  .indice ol { gap: .25rem 1.25rem; }
+  .calle { grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 1.5rem; margin-top: 1rem; }
+  .calle > li { border-top: 1px solid var(--linea); }
+  .puerta { display: grid; grid-template-columns: 4.5rem minmax(0, 1fr); grid-template-rows: auto auto 1fr; column-gap: 1rem; row-gap: .25rem; align-items: start; padding: 1.125rem .5rem 1.25rem; }
+  .puerta-gente { grid-row: 1 / -1; height: auto; margin: 0; padding-bottom: 0; border-bottom-width: 3px; }
+  .puerta-gente .px-sprite { height: 4.875rem; }
+  .puerta-necesidad { font-size: 1.0625rem; }
+  .puerta-que { font-size: .875rem; }
+  .puerta-ir { margin-top: .25rem; padding-top: .25rem; font-size: .875rem; }
+  .pasos { grid-template-columns: minmax(0, 1fr); gap: 2rem; }
+  .pasos::before { left: 1.5rem; right: auto; top: 1.5rem; bottom: 1.5rem; border-top: 0; border-left: 3px dotted var(--fosforo-2); translate: -1.5px 0; }
+  .paso { display: grid; grid-template-columns: 3rem minmax(0, 1fr); column-gap: 1.25rem; row-gap: .5rem; align-items: start; }
+  .paso-icono { grid-row: 1 / span 4; }
+  .paso h3 { margin-top: .625rem; }
+  .paso > :not(.paso-icono) { grid-column: 2; }
+  .principios { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .proximos { grid-template-columns: minmax(0, 1fr); }
+  .pie .marco { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .pie .marco > :first-child { grid-column: 1 / -1; }
 }
-@media (max-width: 79.99rem) {
+@media (max-width: 51.99rem) {
   .indice { display: none; }
 }
-@media (max-width: 63.99rem) {
-  .tablero > .panel { grid-column: 1 / -1; grid-row: auto; }
-  .mil { --cols: 50; }
-  .cadena { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .cadena::before { display: none; }
-  .monitores { grid-template-columns: minmax(0, 1fr); }
-  .principios { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .ranking { grid-template-columns: 6.5rem minmax(0, 1fr); }
-  .ranking li { grid-template-columns: 6.5rem minmax(0, 1fr); grid-template-columns: subgrid; }
-  .ranking-cifra { grid-column: 2; flex-wrap: wrap; white-space: normal; row-gap: 0; }
-}
+/* Teléfono: una puerta por fila. */
 @media (max-width: 47.99rem) {
   .logo-cabecera { height: 1.75rem; }
   .modo span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
   .modo button { padding-inline: .55rem; }
-  .perdida, .mil-fig { grid-template-columns: minmax(0, 1fr); }
-  .cadena { grid-template-columns: minmax(0, 1fr); }
-  .cadena::before { display: block; left: 2.125rem; right: auto; top: 0; bottom: 0; width: 4px; height: auto; translate: -50% 0; background: radial-gradient(circle, var(--fosforo) 1.5px, transparent 2px) 50% 0 / 4px 10px repeat-y; }
-  .anima .cadena.andando::before { animation-name: fluye-v; }
-  .fuentes { grid-template-columns: minmax(0, 1fr); }
-  .publico { grid-template-columns: 2.75rem minmax(0, 1fr); }
-  .publico ul { grid-column: 2; }
-  .pie .marco { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .pie .marco > :first-child { grid-column: 1 / -1; }
+  .calle { grid-template-columns: minmax(0, 1fr); }
   .lupa-dato { display: none; }
 }
-@keyframes fluye-v { to { background-position: 50% 10px; } }
 @media (max-width: 39.99rem) {
   .logo-cabecera { height: 1.5rem; }
-  .cabecera-acciones { gap: .5rem; }
-  .cabecera-acciones .boton { padding-inline: .625rem; font-size: .8125rem; }
-  .proximos, .principios, .funciones { grid-template-columns: minmax(0, 1fr); }
   .metrica { padding: .5rem .5625rem; }
   .metrica-cifra { font-size: 1.125rem; }
   .metrica-pie { display: none; }
-  .fuentes li { grid-template-columns: minmax(0, 1fr); }
-  .valor-v { display: none; }
-  .anio { font-size: .5625rem; }
-  .tablero > .p-anios { grid-template-rows: auto 11rem auto; }
-  .anios { min-height: 11rem; gap: .2rem; }
-  .panel-cabeza { flex-wrap: wrap; }
+  .principios { grid-template-columns: minmax(0, 1fr); }
+  .pie .marco { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 `;
 
@@ -1323,6 +866,7 @@ function portada(datos) {
   const json = datos
     ? `<script type="application/json" id="datos-regiones">${JSON.stringify({ corte: datos.corte, fuente: datos.fuente, regiones: datos.regiones }).replace(/</g, "\\u003c")}</script>`
     : "";
+  const instituciones = enLetras(FUENTES.length);
   return `<!doctype html>
 <html lang="es-PE" data-modo="noche">
 <head>
@@ -1365,169 +909,95 @@ function portada(datos) {
     <a class="marca" href="${RAIZ}/" aria-label="Gobserva, inicio">${logo("logo-cabecera")}</a>
     <nav class="indice" aria-label="Secciones">
       <ol>
-        ${SECCIONES.map(([id, nombre]) => `<li><a href="#${id}"><span class="nav-num" aria-hidden="true">${numeroSeccion(id)}</span>${nombre}</a></li>`).join("\n        ")}
+        ${SECCIONES.map(([id, nombre]) => `<li><a href="#${id}">${nombre}</a></li>`).join("\n        ")}
       </ol>
     </nav>
     <div class="cabecera-acciones">
       ${BOTON_MODO}
-      <a class="boton lima chico" href="${VIGIA}/">Entrar a Vigía</a>
     </div>
   </div>
 </header>
 <main id="contenido">
   <section class="portada" aria-labelledby="titulo">
-    <div class="marco portada-grilla">
+    <div class="marco">
       <div class="portada-texto">
-        <h1 id="titulo"><span class="sr">Gobserva</span>${logo("logo-portada")}</h1>
-        <p class="eslogan">${ESLOGAN}</p>
-        <p class="entrada">Somos una GovTech peruana. Leemos lo que el Estado publica, lo cruzamos entre diez instituciones y te mostramos dónde mirar dos veces, con la fuente al lado.</p>
-        <div class="acciones">
-          <a class="boton lima" href="${VIGIA}/">Entrar a Vigía</a>
-          <a class="boton borde" href="#como-funciona">Cómo funciona</a>
-        </div>
+        <h1 id="titulo">Lo que publica el Estado, convertido en <em>respuestas</em></h1>
+        <p class="entrada">Gobserva lee cada día lo que publican ${instituciones} instituciones del Estado peruano y te lo entrega ordenado, en palabras simples y con la fuente oficial al lado.</p>
       </div>
-      ${consola(datos)}
-      ${instrumento(datos)}
-    </div>
-    <p id="anuncio" class="sr" aria-live="polite"></p>
-  </section>
-  ${cinta(datos)}
-
-  <section class="marco seccion" id="datos" aria-labelledby="t-datos">
-    ${tituloSeccion("datos", "t-datos", "Lo que el radar detecta")}
-    <p class="intro">Tres instituciones miden el mismo problema de tres maneras. Sus cifras no se suman: cada una cuenta distinto.</p>
-    <div class="tablero">
-      ${panelPerdida()}
-      ${panelAnios(datos)}
-      ${panelAguja(datos)}
-      ${panelDonde(datos)}
+      <div class="puertas" id="productos">
+        <h2 class="pregunta">¿Qué necesitas?</h2>
+        ${puertas()}
+      </div>
     </div>
   </section>
 
   <section class="marco seccion" id="como-funciona" aria-labelledby="t-como">
-    ${tituloSeccion("como-funciona", "t-como", "El Estado publica. Gobserva lee y cruza.")}
-    <p class="intro">Ningún portal del Estado lee sus propios contratos: los publica. Nosotros los leemos cada día, los cruzamos entre instituciones y te decimos cuáles mirar dos veces.</p>
-    <ol class="cadena" data-anima>
-      <li class="etapa panel">
-        <div class="etapa-cabeza"><span class="etapa-num" aria-hidden="true">1</span><h3>Observa</h3>${pixel("institucion")}</div>
-        <p>Leemos lo que publican diez instituciones: contratos, presupuesto, empresas, planillas, visitas y aportes.</p>
-        <ul class="chips" aria-label="Las diez instituciones">${FUENTES.map(([sigla]) => `<li class="chip">${sigla}</li>`).join("")}</ul>
-      </li>
-      <li class="etapa panel">
-        <div class="etapa-cabeza"><span class="etapa-num" aria-hidden="true">2</span><h3>Conecta</h3>${pixel("nodos")}</div>
-        <p>Cruzamos los registros por RUC, por entidad y por fecha.</p>
-        <ul class="chips" aria-label="Por dónde cruzamos"><li class="chip">RUC</li><li class="chip">Entidad</li><li class="chip">Fecha</li></ul>
-        <div class="etapa-lupa">${LUPA_GRANDE}</div>
-      </li>
-      <li class="etapa panel">
-        <div class="etapa-cabeza"><span class="etapa-num" aria-hidden="true">3</span><h3>Señala</h3>${pixel("bandera")}</div>
-        <ul class="senales">${SENALES.map((t, k) => `<li class="senal" style="--i:${k}">${pixel("bandera")}<span>${t}</span></li>`).join("")}</ul>
-      </li>
-      <li class="etapa panel">
-        <div class="etapa-cabeza"><span class="etapa-num" aria-hidden="true">4</span><h3>Tú decides</h3>${pixel("entiende")}</div>
-        <p>Cada señal llega con su norma y el enlace al documento original. Es una razón para mirar de nuevo, no una prueba.</p>
-        <a class="enlace" href="${VIGIA}/glosario">Qué significa cada señal</a>
-      </li>
+    <h2 id="t-como">El Estado publica miles de registros cada día. Casi nadie los lee.</h2>
+    <p class="intro">Gobserva los lee por ti, en tres pasos.</p>
+    <ol class="pasos">
+      ${PASOS.map(([icono, titulo, texto], k) => `<li class="paso">
+        <span class="paso-icono" aria-hidden="true">${pixel(icono)}</span>
+        <h3>${titulo}</h3>
+        <p>${texto}</p>
+        ${k === 0 ? `<ul class="chips" aria-label="Las ${instituciones} instituciones">${FUENTES.map(([sigla, , nombre]) => `<li class="chip" title="${nombre}">${sigla}</li>`).join("")}</ul>` : ""}
+        ${k === 1 ? `<ul class="chips" aria-label="Por dónde cruzamos"><li class="chip">RUC</li><li class="chip">Entidad</li><li class="chip">Fecha</li></ul>` : ""}
+        ${k === 2 ? `<a class="enlace" href="${VIGIA}/glosario">Qué significa cada señal</a>` : ""}
+      </li>`).join("\n      ")}
     </ol>
   </section>
 
-  <section class="marco seccion" id="para-quien" aria-labelledby="t-para">
-    ${tituloSeccion("para-quien", "t-para", "La misma evidencia, para tres trabajos")}
-    <p class="intro">Gobserva no reemplaza a nadie: le ahorra a cada uno las semanas de leer y cruzar a mano.</p>
-    <ul class="publicos" data-anima>
-      ${PUBLICOS.map(([icono, titulo, valor, usos], k) => `<li class="publico" style="--i:${k}">${pixel(icono)}<div><h3>${titulo}</h3><p class="valor">${valor}</p></div><ul>${usos.map((u) => `<li>${u}</li>`).join("")}</ul></li>`).join("\n      ")}
-    </ul>
-  </section>
-
-  <section class="marco seccion" id="monitores" aria-labelledby="t-monitores">
-    ${tituloSeccion("monitores", "t-monitores", "Elige por dónde entrar")}
-    <p class="intro">Vigía, Empleo, Licitaciones y Obras ya están en línea. Los demás monitores se arman sobre los mismos datos y las mismas reglas: datos oficiales, la fuente al lado y señales, no acusaciones.</p>
-    <div class="monitores">
-      <div class="monitor-vigia panel" data-anima>
-        <div class="vigia-cabeza">
-          ${ojoVigia()}
-          <div>
-            <h3>Vigía</h3>
-            <p class="vigia-dominio">vigia.gobserva.cloud</p>
-          </div>
-          <p class="estado">En línea</p>
-        </div>
-        <p class="vigia-lema">Revisa los contratos del Estado y te dice cuáles mirar dos veces.</p>
-        <p>Lee los contratos y las órdenes de compra, los cruza con más de veinte registros oficiales y marca con una bandera los que merecen otra mirada: proveedores sancionados, empresas recién creadas que ganan contratos grandes, aportes a campañas, visitas antes de una buena pro.</p>
-        <ul class="funciones" aria-label="Qué puedes ver en Vigía">
-          ${FUNCIONES.map(([titulo, d, ruta]) => `<li><a href="${VIGIA}${ruta}"><i class="led"></i><span><strong>${titulo}</strong><span class="d">${d}</span></span></a></li>`).join("\n          ")}
-        </ul>
-        <div class="acciones">
-          <a class="boton lima" href="${VIGIA}/">Entrar a Vigía</a>
-          <a class="boton borde" href="${VIGIA}/fuentes">De dónde salen los datos</a>
-        </div>
-      </div>
-      <ul class="proximos" data-anima aria-label="Monitores en preparación">
-        ${PROXIMOS.map(([icono, titulo, texto, ya], k) => `<li class="proximo" style="--i:${k}">${pixel(icono)}<p class="estado apagado">En preparación</p><h3>${titulo}</h3><p>${texto}</p><p class="ya">${ya}</p></li>`).join("\n        ")}
-      </ul>
-    </div>
-    <div class="productos-gob">
-      ${PRODUCTOS_GOB.map(([icono, nombre, dominio, lema, texto, enlace, accion]) => `<article class="monitor-vigia monitor-producto panel" data-anima>
-        <div class="vigia-cabeza">${pixel(icono)}<div><h3>${nombre}</h3><p class="vigia-dominio">${dominio}</p></div><p class="estado">En línea</p></div>
-        <p class="vigia-lema">${lema}</p>
-        <p>${texto}</p>
-        ${ESCENA_PRODUCTO[icono] ? `<div class="escena-producto" aria-hidden="true">${personaje(ESCENA_PRODUCTO[icono][0], 3, "px-persona", 400 * PRODUCTOS_GOB.findIndex((x) => x[0] === icono))}${personaje(ESCENA_PRODUCTO[icono][1], 3, "px-lugar")}</div>` : ""}
-        <div class="acciones"><a class="boton lima" href="${enlace}">${accion}</a></div>
-      </article>`).join("\n      ")}
-    </div>
+  <section class="marco seccion" id="region" aria-labelledby="t-region">
+    <h2 id="t-region">Pasa la lupa por tu región</h2>
+    <p class="intro">Una muestra en vivo de lo que ya leemos: lo que la Procuraduría Anticorrupción, la Contraloría y la OECE dicen de cada región. Cada una cuenta distinto, por eso sus cifras no se suman.</p>
+    ${instrumento(datos)}
+    ${tabla(datos)}
+    <p id="anuncio" class="sr" aria-live="polite"></p>
   </section>
 
   <section class="marco seccion" id="principios" aria-labelledby="t-principios">
-    ${tituloSeccion("principios", "t-principios", "Seis reglas que no negociamos")}
+    <h2 id="t-principios">Cuatro reglas que no negociamos</h2>
     <p class="intro">Vigilar el uso del dinero público exige que también se pueda vigilar a quien vigila.</p>
     <ul class="principios">
-      ${PRINCIPIOS.map(([i, titulo, texto, enlace]) => `<li>${pixel(i)}<div><h3>${titulo}</h3><p>${texto}</p>${enlace ? `<a class="enlace" href="${enlace[0]}">${enlace[1]}</a>` : ""}</div></li>`).join("\n      ")}
+      ${PRINCIPIOS.map(([i, titulo, texto, [href, accion]]) => `<li>${pixel(i)}<h3>${titulo}</h3><p>${texto}</p><a class="enlace" href="${href}">${accion}</a></li>`).join("\n      ")}
     </ul>
   </section>
 
-  <section class="marco seccion" id="fuentes" aria-labelledby="t-fuentes">
-    ${tituloSeccion("fuentes", "t-fuentes", "Diez fuentes oficiales, conectadas")}
-    <p class="intro">Diez instituciones del Estado peruano y más de veinte registros públicos, cruzados entre sí. Las tres que mide el radar llevan su luz.</p>
-    <ul class="fuentes">
-      ${FUENTES.map(([sigla, que, nombre, metrica]) => `<li><span class="sigla"><i class="led"${metrica ? ` style="--c: var(--c-${metrica})"` : ' style="--c: var(--fosforo-2)"'}></i>${sigla}</span><div><p class="que">${que}</p><p class="nombre">${nombre}</p></div></li>`).join("\n      ")}
+  <section class="marco seccion seccion-chica" aria-labelledby="t-viene">
+    <h2 id="t-viene">Lo que viene</h2>
+    <ul class="proximos">
+      ${PROXIMOS.map(([icono, titulo, texto]) => `<li class="proximo">${pixel(icono)}<h3>${titulo}</h3><p>${texto}</p></li>`).join("\n      ")}
     </ul>
-    <p class="ver-mas"><a class="enlace" href="${VIGIA}/fuentes">Cada fuente y su cobertura en Vigía</a></p>
   </section>
 </main>
 
-<section class="llamado" aria-labelledby="t-llamado">
-  <div class="marco">
-    <div>
-      <h2 id="t-llamado">¿En qué se gasta el dinero de tu región?</h2>
-      <p class="intro">En Vigía está cada contrato de tu región: quién lo ganó, por cuánto y con qué banderas.</p>
-    </div>
-    <a class="boton lima" href="${VIGIA}/app/mapa">Abrir el mapa del Perú en Vigía</a>
-  </div>
-</section>
 <footer class="pie">
   <div class="marco">
     <div>
       <a class="marca" href="${RAIZ}/" aria-label="Gobserva, inicio">${logo("logo-pie")}</a>
       <p class="pie-eslogan">${ESLOGAN}</p>
       <p>Tecnología cívica desde Lima, Perú.</p>
-      <p class="pie-datos">Cifras de la API de Vigía, renovadas cada 6 horas.</p>
       <p>© 2026 Gobserva</p>
     </div>
-    <nav aria-labelledby="pie-vigia">
-      <h2 id="pie-vigia">Vigía</h2>
+    <nav aria-labelledby="pie-productos">
+      <h2 id="pie-productos">Productos</h2>
       <ul>
-        <li><a href="${VIGIA}/">Entrar a Vigía</a></li>
-        <li><a href="${VIGIA}/fuentes">Fuentes de datos</a></li>
+        ${PRODUCTOS.map(([, , nombre, , enlace]) => `<li><a href="${enlace}">${nombre}</a></li>`).join("\n        ")}
+      </ul>
+    </nav>
+    <nav aria-labelledby="pie-cuentas">
+      <h2 id="pie-cuentas">Cuentas claras</h2>
+      <ul>
+        <li><a href="${VIGIA}/fuentes">De dónde salen los datos</a></li>
         <li><a href="${VIGIA}/glosario">Glosario</a></li>
         <li><a href="${VIGIA}/privacidad">Privacidad</a></li>
         <li><a href="${VIGIA}/app/cuanto-cuesta">Cuánto cuesta Vigía</a></li>
+        <li><a href="https://github.com/EdwinSotto123/vigia-peru">Código abierto</a></li>
       </ul>
     </nav>
     <nav aria-labelledby="pie-gobserva">
       <h2 id="pie-gobserva">Gobserva</h2>
       <ul>
         ${SECCIONES.map(([id, nombre]) => `<li><a href="#${id}">${nombre}</a></li>`).join("\n        ")}
-        <li><a href="https://github.com/EdwinSotto123/vigia-peru">Código abierto</a></li>
         <li><a href="/marca/gobserva-logo.svg" download>Descarga el logo</a></li>
       </ul>
     </nav>

@@ -23,40 +23,30 @@ Vigía es un producto de Gobserva. El dominio `gobserva.cloud` (comprado en IONO
     nunca se eligió, noche. Es el único script en línea: la CSP lo deja correr por su hash, que el Worker calcula al
     primer pedido (`cabeceras()`), así que cambiar el script no rompe nada. El cambio hace un fundido corto (View
     Transitions) si nadie pidió menos movimiento.
-  - **Letras:** Archivo (títulos anchos con `font-stretch` y texto), JetBrains Mono (la consola y los rótulos, la misma
+  - **Letras:** Archivo (títulos anchos con `font-stretch` y texto), JetBrains Mono (los rótulos y las siglas, la misma
     del logo) y Doto, de puntos, para las cifras.
-  - **El orden.** Arriba: el logo, el eslogan y la entrada a Vigía; la **consola**, que escribe lo que Gobserva lee y
-    después cada región que muestra el radar; y el **instrumento**, un solo marco con los canales (Corrupción, Control,
-    Compras), el visor del radar y la lectura de la región. Desde 80rem, el texto y la consola a la izquierda (la consola
-    llega al ras del instrumento) y el instrumento a la derecha; de 48 a 80rem, el texto y la consola arriba y el
-    instrumento entero debajo; en el teléfono, uno debajo del otro. El instrumento se acomoda a su propio ancho
-    (container queries): ancho, el visor y la lectura van lado a lado; angosto, la lectura va debajo. Luego la **cinta**
-    con las cifras del país y las seis secciones, numeradas en el orden de `SECCIONES` (el número va en el título y en el
-    índice de la cabecera, que marca la que se está leyendo):
+  - **El orden** (rediseño del 2026-11-21, pedido del usuario: «se ve muy saturada e info, no comunica bien qué
+    hacemos»; antes eran seis secciones numeradas, una consola, una cinta y cuatro paneles: casi 8 pantallas en la
+    computadora y 17 en el celular). Ahora, unas 4 y 7:
 
-    | N.º | Sección | Qué tiene |
-    |-----|---------|-----------|
-    | 01 | Lo que el radar detecta | Cuatro paneles de instrumentos, cada uno con la luz y el nombre de su institución en la cabecera (tabla de abajo) |
-    | 02 | Cómo funciona | Cuatro etapas parejas (Observa, Conecta, Señala, Tú decides) sobre un riel por el que corren paquetes |
-    | 03 | Para quién | Ciudadanía, periodismo y control, con lo que cada uno hace con la evidencia (`PUBLICOS`) |
-    | 04 | Elige por dónde entrar | Vigía en línea (con sus seis accesos) y los monitores en preparación, de borde punteado (`PROXIMOS`) |
-    | 05 | Seis reglas | `PRINCIPIOS` |
-    | 06 | Diez fuentes | `FUENTES`, con la luz de las tres que mide el radar |
+    | Sección | Qué tiene |
+    |---------|-----------|
+    | Portada | Qué es Gobserva en una frase y, ahí mismo, «¿Qué necesitas?»: cinco puertas (`PRODUCTOS`), una por producto, cada una con su persona de píxeles (`personajes.js`) parada en la misma calle, lo que necesita dicho por ella, qué hace el producto y «Entrar a…». Toda la puerta es el enlace |
+    | Cómo funciona (`#como-funciona`) | Tres pasos (`PASOS`: Leemos, Cruzamos, Te lo explicamos) sobre un riel punteado; el primero lleva las siglas de las fuentes (`FUENTES`) |
+    | Tu región (`#region`) | El radar entero (el instrumento de abajo) como muestra en vivo, con las 25 regiones en una tabla plegada |
+    | Principios (`#principios`) | Cuatro reglas (`PRINCIPIOS`) |
+    | Lo que viene | Los monitores en preparación, de borde punteado (`PROXIMOS`) |
 
-    | Panel | Qué muestra | De dónde sale |
-    |-------|-------------|---------------|
-    | Contraloría | 100 cuadros, 13 en rojo: lo que se pierde de cada 100 soles; S/ 24,268 millones y S/ 8,963 millones en inversión | Estimación para 2023 (`CONTRALORIA` en `worker.js`: cambiarla a mano cuando publique la siguiente) |
-    | OECE | Procesos de compra por año desde 2016 | API de Vigía: `/v1/contratos/resumen` de cada año |
-    | Vigía | Una aguja en un pajar: mil cuadros (100 x 10; 50 x 20 en pantallas angostas) con los pocos leídos a fondo este año | El resumen del año (`porRiesgo`, la misma cuenta de la portada de Vigía) |
-    | Procuraduría | Las diez regiones con más casos en trámite y, dentro de cada barra, los que tienen sentencia firme; debajo, las 25 regiones en una tabla | `/v1/corrupcion/region/NN` |
-
-  - **Animaciones** (`publico/animaciones.js`, sólo con JavaScript y sin movimiento reducido: la clase `.anima` en
-    `<html>`): el visor se enciende al abrir; cada bloque con `data-anima` recibe `.visible` al entrar en pantalla, el
-    panel lo recorre una línea de luz y lo de adentro se arma en escalones (`steps()`, como píxeles); las cifras con
-    `data-contar` cuentan desde cero; la consola escribe; la cinta y los paquetes corren mientras se ven. El botón
-    «Pausar animación» del radar (`aria-pressed`) pone `.pausado` y detiene todo lo que se mueve, el recorrido y la
-    consola. El botón de día y noche y el índice (`interfaz.js`) andan también con movimiento reducido. Sin JavaScript
-    todo se ve quieto y completo, de noche; los paneles no salen si la API no respondió.
+    El índice de la cabecera (`SECCIONES`) marca la sección que se está leyendo. En la computadora las cinco puertas van
+    en fila; en la tableta, en filas de dos (la persona a la izquierda, sobre su propio suelo); en el teléfono, una por
+    fila.
+  - **Animaciones:** la gente entra en escena una tras otra, a pasos (CSS, sin JavaScript), parpadea a destiempo y da un
+    saltito al pasar el mouse por su puerta. El radar (`publico/animaciones.js`, sólo con JavaScript y sin movimiento
+    reducido: la clase `.anima` en `<html>`) gira y se enciende; las cifras de los canales cuentan desde cero. El botón
+    «Pausar animación» del radar (`aria-pressed`) pone `.pausado` y detiene todo lo que se mueve. El botón de día y noche
+    y el índice (`interfaz.js`) andan también con movimiento reducido. Sin JavaScript todo se ve quieto y completo, de
+    noche. (`animaciones.js` todavía sabe escribir una consola y correr una cinta: sin esas piezas en la página, no hace
+    nada.)
 - **El radar** (`publico/portada.js` y el CSS de `worker.js`): el Perú en una malla de píxeles verdes (una sola rampa
   para las tres métricas, más brillo con más casos) y la lupa de Gobserva, con su retícula, que lo recorre. Encima, la
   retícula del radar (`RETICULA` en `worker.js`: anillos y rumbos cada 5° con `pathLength="360"`) y un barrido de CSS
@@ -65,14 +55,14 @@ Vigía es un producto de Gobserva. El dominio `gobserva.cloud` (comprado en IONO
   retraso con el `currentTime` de la animación del barrido). Abajo a la derecha, las coordenadas de la lupa en grados y
   minutos. Los canales de arriba (Corrupción, Control, Compras) eligen qué muestra, con la cifra del país. Con el mouse,
   la lupa sigue al puntero; sin tocarla, recorre sola las regiones; con el teclado, las flechas cambian de región. Cada
-  región elegida sale como el evento `gobserva:region`, que escribe la consola. Piezas:
+  región elegida sale como el evento `gobserva:region`. Piezas:
   - `mapa/generar_mapa.py` → `publico/mapa-peru.js`: la malla (58 x 85 celdas, 2,257 píxeles) de los límites de
     `frontend/public/peru-departments.json`, con `geo` (la esquina noroeste y el tamaño de la celda en grados) para las
     coordenadas. El Callao, más chico que una celda, se queda con 3.
   - Al cambiar `portada.js`, `animaciones.js`, `interfaz.js` o la malla, subir `VERSION_JS` en `worker.js`: Cloudflare
     guarda los scripts un día en el navegador.
   - Las cifras: el Worker las pide a la API de Vigía (`VIGIA_API_URL` en `wrangler.jsonc`; la API lo atiende porque
-    `gobserva.cloud` está en `WORKERS_PROPIOS`), son unos 40 pedidos (el plan gratis de Workers admite 50 por visita) y
+    `gobserva.cloud` está en `WORKERS_PROPIOS`), son 26 pedidos (el plan gratis de Workers admite 50 por visita) y
     quedan en la caché de Cloudflare (`CACHE_REGIONES`, hoy `regiones-v2`: cambiarle el nombre si cambia la forma de los
     datos), que se renueva cada 6 horas en segundo plano. Si la API no responde, la página sale igual, con el mapa y un
     enlace a Vigía.
