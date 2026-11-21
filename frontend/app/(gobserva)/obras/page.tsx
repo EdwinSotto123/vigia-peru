@@ -5,10 +5,14 @@ import { BloqueAsistente } from "@/components/gobserva/BloqueAsistente";
 import { FranjaMCP } from "@/components/gobserva/BloqueMCP";
 import { Planes } from "@/components/gobserva/Planes";
 import { BarrasDobles, CaminoObra, type PasoCamino } from "@/components/gobserva-obras/Graficas";
-import { BarraAvance, Cabecera, FaseInsignia, Paso, iconoSector } from "@/components/gobserva-obras/Piezas";
+import { BarraAvance, Cabecera, FaseInsignia, iconoSector } from "@/components/gobserva-obras/Piezas";
 import { planesLicitaciones } from "@/components/licitaciones/planes";
 import { TarjetaProyecto } from "@/components/gobserva-obras/TarjetaProyecto";
 import { Faq } from "@/components/licitaciones/Faq";
+import { EscenaObras } from "@/components/obras/portada/EscenaObras";
+import { PasoIlustrado } from "@/components/obras/portada/PasoIlustrado";
+import { Suelo } from "@/components/pixel/Escena";
+import { Pixel } from "@/components/pixel/Pixel";
 import { claseAccion } from "@/components/ui/EnlaceAccion";
 import { fechaCorta, numero, solesCompacto } from "@/lib/formato";
 import { PRODUCTOS, rutaEn, urlCanonica } from "@/lib/gobserva";
@@ -94,39 +98,9 @@ export default async function InicioObras() {
             </ul>
           </div>
 
-          {/* Invierte.pe e INFOBRAS hoy: cifras vivas. */}
-          <div className="min-w-0 rounded-3xl border border-paper/15 bg-paper/[0.06] p-5 sm:p-6">
-            <p className="flex items-center gap-2 text-meta font-semibold text-maiz">
-              <span aria-hidden className="relative inline-flex h-2.5 w-2.5">
-                <span className="absolute inset-0 rounded-full bg-maiz opacity-60 motion-safe:animate-ping" />
-                <span className="relative h-2.5 w-2.5 rounded-full bg-maiz" />
-              </span>
-              Invierte.pe e INFOBRAS, al día
-            </p>
-            {r ? (
-              <>
-                {/* El monto, a lo ancho (no entra en media columna en el celular); debajo, cuántos proyectos hay en cada paso. */}
-                <dl className="mt-4 grid grid-cols-2 gap-x-4 gap-y-5">
-                  <Vivo valor={solesCompacto(r.porEjecutar)} etiqueta="por ejecutar entre lo que se viene y lo que está en marcha" ancho />
-                  <Vivo valor={numero(r.seVienen)} etiqueta={`proyectos se vienen, por ${solesCompacto(r.seVienenMonto)}`} />
-                  <Vivo valor={numero(r.expediente + r.licitando)} etiqueta="ya tienen expediente técnico o se están licitando" />
-                  <Vivo valor={numero(r.enMarcha)} etiqueta={`obras en marcha, por ${solesCompacto(r.enMarchaMonto)}`} />
-                  <Vivo valor={numero(r.paralizadas)} etiqueta={`obras paralizadas hoy, por ${solesCompacto(r.paralizadasMonto)}`} />
-                </dl>
-                {r.estado && (
-                  <p className="mt-5 border-t border-paper/10 pt-4 text-meta leading-relaxed text-paper/60">
-                    Invierte.pe al {fechaCorta(r.estado.inversionesAl)}, INFOBRAS al {fechaCorta(r.estado.infobrasAl)} y las convocatorias del SEACE, a
-                    diario. {numero(r.nuevos30)} proyectos se declararon viables en los últimos 30 días.
-                  </p>
-                )}
-              </>
-            ) : (
-              <p className="mt-4 text-dato text-paper/70">Las cifras no cargaron ahora. Vuelve en un momento.</p>
-            )}
-            <Link href={ruta("/proyectos")} className="mt-3 inline-flex min-h-11 items-center gap-1 text-dato font-semibold text-maiz underline-offset-4 hover:underline">
-              Ver los que se vienen <ArrowRight size={15} aria-hidden />
-            </Link>
-          </div>
+          {/* Un obrero en su obra cuenta lo que se viene: los proyectos de Invierte.pe e INFOBRAS de hoy, o un ejemplo sin
+              cifras si el resumen no llegó a tiempo. */}
+          <EscenaObras r={r} base={base} className="lg:mt-6" />
         </div>
       </section>
 
@@ -404,19 +378,42 @@ export default async function InicioObras() {
         {/* ── Cómo funciona ───────────────────────────────────────────────────── */}
         <section aria-labelledby="como-t">
           <Cabecera id="como-t" titulo="Cómo funciona" bajada="Tres pasos, sin revisar Invierte.pe, INFOBRAS y el SEACE cada semana." />
-          <ol className="mt-8 grid grid-cols-1 gap-6 md:grid-cols-3 md:gap-8">
-            <Paso n={1} Icono={Landmark} titulo="Dinos qué construyes y dónde" texto="Tus sectores (agua, pistas, colegios, riego), tus regiones y el tamaño de obra que puedes asumir." />
-            <Paso
+          <ol className="mt-8 grid grid-cols-1 gap-8 md:grid-cols-3 md:gap-8">
+            <PasoIlustrado
+              n={1}
+              Icono={Landmark}
+              titulo="Dinos qué construyes y dónde"
+              texto="Tus sectores (agua, pistas, colegios, riego), tus regiones y el tamaño de obra que puedes asumir."
+              ilustracion={
+                <>
+                  <Pixel nombre="obrero" escala={4} retardo={400} />
+                  <Pixel nombre="obra" escala={3} retardo={1200} />
+                </>
+              }
+            />
+            <PasoIlustrado
               n={2}
               Icono={BellRing}
               titulo="Te llega lo nuevo"
               texto={`Los proyectos que se declaran viables, los que aprueban su expediente técnico y los que pasan a licitación, ${cat.correoActivo ? "en tu correo" : "en tu cuenta"}: cada semana con la cuenta gratis, cada mañana con Pro.`}
+              ilustracion={
+                <>
+                  <Pixel nombre="obrero" escala={4} retardo={2100} />
+                  <Pixel nombre="iconoCampana" escala={4.5} acento="accion" className="mb-10" />
+                </>
+              }
             />
-            <Paso
+            <PasoIlustrado
               n={3}
               Icono={Building2}
               titulo="Llega antes y con datos"
               texto="Cuánta plata tiene el proyecto este año, cuánto falta ejecutar, quién ganó obras parecidas en la región y a cuánto."
+              ilustracion={
+                <>
+                  <Pixel nombre="obrero" escala={4} retardo={900} />
+                  <Pixel nombre="documento" escala={4.5} acento="accion" className="mb-3" />
+                </>
+              }
               ultimo
             />
           </ol>
@@ -458,40 +455,41 @@ export default async function InicioObras() {
         {/* ── Tu IA (MCP): la franja; los pasos están en /mcp ─────────────────── */}
         <FranjaMCP que="obras, licitaciones y tu mercado" href={ruta("/mcp")} />
 
-        <Faq
-          preguntas={[
-            {
-              p: "¿De dónde salen los datos?",
-              r: "De fuentes públicas del Estado: las inversiones de Invierte.pe (MEF), con su CUI, sus montos, su fase y su gasto; el avance de cada obra en INFOBRAS (Contraloría), con sus paralizaciones y su contratista; y los procesos del SEACE y de CONOSCE (OECE) que citan el CUI, con quién los ganó. Cada ficha enlaza a la fuente oficial.",
-            },
-            {
-              p: "¿Qué quiere decir que un proyecto «se viene»?",
-              r: "Que es viable o está aprobado, se declaró en los últimos tres años (o tiene presupuesto este año) y todavía no tiene obra en ejecución ni contrato de obra: es el pipeline antes de la licitación. Si ya tiene expediente técnico, lo siguiente es convocar la obra.",
-            },
-            {
-              p: "¿Qué tan al día está?",
-              r: "Invierte.pe e INFOBRAS se cargan cada semana y las convocatorias del SEACE, a diario. El avance de una obra lo registra cada entidad en INFOBRAS y puede llegar con meses de atraso: cada ficha dice a qué fecha corresponde.",
-            },
-            {
-              p: "¿Puedo saber quién construye una obra?",
-              r: "Sí, cuando es una empresa (RUC 20): INFOBRAS y el SEACE lo publican, y de un consorcio mostramos sus empresas integrantes. De las personas naturales no mostramos nombres.",
-            },
-            { p: "¿Reemplaza al SEACE?", r: "No. Las ofertas se presentan en el SEACE, como siempre. Gobserva Obras te avisa antes y te da contexto para decidir; cada proyecto enlaza a sus procesos y a sus fichas oficiales." },
-            { p: "¿Es legal usar esta información?", r: "Sí. Son datos públicos que el Estado publica por ley (transparencia y datos abiertos). Gobserva los ordena y los cruza; no vende datos personales ni nombra a personas naturales." },
-            { p: "¿Cómo pago un plan?", r: "Con tarjeta de crédito o débito por Mercado Pago, que se cobra cada mes, o con Yape o Plin por 1, 3, 6 o 12 meses. Cada pago queda en tu cuenta con su comprobante; si necesitas factura para tu empresa, escríbenos." },
-          ]}
-        />
+        {/* Las preguntas, con el obrero y su cono parados encima del título (la portada no tiene banda de cierre). */}
+        <div>
+          <div aria-hidden className="mb-5 w-fit select-none">
+            <div className="flex items-end gap-2 px-2">
+              <Pixel nombre="obrero" escala={3.5} retardo={1600} />
+              <Pixel nombre="cono" escala={3.5} />
+            </div>
+            <Suelo />
+          </div>
+          <Faq
+            preguntas={[
+              {
+                p: "¿De dónde salen los datos?",
+                r: "De fuentes públicas del Estado: las inversiones de Invierte.pe (MEF), con su CUI, sus montos, su fase y su gasto; el avance de cada obra en INFOBRAS (Contraloría), con sus paralizaciones y su contratista; y los procesos del SEACE y de CONOSCE (OECE) que citan el CUI, con quién los ganó. Cada ficha enlaza a la fuente oficial.",
+              },
+              {
+                p: "¿Qué quiere decir que un proyecto «se viene»?",
+                r: "Que es viable o está aprobado, se declaró en los últimos tres años (o tiene presupuesto este año) y todavía no tiene obra en ejecución ni contrato de obra: es el pipeline antes de la licitación. Si ya tiene expediente técnico, lo siguiente es convocar la obra.",
+              },
+              {
+                p: "¿Qué tan al día está?",
+                r: "Invierte.pe e INFOBRAS se cargan cada semana y las convocatorias del SEACE, a diario. El avance de una obra lo registra cada entidad en INFOBRAS y puede llegar con meses de atraso: cada ficha dice a qué fecha corresponde.",
+              },
+              {
+                p: "¿Puedo saber quién construye una obra?",
+                r: "Sí, cuando es una empresa (RUC 20): INFOBRAS y el SEACE lo publican, y de un consorcio mostramos sus empresas integrantes. De las personas naturales no mostramos nombres.",
+              },
+              { p: "¿Reemplaza al SEACE?", r: "No. Las ofertas se presentan en el SEACE, como siempre. Gobserva Obras te avisa antes y te da contexto para decidir; cada proyecto enlaza a sus procesos y a sus fichas oficiales." },
+              { p: "¿Es legal usar esta información?", r: "Sí. Son datos públicos que el Estado publica por ley (transparencia y datos abiertos). Gobserva los ordena y los cruza; no vende datos personales ni nombra a personas naturales." },
+              { p: "¿Cómo pago un plan?", r: "Con tarjeta de crédito o débito por Mercado Pago, que se cobra cada mes, o con Yape o Plin por 1, 3, 6 o 12 meses. Cada pago queda en tu cuenta con su comprobante; si necesitas factura para tu empresa, escríbenos." },
+            ]}
+          />
+        </div>
       </div>
     </>
-  );
-}
-
-function Vivo({ valor, etiqueta, ancho = false }: { valor: string; etiqueta: string; ancho?: boolean }) {
-  return (
-    <div className={ancho ? "col-span-2 flex min-w-0 flex-col-reverse border-b border-paper/10 pb-4" : "flex min-w-0 flex-col-reverse"}>
-      <dt className="mt-1.5 text-meta leading-snug text-paper/65">{etiqueta}</dt>
-      <dd className={ancho ? "font-display text-titulo font-bold leading-none tabular-nums text-maiz" : "font-display text-cifra font-bold leading-none tabular-nums text-paper"}>{valor}</dd>
-    </div>
   );
 }
 

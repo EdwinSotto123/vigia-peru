@@ -4,6 +4,7 @@ import { BellPlus, Building2, ChartNoAxesColumn, Coins, Search, Trophy, Users, U
 import { CabeceraPagina, CLASE_ENLACE_PIE, Caja, Pagina } from "@/components/gobserva/app/Caja";
 import { BarrasLista, BarrasMes } from "@/components/licitaciones-app/mercado/Graficos";
 import { EstadoError, EstadoVacio } from "@/components/gobserva/ui/Estados";
+import { VacioEmprendedora } from "@/components/licitaciones/Piezas";
 import { TablaDatos } from "@/components/gobserva/ui/TablaDatos";
 import { claseAccion } from "@/components/ui/EnlaceAccion";
 import { getMercado, limpiar, type Proveedor } from "@/lib/licitaciones";
@@ -91,7 +92,7 @@ export default async function Mercado({ searchParams }: { searchParams?: { q?: s
         </Caja>
       ) : m.procesos === 0 ? (
         <Caja>
-          <EstadoVacio Icono={Search} titulo={`Sin adjudicaciones de «${q}» en 12 meses`} texto="Prueba con otra palabra, más general o como la escribiría una entidad." />
+          <VacioEmprendedora titulo={`Sin adjudicaciones de «${q}» en 12 meses`} texto="Prueba con otra palabra, más general o como la escribiría una entidad." />
         </Caja>
       ) : (
         <div className="grid grid-cols-[minmax(0,1fr)] gap-4 sm:gap-6">

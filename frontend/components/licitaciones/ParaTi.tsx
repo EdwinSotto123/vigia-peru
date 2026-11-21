@@ -24,8 +24,8 @@ import {
 import { tituloNatural } from "@/lib/landing";
 import { REGIONES_UBIGEO, TIPOS, cierreMenor, limpiar, nombreRegion, nombreTipo } from "@/lib/licitaciones";
 import { cn } from "@/lib/utils";
-import { ChipTipo } from "./Piezas";
-import { CLASE_ENLACE_PIE, Caja, VacioCaja } from "@/components/gobserva/app/Caja";
+import { ChipTipo, VacioEmprendedora } from "./Piezas";
+import { CLASE_ENLACE_PIE, Caja } from "@/components/gobserva/app/Caja";
 
 /**
  * «Para ti» (2026-11-07): la empresa dice lo que vende, en sus palabras (una línea de negocio), y ve las licitaciones y
@@ -187,8 +187,8 @@ function Resultados({ base, linea }: { base: string; linea: Linea }) {
       }
     >
       {!data.length ? (
-        <VacioCaja
-          Icono={Sparkles}
+        <VacioEmprendedora
+          className="py-8 sm:py-10"
           titulo="Nada abierto parecido a esta línea ahora"
           texto={`Prueba con otras palabras${linea.regiones.length || linea.tipos.length ? " o con menos regiones y tipos" : ""}: salen nuevas cada hora.`}
         />

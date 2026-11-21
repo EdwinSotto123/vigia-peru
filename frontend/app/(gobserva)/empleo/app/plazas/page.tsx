@@ -1,15 +1,15 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Suspense } from "react";
-import { BellRing, RotateCcw, SearchX, X } from "lucide-react";
-import { CabeceraPagina, Caja, Pagina, VacioCaja } from "@/components/gobserva/app/Caja";
+import { BellRing, RotateCcw, X } from "lucide-react";
+import { CabeceraPagina, Caja, Pagina } from "@/components/gobserva/app/Caja";
+import { EstadoPostulante } from "@/components/empleo/EstadoPostulante";
 import { FiltrosPlazas, OrdenPlazas } from "@/components/empleo/FiltrosPlazas";
 import { TarjetaPlaza } from "@/components/empleo/TarjetaPlaza";
 import { AplicarPerfil, SelectorParaTi } from "@/components/empleo-app/SelectorParaTi";
 import { carrerasDeAlerta, textosMotivo } from "@/lib/empleo-app/entrevista";
 import { AccionesBusqueda } from "@/components/gobserva/cuenta/AccionesBusqueda";
 import { EstrellaSeguir } from "@/components/licitaciones-app/seguimiento/BotonSeguir";
-import { EstadoError } from "@/components/gobserva/ui/Estados";
 import { Paginacion } from "@/components/gobserva/ui/Paginacion";
 import { claseAccion } from "@/components/ui/EnlaceAccion";
 import { NIVEL, claveDeSlug, entidadNombre, filtrosDeUrl, getPlazasEmpleo, nombreRegion, puesto, qsEmpleo, type FiltrosEmpleo } from "@/lib/empleo";
@@ -131,7 +131,8 @@ export default async function PlazasApp({ searchParams }: Props) {
             <AplicarPerfil base={base} filtros={f} />
           ) : !d ? (
             <Caja className="mt-4">
-              <EstadoError
+              <EstadoPostulante
+                alerta
                 titulo="No pudimos leer las plazas ahora"
                 texto="Suele pasar un momento. Vuelve a intentarlo: tu búsqueda se mantiene."
                 acciones={
@@ -143,24 +144,22 @@ export default async function PlazasApp({ searchParams }: Props) {
             </Caja>
           ) : d.data.length === 0 ? (
             <Caja className="mt-4">
-              <VacioCaja
-                Icono={SearchX}
+              <EstadoPostulante
+                compacto
                 titulo={d.total > 0 ? "Esta página ya no tiene plazas" : "No hay plazas abiertas con estos filtros"}
                 texto={
                   d.total > 0
                     ? `La búsqueda tiene ${numero(d.total)} plazas: entran en ${numero(paginas)} páginas.`
                     : "Quita algún filtro o busca con otra palabra: la profesión en vez del cargo («enfermera» en vez de «licenciada en enfermería»). Guarda la búsqueda como alerta y te avisamos cuando aparezca una."
                 }
-                accion={
-                  <div className="flex flex-wrap justify-center gap-2">
-                    {d.total > 0 ? (
-                      <Link href={`${lista}${qsEmpleo({ ...f, page: undefined })}`} className={claseAccion("primario")}>Ir a la primera página</Link>
-                    ) : (
-                      <Link href={lista} className={claseAccion("primario")}>
-                        <BellRing size={15} aria-hidden /> Ver todas las plazas
-                      </Link>
-                    )}
-                  </div>
+                acciones={
+                  d.total > 0 ? (
+                    <Link href={`${lista}${qsEmpleo({ ...f, page: undefined })}`} className={claseAccion("primario")}>Ir a la primera página</Link>
+                  ) : (
+                    <Link href={lista} className={claseAccion("primario")}>
+                      <BellRing size={15} aria-hidden /> Ver todas las plazas
+                    </Link>
+                  )
                 }
               />
             </Caja>

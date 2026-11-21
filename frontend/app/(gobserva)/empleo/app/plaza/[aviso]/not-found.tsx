@@ -1,18 +1,16 @@
 import Link from "next/link";
-import { FileQuestion } from "lucide-react";
 import { Caja, Pagina } from "@/components/gobserva/app/Caja";
-import { EstadoVacio } from "@/components/gobserva/ui/Estados";
+import { EstadoPostulante } from "@/components/empleo/EstadoPostulante";
 import { claseAccion } from "@/components/ui/EnlaceAccion";
 import { rutaEn } from "@/lib/gobserva";
 import { baseProducto } from "@/lib/gobserva-servidor";
 
-/** Una plaza que no está (un enlace viejo o mal copiado): qué pasó y el camino de vuelta. */
+/** Una plaza que no está (un enlace viejo o mal copiado): qué pasó y el camino de vuelta, con el postulante que pregunta. */
 export default function NoEncontrada() {
   return (
     <Pagina>
       <Caja>
-        <EstadoVacio
-          Icono={FileQuestion}
+        <EstadoPostulante
           titulo="No encontramos esa plaza"
           texto="Puede que el enlace esté incompleto o que SERVIR ya no la publique. Búscala en Plazas por su puesto o su entidad."
           acciones={

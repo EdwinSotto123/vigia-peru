@@ -1,5 +1,5 @@
 import { cn } from "@/lib/utils";
-import { Pixel } from "./Pixel";
+import { Pixel } from "@/components/pixel/Pixel";
 
 /**
  * Las escenas chicas de Gobserva Salud, armadas con los sprites de píxeles: siempre decorativas (aria-hidden), porque

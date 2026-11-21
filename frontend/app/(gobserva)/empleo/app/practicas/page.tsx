@@ -1,9 +1,9 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Building2, CalendarClock, Clock, GraduationCap, MapPin, RotateCcw, Search, SearchX } from "lucide-react";
-import { CabeceraPagina, Caja, Pagina, VacioCaja } from "@/components/gobserva/app/Caja";
+import { Building2, CalendarClock, Clock, GraduationCap, MapPin, RotateCcw, Search } from "lucide-react";
+import { CabeceraPagina, Caja, Pagina } from "@/components/gobserva/app/Caja";
+import { EstadoPostulante } from "@/components/empleo/EstadoPostulante";
 import { Chip, tonoCierre } from "@/components/empleo/TarjetaPlaza";
-import { EstadoError } from "@/components/gobserva/ui/Estados";
 import { Paginacion } from "@/components/gobserva/ui/Paginacion";
 import { claseAccion } from "@/components/ui/EnlaceAccion";
 import { diasParaCierre, entidadNombre, lugar, nombreRegion, puesto, slugRegion, textoCierre } from "@/lib/empleo";
@@ -109,7 +109,8 @@ export default async function PracticasApp({ searchParams }: Props) {
 
       {!d ? (
         <Caja>
-          <EstadoError
+          <EstadoPostulante
+            alerta
             titulo="No pudimos leer las prácticas ahora"
             texto="Suele pasar un momento. Vuelve a intentarlo: tu búsqueda se mantiene."
             acciones={
@@ -121,11 +122,11 @@ export default async function PracticasApp({ searchParams }: Props) {
         </Caja>
       ) : d.data.length === 0 ? (
         <Caja>
-          <VacioCaja
-            Icono={SearchX}
+          <EstadoPostulante
+            compacto
             titulo="No hay prácticas abiertas con estos filtros"
             texto="Prueba con otra carrera o quita la región. Las entidades publican prácticas nuevas casi todos los días."
-            accion={<Link href={lista} className={claseAccion("primario")}>Ver todas las prácticas</Link>}
+            acciones={<Link href={lista} className={claseAccion("primario")}>Ver todas las prácticas</Link>}
           />
         </Caja>
       ) : (

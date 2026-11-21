@@ -1,12 +1,13 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
 import Link from "next/link";
-import { BellRing, Building2, ChartNoAxesCombined, Landmark, SearchX, Wallet, X } from "lucide-react";
+import { BellRing, Building2, ChartNoAxesCombined, Landmark, Wallet, X } from "lucide-react";
 import { AccionesBusqueda } from "@/components/gobserva/cuenta/AccionesBusqueda";
 import { FacetasProyectos, FiltrosProyectos } from "@/components/gobserva-obras/Filtros";
 import { Paginador, TiraCifras } from "@/components/gobserva-obras/Piezas";
 import { FilaProyecto } from "@/components/gobserva-obras/TarjetaProyecto";
 import { Nota } from "@/components/patrones/Estructura";
+import { PersonajePregunta } from "@/components/pixel/Escena";
 import { claseAccion } from "@/components/ui/EnlaceAccion";
 import { numero, plural, soles, solesCompacto } from "@/lib/formato";
 import { rutaEn, urlCanonica } from "@/lib/gobserva";
@@ -182,7 +183,10 @@ export default async function Proyectos({ searchParams }: Props) {
 
       {!d ? (
         <div className="mt-8 flex flex-col items-start gap-3 rounded-2xl border border-line bg-paperSoft p-6 sm:flex-row sm:items-center sm:justify-between">
-          <p className="text-dato text-inkSoft">No pudimos leer los proyectos ahora. Suele ser momentáneo: vuelve a intentarlo en unos segundos.</p>
+          <div className="flex min-w-0 items-center gap-4">
+            <PersonajePregunta nombre="obrero" escala={2.5} className="shrink-0" />
+            <p className="text-dato text-inkSoft">No pudimos leer los proyectos ahora. Suele ser momentáneo: vuelve a intentarlo en unos segundos.</p>
+          </div>
           <a href={`${lista}${qsObras(f)}`} className={claseAccion("secundario", "min-h-11 shrink-0")}>
             Volver a intentar
           </a>
@@ -206,7 +210,7 @@ export default async function Proyectos({ searchParams }: Props) {
 
             {d.data.length === 0 ? (
               <div className="mt-5 rounded-3xl border border-line bg-paper p-6 text-center sm:p-10">
-                <SearchX size={36} aria-hidden className="mx-auto text-mute" />
+                <PersonajePregunta nombre="obrero" escala={3} />
                 <h2 className="mt-4 font-display text-seccion font-bold text-ink">Ningún proyecto con estos filtros</h2>
                 <p className="mx-auto mt-2 max-w-[56ch] text-dato leading-relaxed text-inkSoft">
                   Quita un filtro, prueba con menos palabras (el sector en vez del nombre exacto) o busca en todas las fases.

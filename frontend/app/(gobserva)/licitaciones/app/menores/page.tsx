@@ -1,11 +1,12 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Suspense } from "react";
-import { Clock, Inbox, RotateCcw, Sparkle, Timer } from "lucide-react";
+import { Clock, RotateCcw, Sparkle, Timer } from "lucide-react";
 import { CabeceraPagina, Caja, Pagina } from "@/components/gobserva/app/Caja";
 import { BarraMenores, HerramientasMenores, ResultadosMenores } from "@/components/licitaciones-app/menores/Barra";
 import { TablaMenores } from "@/components/licitaciones-app/menores/TablaMenores";
-import { EstadoError, EstadoVacio } from "@/components/gobserva/ui/Estados";
+import { EstadoError } from "@/components/gobserva/ui/Estados";
+import { VacioEmprendedora } from "@/components/licitaciones/Piezas";
 import { Paginacion } from "@/components/gobserva/ui/Paginacion";
 import { claseAccion } from "@/components/ui/EnlaceAccion";
 import { getMenores } from "@/lib/licitaciones";
@@ -78,8 +79,7 @@ export default async function Menores({ searchParams }: { searchParams?: Record<
                   pie={r.total > 0 ? <Paginacion pagina={Math.min(f.pag, paginas)} paginas={paginas} total={r.total} tamano={f.tam} href={(n) => url({ ...f, pag: n })} nombre="contratos" /> : undefined}
                 >
                   {r.data.length === 0 ? (
-                    <EstadoVacio
-                      Icono={Inbox}
+                    <VacioEmprendedora
                       titulo="Ningún contrato menor abierto con esos filtros"
                       texto={activosMenores(f) > 0 ? "Prueba con menos filtros u otra palabra: salen nuevos cada hora." : "Ahora no hay contratos menores abiertos. Salen nuevos cada hora."}
                       acciones={

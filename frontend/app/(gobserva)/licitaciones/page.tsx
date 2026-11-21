@@ -1,14 +1,16 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import Link from "next/link";
-import { ArrowRight, Bot, Check, EyeOff, HardHat, Landmark, LineChart, Megaphone, Timer } from "lucide-react";
+import { ArrowRight, Bot, Check, HardHat, Landmark, LineChart, Timer } from "lucide-react";
 import { BloqueAsistente } from "@/components/gobserva/BloqueAsistente";
 import { FranjaMCP } from "@/components/gobserva/BloqueMCP";
 import { Planes } from "@/components/gobserva/Planes";
 import { Faq } from "@/components/licitaciones/Faq";
 import { planesLicitaciones } from "@/components/licitaciones/planes";
 import { MaquetaAviso, MaquetaContexto, MaquetaLinea, MaquetaMenores, MaquetaParaTi } from "@/components/licitaciones/portada/Maquetas";
-import { RadarOportunidades } from "@/components/licitaciones/portada/RadarOportunidades";
+import { EscenaLicitaciones } from "@/components/licitaciones/portada/EscenaLicitaciones";
+import { Pixel } from "@/components/pixel/Pixel";
+import type { NombreSprite } from "@/components/pixel/sprites";
 import { claseAccion } from "@/components/ui/EnlaceAccion";
 import { rutaEn, urlCanonica } from "@/lib/gobserva";
 import { planesServidor } from "@/lib/gobserva-planes";
@@ -63,7 +65,7 @@ export default async function InicioLicitaciones() {
               ))}
             </ul>
           </div>
-          <RadarOportunidades />
+          <EscenaLicitaciones className="lg:mt-6" />
         </div>
       </section>
 
@@ -80,14 +82,14 @@ export default async function InicioLicitaciones() {
             </p>
           </div>
           <ul className="min-w-0 divide-y divide-line border-y border-line">
-            <Problema Icono={Megaphone} titulo="Lo tuyo se pierde entre todo lo demás">
+            <Problema sprite="iconoCaja" titulo="Lo tuyo se pierde entre todo lo demás">
               Cada día se publican compras nuevas de todas las entidades y todos los rubros. Revisarlas a mano se come la mañana, y la que era
               para ti pasa de largo.
             </Problema>
-            <Problema Icono={Timer} titulo="Los contratos menores no esperan">
+            <Problema sprite="iconoCalendario" titulo="Los contratos menores no esperan">
               Las compras de hasta 8 UIT reciben cotizaciones por pocos días, a veces por horas. Si no la ves a tiempo, ya cerró.
             </Problema>
-            <Problema Icono={EyeOff} titulo="Se oferta a ciegas">
+            <Problema sprite="pregunta" titulo="Se oferta a ciegas">
               No sabes quién le vende a esa entidad, a qué precio se adjudicó lo mismo en otra ni cuántos compiten. El precio se pone adivinando.
             </Problema>
           </ul>
@@ -101,18 +103,24 @@ export default async function InicioLicitaciones() {
             bajada="El primer paso lo haces tú, una sola vez. Los demás corren solos todos los días."
           />
           <ol className="relative mt-12 space-y-14 sm:space-y-20">
-            <Paso n={1} titulo="Dinos qué vendes" maqueta={<MaquetaLinea />}>
+            <Paso n={1} titulo="Dinos qué vendes" maqueta={<MaquetaLinea />} ilustracion={<Pixel nombre="emprendedora" escala={2} retardo={1800} />}>
               En tus palabras, con las regiones donde atiendes y lo que compras. Es tu línea de negocio: con ella ordenamos todo lo demás.
             </Paso>
-            <Paso n={2} titulo="Te mostramos lo que calza" maqueta={<MaquetaParaTi />} accion={{ href: ruta("/para-ti"), etiqueta: "Así se ve «Para ti»" }}>
+            <Paso
+              n={2}
+              titulo="Te mostramos lo que calza"
+              maqueta={<MaquetaParaTi />}
+              accion={{ href: ruta("/para-ti"), etiqueta: "Así se ve «Para ti»" }}
+              ilustracion={<Pixel nombre="iconoLupa" escala={2.75} acento="accion" />}
+            >
               En «Para ti» están las licitaciones y los contratos menores abiertos, de lo que más se parece a lo que vendes a lo que menos, con un
               puntaje de afinidad de 0 a 100.
             </Paso>
-            <Paso n={3} titulo="Te avisamos a tiempo" maqueta={<MaquetaAviso correo={cat.correoActivo} />}>
+            <Paso n={3} titulo="Te avisamos a tiempo" maqueta={<MaquetaAviso correo={cat.correoActivo} />} ilustracion={<Pixel nombre="iconoCampana" escala={2.75} acento="accion" />}>
               Lo nuevo llega {cat.correoActivo ? "a tu correo" : "a tu cuenta"} y como notificación a tu celular: con la cuenta gratis, cada semana;
               con un plan, cada mañana. Y te recordamos lo que guardaste 2 días antes de que cierre.
             </Paso>
-            <Paso n={4} titulo="Ofertas sabiendo contra quién compites" maqueta={<MaquetaContexto />} ultimo>
+            <Paso n={4} titulo="Ofertas sabiendo contra quién compites" maqueta={<MaquetaContexto />} ilustracion={<Pixel nombre="documento" escala={2.5} acento="accion" />} ultimo>
               Antes de cotizar ves quién le vende a esa entidad, a qué precio se adjudicó lo mismo en otras y cuántos suelen competir. Todo con el
               enlace a la fuente oficial.
             </Paso>
@@ -223,13 +231,19 @@ export default async function InicioLicitaciones() {
                 Crea tu cuenta, dinos qué vendes y mira hoy mismo lo que calza contigo. Gratis y sin tarjeta.
               </p>
             </div>
-            <div className="flex flex-col gap-3 sm:flex-row lg:flex-col">
-              <Link href={crear} className={claseAccion("oscuro", "", "lg")}>
-                Crear mi cuenta gratis <ArrowRight size={18} aria-hidden />
-              </Link>
-              <Link href={ruta("/planes")} className={claseAccion("contornoOscuro", "", "lg")}>
-                Ver planes
-              </Link>
+            <div className="min-w-0">
+              <div aria-hidden className="mb-5 flex items-end gap-3">
+                <Pixel nombre="emprendedora" escala={4} retardo={1600} />
+                <Pixel nombre="camion" escala={4} />
+              </div>
+              <div className="flex flex-col gap-3 sm:flex-row lg:flex-col">
+                <Link href={crear} className={claseAccion("oscuro", "", "lg")}>
+                  Crear mi cuenta gratis <ArrowRight size={18} aria-hidden />
+                </Link>
+                <Link href={ruta("/planes")} className={claseAccion("contornoOscuro", "", "lg")}>
+                  Ver planes
+                </Link>
+              </div>
             </div>
           </div>
         </section>
@@ -256,13 +270,21 @@ function Cabecera({ id, titulo, bajada, accion }: { id: string; titulo: string; 
   );
 }
 
-/** Un problema de hoy: el título fuerte a la izquierda y la explicación al lado (desde sm), separados por filetes. */
-function Problema({ Icono, titulo, children }: { Icono: typeof Timer; titulo: string; children: ReactNode }) {
+/** El tamaño de cada viñeta de píxeles en su cuadro de 48 px. */
+const ESCALA_PROBLEMA: Partial<Record<NombreSprite, number>> = { iconoCaja: 2.5, iconoCalendario: 2.5, pregunta: 3.25 };
+
+/**
+ * Un problema de hoy: su viñeta de píxeles en un cuadro (como las situaciones de Salud), el título fuerte a la izquierda
+ * y la explicación al lado (desde sm), separados por filetes.
+ */
+function Problema({ sprite, titulo, children }: { sprite: NombreSprite; titulo: string; children: ReactNode }) {
   return (
     <li className="grid gap-3 py-6 sm:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)] sm:gap-8 sm:py-8">
-      <h3 className="flex items-start gap-3 font-display text-bloque font-bold leading-snug text-ink">
-        <Icono size={20} aria-hidden className="mt-0.5 shrink-0 text-granate" />
-        {titulo}
+      <h3 className="flex items-center gap-3.5 font-display text-bloque font-bold leading-snug text-ink sm:items-start">
+        <span aria-hidden className="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-paperDeep">
+          <Pixel nombre={sprite} escala={ESCALA_PROBLEMA[sprite] ?? 2.5} acento="accion" />
+        </span>
+        <span className="min-w-0 sm:pt-1">{titulo}</span>
       </h3>
       <p className="text-pretty text-dato leading-relaxed text-inkSoft">{children}</p>
     </li>
@@ -270,8 +292,8 @@ function Problema({ Icono, titulo, children }: { Icono: typeof Timer; titulo: st
 }
 
 /**
- * Un paso de «Cómo funciona»: el número sobre una línea que baja al siguiente, el título, una frase y su maqueta al lado
- * (desde lg; en el celular, debajo).
+ * Un paso de «Cómo funciona»: el número sobre una línea que baja al siguiente, el título (con su viñeta de píxeles,
+ * decorativa), una frase y su maqueta al lado (desde lg; en el celular, debajo).
  */
 function Paso({
   n,
@@ -279,6 +301,7 @@ function Paso({
   children,
   maqueta,
   accion,
+  ilustracion,
   ultimo = false,
 }: {
   n: number;
@@ -286,6 +309,8 @@ function Paso({
   children: ReactNode;
   maqueta: ReactNode;
   accion?: { href: string; etiqueta: string };
+  /** Una viñeta de píxeles junto al título: un personaje o un ícono, decorativa. */
+  ilustracion?: ReactNode;
   ultimo?: boolean;
 }) {
   return (
@@ -298,9 +323,16 @@ function Paso({
       </span>
       {!ultimo && <span aria-hidden className="absolute bottom-[-3.5rem] left-5 top-12 w-px bg-line sm:bottom-[-5rem] sm:left-[1.375rem] sm:top-14" />}
       <div className="min-w-0 pt-1.5 lg:pt-2">
-        <h3 className="font-display text-seccion font-bold leading-tight text-ink sm:text-cifra">
-          <span className="sr-only">Paso {n}: </span>
-          {titulo}
+        <h3 className="flex items-center gap-3 font-display text-seccion font-bold leading-tight text-ink sm:text-cifra">
+          {ilustracion && (
+            <span aria-hidden className="flex w-9 shrink-0 justify-center">
+              {ilustracion}
+            </span>
+          )}
+          <span className="min-w-0">
+            <span className="sr-only">Paso {n}: </span>
+            {titulo}
+          </span>
         </h3>
         <p className="mt-3 max-w-[50ch] text-pretty text-cuerpo leading-relaxed text-inkSoft">{children}</p>
         {accion && (

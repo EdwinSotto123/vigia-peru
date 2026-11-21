@@ -1,12 +1,15 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import Link from "next/link";
-import { ArrowRight, Bot, CalendarDays, Check, EyeOff, Map, Search, Sparkles, Timer } from "lucide-react";
+import { ArrowRight, Bot, CalendarDays, Check, Search, Sparkles, type LucideIcon } from "lucide-react";
 import { BloqueAsistente } from "@/components/gobserva/BloqueAsistente";
 import { FranjaMCP } from "@/components/gobserva/BloqueMCP";
 import { Planes } from "@/components/gobserva/Planes";
-import { AvisosDeLaManana } from "@/components/empleo/portada/AvisosDeLaManana";
+import { EscenaEmpleo } from "@/components/empleo/portada/EscenaEmpleo";
 import { MaquetaAviso, MaquetaEntrevista, MaquetaFicha, MaquetaParaTi, MaquetaTablero } from "@/components/empleo/portada/Maquetas";
+import { Suelo } from "@/components/pixel/Escena";
+import { Pixel } from "@/components/pixel/Pixel";
+import type { NombreSprite } from "@/components/pixel/sprites";
 import { planesEmpleo } from "@/components/empleo/planes";
 import { Faq } from "@/components/licitaciones/Faq";
 import { claseAccion } from "@/components/ui/EnlaceAccion";
@@ -24,9 +27,10 @@ export const metadata: Metadata = {
 /**
  * Portada de Gobserva Empleo (rehecha el 2026-11-08: el usuario, «se ve horrible, no comunica, no dice nada»; antes era un
  * tablero de cifras y listas). Un relato, como la de Licitaciones y sin buscador ni cifras vivas: la oferta con lo
- * memorable (el celular al que le llegan las plazas a las 7:00), el problema de buscar trabajo en el Estado, cómo
- * funciona en cuatro pasos con su maqueta, el tablero de postulaciones, los planes, la IA, las preguntas y el cierre.
- * Las búsquedas y los datos viven en Plazas y en la app. Lo único que pide a la API son los planes.
+ * memorable (el postulante frente al tablero, al que le llegan las plazas a las 7:00), el problema de buscar trabajo en
+ * el Estado, cómo funciona en cuatro pasos con su maqueta, el tablero de postulaciones, los planes, la IA, las preguntas
+ * y el cierre. Las búsquedas y los datos viven en Plazas y en la app. Lo único que pide a la API son los planes.
+ * Los personajes y los íconos de píxeles (2026-11-20, como en Salud) son decorativos: el texto de al lado dice lo mismo.
  */
 export default async function InicioEmpleo() {
   const base = baseProducto("empleo");
@@ -65,7 +69,7 @@ export default async function InicioEmpleo() {
               ))}
             </ul>
           </div>
-          <AvisosDeLaManana />
+          <EscenaEmpleo className="lg:mt-6" />
         </div>
       </section>
 
@@ -81,14 +85,14 @@ export default async function InicioEmpleo() {
             </p>
           </div>
           <ul className="min-w-0 divide-y divide-line border-y border-line">
-            <Problema Icono={Map} titulo="Las plazas están regadas">
+            <Problema sprite="entidad" titulo="Las plazas están regadas">
               Cada entidad publica sus convocatorias en su web y en SERVIR. Revisar cientos de entidades cada día no es posible, y la plaza que era
               para ti pasa de largo.
             </Problema>
-            <Problema Icono={Timer} titulo="Cierran en pocos días">
+            <Problema sprite="iconoCalendario" titulo="Cierran en pocos días">
               Una convocatoria CAS recibe postulaciones por unos pocos días. Si te enteras el último, ya no alcanzas a juntar tus papeles.
             </Problema>
-            <Problema Icono={EyeOff} titulo="Postulas sin saber lo que pasa adentro">
+            <Problema sprite="pregunta" titulo="Postulas sin saber lo que pasa adentro">
               No sabes si cumples lo que piden, si el sueldo es bueno para ese puesto ni si la plaza ya tiene a alguien de la casa esperándola.
             </Problema>
           </ul>
@@ -98,19 +102,24 @@ export default async function InicioEmpleo() {
         <section aria-labelledby="como-t">
           <Cabecera id="como-t" titulo="Cómo funciona" bajada="Lo primero lo haces tú, una sola vez y en dos minutos. Lo demás corre solo." />
           <ol className="relative mt-12 space-y-14 sm:space-y-20">
-            <Paso n={1} titulo="Cuéntanos qué buscas" maqueta={<MaquetaEntrevista />}>
+            <Paso n={1} titulo="Cuéntanos qué buscas" maqueta={<MaquetaEntrevista />} ilustracion={<Pixel nombre="postulante" escala={3} retardo={1200} />}>
               Siete preguntas en un chat: qué trabajo buscas, hasta dónde estudiaste, cuánta experiencia tienes, dónde quieres trabajar y desde qué
               sueldo. Tocas las respuestas o las escribes.
             </Paso>
-            <Paso n={2} titulo="Te mostramos las plazas para ti" maqueta={<MaquetaParaTi />}>
+            <Paso n={2} titulo="Te mostramos las plazas para ti" maqueta={<MaquetaParaTi />} ilustracion={<Pixel nombre="iconoLupa" escala={4} acento="accion" />}>
               En «Para ti» están solo las plazas abiertas que puedes postular, de las que cierran primero a las últimas, con lo que pagan y lo que
               piden. Guardas las que te interesan con una estrella.
             </Paso>
-            <Paso n={3} titulo="Te avisamos a tiempo" maqueta={<MaquetaAviso correo={cat.correoActivo} />}>
+            <Paso
+              n={3}
+              titulo="Te avisamos a tiempo"
+              maqueta={<MaquetaAviso correo={cat.correoActivo} />}
+              ilustracion={<Pixel nombre="iconoCampana" escala={4} acento="accion" />}
+            >
               Cuando sale una plaza nueva que calza contigo, te llega {cat.correoActivo ? "a tu correo" : "a tu cuenta"} y a tu celular: cada semana
               con la cuenta gratis, cada mañana con un plan. Y 2 días antes de que cierre una plaza que guardaste, te lo recordamos.
             </Paso>
-            <Paso n={4} titulo="Postulas sabiendo lo que nadie te dice" maqueta={<MaquetaFicha />} ultimo>
+            <Paso n={4} titulo="Postulas sabiendo lo que nadie te dice" maqueta={<MaquetaFicha />} ilustracion={<Pixel nombre="documento" escala={4} acento="accion" />} ultimo>
               Cada plaza te dice si cumples sus requisitos, cuánto pagan otras entidades por el mismo puesto y lo que conviene saber antes de postular:
               si pide experiencia en la misma entidad o si ya hay alguien haciendo ese trabajo por órdenes de servicio.
             </Paso>
@@ -220,13 +229,19 @@ export default async function InicioEmpleo() {
                 Crea tu cuenta, cuéntanos qué buscas y mira hoy mismo las plazas que puedes postular. Gratis y sin tarjeta.
               </p>
             </div>
-            <div className="flex flex-col gap-3 sm:flex-row lg:flex-col">
-              <Link href={crear} className={claseAccion("oscuro", "", "lg")}>
-                Crear mi cuenta gratis <ArrowRight size={18} aria-hidden />
-              </Link>
-              <Link href={ruta("/plazas")} className={claseAccion("contornoOscuro", "", "lg")}>
-                Ver las plazas abiertas
-              </Link>
+            <div className="min-w-0">
+              <div aria-hidden className="mb-5 flex items-end gap-3">
+                <Pixel nombre="postulante" escala={4} retardo={1600} />
+                <Pixel nombre="doctora" escala={4} retardo={300} />
+              </div>
+              <div className="flex flex-col gap-3 sm:flex-row lg:flex-col">
+                <Link href={crear} className={claseAccion("oscuro", "", "lg")}>
+                  Crear mi cuenta gratis <ArrowRight size={18} aria-hidden />
+                </Link>
+                <Link href={ruta("/plazas")} className={claseAccion("contornoOscuro", "", "lg")}>
+                  Ver las plazas abiertas
+                </Link>
+              </div>
             </div>
           </div>
         </section>
@@ -253,21 +268,46 @@ function Cabecera({ id, titulo, bajada, accion }: { id: string; titulo: string; 
   );
 }
 
-/** Un problema de hoy: el título fuerte a la izquierda y la explicación al lado (desde sm), separados por filetes. */
-function Problema({ Icono, titulo, children }: { Icono: typeof Timer; titulo: string; children: ReactNode }) {
+/** El tamaño de cada viñeta de píxeles en su cuadro de 56 px (el edificio es ancho; el signo, angosto). */
+const ESCALA_PROBLEMA: Partial<Record<NombreSprite, number>> = { entidad: 1.4, iconoCalendario: 3.25, pregunta: 4 };
+
+/**
+ * Un problema de hoy: el título fuerte a la izquierda, con su viñeta de píxeles en un cuadro (como las situaciones de
+ * Salud), y la explicación al lado (desde sm), separados por filetes. La viñeta es quieta: la lista se lee, no se mira.
+ */
+function Problema({ sprite, titulo, children }: { sprite: NombreSprite; titulo: string; children: ReactNode }) {
   return (
     <li className="grid gap-3 py-6 sm:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)] sm:gap-8 sm:py-8">
-      <h3 className="flex items-start gap-3 font-display text-bloque font-bold leading-snug text-ink">
-        <Icono size={20} aria-hidden className="mt-0.5 shrink-0 text-granate" />
-        {titulo}
+      <h3 className="flex items-center gap-4 font-display text-bloque font-bold leading-snug text-ink">
+        <span aria-hidden className="grid h-14 w-14 shrink-0 place-items-center rounded-xl border border-line bg-paper">
+          <Pixel nombre={sprite} escala={ESCALA_PROBLEMA[sprite] ?? 3} acento="accion" animado={false} />
+        </span>
+        <span className="min-w-0">{titulo}</span>
       </h3>
       <p className="text-pretty text-dato leading-relaxed text-inkSoft">{children}</p>
     </li>
   );
 }
 
-/** Un paso de «Cómo funciona»: el número sobre una línea que baja al siguiente, el título, una frase y su maqueta al lado. */
-function Paso({ n, titulo, children, maqueta, ultimo = false }: { n: number; titulo: string; children: ReactNode; maqueta: ReactNode; ultimo?: boolean }) {
+/**
+ * Un paso de «Cómo funciona»: el número sobre una línea que baja al siguiente, el título, una frase y su maqueta al lado.
+ * `ilustracion`: un personaje o un ícono de píxeles sobre el título, parado en su tramo de suelo (decorativo).
+ */
+function Paso({
+  n,
+  titulo,
+  children,
+  maqueta,
+  ilustracion,
+  ultimo = false,
+}: {
+  n: number;
+  titulo: string;
+  children: ReactNode;
+  maqueta: ReactNode;
+  ilustracion?: ReactNode;
+  ultimo?: boolean;
+}) {
   return (
     <li className="relative grid gap-6 pl-14 sm:pl-16 lg:grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)] lg:items-start lg:gap-14">
       <span
@@ -278,6 +318,12 @@ function Paso({ n, titulo, children, maqueta, ultimo = false }: { n: number; tit
       </span>
       {!ultimo && <span aria-hidden className="absolute bottom-[-3.5rem] left-5 top-12 w-px bg-line sm:bottom-[-5rem] sm:left-[1.375rem] sm:top-14" />}
       <div className="min-w-0 pt-1.5 lg:pt-2">
+        {ilustracion && (
+          <div aria-hidden className="mb-4 w-24">
+            <div className="flex h-20 items-end justify-center">{ilustracion}</div>
+            <Suelo />
+          </div>
+        )}
         <h3 className="text-balance font-display text-seccion font-bold leading-tight text-ink sm:text-cifra">
           <span className="sr-only">Paso {n}: </span>
           {titulo}
@@ -290,7 +336,7 @@ function Paso({ n, titulo, children, maqueta, ultimo = false }: { n: number; tit
 }
 
 /** Lo que trae la cuenta: una fila que enlaza, con su ícono, su título y una frase. */
-function Incluye({ href, Icono, titulo, children }: { href: string; Icono: typeof Timer; titulo: string; children: ReactNode }) {
+function Incluye({ href, Icono, titulo, children }: { href: string; Icono: LucideIcon; titulo: string; children: ReactNode }) {
   return (
     <li>
       <Link href={href} className="group flex items-start gap-4 p-5 transition-colors duration-rapido hover:bg-paperSoft sm:p-6">

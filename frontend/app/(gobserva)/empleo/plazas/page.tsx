@@ -1,8 +1,9 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Suspense } from "react";
-import { BellRing, RotateCcw, SearchX, X } from "lucide-react";
+import { BellRing, RotateCcw, X } from "lucide-react";
 import { FiltrosPlazas, OrdenPlazas } from "@/components/empleo/FiltrosPlazas";
+import { PersonajePregunta } from "@/components/pixel/Escena";
 import { Paginador, Ruta } from "@/components/empleo/Piezas";
 import { TarjetaPlaza } from "@/components/empleo/TarjetaPlaza";
 import { Briefcase, Coins, Eye, Users } from "@/components/empleo/iconos";
@@ -156,12 +157,15 @@ export default async function PlazasEmpleo({ searchParams }: Props) {
           </div>
 
           {!d ? (
-            <div role="alert" className="mt-4 rounded-2xl border border-line bg-paper p-6">
-              <p className="font-display text-bloque font-bold text-ink">No pudimos leer las plazas ahora</p>
-              <p className="mt-1 text-dato text-inkSoft">Suele pasar un momento. Vuelve a intentarlo: tu búsqueda se mantiene.</p>
-              <Link href={`${lista}${qsEmpleo(f)}`} className={claseAccion("secundario", "mt-4 min-h-11")}>
-                <RotateCcw size={16} aria-hidden /> Volver a intentar
-              </Link>
+            <div role="alert" className="mt-4 flex flex-col items-start gap-4 rounded-2xl border border-line bg-paper p-6 sm:flex-row sm:gap-5">
+              <PersonajePregunta nombre="postulante" escala={2.5} className="shrink-0" />
+              <div className="min-w-0">
+                <p className="font-display text-bloque font-bold text-ink">No pudimos leer las plazas ahora</p>
+                <p className="mt-1 text-dato text-inkSoft">Suele pasar un momento. Vuelve a intentarlo: tu búsqueda se mantiene.</p>
+                <Link href={`${lista}${qsEmpleo(f)}`} className={claseAccion("secundario", "mt-4 min-h-11")}>
+                  <RotateCcw size={16} aria-hidden /> Volver a intentar
+                </Link>
+              </div>
             </div>
           ) : plazas.length === 0 && d.total > 0 ? (
             <div className="mt-4 rounded-2xl border border-line bg-paper p-6">
@@ -175,8 +179,8 @@ export default async function PlazasEmpleo({ searchParams }: Props) {
             </div>
           ) : plazas.length === 0 ? (
             <div className="mt-4 rounded-2xl border border-line bg-paper p-6 sm:p-8">
-              <SearchX size={32} aria-hidden className="text-mute" />
-              <h2 className="mt-3 font-display text-seccion font-bold leading-tight text-ink">No hay plazas abiertas con estos filtros</h2>
+              <PersonajePregunta nombre="postulante" escala={2.5} />
+              <h2 className="mt-4 font-display text-seccion font-bold leading-tight text-ink">No hay plazas abiertas con estos filtros</h2>
               <p className="mt-2 max-w-[62ch] text-dato leading-relaxed text-inkSoft">
                 Quita alguno de los filtros de arriba o busca con otra palabra: la profesión en vez del cargo («enfermera» en vez de «licenciada en
                 enfermería»). Cada día se publican plazas nuevas{alertable ? `: con una alerta te avisamos ${canal} cuando aparezca una así` : ""}.

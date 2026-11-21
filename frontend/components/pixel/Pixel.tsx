@@ -3,7 +3,7 @@ import { cn } from "@/lib/utils";
 import { SPRITES, type NombreSprite, type SpritePixel } from "./sprites";
 
 /**
- * Un personaje o ícono de píxeles de Gobserva Salud (components/salud/pixel/sprites.ts): un SVG nítido
+ * Un personaje o ícono de píxeles de Gobserva (components/pixel/sprites.ts): un SVG nítido
  * (`crispEdges`), con un trazo por color y por capa (no un nodo por píxel). Las capas animadas (parpadeo, la pantalla
  * que late, los pasos, el saludo) usan las clases px-* de globals.css, sólo opacidad y a pasos; con movimiento reducido
  * queda el primer cuadro, quieto. Server-safe: no usa estado ni efectos.

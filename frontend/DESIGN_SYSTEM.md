@@ -31,10 +31,12 @@
 > servidor ni con movimiento reducido, así que el contenido jamás nace oculto. La portada
 > (`HeroPixel`) agranda el ojo con el scroll y disuelve la pantalla en píxeles.
 >
-> **Personajes de píxeles (Gobserva Salud, 2026-11-20).** Gente hecha de los mismos cuadros que el ojo: una vecina
-> con su celular, una doctora que saluda, la clínica con su cruz, e íconos de 12 × 12 para lo que alguien necesita
-> (dientes, embarazo, ojos…). Viven en `components/salud/pixel` (`sprites.ts` con las filas, `Pixel` los dibuja como un
-> trazo por color). Sus colores son tokens `--px-*` de `globals.css` (línea, fondo, piel, pelo, rasgos, bata) que
+> **Personajes de píxeles (2026-11-20).** Gente hecha de los mismos cuadros que el ojo, una por producto: la vecina con
+> su celular (Salud), el postulante con su hoja de vida (Empleo), la emprendedora con su caja (Licitaciones), el obrero
+> con su casco (Obras), la doctora que saluda; sus lugares (la clínica, la entidad con su bandera, el tablero de
+> convocatorias, el camión, la grúa, la obra) e íconos de 12 × 12. Viven en `components/pixel`: `sprites.ts` (generado
+> por `scripts/pixel/arte.py`, la fuente del arte, que también escribe el `personajes.js` de gobserva.cloud), `Pixel`
+> los dibuja como un trazo por color y `Escena` arma la burbuja, la calle y el suelo de una escena. Sus colores son tokens `--px-*` de `globals.css` (línea, fondo, piel, pelo, rasgos, bata) que
 > siguen al modo día/noche, a las bandas oscuras y a las placas claras (`.sobre-claro`); la piel y los rasgos son los
 > mismos siempre. Se mueven **a pasos** (`steps()`): parpadean, la cruz y la pantalla laten, la doctora saluda cuatro
 > veces y se queda quieta; la escena de la portada se arma una vez (la clínica se dibuja de abajo arriba). Con

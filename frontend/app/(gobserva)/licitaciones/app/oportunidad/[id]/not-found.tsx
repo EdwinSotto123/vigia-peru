@@ -2,6 +2,7 @@ import Link from "next/link";
 import { FileQuestion } from "lucide-react";
 import { Caja, Pagina } from "@/components/gobserva/app/Caja";
 import { EstadoVacio } from "@/components/gobserva/ui/Estados";
+import { PersonajePregunta } from "@/components/pixel/Escena";
 import { claseAccion } from "@/components/ui/EnlaceAccion";
 import { rutaEn } from "@/lib/gobserva";
 import { baseProducto } from "@/lib/gobserva-servidor";
@@ -10,6 +11,9 @@ import { baseProducto } from "@/lib/gobserva-servidor";
 export default function NoEncontrado() {
   return (
     <Pagina>
+      <div className="mb-4 flex justify-center">
+        <PersonajePregunta nombre="emprendedora" escala={4} />
+      </div>
       <Caja>
         <EstadoVacio
           Icono={FileQuestion}

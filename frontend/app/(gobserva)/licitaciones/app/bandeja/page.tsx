@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Suspense } from "react";
-import { AlertTriangle, Building2, Clock, Coins, Inbox, RotateCcw } from "lucide-react";
+import { AlertTriangle, Building2, Clock, Coins, RotateCcw } from "lucide-react";
 import { CabeceraPagina, Caja, Pagina } from "@/components/gobserva/app/Caja";
 import { Buscador } from "@/components/licitaciones-app/bandeja/Buscador";
 import { Chips } from "@/components/licitaciones-app/bandeja/Chips";
@@ -14,7 +14,8 @@ import { ResultadosVivos } from "@/components/licitaciones-app/bandeja/Resultado
 import { TablaBandeja } from "@/components/licitaciones-app/bandeja/TablaBandeja";
 import { AvisoDemo } from "@/components/gobserva/ui/AvisoDemo";
 import { AvisoPerfil } from "@/components/licitaciones-app/bandeja/AvisoPerfil";
-import { EstadoError, EstadoVacio } from "@/components/gobserva/ui/Estados";
+import { EstadoError } from "@/components/gobserva/ui/Estados";
+import { VacioEmprendedora } from "@/components/licitaciones/Piezas";
 import { Paginacion } from "@/components/gobserva/ui/Paginacion";
 import { claseAccion } from "@/components/ui/EnlaceAccion";
 import { FILTROS_POR_DEFECTO, aParams, cambiar, filtrosActivos, leerFiltros, type FiltrosBandeja } from "@/lib/licitaciones-app/filtros";
@@ -105,8 +106,7 @@ export default async function Bandeja({ searchParams }: { searchParams?: Record<
                     </div>
                   )}
                   {r.total === 0 ? (
-                    <EstadoVacio
-                      Icono={Inbox}
+                    <VacioEmprendedora
                       titulo="Ninguna oportunidad con esos filtros"
                       texto={
                         filtrosActivos(f) > 0

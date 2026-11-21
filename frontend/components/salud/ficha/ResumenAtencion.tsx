@@ -1,7 +1,7 @@
 import Link from "next/link";
 import type { LucideIcon } from "lucide-react";
 import { ChevronRight, CircleCheck, CircleMinus, CirclePause, Hourglass, Phone, Users } from "lucide-react";
-import { Pixel } from "@/components/salud/pixel/Pixel";
+import { Pixel } from "@/components/pixel/Pixel";
 import { PreguntaRapida } from "@/components/salud/asistente/PreguntaRapida";
 import { FuenteFecha } from "@/components/salud/comun";
 import { rutaEn } from "@/lib/gobserva";

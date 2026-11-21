@@ -2,10 +2,11 @@ import type { Metadata } from "next";
 import { CLASE_PAGINA } from "@/components/gobserva/app/Caja";
 import Link from "next/link";
 import { Suspense } from "react";
-import { BellRing, Building2, ChevronLeft, ChevronRight, CircleDollarSign, Inbox, MessageSquareWarning, RotateCcw, SearchX, X } from "lucide-react";
+import { BellRing, Building2, ChevronLeft, ChevronRight, CircleDollarSign, Inbox, MessageSquareWarning, RotateCcw, X } from "lucide-react";
 import { AccionesBusqueda } from "@/components/gobserva/cuenta/AccionesBusqueda";
 import { FiltrosOportunidades, type ValoresFiltro } from "@/components/licitaciones/Filtros";
 import { FilaOportunidad } from "@/components/licitaciones/TarjetaOportunidad";
+import { PersonajePregunta } from "@/components/pixel/Escena";
 import { Nota } from "@/components/patrones/Estructura";
 import { CLASE_ACCION_LISTA, claseAccion } from "@/components/ui/EnlaceAccion";
 import { paginasVisibles } from "@/lib/paginas";
@@ -188,7 +189,7 @@ export default async function Oportunidades({ searchParams }: { searchParams?: P
 
       {!d ? (
         <div role="alert" className="mt-8 flex flex-col items-start gap-3 rounded-2xl border border-line bg-paperSoft p-5 sm:flex-row sm:items-center sm:p-6">
-          <SearchX size={22} aria-hidden className="shrink-0 text-mute" />
+          <PersonajePregunta nombre="emprendedora" escala={2} className="shrink-0" />
           <p className="min-w-0 flex-1 text-dato text-inkSoft">No pudimos leer las convocatorias ahora. Suele ser momentáneo.</p>
           <Link href={enlace({})} className={cn(CLASE_ACCION_LISTA, "min-h-11")}>
             <RotateCcw size={15} aria-hidden className="mr-1.5" /> Volver a intentar
@@ -253,10 +254,8 @@ export default async function Oportunidades({ searchParams }: { searchParams?: P
 
           {d.data.length === 0 ? (
             <div className="mt-4 rounded-2xl border border-line bg-paperSoft p-5 sm:p-6">
-              <div className="flex items-start gap-3">
-                <span aria-hidden className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-paper text-mute">
-                  <SearchX size={20} />
-                </span>
+              <div className="flex items-start gap-4">
+                <PersonajePregunta nombre="emprendedora" escala={2.5} className="shrink-0" />
                 <div className="min-w-0">
                   <p className="font-display text-bloque font-bold leading-tight text-ink">Ninguna convocatoria con estos filtros</p>
                   {sugerencias.length > 0 && (

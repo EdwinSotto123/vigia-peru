@@ -2,9 +2,10 @@ import type { Metadata } from "next";
 import { CLASE_PAGINA } from "@/components/gobserva/app/Caja";
 import type { ReactNode } from "react";
 import Link from "next/link";
-import { ArrowRight, BadgePercent, BellRing, Building2, ChartNoAxesCombined, ChevronDown, Handshake, Inbox, Landmark, Search, SearchX, Target, Trophy, Users, type LucideIcon } from "lucide-react";
+import { ArrowRight, BadgePercent, BellRing, Building2, ChartNoAxesCombined, ChevronDown, Handshake, Inbox, Landmark, Search, Target, Trophy, Users, type LucideIcon } from "lucide-react";
 import { BarrasEnlace, SerieMeses, type FilaBarra } from "@/components/licitaciones/Graficas";
 import { MontoCompacto } from "@/components/licitaciones/Piezas";
+import { PersonajePregunta } from "@/components/pixel/Escena";
 import { Beneficios } from "@/components/patrones/Franja";
 import { Nota } from "@/components/patrones/Estructura";
 import { Dato } from "@/components/ui/Dato";
@@ -121,7 +122,7 @@ export default async function Mercado({ searchParams }: { searchParams?: { q?: s
         <Nota className="mt-8">Escribe al menos tres letras de lo que vendes.</Nota>
       ) : !m ? (
         <div role="alert" className="mt-8 flex flex-col items-start gap-3 rounded-2xl border border-line bg-paperSoft p-5 sm:flex-row sm:items-center sm:p-6">
-          <SearchX size={22} aria-hidden className="shrink-0 text-mute" />
+          <PersonajePregunta nombre="emprendedora" escala={2} className="shrink-0" />
           <p className="min-w-0 flex-1 text-dato text-inkSoft">No pudimos calcular este mercado ahora. Suele ser momentáneo.</p>
           <Link href={`${ruta("/mercado")}?q=${encodeURIComponent(q)}`} className={cn(CLASE_ACCION_LISTA, "min-h-11")}>
             Volver a intentar
@@ -129,10 +130,8 @@ export default async function Mercado({ searchParams }: { searchParams?: { q?: s
         </div>
       ) : m.procesos === 0 ? (
         <div className="mt-8 rounded-2xl border border-line bg-paperSoft p-5 sm:p-6">
-          <div className="flex items-start gap-3">
-            <span aria-hidden className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-paper text-mute">
-              <SearchX size={20} />
-            </span>
+          <div className="flex items-start gap-4">
+            <PersonajePregunta nombre="emprendedora" escala={2.5} className="shrink-0" />
             <div className="min-w-0">
               <p className="font-display text-bloque font-bold leading-tight text-ink">No hay adjudicaciones con «{q}» en los últimos 12 meses</p>
               <p className="mt-1 text-dato text-inkSoft">Prueba con una palabra más general (por ejemplo, «combustible» en vez de «diésel B5 S50»).</p>

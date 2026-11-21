@@ -22,6 +22,7 @@ import {
 import { Barras, BarrasDobles, Histograma } from "@/components/gobserva-obras/Graficas";
 import { Dato, TiraCifras, iconoSector } from "@/components/gobserva-obras/Piezas";
 import { Nota } from "@/components/patrones/Estructura";
+import { PersonajePregunta } from "@/components/pixel/Escena";
 import { claseAccion } from "@/components/ui/EnlaceAccion";
 import { fechaConAnio, numero, porcentaje, solesCompacto } from "@/lib/formato";
 import { fichaEmpresaVigia, rutaEn, urlCanonica } from "@/lib/gobserva";
@@ -115,22 +116,28 @@ export default async function MercadoObras({ searchParams }: Props) {
       </form>
 
       {!m ? (
-        <p className="mt-10 rounded-2xl border border-line bg-paperSoft p-6 text-dato text-inkSoft">No pudimos calcular este mercado ahora. Vuelve a intentarlo en un momento.</p>
+        <div className="mt-10 flex items-center gap-4 rounded-2xl border border-line bg-paperSoft p-6">
+          <PersonajePregunta nombre="obrero" escala={2.5} className="shrink-0" />
+          <p className="min-w-0 text-dato text-inkSoft">No pudimos calcular este mercado ahora. Vuelve a intentarlo en un momento.</p>
+        </div>
       ) : m.activas === 0 ? (
-        <div className="mt-10 rounded-2xl border border-line bg-paperSoft p-6">
-          <p className="font-display text-bloque font-bold leading-tight text-ink">No hay inversiones activas con esta región y este sector</p>
-          <p className="mt-1 text-dato text-inkSoft">Prueba con todo el Perú o con otro sector.</p>
-          <div className="mt-4 flex flex-wrap gap-2">
-            {region && (
-              <Link href={`${ruta("/mercado")}${sector ? `?sector=${sector}` : ""}`} prefetch={false} className={claseAccion("secundario", "min-h-11")}>
-                {sector ? `${nombreSector(sector)} en todo el Perú` : "Todo el Perú"}
-              </Link>
-            )}
-            {sector && (
-              <Link href={`${ruta("/mercado")}${region ? `?region=${region}` : ""}`} prefetch={false} className={claseAccion("secundario", "min-h-11")}>
-                Todos los sectores{region ? ` en ${nombreRegion(region)}` : ""}
-              </Link>
-            )}
+        <div className="mt-10 flex items-start gap-4 rounded-2xl border border-line bg-paperSoft p-6">
+          <PersonajePregunta nombre="obrero" escala={2.5} className="shrink-0" />
+          <div className="min-w-0">
+            <p className="font-display text-bloque font-bold leading-tight text-ink">No hay inversiones activas con esta región y este sector</p>
+            <p className="mt-1 text-dato text-inkSoft">Prueba con todo el Perú o con otro sector.</p>
+            <div className="mt-4 flex flex-wrap gap-2">
+              {region && (
+                <Link href={`${ruta("/mercado")}${sector ? `?sector=${sector}` : ""}`} prefetch={false} className={claseAccion("secundario", "min-h-11")}>
+                  {sector ? `${nombreSector(sector)} en todo el Perú` : "Todo el Perú"}
+                </Link>
+              )}
+              {sector && (
+                <Link href={`${ruta("/mercado")}${region ? `?region=${region}` : ""}`} prefetch={false} className={claseAccion("secundario", "min-h-11")}>
+                  Todos los sectores{region ? ` en ${nombreRegion(region)}` : ""}
+                </Link>
+              )}
+            </div>
           </div>
         </div>
       ) : (

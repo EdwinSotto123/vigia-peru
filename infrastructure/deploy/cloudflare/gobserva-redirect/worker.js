@@ -38,6 +38,7 @@
 
 import { LOGO_INTERIOR, LOGO_VIEWBOX } from "./marca.js";
 import { ojoVigia, pixel } from "./pixeles.js";
+import { personaje } from "./personajes.js";
 
 const RAIZ = "https://gobserva.cloud";
 const VIGIA = "https://vigia.gobserva.cloud";
@@ -298,6 +299,14 @@ const FUNCIONES = [
 
 // Los productos de Gobserva en línea además de Vigía (2026-11-01, pedido del usuario: ganar plata con lo que Vigía ya
 // captura): [ícono, nombre, dominio, lema, qué hace, enlace, acción]. Marca propia, planes con precio de fundador.
+// La gente de cada producto (personajes.js): quién lo usa y dónde. Decorativa.
+const ESCENA_PRODUCTO = {
+  ciudadania: ["postulante", "tablero"],
+  institucion: ["emprendedora", "camion"],
+  obras: ["obrero", "grua"],
+  salud: ["vecina", "clinica"],
+};
+
 const PRODUCTOS_GOB = [
   [
     "ciudadania",
@@ -738,6 +747,9 @@ const CSS = `
   --t-mono: .75rem;
   /* Una vuelta del barrido del radar (portada.js lo lee para encender las regiones a su paso). */
   --periodo: 6s;
+  /* Los personajes de píxeles de cada producto (personajes.js): la piel y los rasgos son los mismos de día y de noche. */
+  --px-linea: var(--tinta); --px-fondo: var(--panel); --px-marca: var(--lima);
+  --px-piel: #C98E5F; --px-pelo: #8B644A; --px-rasgo: #281C16; --px-bata: #DCE6E3;
 }
 :root[data-modo="dia"] {
   /* Día: papel verde claro y tinta de bosque, sin neón ni brillos (como el modo día de Vigía). Contraste de 4.5:1 o más
@@ -760,6 +772,7 @@ const CSS = `
   --mezcla: multiply;
   --barrido: conic-gradient(from 0deg, transparent 0deg 285deg, rgba(8, 122, 59, .03) 285deg, rgba(8, 122, 59, .14) 356deg, rgba(7, 92, 44, .45) 359.5deg, transparent 360deg);
   --tubo: rgba(0, 40, 20, .035);
+  --px-marca: #2F6B10; --px-pelo: #34261E; --px-bata: #FAFBFB;
 }
 * { box-sizing: border-box; }
 html { -webkit-text-size-adjust: 100%; scroll-behavior: smooth; scroll-padding-top: 5rem; scrollbar-color: var(--borde) var(--fondo); -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; background: var(--fondo); }
@@ -1125,7 +1138,24 @@ html:not(.anima) .cinta-fila + .cinta-fila { display: none; }
 .funciones .d { display: block; color: var(--tenue); font-size: .8125rem; line-height: 1.4; }
 .funciones a:hover strong { color: var(--fosforo); text-decoration: underline; }
 .proximos { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; }
-.productos-gob { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1rem; margin-top: 1rem; }
+.productos-gob { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; margin-top: 1rem; }
+/* La gente de cada producto, parada sobre su suelo de cuadros. */
+.monitor-producto { display: flex; flex-direction: column; }
+.monitor-producto .escena-producto { margin-top: auto; }
+.escena-producto { display: flex; align-items: flex-end; justify-content: space-between; gap: .75rem; padding: .25rem .5rem 0; border-bottom: 5px dashed color-mix(in srgb, var(--tinta) 25%, transparent); min-height: 6.5rem; }
+.escena-producto .px-sprite { display: block; flex: none; }
+.escena-producto .px-lugar { max-width: 62%; height: auto; }
+@keyframes pxParpadeo { 0%, 94%, 100% { opacity: 1; } 95%, 98% { opacity: 0; } }
+@keyframes pxLate { 0%, 100% { opacity: 1; } 50% { opacity: .3; } }
+@keyframes pxAlternaA { 0%, 49.9% { opacity: 1; } 50%, 100% { opacity: 0; } }
+@keyframes pxAlternaB { 0%, 49.9% { opacity: 0; } 50%, 100% { opacity: 1; } }
+.px-alternaB { opacity: 0; }
+@media (prefers-reduced-motion: no-preference) {
+  .px-parpadeo { animation: pxParpadeo 4.8s steps(1, end) infinite; }
+  .px-late { animation: pxLate 2.4s steps(3, end) infinite; }
+  .px-alternaA { animation: pxAlternaA .6s steps(1, end) infinite; }
+  .px-alternaB { animation: pxAlternaB .6s steps(1, end) infinite; }
+}
 .monitor-producto .vigia-cabeza svg { width: 3rem; height: 3rem; display: block; }
 @media (max-width: 64rem) { .productos-gob { grid-template-columns: minmax(0, 1fr); } }
 .proximos > li:last-child:nth-child(odd) { grid-column: 1 / -1; }
@@ -1429,6 +1459,7 @@ function portada(datos) {
         <div class="vigia-cabeza">${pixel(icono)}<div><h3>${nombre}</h3><p class="vigia-dominio">${dominio}</p></div><p class="estado">En línea</p></div>
         <p class="vigia-lema">${lema}</p>
         <p>${texto}</p>
+        ${ESCENA_PRODUCTO[icono] ? `<div class="escena-producto" aria-hidden="true">${personaje(ESCENA_PRODUCTO[icono][0], 3, "px-persona", 400 * PRODUCTOS_GOB.findIndex((x) => x[0] === icono))}${personaje(ESCENA_PRODUCTO[icono][1], 3, "px-lugar")}</div>` : ""}
         <div class="acciones"><a class="boton lima" href="${enlace}">${accion}</a></div>
       </article>`).join("\n      ")}
     </div>

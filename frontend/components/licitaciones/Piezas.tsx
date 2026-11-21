@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { Hourglass } from "lucide-react";
+import { PersonajePregunta } from "@/components/pixel/Escena";
 import { fechaCorta, numero, solesCompacto } from "@/lib/formato";
 import { diasHasta, nombreTipo } from "@/lib/licitaciones";
 import { cn } from "@/lib/utils";
@@ -89,4 +90,19 @@ export function ChipTipo({ tipo, className }: { tipo: string | null | undefined;
 /** Un chip neutro: el procedimiento («Licitación Pública Abreviada»), la etapa. */
 export function ChipNeutro({ children, className }: { children: ReactNode; className?: string }) {
   return <span className={cn("min-w-0 truncate rounded-full bg-paperDeep px-2.5 py-0.5 text-rotulo font-medium text-inkSoft", className)}>{children}</span>;
+}
+
+/**
+ * Un estado vacío de Licitaciones (lo que no se encontró y qué hacer): la emprendedora con su pregunta en lugar del
+ * ícono, con las mismas medidas que EstadoVacio (components/gobserva/ui/Estados). La figura es decorativa.
+ */
+export function VacioEmprendedora({ titulo, texto, acciones, className }: { titulo: string; texto?: ReactNode; acciones?: ReactNode; className?: string }) {
+  return (
+    <div className={cn("flex flex-col items-center px-4 py-10 text-center sm:py-14", className)}>
+      <PersonajePregunta nombre="emprendedora" escala={3} />
+      <p className="mt-4 text-cuerpo font-semibold text-ink">{titulo}</p>
+      {texto && <div className="mt-1.5 max-w-[48ch] text-pretty text-dato leading-relaxed text-inkSoft">{texto}</div>}
+      {acciones && <div className="mt-5 flex flex-wrap justify-center gap-2">{acciones}</div>}
+    </div>
+  );
 }

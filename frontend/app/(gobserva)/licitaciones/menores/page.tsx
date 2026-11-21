@@ -1,8 +1,9 @@
 import type { Metadata } from "next";
 import { CLASE_PAGINA } from "@/components/gobserva/app/Caja";
 import Link from "next/link";
-import { BellRing, Building2, ChevronLeft, ChevronRight, Clock, FileText, RotateCcw, Search, SearchX, Sparkles, X } from "lucide-react";
+import { BellRing, Building2, ChevronLeft, ChevronRight, Clock, FileText, RotateCcw, Search, Sparkles, X } from "lucide-react";
 import { FilaMenor } from "@/components/licitaciones/FilaMenor";
+import { PersonajePregunta } from "@/components/pixel/Escena";
 import { Nota } from "@/components/patrones/Estructura";
 import { Dato } from "@/components/ui/Dato";
 import { CLASE_ACCION_LISTA, claseAccion } from "@/components/ui/EnlaceAccion";
@@ -197,7 +198,7 @@ export default async function ContratosMenores({ searchParams }: { searchParams?
 
       {!d ? (
         <div role="alert" className="mt-8 flex flex-col items-start gap-3 rounded-2xl border border-line bg-paperSoft p-5 sm:flex-row sm:items-center sm:p-6">
-          <SearchX size={22} aria-hidden className="shrink-0 text-mute" />
+          <PersonajePregunta nombre="emprendedora" escala={2} className="shrink-0" />
           <p className="min-w-0 flex-1 text-dato text-inkSoft">No pudimos leer los contratos menores ahora. Suele ser momentáneo.</p>
           <Link href={enlace({})} className={cn(CLASE_ACCION_LISTA, "min-h-11")}>
             <RotateCcw size={15} aria-hidden className="mr-1.5" /> Volver a intentar
@@ -240,8 +241,8 @@ export default async function ContratosMenores({ searchParams }: { searchParams?
           </div>
 
           {d.data.length === 0 ? (
-            <div className="mt-4 flex items-start gap-3 rounded-2xl border border-line bg-paperSoft p-5 sm:p-6">
-              <SearchX size={20} aria-hidden className="mt-0.5 shrink-0 text-mute" />
+            <div className="mt-4 flex items-start gap-4 rounded-2xl border border-line bg-paperSoft p-5 sm:p-6">
+              <PersonajePregunta nombre="emprendedora" escala={2.5} className="shrink-0" />
               <div className="min-w-0">
                 <p className="font-display text-bloque font-bold leading-tight text-ink">Ninguna contratación abierta con estos filtros</p>
                 <p className="mt-1 text-dato text-inkSoft">Salen y cierran todo el día: prueba con menos filtros o vuelve en un rato.</p>

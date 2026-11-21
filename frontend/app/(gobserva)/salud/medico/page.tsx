@@ -6,7 +6,7 @@ import { claseAccion } from "@/components/ui/EnlaceAccion";
 import { PreguntaRapida } from "@/components/salud/asistente/PreguntaRapida";
 import { FormColegiatura } from "@/components/salud/medico/FormColegiatura";
 import { PasosVerificar } from "@/components/salud/medico/PasosVerificar";
-import { Pixel } from "@/components/salud/pixel/Pixel";
+import { Pixel } from "@/components/pixel/Pixel";
 import { URL_CMP, URL_SUNEDU, pasosVerificarMedico } from "@/components/salud/medico/pasos";
 import { rutaEn, urlCanonica } from "@/lib/gobserva";
 import { baseProducto } from "@/lib/gobserva-servidor";
