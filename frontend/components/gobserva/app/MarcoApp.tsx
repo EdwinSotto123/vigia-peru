@@ -36,7 +36,7 @@ export function MarcoApp({
   return (
     <ProveedorApp producto={producto}>
       <ProveedorAvisos>
-      <div className="min-h-screen bg-lienzo lg:grid lg:grid-cols-[16rem_minmax(0,1fr)]">
+      <div data-producto={producto} className="min-h-screen bg-lienzo lg:grid lg:grid-cols-[16rem_minmax(0,1fr)]">
         <a
           href="#contenido"
           className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50 focus:rounded-lg focus:bg-caja focus:px-4 focus:py-2 focus:text-dato focus:font-semibold focus:text-ink focus:ring-2 focus:ring-granate"

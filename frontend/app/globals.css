@@ -800,3 +800,233 @@ html[data-modo="dia"] [data-intencion]:not([data-intencion="admin"]) :is(div, se
   border-top-color: rgb(var(--line));
   box-shadow: none;
 }
+
+/* ── Color por producto: inicio. Generado por scripts/colores/colores_producto.py: no editar a mano. ──────────
+   Cada producto de Gobserva con su color (2026-11-21): Salud turquesa, Empleo violeta, Licitaciones azul, Obras
+   naranja. `data-producto` va en <html> (lib/modoScript.ts) y en el marco del producto. Sólo cambian los tokens de
+   la marca (granate, maiz, marca-acento, acento); la base y los colores de estado son los de arriba. */
+[data-producto="salud"] {
+  --granate: 62 230 201;
+  --granate-50: 14 28 26;
+  --granate-soft: 17 41 37;
+  --granate-200: 29 92 82;
+  --granate-300: 44 153 134;
+  --granate-400: 53 191 168;
+  --granate-500: 139 240 223;
+  --granate-700: 43 161 141;
+  --granate-deep: 53 198 173;
+  --granate-900: 13 24 22;
+  --maiz: 62 230 201;
+  --maiz-soft: 17 41 37;
+  --marca-acento: 62 230 201;
+  --acento: 62 230 201;
+  --acento-soft: 15 32 30;
+  --acento-borde: 29 92 82;
+}
+[data-producto="salud"] .sobre-oscuro {
+  --granate: 10 114 102;
+  --granate-soft: 216 232 231;
+  --granate-50: 238 245 244;
+  --granate-deep: 7 18 17;
+}
+html[data-modo="dia"][data-producto="salud"],
+html[data-modo="dia"] [data-producto="salud"] {
+  --granate: 10 114 102;
+  --granate-50: 240 247 246;
+  --granate-soft: 218 234 232;
+  --granate-200: 157 199 194;
+  --granate-300: 103 168 160;
+  --granate-400: 54 139 130;
+  --granate-500: 8 86 76;
+  --granate-700: 8 93 84;
+  --granate-deep: 8 89 80;
+  --granate-900: 7 59 54;
+  --maiz: 10 114 102;
+  --maiz-soft: 218 234 232;
+  --marca-acento: 10 114 102;
+  --marca-pupila: 7 59 54;
+  --acento: 10 114 102;
+  --acento-soft: 235 244 243;
+  --acento-borde: 145 192 186;
+}
+html[data-modo="dia"][data-producto="salud"] :is(.bg-ink, .bg-granate-deep, .sobre-oscuro),
+html[data-modo="dia"] [data-producto="salud"] :is(.bg-ink, .bg-granate-deep, .sobre-oscuro) {
+  --ink: 7 59 54;
+  --granate-deep: 7 59 54;
+  --granate-900: 7 59 54;
+  --maiz: 138 243 225;
+  --maiz-soft: 202 250 242;
+  --marca-acento: 138 243 225;
+  --marca-nota: 193 206 205;
+  --sobre-maiz: 7 59 54;
+  --px-fondo: 7 59 54;
+}
+[data-producto="empleo"] {
+  --granate: 185 160 255;
+  --granate-50: 21 24 29;
+  --granate-soft: 32 32 44;
+  --granate-200: 74 67 101;
+  --granate-300: 122 108 169;
+  --granate-400: 154 134 212;
+  --granate-500: 213 198 255;
+  --granate-700: 130 112 178;
+  --granate-deep: 159 138 219;
+  --granate-900: 18 21 25;
+  --maiz: 185 160 255;
+  --maiz-soft: 32 32 44;
+  --marca-acento: 185 160 255;
+  --acento: 185 160 255;
+  --acento-soft: 25 27 34;
+  --acento-borde: 74 67 101;
+}
+[data-producto="empleo"] .sobre-oscuro {
+  --granate: 91 53 201;
+  --granate-soft: 229 223 246;
+  --granate-50: 244 241 251;
+  --granate-deep: 13 15 19;
+}
+html[data-modo="dia"][data-producto="empleo"],
+html[data-modo="dia"] [data-producto="empleo"] {
+  --granate: 91 53 201;
+  --granate-50: 245 243 252;
+  --granate-soft: 230 225 247;
+  --granate-200: 189 174 233;
+  --granate-300: 153 130 222;
+  --granate-400: 121 89 211;
+  --granate-500: 68 40 151;
+  --granate-700: 75 43 165;
+  --granate-deep: 71 41 157;
+  --granate-900: 36 21 77;
+  --maiz: 91 53 201;
+  --maiz-soft: 230 225 247;
+  --marca-acento: 91 53 201;
+  --marca-pupila: 36 21 77;
+  --acento: 91 53 201;
+  --acento-soft: 242 239 251;
+  --acento-borde: 181 164 231;
+}
+html[data-modo="dia"][data-producto="empleo"] :is(.bg-ink, .bg-granate-deep, .sobre-oscuro),
+html[data-modo="dia"] [data-producto="empleo"] :is(.bg-ink, .bg-granate-deep, .sobre-oscuro) {
+  --ink: 36 21 77;
+  --granate-deep: 36 21 77;
+  --granate-900: 36 21 77;
+  --maiz: 214 201 255;
+  --maiz-soft: 237 231 255;
+  --marca-acento: 214 201 255;
+  --marca-nota: 200 196 210;
+  --sobre-maiz: 36 21 77;
+  --px-fondo: 36 21 77;
+}
+[data-producto="licitaciones"] {
+  --granate: 109 180 255;
+  --granate-50: 17 25 29;
+  --granate-soft: 23 35 44;
+  --granate-200: 46 74 101;
+  --granate-300: 74 121 169;
+  --granate-400: 91 150 212;
+  --granate-500: 167 210 255;
+  --granate-700: 76 126 178;
+  --granate-deep: 94 155 219;
+  --granate-900: 15 22 25;
+  --maiz: 109 180 255;
+  --maiz-soft: 23 35 44;
+  --marca-acento: 109 180 255;
+  --acento: 109 180 255;
+  --acento-soft: 19 28 34;
+  --acento-borde: 46 74 101;
+}
+[data-producto="licitaciones"] .sobre-oscuro {
+  --granate: 29 93 184;
+  --granate-soft: 219 229 244;
+  --granate-50: 239 244 250;
+  --granate-deep: 9 16 19;
+}
+html[data-modo="dia"][data-producto="licitaciones"],
+html[data-modo="dia"] [data-producto="licitaciones"] {
+  --granate: 29 93 184;
+  --granate-50: 241 245 251;
+  --granate-soft: 221 231 244;
+  --granate-200: 165 190 227;
+  --granate-300: 115 155 211;
+  --granate-400: 70 122 197;
+  --granate-500: 22 70 138;
+  --granate-700: 24 76 151;
+  --granate-deep: 23 73 144;
+  --granate-900: 11 39 72;
+  --maiz: 29 93 184;
+  --maiz-soft: 221 231 244;
+  --marca-acento: 29 93 184;
+  --marca-pupila: 11 39 72;
+  --acento: 29 93 184;
+  --acento-soft: 237 242 249;
+  --acento-borde: 153 182 223;
+}
+html[data-modo="dia"][data-producto="licitaciones"] :is(.bg-ink, .bg-granate-deep, .sobre-oscuro),
+html[data-modo="dia"] [data-producto="licitaciones"] :is(.bg-ink, .bg-granate-deep, .sobre-oscuro) {
+  --ink: 11 39 72;
+  --granate-deep: 11 39 72;
+  --granate-900: 11 39 72;
+  --maiz: 168 209 255;
+  --maiz-soft: 216 234 255;
+  --marca-acento: 168 209 255;
+  --marca-nota: 194 201 209;
+  --sobre-maiz: 11 39 72;
+  --px-fondo: 11 39 72;
+}
+[data-producto="obras"] {
+  --granate: 255 154 85;
+  --granate-50: 26 23 19;
+  --granate-soft: 40 32 23;
+  --granate-200: 99 65 40;
+  --granate-300: 167 104 60;
+  --granate-400: 211 129 72;
+  --granate-500: 255 194 153;
+  --granate-700: 178 108 59;
+  --granate-deep: 219 132 73;
+  --granate-900: 21 21 18;
+  --maiz: 255 154 85;
+  --maiz-soft: 40 32 23;
+  --marca-acento: 255 154 85;
+  --acento: 255 154 85;
+  --acento-soft: 31 26 21;
+  --acento-borde: 99 65 40;
+}
+[data-producto="obras"] .sobre-oscuro {
+  --granate: 169 72 12;
+  --granate-soft: 241 226 216;
+  --granate-50: 249 242 238;
+  --granate-deep: 17 14 11;
+}
+html[data-modo="dia"][data-producto="obras"],
+html[data-modo="dia"] [data-producto="obras"] {
+  --granate: 169 72 12;
+  --granate-50: 250 244 240;
+  --granate-soft: 242 228 219;
+  --granate-200: 221 182 158;
+  --granate-300: 202 142 104;
+  --granate-400: 184 105 56;
+  --granate-500: 127 54 9;
+  --granate-700: 139 59 10;
+  --granate-deep: 132 56 9;
+  --granate-900: 59 28 9;
+  --maiz: 169 72 12;
+  --maiz-soft: 242 228 219;
+  --marca-acento: 169 72 12;
+  --marca-pupila: 59 28 9;
+  --acento: 169 72 12;
+  --acento-soft: 248 240 236;
+  --acento-borde: 216 173 146;
+}
+html[data-modo="dia"][data-producto="obras"] :is(.bg-ink, .bg-granate-deep, .sobre-oscuro),
+html[data-modo="dia"] [data-producto="obras"] :is(.bg-ink, .bg-granate-deep, .sobre-oscuro) {
+  --ink: 59 28 9;
+  --granate-deep: 59 28 9;
+  --granate-900: 59 28 9;
+  --maiz: 255 192 143;
+  --maiz-soft: 255 227 205;
+  --marca-acento: 255 192 143;
+  --marca-nota: 206 198 194;
+  --sobre-maiz: 59 28 9;
+  --px-fondo: 59 28 9;
+}
+/* ── Color por producto: fin ── */

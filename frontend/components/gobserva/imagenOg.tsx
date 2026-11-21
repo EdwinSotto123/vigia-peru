@@ -1,13 +1,14 @@
 import { ImageResponse } from "next/og";
 import { imagenFijaEnWindows } from "@/lib/imagen-fija-windows";
+import { COLOR_PRODUCTO } from "@/lib/colores-producto";
 import { PRODUCTOS, type Producto } from "@/lib/gobserva";
 
 /**
- * La imagen para compartir (Open Graph) de un producto de Gobserva: carbón con lima, la lupa, «gobserva_ <producto>», su
- * titular y su dominio. Antes heredaban la de Vigía. Colores fijos: una imagen no tiene modo día ni noche.
+ * La imagen para compartir (Open Graph) de un producto de Gobserva: carbón con el color del producto (lib/colores-producto.ts,
+ * el de noche), la lupa, «gobserva_ <producto>», su titular y su dominio. Antes heredaban la de Vigía; hasta 2026-11-21,
+ * todas en lima. Colores fijos: una imagen no tiene modo día ni noche.
  */
 const CARBON = "#070A0A";
-const LIMA = "#D4FF3F";
 const BLANCO = "#FFFFFF";
 const BLANCO_75 = "rgba(255,255,255,0.75)";
 const MONO = "ui-monospace, SFMono-Regular, Menlo, monospace";
@@ -21,6 +22,7 @@ export async function imagenOg(producto: Producto, titular: string, detalle: str
   const fija = await imagenFijaEnWindows();
   if (fija) return fija;
   const p = PRODUCTOS[producto];
+  const LIMA = COLOR_PRODUCTO[producto].noche;
   return new ImageResponse(
     (
       <div style={{ width: "100%", height: "100%", display: "flex", flexDirection: "column", justifyContent: "space-between", background: CARBON, color: BLANCO, padding: "64px 72px", fontFamily: "system-ui, -apple-system, Segoe UI, Roboto, sans-serif" }}>
