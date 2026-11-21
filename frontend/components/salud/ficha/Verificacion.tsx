@@ -1,11 +1,21 @@
 import Link from "next/link";
 import { ChevronRight, Info } from "lucide-react";
 import { Ayuda } from "@/components/patrones/Ayuda";
-import { FuenteFecha, InsigniaEstado, InsigniaHecho, iconoEstado, tonoEstado } from "@/components/salud/comun";
+import type { Tono } from "@/components/gobserva/ui/Insignia";
+import { FuenteFecha, iconoEstado, tonoEstado } from "@/components/salud/comun";
 import { rutaEn } from "@/lib/gobserva";
-import { fechaCorta, rutaFicha, rutaMedico, type Chequeo, type FichaIpress } from "@/lib/gobserva-salud";
+import { ESTADOS_CHEQUEO, fechaCorta, rutaFicha, rutaMedico, type Chequeo, type FichaIpress } from "@/lib/gobserva-salud";
 import { cn } from "@/lib/utils";
-import { DISCO_TONO, DetallePendiente, URL_RENIPRESS_CONSULTA, detalleLeido } from "./piezas";
+import { DetallePendiente, URL_RENIPRESS_CONSULTA, detalleLeido } from "./piezas";
+
+/** El color del ícono y del nombre del estado de un chequeo. */
+const TEXTO_TONO: Record<Tono, string> = {
+  exito: "text-mossTexto",
+  neutro: "text-mute",
+  acento: "text-granate",
+  aviso: "text-amberTexto",
+  urgente: "text-crimsonTexto",
+};
 
 /**
  * Lo primero de la ficha: la verificación (decidir). Arriba, una frase hecha SÓLO con lo que dicen los chequeos; abajo,
@@ -81,37 +91,37 @@ export function VerificacionFicha({ f, base }: { f: FichaIpress; base: string })
   const leido = detalleLeido(f);
   return (
     <section aria-labelledby="verificacion-t" className="tarjeta min-w-0 rounded-2xl border border-line bg-paper">
-      <header className="border-b border-line px-4 pb-4 pt-4 sm:px-6 sm:pt-5">
+      <header className="border-b border-line px-4 pb-3.5 pt-4 sm:px-6 sm:pt-5">
         <div className="flex items-center gap-1.5">
           <h2 id="verificacion-t" className="font-display text-seccion font-bold leading-tight text-ink">
-            Verificación
+            Cómo lo verificamos
           </h2>
           <Ayuda titulo="¿Cómo se lee la verificación?" etiqueta="Cómo se lee la verificación">
-            Cada fila es lo que afirma una fuente oficial, con su fecha. El color dice si conviene revisar algo; la etiqueta dice
-            qué clase de hecho es: una sanción firme no es una denuncia, y lo que dice RENIPRESS lo declaró la propia IPRESS.
+            Cada fila es lo que afirma una fuente oficial, con su fecha. El color dice si conviene revisar algo. No todo es lo
+            mismo: una sanción firme no es una denuncia, y lo que dice RENIPRESS lo declaró la propia IPRESS.
             <span className="mt-1.5 block">Nada de esto califica a un establecimiento como seguro o peligroso.</span>
           </Ayuda>
         </div>
-        <p className="mt-2 max-w-[68ch] text-pretty text-destacado font-semibold leading-snug text-ink">{resumenVerificacion(f)}</p>
+        <p className="mt-1 text-dato text-inkSoft">Cada chequeo de «Lo esencial», con la fuente oficial y su fecha.</p>
       </header>
+      {/* 2026-11-21 («atosigante, sin jerarquías»): una fila por chequeo, con el ícono de su estado en su color y el
+          nombre del estado a la derecha; sin el disco, sin la etiqueta de clase de hecho (está en el ⓘ) y sin repetir la
+          frase de «Lo esencial». */}
       <ol aria-label="Chequeos de verificación" className="divide-y divide-line">
         {f.verificacion.map((c) => {
           const Icono = iconoEstado(c.estado);
+          const tono = tonoEstado(c.estado);
           return (
-            <li key={c.clave} className="grid grid-cols-1 gap-x-4 px-4 py-4 sm:grid-cols-[2.5rem_minmax(0,1fr)] sm:px-6">
-              {/* En el celular el disco se va (la insignia de estado ya lleva su ícono y su color) y el texto gana ancho. */}
-              <span aria-hidden className={cn("mt-0.5 hidden h-10 w-10 place-items-center rounded-full sm:grid", DISCO_TONO[tonoEstado(c.estado)])}>
-                <Icono size={18} />
-              </span>
+            <li key={c.clave} className="grid grid-cols-[1.25rem_minmax(0,1fr)] gap-x-3 px-4 py-3.5 sm:px-6">
+              <Icono size={18} aria-hidden className={cn("mt-0.5", TEXTO_TONO[tono])} />
               <div className="min-w-0">
-                <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5">
-                  <h3 className="mr-1 text-cuerpo font-semibold leading-snug text-ink">{c.titulo}</h3>
-                  <InsigniaEstado estado={c.estado} />
-                  <InsigniaHecho tipo={c.tipo} />
+                <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-0.5">
+                  <h3 className="text-cuerpo font-semibold leading-snug text-ink">{c.titulo}</h3>
+                  <span className={cn("text-meta font-semibold", TEXTO_TONO[tono])}>{ESTADOS_CHEQUEO[c.estado].rotulo}</span>
                 </div>
-                <p className="mt-1.5 max-w-[72ch] text-pretty text-dato leading-relaxed text-inkSoft">{c.detalle}</p>
-                <FuenteFecha nombre={c.fuente} url={c.url} al={c.al} className="mt-1.5" />
-                <div className="mt-1">
+                <p className="mt-1 max-w-[72ch] text-pretty text-meta leading-relaxed text-inkSoft">{c.detalle}</p>
+                <div className="mt-1 flex flex-wrap items-center gap-x-4">
+                  <FuenteFecha nombre={c.fuente} url={c.url} al={c.al} />
                   <Extra c={c} f={f} base={base} />
                 </div>
               </div>

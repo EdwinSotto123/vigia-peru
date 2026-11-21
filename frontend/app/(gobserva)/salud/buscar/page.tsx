@@ -5,7 +5,7 @@ import type { LucideIcon } from "lucide-react";
 import { EstadoError, EstadoVacio } from "@/components/gobserva/ui/Estados";
 import { FuenteFecha, InsigniaHecho } from "@/components/salud/comun";
 import { URL_CMP, URL_RENIPRESS_CONSULTA, URL_SANCIONES } from "@/components/salud/fuentes/urls";
-import { FilaEstablecimiento } from "@/components/salud/lista/FilaEstablecimiento";
+import { FilaEstablecimiento, PLACA_LISTA } from "@/components/salud/lista/FilaEstablecimiento";
 import { BuscadorSalud } from "@/components/salud/portada/BuscadorSalud";
 import { AvisoEmergencia, Encabezado, Ruta } from "@/components/salud/portada/Piezas";
 import { Dato } from "@/components/ui/Dato";
@@ -116,10 +116,10 @@ export default async function Buscar({ searchParams }: Props) {
                         Figura como responsable de la atención en{" "}
                         {res.colegiatura.responsableDe.length === 1 ? "un establecimiento" : `${numero(res.colegiatura.responsableDe.length)} establecimientos`}:
                       </p>
-                      <ul className="mt-3 space-y-2.5">
+                      <ul className={`mt-3 ${PLACA_LISTA}`}>
                         {res.colegiatura.responsableDe.map((x) => (
                           <li key={x.codigo}>
-                            <FilaEstablecimiento x={x} base={base} className="p-3.5 sm:p-4">
+                            <FilaEstablecimiento x={x} base={base}>
                               <p className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-meta text-inkSoft">
                                 <Dato icono={IdCard} nombre="Colegio">
                                   {nombrePropio(x.colegio)}
@@ -194,7 +194,7 @@ export default async function Buscar({ searchParams }: Props) {
                   </Link>
                 )}
               </div>
-              <ul className="mt-4 space-y-3" aria-label="Establecimientos encontrados">
+              <ul className={`mt-4 ${PLACA_LISTA}`} aria-label="Establecimientos encontrados">
                 {res.establecimientos.map((x) => (
                   <li key={x.codigo}>
                     <FilaEstablecimiento x={x} base={base} />

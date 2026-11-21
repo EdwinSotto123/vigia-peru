@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { CircleCheck, Crosshair, Loader2, LocateFixed, Navigation, RotateCw, ShieldCheck, TriangleAlert } from "lucide-react";
 import { direccionLegible, nombreServicio } from "@/components/salud/ficha/piezas";
-import { FilaEstablecimiento } from "@/components/salud/lista/FilaEstablecimiento";
+import { FilaEstablecimiento, PLACA_LISTA } from "@/components/salud/lista/FilaEstablecimiento";
 import { VecinaPregunta, VecinaUbicando } from "@/components/salud/pixel/Personajes";
 import { BuscadorSalud } from "@/components/salud/portada/BuscadorSalud";
 import { claseAccion } from "@/components/ui/EnlaceAccion";
@@ -253,7 +253,7 @@ export function CercaDeMi({
 
           {estado.filas.length > 0 ? (
             <>
-              <ol className="mt-4 space-y-3" aria-label="Establecimientos de salud, del más cercano al más lejano">
+              <ol className={cn("mt-4", PLACA_LISTA)} aria-label="Establecimientos de salud, del más cercano al más lejano">
                 {(todas ? estado.filas : estado.filas.slice(0, PRIMERAS)).map((x) => {
                   const fila = x.enRegistro ? x : { ...x, activo: false, estado: "Ya no figura en RENIPRESS" };
                   return (

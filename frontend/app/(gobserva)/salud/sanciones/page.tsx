@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Ban, CalendarClock, FileWarning, Gavel, Receipt, RotateCw, Scale, UserX, X } from "lucide-react";
+import { Ban, FileWarning, Gavel, Receipt, RotateCw, Scale, X } from "lucide-react";
+import { Ayuda } from "@/components/patrones/Ayuda";
+import { BarrasAnio } from "@/components/salud/sanciones/BarrasAnio";
 import { EstadoError, EstadoVacio } from "@/components/gobserva/ui/Estados";
 import { FuenteFecha } from "@/components/salud/comun";
 import { nombreLugar } from "@/components/salud/lista/filtros";
@@ -14,7 +16,6 @@ import { claseAccion } from "@/components/ui/EnlaceAccion";
 import { rutaEn, urlCanonica } from "@/lib/gobserva";
 import { getSanciones, numero } from "@/lib/gobserva-salud";
 import { baseProducto } from "@/lib/gobserva-servidor";
-import { cn } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 
@@ -73,20 +74,17 @@ export default async function Sanciones({ searchParams }: Props) {
         {fuente}
       </Encabezado>
 
-      <ul className="mt-5 grid gap-x-8 gap-y-3 sm:grid-cols-2 xl:grid-cols-4" aria-label="Qué es este registro">
-        <Clave Icono={Gavel} titulo="Sólo sanciones firmes">
-          Ya no se pueden apelar en la vía administrativa. Una denuncia no aparece aquí.
-        </Clave>
-        <Clave Icono={CalendarClock} titulo="No es el historial completo">
-          SUSALUD publica cada sanción por lo menos un año y después puede retirarla.
-        </Clave>
-        <Clave Icono={Scale} titulo="Algunas siguen en juicio">
-          Cuando el registro dice que una sanción está en un proceso judicial, lo marcamos.
-        </Clave>
-        <Clave Icono={UserX} titulo="Es de la institución">
-          La sanción de una clínica no es una sanción a sus médicos ni a quien la dirige.
-        </Clave>
-      </ul>
+      {/* 2026-11-21 («atosigante, sin jerarquías»): las cuatro claves eran cuatro columnas con ícono antes del buscador;
+          ahora una línea y el resto detrás del ⓘ. */}
+      <p className="mt-4 flex max-w-[80ch] flex-wrap items-center gap-x-1.5 text-dato leading-relaxed text-inkSoft">
+        Sólo sanciones firmes, de la institución y no de sus médicos. No es el historial completo.
+        <Ayuda titulo="¿Qué es y qué no es este registro?" etiqueta="Qué es y qué no es este registro">
+          <span className="block"><b className="font-semibold">Sólo sanciones firmes:</b> ya no se pueden apelar en la vía administrativa. Una denuncia no aparece aquí.</span>
+          <span className="mt-1 block"><b className="font-semibold">No es el historial completo:</b> SUSALUD publica cada sanción por lo menos un año y después puede retirarla.</span>
+          <span className="mt-1 block"><b className="font-semibold">Algunas siguen en juicio:</b> cuando el registro dice que una sanción está en un proceso judicial, lo marcamos.</span>
+          <span className="mt-1 block"><b className="font-semibold">Es de la institución:</b> la sanción de una clínica no es una sanción a sus médicos ni a quien la dirige.</span>
+        </Ayuda>
+      </p>
 
       <FormSanciones accion={lista} f={f} limpiar={lista} className="mt-6" />
 
@@ -113,45 +111,7 @@ export default async function Sanciones({ searchParams }: Props) {
         </ul>
       )}
 
-      {d && d.porAnio.length > 0 && (
-        <nav aria-label="Año de emisión" className="mt-4">
-          <p className="text-rotulo font-medium text-inkSoft">Año de emisión (en todo el registro)</p>
-          <ul className="-mx-4 mt-1.5 flex gap-2 overflow-x-auto px-4 pb-1 [scrollbar-width:none] sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0 [&::-webkit-scrollbar]:hidden">
-            <li className="shrink-0">
-              <Link
-                href={enlace({ anio: undefined })}
-                prefetch={false}
-                aria-current={!f.anio ? "true" : undefined}
-                className={cn(
-                  "inline-flex min-h-11 items-center whitespace-nowrap rounded-full border px-3.5 text-meta transition-colors duration-rapido sm:min-h-9",
-                  !f.anio ? "border-granate bg-granate-50 font-semibold text-ink" : "border-line bg-paper text-inkSoft hover:border-granate/40 hover:text-ink",
-                )}
-              >
-                Todos los años
-              </Link>
-            </li>
-            {d.porAnio.map((a) => {
-              const activo = f.anio === a.anio;
-              return (
-                <li key={a.anio} className="shrink-0">
-                  <Link
-                    href={enlace({ anio: activo ? undefined : a.anio })}
-                    prefetch={false}
-                    aria-current={activo ? "true" : undefined}
-                    className={cn(
-                      "inline-flex min-h-11 items-center gap-1.5 whitespace-nowrap rounded-full border px-3.5 text-meta tabular-nums transition-colors duration-rapido sm:min-h-9",
-                      activo ? "border-granate bg-granate-50 font-semibold text-ink" : "border-line bg-paper text-inkSoft hover:border-granate/40 hover:text-ink",
-                    )}
-                  >
-                    {a.anio}
-                    <span className="text-mute">{numero(a.n)}</span>
-                  </Link>
-                </li>
-              );
-            })}
-          </ul>
-        </nav>
-      )}
+      {d && d.porAnio.length > 0 && <BarrasAnio porAnio={d.porAnio} activo={f.anio ?? null} enlace={(anio) => enlace({ anio })} />}
 
       {!d ? (
         <div className="mt-8 rounded-2xl border border-line bg-paper">
@@ -210,7 +170,7 @@ export default async function Sanciones({ searchParams }: Props) {
                   href={(n) => `${lista}${qsSanciones({ ...f, pagina: n })}`}
                 />
               </div>
-              <ul className="mt-3 space-y-3" aria-label="Sanciones firmes">
+              <ul className="mt-3 overflow-hidden rounded-2xl border border-line bg-paper divide-y divide-line" aria-label="Sanciones firmes">
                 {d.filas.map((s) => (
                   <li key={s.id} className="min-w-0">
                     <FilaSancion s={s} base={base} />
@@ -231,19 +191,5 @@ export default async function Sanciones({ searchParams }: Props) {
         </>
       )}
     </div>
-  );
-}
-
-function Clave({ Icono, titulo, children }: { Icono: typeof Gavel; titulo: string; children: React.ReactNode }) {
-  return (
-    <li className="flex gap-3">
-      <span aria-hidden className="mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-paperDeep text-ink">
-        <Icono size={16} />
-      </span>
-      <span className="min-w-0">
-        <span className="block text-dato font-semibold leading-snug text-ink">{titulo}</span>
-        <span className="mt-0.5 block text-meta leading-snug text-inkSoft">{children}</span>
-      </span>
-    </li>
   );
 }

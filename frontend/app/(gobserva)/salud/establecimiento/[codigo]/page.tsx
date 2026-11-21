@@ -5,6 +5,7 @@ import { Migas } from "@/components/patrones/Migas";
 import { Pestanas, type Pestana } from "@/components/patrones/Pestanas";
 import { AccionesFicha } from "@/components/salud/ficha/Acciones";
 import { CabeceraFicha } from "@/components/salud/ficha/Cabecera";
+import { EsencialFicha } from "@/components/salud/ficha/Esencial";
 import { PestanaDenuncias } from "@/components/salud/ficha/PestanaDenuncias";
 import { PestanaDocumentos } from "@/components/salud/ficha/PestanaDocumentos";
 import { PestanaFuentes } from "@/components/salud/ficha/PestanaFuentes";
@@ -44,13 +45,16 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 }
 
 /**
- * La ficha de un establecimiento de salud (IPRESS) en Gobserva Salud, en el orden decidir → actuar → detalle: arriba
- * quién es (nombre, categoría con lo que significa, sector, estado, dirección, teléfono y horario); después «Para atenderte
- * aquí» (qué servicios y cuánto personal declaró y si te pueden atender por lo que necesitas); luego la verificación
- * (una frase hecha con los chequeos y cada chequeo con su fuente y su fecha) y lo que se puede hacer (llegar, el mapa,
- * la consulta oficial, denunciar, copiar el enlace, preguntar); y en pestañas fijas el detalle: servicios, sanciones
- * firmes, denuncias, recursos y cirugías, documentos, historial y fuentes. Al final, lo que Vigía sabe de su RUC y sus
- * otras sedes. GET /salud/establecimiento/:codigo.
+ * La ficha de un establecimiento de salud (IPRESS) en Gobserva Salud, de lo más corto a lo más largo: quién es (nombre,
+ * categoría con lo que significa, sector, estado, dirección, teléfono y horario); «Lo esencial» (la frase de la
+ * verificación una vez y una casilla por chequeo, Esencial.tsx); «Para atenderte aquí» (qué servicios y cuánto personal
+ * declaró y si te pueden atender por lo que necesitas); «Cómo lo verificamos» (cada chequeo con su fuente y su fecha); a la
+ * derecha y fijo, lo que se puede hacer (llegar, el mapa, la consulta oficial, denunciar, copiar el enlace, preguntar);
+ * y en pestañas fijas el detalle: servicios, sanciones firmes, denuncias, recursos y cirugías, documentos, historial y
+ * fuentes. Al final, lo que Vigía sabe de su RUC y sus otras sedes. GET /salud/establecimiento/:codigo.
+ *
+ * 2026-11-21 (el usuario: «demasiado atosigante, sin jerarquías, sin diseños»): la frase se decía tres veces y había
+ * tres tarjetas de «Pregúntale al asistente»; ahora una de cada una. 7,3 → 5,4 pantallas en la computadora.
  */
 export default async function FichaEstablecimiento({ params, searchParams }: Props) {
   const codigo = codigoDe(params.codigo);
@@ -84,17 +88,19 @@ export default async function FichaEstablecimiento({ params, searchParams }: Pro
         pestanas={{ etiquetas: Object.fromEntries(pestanas.map((p) => [p.clave, p.etiqueta])), primera: pestanas[0].clave, activa: seccion }}
       />
 
-      <div className="mt-4">
-        <CabeceraFicha f={f} />
-      </div>
-      {/* Lo que una persona quiere saber antes de atenderse, en palabras simples: arriba de todo. */}
-      <div className="mt-6">
-        <ResumenAtencion f={f} base={base} />
-      </div>
-
-      <div className="mt-6 grid gap-5 lg:grid-cols-[minmax(0,1fr)_22rem] lg:items-start">
-        <VerificacionFicha f={f} base={base} />
-        <AccionesFicha f={f} base={base} className="lg:sticky lg:top-20" />
+      {/* Dos columnas en la computadora: a la izquierda, de lo más corto a lo más largo (quién es, lo esencial de un
+          vistazo, para atenderte, cómo lo verificamos); a la derecha, fijo, lo que se puede hacer. En el celular, lo que se
+          puede hacer va después de «Para atenderte aquí» y antes del detalle de la verificación. */}
+      <div className="mt-4 grid gap-x-8 gap-y-8 lg:grid-cols-[minmax(0,1fr)_19rem]">
+        <div className="min-w-0 space-y-8 lg:col-start-1">
+          <CabeceraFicha f={f} />
+          <EsencialFicha f={f} base={base} />
+          <ResumenAtencion f={f} base={base} />
+        </div>
+        <AccionesFicha f={f} base={base} className="lg:sticky lg:top-20 lg:col-start-2 lg:row-span-2 lg:row-start-1 lg:self-start" />
+        <div className="min-w-0 lg:col-start-1">
+          <VerificacionFicha f={f} base={base} />
+        </div>
       </div>
 
       {/* Las pestañas se pegan bajo la cabecera del producto (64 px), no detrás de ella. */}

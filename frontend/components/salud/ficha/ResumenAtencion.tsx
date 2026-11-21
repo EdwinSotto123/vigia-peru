@@ -2,7 +2,6 @@ import Link from "next/link";
 import type { LucideIcon } from "lucide-react";
 import { ChevronRight, CircleCheck, CircleMinus, CirclePause, Hourglass, Phone, Users } from "lucide-react";
 import { Pixel } from "@/components/pixel/Pixel";
-import { PreguntaRapida } from "@/components/salud/asistente/PreguntaRapida";
 import { FuenteFecha } from "@/components/salud/comun";
 import { rutaEn } from "@/lib/gobserva";
 import { nombrePropio, numero, rutaMedico, type FichaIpress } from "@/lib/gobserva-salud";
@@ -10,7 +9,6 @@ import { cn } from "@/lib/utils";
 import { itemsDeclarados, personalDeclarado, serviciosClave, type Sabe } from "./atencion";
 import { URL_RENIPRESS_CONSULTA, detalleLeido } from "./piezas";
 import { TeAtiendenAqui } from "./TeAtiendenAqui";
-import { resumenVerificacion } from "./Verificacion";
 
 const SABE: Record<Sabe, { Icono: LucideIcon; texto: string; clase: string }> = {
   si: { Icono: CircleCheck, texto: "Sí", clase: "text-mossTexto" },
@@ -21,7 +19,8 @@ const SABE: Record<Sabe, { Icono: LucideIcon; texto: string; clase: string }> = 
 
 /**
  * «Para atenderte aquí» (Gobserva Salud, 2026-11-20): lo que una persona quiere saber antes de atenderse, en palabras
- * simples y arriba de todo. La frase de la verificación; qué servicios declaró (emergencia, hospitalización, partos,
+ * simples, después de «Lo esencial» (la frase de la verificación vive ahí, una sola vez, y el asistente en «Qué puedes
+ * hacer»: antes había tres tarjetas de «Pregúntale»). Qué servicios declaró (emergencia, hospitalización, partos,
  * centro quirúrgico…: sí, no lo declaró, suspendido o sin dato); su personal declarado a SUSALUD (cuántos médicos, no
  * quién está hoy); «¿Te pueden atender aquí?» para buscar lo que necesita; y el asistente para lo demás. Cada bloque con
  * su fuente y su fecha. Nunca dice «no te atienden»: dice «no lo declaró» y que se pregunte. Server-safe.
@@ -45,11 +44,8 @@ export function ResumenAtencion({ f, base }: { f: FichaIpress; base: string }) {
         <h2 id="atencion-t" className="font-display text-seccion font-bold leading-tight text-ink">
           Para atenderte aquí
         </h2>
-        <p className="mt-2 max-w-[72ch] text-pretty text-cuerpo leading-relaxed text-ink">
-          {resumenVerificacion(f)}{" "}
-          <Link href="#verificacion-t" className="whitespace-nowrap text-dato font-semibold text-granate underline-offset-4 hover:underline">
-            Ver la verificación
-          </Link>
+        <p className="mt-1 max-w-[72ch] text-pretty text-dato leading-relaxed text-inkSoft">
+          Lo que declaró a SUSALUD: qué servicios tiene, cuánto personal y si te pueden atender por lo que necesitas.
         </p>
       </header>
 
@@ -170,12 +166,6 @@ export function ResumenAtencion({ f, base }: { f: FichaIpress; base: string }) {
         <div className="mt-3">
           <TeAtiendenAqui items={itemsDeclarados(f)} leido={leido} telefono={f.telefono} base={base} renipressUrl={renipress} />
         </div>
-      </div>
-
-      {/* ── Lo demás, al asistente ─────────────────────────────────────────────── */}
-      <div className="grid gap-3 border-t border-line px-4 py-5 sm:grid-cols-2 sm:px-6">
-        <PreguntaRapida base={base} pregunta={`¿Qué especialidades y servicios declaró ${nombre} (código ${f.codigo}) y cuál es su horario?`} />
-        <PreguntaRapida base={base} pregunta={`¿${nombre} (código ${f.codigo}) tiene sanciones de SUSALUD? ¿Por qué?`} />
       </div>
     </section>
   );

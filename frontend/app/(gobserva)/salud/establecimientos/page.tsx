@@ -1,14 +1,14 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Building2, Gavel, Info, MapPinned, RotateCw, X } from "lucide-react";
+import { Info, MapPinned, RotateCw, X } from "lucide-react";
 import { EstadoError, EstadoVacio } from "@/components/gobserva/ui/Estados";
 import { FuenteFecha } from "@/components/salud/comun";
 import { URL_RENIPRESS_CONSULTA, URL_SANCIONES } from "@/components/salud/fuentes/urls";
-import { FilaEstablecimiento } from "@/components/salud/lista/FilaEstablecimiento";
+import { FilaEstablecimiento, PLACA_LISTA } from "@/components/salud/lista/FilaEstablecimiento";
 import { ESTADOS, ORDENES, filtrosDeUrl, filtrosMapa, nombreCategoria, nombreLugar, nombreTipo, paramsApi, qsLista, type FiltrosLista } from "@/components/salud/lista/filtros";
 import { FiltrosEstablecimientos } from "@/components/salud/lista/FiltrosEstablecimientos";
 import { Paginas } from "@/components/salud/lista/Paginas";
-import { Encabezado, Ruta, Tesela } from "@/components/salud/portada/Piezas";
+import { Encabezado, Ruta } from "@/components/salud/portada/Piezas";
 import { claseAccion } from "@/components/ui/EnlaceAccion";
 import { rutaEn, urlCanonica } from "@/lib/gobserva";
 import { SECTORES, getEstablecimientos, getResumenSalud, numero } from "@/lib/gobserva-salud";
@@ -157,28 +157,38 @@ export default async function Establecimientos({ searchParams }: Props) {
         </div>
       ) : (
         <>
-          <div id="resultados" className="mt-5 grid scroll-mt-32 gap-3 sm:grid-cols-2 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] lg:items-stretch">
-            <Tesela
-              Icono={Building2}
-              valor={numero(d.total)}
-              etiqueta={d.total === 1 ? "establecimiento con estos filtros" : "establecimientos con estos filtros"}
-              pie={<FuenteFecha nombre="RENIPRESS (SUSALUD)" url={URL_RENIPRESS_CONSULTA} al={fuentes?.renipressAl} />}
-            />
-            <Tesela
-              Icono={Gavel}
-              tono="hecho"
-              valor={numero(d.conSanciones)}
-              etiqueta={d.conSanciones === 1 ? "tiene al menos una sanción firme" : "tienen al menos una sanción firme"}
-              detalle="La sanción es de la institución, no de sus médicos."
-              pie={<FuenteFecha nombre="Registro de Sanciones (SUSALUD)" url={URL_SANCIONES} al={fuentes?.sancionesAl} />}
-              href={f.sanciones === "con" ? undefined : enlace({ sanciones: "con" })}
-            />
-            <Link
-              href={mapa}
-              className="flex min-h-12 items-center justify-center gap-2 rounded-2xl border border-line bg-paper px-5 text-dato font-semibold text-ink transition-colors duration-rapido hover:border-granate/40 hover:text-granate sm:col-span-2 lg:col-span-1"
-            >
-              <MapPinned size={17} aria-hidden className="text-granate" /> Verlos en el mapa
-            </Link>
+          {/* 2026-11-21 («atosigante, sin jerarquías»): antes, tres teselas del mismo alto (el total, las que tienen sanción y
+              el mapa). Ahora una franja: el total, las que tienen sanción en su rojo (con «ver sólo esas») y el mapa; las
+              dos fuentes, una vez y abajo. */}
+          <div id="resultados" className="mt-5 scroll-mt-32 rounded-2xl border border-line bg-paper px-4 py-3.5 sm:px-5">
+            <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3">
+              <p className="flex flex-wrap items-baseline gap-x-6 gap-y-1 text-dato text-inkSoft">
+                <span>
+                  <b className="font-display text-seccion font-bold tabular-nums text-ink">{numero(d.total)}</b>{" "}
+                  {d.total === 1 ? "establecimiento con estos filtros" : "establecimientos con estos filtros"}
+                </span>
+                <span className="text-crimsonTexto">
+                  <b className="font-display text-seccion font-bold tabular-nums">{numero(d.conSanciones)}</b>{" "}
+                  {d.conSanciones === 1 ? "tiene al menos una sanción firme" : "tienen al menos una sanción firme"}
+                  {f.sanciones !== "con" && d.conSanciones > 0 && (
+                    <Link href={enlace({ sanciones: "con" })} prefetch={false} className="ml-2 text-meta font-semibold text-granate underline-offset-4 hover:underline">
+                      Ver sólo esos
+                    </Link>
+                  )}
+                </span>
+              </p>
+              <Link
+                href={mapa}
+                className="inline-flex min-h-11 items-center gap-2 rounded-full border border-line px-4 text-dato font-semibold text-ink transition-colors duration-rapido hover:border-granate/40 hover:text-granate"
+              >
+                <MapPinned size={16} aria-hidden className="text-granate" /> Verlos en el mapa
+              </Link>
+            </div>
+            <p className="mt-2 flex flex-wrap gap-x-5 gap-y-1 border-t border-line pt-2">
+              <FuenteFecha nombre="RENIPRESS (SUSALUD)" url={URL_RENIPRESS_CONSULTA} al={fuentes?.renipressAl} />
+              <FuenteFecha nombre="Registro de Sanciones (SUSALUD)" url={URL_SANCIONES} al={fuentes?.sancionesAl} />
+              <span className="text-meta text-mute">La sanción es de la institución, no de sus médicos.</span>
+            </p>
           </div>
 
           {f.quirurgico && fuentes && (
@@ -219,7 +229,7 @@ export default async function Establecimientos({ searchParams }: Props) {
                 nombre={d.total === 1 ? "establecimiento" : "establecimientos"}
                 href={(n) => `${lista}${qsLista({ ...f, pagina: n })}`}
               />
-              <ul className="mt-3 space-y-3" aria-label="Establecimientos">
+              <ul className={cn("mt-3", PLACA_LISTA)} aria-label="Establecimientos">
                 {d.filas.map((x) => (
                   <li key={x.codigo} className="min-w-0">
                     <FilaEstablecimiento x={x} base={base} />

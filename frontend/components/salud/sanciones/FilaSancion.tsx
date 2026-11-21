@@ -1,11 +1,10 @@
 import Link from "next/link";
-import { ArrowRight, ChevronDown, Landmark, Scale, TriangleAlert } from "lucide-react";
+import { ChevronDown, Scale } from "lucide-react";
 import { Insignia } from "@/components/gobserva/ui/Insignia";
-import { InsigniaHecho } from "@/components/salud/comun";
 import { nombreLugar } from "@/components/salud/lista/filtros";
-import { Dato } from "@/components/ui/Dato";
 import { rutaEn } from "@/lib/gobserva";
-import { GRAVEDAD, TIPO_SANCION, fechaCorta, nombrePropio, rutaFicha, type FilaSancion as Fila } from "@/lib/gobserva-salud";
+import { GRAVEDAD, TIPO_SANCION, nombrePropio, rutaFicha, type FilaSancion as Fila } from "@/lib/gobserva-salud";
+import { cn } from "@/lib/utils";
 import { uit } from "./filtros";
 
 /** De «… Numeral 5) “No cumplir con las disposiciones sobre la historia clínica”» saca lo que está entre comillas. */
@@ -15,11 +14,37 @@ function entreComillas(t: string | null): string | null {
   return m ? m[1].trim().replace(/\.$/, "") : null;
 }
 
+/** «Soleil S.A.C. / Soleil S.A.C.» → «Soleil S.A.C.»: SUSALUD repite el nombre cuando la razón social es la misma. */
+function sinRepetir(nombre: string): string {
+  const partes = nombre.split(/\s+\/\s+/).map((p) => p.trim()).filter(Boolean);
+  const vistas = new Set<string>();
+  const unicas = partes.filter((p) => {
+    const k = p.toLocaleLowerCase("es-PE").replace(/[^a-z0-9ñ]/g, "");
+    if (vistas.has(k)) return false;
+    vistas.add(k);
+    return true;
+  });
+  return unicas.join(" / ");
+}
+
+const MESES = ["ene.", "feb.", "mar.", "abr.", "may.", "jun.", "jul.", "ago.", "set.", "oct.", "nov.", "dic."];
+
+/** «2026-11-09» → { dia: "9 nov.", anio: "2026" }. */
+function partesFecha(iso: string | null): { dia: string; anio: string } | null {
+  const m = iso?.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (!m) return null;
+  return { dia: `${Number(m[3])} ${MESES[Number(m[2]) - 1]}`, anio: m[1] };
+}
+
 /**
- * Una sanción firme del Registro de Sanciones de SUSALUD: el rótulo de la clase de hecho y el tipo (con la multa en UIT,
- * como la publica SUSALUD), la gravedad y si está en un proceso judicial; el nombre tal como lo registró SUSALUD; el
- * establecimiento al que corresponde (si el registro lo une a uno); fecha, procedimiento, resolución y lugar; y la
- * infracción: lo que dice entre comillas a la vista y el texto completo a un toque. Server-safe.
+ * Una sanción firme del Registro de Sanciones de SUSALUD, como FILA de una placa (la placa la pone la lista).
+ *
+ * 2026-11-21 (el usuario: «atosigante, sin jerarquías»): antes cada sanción era una tarjeta con cuatro insignias (una de
+ * ellas, «Sanción firme», igual en todas), el nombre repetido («X / X»), una línea de datos y un recuadro para la
+ * infracción. Ahora: la fecha a la izquierda, como en un registro; el tipo en negrita (la multa con sus UIT, en rojo) y la
+ * gravedad en texto; el nombre (lleva a su establecimiento si el registro lo une a uno); lo que dice la infracción entre
+ * comillas; y el resto (texto completo, resolución, procedimiento, lugar, institución) a un toque. Sólo queda una
+ * insignia: «En proceso judicial», que cambia cómo se lee la sanción. Server-safe.
  */
 export function FilaSancion({ s, base }: { s: Fila; base: string }) {
   const codigoValido = !!s.ipressCodigo && /^\d{1,8}$/.test(s.ipressCodigo);
@@ -30,79 +55,97 @@ export function FilaSancion({ s, base }: { s: Fila; base: string }) {
       : null;
   const que = entreComillas(s.infraccion);
   const tipo = TIPO_SANCION[s.tipoSancion] ?? "Sanción";
+  const pesada = s.tipoSancion === "multa" || /cierre|clausura/i.test(tipo);
   const lugar = [s.distrito, s.departamento].filter(Boolean).map((x) => nombreLugar(x)).join(", ");
+  const nombre = sinRepetir(nombrePropio(s.nombre));
+  const fecha = partesFecha(s.fechaEmision);
+  const institucion = [s.administradaTipo, s.naturaleza?.toLocaleLowerCase("es-PE")].filter(Boolean).join(" ");
   return (
-    <article className="min-w-0 rounded-2xl border border-line bg-paper p-4 sm:p-5">
-      <div className="flex flex-wrap items-center gap-1.5">
-        <InsigniaHecho tipo="sancion_firme" />
-        <Insignia tono="neutro" className="text-ink">
-          {tipo}
-          {s.multaUit != null && s.tipoSancion === "multa" ? ` de ${uit(s.multaUit)} UIT` : ""}
-        </Insignia>
-        {s.gravedad && (
-          <Insignia tono="neutro" Icono={TriangleAlert}>
-            Infracción {GRAVEDAD[s.gravedad]?.toLocaleLowerCase("es-PE") ?? s.gravedad}
-          </Insignia>
-        )}
-        {s.judicializada && (
-          <Insignia tono="aviso" Icono={Scale} title="El registro de SUSALUD indica que la sanción está en un proceso judicial.">
-            En proceso judicial
-          </Insignia>
-        )}
-      </div>
-
-      <h3 className="mt-2.5 text-cuerpo font-semibold leading-snug text-ink">
-        <span className="sr-only">Registrada como: </span>
-        {nombrePropio(s.nombre)}
-      </h3>
-      {enlaceIpress && s.ipressNombre && (
-        <p className="mt-1 text-meta">
-          <Link href={enlaceIpress} prefetch={false} className="group inline-flex min-h-11 flex-wrap items-center gap-x-1 font-semibold text-granate underline-offset-2 sm:min-h-0">
-            <span className="font-normal text-inkSoft">Establecimiento:</span>
-            <span className="group-hover:underline">{nombrePropio(s.ipressNombre)}</span>
-            <ArrowRight size={13} aria-hidden />
-          </Link>
+    <article className="grid min-w-0 gap-x-5 gap-y-1 px-4 py-4 sm:grid-cols-[5.5rem_minmax(0,1fr)] sm:px-5">
+      {fecha ? (
+        <p className="text-meta text-inkSoft sm:pt-0.5">
+          <time dateTime={s.fechaEmision ?? undefined} className="flex gap-1.5 sm:flex-col sm:gap-0">
+            <span className="font-semibold text-ink">{fecha.dia}</span>
+            <span className="tabular-nums">{fecha.anio}</span>
+          </time>
         </p>
+      ) : (
+        <p className="text-meta text-mute">Sin fecha</p>
       )}
 
-      <p className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-meta text-inkSoft">
-        <Dato tipo="fecha">Emitida el {fechaCorta(s.fechaEmision)}</Dato>
-        {s.pas && (
-          <Dato tipo="documento" nombre="Procedimiento">
-            {s.pas}
-          </Dato>
-        )}
-        {lugar && <Dato tipo="lugar">{lugar}</Dato>}
-        {(s.administradaTipo || s.naturaleza) && (
-          <Dato icono={Landmark} nombre="Institución">
-            {[s.administradaTipo, s.naturaleza?.toLocaleLowerCase("es-PE")].filter(Boolean).join(" ")}
-          </Dato>
-        )}
-      </p>
-
-      {(que || s.infraccion) && (
-        <div className="mt-3 rounded-xl bg-paperSoft px-3.5 py-3">
-          {que && (
-            <p className="text-dato leading-relaxed text-ink">
-              {s.infraccionCodigo && <span className="mr-1.5 font-mono text-rotulo text-mute">{s.infraccionCodigo}</span>}«{que}»
-            </p>
+      <div className="min-w-0">
+        <p className="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-dato">
+          <span className={cn("font-semibold", pesada ? "text-crimsonTexto" : "text-ink")}>
+            {tipo}
+            {s.multaUit != null && s.tipoSancion === "multa" ? ` de ${uit(s.multaUit)} UIT` : ""}
+          </span>
+          {s.gravedad && <span className="text-meta text-inkSoft">infracción {GRAVEDAD[s.gravedad]?.toLocaleLowerCase("es-PE") ?? s.gravedad}</span>}
+          {lugar && <span className="text-meta text-mute">{lugar}</span>}
+          {s.judicializada && (
+            <Insignia tono="aviso" Icono={Scale} title="El registro de SUSALUD indica que la sanción está en un proceso judicial.">
+              En proceso judicial
+            </Insignia>
           )}
-          {s.infraccion && (
-            <details className="group">
-              <summary className="inline-flex min-h-11 cursor-pointer list-none items-center gap-1 text-meta font-semibold text-granate sm:min-h-8 [&::-webkit-details-marker]:hidden">
-                {que ? "La infracción como la registró SUSALUD" : "Ver la infracción"}
-                <ChevronDown size={14} aria-hidden className="transition-transform duration-rapido group-open:rotate-180" />
-              </summary>
-              <p className="mt-1 text-meta leading-relaxed text-inkSoft">
-                {!que && s.infraccionCodigo && <span className="mr-1.5 font-mono text-rotulo text-mute">{s.infraccionCodigo}</span>}
+        </p>
+
+        <h3 className="mt-1 text-cuerpo font-semibold leading-snug text-ink">
+          <span className="sr-only">Registrada como: </span>
+          {enlaceIpress ? (
+            <Link href={enlaceIpress} prefetch={false} className="underline decoration-line underline-offset-4 hover:text-granate hover:decoration-granate">
+              {nombre}
+            </Link>
+          ) : (
+            nombre
+          )}
+        </h3>
+        {enlaceIpress && s.ipressNombre && !nombre.toLocaleLowerCase("es-PE").includes(nombrePropio(s.ipressNombre).toLocaleLowerCase("es-PE")) && (
+          <p className="text-meta text-inkSoft">Establecimiento: {nombrePropio(s.ipressNombre)}</p>
+        )}
+
+        {que && <p className="mt-1.5 max-w-[80ch] text-pretty text-dato leading-relaxed text-inkSoft">«{que}»</p>}
+
+        <details className="group mt-1">
+          <summary className="inline-flex min-h-11 cursor-pointer list-none items-center gap-1 text-meta font-semibold text-granate sm:min-h-8 [&::-webkit-details-marker]:hidden">
+            {s.infraccion ? (que ? "La infracción completa y la resolución" : "Ver la infracción y la resolución") : "Ver la resolución"}
+            <ChevronDown size={14} aria-hidden className="transition-transform duration-rapido group-open:rotate-180" />
+          </summary>
+          <div className="mt-1 space-y-1.5 rounded-xl bg-paperSoft px-3.5 py-3 text-meta leading-relaxed text-inkSoft">
+            {s.infraccion && (
+              <p>
+                {s.infraccionCodigo && <span className="mr-1.5 font-mono text-rotulo text-mute">{s.infraccionCodigo}</span>}
                 {s.infraccion}
                 {s.infraccion.length >= 400 ? "…" : ""}
               </p>
-              {s.resolucion && <p className="mt-1.5 text-rotulo text-mute">{s.resolucion}</p>}
-            </details>
-          )}
-        </div>
-      )}
+            )}
+            <dl className="grid gap-x-4 gap-y-0.5 sm:grid-cols-[auto_minmax(0,1fr)]">
+              {s.resolucion && (
+                <>
+                  <dt className="font-semibold text-ink">Resolución</dt>
+                  <dd>{s.resolucion}</dd>
+                </>
+              )}
+              {s.pas && (
+                <>
+                  <dt className="font-semibold text-ink">Procedimiento</dt>
+                  <dd>{s.pas}</dd>
+                </>
+              )}
+              {lugar && (
+                <>
+                  <dt className="font-semibold text-ink">Lugar</dt>
+                  <dd>{lugar}</dd>
+                </>
+              )}
+              {institucion && (
+                <>
+                  <dt className="font-semibold text-ink">Institución</dt>
+                  <dd>{institucion}</dd>
+                </>
+              )}
+            </dl>
+          </div>
+        </details>
+      </div>
     </article>
   );
 }
