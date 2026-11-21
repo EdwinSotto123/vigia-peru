@@ -135,10 +135,14 @@ conversaciones.
 
 ## Pendiente
 
-- **REPROS** (Registro de Sanciones de los Profesionales de la Salud, R.S. N.° 006-2021-SUSALUD/S): por norma SUSALUD
-  publica las sanciones firmes que los colegios imponen a sus miembros. Es la fuente oficial de sanciones a médicos
-  que falta, pero el 2026-11-20 no se encontró publicado (ni en gob.pe ni en el portal de SUSALUD). Pedirlo por acceso
-  a la información pública o vigilar su publicación; hasta entonces no se muestra ninguna sanción a un médico.
+El inventario completo de fuentes (lo que se lee, lo probado, lo que queda manual, cómo cerrar cada brecha y la
+ampliación a medicamentos, infraestructura, epidemiología, cobertura y fiscalización) está en
+[`docs/salud/datos.md`](salud/datos.md).
+
+- **REPROS** (Registro de Sanciones de los Profesionales de la Salud, R.S. N.° 006-2021-SUSALUD/S): el 2026-11-20 no se
+  encontró; el 2026-11-21 sí: buscador público sin captcha y exportación a Excel en
+  `app9.susalud.gob.pe:8081/wb-consulta-repros/` (78 sanciones vigentes). Es la etapa 1 de `docs/salud/datos.md`;
+  hasta que se lea, no se muestra ninguna sanción a un médico.
 - Normas del corpus que no entraron por falta de texto oficial con capa de texto: D. Leg. 559 (Ley del Trabajo
   Médico) y la Ley 15173 completa; la NTS 021 y la NTS 101 salen de escaneos con OCR (sin sus anexos).
 
