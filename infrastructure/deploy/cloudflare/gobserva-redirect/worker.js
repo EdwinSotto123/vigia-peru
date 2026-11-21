@@ -649,20 +649,32 @@ function panelAnios(datos) {
     `Procesos publicados en el SEACE por año, en miles, de ${serie[0].anio} a ${serie[serie.length - 1].anio}.${hoy}`);
 }
 
+// El orden en que se encienden los mil cuadros de la aguja: una baraja (Fisher-Yates) con semilla fija, la misma en cada
+// visita, hecha una sola vez. Antes se sacaban al azar hasta juntar los leídos, multiplicando en coma flotante: el
+// producto pasaba de 2^53, perdía los bits bajos y el generador sólo alcanzaba 170 cuadros distintos. Con más de 17 % de
+// leídos el bucle no terminaba y Cloudflare cortaba la portada a los 30 s de CPU (error 1102, 2026-11-21). Math.imul
+// multiplica en 32 bits exactos, y la baraja termina siempre en mil pasos, sea cual sea la cifra.
+const MIL = 1000;
+const ORDEN_AGUJA = (() => {
+  const orden = Array.from({ length: MIL }, (_, k) => k);
+  let x = 11;
+  for (let k = MIL - 1; k > 0; k--) {
+    x = (Math.imul(x, 1664525) + 1013904223) >>> 0;
+    const j = Math.floor((x / 4294967296) * (k + 1)); // los bits altos: los bajos de un congruencial se repiten pronto
+    [orden[k], orden[j]] = [orden[j], orden[k]];
+  }
+  return orden;
+})();
+
 /** Mil cuadros por los procesos publicados este año; los pocos leídos a fondo se encienden. */
 function panelAguja(datos) {
   const lect = datos?.lectura;
   if (!lect) return "";
-  const total = 1000;
+  const total = MIL;
   const leidos = Math.min(total, Math.max(1, Math.round((lect.leidos / lect.publicados) * total)));
   const altos = lect.alto ? Math.min(leidos, Math.max(1, Math.round((lect.alto / lect.publicados) * total))) : 0;
   // Repartidos con una semilla fija (no al azar en cada visita): buscarlos es como buscar una aguja en un pajar.
-  const pos = [];
-  for (let x = 11; pos.length < leidos; ) {
-    x = (x * 1103515245 + 12345) % 2147483648;
-    const k = x % total;
-    if (!pos.includes(k)) pos.push(k);
-  }
+  const pos = ORDEN_AGUJA.slice(0, leidos);
   const altosEn = new Set(pos.slice(0, altos));
   const leidosEn = new Set(pos);
   const cuadros = Array.from({ length: total }, (_, k) => (leidosEn.has(k) ? `<i class="${altosEn.has(k) ? "alto" : "leido"}"></i>` : "<i></i>")).join("");
