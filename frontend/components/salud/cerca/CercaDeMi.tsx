@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { CircleCheck, Crosshair, Loader2, LocateFixed, Navigation, RotateCw, ShieldCheck, TriangleAlert } from "lucide-react";
 import { direccionLegible, nombreServicio } from "@/components/salud/ficha/piezas";
 import { FilaEstablecimiento } from "@/components/salud/lista/FilaEstablecimiento";
+import { VecinaPregunta, VecinaUbicando } from "@/components/salud/pixel/Personajes";
 import { BuscadorSalud } from "@/components/salud/portada/BuscadorSalud";
 import { claseAccion } from "@/components/ui/EnlaceAccion";
 import { Dato } from "@/components/ui/Dato";
@@ -180,23 +181,26 @@ export function CercaDeMi({
         </ul>
       </fieldset>
 
-      <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:items-center">
-        <button
-          type="button"
-          onClick={() => ubicar(necesidad)}
-          disabled={ocupado}
-          aria-describedby="cerca-privacidad"
-          className={claseAccion("primario", "min-h-14 w-full px-7 text-cuerpo disabled:cursor-wait disabled:opacity-80 sm:w-auto", "md")}
-        >
-          {ocupado ? <Loader2 size={19} aria-hidden className="motion-safe:animate-spin" /> : estado.fase === "inicio" ? <LocateFixed size={19} aria-hidden /> : <RotateCw size={18} aria-hidden />}
-          {estado.fase === "ubicando" ? "Ubicándote…" : estado.fase === "buscando" ? "Buscando cerca de ti…" : estado.fase === "inicio" ? "Usar mi ubicación" : "Volver a ubicarme"}
-        </button>
-        <p id="cerca-privacidad" className="flex max-w-[52ch] gap-2 text-meta leading-relaxed text-inkSoft">
-          <ShieldCheck size={16} aria-hidden className="mt-0.5 shrink-0 text-granate" />
-          <span>
-            Tu ubicación no se guarda. A nuestro servidor llega redondeada a unos 100 metros; la distancia exacta se calcula en tu teléfono.
-          </span>
-        </p>
+      <div className="mt-5 flex items-end gap-4">
+        <VecinaUbicando buscando={ocupado} className="shrink-0" />
+        <div className="flex min-w-0 flex-1 flex-col gap-3 pb-1 sm:flex-row sm:items-center">
+          <button
+            type="button"
+            onClick={() => ubicar(necesidad)}
+            disabled={ocupado}
+            aria-describedby="cerca-privacidad"
+            className={claseAccion("primario", "min-h-14 w-full px-7 text-cuerpo disabled:cursor-wait disabled:opacity-80 sm:w-auto", "md")}
+          >
+            {ocupado ? <Loader2 size={19} aria-hidden className="motion-safe:animate-spin" /> : estado.fase === "inicio" ? <LocateFixed size={19} aria-hidden /> : <RotateCw size={18} aria-hidden />}
+            {estado.fase === "ubicando" ? "Ubicándote…" : estado.fase === "buscando" ? "Buscando cerca de ti…" : estado.fase === "inicio" ? "Usar mi ubicación" : "Volver a ubicarme"}
+          </button>
+          <p id="cerca-privacidad" className="flex max-w-[52ch] gap-2 text-meta leading-relaxed text-inkSoft">
+            <ShieldCheck size={16} aria-hidden className="mt-0.5 shrink-0 text-granate" />
+            <span>
+              Tu ubicación no se guarda. A nuestro servidor llega redondeada a unos 100 metros; la distancia exacta se calcula en tu teléfono.
+            </span>
+          </p>
+        </div>
       </div>
 
       <div aria-live="polite" className="sr-only">
@@ -204,7 +208,8 @@ export function CercaDeMi({
       </div>
 
       {estado.fase === "error" && (
-        <section aria-labelledby="cerca-error-t" className="mt-6 rounded-2xl border border-line bg-paperSoft p-4 sm:p-5">
+        <section aria-labelledby="cerca-error-t" className="relative mt-6 rounded-2xl border border-line bg-paperSoft p-4 sm:p-5 sm:pr-28">
+          <VecinaPregunta className="absolute right-5 top-5 hidden sm:inline-flex" />
           <h2 id="cerca-error-t" ref={titulo} tabIndex={-1} className="flex items-start gap-2.5 font-display text-bloque font-bold leading-snug text-ink focus:outline-none">
             <TriangleAlert size={19} aria-hidden className="mt-0.5 shrink-0 text-crimsonTexto" />
             {MENSAJE[estado.motivo].titulo}

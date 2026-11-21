@@ -6,6 +6,7 @@ import { claseAccion } from "@/components/ui/EnlaceAccion";
 import { PreguntaRapida } from "@/components/salud/asistente/PreguntaRapida";
 import { FormColegiatura } from "@/components/salud/medico/FormColegiatura";
 import { PasosVerificar } from "@/components/salud/medico/PasosVerificar";
+import { Pixel } from "@/components/salud/pixel/Pixel";
 import { URL_CMP, URL_SUNEDU, pasosVerificarMedico } from "@/components/salud/medico/pasos";
 import { rutaEn, urlCanonica } from "@/lib/gobserva";
 import { baseProducto } from "@/lib/gobserva-servidor";
@@ -33,10 +34,18 @@ export default function VerificarMedico() {
 
       <div className="mt-4 grid gap-x-10 gap-y-8 lg:grid-cols-[minmax(0,1fr)_24rem] lg:items-start">
         <div className="min-w-0">
-          <h1 className="text-balance font-display text-cifra font-bold leading-tight tracking-tight text-ink sm:text-titulo">Verificar a un médico</h1>
-          <p className="mt-2 max-w-[60ch] text-pretty text-cuerpo leading-relaxed text-inkSoft">
-            Con su número de colegiatura ves lo que dicen las fuentes abiertas y cómo confirmar en el Colegio Médico si está habilitado.
-          </p>
+          <div className="flex items-end justify-between gap-6">
+            <div className="min-w-0">
+              <h1 className="text-balance font-display text-cifra font-bold leading-tight tracking-tight text-ink sm:text-titulo">Verificar a un médico</h1>
+              <p className="mt-2 max-w-[60ch] text-pretty text-cuerpo leading-relaxed text-inkSoft">
+                Con su número de colegiatura ves lo que dicen las fuentes abiertas y cómo confirmar en el Colegio Médico si está habilitado.
+              </p>
+            </div>
+            <div aria-hidden className="flex shrink-0 items-end gap-2">
+              <Pixel nombre="doctora" escala={4} className="h-auto w-12 sm:w-16" />
+              <Pixel nombre="carnet" escala={4} acento="accion" className="mb-6 hidden h-auto w-16 sm:block" />
+            </div>
+          </div>
 
           <div className="tarjeta mt-6 rounded-2xl border border-line bg-paper p-4 sm:p-6">
             <FormColegiatura base={base} />

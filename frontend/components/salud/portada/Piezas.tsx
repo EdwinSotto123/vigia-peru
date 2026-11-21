@@ -154,19 +154,27 @@ export function PasoNumerado({
   titulo,
   children,
   accion,
+  ilustracion,
 }: {
   n: number;
   Icono: LucideIcon;
   titulo: string;
   children: ReactNode;
   accion?: { href: string; etiqueta: string; externo?: boolean };
+  /** Una escena de píxeles (components/salud/pixel) sobre el título: decorativa, sobre su suelo. */
+  ilustracion?: ReactNode;
 }) {
   return (
     <li className="relative flex min-w-0 gap-4">
       <span aria-hidden className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-granate font-display text-bloque font-bold text-paper">
         {n}
       </span>
-      <div className="min-w-0 pt-1.5">
+      <div className="min-w-0 flex-1 pt-1.5">
+        {ilustracion && (
+          <div aria-hidden className="mb-4 flex h-40 items-end justify-center gap-4 overflow-hidden rounded-2xl border border-line bg-paperSoft px-4 pt-3">
+            <div className="flex w-full items-end justify-center gap-4 border-b-[5px] border-dashed border-[rgb(var(--px-linea)/0.25)] pb-0">{ilustracion}</div>
+          </div>
+        )}
         <h3 className="flex items-center gap-2 font-display text-bloque font-bold leading-tight text-ink">
           <span className="sr-only">Paso {n}: </span>
           <Icono size={18} aria-hidden className="shrink-0 text-granate" />

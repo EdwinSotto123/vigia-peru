@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { LucideIcon } from "lucide-react";
-import { ChevronRight, CircleCheck, CircleMinus, CirclePause, Hourglass, Phone, Stethoscope, Users } from "lucide-react";
+import { ChevronRight, CircleCheck, CircleMinus, CirclePause, Hourglass, Phone, Users } from "lucide-react";
+import { Pixel } from "@/components/salud/pixel/Pixel";
 import { PreguntaRapida } from "@/components/salud/asistente/PreguntaRapida";
 import { FuenteFecha } from "@/components/salud/comun";
 import { rutaEn } from "@/lib/gobserva";
@@ -104,8 +105,8 @@ export function ResumenAtencion({ f, base }: { f: FichaIpress; base: string }) {
           {personal && (medicos || otros.length > 0) ? (
             <>
               {medicos ? (
-                <p className="mt-3 flex items-baseline gap-2.5">
-                  <Stethoscope size={22} aria-hidden className="shrink-0 self-center text-granate" />
+                <p className="mt-3 flex items-end gap-2.5">
+                  <Pixel nombre="doctora" escala={2} retardo={1500} className="-mb-0.5" />
                   <span className="font-display text-cifra font-bold leading-none tabular-nums text-ink">{numero(medicos)}</span>
                   <span className="text-cuerpo text-inkSoft">{medicos === 1 ? "médico" : "médicos"}</span>
                 </p>

@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import {
-  Activity, Baby, BadgeCheck, Bone, Brain, Building2, CalendarClock, CircleSlash, Eye, FileSearch, Gavel, GraduationCap, Hand, HeartHandshake, HeartPulse,
-  LocateFixed, MapPinned, MessageSquareWarning, Microscope, ScanLine, Scissors, Search, Siren, Smile, Stethoscope, Users, type LucideIcon,
+  Activity, BadgeCheck, Building2, CalendarClock, FileSearch, Gavel, GraduationCap, LocateFixed, MapPinned, MessageSquareWarning, Scissors,
+  Search, Stethoscope, Users, type LucideIcon,
 } from "lucide-react";
 import { FuenteFecha, InsigniaEstado, InsigniaHecho } from "@/components/salud/comun";
 import { ClasesDeHecho } from "@/components/salud/fuentes/ClasesDeHecho";
@@ -11,7 +11,10 @@ import { nombreLugar } from "@/components/salud/lista/filtros";
 import { BloqueAsistenteSalud } from "@/components/salud/portada/BloqueAsistenteSalud";
 import { BloqueMCPSalud } from "@/components/salud/portada/BloqueMCPSalud";
 import { BuscadorSalud } from "@/components/salud/portada/BuscadorSalud";
-import { EjemploVerificacion } from "@/components/salud/portada/EjemploVerificacion";
+import { CienEstablecimientos } from "@/components/salud/pixel/CienEstablecimientos";
+import { EscenaPuerta } from "@/components/salud/pixel/EscenaPuerta";
+import { Pixel } from "@/components/salud/pixel/Pixel";
+import type { NombreSprite } from "@/components/salud/pixel/sprites";
 import { AvisoEmergencia, CabeceraSeccion, PasoNumerado, Tesela } from "@/components/salud/portada/Piezas";
 import { Faq } from "@/components/licitaciones/Faq";
 import { claseAccion } from "@/components/ui/EnlaceAccion";
@@ -29,10 +32,10 @@ export const metadata: Metadata = {
   alternates: { canonical: urlCanonica("salud", "/") },
 };
 
-/** El ícono de cada necesidad de la portada (lib/salud-necesidades.ts). */
-const ICONO_NECESIDAD: Record<string, LucideIcon> = {
-  emergencia: Siren, dientes: Smile, parto: HeartHandshake, ninos: Baby, ojos: Eye, piel: Hand, corazon: HeartPulse, huesos: Bone,
-  mental: Brain, analisis: Microscope, imagenes: ScanLine, operacion: Scissors,
+/** El ícono de píxeles de cada necesidad de la portada (lib/salud-necesidades.ts; components/salud/pixel/sprites.ts). */
+const ICONO_NECESIDAD: Record<string, NombreSprite> = {
+  emergencia: "iconoEmergencia", dientes: "iconoDientes", parto: "iconoParto", ninos: "iconoNinos", ojos: "iconoOjos", piel: "iconoPiel",
+  corazon: "iconoCorazon", huesos: "iconoHuesos", mental: "iconoMental", analisis: "iconoAnalisis", imagenes: "iconoImagenes", operacion: "iconoOperacion",
 };
 
 /** Lo que significa cada estado de un chequeo (los de la ficha), en una línea. */
@@ -115,7 +118,7 @@ export default async function InicioSalud() {
             </div>
             <AvisoEmergencia oscuro className="mt-6" />
           </div>
-          <EjemploVerificacion renipressAl={f?.renipressAl ?? null} sancionesAl={f?.sancionesAl ?? null} />
+          <EscenaPuerta renipressAl={f?.renipressAl ?? null} sancionesAl={f?.sancionesAl ?? null} className="lg:mt-6" />
         </div>
       </section>
 
@@ -130,15 +133,15 @@ export default async function InicioSalud() {
           />
           <ul className="mt-6 grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-6" aria-label="Lo que necesitas">
             {NECESIDADES_RAPIDAS.map((n) => {
-              const Icono = ICONO_NECESIDAD[n.clave] ?? Users;
+              const icono = ICONO_NECESIDAD[n.clave];
               return (
                 <li key={n.clave} className="min-w-0">
                   <Link
                     href={`${ruta("/cerca")}?ubicar=1&necesidad=${n.clave}`}
                     prefetch={false}
-                    className="flex min-h-14 items-center gap-2.5 rounded-2xl border border-line bg-paper px-3.5 py-2.5 text-dato font-semibold leading-snug text-ink transition-colors duration-rapido hover:border-granate/50 hover:bg-granate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-granate"
+                    className="group flex min-h-16 items-center gap-3 rounded-2xl border border-line bg-paper px-3.5 py-2.5 text-dato font-semibold leading-snug text-ink transition-colors duration-rapido hover:border-granate/50 hover:bg-granate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-granate"
                   >
-                    <Icono size={19} aria-hidden className={n.clave === "emergencia" ? "shrink-0 text-crimsonTexto" : "shrink-0 text-granate"} />
+                    {icono ? <Pixel nombre={icono} escala={2.5} acento="accion" className="px-salta" /> : <Users size={22} aria-hidden className="shrink-0 text-granate" />}
                     <span className="min-w-0">{n.etiqueta}</span>
                   </Link>
                 </li>
@@ -163,17 +166,17 @@ export default async function InicioSalud() {
           </div>
           <ul className="min-w-0 divide-y divide-line rounded-2xl border border-line bg-paper">
             <Situacion
-              Icono={CircleSlash}
+              sprite="clinica"
               titulo="Un lugar que no figura en el registro, o que figura cerrado"
               texto="Los establecimientos de salud se inscriben en RENIPRESS, el registro de SUSALUD. Si no aparece, o aparece con cierre o baja, pregunta antes de atenderte."
             />
             <Situacion
-              Icono={Scissors}
+              sprite="iconoOperacion"
               titulo="Una cirugía donde no hay centro quirúrgico registrado"
               texto="La categoría y los servicios que el establecimiento declaró dicen qué puede hacer. Un consultorio no es una sala de operaciones."
             />
             <Situacion
-              Icono={Stethoscope}
+              sprite="carnet"
               titulo="Un procedimiento fuera de la especialidad"
               texto="Un médico colegiado puede no tener registrada la especialidad del procedimiento que te ofrece. Eso se ve en el Colegio Médico, con su número de colegiatura."
             />
@@ -188,15 +191,48 @@ export default async function InicioSalud() {
             titulo="Cómo verificar, en tres pasos"
             bajada="Toma un par de minutos. No reemplaza la consulta: te da mejores preguntas para hacerla."
           />
-          <ol className="mt-10 grid gap-8 md:grid-cols-3 md:gap-8">
-            <PasoNumerado n={1} Icono={Building2} titulo="Busca el establecimiento" accion={{ href: "#buscar", etiqueta: "Buscar un establecimiento" }}>
+          <ol className="mt-10 grid gap-10 md:grid-cols-3 md:gap-8">
+            <PasoNumerado
+              n={1}
+              Icono={Building2}
+              titulo="Busca el establecimiento"
+              accion={{ href: "#buscar", etiqueta: "Buscar un establecimiento" }}
+              ilustracion={
+                <>
+                  <Pixel nombre="vecina" escala={4} retardo={400} />
+                  <Pixel nombre="clinica" escala={2.75} retardo={1200} />
+                </>
+              }
+            >
               Por su nombre, su código o su RUC. Mira si figura activo en RENIPRESS, su categoría y los servicios que declaró, como el centro quirúrgico.
             </PasoNumerado>
-            <PasoNumerado n={2} Icono={Gavel} titulo="Revisa sanciones y denuncias" accion={{ href: ruta("/sanciones"), etiqueta: "Ver el Registro de Sanciones" }}>
+            <PasoNumerado
+              n={2}
+              Icono={Gavel}
+              titulo="Revisa sanciones y denuncias"
+              accion={{ href: ruta("/sanciones"), etiqueta: "Ver el Registro de Sanciones" }}
+              ilustracion={
+                <>
+                  <Pixel nombre="vecina" escala={4} retardo={2100} />
+                  <Pixel nombre="documento" escala={5} acento="accion" />
+                </>
+              }
+            >
               Las sanciones firmes salen del Registro de Sanciones de SUSALUD; las denuncias, de sus datos abiertos. No son lo mismo y aquí nunca se
               suman.
             </PasoNumerado>
-            <PasoNumerado n={3} Icono={Stethoscope} titulo="Verifica al médico en su colegio" accion={{ href: ruta("/medico"), etiqueta: "Verificar a un médico" }}>
+            <PasoNumerado
+              n={3}
+              Icono={Stethoscope}
+              titulo="Verifica al médico en su colegio"
+              accion={{ href: ruta("/medico"), etiqueta: "Verificar a un médico" }}
+              ilustracion={
+                <>
+                  <Pixel nombre="doctora" escala={4} retardo={900} />
+                  <Pixel nombre="carnet" escala={4.5} acento="accion" className="mb-3" />
+                </>
+              }
+            >
               Con su número de colegiatura: si está hábil y su especialidad registrada (RNE) en el Colegio Médico, y su título en SUNEDU. Te llevamos
               paso a paso.
             </PasoNumerado>
@@ -282,6 +318,20 @@ export default async function InicioSalud() {
               titulo="El país, según los registros de esta semana"
               bajada="Cifras vivas de RENIPRESS y de SUSALUD. Toca una para ver la lista completa."
             />
+            {r.ipress > 0 && (
+              <div className="mt-8 flex flex-col gap-5 sm:flex-row sm:items-center sm:gap-8">
+                <CienEstablecimientos marcadas={Math.max(r.conSanciones > 0 ? 1 : 0, (r.conSanciones / r.ipress) * 100)} />
+                <div className="min-w-0 max-w-[46ch]">
+                  <p className="text-balance font-display text-seccion font-bold leading-snug text-ink">
+                    De cada 100 establecimientos registrados, {Math.max(r.conSanciones > 0 ? 1 : 0, Math.round((r.conSanciones / r.ipress) * 100))} tienen al
+                    menos una sanción firme de SUSALUD.
+                  </p>
+                  <p className="mt-2 text-dato leading-relaxed text-inkSoft">
+                    Los demás no figuran en el Registro de Sanciones. La sanción es de la institución, no de sus médicos.
+                  </p>
+                </div>
+              </div>
+            )}
             <div className="mt-8 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
               <Tesela
                 Icono={Building2}
@@ -450,6 +500,10 @@ export default async function InicioSalud() {
               </p>
             </div>
             <div className="min-w-0">
+              <div aria-hidden className="mb-5 flex items-end gap-3">
+                <Pixel nombre="vecina" escala={4} retardo={1600} />
+                <Pixel nombre="doctora" escala={4} retardo={300} />
+              </div>
               <BuscadorSalud accion={ruta("/buscar")} oscuro id="buscar-cierre" />
               <AvisoEmergencia oscuro className="mt-5" />
             </div>
@@ -466,11 +520,14 @@ function FechaCorta({ f }: { f: string }) {
   return <>{d && m && a ? `${d} de ${meses[m - 1]} de ${a}` : f}</>;
 }
 
-function Situacion({ Icono, titulo, texto }: { Icono: LucideIcon; titulo: string; texto: string }) {
+/** El tamaño de cada viñeta en su cuadro de 56 px. */
+const ESCALA_SITUACION: Partial<Record<NombreSprite, number>> = { clinica: 1.4, iconoOperacion: 3.25, carnet: 2.75 };
+
+function Situacion({ sprite, titulo, texto }: { sprite: NombreSprite; titulo: string; texto: string }) {
   return (
     <li className="flex gap-4 px-5 py-5">
-      <span aria-hidden className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-paperDeep text-ink">
-        <Icono size={19} />
+      <span aria-hidden className="grid h-14 w-14 shrink-0 place-items-center rounded-xl bg-paperDeep">
+        <Pixel nombre={sprite} escala={ESCALA_SITUACION[sprite] ?? 2} acento="accion" />
       </span>
       <div className="min-w-0">
         <h3 className="font-display text-bloque font-bold leading-snug text-ink">{titulo}</h3>

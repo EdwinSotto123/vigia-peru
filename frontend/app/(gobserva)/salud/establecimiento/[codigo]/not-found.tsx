@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { ArrowUpRight, FileQuestion, Search } from "lucide-react";
 import { EstadoVacio } from "@/components/gobserva/ui/Estados";
+import { VecinaPregunta } from "@/components/salud/pixel/Personajes";
 import { URL_RENIPRESS_CONSULTA } from "@/components/salud/fuentes/urls";
 import { claseAccion } from "@/components/ui/EnlaceAccion";
 import { rutaEn } from "@/lib/gobserva";
@@ -11,6 +12,9 @@ export default function EstablecimientoNoEncontrado() {
   const base = baseProducto("salud");
   return (
     <div className="container-page py-10 sm:py-16">
+      <div className="mx-auto mb-4 flex max-w-2xl justify-center">
+        <VecinaPregunta escala={4} />
+      </div>
       <div className="tarjeta mx-auto max-w-2xl rounded-2xl border border-line bg-paper">
         <EstadoVacio
           Icono={FileQuestion}

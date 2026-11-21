@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useId, useMemo, useState } from "react";
 import { CircleCheck, CircleHelp, LocateFixed, Phone, Search, X } from "lucide-react";
 import { Insignia } from "@/components/gobserva/ui/Insignia";
+import { DoctoraSaluda, VecinaPregunta } from "@/components/salud/pixel/Personajes";
 import { rutaEn } from "@/lib/gobserva";
 import { NECESIDADES_RAPIDAS, coincide, necesidadDe, terminosDe, type Necesidad } from "@/lib/salud-necesidades";
 import { cn } from "@/lib/utils";
@@ -136,6 +137,7 @@ export function TeAtiendenAqui({
             Icono={CircleCheck}
             tono="exito"
             titulo={`Sí: declaró ${necesidad ? necesidad.tecnico : `«${consulta.texto}»`} en RENIPRESS`}
+            personaje={<DoctoraSaluda clave={consulta.texto} escala={2.5} />}
           >
             <ul className="mt-2 divide-y divide-line rounded-xl border border-line bg-paper">
               {(todos ? hallados : hallados.slice(0, PRIMEROS)).map((x) => (
@@ -170,7 +172,7 @@ export function TeAtiendenAqui({
         )}
 
         {hay && hallados.length === 0 && (
-          <Respuesta Icono={CircleHelp} tono="neutro" titulo={`No encontramos ${necesidad ? necesidad.tecnico : `«${consulta.texto}»`} en lo que declaró`}>
+          <Respuesta Icono={CircleHelp} tono="neutro" personaje={<VecinaPregunta escala={2.5} />} titulo={`No encontramos ${necesidad ? necesidad.tecnico : `«${consulta.texto}»`} en lo que declaró`}>
             Eso no prueba que no te atiendan: pregunta antes de ir. Buscamos en sus especialidades, servicios y cartera de RENIPRESS.
             {necesidad && (
               <Link
@@ -191,20 +193,26 @@ function Respuesta({
   Icono,
   tono,
   titulo,
+  personaje,
   children,
 }: {
   Icono: typeof CircleCheck;
   tono: "exito" | "neutro";
   titulo: string;
+  /** Un personaje de píxeles que reacciona (decorativo): la doctora saluda, la vecina pregunta. */
+  personaje?: React.ReactNode;
   children: React.ReactNode;
 }) {
   return (
-    <div className={cn("rounded-2xl border p-4", tono === "exito" ? "border-moss/30 bg-moss/[0.07]" : "border-line bg-paperSoft")}>
-      <p className="flex items-start gap-2 text-cuerpo font-semibold leading-snug text-ink">
-        <Icono size={19} aria-hidden className={cn("mt-0.5 shrink-0", tono === "exito" ? "text-mossTexto" : "text-mute")} />
-        {titulo}
-      </p>
-      <div className="mt-1.5 text-dato leading-relaxed text-inkSoft">{children}</div>
+    <div className={cn("flex gap-4 rounded-2xl border p-4", tono === "exito" ? "border-moss/30 bg-moss/[0.07]" : "border-line bg-paperSoft")}>
+      <div className="min-w-0 flex-1">
+        <p className="flex items-start gap-2 text-cuerpo font-semibold leading-snug text-ink">
+          <Icono size={19} aria-hidden className={cn("mt-0.5 shrink-0", tono === "exito" ? "text-mossTexto" : "text-mute")} />
+          {titulo}
+        </p>
+        <div className="mt-1.5 text-dato leading-relaxed text-inkSoft">{children}</div>
+      </div>
+      {personaje && <div className="hidden shrink-0 self-end sm:block">{personaje}</div>}
     </div>
   );
 }
