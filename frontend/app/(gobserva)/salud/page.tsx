@@ -1,25 +1,22 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import {
-  Activity, BadgeCheck, Building2, CalendarClock, FileSearch, Gavel, GraduationCap, LocateFixed, MapPinned, MessageSquareWarning, Scissors,
-  Search, Stethoscope, Users, type LucideIcon,
-} from "lucide-react";
-import { FuenteFecha, InsigniaEstado, InsigniaHecho } from "@/components/salud/comun";
-import { ClasesDeHecho } from "@/components/salud/fuentes/ClasesDeHecho";
+import type { ReactNode } from "react";
+import { ArrowUpRight, CalendarClock, LocateFixed, Search } from "lucide-react";
+import { FuenteFecha } from "@/components/salud/comun";
 import { URL_CMP, URL_DATOS_SUSALUD, URL_DENUNCIA_SUSALUD, URL_RENIPRESS_CONSULTA, URL_SANCIONES, URL_SUNEDU } from "@/components/salud/fuentes/urls";
 import { nombreLugar } from "@/components/salud/lista/filtros";
 import { BloqueAsistenteSalud } from "@/components/salud/portada/BloqueAsistenteSalud";
-import { BloqueMCPSalud } from "@/components/salud/portada/BloqueMCPSalud";
 import { BuscadorSalud } from "@/components/salud/portada/BuscadorSalud";
 import { CienEstablecimientos } from "@/components/salud/pixel/CienEstablecimientos";
 import { EscenaPuerta } from "@/components/salud/pixel/EscenaPuerta";
+import { FranjaMCP } from "@/components/gobserva/BloqueMCP";
 import { Pixel } from "@/components/pixel/Pixel";
+import { Puertas } from "@/components/pixel/Puertas";
 import type { NombreSprite } from "@/components/pixel/sprites";
-import { AvisoEmergencia, CabeceraSeccion, PasoNumerado, Tesela } from "@/components/salud/portada/Piezas";
+import { AvisoEmergencia, CabeceraSeccion } from "@/components/salud/portada/Piezas";
 import { Faq } from "@/components/licitaciones/Faq";
-import { claseAccion } from "@/components/ui/EnlaceAccion";
 import { rutaEn, urlCanonica } from "@/lib/gobserva";
-import { ESTADOS_CHEQUEO, getResumenSalud, numero, type EstadoChequeo, type TipoHecho } from "@/lib/gobserva-salud";
+import { fechaCorta, getResumenSalud, numero } from "@/lib/gobserva-salud";
 import { baseProducto } from "@/lib/gobserva-servidor";
 import { NECESIDADES_RAPIDAS } from "@/lib/salud-necesidades";
 
@@ -32,28 +29,30 @@ export const metadata: Metadata = {
   alternates: { canonical: urlCanonica("salud", "/") },
 };
 
-/** El ícono de píxeles de cada necesidad de la portada (lib/salud-necesidades.ts; components/salud/pixel/sprites.ts). */
+/** El ícono de píxeles de cada necesidad de la portada (lib/salud-necesidades.ts; components/pixel/sprites.ts). */
 const ICONO_NECESIDAD: Record<string, NombreSprite> = {
   emergencia: "iconoEmergencia", dientes: "iconoDientes", parto: "iconoParto", ninos: "iconoNinos", ojos: "iconoOjos", piel: "iconoPiel",
   corazon: "iconoCorazon", huesos: "iconoHuesos", mental: "iconoMental", analisis: "iconoAnalisis", imagenes: "iconoImagenes", operacion: "iconoOperacion",
 };
 
-/** Lo que significa cada estado de un chequeo (los de la ficha), en una línea. */
-const SIGNIFICA_ESTADO: Record<EstadoChequeo, string> = {
-  ok: "La fuente oficial lo confirma, a la fecha que se indica.",
-  atencion: "Hay algo que conviene preguntar antes de atenderte: no es un veredicto.",
-  alerta: "La fuente registra una baja, un cierre o que el establecimiento ya no figura.",
-  sin_dato: "La fuente no trae ese dato: no se afirma nada.",
-  externo: "Lo confirma otra institución (el Colegio Médico, SUNEDU): te llevamos ahí.",
-};
-
+/** «al 20 nov. 2026», «al oct. 2026» o «al 2026», como FuenteFecha. */
+function alFecha(al: string | number | null | undefined): string | null {
+  if (al == null) return null;
+  if (typeof al === "number" || /^\d{4}$/.test(al)) return `al ${al}`;
+  return `al ${fechaCorta(al)}`;
+}
 
 /**
- * Portada de Gobserva Salud (2026-11-20). Aquí el buscador ES el producto: el héroe trae el buscador (nombre, código
- * IPRESS, RUC o colegiatura) y las dos entradas rápidas (el médico y el mapa). Debajo, un relato: lo que no se ve desde la
- * puerta, cómo verificar en tres pasos, qué significa cada clase de hecho y cada estado, de dónde sale cada dato y a qué
- * fecha, el país en cifras (cada una con su fuente y su fecha), el asistente, el MCP abierto, las preguntas frecuentes y
- * el cierre con el buscador otra vez. GET /salud/resumen (10 min en caché).
+ * Portada de Gobserva Salud. Rehecha el 2026-11-21 (el usuario: mejorar la UX/UI; la portada medía 10,5 pantallas en
+ * la computadora y 18,7 en el celular, con partes de tablero: 25 departamentos, 7 fuentes en tabla, 4 teselas de cifras,
+ * las clases de hecho y los estados de la ficha). Ahora es un relato corto para quien va a atenderse:
+ * 1. el héroe: la frase, el buscador (el producto) y la escena de la vecina en la puerta de la clínica;
+ * 2. «¿Qué necesitas hoy?»: tres puertas con su gente (la clínica, el médico, cerca de mí) y las necesidades directas;
+ * 3. lo que no se ve desde la puerta: cuatro preguntas antes de atenderte (antes el problema y los pasos, por separado);
+ * 4. de cada 100 establecimientos: la proporción con sanción firme, tres cifras con su fuente y tu departamento;
+ * 5. el asistente; 6. de dónde sale cada dato (una lista corta; las clases de hecho y los estados viven en /fuentes)
+ * y la franja del MCP abierto; 7. las preguntas; 8. el cierre con el buscador.
+ * GET /salud/resumen (10 min en caché); sin él, la portada se arma sin las cifras.
  */
 export default async function InicioSalud() {
   const base = baseProducto("salud");
@@ -61,359 +60,274 @@ export default async function InicioSalud() {
   const ruta = (p: string) => rutaEn(base, p);
   const f = r?.fuentes;
   const mes = (x: string | null | undefined) => (x ? x.slice(0, 7) : null);
+  const deCada100 = r && r.ipress > 0 ? Math.max(r.conSanciones > 0 ? 1 : 0, Math.round((r.conSanciones / r.ipress) * 100)) : null;
 
-  const fuentes: { Icono: LucideIcon; nombre: string; entidad: string; que: string; tipo: TipoHecho; url: string; al: string | number | null; vivo?: boolean }[] = [
-    { Icono: Building2, nombre: "RENIPRESS", entidad: "SUSALUD", que: "Si el establecimiento está registrado y activo, su categoría, su dirección y los servicios que declaró.", tipo: "registro_administrativo", url: URL_RENIPRESS_CONSULTA, al: f?.renipressAl ?? null },
-    { Icono: Gavel, nombre: "Registro de Sanciones", entidad: "SUSALUD", que: "Las sanciones firmes a establecimientos y aseguradoras: amonestación, multa o cierre.", tipo: "sancion_firme", url: URL_SANCIONES, al: f?.sancionesAl ?? null },
-    { Icono: MessageSquareWarning, nombre: "Consultas y denuncias", entidad: "SUSALUD, datos abiertos", que: "Cuántas denuncias recibió SUSALUD sobre cada institución, por año y sin datos de las personas.", tipo: "denuncia", url: URL_DATOS_SUSALUD, al: f?.denunciasAl ?? null },
-    { Icono: Activity, nombre: "Recursos de salud", entidad: "SUSALUD, datos abiertos", que: "Médicos, camas y consultorios que cada establecimiento declara cada mes.", tipo: "registro_administrativo", url: URL_DATOS_SUSALUD, al: mes(f?.recursosAl) },
-    { Icono: Scissors, nombre: "Intervenciones quirúrgicas", entidad: "SUSALUD, datos abiertos", que: "Las cirugías que cada establecimiento declara al mes.", tipo: "registro_administrativo", url: URL_DATOS_SUSALUD, al: mes(f?.cirugiasAl) },
-    { Icono: Stethoscope, nombre: "Conoce a tu médico", entidad: "Colegio Médico del Perú", que: "Si el médico está colegiado y hábil, y su especialidad registrada (RNE).", tipo: "verificacion_externa", url: URL_CMP, al: null, vivo: true },
-    { Icono: GraduationCap, nombre: "Grados y títulos", entidad: "SUNEDU", que: "El título de médico cirujano y la segunda especialidad inscritos.", tipo: "verificacion_externa", url: URL_SUNEDU, al: null, vivo: true },
+  const fuentes: { nombre: string; entidad: string; url: string; al: string | number | null; vivo?: boolean }[] = [
+    { nombre: "RENIPRESS", entidad: "SUSALUD", url: URL_RENIPRESS_CONSULTA, al: f?.renipressAl ?? null },
+    { nombre: "Registro de Sanciones", entidad: "SUSALUD", url: URL_SANCIONES, al: f?.sancionesAl ?? null },
+    { nombre: "Consultas y denuncias", entidad: "SUSALUD", url: URL_DATOS_SUSALUD, al: f?.denunciasAl ?? null },
+    { nombre: "Recursos de salud", entidad: "SUSALUD", url: URL_DATOS_SUSALUD, al: mes(f?.recursosAl) },
+    { nombre: "Intervenciones quirúrgicas", entidad: "SUSALUD", url: URL_DATOS_SUSALUD, al: mes(f?.cirugiasAl) },
+    { nombre: "Conoce a tu médico", entidad: "Colegio Médico del Perú", url: URL_CMP, al: null, vivo: true },
+    { nombre: "Grados y títulos", entidad: "SUNEDU", url: URL_SUNEDU, al: null, vivo: true },
   ];
 
   return (
     <>
-      {/* ── Héroe: el buscador ───────────────────────────────────────────────── */}
+      {/* ── 1. Héroe: la frase, el buscador y la escena ─────────────────────── */}
       <section className="sobre-oscuro relative overflow-hidden bg-ink text-paper" aria-labelledby="heroe-t">
         <div className="container-page relative grid gap-10 py-12 sm:py-16 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)] lg:items-center lg:gap-14 lg:py-20">
           <div className="min-w-0">
             <h1 id="heroe-t" className="text-balance font-display text-cifra font-bold leading-[1.06] tracking-[-0.025em] sm:text-portada lg:text-cartel">
               Verifica tu clínica y a tu médico <span className="text-maiz">antes de atenderte.</span>
             </h1>
-            <p className="mt-5 max-w-[58ch] text-pretty text-cuerpo leading-relaxed text-paper/75 sm:text-bloque">
-              Busca cualquier establecimiento de salud del Perú: si está registrado y activo, su categoría, sus servicios y si tiene sanciones firmes de
-              SUSALUD. Cada dato, con su fuente oficial y su fecha. Gratis y sin cuenta.
+            <p className="mt-5 max-w-[56ch] text-pretty text-cuerpo leading-relaxed text-paper/75 sm:text-bloque">
+              Busca cualquier establecimiento de salud del Perú: si está registrado y activo, qué servicios declaró y si tiene sanciones firmes de
+              SUSALUD. Con la fuente oficial y su fecha. Gratis y sin cuenta.
             </p>
             <BuscadorSalud accion={ruta("/buscar")} oscuro className="mt-7" id="buscar" />
-            <p className="mt-2.5 text-meta leading-relaxed text-paper/65">
-              Por nombre, código IPRESS (8 cifras), RUC (11 cifras) o número de colegiatura del médico.
-            </p>
-            <ul className="mt-4 flex flex-wrap gap-2" aria-label="Búsquedas de ejemplo">
-              {[
-                { t: "Hospital Loayza", q: "hospital loayza" },
-                { t: "Clínicas de Miraflores", q: "clinica miraflores" },
-                { t: "Código IPRESS 00006207", q: "00006207" },
-              ].map((x) => (
-                <li key={x.q}>
-                  <Link
-                    href={`${ruta("/buscar")}?q=${encodeURIComponent(x.q)}`}
-                    className="inline-flex min-h-11 items-center gap-1.5 rounded-full border border-paper/20 px-3.5 text-meta font-medium text-paper/85 transition-colors duration-rapido hover:border-maiz/60 hover:bg-paper/10 hover:text-paper sm:min-h-9"
-                  >
-                    <Search size={13} aria-hidden /> {x.t}
-                  </Link>
-                </li>
-              ))}
-            </ul>
-            <div className="mt-7 flex flex-col gap-2.5 border-t border-paper/10 pt-6 sm:flex-row sm:flex-wrap">
-              <Link href={`${ruta("/cerca")}?ubicar=1`} className={claseAccion("contornoOscuro", "min-h-12 justify-start sm:justify-center", "sm")}>
-                <LocateFixed size={17} aria-hidden /> Estoy adentro: buscar con mi ubicación
-              </Link>
-              <Link href={ruta("/medico")} className={claseAccion("contornoOscuro", "min-h-12 justify-start sm:justify-center", "sm")}>
-                <Stethoscope size={17} aria-hidden /> Verificar a un médico
-              </Link>
-              <Link href={ruta("/mapa")} className={claseAccion("contornoOscuro", "min-h-12 justify-start sm:justify-center", "sm")}>
-                <MapPinned size={17} aria-hidden /> Ver el mapa de establecimientos
-              </Link>
+            <div className="mt-3 flex flex-wrap items-center gap-x-2 gap-y-2">
+              <span className="text-meta text-paper/65">Prueba con</span>
+              <ul className="flex flex-wrap gap-2" aria-label="Búsquedas de ejemplo">
+                {[
+                  { t: "Hospital Loayza", q: "hospital loayza" },
+                  { t: "Clínicas de Miraflores", q: "clinica miraflores" },
+                  { t: "00006207", q: "00006207" },
+                ].map((x) => (
+                  <li key={x.q}>
+                    <Link
+                      href={`${ruta("/buscar")}?q=${encodeURIComponent(x.q)}`}
+                      className="inline-flex min-h-11 items-center gap-1.5 rounded-full border border-paper/20 px-3.5 text-meta font-medium text-paper/85 transition-colors duration-rapido hover:border-maiz/60 hover:bg-paper/10 hover:text-paper sm:min-h-9"
+                    >
+                      <Search size={13} aria-hidden /> {x.t}
+                    </Link>
+                  </li>
+                ))}
+              </ul>
             </div>
-            <AvisoEmergencia oscuro className="mt-6" />
+            <AvisoEmergencia oscuro className="mt-7 border-t border-paper/10 pt-6" />
           </div>
           <EscenaPuerta renipressAl={f?.renipressAl ?? null} sancionesAl={f?.sancionesAl ?? null} className="lg:mt-6" />
         </div>
       </section>
 
-      <div className="container-page space-y-20 py-14 sm:space-y-24 sm:py-20">
-        {/* ── Dónde te atienden cerca, por lo que necesitas ───────────────────── */}
-        <section aria-labelledby="necesidad-t">
-          <CabeceraSeccion
-            id="necesidad-t"
-            grande
-            titulo="¿Dónde te pueden atender cerca?"
-            bajada="Elige lo que necesitas y usa tu ubicación: te mostramos los establecimientos cercanos que lo declararon en RENIPRESS, si están activos y si tienen sanciones firmes."
+      <div className="container-page space-y-20 py-14 sm:space-y-28 sm:py-20">
+        {/* ── 2. ¿Qué necesitas hoy? ──────────────────────────────────────────── */}
+        <section aria-labelledby="necesitas-t">
+          <h2 id="necesitas-t" className="text-balance font-display text-titulo font-bold leading-[1.1] tracking-[-0.02em] text-ink sm:text-vitrina">
+            ¿Qué necesitas hoy?
+          </h2>
+          <Puertas
+            etiqueta="Lo que puedes hacer en Gobserva Salud"
+            className="mt-8"
+            puertas={[
+              {
+                gente: (
+                  <>
+                    <Pixel nombre="vecina" escala={3} retardo={300} className="px-salta" />
+                    <Pixel nombre="clinica" escala={2} retardo={1100} className="max-md:hidden" />
+                  </>
+                ),
+                necesidad: "Me van a atender en una clínica",
+                que: "Mira si está registrada y activa, qué servicios declaró, como el centro quirúrgico, y si tiene sanciones firmes.",
+                accion: "Verificar la clínica",
+                href: ruta("/buscar"),
+              },
+              {
+                gente: (
+                  <>
+                    <Pixel nombre="doctora" escala={3} retardo={800} className="px-salta" />
+                    <Pixel nombre="carnet" escala={3} acento="accion" className="mb-2 max-md:hidden" />
+                  </>
+                ),
+                necesidad: "Quiero saber si mi médico está habilitado",
+                que: "Con su número de colegiatura te llevamos, paso a paso, a confirmarlo en el Colegio Médico y su título en SUNEDU.",
+                accion: "Verificar al médico",
+                href: ruta("/medico"),
+              },
+              {
+                gente: (
+                  <>
+                    <Pixel nombre="vecinaCamina" escala={3} retardo={1500} className="px-salta" />
+                    <Pixel nombre="alfiler" escala={3} acento="accion" className="max-md:hidden" />
+                  </>
+                ),
+                necesidad: "Necesito atenderme cerca de mí",
+                que: "Usa tu ubicación y te mostramos los establecimientos cercanos y activos, con lo que declararon atender.",
+                accion: "Buscar cerca de mí",
+                href: `${ruta("/cerca")}?ubicar=1`,
+              },
+            ]}
           />
-          <ul className="mt-6 grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-6" aria-label="Lo que necesitas">
-            {NECESIDADES_RAPIDAS.map((n) => {
-              const icono = ICONO_NECESIDAD[n.clave];
-              return (
-                <li key={n.clave} className="min-w-0">
-                  <Link
-                    href={`${ruta("/cerca")}?ubicar=1&necesidad=${n.clave}`}
-                    prefetch={false}
-                    className="group flex min-h-16 items-center gap-3 rounded-2xl border border-line bg-paper px-3.5 py-2.5 text-dato font-semibold leading-snug text-ink transition-colors duration-rapido hover:border-granate/50 hover:bg-granate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-granate"
-                  >
-                    {icono ? <Pixel nombre={icono} escala={2.5} acento="accion" className="px-salta" /> : <Users size={22} aria-hidden className="shrink-0 text-granate" />}
-                    <span className="min-w-0">{n.etiqueta}</span>
-                  </Link>
-                </li>
-              );
-            })}
-          </ul>
-          <p className="mt-3 flex items-start gap-1.5 text-meta leading-relaxed text-inkSoft">
-            <LocateFixed size={14} aria-hidden className="mt-0.5 shrink-0 text-mute" />
-            <span>Tu ubicación no se guarda. En una emergencia no busques: llama al 106.</span>
-          </p>
+          <div className="mt-8">
+            <h3 className="font-display text-bloque font-bold leading-snug text-ink">¿Ya sabes lo que necesitas? Te decimos dónde lo atienden cerca.</h3>
+            <ul className="mt-4 flex flex-wrap gap-2" aria-label="Lo que necesitas">
+              {NECESIDADES_RAPIDAS.map((n) => {
+                const icono = ICONO_NECESIDAD[n.clave];
+                return (
+                  <li key={n.clave}>
+                    <Link
+                      href={`${ruta("/cerca")}?ubicar=1&necesidad=${n.clave}`}
+                      prefetch={false}
+                      className="group inline-flex min-h-11 items-center gap-2 rounded-full border border-line bg-paper py-1.5 pl-2.5 pr-4 text-dato font-semibold text-ink transition-colors duration-rapido hover:border-granate/50 hover:bg-granate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-granate"
+                    >
+                      {icono && <Pixel nombre={icono} escala={2} acento="accion" animado={false} className="px-salta" />}
+                      {n.etiqueta}
+                    </Link>
+                  </li>
+                );
+              })}
+            </ul>
+            <p className="mt-3 flex items-start gap-1.5 text-meta leading-relaxed text-inkSoft">
+              <LocateFixed size={14} aria-hidden className="mt-0.5 shrink-0 text-mute" />
+              <span>Tu ubicación no se guarda. En una emergencia no busques: llama al 106.</span>
+            </p>
+          </div>
         </section>
 
-        {/* ── Lo que no se ve desde la puerta ────────────────────────────────── */}
-        <section aria-labelledby="problema-t" className="grid gap-8 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)] lg:gap-14">
+        {/* ── 3. Lo que no se ve desde la puerta ──────────────────────────────── */}
+        <section aria-labelledby="puerta-t">
+          <CabeceraSeccion
+            id="puerta-t"
+            grande
+            titulo="Lo que no se ve desde la puerta"
+            bajada="Un letrero, una página web o una recomendación no te dicen esto. Una verificación sí, y en un par de minutos: no reemplaza la consulta, te da mejores preguntas para hacerla."
+          />
+          <ul className="mt-10 grid gap-x-12 gap-y-10 md:grid-cols-2">
+            <Pregunta sprite="clinica" titulo="¿Está registrado y activo?">
+              Todo establecimiento de salud se inscribe en RENIPRESS, el registro de SUSALUD. Si no figura, o figura con cierre o baja, pregunta antes
+              de entrar.
+            </Pregunta>
+            <Pregunta sprite="iconoOperacion" titulo="¿Puede hacer lo que te ofrece?">
+              Su categoría y los servicios que declaró dicen qué puede hacer. Un consultorio no es una sala de operaciones: si te ofrecen operarte,
+              mira si declaró un centro quirúrgico.
+            </Pregunta>
+            <Pregunta sprite="documento" titulo="¿Tiene sanciones firmes?" accion={{ href: ruta("/sanciones"), etiqueta: "Ver el Registro de Sanciones" }}>
+              Salen del Registro de Sanciones de SUSALUD. Las denuncias son otra cosa, pedidos de ciudadanos y no hechos comprobados: aquí nunca se
+              suman.
+            </Pregunta>
+            <Pregunta sprite="carnet" titulo="¿Quién te atiende tiene esa especialidad?" accion={{ href: ruta("/medico"), etiqueta: "Verificar a un médico" }}>
+              Un médico colegiado puede no tener registrada la especialidad del procedimiento que te ofrece. Con su número de colegiatura, el Colegio
+              Médico lo confirma.
+            </Pregunta>
+          </ul>
+        </section>
+
+        {/* ── 4. De cada 100 establecimientos ─────────────────────────────────── */}
+        {r && deCada100 != null && (
+          <section aria-labelledby="pais-t" className="grid gap-8 lg:grid-cols-[auto_minmax(0,1fr)] lg:items-start lg:gap-16">
+            <CienEstablecimientos marcadas={Math.max(r.conSanciones > 0 ? 1 : 0, (r.conSanciones / r.ipress) * 100)} className="h-auto w-36 sm:w-[11.5rem]" />
+            <div className="min-w-0">
+              <h2 id="pais-t" className="max-w-[24ch] text-balance font-display text-titulo font-bold leading-[1.1] tracking-[-0.02em] text-ink sm:text-vitrina">
+                De cada 100 establecimientos, {deCada100} {deCada100 === 1 ? "tiene" : "tienen"} una sanción firme
+              </h2>
+              <p className="mt-3 max-w-[62ch] text-pretty text-cuerpo leading-relaxed text-inkSoft">
+                Al menos una, en el Registro de Sanciones de SUSALUD. Los demás no figuran en él. La sanción es de la institución, no de sus médicos.
+              </p>
+              <dl className="mt-7 grid gap-px overflow-hidden rounded-2xl border border-line bg-line sm:grid-cols-3">
+                <Cifra
+                  valor={numero(r.activas)}
+                  etiqueta="establecimientos activos"
+                  detalle={`De ${numero(r.ipress)} registrados en RENIPRESS.`}
+                  href={ruta("/establecimientos")}
+                  pie={<FuenteFecha nombre="RENIPRESS (SUSALUD)" url={URL_RENIPRESS_CONSULTA} al={f?.renipressAl} />}
+                />
+                <Cifra
+                  valor={numero(r.sanciones)}
+                  etiqueta="sanciones firmes"
+                  detalle={`${numero(r.sancionesUltimoAnio)} en los últimos 12 meses.`}
+                  href={ruta("/sanciones")}
+                  pie={<FuenteFecha nombre="Registro de Sanciones (SUSALUD)" url={URL_SANCIONES} al={f?.sancionesAl} />}
+                />
+                <Cifra
+                  valor={numero(r.denuncias)}
+                  etiqueta={`denuncias en ${r.denunciasAnio ?? "el último año"}`}
+                  detalle="Pedidos de ciudadanos: no son sanciones."
+                  pie={<FuenteFecha nombre="Consultas y denuncias (SUSALUD)" url={URL_DATOS_SUSALUD} al={r.denunciasAnio} />}
+                />
+              </dl>
+              {r.porDepartamento.length > 0 && (
+                <form method="get" action={ruta("/establecimientos")} className="mt-7 flex flex-col gap-2 sm:flex-row sm:items-end">
+                  <label className="min-w-0 flex-1 sm:max-w-sm">
+                    <span className="block text-dato font-semibold text-ink">¿Y en tu departamento?</span>
+                    <select
+                      name="departamento"
+                      defaultValue=""
+                      required
+                      className="mt-2 h-12 w-full rounded-2xl border border-line bg-caja px-4 text-destacado text-ink focus:border-granate focus:outline-none focus:ring-2 focus:ring-granate/30"
+                    >
+                      <option value="" disabled>
+                        Elige tu departamento
+                      </option>
+                      {[...r.porDepartamento]
+                        .sort((a, b) => nombreLugar(a.clave).localeCompare(nombreLugar(b.clave), "es"))
+                        .map((d) => (
+                          <option key={d.clave} value={d.clave}>
+                            {nombreLugar(d.clave)}: {numero(d.activas)} activos, {numero(d.conSanciones)} con sanción firme
+                          </option>
+                        ))}
+                    </select>
+                  </label>
+                  <button
+                    type="submit"
+                    className="inline-flex h-12 shrink-0 items-center justify-center rounded-full bg-granate px-6 text-dato font-semibold text-paper transition-colors duration-rapido hover:bg-granate-deep focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-granate focus-visible:ring-offset-2"
+                  >
+                    Ver su lista
+                  </button>
+                </form>
+              )}
+            </div>
+          </section>
+        )}
+
+        {/* ── 5. El asistente ─────────────────────────────────────────────────── */}
+        <BloqueAsistenteSalud href={ruta("/asistente")} renipressAl={f?.renipressAl ?? null} sancionesAl={f?.sancionesAl ?? null} />
+
+        {/* ── 6. De dónde sale cada dato, y el MCP abierto ───────────────────── */}
+        <section aria-labelledby="fuentes-t" className="grid gap-8 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)] lg:gap-16">
           <div className="min-w-0">
             <CabeceraSeccion
-              id="problema-t"
+              id="fuentes-t"
               grande
-              titulo="Lo que no se ve desde la puerta"
-              bajada="Un letrero, una página web o una recomendación no dicen si el lugar está registrado ni qué está autorizado a hacer, ni si quien te atiende tiene la especialidad del procedimiento. Esto es lo que una verificación te deja ver antes de entrar."
+              titulo="Sólo registros oficiales, con su fecha"
+              bajada="Cada dato dice de qué fuente sale y a qué fecha. Una denuncia nunca se muestra como una sanción, ni lo que declaró la clínica como algo que SUSALUD comprobó. Y cuando una fuente no registra algo, lo decimos con su fecha: nunca «no tiene sanciones»."
             />
+            <Link
+              href={ruta("/fuentes")}
+              className="mt-4 inline-flex min-h-11 items-center gap-1 text-dato font-semibold text-granate underline-offset-4 hover:underline"
+            >
+              Ver el método y cada carga
+            </Link>
           </div>
-          <ul className="min-w-0 divide-y divide-line rounded-2xl border border-line bg-paper">
-            <Situacion
-              sprite="clinica"
-              titulo="Un lugar que no figura en el registro, o que figura cerrado"
-              texto="Los establecimientos de salud se inscriben en RENIPRESS, el registro de SUSALUD. Si no aparece, o aparece con cierre o baja, pregunta antes de atenderte."
-            />
-            <Situacion
-              sprite="iconoOperacion"
-              titulo="Una cirugía donde no hay centro quirúrgico registrado"
-              texto="La categoría y los servicios que el establecimiento declaró dicen qué puede hacer. Un consultorio no es una sala de operaciones."
-            />
-            <Situacion
-              sprite="carnet"
-              titulo="Un procedimiento fuera de la especialidad"
-              texto="Un médico colegiado puede no tener registrada la especialidad del procedimiento que te ofrece. Eso se ve en el Colegio Médico, con su número de colegiatura."
-            />
-          </ul>
-        </section>
-
-        {/* ── Cómo verificar ───────────────────────────────────────────────── */}
-        <section aria-labelledby="pasos-t">
-          <CabeceraSeccion
-            id="pasos-t"
-            grande
-            titulo="Cómo verificar, en tres pasos"
-            bajada="Toma un par de minutos. No reemplaza la consulta: te da mejores preguntas para hacerla."
-          />
-          <ol className="mt-10 grid gap-10 md:grid-cols-3 md:gap-8">
-            <PasoNumerado
-              n={1}
-              Icono={Building2}
-              titulo="Busca el establecimiento"
-              accion={{ href: "#buscar", etiqueta: "Buscar un establecimiento" }}
-              ilustracion={
-                <>
-                  <Pixel nombre="vecina" escala={4} retardo={400} />
-                  <Pixel nombre="clinica" escala={2.75} retardo={1200} />
-                </>
-              }
-            >
-              Por su nombre, su código o su RUC. Mira si figura activo en RENIPRESS, su categoría y los servicios que declaró, como el centro quirúrgico.
-            </PasoNumerado>
-            <PasoNumerado
-              n={2}
-              Icono={Gavel}
-              titulo="Revisa sanciones y denuncias"
-              accion={{ href: ruta("/sanciones"), etiqueta: "Ver el Registro de Sanciones" }}
-              ilustracion={
-                <>
-                  <Pixel nombre="vecina" escala={4} retardo={2100} />
-                  <Pixel nombre="documento" escala={5} acento="accion" />
-                </>
-              }
-            >
-              Las sanciones firmes salen del Registro de Sanciones de SUSALUD; las denuncias, de sus datos abiertos. No son lo mismo y aquí nunca se
-              suman.
-            </PasoNumerado>
-            <PasoNumerado
-              n={3}
-              Icono={Stethoscope}
-              titulo="Verifica al médico en su colegio"
-              accion={{ href: ruta("/medico"), etiqueta: "Verificar a un médico" }}
-              ilustracion={
-                <>
-                  <Pixel nombre="doctora" escala={4} retardo={900} />
-                  <Pixel nombre="carnet" escala={4.5} acento="accion" className="mb-3" />
-                </>
-              }
-            >
-              Con su número de colegiatura: si está hábil y su especialidad registrada (RNE) en el Colegio Médico, y su título en SUNEDU. Te llevamos
-              paso a paso.
-            </PasoNumerado>
-          </ol>
-        </section>
-
-        {/* ── Qué significa cada dato ─────────────────────────────────────────── */}
-        <section aria-labelledby="hechos-t">
-          <CabeceraSeccion
-            id="hechos-t"
-            grande
-            titulo="Cuatro clases de hecho que nunca se mezclan"
-            bajada="Cada dato lleva su rótulo, siempre el mismo y con su color: una denuncia no se ve como una sanción, ni lo que declaró la clínica como algo que SUSALUD comprobó."
-          />
-          <div className="mt-10 grid gap-6 lg:grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)] lg:gap-10">
-            <ClasesDeHecho />
-            <div className="min-w-0 rounded-2xl border border-line bg-paper p-5 sm:p-6">
-              <h3 className="flex items-center gap-2 font-display text-bloque font-bold leading-tight text-ink">
-                <BadgeCheck size={18} aria-hidden className="text-granate" /> Y lo que dice cada chequeo de la ficha
-              </h3>
-              <ul className="mt-4 space-y-3.5">
-                {(Object.keys(ESTADOS_CHEQUEO) as EstadoChequeo[]).map((e) => (
-                  <li key={e} className="grid grid-cols-[7.5rem_minmax(0,1fr)] items-start gap-3">
-                    <span>
-                      <InsigniaEstado estado={e} />
-                    </span>
-                    <span className="text-meta leading-snug text-inkSoft">{SIGNIFICA_ESTADO[e]}</span>
-                  </li>
-                ))}
-              </ul>
-              <p className="mt-5 border-t border-line pt-4 text-meta leading-relaxed text-inkSoft">
-                Cuando una fuente no registra algo, lo decimos con su fecha: «no figura en el Registro de Sanciones de SUSALUD revisado el…». Nunca
-                «no tiene sanciones».
-              </p>
-            </div>
-          </div>
-        </section>
-
-        {/* ── De dónde sale cada dato ─────────────────────────────────────────── */}
-        <section aria-labelledby="fuentes-t">
-          <CabeceraSeccion
-            id="fuentes-t"
-            grande
-            titulo="De dónde sale cada dato, y a qué fecha"
-            bajada="Sólo registros oficiales. Los archivos de SUSALUD se cargan cada semana; el Colegio Médico y SUNEDU se consultan en su propio sitio."
-            accion={{ href: ruta("/fuentes"), etiqueta: "Ver el método y cada carga" }}
-          />
-          <ul className="mt-8 divide-y divide-line overflow-hidden rounded-2xl border border-line bg-paper">
+          <ul className="min-w-0 divide-y divide-line self-start border-y border-line" aria-label="Las fuentes de Gobserva Salud">
             {fuentes.map((x) => (
-              <li key={x.nombre} className="grid gap-x-6 gap-y-2 px-4 py-4 sm:px-5 md:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)] md:items-center">
-                <div className="flex min-w-0 gap-3">
-                  <span aria-hidden className="mt-0.5 grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-granate-50 text-granate">
-                    <x.Icono size={17} />
-                  </span>
-                  <div className="min-w-0">
-                    <h3 className="text-cuerpo font-semibold leading-snug text-ink">
-                      {x.nombre} <span className="font-normal text-inkSoft">({x.entidad})</span>
-                    </h3>
-                    <p className="mt-0.5 text-meta leading-snug text-inkSoft">{x.que}</p>
-                  </div>
-                </div>
-                <div className="flex min-w-0 flex-col items-start gap-1.5 pl-12 md:items-end md:pl-0 md:text-right">
-                  <InsigniaHecho tipo={x.tipo} />
-                  {x.vivo ? (
-                    <FuenteFecha nombre={`${x.nombre} (${x.entidad})`} url={x.url}>
-                      {x.entidad}, consulta en vivo
-                    </FuenteFecha>
-                  ) : (
-                    <FuenteFecha nombre={x.nombre} url={x.url} al={x.al} />
-                  )}
-                </div>
+              <li key={x.nombre} className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-0.5 py-3.5">
+                <span className="min-w-0 text-dato">
+                  <a
+                    href={x.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="font-semibold text-ink underline decoration-line underline-offset-4 transition-colors duration-rapido hover:decoration-ink"
+                  >
+                    {x.nombre}
+                    <ArrowUpRight size={13} aria-hidden className="ml-0.5 inline align-baseline" />
+                    <span className="sr-only"> (fuente oficial, se abre en otra pestaña)</span>
+                  </a>{" "}
+                  <span className="text-inkSoft">{x.entidad}</span>
+                </span>
+                <span className="text-meta tabular-nums text-inkSoft">{x.vivo ? "se consulta en su sitio" : alFecha(x.al) ?? "sin fecha de carga"}</span>
               </li>
             ))}
           </ul>
         </section>
 
-        {/* ── El país, hoy ──────────────────────────────────────────────────── */}
-        {r && (
-          <section aria-labelledby="pais-t">
-            <CabeceraSeccion
-              id="pais-t"
-              grande
-              titulo="El país, según los registros de esta semana"
-              bajada="Cifras vivas de RENIPRESS y de SUSALUD. Toca una para ver la lista completa."
-            />
-            {r.ipress > 0 && (
-              <div className="mt-8 flex flex-col gap-5 sm:flex-row sm:items-center sm:gap-8">
-                <CienEstablecimientos marcadas={Math.max(r.conSanciones > 0 ? 1 : 0, (r.conSanciones / r.ipress) * 100)} />
-                <div className="min-w-0 max-w-[46ch]">
-                  <p className="text-balance font-display text-seccion font-bold leading-snug text-ink">
-                    De cada 100 establecimientos registrados, {Math.max(r.conSanciones > 0 ? 1 : 0, Math.round((r.conSanciones / r.ipress) * 100))} tienen al
-                    menos una sanción firme de SUSALUD.
-                  </p>
-                  <p className="mt-2 text-dato leading-relaxed text-inkSoft">
-                    Los demás no figuran en el Registro de Sanciones. La sanción es de la institución, no de sus médicos.
-                  </p>
-                </div>
-              </div>
-            )}
-            <div className="mt-8 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-              <Tesela
-                Icono={Building2}
-                valor={numero(r.activas)}
-                etiqueta="establecimientos activos en RENIPRESS"
-                detalle={`De ${numero(r.ipress)} registrados: ${numero(r.publicas)} públicos y ${numero(r.privadas)} privados.`}
-                pie={<FuenteFecha nombre="RENIPRESS (SUSALUD)" url={URL_RENIPRESS_CONSULTA} al={f?.renipressAl} />}
-                href={ruta("/establecimientos")}
-              />
-              <Tesela
-                Icono={Gavel}
-                tono="hecho"
-                valor={numero(r.sanciones)}
-                etiqueta="sanciones firmes en el registro"
-                detalle={`${numero(r.sancionesUltimoAnio)} emitidas en los últimos 12 meses.`}
-                pie={<FuenteFecha nombre="Registro de Sanciones (SUSALUD)" url={URL_SANCIONES} al={f?.sancionesAl} />}
-                href={ruta("/sanciones")}
-              />
-              <Tesela
-                Icono={FileSearch}
-                tono="hecho"
-                valor={numero(r.conSanciones)}
-                etiqueta="establecimientos con al menos una sanción firme"
-                detalle="La sanción es de la institución, no de sus médicos."
-                pie={<FuenteFecha nombre="Registro de Sanciones (SUSALUD)" url={URL_SANCIONES} al={f?.sancionesAl} />}
-                href={`${ruta("/establecimientos")}?sanciones=con&estado=todos`}
-              />
-              <Tesela
-                Icono={MessageSquareWarning}
-                tono="denuncia"
-                valor={numero(r.denuncias)}
-                etiqueta={`denuncias ante SUSALUD en ${r.denunciasAnio ?? "el último año"}`}
-                detalle="Pedidos de ciudadanos: no son hechos comprobados ni sanciones."
-                pie={<FuenteFecha nombre="Consultas y denuncias (SUSALUD)" url={URL_DATOS_SUSALUD} al={r.denunciasAnio} />}
-              />
-            </div>
-
-            <div className="mt-10">
-              <h3 className="flex items-center gap-2 font-display text-bloque font-bold leading-tight text-ink">
-                <MapPinned size={18} aria-hidden className="text-granate" /> Por departamento
-              </h3>
-              <p className="mt-1 text-meta text-inkSoft">
-                Establecimientos activos y cuántos tienen al menos una sanción firme. Toca un departamento para ver su lista.
-              </p>
-              <ul className="mt-4 grid gap-x-8 sm:grid-cols-2 lg:grid-cols-3" aria-label="Establecimientos por departamento">
-                {r.porDepartamento.map((d) => (
-                  <li key={d.clave} className="border-b border-line">
-                    <Link
-                      href={`${ruta("/establecimientos")}?departamento=${encodeURIComponent(d.clave)}`}
-                      className="flex min-h-12 items-center justify-between gap-3 py-2 text-dato transition-colors duration-rapido hover:text-granate"
-                    >
-                      <span className="min-w-0 truncate font-semibold text-ink">{nombreLugar(d.clave)}</span>
-                      <span className="flex shrink-0 items-baseline gap-3 tabular-nums">
-                        <span className="text-ink">
-                          {numero(d.activas)} <span className="text-meta text-inkSoft">activos</span>
-                        </span>
-                        <span className="inline-flex items-center gap-1 text-meta text-crimsonTexto" title="Establecimientos con al menos una sanción firme">
-                          <Gavel size={12} aria-hidden />
-                          {numero(d.conSanciones)}
-                          <span className="sr-only"> con sanción firme</span>
-                        </span>
-                      </span>
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-              <p className="mt-3">
-                <FuenteFecha nombre="RENIPRESS y Registro de Sanciones (SUSALUD)" url={URL_RENIPRESS_CONSULTA} al={f?.renipressAl} />
-              </p>
-            </div>
-          </section>
-        )}
-
-        {/* ── El asistente ──────────────────────────────────────────────────── */}
-        <BloqueAsistenteSalud href={ruta("/asistente")} renipressAl={f?.renipressAl ?? null} sancionesAl={f?.sancionesAl ?? null} />
-
-        {/* ── El MCP abierto ────────────────────────────────────────────────── */}
-        <BloqueMCPSalud
-          bajada="¿Usas Claude, ChatGPT o Cursor? Conéctalos a Gobserva Salud y pregúntales por un establecimiento, sus sanciones firmes o cómo verificar a un médico: responden con los registros de SUSALUD y su fecha."
-          pasos={ruta("/mcp")}
+        <FranjaMCP
+          que="establecimientos"
+          href={ruta("/mcp")}
+          bajada="Conecta tu IA a Gobserva Salud y pregúntale por un establecimiento, sus sanciones firmes o cómo verificar a un médico: responde con los registros de SUSALUD y su fecha. Gratis y sin cuenta."
         />
 
+        {/* ── 7. Preguntas ────────────────────────────────────────────────────── */}
         <Faq
           preguntas={[
             {
@@ -485,7 +399,7 @@ export default async function InicioSalud() {
           ]}
         />
 
-        {/* ── Cierre ────────────────────────────────────────────────────────── */}
+        {/* ── 8. Cierre ───────────────────────────────────────────────────────── */}
         <section aria-labelledby="cierre-t" className="sobre-oscuro overflow-hidden rounded-3xl border border-paper/10 bg-ink p-6 text-paper sm:p-10">
           <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)] lg:items-center lg:gap-12">
             <div className="min-w-0">
@@ -494,9 +408,7 @@ export default async function InicioSalud() {
               </h2>
               <p className="mt-3 flex items-start gap-2 text-dato leading-relaxed text-paper/75">
                 <CalendarClock size={16} aria-hidden className="mt-0.5 shrink-0 text-maiz" />
-                <span>
-                  Registros de SUSALUD al {f?.renipressAl ? <FechaCorta f={f.renipressAl} /> : "último viernes"}.
-                </span>
+                <span>Registros de SUSALUD al {f?.renipressAl ? <FechaCorta f={f.renipressAl} /> : "último viernes"}.</span>
               </p>
             </div>
             <div className="min-w-0">
@@ -521,18 +433,44 @@ function FechaCorta({ f }: { f: string }) {
 }
 
 /** El tamaño de cada viñeta en su cuadro de 56 px. */
-const ESCALA_SITUACION: Partial<Record<NombreSprite, number>> = { clinica: 1.4, iconoOperacion: 3.25, carnet: 2.75 };
+const ESCALA_PREGUNTA: Partial<Record<NombreSprite, number>> = { clinica: 1.4, iconoOperacion: 3.25, carnet: 2.75, documento: 3 };
 
-function Situacion({ sprite, titulo, texto }: { sprite: NombreSprite; titulo: string; texto: string }) {
+/** Una de las preguntas antes de atenderte: la viñeta de píxeles en su cuadro, la pregunta, la respuesta y, si hay, adónde ir. */
+function Pregunta({ sprite, titulo, children, accion }: { sprite: NombreSprite; titulo: string; children: ReactNode; accion?: { href: string; etiqueta: string } }) {
   return (
-    <li className="flex gap-4 px-5 py-5">
+    <li className="flex gap-4">
       <span aria-hidden className="grid h-14 w-14 shrink-0 place-items-center rounded-xl bg-paperDeep">
-        <Pixel nombre={sprite} escala={ESCALA_SITUACION[sprite] ?? 2} acento="accion" />
+        <Pixel nombre={sprite} escala={ESCALA_PREGUNTA[sprite] ?? 2} acento="accion" animado={false} />
       </span>
       <div className="min-w-0">
-        <h3 className="font-display text-bloque font-bold leading-snug text-ink">{titulo}</h3>
-        <p className="mt-1 text-dato leading-relaxed text-inkSoft">{texto}</p>
+        <h3 className="text-balance font-display text-bloque font-bold leading-snug text-ink sm:text-seccion">{titulo}</h3>
+        <p className="mt-1.5 max-w-[54ch] text-pretty text-dato leading-relaxed text-inkSoft">{children}</p>
+        {accion && (
+          <Link href={accion.href} className="mt-1 inline-flex min-h-11 items-center text-dato font-semibold text-granate underline-offset-4 hover:underline">
+            {accion.etiqueta}
+          </Link>
+        )}
       </div>
     </li>
+  );
+}
+
+/** Una cifra del país con lo que es, un detalle y su fuente; con `href`, la cifra lleva a su lista. */
+function Cifra({ valor, etiqueta, detalle, pie, href }: { valor: string; etiqueta: string; detalle: string; pie: ReactNode; href?: string }) {
+  return (
+    <div className="flex min-w-0 flex-col bg-paper p-4 sm:p-5">
+      <dt className="order-2 mt-1 text-dato font-semibold leading-snug text-ink">
+        {href ? (
+          <Link href={href} className="underline decoration-line underline-offset-4 hover:decoration-ink">
+            {etiqueta}
+          </Link>
+        ) : (
+          etiqueta
+        )}
+      </dt>
+      <dd className="order-1 font-display text-cifra font-bold leading-none tabular-nums text-ink">{valor}</dd>
+      <dd className="order-3 mt-0.5 text-meta leading-snug text-inkSoft">{detalle}</dd>
+      <dd className="order-4 mt-auto pt-3">{pie}</dd>
+    </div>
   );
 }

@@ -5,13 +5,13 @@ import {
   MessageSquareWarning, Phone, RefreshCw, RotateCw, Rows3, Scissors, ShieldOff, Stethoscope, TriangleAlert, UserX, type LucideIcon,
 } from "lucide-react";
 import { EstadoError } from "@/components/gobserva/ui/Estados";
-import { FuenteFecha, InsigniaHecho } from "@/components/salud/comun";
+import { FuenteFecha, InsigniaEstado, InsigniaHecho } from "@/components/salud/comun";
 import { ClasesDeHecho } from "@/components/salud/fuentes/ClasesDeHecho";
 import { URL_CMP, URL_SUNEDU } from "@/components/salud/fuentes/urls";
 import { CabeceraSeccion, Encabezado, Ruta } from "@/components/salud/portada/Piezas";
 import { claseAccion } from "@/components/ui/EnlaceAccion";
 import { rutaEn, urlCanonica } from "@/lib/gobserva";
-import { fechaCorta, getFuentesSalud, numero, type EstadoFuentes, type FuenteSalud } from "@/lib/gobserva-salud";
+import { ESTADOS_CHEQUEO, fechaCorta, getFuentesSalud, numero, type EstadoChequeo, type EstadoFuentes, type FuenteSalud } from "@/lib/gobserva-salud";
 import { baseProducto } from "@/lib/gobserva-servidor";
 
 export const dynamic = "force-dynamic";
@@ -21,6 +21,15 @@ export const metadata: Metadata = {
   description:
     "De dónde sale cada dato de Gobserva Salud: RENIPRESS, el Registro de Sanciones y los datos abiertos de SUSALUD, con la fecha, las filas y la huella de cada carga, qué clase de hecho aporta cada fuente y lo que no verificamos de forma automática.",
   alternates: { canonical: urlCanonica("salud", "/fuentes") },
+};
+
+/** Lo que significa cada estado de un chequeo de la ficha, en una línea (antes en la portada; desde 2026-11-21, aquí). */
+const SIGNIFICA_ESTADO: Record<EstadoChequeo, string> = {
+  ok: "La fuente oficial lo confirma, a la fecha que se indica.",
+  atencion: "Hay algo que conviene preguntar antes de atenderte: no es un veredicto.",
+  alerta: "La fuente registra una baja, un cierre o que el establecimiento ya no figura.",
+  sin_dato: "La fuente no trae ese dato: no se afirma nada.",
+  externo: "Lo confirma otra institución (el Colegio Médico, SUNEDU): te llevamos ahí.",
 };
 
 const ICONO: Record<string, LucideIcon> = {
@@ -145,6 +154,23 @@ export default async function Fuentes() {
               bajada="Cada fuente aporta una sola clase de hecho, con su rótulo. Nunca se suman entre ellas ni se presentan una como otra."
             />
             <ClasesDeHecho conFuente className="mt-6" />
+            <div className="mt-8 max-w-3xl rounded-2xl border border-line bg-paper p-5 sm:p-6">
+              <h3 className="font-display text-bloque font-bold leading-tight text-ink">Y lo que dice cada chequeo de la ficha</h3>
+              <ul className="mt-4 space-y-3.5">
+                {(Object.keys(ESTADOS_CHEQUEO) as EstadoChequeo[]).map((e) => (
+                  <li key={e} className="grid grid-cols-[7.5rem_minmax(0,1fr)] items-start gap-3">
+                    <span>
+                      <InsigniaEstado estado={e} />
+                    </span>
+                    <span className="text-meta leading-snug text-inkSoft">{SIGNIFICA_ESTADO[e]}</span>
+                  </li>
+                ))}
+              </ul>
+              <p className="mt-5 border-t border-line pt-4 text-meta leading-relaxed text-inkSoft">
+                Cuando una fuente no registra algo, lo decimos con su fecha: «no figura en el Registro de Sanciones de SUSALUD revisado el…». Nunca
+                «no tiene sanciones».
+              </p>
+            </div>
           </section>
 
           {/* ── Privacidad ──────────────────────────────────────────────────────── */}

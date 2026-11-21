@@ -1,4 +1,5 @@
 import Link from "next/link";
+import type { ReactNode } from "react";
 import { ArrowRight, Bot, Cable, MessageSquareText, Wrench } from "lucide-react";
 import { URL_MCP_EMPLEO, URL_MCP_LICITACIONES } from "@/lib/gobserva";
 import { cn } from "@/lib/utils";
@@ -133,8 +134,9 @@ function Paso({ n, titulo, children }: { n: number; titulo: string; children: Re
 /**
  * El MCP en una franja (2026-11-08): en las portadas va después del asistente y sin el JSON ni los pasos (eso queda en su
  * página): a quien busca trabajo o le vende al Estado le basta saber que su IA también se conecta con su plan.
+ * `bajada`: otra frase, para un MCP que no pide plan (el de Salud, abierto y sin cuenta).
  */
-export function FranjaMCP({ que, href, id = "mcp", className }: { que: string; href: string; id?: string; className?: string }) {
+export function FranjaMCP({ que, href, id = "mcp", bajada, className }: { que: string; href: string; id?: string; bajada?: ReactNode; className?: string }) {
   return (
     <section id={id} aria-labelledby={`${id}-t`} className={cn("scroll-mt-20 rounded-3xl border border-line bg-paper p-6 sm:p-8", className)}>
       <div className="flex flex-col gap-5 md:flex-row md:items-center md:justify-between md:gap-10">
@@ -145,7 +147,7 @@ export function FranjaMCP({ que, href, id = "mcp", className }: { que: string; h
           <div className="min-w-0">
             <h2 id={`${id}-t`} className="text-balance font-display text-seccion font-bold leading-tight text-ink">¿Usas Claude, ChatGPT o Cursor?</h2>
             <p className="mt-2 max-w-[60ch] text-pretty text-dato leading-relaxed text-inkSoft">
-              Con tu plan, conecta tu IA a Gobserva y pregúntale por {que} desde ahí, con los mismos créditos del asistente. Te toma un minuto.
+              {bajada ?? <>Con tu plan, conecta tu IA a Gobserva y pregúntale por {que} desde ahí, con los mismos créditos del asistente. Te toma un minuto.</>}
             </p>
           </div>
         </div>
