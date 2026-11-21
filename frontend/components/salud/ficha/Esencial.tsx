@@ -28,9 +28,9 @@ const CORTO: Record<string, string> = {
 
 /** La casilla: con borde y fondo de alerta sólo cuando hay algo que revisar; lo conforme queda tranquilo. */
 const CASILLA: Record<Tono, string> = {
-  exito: "border-line bg-paper",
-  neutro: "border-line bg-paper",
-  acento: "border-line bg-paper",
+  exito: "border-line bg-paperSoft",
+  neutro: "border-line bg-paperSoft",
+  acento: "border-line bg-paperSoft",
   aviso: "border-amber/45 bg-amber-soft/40",
   urgente: "border-crimson/45 bg-crimson-soft/50",
 };
@@ -100,7 +100,8 @@ function destino(c: Chequeo, f: FichaIpress, base: string): string {
 
 export function EsencialFicha({ f, base, className }: { f: FichaIpress; base: string; className?: string }) {
   return (
-    <section aria-labelledby="esencial-t" className={cn("min-w-0", className)}>
+    // En su tarjeta (2026-11-21: «secciones que sólo son texto con fondo transparente»): el título y la frase arriba, las casillas abajo.
+    <section aria-labelledby="esencial-t" className={cn("tarjeta min-w-0 rounded-2xl border border-line bg-paper px-4 py-5 sm:px-6", className)}>
       <div className="flex items-center gap-1.5">
         <h2 id="esencial-t" className="font-display text-seccion font-bold leading-tight text-ink">
           Lo esencial

@@ -67,7 +67,7 @@ export default async function Sanciones({ searchParams }: Props) {
   return (
     <div className="container-page pb-10 pt-5 sm:pb-14 sm:pt-6">
       <Ruta items={[{ etiqueta: "Inicio", href: rutaEn(base, "/") }, { etiqueta: "Sanciones" }]} />
-      <Encabezado
+      <Encabezado figura="documento"
         className="mt-2"
         titulo="Registro de Sanciones de SUSALUD"
         bajada="Las sanciones firmes que SUSALUD impuso a establecimientos de salud (IPRESS), aseguradoras (IAFAS) y unidades de gestión (UGIPRESS), con su resolución y su infracción."

@@ -85,7 +85,7 @@ export default async function Cambios({ searchParams }: Props) {
   return (
     <div className="container-page pb-10 pt-5 sm:pb-14 sm:pt-6">
       <Ruta items={[{ etiqueta: "Inicio", href: rutaEn(base, "/") }, { etiqueta: "Fuentes", href: rutaEn(base, "/fuentes") }, { etiqueta: "Historial" }]} />
-      <Encabezado
+      <Encabezado figura="clinica"
         className="mt-2"
         titulo="Historial de actualizaciones"
         bajada="Cada vez que SUSALUD publica un archivo nuevo de RENIPRESS lo comparamos con el anterior. Aquí queda lo que cambió, lo más reciente primero."

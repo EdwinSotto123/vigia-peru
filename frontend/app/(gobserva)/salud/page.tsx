@@ -140,7 +140,8 @@ export default async function InicioSalud() {
               },
             ]}
           />
-          <div className="mt-8">
+          {/* Las necesidades en su placa (2026-11-21: «secciones que sólo son texto con fondo transparente, dales forma»). */}
+          <div className="mt-6 rounded-2xl border border-granate/20 bg-granate-50 px-5 py-5 sm:px-7 sm:py-6">
             <h3 className="font-display text-bloque font-bold leading-snug text-ink">¿Ya sabes lo que necesitas? Te decimos dónde lo atienden cerca.</h3>
             <ul className="mt-4 flex flex-wrap gap-2" aria-label="Lo que necesitas">
               {NECESIDADES_RAPIDAS.map((n) => {
@@ -168,7 +169,10 @@ export default async function InicioSalud() {
 
         {/* ── 3. De cada 100 establecimientos ─────────────────────────────────── */}
         {r && deCada100 != null && (
-          <section aria-labelledby="pais-t" className="grid gap-8 lg:grid-cols-[auto_minmax(0,1fr)] lg:items-start lg:gap-16">
+          <section
+            aria-labelledby="pais-t"
+            className="tarjeta grid gap-8 rounded-3xl border border-line bg-paper px-5 py-7 sm:px-9 sm:py-10 lg:grid-cols-[auto_minmax(0,1fr)] lg:items-start lg:gap-14"
+          >
             <CienEstablecimientos marcadas={Math.max(r.conSanciones > 0 ? 1 : 0, (r.conSanciones / r.ipress) * 100)} className="h-auto w-36 sm:w-[11.5rem]" />
             <div className="min-w-0">
               <h2 id="pais-t" className="max-w-[24ch] text-balance font-display text-titulo font-bold leading-[1.1] tracking-[-0.02em] text-ink sm:text-vitrina">

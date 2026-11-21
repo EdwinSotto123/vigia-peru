@@ -9,6 +9,7 @@ import { FuenteFecha, InsigniaEstado, InsigniaHecho } from "@/components/salud/c
 import { ClasesDeHecho } from "@/components/salud/fuentes/ClasesDeHecho";
 import { URL_CMP, URL_DENUNCIA_SUSALUD, URL_SUNEDU } from "@/components/salud/fuentes/urls";
 import { Faq } from "@/components/licitaciones/Faq";
+import { Pestanas } from "@/components/patrones/Pestanas";
 import { CabeceraSeccion, Encabezado, Ruta } from "@/components/salud/portada/Piezas";
 import { claseAccion } from "@/components/ui/EnlaceAccion";
 import { rutaEn, urlCanonica } from "@/lib/gobserva";
@@ -80,7 +81,7 @@ export default async function Fuentes() {
   return (
     <div className="container-page pb-10 pt-5 sm:pb-14 sm:pt-6">
       <Ruta items={[{ etiqueta: "Inicio", href: ruta("/") }, { etiqueta: "Fuentes y método" }]} />
-      <Encabezado
+      <Encabezado figura="documento"
         className="mt-2"
         titulo="Fuentes y método"
         bajada="Cada dato de Gobserva Salud sale de un registro oficial, con su fecha. Aquí está cada fuente, qué aporta, qué hay que saber de ella y la última vez que la cargamos."
@@ -98,7 +99,17 @@ export default async function Fuentes() {
           />
         </div>
       ) : (
-        <div className="mt-10 space-y-16 sm:space-y-20">
+        // 2026-11-21 («scrolls infinitos»; «secciones que sólo son texto, dales forma»): una pestaña por tema, una a la vez.
+        <Pestanas
+          className="mt-6"
+          etiqueta="Fuentes y método"
+          param="ver"
+          pestanas={[
+            {
+              clave: "fuentes",
+              etiqueta: "Cada fuente",
+              contenido: (
+                <div className="space-y-12">
           {/* ── Cada fuente ────────────────────────────────────────────────────── */}
           <section aria-labelledby="cada-t">
             <CabeceraSeccion id="cada-t" titulo="Cada fuente, con su última carga" />
@@ -147,6 +158,10 @@ export default async function Fuentes() {
             </div>
           </section>
 
+                </div>
+              ),
+            },
+            { clave: "lectura", etiqueta: "Cómo se lee", contenido: <>
           {/* ── Clases de hecho ─────────────────────────────────────────────────── */}
           <section aria-labelledby="hechos-t">
             <CabeceraSeccion
@@ -174,6 +189,8 @@ export default async function Fuentes() {
             </div>
           </section>
 
+            </> },
+            { clave: "privacidad", etiqueta: "Privacidad", contenido: <>
           {/* ── Privacidad ──────────────────────────────────────────────────────── */}
           <section aria-labelledby="privacidad-t">
             <CabeceraSeccion id="privacidad-t" titulo="Privacidad" bajada="Verificar a un establecimiento o a un médico no exige exponer a nadie." />
@@ -195,6 +212,12 @@ export default async function Fuentes() {
             </ul>
           </section>
 
+            </> },
+            {
+              clave: "fuera",
+              etiqueta: "Lo que no verificamos",
+              contenido: (
+                <div className="space-y-12">
           {/* ── Lo que no verificamos automáticamente ───────────────────────────── */}
           <section aria-labelledby="fuera-t">
             <CabeceraSeccion
@@ -246,10 +269,11 @@ export default async function Fuentes() {
               <ArrowRight size={16} aria-hidden className="shrink-0 text-mute" />
             </Link>
           </section>
-        </div>
-      )}
-      {/* Las preguntas frecuentes (2026-11-21: vivían en la portada, que se hacía interminable). */}
-      <section aria-labelledby="preguntas-t" className="mt-12">
+                </div>
+              ),
+            },
+            { clave: "preguntas", etiqueta: "Preguntas frecuentes", contenido: <>
+      <section aria-labelledby="preguntas-t">
         <h2 id="preguntas-t" className="font-display text-seccion font-bold leading-tight text-ink">Preguntas frecuentes</h2>
         <div className="mt-4">
             <Faq
@@ -314,6 +338,10 @@ export default async function Fuentes() {
             />
         </div>
       </section>
+            </> },
+          ]}
+        />
+      )}
     </div>
   );
 }

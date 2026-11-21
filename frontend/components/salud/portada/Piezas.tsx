@@ -3,6 +3,8 @@ import type { ReactNode } from "react";
 import { ArrowRight, ChevronRight, Phone, Siren } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { Pixel } from "@/components/pixel/Pixel";
+import { SPRITES, type NombreSprite } from "@/components/pixel/sprites";
 
 /**
  * Las piezas de página de Gobserva Salud (2026-11-20), server-safe: la ruta de arriba, el encabezado (h1 con su bajada), la
@@ -38,12 +40,40 @@ export function Ruta({ items }: { items: { etiqueta: string; href?: string }[] }
 }
 
 /** El encabezado de una página: el h1, una bajada y lo que vaya debajo (la fuente con su fecha, acciones). */
-export function Encabezado({ titulo, bajada, children, className }: { titulo: ReactNode; bajada?: ReactNode; children?: ReactNode; className?: string }) {
+/**
+ * El encabezado de una página de Salud, en una placa con el tinte del producto (2026-11-21: «hay secciones que sólo son
+ * texto con fondo transparente, dales forma»): el título, la bajada y la fuente; a la derecha, en la computadora, la
+ * figura de píxeles de la página parada en su suelo de puntos.
+ */
+export function Encabezado({
+  titulo,
+  bajada,
+  children,
+  className,
+  figura,
+}: {
+  titulo: ReactNode;
+  bajada?: ReactNode;
+  children?: ReactNode;
+  className?: string;
+  figura?: NombreSprite;
+}) {
   return (
-    <header className={cn("max-w-4xl", className)}>
-      <h1 className="text-balance font-display text-cifra font-bold leading-tight tracking-[-0.02em] text-ink sm:text-titulo">{titulo}</h1>
-      {bajada && <p className="mt-2 max-w-[70ch] text-pretty text-cuerpo leading-relaxed text-inkSoft">{bajada}</p>}
-      {children && <div className="mt-3">{children}</div>}
+    <header className={cn("relative overflow-hidden rounded-3xl border border-granate/20 bg-granate-50 px-5 py-6 sm:px-8 sm:py-7", className)}>
+      <div className="grid gap-6 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
+        <div className="min-w-0 max-w-3xl">
+          <h1 className="text-balance font-display text-cifra font-bold leading-tight tracking-[-0.02em] text-ink sm:text-titulo">{titulo}</h1>
+          {bajada && <p className="mt-2 max-w-[70ch] text-pretty text-cuerpo leading-relaxed text-inkSoft">{bajada}</p>}
+          {children && <div className="mt-3">{children}</div>}
+        </div>
+        {figura && (
+          <div aria-hidden className="hidden flex-col items-center sm:flex">
+            {/* Todas del mismo alto (~100 px), sea un ícono de 14 filas o una clínica de 28. */}
+            <Pixel nombre={figura} escala={Math.max(2, Math.round(100 / SPRITES[figura].base.length))} acento="accion" />
+            <span className="mt-1 h-0 w-28 border-t-2 border-dotted border-granate/40" />
+          </div>
+        )}
+      </div>
     </header>
   );
 }

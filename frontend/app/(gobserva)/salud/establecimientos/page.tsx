@@ -85,7 +85,7 @@ export default async function Establecimientos({ searchParams }: Props) {
   return (
     <div className="container-page pb-10 pt-5 sm:pb-14 sm:pt-6">
       <Ruta items={[{ etiqueta: "Inicio", href: rutaEn(base, "/") }, { etiqueta: "Establecimientos" }]} />
-      <Encabezado
+      <Encabezado figura="clinica"
         className="mt-2"
         titulo={tituloLista(f)}
         bajada="Hospitales, clínicas, centros y puestos de salud, consultorios y servicios de apoyo inscritos en RENIPRESS, el registro de SUSALUD. Toca uno para ver su verificación completa."

@@ -50,7 +50,7 @@ export default async function Buscar({ searchParams }: Props) {
   return (
     <div className="container-page pb-10 pt-5 sm:pb-14 sm:pt-6">
       <Ruta items={[{ etiqueta: "Inicio", href: ruta("/") }, { etiqueta: "Verificar" }]} />
-      <Encabezado
+      <Encabezado figura="vecina"
         className="mt-2"
         titulo={q ? <>Resultados para «{q}»</> : "Verifica un establecimiento o a un médico"}
         bajada={q ? undefined : "Escribe el nombre de la clínica, el hospital o el consultorio, su código IPRESS, su RUC o el número de colegiatura del médico."}

@@ -41,7 +41,7 @@ export default async function MapaPagina({ searchParams }: Props) {
   return (
     <div className="container-page pb-10 pt-5 sm:pb-14 sm:pt-6">
       <Ruta items={[{ etiqueta: "Inicio", href: rutaEn(base, "/") }, { etiqueta: "Mapa" }]} />
-      <Encabezado
+      <Encabezado figura="alfiler"
         className="mt-2"
         titulo="Mapa de establecimientos de salud"
         bajada="Cada punto es un establecimiento con ubicación en RENIPRESS, del color de su sector. Los que tienen una sanción firme de SUSALUD llevan un anillo rojo."

@@ -217,7 +217,7 @@ export function PestanaSanciones({ f }: { f: FichaIpress }) {
 
       <ListaPaginada
         nombre="las sanciones"
-        tam={8}
+        tam={3}
         className="space-y-4"
         buscar={{ placeholder: "Buscar por resolución, procedimiento o infracción…", etiqueta: "Buscar en las sanciones" }}
         items={lista.map((s) => ({

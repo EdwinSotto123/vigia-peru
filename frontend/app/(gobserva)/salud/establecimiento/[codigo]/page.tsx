@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { Activity, Building2, Database, FileText, Gavel, HeartPulse, History, MessageSquareWarning, ShieldCheck, Stethoscope } from "lucide-react";
 import { Migas } from "@/components/patrones/Migas";
+import { Pixel } from "@/components/pixel/Pixel";
 import { Pestanas, type Pestana } from "@/components/patrones/Pestanas";
 import { AccionesFila } from "@/components/salud/ficha/Acciones";
 import { CabeceraFicha } from "@/components/salud/ficha/Cabecera";
@@ -94,11 +95,21 @@ export default async function FichaEstablecimiento({ params, searchParams }: Pro
         pestanas={{ etiquetas: Object.fromEntries(pestanas.map((p) => [p.clave, p.etiqueta])), primera: pestanas[0].clave, activa: seccion }}
       />
 
-      <div className="mt-4">
-        <CabeceraFicha f={f} />
-        <AccionesFila f={f} base={base} className="mt-4" />
+      {/* La cabecera en su placa, con la clínica de píxeles (2026-11-21: «secciones que sólo son texto con fondo
+          transparente, dales forma»); «Lo esencial», en su tarjeta. */}
+      <div className="mt-4 overflow-hidden rounded-3xl border border-granate/20 bg-granate-50 px-5 py-6 sm:px-8 sm:py-7">
+        <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
+          <div className="min-w-0">
+            <CabeceraFicha f={f} />
+            <AccionesFila f={f} base={base} className="mt-5" />
+          </div>
+          <div aria-hidden className="hidden flex-col items-center lg:flex">
+            <Pixel nombre="clinica" escala={4} acento="accion" />
+            <span className="mt-1 h-0 w-36 border-t-2 border-dotted border-granate/40" />
+          </div>
+        </div>
       </div>
-      <EsencialFicha f={f} base={base} className="mt-7" />
+      <EsencialFicha f={f} base={base} className="mt-5" />
 
       {/* Las pestañas se pegan bajo la cabecera del producto (64 px), no detrás de ella. */}
       <div id="secciones" className="mt-8 scroll-mt-16">
