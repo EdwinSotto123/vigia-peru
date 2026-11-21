@@ -5,7 +5,7 @@ import { CabeceraPestana } from "@/components/patrones/Pestanas";
 import { FuenteFecha, InsigniaHecho } from "@/components/salud/comun";
 import { rutaEn } from "@/lib/gobserva";
 import { fechaCorta, nombrePropio, numero, rutaMedico, type FichaIpress } from "@/lib/gobserva-salud";
-import { Bloque, DetallePendiente, FilaDato, detalleLeido, enOracion } from "./piezas";
+import { Bloque, DetallePendiente, FilaDato, detalleLeido, enOracion, esColegioMedico } from "./piezas";
 
 /**
  * La pestaña «Documentos»: lo que la IPRESS declaró en RENIPRESS (la resolución de su categoría, la de creación, la
@@ -93,15 +93,18 @@ export function PestanaDocumentos({ f, base }: { f: FichaIpress; base: string })
               </FilaDato>
             </dl>
               <div className="pt-3">
-                <Link
-                  href={rutaEn(base, rutaMedico(d.responsableColegiatura))}
-                  prefetch={false}
-                  className="inline-flex min-h-11 items-center text-dato font-semibold text-granate underline decoration-granate/40 underline-offset-2 hover:decoration-granate"
-                >
-                  Cómo verificar esta colegiatura
-                </Link>
+                {/* /medico busca en el CMP: sólo se enlaza si el responsable es del Colegio Médico (piezas.tsx). */}
+                {esColegioMedico(d.responsableColegio) && (
+                  <Link
+                    href={rutaEn(base, rutaMedico(d.responsableColegiatura))}
+                    prefetch={false}
+                    className="inline-flex min-h-11 items-center text-dato font-semibold text-granate underline decoration-granate/40 underline-offset-2 hover:decoration-granate"
+                  >
+                    Cómo verificar esta colegiatura
+                  </Link>
+                )}
                 <p className="mt-1 text-meta leading-snug text-mute">
-                  Su habilitación la confirma su colegio. Una sanción de la IPRESS no es una sanción a su responsable.
+                  Su habilitación la confirma {esColegioMedico(d.responsableColegio) ? "su colegio" : `el ${colegio}`}. Una sanción de la IPRESS no es una sanción a su responsable.
                 </p>
               </div>
             </>

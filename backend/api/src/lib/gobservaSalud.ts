@@ -237,9 +237,13 @@ export function verificar(v: DatosVerificacion): Chequeo[] {
 /** «Hospital de atención general (II-1)» → «hospital de atención general (II-1)»: sólo la inicial (la categoría queda). */
 const minusculaInicial = (t: string) => t.charAt(0).toLowerCase() + t.slice(1);
 
-/** «COLEGIO MEDICO DEL PERU» → «Colegio Médico del Perú». */
+/**
+ * «COLEGIO MEDICO DEL PERU» → «Colegio Médico del Perú». El tecnólogo va primero: «COLEGIO TECNOLOGO MEDICO DEL PERU»
+ * también dice MEDICO y salía como Colegio Médico (898 responsables, revisado el 2026-11-21).
+ */
 export function tituloColegio(c: string | null | undefined): string {
   const t = (c ?? "").toUpperCase();
+  if (/TECNOLOG/.test(t)) return "Colegio Tecnólogo Médico del Perú";
   if (/MEDICO/.test(t) && !/VETERIN/.test(t)) return "Colegio Médico del Perú";
   if (/ENFERMER/.test(t)) return "Colegio de Enfermeros del Perú";
   if (/ODONTOL/.test(t)) return "Colegio Odontológico del Perú";

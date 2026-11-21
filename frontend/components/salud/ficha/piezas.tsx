@@ -149,21 +149,44 @@ export function EnlaceOficial({ href, children, className }: { href: string; chi
 
 /**
  * El detalle de RENIPRESS (servicios, documentos, responsable) todavía no llegó: la API ya lo pidió al abrir la ficha y
- * se lee en la próxima vuelta del cargador. Mientras, la consulta oficial.
+ * el cargador lo lee primero en su corrida de la madrugada (03:40, susalud_detalle). Mientras, la consulta oficial. Por
+ * qué falta y cuánto falta: docs/salud/datos.md §8.
  */
 export function DetallePendiente({ url, className }: { url: string; className?: string }) {
   return (
     <div role="status" className={cn("flex gap-3 rounded-2xl border border-amber/30 bg-amber-soft/50 px-4 py-3.5", className)}>
       <Hourglass size={18} aria-hidden className="mt-0.5 shrink-0 text-amberTexto" />
       <p className="min-w-0 text-dato leading-relaxed text-ink">
-        <span className="font-semibold">Estamos pidiendo a RENIPRESS el detalle de este establecimiento</span>{" "}
+        <span className="font-semibold">Todavía no leímos el detalle de este establecimiento en RENIPRESS</span>{" "}
         <span className="text-inkSoft">
-          (servicios, especialidades, documentos y responsable): ya lo pedimos y aparecerá aquí cuando lo leamos. Mientras, míralo en la{" "}
-          <EnlaceOficial href={url}>consulta oficial de RENIPRESS</EnlaceOficial>.
+          (servicios, especialidades, documentos y responsable). Ya lo pedimos: RENIPRESS se consulta de madrugada, así que suele
+          estar aquí al día siguiente. Mientras, míralo en la <EnlaceOficial href={url}>consulta oficial de RENIPRESS</EnlaceOficial>.
         </span>
       </p>
     </div>
   );
+}
+
+/**
+ * ¿El responsable es del Colegio Médico del Perú? Sólo entonces su número es un CMP y lleva a /medico, que busca en el
+ * CMP. El 2026-11-21, 6 565 de los 12 991 responsables leídos eran de otro colegio (odontólogos, enfermeros, obstetras,
+ * tecnólogos médicos, biólogos…) y la ficha los mostraba como «CMP» y enlazaba a otra persona.
+ */
+export const esColegioMedico = (colegio: string | null | undefined) => /^\s*COLEGIO\s+M\S?DICO\s+DEL\s+PER/i.test(colegio ?? "");
+
+/** La profesión del responsable según su colegio, para la casilla de «Lo esencial» cuando no es médico. */
+export function profesionResponsable(colegio: string | null | undefined): string {
+  const t = (colegio ?? "").toUpperCase();
+  if (/TECNOLOG/.test(t)) return "Tecnología médica";
+  if (/ODONTOL/.test(t)) return "Odontología";
+  if (/T.CNICO/.test(t)) return "Técnico de salud";
+  if (/ENFERMER/.test(t)) return "Enfermería";
+  if (/OBSTETR/.test(t)) return "Obstetricia";
+  if (/PSICOL/.test(t)) return "Psicología";
+  if (/BI.LOGO/.test(t)) return "Biología";
+  if (/QU.MICO|FARMAC/.test(t)) return "Química farmacéutica";
+  if (/NUTRICION/.test(t)) return "Nutrición";
+  return "Otro colegio";
 }
 
 /** Una fila «qué es → cuál es» de una lista de datos (`<dl>`), con su ícono. */

@@ -72,6 +72,7 @@ test("con detalle: centro quirúrgico, licencia declarada (la da la municipalida
 test("colegios y pasos para verificar a un médico", () => {
   assert.equal(tituloColegio("COLEGIO MEDICO DEL PERU"), "Colegio Médico del Perú");
   assert.equal(tituloColegio("COLEGIO DE ENFERMEROS DEL PERU"), "Colegio de Enfermeros del Perú");
+  assert.equal(tituloColegio("COLEGIO TECNOLOGO MEDICO DEL PERU"), "Colegio Tecnólogo Médico del Perú");
   const pasos = pasosVerificarMedico("12345");
   assert.equal(pasos.length, 4);
   assert.match(pasos[0].detalle, /12345/);

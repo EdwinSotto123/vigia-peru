@@ -5,7 +5,7 @@ import { iconoEstado, tonoEstado } from "@/components/salud/comun";
 import { rutaEn } from "@/lib/gobserva";
 import { numero, rutaFicha, rutaMedico, type Chequeo, type FichaIpress } from "@/lib/gobserva-salud";
 import { cn } from "@/lib/utils";
-import { detalleLeido } from "./piezas";
+import { detalleLeido, esColegioMedico, profesionResponsable } from "./piezas";
 import { resumenVerificacion } from "./Verificacion";
 
 /**
@@ -23,7 +23,7 @@ const CORTO: Record<string, string> = {
   licencia: "Licencia municipal",
   sanciones: "Sanciones firmes",
   denuncias: "Denuncias",
-  responsable: "Responsable médico",
+  responsable: "Responsable",
 };
 
 /** La casilla: con borde y fondo de alerta sólo cuando hay algo que revisar; lo conforme queda tranquilo. */
@@ -61,8 +61,9 @@ function valorCorto(c: Chequeo, f: FichaIpress): string {
       return (leido ? f.detalle!.categoria : null) ?? f.categoria ?? "Sin categoría";
     case "quirurgico":
       return c.estado === "ok" ? "Registrado" : c.estado === "sin_dato" ? "Sin dato" : "No registrado";
+    // Este chequeo sólo existe con el detalle leído: si no es «ok», la IPRESS no la declaró (no es que falte el dato).
     case "licencia":
-      return c.estado === "ok" ? "Declarada" : c.estado === "sin_dato" ? "Sin dato" : "No declarada";
+      return c.estado === "ok" ? "Declarada" : "No declarada";
     case "sanciones": {
       const n = f.registroSanciones.length;
       return n === 0 ? "Ninguna" : n === 1 ? "1 firme" : `${numero(n)} firmes`;
@@ -72,8 +73,12 @@ function valorCorto(c: Chequeo, f: FichaIpress): string {
       if (!ultimo) return "Sin dato";
       return `${numero(ultimo.denuncias)} en ${ultimo.anio}`;
     }
-    case "responsable":
-      return leido && f.detalle!.responsableColegiatura ? `CMP ${f.detalle!.responsableColegiatura}` : "Sin dato";
+    case "responsable": {
+      // «CMP» sólo para el Colegio Médico; de otro colegio, su profesión (su número está en «Verificación»).
+      const d = leido ? f.detalle! : null;
+      if (!d?.responsableColegiatura) return "No figura";
+      return esColegioMedico(d.responsableColegio) ? `CMP ${d.responsableColegiatura}` : profesionResponsable(d.responsableColegio);
+    }
     default:
       return c.titulo;
   }
@@ -92,7 +97,9 @@ function destino(c: Chequeo, f: FichaIpress, base: string): string {
     case "licencia":
       return `${ficha}?seccion=documentos#secciones`;
     case "responsable":
-      return detalleLeido(f) && f.detalle.responsableColegiatura ? rutaEn(base, rutaMedico(f.detalle.responsableColegiatura)) : `${ficha}?seccion=verificacion#secciones`;
+      return detalleLeido(f) && f.detalle.responsableColegiatura && esColegioMedico(f.detalle.responsableColegio)
+        ? rutaEn(base, rutaMedico(f.detalle.responsableColegiatura))
+        : `${ficha}?seccion=verificacion#secciones`;
     default:
       return `${ficha}?seccion=verificacion#secciones`;
   }

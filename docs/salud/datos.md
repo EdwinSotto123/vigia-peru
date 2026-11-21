@@ -6,6 +6,9 @@ el diccionario de cada archivo). No se resolvió ningún captcha ni se creó nin
 
 Complementa a [`docs/SALUD.md`](../SALUD.md), donde están la arquitectura, la privacidad y la operación.
 
+¿Una ficha dice «Todavía no leímos el detalle de este establecimiento en RENIPRESS», «Sin dato» o «No figura»? Qué
+significa cada aviso, por qué sale, cuántas fichas lo tienen y cómo se cierra: [§8](#8-lo-que-falta-en-cada-ficha-y-por-qué).
+
 ## Índice
 
 1. [Lo que ya leemos](#1-lo-que-ya-leemos)
@@ -15,6 +18,7 @@ Complementa a [`docs/SALUD.md`](../SALUD.md), donde están la arquitectura, la p
 5. [Cómo cerrar la brecha sin romper nada](#5-cómo-cerrar-la-brecha-sin-romper-nada)
 6. [Ampliación: cinco frentes nuevos](#6-ampliación-cinco-frentes-nuevos)
 7. [Plan por etapas](#7-plan-por-etapas)
+8. [Lo que falta en cada ficha y por qué](#8-lo-que-falta-en-cada-ficha-y-por-qué)
 
 ---
 
@@ -40,7 +44,7 @@ Complementa a [`docs/SALUD.md`](../SALUD.md), donde están la arquitectura, la p
 | **Colegio de Enfermeros** (CEP) | `cep.org.pe/validar/` | Captcha de imagen | Enlace guiado |
 | **Colegio de Nutricionistas** (CNP) | `app.cnp.org.pe/sanu/externo/consultacolegiado.aspx` | Captcha | Enlace guiado |
 | **Colegio Químico Farmacéutico** (CQFP), habilidad | `cqfgo.appcqfp.pe/usuario/buscar.xhtml` | reCAPTCHA | Enlace guiado (sus sancionados sí, ver §3) |
-| **Detalle de IPRESS en bloque** | DKAN de SUSALUD y datosabiertos.gob.pe | No existe: el CSV mensual de RENIPRESS **no trae** UPSS, cartera, especialidades ni documentos | Seguimos uno por uno (§1); van 11 793 de 36 226 leídas |
+| **Detalle de IPRESS en bloque** | DKAN de SUSALUD y datosabiertos.gob.pe | No existe: el CSV mensual de RENIPRESS **no trae** UPSS, cartera, especialidades ni documentos | Seguimos uno por uno (§1); van 12 991 de 36 226 leídas (§8) |
 | **INFORHUS** (personal de salud del MINSA) | `minsa.gob.pe/reunis/?op=3&niv=9` | Sólo tableros agregados de Power BI | Nada |
 | **AIRHSP** (MEF) | `fs.datosabiertos.mef.gob.pe/datastorefiles/PERSONALSP_2026.csv` | Agregado: una cifra, no personas | No sirve para verificar a nadie |
 | **Licencias municipales** | — | No hay un registro nacional abierto | Mostramos lo que la IPRESS **declaró** en RENIPRESS |
@@ -71,8 +75,8 @@ Pero apareció lo siguiente:
   públicas del Poder Ejecutivo; Gobserva no califica. Enlace guiado.
 - **Enfermeros, nutricionistas y la habilidad del CQFP.** Captcha. Enlace guiado.
 - **UPSS, cartera y especialidades de las 36 mil IPRESS.** Sólo se leen de a una, con el límite que pone SUSALUD (más de un
-  pedido a la vez responde 429). A ~1 200 por noche se completa en un mes; se priorizan las sancionadas, las privadas con
-  internamiento, las II y III y las que la gente abre.
+  pedido a la vez responde 429). A ~1 200 por noche, las activas quedan leídas hacia el 6 de diciembre de 2026 y todas
+  hacia el 11; primero van las que la gente abre. Cifras y cómo acelerarlo: §8.1.
 - **Lo que no tiene descarga** (registro sanitario de medicamentos, retiro del mercado, establecimientos farmacéuticos,
   inspecciones de DIGEMID): formularios web sin exportación, varios detrás de un desafío de Cloudflare o reCAPTCHA. Enlace
   guiado o pedido formal.
@@ -204,3 +208,231 @@ Cada etapa sale entera (fuente, carga, API, página y verificación en producci�
 documento de identidad tras la R.S. 165-2026; los campos que devuelven los buscadores de odontólogos, psicólogos y
 tecnólogos; si el Observatorio de precios en línea tiene captcha; el archivo de SINADEF; un directorio de bancos de
 sangre; si el RENACSS será público.
+
+## 8. Lo que falta en cada ficha y por qué
+
+Cada aviso de «falta» que ve una persona en la ficha de un establecimiento, de dónde sale y cuántas fichas lo tienen. Las
+cifras salen de la base de producción el **21-11-2026 a las 13:00** (consulta de sólo lectura).
+
+Hay cuatro clases de hueco, y no se dicen igual:
+
+| Clase | Qué quiere decir | Cómo lo dice la ficha |
+|---|---|---|
+| **Todavía no leído** | El dato existe en RENIPRESS, pero aún no lo leímos de esa IPRESS | «Todavía no leímos…», «Sin dato» |
+| **No declarado** | Lo leímos y la IPRESS no lo declaró en RENIPRESS | «No declarada», «No figura», «No figura ninguna especialidad» |
+| **No reporta** | La fuente sólo trae a las IPRESS que le informan (recursos, cirugías) | «No figura en los datos de recursos de SUSALUD» |
+| **No hay registro** | La fuente no la nombra (sanciones, denuncias): no es lo mismo que «no tiene» | «No figura en el Registro de Sanciones…» |
+
+### 8.1 «Todavía no leímos el detalle de este establecimiento en RENIPRESS»
+
+Hasta el 21-11-2026 el aviso decía «Estamos pidiendo a RENIPRESS el detalle de este establecimiento… ya lo pedimos y
+aparecerá aquí cuando lo leamos».
+
+**Qué falta.** La ficha se arma con dos lecturas de RENIPRESS:
+
+1. El **archivo mensual** (CSV), que trae las 36 226 IPRESS de una vez: nombre, categoría, estado, dirección, teléfono,
+   horario y coordenadas.
+2. El **detalle de cada IPRESS** (UPSS y UPS, especialidades, cartera de servicios, documentos declarados, responsable de
+   la atención, historia de estados y RUC del propietario). No existe en bloque (§2): se lee de a una en la consulta
+   pública, con el Worker `susalud_detalle`.
+
+Mientras la segunda lectura no llega, la ficha muestra:
+
+| Dónde | Qué se ve |
+|---|---|
+| Pestañas Servicios, Documentos y Verificación | El aviso, con el enlace a la consulta oficial de esa IPRESS |
+| Pestaña Historial, «Historia de estados» | El aviso |
+| Pestaña Para atenderte | «Todavía no leímos sus servicios…»; el buscador «¿Te pueden atender aquí?» no tiene en qué buscar |
+| Lo esencial | 3 o 4 casillas en vez de 6 o 7: faltan centro quirúrgico, licencia municipal y responsable |
+| Pestaña Fuentes | «Pedido a RENIPRESS: todavía no lo leemos» |
+| Pestaña Empresa y sedes | No aparece: el RUC del propietario viene en el detalle |
+| Cerca de mí, por necesidad | «Eso no prueba que no lo atiendan: de muchos todavía no leemos sus servicios» |
+| `/medico/[colegiatura]` | Busca la colegiatura sólo entre las IPRESS leídas (lo dice: «de los 12 991 cuyo detalle revisamos») |
+
+**Cuánto falta.**
+
+| | Total | Leídas | Falta |
+|---|---|---|---|
+| IPRESS en el registro | 36 226 | 12 991 (35,9 %) | 23 230 nunca intentadas, más 5 que la consulta dice que «no existen» |
+| Activas | 27 000 | 9 110 (33,7 %) | **17 890** |
+| Con sanciones firmes | 724 | 724 | 0 |
+| Privadas con internamiento | 694 | 694 | 0 |
+| Categorías II y III (hospitales, institutos) | 781 | 781 | 0 |
+| Sin categoría | 8 586 | 8 583 | 3 |
+| **Activas de categoría I** | 17 885 sin leer | | I-1: 8 517, I-2: 5 592, I-3: 3 597, I-4: 179 |
+
+Lo que falta es casi todo **primer nivel**: puestos de salud, consultorios y centros de salud. Es justo donde más gente se
+atiende, así que el aviso se ve seguido.
+
+**Por qué falta.**
+
+- **No hay descarga.** SUSALUD no publica el detalle en bloque (§2). La consulta pública es la única vía sin captcha.
+- **RENIPRESS sólo contesta desde el Perú**, y limita a un pedido a la vez: con 3 hilos respondió 429 al tercer pedido. El
+  Worker lo pide por el relay de Lima, que se comparte con otras fuentes; por eso corre de madrugada (03:40, `calendario.ts`)
+  y lee unas 1 200 por noche, a ~1 pedido por segundo.
+- **Ritmo real.** El 20-11 se hizo el relleno inicial desde una PC en el Perú (11 793 leídas). El 21-11, la primera corrida
+  nocturna leyó 1 198.
+- **Cuando alguien abre una ficha sin detalle** (o con uno de más de 30 días), la API anota un pedido
+  (`salud_pedir_detalle`), y la corrida siguiente lo lee antes que todo lo demás. Hoy hay 4 pedidos esperando; el más viejo
+  es de las 12:37. La espera va de 1 a 24 horas, según la hora en que se abrió: por eso el aviso dice «suele estar aquí al
+  día siguiente».
+- **No se lee en el momento** en que alguien abre la ficha porque la API corre fuera del Perú: tendría que pasar por el relay
+  de Lima a cualquier hora y en paralelo con otros pedidos, que es lo que hace saltar el 429.
+- **El orden perdió noches.** En `pendientes()` (`susalud_detalle.ts`), `(i.categoria ~ '^(II|III)') DESC` da NULL cuando la
+  IPRESS no tiene categoría, y PostgreSQL pone los NULL **primero** en un orden descendente. Así, las 8 583 sin categoría
+  (servicios médicos de apoyo, muchos inactivos) pasaron antes que las activas de categoría I. Para el primer recorrido ya
+  no cambia nada, porque sólo quedan 3 sin categoría y las activas van primero. Pero se repetirá en el refresco de cada 30
+  días.
+
+**Proyección sin cambiar nada.** Con 1 200 por noche desde el 22-11:
+
+- las activas quedan leídas hacia el **6-12-2026** (15 noches);
+- todas, hacia el **11-12-2026** (20 noches);
+- desde el **20-12-2026** empieza el refresco de las primeras 11 793.
+
+**Cómo cerrarlo sin romper nada**, de lo más rápido a lo más estructural:
+
+1. **Terminar el primer recorrido ya**, al mismo ritmo de un pedido por segundo, sólo que por más tiempo. Hay dos formas:
+   - una corrida desde una PC en el Perú, como la del 20-11: `node scripts/susalud_local.ts detalle 23230 1`, un hilo,
+     unas 10 horas;
+   - subir el `paso` de la corrida nocturna de 1 200 a 6 000 (el tope del código) durante 4 noches.
+
+   El código ya espera 30, 60 y 120 segundos ante un 429 y corta la tanda si sigue: no insiste.
+2. **Leer los pedidos cada hora.** Sumar a la corrida horaria (la de `documentos`) una tanda chica de `susalud_detalle` que lea
+   **sólo** `salud_detalle_pedido`, con un tope de 20. La espera baja de hasta 24 horas a menos de una. La carga es mínima:
+   hoy son 4 pedidos al día.
+3. **Corregir el orden**: `(… ) IS TRUE DESC` en vez de `(… ) DESC`, o `DESC NULLS LAST`, en `pendientes()`.
+4. **De fondo**: el pedido por la Ley 27806 de la exportación del detalle (§5.2) y el RENACSS, si es público (§5.4).
+   Cualquiera de los dos reemplaza la lectura de a una.
+
+### 8.2 Leído, pero vacío: lo que la IPRESS no declaró
+
+RENIPRESS es una **declaración jurada** de cada IPRESS (art. 7 de la R.S. 004-2021-SUSALUD/S). Si un campo viene vacío, la
+IPRESS no lo declaró: no quiere decir que no lo tenga. Por eso la ficha dice «no declaró» y nunca «no tiene».
+
+Cuántas lo tienen vacío, entre las **9 110 activas ya leídas**:
+
+| Campo | Vacío | Cómo se ve |
+|---|---|---|
+| Especialidades | 4 300 (47 %) | «No figura ninguna especialidad en RENIPRESS (consultado el …)» |
+| Cartera de servicios | 4 143 (45 %) | La sección no aparece |
+| Ningún documento declarado | 5 260 (58 %) | «No figura ningún documento declarado en RENIPRESS…» |
+| Licencia municipal declarada | 6 659 (73 %) | Casilla «Licencia municipal: No declarada» |
+| Colegiatura del responsable | 1 041 (11 %) | Casilla «Responsable: No figura» |
+| Unidades (ni UPSS ni UPS) | 10 | «No figura ninguna unidad asistencial…» |
+
+De las 12 991 leídas, 9 760 no traen RNE (registro de especialista). Es normal: no todo responsable es especialista, y la
+mitad ni siquiera es médico (§8.6).
+
+**Cómo cerrarlo.** No hay nada que leer: es lo que la IPRESS declaró. Que lo declare es tarea de la supervisión de SUSALUD.
+Lo nuestro es decirlo bien, con «No declarada» y no «Sin dato» (corregido el 21-11, §8.6). La licencia en sí la da la
+municipalidad, y no hay un registro nacional abierto (§2).
+
+### 8.3 Lo que falta en el archivo mensual de RENIPRESS
+
+| Campo | Vacío (todas / activas) | Por qué | Qué se ve |
+|---|---|---|---|
+| Categoría | 8 586 / 4 912 | RENIPRESS no categoriza los servicios médicos de apoyo (2 852 de las activas) ni muchos consultorios sin internamiento (1 984) | «Sin categoría» |
+| Coordenadas | 13 166 / 6 960 | La IPRESS no declaró su ubicación. Son casi todas privadas: 6 664 privadas frente a 267 públicas | No salen en el mapa ni en «Cerca de mí» |
+| Teléfono | 1 019 / 761 | No lo declaró | No aparece el teléfono |
+| Dirección | 408 | No la declaró | Sólo distrito y provincia |
+| Inicio de actividad | 1 121 | RENIPRESS trae 1900-01-01 | No se muestra |
+| Horario | 217 / 29 | No lo declaró | No se muestra |
+
+**Cómo cerrarlo.** Las coordenadas son el hueco que más pesa: casi 7 mil activas que «Cerca de mí» no encuentra. Lo que
+**no** hay que hacer es geocodificar la dirección, porque un alfiler mal puesto engaña más que ninguno. Lo que sí:
+
+- mostrar en «Cerca de mí» las IPRESS sin ubicación del mismo distrito (`ubigeo`), en una lista aparte que lo diga;
+- pedirle a SUSALUD, por la vía del §5, que exija la ubicación al registrar una IPRESS.
+
+### 8.4 Sólo de quien reporta: recursos, cirugías y denuncias
+
+| Fuente | Cuántas IPRESS trae | Qué ve el resto |
+|---|---|---|
+| **Consulta A**: recursos (octubre de 2026) | 5 327 de 27 000 activas (20 %): 4 734 de 9 772 públicas (48 %) y **584 de 16 996 privadas (3 %)**. De las filas, 2 056 traen 0 médicos o ninguno | «No figura en los datos de recursos de SUSALUD… No todas las IPRESS los informan cada mes» |
+| **Consulta H**: cirugías (10-2025 a 10-2026) | 6 069 | «No figuran cirugías declaradas en los datos de SUSALUD» |
+| **Consultas y denuncias** (2019 a 2026) | 7 092 | «No figura en los datos de consultas y denuncias de SUSALUD»: nadie denunció **o** no se registró a su nombre |
+
+**Por qué.** Las Consultas A y H se arman con lo que cada IPRESS informa a SUSALUD por su sistema de reportes. Las públicas
+informan más; las privadas, casi nunca. No es un error de lectura: el archivo no las trae.
+
+**Cómo cerrarlo.**
+
+- Probar la **Consulta J** (programación asistencial, etapa 3 del §7) y medir antes cuántas IPRESS privadas trae. Si son
+  más, responde «¿hay especialista y cuántas horas?» para más fichas que la Consulta A.
+- Mientras, la ficha dice «no figura en los datos» y nunca muestra un cero.
+
+### 8.5 Sanciones que no llegan a ninguna ficha
+
+De **2 996** sanciones vigentes en el registro, 2 605 están unidas a una IPRESS:
+
+- 2 586 por su código;
+- 18 por su código, aunque el registro le pone otro nombre;
+- 1 sólo por su nombre.
+
+Quedan **391 sin unir**:
+
+| Grupo | Cuántas | ¿Es un hueco? |
+|---|---|---|
+| IAFAS (aseguradoras) | 200 | No: no son establecimientos y no tienen ficha |
+| UGIPRESS | 3 | No: son gestoras, no establecimientos |
+| IPRESS con «SIN CÓDIGO ÚNICO» | **188** | **Sí** |
+
+Las 188 salen en `/sanciones`, pero en ninguna ficha. Una ficha cuya casilla dice «Sanciones firmes: Ninguna» podría ser
+de una de ellas.
+
+**Cómo cerrarlo.**
+
+1. Unirlas por el **RUC**: el detalle trae el RUC 20 del propietario de 9 254 IPRESS, y se compara con el nombre y el
+   distrito de la sanción.
+2. Lo que no quede seguro va a una lista de revisión a mano. Nunca se une sólo por el nombre: hay cadenas con decenas de
+   sedes con el mismo nombre.
+3. Mientras, la casilla podría decir «Ninguna unida a este código» en vez de «Ninguna». Es una decisión pendiente.
+
+### 8.6 Lo que se corrigió al revisar esto (21-11-2026)
+
+- **El responsable salía como «CMP» aunque no fuera médico.** De las 12 991 IPRESS leídas, **6 565** registran un
+  responsable de otro colegio:
+
+  | Colegio | Responsables |
+  |---|---|
+  | Odontológico | 1 969 |
+  | Enfermeros | 1 130 |
+  | Obstetras | 966 |
+  | Tecnólogo Médico | 898 |
+  | Técnicos de enfermería, sin colegio | 661 |
+  | Biólogos | 425 |
+  | Otros | el resto |
+
+  La casilla decía «Responsable médico: CMP 1234» y enlazaba a `/medico/1234`, que busca en el Colegio Médico: es decir,
+  a **otra persona**. Ahora:
+  - dice «CMP 1234» sólo si el colegio es el Médico;
+  - si no, muestra la profesión («Odontología», «Enfermería»…) y lleva a la pestaña Verificación;
+  - los enlaces a `/medico` de Documentos, Verificación y Para atenderte siguen la misma regla.
+
+  Código: `esColegioMedico` y `profesionResponsable` en `components/salud/ficha/piezas.tsx`.
+- **«Colegio Tecnólogo Médico» salía como «Colegio Médico del Perú»**, porque la API buscaba «MEDICO» primero (898 fichas).
+  Además, `/medico/[colegiatura]` los incluía en su búsqueda (`ILIKE '%MEDICO%'`). Corregido en `tituloColegio`, en el
+  filtro de `/salud/medico` (`'COLEGIO M_DICO DEL PER%'`) y en su prueba.
+- **«Sin dato» donde había un dato.** Una licencia que la IPRESS no declaró se veía igual que un detalle no leído. Ahora
+  dice «No declarada», y el responsable sin colegiatura dice «No figura».
+- **El aviso no decía cuándo.** Ahora dice que RENIPRESS se consulta de madrugada y que el detalle suele estar al día
+  siguiente.
+
+### 8.7 El historial de cambios, todavía vacío
+
+`salud_ipress_cambio` tiene **0 filas**. Por eso `/cambios` dice «Todavía no hay cambios registrados» y el Historial de cada
+ficha dice «No registramos cambios en RENIPRESS desde…».
+
+Un cambio sale de comparar dos lecturas, y todavía hay una sola:
+
+- un solo archivo mensual, `RENIPRESS_2026_v8.csv`, cargado el 20-11;
+- ningún detalle se volvió a leer todavía.
+
+Los primeros cambios llegan:
+
+- con el **próximo archivo mensual** (el último día hábil de noviembre; el Worker `susalud` lo carga el viernes siguiente,
+  hacia el **4-12-2026**);
+- con el **refresco del detalle** de cada 30 días, desde el **20-12-2026**.
+
+No hay nada que cerrar: es el tiempo que necesita una comparación.

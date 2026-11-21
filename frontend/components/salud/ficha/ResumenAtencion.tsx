@@ -7,7 +7,7 @@ import { rutaEn } from "@/lib/gobserva";
 import { nombrePropio, numero, rutaMedico, type FichaIpress } from "@/lib/gobserva-salud";
 import { cn } from "@/lib/utils";
 import { itemsDeclarados, personalDeclarado, serviciosClave, type Sabe } from "./atencion";
-import { URL_RENIPRESS_CONSULTA, detalleLeido } from "./piezas";
+import { URL_RENIPRESS_CONSULTA, detalleLeido, esColegioMedico } from "./piezas";
 import { TeAtiendenAqui } from "./TeAtiendenAqui";
 
 const SABE: Record<Sabe, { Icono: LucideIcon; texto: string; clase: string }> = {
@@ -37,6 +37,8 @@ export function ResumenAtencion({ f, base }: { f: FichaIpress; base: string }) {
   const medicos = personal?.filas.find((x) => x.clave === "medicos")?.n ?? null;
   const otros = personal?.filas.filter((x) => x.clave !== "medicos") ?? [];
   const especialidades = leido ? f.detalle.especialidades.length : null;
+  // La colegiatura del responsable, sólo si es del Colegio Médico: /medico busca en el CMP (piezas.tsx).
+  const responsableCmp = leido && f.detalle.responsableColegiatura && esColegioMedico(f.detalle.responsableColegio) ? f.detalle.responsableColegiatura : null;
 
   return (
     <section aria-labelledby="atencion-t" className="tarjeta min-w-0 rounded-2xl border border-line bg-paper">
@@ -53,7 +55,7 @@ export function ResumenAtencion({ f, base }: { f: FichaIpress; base: string }) {
             <p className="mt-3 flex gap-2.5 rounded-xl border border-amber/30 bg-amber-soft/50 px-3.5 py-3 text-dato leading-relaxed text-ink">
               <Hourglass size={17} aria-hidden className="mt-0.5 shrink-0 text-amberTexto" />
               <span>
-                Todavía no leímos sus servicios en RENIPRESS. Ya los pedimos: vuelve en uno o dos días.
+                Todavía no leímos sus servicios en RENIPRESS. Ya los pedimos: RENIPRESS se consulta de madrugada, así que suelen estar aquí al día siguiente.
                 {f.internamiento ? " Por ahora, RENIPRESS lo registra como establecimiento con internamiento." : ""}
               </span>
             </p>
@@ -141,10 +143,10 @@ export function ResumenAtencion({ f, base }: { f: FichaIpress; base: string }) {
             </p>
           )}
           <Link
-            href={leido && f.detalle.responsableColegiatura ? rutaEn(base, rutaMedico(f.detalle.responsableColegiatura)) : rutaEn(base, "/medico")}
+            href={responsableCmp ? rutaEn(base, rutaMedico(responsableCmp)) : rutaEn(base, "/medico")}
             className="mt-3 inline-flex min-h-11 items-center gap-1 text-dato font-semibold text-granate underline-offset-4 hover:underline"
           >
-            {leido && f.detalle.responsableColegiatura ? "Verificar al médico responsable" : "Verificar a un médico con su colegiatura"}
+            {responsableCmp ? "Verificar al médico responsable" : "Verificar a un médico con su colegiatura"}
             <ChevronRight size={15} aria-hidden />
           </Link>
           {personal && <FuenteFecha nombre="Recursos de salud (SUSALUD)" url={f.fuentes.recursos?.url ?? renipress} al={f.recursosAl} className="mt-1" />}

@@ -6,7 +6,7 @@ import { FuenteFecha, iconoEstado, tonoEstado } from "@/components/salud/comun";
 import { rutaEn } from "@/lib/gobserva";
 import { ESTADOS_CHEQUEO, fechaCorta, rutaFicha, rutaMedico, type Chequeo, type FichaIpress } from "@/lib/gobserva-salud";
 import { cn } from "@/lib/utils";
-import { DetallePendiente, URL_RENIPRESS_CONSULTA, detalleLeido } from "./piezas";
+import { DetallePendiente, URL_RENIPRESS_CONSULTA, detalleLeido, esColegioMedico } from "./piezas";
 
 /** El color del ícono y del nombre del estado de un chequeo. */
 const TEXTO_TONO: Record<Tono, string> = {
@@ -70,7 +70,8 @@ function Extra({ c, f, base }: { c: Chequeo; f: FichaIpress; base: string }) {
   if (c.clave === "denuncias") return enlace(`${ficha}?seccion=denuncias#secciones`, "Ver las denuncias por año");
   if (c.clave === "licencia") return enlace(`${ficha}?seccion=documentos#secciones`, "Ver los documentos declarados");
   if (c.clave === "quirurgico") return enlace(`${ficha}?seccion=servicios#secciones`, "Ver los servicios registrados");
-  if (c.clave === "responsable" && detalleLeido(f) && f.detalle.responsableColegiatura) {
+  // /medico busca en el CMP: sólo se enlaza si el responsable es del Colegio Médico (piezas.tsx).
+  if (c.clave === "responsable" && detalleLeido(f) && f.detalle.responsableColegiatura && esColegioMedico(f.detalle.responsableColegio)) {
     const conSanciones = f.registroSanciones.length > 0;
     return (
       <div className="space-y-1">

@@ -575,7 +575,8 @@ saludRouter.get("/establecimiento/:codigo", async (c) => {
 saludRouter.get("/medico/:colegiatura", async (c) => {
   const n = c.req.param("colegiatura").replace(/\D/g, "").replace(/^0+/, "");
   if (!n || n.length > 7) return c.json({ error: "colegiatura_invalida", detail: "Escribe el número de colegiatura (sólo cifras)." }, 400);
-  const colegio = c.req.query("colegio") === "todos" ? null : "%MEDICO%";
+  // Sólo el Colegio Médico: «%MEDICO%» también traía al Colegio Tecnólogo Médico (2026-11-21).
+  const colegio = c.req.query("colegio") === "todos" ? null : "COLEGIO M_DICO DEL PER%";
   const cuerpo = await memo.obtener(`medico:${n}:${colegio ?? "todos"}`, async () => {
     const [lista, cobertura] = await Promise.all([
       responsables(n, colegio),
