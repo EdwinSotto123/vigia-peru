@@ -3,6 +3,7 @@ import { canonica } from "@/lib/seo";
 import { PixelReveal } from "@/components/ui/PixelReveal";
 import { HeroPixel } from "@/components/landing/HeroPixel";
 import { EscalaDinero } from "@/components/landing/EscalaDinero";
+import { Detector } from "@/components/landing/Detector";
 import { CasoLeido, type CasoConDetalle } from "@/components/landing/CasoLeido";
 import { ComoFunciona } from "@/components/landing/ComoFunciona";
 import { PartidosSeccion } from "@/components/landing/PartidosSeccion";
@@ -16,6 +17,7 @@ import type { CifrasFlujo } from "@/components/landing/ExploradorFuentes";
 import { contarLeidos, elegirCasos, esReglaDeProceso, type AlertaReal, type AnioEscala, type CasoPortada, type OtraSenal } from "@/lib/landing";
 import { reglaLabel } from "@/lib/auditoria";
 import { OG_BASE, TWITTER_BASE } from "@/lib/compartir";
+import { getCifrasDetector } from "@/lib/detector";
 
 // El metadata de una page gana sobre el de app/layout.tsx solo para esta ruta.
 // Dice qué hace el producto por quien lo busca, no con qué está hecho.
@@ -39,6 +41,8 @@ export const metadata: Metadata = {
  *  1. Qué es (HeroPixel): la pregunta, qué hace Vigía y cómo se sostiene, con el ojo de puntos al lado.
  *  2. El problema (EscalaDinero): miles de contratos, casi nada leído, como tablero: la franja de puntos, los tipos con
  *     su barra, las seis cifras a la vista y lo que cuesta no leerlos.
+ *  2b. Lo que detecta (Detector, 2026-11-21): tres casos de ejemplo para jugar (colusión, compra partida, sobreprecio);
+ *     cada cruce es una regla real de Vigía, con cuántas veces la encontró en contratos reales.
  *  3. La respuesta (PartidosSeccion): UN solo mapa con tres lecturas (quién gobierna, cuánto se contrata y qué tanto
  *     vigilamos) y la tabla de partidos. Es el único mapa de la portada.
  *  4. Lo que ya encontró (CasoLeido): casos reales como pestañas, y el elegido leído en cuatro pasos.
@@ -61,7 +65,7 @@ export default async function LandingPage() {
   // eso "leídos" quedaba en 0,0 %. Las cifras de la portada (publicados, leídos, escala, regiones) son del año.
   const anio = anioLectura();
   const desde = desdeLectura();
-  const [alertas, estado, resumen, regiones, ranking, vigilancia] = await Promise.all([
+  const [alertas, estado, resumen, regiones, ranking, vigilancia, cifrasDetector] = await Promise.all([
     getAlertas({ limit: 100 }).catch(() => []),
     getEstadoGlobal().catch(() => null),
     getResumenContratos({ desde }).catch(() => null),
@@ -70,6 +74,8 @@ export default async function LandingPage() {
     getRankingPaginado({ periodo: "todo", limit: 12 }).catch(() => null),
     // Lo que cuesta mantener Vigía al mes (migración 206): el pedido de la portada dejó de ser «S/ 3 por contrato».
     getVigilancia().catch(() => null),
+    // Cuántas veces encontró Vigía cada señal del detector, y un caso real de dos patrones (lib/detector.ts).
+    getCifrasDetector().catch(() => null),
   ]);
 
   const montoTotal = (regiones ?? []).reduce((s, r) => s + (r.montoPen ?? 0), 0);
@@ -124,6 +130,9 @@ export default async function LandingPage() {
           financiables={estado?.colaGlobal ?? null}
         />
       )}
+
+      {/* Lo que Vigía detecta, para jugarlo: el ejemplo funciona aunque la API no responda (sin sus cifras reales). */}
+      <Detector cifras={cifrasDetector} />
 
       {/* B: la respuesta, un solo mapa con tres lecturas y la tabla de partidos. El revelado en píxeles va sólo aquí: en
           nueve secciones dejaba de ser un momento y era un efecto repetido. */}

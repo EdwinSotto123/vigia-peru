@@ -101,7 +101,7 @@ export const MEDIDAS: Medida[] = [
 export const medidaPorId = (id: MedidaId): Medida => MEDIDAS.find((m) => m.id === id) ?? MEDIDAS[0];
 
 /**
- * Rampa del coropleto, en añil (el azul del tejido del isotipo).
+ * Rampa del coropleto, en el verde neón de Vigía.
  *
  * La anterior era cálida (#D9B97A → #4A150C) y tenía tres problemas medidos:
  *
@@ -125,9 +125,9 @@ export const medidaPorId = (id: MedidaId): Medida => MEDIDAS.find((m) => m.id ==
  * abajo no cambia): claro 2,51:1 contra blanco, oscuro 13,42:1, separación
  * mínima entre escalones adyacentes 1,50.
  */
-export const RAMPA = ["#1A1F3D", "#2E3B7C", "#4A5CB6", "#7083F0", "#B4C0FF"] as const;
+export const RAMPA = ["#123510", "#1A5E11", "#238C12", "#2DC113", "#39FF14"] as const;
 /* Identidad Píxel (2026-10): sobre carbón, la rampa SUBE en brillo: lo más brillante es lo más alto. Desde
-   2026-11-21 es añil, el color de Vigía (antes lima); escalones adyacentes de 1,55 a 1,93.
+   2026-11-21 es verde neón, el color de Vigía (antes lima y, unas horas, añil); escalones adyacentes de 1,72 a 1,82.
    Antes: La añil de arriba (más oscuro = más) desaparecía contra el
    fondo; el rojo de las señales sigue separándose por matiz (rojo contra verde). */
 
@@ -144,7 +144,7 @@ export const ESCALONES = RAMPA.length;
    (mucho): lo más oscuro es lo más alto, como se lee un mapa impreso. Sin lima neón. El rojo de las señales sigue
    separándose por matiz. Contraste contra el lienzo claro: el escalón más claro 1,3:1 (con borde), el más oscuro
    6,5:1. */
-export const RAMPA_DIA = ["#EEF1FD", "#BCC5F3", "#8B9AE2", "#5163C4", "#26338C"] as const; // añil (2026-11-21), escalones de 1,50 a 2,03
+export const RAMPA_DIA = ["#EDFAEC", "#69D865", "#36AB32", "#217F1E", "#0E5B0B"] as const; // verde (2026-11-21), escalones de 1,63 a 1,71
 export const SIN_DATO_DIA = "#EEF2F1";
 export const SIN_DATO_TRAMA_DIA = "#CFD8D6";
 

@@ -809,6 +809,43 @@ html[data-modo="dia"] [data-intencion]:not([data-intencion="admin"]) :is(div, se
   box-shadow: none;
 }
 
+/* ── El detector de la portada de Vigía (components/landing/Detector.tsx) ──────────────────────────────────────────
+   Al encender un cruce, una línea neón barre la escena una vez (de arriba abajo, y se apaga); el gerente de A camina
+   hasta la municipalidad a pasos, como todo píxel; los trazos encendidos brillan apenas. Con movimiento reducido no
+   hay barrido y el gerente ya está en la puerta. */
+.detector-barrido {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+.detector-barrido::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 2px;
+  background: rgb(var(--maiz));
+  box-shadow: 0 0 12px 2px rgb(var(--maiz) / 0.45);
+  animation: detectorBarrido 900ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+@keyframes detectorBarrido {
+  from { top: 0; opacity: 1; }
+  to { top: 100%; opacity: 0; }
+}
+.detector-camina { animation: detectorCamina 2.4s steps(24, end) forwards; }
+@keyframes detectorCamina {
+  0% { transform: translate(0px, 0px); }
+  45% { transform: translate(0px, -112px); }
+  100% { transform: translate(var(--camina-x, 144px), -112px); }
+}
+.detector-neon { filter: drop-shadow(0 0 3px rgb(var(--maiz) / 0.55)); }
+@media (prefers-reduced-motion: reduce) {
+  .detector-barrido { display: none; }
+  .detector-camina { animation: none; transform: translate(var(--camina-x, 144px), -112px); }
+}
+
 /* ── Color por producto: inicio. Generado por scripts/colores/colores_producto.py: no editar a mano. ──────────
    Cada producto de Gobserva con su color (2026-11-21): Salud turquesa, Empleo violeta, Licitaciones azul, Obras
    naranja. `data-producto` va en <html> (lib/modoScript.ts) y en el marco del producto. Sólo cambian los tokens de
@@ -1038,79 +1075,79 @@ html[data-modo="dia"] [data-producto="obras"] :is(.bg-ink, .bg-granate-deep, .so
   --px-fondo: 59 28 9;
 }
 [data-producto="vigia"] {
-  --granate: 140 157 255;
-  --granate-50: 19 24 29;
-  --granate-soft: 26 32 44;
-  --granate-200: 57 66 101;
-  --granate-300: 94 106 169;
-  --granate-400: 117 131 212;
-  --granate-500: 186 196 255;
-  --granate-700: 98 110 178;
-  --granate-deep: 120 135 219;
-  --granate-900: 16 21 25;
-  --maiz: 140 157 255;
-  --maiz-soft: 26 32 44;
-  --marca-acento: 140 157 255;
-  --acento: 140 157 255;
-  --acento-soft: 21 26 34;
-  --acento-borde: 57 66 101;
+  --granate: 57 255 20;
+  --granate-50: 14 29 15;
+  --granate-soft: 17 44 16;
+  --granate-200: 28 101 17;
+  --granate-300: 40 169 18;
+  --granate-400: 49 212 19;
+  --granate-500: 136 255 114;
+  --granate-700: 40 178 14;
+  --granate-deep: 49 219 17;
+  --granate-900: 13 25 15;
+  --maiz: 57 255 20;
+  --maiz-soft: 17 44 16;
+  --marca-acento: 57 255 20;
+  --acento: 57 255 20;
+  --acento-soft: 15 34 15;
+  --acento-borde: 28 101 17;
 }
 [data-producto="vigia"] .sobre-oscuro {
-  --granate: 51 70 168;
-  --granate-soft: 222 225 241;
-  --granate-50: 241 242 249;
-  --granate-deep: 11 14 19;
+  --granate: 14 115 24;
+  --granate-soft: 216 233 218;
+  --granate-50: 238 245 239;
+  --granate-deep: 7 19 8;
 }
 html[data-modo="dia"][data-producto="vigia"],
 html[data-modo="dia"] [data-producto="vigia"] {
-  --granate: 51 70 168;
-  --granate-50: 243 244 250;
-  --granate-soft: 224 227 242;
-  --granate-200: 173 181 220;
-  --granate-300: 129 140 201;
-  --granate-400: 88 103 184;
-  --granate-500: 38 52 126;
-  --granate-700: 42 57 138;
-  --granate-deep: 40 55 131;
-  --granate-900: 20 27 69;
-  --maiz: 51 70 168;
-  --maiz-soft: 224 227 242;
-  --marca-acento: 51 70 168;
-  --marca-pupila: 20 27 69;
-  --acento: 51 70 168;
-  --acento-soft: 239 240 248;
-  --acento-borde: 163 172 216;
+  --granate: 14 115 24;
+  --granate-50: 241 247 241;
+  --granate-soft: 219 234 220;
+  --granate-200: 159 199 163;
+  --granate-300: 106 168 112;
+  --granate-400: 57 140 66;
+  --granate-500: 10 86 18;
+  --granate-700: 11 94 20;
+  --granate-deep: 11 90 19;
+  --granate-900: 6 36 10;
+  --maiz: 14 115 24;
+  --maiz-soft: 219 234 220;
+  --marca-acento: 14 115 24;
+  --marca-pupila: 6 36 10;
+  --acento: 14 115 24;
+  --acento-soft: 236 244 237;
+  --acento-borde: 147 192 151;
 }
 html[data-modo="dia"][data-producto="vigia"] :is(.bg-ink, .bg-granate-deep, .sobre-oscuro),
 html[data-modo="dia"] [data-producto="vigia"] :is(.bg-ink, .bg-granate-deep, .sobre-oscuro) {
-  --ink: 20 27 69;
-  --granate-deep: 20 27 69;
-  --granate-900: 20 27 69;
-  --maiz: 188 198 255;
-  --maiz-soft: 225 229 255;
-  --marca-acento: 188 198 255;
-  --marca-nota: 196 198 208;
-  --sobre-maiz: 20 27 69;
-  --px-fondo: 20 27 69;
+  --ink: 6 36 10;
+  --granate-deep: 6 36 10;
+  --granate-900: 6 36 10;
+  --maiz: 57 255 20;
+  --maiz-soft: 166 255 149;
+  --marca-acento: 57 255 20;
+  --marca-nota: 193 200 194;
+  --sobre-maiz: 6 36 10;
+  --px-fondo: 6 36 10;
 }
 [data-producto="vigia"] :is([data-intencion="participar"], [data-intencion="admin"]) {
-  --acento: 140 157 255;
-  --acento-soft: 24 29 39;
-  --acento-borde: 57 66 101;
-  --acento-texto: 140 157 255;
+  --acento: 57 255 20;
+  --acento-soft: 16 39 16;
+  --acento-borde: 28 101 17;
+  --acento-texto: 57 255 20;
 }
 [data-producto="vigia"] [data-intencion="participar"] {
-  --acento-cifra: 140 157 255;
+  --acento-cifra: 57 255 20;
 }
 html[data-modo="dia"][data-producto="vigia"] :is([data-intencion="participar"], [data-intencion="admin"]),
 html[data-modo="dia"] [data-producto="vigia"] :is([data-intencion="participar"], [data-intencion="admin"]) {
-  --acento: 51 70 168;
-  --acento-soft: 239 240 248;
-  --acento-borde: 163 172 216;
-  --acento-texto: 43 60 143;
+  --acento: 14 115 24;
+  --acento-soft: 236 244 237;
+  --acento-borde: 147 192 151;
+  --acento-texto: 12 98 20;
 }
 html[data-modo="dia"][data-producto="vigia"] [data-intencion="participar"],
 html[data-modo="dia"] [data-producto="vigia"] [data-intencion="participar"] {
-  --acento-cifra: 43 60 143;
+  --acento-cifra: 12 98 20;
 }
 /* ── Color por producto: fin ── */

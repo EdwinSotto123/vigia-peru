@@ -345,3 +345,19 @@ def agregar(S, h):
     }
     for k, v in I.items():
         S["icono_" + k] = {"base": v, "capas": [], "marca": True}
+
+    # La empresa (un postor en el detector de la portada de Vigía), 16 x 12: un edificio de oficinas con su puerta.
+    S["empresa"] = {"base": [
+        "..############..",
+        "..#++++++++++#..",
+        "..#+ww+ww+ww+#..",
+        "..#+ww+ww+ww+#..",
+        "..#++++++++++#..",
+        "..#+ww+ww+ww+#..",
+        "..#+ww+ww+ww+#..",
+        "..#++++++++++#..",
+        "..#+ww+==+ww+#..",
+        "..#++++==++++#..",
+        "..#++++==++++#..",
+        "################",
+    ], "capas": []}

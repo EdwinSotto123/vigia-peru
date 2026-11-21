@@ -523,12 +523,12 @@ const CSS = `
 .puerta[data-producto="empleo"] { --px-marca: #B9A0FF; --fosforo: #B9A0FF; }
 .puerta[data-producto="licitaciones"] { --px-marca: #6DB4FF; --fosforo: #6DB4FF; }
 .puerta[data-producto="obras"] { --px-marca: #FF9A55; --fosforo: #FF9A55; }
-.puerta[data-producto="vigia"] { --px-marca: #8C9DFF; --fosforo: #8C9DFF; }
+.puerta[data-producto="vigia"] { --px-marca: #39FF14; --fosforo: #39FF14; }
 :root[data-modo="dia"] .puerta[data-producto="salud"] { --px-marca: #0A7266; --fosforo: #0A7266; }
 :root[data-modo="dia"] .puerta[data-producto="empleo"] { --px-marca: #5B35C9; --fosforo: #5B35C9; }
 :root[data-modo="dia"] .puerta[data-producto="licitaciones"] { --px-marca: #1D5DB8; --fosforo: #1D5DB8; }
 :root[data-modo="dia"] .puerta[data-producto="obras"] { --px-marca: #A9480C; --fosforo: #A9480C; }
-:root[data-modo="dia"] .puerta[data-producto="vigia"] { --px-marca: #3346A8; --fosforo: #3346A8; }
+:root[data-modo="dia"] .puerta[data-producto="vigia"] { --px-marca: #0E7318; --fosforo: #0E7318; }
 /* Color por producto: fin */
 * { box-sizing: border-box; }
 html { -webkit-text-size-adjust: 100%; scroll-behavior: smooth; scroll-padding-top: 5rem; scrollbar-color: var(--borde) var(--fondo); -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; background: var(--fondo); }

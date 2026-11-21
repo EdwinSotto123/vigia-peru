@@ -1,5 +1,6 @@
 """El color de cada producto de Gobserva (2026-11-21: el dueño eligió «un color por producto»; antes todos eran lima)
-y el de Vigía (añil, el mismo día: «usa un color más adecuado»; el lima queda sólo para gobserva.cloud).
+y el de Vigía (verde neón, el mismo día: primero añil y el dueño pidió «Vigía sí debe ser verde, pero un verde tipo
+NEON»; el lima queda sólo para gobserva.cloud).
 
 Una sola fuente para los cuatro colores. Este script:
   1. comprueba el contraste de cada par que se lee (texto y botones, de noche, de día y en las bandas);
@@ -33,10 +34,12 @@ PRODUCTOS = {
     "obras": dict(nombre="naranja", noche="#FF9A55", dia="#A9480C", banda="#3B1C09", banda_acento="#FFC08F"),
 }
 
-# Vigía: añil, el azul de los tejidos andinos. Se probó el fucsia y se descartó: de noche se confundía con el rojo de las
-# señales («con riesgo alto»), que es lo que más importa leer en Vigía. `data-producto="vigia"` es el de toda página que
-# no es de un producto (lib/modoScript.ts y app/layout.tsx).
-VIGIA = dict(nombre="añil", noche="#8C9DFF", dia="#3346A8", banda="#141B45", banda_acento="#BCC6FF")
+# Vigía: verde neón, el de una pantalla de vigilancia (el cursor de «vigía_»). Se probaron el fucsia (de noche se
+# confundía con el rojo de las señales) y el añil (el dueño: «Vigía sí debe ser verde, pero un verde tipo NEON»). El neón
+# está a 44° del verde menta de «verificado» y lejos del lima de Gobserva. De día no hay neón sobre blanco: la acción es un
+# verde hondo y el neón vive en las bandas oscuras (banda_acento). `data-producto="vigia"` es el de toda página que no es
+# de un producto (lib/modoScript.ts y app/layout.tsx).
+VIGIA = dict(nombre="neón", noche="#39FF14", dia="#0E7318", banda="#06240A", banda_acento="#39FF14")
 TODAS = {**PRODUCTOS, "vigia": VIGIA}
 
 # La base que no cambia (globals.css): el carbón de noche, sus bandas, el papel y el fondo de día, las placas claras.

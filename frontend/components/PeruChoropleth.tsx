@@ -28,7 +28,7 @@ const COLOR_NOCHE = {
   paperDeep: "#192121",
   paperEdge: "#2C3939",
   mute: "#8FA3A0",
-  granate: "#8C9DFF",
+  granate: "#39FF14",
 } as const;
 /** Modo día (lib/modo.ts): los mismos roles con los valores claros de globals.css. */
 const COLOR_DIA = {
@@ -37,7 +37,7 @@ const COLOR_DIA = {
   paperDeep: "#ECF1EF",
   paperEdge: "#BECAC7",
   mute: "#5E6E6B",
-  granate: "#3346A8",
+  granate: "#0E7318",
 } as const;
 
 export interface MapPoint {
