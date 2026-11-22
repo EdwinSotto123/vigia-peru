@@ -13,7 +13,7 @@ import { FilaAlerta, FormMedicamento, InsigniaAlerta, nombreMed, textoRevisadas 
 import { CabeceraLista, Ruta } from "@/components/salud/portada/Piezas";
 import { claseAccion } from "@/components/ui/EnlaceAccion";
 import { rutaEn, urlCanonica } from "@/lib/gobserva";
-import { buscarMedicamentos, fechaCorta, mesLargo, numero, rutaMedicamento, type FuenteMedicamentos } from "@/lib/gobserva-salud";
+import { buscarMedicamentos, fechaCorta, getAlertas, mesLargo, numero, rutaMedicamento, type FuenteMedicamentos } from "@/lib/gobserva-salud";
 import { baseProducto } from "@/lib/gobserva-servidor";
 import { FORMAS, formaDe, type FormaGrupo } from "@/lib/salud-formas";
 import { cn } from "@/lib/utils";
@@ -103,8 +103,19 @@ export default async function Medicamentos({ searchParams }: Props) {
   const resaltar = loteCaja ?? (porCaja ? q : null);
   // Las alertas que ya salen arriba, con su producto y su lote, no se repiten en la caja de abajo.
   const yaVistas = new Set(coincidencias.map((c) => c.alertaId));
-  const otras = (d?.alertas ?? []).filter((a) => !yaVistas.has(a.id));
-  const otrasTotal = Math.max(0, (d?.alertasTotal ?? 0) - yaVistas.size);
+  // Las alertas que nombran lo buscado, todas y aquí mismo, 10 por página (?apag=): antes eran una o tres y «Ver las 31»
+  // llevaba a otra página. Se buscan por el registro, el lote o las palabras del nombre (alertasPor), como la API.
+  const apag = Math.max(1, Number(texto(searchParams?.apag)) || 1);
+  const POR_PAGINA_ALERTAS = 10;
+  const textoAlertas = d ? d.registro ?? d.lote ?? d.alertasPor ?? q : "";
+  const listaAlertas =
+    q && d && (d.alertasTotal ?? 0) > 0 && textoAlertas
+      ? await getAlertas(new URLSearchParams({ q: textoAlertas, pagina: String(apag), tamano: String(POR_PAGINA_ALERTAS) }))
+      : null;
+  const otras = (listaAlertas?.filas ?? d?.alertas ?? []).filter((a) => !yaVistas.has(a.id));
+  const otrasTotal = Math.max(0, (listaAlertas?.total ?? d?.alertasTotal ?? 0) - yaVistas.size);
+  const paginasAlertas = Math.min(500, Math.max(1, Math.ceil(otrasTotal / POR_PAGINA_ALERTAS)));
+  const hrefAlertas = (n: number) => urlCon({ seccion: "alertas", apag: n > 1 ? String(n) : null });
 
   // El catálogo en su sección (2026-11-22, «¿por qué esto está abajo en el aire?»): el título con lo que suma, el riel
   // de formas y el orden, las tarjetas y, en su pie, la fuente y las páginas. Con búsqueda va debajo de las alertas; sin
@@ -249,7 +260,7 @@ export default async function Medicamentos({ searchParams }: Props) {
           {otrasTotal > 0 && otras.length > 0 ? (
             <section
               aria-labelledby="alertas-t"
-              className={cn("mt-6 rounded-2xl border", rojo ? "border-crimson/30 bg-crimson-soft/40" : "border-amber/40 bg-amber-soft/40")}
+              className={cn("mt-6 overflow-hidden rounded-2xl border", rojo ? "border-crimson/30 bg-crimson-soft/40" : "border-amber/40 bg-amber-soft/40")}
             >
               <div className={cn("flex gap-3 border-b px-5 py-4", rojo ? "border-crimson/20" : "border-amber/30")}>
                 <TriangleAlert size={22} aria-hidden className={cn("mt-0.5 shrink-0", rojo ? "text-crimsonTexto" : "text-amberTexto")} />
@@ -271,20 +282,25 @@ export default async function Medicamentos({ searchParams }: Props) {
                   </p>
                 </div>
               </div>
-              {/* Tres: el resto en /alertas (la página no se alarga). */}
-              <ul className={cn("divide-y", rojo ? "divide-crimson/15" : "divide-amber/25")}>
-                {otras.slice(0, porCaja ? 3 : 1).map((a) => (
+              {/* Todas aquí, 10 por página y con su tabla plegada: no hay que ir a otra página. */}
+              <ul className={cn("divide-y bg-paper", rojo ? "divide-crimson/15" : "divide-amber/25")}>
+                {otras.map((a) => (
                   <li key={a.id}>
-                    <FilaAlerta a={a} base={base} resaltar={resaltar} />
+                    <FilaAlerta a={a} base={base} resaltar={resaltar} plegada={!porCaja} />
                   </li>
                 ))}
               </ul>
-              {otrasTotal > (porCaja ? 3 : 1) && (
-                <p className={cn("border-t px-5 py-3", rojo ? "border-crimson/20" : "border-amber/30")}>
-                  <Link href={`${rutaEn(base, "/alertas")}?${new URLSearchParams({ q })}`} className="inline-flex min-h-11 items-center text-meta font-semibold text-granate underline-offset-4 hover:underline sm:min-h-8">
-                    Ver las {numero(d.alertasTotal)} alertas
-                  </Link>
-                </p>
+              {paginasAlertas > 1 && (
+                <div className={cn("border-t bg-paper px-5 py-4", rojo ? "border-crimson/20" : "border-amber/30")}>
+                  <Paginas
+                    pagina={Math.min(apag, paginasAlertas)}
+                    paginas={paginasAlertas}
+                    total={otrasTotal}
+                    tamano={POR_PAGINA_ALERTAS}
+                    nombre={otrasTotal === 1 ? "alerta" : "alertas"}
+                    href={hrefAlertas}
+                  />
+                </div>
               )}
             </section>
           ) : yaVistas.size > 0 || loteCaja ? null : (

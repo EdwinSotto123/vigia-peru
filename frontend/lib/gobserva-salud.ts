@@ -586,6 +586,8 @@ export interface BusquedaMedicamentos {
   coincidencias?: ProductoObservado[];
   /** El registro sanitario reconocido en q (normalizado: «EE08059»); null si q no tiene esa forma. */
   registro?: string | null;
+  /** El lote reconocido en q (normalizado); null si q no tiene esa forma. */
+  lote?: string | null;
   /** El lote de la caja que vino aparte (&lote=, de la foto), normalizado; null si no vino o es lo mismo que q. */
   loteCaja?: string | null;
   /** En cuántas alertas está ese lote: en la tabla leída o, como palabra, en el texto del PDF. */
