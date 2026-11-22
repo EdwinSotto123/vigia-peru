@@ -72,7 +72,7 @@ export const PRODUCTOS: Record<Producto, InfoProducto> = {
     clave: "car",
     nombre: "car",
     titulo: "Gobserva Car",
-    lema: "Antes de comprar un auto o de subirte a uno: dónde verificar su placa, su SOAT, su revisión técnica y sus papeletas, con fuentes oficiales.",
+    lema: "Antes de comprar un auto o de subirte a uno: dónde verificar su placa, su SOAT, su revisión técnica y sus papeletas. Y los locales que autoriza el MTC para la revisión técnica, la licencia y el auto a gas.",
     host: "car.gobserva.cloud",
     hostDev: "car-dev.gobserva.cloud",
   },

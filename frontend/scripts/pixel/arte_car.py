@@ -27,6 +27,70 @@ AUTO = [
 ]
 
 
+# El volante: la licencia de conducir y las escuelas de manejo.
+VOLANTE = [
+    "..................",
+    "......######......",
+    "....##++++++##....",
+    "...#++......++#...",
+    "..#+..........+#..",
+    "..#+..........+#..",
+    ".#+............+#.",
+    ".#LLLLL#CC#LLLLL#.",
+    ".#LLLLL#CC#LLLLL#.",
+    ".#+....#LL#....+#.",
+    "..#+...#LL#...+#..",
+    "..#+...#LL#...+#..",
+    "...#++.#LL#.++#...",
+    "....##++++++##....",
+    "......######......",
+    "..................",
+]
+
+# El surtidor: los talleres de conversión a gas (GNV y GLP).
+SURTIDOR = [
+    "..................",
+    "..##########......",
+    "..#CCCCCCCC#.###..",
+    "..#CwwwwwwC#.#=#..",
+    "..#CwwwwwwC#..#...",
+    "..#CCCCCCCC#..#...",
+    "..#LLLLLLLL#..#...",
+    "..#LLLLLLLL#..#...",
+    "..#LLLCCLLL#..#...",
+    "..#LLLCCLLL#..#...",
+    "..#LLLLLLLL####...",
+    "..#LLLLLLLL#......",
+    "..#LLLLLLLL#......",
+    ".############.....",
+    ".#++++++++++#.....",
+    ".############.....",
+]
+
+# El cilindro de gas: su revisión periódica.
+CILINDRO = [
+    "..................",
+    ".......####.......",
+    ".......#CC#.......",
+    ".....########.....",
+    "....#++++++++#....",
+    "...#LLLLLLLLLL#...",
+    "...#LLLLLLLLLL#...",
+    "...#LLCCLLLLLL#...",
+    "...#LLCCLLLLLL#...",
+    "...#LLLLLLLLLL#...",
+    "...#LLLLLLLLLL#...",
+    "...#LLLLLLLLLL#...",
+    "...#LLLLLLLLLL#...",
+    "....#========#....",
+    ".....########.....",
+    "..................",
+]
+
+
 def agregar(S):
     assert len(AUTO) == 16 and all(len(f) == 18 for f in AUTO), "el auto no mide 18 x 16"
     S["auto"] = {"base": AUTO, "capas": []}
+    for nombre, filas in (("volante", VOLANTE), ("surtidor", SURTIDOR), ("cilindro", CILINDRO)):
+        assert len(filas) == 16 and all(len(f) == 18 for f in filas), f"{nombre} no mide 18 x 16"
+        S[nombre] = {"base": filas, "capas": []}

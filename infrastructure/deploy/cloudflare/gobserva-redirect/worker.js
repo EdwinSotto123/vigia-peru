@@ -51,7 +51,7 @@ const RAIZ = "https://gobserva.cloud";
 const VIGIA = "https://vigia.gobserva.cloud";
 const CLAVE_INDEXNOW = "70c4458a363841ee4aef67be90cc8565";
 // La fecha de la última versión de la portada (sitemap y datos estructurados): cambiarla al cambiar el contenido.
-const ACTUALIZADA = "2026-11-21";
+const ACTUALIZADA = "2026-11-22";
 // Va en la URL de los scripts de publico/: subirla al cambiarlos (Cloudflare los guarda un día en el navegador).
 const VERSION_JS = "2026-11-20a";
 const ESLOGAN = "Lo de todos, a la vista de todos.";
@@ -252,6 +252,7 @@ const FUENTES = [
   ["ONPE", "Aportes y gastos de campaña.", "Oficina Nacional de Procesos Electorales"],
   ["Congreso", "Registro de visitas al Congreso.", "Congreso de la República"],
   ["PCM", "Visitas a las entidades, planillas del Portal de Transparencia y datos abiertos.", "Presidencia del Consejo de Ministros"],
+  ["MTC", "Centros de revisión técnica, de licencias de conducir y de gas vehicular autorizados.", "Ministerio de Transportes y Comunicaciones"],
 ];
 const EN_LETRAS = { 9: "nueve", 10: "diez", 11: "once", 12: "doce", 13: "trece", 14: "catorce" };
 const enLetras = (n) => EN_LETRAS[n] ?? String(n);
@@ -265,12 +266,13 @@ const PRODUCTOS = [
   ["emprendedora", "Quiero venderle al Estado", "Gobserva Licitaciones", "Las convocatorias de tu rubro y tu región, cada día, con quién gana y a qué precio.", "https://licitaciones.gobserva.cloud", "Licitaciones"],
   ["obrero", "Quiero saber qué obras se vienen", "Gobserva Obras", "Los proyectos de tu región antes de que se liciten, con su costo y su avance.", "https://obras.gobserva.cloud", "Obras"],
   ["vecina", "Quiero verificar una clínica o a un médico", "Gobserva Salud", "Si el establecimiento está registrado y activo, su categoría y sus sanciones.", "https://salud.gobserva.cloud", "Salud"],
+  ["auto", "Voy a comprar un auto o a subirme a uno", "Gobserva Car", "Dónde verificar su placa, su SOAT y su revisión técnica, y los locales que autoriza el MTC.", "https://car.gobserva.cloud", "Car"],
 ];
 
 // Cómo funciona: [ícono (pixeles.js), paso, qué pasa]. El primero lleva las siglas de las fuentes; el segundo, por dónde
 // se cruza; el tercero, qué es una señal.
 const PASOS = [
-  ["institucion", "Leemos", `Cada día bajamos lo que publican ${enLetras(FUENTES.length)} instituciones del Estado: contratos, plazas, obras, presupuesto, empresas y establecimientos de salud.`],
+  ["institucion", "Leemos", `Cada día bajamos lo que publican ${enLetras(FUENTES.length)} instituciones del Estado: contratos, plazas, obras, presupuesto, empresas, establecimientos de salud y locales autorizados de transporte.`],
   ["nodos", "Cruzamos", "Unimos sus registros por RUC, por entidad y por fecha, para que un dato explique al otro."],
   ["entiende", "Te lo explicamos", "En palabras simples y con el documento original al lado, para que lo compruebes tú. Una señal es una razón para mirar de nuevo, no una acusación."],
 ];
@@ -430,18 +432,18 @@ function instrumento(datos) {
 /** El «entrar» de cada puerta: un cheurón de píxeles (un ícono, no una flecha de texto). */
 const CHEURON = `<svg class="cheuron" viewBox="0 0 6 10" shape-rendering="crispEdges" aria-hidden="true" focusable="false"><path fill="currentColor" d="M0 0h2v2H0zM2 2h2v2H2zM4 4h2v2H4zM2 6h2v2H2zM0 8h2v2H0z"/></svg>`;
 
-/** Las cinco puertas: cada persona parada en la misma calle, con lo que necesita y el producto que se lo resuelve. Toda la
+/** Las seis puertas: cada persona (y el auto de Car) parada en la misma calle, con lo que necesita y el producto que se lo resuelve. Toda la
  * puerta es el enlace. La gente entra en escena una tras otra (a pasos, como píxeles) y parpadea a destiempo. */
 /** ` data-producto="salud"` para la puerta de un producto o de Vigía (su color: el bloque «Color por producto» del CSS). */
 function productoDe(enlace) {
-  const m = /^https:\/\/(vigia|empleo|licitaciones|obras|salud)\.gobserva\.cloud/.exec(enlace);
+  const m = /^https:\/\/(vigia|empleo|licitaciones|obras|salud|car)\.gobserva\.cloud/.exec(enlace);
   return m ? ` data-producto="${m[1]}"` : "";
 }
 
 function puertas() {
   return `<ul class="calle">
         ${PRODUCTOS.map(([gente, necesidad, nombre, que, enlace, corto], k) => `<li style="--i:${k}"><a class="puerta"${productoDe(enlace)} href="${enlace}" aria-label="${necesidad}: ${nombre}" aria-describedby="puerta-${k}">
-          <span class="puerta-gente">${personaje(gente, 4, "", 900 * k)}</span>
+          <span class="puerta-gente">${personaje(gente, 4, gente === "auto" ? "px-vehiculo" : "", 900 * k)}</span>
           <span class="puerta-necesidad">${necesidad}</span>
           <span class="puerta-que" id="puerta-${k}">${que}</span>
           <span class="puerta-ir" aria-hidden="true"><span>Entrar a ${corto}</span>${CHEURON}</span>
@@ -592,7 +594,7 @@ p { text-wrap: pretty; }
 .modo button[aria-pressed="true"] { color: var(--sobre-fosforo); background: var(--fosforo); }
 .modo .px { width: .875rem; height: .875rem; }
 
-/* La portada: qué es Gobserva en una frase y, ahí mismo, las cinco puertas. */
+/* La portada: qué es Gobserva en una frase y, ahí mismo, las seis puertas. */
 .portada { border-bottom: 1px solid var(--linea); }
 .portada > .marco { padding-block: clamp(2.5rem, 6vw, 4.75rem) 0; }
 .portada-texto { display: grid; gap: 1.25rem 3rem; align-items: end; }
@@ -601,12 +603,15 @@ p { text-wrap: pretty; }
 .entrada { margin: 0; max-width: 42ch; font-size: clamp(1.0625rem, 1rem + .35vw, 1.25rem); line-height: 1.55; color: var(--tinta-suave); }
 .pregunta { margin: clamp(2.5rem, 5vw, 3.5rem) 0 0; font: 700 1.25rem/1.3 var(--f-texto); font-stretch: 108%; }
 
-/* La calle: cinco puertas en fila sobre un mismo suelo de cuadros. Toda la puerta es el enlace. */
-.calle { list-style: none; margin: .5rem 0 0; padding: 0; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); }
+/* La calle: seis puertas en fila sobre un mismo suelo de cuadros. Toda la puerta es el enlace. */
+.calle { list-style: none; margin: .5rem 0 0; padding: 0; display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); }
 .calle > li { display: flex; min-width: 0; }
 .puerta { flex: 1; display: flex; flex-direction: column; gap: .5rem; padding: 0 1.125rem 2rem; color: inherit; text-decoration: none; }
 .puerta-gente { display: flex; align-items: flex-end; justify-content: center; height: 8rem; margin: 0 -1.125rem 1rem; border-bottom: 4px dashed var(--suelo); }
 .puerta-gente .px-sprite { display: block; width: auto; height: 6.5rem; }
+/* El auto de Car es más ancho que alto: estacionado en la misma calle. Su dibujo trae debajo tres filas (una con su
+   carril): bajan hasta el suelo de la calle, para que las ruedas lo pisen. */
+.puerta-gente .px-sprite.px-vehiculo { height: 4.5rem; margin-bottom: -.85rem; }
 .puerta-necesidad { font: 700 1.125rem/1.3 var(--f-texto); font-stretch: 106%; text-wrap: balance; }
 .puerta-que { color: var(--tinta-suave); font-size: .9375rem; line-height: 1.5; text-wrap: pretty; }
 .puerta-ir { display: inline-flex; align-items: center; gap: .5rem; margin-top: auto; padding-top: .5rem; font-weight: 600; font-size: .9375rem; color: var(--fosforo); white-space: nowrap; }

@@ -14,7 +14,7 @@ export default function NoEncontradoCar() {
         <EstadoVacio
           Icono={Search}
           titulo="No encontramos esa página"
-          texto="El enlace puede estar incompleto. Desde aquí puedes verificar una placa o buscar un centro de revisión técnica."
+          texto="El enlace puede estar incompleto. Desde aquí puedes verificar una placa, buscar un centro de revisión técnica o ver dónde sacar tu licencia."
           acciones={
             <>
               <Link href={rutaEn(base, "/placa")} className={claseAccion("primario", "min-h-11")}>

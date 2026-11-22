@@ -8,6 +8,8 @@ export function GET() {
     { ruta: "/", prioridad: 1 },
     { ruta: "/placa", prioridad: 0.9 },
     { ruta: "/revision-tecnica", prioridad: 0.9 },
+    { ruta: "/licencia", prioridad: 0.8 },
+    { ruta: "/gas", prioridad: 0.8 },
     { ruta: "/fuentes", prioridad: 0.5 },
   ]);
 }

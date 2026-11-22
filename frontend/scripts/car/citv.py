@@ -48,7 +48,8 @@ def filas_xlsx(datos: bytes) -> list[list[str]]:
     return filas
 
 
-CELULAR = re.compile(r"(?<!\d)9\d{2}[ -]?\d{3}[ -]?\d{3}(?!\d)")
+# Un celular: 9 y ocho cifras, o siete (al MTC le faltan cifras en algunos, «97525528»: también se tapan).
+CELULAR = re.compile(r"(?<!\d)9\d{2}[ -]?\d{3}[ -]?\d{2,3}(?!\d)")
 
 
 def telefono(t: str) -> str | None:

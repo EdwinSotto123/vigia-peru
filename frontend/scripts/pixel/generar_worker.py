@@ -2,7 +2,7 @@
 import json, pathlib, tempfile
 
 S = json.loads((pathlib.Path(tempfile.gettempdir()) / "pixel-gobserva" / "sprites.json").read_text(encoding="utf-8"))
-USADOS = ["vecina", "clinica", "postulante", "tablero", "emprendedora", "camion", "obrero", "grua", "vigia"]
+USADOS = ["vecina", "clinica", "postulante", "tablero", "emprendedora", "camion", "obrero", "grua", "vigia", "auto"]
 
 out = [
     "// Los personajes de píxeles de Gobserva (frontend/components/pixel/sprites.ts), para la portada de gobserva.cloud:",

@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { ArrowUpRight, Database, Lock } from "lucide-react";
 import { Migas } from "@/components/patrones/Migas";
 import { CONSULTAS } from "@/components/car/consultas";
@@ -6,6 +7,8 @@ import { rutaEn, urlCanonica } from "@/lib/gobserva";
 import { baseProducto } from "@/lib/gobserva-servidor";
 import { fechaCorta, numero } from "@/lib/gobserva-salud";
 import datos from "@/data/car/citv.json";
+import licencia from "@/data/car/licencia.json";
+import gas from "@/data/car/gas.json";
 
 export const metadata: Metadata = {
   title: "Fuentes",
@@ -17,6 +20,16 @@ export const metadata: Metadata = {
 export default function FuentesCar() {
   const base = baseProducto("car");
   const d = datos as { fuente: string; url: string; generadoAl: string | null; centros: unknown[] };
+  // Las listas del MTC que cargamos (Excel sin captcha): cuántos locales, qué traen y la fecha del archivo.
+  const cargadas: { nombre: string; url: string; generadoAl: string | null; n: number; trae: string; ruta: string }[] = [
+    { nombre: d.fuente, url: d.url, generadoAl: d.generadoAl, n: d.centros.length, trae: "Dirección, horario, líneas, resolución, días sin transmitir y sanción.", ruta: "/revision-tecnica" },
+    { ...licencia.fuentes.medicos, n: licencia.medicos.length, trae: "Nombre y dirección.", ruta: "/licencia" },
+    { ...licencia.fuentes.evaluacion, n: licencia.evaluacion.length, trae: "Nombre y dirección.", ruta: "/licencia?seccion=evaluacion" },
+    { ...licencia.fuentes.escuelas, n: licencia.escuelas.length, trae: "Nombre y dirección.", ruta: "/licencia?seccion=escuelas" },
+    { ...gas.fuentes.talleres, n: gas.talleres.length, trae: "Dirección, gas autorizado, resolución y teléfono.", ruta: "/gas" },
+    { ...gas.fuentes.certificadoras, n: gas.certificadoras.length, trae: "Dirección, gas autorizado, resolución y teléfono.", ruta: "/gas?seccion=certificadoras" },
+    { ...gas.fuentes.cilindros, n: gas.cilindros.length, trae: "Dirección, resolución y teléfono.", ruta: "/gas?seccion=cilindros" },
+  ];
   return (
     <div className="container-page pb-12 pt-5 sm:pt-8">
       <Migas items={[{ etiqueta: "Inicio", href: rutaEn(base, "/") }, { etiqueta: "Fuentes" }]} />
@@ -30,17 +43,29 @@ export default function FuentesCar() {
         <h2 id="cargamos-t" className="flex items-center gap-2 font-display text-bloque font-bold text-ink">
           <Database size={18} aria-hidden className="text-granate" /> Lo que cargamos
         </h2>
-        <div className="mt-3 rounded-2xl border border-line bg-paper p-4">
-          <p className="text-cuerpo font-bold text-ink">{d.fuente}</p>
-          <p className="mt-1 text-meta text-inkSoft">
-            {numero(d.centros.length)} centros, con su dirección, horario, líneas, resolución, días sin transmitir y sanción. El MTC la publica en Excel, sin
-            captcha. Archivo generado por el MTC el {fechaCorta(d.generadoAl)}. Los celulares van tapados.
-          </p>
-          <a href={d.url} target="_blank" rel="noopener noreferrer" className="mt-2 inline-flex min-h-11 items-center gap-1 text-meta font-semibold text-granate underline-offset-4 hover:underline">
-            La lista en el MTC <ArrowUpRight size={13} aria-hidden />
-            <span className="sr-only"> (se abre en otra pestaña)</span>
-          </a>
-        </div>
+        <p className="mt-1 max-w-[70ch] text-meta text-inkSoft">
+          Listas que el MTC publica en Excel, sin captcha. Las bajamos tal cual y les tapamos los celulares; no guardamos el RUC, los correos ni el
+          nombre de una persona natural con negocio.
+        </p>
+        <ul className="mt-3 grid gap-3 md:grid-cols-2">
+          {cargadas.map((c) => (
+            <li key={c.url + c.nombre} className="flex min-w-0 flex-col rounded-2xl border border-line bg-paper p-4">
+              <p className="text-cuerpo font-bold leading-snug text-ink">{c.nombre}</p>
+              <p className="mt-1 text-meta text-inkSoft">
+                <b className="font-semibold tabular-nums text-ink">{numero(c.n)}</b> locales. {c.trae} Archivo del {fechaCorta(c.generadoAl)}.
+              </p>
+              <div className="mt-auto flex flex-wrap gap-x-4 pt-2">
+                <Link href={rutaEn(base, c.ruta)} className="inline-flex min-h-11 items-center gap-1 text-meta font-semibold text-ink underline-offset-4 hover:text-granate hover:underline">
+                  Verla aquí
+                </Link>
+                <a href={c.url} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-11 items-center gap-1 text-meta font-semibold text-granate underline-offset-4 hover:underline">
+                  La lista en el MTC <ArrowUpRight size={13} aria-hidden />
+                  <span className="sr-only"> (se abre en otra pestaña)</span>
+                </a>
+              </div>
+            </li>
+          ))}
+        </ul>
       </section>
 
       <section aria-labelledby="enlazamos-t" className="mt-8">

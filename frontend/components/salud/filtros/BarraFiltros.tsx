@@ -42,11 +42,14 @@ interface Filtros {
 
 const Contexto = createContext<Filtros>({ pendiente: false, aplicar: () => undefined });
 
+const SIN_CONSERVAR: string[] = [];
+
 /** Lo que comparten la barra y los resultados: la transición y cómo se arma la dirección nueva. */
 export function ProveedorFiltros({
   ruta,
   params,
   dependientes = {},
+  conservar = SIN_CONSERVAR,
   children,
 }: {
   /** La lista en este host («/establecimientos» o «/salud/establecimientos» en DEV). */
@@ -55,6 +58,8 @@ export function ProveedorFiltros({
   params: Record<string, string>;
   /** Claves que se borran cuando otra cambia (el departamento borra la provincia y el distrito). */
   dependientes?: Record<string, string[]>;
+  /** Claves que se leen de la barra de direcciones al aplicar (la pestaña abierta, que cambia sin pasar por el servidor). */
+  conservar?: string[];
   children: ReactNode;
 }) {
   const router = useRouter();
@@ -65,6 +70,16 @@ export function ProveedorFiltros({
       aplicar: (cambios) => {
         const u = new URLSearchParams(params);
         u.delete("pagina");
+        try {
+          const hoy = new URLSearchParams(window.location.search);
+          for (const k of conservar) {
+            const v = hoy.get(k);
+            if (v) u.set(k, v);
+            else u.delete(k);
+          }
+        } catch {
+          /* sin la dirección de hoy, se aplica con lo que dio el servidor */
+        }
         for (const [k, v] of Object.entries(cambios)) {
           for (const d of dependientes[k] ?? []) u.delete(d);
           if (v == null || v === "") u.delete(k);
@@ -74,7 +89,7 @@ export function ProveedorFiltros({
         iniciar(() => router.push(qs ? `${ruta}?${qs}` : ruta, { scroll: false }));
       },
     }),
-    [pendiente, params, dependientes, ruta, router],
+    [pendiente, params, dependientes, conservar, ruta, router],
   );
   return <Contexto.Provider value={valor}>{children}</Contexto.Provider>;
 }

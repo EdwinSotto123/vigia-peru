@@ -9,6 +9,8 @@ import { rutaEn } from "@/lib/gobserva";
 import { baseProducto } from "@/lib/gobserva-servidor";
 import { numero } from "@/lib/gobserva-salud";
 import datos from "@/data/car/citv.json";
+import licencia from "@/data/car/licencia.json";
+import gas from "@/data/car/gas.json";
 
 export const metadata: Metadata = {
   title: { absolute: "Gobserva Car: verifica un auto antes de comprarlo o de subirte" },
@@ -16,9 +18,10 @@ export const metadata: Metadata = {
 };
 
 /**
- * La portada de Gobserva Car (car.gobserva.cloud, 2026-11-22): la placa para escribir, arriba y grande; dos puertas con lo
- * que hay detrás (las consultas oficiales de una placa y los centros de revisión técnica autorizados) y el recorrido en tres
- * pasos. Las consultas por placa piden captcha: no las leemos, las enlazamos con la placa lista.
+ * La portada de Gobserva Car (car.gobserva.cloud, 2026-11-22): la placa para escribir, arriba y grande; cuatro puertas con
+ * lo que hay detrás (las consultas oficiales de una placa, los centros de revisión técnica, la licencia de conducir y el
+ * auto a gas) y el recorrido de una placa en tres pasos. Las consultas por placa piden captcha: no las leemos, las
+ * enlazamos con la placa lista.
  */
 export default function PortadaCar() {
   const base = baseProducto("car");
@@ -38,6 +41,20 @@ export default function PortadaCar() {
       cifra: `${numero(centros.length)} centros autorizados`,
       texto: `Dónde pasarla en tu región, con su horario y sus líneas. ${numero(conAviso)} tienen un aviso del MTC.`,
       sprite: "chequeo",
+    },
+    {
+      ruta: "/licencia",
+      titulo: "Licencia de conducir",
+      cifra: `${numero(licencia.medicos.length + licencia.evaluacion.length + licencia.escuelas.length)} locales autorizados`,
+      texto: "Los pasos de la primera A-I y dónde pasar el examen médico, rendir los exámenes y llevar el curso.",
+      sprite: "volante",
+    },
+    {
+      ruta: "/gas",
+      titulo: "Auto a gas",
+      cifra: `${numero(gas.talleres.length)} talleres de GNV y GLP`,
+      texto: "Quién puede convertir tu auto, quién lo inspecciona cada año y quién revisa el cilindro.",
+      sprite: "surtidor",
     },
   ];
   const pasos = [
@@ -85,7 +102,7 @@ export default function PortadaCar() {
 
       <section aria-labelledby="pasos-t" className="mt-10">
         <h2 id="pasos-t" className="font-display text-seccion font-bold leading-tight text-ink">
-          En tres pasos
+          Verificar una placa, en tres pasos
         </h2>
         <ol className="mt-4 grid gap-3 md:grid-cols-3">
           {pasos.map((p, i) => (
