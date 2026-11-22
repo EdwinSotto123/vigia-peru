@@ -557,7 +557,19 @@ export async function fichaEstablecimiento(codigo: string): Promise<Record<strin
     const upssPrincipal = lista<{ nombre: string | null; estado: string | null }>(d?.upss);
     const upss = upssPrincipal.length ? upssPrincipal : lista<{ nombre: string | null; estado: string | null }>(d?.ups);
     const cirugias12m = Number(i.cirugias12m ?? 0) || 0;
-    const upssQuirurgicas = upss.filter((u) => /QUIR[UÚ]RGIC/i.test(u.nombre ?? "") && /^ACTIVO/i.test(u.estado ?? "ACTIVO")).map((u) => (u.nombre ?? "").replace(/^UPSS\s*-\s*/i, "").toLowerCase());
+    // De las UPS (el desglose) sólo cuenta el centro quirúrgico, y una vez: «centro quirúrgico y anestesiología-cirugía "b"…»
+    // se repite por cada tipo de cirugía, y «UCI neuroquirúrgica» u «oncología quirúrgica» no son un centro quirúrgico.
+    const esQuirurgica = upssPrincipal.length ? /QUIR[UÚ]RGIC/i : /^\s*(UPSS\s*-\s*)?CENTRO QUIR[UÚ]RGIC/i;
+    const upssQuirurgicas = [
+      ...new Set(
+        upss
+          .filter((u) => esQuirurgica.test(u.nombre ?? "") && /^ACTIVO/i.test(u.estado ?? "ACTIVO"))
+          .map((u) => {
+            const n = (u.nombre ?? "").replace(/^UPSS\s*-\s*/i, "");
+            return (upssPrincipal.length ? n : n.split(/\s*-\s*/)[0]).toLowerCase();
+          }),
+      ),
+    ];
     const datos: DatosVerificacion = {
       codigo, estado: i.estado as string | null, activo: !!i.activo, enRegistro: !!i.enRegistro, categoria: i.categoria as string | null,
       vistoAl: i.vistoAl as string | null,
