@@ -151,6 +151,9 @@ conversaciones.
 - En el Worker: `POST /correr {"fuente":"susalud"}` o `{"fuente":"susalud_detalle","paso":1200}`.
 - `salud_refrescar()` une sanciones e IPRESS y rehace `salud_indicador` (segundos); la corren las dos cargas.
 - Una ficha abierta sin detalle (o con uno de más de 30 días) queda en `salud_detalle_pedido` y se lee primero.
+- Alertas de DIGEMID: el Worker `digemid` lee las nuevas, guarda el texto de su PDF y pasa su tabla a
+  `salud_alerta_producto` (producto, presentación, lote, registro, titular, fabricante, vencimiento) con un modelo
+  abierto; cada valor tiene que estar escrito en el PDF. Detalle en [`docs/salud/datos.md`](salud/datos.md#61-medicamentos-y-alertas-sanitarias-prioridad-muy-alta).
 
 ## Pendiente
 

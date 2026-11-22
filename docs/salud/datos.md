@@ -132,6 +132,36 @@ Las fuentes de cada frente, con lo que se pudo confirmar el 21-11-2026. «Sí» 
 El registro sanitario completo no tiene descarga; el ZIP de precios hace de catálogo parcial (15 mil productos con su
 registro y titular) para cruzar con las alertas: «¿este producto o este lote tiene una alerta?».
 
+#### La tabla de cada alerta, en datos (22-11-2026)
+
+Cada PDF de alerta trae una tabla: producto, presentación, lote, vencimiento, registro sanitario, titular, fabricante,
+país y el resultado (por ejemplo, «No conforme para el ensayo de partículas extrañas»). Antes sólo se guardaba el texto
+para buscar dentro; ahora se pasa a filas (migración 443, `salud_alerta_producto`, una fila por lote):
+
+1. El Worker `digemid` guarda el texto del PDF tal cual (`salud_alerta.texto`, con guiones, barras y fechas) además del
+   normalizado para buscar.
+2. Un modelo abierto (`vigia-llm`, Workers AI) lee ese texto y devuelve JSON. **Cada valor tiene que estar escrito en el
+   PDF** o se descarta: el producto (o todas sus palabras), el lote (con al menos un dígito), el registro sanitario (con
+   forma de registro) y el resultado (80 % de sus palabras). Lo que el PDF no dice queda vacío; nada se completa.
+3. La fila se enlaza al catálogo de precios por registro sanitario (`medicamento_codigo`): de la alerta se va a la ficha
+   del medicamento y de la ficha a sus lotes observados.
+4. La huella (`extraido_huella`, md5 del texto) evita releer lo mismo; si llega el texto tal cual de una alerta que se
+   leyó con el normalizado, se vuelve a extraer. Un error (el modelo no respondió, no devolvió JSON) se reintenta al día
+   siguiente.
+
+Dónde se ve: buscar un lote o un registro en «Verifica un medicamento» da la coincidencia exacta arriba (producto,
+lote, vencimiento, registro, titular y la alerta); la ficha del medicamento lista los lotes observados de su registro;
+cada alerta muestra su tabla con el lote buscado resaltado; y `/alertas` tiene la vista «Productos y lotes». La API:
+`GET /v1/salud/alertas/productos?q=&tipo=&anio=` y el campo `observados` de cada alerta.
+
+Primera pasada (22-11-2026, en curso): 284 alertas leídas, 655 productos, 513 con lote, 215 con registro, 79 enlazados
+al catálogo. El texto tal cual de los PDF viejos se está bajando de a poco (DIGEMID limita los PDF con 429); el Worker
+termina el resto cada noche, hasta 60 alertas por corrida.
+
+Para correrlo desde la PC (mismo código): `WORKERS_AI_TOKEN=<de SSM /vigia/llm/token> npx tsx
+backend/scrapers-worker/scripts/susalud_local.ts extraer <cuántas> [hilos]`. En el Worker hace falta el binding `LLM`
+(ya en `wrangler.jsonc`) y el secreto `LLM_TOKEN`.
+
 ### 6.2 Infraestructura sanitaria (prioridad muy alta)
 
 | Fuente | Qué trae | URL | Formato y frecuencia | Captcha | Personas |
