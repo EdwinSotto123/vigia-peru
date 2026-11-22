@@ -25,6 +25,26 @@ export const URL_DENUNCIA_SUSALUD = "https://www.gob.pe/institucion/susalud/page
 export const URL_VIGIA = "https://vigia.gobserva.cloud";
 
 /** Las fuentes, en el orden en que se explican. `tipo` es la clase de hecho que aporta. */
+/** DIGEMID (migración 441): las alertas, el Indicador de precios y las consultas oficiales. */
+export const URL_DIGEMID_ALERTAS = "https://www.digemid.minsa.gob.pe/webDigemid/alertas-modificaciones/";
+export const URL_DIGEMID_PRECIOS = "https://www.digemid.minsa.gob.pe/webDigemid/reportes/2026/indicador-de-precios-de-productos-farmaceuticos/";
+export const URL_OBSERVATORIO = "https://opm-digemid.minsa.gob.pe/#/consulta-producto";
+export const URL_REGISTRO_SANITARIO = "https://www.digemid.minsa.gob.pe/rsProductosFarmaceuticos/";
+
+/** «EE-01234», «ee 01234», «R.S. EE01234» → «EE01234»; null si no tiene forma de registro sanitario. */
+export function registroDe(q: string): string | null {
+  const t = q.toUpperCase().replace(/^(R\.?\s*S\.?|REG(ISTRO)?\.?\s*(SANITARIO)?)\s*:?\s*/, "").replace(/[\s-]+/g, "");
+  return /^[A-Z]{1,3}\d{4,6}[A-Z]?$/.test(t) ? t : null;
+}
+
+/** ¿Parece un lote? Una sola palabra con números (y quizá letras), de 4 a 20 caracteres: «20250502QX», «L-2345». */
+export function pareceLote(q: string): string | null {
+  const t = q.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase().replace(/[^A-Z0-9]+/g, " ").trim();
+  if (!t || t.includes(" ") && !/^[A-Z]{1,2} \d+$/.test(t)) return null;
+  const junto = t.replace(/ /g, "");
+  return /^[A-Z0-9]{4,20}$/.test(junto) && /\d/.test(junto) ? junto : null;
+}
+
 export const FUENTES_SALUD = [
   {
     clave: "renipress",
@@ -102,6 +122,28 @@ export const FUENTES_SALUD = [
     url: URL_SUNEDU,
     consulta: URL_SUNEDU,
     frecuencia: "En vivo, en el sitio de SUNEDU.",
+  },
+  {
+    clave: "precios",
+    nombre: "Indicador de precios de productos farmacéuticos (Observatorio de DIGEMID)",
+    entidad: "Dirección General de Medicamentos, Insumos y Drogas (DIGEMID)",
+    tipo: "registro_administrativo",
+    que: "Unos 15 mil medicamentos con su registro sanitario, titular, fabricante, principio activo y la media, mediana y moda del precio de venta en farmacias y boticas privadas, por mes.",
+    ojo: "Es el precio que reportan las farmacias y boticas privadas ese mes, no el de hoy ni el de una farmacia en particular. No es el registro sanitario completo: sólo los productos con precios reportados.",
+    url: URL_DIGEMID_PRECIOS,
+    consulta: URL_OBSERVATORIO,
+    frecuencia: "Cada día se revisa si DIGEMID publicó un mes nuevo (sale con unas 5 semanas de rezago).",
+  },
+  {
+    clave: "alertas",
+    nombre: "Alertas DIGEMID",
+    entidad: "Dirección General de Medicamentos, Insumos y Drogas (DIGEMID)",
+    tipo: "registro_administrativo",
+    que: "Las alertas sobre productos falsificados, lotes con control de calidad no conforme, seguridad y modificaciones, cada una con su PDF (producto, lote, registro sanitario).",
+    ojo: "Una alerta habla de lo que dice su PDF: un lote observado no quiere decir que todo el producto lo esté. Revisa el lote de tu envase.",
+    url: URL_DIGEMID_ALERTAS,
+    consulta: URL_DIGEMID_ALERTAS,
+    frecuencia: "Cada día, las nuevas y las modificadas.",
   },
 ] as const;
 

@@ -60,11 +60,11 @@ export default async function InicioSalud() {
         <div className="container-page relative grid gap-10 py-12 sm:py-16 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)] lg:items-center lg:gap-14 lg:py-20">
           <div className="min-w-0">
             <h1 id="heroe-t" className="text-balance font-display text-cifra font-bold leading-[1.06] tracking-[-0.025em] sm:text-portada lg:text-cartel">
-              Verifica tu clínica y a tu médico <span className="text-maiz">antes de atenderte.</span>
+              Verifica tu clínica, a tu médico y tus medicinas <span className="text-maiz">con fuentes oficiales.</span>
             </h1>
             <p className="mt-5 max-w-[56ch] text-pretty text-cuerpo leading-relaxed text-paper/75 sm:text-bloque">
               Busca cualquier establecimiento de salud del Perú: si está registrado y activo, qué servicios declaró y si tiene sanciones firmes de
-              SUSALUD. Con la fuente oficial y su fecha. Gratis y sin cuenta.
+              SUSALUD. Y cualquier medicamento: si DIGEMID emitió una alerta y cuánto cuesta. Con la fuente oficial y su fecha. Gratis y sin cuenta.
             </p>
             <BuscadorSalud accion={ruta("/buscar")} oscuro className="mt-7" id="buscar" />
             <div className="mt-3 flex flex-wrap items-center gap-x-2 gap-y-2">
@@ -73,7 +73,7 @@ export default async function InicioSalud() {
                 {[
                   { t: "Hospital Loayza", q: "hospital loayza" },
                   { t: "Clínicas de Miraflores", q: "clinica miraflores" },
-                  { t: "00006207", q: "00006207" },
+                  { t: "Panadol", q: "panadol" },
                 ].map((x) => (
                   <li key={x.q}>
                     <Link
@@ -100,6 +100,7 @@ export default async function InicioSalud() {
           </h2>
           <Puertas
             etiqueta="Lo que puedes hacer en Gobserva Salud"
+            columnas={2}
             className="mt-8"
             puertas={[
               {
@@ -137,6 +138,17 @@ export default async function InicioSalud() {
                 que: "Usa tu ubicación y te mostramos los establecimientos cercanos y activos, con lo que declararon atender.",
                 accion: "Buscar cerca de mí",
                 href: `${ruta("/cerca")}?ubicar=1`,
+              },
+              {
+                gente: (
+                  <>
+                    <Pixel nombre="frasco" escala={3} retardo={1900} acento="accion" className="px-salta" />
+                  </>
+                ),
+                necesidad: "Quiero saber si mi medicamento es confiable",
+                que: "Con su nombre, su registro sanitario o el lote de la caja: si DIGEMID emitió una alerta y su precio típico, con genéricos equivalentes.",
+                accion: "Verificar el medicamento",
+                href: ruta("/medicamentos"),
               },
             ]}
           />

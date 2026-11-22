@@ -197,7 +197,7 @@ Cada etapa sale entera (fuente, carga, API, página y verificación en producci�
 | Etapa | Qué | Fuente | Por qué primero |
 |---|---|---|---|
 | **1** | **Sanciones a profesionales** en la ficha de una colegiatura (`/medico/[colegiatura]`) | REPROS (y los sancionados del CQFP) | Es lo que la gente más pregunta («¿mi médico tiene una sanción?») y lo único que faltaba de «Verificar médicos». XLS pequeño, sin captcha, público por norma |
-| **2** | **Medicamentos**: «¿este producto o lote tiene una alerta?», alertas recientes, precios de referencia | Alertas DIGEMID (API de WordPress), dispositivos, ZIP de precios | Valor ciudadano muy alto, fuentes limpias y diarias |
+| **2** | **Medicamentos**: «¿este producto o lote tiene una alerta?», alertas recientes, precios de referencia. **Hecha el 21-11-2026**: `/medicamentos`, `/medicamento/[codigo]` y `/alertas` (migración 441, fuente `digemid`, diaria) | Alertas DIGEMID (API de WordPress, con el texto de cada PDF), ZIP de precios | Valor ciudadano muy alto, fuentes limpias y diarias |
 | **3** | **Lo que atiende cada IPRESS**: horas programadas por servicio y colegio, producción y emergencia | Consultas J y B a I | Responde «¿hay especialista?» mejor que la cartera declarada |
 | **4** | **Tu distrito**: cobertura de seguro, afiliados SIS, establecimientos y brecha | Afiliación AUS, SIS, RENIPRESS, Consulta A, Obras | Agregados por territorio, sin personas |
 | **5** | **Vigilancia**: dengue por distrito y semana (serie), alertas y salas del CDC | Datos abiertos del CDC y sus PDF | Serie histórica abierta; el año en curso, enlazado |

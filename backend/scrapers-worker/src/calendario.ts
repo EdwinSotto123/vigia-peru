@@ -64,6 +64,9 @@
  *                      recarga nada.
  *   susalud_detalle    todos los días a las 03:40 (cron de cada hora): el detalle por IPRESS de la consulta pública de
  *                      RENIPRESS, ~1 200 por corrida, lo que la gente abrió primero (src/fuentes/susalud_detalle.ts).
+ *   digemid            todos los días 08:00: los medicamentos de Gobserva Salud (migración 441): las alertas DIGEMID nuevas o
+ *                      modificadas, con el texto de su PDF, y el ZIP de precios del Observatorio cuando sale uno nuevo
+ *                      (src/fuentes/digemid.ts). Con el mismo sha256 no recarga el catálogo.
  *
  *   oece_fichas        lunes 08:00: la ficha del proveedor en el OECE de las empresas sancionadas (migración 337), por el relay
  *                      de Lima, hasta 700 por semana; corrige «sanción vigente» cuando el Tribunal sustituyó una sanción.
@@ -119,6 +122,7 @@ export function fuentesDelCron(cron: string, ms: number): string[] {
   if (lima.getUTCDay() === 6) out.push("conosce");
   // SERVIR todos los días (la corrida decide: completa los jueves, arriba; incremental los demás).
   if (lima.getUTCDay() !== 4) out.push("servir_convocatorias");
+  out.push("digemid");
   if (dia === 1 || dia === 15) out.push("pnda_visitas");
   if (dia === 5) out.push("pnda_dji", "jne_infogob");
   if (dia === 1) out.push("pnda_oece");

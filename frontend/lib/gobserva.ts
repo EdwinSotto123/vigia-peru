@@ -75,6 +75,12 @@ export const COOKIE_SESION = "gobserva_sesion";
 /** Los productos que, con la sesión abierta, se ven como app (barra lateral, components/gobserva/app). */
 export const PRODUCTOS_CON_APP: readonly Producto[] = ["licitaciones", "empleo"];
 
+/**
+ * Los productos que se ven como app para todos, con o sin sesión (2026-11-21, Gobserva Salud: «tipo panel lateral, orden
+ * de app»). Son abiertos: la barra lateral no muestra plan ni pagos.
+ */
+export const PRODUCTOS_APP_ABIERTA: readonly Producto[] = ["salud"];
+
 export const PRODUCTO_POR_HOST: Record<string, Producto> = Object.fromEntries(
   Object.values(PRODUCTOS).flatMap((p) => [
     [p.host, p.clave],

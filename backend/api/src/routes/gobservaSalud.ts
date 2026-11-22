@@ -17,6 +17,7 @@ import { embeber, vectorLiteral, type IaWorkers } from "../lib/rag.js";
 import {
   CATEGORIAS, FUENTES_SALUD, HERRAMIENTAS_ASISTENTE_SALUD, URL_CMP, URL_SANCIONES, URL_SUNEDU, URL_VIGIA, consultaRenipress,
   pasosVerificarMedico, sistemaAsistenteSalud, tituloColegio, verificar, type DatosVerificacion,
+  URL_DIGEMID_ALERTAS, URL_DIGEMID_PRECIOS, URL_OBSERVATORIO, URL_REGISTRO_SANITARIO, pareceLote, registroDe,
 } from "../lib/gobservaSalud.js";
 
 /**
@@ -35,6 +36,10 @@ import {
  *   GET  /salud/medico/:colegiatura     lo que dicen las fuentes abiertas de una colegiatura (RENIPRESS) y cómo verificarla.
  *   GET  /salud/sanciones               el Registro de Sanciones de SUSALUD, con filtros y páginas.
  *   GET  /salud/cambios                 lo que cambió en RENIPRESS (altas, bajas, estado, categoría), lo más nuevo primero.
+ *   GET  /salud/medicamentos?q=         medicamentos (DIGEMID, migración 441): por nombre, principio activo, registro
+ *                                       sanitario o lote, con las alertas que los nombran.
+ *   GET  /salud/medicamento/:codigo     la ficha de un medicamento: precio de referencia, equivalentes y alertas.
+ *   GET  /salud/alertas                 las alertas DIGEMID, con filtros y páginas.
  *   GET  /salud/fuentes                 cada fuente con su última carga (archivo, fecha, filas, sha256) y la cobertura.
  *   GET  /salud/normas?q=               las normas de salud que responden a una pregunta (RAG, buscar_norma_salud).
  *   GET  /salud/sitemap                 los códigos para el sitemap del producto.
@@ -197,7 +202,7 @@ async function estadoFuentes() {
   const [cargas, detalle] = await Promise.all([
     pool.query(`SELECT clave, archivo, fuente_url AS url, to_char(cargado_at AT TIME ZONE 'America/Lima', 'YYYY-MM-DD"T"HH24:MI') AS "cargadoAl",
                        filas, left(sha256, 16) AS sha256
-                  FROM datasets_cargas WHERE fuente = 'susalud' AND estado = 'ok' ORDER BY cargado_at DESC`).catch(() => ({ rows: [] })),
+                  FROM datasets_cargas WHERE fuente IN ('susalud', 'digemid') AND estado = 'ok' ORDER BY cargado_at DESC`).catch(() => ({ rows: [] })),
     pool.query(`SELECT count(*) FILTER (WHERE leido_at IS NOT NULL AND error IS NULL)::int AS leidas,
                        to_char(max(leido_at) AT TIME ZONE 'America/Lima', 'YYYY-MM-DD"T"HH24:MI') AS "ultimaLectura",
                        (SELECT count(*)::int FROM salud_ipress WHERE en_registro) AS total,
@@ -205,17 +210,21 @@ async function estadoFuentes() {
                        (SELECT to_char(max(visto_at) AT TIME ZONE 'America/Lima', 'YYYY-MM-DD') FROM salud_sancion) AS "sancionesAl",
                        (SELECT to_char(max(make_date(anio, mes, 1)), 'YYYY-MM') FROM salud_recursos) AS "recursosAl",
                        (SELECT to_char(max(make_date(anio, mes, 1)), 'YYYY-MM') FROM salud_cirugia_mes) AS "cirugiasAl",
-                       (SELECT max(anio) FROM salud_denuncia_anual) AS "denunciasAl"
+                       (SELECT max(anio) FROM salud_denuncia_anual) AS "denunciasAl",
+                       (SELECT to_char(max(periodo), 'YYYY-MM') FROM salud_medicamento) AS "preciosAl",
+                       (SELECT to_char(max(leido_at) AT TIME ZONE 'America/Lima', 'YYYY-MM-DD') FROM salud_alerta) AS "alertasAl"
                   FROM salud_ipress_detalle`),
   ]);
   const ultimas = new Map<string, Record<string, unknown>>();
   for (const r of cargas.rows as Record<string, unknown>[]) {
-    const k = String(r.clave).replace(/_\d{4}(_\d{1,2})?$/, "");
+    // «recursos_2026_10», «denuncias_2026» y «precios_202609» → la clave de la fuente.
+    const k = String(r.clave).replace(/_\d{4}(_?\d{1,2})?$/, "");
     if (!ultimas.has(k)) ultimas.set(k, r);
   }
   const d = detalle.rows[0] as Record<string, unknown>;
   return {
     renipressAl: d.renipressAl, sancionesAl: d.sancionesAl, recursosAl: d.recursosAl, cirugiasAl: d.cirugiasAl, denunciasAl: d.denunciasAl,
+    preciosAl: d.preciosAl, alertasAl: d.alertasAl,
     detalle: { leidas: d.leidas, total: d.total, ultimaLectura: d.ultimaLectura },
     cargas: Object.fromEntries(ultimas),
   };
@@ -686,6 +695,179 @@ saludRouter.get("/cambios", async (c) => {
        ORDER BY c.detectado DESC, c.id DESC LIMIT 50 OFFSET ${(pagina - 1) * 50}`, [filtro]);
     const t = await pool.query(`SELECT count(*)::int AS n FROM salud_ipress_cambio WHERE ($1::text IS NULL OR campo = $1)`, [filtro]);
     return publicar({ filas: r.rows, total: t.rows[0].n, pagina, tamano: 50 });
+  });
+  c.header("Cache-Control", CACHE);
+  return c.json(cuerpo);
+});
+
+// ─── Medicamentos (migración 441: DIGEMID) ────────────────────────────────────────────────────────
+
+const TIPOS_ALERTA = ["falsificado", "calidad", "seguridad", "modificacion", "internacional", "otra"] as const;
+
+const COLS_MED = `m.codigo, m.nombre, m.concentracion, m.forma, m.presentacion, m.fracciones, m.clasificacion, m.registro, m.titular,
+  m.fabricante, m.pais, m.ifa, m.grupo, m.establecimientos, m.precio_mediana::float AS "precioMediana", m.precio_media::float AS "precioMedia",
+  m.precio_moda::float AS "precioModa", to_char(m.periodo, 'YYYY-MM') AS periodo, m.en_catalogo AS "enCatalogo"`;
+const COLS_ALERTA = `a.id, a.numero, to_char(a.fecha, 'YYYY-MM-DD') AS fecha, a.tipo, a.titulo, a.motivo, a.productos, a.url, a.pdf_url AS "pdfUrl"`;
+/** Lo que una alerta dice en palabras (productos, motivo y título), normalizado para buscar. */
+const TEXTO_ALERTA = `mef_norm(coalesce(a.productos, '') || ' ' || coalesce(a.motivo, '') || ' ' || a.titulo)`;
+
+async function fuenteMedicamentos() {
+  const r = await pool.query(`SELECT (SELECT to_char(max(periodo), 'YYYY-MM') FROM salud_medicamento) AS "preciosAl",
+                                     (SELECT count(*)::int FROM salud_medicamento WHERE en_catalogo) AS productos,
+                                     (SELECT to_char(max(fecha), 'YYYY-MM-DD') FROM salud_alerta) AS "ultimaAlerta",
+                                     (SELECT to_char(max(leido_at) AT TIME ZONE 'America/Lima', 'YYYY-MM-DD') FROM salud_alerta) AS "alertasAl",
+                                     (SELECT count(*)::int FROM salud_alerta) AS alertas`);
+  const f = r.rows[0] as Record<string, unknown>;
+  return {
+    productos: f.productos, alertas: f.alertas, ultimaAlerta: f.ultimaAlerta,
+    precios: { url: URL_DIGEMID_PRECIOS, consulta: URL_OBSERVATORIO, al: f.preciosAl },
+    avisos: { url: URL_DIGEMID_ALERTAS, al: f.alertasAl },
+    registroSanitario: URL_REGISTRO_SANITARIO,
+  };
+}
+
+const FiltrosMedicamentos = z.object({
+  q: z.string().trim().max(80).optional(),
+  pagina: z.coerce.number().int().min(1).max(200).default(1),
+  tamano: z.coerce.number().int().min(5).max(50).default(10),
+});
+
+/** GET /salud/medicamentos?q= — un buscador: nombre, principio activo, registro sanitario o lote. */
+saludRouter.get("/medicamentos", async (c) => {
+  const f = FiltrosMedicamentos.safeParse(parametros(c));
+  if (!f.success) return c.json({ error: "filtros_invalidos" }, 400);
+  const { pagina, tamano } = f.data;
+  const q = (f.data.q ?? "").trim();
+  const cuerpo = await memo.obtener(`medicamentos:${q.toLowerCase()}:${pagina}:${tamano}`, async () => {
+    const fuente = await fuenteMedicamentos();
+    if (q.length < 2) {
+      const recientes = await pool.query(`SELECT ${COLS_ALERTA} FROM salud_alerta a ORDER BY a.fecha DESC, a.id DESC LIMIT 5`);
+      return publicar({ q: "", como: null, filas: [], total: 0, pagina, tamano, alertas: recientes.rows, alertasTotal: null, fuente });
+    }
+    const registro = registroDe(q);
+    const lote = registro ? null : pareceLote(q);
+    const ps = palabras(q);
+    const como: "registro" | "lote" | "nombre" = registro ? "registro" : lote ? "lote" : "nombre";
+    let whereMed = "false";
+    const valsMed: unknown[] = [];
+    let whereAl = "false";
+    const valsAl: unknown[] = [];
+    let ordenMed = "m.en_catalogo DESC, m.establecimientos DESC NULLS LAST, m.nombre";
+    if (registro) {
+      valsMed.push(registro);
+      whereMed = "m.registro = $1";
+      valsAl.push(registro, `%${registro}%`);
+      whereAl = "($1 = ANY(a.registros) OR a.texto_norm LIKE $2)";
+    } else {
+      // Por nombre o principio activo (un lote también puede ser parte de un nombre: «B12»).
+      const w: string[] = [];
+      for (const x of ps) { valsMed.push(`%${x}%`); w.push(`(m.nombre_norm LIKE $${valsMed.length} OR coalesce(m.ifa_norm, '') LIKE $${valsMed.length} OR mef_norm(coalesce(m.concentracion, '')) LIKE $${valsMed.length})`); }
+      if (w.length) whereMed = w.join(" AND ");
+      if (ps.length) {
+        // El nombre exacto primero (PANADOL antes que PANADOL ANTIGRIPAL NF), luego el que más farmacias reportan. Literal:
+        // las palabras ya vienen normalizadas a [A-Z0-9 ].
+        const k = `'${ps.join(" ").replace(/[^A-Z0-9 ]/g, "")}'`;
+        ordenMed = `m.en_catalogo DESC, (m.nombre_norm = ${k}) DESC, word_similarity(${k}, m.nombre_norm) DESC, m.establecimientos DESC NULLS LAST, m.nombre`;
+      }
+      if (lote) {
+        valsAl.push(`%${lote}%`);
+        whereAl = `(a.texto_norm LIKE $1 OR ${TEXTO_ALERTA} LIKE $1)`;
+      } else {
+        const wa: string[] = [];
+        for (const x of ps) { valsAl.push(`%${x}%`); wa.push(`(${TEXTO_ALERTA} LIKE $${valsAl.length} OR a.texto_norm LIKE $${valsAl.length})`); }
+        if (wa.length) whereAl = wa.join(" AND ");
+      }
+    }
+    const [filas, total, alertas, alertasTotal] = await Promise.all([
+      pool.query(`SELECT ${COLS_MED} FROM salud_medicamento m WHERE ${whereMed} ORDER BY ${ordenMed} LIMIT ${tamano} OFFSET ${(pagina - 1) * tamano}`, valsMed),
+      pool.query(`SELECT count(*)::int AS n FROM salud_medicamento m WHERE ${whereMed}`, valsMed),
+      pool.query(`SELECT ${COLS_ALERTA} FROM salud_alerta a WHERE ${whereAl} ORDER BY a.fecha DESC, a.id DESC LIMIT 5`, valsAl),
+      pool.query(`SELECT count(*)::int AS n FROM salud_alerta a WHERE ${whereAl}`, valsAl),
+    ]);
+    return publicar({
+      q, como, registro, lote, filas: filas.rows, total: total.rows[0].n, pagina, tamano,
+      alertas: alertas.rows, alertasTotal: alertasTotal.rows[0].n, fuente,
+    });
+  });
+  c.header("Cache-Control", CACHE);
+  return c.json(cuerpo);
+});
+
+/** GET /salud/medicamento/:codigo — la ficha: el producto, sus equivalentes con precio y las alertas que lo nombran. */
+saludRouter.get("/medicamento/:codigo", async (c) => {
+  const codigo = Number(c.req.param("codigo"));
+  if (!Number.isInteger(codigo) || codigo <= 0 || codigo > 2_000_000_000) return c.json({ error: "codigo_invalido" }, 400);
+  const cuerpo = await memo.obtener(`medicamento:${codigo}`, async () => {
+    const p = await pool.query(`SELECT ${COLS_MED}, m.cantidad_ifas AS "cantidadIfas", m.nombre_norm, m.ifa_norm FROM salud_medicamento m WHERE m.codigo = $1`, [codigo]);
+    const fila = p.rows[0] as Record<string, unknown> | undefined;
+    if (!fila) return null;
+    const { nombre_norm, ifa_norm, ...producto } = fila as { nombre_norm: string; ifa_norm: string | null } & Record<string, unknown>;
+    const registro = (producto.registro as string | null) ?? null;
+    const misma = [ifa_norm, producto.concentracion ?? null, producto.forma ?? null, codigo];
+    const DONDE_EQUIV = `m.ifa_norm = $1 AND m.concentracion IS NOT DISTINCT FROM $2 AND m.forma IS NOT DISTINCT FROM $3 AND m.codigo <> $4 AND m.en_catalogo`;
+    // La marca: la primera palabra del nombre con 4 letras o más (PANADOL de «PANADOL ANTIGRIPAL NF»).
+    const marca = nombre_norm.split(" ").find((w) => w.length >= 4) ?? nombre_norm;
+    const [equivalentes, resumen, presentaciones, porRegistro, porNombre] = await Promise.all([
+      ifa_norm
+        ? pool.query(`SELECT ${COLS_MED} FROM salud_medicamento m WHERE ${DONDE_EQUIV}
+                       ORDER BY m.precio_mediana ASC NULLS LAST, m.establecimientos DESC NULLS LAST LIMIT 30`, misma)
+        : Promise.resolve({ rows: [] }),
+      ifa_norm
+        ? pool.query(`SELECT count(*)::int AS n, min(m.precio_mediana)::float AS minimo, max(m.precio_mediana)::float AS maximo,
+                             count(*) FILTER (WHERE m.clasificacion LIKE 'GEN%')::int AS genericos
+                        FROM salud_medicamento m WHERE ${DONDE_EQUIV}`, misma)
+        : Promise.resolve({ rows: [{ n: 0, minimo: null, maximo: null, genericos: 0 }] }),
+      registro
+        ? pool.query(`SELECT ${COLS_MED} FROM salud_medicamento m WHERE m.registro = $1 AND m.codigo <> $2 ORDER BY m.establecimientos DESC NULLS LAST LIMIT 20`, [registro, codigo])
+        : Promise.resolve({ rows: [] }),
+      registro
+        ? pool.query(`SELECT ${COLS_ALERTA} FROM salud_alerta a WHERE $1 = ANY(a.registros) ORDER BY a.fecha DESC LIMIT 20`, [registro])
+        : Promise.resolve({ rows: [] }),
+      pool.query(`SELECT ${COLS_ALERTA} FROM salud_alerta a
+                   WHERE (' ' || ${TEXTO_ALERTA} || ' ') LIKE $1 AND NOT ($2::text IS NOT NULL AND $2 = ANY(a.registros))
+                   ORDER BY a.fecha DESC LIMIT 10`, [`% ${marca} %`, registro]),
+    ]);
+    return publicar({
+      producto, marca, equivalentes: equivalentes.rows, equivalentesResumen: resumen.rows[0], presentaciones: presentaciones.rows,
+      alertasRegistro: porRegistro.rows, alertasNombre: porNombre.rows, fuente: await fuenteMedicamentos(),
+    });
+  });
+  if (!cuerpo) return c.json({ error: "no_encontrado" }, 404);
+  c.header("Cache-Control", CACHE);
+  return c.json(cuerpo);
+});
+
+const FiltrosAlertas = z.object({
+  tipo: z.enum(TIPOS_ALERTA).optional(),
+  q: z.string().trim().max(80).optional(),
+  anio: z.coerce.number().int().min(2000).max(2100).optional(),
+  pagina: z.coerce.number().int().min(1).max(500).default(1),
+  tamano: z.coerce.number().int().min(5).max(50).default(10),
+});
+
+/** GET /salud/alertas — las alertas DIGEMID, de la más nueva a la más vieja, con filtros y cuántas hay de cada tipo. */
+saludRouter.get("/alertas", async (c) => {
+  const f = FiltrosAlertas.safeParse(parametros(c));
+  if (!f.success) return c.json({ error: "filtros_invalidos" }, 400);
+  const q = f.data;
+  const cuerpo = await memo.obtener(`alertas:${JSON.stringify(q)}`, async () => {
+    const vals: unknown[] = [];
+    const p = (v: unknown) => { vals.push(v); return `$${vals.length}`; };
+    const w: string[] = ["true"];
+    for (const x of palabras(q.q ?? "")) { const k = p(`%${x}%`); w.push(`(${TEXTO_ALERTA} LIKE ${k} OR a.texto_norm LIKE ${k})`); }
+    if (q.anio) w.push(`extract(year FROM a.fecha) = ${p(q.anio)}`);
+    const sinTipo = w.join(" AND ");
+    const valsSinTipo = [...vals];
+    const conTipo = q.tipo ? `${sinTipo} AND a.tipo = ${p(q.tipo)}` : sinTipo;
+    const [filas, total, tipos] = await Promise.all([
+      pool.query(`SELECT ${COLS_ALERTA} FROM salud_alerta a WHERE ${conTipo} ORDER BY a.fecha DESC, a.id DESC LIMIT ${q.tamano} OFFSET ${(q.pagina - 1) * q.tamano}`, vals),
+      pool.query(`SELECT count(*)::int AS n FROM salud_alerta a WHERE ${conTipo}`, vals),
+      pool.query(`SELECT a.tipo, count(*)::int AS n FROM salud_alerta a WHERE ${sinTipo} GROUP BY 1`, valsSinTipo),
+    ]);
+    return publicar({
+      filas: filas.rows, total: total.rows[0].n, pagina: q.pagina, tamano: q.tamano, filtros: q,
+      tipos: Object.fromEntries((tipos.rows as { tipo: string; n: number }[]).map((t) => [t.tipo, t.n])), fuente: await fuenteMedicamentos(),
+    });
   });
   c.header("Cache-Control", CACHE);
   return c.json(cuerpo);

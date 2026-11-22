@@ -23,12 +23,14 @@ export interface Puerta {
   href: string;
 }
 
-const COLUMNAS: Record<3 | 4, string> = {
+// 2: cuatro puertas en dos filas (Salud dentro de la app, con la barra lateral: cuatro en fila no entran).
+const COLUMNAS: Record<2 | 3 | 4, string> = {
+  2: "sm:grid-cols-2",
   3: "md:grid-cols-3",
   4: "sm:grid-cols-2 xl:grid-cols-4",
 };
 
-export function Puertas({ puertas, columnas = 3, etiqueta, className }: { puertas: Puerta[]; columnas?: 3 | 4; etiqueta: string; className?: string }) {
+export function Puertas({ puertas, columnas = 3, etiqueta, className }: { puertas: Puerta[]; columnas?: 2 | 3 | 4; etiqueta: string; className?: string }) {
   return (
     <ul aria-label={etiqueta} className={cn("grid gap-px overflow-hidden rounded-3xl border border-line bg-line", COLUMNAS[columnas], className)}>
       {puertas.map((p) => (

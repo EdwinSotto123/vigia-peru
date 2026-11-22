@@ -361,3 +361,35 @@ def agregar(S, h):
         "..#++++==++++#..",
         "################",
     ], "capas": []}
+
+    # El frasco de medicinas (Salud, medicamentos; 2026-11-21), 22 x 18: tapa, etiqueta con la cruz de farmacia en el color
+    # de la marca y una cápsula al lado. La cruz late y un destello parpadea (lo que se verifica).
+    WF, HF = 22, 18
+    g = lienzo(WF, HF)
+    marco(g, 5, 0, 12, 2, "#")
+    rect(g, 6, 1, 11, 1, "=")
+    g[3][5] = "#"
+    g[3][12] = "#"
+    rect(g, 6, 3, 11, 3, "+")
+    rect(g, 4, 4, 5, 4, "#")
+    rect(g, 12, 4, 13, 4, "#")
+    rect(g, 6, 4, 11, 4, "+")
+    for y in range(5, 17):
+        g[y][3] = "#"
+        g[y][14] = "#"
+    rect(g, 4, 5, 13, 16, "+")
+    rect(g, 3, 17, 14, 17, "#")
+    rect(g, 4, 7, 13, 14, "C")
+    rect(g, 8, 8, 9, 13, "L")
+    rect(g, 6, 10, 11, 11, "L")
+    rect(g, 17, 14, 20, 14, "#")
+    rect(g, 17, 17, 20, 17, "#")
+    for y in (15, 16):
+        g[y][16] = "#"
+        g[y][21] = "#"
+        rect(g, 17, y, 18, y, "L")
+        rect(g, 19, y, 20, y, "+")
+    S["frasco"] = {"base": filas(g), "capas": [
+        {"nombre": "cruz", "anim": "late", "filas": capa(WF, HF, [(x, y, "L") for x in (8, 9) for y in range(8, 14)] + [(x, y, "L") for x in range(6, 12) for y in (10, 11)])},
+        {"nombre": "destello", "anim": "parpadeo", "filas": capa(WF, HF, [(18, 2, "L"), (17, 3, "l"), (19, 3, "l"), (18, 4, "L"), (18, 3, "L")])},
+    ]}

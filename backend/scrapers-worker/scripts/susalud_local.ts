@@ -9,6 +9,8 @@
  *   node scripts/susalud_local.ts cirugias <csv>
  *   node scripts/susalud_local.ts detalle <cuántas> [hilos]   (directo a RENIPRESS: sólo desde el Perú)
  *   node scripts/susalud_local.ts refrescar
+ *   node scripts/susalud_local.ts precios <FT_AAAAMM.zip>      (DIGEMID, el Indicador de precios)
+ *   node scripts/susalud_local.ts alertas <cuántas>            (DIGEMID, las alertas con el texto de su PDF)
  */
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
@@ -20,6 +22,7 @@ import {
   leerRenipress, leerSanciones,
 } from "../src/fuentes/susalud.ts";
 import { leerTanda, pendientes } from "../src/fuentes/susalud_detalle.ts";
+import { alertasPorLeer, cargarZipPrecios, leerAlertas, listarAlertas, pedidorDirecto, sha256, URL_PRECIOS } from "../src/fuentes/digemid.ts";
 
 const [tipo, arg1, arg2] = process.argv.slice(2);
 const url = process.env.PG_URL;
@@ -68,6 +71,34 @@ try {
       }
     }));
     r = suma;
+  } else if (tipo === "precios") {
+    const bytes = datos();
+    const am = /FT_(\d{6})\.zip$/i.exec(arg1)?.[1];
+    if (!am) throw new Error("el archivo se llama FT_AAAAMM.zip");
+    r = await cargarZipPrecios(db, bytes, await sha256(bytes), am, URL_PRECIOS(am), { forzar: arg2 === "forzar" });
+  } else if (tipo === "alertas") {
+    // `alertas <cuántas> sinpdf`: sólo las entradas (el PDF queda pendiente); `alertas <cuántas>`: con el PDF, de a una,
+    // y si DIGEMID sigue con 429, espera 15 minutos y sigue (hasta 12 veces).
+    const conPdf = arg2 !== "sinpdf";
+    // Sin PDF se guardan todas las entradas (rehace el texto de cada una); con PDF, sólo las que faltan.
+    const entradas = await listarAlertas(pedidorDirecto, Number(arg1 ?? 100));
+    const lista = conPdf ? await alertasPorLeer(db, entradas) : entradas;
+    const suma: Record<string, number> = {};
+    let cortes = 0;
+    for (let k = 0; k < lista.length; ) {
+      const tanda = lista.slice(k, k + 20);
+      const c = await leerAlertas(pedidorDirecto, db, tanda, conPdf);
+      for (const [x, v] of Object.entries(c)) suma[x] = (suma[x] ?? 0) + v;
+      const hechas = (c.leidas ?? 0) + (c.pdf_fallido ?? 0);
+      k += c.cortada ? hechas : tanda.length;
+      console.log(`  ${k}/${lista.length} ${JSON.stringify(suma)} ${((Date.now() - t0) / 1000).toFixed(0)} s`);
+      if (c.cortada) {
+        if (++cortes > 12) { console.log("  DIGEMID sigue con 429: se corta aquí"); break; }
+        console.log("  DIGEMID pide bajar el ritmo: 15 minutos de espera");
+        await new Promise((ok) => setTimeout(ok, 15 * 60_000));
+      }
+    }
+    r = { por_leer: lista.length, ...suma };
   } else if (tipo === "refrescar") {
     r = (await db.filas<{ r: unknown }>("SELECT salud_refrescar() AS r"))[0]?.r;
   } else {

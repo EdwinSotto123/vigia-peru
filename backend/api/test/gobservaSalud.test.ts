@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { pasosVerificarMedico, sistemaAsistenteSalud, tituloColegio, verificar, type DatosVerificacion } from "../src/lib/gobservaSalud.js";
+import { pareceLote, pasosVerificarMedico, registroDe, sistemaAsistenteSalud, tituloColegio, verificar, type DatosVerificacion } from "../src/lib/gobservaSalud.js";
 
 const base: DatosVerificacion = {
   codigo: "00009123", estado: "ACTIVO", activo: true, enRegistro: true, categoria: "II-2", vistoAl: "2026-11-20",
@@ -115,4 +115,17 @@ test("cerca: los términos de una necesidad son sólo letras y espacios en mayú
   assert.equal((await pedir({ lat: -12.05, lon: -77.04, terminos: ["odontolog"] })).status, 400);
   assert.equal((await pedir({ lat: -12.05, lon: -77.04, terminos: [] })).status, 400);
   assert.equal((await pedir({ lat: -12.05, lon: -77.04, terminos: Array(17).fill("ODONTOLOG") })).status, 400);
+});
+
+test("medicamentos: registro sanitario y lote de lo que se escribe", () => {
+  assert.equal(registroDe("EE-01234"), "EE01234");
+  assert.equal(registroDe("r.s. ee 01234"), "EE01234");
+  assert.equal(registroDe("N25885"), "N25885");
+  assert.equal(registroDe("panadol"), null);
+  assert.equal(registroDe("paracetamol 500"), null);
+  assert.equal(pareceLote("20250502QX"), "20250502QX");
+  assert.equal(pareceLote("L-2345"), "L2345");
+  assert.equal(pareceLote("panadol"), null);
+  assert.equal(pareceLote("paracetamol 500"), null);
+  assert.equal(pareceLote("123"), null);
 });

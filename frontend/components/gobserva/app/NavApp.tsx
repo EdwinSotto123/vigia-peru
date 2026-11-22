@@ -6,9 +6,9 @@ import { usePathname, useSearchParams } from "next/navigation";
 import useSWR from "swr";
 import {
   ArrowUpRight, Bell, BellPlus, Bot, BriefcaseBusiness, CalendarDays, Inbox, LifeBuoy, ChartNoAxesColumn, ChevronsUpDown, CreditCard, GraduationCap, HardHat, House, KanbanSquare, Loader2, LogOut, Menu,
-  Sparkles, Timer, UserRound, X,
+  Sparkles, Timer, UserRound, X, Hospital, Stethoscope, Pill, MapPin, Map as IconoMapa, Gavel, TriangleAlert, History, Database,
 } from "lucide-react";
-import { CORREO_GOBSERVA, rutaEn, urlCanonica, type Producto } from "@/lib/gobserva";
+import { CORREO_GOBSERVA, PRODUCTOS_APP_ABIERTA, rutaEn, urlCanonica, type Producto } from "@/lib/gobserva";
 import { cn } from "@/lib/utils";
 import { BotonModo } from "@/components/ui/BotonModo";
 import { useMe, useSesion } from "../cuenta/comun";
@@ -27,6 +27,8 @@ interface ItemApp {
   tambien?: string[];
   /** Otras pestañas de /cuenta en las que también se marca (Postulaciones, en el calendario; Avisos, en tus alertas). */
   tabs?: string[];
+  /** Se marca sólo en esa ruta exacta (el inicio de Salud, «/», no se marca en todas las páginas). */
+  exacta?: boolean;
 }
 
 /** Un grupo de la barra lateral: lo de hoy (sin nombre), lo que se busca y lo que se organiza. */
@@ -35,7 +37,7 @@ interface GrupoApp {
   items: ItemApp[];
 }
 
-/** La app de cada producto: Licitaciones y Empleo (2026-11-07). */
+/** La app de cada producto: Licitaciones y Empleo (2026-11-07) y Gobserva Salud, abierta (2026-11-21). */
 const APP: Partial<Record<Producto, { grupos: GrupoApp[]; cuenta: ItemApp[] }>> = {
   licitaciones: {
     grupos: [
@@ -96,6 +98,41 @@ const APP: Partial<Record<Producto, { grupos: GrupoApp[]; cuenta: ItemApp[] }>> 
       { ruta: "/cuenta?tab=perfil", etiqueta: "Perfil", Icono: UserRound },
     ],
   },
+  // Gobserva Salud (2026-11-21, el usuario: «tipo panel lateral, orden de app, verificación de medicamentos»): lo que se
+  // verifica (el establecimiento, el médico, el medicamento) va junto y en la barra de abajo; lo demás se explora.
+  salud: {
+    grupos: [
+      {
+        items: [
+          { ruta: "/", etiqueta: "Inicio", Icono: House, abajo: true, exacta: true },
+          { ruta: "/asistente", etiqueta: "Asistente", Icono: Bot },
+        ],
+      },
+      {
+        titulo: "Verificar",
+        items: [
+          { ruta: "/establecimientos", etiqueta: "Establecimientos", Icono: Hospital, abajo: true, corto: "Clínicas", tambien: ["/establecimiento/", "/buscar"] },
+          { ruta: "/medico", etiqueta: "Médicos", Icono: Stethoscope, abajo: true },
+          { ruta: "/medicamentos", etiqueta: "Medicamentos", Icono: Pill, abajo: true, corto: "Medicinas", tambien: ["/medicamento/"] },
+        ],
+      },
+      {
+        titulo: "Explorar",
+        items: [
+          { ruta: "/cerca", etiqueta: "Cerca de mí", Icono: MapPin },
+          { ruta: "/mapa", etiqueta: "Mapa", Icono: IconoMapa },
+          { ruta: "/alertas", etiqueta: "Alertas de DIGEMID", Icono: TriangleAlert },
+          { ruta: "/sanciones", etiqueta: "Sanciones de SUSALUD", Icono: Gavel },
+          { ruta: "/cambios", etiqueta: "Cambios en RENIPRESS", Icono: History },
+        ],
+      },
+      {
+        titulo: "Sobre los datos",
+        items: [{ ruta: "/fuentes", etiqueta: "Fuentes", Icono: Database }],
+      },
+    ],
+    cuenta: [],
+  },
 };
 
 const externa = (ruta: string) => /^https?:\/\//.test(ruta);
@@ -112,8 +149,9 @@ function useUbicacion(): { camino: string; tab: string | null } | null {
   return u;
 }
 
-function esActual(u: { camino: string; tab: string | null } | null, href: string, tambien: string[] = [], tabs: string[] = []): boolean {
+function esActual(u: { camino: string; tab: string | null } | null, href: string, tambien: string[] = [], tabs: string[] = [], exacta = false): boolean {
   if (!u || externa(href)) return false;
+  if (exacta) return u.camino.replace(/\/+$/, "") === href.split("?")[0].replace(/\/+$/, "");
   if (tambien.some((t) => u.camino.includes(t))) return true;
   if (tabs.length && u.camino.endsWith("/cuenta") && tabs.includes(u.tab ?? "")) return true;
   const [camino, query] = href.split("?");
@@ -307,6 +345,21 @@ function UsuarioLateral({ producto, base, items }: { producto: Producto; base: s
   );
 }
 
+/**
+ * Al pie de la barra lateral de un producto abierto (Gobserva Salud): sin plan ni cuenta; lo que es y de dónde sale.
+ */
+function PieAbierto({ base }: { base: string }) {
+  return (
+    <div className="rounded-xl border border-line bg-lienzo/70 p-3">
+      <p className="text-meta font-bold text-ink">Gratis y sin cuenta</p>
+      <p className="mt-1 text-rotulo leading-snug text-mute">Cada dato con su fuente oficial y su fecha. No reemplaza la consulta a un profesional.</p>
+      <Link href={rutaEn(base, "/fuentes")} className="mt-2 inline-flex min-h-8 items-center text-meta font-semibold text-granate underline-offset-4 hover:underline">
+        De dónde sale cada dato
+      </Link>
+    </div>
+  );
+}
+
 /** La barra lateral de la app (desde lg): los tres grupos y, abajo, tu plan y tu cuenta. */
 export function LateralApp({ producto, base }: { producto: Producto; base: string }) {
   const app = APP[producto];
@@ -321,7 +374,7 @@ export function LateralApp({ producto, base }: { producto: Producto; base: strin
             <ul className="space-y-0.5">
               {g.items.map((item) => (
                 <li key={item.ruta}>
-                  <Enlace item={item} base={base} actual={esActual(u, rutaEn(base, item.ruta), item.tambien, item.tabs)} />
+                  <Enlace item={item} base={base} actual={esActual(u, rutaEn(base, item.ruta), item.tambien, item.tabs, item.exacta)} />
                 </li>
               ))}
             </ul>
@@ -329,8 +382,17 @@ export function LateralApp({ producto, base }: { producto: Producto; base: strin
         ))}
       </nav>
       <div className="shrink-0 space-y-2 border-t border-line p-3">
-        <PlanLateral producto={producto} base={base} />
-        <UsuarioLateral producto={producto} base={base} items={app.cuenta} />
+        {PRODUCTOS_APP_ABIERTA.includes(producto) ? (
+          <>
+            <PieAbierto base={base} />
+            <Ayuda />
+          </>
+        ) : (
+          <>
+            <PlanLateral producto={producto} base={base} />
+            <UsuarioLateral producto={producto} base={base} items={app.cuenta} />
+          </>
+        )}
       </div>
     </div>
   );
@@ -354,11 +416,12 @@ export function BarraApp({ producto, base }: { producto: Producto; base: string 
   if (!app) return null;
   const todos = app.grupos.flatMap((g) => g.items);
   const abajo = todos.filter((i) => i.abajo);
+  const abierta = PRODUCTOS_APP_ABIERTA.includes(producto);
   const gruposMas = [
     ...app.grupos.map((g) => ({ titulo: g.titulo, items: g.items.filter((i) => !i.abajo) })).filter((g) => g.items.length > 0),
-    { titulo: "Tu cuenta", items: app.cuenta },
+    ...(app.cuenta.length ? [{ titulo: "Tu cuenta", items: app.cuenta }] : []),
   ];
-  const enResto = gruposMas.some((g) => g.items.some((i) => esActual(u, rutaEn(base, i.ruta), i.tambien, i.tabs)));
+  const enResto = gruposMas.some((g) => g.items.some((i) => esActual(u, rutaEn(base, i.ruta), i.tambien, i.tabs, i.exacta)));
 
   return (
     <>
@@ -366,7 +429,7 @@ export function BarraApp({ producto, base }: { producto: Producto; base: string 
         <ul className="grid grid-cols-5">
           {abajo.map((item) => {
             const href = rutaEn(base, item.ruta);
-            const actual = esActual(u, href, item.tambien, item.tabs);
+            const actual = esActual(u, href, item.tambien, item.tabs, item.exacta);
             const { Icono } = item;
             return (
               <li key={item.ruta}>
@@ -422,7 +485,7 @@ export function BarraApp({ producto, base }: { producto: Producto; base: string 
                 <ul className="space-y-0.5">
                   {g.items.map((item) => (
                     <li key={item.ruta}>
-                      <Enlace item={item} base={base} actual={esActual(u, rutaEn(base, item.ruta), item.tambien, item.tabs)} grande onClick={() => setMas(false)} />
+                      <Enlace item={item} base={base} actual={esActual(u, rutaEn(base, item.ruta), item.tambien, item.tabs, item.exacta)} grande onClick={() => setMas(false)} />
                     </li>
                   ))}
                 </ul>
@@ -430,7 +493,7 @@ export function BarraApp({ producto, base }: { producto: Producto; base: string 
             ))}
             <div className="mt-2 border-t border-line pt-2">
               <Ayuda className="min-h-12" />
-              <Salir className="min-h-12" />
+              {!abierta && <Salir className="min-h-12" />}
             </div>
           </div>
         </div>

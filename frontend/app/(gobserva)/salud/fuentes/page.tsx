@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import {
   Activity, ArrowRight, ArrowUpRight, Building2, Cable, ClipboardList, Database, EyeOff, FileClock, Fingerprint, Gavel, GraduationCap, History, IdCard, Landmark,
-  MessageSquareWarning, Phone, RefreshCw, RotateCw, Rows3, Scissors, ShieldOff, Stethoscope, TriangleAlert, UserX, type LucideIcon,
+  MessageSquareWarning, Phone, Pill, RefreshCw, RotateCw, Rows3, Scissors, ShieldOff, Stethoscope, TriangleAlert, UserX, type LucideIcon,
 } from "lucide-react";
 import { EstadoError } from "@/components/gobserva/ui/Estados";
 import { FuenteFecha, InsigniaEstado, InsigniaHecho } from "@/components/salud/comun";
@@ -42,6 +42,8 @@ const ICONO: Record<string, LucideIcon> = {
   cirugias: Scissors,
   cmp: Stethoscope,
   sunedu: GraduationCap,
+  precios: Pill,
+  alertas: TriangleAlert,
 };
 
 /** La fecha de la tabla de cada fuente (lo que hay cargado), cuando no hay una carga registrada con su archivo. */
@@ -57,6 +59,10 @@ function fechaTabla(clave: string, e: EstadoFuentes): string | number | null {
       return e.recursosAl ? e.recursosAl.slice(0, 7) : null;
     case "cirugias":
       return e.cirugiasAl ? e.cirugiasAl.slice(0, 7) : null;
+    case "precios":
+      return e.preciosAl ?? null;
+    case "alertas":
+      return e.alertasAl ?? null;
     default:
       return null;
   }

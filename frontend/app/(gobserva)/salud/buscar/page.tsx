@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ArrowRight, ArrowUpRight, BadgeCheck, Building2, Gavel, Hash, IdCard, ListChecks, LocateFixed, MapPinned, RotateCw, Search, ShieldCheck, Stethoscope, UserX } from "lucide-react";
+import { ArrowRight, ArrowUpRight, BadgeCheck, Building2, Gavel, Hash, IdCard, ListChecks, LocateFixed, MapPinned, Pill, RotateCw, Search, ShieldCheck, Stethoscope, UserX } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { EstadoError, EstadoVacio } from "@/components/gobserva/ui/Estados";
 import { FuenteFecha, InsigniaHecho } from "@/components/salud/comun";
@@ -11,7 +11,8 @@ import { AvisoEmergencia, Encabezado, Ruta } from "@/components/salud/portada/Pi
 import { Dato } from "@/components/ui/Dato";
 import { claseAccion } from "@/components/ui/EnlaceAccion";
 import { rutaEn, urlCanonica } from "@/lib/gobserva";
-import { TIPO_SANCION, buscarSalud, fechaCorta, getResumenSalud, nombrePropio, numero, rutaMedico, type PasoVerificar } from "@/lib/gobserva-salud";
+import { TIPO_SANCION, buscarMedicamentos, buscarSalud, fechaCorta, getResumenSalud, nombrePropio, numero, rutaMedico, type PasoVerificar } from "@/lib/gobserva-salud";
+import { FilaMedicamento } from "@/components/salud/medicamentos/piezas";
 import { baseProducto } from "@/lib/gobserva-servidor";
 
 export const dynamic = "force-dynamic";
@@ -44,7 +45,10 @@ export default async function Buscar({ searchParams }: Props) {
   const base = baseProducto("salud");
   const q = leerQ(searchParams);
   const ruta = (p: string) => rutaEn(base, p);
-  const [res, r] = q.length >= 2 ? await Promise.all([buscarSalud(q), getResumenSalud()]) : [null, null];
+  // También los medicamentos (2026-11-21): un solo buscador para la clínica, el médico y la medicina.
+  const [res, r, meds] = q.length >= 2
+    ? await Promise.all([buscarSalud(q), getResumenSalud(), buscarMedicamentos(new URLSearchParams({ q, tamano: "5" }))])
+    : [null, null, null];
   const cobertura = r?.fuentes.detalle;
 
   return (
@@ -52,8 +56,8 @@ export default async function Buscar({ searchParams }: Props) {
       <Ruta items={[{ etiqueta: "Inicio", href: ruta("/") }, { etiqueta: "Verificar" }]} />
       <Encabezado figura="vecina"
         className="mt-2"
-        titulo={q ? <>Resultados para «{q}»</> : "Verifica un establecimiento o a un médico"}
-        bajada={q ? undefined : "Escribe el nombre de la clínica, el hospital o el consultorio, su código IPRESS, su RUC o el número de colegiatura del médico."}
+        titulo={q ? <>Resultados para «{q}»</> : "Verifica un establecimiento, un médico o un medicamento"}
+        bajada={q ? undefined : "Escribe el nombre de la clínica, el hospital o el consultorio, su código IPRESS, su RUC, el número de colegiatura del médico o el nombre de un medicamento."}
       />
       <div className="mt-5 max-w-3xl">
         <BuscadorSalud accion={ruta("/buscar")} q={q} autoFocus={!q} />
@@ -207,6 +211,40 @@ export default async function Buscar({ searchParams }: Props) {
             </section>
           )}
 
+          {/* ── Medicamentos (DIGEMID) ────────────────────────────────────────── */}
+          {meds && (meds.total > 0 || (meds.alertasTotal ?? 0) > 0) && (
+            <section aria-labelledby="medicamentos-t">
+              <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-2">
+                <div className="min-w-0">
+                  <h2 id="medicamentos-t" className="flex items-center gap-2 font-display text-seccion font-bold leading-tight text-ink">
+                    <Pill size={20} aria-hidden className="text-granate" /> Medicamentos
+                  </h2>
+                  <p className="mt-1 text-meta text-inkSoft">
+                    {meds.alertasTotal
+                      ? `${numero(meds.alertasTotal)} ${meds.alertasTotal === 1 ? "alerta de DIGEMID lo nombra" : "alertas de DIGEMID lo nombran"}. `
+                      : "Ninguna alerta de DIGEMID lo nombra. "}
+                    El precio es el típico por unidad en farmacias y boticas.
+                  </p>
+                </div>
+                <Link
+                  href={`${ruta("/medicamentos")}?q=${encodeURIComponent(q)}`}
+                  className="inline-flex min-h-11 items-center gap-1 text-dato font-semibold text-granate underline-offset-4 hover:underline"
+                >
+                  {meds.alertasTotal ? "Ver las alertas y los precios" : meds.total > 5 ? `Ver los ${numero(meds.total)}` : "Verificar el medicamento"} <ArrowRight size={15} aria-hidden />
+                </Link>
+              </div>
+              {meds.filas.length > 0 && (
+                <ul className="mt-4 divide-y divide-line overflow-hidden rounded-2xl border border-line bg-paper" aria-label="Medicamentos encontrados">
+                  {meds.filas.map((m) => (
+                    <li key={m.codigo}>
+                      <FilaMedicamento m={m} base={base} />
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </section>
+          )}
+
           {/* ── Sanciones a instituciones sin establecimiento ────────────────── */}
           {res.sancionesSinEstablecimiento.length > 0 && (
             <section aria-labelledby="sanciones-t">
@@ -253,7 +291,7 @@ export default async function Buscar({ searchParams }: Props) {
           )}
 
           {/* ── Nada ──────────────────────────────────────────────────────────── */}
-          {!res.colegiatura && res.establecimientos.length === 0 && res.sancionesSinEstablecimiento.length === 0 && (
+          {!res.colegiatura && res.establecimientos.length === 0 && res.sancionesSinEstablecimiento.length === 0 && !meds?.total && !meds?.alertasTotal && (
             <div className="rounded-2xl border border-line bg-paper">
               <EstadoVacio
                 titulo="Ningún resultado para esa búsqueda"

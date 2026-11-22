@@ -189,6 +189,9 @@ export interface EstadoFuentes {
   recursosAl: string | null;
   cirugiasAl: string | null;
   denunciasAl: number | null;
+  /** Medicamentos (DIGEMID): el mes del Indicador de precios y el día de la última lectura de alertas. */
+  preciosAl?: string | null;
+  alertasAl?: string | null;
   detalle: { leidas: number; total: number; ultimaLectura: string | null };
   cargas: Record<string, { clave: string; archivo: string | null; url: string | null; cargadoAl: string | null; filas: number | null; sha256: string | null }>;
 }
@@ -457,3 +460,116 @@ export const numero = (n: number | null | undefined) => (n == null ? "sin dato" 
 /** Una IPRESS por su código, en esta web. */
 export const rutaFicha = (codigo: string) => `/establecimiento/${codigo}`;
 export const rutaMedico = (colegiatura: string) => `/medico/${colegiatura}`;
+
+// ─── Medicamentos (DIGEMID, migración 441) ───────────────────────────────────────────────────────
+
+export type TipoAlerta = "falsificado" | "calidad" | "seguridad" | "modificacion" | "internacional" | "otra";
+
+/** Un medicamento del Indicador de precios de DIGEMID (una presentación). */
+export interface Medicamento {
+  codigo: number;
+  nombre: string;
+  concentracion: string | null;
+  forma: string | null;
+  presentacion: string | null;
+  fracciones: number | null;
+  clasificacion: string | null;
+  registro: string | null;
+  titular: string | null;
+  fabricante: string | null;
+  pais: string | null;
+  ifa: string | null;
+  grupo: string | null;
+  establecimientos: number | null;
+  precioMediana: number | null;
+  precioMedia: number | null;
+  precioModa: number | null;
+  /** AAAA-MM del archivo de precios. */
+  periodo: string;
+  enCatalogo: boolean;
+  cantidadIfas?: number | null;
+}
+
+/** Una alerta DIGEMID. */
+export interface AlertaDigemid {
+  id: number;
+  numero: string | null;
+  fecha: string;
+  tipo: TipoAlerta;
+  titulo: string;
+  motivo: string | null;
+  productos: string | null;
+  url: string;
+  pdfUrl: string | null;
+}
+
+export interface FuenteMedicamentos {
+  productos: number;
+  alertas: number;
+  ultimaAlerta: string | null;
+  precios: { url: string; consulta: string; al: string | null };
+  avisos: { url: string; al: string | null };
+  registroSanitario: string;
+}
+
+export interface BusquedaMedicamentos {
+  q: string;
+  como: "registro" | "lote" | "nombre" | null;
+  filas: Medicamento[];
+  total: number;
+  pagina: number;
+  tamano: number;
+  alertas: AlertaDigemid[];
+  alertasTotal: number | null;
+  fuente: FuenteMedicamentos;
+}
+
+export interface FichaMedicamento {
+  producto: Medicamento;
+  marca: string;
+  equivalentes: Medicamento[];
+  equivalentesResumen: { n: number; minimo: number | null; maximo: number | null; genericos: number };
+  presentaciones: Medicamento[];
+  alertasRegistro: AlertaDigemid[];
+  alertasNombre: AlertaDigemid[];
+  fuente: FuenteMedicamentos;
+}
+
+export interface PaginaAlertas {
+  filas: AlertaDigemid[];
+  total: number;
+  pagina: number;
+  tamano: number;
+  tipos: Partial<Record<TipoAlerta, number>>;
+  fuente: FuenteMedicamentos;
+}
+
+export const buscarMedicamentos = (params: URLSearchParams) => pedir<BusquedaMedicamentos>(`/medicamentos?${params.toString()}`, 600);
+export const getMedicamento = (codigo: string) => (/^\d{1,9}$/.test(codigo) ? pedir<FichaMedicamento>(`/medicamento/${codigo}`, 3600) : Promise.resolve(null));
+export const getAlertas = (params: URLSearchParams) => pedir<PaginaAlertas>(`/alertas?${params.toString()}`, 600);
+
+export const rutaMedicamento = (codigo: number | string) => `/medicamento/${codigo}`;
+
+/** Cada tipo de alerta en palabras, con lo que quiere decir para quien tiene el producto en la mano. */
+export const TIPOS_ALERTA: Record<TipoAlerta, { nombre: string; corto: string; explica: string }> = {
+  falsificado: { nombre: "Productos falsificados", corto: "Falsificado", explica: "DIGEMID encontró productos falsificados o de origen desconocido con ese nombre." },
+  calidad: { nombre: "Control de calidad", corto: "Calidad", explica: "Un lote no pasó el control de calidad y DIGEMID dispuso su retiro." },
+  seguridad: { nombre: "Seguridad", corto: "Seguridad", explica: "Un riesgo nuevo o un cambio en cómo usarlo con seguridad." },
+  modificacion: { nombre: "Modificaciones", corto: "Modificación", explica: "Cambios en el registro o en la información del producto." },
+  internacional: { nombre: "Alertas internacionales", corto: "Internacional", explica: "Alertas de otras agencias sanitarias que DIGEMID difunde." },
+  otra: { nombre: "Otras", corto: "Otra", explica: "Otras comunicaciones de DIGEMID." },
+};
+
+/** S/ 12,50 (o «sin precio»). */
+export function soles(n: number | null | undefined): string {
+  if (n == null) return "sin precio";
+  return `S/ ${new Intl.NumberFormat("es-PE", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n)}`;
+}
+
+/** «2026-09» → «setiembre de 2026». */
+export function mesLargo(am: string | null | undefined): string {
+  if (!am) return "";
+  const [a, m] = am.split("-").map(Number);
+  const meses = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "setiembre", "octubre", "noviembre", "diciembre"];
+  return m >= 1 && m <= 12 ? `${meses[m - 1]} de ${a}` : am;
+}

@@ -38,7 +38,7 @@ export function BuscadorSalud({
           autoFocus={autoFocus}
           autoComplete="off"
           enterKeyHint="search"
-          placeholder="Clínica, hospital, código IPRESS, RUC o colegiatura"
+          placeholder="Clínica, hospital, colegiatura o medicamento"
           className={cn(
             "h-14 w-full rounded-2xl border pl-12 pr-4 text-destacado text-ink placeholder:text-mute focus:outline-none [&::-webkit-search-cancel-button]:hidden",
             oscuro

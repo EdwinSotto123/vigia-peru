@@ -4,7 +4,7 @@ import type { ReactNode } from "react";
 import { ArrowUpRight } from "lucide-react";
 import { BotonModo } from "@/components/ui/BotonModo";
 import { claseAccion } from "@/components/ui/EnlaceAccion";
-import { COOKIE_SESION, CORREO_GOBSERVA, PRODUCTOS, PRODUCTOS_CON_APP, PRODUCTOS_SIN_CUENTA, otrosProductos, rutaEn, type Producto } from "@/lib/gobserva";
+import { COOKIE_SESION, CORREO_GOBSERVA, PRODUCTOS, PRODUCTOS_APP_ABIERTA, PRODUCTOS_CON_APP, PRODUCTOS_SIN_CUENTA, otrosProductos, rutaEn, type Producto } from "@/lib/gobserva";
 import { cn } from "@/lib/utils";
 import { MarcaGobserva } from "./MarcaGobserva";
 import { MarcoApp } from "./app/MarcoApp";
@@ -40,7 +40,8 @@ export function MarcoProducto({
   fuentes: { nombre: string; url: string }[];
   children: ReactNode;
 }) {
-  if (PRODUCTOS_CON_APP.includes(producto) && cookies().get(COOKIE_SESION)?.value === "1") {
+  // Salud se ve como app para todos (PRODUCTOS_APP_ABIERTA); Empleo y Licitaciones, sólo con la sesión abierta.
+  if (PRODUCTOS_APP_ABIERTA.includes(producto) || (PRODUCTOS_CON_APP.includes(producto) && cookies().get(COOKIE_SESION)?.value === "1")) {
     return (
       <MarcoApp producto={producto} base={base}>
         {children}
