@@ -1,5 +1,6 @@
 import { API_BASE } from "@/lib/api-client";
 import { tildesEnTitulo } from "@/lib/tildes";
+import type { FormaGrupo } from "@/lib/salud-formas";
 
 /**
  * Gobserva Salud (salud.gobserva.cloud, 2026-11-20): los datos de la API /salud (backend/api/src/routes/gobservaSalud.ts)
@@ -496,6 +497,10 @@ export interface Medicamento {
   presentacionesN?: number;
   precioMin?: number | null;
   precioMax?: number | null;
+  /** La forma en diez grupos (lib/salud-formas.ts): el dibujo de la tarjeta y el filtro. */
+  formaGrupo?: FormaGrupo;
+  /** En el catálogo: cuántas alertas DIGEMID nombran su registro sanitario. */
+  alertasRegistro?: number;
 }
 
 /** Una alerta DIGEMID. */
@@ -562,6 +567,11 @@ export interface FuenteMedicamentos {
 export interface BusquedaMedicamentos {
   q: string;
   como: "registro" | "lote" | "nombre" | null;
+  /** El catálogo (2026-11-22): los filtros y el orden aplicados, y cuántos productos hay de cada forma y tipo. */
+  forma?: FormaGrupo | null;
+  tipo?: "generico" | "marca" | null;
+  orden?: "relevancia" | "populares" | "precio" | "nombre";
+  facetas?: { forma: { clave: FormaGrupo; n: number }[]; genericos: number; marcas: number };
   filas: Medicamento[];
   total: number;
   pagina: number;

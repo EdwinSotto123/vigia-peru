@@ -197,6 +197,24 @@ seguro la atienden, y ninguna página lo decía.
   por la Ley 27604; artículo 15.1 a). Va en el aviso de emergencia de todas las páginas, en la ficha y al elegir
   «Emergencia» en «Cerca de mí».
 
+## El catálogo de medicamentos y los dibujos (2026-11-22)
+
+Pedido: «QUE SEA TIPO MARKETPLACE, donde se muestre cuadros en PIXEL ART los medicamentos, filtrado… otras secciones es
+solo texto plano».
+
+- **Catálogo** (`/medicamentos`): sin búsqueda se hojean los 11 332 productos (los más vendidos primero); con búsqueda,
+  lo que coincide. Cada producto es una tarjeta (`components/salud/medicamentos/Catalogo.tsx`) con el dibujo de su
+  forma, el precio típico por unidad, cuántas farmacias lo reportan, si es genérico y cuántas alertas nombran su
+  registro. Arriba, un riel de formas con su dibujo y su cuenta, «Genéricos / De marca» y el orden (más vendidos,
+  menor precio, de la A a la Z). Todo es un enlace: `?forma=jarabe&tipo=generico&orden=precio`.
+- **Las formas en diez grupos** (tabletas, cápsulas, jarabes, inyectables, cremas, gotas, sobres, inhaladores, óvulos,
+  otros): `FORMA_GRUPO_SQL` en la API y `lib/salud-formas.ts` en la web, con el mismo orden de reglas.
+- **Los dibujos** (`frontend/scripts/pixel/arte_medicinas.py`, 18 x 16, se generan con `python arte.py`): uno por
+  forma y tres lugares (hospital, posta, consultorio). Van en el catálogo, en la ficha del medicamento (grande), en las
+  filas de establecimientos (por su clasificación; laboratorio, dientes, ojos, imágenes y rehabilitación usan sus
+  íconos), en las listas de alertas y en «Productos y lotes» (por el texto del producto).
+- La ficha del medicamento muestra «Mismo principio activo» como tarjetas, con «Más barato que este».
+
 ## La foto de la caja (2026-11-22)
 
 Pedido: «ALGO TIPO: TOMA FOTO». En «Verifica un medicamento», «Toma una foto de la caja» abre la cámara de atrás del

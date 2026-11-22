@@ -7,11 +7,13 @@ import { Migas } from "@/components/patrones/Migas";
 import { CabeceraPestana, Pestanas, type Pestana } from "@/components/patrones/Pestanas";
 import { Pixel } from "@/components/pixel/Pixel";
 import { FuenteFecha } from "@/components/salud/comun";
+import { TarjetaMedicamento } from "@/components/salud/medicamentos/Catalogo";
 import { FilaAlerta, FilaMedicamento, nombreMed, textoRevisadas } from "@/components/salud/medicamentos/piezas";
 import { BotonGuardarSalud } from "@/components/salud/cuenta/BotonGuardar";
 import { AnotarVisto } from "@/components/salud/vistos/Vistos";
 import { rutaEn, urlCanonica } from "@/lib/gobserva";
 import { baseProducto } from "@/lib/gobserva-servidor";
+import { formaDe } from "@/lib/salud-formas";
 import { fechaCorta, getMedicamento, mesLargo, numero, rutaMedicamento, soles, type FichaMedicamento } from "@/lib/gobserva-salud";
 
 export const revalidate = 3600;
@@ -193,14 +195,15 @@ export default async function FichaMedicamentoPagina({ params, searchParams }: P
           </CabeceraPestana>
           {f.equivalentes.length ? (
             <>
-              <ul className="divide-y divide-line overflow-hidden rounded-2xl border border-line bg-paper" aria-label="Medicamentos con el mismo principio activo">
-                {f.equivalentes.slice(0, 10).map((m) => (
-                  <li key={m.codigo}>
-                    <FilaMedicamento m={m} base={base} destacar={p.precioMediana != null && m.precioMediana != null && m.precioMediana < p.precioMediana} />
+              {/* Tarjetas, como el catálogo (2026-11-22): ocho, del más barato al más caro; el resto, en el catálogo. */}
+              <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4" aria-label="Medicamentos con el mismo principio activo">
+                {f.equivalentes.slice(0, 8).map((m) => (
+                  <li key={m.codigo} className="min-w-0">
+                    <TarjetaMedicamento m={m} base={base} masBarato={p.precioMediana != null && m.precioMediana != null && m.precioMediana < p.precioMediana} />
                   </li>
                 ))}
               </ul>
-              {r.n > 10 && (
+              {r.n > 8 && (
                 <Link href={`${rutaEn(base, "/medicamentos")}?${new URLSearchParams({ q: p.ifa ?? "" })}`} className="inline-flex min-h-11 items-center text-meta font-semibold text-granate underline-offset-4 hover:underline">
                   Ver los {numero(r.n)} con {nombreMed(p.ifa)}
                 </Link>
@@ -278,6 +281,10 @@ export default async function FichaMedicamentoPagina({ params, searchParams }: P
         <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
           <div className="min-w-0">
             <p className="flex flex-wrap items-center gap-2">
+              {/* En el celular, el dibujo de su forma junto a las insignias (en la computadora va grande, a la derecha). */}
+              <span aria-hidden className="grid h-12 w-12 place-items-center rounded-xl bg-paper lg:hidden">
+                <Pixel nombre={formaDe(p.formaGrupo).sprite} escala={2} animado={false} acento="accion" />
+              </span>
               {/^GEN/.test(p.clasificacion ?? "") ? <Insignia tono="exito">Genérico</Insignia> : <Insignia>De marca</Insignia>}
               {p.registro && <Insignia className="font-mono">R.S. {p.registro}</Insignia>}
               {!p.enCatalogo && <Insignia tono="aviso">Sin precio reportado en el último mes</Insignia>}
@@ -335,7 +342,7 @@ export default async function FichaMedicamentoPagina({ params, searchParams }: P
             </div>
           </div>
           <div aria-hidden className="hidden flex-col items-center lg:flex">
-            <Pixel nombre="frasco" escala={6} acento="accion" />
+            <Pixel nombre={formaDe(p.formaGrupo).sprite} escala={7} animado={false} acento="accion" />
             <span className="mt-1 h-0 w-36 border-t-2 border-dotted border-granate/40" />
           </div>
         </div>

@@ -747,7 +747,24 @@ saludRouter.get("/cambios", async (c) => {
 
 const TIPOS_ALERTA = ["falsificado", "calidad", "seguridad", "modificacion", "internacional", "otra"] as const;
 
-const COLS_MED = `m.codigo, m.nombre, m.concentracion, m.forma, m.presentacion, m.fracciones, m.clasificacion, m.registro, m.titular,
+/**
+ * La forma farmacéutica en diez grupos, para el catálogo (2026-11-22, «QUE SEA TIPO MARKETPLACE»): el filtro, las cuentas
+ * y el dibujo de cada tarjeta. El orden importa («UNGÜENTO OFTÁLMICO» va a gotas; «CREMA VAGINAL», a cremas; «POLVO PARA
+ * SUSPENSIÓN ORAL», que se prepara en su frasco, a jarabes). El mismo orden en la web: frontend/lib/salud-formas.ts.
+ */
+const FORMAS_MED = ["tableta", "capsula", "jarabe", "inyectable", "gotas", "crema", "inhalador", "sobre", "ovulo", "otro"] as const;
+const FORMA_GRUPO_SQL = `(CASE
+  WHEN translate(upper(coalesce(m.forma, '')), 'ÁÉÍÓÚÜÑ', 'AEIOUUN') ~ 'INYECT|PERFUSI|INFUSI' THEN 'inyectable'
+  WHEN translate(upper(coalesce(m.forma, '')), 'ÁÉÍÓÚÜÑ', 'AEIOUUN') ~ 'INHAL|AEROSOL|PULVERIZ|SPRAY|NEBULIZ' THEN 'inhalador'
+  WHEN translate(upper(coalesce(m.forma, '')), 'ÁÉÍÓÚÜÑ', 'AEIOUUN') ~ 'OFTALM|OTIC|GOTAS|COLIRIO|NASAL' THEN 'gotas'
+  WHEN translate(upper(coalesce(m.forma, '')), 'ÁÉÍÓÚÜÑ', 'AEIOUUN') ~ 'CREMA|GEL|UNGUENTO|POMADA|LOCION|CHAMPU|TOPIC|CUTANE|PASTA|JABON' THEN 'crema'
+  WHEN translate(upper(coalesce(m.forma, '')), 'ÁÉÍÓÚÜÑ', 'AEIOUUN') ~ 'OVULO|SUPOSITORIO|RECTAL|VAGINAL' THEN 'ovulo'
+  WHEN translate(upper(coalesce(m.forma, '')), 'ÁÉÍÓÚÜÑ', 'AEIOUUN') ~ 'CAPSULA|PERLA' THEN 'capsula'
+  WHEN translate(upper(coalesce(m.forma, '')), 'ÁÉÍÓÚÜÑ', 'AEIOUUN') ~ 'TABLETA|COMPRIMIDO|GRAGEA|PASTILLA' THEN 'tableta'
+  WHEN translate(upper(coalesce(m.forma, '')), 'ÁÉÍÓÚÜÑ', 'AEIOUUN') ~ 'GRANULO|SOBRE|POLVO PARA SOLUCION ORAL|EFERVESCENTE' THEN 'sobre'
+  WHEN translate(upper(coalesce(m.forma, '')), 'ÁÉÍÓÚÜÑ', 'AEIOUUN') ~ 'JARABE|ORAL|ELIXIR|SUSPENSION|SOLUCION|EMULSION' THEN 'jarabe'
+  ELSE 'otro' END)`;
+const COLS_MED = `m.codigo, m.nombre, m.concentracion, m.forma, ${FORMA_GRUPO_SQL} AS "formaGrupo", m.presentacion, m.fracciones, m.clasificacion, m.registro, m.titular,
   m.fabricante, m.pais, m.ifa, m.grupo, m.establecimientos, m.precio_mediana::float AS "precioMediana", m.precio_media::float AS "precioMedia",
   m.precio_moda::float AS "precioModa", to_char(m.periodo, 'YYYY-MM') AS periodo, m.en_catalogo AS "enCatalogo"`;
 /**
@@ -784,32 +801,41 @@ const FiltrosMedicamentos = z.object({
   q: z.string().trim().max(80).optional(),
   // El lote de la caja, aparte del registro o el nombre que va en q (la foto de la caja lee los dos).
   lote: z.string().trim().max(40).optional(),
+  // El catálogo (2026-11-22): la forma (FORMAS_MED), genérico o de marca, y el orden. Sin q, todo el catálogo.
+  forma: z.enum(FORMAS_MED).optional(),
+  tipo: z.enum(["generico", "marca"]).optional(),
+  orden: z.enum(["relevancia", "populares", "precio", "nombre"]).optional(),
   pagina: z.coerce.number().int().min(1).max(200).default(1),
   tamano: z.coerce.number().int().min(5).max(50).default(10),
 });
 
-/** GET /salud/medicamentos?q= — un buscador: nombre, principio activo, registro sanitario o lote. */
+/**
+ * GET /salud/medicamentos?q= — un buscador: nombre, principio activo, registro sanitario o lote. Sin q, el catálogo
+ * entero (los más vendidos primero). Con &forma=, &tipo= y &orden=, filtrado y ordenado; las facetas cuentan cada forma y
+ * cada tipo para lo buscado (sin esos dos filtros, para poder cambiar de uno a otro).
+ */
 saludRouter.get("/medicamentos", async (c) => {
   const f = FiltrosMedicamentos.safeParse(parametros(c));
   if (!f.success) return c.json({ error: "filtros_invalidos" }, 400);
   const { pagina, tamano } = f.data;
   const q = (f.data.q ?? "").trim();
   const loteAparte = f.data.lote ? pareceLote(f.data.lote) : null;
-  const cuerpo = await memo.obtener(`medicamentos:${q.toLowerCase()}:${loteAparte ?? ""}:${pagina}:${tamano}`, async () => {
+  const { forma, tipo } = f.data;
+  const hojear = q.length < 2;
+  const orden = f.data.orden && !(f.data.orden === "relevancia" && hojear) ? f.data.orden : hojear ? "populares" : "relevancia";
+  const clave = `medicamentos:${q.toLowerCase()}:${loteAparte ?? ""}:${forma ?? ""}:${tipo ?? ""}:${orden}:${pagina}:${tamano}`;
+  const cuerpo = await memo.obtener(clave, async () => {
     const fuente = await fuenteMedicamentos();
-    if (q.length < 2) {
-      const recientes = await pool.query(`SELECT ${COLS_ALERTA} FROM salud_alerta a ORDER BY a.fecha DESC, a.id DESC LIMIT 5`);
-      return publicar({ q: "", como: null, filas: [], total: 0, pagina, tamano, alertas: recientes.rows, alertasTotal: null, fuente });
-    }
-    const registro = registroDe(q);
-    const lote = registro ? null : pareceLote(q);
+    const registro = hojear ? null : registroDe(q);
+    const lote = registro || hojear ? null : pareceLote(q);
     // El lote de la caja, si no es lo mismo que ya se busca en q.
     const otroLote = loteAparte && loteAparte !== lote && loteAparte !== registro ? loteAparte : null;
-    const ps = palabras(q);
-    const como: "registro" | "lote" | "nombre" = registro ? "registro" : lote ? "lote" : "nombre";
-    let whereMed = "false";
+    const ps = hojear ? [] : palabras(q);
+    const como: "registro" | "lote" | "nombre" | null = hojear ? null : registro ? "registro" : lote ? "lote" : "nombre";
+    // Sin búsqueda se hojea el catálogo entero; las alertas, las más recientes.
+    let whereMed = hojear ? "true" : "false";
     const valsMed: unknown[] = [];
-    let whereAl = "false";
+    let whereAl = hojear ? "true" : "false";
     const valsAl: unknown[] = [];
     let ordenMed = "m.en_catalogo DESC, m.establecimientos DESC NULLS LAST, m.nombre";
     if (registro) {
@@ -839,6 +865,18 @@ saludRouter.get("/medicamentos", async (c) => {
         if (wa.length) whereAl = wa.join(" AND ");
       }
     }
+    // La búsqueda sin los filtros del catálogo (para las facetas) y con ellos (para la lista y el total).
+    const whereBase = whereMed;
+    const valsBase = [...valsMed];
+    if (forma) { valsMed.push(forma); whereMed = `(${whereMed}) AND ${FORMA_GRUPO_SQL} = $${valsMed.length}`; }
+    if (tipo) whereMed = `(${whereMed}) AND ${tipo === "generico" ? "m.clasificacion ~ '^GEN'" : "coalesce(m.clasificacion, '') !~ '^GEN'"}`;
+    const ORDENES_MED: Record<string, string> = {
+      relevancia: ordenMed,
+      populares: "m.en_catalogo DESC, m.establecimientos DESC NULLS LAST, m.nombre",
+      precio: "m.en_catalogo DESC, m.precio_min ASC NULLS LAST, m.establecimientos DESC NULLS LAST",
+      nombre: "m.nombre, m.concentracion",
+    };
+    ordenMed = ORDENES_MED[orden] ?? ordenMed;
     if (otroLote) {
       // Las alertas que nombran el lote de la caja también (además de las del registro o el nombre).
       valsAl.push(`%${otroLote}%`, otroLote);
@@ -867,12 +905,16 @@ saludRouter.get("/medicamentos", async (c) => {
           WHERE EXISTS (SELECT 1 FROM salud_alerta_producto p WHERE p.alerta_id = a.id AND p.lote_norm = $1)
              ${otroLote.length >= 5 ? "OR a.texto_norm ~ ('\\m' || $1 || '\\M')" : ""}`, [otroLote])
       : Promise.resolve({ rows: [{ n: null }] });
-    const [filas, total, alertas, alertasTotal, coincidencias, enAlertas] = await Promise.all([
+    const [filas, total, alertas, alertasTotal, coincidencias, enAlertas, facetas] = await Promise.all([
       // Una fila por producto (mismo nombre, concentración, forma y registro): sus presentaciones (frasco de 60 o de 120 mL)
       // se juntan con su rango de precio (2026-11-22, auditoría: «el mismo Panadol tres veces»). La que más farmacias
       // reportan representa al grupo y su ficha lista las demás.
       pool.query(`
-        SELECT ${COLS_MED}, m.presentaciones AS "presentacionesN", m.precio_min::float AS "precioMin", m.precio_max::float AS "precioMax"
+        SELECT ${COLS_MED}, m.presentaciones AS "presentacionesN", m.precio_min::float AS "precioMin", m.precio_max::float AS "precioMax",
+               -- Cuántas alertas nombran su registro sanitario (en su texto o en la tabla leída): la marca de la tarjeta.
+               (SELECT count(*)::int FROM salud_alerta a
+                 WHERE m.registro IS NOT NULL AND (m.registro = ANY(a.registros)
+                    OR EXISTS (SELECT 1 FROM salud_alerta_producto p WHERE p.alerta_id = a.id AND p.registro = m.registro))) AS "alertasRegistro"
           FROM (
             SELECT m.*, count(*) OVER g AS presentaciones, min(m.precio_mediana) OVER g AS precio_min, max(m.precio_mediana) OVER g AS precio_max,
                    row_number() OVER (PARTITION BY m.nombre_norm, m.concentracion, m.forma, m.registro ORDER BY m.establecimientos DESC NULLS LAST, m.codigo) AS rn
@@ -883,16 +925,27 @@ saludRouter.get("/medicamentos", async (c) => {
          ORDER BY ${ordenMed} LIMIT ${tamano} OFFSET ${(pagina - 1) * tamano}`, valsMed),
       pool.query(`SELECT count(*)::int AS n FROM (SELECT DISTINCT m.nombre_norm, m.concentracion, m.forma, m.registro FROM salud_medicamento m WHERE ${whereMed}) g`, valsMed),
       pool.query(`SELECT ${COLS_ALERTA} FROM salud_alerta a WHERE ${whereAl} ORDER BY a.fecha DESC, a.id DESC LIMIT 5`, valsAl),
-      pool.query(`SELECT count(*)::int AS n FROM salud_alerta a WHERE ${whereAl}`, valsAl),
+      hojear ? Promise.resolve({ rows: [{ n: null }] }) : pool.query(`SELECT count(*)::int AS n FROM salud_alerta a WHERE ${whereAl}`, valsAl),
       exacto,
       loteEnAlertas,
+      // Cada forma y cada tipo, contando productos (no presentaciones), para lo buscado sin esos dos filtros.
+      pool.query(`
+        WITH b AS MATERIALIZED (
+          -- Un producto (como en la lista) es genérico o de marca si alguna de sus presentaciones lo es: igual que el filtro.
+          SELECT min(${FORMA_GRUPO_SQL}) AS forma, bool_or(m.clasificacion ~ '^GEN') AS generico,
+                 bool_or(coalesce(m.clasificacion, '') !~ '^GEN') AS marca
+            FROM salud_medicamento m WHERE ${whereBase}
+           GROUP BY m.nombre_norm, m.concentracion, m.forma, m.registro)
+        SELECT (SELECT coalesce(json_agg(t ORDER BY t.n DESC), '[]') FROM (SELECT forma AS clave, count(*)::int AS n FROM b GROUP BY 1) t) AS forma,
+               (SELECT count(*) FILTER (WHERE generico)::int FROM b) AS genericos,
+               (SELECT count(*) FILTER (WHERE marca)::int FROM b) AS marcas`, valsBase),
     ]);
     // Lo escrito tenía forma de registro, no es el de ningún producto y sí el lote de una alerta: era un lote.
     const esLote = registro && total.rows[0].n === 0 && (coincidencias.rows as { lote: string | null }[]).some((c) => c.lote && c.lote.replace(/[^A-Za-z0-9]/g, "").toUpperCase() === registro);
     return publicar({
       q, como: esLote ? "lote" : como, registro: esLote ? null : registro, lote: esLote ? registro : lote,
       loteCaja: otroLote, loteEnAlertas: enAlertas.rows[0].n,
-      filas: filas.rows, total: total.rows[0].n, pagina, tamano,
+      filas: filas.rows, total: total.rows[0].n, pagina, tamano, forma: forma ?? null, tipo: tipo ?? null, orden, facetas: facetas.rows[0],
       alertas: alertas.rows, alertasTotal: alertasTotal.rows[0].n, coincidencias: coincidencias.rows, fuente,
     });
   });

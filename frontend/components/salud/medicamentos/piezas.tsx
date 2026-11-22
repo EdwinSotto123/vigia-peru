@@ -4,6 +4,8 @@ import { Insignia, type Tono } from "@/components/gobserva/ui/Insignia";
 import { rutaEn } from "@/lib/gobserva";
 import { fechaCorta, numero, rutaMedicamento, soles, TIPOS_ALERTA, type AlertaDigemid, type Medicamento, type ObservadoAlerta, type TipoAlerta } from "@/lib/gobserva-salud";
 import { cn } from "@/lib/utils";
+import { Pixel } from "@/components/pixel/Pixel";
+import { formaDe, grupoDeTexto } from "@/lib/salud-formas";
 
 /**
  * Las piezas de «Medicamentos» en Gobserva Salud (2026-11-21, el usuario: «verificación de medicamentos»): el buscador, la
@@ -109,15 +111,39 @@ export function FilaMedicamento({ m, base, destacar }: { m: Medicamento; base: s
 }
 
 /** Una alerta DIGEMID: tipo, número y fecha; el motivo; los productos; y el PDF oficial. */
-export function FilaAlerta({ a, base, compacta = false, resaltar }: { a: AlertaDigemid; base?: string; compacta?: boolean; resaltar?: string | null }) {
+export function FilaAlerta({
+  a,
+  base,
+  compacta = false,
+  resaltar,
+  sinTabla = false,
+  conDibujo = false,
+}: {
+  a: AlertaDigemid;
+  base?: string;
+  compacta?: boolean;
+  resaltar?: string | null;
+  /** Sin la tabla de productos: sólo sus nombres en una línea (las alertas recientes, debajo del catálogo). */
+  sinTabla?: boolean;
+  /** Con el dibujo de lo que nombra a la izquierda (las listas de alertas; no dentro de un aviso rojo o ámbar). */
+  conDibujo?: boolean;
+}) {
   const observados = a.observados ?? [];
   // Las internacionales no traen productos ni motivo: su resumen repite el título y el botón «Descargar».
   const limpiar = (t: string | null) => (t ?? "").replace(/\s*Descargar\s*$/i, "").trim();
   const productos = limpiar(a.productos);
   const motivo = limpiar(a.motivo);
   const igualTitulo = (t: string) => t.toLowerCase().replace(/\W+/g, "") === a.titulo.toLowerCase().replace(/\W+/g, "");
+  // El dibujo: la forma de lo que nombra (el producto de la tabla o el texto de la alerta); una caja si no se reconoce.
+  const dibujo = conDibujo ? formaDe(grupoDeTexto([observados[0]?.producto, observados[0]?.presentacion, productos, motivo].filter(Boolean).join(" "))).sprite : null;
   return (
-    <article className={cn("min-w-0", compacta ? "py-3" : "px-4 py-4 sm:px-5")}>
+    <article className={cn("min-w-0", compacta ? "py-3" : "px-4 py-4 sm:px-5", dibujo && "flex gap-3")}>
+      {dibujo && (
+        <span aria-hidden className="mt-0.5 grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-granate-50">
+          <Pixel nombre={dibujo} escala={2} animado={false} acento="accion" />
+        </span>
+      )}
+      <div className="min-w-0 flex-1">
       <p className="flex flex-wrap items-center gap-x-3 gap-y-1">
         <InsigniaAlerta tipo={a.tipo} />
         <a href={a.url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-meta font-semibold text-ink underline-offset-4 hover:underline">
@@ -128,7 +154,12 @@ export function FilaAlerta({ a, base, compacta = false, resaltar }: { a: AlertaD
         <span className="text-meta text-mute">{fechaCorta(a.fecha)}</span>
       </p>
       {motivo && !igualTitulo(motivo) && <p className="mt-1.5 max-w-[80ch] text-dato font-semibold leading-snug text-ink">{motivo.charAt(0) + motivo.slice(1).toLowerCase()}</p>}
-      {observados.length > 0 ? (
+      {observados.length > 0 && sinTabla ? (
+        <p className="mt-1 line-clamp-2 text-dato leading-snug text-inkSoft">
+          {observados.slice(0, 2).map((o) => o.producto).join(", ")}
+          {observados.length > 2 ? ` y ${observados.length - 2} más` : ""}
+        </p>
+      ) : observados.length > 0 ? (
         <Observados items={observados} base={base} resaltar={resaltar} />
       ) : (
         productos && !igualTitulo(productos) && <p className="mt-1 text-dato leading-snug text-inkSoft">{productos}</p>
@@ -139,6 +170,7 @@ export function FilaAlerta({ a, base, compacta = false, resaltar }: { a: AlertaD
           <span className="sr-only"> (se abre en otra pestaña)</span>
         </a>
       )}
+      </div>
     </article>
   );
 }

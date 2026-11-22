@@ -8,6 +8,24 @@ import { atiende24, seguroIpress } from "@/lib/salud-seguros";
 import { cn } from "@/lib/utils";
 import { lugarIpress } from "./filtros";
 import { InsigniaRegistro } from "./Insignias";
+import { Pixel } from "@/components/pixel/Pixel";
+import type { NombreSprite } from "@/components/pixel/sprites";
+
+/** Las clases que tienen su ícono de 12 px (se dibujan a escala 3); el resto, un lugar de 18 x 16 (a escala 2). */
+const ICONOS = /ODONTOLOG|PATOLOGIA CLINICA|LABORATORIO|IMAGENES|RADIOLOG|OPTIC|REHABILITA/i;
+
+/** El dibujo de una IPRESS por su clasificación en RENIPRESS (2026-11-22: «otras secciones es solo texto plano»). */
+function spriteLugar(x: FilaIpress): NombreSprite {
+  const c = (x.clasificacion ?? "").toUpperCase();
+  if (/ODONTOLOG/.test(c)) return "iconoDientes";
+  if (/PATOLOGIA CLINICA|LABORATORIO/.test(c)) return "iconoAnalisis";
+  if (/IMAGENES|RADIOLOG/.test(c)) return "iconoImagenes";
+  if (/OPTIC/.test(c)) return "iconoOjos";
+  if (/REHABILITA/.test(c)) return "iconoHuesos";
+  if (/HOSPITAL|CLINICA|CAMAS|INTERNAMIENTO/.test(c) || x.internamiento) return "lugarHospital";
+  if (/PUESTO|POSTA|CENTROS? DE SALUD/.test(c)) return "lugarPosta";
+  return "lugarConsultorio";
+}
 
 /**
  * Una IPRESS en una lista (la lista, la búsqueda, cerca de mí), como FILA de una placa (la placa la pone la lista:
@@ -30,7 +48,11 @@ export function FilaEstablecimiento({ x, base, children, className }: { x: FilaI
         className,
       )}
     >
-      <div className="min-w-0">
+      <div className="flex min-w-0 gap-3">
+        <span aria-hidden className="mt-0.5 grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-granate-50">
+          <Pixel nombre={spriteLugar(x)} escala={x.clasificacion && ICONOS.test(x.clasificacion) ? 3 : 2} animado={false} acento="accion" />
+        </span>
+        <div className="min-w-0 flex-1">
         <h3 className="text-cuerpo font-semibold leading-snug text-ink">
           <Link
             href={rutaEn(base, rutaFicha(x.codigo))}
@@ -72,6 +94,7 @@ export function FilaEstablecimiento({ x, base, children, className }: { x: FilaI
         </p>
         {!x.activo && <InsigniaRegistro activo={x.activo} estado={x.estado} className="mt-2" />}
         {children}
+        </div>
       </div>
 
       {/* La categoría y el sector; en el celular, en la misma línea que las señales. */}

@@ -13,6 +13,8 @@ import { rutaEn, urlCanonica } from "@/lib/gobserva";
 import { fechaCorta, getAlertas, getProductosAlerta, numero, rutaMedicamento, TIPOS_ALERTA, type TipoAlerta } from "@/lib/gobserva-salud";
 import { cn } from "@/lib/utils";
 import { baseProducto } from "@/lib/gobserva-servidor";
+import { Pixel } from "@/components/pixel/Pixel";
+import { formaDe, grupoDeTexto } from "@/lib/salud-formas";
 
 export const dynamic = "force-dynamic";
 
@@ -154,8 +156,13 @@ export default async function Alertas({ searchParams }: Props) {
                 <ul className="grid gap-2 sm:hidden" aria-label="Productos y lotes observados">
                   {prod.filas.map((x, i) => (
                     <li key={`${x.alertaId}-${i}`} className="rounded-2xl border border-line bg-paper px-4 py-3">
-                      <p className="text-dato font-semibold leading-snug text-ink">{x.producto}</p>
-                      {x.presentacion && <p className="text-meta text-inkSoft">{x.presentacion}</p>}
+                      <div className="flex gap-3">
+                        <DibujoProducto texto={`${x.producto} ${x.presentacion ?? ""}`} />
+                        <div className="min-w-0">
+                          <p className="text-dato font-semibold leading-snug text-ink">{x.producto}</p>
+                          {x.presentacion && <p className="text-meta text-inkSoft">{x.presentacion}</p>}
+                        </div>
+                      </div>
                       <dl className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1.5 text-meta">
                         <div className="min-w-0">
                           <dt className="text-rotulo text-mute">Lote</dt>
@@ -217,9 +224,14 @@ export default async function Alertas({ searchParams }: Props) {
                       {prod.filas.map((x, i) => (
                         <tr key={`${x.alertaId}-${i}`} className="align-top">
                           <td className="px-3 py-2.5">
-                            <p className="font-semibold text-ink">{x.producto}</p>
-                            {x.presentacion && <p className="text-inkSoft">{x.presentacion}</p>}
-                            {x.detalle && <p className="mt-0.5 text-mute">{x.detalle}</p>}
+                            <div className="flex gap-3">
+                              <DibujoProducto texto={`${x.producto} ${x.presentacion ?? ""}`} />
+                              <div className="min-w-0">
+                                <p className="font-semibold text-ink">{x.producto}</p>
+                                {x.presentacion && <p className="text-inkSoft">{x.presentacion}</p>}
+                                {x.detalle && <p className="mt-0.5 text-mute">{x.detalle}</p>}
+                              </div>
+                            </div>
                           </td>
                           <td className="px-3 py-2.5">
                             {x.lote ? <span className="rounded-md bg-ink/[0.05] px-1.5 py-0.5 font-mono tabular-nums text-ink">{x.lote}</span> : <span className="text-mute">No lo dice</span>}
@@ -289,7 +301,7 @@ export default async function Alertas({ searchParams }: Props) {
               <ul className="divide-y divide-line overflow-hidden rounded-2xl border border-line bg-paper" aria-label="Alertas de DIGEMID">
                 {d.filas.map((a) => (
                   <li key={a.id}>
-                    <FilaAlerta a={a} base={base} resaltar={q || null} />
+                    <FilaAlerta a={a} base={base} resaltar={q || null} conDibujo />
                   </li>
                 ))}
               </ul>
@@ -305,5 +317,14 @@ export default async function Alertas({ searchParams }: Props) {
         )}
       </ProveedorFiltros>
     </div>
+  );
+}
+
+/** El dibujo de lo que nombra la tabla de una alerta (por su texto: «tabletas», «solución inyectable»…). Decorativo. */
+function DibujoProducto({ texto }: { texto: string }) {
+  return (
+    <span aria-hidden className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-granate-50">
+      <Pixel nombre={formaDe(grupoDeTexto(texto)).sprite} escala={2} animado={false} acento="accion" />
+    </span>
   );
 }

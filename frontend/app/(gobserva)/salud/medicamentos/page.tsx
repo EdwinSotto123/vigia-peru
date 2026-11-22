@@ -6,17 +6,20 @@ import { EstadoError, EstadoVacio } from "@/components/gobserva/ui/Estados";
 import { FuenteFecha } from "@/components/salud/comun";
 import { Paginas } from "@/components/salud/lista/Paginas";
 import { FotoCaja } from "@/components/salud/medicamentos/FotoCaja";
-import { FilaAlerta, FilaMedicamento, FormMedicamento, InsigniaAlerta, nombreMed, textoRevisadas } from "@/components/salud/medicamentos/piezas";
+import { OrdenYTipo, RielFormas, TarjetaMedicamento } from "@/components/salud/medicamentos/Catalogo";
+import { FilaAlerta, FormMedicamento, InsigniaAlerta, nombreMed, textoRevisadas } from "@/components/salud/medicamentos/piezas";
 import { CabeceraLista, Ruta } from "@/components/salud/portada/Piezas";
 import { claseAccion } from "@/components/ui/EnlaceAccion";
 import { rutaEn, urlCanonica } from "@/lib/gobserva";
 import { buscarMedicamentos, fechaCorta, mesLargo, numero, rutaMedicamento, type FuenteMedicamentos } from "@/lib/gobserva-salud";
 import { baseProducto } from "@/lib/gobserva-servidor";
+import { FORMAS, formaDe, type FormaGrupo } from "@/lib/salud-formas";
 import { cn } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 
-const POR_PAGINA = 10;
+// 12 por página: una grilla de 2, 3 o 4 columnas sin huecos (2026-11-22, el catálogo).
+const POR_PAGINA = 12;
 
 type Props = { searchParams?: Record<string, string | string[] | undefined> };
 
@@ -53,10 +56,38 @@ export default async function Medicamentos({ searchParams }: Props) {
   // El lote de la caja, aparte (la foto lee el registro y el lote: q=EE08059&lote=2405123).
   const loteParam = texto(searchParams?.lote);
   const conLote: Record<string, string> = loteParam ? { lote: loteParam } : {};
-  const params = new URLSearchParams({ ...(q ? { q } : {}), ...conLote, pagina: String(pagina), tamano: String(POR_PAGINA) });
-  const d = await buscarMedicamentos(params);
   const lista = rutaEn(base, "/medicamentos");
-  const href = (n: number) => `${lista}?${new URLSearchParams({ q, ...conLote, pagina: String(n) })}`;
+  // El catálogo (2026-11-22): la forma, genérico o de marca, y el orden; lo que no se entiende se descarta.
+  const formaParam = texto(searchParams?.forma);
+  const forma = FORMAS.some((f) => f.clave === formaParam) ? (formaParam as FormaGrupo) : null;
+  const tipoParam = texto(searchParams?.tipo);
+  const tipo = tipoParam === "generico" || tipoParam === "marca" ? tipoParam : null;
+  const ordenParam = texto(searchParams?.orden);
+  const orden = ["relevancia", "populares", "precio", "nombre"].includes(ordenParam) ? ordenParam : null;
+  const actual: Record<string, string | null> = { q: q || null, ...conLote, forma, tipo, orden };
+  const urlCon = (cambio: Record<string, string | null | undefined>, n?: number) => {
+    const u = new URLSearchParams();
+    for (const [k, v] of Object.entries({ ...actual, ...cambio })) if (v) u.set(k, v);
+    if (n && n > 1) u.set("pagina", String(n));
+    const t = u.toString();
+    return t ? `${lista}?${t}` : lista;
+  };
+  const params = new URLSearchParams({
+    ...(q ? { q } : {}), ...conLote, ...(forma ? { forma } : {}), ...(tipo ? { tipo } : {}), ...(orden ? { orden } : {}),
+    pagina: String(pagina), tamano: String(POR_PAGINA),
+  });
+  const d = await buscarMedicamentos(params);
+  const href = (n: number) => urlCon({}, n);
+  const formaActiva = d?.forma ? formaDe(d.forma) : null;
+  const tituloCatalogo = q
+    ? `${formaActiva ? formaActiva.etiqueta : "Productos"} para «${q}»`
+    : formaActiva
+      ? formaActiva.etiqueta
+      : d?.orden === "precio"
+        ? "Del más barato al más caro, por unidad"
+        : d?.orden === "nombre"
+          ? "Todo el catálogo, de la A a la Z"
+          : "Los más vendidos";
   const paginas = d ? Math.min(200, Math.max(1, Math.ceil(d.total / POR_PAGINA))) : 1;
   const fuente = d?.fuente;
   // Una alerta que nombra el registro o el lote que la persona escribió (lo de su caja) pesa más que una que nombra la marca.
@@ -111,7 +142,7 @@ export default async function Medicamentos({ searchParams }: Props) {
       <FormMedicamento accion={lista} q={q} grande={!q} className="mt-4" />
       <FotoCaja accion={lista} className="mt-3" />
       {!q && (
-        <ul className="mt-3 flex flex-wrap items-center gap-2" aria-label="Búsquedas de ejemplo">
+        <ul className="mt-3 flex flex-wrap items-center gap-2 max-sm:hidden" aria-label="Búsquedas de ejemplo">
           <li className="text-meta text-mute">Prueba con</li>
           {[
             { t: "Paracetamol", q: "paracetamol", que: "principio activo" },
@@ -141,43 +172,18 @@ export default async function Medicamentos({ searchParams }: Props) {
             }
           />
         </div>
-      ) : !q ? (
-        <div className="mt-6 grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.25fr)] lg:items-start">
-          <section aria-labelledby="pasos-t" className="tarjeta rounded-2xl border border-line bg-paper px-5 py-5">
-            <h2 id="pasos-t" className="font-display text-bloque font-bold text-ink">Con la caja en la mano</h2>
-            <ol className="mt-3 space-y-4">
-              {PASOS.map(({ Icono, titulo, texto: t }) => (
-                <li key={titulo} className="flex gap-3">
-                  <span aria-hidden className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-granate-50 text-granate">
-                    <Icono size={19} />
-                  </span>
-                  <span>
-                    <span className="block text-dato font-semibold text-ink">{titulo}</span>
-                    <span className="mt-0.5 block text-meta leading-relaxed text-inkSoft">{t}</span>
-                  </span>
-                </li>
-              ))}
-            </ol>
-          </section>
-          <section aria-labelledby="recientes-t" className="tarjeta rounded-2xl border border-line bg-paper">
-            <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b border-line px-5 py-4">
-              <h2 id="recientes-t" className="font-display text-bloque font-bold text-ink">Las alertas más recientes</h2>
-              <Link href={rutaEn(base, "/alertas")} className="inline-flex min-h-11 items-center text-meta font-semibold text-granate underline-offset-4 hover:underline sm:min-h-8">
-                Ver todas
-              </Link>
-            </div>
-            <ul className="divide-y divide-line">
-              {d.alertas.slice(0, 3).map((a) => (
-                <li key={a.id}>
-                  <FilaAlerta a={a} base={base} resaltar={resaltar} />
-                </li>
-              ))}
-            </ul>
-            {fuente && <FuenteFecha nombre="Alertas DIGEMID" url={fuente.avisos.url} al={fuente.avisos.al} className="border-t border-line px-5 py-3" />}
-          </section>
-        </div>
       ) : (
         <>
+          {/* El catálogo (2026-11-22, «QUE SEA TIPO MARKETPLACE»): el riel de formas, genérico o de marca, y el orden. */}
+          {d.facetas && (
+            <div className="mt-5 space-y-3">
+              <RielFormas facetas={d.facetas} activa={d.forma ?? null} href={(f) => urlCon({ forma: f })} />
+              <OrdenYTipo d={d} conBusqueda={!!q} href={(c) => urlCon(c)} />
+            </div>
+          )}
+
+          {q && (
+            <>
           {/* El veredicto de la caja (registro y lote juntos, de la foto): cuando el lote no está en una tabla leída. */}
           {loteCaja && coincidencias.length === 0 && (
             <VeredictoCaja lote={loteCaja} enAlertas={d.loteEnAlertas ?? 0} registro={d.registro ?? null} alertasRegistro={otrasTotal} fuente={fuente ?? null} />
@@ -286,11 +292,20 @@ export default async function Medicamentos({ searchParams }: Props) {
             </p>
           )}
 
+            </>
+          )}
+
           {d.filas.length === 0 ? (
             <div className="mt-5 rounded-2xl border border-line bg-paper">
               <EstadoVacio
                 Icono={Pill}
-                titulo={d.como === "lote" ? "Un lote no tiene precio: no hay productos que mostrar" : "Ningún medicamento con precio se llama así"}
+                titulo={
+                  d.como === "lote"
+                    ? "Un lote no tiene precio: no hay productos que mostrar"
+                    : forma || tipo
+                      ? "Ningún medicamento con estos filtros"
+                      : "Ningún medicamento con precio se llama así"
+                }
                 texto={
                   d.como === "lote"
                     ? "Arriba está lo que dicen las alertas sobre ese lote. Para ver el producto, busca su nombre o su registro sanitario."
@@ -300,13 +315,18 @@ export default async function Medicamentos({ searchParams }: Props) {
             </div>
           ) : (
             <section aria-labelledby="productos-t" className="mt-6">
-              <h2 id="productos-t" className="sr-only">
-                Medicamentos
-              </h2>
-              <ul id="resultados" className="scroll-mt-32 divide-y divide-line overflow-hidden rounded-2xl border border-line bg-paper" aria-label="Medicamentos">
+              <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+                <h2 id="productos-t" className="font-display text-bloque font-bold leading-snug text-ink">
+                  {tituloCatalogo}
+                </h2>
+                <p className="text-meta text-inkSoft">
+                  <b className="font-semibold tabular-nums text-ink">{numero(d.total)}</b> {d.total === 1 ? "producto" : "productos"}
+                </p>
+              </div>
+              <ul id="resultados" className="mt-3 grid scroll-mt-32 grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4" aria-label="Medicamentos">
                 {d.filas.map((m) => (
-                  <li key={m.codigo}>
-                    <FilaMedicamento m={m} base={base} />
+                  <li key={m.codigo} className="min-w-0">
+                    <TarjetaMedicamento m={m} base={base} />
                   </li>
                 ))}
               </ul>
@@ -318,6 +338,44 @@ export default async function Medicamentos({ searchParams }: Props) {
                 <Paginas className="mt-5" pagina={Math.min(pagina, paginas)} paginas={paginas} total={d.total} tamano={POR_PAGINA} nombre={d.total === 1 ? "medicamento" : "medicamentos"} href={href} />
               )}
             </section>
+          )}
+
+          {/* Sin búsqueda, debajo del catálogo: cómo verificar la caja y las alertas más recientes. */}
+          {!q && (
+        <div className="mt-10 grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.25fr)] lg:items-start">
+          <section aria-labelledby="pasos-t" className="tarjeta rounded-2xl border border-line bg-paper px-5 py-5">
+            <h2 id="pasos-t" className="font-display text-bloque font-bold text-ink">Con la caja en la mano</h2>
+            <ol className="mt-3 space-y-4">
+              {PASOS.map(({ Icono, titulo, texto: t }) => (
+                <li key={titulo} className="flex gap-3">
+                  <span aria-hidden className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-granate-50 text-granate">
+                    <Icono size={19} />
+                  </span>
+                  <span>
+                    <span className="block text-dato font-semibold text-ink">{titulo}</span>
+                    <span className="mt-0.5 block text-meta leading-relaxed text-inkSoft">{t}</span>
+                  </span>
+                </li>
+              ))}
+            </ol>
+          </section>
+          <section aria-labelledby="recientes-t" className="tarjeta rounded-2xl border border-line bg-paper">
+            <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b border-line px-5 py-4">
+              <h2 id="recientes-t" className="font-display text-bloque font-bold text-ink">Las alertas más recientes</h2>
+              <Link href={rutaEn(base, "/alertas")} className="inline-flex min-h-11 items-center text-meta font-semibold text-granate underline-offset-4 hover:underline sm:min-h-8">
+                Ver todas
+              </Link>
+            </div>
+            <ul className="divide-y divide-line">
+              {d.alertas.slice(0, 3).map((a) => (
+                <li key={a.id}>
+                  <FilaAlerta a={a} base={base} resaltar={resaltar} sinTabla conDibujo />
+                </li>
+              ))}
+            </ul>
+            {fuente && <FuenteFecha nombre="Alertas DIGEMID" url={fuente.avisos.url} al={fuente.avisos.al} className="border-t border-line px-5 py-3" />}
+          </section>
+        </div>
           )}
         </>
       )}
