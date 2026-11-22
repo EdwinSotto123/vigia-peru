@@ -98,7 +98,11 @@ function TarjetaSancion({ s, fuenteRegistro }: { s: Sancion; fuenteRegistro: { u
             {s.cancelacion && <Insignia tono="neutro">Con cancelación registrada</Insignia>}
           </p>
         )}
-        {que && <p className="mt-2.5 line-clamp-3 rounded-lg bg-paperSoft px-3 py-2 text-dato leading-relaxed text-ink">«{que}»</p>}
+        {que && (
+          <p className="mt-2.5 rounded-lg bg-paperSoft px-3 py-2 text-dato leading-relaxed text-ink">
+            <span className="line-clamp-3">«{que}»</span>
+          </p>
+        )}
         {s.enlace === "codigo_otro_nombre" && (
           <p className="mt-2.5 flex items-start gap-2 rounded-xl bg-amber-soft/60 px-3 py-2 text-meta leading-snug text-ink">
             <Info size={15} aria-hidden className="mt-0.5 shrink-0 text-amberTexto" />

@@ -118,7 +118,11 @@ export function FilaSancion({ s, base }: { s: Fila; base: string }) {
           </p>
         )}
 
-        {que && <p className="mt-2.5 line-clamp-3 rounded-lg bg-paperSoft px-3 py-2 text-meta leading-relaxed text-ink">«{que}»</p>}
+        {que && (
+          <p className="mt-2.5 rounded-lg bg-paperSoft px-3 py-2 text-meta leading-relaxed text-ink">
+            <span className="line-clamp-3">«{que}»</span>
+          </p>
+        )}
 
         <details className="group mt-auto pt-1.5">
           <summary className="inline-flex min-h-11 cursor-pointer list-none items-center gap-1 text-meta font-semibold text-granate [&::-webkit-details-marker]:hidden">
