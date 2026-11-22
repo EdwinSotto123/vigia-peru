@@ -913,3 +913,12 @@ test("Gobserva Salud: el código de IPRESS (8 cifras) no se tapa; un DNI suelto 
   assert.equal(r.filas[0].codigo, "00006207");
   assert.notEqual(r.filas[0].nota, "43960880");
 });
+
+test("publicar: el lote y el registro de un medicamento no se tapan como un DNI (alertas DIGEMID, 2026-11-22)", () => {
+  const r = publicar({ lote: "20250502", lotes: ["12345678", "20250502QX"], registro: "EE01234", dni: "12345678", nota: "con DNI 12345678" });
+  assert.equal(r.lote, "20250502");
+  assert.deepEqual(r.lotes, ["12345678", "20250502QX"]);
+  assert.equal(r.registro, "EE01234");
+  assert.notEqual(r.dni, "12345678");
+  assert.ok(!r.nota.includes("12345678"));
+});

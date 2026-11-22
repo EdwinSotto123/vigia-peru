@@ -12,7 +12,7 @@ import { BotonGuardarSalud } from "@/components/salud/cuenta/BotonGuardar";
 import { AnotarVisto } from "@/components/salud/vistos/Vistos";
 import { rutaEn, urlCanonica } from "@/lib/gobserva";
 import { baseProducto } from "@/lib/gobserva-servidor";
-import { getMedicamento, mesLargo, numero, rutaMedicamento, soles, type FichaMedicamento } from "@/lib/gobserva-salud";
+import { fechaCorta, getMedicamento, mesLargo, numero, rutaMedicamento, soles, type FichaMedicamento } from "@/lib/gobserva-salud";
 
 export const revalidate = 3600;
 
@@ -88,6 +88,25 @@ export default async function FichaMedicamentoPagina({ params, searchParams }: P
               Buscar el lote en las alertas
             </button>
           </form>
+          {f.lotesObservados && f.lotesObservados.length > 0 && (
+            <section aria-labelledby="lotes-t" className="rounded-2xl border border-crimson/30 bg-paper">
+              <h3 id="lotes-t" className="border-b border-line px-5 py-3 text-cuerpo font-bold text-ink">
+                {f.lotesObservados.length === 1 ? "Un lote observado" : `${f.lotesObservados.length} lotes observados`} de este registro sanitario
+              </h3>
+              <ul className="divide-y divide-line">
+                {f.lotesObservados.map((l, i) => (
+                  <li key={`${l.lote}-${i}`} className="flex flex-wrap items-baseline gap-x-4 gap-y-1 px-5 py-2.5 text-meta">
+                    <span className="rounded-md bg-crimson-soft px-1.5 py-0.5 font-mono font-semibold text-crimsonTexto">{l.lote}</span>
+                    {l.vencimiento && <span className="text-inkSoft">Vence {l.vencimiento}</span>}
+                    {l.presentacion && <span className="text-inkSoft">{l.presentacion}</span>}
+                    <span className="text-mute">{l.numero ? `Alerta N.° ${l.numero}` : "Alerta"}, {fechaCorta(l.fecha)}</span>
+                    {l.detalle && <span className="basis-full text-inkSoft">{l.detalle}</span>}
+                  </li>
+                ))}
+              </ul>
+              <p className="border-t border-line px-5 py-2.5 text-meta text-mute">Si tu caja no es de estos lotes, estas alertas no hablan de ella.</p>
+            </section>
+          )}
           {f.alertasRegistro.length > 0 && (
             <section aria-labelledby="por-registro" className="rounded-2xl border border-crimson/30 bg-crimson-soft/40">
               <h3 id="por-registro" className="border-b border-crimson/20 px-5 py-3 text-cuerpo font-bold text-ink">
@@ -96,7 +115,7 @@ export default async function FichaMedicamentoPagina({ params, searchParams }: P
               <ul className="divide-y divide-crimson/15">
                 {f.alertasRegistro.map((a) => (
                   <li key={a.id}>
-                    <FilaAlerta a={a} />
+                    <FilaAlerta a={a} base={base} resaltar={p.registro} />
                   </li>
                 ))}
               </ul>
@@ -113,7 +132,7 @@ export default async function FichaMedicamentoPagina({ params, searchParams }: P
               <ul className="divide-y divide-line">
                 {f.alertasNombre.map((a) => (
                   <li key={a.id}>
-                    <FilaAlerta a={a} />
+                    <FilaAlerta a={a} base={base} resaltar={p.registro} />
                   </li>
                 ))}
               </ul>

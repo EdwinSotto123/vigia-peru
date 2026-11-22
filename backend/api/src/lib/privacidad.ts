@@ -131,6 +131,13 @@ export function esClaveDocumento(k: string): boolean {
 // rompía los enlaces a su ficha. Va por nombre exacto: un sufijo «Codigo» en general podría esconder un documento.
 const esClaveId = (k: string) => /^(id|ocid|uuid|cui|snip|hash|codigo|cod|ipressCodigo)$|(_id|Id|_sha256|sha256|_codigo|_cod)$|^codigo_|^cod_/i.test(k);
 
+/**
+ * Códigos de un producto (Gobserva Salud, alertas DIGEMID, 2026-11-22): el lote de un medicamento («20250502QX», «20251104») y
+ * su registro sanitario. Un lote de 8 cifras se tapaba como un DNI y la alerta ya no servía para comparar con la caja. Van
+ * por nombre exacto de la clave y sin tocar: nunca son datos de una persona.
+ */
+const esClaveProducto = (k: string) => /^(lote|lotes|registro|registros|vencimiento|vencimientos)$/.test(k);
+
 // ─── Nombres ──────────────────────────────────────────────────────────────────
 
 type Orden = "nombres-primero" | "sunat";
@@ -774,6 +781,7 @@ const QUITAR = Symbol("quitar");
 
 function valorTexto(s: string, clave: string, ctx: Contexto): string | null | typeof QUITAR {
   const t = s.trim();
+  if (esClaveProducto(clave)) return s;
   if (esClaveDocumento(clave)) return documentoPublico(t);
   const ruc = RUC10_SOLO.exec(t);
   if (ruc) return (ruc[1] ?? "") + refRuc10(ruc[2]);

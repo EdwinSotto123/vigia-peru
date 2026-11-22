@@ -56,6 +56,9 @@ export interface Env {
   RELAY_TOKEN?: string;
   /** X-Vigia-Token del relay de Lima (SSM /vigia/relay-lima/token, en us-east-2). */
   RELAY_LIMA_TOKEN?: string;
+  /** vigia-llm (Workers AI con forma de API OpenAI) y su token: extrae los productos de las alertas DIGEMID. */
+  LLM?: Fetcher;
+  LLM_TOKEN?: string;
 }
 
 export const activo = (env: Env) => (env.SCRAPERS_ACTIVO ?? "").trim() === "1";

@@ -5,11 +5,11 @@ import { Ayuda } from "@/components/patrones/Ayuda";
 import { EstadoError, EstadoVacio } from "@/components/gobserva/ui/Estados";
 import { FuenteFecha } from "@/components/salud/comun";
 import { Paginas } from "@/components/salud/lista/Paginas";
-import { FilaAlerta, FilaMedicamento, FormMedicamento, textoRevisadas } from "@/components/salud/medicamentos/piezas";
+import { FilaAlerta, FilaMedicamento, FormMedicamento, InsigniaAlerta, nombreMed, textoRevisadas } from "@/components/salud/medicamentos/piezas";
 import { CabeceraLista, Ruta } from "@/components/salud/portada/Piezas";
 import { claseAccion } from "@/components/ui/EnlaceAccion";
 import { rutaEn, urlCanonica } from "@/lib/gobserva";
-import { buscarMedicamentos, mesLargo, numero } from "@/lib/gobserva-salud";
+import { buscarMedicamentos, fechaCorta, mesLargo, numero, rutaMedicamento } from "@/lib/gobserva-salud";
 import { baseProducto } from "@/lib/gobserva-servidor";
 import { cn } from "@/lib/utils";
 
@@ -57,6 +57,10 @@ export default async function Medicamentos({ searchParams }: Props) {
   const fuente = d?.fuente;
   // Una alerta que nombra el registro o el lote que la persona escribió (lo de su caja) pesa más que una que nombra la marca.
   const porCaja = d?.como === "registro" || d?.como === "lote";
+  // Las alertas que ya salen arriba, con su producto y su lote, no se repiten en la caja de abajo.
+  const yaVistas = new Set((d?.coincidencias ?? []).map((c) => c.alertaId));
+  const otras = (d?.alertas ?? []).filter((a) => !yaVistas.has(a.id));
+  const otrasTotal = Math.max(0, (d?.alertasTotal ?? 0) - yaVistas.size);
 
   return (
     <div className="container-page pb-10 pt-5 sm:pb-14 sm:pt-6">
@@ -153,7 +157,7 @@ export default async function Medicamentos({ searchParams }: Props) {
             <ul className="divide-y divide-line">
               {d.alertas.slice(0, 3).map((a) => (
                 <li key={a.id}>
-                  <FilaAlerta a={a} />
+                  <FilaAlerta a={a} base={base} resaltar={porCaja ? q : null} />
                 </li>
               ))}
             </ul>
@@ -162,8 +166,58 @@ export default async function Medicamentos({ searchParams }: Props) {
         </div>
       ) : (
         <>
-          {/* Primero la salud: si alguna alerta lo nombra. */}
-          {d.alertasTotal ? (
+          {/* Lo más fuerte primero: el lote o el registro escrito está, tal cual, en la tabla de una alerta. */}
+          {d.coincidencias && d.coincidencias.length > 0 && (
+            <section aria-labelledby="coincide-t" className="mt-6 rounded-2xl border-2 border-crimson/50 bg-crimson-soft/60 px-5 py-4">
+              <h2 id="coincide-t" className="flex items-start gap-2 font-display text-bloque font-bold leading-snug text-crimsonTexto">
+                <TriangleAlert size={20} aria-hidden className="mt-0.5 shrink-0" />
+                {d.como === "lote" ? "Ese lote" : "Ese registro sanitario"} está en {d.coincidencias.length === 1 ? "una alerta" : `${d.coincidencias.length} alertas`} de DIGEMID
+              </h2>
+              <ul className="mt-3 grid gap-2">
+                {d.coincidencias.map((c, i) => (
+                  <li key={`${c.alertaId}-${i}`} className="rounded-xl border border-crimson/25 bg-paper px-3.5 py-2.5">
+                    <p className="text-dato font-semibold text-ink">
+                      {c.producto}
+                      {c.presentacion && <span className="font-normal text-inkSoft">, {c.presentacion}</span>}
+                    </p>
+                    <p className="mt-0.5 flex flex-wrap gap-x-4 gap-y-0.5 text-meta text-inkSoft">
+                      {c.lote && <span>Lote <b className="font-mono font-semibold text-ink">{c.lote}</b></span>}
+                      {c.vencimiento && <span>Vence {c.vencimiento}</span>}
+                      {c.registro && (
+                        <span>
+                          R.S.{" "}
+                          {c.medicamento ? (
+                            <Link href={rutaEn(base, rutaMedicamento(c.medicamento))} className="font-mono text-ink underline decoration-line underline-offset-2 hover:decoration-granate">
+                              {c.registro}
+                            </Link>
+                          ) : (
+                            <span className="font-mono text-ink">{c.registro}</span>
+                          )}
+                        </span>
+                      )}
+                      {c.titular && <span>{nombreMed(c.titular)}</span>}
+                    </p>
+                    {c.detalle && <p className="mt-0.5 text-meta text-inkSoft">{c.detalle}</p>}
+                    <p className="mt-1 flex flex-wrap items-center gap-x-3 text-meta">
+                      <InsigniaAlerta tipo={c.tipo} />
+                      <span className="text-mute">{c.numero ? `Alerta N.° ${c.numero}` : "Alerta"}, {fechaCorta(c.fecha)}</span>
+                      {c.pdfUrl && (
+                        <a href={c.pdfUrl} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-11 items-center font-semibold text-granate underline-offset-4 hover:underline sm:min-h-8">
+                          La alerta en PDF<span className="sr-only"> (se abre en otra pestaña)</span>
+                        </a>
+                      )}
+                    </p>
+                  </li>
+                ))}
+              </ul>
+              <p className="mt-3 text-dato leading-relaxed text-ink">
+                Si es el de tu caja: no lo uses, guárdalo y pregunta en la farmacia o establecimiento donde lo compraste.
+              </p>
+            </section>
+          )}
+
+          {/* Primero la salud: si alguna alerta lo nombra (sin repetir las de arriba). */}
+          {otrasTotal > 0 && otras.length > 0 ? (
             <section
               aria-labelledby="alertas-t"
               className={cn("mt-6 rounded-2xl border", porCaja ? "border-crimson/30 bg-crimson-soft/40" : "border-amber/40 bg-amber-soft/40")}
@@ -172,7 +226,14 @@ export default async function Medicamentos({ searchParams }: Props) {
                 <TriangleAlert size={22} aria-hidden className={cn("mt-0.5 shrink-0", porCaja ? "text-crimsonTexto" : "text-amberTexto")} />
                 <div>
                   <h2 id="alertas-t" className="font-display text-bloque font-bold leading-snug text-ink">
-                    {d.alertasTotal === 1 ? "Una alerta de DIGEMID nombra" : `${numero(d.alertasTotal)} alertas de DIGEMID nombran`} «{q}»
+                    {yaVistas.size > 0
+                      ? otrasTotal === 1
+                        ? "Otra alerta nombra"
+                        : `Otras ${numero(otrasTotal)} alertas nombran`
+                      : otrasTotal === 1
+                        ? "Una alerta de DIGEMID nombra"
+                        : `${numero(otrasTotal)} alertas de DIGEMID nombran`}{" "}
+                    «{q}»
                   </h2>
                   <p className="mt-1 max-w-[75ch] text-meta leading-relaxed text-inkSoft">
                     {porCaja
@@ -183,13 +244,13 @@ export default async function Medicamentos({ searchParams }: Props) {
               </div>
               {/* Tres: el resto en /alertas (la página no se alarga). */}
               <ul className={cn("divide-y", porCaja ? "divide-crimson/15" : "divide-amber/25")}>
-                {d.alertas.slice(0, porCaja ? 3 : 1).map((a) => (
+                {otras.slice(0, porCaja ? 3 : 1).map((a) => (
                   <li key={a.id}>
-                    <FilaAlerta a={a} />
+                    <FilaAlerta a={a} base={base} resaltar={porCaja ? q : null} />
                   </li>
                 ))}
               </ul>
-              {d.alertasTotal > (porCaja ? 3 : 1) && (
+              {otrasTotal > (porCaja ? 3 : 1) && (
                 <p className={cn("border-t px-5 py-3", porCaja ? "border-crimson/20" : "border-amber/30")}>
                   <Link href={`${rutaEn(base, "/alertas")}?${new URLSearchParams({ q })}`} className="inline-flex min-h-11 items-center text-meta font-semibold text-granate underline-offset-4 hover:underline sm:min-h-8">
                     Ver las {numero(d.alertasTotal)} alertas
@@ -197,7 +258,7 @@ export default async function Medicamentos({ searchParams }: Props) {
                 </p>
               )}
             </section>
-          ) : (
+          ) : yaVistas.size > 0 ? null : (
             <p className="mt-6 flex gap-3 rounded-2xl border border-line bg-paper px-5 py-4 text-dato leading-relaxed text-inkSoft">
               <CircleCheck size={20} aria-hidden className="mt-0.5 shrink-0 text-mossTexto" />
               <span>

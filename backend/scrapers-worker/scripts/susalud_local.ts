@@ -11,6 +11,8 @@
  *   node scripts/susalud_local.ts refrescar
  *   node scripts/susalud_local.ts precios <FT_AAAAMM.zip>      (DIGEMID, el Indicador de precios)
  *   node scripts/susalud_local.ts alertas <cuántas>            (DIGEMID, las alertas con el texto de su PDF)
+ *   node scripts/susalud_local.ts extraer <cuántas> [hilos]    (DIGEMID: los productos y lotes de cada alerta, con vigia-llm;
+ *                                                               WORKERS_AI_TOKEN en el entorno)
  */
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
@@ -23,6 +25,7 @@ import {
 } from "../src/fuentes/susalud.ts";
 import { leerTanda, pendientes } from "../src/fuentes/susalud_detalle.ts";
 import { alertasPorLeer, cargarZipPrecios, leerAlertas, listarAlertas, pedidorDirecto, sha256, URL_PRECIOS } from "../src/fuentes/digemid.ts";
+import { alertasPorExtraer, anotarErrorExtraccion, extraerAlerta, guardarProductos } from "../src/fuentes/digemid_extraer.ts";
 
 const [tipo, arg1, arg2] = process.argv.slice(2);
 const url = process.env.PG_URL;
@@ -99,6 +102,39 @@ try {
       }
     }
     r = { por_leer: lista.length, ...suma };
+  } else if (tipo === "extraer") {
+    const token = process.env.WORKERS_AI_TOKEN;
+    if (!token) throw new Error("falta WORKERS_AI_TOKEN (el LLM_TOKEN de vigia-llm)");
+    const pedir = (cuerpo: unknown) => fetch("https://vigia-llm.vigiaperu.workers.dev/v1/chat/completions", {
+      method: "POST", headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" }, body: JSON.stringify(cuerpo),
+      signal: AbortSignal.timeout(120_000),
+    });
+    const total = Number(arg1 ?? 100);
+    const hilos = Math.max(1, Math.min(Number(arg2 ?? 4), 6));
+    const lista = await alertasPorExtraer(db, total);
+    const suma: Record<string, number> = { alertas: 0, con_productos: 0, filas: 0, errores: 0 };
+    let k = 0;
+    await Promise.all(Array.from({ length: hilos }, async () => {
+      const d = nueva();
+      try {
+        while (k < lista.length) {
+          const a = lista[k++];
+          try {
+            const { productos, modelo } = await extraerAlerta(pedir, a);
+            suma.filas += await guardarProductos(d, a.id, productos, modelo, a.huella);
+            suma.alertas++;
+            if (productos.length) suma.con_productos++;
+          } catch (e) {
+            suma.errores++;
+            await anotarErrorExtraccion(d, a.id, (e as Error).message);
+          }
+          if ((suma.alertas + suma.errores) % 25 === 0) console.log(`  ${suma.alertas + suma.errores}/${lista.length} ${JSON.stringify(suma)} ${((Date.now() - t0) / 1000).toFixed(0)} s`);
+        }
+      } finally {
+        await d.cerrar();
+      }
+    }));
+    r = { por_extraer: lista.length, ...suma };
   } else if (tipo === "refrescar") {
     r = (await db.filas<{ r: unknown }>("SELECT salud_refrescar() AS r"))[0]?.r;
   } else {

@@ -6,11 +6,12 @@ import { EstadoError, EstadoVacio } from "@/components/gobserva/ui/Estados";
 import { FuenteFecha } from "@/components/salud/comun";
 import { BarraFiltros, ProveedorFiltros, Resultados } from "@/components/salud/filtros/BarraFiltros";
 import { Paginas } from "@/components/salud/lista/Paginas";
-import { FilaAlerta } from "@/components/salud/medicamentos/piezas";
+import { FilaAlerta, InsigniaAlerta, nombreMed } from "@/components/salud/medicamentos/piezas";
 import { CabeceraLista, Ruta } from "@/components/salud/portada/Piezas";
 import { claseAccion } from "@/components/ui/EnlaceAccion";
 import { rutaEn, urlCanonica } from "@/lib/gobserva";
-import { getAlertas, numero, TIPOS_ALERTA, type TipoAlerta } from "@/lib/gobserva-salud";
+import { fechaCorta, getAlertas, getProductosAlerta, numero, rutaMedicamento, TIPOS_ALERTA, type TipoAlerta } from "@/lib/gobserva-salud";
+import { cn } from "@/lib/utils";
 import { baseProducto } from "@/lib/gobserva-servidor";
 
 export const dynamic = "force-dynamic";
@@ -43,10 +44,17 @@ export default async function Alertas({ searchParams }: Props) {
   const tipo = tipoDe(searchParams?.tipo);
   const q = texto(searchParams?.q);
   const pagina = Math.max(1, Number(texto(searchParams?.pagina)) || 1);
-  const d = await getAlertas(new URLSearchParams({ ...(tipo ? { tipo } : {}), ...(q ? { q } : {}), pagina: String(pagina), tamano: String(POR_PAGINA) }));
+  // Dos vistas (2026-11-22): las alertas, o lo que dicen sus tablas (productos y lotes, migración 443).
+  const vista = texto(searchParams?.vista) === "productos" ? "productos" : "alertas";
+  const pedido = new URLSearchParams({ ...(tipo ? { tipo } : {}), ...(q ? { q } : {}), pagina: String(pagina), tamano: String(POR_PAGINA) });
+  const [d, prod] = await Promise.all([
+    getAlertas(vista === "alertas" ? pedido : new URLSearchParams({ ...(tipo ? { tipo } : {}), ...(q ? { q } : {}), tamano: "5" })),
+    vista === "productos" ? getProductosAlerta(pedido) : Promise.resolve(null),
+  ]);
   const lista = rutaEn(base, "/alertas");
   const qs = (c: { pagina?: number }) => {
     const p = new URLSearchParams();
+    if (vista === "productos") p.set("vista", "productos");
     if (tipo) p.set("tipo", tipo);
     if (q) p.set("q", q);
     if (c.pagina && c.pagina > 1) p.set("pagina", String(c.pagina));
@@ -54,7 +62,13 @@ export default async function Alertas({ searchParams }: Props) {
     return s ? `${lista}?${s}` : lista;
   };
   const paginas = d ? Math.min(500, Math.max(1, Math.ceil(d.total / POR_PAGINA))) : 1;
-  const params: Record<string, string> = { ...(tipo ? { tipo } : {}), ...(q ? { q } : {}) };
+  const paginasProd = prod ? Math.min(500, Math.max(1, Math.ceil(prod.n / POR_PAGINA))) : 1;
+  const params: Record<string, string> = { ...(vista === "productos" ? { vista } : {}), ...(tipo ? { tipo } : {}), ...(q ? { q } : {}) };
+  const enVista = (v: "alertas" | "productos") => {
+    const u = new URLSearchParams({ ...(v === "productos" ? { vista: v } : {}), ...(tipo ? { tipo } : {}), ...(q ? { q } : {}) });
+    const s = u.toString();
+    return s ? `${lista}?${s}` : lista;
+  };
 
   return (
     <div className="container-page pb-10 pt-4 sm:pb-14 sm:pt-5">
@@ -99,6 +113,161 @@ export default async function Alertas({ searchParams }: Props) {
           ]}
         />
 
+        <nav aria-label="Qué ver" className="mt-4 inline-flex rounded-full border border-line bg-paper p-1">
+          {(["alertas", "productos"] as const).map((v) => (
+            <Link
+              key={v}
+              href={enVista(v)}
+              aria-current={vista === v ? "page" : undefined}
+              className={cn(
+                "gs-hunde inline-flex min-h-10 items-center gap-1.5 rounded-full px-4 text-meta font-semibold",
+                vista === v ? "bg-granate text-paper" : "text-inkSoft hover:text-ink",
+              )}
+            >
+              {v === "alertas" ? "Alertas" : "Productos y lotes"}
+            </Link>
+          ))}
+        </nav>
+
+        {vista === "productos" ? (
+          <Resultados clave={`productos-${tipo ?? ""}-${q}-${pagina}`} className="mt-4">
+            {!prod ? (
+              <div className="rounded-2xl border border-line bg-paper">
+                <EstadoError texto="No pudimos leer los productos ahora. Vuelve a intentarlo en unos segundos." />
+              </div>
+            ) : prod.filas.length === 0 ? (
+              <div className="rounded-2xl border border-line bg-paper">
+                <EstadoVacio
+                  Icono={TriangleAlert}
+                  titulo="Ningún producto observado con estos filtros"
+                  texto="Los productos y lotes salen de la tabla de cada alerta a medida que leemos sus PDF. Prueba con otro nombre o mira la lista de alertas."
+                />
+              </div>
+            ) : (
+              <>
+                <p className="mb-2 text-meta text-inkSoft">
+                  <b className="font-semibold tabular-nums text-ink">{numero(prod.n)}</b> {prod.n === 1 ? "producto observado" : "productos observados"} en{" "}
+                  <b className="font-semibold tabular-nums text-ink">{numero(prod.alertas)}</b> {prod.alertas === 1 ? "alerta" : "alertas"},{" "}
+                  {numero(prod.conLote)} con su lote. Salen de la tabla del PDF de cada alerta; lo que no dice el PDF queda vacío.
+                </p>
+                {/* En el celular, una tarjeta por producto; desde sm, la tabla. */}
+                <ul className="grid gap-2 sm:hidden" aria-label="Productos y lotes observados">
+                  {prod.filas.map((x, i) => (
+                    <li key={`${x.alertaId}-${i}`} className="rounded-2xl border border-line bg-paper px-4 py-3">
+                      <p className="text-dato font-semibold leading-snug text-ink">{x.producto}</p>
+                      {x.presentacion && <p className="text-meta text-inkSoft">{x.presentacion}</p>}
+                      <dl className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1.5 text-meta">
+                        <div className="min-w-0">
+                          <dt className="text-rotulo text-mute">Lote</dt>
+                          <dd className="font-mono text-ink [overflow-wrap:anywhere]">{x.lote ?? <span className="font-sans text-mute">No lo dice</span>}</dd>
+                          {x.vencimiento && <dd className="text-mute">Vence {x.vencimiento}</dd>}
+                        </div>
+                        <div className="min-w-0">
+                          <dt className="text-rotulo text-mute">Registro sanitario</dt>
+                          <dd className="font-mono text-ink">
+                            {x.registro ? (
+                              x.medicamento ? (
+                                <Link href={rutaEn(base, rutaMedicamento(x.medicamento))} className="underline decoration-line underline-offset-2">
+                                  {x.registro}
+                                </Link>
+                              ) : (
+                                x.registro
+                              )
+                            ) : (
+                              <span className="font-sans text-mute">No lo dice</span>
+                            )}
+                          </dd>
+                        </div>
+                        {x.titular && (
+                          <div className="col-span-2 min-w-0">
+                            <dt className="text-rotulo text-mute">Titular</dt>
+                            <dd className="text-inkSoft">{nombreMed(x.titular)}</dd>
+                          </div>
+                        )}
+                      </dl>
+                      {x.detalle && <p className="mt-1.5 text-meta text-inkSoft">{x.detalle}</p>}
+                      <p className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-meta text-mute">
+                        <InsigniaAlerta tipo={x.tipo} />
+                        {x.pdfUrl ? (
+                          <a href={x.pdfUrl} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-11 items-center font-semibold text-granate underline-offset-4 hover:underline">
+                            {x.numero ? `Alerta N.° ${x.numero}` : "La alerta en PDF"}
+                            <span className="sr-only"> (PDF, se abre en otra pestaña)</span>
+                          </a>
+                        ) : (
+                          x.numero && `Alerta N.° ${x.numero}`
+                        )}
+                        <span>{fechaCorta(x.fecha)}</span>
+                      </p>
+                    </li>
+                  ))}
+                </ul>
+                <div className="hidden overflow-x-auto rounded-2xl border border-line bg-paper sm:block">
+                  <table className="w-full min-w-[46rem] text-left text-meta">
+                    <caption className="sr-only">Productos y lotes observados en las alertas de DIGEMID</caption>
+                    <thead className="bg-paperSoft text-rotulo text-mute">
+                      <tr>
+                        <th scope="col" className="px-3 py-2 font-semibold">Producto</th>
+                        <th scope="col" className="px-3 py-2 font-semibold">Lote</th>
+                        <th scope="col" className="px-3 py-2 font-semibold">Registro sanitario</th>
+                        <th scope="col" className="px-3 py-2 font-semibold">Titular</th>
+                        <th scope="col" className="px-3 py-2 font-semibold">Alerta</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-line">
+                      {prod.filas.map((x, i) => (
+                        <tr key={`${x.alertaId}-${i}`} className="align-top">
+                          <td className="px-3 py-2.5">
+                            <p className="font-semibold text-ink">{x.producto}</p>
+                            {x.presentacion && <p className="text-inkSoft">{x.presentacion}</p>}
+                            {x.detalle && <p className="mt-0.5 text-mute">{x.detalle}</p>}
+                          </td>
+                          <td className="px-3 py-2.5">
+                            {x.lote ? <span className="rounded-md bg-ink/[0.05] px-1.5 py-0.5 font-mono tabular-nums text-ink">{x.lote}</span> : <span className="text-mute">No lo dice</span>}
+                            {x.vencimiento && <p className="mt-0.5 text-mute">Vence {x.vencimiento}</p>}
+                          </td>
+                          <td className="px-3 py-2.5 font-mono">
+                            {x.registro ? (
+                              x.medicamento ? (
+                                <Link href={rutaEn(base, rutaMedicamento(x.medicamento))} className="text-ink underline decoration-line underline-offset-2 hover:decoration-granate">
+                                  {x.registro}
+                                </Link>
+                              ) : (
+                                <span className="text-ink">{x.registro}</span>
+                              )
+                            ) : (
+                              <span className="font-sans text-mute">No lo dice</span>
+                            )}
+                          </td>
+                          <td className="px-3 py-2.5 text-inkSoft">{x.titular ? nombreMed(x.titular) : <span className="text-mute">No lo dice</span>}</td>
+                          <td className="px-3 py-2.5">
+                            <InsigniaAlerta tipo={x.tipo} />
+                            <p className="mt-1 whitespace-nowrap text-mute">
+                              {x.pdfUrl ? (
+                                <a href={x.pdfUrl} target="_blank" rel="noopener noreferrer" className="font-semibold text-granate underline-offset-4 hover:underline">
+                                  {x.numero ? `N.° ${x.numero}` : "PDF"}
+                                  <span className="sr-only"> (la alerta en PDF, se abre en otra pestaña)</span>
+                                </a>
+                              ) : (
+                                x.numero && `N.° ${x.numero}`
+                              )}
+                              , {fechaCorta(x.fecha)}
+                            </p>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                <p className="mt-3">
+                  <FuenteFecha nombre="Alertas DIGEMID (la tabla de cada PDF)" url={prod.fuente.avisos.url} al={prod.fuente.avisos.al} />
+                </p>
+                {paginasProd > 1 && (
+                  <Paginas className="mt-5" pagina={Math.min(pagina, paginasProd)} paginas={paginasProd} total={prod.n} tamano={POR_PAGINA} nombre={prod.n === 1 ? "producto" : "productos"} href={(n) => qs({ pagina: n })} />
+                )}
+              </>
+            )}
+          </Resultados>
+        ) : (
         <Resultados clave={`${tipo ?? ""}-${q}-${pagina}`} className="mt-4">
           {!d ? (
             <div className="rounded-2xl border border-line bg-paper">
@@ -120,7 +289,7 @@ export default async function Alertas({ searchParams }: Props) {
               <ul className="divide-y divide-line overflow-hidden rounded-2xl border border-line bg-paper" aria-label="Alertas de DIGEMID">
                 {d.filas.map((a) => (
                   <li key={a.id}>
-                    <FilaAlerta a={a} />
+                    <FilaAlerta a={a} base={base} resaltar={q || null} />
                   </li>
                 ))}
               </ul>
@@ -133,6 +302,7 @@ export default async function Alertas({ searchParams }: Props) {
             </>
           )}
         </Resultados>
+        )}
       </ProveedorFiltros>
     </div>
   );

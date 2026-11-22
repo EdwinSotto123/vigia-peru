@@ -21,7 +21,7 @@
     { "binding": "DOCUMENTOS", "bucket_name": "vigia-peru-batch" }
   ],
   // La API OCDS del OECE solo responde desde Zúrich o Buenos Aires: el relay corre fijo en Zúrich.
-  "services": [{ "binding": "RELAY", "service": "vigia-relay" }],
+  "services": [{ "binding": "RELAY", "service": "vigia-relay" }, { "binding": "LLM", "service": "vigia-llm" }],
   // La Contraloría (informes e INFOBRAS), SERVIR y MINJUS solo responden a IPs del Perú: el relay de Lima (backend/relay-lima,
   // EC2 en la Local Zone de AWS en Lima) por el túnel `vigia-lima`. Servicio de Workers VPC `vigia-relay-lima`.
   "vpc_services": [{ "binding": "RELAY_LIMA", "service_id": "01a19301-c78c-7f60-87a2-5b912c63b387" }],
@@ -40,6 +40,7 @@
   },
   // Secretos (wrangler secret put): SCRAPERS_TOKEN (endpoints manuales), RELAY_TOKEN (el `local-downloader-token` de los
   // jobs: lo pide /raw del relay) y RELAY_LIMA_TOKEN (SSM /vigia/relay-lima/token: lo pide /raw del relay de Lima).
+  // LLM_TOKEN (SSM /vigia/llm/token): lo pide vigia-llm para extraer los productos y lotes de las alertas DIGEMID.
 
   // Entorno DEV (docs/DEV.md): `bash infrastructure/deploy/dev.sh scrapers` → vigia-scrapers-dev. Sin crons: sólo corre
   // a mano (`dev.sh correr '{...}'`), contra vigia-db-dev y buckets *-dev. El relay es el de producción (sólo descarga).
@@ -50,7 +51,7 @@
         { "binding": "CRUDOS", "bucket_name": "vigia-peru-crudos-dev" },
         { "binding": "DOCUMENTOS", "bucket_name": "vigia-peru-batch-dev" }
       ],
-      "services": [{ "binding": "RELAY", "service": "vigia-relay" }],
+      "services": [{ "binding": "RELAY", "service": "vigia-relay" }, { "binding": "LLM", "service": "vigia-llm" }],
       "vpc_services": [{ "binding": "RELAY_LIMA", "service_id": "01a19301-c78c-7f60-87a2-5b912c63b387" }],
       "browser": { "binding": "BROWSER" },
       "workflows": [{ "name": "vigia-scrapers-correr-dev", "binding": "CORRER", "class_name": "CorrerFuente" }],

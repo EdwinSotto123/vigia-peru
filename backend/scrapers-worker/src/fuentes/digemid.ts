@@ -25,6 +25,7 @@ import { dormir, pedirLima } from "../http.ts";
 import { registrar } from "../registro.ts";
 import { CARGA, LECTURA } from "./comun.ts";
 import { decimal, entero, insertarTandas, limpio, normalizar } from "./susalud.ts";
+import { alertasPorExtraer, anotarErrorExtraccion, extraerAlerta, guardarProductos } from "./digemid_extraer.ts";
 
 export const FUENTE = "digemid";
 export const BASE_DIGEMID = "https://www.digemid.minsa.gob.pe";
@@ -271,14 +272,17 @@ export async function listarAlertas(pedir: Pedir, max: number, desde: string | n
 /** Las que hay que leer: nuevas, modificadas desde la última lectura o con el PDF fallado (hasta 3 intentos por día). */
 export async function alertasPorLeer(db: Db, entradas: Entrada[]): Promise<Entrada[]> {
   if (!entradas.length) return [];
-  const hay = await db.filas<{ id: number; modificado_at: string | null; pdf_error: string | null; leido_at: string }>(
-    "SELECT id, modificado_at::text, pdf_error, leido_at::text FROM salud_alerta WHERE id = ANY($1::int[])", [entradas.map((e) => e.id)]);
+  const hay = await db.filas<{ id: number; modificado_at: string | null; pdf_error: string | null; leido_at: string; sin_texto: boolean }>(
+    `SELECT id, modificado_at::text, pdf_error, leido_at::text, (texto IS NULL AND pdf_url IS NOT NULL AND pdf_error IS NULL) AS sin_texto
+       FROM salud_alerta WHERE id = ANY($1::int[])`, [entradas.map((e) => e.id)]);
   const por = new Map(hay.map((h) => [h.id, h]));
   return entradas.filter((e) => {
     const h = por.get(e.id);
     if (!h) return true;
     // Un 429 se reintenta enseguida; otro error del PDF, a las 8 horas.
     if (h.pdf_error && (/429/.test(h.pdf_error) || Date.parse(h.leido_at) < Date.now() - 8 * 3600_000)) return true;
+    // Leída antes de la migración 443 (sólo con el texto normalizado): se relee para guardar el texto tal cual.
+    if (h.sin_texto) return true;
     return !!e.modified && (!h.modificado_at || Date.parse(`${e.modified}-05:00`) > Date.parse(h.modificado_at) + 1000);
   });
 }
@@ -286,15 +290,15 @@ export async function alertasPorLeer(db: Db, entradas: Entrada[]): Promise<Entra
 export async function guardarAlerta(db: Db, f: FilaAlerta, texto: string | null, error: string | null): Promise<void> {
   const registros = texto ? registrosEn(`${texto}\n${f.productos ?? ""}`) : registrosEn(f.productos ?? "");
   await db.ejecutar(`
-    INSERT INTO salud_alerta (id, numero, fecha, tipo, titulo, motivo, productos, url, pdf_url, texto_norm, registros, modificado_at, leido_at, pdf_error)
-    VALUES ($1, $2, $3::date, $4, $5, $6, $7, $8, $9, $10, $11::text[], $12::timestamptz, now(), $13)
+    INSERT INTO salud_alerta (id, numero, fecha, tipo, titulo, motivo, productos, url, pdf_url, texto_norm, registros, modificado_at, leido_at, pdf_error, texto)
+    VALUES ($1, $2, $3::date, $4, $5, $6, $7, $8, $9, $10, $11::text[], $12::timestamptz, now(), $13, $14)
     ON CONFLICT (id) DO UPDATE SET numero = EXCLUDED.numero, fecha = EXCLUDED.fecha, tipo = EXCLUDED.tipo, titulo = EXCLUDED.titulo,
       motivo = EXCLUDED.motivo, productos = EXCLUDED.productos, url = EXCLUDED.url, pdf_url = EXCLUDED.pdf_url,
-      texto_norm = coalesce(EXCLUDED.texto_norm, salud_alerta.texto_norm),
+      texto_norm = coalesce(EXCLUDED.texto_norm, salud_alerta.texto_norm), texto = coalesce(EXCLUDED.texto, salud_alerta.texto),
       registros = CASE WHEN EXCLUDED.texto_norm IS NULL THEN salud_alerta.registros ELSE EXCLUDED.registros END,
       modificado_at = EXCLUDED.modificado_at, leido_at = now(), pdf_error = EXCLUDED.pdf_error`,
   [f.id, f.numero, f.fecha, f.tipo, f.titulo, f.motivo, f.productos, f.url, f.pdf_url, texto ? normalizar(texto).slice(0, 60_000) : null,
-    registros, f.modificado_at, error]);
+    registros, f.modificado_at, error, texto ? texto.replace(/[ 	]+/g, " ").slice(0, 60_000) : null]);
 }
 
 /** Lee y guarda unas alertas (con el texto de su PDF). `conPdf: false` guarda sólo la entrada y deja el PDF pendiente. */
@@ -396,6 +400,38 @@ export async function correrDigemid(env: Env, p: ParamsCorrida, step: WorkflowSt
     for (const [c, v] of Object.entries(r)) suma[c] = (suma[c] ?? 0) + Number(v);
   }
   resultados.alertas = { por_leer: porLeer.length, ...suma };
+
+  // 3. Lo que dice cada alerta, ordenado: productos, lotes, registros (digemid_extraer.ts, migración 443).
+  if (env.LLM && env.LLM_TOKEN && !p.seco) {
+    const llm = env.LLM;
+    const token = env.LLM_TOKEN.trim();
+    const pedirModelo = (cuerpo: unknown) =>
+      llm.fetch(new Request("https://vigia-llm.interno/v1/chat/completions", {
+        method: "POST", headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" }, body: JSON.stringify(cuerpo),
+      }));
+    const ext: Record<string, number> = { alertas: 0, filas: 0, errores: 0 };
+    for (let k = 0; k < 4; k++) {
+      const r = await step.do(`extraer productos ${k + 1}`, { ...CARGA, timeout: "10 minutes" }, () =>
+        conDb(env.HYPERDRIVE, async (db) => {
+          const lista = await alertasPorExtraer(db, 15);
+          const c = { alertas: 0, filas: 0, errores: 0, vacio: lista.length ? 0 : 1 };
+          for (const a of lista) {
+            try {
+              const { productos, modelo } = await extraerAlerta(pedirModelo, a);
+              c.filas += await guardarProductos(db, a.id, productos, modelo, a.huella);
+              c.alertas++;
+            } catch (e) {
+              c.errores++;
+              await anotarErrorExtraccion(db, a.id, (e as Error).message);
+            }
+          }
+          return c;
+        }));
+      for (const [kk, v] of Object.entries(r)) if (kk !== "vacio") ext[kk] = (ext[kk] ?? 0) + Number(v);
+      if (r.vacio) break;
+    }
+    resultados.extraccion = ext;
+  }
   registrar("INFO", `   digemid: ${JSON.stringify(resultados)}`, { fuente: FUENTE, instancia: id });
   return resultados;
 }

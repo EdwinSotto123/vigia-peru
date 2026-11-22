@@ -505,6 +505,43 @@ export interface AlertaDigemid {
   productos: string | null;
   url: string;
   pdfUrl: string | null;
+  /** Lo que dice la tabla de su PDF (migración 443): un elemento por producto, con sus lotes. Vacío si aún no se extrae. */
+  observados?: ObservadoAlerta[];
+}
+
+/** Un producto observado en una alerta, extraído de su PDF y validado contra el texto (nada que no diga el PDF). */
+export interface ObservadoAlerta {
+  producto: string;
+  presentacion: string | null;
+  registro: string | null;
+  titular: string | null;
+  fabricante: string | null;
+  pais: string | null;
+  detalle: string | null;
+  /** El producto del catálogo con ese registro sanitario, si lo hay. */
+  medicamento: number | null;
+  lotes: string[];
+  vencimientos: string[];
+}
+
+/** Una fila de lo extraído con su alerta: la coincidencia exacta de un lote o un registro, o la vista de productos. */
+export interface ProductoObservado {
+  producto: string;
+  presentacion: string | null;
+  lote: string | null;
+  registro: string | null;
+  vencimiento: string | null;
+  titular: string | null;
+  fabricante?: string | null;
+  pais?: string | null;
+  detalle: string | null;
+  medicamento: number | null;
+  alertaId: number;
+  numero: string | null;
+  fecha: string;
+  tipo: TipoAlerta;
+  url: string;
+  pdfUrl: string | null;
 }
 
 export interface FuenteMedicamentos {
@@ -525,6 +562,8 @@ export interface BusquedaMedicamentos {
   tamano: number;
   alertas: AlertaDigemid[];
   alertasTotal: number | null;
+  /** El lote o el registro que se escribió, tal cual, en la tabla de una alerta. */
+  coincidencias?: ProductoObservado[];
   fuente: FuenteMedicamentos;
 }
 
@@ -536,6 +575,8 @@ export interface FichaMedicamento {
   presentaciones: Medicamento[];
   alertasRegistro: AlertaDigemid[];
   alertasNombre: AlertaDigemid[];
+  /** Los lotes de este registro sanitario que nombra la tabla de alguna alerta. */
+  lotesObservados?: { lote: string; vencimiento: string | null; presentacion: string | null; detalle: string | null; numero: string | null; fecha: string; tipo: TipoAlerta; pdfUrl: string | null }[];
   fuente: FuenteMedicamentos;
 }
 
@@ -551,6 +592,17 @@ export interface PaginaAlertas {
 export const buscarMedicamentos = (params: URLSearchParams) => pedir<BusquedaMedicamentos>(`/medicamentos?${params.toString()}`, 600);
 export const getMedicamento = (codigo: string) => (/^\d{1,9}$/.test(codigo) ? pedir<FichaMedicamento>(`/medicamento/${codigo}`, 3600) : Promise.resolve(null));
 export const getAlertas = (params: URLSearchParams) => pedir<PaginaAlertas>(`/alertas?${params.toString()}`, 600);
+
+export interface PaginaProductosAlerta {
+  filas: ProductoObservado[];
+  n: number;
+  conLote: number;
+  alertas: number;
+  pagina: number;
+  tamano: number;
+  fuente: FuenteMedicamentos;
+}
+export const getProductosAlerta = (params: URLSearchParams) => pedir<PaginaProductosAlerta>(`/alertas/productos?${params.toString()}`, 600);
 
 export const rutaMedicamento = (codigo: number | string) => `/medicamento/${codigo}`;
 

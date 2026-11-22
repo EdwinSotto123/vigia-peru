@@ -40,6 +40,8 @@ import {
  *                                       sanitario o lote, con las alertas que los nombran.
  *   GET  /salud/medicamento/:codigo     la ficha de un medicamento: precio de referencia, equivalentes y alertas.
  *   GET  /salud/alertas                 las alertas DIGEMID, con filtros y páginas.
+ *   GET  /salud/alertas/productos       lo extraído de sus PDF (migración 443): producto, presentación, lote, registro,
+ *                                       titular y vencimiento, una fila por lote.
  *   GET  /salud/fuentes                 cada fuente con su última carga (archivo, fecha, filas, sha256) y la cobertura.
  *   GET  /salud/normas?q=               las normas de salud que responden a una pregunta (RAG, buscar_norma_salud).
  *   GET  /salud/sitemap                 los códigos para el sitemap del producto.
@@ -707,7 +709,18 @@ const TIPOS_ALERTA = ["falsificado", "calidad", "seguridad", "modificacion", "in
 const COLS_MED = `m.codigo, m.nombre, m.concentracion, m.forma, m.presentacion, m.fracciones, m.clasificacion, m.registro, m.titular,
   m.fabricante, m.pais, m.ifa, m.grupo, m.establecimientos, m.precio_mediana::float AS "precioMediana", m.precio_media::float AS "precioMedia",
   m.precio_moda::float AS "precioModa", to_char(m.periodo, 'YYYY-MM') AS periodo, m.en_catalogo AS "enCatalogo"`;
-const COLS_ALERTA = `a.id, a.numero, to_char(a.fecha, 'YYYY-MM-DD') AS fecha, a.tipo, a.titulo, a.motivo, a.productos, a.url, a.pdf_url AS "pdfUrl"`;
+/**
+ * Los productos observados de una alerta (migración 443): lo que el modelo sacó de la tabla del PDF y pasó la validación,
+ * con sus lotes juntos (una fila por producto, presentación y registro). Vacío mientras no se extrae.
+ */
+const OBSERVADOS = `(SELECT coalesce(json_agg(x ORDER BY x.orden), '[]'::json) FROM (
+    SELECT min(p.orden) AS orden, p.producto, p.presentacion, p.registro, p.titular, p.fabricante, p.pais, p.detalle,
+           max(p.medicamento_codigo) AS medicamento, array_remove(array_agg(p.lote ORDER BY p.orden), NULL) AS lotes,
+           array_remove(array_agg(DISTINCT p.vencimiento), NULL) AS vencimientos
+      FROM salud_alerta_producto p WHERE p.alerta_id = a.id
+     GROUP BY p.producto, p.presentacion, p.registro, p.titular, p.fabricante, p.pais, p.detalle) x) AS observados`;
+const COLS_ALERTA = `a.id, a.numero, to_char(a.fecha, 'YYYY-MM-DD') AS fecha, a.tipo, a.titulo, a.motivo, a.productos, a.url, a.pdf_url AS "pdfUrl",
+  ${OBSERVADOS}`;
 /** Lo que una alerta dice en palabras (productos, motivo y título), normalizado para buscar. */
 const TEXTO_ALERTA = `mef_norm(coalesce(a.productos, '') || ' ' || coalesce(a.motivo, '') || ' ' || a.titulo)`;
 
@@ -757,7 +770,8 @@ saludRouter.get("/medicamentos", async (c) => {
       valsMed.push(registro);
       whereMed = "m.registro = $1";
       valsAl.push(registro, `%${registro}%`);
-      whereAl = "($1 = ANY(a.registros) OR a.texto_norm LIKE $2)";
+      // Un lote puede tener la forma de un registro («OPI052502»): se busca como los dos.
+      whereAl = "($1 = ANY(a.registros) OR a.texto_norm LIKE $2 OR EXISTS (SELECT 1 FROM salud_alerta_producto p WHERE p.alerta_id = a.id AND (p.registro = $1 OR p.lote_norm = $1)))";
     } else {
       // Por nombre o principio activo (un lote también puede ser parte de un nombre: «B12»).
       const w: string[] = [];
@@ -771,14 +785,23 @@ saludRouter.get("/medicamentos", async (c) => {
       }
       if (lote) {
         valsAl.push(`%${lote}%`);
-        whereAl = `(a.texto_norm LIKE $1 OR ${TEXTO_ALERTA} LIKE $1)`;
+        valsAl.push(lote);
+        whereAl = `(a.texto_norm LIKE $1 OR ${TEXTO_ALERTA} LIKE $1 OR EXISTS (SELECT 1 FROM salud_alerta_producto p WHERE p.alerta_id = a.id AND p.lote_norm = $2))`;
       } else {
         const wa: string[] = [];
         for (const x of ps) { valsAl.push(`%${x}%`); wa.push(`(${TEXTO_ALERTA} LIKE $${valsAl.length} OR a.texto_norm LIKE $${valsAl.length})`); }
         if (wa.length) whereAl = wa.join(" AND ");
       }
     }
-    const [filas, total, alertas, alertasTotal] = await Promise.all([
+    const exacto = lote || registro
+      ? pool.query(
+          `SELECT p.producto, p.presentacion, p.lote, p.registro, p.vencimiento, p.titular, p.detalle, p.medicamento_codigo AS medicamento,
+                  a.id AS "alertaId", a.numero, to_char(a.fecha, 'YYYY-MM-DD') AS fecha, a.tipo, a.url, a.pdf_url AS "pdfUrl"
+             FROM salud_alerta_producto p JOIN salud_alerta a ON a.id = p.alerta_id
+            WHERE ${lote ? "p.lote_norm = $1" : "(p.registro = $1 OR p.lote_norm = $1)"}
+            ORDER BY a.fecha DESC LIMIT 10`, [lote ?? registro])
+      : Promise.resolve({ rows: [] });
+    const [filas, total, alertas, alertasTotal, coincidencias] = await Promise.all([
       // Una fila por producto (mismo nombre, concentración, forma y registro): sus presentaciones (frasco de 60 o de 120 mL)
       // se juntan con su rango de precio (2026-11-22, auditoría: «el mismo Panadol tres veces»). La que más farmacias
       // reportan representa al grupo y su ficha lista las demás.
@@ -795,10 +818,13 @@ saludRouter.get("/medicamentos", async (c) => {
       pool.query(`SELECT count(*)::int AS n FROM (SELECT DISTINCT m.nombre_norm, m.concentracion, m.forma, m.registro FROM salud_medicamento m WHERE ${whereMed}) g`, valsMed),
       pool.query(`SELECT ${COLS_ALERTA} FROM salud_alerta a WHERE ${whereAl} ORDER BY a.fecha DESC, a.id DESC LIMIT 5`, valsAl),
       pool.query(`SELECT count(*)::int AS n FROM salud_alerta a WHERE ${whereAl}`, valsAl),
+      exacto,
     ]);
+    // Lo escrito tenía forma de registro, no es el de ningún producto y sí el lote de una alerta: era un lote.
+    const esLote = registro && total.rows[0].n === 0 && (coincidencias.rows as { lote: string | null }[]).some((c) => c.lote && c.lote.replace(/[^A-Za-z0-9]/g, "").toUpperCase() === registro);
     return publicar({
-      q, como, registro, lote, filas: filas.rows, total: total.rows[0].n, pagina, tamano,
-      alertas: alertas.rows, alertasTotal: alertasTotal.rows[0].n, fuente,
+      q, como: esLote ? "lote" : como, registro: esLote ? null : registro, lote: esLote ? registro : lote, filas: filas.rows, total: total.rows[0].n, pagina, tamano,
+      alertas: alertas.rows, alertasTotal: alertasTotal.rows[0].n, coincidencias: coincidencias.rows, fuente,
     });
   });
   c.header("Cache-Control", CACHE);
@@ -819,7 +845,12 @@ saludRouter.get("/medicamento/:codigo", async (c) => {
     const DONDE_EQUIV = `m.ifa_norm = $1 AND m.concentracion IS NOT DISTINCT FROM $2 AND m.forma IS NOT DISTINCT FROM $3 AND m.codigo <> $4 AND m.en_catalogo`;
     // La marca: la primera palabra del nombre con 4 letras o más (PANADOL de «PANADOL ANTIGRIPAL NF»).
     const marca = nombre_norm.split(" ").find((w) => w.length >= 4) ?? nombre_norm;
-    const [equivalentes, resumen, presentaciones, porRegistro, porNombre] = await Promise.all([
+    const lotes = registro
+      ? pool.query(`SELECT p.lote, p.vencimiento, p.presentacion, p.detalle, a.numero, to_char(a.fecha, 'YYYY-MM-DD') AS fecha, a.tipo, a.pdf_url AS "pdfUrl"
+                      FROM salud_alerta_producto p JOIN salud_alerta a ON a.id = p.alerta_id
+                     WHERE p.registro = $1 AND p.lote IS NOT NULL ORDER BY a.fecha DESC, p.orden LIMIT 40`, [registro])
+      : Promise.resolve({ rows: [] });
+    const [equivalentes, resumen, presentaciones, porRegistro, porNombre, lotesObservados] = await Promise.all([
       ifa_norm
         ? pool.query(`SELECT ${COLS_MED} FROM salud_medicamento m WHERE ${DONDE_EQUIV}
                        ORDER BY m.precio_mediana ASC NULLS LAST, m.establecimientos DESC NULLS LAST LIMIT 30`, misma)
@@ -833,15 +864,18 @@ saludRouter.get("/medicamento/:codigo", async (c) => {
         ? pool.query(`SELECT ${COLS_MED} FROM salud_medicamento m WHERE m.registro = $1 AND m.codigo <> $2 ORDER BY m.establecimientos DESC NULLS LAST LIMIT 20`, [registro, codigo])
         : Promise.resolve({ rows: [] }),
       registro
-        ? pool.query(`SELECT ${COLS_ALERTA} FROM salud_alerta a WHERE $1 = ANY(a.registros) ORDER BY a.fecha DESC LIMIT 20`, [registro])
+        ? pool.query(`SELECT ${COLS_ALERTA} FROM salud_alerta a
+                       WHERE $1 = ANY(a.registros) OR EXISTS (SELECT 1 FROM salud_alerta_producto p WHERE p.alerta_id = a.id AND p.registro = $1)
+                       ORDER BY a.fecha DESC LIMIT 20`, [registro])
         : Promise.resolve({ rows: [] }),
       pool.query(`SELECT ${COLS_ALERTA} FROM salud_alerta a
                    WHERE (' ' || ${TEXTO_ALERTA} || ' ') LIKE $1 AND NOT ($2::text IS NOT NULL AND $2 = ANY(a.registros))
                    ORDER BY a.fecha DESC LIMIT 10`, [`% ${marca} %`, registro]),
+      lotes,
     ]);
     return publicar({
       producto, marca, equivalentes: equivalentes.rows, equivalentesResumen: resumen.rows[0], presentaciones: presentaciones.rows,
-      alertasRegistro: porRegistro.rows, alertasNombre: porNombre.rows, fuente: await fuenteMedicamentos(),
+      alertasRegistro: porRegistro.rows, alertasNombre: porNombre.rows, lotesObservados: lotesObservados.rows, fuente: await fuenteMedicamentos(),
     });
   });
   if (!cuerpo) return c.json({ error: "no_encontrado" }, 404);
@@ -880,6 +914,40 @@ saludRouter.get("/alertas", async (c) => {
       filas: filas.rows, total: total.rows[0].n, pagina: q.pagina, tamano: q.tamano, filtros: q,
       tipos: Object.fromEntries((tipos.rows as { tipo: string; n: number }[]).map((t) => [t.tipo, t.n])), fuente: await fuenteMedicamentos(),
     });
+  });
+  c.header("Cache-Control", CACHE);
+  return c.json(cuerpo);
+});
+
+/** GET /salud/alertas/productos — lo extraído de las alertas: una fila por producto y lote, con su alerta. */
+saludRouter.get("/alertas/productos", async (c) => {
+  const f = FiltrosAlertas.safeParse(parametros(c));
+  if (!f.success) return c.json({ error: "filtros_invalidos" }, 400);
+  const q = f.data;
+  const cuerpo = await memo.obtener(`alertas-productos:${JSON.stringify(q)}`, async () => {
+    const vals: unknown[] = [];
+    const p = (v: unknown) => { vals.push(v); return `$${vals.length}`; };
+    const w: string[] = ["true"];
+    const lote = q.q ? pareceLote(q.q) : null;
+    const reg = q.q ? registroDe(q.q) : null;
+    if (reg) w.push(`p.registro = ${p(reg)}`);
+    else if (lote && !/[A-Z]{4,}/.test(lote)) w.push(`p.lote_norm LIKE ${p(`%${lote}%`)}`);
+    else for (const x of palabras(q.q ?? "")) { const k = p(`%${x}%`); w.push(`(p.producto_norm LIKE ${k} OR mef_norm(coalesce(p.titular, '')) LIKE ${k} OR coalesce(p.lote_norm, '') LIKE ${k})`); }
+    if (q.tipo) w.push(`a.tipo = ${p(q.tipo)}`);
+    if (q.anio) w.push(`extract(year FROM a.fecha) = ${p(q.anio)}`);
+    const donde = w.join(" AND ");
+    const [filas, total] = await Promise.all([
+      pool.query(`SELECT p.producto, p.presentacion, p.lote, p.registro, p.vencimiento, p.titular, p.fabricante, p.pais, p.detalle,
+                         p.medicamento_codigo AS medicamento, a.id AS "alertaId", a.numero, to_char(a.fecha, 'YYYY-MM-DD') AS fecha, a.tipo,
+                         a.url, a.pdf_url AS "pdfUrl"
+                    FROM salud_alerta_producto p JOIN salud_alerta a ON a.id = p.alerta_id
+                   WHERE ${donde}
+                   ORDER BY a.fecha DESC, a.id DESC, p.orden LIMIT ${q.tamano} OFFSET ${(q.pagina - 1) * q.tamano}`, vals),
+      pool.query(`SELECT count(*)::int AS n, count(*) FILTER (WHERE p.lote IS NOT NULL)::int AS "conLote",
+                         count(DISTINCT p.alerta_id)::int AS alertas
+                    FROM salud_alerta_producto p JOIN salud_alerta a ON a.id = p.alerta_id WHERE ${donde}`, vals),
+    ]);
+    return publicar({ filas: filas.rows, ...total.rows[0], pagina: q.pagina, tamano: q.tamano, filtros: q, fuente: await fuenteMedicamentos() });
   });
   c.header("Cache-Control", CACHE);
   return c.json(cuerpo);
