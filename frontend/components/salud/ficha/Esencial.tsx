@@ -139,7 +139,7 @@ export function EsencialFicha({ f, base, className }: { f: FichaIpress; base: st
                   <Icono size={15} aria-hidden className={cn("mt-px shrink-0", ICONO[tono])} />
                   <span className="min-w-0">{CORTO[c.clave] ?? c.titulo}</span>
                 </span>
-                <span className={cn("mt-2 font-display text-bloque font-bold leading-tight tabular-nums [overflow-wrap:anywhere]", VALOR[tono])}>
+                <span className={cn("mt-2 font-display text-bloque font-bold leading-tight tabular-nums [overflow-wrap:anywhere] xl:text-cuerpo", VALOR[tono])}>
                   {valorCorto(c, f)}
                 </span>
               </Link>

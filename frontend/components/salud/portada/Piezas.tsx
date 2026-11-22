@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import { ArrowRight, ChevronRight, Phone, Siren } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { URL_LEY_SALUD } from "@/lib/salud-seguros";
 import { Pixel } from "@/components/pixel/Pixel";
 import { SPRITES, type NombreSprite } from "@/components/pixel/sprites";
 
@@ -243,6 +244,18 @@ export function AvisoEmergencia({ oscuro = false, className }: { oscuro?: boolea
         </a>
         <a href="tel:113" className={enlace}>
           <Phone size={14} aria-hidden /> 113 <span className="font-sans text-meta font-medium">Línea de salud</span>
+        </a>
+      </span>
+      {/* El derecho que más se ignora (2026-11-22): la emergencia y el parto, en cualquiera y con o sin seguro. */}
+      <span className={cn("basis-full text-meta leading-relaxed", oscuro ? "text-paper/75" : "text-inkSoft")}>
+        En una emergencia o un parto, cualquier establecimiento, público o privado, tiene que atenderte, con o sin seguro.{" "}
+        <a
+          href={URL_LEY_SALUD}
+          target="_blank"
+          rel="noopener noreferrer"
+          className={cn("font-semibold underline-offset-4 hover:underline", oscuro ? "text-paper underline" : "text-granate")}
+        >
+          Lo dice la Ley General de Salud<span className="sr-only"> (gob.pe, se abre en otra pestaña)</span>
         </a>
       </span>
     </div>

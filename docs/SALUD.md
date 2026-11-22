@@ -177,6 +177,26 @@ ampliación a medicamentos, infraestructura, epidemiología, cobertura y fiscali
   `salud_guardado` con `salud_sancion`, `salud_ipress_cambio` y `salud_alerta` y mande un resumen (el correo de Cognito
   tiene tope de 50 al día: haría falta SES fuera del sandbox).
 
+## Para atenderse: seguro, 24 horas y el derecho a la emergencia (2026-11-22)
+
+Pedido: «que sea útil para una persona de a pie que quiera atenderse». Lo primero que esa persona pregunta es con qué
+seguro la atienden, y ninguna página lo decía.
+
+- **Con qué seguro** (`frontend/lib/salud-seguros.ts`, `SEGUROS_SQL` en la API): por la institución que declaró en
+  RENIPRESS. MINSA y gobiernos regionales: con SIS gratis (gob.pe/8970, gob.pe/32985); EsSalud: sus asegurados, en el
+  centro asignado (gob.pe/277); Sanidades: su personal y familiares; privado: pagando o con un seguro privado o EPS. Un
+  convenio puntual no está en RENIPRESS: siempre se dice «pregunta».
+- **24 horas** (`ES_24H` en la API y `atiende24` en la web, el mismo patrón): el horario es texto libre; cuenta «24
+  HORAS», «00:00 - 24:00», «24x7», no «8:00 - 24:00». 1 355 activos lo declaran (22-11-2026).
+- **Dónde se ve:** «Cerca de mí» pregunta «¿Qué seguro tienes?» (SIS, EsSalud, privado o EPS, no tengo) y «Sólo los que
+  atienden 24 horas», con una guía corta por seguro y su enlace a gob.pe (`?seguro=&h24=1`); la lista tiene el filtro
+  «Con qué seguro» (en vez de «Del Estado o privado») y «Atiende 24 horas»; cada fila dice «Con SIS», «EsSalud»,
+  «Sanidad» o «Privado»; la ficha abre «Para atenderte» con «Con qué seguro te atienden».
+- **El derecho a la emergencia:** en una emergencia o un parto, cualquier establecimiento, público o privado, tiene que
+  atender, con o sin seguro, mientras haya grave riesgo; el pago se ve después (Ley 26842, artículos 3 y 39, modificados
+  por la Ley 27604; artículo 15.1 a). Va en el aviso de emergencia de todas las páginas, en la ficha y al elegir
+  «Emergencia» en «Cerca de mí».
+
 ## Orden y memoria (2026-11-22, auditoría de UX/UI)
 
 - **Menú por lo que se verifica**: Inicio, Guardados y vistos, Asistente; «Clínicas» (buscar, cerca de mí, mapa,

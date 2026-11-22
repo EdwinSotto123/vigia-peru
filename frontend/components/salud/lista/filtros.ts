@@ -1,6 +1,7 @@
 import { conAcentos } from "@/lib/financiamiento";
 import { CATEGORIAS_ORDEN, TIPOS_IPRESS, nombrePropio, type Sector } from "@/lib/gobserva-salud";
 import { tildesEnTitulo } from "@/lib/tildes";
+import type { FiltroSeguro } from "@/lib/salud-seguros";
 
 /**
  * Los filtros de /establecimientos y de /mapa de Gobserva Salud, leídos de la URL y pasados a la API (GET
@@ -60,6 +61,10 @@ export interface FiltrosLista {
   sanciones?: "con" | "sin";
   quirurgico?: "si";
   internamiento?: "si";
+  /** Con qué seguro atiende (la institución en RENIPRESS): lib/salud-seguros.ts. */
+  seguro?: FiltroSeguro;
+  /** Declaró atender las 24 horas. */
+  h24?: "si";
   orden?: OrdenLista;
   pagina?: number;
 }
@@ -110,6 +115,9 @@ export function filtrosDeUrl(p: Params): FiltrosLista {
   if (sanciones === "con" || sanciones === "sin") f.sanciones = sanciones;
   if (uno(p, "quirurgico") === "si") f.quirurgico = "si";
   if (uno(p, "internamiento") === "si") f.internamiento = "si";
+  const seguro = uno(p, "seguro");
+  if (seguro === "sis" || seguro === "essalud" || seguro === "sanidad" || seguro === "privado") f.seguro = seguro;
+  if (uno(p, "h24") === "si") f.h24 = "si";
   const orden = uno(p, "orden");
   if (orden && ORDENES.some((o) => o.clave === orden) && orden !== "relevancia") f.orden = orden as OrdenLista;
   const pagina = Number(uno(p, "pagina"));
@@ -118,7 +126,7 @@ export function filtrosDeUrl(p: Params): FiltrosLista {
 }
 
 /** El orden de las claves en la URL (siempre el mismo: el mismo filtro es la misma dirección). */
-const CLAVES: (keyof FiltrosLista)[] = ["q", "departamento", "provincia", "distrito", "categoria", "sector", "tipo", "estado", "sanciones", "quirurgico", "internamiento", "orden", "pagina"];
+const CLAVES: (keyof FiltrosLista)[] = ["q", "departamento", "provincia", "distrito", "categoria", "seguro", "h24", "sector", "tipo", "estado", "sanciones", "quirurgico", "internamiento", "orden", "pagina"];
 
 /** «?departamento=LIMA&sector=privado», sin los valores de siempre. */
 export function qsLista(f: FiltrosLista): string {
@@ -150,8 +158,8 @@ export function paramsApi(f: FiltrosLista, tamano: number): URLSearchParams {
 
 /** Los filtros que también entiende el mapa (sin texto, orden ni página). */
 export function filtrosMapa(f: FiltrosLista): FiltrosLista {
-  const { departamento, categoria, sector, tipo, estado, sanciones, quirurgico, internamiento } = f;
-  return { departamento, categoria, sector, tipo, estado, sanciones, quirurgico, internamiento };
+  const { departamento, categoria, sector, tipo, estado, sanciones, quirurgico, internamiento, seguro, h24 } = f;
+  return { departamento, categoria, sector, tipo, estado, sanciones, quirurgico, internamiento, seguro, h24 };
 }
 
 /** El nombre de una categoría para un filtro: «II-1» o «Sin categoría». */

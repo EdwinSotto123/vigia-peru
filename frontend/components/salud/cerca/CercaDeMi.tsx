@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { CircleCheck, Crosshair, Loader2, LocateFixed, Navigation, RotateCw, ShieldCheck, TriangleAlert } from "lucide-react";
+import { CircleCheck, Clock3, Crosshair, ExternalLink, Info, Loader2, LocateFixed, Navigation, RotateCw, ShieldCheck, Siren, TriangleAlert } from "lucide-react";
 import { direccionLegible, nombreServicio } from "@/components/salud/ficha/piezas";
 import { FilaEstablecimiento, PLACA_LISTA } from "@/components/salud/lista/FilaEstablecimiento";
 import { VecinaPregunta, VecinaUbicando } from "@/components/salud/pixel/Personajes";
@@ -11,9 +11,16 @@ import { Dato } from "@/components/ui/Dato";
 import { rutaEn } from "@/lib/gobserva";
 import { URL_CERCA_SALUD, distanciaMetros, numero, redondearCoordenada, textoDistancia, type Cercanos, type FilaCercana } from "@/lib/gobserva-salud";
 import { NECESIDADES_RAPIDAS, necesidadDe, type Necesidad } from "@/lib/salud-necesidades";
+import { SEGUROS_PERSONA, URL_LEY_SALUD, seguroPersonaDe, type SeguroPersona } from "@/lib/salud-seguros";
 import { cn } from "@/lib/utils";
 
 type Motivo = "denegado" | "no_disponible" | "tiempo" | "sin_soporte" | "fuera" | "limite" | "red";
+/** Lo que se pide: qué necesita, con qué seguro y si sólo los de 24 horas. */
+interface Consulta {
+  necesidad: Necesidad | null;
+  seguro: SeguroPersona | null;
+  h24: boolean;
+}
 type Estado =
   | { fase: "inicio" }
   | { fase: "ubicando" }
@@ -23,12 +30,16 @@ type Estado =
       filas: (FilaCercana & { metros: number })[];
       margen: number;
       necesidad: Necesidad | null;
+      seguro: SeguroPersona | null;
+      h24: boolean;
       radioKm: number;
       cobertura: Cercanos["cobertura"];
     }
   | { fase: "error"; motivo: Motivo };
 
 const PRIMERAS = 8;
+/** En el celular, las necesidades que se ven antes de «Ver más» (la lista entera eran seis renglones de botones). */
+const VISIBLES_CELULAR = 6;
 
 const MENSAJE: Record<Motivo, { titulo: string; texto: string }> = {
   denegado: {
@@ -59,6 +70,8 @@ export function CercaDeMi({
   base,
   auto = false,
   necesidadInicial = null,
+  seguroInicial = null,
+  h24Inicial = false,
   conUbicacion,
   total,
 }: {
@@ -66,24 +79,37 @@ export function CercaDeMi({
   auto?: boolean;
   /** La clave de una necesidad (lib/salud-necesidades.ts) que llega en la URL: ?necesidad=dientes. */
   necesidadInicial?: string | null;
+  /** ?seguro=sis|essalud|privado|ninguno: el seguro de la persona (lib/salud-seguros.ts). */
+  seguroInicial?: string | null;
+  /** ?h24=1: sólo los que declararon atender las 24 horas. */
+  h24Inicial?: boolean;
   /** Cuántas IPRESS tienen ubicación en RENIPRESS y cuántas hay (GET /salud/resumen), para decir cuántas no se pueden encontrar así. */
   conUbicacion: number | null;
   total: number | null;
 }) {
   const [estado, setEstado] = useState<Estado>({ fase: "inicio" });
   const [necesidad, setNecesidad] = useState<Necesidad | null>(necesidadDe(necesidadInicial));
+  const [seguro, setSeguro] = useState<SeguroPersona | null>(seguroPersonaDe(seguroInicial));
+  const [h24, setH24] = useState(h24Inicial);
+  const [masNecesidades, setMasNecesidades] = useState(false);
   const [todas, setTodas] = useState(false);
   const titulo = useRef<HTMLHeadingElement>(null);
   const pedido = useRef(0);
   const posicion = useRef<{ lat: number; lon: number; margen: number } | null>(null);
 
-  const buscar = useCallback(async (lat: number, lon: number, margen: number, n: number, nec: Necesidad | null) => {
+  const buscar = useCallback(async (lat: number, lon: number, margen: number, n: number, c: Consulta) => {
     setEstado({ fase: "buscando" });
     try {
       const r = await fetch(URL_CERCA_SALUD, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ lat: redondearCoordenada(lat), lon: redondearCoordenada(lon), ...(nec ? { terminos: nec.terminos } : {}) }),
+        body: JSON.stringify({
+          lat: redondearCoordenada(lat),
+          lon: redondearCoordenada(lon),
+          ...(c.necesidad ? { terminos: c.necesidad.terminos } : {}),
+          ...(c.seguro ? { seguro: c.seguro.filtro } : {}),
+          ...(c.h24 ? { h24: true } : {}),
+        }),
         cache: "no-store",
       });
       if (n !== pedido.current) return;
@@ -100,14 +126,14 @@ export function CercaDeMi({
         .map((x) => ({ ...x, metros: distanciaMetros({ lat, lon }, { lat: x.lat as number, lon: x.lon as number }) }))
         .sort((a, b) => a.metros - b.metros || Number(b.activo) - Number(a.activo));
       setTodas(false);
-      setEstado({ fase: "listo", filas, margen, necesidad: nec, radioKm: d.radioKm, cobertura: d.cobertura ?? null });
+      setEstado({ fase: "listo", filas, margen, necesidad: c.necesidad, seguro: c.seguro, h24: c.h24, radioKm: d.radioKm, cobertura: d.cobertura ?? null });
     } catch {
       if (n === pedido.current) setEstado({ fase: "error", motivo: "red" });
     }
   }, []);
 
   const ubicar = useCallback(
-    (nec: Necesidad | null) => {
+    (c: Consulta) => {
       const n = ++pedido.current;
       if (typeof navigator === "undefined" || !("geolocation" in navigator)) return setEstado({ fase: "error", motivo: "sin_soporte" });
       setEstado({ fase: "ubicando" });
@@ -115,7 +141,7 @@ export function CercaDeMi({
         (p) => {
           if (n !== pedido.current) return;
           posicion.current = { lat: p.coords.latitude, lon: p.coords.longitude, margen: p.coords.accuracy };
-          void buscar(p.coords.latitude, p.coords.longitude, p.coords.accuracy, n, nec);
+          void buscar(p.coords.latitude, p.coords.longitude, p.coords.accuracy, n, c);
         },
         (e) => {
           if (n !== pedido.current) return;
@@ -127,15 +153,22 @@ export function CercaDeMi({
     [buscar],
   );
 
-  // Cambiar lo que se necesita: con la ubicación ya tomada se vuelve a buscar sin pedirla de nuevo.
-  const elegir = (nec: Necesidad | null) => {
-    setNecesidad(nec);
+  // Cambiar lo que se necesita, el seguro o las 24 horas: con la ubicación ya tomada se vuelve a buscar sin pedirla de
+  // nuevo, y la dirección guarda la elección (se puede compartir o volver).
+  const cambiar = (c: Consulta) => {
+    setNecesidad(c.necesidad);
+    setSeguro(c.seguro);
+    setH24(c.h24);
     const p = posicion.current;
-    if (p) void buscar(p.lat, p.lon, p.margen, ++pedido.current, nec);
+    if (p) void buscar(p.lat, p.lon, p.margen, ++pedido.current, c);
     try {
       const u = new URL(window.location.href);
-      if (nec) u.searchParams.set("necesidad", nec.clave);
+      if (c.necesidad) u.searchParams.set("necesidad", c.necesidad.clave);
       else u.searchParams.delete("necesidad");
+      if (c.seguro) u.searchParams.set("seguro", c.seguro.clave);
+      else u.searchParams.delete("seguro");
+      if (c.h24) u.searchParams.set("h24", "1");
+      else u.searchParams.delete("h24");
       u.searchParams.delete("ubicar");
       window.history.replaceState(window.history.state, "", u.toString());
     } catch {
@@ -148,9 +181,9 @@ export function CercaDeMi({
   useEffect(() => {
     if (auto && !yaPidio.current) {
       yaPidio.current = true;
-      ubicar(necesidad);
+      ubicar({ necesidad, seguro, h24 });
     }
-  }, [auto, ubicar, necesidad]);
+  }, [auto, ubicar, necesidad, seguro, h24]);
 
   // Con los resultados, el foco va a su título (el lector de pantalla lo anuncia y el teclado sigue desde ahí).
   useEffect(() => {
@@ -167,26 +200,86 @@ export function CercaDeMi({
         <legend className="text-dato font-semibold text-ink">¿Qué necesitas? Opcional</legend>
         <ul className="mt-2 flex flex-wrap gap-2">
           <li>
-            <Opcion activa={!necesidad} onClick={() => elegir(null)} deshabilitada={ocupado}>
+            <Opcion activa={!necesidad} onClick={() => cambiar({ necesidad: null, seguro, h24 })} deshabilitada={ocupado}>
               Ver todos
             </Opcion>
           </li>
-          {opciones.map((n) => (
-            <li key={n.clave}>
-              <Opcion activa={necesidad?.clave === n.clave} onClick={() => elegir(necesidad?.clave === n.clave ? null : n)} deshabilitada={ocupado}>
+          {opciones.map((n, i) => (
+            <li key={n.clave} className={cn(!masNecesidades && i >= VISIBLES_CELULAR && necesidad?.clave !== n.clave && "max-sm:hidden")}>
+              <Opcion
+                activa={necesidad?.clave === n.clave}
+                onClick={() => cambiar({ necesidad: necesidad?.clave === n.clave ? null : n, seguro, h24 })}
+                deshabilitada={ocupado}
+              >
                 {n.etiqueta}
               </Opcion>
             </li>
           ))}
+          {!masNecesidades && opciones.length > VISIBLES_CELULAR && (
+            <li className="sm:hidden">
+              <button
+                type="button"
+                onClick={() => setMasNecesidades(true)}
+                className="inline-flex min-h-11 items-center rounded-full px-3 text-meta font-semibold text-granate underline-offset-4 hover:underline"
+              >
+                Ver {opciones.length - VISIBLES_CELULAR} más
+              </button>
+            </li>
+          )}
         </ul>
       </fieldset>
+
+      {/* Con qué seguro y a qué hora (2026-11-22, «útil para una persona de a pie que quiera atenderse»). */}
+      <fieldset className="mt-5 min-w-0">
+        <legend className="text-dato font-semibold text-ink">¿Qué seguro tienes? Opcional</legend>
+        <ul className="mt-2 flex flex-wrap gap-2">
+          <li>
+            <Opcion activa={!seguro} onClick={() => cambiar({ necesidad, seguro: null, h24 })} deshabilitada={ocupado}>
+              Cualquiera
+            </Opcion>
+          </li>
+          {SEGUROS_PERSONA.map((s) => (
+            <li key={s.clave}>
+              <Opcion activa={seguro?.clave === s.clave} onClick={() => cambiar({ necesidad, seguro: seguro?.clave === s.clave ? null : s, h24 })} deshabilitada={ocupado}>
+                {s.etiqueta}
+              </Opcion>
+            </li>
+          ))}
+        </ul>
+        <div className="mt-3">
+          <Opcion activa={h24} onClick={() => cambiar({ necesidad, seguro, h24: !h24 })} deshabilitada={ocupado}>
+            <Clock3 size={15} aria-hidden className="mr-1.5" />
+            Sólo los que atienden 24 horas
+          </Opcion>
+        </div>
+      </fieldset>
+
+      {seguro && (
+        <div className="mt-4 flex gap-2.5 rounded-xl border border-line bg-paperSoft px-3.5 py-3 text-meta leading-relaxed text-inkSoft">
+          <Info size={16} aria-hidden className="mt-0.5 shrink-0 text-granate" />
+          <p className="max-w-[72ch]">
+            {seguro.guia}
+            {seguro.enlace && (
+              <>
+                {" "}
+                <a href={seguro.enlace.href} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 font-semibold text-granate underline-offset-4 hover:underline">
+                  {seguro.enlace.texto}
+                  <ExternalLink size={12} aria-hidden />
+                  <span className="sr-only"> (gob.pe, se abre en otra pestaña)</span>
+                </a>
+              </>
+            )}
+          </p>
+        </div>
+      )}
+      {necesidad?.clave === "emergencia" && <DerechoEmergencia className="mt-4" />}
 
       <div className="mt-5 flex items-end gap-4">
         <VecinaUbicando buscando={ocupado} className="shrink-0" />
         <div className="flex min-w-0 flex-1 flex-col gap-3 pb-1 sm:flex-row sm:items-center">
           <button
             type="button"
-            onClick={() => ubicar(necesidad)}
+            onClick={() => ubicar({ necesidad, seguro, h24 })}
             disabled={ocupado}
             aria-describedby="cerca-privacidad"
             className={claseAccion("primario", "min-h-14 w-full px-7 text-cuerpo disabled:cursor-wait disabled:opacity-80 sm:w-auto", "md")}
@@ -239,6 +332,12 @@ export function CercaDeMi({
             )}
           </div>
 
+          {(estado.seguro || estado.h24) && (
+            <p className="mt-1 text-dato font-medium text-ink">
+              {estado.seguro ? estado.seguro.lista.charAt(0).toUpperCase() + estado.seguro.lista.slice(1) : "Activos"}
+              {estado.h24 ? ", que declararon atender las 24 horas" : ""}.
+            </p>
+          )}
           {estado.necesidad && estado.cobertura && (
             <p className="mt-2 max-w-[72ch] text-dato leading-relaxed text-inkSoft">
               Sólo aparecen los activos que lo declararon en RENIPRESS y cuyos servicios ya leímos: {numero(estado.cobertura.revisados)} de{" "}
@@ -287,13 +386,17 @@ export function CercaDeMi({
             <p className="mt-2 max-w-[70ch] text-dato leading-relaxed text-inkSoft">
               Eso no prueba que no lo atiendan: de muchos todavía no leemos sus servicios. Mira todos los cercanos y llama para preguntar.
             </p>
+          ) : estado.seguro || estado.h24 ? (
+            <p className="mt-2 max-w-[70ch] text-dato leading-relaxed text-inkSoft">
+              Ninguno cerca con eso. Elige «Cualquiera» o quita las 24 horas para ver todos los cercanos.
+            </p>
           ) : (
             <p className="mt-2 max-w-[70ch] text-dato leading-relaxed text-inkSoft">
               En unos 170 km a la redonda ningún establecimiento declaró su ubicación en RENIPRESS. Búscalo por su nombre.
             </p>
           )}
 
-          {!estado.necesidad && (
+          {!estado.necesidad && !estado.seguro && !estado.h24 && (
             <div className="mt-6 rounded-2xl border border-line bg-paperSoft p-4 sm:p-5">
               <h3 className="font-display text-bloque font-bold leading-snug text-ink">¿No está el tuyo?</h3>
               <p className="mt-1 max-w-[70ch] text-dato leading-relaxed text-inkSoft">
@@ -318,11 +421,28 @@ function Opcion({ activa, onClick, deshabilitada, children }: { activa: boolean;
       onClick={onClick}
       disabled={deshabilitada}
       className={cn(
-        "inline-flex min-h-11 items-center rounded-full border px-3.5 text-meta font-semibold transition-colors duration-rapido disabled:cursor-wait sm:min-h-9",
+        "inline-flex min-h-11 items-center rounded-full border px-3.5 text-meta font-semibold transition-colors duration-rapido disabled:cursor-wait sm:min-h-9 [&_svg]:shrink-0",
         activa ? "border-granate bg-granate text-paper" : "border-line bg-paper text-ink hover:border-granate/50 hover:bg-granate-50",
       )}
     >
       {children}
     </button>
+  );
+}
+
+/** Lo que dice la ley de una emergencia o un parto: en cualquier establecimiento, con o sin seguro. */
+function DerechoEmergencia({ className }: { className?: string }) {
+  return (
+    <div role="note" className={cn("flex gap-2.5 rounded-xl border border-crimson/30 bg-crimson-soft/50 px-3.5 py-3 text-meta leading-relaxed text-ink", className)}>
+      <Siren size={16} aria-hidden className="mt-0.5 shrink-0 text-crimsonTexto" />
+      <p className="max-w-[72ch]">
+        <b className="font-semibold">En una emergencia o un parto, cualquier establecimiento, público o privado, tiene que atenderte</b>, con o sin seguro,
+        mientras tu vida o tu salud estén en riesgo; el pago se ve después.{" "}
+        <a href={URL_LEY_SALUD} target="_blank" rel="noopener noreferrer" className="font-semibold text-granate underline-offset-4 hover:underline">
+          Ley General de Salud, artículos 3 y 39<span className="sr-only"> (gob.pe, se abre en otra pestaña)</span>
+        </a>
+        . Si es grave, llama al <a href="tel:106" className="font-semibold text-ink underline underline-offset-2">106</a>.
+      </p>
+    </div>
   );
 }

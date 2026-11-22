@@ -14,6 +14,7 @@ import { claseAccion } from "@/components/ui/EnlaceAccion";
 import { rutaEn, urlCanonica } from "@/lib/gobserva";
 import { CATEGORIAS_ORDEN, TIPOS_IPRESS, claveTipo, getEstablecimientos, getResumenSalud, numero } from "@/lib/gobserva-salud";
 import { baseProducto } from "@/lib/gobserva-servidor";
+import type { FiltroSeguro } from "@/lib/salud-seguros";
 
 export const dynamic = "force-dynamic";
 
@@ -37,13 +38,23 @@ const NOMBRE_CATEGORIA: Record<string, string> = {
   SIN: "Servicios de apoyo y otros sin categorizar",
 };
 
-/** «Establecimientos de salud privados en Arequipa con sanción firme». */
+/** Cómo se nombra cada seguro en el título de la lista. */
+const SEGURO_TITULO: Record<FiltroSeguro, string> = {
+  sis: "del MINSA y los gobiernos regionales",
+  essalud: "de EsSalud",
+  sanidad: "de las Sanidades",
+  privado: "privados",
+};
+
+/** «Establecimientos de salud de EsSalud en Arequipa que atienden las 24 horas». */
 function tituloLista(f: FiltrosLista): string {
   const partes = ["Establecimientos de salud"];
-  if (f.sector) partes.push(f.sector === "publico" ? "públicos" : f.sector === "privado" ? "privados" : "de otro sector");
+  if (f.seguro) partes.push(SEGURO_TITULO[f.seguro]);
+  else if (f.sector) partes.push(f.sector === "publico" ? "públicos" : f.sector === "privado" ? "privados" : "de otro sector");
   if (f.distrito) partes.push(`en ${nombreLugar(f.distrito)}`);
   else if (f.provincia) partes.push(`en ${nombreLugar(f.provincia)}`);
   else if (f.departamento) partes.push(`en ${nombreLugar(f.departamento)}`);
+  if (f.h24) partes.push("que atienden las 24 horas");
   if (f.sanciones === "con") partes.push("con sanción firme");
   if (f.estado === "inactivos") partes.push("inactivos");
   return partes.join(" ");
@@ -107,17 +118,34 @@ export default async function Establecimientos({ searchParams }: Props) {
       valor: f.tipo,
       opciones: TIPOS_IPRESS.map((t) => ({ valor: t.clave, nombre: t.nombre, detalle: t.detalle, n: fac?.tipo.find((x) => claveTipo(x.clave) === t.clave)?.n ?? null })),
     },
+    // Con qué seguro atiende (2026-11-22, «útil para una persona de a pie que quiera atenderse»): lo que la gente
+    // pregunta, en vez de «Del Estado o privado». Ese filtro sigue para los enlaces viejos que lo traen.
     {
       tipo: "uno",
-      clave: "sector",
-      etiqueta: "Del Estado o privado",
-      valor: f.sector,
+      clave: "seguro",
+      etiqueta: "Con qué seguro",
+      valor: f.seguro,
       opciones: [
-        { valor: "publico", nombre: "Del Estado", detalle: "MINSA, gobiernos regionales, EsSalud, Sanidades", n: n(fac?.sector, "publico") },
-        { valor: "privado", nombre: "Privado", n: n(fac?.sector, "privado") },
-        { valor: "otro", nombre: "Otro", detalle: "Mixtos y otros", n: n(fac?.sector, "otro") },
+        { valor: "sis", nombre: "SIS", detalle: "MINSA y gobiernos regionales. Sin seguro, también pagando la cita", n: n(fac?.seguro, "sis") },
+        { valor: "essalud", nombre: "EsSalud", detalle: "Para sus asegurados, en el centro que les asignó", n: n(fac?.seguro, "essalud") },
+        { valor: "privado", nombre: "Privado o EPS", detalle: "Pagando o con tu seguro: pregunta si tiene convenio", n: n(fac?.seguro, "privado") },
+        { valor: "sanidad", nombre: "Sanidades", detalle: "Fuerzas Armadas y Policía, para su personal y familiares", n: n(fac?.seguro, "sanidad") },
       ],
     },
+    ...(f.sector
+      ? [{
+          tipo: "uno" as const,
+          clave: "sector",
+          etiqueta: "Del Estado o privado",
+          valor: f.sector,
+          opciones: [
+            { valor: "publico", nombre: "Del Estado", detalle: "MINSA, gobiernos regionales, EsSalud, Sanidades", n: n(fac?.sector, "publico") },
+            { valor: "privado", nombre: "Privado", n: n(fac?.sector, "privado") },
+            { valor: "otro", nombre: "Otro", detalle: "Mixtos y otros", n: n(fac?.sector, "otro") },
+          ],
+        }]
+      : []),
+    { tipo: "si", clave: "h24", etiqueta: "Atiende 24 horas", valorSi: "si", activo: !!f.h24 },
     { tipo: "si", clave: "sanciones", etiqueta: "Con sanción firme", valorSi: "con", activo: f.sanciones === "con", tono: "alerta" },
     { tipo: "si", clave: "quirurgico", etiqueta: "Con centro quirúrgico", valorSi: "si", activo: !!f.quirurgico },
     ...(f.internamiento ? [{ tipo: "si" as const, clave: "internamiento", etiqueta: "Con internamiento", valorSi: "si", activo: true }] : []),

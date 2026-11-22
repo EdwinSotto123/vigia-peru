@@ -28,9 +28,11 @@ import {
  *   GET  /salud/resumen                 cifras del país y fecha de cada fuente (la portada y el pie).
  *   GET  /salud/buscar?q=               un solo buscador: código de IPRESS, RUC, número de colegiatura o nombre.
  *   GET  /salud/establecimientos        la lista con filtros (texto, región, provincia, distrito, categoría, sector, tipo,
- *                                       estado, con sanciones, quirúrgico, internamiento), orden, páginas y facetas.
+ *                                       estado, con sanciones, quirúrgico, internamiento, seguro, 24 horas), orden, páginas
+ *                                       y facetas.
  *   GET  /salud/mapa                    los puntos (con los mismos filtros), compactos.
- *   POST /salud/cerca {lat, lon}        las más cercanas a un punto (redondeado a ~110 m), para quien ya está adentro.
+ *   POST /salud/cerca {lat, lon}        las más cercanas a un punto (redondeado a ~110 m), para quien ya está adentro o
+ *                                       busca dónde atenderse (lo que necesita, con qué seguro, abierto las 24 horas).
  *   GET  /salud/establecimiento/:codigo la ficha: registro, detalle, chequeos de verificación, sanciones, denuncias,
  *                                       recursos, cirugías, historial, fuentes y lo que Vigía sabe de su RUC.
  *   GET  /salud/medico/:colegiatura     lo que dicen las fuentes abiertas de una colegiatura (RENIPRESS) y cómo verificarla.
@@ -59,6 +61,29 @@ const memoLargo = new Memo<unknown>({ nombre: "salud-largo", ttlMs: 3 * 3_600_00
 
 const CATS = ["I-1", "I-2", "I-3", "I-4", "II-1", "II-2", "II-E", "III-1", "III-2", "III-E"] as const;
 const SECTORES = ["publico", "privado", "otro"] as const;
+
+/**
+ * Con qué seguro atiende, por la institución que declaró en RENIPRESS (2026-11-22, el usuario: «útil para una persona de
+ * a pie que quiera atenderse»). Con el SIS la atención es gratis en los del MINSA y los gobiernos regionales
+ * (gob.pe/8970, gob.pe/32985); EsSalud atiende a sus asegurados en el centro que les asignó (gob.pe/277); las Sanidades,
+ * a su personal y sus familiares; el privado, pagando o con un seguro privado o EPS. Un convenio puntual (una clínica con
+ * el SIS) no está en RENIPRESS. La emergencia y el parto se atienden en cualquiera (Ley 26842, artículos 3 y 39).
+ */
+const SEGUROS_SQL = {
+  sis: "i.institucion IN ('MINSA', 'GOBIERNO REGIONAL')",
+  essalud: "i.institucion = 'ESSALUD'",
+  sanidad: "i.institucion LIKE 'SANIDAD%'",
+  privado: "i.institucion = 'PRIVADO'",
+} as const;
+type ClaveSeguro = keyof typeof SEGUROS_SQL;
+const SEGUROS = Object.keys(SEGUROS_SQL) as [ClaveSeguro, ...ClaveSeguro[]];
+const SEGURO_CASE = `CASE WHEN ${SEGUROS_SQL.sis} THEN 'sis' WHEN ${SEGUROS_SQL.essalud} THEN 'essalud'
+  WHEN ${SEGUROS_SQL.sanidad} THEN 'sanidad' WHEN ${SEGUROS_SQL.privado} THEN 'privado' ELSE 'otro' END`;
+/**
+ * Declaró atender las 24 horas: «24 HORAS», «24 hrs», «L-D 00:00 - 24:00», «24:00 horas», «Emerg: 24x7», «7:30-19:30 EMER
+ * 24 H»; no «8:00 - 24:00». El horario es texto libre que declara cada IPRESS. El mismo patrón en la web: frontend/lib/salud-seguros.ts.
+ */
+export const ES_24H = `coalesce(i.horario ~* '(^|[^0-9:])24 *(h|hs|hrs?|horas?)([^a-z]|$)|(^|[^0-9])0?0[:.]00 *(-|a)? *24[:.]?00|24 *x *7|^ *24(:00)? *(h|hrs?|horas?)?[.]? *$', false)`;
 const TIPOS: Record<string, string> = {
   con_internamiento: "ESTABLECIMIENTO DE SALUD CON INTERNAMIENTO",
   sin_internamiento: "ESTABLECIMIENTO DE SALUD SIN INTERNAMIENTO",
@@ -92,6 +117,8 @@ const Filtros = z.object({
   sanciones: z.enum(["con", "sin"]).optional(),
   quirurgico: z.enum(["si"]).optional(),
   internamiento: z.enum(["si"]).optional(),
+  seguro: z.enum(SEGUROS).optional(),
+  h24: z.enum(["si"]).optional(),
   ruc: z.string().regex(/^20\d{9}$/).optional(),
   orden: z.enum(["relevancia", "nombre", "sanciones", "categoria", "denuncias"]).default("relevancia"),
   pagina: z.coerce.number().int().min(1).max(2000).default(1),
@@ -148,6 +175,8 @@ export function condiciones(f: Partial<FiltrosSalud>, vals: unknown[] = []): { s
   else if (f.sanciones === "sin") w.push("coalesce(x.sanciones, 0) = 0");
   if (f.quirurgico === "si") w.push("x.quirurgico");
   if (f.internamiento === "si") w.push("x.internamiento");
+  if (f.seguro) w.push(SEGUROS_SQL[f.seguro]);
+  if (f.h24 === "si") w.push(ES_24H);
   if (f.ruc) w.push(`x.ruc = ${p(f.ruc)}`);
   return { sql: w.join(" AND "), vals, relevancia };
 }
@@ -291,12 +320,14 @@ saludRouter.get("/establecimientos", async (c) => {
       pool.query(`SELECT ${COLS} ${base} ORDER BY ${ordenes[q.orden]} LIMIT ${q.tamano} OFFSET ${off}`, vals),
       pool.query(`SELECT count(*)::int AS n, count(*) FILTER (WHERE x.sanciones > 0)::int AS "conSanciones" ${base}`, vals),
       pool.query(`
-        WITH b AS MATERIALIZED (SELECT i.departamento, i.provincia, i.categoria, i.sector, i.tipo ${base})
+        WITH b AS MATERIALIZED (SELECT i.departamento, i.provincia, i.categoria, i.sector, i.tipo, ${SEGURO_CASE} AS seguro, ${ES_24H} AS h24 ${base})
         SELECT (SELECT coalesce(json_agg(t ORDER BY t.n DESC), '[]') FROM (SELECT departamento AS clave, count(*)::int AS n FROM b WHERE departamento IS NOT NULL GROUP BY 1) t) AS departamento,
                (SELECT coalesce(json_agg(t ORDER BY t.n DESC), '[]') FROM (SELECT provincia AS clave, count(*)::int AS n FROM b WHERE provincia IS NOT NULL GROUP BY 1) t) AS provincia,
                (SELECT coalesce(json_agg(t ORDER BY t.n DESC), '[]') FROM (SELECT coalesce(categoria, 'SIN') AS clave, count(*)::int AS n FROM b GROUP BY 1) t) AS categoria,
                (SELECT coalesce(json_agg(t ORDER BY t.n DESC), '[]') FROM (SELECT sector AS clave, count(*)::int AS n FROM b GROUP BY 1) t) AS sector,
-               (SELECT coalesce(json_agg(t ORDER BY t.n DESC), '[]') FROM (SELECT tipo AS clave, count(*)::int AS n FROM b WHERE tipo IS NOT NULL GROUP BY 1) t) AS tipo`, vals),
+               (SELECT coalesce(json_agg(t ORDER BY t.n DESC), '[]') FROM (SELECT tipo AS clave, count(*)::int AS n FROM b WHERE tipo IS NOT NULL GROUP BY 1) t) AS tipo,
+               (SELECT coalesce(json_agg(t ORDER BY t.n DESC), '[]') FROM (SELECT seguro AS clave, count(*)::int AS n FROM b GROUP BY 1) t) AS seguro,
+               (SELECT count(*)::int FROM b WHERE h24) AS h24`, vals),
     ]);
     return publicar({
       filas: filas.rows, total: total.rows[0].n, conSanciones: total.rows[0].conSanciones, pagina: q.pagina, tamano: q.tamano,
@@ -354,6 +385,9 @@ const CuerpoCerca = z.object({
   // Lo que la persona necesita, como el comienzo de palabra que se busca en lo que cada IPRESS declaró en RENIPRESS
   // («ODONTOLOG», «CENTRO OBSTETRICO»): los arma la web (frontend/lib/salud-necesidades.ts). Sólo letras y espacios.
   terminos: z.array(z.string().regex(/^[A-Z][A-Z ]{2,39}$/)).min(1).max(16).optional(),
+  // Para quien busca dónde atenderse: con qué seguro (la institución) y si declaró atender las 24 horas.
+  seguro: z.enum(SEGUROS).optional(),
+  h24: z.boolean().optional(),
 });
 
 /**
@@ -384,6 +418,9 @@ saludRouter.post("/cerca", async (c) => {
   const caja = `i.lat BETWEEN $1::float8 - $3::float8 AND $1::float8 + $3::float8
          AND i.lon BETWEEN $2::float8 - $3::float8 AND $2::float8 + $3::float8`;
   const terminos = b.data.terminos;
+  // Con seguro o 24 horas se busca dónde atenderse: sólo las activas. Literales (SEGUROS_SQL, ES_24H), no parámetros.
+  const extra = [b.data.seguro ? SEGUROS_SQL[b.data.seguro] : null, b.data.h24 ? ES_24H : null].filter(Boolean) as string[];
+  const y = extra.length ? ` AND ${extra.join(" AND ")}` : "";
   let filas: Record<string, unknown>[] = [];
   let radio = 0;
   let cobertura: { revisados: number; total: number } | null = null;
@@ -393,7 +430,7 @@ saludRouter.post("/cerca", async (c) => {
       const q = await pool.query(`
         SELECT ${COLS}, i.en_registro AS "enRegistro", round(${distancia})::int AS distancia
           FROM salud_ipress i LEFT JOIN salud_indicador x ON x.codigo = i.codigo
-         WHERE ${caja}
+         WHERE ${caja}${y ? ` AND i.en_registro AND i.activo${y}` : ""}
          ORDER BY distancia, i.activo DESC, i.nombre LIMIT ${CERCA_MAX}`, [o.lat, o.lon, r]);
       filas = q.rows;
     } else {
@@ -407,7 +444,7 @@ saludRouter.post("/cerca", async (c) => {
           WITH cerca AS MATERIALIZED (
             SELECT i.codigo, ${distancia} AS d
               FROM salud_ipress i JOIN salud_ipress_detalle dd ON dd.codigo = i.codigo AND dd.leido_at IS NOT NULL AND dd.error IS NULL
-             WHERE ${caja} AND i.en_registro AND i.activo
+             WHERE ${caja} AND i.en_registro AND i.activo${y}
              ORDER BY d LIMIT 800)
           SELECT ${COLS}, i.en_registro AS "enRegistro", round(c.d)::int AS distancia, m.nombre AS coincide
             FROM cerca c JOIN salud_ipress i ON i.codigo = c.codigo LEFT JOIN salud_indicador x ON x.codigo = i.codigo
@@ -420,7 +457,7 @@ saludRouter.post("/cerca", async (c) => {
         pool.query(`
           SELECT count(*)::int AS total, count(dd.codigo)::int AS revisados
             FROM salud_ipress i LEFT JOIN salud_ipress_detalle dd ON dd.codigo = i.codigo AND dd.leido_at IS NOT NULL AND dd.error IS NULL
-           WHERE ${caja} AND i.en_registro AND i.activo`, [o.lat, o.lon, r]),
+           WHERE ${caja} AND i.en_registro AND i.activo${y}`, [o.lat, o.lon, r]),
       ]);
       filas = q.rows;
       cobertura = n.rows[0];

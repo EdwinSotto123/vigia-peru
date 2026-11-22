@@ -139,7 +139,7 @@ export default async function InicioSalud() {
                   </>
                 ),
                 necesidad: "Necesito atenderme cerca de mí",
-                que: "Usa tu ubicación y te mostramos los establecimientos cercanos y activos, con lo que declararon atender.",
+                que: "Usa tu ubicación y te mostramos los cercanos que atienden lo que necesitas, con tu seguro (SIS, EsSalud o privado) y si abren las 24 horas.",
                 accion: "Buscar cerca de mí",
                 href: `${ruta("/cerca")}?ubicar=1`,
               },

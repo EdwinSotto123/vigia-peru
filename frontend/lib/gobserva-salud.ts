@@ -172,6 +172,10 @@ export interface Facetas {
   categoria: { clave: string; n: number }[];
   sector: { clave: string; n: number }[];
   tipo: { clave: string; n: number }[];
+  /** Por institución: sis (MINSA y gobiernos regionales), essalud, sanidad, privado, otro. */
+  seguro?: { clave: string; n: number }[];
+  /** Cuántos declararon atender las 24 horas. */
+  h24?: number;
 }
 
 export interface PaginaIpress {

@@ -4,6 +4,7 @@ import { BedDouble, Clock3, MapPin, Scissors, Stethoscope } from "lucide-react";
 import { InsigniaCategoria } from "@/components/salud/comun";
 import { rutaEn } from "@/lib/gobserva";
 import { CLASES_DE_HECHO, SECTORES, nombrePropio, numero, rutaFicha, type FilaIpress } from "@/lib/gobserva-salud";
+import { atiende24, seguroIpress } from "@/lib/salud-seguros";
 import { cn } from "@/lib/utils";
 import { lugarIpress } from "./filtros";
 import { InsigniaRegistro } from "./Insignias";
@@ -15,7 +16,7 @@ import { InsigniaRegistro } from "./Insignias";
  * 2026-11-21 (el usuario: «atosigante, sin jerarquías»): antes cada una era una tarjeta con hasta seis insignias del
  * mismo peso (categoría, sector, «Activa en RENIPRESS», sanciones, denuncias, centro quirúrgico, internamiento). Ahora
  * tiene tres niveles: el nombre (lleva a la ficha); debajo, en gris, dónde está y qué tiene (24 horas, médicos, centro
- * quirúrgico, internamiento); y a la derecha, en columnas que se leen hacia abajo, la categoría con su sector y las
+ * quirúrgico, internamiento); y a la derecha, en columnas que se leen hacia abajo, la categoría con su seguro y las
  * señales: las sanciones firmes en rojo y las denuncias en ámbar, como cifras (nunca juntas en una). «Activa» ya no se
  * dice: es lo normal; sólo se marca lo que NO está activo. Server-safe.
  */
@@ -44,7 +45,7 @@ export function FilaEstablecimiento({ x, base, children, className }: { x: FilaI
             <MapPin size={13} aria-hidden />
             {lugarIpress(x)}
           </span>
-          {x.horario && /24\s*H/i.test(x.horario) && (
+          {atiende24(x.horario) && (
             <span className="inline-flex items-center gap-1">
               <Clock3 size={13} aria-hidden />
               24 horas
@@ -77,7 +78,8 @@ export function FilaEstablecimiento({ x, base, children, className }: { x: FilaI
       <div className="flex flex-wrap items-center gap-x-3 gap-y-2 md:contents">
         <p className="flex items-center gap-2 md:flex-col md:items-start md:gap-1">
           <InsigniaCategoria categoria={x.categoria} />
-          <span className="text-meta text-inkSoft">{SECTORES[x.sector] ?? x.sector}</span>
+          {/* Con qué seguro atiende (la institución) en vez de «Público»: lo que la gente pregunta (2026-11-22). */}
+          <span className="text-meta text-inkSoft">{seguroIpress(x.institucion).corto ?? SECTORES[x.sector] ?? x.sector}</span>
         </p>
         <div className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5 md:flex-col md:items-end md:text-right">
           {x.sanciones > 0 ? (

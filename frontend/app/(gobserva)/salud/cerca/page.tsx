@@ -11,7 +11,7 @@ import { baseProducto } from "@/lib/gobserva-servidor";
 export const metadata: Metadata = {
   title: "Establecimientos de salud cerca de ti",
   description:
-    "Con tu ubicación: los establecimientos registrados más cercanos, si están activos en RENIPRESS, su categoría y si tienen sanciones firmes de SUSALUD. Si ya estás adentro de una clínica, para verificarla; si buscas dónde atenderte de algo, los cercanos que lo declararon. Tu ubicación no se guarda.",
+    "Con tu ubicación: los establecimientos registrados más cercanos, si están activos en RENIPRESS, su categoría y si tienen sanciones firmes de SUSALUD. Si buscas dónde atenderte, los cercanos que declararon lo que necesitas, con tu seguro (SIS, EsSalud, privado) y abiertos las 24 horas. Tu ubicación no se guarda.",
   alternates: { canonical: urlCanonica("salud", "/cerca") },
 };
 
@@ -21,7 +21,7 @@ export const metadata: Metadata = {
  * El botón de la portada llega con ?ubicar=1 y la ubicación se pide al abrir; sin eso, con el botón. Al lado (debajo en
  * el celular), qué revisar ya adentro: la ficha, la colegiatura de quien atiende y qué hacer si algo no cuadra.
  */
-export default async function CercaDeTi({ searchParams }: { searchParams: { ubicar?: string; necesidad?: string } }) {
+export default async function CercaDeTi({ searchParams }: { searchParams: { ubicar?: string; necesidad?: string; seguro?: string; h24?: string } }) {
   const base = baseProducto("salud");
   const r = await getResumenSalud();
   return (
@@ -32,14 +32,17 @@ export default async function CercaDeTi({ searchParams }: { searchParams: { ubic
         <div className="min-w-0">
           <h1 className="text-balance font-display text-seccion font-bold leading-tight tracking-[-0.015em] text-ink">Cerca de mí</h1>
           <p className="mt-1 max-w-[70ch] text-pretty text-dato leading-relaxed text-inkSoft">
-            ¿Ya estás adentro de una clínica y no sabes su nombre exacto? ¿Buscas dónde atenderte de algo? Con tu ubicación te mostramos los
-            establecimientos registrados más cercanos, si están activos, si tienen sanciones firmes y, si eliges qué necesitas, cuáles lo declararon.
+            ¿Buscas dónde atenderte? ¿Ya estás adentro de una clínica y no sabes su nombre exacto? Con tu ubicación te mostramos los
+            establecimientos registrados más cercanos, si tienen sanciones firmes y, si eliges qué necesitas y qué seguro tienes, los que lo
+            declararon y te atienden con él.
           </p>
           <div className="mt-6">
             <CercaDeMi
               base={base}
               auto={searchParams.ubicar === "1"}
               necesidadInicial={typeof searchParams.necesidad === "string" ? searchParams.necesidad : null}
+              seguroInicial={typeof searchParams.seguro === "string" ? searchParams.seguro : null}
+              h24Inicial={searchParams.h24 === "1"}
               conUbicacion={r?.conUbicacion ?? null}
               total={r?.ipress ?? null}
             />

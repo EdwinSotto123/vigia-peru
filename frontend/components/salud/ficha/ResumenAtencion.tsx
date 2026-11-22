@@ -8,6 +8,7 @@ import { nombrePropio, numero, rutaMedico, type FichaIpress } from "@/lib/gobser
 import { cn } from "@/lib/utils";
 import { itemsDeclarados, personalDeclarado, serviciosClave, type Sabe } from "./atencion";
 import { URL_RENIPRESS_CONSULTA, detalleLeido, esColegioMedico } from "./piezas";
+import { ConTuSeguro } from "./ConTuSeguro";
 import { TeAtiendenAqui } from "./TeAtiendenAqui";
 
 const SABE: Record<Sabe, { Icono: LucideIcon; texto: string; clase: string }> = {
@@ -19,7 +20,7 @@ const SABE: Record<Sabe, { Icono: LucideIcon; texto: string; clase: string }> = 
 
 /**
  * «Para atenderte aquí» (Gobserva Salud, 2026-11-20): lo que una persona quiere saber antes de atenderse, en palabras
- * simples, después de «Lo esencial» (la frase de la verificación vive ahí, una sola vez, y el asistente en «Qué puedes
+ * simples, después de «Lo esencial». Primero, con qué seguro atiende y el derecho a la emergencia (ConTuSeguro.tsx) (la frase de la verificación vive ahí, una sola vez, y el asistente en «Qué puedes
  * hacer»: antes había tres tarjetas de «Pregúntale»). Qué servicios declaró (emergencia, hospitalización, partos,
  * centro quirúrgico…: sí, no lo declaró, suspendido o sin dato); su personal declarado a SUSALUD (cuántos médicos, no
  * quién está hoy); «¿Te pueden atender aquí?» para buscar lo que necesita; y el asistente para lo demás. Cada bloque con
@@ -46,6 +47,9 @@ export function ResumenAtencion({ f, base }: { f: FichaIpress; base: string }) {
       <h2 id="atencion-t" className="sr-only">
         Para atenderte aquí
       </h2>
+
+      {/* ── Con qué seguro te atienden (2026-11-22): lo primero que pregunta quien va a atenderse ── */}
+      <ConTuSeguro institucion={f.institucion} horario={f.horario} className="border-b border-line" />
 
       <div className="grid gap-px bg-line lg:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)]">
         {/* ── Qué servicios declaró ─────────────────────────────────────────────── */}
