@@ -7,8 +7,9 @@ import { fechaCorta, nombrePropio } from "@/lib/gobserva-salud";
 import { lugarDe, urlMapa, type Local } from "./directorio";
 
 /**
- * Un local autorizado por el MTC como casilla (Gobserva Car): su dibujo, el nombre, dónde queda, lo propio de cada lista
- * (`children`: las líneas de un CITV, el tipo de gas), y al pie el teléfono, la resolución y el botón del mapa.
+ * Un local autorizado por el MTC como casilla (Gobserva Car): su dibujo, el nombre, dónde queda, la dirección con su enlace
+ * al mapa, lo propio de cada lista (`children`: las líneas de un CITV, el tipo de gas) y, si los hay, el teléfono y la
+ * resolución al pie. Sin teléfono ni resolución (los centros médicos) no hay pie: la casilla es más corta en el celular.
  */
 export function CasillaLocal({ l, sprite, children, sinNombre = "Persona natural con negocio" }: { l: Local; sprite: NombreSprite; children?: ReactNode; sinNombre?: string }) {
   const mapa = urlMapa(l);
@@ -27,47 +28,47 @@ export function CasillaLocal({ l, sprite, children, sinNombre = "Persona natural
           </p>
         </div>
       </div>
-      <div className="mt-2.5 space-y-2 px-4 pb-3 text-meta">
-        {l.direccion && <p className="line-clamp-3 text-inkSoft">{direccionLegible(l.direccion)}</p>}
+      <div className="mt-2.5 space-y-2 px-4 pb-3.5 text-meta">
+        {l.direccion && (
+          <p className="text-inkSoft">
+            <span className="line-clamp-3">{direccionLegible(l.direccion)}</span>
+            {mapa && (
+              <a href={mapa} target="_blank" rel="noopener noreferrer" className="mt-0.5 inline-flex min-h-9 items-center gap-1 font-semibold text-granate underline-offset-4 hover:underline">
+                Ver en el mapa <ArrowUpRight size={13} aria-hidden />
+                <span className="sr-only"> ({nombre}, se abre en otra pestaña)</span>
+              </a>
+            )}
+          </p>
+        )}
         {children}
       </div>
-      <div className="mt-auto flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5 border-t border-line bg-paperSoft/50 px-4 py-2.5 text-rotulo text-inkSoft">
-        <div className="min-w-0 space-y-1">
-          {l.telefono && (
-            <p className="flex items-center gap-1.5">
-              <Phone size={12} aria-hidden className="shrink-0 text-mute" />
-              {l.telefono.includes("•") ? (
-                <span title="Número de celular: lo tapamos por privacidad">{l.telefono}</span>
-              ) : (
-                <a href={`tel:${l.telefono.replace(/[^\d+]/g, "")}`} className="font-semibold text-ink underline-offset-2 hover:underline">
-                  {l.telefono}
-                </a>
-              )}
-            </p>
-          )}
-          {l.resolucion && (
-            <p className="flex items-center gap-1.5">
-              <FileCheck2 size={12} aria-hidden className="shrink-0 text-mute" />
-              <span className="min-w-0 break-words">
-                Autorizado: {l.resolucion}
-                {l.fechaResolucion ? `, ${fechaCorta(l.fechaResolucion)}` : ""}
-              </span>
-            </p>
-          )}
-          {!l.telefono && !l.resolucion && <p>Autorizado por el MTC</p>}
+      {(l.telefono || l.resolucion) && (
+        <div className="mt-auto border-t border-line bg-paperSoft/50 px-4 py-2.5 text-rotulo text-inkSoft">
+          <div className="min-w-0 space-y-1">
+            {l.telefono && (
+              <p className="flex items-center gap-1.5">
+                <Phone size={12} aria-hidden className="shrink-0 text-mute" />
+                {l.telefono.includes("•") ? (
+                  <span title="Número de celular: lo tapamos por privacidad">{l.telefono}</span>
+                ) : (
+                  <a href={`tel:${l.telefono.replace(/[^\d+]/g, "")}`} className="font-semibold text-ink underline-offset-2 hover:underline">
+                    {l.telefono}
+                  </a>
+                )}
+              </p>
+            )}
+            {l.resolucion && (
+              <p className="flex items-center gap-1.5">
+                <FileCheck2 size={12} aria-hidden className="shrink-0 text-mute" />
+                <span className="min-w-0 break-words">
+                  Autorizado: {l.resolucion}
+                  {l.fechaResolucion ? `, ${fechaCorta(l.fechaResolucion)}` : ""}
+                </span>
+              </p>
+            )}
+          </div>
         </div>
-        {mapa && (
-          <a
-            href={mapa}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex min-h-9 items-center gap-1 rounded-full border border-line bg-paper px-3 text-meta font-semibold text-ink transition-colors duration-rapido hover:border-granate/50 hover:text-granate"
-          >
-            Ver en el mapa <ArrowUpRight size={13} aria-hidden />
-            <span className="sr-only"> ({nombre}, se abre en otra pestaña)</span>
-          </a>
-        )}
-      </div>
+      )}
     </article>
   );
 }

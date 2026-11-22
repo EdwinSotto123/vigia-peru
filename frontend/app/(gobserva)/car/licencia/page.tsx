@@ -172,7 +172,7 @@ export default function Licencia({ searchParams }: { searchParams?: Params }) {
               titulo: "Rinde el examen de manejo",
               sprite: "volante",
               texto: "El examen práctico, también en un centro de evaluación autorizado.",
-              accion: { href: aPestana("evaluacion"), etiqueta: "Ver centros de evaluación" },
+              accion: { href: aPestana("evaluacion"), etiqueta: "Ver dónde se rinde" },
             },
             {
               titulo: "Recibe tu licencia",
