@@ -97,6 +97,15 @@ export const ES_24H = `coalesce(i.horario ~* '(^|[^0-9])([0-9]{1,2})[:.]00 *(-|a
  */
 const sinCelulares = (col: string) =>
   `regexp_replace(${col}, '(^|[^0-9(])(\\(?51\\)?[ -]*|01[ -]*)?9[0-9]{2}[ -]?[0-9]{3}[ -]?[0-9]{3}[0-9]*', '\\19••••••••', 'g')`;
+/**
+ * Tiene centro quirúrgico: el indicador (UPSS activa), las cirugías reportadas en 12 meses o, si las UPSS vienen vacías, una
+ * UPS de centro quirúrgico activa (10 102 establecimientos traen sólo el desglose; 2026-11-22). Lo mismo que la ficha.
+ */
+const QUIRURGICO_SQL = `(x.quirurgico OR coalesce(x.cirugias_12m, 0) > 0 OR EXISTS (
+  SELECT 1 FROM salud_ipress_detalle dq, jsonb_array_elements(dq.ups) uq
+   WHERE dq.codigo = i.codigo AND jsonb_array_length(dq.upss) = 0
+     AND (uq->>'nombre') ~* '^[[:space:]]*(UPSS[[:space:]]*-[[:space:]]*)?CENTRO QUIR[UÚ]RGIC'
+     AND coalesce(uq->>'estado', 'ACTIVO') ILIKE 'ACTIVO%'))`;
 const TIPOS: Record<string, string> = {
   con_internamiento: "ESTABLECIMIENTO DE SALUD CON INTERNAMIENTO",
   sin_internamiento: "ESTABLECIMIENTO DE SALUD SIN INTERNAMIENTO",
@@ -186,7 +195,7 @@ export function condiciones(f: Partial<FiltrosSalud>, vals: unknown[] = []): { s
   if (f.tipo) w.push(`i.tipo = ${p(TIPOS[f.tipo])}`);
   if (f.sanciones === "con") w.push("x.sanciones > 0");
   else if (f.sanciones === "sin") w.push("coalesce(x.sanciones, 0) = 0");
-  if (f.quirurgico === "si") w.push("(x.quirurgico OR coalesce(x.cirugias_12m, 0) > 0)");
+  if (f.quirurgico === "si") w.push(QUIRURGICO_SQL);
   if (f.internamiento === "si") w.push("x.internamiento");
   if (f.seguro) w.push(SEGUROS_SQL[f.seguro]);
   if (f.h24 === "si") w.push(ES_24H);
@@ -372,7 +381,7 @@ saludRouter.get("/mapa", async (c) => {
       SELECT json_agg(json_build_array(i.codigo, round(i.lat::numeric, 5), round(i.lon::numeric, 5), i.categoria,
                                        CASE i.sector WHEN 'publico' THEN 'p' WHEN 'privado' THEN 'v' ELSE 'o' END,
                                        CASE WHEN i.activo THEN 1 ELSE 0 END, coalesce(x.sanciones, 0),
-                                       CASE WHEN x.quirurgico OR coalesce(x.cirugias_12m, 0) > 0 THEN 1 WHEN x.quirurgico = false THEN 0 END)) AS p,
+                                       CASE WHEN ${QUIRURGICO_SQL} THEN 1 WHEN x.quirurgico = false THEN 0 END)) AS p,
              count(*)::int AS n
         FROM salud_ipress i LEFT JOIN salud_indicador x ON x.codigo = i.codigo
        WHERE ${sql} AND i.lat IS NOT NULL`, vals);

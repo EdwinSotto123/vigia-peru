@@ -61,6 +61,10 @@ export function serviciosClave(f: FichaIpress): RespuestaServicio[] {
     const upss = d.upss.find((u) => s.patron.test(normalizarTexto(u.nombre ?? "")));
     if (upss && activo(upss.estado)) return { clave: s.clave, pregunta: s.pregunta, sabe: "si", como: nombreServicio(upss.nombre) };
     if (suspendida || upss) return { clave: s.clave, pregunta: s.pregunta, sabe: "suspendida", como: nombreServicio((suspendida ?? upss)!.nombre) };
+    // El desglose (UPS): 10 102 establecimientos traen las UPSS vacías y todo en las UPS (el Hospital de Apoyo de Cusco decía
+    // «Emergencia: no lo declaró» con 286 unidades declaradas; 2026-11-22).
+    const ups = d.ups.find((u) => s.patron.test(normalizarTexto(u.nombre ?? "")) && activo(u.estado));
+    if (ups) return { clave: s.clave, pregunta: s.pregunta, sabe: "si", como: nombreServicio((ups.nombre ?? "").split(/\s*-\s*/)[0]) };
     const cartera = s.enCartera ? d.cartera.find((c) => s.enCartera!.test(normalizarTexto(c.nombre ?? ""))) : undefined;
     if (cartera) return { clave: s.clave, pregunta: s.pregunta, sabe: "si", como: nombreServicio(cartera.nombre) };
     if (s.clave === "telesalud" && d.consultores.length) return { clave: s.clave, pregunta: s.pregunta, sabe: "si", como: "Telesalud con otros establecimientos" };
