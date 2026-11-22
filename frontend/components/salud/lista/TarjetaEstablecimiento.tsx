@@ -63,7 +63,7 @@ export function TarjetaEstablecimiento({
       )}
     >
       <div className="relative">
-        <span aria-hidden className={cn("grid h-24 place-items-center border-b border-line px-6 pt-5", x.activo ? "bg-granate-50" : "bg-paperSoft grayscale")}>
+        <span aria-hidden className={cn("flex h-24 items-center justify-center border-b border-line px-6 pt-5", x.activo ? "bg-granate-50" : "bg-paperSoft grayscale")}>
           <Pixel nombre={spriteLugar(x)} escala={3} animado={false} acento="accion" className="max-h-full max-w-full" />
         </span>
         <p className="absolute inset-x-2 top-2 flex items-start justify-between gap-1">

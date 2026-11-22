@@ -74,7 +74,7 @@ export default function VerificarMedico() {
               {RECORRIDO.map((t, i) => (
                 <li key={t.titulo} className={i === 2 ? "bg-granate-50/60 p-4" : "bg-paper p-4"}>
                   <div className="flex items-center gap-3">
-                    <span aria-hidden className="grid h-14 w-14 shrink-0 place-items-center rounded-xl bg-paperSoft p-1.5">
+                    <span aria-hidden className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl bg-paperSoft p-1.5">
                       <Pixel nombre={t.sprite} escala={3} animado={false} className="max-h-full max-w-full" />
                     </span>
                     <p className="min-w-0 text-cuerpo font-bold leading-snug text-ink">

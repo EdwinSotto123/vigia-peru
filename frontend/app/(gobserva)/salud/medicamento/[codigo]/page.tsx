@@ -386,7 +386,7 @@ export default async function FichaMedicamentoPagina({ params, searchParams }: P
             <Pill size={18} aria-hidden className="shrink-0 opacity-80" />
           </div>
           <div className="flex flex-1 items-center gap-4 px-5 py-5">
-            <span aria-hidden className="grid h-24 w-24 shrink-0 place-items-center rounded-xl border border-line bg-paperSoft p-2">
+            <span aria-hidden className="flex h-24 w-24 shrink-0 items-center justify-center rounded-xl border border-line bg-paperSoft p-2">
               <Pixel nombre={formaDe(p.formaGrupo).sprite} escala={4} animado={false} acento="accion" className="max-h-full max-w-full" />
             </span>
             <div className="min-w-0">

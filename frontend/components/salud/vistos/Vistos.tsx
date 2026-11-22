@@ -173,7 +173,7 @@ function Historial({ vistos, base, cabeza, className }: { vistos: Visto[]; base:
             <ul className="mt-2.5 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
               {g.vistos.map((v) => (
                 <li key={`${v.tipo}-${v.ref}`} className="group relative flex min-w-0 flex-col overflow-hidden rounded-2xl border border-line bg-paper transition-colors duration-rapido hover:border-granate/50">
-                  <span aria-hidden className="grid h-20 place-items-center border-b border-line bg-granate-50 p-3">
+                  <span aria-hidden className="flex h-20 items-center justify-center border-b border-line bg-granate-50 p-3">
                     <Pixel nombre={spriteVisto(v)} escala={3} animado={false} acento="accion" className="max-h-full max-w-full" />
                   </span>
                   <Link

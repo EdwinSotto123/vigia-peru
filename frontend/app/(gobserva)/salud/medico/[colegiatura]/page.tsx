@@ -59,7 +59,7 @@ function Establecimiento({ x, base }: { x: Medico["responsableDe"][number]; base
   const ficha = rutaEn(base, rutaFicha(x.codigo));
   return (
     <li className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-3 px-4 py-4 sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:items-center sm:px-5">
-      <span aria-hidden className="grid h-14 w-14 place-items-center rounded-xl bg-paperSoft p-1.5">
+      <span aria-hidden className="flex h-14 w-14 items-center justify-center rounded-xl bg-paperSoft p-1.5">
         <Pixel nombre={spriteDe(x.categoria)} escala={3} animado={false} className="max-h-full max-w-full" />
       </span>
       <div className="min-w-0">

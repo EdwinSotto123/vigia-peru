@@ -37,7 +37,7 @@ export function PasosDeslizables({ pasos, base, className }: { pasos: PasoVerifi
               >
                 {i + 1}
               </span>
-              <span aria-hidden className="grid h-16 w-16 place-items-center rounded-xl bg-paperSoft p-1.5">
+              <span aria-hidden className="flex h-16 w-16 items-center justify-center rounded-xl bg-paperSoft p-1.5">
                 <Pixel nombre={d.sprite} escala={3} animado={false} className="max-h-full max-w-full" />
               </span>
             </div>
