@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { ArrowRight, ClipboardCheck, Copy, ExternalLink } from "lucide-react";
 import { Pixel } from "@/components/pixel/Pixel";
@@ -8,6 +9,11 @@ import { rutaEn } from "@/lib/gobserva";
 import { baseProducto } from "@/lib/gobserva-servidor";
 import { numero } from "@/lib/gobserva-salud";
 import datos from "@/data/car/citv.json";
+
+export const metadata: Metadata = {
+  title: { absolute: "Gobserva Car: verifica un auto antes de comprarlo o de subirte" },
+  alternates: { canonical: "https://car.gobserva.cloud/" },
+};
 
 /**
  * La portada de Gobserva Car (car.gobserva.cloud, 2026-11-22): la placa para escribir, arriba y grande; dos puertas con lo
