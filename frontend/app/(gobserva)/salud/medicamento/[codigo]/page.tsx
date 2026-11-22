@@ -62,13 +62,27 @@ export default async function FichaMedicamentoPagina({ params, searchParams }: P
   const r = f.equivalentesResumen;
   const masBarato = f.equivalentes.find((e) => e.precioMediana != null && p.precioMediana != null && e.precioMediana < p.precioMediana) ?? null;
   const alertas = f.alertasRegistro.length + f.alertasNombre.length;
+  // Los lotes de cajas de esta marca que nombran las alertas sin su registro (en su mayoría, falsificadas): se comparan
+  // con el lote de la caja. Sólo las filas de la tabla con la marca en el nombre.
+  const marcaN = ` ${nombreMed(f.marca).normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase().replace(/[^A-Z0-9]+/g, " ").trim()} `;
+  const lotesMarca = [
+    ...new Map(
+      f.alertasNombre.flatMap((a) =>
+        (a.observados ?? [])
+          .filter((o) => ` ${`${o.producto} ${o.presentacion ?? ""}`.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase().replace(/[^A-Z0-9]+/g, " ").trim()} `.includes(marcaN))
+          .flatMap((o) => o.lotes.map((l) => [l, { lote: l, numero: a.numero, falsificado: a.tipo === "falsificado" }] as const)),
+      ),
+    ).values(),
+  ];
+  const falsificadas = f.alertasNombre.filter((a) => a.tipo === "falsificado").length;
 
   const pestanas: Pestana[] = [
     {
       clave: "alertas",
       etiqueta: "Alertas",
       icono: ico(TriangleAlert),
-      conteo: alertas || null,
+      // Sólo las de su registro: las que nombran la marca son de otras cajas (falsificadas, otros lotes), no de este producto.
+      conteo: f.alertasRegistro.length || null,
       contenido: (
         <div className="space-y-4">
           <CabeceraPestana acciones={<FuenteFecha nombre="Alertas DIGEMID" url={f.fuente.avisos.url} al={f.fuente.avisos.al} />}>
@@ -128,15 +142,33 @@ export default async function FichaMedicamentoPagina({ params, searchParams }: P
           {f.alertasNombre.length > 0 && (
             <section aria-labelledby="por-nombre" className="rounded-2xl border border-line bg-paper">
               <h3 id="por-nombre" className="border-b border-line px-5 py-3 text-cuerpo font-bold text-ink">
-                Nombran «{nombreMed(f.marca)}», pero no su registro
+                {falsificadas === f.alertasNombre.length
+                  ? `Cajas falsificadas que usan el nombre «${nombreMed(f.marca)}»`
+                  : `Otras cajas que usan el nombre «${nombreMed(f.marca)}»`}
               </h3>
-              <p className="px-5 pt-3 text-meta leading-relaxed text-inkSoft">
-                Pueden ser falsificaciones de la marca, otra presentación u otro lote. Compara el lote y el registro de tu caja con el PDF.
+              <p className="px-5 pt-3 text-dato leading-relaxed text-inkSoft">
+                No son alertas sobre este producto{p.registro ? ` (registro ${p.registro})` : ""}
+                {nombreMed(p.titular) ? `, de ${nombreMed(p.titular)}` : ""}: DIGEMID incautó o retiró cajas
+                {falsificadas ? " falsificadas" : ""} que usan su nombre. Lo que importa es el lote de tu caja.
               </p>
-              <ul className="divide-y divide-line">
+              {lotesMarca.length > 0 && (
+                <div className="mx-5 mt-3 rounded-xl border border-amber/40 bg-amber-soft/50 px-4 py-3">
+                  <p className="text-dato font-semibold text-ink">
+                    Si el lote de tu caja es uno de estos, no la uses: {lotesMarca.length === 1 ? "es el lote de una caja observada" : "son lotes de cajas observadas"}.
+                  </p>
+                  <p className="mt-2 flex flex-wrap gap-1.5">
+                    {lotesMarca.map((l) => (
+                      <span key={l.lote} className="rounded-md bg-paper px-1.5 py-0.5 font-mono text-meta font-semibold tabular-nums text-ink ring-1 ring-amber/40" title={l.numero ? `Alerta N.° ${l.numero}` : undefined}>
+                        {l.lote}
+                      </span>
+                    ))}
+                  </p>
+                </div>
+              )}
+              <ul className="mt-2 divide-y divide-line">
                 {f.alertasNombre.map((a) => (
                   <li key={a.id}>
-                    <FilaAlerta a={a} base={base} resaltar={p.registro} />
+                    <FilaAlerta a={a} base={base} resaltar={p.registro} soloDe={nombreMed(f.marca)} plegada />
                   </li>
                 ))}
               </ul>
@@ -312,7 +344,7 @@ export default async function FichaMedicamentoPagina({ params, searchParams }: P
                 {f.alertasRegistro.length
                   ? `DIGEMID emitió ${f.alertasRegistro.length === 1 ? "una alerta" : `${f.alertasRegistro.length} alertas`} sobre su registro sanitario. Compara el lote de tu caja con el de la alerta.`
                   : f.alertasNombre.length
-                    ? `Ninguna alerta nombra su registro sanitario; ${f.alertasNombre.length === 1 ? "una nombra" : `${f.alertasNombre.length} nombran`} la marca «${nombreMed(f.marca)}» (falsificaciones u otros lotes).`
+                    ? `Su registro sanitario no tiene alertas. Ojo: DIGEMID ${falsificadas ? "incautó cajas falsificadas" : "observó otras cajas"} que usan el nombre «${nombreMed(f.marca)}»: compara el lote de la tuya en «Alertas».`
                     : "Ninguna alerta de DIGEMID nombra su registro sanitario ni su marca."}
               </span>
             </p>

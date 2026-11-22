@@ -119,6 +119,7 @@ export function FilaAlerta({
   sinTabla = false,
   conDibujo = false,
   plegada = false,
+  soloDe = null,
 }: {
   a: AlertaDigemid;
   base?: string;
@@ -130,8 +131,17 @@ export function FilaAlerta({
   conDibujo?: boolean;
   /** La tabla de productos plegada tras «Ver los N productos» (la lista de /alertas: 6,7 pantallas en el celular). */
   plegada?: boolean;
+  /**
+   * Sólo las filas de la tabla de este producto («APRONAX»): una alerta de falsificados trae otras marcas de otros
+   * laboratorios que no tienen que ver con la ficha (2026-11-22, el usuario: «¿por qué dice alertas si es de otro
+   * laboratorio?»). Las demás se cuentan en una línea.
+   */
+  soloDe?: string | null;
 }) {
-  const observados = a.observados ?? [];
+  const todos = a.observados ?? [];
+  const marca = soloDe ? normalizarMarca(soloDe) : null;
+  const observados = marca ? todos.filter((o) => normalizarMarca(`${o.producto} ${o.presentacion ?? ""}`).includes(marca)) : todos;
+  const deOtras = todos.length - observados.length;
   // Las internacionales no traen productos ni motivo: su resumen repite el título y el botón «Descargar».
   const limpiar = (t: string | null) => (t ?? "").replace(/\s*Descargar\s*$/i, "").trim();
   const productos = limpiar(a.productos);
@@ -178,9 +188,14 @@ export function FilaAlerta({
           <Observados items={observados} base={base} resaltar={resaltar} todos />
         </details>
       ) : observados.length > 0 ? (
-        <Observados items={observados} base={base} resaltar={resaltar} />
+        <Observados items={observados} base={base} resaltar={resaltar} todos={!!marca} />
       ) : (
         productos && !igualTitulo(productos) && <p className="mt-1 text-dato leading-snug text-inkSoft">{productos}</p>
+      )}
+      {marca && deOtras > 0 && (
+        <p className="mt-1 text-meta text-mute">
+          La alerta incluye {deOtras === 1 ? "otro producto" : `otros ${deOtras} productos`} de otras marcas, que no tienen que ver con este.
+        </p>
       )}
       {a.pdfUrl && (
         <a href={a.pdfUrl} target="_blank" rel="noopener noreferrer" className="mt-1 inline-flex min-h-11 items-center gap-1.5 text-meta font-semibold text-granate underline-offset-4 hover:underline sm:min-h-8">
@@ -192,6 +207,9 @@ export function FilaAlerta({
     </article>
   );
 }
+
+/** «Apronax 550 mg» → «APRONAX 550 MG»: para ver si una fila de la tabla es de esa marca (sin tildes ni signos). */
+const normalizarMarca = (t: string) => ` ${t.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase().replace(/[^A-Z0-9]+/g, " ").trim()} `;
 
 /** «20250502QX» → lo mismo, sin signos, para comparar el lote escrito con el de la tabla. */
 const juntoLote = (t: string) => t.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase().replace(/[^A-Z0-9]/g, "");
