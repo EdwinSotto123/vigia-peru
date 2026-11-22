@@ -2,7 +2,7 @@ import Link from "next/link";
 import { ArrowUpRight, ChevronRight, FileText, Pill, Search, TriangleAlert } from "lucide-react";
 import { Insignia, type Tono } from "@/components/gobserva/ui/Insignia";
 import { rutaEn } from "@/lib/gobserva";
-import { fechaCorta, numero, rutaMedicamento, soles, TIPOS_ALERTA, type AlertaDigemid, type Medicamento, type ObservadoAlerta, type TipoAlerta } from "@/lib/gobserva-salud";
+import { concentracionLegible, fechaCorta, numero, rutaMedicamento, soles, TIPOS_ALERTA, type AlertaDigemid, type Medicamento, type ObservadoAlerta, type TipoAlerta } from "@/lib/gobserva-salud";
 import { cn } from "@/lib/utils";
 import { Pixel } from "@/components/pixel/Pixel";
 import { formaDe, grupoDeTexto } from "@/lib/salud-formas";
@@ -91,7 +91,7 @@ export function FilaMedicamento({ m, base, destacar }: { m: Medicamento; base: s
       <div className="min-w-0">
         <p className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
           <span className="text-cuerpo font-semibold text-ink group-hover:underline group-hover:decoration-granate/50 group-hover:underline-offset-4">{nombreMed(m.nombre)}</span>
-          {m.concentracion && <span className="text-dato text-inkSoft">{m.concentracion.toLowerCase()}</span>}
+          {m.concentracion && <span className="text-dato text-inkSoft">{concentracionLegible(m.concentracion)}</span>}
           {generico && <Insignia tono="exito">Genérico</Insignia>}
         </p>
         <p className="mt-0.5 truncate text-meta text-mute">
@@ -118,6 +118,7 @@ export function FilaAlerta({
   resaltar,
   sinTabla = false,
   conDibujo = false,
+  plegada = false,
 }: {
   a: AlertaDigemid;
   base?: string;
@@ -127,6 +128,8 @@ export function FilaAlerta({
   sinTabla?: boolean;
   /** Con el dibujo de lo que nombra a la izquierda (las listas de alertas; no dentro de un aviso rojo o ámbar). */
   conDibujo?: boolean;
+  /** La tabla de productos plegada tras «Ver los N productos» (la lista de /alertas: 6,7 pantallas en el celular). */
+  plegada?: boolean;
 }) {
   const observados = a.observados ?? [];
   // Las internacionales no traen productos ni motivo: su resumen repite el título y el botón «Descargar».
@@ -159,6 +162,21 @@ export function FilaAlerta({
           {observados.slice(0, 2).map((o) => o.producto).join(", ")}
           {observados.length > 2 ? ` y ${observados.length - 2} más` : ""}
         </p>
+      ) : observados.length > 0 && plegada ? (
+        <details className="group/tabla mt-1">
+          <summary className="flex min-h-11 cursor-pointer list-none flex-wrap items-baseline gap-x-2 py-1 text-dato leading-snug sm:min-h-0 [&::-webkit-details-marker]:hidden">
+            <span className="line-clamp-2 text-inkSoft group-open/tabla:hidden">
+              {observados.slice(0, 2).map((o) => o.producto).join(", ")}
+              {observados.length > 2 ? ` y ${observados.length - 2} más` : ""}
+            </span>
+            <span className="inline-flex items-center gap-1 text-meta font-semibold text-granate">
+              <ChevronRight size={14} aria-hidden className="transition-transform duration-rapido group-open/tabla:rotate-90" />
+              <span className="group-open/tabla:hidden">{observados.length === 1 ? "Ver el producto y su lote" : `Ver los ${observados.length} productos y sus lotes`}</span>
+              <span className="hidden group-open/tabla:inline">Ocultar la tabla</span>
+            </span>
+          </summary>
+          <Observados items={observados} base={base} resaltar={resaltar} />
+        </details>
       ) : observados.length > 0 ? (
         <Observados items={observados} base={base} resaltar={resaltar} />
       ) : (
@@ -186,6 +204,11 @@ const juntoLote = (t: string) => t.normalize("NFD").replace(/[\u0300-\u036f]/g, 
 export function Observados({ items, base, resaltar }: { items: ObservadoAlerta[]; base?: string; resaltar?: string | null }) {
   const marca = resaltar ? juntoLote(resaltar) : null;
   const vistos = items.slice(0, 4);
+  // Si ninguna fila trae lote o registro (falsificados vendidos por redes), esas columnas sobran: no «No lo dice» en cada una.
+  const conLote = items.some((o) => o.lotes.length > 0);
+  const conRegistro = items.some((o) => !!o.registro);
+  const conTitular = items.some((o) => !!o.titular);
+  const columnas = 1 + (conLote ? 1 : 0) + (conRegistro || conTitular ? 1 : 0);
   return (
     <div className="mt-2.5 overflow-hidden rounded-xl border border-line bg-paper">
       <p className="border-b border-line bg-paperSoft px-3 py-1.5 text-rotulo font-semibold text-mute">
@@ -193,12 +216,20 @@ export function Observados({ items, base, resaltar }: { items: ObservadoAlerta[]
       </p>
       <ul className="divide-y divide-line">
         {vistos.map((o, i) => (
-          <li key={`${o.producto}-${i}`} className="grid gap-x-4 gap-y-1 px-3 py-2.5 sm:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_minmax(0,1fr)]">
+          <li
+            key={`${o.producto}-${i}`}
+            className={cn(
+              "grid gap-x-4 gap-y-1 px-3 py-2.5",
+              columnas === 3 && "sm:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_minmax(0,1fr)]",
+              columnas === 2 && "sm:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]",
+            )}
+          >
             <div className="min-w-0">
               <p className="text-dato font-semibold leading-snug text-ink">{o.producto}</p>
               {o.presentacion && <p className="text-meta text-inkSoft">{o.presentacion}</p>}
               {o.detalle && <p className="mt-0.5 text-meta leading-snug text-inkSoft">{o.detalle}</p>}
             </div>
+            {conLote && (
             <dl className="min-w-0 text-meta">
               <dt className="text-rotulo text-mute">{o.lotes.length > 1 ? "Lotes" : "Lote"}</dt>
               <dd className="flex flex-wrap gap-1">
@@ -220,8 +251,11 @@ export function Observados({ items, base, resaltar }: { items: ObservadoAlerta[]
               </dd>
               {o.vencimientos.length > 0 && <dd className="mt-0.5 text-mute">Vence {o.vencimientos.join(", ")}</dd>}
             </dl>
+            )}
+            {(conRegistro || conTitular) && (
             <dl className="min-w-0 text-meta">
-              <dt className="text-rotulo text-mute">Registro sanitario</dt>
+              <dt className="text-rotulo text-mute">{conRegistro ? "Registro sanitario" : "Titular"}</dt>
+              {conRegistro && (
               <dd className={cn("font-mono", marca && o.registro && juntoLote(o.registro) === marca ? "font-semibold text-crimsonTexto" : "text-ink")}>
                 {o.registro ? (
                   o.medicamento && base ? (
@@ -235,8 +269,10 @@ export function Observados({ items, base, resaltar }: { items: ObservadoAlerta[]
                   <span className="font-sans text-mute">No lo dice</span>
                 )}
               </dd>
+              )}
               {o.titular && <dd className="mt-0.5 truncate text-inkSoft" title={o.titular}>{nombreMed(o.titular)}</dd>}
             </dl>
+            )}
           </li>
         ))}
       </ul>

@@ -8,6 +8,10 @@ import { MenuCuenta } from "../cuenta/MenuCuenta";
 import { ProveedorApp } from "./contexto";
 import { ProveedorAvisos } from "@/components/gobserva/ui/Avisos";
 import { BarraApp, LateralApp } from "./NavApp";
+import { OcultarEnRutas } from "./OcultarEnRutas";
+
+/** Las páginas de Salud con su propio buscador (el de la barra de arriba sobra ahí). */
+const RUTAS_CON_BUSCADOR_SALUD = String.raw`^(/salud)?/?$|/(buscar|establecimientos|sanciones|medicamentos|alertas)$`;
 import { Campana } from "@/components/licitaciones-app/notificaciones/Campana";
 
 /**
@@ -31,7 +35,7 @@ import { Campana } from "@/components/licitaciones-app/notificaciones/Campana";
 const BUSCADOR: Partial<Record<Producto, { accion: string; etiqueta: string; ejemplo: string }>> = {
   empleo: { accion: "/app/plazas", etiqueta: "Buscar plazas", ejemplo: "Busca tu puesto: contador, enfermera, chofer…" },
   licitaciones: { accion: "/app/bandeja", etiqueta: "Buscar oportunidades", ejemplo: "Busca lo que vendes: tóner, cemento, consultoría…" },
-  salud: { accion: "/buscar", etiqueta: "Buscar en Gobserva Salud", ejemplo: "Una clínica, un N.° de colegiatura o un medicamento…" },
+  salud: { accion: "/buscar", etiqueta: "Buscar en Gobserva Salud", ejemplo: "Clínica, colegiatura o medicina…" },
 };
 export function MarcoApp({
   producto, base, children,
@@ -75,18 +79,35 @@ export function MarcoApp({
               <Link href={inicio} aria-label={abierta ? `${p.titulo}, inicio` : `${p.titulo}, inicio de tu cuenta`} className="shrink-0 rounded-lg lg:hidden">
                 <MarcaGobserva producto={producto} tamano="sm" />
               </Link>
-              {/* Buscar oportunidades desde cualquier página: un formulario GET, sin JavaScript. */}
-              <form role="search" action={rutaEn(base, buscador.accion)} className="relative hidden min-w-0 flex-1 md:block lg:max-w-md">
-                <label htmlFor="app-buscar" className="sr-only">{buscador.etiqueta}</label>
-                <Search size={17} aria-hidden className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-mute" />
-                <input
-                  id="app-buscar"
-                  name="q"
-                  type="search"
-                  placeholder={buscador.ejemplo}
-                  className="h-10 w-full rounded-lg border border-line bg-lienzo/70 pl-10 pr-3 text-dato text-ink placeholder:text-mute transition-colors duration-rapido focus:border-granate focus:bg-caja focus:outline-none focus:ring-2 focus:ring-granate/30"
-                />
-              </form>
+              {/* Buscar desde cualquier página: un formulario GET, sin JavaScript. En Salud no va en las páginas que ya tienen
+                  su buscador (la portada, buscar, clínicas, sanciones, medicamentos y alertas): dos cajas a la vez confundían. */}
+              {producto === "salud" ? (
+                <OcultarEnRutas patron={RUTAS_CON_BUSCADOR_SALUD}>
+                <form role="search" action={rutaEn(base, buscador.accion)} className="relative hidden min-w-0 flex-1 md:block lg:max-w-md">
+                  <label htmlFor="app-buscar" className="sr-only">{buscador.etiqueta}</label>
+                  <Search size={17} aria-hidden className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-mute" />
+                  <input
+                    id="app-buscar"
+                    name="q"
+                    type="search"
+                    placeholder={buscador.ejemplo}
+                    className="h-10 w-full rounded-lg border border-line bg-lienzo/70 pl-10 pr-3 text-dato text-ink placeholder:text-mute transition-colors duration-rapido focus:border-granate focus:bg-caja focus:outline-none focus:ring-2 focus:ring-granate/30"
+                  />
+                </form>
+                </OcultarEnRutas>
+              ) : (
+                <form role="search" action={rutaEn(base, buscador.accion)} className="relative hidden min-w-0 flex-1 md:block lg:max-w-md">
+                  <label htmlFor="app-buscar" className="sr-only">{buscador.etiqueta}</label>
+                  <Search size={17} aria-hidden className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-mute" />
+                  <input
+                    id="app-buscar"
+                    name="q"
+                    type="search"
+                    placeholder={buscador.ejemplo}
+                    className="h-10 w-full rounded-lg border border-line bg-lienzo/70 pl-10 pr-3 text-dato text-ink placeholder:text-mute transition-colors duration-rapido focus:border-granate focus:bg-caja focus:outline-none focus:ring-2 focus:ring-granate/30"
+                  />
+                </form>
+              )}
               <div className="ml-auto flex shrink-0 items-center gap-2">
                 {!abierta && (
                   <Suspense>

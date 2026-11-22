@@ -91,7 +91,7 @@ export function Bloque({
           </h3>
           {descripcion && <p className="mt-0.5 text-pretty text-meta leading-snug text-inkSoft">{descripcion}</p>}
         </div>
-        {acciones && <div className="flex shrink-0 flex-wrap items-center gap-2">{acciones}</div>}
+        {acciones && <div className="flex min-w-0 max-w-full flex-wrap items-center gap-2">{acciones}</div>}
       </header>
       <div className={cn("min-w-0", cuerpo === "relleno" ? "px-4 py-4 sm:px-5" : "")}>{children}</div>
     </section>

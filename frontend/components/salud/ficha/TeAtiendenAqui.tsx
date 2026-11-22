@@ -98,7 +98,7 @@ export function TeAtiendenAqui({
           maxLength={80}
           autoComplete="off"
           enterKeyHint="search"
-          placeholder="Ej.: dientes, ecografía, cardiología, parto"
+          placeholder="Ej.: dientes, ecografía"
           className="h-12 w-full rounded-2xl border border-line bg-caja pl-11 pr-11 text-cuerpo text-ink placeholder:text-mute focus:border-granate focus:outline-none focus:ring-2 focus:ring-granate/30 [&::-webkit-search-cancel-button]:hidden"
         />
         {texto && (

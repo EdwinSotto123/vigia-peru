@@ -81,7 +81,7 @@ export default async function FichaEstablecimiento({ params, searchParams }: Pro
     { clave: "verificacion", etiqueta: "Verificación", icono: ico(ShieldCheck), contenido: <VerificacionFicha f={f} base={base} /> },
     {
       clave: "servicios",
-      etiqueta: "Servicios y personal",
+      etiqueta: "Servicios",
       icono: ico(Stethoscope),
       contenido: (
         <>
@@ -97,25 +97,25 @@ export default async function FichaEstablecimiento({ params, searchParams }: Pro
     },
     {
       clave: "sanciones",
-      etiqueta: "Sanciones y denuncias",
+      etiqueta: "Sanciones",
       icono: ico(Gavel),
       conteo: f.registroSanciones.length || null,
       contenido: (
-        <>
-          <PanelConTitulo titulo="Sanciones firmes">
-            <PestanaSanciones f={f} />
-          </PanelConTitulo>
-          {separador}
-          <PanelConTitulo titulo="Denuncias ante SUSALUD">
-            <PestanaDenuncias f={f} />
-          </PanelConTitulo>
-        </>
+        <Pestanas
+          variante="segunda"
+          param="ver"
+          etiqueta="Sanciones firmes o denuncias"
+          pestanas={[
+            { clave: "firmes", etiqueta: "Sanciones firmes", conteo: f.registroSanciones.length || null, contenido: <PestanaSanciones f={f} /> },
+            { clave: "denuncias", etiqueta: "Denuncias ante SUSALUD", contenido: <PestanaDenuncias f={f} /> },
+          ]}
+        />
       ),
     },
     { clave: "documentos", etiqueta: "Documentos", icono: ico(FileText), conteo: leido ? f.detalle!.documentos.length || null : null, contenido: <PestanaDocumentos f={f} base={base} /> },
     {
       clave: "historial",
-      etiqueta: "Historial y fuentes",
+      etiqueta: "Historial",
       icono: ico(History),
       conteo: f.cambios.length || null,
       contenido: (

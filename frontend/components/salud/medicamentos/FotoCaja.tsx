@@ -183,7 +183,7 @@ export function FotoCaja({
             className="gs-hunde inline-flex min-h-12 items-center gap-2.5 rounded-full border border-granate/30 bg-granate-50 px-6 text-dato font-semibold text-granate transition-colors duration-rapido hover:border-granate/60 hover:bg-granate/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-granate focus-visible:ring-offset-2"
           >
             <Camera size={18} aria-hidden />
-            Escanea la caja del medicamento
+            Toma una foto de la caja
           </button>
           <p className="max-w-[56ch] text-meta leading-snug text-inkSoft">Fotografía el envase: leemos su registro sanitario y su lote. La foto no se guarda.</p>
         </div>

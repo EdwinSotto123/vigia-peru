@@ -61,14 +61,9 @@ export default function VerificarMedico() {
               </h2>
               <p className="mt-1 max-w-[68ch] text-dato leading-relaxed text-inkSoft">
                 Su consulta «Conoce a tu médico» pide una cuenta gratuita y un captcha, y limita las consultas: no la leemos de forma
-                automática ni copiamos sus datos. Aquí te decimos qué dicen las fuentes abiertas de ese número y te llevamos al CMP para
-                confirmarlo.
+                automática ni copiamos sus datos. Aquí te decimos qué dicen las fuentes abiertas de ese número; los pasos de abajo te
+                llevan al CMP para confirmarlo.
               </p>
-              <a href={URL_CMP} target="_blank" rel="noopener noreferrer" className={claseAccion("secundario", "mt-3 min-h-11")}>
-                <BadgeCheck size={16} aria-hidden /> Abrir «Conoce a tu médico»
-                <ArrowUpRight size={14} aria-hidden />
-                {EXTERNO}
-              </a>
             </div>
           </section>
 
@@ -122,22 +117,6 @@ export default function VerificarMedico() {
               </li>
             </ul>
           </section>
-
-          <Link
-            href={rutaEn(base, "/establecimientos")}
-            prefetch={false}
-            className="tarjeta group flex items-start gap-3 rounded-2xl border border-line bg-paper p-4 transition-colors duration-rapido hover:border-granate/50 sm:p-5"
-          >
-            <span aria-hidden className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-ink/[0.06] text-inkSoft">
-              <Hospital size={19} />
-            </span>
-            <span className="min-w-0">
-              <span className="block text-dato font-semibold text-ink group-hover:text-granate">Verifica también el establecimiento</span>
-              <span className="mt-0.5 block text-meta leading-snug text-inkSoft">
-                Su estado en RENIPRESS, su categoría, si tiene centro quirúrgico y sus sanciones firmes.
-              </span>
-            </span>
-          </Link>
 
           <PreguntaRapida base={base} pregunta="¿Cómo verifico si un médico está habilitado?" />
 

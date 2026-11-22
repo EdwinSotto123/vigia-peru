@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import {
   Activity, ArrowRight, ArrowUpRight, Building2, Cable, ClipboardList, Database, EyeOff, FileClock, Fingerprint, Gavel, GraduationCap, History, IdCard, Landmark,
-  MessageSquareWarning, Phone, Pill, RefreshCw, RotateCw, Rows3, Scissors, ShieldOff, Stethoscope, TriangleAlert, UserX, type LucideIcon,
+  MessageSquareWarning, Phone, Pill, RefreshCw, RotateCw, Rows3, Scissors, ShieldOff, Stethoscope, TriangleAlert, UserX, ChevronRight, type LucideIcon,
 } from "lucide-react";
 import { EstadoError } from "@/components/gobserva/ui/Estados";
 import { FuenteFecha, InsigniaEstado, InsigniaHecho } from "@/components/salud/comun";
@@ -118,8 +118,12 @@ export default async function Fuentes() {
                 <div className="space-y-12">
           {/* ── Cada fuente ────────────────────────────────────────────────────── */}
           <section aria-labelledby="cada-t">
-            <CabeceraSeccion id="cada-t" titulo="Cada fuente, con su última carga" />
-            <ol className="mt-6 space-y-4">
+            {/* Un h2 del tamaño de una sección (antes, más grande que el título de la página). */}
+            <h2 id="cada-t" className="font-display text-seccion font-bold leading-tight text-ink">
+              Cada fuente, con su última carga
+            </h2>
+            <p className="mt-1 text-meta text-inkSoft">Toca una para ver qué cuidar al leerla, cada cuánto se actualiza y sus enlaces.</p>
+            <ol className="mt-4 space-y-2">
               {d.fuentes.map((f) => (
                 <Fuente key={f.clave} f={f} e={e} />
               ))}
@@ -353,90 +357,117 @@ export default async function Fuentes() {
 }
 
 /** Una fuente: quién, qué clase de hecho, qué trae, el «ojo», cada cuánto, su última carga y sus enlaces. */
+/**
+ * Una fuente, plegada (2026-11-22, auditoría: «cada fuente mide 1,3 pantallas en el celular; los datos técnicos no los
+ * usa la gente»): a la vista su nombre, quién la publica, qué clase de hecho aporta, qué trae y cuándo se cargó; al
+ * abrirla, el «Ojo», los enlaces, cada cuánto y, plegados otra vez, los datos técnicos de la carga.
+ */
 function Fuente({ f, e }: { f: FuenteSalud; e: EstadoFuentes }) {
   const Icono = ICONO[f.clave] ?? Database;
   const carga = e.cargas[f.clave];
   const externa = f.tipo === "verificacion_externa";
   const tabla = fechaTabla(f.clave, e);
+  const cuando = externa
+    ? "Se consulta en vivo en su sitio"
+    : carga
+      ? `Última carga: ${fechaHora(carga.cargadoAl)}`
+      : tabla == null
+        ? "Sin fecha registrada"
+        : `Datos al ${typeof tabla === "number" || /^\d{4}$/.test(tabla) ? tabla : fechaCorta(tabla)}`;
   return (
-    <li className="grid gap-x-8 gap-y-4 rounded-2xl border border-line bg-paper p-5 sm:p-6 lg:grid-cols-[minmax(0,0.85fr)_minmax(0,1.6fr)]">
-      <div className="min-w-0">
-        <div className="flex items-start gap-3">
+    <li className="overflow-hidden rounded-2xl border border-line bg-paper">
+      <details className="group/f">
+        <summary className="flex cursor-pointer list-none items-start gap-3 px-4 py-4 transition-colors duration-rapido hover:bg-ink/[0.02] sm:px-5 [&::-webkit-details-marker]:hidden">
           <span aria-hidden className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-granate-50 text-granate">
             <Icono size={19} />
           </span>
-          <div className="min-w-0">
-            <h3 className="font-display text-bloque font-bold leading-snug text-ink">{f.nombre}</h3>
-            <p className="mt-0.5 text-meta text-inkSoft">{f.entidad}</p>
-            <InsigniaHecho tipo={f.tipo} className="mt-2" />
-          </div>
-        </div>
-        <ul className="mt-4 space-y-1.5 text-meta">
-          <li>
+          <span className="min-w-0 flex-1">
+            <span className="block font-display text-bloque font-bold leading-snug text-ink">{f.nombre}</span>
+            <span className="mt-0.5 block text-meta text-inkSoft">{f.entidad}</span>
+            <span className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1">
+              <InsigniaHecho tipo={f.tipo} />
+              <span className="inline-flex items-center gap-1 text-rotulo text-mute">
+                <FileClock size={13} aria-hidden />
+                {cuando}
+              </span>
+            </span>
+            <span className="mt-1.5 block text-meta leading-snug text-inkSoft group-open/f:hidden">
+              <span className="line-clamp-2">{f.que}</span>
+            </span>
+          </span>
+          <ChevronRight size={18} aria-hidden className="mt-1 shrink-0 text-mute transition-transform duration-rapido group-open/f:rotate-90" />
+        </summary>
+
+        <div className="space-y-3 border-t border-line px-4 py-4 sm:px-5">
+          <p className="text-dato leading-relaxed text-ink">{f.que}</p>
+          <p className="flex items-start gap-2 rounded-xl bg-amber-soft px-3.5 py-2.5 text-meta leading-relaxed text-ink">
+            <TriangleAlert size={15} aria-hidden className="mt-0.5 shrink-0 text-amberTexto" />
+            <span>
+              <b className="font-semibold">Ojo:</b> {f.ojo}
+            </span>
+          </p>
+          <dl className="grid gap-x-6 gap-y-2.5 text-meta sm:grid-cols-2">
+            <Meta Icono={RefreshCw} rotulo="Cada cuánto">
+              {f.frecuencia}
+            </Meta>
+            {externa ? (
+              <Meta Icono={ShieldOff} rotulo="Carga">
+                No se carga: se consulta en vivo en su sitio.
+              </Meta>
+            ) : carga ? (
+              <Meta Icono={FileClock} rotulo="Última carga">
+                {fechaHora(carga.cargadoAl)}
+              </Meta>
+            ) : (
+              <Meta Icono={FileClock} rotulo="Datos cargados">
+                {tabla == null ? "Sin fecha registrada" : `Al ${typeof tabla === "number" || /^\d{4}$/.test(tabla) ? tabla : fechaCorta(tabla)}`}
+              </Meta>
+            )}
+          </dl>
+          <p className="flex flex-wrap gap-x-4 gap-y-1 text-meta">
             <a href={f.consulta} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-11 items-center gap-1 font-semibold text-granate underline-offset-2 hover:underline sm:min-h-0">
               {externa ? "Consultar en su sitio" : "Consulta oficial"} <ArrowUpRight size={13} aria-hidden />
               <span className="sr-only"> (se abre en otra pestaña)</span>
             </a>
-          </li>
-          {f.url !== f.consulta && (
-            <li>
+            {f.url !== f.consulta && (
               <a href={f.url} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-11 items-center gap-1 font-semibold text-granate underline-offset-2 hover:underline sm:min-h-0">
                 Datos abiertos <ArrowUpRight size={13} aria-hidden />
                 <span className="sr-only"> (se abre en otra pestaña)</span>
               </a>
-            </li>
-          )}
-        </ul>
-      </div>
-
-      <div className="min-w-0 space-y-3">
-        <p className="text-dato leading-relaxed text-ink">{f.que}</p>
-        <p className="flex items-start gap-2 rounded-xl bg-amber-soft px-3.5 py-2.5 text-meta leading-relaxed text-ink">
-          <TriangleAlert size={15} aria-hidden className="mt-0.5 shrink-0 text-amberTexto" />
-          <span>
-            <b className="font-semibold">Ojo:</b> {f.ojo}
-          </span>
-        </p>
-        <dl className="grid gap-x-6 gap-y-2.5 text-meta sm:grid-cols-2">
-          <Meta Icono={RefreshCw} rotulo="Cada cuánto">
-            {f.frecuencia}
-          </Meta>
-          {externa ? (
-            <Meta Icono={ShieldOff} rotulo="Carga">
-              No se carga: se consulta en vivo en su sitio.
-            </Meta>
-          ) : carga ? (
-            <>
-              <Meta Icono={FileClock} rotulo="Última carga">
-                {fechaHora(carga.cargadoAl)}
-              </Meta>
-              <Meta Icono={Rows3} rotulo="Filas">
-                <span className="tabular-nums">{numero(carga.filas)}</span>
-              </Meta>
-              {carga.sha256 && (
-                <Meta Icono={Fingerprint} rotulo="Huella (comienzo del sha256)">
-                  <span className="break-all font-mono text-rotulo">{carga.sha256}</span>
+            )}
+          </p>
+          {/* Lo técnico (filas, huella, archivo), plegado otra vez: sirve a quien quiera reproducir la carga. */}
+          {!externa && carga && (
+            <details className="group/tec">
+              <summary className="inline-flex min-h-11 cursor-pointer list-none items-center gap-1.5 text-meta font-semibold text-granate sm:min-h-0 [&::-webkit-details-marker]:hidden">
+                <ChevronRight size={14} aria-hidden className="transition-transform duration-rapido group-open/tec:rotate-90" />
+                Datos técnicos de la carga
+              </summary>
+              <dl className="mt-2 grid gap-x-6 gap-y-2.5 text-meta sm:grid-cols-2">
+                <Meta Icono={Rows3} rotulo="Filas">
+                  <span className="tabular-nums">{numero(carga.filas)}</span>
                 </Meta>
-              )}
-              <Meta Icono={Database} rotulo="Archivo" className="sm:col-span-2">
-                <span className="break-all font-mono text-rotulo">
-                  {carga.url ? (
-                    <a href={carga.url} target="_blank" rel="noopener noreferrer" className="underline decoration-line underline-offset-2 hover:text-ink">
-                      {(carga.archivo ?? "archivo").replace(/\?.*$/, "")}
-                    </a>
-                  ) : (
-                    (carga.archivo ?? "sin nombre").replace(/\?.*$/, "")
-                  )}
-                </span>
-              </Meta>
-            </>
-          ) : (
-            <Meta Icono={FileClock} rotulo="Datos cargados">
-              {tabla == null ? "Sin fecha registrada" : `Al ${typeof tabla === "number" || /^\d{4}$/.test(tabla) ? tabla : fechaCorta(tabla)}`}
-            </Meta>
+                {carga.sha256 && (
+                  <Meta Icono={Fingerprint} rotulo="Huella (comienzo del sha256)">
+                    <span className="break-all font-mono text-rotulo">{carga.sha256}</span>
+                  </Meta>
+                )}
+                <Meta Icono={Database} rotulo="Archivo" className="sm:col-span-2">
+                  <span className="break-all font-mono text-rotulo">
+                    {carga.url ? (
+                      <a href={carga.url} target="_blank" rel="noopener noreferrer" className="underline decoration-line underline-offset-2 hover:text-ink">
+                        {(carga.archivo ?? "archivo").replace(/\?.*$/, "")}
+                      </a>
+                    ) : (
+                      (carga.archivo ?? "sin nombre").replace(/\?.*$/, "")
+                    )}
+                  </span>
+                </Meta>
+              </dl>
+            </details>
           )}
-        </dl>
-      </div>
+        </div>
+      </details>
     </li>
   );
 }

@@ -84,7 +84,7 @@ export default async function Establecimientos({ searchParams }: Props) {
   const f = filtrosDeUrl(searchParams);
   const [d, r] = await Promise.all([getEstablecimientos(paramsApi(f, POR_PAGINA)), getResumenSalud()]);
   const lista = rutaEn(base, "/establecimientos");
-  const paginas = d ? Math.min(2000, Math.max(1, Math.ceil(d.total / POR_PAGINA))) : 1;
+  const paginas = d ? Math.min(10000, Math.max(1, Math.ceil(d.total / POR_PAGINA))) : 1;
   const pagina = Math.min(f.pagina ?? 1, paginas);
   const fuentes = r?.fuentes;
   const fac = d?.facetas;
@@ -206,7 +206,7 @@ export default async function Establecimientos({ searchParams }: Props) {
 
         <BarraFiltros
           className="mt-4"
-          busqueda={{ clave: "q", valor: f.q, ejemplo: "Nombre, código IPRESS, RUC o distrito" }}
+          busqueda={{ clave: "q", valor: f.q, ejemplo: "Nombre, código o distrito" }}
           filtros={filtros}
           orden={{ clave: "orden", porDefecto: "relevancia", valor: f.orden, opciones: ORDENES.map((o) => ({ valor: o.clave, nombre: o.nombre })) }}
         />

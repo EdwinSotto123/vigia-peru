@@ -1,4 +1,4 @@
-import { BellRing, CalendarDays, FilePen, FileSearch, Gavel, Hash, Info, Scale, Scroll, ScrollText, TriangleAlert, Wrench } from "lucide-react";
+import { BellRing, CalendarDays, FilePen, FileSearch, Gavel, Hash, Info, Scale, Scroll, ScrollText, TriangleAlert, Wrench, ChevronRight } from "lucide-react";
 import type { ReactNode } from "react";
 import { Insignia, type Tono } from "@/components/gobserva/ui/Insignia";
 import { EstadoVacio } from "@/components/gobserva/ui/Estados";
@@ -78,6 +78,28 @@ function TarjetaSancion({ s, fuenteRegistro }: { s: Sancion; fuenteRegistro: { u
             <CalendarDays size={14} aria-hidden className="shrink-0 text-mute" />
             Emitida el {fechaCorta(s.fechaEmision)}
           </li>
+        </ul>
+        {infraccion && <p className="mt-2 line-clamp-2 text-dato leading-snug text-ink">{infraccion}</p>}
+        {s.enlace === "codigo_otro_nombre" && (
+          <p className="mt-3 flex items-start gap-2 rounded-xl bg-amber-soft/60 px-3 py-2 text-meta leading-snug text-ink">
+            <Info size={15} aria-hidden className="mt-0.5 shrink-0 text-amberTexto" />
+            <span>
+              SUSALUD la registró con el código de este establecimiento, a nombre de «{s.nombre}».
+            </span>
+          </p>
+        )}
+      </header>
+
+      {/* 2026-11-22 (auditoría: «la pestaña mide 6,9 pantallas en el celular»): la resolución, el procedimiento, las normas
+          y lo demás, plegados. */}
+      <details className="group/det border-t border-line">
+        <summary className="flex min-h-11 cursor-pointer list-none items-center gap-1.5 px-4 text-meta font-semibold text-granate sm:px-5 [&::-webkit-details-marker]:hidden">
+          <ChevronRight size={14} aria-hidden className="transition-transform duration-rapido group-open/det:rotate-90" />
+          <span className="group-open/det:hidden">Ver la resolución y el detalle</span>
+          <span className="hidden group-open/det:inline">Ocultar el detalle</span>
+        </summary>
+      {(s.fechaNotificacion || s.fechaInscripcion) && (
+        <ul className="flex flex-wrap gap-x-5 gap-y-1 border-t border-line px-4 py-2.5 text-meta text-inkSoft sm:px-5" aria-label="Otras fechas">
           {s.fechaNotificacion && (
             <li className="inline-flex items-center gap-1.5">
               <BellRing size={14} aria-hidden className="shrink-0 text-mute" />
@@ -91,16 +113,7 @@ function TarjetaSancion({ s, fuenteRegistro }: { s: Sancion; fuenteRegistro: { u
             </li>
           )}
         </ul>
-        {s.enlace === "codigo_otro_nombre" && (
-          <p className="mt-3 flex items-start gap-2 rounded-xl bg-amber-soft/60 px-3 py-2 text-meta leading-snug text-ink">
-            <Info size={15} aria-hidden className="mt-0.5 shrink-0 text-amberTexto" />
-            <span>
-              SUSALUD la registró con el código de este establecimiento, a nombre de «{s.nombre}».
-            </span>
-          </p>
-        )}
-      </header>
-
+      )}
       <dl className="grid gap-x-6 gap-y-2 border-t border-line px-4 py-3 text-dato sm:grid-cols-2 sm:px-5">
         {s.resolucion && (
           <div className="min-w-0 sm:col-span-2">
@@ -161,6 +174,7 @@ function TarjetaSancion({ s, fuenteRegistro }: { s: Sancion; fuenteRegistro: { u
       <footer className="border-t border-line bg-ink/[0.02] px-4 py-2.5 sm:px-5">
         <FuenteFecha nombre="Registro de Sanciones de SUSALUD" url={s.fuenteUrl ?? fuenteRegistro?.url ?? null} al={s.vistoAl ?? fuenteRegistro?.al ?? null} />
       </footer>
+      </details>
     </article>
   );
 }
@@ -217,7 +231,7 @@ export function PestanaSanciones({ f }: { f: FichaIpress }) {
 
       <ListaPaginada
         nombre="las sanciones"
-        tam={3}
+        tam={6}
         className="space-y-4"
         buscar={{ placeholder: "Buscar por resolución, procedimiento o infracción…", etiqueta: "Buscar en las sanciones" }}
         items={lista.map((s) => ({

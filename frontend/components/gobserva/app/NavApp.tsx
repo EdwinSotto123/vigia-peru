@@ -451,7 +451,12 @@ export function BarraApp({ producto, base }: { producto: Producto; base: string 
     ...app.grupos.map((g) => ({ titulo: g.titulo, items: g.items.filter((i) => !i.abajo) })).filter((g) => g.items.length > 0),
     ...(app.cuenta.length ? [{ titulo: "Tu cuenta", items: app.cuenta }] : []),
   ];
-  const enResto = gruposMas.some((g) => g.items.some((i) => esActual(u, rutaEn(base, i.ruta), i.tambien, i.tabs, i.exacta)));
+  const enItem = (i: ItemApp) => esActual(u, rutaEn(base, i.ruta), i.tambien, i.tabs, i.exacta);
+  // Un botón de abajo se marca también en las demás páginas de su grupo con nombre (2026-11-22, auditoría: en «Cerca de
+  // mí» o «Alertas» se marcaba «Más», y la barra lateral las pone bajo Clínicas y Medicinas).
+  const marcado = (item: ItemApp) =>
+    enItem(item) || (producto === "salud" && app.grupos.some((g) => !!g.titulo && g.items.includes(item) && g.items.some((i) => !i.abajo && enItem(i))));
+  const enResto = !abajo.some(marcado) && gruposMas.some((g) => g.items.some(enItem));
 
   return (
     <>
@@ -459,7 +464,7 @@ export function BarraApp({ producto, base }: { producto: Producto; base: string 
         <ul className="grid grid-cols-5">
           {abajo.map((item) => {
             const href = rutaEn(base, item.ruta);
-            const actual = esActual(u, href, item.tambien, item.tabs, item.exacta);
+            const actual = marcado(item);
             const { Icono } = item;
             return (
               <li key={item.ruta}>

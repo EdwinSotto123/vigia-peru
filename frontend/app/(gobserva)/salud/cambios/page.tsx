@@ -84,7 +84,7 @@ export default async function Cambios({ searchParams }: Props) {
 
   return (
     <div className="container-page pb-10 pt-4 sm:pb-14 sm:pt-5">
-      <Ruta items={[{ etiqueta: "Inicio", href: rutaEn(base, "/") }, { etiqueta: "Fuentes", href: rutaEn(base, "/fuentes") }, { etiqueta: "Historial" }]} />
+      <Ruta items={[{ etiqueta: "Inicio", href: rutaEn(base, "/") }, { etiqueta: "Fuentes", href: rutaEn(base, "/fuentes") }, { etiqueta: "Cambios en RENIPRESS" }]} />
       <ProveedorFiltros ruta={lista} params={campo ? { campo } : {}}>
       <CabeceraLista
         className="mt-2"
@@ -92,23 +92,26 @@ export default async function Cambios({ searchParams }: Props) {
         resumen={
           <>
             <span>
-              {d ? (
+              {d && d.total > 0 ? (
                 <>
-                  <b className="font-semibold tabular-nums text-ink">{numero(d.total)}</b> {d.total === 1 ? "cambio" : "cambios"} detectados
+                  <b className="font-semibold tabular-nums text-ink">{numero(d.total)}</b> {d.total === 1 ? "cambio" : "cambios"} detectados, lo más
+                  reciente primero.
                 </>
               ) : (
-                "Lo que cambió en el registro"
+                "Lo que cambia en el registro de establecimientos: altas, bajas, estado y categoría."
               )}
-              , lo más reciente primero.
             </span>
             <FuenteFecha nombre="RENIPRESS (SUSALUD)" url={URL_RENIPRESS_CONSULTA} />
           </>
         }
       />
-      <BarraFiltros
-        className="mt-4"
-        filtros={[{ tipo: "uno", clave: "campo", etiqueta: "Qué cambió", valor: campo, opciones: CAMPOS.map((c) => ({ valor: c.clave, nombre: c.nombre, detalle: c.detalle })) }]}
-      />
+      {/* Sin cambios todavía, el filtro no filtra nada: sólo aparece cuando hay qué filtrar (o ya se eligió uno). */}
+      {(campo || (d && d.total > 0)) && (
+        <BarraFiltros
+          className="mt-4"
+          filtros={[{ tipo: "uno", clave: "campo", etiqueta: "Qué cambió", valor: campo, opciones: CAMPOS.map((c) => ({ valor: c.clave, nombre: c.nombre, detalle: c.detalle })) }]}
+        />
+      )}
 
       <Resultados clave={`${campo ?? ""}-${pedida}`} className="mt-4">
       {!d ? (

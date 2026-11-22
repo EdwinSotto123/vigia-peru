@@ -125,7 +125,7 @@ const Filtros = z.object({
   h24: z.enum(["si"]).optional(),
   ruc: z.string().regex(/^20\d{9}$/).optional(),
   orden: z.enum(["relevancia", "nombre", "sanciones", "categoria", "denuncias"]).default("relevancia"),
-  pagina: z.coerce.number().int().min(1).max(2000).default(1),
+  pagina: z.coerce.number().int().min(1).max(10000).default(1),
   tamano: z.coerce.number().int().min(5).max(100).default(25),
 });
 type FiltrosSalud = z.infer<typeof Filtros>;
@@ -811,7 +811,7 @@ const FiltrosMedicamentos = z.object({
   forma: z.enum(FORMAS_MED).optional(),
   tipo: z.enum(["generico", "marca"]).optional(),
   orden: z.enum(["relevancia", "populares", "precio", "nombre"]).optional(),
-  pagina: z.coerce.number().int().min(1).max(200).default(1),
+  pagina: z.coerce.number().int().min(1).max(1000).default(1),
   tamano: z.coerce.number().int().min(5).max(50).default(10),
 });
 

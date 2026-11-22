@@ -103,7 +103,7 @@ export default async function Alertas({ searchParams }: Props) {
 
         <BarraFiltros
           className="mt-4"
-          busqueda={{ clave: "q", valor: q, ejemplo: "Producto, principio activo o lote" }}
+          busqueda={{ clave: "q", valor: q, ejemplo: "Producto o lote" }}
           filtros={[
             {
               tipo: "uno",
@@ -301,7 +301,7 @@ export default async function Alertas({ searchParams }: Props) {
               <ul className="divide-y divide-line overflow-hidden rounded-2xl border border-line bg-paper" aria-label="Alertas de DIGEMID">
                 {d.filas.map((a) => (
                   <li key={a.id}>
-                    <FilaAlerta a={a} base={base} resaltar={q || null} conDibujo />
+                    <FilaAlerta a={a} base={base} resaltar={q || null} conDibujo plegada={!q} />
                   </li>
                 ))}
               </ul>

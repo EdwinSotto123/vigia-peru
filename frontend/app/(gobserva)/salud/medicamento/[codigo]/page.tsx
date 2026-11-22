@@ -14,7 +14,7 @@ import { AnotarVisto } from "@/components/salud/vistos/Vistos";
 import { rutaEn, urlCanonica } from "@/lib/gobserva";
 import { baseProducto } from "@/lib/gobserva-servidor";
 import { formaDe } from "@/lib/salud-formas";
-import { fechaCorta, getMedicamento, mesLargo, numero, rutaMedicamento, soles, type FichaMedicamento } from "@/lib/gobserva-salud";
+import { concentracionLegible, fechaCorta, getMedicamento, mesLargo, numero, rutaMedicamento, soles, type FichaMedicamento } from "@/lib/gobserva-salud";
 
 export const revalidate = 3600;
 
@@ -22,7 +22,7 @@ type Props = { params: { codigo: string }; searchParams: { seccion?: string | st
 
 function titulo(f: FichaMedicamento): string {
   const p = f.producto;
-  return [nombreMed(p.nombre), p.concentracion?.toLowerCase()].filter(Boolean).join(" ");
+  return [nombreMed(p.nombre), concentracionLegible(p.concentracion)].filter(Boolean).join(" ");
 }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
@@ -78,13 +78,15 @@ export default async function FichaMedicamentoPagina({ params, searchParams }: P
             <label htmlFor="lote-caja" className="shrink-0 px-1 text-dato font-semibold text-ink">
               ¿Tienes la caja?
             </label>
+            {/* Con el registro de esta ficha: la página responde por los dos (el lote está o no en una alerta). */}
+            {p.registro ? <input type="hidden" name="q" value={p.registro} /> : null}
             <input
               id="lote-caja"
-              name="q"
+              name={p.registro ? "lote" : "q"}
               required
               minLength={4}
-              placeholder="Escribe el lote (sale como «Lote» o «L.»)"
-              className="h-11 min-w-0 flex-1 rounded-xl border border-line bg-paper px-3 text-destacado text-ink placeholder:text-mute focus:border-granate focus:outline-none focus:ring-2 focus:ring-granate/25 sm:text-dato"
+              placeholder="El lote de tu caja (Lote o L.)"
+              className="h-11 min-h-11 w-full min-w-0 rounded-xl border border-line bg-paper px-3 text-destacado text-ink placeholder:text-mute focus:border-granate focus:outline-none focus:ring-2 focus:ring-granate/25 sm:flex-1 sm:text-dato"
             />
             <button type="submit" className="gs-hunde inline-flex h-11 shrink-0 items-center justify-center gap-1.5 rounded-xl bg-granate px-4 text-dato font-semibold text-paper hover:bg-granate-deep">
               Buscar el lote en las alertas
@@ -163,7 +165,7 @@ export default async function FichaMedicamentoPagina({ params, searchParams }: P
           <dl className="tarjeta rounded-2xl border border-line bg-paper px-5 py-2">
             <Dato t="Registro sanitario" mono>{p.registro ?? "Sin dato"}</Dato>
             <Dato t="Principio activo">{nombreMed(p.ifa) || "Sin dato"}</Dato>
-            <Dato t="Concentración">{p.concentracion?.toLowerCase() ?? "Sin dato"}</Dato>
+            <Dato t="Concentración">{concentracionLegible(p.concentracion) || "Sin dato"}</Dato>
             <Dato t="Forma">{nombreMed(p.forma) || "Sin dato"}</Dato>
             <Dato t="Presentación">{nombreMed(p.presentacion) || "Sin dato"}{p.fracciones ? `, ${numero(p.fracciones)} unidades` : ""}</Dato>
             <Dato t="Titular del registro">{nombreMed(p.titular) || "Sin dato"}</Dato>
@@ -280,7 +282,11 @@ export default async function FichaMedicamentoPagina({ params, searchParams }: P
       <div className="mt-4 overflow-hidden rounded-3xl border border-granate/20 bg-granate-50 px-5 py-6 sm:px-8 sm:py-7">
         <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
           <div className="min-w-0">
-            <p className="flex flex-wrap items-center gap-2">
+            <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3">
+              <h1 className="min-w-0 text-balance font-display text-cifra font-bold leading-tight tracking-[-0.02em] text-ink sm:text-titulo">{nombre}</h1>
+              <BotonGuardarSalud tipo="medicamento" codigo={String(p.codigo)} nombre={nombre} base={base} />
+            </div>
+            <p className="mt-2 flex flex-wrap items-center gap-2">
               {/* En el celular, el dibujo de su forma junto a las insignias (en la computadora va grande, a la derecha). */}
               <span aria-hidden className="grid h-12 w-12 place-items-center rounded-xl bg-paper lg:hidden">
                 <Pixel nombre={formaDe(p.formaGrupo).sprite} escala={2} animado={false} acento="accion" />
@@ -289,10 +295,6 @@ export default async function FichaMedicamentoPagina({ params, searchParams }: P
               {p.registro && <Insignia className="font-mono">R.S. {p.registro}</Insignia>}
               {!p.enCatalogo && <Insignia tono="aviso">Sin precio reportado en el último mes</Insignia>}
             </p>
-            <div className="mt-3 flex flex-wrap items-center justify-between gap-x-6 gap-y-3">
-              <h1 className="min-w-0 text-balance font-display text-cifra font-bold leading-tight tracking-[-0.02em] text-ink sm:text-titulo">{nombre}</h1>
-              <BotonGuardarSalud tipo="medicamento" codigo={String(p.codigo)} nombre={nombre} base={base} />
-            </div>
             <p className="mt-1.5 text-cuerpo text-inkSoft">
               {[nombreMed(p.forma), nombreMed(p.ifa) && `de ${nombreMed(p.ifa).toLowerCase()}`, nombreMed(p.titular) && `titular: ${nombreMed(p.titular)}`].filter(Boolean).join(", ")}
             </p>

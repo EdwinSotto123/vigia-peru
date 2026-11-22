@@ -3,7 +3,7 @@ import { LayoutGrid, TriangleAlert } from "lucide-react";
 import { Pixel } from "@/components/pixel/Pixel";
 import type { NombreSprite } from "@/components/pixel/sprites";
 import { rutaEn } from "@/lib/gobserva";
-import { numero, rutaMedicamento, soles, type BusquedaMedicamentos, type Medicamento } from "@/lib/gobserva-salud";
+import { concentracionLegible, numero, rutaMedicamento, soles, type BusquedaMedicamentos, type Medicamento } from "@/lib/gobserva-salud";
 import { FORMAS, formaDe, type FormaGrupo } from "@/lib/salud-formas";
 import { cn } from "@/lib/utils";
 import { nombreMed } from "./piezas";
@@ -63,17 +63,26 @@ export function TarjetaMedicamento({ m, base, masBarato = false }: { m: Medicame
       </div>
       <div className="flex min-w-0 flex-1 flex-col px-3 pb-3 pt-2.5">
         <p className="line-clamp-2 text-dato font-semibold leading-snug text-ink group-hover:text-granate">{nombreMed(m.nombre)}</p>
-        <p className="mt-0.5 line-clamp-1 text-meta text-inkSoft">
-          {[m.concentracion?.toLowerCase(), nombreMed(m.forma)].filter(Boolean).join(", ")}
+        <p className="mt-0.5 line-clamp-2 text-meta leading-snug text-inkSoft sm:line-clamp-1">
+          {[concentracionLegible(m.concentracion), nombreMed(m.forma)].filter(Boolean).join(", ")}
         </p>
         {m.titular && <p className="mt-0.5 truncate text-rotulo text-mute">{nombreMed(m.titular)}</p>}
         <div className="mt-auto pt-2.5">
           <p className="font-display text-bloque font-bold leading-none tabular-nums text-ink">
-            {precio == null ? <span className="font-sans text-dato font-semibold text-mute">Sin precio</span> : rango ? `${soles(m.precioMin)} a ${m.precioMax!.toFixed(2)}` : soles(precio)}
+            {precio == null ? (
+              <span className="font-sans text-dato font-semibold text-mute">Sin precio</span>
+            ) : rango ? (
+              <>
+                <span className="font-sans text-meta font-semibold text-inkSoft">desde </span>
+                {soles(m.precioMin)}
+              </>
+            ) : (
+              soles(precio)
+            )}
           </p>
           {masBarato && <p className="mt-1 text-rotulo font-semibold text-mossTexto">Más barato que este</p>}
           <p className="mt-1 text-rotulo leading-snug text-mute">
-            {precio == null ? "Ninguna farmacia lo reportó" : "por unidad"}
+            {precio == null ? "Ninguna farmacia lo reportó" : rango ? "por unidad, según presentación" : "por unidad"}
             {m.establecimientos ? `, en ${numero(m.establecimientos)} ${m.establecimientos === 1 ? "farmacia" : "farmacias"}` : ""}
           </p>
         </div>
@@ -137,14 +146,15 @@ export function RielFormas({
 }
 
 /** Una opción de un grupo de enlaces (genérico o de marca, el orden): la elegida, llena. */
-function Opcion({ href, activa, children }: { href: string; activa: boolean; children: React.ReactNode }) {
+function Opcion({ href, activa, children, className }: { href: string; activa: boolean; children: React.ReactNode; className?: string }) {
   return (
     <Link
       href={href}
       aria-current={activa ? "true" : undefined}
       className={cn(
-        "gs-hunde inline-flex min-h-10 items-center gap-1 rounded-full px-3 text-meta font-semibold transition-colors duration-rapido sm:min-h-9",
+        "gs-hunde inline-flex min-h-10 shrink-0 items-center justify-center gap-1 whitespace-nowrap rounded-full px-3 text-meta font-semibold transition-colors duration-rapido sm:min-h-9",
         activa ? "bg-granate text-paper" : "text-inkSoft hover:bg-granate-50 hover:text-ink",
+        className,
       )}
     >
       {children}
@@ -171,20 +181,21 @@ export function OrdenYTipo({
     { k: "nombre", t: "De la A a la Z" },
   ];
   return (
-    <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-      <div role="group" aria-label="Genérico o de marca" className="inline-flex flex-wrap rounded-full border border-line bg-paper p-1">
-        <Opcion href={href({ tipo: null })} activa={!d.tipo}>
+    // En el celular: los tres tipos en una fila pareja (sin sus cifras) y el orden se desliza de lado; nada se parte.
+    <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:gap-x-4">
+      <div role="group" aria-label="Genérico o de marca" className="flex rounded-full border border-line bg-paper p-1 sm:inline-flex">
+        <Opcion href={href({ tipo: null })} activa={!d.tipo} className="flex-1 sm:flex-none">
           Todos
         </Opcion>
-        <Opcion href={href({ tipo: "generico" })} activa={d.tipo === "generico"}>
-          Genéricos{f ? <span className="font-normal tabular-nums opacity-80"> {numero(f.genericos)}</span> : null}
+        <Opcion href={href({ tipo: "generico" })} activa={d.tipo === "generico"} className="flex-1 sm:flex-none">
+          Genéricos{f ? <span className="font-normal tabular-nums opacity-80 max-sm:hidden"> {numero(f.genericos)}</span> : null}
         </Opcion>
-        <Opcion href={href({ tipo: "marca" })} activa={d.tipo === "marca"}>
-          De marca{f ? <span className="font-normal tabular-nums opacity-80"> {numero(f.marcas)}</span> : null}
+        <Opcion href={href({ tipo: "marca" })} activa={d.tipo === "marca"} className="flex-1 sm:flex-none">
+          De marca{f ? <span className="font-normal tabular-nums opacity-80 max-sm:hidden"> {numero(f.marcas)}</span> : null}
         </Opcion>
       </div>
-      <div role="group" aria-label="Ordenar" className="inline-flex flex-wrap items-center gap-1">
-        <span className="pl-1 pr-1 text-meta text-mute">Ordenar:</span>
+      <div role="group" aria-label="Ordenar" className="-mx-4 flex items-center gap-1 overflow-x-auto px-4 sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0">
+        <span className="shrink-0 pr-1 text-meta text-mute">Ordenar:</span>
         {ordenes.map((o) => (
           <Opcion key={o.k} href={href({ orden: o.k === (conBusqueda ? "relevancia" : "populares") ? null : o.k })} activa={orden === o.k}>
             {o.t}

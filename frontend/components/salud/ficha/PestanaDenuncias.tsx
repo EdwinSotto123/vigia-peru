@@ -1,4 +1,4 @@
-import { FileSearch, HelpCircle, Info, Megaphone, MessageSquareWarning, Search } from "lucide-react";
+import { FileSearch, HelpCircle, Info, Megaphone, MessageSquareWarning, Search, ChevronRight } from "lucide-react";
 import { EstadoVacio } from "@/components/gobserva/ui/Estados";
 import { CabeceraPestana } from "@/components/patrones/Pestanas";
 import { FuenteFecha, InsigniaHecho } from "@/components/salud/comun";
@@ -30,7 +30,10 @@ export function PestanaDenuncias({ f }: { f: FichaIpress }) {
         <span className="text-inkSoft">
           Una denuncia es el pedido de un ciudadano ante SUSALUD: no es un hecho comprobado. Un hospital grande recibe más
           porque atiende a más personas.
-        </span>
+        </span>{" "}
+        <a href={URL_DENUNCIA_SUSALUD} target="_blank" rel="noopener noreferrer" className="font-semibold text-granate underline-offset-4 hover:underline">
+          ¿Tuviste un problema? Presenta una denuncia<span className="sr-only"> ante SUSALUD (se abre en otra pestaña)</span>
+        </a>
       </p>
     </div>
   );
@@ -105,7 +108,12 @@ export function PestanaDenuncias({ f }: { f: FichaIpress }) {
         </Bloque>
       </div>
 
-      <Bloque titulo="Año por año" cuenta={numero(anios.length)} descripcion="Las mismas cifras en tabla, del año más reciente al más antiguo.">
+      <details className="group/tabla">
+        <summary className="inline-flex min-h-11 cursor-pointer list-none items-center gap-1.5 text-meta font-semibold text-granate [&::-webkit-details-marker]:hidden">
+          <ChevronRight size={14} aria-hidden className="transition-transform duration-rapido group-open/tabla:rotate-90" />
+          Las mismas cifras en tabla
+        </summary>
+      <Bloque titulo="Año por año" cuenta={numero(anios.length)} descripcion="Del año más reciente al más antiguo.">
         <div className="-mx-4 overflow-x-auto sm:-mx-5">
           <table className="w-full min-w-[22rem] text-dato">
             <caption className="sr-only">Denuncias, consultas e intervenciones de oficio ante SUSALUD por año (no son sanciones)</caption>
@@ -130,11 +138,7 @@ export function PestanaDenuncias({ f }: { f: FichaIpress }) {
           </table>
         </div>
       </Bloque>
-
-      <a href={URL_DENUNCIA_SUSALUD} target="_blank" rel="noopener noreferrer" className={claseAccion("secundario", "min-h-11")}>
-        <Megaphone size={16} aria-hidden /> ¿Tuviste un problema? Presenta una denuncia ante SUSALUD
-        <span className="sr-only"> (se abre en otra pestaña)</span>
-      </a>
+      </details>
     </div>
   );
 }

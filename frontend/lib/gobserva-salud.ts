@@ -658,6 +658,20 @@ export const TIPOS_ALERTA: Record<TipoAlerta, { nombre: string; corto: string; e
 };
 
 /** S/ 12,50 (o «sin precio»). */
+/**
+ * La concentración como la lee cualquiera: «500 MG» → «500 mg»; «0.003» (DIGEMID escribe así los porcentajes, sin
+ * unidad: gentamicina oftálmica) → «0.3 %». Vacío si no hay.
+ */
+export function concentracionLegible(c: string | null | undefined): string {
+  const t = (c ?? "").trim();
+  if (!t) return "";
+  if (/^0?[.,]\d+$/.test(t)) {
+    const n = Number(t.replace(",", ".")) * 100;
+    return `${Number(n.toPrecision(3)).toString()} %`;
+  }
+  return t.toLowerCase();
+}
+
 export function soles(n: number | null | undefined): string {
   if (n == null) return "sin precio";
   return `S/ ${new Intl.NumberFormat("es-PE", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n)}`;

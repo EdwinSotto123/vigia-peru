@@ -62,7 +62,9 @@ export default async function Buscar({ searchParams }: Props) {
       />
       <div className="mt-5 max-w-3xl">
         <BuscadorSalud accion={ruta("/buscar")} q={q} autoFocus={!q} />
-        <p className="mt-2 text-meta text-mute">No buscamos personas por su nombre: un médico se verifica con su número de colegiatura.</p>
+        <p className="mt-2 text-meta text-mute">
+          Un médico se verifica con su número de colegiatura, no por su nombre. Algunos consultorios figuran en RENIPRESS con el nombre de su dueño.
+        </p>
         <Link
           href={`${ruta("/cerca")}?ubicar=1`}
           className="mt-2 inline-flex min-h-11 items-center gap-1.5 text-dato font-semibold text-granate underline-offset-4 hover:underline"

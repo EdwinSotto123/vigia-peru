@@ -4,8 +4,7 @@ import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import Link from "next/link";
 import {
   AlertTriangle, ArrowUp, BadgeCheck, Check, CircleSlash, Copy, Gavel, Hospital, Loader2, MessageSquarePlus, Phone, RotateCcw, Scale,
-  Scissors, Search, Square, Wrench,
-} from "lucide-react";
+  Scissors, Search, Square, Wrench, Pill } from "lucide-react";
 import { Respuesta } from "@/components/admin/chat/Respuesta";
 import { entradaCompacta, type MensajeAsistente, type PasoHerramienta } from "@/components/admin/chat/conversacion";
 import { IsotipoGobserva } from "@/components/gobserva/MarcaGobserva";
@@ -21,6 +20,7 @@ const EJEMPLOS: { Icono: typeof Search; texto: string }[] = [
   { Icono: Scissors, texto: "¿La Clínica Anglo Americana tiene centro quirúrgico registrado?" },
   { Icono: Hospital, texto: "¿Qué categoría necesita un establecimiento para tener centro quirúrgico?" },
   { Icono: BadgeCheck, texto: "¿Cómo verifico si un médico está habilitado?" },
+  { Icono: Pill, texto: "¿Hay alertas de DIGEMID sobre el Panadol Antigripal?" },
   { Icono: Scale, texto: "¿Qué diferencia hay entre una denuncia y una sanción de SUSALUD?" },
 ];
 

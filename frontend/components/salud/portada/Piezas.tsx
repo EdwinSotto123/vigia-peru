@@ -280,12 +280,12 @@ export function CabeceraLista({
   className?: string;
 }) {
   return (
-    <header className={cn("grid grid-cols-[minmax(0,1fr)_auto] items-end gap-x-4 gap-y-2", className)}>
+    <header className={cn("grid grid-cols-1 items-end gap-x-4 gap-y-3 sm:grid-cols-[minmax(0,1fr)_auto]", className)}>
       <div className="min-w-0">
         <h1 className="text-balance font-display text-seccion font-bold leading-tight tracking-[-0.015em] text-ink">{titulo}</h1>
         {resumen && <div className="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-dato text-inkSoft">{resumen}</div>}
       </div>
-      {acciones && <div className="flex shrink-0 flex-wrap items-center gap-2">{acciones}</div>}
+      {acciones && <div className="flex min-w-0 flex-wrap items-center gap-2">{acciones}</div>}
     </header>
   );
 }

@@ -121,7 +121,7 @@ export function filtrosDeUrl(p: Params): FiltrosLista {
   const orden = uno(p, "orden");
   if (orden && ORDENES.some((o) => o.clave === orden) && orden !== "relevancia") f.orden = orden as OrdenLista;
   const pagina = Number(uno(p, "pagina"));
-  if (Number.isInteger(pagina) && pagina > 1) f.pagina = Math.min(pagina, 2000);
+  if (Number.isInteger(pagina) && pagina > 1) f.pagina = Math.min(pagina, 10000);
   return f;
 }
 

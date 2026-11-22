@@ -262,7 +262,7 @@ export function verificar(v: DatosVerificacion): Chequeo[] {
   // 5. Denuncias (no son sanciones).
   const d = v.denuncias;
   if (d.anio && (d.denuncias ?? 0) > 0) {
-    out.push({ clave: "denuncias", titulo: "Denuncias ante SUSALUD", estado: "sin_dato", tipo: "denuncia", fuente: "Consultas y denuncias (SUSALUD, anonimizado)", url: URL_DATOS_SUSALUD, al: `${d.anio}-12-31`,
+    out.push({ clave: "denuncias", titulo: "Denuncias ante SUSALUD", estado: "atencion", tipo: "denuncia", fuente: "Consultas y denuncias (SUSALUD, anonimizado)", url: URL_DATOS_SUSALUD, al: String(d.anio),
       detalle: `En ${d.anio} SUSALUD recibió ${d.denuncias} ${d.denuncias === 1 ? "denuncia" : "denuncias"} sobre esta institución. Son pedidos de ciudadanos, no hechos comprobados ni sanciones.` });
   }
   // 6. Responsable (sin nombre).

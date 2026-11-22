@@ -119,7 +119,7 @@ export default async function Sanciones({ searchParams }: Props) {
 
         <BarraFiltros
           className="mt-4"
-          busqueda={{ clave: "q", valor: f.q, ejemplo: "Nombre de la clínica, el hospital o la aseguradora" }}
+          busqueda={{ clave: "q", valor: f.q, ejemplo: "Clínica, hospital o aseguradora" }}
           filtros={filtros}
           orden={{
             clave: "orden",

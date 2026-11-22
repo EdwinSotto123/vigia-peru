@@ -21,11 +21,7 @@ export function PortadaMedicamentos({ lista, fuente, modoInicial }: { lista: str
       <section aria-labelledby="verifica-t" className="mt-3 rounded-3xl border border-granate/15 bg-granate-50 px-5 pb-16 pt-6 sm:px-8 sm:pb-20 sm:pt-8">
         <div className="grid gap-6 md:grid-cols-[minmax(0,1fr)_auto] md:items-center">
           <div className="min-w-0">
-            <p className="inline-flex items-center gap-2 rounded-full bg-paper px-3 py-1 text-meta font-semibold text-granate ring-1 ring-granate/20">
-              <ShieldCheck size={15} aria-hidden />
-              Con datos oficiales de DIGEMID
-            </p>
-            <h1 id="verifica-t" className="mt-4 text-balance font-display text-titulo font-bold leading-[1.05] tracking-[-0.025em] text-ink sm:text-vitrina">
+            <h1 id="verifica-t" className="text-balance font-display text-titulo font-bold leading-[1.05] tracking-[-0.025em] text-ink sm:text-vitrina">
               Verifica un <span className="text-granate">medicamento</span>
             </h1>
             <p className="mt-3 max-w-[54ch] text-pretty text-cuerpo leading-relaxed text-inkSoft sm:text-destacado">
@@ -42,6 +38,11 @@ export function PortadaMedicamentos({ lista, fuente, modoInicial }: { lista: str
                 <span className="inline-flex items-center gap-2">
                   <TriangleAlert size={16} aria-hidden className="text-amberTexto" />
                   <b className="font-semibold tabular-nums text-ink">{numero(fuente.alertas)}</b> alertas de DIGEMID
+                </span>
+                <span aria-hidden className="hidden h-4 w-px bg-granate/25 sm:block" />
+                <span className="inline-flex items-center gap-1.5 font-semibold text-granate">
+                  <ShieldCheck size={16} aria-hidden />
+                  Con datos oficiales de DIGEMID
                 </span>
               </p>
             )}
@@ -70,7 +71,12 @@ export function ComoVerificar({ base, lista, fuente }: { base: string; lista: st
     { sprite: "iconoCalendario", escala: 3, titulo: "El vencimiento", texto: "Lo leemos de la foto de la caja, junto con el registro y el lote", href: `${lista}?modo=foto#buscar` },
   ];
   return (
-    <div className="space-y-4">
+    <section aria-labelledby="como-t" className="rounded-2xl border border-line bg-paper px-4 py-4 sm:px-5 sm:py-5">
+      <h2 id="como-t" className="font-display text-bloque font-bold leading-snug text-ink">
+        Cómo verificar tu caja
+      </h2>
+      <p className="mt-0.5 text-meta text-inkSoft">Tres cosas impresas en el envase. Toca una para empezar.</p>
+      <div className="mt-4 space-y-4">
       <ul className="grid gap-3 sm:grid-cols-3">
         {QUE.map((x) => (
           <li key={x.titulo}>
@@ -114,7 +120,8 @@ export function ComoVerificar({ base, lista, fuente }: { base: string; lista: st
           </span>
         </p>
       )}
-    </div>
+      </div>
+    </section>
   );
 }
 
