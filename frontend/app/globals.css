@@ -1074,6 +1074,62 @@ html[data-modo="dia"] [data-producto="obras"] :is(.bg-ink, .bg-granate-deep, .so
   --sobre-maiz: 59 28 9;
   --px-fondo: 59 28 9;
 }
+[data-producto="car"] {
+  --granate: 255 210 63;
+  --granate-50: 26 27 18;
+  --granate-soft: 40 38 21;
+  --granate-200: 99 85 32;
+  --granate-300: 167 140 46;
+  --granate-400: 211 175 54;
+  --granate-500: 255 228 140;
+  --granate-700: 178 147 44;
+  --granate-deep: 219 181 54;
+  --granate-900: 21 23 17;
+  --maiz: 255 210 63;
+  --maiz-soft: 40 38 21;
+  --marca-acento: 255 210 63;
+  --acento: 255 210 63;
+  --acento-soft: 31 31 19;
+  --acento-borde: 99 85 32;
+}
+[data-producto="car"] .sobre-oscuro {
+  --granate: 122 90 0;
+  --granate-soft: 234 229 214;
+  --granate-50: 246 243 237;
+  --granate-deep: 17 17 10;
+}
+html[data-modo="dia"][data-producto="car"],
+html[data-modo="dia"] [data-producto="car"] {
+  --granate: 122 90 0;
+  --granate-50: 247 245 240;
+  --granate-soft: 235 230 217;
+  --granate-200: 202 189 153;
+  --granate-300: 173 153 97;
+  --granate-400: 146 120 46;
+  --granate-500: 92 68 0;
+  --granate-700: 100 74 0;
+  --granate-deep: 95 70 0;
+  --granate-900: 43 34 0;
+  --maiz: 122 90 0;
+  --maiz-soft: 235 230 217;
+  --marca-acento: 122 90 0;
+  --marca-pupila: 43 34 0;
+  --acento: 122 90 0;
+  --acento-soft: 244 242 235;
+  --acento-borde: 195 181 140;
+}
+html[data-modo="dia"][data-producto="car"] :is(.bg-ink, .bg-granate-deep, .sobre-oscuro),
+html[data-modo="dia"] [data-producto="car"] :is(.bg-ink, .bg-granate-deep, .sobre-oscuro) {
+  --ink: 43 34 0;
+  --granate-deep: 43 34 0;
+  --granate-900: 43 34 0;
+  --maiz: 255 226 122;
+  --maiz-soft: 255 242 195;
+  --marca-acento: 255 226 122;
+  --marca-nota: 202 200 191;
+  --sobre-maiz: 43 34 0;
+  --px-fondo: 43 34 0;
+}
 [data-producto="vigia"] {
   --granate: 57 255 20;
   --granate-50: 14 29 15;

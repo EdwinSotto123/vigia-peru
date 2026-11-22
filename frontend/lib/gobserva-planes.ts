@@ -38,6 +38,7 @@ const RESPALDO: Record<Producto, PlanCatalogo[]> = {
   obras: PROVEEDOR,
   // Gobserva Salud es abierto: sin planes.
   salud: [],
+  car: [],
 };
 
 export interface PlanesServidor {

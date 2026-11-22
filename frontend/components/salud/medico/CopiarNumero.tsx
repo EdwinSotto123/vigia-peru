@@ -8,7 +8,7 @@ import { cn } from "@/lib/utils";
  * El número de colegiatura a la vista, con «Copiar el número» para pegarlo en «Conoce a tu médico». (No usa
  * components/gobserva/Copiar: su id con Math.random no coincide entre el servidor y el navegador.)
  */
-export function CopiarNumero({ numero, className }: { numero: string; className?: string }) {
+export function CopiarNumero({ numero, etiqueta = "Copiar el número", className }: { numero: string; etiqueta?: string; className?: string }) {
   const [copiado, setCopiado] = useState(false);
   async function copiar() {
     try {
@@ -28,7 +28,7 @@ export function CopiarNumero({ numero, className }: { numero: string; className?
         className="inline-flex min-h-11 items-center gap-1.5 rounded-lg border border-line bg-paper px-3.5 text-meta font-semibold text-ink transition-colors duration-rapido hover:border-granate/40 hover:text-granate focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-granate"
       >
         {copiado ? <Check size={14} aria-hidden className="text-mossTexto" /> : <Copy size={14} aria-hidden />}
-        <span aria-live="polite">{copiado ? "Copiado" : "Copiar el número"}</span>
+        <span aria-live="polite">{copiado ? "Copiado" : etiqueta}</span>
       </button>
     </div>
   );

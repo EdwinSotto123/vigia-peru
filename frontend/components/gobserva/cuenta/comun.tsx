@@ -172,6 +172,7 @@ export const FILTROS: Record<Producto, CampoFiltro[]> = {
   ],
   // Gobserva Salud no tiene alertas ni cuentas (es abierto).
   salud: [],
+  car: [],
 };
 
 /** Los filtros de una alerta como chips legibles. */
@@ -206,7 +207,7 @@ export function filtrosDeBusqueda(producto: Producto, params: Record<string, str
 /** El nombre de la alerta que se propone para una búsqueda: «combustible en Cusco». */
 export function nombreSugerido(producto: Producto, filtros: Record<string, string>): string {
   const partes = chipsFiltros(producto, filtros).map((c) => c.replace(/[«»]/g, ""));
-  return (partes.slice(0, 2).join(", ") || ({ empleo: "Plazas nuevas", licitaciones: "Oportunidades nuevas", obras: "Proyectos nuevos", salud: "Establecimientos" } as Record<Producto, string>)[producto]).slice(0, 80);
+  return (partes.slice(0, 2).join(", ") || ({ empleo: "Plazas nuevas", licitaciones: "Oportunidades nuevas", obras: "Proyectos nuevos", salud: "Establecimientos", car: "Vehículos" } as Record<Producto, string>)[producto]).slice(0, 80);
 }
 
 /** Cómo llamar a lo que avisa cada producto. */
@@ -216,4 +217,5 @@ export const COSAS: Record<Producto, { una: string; varias: string; lista: strin
   obras: { una: "proyecto", varias: "proyectos", lista: "/proyectos" },
   // Gobserva Salud no tiene cuentas (es abierto): sólo para que el tipo cierre.
   salud: { una: "establecimiento", varias: "establecimientos", lista: "/establecimientos" },
+  car: { una: "consulta", varias: "consultas", lista: "/" },
 };

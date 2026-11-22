@@ -1816,6 +1816,27 @@ export const SPRITES = {
     ],
     capas: [],
   },
+  auto: {
+    base: [
+      "..................",
+      "..................",
+      ".....######.......",
+      "....#ww#www#......",
+      "...#www#wwww#.....",
+      ".###############..",
+      "#LLLLLLLLLLLLLLL#.",
+      "#LLLLLLLLLLLLLLC#.",
+      "#LLLLLLLLLLLLLLL#.",
+      "##+++##LLL##+++##.",
+      ".#=C=#.....#=C=#..",
+      "..###.......###...",
+      "..................",
+      "==..==..==..==..==",
+      "..................",
+      "..................",
+    ],
+    capas: [],
+  },
 } satisfies Record<string, SpritePixel>;
 
 export type NombreSprite = keyof typeof SPRITES;

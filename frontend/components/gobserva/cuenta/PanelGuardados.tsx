@@ -34,6 +34,7 @@ export const ESTADOS: Record<Producto, { valor: EstadoGuardado; etiqueta: string
     { valor: "perdida", etiqueta: "Perdida" },
   ],
   salud: [],
+  car: [],
 };
 
 const ruta = (g: Guardado) =>

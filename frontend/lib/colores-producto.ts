@@ -10,6 +10,7 @@ export const COLOR_PRODUCTO: Record<Producto, { noche: string; dia: string; band
   empleo: { noche: "#B9A0FF", dia: "#5B35C9", banda: "#24154D", bandaAcento: "#D6C9FF" },
   licitaciones: { noche: "#6DB4FF", dia: "#1D5DB8", banda: "#0B2748", bandaAcento: "#A8D1FF" },
   obras: { noche: "#FF9A55", dia: "#A9480C", banda: "#3B1C09", bandaAcento: "#FFC08F" },
+  car: { noche: "#FFD23F", dia: "#7A5A00", banda: "#2B2200", bandaAcento: "#FFE27A" },
 };
 
 /** Vigía: añil (las imágenes, el favicon y lo que pinta en un canvas). */

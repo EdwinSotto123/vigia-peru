@@ -68,6 +68,21 @@ const GANAS: Record<Producto, { titulo: string; puntos: Promesa[]; ejemplo: { as
       pie: "Ejemplo de cómo se marca lo nuevo en lo que guardaste.",
     },
   },
+  // Gobserva Car (2026-11-22): abierto y sin cuenta, como Salud.
+  car: {
+    titulo: "Lo que verificas, a mano",
+    puntos: [
+      { Icono: Bookmark, titulo: "Tus placas y consultas", texto: "Guárdalas y vuelve a ellas en un toque." },
+      { Icono: BellRing, titulo: "Lo nuevo, marcado", texto: "Cuando se actualice una fuente oficial de lo que guardaste." },
+      { Icono: ShieldCheck, titulo: "Gratis, sin planes", texto: "Todo lo demás de Gobserva Car se ve sin cuenta." },
+    ],
+    ejemplo: {
+      asunto: "Tu revisión técnica: vence pronto",
+      lineas: ["Busca un centro autorizado cerca", "Lleva tu SOAT vigente"],
+      de: "En «Mis guardados»",
+      pie: "Ejemplo de cómo se marca lo nuevo en lo que guardaste.",
+    },
+  },
 };
 
 type Modo = "entrar" | "crear" | "codigo" | "recuperar" | "nueva";

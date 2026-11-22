@@ -15,7 +15,7 @@ import { COOKIE_SESION, PRODUCTO_POR_HOST, PRODUCTOS, hostLimpio, type Producto 
  *   · Protege /admin/*: sin la cookie de sesión admin (httpOnly, la pone /api/admin/login tras validar el token contra
  *     el API) redirige al login. La validez real del token la verifica el API en cada request proxeado.
  */
-const PRODUCTOS_CON_RUTA: Producto[] = ["empleo", "licitaciones", "obras", "salud"];
+const PRODUCTOS_CON_RUTA: Producto[] = ["empleo", "licitaciones", "obras", "salud", "car"];
 
 export function middleware(req: NextRequest) {
   const { pathname, search } = req.nextUrl;
@@ -165,8 +165,8 @@ function aLaAppEmpleo(ruta: string, search: string): string | null {
 }
 
 function destinoConSesion(producto: Producto, ruta: string): string | null {
-  // Salud es abierto: su portada es el inicio de la app para todos, con cuenta o sin ella.
-  if (producto === "salud") return null;
+  // Salud y Car son abiertos: su portada es el inicio para todos, con cuenta o sin ella.
+  if (producto === "salud" || producto === "car") return null;
   if (ruta === "/") return "/cuenta";
   if (producto === "licitaciones" && ruta === "/para-ti") return "/cuenta?tab=para-ti";
   if (producto === "empleo" && ruta === "/para-ti") return "/app/para-ti";

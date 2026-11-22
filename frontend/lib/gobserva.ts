@@ -12,12 +12,13 @@
  * Sin JSX ni imports de servidor: lo usan el middleware, las páginas y los componentes de cliente.
  */
 
-export type Producto = "empleo" | "licitaciones" | "obras" | "salud";
+export type Producto = "empleo" | "licitaciones" | "obras" | "salud" | "car";
 /**
  * Los productos sin cuenta. Gobserva Salud (2026-11-20) era abierto y sin cuenta; desde el 2026-11-21 tiene una cuenta
  * gratis (sin planes) para guardar lo que verifica. Hoy ninguno.
  */
-export const PRODUCTOS_SIN_CUENTA: readonly Producto[] = [];
+// Gobserva Car (2026-11-22) es abierto y sin cuenta: su cabecera no muestra «Entrar».
+export const PRODUCTOS_SIN_CUENTA: readonly Producto[] = ["car"];
 
 export interface InfoProducto {
   clave: Producto;
@@ -64,6 +65,16 @@ export const PRODUCTOS: Record<Producto, InfoProducto> = {
     lema: "Verifica tu clínica y a tu médico con fuentes oficiales: registro, servicios autorizados y sanciones firmes, con su fecha.",
     host: "salud.gobserva.cloud",
     hostDev: "salud-dev.gobserva.cloud",
+  },
+  // Gobserva Car (2026-11-22, el usuario: «ahora vamos de car.gobserva»): verificar un auto antes de comprarlo o de subirse,
+  // con las consultas oficiales (piden captcha: sólo se enlazan, con la placa lista) y los datos abiertos de transporte.
+  car: {
+    clave: "car",
+    nombre: "car",
+    titulo: "Gobserva Car",
+    lema: "Antes de comprar un auto o de subirte a uno: dónde verificar su placa, su SOAT, su revisión técnica y sus papeletas, con fuentes oficiales.",
+    host: "car.gobserva.cloud",
+    hostDev: "car-dev.gobserva.cloud",
   },
 };
 

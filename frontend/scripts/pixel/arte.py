@@ -402,8 +402,10 @@ S["documento"] = {"base": [
 sys.path.insert(0, str(pathlib.Path(__file__).parent))
 import arte_nuevos
 import arte_medicinas
+import arte_car
 arte_nuevos.agregar(S, {"lienzo": lienzo, "rect": rect, "marco": marco, "filas": filas, "capa": capa})
 arte_medicinas.agregar(S)  # los medicamentos y los establecimientos de Salud (arte_medicinas.py)
+arte_car.agregar(S)  # el auto de Gobserva Car (arte_car.py)
 
 # ── Validar ──────────────────────────────────────────────────────────────────────────────────
 ok = True

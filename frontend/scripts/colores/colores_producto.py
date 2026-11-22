@@ -32,6 +32,8 @@ PRODUCTOS = {
     "empleo": dict(nombre="violeta", noche="#B9A0FF", dia="#5B35C9", banda="#24154D", banda_acento="#D6C9FF"),
     "licitaciones": dict(nombre="azul", noche="#6DB4FF", dia="#1D5DB8", banda="#0B2748", banda_acento="#A8D1FF"),
     "obras": dict(nombre="naranja", noche="#FF9A55", dia="#A9480C", banda="#3B1C09", banda_acento="#FFC08F"),
+    # Gobserva Car (2026-11-22): el amarillo de las señales de tránsito y de los taxis; lejos del naranja de Obras.
+    "car": dict(nombre="amarillo", noche="#FFD23F", dia="#7A5A00", banda="#2B2200", banda_acento="#FFE27A"),
 }
 
 # Vigía: verde neón, el de una pantalla de vigilancia (el cursor de «vigía_»). Se probaron el fucsia (de noche se
