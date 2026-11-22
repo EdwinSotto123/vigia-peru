@@ -581,7 +581,8 @@ export function MapaSalud({
         <div
           id="mapa-filtros"
           className={cn(
-            "gap-2.5 max-md:mt-2.5 md:grid md:grid-cols-3 md:gap-3 lg:grid-cols-[minmax(0,13rem)_minmax(0,10rem)_minmax(0,10rem)_minmax(0,1fr)] lg:items-end",
+            // Los tres selectores en una fila y las casillas en otra, a todo el ancho (antes se apilaban en una columna angosta).
+            "gap-2.5 max-md:mt-2.5 md:grid md:grid-cols-3 md:gap-3 lg:grid-cols-[minmax(0,15rem)_minmax(0,12rem)_minmax(0,12rem)] lg:items-end",
             abiertos ? "grid grid-cols-2" : "hidden",
           )}
         >
@@ -620,7 +621,7 @@ export function MapaSalud({
               <option value="SIN">Sin categoría</option>
             </select>
           </label>
-          <fieldset className="col-span-2 min-w-0 md:col-span-3 lg:col-span-1">
+          <fieldset className="col-span-2 min-w-0 md:col-span-3">
             <legend className="sr-only">Más filtros</legend>
             <div className="flex flex-wrap gap-2">
               <Conmutador marcado={filtros.sanciones} cambiar={(v) => cambiar({ sanciones: v })}>
@@ -855,7 +856,7 @@ export function MapaSalud({
               href={enLista}
               className="mt-4 flex min-h-11 items-center justify-center gap-2 rounded-full border border-line bg-paper px-4 text-dato font-semibold text-ink transition-colors duration-rapido hover:border-granate/40 hover:text-granate"
             >
-              <List size={16} aria-hidden /> Ver estos establecimientos en una lista
+              <List size={16} aria-hidden /> Ver en una lista
             </Link>
           </section>
         </aside>
