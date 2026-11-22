@@ -111,7 +111,8 @@ export default async function Medicamentos({ searchParams }: Props) {
   const POR_PAGINA_ALERTAS = 10;
   const otras = (d?.alertas ?? []).filter((a) => !yaVistas.has(a.id));
   const otrasTotal = Math.max(0, (d?.alertasTotal ?? 0) - yaVistas.size);
-  const paginasAlertas = Math.min(500, Math.max(1, Math.ceil(otrasTotal / POR_PAGINA_ALERTAS)));
+  // Las páginas son las de la API (todas las alertas, también las de arriba): si se contaran sin ellas, se perdían las últimas.
+  const paginasAlertas = Math.min(200, Math.max(1, Math.ceil((d?.alertasTotal ?? 0) / POR_PAGINA_ALERTAS)));
   const hrefAlertas = (n: number) => urlCon({ seccion: "alertas", apag: n > 1 ? String(n) : null });
 
   // El catálogo en su sección (2026-11-22, «¿por qué esto está abajo en el aire?»): el título con lo que suma, el riel
@@ -295,9 +296,9 @@ export default async function Medicamentos({ searchParams }: Props) {
                   <Paginas
                     pagina={Math.min(apag, paginasAlertas)}
                     paginas={paginasAlertas}
-                    total={otrasTotal}
+                    total={d.alertasTotal ?? 0}
                     tamano={POR_PAGINA_ALERTAS}
-                    nombre={otrasTotal === 1 ? "alerta" : "alertas"}
+                    nombre={d.alertasTotal === 1 ? "alerta" : "alertas"}
                     href={hrefAlertas}
                   />
                 </div>
