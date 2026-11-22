@@ -10,6 +10,7 @@ Excel sin captcha (`arExportToExcel`). Este script la baja (o lee un .xlsx ya ba
 
 Privacidad, como en el resto de Gobserva: los celulares (9 cifras que empiezan con 9) se tapan; los fijos quedan.
 """
+import html
 import json
 import re
 import sys
@@ -41,7 +42,8 @@ def filas_xlsx(datos: bytes) -> list[list[str]]:
                 txt = comunes[int(txt)]
             elif c.get("t") == "inlineStr":
                 txt = "".join(x.text or "" for x in c.iter(f"{NS}t"))
-            fila.append(txt.strip())
+            # El MTC deja entidades HTML en algunos textos («&quot;b&quot;»): se decodifican (dos veces: vienen dobles).
+            fila.append(html.unescape(html.unescape(txt)).strip())
         filas.append(fila)
     return filas
 

@@ -821,7 +821,7 @@
 },
 {
 "razonSocial": "CENTRO DE INSPECCIONES TECNICO VEHICULARES GRUPO J & J SOCIEDAD ANONIMA CERRADA",
-"direccion": "ALT. 3 Y 4 DE LA MZ. 161 DE LA PARCELA &quot;B&quot; DE LA PARCELA VILLA POETA II, DEL P. J. VILLA POETA JOSE GALVEZ, O AV. LIMA 2236 URB. JOSE GALVEZ",
+"direccion": "ALT. 3 Y 4 DE LA MZ. 161 DE LA PARCELA \"B\" DE LA PARCELA VILLA POETA II, DEL P. J. VILLA POETA JOSE GALVEZ, O AV. LIMA 2236 URB. JOSE GALVEZ",
 "horario": "LU: 08:00-16:00 | DO: 08:00-16:00 | SA: 08:00-16:00 | VI: 08:00-16:00 | JU: 08:00-16:00 | MI: 08:00-16:00 | MA: 08:00-16:00",
 "departamento": "LIMA",
 "provincia": "LIMA",
@@ -1045,7 +1045,7 @@
 },
 {
 "razonSocial": "CENTRO INSPECCION TECNICA VEHICULAR JP S.A.C.",
-"direccion": "AV. 13 DE JUNIO MZ. &quot;S/N&quot;  LT. &quot;S/N&quot;  SECTOR JULIO C. TELLO ANEXO 08 JICAMARCA",
+"direccion": "AV. 13 DE JUNIO MZ. \"S/N\"  LT. \"S/N\"  SECTOR JULIO C. TELLO ANEXO 08 JICAMARCA",
 "horario": "LU: 08:00-21:00 | DO: 08:00-14:00 | SA: 08:00-21:00 | VI: 08:00-21:00 | JU: 08:00-21:00 | MI: 08:00-21:00 | MA: 08:00-21:00",
 "departamento": "LIMA",
 "provincia": "HUAROCHIRI",
@@ -4196,7 +4196,7 @@
 "sancion": null
 },
 {
-"razonSocial": "&quot;REVISION TECNICA VEHICULAR REVIMOTORS S.A.C.&quot; - &quot;RTV-REVIMOTORS S.A.C.&quot;",
+"razonSocial": "\"REVISION TECNICA VEHICULAR REVIMOTORS S.A.C.\" - \"RTV-REVIMOTORS S.A.C.\"",
 "direccion": "JR. SANTA CATALINA N° 613 1ER URB. SANTA CATALINA MZ. C , LOTE 04",
 "horario": null,
 "departamento": "LIMA",
@@ -4885,7 +4885,7 @@
 },
 {
 "razonSocial": "REVISIONES TECNICAS ZEUS E.I.R.L. - RT ZEUS E.I.R.L.",
-"direccion": "LT 9 MZ A LOTIZACION RUSTICA LEONCIO PRADO &quot;LADO OESTE&quot;",
+"direccion": "LT 9 MZ A LOTIZACION RUSTICA LEONCIO PRADO \"LADO OESTE\"",
 "horario": "LU: 08:00-19:00 | SA: 08:00-19:00 | VI: 08:00-19:00 | JU: 08:00-19:00 | MI: 08:00-19:00 | MA: 08:00-19:00",
 "departamento": "LIMA",
 "provincia": "LIMA",
