@@ -1,11 +1,12 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { CircleCheck, Info, PackageSearch, Pill, RotateCw, ScanLine, ShoppingBag, TriangleAlert } from "lucide-react";
+import { CircleCheck, Info, Pill, RotateCw, TriangleAlert } from "lucide-react";
 import { Ayuda } from "@/components/patrones/Ayuda";
 import { EstadoError, EstadoVacio } from "@/components/gobserva/ui/Estados";
 import { FuenteFecha } from "@/components/salud/comun";
 import { Paginas } from "@/components/salud/lista/Paginas";
 import { FotoCaja } from "@/components/salud/medicamentos/FotoCaja";
+import { PortadaMedicamentos } from "@/components/salud/medicamentos/Portada";
 import { OrdenYTipo, RielFormas, TarjetaMedicamento } from "@/components/salud/medicamentos/Catalogo";
 import { FilaAlerta, FormMedicamento, InsigniaAlerta, nombreMed, textoRevisadas } from "@/components/salud/medicamentos/piezas";
 import { CabeceraLista, Ruta } from "@/components/salud/portada/Piezas";
@@ -35,13 +36,6 @@ export function generateMetadata({ searchParams }: Props): Metadata {
     robots: q ? { index: false, follow: true } : undefined,
   };
 }
-
-/** Los tres pasos con la caja en la mano (sin búsqueda). */
-const PASOS = [
-  { Icono: ScanLine, titulo: "Busca el registro sanitario", texto: "Está impreso en la caja: letras y números, como EE01234 o N-12345. O tómale una foto a la caja y lo leemos por ti." },
-  { Icono: PackageSearch, titulo: "Mira el lote y el vencimiento", texto: "Si DIGEMID retiró un lote, la alerta dice cuál. Escríbelo aquí tal como sale en la caja." },
-  { Icono: ShoppingBag, titulo: "Compra en una farmacia o botica", texto: "No en redes sociales, ferias ni ambulantes: ahí aparecen la mayoría de los falsificados." },
-];
 
 /**
  * /medicamentos de Gobserva Salud (2026-11-21, el usuario: «verificación de medicamentos»): un solo buscador por nombre,
@@ -79,6 +73,8 @@ export default async function Medicamentos({ searchParams }: Props) {
   const d = await buscarMedicamentos(params);
   const href = (n: number) => urlCon({}, n);
   const formaActiva = d?.forma ? formaDe(d.forma) : null;
+  // ?modo=foto abre la pestaña de la foto (desde «El vencimiento»).
+  const modoFoto = texto(searchParams?.modo) === "foto";
   const tituloCatalogo = q
     ? `${formaActiva ? formaActiva.etiqueta : "Productos"} para «${q}»`
     : formaActiva
@@ -107,58 +103,45 @@ export default async function Medicamentos({ searchParams }: Props) {
   return (
     <div className="container-page pb-10 pt-5 sm:pb-14 sm:pt-6">
       <Ruta items={[{ etiqueta: "Inicio", href: rutaEn(base, "/") }, { etiqueta: "Medicamentos" }]} />
-      <CabeceraLista
-        className="mt-2"
-        titulo="Verifica un medicamento"
-        resumen={
-          fuente && (
-            <>
-              <span>
-                <b className="font-semibold tabular-nums text-ink">{numero(fuente.productos)}</b> medicamentos con precio y{" "}
-                <b className="font-semibold tabular-nums text-ink">{numero(fuente.alertas)}</b> alertas de DIGEMID
-              </span>
-              <Ayuda titulo="¿De dónde sale esto?" etiqueta="De dónde salen los medicamentos">
-                <span className="block">
-                  <b className="font-semibold">Las alertas</b> son las que DIGEMID publica en su web (falsificados, lotes retirados por control de
-                  calidad, seguridad), con su PDF.
+      {q ? (
+        <>
+        <CabeceraLista
+          className="mt-2"
+          titulo="Verifica un medicamento"
+          resumen={
+            fuente && (
+              <>
+                <span>
+                  <b className="font-semibold tabular-nums text-ink">{numero(fuente.productos)}</b> medicamentos con precio y{" "}
+                  <b className="font-semibold tabular-nums text-ink">{numero(fuente.alertas)}</b> alertas de DIGEMID
                 </span>
-                <span className="mt-1 block">
-                  <b className="font-semibold">Los precios</b> son del Observatorio de DIGEMID: lo que reportan las farmacias y boticas privadas, por
-                  unidad, en {mesLargo(fuente.precios.al)}. No son los del día ni los de una farmacia en particular.
-                </span>
-                <span className="mt-1 block">No es el registro sanitario completo: sólo los productos con precios reportados.</span>
-              </Ayuda>
-            </>
-          )
-        }
-        acciones={
-          <Link href={rutaEn(base, "/alertas")} className="gs-hunde inline-flex min-h-11 items-center gap-2 rounded-full border border-line bg-paper px-4 text-dato font-semibold text-ink hover:border-granate/60 hover:text-granate sm:min-h-10">
-            <TriangleAlert size={16} aria-hidden className="text-amberTexto" />
-            <span className="sm:hidden">Alertas</span>
-            <span className="hidden sm:inline">Todas las alertas</span>
-          </Link>
-        }
-      />
-      <FormMedicamento accion={lista} q={q} grande={!q} className="mt-4" />
-      <FotoCaja accion={lista} className="mt-3" />
-      {!q && (
-        <ul className="mt-3 flex flex-wrap items-center gap-2 max-sm:hidden" aria-label="Búsquedas de ejemplo">
-          <li className="text-meta text-mute">Prueba con</li>
-          {[
-            { t: "Paracetamol", q: "paracetamol", que: "principio activo" },
-            { t: "Panadol", q: "panadol", que: "marca" },
-            { t: "EE08059", q: "EE08059", que: "registro sanitario" },
-          ].map((x) => (
-            <li key={x.q}>
-              <Link
-                href={`${lista}?${new URLSearchParams({ q: x.q })}`}
-                className="gs-hunde inline-flex min-h-11 items-center gap-1.5 rounded-full border border-line bg-paper px-3.5 text-meta font-medium text-ink hover:border-granate/60 hover:bg-granate-50/60 sm:min-h-9"
-              >
-                {x.t} <span className="text-mute max-sm:sr-only">{x.que}</span>
-              </Link>
-            </li>
-          ))}
-        </ul>
+                <Ayuda titulo="¿De dónde sale esto?" etiqueta="De dónde salen los medicamentos">
+                  <span className="block">
+                    <b className="font-semibold">Las alertas</b> son las que DIGEMID publica en su web (falsificados, lotes retirados por control de
+                    calidad, seguridad), con su PDF.
+                  </span>
+                  <span className="mt-1 block">
+                    <b className="font-semibold">Los precios</b> son del Observatorio de DIGEMID: lo que reportan las farmacias y boticas privadas, por
+                    unidad, en {mesLargo(fuente.precios.al)}. No son los del día ni los de una farmacia en particular.
+                  </span>
+                  <span className="mt-1 block">No es el registro sanitario completo: sólo los productos con precios reportados.</span>
+                </Ayuda>
+              </>
+            )
+          }
+          acciones={
+            <Link href={rutaEn(base, "/alertas")} className="gs-hunde inline-flex min-h-11 items-center gap-2 rounded-full border border-line bg-paper px-4 text-dato font-semibold text-ink hover:border-granate/60 hover:text-granate sm:min-h-10">
+              <TriangleAlert size={16} aria-hidden className="text-amberTexto" />
+              <span className="sm:hidden">Alertas</span>
+              <span className="hidden sm:inline">Todas las alertas</span>
+            </Link>
+          }
+        />
+          <FormMedicamento accion={lista} q={q} className="mt-4" />
+          <FotoCaja accion={lista} className="mt-3" />
+        </>
+      ) : (
+        <PortadaMedicamentos base={base} lista={lista} fuente={fuente ?? null} alertas={d?.alertas ?? []} modoInicial={modoFoto ? "foto" : "texto"} />
       )}
 
       {!d ? (
@@ -175,8 +158,18 @@ export default async function Medicamentos({ searchParams }: Props) {
       ) : (
         <>
           {/* El catálogo (2026-11-22, «QUE SEA TIPO MARKETPLACE»): el riel de formas, genérico o de marca, y el orden. */}
+          {!q && (
+            <div className="mt-10 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+              <h2 className="font-display text-seccion font-bold leading-tight text-ink">Explora el catálogo</h2>
+              {fuente && (
+                <p className="text-meta text-inkSoft">
+                  Precio típico por unidad en farmacias y boticas, {mesLargo(fuente.precios.al)}
+                </p>
+              )}
+            </div>
+          )}
           {d.facetas && (
-            <div className="mt-5 space-y-3">
+            <div className={cn("space-y-3", q ? "mt-5" : "mt-3")}>
               <RielFormas facetas={d.facetas} activa={d.forma ?? null} href={(f) => urlCon({ forma: f })} />
               <OrdenYTipo d={d} conBusqueda={!!q} href={(c) => urlCon(c)} />
             </div>
@@ -340,43 +333,6 @@ export default async function Medicamentos({ searchParams }: Props) {
             </section>
           )}
 
-          {/* Sin búsqueda, debajo del catálogo: cómo verificar la caja y las alertas más recientes. */}
-          {!q && (
-        <div className="mt-10 grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.25fr)] lg:items-start">
-          <section aria-labelledby="pasos-t" className="tarjeta rounded-2xl border border-line bg-paper px-5 py-5">
-            <h2 id="pasos-t" className="font-display text-bloque font-bold text-ink">Con la caja en la mano</h2>
-            <ol className="mt-3 space-y-4">
-              {PASOS.map(({ Icono, titulo, texto: t }) => (
-                <li key={titulo} className="flex gap-3">
-                  <span aria-hidden className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-granate-50 text-granate">
-                    <Icono size={19} />
-                  </span>
-                  <span>
-                    <span className="block text-dato font-semibold text-ink">{titulo}</span>
-                    <span className="mt-0.5 block text-meta leading-relaxed text-inkSoft">{t}</span>
-                  </span>
-                </li>
-              ))}
-            </ol>
-          </section>
-          <section aria-labelledby="recientes-t" className="tarjeta rounded-2xl border border-line bg-paper">
-            <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b border-line px-5 py-4">
-              <h2 id="recientes-t" className="font-display text-bloque font-bold text-ink">Las alertas más recientes</h2>
-              <Link href={rutaEn(base, "/alertas")} className="inline-flex min-h-11 items-center text-meta font-semibold text-granate underline-offset-4 hover:underline sm:min-h-8">
-                Ver todas
-              </Link>
-            </div>
-            <ul className="divide-y divide-line">
-              {d.alertas.slice(0, 3).map((a) => (
-                <li key={a.id}>
-                  <FilaAlerta a={a} base={base} resaltar={resaltar} sinTabla conDibujo />
-                </li>
-              ))}
-            </ul>
-            {fuente && <FuenteFecha nombre="Alertas DIGEMID" url={fuente.avisos.url} al={fuente.avisos.al} className="border-t border-line px-5 py-3" />}
-          </section>
-        </div>
-          )}
         </>
       )}
     </div>

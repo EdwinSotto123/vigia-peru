@@ -214,6 +214,11 @@ solo texto plano».
   filas de establecimientos (por su clasificación; laboratorio, dientes, ojos, imágenes y rehabilitación usan sus
   íconos), en las listas de alertas y en «Productos y lotes» (por el texto del producto).
 - La ficha del medicamento muestra «Mismo principio activo» como tarjetas, con «Más barato que este».
+- **La entrada** (sin búsqueda, según la maqueta del usuario): el titular «Verifica un medicamento» con las cifras y
+  una ilustración de píxeles (la caja, el blíster y el escudo con el visto, `escudoCheck`), la tarjeta de búsqueda
+  con dos pestañas (texto, y foto: `?modo=foto`), «¿Qué puedes verificar?» (registro, lote, vencimiento), las alertas
+  recientes en una línea cada una y la franja de fuentes; debajo, «Explora el catálogo». La insignia dice «Con datos
+  oficiales de DIGEMID», no «herramienta oficial»: Gobserva no es una entidad del Estado.
 
 ## La foto de la caja (2026-11-22)
 

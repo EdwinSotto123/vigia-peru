@@ -6,6 +6,7 @@ import { Camera, Loader2, RotateCw, ScanSearch, ShieldCheck, TriangleAlert } fro
 import { useTurnstile, ErrorTurnstile } from "@/components/seguridad/Turnstile";
 import { cabeceraTurnstile } from "@/components/seguridad/mensajes";
 import { claseAccion } from "@/components/ui/EnlaceAccion";
+import { Pixel } from "@/components/pixel/Pixel";
 import { URL_FOTO_MEDICAMENTO, type LecturaCaja } from "@/lib/gobserva-salud";
 import { cn } from "@/lib/utils";
 
@@ -64,7 +65,16 @@ async function achicar(archivo: File): Promise<Blob> {
  * nombre, y la foto se descarta. Lo leído se muestra para revisarlo y corregirlo antes de verificar: el modelo puede
  * leer mal. «Verificar» abre /medicamentos con el registro (o el nombre) y el lote.
  */
-export function FotoCaja({ accion, className }: { accion: string; className?: string }) {
+export function FotoCaja({
+  accion,
+  className,
+  variante = "fila",
+}: {
+  accion: string;
+  className?: string;
+  /** «fila»: botón y nota en una línea (los resultados); «centrado»: bajo el buscador; «zona»: la pestaña de la foto. */
+  variante?: "fila" | "centrado" | "zona";
+}) {
   const router = useRouter();
   const verificacion = useTurnstile("foto_medicamento");
   const entrada = useRef<HTMLInputElement>(null);
@@ -153,7 +163,36 @@ export function FotoCaja({ accion, className }: { accion: string; className?: st
         }}
       />
 
-      {estado.fase === "inicio" && (
+      {estado.fase === "inicio" && variante === "centrado" && (
+        <div className="flex flex-col items-center gap-2 text-center">
+          <button
+            type="button"
+            onClick={elegir}
+            className="gs-hunde inline-flex min-h-12 items-center gap-2.5 rounded-full border border-granate/30 bg-granate-50 px-6 text-dato font-semibold text-granate transition-colors duration-rapido hover:border-granate/60 hover:bg-granate/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-granate focus-visible:ring-offset-2"
+          >
+            <Camera size={18} aria-hidden />
+            Escanea la caja del medicamento
+          </button>
+          <p className="max-w-[56ch] text-meta leading-snug text-inkSoft">Fotografía el envase: leemos su registro sanitario y su lote. La foto no se guarda.</p>
+        </div>
+      )}
+
+      {estado.fase === "inicio" && variante === "zona" && (
+        <button
+          type="button"
+          onClick={elegir}
+          className="gs-hunde flex w-full flex-col items-center gap-3 rounded-2xl border-2 border-dashed border-granate/40 bg-granate-50/60 px-6 py-8 text-center transition-colors duration-rapido hover:border-granate/70 hover:bg-granate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-granate focus-visible:ring-offset-2"
+        >
+          <Pixel nombre="medCaja" escala={4} animado={false} acento="accion" />
+          <span className="font-display text-bloque font-bold text-ink">Toma o sube una foto de la caja</span>
+          <span className="max-w-[52ch] text-meta leading-relaxed text-inkSoft">
+            Que se lean el registro sanitario (R.S.) y el lote. Te mostramos lo leído para que lo revises antes de verificar. La foto no se
+            guarda; fotografía sólo la caja, no la receta.
+          </span>
+        </button>
+      )}
+
+      {estado.fase === "inicio" && variante === "fila" && (
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-4">
           <button type="button" onClick={elegir} className={claseAccion("secundario", "min-h-12 w-full justify-center border-granate/40 sm:w-auto")}>
             <Camera size={18} aria-hidden className="text-granate" />

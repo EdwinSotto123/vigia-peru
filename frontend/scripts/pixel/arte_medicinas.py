@@ -268,7 +268,27 @@ def agregar(S):
         "##################",
     ], "capas": []}
 
-    for k in ("medTableta", "medCapsula", "medJarabe", "medInyectable", "medGotas", "medCrema", "medInhalador", "medSobre",
+    # ── El escudo con el visto (verificado): la ilustración de «Verifica un medicamento» ─────────────────
+    S["escudoCheck"] = {"base": [
+        "..##############..",
+        "..#LLLLLLLLLLLL#..",
+        "..#LLLLLLLLLLLL#..",
+        "..#LLLLLLLLLCCL#..",
+        "..#LLLLLLLLCCCL#..",
+        "..#LLLLLLLCCCLL#..",
+        "..#LCCLLLCCCLLL#..",
+        "..#LCCCLCCCLLLL#..",
+        "..#LLCCCCCLLLLL#..",
+        "...#LLCCCLLLLL#...",
+        "...#LLLCLLLLLL#...",
+        "....#LLLLLLLL#....",
+        ".....#LLLLLL#.....",
+        "......#LLLL#......",
+        ".......#LL#.......",
+        "........##........",
+    ], "capas": []}
+
+    for k in ("escudoCheck", "medTableta", "medCapsula", "medJarabe", "medInyectable", "medGotas", "medCrema", "medInhalador", "medSobre",
               "medOvulo", "medCaja", "lugarHospital", "lugarPosta", "lugarConsultorio"):
         b = S[k]["base"]
         assert len(b) == H and all(len(f) == W for f in b), (k, len(b), [len(f) for f in b])

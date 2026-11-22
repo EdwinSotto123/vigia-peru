@@ -1795,6 +1795,27 @@ export const SPRITES = {
     ],
     capas: [],
   },
+  escudoCheck: {
+    base: [
+      "..##############..",
+      "..#LLLLLLLLLLLL#..",
+      "..#LLLLLLLLLLLL#..",
+      "..#LLLLLLLLLCCL#..",
+      "..#LLLLLLLLCCCL#..",
+      "..#LLLLLLLCCCLL#..",
+      "..#LCCLLLCCCLLL#..",
+      "..#LCCCLCCCLLLL#..",
+      "..#LLCCCCCLLLLL#..",
+      "...#LLCCCLLLLL#...",
+      "...#LLLCLLLLLL#...",
+      "....#LLLLLLLL#....",
+      ".....#LLLLLL#.....",
+      "......#LLLL#......",
+      ".......#LL#.......",
+      "........##........",
+    ],
+    capas: [],
+  },
 } satisfies Record<string, SpritePixel>;
 
 export type NombreSprite = keyof typeof SPRITES;
