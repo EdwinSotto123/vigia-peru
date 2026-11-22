@@ -256,3 +256,31 @@ export function AvisoEmergencia({ oscuro = false, className }: { oscuro?: boolea
     </div>
   );
 }
+
+/**
+ * El encabezado de una LISTA de Salud (2026-11-22, «textos muy grandes, hay que ordenar mejor»): una franja, no una placa.
+ * El título a 22 px, en la misma línea lo que suma la lista (y un ⓘ con la fuente y lo que el dato no dice), y a la
+ * derecha una acción secundaria. La placa con su figura queda para la portada y las fichas.
+ */
+export function CabeceraLista({
+  titulo,
+  resumen,
+  acciones,
+  className,
+}: {
+  titulo: ReactNode;
+  /** «27 000 establecimientos, 602 con sanción firme», con su ⓘ al final. */
+  resumen?: ReactNode;
+  acciones?: ReactNode;
+  className?: string;
+}) {
+  return (
+    <header className={cn("grid grid-cols-[minmax(0,1fr)_auto] items-end gap-x-4 gap-y-2", className)}>
+      <div className="min-w-0">
+        <h1 className="text-balance font-display text-seccion font-bold leading-tight tracking-[-0.015em] text-ink">{titulo}</h1>
+        {resumen && <div className="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-dato text-inkSoft">{resumen}</div>}
+      </div>
+      {acciones && <div className="flex shrink-0 flex-wrap items-center gap-2">{acciones}</div>}
+    </header>
+  );
+}

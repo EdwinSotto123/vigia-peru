@@ -1,19 +1,19 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Info, MapPinned, RotateCw, X } from "lucide-react";
+import { Info, MapPinned, RotateCw } from "lucide-react";
 import { EstadoError, EstadoVacio } from "@/components/gobserva/ui/Estados";
+import { Ayuda } from "@/components/patrones/Ayuda";
 import { FuenteFecha } from "@/components/salud/comun";
+import { BarraFiltros, ProveedorFiltros, Resultados, type FiltroBarra } from "@/components/salud/filtros/BarraFiltros";
 import { URL_RENIPRESS_CONSULTA, URL_SANCIONES } from "@/components/salud/fuentes/urls";
 import { FilaEstablecimiento, PLACA_LISTA } from "@/components/salud/lista/FilaEstablecimiento";
-import { ESTADOS, ORDENES, filtrosDeUrl, filtrosMapa, nombreCategoria, nombreLugar, nombreTipo, paramsApi, qsLista, type FiltrosLista } from "@/components/salud/lista/filtros";
-import { FiltrosEstablecimientos } from "@/components/salud/lista/FiltrosEstablecimientos";
+import { DEPARTAMENTOS, ORDENES, filtrosDeUrl, filtrosMapa, nombreLugar, paramsApi, qsLista, type FiltrosLista } from "@/components/salud/lista/filtros";
 import { Paginas } from "@/components/salud/lista/Paginas";
-import { Encabezado, Ruta } from "@/components/salud/portada/Piezas";
+import { CabeceraLista, Ruta } from "@/components/salud/portada/Piezas";
 import { claseAccion } from "@/components/ui/EnlaceAccion";
 import { rutaEn, urlCanonica } from "@/lib/gobserva";
-import { SECTORES, getEstablecimientos, getResumenSalud, numero } from "@/lib/gobserva-salud";
+import { CATEGORIAS_ORDEN, TIPOS_IPRESS, claveTipo, getEstablecimientos, getResumenSalud, numero } from "@/lib/gobserva-salud";
 import { baseProducto } from "@/lib/gobserva-servidor";
-import { cn } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 
@@ -21,6 +21,21 @@ export const dynamic = "force-dynamic";
 const POR_PAGINA = 10;
 
 type Props = { searchParams?: Record<string, string | string[] | undefined> };
+
+/** Lo que es cada categoría (NTS N.° 021-MINSA/DGSP-V.03), en palabras: va bajo cada opción del filtro. */
+const NOMBRE_CATEGORIA: Record<string, string> = {
+  "I-1": "Puesto de salud",
+  "I-2": "Puesto o consultorio con médico",
+  "I-3": "Centro de salud sin internamiento",
+  "I-4": "Centro de salud con internamiento",
+  "II-1": "Hospital general",
+  "II-2": "Hospital general con más especialidades",
+  "II-E": "Atención especializada",
+  "III-1": "Hospital de alta complejidad",
+  "III-2": "Instituto especializado",
+  "III-E": "Especializado de alta complejidad",
+  SIN: "Servicios de apoyo y otros sin categorizar",
+};
 
 /** «Establecimientos de salud privados en Arequipa con sanción firme». */
 function tituloLista(f: FiltrosLista): string {
@@ -48,162 +63,149 @@ export function generateMetadata({ searchParams }: Props): Metadata {
 }
 
 /**
- * /establecimientos de Gobserva Salud (2026-11-20): todas las IPRESS de RENIPRESS, con los filtros en la URL (formulario
- * GET, plegado en el celular), los filtros puestos como chips para quitar, las provincias del departamento elegido, lo que
- * suma la búsqueda (con su fuente y fecha), una fila por establecimiento con sus hechos rotulados y la paginación.
- * GET /salud/establecimientos (10 min en caché).
+ * /establecimientos de Gobserva Salud: todas las IPRESS de RENIPRESS. 2026-11-22 (el usuario: «hay que ordenar mejor;
+ * textos muy grandes; filtros sin forma»): una franja con el título y lo que suma la lista, la barra de filtros con las
+ * preguntas de la gente («Dónde», «Qué es», «Del Estado o privado», «Con sanción firme») que se aplican sin recargar y
+ * atenúan la lista mientras llega la nueva, y la fuente una vez, al pie. GET /salud/establecimientos (10 min en caché).
  */
 export default async function Establecimientos({ searchParams }: Props) {
   const base = baseProducto("salud");
   const f = filtrosDeUrl(searchParams);
   const [d, r] = await Promise.all([getEstablecimientos(paramsApi(f, POR_PAGINA)), getResumenSalud()]);
   const lista = rutaEn(base, "/establecimientos");
-  const enlace = (c: Partial<FiltrosLista>) => `${lista}${qsLista({ ...f, pagina: undefined, ...c })}`;
   const paginas = d ? Math.min(2000, Math.max(1, Math.ceil(d.total / POR_PAGINA))) : 1;
   const pagina = Math.min(f.pagina ?? 1, paginas);
   const fuentes = r?.fuentes;
+  const fac = d?.facetas;
+  const n = (xs: { clave: string; n: number }[] | undefined, clave: string) => xs?.find((x) => x.clave === clave)?.n ?? null;
 
-  const puestos = [
-    f.q ? { texto: `«${f.q}»`, href: enlace({ q: undefined }) } : null,
-    f.departamento ? { texto: nombreLugar(f.departamento), href: enlace({ departamento: undefined, provincia: undefined, distrito: undefined }) } : null,
-    f.provincia ? { texto: `Provincia de ${nombreLugar(f.provincia)}`, href: enlace({ provincia: undefined, distrito: undefined }) } : null,
-    f.distrito ? { texto: `Distrito de ${nombreLugar(f.distrito)}`, href: enlace({ distrito: undefined }) } : null,
-    f.categoria ? { texto: `Categoría ${f.categoria.split(",").map(nombreCategoria).join(", ")}`, href: enlace({ categoria: undefined }) } : null,
-    f.sector ? { texto: SECTORES[f.sector], href: enlace({ sector: undefined }) } : null,
-    f.tipo ? { texto: nombreTipo(f.tipo), href: enlace({ tipo: undefined }) } : null,
-    f.estado ? { texto: ESTADOS.find((e) => e.clave === f.estado)?.nombre ?? f.estado, href: enlace({ estado: undefined }) } : null,
-    f.sanciones === "con" ? { texto: "Con sanción firme", href: enlace({ sanciones: undefined }) } : null,
-    f.sanciones === "sin" ? { texto: "Sin sanción firme en el registro", href: enlace({ sanciones: undefined }) } : null,
-    f.quirurgico ? { texto: "Con centro quirúrgico", href: enlace({ quirurgico: undefined }) } : null,
-    f.internamiento ? { texto: "Con internamiento", href: enlace({ internamiento: undefined }) } : null,
-    f.orden ? { texto: `Orden: ${ORDENES.find((o) => o.clave === f.orden)?.nombre.toLocaleLowerCase("es-PE") ?? f.orden}`, href: enlace({ orden: undefined }) } : null,
-  ].filter((x): x is { texto: string; href: string } => x != null);
-
-  const provincias = f.departamento && d ? d.facetas.provincia : [];
+  // Lo que la URL lleva hoy (sin la página): la barra arma la dirección nueva a partir de esto.
+  const params = Object.fromEntries(new URLSearchParams(qsLista({ ...f, pagina: undefined }).slice(1)));
+  const filtros: FiltroBarra[] = [
+    {
+      tipo: "uno",
+      clave: "departamento",
+      etiqueta: "Dónde",
+      buscar: true,
+      valor: f.departamento,
+      opciones: DEPARTAMENTOS.map((dep) => ({ valor: dep, nombre: nombreLugar(dep), n: n(fac?.departamento, dep) })),
+    },
+    ...(f.departamento && fac && fac.provincia.length > 1
+      ? [{
+          tipo: "uno" as const,
+          clave: "provincia",
+          etiqueta: "Provincia",
+          buscar: fac.provincia.length > 8,
+          valor: f.provincia,
+          opciones: fac.provincia.map((p) => ({ valor: p.clave, nombre: nombreLugar(p.clave), n: p.n })),
+        }]
+      : []),
+    {
+      tipo: "uno",
+      clave: "tipo",
+      etiqueta: "Qué es",
+      valor: f.tipo,
+      opciones: TIPOS_IPRESS.map((t) => ({ valor: t.clave, nombre: t.nombre, detalle: t.detalle, n: fac?.tipo.find((x) => claveTipo(x.clave) === t.clave)?.n ?? null })),
+    },
+    {
+      tipo: "uno",
+      clave: "sector",
+      etiqueta: "Del Estado o privado",
+      valor: f.sector,
+      opciones: [
+        { valor: "publico", nombre: "Del Estado", detalle: "MINSA, gobiernos regionales, EsSalud, Sanidades", n: n(fac?.sector, "publico") },
+        { valor: "privado", nombre: "Privado", n: n(fac?.sector, "privado") },
+        { valor: "otro", nombre: "Otro", detalle: "Mixtos y otros", n: n(fac?.sector, "otro") },
+      ],
+    },
+    { tipo: "si", clave: "sanciones", etiqueta: "Con sanción firme", valorSi: "con", activo: f.sanciones === "con", tono: "alerta" },
+    { tipo: "si", clave: "quirurgico", etiqueta: "Con centro quirúrgico", valorSi: "si", activo: !!f.quirurgico },
+    ...(f.internamiento ? [{ tipo: "si" as const, clave: "internamiento", etiqueta: "Con internamiento", valorSi: "si", activo: true }] : []),
+    {
+      tipo: "varios",
+      clave: "categoria",
+      etiqueta: "Categoría",
+      valor: f.categoria,
+      opciones: [...CATEGORIAS_ORDEN, "SIN"].map((c) => ({ valor: c, nombre: c === "SIN" ? "Sin categoría" : c, detalle: NOMBRE_CATEGORIA[c], n: n(fac?.categoria, c) })),
+    },
+    {
+      tipo: "uno",
+      clave: "estado",
+      etiqueta: "Estado en RENIPRESS",
+      vacio: "Activos",
+      valor: f.estado,
+      opciones: [
+        { valor: "todos", nombre: "Activos e inactivos" },
+        { valor: "inactivos", nombre: "Sólo inactivos", detalle: "Cierre temporal o definitivo, baja" },
+      ],
+    },
+  ];
   const mapa = `${rutaEn(base, "/mapa")}${qsLista(filtrosMapa(f))}`;
 
   return (
-    <div className="container-page pb-10 pt-5 sm:pb-14 sm:pt-6">
+    <div className="container-page pb-10 pt-4 sm:pb-14 sm:pt-5">
       <Ruta items={[{ etiqueta: "Inicio", href: rutaEn(base, "/") }, { etiqueta: "Establecimientos" }]} />
-      <Encabezado figura="clinica"
-        className="mt-2"
-        titulo={tituloLista(f)}
-        bajada="Hospitales, clínicas, centros y puestos de salud, consultorios y servicios de apoyo inscritos en RENIPRESS, el registro de SUSALUD. Toca uno para ver su verificación completa."
-      >
-        <FuenteFecha nombre="RENIPRESS (SUSALUD)" url={URL_RENIPRESS_CONSULTA} al={fuentes?.renipressAl} />
-      </Encabezado>
-
-      <FiltrosEstablecimientos accion={lista} f={f} facetas={d?.facetas} limpiar={lista} className="mt-5" />
-
-      {puestos.length > 0 && (
-        <ul className="mt-3 flex flex-wrap items-center gap-2" aria-label="Filtros puestos">
-          {puestos.map((p) => (
-            <li key={p.texto}>
-              <Link
-                href={p.href}
-                prefetch={false}
-                className="inline-flex min-h-11 items-center gap-1.5 rounded-full border border-granate/40 bg-granate-50 px-3.5 text-meta font-medium text-ink transition-colors duration-rapido hover:border-granate sm:min-h-9 sm:px-3"
-              >
-                {p.texto}
-                <X size={13} aria-hidden />
-                <span className="sr-only"> (quitar)</span>
-              </Link>
-            </li>
-          ))}
-          <li>
-            <Link href={lista} prefetch={false} className="inline-flex min-h-11 items-center px-2 text-meta font-semibold text-granate underline-offset-2 hover:underline sm:min-h-9">
-              Quitar todos
-            </Link>
-          </li>
-        </ul>
-      )}
-
-      {provincias.length > 1 && (
-        <nav aria-label={`Provincias de ${nombreLugar(f.departamento)}`} className="mt-4">
-          <p className="text-rotulo font-medium text-inkSoft">Provincias de {nombreLugar(f.departamento)}</p>
-          <ul className="-mx-4 mt-1.5 flex gap-2 overflow-x-auto px-4 pb-1 [scrollbar-width:none] sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0 [&::-webkit-scrollbar]:hidden">
-            {provincias.map((p) => {
-              const activa = f.provincia === p.clave;
-              return (
-                <li key={p.clave} className="shrink-0">
-                  <Link
-                    href={enlace({ provincia: activa ? undefined : p.clave, distrito: undefined })}
-                    prefetch={false}
-                    aria-current={activa ? "true" : undefined}
-                    className={cn(
-                      "inline-flex min-h-11 items-center gap-1.5 whitespace-nowrap rounded-full border px-3.5 text-meta transition-colors duration-rapido sm:min-h-9",
-                      activa ? "border-granate bg-granate-50 font-semibold text-ink" : "border-line bg-paper text-inkSoft hover:border-granate/40 hover:text-ink",
-                    )}
-                  >
-                    {nombreLugar(p.clave)}
-                    <span className="tabular-nums text-mute">{numero(p.n)}</span>
-                  </Link>
-                </li>
-              );
-            })}
-          </ul>
-        </nav>
-      )}
-
-      {!d ? (
-        <div className="mt-8 rounded-2xl border border-line bg-paper">
-          <EstadoError
-            texto="No pudimos leer la lista ahora. Suele ser momentáneo: vuelve a intentarlo en unos segundos."
-            acciones={
-              <a href={`${lista}${qsLista(f)}`} className={claseAccion("secundario", "min-h-11")}>
-                <RotateCw size={15} aria-hidden /> Volver a intentar
-              </a>
-            }
-          />
-        </div>
-      ) : (
-        <>
-          {/* 2026-11-21 («atosigante, sin jerarquías»): antes, tres teselas del mismo alto (el total, las que tienen sanción y
-              el mapa). Ahora una franja: el total, las que tienen sanción en su rojo (con «ver sólo esas») y el mapa; las
-              dos fuentes, una vez y abajo. */}
-          <div id="resultados" className="mt-5 scroll-mt-32 rounded-2xl border border-line bg-paper px-4 py-3.5 sm:px-5">
-            <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3">
-              <p className="flex flex-wrap items-baseline gap-x-6 gap-y-1 text-dato text-inkSoft">
+      <ProveedorFiltros ruta={lista} params={params} dependientes={{ departamento: ["provincia", "distrito", "provinciaDe"], provincia: ["distrito"] }}>
+        <CabeceraLista
+          className="mt-2"
+          titulo={tituloLista(f)}
+          resumen={
+            d && (
+              <>
                 <span>
-                  <b className="font-display text-seccion font-bold tabular-nums text-ink">{numero(d.total)}</b>{" "}
-                  {d.total === 1 ? "establecimiento con estos filtros" : "establecimientos con estos filtros"}
-                </span>
-                <span className="text-crimsonTexto">
-                  <b className="font-display text-seccion font-bold tabular-nums">{numero(d.conSanciones)}</b>{" "}
-                  {d.conSanciones === 1 ? "tiene al menos una sanción firme" : "tienen al menos una sanción firme"}
-                  {f.sanciones !== "con" && d.conSanciones > 0 && (
-                    <Link href={enlace({ sanciones: "con" })} prefetch={false} className="ml-2 text-meta font-semibold text-granate underline-offset-4 hover:underline">
-                      Ver sólo esos
-                    </Link>
+                  <b className="font-semibold tabular-nums text-ink">{numero(d.total)}</b> {d.total === 1 ? "establecimiento" : "establecimientos"}
+                  {d.conSanciones > 0 && (
+                    <span className="text-crimsonTexto">
+                      , <b className="font-semibold tabular-nums">{numero(d.conSanciones)}</b> con sanción firme
+                    </span>
                   )}
                 </span>
-              </p>
-              <Link
-                href={mapa}
-                className="inline-flex min-h-11 items-center gap-2 rounded-full border border-line px-4 text-dato font-semibold text-ink transition-colors duration-rapido hover:border-granate/40 hover:text-granate"
-              >
-                <MapPinned size={16} aria-hidden className="text-granate" /> Verlos en el mapa
-              </Link>
+                <Ayuda titulo="¿De dónde sale esta lista?" etiqueta="De dónde sale esta lista">
+                  <span className="block">Del registro de establecimientos de SUSALUD (RENIPRESS) y de su Registro de Sanciones, con su fecha al pie.</span>
+                  <span className="mt-1 block">Lo que dice RENIPRESS lo declaró cada establecimiento. La sanción es de la institución, no de sus médicos.</span>
+                </Ayuda>
+              </>
+            )
+          }
+          acciones={
+            <Link href={mapa} className="gs-hunde inline-flex min-h-11 items-center gap-2 rounded-full border border-line bg-paper px-4 text-dato font-semibold text-ink hover:border-granate/60 hover:text-granate sm:min-h-10">
+              <MapPinned size={16} aria-hidden className="text-granate" />
+              <span className="sm:hidden">Mapa</span>
+              <span className="hidden sm:inline">Ver en el mapa</span>
+            </Link>
+          }
+        />
+
+        <BarraFiltros
+          className="mt-4"
+          busqueda={{ clave: "q", valor: f.q, ejemplo: "Nombre, código IPRESS, RUC o distrito" }}
+          filtros={filtros}
+          orden={{ clave: "orden", porDefecto: "relevancia", valor: f.orden, opciones: ORDENES.map((o) => ({ valor: o.clave, nombre: o.nombre })) }}
+        />
+
+        {f.quirurgico && fuentes && (
+          <p role="note" className="mt-3 flex items-start gap-2 rounded-xl border border-line bg-paperSoft px-3.5 py-2.5 text-meta leading-relaxed text-inkSoft">
+            <Info size={15} aria-hidden className="mt-0.5 shrink-0 text-mute" />
+            <span>
+              El centro quirúrgico sale del detalle de cada establecimiento en RENIPRESS, ya leído en {numero(fuentes.detalle.leidas)} de {numero(fuentes.detalle.total)}.
+            </span>
+          </p>
+        )}
+
+        <Resultados clave={qsLista(f)} className="mt-4">
+          {!d ? (
+            <div className="rounded-2xl border border-line bg-paper">
+              <EstadoError
+                texto="No pudimos leer la lista ahora. Suele ser momentáneo: vuelve a intentarlo en unos segundos."
+                acciones={
+                  <a href={`${lista}${qsLista(f)}`} className={claseAccion("secundario", "min-h-11")}>
+                    <RotateCw size={15} aria-hidden /> Volver a intentar
+                  </a>
+                }
+              />
             </div>
-            <p className="mt-2 flex flex-wrap gap-x-5 gap-y-1 border-t border-line pt-2">
-              <FuenteFecha nombre="RENIPRESS (SUSALUD)" url={URL_RENIPRESS_CONSULTA} al={fuentes?.renipressAl} />
-              <FuenteFecha nombre="Registro de Sanciones (SUSALUD)" url={URL_SANCIONES} al={fuentes?.sancionesAl} />
-              <span className="text-meta text-mute">La sanción es de la institución, no de sus médicos.</span>
-            </p>
-          </div>
-
-          {f.quirurgico && fuentes && (
-            <p role="note" className="mt-3 flex items-start gap-2 rounded-xl border border-line bg-paperSoft px-3.5 py-3 text-meta leading-relaxed text-inkSoft">
-              <Info size={15} aria-hidden className="mt-0.5 shrink-0 text-mute" />
-              <span>
-                El centro quirúrgico sale del detalle de cada establecimiento en RENIPRESS, y ya lo leímos en {numero(fuentes.detalle.leidas)} de{" "}
-                {numero(fuentes.detalle.total)}. Los demás aparecerán con este filtro a medida que se lea su detalle.
-              </span>
-            </p>
-          )}
-
-          {d.filas.length === 0 ? (
-            <div className="mt-5 rounded-2xl border border-line bg-paper">
+          ) : d.filas.length === 0 ? (
+            <div className="rounded-2xl border border-line bg-paper">
               <EstadoVacio
                 titulo="Ningún establecimiento con estos filtros"
                 texto="Quita un filtro o busca con menos palabras (el distrito en vez del nombre exacto). Si buscas a un médico, su habilitación se verifica en el Colegio Médico."
@@ -221,35 +223,32 @@ export default async function Establecimientos({ searchParams }: Props) {
             </div>
           ) : (
             <>
-              <Paginas
-                className="mt-6"
-                pagina={pagina}
-                paginas={paginas}
-                total={d.total}
-                tamano={POR_PAGINA}
-                nombre={d.total === 1 ? "establecimiento" : "establecimientos"}
-                href={(n) => `${lista}${qsLista({ ...f, pagina: n })}`}
-              />
-              <ul className={cn("mt-3", PLACA_LISTA)} aria-label="Establecimientos">
+              <ul className={PLACA_LISTA} aria-label="Establecimientos">
                 {d.filas.map((x) => (
                   <li key={x.codigo} className="min-w-0">
                     <FilaEstablecimiento x={x} base={base} />
                   </li>
                 ))}
               </ul>
-              <Paginas
-                className="mt-6"
-                pagina={pagina}
-                paginas={paginas}
-                total={d.total}
-                tamano={POR_PAGINA}
-                nombre={d.total === 1 ? "establecimiento" : "establecimientos"}
-                href={(n) => `${lista}${qsLista({ ...f, pagina: n })}`}
-              />
+              <p className="mt-3 flex flex-wrap gap-x-5 gap-y-1">
+                <FuenteFecha nombre="RENIPRESS (SUSALUD)" url={URL_RENIPRESS_CONSULTA} al={fuentes?.renipressAl} />
+                <FuenteFecha nombre="Registro de Sanciones (SUSALUD)" url={URL_SANCIONES} al={fuentes?.sancionesAl} />
+              </p>
+              {paginas > 1 && (
+                <Paginas
+                  className="mt-5"
+                  pagina={pagina}
+                  paginas={paginas}
+                  total={d.total}
+                  tamano={POR_PAGINA}
+                  nombre={d.total === 1 ? "establecimiento" : "establecimientos"}
+                  href={(k) => `${lista}${qsLista({ ...f, pagina: k })}`}
+                />
+              )}
             </>
           )}
-        </>
-      )}
+        </Resultados>
+      </ProveedorFiltros>
     </div>
   );
 }

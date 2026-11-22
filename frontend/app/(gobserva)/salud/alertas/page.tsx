@@ -1,16 +1,17 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { RotateCw, Search, TriangleAlert, X } from "lucide-react";
+import { Pill, RotateCw, TriangleAlert } from "lucide-react";
+import { Ayuda } from "@/components/patrones/Ayuda";
 import { EstadoError, EstadoVacio } from "@/components/gobserva/ui/Estados";
 import { FuenteFecha } from "@/components/salud/comun";
+import { BarraFiltros, ProveedorFiltros, Resultados } from "@/components/salud/filtros/BarraFiltros";
 import { Paginas } from "@/components/salud/lista/Paginas";
 import { FilaAlerta } from "@/components/salud/medicamentos/piezas";
-import { Encabezado, Ruta } from "@/components/salud/portada/Piezas";
+import { CabeceraLista, Ruta } from "@/components/salud/portada/Piezas";
 import { claseAccion } from "@/components/ui/EnlaceAccion";
 import { rutaEn, urlCanonica } from "@/lib/gobserva";
 import { getAlertas, numero, TIPOS_ALERTA, type TipoAlerta } from "@/lib/gobserva-salud";
 import { baseProducto } from "@/lib/gobserva-servidor";
-import { cn } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 
@@ -33,9 +34,9 @@ export function generateMetadata({ searchParams }: Props): Metadata {
 }
 
 /**
- * /alertas de Gobserva Salud (2026-11-21): las alertas DIGEMID, de la más nueva a la más vieja, 10 por página. Una fila de
- * tipos con cuántas hay (falsificados primero: es lo que más le importa a quien compra) y un buscador por producto o lote.
- * GET /salud/alertas (10 min en caché).
+ * /alertas de Gobserva Salud: las alertas DIGEMID, de la más nueva a la más vieja, 10 por página. 2026-11-22: la franja con
+ * cuántas hay, la barra con el tipo (falsificados primero, con cuántas de cada uno) y la búsqueda por producto o lote, que
+ * se aplican sin recargar. GET /salud/alertas (10 min en caché).
  */
 export default async function Alertas({ searchParams }: Props) {
   const base = baseProducto("salud");
@@ -44,111 +45,95 @@ export default async function Alertas({ searchParams }: Props) {
   const pagina = Math.max(1, Number(texto(searchParams?.pagina)) || 1);
   const d = await getAlertas(new URLSearchParams({ ...(tipo ? { tipo } : {}), ...(q ? { q } : {}), pagina: String(pagina), tamano: String(POR_PAGINA) }));
   const lista = rutaEn(base, "/alertas");
-  const qs = (c: { tipo?: TipoAlerta | null; q?: string | null; pagina?: number }) => {
+  const qs = (c: { pagina?: number }) => {
     const p = new URLSearchParams();
-    const t = c.tipo === undefined ? tipo : c.tipo;
-    const qq = c.q === undefined ? q : c.q;
-    if (t) p.set("tipo", t);
-    if (qq) p.set("q", qq);
+    if (tipo) p.set("tipo", tipo);
+    if (q) p.set("q", q);
     if (c.pagina && c.pagina > 1) p.set("pagina", String(c.pagina));
     const s = p.toString();
     return s ? `${lista}?${s}` : lista;
   };
   const paginas = d ? Math.min(500, Math.max(1, Math.ceil(d.total / POR_PAGINA))) : 1;
-  const totalTipos = d ? Object.values(d.tipos).reduce((a, b) => a + (b ?? 0), 0) : 0;
+  const params: Record<string, string> = { ...(tipo ? { tipo } : {}), ...(q ? { q } : {}) };
 
   return (
-    <div className="container-page pb-10 pt-5 sm:pb-14 sm:pt-6">
+    <div className="container-page pb-10 pt-4 sm:pb-14 sm:pt-5">
       <Ruta items={[{ etiqueta: "Inicio", href: rutaEn(base, "/") }, { etiqueta: "Medicamentos", href: rutaEn(base, "/medicamentos") }, { etiqueta: "Alertas de DIGEMID" }]} />
-      <Encabezado
-        figura="frasco"
-        className="mt-2"
-        titulo="Alertas de DIGEMID"
-        bajada="Lo que DIGEMID avisa sobre medicamentos, dispositivos y productos sanitarios: falsificados, lotes retirados, riesgos y cambios. Cada una con su PDF oficial, donde están el lote y el registro sanitario."
-      >
-        {d && <FuenteFecha nombre="Alertas DIGEMID" url={d.fuente.avisos.url} al={d.fuente.avisos.al} />}
-      </Encabezado>
+      <ProveedorFiltros ruta={lista} params={params}>
+        <CabeceraLista
+          className="mt-2"
+          titulo={tipo ? `Alertas de DIGEMID: ${TIPOS_ALERTA[tipo].nombre.toLowerCase()}` : "Alertas de DIGEMID"}
+          resumen={
+            d && (
+              <>
+                <span>
+                  <b className="font-semibold tabular-nums text-ink">{numero(d.total)}</b> {d.total === 1 ? "alerta" : "alertas"}, la más nueva primero
+                </span>
+                <Ayuda titulo="¿Qué es una alerta de DIGEMID?" etiqueta="Qué es una alerta de DIGEMID">
+                  <span className="block">Un aviso oficial sobre un medicamento, un dispositivo o un producto sanitario: falsificados, lotes retirados, riesgos o cambios.</span>
+                  <span className="mt-1 block">El lote y el registro sanitario están en el PDF de cada alerta: compáralos con tu caja. Una alerta de un lote no dice que todo el producto esté observado.</span>
+                </Ayuda>
+              </>
+            )
+          }
+          acciones={
+            <Link href={rutaEn(base, "/medicamentos")} className="gs-hunde inline-flex min-h-11 items-center gap-2 rounded-full border border-line bg-paper px-4 text-dato font-semibold text-ink hover:border-granate/60 hover:text-granate sm:min-h-10">
+              <Pill size={16} aria-hidden className="text-granate" />
+              <span className="sm:hidden">Verificar</span>
+              <span className="hidden sm:inline">Verificar un medicamento</span>
+            </Link>
+          }
+        />
 
-      <form role="search" action={lista} className="mt-6 flex flex-col gap-2 sm:flex-row">
-        {tipo && <input type="hidden" name="tipo" value={tipo} />}
-        <label htmlFor="buscar-alerta" className="sr-only">Buscar por producto o lote</label>
-        <div className="relative min-w-0 flex-1">
-          <Search size={17} aria-hidden className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-mute" />
-          <input
-            id="buscar-alerta"
-            name="q"
-            type="search"
-            defaultValue={q}
-            placeholder="Producto, principio activo o lote"
-            className="h-12 w-full rounded-xl border border-line bg-paper pl-10 pr-3 text-dato text-ink placeholder:text-mute focus:border-granate focus:outline-none focus:ring-2 focus:ring-granate/30"
-          />
-        </div>
-        <button type="submit" className={claseAccion("primario", "h-12 justify-center")}>Buscar</button>
-      </form>
+        <BarraFiltros
+          className="mt-4"
+          busqueda={{ clave: "q", valor: q, ejemplo: "Producto, principio activo o lote" }}
+          filtros={[
+            {
+              tipo: "uno",
+              clave: "tipo",
+              etiqueta: "Tipo de alerta",
+              valor: tipo,
+              opciones: ORDEN.filter((t) => d?.tipos[t]).map((t) => ({ valor: t, nombre: TIPOS_ALERTA[t].nombre, detalle: TIPOS_ALERTA[t].explica, n: d?.tipos[t] ?? null })),
+            },
+          ]}
+        />
 
-      {d && (
-        <nav aria-label="Tipos de alerta" className="mt-4 -mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0">
-          <ul className="flex gap-2 sm:flex-wrap">
-            <li>
-              <Link
-                href={qs({ tipo: null })}
-                aria-current={!tipo ? "page" : undefined}
-                className={cn("inline-flex min-h-11 items-center gap-1.5 whitespace-nowrap rounded-full border px-3.5 text-meta font-semibold transition-colors duration-rapido sm:min-h-9", !tipo ? "border-granate bg-granate text-paper" : "border-line bg-paper text-inkSoft hover:border-granate/50")}
-              >
-                Todas <span className="tabular-nums opacity-80">{numero(totalTipos)}</span>
-              </Link>
-            </li>
-            {ORDEN.filter((t) => d.tipos[t]).map((t) => (
-              <li key={t}>
-                <Link
-                  href={qs({ tipo: t })}
-                  aria-current={tipo === t ? "page" : undefined}
-                  className={cn("inline-flex min-h-11 items-center gap-1.5 whitespace-nowrap rounded-full border px-3.5 text-meta font-semibold transition-colors duration-rapido sm:min-h-9", tipo === t ? "border-granate bg-granate text-paper" : "border-line bg-paper text-inkSoft hover:border-granate/50")}
-                >
-                  {TIPOS_ALERTA[t].nombre} <span className="tabular-nums opacity-80">{numero(d.tipos[t] ?? 0)}</span>
-                </Link>
-              </li>
-            ))}
-          </ul>
-        </nav>
-      )}
-      {tipo && <p className="mt-2 text-meta text-inkSoft">{TIPOS_ALERTA[tipo].explica}</p>}
-      {q && (
-        <p className="mt-3">
-          <Link href={qs({ q: null })} className="inline-flex min-h-11 items-center gap-1.5 rounded-full border border-granate/40 bg-granate-50 px-3.5 text-meta font-medium text-ink hover:border-granate sm:min-h-9">
-            «{q}» <X size={13} aria-hidden /> <span className="sr-only">(quitar)</span>
-          </Link>
-        </p>
-      )}
-
-      {!d ? (
-        <div className="mt-6 rounded-2xl border border-line bg-paper">
-          <EstadoError
-            texto="No pudimos leer las alertas ahora. Suele ser momentáneo: vuelve a intentarlo en unos segundos."
-            acciones={<a href={qs({ pagina })} className={claseAccion("secundario", "min-h-11")}><RotateCw size={15} aria-hidden /> Volver a intentar</a>}
-          />
-        </div>
-      ) : d.filas.length === 0 ? (
-        <div className="mt-6 rounded-2xl border border-line bg-paper">
-          <EstadoVacio Icono={TriangleAlert} titulo="Ninguna alerta con estos filtros" texto="Prueba con menos palabras o con el principio activo. El lote se busca dentro del PDF de cada alerta." />
-        </div>
-      ) : (
-        <>
-          <div id="resultados" className="scroll-mt-32">
-            <Paginas className="mt-6" pagina={Math.min(pagina, paginas)} paginas={paginas} total={d.total} tamano={POR_PAGINA} nombre={d.total === 1 ? "alerta" : "alertas"} href={(n) => qs({ pagina: n })} />
-          </div>
-          <ul className="mt-3 divide-y divide-line overflow-hidden rounded-2xl border border-line bg-paper" aria-label="Alertas de DIGEMID">
-            {d.filas.map((a) => (
-              <li key={a.id}>
-                <FilaAlerta a={a} />
-              </li>
-            ))}
-          </ul>
-          {paginas > 1 && (
-            <Paginas className="mt-6" pagina={Math.min(pagina, paginas)} paginas={paginas} total={d.total} tamano={POR_PAGINA} nombre={d.total === 1 ? "alerta" : "alertas"} href={(n) => qs({ pagina: n })} />
+        <Resultados clave={`${tipo ?? ""}-${q}-${pagina}`} className="mt-4">
+          {!d ? (
+            <div className="rounded-2xl border border-line bg-paper">
+              <EstadoError
+                texto="No pudimos leer las alertas ahora. Suele ser momentáneo: vuelve a intentarlo en unos segundos."
+                acciones={
+                  <a href={qs({ pagina })} className={claseAccion("secundario", "min-h-11")}>
+                    <RotateCw size={15} aria-hidden /> Volver a intentar
+                  </a>
+                }
+              />
+            </div>
+          ) : d.filas.length === 0 ? (
+            <div className="rounded-2xl border border-line bg-paper">
+              <EstadoVacio Icono={TriangleAlert} titulo="Ninguna alerta con estos filtros" texto="Prueba con menos palabras o con el principio activo. El lote se busca dentro del PDF de cada alerta." />
+            </div>
+          ) : (
+            <>
+              <ul className="divide-y divide-line overflow-hidden rounded-2xl border border-line bg-paper" aria-label="Alertas de DIGEMID">
+                {d.filas.map((a) => (
+                  <li key={a.id}>
+                    <FilaAlerta a={a} />
+                  </li>
+                ))}
+              </ul>
+              <p className="mt-3">
+                <FuenteFecha nombre="Alertas DIGEMID" url={d.fuente.avisos.url} al={d.fuente.avisos.al} />
+              </p>
+              {paginas > 1 && (
+                <Paginas className="mt-5" pagina={Math.min(pagina, paginas)} paginas={paginas} total={d.total} tamano={POR_PAGINA} nombre={d.total === 1 ? "alerta" : "alertas"} href={(n) => qs({ pagina: n })} />
+              )}
+            </>
           )}
-        </>
-      )}
+        </Resultados>
+      </ProveedorFiltros>
     </div>
   );
 }

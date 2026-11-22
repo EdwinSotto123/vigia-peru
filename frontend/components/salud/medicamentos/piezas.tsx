@@ -62,7 +62,7 @@ export function FormMedicamento({ accion, q, grande = false, className }: { acci
       <button
         type="submit"
         className={cn(
-          "inline-flex shrink-0 items-center justify-center gap-2 rounded-xl bg-granate px-5 text-dato font-semibold text-paper transition-colors duration-rapido hover:bg-granate-deep focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-granate focus-visible:ring-offset-2",
+          "gs-hunde inline-flex shrink-0 items-center justify-center gap-2 rounded-xl bg-granate px-5 text-dato font-semibold text-paper hover:bg-granate-deep focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-granate focus-visible:ring-offset-2",
           grande ? "h-14" : "h-12",
         )}
       >

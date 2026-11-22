@@ -1151,3 +1151,29 @@ html[data-modo="dia"] [data-producto="vigia"] [data-intencion="participar"] {
   --acento-cifra: 12 98 20;
 }
 /* ── Color por producto: fin ── */
+
+/* ── Gobserva Salud: respuesta visual de los filtros y las acciones (2026-11-22) ──
+   El momento con autor es aplicar un filtro: la pastilla abre su lista desde donde está (en el celular, una hoja que sube),
+   al elegir la lista se atenúa con una franja que corre arriba y los resultados nuevos llegan subiendo un poco. El resto
+   es respuesta: la marca de lo elegido aparece con un pequeño salto y los botones se hunden al tocarlos. Todo parte de un
+   estado visible (nunca de opacidad 0 esperando a un observador) y con movimiento reducido queda sólo el fundido. */
+@keyframes gs-panel-pop { from { opacity: 0; transform: translateY(-6px) scale(0.97); } to { opacity: 1; transform: none; } }
+@keyframes gs-panel-hoja { from { transform: translateY(100%); } to { transform: none; } }
+@keyframes gs-velo { from { opacity: 0; } to { opacity: 1; } }
+@keyframes gs-llegan { from { opacity: 0.35; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+@keyframes gs-marca { 0% { transform: scale(0.4); opacity: 0; } 60% { transform: scale(1.18); opacity: 1; } 100% { transform: scale(1); } }
+@keyframes gs-corre { from { transform: translateX(-110%); } to { transform: translateX(260%); } }
+.gs-panel { animation: gs-panel-hoja 260ms cubic-bezier(0.16, 1, 0.3, 1) both; }
+@media (min-width: 640px) { .gs-panel { animation: gs-panel-pop 170ms cubic-bezier(0.16, 1, 0.3, 1) both; transform-origin: top left; } }
+.gs-velo { animation: gs-velo 200ms ease-out both; }
+.gs-llegan { animation: gs-llegan 240ms cubic-bezier(0.16, 1, 0.3, 1) both; }
+.gs-marca { animation: gs-marca 240ms cubic-bezier(0.16, 1, 0.3, 1) both; }
+.gs-corre { overflow: hidden; }
+.gs-corre::after { content: ""; position: absolute; inset: 0; width: 40%; border-radius: 999px; background: rgb(var(--granate)); animation: gs-corre 900ms cubic-bezier(0.4, 0, 0.2, 1) infinite; }
+.gs-hunde { transition: transform 120ms ease-out, background-color 150ms ease-out, border-color 150ms ease-out, color 150ms ease-out; }
+.gs-hunde:active:not(:disabled) { transform: scale(0.96); }
+@media (prefers-reduced-motion: reduce) {
+  .gs-panel, .gs-llegan, .gs-marca { animation: gs-velo 150ms ease-out both; }
+  .gs-corre::after { animation-duration: 2.4s; }
+  .gs-hunde:active:not(:disabled) { transform: none; }
+}

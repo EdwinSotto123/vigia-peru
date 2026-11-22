@@ -6,13 +6,13 @@ import { FuenteFecha, InsigniaCategoria } from "@/components/salud/comun";
 import { URL_RENIPRESS_CONSULTA } from "@/components/salud/fuentes/urls";
 import { lugarIpress } from "@/components/salud/lista/filtros";
 import { Paginas } from "@/components/salud/lista/Paginas";
-import { Encabezado, Ruta } from "@/components/salud/portada/Piezas";
+import { CabeceraLista, Ruta } from "@/components/salud/portada/Piezas";
+import { BarraFiltros, ProveedorFiltros, Resultados } from "@/components/salud/filtros/BarraFiltros";
 import { Dato } from "@/components/ui/Dato";
 import { claseAccion } from "@/components/ui/EnlaceAccion";
 import { rutaEn, urlCanonica } from "@/lib/gobserva";
 import { fechaCorta, getCambios, nombrePropio, numero, rutaFicha, type Cambio } from "@/lib/gobserva-salud";
 import { baseProducto } from "@/lib/gobserva-servidor";
-import { cn } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 
@@ -83,41 +83,36 @@ export default async function Cambios({ searchParams }: Props) {
   }
 
   return (
-    <div className="container-page pb-10 pt-5 sm:pb-14 sm:pt-6">
+    <div className="container-page pb-10 pt-4 sm:pb-14 sm:pt-5">
       <Ruta items={[{ etiqueta: "Inicio", href: rutaEn(base, "/") }, { etiqueta: "Fuentes", href: rutaEn(base, "/fuentes") }, { etiqueta: "Historial" }]} />
-      <Encabezado figura="clinica"
+      <ProveedorFiltros ruta={lista} params={campo ? { campo } : {}}>
+      <CabeceraLista
         className="mt-2"
-        titulo="Historial de actualizaciones"
-        bajada="Cada vez que SUSALUD publica un archivo nuevo de RENIPRESS lo comparamos con el anterior. Aquí queda lo que cambió, lo más reciente primero."
-      >
-        <FuenteFecha nombre="RENIPRESS (SUSALUD)" url={URL_RENIPRESS_CONSULTA} />
-      </Encabezado>
+        titulo="Cambios en RENIPRESS"
+        resumen={
+          <>
+            <span>
+              {d ? (
+                <>
+                  <b className="font-semibold tabular-nums text-ink">{numero(d.total)}</b> {d.total === 1 ? "cambio" : "cambios"} detectados
+                </>
+              ) : (
+                "Lo que cambió en el registro"
+              )}
+              , lo más reciente primero.
+            </span>
+            <FuenteFecha nombre="RENIPRESS (SUSALUD)" url={URL_RENIPRESS_CONSULTA} />
+          </>
+        }
+      />
+      <BarraFiltros
+        className="mt-4"
+        filtros={[{ tipo: "uno", clave: "campo", etiqueta: "Qué cambió", valor: campo, opciones: CAMPOS.map((c) => ({ valor: c.clave, nombre: c.nombre, detalle: c.detalle })) }]}
+      />
 
-      <nav aria-label="Qué cambios ver" className="mt-6">
-        <ul className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 [scrollbar-width:none] sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0 [&::-webkit-scrollbar]:hidden">
-          {[{ clave: undefined as string | undefined, nombre: "Todos" }, ...CAMPOS].map((c) => {
-            const activo = c.clave === campo;
-            return (
-              <li key={c.nombre} className="shrink-0">
-                <Link
-                  href={href({ campo: c.clave })}
-                  prefetch={false}
-                  aria-current={activo ? "page" : undefined}
-                  className={cn(
-                    "inline-flex min-h-11 items-center whitespace-nowrap rounded-full border px-3.5 text-meta transition-colors duration-rapido sm:min-h-9",
-                    activo ? "border-granate bg-granate-50 font-semibold text-ink" : "border-line bg-paper text-inkSoft hover:border-granate/40 hover:text-ink",
-                  )}
-                >
-                  {c.nombre}
-                </Link>
-              </li>
-            );
-          })}
-        </ul>
-      </nav>
-
+      <Resultados clave={`${campo ?? ""}-${pedida}`} className="mt-4">
       {!d ? (
-        <div className="mt-8 rounded-2xl border border-line bg-paper">
+        <div className="rounded-2xl border border-line bg-paper">
           <EstadoError
             texto="No pudimos leer el historial ahora. Vuelve a intentarlo en unos segundos."
             acciones={
@@ -128,7 +123,7 @@ export default async function Cambios({ searchParams }: Props) {
           />
         </div>
       ) : d.filas.length === 0 ? (
-        <div className="mt-8 rounded-2xl border border-line bg-paper">
+        <div className="rounded-2xl border border-line bg-paper">
           <EstadoVacio
             Icono={History}
             titulo={campo ? "Ningún cambio de esta clase todavía" : "Todavía no hay cambios registrados"}
@@ -149,18 +144,7 @@ export default async function Cambios({ searchParams }: Props) {
         </div>
       ) : (
         <>
-          <div id="resultados" className="scroll-mt-32">
-            <Paginas
-              className="mt-6"
-              pagina={Math.min(d.pagina, paginas)}
-              paginas={paginas}
-              total={d.total}
-              tamano={POR_PAGINA}
-              nombre={d.total === 1 ? "cambio" : "cambios"}
-              href={(n) => href({ campo, pagina: n })}
-            />
-          </div>
-          <ol className="mt-5 space-y-8" aria-label="Cambios por fecha">
+          <ol className="space-y-8" aria-label="Cambios por fecha">
             {grupos.map((g) => (
               <li key={g.fecha}>
                 <h2 className="flex items-center gap-2 font-display text-bloque font-bold text-ink">
@@ -187,6 +171,8 @@ export default async function Cambios({ searchParams }: Props) {
           />
         </>
       )}
+      </Resultados>
+      </ProveedorFiltros>
     </div>
   );
 }

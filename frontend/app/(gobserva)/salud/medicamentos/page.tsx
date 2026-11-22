@@ -6,7 +6,7 @@ import { EstadoError, EstadoVacio } from "@/components/gobserva/ui/Estados";
 import { FuenteFecha } from "@/components/salud/comun";
 import { Paginas } from "@/components/salud/lista/Paginas";
 import { FilaAlerta, FilaMedicamento, FormMedicamento, textoRevisadas } from "@/components/salud/medicamentos/piezas";
-import { Encabezado, Ruta } from "@/components/salud/portada/Piezas";
+import { CabeceraLista, Ruta } from "@/components/salud/portada/Piezas";
 import { claseAccion } from "@/components/ui/EnlaceAccion";
 import { rutaEn, urlCanonica } from "@/lib/gobserva";
 import { buscarMedicamentos, mesLargo, numero } from "@/lib/gobserva-salud";
@@ -61,48 +61,58 @@ export default async function Medicamentos({ searchParams }: Props) {
   return (
     <div className="container-page pb-10 pt-5 sm:pb-14 sm:pt-6">
       <Ruta items={[{ etiqueta: "Inicio", href: rutaEn(base, "/") }, { etiqueta: "Medicamentos" }]} />
-      <Encabezado
-        figura="frasco"
+      <CabeceraLista
         className="mt-2"
         titulo="Verifica un medicamento"
-        bajada="Con su nombre, su registro sanitario o el lote de la caja: si DIGEMID emitió una alerta y cuánto cuesta en farmacias."
-      >
-        <FormMedicamento accion={lista} q={q} grande />
-        {!q && (
-          <ul className="mt-3 flex flex-wrap items-center gap-2" aria-label="Búsquedas de ejemplo">
-            {[
-              { t: "Paracetamol", q: "paracetamol", que: "principio activo" },
-              { t: "Panadol", q: "panadol", que: "marca" },
-              { t: "EE08059", q: "EE08059", que: "registro sanitario" },
-            ].map((x) => (
-              <li key={x.q}>
-                <Link
-                  href={`${lista}?${new URLSearchParams({ q: x.q })}`}
-                  className="inline-flex min-h-11 items-center gap-1.5 rounded-full border border-line bg-paper px-3.5 text-meta font-medium text-ink transition-colors duration-rapido hover:border-granate/50 sm:min-h-9"
-                >
-                  {x.t} <span className="text-mute max-sm:sr-only">{x.que}</span>
-                </Link>
-              </li>
-            ))}
-          </ul>
-        )}
-        {fuente && (
-          <p className="mt-3 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-meta text-inkSoft">
-            {numero(fuente.productos)} medicamentos con precio y {numero(fuente.alertas)} alertas de DIGEMID.
-            <Ayuda titulo="¿De dónde sale esto?" etiqueta="De dónde salen los medicamentos">
-              <span className="block">
-                <b className="font-semibold">Las alertas</b> son las que DIGEMID publica en su web (falsificados, lotes retirados por control de
-                calidad, seguridad), con su PDF.
+        resumen={
+          fuente && (
+            <>
+              <span>
+                <b className="font-semibold tabular-nums text-ink">{numero(fuente.productos)}</b> medicamentos con precio y{" "}
+                <b className="font-semibold tabular-nums text-ink">{numero(fuente.alertas)}</b> alertas de DIGEMID
               </span>
-              <span className="mt-1 block">
-                <b className="font-semibold">Los precios</b> son del Observatorio de DIGEMID: lo que reportan las farmacias y boticas privadas, por
-                unidad, en {mesLargo(fuente.precios.al)}. No son los del día ni los de una farmacia en particular.
-              </span>
-              <span className="mt-1 block">No es el registro sanitario completo: sólo los productos con precios reportados.</span>
-            </Ayuda>
-          </p>
-        )}
-      </Encabezado>
+              <Ayuda titulo="¿De dónde sale esto?" etiqueta="De dónde salen los medicamentos">
+                <span className="block">
+                  <b className="font-semibold">Las alertas</b> son las que DIGEMID publica en su web (falsificados, lotes retirados por control de
+                  calidad, seguridad), con su PDF.
+                </span>
+                <span className="mt-1 block">
+                  <b className="font-semibold">Los precios</b> son del Observatorio de DIGEMID: lo que reportan las farmacias y boticas privadas, por
+                  unidad, en {mesLargo(fuente.precios.al)}. No son los del día ni los de una farmacia en particular.
+                </span>
+                <span className="mt-1 block">No es el registro sanitario completo: sólo los productos con precios reportados.</span>
+              </Ayuda>
+            </>
+          )
+        }
+        acciones={
+          <Link href={rutaEn(base, "/alertas")} className="gs-hunde inline-flex min-h-11 items-center gap-2 rounded-full border border-line bg-paper px-4 text-dato font-semibold text-ink hover:border-granate/60 hover:text-granate sm:min-h-10">
+            <TriangleAlert size={16} aria-hidden className="text-amberTexto" />
+            <span className="sm:hidden">Alertas</span>
+            <span className="hidden sm:inline">Todas las alertas</span>
+          </Link>
+        }
+      />
+      <FormMedicamento accion={lista} q={q} grande={!q} className="mt-4" />
+      {!q && (
+        <ul className="mt-3 flex flex-wrap items-center gap-2" aria-label="Búsquedas de ejemplo">
+          <li className="text-meta text-mute">Prueba con</li>
+          {[
+            { t: "Paracetamol", q: "paracetamol", que: "principio activo" },
+            { t: "Panadol", q: "panadol", que: "marca" },
+            { t: "EE08059", q: "EE08059", que: "registro sanitario" },
+          ].map((x) => (
+            <li key={x.q}>
+              <Link
+                href={`${lista}?${new URLSearchParams({ q: x.q })}`}
+                className="gs-hunde inline-flex min-h-11 items-center gap-1.5 rounded-full border border-line bg-paper px-3.5 text-meta font-medium text-ink hover:border-granate/60 hover:bg-granate-50/60 sm:min-h-9"
+              >
+                {x.t} <span className="text-mute max-sm:sr-only">{x.que}</span>
+              </Link>
+            </li>
+          ))}
+        </ul>
+      )}
 
       {!d ? (
         <div className="mt-6 rounded-2xl border border-line bg-paper">
@@ -173,13 +183,13 @@ export default async function Medicamentos({ searchParams }: Props) {
               </div>
               {/* Tres: el resto en /alertas (la página no se alarga). */}
               <ul className={cn("divide-y", porCaja ? "divide-crimson/15" : "divide-amber/25")}>
-                {d.alertas.slice(0, 3).map((a) => (
+                {d.alertas.slice(0, porCaja ? 3 : 1).map((a) => (
                   <li key={a.id}>
                     <FilaAlerta a={a} />
                   </li>
                 ))}
               </ul>
-              {d.alertasTotal > 3 && (
+              {d.alertasTotal > (porCaja ? 3 : 1) && (
                 <p className={cn("border-t px-5 py-3", porCaja ? "border-crimson/20" : "border-amber/30")}>
                   <Link href={`${rutaEn(base, "/alertas")}?${new URLSearchParams({ q })}`} className="inline-flex min-h-11 items-center text-meta font-semibold text-granate underline-offset-4 hover:underline sm:min-h-8">
                     Ver las {numero(d.alertasTotal)} alertas
