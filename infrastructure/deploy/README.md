@@ -47,3 +47,13 @@ máquina.
 
 No se despliega con estos scripts: es terraform en `cloud_sql/terraform` (estado en S3) y no es pública. Para
 administrarla desde una PC: `python infrastructure/aws/tunel_rds.py prod|dev` (Session Manager por el proxy).
+
+## Runner propio en la PC (2026-11-22)
+
+GitLab se quedó sin minutos de CI (`ci_quota_exceeded`). Los pipelines corren en un runner del proyecto en la PC de desarrollo:
+
+- Contenedor `gitlab-runner` (imagen `gitlab/gitlab-runner:v17.11.0`, `--restart always`) con ejecutor Docker, imagen por defecto `node:22-bookworm` y `concurrent = 1` (un trabajo a la vez: WSL/Docker tiene 4 GB, ver `~/.wslconfig`). Su configuración vive en el volumen `gitlab-runner-config`.
+- En GitLab es el runner `pc-local-docker` del proyecto, sin etiquetas. Los runners compartidos están desactivados en el proyecto para que nada caiga en la cuota.
+- Necesita Docker Desktop encendido; con la PC apagada, los pipelines quedan pendientes.
+- Volver a los compartidos: activar «shared runners» en Settings > CI/CD > Runners (o `PUT /projects/:id shared_runners_enabled=true`) y `docker rm -f gitlab-runner`.
+- Las tareas programadas de cada 3 h (`masivo-agentes`, `reanalisis`) quedaron pausadas para no ocupar el runner horas; las diarias y la mensual siguen. Por qué: los 50 000 minutos de la prueba de Ultimate se gastaron sobre todo en ellas (50 071 al 22 de noviembre), y el plan gratis trae 400 al mes.
