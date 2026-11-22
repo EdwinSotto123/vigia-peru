@@ -276,3 +276,15 @@ con una captura de pantalla (rechazada: no es un medicamento).
   los buscadores. Un «Guardar» sin cuenta se completa solo al volver con la cuenta creada.
 - **No encontrado y error** propios de Salud (antes caían en el 404 de Vigía); la colegiatura sin respuesta de las fuentes
   igual muestra el número y el botón al CMP.
+
+## Cacería de errores de medicamentos (2026-11-22)
+
+Lo que decía algo falso o atribuía mal, y cómo quedó:
+
+- **Veredicto del validador.** La lista de alertas salía de `/alertas`, que busca sólo texto, y un registro con alerta (en la lista `registros`, no en el texto) daba «no figura». Ahora la lista y el veredicto salen de la misma búsqueda de la API, paginada (`apag`, 10 por página).
+- **Rojo sólo con certeza.** Un registro hallado es rojo; un lote hallado sólo en el texto de la alerta (no en su tabla) es ámbar y pide revisar el PDF. Un lote de menos de 5 caracteres se busca sólo en la tabla; los demás, con límite de palabra (`\m…\M`), y el nombre, desde el inicio de palabra (omeprazol no trae esomeprazol).
+- **Marca.** `palabrasMarca()` toma todas las palabras de la marca, sin forma ni principio activo («DOLO NEUROPRESS», no «DOLO», que también es Dolo-Neurobión). Un producto que se llama como su principio activo es genérico: no se le atribuyen cajas de otros laboratorios, sólo las alertas de seguridad o modificación del principio activo.
+- **Ficha.** Las alertas de seguridad van aparte y cuentan en la pestaña (le aplican); las de falsificados o calidad de la marca van como «cajas que usan el nombre», con sus lotes y vencimientos, y no cuentan. Si hay más de 30, un enlace lleva a todas en el validador. Un registro sin alertas de una marca con falsificaciones lo avisa también en el validador (`falsificadasMarca`).
+- **Cuentas.** «Está en N alertas» cuenta alertas distintas, no filas. Los equivalentes ya no se cuentan a sí mismos. La portada dice «presentaciones con precio». La tarjeta del catálogo muestra el mismo precio que la ficha; el rango va aparte.
+- **Datos.** Las gotas orales van con los líquidos orales (API y web). Los vencimientos mal leídos del PDF («04 20028») no se muestran (`vencimientoValido`).
+- **Texto.** Plurales («1 unidades», «las 1 farmacias», «1 productos»), el punto doble de «S.A..» y las frases de precio cuando no hay precio.
