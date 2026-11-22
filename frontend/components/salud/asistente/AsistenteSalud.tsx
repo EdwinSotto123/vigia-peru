@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import Link from "next/link";
 import {
   AlertTriangle, ArrowUp, BadgeCheck, Check, CircleSlash, Copy, Gavel, Hospital, Loader2, MessageSquarePlus, Phone, RotateCcw, Scale,
-  Scissors, Search, Square, Wrench, Pill } from "lucide-react";
+  Scissors, Search, Square, Wrench, Pill, History, MessageSquare, X } from "lucide-react";
 import { Respuesta } from "@/components/admin/chat/Respuesta";
 import { entradaCompacta, type MensajeAsistente, type PasoHerramienta } from "@/components/admin/chat/conversacion";
 import { IsotipoGobserva } from "@/components/gobserva/MarcaGobserva";
@@ -12,7 +12,7 @@ import { useTurnstile } from "@/components/seguridad/Turnstile";
 import { claseAccion } from "@/components/ui/EnlaceAccion";
 import { rutaEn } from "@/lib/gobserva";
 import { cn } from "@/lib/utils";
-import { useAsistenteSalud, type AvisoSalud } from "./useAsistenteSalud";
+import { useAsistenteSalud, type AvisoSalud, type Conversacion } from "./useAsistenteSalud";
 
 /** Las preguntas para empezar (se mandan al tocarlas). */
 const EJEMPLOS: { Icono: typeof Search; texto: string }[] = [
@@ -48,6 +48,8 @@ export function AsistenteSalud({ base, pregunta }: { base: string; pregunta?: st
   const verificacion = useTurnstile("asistente_salud");
   const a = useAsistenteSalud(verificacion.obtenerToken);
   const [texto, setTexto] = useState("");
+  // El historial: en el celular y la tableta, un panel en lugar del hilo; en pantalla ancha, además, al costado.
+  const [verHistorial, setVerHistorial] = useState(false);
   const campo = useRef<HTMLTextAreaElement>(null);
   const hilo = useRef<HTMLDivElement>(null);
 
@@ -98,7 +100,12 @@ export function AsistenteSalud({ base, pregunta }: { base: string; pregunta?: st
   function nueva() {
     a.nueva();
     setTexto("");
+    setVerHistorial(false);
     requestAnimationFrame(() => campo.current?.focus());
+  }
+  function abrir(id: string) {
+    a.abrir(id);
+    setVerHistorial(false);
   }
 
   return (
@@ -112,6 +119,21 @@ export function AsistenteSalud({ base, pregunta }: { base: string; pregunta?: st
             </h1>
             <p className="truncate text-rotulo text-mute">Gratis y sin cuenta. Responde con fuentes oficiales y su fecha.</p>
           </div>
+          {a.conversaciones.length > 0 && (
+            <button
+              type="button"
+              onClick={() => setVerHistorial((v) => !v)}
+              aria-pressed={verHistorial}
+              className={cn(
+                "inline-flex min-h-11 shrink-0 items-center gap-1.5 rounded-full border px-3 text-meta font-semibold transition-colors duration-rapido focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-granate",
+                verHistorial ? "border-granate bg-granate text-paper" : "border-line text-inkSoft hover:border-granate/40 hover:text-ink",
+              )}
+            >
+              <History size={16} aria-hidden />
+              <span className="max-sm:sr-only">Historial</span>
+              <span className={cn("tabular-nums", verHistorial ? "text-paper/80" : "text-mute")}>{a.conversaciones.length}</span>
+            </button>
+          )}
           {a.mensajes.length > 0 && (
             <button
               type="button"
@@ -125,7 +147,11 @@ export function AsistenteSalud({ base, pregunta }: { base: string; pregunta?: st
         </header>
 
         <div ref={hilo} className="min-h-0 flex-1 overflow-y-auto overscroll-contain" aria-live="polite" aria-busy={a.corriendo}>
-          {a.mensajes.length === 0 ? (
+          {verHistorial ? (
+            <div className="mx-auto max-w-3xl px-4 py-5 sm:px-6">
+              <Conversaciones lista={a.conversaciones} actual={a.actualId} onAbrir={abrir} onBorrar={a.borrar} onNueva={nueva} />
+            </div>
+          ) : a.mensajes.length === 0 ? (
             <Bienvenida onEjemplo={(x) => void mandar(x)} base={base} />
           ) : (
             <div className="mx-auto max-w-3xl space-y-6 px-4 py-6 sm:px-6">
@@ -194,7 +220,12 @@ export function AsistenteSalud({ base, pregunta }: { base: string; pregunta?: st
         </div>
       </section>
 
-      <aside aria-label="Cómo responde el asistente" className="hidden w-72 shrink-0 flex-col gap-4 overflow-y-auto xl:flex">
+      <aside aria-label="Tus conversaciones y cómo responde el asistente" className="hidden w-72 shrink-0 flex-col gap-4 overflow-y-auto xl:flex">
+        {a.conversaciones.length > 0 && (
+          <section className="rounded-2xl border border-line bg-paper p-4">
+            <Conversaciones lista={a.conversaciones} actual={a.actualId} onAbrir={abrir} onBorrar={a.borrar} onNueva={nueva} compacto />
+          </section>
+        )}
         <ComoResponde base={base} />
       </aside>
     </div>
@@ -386,5 +417,87 @@ function Turno({
         )}
       </div>
     </article>
+  );
+}
+
+/** «hoy, 10:32», «ayer, 18:05», «12 nov.»: cuándo fue una conversación. */
+function cuando(en: number): string {
+  const d = new Date(en);
+  const hora = d.toLocaleTimeString("es-PE", { hour: "2-digit", minute: "2-digit" });
+  if (d.toDateString() === new Date().toDateString()) return `hoy, ${hora}`;
+  if (d.toDateString() === new Date(Date.now() - 86_400_000).toDateString()) return `ayer, ${hora}`;
+  return d.toLocaleDateString("es-PE", { day: "numeric", month: "short" });
+}
+
+/**
+ * Las conversaciones anteriores (2026-11-22, el usuario: «dale historial»): cada una con su primera pregunta, cuándo y
+ * cuántas preguntas tuvo; se retoma con un toque y se borra con la X. Sólo en este dispositivo, como «lo visto».
+ */
+function Conversaciones({
+  lista,
+  actual,
+  onAbrir,
+  onBorrar,
+  onNueva,
+  compacto = false,
+}: {
+  lista: Conversacion[];
+  actual: string;
+  onAbrir: (id: string) => void;
+  onBorrar: (id: string | "todas") => void;
+  onNueva: () => void;
+  compacto?: boolean;
+}) {
+  return (
+    <div>
+      <div className="flex items-center justify-between gap-3">
+        <h2 className="flex items-center gap-2 font-display text-bloque font-bold text-ink">
+          <History size={compacto ? 16 : 18} aria-hidden className="text-granate" /> Tus conversaciones
+        </h2>
+        {!compacto && (
+          <button type="button" onClick={onNueva} className={claseAccion("primario", "min-h-11")}>
+            <MessageSquarePlus size={16} aria-hidden /> Nueva
+          </button>
+        )}
+      </div>
+      <p className="mt-1 flex flex-wrap items-center gap-x-2 text-rotulo text-mute">
+        Sólo en este dispositivo.
+        <button type="button" onClick={() => onBorrar("todas")} className="inline-flex min-h-11 items-center font-semibold text-granate underline-offset-4 hover:underline sm:min-h-7">
+          Borrar todas
+        </button>
+      </p>
+      <ul className={cn("mt-2", compacto ? "space-y-1.5" : "grid gap-2.5 sm:grid-cols-2")}>
+        {(compacto ? lista.slice(0, 8) : lista).map((c) => (
+          <li
+            key={c.id}
+            className={cn(
+              "group relative flex items-start gap-2 rounded-xl border px-3 py-2.5 transition-colors duration-rapido",
+              c.id === actual ? "border-granate/50 bg-granate-50" : "border-line bg-paper hover:border-granate/40",
+            )}
+          >
+            <MessageSquare size={15} aria-hidden className="mt-0.5 shrink-0 text-mute" />
+            <button
+              type="button"
+              onClick={() => onAbrir(c.id)}
+              aria-current={c.id === actual ? "true" : undefined}
+              className="min-w-0 flex-1 text-left after:absolute after:inset-0 after:content-[''] focus-visible:outline-none"
+            >
+              <span className="line-clamp-2 text-meta font-semibold leading-snug text-ink group-hover:text-granate">{c.titulo}</span>
+              <span className="mt-0.5 block text-rotulo text-mute">
+                {cuando(c.en)}, {c.preguntas === 1 ? "1 pregunta" : `${c.preguntas} preguntas`}
+              </span>
+            </button>
+            <button
+              type="button"
+              onClick={() => onBorrar(c.id)}
+              aria-label={`Borrar la conversación «${c.titulo}»`}
+              className="relative z-10 grid h-9 w-9 shrink-0 place-items-center rounded-full text-mute transition-colors duration-rapido hover:bg-ink/[0.06] hover:text-ink"
+            >
+              <X size={14} aria-hidden />
+            </button>
+          </li>
+        ))}
+      </ul>
+    </div>
   );
 }

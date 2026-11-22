@@ -3,14 +3,15 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { CircleCheck, Clock3, Crosshair, ExternalLink, Info, Loader2, LocateFixed, Navigation, RotateCw, ShieldCheck, Siren, TriangleAlert } from "lucide-react";
 import { direccionLegible, nombreServicio } from "@/components/salud/ficha/piezas";
-import { FilaEstablecimiento, PLACA_LISTA } from "@/components/salud/lista/FilaEstablecimiento";
+import { DEPARTAMENTOS, nombreLugar } from "@/components/salud/lista/filtros";
+import { REJILLA_TARJETAS, TarjetaEstablecimiento } from "@/components/salud/lista/TarjetaEstablecimiento";
 import { VecinaPregunta, VecinaUbicando } from "@/components/salud/pixel/Personajes";
 import { BuscadorSalud } from "@/components/salud/portada/BuscadorSalud";
 import { claseAccion } from "@/components/ui/EnlaceAccion";
 import { Dato } from "@/components/ui/Dato";
 import { rutaEn } from "@/lib/gobserva";
 import { URL_CERCA_SALUD, distanciaMetros, numero, redondearCoordenada, textoDistancia, type Cercanos, type FilaCercana } from "@/lib/gobserva-salud";
-import { NECESIDADES_RAPIDAS, necesidadDe, type Necesidad } from "@/lib/salud-necesidades";
+import { NECESIDADES, necesidadDe, type Necesidad } from "@/lib/salud-necesidades";
 import { SEGUROS_PERSONA, URL_LEY_SALUD, seguroPersonaDe, type SeguroPersona } from "@/lib/salud-seguros";
 import { cn } from "@/lib/utils";
 
@@ -37,9 +38,10 @@ type Estado =
     }
   | { fase: "error"; motivo: Motivo };
 
-const PRIMERAS = 8;
-/** En el celular, las necesidades que se ven antes de «Ver más» (la lista entera eran seis renglones de botones). */
-const VISIBLES_CELULAR = 6;
+const PRIMERAS = 9;
+/** Un selector o un campo de los paneles: 44 px de alto, el borde de la casa y el foco granate. */
+const SELECTOR =
+  "h-11 min-w-0 flex-1 rounded-xl border border-line bg-paper px-3 text-dato text-ink focus:border-granate focus:outline-none focus:ring-2 focus:ring-granate/25 disabled:cursor-wait disabled:opacity-70";
 
 const MENSAJE: Record<Motivo, { titulo: string; texto: string }> = {
   denegado: {
@@ -91,7 +93,6 @@ export function CercaDeMi({
   const [necesidad, setNecesidad] = useState<Necesidad | null>(necesidadDe(necesidadInicial));
   const [seguro, setSeguro] = useState<SeguroPersona | null>(seguroPersonaDe(seguroInicial));
   const [h24, setH24] = useState(h24Inicial);
-  const [masNecesidades, setMasNecesidades] = useState(false);
   const [todas, setTodas] = useState(false);
   const titulo = useRef<HTMLHeadingElement>(null);
   const pedido = useRef(0);
@@ -192,67 +193,113 @@ export function CercaDeMi({
 
   const ocupado = estado.fase === "ubicando" || estado.fase === "buscando";
   const sinUbicacion = conUbicacion != null && total != null && total > conUbicacion ? total - conUbicacion : null;
-  const opciones = necesidad && !NECESIDADES_RAPIDAS.includes(necesidad) ? [necesidad, ...NECESIDADES_RAPIDAS] : NECESIDADES_RAPIDAS;
 
   return (
     <div className="min-w-0">
-      <fieldset className="min-w-0">
-        <legend className="text-dato font-semibold text-ink">¿Qué necesitas? Opcional</legend>
-        <ul className="mt-2 flex flex-wrap gap-2">
-          <li>
-            <Opcion activa={!necesidad} onClick={() => cambiar({ necesidad: null, seguro, h24 })} deshabilitada={ocupado}>
-              Ver todos
-            </Opcion>
-          </li>
-          {opciones.map((n, i) => (
-            <li key={n.clave} className={cn(!masNecesidades && i >= VISIBLES_CELULAR && necesidad?.clave !== n.clave && "max-sm:hidden")}>
-              <Opcion
-                activa={necesidad?.clave === n.clave}
-                onClick={() => cambiar({ necesidad: necesidad?.clave === n.clave ? null : n, seguro, h24 })}
-                deshabilitada={ocupado}
-              >
-                {n.etiqueta}
-              </Opcion>
-            </li>
-          ))}
-          {!masNecesidades && opciones.length > VISIBLES_CELULAR && (
-            <li className="sm:hidden">
+      {/* Dos paneles lado a lado: dónde (el GPS o una región) y qué (lo que necesita, su seguro, 24 horas), con selectores
+          en vez de los muros de botones de antes (seis renglones en el celular). */}
+      <div className="grid gap-4 lg:grid-cols-2">
+        <section aria-labelledby="donde-t" className="min-w-0 rounded-2xl border border-line bg-paper p-4 sm:p-5">
+          <h2 id="donde-t" className="font-display text-bloque font-bold leading-snug text-ink">
+            ¿Dónde buscas?
+          </h2>
+          <div className="mt-3 flex items-end gap-3">
+            <VecinaUbicando buscando={ocupado} className="hidden shrink-0 sm:inline-flex" />
+            <div className="min-w-0 flex-1">
               <button
                 type="button"
-                onClick={() => setMasNecesidades(true)}
-                className="inline-flex min-h-11 items-center rounded-full px-3 text-meta font-semibold text-granate underline-offset-4 hover:underline"
+                onClick={() => ubicar({ necesidad, seguro, h24 })}
+                disabled={ocupado}
+                aria-describedby="cerca-privacidad"
+                className={claseAccion("primario", "min-h-12 w-full text-cuerpo disabled:cursor-wait disabled:opacity-80", "md")}
               >
-                Ver {opciones.length - VISIBLES_CELULAR} más
+                {ocupado ? <Loader2 size={19} aria-hidden className="motion-safe:animate-spin" /> : estado.fase === "inicio" ? <LocateFixed size={19} aria-hidden /> : <RotateCw size={18} aria-hidden />}
+                {estado.fase === "ubicando" ? "Ubicándote…" : estado.fase === "buscando" ? "Buscando cerca de ti…" : estado.fase === "inicio" ? "Usar mi ubicación (GPS)" : "Volver a ubicarme"}
               </button>
-            </li>
-          )}
-        </ul>
-      </fieldset>
+              <p id="cerca-privacidad" className="mt-1.5 flex gap-1.5 text-rotulo leading-snug text-inkSoft">
+                <ShieldCheck size={14} aria-hidden className="mt-px shrink-0 text-granate" />
+                <span>No se guarda; a nuestro servidor llega redondeada a unos 100 m.</span>
+              </p>
+            </div>
+          </div>
+          {/* Sin GPS: la lista de su región con los mismos filtros que se puedan pasar (seguro, 24 horas, operación). */}
+          <form action={rutaEn(base, "/establecimientos")} method="get" className="mt-4 border-t border-line pt-4">
+            <label htmlFor="cerca-region" className="text-meta font-semibold text-ink">
+              O elige tu región
+            </label>
+            <div className="mt-1.5 flex gap-2">
+              <select id="cerca-region" name="departamento" required defaultValue="" className={SELECTOR}>
+                <option value="" disabled>
+                  Región
+                </option>
+                {DEPARTAMENTOS.map((d) => (
+                  <option key={d} value={d}>
+                    {nombreLugar(d)}
+                  </option>
+                ))}
+              </select>
+              <input name="distrito" placeholder="Distrito (opcional)" aria-label="Distrito (opcional)" className={cn(SELECTOR, "hidden sm:block")} />
+              {seguro && seguro.clave !== "ninguno" && <input type="hidden" name="seguro" value={seguro.filtro} />}
+              {h24 && <input type="hidden" name="h24" value="si" />}
+              {necesidad?.clave === "operacion" && <input type="hidden" name="quirurgico" value="si" />}
+              <button type="submit" className={claseAccion("secundario", "min-h-11 shrink-0")}>
+                Ver
+              </button>
+            </div>
+          </form>
+        </section>
 
-      {/* Con qué seguro y a qué hora (2026-11-22, «útil para una persona de a pie que quiera atenderse»). */}
-      <fieldset className="mt-5 min-w-0">
-        <legend className="text-dato font-semibold text-ink">¿Qué seguro tienes? Opcional</legend>
-        <ul className="mt-2 flex flex-wrap gap-2">
-          <li>
-            <Opcion activa={!seguro} onClick={() => cambiar({ necesidad, seguro: null, h24 })} deshabilitada={ocupado}>
-              Cualquiera
-            </Opcion>
-          </li>
-          {SEGUROS_PERSONA.map((s) => (
-            <li key={s.clave}>
-              <Opcion activa={seguro?.clave === s.clave} onClick={() => cambiar({ necesidad, seguro: seguro?.clave === s.clave ? null : s, h24 })} deshabilitada={ocupado}>
-                {s.etiqueta}
-              </Opcion>
-            </li>
-          ))}
-        </ul>
-        <div className="mt-3">
-          <Opcion activa={h24} onClick={() => cambiar({ necesidad, seguro, h24: !h24 })} deshabilitada={ocupado}>
-            <Clock3 size={15} aria-hidden className="mr-1.5" />
-            Sólo los que atienden 24 horas
-          </Opcion>
-        </div>
-      </fieldset>
+        <section aria-labelledby="que-t" className="min-w-0 rounded-2xl border border-line bg-paper p-4 sm:p-5">
+          <h2 id="que-t" className="font-display text-bloque font-bold leading-snug text-ink">
+            ¿Qué buscas?
+          </h2>
+          <div className="mt-3 grid gap-3 sm:grid-cols-2">
+            <label className="min-w-0">
+              <span className="text-meta font-semibold text-ink">Qué necesitas</span>
+              <select
+                value={necesidad?.clave ?? ""}
+                onChange={(e) => cambiar({ necesidad: necesidadDe(e.target.value), seguro, h24 })}
+                disabled={ocupado}
+                className={cn(SELECTOR, "mt-1.5 w-full")}
+              >
+                <option value="">Cualquier atención</option>
+                {NECESIDADES.map((n) => (
+                  <option key={n.clave} value={n.clave}>
+                    {n.etiqueta}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="min-w-0">
+              <span className="text-meta font-semibold text-ink">Qué seguro tienes</span>
+              <select
+                value={seguro?.clave ?? ""}
+                onChange={(e) => cambiar({ necesidad, seguro: SEGUROS_PERSONA.find((x) => x.clave === e.target.value) ?? null, h24 })}
+                disabled={ocupado}
+                className={cn(SELECTOR, "mt-1.5 w-full")}
+              >
+                <option value="">Cualquiera</option>
+                {SEGUROS_PERSONA.map((x) => (
+                  <option key={x.clave} value={x.clave}>
+                    {x.etiqueta}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+          <label className="mt-3 flex min-h-11 cursor-pointer items-center gap-3 rounded-xl border border-line px-3.5 has-[:checked]:border-granate has-[:checked]:bg-granate-50">
+            <input
+              type="checkbox"
+              checked={h24}
+              onChange={() => cambiar({ necesidad, seguro, h24: !h24 })}
+              disabled={ocupado}
+              className="h-5 w-5 shrink-0 accent-[rgb(var(--granate))]"
+            />
+            <Clock3 size={16} aria-hidden className="shrink-0 text-granate" />
+            <span className="text-dato font-semibold text-ink">Sólo los que atienden 24 horas</span>
+          </label>
+        </section>
+      </div>
 
       {seguro && (
         <div className="mt-4 flex gap-2.5 rounded-xl border border-line bg-paperSoft px-3.5 py-3 text-meta leading-relaxed text-inkSoft">
@@ -273,28 +320,6 @@ export function CercaDeMi({
         </div>
       )}
       {necesidad?.clave === "emergencia" && <DerechoEmergencia className="mt-4" />}
-
-      <div className="mt-5 flex items-end gap-4">
-        <VecinaUbicando buscando={ocupado} className="shrink-0" />
-        <div className="flex min-w-0 flex-1 flex-col gap-3 pb-1 sm:flex-row sm:items-center">
-          <button
-            type="button"
-            onClick={() => ubicar({ necesidad, seguro, h24 })}
-            disabled={ocupado}
-            aria-describedby="cerca-privacidad"
-            className={claseAccion("primario", "min-h-14 w-full px-7 text-cuerpo disabled:cursor-wait disabled:opacity-80 sm:w-auto", "md")}
-          >
-            {ocupado ? <Loader2 size={19} aria-hidden className="motion-safe:animate-spin" /> : estado.fase === "inicio" ? <LocateFixed size={19} aria-hidden /> : <RotateCw size={18} aria-hidden />}
-            {estado.fase === "ubicando" ? "Ubicándote…" : estado.fase === "buscando" ? "Buscando cerca de ti…" : estado.fase === "inicio" ? "Usar mi ubicación" : "Volver a ubicarme"}
-          </button>
-          <p id="cerca-privacidad" className="flex max-w-[52ch] gap-2 text-meta leading-relaxed text-inkSoft">
-            <ShieldCheck size={16} aria-hidden className="mt-0.5 shrink-0 text-granate" />
-            <span>
-              Tu ubicación no se guarda. A nuestro servidor llega redondeada a unos 100 metros; la distancia exacta se calcula en tu teléfono.
-            </span>
-          </p>
-        </div>
-      </div>
 
       <div aria-live="polite" className="sr-only">
         {estado.fase === "ubicando" ? "Ubicándote." : estado.fase === "buscando" ? "Buscando establecimientos cerca de ti." : ""}
@@ -352,13 +377,13 @@ export function CercaDeMi({
 
           {estado.filas.length > 0 ? (
             <>
-              <ol className={cn("mt-4", PLACA_LISTA)} aria-label="Establecimientos de salud, del más cercano al más lejano">
+              <ol className={cn("mt-4", REJILLA_TARJETAS)} aria-label="Establecimientos de salud, del más cercano al más lejano">
                 {(todas ? estado.filas : estado.filas.slice(0, PRIMERAS)).map((x) => {
                   const fila = x.enRegistro ? x : { ...x, activo: false, estado: "Ya no figura en RENIPRESS" };
                   return (
-                    <li key={x.codigo}>
-                      <FilaEstablecimiento x={fila} base={base}>
-                        <p className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-meta">
+                    <li key={x.codigo} className="min-w-0">
+                      <TarjetaEstablecimiento x={fila} base={base}>
+                        <p className="flex flex-wrap gap-x-4 gap-y-1 text-meta">
                           <Dato icono={Navigation} nombre="Distancia" className="font-semibold text-ink">
                             {textoDistancia(x.metros)}
                           </Dato>
@@ -371,7 +396,7 @@ export function CercaDeMi({
                             </Dato>
                           </p>
                         )}
-                      </FilaEstablecimiento>
+                      </TarjetaEstablecimiento>
                     </li>
                   );
                 })}
@@ -410,23 +435,6 @@ export function CercaDeMi({
         </section>
       )}
     </div>
-  );
-}
-
-function Opcion({ activa, onClick, deshabilitada, children }: { activa: boolean; onClick: () => void; deshabilitada: boolean; children: React.ReactNode }) {
-  return (
-    <button
-      type="button"
-      aria-pressed={activa}
-      onClick={onClick}
-      disabled={deshabilitada}
-      className={cn(
-        "inline-flex min-h-11 items-center rounded-full border px-3.5 text-meta font-semibold transition-colors duration-rapido disabled:cursor-wait sm:min-h-9 [&_svg]:shrink-0",
-        activa ? "border-granate bg-granate text-paper" : "border-line bg-paper text-ink hover:border-granate/50 hover:bg-granate-50",
-      )}
-    >
-      {children}
-    </button>
   );
 }
 

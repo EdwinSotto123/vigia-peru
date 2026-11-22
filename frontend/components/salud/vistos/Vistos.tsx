@@ -7,6 +7,9 @@ import { rutaEn } from "@/lib/gobserva";
 import { rutaFicha, rutaMedicamento, rutaMedico } from "@/lib/gobserva-salud";
 import { anotarVisto, borrarVistos, quitarVisto, useVistos, type TipoVisto, type Visto } from "@/lib/salud-vistos";
 import { cn } from "@/lib/utils";
+import { Pixel } from "@/components/pixel/Pixel";
+import type { NombreSprite } from "@/components/pixel/sprites";
+import { formaDe, grupoDeTexto } from "@/lib/salud-formas";
 
 const ICONO: Record<TipoVisto, typeof Hospital> = { establecimiento: Hospital, medico: Stethoscope, medicamento: Pill };
 const ruta = (v: Visto) => (v.tipo === "establecimiento" ? rutaFicha(v.ref) : v.tipo === "medico" ? rutaMedico(v.ref) : rutaMedicamento(v.ref));
@@ -97,33 +100,104 @@ export function VistosRecientes({ base, fila = false, className }: { base: strin
       </section>
     );
   }
+  return <Historial vistos={vistos} base={base} cabeza={cabeza} className={className} />;
+}
+
+/** El dibujo de lo visto: el lugar por su categoría, la doctora para un médico, la forma del medicamento. */
+function spriteVisto(v: Visto): NombreSprite {
+  if (v.tipo === "medico") return "doctora";
+  if (v.tipo === "medicamento") return formaDe(grupoDeTexto(v.detalle)).sprite;
+  const cat = (v.detalle ?? "").split(",")[0]?.trim() ?? "";
+  return /^I{2,3}/.test(cat) ? "lugarHospital" : /^I-[1-4]/.test(cat) ? "lugarPosta" : "lugarConsultorio";
+}
+
+/** «Hoy», «Ayer» o «12 de noviembre»: el día de una visita, para agrupar el historial. */
+function diaDe(en: number): string {
+  const d = new Date(en);
+  if (d.toDateString() === new Date().toDateString()) return "Hoy";
+  if (d.toDateString() === new Date(Date.now() - 86_400_000).toDateString()) return "Ayer";
+  return d.toLocaleDateString("es-PE", { day: "numeric", month: "long" });
+}
+
+const FILTROS: { clave: TipoVisto | "todo"; etiqueta: string }[] = [
+  { clave: "todo", etiqueta: "Todo" },
+  { clave: "establecimiento", etiqueta: "Clínicas" },
+  { clave: "medico", etiqueta: "Médicos" },
+  { clave: "medicamento", etiqueta: "Medicamentos" },
+];
+
+/**
+ * Lo visto como historial (2026-11-22, el usuario: «mejora, dale historial»): agrupado por día (hoy, ayer, la fecha), en
+ * casillas con el dibujo de cada cosa (el lugar, la doctora, la forma del medicamento), con un filtro por tipo y «Quitar»
+ * en cada una. Antes era una lista de filas iguales.
+ */
+function Historial({ vistos, base, cabeza, className }: { vistos: Visto[]; base: string; cabeza: React.ReactNode; className?: string }) {
+  const [tipo, setTipo] = useState<TipoVisto | "todo">("todo");
+  const cuenta = (t: TipoVisto | "todo") => (t === "todo" ? vistos.length : vistos.filter((v) => v.tipo === t).length);
+  const lista = tipo === "todo" ? vistos : vistos.filter((v) => v.tipo === tipo);
+  const dias: { dia: string; vistos: Visto[] }[] = [];
+  for (const v of lista) {
+    const d = diaDe(v.en);
+    const ultimo = dias[dias.length - 1];
+    if (ultimo && ultimo.dia === d) ultimo.vistos.push(v);
+    else dias.push({ dia: d, vistos: [v] });
+  }
   return (
     <section aria-label="Lo que viste hace poco" className={className}>
       {cabeza}
-      <ul className="mt-3 divide-y divide-line overflow-hidden rounded-2xl border border-line bg-paper">
-        {vistos.map((v) => {
-          const Icono = ICONO[v.tipo];
-          return (
-            <li key={`${v.tipo}-${v.ref}`} className="flex items-center gap-2 pr-2">
-              <Link href={rutaEn(base, ruta(v))} className="group flex min-w-0 flex-1 items-center gap-3 px-4 py-3 hover:bg-ink/[0.03] sm:px-5">
-                <Icono size={17} aria-hidden className="shrink-0 text-granate" />
-                <span className="min-w-0">
-                  <span className="block truncate text-dato font-semibold text-ink group-hover:underline group-hover:decoration-granate/50 group-hover:underline-offset-4">{v.nombre}</span>
-                  <span className="block truncate text-meta text-mute">{[v.detalle, hace(v.en)].filter(Boolean).join(", ")}</span>
-                </span>
-              </Link>
-              <button
-                type="button"
-                onClick={() => quitarVisto(v.tipo, v.ref)}
-                aria-label={`Quitar ${v.nombre} de lo visto`}
-                className="grid h-11 w-11 shrink-0 place-items-center rounded-full text-mute transition-colors duration-rapido hover:bg-ink/[0.06] hover:text-ink"
-              >
-                <X size={16} aria-hidden />
-              </button>
-            </li>
-          );
-        })}
-      </ul>
+      <div role="group" aria-label="Qué mostrar" className="-mx-4 mt-3 flex gap-2 overflow-x-auto px-4 pb-1 [scrollbar-width:none] sm:mx-0 sm:px-0 [&::-webkit-scrollbar]:hidden">
+        {FILTROS.filter((f) => f.clave === "todo" || cuenta(f.clave) > 0).map((f) => (
+          <button
+            key={f.clave}
+            type="button"
+            aria-pressed={tipo === f.clave}
+            onClick={() => setTipo(f.clave)}
+            className={cn(
+              "inline-flex min-h-11 shrink-0 items-center gap-1.5 rounded-full border px-3.5 text-meta font-semibold transition-colors duration-rapido sm:min-h-9",
+              tipo === f.clave ? "border-granate bg-granate text-paper" : "border-line bg-paper text-ink hover:border-granate/50 hover:bg-granate-50",
+            )}
+          >
+            {f.etiqueta}
+            <span className={cn("tabular-nums", tipo === f.clave ? "text-paper/80" : "text-mute")}>{cuenta(f.clave)}</span>
+          </button>
+        ))}
+      </div>
+      <ol className="mt-5 space-y-6">
+        {dias.map((g) => (
+          <li key={g.dia}>
+            <h3 className="flex items-center gap-2 text-cuerpo font-bold text-ink">
+              <span aria-hidden className="h-2 w-2 rounded-full bg-granate" />
+              {g.dia}
+              <span className="text-meta font-medium text-mute">{g.vistos.length}</span>
+            </h3>
+            <ul className="mt-2.5 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+              {g.vistos.map((v) => (
+                <li key={`${v.tipo}-${v.ref}`} className="group relative flex min-w-0 flex-col overflow-hidden rounded-2xl border border-line bg-paper transition-colors duration-rapido hover:border-granate/50">
+                  <span aria-hidden className="grid h-20 place-items-center border-b border-line bg-granate-50 p-3">
+                    <Pixel nombre={spriteVisto(v)} escala={3} animado={false} acento="accion" className="max-h-full max-w-full" />
+                  </span>
+                  <Link
+                    href={rutaEn(base, ruta(v))}
+                    className="min-w-0 flex-1 px-3 pb-3 pt-2.5 after:absolute after:inset-0 after:content-[''] focus-visible:outline-none"
+                  >
+                    <span className="line-clamp-2 text-dato font-semibold leading-snug text-ink group-hover:text-granate">{v.nombre}</span>
+                    {v.detalle && <span className="mt-0.5 block truncate text-rotulo text-inkSoft">{v.detalle}</span>}
+                    <span className="mt-1 block text-rotulo text-mute">{hace(v.en)}</span>
+                  </Link>
+                  <button
+                    type="button"
+                    onClick={() => quitarVisto(v.tipo, v.ref)}
+                    aria-label={`Quitar ${v.nombre} de lo visto`}
+                    className="absolute right-1.5 top-1.5 z-10 grid h-9 w-9 place-items-center rounded-full bg-paper/90 text-mute ring-1 ring-line transition-colors duration-rapido hover:text-ink"
+                  >
+                    <X size={15} aria-hidden />
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </li>
+        ))}
+      </ol>
     </section>
   );
 }

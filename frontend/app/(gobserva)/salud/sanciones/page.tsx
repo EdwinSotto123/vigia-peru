@@ -196,9 +196,10 @@ export default async function Sanciones({ searchParams }: Props) {
             </div>
           ) : (
             <>
-              <ul className="divide-y divide-line overflow-hidden rounded-2xl border border-line bg-paper" aria-label="Sanciones firmes">
+              {/* Casillas (2026-11-22: «mejora esta mierda»): el tipo y la multa se leen de un vistazo. */}
+              <ul className="grid grid-cols-1 items-start gap-3 min-[560px]:grid-cols-2 xl:grid-cols-3" aria-label="Sanciones firmes">
                 {d.filas.map((s) => (
-                  <li key={s.id} className="min-w-0">
+                  <li key={s.id} className="h-full min-w-0">
                     <FilaSancion s={s} base={base} />
                   </li>
                 ))}

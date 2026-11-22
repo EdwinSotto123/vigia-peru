@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { REJILLA_TARJETAS, TarjetaEstablecimiento } from "@/components/salud/lista/TarjetaEstablecimiento";
 import Link from "next/link";
 import { Info, MapPinned, RotateCw } from "lucide-react";
 import { EstadoError, EstadoVacio } from "@/components/gobserva/ui/Estados";
@@ -258,10 +259,11 @@ export default async function Establecimientos({ searchParams }: Props) {
             </div>
           ) : (
             <>
-              <ul className={PLACA_LISTA} aria-label="Establecimientos">
+              {/* Casillas, no filas (2026-11-22: «que sea tipo marketplace»). */}
+              <ul className={REJILLA_TARJETAS} aria-label="Establecimientos">
                 {d.filas.map((x) => (
                   <li key={x.codigo} className="min-w-0">
-                    <FilaEstablecimiento x={x} base={base} conDireccion={repetidos.has(x.codigo)} />
+                    <TarjetaEstablecimiento x={x} base={base} conDireccion={repetidos.has(x.codigo)} />
                   </li>
                 ))}
               </ul>

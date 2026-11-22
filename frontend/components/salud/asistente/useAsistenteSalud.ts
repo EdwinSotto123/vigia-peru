@@ -17,6 +17,45 @@ import { URL_ASISTENTE_SALUD } from "@/lib/gobserva-salud";
  */
 
 const CLAVE = "gobserva-salud-asistente-v1";
+/** Las conversaciones anteriores, sólo en este dispositivo (como «lo visto»): hasta 20, la más reciente primero. */
+const HISTORIAL = "gobserva-salud-asistente-historial-v1";
+const MAX_CONVERSACIONES = 20;
+
+export interface Conversacion {
+  id: string;
+  /** La primera pregunta, recortada: el nombre de la conversación. */
+  titulo: string;
+  /** Cuándo se habló por última vez (ms). */
+  en: number;
+  preguntas: number;
+  mensajes: Mensaje[];
+}
+
+/** Lo guardado en el historial, validado mensaje por mensaje (puede venir de otra versión de la página). */
+function leerHistorial(crudo: string | null): Conversacion[] {
+  if (!crudo) return [];
+  try {
+    const lista = JSON.parse(crudo) as unknown;
+    if (!Array.isArray(lista)) return [];
+    const out: Conversacion[] = [];
+    for (const c of lista as Record<string, unknown>[]) {
+      if (!c || typeof c.id !== "string" || typeof c.en !== "number") continue;
+      const g = leerGuardado(JSON.stringify({ mensajes: c.mensajes }));
+      if (!g || !g.mensajes.length) continue;
+      const primera = g.mensajes.find((m) => m.rol === "usuario") as MensajeUsuario | undefined;
+      out.push({
+        id: c.id,
+        titulo: primera?.texto.slice(0, 90) ?? "Conversación",
+        en: c.en,
+        preguntas: g.mensajes.filter((m) => m.rol === "usuario").length,
+        mensajes: g.mensajes.map((m) => (m.rol === "asistente" ? cerrarTurno(m, false) : m)),
+      });
+    }
+    return out.slice(0, MAX_CONVERSACIONES);
+  } catch {
+    return [];
+  }
+}
 /** Los topes de la API (CuerpoAsistente): 16 mensajes y 16 mil caracteres por conversación. */
 const MAX_MENSAJES = 16;
 const MAX_CARACTERES = 16_000;
@@ -82,6 +121,10 @@ export function useAsistenteSalud(obtenerToken: () => Promise<string | null>) {
   const [mensajes, setMensajes] = useState<Mensaje[]>([]);
   const [aviso, setAviso] = useState<AvisoSalud | null>(null);
   const [cargado, setCargado] = useState(false);
+  const [conversaciones, setConversaciones] = useState<Conversacion[]>([]);
+  const [actualId, setActualId] = useState<string>(() => nuevoId());
+  const actual = useRef(actualId);
+  actual.current = actualId;
   const control = useRef<AbortController | null>(null);
   const ultimos = useRef(mensajes);
   ultimos.current = mensajes;
@@ -93,21 +136,62 @@ export function useAsistenteSalud(obtenerToken: () => Promise<string | null>) {
     try {
       // leerGuardado valida cada mensaje (lo guardado puede venir de otra versión de la página).
       const g = leerGuardado(sessionStorage.getItem(CLAVE));
-      if (g) setMensajes(g.mensajes.map((m) => (m.rol === "asistente" ? cerrarTurno(m, false) : m)));
+      if (g) {
+        setMensajes(g.mensajes.map((m) => (m.rol === "asistente" ? cerrarTurno(m, false) : m)));
+        setActualId(g.conversacion);
+      }
     } catch {
       /* sin sessionStorage: empieza vacía */
+    }
+    try {
+      setConversaciones(leerHistorial(localStorage.getItem(HISTORIAL)));
+    } catch {
+      /* sin localStorage: sin historial */
     }
     setCargado(true);
   }, []);
   useEffect(() => {
     if (!cargado) return;
     try {
-      if (mensajes.length) sessionStorage.setItem(CLAVE, JSON.stringify({ modelo: "rapido", conversacion: "salud", mensajes: mensajes.slice(-40) }));
+      if (mensajes.length) sessionStorage.setItem(CLAVE, JSON.stringify({ modelo: "rapido", conversacion: actual.current, mensajes: mensajes.slice(-40) }));
       else sessionStorage.removeItem(CLAVE);
     } catch {
       /* lleno o bloqueado: no se guarda */
     }
   }, [mensajes, cargado]);
+  // Al terminar cada respuesta, la conversación entra (o sube) al historial de este dispositivo.
+  useEffect(() => {
+    if (!cargado || !mensajes.some((m) => m.rol === "usuario")) return;
+    if (mensajes.some((m) => m.rol === "asistente" && m.estado === "corriendo")) return;
+    const primera = mensajes.find((m) => m.rol === "usuario") as MensajeUsuario;
+    const esta: Conversacion = {
+      id: actual.current,
+      titulo: primera.texto.slice(0, 90),
+      en: Date.now(),
+      preguntas: mensajes.filter((m) => m.rol === "usuario").length,
+      mensajes: mensajes.slice(-40),
+    };
+    setConversaciones((cs) => {
+      const previa = cs.find((c) => c.id === esta.id);
+      // Sin cambios (se abrió una vieja y no se preguntó nada): no se mueve arriba.
+      if (previa && previa.mensajes.length === esta.mensajes.length) return cs;
+      const nuevas = [esta, ...cs.filter((c) => c.id !== esta.id)].slice(0, MAX_CONVERSACIONES);
+      try {
+        localStorage.setItem(HISTORIAL, JSON.stringify(nuevas.map(({ id, en, mensajes: ms }) => ({ id, en, mensajes: ms }))));
+      } catch {
+        /* lleno o bloqueado: queda sólo en esta pestaña */
+      }
+      return nuevas;
+    });
+  }, [mensajes, cargado]);
+  const guardarHistorial = (cs: Conversacion[]) => {
+    try {
+      if (cs.length) localStorage.setItem(HISTORIAL, JSON.stringify(cs.map(({ id, en, mensajes: ms }) => ({ id, en, mensajes: ms }))));
+      else localStorage.removeItem(HISTORIAL);
+    } catch {
+      /* bloqueado: no pasa nada */
+    }
+  };
   useEffect(() => () => control.current?.abort(), []);
 
   const enviar = useCallback(async (textoCrudo: string, base?: Mensaje[]) => {
@@ -162,7 +246,35 @@ export function useAsistenteSalud(obtenerToken: () => Promise<string | null>) {
     control.current?.abort();
     setMensajes([]);
     setAviso(null);
+    setActualId(nuevoId());
   }, []);
+  /** Retoma una conversación del historial. */
+  const abrir = useCallback(
+    (id: string) => {
+      const c = conversaciones.find((x) => x.id === id);
+      if (!c) return;
+      control.current?.abort();
+      setAviso(null);
+      setActualId(c.id);
+      setMensajes(c.mensajes);
+    },
+    [conversaciones],
+  );
+  /** Borra una conversación (o todas) de este dispositivo. */
+  const borrar = useCallback(
+    (id: string | "todas") => {
+      const quedan = id === "todas" ? [] : conversaciones.filter((c) => c.id !== id);
+      setConversaciones(quedan);
+      guardarHistorial(quedan);
+      if (id === "todas" || id === actual.current) {
+        control.current?.abort();
+        setMensajes([]);
+        setAviso(null);
+        setActualId(nuevoId());
+      }
+    },
+    [conversaciones],
+  );
   /** Vuelve a hacer la última pregunta (la que no tuvo respuesta). */
   const reintentar = useCallback(() => {
     const ms = ultimos.current;
@@ -172,5 +284,5 @@ export function useAsistenteSalud(obtenerToken: () => Promise<string | null>) {
   }, [enviar]);
 
   const corriendo = mensajes.some((m) => m.rol === "asistente" && m.estado === "corriendo");
-  return { mensajes, enviar, detener, nueva, reintentar, corriendo, aviso, cargado };
+  return { mensajes, enviar, detener, nueva, reintentar, corriendo, aviso, cargado, conversaciones, actualId, abrir, borrar };
 }

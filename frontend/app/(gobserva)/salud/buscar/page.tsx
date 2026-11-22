@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { REJILLA_TARJETAS, TarjetaEstablecimiento } from "@/components/salud/lista/TarjetaEstablecimiento";
 import Link from "next/link";
 import { nombresRepetidos } from "@/components/salud/lista/filtros";
 import { ArrowRight, ArrowUpRight, BadgeCheck, Building2, Gavel, Hash, IdCard, ListChecks, LocateFixed, MapPinned, Pill, RotateCw, Search, ShieldCheck, Stethoscope, UserX } from "lucide-react";
@@ -204,10 +205,10 @@ export default async function Buscar({ searchParams }: Props) {
                   </Link>
                 )}
               </div>
-              <ul className={`mt-4 ${PLACA_LISTA}`} aria-label="Establecimientos encontrados">
+              <ul className={`mt-4 ${REJILLA_TARJETAS}`} aria-label="Establecimientos encontrados">
                 {res.establecimientos.map((x) => (
-                  <li key={x.codigo}>
-                    <FilaEstablecimiento x={x} base={base} conDireccion={repetidos.has(x.codigo)} />
+                  <li key={x.codigo} className="min-w-0">
+                    <TarjetaEstablecimiento x={x} base={base} conDireccion={repetidos.has(x.codigo)} />
                   </li>
                 ))}
               </ul>

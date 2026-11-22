@@ -28,15 +28,13 @@ export default async function CercaDeTi({ searchParams }: { searchParams: { ubic
     <div className="container-page pb-10 pt-5 sm:pt-8">
       <Migas items={[{ etiqueta: "Inicio", href: rutaEn(base, "/") }, { etiqueta: "Cerca de mí" }]} />
 
-      <div className="mt-4 grid gap-x-12 gap-y-10 lg:grid-cols-[minmax(0,1fr)_22rem] lg:items-start">
+      <div className="mt-4">
         <div className="min-w-0">
           <h1 className="text-balance font-display text-seccion font-bold leading-tight tracking-[-0.015em] text-ink">Cerca de mí</h1>
           <p className="mt-1 max-w-[70ch] text-pretty text-dato leading-relaxed text-inkSoft">
-            ¿Buscas dónde atenderte? ¿Ya estás adentro de una clínica y no sabes su nombre exacto? Con tu ubicación te mostramos los
-            establecimientos registrados más cercanos, si tienen sanciones firmes y, si eliges qué necesitas y qué seguro tienes, los que lo
-            declararon y te atienden con él.
+            Los establecimientos registrados más cercanos, con sus sanciones firmes y, si eliges qué necesitas y tu seguro, los que lo declararon.
           </p>
-          <div className="mt-6">
+          <div className="mt-5">
             <CercaDeMi
               base={base}
               auto={searchParams.ubicar === "1"}
@@ -49,11 +47,12 @@ export default async function CercaDeTi({ searchParams }: { searchParams: { ubic
           </div>
         </div>
 
-        <aside aria-labelledby="adentro-t" className="min-w-0 rounded-2xl border border-line bg-paper p-5 sm:p-6">
+        {/* «Ya adentro»: una franja de tres pasos a lo ancho (antes, una columna larga al costado). */}
+        <section aria-labelledby="adentro-t" className="mt-10 min-w-0 rounded-2xl border border-line bg-paper p-5 sm:p-6">
           <h2 id="adentro-t" className="font-display text-bloque font-bold leading-snug text-ink">
             Ya adentro, antes de atenderte
           </h2>
-          <ol className="mt-5 space-y-6">
+          <ol className="mt-5 grid gap-6 md:grid-cols-3">
             <PasoNumerado n={1} Icono={Building2} titulo="Abre su ficha">
               Mira si figura activo en RENIPRESS, su categoría y si tiene sanciones firmes. Si te van a operar, si declaró un centro quirúrgico.
             </PasoNumerado>
@@ -70,7 +69,7 @@ export default async function CercaDeTi({ searchParams }: { searchParams: { ubic
             </PasoNumerado>
           </ol>
           <AvisoEmergencia className="mt-6 border-t border-line pt-5" />
-        </aside>
+        </section>
       </div>
     </div>
   );

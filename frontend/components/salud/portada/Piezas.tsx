@@ -286,8 +286,8 @@ export function CabeceraLista({
     <header className={cn("grid grid-cols-1 items-end gap-x-4 gap-y-3 sm:grid-cols-[minmax(0,1fr)_auto]", className)}>
       <div className={cn("min-w-0", figura && "flex items-center gap-4")}>
         {figura && (
-          <span aria-hidden className="grid h-16 w-16 shrink-0 place-items-center rounded-2xl border border-line bg-paper sm:h-[4.5rem] sm:w-[4.5rem]">
-            <Pixel nombre={figura} escala={3} />
+          <span aria-hidden className="grid h-16 w-16 shrink-0 place-items-center rounded-2xl border border-line bg-paper p-2 sm:h-[4.5rem] sm:w-[4.5rem]">
+            <Pixel nombre={figura} escala={3} className="max-h-full max-w-full" />
           </span>
         )}
         <div className="min-w-0">
