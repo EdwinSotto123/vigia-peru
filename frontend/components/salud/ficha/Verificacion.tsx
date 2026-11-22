@@ -88,49 +88,86 @@ function Extra({ c, f, base }: { c: Chequeo; f: FichaIpress; base: string }) {
   return null;
 }
 
+/** El fondo y el color del disco y de la etiqueta de cada estado. */
+const FONDO_TONO: Record<Tono, string> = {
+  exito: "bg-moss/10 text-mossTexto",
+  neutro: "bg-paperSoft text-inkSoft",
+  acento: "bg-granate-50 text-granate",
+  aviso: "bg-amber-soft text-amberTexto",
+  urgente: "bg-crimson-soft text-crimsonTexto",
+};
+const PLURAL_ESTADO: Record<string, [string, string]> = {
+  ok: ["conforme", "conformes"],
+  atencion: ["para revisar", "para revisar"],
+  alerta: ["alerta", "alertas"],
+  sin_dato: ["sin dato", "sin dato"],
+  externo: ["se verifica fuera", "se verifican fuera"],
+};
+
+/**
+ * La pestaña «Verificación» (2026-11-22, el usuario: «está horrible»; antes una lista de párrafos con su fuente): arriba,
+ * cuántos chequeos hay de cada estado, con su color; debajo, una casilla por chequeo con el ícono del estado, el nombre,
+ * la etiqueta del estado, lo que dice la fuente, su acción y, al pie, la fuente con su fecha. Las frases son las de la API.
+ */
 export function VerificacionFicha({ f, base }: { f: FichaIpress; base: string }) {
   const leido = detalleLeido(f);
+  const orden: Chequeo["estado"][] = ["alerta", "atencion", "externo", "ok", "sin_dato"];
+  const cuenta = orden.map((e) => ({ e, n: f.verificacion.filter((c) => c.estado === e).length })).filter((x) => x.n > 0);
   return (
-    <section aria-labelledby="verificacion-t" className="tarjeta min-w-0 rounded-2xl border border-line bg-paper">
-      <header className="border-b border-line px-4 py-3 sm:px-6">
+    <section aria-labelledby="verificacion-t" className="min-w-0 space-y-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-1.5">
+          {/* El título lo pone la pestaña («Verificación»): aquí, una línea que dice qué es. */}
           <p id="verificacion-t" className="text-dato font-semibold leading-snug text-inkSoft">
-            Cada casilla de «Lo esencial», con la fuente oficial y su fecha
+            Lo que dice cada fuente oficial, con su fecha
           </p>
           <Ayuda titulo="¿Cómo se lee la verificación?" etiqueta="Cómo se lee la verificación">
-            Cada fila es lo que afirma una fuente oficial, con su fecha. El color dice si conviene revisar algo. No todo es lo
-            mismo: una sanción firme no es una denuncia, y lo que dice RENIPRESS lo declaró la propia IPRESS.
+            Cada casilla es lo que afirma una fuente oficial, con su fecha. El color dice si conviene revisar algo. Una sanción firme no
+            es una denuncia, y lo que dice RENIPRESS lo declaró la propia IPRESS.
             <span className="mt-1.5 block">Nada de esto califica a un establecimiento como seguro o peligroso.</span>
           </Ayuda>
         </div>
-      </header>
-      {/* 2026-11-21 («atosigante, sin jerarquías»): una fila por chequeo, con el ícono de su estado en su color y el
-          nombre del estado a la derecha; sin el disco, sin la etiqueta de clase de hecho (está en el ⓘ) y sin repetir la
-          frase de «Lo esencial». */}
-      <ol aria-label="Chequeos de verificación" className="divide-y divide-line">
+        <ul className="flex flex-wrap gap-1.5" aria-label="Chequeos por estado">
+          {cuenta.map(({ e, n }) => {
+            const Icono = iconoEstado(e);
+            return (
+              <li key={e} className={cn("inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-meta font-semibold", FONDO_TONO[tonoEstado(e)])}>
+                <Icono size={14} aria-hidden />
+                <span className="tabular-nums">{n}</span> {PLURAL_ESTADO[e][n === 1 ? 0 : 1]}
+              </li>
+            );
+          })}
+        </ul>
+      </div>
+
+      <ol aria-label="Chequeos de verificación" className="grid gap-3 md:grid-cols-2">
         {f.verificacion.map((c) => {
           const Icono = iconoEstado(c.estado);
           const tono = tonoEstado(c.estado);
           return (
-            <li key={c.clave} className="grid grid-cols-[1.25rem_minmax(0,1fr)] gap-x-3 px-4 py-3.5 sm:px-6">
-              <Icono size={18} aria-hidden className={cn("mt-0.5", TEXTO_TONO[tono])} />
-              <div className="min-w-0">
-                <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-0.5">
-                  <h3 className="text-cuerpo font-semibold leading-snug text-ink">{c.titulo}</h3>
-                  <span className={cn("text-meta font-semibold", TEXTO_TONO[tono])}>{ESTADOS_CHEQUEO[c.estado].rotulo}</span>
+            <li key={c.clave} className="flex min-w-0 flex-col overflow-hidden rounded-2xl border border-line bg-paper">
+              <div className="flex items-start gap-3 px-4 pt-4">
+                <span aria-hidden className={cn("grid h-11 w-11 shrink-0 place-items-center rounded-xl", FONDO_TONO[tono])}>
+                  <Icono size={21} />
+                </span>
+                <div className="min-w-0 flex-1">
+                  <h3 className="text-cuerpo font-bold leading-snug text-ink">{c.titulo}</h3>
+                  <span className={cn("mt-1 inline-flex rounded-full px-2 py-0.5 text-rotulo font-semibold", FONDO_TONO[tono])}>{ESTADOS_CHEQUEO[c.estado].rotulo}</span>
                 </div>
-                <p className="mt-1 max-w-[72ch] text-pretty text-meta leading-relaxed text-inkSoft">{c.detalle}</p>
-                <div className="mt-1 flex flex-wrap items-center gap-x-4">
-                  <FuenteFecha nombre={c.fuente} url={c.url} al={c.al} />
-                  <Extra c={c} f={f} base={base} />
-                </div>
+              </div>
+              <p className="mt-2.5 px-4 text-pretty text-dato leading-relaxed text-ink">{c.detalle}</p>
+              <div className="px-4 pb-1 pt-1">
+                <Extra c={c} f={f} base={base} />
+              </div>
+              <div className="mt-auto border-t border-line bg-paperSoft/50 px-4 py-2">
+                <FuenteFecha nombre={c.fuente} url={c.url} al={c.al} className="text-rotulo" />
               </div>
             </li>
           );
         })}
       </ol>
       {!leido && (
-        <div className="border-t border-line px-4 py-4 sm:px-6">
+        <div className="rounded-2xl border border-line bg-paper px-4 py-4 sm:px-6">
           <DetallePendiente url={f.fuentes.renipress?.url ?? URL_RENIPRESS_CONSULTA} />
           <p className="mt-2 text-meta text-mute">Con el detalle se suman los chequeos de centro quirúrgico, licencia municipal y responsable de la atención.</p>
         </div>

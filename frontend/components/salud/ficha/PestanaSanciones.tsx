@@ -1,4 +1,5 @@
-import { BellRing, CalendarDays, FilePen, FileSearch, Gavel, Hash, Info, Scale, Scroll, ScrollText, TriangleAlert, Wrench, ChevronRight } from "lucide-react";
+import { Ban, BellRing, CalendarDays, FilePen, FileSearch, FileWarning, Gavel, Hash, Info, Scale, Scroll, ScrollText, TriangleAlert, Wrench, ChevronRight } from "lucide-react";
+import { cn } from "@/lib/utils";
 import type { ReactNode } from "react";
 import { Insignia, type Tono } from "@/components/gobserva/ui/Insignia";
 import { EstadoVacio } from "@/components/gobserva/ui/Estados";
@@ -51,48 +52,64 @@ function Parte({ icono: Icono, t, children }: { icono: typeof Info; t: string; c
   );
 }
 
+/** Lo que hizo, corto: lo que el Reglamento pone entre comillas o la infracción sin su número («27. No entregar…»). */
+function queHizo(s: Sancion): string | null {
+  const t = s.infraccion ?? s.infraccionDetalle;
+  if (!t) return null;
+  const m = t.match(/[“"«]([^”"»]{12,})[”"»]/);
+  return (m ? m[1] : t).replace(/^\s*\d+[.)]\s*/, "").replace(/\s*\(…\)\s*/g, " … ").trim().replace(/\.$/, "");
+}
+
 function TarjetaSancion({ s, fuenteRegistro }: { s: Sancion; fuenteRegistro: { url: string; al: string | number | null } | null }) {
   const infraccion = s.infraccionDetalle ?? s.infraccion;
+  const que = queHizo(s);
+  const multa = s.tipoSancion === "multa";
+  const grave = multa || /cierre|revocacion/.test(s.tipoSancion);
+  const Icono = /cierre|revocacion/.test(s.tipoSancion) ? Ban : multa ? Gavel : FileWarning;
   return (
-    <article className="tarjeta min-w-0 overflow-hidden rounded-2xl border border-line bg-paper">
-      <header className="px-4 pb-3 pt-4 sm:px-5">
-        <div className="flex flex-wrap items-center gap-1.5">
-          <InsigniaHecho tipo="sancion_firme" />
-          {s.gravedad && <Insignia tono={s.gravedad === "leve" ? "neutro" : "aviso"} Icono={TriangleAlert}>{`Infracción ${GRAVEDAD[s.gravedad].toLowerCase()}`}</Insignia>}
-          {s.judicializada && (
-            <Insignia tono="aviso" Icono={Scale}>
-              En proceso judicial
-            </Insignia>
-          )}
-          {s.cancelacion && <Insignia tono="neutro">Con cancelación registrada</Insignia>}
-        </div>
-        <h3 className="mt-2.5 flex items-center gap-2 font-display text-bloque font-bold leading-snug text-ink">
-          <span aria-hidden className={`grid h-8 w-8 shrink-0 place-items-center rounded-lg ${DISCO_TONO[TONO_TIPO[s.tipoSancion]]}`}>
-            <Gavel size={16} />
+    <article className={cn("flex h-full min-w-0 flex-col overflow-hidden rounded-2xl border bg-paper", grave ? "border-crimson/25" : "border-line")}>
+      <div className={cn("flex items-center justify-between gap-3 px-4 py-3", grave ? "bg-crimson-soft/70" : "bg-paperSoft")}>
+        <div className="flex min-w-0 items-center gap-2.5">
+          <span aria-hidden className={cn("grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-paper", grave ? "text-crimsonTexto" : "text-inkSoft")}>
+            <Icono size={19} />
           </span>
-          <span className="min-w-0">{titulo(s)}</span>
-          {s.tipoSancion === "multa" && s.multaUit != null && AYUDA_UIT}
-        </h3>
-        <ul className="mt-2 flex flex-wrap gap-x-5 gap-y-1 text-meta text-inkSoft" aria-label="Fechas de la sanción">
-          <li className="inline-flex items-center gap-1.5">
-            <CalendarDays size={14} aria-hidden className="shrink-0 text-mute" />
-            Emitida el {fechaCorta(s.fechaEmision)}
-          </li>
-        </ul>
-        {infraccion && <p className="mt-2 line-clamp-2 text-dato leading-snug text-ink">{infraccion}</p>}
-        {s.enlace === "codigo_otro_nombre" && (
-          <p className="mt-3 flex items-start gap-2 rounded-xl bg-amber-soft/60 px-3 py-2 text-meta leading-snug text-ink">
-            <Info size={15} aria-hidden className="mt-0.5 shrink-0 text-amberTexto" />
-            <span>
-              SUSALUD la registró con el código de este establecimiento, a nombre de «{s.nombre}».
+          <h3 className="min-w-0">
+            <span className={cn("block text-meta font-semibold", grave ? "text-crimsonTexto" : "text-inkSoft")}>{multa ? "Multa" : "Sanción firme"}</span>
+            <span className={cn("flex items-center gap-1 font-bold leading-tight tabular-nums text-ink", multa ? "font-display text-bloque" : "text-cuerpo")}>
+              {multa && s.multaUit != null ? uit(s.multaUit) : titulo(s)}
+              {multa && s.multaUit != null && AYUDA_UIT}
             </span>
+          </h3>
+        </div>
+        <span className="shrink-0 text-right text-meta leading-tight text-inkSoft">
+          <span className="block">Emitida el</span>
+          <span className="block font-semibold text-ink">{fechaCorta(s.fechaEmision)}</span>
+        </span>
+      </div>
+      <div className="flex min-w-0 flex-1 flex-col px-4 pb-1 pt-3">
+        {(s.gravedad || s.judicializada || s.cancelacion) && (
+          <p className="flex flex-wrap gap-1.5">
+            {s.gravedad && <Insignia tono={s.gravedad === "leve" ? "neutro" : s.gravedad === "grave" ? "aviso" : "urgente"}>{`Infracción ${GRAVEDAD[s.gravedad].toLowerCase()}`}</Insignia>}
+            {s.judicializada && (
+              <Insignia tono="aviso" Icono={Scale}>
+                En proceso judicial
+              </Insignia>
+            )}
+            {s.cancelacion && <Insignia tono="neutro">Con cancelación registrada</Insignia>}
           </p>
         )}
-      </header>
+        {que && <p className="mt-2.5 line-clamp-3 rounded-lg bg-paperSoft px-3 py-2 text-dato leading-relaxed text-ink">«{que}»</p>}
+        {s.enlace === "codigo_otro_nombre" && (
+          <p className="mt-2.5 flex items-start gap-2 rounded-xl bg-amber-soft/60 px-3 py-2 text-meta leading-snug text-ink">
+            <Info size={15} aria-hidden className="mt-0.5 shrink-0 text-amberTexto" />
+            <span>SUSALUD la registró con el código de este establecimiento, a nombre de «{s.nombre}».</span>
+          </p>
+        )}
+      </div>
 
       {/* 2026-11-22 (auditoría: «la pestaña mide 6,9 pantallas en el celular»): la resolución, el procedimiento, las normas
           y lo demás, plegados. */}
-      <details className="group/det border-t border-line">
+      <details className="group/det mt-auto border-t border-line">
         <summary className="flex min-h-11 cursor-pointer list-none items-center gap-1.5 px-4 text-meta font-semibold text-granate sm:px-5 [&::-webkit-details-marker]:hidden">
           <ChevronRight size={14} aria-hidden className="transition-transform duration-rapido group-open/det:rotate-90" />
           <span className="group-open/det:hidden">Ver la resolución y el detalle</span>
@@ -205,34 +222,46 @@ export function PestanaSanciones({ f }: { f: FichaIpress }) {
         Cada sanción firme con su resolución, la infracción y su estado judicial, de la más reciente a la más antigua.
       </CabeceraPestana>
 
-      <ul className="grid grid-cols-2 gap-3 lg:grid-cols-4" aria-label="Las sanciones en cifras">
-        <li className="min-w-0">
-          <Tesela icono={Gavel} tono="urgente" valor={numero(lista.length)} etiqueta={lista.length === 1 ? "sanción firme" : "sanciones firmes"} contexto={`la última, del ${fechaCorta(lista[0]?.fechaEmision)}`} />
-        </li>
-        <li className="min-w-0">
-          <Tesela icono={Scroll} valor={f.multasUit != null ? uit(f.multasUit) : null} etiqueta={`en ${multas === 1 ? "una multa" : `${numero(multas)} multas`}`} contexto="sin convertir a soles" />
-        </li>
-        <li className="min-w-0">
-          <Tesela icono={Scale} tono={f.sancionesJudicializadas ? "aviso" : "neutro"} valor={numero(f.sancionesJudicializadas)} etiqueta="en un proceso judicial" contexto="según el registro" />
-        </li>
-        <li className="min-w-0">
-          <Tesela icono={CalendarDays} valor={fechaCorta(lista[lista.length - 1]?.fechaEmision)} etiqueta="la más antigua del registro" contexto="Las más antiguas pueden haber salido del registro" />
-        </li>
-      </ul>
-
-      <div className="flex items-start gap-2.5 rounded-2xl border border-line bg-paperSoft px-4 py-3 text-meta leading-relaxed text-inkSoft">
-        <Info size={16} aria-hidden className="mt-0.5 shrink-0 text-mute" />
-        <p>
-          Una sanción firme ya no se puede apelar en la vía administrativa; puede estar en un proceso judicial (lo decimos cuando el
-          registro lo indica). La sanción es de la IPRESS: no es una sanción a sus médicos ni a quien la dirige. Una denuncia no
-          es una sanción y no aparece aquí.
+      <div className="flex flex-wrap items-center gap-x-5 gap-y-2 rounded-2xl border border-line bg-paper px-4 py-3">
+        <p className="flex items-baseline gap-1.5">
+          <b className="font-display text-cifra font-bold leading-none tabular-nums text-crimsonTexto">{numero(lista.length)}</b>
+          <span className="text-dato font-semibold text-ink">{lista.length === 1 ? "sanción firme" : "sanciones firmes"}</span>
         </p>
+        <ul className="flex flex-wrap gap-1.5 text-meta" aria-label="Las sanciones en cifras">
+          {multas > 0 && (
+            <li className="inline-flex items-center gap-1 rounded-full bg-crimson-soft px-2.5 py-1 font-semibold text-crimsonTexto">
+              <Gavel size={13} aria-hidden /> {multas === 1 ? "1 multa" : `${numero(multas)} multas`}
+              {f.multasUit != null ? `, ${uit(f.multasUit)}` : ""}
+            </li>
+          )}
+          {lista.length - multas > 0 && (
+            <li className="inline-flex items-center gap-1 rounded-full bg-paperSoft px-2.5 py-1 font-semibold text-inkSoft">
+              <FileWarning size={13} aria-hidden /> {lista.length - multas === 1 ? "1 sin multa" : `${numero(lista.length - multas)} sin multa`}
+            </li>
+          )}
+          {f.sancionesJudicializadas > 0 && (
+            <li className="inline-flex items-center gap-1 rounded-full bg-amber-soft px-2.5 py-1 font-semibold text-amberTexto">
+              <Scale size={13} aria-hidden /> {numero(f.sancionesJudicializadas)} en juicio
+            </li>
+          )}
+          <li className="inline-flex items-center gap-1 rounded-full bg-paperSoft px-2.5 py-1 text-inkSoft">
+            <CalendarDays size={13} aria-hidden /> de {fechaCorta(lista[lista.length - 1]?.fechaEmision)} a {fechaCorta(lista[0]?.fechaEmision)}
+          </li>
+        </ul>
+        <span className="inline-flex items-center gap-1 text-meta text-inkSoft">
+          ¿Qué es una sanción firme?
+          <Ayuda titulo="¿Qué es una sanción firme?">
+            Ya no se puede apelar en la vía administrativa; puede estar en un proceso judicial (lo decimos cuando el registro lo indica).
+            Es de la IPRESS: no es una sanción a sus médicos ni a quien la dirige. Una denuncia no es una sanción y no aparece aquí. Las
+            más antiguas pueden haber salido del registro.
+          </Ayuda>
+        </span>
       </div>
 
       <ListaPaginada
         nombre="las sanciones"
         tam={6}
-        className="space-y-4"
+        className="grid gap-3 lg:grid-cols-2"
         buscar={{ placeholder: "Resolución o infracción", etiqueta: "Buscar en las sanciones por resolución, procedimiento o infracción" }}
         items={lista.map((s) => ({
           id: s.id,

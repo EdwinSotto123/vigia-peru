@@ -9,6 +9,8 @@ import { rutaEn } from "@/lib/gobserva";
 import { fechaCorta, nombrePropio, numero, rutaFicha, type FichaIpress, type Servicio } from "@/lib/gobserva-salud";
 import { cn } from "@/lib/utils";
 import { Bloque, DetallePendiente, detalleLeido, nombreServicio } from "./piezas";
+import { Pixel } from "@/components/pixel/Pixel";
+import type { NombreSprite } from "@/components/pixel/sprites";
 
 /**
  * La pestaña «Servicios»: lo que RENIPRESS le registra a la IPRESS.
@@ -26,6 +28,57 @@ import { Bloque, DetallePendiente, detalleLeido, nombreServicio } from "./piezas
 const activo = (e: string | null | undefined) => !e || /^ACTIV/i.test(e);
 /** Las unidades que no atienden pacientes: servicios administrativos y «actividades» (urgencias, referencias, esterilización). */
 const deApoyo = (s: Servicio) => /^actividad|administrativ|^del establecimiento/i.test(s.nombre ?? "");
+
+/** El dibujo de una unidad o especialidad por su nombre (2026-11-22: «está horrible»; antes sólo texto). */
+function spriteServicio(nombre: string | null | undefined): NombreSprite | null {
+  const n = (nombre ?? "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase();
+  if (/EMERGENC|URGENC/.test(n)) return "iconoEmergencia";
+  if (/OBSTETR|GINECO|PARTO|MATERN/.test(n)) return "iconoParto";
+  if (/PEDIATR|NEONAT|NINO/.test(n)) return "iconoNinos";
+  if (/CARDIO/.test(n)) return "iconoCorazon";
+  if (/OFTALM|OPTIC/.test(n)) return "iconoOjos";
+  if (/DERMAT/.test(n)) return "iconoPiel";
+  if (/TRAUMAT|ORTOPED|REHABILIT|FISIATR|REUMAT/.test(n)) return "iconoHuesos";
+  if (/PSIQ|PSICOL|MENTAL|NEUROL/.test(n)) return "iconoMental";
+  if (/ODONT|ESTOMAT|DENTAL/.test(n)) return "iconoDientes";
+  if (/LABORATORIO|PATOLOG|HEMATOL/.test(n)) return "iconoAnalisis";
+  if (/RADIOL|IMAGEN|ECOGRAF|TOMOGRAF/.test(n)) return "iconoImagenes";
+  if (/QUIRURG|CIRUG|ANESTES/.test(n)) return "iconoOperacion";
+  if (/FARMACIA|MEDICAMENTO/.test(n)) return "frasco";
+  if (/HOSPITALIZ|INTERNAMIENTO|CUIDADOS INTENSIVOS/.test(n)) return "lugarHospital";
+  if (/CONSULTA EXTERNA|MEDICINA (GENERAL|INTERNA|FAMILIAR)/.test(n)) return "doctora";
+  return null;
+}
+
+/** Una unidad o especialidad como casilla de vitrina: su dibujo (si hay uno), su nombre y, si no está activa, su estado. */
+function Casilla({ s }: { s: Servicio }) {
+  const ok = activo(s.estado);
+  const sprite = spriteServicio(s.nombre);
+  return (
+    <span
+      title={s.codigo ? `Código en RENIPRESS: ${s.codigo}` : undefined}
+      className={cn(
+        "flex h-full min-h-14 items-center gap-2.5 rounded-xl border px-2.5 py-2 text-dato font-medium leading-snug",
+        ok ? "border-line bg-paper text-ink" : "border-amber/45 bg-amber-soft/40 text-ink",
+      )}
+    >
+      <span aria-hidden className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-granate-50 p-1.5">
+        {sprite ? (
+          <Pixel nombre={sprite} escala={3} animado={false} acento="accion" className="max-h-full max-w-full" />
+        ) : (
+          <Stethoscope size={18} className="text-granate" />
+        )}
+      </span>
+      <span className="min-w-0">
+        <span className="line-clamp-2">{nombreServicio(s.nombre)}</span>
+        {!ok && s.estado && <span className="block text-rotulo font-semibold text-amberTexto">{nombrePropio(s.estado)}</span>}
+      </span>
+    </span>
+  );
+}
+
+/** La rejilla de casillas: 2 columnas en el celular, 3 en la tableta, 4 en pantalla ancha. */
+const REJILLA = "grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-4";
 
 /** Una unidad o especialidad como ficha corta: su nombre y, si no está activa, su estado. */
 function Ficha({ s }: { s: Servicio }) {
@@ -53,8 +106,8 @@ function Fichas({ items, nombre, placeholder, tam = 36 }: { items: Servicio[]; n
       tam={tam}
       controles="abajo"
       buscar={{ placeholder, etiqueta: `Buscar en ${nombre}` }}
-      className="flex flex-wrap gap-2"
-      items={items.map((s, i) => ({ id: `${s.codigo ?? "s"}-${i}`, buscable: `${s.nombre ?? ""} ${s.codigo ?? ""}`, contenido: <Ficha s={s} /> }))}
+      className={REJILLA}
+      items={items.map((s, i) => ({ id: `${s.codigo ?? "s"}-${i}`, buscable: `${s.nombre ?? ""} ${s.codigo ?? ""}`, contenido: <Casilla s={s} /> }))}
     />
   );
 }
@@ -134,10 +187,10 @@ export function PestanaServicios({ f, base }: { f: FichaIpress; base: string }) 
         }
       >
         {clinicas.length ? (
-          <ul className="flex flex-wrap gap-2" aria-label="Unidades que atienden pacientes">
+          <ul className={REJILLA} aria-label="Unidades que atienden pacientes">
             {clinicas.map((s, i) => (
-              <li key={`${s.codigo ?? "u"}-${i}`} className="min-w-0 max-w-full">
-                <Ficha s={s} />
+              <li key={`${s.codigo ?? "u"}-${i}`} className="min-w-0">
+                <Casilla s={s} />
               </li>
             ))}
           </ul>
