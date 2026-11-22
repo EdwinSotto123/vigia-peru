@@ -18,7 +18,8 @@ export function nombreMed(t: string | null | undefined): string {
   return t
     .toLowerCase()
     .replace(/(^|[\s(/-])([a-záéíóúñ])/g, (_, a: string, b: string) => a + b.toUpperCase())
-    .replace(/\b(Mg|Ml|Mcg|Ui|Nf|Ifa|Sa|Sac|S\.a\.|Eirl|Srl|Ltd|Gmbh|Ag)\b/g, (m) => m.toUpperCase());
+    .replace(/\b(Mg|Ml|Mcg|Ui|Nf|Ifa|Sa|Sac|Eirl|Srl|Ltd|Gmbh|Ag)\b/g, (m) => m.toUpperCase())
+    .replace(/\b(?:[a-z]\.){2,}(?:[a-z]\b\.?)?/gi, (m) => m.toUpperCase());
 }
 
 const TONO_ALERTA: Record<TipoAlerta, Tono> = {
@@ -173,7 +174,7 @@ export function FilaAlerta({
         </a>
         <span className="text-meta text-mute">{fechaCorta(a.fecha)}</span>
       </p>
-      {motivo && !igualTitulo(motivo) && <p className="mt-1.5 max-w-[80ch] text-dato font-semibold leading-snug text-ink">{motivo.charAt(0) + motivo.slice(1).toLowerCase()}</p>}
+      {motivo && !igualTitulo(motivo) && <p className="mt-1.5 max-w-[80ch] text-dato font-semibold leading-snug text-ink">{oracionDeMayusculas(motivo)}</p>}
       {observados.length > 0 && sinTabla ? (
         <p className="mt-1 line-clamp-2 text-dato leading-snug text-inkSoft">
           {observados.slice(0, 2).map((o) => o.producto).join(", ")}
@@ -201,7 +202,9 @@ export function FilaAlerta({
       )}
       {marca && deOtras > 0 && (
         <p className="mt-1 text-meta text-mute">
-          La alerta incluye {deOtras === 1 ? "otro producto" : `otros ${deOtras} productos`} de otras marcas, que no tienen que ver con este.
+          {deOtras === 1
+            ? "La alerta incluye otro producto, de otra marca, que no tiene que ver con este."
+            : `La alerta incluye otros ${deOtras} productos, de otras marcas, que no tienen que ver con este.`}
         </p>
       )}
       {a.pdfUrl && (

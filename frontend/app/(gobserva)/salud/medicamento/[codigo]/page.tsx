@@ -84,6 +84,8 @@ export default async function FichaMedicamentoPagina({ params, searchParams }: P
     ).values(),
   ];
   const falsificadas = deMarca.filter((a) => a.tipo === "falsificado").length;
+  // «Falsificado» en DIGEMID también es la venta ilegal o sin registro: «falsificadas» sólo si cada alerta lo dice.
+  const soloFalsas = deMarca.length > 0 && deMarca.every((a) => /FALSIFIC/i.test(`${a.titulo} ${a.motivo ?? ""}`));
 
   const pestanas: Pestana[] = [
     {
@@ -170,8 +172,10 @@ export default async function FichaMedicamentoPagina({ params, searchParams }: P
           {deMarca.length > 0 && (
             <section aria-labelledby="por-nombre" className="rounded-2xl border border-line bg-paper">
               <h3 id="por-nombre" className="border-b border-line px-5 py-3 text-cuerpo font-bold text-ink">
-                {falsificadas === deMarca.length
+                {soloFalsas
                   ? `Cajas falsificadas que usan el nombre «${nombreMed(f.marca)}»`
+                  : falsificadas === deMarca.length
+                  ? `Cajas falsificadas o ilegales que usan el nombre «${nombreMed(f.marca)}»`
                   : `Otras cajas que usan el nombre «${nombreMed(f.marca)}»`}
               </h3>
               <p className="px-5 pt-3 text-dato leading-relaxed text-inkSoft">
@@ -389,7 +393,7 @@ export default async function FichaMedicamentoPagina({ params, searchParams }: P
                   : deSeguridad.length
                     ? `Su registro sanitario no tiene alertas, pero hay ${deSeguridad.length === 1 ? "una alerta de seguridad" : `${deSeguridad.length} alertas de seguridad`} sobre su principio activo: léelas en «Alertas».`
                   : deMarca.length
-                    ? `Su registro sanitario no tiene alertas. Ojo: DIGEMID ${falsificadas ? "incautó cajas falsificadas" : "observó otras cajas"} que usan el nombre «${nombreMed(f.marca)}»: compara el lote de la tuya en «Alertas».`
+                    ? `Su registro sanitario no tiene alertas. Ojo: DIGEMID ${soloFalsas ? "incautó cajas falsificadas" : falsificadas ? "encontró cajas falsificadas o ilegales" : "observó otras cajas"} que usan el nombre «${nombreMed(f.marca)}»: compara el lote de la tuya en «Alertas».`
                     : "Ninguna alerta de DIGEMID nombra su registro sanitario ni su marca."}
               </span>
             </p>

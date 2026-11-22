@@ -170,7 +170,8 @@ export function OrdenYTipo({
   const orden = d.orden ?? (conBusqueda ? "relevancia" : "populares");
   const ordenes = [
     ...(conBusqueda ? [{ k: "relevancia", t: "Más parecidos" }] : []),
-    { k: "populares", t: "Más vendidos" },
+    // DIGEMID no publica ventas: es cuántas farmacias reportaron su precio.
+    { k: "populares", t: "En más farmacias" },
     { k: "precio", t: "Menor precio" },
     { k: "nombre", t: "De la A a la Z" },
   ];

@@ -206,7 +206,7 @@ export default async function Fuentes() {
             <CabeceraSeccion id="privacidad-t" titulo="Privacidad" bajada="Verificar a un establecimiento o a un médico no exige exponer a nadie." />
             <ul className="mt-6 grid gap-x-8 gap-y-5 md:grid-cols-2">
               <Punto Icono={UserX} titulo="Sin nombres ni documentos de profesionales">
-                Ninguna tabla de Gobserva Salud guarda nombres ni documentos de profesionales, pacientes o denunciantes. El buscador busca establecimientos: algunos consultorios están inscritos en RENIPRESS con el nombre de su titular, y así aparecen.
+                Ninguna tabla de Gobserva Salud guarda nombres ni documentos de profesionales, pacientes o denunciantes. El buscador busca establecimientos: algunos consultorios están inscritos en RENIPRESS y en el Registro de Sanciones con el nombre de su titular, y así aparecen.
               </Punto>
               <Punto Icono={IdCard} titulo="Del responsable, sólo lo que sirve para verificarlo">
                 De quien figura como responsable de una IPRESS mostramos su colegio, su número de colegiatura y su especialidad registrada (RNE): lo
@@ -290,7 +290,7 @@ export default async function Fuentes() {
               preguntas={[
                 {
                   p: "¿De dónde salen los datos?",
-                  r: "De registros oficiales: RENIPRESS, el Registro de Sanciones y los datos abiertos de SUSALUD (denuncias, recursos y cirugías). La habilitación de un médico la confirma el Colegio Médico del Perú y su título, SUNEDU: te llevamos a sus sitios. Cada dato dice de qué fuente sale y a qué fecha.",
+                  r: "De registros oficiales: RENIPRESS, el Registro de Sanciones y los datos abiertos de SUSALUD (denuncias, recursos y cirugías), y las alertas y los precios de medicamentos de DIGEMID. La habilitación de un médico la confirma el Colegio Médico del Perú y su título, SUNEDU: te llevamos a sus sitios. Cada dato dice de qué fuente sale y a qué fecha.",
                 },
                 {
                   p: "¿Qué es una IPRESS y qué es RENIPRESS?",
@@ -444,7 +444,8 @@ function Fuente({ f, e }: { f: FuenteSalud; e: EstadoFuentes }) {
                 Datos técnicos de la carga
               </summary>
               <dl className="mt-2 grid gap-x-6 gap-y-2.5 text-meta sm:grid-cols-2">
-                <Meta Icono={Rows3} rotulo="Filas">
+                {/* Las denuncias se guardan agrupadas por institución: el número no son las filas del archivo. */}
+                <Meta Icono={Rows3} rotulo={f.clave === "denuncias" ? "Instituciones" : "Filas"}>
                   <span className="tabular-nums">{numero(carga.filas)}</span>
                 </Meta>
                 {carga.sha256 && (

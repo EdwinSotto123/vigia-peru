@@ -439,7 +439,9 @@ function capitalizar(t: string): string {
     .split(/(\s+)/)
     .map((w, i) => {
       if (/^\s+$/.test(w)) return w;
-      if (/^(s\.?a\.?c\.?|e\.?i\.?r\.?l\.?|s\.?r\.?l\.?|s\.?a\.?|ii|iii|iv|vi|vii|viii|ix|xi|xii|essalud|minsa|ipress|sis|clas)$/i.test(w)) return w.toUpperCase();
+      if (/^(s\.?a\.?c\.?|e\.?i\.?r\.?l\.?|s\.?r\.?l\.?|s\.?a\.?|essalud|minsa|ipress|sis|clas)$/i.test(w)) return w.toUpperCase();
+      // Romanos y su nivel: «III-1», «II-2», «I-4» (antes «Iii-1»).
+      if (/^\(?(ii|iii|iv|vi|vii|viii|ix|xi|xii)(-\d+)?\)?[,.;:]?$|^\(?i-\d+\)?[,.;:]?$/i.test(w)) return w.toUpperCase();
       if (i > 0 && minus.has(w)) return w;
       return w.replace(/^([^\p{L}\d]*)(\p{L})/u, (_, antes: string, letra: string) => antes + letra.toUpperCase());
     })
@@ -659,8 +661,9 @@ export const rutaMedicamento = (codigo: number | string) => `/medicamento/${codi
 
 /** Cada tipo de alerta en palabras, con lo que quiere decir para quien tiene el producto en la mano. */
 export const TIPOS_ALERTA: Record<TipoAlerta, { nombre: string; corto: string; explica: string }> = {
-  falsificado: { nombre: "Productos falsificados", corto: "Falsificado", explica: "DIGEMID encontró productos falsificados o de origen desconocido con ese nombre." },
-  calidad: { nombre: "Control de calidad", corto: "Calidad", explica: "Un lote no pasó el control de calidad y DIGEMID dispuso su retiro." },
+  // «Falsificado» en DIGEMID también es la venta ilegal o sin registro sanitario (139-2026, por redes sociales).
+  falsificado: { nombre: "Falsificados o ilegales", corto: "Falsificado o ilegal", explica: "Productos falsificados, sin registro sanitario, de origen desconocido o vendidos de forma ilegal (por ejemplo, en redes sociales)." },
+  calidad: { nombre: "Calidad y retiros", corto: "Calidad o retiro", explica: "Un lote o un producto se retiró del mercado, casi siempre porque no pasó el control de calidad." },
   seguridad: { nombre: "Seguridad", corto: "Seguridad", explica: "Un riesgo nuevo o un cambio en cómo usarlo con seguridad." },
   modificacion: { nombre: "Modificaciones", corto: "Modificación", explica: "Cambios en el registro o en la información del producto." },
   internacional: { nombre: "Alertas internacionales", corto: "Internacional", explica: "Alertas de otras agencias sanitarias que DIGEMID difunde." },

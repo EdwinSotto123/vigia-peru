@@ -29,7 +29,7 @@ export function generateMetadata({ searchParams }: Props): Metadata {
   const tipo = tipoDe(searchParams?.tipo);
   const q = texto(searchParams?.q);
   return {
-    title: tipo ? `Alertas DIGEMID: ${TIPOS_ALERTA[tipo].nombre.toLowerCase()}` : "Alertas DIGEMID de medicamentos y dispositivos",
+    title: tipo ? `Alertas DIGEMID: ${TIPOS_ALERTA[tipo].nombre.toLowerCase().replace(/^alertas /, "")}` : "Alertas DIGEMID de medicamentos y dispositivos",
     description: "Las alertas de DIGEMID sobre productos falsificados, lotes retirados por control de calidad, seguridad y modificaciones, cada una con su PDF oficial.",
     alternates: { canonical: urlCanonica("salud", "/alertas") },
     robots: tipo || q ? { index: false, follow: true } : undefined,
@@ -78,7 +78,7 @@ export default async function Alertas({ searchParams }: Props) {
       <ProveedorFiltros ruta={lista} params={params}>
         <CabeceraLista
           className="mt-2"
-          titulo={tipo ? `Alertas de DIGEMID: ${TIPOS_ALERTA[tipo].nombre.toLowerCase()}` : "Alertas de DIGEMID"}
+          titulo={tipo ? `Alertas de DIGEMID: ${TIPOS_ALERTA[tipo].nombre.toLowerCase().replace(/^alertas /, "")}` : "Alertas de DIGEMID"}
           resumen={
             d && (
               <>
@@ -306,7 +306,21 @@ export default async function Alertas({ searchParams }: Props) {
             </div>
           ) : d.filas.length === 0 ? (
             <div className="rounded-2xl border border-line bg-paper">
-              <EstadoVacio Icono={TriangleAlert} titulo="Ninguna alerta con estos filtros" texto="Prueba con menos palabras o con el principio activo. El lote se busca dentro del PDF de cada alerta." />
+              {d.total > 0 ? (
+                // Pasada la última página (un enlace viejo): no es que no haya alertas.
+                <EstadoVacio
+                  Icono={TriangleAlert}
+                  titulo="Esta página no tiene alertas"
+                  texto={`Hay ${numero(d.total)} ${d.total === 1 ? "alerta" : "alertas"} en ${numero(paginas)} ${paginas === 1 ? "página" : "páginas"}.`}
+                  acciones={
+                    <a href={qs({ pagina: 1 })} className={claseAccion("secundario", "min-h-11")}>
+                      Ir a la primera página
+                    </a>
+                  }
+                />
+              ) : (
+                <EstadoVacio Icono={TriangleAlert} titulo="Ninguna alerta con estos filtros" texto="Prueba con menos palabras o con el principio activo. El lote se busca dentro del PDF de cada alerta." />
+              )}
             </div>
           ) : (
             <>

@@ -216,7 +216,11 @@ export default async function InicioSalud() {
                 <Cifra
                   valor={numero(r.denuncias)}
                   etiqueta={`denuncias en ${r.denunciasAnio ?? "el último año"}`}
-                  detalle="Pedidos de ciudadanos: no son sanciones."
+                  detalle={
+                    r.denunciasAnio === new Date().getFullYear()
+                      ? `Pedidos de ciudadanos: no son sanciones. Lo publicado de ${r.denunciasAnio}: SUSALUD aún no cubre el año entero.`
+                      : "Pedidos de ciudadanos: no son sanciones."
+                  }
                   pie={<FuenteFecha nombre="Consultas y denuncias (SUSALUD)" url={URL_DATOS_SUSALUD} al={r.denunciasAnio} />}
                 />
               </dl>

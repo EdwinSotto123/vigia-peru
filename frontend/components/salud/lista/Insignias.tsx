@@ -24,6 +24,8 @@ export function ConteoDenuncias({ n, anio, className }: { n: number; anio: numbe
     <Insignia tono="aviso" Icono={MessageSquareWarning} title={CLASES_DE_HECHO.denuncia.explica} className={className}>
       {n === 1 ? "1 denuncia" : `${numero(n)} denuncias`}
       {anio ? ` en ${anio}` : ""}
+      {/* El año en curso llega por partes: no es el año entero. */}
+      {anio && anio === new Date().getFullYear() ? " (parcial)" : ""}
     </Insignia>
   );
 }

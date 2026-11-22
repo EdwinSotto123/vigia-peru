@@ -90,7 +90,7 @@ export default async function Medicamentos({ searchParams }: Props) {
         ? "Del más barato al más caro, por unidad"
         : d?.orden === "nombre"
           ? "Todo el catálogo, de la A a la Z"
-          : "Los más vendidos";
+          : "Los que están en más farmacias";
   const paginas = d ? Math.min(1000, Math.max(1, Math.ceil(d.total / POR_PAGINA))) : 1;
   const fuente = d?.fuente;
   // Una alerta que nombra el registro o el lote que la persona escribió (lo de su caja) pesa más que una que nombra la marca.

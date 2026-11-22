@@ -207,7 +207,7 @@ saludRouter.get("/resumen", async (c) => {
                count(*) FILTER (WHERE i.en_registro AND i.activo AND i.sector = 'privado')::int AS privadas,
                count(*) FILTER (WHERE i.en_registro AND i.activo AND i.tipo ILIKE '%CON INTERNAMIENTO%')::int AS "conInternamiento",
                count(*) FILTER (WHERE i.en_registro AND NOT i.activo)::int AS inactivas,
-               count(*) FILTER (WHERE x.sanciones > 0)::int AS "conSanciones",
+               count(*) FILTER (WHERE i.en_registro AND i.activo AND x.sanciones > 0)::int AS "conSanciones",
                count(*) FILTER (WHERE i.lat IS NOT NULL)::int AS "conUbicacion",
                count(*) FILTER (WHERE x.con_detalle)::int AS "conDetalle",
                (SELECT count(*)::int FROM salud_sancion WHERE en_registro) AS sanciones,
@@ -220,7 +220,7 @@ saludRouter.get("/resumen", async (c) => {
       pool.query(`
         SELECT i.departamento AS clave, count(*) FILTER (WHERE i.activo)::int AS activas,
                count(*) FILTER (WHERE i.activo AND i.sector = 'privado')::int AS privadas,
-               count(*) FILTER (WHERE x.sanciones > 0)::int AS "conSanciones",
+               count(*) FILTER (WHERE i.activo AND x.sanciones > 0)::int AS "conSanciones",
                coalesce(sum(x.sanciones), 0)::int AS sanciones
           FROM salud_ipress i LEFT JOIN salud_indicador x ON x.codigo = i.codigo
          WHERE i.en_registro AND i.departamento IS NOT NULL GROUP BY 1 ORDER BY 2 DESC`),
@@ -251,10 +251,14 @@ async function estadoFuentes() {
                   FROM salud_ipress_detalle`),
   ]);
   const ultimas = new Map<string, Record<string, unknown>>();
+  const periodo = new Map<string, number>();
   for (const r of cargas.rows as Record<string, unknown>[]) {
-    // «recursos_2026_10», «denuncias_2026» y «precios_202609» → la clave de la fuente.
+    // «recursos_2026_10», «denuncias_2026» y «precios_202609» → la clave de la fuente y su periodo (202610, 202600, 202609).
+    // Gana el periodo más nuevo; a igual periodo, la carga más reciente (vienen ordenadas así).
+    const m = /_(\d{4})(?:_?(\d{1,2}))?$/.exec(String(r.clave));
     const k = String(r.clave).replace(/_\d{4}(_?\d{1,2})?$/, "");
-    if (!ultimas.has(k)) ultimas.set(k, r);
+    const per = m ? Number(m[1]) * 100 + Number(m[2] ?? 0) : 0;
+    if (!ultimas.has(k) || per > (periodo.get(k) ?? 0)) { ultimas.set(k, r); periodo.set(k, per); }
   }
   const d = detalle.rows[0] as Record<string, unknown>;
   return {
@@ -795,7 +799,20 @@ const OBSERVADOS = `(SELECT coalesce(json_agg(x ORDER BY x.orden), '[]'::json) F
            array_remove(array_agg(DISTINCT p.vencimiento), NULL) AS vencimientos
       FROM salud_alerta_producto p WHERE p.alerta_id = a.id
      GROUP BY p.producto, p.presentacion, p.registro, p.titular, p.fabricante, p.pais, p.detalle) x) AS observados`;
-const COLS_ALERTA = `a.id, a.numero, to_char(a.fecha, 'YYYY-MM-DD') AS fecha, a.tipo, a.titulo, a.motivo, a.productos, a.url, a.pdf_url AS "pdfUrl",
+/**
+ * El tipo de una alerta, corregido por su título y su motivo (2026-11-22, cacería de errores): DIGEMID publica retiros de
+ * lotes o productos bajo «falsificados» o «seguridad» (53-2024 y 6-2021 por control de calidad, 28-2024 Cetirplus, 85-2020…).
+ * Un retiro de un lote o de un producto es «calidad»; el de un principio activo (cerivastatina, grepafloxacino) sigue siendo
+ * de seguridad, y lo que dice «falsificado», «ilegal» o «sin registro» no se toca. Medido en la base: cambian 22 de 1 732.
+ */
+const TEXTO_TIPO = "(a.titulo || ' ' || coalesce(a.motivo, ''))";
+export const TIPO_ALERTA_SQL = `(CASE WHEN a.tipo IN ('falsificado', 'seguridad', 'otra')
+  AND ${TEXTO_TIPO} !~* 'falsific|principio activo|ilegal|sin registro|desconocid|redes sociales'
+  AND (${TEXTO_TIPO} ~* 'control de calidad|no conforme|estabilidad'
+       OR (${TEXTO_TIPO} ~* 'retir' AND ${TEXTO_TIPO} ~* 'lote|producto|dispositivo|equipo|biber|cosm|voluntari'))
+  THEN 'calidad' ELSE a.tipo END)`;
+
+const COLS_ALERTA = `a.id, a.numero, to_char(a.fecha, 'YYYY-MM-DD') AS fecha, ${TIPO_ALERTA_SQL} AS tipo, a.titulo, a.motivo, a.productos, a.url, a.pdf_url AS "pdfUrl",
   ${OBSERVADOS}`;
 /** Lo que una alerta dice en palabras (productos, motivo y título), normalizado para buscar. */
 const TEXTO_ALERTA = `mef_norm(coalesce(a.productos, '') || ' ' || coalesce(a.motivo, '') || ' ' || a.titulo)`;
@@ -958,7 +975,7 @@ saludRouter.get("/medicamentos", async (c) => {
       ? pool.query(
           `SELECT p.producto, p.presentacion, p.lote, p.registro, p.vencimiento, p.titular, p.detalle, p.medicamento_codigo AS medicamento,
                   ${loteDeCaja ? `coalesce(p.lote_norm = '${loteDeCaja}', false)` : "false"} AS "coincideLote",
-                  a.id AS "alertaId", a.numero, to_char(a.fecha, 'YYYY-MM-DD') AS fecha, a.tipo, a.url, a.pdf_url AS "pdfUrl"
+                  a.id AS "alertaId", a.numero, to_char(a.fecha, 'YYYY-MM-DD') AS fecha, ${TIPO_ALERTA_SQL} AS tipo, a.url, a.pdf_url AS "pdfUrl"
              FROM salud_alerta_producto p JOIN salud_alerta a ON a.id = p.alerta_id
             WHERE ${condExacta}
             ORDER BY "coincideLote" DESC, a.fecha DESC LIMIT 10`, valsExacto)
@@ -1012,7 +1029,7 @@ saludRouter.get("/medicamentos", async (c) => {
     if (registro && primero?.nombre) {
       const pm = palabrasMarca(norm(primero.nombre), primero.ifa ? norm(primero.ifa) : null);
       if (pm.length) {
-        const r = await pool.query(`SELECT count(*)::int AS n FROM salud_alerta a WHERE a.tipo = 'falsificado' AND ${pm.map((_, i) => palabraEnAlerta(`$${i + 1}`)).join(" AND ")}`, pm);
+        const r = await pool.query(`SELECT count(*)::int AS n FROM salud_alerta a WHERE ${TIPO_ALERTA_SQL} = 'falsificado' AND ${pm.map((_, i) => palabraEnAlerta(`$${i + 1}`)).join(" AND ")}`, pm);
         if (r.rows[0].n > 0) falsificadasMarca = { marca: pm.join(" "), n: r.rows[0].n };
       }
     }
@@ -1052,7 +1069,7 @@ saludRouter.get("/medicamento/:codigo", async (c) => {
     const generico = palabrasDeMarca.length === 0;
     const marca = generico ? nombre_norm : palabrasDeMarca.join(" ");
     const lotes = registro
-      ? pool.query(`SELECT p.lote, p.vencimiento, p.presentacion, p.detalle, a.numero, to_char(a.fecha, 'YYYY-MM-DD') AS fecha, a.tipo, a.pdf_url AS "pdfUrl"
+      ? pool.query(`SELECT p.lote, p.vencimiento, p.presentacion, p.detalle, a.numero, to_char(a.fecha, 'YYYY-MM-DD') AS fecha, ${TIPO_ALERTA_SQL} AS tipo, a.pdf_url AS "pdfUrl"
                       FROM salud_alerta_producto p JOIN salud_alerta a ON a.id = p.alerta_id
                      WHERE p.registro = $1 AND p.lote IS NOT NULL ORDER BY a.fecha DESC, p.orden LIMIT 40`, [registro])
       : Promise.resolve({ rows: [] });
@@ -1080,7 +1097,7 @@ saludRouter.get("/medicamento/:codigo", async (c) => {
       // genérico, sólo las de seguridad o modificación que nombran su principio activo (le aplican a todos).
       generico
         ? pool.query(`SELECT ${COLS_ALERTA}, count(*) OVER ()::int AS total FROM salud_alerta a
-                       WHERE a.tipo IN ('seguridad', 'modificacion') AND ${palabraEnAlerta("$1", false)}
+                       WHERE ${TIPO_ALERTA_SQL} IN ('seguridad', 'modificacion') AND ${palabraEnAlerta("$1", false)}
                          AND NOT ($2::text IS NOT NULL AND $2 = ANY(a.registros))
                        ORDER BY a.fecha DESC LIMIT 30`, [nombre_norm.split(" ").filter((w) => w.length >= 5 && !/\d/.test(w)).sort((x, y) => y.length - x.length)[0] ?? nombre_norm, registro])
         : pool.query(`SELECT ${COLS_ALERTA}, count(*) OVER ()::int AS total FROM salud_alerta a
@@ -1121,11 +1138,11 @@ saludRouter.get("/alertas", async (c) => {
     if (q.anio) w.push(`extract(year FROM a.fecha) = ${p(q.anio)}`);
     const sinTipo = w.join(" AND ");
     const valsSinTipo = [...vals];
-    const conTipo = q.tipo ? `${sinTipo} AND a.tipo = ${p(q.tipo)}` : sinTipo;
+    const conTipo = q.tipo ? `${sinTipo} AND ${TIPO_ALERTA_SQL} = ${p(q.tipo)}` : sinTipo;
     const [filas, total, tipos] = await Promise.all([
       pool.query(`SELECT ${COLS_ALERTA} FROM salud_alerta a WHERE ${conTipo} ORDER BY a.fecha DESC, a.id DESC LIMIT ${q.tamano} OFFSET ${(q.pagina - 1) * q.tamano}`, vals),
       pool.query(`SELECT count(*)::int AS n FROM salud_alerta a WHERE ${conTipo}`, vals),
-      pool.query(`SELECT a.tipo, count(*)::int AS n FROM salud_alerta a WHERE ${sinTipo} GROUP BY 1`, valsSinTipo),
+      pool.query(`SELECT ${TIPO_ALERTA_SQL} AS tipo, count(*)::int AS n FROM salud_alerta a WHERE ${sinTipo} GROUP BY 1`, valsSinTipo),
     ]);
     return publicar({
       filas: filas.rows, total: total.rows[0].n, pagina: q.pagina, tamano: q.tamano, filtros: q,
@@ -1150,12 +1167,12 @@ saludRouter.get("/alertas/productos", async (c) => {
     if (reg) w.push(`p.registro = ${p(reg)}`);
     else if (lote && !/[A-Z]{4,}/.test(lote)) w.push(`p.lote_norm LIKE ${p(`%${lote}%`)}`);
     else for (const x of palabras(q.q ?? "")) { const k = p(`%${x}%`); w.push(`(p.producto_norm LIKE ${k} OR mef_norm(coalesce(p.titular, '')) LIKE ${k} OR coalesce(p.lote_norm, '') LIKE ${k})`); }
-    if (q.tipo) w.push(`a.tipo = ${p(q.tipo)}`);
+    if (q.tipo) w.push(`${TIPO_ALERTA_SQL} = ${p(q.tipo)}`);
     if (q.anio) w.push(`extract(year FROM a.fecha) = ${p(q.anio)}`);
     const donde = w.join(" AND ");
     const [filas, total] = await Promise.all([
       pool.query(`SELECT p.producto, p.presentacion, p.lote, p.registro, p.vencimiento, p.titular, p.fabricante, p.pais, p.detalle,
-                         p.medicamento_codigo AS medicamento, a.id AS "alertaId", a.numero, to_char(a.fecha, 'YYYY-MM-DD') AS fecha, a.tipo,
+                         p.medicamento_codigo AS medicamento, a.id AS "alertaId", a.numero, to_char(a.fecha, 'YYYY-MM-DD') AS fecha, ${TIPO_ALERTA_SQL} AS tipo,
                          a.url, a.pdf_url AS "pdfUrl"
                     FROM salud_alerta_producto p JOIN salud_alerta a ON a.id = p.alerta_id
                    WHERE ${donde}
