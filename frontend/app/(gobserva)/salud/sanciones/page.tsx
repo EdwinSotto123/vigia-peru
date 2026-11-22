@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { BarraSegmentada, MuestraSerie } from "@/components/charts/BarraSegmentada";
 import Link from "next/link";
 import { Gavel, RotateCw } from "lucide-react";
 import { Ayuda } from "@/components/patrones/Ayuda";
@@ -92,6 +93,7 @@ export default async function Sanciones({ searchParams }: Props) {
       <ProveedorFiltros ruta={lista} params={params}>
         <CabeceraLista
           className="mt-2"
+          figura="documento"
           titulo={f.departamento ? `Sanciones firmes de SUSALUD en ${nombreLugar(f.departamento)}` : "Sanciones firmes de SUSALUD"}
           resumen={
             d && (
@@ -116,6 +118,41 @@ export default async function Sanciones({ searchParams }: Props) {
             )
           }
         />
+
+        {d && d.n > 0 && (
+          <section aria-label="De qué está hecho el registro" className="mt-4 rounded-2xl border border-line bg-paper px-4 py-3.5 sm:px-5">
+            <BarraSegmentada
+              etiqueta="Sanciones firmes por tipo"
+              partes={[
+                { clave: "multa", nombre: "Multas", valor: d.multas, texto: `${numero(d.multas)} ${d.multas === 1 ? "multa" : "multas"}` },
+                { clave: "amonestacion", nombre: "Amonestaciones", valor: d.amonestaciones, texto: `${numero(d.amonestaciones)}` },
+                ...(d.cierres > 0 ? [{ clave: "cierre", nombre: "Cierres", valor: d.cierres, texto: `${numero(d.cierres)}` }] : []),
+              ]}
+            />
+            <ul className="mt-2.5 flex flex-wrap gap-x-5 gap-y-1.5 text-meta text-inkSoft">
+              <li className="inline-flex items-center gap-1.5">
+                <MuestraSerie i={0} />
+                <b className="font-semibold tabular-nums text-ink">{numero(d.multas)}</b> {d.multas === 1 ? "multa" : "multas"}, {uit(d.uit)} UIT en total
+              </li>
+              <li className="inline-flex items-center gap-1.5">
+                <MuestraSerie i={1} />
+                <b className="font-semibold tabular-nums text-ink">{numero(d.amonestaciones)}</b> {d.amonestaciones === 1 ? "amonestación" : "amonestaciones"}
+              </li>
+              {d.cierres > 0 && (
+                <li className="inline-flex items-center gap-1.5">
+                  <MuestraSerie i={2} />
+                  <b className="font-semibold tabular-nums text-ink">{numero(d.cierres)}</b> {d.cierres === 1 ? "cierre" : "cierres"}
+                </li>
+              )}
+              {d.judicializadas > 0 && (
+                <li className="inline-flex items-center gap-1.5">
+                  <Gavel size={13} aria-hidden className="text-mute" />
+                  <b className="font-semibold tabular-nums text-ink">{numero(d.judicializadas)}</b> en un proceso judicial
+                </li>
+              )}
+            </ul>
+          </section>
+        )}
 
         <BarraFiltros
           className="mt-4"
@@ -149,7 +186,7 @@ export default async function Sanciones({ searchParams }: Props) {
               <EstadoVacio
                 Icono={Gavel}
                 titulo="Ninguna sanción firme con estos filtros"
-                texto="Quita un filtro o busca con menos palabras. Que algo no figure en el registro no quiere decir que nunca haya sido sancionado: SUSALUD retira las sanciones antiguas."
+                texto="Quita un filtro o busca con menos palabras. Que algo no figure en el registro no quiere decir que nunca haya sido sancionado: SUSALUD puede retirar las sanciones de más de un año."
                 acciones={
                   <Link href={lista} className={claseAccion("secundario", "min-h-11")}>
                     Ver todo el registro

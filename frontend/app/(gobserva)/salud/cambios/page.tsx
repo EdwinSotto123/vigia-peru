@@ -88,6 +88,7 @@ export default async function Cambios({ searchParams }: Props) {
       <ProveedorFiltros ruta={lista} params={campo ? { campo } : {}}>
       <CabeceraLista
         className="mt-2"
+        figura="iconoCalendario"
         titulo="Cambios en RENIPRESS"
         resumen={
           <>

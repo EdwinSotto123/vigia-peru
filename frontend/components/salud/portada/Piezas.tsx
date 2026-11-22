@@ -272,7 +272,10 @@ export function CabeceraLista({
   resumen,
   acciones,
   className,
+  figura,
 }: {
+  /** Su dibujo de píxeles, al lado del título (2026-11-22: «secciones con texto plano… imágenes»). */
+  figura?: NombreSprite;
   titulo: ReactNode;
   /** «27 000 establecimientos, 602 con sanción firme», con su ⓘ al final. */
   resumen?: ReactNode;
@@ -281,9 +284,16 @@ export function CabeceraLista({
 }) {
   return (
     <header className={cn("grid grid-cols-1 items-end gap-x-4 gap-y-3 sm:grid-cols-[minmax(0,1fr)_auto]", className)}>
-      <div className="min-w-0">
-        <h1 className="text-balance font-display text-seccion font-bold leading-tight tracking-[-0.015em] text-ink">{titulo}</h1>
-        {resumen && <div className="mt-1 text-dato text-inkSoft [&>*]:mr-1.5 [&>*]:inline [&>*]:align-middle">{resumen}</div>}
+      <div className={cn("min-w-0", figura && "flex items-center gap-4")}>
+        {figura && (
+          <span aria-hidden className="grid h-16 w-16 shrink-0 place-items-center rounded-2xl border border-line bg-paper sm:h-[4.5rem] sm:w-[4.5rem]">
+            <Pixel nombre={figura} escala={3} />
+          </span>
+        )}
+        <div className="min-w-0">
+          <h1 className="text-balance font-display text-seccion font-bold leading-tight tracking-[-0.015em] text-ink">{titulo}</h1>
+          {resumen && <div className="mt-1 text-dato text-inkSoft [&>*]:mr-1.5 [&>*]:inline [&>*]:align-middle">{resumen}</div>}
+        </div>
       </div>
       {acciones && <div className="flex min-w-0 flex-wrap items-center gap-2">{acciones}</div>}
     </header>
