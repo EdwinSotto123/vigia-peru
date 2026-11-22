@@ -502,7 +502,10 @@ async function responsables(colegiatura: string, colegio: string | null): Promis
   if (!/^\d{1,7}$/.test(colegiatura)) return [];
   const r = await pool.query(`
     SELECT ${COLS}, d.responsable_colegio AS "responsableColegio", d.responsable_rne AS "responsableRne",
-           to_char(d.leido_at AT TIME ZONE 'America/Lima', 'YYYY-MM-DD') AS "leidoAl"
+           to_char(d.leido_at AT TIME ZONE 'America/Lima', 'YYYY-MM-DD') AS "leidoAl",
+           -- Las especialidades que declaró el establecimiento (no las del profesional: RENIPRESS sólo trae su número de RNE).
+           (SELECT coalesce(json_agg(e->>'nombre' ORDER BY e->>'nombre'), '[]') FROM jsonb_array_elements(d.especialidades) e
+             WHERE coalesce(e->>'nombre', '') <> '') AS especialidades
       FROM salud_ipress_detalle d JOIN salud_ipress i ON i.codigo = d.codigo LEFT JOIN salud_indicador x ON x.codigo = i.codigo
      WHERE d.responsable_colegiatura = $1 AND ($2::text IS NULL OR d.responsable_colegio ILIKE $2)
      ORDER BY i.activo DESC, i.nombre LIMIT 60`, [colegiatura, colegio]);

@@ -13,6 +13,7 @@ import type { NombreSprite } from "@/components/pixel/sprites";
 import { claseAccion } from "@/components/ui/EnlaceAccion";
 import { FuenteFecha, InsigniaCategoria } from "@/components/salud/comun";
 import { estadoRegistro } from "@/components/salud/ficha/Cabecera";
+import { nombreServicio } from "@/components/salud/ficha/piezas";
 import { CopiarNumero } from "@/components/salud/medico/CopiarNumero";
 import { FormColegiatura } from "@/components/salud/medico/FormColegiatura";
 import { PasosDeslizables } from "@/components/salud/medico/PasosDeslizables";
@@ -101,6 +102,22 @@ function Establecimiento({ x, base }: { x: Medico["responsableDe"][number]; base
             </span>
           )}
         </p>
+        {/* Lo que declaró el establecimiento (no la especialidad del profesional, que RENIPRESS no trae). */}
+        {(x.especialidades?.length ?? 0) > 0 && (
+          <div className="mt-2.5">
+            <p className="text-rotulo font-semibold text-inkSoft">Especialidades que declaró este establecimiento (no son las del médico)</p>
+            <ul className="mt-1 flex flex-wrap gap-1.5">
+              {x.especialidades!.slice(0, 8).map((e) => (
+                <li key={e} className="rounded-md bg-paperSoft px-1.5 py-0.5 text-rotulo text-inkSoft">
+                  {nombreServicio(e)}
+                </li>
+              ))}
+              {x.especialidades!.length > 8 && (
+                <li className="px-1 py-0.5 text-rotulo font-semibold text-mute">y {numero(x.especialidades!.length - 8)} más</li>
+              )}
+            </ul>
+          </div>
+        )}
       </div>
       <Link href={ficha} prefetch={false} className={claseAccion("secundario", "col-span-2 min-h-11 sm:col-span-1")}>
         Ver la ficha <ChevronRight size={15} aria-hidden />
@@ -282,11 +299,23 @@ export default async function ResultadoMedico({ params, searchParams }: Props) {
             </Respuesta>
             <Respuesta
               Icono={Stethoscope}
-              tono={m.rne.length ? "neutro" : "pendiente"}
-              pregunta="¿Tiene una especialidad registrada?"
-              respuesta={m.rne.length ? `RNE ${m.rne.join(", ")}, según RENIPRESS` : "RENIPRESS no le registra un RNE"}
+              tono={m.rne.length ? "bien" : "pendiente"}
+              pregunta="¿Es especialista?"
+              respuesta={m.rne.length ? "Sí, es especialista registrado" : "RENIPRESS no le registra un RNE"}
             >
-              <p className="mt-1 text-meta text-inkSoft">El nombre de la especialidad de cada RNE lo dice el CMP.</p>
+              <p className="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-meta text-inkSoft">
+                {m.rne.length ? (
+                  <>
+                    Tiene el RNE <span className="font-mono font-semibold text-ink">{m.rne.join(", ")}</span>. Cuál especialidad es lo dice el CMP.
+                    <Ayuda titulo="¿Por qué no decimos qué especialidad es?">
+                      RENIPRESS sólo publica el número del Registro Nacional de Especialistas (RNE), y ese número no dice la especialidad: el
+                      CMP lo asigna en orden de registro. El nombre de la especialidad se ve en «Conoce a tu médico», que pide cuenta y captcha.
+                    </Ayuda>
+                  </>
+                ) : (
+                  "Si tiene una especialidad, figura en el CMP; si no figura un RNE, no está registrado como especialista."
+                )}
+              </p>
             </Respuesta>
             <Respuesta
               Icono={Building2}

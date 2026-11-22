@@ -241,7 +241,8 @@ export interface Medico {
   colegiatura: string;
   colegio: string | null;
   rne: string[];
-  responsableDe: (FilaIpress & { colegio: string; responsableRne: string | null; leidoAl: string | null })[];
+  /** `especialidades`: las que declaró el establecimiento en RENIPRESS (no las del profesional). */
+  responsableDe: (FilaIpress & { colegio: string; responsableRne: string | null; leidoAl: string | null; especialidades?: string[] })[];
   cobertura: { leidas: number; total: number; al: string | null };
   resumen: string;
   habilitacion: { estado: "verificar_en_cmp"; detalle: string; url: string };
