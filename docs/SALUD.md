@@ -1,7 +1,8 @@
 # Gobserva Salud
 
-Verificar establecimientos de salud y médicos del Perú con fuentes oficiales: `salud.gobserva.cloud`.
-Abierto y gratuito, sin cuenta. Desde el 2026-11-20.
+Verificar establecimientos de salud, médicos y medicamentos del Perú con fuentes oficiales: `salud.gobserva.cloud`.
+Abierto y gratuito: todo se ve sin cuenta. Desde el 2026-11-20; medicamentos, panel lateral y cuenta gratis desde el
+2026-11-21.
 
 ## Qué responde
 
@@ -11,6 +12,7 @@ Abierto y gratuito, sin cuenta. Desde el 2026-11-20.
 | ¿Puede hacer cirugías (estéticas)? | Detalle de RENIPRESS: unidad de centro quirúrgico (UPSS), especialidades (cirugía plástica), cartera de servicios; producción quirúrgica declarada; normas (RAG) | RENIPRESS no autoriza procedimientos uno por uno: se dice qué está registrado y qué no |
 | ¿Tiene sanciones? | Registro de Sanciones de SUSALUD: sanciones **firmes** con resolución, infracción, multa en UIT y estado judicial | Nunca «no tiene sanciones»: «no figura en el registro revisado el …» (SUSALUD retira las antiguas tras ≥ 1 año) |
 | ¿Tiene denuncias? | Reporte anonimizado de consultas y denuncias ante SUSALUD, por año | Una denuncia no es una sanción ni un hecho comprobado |
+| ¿Este medicamento tiene una alerta? ¿Cuánto cuesta? | Alertas DIGEMID (con el texto de su PDF: lote y registro sanitario) e Indicador de precios del Observatorio de DIGEMID (mediana por unidad en farmacias y boticas privadas, por mes) | Una alerta de un lote no dice que todo el producto esté observado; el precio no es el de hoy ni el de una farmacia |
 | ¿Este médico está habilitado? | Pasos para verificarlo en «Conoce a tu médico» del CMP y en SUNEDU; en qué IPRESS figura su colegiatura como responsable (RENIPRESS) | La habilitación sólo la dice el CMP; la sanción de una clínica no es del médico |
 
 Cuatro clases de hecho, siempre con su rótulo y nunca mezcladas: **sanción firme**, **denuncia**, **reclamo** y
@@ -125,6 +127,23 @@ Topes del asistente (`TOPES_ASISTENTE_SALUD`; Turnstile es el widget de siempre,
 al día en total, bloqueo automático de 24 h ante ráfagas; modelo abierto por vigia-llm (sin Claude); no guarda
 conversaciones.
 
+## La app y la cuenta (2026-11-21)
+
+- **Panel lateral para todos** (`PRODUCTOS_APP_ABIERTA` en `frontend/lib/gobserva.ts`): Salud usa el marco de app de
+  Empleo y Licitaciones (`MarcoApp`, `NavApp`) con o sin sesión: Inicio, Mis guardados y Asistente; «Verificar»
+  (establecimientos, médicos, medicamentos); «Explorar» (cerca de mí, mapa, alertas, sanciones, cambios, fuentes). En el
+  celular, una barra abajo con Inicio, Clínicas, Médicos, Medicinas y «Más». La portada no redirige con sesión.
+- **Medicamentos** (`/medicamentos`, `/medicamento/[codigo]`, `/alertas`; migración 441; fuente `digemid` del Worker,
+  diaria): un buscador por nombre, principio activo, registro sanitario o lote; primero si una alerta lo nombra, después
+  los productos con su precio típico por unidad y, en la ficha, los que tienen el mismo principio activo del más barato
+  al más caro. DIGEMID responde al agente «Gobserva/1.0» (rechaza el de curl) y pide bajar el ritmo con los PDF: uno cada
+  6 segundos y, ante un 429, esperas de 30 s a 2 min.
+- **Cuenta gratis** (migración 442; `routes/saludCuenta.ts`): su propio grupo de Cognito («gobserva-salud», como Empleo
+  y Licitaciones), correo y contraseña con código. Sólo sirve para guardar establecimientos, colegiaturas y medicamentos
+  («Guardar» en cada ficha) y ver lo nuevo desde que se guardó en «Mis guardados» (`/cuenta`): una sanción firme
+  emitida después, un cambio en RENIPRESS o una alerta de DIGEMID sobre su registro sanitario. Sin planes ni pagos:
+  tabla propia (`salud_guardado`), aparte de `gobserva_guardados`. Tope de 300 por cuenta.
+
 ## Operación
 
 - Carga a mano desde la PC (mismo código del Worker): `python backend/scripts/susalud_cargar.py prod <tipo> <archivo>`
@@ -151,4 +170,6 @@ ampliación a medicamentos, infraestructura, epidemiología, cobertura y fiscali
 - Reclamos ante las IPRESS (XLSX anuales de 25 MB) y «Medidas» adoptadas: se pueden sumar como «reclamo» por IPRESS.
 - INDECOPI (sanciones de protección al consumidor a clínicas) y DIGEMID (establecimientos farmacéuticos), si hay
   descarga abierta.
-- Alertas: avisar si una clínica seguida cambia de estado o recibe una sanción (las tablas ya guardan los cambios).
+- Avisos por correo de lo guardado (hoy lo nuevo se marca en «Mis guardados»): una tarea diaria que cruce
+  `salud_guardado` con `salud_sancion`, `salud_ipress_cambio` y `salud_alerta` y mande un resumen (el correo de Cognito
+  tiene tope de 50 al día: haría falta SES fuera del sandbox).

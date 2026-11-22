@@ -24,7 +24,8 @@ interface Promesa {
 }
 
 /** Lo que gana quien tiene cuenta, por producto, y un ejemplo de cómo le llega un aviso. */
-const GANAS: Record<Producto, { titulo: string; puntos: Promesa[]; ejemplo: { asunto: string; lineas: string[] } }> = {
+// `de` y `pie`: de dónde sale el ejemplo (por defecto, un correo de Gobserva). Salud no manda correos: lo marca en «Mis guardados».
+const GANAS: Record<Producto, { titulo: string; puntos: Promesa[]; ejemplo: { asunto: string; lineas: string[]; de?: string; pie?: string } }> = {
   empleo: {
     titulo: "No se te pasa ninguna plaza",
     puntos: [
@@ -60,7 +61,12 @@ const GANAS: Record<Producto, { titulo: string; puntos: Promesa[]; ejemplo: { as
       { Icono: BellRing, titulo: "Lo nuevo, marcado", texto: "Si a una clínica le ponen una sanción o DIGEMID emite una alerta de tu medicamento." },
       { Icono: ShieldCheck, titulo: "Gratis, sin planes", texto: "Todo lo demás de Gobserva Salud se ve sin cuenta." },
     ],
-    ejemplo: { asunto: "Panadol 500 mg: una alerta nueva de DIGEMID", lineas: ["Productos falsificados incautados", "Revisa el lote de tu caja"] },
+    ejemplo: {
+      asunto: "Panadol 500 mg: alerta nueva de DIGEMID",
+      lineas: ["Productos falsificados incautados", "Revisa el lote de tu caja"],
+      de: "En «Mis guardados»",
+      pie: "Ejemplo de cómo se marca lo nuevo en lo que guardaste.",
+    },
   },
 };
 
@@ -435,11 +441,11 @@ function Ganas({ producto }: { producto: Producto }) {
           <div className="rounded-2xl border border-paper/15 bg-paper/[0.07] p-4">
             <div className="flex items-center gap-3">
               <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-maiz text-sobreMaiz">
-                <BellRing size={17} aria-hidden />
+                {g.ejemplo.de ? <Bookmark size={17} aria-hidden /> : <BellRing size={17} aria-hidden />}
               </span>
               <div className="min-w-0">
                 <p className="truncate text-meta font-semibold text-paper">{g.ejemplo.asunto}</p>
-                <p className="text-rotulo text-paper/60">Gobserva, 7:00</p>
+                <p className="text-rotulo text-paper/60">{g.ejemplo.de ?? "Gobserva, 7:00"}</p>
               </div>
             </div>
             <div className="mt-3 space-y-1 border-t border-paper/10 pt-3">
@@ -448,7 +454,7 @@ function Ganas({ producto }: { producto: Producto }) {
               ))}
             </div>
           </div>
-          <figcaption className="mt-2 text-rotulo text-paper/55">Ejemplo de cómo te llega una alerta.</figcaption>
+          <figcaption className="mt-2 text-rotulo text-paper/55">{g.ejemplo.pie ?? "Ejemplo de cómo te llega una alerta."}</figcaption>
         </figure>
       </div>
     </aside>

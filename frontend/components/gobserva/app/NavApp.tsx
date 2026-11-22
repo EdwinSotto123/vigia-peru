@@ -168,7 +168,8 @@ function Enlace({ item, base, actual, grande = false, onClick }: { item: ItemApp
   const { Icono } = item;
   const clase = cn(
     "group flex items-center gap-3 rounded-lg px-3 text-dato transition-colors duration-rapido",
-    grande ? "min-h-12" : "min-h-10",
+    // 36 px en la barra lateral (mouse): entra entera en una laptop de 768 px de alto; en la hoja del celular, 48 px.
+    grande ? "min-h-12" : "min-h-9",
     actual ? "bg-granate-50 font-semibold text-ink" : "font-medium text-inkSoft hover:bg-ink/[0.045] hover:text-ink",
   );
   const contenido = (
@@ -395,9 +396,9 @@ export function LateralApp({ producto, base }: { producto: Producto; base: strin
   if (!app) return null;
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <nav aria-label="Secciones de la app" className="min-h-0 flex-1 overflow-y-auto px-3 py-4">
+      <nav aria-label="Secciones de la app" className="min-h-0 flex-1 overflow-y-auto px-3 py-3">
         {app.grupos.map((g, i) => (
-          <div key={g.titulo ?? i} className={cn(i > 0 && "mt-5")}>
+          <div key={g.titulo ?? i} className={cn(i > 0 && "mt-4")}>
             {g.titulo && <p className="mb-1 px-3 text-rotulo font-semibold text-mute">{g.titulo}</p>}
             <ul className="space-y-0.5">
               {g.items.map((item) => (

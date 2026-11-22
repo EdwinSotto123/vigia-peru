@@ -11,6 +11,7 @@ import { claseAccion } from "@/components/ui/EnlaceAccion";
 import { rutaEn, urlCanonica } from "@/lib/gobserva";
 import { buscarMedicamentos, mesLargo, numero } from "@/lib/gobserva-salud";
 import { baseProducto } from "@/lib/gobserva-servidor";
+import { cn } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 
@@ -54,6 +55,8 @@ export default async function Medicamentos({ searchParams }: Props) {
   const href = (n: number) => `${lista}?${new URLSearchParams({ q, pagina: String(n) })}`;
   const paginas = d ? Math.min(200, Math.max(1, Math.ceil(d.total / POR_PAGINA))) : 1;
   const fuente = d?.fuente;
+  // Una alerta que nombra el registro o el lote que la persona escribió (lo de su caja) pesa más que una que nombra la marca.
+  const porCaja = d?.como === "registro" || d?.como === "lote";
 
   return (
     <div className="container-page pb-10 pt-5 sm:pb-14 sm:pt-6">
@@ -62,9 +65,27 @@ export default async function Medicamentos({ searchParams }: Props) {
         figura="frasco"
         className="mt-2"
         titulo="Verifica un medicamento"
-        bajada="Escribe el nombre, el principio activo, el registro sanitario o el lote que sale en la caja. Te decimos si DIGEMID emitió una alerta y cuánto cuesta en farmacias y boticas."
+        bajada="Con su nombre, su registro sanitario o el lote de la caja: si DIGEMID emitió una alerta y cuánto cuesta en farmacias."
       >
         <FormMedicamento accion={lista} q={q} grande />
+        {!q && (
+          <ul className="mt-3 flex flex-wrap items-center gap-2" aria-label="Búsquedas de ejemplo">
+            {[
+              { t: "Paracetamol", q: "paracetamol", que: "principio activo" },
+              { t: "Panadol", q: "panadol", que: "marca" },
+              { t: "EE08059", q: "EE08059", que: "registro sanitario" },
+            ].map((x) => (
+              <li key={x.q}>
+                <Link
+                  href={`${lista}?${new URLSearchParams({ q: x.q })}`}
+                  className="inline-flex min-h-11 items-center gap-1.5 rounded-full border border-line bg-paper px-3.5 text-meta font-medium text-ink transition-colors duration-rapido hover:border-granate/50 sm:min-h-9"
+                >
+                  {x.t} <span className="text-mute max-sm:sr-only">{x.que}</span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        )}
         {fuente && (
           <p className="mt-3 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-meta text-inkSoft">
             {numero(fuente.productos)} medicamentos con precio y {numero(fuente.alertas)} alertas de DIGEMID.
@@ -133,21 +154,25 @@ export default async function Medicamentos({ searchParams }: Props) {
         <>
           {/* Primero la salud: si alguna alerta lo nombra. */}
           {d.alertasTotal ? (
-            <section aria-labelledby="alertas-t" className="mt-6 rounded-2xl border border-crimson/30 bg-crimson-soft/40">
-              <div className="flex gap-3 border-b border-crimson/20 px-5 py-4">
-                <TriangleAlert size={22} aria-hidden className="mt-0.5 shrink-0 text-crimsonTexto" />
+            <section
+              aria-labelledby="alertas-t"
+              className={cn("mt-6 rounded-2xl border", porCaja ? "border-crimson/30 bg-crimson-soft/40" : "border-amber/40 bg-amber-soft/40")}
+            >
+              <div className={cn("flex gap-3 border-b px-5 py-4", porCaja ? "border-crimson/20" : "border-amber/30")}>
+                <TriangleAlert size={22} aria-hidden className={cn("mt-0.5 shrink-0", porCaja ? "text-crimsonTexto" : "text-amberTexto")} />
                 <div>
                   <h2 id="alertas-t" className="font-display text-bloque font-bold leading-snug text-ink">
                     {d.alertasTotal === 1 ? "Una alerta de DIGEMID nombra" : `${numero(d.alertasTotal)} alertas de DIGEMID nombran`} «{q}»
                   </h2>
                   <p className="mt-1 max-w-[75ch] text-meta leading-relaxed text-inkSoft">
-                    Revisa si el lote o el registro de tu caja es el de la alerta: una alerta de un lote no quiere decir que todo el producto
-                    esté observado. Si lo es, no lo uses y pregunta en la farmacia.
+                    {porCaja
+                      ? `El ${d.como === "lote" ? "lote" : "registro sanitario"} que escribiste aparece en la alerta. Si es el de tu caja, no lo uses y pregunta en la farmacia o llama a DIGEMID.`
+                      : "Compara el lote y el registro de tu caja con los de la alerta: muchas son de falsificaciones o de un solo lote, no de todo el producto."}
                   </p>
                 </div>
               </div>
               {/* Tres: el resto en /alertas (la página no se alarga). */}
-              <ul className="divide-y divide-crimson/15">
+              <ul className={cn("divide-y", porCaja ? "divide-crimson/15" : "divide-amber/25")}>
                 {d.alertas.slice(0, 3).map((a) => (
                   <li key={a.id}>
                     <FilaAlerta a={a} />
@@ -155,7 +180,7 @@ export default async function Medicamentos({ searchParams }: Props) {
                 ))}
               </ul>
               {d.alertasTotal > 3 && (
-                <p className="border-t border-crimson/20 px-5 py-3">
+                <p className={cn("border-t px-5 py-3", porCaja ? "border-crimson/20" : "border-amber/30")}>
                   <Link href={`${rutaEn(base, "/alertas")}?${new URLSearchParams({ q })}`} className="inline-flex min-h-11 items-center text-meta font-semibold text-granate underline-offset-4 hover:underline sm:min-h-8">
                     Ver las {numero(d.alertasTotal)} alertas
                   </Link>

@@ -52,7 +52,7 @@ export function FormMedicamento({ accion, q, grande = false, className }: { acci
           defaultValue={q}
           autoComplete="off"
           enterKeyHint="search"
-          placeholder="Panadol, amoxicilina, EE01234 o el lote de la caja"
+          placeholder="Nombre, registro sanitario o lote"
           className={cn(
             "w-full rounded-xl border border-line bg-paper pl-11 pr-3 text-cuerpo text-ink placeholder:text-mute transition-colors duration-rapido focus:border-granate focus:outline-none focus:ring-2 focus:ring-granate/30",
             grande ? "h-14" : "h-12",
@@ -117,24 +117,21 @@ export function FilaAlerta({ a, compacta = false }: { a: AlertaDigemid; compacta
     <article className={cn("min-w-0", compacta ? "py-3" : "px-4 py-4 sm:px-5")}>
       <p className="flex flex-wrap items-center gap-x-3 gap-y-1">
         <InsigniaAlerta tipo={a.tipo} />
-        <span className="text-meta font-semibold text-ink">{a.numero ? `Alerta N.° ${a.numero}` : a.titulo}</span>
+        <a href={a.url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-meta font-semibold text-ink underline-offset-4 hover:underline">
+          {a.numero ? `Alerta N.° ${a.numero}` : a.titulo}
+          <ArrowUpRight size={12} aria-hidden className="text-mute" />
+          <span className="sr-only"> (en la web de DIGEMID, se abre en otra pestaña)</span>
+        </a>
         <span className="text-meta text-mute">{fechaCorta(a.fecha)}</span>
       </p>
       {productos && !igualTitulo(productos) && <p className="mt-1.5 text-dato font-semibold leading-snug text-ink">{productos}</p>}
       {motivo && !igualTitulo(motivo) && <p className="mt-1 max-w-[80ch] text-meta leading-relaxed text-inkSoft">{motivo.charAt(0) + motivo.slice(1).toLowerCase()}</p>}
-      <p className="mt-1.5 flex flex-wrap gap-x-4">
-        {a.pdfUrl && (
-          <a href={a.pdfUrl} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-11 items-center gap-1.5 text-meta font-semibold text-granate underline-offset-4 hover:underline sm:min-h-8">
-            <FileText size={14} aria-hidden /> La alerta en PDF (lote y registro)
-            <span className="sr-only"> (se abre en otra pestaña)</span>
-          </a>
-        )}
-        <a href={a.url} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-11 items-center gap-1 text-meta font-medium text-inkSoft underline-offset-4 hover:text-ink hover:underline sm:min-h-8">
-          En la web de DIGEMID
-          <ArrowUpRight size={13} aria-hidden />
+      {a.pdfUrl && (
+        <a href={a.pdfUrl} target="_blank" rel="noopener noreferrer" className="mt-1 inline-flex min-h-11 items-center gap-1.5 text-meta font-semibold text-granate underline-offset-4 hover:underline sm:min-h-8">
+          <FileText size={14} aria-hidden /> Ver el lote y el registro en el PDF
           <span className="sr-only"> (se abre en otra pestaña)</span>
         </a>
-      </p>
+      )}
     </article>
   );
 }
