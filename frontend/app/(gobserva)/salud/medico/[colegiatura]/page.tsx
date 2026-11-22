@@ -11,6 +11,7 @@ import { estadoRegistro } from "@/components/salud/ficha/Cabecera";
 import { CopiarNumero } from "@/components/salud/medico/CopiarNumero";
 import { FormColegiatura } from "@/components/salud/medico/FormColegiatura";
 import { PasosVerificar } from "@/components/salud/medico/PasosVerificar";
+import { BotonGuardarSalud } from "@/components/salud/cuenta/BotonGuardar";
 import { rutaEn, urlCanonica } from "@/lib/gobserva";
 import { baseProducto } from "@/lib/gobserva-servidor";
 import { fechaCorta, getMedico, nombrePropio, numero, rutaFicha, rutaMedico, type Medico } from "@/lib/gobserva-salud";
@@ -124,6 +125,7 @@ export default async function ResultadoMedico({ params }: Props) {
             Colegiatura N.° <span className="font-mono">{m.colegiatura}</span>
           </h1>
           <p className="mt-1.5 text-cuerpo text-inkSoft">{m.colegio ?? "Colegio profesional sin precisar"}</p>
+          <BotonGuardarSalud tipo="medico" codigo={m.colegiatura} nombre={`Colegiatura N.° ${m.colegiatura}`} base={base} className="mt-3" />
         </div>
         <details className="group w-full sm:w-auto">
           <summary className="inline-flex min-h-11 cursor-pointer list-none items-center gap-1.5 text-dato font-semibold text-granate [&::-webkit-details-marker]:hidden">

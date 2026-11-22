@@ -47,3 +47,12 @@ test("revisarApp: cada cuenta en su app; la de Vigía sólo en la transición o 
   assert.equal(revisarApp(null, null, { ...o, metodo: "POST", ruta: "/gobserva/cuenta/planes" })?.error, "cuenta_vigia");
   assert.equal(revisarApp(null, "empleo", { ...o, vigia: "todas" }), null);
 });
+
+test("Gobserva Salud tiene su propia cuenta (2026-11-21): su grupo se lee y su producto es suyo", () => {
+  const g = leerCognito(`${COGNITO},salud|us-east-2_n5EEwMklV|2h67lbj9l2qdrntc00iefr13dd`);
+  assert.deepEqual(g.map((x) => x.app), ["empleo", "licitaciones", "salud"]);
+  assert.equal(grupoDelToken(jwt({ iss: "https://cognito-idp.us-east-2.amazonaws.com/us-east-2_n5EEwMklV" }), g)?.app, "salud");
+  assert.equal(appDelProducto("salud"), "salud");
+  const o = { vigia: "planes" as const, metodo: "GET", ruta: "/gobserva/cuenta/me" };
+  assert.equal(revisarApp("salud", "empleo", o)?.error, "otra_app");
+});

@@ -10,7 +10,8 @@
  * token (para elegir con qué se verifica) y si una cuenta puede usar el pedido que hace.
  */
 
-export type AppCuenta = "empleo" | "licitaciones";
+// Gobserva Salud (2026-11-21): su cuenta gratis, también con su propio grupo (sin planes: routes/saludCuenta.ts).
+export type AppCuenta = "empleo" | "licitaciones" | "salud";
 
 export interface GrupoCognito {
   app: AppCuenta;
@@ -26,7 +27,7 @@ export function leerCognito(texto: string | undefined): GrupoCognito[] {
   for (const parte of (texto ?? "").split(",")) {
     const [app, pool, cliente] = parte.split("|").map((x) => x.trim());
     const region = /^([a-z]{2}-[a-z]+-\d)_[A-Za-z0-9]+$/.exec(pool ?? "")?.[1];
-    if ((app === "empleo" || app === "licitaciones") && region && /^[a-z0-9]{20,40}$/.test(cliente ?? "")) {
+    if ((app === "empleo" || app === "licitaciones" || app === "salud") && region && /^[a-z0-9]{20,40}$/.test(cliente ?? "")) {
       r.push({ app, pool, cliente, emisor: `https://cognito-idp.${region}.amazonaws.com/${pool}` });
     }
   }
@@ -59,6 +60,7 @@ export function grupoDelToken(token: string, grupos: GrupoCognito[]): GrupoCogni
 export function appDelProducto(p: unknown): AppCuenta | null {
   if (p === "empleo") return "empleo";
   if (p === "licitaciones" || p === "obras") return "licitaciones";
+  if (p === "salud") return "salud";
   return null;
 }
 
@@ -69,7 +71,7 @@ export function appDeRuta(ruta: string): AppCuenta | null {
   return null;
 }
 
-export const NOMBRE_APP: Record<AppCuenta, string> = { empleo: "Gobserva Empleo", licitaciones: "Gobserva Licitaciones" };
+export const NOMBRE_APP: Record<AppCuenta, string> = { empleo: "Gobserva Empleo", licitaciones: "Gobserva Licitaciones", salud: "Gobserva Salud" };
 
 /**
  * ¿Puede esta cuenta hacer este pedido? `cuenta`: la app del proyecto del token (null = cuenta de Vigía). `pedida`: la

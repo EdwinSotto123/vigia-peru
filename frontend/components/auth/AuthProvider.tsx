@@ -57,7 +57,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     // Empleo, Licitaciones y Obras (2026-11-07): cada app con su cuenta en Cognito (lib/cognito.ts), no el Firebase de
     // Vigía. Su usuario trae lo mismo que la interfaz usa del de Firebase (uid, email, displayName, getIdToken).
-    if (/^(empleo|licitaciones|obras)(-dev)?\.gobserva\.cloud$/i.test(window.location.hostname) || /^\/(empleo|licitaciones|obras)(\/|$)/.test(window.location.pathname)) {
+    if (/^(empleo|licitaciones|obras|salud)(-dev)?\.gobserva\.cloud$/i.test(window.location.hostname) || /^\/(empleo|licitaciones|obras|salud)(\/|$)/.test(window.location.pathname)) {
       void import("@/lib/cognito").then(({ escuchar }) => {
         if (!vivo) return;
         desuscribir = escuchar((u) => {

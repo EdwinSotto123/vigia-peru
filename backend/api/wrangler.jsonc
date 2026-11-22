@@ -60,7 +60,7 @@
     "FIREBASE_PROJECT_ID": "simplia-project",
     // Cuentas separadas por app (2026-11-07): Empleo y Licitaciones (con Obras) tienen su propio grupo de Cognito
     // (infrastructure/aws/cognito_gobserva.py). Ids públicos.
-    "COGNITO_GOBSERVA": "empleo|us-east-2_6NbPbjwJL|44beeckthuc0fbd5kcglljsngq,licitaciones|us-east-2_crVrk38vW|3o2hsar23q2hn064eg69cqn9ic",
+    "COGNITO_GOBSERVA": "empleo|us-east-2_6NbPbjwJL|44beeckthuc0fbd5kcglljsngq,licitaciones|us-east-2_crVrk38vW|3o2hsar23q2hn064eg69cqn9ic,salud|us-east-2_n5EEwMklV|2h67lbj9l2qdrntc00iefr13dd",
     "GOBSERVA_CUENTAS_VIGIA": "planes",
     "GCS_PROJECT_ID": "vivid-spot-480905-a4",
     "GCS_BUCKET_DOCUMENTOS": "vigia-peru-documentos",
@@ -110,7 +110,7 @@
         "FIREBASE_PROJECT_ID": "simplia-project",
     // Cuentas separadas por app (2026-11-07): Empleo y Licitaciones (con Obras) tienen su propio grupo de Cognito
     // (infrastructure/aws/cognito_gobserva.py). Ids públicos.
-    "COGNITO_GOBSERVA": "empleo|us-east-2_6NbPbjwJL|44beeckthuc0fbd5kcglljsngq,licitaciones|us-east-2_crVrk38vW|3o2hsar23q2hn064eg69cqn9ic",
+    "COGNITO_GOBSERVA": "empleo|us-east-2_6NbPbjwJL|44beeckthuc0fbd5kcglljsngq,licitaciones|us-east-2_crVrk38vW|3o2hsar23q2hn064eg69cqn9ic,salud|us-east-2_n5EEwMklV|2h67lbj9l2qdrntc00iefr13dd",
     "GOBSERVA_CUENTAS_VIGIA": "planes",
         "ALLOWED_ORIGINS": "http://localhost:3000,https://vigia-web-dev.vigiaperu.workers.dev,https://empleo-dev.gobserva.cloud,https://licitaciones-dev.gobserva.cloud,https://obras-dev.gobserva.cloud,https://salud-dev.gobserva.cloud",
         // La web de DEV también entra por empleo-dev y licitaciones-dev.gobserva.cloud: sus subpedidos llegan con esa zona.

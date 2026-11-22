@@ -10,6 +10,9 @@ test("appDelSitio: subdominios de PROD y DEV, ruta en DEV; Obras va con Licitaci
   assert.equal(appDelSitio("localhost", "/obras"), "licitaciones");
   assert.equal(appDelSitio("vigia.gobserva.cloud", "/app/contratos"), null);
   assert.equal(appDelSitio("empleo.gobserva.cloud.evil.com"), null);
+  // Gobserva Salud tiene su propia cuenta (2026-11-21).
+  assert.equal(appDelSitio("salud.gobserva.cloud"), "salud");
+  assert.equal(appDelSitio("localhost", "/salud/medicamentos"), "salud");
   assert.equal(appDelProducto("obras"), "licitaciones");
 });
 

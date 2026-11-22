@@ -165,6 +165,8 @@ function aLaAppEmpleo(ruta: string, search: string): string | null {
 }
 
 function destinoConSesion(producto: Producto, ruta: string): string | null {
+  // Salud es abierto: su portada es el inicio de la app para todos, con cuenta o sin ella.
+  if (producto === "salud") return null;
   if (ruta === "/") return "/cuenta";
   if (producto === "licitaciones" && ruta === "/para-ti") return "/cuenta?tab=para-ti";
   if (producto === "empleo" && ruta === "/para-ti") return "/app/para-ti";

@@ -6,6 +6,7 @@ import { rutaEn } from "@/lib/gobserva";
 import { nombrePropio, type FichaIpress } from "@/lib/gobserva-salud";
 import { cn } from "@/lib/utils";
 import { CopiarEnlace } from "./CopiarEnlace";
+import { BotonGuardarSalud } from "@/components/salud/cuenta/BotonGuardar";
 import { URL_DENUNCIA_SUSALUD } from "./piezas";
 
 /** OpenStreetMap con el punto marcado y el zoom de una calle. */
@@ -118,6 +119,9 @@ export function AccionesFila({ f, base, className }: { f: FichaIpress; base: str
         </li>
         <li>
           <CopiarEnlace className="[&>button]:min-h-10 [&>button]:w-auto" />
+        </li>
+        <li>
+          <BotonGuardarSalud tipo="establecimiento" codigo={f.codigo} nombre={nombrePropio(f.nombre)} base={base} className="min-h-10" />
         </li>
       </ul>
       <p className="mt-2 text-meta text-mute">La denuncia la recibe SUSALUD, no Gobserva. En una emergencia, llama al 106 (SAMU) o al 113.</p>

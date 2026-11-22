@@ -13,8 +13,11 @@
  */
 
 export type Producto = "empleo" | "licitaciones" | "obras" | "salud";
-/** Los productos que se venden con planes y cuentas. Gobserva Salud (2026-11-20) es abierto: sin cuenta ni planes. */
-export const PRODUCTOS_SIN_CUENTA: readonly Producto[] = ["salud"];
+/**
+ * Los productos sin cuenta. Gobserva Salud (2026-11-20) era abierto y sin cuenta; desde el 2026-11-21 tiene una cuenta
+ * gratis (sin planes) para guardar lo que verifica. Hoy ninguno.
+ */
+export const PRODUCTOS_SIN_CUENTA: readonly Producto[] = [];
 
 export interface InfoProducto {
   clave: Producto;

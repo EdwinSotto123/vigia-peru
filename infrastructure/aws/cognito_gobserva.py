@@ -8,15 +8,18 @@ refresco de 30 días, sin decir si un correo existe. Plan LITE (gratis hasta 10 
 Cognito (COGNITO_DEFAULT: hasta 50 al día) mientras SES siga en sandbox.
 
 Idempotente: crea lo que falta y actualiza los textos. Imprime los ids (públicos) que van en la web y en la API.
-Uso: AWS_PROFILE=founder.edwin python infrastructure/aws/cognito_gobserva.py
+Uso: AWS_PROFILE=founder.edwin python infrastructure/aws/cognito_gobserva.py [app…]   (sin apps: todas)
 """
 import json
+import sys
 import boto3
 
 REGION = "us-east-2"
 APPS = {
     "empleo": "Gobserva Empleo",
     "licitaciones": "Gobserva Licitaciones",
+    # Gobserva Salud (2026-11-21): una cuenta gratis y sencilla para guardar clínicas, médicos y medicamentos.
+    "salud": "Gobserva Salud",
 }
 
 idp = boto3.Session(profile_name="founder.edwin", region_name=REGION).client("cognito-idp")
@@ -82,7 +85,10 @@ def cliente(pool: str, app: str) -> str:
 
 if __name__ == "__main__":
     salida = {}
+    pedidas = sys.argv[1:] or list(APPS)
     for app, nombre in APPS.items():
+        if app not in pedidas:
+            continue
         pool = grupo(app, nombre)
         salida[app] = {"region": REGION, "pool": pool, "cliente": cliente(pool, app)}
     print(json.dumps(salida, indent=1))

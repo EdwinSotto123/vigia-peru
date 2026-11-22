@@ -52,8 +52,16 @@ const GANAS: Record<Producto, { titulo: string; puntos: Promesa[]; ejemplo: { as
     ],
     ejemplo: { asunto: "2 proyectos nuevos de agua potable en Puno", lineas: ["Mejoramiento del servicio de agua potable", "Pasó a ejecución"] },
   },
-  // Gobserva Salud no tiene cuentas (es abierto): nunca se muestra; sólo para que el tipo cierre.
-  salud: { titulo: "Gobserva Salud es abierto", puntos: [], ejemplo: { asunto: "", lineas: [] } },
+  // Gobserva Salud (2026-11-21): la cuenta es gratis y sirve para guardar; todo lo demás se ve sin cuenta.
+  salud: {
+    titulo: "Lo que verificas, guardado y al día",
+    puntos: [
+      { Icono: Bookmark, titulo: "Tus clínicas, médicos y medicamentos", texto: "Guárdalos al verificarlos y vuelve a ellos en un toque." },
+      { Icono: BellRing, titulo: "Lo nuevo, marcado", texto: "Si a una clínica le ponen una sanción o DIGEMID emite una alerta de tu medicamento." },
+      { Icono: ShieldCheck, titulo: "Gratis, sin planes", texto: "Todo lo demás de Gobserva Salud se ve sin cuenta." },
+    ],
+    ejemplo: { asunto: "Panadol 500 mg: una alerta nueva de DIGEMID", lineas: ["Productos falsificados incautados", "Revisa el lote de tu caja"] },
+  },
 };
 
 type Modo = "entrar" | "crear" | "codigo" | "recuperar" | "nueva";
@@ -84,6 +92,7 @@ export function Entrar({ producto, base, next, crear }: { producto: Producto; ba
   const p = PRODUCTOS[producto];
   const app = appDelProducto(producto);
   const otra = app === "empleo" ? "licitaciones" : "empleo";
+  const esSalud = app === "salud";
 
   // Con la sesión lista (recién entró o ya tenía una), a donde iba. Carga entera, con la marca de sesión ya puesta: así el
   // servidor arma el marco de la app (MarcoApp) y no queda el de visitantes alrededor.
@@ -170,8 +179,10 @@ export function Entrar({ producto, base, next, crear }: { producto: Producto; ba
     nueva: "Elige tu contraseña nueva",
   }[modo];
   const bajada = {
-    crear: `Es sólo para ${app === "empleo" ? "Empleo" : producto === "obras" ? "Obras y Licitaciones" : "Licitaciones"}. Es gratis y no pide tarjeta.`,
-    entrar: `Tus alertas, tus guardados y tu plan de ${p.titulo}.`,
+    crear: esSalud
+      ? "Para guardar lo que verificas. Es gratis, sin planes ni tarjeta."
+      : `Es sólo para ${app === "empleo" ? "Empleo" : producto === "obras" ? "Obras y Licitaciones" : "Licitaciones"}. Es gratis y no pide tarjeta.`,
+    entrar: esSalud ? "Tus clínicas, médicos y medicamentos guardados." : `Tus alertas, tus guardados y tu plan de ${p.titulo}.`,
     codigo: "Escribe el código que te mandamos para terminar de crear tu cuenta.",
     recuperar: "Escribe tu correo y te mandamos un código para elegir una nueva.",
     nueva: "Escribe el código que te llegó y tu contraseña nueva.",
@@ -318,7 +329,7 @@ export function Entrar({ producto, base, next, crear }: { producto: Producto; ba
                 Tu correo sólo se usa para tus alertas, tus recibos y avisos de tu cuenta. No lo vendemos ni lo compartimos.
               </p>
             )}
-            {(modo === "entrar" || modo === "crear") && (
+            {(modo === "entrar" || modo === "crear") && !esSalud && (
               <p className="mt-4 flex items-start gap-2 rounded-xl bg-ink/[0.035] px-3.5 py-3 text-meta leading-relaxed text-inkSoft">
                 <KeyRound size={15} aria-hidden className="mt-0.5 shrink-0 text-mute" />
                 <span>

@@ -97,11 +97,9 @@ export function MarcoApp({
                 <span className="hidden min-[400px]:block">
                   <BotonModo />
                 </span>
-                {!abierta && (
-                  <span className="lg:hidden">
-                    <MenuCuenta base={base} compacto />
-                  </span>
-                )}
+                <span className="lg:hidden">
+                  <MenuCuenta base={base} compacto />
+                </span>
               </div>
             </div>
           </header>

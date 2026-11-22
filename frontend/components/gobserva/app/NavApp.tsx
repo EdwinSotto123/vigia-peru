@@ -6,7 +6,7 @@ import { usePathname, useSearchParams } from "next/navigation";
 import useSWR from "swr";
 import {
   ArrowUpRight, Bell, BellPlus, Bot, BriefcaseBusiness, CalendarDays, Inbox, LifeBuoy, ChartNoAxesColumn, ChevronsUpDown, CreditCard, GraduationCap, HardHat, House, KanbanSquare, Loader2, LogOut, Menu,
-  Sparkles, Timer, UserRound, X, Hospital, Stethoscope, Pill, MapPin, Map as IconoMapa, Gavel, TriangleAlert, History, Database,
+  Sparkles, Timer, UserRound, X, Hospital, Stethoscope, Pill, MapPin, Map as IconoMapa, Gavel, TriangleAlert, History, Database, Bookmark, LogIn, UserPlus,
 } from "lucide-react";
 import { CORREO_GOBSERVA, PRODUCTOS_APP_ABIERTA, rutaEn, urlCanonica, type Producto } from "@/lib/gobserva";
 import { cn } from "@/lib/utils";
@@ -103,8 +103,10 @@ const APP: Partial<Record<Producto, { grupos: GrupoApp[]; cuenta: ItemApp[] }>> 
   salud: {
     grupos: [
       {
+        // Tres grupos y la cuenta abajo: entra entero en una pantalla de 768 px de alto sin deslizar la barra.
         items: [
           { ruta: "/", etiqueta: "Inicio", Icono: House, abajo: true, exacta: true },
+          { ruta: "/cuenta", etiqueta: "Mis guardados", Icono: Bookmark },
           { ruta: "/asistente", etiqueta: "Asistente", Icono: Bot },
         ],
       },
@@ -124,11 +126,8 @@ const APP: Partial<Record<Producto, { grupos: GrupoApp[]; cuenta: ItemApp[] }>> 
           { ruta: "/alertas", etiqueta: "Alertas de DIGEMID", Icono: TriangleAlert },
           { ruta: "/sanciones", etiqueta: "Sanciones de SUSALUD", Icono: Gavel },
           { ruta: "/cambios", etiqueta: "Cambios en RENIPRESS", Icono: History },
+          { ruta: "/fuentes", etiqueta: "De dónde salen los datos", Icono: Database },
         ],
-      },
-      {
-        titulo: "Sobre los datos",
-        items: [{ ruta: "/fuentes", etiqueta: "Fuentes", Icono: Database }],
       },
     ],
     cuenta: [],
@@ -346,16 +345,45 @@ function UsuarioLateral({ producto, base, items }: { producto: Producto; base: s
 }
 
 /**
- * Al pie de la barra lateral de un producto abierto (Gobserva Salud): sin plan ni cuenta; lo que es y de dónde sale.
+ * Al pie de la barra lateral de un producto abierto (Gobserva Salud): todo se ve sin cuenta y la cuenta es gratis. Sin
+ * sesión, la invitación a crearla (para guardar); con sesión, quién entró, sus guardados y salir. Sin plan ni pagos.
  */
 function PieAbierto({ base }: { base: string }) {
+  const { user, loading, conCuenta } = useSesion();
+  if (loading) return <span aria-hidden className="block h-[5.5rem] animate-pulse rounded-xl bg-ink/[0.05]" />;
+  if (conCuenta && user) {
+    const correo = user.email ?? "";
+    const nombre = user.displayName || correo.split("@")[0] || "Tu cuenta";
+    return (
+      <div className="space-y-0.5">
+        <Link href={rutaEn(base, "/cuenta")} className="flex w-full items-center gap-3 rounded-lg p-2 transition-colors duration-rapido hover:bg-ink/[0.045]">
+          <span aria-hidden className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-granate font-display text-dato font-bold text-paper">
+            {nombre.trim().charAt(0).toUpperCase() || "?"}
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block truncate text-dato font-semibold text-ink">{nombre}</span>
+            <span className="block truncate text-rotulo text-mute">{correo}</span>
+          </span>
+        </Link>
+        <Salir />
+      </div>
+    );
+  }
   return (
     <div className="rounded-xl border border-line bg-lienzo/70 p-3">
-      <p className="text-meta font-bold text-ink">Gratis y sin cuenta</p>
-      <p className="mt-1 text-rotulo leading-snug text-mute">Cada dato con su fuente oficial y su fecha. No reemplaza la consulta a un profesional.</p>
-      <Link href={rutaEn(base, "/fuentes")} className="mt-2 inline-flex min-h-8 items-center text-meta font-semibold text-granate underline-offset-4 hover:underline">
-        De dónde sale cada dato
-      </Link>
+      <p className="text-meta font-bold text-ink">Tu cuenta, gratis</p>
+      <p className="mt-0.5 text-rotulo leading-snug text-mute">Guarda lo que verificas y te marcamos lo nuevo.</p>
+      <div className="mt-2 flex gap-1.5">
+        <Link
+          href={rutaEn(base, "/entrar?crear=1")}
+          className="flex min-h-9 flex-1 items-center justify-center gap-1.5 rounded-lg bg-granate px-2 text-meta font-semibold text-paper transition-colors duration-rapido hover:bg-granate-deep"
+        >
+          <UserPlus size={14} aria-hidden /> Crear
+        </Link>
+        <Link href={rutaEn(base, "/entrar")} className="flex min-h-9 flex-1 items-center justify-center gap-1.5 rounded-lg border border-line px-2 text-meta font-semibold text-ink hover:border-granate/50">
+          <LogIn size={14} aria-hidden /> Entrar
+        </Link>
+      </div>
     </div>
   );
 }
@@ -383,10 +411,8 @@ export function LateralApp({ producto, base }: { producto: Producto; base: strin
       </nav>
       <div className="shrink-0 space-y-2 border-t border-line p-3">
         {PRODUCTOS_APP_ABIERTA.includes(producto) ? (
-          <>
-            <PieAbierto base={base} />
-            <Ayuda />
-          </>
+          // La ayuda va en el pie de cada página (el correo), no aquí: la barra entra entera en una pantalla.
+          <PieAbierto base={base} />
         ) : (
           <>
             <PlanLateral producto={producto} base={base} />
@@ -417,6 +443,7 @@ export function BarraApp({ producto, base }: { producto: Producto; base: string 
   const todos = app.grupos.flatMap((g) => g.items);
   const abajo = todos.filter((i) => i.abajo);
   const abierta = PRODUCTOS_APP_ABIERTA.includes(producto);
+  const { conCuenta } = useSesion();
   const gruposMas = [
     ...app.grupos.map((g) => ({ titulo: g.titulo, items: g.items.filter((i) => !i.abajo) })).filter((g) => g.items.length > 0),
     ...(app.cuenta.length ? [{ titulo: "Tu cuenta", items: app.cuenta }] : []),
@@ -493,7 +520,7 @@ export function BarraApp({ producto, base }: { producto: Producto; base: string 
             ))}
             <div className="mt-2 border-t border-line pt-2">
               <Ayuda className="min-h-12" />
-              {!abierta && <Salir className="min-h-12" />}
+              {(!abierta || conCuenta) && <Salir className="min-h-12" />}
             </div>
           </div>
         </div>

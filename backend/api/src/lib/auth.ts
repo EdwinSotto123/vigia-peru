@@ -33,7 +33,7 @@ function usuario(decoded: TokenVerificado): AuthedUser {
     email: decoded.email ?? null,
     emailVerificado: (decoded as { email_verified?: unknown }).email_verified === true,
     proyecto,
-    app: proyecto === "cognito:empleo" ? "empleo" : proyecto === "cognito:licitaciones" ? "licitaciones" : null,
+    app: proyecto === "cognito:empleo" ? "empleo" : proyecto === "cognito:licitaciones" ? "licitaciones" : proyecto === "cognito:salud" ? "salud" : null,
   };
 }
 

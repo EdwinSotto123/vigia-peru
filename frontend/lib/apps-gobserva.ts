@@ -9,26 +9,29 @@
  * dichos para quien entra.
  */
 
-export type AppCuenta = "empleo" | "licitaciones";
+// Gobserva Salud (2026-11-21): una cuenta gratis y sencilla, también con su propio grupo (guarda clínicas, médicos y
+// medicamentos; sin planes).
+export type AppCuenta = "empleo" | "licitaciones" | "salud";
 
-export const NOMBRE_APP: Record<AppCuenta, string> = { empleo: "Gobserva Empleo", licitaciones: "Gobserva Licitaciones" };
+export const NOMBRE_APP: Record<AppCuenta, string> = { empleo: "Gobserva Empleo", licitaciones: "Gobserva Licitaciones", salud: "Gobserva Salud" };
 
 export const COGNITO: Record<AppCuenta, { region: string; pool: string; cliente: string }> = {
   empleo: { region: "us-east-2", pool: "us-east-2_6NbPbjwJL", cliente: "44beeckthuc0fbd5kcglljsngq" },
   licitaciones: { region: "us-east-2", pool: "us-east-2_crVrk38vW", cliente: "3o2hsar23q2hn064eg69cqn9ic" },
+  salud: { region: "us-east-2", pool: "us-east-2_n5EEwMklV", cliente: "2h67lbj9l2qdrntc00iefr13dd" },
 };
 
 /** La app del sitio: por el subdominio (empleo., licitaciones-dev., obras.) o, en DEV por ruta, por el primer tramo. */
 export function appDelSitio(host: string, ruta = "/"): AppCuenta | null {
-  const h = host.toLowerCase().match(/^(empleo|licitaciones|obras)(-dev)?\.gobserva\.cloud$/);
-  const r = h ? null : ruta.match(/^\/(empleo|licitaciones|obras)(\/|$)/);
+  const h = host.toLowerCase().match(/^(empleo|licitaciones|obras|salud)(-dev)?\.gobserva\.cloud$/);
+  const r = h ? null : ruta.match(/^\/(empleo|licitaciones|obras|salud)(\/|$)/);
   const p = h?.[1] ?? r?.[1];
   if (!p) return null;
-  return p === "empleo" ? "empleo" : "licitaciones";
+  return p === "empleo" ? "empleo" : p === "salud" ? "salud" : "licitaciones";
 }
 
 /** La app de un producto: Obras va con Licitaciones. */
-export const appDelProducto = (p: string): AppCuenta => (p === "empleo" ? "empleo" : "licitaciones");
+export const appDelProducto = (p: string): AppCuenta => (p === "empleo" ? "empleo" : p === "salud" ? "salud" : "licitaciones");
 
 /** Lo que trae el token de identidad de Cognito (sin verificar: sólo para mostrar quién entró y cuándo vence). */
 export interface Reclamos {

@@ -8,6 +8,7 @@ import { CabeceraPestana, Pestanas, type Pestana } from "@/components/patrones/P
 import { Pixel } from "@/components/pixel/Pixel";
 import { FuenteFecha } from "@/components/salud/comun";
 import { FilaAlerta, FilaMedicamento, nombreMed, textoRevisadas } from "@/components/salud/medicamentos/piezas";
+import { BotonGuardarSalud } from "@/components/salud/cuenta/BotonGuardar";
 import { rutaEn, urlCanonica } from "@/lib/gobserva";
 import { baseProducto } from "@/lib/gobserva-servidor";
 import { getMedicamento, mesLargo, numero, rutaMedicamento, soles, type FichaMedicamento } from "@/lib/gobserva-salud";
@@ -244,7 +245,10 @@ export default async function FichaMedicamentoPagina({ params, searchParams }: P
               {p.registro && <Insignia className="font-mono">R.S. {p.registro}</Insignia>}
               {!p.enCatalogo && <Insignia tono="aviso">Sin precio reportado en el último mes</Insignia>}
             </p>
-            <h1 className="mt-3 text-balance font-display text-cifra font-bold leading-tight tracking-[-0.02em] text-ink sm:text-titulo">{nombre}</h1>
+            <div className="mt-3 flex flex-wrap items-center justify-between gap-x-6 gap-y-3">
+              <h1 className="min-w-0 text-balance font-display text-cifra font-bold leading-tight tracking-[-0.02em] text-ink sm:text-titulo">{nombre}</h1>
+              <BotonGuardarSalud tipo="medicamento" codigo={String(p.codigo)} nombre={nombre} base={base} />
+            </div>
             <p className="mt-1.5 text-cuerpo text-inkSoft">
               {[nombreMed(p.forma), nombreMed(p.ifa) && `de ${nombreMed(p.ifa).toLowerCase()}`, nombreMed(p.titular) && `titular: ${nombreMed(p.titular)}`].filter(Boolean).join(", ")}
             </p>
