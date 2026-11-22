@@ -16,6 +16,10 @@ import { baseProducto } from "@/lib/gobserva-servidor";
 import { formaDe } from "@/lib/salud-formas";
 import { concentracionLegible, fechaCorta, getMedicamento, vencimientoValido, mesLargo, numero, rutaMedicamento, soles, type FichaMedicamento } from "@/lib/gobserva-salud";
 
+/** Palabras que hacen de una marca otro producto («Panadol Antigripal», «Dolo Neuropress Forte»). */
+const VARIANTES_MARCA = new Set(["FORTE", "ANTIGRIPAL", "NF", "PLUS", "MAX", "ULTRA", "EXTRA", "DUO", "NOCHE", "COMPUESTO", "MULTISINTOMAS",
+  "ADVANCE", "RAPIDO", "FLEX", "GRIP", "KIDS", "NINOS", "PEDIATRICO", "JUNIOR", "ACTIVE", "MIGRA", "CAFEINA", "RETARD"]);
+
 export const revalidate = 3600;
 
 type Props = { params: { codigo: string }; searchParams: { seccion?: string | string[] } };
@@ -72,11 +76,23 @@ export default async function FichaMedicamentoPagina({ params, searchParams }: P
   // las filas con TODAS las palabras de la marca (no «DOLO» de Dolo-Neurobión para Dolo Neuropress).
   const juntar = (t: string) => ` ${t.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase().replace(/[^A-Z0-9]+/g, " ").trim()} `;
   const palabrasMarca = juntar(f.marca).trim().split(" ").filter(Boolean);
+  // Y de la misma presentación: sin otra variante de la marca («ANTIGRIPAL», «FORTE» para «Panadol 80 mg masticable») ni
+  // otra concentración. Un lote de Panadol Antigripal no se compara con una caja de Panadol 80 mg (2026-11-22).
+  const nombreProducto = juntar(`${p.nombre ?? ""}`);
+  const fuerza = /\s(\d+)\s(?:MG|G|MCG|ML|UI)\s/.exec(juntar(p.concentracion ?? ""))?.[1] ?? null;
+  const mismaPresentacion = (fila: string) => {
+    if (fila.trim().split(" ").some((w) => VARIANTES_MARCA.has(w) && !nombreProducto.includes(` ${w} `))) return false;
+    const fuerzas = [...fila.matchAll(/\s(\d+)\s(?:MG|G|MCG|ML|UI)(?=\s)/g)].map((m) => m[1]);
+    return !fuerza || fuerzas.length === 0 || fuerzas.includes(fuerza);
+  };
   const lotesMarca = [
     ...new Map(
       deMarca.flatMap((a) =>
         (a.observados ?? [])
-          .filter((o) => palabrasMarca.every((w) => juntar(`${o.producto} ${o.presentacion ?? ""}`).includes(` ${w} `)))
+          .filter((o) => {
+            const fila = juntar(`${o.producto} ${o.presentacion ?? ""}`);
+            return palabrasMarca.every((w) => fila.includes(` ${w} `)) && mismaPresentacion(fila);
+          })
           .flatMap((o) =>
             o.lotes.map((l) => [l, { lote: l, numero: a.numero, vence: o.vencimientos.find(vencimientoValido) ?? null }] as const),
           ),
