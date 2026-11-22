@@ -1,7 +1,10 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowUpRight, CircleCheck, ClipboardList, Layers, Pill, ShieldCheck, TriangleAlert } from "lucide-react";
+import { ArrowUpRight, CircleCheck, ClipboardList, Layers, Pill, ShieldCheck, TriangleAlert, Wallet } from "lucide-react";
+import { Ayuda } from "@/components/patrones/Ayuda";
+import { Respuesta, Respuestas } from "@/components/salud/Respuestas";
+import { claseAccion } from "@/components/ui/EnlaceAccion";
 import { Insignia } from "@/components/gobserva/ui/Insignia";
 import { Migas } from "@/components/patrones/Migas";
 import { CabeceraPestana, Pestanas, type Pestana } from "@/components/patrones/Pestanas";
@@ -374,84 +377,132 @@ export default async function FichaMedicamentoPagina({ params, searchParams }: P
         pestanas={{ etiquetas: Object.fromEntries(pestanas.map((x) => [x.clave, x.etiqueta])), primera: pestanas[0].clave, activa: seccion }}
       />
 
-      <div className="mt-4 overflow-hidden rounded-3xl border border-granate/20 bg-granate-50 px-5 py-6 sm:px-8 sm:py-7">
-        <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
-          <div className="min-w-0">
-            <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3">
-              <h1 className="min-w-0 text-balance font-display text-cifra font-bold leading-tight tracking-[-0.02em] text-ink sm:text-titulo">{nombre}</h1>
-              <BotonGuardarSalud tipo="medicamento" codigo={String(p.codigo)} nombre={nombre} base={base} />
+      {/* 2026-11-22 («mejor, ahora mejora lo demás así mismo»): la caja como credencial y, al lado, las tres preguntas de
+          quien la tiene en la mano (¿tiene alertas?, ¿cuánto debería costar?, ¿hay algo más barato?), cada una con su acción. */}
+      <div className="mt-4 grid gap-5 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)] lg:items-stretch">
+        <section aria-labelledby="caja-t" className="flex min-w-0 flex-col overflow-hidden rounded-2xl border border-line bg-paper shadow-[0_10px_30px_-18px_rgb(var(--ink)/0.35)]">
+          <div className="flex items-center justify-between gap-3 bg-granate px-5 py-3 text-paper">
+            <p className="min-w-0 truncate text-dato font-semibold">{nombreMed(p.forma) || formaDe(p.formaGrupo).etiqueta}</p>
+            <Pill size={18} aria-hidden className="shrink-0 opacity-80" />
+          </div>
+          <div className="flex flex-1 items-center gap-4 px-5 py-5">
+            <span aria-hidden className="grid h-24 w-24 shrink-0 place-items-center rounded-xl border border-line bg-paperSoft">
+              <Pixel nombre={formaDe(p.formaGrupo).sprite} escala={4} animado={false} acento="accion" />
+            </span>
+            <div className="min-w-0">
+              <h1 id="caja-t" className="text-balance font-display text-cifra font-bold leading-tight tracking-[-0.02em] text-ink">
+                {nombre}
+              </h1>
+              <p className="mt-2 flex flex-wrap gap-1.5">
+                {/^GEN/.test(p.clasificacion ?? "") ? <Insignia tono="exito">Genérico</Insignia> : <Insignia>De marca</Insignia>}
+                {p.registro && <Insignia className="font-mono">R.S. {p.registro}</Insignia>}
+                {!p.enCatalogo && <Insignia tono="aviso">Sin precio el último mes</Insignia>}
+              </p>
             </div>
-            <p className="mt-2 flex flex-wrap items-center gap-2">
-              {/* En el celular, el dibujo de su forma junto a las insignias (en la computadora va grande, a la derecha). */}
-              <span aria-hidden className="grid h-12 w-12 place-items-center rounded-xl bg-paper lg:hidden">
-                <Pixel nombre={formaDe(p.formaGrupo).sprite} escala={2} animado={false} acento="accion" />
-              </span>
-              {/^GEN/.test(p.clasificacion ?? "") ? <Insignia tono="exito">Genérico</Insignia> : <Insignia>De marca</Insignia>}
-              {p.registro && <Insignia className="font-mono">R.S. {p.registro}</Insignia>}
-              {!p.enCatalogo && <Insignia tono="aviso">Sin precio reportado en el último mes</Insignia>}
-            </p>
-            <p className="mt-1.5 text-cuerpo text-inkSoft">
-              {[nombreMed(p.forma), nombreMed(p.ifa) && `de ${nombreMed(p.ifa).toLowerCase()}`, nombreMed(p.titular) && `titular: ${nombreMed(p.titular)}`].filter(Boolean).join(", ")}
-            </p>
-            <p
-              className={`mt-3 flex items-start gap-2 rounded-xl border px-3.5 py-2.5 text-dato font-semibold leading-snug ${
-                f.alertasRegistro.length
-                  ? "border-crimson/30 bg-crimson-soft text-crimsonTexto"
-                  : f.alertasNombre.length
-                    ? "border-amber/40 bg-amber-soft text-amberTexto"
-                    : "border-line bg-paper text-mossTexto"
-              }`}
-            >
-              {f.alertasRegistro.length ? <TriangleAlert size={17} aria-hidden className="mt-0.5 shrink-0" /> : f.alertasNombre.length ? <TriangleAlert size={17} aria-hidden className="mt-0.5 shrink-0" /> : <CircleCheck size={17} aria-hidden className="mt-0.5 shrink-0" />}
-              <span>
-                {f.alertasRegistro.length
-                  ? `DIGEMID emitió ${f.alertasRegistro.length === 1 ? "una alerta" : `${f.alertasRegistro.length} alertas`} sobre su registro sanitario. Compara el lote de tu caja con el de la alerta.`
-                  : deSeguridad.length
-                    ? `Su registro sanitario no tiene alertas, pero hay ${deSeguridad.length === 1 ? "una alerta de seguridad" : `${deSeguridad.length} alertas de seguridad`} sobre su principio activo: léelas en «Alertas».`
-                  : deMarca.length
-                    ? `Su registro sanitario no tiene alertas. Ojo: DIGEMID ${soloFalsas ? "incautó cajas falsificadas" : falsificadas ? "encontró cajas falsificadas o ilegales" : "observó otras cajas"} que usan el nombre «${nombreMed(f.marca)}»: compara el lote de la tuya en «Alertas».`
-                    : "Ninguna alerta de DIGEMID nombra su registro sanitario ni su marca."}
-              </span>
-            </p>
-
-            <div className="mt-5 grid gap-3 sm:grid-cols-2">
-              <div className="rounded-2xl border border-line bg-paper px-4 py-3.5">
-                <p className="text-meta font-medium text-mute">Precio típico por unidad</p>
-                <p className="mt-0.5 font-display text-cifra font-bold tabular-nums text-ink">{soles(p.precioMediana)}</p>
-                <p className="text-rotulo leading-snug text-mute">
-                  {p.precioMediana != null
-                    ? p.establecimientos === 1
-                      ? `La única farmacia o botica que lo reportó en ${mesLargo(p.periodo)} lo vendía a este precio.`
-                      : `La mitad de las ${numero(p.establecimientos)} farmacias y boticas que lo reportaron en ${mesLargo(p.periodo)} lo vendía a este precio o menos.`
-                    : `Ninguna farmacia o botica reportó su precio en ${mesLargo(p.periodo)}.`}
-                </p>
+          </div>
+          <dl className="grid gap-x-4 gap-y-2 border-t border-line px-5 py-3.5 text-meta sm:grid-cols-2">
+            {nombreMed(p.ifa) && (
+              <div className="min-w-0">
+                <dt className="text-mute">Principio activo</dt>
+                <dd className="font-semibold text-ink">{nombreMed(p.ifa)}</dd>
               </div>
-              {/* Las alertas ya se dicen en la línea de arriba: aquí, si lo hay, el más barato con lo mismo. */}
-              {masBarato ? (
-                <a href="#secciones" className="gs-hunde block rounded-2xl border border-line bg-paper px-4 py-3.5 hover:border-granate/50">
-                  <p className="text-meta font-medium text-mute">Con el mismo principio activo</p>
-                  <p className="mt-0.5 font-display text-cifra font-bold tabular-nums text-mossTexto">desde {soles(r.minimo)}</p>
-                  <p className="text-rotulo leading-snug text-mute">
-                    {r.n === 1 ? "Un producto" : `${numero(r.n)} productos`}
-                    {r.genericos ? `, ${r.genericos === 1 ? "un genérico" : `${numero(r.genericos)} genéricos`}` : ""}. Pregunta antes de cambiar.
-                  </p>
-                </a>
-              ) : (
-                <div className="rounded-2xl border border-line bg-paper px-4 py-3.5">
-                  <p className="text-meta font-medium text-mute">Con el mismo principio activo</p>
-                  <p className="mt-0.5 text-dato font-semibold text-ink">
-                    {p.precioMediana == null ? "Sin precio para comparar" : r.n ? "Es de los de menor precio típico" : "No hay otro con precio reportado"}
-                  </p>
-                  <p className="text-rotulo leading-snug text-mute">Entre los que reportan farmacias y boticas privadas.</p>
-                </div>
+            )}
+            {nombreMed(p.titular) && (
+              <div className="min-w-0">
+                <dt className="text-mute">Titular del registro</dt>
+                <dd className="font-semibold text-ink">{nombreMed(p.titular)}</dd>
+              </div>
+            )}
+          </dl>
+          <div className="flex flex-wrap items-center gap-2 border-t border-line bg-paperSoft/60 px-5 py-3">
+            <BotonGuardarSalud tipo="medicamento" codigo={String(p.codigo)} nombre={nombre} base={base} />
+            <Link href={`?seccion=verificar#secciones`} className={claseAccion("secundario", "min-h-11")}>
+              <ShieldCheck size={15} aria-hidden /> Revisar mi caja
+            </Link>
+          </div>
+        </section>
+
+        <Respuestas etiqueta={`Lo que puedes saber de ${nombre}`}>
+          <Respuesta
+            Icono={f.alertasRegistro.length || deSeguridad.length || deMarca.length ? TriangleAlert : CircleCheck}
+            tono={f.alertasRegistro.length ? "ojo" : deSeguridad.length || deMarca.length ? "pendiente" : "bien"}
+            pregunta="¿DIGEMID emitió alertas?"
+            respuesta={
+              f.alertasRegistro.length
+                ? `Sí: ${f.alertasRegistro.length === 1 ? "una alerta nombra" : `${f.alertasRegistro.length} alertas nombran`} su registro sanitario`
+                : deSeguridad.length
+                  ? `${deSeguridad.length === 1 ? "Una alerta de seguridad" : `${deSeguridad.length} alertas de seguridad`} sobre su principio activo`
+                  : deMarca.length
+                    ? `Su registro no; ${soloFalsas ? "cajas falsificadas" : falsificadas ? "cajas falsificadas o ilegales" : "otras cajas"} usan su nombre`
+                    : "Ninguna nombra su registro ni su marca"
+            }
+          >
+            <div className="mt-3 flex flex-wrap items-center gap-2">
+              <Link
+                href={`?seccion=alertas#secciones`}
+                className={claseAccion(f.alertasRegistro.length || deMarca.length ? "primario" : "secundario", "min-h-11")}
+              >
+                {f.alertasRegistro.length || deMarca.length ? "Comprobar el lote de mi caja" : "Ver las alertas"}
+              </Link>
+              {deMarca.length > 0 && !f.alertasRegistro.length && (
+                <span className="inline-flex items-center gap-1 text-meta text-inkSoft">
+                  ¿Es mi caja?
+                  <Ayuda titulo="¿Es mi caja?">
+                    Las alertas de cajas falsificadas no son sobre este registro: lo que importa es el lote. Si el de tu caja aparece en la
+                    alerta, no la uses y pregunta donde la compraste.
+                  </Ayuda>
+                </span>
               )}
             </div>
-          </div>
-          <div aria-hidden className="hidden flex-col items-center lg:flex">
-            <Pixel nombre={formaDe(p.formaGrupo).sprite} escala={7} animado={false} acento="accion" />
-            <span className="mt-1 h-0 w-36 border-t-2 border-dotted border-granate/40" />
-          </div>
-        </div>
+          </Respuesta>
+          <Respuesta
+            Icono={Wallet}
+            tono="neutro"
+            pregunta="¿Cuánto debería costar?"
+            respuesta={p.precioMediana != null ? `${soles(p.precioMediana)} por unidad` : "Sin precio reportado"}
+          >
+            <p className="mt-1 flex flex-wrap items-center gap-x-1 text-meta leading-snug text-inkSoft">
+              {p.precioMediana != null
+                ? p.establecimientos === 1
+                  ? `La única farmacia que lo reportó en ${mesLargo(p.periodo)}.`
+                  : `Precio típico en ${numero(p.establecimientos)} farmacias y boticas, ${mesLargo(p.periodo)}.`
+                : `Ninguna farmacia o botica reportó su precio en ${mesLargo(p.periodo)}.`}
+              {p.precioMediana != null && (
+                <Ayuda titulo="¿Qué es el precio típico?">
+                  La mitad de las farmacias y boticas que lo reportaron a DIGEMID lo vendía a este precio o menos. Si te lo ofrecen mucho más
+                  barato, desconfía.
+                </Ayuda>
+              )}
+            </p>
+          </Respuesta>
+          <Respuesta
+            Icono={Layers}
+            tono={masBarato ? "bien" : "neutro"}
+            pregunta="¿Hay una opción más barata con lo mismo?"
+            respuesta={
+              masBarato
+                ? `Sí, desde ${soles(r.minimo)} por unidad`
+                : p.precioMediana == null
+                  ? "Sin precio para comparar"
+                  : r.n
+                    ? "Es de los de menor precio típico"
+                    : "No hay otro con precio reportado"
+            }
+          >
+            <p className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-meta text-inkSoft">
+              <span>
+                {r.n
+                  ? `${r.n === 1 ? "Un producto" : `${numero(r.n)} productos`} con el mismo principio activo${r.genericos ? `, ${r.genericos === 1 ? "un genérico" : `${numero(r.genericos)} genéricos`}` : ""}. Pregunta antes de cambiar.`
+                  : "Entre los que reportan farmacias y boticas privadas."}
+              </span>
+              {r.n > 0 && (
+                <Link href={`?seccion=equivalentes#secciones`} className="font-semibold text-granate underline-offset-4 hover:underline">
+                  Ver las opciones
+                </Link>
+              )}
+            </p>
+          </Respuesta>
+        </Respuestas>
       </div>
 
       <div id="secciones" className="mt-8 scroll-mt-16">

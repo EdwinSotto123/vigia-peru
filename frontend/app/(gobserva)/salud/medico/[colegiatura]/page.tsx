@@ -22,7 +22,7 @@ import { URL_CMP } from "@/components/salud/fuentes/urls";
 import { rutaEn, urlCanonica } from "@/lib/gobserva";
 import { baseProducto } from "@/lib/gobserva-servidor";
 import { fechaCorta, getMedico, nombrePropio, numero, rutaFicha, rutaMedico, type Medico } from "@/lib/gobserva-salud";
-import { cn } from "@/lib/utils";
+import { Respuesta, Respuestas } from "@/components/salud/Respuestas";
 
 /** El resultado se pide a la API con 15 minutos de caché (getMedico); la página se arma en cada pedido (la base). */
 export const revalidate = 900;
@@ -51,40 +51,6 @@ const EXTERNO = <span className="sr-only"> (se abre en otra pestaña)</span>;
 /** El dibujo de un establecimiento por su categoría: hospital (II y III), posta (I-1 a I-4) o consultorio. */
 const spriteDe = (categoria: string | null): NombreSprite =>
   /^I{2,3}/.test(categoria ?? "") ? "lugarHospital" : /^I-[1-4]/.test(categoria ?? "") ? "lugarPosta" : "lugarConsultorio";
-
-/** Una fila del veredicto: qué se pregunta la persona, la respuesta corta y qué hacer. El tono sale del dato, no del adorno. */
-function Respuesta({
-  Icono,
-  tono,
-  pregunta,
-  respuesta,
-  children,
-}: {
-  Icono: LucideIcon;
-  tono: "pendiente" | "bien" | "neutro" | "ojo";
-  pregunta: string;
-  respuesta: React.ReactNode;
-  children?: React.ReactNode;
-}) {
-  const color = {
-    pendiente: "bg-amber-soft text-amberTexto",
-    bien: "bg-moss/10 text-mossTexto",
-    neutro: "bg-paperSoft text-inkSoft",
-    ojo: "bg-crimson-soft text-crimsonTexto",
-  }[tono];
-  return (
-    <li className="flex gap-3.5 px-4 py-4 sm:px-5">
-      <span aria-hidden className={cn("grid h-10 w-10 shrink-0 place-items-center rounded-xl", color)}>
-        <Icono size={19} />
-      </span>
-      <div className="min-w-0 flex-1">
-        <p className="text-meta font-semibold text-inkSoft">{pregunta}</p>
-        <p className="mt-0.5 text-cuerpo font-bold leading-snug text-ink">{respuesta}</p>
-        {children}
-      </div>
-    </li>
-  );
-}
 
 /** Cada IPRESS donde la colegiatura figura como responsable: su dibujo, estado, lugar, RNE y las sanciones (de la IPRESS). */
 function Establecimiento({ x, base }: { x: Medico["responsableDe"][number]; base: string }) {
@@ -298,11 +264,7 @@ export default async function ResultadoMedico({ params, searchParams }: Props) {
         </section>
 
         {/* ── Las tres respuestas ── */}
-        <section aria-labelledby="respuestas-t" className="min-w-0 overflow-hidden rounded-2xl border border-line bg-paper">
-          <h2 id="respuestas-t" className="sr-only">
-            Lo que puedes saber de esta colegiatura
-          </h2>
-          <ul className="divide-y divide-line">
+        <Respuestas etiqueta="Lo que puedes saber de esta colegiatura">
             <Respuesta Icono={BadgeCheck} tono="pendiente" pregunta="¿Está habilitado para ejercer?" respuesta="Lo confirma sólo el Colegio Médico">
               <div className="mt-3 flex flex-wrap items-center gap-2">
                 <a href={m.habilitacion.url} target="_blank" rel="noopener noreferrer" className={claseAccion("primario", "min-h-11")}>
@@ -352,8 +314,7 @@ export default async function ResultadoMedico({ params, searchParams }: Props) {
                 )}
               </p>
             </Respuesta>
-          </ul>
-        </section>
+        </Respuestas>
       </div>
 
       {/* ── Otro número, a la vista ── */}
