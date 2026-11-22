@@ -358,7 +358,7 @@ export default async function ResultadoMedico({ params, searchParams }: Props) {
 
       {/* ── Otro número, a la vista ── */}
       <section aria-labelledby="otro-t" className="mt-5 flex flex-col gap-3 rounded-2xl border border-line bg-paperSoft px-4 py-4 sm:flex-row sm:items-center sm:px-5">
-        <h2 id="otro-t" className="flex shrink-0 items-center gap-2 text-cuerpo font-bold text-ink">
+        <h2 id="otro-t" className="flex shrink-0 items-center gap-2 font-display text-bloque font-bold text-ink">
           <ScanSearch size={18} aria-hidden className="text-granate" /> Verificar otro número
         </h2>
         <FormColegiatura base={base} className="min-w-0 flex-1" />
