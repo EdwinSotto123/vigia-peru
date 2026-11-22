@@ -85,15 +85,16 @@ export function AccionesFila({ f, base, className }: { f: FichaIpress; base: str
   const fila = "flex min-h-11 w-full items-center gap-2.5 rounded-lg px-3 text-left text-dato font-medium text-ink transition-colors duration-rapido hover:bg-ink/[0.05]";
   return (
     <div className={cn("min-w-0", className)}>
-      <div className="flex flex-wrap items-center gap-2">
+      {/* En el celular, una fila de tres: el primero se encoge para que «Guardar» y «Más» no bajen a otra línea. */}
+      <div className="grid grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-2 sm:flex sm:flex-wrap">
         {conPunto ? (
-          <a href={urlComoLlegar(f.lat!, f.lon!)} target="_blank" rel="noopener noreferrer" className={claseAccion("primario", "gs-hunde min-h-11")}>
+          <a href={urlComoLlegar(f.lat!, f.lon!)} target="_blank" rel="noopener noreferrer" className={claseAccion("primario", "gs-hunde min-h-11 whitespace-nowrap max-sm:px-3")}>
             <Navigation size={15} aria-hidden /> Cómo llegar
             {EXTERNO}
           </a>
         ) : (
           renipress && (
-            <a href={renipress} target="_blank" rel="noopener noreferrer" className={claseAccion("primario", "gs-hunde min-h-11")}>
+            <a href={renipress} target="_blank" rel="noopener noreferrer" className={claseAccion("primario", "gs-hunde min-h-11 whitespace-nowrap max-sm:px-3")}>
               <FileSearch size={15} aria-hidden /> Consulta oficial
               <ArrowUpRight size={13} aria-hidden className="shrink-0" />
               {EXTERNO}

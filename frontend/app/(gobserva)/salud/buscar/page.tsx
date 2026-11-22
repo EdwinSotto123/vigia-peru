@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { nombresRepetidos } from "@/components/salud/lista/filtros";
 import { ArrowRight, ArrowUpRight, BadgeCheck, Building2, Gavel, Hash, IdCard, ListChecks, LocateFixed, MapPinned, Pill, RotateCw, Search, ShieldCheck, Stethoscope, UserX } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { EstadoError, EstadoVacio } from "@/components/gobserva/ui/Estados";
@@ -50,6 +51,7 @@ export default async function Buscar({ searchParams }: Props) {
   const [res, r, meds] = q.length >= 2
     ? await Promise.all([buscarSalud(q), getResumenSalud(), buscarMedicamentos(new URLSearchParams({ q, tamano: "5" }))])
     : [null, null, null];
+  const repetidos = nombresRepetidos(res?.establecimientos ?? []);
   const cobertura = r?.fuentes.detalle;
 
   return (
@@ -205,7 +207,7 @@ export default async function Buscar({ searchParams }: Props) {
               <ul className={`mt-4 ${PLACA_LISTA}`} aria-label="Establecimientos encontrados">
                 {res.establecimientos.map((x) => (
                   <li key={x.codigo}>
-                    <FilaEstablecimiento x={x} base={base} />
+                    <FilaEstablecimiento x={x} base={base} conDireccion={repetidos.has(x.codigo)} />
                   </li>
                 ))}
               </ul>

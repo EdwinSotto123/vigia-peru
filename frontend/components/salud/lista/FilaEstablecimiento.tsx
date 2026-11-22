@@ -7,6 +7,7 @@ import { CLASES_DE_HECHO, SECTORES, nombrePropio, numero, rutaFicha, type FilaIp
 import { atiende24, seguroIpress } from "@/lib/salud-seguros";
 import { cn } from "@/lib/utils";
 import { lugarIpress } from "./filtros";
+import { direccionLegible } from "@/components/salud/ficha/piezas";
 import { InsigniaRegistro } from "./Insignias";
 import { Pixel } from "@/components/pixel/Pixel";
 import type { NombreSprite } from "@/components/pixel/sprites";
@@ -38,7 +39,20 @@ function spriteLugar(x: FilaIpress): NombreSprite {
  * señales: las sanciones firmes en rojo y las denuncias en ámbar, como cifras (nunca juntas en una). «Activa» ya no se
  * dice: es lo normal; sólo se marca lo que NO está activo. Server-safe.
  */
-export function FilaEstablecimiento({ x, base, children, className }: { x: FilaIpress; base: string; children?: ReactNode; className?: string }) {
+export function FilaEstablecimiento({
+  x,
+  base,
+  children,
+  className,
+  conDireccion = false,
+}: {
+  x: FilaIpress;
+  base: string;
+  children?: ReactNode;
+  className?: string;
+  /** Con su dirección: la lista tiene otro con el mismo nombre (repetidos). */
+  conDireccion?: boolean;
+}) {
   const nombre = nombrePropio(x.nombre) || `IPRESS ${x.codigo}`;
   const denuncias = x.denuncias ?? 0;
   return (
@@ -92,6 +106,7 @@ export function FilaEstablecimiento({ x, base, children, className }: { x: FilaI
             </span>
           )}
         </p>
+        {conDireccion && x.direccion && <p className="mt-1 text-meta text-inkSoft">{direccionLegible(x.direccion)}</p>}
         {!x.activo && <InsigniaRegistro activo={x.activo} estado={x.estado} className="mt-2" />}
         {children}
         </div>

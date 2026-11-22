@@ -7,7 +7,7 @@ import { FuenteFecha } from "@/components/salud/comun";
 import { BarraFiltros, ProveedorFiltros, Resultados, type FiltroBarra } from "@/components/salud/filtros/BarraFiltros";
 import { URL_RENIPRESS_CONSULTA, URL_SANCIONES } from "@/components/salud/fuentes/urls";
 import { FilaEstablecimiento, PLACA_LISTA } from "@/components/salud/lista/FilaEstablecimiento";
-import { DEPARTAMENTOS, ORDENES, filtrosDeUrl, filtrosMapa, nombreLugar, paramsApi, qsLista, type FiltrosLista } from "@/components/salud/lista/filtros";
+import { DEPARTAMENTOS, ORDENES, filtrosDeUrl, filtrosMapa, nombreLugar, nombresRepetidos, paramsApi, qsLista, type FiltrosLista } from "@/components/salud/lista/filtros";
 import { Paginas } from "@/components/salud/lista/Paginas";
 import { CabeceraLista, Ruta } from "@/components/salud/portada/Piezas";
 import { claseAccion } from "@/components/ui/EnlaceAccion";
@@ -88,6 +88,7 @@ export default async function Establecimientos({ searchParams }: Props) {
   const pagina = Math.min(f.pagina ?? 1, paginas);
   const fuentes = r?.fuentes;
   const fac = d?.facetas;
+  const repetidos = nombresRepetidos(d?.filas ?? []);
   const n = (xs: { clave: string; n: number }[] | undefined, clave: string) => xs?.find((x) => x.clave === clave)?.n ?? null;
 
   // Lo que la URL lleva hoy (sin la página): la barra arma la dirección nueva a partir de esto.
@@ -254,7 +255,7 @@ export default async function Establecimientos({ searchParams }: Props) {
               <ul className={PLACA_LISTA} aria-label="Establecimientos">
                 {d.filas.map((x) => (
                   <li key={x.codigo} className="min-w-0">
-                    <FilaEstablecimiento x={x} base={base} />
+                    <FilaEstablecimiento x={x} base={base} conDireccion={repetidos.has(x.codigo)} />
                   </li>
                 ))}
               </ul>

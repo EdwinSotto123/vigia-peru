@@ -162,6 +162,13 @@ export function filtrosMapa(f: FiltrosLista): FiltrosLista {
   return { departamento, categoria, sector, tipo, estado, sanciones, quirurgico, internamiento, seguro, h24 };
 }
 
+/** Los códigos de las filas cuyo nombre se repite en la lista (para mostrarles la dirección y distinguirlas). */
+export function nombresRepetidos(filas: { codigo: string; nombre: string }[]): Set<string> {
+  const cuenta = new Map<string, number>();
+  for (const f of filas) cuenta.set(f.nombre.trim().toUpperCase(), (cuenta.get(f.nombre.trim().toUpperCase()) ?? 0) + 1);
+  return new Set(filas.filter((f) => (cuenta.get(f.nombre.trim().toUpperCase()) ?? 0) > 1).map((f) => f.codigo));
+}
+
 /** El nombre de una categoría para un filtro: «II-1» o «Sin categoría». */
 export const nombreCategoria = (c: string) => (c === "SIN" ? "Sin categoría" : c);
 
