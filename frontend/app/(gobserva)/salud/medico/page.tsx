@@ -78,7 +78,7 @@ export default function VerificarMedico() {
         <aside aria-label="Qué significa cada cosa" className="min-w-0 space-y-4 lg:sticky lg:top-24">
           <section aria-labelledby="terminos-t" className="tarjeta rounded-2xl border border-line bg-paper">
             <h2 id="terminos-t" className="border-b border-line px-4 py-3 font-display text-bloque font-bold text-ink sm:px-5">
-              Lo que vas a ver en el CMP
+              Qué significa lo que vas a ver
             </h2>
             <ul className="divide-y divide-line">
               <li className="flex gap-3 px-4 py-3.5 sm:px-5">
@@ -100,19 +100,6 @@ export default function VerificarMedico() {
                 <p className="min-w-0 text-meta leading-relaxed text-inkSoft">
                   <span className="block text-dato font-semibold text-ink">Recertificación</span>
                   La certificación que el CMP renueva cada cierto tiempo; en «Conoce a tu médico» ves si la tiene vigente.
-                </p>
-              </li>
-              <li className="flex gap-3 px-4 py-3.5 sm:px-5">
-                <GraduationCap size={18} aria-hidden className="mt-0.5 shrink-0 text-granate" />
-                <p className="min-w-0 text-meta leading-relaxed text-inkSoft">
-                  <span className="block text-dato font-semibold text-ink">El título, en SUNEDU</span>
-                  El Registro Nacional de Grados y Títulos muestra el título de médico cirujano y, si la tiene, la segunda especialidad.
-                  Pide un captcha.{" "}
-                  <a href={URL_SUNEDU} target="_blank" rel="noopener noreferrer" className="font-semibold text-granate underline decoration-granate/40 underline-offset-2 hover:decoration-granate">
-                    Abrir SUNEDU
-                    <ArrowUpRight size={12} aria-hidden className="ml-0.5 inline" />
-                    {EXTERNO}
-                  </a>
                 </p>
               </li>
             </ul>

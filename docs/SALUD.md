@@ -197,6 +197,25 @@ seguro la atienden, y ninguna página lo decía.
   por la Ley 27604; artículo 15.1 a). Va en el aviso de emergencia de todas las páginas, en la ficha y al elegir
   «Emergencia» en «Cerca de mí».
 
+## Auditoría de todas las páginas (2026-11-22, noche)
+
+Pedido: «ORDENALO MEJOR… MEJORA TODO, AUDITA TODO, ITERA». Una auditoría visual de las 21 páginas en 390 y 1280 px
+(capturas en el scratchpad) y dos vueltas de arreglos:
+
+- **Nada suelto:** «Verifica un medicamento» pone el catálogo, las alertas recientes y «Cómo verificar» en pestañas;
+  cada bloque tiene su sección con título. La ficha de una clínica separa «Sanciones firmes» y «Denuncias» en
+  subpestañas; la denuncia va dentro de su nota y en «Más», no suelta.
+- **Páginas más cortas en el celular:** sanciones de una clínica 6,9 a 4,3 pantallas (detalle plegado, 6 por página);
+  /alertas 6,7 a 3,4 (cada tabla tras «Ver los N productos»); /fuentes 7 a 3,6 (cada fuente plegable, lo técnico
+  aparte). Sin columnas «No lo dice» cuando el PDF no trae lotes ni registros.
+- **Errores:** la ficha de una clínica se iba de lado (428 px a 390); el campo del lote se aplastaba; la paginación
+  terminaba en una página falsa (2 000 de 2 700); las denuncias decían «Sin dato» con 950 al lado y una fecha futura.
+- **El buscador de medicamentos** busca en la forma y la presentación, entiende «1G», muestra lo más parecido con la
+  marca si nada tiene todas las palabras, y busca las alertas por el nombre (CEFALOGEN tenía 4 alertas y salía «ninguna»).
+- **Coherencia:** un buscador por página (la barra de arriba lo oculta donde la página tiene el suyo), el menú de
+  abajo marca el grupo de la página, la foto se llama siempre «Toma una foto de la caja», textos de ejemplo que entran
+  en el celular, insignias debajo del título (no encima), concentraciones legibles (0.003 es 0.3 %).
+
 ## El catálogo de medicamentos y los dibujos (2026-11-22)
 
 Pedido: «QUE SEA TIPO MARKETPLACE, donde se muestre cuadros en PIXEL ART los medicamentos, filtrado… otras secciones es

@@ -2,7 +2,7 @@ import Link from "next/link";
 import { ArrowUpRight, ChevronRight, FileText, Pill, Search, TriangleAlert } from "lucide-react";
 import { Insignia, type Tono } from "@/components/gobserva/ui/Insignia";
 import { rutaEn } from "@/lib/gobserva";
-import { concentracionLegible, fechaCorta, numero, rutaMedicamento, soles, TIPOS_ALERTA, type AlertaDigemid, type Medicamento, type ObservadoAlerta, type TipoAlerta } from "@/lib/gobserva-salud";
+import { concentracionLegible, fechaCorta, numero, oracionDeMayusculas, rutaMedicamento, soles, TIPOS_ALERTA, type AlertaDigemid, type Medicamento, type ObservadoAlerta, type TipoAlerta } from "@/lib/gobserva-salud";
 import { cn } from "@/lib/utils";
 import { Pixel } from "@/components/pixel/Pixel";
 import { formaDe, grupoDeTexto } from "@/lib/salud-formas";
@@ -150,7 +150,7 @@ export function FilaAlerta({
       <p className="flex flex-wrap items-center gap-x-3 gap-y-1">
         <InsigniaAlerta tipo={a.tipo} />
         <a href={a.url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-meta font-semibold text-ink underline-offset-4 hover:underline">
-          {a.numero ? `Alerta N.° ${a.numero}` : a.titulo === a.titulo.toUpperCase() ? a.titulo.charAt(0) + a.titulo.slice(1).toLowerCase() : a.titulo}
+          {a.numero ? `Alerta N.° ${a.numero}` : oracionDeMayusculas(a.titulo)}
           <ArrowUpRight size={12} aria-hidden className="text-mute" />
           <span className="sr-only"> (en la web de DIGEMID, se abre en otra pestaña)</span>
         </a>
@@ -175,7 +175,7 @@ export function FilaAlerta({
               <span className="hidden group-open/tabla:inline">Ocultar la tabla</span>
             </span>
           </summary>
-          <Observados items={observados} base={base} resaltar={resaltar} />
+          <Observados items={observados} base={base} resaltar={resaltar} todos />
         </details>
       ) : observados.length > 0 ? (
         <Observados items={observados} base={base} resaltar={resaltar} />
@@ -201,9 +201,10 @@ const juntoLote = (t: string) => t.normalize("NFD").replace(/[\u0300-\u036f]/g, 
  * lotes, el registro sanitario (a su ficha si está en el catálogo), el titular y el resultado. En el celular, cada
  * producto es un bloque. Hasta 4; el resto, en el PDF. `resaltar`: el lote o registro que se buscó, marcado.
  */
-export function Observados({ items, base, resaltar }: { items: ObservadoAlerta[]; base?: string; resaltar?: string | null }) {
+export function Observados({ items, base, resaltar, todos = false }: { items: ObservadoAlerta[]; base?: string; resaltar?: string | null; todos?: boolean }) {
   const marca = resaltar ? juntoLote(resaltar) : null;
-  const vistos = items.slice(0, 4);
+  // recorte: 4 en una alerta abierta de entrada; todos si la persona la abrió («Ver los N productos»).
+  const vistos = todos ? items : items.slice(0, 4);
   // Si ninguna fila trae lote o registro (falsificados vendidos por redes), esas columnas sobran: no «No lo dice» en cada una.
   const conLote = items.some((o) => o.lotes.length > 0);
   const conRegistro = items.some((o) => !!o.registro);

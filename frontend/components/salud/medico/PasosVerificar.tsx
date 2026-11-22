@@ -31,7 +31,8 @@ export function PasosVerificar({ pasos, base, className }: { pasos: PasoVerifica
             <div className="min-w-0 pt-1">
               <p className="text-cuerpo font-semibold leading-snug text-ink">{p.paso}</p>
               <p className="mt-1 max-w-[68ch] text-pretty text-dato leading-relaxed text-inkSoft">{p.detalle}</p>
-              {d.externo ? (
+              {/* Un paso sin dirección no lleva enlace (el 2 se hace en la misma consulta del paso 1). */}
+              {!p.url ? null : d.externo ? (
                 <a href={p.url} target="_blank" rel="noopener noreferrer" className={clase}>
                   {d.texto}
                   <ArrowUpRight size={14} aria-hidden />

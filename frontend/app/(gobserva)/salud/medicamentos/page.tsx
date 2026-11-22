@@ -78,7 +78,11 @@ export default async function Medicamentos({ searchParams }: Props) {
   const modoFoto = texto(searchParams?.modo) === "foto";
   const seccion = texto(searchParams?.seccion) || undefined;
   const tituloCatalogo = q
-    ? `${formaActiva ? formaActiva.etiqueta : "Productos"} para «${q}»`
+    ? d?.aproximado
+      ? formaActiva
+        ? `${formaActiva.etiqueta} parecidos`
+        : "Productos parecidos"
+      : `${formaActiva ? formaActiva.etiqueta : "Productos"} para «${q}»`
     : formaActiva
       ? formaActiva.etiqueta
       : d?.orden === "precio"

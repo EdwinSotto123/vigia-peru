@@ -163,6 +163,9 @@ export default async function Alertas({ searchParams }: Props) {
                           {x.presentacion && <p className="text-meta text-inkSoft">{x.presentacion}</p>}
                         </div>
                       </div>
+                      {!x.lote && !x.registro && !x.titular ? (
+                        <p className="mt-2 text-meta text-mute">El PDF no trae su lote, su registro sanitario ni su titular.</p>
+                      ) : (
                       <dl className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1.5 text-meta">
                         <div className="min-w-0">
                           <dt className="text-rotulo text-mute">Lote</dt>
@@ -192,6 +195,7 @@ export default async function Alertas({ searchParams }: Props) {
                           </div>
                         )}
                       </dl>
+                      )}
                       {x.detalle && <p className="mt-1.5 text-meta text-inkSoft">{x.detalle}</p>}
                       <p className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-meta text-mute">
                         <InsigniaAlerta tipo={x.tipo} />
@@ -233,6 +237,12 @@ export default async function Alertas({ searchParams }: Props) {
                               </div>
                             </div>
                           </td>
+                          {!x.lote && !x.registro && !x.titular ? (
+                            <td colSpan={3} className="px-3 py-2.5 text-mute">
+                              El PDF no trae su lote, su registro sanitario ni su titular.
+                            </td>
+                          ) : (
+                          <>
                           <td className="px-3 py-2.5">
                             {x.lote ? <span className="rounded-md bg-ink/[0.05] px-1.5 py-0.5 font-mono tabular-nums text-ink">{x.lote}</span> : <span className="text-mute">No lo dice</span>}
                             {x.vencimiento && <p className="mt-0.5 text-mute">Vence {x.vencimiento}</p>}
@@ -251,6 +261,8 @@ export default async function Alertas({ searchParams }: Props) {
                             )}
                           </td>
                           <td className="px-3 py-2.5 text-inkSoft">{x.titular ? nombreMed(x.titular) : <span className="text-mute">No lo dice</span>}</td>
+                          </>
+                          )}
                           <td className="px-3 py-2.5">
                             <InsigniaAlerta tipo={x.tipo} />
                             <p className="mt-1 whitespace-nowrap text-mute">

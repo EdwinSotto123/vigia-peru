@@ -310,8 +310,8 @@ export function pasosVerificarMedico(colegiatura?: string | null): { paso: strin
     },
     {
       paso: "Revisa que la especialidad coincida con lo que te ofrece",
-      detalle: "En el CMP mira su especialidad registrada (RNE) y compárala con el procedimiento que te ofrece: para una cirugía plástica o estética, que su RNE sea de cirugía plástica. Si no figura un RNE, no está registrado como especialista.",
-      url: URL_CMP,
+      detalle: "En esa misma consulta del CMP mira su especialidad registrada (RNE) y compárala con el procedimiento que te ofrece: para una cirugía plástica o estética, que su RNE sea de cirugía plástica. Si no figura un RNE, no está registrado como especialista.",
+      url: "",
     },
     {
       paso: "Confirma su título en SUNEDU",

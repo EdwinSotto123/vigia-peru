@@ -102,8 +102,9 @@ export function AccionesFila({ f, base, className }: { f: FichaIpress; base: str
         )}
         <BotonGuardarSalud tipo="establecimiento" codigo={f.codigo} nombre={nombrePropio(f.nombre)} base={base} />
         <details className="group relative">
-          <summary className="gs-hunde inline-flex min-h-11 cursor-pointer list-none items-center gap-1.5 rounded-full border border-line bg-paper px-4 text-dato font-semibold text-ink hover:border-granate/50 [&::-webkit-details-marker]:hidden">
-            <MoreHorizontal size={16} aria-hidden /> Más
+          {/* En el celular sólo el ícono: así «Cómo llegar», «Guardar» y «Más» entran en una fila (2026-11-22). */}
+          <summary className="gs-hunde inline-flex min-h-11 min-w-11 cursor-pointer list-none items-center justify-center gap-1.5 rounded-full border border-line bg-paper px-3 text-dato font-semibold text-ink hover:border-granate/50 sm:px-4 [&::-webkit-details-marker]:hidden">
+            <MoreHorizontal size={16} aria-hidden /> <span className="max-sm:sr-only">Más</span>
           </summary>
           <ul className="gs-panel absolute left-0 top-full z-overlay mt-2 grid w-72 gap-0.5 rounded-2xl border border-line bg-caja p-1.5 shadow-pop">
             {conPunto && (

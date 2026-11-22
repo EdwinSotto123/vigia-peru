@@ -810,9 +810,9 @@ export function MapaSalud({
               Cómo leer el mapa
             </h2>
             <ul className="mt-3 space-y-2 text-dato">
-              <Leyenda color="--serie-1" etiqueta="Público" n={conteos.publico} />
-              <Leyenda color="--serie-3" etiqueta="Privado" n={conteos.privado} />
-              <Leyenda color="--serie-4" etiqueta="Otro sector" n={conteos.otro} />
+              <Leyenda color="--serie-1" etiqueta="Público" n={puntos ? conteos.publico : null} />
+              <Leyenda color="--serie-3" etiqueta="Privado" n={puntos ? conteos.privado : null} />
+              <Leyenda color="--serie-4" etiqueta="Otro sector" n={puntos ? conteos.otro : null} />
               <li className="flex items-center justify-between gap-3 border-t border-line pt-2">
                 <span className="flex min-w-0 items-center gap-2.5">
                   <span aria-hidden className="relative grid h-4 w-4 shrink-0 place-items-center rounded-full border-2 border-rust">
@@ -824,7 +824,7 @@ export function MapaSalud({
                     </span>
                   </span>
                 </span>
-                <span className="font-semibold tabular-nums text-ink">{numero(conteos.sancion)}</span>
+                <span className="font-semibold tabular-nums text-ink">{puntos ? numero(conteos.sancion) : "…"}</span>
               </li>
               {filtros.todos && (
                 <li className="flex items-center justify-between gap-3 text-inkSoft">
@@ -832,7 +832,7 @@ export function MapaSalud({
                     <span aria-hidden className="h-2.5 w-2.5 shrink-0 rounded-full bg-mute/40" />
                     Inactivos (más tenues)
                   </span>
-                  <span className="tabular-nums">{numero(conteos.inactivas)}</span>
+                  <span className="tabular-nums">{puntos ? numero(conteos.inactivas) : "…"}</span>
                 </li>
               )}
             </ul>
@@ -890,14 +890,14 @@ function BotonMapa({ etiqueta, onClick, borde = false, children }: { etiqueta: s
   );
 }
 
-function Leyenda({ color, etiqueta, n }: { color: string; etiqueta: string; n: number }) {
+function Leyenda({ color, etiqueta, n }: { color: string; etiqueta: string; n: number | null }) {
   return (
     <li className="flex items-center justify-between gap-3">
       <span className="flex min-w-0 items-center gap-2.5">
         <span aria-hidden className="h-3 w-3 shrink-0 rounded-full" style={{ background: `rgb(var(${color}))` }} />
         <span className="min-w-0 text-ink">{etiqueta}</span>
       </span>
-      <span className="font-semibold tabular-nums text-ink">{numero(n)}</span>
+      <span className="font-semibold tabular-nums text-ink">{n == null ? <span className="text-mute">…</span> : numero(n)}</span>
     </li>
   );
 }

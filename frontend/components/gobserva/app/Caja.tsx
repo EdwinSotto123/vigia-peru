@@ -48,7 +48,7 @@ export function CabeceraPagina({
           </h1>
           {bajada && <p className="mt-1.5 max-w-[68ch] text-pretty text-cuerpo leading-relaxed text-inkSoft">{bajada}</p>}
         </div>
-        {acciones && <div className="flex shrink-0 flex-wrap items-center gap-2">{acciones}</div>}
+        {acciones && <div className="flex min-w-0 max-w-full flex-wrap items-center gap-2">{acciones}</div>}
       </div>
       {children}
     </header>

@@ -658,6 +658,28 @@ export const TIPOS_ALERTA: Record<TipoAlerta, { nombre: string; corto: string; e
 };
 
 /** S/ 12,50 (o «sin precio»). */
+const SIGLAS = new Set(["OMS", "OPS", "DIGEMID", "MINSA", "SUSALUD", "FDA", "EMA", "ANMAT", "INVIMA", "COFEPRIS", "ANVISA", "AEMPS", "EEUU", "EE.UU.", "UE", "SIS", "RENIPRESS"]);
+/**
+ * «ALERTA INTERNACIONAL OCTUBRE III – 2026» → «Alerta internacional octubre III – 2026»: en oración, con los números
+ * romanos y las siglas como van; lo que sigue a «:» (un nombre propio, un producto) queda como está. Si el texto no está
+ * todo en mayúsculas, no se toca.
+ */
+export function oracionDeMayusculas(t: string | null | undefined): string {
+  const s = (t ?? "").trim();
+  if (!s || s !== s.toUpperCase()) return s;
+  const i = s.indexOf(":");
+  const cabeza = i >= 0 ? s.slice(0, i) : s;
+  const cola = i >= 0 ? s.slice(i) : "";
+  const palabras = cabeza.toLowerCase().split(/(\s+)/).map((w, k) => {
+    const W = w.toUpperCase();
+    if (/^[IVXL]+$/.test(W) && W.length <= 4 && k > 0) return W;
+    if (SIGLAS.has(W.replace(/[,.;()]+$/, "")) ) return W;
+    return w;
+  });
+  const junto = palabras.join("");
+  return junto.charAt(0).toUpperCase() + junto.slice(1) + cola;
+}
+
 /**
  * La concentración como la lee cualquiera: «500 MG» → «500 mg»; «0.003» (DIGEMID escribe así los porcentajes, sin
  * unidad: gentamicina oftálmica) → «0.3 %». Vacío si no hay.

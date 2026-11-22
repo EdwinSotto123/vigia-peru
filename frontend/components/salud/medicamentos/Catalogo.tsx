@@ -63,7 +63,7 @@ export function TarjetaMedicamento({ m, base, masBarato = false }: { m: Medicame
       </div>
       <div className="flex min-w-0 flex-1 flex-col px-3 pb-3 pt-2.5">
         <p className="line-clamp-2 text-dato font-semibold leading-snug text-ink group-hover:text-granate">{nombreMed(m.nombre)}</p>
-        <p className="mt-0.5 line-clamp-2 text-meta leading-snug text-inkSoft sm:line-clamp-1">
+        <p className="mt-0.5 line-clamp-2 text-meta leading-snug text-inkSoft">
           {[concentracionLegible(m.concentracion), nombreMed(m.forma)].filter(Boolean).join(", ")}
         </p>
         {m.titular && <p className="mt-0.5 truncate text-rotulo text-mute">{nombreMed(m.titular)}</p>}

@@ -233,7 +233,7 @@ export function PestanaSanciones({ f }: { f: FichaIpress }) {
         nombre="las sanciones"
         tam={6}
         className="space-y-4"
-        buscar={{ placeholder: "Buscar por resolución, procedimiento o infracción…", etiqueta: "Buscar en las sanciones" }}
+        buscar={{ placeholder: "Resolución o infracción", etiqueta: "Buscar en las sanciones por resolución, procedimiento o infracción" }}
         items={lista.map((s) => ({
           id: s.id,
           buscable: [s.resolucion, s.pas, s.infraccionCodigo, s.infraccion, s.infraccionDetalle, TIPO_SANCION[s.tipoSancion], s.fechaEmision].filter(Boolean).join(" "),

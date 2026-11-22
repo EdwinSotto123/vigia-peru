@@ -3,7 +3,7 @@ import { Bell, ChevronRight, Database, Landmark, Pill, RefreshCw, ShieldCheck, S
 import { Pixel } from "@/components/pixel/Pixel";
 import type { NombreSprite } from "@/components/pixel/sprites";
 import { rutaEn } from "@/lib/gobserva";
-import { fechaCorta, numero, type AlertaDigemid, type FuenteMedicamentos } from "@/lib/gobserva-salud";
+import { fechaCorta, numero, oracionDeMayusculas, type AlertaDigemid, type FuenteMedicamentos } from "@/lib/gobserva-salud";
 import { cn } from "@/lib/utils";
 import { BuscadorMedicamento } from "./BuscadorMedicamento";
 import { InsigniaAlerta } from "./piezas";
@@ -39,13 +39,12 @@ export function PortadaMedicamentos({ lista, fuente, modoInicial }: { lista: str
                   <TriangleAlert size={16} aria-hidden className="text-amberTexto" />
                   <b className="font-semibold tabular-nums text-ink">{numero(fuente.alertas)}</b> alertas de DIGEMID
                 </span>
-                <span aria-hidden className="hidden h-4 w-px bg-granate/25 sm:block" />
-                <span className="inline-flex items-center gap-1.5 font-semibold text-granate">
-                  <ShieldCheck size={16} aria-hidden />
-                  Con datos oficiales de DIGEMID
-                </span>
               </p>
             )}
+            <p className="mt-2 inline-flex items-center gap-1.5 text-dato font-semibold text-granate">
+              <ShieldCheck size={16} aria-hidden />
+              Con datos oficiales de DIGEMID
+            </p>
           </div>
           <Ilustracion />
         </div>
@@ -149,8 +148,7 @@ function Ilustracion() {
 /** Las alertas recientes (una pestaña de la página), una línea cada una: el tipo, el número y la fecha, y lo que dice. */
 export function AlertasRecientes({ base, alertas, fuente }: { base: string; alertas: AlertaDigemid[]; fuente: FuenteMedicamentos | null }) {
   const frase = (a: AlertaDigemid) => {
-    const t = (a.motivo || a.titulo || "").replace(/\s*Descargar\s*$/i, "").trim();
-    return t === t.toUpperCase() ? t.charAt(0) + t.slice(1).toLowerCase() : t;
+    return oracionDeMayusculas((a.motivo || a.titulo || "").replace(/\s*Descargar\s*$/i, "").trim());
   };
   return (
     <section aria-labelledby="recientes-t" className="overflow-hidden rounded-2xl border border-line bg-paper">
