@@ -132,7 +132,7 @@ export function Carrusel({
         {tarjetas.map((t, i) => (
           <li
             key={i}
-            className={cn("min-w-0 shrink-0 snap-start scroll-ml-4 sm:scroll-ml-6 lg:scroll-ml-0", anchoTarjeta)}
+            className={cn("relative min-w-0 shrink-0 snap-start scroll-ml-4 sm:scroll-ml-6 lg:scroll-ml-0", anchoTarjeta)}
             aria-label={`${i + 1} de ${total}`}
           >
             {t}

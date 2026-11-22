@@ -20,6 +20,8 @@ function destino(url: string): { texto: string; externo: boolean; sprite: Nombre
  * Los pasos para verificar a un médico como tarjetas que se deslizan (2026-11-22, el usuario: «hazlo con forma… deslizantes»):
  * cada una con su número, su dibujo, lo que hay que hacer y el botón que lleva a hacerlo. En el celular, una tarjeta y
  * media a la vista; en pantalla ancha, las cuatro en fila. Las palabras son las de la API (pasosVerificarMedico).
+ * Cada tarjeta es `relative`: sin eso, sus textos `sr-only` (absolutos) se ubicaban respecto del contenedor de afuera del
+ * carrusel y daban 560 px de scroll horizontal a la página en el celular.
  */
 export function PasosDeslizables({ pasos, base, className }: { pasos: PasoVerificar[]; base: string; className?: string }) {
   return (
@@ -27,7 +29,7 @@ export function PasosDeslizables({ pasos, base, className }: { pasos: PasoVerifi
       {pasos.map((p, i) => {
         const d = destino(p.url);
         return (
-          <article key={p.paso} className="flex h-full flex-col rounded-2xl border border-line bg-paper p-4 sm:p-5">
+          <article key={p.paso} className="relative flex h-full flex-col rounded-2xl border border-line bg-paper p-4 sm:p-5">
             <div className="flex items-start justify-between gap-3">
               <span
                 aria-hidden
