@@ -15,6 +15,8 @@
  *
  * Orden: primero lo que la gente abrió (salud_detalle_pedido), luego lo nunca leído (con sanciones, privadas con
  * internamiento, categorías altas, activas), luego lo más viejo (> 30 días). Un error espera 2^intentos horas.
+ * Cada criterio va con IS TRUE: sin categoría o sin sector daba NULL, y en un orden DESC PostgreSQL pone los NULL primero
+ * (hasta el 2026-11-21 se leyeron antes las 8 583 sin categoría, muchas inactivas, que las activas).
  */
 
 import type { WorkflowStep } from "cloudflare:workers";
@@ -195,10 +197,10 @@ export async function pendientes(db: Db, n: number): Promise<string[]> {
        AND (d.leido_at IS NULL OR d.leido_at < now() - interval '30 days' OR (p.pedido_at IS NOT NULL AND p.pedido_at > d.leido_at))
      ORDER BY (p.pedido_at IS NOT NULL AND (d.leido_at IS NULL OR p.pedido_at > d.leido_at)) DESC,
               (d.leido_at IS NULL) DESC,
-              coalesce(x.sanciones, 0) > 0 DESC,
-              (i.sector = 'privado' AND i.tipo ILIKE '%CON INTERNAMIENTO%') DESC,
-              (i.categoria ~ '^(II|III)') DESC,
-              i.activo DESC,
+              (coalesce(x.sanciones, 0) > 0) DESC,
+              (i.sector = 'privado' AND i.tipo ILIKE '%CON INTERNAMIENTO%') IS TRUE DESC,
+              (i.categoria ~ '^(II|III)') IS TRUE DESC,
+              i.activo IS TRUE DESC,
               d.leido_at NULLS FIRST, i.codigo
      LIMIT $1`, [n]);
   return f.map((x) => x.codigo);
