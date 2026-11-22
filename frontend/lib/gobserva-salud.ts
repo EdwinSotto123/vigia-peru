@@ -572,6 +572,10 @@ export interface BusquedaMedicamentos {
   tipo?: "generico" | "marca" | null;
   orden?: "relevancia" | "populares" | "precio" | "nombre";
   facetas?: { forma: { clave: FormaGrupo; n: number }[]; genericos: number; marcas: number };
+  /** Ningún producto tenía todas las palabras: son los que más se parecen (por cuántas palabras coinciden). */
+  aproximado?: boolean;
+  /** Las palabras del nombre con que se buscaron las alertas («CEFALOGEN» de «Cefalogen 1G Polvo…»). */
+  alertasPor?: string | null;
   filas: Medicamento[];
   total: number;
   pagina: number;

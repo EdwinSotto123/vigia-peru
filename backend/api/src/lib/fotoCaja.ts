@@ -38,7 +38,7 @@ const HERRAMIENTA = {
       type: "object",
       properties: {
         es_medicamento: { type: "boolean", description: "true si la foto muestra el envase o la etiqueta de un medicamento o dispositivo médico." },
-        nombre: { type: "string", description: "El nombre comercial o de marca, como está impreso." },
+        nombre: { type: "string", description: "El nombre comercial o de marca, como está impreso, sin la concentración ni la forma (p. ej. Panadol Antigripal)." },
         principio_activo: { type: "string", description: "El principio activo (p. ej. Paracetamol)." },
         concentracion: { type: "string", description: "La concentración (p. ej. 500 mg)." },
         registro_sanitario: { type: "string", description: "El código que sigue a «Reg. San.», «R.S.», «RS N°» o «Registro Sanitario» (p. ej. EE-01234, N-12345, DM12345E)." },

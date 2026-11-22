@@ -20,6 +20,17 @@ type Estado =
 const LADO = 1600;
 const MAX_BYTES = 950_000;
 
+/** «Cefalogen 1G Polvo para solución…» → «Cefalogen»: la marca, sin la concentración ni la forma (hasta tres palabras). */
+function marcaDe(nombre: string): string {
+  const out: string[] = [];
+  for (const w of nombre.trim().split(/\s+/)) {
+    if (/\d/.test(w) || /^(polvo|tabletas?|c[aá]psulas?|jarabe|soluci[oó]n|suspensi[oó]n|crema|gel|gotas|inyectable|comprimidos?|ung[uü]ento|x)$/i.test(w)) break;
+    out.push(w);
+    if (out.length === 3) break;
+  }
+  return out.join(" ") || nombre;
+}
+
 /** La foto, derecha (EXIF) y achicada a JPEG. */
 async function achicar(archivo: File): Promise<Blob> {
   let fuente: ImageBitmap | HTMLImageElement;
@@ -136,7 +147,8 @@ export function FotoCaja({
     if (estado.fase !== "leido") return;
     const reg = registro.trim();
     const lot = lote.trim();
-    const q = reg || estado.leido.nombre || lot;
+    // Sin registro, la marca sola («Cefalogen 1G Polvo para…» → «Cefalogen»): el nombre entero casi nunca coincide.
+    const q = reg || (estado.leido.nombre ? marcaDe(estado.leido.nombre) : "") || lot;
     if (!q) return;
     const p = new URLSearchParams({ q });
     if (lot && lot !== q) p.set("lote", lot);

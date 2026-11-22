@@ -752,6 +752,12 @@ const TIPOS_ALERTA = ["falsificado", "calidad", "seguridad", "modificacion", "in
  * y el dibujo de cada tarjeta. El orden importa («UNGÜENTO OFTÁLMICO» va a gotas; «CREMA VAGINAL», a cremas; «POLVO PARA
  * SUSPENSIÓN ORAL», que se prepara en su frasco, a jarabes). El mismo orden en la web: frontend/lib/salud-formas.ts.
  */
+/** Las palabras de una forma o un envase: no sirven para buscar una alerta por el nombre de un producto. */
+const PALABRAS_FORMA = new Set(["PARA", "CON", "POR", "SIN", "POLVO", "SOLUCION", "INYECTABLE", "INTRAMUSCULAR", "INTRAVENOSO", "INTRAVENOSA",
+  "TABLETA", "TABLETAS", "TABLETA", "RECUBIERTA", "RECUBIERTAS", "COMPRIMIDO", "COMPRIMIDOS", "CAPSULA", "CAPSULAS", "BLANDA", "BLANDAS",
+  "JARABE", "SUSPENSION", "ORAL", "CREMA", "GEL", "UNGUENTO", "GOTAS", "OFTALMICA", "OFTALMICO", "TOPICA", "TOPICO", "AMPOLLA", "VIAL",
+  "FRASCO", "CAJA", "SOBRE", "SOBRES", "LIBERACION", "PROLONGADA", "RETARDADA", "PERFUSION", "INFANTIL", "ADULTO", "FORTE", "MG", "ML",
+  "G", "MCG", "UI", "X"]);
 const FORMAS_MED = ["tableta", "capsula", "jarabe", "inyectable", "gotas", "crema", "inhalador", "sobre", "ovulo", "otro"] as const;
 const FORMA_GRUPO_SQL = `(CASE
   WHEN translate(upper(coalesce(m.forma, '')), 'ÁÉÍÓÚÜÑ', 'AEIOUUN') ~ 'INYECT|PERFUSI|INFUSI' THEN 'inyectable'
@@ -834,6 +840,10 @@ saludRouter.get("/medicamentos", async (c) => {
     const como: "registro" | "lote" | "nombre" | null = hojear ? null : registro ? "registro" : lote ? "lote" : "nombre";
     // Sin búsqueda se hojea el catálogo entero; las alertas, las más recientes.
     let whereMed = hojear ? "true" : "false";
+    let aproximado = false;
+    let puntaje: string | null = null;
+    // Las palabras con que se buscaron las alertas (cuando no son todas las de q): el título de su caja.
+    let alertasPor: string | null = null;
     const valsMed: unknown[] = [];
     let whereAl = hojear ? "true" : "false";
     const valsAl: unknown[] = [];
@@ -845,23 +855,51 @@ saludRouter.get("/medicamentos", async (c) => {
       // Un lote puede tener la forma de un registro («OPI052502»): se busca como los dos.
       whereAl = "($1 = ANY(a.registros) OR a.texto_norm LIKE $2 OR EXISTS (SELECT 1 FROM salud_alerta_producto p WHERE p.alerta_id = a.id AND (p.registro = $1 OR p.lote_norm = $1)))";
     } else {
-      // Por nombre o principio activo (un lote también puede ser parte de un nombre: «B12»).
+      // Por nombre, principio activo, concentración, forma o presentación (2026-11-22: «Cefalogen 1G Polvo Para Solución
+      // Inyectable Intramuscular» daba cero porque «polvo» o «inyectable» están en la forma). La concentración sin espacios:
+      // «1G» encuentra «1 G». Un lote también puede ser parte de un nombre: «B12».
       const w: string[] = [];
-      for (const x of ps) { valsMed.push(`%${x}%`); w.push(`(m.nombre_norm LIKE $${valsMed.length} OR coalesce(m.ifa_norm, '') LIKE $${valsMed.length} OR mef_norm(coalesce(m.concentracion, '')) LIKE $${valsMed.length})`); }
+      for (const x of ps) {
+        valsMed.push(`%${x}%`);
+        const k = `$${valsMed.length}`;
+        w.push(`(m.nombre_norm LIKE ${k} OR coalesce(m.ifa_norm, '') LIKE ${k} OR replace(mef_norm(coalesce(m.concentracion, '')), ' ', '') LIKE ${k}
+          OR mef_norm(coalesce(m.forma, '')) LIKE ${k} OR mef_norm(coalesce(m.presentacion, '')) LIKE ${k})`);
+      }
       if (w.length) whereMed = w.join(" AND ");
+      // Ninguno tiene todas las palabras: los que tienen más de la mitad, del que más tiene al que menos (y se avisa). Si
+      // hay palabras del nombre (no de la forma ni cifras), una de ellas tiene que estar en el nombre o el principio activo:
+      // «Cefalogen 1G Polvo…» trae los Cefalogen, no todos los inyectables en polvo. Si ni así, la mitad de las palabras.
+      if (w.length >= 2) {
+        const todas = await pool.query(`SELECT 1 FROM salud_medicamento m WHERE ${whereMed} LIMIT 1`, valsMed);
+        if (!todas.rowCount) {
+          const puntos = w.map((c) => `(CASE WHEN ${c} THEN 1 ELSE 0 END)`).join(" + ");
+          const mitad = `(${puntos}) >= ${Math.ceil(w.length / 2)}`;
+          const delNombreMed = ps.map((x, i) => ({ x, i })).filter(({ x }) => !/\d/.test(x) && !PALABRAS_FORMA.has(x));
+          const conNombre = delNombreMed.length
+            ? `${mitad} AND (${delNombreMed.map(({ i }) => `(m.nombre_norm LIKE $${i + 1} OR coalesce(m.ifa_norm, '') LIKE $${i + 1})`).join(" OR ")})`
+            : null;
+          const hay = conNombre ? await pool.query(`SELECT 1 FROM salud_medicamento m WHERE ${conNombre} LIMIT 1`, valsMed) : null;
+          whereMed = conNombre && hay?.rowCount ? conNombre : mitad;
+          aproximado = true;
+          puntaje = puntos;
+        }
+      }
       if (ps.length) {
         // El nombre exacto primero (PANADOL antes que PANADOL ANTIGRIPAL NF), luego el que más farmacias reportan. Literal:
         // las palabras ya vienen normalizadas a [A-Z0-9 ].
         const k = `'${ps.join(" ").replace(/[^A-Z0-9 ]/g, "")}'`;
-        ordenMed = `m.en_catalogo DESC, (m.nombre_norm = ${k}) DESC, word_similarity(${k}, m.nombre_norm) DESC, m.establecimientos DESC NULLS LAST, m.nombre`;
+        ordenMed = `m.en_catalogo DESC, ${puntaje ? `(${puntaje}) DESC, ` : ""}(m.nombre_norm = ${k}) DESC, word_similarity(${k}, m.nombre_norm) DESC, m.establecimientos DESC NULLS LAST, m.nombre`;
       }
       if (lote) {
         valsAl.push(`%${lote}%`);
         valsAl.push(lote);
         whereAl = `(a.texto_norm LIKE $1 OR ${TEXTO_ALERTA} LIKE $1 OR EXISTS (SELECT 1 FROM salud_alerta_producto p WHERE p.alerta_id = a.id AND p.lote_norm = $2))`;
       } else {
+        // Las alertas, por las palabras del nombre (sin las de la forma ni las cifras): «Cefalogen 1G Polvo…» busca «CEFALOGEN».
+        const delNombre = ps.filter((x) => !/\d/.test(x) && !PALABRAS_FORMA.has(x));
+        alertasPor = (delNombre.length ? delNombre : ps).join(" ");
         const wa: string[] = [];
-        for (const x of ps) { valsAl.push(`%${x}%`); wa.push(`(${TEXTO_ALERTA} LIKE $${valsAl.length} OR a.texto_norm LIKE $${valsAl.length})`); }
+        for (const x of delNombre.length ? delNombre : ps) { valsAl.push(`%${x}%`); wa.push(`(${TEXTO_ALERTA} LIKE $${valsAl.length} OR a.texto_norm LIKE $${valsAl.length})`); }
         if (wa.length) whereAl = wa.join(" AND ");
       }
     }
@@ -944,7 +982,7 @@ saludRouter.get("/medicamentos", async (c) => {
     const esLote = registro && total.rows[0].n === 0 && (coincidencias.rows as { lote: string | null }[]).some((c) => c.lote && c.lote.replace(/[^A-Za-z0-9]/g, "").toUpperCase() === registro);
     return publicar({
       q, como: esLote ? "lote" : como, registro: esLote ? null : registro, lote: esLote ? registro : lote,
-      loteCaja: otroLote, loteEnAlertas: enAlertas.rows[0].n,
+      loteCaja: otroLote, loteEnAlertas: enAlertas.rows[0].n, aproximado, alertasPor,
       filas: filas.rows, total: total.rows[0].n, pagina, tamano, forma: forma ?? null, tipo: tipo ?? null, orden, facetas: facetas.rows[0],
       alertas: alertas.rows, alertasTotal: alertasTotal.rows[0].n, coincidencias: coincidencias.rows, fuente,
     });

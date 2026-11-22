@@ -1,12 +1,13 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { CircleCheck, Info, Pill, RotateCw, TriangleAlert } from "lucide-react";
+import { Bell, CircleCheck, Info, LayoutGrid, Pill, RotateCw, ShieldCheck, TriangleAlert } from "lucide-react";
 import { Ayuda } from "@/components/patrones/Ayuda";
 import { EstadoError, EstadoVacio } from "@/components/gobserva/ui/Estados";
 import { FuenteFecha } from "@/components/salud/comun";
 import { Paginas } from "@/components/salud/lista/Paginas";
 import { FotoCaja } from "@/components/salud/medicamentos/FotoCaja";
-import { PortadaMedicamentos } from "@/components/salud/medicamentos/Portada";
+import { AlertasRecientes, ComoVerificar, PortadaMedicamentos } from "@/components/salud/medicamentos/Portada";
+import { Pestanas } from "@/components/patrones/Pestanas";
 import { OrdenYTipo, RielFormas, TarjetaMedicamento } from "@/components/salud/medicamentos/Catalogo";
 import { FilaAlerta, FormMedicamento, InsigniaAlerta, nombreMed, textoRevisadas } from "@/components/salud/medicamentos/piezas";
 import { CabeceraLista, Ruta } from "@/components/salud/portada/Piezas";
@@ -73,8 +74,9 @@ export default async function Medicamentos({ searchParams }: Props) {
   const d = await buscarMedicamentos(params);
   const href = (n: number) => urlCon({}, n);
   const formaActiva = d?.forma ? formaDe(d.forma) : null;
-  // ?modo=foto abre la pestaña de la foto (desde «El vencimiento»).
+  // ?modo=foto abre la pestaña de la foto (desde «El vencimiento»); ?seccion=, la pestaña de abajo.
   const modoFoto = texto(searchParams?.modo) === "foto";
+  const seccion = texto(searchParams?.seccion) || undefined;
   const tituloCatalogo = q
     ? `${formaActiva ? formaActiva.etiqueta : "Productos"} para «${q}»`
     : formaActiva
@@ -99,6 +101,78 @@ export default async function Medicamentos({ searchParams }: Props) {
   const yaVistas = new Set(coincidencias.map((c) => c.alertaId));
   const otras = (d?.alertas ?? []).filter((a) => !yaVistas.has(a.id));
   const otrasTotal = Math.max(0, (d?.alertasTotal ?? 0) - yaVistas.size);
+
+  // El catálogo en su sección (2026-11-22, «¿por qué esto está abajo en el aire?»): el título con lo que suma, el riel
+  // de formas y el orden, las tarjetas y, en su pie, la fuente y las páginas. Con búsqueda va debajo de las alertas; sin
+  // búsqueda, en la primera pestaña.
+  const catalogo = d ? (
+    <section aria-labelledby="productos-t" className={cn("rounded-2xl border border-line bg-paper px-4 py-4 sm:px-5 sm:py-5", q && "mt-6")}>
+      <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+        <h2 id="productos-t" className="font-display text-bloque font-bold leading-snug text-ink">
+          {tituloCatalogo}
+        </h2>
+        <p className="text-meta text-inkSoft">
+          <b className="font-semibold tabular-nums text-ink">{numero(d.total)}</b> {d.total === 1 ? "producto" : "productos"}
+          {d.aproximado ? ", los más parecidos" : ""}
+        </p>
+      </div>
+      {d.aproximado && (
+        <p className="mt-2 flex gap-2 rounded-xl bg-amber-soft/50 px-3 py-2 text-meta leading-relaxed text-ink">
+          <Info size={15} aria-hidden className="mt-0.5 shrink-0 text-amberTexto" />
+          <span>
+            Ningún producto tiene todas las palabras de «{q}». Estos son los que más se parecen: revisa el nombre, la concentración y la forma
+            con tu caja.
+          </span>
+        </p>
+      )}
+      {d.facetas && d.total > 0 && (
+        <div className="mt-4 space-y-3">
+          <RielFormas facetas={d.facetas} activa={d.forma ?? null} href={(f) => urlCon({ forma: f })} />
+          <OrdenYTipo d={d} conBusqueda={!!q} href={(c) => urlCon(c)} />
+        </div>
+      )}
+      {d.filas.length === 0 ? (
+        <div className="mt-4 rounded-xl border border-line">
+          <EstadoVacio
+            Icono={Pill}
+            titulo={
+              d.como === "lote"
+                ? "Un lote no tiene precio: no hay productos que mostrar"
+                : forma || tipo
+                  ? "Ningún medicamento con estos filtros"
+                  : "Ningún medicamento con precio se llama así"
+            }
+            texto={
+              d.como === "lote"
+                ? "Arriba está lo que dicen las alertas sobre ese lote. Para ver el producto, busca su nombre o su registro sanitario."
+                : forma || tipo
+                  ? "Quita un filtro: elige «Todas» las formas o «Todos»."
+                  : "Prueba sólo con la marca (Panadol) o con el principio activo (paracetamol). Sólo están los productos con precios reportados a DIGEMID."
+            }
+          />
+        </div>
+      ) : (
+        <>
+          <ul id="resultados" className="mt-4 grid scroll-mt-32 grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4" aria-label="Medicamentos">
+            {d.filas.map((m) => (
+              <li key={m.codigo} className="min-w-0">
+                <TarjetaMedicamento m={m} base={base} />
+              </li>
+            ))}
+          </ul>
+          <div className="mt-5 border-t border-line pt-4">
+            <p className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+              {fuente && <FuenteFecha nombre="Observatorio de precios de DIGEMID" url={fuente.precios.url} al={fuente.precios.al} />}
+              <span className="text-rotulo text-mute">Precio típico por unidad en farmacias y boticas privadas.</span>
+            </p>
+            {paginas > 1 && (
+              <Paginas className="mt-4" pagina={Math.min(pagina, paginas)} paginas={paginas} total={d.total} tamano={POR_PAGINA} nombre={d.total === 1 ? "medicamento" : "medicamentos"} href={href} />
+            )}
+          </div>
+        </>
+      )}
+    </section>
+  ) : null;
 
   return (
     <div className="container-page pb-10 pt-5 sm:pb-14 sm:pt-6">
@@ -141,7 +215,7 @@ export default async function Medicamentos({ searchParams }: Props) {
           <FotoCaja accion={lista} className="mt-3" />
         </>
       ) : (
-        <PortadaMedicamentos base={base} lista={lista} fuente={fuente ?? null} alertas={d?.alertas ?? []} modoInicial={modoFoto ? "foto" : "texto"} />
+        <PortadaMedicamentos lista={lista} fuente={fuente ?? null} modoInicial={modoFoto ? "foto" : "texto"} />
       )}
 
       {!d ? (
@@ -155,28 +229,8 @@ export default async function Medicamentos({ searchParams }: Props) {
             }
           />
         </div>
-      ) : (
+      ) : q ? (
         <>
-          {/* El catálogo (2026-11-22, «QUE SEA TIPO MARKETPLACE»): el riel de formas, genérico o de marca, y el orden. */}
-          {!q && (
-            <div className="mt-10 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-              <h2 className="font-display text-seccion font-bold leading-tight text-ink">Explora el catálogo</h2>
-              {fuente && (
-                <p className="text-meta text-inkSoft">
-                  Precio típico por unidad en farmacias y boticas, {mesLargo(fuente.precios.al)}
-                </p>
-              )}
-            </div>
-          )}
-          {d.facetas && (
-            <div className={cn("space-y-3", q ? "mt-5" : "mt-3")}>
-              <RielFormas facetas={d.facetas} activa={d.forma ?? null} href={(f) => urlCon({ forma: f })} />
-              <OrdenYTipo d={d} conBusqueda={!!q} href={(c) => urlCon(c)} />
-            </div>
-          )}
-
-          {q && (
-            <>
           {/* El veredicto de la caja (registro y lote juntos, de la foto): cuando el lote no está en una tabla leída. */}
           {loteCaja && coincidencias.length === 0 && (
             <VeredictoCaja lote={loteCaja} enAlertas={d.loteEnAlertas ?? 0} registro={d.registro ?? null} alertasRegistro={otrasTotal} fuente={fuente ?? null} />
@@ -250,7 +304,7 @@ export default async function Medicamentos({ searchParams }: Props) {
                       : otrasTotal === 1
                         ? "Una alerta de DIGEMID nombra"
                         : `${numero(otrasTotal)} alertas de DIGEMID nombran`}{" "}
-                    «{q}»
+                    «{d.alertasPor && d.alertasPor !== q.toUpperCase() ? nombreMed(d.alertasPor) : q}»
                   </h2>
                   <p className="mt-1 max-w-[75ch] text-meta leading-relaxed text-inkSoft">
                     {rojo
@@ -285,55 +339,30 @@ export default async function Medicamentos({ searchParams }: Props) {
             </p>
           )}
 
-            </>
-          )}
-
-          {d.filas.length === 0 ? (
-            <div className="mt-5 rounded-2xl border border-line bg-paper">
-              <EstadoVacio
-                Icono={Pill}
-                titulo={
-                  d.como === "lote"
-                    ? "Un lote no tiene precio: no hay productos que mostrar"
-                    : forma || tipo
-                      ? "Ningún medicamento con estos filtros"
-                      : "Ningún medicamento con precio se llama así"
-                }
-                texto={
-                  d.como === "lote"
-                    ? "Arriba está lo que dicen las alertas sobre ese lote. Para ver el producto, busca su nombre o su registro sanitario."
-                    : "Prueba con el principio activo (paracetamol, amoxicilina) o con menos palabras. Sólo están los productos con precios reportados a DIGEMID."
-                }
-              />
-            </div>
-          ) : (
-            <section aria-labelledby="productos-t" className="mt-6">
-              <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-                <h2 id="productos-t" className="font-display text-bloque font-bold leading-snug text-ink">
-                  {tituloCatalogo}
-                </h2>
-                <p className="text-meta text-inkSoft">
-                  <b className="font-semibold tabular-nums text-ink">{numero(d.total)}</b> {d.total === 1 ? "producto" : "productos"}
-                </p>
-              </div>
-              <ul id="resultados" className="mt-3 grid scroll-mt-32 grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4" aria-label="Medicamentos">
-                {d.filas.map((m) => (
-                  <li key={m.codigo} className="min-w-0">
-                    <TarjetaMedicamento m={m} base={base} />
-                  </li>
-                ))}
-              </ul>
-              <p className="mt-2 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-                {fuente && <FuenteFecha nombre="Observatorio de precios de DIGEMID" url={fuente.precios.url} al={fuente.precios.al} />}
-                <span className="text-rotulo text-mute">Precio típico por unidad en farmacias y boticas privadas.</span>
-              </p>
-              {paginas > 1 && (
-                <Paginas className="mt-5" pagina={Math.min(pagina, paginas)} paginas={paginas} total={d.total} tamano={POR_PAGINA} nombre={d.total === 1 ? "medicamento" : "medicamentos"} href={href} />
-              )}
-            </section>
-          )}
-
+          {catalogo}
         </>
+      ) : (
+        // Sin búsqueda, cada cosa en su pestaña (DESIGN_SYSTEM §14.3): el catálogo, las alertas recientes y cómo verificar.
+        <Pestanas
+          className="mt-8"
+          etiqueta="Secciones de Verifica un medicamento"
+          activa={seccion}
+          pestanas={[
+            { clave: "catalogo", etiqueta: "Catálogo", icono: <LayoutGrid size={15} aria-hidden />, conteo: d.total, contenido: catalogo },
+            {
+              clave: "alertas",
+              etiqueta: "Alertas recientes",
+              icono: <Bell size={15} aria-hidden />,
+              contenido: <AlertasRecientes base={base} alertas={d.alertas} fuente={fuente ?? null} />,
+            },
+            {
+              clave: "verificar",
+              etiqueta: "Cómo verificar",
+              icono: <ShieldCheck size={15} aria-hidden />,
+              contenido: <ComoVerificar base={base} lista={lista} fuente={fuente ?? null} />,
+            },
+          ]}
+        />
       )}
     </div>
   );
