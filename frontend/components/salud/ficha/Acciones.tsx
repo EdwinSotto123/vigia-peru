@@ -128,6 +128,8 @@ export function AccionesFila({ f, base, className }: { f: FichaIpress; base: str
                 <ArrowUpRight size={13} aria-hidden className="ml-auto shrink-0 text-mute" />
                 {EXTERNO}
               </a>
+              {/* La aclaración va junto a la denuncia (2026-11-22: debajo de los botones no tenía contexto). */}
+              <p className="px-3 pb-1.5 text-rotulo leading-snug text-mute">La recibe SUSALUD, no Gobserva. En una emergencia, llama al 106.</p>
             </li>
             <li className="px-1.5 py-1">
               <CopiarEnlace className="[&>button]:min-h-10 [&>button]:w-full" />
@@ -135,7 +137,6 @@ export function AccionesFila({ f, base, className }: { f: FichaIpress; base: str
           </ul>
         </details>
       </div>
-      <p className="mt-2 text-meta text-mute">La denuncia la recibe SUSALUD, no Gobserva. En una emergencia, llama al 106 (SAMU) o al 113.</p>
     </div>
   );
 }

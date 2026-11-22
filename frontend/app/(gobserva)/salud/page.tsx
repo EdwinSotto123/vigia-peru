@@ -89,7 +89,8 @@ export default async function InicioSalud() {
             </div>
             <AvisoEmergencia oscuro className="mt-7 border-t border-paper/10 pt-6" />
           </div>
-          <EscenaPuerta renipressAl={f?.renipressAl ?? null} sancionesAl={f?.sancionesAl ?? null} className="lg:mt-6" />
+          {/* En el celular la escena ocupaba la segunda pantalla entera antes de «¿Qué necesitas hoy?»: desde sm. */}
+          <EscenaPuerta renipressAl={f?.renipressAl ?? null} sancionesAl={f?.sancionesAl ?? null} className="max-sm:hidden lg:mt-6" />
         </div>
       </section>
 
@@ -227,7 +228,7 @@ export default async function InicioSalud() {
                       name="departamento"
                       defaultValue=""
                       required
-                      className="mt-2 h-12 w-full rounded-2xl border border-line bg-caja px-4 text-destacado text-ink focus:border-granate focus:outline-none focus:ring-2 focus:ring-granate/30"
+                      className="mt-2 h-12 w-full rounded-2xl border border-line bg-caja px-4 font-sans text-destacado text-ink focus:border-granate focus:outline-none focus:ring-2 focus:ring-granate/30"
                     >
                       <option value="" disabled>
                         Elige tu departamento

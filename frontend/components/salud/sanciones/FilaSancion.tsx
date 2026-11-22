@@ -106,7 +106,8 @@ export function FilaSancion({ s, base }: { s: Fila; base: string }) {
 
         <details className="group mt-1">
           <summary className="inline-flex min-h-11 cursor-pointer list-none items-center gap-1 text-meta font-semibold text-granate sm:min-h-8 [&::-webkit-details-marker]:hidden">
-            {s.infraccion ? (que ? "La infracción completa y la resolución" : "Ver la infracción y la resolución") : "Ver la resolución"}
+            {/* Un solo texto para lo mismo (2026-11-22, auditoría: dos rótulos distintos según la fila). */}
+            {s.infraccion ? "Ver la infracción y la resolución" : "Ver la resolución"}
             <ChevronDown size={14} aria-hidden className="transition-transform duration-rapido group-open:rotate-180" />
           </summary>
           <div className="mt-1 space-y-1.5 rounded-xl bg-paperSoft px-3.5 py-3 text-meta leading-relaxed text-inkSoft">

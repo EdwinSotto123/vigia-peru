@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { cn } from "@/lib/utils";
 import { Ban, Building2, ClipboardCheck, FileText, Hash, Landmark, MapPin, Receipt } from "lucide-react";
 import { Insignia } from "@/components/gobserva/ui/Insignia";
 import { ListaPaginada } from "@/components/listado/Paginado";
@@ -29,9 +30,9 @@ function Vigia({ v }: { v: NonNullable<FichaIpress["vigia"]> }) {
   const e = v.empresa;
   return (
     <Bloque
-      titulo="Lo que Vigía sabe de su RUC"
+      titulo="Su empresa ante SUNAT y el Estado"
       icono={Landmark}
-      descripcion="Vigía es el proyecto cívico de Gobserva: cruza el RUC con SUNAT, las compras del Estado y la Contraloría."
+      descripcion="Del RUC del propietario: su estado en SUNAT y sus contratos con el Estado, con datos de Vigía (el proyecto de Gobserva que sigue las compras públicas)."
     >
       <div className="flex flex-wrap items-center gap-2">
         <span className="inline-flex items-center gap-1.5 text-dato text-ink">
@@ -135,7 +136,11 @@ function OtrasSedes({ sedes, base }: { sedes: FichaIpress["mismaEmpresa"]; base:
 export function RelacionadosFicha({ f, base }: { f: FichaIpress; base: string }) {
   if (!f.vigia && !f.mismaEmpresa.length) return null;
   return (
-    <section aria-label="La empresa detrás del establecimiento" className="mt-10 grid gap-5 lg:grid-cols-2 lg:items-start">
+    // Dos columnas sólo si hay las dos cosas: una sola tarjeta a media página dejaba la otra mitad vacía (2026-11-22).
+    <section
+      aria-label="La empresa detrás del establecimiento"
+      className={cn("grid gap-5 lg:items-start", f.vigia && f.mismaEmpresa.length > 0 && "lg:grid-cols-2")}
+    >
       {f.vigia && <Vigia v={f.vigia} />}
       {f.mismaEmpresa.length > 0 && <OtrasSedes sedes={f.mismaEmpresa} base={base} />}
     </section>

@@ -12,7 +12,7 @@ import { Dato } from "@/components/ui/Dato";
 import { claseAccion } from "@/components/ui/EnlaceAccion";
 import { rutaEn, urlCanonica } from "@/lib/gobserva";
 import { TIPO_SANCION, buscarMedicamentos, buscarSalud, fechaCorta, getResumenSalud, nombrePropio, numero, rutaMedico, type PasoVerificar } from "@/lib/gobserva-salud";
-import { FilaMedicamento } from "@/components/salud/medicamentos/piezas";
+import { FilaAlerta, FilaMedicamento } from "@/components/salud/medicamentos/piezas";
 import { VistosRecientes } from "@/components/salud/vistos/Vistos";
 import { baseProducto } from "@/lib/gobserva-servidor";
 
@@ -227,7 +227,7 @@ export default async function Buscar({ searchParams }: Props) {
                     {meds.alertasTotal
                       ? `${numero(meds.alertasTotal)} ${meds.alertasTotal === 1 ? "alerta de DIGEMID lo nombra" : "alertas de DIGEMID lo nombran"}. `
                       : "Ninguna alerta de DIGEMID lo nombra. "}
-                    El precio es el típico por unidad en farmacias y boticas.
+                    {meds.total > 0 ? "El precio es el típico por unidad en farmacias y boticas." : ""}
                   </p>
                 </div>
                 <Link
@@ -237,7 +237,7 @@ export default async function Buscar({ searchParams }: Props) {
                   {meds.alertasTotal ? "Ver las alertas y los precios" : meds.total > 5 ? `Ver los ${numero(meds.total)}` : "Verificar el medicamento"} <ArrowRight size={15} aria-hidden />
                 </Link>
               </div>
-              {meds.filas.length > 0 && (
+              {meds.filas.length > 0 ? (
                 <ul className="mt-4 divide-y divide-line overflow-hidden rounded-2xl border border-line bg-paper" aria-label="Medicamentos encontrados">
                   {meds.filas.map((m) => (
                     <li key={m.codigo}>
@@ -245,6 +245,18 @@ export default async function Buscar({ searchParams }: Props) {
                     </li>
                   ))}
                 </ul>
+              ) : (
+                // Sin productos pero con alertas que lo nombran: las alertas mismas (antes, sólo un título y un enlace).
+                meds.alertas.length > 0 && (
+                  <ul className="mt-4 divide-y divide-line overflow-hidden rounded-2xl border border-line bg-paper" aria-label="Alertas de DIGEMID que lo nombran">
+                    {/* recorte: dos; «Ver las alertas y los precios» lleva a todas. */}
+                    {meds.alertas.slice(0, 2).map((a) => (
+                      <li key={a.id}>
+                        <FilaAlerta a={a} base={base} sinTabla conDibujo />
+                      </li>
+                    ))}
+                  </ul>
+                )
               )}
             </section>
           )}

@@ -84,65 +84,78 @@ export function PestanaHistorial({ f }: { f: FichaIpress }) {
         )}
       </ul>
 
-      <Bloque titulo="Cambios detectados" icono={History} cuenta={numero(f.cambios.length)}>
-        {f.cambios.length ? (
-          <ol className="relative space-y-4 before:absolute before:bottom-1 before:left-[5px] before:top-1 before:w-px before:bg-line">
-            {f.cambios.map((c, i) => (
-              <li key={`${c.fecha}-${c.campo}-${i}`} className="relative pl-6">
-                <span aria-hidden className="absolute left-0 top-1.5 h-[11px] w-[11px] rounded-full border-2 border-paper bg-granate" />
-                <p className="flex flex-wrap items-baseline gap-x-2 text-dato">
-                  <span className="font-semibold text-ink">{CAMPOS[c.campo] ?? claveLegible(c.campo)}</span>
-                  <span className="text-meta tabular-nums text-mute">{fechaCorta(c.fecha)}</span>
-                </p>
-                <p className="mt-0.5 text-dato leading-snug text-inkSoft [overflow-wrap:anywhere]">
-                  {c.campo === "alta" ? `Con estado ${valor(c.despues)}.` : c.campo === "baja_registro" ? `Su último estado era ${valor(c.antes)}.` : `De ${valor(c.antes)} a ${valor(c.despues)}.`}
-                </p>
-                <p className="mt-0.5 text-rotulo text-mute">{FUENTES[c.fuente] ?? c.fuente}</p>
-              </li>
-            ))}
-          </ol>
-        ) : (
-          <p className="text-dato text-inkSoft">
-            No registramos cambios en RENIPRESS{f.primeraVez ? ` desde el ${fechaCorta(f.primeraVez)}, cuando empezamos a leerlo` : ""}. Comparamos el archivo cada
-            viernes y el detalle cada 30 días.
+      {/* Sin cambios y sin historia de estados: una sola nota, no dos cajas vacías (2026-11-22, auditoría). */}
+      {f.cambios.length === 0 && leido && historial.length === 0 ? (
+        <Bloque titulo="Cambios en RENIPRESS" icono={History}>
+          <p className="text-dato leading-relaxed text-inkSoft">
+            No registramos cambios en RENIPRESS{f.primeraVez ? ` desde el ${fechaCorta(f.primeraVez)}, cuando empezamos a leerlo` : ""}, y su detalle no
+            trae una historia de estados. Comparamos el archivo cada viernes y el detalle cada 30 días.
           </p>
-        )}
-      </Bloque>
+          <FuenteFecha nombre="Detalle de RENIPRESS (SUSALUD)" url={f.fuentes.detalle?.url ?? ren?.url ?? null} al={f.detalle?.leidoAl} className="mt-3" />
+        </Bloque>
+      ) : (
+        <>
+          <Bloque titulo="Cambios detectados" icono={History} cuenta={numero(f.cambios.length)}>
+            {f.cambios.length ? (
+              <ol className="relative space-y-4 before:absolute before:bottom-1 before:left-[5px] before:top-1 before:w-px before:bg-line">
+                {f.cambios.map((c, i) => (
+                  <li key={`${c.fecha}-${c.campo}-${i}`} className="relative pl-6">
+                    <span aria-hidden className="absolute left-0 top-1.5 h-[11px] w-[11px] rounded-full border-2 border-paper bg-granate" />
+                    <p className="flex flex-wrap items-baseline gap-x-2 text-dato">
+                      <span className="font-semibold text-ink">{CAMPOS[c.campo] ?? claveLegible(c.campo)}</span>
+                      <span className="text-meta tabular-nums text-mute">{fechaCorta(c.fecha)}</span>
+                    </p>
+                    <p className="mt-0.5 text-dato leading-snug text-inkSoft [overflow-wrap:anywhere]">
+                      {c.campo === "alta" ? `Con estado ${valor(c.despues)}.` : c.campo === "baja_registro" ? `Su último estado era ${valor(c.antes)}.` : `De ${valor(c.antes)} a ${valor(c.despues)}.`}
+                    </p>
+                    <p className="mt-0.5 text-rotulo text-mute">{FUENTES[c.fuente] ?? c.fuente}</p>
+                  </li>
+                ))}
+              </ol>
+            ) : (
+              <p className="text-dato text-inkSoft">
+                No registramos cambios en RENIPRESS{f.primeraVez ? ` desde el ${fechaCorta(f.primeraVez)}, cuando empezamos a leerlo` : ""}. Comparamos el archivo cada
+                viernes y el detalle cada 30 días.
+              </p>
+            )}
+          </Bloque>
 
-      <Bloque titulo="Historia de estados en RENIPRESS" icono={CalendarClock} cuenta={leido ? numero(estados(historial).length) : undefined}>
-        {!leido ? (
-          <DetallePendiente url={ren?.url ?? ""} />
-        ) : historial.length ? (
-          <ol className="relative space-y-4 before:absolute before:bottom-1 before:left-[5px] before:top-1 before:w-px before:bg-line">
-            {estados(historial).map((e, i) => (
-              <li key={i} className="relative pl-6">
-                <span aria-hidden className={`absolute left-0 top-1.5 h-[11px] w-[11px] rounded-full border-2 border-paper ${i === 0 ? "bg-granate" : "bg-ink/25"}`} />
-                <p className="flex flex-wrap items-baseline gap-x-2 text-dato">
-                  <span className="font-semibold text-ink">{enOracion(e.estado) || "Estado sin nombre"}</span>
-                  {e.fecha && <span className="text-meta tabular-nums text-mute">{e.fecha}</span>}
-                  {i === 0 && <span className="text-rotulo font-semibold text-granate">el último</span>}
-                </p>
-                {e.condicion && <p className="mt-0.5 text-dato text-inkSoft">{enOracion(e.condicion)}</p>}
-                {e.motivo &&
-                  (e.motivo.length > 160 ? (
-                    <details className="group mt-1">
-                      <summary className="cursor-pointer list-none text-meta leading-relaxed text-inkSoft [&::-webkit-details-marker]:hidden">
-                        {e.motivo.slice(0, 150).trimEnd()}…{" "}
-                        <span className="font-semibold text-granate group-open:hidden">Leer el motivo completo</span>
-                      </summary>
-                      <p className="mt-1 text-meta leading-relaxed text-inkSoft [overflow-wrap:anywhere]">{e.motivo}</p>
-                    </details>
-                  ) : (
-                    <p className="mt-1 text-meta leading-relaxed text-inkSoft [overflow-wrap:anywhere]">{e.motivo}</p>
-                  ))}
-              </li>
-            ))}
-          </ol>
-        ) : (
-          <p className="text-dato text-inkSoft">El detalle de RENIPRESS no trae una historia de estados (consultado el {fechaCorta(f.detalle?.leidoAl)}).</p>
-        )}
-        {leido && <FuenteFecha nombre="Detalle de RENIPRESS (SUSALUD)" url={f.fuentes.detalle?.url ?? ren?.url ?? null} al={f.detalle?.leidoAl} className="mt-3" />}
-      </Bloque>
+          <Bloque titulo="Historia de estados en RENIPRESS" icono={CalendarClock} cuenta={leido ? numero(estados(historial).length) : undefined}>
+            {!leido ? (
+              <DetallePendiente url={ren?.url ?? ""} />
+            ) : historial.length ? (
+              <ol className="relative space-y-4 before:absolute before:bottom-1 before:left-[5px] before:top-1 before:w-px before:bg-line">
+                {estados(historial).map((e, i) => (
+                  <li key={i} className="relative pl-6">
+                    <span aria-hidden className={`absolute left-0 top-1.5 h-[11px] w-[11px] rounded-full border-2 border-paper ${i === 0 ? "bg-granate" : "bg-ink/25"}`} />
+                    <p className="flex flex-wrap items-baseline gap-x-2 text-dato">
+                      <span className="font-semibold text-ink">{enOracion(e.estado) || "Estado sin nombre"}</span>
+                      {e.fecha && <span className="text-meta tabular-nums text-mute">{e.fecha}</span>}
+                      {i === 0 && <span className="text-rotulo font-semibold text-granate">el último</span>}
+                    </p>
+                    {e.condicion && <p className="mt-0.5 text-dato text-inkSoft">{enOracion(e.condicion)}</p>}
+                    {e.motivo &&
+                      (e.motivo.length > 160 ? (
+                        <details className="group mt-1">
+                          <summary className="cursor-pointer list-none text-meta leading-relaxed text-inkSoft [&::-webkit-details-marker]:hidden">
+                            {e.motivo.slice(0, 150).trimEnd()}…{" "}
+                            <span className="font-semibold text-granate group-open:hidden">Leer el motivo completo</span>
+                          </summary>
+                          <p className="mt-1 text-meta leading-relaxed text-inkSoft [overflow-wrap:anywhere]">{e.motivo}</p>
+                        </details>
+                      ) : (
+                        <p className="mt-1 text-meta leading-relaxed text-inkSoft [overflow-wrap:anywhere]">{e.motivo}</p>
+                      ))}
+                  </li>
+                ))}
+              </ol>
+            ) : (
+              <p className="text-dato text-inkSoft">El detalle de RENIPRESS no trae una historia de estados (consultado el {fechaCorta(f.detalle?.leidoAl)}).</p>
+            )}
+            {leido && <FuenteFecha nombre="Detalle de RENIPRESS (SUSALUD)" url={f.fuentes.detalle?.url ?? ren?.url ?? null} al={f.detalle?.leidoAl} className="mt-3" />}
+          </Bloque>
+        </>
+      )}
     </div>
   );
 }

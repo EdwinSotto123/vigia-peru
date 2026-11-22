@@ -150,7 +150,7 @@ export function FilaAlerta({
       <p className="flex flex-wrap items-center gap-x-3 gap-y-1">
         <InsigniaAlerta tipo={a.tipo} />
         <a href={a.url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-meta font-semibold text-ink underline-offset-4 hover:underline">
-          {a.numero ? `Alerta N.° ${a.numero}` : a.titulo}
+          {a.numero ? `Alerta N.° ${a.numero}` : a.titulo === a.titulo.toUpperCase() ? a.titulo.charAt(0) + a.titulo.slice(1).toLowerCase() : a.titulo}
           <ArrowUpRight size={12} aria-hidden className="text-mute" />
           <span className="sr-only"> (en la web de DIGEMID, se abre en otra pestaña)</span>
         </a>

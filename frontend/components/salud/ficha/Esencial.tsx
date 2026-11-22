@@ -119,7 +119,7 @@ export function EsencialFicha({ f, base, className }: { f: FichaIpress; base: st
           <span className="mt-1.5 block">Nada de esto califica a un establecimiento como seguro o peligroso.</span>
         </Ayuda>
       </div>
-      <p className="mt-1.5 max-w-[70ch] text-pretty text-cuerpo leading-relaxed text-inkSoft">{resumenVerificacion(f)}</p>
+      <p className="mt-1.5 max-w-[70ch] text-pretty text-cuerpo leading-relaxed text-inkSoft max-sm:hidden">{resumenVerificacion(f)}</p>
       <ul className="mt-4 grid grid-cols-2 gap-2.5 sm:grid-cols-4 xl:grid-cols-7" aria-label="Lo esencial, chequeo por chequeo">
         {f.verificacion.map((c) => {
           // Una sanción firme va en el rojo de las sanciones firmes de todo Salud (las listas, el registro), aunque el chequeo diga «Revisa».
