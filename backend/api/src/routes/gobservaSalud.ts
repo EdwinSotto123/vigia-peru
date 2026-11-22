@@ -708,6 +708,8 @@ saludRouter.get("/medico/:colegiatura", async (c) => {
 const FiltrosSanciones = z.object({
   q: z.string().trim().max(120).optional(),
   departamento: z.string().trim().max(40).optional(),
+  provincia: z.string().trim().max(60).optional(),
+  distrito: z.string().trim().max(60).optional(),
   tipo: z.enum(["amonestacion", "multa", "cierre_definitivo", "otra"]).optional(),
   gravedad: z.enum(["leve", "grave", "muy_grave"]).optional(),
   administrada: z.enum(["IPRESS", "IAFAS", "UGIPRESS"]).optional(),
@@ -725,21 +727,30 @@ saludRouter.get("/sanciones", async (c) => {
   if (!f.success) return c.json({ error: "filtros_invalidos", detail: f.error.issues.map((i) => i.message).join("; ") }, 400);
   const q = f.data;
   const cuerpo = await memo.obtener(`sanciones:${JSON.stringify(q)}`, async () => {
-    const vals: unknown[] = [];
-    const p = (v: unknown) => { vals.push(v); return `$${vals.length}`; };
-    const w = ["s.en_registro"];
-    for (const x of palabras(q.q ?? "")) w.push(`(mef_norm(s.nombre) LIKE ${p(`%${x}%`)} OR coalesce(i.nombre_norm, '') LIKE $${vals.length})`);
-    if (q.departamento) w.push(`mef_norm(s.departamento) = ${p(norm(q.departamento))}`);
-    if (q.tipo) w.push(`s.tipo_sancion = ${p(q.tipo)}`);
-    if (q.gravedad) w.push(`s.gravedad = ${p(q.gravedad)}`);
-    if (q.administrada) w.push(`s.administrada_tipo = ${p(q.administrada)}`);
-    if (q.naturaleza) w.push(`s.naturaleza ILIKE ${p(q.naturaleza === "publica" ? "P_blica%" : "Privada%")}`);
-    if (q.anio) w.push(`extract(year FROM s.fecha_emision) = ${p(q.anio)}`);
-    if (q.ipress) w.push(`s.ipress_codigo = ${p(q.ipress.padStart(8, "0"))}`);
-    if (q.judicial) w.push("s.judicializada");
-    const base = `FROM salud_sancion s LEFT JOIN salud_ipress i ON i.codigo = s.ipress_codigo WHERE ${w.join(" AND ")}`;
+    // Las condiciones, con o sin la provincia y el distrito: la lista lleva todo; las opciones de «Provincia» y «Distrito»
+    // se cuentan sin su propio filtro (para poder cambiar de distrito sin volver a elegir la región).
+    const donde = (sin: ("provincia" | "distrito")[] = []) => {
+      const vals: unknown[] = [];
+      const p = (v: unknown) => { vals.push(v); return `$${vals.length}`; };
+      const w = ["s.en_registro"];
+      for (const x of palabras(q.q ?? "")) w.push(`(mef_norm(s.nombre) LIKE ${p(`%${x}%`)} OR coalesce(i.nombre_norm, '') LIKE $${vals.length})`);
+      if (q.departamento) w.push(`mef_norm(s.departamento) = ${p(norm(q.departamento))}`);
+      if (q.departamento && q.provincia && !sin.includes("provincia")) w.push(`mef_norm(s.provincia) = ${p(norm(q.provincia))}`);
+      if (q.departamento && q.distrito && !sin.includes("distrito")) w.push(`mef_norm(s.distrito) = ${p(norm(q.distrito))}`);
+      if (q.tipo) w.push(`s.tipo_sancion = ${p(q.tipo)}`);
+      if (q.gravedad) w.push(`s.gravedad = ${p(q.gravedad)}`);
+      if (q.administrada) w.push(`s.administrada_tipo = ${p(q.administrada)}`);
+      if (q.naturaleza) w.push(`s.naturaleza ILIKE ${p(q.naturaleza === "publica" ? "P_blica%" : "Privada%")}`);
+      if (q.anio) w.push(`extract(year FROM s.fecha_emision) = ${p(q.anio)}`);
+      if (q.ipress) w.push(`s.ipress_codigo = ${p(q.ipress.padStart(8, "0"))}`);
+      if (q.judicial) w.push("s.judicializada");
+      return { base: `FROM salud_sancion s LEFT JOIN salud_ipress i ON i.codigo = s.ipress_codigo WHERE ${w.join(" AND ")}`, vals };
+    };
+    const { base, vals } = donde();
+    const deProvincias = donde(["provincia", "distrito"]);
+    const deDistritos = donde(["distrito"]);
     const orden = q.orden === "multa" ? "s.multa_uit DESC NULLS LAST, s.fecha_emision DESC" : "s.fecha_emision DESC NULLS LAST, s.id";
-    const [filas, total] = await Promise.all([
+    const [filas, total, provincias, distritos] = await Promise.all([
       pool.query(`SELECT s.id, s.nombre, s.administrada_tipo AS "administradaTipo", s.naturaleza, s.institucion, s.ipress_codigo AS "ipressCodigo",
                          s.enlace, i.nombre AS "ipressNombre", s.pas, s.resolucion, to_char(s.fecha_emision, 'YYYY-MM-DD') AS "fechaEmision",
                          s.tipo_sancion AS "tipoSancion", s.multa_uit::float AS "multaUit", s.gravedad, s.infraccion_codigo AS "infraccionCodigo",
@@ -753,9 +764,18 @@ saludRouter.get("/sanciones", async (c) => {
                          (SELECT coalesce(json_agg(t ORDER BY t.anio DESC), '[]') FROM (SELECT extract(year FROM s2.fecha_emision)::int AS anio, count(*)::int AS n
                             FROM salud_sancion s2 WHERE s2.en_registro AND s2.fecha_emision IS NOT NULL GROUP BY 1) t) AS "porAnio"
                     ${base}`, vals),
+      q.departamento
+        ? pool.query(`SELECT mef_norm(s.provincia) AS clave, count(*)::int AS n ${deProvincias.base} AND s.provincia IS NOT NULL GROUP BY 1 ORDER BY 2 DESC, 1`, deProvincias.vals)
+        : Promise.resolve({ rows: [] }),
+      q.departamento
+        ? pool.query(`SELECT mef_norm(s.distrito) AS clave, count(*)::int AS n ${deDistritos.base} AND s.distrito IS NOT NULL GROUP BY 1 ORDER BY 2 DESC, 1`, deDistritos.vals)
+        : Promise.resolve({ rows: [] }),
     ]);
     const fuentes = await estadoFuentes();
-    return publicar({ filas: filas.rows, ...total.rows[0], pagina: q.pagina, tamano: q.tamano, filtros: q, fuente: { url: URL_SANCIONES, al: fuentes.sancionesAl } });
+    return publicar({
+      filas: filas.rows, ...total.rows[0], pagina: q.pagina, tamano: q.tamano, filtros: q, fuente: { url: URL_SANCIONES, al: fuentes.sancionesAl },
+      lugares: { provincia: provincias.rows, distrito: distritos.rows },
+    });
   });
   c.header("Cache-Control", CACHE);
   return c.json(cuerpo);

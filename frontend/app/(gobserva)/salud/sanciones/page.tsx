@@ -51,7 +51,29 @@ export default async function Sanciones({ searchParams }: Props) {
   const params = Object.fromEntries(new URLSearchParams(qsSanciones({ ...f, pagina: undefined }).slice(1)));
 
   const filtros: FiltroBarra[] = [
-    { tipo: "uno", clave: "departamento", etiqueta: "Dónde", buscar: true, valor: f.departamento, opciones: DEPARTAMENTOS.map((dep) => ({ valor: dep, nombre: nombreLugar(dep) })) },
+    // Región, y con ella su provincia y su distrito, cada uno con cuántas sanciones tiene (2026-11-22: «debería haber
+    // región, distrito»; antes sólo el departamento).
+    { tipo: "uno", clave: "departamento", etiqueta: "Región", buscar: true, valor: f.departamento, opciones: DEPARTAMENTOS.map((dep) => ({ valor: dep, nombre: nombreLugar(dep) })) },
+    ...(f.departamento && (d?.lugares?.provincia.length ?? 0) > 1
+      ? [{
+          tipo: "uno" as const,
+          clave: "provincia",
+          etiqueta: "Provincia",
+          buscar: (d?.lugares?.provincia.length ?? 0) > 8,
+          valor: f.provincia,
+          opciones: (d?.lugares?.provincia ?? []).map((x) => ({ valor: x.clave, nombre: nombreLugar(x.clave), n: x.n })),
+        }]
+      : []),
+    ...(f.departamento && (d?.lugares?.distrito.length ?? 0) > 0
+      ? [{
+          tipo: "uno" as const,
+          clave: "distrito",
+          etiqueta: "Distrito",
+          buscar: (d?.lugares?.distrito.length ?? 0) > 8,
+          valor: f.distrito,
+          opciones: (d?.lugares?.distrito ?? []).map((x) => ({ valor: x.clave, nombre: nombreLugar(x.clave), n: x.n })),
+        }]
+      : []),
     { tipo: "uno", clave: "tipo", etiqueta: "Qué sanción", valor: f.tipo, opciones: TIPOS_FILTRO.map((t) => ({ valor: t.clave, nombre: t.nombre })) },
     {
       tipo: "uno",
@@ -90,11 +112,15 @@ export default async function Sanciones({ searchParams }: Props) {
   return (
     <div className="container-page pb-10 pt-4 sm:pb-14 sm:pt-5">
       <Ruta items={[{ etiqueta: "Inicio", href: rutaEn(base, "/") }, { etiqueta: "Sanciones" }]} />
-      <ProveedorFiltros ruta={lista} params={params}>
+      <ProveedorFiltros ruta={lista} params={params} dependientes={{ departamento: ["provincia", "distrito"], provincia: ["distrito"] }}>
         <CabeceraLista
           className="mt-2"
           figura="documento"
-          titulo={f.departamento ? `Sanciones firmes de SUSALUD en ${nombreLugar(f.departamento)}` : "Sanciones firmes de SUSALUD"}
+          titulo={
+            f.departamento
+              ? `Sanciones firmes de SUSALUD en ${nombreLugar(f.distrito ?? f.provincia ?? f.departamento)}`
+              : "Sanciones firmes de SUSALUD"
+          }
           resumen={
             d && (
               <>

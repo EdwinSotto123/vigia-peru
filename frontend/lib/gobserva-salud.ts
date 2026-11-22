@@ -283,6 +283,8 @@ export interface PaginaSanciones {
   pagina: number;
   tamano: number;
   fuente: { url: string; al: string | null };
+  /** Con una región elegida: sus provincias y distritos con cuántas sanciones (sin su propio filtro). */
+  lugares?: { provincia: { clave: string; n: number }[]; distrito: { clave: string; n: number }[] };
 }
 
 export interface FuenteSalud {

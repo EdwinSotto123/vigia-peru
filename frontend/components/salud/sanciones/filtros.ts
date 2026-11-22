@@ -28,6 +28,10 @@ export const ADMINISTRADAS = [
 export interface FiltrosSanciones {
   q?: string;
   departamento?: string;
+  /** Sólo con la región: «LIMA», «HUAURA». */
+  provincia?: string;
+  /** Sólo con la región: «MIRAFLORES». */
+  distrito?: string;
   tipo?: TipoFiltroSancion;
   gravedad?: "leve" | "grave" | "muy_grave";
   administrada?: "IPRESS" | "IAFAS" | "UGIPRESS";
@@ -52,6 +56,10 @@ export function filtrosSancionesDeUrl(p: Params): FiltrosSanciones {
   if (q && q.length >= 2) f.q = q;
   const dep = uno(p, "departamento");
   if (dep && (DEPARTAMENTOS as readonly string[]).includes(normalizar(dep))) f.departamento = normalizar(dep);
+  const prov = uno(p, "provincia");
+  if (prov && f.departamento) f.provincia = normalizar(prov).slice(0, 60);
+  const dist = uno(p, "distrito");
+  if (dist && f.departamento) f.distrito = normalizar(dist).slice(0, 60);
   const tipo = uno(p, "tipo");
   if (tipo && TIPOS_FILTRO.some((t) => t.clave === tipo)) f.tipo = tipo as TipoFiltroSancion;
   const gravedad = uno(p, "gravedad");
@@ -71,7 +79,7 @@ export function filtrosSancionesDeUrl(p: Params): FiltrosSanciones {
   return f;
 }
 
-const CLAVES: (keyof FiltrosSanciones)[] = ["q", "departamento", "tipo", "gravedad", "administrada", "naturaleza", "anio", "ipress", "judicial", "orden", "pagina"];
+const CLAVES: (keyof FiltrosSanciones)[] = ["q", "departamento", "provincia", "distrito", "tipo", "gravedad", "administrada", "naturaleza", "anio", "ipress", "judicial", "orden", "pagina"];
 
 export function qsSanciones(f: FiltrosSanciones): string {
   const u = new URLSearchParams();
