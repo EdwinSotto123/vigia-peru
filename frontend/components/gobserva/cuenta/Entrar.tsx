@@ -62,7 +62,7 @@ const GANAS: Record<Producto, { titulo: string; puntos: Promesa[]; ejemplo: { as
       { Icono: ShieldCheck, titulo: "Gratis, sin planes", texto: "Todo lo demás de Gobserva Salud se ve sin cuenta." },
     ],
     ejemplo: {
-      asunto: "Panadol 500 mg: alerta nueva de DIGEMID",
+      asunto: "Tu medicamento: alerta nueva de DIGEMID",
       lineas: ["Productos falsificados incautados", "Revisa el lote de tu caja"],
       de: "En «Mis guardados»",
       pie: "Ejemplo de cómo se marca lo nuevo en lo que guardaste.",
@@ -445,7 +445,7 @@ function Ganas({ producto }: { producto: Producto }) {
               </span>
               <div className="min-w-0">
                 <p className="truncate text-meta font-semibold text-paper">{g.ejemplo.asunto}</p>
-                <p className="text-rotulo text-paper/60">{g.ejemplo.de ?? "Gobserva, 7:00"}</p>
+                <p className="text-rotulo text-paper/75">{g.ejemplo.de ?? "Gobserva, 7:00"}</p>
               </div>
             </div>
             <div className="mt-3 space-y-1 border-t border-paper/10 pt-3">

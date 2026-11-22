@@ -12,6 +12,8 @@ import { CopiarNumero } from "@/components/salud/medico/CopiarNumero";
 import { FormColegiatura } from "@/components/salud/medico/FormColegiatura";
 import { PasosVerificar } from "@/components/salud/medico/PasosVerificar";
 import { BotonGuardarSalud } from "@/components/salud/cuenta/BotonGuardar";
+import { AnotarVisto } from "@/components/salud/vistos/Vistos";
+import { URL_CMP } from "@/components/salud/fuentes/urls";
 import { rutaEn, urlCanonica } from "@/lib/gobserva";
 import { baseProducto } from "@/lib/gobserva-servidor";
 import { fechaCorta, getMedico, nombrePropio, numero, rutaFicha, rutaMedico, type Medico } from "@/lib/gobserva-salud";
@@ -104,13 +106,16 @@ export default async function ResultadoMedico({ params }: Props) {
   const n = numeroDe(params.colegiatura);
   if (!n) notFound();
   const m = await getMedico(n);
-  if (!m) notFound();
   const base = baseProducto("salud");
+  // Sin la respuesta de la API (falló o no respondió), igual sirve la guía: el número listo y el botón al CMP (2026-11-22:
+  // antes caía en el 404 de Vigía).
+  if (!m) return <SinRespuesta n={n} base={base} />;
   const cob = m.cobertura;
   const parte = cob.total ? cob.leidas / cob.total : 0;
 
   return (
     <div className="container-page pb-6 pt-5 sm:pt-8">
+      <AnotarVisto tipo="medico" codigo={m.colegiatura} nombre={`Colegiatura N.° ${m.colegiatura}`} detalle={m.colegio ?? null} />
       <Migas
         items={[
           { etiqueta: "Inicio", href: rutaEn(base, "/") },
@@ -237,6 +242,34 @@ export default async function ResultadoMedico({ params }: Props) {
           {m.aviso}
         </p>
       </section>
+    </div>
+  );
+}
+
+/** La colegiatura sin la respuesta de las fuentes abiertas: el número listo para copiar y cómo verificarlo en el CMP. */
+function SinRespuesta({ n, base }: { n: string; base: string }) {
+  return (
+    <div className="container-page pb-6 pt-5 sm:pt-8">
+      <Migas items={[{ etiqueta: "Inicio", href: rutaEn(base, "/") }, { etiqueta: "Verificar a un médico", href: rutaEn(base, "/medico") }, { etiqueta: `Colegiatura N.° ${n}` }]} />
+      <h1 className="mt-4 font-display text-cifra font-bold leading-tight tracking-tight text-ink sm:text-titulo">
+        Colegiatura N.° <span className="font-mono">{n}</span>
+      </h1>
+      <div className="tarjeta mt-5 max-w-2xl rounded-2xl border border-line bg-paper p-5">
+        <p className="text-cuerpo leading-relaxed text-inkSoft">
+          Ahora no pudimos leer lo que dicen las fuentes abiertas sobre este número. Su habilitación la confirma el Colegio Médico: copia el número
+          y búscalo en «Conoce a tu médico».
+        </p>
+        <div className="mt-4 flex flex-wrap items-center gap-3">
+          <CopiarNumero numero={n} />
+          <a href={URL_CMP} target="_blank" rel="noopener noreferrer" className={claseAccion("primario", "min-h-11")}>
+            Abrir «Conoce a tu médico» <ArrowUpRight size={15} aria-hidden />
+            <span className="sr-only"> (Colegio Médico del Perú, se abre en otra pestaña)</span>
+          </a>
+          <Link href={rutaEn(base, rutaMedico(n))} className={claseAccion("secundario", "min-h-11")}>
+            Volver a intentar
+          </Link>
+        </div>
+      </div>
     </div>
   );
 }

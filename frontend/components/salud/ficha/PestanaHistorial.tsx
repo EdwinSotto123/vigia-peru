@@ -33,6 +33,28 @@ function claveLegible(k: string): string {
 
 const valor = (v: string | null) => (v == null || v === "" ? "vacío" : `«${v}»`);
 
+/** «ACTIVO» → «Activo» (las siglas cortas quedan). */
+const enOracion = (t: string | null | undefined) => (t ? t.charAt(0) + t.slice(1).toLowerCase().replace(/(ruc|sunat|ipress|upss|susalud)/g, (m) => m.toUpperCase()) : "");
+
+/**
+ * La historia de estados que trae el detalle de RENIPRESS, legible (2026-11-22, auditoría: salían «Ti condicion 3» y «Es
+ * estado 1»): el estado, la condición, la fecha (inicio, cierre o fin, la que haya) y el motivo. Los códigos internos
+ * (es_estado, ti_condicion) no se muestran y las entradas repetidas se juntan.
+ */
+function estados(h: Record<string, string | null>[]): { estado: string | null; condicion: string | null; fecha: string | null; motivo: string | null }[] {
+  const out: { estado: string | null; condicion: string | null; fecha: string | null; motivo: string | null }[] = [];
+  const vistos = new Set<string>();
+  for (const x of h) {
+    const fecha = x.de_fecha_ini ? `desde el ${x.de_fecha_ini}` : x.de_fecha_cie ? `cierre el ${x.de_fecha_cie}` : x.de_fecha_fin ? `hasta el ${x.de_fecha_fin}` : null;
+    const e = { estado: x.estado ?? null, condicion: x.condicion && x.condicion !== x.estado ? x.condicion : null, fecha, motivo: x.de_motivo ?? null };
+    const clave = JSON.stringify(e);
+    if (vistos.has(clave) || (!e.estado && !e.condicion && !e.motivo)) continue;
+    vistos.add(clave);
+    out.push(e);
+  }
+  return out;
+}
+
 export function PestanaHistorial({ f }: { f: FichaIpress }) {
   const leido = detalleLeido(f);
   const historial = leido && f.detalle ? f.detalle.historial.filter((h) => Object.values(h).some((v) => v)) : [];
@@ -87,23 +109,32 @@ export function PestanaHistorial({ f }: { f: FichaIpress }) {
         )}
       </Bloque>
 
-      <Bloque titulo="Historia de estados en RENIPRESS" icono={CalendarClock} cuenta={leido ? numero(historial.length) : undefined}>
+      <Bloque titulo="Historia de estados en RENIPRESS" icono={CalendarClock} cuenta={leido ? numero(estados(historial).length) : undefined}>
         {!leido ? (
           <DetallePendiente url={ren?.url ?? ""} />
         ) : historial.length ? (
-          <ol className="divide-y divide-line">
-            {historial.map((h, i) => (
-              <li key={i} className="py-2.5 first:pt-0 last:pb-0">
-                <dl className="grid gap-x-6 gap-y-1 sm:grid-cols-2">
-                  {Object.entries(h)
-                    .filter(([, v]) => v)
-                    .map(([k, v]) => (
-                      <div key={k} className="flex min-w-0 flex-wrap gap-x-2">
-                        <dt className="text-meta text-mute">{claveLegible(k)}</dt>
-                        <dd className="min-w-0 text-dato text-ink [overflow-wrap:anywhere]">{v}</dd>
-                      </div>
-                    ))}
-                </dl>
+          <ol className="relative space-y-4 before:absolute before:bottom-1 before:left-[5px] before:top-1 before:w-px before:bg-line">
+            {estados(historial).map((e, i) => (
+              <li key={i} className="relative pl-6">
+                <span aria-hidden className={`absolute left-0 top-1.5 h-[11px] w-[11px] rounded-full border-2 border-paper ${i === 0 ? "bg-granate" : "bg-ink/25"}`} />
+                <p className="flex flex-wrap items-baseline gap-x-2 text-dato">
+                  <span className="font-semibold text-ink">{enOracion(e.estado) || "Estado sin nombre"}</span>
+                  {e.fecha && <span className="text-meta tabular-nums text-mute">{e.fecha}</span>}
+                  {i === 0 && <span className="text-rotulo font-semibold text-granate">el último</span>}
+                </p>
+                {e.condicion && <p className="mt-0.5 text-dato text-inkSoft">{enOracion(e.condicion)}</p>}
+                {e.motivo &&
+                  (e.motivo.length > 160 ? (
+                    <details className="group mt-1">
+                      <summary className="cursor-pointer list-none text-meta leading-relaxed text-inkSoft [&::-webkit-details-marker]:hidden">
+                        {e.motivo.slice(0, 150).trimEnd()}…{" "}
+                        <span className="font-semibold text-granate group-open:hidden">Leer el motivo completo</span>
+                      </summary>
+                      <p className="mt-1 text-meta leading-relaxed text-inkSoft [overflow-wrap:anywhere]">{e.motivo}</p>
+                    </details>
+                  ) : (
+                    <p className="mt-1 text-meta leading-relaxed text-inkSoft [overflow-wrap:anywhere]">{e.motivo}</p>
+                  ))}
               </li>
             ))}
           </ol>

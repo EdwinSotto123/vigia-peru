@@ -1,9 +1,9 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { Activity, Building2, Database, FileText, Gavel, HeartPulse, History, MessageSquareWarning, ShieldCheck, Stethoscope } from "lucide-react";
+import { FileText, Gavel, HeartPulse, History, ShieldCheck, Stethoscope } from "lucide-react";
 import { Migas } from "@/components/patrones/Migas";
 import { Pixel } from "@/components/pixel/Pixel";
-import { Pestanas, type Pestana } from "@/components/patrones/Pestanas";
+import { PanelConTitulo, Pestanas, type Pestana } from "@/components/patrones/Pestanas";
 import { AccionesFila } from "@/components/salud/ficha/Acciones";
 import { CabeceraFicha } from "@/components/salud/ficha/Cabecera";
 import { EsencialFicha } from "@/components/salud/ficha/Esencial";
@@ -18,6 +18,8 @@ import { RelacionadosFicha } from "@/components/salud/ficha/Relacionados";
 import { ResumenAtencion } from "@/components/salud/ficha/ResumenAtencion";
 import { VerificacionFicha, resumenVerificacion } from "@/components/salud/ficha/Verificacion";
 import { detalleLeido } from "@/components/salud/ficha/piezas";
+import { AnotarVisto } from "@/components/salud/vistos/Vistos";
+import { lugarIpress } from "@/components/salud/lista/filtros";
 import { rutaEn, urlCanonica } from "@/lib/gobserva";
 import { baseProducto } from "@/lib/gobserva-servidor";
 import { getFichaIpress, nombrePropio, rutaFicha } from "@/lib/gobserva-salud";
@@ -71,33 +73,90 @@ export default async function FichaEstablecimiento({ params, searchParams }: Pro
   // 2026-11-21, segunda vuelta (el usuario: «todo desordenado en subsecciones… ¿por qué generas scrolls infinitos?»): nada
   // se apila. Arriba quién es, qué hacer y lo esencial; TODO lo demás en una sola fila de pestañas, una a la vez.
   const conEmpresa = !!f.vigia || f.mismaEmpresa.length > 0;
+  // 2026-11-22 (auditoría: «diez pestañas: no entran ni en la computadora y esconden Historial»): seis, juntando lo que se
+  // lee junto. Las direcciones viejas (?seccion=denuncias, recursos, empresa, fuentes) caen en la pestaña que las contiene.
+  const separador = <div aria-hidden className="my-8 border-t border-line" />;
   const pestanas: Pestana[] = [
     { clave: "atencion", etiqueta: "Para atenderte", icono: ico(HeartPulse), contenido: <ResumenAtencion f={f} base={base} /> },
     { clave: "verificacion", etiqueta: "Verificación", icono: ico(ShieldCheck), contenido: <VerificacionFicha f={f} base={base} /> },
-    { clave: "servicios", etiqueta: "Servicios", icono: ico(Stethoscope), conteo: leido ? f.detalle!.upss.length || null : null, contenido: <PestanaServicios f={f} base={base} /> },
-    { clave: "sanciones", etiqueta: "Sanciones", icono: ico(Gavel), conteo: f.registroSanciones.length || null, contenido: <PestanaSanciones f={f} /> },
-    { clave: "denuncias", etiqueta: "Denuncias", icono: ico(MessageSquareWarning), contenido: <PestanaDenuncias f={f} /> },
-    { clave: "recursos", etiqueta: "Recursos y cirugías", icono: ico(Activity), contenido: <PestanaRecursos f={f} /> },
+    {
+      clave: "servicios",
+      etiqueta: "Servicios y personal",
+      icono: ico(Stethoscope),
+      contenido: (
+        <>
+          <PanelConTitulo titulo="Servicios que declaró">
+            <PestanaServicios f={f} base={base} />
+          </PanelConTitulo>
+          {separador}
+          <PanelConTitulo titulo="Personal, camas y cirugías">
+            <PestanaRecursos f={f} />
+          </PanelConTitulo>
+        </>
+      ),
+    },
+    {
+      clave: "sanciones",
+      etiqueta: "Sanciones y denuncias",
+      icono: ico(Gavel),
+      conteo: f.registroSanciones.length || null,
+      contenido: (
+        <>
+          <PanelConTitulo titulo="Sanciones firmes">
+            <PestanaSanciones f={f} />
+          </PanelConTitulo>
+          {separador}
+          <PanelConTitulo titulo="Denuncias ante SUSALUD">
+            <PestanaDenuncias f={f} />
+          </PanelConTitulo>
+        </>
+      ),
+    },
     { clave: "documentos", etiqueta: "Documentos", icono: ico(FileText), conteo: leido ? f.detalle!.documentos.length || null : null, contenido: <PestanaDocumentos f={f} base={base} /> },
-    { clave: "historial", etiqueta: "Historial", icono: ico(History), conteo: f.cambios.length || null, contenido: <PestanaHistorial f={f} /> },
-    ...(conEmpresa ? [{ clave: "empresa", etiqueta: "Empresa y sedes", icono: ico(Building2), contenido: <RelacionadosFicha f={f} base={base} /> }] : []),
-    { clave: "fuentes", etiqueta: "Fuentes", icono: ico(Database), contenido: <PestanaFuentes f={f} base={base} /> },
+    {
+      clave: "historial",
+      etiqueta: "Historial y fuentes",
+      icono: ico(History),
+      conteo: f.cambios.length || null,
+      contenido: (
+        <>
+          <PanelConTitulo titulo="Historial">
+            <PestanaHistorial f={f} />
+          </PanelConTitulo>
+          {conEmpresa && (
+            <>
+              {separador}
+              <PanelConTitulo titulo="Empresa y sedes">
+                <RelacionadosFicha f={f} base={base} />
+              </PanelConTitulo>
+            </>
+          )}
+          {separador}
+          <PanelConTitulo titulo="Fuentes">
+            <PestanaFuentes f={f} base={base} />
+          </PanelConTitulo>
+        </>
+      ),
+    },
   ];
+  const DE_ANTES: Record<string, string> = { denuncias: "sanciones", recursos: "servicios", empresa: "historial", fuentes: "historial" };
+  const activa = seccion ? DE_ANTES[seccion] ?? seccion : undefined;
 
   return (
     <div className="container-page pb-6 pt-5 sm:pt-8">
+      <AnotarVisto tipo="establecimiento" codigo={f.codigo} nombre={nombre} detalle={[f.categoria ?? "Sin categoría", lugarIpress(f)].join(", ")} />
       <Migas
         items={[
           { etiqueta: "Inicio", href: rutaEn(base, "/") },
           { etiqueta: "Establecimientos", href: rutaEn(base, "/establecimientos") },
           { etiqueta: nombre },
         ]}
-        pestanas={{ etiquetas: Object.fromEntries(pestanas.map((p) => [p.clave, p.etiqueta])), primera: pestanas[0].clave, activa: seccion }}
+        pestanas={{ etiquetas: Object.fromEntries(pestanas.map((p) => [p.clave, p.etiqueta])), primera: pestanas[0].clave, activa }}
       />
 
       {/* La cabecera en su placa, con la clínica de píxeles (2026-11-21: «secciones que sólo son texto con fondo
           transparente, dales forma»); «Lo esencial», en su tarjeta. */}
-      <div className="mt-4 overflow-hidden rounded-3xl border border-granate/20 bg-granate-50 px-5 py-6 sm:px-8 sm:py-7">
+      <div className="mt-4 rounded-3xl border border-granate/20 bg-granate-50 px-5 py-6 sm:px-8 sm:py-7">
         <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
           <div className="min-w-0">
             <CabeceraFicha f={f} />
@@ -115,7 +174,7 @@ export default async function FichaEstablecimiento({ params, searchParams }: Pro
       <div id="secciones" className="mt-8 scroll-mt-16">
         <Pestanas
           pestanas={pestanas}
-          activa={seccion}
+          activa={activa}
           etiqueta={`Secciones de la ficha de ${nombre}`}
           fija
           className="[&>div:first-child]:top-16"

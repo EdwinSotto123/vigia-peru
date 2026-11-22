@@ -13,6 +13,7 @@ import { claseAccion } from "@/components/ui/EnlaceAccion";
 import { rutaEn, urlCanonica } from "@/lib/gobserva";
 import { TIPO_SANCION, buscarMedicamentos, buscarSalud, fechaCorta, getResumenSalud, nombrePropio, numero, rutaMedico, type PasoVerificar } from "@/lib/gobserva-salud";
 import { FilaMedicamento } from "@/components/salud/medicamentos/piezas";
+import { VistosRecientes } from "@/components/salud/vistos/Vistos";
 import { baseProducto } from "@/lib/gobserva-servidor";
 
 export const dynamic = "force-dynamic";
@@ -70,6 +71,7 @@ export default async function Buscar({ searchParams }: Props) {
         </Link>
       </div>
 
+      {!q && <VistosRecientes base={base} fila className="mt-8" />}
       {!q && <Guia ruta={ruta} />}
 
       {q && q.length < 2 && (

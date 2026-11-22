@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import type { ReactNode } from "react";
-import { CalendarClock, LocateFixed, Search } from "lucide-react";
+import { LocateFixed, Search } from "lucide-react";
 import { FuenteFecha } from "@/components/salud/comun";
 import { URL_DATOS_SUSALUD, URL_RENIPRESS_CONSULTA, URL_SANCIONES } from "@/components/salud/fuentes/urls";
 import { nombreLugar } from "@/components/salud/lista/filtros";
@@ -16,6 +16,7 @@ import { rutaEn, urlCanonica } from "@/lib/gobserva";
 import { getResumenSalud, numero } from "@/lib/gobserva-salud";
 import { baseProducto } from "@/lib/gobserva-servidor";
 import { NECESIDADES_RAPIDAS } from "@/lib/salud-necesidades";
+import { VistosRecientes } from "@/components/salud/vistos/Vistos";
 
 export const dynamic = "force-dynamic";
 
@@ -93,6 +94,9 @@ export default async function InicioSalud() {
       </section>
 
       <div className="container-page space-y-20 py-14 sm:space-y-28 sm:py-20">
+        {/* Quien vuelve encuentra lo que abrió (sólo en su dispositivo); quien llega por primera vez no ve nada aquí. */}
+        <VistosRecientes base={base} fila className="-mb-8 sm:-mb-12" />
+
         {/* ── 2. ¿Qué necesitas hoy? ──────────────────────────────────────────── */}
         <section aria-labelledby="necesitas-t">
           <h2 id="necesitas-t" className="text-balance font-display text-titulo font-bold leading-[1.1] tracking-[-0.02em] text-ink sm:text-vitrina">
@@ -254,38 +258,9 @@ export default async function InicioSalud() {
             </div>
           </section>
         )}
-
-        {/* ── 4. Cierre ───────────────────────────────────────────────────────── */}
-        <section aria-labelledby="cierre-t" className="sobre-oscuro overflow-hidden rounded-3xl border border-paper/10 bg-ink p-6 text-paper sm:p-10">
-          <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)] lg:items-center lg:gap-12">
-            <div className="min-w-0">
-              <h2 id="cierre-t" className="text-balance font-display text-titulo font-bold leading-[1.08] tracking-[-0.02em] sm:text-vitrina">
-                Antes de tu próxima cita, búscala aquí.
-              </h2>
-              <p className="mt-3 flex items-start gap-2 text-dato leading-relaxed text-paper/75">
-                <CalendarClock size={16} aria-hidden className="mt-0.5 shrink-0 text-maiz" />
-                <span>Registros de SUSALUD al {f?.renipressAl ? <FechaCorta f={f.renipressAl} /> : "último viernes"}.</span>
-              </p>
-            </div>
-            <div className="min-w-0">
-              <div aria-hidden className="mb-5 flex items-end gap-3">
-                <Pixel nombre="vecina" escala={4} retardo={1600} />
-                <Pixel nombre="doctora" escala={4} retardo={300} />
-              </div>
-              <BuscadorSalud accion={ruta("/buscar")} oscuro id="buscar-cierre" />
-              <AvisoEmergencia oscuro className="mt-5" />
-            </div>
-          </div>
-        </section>
       </div>
     </>
   );
-}
-
-function FechaCorta({ f }: { f: string }) {
-  const [a, m, d] = f.slice(0, 10).split("-").map(Number);
-  const meses = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "setiembre", "octubre", "noviembre", "diciembre"];
-  return <>{d && m && a ? `${d} de ${meses[m - 1]} de ${a}` : f}</>;
 }
 
 function Cifra({ valor, etiqueta, detalle, pie, href }: { valor: string; etiqueta: string; detalle: string; pie: ReactNode; href?: string }) {

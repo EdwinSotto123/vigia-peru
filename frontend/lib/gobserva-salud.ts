@@ -436,7 +436,7 @@ function capitalizar(t: string): string {
       if (/^\s+$/.test(w)) return w;
       if (/^(s\.?a\.?c\.?|e\.?i\.?r\.?l\.?|s\.?r\.?l\.?|s\.?a\.?|ii|iii|iv|vi|vii|viii|ix|xi|xii|essalud|minsa|ipress|sis|clas)$/i.test(w)) return w.toUpperCase();
       if (i > 0 && minus.has(w)) return w;
-      return w.charAt(0).toUpperCase() + w.slice(1);
+      return w.replace(/^([^\p{L}\d]*)(\p{L})/u, (_, antes: string, letra: string) => antes + letra.toUpperCase());
     })
     .join("");
 }
@@ -488,6 +488,10 @@ export interface Medicamento {
   periodo: string;
   enCatalogo: boolean;
   cantidadIfas?: number | null;
+  /** En la búsqueda: cuántas presentaciones del mismo producto se juntaron en esta fila, y su rango de precio. */
+  presentacionesN?: number;
+  precioMin?: number | null;
+  precioMax?: number | null;
 }
 
 /** Una alerta DIGEMID. */

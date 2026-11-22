@@ -224,10 +224,7 @@ export default async function Medicamentos({ searchParams }: Props) {
               <h2 id="productos-t" className="sr-only">
                 Medicamentos
               </h2>
-              <div id="resultados" className="scroll-mt-32">
-                <Paginas pagina={Math.min(pagina, paginas)} paginas={paginas} total={d.total} tamano={POR_PAGINA} nombre={d.total === 1 ? "medicamento" : "medicamentos"} href={href} />
-              </div>
-              <ul className="mt-3 divide-y divide-line overflow-hidden rounded-2xl border border-line bg-paper" aria-label="Medicamentos">
+              <ul id="resultados" className="scroll-mt-32 divide-y divide-line overflow-hidden rounded-2xl border border-line bg-paper" aria-label="Medicamentos">
                 {d.filas.map((m) => (
                   <li key={m.codigo}>
                     <FilaMedicamento m={m} base={base} />

@@ -5,6 +5,7 @@ import { Bookmark, BookmarkCheck, Loader2 } from "lucide-react";
 import { useAvisos } from "@/components/gobserva/ui/Avisos";
 import { rutaEn } from "@/lib/gobserva";
 import { ErrorCuenta, guardar, quitar, refNormal, useGuardados, type TipoGuardado } from "@/lib/salud-cuenta";
+import { anotarPendiente, tomarPendiente } from "@/lib/salud-vistos";
 import { cn } from "@/lib/utils";
 
 /**
@@ -37,6 +38,18 @@ export function BotonGuardarSalud({
 
   const ref = refNormal(tipo, codigo);
   const guardado = !!guardados?.some((g) => g.tipo === tipo && g.ref === ref);
+  // Quien tocó «Guardar» sin cuenta, la creó y volvió a esta ficha: se guarda solo (2026-11-22, auditoría: «el guardado
+  // se perdía al crear la cuenta»).
+  useEffect(() => {
+    if (!conCuenta || guardados === null || guardado) return;
+    const p = tomarPendiente(tipo, ref);
+    if (!p) return;
+    void guardar(tipo, ref, p.nombre ?? nombre)
+      .then(() => mutate())
+      .then(() => avisar({ tono: "ok", texto: `Listo: ${nombre ?? "lo"} quedó en tus guardados.`, accion: { etiqueta: "Ver mis guardados", href: rutaEn(base, "/cuenta") } }))
+      .catch(() => setError("No pudimos guardarlo: tócalo otra vez."));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [conCuenta, guardados === null, guardado, tipo, ref]);
   const clase = cn(
     "gs-hunde inline-flex min-h-11 items-center gap-2 rounded-full border px-4 text-dato font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-granate disabled:opacity-60",
     guardado ? "border-granate bg-granate text-paper hover:bg-granate-deep" : "border-line bg-paper text-ink hover:border-granate/50 hover:bg-granate-50",
@@ -47,7 +60,12 @@ export function BotonGuardarSalud({
 
   if (!conCuenta) {
     return (
-      <a href={rutaEn(base, `/entrar?crear=1&next=${encodeURIComponent(aqui)}`)} className={clase} title="Crea tu cuenta gratis para guardarlo">
+      <a
+        href={rutaEn(base, `/entrar?crear=1&next=${encodeURIComponent(aqui)}`)}
+        onClick={() => anotarPendiente({ tipo, ref, nombre })}
+        className={clase}
+        title="Crea tu cuenta gratis: al volver queda guardado"
+      >
         <Bookmark size={16} aria-hidden /> Guardar
       </a>
     );

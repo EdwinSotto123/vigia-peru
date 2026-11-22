@@ -779,8 +779,20 @@ saludRouter.get("/medicamentos", async (c) => {
       }
     }
     const [filas, total, alertas, alertasTotal] = await Promise.all([
-      pool.query(`SELECT ${COLS_MED} FROM salud_medicamento m WHERE ${whereMed} ORDER BY ${ordenMed} LIMIT ${tamano} OFFSET ${(pagina - 1) * tamano}`, valsMed),
-      pool.query(`SELECT count(*)::int AS n FROM salud_medicamento m WHERE ${whereMed}`, valsMed),
+      // Una fila por producto (mismo nombre, concentración, forma y registro): sus presentaciones (frasco de 60 o de 120 mL)
+      // se juntan con su rango de precio (2026-11-22, auditoría: «el mismo Panadol tres veces»). La que más farmacias
+      // reportan representa al grupo y su ficha lista las demás.
+      pool.query(`
+        SELECT ${COLS_MED}, m.presentaciones AS "presentacionesN", m.precio_min::float AS "precioMin", m.precio_max::float AS "precioMax"
+          FROM (
+            SELECT m.*, count(*) OVER g AS presentaciones, min(m.precio_mediana) OVER g AS precio_min, max(m.precio_mediana) OVER g AS precio_max,
+                   row_number() OVER (PARTITION BY m.nombre_norm, m.concentracion, m.forma, m.registro ORDER BY m.establecimientos DESC NULLS LAST, m.codigo) AS rn
+              FROM salud_medicamento m WHERE ${whereMed}
+            WINDOW g AS (PARTITION BY m.nombre_norm, m.concentracion, m.forma, m.registro)
+          ) m
+         WHERE m.rn = 1
+         ORDER BY ${ordenMed} LIMIT ${tamano} OFFSET ${(pagina - 1) * tamano}`, valsMed),
+      pool.query(`SELECT count(*)::int AS n FROM (SELECT DISTINCT m.nombre_norm, m.concentracion, m.forma, m.registro FROM salud_medicamento m WHERE ${whereMed}) g`, valsMed),
       pool.query(`SELECT ${COLS_ALERTA} FROM salud_alerta a WHERE ${whereAl} ORDER BY a.fecha DESC, a.id DESC LIMIT 5`, valsAl),
       pool.query(`SELECT count(*)::int AS n FROM salud_alerta a WHERE ${whereAl}`, valsAl),
     ]);

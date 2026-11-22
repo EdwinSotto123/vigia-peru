@@ -75,6 +75,8 @@ export function FormMedicamento({ accion, q, grande = false, className }: { acci
 /** Una presentación en una lista: nombre, concentración y forma, registro y titular; a la derecha, el precio típico. */
 export function FilaMedicamento({ m, base, destacar }: { m: Medicamento; base: string; destacar?: boolean }) {
   const generico = /^GEN/.test(m.clasificacion ?? "");
+  const varias = (m.presentacionesN ?? 1) > 1;
+  const rango = varias && m.precioMin != null && m.precioMax != null && m.precioMin !== m.precioMax;
   return (
     <Link
       href={rutaEn(base, rutaMedicamento(m.codigo))}
@@ -92,13 +94,13 @@ export function FilaMedicamento({ m, base, destacar }: { m: Medicamento; base: s
         </p>
         <p className="mt-0.5 truncate text-meta text-mute">
           {/* La presentación distingue dos filas del mismo producto (frasco de 60 o de 120 mL). */}
-          {[nombreMed(m.forma), nombreMed(m.presentacion), m.registro ? `R.S. ${m.registro}` : null, nombreMed(m.titular)].filter(Boolean).join(", ")}
+          {[nombreMed(m.forma), varias ? `${m.presentacionesN} presentaciones` : nombreMed(m.presentacion), m.registro ? `R.S. ${m.registro}` : null, nombreMed(m.titular)].filter(Boolean).join(", ")}
         </p>
       </div>
       <div className="flex items-center gap-2 text-right">
         <div>
-          <p className="font-display text-bloque font-bold tabular-nums text-ink">{soles(m.precioMediana)}</p>
-          <p className="text-rotulo text-mute">{m.precioMediana != null ? "por unidad" : "sin reporte"}</p>
+          <p className="font-display text-bloque font-bold tabular-nums text-ink">{rango ? `${soles(m.precioMin)} a ${m.precioMax!.toFixed(2)}` : soles(m.precioMediana)}</p>
+          <p className="text-rotulo text-mute">{m.precioMediana != null || rango ? (rango ? "por unidad, según presentación" : "por unidad") : "sin reporte"}</p>
         </div>
         <ChevronRight size={16} aria-hidden className="shrink-0 text-mute group-hover:text-granate" />
       </div>

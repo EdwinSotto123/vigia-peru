@@ -30,8 +30,8 @@ export default async function CercaDeTi({ searchParams }: { searchParams: { ubic
 
       <div className="mt-4 grid gap-x-12 gap-y-10 lg:grid-cols-[minmax(0,1fr)_22rem] lg:items-start">
         <div className="min-w-0">
-          <h1 className="text-balance font-display text-cifra font-bold leading-tight tracking-tight text-ink sm:text-titulo">Cerca de ti</h1>
-          <p className="mt-2 max-w-[62ch] text-pretty text-cuerpo leading-relaxed text-inkSoft">
+          <h1 className="text-balance font-display text-seccion font-bold leading-tight tracking-[-0.015em] text-ink">Cerca de mí</h1>
+          <p className="mt-1 max-w-[70ch] text-pretty text-dato leading-relaxed text-inkSoft">
             ¿Ya estás adentro de una clínica y no sabes su nombre exacto? ¿Buscas dónde atenderte de algo? Con tu ubicación te mostramos los
             establecimientos registrados más cercanos, si están activos, si tienen sanciones firmes y, si eliges qué necesitas, cuáles lo declararon.
           </p>

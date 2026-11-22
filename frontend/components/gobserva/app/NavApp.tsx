@@ -103,30 +103,32 @@ const APP: Partial<Record<Producto, { grupos: GrupoApp[]; cuenta: ItemApp[] }>> 
   salud: {
     grupos: [
       {
-        // Tres grupos y la cuenta abajo: entra entero en una pantalla de 768 px de alto sin deslizar la barra.
+        // 2026-11-22 (auditoría: «el menú agrupa por la entidad que publica, no por lo que la gente verifica»): un grupo por
+        // cosa que se verifica, con el mismo nombre que en la barra de abajo del celular. Entra entero en 768 px de alto.
         items: [
           { ruta: "/", etiqueta: "Inicio", Icono: House, abajo: true, exacta: true },
-          { ruta: "/cuenta", etiqueta: "Mis guardados", Icono: Bookmark },
-          { ruta: "/asistente", etiqueta: "Asistente", Icono: Bot },
+          { ruta: "/cuenta", etiqueta: "Guardados y vistos", Icono: Bookmark },
+          { ruta: "/asistente", etiqueta: "Pregúntale al asistente", Icono: Bot },
         ],
       },
       {
-        titulo: "Verificar",
+        titulo: "Clínicas",
         items: [
-          { ruta: "/establecimientos", etiqueta: "Establecimientos", Icono: Hospital, abajo: true, corto: "Clínicas", tambien: ["/establecimiento/", "/buscar"] },
-          { ruta: "/medico", etiqueta: "Médicos", Icono: Stethoscope, abajo: true },
-          { ruta: "/medicamentos", etiqueta: "Medicamentos", Icono: Pill, abajo: true, corto: "Medicinas", tambien: ["/medicamento/"] },
-        ],
-      },
-      {
-        titulo: "Explorar",
-        items: [
+          { ruta: "/establecimientos", etiqueta: "Buscar por nombre", Icono: Hospital, abajo: true, corto: "Clínicas", tambien: ["/establecimiento/", "/buscar"] },
           { ruta: "/cerca", etiqueta: "Cerca de mí", Icono: MapPin },
-          { ruta: "/mapa", etiqueta: "Mapa", Icono: IconoMapa },
-          { ruta: "/alertas", etiqueta: "Alertas de DIGEMID", Icono: TriangleAlert },
+          { ruta: "/mapa", etiqueta: "En el mapa", Icono: IconoMapa },
           { ruta: "/sanciones", etiqueta: "Sanciones de SUSALUD", Icono: Gavel },
-          { ruta: "/cambios", etiqueta: "Cambios en RENIPRESS", Icono: History },
-          { ruta: "/fuentes", etiqueta: "De dónde salen los datos", Icono: Database },
+        ],
+      },
+      {
+        titulo: "Médicos",
+        items: [{ ruta: "/medico", etiqueta: "Verificar por colegiatura", Icono: Stethoscope, abajo: true, corto: "Médicos" }],
+      },
+      {
+        titulo: "Medicinas",
+        items: [
+          { ruta: "/medicamentos", etiqueta: "Verificar un medicamento", Icono: Pill, abajo: true, corto: "Medicinas", tambien: ["/medicamento/"] },
+          { ruta: "/alertas", etiqueta: "Alertas de DIGEMID", Icono: TriangleAlert },
         ],
       },
     ],

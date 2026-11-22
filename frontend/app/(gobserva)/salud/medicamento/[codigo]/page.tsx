@@ -9,6 +9,7 @@ import { Pixel } from "@/components/pixel/Pixel";
 import { FuenteFecha } from "@/components/salud/comun";
 import { FilaAlerta, FilaMedicamento, nombreMed, textoRevisadas } from "@/components/salud/medicamentos/piezas";
 import { BotonGuardarSalud } from "@/components/salud/cuenta/BotonGuardar";
+import { AnotarVisto } from "@/components/salud/vistos/Vistos";
 import { rutaEn, urlCanonica } from "@/lib/gobserva";
 import { baseProducto } from "@/lib/gobserva-servidor";
 import { getMedicamento, mesLargo, numero, rutaMedicamento, soles, type FichaMedicamento } from "@/lib/gobserva-salud";
@@ -61,6 +62,74 @@ export default async function FichaMedicamentoPagina({ params, searchParams }: P
   const alertas = f.alertasRegistro.length + f.alertasNombre.length;
 
   const pestanas: Pestana[] = [
+    {
+      clave: "alertas",
+      etiqueta: "Alertas",
+      icono: ico(TriangleAlert),
+      conteo: alertas || null,
+      contenido: (
+        <div className="space-y-4">
+          <CabeceraPestana acciones={<FuenteFecha nombre="Alertas DIGEMID" url={f.fuente.avisos.url} al={f.fuente.avisos.al} />}>
+            Las alertas de DIGEMID que nombran su registro sanitario o su marca.
+          </CabeceraPestana>
+          <form action={rutaEn(base, "/medicamentos")} className="flex flex-col gap-2 rounded-2xl border border-line bg-paper p-3 sm:flex-row sm:items-center">
+            <label htmlFor="lote-caja" className="shrink-0 px-1 text-dato font-semibold text-ink">
+              ¿Tienes la caja?
+            </label>
+            <input
+              id="lote-caja"
+              name="q"
+              required
+              minLength={4}
+              placeholder="Escribe el lote (sale como «Lote» o «L.»)"
+              className="h-11 min-w-0 flex-1 rounded-xl border border-line bg-paper px-3 text-destacado text-ink placeholder:text-mute focus:border-granate focus:outline-none focus:ring-2 focus:ring-granate/25 sm:text-dato"
+            />
+            <button type="submit" className="gs-hunde inline-flex h-11 shrink-0 items-center justify-center gap-1.5 rounded-xl bg-granate px-4 text-dato font-semibold text-paper hover:bg-granate-deep">
+              Buscar el lote en las alertas
+            </button>
+          </form>
+          {f.alertasRegistro.length > 0 && (
+            <section aria-labelledby="por-registro" className="rounded-2xl border border-crimson/30 bg-crimson-soft/40">
+              <h3 id="por-registro" className="border-b border-crimson/20 px-5 py-3 text-cuerpo font-bold text-ink">
+                Sobre su registro sanitario {p.registro}
+              </h3>
+              <ul className="divide-y divide-crimson/15">
+                {f.alertasRegistro.map((a) => (
+                  <li key={a.id}>
+                    <FilaAlerta a={a} />
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
+          {f.alertasNombre.length > 0 && (
+            <section aria-labelledby="por-nombre" className="rounded-2xl border border-line bg-paper">
+              <h3 id="por-nombre" className="border-b border-line px-5 py-3 text-cuerpo font-bold text-ink">
+                Nombran «{nombreMed(f.marca)}», pero no su registro
+              </h3>
+              <p className="px-5 pt-3 text-meta leading-relaxed text-inkSoft">
+                Pueden ser falsificaciones de la marca, otra presentación u otro lote. Compara el lote y el registro de tu caja con el PDF.
+              </p>
+              <ul className="divide-y divide-line">
+                {f.alertasNombre.map((a) => (
+                  <li key={a.id}>
+                    <FilaAlerta a={a} />
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
+          {alertas === 0 && (
+            <p className="flex gap-3 rounded-2xl border border-line bg-paper px-5 py-4 text-dato leading-relaxed text-inkSoft">
+              <CircleCheck size={20} aria-hidden className="mt-0.5 shrink-0 text-mossTexto" />
+              <span>
+                Ninguna alerta nombra su registro ni su marca. {textoRevisadas(f.fuente.alertas, f.fuente.ultimaAlerta)}
+              </span>
+            </p>
+          )}
+        </div>
+      ),
+    },
     {
       clave: "datos",
       etiqueta: "Datos",
@@ -124,58 +193,6 @@ export default async function FichaMedicamentoPagina({ params, searchParams }: P
         </div>
       ),
     },
-    {
-      clave: "alertas",
-      etiqueta: "Alertas",
-      icono: ico(TriangleAlert),
-      conteo: alertas || null,
-      contenido: (
-        <div className="space-y-4">
-          <CabeceraPestana acciones={<FuenteFecha nombre="Alertas DIGEMID" url={f.fuente.avisos.url} al={f.fuente.avisos.al} />}>
-            Las alertas de DIGEMID que nombran su registro sanitario o su marca.
-          </CabeceraPestana>
-          {f.alertasRegistro.length > 0 && (
-            <section aria-labelledby="por-registro" className="rounded-2xl border border-crimson/30 bg-crimson-soft/40">
-              <h3 id="por-registro" className="border-b border-crimson/20 px-5 py-3 text-cuerpo font-bold text-ink">
-                Sobre su registro sanitario {p.registro}
-              </h3>
-              <ul className="divide-y divide-crimson/15">
-                {f.alertasRegistro.map((a) => (
-                  <li key={a.id}>
-                    <FilaAlerta a={a} />
-                  </li>
-                ))}
-              </ul>
-            </section>
-          )}
-          {f.alertasNombre.length > 0 && (
-            <section aria-labelledby="por-nombre" className="rounded-2xl border border-line bg-paper">
-              <h3 id="por-nombre" className="border-b border-line px-5 py-3 text-cuerpo font-bold text-ink">
-                Nombran «{nombreMed(f.marca)}», pero no su registro
-              </h3>
-              <p className="px-5 pt-3 text-meta leading-relaxed text-inkSoft">
-                Pueden ser falsificaciones de la marca, otra presentación u otro lote. Compara el lote y el registro de tu caja con el PDF.
-              </p>
-              <ul className="divide-y divide-line">
-                {f.alertasNombre.map((a) => (
-                  <li key={a.id}>
-                    <FilaAlerta a={a} />
-                  </li>
-                ))}
-              </ul>
-            </section>
-          )}
-          {alertas === 0 && (
-            <p className="flex gap-3 rounded-2xl border border-line bg-paper px-5 py-4 text-dato leading-relaxed text-inkSoft">
-              <CircleCheck size={20} aria-hidden className="mt-0.5 shrink-0 text-mossTexto" />
-              <span>
-                Ninguna alerta nombra su registro ni su marca. {textoRevisadas(f.fuente.alertas, f.fuente.ultimaAlerta)}
-              </span>
-            </p>
-          )}
-        </div>
-      ),
-    },
     ...(f.presentaciones.length
       ? [
           {
@@ -228,6 +245,7 @@ export default async function FichaMedicamentoPagina({ params, searchParams }: P
 
   return (
     <div className="container-page pb-6 pt-5 sm:pt-8">
+      <AnotarVisto tipo="medicamento" codigo={String(p.codigo)} nombre={nombre} detalle={[nombreMed(p.forma), p.registro ? `R.S. ${p.registro}` : null].filter(Boolean).join(", ")} />
       <Migas
         items={[
           { etiqueta: "Inicio", href: rutaEn(base, "/") },
@@ -252,6 +270,24 @@ export default async function FichaMedicamentoPagina({ params, searchParams }: P
             <p className="mt-1.5 text-cuerpo text-inkSoft">
               {[nombreMed(p.forma), nombreMed(p.ifa) && `de ${nombreMed(p.ifa).toLowerCase()}`, nombreMed(p.titular) && `titular: ${nombreMed(p.titular)}`].filter(Boolean).join(", ")}
             </p>
+            <p
+              className={`mt-3 flex items-start gap-2 rounded-xl border px-3.5 py-2.5 text-dato font-semibold leading-snug ${
+                f.alertasRegistro.length
+                  ? "border-crimson/30 bg-crimson-soft text-crimsonTexto"
+                  : f.alertasNombre.length
+                    ? "border-amber/40 bg-amber-soft text-amberTexto"
+                    : "border-line bg-paper text-mossTexto"
+              }`}
+            >
+              {f.alertasRegistro.length ? <TriangleAlert size={17} aria-hidden className="mt-0.5 shrink-0" /> : f.alertasNombre.length ? <TriangleAlert size={17} aria-hidden className="mt-0.5 shrink-0" /> : <CircleCheck size={17} aria-hidden className="mt-0.5 shrink-0" />}
+              <span>
+                {f.alertasRegistro.length
+                  ? `DIGEMID emitió ${f.alertasRegistro.length === 1 ? "una alerta" : `${f.alertasRegistro.length} alertas`} sobre su registro sanitario. Compara el lote de tu caja con el de la alerta.`
+                  : f.alertasNombre.length
+                    ? `Ninguna alerta nombra su registro sanitario; ${f.alertasNombre.length === 1 ? "una nombra" : `${f.alertasNombre.length} nombran`} la marca «${nombreMed(f.marca)}» (falsificaciones u otros lotes).`
+                    : "Ninguna alerta de DIGEMID nombra su registro sanitario ni su marca."}
+              </span>
+            </p>
 
             <div className="mt-5 grid gap-3 sm:grid-cols-2">
               <div className="rounded-2xl border border-line bg-paper px-4 py-3.5">
@@ -263,27 +299,20 @@ export default async function FichaMedicamentoPagina({ params, searchParams }: P
                     : `Ninguna farmacia o botica reportó su precio en ${mesLargo(p.periodo)}.`}
                 </p>
               </div>
-              <div className="rounded-2xl border border-line bg-paper px-4 py-3.5">
-                {f.alertasRegistro.length > 0 ? (
-                  <>
-                    <p className="flex items-center gap-1.5 text-meta font-semibold text-crimsonTexto"><TriangleAlert size={15} aria-hidden /> Alertas de DIGEMID</p>
-                    <p className="mt-0.5 font-display text-cifra font-bold tabular-nums text-ink">{f.alertasRegistro.length}</p>
-                    <p className="text-rotulo leading-snug text-mute">sobre su registro sanitario. Revisa el lote de tu caja.</p>
-                  </>
-                ) : masBarato ? (
-                  <>
-                    <p className="text-meta font-medium text-mute">Con el mismo principio activo</p>
-                    <p className="mt-0.5 font-display text-cifra font-bold tabular-nums text-mossTexto">desde {soles(r.minimo)}</p>
-                    <p className="text-rotulo leading-snug text-mute">{numero(r.n)} productos{r.genericos ? `, ${numero(r.genericos)} genéricos` : ""}. Pregunta antes de cambiar.</p>
-                  </>
-                ) : (
-                  <>
-                    <p className="text-meta font-medium text-mute">Alertas de DIGEMID</p>
-                    <p className="mt-0.5 font-display text-cifra font-bold text-ink">{f.alertasNombre.length ? `${f.alertasNombre.length} por su marca` : "Ninguna"}</p>
-                    <p className="text-rotulo leading-snug text-mute">{f.alertasNombre.length ? "Ninguna sobre su registro sanitario." : "sobre su registro sanitario ni su marca."}</p>
-                  </>
-                )}
-              </div>
+              {/* Las alertas ya se dicen en la línea de arriba: aquí, si lo hay, el más barato con lo mismo. */}
+              {masBarato ? (
+                <a href="#secciones" className="gs-hunde block rounded-2xl border border-line bg-paper px-4 py-3.5 hover:border-granate/50">
+                  <p className="text-meta font-medium text-mute">Con el mismo principio activo</p>
+                  <p className="mt-0.5 font-display text-cifra font-bold tabular-nums text-mossTexto">desde {soles(r.minimo)}</p>
+                  <p className="text-rotulo leading-snug text-mute">{numero(r.n)} productos{r.genericos ? `, ${numero(r.genericos)} genéricos` : ""}. Pregunta antes de cambiar.</p>
+                </a>
+              ) : (
+                <div className="rounded-2xl border border-line bg-paper px-4 py-3.5">
+                  <p className="text-meta font-medium text-mute">Con el mismo principio activo</p>
+                  <p className="mt-0.5 text-dato font-semibold text-ink">{r.n ? "Es de los de menor precio típico" : "No hay otro con precio reportado"}</p>
+                  <p className="text-rotulo leading-snug text-mute">Entre los que reportan farmacias y boticas privadas.</p>
+                </div>
+              )}
             </div>
           </div>
           <div aria-hidden className="hidden flex-col items-center lg:flex">
@@ -294,7 +323,7 @@ export default async function FichaMedicamentoPagina({ params, searchParams }: P
       </div>
 
       <div id="secciones" className="mt-8 scroll-mt-16">
-        <Pestanas pestanas={pestanas} activa={seccion ?? (f.alertasRegistro.length ? "alertas" : undefined)} etiqueta={`Secciones de la ficha de ${nombre}`} fija className="[&>div:first-child]:top-16" />
+        <Pestanas pestanas={pestanas} activa={seccion} etiqueta={`Secciones de la ficha de ${nombre}`} fija className="[&>div:first-child]:top-16" />
       </div>
     </div>
   );

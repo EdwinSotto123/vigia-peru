@@ -58,22 +58,14 @@ export function Encabezado({
   className?: string;
   figura?: NombreSprite;
 }) {
+  // 2026-11-22 (auditoría: «cuatro encabezados distintos; la placa se come el celular»): la placa pasó a ser la franja de
+  // las listas. `figura` queda en la firma por compatibilidad y no se dibuja: los personajes viven en la portada y las fichas.
+  void figura;
   return (
-    <header className={cn("relative overflow-hidden rounded-3xl border border-granate/20 bg-granate-50 px-5 py-6 sm:px-8 sm:py-7", className)}>
-      <div className="grid gap-6 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
-        <div className="min-w-0 max-w-3xl">
-          <h1 className="text-balance font-display text-cifra font-bold leading-tight tracking-[-0.02em] text-ink sm:text-titulo">{titulo}</h1>
-          {bajada && <p className="mt-2 max-w-[70ch] text-pretty text-cuerpo leading-relaxed text-inkSoft">{bajada}</p>}
-          {children && <div className="mt-3">{children}</div>}
-        </div>
-        {figura && (
-          <div aria-hidden className="hidden flex-col items-center sm:flex">
-            {/* Todas del mismo alto (~100 px), sea un ícono de 14 filas o una clínica de 28. */}
-            <Pixel nombre={figura} escala={Math.max(2, Math.round(100 / SPRITES[figura].base.length))} acento="accion" />
-            <span className="mt-1 h-0 w-28 border-t-2 border-dotted border-granate/40" />
-          </div>
-        )}
-      </div>
+    <header className={cn("min-w-0", className)}>
+      <h1 className="text-balance font-display text-seccion font-bold leading-tight tracking-[-0.015em] text-ink">{titulo}</h1>
+      {bajada && <p className="mt-1 max-w-[75ch] text-pretty text-dato leading-relaxed text-inkSoft">{bajada}</p>}
+      {children && <div className="mt-2">{children}</div>}
     </header>
   );
 }

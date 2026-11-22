@@ -173,3 +173,22 @@ ampliación a medicamentos, infraestructura, epidemiología, cobertura y fiscali
 - Avisos por correo de lo guardado (hoy lo nuevo se marca en «Mis guardados»): una tarea diaria que cruce
   `salud_guardado` con `salud_sancion`, `salud_ipress_cambio` y `salud_alerta` y mande un resumen (el correo de Cognito
   tiene tope de 50 al día: haría falta SES fuera del sandbox).
+
+## Orden y memoria (2026-11-22, auditoría de UX/UI)
+
+- **Menú por lo que se verifica**: Inicio, Guardados y vistos, Asistente; «Clínicas» (buscar, cerca de mí, mapa,
+  sanciones), «Médicos» (por colegiatura) y «Medicinas» (verificar, alertas de DIGEMID). Los mismos nombres que la barra
+  de abajo del celular. «Cambios» y «Fuentes» quedan en el pie y en la página de fuentes.
+- **Un encabezado por clase de página**: la franja (título de 22 px, cuánto hay y un ⓘ) en listas y herramientas; la
+  placa con figura sólo en la portada y en las fichas. La barra de filtros de las listas (`BarraFiltros`) pregunta como la
+  gente («Dónde», «Qué es», «Del Estado o privado») y «Aplicar» es el único botón lleno.
+- **Ficha de establecimiento**: seis pestañas (antes diez) y dos acciones a la vista («Cómo llegar», «Guardar») con el
+  resto en «Más». La historia de estados de RENIPRESS se lee como una línea de tiempo, sin los códigos internos.
+- **Ficha de medicamento**: una línea responde «¿es confiable?» (alertas sobre su registro, sobre su marca o ninguna), las
+  alertas van primero y hay un campo para el lote de la caja. En la búsqueda, las presentaciones de un producto van en
+  una fila con su rango de precio.
+- **Lo que viste hace poco** (`lib/salud-vistos.ts`): las últimas 12 fichas abiertas, sólo en el dispositivo
+  (localStorage), en la portada, en /buscar y en «Guardados y vistos», con «Borrar». No se guarda lo que se escribe en
+  los buscadores. Un «Guardar» sin cuenta se completa solo al volver con la cuenta creada.
+- **No encontrado y error** propios de Salud (antes caían en el 404 de Vigía); la colegiatura sin respuesta de las fuentes
+  igual muestra el número y el botón al CMP.

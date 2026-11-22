@@ -36,8 +36,8 @@ export default function VerificarMedico() {
         <div className="min-w-0">
           <div className="flex items-end justify-between gap-6">
             <div className="min-w-0">
-              <h1 className="text-balance font-display text-cifra font-bold leading-tight tracking-tight text-ink sm:text-titulo">Verificar a un médico</h1>
-              <p className="mt-2 max-w-[60ch] text-pretty text-cuerpo leading-relaxed text-inkSoft">
+              <h1 className="text-balance font-display text-seccion font-bold leading-tight tracking-[-0.015em] text-ink">Verificar a un médico</h1>
+              <p className="mt-1 max-w-[70ch] text-pretty text-dato leading-relaxed text-inkSoft">
                 Con su número de colegiatura ves lo que dicen las fuentes abiertas y cómo confirmar en el Colegio Médico si está habilitado.
               </p>
             </div>
