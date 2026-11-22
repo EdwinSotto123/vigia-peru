@@ -110,6 +110,8 @@ export const CATALOGO: FuenteCatalogo[] = [
     que: "Gobserva Salud: el registro de establecimientos, el Registro de Sanciones firmes y los datos abiertos de SUSALUD (src/fuentes/susalud.ts); por la salida de Lima si SUSALUD no responde." },
   { fuente: "susalud_detalle", nombre: "SUSALUD: detalle de cada establecimiento (RENIPRESS)", donde: "cloudflare", agenda: "Diario, 03:40", cadaDias: 2,
     que: "Gobserva Salud: servicios, especialidades, documentos y categorización de ~1 200 IPRESS por noche, lo más abierto primero (src/fuentes/susalud_detalle.ts)." },
+  { fuente: "digemid", nombre: "DIGEMID: alertas y precios de medicamentos", donde: "cloudflare", agenda: "Diario, 08:00", cadaDias: 2,
+    que: "Gobserva Salud: las alertas DIGEMID nuevas o modificadas (con el texto de su PDF) y el Indicador de precios del Observatorio cuando sale un mes nuevo (src/fuentes/digemid.ts)." },
   { fuente: "salud_lima", nombre: "Salida peruana (tu PC)", donde: "lima", agenda: "Diario, 12:40", cadaDias: 2,
     que: "Prueba diaria de la salida con IP del Perú (backend/scrapers-pc/salida_peru): que responda y llegue a la Contraloría, INFOBRAS y SERVIR." },
   { fuente: "oece_fichas", nombre: "Ficha del proveedor en el OECE (sanciones vigentes)", donde: "lima", agenda: "Lunes, 08:00 (hasta 700 empresas)", cadaDias: 8,
