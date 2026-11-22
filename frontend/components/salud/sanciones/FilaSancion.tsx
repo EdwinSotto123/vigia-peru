@@ -72,7 +72,7 @@ export function FilaSancion({ s, base }: { s: Fila; base: string }) {
           </span>
           <p className="min-w-0">
             <span className={cn("block text-meta font-semibold", multa || cierre ? "text-crimsonTexto" : "text-inkSoft")}>{multa ? "Multa" : cierre ? "Sanción grave" : "Sanción"}</span>
-            <span className="block font-display text-bloque font-bold leading-tight tabular-nums text-ink">
+            <span className={cn("block font-bold leading-tight tabular-nums text-ink", multa ? "font-display text-bloque" : "text-cuerpo")}>
               {multa && s.multaUit != null ? `${uit(s.multaUit)} UIT` : tipo}
             </span>
           </p>

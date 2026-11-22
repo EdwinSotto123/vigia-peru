@@ -52,7 +52,8 @@ export default async function CercaDeTi({ searchParams }: { searchParams: { ubic
           <h2 id="adentro-t" className="font-display text-bloque font-bold leading-snug text-ink">
             Ya adentro, antes de atenderte
           </h2>
-          <ol className="mt-5 grid gap-6 md:grid-cols-3">
+          {/* En el celular, los tres pasos en una fila que se desliza (no tres pantallas hacia abajo). */}
+          <ol className="-mx-5 mt-5 flex snap-x snap-mandatory gap-5 overflow-x-auto px-5 pb-2 sm:-mx-6 sm:px-6 md:mx-0 md:grid md:grid-cols-3 md:gap-6 md:overflow-visible md:px-0 md:pb-0 [&>li]:w-[82%] [&>li]:shrink-0 [&>li]:snap-start md:[&>li]:w-auto">
             <PasoNumerado n={1} Icono={Building2} titulo="Abre su ficha">
               Mira si figura activo en RENIPRESS, su categoría y si tiene sanciones firmes. Si te van a operar, si declaró un centro quirúrgico.
             </PasoNumerado>
