@@ -54,7 +54,7 @@ export default async function Sanciones({ searchParams }: Props) {
     // Región, y con ella su provincia y su distrito, cada uno con cuántas sanciones tiene (2026-11-22: «debería haber
     // región, distrito»; antes sólo el departamento).
     { tipo: "uno", clave: "departamento", etiqueta: "Región", buscar: true, valor: f.departamento, opciones: DEPARTAMENTOS.map((dep) => ({ valor: dep, nombre: nombreLugar(dep) })) },
-    ...(f.departamento && (d?.lugares?.provincia.length ?? 0) > 1
+    ...(f.departamento && ((d?.lugares?.provincia.length ?? 0) > 1 || f.provincia)
       ? [{
           tipo: "uno" as const,
           clave: "provincia",
@@ -64,7 +64,7 @@ export default async function Sanciones({ searchParams }: Props) {
           opciones: (d?.lugares?.provincia ?? []).map((x) => ({ valor: x.clave, nombre: nombreLugar(x.clave), n: x.n })),
         }]
       : []),
-    ...(f.departamento && (d?.lugares?.distrito.length ?? 0) > 0
+    ...(f.departamento && ((d?.lugares?.distrito.length ?? 0) > 0 || f.distrito)
       ? [{
           tipo: "uno" as const,
           clave: "distrito",

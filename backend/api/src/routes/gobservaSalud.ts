@@ -346,9 +346,11 @@ saludRouter.get("/establecimientos", async (c) => {
       pool.query(`SELECT ${COLS} ${base} ORDER BY ${ordenes[q.orden]} LIMIT ${q.tamano} OFFSET ${off}`, vals),
       pool.query(`SELECT count(*)::int AS n, count(*) FILTER (WHERE x.sanciones > 0)::int AS "conSanciones" ${base}`, vals),
       pool.query(`
-        WITH b AS MATERIALIZED (SELECT i.departamento, i.provincia, i.categoria, i.sector, i.tipo, ${SEGURO_CASE} AS seguro, ${ES_24H} AS h24 ${base})
+        WITH b AS MATERIALIZED (SELECT i.departamento, i.provincia, i.distrito, i.categoria, i.sector, i.tipo, ${SEGURO_CASE} AS seguro, ${ES_24H} AS h24 ${base})
         SELECT (SELECT coalesce(json_agg(t ORDER BY t.n DESC), '[]') FROM (SELECT departamento AS clave, count(*)::int AS n FROM b WHERE departamento IS NOT NULL GROUP BY 1) t) AS departamento,
                (SELECT coalesce(json_agg(t ORDER BY t.n DESC), '[]') FROM (SELECT provincia AS clave, count(*)::int AS n FROM b WHERE provincia IS NOT NULL GROUP BY 1) t) AS provincia,
+               -- Los distritos, sólo con una región elegida (en todo el país son 1 800).
+               ${q.departamento ? `(SELECT coalesce(json_agg(t ORDER BY t.n DESC), '[]') FROM (SELECT distrito AS clave, count(*)::int AS n FROM b WHERE distrito IS NOT NULL GROUP BY 1) t)` : "'[]'::json"} AS distrito,
                (SELECT coalesce(json_agg(t ORDER BY t.n DESC), '[]') FROM (SELECT coalesce(categoria, 'SIN') AS clave, count(*)::int AS n FROM b GROUP BY 1) t) AS categoria,
                (SELECT coalesce(json_agg(t ORDER BY t.n DESC), '[]') FROM (SELECT sector AS clave, count(*)::int AS n FROM b GROUP BY 1) t) AS sector,
                (SELECT coalesce(json_agg(t ORDER BY t.n DESC), '[]') FROM (SELECT tipo AS clave, count(*)::int AS n FROM b WHERE tipo IS NOT NULL GROUP BY 1) t) AS tipo,

@@ -172,6 +172,8 @@ export interface FichaIpress extends Omit<FilaIpress, "sanciones"> {
 export interface Facetas {
   departamento: { clave: string; n: number }[];
   provincia: { clave: string; n: number }[];
+  /** Con una región elegida, sus distritos (si no, vacío). */
+  distrito?: { clave: string; n: number }[];
   categoria: { clave: string; n: number }[];
   sector: { clave: string; n: number }[];
   tipo: { clave: string; n: number }[];

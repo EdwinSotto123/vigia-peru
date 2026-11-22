@@ -109,7 +109,9 @@ export default async function Establecimientos({ searchParams }: Props) {
       valor: f.departamento,
       opciones: DEPARTAMENTOS.map((dep) => ({ valor: dep, nombre: nombreLugar(dep), n: n(fac?.departamento, dep) })),
     },
-    ...(f.departamento && fac && fac.provincia.length > 1
+    // La provincia sigue a la vista después de elegirla (antes desaparecía), y el distrito (2026-11-22: «debería haber
+    // región, distrito»).
+    ...(f.departamento && fac && (fac.provincia.length > 1 || f.provincia)
       ? [{
           tipo: "uno" as const,
           clave: "provincia",
@@ -117,6 +119,16 @@ export default async function Establecimientos({ searchParams }: Props) {
           buscar: fac.provincia.length > 8,
           valor: f.provincia,
           opciones: fac.provincia.map((p) => ({ valor: p.clave, nombre: nombreLugar(p.clave), n: p.n })),
+        }]
+      : []),
+    ...(f.departamento && fac && ((fac.distrito?.length ?? 0) > 1 || f.distrito)
+      ? [{
+          tipo: "uno" as const,
+          clave: "distrito",
+          etiqueta: "Distrito",
+          buscar: (fac.distrito?.length ?? 0) > 8,
+          valor: f.distrito,
+          opciones: (fac.distrito ?? []).map((p) => ({ valor: p.clave, nombre: nombreLugar(p.clave), n: p.n })),
         }]
       : []),
     {
