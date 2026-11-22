@@ -113,8 +113,11 @@ app.use("*", cors({
 // una denuncia con 20 adjuntos por URL, pesa unos pocos KB); 1 MB en el panel admin (con token).
 const demasiadoGrande = bodyLimit({ maxSize: 64 * 1024, onError: (c) => c.json({ error: "payload_too_large", requestId: c.get("requestId") ?? null }, 413) });
 const demasiadoGrandeAdmin = bodyLimit({ maxSize: 1024 * 1024, onError: (c) => c.json({ error: "payload_too_large", requestId: c.get("requestId") ?? null }, 413) });
+// La foto de la caja de un medicamento (Gobserva Salud): la web la achica a 1 600 px en JPEG; la ruta la vuelve a medir.
+const demasiadoGrandeFoto = bodyLimit({ maxSize: 1024 * 1024, onError: (c) => c.json({ error: "foto_grande", detail: "La foto pesa demasiado: vuelve a tomarla." }, 413) });
 app.use("*", async (c, next) => {
   if (!["POST", "PUT", "PATCH", "DELETE"].includes(c.req.method)) return next();
+  if (/^\/(v1\/)?salud\/medicamentos\/foto$/.test(c.req.path)) return demasiadoGrandeFoto(c, next);
   return (/^\/(v1\/)?admin(\/|$)/.test(c.req.path) ? demasiadoGrandeAdmin : demasiadoGrande)(c, next);
 });
 

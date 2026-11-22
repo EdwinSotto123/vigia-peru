@@ -14,6 +14,7 @@ import { eventoPublico, huellaIp, enListaFija } from "../lib/chatVigia.js";
 import { registrarConsumo } from "../lib/consumo.js";
 import { registrar } from "../lib/registro.js";
 import { embeber, vectorLiteral, type IaWorkers } from "../lib/rag.js";
+import { MAX_FOTO_CAJA, esJpeg, leerCaja, pedirPorBinding } from "../lib/fotoCaja.js";
 import {
   CATEGORIAS, FUENTES_SALUD, HERRAMIENTAS_ASISTENTE_SALUD, URL_CMP, URL_SANCIONES, URL_SUNEDU, URL_VIGIA, consultaRenipress,
   pasosVerificarMedico, sistemaAsistenteSalud, tituloColegio, verificar, type DatosVerificacion,
@@ -40,6 +41,9 @@ import {
  *   GET  /salud/cambios                 lo que cambió en RENIPRESS (altas, bajas, estado, categoría), lo más nuevo primero.
  *   GET  /salud/medicamentos?q=         medicamentos (DIGEMID, migración 441): por nombre, principio activo, registro
  *                                       sanitario o lote, con las alertas que los nombran.
+ *                                       Con &lote= (lo de una caja: el registro en q y el lote aparte), las dos cosas.
+ *   POST /salud/medicamentos/foto       la foto de una caja (JPEG): un modelo abierto lee registro, lote, vencimiento y
+ *                                       nombre. La foto no se guarda. Turnstile y topes por conexión.
  *   GET  /salud/medicamento/:codigo     la ficha de un medicamento: precio de referencia, equivalentes y alertas.
  *   GET  /salud/alertas                 las alertas DIGEMID, con filtros y páginas.
  *   GET  /salud/alertas/productos       lo extraído de sus PDF (migración 443): producto, presentación, lote, registro,
@@ -778,6 +782,8 @@ async function fuenteMedicamentos() {
 
 const FiltrosMedicamentos = z.object({
   q: z.string().trim().max(80).optional(),
+  // El lote de la caja, aparte del registro o el nombre que va en q (la foto de la caja lee los dos).
+  lote: z.string().trim().max(40).optional(),
   pagina: z.coerce.number().int().min(1).max(200).default(1),
   tamano: z.coerce.number().int().min(5).max(50).default(10),
 });
@@ -788,7 +794,8 @@ saludRouter.get("/medicamentos", async (c) => {
   if (!f.success) return c.json({ error: "filtros_invalidos" }, 400);
   const { pagina, tamano } = f.data;
   const q = (f.data.q ?? "").trim();
-  const cuerpo = await memo.obtener(`medicamentos:${q.toLowerCase()}:${pagina}:${tamano}`, async () => {
+  const loteAparte = f.data.lote ? pareceLote(f.data.lote) : null;
+  const cuerpo = await memo.obtener(`medicamentos:${q.toLowerCase()}:${loteAparte ?? ""}:${pagina}:${tamano}`, async () => {
     const fuente = await fuenteMedicamentos();
     if (q.length < 2) {
       const recientes = await pool.query(`SELECT ${COLS_ALERTA} FROM salud_alerta a ORDER BY a.fecha DESC, a.id DESC LIMIT 5`);
@@ -796,6 +803,8 @@ saludRouter.get("/medicamentos", async (c) => {
     }
     const registro = registroDe(q);
     const lote = registro ? null : pareceLote(q);
+    // El lote de la caja, si no es lo mismo que ya se busca en q.
+    const otroLote = loteAparte && loteAparte !== lote && loteAparte !== registro ? loteAparte : null;
     const ps = palabras(q);
     const como: "registro" | "lote" | "nombre" = registro ? "registro" : lote ? "lote" : "nombre";
     let whereMed = "false";
@@ -830,15 +839,35 @@ saludRouter.get("/medicamentos", async (c) => {
         if (wa.length) whereAl = wa.join(" AND ");
       }
     }
-    const exacto = lote || registro
+    if (otroLote) {
+      // Las alertas que nombran el lote de la caja también (además de las del registro o el nombre).
+      valsAl.push(`%${otroLote}%`, otroLote);
+      const k = valsAl.length;
+      whereAl = `((${whereAl}) OR a.texto_norm LIKE $${k - 1} OR EXISTS (SELECT 1 FROM salud_alerta_producto p WHERE p.alerta_id = a.id AND p.lote_norm = $${k}))`;
+    }
+    // Lo que coincide exacto en la tabla de una alerta: el lote o el registro escritos, y el lote de la caja.
+    const condExacta = [lote ? "p.lote_norm = $1" : registro ? "(p.registro = $1 OR p.lote_norm = $1)" : null, otroLote ? `p.lote_norm = $${lote || registro ? 2 : 1}` : null]
+      .filter(Boolean).join(" OR ");
+    const valsExacto = [lote ?? registro, otroLote].filter(Boolean);
+    // Literal: pareceLote sólo deja [A-Z0-9] (4 a 20).
+    const loteDeCaja = otroLote ?? lote;
+    const exacto = condExacta
       ? pool.query(
           `SELECT p.producto, p.presentacion, p.lote, p.registro, p.vencimiento, p.titular, p.detalle, p.medicamento_codigo AS medicamento,
+                  ${loteDeCaja ? `coalesce(p.lote_norm = '${loteDeCaja}', false)` : "false"} AS "coincideLote",
                   a.id AS "alertaId", a.numero, to_char(a.fecha, 'YYYY-MM-DD') AS fecha, a.tipo, a.url, a.pdf_url AS "pdfUrl"
              FROM salud_alerta_producto p JOIN salud_alerta a ON a.id = p.alerta_id
-            WHERE ${lote ? "p.lote_norm = $1" : "(p.registro = $1 OR p.lote_norm = $1)"}
-            ORDER BY a.fecha DESC LIMIT 10`, [lote ?? registro])
+            WHERE ${condExacta}
+            ORDER BY "coincideLote" DESC, a.fecha DESC LIMIT 10`, valsExacto)
       : Promise.resolve({ rows: [] });
-    const [filas, total, alertas, alertasTotal, coincidencias] = await Promise.all([
+    // En cuántas alertas está el lote de la caja: en la tabla leída o, como palabra entera, en el texto del PDF (un lote
+    // corto, de menos de 5, sólo en la tabla: «2345» aparece en cualquier texto). Para el veredicto de la página.
+    const loteEnAlertas = otroLote
+      ? pool.query(`SELECT count(*)::int AS n FROM salud_alerta a
+          WHERE EXISTS (SELECT 1 FROM salud_alerta_producto p WHERE p.alerta_id = a.id AND p.lote_norm = $1)
+             ${otroLote.length >= 5 ? "OR a.texto_norm ~ ('\\m' || $1 || '\\M')" : ""}`, [otroLote])
+      : Promise.resolve({ rows: [{ n: null }] });
+    const [filas, total, alertas, alertasTotal, coincidencias, enAlertas] = await Promise.all([
       // Una fila por producto (mismo nombre, concentración, forma y registro): sus presentaciones (frasco de 60 o de 120 mL)
       // se juntan con su rango de precio (2026-11-22, auditoría: «el mismo Panadol tres veces»). La que más farmacias
       // reportan representa al grupo y su ficha lista las demás.
@@ -856,11 +885,14 @@ saludRouter.get("/medicamentos", async (c) => {
       pool.query(`SELECT ${COLS_ALERTA} FROM salud_alerta a WHERE ${whereAl} ORDER BY a.fecha DESC, a.id DESC LIMIT 5`, valsAl),
       pool.query(`SELECT count(*)::int AS n FROM salud_alerta a WHERE ${whereAl}`, valsAl),
       exacto,
+      loteEnAlertas,
     ]);
     // Lo escrito tenía forma de registro, no es el de ningún producto y sí el lote de una alerta: era un lote.
     const esLote = registro && total.rows[0].n === 0 && (coincidencias.rows as { lote: string | null }[]).some((c) => c.lote && c.lote.replace(/[^A-Za-z0-9]/g, "").toUpperCase() === registro);
     return publicar({
-      q, como: esLote ? "lote" : como, registro: esLote ? null : registro, lote: esLote ? registro : lote, filas: filas.rows, total: total.rows[0].n, pagina, tamano,
+      q, como: esLote ? "lote" : como, registro: esLote ? null : registro, lote: esLote ? registro : lote,
+      loteCaja: otroLote, loteEnAlertas: enAlertas.rows[0].n,
+      filas: filas.rows, total: total.rows[0].n, pagina, tamano,
       alertas: alertas.rows, alertasTotal: alertasTotal.rows[0].n, coincidencias: coincidencias.rows, fuente,
     });
   });
@@ -1031,6 +1063,77 @@ saludRouter.get("/sitemap", async (c) => {
   c.header("Cache-Control", CACHE_LARGO);
   return c.json(cuerpo);
 });
+
+// ─── POST /salud/medicamentos/foto ──────────────────────────────────────────────────────────────
+
+/** Topes de la foto de la caja (sin cuenta: por conexión y en total; el modelo es abierto y barato). */
+export const TOPES_FOTO_SALUD = { ipMinuto: 6, ipDia: 40, totalDia: 3000, faltasBloqueo: 15 } as const;
+
+/**
+ * La foto de la caja de un medicamento (2026-11-22, el usuario: «ALGO TIPO: TOMA FOTO»): el cuerpo es la imagen JPEG
+ * (la web la achica antes), un modelo abierto con visión lee el registro sanitario, el lote, el vencimiento, el nombre y
+ * el titular (lib/fotoCaja.ts), y vuelve lo leído para que la persona lo revise antes de verificar. La foto no se guarda
+ * ni se registra. Turnstile y topes por conexión, como el asistente.
+ */
+saludRouter.post("/medicamentos/foto", async (c) => {
+  c.header("Cache-Control", SIN_CACHE);
+  if ((c.req.header("content-type") ?? "").split(";")[0].trim().toLowerCase() !== "image/jpeg") {
+    return c.json({ error: "formato", detail: "Manda la foto como imagen JPEG." }, 415);
+  }
+  const bytes = new Uint8Array(await c.req.arrayBuffer());
+  if (bytes.length > MAX_FOTO_CAJA) return c.json({ error: "foto_grande", detail: "La foto pesa demasiado: vuelve a tomarla." }, 413);
+  if (bytes.length < 1000 || !esJpeg(bytes)) return c.json({ error: "foto_invalida", detail: "No es una foto que podamos leer." }, 400);
+  const rechazo = await protegerFoto(c);
+  if (rechazo) return rechazo;
+  const pedir = pedirPorBinding((c.env ?? {}) as EnvChat);
+  if (!pedir) return c.json({ error: "sin_modelo", detail: "La lectura de fotos no está disponible ahora. Escribe el registro o el lote." }, 503);
+  try {
+    const { lectura } = await leerCaja(pedir, bytes);
+    await registrarConsumo({ uid: "salud-publico", canal: "asistente", detalle: "foto_caja", app: "salud", creditos: 0, costoUsd: 0 })
+      .catch((e) => registrar("WARNING", `[salud] consumo sin guardar: ${(e as Error).message}`));
+    if (!lectura.esMedicamento) {
+      return c.json({ error: "no_es_caja", detail: "En la foto no vemos la caja o la etiqueta de un medicamento. Enfoca la caja, con buena luz." }, 422);
+    }
+    if (!lectura.registro && !lectura.lote && !lectura.nombre) {
+      return c.json({ error: "ilegible", detail: "No pudimos leer el registro, el lote ni el nombre. Acércate a la letra pequeña de la caja, con buena luz y sin reflejos." }, 422);
+    }
+    return c.json(publicar({ leido: lectura }));
+  } catch (e) {
+    registrar("WARNING", `[salud] foto sin leer: ${(e as Error).message}`);
+    return c.json({ error: "sin_lectura", detail: "No pudimos leer la foto ahora. Vuelve a intentarlo o escribe el registro y el lote." }, 502);
+  }
+});
+
+/** Turnstile, el bloqueo automático y los topes por conexión y del día (como el asistente, con sus propias cuentas). */
+async function protegerFoto(c: Context): Promise<Response | null> {
+  if (pedidoInterno(c)) return null;
+  const ipCruda = ipCliente(c);
+  const huella = huellaIp(claveIp(ipCruda));
+  const no = (status: 403 | 429, error: string, detail: string) => {
+    if (status === 429 && error === "muy_seguido") c.header("Retry-After", "60");
+    return c.json({ error, detail }, status);
+  };
+  const captcha = await verificarTurnstile(c.req.header(HEADER_TURNSTILE), ipCruda);
+  if (captcha === "captcha_requerido" || captcha === "captcha_invalido") {
+    return no(403, captcha, "Confirma que eres una persona (la casilla de verificación) y vuelve a enviar la foto.");
+  }
+  if ((await cuantasEn(`fotosalud|bloqueo|${huella}`, DIA_S, true)) > 0) return no(403, "bloqueado", "La lectura de fotos no está disponible para esta conexión por un uso fuera de lo normal.");
+  const T = TOPES_FOTO_SALUD;
+  if (!(await dentroDeTope(`fotosalud|min|${huella}`, T.ipMinuto, 60))) {
+    if (!(await dentroDeTope(`fotosalud|faltas|${huella}`, T.faltasBloqueo, 60 * 60, true))) {
+      await dentroDeTope(`fotosalud|bloqueo|${huella}`, 1, DIA_S, true);
+      registrar("WARNING", `[salud] fotos: bloqueo automático de 24 h: h:${huella}`);
+    }
+    return no(429, "muy_seguido", "Mandaste varias fotos seguidas. Espera un minuto.");
+  }
+  if (!(await dentroDeTope(`fotosalud|dia|${huella}`, T.ipDia, DIA_S, true))) {
+    return no(429, "tope_dia", `Desde esta conexión ya se leyeron ${T.ipDia} fotos en las últimas 24 horas. Vuelve mañana o escribe el registro y el lote.`);
+  }
+  if (!(await dentroDeTope("fotosalud|total", T.totalDia, DIA_S, true))) {
+    return no(429, "tope_total", "La lectura de fotos llegó a su límite de hoy. Escribe el registro y el lote: el buscador sigue abierto.");
+  }
+  return null;
+}
 
 // ─── POST /salud/asistente ────────────────────────────────────────────────────────────────────────
 

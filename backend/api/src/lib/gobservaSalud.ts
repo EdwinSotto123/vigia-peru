@@ -31,9 +31,10 @@ export const URL_DIGEMID_PRECIOS = "https://www.digemid.minsa.gob.pe/webDigemid/
 export const URL_OBSERVATORIO = "https://opm-digemid.minsa.gob.pe/#/consulta-producto";
 export const URL_REGISTRO_SANITARIO = "https://www.digemid.minsa.gob.pe/rsProductosFarmaceuticos/";
 
-/** «EE-01234», «ee 01234», «R.S. EE01234» → «EE01234»; null si no tiene forma de registro sanitario. */
+/** «EE-01234», «ee 01234», «R.S. EE01234», «Reg. San. N° EE-01234» → «EE01234»; null si no tiene forma de registro sanitario. */
 export function registroDe(q: string): string | null {
-  const t = q.toUpperCase().replace(/^(R\.?\s*S\.?|REG(ISTRO)?\.?\s*(SANITARIO)?)\s*:?\s*/, "").replace(/[\s-]+/g, "");
+  // «N°», «Nº», «No.», «N.» es la etiqueta; una «N» sola es la del registro («R.S. N-12345»).
+  const t = q.toUpperCase().replace(/^(R\.?\s*S\.?|REG(ISTRO)?\.?\s*(SAN(ITARIO)?\.?)?)\s*(N[º°]|NO\.|N\.)?\s*:?\s*/, "").replace(/[\s-]+/g, "");
   return /^[A-Z]{1,3}\d{4,6}[A-Z]?$/.test(t) ? t : null;
 }
 

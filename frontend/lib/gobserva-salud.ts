@@ -546,6 +546,8 @@ export interface ProductoObservado {
   tipo: TipoAlerta;
   url: string;
   pdfUrl: string | null;
+  /** En /medicamentos: si coincide el lote de la caja (y no sólo el registro). */
+  coincideLote?: boolean;
 }
 
 export interface FuenteMedicamentos {
@@ -568,8 +570,29 @@ export interface BusquedaMedicamentos {
   alertasTotal: number | null;
   /** El lote o el registro que se escribió, tal cual, en la tabla de una alerta. */
   coincidencias?: ProductoObservado[];
+  /** El registro sanitario reconocido en q (normalizado: «EE08059»); null si q no tiene esa forma. */
+  registro?: string | null;
+  /** El lote de la caja que vino aparte (&lote=, de la foto), normalizado; null si no vino o es lo mismo que q. */
+  loteCaja?: string | null;
+  /** En cuántas alertas está ese lote: en la tabla leída o, como palabra, en el texto del PDF. */
+  loteEnAlertas?: number | null;
   fuente: FuenteMedicamentos;
 }
+
+/** Lo que el modelo leyó en la foto de una caja (POST /salud/medicamentos/foto), ya validado. */
+export interface LecturaCaja {
+  esMedicamento: boolean;
+  nombre: string | null;
+  principioActivo: string | null;
+  concentracion: string | null;
+  registro: string | null;
+  lote: string | null;
+  vencimiento: string | null;
+  titular: string | null;
+}
+
+/** La foto de la caja: POST con la imagen JPEG en el cuerpo y el token de Turnstile. */
+export const URL_FOTO_MEDICAMENTO = `${API_BASE}/salud/medicamentos/foto`;
 
 export interface FichaMedicamento {
   producto: Medicamento;

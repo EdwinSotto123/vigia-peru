@@ -197,6 +197,25 @@ seguro la atienden, y ninguna página lo decía.
   por la Ley 27604; artículo 15.1 a). Va en el aviso de emergencia de todas las páginas, en la ficha y al elegir
   «Emergencia» en «Cerca de mí».
 
+## La foto de la caja (2026-11-22)
+
+Pedido: «ALGO TIPO: TOMA FOTO». En «Verifica un medicamento», «Toma una foto de la caja» abre la cámara de atrás del
+celular (en la computadora, el selector de archivos):
+
+1. La web achica la foto a 1 600 px en JPEG (`components/salud/medicamentos/FotoCaja.tsx`) y la manda a
+   `POST /v1/salud/medicamentos/foto` con Turnstile; topes por conexión (6 por minuto, 40 al día, 3 000 en total) y un
+   tope de 1 MB sólo para esa ruta (`app.ts`).
+2. Un modelo abierto con visión (DeepSeek v4.1 flash en vigia-llm, `backend/api/src/lib/fotoCaja.ts`) lee el registro
+   sanitario, el lote, el vencimiento, el nombre y el titular. Cada dato pasa por la forma del buscador (`registroDe`,
+   `pareceLote`) o se descarta; una foto que no es de un medicamento se rechaza. **La foto no se guarda ni se registra.**
+3. La persona revisa y corrige lo leído y verifica: `/medicamentos?q=<registro>&lote=<lote>`. La API busca los dos
+   (`loteCaja`, `loteEnAlertas`, `coincideLote`) y la página da un veredicto: el lote está en la tabla de una alerta
+   (rojo, con el producto), aparece en el texto de un PDF (rojo, revisar), hay alertas del registro pero de otros lotes
+   (ámbar) o ninguno figura (verde, con la fecha de lo revisado; nunca «es seguro»).
+
+Probado con cajas sintéticas contra el modelo real (registro, lote, vencimiento, nombre y titular exactos en 2-3 s) y
+con una captura de pantalla (rechazada: no es un medicamento).
+
 ## Orden y memoria (2026-11-22, auditoría de UX/UI)
 
 - **Menú por lo que se verifica**: Inicio, Guardados y vistos, Asistente; «Clínicas» (buscar, cerca de mí, mapa,

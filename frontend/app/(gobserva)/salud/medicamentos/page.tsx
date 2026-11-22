@@ -1,15 +1,16 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { CircleCheck, PackageSearch, Pill, RotateCw, ScanLine, ShoppingBag, TriangleAlert } from "lucide-react";
+import { CircleCheck, Info, PackageSearch, Pill, RotateCw, ScanLine, ShoppingBag, TriangleAlert } from "lucide-react";
 import { Ayuda } from "@/components/patrones/Ayuda";
 import { EstadoError, EstadoVacio } from "@/components/gobserva/ui/Estados";
 import { FuenteFecha } from "@/components/salud/comun";
 import { Paginas } from "@/components/salud/lista/Paginas";
+import { FotoCaja } from "@/components/salud/medicamentos/FotoCaja";
 import { FilaAlerta, FilaMedicamento, FormMedicamento, InsigniaAlerta, nombreMed, textoRevisadas } from "@/components/salud/medicamentos/piezas";
 import { CabeceraLista, Ruta } from "@/components/salud/portada/Piezas";
 import { claseAccion } from "@/components/ui/EnlaceAccion";
 import { rutaEn, urlCanonica } from "@/lib/gobserva";
-import { buscarMedicamentos, fechaCorta, mesLargo, numero, rutaMedicamento } from "@/lib/gobserva-salud";
+import { buscarMedicamentos, fechaCorta, mesLargo, numero, rutaMedicamento, type FuenteMedicamentos } from "@/lib/gobserva-salud";
 import { baseProducto } from "@/lib/gobserva-servidor";
 import { cn } from "@/lib/utils";
 
@@ -34,7 +35,7 @@ export function generateMetadata({ searchParams }: Props): Metadata {
 
 /** Los tres pasos con la caja en la mano (sin búsqueda). */
 const PASOS = [
-  { Icono: ScanLine, titulo: "Busca el registro sanitario", texto: "Está impreso en la caja: dos letras y cinco números, como EE01234 o N-12345." },
+  { Icono: ScanLine, titulo: "Busca el registro sanitario", texto: "Está impreso en la caja: letras y números, como EE01234 o N-12345. O tómale una foto a la caja y lo leemos por ti." },
   { Icono: PackageSearch, titulo: "Mira el lote y el vencimiento", texto: "Si DIGEMID retiró un lote, la alerta dice cuál. Escríbelo aquí tal como sale en la caja." },
   { Icono: ShoppingBag, titulo: "Compra en una farmacia o botica", texto: "No en redes sociales, ferias ni ambulantes: ahí aparecen la mayoría de los falsificados." },
 ];
@@ -49,16 +50,26 @@ export default async function Medicamentos({ searchParams }: Props) {
   const base = baseProducto("salud");
   const q = texto(searchParams?.q);
   const pagina = Math.max(1, Number(texto(searchParams?.pagina)) || 1);
-  const params = new URLSearchParams({ ...(q ? { q } : {}), pagina: String(pagina), tamano: String(POR_PAGINA) });
+  // El lote de la caja, aparte (la foto lee el registro y el lote: q=EE08059&lote=2405123).
+  const loteParam = texto(searchParams?.lote);
+  const conLote: Record<string, string> = loteParam ? { lote: loteParam } : {};
+  const params = new URLSearchParams({ ...(q ? { q } : {}), ...conLote, pagina: String(pagina), tamano: String(POR_PAGINA) });
   const d = await buscarMedicamentos(params);
   const lista = rutaEn(base, "/medicamentos");
-  const href = (n: number) => `${lista}?${new URLSearchParams({ q, pagina: String(n) })}`;
+  const href = (n: number) => `${lista}?${new URLSearchParams({ q, ...conLote, pagina: String(n) })}`;
   const paginas = d ? Math.min(200, Math.max(1, Math.ceil(d.total / POR_PAGINA))) : 1;
   const fuente = d?.fuente;
   // Una alerta que nombra el registro o el lote que la persona escribió (lo de su caja) pesa más que una que nombra la marca.
   const porCaja = d?.como === "registro" || d?.como === "lote";
+  // Con el lote de la caja aparte, arriba van sólo las filas de ese lote; las del registro, en la lista de alertas.
+  const loteCaja = d?.loteCaja ?? null;
+  const coincidencias = loteCaja ? (d?.coincidencias ?? []).filter((c) => c.coincideLote) : d?.coincidencias ?? [];
+  // Se sabe que el lote de la caja no está en ninguna alerta: las del registro son de otros lotes (ámbar, no rojo).
+  const loteLimpio = !!loteCaja && !d?.loteEnAlertas;
+  const rojo = porCaja && !loteLimpio;
+  const resaltar = loteCaja ?? (porCaja ? q : null);
   // Las alertas que ya salen arriba, con su producto y su lote, no se repiten en la caja de abajo.
-  const yaVistas = new Set((d?.coincidencias ?? []).map((c) => c.alertaId));
+  const yaVistas = new Set(coincidencias.map((c) => c.alertaId));
   const otras = (d?.alertas ?? []).filter((a) => !yaVistas.has(a.id));
   const otrasTotal = Math.max(0, (d?.alertasTotal ?? 0) - yaVistas.size);
 
@@ -98,6 +109,7 @@ export default async function Medicamentos({ searchParams }: Props) {
         }
       />
       <FormMedicamento accion={lista} q={q} grande={!q} className="mt-4" />
+      <FotoCaja accion={lista} className="mt-3" />
       {!q && (
         <ul className="mt-3 flex flex-wrap items-center gap-2" aria-label="Búsquedas de ejemplo">
           <li className="text-meta text-mute">Prueba con</li>
@@ -157,7 +169,7 @@ export default async function Medicamentos({ searchParams }: Props) {
             <ul className="divide-y divide-line">
               {d.alertas.slice(0, 3).map((a) => (
                 <li key={a.id}>
-                  <FilaAlerta a={a} base={base} resaltar={porCaja ? q : null} />
+                  <FilaAlerta a={a} base={base} resaltar={resaltar} />
                 </li>
               ))}
             </ul>
@@ -166,15 +178,21 @@ export default async function Medicamentos({ searchParams }: Props) {
         </div>
       ) : (
         <>
+          {/* El veredicto de la caja (registro y lote juntos, de la foto): cuando el lote no está en una tabla leída. */}
+          {loteCaja && coincidencias.length === 0 && (
+            <VeredictoCaja lote={loteCaja} enAlertas={d.loteEnAlertas ?? 0} registro={d.registro ?? null} alertasRegistro={otrasTotal} fuente={fuente ?? null} />
+          )}
+
           {/* Lo más fuerte primero: el lote o el registro escrito está, tal cual, en la tabla de una alerta. */}
-          {d.coincidencias && d.coincidencias.length > 0 && (
+          {coincidencias.length > 0 && (
             <section aria-labelledby="coincide-t" className="mt-6 rounded-2xl border-2 border-crimson/50 bg-crimson-soft/60 px-5 py-4">
               <h2 id="coincide-t" className="flex items-start gap-2 font-display text-bloque font-bold leading-snug text-crimsonTexto">
                 <TriangleAlert size={20} aria-hidden className="mt-0.5 shrink-0" />
-                {d.como === "lote" ? "Ese lote" : "Ese registro sanitario"} está en {d.coincidencias.length === 1 ? "una alerta" : `${d.coincidencias.length} alertas`} de DIGEMID
+                {loteCaja ? `Tu lote ${loteCaja}` : d.como === "lote" ? "Ese lote" : "Ese registro sanitario"} está en{" "}
+                {coincidencias.length === 1 ? "una alerta" : `${coincidencias.length} alertas`} de DIGEMID
               </h2>
               <ul className="mt-3 grid gap-2">
-                {d.coincidencias.map((c, i) => (
+                {coincidencias.map((c, i) => (
                   <li key={`${c.alertaId}-${i}`} className="rounded-xl border border-crimson/25 bg-paper px-3.5 py-2.5">
                     <p className="text-dato font-semibold text-ink">
                       {c.producto}
@@ -220,10 +238,10 @@ export default async function Medicamentos({ searchParams }: Props) {
           {otrasTotal > 0 && otras.length > 0 ? (
             <section
               aria-labelledby="alertas-t"
-              className={cn("mt-6 rounded-2xl border", porCaja ? "border-crimson/30 bg-crimson-soft/40" : "border-amber/40 bg-amber-soft/40")}
+              className={cn("mt-6 rounded-2xl border", rojo ? "border-crimson/30 bg-crimson-soft/40" : "border-amber/40 bg-amber-soft/40")}
             >
-              <div className={cn("flex gap-3 border-b px-5 py-4", porCaja ? "border-crimson/20" : "border-amber/30")}>
-                <TriangleAlert size={22} aria-hidden className={cn("mt-0.5 shrink-0", porCaja ? "text-crimsonTexto" : "text-amberTexto")} />
+              <div className={cn("flex gap-3 border-b px-5 py-4", rojo ? "border-crimson/20" : "border-amber/30")}>
+                <TriangleAlert size={22} aria-hidden className={cn("mt-0.5 shrink-0", rojo ? "text-crimsonTexto" : "text-amberTexto")} />
                 <div>
                   <h2 id="alertas-t" className="font-display text-bloque font-bold leading-snug text-ink">
                     {yaVistas.size > 0
@@ -236,29 +254,29 @@ export default async function Medicamentos({ searchParams }: Props) {
                     «{q}»
                   </h2>
                   <p className="mt-1 max-w-[75ch] text-meta leading-relaxed text-inkSoft">
-                    {porCaja
+                    {rojo
                       ? `El ${d.como === "lote" ? "lote" : "registro sanitario"} que escribiste aparece en la alerta. Si es el de tu caja, no lo uses y pregunta en la farmacia o llama a DIGEMID.`
                       : "Compara el lote y el registro de tu caja con los de la alerta: muchas son de falsificaciones o de un solo lote, no de todo el producto."}
                   </p>
                 </div>
               </div>
               {/* Tres: el resto en /alertas (la página no se alarga). */}
-              <ul className={cn("divide-y", porCaja ? "divide-crimson/15" : "divide-amber/25")}>
+              <ul className={cn("divide-y", rojo ? "divide-crimson/15" : "divide-amber/25")}>
                 {otras.slice(0, porCaja ? 3 : 1).map((a) => (
                   <li key={a.id}>
-                    <FilaAlerta a={a} base={base} resaltar={porCaja ? q : null} />
+                    <FilaAlerta a={a} base={base} resaltar={resaltar} />
                   </li>
                 ))}
               </ul>
               {otrasTotal > (porCaja ? 3 : 1) && (
-                <p className={cn("border-t px-5 py-3", porCaja ? "border-crimson/20" : "border-amber/30")}>
+                <p className={cn("border-t px-5 py-3", rojo ? "border-crimson/20" : "border-amber/30")}>
                   <Link href={`${rutaEn(base, "/alertas")}?${new URLSearchParams({ q })}`} className="inline-flex min-h-11 items-center text-meta font-semibold text-granate underline-offset-4 hover:underline sm:min-h-8">
                     Ver las {numero(d.alertasTotal)} alertas
                   </Link>
                 </p>
               )}
             </section>
-          ) : yaVistas.size > 0 ? null : (
+          ) : yaVistas.size > 0 || loteCaja ? null : (
             <p className="mt-6 flex gap-3 rounded-2xl border border-line bg-paper px-5 py-4 text-dato leading-relaxed text-inkSoft">
               <CircleCheck size={20} aria-hidden className="mt-0.5 shrink-0 text-mossTexto" />
               <span>
@@ -304,5 +322,60 @@ export default async function Medicamentos({ searchParams }: Props) {
         </>
       )}
     </div>
+  );
+}
+
+/**
+ * El veredicto de una caja (2026-11-22, la foto de la caja: registro y lote juntos), cuando el lote no está en la tabla
+ * leída de ninguna alerta: si aparece en el texto de un PDF (rojo, revisar), si hay alertas del registro pero de otros
+ * lotes (ámbar) o si ni el registro ni el lote figuran (verde, con la fecha de lo revisado). Nunca «es seguro».
+ */
+function VeredictoCaja({
+  lote,
+  enAlertas,
+  registro,
+  alertasRegistro,
+  fuente,
+}: {
+  lote: string;
+  enAlertas: number;
+  registro: string | null;
+  alertasRegistro: number;
+  fuente: FuenteMedicamentos | null;
+}) {
+  const tono = enAlertas > 0 ? "rojo" : alertasRegistro > 0 && registro ? "ambar" : "verde";
+  const Icono = tono === "verde" ? CircleCheck : tono === "rojo" ? TriangleAlert : Info;
+  return (
+    <section
+      aria-labelledby="veredicto-t"
+      className={cn(
+        "mt-6 rounded-2xl border-2 px-5 py-4",
+        tono === "rojo" ? "border-crimson/50 bg-crimson-soft/60" : tono === "ambar" ? "border-amber/50 bg-amber-soft/50" : "border-moss/40 bg-moss/[0.07]",
+      )}
+    >
+      <h2
+        id="veredicto-t"
+        className={cn(
+          "flex items-start gap-2 font-display text-bloque font-bold leading-snug",
+          tono === "rojo" ? "text-crimsonTexto" : tono === "ambar" ? "text-amberTexto" : "text-mossTexto",
+        )}
+      >
+        <Icono size={20} aria-hidden className="mt-0.5 shrink-0" />
+        {tono === "rojo"
+          ? `Tu lote ${lote} aparece en ${enAlertas === 1 ? "una alerta" : `${numero(enAlertas)} alertas`} de DIGEMID`
+          : tono === "ambar"
+            ? `Tu lote ${lote} no figura en las alertas de DIGEMID`
+            : registro
+              ? `Ni el registro ${registro} ni el lote ${lote} figuran en las alertas de DIGEMID`
+              : `El lote ${lote} no figura en las alertas de DIGEMID`}
+      </h2>
+      <p className="mt-1.5 max-w-[75ch] text-dato leading-relaxed text-ink">
+        {tono === "rojo"
+          ? "Está en el texto de la alerta, abajo: revisa si es tu producto. Si lo es, no lo uses, guárdalo y pregunta en la farmacia o botica donde lo compraste."
+          : tono === "ambar"
+            ? `Hay ${alertasRegistro === 1 ? "una alerta" : `${numero(alertasRegistro)} alertas`} sobre el registro ${registro}, de otros lotes o de productos falsificados con ese registro. Compara tu caja con cada una, abajo.`
+            : `${fuente ? textoRevisadas(fuente.alertas, fuente.ultimaAlerta) : ""} Eso no garantiza el producto: cómpralo en una farmacia o botica y revisa que la caja esté sellada y sin enmendaduras.`}
+      </p>
+    </section>
   );
 }
