@@ -14,7 +14,7 @@ import { AnotarVisto } from "@/components/salud/vistos/Vistos";
 import { rutaEn, urlCanonica } from "@/lib/gobserva";
 import { baseProducto } from "@/lib/gobserva-servidor";
 import { formaDe } from "@/lib/salud-formas";
-import { concentracionLegible, fechaCorta, getMedicamento, mesLargo, numero, rutaMedicamento, soles, type FichaMedicamento } from "@/lib/gobserva-salud";
+import { concentracionLegible, fechaCorta, getMedicamento, vencimientoValido, mesLargo, numero, rutaMedicamento, soles, type FichaMedicamento } from "@/lib/gobserva-salud";
 
 export const revalidate = 3600;
 
@@ -32,7 +32,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const alertas = f.alertasRegistro.length;
   return {
     title: `${titulo(f)}: precio de referencia y alertas DIGEMID`,
-    description: `${titulo(f)} (${nombreMed(p.forma)}), registro sanitario ${p.registro ?? "sin dato"}, de ${nombreMed(p.titular)}. Precio típico ${soles(p.precioMediana)} por unidad en ${mesLargo(p.periodo)}. ${alertas ? `${alertas} alertas de DIGEMID sobre su registro.` : "Sin alertas de DIGEMID sobre su registro."}`.slice(0, 300),
+    description: `${titulo(f)} (${nombreMed(p.forma)}), registro sanitario ${p.registro ?? "sin dato"}, de ${nombreMed(p.titular).replace(/\.$/, "")}. Precio típico ${soles(p.precioMediana)} por unidad en ${mesLargo(p.periodo)}. ${alertas ? `${alertas === 1 ? "Una alerta" : `${alertas} alertas`} de DIGEMID sobre su registro.` : "Sin alertas de DIGEMID sobre su registro."}`.slice(0, 300),
     alternates: { canonical: urlCanonica("salud", rutaMedicamento(p.codigo)) },
   };
 }
@@ -61,28 +61,37 @@ export default async function FichaMedicamentoPagina({ params, searchParams }: P
   const ico = (I: typeof Pill) => <I size={15} aria-hidden />;
   const r = f.equivalentesResumen;
   const masBarato = f.equivalentes.find((e) => e.precioMediana != null && p.precioMediana != null && e.precioMediana < p.precioMediana) ?? null;
+  // Las alertas por nombre (2026-11-22, cacería de errores): las de seguridad o modificación son del principio activo y LE
+  // APLICAN; las demás (falsificados, calidad) son de otras cajas que usan su marca: no son de este producto. Un genérico
+  // (se llama como su principio activo) sólo trae las primeras: no se le atribuyen cajas de otros laboratorios.
+  const deSeguridad = f.alertasNombre.filter((a) => a.tipo === "seguridad" || a.tipo === "modificacion");
+  const deMarca = f.generico ? [] : f.alertasNombre.filter((a) => a.tipo !== "seguridad" && a.tipo !== "modificacion");
   const alertas = f.alertasRegistro.length + f.alertasNombre.length;
-  // Los lotes de cajas de esta marca que nombran las alertas sin su registro (en su mayoría, falsificadas): se comparan
-  // con el lote de la caja. Sólo las filas de la tabla con la marca en el nombre.
-  const marcaN = ` ${nombreMed(f.marca).normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase().replace(/[^A-Z0-9]+/g, " ").trim()} `;
+  const masNombre = Math.max(0, (f.alertasNombreTotal ?? 0) - f.alertasNombre.length);
+  // Los lotes de las cajas de esta marca que nombran esas alertas, con su vencimiento: se comparan con el de la caja. Sólo
+  // las filas con TODAS las palabras de la marca (no «DOLO» de Dolo-Neurobión para Dolo Neuropress).
+  const juntar = (t: string) => ` ${t.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase().replace(/[^A-Z0-9]+/g, " ").trim()} `;
+  const palabrasMarca = juntar(f.marca).trim().split(" ").filter(Boolean);
   const lotesMarca = [
     ...new Map(
-      f.alertasNombre.flatMap((a) =>
+      deMarca.flatMap((a) =>
         (a.observados ?? [])
-          .filter((o) => ` ${`${o.producto} ${o.presentacion ?? ""}`.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase().replace(/[^A-Z0-9]+/g, " ").trim()} `.includes(marcaN))
-          .flatMap((o) => o.lotes.map((l) => [l, { lote: l, numero: a.numero, falsificado: a.tipo === "falsificado" }] as const)),
+          .filter((o) => palabrasMarca.every((w) => juntar(`${o.producto} ${o.presentacion ?? ""}`).includes(` ${w} `)))
+          .flatMap((o) =>
+            o.lotes.map((l) => [l, { lote: l, numero: a.numero, vence: o.vencimientos.find(vencimientoValido) ?? null }] as const),
+          ),
       ),
     ).values(),
   ];
-  const falsificadas = f.alertasNombre.filter((a) => a.tipo === "falsificado").length;
+  const falsificadas = deMarca.filter((a) => a.tipo === "falsificado").length;
 
   const pestanas: Pestana[] = [
     {
       clave: "alertas",
       etiqueta: "Alertas",
       icono: ico(TriangleAlert),
-      // Sólo las de su registro: las que nombran la marca son de otras cajas (falsificadas, otros lotes), no de este producto.
-      conteo: f.alertasRegistro.length || null,
+      // Las de su registro y las de seguridad (le aplican); no las de otras cajas que usan su marca.
+      conteo: f.alertasRegistro.length + deSeguridad.length || null,
       contenido: (
         <div className="space-y-4">
           <CabeceraPestana acciones={<FuenteFecha nombre="Alertas DIGEMID" url={f.fuente.avisos.url} al={f.fuente.avisos.al} />}>
@@ -139,10 +148,29 @@ export default async function FichaMedicamentoPagina({ params, searchParams }: P
               </ul>
             </section>
           )}
-          {f.alertasNombre.length > 0 && (
+          {deSeguridad.length > 0 && (
+            <section aria-labelledby="por-seguridad" className="rounded-2xl border border-amber/40 bg-amber-soft/30">
+              <h3 id="por-seguridad" className="border-b border-amber/30 px-5 py-3 text-cuerpo font-bold text-ink">
+                {deSeguridad.length === 1 ? "Una alerta de seguridad" : `${deSeguridad.length} alertas de seguridad`} sobre{" "}
+                {f.generico ? `el ${nombreMed(f.marca).toLowerCase()}` : `«${nombreMed(f.marca)}»`}
+              </h3>
+              <p className="px-5 pt-3 text-dato leading-relaxed text-inkSoft">
+                Son sobre su principio activo{nombreMed(p.ifa) ? ` (${nombreMed(p.ifa).toLowerCase()})` : ""}: le aplican a este producto y a los demás
+                que lo contienen. Léelas antes de tomarlo.
+              </p>
+              <ul className="mt-2 divide-y divide-amber/25 bg-paper">
+                {deSeguridad.map((a) => (
+                  <li key={a.id}>
+                    <FilaAlerta a={a} base={base} plegada />
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
+          {deMarca.length > 0 && (
             <section aria-labelledby="por-nombre" className="rounded-2xl border border-line bg-paper">
               <h3 id="por-nombre" className="border-b border-line px-5 py-3 text-cuerpo font-bold text-ink">
-                {falsificadas === f.alertasNombre.length
+                {falsificadas === deMarca.length
                   ? `Cajas falsificadas que usan el nombre «${nombreMed(f.marca)}»`
                   : `Otras cajas que usan el nombre «${nombreMed(f.marca)}»`}
               </h3>
@@ -154,25 +182,37 @@ export default async function FichaMedicamentoPagina({ params, searchParams }: P
               {lotesMarca.length > 0 && (
                 <div className="mx-5 mt-3 rounded-xl border border-amber/40 bg-amber-soft/50 px-4 py-3">
                   <p className="text-dato font-semibold text-ink">
-                    Si el lote de tu caja es uno de estos, no la uses: {lotesMarca.length === 1 ? "es el lote de una caja observada" : "son lotes de cajas observadas"}.
+                    {lotesMarca.length === 1 ? "El lote de una caja observada" : "Los lotes de las cajas observadas"}, con su vencimiento cuando la alerta lo
+                    dice. Si tu caja tiene el mismo lote y el mismo vencimiento, no la uses y pregunta donde la compraste.
                   </p>
                   <p className="mt-2 flex flex-wrap gap-1.5">
                     {lotesMarca.map((l) => (
-                      <span key={l.lote} className="rounded-md bg-paper px-1.5 py-0.5 font-mono text-meta font-semibold tabular-nums text-ink ring-1 ring-amber/40" title={l.numero ? `Alerta N.° ${l.numero}` : undefined}>
-                        {l.lote}
+                      <span key={l.lote} className="rounded-md bg-paper px-1.5 py-0.5 text-meta tabular-nums text-ink ring-1 ring-amber/40" title={l.numero ? `Alerta N.° ${l.numero}` : undefined}>
+                        <span className="font-mono font-semibold">{l.lote}</span>
+                        {l.vence ? <span className="text-inkSoft">, vence {l.vence}</span> : null}
                       </span>
                     ))}
                   </p>
                 </div>
               )}
               <ul className="mt-2 divide-y divide-line">
-                {f.alertasNombre.map((a) => (
+                {deMarca.map((a) => (
                   <li key={a.id}>
-                    <FilaAlerta a={a} base={base} resaltar={p.registro} soloDe={nombreMed(f.marca)} plegada />
+                    <FilaAlerta a={a} base={base} resaltar={p.registro} soloDe={f.marca} plegada />
                   </li>
                 ))}
               </ul>
             </section>
+          )}
+          {masNombre > 0 && (
+            <p className="text-meta">
+              <Link
+                href={`${rutaEn(base, "/medicamentos")}?${new URLSearchParams({ q: nombreMed(f.marca), seccion: "alertas" })}`}
+                className="inline-flex min-h-11 items-center font-semibold text-granate underline-offset-4 hover:underline"
+              >
+                Ver las {numero(f.alertasNombreTotal ?? 0)} alertas que nombran «{nombreMed(f.marca)}»
+              </Link>
+            </p>
           )}
           {alertas === 0 && (
             <p className="flex gap-3 rounded-2xl border border-line bg-paper px-5 py-4 text-dato leading-relaxed text-inkSoft">
@@ -199,7 +239,7 @@ export default async function FichaMedicamentoPagina({ params, searchParams }: P
             <Dato t="Principio activo">{nombreMed(p.ifa) || "Sin dato"}</Dato>
             <Dato t="Concentración">{concentracionLegible(p.concentracion) || "Sin dato"}</Dato>
             <Dato t="Forma">{nombreMed(p.forma) || "Sin dato"}</Dato>
-            <Dato t="Presentación">{nombreMed(p.presentacion) || "Sin dato"}{p.fracciones ? `, ${numero(p.fracciones)} unidades` : ""}</Dato>
+            <Dato t="Presentación">{nombreMed(p.presentacion) || "Sin dato"}{p.fracciones ? `, ${numero(p.fracciones)} ${p.fracciones === 1 ? "unidad" : "unidades"}` : ""}</Dato>
             <Dato t="Titular del registro">{nombreMed(p.titular) || "Sin dato"}</Dato>
             <Dato t="Fabricante">{[nombreMed(p.fabricante), nombreMed(p.pais)].filter(Boolean).join(", ") || "Sin dato"}</Dato>
             <Dato t="Clasificación">{/^GEN/.test(p.clasificacion ?? "") ? "Genérico" : p.clasificacion ? "De marca" : "Sin dato"}{p.grupo ? `, ${nombreMed(p.grupo).toLowerCase()}` : ""}</Dato>
@@ -238,7 +278,7 @@ export default async function FichaMedicamentoPagina({ params, searchParams }: P
                 ))}
               </ul>
               {r.n > 8 && (
-                <Link href={`${rutaEn(base, "/medicamentos")}?${new URLSearchParams({ q: p.ifa ?? "" })}`} className="inline-flex min-h-11 items-center text-meta font-semibold text-granate underline-offset-4 hover:underline">
+                <Link href={`${rutaEn(base, "/medicamentos")}?${new URLSearchParams({ q: [p.ifa, p.concentracion].filter(Boolean).join(" ") })}`} className="inline-flex min-h-11 items-center text-meta font-semibold text-granate underline-offset-4 hover:underline">
                   Ver los {numero(r.n)} con {nombreMed(p.ifa)}
                 </Link>
               )}
@@ -282,7 +322,10 @@ export default async function FichaMedicamentoPagina({ params, searchParams }: P
             <li><b className="font-semibold text-ink">El registro sanitario de la caja</b> debe ser {p.registro ? <span className="font-mono text-ink">{p.registro}</span> : "el que figura en DIGEMID"}. Si no tiene registro, no lo compres.</li>
             <li><b className="font-semibold text-ink">El lote y el vencimiento</b> deben estar impresos, no en una etiqueta pegada. Busca el lote aquí: te decimos si una alerta lo nombra.</li>
             <li><b className="font-semibold text-ink">Dónde lo compras</b>: en farmacias y boticas autorizadas. En redes sociales, ferias o ambulantes aparecen la mayoría de los falsificados.</li>
-            <li><b className="font-semibold text-ink">El precio</b>: si es mucho más barato que {soles(p.precioMediana)} por unidad, desconfía.</li>
+            <li>
+              <b className="font-semibold text-ink">El precio</b>:{" "}
+              {p.precioMediana != null ? `si es mucho más barato que ${soles(p.precioMediana)} por unidad, desconfía.` : "si es mucho más barato que en otras farmacias, desconfía."}
+            </li>
           </ol>
           <p className="flex flex-wrap gap-x-5 gap-y-1">
             <a href={f.fuente.registroSanitario} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-11 items-center gap-1 text-meta font-semibold text-granate underline-offset-4 hover:underline">
@@ -343,7 +386,9 @@ export default async function FichaMedicamentoPagina({ params, searchParams }: P
               <span>
                 {f.alertasRegistro.length
                   ? `DIGEMID emitió ${f.alertasRegistro.length === 1 ? "una alerta" : `${f.alertasRegistro.length} alertas`} sobre su registro sanitario. Compara el lote de tu caja con el de la alerta.`
-                  : f.alertasNombre.length
+                  : deSeguridad.length
+                    ? `Su registro sanitario no tiene alertas, pero hay ${deSeguridad.length === 1 ? "una alerta de seguridad" : `${deSeguridad.length} alertas de seguridad`} sobre su principio activo: léelas en «Alertas».`
+                  : deMarca.length
                     ? `Su registro sanitario no tiene alertas. Ojo: DIGEMID ${falsificadas ? "incautó cajas falsificadas" : "observó otras cajas"} que usan el nombre «${nombreMed(f.marca)}»: compara el lote de la tuya en «Alertas».`
                     : "Ninguna alerta de DIGEMID nombra su registro sanitario ni su marca."}
               </span>
@@ -355,7 +400,9 @@ export default async function FichaMedicamentoPagina({ params, searchParams }: P
                 <p className="mt-0.5 font-display text-cifra font-bold tabular-nums text-ink">{soles(p.precioMediana)}</p>
                 <p className="text-rotulo leading-snug text-mute">
                   {p.precioMediana != null
-                    ? `La mitad de las ${numero(p.establecimientos)} farmacias y boticas que lo reportaron en ${mesLargo(p.periodo)} lo vendía a este precio o menos.`
+                    ? p.establecimientos === 1
+                      ? `La única farmacia o botica que lo reportó en ${mesLargo(p.periodo)} lo vendía a este precio.`
+                      : `La mitad de las ${numero(p.establecimientos)} farmacias y boticas que lo reportaron en ${mesLargo(p.periodo)} lo vendía a este precio o menos.`
                     : `Ninguna farmacia o botica reportó su precio en ${mesLargo(p.periodo)}.`}
                 </p>
               </div>
@@ -364,12 +411,17 @@ export default async function FichaMedicamentoPagina({ params, searchParams }: P
                 <a href="#secciones" className="gs-hunde block rounded-2xl border border-line bg-paper px-4 py-3.5 hover:border-granate/50">
                   <p className="text-meta font-medium text-mute">Con el mismo principio activo</p>
                   <p className="mt-0.5 font-display text-cifra font-bold tabular-nums text-mossTexto">desde {soles(r.minimo)}</p>
-                  <p className="text-rotulo leading-snug text-mute">{numero(r.n)} productos{r.genericos ? `, ${numero(r.genericos)} genéricos` : ""}. Pregunta antes de cambiar.</p>
+                  <p className="text-rotulo leading-snug text-mute">
+                    {r.n === 1 ? "Un producto" : `${numero(r.n)} productos`}
+                    {r.genericos ? `, ${r.genericos === 1 ? "un genérico" : `${numero(r.genericos)} genéricos`}` : ""}. Pregunta antes de cambiar.
+                  </p>
                 </a>
               ) : (
                 <div className="rounded-2xl border border-line bg-paper px-4 py-3.5">
                   <p className="text-meta font-medium text-mute">Con el mismo principio activo</p>
-                  <p className="mt-0.5 text-dato font-semibold text-ink">{r.n ? "Es de los de menor precio típico" : "No hay otro con precio reportado"}</p>
+                  <p className="mt-0.5 text-dato font-semibold text-ink">
+                    {p.precioMediana == null ? "Sin precio para comparar" : r.n ? "Es de los de menor precio típico" : "No hay otro con precio reportado"}
+                  </p>
                   <p className="text-rotulo leading-snug text-mute">Entre los que reportan farmacias y boticas privadas.</p>
                 </div>
               )}

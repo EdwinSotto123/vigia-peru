@@ -36,6 +36,7 @@ export const formaDe = (clave: string | null | undefined): Forma => FORMAS.find(
 const REGLAS: [FormaGrupo, RegExp][] = [
   ["inyectable", /INYECT|PERFUSI|INFUSI/],
   ["inhalador", /INHAL|AEROSOL|PULVERIZ|SPRAY|NEBULIZ/],
+  ["jarabe", /GOTAS ORALES|ORAL.*GOTAS|GOTAS.*ORAL/],
   ["gotas", /OFTALM|OTIC|GOTAS|COLIRIO|NASAL/],
   ["crema", /CREMA|GEL|UNGUENTO|POMADA|LOCION|CHAMPU|TOPIC|CUTANE|PASTA|JABON/],
   ["ovulo", /OVULO|SUPOSITORIO|RECTAL|VAGINAL/],

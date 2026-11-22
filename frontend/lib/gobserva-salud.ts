@@ -576,6 +576,10 @@ export interface BusquedaMedicamentos {
   aproximado?: boolean;
   /** Las palabras del nombre con que se buscaron las alertas («CEFALOGEN» de «Cefalogen 1G Polvo…»). */
   alertasPor?: string | null;
+  /** Un registro sin alertas de una marca con cajas falsificadas: la marca y cuántas alertas de falsificados la nombran. */
+  falsificadasMarca?: { marca: string; n: number } | null;
+  /** La página de las alertas del validador (10 por página). */
+  apag?: number;
   filas: Medicamento[];
   total: number;
   pagina: number;
@@ -618,6 +622,10 @@ export interface FichaMedicamento {
   presentaciones: Medicamento[];
   alertasRegistro: AlertaDigemid[];
   alertasNombre: AlertaDigemid[];
+  /** Cuántas alertas nombran su marca (o, si es genérico, las de seguridad de su principio activo), además de las listadas. */
+  alertasNombreTotal?: number;
+  /** Se llama como su principio activo (Paracetamol, Gentamicina): no tiene marca y no se le atribuyen cajas de otros. */
+  generico?: boolean;
   /** Los lotes de este registro sanitario que nombra la tabla de alguna alerta. */
   lotesObservados?: { lote: string; vencimiento: string | null; presentacion: string | null; detalle: string | null; numero: string | null; fecha: string; tipo: TipoAlerta; pdfUrl: string | null }[];
   fuente: FuenteMedicamentos;
@@ -694,6 +702,16 @@ export function concentracionLegible(c: string | null | undefined): string {
     return `${Number(n.toPrecision(3)).toString()} %`;
   }
   return t.toLowerCase();
+}
+
+/**
+ * Un vencimiento leído de un PDF que se puede mostrar: con mes y un año de 2 o 4 cifras («12 2027», «05/27», «DIC 2027»).
+ * Las lecturas rotas («04 20028», «DIC 2») no se muestran: dirían una fecha que no está en la caja.
+ */
+export function vencimientoValido(v: string | null | undefined): boolean {
+  const t = (v ?? "").trim().toUpperCase();
+  if (!t || /\d{5,}/.test(t)) return false;
+  return /(^|\D)(19|20)\d{2}(\D|$)/.test(t) || /^(0?[1-9]|1[0-2]|ENE|FEB|MAR|ABR|MAY|JUN|JUL|AGO|SET|SEP|OCT|NOV|DIC)\W*\d{2}$/.test(t);
 }
 
 export function soles(n: number | null | undefined): string {

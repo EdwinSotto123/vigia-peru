@@ -25,14 +25,14 @@ export function PortadaMedicamentos({ lista, fuente, modoInicial }: { lista: str
               Verifica un <span className="text-granate">medicamento</span>
             </h1>
             <p className="mt-3 max-w-[54ch] text-pretty text-cuerpo leading-relaxed text-inkSoft sm:text-destacado">
-              Consulta su registro sanitario, mira si DIGEMID emitió una alerta y comprueba si su lote fue retirado. Y compara su precio con el de los
-              genéricos.
+              Busca su registro sanitario o su lote en las alertas de DIGEMID, comprueba si su lote fue retirado o falsificado, y compara su precio
+              con el de los genéricos.
             </p>
             {fuente && (
               <p className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 text-dato text-inkSoft">
                 <span className="inline-flex items-center gap-2">
                   <Pill size={16} aria-hidden className="text-granate" />
-                  <b className="font-semibold tabular-nums text-ink">{numero(fuente.productos)}</b> medicamentos con precio
+                  <b className="font-semibold tabular-nums text-ink">{numero(fuente.productos)}</b> presentaciones con precio
                 </span>
                 <span aria-hidden className="hidden h-4 w-px bg-granate/25 sm:block" />
                 <span className="inline-flex items-center gap-2">
@@ -65,7 +65,7 @@ export function PortadaMedicamentos({ lista, fuente, modoInicial }: { lista: str
  */
 export function ComoVerificar({ base, lista, fuente }: { base: string; lista: string; fuente: FuenteMedicamentos | null }) {
   const QUE: { sprite: NombreSprite; escala: number; titulo: string; texto: string; href: string }[] = [
-    { sprite: "escudoCheck", escala: 2, titulo: "El registro sanitario", texto: "Está impreso en la caja (R.S., como EE01234): dice si tiene autorización y qué alertas lo nombran", href: `${lista}#buscar` },
+    { sprite: "escudoCheck", escala: 2, titulo: "El registro sanitario", texto: "Está impreso en la caja (R.S., como EE01234): te decimos qué alertas lo nombran", href: `${lista}#buscar` },
     { sprite: "medCaja", escala: 2, titulo: "El lote", texto: "Si DIGEMID lo retiró o lo observó: escríbelo tal como sale en la caja", href: `${rutaEn(base, "/alertas")}?vista=productos` },
     { sprite: "iconoCalendario", escala: 3, titulo: "El vencimiento", texto: "Lo leemos de la foto de la caja, junto con el registro y el lote", href: `${lista}?modo=foto#buscar` },
   ];

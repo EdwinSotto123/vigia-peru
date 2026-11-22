@@ -129,3 +129,11 @@ test("medicamentos: registro sanitario y lote de lo que se escribe", () => {
   assert.equal(pareceLote("paracetamol 500"), null);
   assert.equal(pareceLote("123"), null);
 });
+
+test("marca de un medicamento: todas sus palabras, sin forma ni principio activo; un genérico no tiene marca", async () => {
+  const { palabrasMarca } = await import("../src/routes/gobservaSalud.js");
+  assert.deepEqual(palabrasMarca("DOLO NEUROPRESS FORTE TABLETA", "DICLOFENACO"), ["DOLO", "NEUROPRESS"]);
+  assert.deepEqual(palabrasMarca("APRONAX 550 MG TABLETA", "NAPROXENO"), ["APRONAX"]);
+  assert.deepEqual(palabrasMarca("PARACETAMOL 500 MG TABLETA", "PARACETAMOL"), []);
+  assert.deepEqual(palabrasMarca("GENTAMICINA", "GENTAMICINA"), []);
+});

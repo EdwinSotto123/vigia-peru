@@ -30,7 +30,9 @@ export function TarjetaMedicamento({ m, base, masBarato = false }: { m: Medicame
   const generico = /^GEN/.test(m.clasificacion ?? "");
   const varias = (m.presentacionesN ?? 1) > 1;
   const rango = varias && m.precioMin != null && m.precioMax != null && m.precioMin !== m.precioMax;
-  const precio = rango ? m.precioMin : m.precioMediana ?? m.precioMin ?? null;
+  // El precio de la presentación que representa al producto (el mismo que abre su ficha, con sus farmacias); el rango de
+  // las otras presentaciones va aparte (antes la tarjeta decía el mínimo de otra presentación con las farmacias de ésta).
+  const precio = m.precioMediana ?? m.precioMin ?? null;
   const alertas = m.alertasRegistro ?? 0;
   return (
     <Link
@@ -69,20 +71,12 @@ export function TarjetaMedicamento({ m, base, masBarato = false }: { m: Medicame
         {m.titular && <p className="mt-0.5 truncate text-rotulo text-mute">{nombreMed(m.titular)}</p>}
         <div className="mt-auto pt-2.5">
           <p className="font-display text-bloque font-bold leading-none tabular-nums text-ink">
-            {precio == null ? (
-              <span className="font-sans text-dato font-semibold text-mute">Sin precio</span>
-            ) : rango ? (
-              <>
-                <span className="font-sans text-meta font-semibold text-inkSoft">desde </span>
-                {soles(m.precioMin)}
-              </>
-            ) : (
-              soles(precio)
-            )}
+            {precio == null ? <span className="font-sans text-dato font-semibold text-mute">Sin precio</span> : soles(precio)}
           </p>
+          {rango && precio != null && <p className="mt-1 text-rotulo text-inkSoft">Otras presentaciones desde {soles(m.precioMin)}</p>}
           {masBarato && <p className="mt-1 text-rotulo font-semibold text-mossTexto">Más barato que este</p>}
           <p className="mt-1 text-rotulo leading-snug text-mute">
-            {precio == null ? "Ninguna farmacia lo reportó" : rango ? "por unidad, según presentación" : "por unidad"}
+            {precio == null ? "Ninguna farmacia lo reportó" : "por unidad"}
             {m.establecimientos ? `, en ${numero(m.establecimientos)} ${m.establecimientos === 1 ? "farmacia" : "farmacias"}` : ""}
           </p>
         </div>

@@ -758,10 +758,22 @@ const PALABRAS_FORMA = new Set(["PARA", "CON", "POR", "SIN", "POLVO", "SOLUCION"
   "JARABE", "SUSPENSION", "ORAL", "CREMA", "GEL", "UNGUENTO", "GOTAS", "OFTALMICA", "OFTALMICO", "TOPICA", "TOPICO", "AMPOLLA", "VIAL",
   "FRASCO", "CAJA", "SOBRE", "SOBRES", "LIBERACION", "PROLONGADA", "RETARDADA", "PERFUSION", "INFANTIL", "ADULTO", "FORTE", "MG", "ML",
   "G", "MCG", "UI", "X"]);
+/**
+ * Las palabras de la marca de un nombre normalizado: sin las de forma o envase, sin cifras, sin siglas de 1-2 letras y
+ * sin las del principio activo. Vacío si el nombre es el del principio activo (un genérico: «PARACETAMOL»,
+ * «GENTAMICINA»), que no es una marca: no se le atribuyen cajas de otros laboratorios.
+ */
+export function palabrasMarca(nombreNorm: string, ifaNorm: string | null): string[] {
+  const ifa = new Set((ifaNorm ?? "").split(" ").filter(Boolean));
+  const ps = nombreNorm.split(" ").filter((w) => w.length >= 3 && !/\d/.test(w) && !PALABRAS_FORMA.has(w));
+  return ps.length && ps.every((w) => ifa.has(w)) ? [] : ps.filter((w) => !ifa.has(w) || ps.length === 1).slice(0, 4);
+}
+
 const FORMAS_MED = ["tableta", "capsula", "jarabe", "inyectable", "gotas", "crema", "inhalador", "sobre", "ovulo", "otro"] as const;
 const FORMA_GRUPO_SQL = `(CASE
   WHEN translate(upper(coalesce(m.forma, '')), 'ÁÉÍÓÚÜÑ', 'AEIOUUN') ~ 'INYECT|PERFUSI|INFUSI' THEN 'inyectable'
   WHEN translate(upper(coalesce(m.forma, '')), 'ÁÉÍÓÚÜÑ', 'AEIOUUN') ~ 'INHAL|AEROSOL|PULVERIZ|SPRAY|NEBULIZ' THEN 'inhalador'
+  WHEN translate(upper(coalesce(m.forma, '')), 'ÁÉÍÓÚÜÑ', 'AEIOUUN') ~ 'GOTAS ORALES|ORAL.*GOTAS|GOTAS.*ORAL' THEN 'jarabe'
   WHEN translate(upper(coalesce(m.forma, '')), 'ÁÉÍÓÚÜÑ', 'AEIOUUN') ~ 'OFTALM|OTIC|GOTAS|COLIRIO|NASAL' THEN 'gotas'
   WHEN translate(upper(coalesce(m.forma, '')), 'ÁÉÍÓÚÜÑ', 'AEIOUUN') ~ 'CREMA|GEL|UNGUENTO|POMADA|LOCION|CHAMPU|TOPIC|CUTANE|PASTA|JABON' THEN 'crema'
   WHEN translate(upper(coalesce(m.forma, '')), 'ÁÉÍÓÚÜÑ', 'AEIOUUN') ~ 'OVULO|SUPOSITORIO|RECTAL|VAGINAL' THEN 'ovulo'
@@ -787,6 +799,12 @@ const COLS_ALERTA = `a.id, a.numero, to_char(a.fecha, 'YYYY-MM-DD') AS fecha, a.
   ${OBSERVADOS}`;
 /** Lo que una alerta dice en palabras (productos, motivo y título), normalizado para buscar. */
 const TEXTO_ALERTA = `mef_norm(coalesce(a.productos, '') || ' ' || coalesce(a.motivo, '') || ' ' || a.titulo)`;
+/**
+ * Una palabra entera en el texto de una alerta (título, motivo, productos y el texto del PDF), con su parámetro: «\\m…\\M»
+ * de Postgres. Las palabras ya vienen normalizadas a [A-Z0-9] (palabras(), registroDe, pareceLote): seguras en una regex.
+ */
+const palabraEnAlerta = (k: string, final = true) =>
+  `((${TEXTO_ALERTA} || ' ' || coalesce(a.texto_norm, '')) ~ ('\\m' || ${k}${final ? " || '\\M'" : ""}))`;
 
 async function fuenteMedicamentos() {
   const r = await pool.query(`SELECT (SELECT to_char(max(periodo), 'YYYY-MM') FROM salud_medicamento) AS "preciosAl",
@@ -811,6 +829,8 @@ const FiltrosMedicamentos = z.object({
   forma: z.enum(FORMAS_MED).optional(),
   tipo: z.enum(["generico", "marca"]).optional(),
   orden: z.enum(["relevancia", "populares", "precio", "nombre"]).optional(),
+  // La página de las alertas del validador (10 por página), aparte de la del catálogo.
+  apag: z.coerce.number().int().min(1).max(200).default(1),
   pagina: z.coerce.number().int().min(1).max(1000).default(1),
   tamano: z.coerce.number().int().min(5).max(50).default(10),
 });
@@ -829,7 +849,8 @@ saludRouter.get("/medicamentos", async (c) => {
   const { forma, tipo } = f.data;
   const hojear = q.length < 2;
   const orden = f.data.orden && !(f.data.orden === "relevancia" && hojear) ? f.data.orden : hojear ? "populares" : "relevancia";
-  const clave = `medicamentos:${q.toLowerCase()}:${loteAparte ?? ""}:${forma ?? ""}:${tipo ?? ""}:${orden}:${pagina}:${tamano}`;
+  const { apag } = f.data;
+  const clave = `medicamentos:${q.toLowerCase()}:${loteAparte ?? ""}:${forma ?? ""}:${tipo ?? ""}:${orden}:${pagina}:${tamano}:${apag}`;
   const cuerpo = await memo.obtener(clave, async () => {
     const fuente = await fuenteMedicamentos();
     const registro = hojear ? null : registroDe(q);
@@ -851,9 +872,9 @@ saludRouter.get("/medicamentos", async (c) => {
     if (registro) {
       valsMed.push(registro);
       whereMed = "m.registro = $1";
-      valsAl.push(registro, `%${registro}%`);
+      valsAl.push(registro, registro);
       // Un lote puede tener la forma de un registro («OPI052502»): se busca como los dos.
-      whereAl = "($1 = ANY(a.registros) OR a.texto_norm LIKE $2 OR EXISTS (SELECT 1 FROM salud_alerta_producto p WHERE p.alerta_id = a.id AND (p.registro = $1 OR p.lote_norm = $1)))";
+      whereAl = `($1 = ANY(a.registros) OR ${palabraEnAlerta("$2")} OR EXISTS (SELECT 1 FROM salud_alerta_producto p WHERE p.alerta_id = a.id AND (p.registro = $1 OR p.lote_norm = $1)))`;
     } else {
       // Por nombre, principio activo, concentración, forma o presentación (2026-11-22: «Cefalogen 1G Polvo Para Solución
       // Inyectable Intramuscular» daba cero porque «polvo» o «inyectable» están en la forma). La concentración sin espacios:
@@ -891,15 +912,19 @@ saludRouter.get("/medicamentos", async (c) => {
         ordenMed = `m.en_catalogo DESC, ${puntaje ? `(${puntaje}) DESC, ` : ""}(m.nombre_norm = ${k}) DESC, word_similarity(${k}, m.nombre_norm) DESC, m.establecimientos DESC NULLS LAST, m.nombre`;
       }
       if (lote) {
-        valsAl.push(`%${lote}%`);
+        // Un lote corto (menos de 5) sólo en la tabla leída: «2101» aparece en cualquier texto.
         valsAl.push(lote);
-        whereAl = `(a.texto_norm LIKE $1 OR ${TEXTO_ALERTA} LIKE $1 OR EXISTS (SELECT 1 FROM salud_alerta_producto p WHERE p.alerta_id = a.id AND p.lote_norm = $2))`;
+        valsAl.push(lote);
+        whereAl = lote.length >= 5
+          ? `(${palabraEnAlerta("$1")} OR EXISTS (SELECT 1 FROM salud_alerta_producto p WHERE p.alerta_id = a.id AND p.lote_norm = $2))`
+          : `EXISTS (SELECT 1 FROM salud_alerta_producto p WHERE p.alerta_id = a.id AND p.lote_norm = $2)`;
       } else {
         // Las alertas, por las palabras del nombre (sin las de la forma ni las cifras): «Cefalogen 1G Polvo…» busca «CEFALOGEN».
         const delNombre = ps.filter((x) => !/\d/.test(x) && !PALABRAS_FORMA.has(x));
         alertasPor = (delNombre.length ? delNombre : ps).join(" ");
         const wa: string[] = [];
-        for (const x of delNombre.length ? delNombre : ps) { valsAl.push(`%${x}%`); wa.push(`(${TEXTO_ALERTA} LIKE $${valsAl.length} OR a.texto_norm LIKE $${valsAl.length})`); }
+        // Desde el comienzo de la palabra (plurales y sufijos sí; «esomeprazol» no es «omeprazol»).
+        for (const x of delNombre.length ? delNombre : ps) { valsAl.push(x); wa.push(palabraEnAlerta(`$${valsAl.length}`, false)); }
         if (wa.length) whereAl = wa.join(" AND ");
       }
     }
@@ -917,9 +942,11 @@ saludRouter.get("/medicamentos", async (c) => {
     ordenMed = ORDENES_MED[orden] ?? ordenMed;
     if (otroLote) {
       // Las alertas que nombran el lote de la caja también (además de las del registro o el nombre).
-      valsAl.push(`%${otroLote}%`, otroLote);
+      valsAl.push(otroLote, otroLote);
       const k = valsAl.length;
-      whereAl = `((${whereAl}) OR a.texto_norm LIKE $${k - 1} OR EXISTS (SELECT 1 FROM salud_alerta_producto p WHERE p.alerta_id = a.id AND p.lote_norm = $${k}))`;
+      whereAl = otroLote.length >= 5
+        ? `((${whereAl}) OR ${palabraEnAlerta(`$${k - 1}`)} OR EXISTS (SELECT 1 FROM salud_alerta_producto p WHERE p.alerta_id = a.id AND p.lote_norm = $${k}))`
+        : `((${whereAl}) OR EXISTS (SELECT 1 FROM salud_alerta_producto p WHERE p.alerta_id = a.id AND p.lote_norm = $${k}))`;
     }
     // Lo que coincide exacto en la tabla de una alerta: el lote o el registro escritos, y el lote de la caja.
     const condExacta = [lote ? "p.lote_norm = $1" : registro ? "(p.registro = $1 OR p.lote_norm = $1)" : null, otroLote ? `p.lote_norm = $${lote || registro ? 2 : 1}` : null]
@@ -962,7 +989,8 @@ saludRouter.get("/medicamentos", async (c) => {
          WHERE m.rn = 1
          ORDER BY ${ordenMed} LIMIT ${tamano} OFFSET ${(pagina - 1) * tamano}`, valsMed),
       pool.query(`SELECT count(*)::int AS n FROM (SELECT DISTINCT m.nombre_norm, m.concentracion, m.forma, m.registro FROM salud_medicamento m WHERE ${whereMed}) g`, valsMed),
-      pool.query(`SELECT ${COLS_ALERTA} FROM salud_alerta a WHERE ${whereAl} ORDER BY a.fecha DESC, a.id DESC LIMIT 5`, valsAl),
+      pool.query(`SELECT ${COLS_ALERTA} FROM salud_alerta a WHERE ${whereAl} ORDER BY a.fecha DESC, a.id DESC
+                  LIMIT ${hojear ? 5 : 10} OFFSET ${hojear ? 0 : (apag - 1) * 10}`, valsAl),
       hojear ? Promise.resolve({ rows: [{ n: null }] }) : pool.query(`SELECT count(*)::int AS n FROM salud_alerta a WHERE ${whereAl}`, valsAl),
       exacto,
       loteEnAlertas,
@@ -978,11 +1006,21 @@ saludRouter.get("/medicamentos", async (c) => {
                (SELECT count(*) FILTER (WHERE generico)::int FROM b) AS genericos,
                (SELECT count(*) FILTER (WHERE marca)::int FROM b) AS marcas`, valsBase),
     ]);
+    // Un registro de un producto con marca: cuántas alertas de falsificados nombran esa marca (palabras enteras).
+    let falsificadasMarca: { marca: string; n: number } | null = null;
+    const primero = filas.rows[0] as { nombre?: string; ifa?: string | null } | undefined;
+    if (registro && primero?.nombre) {
+      const pm = palabrasMarca(norm(primero.nombre), primero.ifa ? norm(primero.ifa) : null);
+      if (pm.length) {
+        const r = await pool.query(`SELECT count(*)::int AS n FROM salud_alerta a WHERE a.tipo = 'falsificado' AND ${pm.map((_, i) => palabraEnAlerta(`$${i + 1}`)).join(" AND ")}`, pm);
+        if (r.rows[0].n > 0) falsificadasMarca = { marca: pm.join(" "), n: r.rows[0].n };
+      }
+    }
     // Lo escrito tenía forma de registro, no es el de ningún producto y sí el lote de una alerta: era un lote.
     const esLote = registro && total.rows[0].n === 0 && (coincidencias.rows as { lote: string | null }[]).some((c) => c.lote && c.lote.replace(/[^A-Za-z0-9]/g, "").toUpperCase() === registro);
     return publicar({
       q, como: esLote ? "lote" : como, registro: esLote ? null : registro, lote: esLote ? registro : lote,
-      loteCaja: otroLote, loteEnAlertas: enAlertas.rows[0].n, aproximado, alertasPor,
+      loteCaja: otroLote, loteEnAlertas: enAlertas.rows[0].n, aproximado, alertasPor, falsificadasMarca, apag,
       filas: filas.rows, total: total.rows[0].n, pagina, tamano, forma: forma ?? null, tipo: tipo ?? null, orden, facetas: facetas.rows[0],
       alertas: alertas.rows, alertasTotal: alertasTotal.rows[0].n, coincidencias: coincidencias.rows, fuente,
     });
@@ -1001,10 +1039,18 @@ saludRouter.get("/medicamento/:codigo", async (c) => {
     if (!fila) return null;
     const { nombre_norm, ifa_norm, ...producto } = fila as { nombre_norm: string; ifa_norm: string | null } & Record<string, unknown>;
     const registro = (producto.registro as string | null) ?? null;
-    const misma = [ifa_norm, producto.concentracion ?? null, producto.forma ?? null, codigo];
-    const DONDE_EQUIV = `m.ifa_norm = $1 AND m.concentracion IS NOT DISTINCT FROM $2 AND m.forma IS NOT DISTINCT FROM $3 AND m.codigo <> $4 AND m.en_catalogo`;
-    // La marca: la primera palabra del nombre con 4 letras o más (PANADOL de «PANADOL ANTIGRIPAL NF»).
-    const marca = nombre_norm.split(" ").find((w) => w.length >= 4) ?? nombre_norm;
+    // Otros productos con el mismo principio activo, concentración y forma: sin las presentaciones del mismo producto (su
+    // registro), contados por producto (antes, «5 productos» eran 5 presentaciones de la misma Buscapina).
+    const misma5 = [...[ifa_norm, producto.concentracion ?? null, producto.forma ?? null, codigo], registro];
+    const DONDE_EQUIV = `m.ifa_norm = $1 AND m.concentracion IS NOT DISTINCT FROM $2 AND m.forma IS NOT DISTINCT FROM $3 AND m.codigo <> $4 AND m.en_catalogo
+      AND m.registro IS DISTINCT FROM $5`;
+    // La marca: todas las palabras del nombre que no son forma, cifras ni siglas cortas («PANADOL ANTIGRIPAL» de «PANADOL
+    // ANTIGRIPAL NF», «DOLO NEUROPRESS» de «DOLO NEUROPRESS FORTE»). Antes era sólo la primera, y «Dolo Neuropress» recibía
+    // las falsificaciones de «Dolo-Neurobión» (2026-11-22). Un genérico (se llama como su principio activo) no tiene marca:
+    // sus alertas por nombre son las de seguridad del principio activo, no las cajas de otros laboratorios.
+    const palabrasDeMarca = palabrasMarca(nombre_norm, ifa_norm);
+    const generico = palabrasDeMarca.length === 0;
+    const marca = generico ? nombre_norm : palabrasDeMarca.join(" ");
     const lotes = registro
       ? pool.query(`SELECT p.lote, p.vencimiento, p.presentacion, p.detalle, a.numero, to_char(a.fecha, 'YYYY-MM-DD') AS fecha, a.tipo, a.pdf_url AS "pdfUrl"
                       FROM salud_alerta_producto p JOIN salud_alerta a ON a.id = p.alerta_id
@@ -1012,13 +1058,15 @@ saludRouter.get("/medicamento/:codigo", async (c) => {
       : Promise.resolve({ rows: [] });
     const [equivalentes, resumen, presentaciones, porRegistro, porNombre, lotesObservados] = await Promise.all([
       ifa_norm
-        ? pool.query(`SELECT ${COLS_MED} FROM salud_medicamento m WHERE ${DONDE_EQUIV}
-                       ORDER BY m.precio_mediana ASC NULLS LAST, m.establecimientos DESC NULLS LAST LIMIT 30`, misma)
+        ? pool.query(`SELECT ${COLS_MED} FROM (
+                         SELECT DISTINCT ON (m.nombre_norm, m.registro) m.* FROM salud_medicamento m WHERE ${DONDE_EQUIV}
+                          ORDER BY m.nombre_norm, m.registro, m.establecimientos DESC NULLS LAST) m
+                       ORDER BY m.precio_mediana ASC NULLS LAST, m.establecimientos DESC NULLS LAST LIMIT 30`, misma5)
         : Promise.resolve({ rows: [] }),
       ifa_norm
-        ? pool.query(`SELECT count(*)::int AS n, min(m.precio_mediana)::float AS minimo, max(m.precio_mediana)::float AS maximo,
-                             count(*) FILTER (WHERE m.clasificacion LIKE 'GEN%')::int AS genericos
-                        FROM salud_medicamento m WHERE ${DONDE_EQUIV}`, misma)
+        ? pool.query(`SELECT count(DISTINCT (m.nombre_norm, m.registro))::int AS n, min(m.precio_mediana)::float AS minimo, max(m.precio_mediana)::float AS maximo,
+                             count(DISTINCT (m.nombre_norm, m.registro)) FILTER (WHERE m.clasificacion LIKE 'GEN%')::int AS genericos
+                        FROM salud_medicamento m WHERE ${DONDE_EQUIV}`, misma5)
         : Promise.resolve({ rows: [{ n: 0, minimo: null, maximo: null, genericos: 0 }] }),
       registro
         ? pool.query(`SELECT ${COLS_MED} FROM salud_medicamento m WHERE m.registro = $1 AND m.codigo <> $2 ORDER BY m.establecimientos DESC NULLS LAST LIMIT 20`, [registro, codigo])
@@ -1028,14 +1076,23 @@ saludRouter.get("/medicamento/:codigo", async (c) => {
                        WHERE $1 = ANY(a.registros) OR EXISTS (SELECT 1 FROM salud_alerta_producto p WHERE p.alerta_id = a.id AND p.registro = $1)
                        ORDER BY a.fecha DESC LIMIT 20`, [registro])
         : Promise.resolve({ rows: [] }),
-      pool.query(`SELECT ${COLS_ALERTA} FROM salud_alerta a
-                   WHERE (' ' || ${TEXTO_ALERTA} || ' ') LIKE $1 AND NOT ($2::text IS NOT NULL AND $2 = ANY(a.registros))
-                   ORDER BY a.fecha DESC LIMIT 10`, [`% ${marca} %`, registro]),
+      // Por nombre: todas las palabras de la marca, enteras, en el título, el motivo, los productos o el texto del PDF. Un
+      // genérico, sólo las de seguridad o modificación que nombran su principio activo (le aplican a todos).
+      generico
+        ? pool.query(`SELECT ${COLS_ALERTA}, count(*) OVER ()::int AS total FROM salud_alerta a
+                       WHERE a.tipo IN ('seguridad', 'modificacion') AND ${palabraEnAlerta("$1", false)}
+                         AND NOT ($2::text IS NOT NULL AND $2 = ANY(a.registros))
+                       ORDER BY a.fecha DESC LIMIT 30`, [nombre_norm.split(" ").filter((w) => w.length >= 5 && !/\d/.test(w)).sort((x, y) => y.length - x.length)[0] ?? nombre_norm, registro])
+        : pool.query(`SELECT ${COLS_ALERTA}, count(*) OVER ()::int AS total FROM salud_alerta a
+                       WHERE ${palabrasDeMarca.map((_, i) => palabraEnAlerta(`$${i + 2}`)).join(" AND ")}
+                         AND NOT ($1::text IS NOT NULL AND $1 = ANY(a.registros))
+                       ORDER BY a.fecha DESC LIMIT 30`, [registro, ...palabrasDeMarca]),
       lotes,
     ]);
     return publicar({
-      producto, marca, equivalentes: equivalentes.rows, equivalentesResumen: resumen.rows[0], presentaciones: presentaciones.rows,
-      alertasRegistro: porRegistro.rows, alertasNombre: porNombre.rows, lotesObservados: lotesObservados.rows, fuente: await fuenteMedicamentos(),
+      producto, marca, generico, equivalentes: equivalentes.rows, equivalentesResumen: resumen.rows[0], presentaciones: presentaciones.rows,
+      alertasRegistro: porRegistro.rows, alertasNombre: porNombre.rows, alertasNombreTotal: (porNombre.rows[0] as { total?: number } | undefined)?.total ?? 0,
+      lotesObservados: lotesObservados.rows, fuente: await fuenteMedicamentos(),
     });
   });
   if (!cuerpo) return c.json({ error: "no_encontrado" }, 404);

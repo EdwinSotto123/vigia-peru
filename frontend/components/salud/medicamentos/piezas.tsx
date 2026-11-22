@@ -2,7 +2,7 @@ import Link from "next/link";
 import { ArrowUpRight, ChevronRight, FileText, Pill, Search, TriangleAlert } from "lucide-react";
 import { Insignia, type Tono } from "@/components/gobserva/ui/Insignia";
 import { rutaEn } from "@/lib/gobserva";
-import { concentracionLegible, fechaCorta, numero, oracionDeMayusculas, rutaMedicamento, soles, TIPOS_ALERTA, type AlertaDigemid, type Medicamento, type ObservadoAlerta, type TipoAlerta } from "@/lib/gobserva-salud";
+import { concentracionLegible, fechaCorta, numero, oracionDeMayusculas, vencimientoValido, rutaMedicamento, soles, TIPOS_ALERTA, type AlertaDigemid, type Medicamento, type ObservadoAlerta, type TipoAlerta } from "@/lib/gobserva-salud";
 import { cn } from "@/lib/utils";
 import { Pixel } from "@/components/pixel/Pixel";
 import { formaDe, grupoDeTexto } from "@/lib/salud-formas";
@@ -140,7 +140,14 @@ export function FilaAlerta({
 }) {
   const todos = a.observados ?? [];
   const marca = soloDe ? normalizarMarca(soloDe) : null;
-  const observados = marca ? todos.filter((o) => normalizarMarca(`${o.producto} ${o.presentacion ?? ""}`).includes(marca)) : todos;
+  // Todas las palabras de la marca en la fila («DOLO NEUROPRESS»: no basta «DOLO», que también es Dolo-Neurobión).
+  const palabras = marca ? marca.trim().split(" ").filter(Boolean) : [];
+  const observados = marca
+    ? todos.filter((o) => {
+        const fila = normalizarMarca(`${o.producto} ${o.presentacion ?? ""}`);
+        return palabras.every((w) => fila.includes(` ${w} `));
+      })
+    : todos;
   const deOtras = todos.length - observados.length;
   // Las internacionales no traen productos ni motivo: su resumen repite el título y el botón «Descargar».
   const limpiar = (t: string | null) => (t ?? "").replace(/\s*Descargar\s*$/i, "").trim();
@@ -268,7 +275,7 @@ export function Observados({ items, base, resaltar, todos = false }: { items: Ob
                   <span className="text-mute">No lo dice</span>
                 )}
               </dd>
-              {o.vencimientos.length > 0 && <dd className="mt-0.5 text-mute">Vence {o.vencimientos.join(", ")}</dd>}
+              {o.vencimientos.filter(vencimientoValido).length > 0 && <dd className="mt-0.5 text-mute">Vence {o.vencimientos.filter(vencimientoValido).join(", ")}</dd>}
             </dl>
             )}
             {(conRegistro || conTitular) && (

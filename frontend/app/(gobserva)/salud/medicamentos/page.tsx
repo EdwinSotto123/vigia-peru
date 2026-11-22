@@ -13,7 +13,7 @@ import { FilaAlerta, FormMedicamento, InsigniaAlerta, nombreMed, textoRevisadas 
 import { CabeceraLista, Ruta } from "@/components/salud/portada/Piezas";
 import { claseAccion } from "@/components/ui/EnlaceAccion";
 import { rutaEn, urlCanonica } from "@/lib/gobserva";
-import { buscarMedicamentos, fechaCorta, getAlertas, mesLargo, numero, rutaMedicamento, type FuenteMedicamentos } from "@/lib/gobserva-salud";
+import { buscarMedicamentos, fechaCorta, mesLargo, numero, rutaMedicamento, type FuenteMedicamentos } from "@/lib/gobserva-salud";
 import { baseProducto } from "@/lib/gobserva-servidor";
 import { FORMAS, formaDe, type FormaGrupo } from "@/lib/salud-formas";
 import { cn } from "@/lib/utils";
@@ -67,9 +67,10 @@ export default async function Medicamentos({ searchParams }: Props) {
     const t = u.toString();
     return t ? `${lista}?${t}` : lista;
   };
+  const apag = Math.max(1, Number(texto(searchParams?.apag)) || 1);
   const params = new URLSearchParams({
     ...(q ? { q } : {}), ...conLote, ...(forma ? { forma } : {}), ...(tipo ? { tipo } : {}), ...(orden ? { orden } : {}),
-    pagina: String(pagina), tamano: String(POR_PAGINA),
+    pagina: String(pagina), tamano: String(POR_PAGINA), ...(apag > 1 ? { apag: String(apag) } : {}),
   });
   const d = await buscarMedicamentos(params);
   const href = (n: number) => urlCon({}, n);
@@ -99,21 +100,17 @@ export default async function Medicamentos({ searchParams }: Props) {
   const coincidencias = loteCaja ? (d?.coincidencias ?? []).filter((c) => c.coincideLote) : d?.coincidencias ?? [];
   // Se sabe que el lote de la caja no está en ninguna alerta: las del registro son de otros lotes (ámbar, no rojo).
   const loteLimpio = !!loteCaja && !d?.loteEnAlertas;
-  const rojo = porCaja && !loteLimpio;
+  const rojo = d?.como === "registro" && !loteLimpio;
   const resaltar = loteCaja ?? (porCaja ? q : null);
   // Las alertas que ya salen arriba, con su producto y su lote, no se repiten en la caja de abajo.
   const yaVistas = new Set(coincidencias.map((c) => c.alertaId));
   // Las alertas que nombran lo buscado, todas y aquí mismo, 10 por página (?apag=): antes eran una o tres y «Ver las 31»
   // llevaba a otra página. Se buscan por el registro, el lote o las palabras del nombre (alertasPor), como la API.
-  const apag = Math.max(1, Number(texto(searchParams?.apag)) || 1);
+  // La lista sale de la MISMA búsqueda que el veredicto (la API, 10 por página): antes salía de /alertas, que busca sólo
+  // texto, y un registro con alerta daba «no figura» (2026-11-22, cacería de errores).
   const POR_PAGINA_ALERTAS = 10;
-  const textoAlertas = d ? d.registro ?? d.lote ?? d.alertasPor ?? q : "";
-  const listaAlertas =
-    q && d && (d.alertasTotal ?? 0) > 0 && textoAlertas
-      ? await getAlertas(new URLSearchParams({ q: textoAlertas, pagina: String(apag), tamano: String(POR_PAGINA_ALERTAS) }))
-      : null;
-  const otras = (listaAlertas?.filas ?? d?.alertas ?? []).filter((a) => !yaVistas.has(a.id));
-  const otrasTotal = Math.max(0, (listaAlertas?.total ?? d?.alertasTotal ?? 0) - yaVistas.size);
+  const otras = (d?.alertas ?? []).filter((a) => !yaVistas.has(a.id));
+  const otrasTotal = Math.max(0, (d?.alertasTotal ?? 0) - yaVistas.size);
   const paginasAlertas = Math.min(500, Math.max(1, Math.ceil(otrasTotal / POR_PAGINA_ALERTAS)));
   const hrefAlertas = (n: number) => urlCon({ seccion: "alertas", apag: n > 1 ? String(n) : null });
 
@@ -196,7 +193,8 @@ export default async function Medicamentos({ searchParams }: Props) {
         clave: "alertas",
         etiqueta: "Validador de alertas",
         icono: <ShieldCheck size={15} aria-hidden />,
-        conteo: coincidencias.length || d.alertasTotal || null,
+        // Alertas distintas: las de la tabla (arriba) más las demás de la lista.
+        conteo: yaVistas.size + otrasTotal || null,
         contenido: (
           <div className="flex flex-col gap-5 [&>*]:!mt-0">
             {!validadorPrimero && <ValidadorCaja lista={lista} />}
@@ -211,7 +209,7 @@ export default async function Medicamentos({ searchParams }: Props) {
               <h2 id="coincide-t" className="flex items-start gap-2 font-display text-bloque font-bold leading-snug text-crimsonTexto">
                 <TriangleAlert size={20} aria-hidden className="mt-0.5 shrink-0" />
                 {loteCaja ? `Tu lote ${loteCaja}` : d.como === "lote" ? "Ese lote" : "Ese registro sanitario"} está en{" "}
-                {coincidencias.length === 1 ? "una alerta" : `${coincidencias.length} alertas`} de DIGEMID
+                {yaVistas.size === 1 ? "una alerta" : `${yaVistas.size} alertas`} de DIGEMID
               </h2>
               <ul className="mt-3 grid gap-2">
                 {coincidencias.map((c, i) => (
@@ -277,8 +275,10 @@ export default async function Medicamentos({ searchParams }: Props) {
                   </h2>
                   <p className="mt-1 max-w-[75ch] text-meta leading-relaxed text-inkSoft">
                     {rojo
-                      ? `El ${d.como === "lote" ? "lote" : "registro sanitario"} que escribiste aparece en la alerta. Si es el de tu caja, no lo uses y pregunta en la farmacia o llama a DIGEMID.`
-                      : "Compara el lote y el registro de tu caja con los de la alerta: muchas son de falsificaciones o de un solo lote, no de todo el producto."}
+                      ? "El registro sanitario que escribiste aparece en la alerta. Mira de qué lote habla: si es el de tu caja, no lo uses y pregunta en la farmacia o llama a DIGEMID."
+                      : d.como === "lote"
+                        ? "Ese número aparece en el texto de la alerta (no en su tabla de lotes): revisa en el PDF si es tu producto, tu lote y tu vencimiento."
+                        : "Compara el lote y el registro de tu caja con los de la alerta: muchas son de falsificaciones o de un solo lote, no de todo el producto."}
                   </p>
                 </div>
               </div>
@@ -303,7 +303,22 @@ export default async function Medicamentos({ searchParams }: Props) {
                 </div>
               )}
             </section>
-          ) : yaVistas.size > 0 || loteCaja ? null : (
+          ) : yaVistas.size > 0 || loteCaja ? null : d.falsificadasMarca ? (
+            <p className="mt-6 flex gap-3 rounded-2xl border border-amber/40 bg-amber-soft/40 px-5 py-4 text-dato leading-relaxed text-ink">
+              <TriangleAlert size={20} aria-hidden className="mt-0.5 shrink-0 text-amberTexto" />
+              <span>
+                <b className="font-semibold">Ninguna alerta nombra el registro «{q}».</b> Pero hay{" "}
+                {d.falsificadasMarca.n === 1 ? "una alerta" : `${numero(d.falsificadasMarca.n)} alertas`} de cajas falsificadas que usan el nombre «
+                {nombreMed(d.falsificadasMarca.marca)}»: compara el lote de tu caja.{" "}
+                <Link
+                  href={`${lista}?${new URLSearchParams({ q: nombreMed(d.falsificadasMarca.marca), seccion: "alertas" })}`}
+                  className="font-semibold text-granate underline-offset-4 hover:underline"
+                >
+                  Ver esas alertas
+                </Link>
+              </span>
+            </p>
+          ) : (
             <p className="mt-6 flex gap-3 rounded-2xl border border-line bg-paper px-5 py-4 text-dato leading-relaxed text-inkSoft">
               <CircleCheck size={20} aria-hidden className="mt-0.5 shrink-0 text-mossTexto" />
               <span>
