@@ -5,7 +5,9 @@ import { Migas } from "@/components/patrones/Migas";
 import { claseAccion } from "@/components/ui/EnlaceAccion";
 import { PreguntaRapida } from "@/components/salud/asistente/PreguntaRapida";
 import { FormColegiatura } from "@/components/salud/medico/FormColegiatura";
-import { PasosVerificar } from "@/components/salud/medico/PasosVerificar";
+import { PasosDeslizables } from "@/components/salud/medico/PasosDeslizables";
+import { Ayuda } from "@/components/patrones/Ayuda";
+import type { NombreSprite } from "@/components/pixel/sprites";
 import { Pixel } from "@/components/pixel/Pixel";
 import { URL_CMP, URL_SUNEDU, pasosVerificarMedico } from "@/components/salud/medico/pasos";
 import { rutaEn, urlCanonica } from "@/lib/gobserva";
@@ -19,6 +21,13 @@ export const metadata: Metadata = {
 };
 
 const EXTERNO = <span className="sr-only"> (se abre en otra pestaña)</span>;
+
+/** Los tres tramos de la verificación: lo que pone la persona, lo que leemos de las fuentes abiertas y lo que dice el CMP. */
+const RECORRIDO: { titulo: string; texto: string; sprite: NombreSprite }[] = [
+  { titulo: "Escribes su colegiatura", texto: "El número CMP que figura en su sello, su receta o la web de la clínica.", sprite: "carnet" },
+  { titulo: "Te decimos dónde figura", texto: "En qué establecimientos es responsable según RENIPRESS, su RNE y si esas IPRESS tienen sanciones.", sprite: "clinica" },
+  { titulo: "El CMP confirma si está hábil", texto: "Su habilitación, su especialidad y su recertificación: te llevamos a su consulta con el número listo.", sprite: "escudoCheck" },
+];
 
 /**
  * «Verificar a un médico» (Gobserva Salud): el número de colegiatura lleva a /medico/<n>; debajo, lo que hay que saber
@@ -51,27 +60,39 @@ export default function VerificarMedico() {
             <FormColegiatura base={base} />
           </div>
 
-          <section aria-labelledby="honesto-t" className="mt-6 flex gap-3.5 rounded-2xl border border-line bg-paperSoft p-4 sm:p-5">
-            <span aria-hidden className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-granate-50 text-granate">
-              <Lock size={19} />
-            </span>
-            <div className="min-w-0">
-              <h2 id="honesto-t" className="font-display text-bloque font-bold leading-snug text-ink">
-                Si está habilitado lo dice sólo el Colegio Médico del Perú
-              </h2>
-              <p className="mt-1 max-w-[68ch] text-dato leading-relaxed text-inkSoft">
-                Su consulta «Conoce a tu médico» pide una cuenta gratuita y un captcha, y limita las consultas: no la leemos de forma
-                automática ni copiamos sus datos. Aquí te decimos qué dicen las fuentes abiertas de ese número; los pasos de abajo te
-                llevan al CMP para confirmarlo.
-              </p>
-            </div>
+          {/* El recorrido en tres tramos (2026-11-22, el usuario: «texto plano… hazlo con forma»): qué pones tú, qué te decimos
+              nosotros y qué confirma sólo el CMP. La razón de no leer el CMP va en una ventana de ayuda, no en un párrafo. */}
+          <section aria-labelledby="recorrido-t" className="mt-6">
+            <h2 id="recorrido-t" className="flex items-center gap-1.5 font-display text-bloque font-bold leading-snug text-ink">
+              Qué te decimos y qué confirma el Colegio Médico
+              <Ayuda titulo="¿Por qué no lo confirmamos nosotros?">
+                La consulta «Conoce a tu médico» del CMP pide una cuenta gratuita y un captcha, y limita las consultas: no la leemos de forma
+                automática ni copiamos sus datos.
+              </Ayuda>
+            </h2>
+            <ol className="mt-3 grid gap-px overflow-hidden rounded-2xl border border-line bg-line sm:grid-cols-3">
+              {RECORRIDO.map((t, i) => (
+                <li key={t.titulo} className={i === 2 ? "bg-granate-50/60 p-4" : "bg-paper p-4"}>
+                  <div className="flex items-center gap-3">
+                    <span aria-hidden className="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-paperSoft">
+                      <Pixel nombre={t.sprite} escala={3} animado={false} />
+                    </span>
+                    <p className="min-w-0 text-cuerpo font-bold leading-snug text-ink">
+                      <span className="sr-only">{i + 1}. </span>
+                      {t.titulo}
+                    </p>
+                  </div>
+                  <p className="mt-2 text-meta leading-relaxed text-inkSoft">{t.texto}</p>
+                </li>
+              ))}
+            </ol>
           </section>
 
           <section aria-labelledby="pasos-t" className="mt-10">
             <h2 id="pasos-t" className="font-display text-seccion font-bold leading-tight text-ink">
               Cómo verificarlo, paso a paso
             </h2>
-            <PasosVerificar pasos={pasosVerificarMedico()} base={base} className="mt-5" />
+            <PasosDeslizables pasos={pasosVerificarMedico()} base={base} className="mt-5" />
           </section>
         </div>
 
