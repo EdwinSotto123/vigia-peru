@@ -58,7 +58,8 @@ function valorCorto(c: Chequeo, f: FichaIpress): string {
       if (f.activo) return "Activa";
       return f.estado ? f.estado.charAt(0) + f.estado.slice(1).toLocaleLowerCase("es-PE") : "Sin estado";
     case "categoria":
-      return (leido ? f.detalle!.categoria : null) ?? f.categoria ?? "Sin categoría";
+      // «SIN CATEGORÍA» del detalle, como en la cabecera.
+      return ((leido ? f.detalle!.categoria : null) ?? f.categoria ?? "Sin categoría").replace(/^SIN CATEGOR[IÍ]A$/i, "Sin categoría");
     case "quirurgico":
       return c.estado === "ok" ? "Registrado" : c.estado === "sin_dato" ? "Sin dato" : "No registrado";
     // Este chequeo sólo existe con el detalle leído: si no es «ok», la IPRESS no la declaró (no es que falte el dato).
@@ -71,7 +72,7 @@ function valorCorto(c: Chequeo, f: FichaIpress): string {
     case "denuncias": {
       const ultimo = [...f.denunciasPorAnio].sort((a, b) => b.anio - a.anio)[0];
       if (!ultimo) return "Sin dato";
-      return `${numero(ultimo.denuncias)} en ${ultimo.anio}`;
+      return `${numero(ultimo.denuncias)} en ${ultimo.anio}${ultimo.anio === new Date().getFullYear() ? " (parcial)" : ""}`;
     }
     case "responsable": {
       // «CMP» sólo para el Colegio Médico; de otro colegio, su profesión (su número está en «Verificación»).
@@ -91,7 +92,7 @@ function destino(c: Chequeo, f: FichaIpress, base: string): string {
     case "sanciones":
       return f.registroSanciones.length ? `${ficha}?seccion=sanciones#secciones` : `${ficha}?seccion=verificacion#secciones`;
     case "denuncias":
-      return `${ficha}?seccion=denuncias#secciones`;
+      return `${ficha}?seccion=sanciones&ver=denuncias#secciones`;
     case "quirurgico":
       return `${ficha}?seccion=servicios#secciones`;
     case "licencia":

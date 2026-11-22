@@ -227,7 +227,9 @@ export default async function Buscar({ searchParams }: Props) {
                   </h2>
                   <p className="mt-1 text-meta text-inkSoft">
                     {meds.alertasTotal
-                      ? `${numero(meds.alertasTotal)} ${meds.alertasTotal === 1 ? "alerta de DIGEMID lo nombra" : "alertas de DIGEMID lo nombran"}. `
+                      ? meds.total > 0
+                        ? `${numero(meds.alertasTotal)} ${meds.alertasTotal === 1 ? "alerta de DIGEMID lo nombra" : "alertas de DIGEMID lo nombran"}. `
+                        : `${numero(meds.alertasTotal)} ${meds.alertasTotal === 1 ? "alerta de DIGEMID menciona" : "alertas de DIGEMID mencionan"} la palabra «${q}», sin que sea un medicamento. `
                       : "Ninguna alerta de DIGEMID lo nombra. "}
                     {meds.total > 0 ? "El precio es el típico por unidad en farmacias y boticas." : ""}
                   </p>

@@ -67,7 +67,7 @@ function Extra({ c, f, base }: { c: Chequeo; f: FichaIpress; base: string }) {
   );
   if (c.clave === "sanciones" && f.registroSanciones.length > 0)
     return enlace(`${ficha}?seccion=sanciones#secciones`, f.registroSanciones.length === 1 ? "Ver la sanción" : `Ver las ${f.registroSanciones.length} sanciones`);
-  if (c.clave === "denuncias") return enlace(`${ficha}?seccion=denuncias#secciones`, "Ver las denuncias por año");
+  if (c.clave === "denuncias") return enlace(`${ficha}?seccion=sanciones&ver=denuncias#secciones`, "Ver las denuncias por año");
   if (c.clave === "licencia") return enlace(`${ficha}?seccion=documentos#secciones`, "Ver los documentos declarados");
   if (c.clave === "quirurgico") return enlace(`${ficha}?seccion=servicios#secciones`, "Ver los servicios registrados");
   // /medico busca en el CMP: sólo se enlaza si el responsable es del Colegio Médico (piezas.tsx).

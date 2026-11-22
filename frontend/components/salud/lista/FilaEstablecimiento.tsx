@@ -81,7 +81,7 @@ export function FilaEstablecimiento({
             <MapPin size={13} aria-hidden />
             {lugarIpress(x)}
           </span>
-          {atiende24(x.horario) && (
+          {x.activo && atiende24(x.horario) && (
             <span className="inline-flex items-center gap-1">
               <Clock3 size={13} aria-hidden />
               24 horas
@@ -117,7 +117,7 @@ export function FilaEstablecimiento({
         <p className="flex items-center gap-2 md:flex-col md:items-start md:gap-1">
           <InsigniaCategoria categoria={x.categoria} />
           {/* Con qué seguro atiende (la institución) en vez de «Público»: lo que la gente pregunta (2026-11-22). */}
-          <span className="text-meta text-inkSoft">{seguroIpress(x.institucion).corto ?? SECTORES[x.sector] ?? x.sector}</span>
+          <span className="text-meta text-inkSoft">{(x.activo ? seguroIpress(x.institucion).corto : null) ?? SECTORES[x.sector] ?? x.sector}</span>
         </p>
         <div className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5 md:flex-col md:items-end md:text-right">
           {x.sanciones > 0 ? (
@@ -132,6 +132,7 @@ export function FilaEstablecimiento({
             <p className="text-meta text-amberTexto" title={CLASES_DE_HECHO.denuncia.explica}>
               <b className="font-semibold tabular-nums">{numero(denuncias)}</b> {denuncias === 1 ? "denuncia" : "denuncias"}
               {x.denunciasDe ? ` en ${x.denunciasDe}` : ""}
+              {x.denunciasDe === new Date().getFullYear() ? " (parcial)" : ""}
             </p>
           )}
         </div>

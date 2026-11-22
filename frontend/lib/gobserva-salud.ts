@@ -156,6 +156,8 @@ export interface FichaIpress extends Omit<FilaIpress, "sanciones"> {
   cirugiasPorMes: { anio: number; mes: number; mayores: number | null; menores: number | null; suspendidas: number | null; programadas: number | null; emergencia: number | null }[];
   cambios: { campo: string; antes: string | null; despues: string | null; fecha: string; fuente: string }[];
   mismaEmpresa: { codigo: string; nombre: string; categoria: string | null; estado: string | null; activo: boolean; distrito: string | null; departamento: string | null }[];
+  /** Cuántas sedes tiene la empresa además de ésta (la lista trae hasta 40). */
+  mismaEmpresaTotal?: number;
   vigia: {
     ruc: string;
     sunat: { estado: string | null; condicion: string | null } | null;

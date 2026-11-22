@@ -27,7 +27,7 @@ import { getFichaIpress, nombrePropio, rutaFicha } from "@/lib/gobserva-salud";
 /** La ficha se pide a la API con 15 minutos de caché (getFichaIpress); la página se arma en cada pedido (el host da la base). */
 export const revalidate = 900;
 
-type Props = { params: { codigo: string }; searchParams: { seccion?: string | string[] } };
+type Props = { params: { codigo: string }; searchParams: { seccion?: string | string[]; ver?: string | string[] } };
 
 /** El código como lo guarda RENIPRESS: 8 cifras con ceros a la izquierda. */
 const codigoDe = (crudo: string) => (/^\d{1,8}$/.test(crudo) ? crudo.padStart(8, "0") : null);
@@ -67,6 +67,8 @@ export default async function FichaEstablecimiento({ params, searchParams }: Pro
   const base = baseProducto("salud");
   const nombre = nombrePropio(f.nombre);
   const seccion = typeof searchParams.seccion === "string" ? searchParams.seccion : undefined;
+  // La pestaña de adentro de «Sanciones»: «?ver=denuncias» o la dirección vieja «?seccion=denuncias».
+  const ver = typeof searchParams.ver === "string" ? searchParams.ver : seccion === "denuncias" ? "denuncias" : undefined;
   const leido = detalleLeido(f);
   const ico = (I: typeof Gavel) => <I size={15} aria-hidden />;
 
@@ -104,6 +106,7 @@ export default async function FichaEstablecimiento({ params, searchParams }: Pro
         <Pestanas
           variante="segunda"
           param="ver"
+          activa={ver}
           etiqueta="Sanciones firmes o denuncias"
           pestanas={[
             { clave: "firmes", etiqueta: "Sanciones firmes", conteo: f.registroSanciones.length || null, contenido: <PestanaSanciones f={f} /> },

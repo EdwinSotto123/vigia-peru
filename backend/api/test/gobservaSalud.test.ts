@@ -36,9 +36,13 @@ test("denuncias: se rotulan como denuncias y se dice que no son sanciones", () =
   assert.match(d.detalle, /no hechos comprobados ni sanciones/);
 });
 
-test("estado en RENIPRESS: activa, cierre temporal (revisa), baja (alerta) y fuera del registro", () => {
+test("estado en RENIPRESS: activa, cierre (alerta, mientras dure), baja (alerta) y fuera del registro", () => {
   assert.equal(de(verificar(base), "registro")!.estado, "ok");
-  assert.equal(de(verificar({ ...base, activo: false, estado: "CIERRE TEMPORAL DE OFICIO" }), "registro")!.estado, "atencion");
+  // Un cierre temporal también es alerta, como la cabecera (2026-11-22: antes «revisa» en ámbar con la cabecera en rojo).
+  const cierre = de(verificar({ ...base, activo: false, estado: "CIERRE TEMPORAL DE OFICIO" }), "registro")!;
+  assert.equal(cierre.estado, "alerta");
+  assert.match(cierre.detalle, /mientras dure el cierre/);
+  assert.equal(de(verificar({ ...base, activo: false, estado: "SUSPENDIDO" }), "registro")!.estado, "atencion");
   const baja = de(verificar({ ...base, activo: false, estado: "BAJA DEFINITIVA" }), "registro")!;
   assert.equal(baja.estado, "alerta");
   assert.match(baja.detalle, /no debería estar atendiendo/);
@@ -136,4 +140,15 @@ test("marca de un medicamento: todas sus palabras, sin forma ni principio activo
   assert.deepEqual(palabrasMarca("APRONAX 550 MG TABLETA", "NAPROXENO"), ["APRONAX"]);
   assert.deepEqual(palabrasMarca("PARACETAMOL 500 MG TABLETA", "PARACETAMOL"), []);
   assert.deepEqual(palabrasMarca("GENTAMICINA", "GENTAMICINA"), []);
+});
+
+test("centro quirúrgico: las cirugías reportadas cuentan y el primer nivel no recibe «revisa»", () => {
+  const det = { leidoAl: "2026-11-20", categoria: null, categoriaDocumento: null, categoriaFecha: null, documentos: [], responsableColegio: null, responsableColegiatura: null };
+  const conCirugias = de(verificar({ ...base, categoria: "III-1", detalle: { ...det, quirurgico: true, upssQuirurgicas: [], cirugias12m: 8948 } }), "quirurgico")!;
+  assert.equal(conCirugias.estado, "ok");
+  assert.match(conCirugias.detalle, /8,948 cirugías|8 948 cirugías|8948 cirugías/);
+  const posta = de(verificar({ ...base, categoria: "I-2", detalle: { ...det, quirurgico: false, upssQuirurgicas: [], cirugias12m: 0 } }), "quirurgico")!;
+  assert.equal(posta.estado, "sin_dato");
+  const hospital = de(verificar({ ...base, categoria: "II-2", detalle: { ...det, quirurgico: false, upssQuirurgicas: [], cirugias12m: 0 } }), "quirurgico")!;
+  assert.equal(hospital.estado, "atencion");
 });

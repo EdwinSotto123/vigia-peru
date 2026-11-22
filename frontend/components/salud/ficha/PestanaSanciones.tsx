@@ -191,7 +191,7 @@ export function PestanaSanciones({ f }: { f: FichaIpress }) {
           <EstadoVacio
             Icono={FileSearch}
             titulo={`No figura en el Registro de Sanciones de SUSALUD${revisado ? ` revisado el ${revisado}` : ""}`}
-            texto="El registro sólo trae sanciones firmes y SUSALUD retira las antiguas después de un año. Una denuncia o un reclamo no aparecen aquí."
+            texto="El registro sólo trae sanciones firmes: SUSALUD las publica al menos un año y después puede retirarlas. Una denuncia o un reclamo no aparecen aquí."
             acciones={fuente?.url ? <EnlaceOficial href={fuente.url}>Ver el Registro de Sanciones</EnlaceOficial> : undefined}
           />
         </div>
@@ -216,7 +216,7 @@ export function PestanaSanciones({ f }: { f: FichaIpress }) {
           <Tesela icono={Scale} tono={f.sancionesJudicializadas ? "aviso" : "neutro"} valor={numero(f.sancionesJudicializadas)} etiqueta="en un proceso judicial" contexto="según el registro" />
         </li>
         <li className="min-w-0">
-          <Tesela icono={CalendarDays} valor={fechaCorta(lista[lista.length - 1]?.fechaEmision)} etiqueta="la más antigua del registro" contexto="SUSALUD retira las antiguas después de un año" />
+          <Tesela icono={CalendarDays} valor={fechaCorta(lista[lista.length - 1]?.fechaEmision)} etiqueta="la más antigua del registro" contexto="Las más antiguas pueden haber salido del registro" />
         </li>
       </ul>
 

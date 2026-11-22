@@ -192,6 +192,8 @@ export interface DatosVerificacion {
     categoriaFecha: string | null;
     quirurgico: boolean | null;
     upssQuirurgicas: string[];
+    /** Cirugías reportadas a SUSALUD en los últimos 12 meses (0 o null si ninguna). */
+    cirugias12m?: number | null;
     documentos: { tipo: string | null; adjunto: boolean }[];
     responsableColegio: string | null;
     responsableColegiatura: string | null;
@@ -222,26 +224,34 @@ export function verificar(v: DatosVerificacion): Chequeo[] {
       detalle: `Figura como ACTIVA en RENIPRESS (archivo revisado el ${fechaLarga(v.vistoAl)}).` });
   } else {
     const baja = /BAJA/i.test(v.estado ?? "");
-    out.push({ clave: "registro", titulo: "Registro en RENIPRESS", estado: baja ? "alerta" : "atencion", tipo: "registro_administrativo", fuente: ren, url: urlRen, al: v.vistoAl,
-      detalle: `RENIPRESS la registra en estado «${(v.estado ?? "sin estado").toLowerCase()}»${baja ? ": no debería estar atendiendo" : ""} (archivo revisado el ${fechaLarga(v.vistoAl)}).` });
+    const cierre = /CIERRE/i.test(v.estado ?? "");
+    out.push({ clave: "registro", titulo: "Registro en RENIPRESS", estado: baja || cierre ? "alerta" : "atencion", tipo: "registro_administrativo", fuente: ren, url: urlRen, al: v.vistoAl,
+      detalle: `RENIPRESS la registra en estado «${(v.estado ?? "sin estado").toLowerCase()}»${baja ? ": no debería estar atendiendo" : cierre ? ": mientras dure el cierre no debería atender" : ""} (archivo revisado el ${fechaLarga(v.vistoAl)}).` });
   }
   // 2. Categoría.
   const cat = v.detalle?.categoria ?? v.categoria;
   if (cat && CATEGORIAS[cat]) {
     const doc = v.detalle?.categoriaDocumento;
-    out.push({ clave: "categoria", titulo: "Categoría", estado: "ok", tipo: "registro_administrativo", fuente: ren, url: urlRen, al: v.detalle?.categoriaFecha ?? v.vistoAl,
-      detalle: `Categoría ${cat}: ${minusculaInicial(CATEGORIAS[cat].nombre)} (${CATEGORIAS[cat].nivel.toLowerCase()}).${doc ? ` Según ${doc}${v.detalle?.categoriaFecha ? ` del ${fechaLarga(v.detalle.categoriaFecha)}` : ""}.` : ""}` });
+    out.push({ clave: "categoria", titulo: "Categoría", estado: "ok", tipo: "registro_administrativo", fuente: ren, url: urlRen, al: v.detalle?.leidoAl ?? v.vistoAl,
+      detalle: `Categoría ${cat}: ${minusculaInicial(CATEGORIAS[cat].nombre).replace(/\s*\([^)]*\)\s*$/, "")}, ${CATEGORIAS[cat].nivel.toLowerCase()}.${doc ? ` Según ${doc}${v.detalle?.categoriaFecha ? ` del ${fechaLarga(v.detalle.categoriaFecha)}` : ""}.` : ""}` });
   } else {
     out.push({ clave: "categoria", titulo: "Categoría", estado: "sin_dato", tipo: "registro_administrativo", fuente: ren, url: urlRen, al: v.vistoAl,
       detalle: "RENIPRESS no registra una categoría para esta IPRESS (pasa con los servicios médicos de apoyo y muchos consultorios)." });
   }
   // 3. Servicios quirúrgicos (sólo con el detalle leído).
   if (v.detalle?.leidoAl) {
+    const cir = v.detalle.cirugias12m ?? 0;
+    const primerNivel = !cat || /^I-/.test(cat);
     out.push(v.detalle.quirurgico
       ? { clave: "quirurgico", titulo: "Centro quirúrgico", estado: "ok", tipo: "registro_administrativo", fuente: ren, url: urlRen, al: v.detalle.leidoAl,
-          detalle: `RENIPRESS le registra la unidad ${v.detalle.upssQuirurgicas.join(", ") || "de centro quirúrgico"} activa (consultado el ${fechaLarga(v.detalle.leidoAl)}).` }
-      : { clave: "quirurgico", titulo: "Centro quirúrgico", estado: "atencion", tipo: "registro_administrativo", fuente: ren, url: urlRen, al: v.detalle.leidoAl,
-          detalle: `RENIPRESS no le registra una unidad de centro quirúrgico activa (consultado el ${fechaLarga(v.detalle.leidoAl)}). Si te ofrecen una cirugía aquí, pregunta dónde se hará.` });
+          detalle: v.detalle.upssQuirurgicas.length
+            ? `RENIPRESS le registra la unidad ${v.detalle.upssQuirurgicas.join(", ")} activa (consultado el ${fechaLarga(v.detalle.leidoAl)}).${cir ? ` Reportó ${cir === 1 ? "una cirugía" : `${cir.toLocaleString("es-PE")} cirugías`} a SUSALUD en los últimos 12 meses.` : ""}`
+            : `Reportó ${cir === 1 ? "una cirugía" : `${cir.toLocaleString("es-PE")} cirugías`} a SUSALUD en los últimos 12 meses, aunque RENIPRESS no detalla sus unidades (consultado el ${fechaLarga(v.detalle.leidoAl)}).` }
+      : primerNivel
+        ? { clave: "quirurgico", titulo: "Centro quirúrgico", estado: "sin_dato", tipo: "registro_administrativo", fuente: ren, url: urlRen, al: v.detalle.leidoAl,
+            detalle: `No tiene centro quirúrgico registrado${cat ? `: es de primer nivel (${cat}), donde no se hacen operaciones mayores` : ""}. Para una cirugía te derivan a un hospital.` }
+        : { clave: "quirurgico", titulo: "Centro quirúrgico", estado: "atencion", tipo: "registro_administrativo", fuente: ren, url: urlRen, al: v.detalle.leidoAl,
+            detalle: `RENIPRESS no le registra una unidad de centro quirúrgico activa ni reportó cirugías en los últimos 12 meses (consultado el ${fechaLarga(v.detalle.leidoAl)}). Si te ofrecen una cirugía aquí, pregunta dónde se hará.` });
     const lic = v.detalle.documentos.filter((d) => /LICENCIA/i.test(d.tipo ?? ""));
     out.push(lic.length
       ? { clave: "licencia", titulo: "Licencia municipal declarada", estado: "ok", tipo: "registro_administrativo", fuente: ren, url: urlRen, al: v.detalle.leidoAl,
@@ -253,17 +263,17 @@ export function verificar(v: DatosVerificacion): Chequeo[] {
   const s = v.sanciones;
   if (s.total > 0) {
     out.push({ clave: "sanciones", titulo: "Sanciones firmes de SUSALUD", estado: s.cierre ? "alerta" : "atencion", tipo: "sancion_firme",
-      fuente: "Registro de Sanciones (SUSALUD)", url: URL_SANCIONES, al: s.ultima,
+      fuente: "Registro de Sanciones (SUSALUD)", url: URL_SANCIONES, al: v.sancionesAl ?? s.ultima,
       detalle: `${s.total === 1 ? "Una sanción firme" : `${s.total} sanciones firmes`} en el Registro de Sanciones de SUSALUD; la más reciente es del ${fechaLarga(s.ultima)}.${s.cierre ? " Una de ellas es un cierre definitivo." : ""}${s.judicializadas ? ` ${s.judicializadas === 1 ? "Una está" : `${s.judicializadas} están`} en un proceso judicial según el registro.` : ""}` });
   } else {
     out.push({ clave: "sanciones", titulo: "Sanciones firmes de SUSALUD", estado: "ok", tipo: "sancion_firme", fuente: "Registro de Sanciones (SUSALUD)", url: URL_SANCIONES, al: v.sancionesAl,
-      detalle: `No figura en el Registro de Sanciones de SUSALUD revisado el ${fechaLarga(v.sancionesAl)}. El registro sólo trae sanciones firmes y SUSALUD retira las antiguas después de un año.` });
+      detalle: `No figura en el Registro de Sanciones de SUSALUD revisado el ${fechaLarga(v.sancionesAl)}. El registro sólo trae sanciones firmes: SUSALUD las publica al menos un año y después puede retirarlas.` });
   }
   // 5. Denuncias (no son sanciones).
   const d = v.denuncias;
   if (d.anio && (d.denuncias ?? 0) > 0) {
     out.push({ clave: "denuncias", titulo: "Denuncias ante SUSALUD", estado: "atencion", tipo: "denuncia", fuente: "Consultas y denuncias (SUSALUD, anonimizado)", url: URL_DATOS_SUSALUD, al: String(d.anio),
-      detalle: `En ${d.anio} SUSALUD recibió ${d.denuncias} ${d.denuncias === 1 ? "denuncia" : "denuncias"} sobre esta institución. Son pedidos de ciudadanos, no hechos comprobados ni sanciones.` });
+      detalle: `${d.anio === new Date().getFullYear() ? `En lo publicado de ${d.anio} (el año aún no termina y SUSALUD lo publica por partes)` : `En ${d.anio}`} SUSALUD recibió ${d.denuncias} ${d.denuncias === 1 ? "denuncia" : "denuncias"} sobre esta institución. Son pedidos de ciudadanos, no hechos comprobados ni sanciones.` });
   }
   // 6. Responsable (sin nombre).
   const col = v.detalle?.responsableColegiatura;

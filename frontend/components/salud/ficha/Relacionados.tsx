@@ -93,9 +93,15 @@ function Vigia({ v }: { v: NonNullable<FichaIpress["vigia"]> }) {
   );
 }
 
-function OtrasSedes({ sedes, base }: { sedes: FichaIpress["mismaEmpresa"]; base: string }) {
+function OtrasSedes({ sedes, total, base }: { sedes: FichaIpress["mismaEmpresa"]; total: number; base: string }) {
+  const n = Math.max(total, sedes.length);
   return (
-    <Bloque titulo="Otras sedes de la misma empresa" icono={Building2} cuenta={numero(sedes.length)} descripcion="Con el mismo RUC de propietario en RENIPRESS.">
+    <Bloque
+      titulo="Otras sedes de la misma empresa"
+      icono={Building2}
+      cuenta={numero(n)}
+      descripcion={n > sedes.length ? `Con el mismo RUC de propietario en RENIPRESS. Aquí van ${numero(sedes.length)}: las activas primero.` : "Con el mismo RUC de propietario en RENIPRESS."}
+    >
       <ListaPaginada
         nombre="las otras sedes"
         tam={10}
@@ -142,7 +148,7 @@ export function RelacionadosFicha({ f, base }: { f: FichaIpress; base: string })
       className={cn("grid gap-5 lg:items-start", f.vigia && f.mismaEmpresa.length > 0 && "lg:grid-cols-2")}
     >
       {f.vigia && <Vigia v={f.vigia} />}
-      {f.mismaEmpresa.length > 0 && <OtrasSedes sedes={f.mismaEmpresa} base={base} />}
+      {f.mismaEmpresa.length > 0 && <OtrasSedes sedes={f.mismaEmpresa} total={f.mismaEmpresaTotal ?? 0} base={base} />}
     </section>
   );
 }

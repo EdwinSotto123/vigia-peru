@@ -49,7 +49,18 @@ export function ResumenAtencion({ f, base }: { f: FichaIpress; base: string }) {
       </h2>
 
       {/* ── Con qué seguro te atienden (2026-11-22): lo primero que pregunta quien va a atenderse ── */}
-      <ConTuSeguro institucion={f.institucion} horario={f.horario} className="border-b border-line" />
+      {f.activo ? (
+        <ConTuSeguro institucion={f.institucion} horario={f.horario} className="border-b border-line" />
+      ) : (
+        // Cerrado o dado de baja (2026-11-22): antes decía «declaró atender las 24 horas» y «aquí te tienen que atender».
+        <p role="note" className="flex gap-3 border-b border-crimson/25 bg-crimson-soft/50 px-4 py-4 text-dato leading-relaxed text-ink sm:px-6">
+          <CirclePause size={20} aria-hidden className="mt-0.5 shrink-0 text-crimsonTexto" />
+          <span>
+            <b className="font-semibold">No está atendiendo.</b> RENIPRESS lo registra en estado «{(f.estado ?? "inactivo").toLowerCase()}». Lo de abajo
+            es lo que declaró cuando funcionaba: para atenderte, busca otro establecimiento cerca.
+          </span>
+        </p>
+      )}
 
       <div className="grid gap-px bg-line lg:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)]">
         {/* ── Qué servicios declaró ─────────────────────────────────────────────── */}
@@ -166,7 +177,7 @@ export function ResumenAtencion({ f, base }: { f: FichaIpress; base: string }) {
           </p>
         )}
         <div className="mt-3">
-          <TeAtiendenAqui items={itemsDeclarados(f)} leido={leido} telefono={f.telefono} base={base} renipressUrl={renipress} />
+          {f.activo && <TeAtiendenAqui items={itemsDeclarados(f)} leido={leido} telefono={f.telefono} base={base} renipressUrl={renipress} />}
         </div>
       </div>
     </section>

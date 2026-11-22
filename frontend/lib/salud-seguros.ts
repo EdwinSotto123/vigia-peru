@@ -128,7 +128,7 @@ export function seguroIpress(institucion: string | null | undefined): SeguroIpre
   return {
     clave: "otro",
     corto: null,
-    titulo: i ? `Es de ${i.length <= 8 ? i : i.charAt(0) + i.slice(1).toLowerCase()}` : "Sin institución declarada",
+    titulo: i && !/^OTROS?$/i.test(i) ? `Es de ${i.length <= 8 ? i : i.charAt(0) + i.slice(1).toLowerCase()}` : "Sin institución declarada",
     texto: "RENIPRESS no dice con qué seguro atiende: pregunta antes de ir.",
     enlace: null,
   };
@@ -138,5 +138,6 @@ export function seguroIpress(institucion: string | null | undefined): SeguroIpre
  * Declaró atender las 24 horas: «24 HORAS», «24 hrs», «L-D 00:00 - 24:00», «24:00 horas», «Emerg: 24x7»; no «8:00 -
  * 24:00». El mismo patrón filtra en la API (ES_24H, backend/api/src/routes/gobservaSalud.ts): si cambia uno, el otro.
  */
-const H24 = /(^|[^0-9:])24 *(h|hs|hrs?|horas?)([^a-z]|$)|(^|[^0-9])0?0[:.]00 *(-|a)? *24[:.]?00|24 *x *7|^ *24(:00)? *(h|hrs?|horas?)?[.]? *$/i;
+// 2026-11-22: también «00:00 - 23:59», «8:00 - 8:00» (no «8:00 - 8:00 PM», que son 12 horas) y «24 hras».
+const H24 = /(^|[^0-9])([0-9]{1,2})[:.]00 *(-|a) *\2[:.]00(?! *[ap][.]? *m)([^0-9]|$)|(^|[^0-9:])24 *(h|hs|hrs?|hras?|horas?)([^a-z]|$)|(^|[^0-9])0?0[:.]00 *(-|a)? *(24[:.]?00|23[:.]59)|24 *x *7|^ *24(:00)? *(h|hrs?|hras?|horas?)?[.]? *$/i;
 export const atiende24 = (horario: string | null | undefined): boolean => !!horario && H24.test(horario);

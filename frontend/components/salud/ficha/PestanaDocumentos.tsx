@@ -7,6 +7,9 @@ import { rutaEn } from "@/lib/gobserva";
 import { fechaCorta, nombrePropio, numero, rutaMedico, type FichaIpress } from "@/lib/gobserva-salud";
 import { Bloque, DetallePendiente, FilaDato, detalleLeido, enOracion, esColegioMedico } from "./piezas";
 
+/** «CARTA NÃÑÂÑÃÑÂ° 111-2023» (un «N°» con la codificación rota en RENIPRESS) → «CARTA N.° 111-2023». */
+const sinMojibake = (t: string) => t.replace(/N[\u00c2\u00c3\u00d1\u0081-\u009f]+[°º]/g, "N.°").replace(/[\u00c2\u00c3][°º]/g, "°");
+
 /**
  * La pestaña «Documentos»: lo que la IPRESS declaró en RENIPRESS (la resolución de su categoría, la de creación, la
  * fecha de registro, el responsable y cada documento con su número, fecha y si lo adjuntó). Todo con la advertencia de
@@ -49,7 +52,7 @@ export function PestanaDocumentos({ f, base }: { f: FichaIpress; base: string })
             <FilaDato icono={ScrollText} t="Resolución de categoría">
               {d.categoriaDocumento ? (
                 <>
-                  {d.categoriaDocumento}
+                  {sinMojibake(d.categoriaDocumento)}
                   {d.categoriaFecha && <span className="text-inkSoft">, del {fechaCorta(d.categoriaFecha)}</span>}
                   {d.categoria && <span className="ml-2 inline-block"><Insignia tono="acento" className="font-mono">{d.categoria}</Insignia></span>}
                 </>
@@ -78,7 +81,7 @@ export function PestanaDocumentos({ f, base }: { f: FichaIpress; base: string })
               </FilaDato>
             )}
             {d.ambientes != null && <FilaDato icono={FileText} t="Ambientes declarados">{numero(d.ambientes)}</FilaDato>}
-            {d.camas != null && <FilaDato icono={FileText} t="Camas declaradas">{numero(d.camas)}</FilaDato>}
+            {d.camas != null && <FilaDato icono={FileText} t="Camas declaradas en RENIPRESS">{numero(d.camas)}</FilaDato>}
           </dl>
         </Bloque>
 
@@ -129,7 +132,7 @@ export function PestanaDocumentos({ f, base }: { f: FichaIpress; base: string })
                   <p className="mt-0.5 flex flex-wrap gap-x-4 gap-y-0.5 text-meta text-inkSoft">
                     <span className="inline-flex items-center gap-1.5">
                       <Hash size={13} aria-hidden className="text-mute" />
-                      {doc.numero ? <span className="font-mono">{doc.numero}</span> : <span className="text-mute">Sin número</span>}
+                      {doc.numero ? <span className="font-mono">{sinMojibake(doc.numero)}</span> : <span className="text-mute">Sin número</span>}
                     </span>
                     <span className="inline-flex items-center gap-1.5">
                       <CalendarCheck size={13} aria-hidden className="text-mute" />

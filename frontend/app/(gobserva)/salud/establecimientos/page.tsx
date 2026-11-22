@@ -82,7 +82,13 @@ export function generateMetadata({ searchParams }: Props): Metadata {
 export default async function Establecimientos({ searchParams }: Props) {
   const base = baseProducto("salud");
   const f = filtrosDeUrl(searchParams);
-  const [d, r] = await Promise.all([getEstablecimientos(paramsApi(f, POR_PAGINA)), getResumenSalud()]);
+  const [primera, r] = await Promise.all([getEstablecimientos(paramsApi(f, POR_PAGINA)), getResumenSalud()]);
+  // Un enlace a una página que ya no existe (?pagina=2701): se muestra la última, no «ningún establecimiento».
+  const ultima = primera ? Math.max(1, Math.ceil(primera.total / POR_PAGINA)) : 1;
+  const d =
+    primera && primera.total > 0 && primera.filas.length === 0 && (f.pagina ?? 1) > ultima
+      ? (await getEstablecimientos(paramsApi({ ...f, pagina: ultima }, POR_PAGINA))) ?? primera
+      : primera;
   const lista = rutaEn(base, "/establecimientos");
   const paginas = d ? Math.min(10000, Math.max(1, Math.ceil(d.total / POR_PAGINA))) : 1;
   const pagina = Math.min(f.pagina ?? 1, paginas);

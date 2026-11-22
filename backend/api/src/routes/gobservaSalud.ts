@@ -87,7 +87,16 @@ const SEGURO_CASE = `CASE WHEN ${SEGUROS_SQL.sis} THEN 'sis' WHEN ${SEGUROS_SQL.
  * Declaró atender las 24 horas: «24 HORAS», «24 hrs», «L-D 00:00 - 24:00», «24:00 horas», «Emerg: 24x7», «7:30-19:30 EMER
  * 24 H»; no «8:00 - 24:00». El horario es texto libre que declara cada IPRESS. El mismo patrón en la web: frontend/lib/salud-seguros.ts.
  */
-export const ES_24H = `coalesce(i.horario ~* '(^|[^0-9:])24 *(h|hs|hrs?|horas?)([^a-z]|$)|(^|[^0-9])0?0[:.]00 *(-|a)? *24[:.]?00|24 *x *7|^ *24(:00)? *(h|hrs?|horas?)?[.]? *$', false)`;
+// 2026-11-22: también «00:00 - 23:59 HRS.», «8:00 - 8:00» (empieza y termina a la misma hora) y «Emergencias 24 hras»
+// (el Hospital de Apoyo de Cusco y otros cuatro se quedaban fuera de «24 horas»).
+export const ES_24H = `coalesce(i.horario ~* '(^|[^0-9])([0-9]{1,2})[:.]00 *(-|a) *\\2[:.]00(?! *[ap][.]? *m)([^0-9]|$)|(^|[^0-9:])24 *(h|hs|hrs?|hras?|horas?)([^a-z]|$)|(^|[^0-9])0?0[:.]00 *(-|a)? *(24[:.]?00|23[:.]59)|24 *x *7|^ *24(:00)? *(h|hrs?|hras?|horas?)?[.]? *$', false)`;
+/**
+ * Los celulares del teléfono de RENIPRESS, tapados aunque vengan pegados a otro número («01-2510236,920304006»), con el
+ * código del país («51951601874», «(51) 9645586457») o con cifras de más (2026-11-22: el filtro general de privacidad no
+ * los veía tras «,» o «/», que en otros textos separan montos). Un fijo no empieza con 9.
+ */
+const sinCelulares = (col: string) =>
+  `regexp_replace(${col}, '(^|[^0-9(])(\\(?51\\)?[ -]*|01[ -]*)?9[0-9]{2}[ -]?[0-9]{3}[ -]?[0-9]{3}[0-9]*', '\\19••••••••', 'g')`;
 const TIPOS: Record<string, string> = {
   con_internamiento: "ESTABLECIMIENTO DE SALUD CON INTERNAMIENTO",
   sin_internamiento: "ESTABLECIMIENTO DE SALUD SIN INTERNAMIENTO",
@@ -177,7 +186,7 @@ export function condiciones(f: Partial<FiltrosSalud>, vals: unknown[] = []): { s
   if (f.tipo) w.push(`i.tipo = ${p(TIPOS[f.tipo])}`);
   if (f.sanciones === "con") w.push("x.sanciones > 0");
   else if (f.sanciones === "sin") w.push("coalesce(x.sanciones, 0) = 0");
-  if (f.quirurgico === "si") w.push("x.quirurgico");
+  if (f.quirurgico === "si") w.push("(x.quirurgico OR coalesce(x.cirugias_12m, 0) > 0)");
   if (f.internamiento === "si") w.push("x.internamiento");
   if (f.seguro) w.push(SEGUROS_SQL[f.seguro]);
   if (f.h24 === "si") w.push(ES_24H);
@@ -189,7 +198,7 @@ const ORDEN_CATEGORIA = `array_position(ARRAY['III-2','III-1','III-E','II-2','II
 
 /** Las columnas de una IPRESS en listas, búsqueda y mapa. */
 const COLS = `i.codigo, i.nombre, i.categoria, i.sector, i.institucion, i.clasificacion, i.tipo, i.estado, i.activo,
-  i.departamento, i.provincia, i.distrito, i.direccion, i.lat, i.lon, i.telefono, i.horario,
+  i.departamento, i.provincia, i.distrito, i.direccion, i.lat, i.lon, ${sinCelulares("i.telefono")} AS telefono, i.horario,
   coalesce(x.sanciones, 0) AS sanciones, to_char(x.ultima_sancion, 'YYYY-MM-DD') AS "ultimaSancion",
   coalesce(x.cierre_definitivo, false) AS "cierreDefinitivo", x.denuncias_anio AS denuncias, x.denuncias_de AS "denunciasDe",
   x.cirugias_12m AS "cirugias12m", x.quirurgico, coalesce(x.internamiento, false) AS internamiento, coalesce(x.con_detalle, false) AS "conDetalle",
@@ -281,7 +290,7 @@ saludRouter.get("/buscar", async (c) => {
     const orden = relevancia ? `i.activo DESC, ${relevancia} DESC, i.nombre` : "i.activo DESC, i.nombre";
     const [ipress, medicos, sanciones] = await Promise.all([
       pool.query(`SELECT ${COLS} FROM salud_ipress i LEFT JOIN salud_indicador x ON x.codigo = i.codigo WHERE ${sql} ORDER BY ${orden} LIMIT 12`, vals),
-      pareceColegiatura ? responsables(digitos.replace(/^0+/, ""), null) : Promise.resolve([]),
+      pareceColegiatura ? responsables(digitos.replace(/^0+/, ""), "COLEGIO M_DICO DEL PER%") : Promise.resolve([]),
       // Las sanciones sin IPRESS unida (IAFAS, UGIPRESS o sin código) también se encuentran por su nombre.
       palabras(q).length && !/^\d+$/.test(q)
         ? pool.query(`SELECT s.id, s.nombre, s.administrada_tipo AS "administradaTipo", s.tipo_sancion AS "tipoSancion",
@@ -363,7 +372,7 @@ saludRouter.get("/mapa", async (c) => {
       SELECT json_agg(json_build_array(i.codigo, round(i.lat::numeric, 5), round(i.lon::numeric, 5), i.categoria,
                                        CASE i.sector WHEN 'publico' THEN 'p' WHEN 'privado' THEN 'v' ELSE 'o' END,
                                        CASE WHEN i.activo THEN 1 ELSE 0 END, coalesce(x.sanciones, 0),
-                                       CASE WHEN x.quirurgico THEN 1 WHEN x.quirurgico = false THEN 0 END)) AS p,
+                                       CASE WHEN x.quirurgico OR coalesce(x.cirugias_12m, 0) > 0 THEN 1 WHEN x.quirurgico = false THEN 0 END)) AS p,
              count(*)::int AS n
         FROM salud_ipress i LEFT JOIN salud_indicador x ON x.codigo = i.codigo
        WHERE ${sql} AND i.lat IS NOT NULL`, vals);
@@ -508,7 +517,7 @@ export async function fichaEstablecimiento(codigo: string): Promise<Record<strin
       pool.query(`SELECT ruc, razon_social AS "razonSocial", propietario_natural AS "propietarioNatural", categoria,
                          categoria_documento AS "categoriaDocumento", to_char(categoria_fecha, 'YYYY-MM-DD') AS "categoriaFecha",
                          resolucion_creacion AS "resolucionCreacion", to_char(fecha_registro, 'YYYY-MM-DD') AS "fechaRegistro",
-                         ambientes, camas, telefono_emergencia AS "telefonoEmergencia", upss, ups, upss_suspendidas AS "upssSuspendidas",
+                         ambientes, camas, ${sinCelulares("telefono_emergencia")} AS "telefonoEmergencia", upss, ups, upss_suspendidas AS "upssSuspendidas",
                          especialidades, cartera, documentos, consultores, responsable_colegio AS "responsableColegio",
                          responsable_colegiatura AS "responsableColegiatura", responsable_rne AS "responsableRne",
                          situacion_estado AS "situacionEstado", situacion_condicion AS "situacionCondicion", historial,
@@ -533,7 +542,7 @@ export async function fichaEstablecimiento(codigo: string): Promise<Record<strin
                     FROM salud_cirugia_mes WHERE codigo = $1 GROUP BY 1, 2 ORDER BY 1, 2`, [codigo]),
       pool.query(`SELECT campo, antes, despues, to_char(detectado AT TIME ZONE 'America/Lima', 'YYYY-MM-DD') AS fecha, fuente
                     FROM salud_ipress_cambio WHERE codigo = $1 ORDER BY detectado DESC LIMIT 60`, [codigo]),
-      pool.query(`SELECT i2.codigo, i2.nombre, i2.categoria, i2.estado, i2.activo, i2.distrito, i2.departamento
+      pool.query(`SELECT i2.codigo, i2.nombre, i2.categoria, i2.estado, i2.activo, i2.distrito, i2.departamento, count(*) OVER ()::int AS total
                     FROM salud_indicador x JOIN salud_indicador y ON y.ruc = x.ruc AND y.codigo <> x.codigo
                     JOIN salud_ipress i2 ON i2.codigo = y.codigo
                    WHERE x.codigo = $1 AND x.ruc IS NOT NULL ORDER BY i2.activo DESC, i2.nombre LIMIT 40`, [codigo]),
@@ -543,14 +552,18 @@ export async function fichaEstablecimiento(codigo: string): Promise<Record<strin
     const ruc = (d?.ruc as string | null) ?? null;
     const vigia = ruc ? await enVigia(ruc) : null;
     const lista = <T>(v: unknown) => (Array.isArray(v) ? (v as T[]) : []);
-    const upss = lista<{ nombre: string | null; estado: string | null }>(d?.upss);
+    // Si RENIPRESS no trae las UPSS (la lista principal), se miran las UPS (el desglose): el Hospital de Apoyo de Cusco tiene
+    // la primera vacía y 286 en la segunda, con «CENTRO QUIRÚRGICO» (2026-11-22).
+    const upssPrincipal = lista<{ nombre: string | null; estado: string | null }>(d?.upss);
+    const upss = upssPrincipal.length ? upssPrincipal : lista<{ nombre: string | null; estado: string | null }>(d?.ups);
+    const cirugias12m = Number(i.cirugias12m ?? 0) || 0;
     const upssQuirurgicas = upss.filter((u) => /QUIR[UÚ]RGIC/i.test(u.nombre ?? "") && /^ACTIVO/i.test(u.estado ?? "ACTIVO")).map((u) => (u.nombre ?? "").replace(/^UPSS\s*-\s*/i, "").toLowerCase());
     const datos: DatosVerificacion = {
       codigo, estado: i.estado as string | null, activo: !!i.activo, enRegistro: !!i.enRegistro, categoria: i.categoria as string | null,
       vistoAl: i.vistoAl as string | null,
       detalle: d && d.leidoAl && !d.error ? {
         leidoAl: d.leidoAl as string, categoria: d.categoria as string | null, categoriaDocumento: d.categoriaDocumento as string | null,
-        categoriaFecha: d.categoriaFecha as string | null, quirurgico: upssQuirurgicas.length > 0, upssQuirurgicas,
+        categoriaFecha: d.categoriaFecha as string | null, quirurgico: upssQuirurgicas.length > 0 || cirugias12m > 0, upssQuirurgicas, cirugias12m,
         documentos: lista<{ tipo: string | null; adjunto: boolean }>(d.documentos),
         responsableColegio: d.responsableColegio as string | null, responsableColegiatura: d.responsableColegiatura as string | null,
       } : null,
@@ -569,7 +582,8 @@ export async function fichaEstablecimiento(codigo: string): Promise<Record<strin
       recursos: recursos.rows[0] ?? null,
       cirugiasPorMes: cirugias.rows,
       cambios: cambios.rows,
-      mismaEmpresa: hermanas.rows,
+      mismaEmpresa: hermanas.rows.map(({ total: _t, ...h }: Record<string, unknown>) => h),
+      mismaEmpresaTotal: (hermanas.rows[0] as { total?: number } | undefined)?.total ?? 0,
       vigia,
       fuentes: {
         renipress: { url: consultaRenipress(codigo), al: i.vistoAl, archivo: i.fuenteArchivo },
