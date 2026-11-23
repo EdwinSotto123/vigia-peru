@@ -3,6 +3,17 @@ import { Ayuda, CabeceraPestana } from "@/components/patrones";
 import { Listado, ZonaResultados, type Parametros } from "@/components/listado";
 import { BarraCompras, ListaCompras, ListaComprasCargando } from "@/components/compras/ListaCompras";
 import { CLASES_COMPRA, P_COMPRAS, getCompras, parametrosCompras, type FiltrosCompras } from "@/lib/compras";
+import { TIPO_CRUCE } from "@/lib/cruces";
+import { getPatronesDeEntidad } from "@/lib/patrones";
+
+/** Los antecedentes de quienes le ganaron, con sus contratos: las opciones del filtro, de lo más grave a lo más leve. */
+async function antecedentesDe(ruc: string) {
+  const d = await getPatronesDeEntidad(ruc).catch(() => null);
+  return (d?.cruces ?? [])
+    .filter((c) => c.contratos > 0)
+    .sort((a, b) => b.graves - a.graves || b.contratos - a.contratos)
+    .map((c) => ({ valor: c.tipo, etiqueta: (TIPO_CRUCE[c.tipo] as { corto?: string } | undefined)?.corto ?? c.etiqueta, conteo: c.contratos }));
+}
 
 /**
  * La pestaña Compras de la ficha de una entidad (`?seccion=contratos`): todo lo que compró en UNA lista, una fila por
@@ -23,7 +34,7 @@ export function ComprasEntidad({ ruc, ruta, filtros }: { ruc: string; ruta: stri
       <CabeceraPestana ayuda={<AyudaCompras />} />
       <Listado ruta={ruta} parametros={parametros} paramPagina={P_COMPRAS.page}>
         <Suspense fallback={<div className="min-h-[52px]" />}>
-          <BarraCompras pagina={pagina} ancla="entidad" con={filtros.con} proceso={Object.keys(filtros.proceso ?? {})} />
+          <BarraCompras pagina={pagina} ancla="entidad" con={filtros.con} proceso={Object.keys(filtros.proceso ?? {})} antecedentes={antecedentesDe(ruc)} />
         </Suspense>
         <ZonaResultados>
           <Suspense fallback={<ListaComprasCargando />}>

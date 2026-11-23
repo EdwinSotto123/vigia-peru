@@ -185,6 +185,12 @@ export function BarraFiltros({
     opciones: OpcionFaceta[];
     /** El chip activo dice "Severidad: Alta". `false` cuando la opción ya se nombra sola ("Riesgo alto"). */
     nombreEnChip?: boolean;
+    /**
+     * Las opciones como una fila de botones con su número, bajo el buscador, en vez de un desplegable (2026-11-23, el
+     * usuario: los filtros de Compras «están desactualizados» frente al filtro nuevo de patrones). La elegida, rellena y
+     * con ✓. En el celular la fila se desliza.
+     */
+    enBotones?: boolean;
   };
   /**
    * Filtros a la vista, en la misma fila (no detrás de "Filtros"): para las preguntas que casi todos hacen y que tienen
@@ -230,7 +236,7 @@ export function BarraFiltros({
 
   // ── Los controles que pueden ir en la fila, en orden: la faceta y los filtros a la vista. ──
   const controles: Control[] = [];
-  if (faceta) {
+  if (faceta && !faceta.enBotones) {
     const elegida = valorFaceta ? faceta.opciones.find((o) => o.valor === valorFaceta) : undefined;
     const props = {
       etiqueta: faceta.etiqueta,
@@ -348,7 +354,7 @@ export function BarraFiltros({
 
   // ── Lo activo, para el renglón de chips (la búsqueda no: ya se lee en su campo). ──
   const chipsActivos: { clave: string; nombre?: string; valor: string; quitar: () => void }[] = [];
-  if (faceta && valorFaceta) {
+  if (faceta && valorFaceta && !faceta.enBotones) {
     const valor = faceta.opciones.find((x) => x.valor === valorFaceta)?.etiqueta ?? valorFaceta;
     chipsActivos.push({ clave: faceta.param, nombre: faceta.nombreEnChip === false ? undefined : faceta.etiqueta, valor, quitar: () => navegar({ [faceta.param]: undefined }) });
   }
@@ -447,6 +453,33 @@ export function BarraFiltros({
             </div>
           )}
         </div>
+
+        {faceta?.enBotones && (
+          <div role="radiogroup" aria-label={faceta.etiqueta} className="relative -mx-1 flex gap-2 overflow-x-auto px-1 py-0.5 [scrollbar-width:none] md:flex-wrap md:overflow-visible [&::-webkit-scrollbar]:hidden">
+            {[{ valor: "", etiqueta: faceta.todas, conteo: faceta.conteoTodas ?? null } as OpcionFaceta, ...faceta.opciones].map((o) => {
+              const sel = (valorFaceta ?? "") === o.valor;
+              return (
+                <button
+                  key={o.valor || "@todas"}
+                  type="button"
+                  role="radio"
+                  aria-checked={sel}
+                  onClick={() => !sel && navegar({ [faceta.param]: o.valor || undefined })}
+                  className={cn(
+                    "inline-flex min-h-10 shrink-0 items-center gap-2 rounded-full border py-1.5 pl-3 pr-1.5 text-dato transition-colors duration-rapido focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-granate focus-visible:ring-offset-1",
+                    sel ? "border-granate bg-granate-50 font-semibold text-ink" : "border-line bg-paper font-medium text-inkSoft hover:border-granate/40 hover:text-ink",
+                  )}
+                >
+                  {sel ? <Check size={15} strokeWidth={2.5} aria-hidden className="shrink-0 text-granate" /> : o.valor ? <MarcaOpcion opcion={o} /> : null}
+                  <span className="whitespace-nowrap">{o.etiqueta}</span>
+                  {o.conteo != null && (
+                    <span className={cn("rounded-full px-2 py-0.5 text-rotulo font-semibold tabular-nums", sel ? "bg-granate text-paper" : "bg-paperDeep text-inkSoft")}>{numero(o.conteo)}</span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        )}
 
         {chipsActivos.length > 0 && (
           <div className="flex items-center gap-3">

@@ -374,16 +374,23 @@ function filaDe(c: Compra, i: number, ctx: { ruta: string; parametros: Parametro
 }
 
 /** La barra: buscar, cómo se compró (con su número), el año, las banderas y la contraparte que puso un enlace. */
-export async function BarraCompras({ pagina, ancla, con, proceso }: {
+export async function BarraCompras({ pagina, ancla, con, proceso, antecedentes }: {
   pagina: Promise<ComprasPagina | null>;
+  /**
+   * Los antecedentes de quienes le ganaron a la entidad, con cuántos contratos tiene cada uno (GET /patrones/entidad):
+   * el filtro «Antecedente del ganador» (`?cruce=`) con sólo los que hay aquí y su número, en vez de la lista fija.
+   */
+  antecedentes?: Promise<{ valor: string; etiqueta: string; conteo: number }[]>;
   ancla: "entidad" | "proveedor";
   /** La contraparte que puso un enlace (el proveedor en una entidad, la entidad en una empresa). */
   con?: string;
   /** Los filtros de contratos de un enlace de antes: no tienen control propio, van como chip. */
   proceso?: string[];
 }) {
-  const p = await pagina;
+  const [p, ants] = await Promise.all([pagina, antecedentes ?? Promise.resolve([])]);
   const f = p?.facetas ?? null;
+  // El antecedente elegido tiene su propio control: no se repite como chip «del enlace».
+  const procesoSinCruce = (proceso ?? []).filter((k) => !(ants.length && k === "cruce"));
   const anios = Object.keys(f?.anio ?? {}).map(Number).filter((a) => a > 0).sort((a, b) => b - a);
   // El nombre de la contraparte, de las filas (todas son con ella).
   const nombreCon = con
@@ -400,16 +407,20 @@ export async function BarraCompras({ pagina, ancla, con, proceso }: {
         // Las que no tiene (un menor en una entidad que no usa el módulo) no van: un chip en 0 no ayuda.
         opciones: CLASES_COMPRA.filter((c) => !f || (f.como[c.valor] ?? 0) > 0).map((c) => ({ valor: c.valor, etiqueta: c.etiqueta, conteo: f ? f.como[c.valor] ?? 0 : null })),
         nombreEnChip: false,
+        enBotones: true,
       }}
       visibles={[
         ...(anios.length
           ? [{ param: P_COMPRAS.anio, etiqueta: "Año", corta: "Año", todas: "Todos los años", opciones: anios.map((a) => ({ valor: String(a), etiqueta: String(a), conteo: f?.anio[String(a)] ?? 0 })) }]
           : []),
-        { param: P_COMPRAS.bandera, etiqueta: "Banderas", corta: "Banderas", todas: "Con o sin banderas", opciones: BANDERAS_COMPRA.map((b) => ({ valor: b.valor, etiqueta: b.etiqueta, grupo: b.grupo })) },
+        ...(ants.length
+          ? [{ param: "cruce", etiqueta: "Antecedente del ganador", corta: "Antecedente", todas: "Con o sin antecedentes", opciones: ants.map((a) => ({ valor: a.valor, etiqueta: a.etiqueta, conteo: a.conteo })) }]
+          : []),
+        { param: P_COMPRAS.bandera, etiqueta: "Señales de la orden", corta: "Señales", todas: "Con o sin señales", opciones: BANDERAS_COMPRA.map((b) => ({ valor: b.valor, etiqueta: b.etiqueta, grupo: b.grupo })) },
       ]}
       filtros={filtroRuc(P_COMPRAS.con, ancla === "entidad" ? "Proveedor" : "Entidad", ancla === "entidad" ? "Todos los proveedores" : "Todas las entidades", con, nombreCon)}
       orden={{ param: P_COMPRAS.orden, porDefecto: "reciente", opciones: [{ valor: "reciente", etiqueta: "Más recientes" }, { valor: "antiguo", etiqueta: "Más antiguas" }] }}
-      chips={proceso?.length ? [{ clave: "proceso", texto: "Sólo los procesos de selección del enlace", params: proceso }] : undefined}
+      chips={procesoSinCruce.length ? [{ clave: "proceso", texto: "Sólo los procesos de selección del enlace", params: procesoSinCruce }] : undefined}
     />
   );
 }
