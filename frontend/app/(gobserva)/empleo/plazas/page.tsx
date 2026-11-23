@@ -198,7 +198,7 @@ export default async function PlazasEmpleo({ searchParams }: Props) {
             </div>
           ) : (
             <>
-              <ol className="mt-4 grid grid-cols-1 gap-3" aria-label="Plazas" start={desde + 1}>
+              <ol className="gs-lista mt-4 grid grid-cols-1 gap-3" aria-label="Plazas" start={desde + 1}>
                 {primeras.map((p) => (
                   <li key={p.aviso} className="min-w-0">
                     <TarjetaPlaza p={p} base={base} />
@@ -220,7 +220,7 @@ export default async function PlazasEmpleo({ searchParams }: Props) {
                 </Franja>
               )}
               {resto.length > 0 && (
-                <ol className="mt-3 grid grid-cols-1 gap-3" aria-label="Más plazas" start={desde + primeras.length + 1}>
+                <ol className="gs-lista mt-3 grid grid-cols-1 gap-3" aria-label="Más plazas" start={desde + primeras.length + 1}>
                   {resto.map((p) => (
                     <li key={p.aviso} className="min-w-0">
                       <TarjetaPlaza p={p} base={base} />

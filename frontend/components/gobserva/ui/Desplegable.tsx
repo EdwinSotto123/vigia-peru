@@ -75,14 +75,14 @@ export function Desplegable({
       </button>
       {abierto && (
         <>
-          <span aria-hidden className="fixed inset-0 z-40 bg-ink/30 sm:hidden" />
+          <span aria-hidden className="gs-velo fixed inset-0 z-40 bg-ink/30 sm:hidden" />
           <div
             ref={panel}
             id={id}
             role="dialog"
             aria-label={etiqueta}
             className={cn(
-              "z-50 rounded-xl border border-line bg-caja p-3 shadow-pop motion-safe:animate-fadeIn",
+              "gs-panel z-50 rounded-xl border border-line bg-caja p-3 shadow-pop",
               "fixed inset-x-3 bottom-[calc(env(safe-area-inset-bottom)+4.25rem)] max-h-[70vh] overflow-y-auto",
               "sm:absolute sm:inset-x-auto sm:bottom-auto sm:top-full sm:mt-2 sm:max-h-[min(70vh,28rem)]",
               alinear === "derecha" ? "sm:right-0" : "sm:left-0",

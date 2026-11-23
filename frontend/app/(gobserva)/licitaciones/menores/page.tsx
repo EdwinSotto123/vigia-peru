@@ -254,7 +254,7 @@ export default async function ContratosMenores({ searchParams }: { searchParams?
               </div>
             </div>
           ) : (
-            <ol className="mt-4 divide-y divide-line overflow-hidden rounded-2xl border border-line bg-paper">
+            <ol className="gs-lista mt-4 divide-y divide-line overflow-hidden rounded-2xl border border-line bg-paper">
               {d.data.map((m) => (
                 <li key={m.id} className="min-w-0">
                   <FilaMenor m={m} base={base} />

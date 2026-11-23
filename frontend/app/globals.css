@@ -1233,3 +1233,58 @@ html[data-modo="dia"] [data-producto="vigia"] [data-intencion="participar"] {
   .gs-corre::after { animation-duration: 2.4s; }
   .gs-hunde:active:not(:disabled) { transform: none; }
 }
+
+/* ── Movimiento común de todos los productos (2026-11-22) ──
+   Lo que antes sólo tenían los filtros de Salud, ahora en Vigía, Salud, Empleo, Licitaciones, Obras y Car.
+   El momento con autor es tocar un enlace: arriba se enciende una franja del color del producto que avanza en escalones
+   de píxel mientras el servidor arma la página (ProgresoNavegacion.tsx) y la página nueva entra con un fundido corto
+   (template.tsx de cada producto). Lo demás es respuesta y continuidad: las pestañas cambian de color sin saltar y su
+   panel llega, lo que abre un «ver más» aparece, las listas llegan en escalera corta y lo que se toca se hunde un píxel.
+   Las reglas genéricas van en :where() (no pesan): cualquier clase de un componente manda sobre ellas.
+   Nada parte de opacidad 0 esperando a un observador, y con movimiento reducido queda sólo el fundido. */
+@keyframes gs-nav-avanza {
+  0% { clip-path: inset(0 100% 0 0); animation-timing-function: steps(5, end); }
+  8% { clip-path: inset(0 62% 0 0); animation-timing-function: steps(4, end); }
+  25% { clip-path: inset(0 38% 0 0); animation-timing-function: steps(4, end); }
+  55% { clip-path: inset(0 24% 0 0); animation-timing-function: steps(3, end); }
+  100% { clip-path: inset(0 12% 0 0); }
+}
+@keyframes gs-pagina { from { opacity: 0.55; } to { opacity: 1; } }
+@keyframes gs-abre { from { opacity: 0; translate: 0 -4px; } to { opacity: 1; translate: 0 0; } }
+@keyframes gs-sube { from { opacity: 0.3; translate: 0 8px; } to { opacity: 1; translate: 0 0; } }
+
+/* La franja: bloques de 6 px con 2 px de aire, como una fila de píxeles que se encienden. */
+.gs-nav {
+  position: fixed; inset: 0 0 auto 0; z-index: 70; height: 3px; pointer-events: none; opacity: 0;
+  background: repeating-linear-gradient(90deg, rgb(var(--acento)) 0 6px, transparent 6px 8px);
+  clip-path: inset(0 100% 0 0);
+}
+.gs-nav[data-estado="cargando"] { opacity: 1; transition: opacity 120ms ease-out 120ms; animation: gs-nav-avanza 9s forwards; }
+.gs-nav[data-estado="llega"] { clip-path: inset(0 0 0 0); opacity: 0; transition: opacity 240ms ease-out 140ms; }
+
+/* La página nueva. Sólo opacidad: un transform en el envoltorio movería, mientras dura, todo lo `fixed` de la página. */
+.gs-pagina { animation: gs-pagina 220ms ease-out backwards; }
+
+/* Listas de resultados que aparecen como lista: escalera corta, 120 ms en total como mucho. */
+.gs-lista > * { animation: gs-sube 280ms cubic-bezier(0.16, 1, 0.3, 1) backwards; }
+.gs-lista > :nth-child(2) { animation-delay: 30ms; }
+.gs-lista > :nth-child(3) { animation-delay: 60ms; }
+.gs-lista > :nth-child(4) { animation-delay: 90ms; }
+.gs-lista > :nth-child(n + 5) { animation-delay: 120ms; }
+
+/* Pestañas: el cambio de color, borde y fondo se funde; el panel que se abre llega. */
+:where([role="tab"]) { transition: color 150ms ease-out, background-color 150ms ease-out, border-color 150ms ease-out, box-shadow 150ms ease-out, translate 100ms ease-out; }
+:where([role="tabpanel"]:not([hidden])) { animation: gs-sube 220ms cubic-bezier(0.16, 1, 0.3, 1) backwards; }
+
+/* Lo que se despliega con <details>. */
+:where(details[open] > :not(summary)) { animation: gs-abre 200ms cubic-bezier(0.16, 1, 0.3, 1) backwards; }
+
+/* Lo que se toca se hunde un píxel (con `translate`, que se suma al transform que ya tenga cada pieza). */
+:where(button, [role="button"], summary, a[href]) { transition: translate 100ms ease-out; }
+:where(button, [role="button"], [role="tab"], summary, a[href]):where(:active):where(:not(:disabled, [aria-disabled="true"])) { translate: 0 1px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .gs-nav[data-estado="cargando"] { animation: none; clip-path: inset(0 30% 0 0); }
+  .gs-lista > *, :where([role="tabpanel"]:not([hidden])), :where(details[open] > :not(summary)) { animation: gs-velo 150ms ease-out backwards; }
+  :where(button, [role="button"], [role="tab"], summary, a[href]):where(:active) { translate: none; }
+}

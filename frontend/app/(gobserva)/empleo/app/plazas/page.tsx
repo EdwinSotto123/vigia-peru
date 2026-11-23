@@ -165,7 +165,7 @@ export default async function PlazasApp({ searchParams }: Props) {
             </Caja>
           ) : (
             <>
-              <ol className="mt-4 grid grid-cols-1 gap-3" aria-label="Plazas" start={(pagina - 1) * POR_PAGINA + 1}>
+              <ol className="gs-lista mt-4 grid grid-cols-1 gap-3" aria-label="Plazas" start={(pagina - 1) * POR_PAGINA + 1}>
                 {d.data.map((p) => (
                   <li key={p.aviso} className="min-w-0">
                     <TarjetaPlaza

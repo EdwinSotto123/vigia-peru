@@ -286,7 +286,7 @@ export default async function Oportunidades({ searchParams }: { searchParams?: P
               </div>
             </div>
           ) : (
-            <ol className="mt-4 divide-y divide-line overflow-hidden rounded-2xl border border-line bg-paper">
+            <ol className="gs-lista mt-4 divide-y divide-line overflow-hidden rounded-2xl border border-line bg-paper">
               {d.data.map((o) => (
                 <li key={o.ocid} className="min-w-0">
                   <FilaOportunidad o={o} base={base} />

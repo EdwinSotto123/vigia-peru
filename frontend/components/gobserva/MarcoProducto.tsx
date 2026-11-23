@@ -10,6 +10,7 @@ import { MarcaGobserva } from "./MarcaGobserva";
 import { MarcoApp } from "./app/MarcoApp";
 import { MenuCuenta } from "./cuenta/MenuCuenta";
 import { MenuProducto, RielProducto, type EnlaceProducto } from "./NavProducto";
+import { ProgresoNavegacion } from "./ProgresoNavegacion";
 
 export type { EnlaceProducto };
 
@@ -52,6 +53,7 @@ export function MarcoProducto({
   const otros = otrosProductos(producto);
   return (
     <div data-producto={producto} className="flex min-h-screen flex-col">
+      <ProgresoNavegacion />
       <a
         href="#contenido"
         className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50 focus:rounded-lg focus:bg-paper focus:px-4 focus:py-2 focus:text-dato focus:font-semibold focus:text-ink focus:ring-2 focus:ring-granate"

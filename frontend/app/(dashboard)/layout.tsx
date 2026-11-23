@@ -1,6 +1,7 @@
 import { FranjaAliados } from "@/components/aliados/FranjaAliados";
 import { DashboardSidebar } from "@/components/dashboard/DashboardSidebar";
 import { MainConIntencion } from "@/components/dashboard/Intencion";
+import { ProgresoNavegacion } from "@/components/gobserva/ProgresoNavegacion";
 import { SaltarAlContenido } from "@/components/sitio/SaltarAlContenido";
 
 /**
@@ -22,6 +23,7 @@ export default function DashboardLayout({
 }) {
   return (
     <div className="flex min-h-screen flex-col md:flex-row">
+      <ProgresoNavegacion />
       <SaltarAlContenido />
       <DashboardSidebar />
       <MainConIntencion className={`min-w-0 flex-1 focus:outline-none ${BAJO_BARRA_MOVIL}`}>
