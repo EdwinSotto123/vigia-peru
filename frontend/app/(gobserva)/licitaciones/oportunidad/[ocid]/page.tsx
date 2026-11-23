@@ -11,6 +11,7 @@ import {
   FileDown,
   FileText,
   Info,
+  Landmark,
   Layers,
   MessageSquareWarning,
   ShieldCheck,
@@ -19,8 +20,10 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { BotonGuardar } from "@/components/gobserva/cuenta/BotonGuardar";
+import { Odometro } from "@/components/gobserva/portada/Odometro";
+import { PestanasVivas } from "@/components/gobserva/portada/PestanasVivas";
 import { ListaItems, type ItemLimpio } from "@/components/licitaciones/ListaItems";
-import { ChipNeutro, ChipTipo, MontoCompacto, TONO_PLAZO, plazo, quedan } from "@/components/licitaciones/Piezas";
+import { BarraValor, ChipNeutro, ChipTipo, IconoTipo, MontoCompacto, PuntoVivo, TONO_PLAZO, plazo, quedan } from "@/components/licitaciones/Piezas";
 import { Ayuda } from "@/components/patrones/Ayuda";
 import { Nota, Volver } from "@/components/patrones/Estructura";
 import { Dato } from "@/components/ui/Dato";
@@ -83,6 +86,8 @@ export default async function FichaOportunidad({ params }: { params: { ocid: str
       };
     });
   const gana = quienGana(f.parecidos);
+  // El mayor precio de los parecidos: la barra de cada tarjeta se mide contra él.
+  const maxParecido = Math.max(0, ...f.parecidos.map((x) => precioParecido(x) ?? 0));
   const alerta = `${ruta("/oportunidades")}?${new URLSearchParams({
     q: rubro || palabrasClave(limpiar(f.objeto), 2),
     ...(f.region ? { region: f.region } : {}),
@@ -101,6 +106,7 @@ export default async function FichaOportunidad({ params }: { params: { ocid: str
           <div className="order-1 min-w-0 space-y-5">
             <header className="min-w-0">
               <div className="flex flex-wrap items-center gap-1.5">
+                <IconoTipo tipo={f.tipo} className="mr-1 h-9 w-9" />
                 <ChipTipo tipo={f.tipo} />
                 {f.procedimiento && <ChipNeutro>{tildesEnTitulo(f.procedimiento)}</ChipNeutro>}
                 {/* Una que ya pasó de etapa no es una oportunidad abierta: se dice arriba. */}
@@ -137,7 +143,7 @@ export default async function FichaOportunidad({ params }: { params: { ocid: str
                     El monto que la entidad calculó para esta compra (su estudio de mercado o el presupuesto de la obra). Las ofertas se comparan con él.
                   </Ayuda>
                 }
-                valor={f.valor ? soles(f.valor) : "No publicado"}
+                valor={f.valor ? <Odometro texto={soles(f.valor)} /> : "No publicado"}
                 tono={f.valor ? undefined : "text-inkSoft"}
               >
                 {f.valor
@@ -167,7 +173,10 @@ export default async function FichaOportunidad({ params }: { params: { ocid: str
                 tono={!consultas || consultas.tono === "cerrado" ? "text-inkSoft" : undefined}
               >
                 {consultas && consultas.tono !== "cerrado" ? (
-                  <span className={cn("inline-flex items-center rounded-full px-2 py-0.5 text-rotulo font-semibold", TONO_PLAZO[consultas.tono])}>{quedan(consultas.dias)}</span>
+                  <span className={cn("inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-rotulo font-semibold", TONO_PLAZO[consultas.tono])}>
+                    {consultas.tono === "urgente" && <PuntoVivo />}
+                    {quedan(consultas.dias)}
+                  </span>
                 ) : consultas ? (
                   "Mira en el cronograma del SEACE las etapas que siguen."
                 ) : (
@@ -195,117 +204,185 @@ export default async function FichaOportunidad({ params }: { params: { ocid: str
             </dl>
           </div>
 
-          {/* Qué se compra */}
-          <section aria-labelledby="items-t" className="order-3 min-w-0">
-            <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-              <h2 id="items-t" className="flex items-center gap-2 font-display text-bloque font-bold text-ink">
-                <Layers size={18} aria-hidden className="text-granate" /> Qué se compra
-              </h2>
-              <span className="text-dato text-mute">
-                {numero(items.length)} {items.length === 1 ? "ítem" : "ítems"}
-              </span>
-              {items.some((i) => i.cubso) && (
-                <Ayuda titulo="¿Qué es el CUBSO?">
-                  El Catálogo Único de Bienes, Servicios y Obras del OECE: el código con que el Estado clasifica lo que compra. Con él se comparan los precios y los
-                  procesos de distintas entidades.
-                </Ayuda>
-              )}
-            </div>
-            {items.length === 0 ? (
-              <Nota className="mt-3">Los datos abiertos no traen los ítems de esta convocatoria: están en las bases.</Nota>
-            ) : (
-              <ListaItems items={items} />
-            )}
-          </section>
-
-          {/* Documentos */}
-          {docs.length > 0 && (
-            <section id="documentos" aria-labelledby="docs-t" className="order-3 min-w-0 scroll-mt-24">
-              <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                <h2 id="docs-t" className="flex items-center gap-2 font-display text-bloque font-bold text-ink">
-                  <FileDown size={18} aria-hidden className="text-granate" /> Bases y documentos
-                </h2>
-                <span className="text-dato text-mute">
-                  {numero(docs.length)} {docs.length === 1 ? "documento" : "documentos"}
-                </span>
-              </div>
-              <ul className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
-                {docs.map((d) => (
-                  <li key={d.url} className="min-w-0">
-                    <a
-                      href={d.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className={cn(
-                        "group flex min-h-14 min-w-0 items-center gap-3 rounded-xl border bg-paper px-3.5 py-3 transition-colors duration-rapido hover:border-granate/50",
-                        d.tipo === "biddingDocuments" ? "border-granate/40" : "border-line",
-                      )}
-                    >
-                      <span aria-hidden className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-granate-50 text-granate">
-                        {d.tipo === "biddingDocuments" ? <FileDown size={18} /> : <FileText size={18} />}
-                      </span>
-                      <span className="min-w-0 flex-1">
-                        <span className="block truncate text-dato font-semibold text-ink group-hover:text-granate">{limpiar(d.titulo) || "Documento"}</span>
-                        <span className="block text-rotulo text-mute">
-                          {d.tipo ? TIPO_DOCUMENTO[d.tipo] ?? "Documento" : "Documento"}
-                          {d.fecha ? `, ${fechaCorta(d.fecha)}` : ""}
-                          {formatoDoc(d) ? `, ${formatoDoc(d)}` : ""}
-                        </span>
-                      </span>
-                      <ArrowUpRight size={15} aria-hidden className="shrink-0 text-mute group-hover:text-granate" />
-                      <span className="sr-only"> (se abre en otra pestaña, en el SEACE)</span>
-                    </a>
-                  </li>
-                ))}
-              </ul>
-            </section>
-          )}
-
-          {/* Precios de referencia */}
-          {f.precios.length > 0 && (
-            <section aria-labelledby="precios-t" className="order-5 min-w-0">
-              <h2 id="precios-t" className="flex items-center gap-2 font-display text-bloque font-bold text-ink">
-                <CircleDollarSign size={18} aria-hidden className="text-granate" /> A qué precio compra esto el Estado
-              </h2>
-              <p className="mt-1 max-w-[72ch] text-meta leading-snug text-inkSoft">
-                El precio típico de cada ítem en compras de otras entidades, por su CUBSO y unidad (OCDS y CONOSCE). La barra va del cuarto más barato al cuarto
-                más caro de esas compras; la raya es el precio típico (la mediana).
-              </p>
-              <ul className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
-                {f.precios.map((pr) => (
-                  <TarjetaPrecio key={`${pr.cubso}-${pr.unidad}`} pr={pr} items={items} />
-                ))}
-              </ul>
-            </section>
-          )}
-
-          {/* Procesos parecidos */}
-          <section aria-labelledby="parecidos-t" className="order-6 min-w-0">
-            <h2 id="parecidos-t" className="flex items-center gap-2 font-display text-bloque font-bold text-ink">
-              <Trophy size={18} aria-hidden className="text-granate" /> Procesos parecidos y quién los ganó
+          {/* Antes de ofertar (2026-11-22, el usuario: «portadas más cortas… esto es texto plano»): lo que estaba apilado
+              (qué se compra, las bases, la entidad, los precios y los procesos parecidos: casi 6,000 px en el celular)
+              va en pestañas, una a la vista. Los paneles cerrados vienen igual del servidor. */}
+          <section id="documentos" aria-labelledby="antes-t" className="order-3 min-w-0 scroll-mt-24">
+            <h2 id="antes-t" className="font-display text-seccion font-bold leading-tight text-ink">
+              Antes de ofertar
             </h2>
-            {f.parecidos.length === 0 ? (
-              <div className="mt-3 flex flex-col items-start gap-3 rounded-2xl border border-line bg-paperSoft p-4 sm:flex-row sm:items-center">
-                <p className="min-w-0 flex-1 text-dato text-inkSoft">No hay procesos adjudicados con el mismo CUBSO desde el año pasado.</p>
-                {rubro && (
-                  <Link href={`${ruta("/mercado")}?q=${encodeURIComponent(rubro)}`} className={claseAccion("secundario", "min-h-11 shrink-0")}>
-                    <ChartNoAxesCombined size={16} aria-hidden /> Ver el mercado de «{rubro}»
-                  </Link>
+            <PestanasVivas
+              etiqueta="Lo que conviene revisar de esta convocatoria"
+              className="mt-3"
+              pestanas={[
+                { titulo: <Cuenta texto="Qué se compra" n={items.length} />, icono: <Layers size={16} aria-hidden /> },
+                ...(docs.length > 0 ? [{ titulo: <Cuenta texto="Bases" n={docs.length} />, icono: <FileDown size={16} aria-hidden /> }] : []),
+                { titulo: "La entidad", icono: <Landmark size={16} aria-hidden /> },
+                ...(f.precios.length > 0 ? [{ titulo: <Cuenta texto="Precios" n={f.precios.length} />, icono: <CircleDollarSign size={16} aria-hidden /> }] : []),
+                { titulo: <Cuenta texto="Parecidos" n={new Set(f.parecidos.map((x) => x.ocid)).size} />, icono: <Trophy size={16} aria-hidden /> },
+              ]}
+            >
+              <div className="min-w-0">
+                {items.some((i) => i.cubso) && (
+                  <p className="mb-1 flex items-center gap-1.5 text-meta text-inkSoft">
+                    Cada ítem con su código CUBSO
+                    <Ayuda titulo="¿Qué es el CUBSO?">
+                      El Catálogo Único de Bienes, Servicios y Obras del OECE: el código con que el Estado clasifica lo que compra. Con él se comparan los precios y
+                      los procesos de distintas entidades.
+                    </Ayuda>
+                  </p>
+                )}
+                {items.length === 0 ? (
+                  <Nota className="mt-3">Los datos abiertos no traen los ítems de esta convocatoria: están en las bases.</Nota>
+                ) : (
+                  <ListaItems items={items} />
                 )}
               </div>
-            ) : (
-              <>
-                <p className="mt-1 max-w-[72ch] text-meta leading-snug text-inkSoft">
-                  Las {numero(f.parecidos.length)} adjudicaciones más recientes con el mismo CUBSO, desde el año pasado. De quien ganó, el nombre sólo si es una
-                  empresa (RUC 20).
-                </p>
-                <ul className="mt-3 divide-y divide-line overflow-hidden rounded-2xl border border-line bg-paper">
-                  {f.parecidos.map((x, n) => (
-                    <FilaParecido key={`${x.ocid}-${n}`} x={x} />
-                  ))}
-                </ul>
-              </>
-            )}
+              {docs.length > 0 ? (
+                <div className="min-w-0">
+                  <ul className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                    {docs.map((d) => (
+                      <li key={d.url} className="min-w-0">
+                        <a
+                          href={d.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className={cn(
+                            "group flex min-h-14 min-w-0 items-center gap-3 rounded-xl border bg-paper px-3.5 py-3 transition-colors duration-rapido hover:border-granate/50",
+                            d.tipo === "biddingDocuments" ? "border-granate/40" : "border-line",
+                          )}
+                        >
+                          <span aria-hidden className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-granate-50 text-granate">
+                            {d.tipo === "biddingDocuments" ? <FileDown size={18} /> : <FileText size={18} />}
+                          </span>
+                          <span className="min-w-0 flex-1">
+                            <span className="block truncate text-dato font-semibold text-ink group-hover:text-granate">{limpiar(d.titulo) || "Documento"}</span>
+                            <span className="block text-rotulo text-mute">
+                              {d.tipo ? TIPO_DOCUMENTO[d.tipo] ?? "Documento" : "Documento"}
+                              {d.fecha ? `, ${fechaCorta(d.fecha)}` : ""}
+                              {formatoDoc(d) ? `, ${formatoDoc(d)}` : ""}
+                            </span>
+                          </span>
+                          <ArrowUpRight size={15} aria-hidden className="shrink-0 text-mute group-hover:text-granate" />
+                          <span className="sr-only"> (se abre en otra pestaña, en el SEACE)</span>
+                        </a>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
+              <div className="min-w-0">
+                <div className="sobre-oscuro min-w-0 rounded-3xl bg-ink p-5 text-paper sm:p-6">
+                  <h3 className="font-display text-bloque font-bold leading-tight">
+                    La entidad en 12 meses
+                  </h3>
+                  <p className="mt-1 text-meta leading-snug text-paper/70">Lo que adjudicó y a quién, según CONOSCE (OECE).</p>
+                  {intel.procesos ? (
+                    <>
+                      <dl className="mt-4 grid grid-cols-2 gap-2.5">
+                        <Mini valor={numero(intel.procesos)} etiqueta={intel.procesos === 1 ? "proceso adjudicado" : "procesos adjudicados"} />
+                        <Mini valor={<MontoCompacto valor={intel.monto ?? 0} unidad="text-dato" />} etiqueta="adjudicados en total" />
+                      </dl>
+                      {intel.adjSobreRef ? (
+                        <p className="mt-2.5 flex items-start gap-2 rounded-xl bg-paper/[0.07] px-3 py-2.5 text-meta leading-snug text-paper/85">
+                          <ChartNoAxesCombined size={15} aria-hidden className="mt-0.5 shrink-0 text-maiz" />
+                          <span>
+                            Adjudica, en promedio, al <b className="text-maiz">{porcentaje(intel.adjSobreRef * 100)}</b> del valor referencial.
+                          </span>
+                        </p>
+                      ) : null}
+                      {(intel.proveedores ?? []).length > 0 && (
+                        <div className="mt-5">
+                          <h3 className="flex items-center gap-1.5 text-cuerpo font-semibold text-paper">
+                            <Users size={15} aria-hidden className="text-maiz" />
+                            {(intel.proveedores ?? []).length === 1 ? "La empresa que más le vendió" : `Las ${numero((intel.proveedores ?? []).length)} empresas que más le vendieron`}
+                          </h3>
+                          {/* Barras propias (claras sobre la banda oscura): la mayor llena la barra. */}
+                          <ol className="mt-3 space-y-3">
+                            {(intel.proveedores ?? []).map((p, _i, todos) => {
+                              const mayor = Math.max(1, ...todos.map((x) => x.monto ?? 0));
+                              return (
+                                <li key={p.ruc} className="min-w-0">
+                                  <span className="flex items-baseline justify-between gap-2 text-meta">
+                                    {fichaEmpresaVigia(p.ruc) ? (
+                                      // Su historial completo en Vigía (sólo empresas, RUC 20).
+                                      <a href={fichaEmpresaVigia(p.ruc)!} className="min-w-0 truncate text-paper underline-offset-2 hover:underline" title={`${p.nombre ?? p.ruc}: su historial en Vigía`}>
+                                        {p.nombre ? tituloNatural(p.nombre) : p.ruc}
+                                      </a>
+                                    ) : (
+                                      <span className="min-w-0 truncate text-paper" title={p.nombre ?? p.ruc}>
+                                        {p.nombre ? tituloNatural(p.nombre) : p.ruc}
+                                      </span>
+                                    )}
+                                    <span className="shrink-0 font-mono tabular-nums text-paper/85">{solesCompacto(p.monto ?? 0)}</span>
+                                  </span>
+                                  <span aria-hidden className="mt-1 block h-1.5 overflow-hidden rounded-full bg-paper/10">
+                                    <span className="block h-full rounded-full bg-maiz" style={{ width: `${Math.max(3, ((p.monto ?? 0) / mayor) * 100)}%` }} />
+                                  </span>
+                                  <span className="mt-0.5 block text-rotulo text-paper/60">
+                                    {numero(p.procesos)} {p.procesos === 1 ? "proceso" : "procesos"}
+                                  </span>
+                                </li>
+                              );
+                            })}
+                          </ol>
+                        </div>
+                      )}
+                    </>
+                  ) : (
+                    <p className="mt-4 text-dato text-paper/80">Sin adjudicaciones de esta entidad en CONOSCE en los últimos 12 meses.</p>
+                  )}
+                  {f.entidadRuc && (
+                    <a
+                      href={`https://vigia.gobserva.cloud/entidad/${f.entidadRuc}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="mt-5 inline-flex min-h-11 items-center gap-1.5 text-meta font-semibold text-maiz underline-offset-2 hover:underline"
+                    >
+                      <ShieldCheck size={15} aria-hidden /> Sus antecedentes en Vigía <ArrowUpRight size={13} aria-hidden />
+                      <span className="sr-only"> (se abre en otra pestaña)</span>
+                    </a>
+                  )}
+                </div>
+              </div>
+              {f.precios.length > 0 ? (
+                <div className="min-w-0">
+                  <p className="max-w-[72ch] text-meta leading-snug text-inkSoft">
+                    El precio típico de cada ítem en compras de otras entidades, por su CUBSO y unidad (OCDS y CONOSCE). La barra va del cuarto más barato al
+                    cuarto más caro de esas compras; la raya es el precio típico (la mediana).
+                  </p>
+                  <ul className="-mx-4 mt-3 flex snap-x snap-mandatory gap-3 overflow-x-auto px-4 pb-2 [scrollbar-width:none] sm:-mx-6 sm:px-6 md:mx-0 md:grid md:grid-cols-2 md:overflow-visible md:px-0 md:pb-0 [&::-webkit-scrollbar]:hidden">
+                    {f.precios.map((pr) => (
+                      <TarjetaPrecio key={`${pr.cubso}-${pr.unidad}`} pr={pr} items={items} />
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
+              <div className="min-w-0">
+                {f.parecidos.length === 0 ? (
+                  <div className="flex flex-col items-start gap-3 rounded-2xl border border-line bg-paperSoft p-4 sm:flex-row sm:items-center">
+                    <p className="min-w-0 flex-1 text-dato text-inkSoft">No hay procesos adjudicados con el mismo CUBSO desde el año pasado.</p>
+                    {rubro && (
+                      <Link href={`${ruta("/mercado")}?q=${encodeURIComponent(rubro)}`} className={claseAccion("secundario", "min-h-11 shrink-0")}>
+                        <ChartNoAxesCombined size={16} aria-hidden /> Ver el mercado de «{rubro}»
+                      </Link>
+                    )}
+                  </div>
+                ) : (
+                  <>
+                    <p className="max-w-[72ch] text-meta leading-snug text-inkSoft">
+                      Las {numero(f.parecidos.length)} adjudicaciones más recientes con el mismo CUBSO, desde el año pasado, y quién las ganó. De quien ganó, el nombre
+                      sólo si es una empresa (RUC 20). La barra compara el precio con el mayor de la lista.
+                    </p>
+                    <ul className="-mx-4 mt-3 flex snap-x snap-mandatory gap-3 overflow-x-auto px-4 pb-2 [scrollbar-width:none] sm:-mx-6 sm:px-6 md:mx-0 md:grid md:grid-cols-2 md:overflow-visible md:px-0 md:pb-0 [&::-webkit-scrollbar]:hidden">
+                      {f.parecidos.map((x, n) => (
+                        <TarjetaParecido key={`${x.ocid}-${n}`} x={x} max={maxParecido} />
+                      ))}
+                    </ul>
+                  </>
+                )}
+              </div>
+            </PestanasVivas>
           </section>
         </div>
 
@@ -349,78 +426,6 @@ export default async function FichaOportunidad({ params }: { params: { ocid: str
             </p>
           </div>
 
-          <section aria-labelledby="entidad-t" className="sobre-oscuro order-4 min-w-0 rounded-3xl bg-ink p-5 text-paper sm:p-6">
-            <h2 id="entidad-t" className="font-display text-bloque font-bold leading-tight">
-              La entidad en 12 meses
-            </h2>
-            <p className="mt-1 text-meta leading-snug text-paper/70">Lo que adjudicó y a quién, según CONOSCE (OECE).</p>
-            {intel.procesos ? (
-              <>
-                <dl className="mt-4 grid grid-cols-2 gap-2.5">
-                  <Mini valor={numero(intel.procesos)} etiqueta={intel.procesos === 1 ? "proceso adjudicado" : "procesos adjudicados"} />
-                  <Mini valor={<MontoCompacto valor={intel.monto ?? 0} unidad="text-dato" />} etiqueta="adjudicados en total" />
-                </dl>
-                {intel.adjSobreRef ? (
-                  <p className="mt-2.5 flex items-start gap-2 rounded-xl bg-paper/[0.07] px-3 py-2.5 text-meta leading-snug text-paper/85">
-                    <ChartNoAxesCombined size={15} aria-hidden className="mt-0.5 shrink-0 text-maiz" />
-                    <span>
-                      Adjudica, en promedio, al <b className="text-maiz">{porcentaje(intel.adjSobreRef * 100)}</b> del valor referencial.
-                    </span>
-                  </p>
-                ) : null}
-                {(intel.proveedores ?? []).length > 0 && (
-                  <div className="mt-5">
-                    <h3 className="flex items-center gap-1.5 text-cuerpo font-semibold text-paper">
-                      <Users size={15} aria-hidden className="text-maiz" />
-                      {(intel.proveedores ?? []).length === 1 ? "La empresa que más le vendió" : `Las ${numero((intel.proveedores ?? []).length)} empresas que más le vendieron`}
-                    </h3>
-                    {/* Barras propias (claras sobre la banda oscura): la mayor llena la barra. */}
-                    <ol className="mt-3 space-y-3">
-                      {(intel.proveedores ?? []).map((p, _i, todos) => {
-                        const mayor = Math.max(1, ...todos.map((x) => x.monto ?? 0));
-                        return (
-                          <li key={p.ruc} className="min-w-0">
-                            <span className="flex items-baseline justify-between gap-2 text-meta">
-                              {fichaEmpresaVigia(p.ruc) ? (
-                                // Su historial completo en Vigía (sólo empresas, RUC 20).
-                                <a href={fichaEmpresaVigia(p.ruc)!} className="min-w-0 truncate text-paper underline-offset-2 hover:underline" title={`${p.nombre ?? p.ruc}: su historial en Vigía`}>
-                                  {p.nombre ? tituloNatural(p.nombre) : p.ruc}
-                                </a>
-                              ) : (
-                                <span className="min-w-0 truncate text-paper" title={p.nombre ?? p.ruc}>
-                                  {p.nombre ? tituloNatural(p.nombre) : p.ruc}
-                                </span>
-                              )}
-                              <span className="shrink-0 font-mono tabular-nums text-paper/85">{solesCompacto(p.monto ?? 0)}</span>
-                            </span>
-                            <span aria-hidden className="mt-1 block h-1.5 overflow-hidden rounded-full bg-paper/10">
-                              <span className="block h-full rounded-full bg-maiz" style={{ width: `${Math.max(3, ((p.monto ?? 0) / mayor) * 100)}%` }} />
-                            </span>
-                            <span className="mt-0.5 block text-rotulo text-paper/60">
-                              {numero(p.procesos)} {p.procesos === 1 ? "proceso" : "procesos"}
-                            </span>
-                          </li>
-                        );
-                      })}
-                    </ol>
-                  </div>
-                )}
-              </>
-            ) : (
-              <p className="mt-4 text-dato text-paper/80">Sin adjudicaciones de esta entidad en CONOSCE en los últimos 12 meses.</p>
-            )}
-            {f.entidadRuc && (
-              <a
-                href={`https://vigia.gobserva.cloud/entidad/${f.entidadRuc}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="mt-5 inline-flex min-h-11 items-center gap-1.5 text-meta font-semibold text-maiz underline-offset-2 hover:underline"
-              >
-                <ShieldCheck size={15} aria-hidden /> Sus antecedentes en Vigía <ArrowUpRight size={13} aria-hidden />
-                <span className="sr-only"> (se abre en otra pestaña)</span>
-              </a>
-            )}
-          </section>
 
           {rubro && (
             <Link
@@ -533,7 +538,7 @@ function TarjetaPrecio({ pr, items }: { pr: Ficha["precios"][number]; items: Ite
   const unitario = propio && propio.valor != null && propio.cantidad ? propio.valor / propio.cantidad : null;
   const frente = unitario != null && pr.mediana ? unitario / pr.mediana - 1 : null;
   return (
-    <li className="flex min-w-0 flex-col rounded-2xl border border-line bg-paper p-4">
+    <li className="flex w-[86%] min-w-0 shrink-0 snap-start scroll-ml-4 flex-col rounded-2xl border border-line bg-paper p-4 sm:w-[62%] sm:scroll-ml-6 md:w-auto">
       <p className="line-clamp-2 text-dato font-semibold leading-snug text-ink">{nombre ?? `CUBSO ${pr.cubso}`}</p>
       <p className="mt-0.5 text-rotulo text-mute">
         <span className="font-mono">CUBSO {pr.cubso}</span>, precio por {unidad}
@@ -587,41 +592,65 @@ function RangoPrecio({ p25, mediana, p75, propio }: { p25: number | null; median
   );
 }
 
-/** Un proceso parecido: qué se compró, quién y cuándo, quién ganó y a qué precio (por unidad si se compró más de una). */
-function FilaParecido({ x }: { x: Ficha["parecidos"][number] }) {
+/** El precio con que se compara un proceso parecido: por unidad si se compró más de una, si no el adjudicado. */
+function precioParecido(x: Ficha["parecidos"][number]): number | null {
+  return x.unitAdj ?? (x.cantidad === 1 ? x.adjudicado : null);
+}
+
+/** Cuántos hay, en su pastilla, junto al nombre de la pestaña. */
+function Cuenta({ texto, n }: { texto: string; n: number }) {
+  return (
+    <>
+      {texto}
+      <span className="rounded-full bg-ink/[0.06] px-2 py-0.5 text-meta font-semibold tabular-nums">{numero(n)}</span>
+    </>
+  );
+}
+
+/**
+ * Un proceso parecido como tarjeta (2026-11-22, el usuario: «esto es texto plano»; antes una fila de texto): quién ganó
+ * arriba, en su placa, el precio grande con la barra contra el mayor de la lista y, si bajó, cuánto bajo el referencial;
+ * qué se compró, quién compró, cuándo y cuánto. En el celular se desliza en fila.
+ */
+function TarjetaParecido({ x, max }: { x: Ficha["parecidos"][number]; max: number }) {
   const rebaja = x.unitRef && x.unitAdj ? 1 - x.unitAdj / x.unitRef : null;
   const unidad = x.unidad ? x.unidad.toLocaleLowerCase("es-PE") : "unidad";
   const porUnidad = x.cantidad != null && x.cantidad !== 1;
-  const precio = x.unitAdj ?? (x.cantidad === 1 ? x.adjudicado : null);
+  const precio = precioParecido(x);
   return (
-    <li className="grid gap-x-6 gap-y-2 px-4 py-3.5 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start">
-      <div className="min-w-0">
-        <p className="line-clamp-2 text-dato font-medium leading-snug text-ink">{limpiar(x.descripcion || x.objeto) || "Proceso sin descripción"}</p>
-        <p className="mt-1 flex flex-wrap gap-x-4 gap-y-0.5 text-meta text-inkSoft">
-          <Dato tipo="entidad">{x.entidad ? tituloNatural(x.entidad) : "Entidad sin nombre"}</Dato>
-          {x.fecha && <Dato tipo="fecha">{fechaCorta(x.fecha)}</Dato>}
-          {x.cantidad != null && <Dato icono={Layers} nombre="Cantidad">{`${Number.isInteger(x.cantidad) ? numero(x.cantidad) : decimal(x.cantidad, 2)} ${unidad}`}</Dato>}
-        </p>
-        <p className="mt-1.5 flex items-start gap-1.5 text-meta leading-snug">
-          <Trophy size={14} aria-hidden className="mt-0.5 shrink-0 text-granate" />
-          {x.proveedor ? (
-            <span className="min-w-0 text-inkSoft">
-              Ganó <span className="font-semibold text-ink">{tituloNatural(x.proveedor)}</span>
-            </span>
-          ) : (
-            <span className="text-mute">Ganó un consorcio o una persona natural</span>
-          )}
-        </p>
-      </div>
-      {precio != null && (
-        <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1 sm:flex-col sm:items-end sm:text-right">
-          <span className="font-display text-bloque font-bold leading-tight tabular-nums text-ink">{soles(precio)}</span>
-          <span className="text-rotulo text-mute">{porUnidad ? `por ${unidad}, adjudicado` : "adjudicado"}</span>
+    <li className="gs-mira flex w-[86%] min-w-0 shrink-0 snap-start scroll-ml-4 flex-col rounded-2xl border border-line bg-paper p-4 sm:w-[62%] sm:scroll-ml-6 md:w-auto">
+      <p className={cn("flex items-start gap-2 rounded-xl px-3 py-2 text-meta leading-snug", x.proveedor ? "bg-granate-50 text-ink" : "bg-paperDeep text-inkSoft")}>
+        <Trophy size={15} aria-hidden className="mt-0.5 shrink-0 text-granate" />
+        {x.proveedor ? (
+          <span className="min-w-0">
+            Ganó <span className="font-semibold">{tituloNatural(x.proveedor)}</span>
+          </span>
+        ) : (
+          <span>Ganó un consorcio o una persona natural</span>
+        )}
+      </p>
+      {precio != null ? (
+        <div className="mt-3">
+          <p className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
+            <span className="font-display text-seccion font-bold leading-none tabular-nums text-ink">{soles(precio)}</span>
+            <span className="text-rotulo text-mute">{porUnidad ? `por ${unidad}, adjudicado` : "adjudicado"}</span>
+          </p>
+          <BarraValor valor={precio} max={max} className="mt-2" />
           {rebaja != null && rebaja > 0.005 && (
-            <span className="rounded-full bg-moss/10 px-2 py-0.5 text-rotulo font-semibold text-mossTexto">{porcentaje(rebaja * 100)} bajo el referencial</span>
+            <span className="mt-2 inline-flex rounded-full bg-moss/10 px-2 py-0.5 text-rotulo font-semibold text-mossTexto">{porcentaje(rebaja * 100)} bajo el referencial</span>
           )}
         </div>
+      ) : (
+        <p className="mt-3 text-meta text-inkSoft">El precio por unidad no se puede calcular: se compró por un monto global.</p>
       )}
+      <p className="mt-3 line-clamp-3 text-dato font-medium leading-snug text-ink">{limpiar(x.descripcion || x.objeto) || "Proceso sin descripción"}</p>
+      <p className="mt-auto flex flex-wrap gap-x-4 gap-y-0.5 pt-2 text-meta text-inkSoft">
+        <Dato tipo="entidad" className="min-w-0 max-w-full truncate">
+          {x.entidad ? tituloNatural(x.entidad) : "Entidad sin nombre"}
+        </Dato>
+        {x.fecha && <Dato tipo="fecha">{fechaCorta(x.fecha)}</Dato>}
+        {x.cantidad != null && <Dato icono={Layers} nombre="Cantidad">{`${Number.isInteger(x.cantidad) ? numero(x.cantidad) : decimal(x.cantidad, 2)} ${unidad}`}</Dato>}
+      </p>
     </li>
   );
 }

@@ -4,7 +4,7 @@ import type { ReactNode } from "react";
 import Link from "next/link";
 import { ArrowRight, BadgePercent, BellRing, Building2, ChartNoAxesCombined, ChevronDown, Handshake, Inbox, Landmark, Search, Target, Trophy, Users, type LucideIcon } from "lucide-react";
 import { BarrasEnlace, SerieMeses, type FilaBarra } from "@/components/licitaciones/Graficas";
-import { MontoCompacto } from "@/components/licitaciones/Piezas";
+import { Odometro } from "@/components/gobserva/portada/Odometro";
 import { PersonajePregunta } from "@/components/pixel/Escena";
 import { Beneficios } from "@/components/patrones/Franja";
 import { Nota } from "@/components/patrones/Estructura";
@@ -43,7 +43,13 @@ export default async function Mercado({ searchParams }: { searchParams?: { q?: s
   const enApp = enLaApp("licitaciones");
   const ruta = (p: string) => rutaEn(base, p);
   const q = (searchParams?.q ?? "").trim().slice(0, 80);
-  const [m, cat] = await Promise.all([q.length >= 3 ? getMercado(q) : Promise.resolve(null), planesServidor("licitaciones")]);
+  // Sin búsqueda, una muestra real (2026-11-22, el usuario: «esto es texto plano»): el mercado del primer rubro de ejemplo.
+  const muestraRubro = RUBROS_EJEMPLO[0];
+  const [m, cat, muestra] = await Promise.all([
+    q.length >= 3 ? getMercado(q) : Promise.resolve(null),
+    planesServidor("licitaciones"),
+    !q ? getMercado(muestraRubro).catch(() => null) : Promise.resolve(null),
+  ]);
   const unSolo = m?.conPostores ? m.unSoloPostor / m.conPostores : null;
   const empresas = m && m.monto ? m.montoEmpresas / m.monto : null;
   const mayorDepartamento = m ? Math.max(1, ...m.regiones.map((x) => x.procesos)) : 1;
@@ -105,18 +111,59 @@ export default async function Mercado({ searchParams }: { searchParams?: { q?: s
       </ul>
 
       {!q ? (
-        <section aria-labelledby="que-t" className="mt-10">
-          <h2 id="que-t" className="font-display text-seccion font-bold leading-tight text-ink">
-            Lo que vas a ver de tu rubro
-          </h2>
-          <Beneficios
-            className="mt-4"
-            items={[
-              { icono: <ChartNoAxesCombined size={16} aria-hidden />, titulo: "El tamaño de tu mercado", texto: "Procesos y monto adjudicado mes a mes: cuándo compra el Estado lo que vendes." },
-              { icono: <Building2 size={16} aria-hidden />, titulo: "Quién compra", texto: "Las entidades que más compran tu rubro, con un enlace a sus convocatorias abiertas." },
-              { icono: <Trophy size={16} aria-hidden />, titulo: "Quién gana y cuántos compiten", texto: "Las empresas que más ganan, cuántos postores suele haber y cuántas veces hubo uno solo." },
-            ]}
-          />
+        <section aria-labelledby="que-t" className="mt-8">
+          {muestra && muestra.procesos > 0 ? (
+            <div className="gs-mira rounded-3xl border border-line bg-paper p-5 sm:p-7">
+              <h2 id="que-t" className="text-balance font-display text-seccion font-bold leading-tight text-ink">
+                Así se ve un mercado: «{muestraRubro}» en 12 meses
+              </h2>
+              <p className="mt-1 text-dato text-inkSoft">Lo mismo verás del tuyo: cuánto compra el Estado, cuándo, quién compra, quién gana y cuántos compiten.</p>
+              <dl className="mt-5 grid grid-cols-2 gap-3 md:grid-cols-4">
+                <Cifra
+                  Icono={ChartNoAxesCombined}
+                  etiqueta="Adjudicado"
+                  valor={<Odometro texto={solesCompacto(muestra.monto)} />}
+                  contexto={`en ${numero(muestra.procesos)} procesos`}
+                />
+                <Cifra Icono={Building2} etiqueta="Entidades que compran" valor={<Odometro texto={numero(muestra.entidades)} />} />
+                <Cifra
+                  Icono={Users}
+                  etiqueta="Postores por proceso"
+                  valor={muestra.postoresPromedio ? <Odometro texto={decimal(muestra.postoresPromedio)} /> : "Sin dato"}
+                  contexto="en promedio"
+                />
+                <Cifra
+                  Icono={Target}
+                  etiqueta="Con un solo postor"
+                  valor={muestra.conPostores ? <Odometro texto={porcentaje((muestra.unSoloPostor / muestra.conPostores) * 100)} /> : "Sin dato"}
+                  destacado={!!muestra.conPostores && muestra.unSoloPostor / muestra.conPostores >= 0.3}
+                />
+              </dl>
+              <div className="mt-5 rounded-2xl border border-line bg-paperSoft p-4">
+                <SerieMeses serie={muestra.serie} etiqueta={`Monto adjudicado de «${muestraRubro}» por mes`} />
+              </div>
+              <div className="mt-5 flex flex-wrap items-center gap-3">
+                <Link href={`${ruta("/mercado")}?q=${encodeURIComponent(muestraRubro)}`} className={claseAccion("primario", "min-h-11")}>
+                  Ver el mercado completo de «{muestraRubro}» <ArrowRight size={16} aria-hidden />
+                </Link>
+                <span className="text-meta text-inkSoft">o escribe arriba lo que tú vendes.</span>
+              </div>
+            </div>
+          ) : (
+            <>
+              <h2 id="que-t" className="font-display text-seccion font-bold leading-tight text-ink">
+                Lo que vas a ver de tu rubro
+              </h2>
+              <Beneficios
+                className="mt-4"
+                items={[
+                  { icono: <ChartNoAxesCombined size={16} aria-hidden />, titulo: "El tamaño de tu mercado", texto: "Procesos y monto adjudicado mes a mes: cuándo compra el Estado lo que vendes." },
+                  { icono: <Building2 size={16} aria-hidden />, titulo: "Quién compra", texto: "Las entidades que más compran tu rubro, con un enlace a sus convocatorias abiertas." },
+                  { icono: <Trophy size={16} aria-hidden />, titulo: "Quién gana y cuántos compiten", texto: "Las empresas que más ganan, cuántos postores suele haber y cuántas veces hubo uno solo." },
+                ]}
+              />
+            </>
+          )}
         </section>
       ) : q.length < 3 ? (
         <Nota className="mt-8">Escribe al menos tres letras de lo que vendes.</Nota>
@@ -151,10 +198,10 @@ export default async function Mercado({ searchParams }: { searchParams?: { q?: s
               <Cifra
                 Icono={ChartNoAxesCombined}
                 etiqueta="Adjudicado"
-                valor={<MontoCompacto valor={m.monto} unidad="text-cuerpo sm:text-bloque" />}
+                valor={<Odometro texto={solesCompacto(m.monto)} />}
                 contexto={`en ${numero(m.procesos)} ${m.procesos === 1 ? "proceso" : "procesos"}`}
               />
-              <Cifra Icono={Building2} etiqueta="Entidades que compran" valor={numero(m.entidades)} contexto="compraron este rubro" />
+              <Cifra Icono={Building2} etiqueta="Entidades que compran" valor={<Odometro texto={numero(m.entidades)} />} contexto="compraron este rubro" />
               <Cifra Icono={Users} etiqueta="Postores por proceso" valor={m.postoresPromedio ? decimal(m.postoresPromedio) : "Sin dato"} contexto="en promedio" />
               <Cifra
                 Icono={Target}

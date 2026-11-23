@@ -124,7 +124,7 @@ export function Dato({
   className,
 }: {
   Icono: LucideIcon;
-  valor: string;
+  valor: ReactNode;
   etiqueta: string;
   detalle?: ReactNode;
   destacado?: boolean;
@@ -299,5 +299,188 @@ export function Paginador({ pagina, paginas, href, total }: { pagina: number; pa
         </span>
       )}
     </nav>
+  );
+}
+
+/** Los cinco pasos de una obra, en orden (el camino de una inversión). */
+const PASOS_CAMINO: { fase: Fase; corto: string }[] = [
+  { fase: "viable", corto: "Viable" },
+  { fase: "expediente", corto: "Expediente" },
+  { fase: "licitacion", corto: "Licitación" },
+  { fase: "ejecucion", corto: "Ejecución" },
+  { fase: "terminada", corto: "Terminada" },
+];
+const POSICION_CAMINO: Record<Fase, number> = { viable: 0, expediente: 1, licitacion: 2, ejecucion: 3, paralizada: 3, sin_movimiento: 3, terminada: 4, cerrada: 4 };
+const LO_QUE_SIGUE: Partial<Record<Fase, string>> = {
+  viable: "le falta el expediente técnico",
+  expediente: "lo siguiente es licitar la obra",
+  licitacion: "lo siguiente es contratar y empezar",
+  ejecucion: "la obra está en marcha",
+  paralizada: "la obra está paralizada",
+  sin_movimiento: "sin gasto ni avance reciente",
+  terminada: "falta liquidarla y cerrarla",
+};
+
+/**
+ * El camino de una obra en una tira de cinco bloques (2026-11-22, «itera sobre todo, esto es texto plano»): lo cumplido
+ * lleno, el paso de hoy lleno y latiendo (en rojo si está detenida), lo que falta apagado; debajo, en qué paso está y qué
+ * sigue. Se lee de un vistazo en cada tarjeta de la lista. Server-safe.
+ */
+export function CaminoMini({ fase, oscuro = false, className }: { fase: Fase | null | undefined; oscuro?: boolean; className?: string }) {
+  if (!fase || fase === "cerrada") return null;
+  const pos = POSICION_CAMINO[fase];
+  const detenida = fase === "paralizada" || fase === "sin_movimiento";
+  const lleno = oscuro ? "bg-maiz" : "bg-granate";
+  return (
+    <div className={cn("min-w-0", className)}>
+      <ol aria-label={`El camino de la obra: paso ${pos + 1} de 5, ${FASES[fase].nombre.toLocaleLowerCase("es-PE")}`} className="grid grid-cols-5 gap-1">
+        {PASOS_CAMINO.map((p, i) => (
+          <li
+            key={p.fase}
+            className={cn(
+              "h-1.5 rounded-[2px]",
+              i < pos || (i === pos && fase === "terminada")
+                ? lleno
+                : i === pos
+                  ? cn(detenida ? "bg-crimson" : lleno, "motion-safe:animate-pulse")
+                  : oscuro
+                    ? "bg-paper/15"
+                    : "bg-ink/[0.08]",
+            )}
+          >
+            <span className="sr-only">
+              {p.corto}
+              {i < pos ? " (cumplido)" : i === pos ? " (aquí está)" : ""}
+            </span>
+          </li>
+        ))}
+      </ol>
+      <p aria-hidden className={cn("mt-1.5 text-rotulo", detenida ? "text-crimsonTexto" : oscuro ? "text-paper/60" : "text-mute")}>
+        Paso {pos + 1} de 5{LO_QUE_SIGUE[fase] ? `: ${LO_QUE_SIGUE[fase]}` : ""}
+      </p>
+    </div>
+  );
+}
+
+/** Cuánto se gastó del costo, en una barra fina debajo del monto (crece a pasos). Sin costo o sin gasto, nada. */
+export function BarraGastado({ costo, gastado, className }: { costo: number | null | undefined; gastado: number | null | undefined; className?: string }) {
+  if (!costo || costo <= 0 || !gastado || gastado <= 0) return null;
+  const real = Math.min(100, (gastado / costo) * 100);
+  return (
+    <span role="img" aria-label={`${numero(real)} % del costo ya gastado`} className={cn("mt-1.5 block h-1.5 w-full overflow-hidden rounded-full bg-ink/[0.07]", className)}>
+      <span className="gs-barra-crece block h-full rounded-full bg-granate" style={{ width: `${Math.max(2, real)}%` }} />
+    </span>
+  );
+}
+
+export interface BarraComparada {
+  etiqueta: string;
+  valor: number | null | undefined;
+  /** El texto del valor («S/ 17.1 mil M»). */
+  texto: string;
+  detalle?: ReactNode;
+  tono?: "granate" | "ink" | "amber" | "suave";
+}
+
+/**
+ * Varios montos uno debajo del otro, cada uno con su barra a la misma escala: se ve de golpe cuánto cambió el costo desde
+ * que se declaró viable y cuánto se gastó. Los que no tienen valor dicen su texto sin barra. Server-safe.
+ */
+export function BarrasComparadas({ items, etiqueta, className }: { items: BarraComparada[]; etiqueta: string; className?: string }) {
+  const max = Math.max(...items.map((i) => i.valor ?? 0), 1);
+  const TONO = { granate: "bg-granate", ink: "bg-ink/70", amber: "bg-amber", suave: "bg-granate/35" } as const;
+  return (
+    <ul aria-label={etiqueta} className={cn("space-y-3.5", className)}>
+      {items.map((i) => (
+        <li key={i.etiqueta} className="min-w-0">
+          <p className="flex flex-wrap items-baseline justify-between gap-x-3 text-meta">
+            <span className="text-inkSoft">{i.etiqueta}</span>
+            <span className="font-display text-cuerpo font-bold tabular-nums text-ink">{i.texto}</span>
+          </p>
+          {i.valor != null && i.valor > 0 && (
+            <span aria-hidden className="mt-1.5 block h-2.5 overflow-hidden rounded-[3px] bg-ink/[0.06]">
+              <span className={cn("gs-barra-crece block h-full rounded-[3px]", TONO[i.tono ?? "granate"])} style={{ width: `${Math.max(1.5, (i.valor / max) * 100)}%` }} />
+            </span>
+          )}
+          {i.detalle && <p className="mt-1 text-rotulo text-mute">{i.detalle}</p>}
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+export interface Hito {
+  etiqueta: string;
+  /** ISO (día) o «AAAA-MM» (sólo el mes): para ordenar y saber si ya pasó. */
+  fecha: string | null | undefined;
+  /** La fecha como se lee («14 nov. 2012», «enero de 2014»). */
+  texto: string;
+}
+
+/**
+ * Las fechas de un proyecto como una línea de tiempo vertical (2026-11-22): cada hito con su punto cuadrado, de lo más
+ * viejo a lo que viene, y la marca de HOY entre lo pasado (punto lleno, línea continua) y lo previsto (punto hueco, línea
+ * punteada). Los hitos sin fecha van al pie, apagados. Server-safe.
+ */
+export function LineaTiempo({ hitos, hoy, className }: { hitos: Hito[]; hoy: string; className?: string }) {
+  const con = hitos.filter((h) => !!h.fecha).sort((a, b) => (a.fecha! < b.fecha! ? -1 : a.fecha! > b.fecha! ? 1 : 0));
+  const sin = hitos.filter((h) => !h.fecha);
+  const filas: ({ tipo: "hito"; h: Hito; futuro: boolean } | { tipo: "hoy" })[] = [];
+  let hoyPuesto = false;
+  for (const h of con) {
+    const futuro = h.fecha!.slice(0, 10) > hoy;
+    if (futuro && !hoyPuesto) {
+      filas.push({ tipo: "hoy" });
+      hoyPuesto = true;
+    }
+    filas.push({ tipo: "hito", h, futuro });
+  }
+  if (!hoyPuesto) filas.push({ tipo: "hoy" });
+  return (
+    <div className={className}>
+      <ol aria-label="Las fechas del proyecto">
+        {filas.map((f, i) => {
+          const ultima = i === filas.length - 1;
+          const siguienteFutura = !ultima && (filas[i + 1].tipo === "hoy" || (filas[i + 1] as { futuro?: boolean }).futuro);
+          if (f.tipo === "hoy") {
+            return (
+              <li key="hoy" className="relative flex items-center gap-3 pb-4 last:pb-0">
+                {!ultima && <span aria-hidden className="absolute bottom-0 left-[11px] top-6 w-0 border-l-2 border-dashed border-line" />}
+                <span aria-hidden className="relative z-10 grid h-6 w-6 shrink-0 place-items-center">
+                  <span className="absolute h-full w-full rounded-full bg-granate/25 motion-safe:animate-ping" />
+                  <span className="relative h-3.5 w-3.5 rounded-full bg-granate ring-4 ring-paper" />
+                </span>
+                <span className="rounded-full bg-granate px-2.5 py-0.5 text-rotulo font-bold text-paper">Hoy</span>
+              </li>
+            );
+          }
+          return (
+            <li key={f.h.etiqueta} className="relative flex gap-3 pb-4 last:pb-0">
+              {!ultima && (
+                <span
+                  aria-hidden
+                  className={cn("absolute bottom-0 left-[11px] top-6 w-0 border-l-2", f.futuro || siguienteFutura ? "border-dashed border-line" : "border-solid border-granate/45")}
+                />
+              )}
+              <span aria-hidden className="relative z-10 grid h-6 w-6 shrink-0 place-items-center">
+                <span className={cn("h-3 w-3 rounded-[3px]", f.futuro ? "border-2 border-granate bg-paper" : "bg-granate")} />
+              </span>
+              <div className="min-w-0 pt-0.5">
+                <p className="text-meta leading-tight text-mute">{f.h.etiqueta}</p>
+                <p className={cn("mt-0.5 flex flex-wrap items-center gap-1.5 text-dato font-semibold", f.futuro ? "text-inkSoft" : "text-ink")}>
+                  {f.h.texto}
+                  {f.futuro && <span className="rounded-full bg-paperDeep px-2 py-0.5 text-rotulo font-medium text-mute">previsto</span>}
+                </p>
+              </div>
+            </li>
+          );
+        })}
+      </ol>
+      {sin.length > 0 && (
+        <p className="mt-3 border-t border-line pt-3 text-meta text-mute">
+          Sin fecha registrada: {sin.map((h) => h.etiqueta.toLocaleLowerCase("es-PE")).join(", ")}.
+        </p>
+      )}
+    </div>
   );
 }

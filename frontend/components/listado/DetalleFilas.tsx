@@ -160,7 +160,20 @@ export function ProveedorDetalle({ detalles, nombre, children }: { detalles: Det
  * Sin `etiqueta`, la fila se nombra por su contenido (lo que se ve: estado, qué es, monto, fecha), como las filas que
  * navegan; `aria-haspopup` avisa que abre un panel. Con `etiqueta`, ésa reemplaza al contenido.
  */
-export function BotonFila({ id, etiqueta, className, children }: { id: string; etiqueta?: string; className?: string; children: ReactNode }) {
+export function BotonFila({
+  id,
+  etiqueta,
+  className,
+  claseAbierta,
+  children,
+}: {
+  id: string;
+  etiqueta?: string;
+  className?: string;
+  /** Cómo se marca abierta, en vez del tinte y la raya de una fila de tabla (una tarjeta: su borde). */
+  claseAbierta?: string;
+  children?: ReactNode;
+}) {
   const c = useContext(Ctx);
   if (!c) throw new Error("BotonFila fuera de <ProveedorDetalle>");
   const sel = c.abierto === id;
@@ -174,7 +187,7 @@ export function BotonFila({ id, etiqueta, className, children }: { id: string; e
       aria-expanded={sel}
       aria-current={sel || undefined}
       aria-label={etiqueta}
-      className={cn("cursor-pointer", className, sel && "bg-granate-50 shadow-[inset_3px_0_0_0_theme(colors.granate.DEFAULT)] hover:bg-granate-50")}
+      className={cn("cursor-pointer", className, sel && (claseAbierta ?? "bg-granate-50 shadow-[inset_3px_0_0_0_theme(colors.granate.DEFAULT)] hover:bg-granate-50"))}
     >
       {children}
     </button>

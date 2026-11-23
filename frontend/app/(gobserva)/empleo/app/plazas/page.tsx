@@ -5,7 +5,7 @@ import { BellRing, RotateCcw, X } from "lucide-react";
 import { CabeceraPagina, Caja, Pagina } from "@/components/gobserva/app/Caja";
 import { EstadoPostulante } from "@/components/empleo/EstadoPostulante";
 import { FiltrosPlazas, OrdenPlazas } from "@/components/empleo/FiltrosPlazas";
-import { TarjetaPlaza } from "@/components/empleo/TarjetaPlaza";
+import { TarjetaPlaza, topeSueldo } from "@/components/empleo/TarjetaPlaza";
 import { AplicarPerfil, SelectorParaTi } from "@/components/empleo-app/SelectorParaTi";
 import { carrerasDeAlerta, textosMotivo } from "@/lib/empleo-app/entrevista";
 import { AccionesBusqueda } from "@/components/gobserva/cuenta/AccionesBusqueda";
@@ -39,6 +39,7 @@ export default async function PlazasApp({ searchParams }: Props) {
   const esperandoPerfil = f.para === "ti" && !f.carreras && !f.palabras;
   const conPerfil = !!(f.carreras || f.palabras);
   const d = esperandoPerfil ? null : await getPlazasEmpleo(f, POR_PAGINA);
+  const tope = topeSueldo(d?.data ?? []);
   const carrerasPerfil = conPerfil ? carrerasDeAlerta(f.carreras ?? "") : [];
   const lista = rutaEn(base, "/app/plazas");
   const sin = (k: keyof FiltrosEmpleo) => `${lista}${qsEmpleo({ ...f, [k]: undefined, page: undefined })}`;
@@ -166,6 +167,7 @@ export default async function PlazasApp({ searchParams }: Props) {
           ) : (
             <>
               <ol className="gs-lista mt-4 grid grid-cols-1 gap-3" aria-label="Plazas" start={(pagina - 1) * POR_PAGINA + 1}>
+                {/* La barra del sueldo de cada tarjeta se mide contra el mejor pagado creíble de la página. */}
                 {d.data.map((p) => (
                   <li key={p.aviso} className="min-w-0">
                     <TarjetaPlaza
@@ -173,6 +175,7 @@ export default async function PlazasApp({ searchParams }: Props) {
                       base={base}
                       ruta="/app/plaza"
                       enApp
+                      tope={tope}
                       volver={volver}
                       motivo={conPerfil ? textosMotivo(p.motivo, carrerasPerfil) : undefined}
                       accion={<EstrellaSeguir id={String(p.aviso)} codigo={null} titulo={puesto(p.titulo)} tipo="plaza" />}

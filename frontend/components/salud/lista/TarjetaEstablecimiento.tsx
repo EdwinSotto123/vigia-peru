@@ -1,6 +1,6 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
-import { BedDouble, Clock3, Gavel, MapPin, MessageSquareWarning, Scissors, Stethoscope } from "lucide-react";
+import { BedDouble, Clock3, Gavel, MapPin, MessageSquareWarning, Scissors, ShieldCheck, Stethoscope } from "lucide-react";
 import { Pixel } from "@/components/pixel/Pixel";
 import type { NombreSprite } from "@/components/pixel/sprites";
 import { InsigniaCategoria } from "@/components/salud/comun";
@@ -26,11 +26,15 @@ export function spriteLugar(x: Pick<FilaIpress, "clasificacion" | "internamiento
 }
 
 /**
- * Una IPRESS como casilla de vitrina (2026-11-22, el usuario: «que sea tipo marketplace, o sea con casillas y no filas»):
- * arriba su dibujo con la categoría y el seguro en las esquinas; el nombre y dónde está; lo que tiene (24 horas, centro
- * quirúrgico, internamiento, médicos) como etiquetas con ícono; y al pie, las señales: sanciones firmes en rojo y
- * denuncias en ámbar, nunca juntas. Toda la casilla lleva a la ficha. `children` va debajo (la distancia en «Cerca de mí»,
- * la colegiatura en la búsqueda). Server-safe.
+ * Una IPRESS como casilla de vitrina (2026-11-22, el usuario: «que sea tipo marketplace, o sea con casillas y no filas»).
+ * Segunda vuelta, el mismo día («mejora la UX/UI de todo… esta mierda es texto plano»; en el celular cada casilla medía
+ * 320 px por un dibujo de 96 px repetido, diez eran 3,800 px): en el celular la casilla es horizontal, con el dibujo en
+ * una baldosa chica a la izquierda; desde 520 px vuelve la vitrina con el dibujo arriba. La categoría y el seguro van en
+ * pastillas sobre el nombre; lo que tiene (24 horas, centro quirúrgico, internamiento, médicos) como etiquetas con
+ * ícono; y al pie, las señales como pastillas de color: sanciones firmes en rojo, «Sin sanciones firmes» en verde (es una
+ * respuesta, no un vacío) y denuncias en ámbar, nunca juntas en una sola. Toda la casilla lleva a la ficha; al pasar o
+ * tocar, la mira se cierra sobre ella y el dibujo da un brinco. `children` va debajo (la distancia en «Cerca de mí», la
+ * colegiatura en la búsqueda). Server-safe.
  */
 export function TarjetaEstablecimiento({
   x,
@@ -57,75 +61,81 @@ export function TarjetaEstablecimiento({
   return (
     <article
       className={cn(
-        "group relative flex h-full min-w-0 flex-col overflow-hidden rounded-2xl border bg-paper transition-colors duration-rapido focus-within:ring-2 focus-within:ring-granate hover:border-granate/50",
+        "gs-mira group relative flex h-full min-w-0 flex-col overflow-hidden rounded-2xl border bg-paper transition-colors duration-rapido focus-within:ring-2 focus-within:ring-granate hover:border-granate/50",
         x.activo ? "border-line" : "border-crimson/30",
         className,
       )}
     >
-      <div className="relative">
-        <span aria-hidden className={cn("flex h-24 items-center justify-center border-b border-line px-6 pt-5", x.activo ? "bg-granate-50" : "bg-paperSoft grayscale")}>
-          <Pixel nombre={spriteLugar(x)} escala={3} animado={false} acento="accion" className="max-h-full max-w-full" />
+      <div className="flex min-w-0 flex-1 gap-3 p-3.5 min-[520px]:flex-col min-[520px]:gap-0 min-[520px]:p-0">
+        <span
+          aria-hidden
+          className={cn(
+            "flex h-[4.5rem] w-[4.5rem] shrink-0 items-end justify-center rounded-xl p-2 min-[520px]:h-24 min-[520px]:w-full min-[520px]:rounded-none min-[520px]:border-b min-[520px]:border-line min-[520px]:px-6 min-[520px]:pb-0 min-[520px]:pt-5",
+            x.activo ? "bg-granate-50" : "bg-paperSoft grayscale",
+          )}
+        >
+          <Pixel nombre={spriteLugar(x)} escala={3} animado={false} acento="accion" className="px-salta max-h-full max-w-full" />
         </span>
-        <p className="absolute inset-x-2 top-2 flex items-start justify-between gap-1">
-          <InsigniaCategoria categoria={x.categoria} />
-          {seguro && <span className="truncate rounded-full bg-paper/95 px-2 py-0.5 text-rotulo font-semibold text-inkSoft ring-1 ring-line">{seguro}</span>}
-        </p>
-      </div>
 
-      <div className="flex min-w-0 flex-1 flex-col px-3.5 pb-3.5 pt-3">
-        <h3 className="text-cuerpo font-bold leading-snug text-ink">
-          <Link
-            href={rutaEn(base, rutaFicha(x.codigo))}
-            prefetch={false}
-            className="line-clamp-2 underline-offset-4 after:absolute after:inset-0 after:content-[''] group-hover:text-granate group-hover:underline focus-visible:outline-none"
-          >
-            {nombre}
-          </Link>
-        </h3>
-        <p className="mt-1 flex min-w-0 items-center gap-1 text-meta text-inkSoft">
-          <MapPin size={13} aria-hidden className="shrink-0 text-mute" />
-          <span className="truncate">{lugarIpress(x)}</span>
-        </p>
-        {conDireccion && x.direccion && <p className="mt-0.5 line-clamp-2 text-rotulo text-mute">{direccionLegible(x.direccion)}</p>}
-        {!x.activo && <InsigniaRegistro activo={x.activo} estado={x.estado} className="mt-2 self-start" />}
+        <div className="flex min-w-0 flex-1 flex-col min-[520px]:px-3.5 min-[520px]:pb-3.5 min-[520px]:pt-3">
+          <p className="flex min-w-0 flex-wrap items-center gap-1.5">
+            <InsigniaCategoria categoria={x.categoria} />
+            {seguro && <span className="truncate rounded-full bg-paperSoft px-2 py-0.5 text-rotulo font-semibold text-inkSoft ring-1 ring-line">{seguro}</span>}
+          </p>
+          <h3 className="mt-1.5 text-cuerpo font-bold leading-snug text-ink">
+            <Link
+              href={rutaEn(base, rutaFicha(x.codigo))}
+              prefetch={false}
+              className="group line-clamp-2 underline-offset-4 after:absolute after:inset-0 after:content-[''] group-hover:text-granate group-hover:underline focus-visible:outline-none"
+            >
+              {nombre}
+            </Link>
+          </h3>
+          <p className="mt-1 flex min-w-0 items-center gap-1 text-meta text-inkSoft">
+            <MapPin size={13} aria-hidden className="shrink-0 text-mute" />
+            <span className="truncate">{lugarIpress(x)}</span>
+          </p>
+          {conDireccion && x.direccion && <p className="mt-0.5 line-clamp-2 text-rotulo text-mute">{direccionLegible(x.direccion)}</p>}
+          {!x.activo && <InsigniaRegistro activo={x.activo} estado={x.estado} className="mt-2 self-start" />}
 
-        {rasgos.length > 0 && (
-          <ul className="mt-2.5 flex flex-wrap gap-1.5" aria-label="Lo que tiene">
-            {rasgos.map((r) => (
-              <li key={r.texto} title={r.titulo} className="inline-flex items-center gap-1 rounded-md bg-paperSoft px-1.5 py-0.5 text-rotulo font-medium text-inkSoft">
-                <r.Icono size={12} aria-hidden className="shrink-0 text-mute" />
-                {r.texto}
-              </li>
-            ))}
-          </ul>
-        )}
-
-        <div className="mt-auto space-y-1 border-t border-line pt-2.5 text-meta [&:not(:first-child)]:mt-3">
-          {x.sanciones > 0 ? (
-            <p className="flex items-center gap-1.5 text-crimsonTexto" title={CLASES_DE_HECHO.sancion_firme.explica}>
-              <Gavel size={14} aria-hidden className="shrink-0" />
-              <span>
-                <b className="font-bold tabular-nums">{numero(x.sanciones)}</b> {x.sanciones === 1 ? "sanción firme" : "sanciones firmes"}
-              </span>
-            </p>
-          ) : (
-            <p className="flex items-center gap-1.5 text-mute">
-              <Gavel size={14} aria-hidden className="shrink-0" />
-              Sin sanciones firmes
-            </p>
+          {rasgos.length > 0 && (
+            <ul className="mt-2 flex flex-wrap gap-1.5" aria-label="Lo que tiene">
+              {rasgos.map((r) => (
+                <li key={r.texto} title={r.titulo} className="inline-flex items-center gap-1 rounded-md bg-paperSoft px-1.5 py-0.5 text-rotulo font-medium text-inkSoft">
+                  <r.Icono size={12} aria-hidden className="shrink-0 text-mute" />
+                  {r.texto}
+                </li>
+              ))}
+            </ul>
           )}
-          {denuncias > 0 && (
-            <p className="flex items-center gap-1.5 text-amberTexto" title={CLASES_DE_HECHO.denuncia.explica}>
-              <MessageSquareWarning size={14} aria-hidden className="shrink-0" />
-              <span>
-                <b className="font-semibold tabular-nums">{numero(denuncias)}</b> {denuncias === 1 ? "denuncia" : "denuncias"}
-                {x.denunciasDe ? ` en ${x.denunciasDe}` : ""}
-                {x.denunciasDe === new Date().getFullYear() ? " (parcial)" : ""}
+
+          <p className="mt-auto flex flex-wrap gap-1.5 pt-3 text-meta" aria-label="Señales">
+            {x.sanciones > 0 ? (
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-crimson/10 px-2.5 py-1 font-semibold text-crimsonTexto" title={CLASES_DE_HECHO.sancion_firme.explica}>
+                <Gavel size={14} aria-hidden className="shrink-0" />
+                <span>
+                  <b className="font-bold tabular-nums">{numero(x.sanciones)}</b> {x.sanciones === 1 ? "sanción firme" : "sanciones firmes"}
+                </span>
               </span>
-            </p>
-          )}
+            ) : (
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-mossTexto/10 px-2.5 py-1 font-semibold text-mossTexto">
+                <ShieldCheck size={14} aria-hidden className="shrink-0" />
+                Sin sanciones firmes
+              </span>
+            )}
+            {denuncias > 0 && (
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-amber/15 px-2.5 py-1 font-semibold text-amberTexto" title={CLASES_DE_HECHO.denuncia.explica}>
+                <MessageSquareWarning size={14} aria-hidden className="shrink-0" />
+                <span>
+                  <b className="font-bold tabular-nums">{numero(denuncias)}</b> {denuncias === 1 ? "denuncia" : "denuncias"}
+                  {x.denunciasDe ? ` en ${x.denunciasDe}` : ""}
+                  {x.denunciasDe === new Date().getFullYear() ? " (parcial)" : ""}
+                </span>
+              </span>
+            )}
+          </p>
+          {children && <div className="relative z-10 mt-2.5">{children}</div>}
         </div>
-        {children && <div className="relative z-10 mt-2.5">{children}</div>}
       </div>
     </article>
   );

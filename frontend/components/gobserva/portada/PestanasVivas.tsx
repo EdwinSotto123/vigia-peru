@@ -187,7 +187,9 @@ export function PestanasVivas({
           )}
         </div>
       </div>
-      <div onTouchStart={alTocar} onTouchEnd={alSoltar}>
+      {/* El panel entra 28 px de costado: sin recortar, la página quedaba corrida mientras duraba (a 390 px). El recorte va
+          hasta el borde de la página (el margen de container-page), para no cortar las filas que se deslizan hasta ahí. */}
+      <div onTouchStart={alTocar} onTouchEnd={alSoltar} className="-mx-4 overflow-x-clip px-4 sm:-mx-6 sm:px-6 lg:mx-0 lg:overflow-x-visible lg:px-0">
         {/* recorte: pestañas y paneles van de a pares: n es el menor de los dos, no se esconde nada */}
         {paneles.slice(0, n).map((panel, i) => (
           <div

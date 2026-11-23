@@ -1,11 +1,12 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Suspense } from "react";
+import { Suspense, type ReactNode } from "react";
 import { BellRing, RotateCcw, X } from "lucide-react";
 import { FiltrosPlazas, OrdenPlazas } from "@/components/empleo/FiltrosPlazas";
 import { PersonajePregunta } from "@/components/pixel/Escena";
 import { Paginador, Ruta } from "@/components/empleo/Piezas";
-import { TarjetaPlaza } from "@/components/empleo/TarjetaPlaza";
+import { TarjetaPlaza, topeSueldo } from "@/components/empleo/TarjetaPlaza";
+import { Odometro } from "@/components/gobserva/portada/Odometro";
 import { Briefcase, Coins, Eye, Users } from "@/components/empleo/iconos";
 import { AccionesBusqueda } from "@/components/gobserva/cuenta/AccionesBusqueda";
 import { Nota } from "@/components/patrones/Estructura";
@@ -84,6 +85,7 @@ export default async function PlazasEmpleo({ searchParams }: Props) {
   const plazas = d?.data ?? [];
   const primeras = plazas.slice(0, PROMO_DESPUES_DE);
   const resto = plazas.slice(PROMO_DESPUES_DE);
+  const tope = topeSueldo(plazas);
   const desde = (pagina - 1) * POR_PAGINA;
 
   return (
@@ -92,27 +94,11 @@ export default async function PlazasEmpleo({ searchParams }: Props) {
       <header className="mt-2">
         <h1 className="text-balance font-display text-cifra font-bold leading-tight text-ink sm:text-titulo">{tituloLista(f)}</h1>
         {d && d.total > 0 && (
-          <ul className="mt-3 flex flex-wrap gap-x-5 gap-y-1.5 text-dato text-inkSoft" aria-label="Lo que hay en esta búsqueda">
-            <li className="inline-flex items-center gap-1.5">
-              <Briefcase size={15} aria-hidden className="shrink-0 text-mute" />
-              <span>
-                <b className="font-semibold tabular-nums text-ink">{numero(d.total)}</b> {d.total === 1 ? "plaza abierta" : "plazas abiertas"}
-              </span>
-            </li>
-            <li className="inline-flex items-center gap-1.5">
-              <Users size={15} aria-hidden className="shrink-0 text-mute" />
-              <span>
-                <b className="font-semibold tabular-nums text-ink">{numero(d.vacantes)}</b> {d.vacantes === 1 ? "vacante" : "vacantes"}
-              </span>
-            </li>
-            {d.medianaSueldo ? (
-              <li className="inline-flex items-center gap-1.5">
-                <Coins size={15} aria-hidden className="shrink-0 text-mute" />
-                <span>
-                  Sueldo mediano <b className="font-semibold tabular-nums text-ink">{soles(d.medianaSueldo)}</b>
-                </span>
-              </li>
-            ) : null}
+          // Las cifras de la búsqueda en placas, que ruedan al cargar (2026-11-22: «esto es texto plano»).
+          <ul className="mt-4 grid max-w-2xl grid-cols-3 gap-2 sm:gap-3" aria-label="Lo que hay en esta búsqueda">
+            <Cifra icono={<Briefcase size={16} aria-hidden />} valor={numero(d.total)} etiqueta={d.total === 1 ? "plaza abierta" : "plazas abiertas"} />
+            <Cifra icono={<Users size={16} aria-hidden />} valor={numero(d.vacantes)} etiqueta={d.vacantes === 1 ? "vacante" : "vacantes"} />
+            {d.medianaSueldo ? <Cifra icono={<Coins size={16} aria-hidden />} valor={soles(d.medianaSueldo)} etiqueta="sueldo mediano" /> : null}
           </ul>
         )}
         {f.senal && (
@@ -198,10 +184,10 @@ export default async function PlazasEmpleo({ searchParams }: Props) {
             </div>
           ) : (
             <>
-              <ol className="gs-lista mt-4 grid grid-cols-1 gap-3" aria-label="Plazas" start={desde + 1}>
+              <ol className="gs-lista mt-4 grid grid-cols-1 gap-3 xl:grid-cols-2" aria-label="Plazas" start={desde + 1}>
                 {primeras.map((p) => (
                   <li key={p.aviso} className="min-w-0">
-                    <TarjetaPlaza p={p} base={base} />
+                    <TarjetaPlaza p={p} base={base} tope={tope} />
                   </li>
                 ))}
               </ol>
@@ -220,10 +206,10 @@ export default async function PlazasEmpleo({ searchParams }: Props) {
                 </Franja>
               )}
               {resto.length > 0 && (
-                <ol className="gs-lista mt-3 grid grid-cols-1 gap-3" aria-label="Más plazas" start={desde + primeras.length + 1}>
+                <ol className="gs-lista mt-3 grid grid-cols-1 gap-3 xl:grid-cols-2" aria-label="Más plazas" start={desde + primeras.length + 1}>
                   {resto.map((p) => (
                     <li key={p.aviso} className="min-w-0">
-                      <TarjetaPlaza p={p} base={base} />
+                      <TarjetaPlaza p={p} base={base} tope={tope} />
                     </li>
                   ))}
                 </ol>
@@ -272,5 +258,18 @@ export default async function PlazasEmpleo({ searchParams }: Props) {
         </div>
       </div>
     </div>
+  );
+}
+
+/** Una cifra de la búsqueda en su placa: el número rueda (Odometro) y debajo qué cuenta. */
+function Cifra({ icono, valor, etiqueta }: { icono: ReactNode; valor: string; etiqueta: string }) {
+  return (
+    <li className="min-w-0 rounded-2xl border border-line bg-paper px-3 py-2.5 sm:px-4 sm:py-3">
+      <span className="flex items-center gap-1.5 text-granate">{icono}</span>
+      <span className="mt-1 block truncate font-display text-bloque font-bold leading-none tabular-nums text-ink sm:text-seccion">
+        <Odometro texto={valor} />
+      </span>
+      <span className="mt-1 block text-rotulo leading-tight text-inkSoft sm:truncate sm:text-meta">{etiqueta}</span>
+    </li>
   );
 }

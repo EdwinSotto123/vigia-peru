@@ -11,6 +11,7 @@ import { CabeceraPestana, Pestanas, type Pestana } from "@/components/patrones/P
 import { Pixel } from "@/components/pixel/Pixel";
 import { FuenteFecha } from "@/components/salud/comun";
 import { TarjetaMedicamento } from "@/components/salud/medicamentos/Catalogo";
+import { ListaPlegada } from "@/components/salud/medicamentos/ListaPlegada";
 import { FilaAlerta, FilaMedicamento, nombreMed, textoRevisadas } from "@/components/salud/medicamentos/piezas";
 import { BotonGuardarSalud } from "@/components/salud/cuenta/BotonGuardar";
 import { AnotarVisto } from "@/components/salud/vistos/Vistos";
@@ -141,8 +142,11 @@ export default async function FichaMedicamentoPagina({ params, searchParams }: P
               <h3 id="lotes-t" className="border-b border-line px-5 py-3 text-cuerpo font-bold text-ink">
                 {f.lotesObservados.length === 1 ? "Un lote observado" : `${f.lotesObservados.length} lotes observados`} de este registro sanitario
               </h3>
-              <ul className="divide-y divide-line">
-                {f.lotesObservados.map((l, i) => (
+              <ListaPlegada
+                n={6}
+                mas={(n) => `Ver ${n === 1 ? "el otro lote" : `los ${n} lotes más`}`}
+                claseLista="divide-y divide-line"
+                items={f.lotesObservados.map((l, i) => (
                   <li key={`${l.lote}-${i}`} className="flex flex-wrap items-baseline gap-x-4 gap-y-1 px-5 py-2.5 text-meta">
                     <span className="rounded-md bg-crimson-soft px-1.5 py-0.5 font-mono font-semibold text-crimsonTexto">{l.lote}</span>
                     {l.vencimiento && <span className="text-inkSoft">Vence {l.vencimiento}</span>}
@@ -151,7 +155,7 @@ export default async function FichaMedicamentoPagina({ params, searchParams }: P
                     {l.detalle && <span className="basis-full text-inkSoft">{l.detalle}</span>}
                   </li>
                 ))}
-              </ul>
+              />
               <p className="border-t border-line px-5 py-2.5 text-meta text-mute">Si tu caja no es de estos lotes, estas alertas no hablan de ella.</p>
             </section>
           )}
@@ -160,13 +164,16 @@ export default async function FichaMedicamentoPagina({ params, searchParams }: P
               <h3 id="por-registro" className="border-b border-crimson/20 px-5 py-3 text-cuerpo font-bold text-ink">
                 Sobre su registro sanitario {p.registro}
               </h3>
-              <ul className="divide-y divide-crimson/15">
-                {f.alertasRegistro.map((a) => (
+              <ListaPlegada
+                n={4}
+                mas={(n) => `Ver ${n === 1 ? "la otra alerta" : `las ${n} alertas más`}`}
+                claseLista="divide-y divide-crimson/15"
+                items={f.alertasRegistro.map((a) => (
                   <li key={a.id}>
                     <FilaAlerta a={a} base={base} resaltar={p.registro} />
                   </li>
                 ))}
-              </ul>
+              />
             </section>
           )}
           {deSeguridad.length > 0 && (
@@ -179,13 +186,17 @@ export default async function FichaMedicamentoPagina({ params, searchParams }: P
                 Son sobre su principio activo{nombreMed(p.ifa) ? ` (${nombreMed(p.ifa).toLowerCase()})` : ""}: le aplican a este producto y a los demás
                 que lo contienen. Léelas antes de tomarlo.
               </p>
-              <ul className="mt-2 divide-y divide-amber/25 bg-paper">
-                {deSeguridad.map((a) => (
+              <ListaPlegada
+                className="mt-2 bg-paper"
+                n={3}
+                mas={(n) => `Ver ${n === 1 ? "la otra alerta de seguridad" : `las ${n} alertas de seguridad más`}`}
+                claseLista="divide-y divide-amber/25"
+                items={deSeguridad.map((a) => (
                   <li key={a.id}>
                     <FilaAlerta a={a} base={base} plegada />
                   </li>
                 ))}
-              </ul>
+              />
             </section>
           )}
           {deMarca.length > 0 && (
@@ -218,13 +229,17 @@ export default async function FichaMedicamentoPagina({ params, searchParams }: P
                   </p>
                 </div>
               )}
-              <ul className="mt-2 divide-y divide-line">
-                {deMarca.map((a) => (
+              <ListaPlegada
+                className="mt-2"
+                n={3}
+                mas={(n) => `Ver ${n === 1 ? "la otra caja" : `las ${n} cajas más`} con su nombre`}
+                claseLista="divide-y divide-line"
+                items={deMarca.map((a) => (
                   <li key={a.id}>
                     <FilaAlerta a={a} base={base} resaltar={p.registro} soloDe={f.marca} plegada />
                   </li>
                 ))}
-              </ul>
+              />
             </section>
           )}
           {masNombre > 0 && (

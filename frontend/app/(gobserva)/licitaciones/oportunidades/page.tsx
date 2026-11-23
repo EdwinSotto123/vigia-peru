@@ -5,6 +5,7 @@ import { Suspense } from "react";
 import { BellRing, Building2, ChevronLeft, ChevronRight, CircleDollarSign, Inbox, MessageSquareWarning, RotateCcw, X } from "lucide-react";
 import { AccionesBusqueda } from "@/components/gobserva/cuenta/AccionesBusqueda";
 import { FiltrosOportunidades, type ValoresFiltro } from "@/components/licitaciones/Filtros";
+import { Odometro } from "@/components/gobserva/portada/Odometro";
 import { FilaOportunidad } from "@/components/licitaciones/TarjetaOportunidad";
 import { PersonajePregunta } from "@/components/pixel/Escena";
 import { Nota } from "@/components/patrones/Estructura";
@@ -122,6 +123,8 @@ export default async function Oportunidades({ searchParams }: { searchParams?: P
   const desde = d && d.total ? (pagina - 1) * d.size + 1 : 0;
   const hasta = d ? Math.min(d.total, pagina * d.size) : 0;
 
+  // El mayor valor referencial de la página: la barra de cada fila se mide contra él.
+  const maxValor = Math.max(0, ...(d?.data ?? []).map((o) => o.valor ?? 0));
   return (
     <div className={enApp ? CLASE_PAGINA : "container-page py-8 sm:py-12"}>
       <header className="max-w-3xl">
@@ -198,26 +201,33 @@ export default async function Oportunidades({ searchParams }: { searchParams?: P
       ) : (
         <section id="resultados" aria-labelledby="resultados-t" className="mt-6 scroll-mt-24 border-t border-line pt-6">
           <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-3">
-            <div className="min-w-0">
-              <h2 id="resultados-t" className="font-display text-seccion font-bold leading-tight text-ink">
-                {numero(d.total)} {d.total === 1 ? "oportunidad" : "oportunidades"}
+            <div className="w-full min-w-0 lg:w-auto lg:flex-1">
+              <h2 id="resultados-t" className="flex items-baseline gap-2 font-display text-seccion font-bold leading-tight text-ink">
+                <Odometro texto={numero(d.total)} className="text-cifra" /> {d.total === 1 ? "oportunidad" : "oportunidades"}
               </h2>
-              <dl className="mt-1.5 flex flex-wrap gap-x-5 gap-y-1 text-meta text-inkSoft">
-                <div>
-                  <dt className="sr-only">Entidades que compran</dt>
-                  <dd className="inline-flex items-center gap-1.5">
-                    <Building2 size={14} aria-hidden className="shrink-0 text-mute" />
-                    {numero(d.resumen.entidades)} {d.resumen.entidades === 1 ? "entidad compra" : "entidades compran"}
-                  </dd>
+              {/* Las cifras de la búsqueda en dos placas con su ícono (antes, dos líneas de texto gris). */}
+              <dl className="mt-3 grid max-w-xl grid-cols-2 gap-2">
+                <div className="flex min-w-0 items-center gap-2.5 rounded-xl border border-line bg-paper px-3 py-2.5">
+                  <span aria-hidden className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-granate-50 text-granate">
+                    <Building2 size={17} />
+                  </span>
+                  <div className="min-w-0">
+                    <dt className="text-rotulo text-mute">{d.resumen.entidades === 1 ? "Entidad compra" : "Entidades compran"}</dt>
+                    <dd className="font-display text-bloque font-bold leading-tight tabular-nums text-ink">
+                      <Odometro texto={numero(d.resumen.entidades)} />
+                    </dd>
+                  </div>
                 </div>
-                <div>
-                  <dt className="sr-only">Valor referencial publicado</dt>
-                  <dd className="inline-flex items-center gap-1.5">
-                    <CircleDollarSign size={14} aria-hidden className="shrink-0 text-mute" />
-                    {d.resumen.conValor > 0
-                      ? `${solesCompacto(d.resumen.valorTotal)} en valor referencial (${numero(d.resumen.conValor)} lo publicaron)`
-                      : "Ninguna publicó su valor referencial"}
-                  </dd>
+                <div className="flex min-w-0 items-center gap-2.5 rounded-xl border border-line bg-paper px-3 py-2.5">
+                  <span aria-hidden className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-moss/15 text-mossTexto">
+                    <CircleDollarSign size={17} />
+                  </span>
+                  <div className="min-w-0">
+                    <dt className="text-rotulo text-mute">{d.resumen.conValor > 0 ? `En valor (${numero(d.resumen.conValor)} lo publicaron)` : "Valor referencial"}</dt>
+                    <dd className="font-display text-bloque font-bold leading-tight tabular-nums text-ink">
+                      {d.resumen.conValor > 0 ? <Odometro texto={solesCompacto(d.resumen.valorTotal)} /> : <span className="text-dato font-semibold text-inkSoft">Ninguna lo publicó</span>}
+                    </dd>
+                  </div>
                 </div>
               </dl>
             </div>
@@ -289,7 +299,7 @@ export default async function Oportunidades({ searchParams }: { searchParams?: P
             <ol className="gs-lista mt-4 divide-y divide-line overflow-hidden rounded-2xl border border-line bg-paper">
               {d.data.map((o) => (
                 <li key={o.ocid} className="min-w-0">
-                  <FilaOportunidad o={o} base={base} />
+                  <FilaOportunidad o={o} base={base} max={maxValor} />
                 </li>
               ))}
             </ol>

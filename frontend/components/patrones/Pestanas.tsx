@@ -5,6 +5,8 @@ import { createContext, useCallback, useContext, useEffect, useId, useLayoutEffe
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { numero } from "@/lib/formato";
+import { MuestraSerie } from "@/components/charts/BarraSegmentada";
+import { Severidad } from "@/components/ui/Severidad";
 
 /**
  * Pestañas dentro de una página (DESIGN_SYSTEM.md §14.3): en vez de apilar cinco
@@ -55,7 +57,20 @@ export interface Pestana {
 
 /** El panel en que está una `CabeceraPestana`: su nombre es el título de la cabecera (h2; h3 en `variante="segunda"`). */
 /** `conGuia`: la pestaña ya lleva su `GuiaPestana` arriba, y la línea de la cabecera no la repite. */
-const PanelActual = createContext<{ titulo: string; nivel: 2 | 3; conGuia?: boolean } | null>(null);
+/**
+ * `destacado`: el bloque es LA ficha de lo elegido (un patrón en la pestaña «Patrones» de una entidad) y su cabecera manda
+ * en la columna: título grande, qué es en texto corrido y, debajo (nunca encima del título), su severidad y su familia.
+ */
+export interface Destacado {
+  severidad?: "alta" | "media" | "baja";
+  familia?: string;
+  /** El color de su familia en el reparto de arriba. */
+  serie?: number;
+  /** Nace en observación: se muestra y todavía no puntúa. */
+  observacion?: boolean;
+}
+
+const PanelActual = createContext<{ titulo: string; nivel: 2 | 3; conGuia?: boolean; destacado?: Destacado } | null>(null);
 
 /** `useLayoutEffect` sin el aviso del render en el servidor. */
 const useEfectoDeMedida = typeof window !== "undefined" ? useLayoutEffect : useEffect;
@@ -314,14 +329,41 @@ function FlechaRiel({ lado, onClick }: { lado: "izq" | "der"; onClick: () => voi
  * Da nombre a un bloque que no es una pestaña (la ficha de un patrón dentro de la pestaña «Patrones» de una entidad): las
  * `CabeceraPestana` de adentro lo usan como su título (h3) en vez del nombre de la pestaña que las contiene.
  */
-export function PanelConTitulo({ titulo, children }: { titulo: string; children: ReactNode }) {
-  return <PanelActual.Provider value={{ titulo, nivel: 3 }}>{children}</PanelActual.Provider>;
+export function PanelConTitulo({ titulo, destacado, children }: { titulo: string; destacado?: Destacado; children: ReactNode }) {
+  return <PanelActual.Provider value={{ titulo, nivel: 3, destacado }}>{children}</PanelActual.Provider>;
 }
 
 export function CabeceraPestana({ titulo, children, ayuda, acciones }: { titulo?: ReactNode; children?: ReactNode; ayuda?: ReactNode; acciones?: ReactNode }) {
   const panel = useContext(PanelActual);
   const nombre = titulo ?? panel?.titulo;
   const Titulo = panel?.nivel === 3 ? "h3" : "h2";
+  const d = panel?.destacado;
+  // La ficha de lo elegido (2026-11-23, el usuario: «no tiene forma ni jerarquía»): antes el nombre del patrón era un h3
+  // de 18 px bajo una pastilla con su familia, del mismo peso que todo lo demás. Ahora es lo más grande de la columna.
+  if (d && nombre) {
+    return (
+      <div className="mb-5">
+        <div className="flex items-start gap-1.5">
+          <Titulo className="font-display text-seccion font-bold leading-[1.15] tracking-[-0.01em] text-ink text-balance sm:text-cifra">{nombre}</Titulo>
+          {ayuda ? <span className="mt-0.5 shrink-0 sm:mt-1.5">{ayuda}</span> : null}
+        </div>
+        {children ? <p className="mt-2 max-w-[65ch] text-cuerpo leading-relaxed text-inkSoft text-pretty">{children}</p> : null}
+        {(d.severidad || d.familia || d.observacion) && (
+          <p className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2 text-meta font-medium text-inkSoft">
+            {d.severidad ? <Severidad bandera={d.severidad} /> : null}
+            {d.familia ? (
+              <span className="inline-flex items-center gap-1.5">
+                {d.serie != null ? <MuestraSerie i={d.serie} /> : null}
+                {d.familia}
+              </span>
+            ) : null}
+            {d.observacion ? <span className="pill border-amber/40 bg-amber-soft text-amberTexto">En observación: todavía no cuenta para el puntaje</span> : null}
+          </p>
+        )}
+        {acciones ? <div className="mt-3 flex min-w-0 max-w-full flex-wrap items-center gap-2">{acciones}</div> : null}
+      </div>
+    );
+  }
   return (
     <div className="mb-4 flex flex-wrap items-end justify-between gap-x-4 gap-y-2">
       {/* Un piso de 16rem: si no entran las acciones (un paginador) al lado, bajan; antes el h2 se partía en «Ya / leídos». */}

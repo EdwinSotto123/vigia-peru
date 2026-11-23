@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { Hourglass } from "lucide-react";
+import { ClipboardList, FileText, HardHat, Hourglass, Package, Wrench, type LucideIcon } from "lucide-react";
 import { PersonajePregunta } from "@/components/pixel/Escena";
 import { fechaCorta, numero, solesCompacto } from "@/lib/formato";
 import { diasHasta, nombreTipo } from "@/lib/licitaciones";
@@ -57,8 +57,8 @@ export function PlazoConsultas({ hasta, alinear = "inicio", className }: { hasta
   return (
     <span className={caja}>
       <span className="text-rotulo text-mute">Consultas hasta el {fechaCorta(hasta)}</span>
-      <span className={cn("inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-rotulo font-semibold", TONO_PLAZO[p.tono])}>
-        <Hourglass size={12} aria-hidden />
+      <span className={cn("inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-rotulo font-semibold", TONO_PLAZO[p.tono])}>
+        {p.tono === "urgente" ? <PuntoVivo /> : <Hourglass size={12} aria-hidden />}
         {quedan(p.dias)}
       </span>
     </span>
@@ -104,5 +104,51 @@ export function VacioEmprendedora({ titulo, texto, acciones, className }: { titu
       {texto && <div className="mt-1.5 max-w-[48ch] text-pretty text-dato leading-relaxed text-inkSoft">{texto}</div>}
       {acciones && <div className="mt-5 flex flex-wrap justify-center gap-2">{acciones}</div>}
     </div>
+  );
+}
+
+/**
+ * El tipo de contratación como ícono en su placa (2026-11-22, el usuario: «esto es texto plano»): obras con su casco,
+ * bienes con su caja, servicios con su llave, consultoría con su tablero. Los colores son de serie (decoración: no dicen
+ * estado). Decorativo: el chip del tipo dice el nombre.
+ */
+const TIPO_ICONO: Record<string, { Icono: LucideIcon; clase: string }> = {
+  obras: { Icono: HardHat, clase: "bg-amber/15 text-amberTexto" },
+  bienes: { Icono: Package, clase: "bg-anil/10 text-anilTexto" },
+  servicios: { Icono: Wrench, clase: "bg-moss/15 text-mossTexto" },
+  consultoria: { Icono: ClipboardList, clase: "bg-clay/15 text-clayTexto" },
+};
+
+export function IconoTipo({ tipo, className }: { tipo: string | null | undefined; className?: string }) {
+  const t = (tipo && TIPO_ICONO[tipo]) || { Icono: FileText, clase: "bg-granate-50 text-granate" };
+  const Icono = t.Icono;
+  return (
+    <span aria-hidden className={cn("grid h-11 w-11 shrink-0 place-items-center rounded-xl", t.clase, className)}>
+      <Icono size={20} />
+    </span>
+  );
+}
+
+/** Un punto que late, del color del texto donde va: lo que vence ya (consultas a 2 días, una cotización que cierra hoy). */
+export function PuntoVivo({ className }: { className?: string }) {
+  return (
+    <span aria-hidden className={cn("relative flex h-2 w-2 shrink-0", className)}>
+      <span className="absolute inline-flex h-full w-full rounded-full bg-current opacity-50 motion-safe:animate-ping" />
+      <span className="relative inline-flex h-2 w-2 rounded-full bg-current" />
+    </span>
+  );
+}
+
+/**
+ * Una barra que compara un monto con el mayor de la lista (crece a pasos, `.gs-barra-crece`): de un vistazo se ve cuál es
+ * grande y cuál chica sin leer las cifras. Decorativa: la cifra va al lado.
+ */
+export function BarraValor({ valor, max, className }: { valor: number | null | undefined; max: number | null | undefined; className?: string }) {
+  if (!valor || !max) return null;
+  const pct = Math.max(4, Math.min(100, Math.round((valor / max) * 100)));
+  return (
+    <span aria-hidden className={cn("block h-1.5 w-full overflow-hidden rounded-full bg-ink/[0.07]", className)}>
+      <span className="gs-barra-crece block h-full rounded-full bg-granate" style={{ width: `${pct}%` }} />
+    </span>
   );
 }

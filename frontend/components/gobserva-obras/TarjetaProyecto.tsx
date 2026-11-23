@@ -4,7 +4,7 @@ import { fechaCorta, solesCompacto } from "@/lib/formato";
 import { rutaEn } from "@/lib/gobserva";
 import { haceTiempo, lugarProyecto, mesAnio, nombreEmpresa, nombreEntidad, nombreProyecto, nombreSector, procesoConvocado, textoGasto, type Proyecto } from "@/lib/gobserva-obras";
 import { cn } from "@/lib/utils";
-import { BarraAvance, FaseInsignia, iconoSector } from "./Piezas";
+import { BarraAvance, BarraGastado, CaminoMini, FaseInsignia, iconoSector } from "./Piezas";
 
 /**
  * Un proyecto de inversión como oportunidad, en dos formas: la tarjeta (la portada, en rejilla) y la fila (la lista de
@@ -45,7 +45,7 @@ function SegunFase({ p, enLinea = false, className }: { p: Proyecto; enLinea?: b
   const deLaObra = p.obraRepresenta && p.obraFisico != null;
   const anio = new Date().getFullYear();
   const hayDatos =
-    !enObra && (!!p.fechaViable || (p.conExpediente && p.fase !== "licitacion") || p.pimAnio > 0 || (p.fase === "sin_movimiento" && !!p.ultimoGasto));
+    !enObra && (!!p.fechaViable || (p.conExpediente && p.fase !== "licitacion" && p.fase !== "expediente") || p.pimAnio > 0 || (p.fase === "sin_movimiento" && !!p.ultimoGasto));
   const hayAlgo =
     p.fase === "paralizada" ||
     (enObra && (deLaObra || p.avanceMef != null)) ||
@@ -61,7 +61,7 @@ function SegunFase({ p, enLinea = false, className }: { p: Proyecto; enLinea?: b
           Viable desde el {fechaCorta(p.fechaViable)} ({haceTiempo(p.fechaViable)})
         </li>
       )}
-      {p.conExpediente && p.fase !== "licitacion" && (
+      {p.conExpediente && p.fase !== "licitacion" && p.fase !== "expediente" && (
         <li className="flex items-center gap-1.5">
           <FileCheck2 size={14} aria-hidden className="shrink-0 text-granate" />
           Con expediente técnico
@@ -133,6 +133,7 @@ export function TarjetaProyecto({ p, base, compacta = false }: { p: Proyecto; ba
       <div className="flex flex-wrap items-center gap-1.5">
         <Chips p={p} />
       </div>
+      <CaminoMini fase={p.fase} className="mt-3" />
 
       <p className={cn("mt-3 font-display font-semibold leading-snug text-ink group-hover:text-granate", compacta ? "line-clamp-2 text-cuerpo" : "line-clamp-3 text-destacado")}>
         {nombreProyecto(p.nombre, p)}
@@ -159,7 +160,8 @@ export function TarjetaProyecto({ p, base, compacta = false }: { p: Proyecto; ba
         <div className="min-w-0">
           <p className="text-rotulo text-mute">Costo</p>
           <p className="font-display text-bloque font-bold leading-tight tabular-nums text-ink">{p.costo ? solesCompacto(p.costo) : "Sin dato"}</p>
-          {gasto && <p className="text-rotulo text-inkSoft">{gasto}</p>}
+          <BarraGastado costo={p.costo} gastado={p.devengado} className="w-32" />
+          {gasto && <p className="mt-1 text-rotulo text-inkSoft">{gasto}</p>}
         </div>
         <span className="inline-flex shrink-0 items-center gap-0.5 text-meta font-semibold text-granate">
           Ver ficha <ChevronRight size={15} aria-hidden className="transition-transform duration-rapido group-hover:translate-x-0.5" />
@@ -178,7 +180,7 @@ export function FilaProyecto({ p, base }: { p: Proyecto; base: string }) {
   return (
     <Link
       href={rutaEn(base, `/proyecto/${p.cui}`)}
-      className="group grid min-w-0 gap-x-6 gap-y-3 rounded-2xl border border-line bg-paper p-4 transition-colors duration-rapido hover:border-granate/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-granate sm:p-5 md:grid-cols-[minmax(0,1fr)_12.5rem]"
+      className="gs-mira group grid min-w-0 gap-x-6 gap-y-3 rounded-2xl border border-line bg-paper p-4 transition-colors duration-rapido hover:border-granate/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-granate sm:p-5 md:grid-cols-[minmax(0,1fr)_12.5rem]"
     >
       <div className="min-w-0">
         <div className="flex flex-wrap items-center gap-1.5">
@@ -201,13 +203,17 @@ export function FilaProyecto({ p, base }: { p: Proyecto; base: string }) {
             <span className="font-mono text-rotulo">CUI {p.cui}</span>
           </li>
         </ul>
+        <CaminoMini fase={p.fase} className="mt-3 max-w-sm md:hidden" />
         <SegunFase p={p} enLinea className="mt-3" />
       </div>
-      <div className="flex items-end justify-between gap-3 border-t border-line pt-3 md:flex-col md:items-end md:justify-between md:border-l md:border-t-0 md:pl-6 md:pt-0 md:text-right">
+      <div className="flex items-end justify-between gap-3 border-t border-line pt-2.5 md:flex-col md:items-end md:justify-between md:border-l md:border-t-0 md:pl-6 md:pt-0 md:text-right">
         <div className="min-w-0">
-          <p className="text-rotulo text-mute">Costo</p>
+          <p className="sr-only">Costo</p>
           <p className="font-display text-bloque font-bold leading-tight tabular-nums text-ink md:text-seccion">{p.costo ? solesCompacto(p.costo) : "Sin dato"}</p>
-          {gasto && <p className="mt-0.5 text-rotulo leading-snug text-inkSoft">{gasto}</p>}
+          <BarraGastado costo={p.costo} gastado={p.devengado} className="w-36 md:ml-auto" />
+          {gasto && <p className="mt-1 text-rotulo leading-snug text-inkSoft">{gasto}</p>}
+          {/* En la computadora el camino va en esta columna, bajo el costo: la fila no crece. */}
+          <CaminoMini fase={p.fase} className="mt-3 hidden w-44 text-left md:ml-auto md:block" />
         </div>
         <span className="inline-flex shrink-0 items-center gap-0.5 text-meta font-semibold text-granate">
           Ver ficha <ChevronRight size={15} aria-hidden className="transition-transform duration-rapido group-hover:translate-x-0.5" />

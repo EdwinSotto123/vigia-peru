@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { BellRing, Briefcase, GraduationCap, HandCoins, Sparkles, Timer } from "lucide-react";
 import { AvisoPlanes, ComoFunciona } from "@/components/gobserva/ComoFunciona";
+import { Odometro } from "@/components/gobserva/portada/Odometro";
 import { Planes } from "@/components/gobserva/Planes";
 import { planesEmpleo } from "@/components/empleo/planes";
 import { Preguntas } from "@/components/empleo/Piezas";
@@ -116,7 +117,7 @@ function Hoy({ icono, n, texto, urgente = false }: { icono: React.ReactNode; n: 
     <li className="flex items-center gap-2.5 text-dato text-inkSoft">
       <span className={urgente ? "shrink-0 text-rust" : "shrink-0 text-granate"}>{icono}</span>
       <span>
-        <b className={urgente ? "font-display text-bloque font-bold tabular-nums text-rust" : "font-display text-bloque font-bold tabular-nums text-ink"}>{numero(n)}</b> {texto}
+        <b className={urgente ? "font-display text-bloque font-bold tabular-nums text-rust" : "font-display text-bloque font-bold tabular-nums text-ink"}><Odometro texto={numero(n)} /></b> {texto}
       </span>
     </li>
   );

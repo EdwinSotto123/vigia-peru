@@ -1,6 +1,6 @@
 import Link from "next/link";
 import type { LucideIcon } from "lucide-react";
-import { ChevronRight, CircleCheck, CircleMinus, CirclePause, Hourglass, Phone, Users } from "lucide-react";
+import { Accessibility, Baby, BedDouble, ChevronRight, CircleCheck, CircleMinus, CirclePause, Droplets, FlaskConical, HeartPulse, Hourglass, Phone, Pill, ScanLine, Scissors, Siren, Users, Video } from "lucide-react";
 import { Pixel } from "@/components/pixel/Pixel";
 import { FuenteFecha } from "@/components/salud/comun";
 import { rutaEn } from "@/lib/gobserva";
@@ -11,11 +11,17 @@ import { URL_RENIPRESS_CONSULTA, detalleLeido, esColegioMedico } from "./piezas"
 import { ConTuSeguro } from "./ConTuSeguro";
 import { TeAtiendenAqui } from "./TeAtiendenAqui";
 
-const SABE: Record<Sabe, { Icono: LucideIcon; texto: string; clase: string }> = {
-  si: { Icono: CircleCheck, texto: "Sí", clase: "text-mossTexto" },
-  no: { Icono: CircleMinus, texto: "No lo declaró", clase: "text-mute" },
-  suspendida: { Icono: CirclePause, texto: "Suspendido", clase: "text-amberTexto" },
-  sin_dato: { Icono: Hourglass, texto: "Sin dato todavía", clase: "text-mute" },
+const SABE: Record<Sabe, { Icono: LucideIcon; texto: string; clase: string; baldosa: string }> = {
+  si: { Icono: CircleCheck, texto: "Sí", clase: "text-mossTexto", baldosa: "border-mossTexto/25 bg-mossTexto/[0.07]" },
+  no: { Icono: CircleMinus, texto: "No lo declaró", clase: "text-mute", baldosa: "border-dashed border-line bg-paper" },
+  suspendida: { Icono: CirclePause, texto: "Suspendido", clase: "text-amberTexto", baldosa: "border-amber/30 bg-amber/[0.08]" },
+  sin_dato: { Icono: Hourglass, texto: "Sin dato todavía", clase: "text-mute", baldosa: "border-dashed border-line bg-paper" },
+};
+
+/** El ícono de cada servicio clave (atencion.ts, SERVICIOS_CLAVE). */
+const ICONO_SERVICIO: Record<string, LucideIcon> = {
+  emergencia: Siren, hospitalizacion: BedDouble, partos: Baby, quirurgico: Scissors, uci: HeartPulse, laboratorio: FlaskConical,
+  imagenes: ScanLine, farmacia: Pill, rehabilitacion: Accessibility, dialisis: Droplets, telesalud: Video,
 };
 
 /**
@@ -76,22 +82,38 @@ export function ResumenAtencion({ f, base }: { f: FichaIpress; base: string }) {
             </p>
           )}
           {leido && (
-          <ul className="mt-3 grid gap-x-6 sm:grid-cols-2" aria-label="Servicios declarados en RENIPRESS">
-            {servicios.map((s) => {
-              const e = SABE[s.sabe];
-              return (
-                <li key={s.clave} className="flex min-h-11 items-center justify-between gap-3 border-b border-line py-2">
-                  <span className="min-w-0 text-dato font-medium text-ink" title={s.como ?? undefined}>
-                    {s.pregunta}
-                  </span>
-                  <span className={cn("inline-flex shrink-0 items-center gap-1.5 text-meta font-semibold", e.clase)}>
-                    <e.Icono size={16} aria-hidden />
-                    {e.texto}
-                  </span>
-                </li>
-              );
-            })}
-          </ul>
+            <>
+              {/* 2026-11-22 («esta mierda es texto plano»): de once filas «Servicio … Sí» a baldosas con su ícono, verdes
+                  las declaradas y punteadas las que no, con cuántas declaró arriba y una barra que se llena a pasos. */}
+              <p className="mt-2 flex items-center gap-3 text-dato text-inkSoft">
+                <span>
+                  Declaró <b className="font-display text-bloque font-bold tabular-nums text-ink">{servicios.filter((s) => s.sabe === "si").length}</b> de{" "}
+                  {servicios.length}
+                </span>
+                <span aria-hidden className="block h-1.5 min-w-0 flex-1 overflow-hidden rounded-full bg-ink/[0.06]">
+                  <span
+                    className="gs-barra-crece block h-full rounded-full bg-mossTexto"
+                    style={{ width: `${Math.round((servicios.filter((s) => s.sabe === "si").length / Math.max(1, servicios.length)) * 100)}%` }}
+                  />
+                </span>
+              </p>
+              <ul className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-2 xl:grid-cols-3" aria-label="Servicios declarados en RENIPRESS">
+                {servicios.map((s) => {
+                  const e = SABE[s.sabe];
+                  const Icono = ICONO_SERVICIO[s.clave] ?? CircleCheck;
+                  return (
+                    <li key={s.clave} title={s.como ?? undefined} className={cn("flex min-w-0 flex-col gap-1.5 rounded-xl border px-3 py-2.5", e.baldosa)}>
+                      <span className="flex items-center justify-between gap-2">
+                        <Icono size={18} aria-hidden className={s.sabe === "si" ? "text-ink" : "text-mute"} />
+                        <e.Icono size={15} aria-hidden className={e.clase} />
+                      </span>
+                      <span className={cn("text-dato font-semibold leading-snug", s.sabe === "si" ? "text-ink" : "text-inkSoft")}>{s.pregunta}</span>
+                      <span className={cn("text-rotulo font-semibold", e.clase)}>{e.texto}</span>
+                    </li>
+                  );
+                })}
+              </ul>
+            </>
           )}
           {telEmergencia && (
             <p className="mt-3 flex flex-wrap items-center gap-x-2 gap-y-1 text-dato text-inkSoft">

@@ -1353,7 +1353,8 @@ html[data-modo="dia"] [data-producto="vigia"] [data-intencion="participar"] {
 .sobre-oscuro .sobre-claro .gs-mira::after, .sobre-oscuro .gs-mira.sobre-claro::after { --c: rgb(var(--px-linea)); }
 :is(a, button).gs-mira:is(:hover, :focus-visible, :active)::after,
 .gs-mira:has(> a:is(:hover, :focus-visible, :active))::after,
-.gs-mira:has(a.group:is(:hover, :focus-visible))::after { opacity: 1; scale: 1; }
+.gs-mira:has(a.group:is(:hover, :focus-visible))::after,
+.gs-mira:has(> button:is(:hover, :focus-visible, [aria-expanded="true"]))::after { opacity: 1; scale: 1; }
 /* La gente de la tarjeta da un brinco (a pasos) en vez de quedarse arriba. */
 @keyframes px-brinco { 0%, 100% { transform: none; } 35% { transform: translateY(-9px); } 65% { transform: translateY(-4px); } }
 .gs-mira:is(:hover, :focus-visible) .px-salta, .gs-mira:has(a:is(:hover, :focus-visible)) .px-salta { animation: px-brinco 460ms steps(5, end); transform: none; }

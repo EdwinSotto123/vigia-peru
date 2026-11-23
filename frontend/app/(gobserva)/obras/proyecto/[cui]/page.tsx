@@ -21,11 +21,15 @@ import {
   Hourglass,
   MapPin,
   PackageOpen,
+  Route,
   ShieldCheck,
+  Users,
   Wallet,
   type LucideIcon,
 } from "lucide-react";
-import { BarraAvance, FaseInsignia, TiraCifras, iconoSector, type CifraTira } from "@/components/gobserva-obras/Piezas";
+import { BarraAvance, BarrasComparadas, CaminoMini, FaseInsignia, LineaTiempo, TiraCifras, iconoSector, type CifraTira } from "@/components/gobserva-obras/Piezas";
+import { Odometro } from "@/components/gobserva/portada/Odometro";
+import { PestanasVivas } from "@/components/gobserva/portada/PestanasVivas";
 import { BotonGuardar } from "@/components/gobserva/cuenta/BotonGuardar";
 import { Nota } from "@/components/patrones/Estructura";
 import { DatosEstructurados } from "@/components/seo/DatosEstructurados";
@@ -292,8 +296,13 @@ export default async function FichaProyecto({ params }: Props) {
   const quien = quienConstruye(f);
   const posicion = POSICION[f.fase ?? "cerrada"];
   const aviso = f.fase ? AVISO_FASE[f.fase] : undefined;
-  const OBRAS_VISIBLES = 12;
+  const OBRAS_VISIBLES = 6;
   const nombre = nombreProyecto(f.nombre, f.lugar);
+  const hoy = new Date().toISOString().slice(0, 10);
+  const porEstado = [...f.obras.reduce((m, o) => m.set(estadoObra(o.estado), (m.get(estadoObra(o.estado)) ?? 0) + 1), new Map<string, number>())].sort(
+    (a, b) => b[1] - a[1],
+  );
+  const maxEmpresa = Math.max(...empresas.map((e) => e.monto), 1);
   const alertaCui = `${ruta("/proyectos")}?pestana=todos&q=${f.cui}#crear-alerta`;
   const alertaParecidos = `${ruta("/proyectos")}?pestana=todos&sector=${encodeURIComponent(f.sector)}${f.lugar.region ? `&region=${f.lugar.region}` : ""}#crear-alerta`;
 
@@ -481,254 +490,276 @@ export default async function FichaProyecto({ params }: Props) {
             {acciones}
           </div>
 
-          {/* La plata */}
-          <section aria-labelledby="plata-t">
-            <h2 id="plata-t" className="font-display text-seccion font-bold leading-tight text-ink">
-              La plata
+          {/* El detalle, en pestañas (2026-11-22, el usuario: «itera sobre todo… esto es texto plano»): la ficha apilaba la
+              plata, el camino, hasta doce obras de INFOBRAS, los procesos y las empresas, y en el celular medía 16,000 px. Ahora
+              una cosa a la vista y las demás a un toque (o deslizando), cada una con su forma: barras, línea de tiempo, fichas. */}
+          <section aria-labelledby="detalle-t">
+            <h2 id="detalle-t" className="font-display text-seccion font-bold leading-tight text-ink">
+              El proyecto por dentro
             </h2>
-            <div className="mt-4 grid gap-4 xl:grid-cols-2 xl:items-start">
-              <div className="space-y-3">
-                <BarraPlata
-                  titulo="Del costo total"
-                  gastado={f.montos.devengado}
-                  total={costo}
-                  pie={f.avanceMef != null ? `El MEF registra un avance físico de ${porcentaje(f.avanceMef)}.` : undefined}
-                />
-                {f.montos.pimAnio > 0 && <BarraPlata titulo={`Del presupuesto de ${anio}`} gastado={f.montos.devengadoAnio} total={f.montos.pimAnio} />}
-              </div>
-              <dl className="divide-y divide-line rounded-2xl border border-line bg-paper">
-                <FilaPlata etiqueta="Monto al declararse viable" valor={soles(f.montos.viable)} />
-                <FilaPlata
-                  etiqueta="Costo actualizado"
-                  valor={soles(costo)}
-                  detalle={sobreViable ? <span className="text-amberTexto">{porcentaje(sobreViable)} más que al declararse viable</span> : undefined}
-                />
-                <FilaPlata
-                  etiqueta="Expediente técnico"
-                  valor={f.montos.expediente ? soles(f.montos.expediente) : f.conExpediente ? "Aprobado" : "Todavía no"}
-                  detalle={f.montos.expediente || f.conExpediente ? "Registrado en el MEF" : "El MEF no lo registra"}
-                />
-                <FilaPlata etiqueta="Gastado en total" valor={soles(f.montos.devengado)} detalle="El devengado: lo que el Estado ya reconoció como gasto" />
-                <FilaPlata etiqueta="Por ejecutar" valor={soles(f.montos.porEjecutar)} detalle="El costo menos lo gastado" />
-                <FilaPlata
-                  etiqueta={`Presupuesto ${anio}`}
-                  valor={f.montos.pimAnio > 0 ? soles(f.montos.pimAnio) : "Sin presupuesto"}
-                  detalle="El PIM: lo que la entidad puede gastar este año"
-                />
-                <FilaPlata etiqueta={`Gastado en ${anio}`} valor={soles(f.montos.devengadoAnio)} />
-                <FilaPlata etiqueta="Beneficiarios" valor={f.beneficiarios ? numero(f.beneficiarios) : "Sin dato"} detalle="Los que declara la entidad en Invierte.pe" />
-              </dl>
-            </div>
-          </section>
-
-          {/* En qué paso está */}
-          <section aria-labelledby="paso-t">
-            <h2 id="paso-t" className="font-display text-seccion font-bold leading-tight text-ink">
-              En qué paso está
-            </h2>
-            <ol className="mt-5 flex items-start" aria-label="Pasos de la inversión">
-              {PASOS.map((p, i) => {
-                const hecho = i < posicion;
-                const actual = i === posicion;
-                const detenida = actual && (f.fase === "paralizada" || f.fase === "sin_movimiento");
-                return (
-                  <li key={p.fase} aria-current={actual ? "step" : undefined} className="relative flex min-w-0 flex-1 flex-col items-center text-center">
-                    {i < PASOS.length - 1 && <span aria-hidden className={cn("absolute left-1/2 top-3.5 h-0.5 w-full", i < posicion ? "bg-granate" : "bg-line")} />}
-                    <span
-                      aria-hidden
-                      className={cn(
-                        "relative z-10 flex h-7 w-7 items-center justify-center rounded-full text-micro font-bold tabular-nums",
-                        actual
-                          ? detenida
-                            ? "bg-crimson text-paper ring-4 ring-crimson/20"
-                            : "bg-granate text-paper ring-4 ring-granate/20"
-                          : hecho
-                            ? "bg-granate text-paper"
-                            : "border border-line bg-paper text-mute",
-                      )}
-                    >
-                      {hecho ? <Check size={14} /> : detenida ? <CirclePause size={14} /> : i + 1}
-                    </span>
-                    <span
-                      className={cn(
-                        "mt-2 px-0.5 text-rotulo font-semibold leading-tight sm:text-meta",
-                        actual ? (detenida ? "text-crimsonTexto" : "text-ink") : hecho ? "text-inkSoft" : "text-mute",
-                      )}
-                    >
-                      <span className="sm:hidden">{p.corto}</span>
-                      <span className="hidden sm:inline">{p.nombre}</span>
-                      {detenida && <span className="block font-normal">{f.fase === "paralizada" ? "Paralizada" : "Sin movimiento"}</span>}
-                      {hecho && <span className="sr-only"> (cumplido)</span>}
-                      {actual && <span className="sr-only"> (paso actual)</span>}
-                    </span>
-                  </li>
-                );
-              })}
-            </ol>
-            <p className="mt-4 text-dato leading-relaxed text-inkSoft">{f.fase ? FASES[f.fase].detalle : "Inversión cerrada en el MEF."}</p>
-            <dl className="mt-4 grid grid-cols-2 gap-x-6 gap-y-3 rounded-2xl border border-line bg-paper p-4 text-dato sm:grid-cols-3">
-              <Fecha etiqueta="Registrada" valor={f.fechas.registro} />
-              <Fecha etiqueta="Viable o aprobada" valor={f.fechas.viabilidad} />
-              <Fecha etiqueta="Primer gasto" valor={f.fechas.primerGasto} mes />
-              <Fecha etiqueta="Último gasto" valor={f.fechas.ultimoGasto} mes />
-              <Fecha etiqueta="Inicio previsto" valor={f.fechas.inicioPrevisto} />
-              <Fecha etiqueta={f.estado === "cerrada" ? "Cerrada" : "Fin previsto"} valor={f.estado === "cerrada" ? f.fechas.cierre : f.fechas.finPrevisto} />
-            </dl>
-          </section>
-
-          {/* Obras de INFOBRAS */}
-          <section aria-labelledby="obras-t">
-            <h2 id="obras-t" className="flex items-center gap-2 font-display text-seccion font-bold leading-tight text-ink">
-              <HardHat size={20} aria-hidden className="text-granate" /> {f.obras.length === 1 ? "Su obra en INFOBRAS" : f.obras.length > 1 ? `Sus obras en INFOBRAS (${numero(f.obras.length)})` : "Sus obras en INFOBRAS"}
-            </h2>
-            <p className="mt-1 text-meta text-mute">
-              Lo que registra la entidad en INFOBRAS (Contraloría){f.alDia.infobras ? `, archivo del ${fechaConAnio(f.alDia.infobras)}` : ""}. El avance puede llegar con meses de
-              atraso: cada obra dice a qué fecha corresponde.
-            </p>
-            {f.obras.length === 0 ? (
-              <Nota className="mt-4">INFOBRAS no registra obras con este CUI todavía: una obra aparece ahí cuando la entidad la inscribe, antes de empezarla.</Nota>
-            ) : (
-              <>
-                <ol className="mt-4 space-y-3">
-                  {f.obras.slice(0, OBRAS_VISIBLES).map((o) => (
-                    <ObraFila key={o.codigo} o={o} lugar={f.lugar} />
-                  ))}
+            <PestanasVivas
+              etiqueta="El proyecto por dentro"
+              className="-mx-1 mt-3 overflow-x-clip px-1"
+              pestanas={[
+                { titulo: "Su camino", icono: <Route size={16} aria-hidden /> },
+                { titulo: "La plata", icono: <CircleDollarSign size={16} aria-hidden /> },
+                { titulo: <Contada texto="Obras" n={f.obras.length} />, icono: <HardHat size={16} aria-hidden /> },
+                { titulo: <Contada texto="Procesos" n={f.procesosTotal || f.procesos.length} />, icono: <Gavel size={16} aria-hidden /> },
+                ...(empresas.length ? [{ titulo: <Contada texto="Empresas" n={empresas.length} />, icono: <ClipboardList size={16} aria-hidden /> }] : []),
+              ]}
+            >
+              {/* Su camino: los cinco pasos y las fechas en una línea de tiempo con la marca de hoy. */}
+              <div>
+                <ol className="flex items-start" aria-label="Pasos de la inversión">
+                  {PASOS.map((p, i) => {
+                    const hecho = i < posicion;
+                    const actual = i === posicion;
+                    const detenida = actual && (f.fase === "paralizada" || f.fase === "sin_movimiento");
+                    return (
+                      <li key={p.fase} aria-current={actual ? "step" : undefined} className="relative flex min-w-0 flex-1 flex-col items-center text-center">
+                        {i < PASOS.length - 1 && <span aria-hidden className={cn("absolute left-1/2 top-3.5 h-0.5 w-full", i < posicion ? "bg-granate" : "bg-line")} />}
+                        <span
+                          aria-hidden
+                          className={cn(
+                            "relative z-10 flex h-7 w-7 items-center justify-center rounded-full text-micro font-bold tabular-nums",
+                            actual
+                              ? detenida
+                                ? "bg-crimson text-paper ring-4 ring-crimson/20"
+                                : "bg-granate text-paper ring-4 ring-granate/20"
+                              : hecho
+                                ? "bg-granate text-paper"
+                                : "border border-line bg-paper text-mute",
+                          )}
+                        >
+                          {actual && !detenida && <span className="absolute inset-0 rounded-full bg-granate/40 motion-safe:animate-ping" />}
+                          <span className="relative">{hecho ? <Check size={14} /> : detenida ? <CirclePause size={14} /> : i + 1}</span>
+                        </span>
+                        <span
+                          className={cn(
+                            "mt-2 px-0.5 text-rotulo font-semibold leading-tight sm:text-meta",
+                            actual ? (detenida ? "text-crimsonTexto" : "text-ink") : hecho ? "text-inkSoft" : "text-mute",
+                          )}
+                        >
+                          <span className="sm:hidden">{p.corto}</span>
+                          <span className="hidden sm:inline">{p.nombre}</span>
+                          {detenida && <span className="block font-normal">{f.fase === "paralizada" ? "Paralizada" : "Sin movimiento"}</span>}
+                          {hecho && <span className="sr-only"> (cumplido)</span>}
+                          {actual && <span className="sr-only"> (paso actual)</span>}
+                        </span>
+                      </li>
+                    );
+                  })}
                 </ol>
-                {f.obras.length > OBRAS_VISIBLES && (
-                  <details className="group/obras mt-3">
-                    <summary className="inline-flex min-h-11 cursor-pointer list-none items-center gap-1.5 text-dato font-semibold text-granate underline-offset-4 hover:underline [&::-webkit-details-marker]:hidden">
-                      <ChevronDown size={16} aria-hidden className="transition-transform duration-rapido group-open/obras:rotate-180" />
-                      <span className="group-open/obras:hidden">Ver las otras {numero(f.obras.length - OBRAS_VISIBLES)} obras con este CUI</span>
-                      <span className="hidden group-open/obras:inline">Ver menos obras</span>
-                    </summary>
-                    <ol className="mt-3 space-y-3">
-                      {f.obras.slice(OBRAS_VISIBLES).map((o) => (
+                <p className="mt-4 rounded-2xl bg-granate-50 px-4 py-3 text-dato leading-relaxed text-ink">{f.fase ? FASES[f.fase].detalle : "Inversión cerrada en el MEF."}</p>
+                <div className="mt-4 rounded-2xl border border-line bg-paper p-4 sm:p-5">
+                  <LineaTiempo
+                    hoy={hoy}
+                    hitos={[
+                      { etiqueta: "Registrada en el MEF", fecha: f.fechas.registro, texto: f.fechas.registro ? fechaConAnio(f.fechas.registro) : "" },
+                      { etiqueta: "Viable o aprobada", fecha: f.fechas.viabilidad, texto: f.fechas.viabilidad ? fechaConAnio(f.fechas.viabilidad) : "" },
+                      { etiqueta: "Primer gasto", fecha: f.fechas.primerGasto, texto: mesAnio(f.fechas.primerGasto) },
+                      { etiqueta: "Inicio previsto", fecha: f.fechas.inicioPrevisto, texto: f.fechas.inicioPrevisto ? fechaConAnio(f.fechas.inicioPrevisto) : "" },
+                      { etiqueta: "Último gasto", fecha: f.fechas.ultimoGasto, texto: mesAnio(f.fechas.ultimoGasto) },
+                      f.estado === "cerrada"
+                        ? { etiqueta: "Cerrada", fecha: f.fechas.cierre, texto: f.fechas.cierre ? fechaConAnio(f.fechas.cierre) : "" }
+                        : { etiqueta: "Fin previsto", fecha: f.fechas.finPrevisto, texto: f.fechas.finPrevisto ? fechaConAnio(f.fechas.finPrevisto) : "" },
+                    ]}
+                  />
+                </div>
+              </div>
+
+              {/* La plata: lo gastado en barras, cómo cambió el costo a la misma escala y, a un toque, los montos exactos. */}
+              <div>
+                <div className="grid gap-4 xl:grid-cols-2 xl:items-start">
+                  <div className="space-y-3">
+                    <BarraPlata
+                      titulo="Del costo total"
+                      gastado={f.montos.devengado}
+                      total={costo}
+                      pie={f.avanceMef != null ? `El MEF registra un avance físico de ${porcentaje(f.avanceMef)}.` : undefined}
+                    />
+                    {f.montos.pimAnio > 0 && <BarraPlata titulo={`Del presupuesto de ${anio}`} gastado={f.montos.devengadoAnio} total={f.montos.pimAnio} />}
+                    {f.beneficiarios ? (
+                      <div className="flex items-center gap-3 rounded-2xl border border-line bg-paper p-4">
+                        <span aria-hidden className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-granate-50 text-granate">
+                          <Users size={20} />
+                        </span>
+                        <p className="min-w-0">
+                          <span className="block font-display text-seccion font-bold leading-none tabular-nums text-ink">
+                            <Odometro texto={numero(f.beneficiarios)} />
+                          </span>
+                          <span className="mt-1 block text-meta text-inkSoft">beneficiarios, los que declara la entidad en Invierte.pe</span>
+                        </p>
+                      </div>
+                    ) : null}
+                  </div>
+                  <div className="rounded-2xl border border-line bg-paper p-4 sm:p-5">
+                    <h3 className="font-display text-cuerpo font-bold text-ink">Cómo cambió su costo</h3>
+                    <BarrasComparadas
+                      className="mt-3"
+                      etiqueta="Los montos del proyecto, a la misma escala"
+                      items={[
+                        { etiqueta: "Al declararse viable", valor: f.montos.viable, texto: solesCompacto(f.montos.viable), tono: "suave" },
+                        {
+                          etiqueta: "Expediente técnico",
+                          valor: f.montos.expediente,
+                          texto: f.montos.expediente ? solesCompacto(f.montos.expediente) : f.conExpediente ? "Aprobado, sin monto" : "Todavía no",
+                          tono: "suave",
+                        },
+                        {
+                          etiqueta: "Costo actualizado",
+                          valor: costo,
+                          texto: solesCompacto(costo),
+                          detalle: sobreViable ? <span className="text-amberTexto">{porcentaje(sobreViable)} más que al declararse viable</span> : undefined,
+                        },
+                        { etiqueta: "Gastado en total", valor: f.montos.devengado, texto: solesCompacto(f.montos.devengado), tono: "ink" },
+                      ]}
+                    />
+                  </div>
+                </div>
+                <details className="group/montos mt-4 rounded-2xl border border-line bg-paper">
+                  <summary className="flex min-h-12 cursor-pointer list-none items-center justify-between gap-2 px-4 text-dato font-semibold text-ink [&::-webkit-details-marker]:hidden">
+                    Los montos exactos, en soles
+                    <ChevronDown size={16} aria-hidden className="shrink-0 text-mute transition-transform duration-rapido group-open/montos:rotate-180" />
+                  </summary>
+                  <dl className="divide-y divide-line border-t border-line">
+                    <FilaPlata etiqueta="Monto al declararse viable" valor={soles(f.montos.viable)} />
+                    <FilaPlata
+                      etiqueta="Costo actualizado"
+                      valor={soles(costo)}
+                      detalle={sobreViable ? <span className="text-amberTexto">{porcentaje(sobreViable)} más que al declararse viable</span> : undefined}
+                    />
+                    <FilaPlata
+                      etiqueta="Expediente técnico"
+                      valor={f.montos.expediente ? soles(f.montos.expediente) : f.conExpediente ? "Aprobado" : "Todavía no"}
+                      detalle={f.montos.expediente || f.conExpediente ? "Registrado en el MEF" : "El MEF no lo registra"}
+                    />
+                    <FilaPlata etiqueta="Gastado en total" valor={soles(f.montos.devengado)} detalle="El devengado: lo que el Estado ya reconoció como gasto" />
+                    <FilaPlata etiqueta="Por ejecutar" valor={soles(f.montos.porEjecutar)} detalle="El costo menos lo gastado" />
+                    <FilaPlata
+                      etiqueta={`Presupuesto ${anio}`}
+                      valor={f.montos.pimAnio > 0 ? soles(f.montos.pimAnio) : "Sin presupuesto"}
+                      detalle="El PIM: lo que la entidad puede gastar este año"
+                    />
+                    <FilaPlata etiqueta={`Gastado en ${anio}`} valor={soles(f.montos.devengadoAnio)} />
+                    <FilaPlata etiqueta="Beneficiarios" valor={f.beneficiarios ? numero(f.beneficiarios) : "Sin dato"} detalle="Los que declara la entidad en Invierte.pe" />
+                  </dl>
+                </details>
+              </div>
+
+              {/* Las obras de INFOBRAS: cuántas hay en cada estado y las primeras seis; el resto, a un toque. */}
+              <div>
+                <p className="text-meta text-mute">
+                  Lo que registra la entidad en INFOBRAS (Contraloría){f.alDia.infobras ? `, archivo del ${fechaConAnio(f.alDia.infobras)}` : ""}. El avance puede llegar
+                  con meses de atraso: cada obra dice a qué fecha corresponde.
+                </p>
+                {f.obras.length === 0 ? (
+                  <Nota className="mt-4">INFOBRAS no registra obras con este CUI todavía: una obra aparece ahí cuando la entidad la inscribe, antes de empezarla.</Nota>
+                ) : (
+                  <>
+                    {f.obras.length > 1 && (
+                      <ul aria-label="Sus obras por estado" className="mt-3 flex flex-wrap gap-2">
+                        {porEstado.map(([estado, n]) => (
+                          <li key={estado} className={cn("inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-meta font-semibold", TONO_ESTADO[estado] ?? "bg-paperDeep text-inkSoft")}>
+                            <b className="tabular-nums">{numero(n)}</b> {estado.toLocaleLowerCase("es-PE")}
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                    <ol className="mt-4 grid gap-3 xl:grid-cols-2">
+                      {/* recorte: las seis primeras; las demás en «Ver las otras … obras», debajo */}
+                      {f.obras.slice(0, OBRAS_VISIBLES).map((o) => (
                         <ObraFila key={o.codigo} o={o} lugar={f.lugar} />
                       ))}
                     </ol>
-                  </details>
+                    {f.obras.length > OBRAS_VISIBLES && (
+                      <details className="group/obras mt-3">
+                        <summary className="inline-flex min-h-11 cursor-pointer list-none items-center gap-1.5 text-dato font-semibold text-granate underline-offset-4 hover:underline [&::-webkit-details-marker]:hidden">
+                          <ChevronDown size={16} aria-hidden className="transition-transform duration-rapido group-open/obras:rotate-180" />
+                          <span className="group-open/obras:hidden">Ver las otras {numero(f.obras.length - OBRAS_VISIBLES)} obras con este CUI</span>
+                          <span className="hidden group-open/obras:inline">Ver menos obras</span>
+                        </summary>
+                        <ol className="mt-3 grid gap-3 xl:grid-cols-2">
+                          {f.obras.slice(OBRAS_VISIBLES).map((o) => (
+                            <ObraFila key={o.codigo} o={o} lugar={f.lugar} />
+                          ))}
+                        </ol>
+                      </details>
+                    )}
+                  </>
                 )}
-              </>
-            )}
-          </section>
+              </div>
 
-          {/* Procesos del SEACE */}
-          <section aria-labelledby="procesos-t">
-            <h2 id="procesos-t" className="flex items-center gap-2 font-display text-seccion font-bold leading-tight text-ink">
-              <Gavel size={20} aria-hidden className="text-granate" /> Sus procesos en el SEACE
-            </h2>
-            <p className="mt-1 text-meta text-mute">
-              Los procesos que citan este CUI (en el registro OCDS o en su descripción), del más nuevo al más antiguo. De quien ganó, el nombre sólo si
-              es una empresa; de un consorcio, sus empresas integrantes.
-            </p>
-            {f.procesos.length === 0 ? (
-              <Nota className="mt-4">Ningún proceso del SEACE cita este CUI todavía. Cuando se convoque su obra o su expediente técnico, aparecerá aquí.</Nota>
-            ) : (
-              <ol className="mt-4 divide-y divide-line rounded-2xl border border-line bg-paper">
-                {f.procesos.map((p) => (
-                  <li key={p.ocid} className="px-4 py-3.5">
-                    <div className="flex flex-wrap items-center gap-1.5">
-                      <span className="rounded-full bg-granate-50 px-2.5 py-0.5 text-rotulo font-semibold text-granate">{TIPO_PROCESO[p.tipo ?? ""] ?? "Proceso"}</span>
-                      <span
-                        className={cn(
-                          "rounded-full px-2.5 py-0.5 text-rotulo font-medium",
-                          p.etapa === "convocada" ? "bg-amber-soft font-semibold text-amberTexto" : "bg-paperDeep text-inkSoft",
-                        )}
-                      >
-                        {ETAPA_PROCESO[p.etapa ?? ""] ?? "Sin etapa"}
-                      </span>
-                      <span className="ml-auto text-rotulo tabular-nums text-mute">{p.fecha ? fechaConAnio(p.fecha) : "Sin fecha"}</span>
-                    </div>
-                    <p className="mt-2 line-clamp-3 text-dato font-medium leading-snug text-ink">{conLugares(limpiar(p.objeto), f.lugar) || "Proceso sin objeto registrado"}</p>
-                    <dl className="mt-1.5 flex flex-wrap gap-x-5 gap-y-1 text-meta">
-                      {p.valor != null && (
-                        <div className="flex gap-1">
-                          <dt className="text-mute">Valor referencial</dt>
-                          <dd className="font-medium tabular-nums text-inkSoft">{solesCompacto(p.valor)}</dd>
-                        </div>
-                      )}
-                      {p.adjudicado != null && (
-                        <div className="flex gap-1">
-                          <dt className="text-mute">Adjudicado</dt>
-                          <dd className="font-semibold tabular-nums text-ink">{solesCompacto(p.adjudicado)}</dd>
-                        </div>
-                      )}
-                      {p.procedimiento && (
-                        <div className="flex gap-1">
-                          <dt className="sr-only">Procedimiento</dt>
-                          <dd className="text-inkSoft">{p.procedimiento}</dd>
-                        </div>
-                      )}
-                    </dl>
-                    {(p.ganadores.empresas.length > 0 || p.ganadores.otros > 0) && (
-                      <p className="mt-1.5 text-meta text-inkSoft">
-                        Ganó:{" "}
-                        {p.ganadores.empresas.map((g, i) => (
-                          <span key={g.ruc}>
-                            {i > 0 ? ", " : ""}
-                            <b className="font-semibold text-ink">{nombreEmpresa(g.nombre)}</b>
-                            {g.consorcio ? " (en consorcio)" : ""}
-                          </span>
-                        ))}
-                        {p.ganadores.otros > 0 && (
-                          <span className="text-mute">
-                            {p.ganadores.empresas.length ? " y " : ""}
-                            {p.ganadores.otros === 1 ? "un consorcio o una persona natural" : `${numero(p.ganadores.otros)} consorcios o personas naturales`} (sin nombre)
-                          </span>
-                        )}
-                      </p>
-                    )}
-                    <a
-                      href={`${licitaciones}/oportunidad/${encodeURIComponent(p.ocid)}`}
-                      className="mt-1 inline-flex min-h-11 items-center gap-1 text-meta font-semibold text-granate underline-offset-2 hover:underline sm:min-h-0 sm:pt-1"
-                    >
-                      Ver el proceso en Gobserva Licitaciones <ArrowUpRight size={13} aria-hidden />
+              {/* Los procesos del SEACE: cada uno una ficha que lleva a Gobserva Licitaciones. */}
+              <div>
+                <p className="text-meta text-mute">
+                  Los procesos que citan este CUI (en el registro OCDS o en su descripción), del más nuevo al más antiguo. De quien ganó, el nombre sólo si es
+                  una empresa; de un consorcio, sus empresas integrantes.
+                </p>
+                {f.procesos.length === 0 ? (
+                  <Nota className="mt-4">Ningún proceso del SEACE cita este CUI todavía. Cuando se convoque su obra o su expediente técnico, aparecerá aquí.</Nota>
+                ) : (
+                  <ol className="mt-4 grid gap-3 lg:grid-cols-2">
+                    {f.procesos.map((p) => (
+                      <ProcesoFicha key={p.ocid} p={p} lugar={f.lugar} href={`${licitaciones}/oportunidad/${encodeURIComponent(p.ocid)}`} />
+                    ))}
+                  </ol>
+                )}
+                {f.procesosTotal > f.procesos.length && (
+                  <Nota className="mt-3">
+                    Se muestran los {numero(f.procesos.length)} más nuevos de {numero(f.procesosTotal)} procesos. El resto, en{" "}
+                    <a href={CONTRATACIONES_ABIERTAS} target="_blank" rel="noopener noreferrer" className="font-semibold text-granate underline-offset-2 hover:underline">
+                      Contrataciones Abiertas del OECE
                     </a>
-                  </li>
-                ))}
-              </ol>
-            )}
-            {f.procesosTotal > f.procesos.length && (
-              <Nota className="mt-3">
-                Se muestran los {numero(f.procesos.length)} más nuevos de {numero(f.procesosTotal)} procesos. El resto, en{" "}
-                <a href={CONTRATACIONES_ABIERTAS} target="_blank" rel="noopener noreferrer" className="font-semibold text-granate underline-offset-2 hover:underline">
-                  Contrataciones Abiertas del OECE
-                </a>
-                .
-              </Nota>
-            )}
-          </section>
+                    .
+                  </Nota>
+                )}
+              </div>
 
-          {/* Contratistas */}
-          {empresas.length > 0 && (
-            <section aria-labelledby="contratistas-t">
-              <h2 id="contratistas-t" className="flex items-center gap-2 font-display text-seccion font-bold leading-tight text-ink">
-                <ClipboardList size={20} aria-hidden className="text-granate" /> Las empresas de este proyecto
-              </h2>
-              <p className="mt-1 text-meta text-mute">Juntando INFOBRAS y el SEACE. Sólo empresas (RUC 20); lo ganado en consorcio se reparte en partes iguales.</p>
-              <ul className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
-                {empresas.map((e) => (
-                  <li key={e.ruc} className="min-w-0 rounded-2xl border border-line bg-paper p-4">
-                    <p className="text-dato font-semibold leading-snug text-ink">{nombreEmpresa(e.nombre)}</p>
-                    <p className="mt-0.5 font-mono text-rotulo text-mute">RUC {e.ruc}</p>
-                    <ul className="mt-2 flex flex-wrap gap-1.5">
-                      {[...e.roles].map((r) => (
-                        <li key={r} className="rounded-full bg-paperDeep px-2.5 py-0.5 text-rotulo font-medium text-inkSoft">
-                          {r}
-                        </li>
-                      ))}
-                    </ul>
-                    {e.monto > 0 && (
-                      <p className="mt-2 text-meta text-inkSoft">
-                        Adjudicado: <b className="tabular-nums text-ink">{solesCompacto(e.monto)}</b> en {numero(e.procesos)} {e.procesos === 1 ? "proceso" : "procesos"}
-                        {e.consorcio ? " (con su parte de un consorcio)" : ""}
-                      </p>
-                    )}
-                  </li>
-                ))}
-              </ul>
-            </section>
-          )}
+              {/* Las empresas: cada una con su inicial, lo que hizo y lo adjudicado, a la misma escala. */}
+              {empresas.length > 0 ? (
+                <div>
+                  <p className="text-meta text-mute">Juntando INFOBRAS y el SEACE. Sólo empresas (RUC 20); lo ganado en consorcio se reparte en partes iguales.</p>
+                  <ul className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                    {empresas.map((e) => (
+                      <li key={e.ruc} className="min-w-0 rounded-2xl border border-line bg-paper p-4">
+                        <div className="flex items-start gap-3">
+                          <span aria-hidden className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-ink font-display text-cuerpo font-bold text-paper">
+                            {nombreEmpresa(e.nombre).trim().charAt(0).toUpperCase() || "E"}
+                          </span>
+                          <div className="min-w-0">
+                            <p className="text-dato font-semibold leading-snug text-ink">{nombreEmpresa(e.nombre)}</p>
+                            <p className="mt-0.5 font-mono text-rotulo text-mute">RUC {e.ruc}</p>
+                          </div>
+                        </div>
+                        <ul className="mt-3 flex flex-wrap gap-1.5">
+                          {[...e.roles].map((r) => (
+                            <li key={r} className="rounded-full bg-paperDeep px-2.5 py-0.5 text-rotulo font-medium text-inkSoft">
+                              {r}
+                            </li>
+                          ))}
+                        </ul>
+                        {e.monto > 0 && (
+                          <div className="mt-3 border-t border-line pt-3">
+                            <p className="flex items-baseline justify-between gap-2 text-meta text-inkSoft">
+                              <span>
+                                Adjudicado en {numero(e.procesos)} {e.procesos === 1 ? "proceso" : "procesos"}
+                                {e.consorcio ? " (con su parte de un consorcio)" : ""}
+                              </span>
+                              <b className="shrink-0 font-display text-cuerpo font-bold tabular-nums text-ink">{solesCompacto(e.monto)}</b>
+                            </p>
+                            <span aria-hidden className="mt-1.5 block h-1.5 overflow-hidden rounded-full bg-ink/[0.06]">
+                              <span className="gs-barra-crece block h-full rounded-full bg-granate" style={{ width: `${Math.max(3, (e.monto / maxEmpresa) * 100)}%` }} />
+                            </span>
+                          </div>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
+            </PestanasVivas>
+          </section>
 
           {/* Parecidos */}
           {f.parecidos.length > 0 && (
@@ -737,17 +768,19 @@ export default async function FichaProyecto({ params }: Props) {
                 Proyectos parecidos
               </h2>
               <p className="mt-1 text-meta text-mute">Del mismo sector y de un costo parecido, de preferencia en la misma región, que se vienen o están en marcha.</p>
-              <ul className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+              {/* En el celular, una fila que se desliza (seis tarjetas apiladas eran una pantalla y media). */}
+              <ul className="-mx-4 mt-4 flex snap-x snap-mandatory gap-3 overflow-x-auto px-4 pb-2 [scrollbar-width:none] sm:mx-0 sm:grid sm:grid-cols-2 sm:overflow-visible sm:px-0 sm:pb-0 [&::-webkit-scrollbar]:hidden">
                 {f.parecidos.map((p) => (
-                  <li key={p.cui} className="min-w-0">
+                  <li key={p.cui} className="w-[85%] min-w-0 shrink-0 snap-start scroll-ml-4 sm:w-auto">
                     <Link
                       href={ruta(`/proyecto/${p.cui}`)}
-                      className="group flex h-full flex-col rounded-2xl border border-line bg-paper p-4 transition-colors duration-rapido hover:border-granate/50"
+                      className="gs-mira group flex h-full flex-col rounded-2xl border border-line bg-paper p-4 transition-colors duration-rapido hover:border-granate/50"
                     >
                       <span className="flex flex-wrap items-center gap-1.5">
                         <FaseInsignia fase={p.fase} />
                         <span className="text-rotulo text-mute">{lugarProyecto(p)}</span>
                       </span>
+                      <CaminoMini fase={p.fase} className="mt-2.5" />
                       <span className="mt-2 line-clamp-2 text-dato font-semibold leading-snug text-ink group-hover:text-granate">{nombreProyecto(p.nombre, p)}</span>
                       <span className="mt-auto flex items-end justify-between gap-2 pt-3">
                         <span className="min-w-0 truncate text-meta text-inkSoft">{nombreEntidad(p.entidad)}</span>
@@ -771,7 +804,7 @@ export default async function FichaProyecto({ params }: Props) {
                   <Link
                     href={`${ruta("/proyectos")}?pestana=todos&entidad=${f.entidad.ruc}`}
                     prefetch={false}
-                    className="group flex h-full flex-col rounded-2xl border border-line bg-paper p-4 transition-colors duration-rapido hover:border-granate/50"
+                    className="gs-mira group flex h-full flex-col rounded-2xl border border-line bg-paper p-4 transition-colors duration-rapido hover:border-granate/50"
                   >
                     <span className="flex items-center gap-2 text-dato font-semibold text-ink group-hover:text-granate">
                       <Building2 size={16} aria-hidden className="shrink-0 text-granate" /> Más proyectos de esta entidad
@@ -784,7 +817,7 @@ export default async function FichaProyecto({ params }: Props) {
                 <Link
                   href={`${ruta("/mercado")}?${new URLSearchParams({ ...(f.lugar.region ? { region: f.lugar.region } : {}), sector: f.sector }).toString()}`}
                   prefetch={false}
-                  className="group flex h-full flex-col rounded-2xl border border-line bg-paper p-4 transition-colors duration-rapido hover:border-granate/50"
+                  className="gs-mira group flex h-full flex-col rounded-2xl border border-line bg-paper p-4 transition-colors duration-rapido hover:border-granate/50"
                 >
                   <span className="flex items-center gap-2 text-dato font-semibold text-ink group-hover:text-granate">
                     <ChartNoAxesCombined size={16} aria-hidden className="shrink-0 text-granate" />
@@ -802,7 +835,7 @@ export default async function FichaProyecto({ params }: Props) {
                     href={`https://vigia.gobserva.cloud/entidad/${f.entidad.ruc}`}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="group flex h-full flex-col rounded-2xl border border-line bg-paper p-4 transition-colors duration-rapido hover:border-granate/50"
+                    className="gs-mira group flex h-full flex-col rounded-2xl border border-line bg-paper p-4 transition-colors duration-rapido hover:border-granate/50"
                   >
                     <span className="flex items-center gap-2 text-dato font-semibold text-ink group-hover:text-granate">
                       <ShieldCheck size={16} aria-hidden className="shrink-0 text-granate" /> La entidad en Vigía <ArrowUpRight size={14} aria-hidden />
@@ -906,15 +939,6 @@ function FilaPlata({ etiqueta, valor, detalle }: { etiqueta: string; valor: stri
         {detalle && <span className="block text-rotulo text-mute">{detalle}</span>}
       </dt>
       <dd className="shrink-0 text-right text-dato font-semibold tabular-nums text-ink">{valor}</dd>
-    </div>
-  );
-}
-
-function Fecha({ etiqueta, valor, mes = false }: { etiqueta: string; valor: string | null | undefined; mes?: boolean }) {
-  return (
-    <div className="min-w-0">
-      <dt className="text-meta text-mute">{etiqueta}</dt>
-      <dd className="font-medium text-ink">{valor ? (mes ? mesAnio(valor) : fechaConAnio(valor)) : "Sin dato"}</dd>
     </div>
   );
 }
@@ -1045,6 +1069,108 @@ function ObraFila({ o, lugar }: { o: ObraInfobras; lugar: FichaObras["lugar"] })
           </div>
         )}
       </dl>
+    </li>
+  );
+}
+
+/** El título de una pestaña con su cuenta («Obras 40»). */
+function Contada({ texto, n }: { texto: string; n: number }) {
+  return (
+    <>
+      {texto}
+      {n > 0 && <span className="rounded-full bg-ink/[0.06] px-2 py-0.5 text-meta font-semibold tabular-nums">{numero(n)}</span>}
+    </>
+  );
+}
+
+/** Un monto de un proceso con su barra, a la escala del mayor de los dos (lo referencial contra lo adjudicado). */
+function MontoProceso({ etiqueta, valor, max, fuerte = false, barra = true }: { etiqueta: string; valor: number; max: number; fuerte?: boolean; barra?: boolean }) {
+  return (
+    <span className="block">
+      <span className="flex items-baseline justify-between gap-2 text-meta">
+        <span className="text-mute">{etiqueta}</span>
+        <span className={cn("tabular-nums", fuerte ? "font-display text-cuerpo font-bold text-ink" : "font-semibold text-inkSoft")}>{solesCompacto(valor)}</span>
+      </span>
+      {barra && (
+        <span aria-hidden className="mt-1 block h-1.5 overflow-hidden rounded-full bg-ink/[0.06]">
+          <span className={cn("gs-barra-crece block h-full rounded-full", fuerte ? "bg-granate" : "bg-granate/35")} style={{ width: `${Math.max(2, (valor / max) * 100)}%` }} />
+        </span>
+      )}
+    </span>
+  );
+}
+
+/**
+ * Un proceso del SEACE como ficha que se toca entera (lleva a su página en Gobserva Licitaciones): su tipo y su etapa en
+ * pastillas (la convocatoria abierta, con el punto que late), el objeto, la fecha, el valor referencial contra lo
+ * adjudicado en barras y quién ganó (sólo empresas por su nombre).
+ */
+function ProcesoFicha({ p, lugar, href }: { p: ProcesoSeace; lugar: FichaObras["lugar"]; href: string }) {
+  const convocada = p.etapa === "convocada";
+  const max = Math.max(p.valor ?? 0, p.adjudicado ?? 0, 1);
+  return (
+    <li className="min-w-0">
+      <a
+        href={href}
+        className="gs-mira group flex h-full min-w-0 flex-col rounded-2xl border border-line bg-paper p-4 transition-colors duration-rapido hover:border-granate/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-granate"
+      >
+        <span className="flex items-start justify-between gap-3">
+          <span aria-hidden className={cn("grid h-10 w-10 shrink-0 place-items-center rounded-xl", convocada ? "bg-amber-soft text-amberTexto" : "bg-granate-50 text-granate")}>
+            <Gavel size={18} />
+          </span>
+          <span className="flex flex-wrap justify-end gap-1.5">
+            <span className="rounded-full bg-granate-50 px-2.5 py-0.5 text-rotulo font-semibold text-granate">{TIPO_PROCESO[p.tipo ?? ""] ?? "Proceso"}</span>
+            <span className={cn("inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-rotulo font-semibold", convocada ? "bg-amber-soft text-amberTexto" : "bg-paperDeep text-inkSoft")}>
+              {convocada && (
+                <span aria-hidden className="relative flex h-1.5 w-1.5">
+                  <span className="absolute inline-flex h-full w-full rounded-full bg-amber opacity-60 motion-safe:animate-ping" />
+                  <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-amber" />
+                </span>
+              )}
+              {ETAPA_PROCESO[p.etapa ?? ""] ?? "Sin etapa"}
+            </span>
+          </span>
+        </span>
+        <span className="mt-3 line-clamp-3 text-dato font-semibold leading-snug text-ink group-hover:text-granate">
+          {conLugares(limpiar(p.objeto), lugar) || "Proceso sin objeto registrado"}
+        </span>
+        <span className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-rotulo text-mute">
+          <span className="inline-flex items-center gap-1">
+            <CalendarDays size={12} aria-hidden /> {p.fecha ? fechaConAnio(p.fecha) : "Sin fecha"}
+          </span>
+          {p.procedimiento && <span>{p.procedimiento}</span>}
+        </span>
+        {(p.valor != null || p.adjudicado != null) && (
+          <span className="mt-3 block space-y-2">
+            {p.valor != null && <MontoProceso etiqueta="Valor referencial" valor={p.valor} max={max} barra={p.adjudicado != null} />}
+            {p.adjudicado != null && <MontoProceso etiqueta="Adjudicado" valor={p.adjudicado} max={max} fuerte barra={p.valor != null} />}
+          </span>
+        )}
+        {(p.ganadores.empresas.length > 0 || p.ganadores.otros > 0) && (
+          <span className="mt-3 flex items-start gap-1.5 text-meta text-inkSoft">
+            <Building2 size={14} aria-hidden className="mt-0.5 shrink-0 text-mute" />
+            <span>
+              Ganó:{" "}
+              {p.ganadores.empresas.map((g, i) => (
+                <span key={g.ruc}>
+                  {i > 0 ? ", " : ""}
+                  <b className="font-semibold text-ink">{nombreEmpresa(g.nombre)}</b>
+                  {g.consorcio ? " (en consorcio)" : ""}
+                </span>
+              ))}
+              {p.ganadores.otros > 0 && (
+                <span className="text-mute">
+                  {p.ganadores.empresas.length ? " y " : ""}
+                  {p.ganadores.otros === 1 ? "un consorcio o una persona natural" : `${numero(p.ganadores.otros)} consorcios o personas naturales`} (sin nombre)
+                </span>
+              )}
+            </span>
+          </span>
+        )}
+        <span className="mt-auto inline-flex items-center gap-1 pt-3 text-meta font-semibold text-granate">
+          Ver el proceso en Gobserva Licitaciones <ArrowUpRight size={13} aria-hidden />
+        </span>
+      </a>
     </li>
   );
 }

@@ -7,12 +7,12 @@ import { BarraPostular } from "@/components/empleo/BarraPostular";
 import { CumplesRequisitos, type Requisito } from "@/components/empleo/CumplesRequisitos";
 import { Ruta } from "@/components/empleo/Piezas";
 import { RangoSueldo, fraseSueldo } from "@/components/empleo/RangoSueldo";
-import { Chip, tonoCierre } from "@/components/empleo/TarjetaPlaza";
+import { CalendarioCierre, Chip, tonoCierre } from "@/components/empleo/TarjetaPlaza";
+import { FichaPlaza as PestanasFicha, Pastilla, type PestanaPlaza } from "@/components/empleo/FichaPlaza";
 import { BotonGuardar } from "@/components/gobserva/cuenta/BotonGuardar";
 import { Nota } from "@/components/patrones/Estructura";
 import { Franja } from "@/components/patrones/Franja";
 import { DatosEstructurados } from "@/components/seo/DatosEstructurados";
-import { Dato } from "@/components/ui/Dato";
 import { claseAccion } from "@/components/ui/EnlaceAccion";
 import {
   aniosCorto,
@@ -147,6 +147,175 @@ export default async function FichaPlazaEmpleo({ params }: Props) {
     else requisitos.push({ clave: c.clave, titulo: c.titulo, resumen: c.resumen, texto: legible(t) });
   }
 
+  const senales = p.senales?.length ?? 0;
+  const pestanas: PestanaPlaza[] = [];
+  if (requisitos.length > 0 || enBases.length > 0 || noPide.length > 0)
+    pestanas.push({
+      clave: "cumples",
+      titulo: "¿Cumples?",
+      cuenta: requisitos.length > 0 ? <Pastilla etiqueta="requisitos">{requisitos.length}</Pastilla> : undefined,
+      contenido: (
+        <section aria-label="¿Cumples los requisitos?">
+          <p className="max-w-[70ch] text-dato leading-relaxed text-inkSoft">
+            {requisitos.length > 0
+              ? "Marca lo que ya tienes. Es lo que pide la entidad en su aviso; las bases completas están en su publicación oficial."
+              : "El aviso no trae requisitos que se puedan marcar: están en las bases de la convocatoria."}
+          </p>
+          <div className="mt-4 space-y-3">
+            <CumplesRequisitos aviso={p.aviso} requisitos={requisitos} postular={p.detalleUrl} servir={SERVIR} cerrada={cerrada} />
+            {enBases.length > 0 && (
+              <Nota icono={<ScrollText size={15} aria-hidden />}>
+                El aviso no detalla {enumerar(enBases)}: remite a las bases de la convocatoria. Revísalas antes de postular.
+              </Nota>
+            )}
+            {noPide.length > 0 && <Nota icono={<CircleCheckBig size={15} aria-hidden />}>No pide {enumerar(noPide, "ni")}.</Nota>}
+          </div>
+        </section>
+      ),
+    });
+  if (!cerrada)
+    pestanas.push({
+      clave: "postular",
+      titulo: "Cómo postular",
+      contenido: (
+        <section aria-label="Cómo postular">
+          <ol className="grid gap-3 md:grid-cols-3">
+            <Paso n={1} titulo="Lee las bases">
+              {p.detalleUrl ? (
+                <>
+                  Están en la web de la entidad
+                  {p.numero ? (
+                    <>
+                      : busca la convocatoria <b className="font-semibold text-ink">{p.numero}</b>
+                    </>
+                  ) : null}
+                  . Ahí van el perfil completo, el cronograma y cómo se presenta la postulación.
+                </>
+              ) : (
+                <>
+                  Están en la publicación de la entidad. En SERVIR, busca el aviso <b className="font-mono font-semibold text-ink">{p.aviso}</b>.
+                </>
+              )}
+              <span className="mt-2 flex flex-wrap gap-x-4 gap-y-1">
+                {p.detalleUrl && (
+                  <a href={p.detalleUrl} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-11 items-center gap-1 font-semibold text-granate underline-offset-4 hover:underline">
+                    Abrir la web de la entidad <ArrowUpRight size={15} aria-hidden />
+                    <span className="sr-only"> (se abre en otra pestaña)</span>
+                  </a>
+                )}
+                <a href={SERVIR} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-11 items-center gap-1 font-semibold text-granate underline-offset-4 hover:underline">
+                  Abrir SERVIR <ArrowUpRight size={15} aria-hidden />
+                  <span className="sr-only"> (se abre en otra pestaña)</span>
+                </a>
+              </span>
+            </Paso>
+            <Paso n={2} titulo="Prepara lo que piden">
+              Las bases dicen qué documentos y formatos debes presentar, y si se postula en línea, por correo o en mesa de partes.
+            </Paso>
+            <Paso n={3} titulo="Postula antes del cierre">
+              {p.fechaFin ? `Tienes hasta el ${fechaDia(p.fechaFin)} (${textoCierre(dias).toLowerCase()}). ` : "Revisa la fecha de cierre en las bases. "}
+              Postular es gratis: nadie puede cobrarte por una plaza del Estado.
+              {dias != null && dias > 2 ? " Guárdala y te recordamos 2 días antes de que cierre." : ""}
+            </Paso>
+          </ol>
+        </section>
+      ),
+    });
+  pestanas.push({
+    clave: "saber",
+    titulo: "Lo que nadie te dice",
+    cuenta: <Pastilla tono={senales ? "confirma" : "cumples"} etiqueta={senales ? "señales" : "nada que destacar"}>{senales ? senales : <CircleCheckBig size={12} aria-hidden />}</Pastilla>,
+    contenido: (
+      <section aria-label="Lo que nadie te dice">
+        {p.senales?.length ? (
+          <ul className="grid gap-3 md:grid-cols-2">
+            {p.senales.map((s) => {
+              const info = SENAL_PLAZA[s.tipo];
+              const extra = detalleSenal(s.tipo, (s.detalle ?? {}) as Record<string, unknown>);
+              return (
+                <li key={s.tipo} className="rounded-2xl border border-amber/30 bg-amber-soft/40 p-4 sm:p-5">
+                  <p className="flex items-start gap-2 text-cuerpo font-semibold leading-snug text-ink">
+                    <span aria-hidden className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-amber/20 text-amberTexto">
+                      <Eye size={17} />
+                    </span>
+                    <span className="pt-1">{info?.titulo ?? s.tipo}</span>
+                  </p>
+                  <p className="mt-2 max-w-[70ch] text-dato leading-relaxed text-inkSoft">{info?.explica}</p>
+                  {extra && <p className="mt-2 max-w-[70ch] border-t border-amber/20 pt-2 text-meta leading-relaxed text-inkSoft">{extra}</p>}
+                </li>
+              );
+            })}
+          </ul>
+        ) : (
+          <>
+          <p className="mb-3 flex items-center gap-2 text-cuerpo font-semibold text-ink">
+            <CircleCheckBig size={18} aria-hidden className="shrink-0 text-mossTexto" /> Nada que destacar en esta plaza
+          </p>
+          <ul className="grid gap-2 md:grid-cols-3 md:gap-3">
+            {[
+              "No pide experiencia en la misma entidad que convoca.",
+              "No encontramos personas que ya hicieran ese trabajo por órdenes de servicio.",
+              "No la convocó una gestión de salida.",
+            ].map((x) => (
+              <li key={x} className="flex items-start gap-3 rounded-2xl border border-line bg-paper p-3.5 text-dato leading-snug text-inkSoft md:flex-col md:gap-2 md:p-4">
+                <span aria-hidden className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-moss/15 text-mossTexto">
+                  <CircleCheckBig size={17} />
+                </span>
+                <span className="pt-1 md:pt-0">{x}</span>
+              </li>
+            ))}
+          </ul>
+          </>
+        )}
+        <Nota className="mt-3">
+          {p.senales?.length
+            ? "Son datos públicos cruzados por Vigía, el proyecto cívico de Gobserva. No prueban que la plaza esté arreglada: te ayudan a decidir dónde pones tu esfuerzo."
+            : "Vigía, el proyecto cívico de Gobserva, cruza cada plaza con lo que la entidad ya pagaba por órdenes de servicio y con quién gobierna."}
+        </Nota>
+      </section>
+    ),
+  });
+  if (comparada || d.mismoTitulo.length > 0)
+    pestanas.push({
+      clave: "sueldo",
+      titulo: "El sueldo",
+      cuenta: d.mismoTitulo.length > 0 ? <Pastilla etiqueta="convocatorias iguales">{d.mismoTitulo.length}</Pastilla> : undefined,
+      contenido: (
+        <div className="space-y-8">
+          {comparada && (
+            <section aria-labelledby="sueldo-t">
+              <h2 id="sueldo-t" className="font-display text-bloque font-bold leading-tight text-ink">
+                Lo que pagan otras entidades por este puesto
+              </h2>
+              <div className="mt-3">
+                <RangoSueldo sueldo={p.remuneracion} p25={comparada.p25} mediana={comparada.mediana} p75={comparada.p75} plazas={comparada.plazas} entidades={comparada.entidades} />
+              </div>
+            </section>
+          )}
+          {d.mismoTitulo.length > 0 && (
+            <section aria-labelledby="misma-t">
+              <h2 id="misma-t" className="font-display text-bloque font-bold leading-tight text-ink">
+                La misma plaza en esta entidad
+              </h2>
+              <p className="mt-1.5 max-w-[70ch] text-dato leading-relaxed text-inkSoft">
+                {d.mismoTitulo.length === 1 ? "Otra convocatoria" : `${numero(d.mismoTitulo.length)} convocatorias más`} con el mismo puesto: una plaza que se repite puede ser de alta rotación.
+              </p>
+              <ListaMisma filas={d.mismoTitulo.slice(0, MISMA_A_LA_VISTA)} base={base} sueldo={p.remuneracion} className="mt-4" />
+              {d.mismoTitulo.length > MISMA_A_LA_VISTA && (
+                <details className="group mt-2">
+                  <summary className="inline-flex min-h-11 cursor-pointer list-none items-center gap-1.5 text-dato font-semibold text-granate [&::-webkit-details-marker]:hidden">
+                    <span className="group-open:hidden">Ver las {numero(d.mismoTitulo.length - MISMA_A_LA_VISTA)} restantes</span>
+                    <span className="hidden group-open:inline">Ocultar las {numero(d.mismoTitulo.length - MISMA_A_LA_VISTA)} restantes</span>
+                  </summary>
+                  <ListaMisma filas={d.mismoTitulo.slice(MISMA_A_LA_VISTA)} base={base} sueldo={p.remuneracion} className="mt-2" />
+                </details>
+              )}
+            </section>
+          )}
+        </div>
+      ),
+    });
+
   return (
     <div className="container-page pb-4 pt-6 sm:pt-10">
       <DatosEstructurados datos={jobPosting(d)} />
@@ -159,23 +328,22 @@ export default async function FichaPlazaEmpleo({ params }: Props) {
             <Building2 size={18} aria-hidden className="mt-0.5 shrink-0 text-mute" />
             {entidad}
           </p>
-          <ul className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 text-meta text-inkSoft [&>li]:min-w-0 [&>li]:max-w-full" aria-label="Datos de la plaza">
-            <li>
-              <Chip icono={<Timer size={13} aria-hidden />} tono={cerrada ? "neutro" : tonoCierre(dias)}>
-                {cerrada ? cierre : `${textoCierre(dias)}${p.fechaFin ? ` (${fechaDia(p.fechaFin)})` : ""}`}
-              </Chip>
-            </li>
-            <li>
-              <Dato icono={MapPin} nombre="Lugar">
-                {lugar(p.ubicacion)}
-              </Dato>
-            </li>
-            <li>
-              <Dato icono={Users} nombre="Vacantes">
-                {vacantes === 1 ? "1 vacante" : `${numero(vacantes)} vacantes`}
-              </Dato>
-            </li>
-          </ul>
+          {/* El plazo de un vistazo (2026-11-22: «esto es texto plano»): la hoja de calendario con lo que falta y la barra
+              de la convocatoria, de la publicación al cierre; el lugar y las vacantes en pastillas. */}
+          <div className="mt-4 flex items-stretch gap-3">
+            <CalendarioCierre dias={dias} fechaFin={p.fechaFin} grande />
+            <div className="min-w-0 flex-1 rounded-2xl border border-line bg-paper px-3.5 py-3 sm:px-4">
+              <Plazo inicio={p.fechaInicio} fin={p.fechaFin} dias={dias} />
+              <ul className="mt-2.5 flex flex-wrap gap-1.5 [&>li]:min-w-0 [&>li]:max-w-full" aria-label="Datos de la plaza">
+                <li>
+                  <Chip icono={<MapPin size={13} aria-hidden />}>{lugar(p.ubicacion)}</Chip>
+                </li>
+                <li>
+                  <Chip icono={<Users size={13} aria-hidden />}>{vacantes === 1 ? "1 vacante" : `${numero(vacantes)} vacantes`}</Chip>
+                </li>
+              </ul>
+            </div>
+          </div>
           {/* El botón a las parecidas va en el bloque de al lado (en el celular, justo debajo): aquí sólo el aviso. */}
           {cerrada && (
             <Franja icono={<Timer size={18} aria-hidden />} titulo="Esta plaza ya cerró" className="mt-5">
@@ -227,12 +395,9 @@ export default async function FichaPlazaEmpleo({ params }: Props) {
             </div>
 
             <dl className="mt-5 text-dato">
-              <Fila t="Cierra">
-                <span className={cn(!cerrada && dias != null && dias <= 1 && "font-semibold text-crimsonTexto")}>{cierre}</span>
-              </Fila>
+              {/* El cierre y la publicación ya están en el plazo de arriba (la hoja de calendario y su barra). */}
               <Fila t="Experiencia">{expCorta ?? "Según el aviso"}</Fila>
               <Fila t="Contrato">{contrato.texto}</Fila>
-              {p.fechaInicio && <Fila t="Publicada">{fechaDia(p.fechaInicio)}</Fila>}
               {p.numero && (
                 <Fila t="Convocatoria" apilada>
                   {p.numero}
@@ -251,153 +416,13 @@ export default async function FichaPlazaEmpleo({ params }: Props) {
           </div>
         </aside>
 
-        <div className="min-w-0 space-y-12 lg:col-start-1 lg:row-start-2">
-          {(requisitos.length > 0 || enBases.length > 0 || noPide.length > 0) && (
-            <section aria-labelledby="cumples-t" id="cumples" className="scroll-mt-24">
-              <h2 id="cumples-t" className="font-display text-seccion font-bold leading-tight text-ink">
-                ¿Cumples los requisitos?
-              </h2>
-              <p className="mt-1.5 max-w-[70ch] text-dato leading-relaxed text-inkSoft">
-                {requisitos.length > 0
-                  ? "Marca lo que ya tienes. Es lo que pide la entidad en su aviso; las bases completas están en su publicación oficial."
-                  : "El aviso no trae requisitos que se puedan marcar: están en las bases de la convocatoria."}
-              </p>
-              <div className="mt-4 space-y-3">
-                <CumplesRequisitos aviso={p.aviso} requisitos={requisitos} postular={p.detalleUrl} servir={SERVIR} cerrada={cerrada} />
-                {enBases.length > 0 && (
-                  <Nota icono={<ScrollText size={15} aria-hidden />}>
-                    El aviso no detalla {enumerar(enBases)}: remite a las bases de la convocatoria. Revísalas antes de postular.
-                  </Nota>
-                )}
-                {noPide.length > 0 && <Nota icono={<CircleCheckBig size={15} aria-hidden />}>No pide {enumerar(noPide, "ni")}.</Nota>}
-              </div>
-            </section>
-          )}
-
-          {comparada && (
-            <section aria-labelledby="sueldo-t" id="sueldo" className="scroll-mt-24">
-              <h2 id="sueldo-t" className="font-display text-seccion font-bold leading-tight text-ink">
-                Lo que pagan otras entidades por este puesto
-              </h2>
-              <div className="mt-4">
-                <RangoSueldo sueldo={p.remuneracion} p25={comparada.p25} mediana={comparada.mediana} p75={comparada.p75} plazas={comparada.plazas} entidades={comparada.entidades} />
-              </div>
-            </section>
-          )}
-
-          <section aria-labelledby="nadie-t">
-            <h2 id="nadie-t" className="flex items-center gap-2 font-display text-seccion font-bold leading-tight text-ink">
-              <Eye size={22} aria-hidden className="shrink-0 text-amberTexto" /> Lo que nadie te dice
-            </h2>
-            {p.senales?.length ? (
-              <ul className="mt-4 space-y-3">
-                {p.senales.map((s) => {
-                  const info = SENAL_PLAZA[s.tipo];
-                  const extra = detalleSenal(s.tipo, (s.detalle ?? {}) as Record<string, unknown>);
-                  return (
-                    <li key={s.tipo} className="rounded-2xl border border-amber/30 bg-amber-soft/40 p-4 sm:p-5">
-                      <p className="flex items-start gap-2 text-cuerpo font-semibold leading-snug text-ink">
-                        <Eye size={18} aria-hidden className="mt-0.5 shrink-0 text-amberTexto" />
-                        {info?.titulo ?? s.tipo}
-                      </p>
-                      <p className="mt-1.5 max-w-[70ch] text-dato leading-relaxed text-inkSoft">{info?.explica}</p>
-                      {extra && <p className="mt-2 max-w-[70ch] border-t border-amber/20 pt-2 text-meta leading-relaxed text-inkSoft">{extra}</p>}
-                    </li>
-                  );
-                })}
-              </ul>
-            ) : (
-              <div className="mt-4 rounded-2xl border border-line bg-paper">
-                <p className="border-b border-line px-4 py-3 text-dato font-semibold text-ink sm:px-5">Nada que destacar en esta plaza</p>
-                <ul className="divide-y divide-line">
-                  {[
-                    "No pide experiencia en la misma entidad que convoca.",
-                    "No encontramos personas que ya hicieran ese trabajo por órdenes de servicio.",
-                    "No la convocó una gestión de salida.",
-                  ].map((t) => (
-                    <li key={t} className="flex items-start gap-2.5 px-4 py-3 text-dato leading-snug text-inkSoft sm:px-5">
-                      <CircleCheckBig size={17} aria-hidden className="mt-0.5 shrink-0 text-mossTexto" />
-                      {t}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
-            <Nota className="mt-3">
-              {p.senales?.length
-                ? "Son datos públicos cruzados por Vigía, el proyecto cívico de Gobserva. No prueban que la plaza esté arreglada: te ayudan a decidir dónde pones tu esfuerzo."
-                : "Vigía, el proyecto cívico de Gobserva, cruza cada plaza con lo que la entidad ya pagaba por órdenes de servicio y con quién gobierna."}
-            </Nota>
-          </section>
-
-          {!cerrada && (
-            <section aria-labelledby="postular-t" id="como-postular" className="scroll-mt-24">
-              <h2 id="postular-t" className="font-display text-seccion font-bold leading-tight text-ink">
-                Cómo postular
-              </h2>
-              <ol className="mt-5 space-y-5">
-                <Paso n={1} titulo="Lee las bases">
-                  {p.detalleUrl ? (
-                    <>
-                      Están en la web de la entidad
-                      {p.numero ? (
-                        <>
-                          : busca la convocatoria <b className="font-semibold text-ink">{p.numero}</b>
-                        </>
-                      ) : null}
-                      . Ahí van el perfil completo, el cronograma y cómo se presenta la postulación.
-                    </>
-                  ) : (
-                    <>
-                      Están en la publicación de la entidad. En SERVIR, busca el aviso <b className="font-mono font-semibold text-ink">{p.aviso}</b>.
-                    </>
-                  )}
-                  <span className="mt-2 flex flex-wrap gap-x-4 gap-y-1">
-                    {p.detalleUrl && (
-                      <a href={p.detalleUrl} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-11 items-center gap-1 font-semibold text-granate underline-offset-4 hover:underline">
-                        Abrir la web de la entidad <ArrowUpRight size={15} aria-hidden />
-                        <span className="sr-only"> (se abre en otra pestaña)</span>
-                      </a>
-                    )}
-                    <a href={SERVIR} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-11 items-center gap-1 font-semibold text-granate underline-offset-4 hover:underline">
-                      Abrir SERVIR <ArrowUpRight size={15} aria-hidden />
-                      <span className="sr-only"> (se abre en otra pestaña)</span>
-                    </a>
-                  </span>
-                </Paso>
-                <Paso n={2} titulo="Prepara lo que piden">
-                  Las bases dicen qué documentos y formatos debes presentar, y si se postula en línea, por correo o en mesa de partes.
-                </Paso>
-                <Paso n={3} titulo="Postula antes del cierre">
-                  {p.fechaFin ? `Tienes hasta el ${fechaDia(p.fechaFin)} (${textoCierre(dias).toLowerCase()}). ` : "Revisa la fecha de cierre en las bases. "}
-                  Postular es gratis: nadie puede cobrarte por una plaza del Estado.
-                  {dias != null && dias > 2 ? " Guárdala y te recordamos 2 días antes de que cierre." : ""}
-                </Paso>
-              </ol>
-            </section>
-          )}
-
-          {d.mismoTitulo.length > 0 && (
-            <section aria-labelledby="misma-t">
-              <h2 id="misma-t" className="font-display text-seccion font-bold leading-tight text-ink">
-                La misma plaza en esta entidad
-              </h2>
-              <p className="mt-1.5 max-w-[70ch] text-dato leading-relaxed text-inkSoft">
-                {d.mismoTitulo.length === 1 ? "Otra convocatoria" : `${numero(d.mismoTitulo.length)} convocatorias más`} con el mismo puesto: una plaza que se repite puede ser de alta rotación.
-              </p>
-              <ListaMisma filas={d.mismoTitulo.slice(0, MISMA_A_LA_VISTA)} base={base} className="mt-4" />
-              {d.mismoTitulo.length > MISMA_A_LA_VISTA && (
-                <details className="group mt-2">
-                  <summary className="inline-flex min-h-11 cursor-pointer list-none items-center gap-1.5 text-dato font-semibold text-granate [&::-webkit-details-marker]:hidden">
-                    <span className="group-open:hidden">Ver las {numero(d.mismoTitulo.length - MISMA_A_LA_VISTA)} restantes</span>
-                    <span className="hidden group-open:inline">Ocultar las {numero(d.mismoTitulo.length - MISMA_A_LA_VISTA)} restantes</span>
-                  </summary>
-                  <ListaMisma filas={d.mismoTitulo.slice(MISMA_A_LA_VISTA)} base={base} className="mt-2" />
-                </details>
-              )}
-            </section>
-          )}
-
+        <div className="min-w-0 space-y-8 lg:col-start-1 lg:row-start-2">
+          {/* Lo que antes eran cinco secciones apiladas (en el celular, tres pantallas de texto), en pestañas: una a la vez,
+              con su cuenta al lado. Las anclas de siempre (#cumples, #sueldo, #saber, #postular) abren la suya. */}
+          {/* En su propia caja: el space-y de afuera separaba también la fila de pestañas de su panel. */}
+          <div>
+            <PestanasFicha publica barra={null} pestanas={pestanas} />
+          </div>
           <div className="lg:hidden">
             <AlertaParecidas id="parecidas-pie" href={alerta} canal={canalAlertas(cat.correoActivo)} />
           </div>
@@ -449,36 +474,80 @@ function AlertaParecidas({ id, href, canal }: { id: string; href: string; canal:
   );
 }
 
-function ListaMisma({ filas, base, className }: { filas: FichaPlaza["mismoTitulo"]; base: string; className?: string }) {
+function ListaMisma({ filas, base, sueldo, className }: { filas: FichaPlaza["mismoTitulo"]; base: string; sueldo: number | null | undefined; className?: string }) {
   return (
-    <ul className={cn("divide-y divide-line overflow-hidden rounded-2xl border border-line bg-paper", className)}>
-      {filas.map((m) => (
-        <li key={m.aviso}>
-          <Link
-            href={rutaEn(base, `/plaza/${m.aviso}`)}
-            className="flex min-h-12 flex-wrap items-center justify-between gap-x-4 gap-y-1 px-4 py-3 transition-colors duration-rapido hover:bg-paperSoft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-granate"
-          >
-            <span className="min-w-0">
-              <span className="block truncate text-dato font-medium text-ink">{m.numero ?? `Aviso ${m.aviso}`}</span>
-              <span className="mt-0.5 block text-meta text-mute">{m.fechaInicio ? `Publicada el ${fechaDia(m.fechaInicio)}` : "Sin fecha de publicación"}</span>
-            </span>
-            <span className="shrink-0 font-mono text-dato tabular-nums text-inkSoft">{m.remuneracion ? soles(m.remuneracion) : "Sueldo sin dato"}</span>
-          </Link>
-        </li>
-      ))}
+    <ul className={cn("grid gap-2 sm:grid-cols-2", className)}>
+      {filas.map((m) => {
+        const dif = sueldo && m.remuneracion ? m.remuneracion - sueldo : null;
+        return (
+          <li key={m.aviso} className="min-w-0">
+            <Link
+              href={rutaEn(base, `/plaza/${m.aviso}`)}
+              className="gs-mira flex h-full min-h-12 items-center justify-between gap-3 rounded-2xl border border-line bg-paper px-4 py-3 transition-colors duration-rapido hover:border-granate/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-granate"
+            >
+              <span className="min-w-0">
+                <span className="block truncate text-dato font-medium text-ink">{m.numero ?? `Aviso ${m.aviso}`}</span>
+                <span className="mt-0.5 block text-meta text-mute">{m.fechaInicio ? `Publicada el ${fechaDia(m.fechaInicio)}` : "Sin fecha de publicación"}</span>
+              </span>
+              <span className="shrink-0 text-right">
+                <span className="block font-display text-bloque font-bold leading-none tabular-nums text-ink">{m.remuneracion ? soles(m.remuneracion) : "Sin dato"}</span>
+                {dif != null && dif !== 0 && (
+                  <span className={cn("mt-1 inline-flex items-center gap-0.5 text-rotulo font-semibold", dif > 0 ? "text-mossTexto" : "text-amberTexto")}>
+                    {dif > 0 ? <TrendingUp size={12} aria-hidden /> : <TrendingDown size={12} aria-hidden />}
+                    {soles(Math.abs(dif))} {dif > 0 ? "más" : "menos"}
+                  </span>
+                )}
+              </span>
+            </Link>
+          </li>
+        );
+      })}
     </ul>
+  );
+}
+
+/**
+ * La convocatoria en una barra, de la publicación al cierre: cuánto del plazo ya pasó (crece a pasos), en rojo si es el
+ * último día o el anterior. Debajo, cuántos días quedan de los que dio la entidad.
+ */
+function Plazo({ inicio, fin, dias }: { inicio: string | null | undefined; fin: string | null | undefined; dias: number | null }) {
+  const desde = diasParaCierre(inicio);
+  if (!inicio || !fin || dias == null || desde == null) return <p className="text-dato font-medium text-ink">{textoCierre(dias)}</p>;
+  const total = Math.max(1, dias - desde);
+  const pct = dias < 0 ? 100 : Math.min(100, Math.max(3, Math.round((-desde / total) * 100)));
+  const tono = tonoCierre(dias);
+  return (
+    <div>
+      <div className="flex items-baseline justify-between gap-2 text-rotulo text-mute">
+        <span>Publicada el {fechaDia(inicio)}</span>
+        <span>Cierra el {fechaDia(fin)}</span>
+      </div>
+      <span aria-hidden className="mt-1.5 block h-2 overflow-hidden rounded-full bg-ink/[0.06]">
+        <span
+          className={cn("gs-barra-crece block h-full rounded-full", tono === "urgente" ? "bg-crimsonTexto" : tono === "pronto" ? "bg-amber" : "bg-granate")}
+          style={{ width: `${pct}%` }}
+        />
+      </span>
+      <p className={cn("mt-1.5 text-dato font-semibold", tono === "urgente" ? "text-crimsonTexto" : "text-ink")}>
+        {dias < 0
+          ? `Cerró el ${fechaDia(fin)}`
+          : dias === 0
+            ? "Hoy es el último día para postular"
+            : `Quedan ${dias} ${dias === 1 ? "día" : "días"} de los ${total} que dio la entidad`}
+      </p>
+    </div>
   );
 }
 
 function Paso({ n, titulo, children }: { n: number; titulo: string; children: ReactNode }) {
   return (
-    <li className="flex gap-4">
-      <span aria-hidden className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-granate font-mono text-dato font-bold text-paper">
+    <li className="flex gap-3 rounded-2xl border border-line bg-paper p-4 md:flex-col">
+      <span aria-hidden className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-granate font-mono text-dato font-bold text-paper">
         {n}
       </span>
-      <div className="min-w-0 pt-1.5">
+      <div className="min-w-0">
         <p className="text-cuerpo font-semibold leading-snug text-ink">{titulo}</p>
-        <p className="mt-1 max-w-[70ch] text-dato leading-relaxed text-inkSoft">{children}</p>
+        <p className="mt-1 text-dato leading-relaxed text-inkSoft">{children}</p>
       </div>
     </li>
   );

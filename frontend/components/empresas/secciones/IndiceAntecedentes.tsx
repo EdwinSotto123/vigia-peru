@@ -164,7 +164,7 @@ export function IndiceAntecedentes({
             return (
               <Fragment key={t.clave}>
               {abreGrupo ? (
-                <p role="presentation" className={cn("hidden items-center gap-1.5 px-2.5 pb-0.5 text-rotulo font-semibold text-mute lg:flex", i > 0 ? "pt-3" : "pt-1")}>
+                <p role="presentation" className={cn("hidden items-center gap-2 px-2.5 pb-1 text-meta font-semibold leading-snug text-ink lg:flex", i > 0 ? "pt-5" : "pt-2")}>
                   {t.serie != null && <MuestraSerie i={t.serie} />}
                   <span className="min-w-0">{t.grupo}</span>
                 </p>
@@ -188,9 +188,10 @@ export function IndiceAntecedentes({
                   "lg:grid lg:min-h-0 lg:w-full lg:shrink lg:grid-cols-[auto_minmax(0,1fr)_auto] lg:items-start lg:gap-x-2 lg:gap-y-1 lg:rounded-lg lg:px-2.5 lg:py-1.5",
                   // Por dentro: la fila de chips y el índice del escritorio se deslizan (overflow) y recortarían el anillo de afuera.
                   "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-granate",
+                  // La elegida, rellena (2026-11-23: la raya de 3 px a la izquierda y el borde no la separaban de las demás).
                   sel
-                    ? "border-granate bg-paper lg:border-granate/40 lg:shadow-[inset_3px_0_0_0_theme(colors.granate.DEFAULT)]"
-                    : "border-line bg-paper hover:border-granate/30 lg:border-transparent lg:bg-transparent lg:hover:border-line",
+                    ? "border-granate bg-paper lg:border-transparent lg:bg-granate-50"
+                    : "border-line bg-paper hover:border-granate/30 lg:border-transparent lg:bg-transparent lg:hover:bg-paperSoft",
                 )}
               >
                 <Severidad bandera={t.severidad} formato="punto" className="shrink-0 lg:mt-[3px]" />
@@ -198,9 +199,9 @@ export function IndiceAntecedentes({
                   {t.corto} <span className="tabular-nums text-mute">{numero(t.n)}</span>
                 </span>
                 <span className={cn("hidden min-w-0 break-words text-dato leading-snug text-ink text-pretty lg:block", sel ? "font-semibold" : "font-medium")}>{t.nombre}</span>
-                <span className="hidden font-mono text-meta font-semibold tabular-nums text-ink lg:block">{numero(t.n)}</span>
+                <span className={cn("hidden font-display text-dato font-bold tabular-nums lg:block", sel ? "text-granate" : "text-ink")}>{numero(t.n)}</span>
                 {/* La barra: su parte frente a la mayor del índice, del color de su familia. */}
-                <span aria-hidden className="col-start-2 col-end-4 hidden h-1 w-full overflow-hidden rounded-full bg-paperDeep lg:block">
+                <span aria-hidden className="col-start-2 col-end-4 hidden h-1.5 w-full overflow-hidden rounded-full bg-ink/[0.06] lg:block">
                   <span
                     className={cn("block h-full rounded-full", t.serie == null && "bg-inkSoft/70")}
                     style={{ width: `${Math.max(2, parte * 100)}%`, background: t.serie != null ? colorSerie(t.serie) : undefined }}

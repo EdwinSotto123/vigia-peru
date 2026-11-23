@@ -4,7 +4,7 @@ import { notFound } from "next/navigation";
 import { ArrowUpRight, CalendarClock, CalendarDays, FileDown, Layers, Lock, MessageSquareWarning, Receipt, Tag, Trophy, Users, type LucideIcon } from "lucide-react";
 import { BotonGuardar } from "@/components/gobserva/cuenta/BotonGuardar";
 import { CierreMenor, regionesMenor } from "@/components/licitaciones/FilaMenor";
-import { ChipTipo } from "@/components/licitaciones/Piezas";
+import { ChipTipo, IconoTipo } from "@/components/licitaciones/Piezas";
 import { Nota, Volver } from "@/components/patrones/Estructura";
 import { Dato } from "@/components/ui/Dato";
 import { claseAccion } from "@/components/ui/EnlaceAccion";
@@ -56,9 +56,11 @@ export default async function FichaMenor({ params }: { params: { id: string } })
       </Volver>
 
       <div className="mt-2 grid grid-cols-1 gap-6 sm:gap-8 lg:grid-cols-[minmax(0,1fr)_22rem] lg:items-start lg:gap-x-10">
-        <div className="min-w-0 space-y-8">
-          <header className="min-w-0">
+        {/* En el celular, las piezas de las dos columnas se intercalan (order): las acciones van justo después de los datos clave. */}
+        <div className="contents lg:block lg:min-w-0 lg:space-y-8">
+          <header className="order-1 min-w-0">
             <div className="flex flex-wrap items-center gap-1.5">
+              <IconoTipo tipo={m.tipo} className="mr-1 h-9 w-9" />
               <ChipTipo tipo={m.tipo} />
               {cerrada && (
                 <span className="inline-flex items-center gap-1 rounded-full bg-amber-soft px-2.5 py-0.5 text-rotulo font-semibold text-amberTexto">
@@ -83,7 +85,7 @@ export default async function FichaMenor({ params }: { params: { id: string } })
             </p>
           </header>
 
-          <dl className="grid grid-cols-2 gap-px overflow-hidden rounded-2xl border border-line bg-line xl:grid-cols-4">
+          <dl className="order-1 grid grid-cols-2 gap-px overflow-hidden rounded-2xl border border-line bg-line xl:grid-cols-4">
             <Clave Icono={CalendarClock} etiqueta="Cotización" valor={cierre.cerrada ? "Cerrada" : fechaHora(m.cierra)} tono={cierre.cerrada ? "text-inkSoft" : undefined}>
               <CierreMenor cierra={m.cierra} sinRotulo />
             </Clave>
@@ -99,7 +101,7 @@ export default async function FichaMenor({ params }: { params: { id: string } })
           </dl>
 
           {m.items.length > 0 && (
-            <section aria-labelledby="items-t" className="min-w-0">
+            <section aria-labelledby="items-t" className="order-3 min-w-0">
               <h2 id="items-t" className="flex items-center gap-2 font-display text-bloque font-bold text-ink">
                 <Layers size={18} aria-hidden className="text-granate" /> Qué se compra
               </h2>
@@ -131,7 +133,7 @@ export default async function FichaMenor({ params }: { params: { id: string } })
             </section>
           )}
 
-          <section aria-labelledby="precios-t" className="min-w-0">
+          <section aria-labelledby="precios-t" className="order-4 min-w-0">
             <h2 id="precios-t" className="flex items-center gap-2 font-display text-bloque font-bold text-ink">
               <Tag size={18} aria-hidden className="text-granate" /> Lo que se pagó antes por lo mismo
             </h2>
@@ -174,8 +176,8 @@ export default async function FichaMenor({ params }: { params: { id: string } })
           </section>
         </div>
 
-        <aside className="min-w-0 space-y-4 lg:sticky lg:top-24">
-          <div className="space-y-2 rounded-2xl border border-line bg-paperSoft p-4">
+        <aside className="contents lg:sticky lg:top-24 lg:block lg:min-w-0 lg:space-y-4">
+          <div className="order-2 space-y-2 rounded-2xl border border-line bg-paperSoft p-4">
             {m.tieneRequerimiento && (
               <a href={urlRequerimientoMenor(m.id)} target="_blank" rel="noopener noreferrer" className={claseAccion("primario", "min-h-11 w-full")}>
                 <FileDown size={16} aria-hidden /> Ver el requerimiento (PDF)
@@ -201,7 +203,7 @@ export default async function FichaMenor({ params }: { params: { id: string } })
             </Suspense>
           </div>
 
-          <section aria-labelledby="entidad-t" className="rounded-2xl border border-line bg-paper p-4">
+          <section aria-labelledby="entidad-t" className="order-5 rounded-2xl border border-line bg-paper p-4">
             <h2 id="entidad-t" className="font-display text-bloque font-bold leading-tight text-ink">
               {entidad}
             </h2>

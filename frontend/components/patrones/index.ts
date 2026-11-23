@@ -3,7 +3,7 @@ export { EstadoVacio, EstadoError, Cargando, SinSenalesEstado } from "./Estados"
 export { Pagina, EncabezadoPagina, Seccion, Cifra, EnlaceFuente, FuenteDato, Nota, Volver } from "./Estructura";
 export { Ayuda } from "./Ayuda";
 export { AyudaTermino } from "./AyudaTermino";
-export { Pestanas, CabeceraPestana, PanelConTitulo, irAPestana, type Pestana } from "./Pestanas";
+export { Pestanas, CabeceraPestana, PanelConTitulo, irAPestana, type Pestana, type Destacado } from "./Pestanas";
 export { GuiaPestana, type Guia } from "./GuiaPestana";
 export { PestanaAPedido } from "./PestanaAPedido";
 export { Migas, type Miga } from "./Migas";

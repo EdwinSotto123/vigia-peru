@@ -55,8 +55,13 @@ export function Pastilla({ tono = "neutro", children, etiqueta }: { tono?: keyof
  * bajo la cabecera de la app al bajar, la barra con lo que decide (el veredicto, la fecha y Postular) y las pestañas;
  * abajo, una pestaña a la vez. La pestaña va en el enlace (#bases) para compartirla, sin sumar pasos al botón Atrás, y
  * cualquier enlace a una de sus anclas (#saber, #que-hacer) abre la suya.
+ *
+ * 2026-11-22 (el usuario: «mejora la ux/ui de todo, itera sobre todo»): bajo la pestaña abierta corre la franja de
+ * píxeles de las portadas (`.gs-pestana-franja`), que se desliza a la que tocas, y el panel nuevo entra desde ese lado
+ * (`.gs-panel-der`/`-izq`). `publica`: la ficha para visitantes (/plaza/[aviso]), bajo la cabecera de la landing: la
+ * barra se pega sólo desde md (en el celular, la fila del menú del producto aparece al subir y la taparía).
  */
-export function FichaPlaza({ barra, pestanas, inicial }: { barra: ReactNode; pestanas: PestanaPlaza[]; inicial?: string }) {
+export function FichaPlaza({ barra, pestanas, inicial, publica = false }: { barra: ReactNode; pestanas: PestanaPlaza[]; inicial?: string; publica?: boolean }) {
   const primera = pestanas[0]?.clave ?? "cumples";
   const valida = useCallback((c: string | undefined): ClavePestana | null => {
     const k = c ? ANCLAS[c] : undefined;
@@ -65,6 +70,31 @@ export function FichaPlaza({ barra, pestanas, inicial }: { barra: ReactNode; pes
   const [actual, setActual] = useState<ClavePestana>(() => valida(inicial) ?? primera);
   const ancla = useRef<HTMLDivElement>(null);
   const botones = useRef<Partial<Record<ClavePestana, HTMLButtonElement | null>>>({});
+  const lista = useRef<HTMLDivElement>(null);
+  const [franja, setFranja] = useState<{ x: number; w: number } | null>(null);
+  const [dir, setDir] = useState<"der" | "izq" | null>(null);
+  const indice = pestanas.findIndex((p) => p.clave === actual);
+  const previo = useRef(indice);
+  if (previo.current !== indice) {
+    setDir(indice > previo.current ? "der" : "izq");
+    previo.current = indice;
+  }
+
+  // La franja: mide la pestaña abierta (al cambiar y al cambiar de tamaño) y la trae a la vista dentro de la fila.
+  useEffect(() => {
+    const medir = () => {
+      const b = botones.current[actual];
+      const l = lista.current;
+      if (!b || !l) return;
+      setFranja({ x: b.offsetLeft, w: b.offsetWidth });
+      if (b.offsetLeft < l.scrollLeft) l.scrollTo({ left: b.offsetLeft - 16, behavior: "smooth" });
+      else if (b.offsetLeft + b.offsetWidth > l.scrollLeft + l.clientWidth) l.scrollTo({ left: b.offsetLeft + b.offsetWidth + 16 - l.clientWidth, behavior: "smooth" });
+    };
+    medir();
+    const ro = new ResizeObserver(medir);
+    if (lista.current) ro.observe(lista.current);
+    return () => ro.disconnect();
+  }, [actual]);
 
   const ir = useCallback(
     (clave: ClavePestana, opciones: { subir?: boolean; enfocar?: boolean } = {}) => {
@@ -121,9 +151,14 @@ export function FichaPlaza({ barra, pestanas, inicial }: { barra: ReactNode; pes
   return (
     <>
       <div ref={ancla} aria-hidden />
-      <div className="sticky top-16 z-20 -mx-4 border-b border-line bg-lienzo/95 px-4 backdrop-blur-xl sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8">
+      <div
+        className={cn(
+          "z-20 border-b border-line backdrop-blur-xl",
+          publica ? "bg-fondo/95 md:sticky md:top-16" : "sticky top-16 -mx-4 bg-lienzo/95 px-4 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8",
+        )}
+      >
         {barra}
-        <div role="tablist" aria-label="Secciones de la plaza" className="-mb-px flex gap-1 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        <div ref={lista} role="tablist" aria-label="Secciones de la plaza" className="relative -mb-px flex gap-1 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {pestanas.map((p, i) => {
             const activa = p.clave === actual;
             return (
@@ -142,7 +177,8 @@ export function FichaPlaza({ barra, pestanas, inicial }: { barra: ReactNode; pes
                 onKeyDown={(e) => mover(e, i)}
                 className={cn(
                   "inline-flex min-h-11 shrink-0 items-center gap-1.5 whitespace-nowrap border-b-2 px-3 text-dato font-semibold transition-colors duration-rapido focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-granate",
-                  activa ? "border-granate text-ink" : "border-transparent text-inkSoft hover:border-ink/20 hover:text-ink",
+                  // Hasta que la franja mide (o sin JavaScript), la abierta lleva su borde.
+                  activa ? cn("text-ink", franja ? "border-transparent" : "border-granate") : "border-transparent text-inkSoft hover:border-ink/20 hover:text-ink",
                 )}
               >
                 {p.titulo}
@@ -150,6 +186,7 @@ export function FichaPlaza({ barra, pestanas, inicial }: { barra: ReactNode; pes
               </button>
             );
           })}
+          {franja && <span aria-hidden className="gs-pestana-franja" style={{ transform: `translateX(${franja.x}px)`, width: franja.w }} />}
         </div>
       </div>
       {pestanas.map((p) => (
@@ -160,7 +197,7 @@ export function FichaPlaza({ barra, pestanas, inicial }: { barra: ReactNode; pes
           aria-labelledby={`pestana-${p.clave}`}
           hidden={p.clave !== actual}
           tabIndex={0}
-          className="pt-5 focus-visible:outline-none sm:pt-6"
+          className={cn("pt-5 focus-visible:outline-none sm:pt-6", p.clave === actual && dir && (dir === "der" ? "gs-panel-der" : "gs-panel-izq"))}
         >
           {p.contenido}
         </div>

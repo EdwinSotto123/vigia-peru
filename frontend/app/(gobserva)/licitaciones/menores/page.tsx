@@ -2,7 +2,9 @@ import type { Metadata } from "next";
 import { CLASE_PAGINA } from "@/components/gobserva/app/Caja";
 import Link from "next/link";
 import { BellRing, Building2, ChevronLeft, ChevronRight, Clock, FileText, RotateCcw, Search, Sparkles, X } from "lucide-react";
+import { Odometro } from "@/components/gobserva/portada/Odometro";
 import { FilaMenor } from "@/components/licitaciones/FilaMenor";
+import { PuntoVivo } from "@/components/licitaciones/Piezas";
 import { PersonajePregunta } from "@/components/pixel/Escena";
 import { Nota } from "@/components/patrones/Estructura";
 import { Dato } from "@/components/ui/Dato";
@@ -96,18 +98,46 @@ export default async function ContratosMenores({ searchParams }: { searchParams?
           pide y dónde.
         </p>
         {d && (
-          <p className="mt-3 flex flex-wrap gap-x-5 gap-y-1.5 text-dato text-inkSoft">
-            <Dato icono={FileText} className="font-medium text-ink">
-              {numero(d.cabecera.abiertas)} abiertas ahora
-            </Dato>
-            <Link href={enlace({ cuando: "hoy" })} className="underline-offset-2 hover:underline">
-              <Dato icono={Clock}>{numero(d.cabecera.cierranHoy)} cierran hoy</Dato>
-            </Link>
-            <Link href={enlace({ cuando: "nuevas" })} className="underline-offset-2 hover:underline">
-              <Dato icono={Sparkles}>{numero(d.cabecera.nuevas24h)} nuevas en 24 horas</Dato>
-            </Link>
-            {actualizado && <span className="text-meta text-mute">Actualizado a las {actualizado}, cada hora</span>}
-          </p>
+          <>
+            {/* Las tres cifras de la hora en placas (antes, una línea de texto): las que cierran hoy, con su punto que late. */}
+            <ul aria-label="Las contrataciones menores de esta hora" className="mt-4 grid max-w-xl grid-cols-3 gap-2">
+              <li className="flex min-w-0 flex-col rounded-xl border border-line bg-paper px-3 py-2.5">
+                <span className="flex items-center gap-1.5 text-rotulo text-mute">
+                  <FileText size={13} aria-hidden className="shrink-0 text-granate" /> Abiertas
+                </span>
+                <span className="mt-1 font-display text-cifra font-bold leading-none tabular-nums text-ink">
+                  <Odometro texto={numero(d.cabecera.abiertas)} />
+                </span>
+              </li>
+              <li className="min-w-0">
+              <Link
+                href={enlace({ cuando: "hoy" })}
+                className="gs-mira group flex h-full min-w-0 flex-col rounded-xl border border-amber/40 bg-amber-soft px-3 py-2.5 transition-colors duration-rapido hover:border-amber"
+              >
+                <span className="flex items-center gap-1.5 text-rotulo font-semibold text-amberTexto">
+                  <PuntoVivo /> Cierran hoy
+                </span>
+                <span className="mt-1 font-display text-cifra font-bold leading-none tabular-nums text-ink">
+                  <Odometro texto={numero(d.cabecera.cierranHoy)} />
+                </span>
+              </Link>
+              </li>
+              <li className="min-w-0">
+              <Link
+                href={enlace({ cuando: "nuevas" })}
+                className="gs-mira group flex h-full min-w-0 flex-col rounded-xl border border-line bg-paper px-3 py-2.5 transition-colors duration-rapido hover:border-granate/40"
+              >
+                <span className="flex items-center gap-1.5 text-rotulo text-mute">
+                  <Sparkles size={13} aria-hidden className="shrink-0 text-granate" /> Nuevas (24 h)
+                </span>
+                <span className="mt-1 font-display text-cifra font-bold leading-none tabular-nums text-ink">
+                  <Odometro texto={numero(d.cabecera.nuevas24h)} />
+                </span>
+              </Link>
+              </li>
+            </ul>
+            {actualizado && <p className="mt-2 flex items-center gap-1.5 text-meta text-mute"><Clock size={13} aria-hidden /> Actualizado a las {actualizado}, cada hora</p>}
+          </>
         )}
       </header>
 

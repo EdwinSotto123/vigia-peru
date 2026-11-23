@@ -20,7 +20,9 @@ import {
   Wallet,
 } from "lucide-react";
 import { Barras, BarrasDobles, Histograma } from "@/components/gobserva-obras/Graficas";
-import { Dato, TiraCifras, iconoSector } from "@/components/gobserva-obras/Piezas";
+import { BarraAvance, Dato, TiraCifras, iconoSector } from "@/components/gobserva-obras/Piezas";
+import { Odometro } from "@/components/gobserva/portada/Odometro";
+import { PestanasVivas } from "@/components/gobserva/portada/PestanasVivas";
 import { Nota } from "@/components/patrones/Estructura";
 import { PersonajePregunta } from "@/components/pixel/Escena";
 import { claseAccion } from "@/components/ui/EnlaceAccion";
@@ -144,19 +146,19 @@ export default async function MercadoObras({ searchParams }: Props) {
         <div className="mt-10 space-y-12">
           {/* Las cifras */}
           <dl className="grid grid-cols-1 gap-2 sm:grid-cols-2 sm:gap-3 lg:grid-cols-3">
-            <Dato Icono={Wallet} valor={solesCompacto(m.porEjecutar)} etiqueta="por ejecutar entre lo que se viene y lo que está en marcha" destacado />
-            <Dato Icono={Sparkles} valor={numero(m.seVienen.n)} etiqueta={`proyectos se vienen, por ${solesCompacto(m.seVienen.monto)}`} detalle={`${numero(m.seVienen.conExpediente)} ya tienen expediente técnico o se licitan`} />
-            <Dato Icono={HardHat} valor={numero(m.enMarcha.n)} etiqueta={`obras en marcha, por ${solesCompacto(m.enMarcha.monto)}`} detalle={`Les faltan ${solesCompacto(m.enMarcha.porEjecutar)}`} />
+            <Dato Icono={Wallet} valor={<Odometro texto={solesCompacto(m.porEjecutar)} />} etiqueta="por ejecutar entre lo que se viene y lo que está en marcha" destacado />
+            <Dato Icono={Sparkles} valor={<Odometro texto={numero(m.seVienen.n)} />} etiqueta={`proyectos se vienen, por ${solesCompacto(m.seVienen.monto)}`} detalle={`${numero(m.seVienen.conExpediente)} ya tienen expediente técnico o se licitan`} />
+            <Dato Icono={HardHat} valor={<Odometro texto={numero(m.enMarcha.n)} />} etiqueta={`obras en marcha, por ${solesCompacto(m.enMarcha.monto)}`} detalle={`Les faltan ${solesCompacto(m.enMarcha.porEjecutar)}`} />
             <Dato
               Icono={CirclePause}
-              valor={pctParalizadas != null ? porcentaje(pctParalizadas, { decimales: pctParalizadas < 10 ? 1 : 0 }) : "Sin dato"}
+              valor={<Odometro texto={pctParalizadas != null ? porcentaje(pctParalizadas, { decimales: pctParalizadas < 10 ? 1 : 0 }) : "Sin dato"} />}
               etiqueta={`de las obras en marcha está paralizada (${numero(m.paralizadas.n)})`}
               detalle={`Con ${solesCompacto(m.paralizadas.porEjecutar)} sin ejecutar`}
             />
-            <Dato Icono={Ruler} valor={solesCompacto(m.enMarcha.mediana)} etiqueta="cuesta la obra típica en marcha (la mediana)" detalle={`La que se viene: ${solesCompacto(m.seVienen.mediana)}`} />
+            <Dato Icono={Ruler} valor={<Odometro texto={solesCompacto(m.enMarcha.mediana)} />} etiqueta="cuesta la obra típica en marcha (la mediana)" detalle={`La que se viene: ${solesCompacto(m.seVienen.mediana)}`} />
             <Dato
               Icono={CalendarClock}
-              valor={solesCompacto(m.pimAnio)}
+              valor={<Odometro texto={solesCompacto(m.pimAnio)} />}
               etiqueta={`de presupuesto de inversión ${anio} (PIM)`}
               detalle={pctAnio != null ? `Gastado: ${solesCompacto(m.devengadoAnio)} (${porcentaje(pctAnio)})` : undefined}
             />
@@ -171,124 +173,186 @@ export default async function MercadoObras({ searchParams }: Props) {
             </Link>
           </div>
 
-          {/* Dónde */}
-          <section aria-labelledby="zonas-t" className="rounded-3xl border border-line bg-paper p-5 sm:p-6">
-            <h2 id="zonas-t" className="flex items-center gap-2 font-display text-seccion font-bold leading-tight text-ink">
-              <MapPin size={20} aria-hidden className="text-granate" /> {region ? `Por provincia de ${nombreRegion(region)}` : "Por región"}
+          {/* El mercado por dentro, en pestañas (2026-11-22, el usuario: «itera sobre todo»): dónde, qué, de qué tamaño y qué se
+              paraliza eran cuatro placas apiladas más la lista de las paralizadas (11,000 px en el celular). */}
+          <section aria-labelledby="dentro-t">
+            <h2 id="dentro-t" className="text-balance font-display text-seccion font-bold leading-tight text-ink sm:text-titulo">
+              Dónde, qué y de qué tamaño
             </h2>
-            <p className="mt-1 text-meta text-inkSoft">{region ? "En soles, por la provincia que registra cada inversión." : "En soles. Toca una región para ver su mercado."}</p>
-            <BarrasDobles
-              className="mt-4"
-              etiqueta={region ? "Monto por provincia" : "Monto por región"}
-              serieA="Se vienen"
-              serieB="En ejecución"
-              columnas={zonas.length > 8 ? 2 : 1}
-              filas={zonas.map((z) => ({
-                clave: z.clave,
-                etiqueta: region ? nombreLugar(z.clave) ?? "Varias provincias" : nombreRegion(z.clave),
-                a: z.seVienenMonto,
-                b: z.enMarchaMonto,
-                detalle: `${numero(z.seVienen)} se vienen, ${numero(z.enMarcha)} en marcha${z.paralizadas ? `, ${numero(z.paralizadas)} paralizadas` : ""}`,
-                href: region ? undefined : `${ruta("/mercado")}?${new URLSearchParams({ region: z.clave, ...(sector ? { sector } : {}) }).toString()}`,
-              }))}
-            />
-          </section>
-
-          {/* Qué: los sectores a lo ancho y en dos columnas (al lado del tamaño de las obras quedaba un hueco de 700 px). */}
-          {!sector && (
-            <section aria-labelledby="sectores-t" className="rounded-3xl border border-line bg-paper p-5 sm:p-6">
-              <h2 id="sectores-t" className="flex items-center gap-2 font-display text-seccion font-bold leading-tight text-ink">
-                <ChartNoAxesCombined size={20} aria-hidden className="text-granate" /> Por sector
-              </h2>
-              <p className="mt-1 text-meta text-inkSoft">En soles. Toca un sector para ver su mercado.</p>
-              <BarrasDobles
-                className="mt-4"
-                etiqueta="Monto por sector"
-                serieA="Se vienen"
-                serieB="En ejecución"
-                columnas={2}
-                filas={[...m.porSector]
-                  .filter((s) => s.seVienen > 0 || s.enMarcha > 0)
-                  .sort((a, b) => b.seVienenMonto - a.seVienenMonto)
-                  .map((s) => ({
-                    clave: s.clave,
-                    etiqueta: nombreSector(s.clave),
-                    a: s.seVienenMonto,
-                    b: s.enMarchaMonto,
-                    detalle: `${numero(s.seVienen)} se vienen, ${numero(s.enMarcha)} en marcha`,
-                    href: `${ruta("/mercado")}?${new URLSearchParams({ ...(region ? { region } : {}), sector: s.clave }).toString()}`,
-                  }))}
-              />
-            </section>
-          )}
-
-          {/* El sector elegido, el tamaño de las obras y por qué se paralizan, lado a lado. */}
-          <div className="grid grid-cols-1 gap-6 lg:grid-cols-2 lg:items-start">
-            {sector && (
-              <section aria-labelledby="sector-t" className="min-w-0 rounded-3xl border border-line bg-paper p-5 sm:p-6">
-                <h2 id="sector-t" className="flex items-center gap-2 font-display text-seccion font-bold leading-tight text-ink">
-                  <IconoSector size={20} aria-hidden className="text-granate" /> {nombreSector(sector)}
-                </h2>
-                <dl className="mt-4 grid grid-cols-2 gap-3">
-                  <div className="min-w-0 rounded-2xl border border-line bg-paperSoft px-3.5 py-3">
-                    <dt className="flex items-center gap-1.5 text-meta text-inkSoft">
-                      <Landmark size={15} aria-hidden className="shrink-0 text-granate" /> Inversiones activas
-                    </dt>
-                    <dd className="mt-1 font-display text-seccion font-bold leading-tight tabular-nums text-ink">{numero(m.activas)}</dd>
-                  </div>
-                  <div className="min-w-0 rounded-2xl border border-line bg-paperSoft px-3.5 py-3">
-                    <dt className="flex items-center gap-1.5 text-meta text-inkSoft">
-                      <Wallet size={15} aria-hidden className="shrink-0 text-granate" /> Costo sumado
-                    </dt>
-                    <dd className="mt-1 font-display text-seccion font-bold leading-tight tabular-nums text-ink">{solesCompacto(m.costo)}</dd>
-                  </div>
-                </dl>
-                <p className="mt-3 text-meta text-inkSoft">
-                  De {nombreSector(sector).toLocaleLowerCase("es-PE")}
-                  {region ? ` en ${nombreRegion(region)}` : " en todo el Perú"}.{" "}
-                  <Link
-                    href={`${ruta("/mercado")}${region ? `?region=${region}` : ""}`}
-                    prefetch={false}
-                    className="inline-flex min-h-11 items-center font-semibold text-granate underline-offset-2 hover:underline sm:min-h-0"
-                  >
-                    Ver todos los sectores
-                  </Link>
-                </p>
-              </section>
-            )}
-
-            <section aria-labelledby="tamanos-t" className="min-w-0 rounded-3xl border border-line bg-paper p-5 sm:p-6">
-              <h2 id="tamanos-t" className="flex items-center gap-2 font-display text-seccion font-bold leading-tight text-ink">
-                <Ruler size={20} aria-hidden className="text-granate" /> De qué tamaño son
-              </h2>
-              <p className="mt-1 text-meta text-inkSoft">Cuántos proyectos hay en cada rango de costo.</p>
-              <div className="mt-5">
-                <Histograma
-                  etiqueta="Proyectos por tamaño de obra"
+            <PestanasVivas
+              etiqueta="El mercado por dentro"
+              className="-mx-1 mt-3 overflow-x-clip px-1"
+              pestanas={[
+                { titulo: region ? "Por provincia" : "Por región", icono: <MapPin size={16} aria-hidden /> },
+                { titulo: sector ? nombreSector(sector) : "Por sector", icono: sector ? <IconoSector size={16} aria-hidden /> : <ChartNoAxesCombined size={16} aria-hidden /> },
+                { titulo: "De qué tamaño", icono: <Ruler size={16} aria-hidden /> },
+                ...(m.paralizadas.n > 0
+                  ? [
+                      {
+                        titulo: (
+                          <>
+                            Paralizadas
+                            <span className="rounded-full bg-crimson-soft px-2 py-0.5 text-meta font-semibold tabular-nums text-crimsonTexto">{numero(m.paralizadas.n)}</span>
+                          </>
+                        ),
+                        icono: <CirclePause size={16} aria-hidden />,
+                      },
+                    ]
+                  : []),
+              ]}
+            >
+              {/* Dónde */}
+              <div className="rounded-3xl border border-line bg-paper p-5 sm:p-6">
+                <p className="text-meta text-inkSoft">{region ? "En soles, por la provincia que registra cada inversión." : "En soles. Toca una región para ver su mercado."}</p>
+                <BarrasDobles
+                  className="mt-4"
+                  etiqueta={region ? "Monto por provincia" : "Monto por región"}
                   serieA="Se vienen"
-                  serieB="En marcha o paralizadas"
-                  barras={m.tamanos.map((t) => ({ clave: t.rango, etiqueta: TAMANOS[t.rango] ?? t.rango, a: t.seVienen, b: t.enMarcha }))}
+                  serieB="En ejecución"
+                  columnas={zonas.length > 8 ? 2 : 1}
+                  visibles={10}
+                  mas={region ? "Ver las otras {n} provincias" : "Ver las otras {n} regiones"}
+                  filas={zonas.map((z) => ({
+                    clave: z.clave,
+                    etiqueta: region ? nombreLugar(z.clave) ?? "Varias provincias" : nombreRegion(z.clave),
+                    a: z.seVienenMonto,
+                    b: z.enMarchaMonto,
+                    detalle: `${numero(z.seVienen)} se vienen, ${numero(z.enMarcha)} en marcha${z.paralizadas ? `, ${numero(z.paralizadas)} paralizadas` : ""}`,
+                    href: region ? undefined : `${ruta("/mercado")}?${new URLSearchParams({ region: z.clave, ...(sector ? { sector } : {}) }).toString()}`,
+                  }))}
                 />
               </div>
-            </section>
 
-            {m.paralizadas.n > 0 && (
-              <section aria-labelledby="causas-t" className="min-w-0 rounded-3xl border border-line bg-paper p-5 sm:p-6">
-                <h2 id="causas-t" className="flex items-center gap-2 font-display text-seccion font-bold leading-tight text-ink">
-                  <CirclePause size={20} aria-hidden className="text-crimsonTexto" /> Por qué se paralizan
-                </h2>
-                <p className="mt-1 text-meta text-inkSoft">La causa que registra la entidad en INFOBRAS, de las {numero(m.paralizadas.n)} paralizadas hoy.</p>
-                <Barras
-                  className="mt-4"
-                  tono="alerta"
-                  etiqueta="Obras paralizadas por causa"
-                  visibles={6}
-                  mas="Ver las otras {n} causas"
-                  filas={m.causales.map((c) => ({ clave: c.causal, etiqueta: c.causal, valor: c.n }))}
-                />
-              </section>
-            )}
-          </div>
+              {/* Qué: todos los sectores o, con uno elegido, sus cifras. */}
+              {!sector ? (
+                <div className="rounded-3xl border border-line bg-paper p-5 sm:p-6">
+                  <p className="text-meta text-inkSoft">En soles. Toca un sector para ver su mercado.</p>
+                  <BarrasDobles
+                    className="mt-4"
+                    etiqueta="Monto por sector"
+                    serieA="Se vienen"
+                    serieB="En ejecución"
+                    columnas={2}
+                    filas={[...m.porSector]
+                      .filter((s) => s.seVienen > 0 || s.enMarcha > 0)
+                      .sort((a, b) => b.seVienenMonto - a.seVienenMonto)
+                      .map((s) => ({
+                        clave: s.clave,
+                        etiqueta: nombreSector(s.clave),
+                        a: s.seVienenMonto,
+                        b: s.enMarchaMonto,
+                        detalle: `${numero(s.seVienen)} se vienen, ${numero(s.enMarcha)} en marcha`,
+                        href: `${ruta("/mercado")}?${new URLSearchParams({ ...(region ? { region } : {}), sector: s.clave }).toString()}`,
+                      }))}
+                  />
+                </div>
+              ) : (
+                <div className="rounded-3xl border border-line bg-paper p-5 sm:p-6">
+                  <dl className="grid grid-cols-2 gap-3">
+                    <div className="min-w-0 rounded-2xl border border-line bg-paperSoft px-3.5 py-3">
+                      <dt className="flex items-center gap-1.5 text-meta text-inkSoft">
+                        <Landmark size={15} aria-hidden className="shrink-0 text-granate" /> Inversiones activas
+                      </dt>
+                      <dd className="mt-1 font-display text-seccion font-bold leading-tight tabular-nums text-ink">
+                        <Odometro texto={numero(m.activas)} />
+                      </dd>
+                    </div>
+                    <div className="min-w-0 rounded-2xl border border-line bg-paperSoft px-3.5 py-3">
+                      <dt className="flex items-center gap-1.5 text-meta text-inkSoft">
+                        <Wallet size={15} aria-hidden className="shrink-0 text-granate" /> Costo sumado
+                      </dt>
+                      <dd className="mt-1 font-display text-seccion font-bold leading-tight tabular-nums text-ink">
+                        <Odometro texto={solesCompacto(m.costo)} />
+                      </dd>
+                    </div>
+                  </dl>
+                  <p className="mt-3 text-meta text-inkSoft">
+                    De {nombreSector(sector).toLocaleLowerCase("es-PE")}
+                    {region ? ` en ${nombreRegion(region)}` : " en todo el Perú"}.{" "}
+                    <Link
+                      href={`${ruta("/mercado")}${region ? `?region=${region}` : ""}`}
+                      prefetch={false}
+                      className="inline-flex min-h-11 items-center font-semibold text-granate underline-offset-2 hover:underline sm:min-h-0"
+                    >
+                      Ver todos los sectores
+                    </Link>
+                  </p>
+                </div>
+              )}
+
+              {/* De qué tamaño */}
+              <div className="rounded-3xl border border-line bg-paper p-5 sm:p-6">
+                <p className="text-meta text-inkSoft">Cuántos proyectos hay en cada rango de costo.</p>
+                <div className="mt-5">
+                  <Histograma
+                    etiqueta="Proyectos por tamaño de obra"
+                    serieA="Se vienen"
+                    serieB="En marcha o paralizadas"
+                    barras={m.tamanos.map((t) => ({ clave: t.rango, etiqueta: TAMANOS[t.rango] ?? t.rango, a: t.seVienen, b: t.enMarcha }))}
+                  />
+                </div>
+              </div>
+
+              {/* Paralizadas: por qué y las más grandes, como fichas. */}
+              {m.paralizadas.n > 0 ? (
+                <div className="grid grid-cols-1 gap-6 lg:grid-cols-2 lg:items-start">
+                  <div className="min-w-0 rounded-3xl border border-line bg-paper p-5 sm:p-6">
+                    <h3 className="flex items-center gap-2 font-display text-bloque font-bold leading-tight text-ink">
+                      <CirclePause size={18} aria-hidden className="text-crimsonTexto" /> Por qué se paralizan
+                    </h3>
+                    <p className="mt-1 text-meta text-inkSoft">La causa que registra la entidad en INFOBRAS, de las {numero(m.paralizadas.n)} paralizadas hoy.</p>
+                    <Barras
+                      className="mt-4"
+                      tono="alerta"
+                      etiqueta="Obras paralizadas por causa"
+                      visibles={6}
+                      mas="Ver las otras {n} causas"
+                      filas={m.causales.map((c) => ({ clave: c.causal, etiqueta: c.causal, valor: c.n }))}
+                    />
+                  </div>
+                  {m.mayoresParalizadas.length > 0 && (
+                    <div className="min-w-0">
+                      <h3 className="flex items-center gap-2 font-display text-bloque font-bold leading-tight text-ink">
+                        <Hourglass size={18} aria-hidden className="text-granate" /> Las paralizadas más grandes
+                      </h3>
+                      <p className="mt-1 text-meta text-inkSoft">Muchas vuelven a licitarse como saldo de obra.</p>
+                      <ol className="mt-3 grid gap-3">
+                        {m.mayoresParalizadas.map((p) => (
+                          <li key={p.cui} className="gs-mira relative min-w-0 rounded-2xl border border-line bg-paper p-4 transition-colors duration-rapido hover:border-crimson/40">
+                            <div className="flex items-start gap-3">
+                              <span aria-hidden className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-crimson-soft text-crimsonTexto">
+                                <CirclePause size={18} />
+                              </span>
+                              <div className="min-w-0 flex-1">
+                                <Link
+                                  href={ruta(`/proyecto/${p.cui}`)}
+                                  className="group line-clamp-2 text-dato font-semibold leading-snug text-ink after:absolute after:inset-0 after:rounded-2xl hover:text-granate focus-visible:outline-none focus-visible:after:ring-2 focus-visible:after:ring-inset focus-visible:after:ring-granate"
+                                >
+                                  {nombreProyecto(p.nombre, p)}
+                                </Link>
+                                <p className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-meta text-inkSoft">
+                                  <span className="inline-flex items-center gap-1">
+                                    <MapPin size={13} aria-hidden className="shrink-0 text-mute" />
+                                    {[nombreLugar(p.provincia), p.region ? nombreRegion(p.region) : null].filter(Boolean).join(", ") || "Varias regiones"}
+                                  </span>
+                                  {p.desde && <span className="text-crimsonTexto">Paralizada desde el {fechaConAnio(p.desde)}</span>}
+                                </p>
+                              </div>
+                              <span className="shrink-0 font-display text-cuerpo font-bold tabular-nums text-ink">{solesCompacto(p.costo)}</span>
+                            </div>
+                            {p.fisico != null && <BarraAvance className="mt-3" real={p.fisico} />}
+                          </li>
+                        ))}
+                      </ol>
+                      <Link href={lista({ pestana: "paralizadas" })} className="mt-2 inline-flex min-h-11 items-center gap-1 text-dato font-semibold text-granate underline-offset-4 hover:underline">
+                        Ver las {numero(m.paralizadas.n)} paralizadas <ArrowRight size={15} aria-hidden />
+                      </Link>
+                    </div>
+                  )}
+                </div>
+              ) : null}
+            </PestanasVivas>
+          </section>
 
           {/* Quién gana */}
           <section aria-labelledby="quien-t">
@@ -317,60 +381,23 @@ export default async function MercadoObras({ searchParams }: Props) {
             ) : (
               <Nota className="mt-4">No hay obras adjudicadas con estos filtros en los últimos 12 meses.</Nota>
             )}
-            <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-2">
+            <PestanasVivas
+              etiqueta="Quién gana"
+              className="-mx-1 mt-6 overflow-x-clip px-1"
+              pestanas={[
+                { titulo: "Las obras", icono: <Trophy size={16} aria-hidden /> },
+                { titulo: "Las supervisiones", icono: <ClipboardList size={16} aria-hidden /> },
+              ]}
+            >
               <RankingEmpresas Icono={Trophy} titulo="Las que más obras ganan" filas={m.quienConstruye} />
               <RankingEmpresas Icono={ClipboardList} titulo="Las que más supervisiones y consultorías de obra ganan" filas={m.quienSupervisa} />
-            </div>
+            </PestanasVivas>
             <Nota className="mt-3">
               Fuente: adjudicaciones con buena pro de CONOSCE (OECE) en los últimos 12 meses{m.conosceHasta ? `, hasta el ${fechaConAnio(m.conosceHasta)}` : ""}, en el departamento
               de la obra. Sólo empresas (RUC 20); lo que gana un consorcio se reparte en partes iguales entre sus integrantes (la participación de cada uno no
               se publica en estos datos).{sector ? " Con sector, sólo cuentan los procesos que citan un CUI de ese sector." : ""}
             </Nota>
           </section>
-
-          {/* Las paralizadas más grandes */}
-          {m.paralizadas.n > 0 && m.mayoresParalizadas.length > 0 && (
-            <section aria-labelledby="mayores-t" className="rounded-3xl border border-line bg-paper p-5 sm:p-6">
-              <h2 id="mayores-t" className="flex items-center gap-2 font-display text-seccion font-bold leading-tight text-ink">
-                <Hourglass size={20} aria-hidden className="text-granate" /> Las paralizadas más grandes
-              </h2>
-              <p className="mt-1 text-meta text-inkSoft">Muchas vuelven a licitarse como saldo de obra.</p>
-              <ol className="mt-2 grid gap-x-8 lg:grid-cols-2">
-                {m.mayoresParalizadas.map((p) => (
-                  <li key={p.cui} className="border-b border-line py-3">
-                    <Link href={ruta(`/proyecto/${p.cui}`)} className="line-clamp-2 text-dato font-semibold leading-snug text-ink hover:text-granate">
-                      {nombreProyecto(p.nombre, p)}
-                    </Link>
-                    <ul className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1 text-meta text-inkSoft">
-                      <li className="inline-flex items-center gap-1.5 font-semibold tabular-nums text-ink">
-                        <Wallet size={14} aria-hidden className="shrink-0 text-mute" />
-                        {solesCompacto(p.costo)}
-                      </li>
-                      <li className="inline-flex items-center gap-1.5">
-                        <MapPin size={14} aria-hidden className="shrink-0 text-mute" />
-                        {[nombreLugar(p.provincia), p.region ? nombreRegion(p.region) : null].filter(Boolean).join(", ") || "Varias regiones"}
-                      </li>
-                      {p.desde && (
-                        <li className="inline-flex items-center gap-1.5">
-                          <CirclePause size={14} aria-hidden className="shrink-0 text-crimsonTexto" />
-                          Paralizada desde el {fechaConAnio(p.desde)}
-                        </li>
-                      )}
-                      {p.fisico != null && (
-                        <li className="inline-flex items-center gap-1.5">
-                          <HardHat size={14} aria-hidden className="shrink-0 text-mute" />
-                          Avance {porcentaje(p.fisico)}
-                        </li>
-                      )}
-                    </ul>
-                  </li>
-                ))}
-              </ol>
-              <Link href={lista({ pestana: "paralizadas" })} className="mt-2 inline-flex min-h-11 items-center gap-1 text-dato font-semibold text-granate underline-offset-4 hover:underline">
-                Ver las {numero(m.paralizadas.n)} paralizadas <ArrowRight size={15} aria-hidden />
-              </Link>
-            </section>
-          )}
 
           <div className="flex flex-col items-start gap-4 rounded-3xl border border-granate/40 bg-granate-50 p-6 sm:flex-row sm:items-center sm:justify-between sm:p-8">
             <div className="min-w-0">

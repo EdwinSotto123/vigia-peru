@@ -7,6 +7,7 @@ import { FuenteFecha } from "@/components/salud/comun";
 import { BarraFiltros, ProveedorFiltros, Resultados } from "@/components/salud/filtros/BarraFiltros";
 import { Paginas } from "@/components/salud/lista/Paginas";
 import { FilaAlerta, InsigniaAlerta, nombreMed } from "@/components/salud/medicamentos/piezas";
+import { TiposAlerta } from "@/components/salud/medicamentos/TiposAlerta";
 import { CabeceraLista, Ruta } from "@/components/salud/portada/Piezas";
 import { claseAccion } from "@/components/ui/EnlaceAccion";
 import { rutaEn, urlCanonica } from "@/lib/gobserva";
@@ -100,6 +101,20 @@ export default async function Alertas({ searchParams }: Props) {
             </Link>
           }
         />
+
+        {d && (
+          <TiposAlerta
+            className="mt-4"
+            tipos={d.tipos}
+            orden={ORDEN}
+            activo={tipo}
+            href={(t) => {
+              const u = new URLSearchParams({ ...(vista === "productos" ? { vista } : {}), ...(t ? { tipo: t } : {}), ...(q ? { q } : {}) });
+              const s = u.toString();
+              return s ? `${lista}?${s}` : lista;
+            }}
+          />
+        )}
 
         <BarraFiltros
           className="mt-4"

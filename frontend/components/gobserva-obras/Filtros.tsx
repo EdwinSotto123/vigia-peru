@@ -267,38 +267,61 @@ export function FacetasProyectos({ base, f, facetas, className }: { base: string
   ].filter((g) => g.items.length > 0);
 
   if (!grupos.length) return null;
+  // Las seis más grandes a la vista (y la elegida, si está más abajo); el resto, a un toque. Sector y región tenían 18 y
+  // 25 filas: la columna medía tres pantallas.
+  const VISIBLES = 6;
   return (
     <nav aria-label="Filtrar por" className={cn("space-y-6", className)}>
       <h2 className="sr-only">Filtrar por</h2>
-      {grupos.map((g) => (
-        <section key={g.clave} aria-labelledby={`faceta-${g.clave}`}>
-          <h3 id={`faceta-${g.clave}`} className="px-2.5 font-display text-cuerpo font-bold text-ink">
-            {g.titulo}
-          </h3>
-          <ul className="mt-1.5 space-y-0.5">
-            {g.items.map((i) => (
-              <li key={i.clave}>
-                <Link
-                  href={i.href}
-                  prefetch={false}
-                  aria-current={i.activo ? "true" : undefined}
-                  className={cn(
-                    "flex min-h-9 items-center justify-between gap-2 rounded-lg px-2.5 py-1.5 text-dato transition-colors duration-rapido",
-                    i.activo ? "bg-granate-50 font-semibold text-ink ring-1 ring-inset ring-granate/30" : "text-inkSoft hover:bg-paperDeep hover:text-ink",
-                  )}
-                >
-                  <span className="min-w-0 leading-snug">{i.nombre}</span>
-                  <span className="inline-flex shrink-0 items-center gap-1 text-meta tabular-nums text-mute">
-                    {numero(i.n)}
-                    {i.activo && <X size={13} aria-hidden className="text-granate" />}
-                  </span>
-                  {i.activo && <span className="sr-only"> (quitar este filtro)</span>}
-                </Link>
-              </li>
-            ))}
-          </ul>
-        </section>
-      ))}
+      {grupos.map((g) => {
+        const max = Math.max(...g.items.map((i) => i.n), 1);
+        const vista = g.items.filter((i, k) => k < VISIBLES || i.activo);
+        const resto = g.items.filter((i, k) => k >= VISIBLES && !i.activo);
+        const fila = (i: ItemFaceta) => (
+          <li key={i.clave}>
+            <Link
+              href={i.href}
+              prefetch={false}
+              aria-current={i.activo ? "true" : undefined}
+              className={cn(
+                "block rounded-lg px-2.5 py-1.5 text-dato transition-colors duration-rapido",
+                i.activo ? "bg-granate-50 font-semibold text-ink ring-1 ring-inset ring-granate/30" : "text-inkSoft hover:bg-paperDeep hover:text-ink",
+              )}
+            >
+              <span className="flex items-center justify-between gap-2">
+                <span className="min-w-0 leading-snug">{i.nombre}</span>
+                <span className="inline-flex shrink-0 items-center gap-1 text-meta tabular-nums text-mute">
+                  {numero(i.n)}
+                  {i.activo && <X size={13} aria-hidden className="text-granate" />}
+                </span>
+              </span>
+              {/* Cuánto pesa cada opción en la búsqueda, a la misma escala dentro del grupo. */}
+              <span aria-hidden className="mt-1 block h-1 overflow-hidden rounded-full bg-ink/[0.05]">
+                <span className={cn("block h-full rounded-full", i.activo ? "bg-granate" : "bg-granate/45")} style={{ width: `${Math.max(2, (i.n / max) * 100)}%` }} />
+              </span>
+              {i.activo && <span className="sr-only"> (quitar este filtro)</span>}
+            </Link>
+          </li>
+        );
+        return (
+          <section key={g.clave} aria-labelledby={`faceta-${g.clave}`}>
+            <h3 id={`faceta-${g.clave}`} className="px-2.5 font-display text-cuerpo font-bold text-ink">
+              {g.titulo}
+            </h3>
+            <ul className="mt-1.5 space-y-0.5">{vista.map(fila)}</ul>
+            {resto.length > 0 && (
+              <details className="group/faceta">
+                <summary className="flex min-h-9 cursor-pointer list-none items-center gap-1.5 px-2.5 text-meta font-semibold text-granate hover:underline [&::-webkit-details-marker]:hidden">
+                  <ChevronDown size={14} aria-hidden className="transition-transform duration-rapido group-open/faceta:rotate-180" />
+                  <span className="group-open/faceta:hidden">Ver {resto.length === 1 ? "una más" : `las ${numero(resto.length)} más`}</span>
+                  <span className="hidden group-open/faceta:inline">Ver menos</span>
+                </summary>
+                <ul className="space-y-0.5">{resto.map(fila)}</ul>
+              </details>
+            )}
+          </section>
+        );
+      })}
     </nav>
   );
 }

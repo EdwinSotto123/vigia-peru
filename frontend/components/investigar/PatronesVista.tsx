@@ -3,7 +3,7 @@
 import { useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { Ban, Briefcase, Building2, Coins, CopyCheck, FileSearch, Gavel, Sprout, FlaskConical, Handshake, Landmark, ScanSearch, SearchX, ShoppingCart, TrendingUp, Users, UsersRound } from "lucide-react";
-import { Ayuda, CabeceraPestana, DatosClave, EnlaceFuente, Nota, PanelConTitulo, Pestanas, type DatoClave } from "@/components/patrones";
+import { Ayuda, CabeceraPestana, DatosClave, EnlaceFuente, Nota, PanelConTitulo, Pestanas, type DatoClave, type Destacado } from "@/components/patrones";
 import { rutaContrato } from "@/lib/rutas";
 import { EVENTO_ACTIVA } from "@/components/patrones/Pestanas";
 import { Buscador, CeldaBarra, CeldaNumero, CeldaPrincipal, CeldaTexto, CLASE_ENLACE_CELDA, Indicadores, Tabla, type Columna, type Fila, type Indicador } from "@/components/listado";
@@ -12,6 +12,7 @@ import { EstadoCarga, usePoder } from "@/components/grafo/vista";
 import { InformeEnPanel } from "@/components/control/InformeEnPanel";
 import { OrdenesDelPeriodo } from "@/components/historia/OrdenesDelPeriodo";
 import { COLUMNAS_AUTORIDAD_EXSOCIO, COLUMNAS_COMPRAS_FAMILIA, filaAutoridadExsocio, filaCompraFamilia } from "./filasCasos";
+import { TarjetasDueno } from "./TarjetasDueno";
 import { detalleConsorcio, detalleControl, detalleDoble, detalleDueno, detalleGrupo, detalleInhabilitada, detalleObservacion, detalleObservado, detalleRecien, detalleRelleno, detalleRenovacion, detalleRepetida, detalleSenal } from "./DetallePatron";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
@@ -298,6 +299,7 @@ export function ListaDePatron({
   titulo,
   etiquetas = {},
   vista = "entidad",
+  destacado,
 }: {
   clave: SeccionPatrones;
   ruc: string;
@@ -305,6 +307,8 @@ export function ListaDePatron({
   etiquetas?: Record<string, string>;
   /** De quién es la ficha: su nombre no se repite en cada fila (ver filasFicha.tsx). */
   vista?: VistaFicha;
+  /** Su cabecera manda en la columna (título grande; severidad y familia debajo): ver `CabeceraPestana`. */
+  destacado?: Destacado;
 }) {
   const inicial: InicialPatrones = { page: 1, ruc };
   const ficha = useMemo(() => ({ vista, ruc }), [vista, ruc]);
@@ -330,7 +334,7 @@ export function ListaDePatron({
   if (!lista) return null;
   return (
     <EnFicha.Provider value={ficha}>
-      <PanelConTitulo titulo={titulo}>
+      <PanelConTitulo titulo={titulo} destacado={destacado}>
         {/* El filtro por RUC de cada lista (un campo numérico) sobra aquí: el RUC es el de la ficha. */}
         <div className="[&_label:has(input[inputmode=numeric])]:hidden">{lista}</div>
       </PanelConTitulo>
@@ -941,6 +945,9 @@ function ListaDuenos({ inicial }: { inicial: InicialPatrones }) {
   const filtrada = !!rucValido || graves;
   const pag = usePaginaConFiltro(filtrada ? `${rucValido ?? ""}|${graves ? 1 : 0}` : "", lista);
   const carga = usePoder<PatronesDuenos>(rutaDuenos(pag.page, rucValido, graves));
+  // En la ficha de una entidad: tarjetas (el socio y sus empresas) en vez de la tabla, y «Todos / Sólo los graves» con sus conteos.
+  const enEntidad = ficha?.vista === "entidad";
+  const conteos = useRef<{ todos: number | null; graves: number | null }>({ todos: null, graves: null });
   return (
     <div className="space-y-4">
       <CabeceraPestana
@@ -972,13 +979,76 @@ function ListaDuenos({ inicial }: { inicial: InicialPatrones }) {
           className="mt-1 h-11 w-full rounded-xl border border-line bg-paperSoft px-3 text-dato text-ink placeholder:text-mute focus:border-granate focus:bg-paper focus:outline-none focus:ring-2 focus:ring-granate/20"
         />
       </label>
-      <label className="flex min-h-11 w-fit cursor-pointer items-center gap-2.5 text-dato text-ink">
-        <input type="checkbox" checked={graves} onChange={(e) => setGraves(e.target.checked)} className="size-5 rounded border-line accent-granate" />
-        Sólo los graves: contratos parecidos a 90 días o menos entre sí
-      </label>
+      {!enEntidad && (
+        <label className="flex min-h-11 w-fit cursor-pointer items-center gap-2.5 text-dato text-ink">
+          <input type="checkbox" checked={graves} onChange={(e) => setGraves(e.target.checked)} className="size-5 rounded border-line accent-granate" />
+          Sólo los graves: contratos parecidos a 90 días o menos entre sí
+        </label>
+      )}
       <EstadoCarga carga={carga} columnas={COLUMNAS_DUENOS}>
         {(d) => {
           const filas = d.data ?? [];
+          if (enEntidad) {
+            // Lo que se sabe de los dos conteos: el total de cada vista cuando se vio y, con la lista entera en una página,
+            // los graves contados en ella.
+            if (graves) conteos.current.graves = d.total;
+            else {
+              conteos.current.todos = d.total;
+              if (filas.length >= d.total) conteos.current.graves = filas.filter((x) => x.seguidos > 0).length;
+            }
+            const { todos, graves: nGraves } = conteos.current;
+            return (
+              <div className="space-y-4">
+                <p className="max-w-[60ch] text-bloque leading-snug text-ink text-pretty">
+                  {graves ? (
+                    <>
+                      <b className="font-display text-cifra font-bold tabular-nums text-crimsonTexto">{numero(d.total)}</b>{" "}
+                      {d.total === 1 ? "socio ganó" : "socios ganaron"} contratos parecidos a 90 días o menos uno de otro: una compra que pudo repartirse.
+                    </>
+                  ) : (
+                    <>
+                      <b className="font-display text-cifra font-bold tabular-nums">{numero(d.total)}</b>{" "}
+                      {d.total === 1 ? "socio le ganó" : "socios le ganaron"} a esta entidad con dos o más empresas suyas
+                      {nGraves != null && nGraves > 0 ? (
+                        <>
+                          .{" "}
+                          <b className="font-semibold text-crimsonTexto">
+                            {d.total === 1 ? "Con contratos parecidos" : nGraves === d.total ? "Todos, con contratos parecidos" : `${numero(nGraves)} de ellos, con contratos parecidos`}
+                          </b>{" "}
+                          a 90 días o menos uno de otro: una compra que pudo repartirse.
+                        </>
+                      ) : (
+                        "."
+                      )}
+                    </>
+                  )}
+                </p>
+                <div role="group" aria-label="Qué casos ver" className="inline-flex rounded-full border border-line bg-paperSoft p-1">
+                  {[
+                    { valor: false, texto: "Todos", n: todos },
+                    { valor: true, texto: "Sólo los graves", n: nGraves },
+                  ].map((o) => (
+                    <button
+                      key={o.texto}
+                      type="button"
+                      aria-pressed={graves === o.valor}
+                      onClick={() => setGraves(o.valor)}
+                      className={cn(
+                        "inline-flex min-h-10 items-center gap-1.5 rounded-full px-4 text-dato font-semibold transition-colors duration-rapido focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-granate",
+                        graves === o.valor ? "bg-ink text-paper" : "text-inkSoft hover:text-ink",
+                      )}
+                    >
+                      {o.texto}
+                      {o.n != null ? <span className={cn("tabular-nums", graves === o.valor ? "text-paper/70" : "text-mute")}>{numero(o.n)}</span> : null}
+                    </button>
+                  ))}
+                </div>
+                <ZonaLista total={d.total} page={pag.page} cargando={carga.cargando} nombre="grupos" onPagina={pag.irAPagina} vacio="No hay socios con este patrón para ese filtro.">
+                  {filas.length > 0 ? <TarjetasDueno filas={filas} /> : null}
+                </ZonaLista>
+              </div>
+            );
+          }
           return (
             <div className="space-y-4">
               <Indicadores

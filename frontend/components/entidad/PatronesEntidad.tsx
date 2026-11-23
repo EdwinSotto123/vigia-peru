@@ -18,6 +18,7 @@ import {
   familiasDeEntradas,
   indicePorFamilia,
   primeraOracion,
+  seriesDeFamilias,
   type EntradaConFamilia,
   type FamiliaPatron,
   type PatronDeLista,
@@ -60,12 +61,23 @@ function CabeceraFicha({ familia, observacion }: { familia: FamiliaPatron; obser
   );
 }
 
-/** La ficha de un patrón que tiene su lista: la lista con el RUC de la entidad, qué mirar y dónde verlo en todo el país. */
-function FichaDeLista({ clave, p, ruc, etiquetas }: { clave: SeccionPatrones; p: PatronDeLista; ruc: string; etiquetas: Record<string, string> }) {
+/**
+ * La ficha de un patrón que tiene su lista: la lista con el RUC de la entidad, qué mirar y dónde verlo en todo el país. Su
+ * nombre es lo más grande de la columna y su severidad y su familia van DEBAJO de lo que es (antes, una pastilla con la
+ * familia encima del título: «no tiene forma ni jerarquía», 2026-11-23).
+ */
+function FichaDeLista({ clave, p, ruc, etiquetas, serie }: { clave: SeccionPatrones; p: PatronDeLista; ruc: string; etiquetas: Record<string, string>; serie?: number }) {
+  const familia = FAMILIAS_PATRON.find((x) => x.clave === p.familia)?.nombre;
   return (
-    <div className="space-y-4">
-      <CabeceraFicha familia={p.familia} observacion={p.observacion} />
-      <ListaDePatron clave={clave} ruc={ruc} titulo={p.nombre} etiquetas={etiquetas} vista="entidad" />
+    <div className="space-y-5">
+      <ListaDePatron
+        clave={clave}
+        ruc={ruc}
+        titulo={p.nombre}
+        etiquetas={etiquetas}
+        vista="entidad"
+        destacado={{ severidad: p.severidad, familia, serie, observacion: p.observacion }}
+      />
       <Nota>
         <b className="font-semibold text-ink">Qué conviene mirar.</b> {p.mirar}{" "}
         <Link href={`/app/patrones?seccion=${clave}`} prefetch={false} className={ENLACE}>
@@ -87,17 +99,20 @@ function FichaDeCruce({ c, ruc, patron }: { c: PatronesDeEntidad["cruces"][numbe
   const bajada = primeraOracion(info?.explica);
   return (
     <div className="space-y-5">
-      <CabeceraFicha familia={familiaDeCruce(c.tipo)} />
-      <div className="space-y-1">
-        <div className="flex items-start gap-1">
-          <h3 className="font-display text-bloque font-bold leading-snug text-ink text-pretty">{nombre}</h3>
+      {/* Como la de un patrón: el nombre manda y la familia va debajo de lo que es, no encima del título. */}
+      <div>
+        <div className="flex items-start gap-1.5">
+          <h3 className="font-display text-seccion font-bold leading-[1.15] tracking-[-0.01em] text-ink text-balance sm:text-cifra">{nombre}</h3>
           {info?.explica && (
-            <Ayuda titulo="¿Qué quiere decir?" etiqueta={`Qué quiere decir «${nombre}»`} className="mt-0.5">
+            <Ayuda titulo="¿Qué quiere decir?" etiqueta={`Qué quiere decir «${nombre}»`} className="mt-0.5 shrink-0 sm:mt-1.5">
               {info.explica}
             </Ayuda>
           )}
         </div>
-        {bajada && <p className="max-w-[80ch] text-dato leading-snug text-inkSoft">{bajada}</p>}
+        {bajada && <p className="mt-2 max-w-[65ch] text-cuerpo leading-relaxed text-inkSoft text-pretty">{bajada}</p>}
+        <div className="mt-3">
+          <CabeceraFicha familia={familiaDeCruce(c.tipo)} />
+        </div>
       </div>
       <Indicadores
         franja
@@ -177,6 +192,13 @@ export async function PatronesEntidad({
   const patrones: Entrada[] = [];
   const sinCasos: string[] = [];
   const sinRespuesta: string[] = [];
+  // El color de cada familia (el del reparto y el índice), para la ficha de cada patrón.
+  const series = seriesDeFamilias(
+    d.listas.flatMap(({ clave, casos }): EntradaConFamilia[] => {
+      const p = PATRON_LISTA[clave];
+      return p && casos ? [{ clave, familia: p.familia, severidad: p.severidad, n: casos }] : [];
+    }),
+  );
   for (const { clave, casos } of d.listas) {
     const p = PATRON_LISTA[clave];
     if (!p) continue;
@@ -191,7 +213,7 @@ export async function PatronesEntidad({
     patrones.push({
       clave, familia: p.familia, nombre: p.nombre, corto: p.corto, severidad: p.severidad, n: casos,
       resumen: `${plural(casos, "caso", "casos")}${p.observacion ? ", en observación" : ""}`,
-      contenido: <FichaDeLista clave={clave} p={p} ruc={ruc} etiquetas={etiquetas} />,
+      contenido: <FichaDeLista clave={clave} p={p} ruc={ruc} etiquetas={etiquetas} serie={series.get(p.familia)} />,
     });
   }
   // Los antecedentes: lo que pesa sobre cada contrato. Van todos: el que además es un patrón (mismo dueño, socio de una

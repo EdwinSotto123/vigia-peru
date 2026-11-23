@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useId, useState } from "react";
 import useSWR from "swr";
-import { CalendarClock, ChevronRight, Hourglass, LogIn, Pencil, Plus, Sparkles, Trash2 } from "lucide-react";
+import { CalendarClock, ChevronRight, Hourglass, LogIn, Pencil, Plus, Search, Sparkles, Trash2 } from "lucide-react";
 import { Aviso, CAMPO, ETIQUETA, Esqueleto, useSesion } from "@/components/gobserva/cuenta/comun";
 import { Dato } from "@/components/ui/Dato";
 import { claseAccion } from "@/components/ui/EnlaceAccion";
@@ -25,6 +25,8 @@ import { tituloNatural } from "@/lib/landing";
 import { REGIONES_UBIGEO, TIPOS, cierreMenor, limpiar, nombreRegion, nombreTipo } from "@/lib/licitaciones";
 import { cn } from "@/lib/utils";
 import { ChipTipo, VacioEmprendedora } from "./Piezas";
+import { MaquetaParaTi } from "./portada/Maquetas";
+import { EscribeSolo } from "@/components/gobserva/portada/EscribeSolo";
 import { CLASE_ENLACE_PIE, Caja } from "@/components/gobserva/app/Caja";
 
 /**
@@ -36,17 +38,46 @@ export function ParaTi({ base }: { base: string }) {
   const { loading, conCuenta, esVigia } = useSesion();
   if (loading) return <Esqueleto className="h-64" />;
   if (!conCuenta) {
+    // Sin cuenta (2026-11-22, el usuario: «esto es texto plano»): cómo se ve «Para ti» (la maqueta, marcada como ejemplo),
+    // la invitación a crear la cuenta y, para probar ya sin cuenta, el buscador de oportunidades que escribe ejemplos solo.
     return (
-      <section className="rounded-3xl border border-granate/30 bg-granate-50 p-5 sm:p-8">
-        <h2 className="text-balance font-display text-seccion font-bold leading-tight text-ink">Dinos qué vendes y te mostramos qué te conviene cotizar</h2>
-        <p className="mt-2 max-w-[60ch] text-dato leading-relaxed text-inkSoft">
-          Escribe lo que vende tu empresa en tus palabras («útiles de oficina y tóner», «alquiler de camionetas 4x4») y ordenamos las licitaciones y los
-          contratos menores abiertos de lo más parecido a lo menos. Es gratis con tu cuenta.
-        </p>
-        {esVigia && <Aviso className="mt-3">Esa es una cuenta de Vigía. Para Gobserva, entra con tu correo o con Google.</Aviso>}
-        <Link href={rutaEn(base, `/entrar?crear=1&next=${encodeURIComponent("/cuenta?tab=para-ti")}`)} className={claseAccion("primario", "mt-5", "md")}>
-          <LogIn size={16} aria-hidden /> Crear mi cuenta gratis
-        </Link>
+      <section className="grid gap-6 rounded-3xl border border-granate/30 bg-granate-50 p-5 sm:p-8 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] lg:items-center lg:gap-10">
+        <div className="min-w-0">
+          <h2 className="text-balance font-display text-seccion font-bold leading-tight text-ink sm:text-titulo">Dinos qué vendes y te mostramos qué te conviene cotizar</h2>
+          <p className="mt-2 max-w-[60ch] text-dato leading-relaxed text-inkSoft">
+            Escribe lo que vende tu empresa en tus palabras y ordenamos las licitaciones y los contratos menores abiertos de lo más parecido a lo menos. Es
+            gratis con tu cuenta.
+          </p>
+          {esVigia && <Aviso className="mt-3">Esa es una cuenta de Vigía. Para Gobserva, entra con tu correo o con Google.</Aviso>}
+          <Link href={rutaEn(base, `/entrar?crear=1&next=${encodeURIComponent("/cuenta?tab=para-ti")}`)} className={claseAccion("primario", "mt-5", "md")}>
+            <LogIn size={16} aria-hidden /> Crear mi cuenta gratis
+          </Link>
+          <form method="get" action={rutaEn(base, "/oportunidades")} role="search" className="mt-6 border-t border-granate/20 pt-5">
+            <label htmlFor="probar-para-ti" className="block text-dato font-semibold text-ink">
+              ¿Quieres probar antes? Busca lo que vendes, sin cuenta
+            </label>
+            <div className="mt-2 flex gap-2">
+              <span className="relative min-w-0 flex-1">
+                <Search size={17} aria-hidden className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-mute" />
+                <input
+                  id="probar-para-ti"
+                  name="q"
+                  type="search"
+                  minLength={3}
+                  maxLength={80}
+                  enterKeyHint="search"
+                  placeholder="Útiles de oficina, tóner…"
+                  className="h-12 w-full rounded-2xl border border-line bg-paper pl-10 pr-3 text-destacado text-ink placeholder:text-mute focus:border-granate focus:outline-none focus:ring-2 focus:ring-granate/30"
+                />
+              </span>
+              <button type="submit" className={claseAccion("secundario", "h-12 shrink-0 px-4")}>
+                Buscar
+              </button>
+            </div>
+            <EscribeSolo para="probar-para-ti" ejemplos={["útiles de oficina y tóner", "alquiler de camionetas 4x4", "servicio de limpieza", "alimentos para comedores", "uniformes"]} />
+          </form>
+        </div>
+        <MaquetaParaTi />
       </section>
     );
   }
