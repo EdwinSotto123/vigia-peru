@@ -22,6 +22,9 @@ export default async function FuentesCar() {
   const base = baseProducto("car");
   const [datos, licencia, gas] = await Promise.all([datosCar("citv"), datosCar("licencia"), datosCar("gas")]);
   const d = datos as { fuente: string; url: string; generadoAl: string | null; centros: unknown[] };
+  // Cuándo las bajó la fuente mtc_car por última vez (el respaldo que trae la web no lo dice), en hora de Lima.
+  const revisadas = [datos, licencia, gas].map((x) => x.actualizadoAl).filter((x): x is string => !!x).sort()[0];
+  const revisadasLima = revisadas ? new Date(Date.parse(revisadas) - 5 * 3600_000).toISOString().slice(0, 10) : null;
   // Las listas del MTC que cargamos (Excel sin captcha): cuántos locales, qué traen y la fecha del archivo.
   const cargadas: { nombre: string; url: string; generadoAl: string | null; n: number; trae: string; ruta: string }[] = [
     { nombre: d.fuente, url: d.url, generadoAl: d.generadoAl, n: d.centros.length, trae: "Dirección, horario, líneas, resolución, días sin transmitir y sanción.", ruta: "/revision-tecnica" },
@@ -46,8 +49,9 @@ export default async function FuentesCar() {
           <Database size={18} aria-hidden className="text-granate" /> Lo que cargamos
         </h2>
         <p className="mt-1 max-w-[70ch] text-meta text-inkSoft">
-          Listas que el MTC publica en Excel, sin captcha. Las volvemos a bajar solas cada lunes, tal cual, y les tapamos los celulares; no guardamos
-          el RUC, los correos ni el nombre de una persona natural con negocio.
+          Listas que el MTC publica en Excel, sin captcha. Las volvemos a bajar solas cada lunes
+          {revisadasLima ? <> (la última vez, el {fechaCorta(revisadasLima)})</> : null}, tal cual, y les tapamos los celulares; no guardamos el RUC,
+          los correos ni el nombre de una persona natural con negocio.
         </p>
         <ul className="mt-3 grid gap-3 md:grid-cols-2">
           {cargadas.map((c) => (
