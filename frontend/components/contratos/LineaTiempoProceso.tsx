@@ -104,7 +104,8 @@ export function LineaTiempoProceso({ c, idTitulo = "linea-tiempo" }: { c: Contra
               </span>
               <div className={cn("min-w-0", !ultimo && "pb-3 md:pb-0")}>
                 <div className="flex items-baseline justify-between gap-3 text-meta md:flex-col md:items-start md:gap-0.5">
-                  <span className={cn("font-medium", h.vigia ? "text-granate" : "text-ink")}>{unir(h.textos)}</span>
+                  {/* Partido en sílabas si no entra en su columna: «Consentimiento» se salía y se pegaba a «Contrato firmado». */}
+                  <span lang="es" className={cn("min-w-0 max-w-full font-medium [hyphens:auto] [overflow-wrap:anywhere]", h.vigia ? "text-granate" : "text-ink")}>{unir(h.textos)}</span>
                   {/* Con el año, también el de este: la línea cruza años (convocatoria en diciembre, contrato en enero) y
                       «4 ago.» debajo de «20 dic. 2025» no decía de cuál era. */}
                   <time dateTime={h.fecha} className="shrink-0 font-mono text-rotulo tabular-nums text-inkSoft">

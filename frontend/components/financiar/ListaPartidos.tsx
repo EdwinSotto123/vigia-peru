@@ -24,7 +24,7 @@ import { PARAM_PAG, RUTA_FALTA, queryFalta } from "./rutaFalta";
  */
 
 /** Partidos por página. */
-export const TAM_PARTIDOS = 25;
+export const TAM_PARTIDOS = 10;
 
 const ACCION = CLASE_ACCION_LISTA;
 

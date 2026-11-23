@@ -85,7 +85,9 @@ export function listaY(xs: string[]): string {
  * procesos, partidas del presupuesto.
  */
 export function oracion(t: string): string {
-  const s = t.trim();
+  // Algunos objetos del SEACE traen el salto de línea escrito («Contratación de \nservicio…», con la barra y la n
+  // literales): se vuelve un espacio.
+  const s = t.replace(/\\[nrt]/g, " ").replace(/\s+/g, " ").trim();
   // "Casi todo en mayúsculas" también cuenta ("DERIVADA DE LA SUBASTA… Nº 001-2026-ítems"): 80 % de las letras.
   const letras = s.match(/\p{L}/gu) ?? [];
   const mayusculas = letras.filter((c) => c !== c.toLocaleLowerCase("es")).length;

@@ -470,7 +470,9 @@ function AnalisisCard({ c, lectura, alcance, conCronograma }: { c: Detalle; lect
         <span aria-hidden className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-paperSoft text-mossTexto">
           <FileCheck size={18} />
         </span>
-        <p className="min-w-0 flex-1 text-dato leading-snug text-inkSoft">
+        {/* En el celular el texto ocupa su fila y el botón baja, a todo el ancho: al lado, el texto quedaba en una columna
+            de 70 px y diez renglones (2026-11-23). */}
+        <p className="min-w-0 flex-1 basis-[calc(100%-3.25rem)] text-dato leading-snug text-inkSoft sm:basis-auto">
           <strong id="estado-lectura" className="font-semibold text-ink">
             {c.alerta.analizadoEn ? `Leído el ${fecha(dia(c.alerta.analizadoEn))}.` : "Leído por Vigía."}
           </strong>{" "}
@@ -478,7 +480,7 @@ function AnalisisCard({ c, lectura, alcance, conCronograma }: { c: Detalle; lect
             ? `El dictamen explica ${n === 1 ? "su señal" : `sus ${numero(n)} señales`} con su norma y su evidencia.`
             : "La lectura terminó sin señales: el dictamen dice qué se cotejó."}
         </p>
-        <EnlaceAccion href={rutaContrato(c.ocid, "dictamen")} flecha className="shrink-0">
+        <EnlaceAccion href={rutaContrato(c.ocid, "dictamen")} flecha className="shrink-0 max-sm:w-full max-sm:justify-center">
           Leer el dictamen
         </EnlaceAccion>
       </section>

@@ -281,7 +281,7 @@ export function parametrosPoliticos(f: FiltrosPoliticos): Record<string, string 
   };
 }
 
-export const TAM_POLITICOS = 20;
+export const TAM_POLITICOS = 10;
 
 /** La lista (server component): `null` si la API no respondió. */
 export async function getPoliticos(clave: string, f: FiltrosPoliticos = {}, size = TAM_POLITICOS): Promise<PaginaPoliticos | null> {

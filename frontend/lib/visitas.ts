@@ -187,7 +187,7 @@ export interface PaginaVisitas<L extends ListaVisitas> {
 export type RespuestaLista<L extends ListaVisitas> = { ok: true; pagina: PaginaVisitas<L> } | { ok: false; motivo: "lenta" | "honda" | "error" };
 
 /** Filas por página: 15 (la pestaña entera cabe en una pantalla y media). */
-export const TAM_VISITAS = 15;
+export const TAM_VISITAS = 10;
 
 /**
  * Los parámetros de la URL de cada lista, con su prefijo (`ve`, `vo`, `va`, `vp`, `vl`): las cinco van en la misma ficha

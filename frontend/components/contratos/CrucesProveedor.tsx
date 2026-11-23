@@ -1905,7 +1905,13 @@ function RenglonesGrupos({ grupos }: { grupos: CruceProveedor[][] }) {
               <span className="min-w-0">
                 <span className="block text-dato font-medium leading-snug text-ink">{g[0].etiqueta}</span>
                 {/* Qué significa, a la vista (antes sólo al pasar el mouse): «no se explica qué es cada una» (2026-11-13). */}
-                {TIPO_CRUCE[g[0].tipo]?.explica && <span className="mt-0.5 block text-meta leading-snug text-mute">{TIPO_CRUCE[g[0].tipo].explica}</span>}
+                {/* recorte: dos renglones (la de «presunta responsabilidad» medía diez y empujaba todo hacia abajo); entera en
+                    su title y en la pestaña Antecedentes, a un toque. */}
+                {TIPO_CRUCE[g[0].tipo]?.explica && (
+                  <span className="mt-0.5 line-clamp-2 text-meta leading-snug text-mute" title={TIPO_CRUCE[g[0].tipo].explica}>
+                    {TIPO_CRUCE[g[0].tipo].explica}
+                  </span>
+                )}
               </span>
             </span>
             <span className="shrink-0 font-mono text-dato tabular-nums text-ink">{numero(g.length)}</span>

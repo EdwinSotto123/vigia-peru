@@ -28,6 +28,7 @@ import { motivoDudoso } from "@/lib/datoDudoso";
 import { enlaceProveedor } from "@/lib/empresas";
 import { rutaPersona } from "@/lib/personas";
 import { tituloNatural } from "@/lib/landing";
+import { nombreLegibleEmpresa } from "@/lib/nombreEmpresa";
 import { rutaContrato } from "@/lib/rutas";
 import { UBIGEO_REGION } from "@/components/mapa/region-match";
 import { fechaConAnio, listaY, numero, oracion, plural } from "@/lib/formato";
@@ -201,9 +202,9 @@ function Ganador({ c, enlace }: { c: Detalle; enlace: string }) {
       ) : natural ? (
         <span className="font-semibold text-ink"><PersonName name={proveedor} orden="sunat" /></span>
       ) : ficha ? (
-        <Link href={ficha} prefetch={false} className={enlace}>{proveedor}</Link>
+        <Link href={ficha} prefetch={false} className={enlace} title={proveedor}>{nombreLegibleEmpresa(proveedor).texto}</Link>
       ) : (
-        <span className="font-semibold text-ink">{proveedor}</span>
+        <span className="font-semibold text-ink" title={proveedor}>{nombreLegibleEmpresa(proveedor).texto}</span>
       )}
       {otros > 0 && <span className="text-mute">y {plural(otros, "ganador más", "ganadores más")} en otros ítems</span>}
     </span>

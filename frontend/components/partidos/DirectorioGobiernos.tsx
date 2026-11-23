@@ -134,7 +134,8 @@ function ChipPartido({ nombre, tipo, color, href }: { nombre: string; tipo: Tipo
   const cuerpo = (
     <>
       <span aria-hidden className="mt-[0.35rem] h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: color }} />
-      <span className="min-w-0 line-clamp-2 md:line-clamp-1">{nombre}</span>
+      {/* El nombre del partido entero en el celular (en dos renglones se cortaba: «Movimiento Regional Wari…»). */}
+      <span className="min-w-0 md:line-clamp-1">{nombre}</span>
     </>
   );
   if (!href) {
@@ -586,7 +587,8 @@ function ListaGobiernos({
               </span>
             )}
             {/* En el celular la autoridad baja bajo el lugar: la columna propia solo aparece desde md. */}
-            <span className="block truncate text-meta text-inkSoft md:hidden">{f.autoridad}</span>
+            {/* En el celular, el nombre entero de la autoridad (se cortaba: «Fabian Koki Norieg…»). */}
+            <span className="block break-words text-meta text-inkSoft md:hidden">{f.autoridad}</span>
           </span>
         ),
         autoridad: <span className="block min-w-0 truncate text-dato text-ink" title={f.autoridad}>{f.autoridad}</span>,

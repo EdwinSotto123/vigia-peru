@@ -34,8 +34,8 @@ import {
   type SenalesQuery,
 } from "@/lib/revision";
 
-/** Filas por página (el API acepta hasta 50). */
-export const TAM_SENALES = 25;
+/** Filas por página (el API acepta hasta 50). 10, como toda lista de Vigía (2026-11-23: con 25 la página medía 3 300 px). */
+export const TAM_SENALES = 10;
 
 export interface OpcionSenales {
   /** El valor tal como lo manda el API: es el que se devuelve en el filtro. */

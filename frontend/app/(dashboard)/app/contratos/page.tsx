@@ -431,15 +431,18 @@ type VistaIndice = "contratos" | "ordenes" | "menores";
  */
 function VistaToggle({ vista, conteo, conteoOrdenes }: { vista: VistaIndice; conteo?: number | null; conteoOrdenes?: number | null }) {
   return (
-    <div className="flex flex-wrap items-center gap-2">
-      <Vistas
-        etiqueta="Vista del índice"
-        vistas={[
-          { etiqueta: "Contratos", href: RUTA, activa: vista === "contratos", conteo },
-          { etiqueta: "Órdenes", href: `${RUTA}?vista=ordenes`, activa: vista === "ordenes", conteo: conteoOrdenes },
-          { etiqueta: "Menores", href: `${RUTA}?vista=menores`, activa: vista === "menores" },
-        ]}
-      />
+    // La ⓘ al final de la fila de vistas, también en el celular: con flex-wrap bajaba sola a un renglón vacío.
+    <div className="flex items-center gap-2">
+      <div className="min-w-0 flex-1 sm:flex-none">
+        <Vistas
+          etiqueta="Vista del índice"
+          vistas={[
+            { etiqueta: "Contratos", href: RUTA, activa: vista === "contratos", conteo },
+            { etiqueta: "Órdenes", href: `${RUTA}?vista=ordenes`, activa: vista === "ordenes", conteo: conteoOrdenes },
+            { etiqueta: "Menores", href: `${RUTA}?vista=menores`, activa: vista === "menores" },
+          ]}
+        />
+      </div>
       <Ayuda titulo="¿Contratos, Órdenes o Menores?">
         <span className="block">Son tres ángulos del mismo universo de compras del Estado, no tres sumas distintas.</span>
         <span className="mt-2 block">Contratos: los procesos con concurso (bases y postores compitiendo).</span>

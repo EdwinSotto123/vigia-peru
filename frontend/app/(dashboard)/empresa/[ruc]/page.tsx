@@ -41,6 +41,7 @@ import { fechaCorta, numero, oracion, plural, soles, solesCompacto } from "@/lib
 import { absoluta, canonica, descripcion } from "@/lib/seo";
 import { DatosEstructurados } from "@/components/seo/DatosEstructurados";
 import { tituloNatural } from "@/lib/landing";
+import { nombreLegibleEmpresa } from "@/lib/nombreEmpresa";
 import {
   OBJETOS,
   OBJETO_TEXTO,
@@ -151,7 +152,9 @@ export default async function EmpresaPage({ params, searchParams: sp }: { params
   const desde = leerDesde(sp);
   // «RAZÓN SOCIAL - NOMBRE CORTO»: el corto de título y la razón social completa en la línea de identidad.
   const corto = nombreCortoEmpresa(e.nombre);
-  const nombre = corto?.corto ?? e.nombre;
+  // Como se lee (2026-11-23): sin MAYÚSCULAS y con la forma societaria en sigla («Industria de Maquinarias y
+  // Equipamientos S.R.L.», no «INDUSTRIA DE MAQUINARIAS…»). El nombre del registro sigue en los metadatos.
+  const nombre = nombreLegibleEmpresa(e.nombre).texto;
 
   // Los filtros de cada lista, validados como la API (lo que no vale, se ignora).
   const de = <T extends string>(v: string | string[] | undefined, validos: readonly T[]) => (validos.includes(uno(v) as T) ? (uno(v) as T) : undefined);
@@ -568,7 +571,7 @@ function Identidad({ f, razonSocial }: { f: FichaEmpresa; razonSocial: string | 
       RUC <span className="font-mono tabular-nums text-ink" translate="no">{e.ruc}</span>
     </DatoCabecera>,
     // El nombre tal como lo publica el registro, en el `title`: para copiarlo exacto.
-    razonSocial && <DatoCabecera key="razon" icono={Briefcase} nombre="Razón social" title={e.nombre}>{razonSocial}</DatoCabecera>,
+    razonSocial && <DatoCabecera key="razon" icono={Briefcase} nombre="Razón social" title={e.nombre}>{tituloNatural(razonSocial)}</DatoCabecera>,
     // El lugar lleva a lo que le vendió ahí: sus contratos filtrados por ese departamento o, si sólo tiene órdenes, sus órdenes.
     e.departamento && (
       <DatoCabecera key="lugar" icono={MapPin}>

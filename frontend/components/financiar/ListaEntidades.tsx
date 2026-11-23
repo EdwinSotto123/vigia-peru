@@ -24,7 +24,7 @@ import { PARAM_PAG, RUTA_FALTA, hrefFalta, queryFalta } from "./rutaFalta";
  */
 
 /** Entidades por página (el API acepta hasta 50). */
-export const TAM_ENTIDADES = 25;
+export const TAM_ENTIDADES = 10;
 
 const ACCION = CLASE_ACCION_LISTA;
 

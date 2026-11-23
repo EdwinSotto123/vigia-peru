@@ -37,7 +37,7 @@ import { NIVEL_ANALISIS, NIVELES, nivelDeAnalisis, UI_NIVEL, type NivelAnalisis 
  * Todo lo que recibe son datos; los enlaces los arma `Paginacion` con `hrefBase` + `query`.
  */
 
-export const TAM_ANALISIS = 25;
+export const TAM_ANALISIS = 10;
 
 /** Anchos medidos contra el menú lateral de 256 px: tipo, zona y fecha entran desde xl sin ahogar el título. */
 export const COLUMNAS_ANALISIS: Columna[] = [
