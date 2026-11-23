@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { rutaContrato } from "@/lib/rutas";
 import { AlertTriangle, ArrowRight, Download, ExternalLink, FileText, FileType, Scale } from "lucide-react";
 import { Buscador } from "@/components/listado/BarraFiltros";
 import { Dato } from "@/components/ui/Dato";
@@ -53,14 +54,15 @@ export function DocumentosSection({
   return (
     <section className="overflow-hidden rounded-2xl border border-line bg-paper">
       <div className="border-b border-line bg-paperSoft px-5 py-3">
-        <h2 className="font-display text-xl font-bold text-ink">Expediente del proceso</h2>
+        <h2 className="font-display text-seccion font-bold leading-tight text-ink">Expediente del proceso</h2>
         <p className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-rotulo text-mute">
           <span className="inline-flex items-center gap-1">
             <FileText size={12} aria-hidden /> {plural(documentos.length, "documento publicado", "documentos publicados")} en el SEACE
           </span>
           {ocid && (
             <Link
-              href={`/app/contratos/${encodeURIComponent(ocid)}`}
+              href={rutaContrato(ocid, "ficha", { seccion: "documentos" })}
+              prefetch={false}
               className="inline-flex items-center gap-1 font-medium text-granate hover:underline"
             >
               Ver el contrato con las citas por página <ArrowRight size={11} aria-hidden />

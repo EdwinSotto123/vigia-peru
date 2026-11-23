@@ -57,11 +57,13 @@ const HITO: Record<Sev | "neutro" | "destacado" | "falta", string> = {
   neutro: "border-paperEdge bg-paper text-inkSoft",
   falta: "border-dashed border-paperEdge bg-paper text-mute",
 };
+// Dentro de una superficie (`.tarjeta`, el capítulo de la historia) el paso no lleva marco: caja dentro de caja. Va sobre un
+// fondo del color de su señal más grave (crimson, ámbar) o apenas hundido si no tiene.
 const CAJA: Record<Sev | "neutro", string> = {
-  alta: "border-crimson/40",
-  media: "border-amber/40",
-  baja: "border-line",
-  neutro: "border-line",
+  alta: "border-crimson/40 [.tarjeta_&]:border-transparent [.tarjeta_&]:bg-crimson-soft/50",
+  media: "border-amber/40 [.tarjeta_&]:border-transparent [.tarjeta_&]:bg-amber-soft/50",
+  baja: "border-line [.tarjeta_&]:border-transparent [.tarjeta_&]:bg-paperSoft",
+  neutro: "border-line [.tarjeta_&]:border-transparent [.tarjeta_&]:bg-paperSoft",
 };
 const CHIP: Record<Sev, string> = {
   alta: "border-crimson/40 bg-crimson-soft text-crimsonTexto hover:border-crimson",
@@ -91,7 +93,8 @@ function tiempos(pasos: PasoProceso[]): { etiqueta: string; dias: number }[] {
     // Una firma anterior a la convocatoria (dato raro del registro) no se presenta como un tiempo: lo dice su paso.
     if (d !== null && d >= 0) out.push({ etiqueta, dias: d });
   }
-  return out;
+  // Con los dos tramos, el total es su suma: no se repite (en el celular era una fila más de 60 px).
+  return out.length === 3 ? out.slice(0, 2) : out;
 }
 
 export function LineaProceso({ pasos, ctx, perfil }: { pasos: PasoProceso[]; ctx: ContextoSenal | null; perfil?: string | null }) {
@@ -99,7 +102,7 @@ export function LineaProceso({ pasos, ctx, perfil }: { pasos: PasoProceso[]; ctx
   return (
     <div className="space-y-4">
       {cifras.length > 0 && (
-        <dl className="flex flex-col divide-y divide-line overflow-hidden rounded-2xl border border-line bg-paper sm:flex-row sm:divide-x sm:divide-y-0" aria-label="Los tiempos del proceso">
+        <dl className="flex flex-col divide-y divide-line overflow-hidden rounded-2xl border border-line bg-paper sm:flex-row sm:divide-x sm:divide-y-0 [.tarjeta_&]:rounded-xl [.tarjeta_&]:border-0 [.tarjeta_&]:bg-paperSoft" aria-label="Los tiempos del proceso">
           {cifras.map((c) => (
             <div key={c.etiqueta} className="flex flex-1 items-center gap-3 px-4 py-2.5">
               <Timer size={16} className="shrink-0 text-mute" aria-hidden />
@@ -155,7 +158,7 @@ export function LineaProceso({ pasos, ctx, perfil }: { pasos: PasoProceso[]; ctx
                 {p.chips && p.chips.length > 0 && (
                   <div className="mt-2.5 border-t border-line/70 pt-2.5">
                     <p className="mb-1.5 text-rotulo text-mute">
-                      {p.chips.length === 1 ? "La señal que se ve en este paso" : `Las ${p.chips.length} señales que se ven en este paso`} (toca una para ver su evidencia)
+                      {p.chips.length === 1 ? "La señal de este paso" : `Las ${p.chips.length} señales de este paso`}
                     </p>
                     <ul className="flex flex-wrap gap-1.5">
                       {p.chips.map((c) => {

@@ -4,7 +4,7 @@ import { Award, Calendar, Clock, ExternalLink, MapPin, ShieldAlert, Users } from
 import { cn } from "@/lib/utils";
 import { Severidad } from "@/components/ui/Severidad";
 import { fechaDossier, severidadDe } from "../dossier";
-import { Dni, PersonName, Ruc, esPersonaNatural } from "../../Redact";
+import { PersonName, Ruc, esPersonaNatural } from "../../Redact";
 import { Evidencia, evidenciaComoTexto } from "./Evidencia";
 
 /** Relaciones que el agente de red usa para decir "no hay vínculo". */
@@ -39,7 +39,7 @@ export function FirmantesYAdjudicacionSection({
   return (
     <section className="overflow-hidden rounded-2xl border border-line bg-paper">
       <div className="border-b border-line bg-paperSoft px-5 py-3">
-        <h2 className="font-display text-xl font-bold text-ink">Firmantes y motivos de adjudicación</h2>
+        <h2 className="font-display text-seccion font-bold leading-tight text-ink">Firmantes y motivos de adjudicación</h2>
         <p className="mt-0.5 flex items-center gap-1.5 text-rotulo text-mute">
           <Users size={11} aria-hidden /> Quién firmó, por qué ganó y quién evaluó
         </p>
@@ -64,9 +64,18 @@ export function FirmantesYAdjudicacionSection({
         )}
       </div>
 
-      <div className="grid gap-4 px-5 py-5 lg:grid-cols-2">
+      {/* Sin firmantes ni comité, una línea (antes, dos cajas grandes que decían «(0)» y «no se identificaron»). Con uno de
+          los dos, sólo ese; el otro, en la línea. */}
+      {firmantes.length === 0 && comite.length === 0 ? (
+        <p className="flex items-start gap-2 px-5 py-4 text-meta text-inkSoft">
+          <Users size={15} className="mt-0.5 shrink-0 text-mute" aria-hidden />
+          Los documentos leídos no nombran a quién firmó ni a quiénes integraron el comité de selección (es común en contrataciones directas).
+        </p>
+      ) : (
+      <div className={cn("grid gap-4 px-5 py-5", firmantes.length > 0 && comite.length > 0 && "lg:grid-cols-2")}>
         {/* FIRMANTES */}
-        <article className="rounded-xl border border-line bg-paperSoft p-4">
+        {firmantes.length > 0 ? (
+        <article className="rounded-xl bg-paperSoft p-4">
           <h3 className="text-cuerpo font-semibold text-ink">Firmantes del documento ({firmantes.length})</h3>
           {firmantes.length === 0 ? (
             <p className="mt-2 text-rotulo italic text-mute">No se identificaron firmantes en los documentos leídos.</p>
@@ -92,11 +101,6 @@ export function FirmantesYAdjudicacionSection({
                   {f.cargo && <div className="mt-0.5 text-micro text-inkSoft">{f.cargo}</div>}
                   {f.entidad && <div className="text-micro text-mute">{f.entidad}</div>}
                   <div className="mt-1 flex flex-wrap gap-2 text-micro text-mute">
-                    {f.dni && (
-                      <span className="font-mono">
-                        DNI <Dni value={f.dni} />
-                      </span>
-                    )}
                     {f.fecha_firma && (
                       <span className="inline-flex items-center gap-1">
                         <Calendar size={11} aria-hidden /> {fechaDossier(f.fecha_firma, true)}
@@ -108,9 +112,13 @@ export function FirmantesYAdjudicacionSection({
             </ul>
           )}
         </article>
+        ) : (
+          <p className="text-meta text-mute">Los documentos leídos no nombran a quién firmó.</p>
+        )}
 
         {/* COMITÉ DE EVALUACIÓN */}
-        <article className="rounded-xl border border-line bg-paperSoft p-4">
+        {comite.length > 0 ? (
+        <article className="rounded-xl bg-paperSoft p-4">
           <h3 className="text-cuerpo font-semibold text-ink">Comité de selección ({comite.length})</h3>
           {comite.length === 0 ? (
             <p className="mt-2 text-rotulo italic text-mute">
@@ -141,7 +149,12 @@ export function FirmantesYAdjudicacionSection({
             </ul>
           )}
         </article>
+        ) : (
+          <p className="text-meta text-mute">Los documentos no detallan quién integró el comité de selección (es común en contrataciones directas).</p>
+        )}
       </div>
+      )}
+
 
       {/* MOTIVOS DE ADJUDICACIÓN */}
       {motivos.length > 0 && (
@@ -154,7 +167,7 @@ export function FirmantesYAdjudicacionSection({
             {motivos.map((m: any, i: number) => {
               const natural = esPersonaNatural(m.ganador_ruc);
               return (
-                <li key={i} className="rounded-lg border border-line bg-paperSoft p-3">
+                <li key={i} className="rounded-xl bg-paperSoft p-3">
                   <div className="flex flex-wrap items-baseline gap-2">
                     <strong className="text-dato leading-5 font-bold text-ink">
                       {natural ? <PersonName name={m.ganador_razon_social} orden={ordenDe(m.ganador_razon_social)} /> : m.ganador_razon_social}

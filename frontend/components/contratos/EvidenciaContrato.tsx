@@ -541,7 +541,7 @@ function SeccionCitas({ c, senales, catalogo }: { c: Detalle; senales: ReturnTyp
       <ListaPaginada
         nombre="señales"
         tam={10}
-        className="divide-y divide-line rounded-2xl border border-line bg-paper"
+        className="divide-y divide-line rounded-2xl border border-line bg-paper [.tarjeta_&]:rounded-none [.tarjeta_&]:border-x-0 [.tarjeta_&]:border-b-0 [.tarjeta_&]:bg-transparent [.tarjeta_&>*]:px-0"
         buscar={{ placeholder: "Buscar una señal…", etiqueta: "Buscar en las señales con su página" }}
         items={senales.map((b, i) => ({
           id: `${b.regla}-${i}`,

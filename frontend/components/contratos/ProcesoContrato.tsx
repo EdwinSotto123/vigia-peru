@@ -11,7 +11,8 @@
 
 import type { ReactNode } from "react";
 import Link from "next/link";
-import { CircleAlert, CircleCheck, CircleDashed, Clock, FileText, Hash, ListOrdered, Package, UserRound } from "lucide-react";
+import { ChevronDown, CircleAlert, CircleCheck, CircleDashed, Clock, FileText, Hash, ListOrdered, Package, UserRound } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { Ayuda, AyudaTermino, BloqueDetalle, CabeceraPestana, ChipsDetalle, CuerpoDetalle, DatosClave, EnlaceFuente, FuenteDato, type DatoClave, type Pestana } from "@/components/patrones";
 import { CONSULTA_AMIGABLE, DATASET_MEF, enlacesProceso, inversionSsi } from "@/lib/fuentes";
 import { CeldaNumero, CeldaPrincipal, CeldaTexto, Tabla, TablaPaginada, type Columna, type Fila } from "@/components/listado";
@@ -82,6 +83,13 @@ const sumar = (xs: (number | null)[]) => xs.reduce<number | null>((s, x) => (x =
 
 // ─── Adjudicación y contrato ─────────────────────────────────────────────────
 
+/**
+ * Un bloque de la pestaña dentro de su superficie (SuperficiePestana es `.tarjeta`): sin marco propio, a todo el ancho de la
+ * superficie y separado por una línea (antes, una tarjeta dentro de otra: caja dentro de caja).
+ */
+const EN_SUPERFICIE =
+  "[.tarjeta_&]:-mx-3 [.tarjeta_&]:rounded-none [.tarjeta_&]:border-x-0 [.tarjeta_&]:border-b-0 [.tarjeta_&]:bg-transparent sm:[.tarjeta_&]:-mx-5";
+
 function SeccionAdjudicacion({ c }: { c: Detalle }) {
   const k: NonNullable<Detalle["contrato"]> = c.contrato ?? { items: [], firmados: [] };
   const items = k.items.filter((i) => i.adjudicado != null || i.proveedores.length > 0 || i.estado);
@@ -95,14 +103,12 @@ function SeccionAdjudicacion({ c }: { c: Detalle }) {
   const deConosce = k.firmados.filter((f) => f.fuente === "conosce");
   const adicional =
     k.adicionalFirmados !== undefined ? k.adicionalFirmados : deConosce.length ? sumar(deConosce.map((f) => f.adicional)) ?? 0 : null;
+  // Sin el valor referencial ni lo adjudicado: la cabecera de la página los dice arriba, con su barra (2026-11-23, el
+  // usuario: «secciones que aparecen una vez más»). Sin buena pro, lo adjudicado sí va: dice que todavía no hay.
   const cifras: Cifra[] = [
-    { valor: c.montoPen ? monto(c.montoPen, c.moneda) : null, etiqueta: "valor referencial", ayuda: <AyudaTermino clave="valor-referencial" />, contexto: c.montoPen ? undefined : "el registro no lo publica" },
-    {
-      valor: adjudicado ? solesCompacto(adjudicado) : null,
-      etiqueta: "adjudicado",
-      ayuda: <AyudaTermino clave="adjudicacion" />,
-      contexto: adjudicado && c.montoPen ? `${pct((adjudicado / c.montoPen) * 100)} del valor referencial` : adjudicado ? monto(adjudicado, c.moneda) : "todavía sin buena pro",
-    },
+    ...(adjudicado
+      ? []
+      : [{ valor: null, etiqueta: "adjudicado", ayuda: <AyudaTermino clave="adjudicacion" />, contexto: "todavía sin buena pro" } satisfies Cifra]),
     {
       valor: contratado ? solesCompacto(contratado) : null,
       etiqueta: "contratado",
@@ -137,7 +143,7 @@ function SeccionAdjudicacion({ c }: { c: Detalle }) {
       <div className="space-y-5">
         {/* Si el Tribunal anuló el proceso o corrigió la buena pro, es lo primero que hay que saber al leer lo adjudicado. */}
         <BloqueTribunal resoluciones={c.tribunal ?? []} />
-        <section aria-labelledby="adjudicado-titulo" className="tarjeta overflow-clip rounded-2xl border border-line bg-paper">
+        <section aria-labelledby="adjudicado-titulo" className={cn("tarjeta overflow-clip rounded-2xl border border-line bg-paper", EN_SUPERFICIE)}>
           <div className="space-y-4 p-4 sm:p-5">
             <h3 id="adjudicado-titulo" className="font-display text-bloque font-bold text-ink">Lo adjudicado</h3>
             <CifrasEnFila items={cifras} chico />
@@ -168,7 +174,12 @@ function SeccionAdjudicacion({ c }: { c: Detalle }) {
         </section>
         {c.presupuesto && <BloquePresupuesto c={c} />}
         {/* La obra que ejecuta o supervisa este contrato (INFOBRAS) y la inversión de su CUI (Invierte.pe). */}
-        <ObrasDelContrato obras={c.obras} inversiones={c.inversiones} />
+        {/* Sus bloques son tarjetas (components/obras): dentro de la superficie de la pestaña van sin marco, como los demás. */}
+        {((c.obras?.length ?? 0) > 0 || (c.inversiones?.length ?? 0) > 0) && (
+          <div className="space-y-5 [.tarjeta_&>section]:-mx-3 [.tarjeta_&>section]:rounded-none [.tarjeta_&>section]:border-x-0 [.tarjeta_&>section]:border-b-0 [.tarjeta_&>section]:bg-transparent sm:[.tarjeta_&>section]:-mx-5">
+            <ObrasDelContrato obras={c.obras} inversiones={c.inversiones} />
+          </div>
+        )}
       </div>
     </>
   );
@@ -223,7 +234,7 @@ function infraccionTribunal(inf: string[] | undefined): string | null {
 function BloqueTribunal({ resoluciones }: { resoluciones: NonNullable<Detalle["tribunal"]> }) {
   if (!resoluciones.length) return null;
   return (
-    <section aria-labelledby="tribunal-titulo" className="tarjeta overflow-clip rounded-2xl border border-line bg-paper">
+    <section aria-labelledby="tribunal-titulo" className={cn("tarjeta overflow-clip rounded-2xl border border-line bg-paper", EN_SUPERFICIE)}>
       <div className="space-y-4 p-4 sm:p-5">
         <h3 id="tribunal-titulo" className="font-display text-bloque font-bold text-ink">
           Lo que resolvió el Tribunal de Contrataciones
@@ -321,7 +332,7 @@ function valorDeHecho(h: HechoDocumento, moneda: string | null | undefined): str
 function Comprobacion({ h, moneda }: { h: HechoDocumento; moneda: string | null | undefined }) {
   const veces = h.tipo === "experiencia_exigida_monto" && h.valor && h.contra ? `, ${(h.valor / h.contra).toLocaleString("es-PE", { maximumFractionDigits: 1 })} veces el valor referencial` : "";
   if (h.verificado === "registro") {
-    return <span className="inline-flex items-center gap-1 text-rotulo text-inkSoft"><CircleCheck size={13} className="shrink-0 text-marca" aria-hidden />Coincide con el registro oficial</span>;
+    return <span className="inline-flex items-center gap-1 text-rotulo text-inkSoft"><CircleCheck size={13} className="shrink-0 text-mossTexto" aria-hidden />Coincide con el registro oficial</span>;
   }
   if (h.verificado === "contradice_registro") {
     return (
@@ -370,15 +381,38 @@ function HechosComprobados({ c }: { c: Detalle }) {
     ),
   }));
   const dudosos = hechos.filter((h) => h.verificado === "contradice_registro").length;
+  const coinciden = hechos.filter((h) => h.verificado === "registro").length;
+  // Plegado (eran diez filas de un largo de pantalla): a la vista, cuántos datos coinciden con el registro (moss) y cuántos
+  // no (ámbar). Abierto si alguno no coincide.
   return (
-    <div className="border-t border-line px-4 py-4 sm:px-5">
-      <h3 className="font-display text-bloque font-bold text-ink">Lo que se comprobó de los documentos</h3>
-      <p className="mt-1 text-meta text-inkSoft">
+    <details open={dudosos > 0} className="group/hechos border-t border-line px-4 py-3 sm:px-5">
+      <summary className="flex min-h-11 cursor-pointer list-none items-center gap-3 [&::-webkit-details-marker]:hidden">
+        <span className="min-w-0 flex-1">
+          <h3 className="font-display text-bloque font-bold text-ink">Lo que se comprobó de los documentos</h3>
+          <span className="mt-0.5 block text-meta text-inkSoft">
+            {plural(hechos.length, "dato leído", "datos leídos")}
+            {coinciden > 0 && (
+              <>
+                {": "}
+                <span className="font-semibold text-mossTexto">{numero(coinciden)} {coinciden === 1 ? "coincide" : "coinciden"} con el registro oficial</span>
+              </>
+            )}
+            {dudosos > 0 && (
+              <>
+                {coinciden > 0 ? " y " : ": "}
+                <span className="font-semibold text-amberTexto">{numero(dudosos)} no {dudosos === 1 ? "coincide" : "coinciden"}</span>
+              </>
+            )}
+          </span>
+        </span>
+        <ChevronDown size={18} className="shrink-0 text-mute transition-transform duration-rapido group-open/hechos:rotate-180" aria-hidden />
+      </summary>
+      <p className="mt-2 text-meta text-inkSoft">
         Cada dato leído del expediente dice qué es y contra qué se midió: el registro oficial, el reporte que genera el SEACE, la cita del propio documento o una segunda lectura.
         {dudosos > 0 ? ` ${plural(dudosos, "dato no coincide", "datos no coinciden")} con el registro: puede ser una diferencia real o un error de lectura.` : ""}
       </p>
       <DatosClave items={items} className="mt-2" />
-    </div>
+    </details>
   );
 }
 
@@ -656,7 +690,7 @@ function BloquePresupuesto({ c }: { c: Detalle }) {
     : [];
   const anteriores = p.mef.filter((x) => x !== ultimo).sort((a, b) => b.anio - a.anio);
   return (
-    <section aria-labelledby="presupuesto-titulo" className="tarjeta space-y-4 rounded-2xl border border-line bg-paper p-4 sm:p-5">
+    <section aria-labelledby="presupuesto-titulo" className={cn("tarjeta space-y-4 rounded-2xl border border-line bg-paper p-4 sm:p-5", EN_SUPERFICIE)}>
       <div className="flex items-center gap-1">
         <h3 id="presupuesto-titulo" className="font-display text-bloque font-bold text-ink">Presupuesto del proyecto</h3>
         <Ayuda titulo="¿Qué presupuesto es?">

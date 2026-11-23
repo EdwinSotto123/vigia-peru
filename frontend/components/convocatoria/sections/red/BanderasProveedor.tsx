@@ -140,7 +140,7 @@ export function BanderasProveedor({ banderas, ruc }: { banderas: BanderaExpedien
 
   return (
     <>
-      <ul className="grid gap-px overflow-hidden rounded-xl border border-line bg-line sm:grid-cols-2">
+      <ul className="grid gap-px overflow-hidden rounded-xl border border-line bg-line sm:grid-cols-2 [.tarjeta_&]:border-0">
         {grupos.map(({ familia, chips }) => {
           const peor = chips[0].peor;
           const Icono = ICONO_NIVEL[peor];

@@ -63,6 +63,8 @@ const VOCABULARIO: Record<string, { etiqueta: string; nivel: NivelSeveridad | "p
   alineado:               { etiqueta: "Alineado",               nivel: "positivo",     medido: true },
   alineado_regional:      { etiqueta: "Alineado (región)",      nivel: "positivo",     medido: true },
   barato:                 { etiqueta: "Bajo el mercado",        nivel: "positivo",     medido: true },
+  // El juez de precio bajó un «elevado» porque lo ofertado cae dentro del rango observado (ver `enRangoDelJuez`).
+  en_rango:               { etiqueta: "Dentro del rango",       nivel: "positivo",     medido: true },
   cobertura_parcial:      { etiqueta: "Cobertura parcial",      nivel: "sin_analizar", medido: false },
   no_verificable:         { etiqueta: "No verificable",         nivel: "sin_analizar", medido: false },
   sin_dato:               { etiqueta: "Sin precio de mercado",  nivel: "sin_analizar", medido: false },
@@ -75,6 +77,24 @@ export function veredictoMercado(clave?: string | null): VeredictoMercado {
   const k = String(clave || "").trim();
   const v = VOCABULARIO[k] || VOCABULARIO.sin_dato;
   return { clave: k || "sin_dato", etiqueta: v.etiqueta, ui: v.nivel === "positivo" ? POSITIVO : SEVERIDAD[v.nivel], medido: v.medido };
+}
+
+/**
+ * ¿El «no verificable» de un ítem es en realidad «dentro del rango»? Pasa cuando el agente lo midió como elevado (sobre
+ * la mediana) con 3 precios o más y el juez de precio lo bajó porque lo ofertado no pasa el precio más alto observado
+ * (1236273: S/ 4.70 contra 3 compras del Estado de S/ 3.33 a S/ 6.90). Antes se pintaba como «no verificable: los precios
+ * no eran de este producto, se descartaron», que era falso: sí había con qué comparar y el precio cae en el rango
+ * (el usuario, 2026-11-23: «¿por qué dicen cosas así si sí hay evidencias?»).
+ */
+export function enRangoDelJuez(f: any): boolean {
+  if (!f || String(f.veredicto || "").toLowerCase() !== "no_verificable") return false;
+  if (!["elevado", "muy_elevado"].includes(String(f.veredicto_original || "").toLowerCase())) return false;
+  if (f.retail_descartado === true) return false;
+  const mediana = num(f.precio_mediana_mercado) ?? num(f.precio_mediana_comparacion);
+  const max = num(f.rango_max);
+  const ofertado = num(f.precio_unitario_ofertado) ?? num(f.precio_unitario_referencial);
+  const n = num(f.n_precios) ?? (Array.isArray(f.precios_observados) ? f.precios_observados.length : 0);
+  return mediana !== null && max !== null && ofertado !== null && ofertado <= max && n >= 3;
 }
 
 /** Por qué un ítem no tiene medición, en castellano. Nada de claves internas en pantalla. */
@@ -189,7 +209,7 @@ function construirFila(ocdsItem: any, f: any, key: string): FilaPrecio {
   const rangoMaxUnit = mediana !== null ? positivo(tiendasFuera ? f?.ancla_regional?.rango_max : f?.rango_max) : null;
 
   const esEstimacionIA = f?.estado === "estimado_ia" || (mediana === null && estimacionIA !== null);
-  const veredicto = veredictoMercado(esEstimacionIA ? "estimado_ia" : f?.veredicto);
+  const veredicto = veredictoMercado(esEstimacionIA ? "estimado_ia" : enRangoDelJuez(f) ? "en_rango" : f?.veredicto);
   const medido = veredicto.medido && mediana !== null;
 
   const linea = (v: number | null) => (v !== null && cantidad !== null ? v * cantidad : null);

@@ -180,7 +180,7 @@ function VinculosExplicados({ red, onElegir }: { red: Red; onElegir: (id: string
     </button>
   );
   return (
-    <div className="divide-y divide-line overflow-hidden rounded-2xl border border-line bg-paper">
+    <div className="divide-y divide-line overflow-hidden rounded-2xl border border-line bg-paper [.tarjeta_&]:rounded-none [.tarjeta_&]:border-0 [.tarjeta_&]:bg-transparent">
       {/* 1. El veredicto de la red, antes que nada. */}
       {nRiesgo === 0 ? (
         <p className="flex items-start gap-2.5 px-4 py-3 text-dato leading-snug text-inkSoft">
@@ -209,7 +209,7 @@ function VinculosExplicados({ red, onElegir }: { red: Red; onElegir: (id: string
         const g = datos.tono;
         const total = tipos.reduce((n, [, l]) => n + l.length, 0);
         return (
-          <section key={s} aria-label={datos.titulo} className="px-4 py-3.5">
+          <section key={s} aria-label={datos.titulo} className="px-4 py-3.5 [.tarjeta_&]:px-0">
             <h4 className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
               <datos.icono size={16} className={cn("shrink-0", s === "riesgo" ? "text-crimsonTexto" : "text-mute")} aria-hidden />
               <span className="font-display text-cuerpo font-bold text-ink">{datos.titulo}</span>
@@ -605,6 +605,7 @@ function Carriles({
                           )}
                           {!ancho && suyos.length > 0 && (
                             <span className="mt-1.5 block space-y-0.5 border-t border-line pt-1.5">
+                              {/* recorte: tres vínculos caben en la tarjeta angosta; el panel de la persona los trae todos */}
                               {suyos.slice(0, 3).map((v, k) => (
                                 <span key={k} className="flex items-start gap-1.5 text-rotulo leading-snug text-inkSoft">
                                   <span className={cn("mt-1.5 h-1 w-3 shrink-0 rounded-full", chipTono(TONO_GRUPO[GRUPO[v.arista.kind] ?? "negocio"]))} aria-hidden />

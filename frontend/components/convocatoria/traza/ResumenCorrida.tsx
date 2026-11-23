@@ -8,6 +8,7 @@
  * llega no se muestra.
  */
 
+import type { ReactNode } from "react";
 import { ChevronRight, ClipboardCheck } from "lucide-react";
 import { colorSerie, Medidor } from "@/components/charts/BarraSegmentada";
 import { irAPestana } from "@/components/patrones/Pestanas";
@@ -22,7 +23,21 @@ const nro = (v: unknown): number | null => (typeof v === "number" && Number.isFi
 /** «4 min», «48 s». */
 const duracion = (s: number) => (s >= 90 ? `${decimal(s / 60, 1)} min` : `${numero(Math.round(s))} s`);
 
-export function ResumenCorrida({ recorrido, result }: { recorrido: Recorrido; result: ApiResult }) {
+export function ResumenCorrida({
+  recorrido,
+  result,
+  titulo,
+  bajada,
+}: {
+  recorrido: Recorrido;
+  result: ApiResult;
+  /**
+   * El título de la vista que la contiene (la vista «Trazabilidad» del contrato): va ADENTRO de esta tarjeta, grande, en
+   * vez de flotar sobre el fondo encima de ella (2026-11-23, el usuario: «no hay jerarquía»).
+   */
+  titulo?: string;
+  bajada?: ReactNode;
+}) {
   const m = result.llm_metrics ?? null;
   const costo = nro(m?.cost_usd);
   const llamadas = nro(m?.n_llm_calls);
@@ -45,39 +60,43 @@ export function ResumenCorrida({ recorrido, result }: { recorrido: Recorrido; re
   const conControles = recorrido.evaluaciones.length > 0;
   const aprobados = conControles ? EVALS.filter((e) => resultadoDe(recorrido.evaluaciones.find((x) => x.evaluador === e.n)) === "aprobado").length : 0;
 
-  if (!recorrido.agentesCorrieron && costo == null && !recorrido.consultas) return null;
+  const vacia = !recorrido.agentesCorrieron && costo == null && !recorrido.consultas;
+  // Sin nada que contar, nada; con el título de la vista, sólo el título (no puede desaparecer).
+  if (vacia && !titulo) return null;
 
   return (
-    <section aria-labelledby="resumen-corrida" className="mb-5 rounded-2xl border border-line bg-paper px-4 py-4 sm:px-5">
-      <h3 id="resumen-corrida" className="font-display text-bloque font-bold text-ink">
-        La corrida, de un vistazo
-      </h3>
-      <p className="mt-1.5 max-w-[72ch] text-dato leading-relaxed text-inkSoft">
-        Corrieron{" "}
-        <strong className="font-semibold text-ink">
-          {numero(recorrido.agentesCorrieron)} de {numero(recorrido.totalAgentes)} agentes
-        </strong>
-        {llamadas != null && (
-          <>
-            , con <strong className="font-semibold text-ink">{plural(llamadas, "llamada al modelo", "llamadas al modelo")}</strong>
-          </>
-        )}
-        {recorrido.consultas > 0 && (
-          <>
-            {" "}y <strong className="font-semibold text-ink">{plural(recorrido.consultas, "consulta", "consultas")}</strong> a herramientas y fuentes
-            {recorrido.consultasFallidas > 0 && <span className="text-crimsonTexto"> ({numero(recorrido.consultasFallidas)} fallaron)</span>}
-          </>
-        )}
-        .
-        {costo != null && (
-          <>
-            {" "}Leer este contrato costó <strong className="font-semibold text-ink">{usd(costo)}</strong>
-            {tokens != null && <> en {numero(tokens)} tokens</>}
-            {segundos != null && segundos > 0 && <> y tomó {duracion(segundos)}</>}.
-          </>
-        )}
-        {modelo && <> El dictamen lo redactó el modelo {modelo}.</>}
-      </p>
+    <section aria-labelledby="resumen-corrida" className="mb-5 rounded-2xl border border-line bg-paper px-4 py-4 sm:px-5 sm:py-5">
+      {titulo ? (
+        <>
+          <h2 id="resumen-corrida" className="font-display text-seccion font-bold leading-tight text-ink text-balance">
+            {titulo}
+          </h2>
+          {bajada && <p className="mt-1 max-w-3xl text-dato leading-snug text-inkSoft text-pretty">{bajada}</p>}
+        </>
+      ) : (
+        <h3 id="resumen-corrida" className="font-display text-bloque font-bold text-ink">
+          La corrida, de un vistazo
+        </h3>
+      )}
+      {/* Las cifras de la corrida como figuras (antes, una frase con cinco números adentro, y las mismas cifras otra vez
+          en pastillas sobre el grafo). */}
+      {!vacia && (
+      <dl className="mt-4 grid grid-cols-2 gap-px overflow-hidden rounded-xl bg-line lg:grid-cols-4" aria-label="La corrida en cifras">
+        <Figura etiqueta="Agentes que corrieron" valor={`${numero(recorrido.agentesCorrieron)} de ${numero(recorrido.totalAgentes)}`} />
+        <Figura etiqueta="Llamadas al modelo" valor={llamadas != null ? numero(llamadas) : null} />
+        <Figura
+          etiqueta="Consultas a herramientas y fuentes"
+          valor={recorrido.consultas > 0 ? numero(recorrido.consultas) : null}
+          nota={recorrido.consultasFallidas > 0 ? <span className="font-semibold text-crimsonTexto">{plural(recorrido.consultasFallidas, "falló", "fallaron")}</span> : null}
+        />
+        <Figura
+          etiqueta="Lo que costó leerlo"
+          valor={costo != null ? usd(costo) : null}
+          nota={[tokens != null ? `${numero(tokens)} tokens` : null, segundos != null && segundos > 0 ? duracion(segundos) : null].filter(Boolean).join(", ") || null}
+        />
+      </dl>
+      )}
+      {modelo && <p className="mt-2 text-meta text-mute">El dictamen lo redactó el modelo {modelo}.</p>}
 
       {ramas.length > 0 && repartido > 0 && (
         <div className="mt-4">
@@ -115,6 +134,7 @@ export function ResumenCorrida({ recorrido, result }: { recorrido: Recorrido; re
         </div>
       )}
 
+      {!vacia && (
       <div className="mt-4 flex flex-wrap items-end justify-between gap-x-6 gap-y-3 border-t border-line pt-3">
         {conControles ? (
           <div className="min-w-[14rem] flex-1 sm:max-w-sm">
@@ -142,6 +162,19 @@ export function ResumenCorrida({ recorrido, result }: { recorrido: Recorrido; re
           )}
         </div>
       </div>
+      )}
     </section>
+  );
+}
+
+/** Una cifra de la corrida: grande, con su nombre debajo. Sin dato, «Sin dato» (nunca un cero inventado). */
+function Figura({ etiqueta, valor, nota }: { etiqueta: string; valor: string | null; nota?: ReactNode }) {
+  return (
+    // El nombre va primero en el documento (un `dt` antes de su `dd`) y debajo en pantalla: la cifra manda.
+    <div className="flex min-w-0 flex-col bg-paperSoft px-3.5 py-3">
+      <dt className="order-2 mt-1.5 text-meta leading-snug text-inkSoft">{etiqueta}</dt>
+      <dd className={valor == null ? "order-1 text-dato text-mute" : "order-1 whitespace-nowrap font-display text-seccion font-bold leading-none tabular-nums text-ink sm:text-cifra"}>{valor ?? "Sin dato"}</dd>
+      {nota && <dd className="order-3 text-rotulo text-mute">{nota}</dd>}
+    </div>
   );
 }

@@ -42,7 +42,7 @@ function RepartoGasto({ filas }: { filas: NonNullable<Detalle["itemsDocumento"]>
   const top = con.slice(0, 6);
   const resto = con.slice(6).reduce((s, x) => s + x.total, 0);
   return (
-    <section aria-labelledby="reparto-gasto" className="rounded-2xl border border-line bg-paper px-4 py-4 sm:px-5">
+    <section aria-labelledby="reparto-gasto" className="rounded-2xl border border-line bg-paper px-4 py-4 sm:px-5 [.tarjeta_&]:rounded-none [.tarjeta_&]:border-x-0 [.tarjeta_&]:border-b-0 [.tarjeta_&]:bg-transparent [.tarjeta_&]:px-0 [.tarjeta_&]:pb-0">
       <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
         <h3 id="reparto-gasto" className="font-display text-bloque font-bold text-ink">Cómo se reparte el monto</h3>
         <span className="text-dato tabular-nums text-inkSoft">{soles(suma)} en {plural(con.length, "renglón", "renglones")}</span>

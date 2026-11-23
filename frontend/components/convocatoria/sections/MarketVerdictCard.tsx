@@ -2,7 +2,8 @@
 
 import { Info, Scale } from "lucide-react";
 import { numero, porcentaje } from "@/lib/formato";
-import { ICONO_SEVERIDAD, resumenLote } from "@/components/charts/mercado";
+import { ICONO_SEVERIDAD, enRangoDelJuez, resumenLote } from "@/components/charts/mercado";
+import { POSITIVO } from "@/lib/severidad";
 import { cn } from "@/lib/utils";
 import { observacionesLegibles } from "../dossier";
 
@@ -82,6 +83,9 @@ function motivoDelJuez(texto: unknown): string | null {
 
 export function MarketVerdictCard({ market, fmtMoney, estado = null }: { market: any; fmtMoney: (n: any) => string; estado?: VerificadoEstado | null }) {
   const r = resumenLote(market);
+  const todos: any[] = market?.findings || [];
+  // Sin sobreprecio medido porque el precio cae DENTRO del rango observado: se dice eso, con su barra, y no «no se pudo».
+  if (!r.comparable && todos.length > 0 && todos.every(enRangoDelJuez)) return <DentroDelRango findings={todos} fmtMoney={fmtMoney} />;
   // Sin sobreprecio de mercado medido, pero con la comparación contra el Estado hecha: verificación parcial, no «no verificable».
   const parcial = !r.comparable && !!estado;
   const findings: any[] = market?.findings || [];
@@ -118,7 +122,7 @@ export function MarketVerdictCard({ market, fmtMoney, estado = null }: { market:
 
         {r.comparable && r.pct !== null ? (
           <>
-            <h2 className="mt-1 font-display text-2xl font-bold leading-tight text-ink">
+            <h2 className="mt-1 font-display text-cifra font-bold leading-tight text-ink">
               El contrato está{" "}
               <span className={r.veredicto.ui.texto}>
                 {r.pct > 0 ? "+" : "−"}
@@ -192,9 +196,7 @@ export function MarketVerdictCard({ market, fmtMoney, estado = null }: { market:
           </>
         ) : (
           <>
-            <h2 className="mt-1 font-display text-2xl font-bold leading-tight text-ink">
-              No se pudo determinar el sobreprecio de este contrato
-            </h2>
+            <h2 className="mt-1 text-bloque font-semibold leading-snug text-ink">No se pudo determinar el sobreprecio de este contrato</h2>
             <p className="mt-1 text-meta leading-snug text-inkSoft">
               {r.motivo ? `${r.motivo.charAt(0).toUpperCase()}${r.motivo.slice(1)}. ` : ""}
               {conteo}
@@ -282,6 +284,82 @@ export function MarketVerdictCard({ market, fmtMoney, estado = null }: { market:
           <Info size={13} className="mt-0.5 shrink-0 text-mute" aria-hidden />
           <span>{market.recomendacion}</span>
         </p>
+      )}
+    </section>
+  );
+}
+
+/**
+ * El precio ofertado cae dentro del rango de lo observado (`enRangoDelJuez`): la frase con las cifras y una barra del
+ * rango con la mediana y lo ofertado marcados. Con varios ítems, la frase dice cuántos y el detalle va en el gráfico.
+ */
+function DentroDelRango({ findings }: { findings: any[]; fmtMoney: (n: any) => string }) {
+  const f = findings.length === 1 ? findings[0] : null;
+  // Precios por unidad: con sus dos decimales (S/ 4.70, no S/ 4.7).
+  const fmtMoney = (v: number) => `S/ ${v.toLocaleString("es-PE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  const ofertado = f ? Number(f.precio_unitario_ofertado ?? f.precio_unitario_referencial) : null;
+  const min = f ? Number(f.rango_min) : null;
+  const max = f ? Number(f.rango_max) : null;
+  const mediana = f ? Number(f.precio_mediana_mercado ?? f.precio_mediana_comparacion) : null;
+  const n = f ? Number(f.n_precios ?? f.precios_observados?.length ?? 0) : 0;
+  const diff = f && typeof f.diff_pct === "number" ? f.diff_pct : null;
+  const delEstado = f && (f.precios_observados ?? []).length > 0 && (f.precios_observados ?? []).every((p: any) => p?.origen === "conosce" || /oece|seace/i.test(String(p?.dominio ?? "")));
+  const de = delEstado ? "compras del Estado" : "precios de mercado";
+  // La barra: de un poco menos que el mínimo a un poco más que el máximo (o que lo ofertado, si lo pasa).
+  const lo = f && min !== null ? Math.min(min, ofertado ?? min) * 0.85 : 0;
+  const hi = f && max !== null ? Math.max(max, ofertado ?? max) * 1.08 : 1;
+  const x = (v: number) => `${Math.max(0, Math.min(100, ((v - lo) / (hi - lo)) * 100))}%`;
+  return (
+    <section className="rounded-2xl border border-line bg-paper p-5">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0 flex-1">
+          <h2 className="font-display text-seccion font-bold leading-tight text-ink text-balance">
+            {f && ofertado !== null ? <>Pagó {fmtMoney(ofertado)} por unidad: dentro de lo que se pagó antes</> : <>Los precios ofertados están dentro del rango observado</>}
+          </h2>
+          <p className="mt-1.5 max-w-[65ch] text-dato leading-snug text-inkSoft text-pretty">
+            {f && min !== null && max !== null && mediana !== null ? (
+              <>
+                Se comparó con {numero(n)} {de} del mismo producto, de {fmtMoney(min)} a {fmtMoney(max)}.{" "}
+                {diff !== null && diff > 0 ? (
+                  <>
+                    Está {porcentaje(diff, { decimales: 0 })} sobre la mediana ({fmtMoney(mediana)}), pero no pasa el precio más alto: no se marca como
+                    sobreprecio.
+                  </>
+                ) : (
+                  <>No pasa el precio más alto: no se marca como sobreprecio.</>
+                )}
+              </>
+            ) : (
+              <>
+                En {findings.length} ítems lo ofertado no pasa el precio más alto observado: no se marca sobreprecio. El detalle de cada uno está en el
+                gráfico.
+              </>
+            )}
+          </p>
+        </div>
+        <span className={cn("pill shrink-0 px-2 py-0.5 text-rotulo", POSITIVO.fondo, POSITIVO.texto, POSITIVO.borde)}>
+          <Scale size={12} aria-hidden />
+          Dentro del rango
+        </span>
+      </div>
+      {f && min !== null && max !== null && ofertado !== null && (
+        <div className="mt-5" aria-hidden>
+          <div className="relative h-10">
+            {/* El rango observado, la mediana y lo ofertado. */}
+            <span className="absolute top-4 h-2 rounded-full bg-moss/25" style={{ left: x(min), width: `calc(${x(max)} - ${x(min)})` }} />
+            {mediana !== null && <span className="absolute top-2.5 h-5 w-0.5 -translate-x-1/2 bg-ink/60" style={{ left: x(mediana) }} />}
+            <span className="absolute top-3 h-4 w-4 -translate-x-1/2 rounded-full border-2 border-paper bg-ink shadow-[0_1px_3px_rgb(var(--ink)/0.3)]" style={{ left: x(ofertado) }} />
+          </div>
+          <div className="relative h-5 text-micro tabular-nums text-mute">
+            <span className="absolute -translate-x-1/2" style={{ left: x(min) }}>{fmtMoney(min)}</span>
+            <span className="absolute -translate-x-1/2" style={{ left: x(max) }}>{fmtMoney(max)}</span>
+          </div>
+          <p className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-rotulo text-inkSoft">
+            <span className="inline-flex items-center gap-1.5"><span className="h-2 w-5 rounded-full bg-moss/25" /> rango de las {numero(n)} {de}</span>
+            {mediana !== null && <span className="inline-flex items-center gap-1.5"><span className="h-3 w-0.5 bg-ink/60" /> mediana {fmtMoney(mediana)}</span>}
+            <span className="inline-flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full bg-ink" /> lo que pagó esta entidad {fmtMoney(ofertado)}</span>
+          </p>
+        </div>
       )}
     </section>
   );

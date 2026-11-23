@@ -75,7 +75,7 @@ export function LineaTiempoProceso({ c, idTitulo = "linea-tiempo" }: { c: Contra
   return (
     <section aria-labelledby={idTitulo} className="rounded-2xl border border-line bg-paper px-4 py-3.5">
       <div className="flex flex-wrap items-baseline justify-between gap-x-3">
-        <h2 id={idTitulo} className="font-display text-bloque font-bold text-ink">
+        <h2 id={idTitulo} className="font-display text-seccion font-bold leading-tight text-ink">
           Línea de tiempo
         </h2>
         {hasta !== null && (

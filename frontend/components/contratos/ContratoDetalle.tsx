@@ -20,7 +20,7 @@
 import Link from "next/link";
 import { rutaApoyar, rutaContrato } from "@/lib/rutas";
 import { Suspense, type ReactNode } from "react";
-import { CalendarRange, Clock, FileCheck, FileText, History, Hourglass, Package, Workflow } from "lucide-react";
+import { CalendarRange, Clock, FileCheck, FileText, History, Hourglass, Package } from "lucide-react";
 import { ContratoEnVivo } from "@/components/auditoria/ContratoEnVivo";
 import { ResultadoAnalisis } from "@/components/auditoria/ResultadoAnalisis";
 import { PersonName, Ruc } from "@/components/Redact";
@@ -163,15 +163,17 @@ export function ContratoDetalle({
             <HistoriaFicha tipo="contrato" id={c.ocid} nombre="este contrato" />
           </Suspense>
         ) : (
-          <div className="space-y-2 rounded-xl border border-line bg-paper px-4 py-4">
-            <p className="text-meta text-inkSoft">
+          // Con su título adentro y el botón a la vista (antes, un párrafo gris y un enlace chico en una caja).
+          <SuperficiePestana>
+            <h2 className="font-display text-seccion font-bold leading-tight text-ink">La historia del contrato</h2>
+            <p className="mt-1 max-w-3xl text-dato leading-snug text-inkSoft">
               Una línea de tiempo con el proceso (convocatoria, ofertas, buena pro y contrato), las visitas de la gente del ganador a la
               entidad, sus antecedentes en la fecha de cada hecho, sus sanciones y la obra que ejecuta.
             </p>
-            <Link href={rutaContrato(c.ocid, "ficha", { seccion: "historia" })} prefetch={false} className="inline-flex min-h-[32px] items-center gap-1.5 text-meta font-semibold text-granate underline-offset-2 hover:underline">
-              <History size={14} aria-hidden /> Ver la historia del contrato
-            </Link>
-          </div>
+            <EnlaceAccion href={rutaContrato(c.ocid, "ficha", { seccion: "historia" })} prefetch={false} flecha className="mt-3">
+              <History size={16} aria-hidden /> Armar la historia del contrato
+            </EnlaceAccion>
+          </SuperficiePestana>
         ),
     },
     // Cada pestaña del registro y de la evidencia, en UNA superficie con su cabecera adentro (antes el h2 y su línea flotaban
@@ -461,23 +463,25 @@ function AnalisisCard({ c, lectura, alcance, conCronograma }: { c: Detalle; lect
     // resultado (medidor, «5 señales de riesgo», las reglas evaluadas y cada señal): la cabecera ya dice el puntaje y
     // cada señal, y el dictamen las explica; con la tarjeta, la ficha contaba las señales a su manera (5 contra 4).
     const n = lectura?.conteo.total ?? c.alerta.banderas.length;
+    // Una fila (2026-11-23, el usuario: «bloques grandes que dicen poco»): antes, un titular, un párrafo y dos botones,
+    // uno de ellos «Trazabilidad», que ya está en la barra de vistas justo encima.
     return (
-      <FranjaEstado
-        icono={<FileCheck size={18} className="text-mossTexto" aria-hidden />}
-        titulo={c.alerta.analizadoEn ? `Leído el ${fecha(dia(c.alerta.analizadoEn))}` : "Leído por Vigía"}
-        acciones={[
-          <EnlaceAccion key="dictamen" href={rutaContrato(c.ocid, "dictamen")} flecha>
-            Leer el dictamen
-          </EnlaceAccion>,
-          <Link key="como" href={rutaContrato(c.ocid, "vivo")} prefetch={false} className={claseAccion("secundario")}>
-            <Workflow size={16} aria-hidden /> Trazabilidad
-          </Link>,
-        ]}
-      >
-        {n > 0
-          ? `El dictamen explica ${n === 1 ? "su señal" : `sus ${numero(n)} señales`}, cada una con su norma y su evidencia, y cuenta la historia del proceso.`
-          : "La lectura terminó sin señales: el dictamen dice qué se cotejó."}
-      </FranjaEstado>
+      <section aria-labelledby="estado-lectura" className="flex flex-wrap items-center gap-x-4 gap-y-3 rounded-2xl border border-line bg-paper px-4 py-3 sm:flex-nowrap">
+        <span aria-hidden className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-paperSoft text-mossTexto">
+          <FileCheck size={18} />
+        </span>
+        <p className="min-w-0 flex-1 text-dato leading-snug text-inkSoft">
+          <strong id="estado-lectura" className="font-semibold text-ink">
+            {c.alerta.analizadoEn ? `Leído el ${fecha(dia(c.alerta.analizadoEn))}.` : "Leído por Vigía."}
+          </strong>{" "}
+          {n > 0
+            ? `El dictamen explica ${n === 1 ? "su señal" : `sus ${numero(n)} señales`} con su norma y su evidencia.`
+            : "La lectura terminó sin señales: el dictamen dice qué se cotejó."}
+        </p>
+        <EnlaceAccion href={rutaContrato(c.ocid, "dictamen")} flecha className="shrink-0">
+          Leer el dictamen
+        </EnlaceAccion>
+      </section>
     );
   }
 

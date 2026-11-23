@@ -456,12 +456,14 @@ export function FlowGraph({ liveEvents = [], override }: {
                 <div className="flex flex-wrap items-center gap-1.5">
                   <span className="w-full text-micro text-mute">Socios</span>
                   {/* Socios: personas privadas salvo que sean empresas — apellido tapado (§10.6); un RUC 10 lleva un DNI. */}
+                  {/* recorte: seis socios caben en la tarjeta del nodo; la lista entera está en «Proveedor y red» */}
                   {findings.socios.slice(0, 6).map((s: string, i: number) => <span key={i} className="rounded-md border border-line bg-paperDeep/60 px-2 py-0.5 text-micro text-ink">{pareceEmpresa(s) ? s : maskApellido(s)}</span>)}
                 </div>
               )}
               {findings.senales.length > 0 && (
                 <div className="flex flex-wrap items-center gap-1.5">
                   <span className="w-full text-micro text-mute">Señales</span>
+                  {/* recorte: seis señales caben en la tarjeta del nodo; todas están en la pestaña Señales */}
                   {findings.senales.slice(0, 6).map((s: string, i: number) => <span key={i} className="rounded-full bg-crimson-soft px-2 py-0.5 text-micro font-bold text-rust">{s.replace(/_/g, " ")}</span>)}
                 </div>
               )}

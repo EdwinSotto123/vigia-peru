@@ -1,20 +1,24 @@
 "use client";
 
-/** Pestaña "Documentos" del informe, cargada con `next/dynamic` al abrirla (PanelesDossier). */
+/**
+ * Pestaña "Documentos" del informe, cargada con `next/dynamic` al abrirla (PanelesDossier): el expediente, quién firmó y
+ * por qué ganó cada postor, y las señales que se leyeron en los documentos.
+ *
+ * Sin repetir (2026-11-23, el usuario: «secciones que aparecen una vez más»): la «Línea de tiempo del proceso» era la de
+ * «Qué pasó» en La historia (y la de la ficha), y «Cumplimiento normativo» repetía cada señal de la pestaña Señales; ahora
+ * sus opiniones del OECE van plegadas al pie de Señales.
+ */
 
 import { FileText } from "lucide-react";
-import { mercadoMedido } from "@/components/charts/mercado";
 import { setRedactNames } from "../../Redact";
 import type { PanelDossierProps } from "./PanelesDossier";
 import { AvisoSeccion } from "./AvisoSeccion";
 import { DocumentosSection } from "./DocumentosSection";
 import { RedFlagsDocumentalesSection } from "./RedFlagsDocumentalesSection";
-import { CronologiaSection } from "./CronologiaSection";
-import { CumplimientoNormativoSection } from "./CumplimientoNormativoSection";
 import { FirmantesYAdjudicacionSection } from "./FirmantesYAdjudicacionSection";
 import { SeccionSegura } from "./SeccionSegura";
 
-export function PanelDocumentos({ result, conv, banderasArr, nombresSunat, nombresPrivados, ocidContrato, nDocs }: PanelDossierProps) {
+export function PanelDocumentos({ result, nombresSunat, nombresPrivados, ocidContrato, nDocs }: PanelDossierProps) {
   setRedactNames(nombresPrivados);
   const da = result.document_analysis || {};
   const hayFirmas = (da.firmantes || []).length > 0 || (da.motivos_adjudicacion || []).length > 0 || (da.comite_evaluacion || []).length > 0;
@@ -50,14 +54,6 @@ export function PanelDocumentos({ result, conv, banderasArr, nombresSunat, nombr
       {(da.red_flags_documentales || []).length > 0 && (
         <SeccionSegura nombre="las señales en los documentos">
           <RedFlagsDocumentalesSection flags={da.red_flags_documentales} />
-        </SeccionSegura>
-      )}
-      <SeccionSegura nombre="la línea de tiempo">
-        <CronologiaSection convocatoria={conv} banderas={banderasArr} />
-      </SeccionSegura>
-      {result.normative_compliance && (
-        <SeccionSegura nombre="el cumplimiento normativo">
-          <CumplimientoNormativoSection nc={result.normative_compliance} sobreprecioMedido={mercadoMedido(result.market_analysis)} />
         </SeccionSegura>
       )}
     </div>

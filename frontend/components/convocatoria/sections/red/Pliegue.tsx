@@ -26,7 +26,7 @@ export function Pliegue({
 }) {
   return (
     <details className={cn("group", className)} open={abierto || undefined}>
-      <summary className="flex min-h-11 cursor-pointer list-none items-center gap-3 rounded-xl border border-line bg-paper px-3.5 py-2.5 transition-colors duration-rapido hover:border-paperEdge hover:bg-paperSoft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-granate group-open:border-paperEdge [&::-webkit-details-marker]:hidden">
+      <summary className="flex min-h-11 cursor-pointer list-none items-center gap-3 rounded-xl border border-line bg-paper px-3.5 py-2.5 [.tarjeta_&]:border-transparent [.tarjeta_&]:bg-paperSoft transition-colors duration-rapido hover:border-paperEdge hover:bg-paperSoft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-granate group-open:border-paperEdge [&::-webkit-details-marker]:hidden">
         {icono && <span className="shrink-0 text-mute" aria-hidden>{icono}</span>}
         <span className="min-w-0 flex-1">
           <span className="flex flex-wrap items-baseline gap-x-2 text-dato font-semibold text-ink">

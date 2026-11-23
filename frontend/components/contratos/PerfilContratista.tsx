@@ -48,7 +48,7 @@ function Cita({ ocid, cita }: { ocid: string; cita: CitaDocumento | null }) {
 
 /** Una placa del perfil: borde fino, fondo de la página, sin sombra (un solo nivel: nunca una placa dentro de otra). */
 function Placa({ children, className = "" }: { children: ReactNode; className?: string }) {
-  return <div className={`rounded-2xl border border-line bg-paper px-4 py-3.5 ${className}`}>{children}</div>;
+  return <div className={`rounded-2xl border border-line bg-paper px-4 py-3.5 [.tarjeta_&]:border-0 [.tarjeta_&]:bg-paperSoft ${className}`}>{children}</div>;
 }
 
 /** El rótulo de una placa: ícono y nombre a la izquierda, la página citada a la derecha. */
@@ -280,7 +280,7 @@ function ListaDocumentos({ c, titulo, icono: Icono, docs }: {
 }) {
   if (!docs.length) return null;
   return (
-    <details className="group rounded-2xl border border-line bg-paper">
+    <details className="group rounded-2xl border border-line bg-paper [.tarjeta_&]:border-0 [.tarjeta_&]:bg-paperSoft">
       <summary className="flex cursor-pointer list-none items-center gap-2.5 px-4 py-3 [&::-webkit-details-marker]:hidden">
         <Icono size={17} className="shrink-0 text-inkSoft" aria-hidden />
         <span className="min-w-0 flex-1 text-cuerpo font-semibold text-ink">{titulo}</span>

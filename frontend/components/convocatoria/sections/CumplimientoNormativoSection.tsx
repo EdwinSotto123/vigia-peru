@@ -1,22 +1,20 @@
 "use client";
 
-import { ExternalLink, Scale } from "lucide-react";
-import { plural, porcentaje } from "@/lib/formato";
+import { Scale } from "lucide-react";
+import { EnlaceFuente, Seccion } from "@/components/patrones";
+import { numero, porcentaje } from "@/lib/formato";
 import { Severidad } from "@/components/ui/Severidad";
 import { severidadDe } from "../dossier";
 import { reglaLabel } from "@/lib/auditoria";
 import { redactDnis } from "../../Redact";
-import { evidenciaComoTexto } from "./Evidencia";
 
-const FUENTE_HALLAZGO: Record<string, string> = {
-  compliance_rule: "Reglas de contratación",
-  legal_analyst_red_flag: "Análisis legal",
-  market_spec_restrictiva: "Precios de mercado",
-  market_sobreprecio: "Precios de mercado",
-  parser_red_flag: "Lectura del expediente",
-  person_cruce: "Red de personas",
-};
-
+/**
+ * Las señales contrastadas con las opiniones jurídicas del OECE. Antes era una tabla de cinco columnas en la pestaña
+ * Documentos que repetía cada señal (con su evidencia entera, ya en Señales) para decir, en la mayoría de las filas, «No se
+ * encontró opinión relacionada» (2026-11-23, el usuario: «secciones que aparecen una vez más», «bloques grandes que dicen
+ * poco»). Ahora va plegada al pie de la pestaña Señales y muestra sólo lo que agrega: la opinión que cita cada señal, su
+ * parecido y su enlace; las que no tienen opinión, en una línea.
+ */
 export function CumplimientoNormativoSection({
   nc,
   sobreprecioMedido = true,
@@ -26,111 +24,70 @@ export function CumplimientoNormativoSection({
   sobreprecioMedido?: boolean;
 }) {
   const evals: any[] = nc?.evaluaciones || [];
+  if (evals.length === 0) return null;
+  const titulo = (h: any) => {
+    const t = String(h?.titulo || "");
+    return /^[a-z0-9_]+$/.test(t) ? reglaLabel(t) : t || "Hallazgo sin nombre";
+  };
   const conOpinion = evals.filter((e: any) => e.opinion_oece);
   const sinOpinion = evals.filter((e: any) => !e.opinion_oece);
   return (
-    <section className="overflow-hidden rounded-2xl border border-line bg-paper">
-      <div className="border-b border-line bg-paperSoft px-5 py-3">
-        <h2 className="font-display text-xl font-bold text-ink">Cumplimiento normativo</h2>
-        <p className="mt-0.5 flex items-center gap-1.5 text-rotulo text-mute">
-          <Scale size={12} aria-hidden /> {plural(evals.length, "hallazgo contrastado", "hallazgos contrastados")} con las opiniones jurídicas del OECE
-        </p>
-        <p className="mt-1 max-w-[68ch] text-rotulo leading-relaxed text-mute">
-          Cada hallazgo se busca entre las opiniones jurídicas del OECE para encontrar la más parecida, y así citar la
-          interpretación administrativa que corresponde a cada señal.
-        </p>
-      </div>
-
-      {evals.length === 0 ? (
-        <p className="px-5 py-6 text-dato leading-5 text-mute">No hubo hallazgos que contrastar con las opiniones del OECE.</p>
-      ) : (
-        <div className="overflow-x-auto">
-          <table className="w-full border-collapse text-rotulo leading-4">
-            <thead>
-              <tr className="border-b border-line bg-paperSoft text-left text-rotulo text-inkSoft">
-                <th scope="col" className="px-3 py-2 font-semibold">Quién lo encontró</th>
-                <th scope="col" className="px-3 py-2 font-semibold">Hallazgo</th>
-                <th scope="col" className="px-3 py-2 font-semibold">Severidad</th>
-                <th scope="col" className="px-3 py-2 font-semibold">Opinión del OECE relacionada</th>
-                <th scope="col" className="px-3 py-2 text-right font-semibold" title="Qué tan parecida es la opinión al hallazgo (búsqueda semántica)">Parecido</th>
-              </tr>
-            </thead>
-            <tbody>
-              {evals.map((e: any, i: number) => {
-                const h = e.hallazgo || {};
-                const op = e.opinion_oece;
-                return (
-                  <tr key={i} className="border-b border-line/50 align-top hover:bg-paperSoft">
-                    <td className="px-3 py-2 text-mute">
-                      <span className="rounded-full bg-paperDeep px-2 py-0.5 text-micro text-inkSoft">
-                        {FUENTE_HALLAZGO[h.fuente] ?? String(h.fuente || "").replace(/_/g, " ")}
-                      </span>
-                    </td>
-                    <td className="px-3 py-2 text-ink">
-                      <div className="font-semibold leading-tight">
-                        {/^[a-z0-9_]+$/.test(String(h.titulo || "")) ? reglaLabel(h.titulo) : h.titulo}
-                        {!sobreprecioMedido && h.fuente === "market_sobreprecio" && (
-                          <span className="ml-1.5 rounded-full border border-line bg-paperSoft px-1.5 py-0 text-micro font-normal text-mute">
-                            no verificable
-                          </span>
-                        )}
-                      </div>
-                      <div className="mt-0.5 text-micro text-mute">{redactDnis(typeof h.descripcion === "string" ? h.descripcion : evidenciaComoTexto(h.descripcion))}</div>
-                    </td>
-                    <td className="px-3 py-2">
-                      <Severidad bandera={severidadDe(h)} formato="linea" />
-                    </td>
-                    <td className="px-3 py-2 text-ink">
-                      {op ? (
-                        <>
-                          <div className="font-semibold">
-                            {op.norma ? `${op.norma} ` : ""}
-                            {op.num_opinion && <span className="font-mono">{op.num_opinion}</span>}
-                          </div>
-                          {(op.art_ley || op.art_reglamento) && (
-                            <div className="text-micro text-mute">
-                              {op.art_ley && <>Ley {op.art_ley}{op.art_reglamento ? ", " : ""}</>}
-                              {op.art_reglamento && <>Reglamento {op.art_reglamento}</>}
-                            </div>
-                          )}
-                          {op.interpretacion_snippet && (
-                            <div className="mt-1 line-clamp-3 text-micro italic text-inkSoft">
-                              "{op.interpretacion_snippet}"
-                            </div>
-                          )}
-                          {op.link && (
-                            <a href={op.link} target="_blank" rel="noreferrer"
-                               className="mt-1 inline-flex min-h-[24px] items-center gap-1 text-rotulo font-semibold text-granate hover:underline">
-                              Abrir la opinión <ExternalLink size={11} aria-hidden />
-                            </a>
-                          )}
-                        </>
-                      ) : (
-                        <span className="italic text-mute">No se encontró opinión relacionada.</span>
-                      )}
-                    </td>
-                    <td className="px-3 py-2 text-right">
-                      {op?.score != null ? (
-                        <span className="font-mono text-rotulo font-semibold tabular-nums text-ink">
-                          {porcentaje(op.score * 100)}
+    <Seccion
+      plegable
+      titulo="Opiniones del OECE que citan las señales"
+      descripcion={
+        conOpinion.length === 0
+          ? `Ninguna de las ${numero(evals.length)} señales tiene una opinión jurídica del OECE lo bastante parecida para citarla.`
+          : `${numero(conOpinion.length)} de ${numero(evals.length)} señales tienen una opinión jurídica del OECE lo bastante parecida para citarla.`
+      }
+    >
+      {conOpinion.length > 0 && (
+        <ul className="divide-y divide-line/70">
+          {conOpinion.map((e: any, i: number) => {
+            const h = e.hallazgo || {};
+            const op = e.opinion_oece;
+            return (
+              <li key={i} className="grid gap-x-6 gap-y-2 py-3 first:pt-0 sm:grid-cols-[minmax(0,1fr)_auto]">
+                <div className="min-w-0">
+                  <p className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                    <Severidad bandera={severidadDe(h)} />
+                    <span className="text-dato font-semibold text-ink">{titulo(h)}</span>
+                    {!sobreprecioMedido && h.fuente === "market_sobreprecio" && <span className="pill border-line bg-paperSoft text-mute">no verificable</span>}
+                  </p>
+                  <p className="mt-1.5 flex items-start gap-1.5 text-meta text-ink">
+                    <Scale size={14} className="mt-0.5 shrink-0 text-mute" aria-hidden />
+                    <span className="min-w-0">
+                      {op.norma ? `${op.norma} ` : ""}
+                      {op.num_opinion && <span className="font-mono">{op.num_opinion}</span>}
+                      {(op.art_ley || op.art_reglamento) && (
+                        <span className="text-mute">
+                          {", "}
+                          {op.art_ley && <>Ley {op.art_ley}{op.art_reglamento ? ", " : ""}</>}
+                          {op.art_reglamento && <>Reglamento {op.art_reglamento}</>}
                         </span>
-                      ) : (
-                        <span className="text-mute">Sin dato</span>
                       )}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+                    </span>
+                  </p>
+                  {op.interpretacion_snippet && <p className="mt-1 line-clamp-3 max-w-[68ch] text-meta italic leading-relaxed text-inkSoft">«{redactDnis(op.interpretacion_snippet)}»</p>}
+                </div>
+                <div className="flex items-center gap-3 sm:flex-col sm:items-end sm:gap-1">
+                  {op.score != null && (
+                    <span className="text-meta text-mute">
+                      <span className="font-mono text-dato font-semibold tabular-nums text-ink">{porcentaje(op.score * 100)}</span> de parecido
+                    </span>
+                  )}
+                  {op.link && <EnlaceFuente href={op.link} className="text-meta">Abrir la opinión</EnlaceFuente>}
+                </div>
+              </li>
+            );
+          })}
+        </ul>
       )}
-
       {sinOpinion.length > 0 && (
-        <div className="border-t border-line bg-paperSoft px-5 py-2 text-rotulo text-mute">
-          {conOpinion.length} de {evals.length} hallazgos tienen una opinión del OECE lo bastante parecida para citarla.
-        </div>
+        <p className={conOpinion.length > 0 ? "mt-2 border-t border-line pt-3 text-meta text-mute" : "text-meta text-mute"}>
+          Sin una opinión parecida: {sinOpinion.map((e: any) => titulo(e.hallazgo)).join(", ")}.
+        </p>
       )}
-    </section>
+    </Seccion>
   );
 }

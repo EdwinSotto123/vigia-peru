@@ -385,6 +385,39 @@ export const mayusculaInicial = (t: string) => t.charAt(0).toLocaleUpperCase("es
 /** Lo que el capítulo «Lo que dice el análisis» muestra antes de «Leer el dictamen completo». */
 const MAX_RESUMEN = 900;
 
+/** Un título del markdown sin marcas de énfasis. */
+const tituloLimpio = (x: string) => x.replace(/[*_`]/g, "").replace(/\s+/g, " ").trim();
+
+/** «# Dictamen de investigación — Alerta OECE-…»: el título genérico que el agente pone arriba, que no dice nada. */
+export const esTituloGenerico = (x: string) => /^dictamen\b.*\balerta\b/i.test(tituloLimpio(x));
+
+/**
+ * El titular del dictamen: lo que pasó, en una línea («Licitación abreviada de CENARES adjudicó… con visita previa del
+ * ganador»). El agente lo escribe de varias formas: un «## » sin cuerpo pegado bajo «# Dictamen de investigación — Alerta
+ * …», un «## » sin cuerpo seguido de «### Resumen ejecutivo», o un «# » propio. Es el primer título (sin contar el
+ * genérico) si es un «# » o si no tiene texto debajo. Antes se pintaba como un capítulo plegable vacío y el «# » genérico
+ * hacía de título.
+ */
+export function titularDelDictamen(md: string): string | null {
+  const lineas = md.replace(/\r\n?/g, "\n").split("\n");
+  const RX = /^(#{1,6})\s+(.+?)\s*#*\s*$/;
+  const siguiente = (desde: number) => {
+    for (let k = desde; k < lineas.length; k++) if (RX.test(lineas[k])) return k;
+    return -1;
+  };
+  for (let k = siguiente(0); k >= 0; k = siguiente(k + 1)) {
+    const m = RX.exec(lineas[k])!;
+    const texto = tituloLimpio(m[2]);
+    if (m[1].length === 1 && esTituloGenerico(texto)) continue;
+    if (/^resumen ejecutivo$/i.test(texto)) return null;
+    const fin = siguiente(k + 1);
+    const cuerpo = lineas.slice(k + 1, fin < 0 ? undefined : fin).join("\n").trim();
+    // Sin la nomenclatura del proceso delante («COMPRE-COMPRE-13-2026-HMA-1: Adquisición de…»): ya está en la cabecera.
+    return m[1].length === 1 || !cuerpo ? texto.replace(/^[A-Z][A-Z0-9/.]*(?:-[A-Z0-9/.]+)*-\d+[A-Z0-9/.-]*:\s+/, "") : null;
+  }
+  return null;
+}
+
 /**
  * El dictamen plegado a su resumen ejecutivo, en texto plano (el markdown entero, con react-markdown, sólo baja al abrir
  * su pestaña): el título que le puso el análisis y los párrafos de «Resumen ejecutivo», sin marcas ni nombres de campo
@@ -392,7 +425,7 @@ const MAX_RESUMEN = 900;
  */
 export function resumenDelDictamen(md: string): { titulo: string | null; parrafos: string[]; cortado: boolean } {
   const t = md.replace(/\r\n?/g, "\n");
-  const titulo = t.match(/^\s*#\s+(.+)$/m)?.[1]?.trim() ?? null;
+  const titulo = titularDelDictamen(t);
   const seccion = t.match(/#{2,3}\s*Resumen ejecutivo\s*\n+([\s\S]*?)(?:\n#{1,3}\s|$)/i)?.[1];
   // Sin la sección: lo que va del título al primer subtítulo (o el comienzo del texto).
   const cuerpo = seccion ?? t.replace(/^\s*#\s+.+$/m, "").split(/\n#{1,3}\s/)[0] ?? "";
@@ -427,5 +460,5 @@ export function resumenDelDictamen(md: string): { titulo: string | null; parrafo
     }
     break;
   }
-  return { titulo: titulo ? limpiar(titulo) : null, parrafos, cortado: cortado || todos.length > parrafos.length };
+  return { titulo, parrafos, cortado: cortado || todos.length > parrafos.length };
 }

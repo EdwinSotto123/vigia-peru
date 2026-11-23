@@ -11,7 +11,7 @@ import { fuentesSinFaltaSunat, sinFaltaSunat } from "./proveedor";
 /** Un texto del agente con de qué trata (ícono y rótulo): nunca un párrafo suelto. */
 function Texto({ icono, rotulo, children }: { icono: ReactNode; rotulo: string; children: ReactNode }) {
   return (
-    <figure className="rounded-xl border border-line bg-paperSoft px-4 py-3">
+    <figure className="rounded-xl border border-line bg-paperSoft px-4 py-3 [.tarjeta_&]:border-0">
       <figcaption className="flex items-center gap-1.5 text-rotulo font-semibold uppercase tracking-wide text-mute">
         <span aria-hidden>{icono}</span>
         {rotulo}

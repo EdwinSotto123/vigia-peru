@@ -53,7 +53,7 @@ export function CronologiaSection({ convocatoria, banderas = [] }: { convocatori
   return (
     <section className="overflow-hidden rounded-2xl border border-line bg-paper">
       <div className="border-b border-line bg-paperSoft px-5 py-3">
-        <h2 className="font-display text-xl font-bold text-ink">Línea de tiempo del proceso</h2>
+        <h2 className="font-display text-seccion font-bold leading-tight text-ink">Línea de tiempo del proceso</h2>
         <p className="mt-0.5 text-rotulo text-mute">
           Fechas del registro OCDS publicado por el OECE
           {c.tipo_proceso && (

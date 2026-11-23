@@ -282,15 +282,8 @@ export function CapitulosRelato({
                   sel ? "bg-granate-50 font-semibold text-granate" : "font-medium text-inkSoft hover:bg-paperSoft hover:text-ink",
                 )}
               >
-                <span
-                  aria-hidden
-                  className={cn(
-                    "flex size-6 shrink-0 items-center justify-center rounded-full font-mono text-rotulo font-bold tabular-nums",
-                    sel ? "bg-granate text-paper" : "bg-paperDeep text-inkSoft",
-                  )}
-                >
-                  {i + 1}
-                </span>
+                {/* Sin número de capítulo (regla: nada de números de sección); el elegido se marca con su punto. */}
+                <span aria-hidden className={cn("h-2 w-2 shrink-0 rounded-full", sel ? "bg-granate" : "bg-line")} />
                 {c.titulo}
                 {c.conteo != null && c.conteo > 0 && (
                   <span className={cn("rounded-full px-1.5 text-rotulo font-semibold tabular-nums", CONTEO_TONO[c.tono ?? "neutro"])}>{numero(c.conteo)}</span>
@@ -356,7 +349,7 @@ export function CapitulosRelato({
                   >
                     <span className="font-normal text-inkSoft">Sigue:</span>
                     <span className="truncate">
-                      {i + 2}. {despues.titulo}
+                      {despues.titulo}
                     </span>
                     {despues.conteo != null && despues.conteo > 0 && (
                       <span className={cn("rounded-full px-1.5 text-rotulo font-semibold tabular-nums", CONTEO_TONO[despues.tono ?? "neutro"])}>{numero(despues.conteo)}</span>

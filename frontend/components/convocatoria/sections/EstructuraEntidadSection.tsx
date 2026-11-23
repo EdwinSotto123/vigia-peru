@@ -22,7 +22,7 @@ export function EstructuraEntidadSection({
   return (
     <section className="overflow-hidden rounded-2xl border border-line bg-paper">
       <div className="border-b border-line bg-paperSoft px-5 py-3">
-        <h2 className="font-display text-xl font-bold text-ink">
+        <h2 className="font-display text-seccion font-bold leading-tight text-ink">
           <Network size={16} className="mr-1.5 inline text-mute" aria-hidden />
           {/* `entidad` llega como string (nombre) o como objeto {nombre, ruc}. */}
           ¿Quién dirige y firma en {(typeof entidad === "string" ? entidad : entidad?.nombre) || a.entidad_consultada || "esta entidad"}?

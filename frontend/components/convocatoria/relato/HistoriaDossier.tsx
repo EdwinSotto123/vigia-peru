@@ -8,9 +8,8 @@ import { hoyLima, numero, plural, porcentaje } from "@/lib/formato";
 import { tituloNatural } from "@/lib/landing";
 import { setRedactNames } from "../../Redact";
 import type { PanelDossierProps, TabKey } from "../sections/PanelesDossier";
-import { ConteoSenales } from "../sections/ConteoSenales";
 import { SeccionSegura } from "../sections/SeccionSegura";
-import { DeDondeSale, LoQueDice } from "./AnalisisYFuentes";
+import { DeDondeSale } from "./AnalisisYFuentes";
 import { EstadoInconsistente } from "./EstadoInconsistente";
 import {
   cifrasDelProceso,
@@ -23,21 +22,22 @@ import {
   type SenalRelato,
 } from "./historia";
 import { LineaProceso, type PasoProceso } from "./LineaProceso";
-import { ENLACE_RELATO, PorQueLlama } from "./PorQueLlama";
+import { ENLACE_RELATO } from "./PorQueLlama";
 import { contextoDeSenales } from "../senal/directorio";
 import { NombreProveedor, QuienGano } from "./QuienGano";
-import { conOferta, PostoresOfertas } from "./PostoresOfertas";
+import { conOferta } from "./PostoresOfertas";
+import { EnSuperficie } from "./EnSuperficie";
+import Link from "next/link";
+import { rutaContrato } from "@/lib/rutas";
 
 /**
  * «La historia», la primera pestaña del informe (pedido del usuario del 2026-11-05: «veo que solo apilamos y demás sin dar
  * orden o contar una historia»). El veredicto en una frase va arriba de las pestañas (FraseDossier); aquí, el relato en
- * capítulos numerados que se leen de a uno («divídelo por subsecciones, menos scroll»), de lo que pasó a la evidencia:
+ * capítulos que se leen de a uno («divídelo por subsecciones, menos scroll»), de lo que pasó a la evidencia:
  *
- *   1. Qué pasó: la cronología del proceso con cada señal PEGADA al paso donde se ve (tabla regla → paso en ./historia).
- *   2. Por qué llama la atención: las señales por gravedad y por tema, con su evidencia y su norma.
- *   3. Quién ganó y con quién compite: el ganador, lo que dicen de él los registros y los demás postores.
- *   4. Lo que dice el análisis: el resumen ejecutivo del dictamen.
- *   5. De dónde sale cada dato: documentos, ítems, prensa, cómo se hizo y los registros cruzados.
+ *   · Qué pasó: la cronología del proceso con cada señal PEGADA al paso donde se ve (tabla regla → paso en ./historia);
+ *   · Quién ganó y con quién compite: el ganador, lo que dicen de él los registros y los demás postores;
+ *   · De dónde sale cada dato: documentos, ítems, prensa, cómo se hizo y los registros cruzados.
  *
  * Las demás pestañas (Señales, Dictamen, Ítems y mercado, Proveedor y red, Documentos, Prensa, Cómo se hizo) quedan para
  * quien quiere el detalle entero: cada capítulo lleva a la suya. Se dibuja en el servidor (es la pestaña inicial).
@@ -59,16 +59,25 @@ export function HistoriaDossier(p: PanelDossierProps) {
   const pasos = pasosDelProceso({ result, conv, ganador, ganadores, senales, nPostores });
 
   const tono = conteo.alta > 0 ? "alta" : conteo.media > 0 ? "media" : conteo.total > 0 ? "baja" : undefined;
-  // «Postores y ofertas»: sólo con la ficha del contrato y al menos un postor con oferta (monto o puntaje).
+  // Los postores de la ficha con oferta (monto o puntaje): «Quién ganó» enlaza su tabla en la ficha.
   const pc = p.postoresContrato ?? null;
   const nOfertas = pc ? pc.postores.filter(conOferta).length : 0;
+  // Cada capítulo va en su superficie, con su título grande ADENTRO (EnSuperficie): antes el título y su bajada flotaban
+  // sobre el fondo de la página. Sin `tituloLargo` ni `bajada`, CapitulosRelato deja su h2 sólo para el lector de pantalla.
+  //
+  // Sin repetir (2026-11-23, el usuario: «secciones que aparecen una vez más»):
+  //   · «Por qué llama la atención» era la pestaña Señales otra vez (las mismas señales, los mismos filtros, los mismos
+  //     textos): ahora cada señal va pegada a su paso en «Qué pasó» y su evidencia entera, en Señales;
+  //   · «Postores y ofertas» repetía a los postores de «Quién ganó» (y la tabla de la ficha): queda «Con quién compitió»;
+  //   · «Lo que dice el análisis» era el resumen ejecutivo que abre la pestaña Dictamen, al lado: queda el enlace.
   const capitulos: CapituloRelato[] = [
     {
       id: "relato-que-paso",
       titulo: "Qué pasó",
-      bajada: "Los pasos del proceso, con las fechas del registro del OECE y los días entre uno y otro. Cada señal va en el paso donde se ve.",
+      conteo: conteo.total,
+      tono,
       contenido: (
-        <>
+        <EnSuperficie titulo="Qué pasó, paso a paso" bajada="Con las fechas del registro del OECE. Cada señal va en el paso donde se ve: tócala para ver su evidencia.">
           <SeccionSegura nombre="la cronología del proceso">
             <LineaProceso pasos={pasos} ctx={ctxSenales} perfil={perfil} />
           </SeccionSegura>
@@ -77,95 +86,66 @@ export function HistoriaDossier(p: PanelDossierProps) {
               <EstadoInconsistente er={result.estado_real} className="mt-4" />
             </SeccionSegura>
           )}
-        </>
-      ),
-    },
-    {
-      id: "relato-por-que",
-      titulo: conteo.total > 0 ? "Por qué llama la atención" : "Qué encontró el análisis",
-      conteo: conteo.total,
-      tono,
-      bajada:
-        conteo.total > 0
-          ? "Cada señal con lo que se encontró y la norma que la sostiene. Filtra por gravedad o por tema. Una señal es una pista para comprobar, no una acusación."
-          : undefined,
-      accion: conteo.total > 0 ? <ConteoSenales conteo={conteo} /> : undefined,
-      contenido: (
-        <SeccionSegura nombre="las señales del relato">
-          <PorQueLlama senales={senales} contexto={p.contexto} noVerificables={p.noVerificables} corrida={p.corrida} verEvidencia={verEvidencia} ctx={ctxSenales} perfil={perfil} nombresPrivados={p.nombresPrivados} />
-        </SeccionSegura>
+          <p className="mt-4 flex flex-wrap gap-x-6 gap-y-1 border-t border-line pt-3">
+            {conteo.total > 0 && (
+              <button type="button" onClick={verEvidencia} className={ENLACE_RELATO}>
+                {conteo.total === 1 ? "La señal con su evidencia y su norma, en «Señales»" : `Las ${numero(conteo.total)} señales con su evidencia y su norma, en «Señales»`}
+                <ChevronRight size={14} aria-hidden />
+              </button>
+            )}
+            {p.dict.trim() && (
+              <button type="button" onClick={() => abrirTab("dictamen")} className={ENLACE_RELATO}>
+                Lo que concluye el análisis, en «Dictamen» <ChevronRight size={14} aria-hidden />
+              </button>
+            )}
+          </p>
+        </EnSuperficie>
       ),
     },
     {
       id: "relato-quien",
       titulo: "Quién ganó",
-      tituloLargo: "Quién ganó y con quién compite",
-      bajada: "Lo que dicen del ganador los registros públicos y quiénes más se presentaron.",
-      accion: (
-        <button type="button" onClick={() => abrirTab("proveedor")} className={ENLACE_RELATO}>
-          Proveedor y red <ChevronRight size={14} aria-hidden />
-        </button>
-      ),
       contenido: (
-        <SeccionSegura nombre="quién ganó">
-          <QuienGano result={result} ganador={ganador} ganadores={ganadores} nPostores={nPostores} />
-        </SeccionSegura>
-      ),
-    },
-    ...(pc && nOfertas > 0
-      ? [
-          {
-            id: "relato-postores",
-            titulo: "Postores y ofertas",
-            tituloLargo: "Quién ofertó, por cuánto y cómo se evaluó",
-            bajada: "Cada oferta con su puntaje y en qué quedó, según el acta y el cuadro de evaluación leídos del expediente.",
-            conteo: nOfertas,
-            contenido: (
-              <SeccionSegura nombre="los postores y sus ofertas">
-                <PostoresOfertas datos={pc} />
-              </SeccionSegura>
-            ),
-          } satisfies CapituloRelato,
-        ]
-      : []),
-    {
-      id: "relato-analisis",
-      titulo: "El análisis",
-      tituloLargo: "Lo que dice el análisis",
-      bajada: "El resumen del dictamen que se escribió con toda esta evidencia.",
-      contenido: (
-        <SeccionSegura nombre="el resumen del dictamen">
-          <LoQueDice
-            dict={p.dict}
-            corrida={p.corrida}
-            modelo={result.dictamen?.gen_meta?.model ?? null}
-            abrirTab={abrirTab}
-            conv={conv}
-            ganador={ganador}
-            nPostores={nPostores}
-            conteo={conteo}
-          />
-        </SeccionSegura>
+        <EnSuperficie
+          titulo="Quién ganó y con quién compite"
+          bajada="Lo que dicen del ganador los registros públicos y quiénes más se presentaron."
+          accion={
+            <button type="button" onClick={() => abrirTab("proveedor")} className={ENLACE_RELATO}>
+              Proveedor y red <ChevronRight size={14} aria-hidden />
+            </button>
+          }
+        >
+          <SeccionSegura nombre="quién ganó">
+            <QuienGano result={result} ganador={ganador} ganadores={ganadores} nPostores={nPostores} />
+          </SeccionSegura>
+          {pc && nOfertas > 0 && pc.ocid && (
+            <p className="mt-3">
+              <Link href={rutaContrato(pc.ocid, "ficha", { seccion: "postores" })} prefetch={false} className={ENLACE_RELATO}>
+                Cada oferta con su puntaje, en la ficha del contrato <ChevronRight size={14} aria-hidden />
+              </Link>
+            </p>
+          )}
+        </EnSuperficie>
       ),
     },
     {
       id: "relato-fuentes",
       titulo: "Las fuentes",
-      tituloLargo: "De dónde sale cada dato",
-      bajada: "Cada cifra sale de un registro público: aquí está cada parte del detalle y su fuente.",
       contenido: (
-        <SeccionSegura nombre="las fuentes">
-          <DeDondeSale
-            result={result}
-            conv={conv}
-            corrida={p.corrida}
-            ocidContrato={p.ocidContrato}
-            nDocs={p.nDocs}
-            nItems={p.nItems}
-            nEvents={p.nEvents}
-            abrirTab={abrirTab}
-          />
-        </SeccionSegura>
+        <EnSuperficie titulo="De dónde sale cada dato" bajada="Cada cifra sale de un registro público: aquí está cada parte del detalle y su fuente.">
+          <SeccionSegura nombre="las fuentes">
+            <DeDondeSale
+              result={result}
+              conv={conv}
+              corrida={p.corrida}
+              ocidContrato={p.ocidContrato}
+              nDocs={p.nDocs}
+              nItems={p.nItems}
+              nEvents={p.nEvents}
+              abrirTab={abrirTab}
+            />
+          </SeccionSegura>
+        </EnSuperficie>
       ),
     },
   ];

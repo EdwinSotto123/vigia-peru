@@ -9,7 +9,7 @@
  * vieja la traen entera en el informe: entonces se usa la que vino y no se pide nada.
  */
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { RotateCcw } from "lucide-react";
 import { setRedactNames } from "../../Redact";
 import { Skeleton } from "@/components/ui/Skeleton";
@@ -20,8 +20,20 @@ import { TrazaAnalisis } from "../traza/TrazaAnalisis";
 import type { PanelDossierProps } from "./PanelesDossier";
 import { AvisoSeccion } from "./AvisoSeccion";
 import { SeccionSegura } from "./SeccionSegura";
+import { SuperficiePestana } from "@/components/fichas/SuperficiePestana";
 
-export function PanelTraza({ result, nombresPrivados, ocidContrato }: Pick<PanelDossierProps, "result" | "nombresPrivados" | "ocidContrato">) {
+export function PanelTraza({
+  result,
+  nombresPrivados,
+  ocidContrato,
+  cabecera,
+}: Pick<PanelDossierProps, "result" | "nombresPrivados" | "ocidContrato"> & {
+  /**
+   * El título de la vista «Trazabilidad» del contrato: va dentro de la tarjeta del resumen de la corrida (o, si no hay
+   * traza, dentro de la superficie del aviso), no flotando sobre el fondo.
+   */
+  cabecera?: { titulo: string; bajada?: ReactNode };
+}) {
   setRedactNames(nombresPrivados);
   const enMano = (result.agent_trace?.length ?? 0) > 0;
   const codigo: string | null = typeof result.compliance?.alerta_codigo === "string" ? result.compliance.alerta_codigo : null;
@@ -64,16 +76,28 @@ export function PanelTraza({ result, nombresPrivados, ocidContrato }: Pick<Panel
     </AvisoSeccion>
   );
 
+  // Sin la traza (no se guardó, falló, se está pidiendo), el título de la vista va arriba del aviso, en su superficie.
+  const conCabecera = (n: ReactNode) =>
+    cabecera ? (
+      <SuperficiePestana>
+        <h2 className="font-display text-seccion font-bold leading-tight text-ink">{cabecera.titulo}</h2>
+        {cabecera.bajada && <p className="mt-1 max-w-3xl text-dato leading-snug text-inkSoft">{cabecera.bajada}</p>}
+        <div className="mt-4">{n}</div>
+      </SuperficiePestana>
+    ) : (
+      n
+    );
+
   if (enMano) {
     return (
       <SeccionSegura nombre="la traza del análisis">
-        <TrazaAnalisis result={result} />
+        <TrazaAnalisis result={result} cabecera={cabecera} />
       </SeccionSegura>
     );
   }
-  if (!hayQuePedir) return sinTraza;
+  if (!hayQuePedir) return conCabecera(sinTraza);
   if (fallo && !datos) {
-    return (
+    return conCabecera(
       <AvisoSeccion titulo="No pudimos traer el registro de este análisis">
         <span className="block">La conexión falló antes de terminar. Las señales y el dictamen de arriba no cambian.</span>
         <button
@@ -87,7 +111,7 @@ export function PanelTraza({ result, nombresPrivados, ocidContrato }: Pick<Panel
     );
   }
   if (!completo) {
-    return (
+    return conCabecera(
       <div role="status" aria-busy className="space-y-3">
         <span className="sr-only">Cargando cómo se hizo el análisis…</span>
         <Skeleton className="h-9 w-72 max-w-full" />
@@ -96,10 +120,10 @@ export function PanelTraza({ result, nombresPrivados, ocidContrato }: Pick<Panel
       </div>
     );
   }
-  if ((completo.agent_trace?.length ?? 0) === 0) return sinTraza;
+  if ((completo.agent_trace?.length ?? 0) === 0) return conCabecera(sinTraza);
   return (
     <SeccionSegura nombre="la traza del análisis">
-      <TrazaAnalisis result={completo} />
+      <TrazaAnalisis result={completo} cabecera={cabecera} />
     </SeccionSegura>
   );
 }

@@ -10,7 +10,7 @@ export function RedFlagsDocumentalesSection({ flags }: { flags: any[] }) {
   return (
     <section className="overflow-hidden rounded-2xl border border-line bg-paper">
       <div className="border-b border-line bg-paperSoft px-5 py-3">
-        <h2 className="font-display text-xl font-bold text-ink">Señales en los documentos del expediente</h2>
+        <h2 className="font-display text-seccion font-bold leading-tight text-ink">Señales en los documentos del expediente</h2>
         <p className="mt-0.5 flex items-center gap-1.5 text-rotulo text-mute">
           <FileText size={12} aria-hidden /> {plural(flags.length, "hallazgo", "hallazgos")} al leer las bases y las actas
         </p>

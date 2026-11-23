@@ -55,6 +55,7 @@ function Vinculo({ v }: { v: any }) {
       {partes.join("; ")}.
       {v.personas_comunes?.length > 0 && (
         <span className="mt-0.5 block font-normal text-inkSoft">
+          {/* recorte: tres nombres caben en la línea bajo el vínculo; la red entera está en «Proveedor y red» */}
           {v.personas_comunes.slice(0, 3).map((p: any) => p.nombre).join(", ")}
         </span>
       )}

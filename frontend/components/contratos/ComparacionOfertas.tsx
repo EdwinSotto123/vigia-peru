@@ -39,7 +39,7 @@ export function AvisoMasBaja({ c }: { c: Detalle }) {
   const m = c.evaluacion?.masBajaPerdio;
   if (!m) return null;
   return (
-    <section aria-labelledby="aviso-mas-baja" className="rounded-2xl border border-line bg-paperSoft px-4 py-3.5 sm:px-5">
+    <section aria-labelledby="aviso-mas-baja" className="rounded-2xl border border-line bg-paperSoft px-4 py-3.5 sm:px-5 [.tarjeta_&]:rounded-xl [.tarjeta_&]:border-0">
       <div className="flex items-start gap-3">
         <Scale size={20} className="mt-0.5 shrink-0 text-inkSoft" aria-hidden />
         <div className="min-w-0 space-y-1.5">
@@ -76,7 +76,7 @@ export function ComparacionOfertas({ c }: { c: Detalle }) {
   const escala = Math.max(100, ...orden.map((p) => p.puntajeFinal ?? p.puntajeTotal ?? 0));
   const conBonif = orden.some((p) => (p.bonificacion ?? 0) > 0);
   return (
-    <section aria-labelledby="comparacion-ofertas" className="rounded-2xl border border-line bg-paper px-4 py-4 sm:px-5">
+    <section aria-labelledby="comparacion-ofertas" className="rounded-2xl border border-line bg-paper px-4 py-4 sm:px-5 [.tarjeta_&]:rounded-none [.tarjeta_&]:border-x-0 [.tarjeta_&]:border-b-0 [.tarjeta_&]:bg-transparent [.tarjeta_&]:px-0 [.tarjeta_&]:pb-0">
       <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
         <h3 id="comparacion-ofertas" className="font-display text-bloque font-bold text-ink">Las {numero(ofertas.length)} ofertas, de la más baja a la más alta</h3>
         <span className="text-rotulo text-mute">la barra es el monto ofertado{conPuntaje ? "; a la derecha, el puntaje" : ""}</span>

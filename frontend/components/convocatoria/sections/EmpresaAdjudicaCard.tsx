@@ -37,7 +37,7 @@ export function EmpresaAdjudicaCard({ empresa }: { empresa: any; banderasSugerid
   const enRegla = rucEnRegla(empresa.estado, empresa.condicion);
   const socios: any[] = empresa.socios || [];
   return (
-    <section className="rounded-2xl border border-line bg-paper">
+    <section className="rounded-2xl border border-line bg-paper [.tarjeta_&]:border-0 [.tarjeta_&]:bg-transparent">
       <header className="flex flex-wrap items-start justify-between gap-3 border-b border-line px-5 py-4">
         <div className="min-w-0">
           <h3 className="font-display text-bloque font-bold leading-tight text-ink">

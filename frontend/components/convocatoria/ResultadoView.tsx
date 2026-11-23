@@ -4,11 +4,10 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { setRedactNames } from "../Redact";
 import type { PostoresDelContrato } from "./relato/PostoresOfertas";
-import { rutaContrato } from "@/lib/rutas";
 import { nombresPrivadosDe } from "./nombresPrivados";
-import { ArrowRight, ChevronRight, Info, Workflow } from "lucide-react";
+import { ArrowRight, ChevronRight, Info } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { fechaCorta, numero, oracion } from "@/lib/formato";
+import { fechaCorta, numero } from "@/lib/formato";
 import { TOTAL_AGENTES } from "@/components/agentes/catalogo";
 import { Ayuda } from "@/components/patrones/Ayuda";
 import { EVENTO_ACTIVA, Pestanas, irAPestana } from "@/components/patrones/Pestanas";
@@ -268,7 +267,9 @@ export function ResultadoView({
       </SeccionSegura>
       )}
 
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr),300px]">
+      {/* Dentro de la página del contrato, una sola columna: la lateral repetía el objeto (ya en la cabecera) y la entrada a
+          «Trazabilidad» (ya en la barra de vistas), y le quitaba 300 px al informe. */}
+      <div className={cn("grid gap-6", !embebido && "xl:grid-cols-[minmax(0,1fr),300px]")}>
         {/* ─── COLUMNA PRINCIPAL ─── */}
         <div className="min-w-0 space-y-4">
           {/* 3. La historia y la evidencia, en pestañas. Cada panel con su propio límite de error: si uno no se
@@ -330,10 +331,8 @@ export function ResultadoView({
 
         {/* ─── BARRA LATERAL: datos del proceso y cómo se hizo ───
             En «La historia», debajo de xl no se repite al pie: lo dice su capítulo «De dónde sale cada dato». */}
+        {!embebido && (
         <aside className={cn("space-y-3 xl:sticky xl:top-20 xl:self-start", activa === "historia" && "hidden xl:block")} aria-label="Datos del proceso">
-          {embebido ? (
-            <LateralEmbebido objeto={conv.objeto} corrida={corrida} nEvents={nEvents} ocid={ocidContrato} />
-          ) : (
           <>
           <div className="rounded-2xl border border-line bg-paper p-4">
             <h2 className="font-display text-bloque font-bold text-ink">Datos del proceso</h2>
@@ -376,60 +375,10 @@ export function ResultadoView({
             </span>
           </button>
           </>
-          )}
         </aside>
+        )}
       </div>
     </div>
-  );
-}
-
-/**
- * La columna del dictamen dentro de la página del contrato: el objeto entero (la cabecera lo recorta a tres líneas) y la
- * entrada a «Trazabilidad», que es una vista de la página (`?vista=vivo`). Las cifras de antes (postores, ítems y
- * documentos) ya están en la cabecera y en el conteo de cada pestaña.
- */
-function LateralEmbebido({ objeto, corrida, nEvents, ocid }: { objeto: unknown; corrida: ReturnType<typeof estadoCorrida>; nEvents: number; ocid: string | null }) {
-  const texto = typeof objeto === "string" && objeto.trim() ? oracion(objeto.trim()) : null;
-  return (
-    <>
-      {texto && (
-        <section aria-labelledby="objeto-dictamen" className="rounded-2xl border border-line bg-paper p-4">
-          <h2 id="objeto-dictamen" className="font-display text-bloque font-bold text-ink">
-            Objeto del contrato
-          </h2>
-          <p className="mt-1.5 text-meta leading-relaxed text-ink">{texto}</p>
-          {ocid && (
-            <p className="mt-3 border-t border-line pt-3 text-meta">
-              <Link href={rutaContrato(ocid, "ficha", { seccion: "documentos" })} prefetch={false} className="inline-flex items-center gap-1 font-medium text-granate hover:underline">
-                Documentos oficiales del proceso <ArrowRight size={13} aria-hidden />
-              </Link>
-            </p>
-          )}
-        </section>
-      )}
-      <button
-        type="button"
-        onClick={() => irAPestana("vivo", "vista")}
-        className="flex w-full items-start gap-3 rounded-2xl border border-line bg-paper p-4 text-left transition-colors duration-rapido hover:bg-paperSoft"
-      >
-        <Workflow size={16} className="mt-0.5 shrink-0 text-mute" aria-hidden />
-        <span className="min-w-0 flex-1">
-          <span className="flex items-center justify-between gap-2 text-meta font-semibold text-ink">
-            Trazabilidad
-            <ChevronRight size={14} className="shrink-0 text-mute" aria-hidden />
-          </span>
-          <span className="mt-0.5 block text-rotulo leading-snug text-inkSoft">
-            {corrida.hayTraza ? (
-              <>
-                Corrieron {corrida.agentes.length} de {TOTAL_AGENTES} agentes{nEvents > 0 && <>, en {numero(nEvents)} pasos registrados</>}.
-              </>
-            ) : (
-              "Qué partes del análisis corrieron y en qué orden."
-            )}
-          </span>
-        </span>
-      </button>
-    </>
   );
 }
 

@@ -88,7 +88,7 @@ export function LoadingView({
                   estimaciones a mano y contradecía la mediana real de producción. */}
               Procesando, {elapsed} s
             </p>
-            <h2 className="mt-2 font-display text-2xl font-bold leading-tight text-ink sm:text-3xl">
+            <h2 className="mt-2 font-display text-cifra font-bold leading-tight text-ink sm:text-titulo">
               Los agentes están leyendo el contrato
             </h2>
             <p className="mt-0.5 text-meta text-mute">
@@ -96,7 +96,7 @@ export function LoadingView({
             </p>
           </div>
           <div className="text-right">
-            <div className="font-mono text-3xl font-bold tabular-nums text-ink">{progressPct} %</div>
+            <div className="font-mono text-cifra font-bold tabular-nums text-ink">{progressPct} %</div>
             <div className="text-rotulo text-mute">progreso estimado</div>
           </div>
         </div>

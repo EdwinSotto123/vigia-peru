@@ -1,7 +1,6 @@
 "use client";
 
 import { useMemo } from "react";
-import { CabeceraPestana } from "@/components/patrones";
 import { nombresPrivadosDe } from "./nombresPrivados";
 import { PanelTraza } from "./sections/PanelTraza";
 import type { ApiResult } from "./types";
@@ -15,11 +14,15 @@ import type { ApiResult } from "./types";
 export function TrazaContrato({ result, ocid }: { result: ApiResult; ocid: string }) {
   const nombresPrivados = useMemo(() => nombresPrivadosDe(result), [result]);
   return (
-    <div>
-      <CabeceraPestana titulo="Trazabilidad">
-        Qué agentes leyeron este contrato, en qué orden, qué consultó cada uno, cómo se controló su trabajo y cuánto costó.
-      </CabeceraPestana>
-      <PanelTraza result={result} nombresPrivados={nombresPrivados} ocidContrato={ocid} />
-    </div>
+    // El título de la vista va dentro de la tarjeta del resumen de la corrida (antes flotaba sobre el fondo, encima de ella).
+    <PanelTraza
+      result={result}
+      nombresPrivados={nombresPrivados}
+      ocidContrato={ocid}
+      cabecera={{
+        titulo: "Trazabilidad",
+        bajada: "Qué agentes leyeron este contrato, en qué orden, qué consultó cada uno, cómo se controló su trabajo y cuánto costó.",
+      }}
+    />
   );
 }

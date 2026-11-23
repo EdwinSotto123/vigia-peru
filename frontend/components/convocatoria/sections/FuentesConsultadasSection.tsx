@@ -24,7 +24,7 @@ export function FuentesConsultadasSection({ hallazgos }: { hallazgos: any[] }) {
   return (
     <section className="overflow-hidden rounded-2xl border border-line bg-paper">
       <div className="border-b border-line bg-paperSoft px-5 py-3">
-        <h2 className="font-display text-xl font-bold text-ink">
+        <h2 className="font-display text-seccion font-bold leading-tight text-ink">
           <ScanSearch size={16} className="mr-1.5 inline text-mute" aria-hidden />
           Cruce contra fuentes oficiales
         </h2>

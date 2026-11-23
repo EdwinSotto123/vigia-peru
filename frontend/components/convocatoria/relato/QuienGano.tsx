@@ -59,7 +59,8 @@ export function QuienGano({ result, ganador, ganadores, nPostores }: { result: A
 
   return (
     <div className="space-y-3">
-      <div className="rounded-2xl border border-line bg-paper px-4 py-3.5 sm:px-5">
+      {/* Dentro del capítulo (`.tarjeta`), sin marco: un fondo apenas hundido. */}
+      <div className="rounded-2xl border border-line bg-paper px-4 py-3.5 sm:px-5 [.tarjeta_&]:rounded-xl [.tarjeta_&]:border-0 [.tarjeta_&]:bg-paperSoft">
         {ganador?.nombre ? (
           <p className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 text-dato text-inkSoft">
             <span>
@@ -257,13 +258,13 @@ function Competidores({ postores, conActa, nPostores }: { postores: any[]; conAc
     );
   }
   return (
-    <section aria-labelledby="relato-competidores" className="rounded-2xl border border-line bg-paper px-4 py-3.5 sm:px-5">
-      <h3 id="relato-competidores" className="flex flex-wrap items-baseline gap-x-2 font-display text-cuerpo font-bold text-ink">
+    <section aria-labelledby="relato-competidores" className="rounded-2xl border border-line bg-paper px-4 py-3.5 sm:px-5 [.tarjeta_&]:rounded-none [.tarjeta_&]:border-x-0 [.tarjeta_&]:border-b-0 [.tarjeta_&]:bg-transparent [.tarjeta_&]:px-0 [.tarjeta_&]:pb-0">
+      <h4 id="relato-competidores" className="flex flex-wrap items-baseline gap-x-2 font-display text-bloque font-bold text-ink">
         Con quién compitió
         <span className="font-sans text-rotulo font-normal text-mute">
           {numero(n)} participantes en el registro del OECE{conActa ? "; la oferta y los puntos de la evaluación, del acta de buena pro" : ""}
         </span>
-      </h3>
+      </h4>
       <ul className="mt-2 divide-y divide-line/70">
         {postores.map((p, i) => {
           const gano = p.ganador === true || p.es_ganador === true;

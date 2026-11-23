@@ -16,7 +16,7 @@ export function CausalDirectaSection({
   return (
     <section className="overflow-hidden rounded-2xl border border-line bg-paper">
       <div className="border-b border-line bg-paperSoft px-5 py-3">
-        <h2 className="font-display text-xl font-bold text-ink">
+        <h2 className="font-display text-seccion font-bold leading-tight text-ink">
           <Scale size={16} className="mr-1.5 inline text-mute" aria-hidden />
           Contratación directa, literal {causal.causal_letra?.toUpperCase()}: {causal.descripcion}
         </h2>

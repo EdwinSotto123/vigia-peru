@@ -145,8 +145,8 @@ function PedirConCuenta({ senales }: { senales: number }) {
           <FileText size={18} aria-hidden />
         </span>
         <div className="min-w-0">
-          <h3 id="informe-cuenta" className="text-destacado font-semibold leading-snug text-ink">El informe para control se pide con una cuenta</h3>
-          <p className="mt-1 max-w-3xl text-meta leading-relaxed text-inkSoft">
+          <h2 id="informe-cuenta" className="font-display text-seccion font-bold leading-tight text-ink text-balance">El informe para control se pide con una cuenta</h2>
+          <p className="mt-1.5 max-w-3xl text-dato leading-relaxed text-inkSoft">
             {/* Sin el número: la API cuenta también los antecedentes del ganador y la pestaña «Señales» cuenta otra cosa. */}
             Reúne las señales de este contrato y los antecedentes de quien lo ganó, con su evidencia y la norma de su fecha.
             Redactarlo usa un modelo de inteligencia artificial: lo hacemos para quien lo va a usar.
@@ -154,13 +154,13 @@ function PedirConCuenta({ senales }: { senales: number }) {
         </div>
       </div>
 
-      <h4 className="mt-5 text-meta font-semibold uppercase tracking-wide text-mute">¿Para qué lo necesitas?</h4>
+      <h3 className="mt-6 font-display text-bloque font-bold text-ink">¿Para qué lo necesitas?</h3>
       <ul className="mt-2 grid gap-2 sm:grid-cols-2">
         {PERFILES.map((p) => (
           <li key={p.clave}>
             <Link
               href={crear(p.clave)}
-              className="group flex h-full items-start gap-3 rounded-xl border border-line p-3 transition-colors duration-rapido hover:border-granate/50 hover:bg-paperSoft focus-visible:outline focus-visible:outline-2 focus-visible:outline-granate"
+              className="group flex h-full items-start gap-3 rounded-xl border border-transparent bg-paperSoft p-3 transition-colors duration-rapido hover:border-granate/50 hover:bg-paperDeep focus-visible:outline focus-visible:outline-2 focus-visible:outline-granate"
             >
               <span className="mt-0.5 shrink-0 text-granate">{p.icono}</span>
               <span className="min-w-0 flex-1">
@@ -302,11 +302,9 @@ function DocumentoControl({ datos }: { datos: RespuestaInformeControl }) {
 
       <article ref={doc} data-informe-control aria-labelledby="ic-titulo" className="rounded-2xl border border-line bg-paper px-4 py-6 text-ink sm:px-8 sm:py-8">
         <header className="space-y-3 border-b border-line pb-5">
-          <p className="flex items-center gap-1.5 text-rotulo font-semibold uppercase tracking-wide text-mute">
-            <Gavel size={13} aria-hidden /> Vigía by Gobserva
-          </p>
           <h2 id="ic-titulo" className="font-display text-seccion font-bold leading-tight text-ink">{d.titulo}</h2>
           <p className="flex flex-wrap items-center gap-x-4 gap-y-1 text-meta text-inkSoft">
+            <span className="inline-flex items-center gap-1.5 font-semibold text-ink"><Gavel size={13} className="text-mute" aria-hidden />Vigía by Gobserva</span>
             <span className="inline-flex items-center gap-1.5 font-mono tabular-nums"><Hash size={13} className="text-mute" aria-hidden />{d.numero}</span>
             <span className="inline-flex items-center gap-1.5"><CalendarDays size={13} className="text-mute" aria-hidden />{fechaInforme(d.fecha)}</span>
           </p>

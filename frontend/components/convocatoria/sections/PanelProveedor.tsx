@@ -36,6 +36,7 @@ import { PersonaVinculacionesPanel, personasConHallazgo } from "./PersonaVincula
 import { RedProveedor } from "./RedProveedor";
 import { buildRelationshipGraphData } from "./RelationshipGraph.layout";
 import { SeccionSegura } from "./SeccionSegura";
+import { EnSuperficie } from "../relato/EnSuperficie";
 import { FraseProveedor } from "./red/FraseProveedor";
 import { LoQueEscribioElAgente, escritoDelAgente } from "./red/LoQueEscribioElAgente";
 import { Pliegue } from "./red/Pliegue";
@@ -178,7 +179,20 @@ export function PanelProveedor({ result, conv, ganador, banderasArr, nombresPriv
         </SeccionSegura>
       ),
     },
-  ].filter(Boolean) as CapituloRelato[];
+  ]
+    .filter(Boolean)
+    // Cada capítulo en su superficie, con su título grande adentro (antes, el título y su bajada flotaban sobre el fondo).
+    .map((c) => {
+      const { tituloLargo, bajada, accion, contenido, ...resto } = c as CapituloRelato;
+      return {
+        ...resto,
+        contenido: (
+          <EnSuperficie titulo={tituloLargo ?? resto.titulo} bajada={bajada} accion={accion}>
+            {contenido}
+          </EnSuperficie>
+        ),
+      };
+    }) as CapituloRelato[];
 
   return (
     <div className="space-y-5">

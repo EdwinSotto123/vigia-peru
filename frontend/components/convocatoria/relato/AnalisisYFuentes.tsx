@@ -2,7 +2,7 @@
 
 import { useMemo, useRef, useState, type ReactNode } from "react";
 import {
-  ArrowRight, Award, Banknote, ChevronRight, Database, FileText, Flag, HardHat, Newspaper, Package, Pen, UsersRound, Workflow, type LucideIcon,
+  ArrowRight, ChevronRight, Database, FileText, HardHat, Newspaper, Package, Pen, Workflow, type LucideIcon,
 } from "lucide-react";
 import { BloqueDetalle, CuerpoDetalle, EnlaceFuente, Nota } from "@/components/patrones";
 import { PASOS, pasoDeClave, TOTAL_AGENTES } from "@/components/agentes/catalogo";
@@ -12,17 +12,17 @@ import { tipoDocLabel } from "@/lib/contratos";
 import {
   CLARIDAD_ONPE, CONOSCE_BUSCADOR, CONSULTA_RUC_SUNAT, DATASET_SANCIONADOS, PLATAFORMA_JNE, VISITAS_EN_LINEA, fichaRnp, proveedorOece,
 } from "@/lib/fuentes";
-import { fechaConAnio, numero, plural, porcentaje } from "@/lib/formato";
+import { fechaConAnio, numero, plural } from "@/lib/formato";
 import { cn } from "@/lib/utils";
 import { redactDnis } from "../../Redact";
-import { fechaDossier, montoDossier, type ConteoSeveridad, type EstadoCorrida } from "../dossier";
+import { fechaDossier, montoDossier, type EstadoCorrida } from "../dossier";
 import type { ApiResult } from "../types";
 import type { TabKey } from "../sections/PanelesDossier";
 import { AvisoSeccion } from "../sections/AvisoSeccion";
-import { ConteoSenales } from "../sections/ConteoSenales";
 import { EnlaceDocumento } from "../sections/EnlaceDocumento";
 import { oeceProcesoUrl } from "../utils";
-import { cifrasDelProceso, resumenDelDictamen } from "./historia";
+import { resumenDelDictamen } from "./historia";
+import { conCifras } from "./cifrasEnTexto";
 import { ENLACE_RELATO } from "./PorQueLlama";
 
 // ─── Lo que dice el análisis ──────────────────────────────────────────────────
@@ -47,22 +47,12 @@ function oracionesDe(texto: string): string[] {
 /** Hasta dónde llega «en corto»: las primeras oraciones del resumen que entran en este largo. */
 const MAX_EN_CORTO = 330;
 
-interface CifraClave {
-  icono: LucideIcon;
-  etiqueta: string;
-  valor: string;
-  contexto?: string;
-  tono?: "alta" | "media";
-}
-
 /**
  * «Lo que dice el análisis» (pedido del usuario del 2026-11-16: «que no sea un muro de texto»). El resumen ejecutivo del
  * dictamen era un párrafo de 900 caracteres con seis cifras adentro. Ahora:
  *
- *   · el titular que le puso el análisis;
- *   · las cifras clave como figuras, sacadas de los DATOS del proceso y no del texto del modelo (valor referencial,
- *     adjudicado y su diferencia, participantes y ofertas, señales por gravedad);
- *   · «En corto»: las primeras oraciones del resumen; el resto, punto por punto, a pedido;
+ *   · el titular que le puso el análisis (el «## » pegado al título, ver `titularDelDictamen`);
+ *   · «En corto»: las primeras oraciones del resumen, con sus cifras realzadas; el resto, punto por punto, a pedido;
  *   · «Leer el dictamen completo» (su pestaña).
  */
 export function LoQueDice({
@@ -70,19 +60,11 @@ export function LoQueDice({
   corrida,
   modelo,
   abrirTab,
-  conv,
-  ganador,
-  nPostores,
-  conteo,
 }: {
   dict: string;
   corrida: EstadoCorrida;
   modelo?: string | null;
   abrirTab: (t: TabKey) => void;
-  conv?: any;
-  ganador?: any;
-  nPostores?: number | null;
-  conteo?: ConteoSeveridad;
 }) {
   const { titulo, parrafos } = useMemo(() => resumenDelDictamen(dict), [dict]);
   const { corto, resto } = useMemo(() => {
@@ -107,109 +89,46 @@ export function LoQueDice({
     );
   }
 
-  const { referencial, adjudicado, variacion } = cifrasDelProceso(conv ?? {}, ganador);
-  const cifras: CifraClave[] = [
-    referencial !== null && { icono: Banknote, etiqueta: "Valor referencial", valor: montoDossier(referencial), contexto: "lo que la entidad estimó" },
-    adjudicado !== null && {
-      icono: Award,
-      etiqueta: "Adjudicado",
-      valor: montoDossier(adjudicado),
-      contexto:
-        variacion === null
-          ? undefined
-          : Math.abs(variacion) < 0.1
-            ? "igual al valor referencial"
-            : `${porcentaje(Math.abs(variacion), { decimales: 1 })} ${variacion > 0 ? "sobre" : "bajo"} el referencial`,
-      tono: variacion !== null && Math.abs(variacion) < 0.1 ? ("media" as const) : undefined,
-    },
-    typeof nPostores === "number" &&
-      nPostores > 0 && {
-        icono: UsersRound,
-        etiqueta: nPostores === 1 ? "Participante" : "Participantes",
-        valor: numero(nPostores),
-        contexto: nPostores === 1 ? "se registró uno solo" : "registrados en el proceso",
-        tono: nPostores === 1 ? ("alta" as const) : undefined,
-      },
-  ].filter(Boolean) as CifraClave[];
-
+  // Sin las cifras del proceso (valor referencial, adjudicado, participantes, señales): la cabecera del contrato y el
+  // veredicto ya las dicen arriba, y aquí eran una tercera vez (2026-11-23, «secciones que aparecen una vez más»). Las del
+  // propio resumen van realzadas dentro del texto.
   return (
-    <div className="overflow-hidden rounded-2xl border border-line bg-paper">
+    <div className="space-y-4">
       {titulo && (
-        <p className="break-words border-b border-line px-4 py-3 font-display text-destacado font-bold leading-snug text-ink text-balance sm:px-5">
-          {redactDnis(titulo)}
-        </p>
+        <p className="max-w-[68ch] break-words font-display text-bloque font-bold leading-snug text-ink text-balance">{redactDnis(titulo)}</p>
       )}
 
-      {(cifras.length > 0 || (conteo && conteo.total > 0)) && (
-        <dl className="grid gap-px border-b border-line bg-line sm:grid-cols-2 lg:grid-cols-4" aria-label="Las cifras clave del proceso">
-          {cifras.map((c) => (
-            <div key={c.etiqueta} className="flex items-start gap-3 bg-paper px-4 py-3">
-              <c.icono size={16} className="mt-1 shrink-0 text-mute" aria-hidden />
-              <div className="min-w-0">
-                <dt className="text-rotulo text-mute">{c.etiqueta}</dt>
-                <dd className="font-display text-bloque font-bold tabular-nums leading-tight text-ink">{c.valor}</dd>
-                {c.contexto && (
-                  <dd className={cn("text-rotulo leading-snug", c.tono === "alta" ? "font-semibold text-crimsonTexto" : c.tono === "media" ? "font-semibold text-amberTexto" : "text-inkSoft")}>
-                    {c.contexto}
-                  </dd>
-                )}
-              </div>
-            </div>
-          ))}
-          {conteo && conteo.total > 0 && (
-            <div className="flex items-start gap-3 bg-paper px-4 py-3">
-              <Flag size={16} className="mt-1 shrink-0 text-mute" aria-hidden />
-              <div className="min-w-0">
-                <dt className="text-rotulo text-mute">{conteo.total === 1 ? "Señal" : "Señales"}</dt>
-                <dd className="font-display text-bloque font-bold tabular-nums leading-tight text-ink">{numero(conteo.total)}</dd>
-                <dd className="mt-1">
-                  <ConteoSenales conteo={conteo} />
-                </dd>
-              </div>
-            </div>
+      {/* «En corto» abre la frase, en negrita: antes era un rótulo en mayúsculas encima del párrafo. */}
+      <p className="max-w-[68ch] break-words text-cuerpo leading-relaxed text-ink text-pretty">
+        <strong className="font-semibold">En corto: </strong>
+        {conCifras(corto.join(" "))}
+      </p>
+
+      {resto.length > 0 && (
+        <div>
+          <button
+            type="button"
+            onClick={() => setAbierto((v) => !v)}
+            aria-expanded={abierto}
+            className="inline-flex min-h-9 items-center gap-1.5 rounded-full border border-line bg-paper px-3.5 text-meta font-semibold text-ink transition-colors duration-rapido hover:border-paperEdge hover:bg-paperSoft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-granate"
+          >
+            <ChevronRight size={14} className={cn("shrink-0 text-mute transition-transform duration-rapido", abierto && "rotate-90")} aria-hidden />
+            {abierto ? "Ocultar el resto del resumen" : `El resto del resumen, en ${plural(resto.length, "punto", "puntos")}`}
+          </button>
+          {abierto && (
+            <ul className="mt-3 space-y-2">
+              {resto.map((o, i) => (
+                <li key={i} className="flex gap-2.5">
+                  <ChevronRight size={14} className="mt-1 shrink-0 text-mute" aria-hidden />
+                  <span className="min-w-0 max-w-[68ch] break-words text-dato leading-relaxed text-inkSoft text-pretty">{conCifras(o)}</span>
+                </li>
+              ))}
+            </ul>
           )}
-          {/* Las celdas que faltan para cerrar la rejilla: sin ellas se vería el color del filete. */}
-          {Array.from({ length: (4 - ((cifras.length + (conteo && conteo.total > 0 ? 1 : 0)) % 4)) % 4 }).map((_, i) => (
-            <div key={`hueco-${i}`} className="hidden bg-paper lg:block" aria-hidden />
-          ))}
-        </dl>
+        </div>
       )}
 
-      <div className="px-4 py-3.5 sm:px-5">
-        {/* «En corto» abre la frase, en negrita: antes era un rótulo en mayúsculas encima del párrafo. */}
-        <p className="max-w-[68ch] break-words text-dato leading-relaxed text-ink text-pretty">
-          <strong className="font-semibold">En corto: </strong>
-          {redactDnis(corto.join(" "))}
-        </p>
-
-        {resto.length > 0 && (
-          <div className="mt-3">
-            <button
-              type="button"
-              onClick={() => setAbierto((v) => !v)}
-              aria-expanded={abierto}
-              className="inline-flex min-h-9 items-center gap-1.5 rounded-full border border-line bg-paper px-3.5 text-meta font-semibold text-ink transition-colors duration-rapido hover:border-paperEdge hover:bg-paperSoft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-granate"
-            >
-              <ChevronRight size={14} className={cn("shrink-0 text-mute transition-transform duration-rapido", abierto && "rotate-90")} aria-hidden />
-              {abierto ? "Ocultar el resto del resumen" : `El resto del resumen, en ${plural(resto.length, "punto", "puntos")}`}
-            </button>
-            {abierto && (
-              <ol className="mt-3 space-y-2">
-                {resto.map((o, i) => (
-                  <li key={i} className="flex gap-3">
-                    <span className="mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-full bg-paperDeep font-mono text-rotulo font-semibold tabular-nums text-inkSoft" aria-hidden>
-                      {i + 1}
-                    </span>
-                    <span className="min-w-0 max-w-[68ch] break-words text-meta leading-relaxed text-inkSoft text-pretty">{redactDnis(o)}</span>
-                  </li>
-                ))}
-              </ol>
-            )}
-          </div>
-        )}
-      </div>
-
-      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 border-t border-line bg-paperSoft px-4 py-2.5 text-rotulo text-mute sm:px-5">
+      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-t border-line pt-3 text-rotulo text-mute">
         <span>Resumen del dictamen, redactado automáticamente{modelo ? ` (${modelo})` : ""} con la evidencia del análisis.</span>
         <button type="button" onClick={() => abrirTab("dictamen")} className={ENLACE_RELATO}>
           Leer el dictamen completo <ChevronRight size={14} aria-hidden />
@@ -308,7 +227,7 @@ type ClaveParte = "documentos" | "items" | "obra" | "prensa" | "trace";
 type Abierto = { tipo: "parte"; clave: ClaveParte } | { tipo: "registro"; nombre: string } | null;
 
 const CAJA_FUENTE =
-  "flex h-full w-full items-start gap-3 rounded-2xl border border-line bg-paper p-3.5 text-left transition-colors duration-rapido hover:border-paperEdge hover:bg-paperSoft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-granate";
+  "flex h-full w-full items-start gap-3 rounded-2xl border border-line bg-paper p-3.5 text-left transition-colors duration-rapido hover:border-paperEdge hover:bg-paperSoft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-granate [.tarjeta_&]:rounded-xl [.tarjeta_&]:border-transparent [.tarjeta_&]:bg-paperSoft [.tarjeta_&]:hover:border-transparent [.tarjeta_&]:hover:bg-paperDeep";
 const BOTON_PIE =
   "inline-flex min-h-10 items-center gap-1.5 rounded-full bg-granate px-4 text-meta font-semibold text-paper transition-colors duration-rapido hover:bg-granate-deep focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-granate";
 
@@ -359,6 +278,9 @@ export function DeDondeSale({
   }, [corrida.agentes, r.expediente_proveedor]);
 
   const [abierto, setAbierto] = useState<Abierto>(null);
+  // Los registros, de a 10: con 18 chips el bloque ocupaba media pantalla (regla de las listas de 10).
+  const [todosRegistros, setTodosRegistros] = useState(false);
+  const registrosVisibles = todosRegistros ? fuentes : fuentes.slice(0, 10);
   // Lo último abierto queda en el panel mientras se cierra (su animación): sin él se vaciaría antes de irse.
   const ultimo = useRef<Abierto>(null);
   if (abierto) ultimo.current = abierto;
@@ -640,14 +562,14 @@ export function DeDondeSale({
         ))}
       </ul>
 
-      <section aria-labelledby="relato-registros" className="rounded-2xl border border-line bg-paper px-4 py-3.5">
-        <h3 id="relato-registros" className="flex flex-wrap items-baseline gap-x-2 font-display text-cuerpo font-bold text-ink">
+      <section aria-labelledby="relato-registros" className="rounded-2xl border border-line bg-paper px-4 py-3.5 [.tarjeta_&]:rounded-none [.tarjeta_&]:border-x-0 [.tarjeta_&]:border-b-0 [.tarjeta_&]:bg-transparent [.tarjeta_&]:px-0 [.tarjeta_&]:pb-0">
+        <h4 id="relato-registros" className="flex flex-wrap items-baseline gap-x-2 font-display text-bloque font-bold text-ink">
           Registros que se cruzaron
           {fuentes.length > 0 && <span className="font-sans text-rotulo font-normal text-mute">{numero(fuentes.length)}, toca uno para ver qué es y qué se consultó</span>}
-        </h3>
+        </h4>
         {fuentes.length > 0 ? (
           <ul className="mt-2.5 flex flex-wrap gap-1.5">
-            {fuentes.map((f) => (
+            {registrosVisibles.map((f) => (
               <li key={f} className="min-w-0 max-w-full">
                 <button
                   type="button"
@@ -661,6 +583,17 @@ export function DeDondeSale({
                 </button>
               </li>
             ))}
+            {fuentes.length > registrosVisibles.length && (
+              <li>
+                <button
+                  type="button"
+                  onClick={() => setTodosRegistros(true)}
+                  className="inline-flex min-h-9 items-center gap-1 rounded-full border border-dashed border-line px-3 text-meta font-semibold text-ink transition-colors duration-rapido hover:border-granate/50 hover:text-granate focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-granate"
+                >
+                  Ver los {numero(fuentes.length - registrosVisibles.length)} más
+                </button>
+              </li>
+            )}
           </ul>
         ) : (
           <p className="mt-1.5 text-meta text-mute">Este análisis no guardó qué registros cruzó.</p>

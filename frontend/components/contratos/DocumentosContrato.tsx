@@ -62,7 +62,7 @@ export function DocumentosContrato({ ocid, documentos }: { ocid: string; documen
 
   return (
     <>
-      <ul className="divide-y divide-line rounded-2xl border border-line bg-paper">
+      <ul className="divide-y divide-line rounded-2xl border border-line bg-paper [.tarjeta_&]:rounded-none [.tarjeta_&]:border-x-0 [.tarjeta_&]:border-b-0 [.tarjeta_&]:bg-transparent">
         {documentos.map((d, i) => (
           <li key={`${d.url}-${i}`} className={cn("flex items-center gap-2 px-3 py-2 text-dato leading-5 transition-colors hover:bg-paperSoft", abierto?.doc.url === d.url && "bg-paperSoft")}>
             <FileText size={14} className="shrink-0 text-mute" aria-hidden />
@@ -114,7 +114,7 @@ export function DocumentosContrato({ ocid, documentos }: { ocid: string; documen
         </p>
       )}
       {abierto && (
-        <div className="mt-3 overflow-hidden rounded-2xl border border-line bg-paper">
+        <div className="mt-3 overflow-hidden rounded-2xl border border-line bg-paper [.tarjeta_&]:rounded-none [.tarjeta_&]:border-x-0 [.tarjeta_&]:border-b-0 [.tarjeta_&]:bg-transparent">
           <div className="flex items-center gap-2 border-b border-line bg-paperSoft px-3 py-1.5 text-rotulo text-mute">
             <span className="min-w-0 flex-1 truncate text-ink">{abierto.doc.titulo ?? tipoDocLabel(abierto.doc.tipo)}</span>
             {abierto.f.bytes ? <span className="font-mono tabular-nums">{numero(Math.max(1, Math.round(abierto.f.bytes / 1e5)) / 10)} MB</span> : null}

@@ -306,7 +306,9 @@ export function DetallePrecioItem({ fila, fmtMoney }: { fila: FilaPrecio; fmtMon
       {referencias.length > 0 && (
         <>
           <Titulo>
-            Lo que pagaron otras entidades por el mismo bien: {referencias.length} {referencias.length === 1 ? "compra" : "compras"} del SEACE
+            {/* «Lo que pagaron otras entidades» no siempre es cierto: puede ser la misma entidad o un proceso desierto, que no
+                pagó nada (1236273: el valor referencial de S/ 11.25 de una convocatoria desierta de CENARES). */}
+            Otros procesos del Estado por el mismo bien: {referencias.length}
             {medianaEstado !== null && !noComparable ? `, mediana ${fmtMoney(medianaEstado)} (de ${nEstado})` : ""}
           </Titulo>
           <ul className="space-y-1">
@@ -320,6 +322,11 @@ export function DetallePrecioItem({ fila, fmtMoney }: { fila: FilaPrecio; fmtMon
                   <span className="text-mute">
                     {r.entidad || "entidad sin nombre"}{r.region ? `, ${r.region}` : ""}
                   </span>
+                  {(r.etapa === "desierta" || (r.precio_unitario_adjudicado == null && r.precio_unitario_referencial != null)) && (
+                    <span className="ml-1.5 rounded-full bg-amber/15 px-1.5 py-px text-micro font-medium text-amberTexto">
+                      {r.etapa === "desierta" ? "desierto: valor referencial, no se pagó" : "valor referencial"}
+                    </span>
+                  )}
                   {r.url && (
                     <a
                       href={r.url}

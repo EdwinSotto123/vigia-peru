@@ -59,7 +59,7 @@ export function NoticiasSection({ news }: { news: any }) {
   return (
     <section className="overflow-hidden rounded-2xl border border-line bg-paper">
       <div className="border-b border-line bg-paperSoft px-5 py-3">
-        <h2 className="font-display text-xl font-bold text-ink">Noticias y prensa</h2>
+        <h2 className="font-display text-seccion font-bold leading-tight text-ink">Noticias y prensa</h2>
         <p className="mt-0.5 text-rotulo text-mute">
           Cobertura periodística sobre el proveedor, la entidad y lo que se compró
           {resumenSev.length > 0 && <>: {resumenSev.join(", ")}</>}.

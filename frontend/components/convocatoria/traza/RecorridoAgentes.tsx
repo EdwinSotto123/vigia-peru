@@ -43,18 +43,9 @@ export function RecorridoAgentes({ recorrido, result }: { recorrido: Recorrido; 
     <div className="space-y-4">
       <h2 className="sr-only">Recorrido de los agentes</h2>
       <div className="flex flex-wrap items-center justify-between gap-3">
-        {/* Cada cifra en su pastilla, con el número en grande (antes una línea de texto gris suelta sobre el fondo). */}
+        {/* Los agentes y las consultas ya van como cifras grandes en el resumen de arriba (ResumenCorrida): aquí, sólo lo que
+            es del recorrido (las fallidas y el largo de la traza). */}
         <p className="flex flex-wrap items-center gap-2 text-meta text-inkSoft">
-          <span className={PASTILLA}>
-            <strong className="font-display text-bloque font-bold tabular-nums text-ink">
-              {numero(recorrido.agentesCorrieron)} de {numero(recorrido.totalAgentes)}
-            </strong>
-            agentes de IA corrieron
-          </span>
-          <span className={PASTILLA}>
-            <strong className="font-display text-bloque font-bold tabular-nums text-ink">{numero(recorrido.consultas)}</strong>
-            {recorrido.consultas === 1 ? "consulta a herramientas y fuentes" : "consultas a herramientas y fuentes"}
-          </span>
           {recorrido.consultasFallidas > 0 && (
             <span className={cn(PASTILLA, "border-crimson/30 bg-crimson-soft text-crimsonTexto")}>
               <strong className="font-display text-bloque font-bold tabular-nums">{numero(recorrido.consultasFallidas)}</strong>

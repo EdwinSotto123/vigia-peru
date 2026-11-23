@@ -23,6 +23,8 @@ import type { EstadoCorrida } from "../dossier";
 import { AvisoSeccion } from "./AvisoSeccion";
 import { BanderasAgrupadas } from "./BanderasAgrupadas";
 import { CausalDirectaSection } from "./CausalDirectaSection";
+import { CumplimientoNormativoSection } from "./CumplimientoNormativoSection";
+import { mercadoMedido } from "@/components/charts/mercado";
 import { SeccionSegura } from "./SeccionSegura";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { setRedactNames, type NombreConocido } from "../../Redact";
@@ -158,6 +160,13 @@ function PanelResumen({ result, banderasArr, noVerificables, contexto, corrida, 
       {causal?.match && (
         <SeccionSegura nombre="la causal de contratación directa">
           <CausalDirectaSection causal={causal} acto={(result as any).acto_resolutivo_directa} />
+        </SeccionSegura>
+      )}
+
+      {/* Las opiniones del OECE que citan las señales, plegadas (antes, una tabla en Documentos que repetía cada señal). */}
+      {result.normative_compliance && (
+        <SeccionSegura nombre="las opiniones del OECE">
+          <CumplimientoNormativoSection nc={result.normative_compliance} sobreprecioMedido={mercadoMedido(result.market_analysis)} />
         </SeccionSegura>
       )}
     </div>

@@ -27,10 +27,11 @@ import { rutaPartido } from "@/lib/partidos";
 import { tituloNatural } from "@/lib/landing";
 import { recortar } from "./recortar";
 import { RANGO_SEVERIDAD, peorSeveridad } from "@/lib/severidad";
-import { txt } from "@/lib/utils";
+import { cn, txt } from "@/lib/utils";
 import { EvidenciaDelCruce, OrdenesFraccionadas } from "./EvidenciaCruce";
 import { GrupoSanciones, TIPOS_SANCION } from "./SancionesCruce";
 import { BotonPestana } from "./BotonPestana";
+import { AbrirConAncla } from "./AbrirConAncla";
 import { ETAPA_VISITA, TEMA_OBSERVACION_CONTROL, TIPO_CRUCE, esEnObservacion, esTipoLeido, esTipoObra, responsabilidadesEnPalabras } from "@/lib/cruces";
 import { InformeEnPanel } from "@/components/control/InformeEnPanel";
 import { informeDeDetalle } from "@/lib/corrupcion";
@@ -43,6 +44,13 @@ const SEVERIDAD = { alta: "Alta", media: "Media", baja: "Baja" } as const;
 const ICONO = ICONO_NIVEL;
 
 /** La severidad de un grupo de antecedentes: color, ícono y palabra. */
+/** La placa del ícono de cada grupo, del color de su gravedad (crimson, ámbar, gris). */
+const PLACA_SEV: Record<"alta" | "media" | "baja", string> = {
+  alta: "bg-crimson-soft text-crimsonTexto",
+  media: "bg-amber-soft text-amberTexto",
+  baja: "bg-paperSoft text-inkSoft",
+};
+
 function SeveridadCruce({ s }: { s: "alta" | "media" | "baja" }) {
   const Icono = ICONO[s];
   return (
@@ -1497,6 +1505,7 @@ function TextoLeido({ c }: { c: CruceProveedor }) {
       <>Los participantes observaron {numero(n(d.observaciones) ?? 0)} veces las bases y la entidad no acogió ninguna observación a los requisitos.{fuente}{leido}</>
     );
   }
+  // recorte: tres nombres caben en la frase; los demás se cuentan («y N más»)
   const lista = fuera.slice(0, 3).map((f, i) => (
     <span key={i}>{i ? "; " : ""}<b>{nombreFuera(f)}</b>{txt(String(f.motivo ?? "")) ? <> ({recortar(oracion(String(f.motivo)), 180)})</> : ""}</span>
   ));
@@ -1675,17 +1684,30 @@ function GruposCruces({ lista, gobierna, conAnclas = false }: { lista: CruceProv
         const filas = [...grupo].sort((a, b) => RANGO_SEVERIDAD[a.severidad] - RANGO_SEVERIDAD[b.severidad] || (b.fecha ?? "").localeCompare(a.fecha ?? ""));
         return (
           // Bajo la barra de pestañas fija (y, en el celular, la del sitio) al llegar desde el Resumen.
-          <li key={tipo} id={conAnclas ? anclaDe(tipo) : undefined} className="scroll-mt-32 py-3">
-            <div className="mb-1.5 flex flex-wrap items-center gap-2">
-              <SeveridadCruce s={sev} />
-              <h3 className="flex flex-wrap items-center gap-1.5 text-cuerpo font-semibold text-ink">
-                <IconoBandera tipo={tipo} size={15} className="text-inkSoft" />
-                {grupo[0].etiqueta}
-                {grupo.length > 1 && <CuentaGrupo>{numero(grupo.length)}</CuentaGrupo>}
-              </h3>
-              {porQue && !primera && <Ayuda titulo="¿Por qué mirarlo?">{porQue}</Ayuda>}
-            </div>
-            {primera && <p className="mb-2 text-meta leading-relaxed text-inkSoft">{porQue}</p>}
+          // Cada tipo, plegado con su nombre, cuántos y su gravedad a la vista (2026-11-23, el usuario: «muros de texto»):
+          // la pestaña medía 3 400 px con todo abierto. Los graves van abiertos; un enlace con su ancla lo abre
+          // (AbrirConAncla). La gravedad va al final de la fila, nunca encima del título.
+          <li key={tipo}>
+            <details id={conAnclas ? anclaDe(tipo) : undefined} open={sev === "alta"} className="group/ant scroll-mt-32">
+              <summary className="flex min-h-12 cursor-pointer list-none items-center gap-3 py-3 [&::-webkit-details-marker]:hidden">
+                <span aria-hidden className={cn("flex size-8 shrink-0 items-center justify-center rounded-lg", PLACA_SEV[sev])}>
+                  <IconoBandera tipo={tipo} size={16} />
+                </span>
+                <h3 className="flex min-w-0 flex-1 flex-wrap items-center gap-1.5 text-cuerpo font-semibold leading-snug text-ink">
+                  {grupo[0].etiqueta}
+                  {grupo.length > 1 && <CuentaGrupo>{numero(grupo.length)}</CuentaGrupo>}
+                </h3>
+                <span className="shrink-0">
+                  <SeveridadCruce s={sev} />
+                </span>
+                <ChevronDown size={16} className="shrink-0 text-mute transition-transform duration-rapido group-open/ant:rotate-180" aria-hidden />
+              </summary>
+              <div className="pb-3 sm:pl-11">
+            {porQue && (primera ? (
+              <p className="mb-2 text-meta leading-relaxed text-inkSoft">{porQue}</p>
+            ) : (
+              <p className="mb-2 flex items-center gap-1 text-meta text-inkSoft">¿Por qué mirarlo? <Ayuda titulo="¿Por qué mirarlo?">{porQue}</Ayuda></p>
+            ))}
             <TasaBase t={grupo[0].tasaBase} />
             <Confiabilidad c={grupo[0].confiabilidad} />
             {TIPOS_SANCION.has(tipo) ? (
@@ -1705,6 +1727,8 @@ function GruposCruces({ lista, gobierna, conAnclas = false }: { lista: CruceProv
                 )}
               </>
             )}
+              </div>
+            </details>
           </li>
         );
       })}
@@ -1793,6 +1817,7 @@ export function CrucesProveedor({ cruces: todos, varios, gobierna }: { cruces: C
   // La cabecera va DENTRO de la tarjeta de los antecedentes (antes flotaba sobre el fondo, encima de la caja).
   return (
     <section aria-label={titulo} className="tarjeta rounded-2xl border border-line bg-paper">
+      <AbrirConAncla />
       <div className="px-4 pt-4 sm:px-5 sm:pt-5 [&>div]:mb-2">
       <CabeceraPestana
         titulo={titulo}
@@ -1907,7 +1932,7 @@ export function ResumenAntecedentes({ cruces, varios }: { cruces: CruceProveedor
     // Una tarjeta con su título adentro (antes el h2 y su párrafo flotaban sobre el fondo, sobre una lista en otra caja).
     <section aria-labelledby="resumen-antecedentes" className="tarjeta space-y-2 rounded-2xl border border-line bg-paper p-4 sm:p-5">
       <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
-        <h2 id="resumen-antecedentes" className="font-display text-bloque font-bold text-ink">
+        <h2 id="resumen-antecedentes" className="font-display text-seccion font-bold leading-tight text-ink">
           {titulo}
         </h2>
         <BotonPestana clave="antecedentes" className="inline-flex min-h-8 items-center gap-0.5 rounded text-meta font-semibold text-granate underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-granate">

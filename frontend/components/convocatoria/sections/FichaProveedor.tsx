@@ -41,16 +41,18 @@ const CLASE_ENLACE = "text-granate underline decoration-granate/40 underline-off
 /** Cuántas personas se ven por papel; el resto, contado y en su ficha. */
 const POR_ROL = 6;
 
-/** Una subsección de la ficha: su número, su ícono, su título y, a la derecha, un dato o un enlace. */
-function Sub({ n, icono: Icono, titulo, nota, children }: { n: number; icono: LucideIcon; titulo: string; nota?: React.ReactNode; children: React.ReactNode }) {
+/**
+ * Una subsección de la ficha: su ícono en su placa, su título y, a la derecha, un dato o un enlace. Sin número delante
+ * (2026-11-23: los números de sección se ven como un formulario). `n` queda por compatibilidad.
+ */
+function Sub({ icono: Icono, titulo, nota, children }: { n?: number; icono: LucideIcon; titulo: string; nota?: React.ReactNode; children: React.ReactNode }) {
   return (
-    <section className="px-4 py-4 sm:px-5">
+    <section className="px-4 py-4 sm:px-5 [.tarjeta_&]:px-0">
       <div className="mb-2.5 flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
-        <h4 className="flex items-center gap-2 font-display text-cuerpo font-bold text-ink">
-          <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-paperDeep font-mono text-rotulo font-semibold tabular-nums text-inkSoft" aria-hidden>
-            {n}
+        <h4 className="flex items-center gap-2.5 font-display text-bloque font-bold text-ink">
+          <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-paperSoft text-inkSoft" aria-hidden>
+            <Icono size={16} />
           </span>
-          <Icono size={15} className="shrink-0 text-mute" aria-hidden />
           {titulo}
         </h4>
         {nota && <div className="text-rotulo text-mute">{nota}</div>}
@@ -122,8 +124,8 @@ export function FichaProveedor({
   if (otrosRoles.length > 0) porRol.push({ clave: "otros", titulo: "Otros papeles", gente: otrosRoles });
 
   return (
-    <section className="overflow-hidden rounded-2xl border border-line bg-paper">
-      <header className="flex flex-wrap items-start justify-between gap-3 border-b border-line bg-paperSoft px-4 py-3.5 sm:px-5">
+    <section className="overflow-hidden rounded-2xl border border-line bg-paper [.tarjeta_&]:overflow-visible [.tarjeta_&]:rounded-none [.tarjeta_&]:border-0 [.tarjeta_&]:bg-transparent">
+      <header className="flex flex-wrap items-start justify-between gap-3 border-b border-line bg-paperSoft px-4 py-3.5 sm:px-5 [.tarjeta_&]:rounded-xl [.tarjeta_&]:border-0">
         <div className="min-w-0">
           <h3 className="font-display text-bloque font-bold leading-tight text-ink">
             {natural ? <PersonName name={razon} orden="sunat" /> : razon ? tituloNatural(razon) : "Proveedor sin razón social"}
@@ -146,7 +148,7 @@ export function FichaProveedor({
       </header>
 
       <div className="divide-y divide-line">
-        <Sub n={1} icono={Building2} titulo="Quién es" nota="Padrón de la SUNAT">
+        <Sub n={1} icono={Building2} titulo="En la SUNAT" nota="Padrón de la SUNAT">
           {s ? (
             <div className="space-y-1.5 text-dato leading-relaxed text-ink">
               <p className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
@@ -276,7 +278,7 @@ export function FichaProveedor({
           titulo="Antecedentes"
           nota={sancVigentes > 0 ? <span className="font-semibold text-crimsonTexto">{plural(sancVigentes, "sanción vigente", "sanciones vigentes")}</span> : "Sanciones y penalidades del OECE"}
         >
-          <dl className="grid gap-px overflow-hidden rounded-xl border border-line bg-line sm:grid-cols-2">
+          <dl className="grid gap-px overflow-hidden rounded-xl border border-line bg-line sm:grid-cols-2 [.tarjeta_&]:border-0">
             <div className="bg-paper px-3.5 py-2.5">
               <dt className="text-rotulo font-semibold uppercase tracking-wide text-mute">Sanciones del Tribunal</dt>
               <dd className="mt-1 text-meta leading-relaxed text-ink">

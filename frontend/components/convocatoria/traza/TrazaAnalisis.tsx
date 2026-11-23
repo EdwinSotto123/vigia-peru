@@ -11,7 +11,7 @@
  * (`ProveedorSensibles` + `TextoSeguro`).
  */
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { Pestanas } from "@/components/patrones/Pestanas";
 import type { ApiResult } from "../types";
 import { ControlesCalidad } from "./ControlesCalidad";
@@ -24,7 +24,7 @@ import { nombresPrivadosDe } from "../nombresPrivados";
 
 const PARAM = "traza";
 
-export function TrazaAnalisis({ result }: { result: ApiResult }) {
+export function TrazaAnalisis({ result, cabecera }: { result: ApiResult; /** El título de la vista que la contiene: va dentro del resumen. */ cabecera?: { titulo: string; bajada?: ReactNode } }) {
   const recorrido = useMemo(() => construirRecorrido(result), [result]);
   // Las personas del análisis terminado: la traza no adivina quién es persona en las búsquedas.
   const sensibles = useMemo(() => sensiblesDeTraza(result.agent_trace || [], nombresPrivadosDe(result)), [result]);
@@ -35,7 +35,7 @@ export function TrazaAnalisis({ result }: { result: ApiResult }) {
 
   return (
     <ProveedorSensibles valor={sensibles}>
-      <ResumenCorrida recorrido={recorrido} result={result} />
+      <ResumenCorrida recorrido={recorrido} result={result} titulo={cabecera?.titulo} bajada={cabecera?.bajada} />
       <Pestanas
         variante="segunda"
         etiqueta="Partes de cómo se hizo el análisis"

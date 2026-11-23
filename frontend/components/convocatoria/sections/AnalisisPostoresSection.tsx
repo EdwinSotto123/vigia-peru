@@ -199,6 +199,7 @@ export function AnalisisPostoresSection({
                   <span className="text-inkSoft">: {n} {n === 1 ? "proceso compartido" : "procesos compartidos"}</span>
                   {lista.length > 0 && (
                     <span className="mt-1 flex flex-wrap gap-1.5">
+                      {/* recorte: ocho códigos caben en dos renglones; el resto se cuenta al lado («+N más») */}
                       {lista.slice(0, 8).map((oc) => (
                         <Link key={oc} href={rutaContrato(oc)} prefetch={false} className="pill border-line bg-paperDeep font-mono tabular-nums text-granate hover:border-paperEdge">
                           {oc}
