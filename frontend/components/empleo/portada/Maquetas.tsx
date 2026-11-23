@@ -211,3 +211,34 @@ export function MaquetaTablero() {
     </figure>
   );
 }
+
+/** El asistente de la app (con un plan): le preguntas en tus palabras y responde con las plazas que te calzan. */
+export function MaquetaAsistente() {
+  const filas = [
+    { t: "Contador", q: "Una UGEL de Arequipa", s: "S/ 3,200", c: "Cierra en 2 días" },
+    { t: "Analista en presupuesto", q: "Un gobierno regional", s: "S/ 3,500", c: "Cierra en 5 días" },
+    { t: "Asistente contable", q: "Una municipalidad", s: "S/ 2,600", c: "Cierra en 6 días" },
+  ];
+  return (
+    <Maqueta titulo="Tu asistente" Icono={MessageCircle}>
+      <div className="space-y-3">
+        <Tu>Soy contadora con 3 años de experiencia: ¿a qué puedo postular en Arequipa?</Tu>
+        <Bot>Hay 4 plazas que te calzan. La primera cierra en 2 días:</Bot>
+        <ul className="ml-[2.6rem] divide-y divide-line overflow-hidden rounded-xl border border-line">
+          {filas.map((f) => (
+            <li key={f.t} className="flex items-start justify-between gap-3 px-3 py-2">
+              <span className="min-w-0">
+                <span className="block truncate text-dato font-semibold text-ink">{f.t}</span>
+                <span className="block truncate text-rotulo text-mute">{f.q}</span>
+              </span>
+              <span className="shrink-0 text-right">
+                <span className="block text-dato font-bold tabular-nums text-ink">{f.s}</span>
+                <span className="block text-rotulo text-granate">{f.c}</span>
+              </span>
+            </li>
+          ))}
+        </ul>
+      </div>
+    </Maqueta>
+  );
+}

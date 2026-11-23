@@ -2,6 +2,9 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { LocateFixed, Search } from "lucide-react";
+import { EscribeSolo } from "@/components/gobserva/portada/EscribeSolo";
+import { Odometro } from "@/components/gobserva/portada/Odometro";
+import { AlVer, RuedaAlVer } from "@/components/gobserva/portada/RuedaAlVer";
 import { FuenteFecha } from "@/components/salud/comun";
 import { URL_DATOS_SUSALUD, URL_RENIPRESS_CONSULTA, URL_SANCIONES } from "@/components/salud/fuentes/urls";
 import { nombreLugar } from "@/components/salud/lista/filtros";
@@ -68,6 +71,7 @@ export default async function InicioSalud() {
               SUSALUD. Y cualquier medicamento: si DIGEMID emitió una alerta y cuánto cuesta. Con la fuente oficial y su fecha. Gratis y sin cuenta.
             </p>
             <BuscadorSalud accion={ruta("/buscar")} oscuro className="mt-7" id="buscar" />
+            <EscribeSolo para="buscar" ejemplos={["Hospital Loayza", "Clínica Internacional", "Panadol", "Hospital Regional del Cusco", "Amoxicilina", "Clínica San Pablo"]} />
             <div className="mt-3 flex flex-wrap items-center gap-x-2 gap-y-2">
               <span className="text-meta text-paper/65">Prueba con</span>
               <ul className="flex flex-wrap gap-2" aria-label="Búsquedas de ejemplo">
@@ -190,10 +194,16 @@ export default async function InicioSalud() {
             aria-labelledby="pais-t"
             className="tarjeta grid gap-8 rounded-3xl border border-line bg-paper px-5 py-7 sm:px-9 sm:py-10 lg:grid-cols-[auto_minmax(0,1fr)] lg:items-start lg:gap-14"
           >
-            <CienEstablecimientos marcadas={Math.max(r.conSanciones > 0 ? 1 : 0, (r.conSanciones / r.ipress) * 100)} className="h-auto w-36 sm:w-[11.5rem]" />
+            <AlVer className="shrink-0">
+              <CienEstablecimientos marcadas={Math.max(r.conSanciones > 0 ? 1 : 0, (r.conSanciones / r.ipress) * 100)} className="h-auto w-36 sm:w-[11.5rem]" />
+            </AlVer>
             <div className="min-w-0">
               <h2 id="pais-t" className="max-w-[24ch] text-balance font-display text-titulo font-bold leading-[1.1] tracking-[-0.02em] text-ink sm:text-vitrina">
-                De cada 100 establecimientos, {deCada100} {deCada100 === 1 ? "tiene" : "tienen"} una sanción firme
+                De cada 100 establecimientos,{" "}
+                <RuedaAlVer>
+                  <Odometro texto={String(deCada100)} />
+                </RuedaAlVer>{" "}
+                {deCada100 === 1 ? "tiene" : "tienen"} una sanción firme
               </h2>
               <p className="mt-3 max-w-[62ch] text-pretty text-cuerpo leading-relaxed text-inkSoft">
                 Al menos una, en el Registro de Sanciones de SUSALUD. Los demás no figuran en él. La sanción es de la institución, no de sus médicos.
@@ -280,7 +290,11 @@ function Cifra({ valor, etiqueta, detalle, pie, href }: { valor: string; etiquet
           etiqueta
         )}
       </dt>
-      <dd className="order-1 font-display text-cifra font-bold leading-none tabular-nums text-ink">{valor}</dd>
+      <dd className="order-1 font-display text-cifra font-bold leading-none tabular-nums text-ink">
+        <RuedaAlVer>
+          <Odometro texto={valor} />
+        </RuedaAlVer>
+      </dd>
       <dd className="order-3 mt-0.5 text-meta leading-snug text-inkSoft">{detalle}</dd>
       <dd className="order-4 mt-auto pt-3">{pie}</dd>
     </div>

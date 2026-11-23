@@ -8,7 +8,8 @@ import { cn } from "@/lib/utils";
  * hacer, dicha en primera persona («Acabo de egresar», «Quiero verificar a mi médico»), con su gente de píxeles parada en
  * el mismo suelo, lo que encuentra adentro y adónde lleva. Las puertas comparten una sola placa, separadas por filetes
  * (la calle), no son tarjetas sueltas. En el celular cada puerta es una fila (la gente a la izquierda) para que entren
- * varias en una pantalla. Al pasar o enfocar, la gente salta (`.px-salta`, quieta con movimiento reducido).
+ * varias en una pantalla. Al pasar, enfocar o tocar, las esquinas de la mira se cierran sobre la puerta y la gente da un
+ * brinco (`.gs-mira`, `.px-salta`; quietas con movimiento reducido).
  * La gente es decorativa: el texto de la puerta lo dice todo. Server-safe.
  */
 export interface Puerta {
@@ -39,7 +40,7 @@ export function Puertas({ puertas, columnas = 3, etiqueta, className }: { puerta
             href={p.href}
             prefetch={false}
             className={cn(
-              "group grid h-full grid-cols-[5.5rem_minmax(0,1fr)] items-start gap-x-4 p-4 transition-colors duration-rapido hover:bg-paperSoft",
+              "gs-mira group grid h-full grid-cols-[5.5rem_minmax(0,1fr)] items-start gap-x-4 p-4 transition-colors duration-rapido hover:bg-paperSoft",
               "focus-visible:relative focus-visible:z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-granate",
               columnas === 3 ? "md:flex md:flex-col md:p-6" : "sm:flex sm:flex-col sm:p-6",
             )}

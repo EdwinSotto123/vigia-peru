@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { ArrowRight, ClipboardCheck, Copy, ExternalLink } from "lucide-react";
+import { Odometro } from "@/components/gobserva/portada/Odometro";
 import { Pixel } from "@/components/pixel/Pixel";
 import type { NombreSprite } from "@/components/pixel/sprites";
 import { CONSULTAS } from "@/components/car/consultas";
@@ -77,8 +78,8 @@ export default async function PortadaCar() {
           </p>
           <FormPlaca accion={rutaEn(base, "/placa")} grande className="mt-6 max-w-xl" />
         </div>
-        <span aria-hidden className="hidden h-56 items-center justify-center rounded-3xl bg-granate-50 p-6 lg:flex">
-          <Pixel nombre="auto" escala={10} className="max-h-full max-w-full" />
+        <span aria-hidden className="hidden h-56 items-center justify-center overflow-hidden rounded-3xl bg-granate-50 p-6 lg:flex">
+          <Pixel nombre="auto" escala={10} className="gs-auto-llega max-h-full max-w-full" />
         </span>
       </section>
 
@@ -87,14 +88,16 @@ export default async function PortadaCar() {
           <Link
             key={p.ruta}
             href={rutaEn(base, p.ruta)}
-            className="gs-hunde group flex min-w-0 items-center gap-4 rounded-2xl border border-line bg-paper p-4 transition-colors duration-rapido hover:border-granate/50 sm:p-5"
+            className="gs-mira gs-hunde group flex min-w-0 items-center gap-4 rounded-2xl border border-line bg-paper p-4 transition-colors duration-rapido hover:border-granate/50 sm:p-5"
           >
             <span aria-hidden className="flex h-20 w-20 shrink-0 items-center justify-center rounded-2xl bg-granate-50 p-2">
-              <Pixel nombre={p.sprite} escala={4} animado={false} acento="accion" className="max-h-full max-w-full" />
+              <Pixel nombre={p.sprite} escala={4} animado={false} acento="accion" className="px-salta max-h-full max-w-full" />
             </span>
             <span className="min-w-0 flex-1">
               <span className="block font-display text-bloque font-bold leading-snug text-ink group-hover:text-granate">{p.titulo}</span>
-              <span className="mt-0.5 block text-dato font-semibold text-granate">{p.cifra}</span>
+              <span className="mt-0.5 block text-dato font-semibold text-granate">
+                <Odometro texto={p.cifra} />
+              </span>
               <span className="mt-1 block text-meta leading-relaxed text-inkSoft">{p.texto}</span>
             </span>
             <ArrowRight size={18} aria-hidden className="shrink-0 text-mute transition-transform duration-rapido group-hover:translate-x-0.5" />

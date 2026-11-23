@@ -49,7 +49,7 @@ export function TarjetaOportunidad({ o, base, compacta = false }: { o: Oportunid
   return (
     <Link
       href={enlaceFicha(base, o)}
-      className="group flex h-full min-w-0 flex-col rounded-2xl border border-line bg-paper p-4 transition-[border-color,box-shadow,transform] duration-rapido hover:-translate-y-0.5 hover:border-granate/50 hover:shadow-[0_14px_40px_-24px_rgb(var(--granate)/0.6)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-granate sm:p-5"
+      className="gs-mira group flex h-full min-w-0 flex-col rounded-2xl border border-line bg-paper p-4 transition-[border-color,box-shadow,transform] duration-rapido hover:-translate-y-0.5 hover:border-granate/50 hover:shadow-[0_14px_40px_-24px_rgb(var(--granate)/0.6)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-granate sm:p-5"
     >
       <Chips o={o} />
       <p className={cn("mt-3 font-display font-semibold leading-snug text-ink group-hover:text-granate", compacta ? "line-clamp-2 text-cuerpo" : "line-clamp-3 text-destacado")}>{objeto(o)}</p>
@@ -77,7 +77,7 @@ export function FilaOportunidad({ o, base }: { o: Oportunidad; base: string }) {
   return (
     <Link
       href={enlaceFicha(base, o)}
-      className="group grid min-w-0 gap-x-6 gap-y-3 px-4 py-4 transition-colors duration-rapido hover:bg-paperSoft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-granate sm:px-5 lg:grid-cols-[minmax(0,1fr)_8.5rem_10.5rem_1rem] lg:items-center"
+      className="gs-mira group grid min-w-0 gap-x-6 gap-y-3 px-4 py-4 transition-colors duration-rapido hover:bg-paperSoft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-granate sm:px-5 lg:grid-cols-[minmax(0,1fr)_8.5rem_10.5rem_1rem] lg:items-center"
     >
       <div className="min-w-0">
         <Chips o={o} />

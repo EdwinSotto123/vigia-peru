@@ -1288,3 +1288,102 @@ html[data-modo="dia"] [data-producto="vigia"] [data-intencion="participar"] {
   .gs-lista > *, :where([role="tabpanel"]:not([hidden])), :where(details[open] > :not(summary)) { animation: gs-velo 150ms ease-out backwards; }
   :where(button, [role="button"], [role="tab"], summary, a[href]):where(:active) { translate: none; }
 }
+
+/* ── Portadas vivas (2026-11-22, el usuario: «portadas vivas, más cortas, tarjetas que reaccionan; que llame a usarlo») ──
+   Tres piezas en components/gobserva/portada: el Odometro (la cifra de hoy rueda hasta su valor), las PestanasVivas
+   (una franja de píxeles se desliza a la pestaña que tocas y el panel entra desde ese lado) y Pruebalo (una pregunta y
+   lo que Gobserva encuentra hoy para cada respuesta). Y la mira: al pasar, enfocar o tocar una tarjeta, sus cuatro
+   esquinas se cierran sobre ella a pasos, como el visor de quien observa. */
+
+/* El odómetro. La tira tiene 20 dígitos (0-9 dos veces): termina en el segundo juego, así toda columna da una vuelta. */
+.gs-odo { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.gs-odo-cifras { display: inline; }
+.gs-odo-col { position: relative; display: inline-block; clip-path: inset(0 -0.05em); }
+.gs-odo-fantasma { visibility: hidden; }
+.gs-odo-tira {
+  position: absolute; inset: 0 0 auto 0; display: block; text-align: center;
+  transform: translateY(calc((10 + var(--d)) * -5%));
+  animation: gs-odo-rueda calc(900ms + (var(--n) - var(--i)) * 140ms) cubic-bezier(0.16, 1, 0.3, 1) calc(var(--r, 0ms) + 120ms) backwards;
+}
+.gs-odo-tira::before { content: "0\A 1\A 2\A 3\A 4\A 5\A 6\A 7\A 8\A 9\A 0\A 1\A 2\A 3\A 4\A 5\A 6\A 7\A 8\A 9"; white-space: pre; }
+.gs-odo-cifras { user-select: none; }
+@keyframes gs-odo-rueda { from { transform: translateY(0); } }
+
+/* La franja de la pestaña abierta: bloques de píxel, como la de navegación; se desliza a la que tocas. */
+.gs-pestana-franja {
+  position: absolute; bottom: -1px; left: 0; height: 3px; pointer-events: none; overflow: hidden;
+  background: repeating-linear-gradient(90deg, rgb(var(--granate)) 0 6px, transparent 6px 8px);
+  transition: transform 320ms cubic-bezier(0.16, 1, 0.3, 1), width 320ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+.gs-pestana-franja-oscura { background: repeating-linear-gradient(90deg, rgb(var(--paper)) 0 6px, transparent 6px 8px); }
+/* Mientras avanzan solas, la franja se ve tenue y se va encendiendo a pasos hasta la siguiente. */
+.gs-pestana-franja:has(.gs-pestana-espera) { background: repeating-linear-gradient(90deg, rgb(var(--granate) / 0.3) 0 6px, transparent 6px 8px); }
+.gs-pestana-franja-oscura:has(.gs-pestana-espera) { background: repeating-linear-gradient(90deg, rgb(var(--paper) / 0.3) 0 6px, transparent 6px 8px); }
+.gs-pestana-espera { position: absolute; inset: 0; background: inherit; background-image: repeating-linear-gradient(90deg, rgb(var(--granate)) 0 6px, transparent 6px 8px); animation: gs-espera linear forwards; animation-timing-function: steps(12, end); }
+.gs-pestana-franja-oscura .gs-pestana-espera { background-image: repeating-linear-gradient(90deg, rgb(var(--paper)) 0 6px, transparent 6px 8px); }
+@keyframes gs-espera { from { clip-path: inset(0 100% 0 0); } to { clip-path: inset(0 0 0 0); } }
+
+/* El panel nuevo entra desde el lado hacia el que fuiste. */
+@keyframes gs-panel-der { from { opacity: 0.2; translate: 28px 0; } to { opacity: 1; translate: 0 0; } }
+@keyframes gs-panel-izq { from { opacity: 0.2; translate: -28px 0; } to { opacity: 1; translate: 0 0; } }
+.gs-panel-der { animation: gs-panel-der 360ms cubic-bezier(0.16, 1, 0.3, 1) backwards; }
+.gs-panel-izq { animation: gs-panel-izq 360ms cubic-bezier(0.16, 1, 0.3, 1) backwards; }
+
+/* Pruébalo: el resultado nuevo sube y la ficha elegida late una vez. */
+@keyframes gs-resultado { from { opacity: 0.25; translate: 0 10px; } to { opacity: 1; translate: 0 0; } }
+.gs-resultado { animation: gs-resultado 380ms cubic-bezier(0.16, 1, 0.3, 1) backwards; }
+@keyframes gs-ficha-late { 0% { scale: 1; } 40% { scale: 1.08; } 100% { scale: 1; } }
+.gs-ficha[aria-checked="true"] { animation: gs-ficha-late 300ms steps(4, end); }
+
+/* La mira: las cuatro esquinas del visor se cierran sobre la tarjeta (a pasos, como píxeles) al pasar, enfocar o tocar. */
+.gs-mira { position: relative; isolation: isolate; }
+.gs-mira::after {
+  --c: rgb(var(--granate));
+  content: ""; position: absolute; inset: 7px; z-index: 2; pointer-events: none; border-radius: inherit;
+  opacity: 0; scale: 1.05;
+  background:
+    linear-gradient(var(--c), var(--c)) top left / 16px 3px no-repeat, linear-gradient(var(--c), var(--c)) top left / 3px 16px no-repeat,
+    linear-gradient(var(--c), var(--c)) top right / 16px 3px no-repeat, linear-gradient(var(--c), var(--c)) top right / 3px 16px no-repeat,
+    linear-gradient(var(--c), var(--c)) bottom left / 16px 3px no-repeat, linear-gradient(var(--c), var(--c)) bottom left / 3px 16px no-repeat,
+    linear-gradient(var(--c), var(--c)) bottom right / 16px 3px no-repeat, linear-gradient(var(--c), var(--c)) bottom right / 3px 16px no-repeat;
+  transition: opacity 120ms steps(2, end), scale 240ms steps(3, end);
+}
+.sobre-oscuro .gs-mira::after, .gs-mira.sobre-oscuro::after { --c: rgb(var(--paper)); }
+/* Una placa clara dentro de la banda oscura (.sobre-claro) vuelve a esquinas oscuras: claras sobre claro no se veían. */
+.sobre-oscuro .sobre-claro .gs-mira::after, .sobre-oscuro .gs-mira.sobre-claro::after { --c: rgb(var(--px-linea)); }
+:is(a, button).gs-mira:is(:hover, :focus-visible, :active)::after,
+.gs-mira:has(> a:is(:hover, :focus-visible, :active))::after,
+.gs-mira:has(a.group:is(:hover, :focus-visible))::after { opacity: 1; scale: 1; }
+/* La gente de la tarjeta da un brinco (a pasos) en vez de quedarse arriba. */
+@keyframes px-brinco { 0%, 100% { transform: none; } 35% { transform: translateY(-9px); } 65% { transform: translateY(-4px); } }
+.gs-mira:is(:hover, :focus-visible) .px-salta, .gs-mira:has(a:is(:hover, :focus-visible)) .px-salta { animation: px-brinco 460ms steps(5, end); transform: none; }
+
+@media (prefers-reduced-motion: reduce) {
+  .gs-odo-tira { animation: none; }
+  .gs-pestana-franja { transition: none; }
+  .gs-pestana-espera { animation: none; }
+  .gs-panel-der, .gs-panel-izq, .gs-resultado { animation: gs-velo 150ms ease-out backwards; }
+  .gs-ficha[aria-checked="true"] { animation: none; }
+  .gs-mira::after { transition: opacity 120ms ease-out; scale: 1; }
+  .gs-mira:is(:hover, :focus-visible) .px-salta, .gs-mira:has(a:is(:hover, :focus-visible)) .px-salta { animation: none; }
+}
+
+/* Lo que se anima al cargar pero está más abajo espera a verse (RuedaAlVer.tsx, AlVer): quieto y completo hasta entonces. */
+[data-visto="no"] :is(.gs-odo-tira, .gs-escaneo *) { animation: none !important; }
+
+/* Las cien clínicas de Salud: una franja las escanea fila por fila y al final las sancionadas parpadean. */
+@keyframes gs-esc-fila { from { opacity: 0; } to { opacity: 1; } }
+@keyframes gs-esc-barra { 0% { opacity: 1; transform: translateY(0); } 90% { opacity: 1; transform: translateY(63px); } 100% { opacity: 0; transform: translateY(70px); } }
+@keyframes gs-esc-marca { 0% { opacity: 0; } 20% { opacity: 1; } 40% { opacity: 0.15; } 60% { opacity: 1; } 80% { opacity: 0.15; } 100% { opacity: 1; } }
+.gs-esc-fila { animation: gs-esc-fila 110ms steps(1, end) backwards; }
+.gs-esc-barra { opacity: 0; animation: gs-esc-barra 1150ms steps(10, end) both; }
+.gs-esc-marca { animation: gs-esc-marca 900ms steps(1, end) 1150ms backwards; }
+@media (prefers-reduced-motion: reduce) {
+  .gs-esc-fila, .gs-esc-marca { animation: none; }
+  .gs-esc-barra { animation: none; opacity: 0; }
+}
+
+/* Car: el auto de la portada llega rodando desde la izquierda, a pasos, y frena. */
+@keyframes gs-auto-llega { 0% { translate: -70% 0; } 80% { translate: 4% 0; } 100% { translate: 0 0; } }
+.gs-auto-llega { animation: gs-auto-llega 900ms steps(9, end) 200ms backwards; }
+@media (prefers-reduced-motion: reduce) { .gs-auto-llega { animation: none; } }

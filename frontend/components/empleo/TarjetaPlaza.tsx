@@ -41,7 +41,8 @@ export function tonoCierre(dias: number | null): "urgente" | "pronto" | "neutro"
  * entidad debajo; luego cuándo cierra (la única etiqueta con color, roja si es hoy o mañana) y dónde, y en otra línea lo
  * que pide (estudios, experiencia, colegiatura) como datos con ícono, sin una caja por dato. Las señales de Vigía van al
  * final, una etiqueta por señal. La tarjeta entera es el enlace. `compacta` (portada): sólo puesto, entidad, sueldo,
- * cierre y lugar. Server-safe; los íconos viajan como referencias (./iconos).
+ * cierre y lugar. Al pasar o enfocar el enlace, la mira (`.gs-mira`) cierra sus esquinas sobre la tarjeta (2026-11-22; el
+ * enlace lleva `group` para que la regla lo encuentre). Server-safe; los íconos viajan como referencias (./iconos).
  */
 /**
  * `ruta`: dónde está la ficha («/plaza» en la portada, «/app/plaza» en la app). `accion`: un botón propio (guardar la
@@ -73,7 +74,7 @@ export function TarjetaPlaza({
   return (
     <article
       className={cn(
-        "group relative flex h-full min-w-0 flex-col rounded-2xl border border-line bg-paper p-4 transition-colors duration-rapido hover:border-granate/50 focus-within:ring-2 focus-within:ring-granate sm:p-5",
+        "gs-mira group relative flex h-full min-w-0 flex-col rounded-2xl border border-line bg-paper p-4 transition-colors duration-rapido hover:border-granate/50 focus-within:ring-2 focus-within:ring-granate sm:p-5",
         enApp ? "shadow-caja" : "hover:bg-paperSoft",
       )}
     >
@@ -82,7 +83,7 @@ export function TarjetaPlaza({
           <h3 className={cn("font-semibold leading-snug text-ink", compacta ? "line-clamp-2 text-cuerpo" : "line-clamp-3 text-cuerpo sm:text-destacado")}>
             <Link
               href={rutaEn(base, `${ruta}/${p.aviso}${volver ? `?volver=${encodeURIComponent(volver)}` : ""}`)}
-              className="outline-none transition-colors duration-rapido after:absolute after:inset-0 after:rounded-2xl group-hover:text-granate"
+              className="group outline-none transition-colors duration-rapido after:absolute after:inset-0 after:rounded-2xl group-hover:text-granate"
             >
               {puesto(p.titulo)}
             </Link>

@@ -1,20 +1,27 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import Link from "next/link";
-import { ArrowRight, Bot, Check, HardHat, Landmark, LineChart, Timer } from "lucide-react";
-import { BloqueAsistente } from "@/components/gobserva/BloqueAsistente";
+import { ArrowRight } from "lucide-react";
 import { FranjaMCP } from "@/components/gobserva/BloqueMCP";
-import { Planes } from "@/components/gobserva/Planes";
+import { Odometro } from "@/components/gobserva/portada/Odometro";
+import { PestanasVivas } from "@/components/gobserva/portada/PestanasVivas";
+import { Pruebalo, type OpcionPrueba } from "@/components/gobserva/portada/Pruebalo";
 import { Faq } from "@/components/licitaciones/Faq";
 import { planesLicitaciones } from "@/components/licitaciones/planes";
-import { MaquetaAviso, MaquetaContexto, MaquetaLinea, MaquetaMenores, MaquetaParaTi } from "@/components/licitaciones/portada/Maquetas";
-import { EscenaLicitaciones } from "@/components/licitaciones/portada/EscenaLicitaciones";
+import { BuscadorRubro } from "@/components/licitaciones/portada/BuscadorRubro";
+import { datosPortada, type RubroVivo } from "@/components/licitaciones/portada/datosPortada";
+import { MaquetaAviso, MaquetaContexto, MaquetaLinea, MaquetaParaTi } from "@/components/licitaciones/portada/Maquetas";
+import { PlanesCortos } from "@/components/licitaciones/portada/PlanesCortos";
+import { TodoEnUnaCuenta, type Puesto } from "@/components/licitaciones/portada/TodoEnUnaCuenta";
 import { Pixel } from "@/components/pixel/Pixel";
 import type { NombreSprite } from "@/components/pixel/sprites";
 import { claseAccion } from "@/components/ui/EnlaceAccion";
+import { fechaCorta, numero, solesCompacto } from "@/lib/formato";
 import { rutaEn, urlCanonica } from "@/lib/gobserva";
 import { planesServidor } from "@/lib/gobserva-planes";
 import { baseProducto } from "@/lib/gobserva-servidor";
+import { tituloNatural } from "@/lib/landing";
+import { limpiar } from "@/lib/licitaciones";
 
 export const metadata: Metadata = {
   title: { absolute: "Gobserva Licitaciones: las oportunidades para venderle al Estado, cada día" },
@@ -24,182 +31,180 @@ export const metadata: Metadata = {
 };
 
 /**
- * Portada de Gobserva Licitaciones (modo persuadir; rehecha el 2026-11-07 como un relato, sin buscador ni cifras vivas):
- * la oferta con el radar que encuentra lo que calza, el problema de venderle al Estado hoy, cómo funciona en cuatro pasos
- * con su maqueta, todo lo que trae la cuenta, los planes, el MCP, las preguntas y el cierre. Las búsquedas y los datos
- * viven en Oportunidades, Contratos menores y Mercado. Lo único que pide a la API son los planes.
+ * Portada de Gobserva Licitaciones. Rehecha el 2026-11-22 (el usuario: «portadas vivas, más cortas, tarjetas que
+ * reaccionan; que llame a usarlo, entendible»; medía 13,360 px en el celular y 7,605 en la computadora, y no mostraba un
+ * solo dato de hoy):
+ * - el héroe: la frase, lo que se publicó esta semana y los contratos menores abiertos (cifras que ruedan), «¿Qué vendes?»
+ *   con lo que hay HOY de cada rubro (Pruébalo: cuántas convocatorias, la más reciente y los menores por cotizar), el
+ *   buscador de cualquier rubro y la cuenta; la escena de la emprendedora, desde lg;
+ * - cómo funciona: el problema de hoy y lo que hace Gobserva, en cuatro pestañas que avanzan solas con su maqueta
+ *   (antes tres problemas y cuatro pasos apilados: 3,500 px en el celular), con la competencia del último año;
+ * - todo en una sola cuenta: cinco puestos con su cifra de hoy, una fila que se desliza en el celular (el asistente va
+ *   aquí: su bloque grande medía 1,180 px);
+ * - el MCP (el menú «API y MCP» lleva a #mcp), las preguntas y, al final, los planes cortos con la cuenta gratis.
+ * Datos: los de Oportunidades y Contratos menores (datosPortada, con su caché); si faltan, cada parte dice lo mismo sin
+ * números o no aparece.
  */
 export default async function InicioLicitaciones() {
   const base = baseProducto("licitaciones");
-  const cat = await planesServidor("licitaciones");
+  const [cat, d] = await Promise.all([planesServidor("licitaciones"), datosPortada()]);
   const ruta = (p: string) => rutaEn(base, p);
   const crear = ruta(`/entrar?crear=1&next=${encodeURIComponent("/cuenta?tab=para-ti")}`);
+  const r = d.resumen;
+  const m = d.menores;
+  const comp = r?.competencia;
+  const unSolo = comp?.procesos && comp.unSoloPostor != null ? Math.round((comp.unSoloPostor / comp.procesos) * 100) : null;
+  const opciones = d.rubros.map((x) => opcionRubro(x, ruta));
+
+  const puestos: Puesto[] = [
+    {
+      sprite: "iconoCalendario",
+      titulo: "Contratos menores para cotizar hoy",
+      texto: "Compras de hasta 8 UIT que todavía reciben cotizaciones, con sus términos de referencia. Se actualizan cada hora.",
+      cifra: m ? { texto: numero(m.abiertas), que: m.cierranHoy > 0 ? <>abiertos; {numero(m.cierranHoy)} cierran hoy</> : "abiertos ahora" } : null,
+      accion: "Ver los contratos menores",
+      href: ruta("/menores"),
+      oscura: true,
+    },
+    {
+      sprite: "iconoLupa",
+      titulo: "Licitaciones del SEACE",
+      texto: "Cada convocatoria con sus ítems, sus bases y la entidad que compra.",
+      cifra: r ? { texto: numero(r.semana), que: "en los últimos 7 días" } : null,
+      accion: "Ver las licitaciones",
+      href: ruta("/oportunidades"),
+    },
+    {
+      sprite: "obra",
+      titulo: "Obras, incluidas en tu plan",
+      texto: "Las inversiones que se vienen, para llegar antes de que se liciten.",
+      accion: "Ver las obras",
+      href: urlCanonica("obras", "/"),
+    },
+    {
+      sprite: "iconoCaja",
+      titulo: "El mercado de tu rubro",
+      texto: "Quién compra, quién gana y a qué precio en los últimos 12 meses.",
+      cifra: comp?.adjudicado ? { texto: solesCompacto(comp.adjudicado), que: "adjudicados en 12 meses" } : null,
+      accion: "Ver el mercado",
+      href: ruta("/mercado"),
+    },
+    {
+      sprite: "documento",
+      titulo: "Tu asistente con IA",
+      texto: "Le preguntas como a un colega: «¿Qué licitaciones de uniformes hay esta semana en Cusco?». Viene con los planes.",
+      accion: "Ver lo que incluye cada plan",
+      href: ruta("/planes#comparar"),
+    },
+  ];
 
   return (
     <>
-      {/* ── 1. La oferta ─────────────────────────────────────────────────────── */}
+      {/* ── La oferta, viva ─────────────────────────────────────────────────── */}
       <section className="sobre-oscuro relative overflow-hidden bg-ink text-paper">
         <div aria-hidden className="fondo-puntos pointer-events-none absolute inset-0 opacity-40" />
-        <div className="container-page relative grid gap-12 py-14 sm:py-20 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.05fr)] lg:items-center lg:gap-10 lg:py-24">
+        <div className="container-page relative grid gap-x-12 gap-y-7 py-9 sm:py-14 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] lg:items-center lg:py-16">
           <div className="min-w-0">
             <h1 className="max-w-[16ch] text-balance font-display text-portada font-bold leading-[1.04] tracking-[-0.025em] sm:text-cartel">
               Véndele al Estado sin revisar el SEACE cada mañana.
             </h1>
-            <p className="mt-6 max-w-[54ch] text-pretty text-bloque leading-relaxed text-paper/80">
-              Dinos qué vende tu empresa. Cada día te mostramos las licitaciones y los contratos menores que calzan contigo, ordenados por afinidad y
-              con lo que necesitas saber para ganarlos.
+            <p className="mt-5 max-w-[54ch] text-pretty text-cuerpo leading-relaxed text-paper/80 sm:text-bloque">
+              {r && m ? (
+                <>
+                  En los últimos 7 días el Estado publicó <Odometro texto={numero(r.semana)} className="font-semibold text-paper" /> licitaciones, y hoy hay{" "}
+                  <Odometro texto={numero(m.abiertas)} retardo={250} className="font-semibold text-paper" /> contratos menores que todavía puedes cotizar. Te
+                  mostramos los que calzan con lo que vendes.
+                </>
+              ) : (
+                <>Dinos qué vende tu empresa. Cada día te mostramos las licitaciones y los contratos menores que calzan contigo, con lo que necesitas saber para ganarlos.</>
+              )}
             </p>
-            <div className="mt-8 flex flex-col gap-3 sm:flex-row">
+          </div>
+          {/* Lo vivo: en el celular, después de la frase; desde lg, la columna de la derecha (en lugar de la escena). */}
+          {opciones.length >= 2 && (
+            <Pruebalo oscuro className="lg:col-start-2 lg:row-span-2 lg:row-start-1" pregunta="¿Qué vendes? Mira lo que hay hoy" opciones={opciones} />
+          )}
+          <div className="min-w-0">
+            <BuscadorRubro accion={ruta("/oportunidades")} className="max-w-xl" />
+            <div className="mt-5 flex flex-wrap items-center gap-x-5 gap-y-3">
               <Link href={crear} className={claseAccion("oscuro", "", "lg")}>
                 Crear mi cuenta gratis <ArrowRight size={18} aria-hidden />
               </Link>
-              <Link href={ruta("/planes")} className={claseAccion("contornoOscuro", "", "lg")}>
+              <Link href={ruta("/planes")} className="inline-flex min-h-11 items-center text-dato font-semibold text-paper/85 underline-offset-4 hover:text-paper hover:underline">
                 Ver planes
               </Link>
             </div>
-            <ul className="mt-8 grid gap-2.5 text-dato text-paper/80 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
-              {["Gratis y sin tarjeta", "Datos oficiales del SEACE y el OECE", "Avisos por correo y en tu celular", "Obras incluidas en tu plan"].map((x) => (
-                <li key={x} className="flex items-center gap-2">
-                  <Check size={16} aria-hidden className="shrink-0 text-maiz" /> {x}
-                </li>
-              ))}
-            </ul>
+            <p className="mt-3 text-meta text-paper/65">Gratis y sin tarjeta. Datos oficiales del SEACE y el OECE. Obras incluidas en tu plan.</p>
           </div>
-          <EscenaLicitaciones className="lg:mt-6" />
         </div>
       </section>
 
-      <div className="container-page space-y-24 pb-14 pt-16 sm:space-y-32 sm:pb-16 sm:pt-24">
-        {/* ── 2. El problema ─────────────────────────────────────────────────── */}
-        <section aria-labelledby="problema-t" className="grid gap-10 lg:grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)] lg:gap-16">
-          <div className="min-w-0">
-            <h2 id="problema-t" className="text-balance font-display text-titulo font-bold leading-[1.08] tracking-[-0.02em] text-ink sm:text-vitrina">
-              Hoy, venderle al Estado es llegar tarde o a ciegas
-            </h2>
-            <p className="mt-5 max-w-[48ch] text-pretty text-cuerpo leading-relaxed text-inkSoft">
-              Las compras públicas son abiertas. Encontrar a tiempo la que es para ti, y ofertar sabiendo contra quién compites, sigue siendo
-              trabajo de horas.
-            </p>
-          </div>
-          <ul className="min-w-0 divide-y divide-line border-y border-line">
-            <Problema sprite="iconoCaja" titulo="Lo tuyo se pierde entre todo lo demás">
-              Cada día se publican compras nuevas de todas las entidades y todos los rubros. Revisarlas a mano se come la mañana, y la que era
-              para ti pasa de largo.
-            </Problema>
-            <Problema sprite="iconoCalendario" titulo="Los contratos menores no esperan">
-              Las compras de hasta 8 UIT reciben cotizaciones por pocos días, a veces por horas. Si no la ves a tiempo, ya cerró.
-            </Problema>
-            <Problema sprite="pregunta" titulo="Se oferta a ciegas">
-              No sabes quién le vende a esa entidad, a qué precio se adjudicó lo mismo en otra ni cuántos compiten. El precio se pone adivinando.
-            </Problema>
-          </ul>
-        </section>
-
-        {/* ── 3. Cómo funciona ───────────────────────────────────────────────── */}
+      <div className="container-page space-y-14 pb-14 pt-12 sm:space-y-16 sm:pb-16 sm:pt-14">
+        {/* ── Cómo funciona: el problema de hoy y lo que hace Gobserva ─────────── */}
         <section aria-labelledby="como-t">
-          <Cabecera
-            id="como-t"
-            titulo="Cómo funciona"
-            bajada="El primer paso lo haces tú, una sola vez. Los demás corren solos todos los días."
-          />
-          <ol className="relative mt-12 space-y-14 sm:space-y-20">
-            <Paso n={1} titulo="Dinos qué vendes" maqueta={<MaquetaLinea />} ilustracion={<Pixel nombre="emprendedora" escala={2} retardo={1800} />}>
-              En tus palabras, con las regiones donde atiendes y lo que compras. Es tu línea de negocio: con ella ordenamos todo lo demás.
-            </Paso>
-            <Paso
-              n={2}
-              titulo="Te mostramos lo que calza"
+          <Cabecera id="como-t" titulo="Llega a tiempo y oferta sabiendo" bajada="Hoy venderle al Estado es llegar tarde o a ciegas. El primer paso lo haces tú, una vez; lo demás corre solo cada día." />
+          <PestanasVivas
+            etiqueta="Cómo funciona Gobserva Licitaciones"
+            className="mt-6"
+            auto={6500}
+            pestanas={[
+              { titulo: "Dinos qué vendes", icono: <Icono sprite="emprendedora" /> },
+              { titulo: "Lo que calza", icono: <Icono sprite="iconoLupa" /> },
+              { titulo: "Avisos a tiempo", icono: <Icono sprite="iconoCampana" /> },
+              { titulo: "Contra quién compites", icono: <Icono sprite="pregunta" /> },
+            ]}
+          >
+            <Panel titulo="Una sola vez, en tus palabras" maqueta={<MaquetaLinea />}>
+              Escribe lo que vende tu empresa, las regiones donde atiendes y lo que compras. Es tu línea de negocio: con ella ordenamos todo lo demás.
+            </Panel>
+            <Panel
+              titulo="Lo tuyo, primero"
               maqueta={<MaquetaParaTi />}
+              hoy="Cada día se publican compras de todas las entidades y todos los rubros, y la que era para ti pasa de largo."
               accion={{ href: ruta("/para-ti"), etiqueta: "Así se ve «Para ti»" }}
-              ilustracion={<Pixel nombre="iconoLupa" escala={2.75} acento="accion" />}
             >
-              En «Para ti» están las licitaciones y los contratos menores abiertos, de lo que más se parece a lo que vendes a lo que menos, con un
-              puntaje de afinidad de 0 a 100.
-            </Paso>
-            <Paso n={3} titulo="Te avisamos a tiempo" maqueta={<MaquetaAviso correo={cat.correoActivo} />} ilustracion={<Pixel nombre="iconoCampana" escala={2.75} acento="accion" />}>
-              Lo nuevo llega {cat.correoActivo ? "a tu correo" : "a tu cuenta"} y como notificación a tu celular: con la cuenta gratis, cada semana;
-              con un plan, cada mañana. Y te recordamos lo que guardaste 2 días antes de que cierre.
-            </Paso>
-            <Paso n={4} titulo="Ofertas sabiendo contra quién compites" maqueta={<MaquetaContexto />} ilustracion={<Pixel nombre="documento" escala={2.5} acento="accion" />} ultimo>
-              Antes de cotizar ves quién le vende a esa entidad, a qué precio se adjudicó lo mismo en otras y cuántos suelen competir. Todo con el
-              enlace a la fuente oficial.
-            </Paso>
-          </ol>
+              En «Para ti» están las licitaciones y los contratos menores abiertos, de lo que más se parece a lo que vendes a lo que menos, con un puntaje de
+              afinidad de 0 a 100.
+            </Panel>
+            <Panel
+              titulo="Te avisamos antes de que cierre"
+              maqueta={<MaquetaAviso correo={cat.correoActivo} />}
+              hoy="Los contratos menores reciben cotizaciones por pocos días, a veces por horas: si no lo ves a tiempo, ya cerró."
+            >
+              Lo nuevo llega {cat.correoActivo ? "a tu correo" : "a tu cuenta"} y como notificación a tu celular: con la cuenta gratis, cada semana; con un plan,
+              cada mañana. Y te recordamos lo que guardaste 2 días antes de que cierre.
+            </Panel>
+            <Panel
+              titulo="Pones tu precio sabiendo"
+              maqueta={<MaquetaContexto />}
+              hoy={
+                unSolo != null && comp?.postoresPromedio ? (
+                  <>
+                    En el último año, en <b className="font-semibold text-ink">{unSolo} de cada 100</b> procesos se presentó un solo postor, y en promedio
+                    compitieron {comp.postoresPromedio.toLocaleString("es-PE", { maximumFractionDigits: 1 })}. Sin saber quién le vende a esa entidad ni a qué
+                    precio, se oferta a ciegas.
+                  </>
+                ) : (
+                  "Sin saber quién le vende a esa entidad, a qué precio se adjudicó lo mismo ni cuántos compiten, el precio se pone adivinando."
+                )
+              }
+            >
+              Antes de cotizar ves quién le vende a esa entidad, a qué precio se adjudicó lo mismo en otras y cuántos suelen competir. Todo con el enlace a la
+              fuente oficial.
+            </Panel>
+          </PestanasVivas>
         </section>
 
-        {/* ── 4. El asistente (con un plan) ──────────────────────────────────── */}
-        <BloqueAsistente
-          titulo="Pregúntale a tu asistente"
-          bajada="Dentro de la app, un asistente con IA busca licitaciones, contratos menores y obras, lee las bases y te dice quién compra, quién gana y a qué precio. Le preguntas como a un colega."
-          pregunta="¿Qué licitaciones de uniformes hay esta semana en Cusco y quién suele ganarlas?"
-          respuesta="Hay 3 convocatorias abiertas. La primera cierra consultas el jueves:"
-          filas={[
-            { titulo: "Uniformes para el personal", quien: "Una municipalidad de Cusco", cifra: "S/ 180,000", nota: "Consultas hasta el jueves" },
-            { titulo: "Vestuario institucional", quien: "Un hospital regional", cifra: "S/ 95,400", nota: "Consultas hasta el lunes" },
-            { titulo: "Ropa de trabajo", quien: "Una unidad ejecutora", cifra: "S/ 62,000", nota: "Cotiza en 5 días" },
-          ]}
-          creditos="1,500 créditos al mes con Inicia"
-          descargas
-          planes={ruta("/planes#comparar")}
-        />
-
-        {/* ── 5. Todo en una cuenta ──────────────────────────────────────────── */}
+        {/* ── Todo en una sola cuenta ────────────────────────────────────────── */}
         <section aria-labelledby="todo-t">
-          <Cabecera
-            id="todo-t"
-            titulo="Todo en una sola cuenta"
-            bajada="Una suscripción para lo que compra el Estado: bienes, servicios, consultorías y obras."
-          />
-          <div className="mt-10 grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)]">
-            <Link
-              href={ruta("/menores")}
-              className="sobre-oscuro group relative flex min-w-0 flex-col overflow-hidden rounded-3xl border border-paper/10 bg-ink p-6 text-paper sm:p-8"
-            >
-              <div aria-hidden className="fondo-puntos pointer-events-none absolute inset-0 opacity-30" />
-              <h3 className="relative text-balance font-display text-seccion font-bold leading-tight sm:text-titulo">Contratos menores para cotizar hoy</h3>
-              <p className="relative mt-3 max-w-[46ch] text-dato leading-relaxed text-paper/80">
-                Las compras de hasta 8 UIT que todavía reciben cotizaciones en el SEACE, con sus términos de referencia para descargar y lo que se
-                pagó antes por lo mismo. Se actualizan cada hora.
-              </p>
-              <div className="relative mt-6">
-                <MaquetaMenores />
-              </div>
-              <span className="relative mt-6 inline-flex items-center gap-1.5 text-dato font-semibold text-maiz underline-offset-4 group-hover:underline">
-                Ver los contratos menores <ArrowRight size={16} aria-hidden className="transition-transform duration-rapido group-hover:translate-x-0.5" />
-              </span>
-            </Link>
-            <ul className="min-w-0 divide-y divide-line overflow-hidden rounded-3xl border border-line bg-paper">
-              <Incluye href={ruta("/oportunidades")} Icono={Landmark} titulo="Licitaciones del SEACE">
-                Cada convocatoria con sus ítems, sus bases y lo que se sabe de la entidad que compra.
-              </Incluye>
-              <Incluye href={urlCanonica("obras", "/")} Icono={HardHat} titulo="Obras, incluidas en tu plan">
-                Las inversiones públicas que se vienen y las que están en marcha, para llegar antes de que se liciten.
-              </Incluye>
-              <Incluye href={ruta("/mercado")} Icono={LineChart} titulo="El mercado de tu rubro">
-                Quién compra, quién gana y a qué precio en los últimos 12 meses.
-              </Incluye>
-              <Incluye href={ruta("/#mcp")} Icono={Bot} titulo="Tu IA, conectada">
-                Con un plan, pregúntale a Claude o a ChatGPT por las licitaciones del día: el MCP de Gobserva viene incluido.
-              </Incluye>
-            </ul>
-          </div>
+          <Cabecera id="todo-t" titulo="Todo en una sola cuenta" bajada="Bienes, servicios, consultorías y obras: lo que compra el Estado, en una suscripción." />
+          <TodoEnUnaCuenta className="mt-6" puestos={puestos} />
         </section>
 
-        {/* ── 6. Planes ──────────────────────────────────────────────────────── */}
-        <section aria-labelledby="planes-t">
-          <Cabecera
-            id="planes-t"
-            titulo="Empieza gratis"
-            bajada="Buscar, leer las fichas y ver «Para ti» es gratis, y con tu cuenta te avisamos cada semana. Los planes te avisan cada mañana, guardan más y bajan tus búsquedas en Excel. Obras viene incluido."
-            accion={{ href: ruta("/planes#comparar"), etiqueta: "Comparar planes" }}
-          />
-          <Planes className="mt-8" planes={planesLicitaciones(base, cat)} />
-        </section>
-
-        {/* ── 7. Tu IA (MCP): la franja; los pasos están en los planes ───────── */}
+        {/* ── Tu IA (MCP): el menú «API y MCP» trae aquí ──────────────────────── */}
         <FranjaMCP que="licitaciones, obras y tu mercado" href={ruta("/planes#mcp")} />
 
-        {/* ── 8. Preguntas ───────────────────────────────────────────────────── */}
+        {/* ── Preguntas ──────────────────────────────────────────────────────── */}
         <Faq
           preguntas={[
             {
@@ -219,149 +224,122 @@ export default async function InicioLicitaciones() {
           ]}
         />
 
-        {/* ── 9. El cierre ───────────────────────────────────────────────────── */}
-        <section aria-labelledby="cierre-t" className="sobre-oscuro relative overflow-hidden rounded-3xl border border-paper/10 bg-ink px-6 py-12 text-paper sm:px-12 sm:py-16">
+        {/* ── Empieza gratis: los planes, cortos, y la cuenta ───────────────── */}
+        <section aria-labelledby="planes-t" className="sobre-oscuro relative overflow-hidden rounded-3xl border border-paper/10 bg-ink px-5 py-7 text-paper sm:px-10 sm:py-10">
           <div aria-hidden className="fondo-puntos pointer-events-none absolute inset-0 opacity-40" />
-          <div className="relative grid gap-8 lg:grid-cols-[minmax(0,1.4fr)_auto] lg:items-end">
-            <div className="min-w-0">
-              <h2 id="cierre-t" className="max-w-[20ch] text-balance font-display text-titulo font-bold leading-[1.08] tracking-[-0.02em] sm:text-vitrina">
+          <div className="relative flex flex-wrap items-end justify-between gap-x-8 gap-y-5">
+            <div className="min-w-0 max-w-3xl">
+              <h2 id="planes-t" className="text-balance font-display text-cifra font-bold leading-[1.1] tracking-[-0.02em] sm:text-titulo">
                 Que la próxima compra de tu rubro te encuentre a ti
               </h2>
-              <p className="mt-4 max-w-[52ch] text-pretty text-cuerpo leading-relaxed text-paper/80">
-                Crea tu cuenta, dinos qué vendes y mira hoy mismo lo que calza contigo. Gratis y sin tarjeta.
+              <p className="mt-3 max-w-[60ch] text-pretty text-cuerpo leading-relaxed text-paper/80">
+                Buscar, leer las fichas y ver «Para ti» es gratis, y con tu cuenta te avisamos cada semana. Los planes te avisan cada mañana, guardan más y
+                bajan tus búsquedas en Excel.{" "}
+                <Link href={ruta("/planes#comparar")} className="whitespace-nowrap font-semibold text-maiz underline-offset-4 hover:underline">
+                  Comparar lo que incluye cada plan
+                </Link>
               </p>
             </div>
-            <div className="min-w-0">
-              <div aria-hidden className="mb-5 flex items-end gap-3">
-                <Pixel nombre="emprendedora" escala={4} retardo={1600} />
-                <Pixel nombre="camion" escala={4} />
-              </div>
-              <div className="flex flex-col gap-3 sm:flex-row lg:flex-col">
-                <Link href={crear} className={claseAccion("oscuro", "", "lg")}>
-                  Crear mi cuenta gratis <ArrowRight size={18} aria-hidden />
-                </Link>
-                <Link href={ruta("/planes")} className={claseAccion("contornoOscuro", "", "lg")}>
-                  Ver planes
-                </Link>
-              </div>
+            <div aria-hidden className="flex items-end gap-3 max-sm:hidden">
+              <Pixel nombre="emprendedora" escala={4} retardo={1600} />
+              <Pixel nombre="camion" escala={4} />
             </div>
           </div>
+          <PlanesCortos className="relative mt-6" planes={planesLicitaciones(base, cat)} />
         </section>
       </div>
     </>
   );
 }
 
-function Cabecera({ id, titulo, bajada, accion }: { id: string; titulo: string; bajada?: string; accion?: { href: string; etiqueta: string } }) {
+/** Lo que muestra «¿Qué vendes?» para un rubro: cuántas convocatorias en 15 días, la más reciente y los menores abiertos. */
+function opcionRubro(x: RubroVivo, ruta: (p: string) => string): OpcionPrueba {
+  const rubro = x.etiqueta.toLocaleLowerCase("es-PE");
+  const p = x.primera;
+  const objeto = p ? recortar(limpiar(p.objeto).replace(/["“”]/g, ""), 90) : "";
+  return {
+    etiqueta: x.etiqueta,
+    cifra: numero(x.total),
+    unidad: <>{x.total === 1 ? "licitación" : "licitaciones"} de {rubro} en los últimos 15 días</>,
+    detalle: (
+      <>
+        {p && objeto ? <>{masReciente(objeto, p.entidad, p.consultasHasta)} </> : null}
+        {x.menores ? (
+          <b className="font-semibold text-paper">
+            Y {numero(x.menores)} {x.menores === 1 ? "contrato menor" : "contratos menores"} para cotizar ya.
+          </b>
+        ) : null}
+      </>
+    ),
+    href: ruta(`/oportunidades?q=${encodeURIComponent(x.q)}`),
+    accion: `Ver ${x.total === 1 ? "la" : `las ${numero(x.total)}`} de ${rubro}`,
+  };
+}
+
+/**
+ * «La más reciente: «…» (Municipalidad Distrital de…), con consultas hasta el 24 nov.». La entidad entre paréntesis: su
+ * nombre oficial no siempre admite «de la». Sin doble punto cuando la fecha ya termina en punto.
+ */
+function masReciente(objeto: string, entidad: string | null, consultasHasta: string | null): string {
+  const frase = `La más reciente: «${objeto}»${entidad ? ` (${tituloNatural(entidad)})` : ""}${consultasHasta ? `, con consultas hasta el ${fechaCorta(consultasHasta)}` : ""}`;
+  return frase.endsWith(".") ? frase : `${frase}.`;
+}
+
+function recortar(t: string, max: number): string {
+  if (t.length <= max) return t;
+  const corte = t.slice(0, max);
+  return `${corte.slice(0, Math.max(corte.lastIndexOf(" "), max - 15)).replace(/[,;:.\s]+$/, "")}…`;
+}
+
+function Icono({ sprite }: { sprite: NombreSprite }) {
   return (
-    <div className="flex flex-wrap items-end justify-between gap-x-8 gap-y-4">
-      <div className="min-w-0 max-w-3xl">
-        <h2 id={id} className="text-balance font-display text-titulo font-bold leading-[1.08] tracking-[-0.02em] text-ink sm:text-vitrina">
-          {titulo}
-        </h2>
-        {bajada && <p className="mt-4 max-w-[62ch] text-pretty text-cuerpo leading-relaxed text-inkSoft">{bajada}</p>}
-      </div>
-      {accion && (
-        <Link href={accion.href} className="inline-flex min-h-11 shrink-0 items-center gap-1 text-dato font-semibold text-granate underline-offset-4 hover:underline">
-          {accion.etiqueta} <ArrowRight size={15} aria-hidden />
-        </Link>
-      )}
+    <span aria-hidden className="flex h-6 w-6 items-end justify-center">
+      <Pixel nombre={sprite} escala={sprite === "emprendedora" ? 1 : 1.25} acento="accion" animado={false} />
+    </span>
+  );
+}
+
+function Cabecera({ id, titulo, bajada }: { id: string; titulo: string; bajada?: string }) {
+  return (
+    <div className="min-w-0 max-w-3xl">
+      <h2 id={id} className="text-balance font-display text-titulo font-bold leading-[1.08] tracking-[-0.02em] text-ink sm:text-vitrina">
+        {titulo}
+      </h2>
+      {bajada && <p className="mt-3 max-w-[62ch] text-pretty text-cuerpo leading-relaxed text-inkSoft">{bajada}</p>}
     </div>
   );
 }
 
-/** El tamaño de cada viñeta de píxeles en su cuadro de 48 px. */
-const ESCALA_PROBLEMA: Partial<Record<NombreSprite, number>> = { iconoCaja: 2.5, iconoCalendario: 2.5, pregunta: 3.25 };
-
 /**
- * Un problema de hoy: su viñeta de píxeles en un cuadro (como las situaciones de Salud), el título fuerte a la izquierda
- * y la explicación al lado (desde sm), separados por filetes.
+ * Un panel de «Cómo funciona»: lo que pasa hoy sin Gobserva (si aplica), lo que hace Gobserva, y su maqueta al lado
+ * desde lg (en el celular, debajo).
  */
-function Problema({ sprite, titulo, children }: { sprite: NombreSprite; titulo: string; children: ReactNode }) {
-  return (
-    <li className="grid gap-3 py-6 sm:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)] sm:gap-8 sm:py-8">
-      <h3 className="flex items-center gap-3.5 font-display text-bloque font-bold leading-snug text-ink sm:items-start">
-        <span aria-hidden className="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-paperDeep">
-          <Pixel nombre={sprite} escala={ESCALA_PROBLEMA[sprite] ?? 2.5} acento="accion" />
-        </span>
-        <span className="min-w-0 sm:pt-1">{titulo}</span>
-      </h3>
-      <p className="text-pretty text-dato leading-relaxed text-inkSoft">{children}</p>
-    </li>
-  );
-}
-
-/**
- * Un paso de «Cómo funciona»: el número sobre una línea que baja al siguiente, el título (con su viñeta de píxeles,
- * decorativa), una frase y su maqueta al lado (desde lg; en el celular, debajo).
- */
-function Paso({
-  n,
+function Panel({
   titulo,
+  hoy,
   children,
   maqueta,
   accion,
-  ilustracion,
-  ultimo = false,
 }: {
-  n: number;
   titulo: string;
+  hoy?: ReactNode;
   children: ReactNode;
   maqueta: ReactNode;
   accion?: { href: string; etiqueta: string };
-  /** Una viñeta de píxeles junto al título: un personaje o un ícono, decorativa. */
-  ilustracion?: ReactNode;
-  ultimo?: boolean;
 }) {
   return (
-    <li className="relative grid gap-6 pl-14 sm:pl-16 lg:grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)] lg:items-start lg:gap-14">
-      <span
-        aria-hidden
-        className="absolute left-0 top-0 grid h-10 w-10 place-items-center rounded-full bg-granate font-display text-cuerpo font-bold tabular-nums text-paper sm:h-11 sm:w-11"
-      >
-        {n}
-      </span>
-      {!ultimo && <span aria-hidden className="absolute bottom-[-3.5rem] left-5 top-12 w-px bg-line sm:bottom-[-5rem] sm:left-[1.375rem] sm:top-14" />}
-      <div className="min-w-0 pt-1.5 lg:pt-2">
-        <h3 className="flex items-center gap-3 font-display text-seccion font-bold leading-tight text-ink sm:text-cifra">
-          {ilustracion && (
-            <span aria-hidden className="flex w-9 shrink-0 justify-center">
-              {ilustracion}
-            </span>
-          )}
-          <span className="min-w-0">
-            <span className="sr-only">Paso {n}: </span>
-            {titulo}
-          </span>
-        </h3>
-        <p className="mt-3 max-w-[50ch] text-pretty text-cuerpo leading-relaxed text-inkSoft">{children}</p>
+    <div className="grid gap-6 lg:grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)] lg:items-start lg:gap-12">
+      <div className="min-w-0 lg:pt-2">
+        {hoy && <p className="max-w-[50ch] text-pretty text-dato leading-relaxed text-mute">{hoy}</p>}
+        <h3 className={`${hoy ? "mt-4" : ""} font-display text-seccion font-bold leading-tight text-ink sm:text-cifra`}>{titulo}</h3>
+        <p className="mt-2.5 max-w-[50ch] text-pretty text-cuerpo leading-relaxed text-inkSoft">{children}</p>
         {accion && (
-          <Link href={accion.href} className="mt-4 inline-flex min-h-11 items-center gap-1 text-dato font-semibold text-granate underline-offset-4 hover:underline">
+          <Link href={accion.href} className="mt-3 inline-flex min-h-11 items-center gap-1 text-dato font-semibold text-granate underline-offset-4 hover:underline">
             {accion.etiqueta} <ArrowRight size={15} aria-hidden />
           </Link>
         )}
       </div>
       <div className="min-w-0">{maqueta}</div>
-    </li>
-  );
-}
-
-/** Lo que trae la cuenta: una fila que enlaza, con su ícono, su título y una frase. */
-function Incluye({ href, Icono, titulo, children }: { href: string; Icono: typeof Timer; titulo: string; children: ReactNode }) {
-  return (
-    <li>
-      <Link href={href} className="group flex items-start gap-4 p-5 transition-colors duration-rapido hover:bg-paperSoft sm:p-6">
-        <span aria-hidden className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-granate-50 text-granate">
-          <Icono size={20} />
-        </span>
-        <span className="min-w-0 flex-1">
-          <span className="flex items-center justify-between gap-3 font-display text-bloque font-bold text-ink">
-            {titulo}
-            <ArrowRight size={17} aria-hidden className="shrink-0 text-mute transition-transform duration-rapido group-hover:translate-x-0.5 group-hover:text-granate" />
-          </span>
-          <span className="mt-1 block text-dato leading-relaxed text-inkSoft">{children}</span>
-        </span>
-      </Link>
-    </li>
+    </div>
   );
 }
