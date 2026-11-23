@@ -48,6 +48,8 @@ export interface Pestana {
   conteo?: number | null;
   /** Ícono a la izquierda del nombre (un `<Icono size={15} aria-hidden />` ya armado). */
   icono?: ReactNode;
+  /** `variante="segunda"`: qué es, en una línea bajo el nombre (la subpestaña se vuelve una tarjeta que se elige). */
+  pista?: string;
   /** El título del panel abierto (el h2 de su `CabeceraPestana`). Por defecto, `etiqueta`. */
   titulo?: string;
   /** Qué es, de dónde sale y cómo leerla (`GuiaPestana`): va arriba del contenido al abrirla. */
@@ -204,6 +206,8 @@ export function Pestanas({
   const correr = (lado: -1 | 1) => riel.current?.scrollBy({ left: lado * riel.current.clientWidth * 0.7, behavior: "smooth" });
 
   const segunda = variante === "segunda";
+  // Subpestañas con su pista: dos tarjetas grandes que se eligen, en vez de dos píldoras de 13 px (2026-11-23).
+  const conPista = segunda && pestanas.some((p) => p.pista);
 
   return (
     // Con la barra fija, lo que se pega arriba dentro de la pestaña (rótulos de grupo de una Tabla) va debajo de ella:
@@ -219,9 +223,11 @@ export function Pestanas({
           onScroll={medir}
           className={cn(
             "flex overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
-            segunda
-              ? "w-fit max-w-full gap-1 rounded-full border border-line bg-paperSoft p-1"
-              : "gap-1 border-b border-line",
+            conPista
+              ? "w-full gap-1.5 rounded-2xl border border-line bg-paperSoft p-1.5 sm:w-fit"
+              : segunda
+                ? "w-fit max-w-full gap-1 rounded-full border border-line bg-paperSoft p-1"
+                : "gap-1 border-b border-line",
             MASCARA[`${desborde.izq}-${desborde.der}`],
           )}
         >
@@ -243,7 +249,11 @@ export function Pestanas({
                 onKeyDown={(e) => alTeclado(e, i)}
                 className={cn(
                   "inline-flex shrink-0 items-center gap-2 whitespace-nowrap font-medium transition-colors duration-rapido focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-granate",
-                  segunda ? "min-h-[36px] rounded-full px-3 text-meta" : "min-h-[42px] rounded-none px-3 text-dato",
+                  conPista
+                    ? "min-h-14 min-w-0 flex-1 basis-0 flex-wrap content-center gap-x-2 gap-y-0.5 whitespace-normal rounded-xl px-3.5 py-2 text-left text-dato sm:flex-none sm:basis-auto sm:px-4"
+                    : segunda
+                      ? "min-h-[36px] rounded-full px-3 text-meta"
+                      : "min-h-[42px] rounded-none px-3 text-dato",
                   sel
                     ? segunda
                       ? "bg-paper font-semibold text-granate shadow-[0_1px_2px_rgb(var(--ink)/0.08)]"
@@ -265,6 +275,9 @@ export function Pestanas({
                     {numero(p.conteo)}
                   </span>
                 )}
+                {conPista && p.pista ? (
+                  <span className={cn("basis-full text-meta font-normal leading-snug", sel ? "text-ink" : "text-inkSoft")}>{p.pista}</span>
+                ) : null}
               </button>
             );
           })}

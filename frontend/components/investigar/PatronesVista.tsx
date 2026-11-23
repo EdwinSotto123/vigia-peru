@@ -13,6 +13,7 @@ import { InformeEnPanel } from "@/components/control/InformeEnPanel";
 import { OrdenesDelPeriodo } from "@/components/historia/OrdenesDelPeriodo";
 import { COLUMNAS_AUTORIDAD_EXSOCIO, COLUMNAS_COMPRAS_FAMILIA, filaAutoridadExsocio, filaCompraFamilia } from "./filasCasos";
 import { TarjetasDueno } from "./TarjetasDueno";
+import { FiltroGraves, TarjetasGrupo } from "./TarjetasGrupo";
 import { detalleConsorcio, detalleControl, detalleDoble, detalleDueno, detalleGrupo, detalleInhabilitada, detalleObservacion, detalleObservado, detalleRecien, detalleRelleno, detalleRenovacion, detalleRepetida, detalleSenal } from "./DetallePatron";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
@@ -46,6 +47,7 @@ import {
   type PatronTribunalResolucion,
   rutaTribunalEntidades,
   SECCIONES_PATRONES,
+  TAM_FICHA,
   TAM_PATRONES,
   type AlcancePatron,
   type PatronAcompanante,
@@ -388,6 +390,7 @@ function ZonaLista({
   onPagina,
   filtro,
   vacio,
+  tam = TAM_PATRONES,
   children,
 }: {
   total: number;
@@ -398,16 +401,18 @@ function ZonaLista({
   filtro?: ReactNode;
   /** Qué decir si no hay ninguna fila. */
   vacio: string;
+  /** Cuántas por página (las tarjetas de una ficha, TAM_FICHA). */
+  tam?: number;
   children: ReactNode;
 }) {
-  const paginas = Math.max(1, Math.ceil(total / TAM_PATRONES));
+  const paginas = Math.max(1, Math.ceil(total / tam));
   const control = (subir: boolean) =>
-    total > TAM_PATRONES ? (
-      <Paginacion actual={page} paginas={paginas} total={total} tam={TAM_PATRONES} navegacion="interna" onChange={onPagina} cargando={cargando} nombre={nombre} subir={subir} />
+    total > tam ? (
+      <Paginacion actual={page} paginas={paginas} total={total} tam={tam} navegacion="interna" onChange={onPagina} cargando={cargando} nombre={nombre} subir={subir} />
     ) : null;
   return (
     <div data-paginado className={cn(MARGEN_LISTA, "space-y-3")}>
-      {(filtro || total > TAM_PATRONES) && (
+      {(filtro || total > tam) && (
         <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
           {filtro ?? <span aria-hidden />}
           {control(false)}
@@ -1023,26 +1028,7 @@ function ListaDuenos({ inicial }: { inicial: InicialPatrones }) {
                     </>
                   )}
                 </p>
-                <div role="group" aria-label="Qué casos ver" className="inline-flex rounded-full border border-line bg-paperSoft p-1">
-                  {[
-                    { valor: false, texto: "Todos", n: todos },
-                    { valor: true, texto: "Sólo los graves", n: nGraves },
-                  ].map((o) => (
-                    <button
-                      key={o.texto}
-                      type="button"
-                      aria-pressed={graves === o.valor}
-                      onClick={() => setGraves(o.valor)}
-                      className={cn(
-                        "inline-flex min-h-10 items-center gap-1.5 rounded-full px-4 text-dato font-semibold transition-colors duration-rapido focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-granate",
-                        graves === o.valor ? "bg-ink text-paper" : "text-inkSoft hover:text-ink",
-                      )}
-                    >
-                      {o.texto}
-                      {o.n != null ? <span className={cn("tabular-nums", graves === o.valor ? "text-paper/70" : "text-mute")}>{numero(o.n)}</span> : null}
-                    </button>
-                  ))}
-                </div>
+                <FiltroGraves graves={graves} onCambio={setGraves} todos={todos} nGraves={nGraves} />
                 <ZonaLista total={d.total} page={pag.page} cargando={carga.cargando} nombre="grupos" onPagina={pag.irAPagina} vacio="No hay socios con este patrón para ese filtro.">
                   {filas.length > 0 ? <TarjetasDueno filas={filas} /> : null}
                 </ZonaLista>
@@ -1182,8 +1168,11 @@ function ListaGrupos({ inicial }: { inicial: InicialPatrones }) {
   const consulta = ficha && q.trim().length >= 3 ? q.trim() : undefined;
   const filtrada = !!rucValido || graves || !!consulta;
   const pag = usePaginaConFiltro(filtrada ? `${rucValido ?? ""}|${graves ? 1 : 0}|${consulta ?? ""}` : "", lista);
-  const carga = usePoder<PatronesGrupos>(rutaGrupos(pag.page, rucValido, graves, consulta));
+  // En la ficha de una entidad: tarjetas de a 10 (el monto, los integrantes en una barra, lo que hicieron juntos).
+  const enEntidad = ficha?.vista === "entidad";
+  const carga = usePoder<PatronesGrupos>(rutaGrupos(pag.page, rucValido, graves, consulta, enEntidad ? TAM_FICHA : TAM_PATRONES));
   const columnasFicha = ficha?.vista === "empresa" ? COLUMNAS_GRUPOS_EMPRESA : COLUMNAS_GRUPOS_ENTIDAD;
+  const conteos = useRef<{ todos: number | null; graves: number | null }>({ todos: null, graves: null });
   return (
     <div className="space-y-4">
       <CabeceraPestana
@@ -1214,7 +1203,7 @@ function ListaGrupos({ inicial }: { inicial: InicialPatrones }) {
           className="mt-1 h-11 w-full rounded-xl border border-line bg-paperSoft px-3 text-dato text-ink placeholder:text-mute focus:border-granate focus:bg-paper focus:outline-none focus:ring-2 focus:ring-granate/20"
         />
       </label>
-      <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:gap-x-5">
+      <div className={cn("flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:gap-x-5", enEntidad && "hidden")}>
         <BuscarEnFicha
           valor={q}
           onBuscar={setQ}
@@ -1235,6 +1224,65 @@ function ListaGrupos({ inicial }: { inicial: InicialPatrones }) {
         {(d) => {
           const filas = d.data ?? [];
           const r = d.resumen;
+          if (enEntidad) {
+            if (!consulta) {
+              if (graves) conteos.current.graves = d.total;
+              else {
+                conteos.current.todos = d.total;
+                if (r) conteos.current.graves = r.altas;
+              }
+            }
+            return (
+              <div className="space-y-4">
+                <p className="max-w-[62ch] text-bloque leading-snug text-ink text-pretty">
+                  {consulta ? (
+                    <>
+                      <b className="font-display text-cifra font-bold tabular-nums">{numero(d.total)}</b> {d.total === 1 ? "grupo tiene" : "grupos tienen"} una empresa
+                      que se llama «{consulta}».
+                    </>
+                  ) : graves ? (
+                    <>
+                      <b className="font-display text-cifra font-bold tabular-nums text-crimsonTexto">{numero(d.total)}</b> {d.total === 1 ? "grupo es" : "grupos son"} de
+                      señal alta: órdenes de números correlativos o el mismo objeto repartido entre sus integrantes, con muchas al borde del tope.
+                    </>
+                  ) : (
+                    <>
+                      <b className="font-display text-cifra font-bold tabular-nums">{numero(d.total)}</b>{" "}
+                      {d.total === 1 ? "grupo de proveedores le vende" : "grupos de proveedores le venden"} a esta entidad por órdenes
+                      {r ? (
+                        <>
+                          : <b className="font-semibold">{solesCompacto(r.monto)}</b> sumados.{" "}
+                          {r.altas > 0 ? (
+                            <>
+                              <b className="font-semibold text-crimsonTexto">{numero(r.altas)} de señal alta</b>
+                              {r.conCorrelativas > 0 ? <> y {numero(r.conCorrelativas)} con órdenes de números correlativos.</> : "."}
+                            </>
+                          ) : null}
+                        </>
+                      ) : (
+                        "."
+                      )}
+                    </>
+                  )}
+                </p>
+                <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
+                  <FiltroGraves graves={graves} onCambio={setGraves} todos={conteos.current.todos} nGraves={conteos.current.graves} />
+                  <BuscarEnFicha valor={q} onBuscar={setQ} placeholder="Buscar una empresa del grupo…" cargando={carga.cargando && !!consulta} />
+                </div>
+                <ZonaLista
+                  total={d.total}
+                  page={pag.page}
+                  cargando={carga.cargando}
+                  nombre="grupos"
+                  onPagina={pag.irAPagina}
+                  tam={TAM_FICHA}
+                  vacio={consulta ? `Ningún grupo con una empresa que se llame «${consulta}».` : "No hay grupos para ese filtro."}
+                >
+                  {filas.length > 0 ? <TarjetasGrupo filas={filas} /> : null}
+                </ZonaLista>
+              </div>
+            );
+          }
           // En una ficha, lo que suman sus grupos (no el umbral de la lista del país): cuántos, cuánto, cuántos graves y
           // cuántos con órdenes correlativas.
           const cifras: Indicador[] =

@@ -35,6 +35,8 @@ export type SeccionPatrones = keyof typeof SECCIONES_PATRONES;
 
 /** Filas por página: el mismo tamaño en las cuatro listas. */
 export const TAM_PATRONES = 25;
+/** Las tarjetas de un patrón en la ficha de una entidad, por página (25 tarjetas eran ocho pantallas). */
+export const TAM_FICHA = 10;
 
 export type AlcancePatron = "entidad" | "proveedor";
 
@@ -633,8 +635,9 @@ export const rutaConsorcios = (page = 1, ruc?: string) => `/patrones/consorcios?
 export const rutaDuenos = (page = 1, ruc?: string, graves = false) =>
   `/patrones/duenos?${consulta({ page, size: TAM_PATRONES, ruc, graves: graves ? 1 : undefined })}`;
 // `q`: el buscador de una ficha (la API lo usa sólo con el RUC puesto, y nunca busca el nombre de una persona natural).
-export const rutaGrupos = (page = 1, ruc?: string, graves = false, q?: string) =>
-  `/patrones/grupos?${consulta({ page, size: TAM_PATRONES, buscar: ruc, severidad: graves ? "alta" : undefined, q: q?.trim().slice(0, 80) })}`;
+// `size`: las tarjetas de la ficha de una entidad van de a 10 (TAM_FICHA); la tabla, de a TAM_PATRONES.
+export const rutaGrupos = (page = 1, ruc?: string, graves = false, q?: string, size = TAM_PATRONES) =>
+  `/patrones/grupos?${consulta({ page, size, buscar: ruc, severidad: graves ? "alta" : undefined, q: q?.trim().slice(0, 80) })}`;
 export const rutaRepetidas = (page = 1, ruc?: string, graves = false, q?: string) =>
   `/patrones/repetidas?${consulta({ page, size: TAM_PATRONES, buscar: ruc, severidad: graves ? "alta" : undefined, q: q?.trim().slice(0, 80) })}`;
 export const rutaRecien = (page = 1, ruc?: string, graves = false, q?: string) =>

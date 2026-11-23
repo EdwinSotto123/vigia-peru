@@ -3,7 +3,7 @@ import Link from "next/link";
 import { FileWarning, Repeat2, SearchCheck } from "lucide-react";
 import { IndiceAntecedentes, type TipoDelIndice } from "@/components/empresas/secciones/IndiceAntecedentes";
 import { Indicadores } from "@/components/listado";
-import { Ayuda, CabeceraPestana, EstadoVacio, FuenteDato, Nota, Pestanas } from "@/components/patrones";
+import { Ayuda, EstadoVacio, FuenteDato, Nota, Pestanas } from "@/components/patrones";
 import { Badge } from "@/components/ui/Badge";
 import { EnlaceAccion } from "@/components/ui/EnlaceAccion";
 import { TIPO_CRUCE, chipCruce } from "@/lib/cruces";
@@ -162,6 +162,23 @@ function FichaDeCruce({ c, ruc, patron }: { c: PatronesDeEntidad["cruces"][numbe
 }
 
 const PV = "pv";
+
+const AYUDA_GENERAL = (
+  <Ayuda titulo="¿Qué es un patrón, qué es un antecedente y cómo leer esta pestaña?">
+    <span className="block">
+      Un <b>patrón</b> junta varios contratos u órdenes de la entidad: las mismas empresas que parecen competir y no compiten, el mismo dueño detrás de
+      varios proveedores, la misma compra repetida, la familia de quien decide.
+    </span>
+    <span className="mt-1.5 block">
+      Un <b>antecedente</b> es de un solo contrato: lo que los registros públicos dicen de quien lo ganó o de cómo se adjudicó (un solo postor, una sanción
+      vigente, una empresa recién fundada).
+    </span>
+    <span className="mt-1.5 block">
+      En las dos, arriba va cómo se reparten por familia y a la izquierda el índice con cuántos casos hay aquí. Al elegir uno se abre su ficha: qué es, sus
+      cifras, sus casos y la fuente. Es un motivo para mirar, no una acusación.
+    </span>
+  </Ayuda>
+);
 type Entrada = TipoDelIndice & EntradaConFamilia;
 
 export async function PatronesEntidad({
@@ -256,26 +273,9 @@ export async function PatronesEntidad({
 
   return (
     <div className="space-y-4">
-      <CabeceraPestana
-        ayuda={
-          <Ayuda titulo="¿Qué es un patrón, qué es un antecedente y cómo leer esta pestaña?">
-            <span className="block">
-              Un <b>patrón</b> junta varios contratos u órdenes de la entidad: las mismas empresas que parecen competir y no compiten, el mismo
-              dueño detrás de varios proveedores, la misma compra repetida, la familia de quien decide.
-            </span>
-            <span className="mt-1.5 block">
-              Un <b>antecedente</b> es de un solo contrato: lo que los registros públicos dicen de quien lo ganó o de cómo se adjudicó (un solo
-              postor, una sanción vigente, una empresa recién fundada).
-            </span>
-            <span className="mt-1.5 block">
-              En las dos, arriba va cómo se reparten por familia y a la izquierda el índice con cuántos casos hay aquí. Al elegir uno se abre su
-              ficha: qué es, sus cifras, sus casos y la fuente. Es un motivo para mirar, no una acusación.
-            </span>
-          </Ayuda>
-        }
-      >
-        Patrones: lo que se repite entre varios contratos. Antecedentes: lo que pesa sobre cada contrato, por quien lo ganó.
-      </CabeceraPestana>
+      {/* El nombre de la pestaña ya está en la barra: aquí no se repite a la vista (2026-11-23, «no tiene forma ni
+          jerarquía»). Lo que era su línea de explicación va en cada subpestaña (`pista`) y la ayuda, al pie. */}
+      <h2 className="sr-only">Antecedentes y patrones</h2>
       <Pestanas
         param={PV}
         variante="segunda"
@@ -285,6 +285,7 @@ export async function PatronesEntidad({
           {
             clave: "patrones",
             etiqueta: "Patrones",
+            pista: "Lo que se repite entre varios contratos",
             conteo: tiposPatron.length,
             icono: <Repeat2 size={15} aria-hidden />,
             contenido: (
@@ -329,9 +330,15 @@ export async function PatronesEntidad({
                   </section>
                 )}
                 <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-2">
-                  <Link href="/app/patrones" prefetch={false} className={`text-meta ${ENLACE}`}>
-                    Ver todos los patrones, en todo el país
-                  </Link>
+                  <p className="flex flex-wrap items-center gap-x-4 gap-y-1 text-meta text-inkSoft">
+                    <span className="inline-flex items-center gap-1">
+                      Un patrón es un motivo para mirar, no una acusación.
+                      {AYUDA_GENERAL}
+                    </span>
+                    <Link href="/app/patrones" prefetch={false} className={ENLACE}>
+                      Ver todos los patrones, en todo el país
+                    </Link>
+                  </p>
                   <FuenteDato
                     fuente="OECE (SEACE, CONOSCE y Registro Nacional de Proveedores), SUNAT, Contraloría, JNE, ONPE y lo que los agentes de Vigía leyeron en sus documentos"
                     href={CONTRATACIONES_ABIERTAS}
@@ -343,6 +350,7 @@ export async function PatronesEntidad({
           {
             clave: "antecedentes",
             etiqueta: "Antecedentes",
+            pista: "Lo que pesa sobre cada contrato",
             conteo: tiposAntecedente.length,
             icono: <FileWarning size={15} aria-hidden />,
             contenido: tiposAntecedente.length ? (
