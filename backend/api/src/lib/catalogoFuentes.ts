@@ -56,6 +56,8 @@ export const CATALOGO: FuenteCatalogo[] = [
   // ── Worker vigia-scrapers (Cloudflare), con cron ─────────────────────────────────────────────────────────────────
   { fuente: "oece_ocds", nombre: "Contratos del OECE (OCDS)", donde: "zurich", agenda: "Diario, 06:00", cadaDias: 1,
     que: "Convocatorias y adjudicaciones de los últimos 7 días; después rehace todos los cruces y banderas." },
+  { fuente: "oece_directas", nombre: "Contrataciones directas del OECE", donde: "zurich", agenda: "Lunes, 08:00", cadaDias: 7,
+    que: "Las contrataciones directas que CONOSCE adjudicó y la carga diaria no ve (no tienen periodo de convocatoria): su record del OCDS, de los últimos 120 días; después rehace los cruces." },
   { fuente: "documentos", nombre: "Documentos de los contratos financiados", donde: "zurich", agenda: "Cada hora, minuto 40", cadaDias: 1,
     que: "Bases, actas y contratos de lo que se financió, a R2 (reemplaza a vigia-batch)." },
   { fuente: "seace_menores", nombre: "Compras menores (hasta 8 UIT)", donde: "zurich", agenda: "Lunes, 05:00", cadaDias: 7,

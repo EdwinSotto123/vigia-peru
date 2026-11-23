@@ -67,9 +67,13 @@ export interface Participante extends Persona {
     actividad: string | null; domicilio?: string | null; distrito?: string | null;
   } | null;
   rnpVigente: boolean | null;
-  /** Su historial en Vigía (`empresa_resumen`): procesos a los que postuló, cuántos ganó, lo adjudicado y sus antecedentes. */
+  /**
+   * Su historial en Vigía (`empresa_resumen`; de una persona natural, armado de CONOSCE y los cruces): procesos a los que
+   * postuló, cuántos ganó, lo adjudicado, sus órdenes de servicio, en cuántas entidades ganó y sus antecedentes.
+   */
   historial: {
     postulaciones: number; ganadas: number; adjudicado: number | null;
+    ordenes: number | null; montoOrdenes: number | null; entidades: number | null;
     alta: number; media: number; baja: number;
     antecedentes: { tipo: string; severidad: Severidad; n: number }[];
   } | null;
@@ -104,6 +108,7 @@ export interface FilaParticipante {
   estado_sunat: string | null; condicion: string | null; fecha_alta: string | null; actividad: string | null; rnp_vigente: boolean | null;
   domicilio: string | null; distrito: string | null;
   postulaciones: number | null; ganadas: number | null; adjudicado: number | null; n_alta: number | null; n_media: number | null; n_baja: number | null;
+  ordenes?: number | null; monto_ordenes?: number | null; entidades?: number | null;
   antecedentes: unknown; integrantes: unknown;
 }
 
@@ -130,12 +135,34 @@ const PARTICIPANTES_SQL = `
          -- La dirección, sólo de una empresa: la de una persona natural no sale nunca (docs/PRIVACIDAD.md).
          CASE WHEN u.ruc ~ '^20[0-9]{9}$' THEN e.domicilio_fiscal END AS domicilio,
          CASE WHEN u.ruc ~ '^20[0-9]{9}$' THEN e.metadata->>'distrito' END AS distrito,
-         r.postulaciones, r.ganadas, r.adj_monto::float AS adjudicado, r.n_alta, r.n_media, r.n_baja, r.cruces AS antecedentes,
+         COALESCE(r.postulaciones, pn.postulaciones) AS postulaciones, COALESCE(r.ganadas, pn.ganadas) AS ganadas,
+         COALESCE(r.adj_monto::float, pn.adjudicado) AS adjudicado, COALESCE(r.n_alta, pn.n_alta) AS n_alta,
+         COALESCE(r.n_media, pn.n_media) AS n_media, COALESCE(r.n_baja, pn.n_baja) AS n_baja, COALESCE(r.cruces, pn.antecedentes) AS antecedentes,
+         COALESCE(r.ord_n, pn.ordenes) AS ordenes, COALESCE(r.ord_monto::float, pn.monto_ordenes) AS monto_ordenes,
+         COALESCE(r.entidades, pn.entidades) AS entidades,
          (SELECT jsonb_agg(DISTINCT jsonb_build_object('ruc', k.ruc_miembro, 'nombre', k.miembro))
             FROM conosce_consorcios k WHERE u.ruc !~ '^(10|20)[0-9]{9}$' AND k.ruc_consorcio = u.ruc) AS integrantes
     FROM u
     LEFT JOIN empresas e ON e.ruc = u.ruc::bpchar
-    LEFT JOIN empresa_resumen r ON r.ruc = u.ruc`;
+    LEFT JOIN empresa_resumen r ON r.ruc = u.ruc
+    -- Una persona natural no está en empresa_resumen (sólo RUC 20): su historial se arma aquí, con lo mismo que su ficha
+    -- (/app/personas): lo que postuló y ganó (CONOSCE), sus órdenes de servicio y sus antecedentes (cruces_proveedor).
+    -- Pedido del usuario del 2026-11-23: una ganadora con 38 procesos, 154 órdenes y una visita previa salía «sin dato».
+    LEFT JOIN LATERAL (
+      SELECT (SELECT count(DISTINCT cp.codigo_convocatoria)::int FROM conosce_postores cp WHERE cp.ruc_postor = u.ruc) AS postulaciones,
+             g.ganadas, g.adjudicado, g.entidades, o.n AS ordenes, o.monto AS monto_ordenes,
+             k.antecedentes, k.n_alta, k.n_media, k.n_baja
+        FROM (SELECT count(DISTINCT a.codigo_convocatoria)::int AS ganadas, sum(a.monto_adjudicado)::float AS adjudicado,
+                     count(DISTINCT a.entidad_ruc)::int AS entidades
+                FROM conosce_adjudicaciones a WHERE a.ruc_proveedor = u.ruc AND a.monto_adjudicado > 0) g,
+             (SELECT count(*)::int AS n, sum(x.monto)::float AS monto FROM conosce_ordenes x WHERE x.ruc_contratista = u.ruc) o,
+             (SELECT jsonb_agg(jsonb_build_object('tipo', z.tipo, 'severidad', z.sev, 'n', z.n)) AS antecedentes,
+                     count(*) FILTER (WHERE z.sev = 'alta')::int AS n_alta, count(*) FILTER (WHERE z.sev = 'media')::int AS n_media,
+                     count(*) FILTER (WHERE z.sev = 'baja')::int AS n_baja
+                FROM (SELECT c.tipo, (array_agg(c.severidad ORDER BY CASE c.severidad WHEN 'alta' THEN 0 WHEN 'media' THEN 1 ELSE 2 END))[1] AS sev,
+                             count(*)::int AS n
+                        FROM cruces_proveedor c WHERE c.ruc_empresa = u.ruc GROUP BY c.tipo) z) k
+       WHERE u.ruc ~ '^10[0-9]{9}$' AND r.ruc IS NULL) pn ON true`;
 
 /** Las filas de los participantes, en cualquier orden (`armarParticipantes` ordena). */
 export async function filasParticipantes(registrados: Persona[], codigo: string): Promise<FilaParticipante[]> {
@@ -299,6 +326,7 @@ export function armarParticipantes(filas: FilaParticipante[], ctx: { fechaConvoc
       historial: f.postulaciones != null
         ? {
             postulaciones: Number(f.postulaciones) || 0, ganadas: Number(f.ganadas) || 0, adjudicado: num(f.adjudicado),
+            ordenes: f.ordenes == null ? null : Number(f.ordenes) || 0, montoOrdenes: num(f.monto_ordenes), entidades: f.entidades == null ? null : Number(f.entidades) || 0,
             alta: Number(f.n_alta) || 0, media: Number(f.n_media) || 0, baja: Number(f.n_baja) || 0, antecedentes,
           }
         : null,

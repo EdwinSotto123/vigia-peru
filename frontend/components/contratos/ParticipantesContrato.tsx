@@ -82,7 +82,7 @@ function FichaCorta({ p }: { p: Participante }) {
   if (!partes.length) {
     return (
       <span className="text-meta text-mute">
-        {p.tipo === "consorcio" ? "Sin ficha en la SUNAT: no tiene RUC propio" : p.tipo === "persona" ? "Vigía no arma la ficha de una persona natural" : "Vigía no tiene su ficha de la SUNAT"}
+        {p.tipo === "consorcio" ? "Sin ficha en la SUNAT: no tiene RUC propio" : p.tipo === "persona" ? "Persona natural: Vigía no tiene su ficha de la SUNAT" : "Vigía no tiene su ficha de la SUNAT"}
       </span>
     );
   }

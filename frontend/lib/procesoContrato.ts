@@ -40,8 +40,11 @@ export interface Participante extends PersonaProceso {
     actividad: string | null; domicilio?: string | null; distrito?: string | null;
   } | null;
   rnpVigente: boolean | null;
+  /** Su historial en Vigía: de una empresa, su resumen; de una persona natural, lo mismo que muestra su ficha. */
   historial: {
     postulaciones: number; ganadas: number; adjudicado: number | null; alta: number; media: number; baja: number;
+    /** Órdenes de servicio que recibió (CONOSCE) y cuánto suman; en cuántas entidades ganó. Una API vieja no los manda. */
+    ordenes?: number | null; montoOrdenes?: number | null; entidades?: number | null;
     antecedentes: { tipo: string; severidad: Severidad; n: number }[];
   } | null;
   vinculos: VinculoProceso[];

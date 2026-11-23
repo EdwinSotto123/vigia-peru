@@ -10,6 +10,7 @@
  */
 
 import Link from "next/link";
+import { UserRound } from "lucide-react";
 import { AyudaTermino, BloqueDetalle, ChipsDetalle, CuerpoDetalle, DatosClave, FuenteDato, type DatoClave } from "@/components/patrones";
 import { PersonName } from "@/components/Redact";
 import { conDesde } from "@/lib/desde";
@@ -109,15 +110,23 @@ export function DetalleParticipante({
         ...(s.distrito ? [{ etiqueta: "Distrito", valor: tituloNatural(s.distrito) }] : []),
         { etiqueta: "RNP vigente", valor: p.rnpVigente == null ? null : p.rnpVigente ? "Sí" : "No", ayuda: <AyudaTermino clave="rnp" /> },
       ]
-    : [{ etiqueta: "Ficha RUC", valor: "Vigía no tiene su ficha de la SUNAT" }];
+    : [
+        { etiqueta: "Ficha RUC", valor: "Vigía no tiene su ficha de la SUNAT" },
+        // Sin ficha SUNAT el RNP igual se sabe (y decía sólo «no tiene su ficha»).
+        ...(p.rnpVigente != null ? [{ etiqueta: "RNP vigente", valor: p.rnpVigente ? "Sí" : "No", ayuda: <AyudaTermino clave="rnp" /> }] : []),
+      ];
   const antecedentes = [...(h?.antecedentes ?? [])].sort((a, b) => "amb".indexOf(a.severidad[0]) - "amb".indexOf(b.severidad[0]));
   // Cada antecedente abre sus casos en la ficha de la empresa (pestaña Antecedentes, filtrada por ese tipo): ahí está la
   // evidencia de cada uno. Sólo una empresa (RUC 20): una persona natural no tiene ficha pública.
   const rucEmpresa = rucVisibleDe(p);
   // El contrato que se está viendo (de la ruta de esta pestaña): sus casos van primero.
   const ocidAqui = aqui?.match(/\/contratos\/([^/?#]+)/)?.[1] ?? null;
+  // Una persona natural: su ficha (/app/personas/<código>), con sus procesos y la bandera de cada uno.
+  const fichaPersona = esRucPersonaNatural(p.ruc) && p.personaCodigo ? p.personaCodigo : null;
   const alAntecedente = (tipo: string) =>
-    rucEmpresa && esRucEmpresa(rucEmpresa) ? conDesde(rutaEmpresa(rucEmpresa, "antecedentes", { [P_ANTECEDENTES.tipo]: tipo }), aqui) : null;
+    rucEmpresa && esRucEmpresa(rucEmpresa)
+      ? conDesde(rutaEmpresa(rucEmpresa, "antecedentes", { [P_ANTECEDENTES.tipo]: tipo }), aqui)
+      : fichaPersona ? conDesde(rutaPersona(fichaPersona, "procesos"), aqui) : null;
   return (
     <CuerpoDetalle>
       <ChipsDetalle>
@@ -188,6 +197,10 @@ export function DetalleParticipante({
               items={[
                 { etiqueta: "Postulaciones", valor: h.postulaciones ? `${numero(h.postulaciones)}, ganó ${numero(h.ganadas)}` : "Ninguna desde 2018" },
                 { etiqueta: "Adjudicado en total", valor: h.adjudicado != null ? soles(h.adjudicado) : null, mono: true },
+                ...(h.entidades ? [{ etiqueta: "Ganó en", valor: plural(h.entidades, "entidad", "entidades") }] : []),
+                ...(h.ordenes != null
+                  ? [{ etiqueta: "Órdenes de servicio", valor: h.ordenes ? `${numero(h.ordenes)}${h.montoOrdenes ? `, por ${soles(h.montoOrdenes)}` : ""}` : "Ninguna" }]
+                  : []),
               ]}
             />
             {antecedentes.length > 0 ? (
@@ -219,6 +232,20 @@ export function DetalleParticipante({
               </ul>
             ) : (
               <p className="text-dato text-inkSoft">Ningún otro registro público la nombra.</p>
+            )}
+            {/* Su ficha entera: cada proceso con su bandera, sus órdenes por entidad y año, lo que cobró y su recorrido. */}
+            {fichaPersona && (
+              <div className="space-y-1.5 border-t border-line pt-3">
+                <Link
+                  href={conDesde(rutaPersona(fichaPersona), aqui)}
+                  prefetch={false}
+                  className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-granate px-3.5 text-meta font-semibold text-paper transition-colors duration-rapido hover:bg-granate-deep"
+                >
+                  <UserRound size={15} aria-hidden />
+                  Ver su ficha completa
+                </Link>
+                <p className="text-rotulo text-mute">Es una persona natural: va con un apellido tapado y sin su documento.</p>
+              </div>
             )}
           </div>
         ) : (
