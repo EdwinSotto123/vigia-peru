@@ -37,6 +37,7 @@ import { LineaTiempoProceso } from "./LineaTiempoProceso";
 import { EntidadEnVigia } from "./EntidadEnVigia";
 import { CrucesProveedor, ResumenAntecedentes, clasificarCruces } from "./CrucesProveedor";
 import { DossierDrawerProvider } from "./DossierDrawer";
+import { SuperficiePestana } from "@/components/fichas/SuperficiePestana";
 import { objetoLargo } from "./CabeceraContrato";
 import type { LecturaContrato } from "./lecturaContrato";
 import type { ContratoResumen } from "@/lib/contratos";
@@ -173,7 +174,9 @@ export function ContratoDetalle({
           </div>
         ),
     },
-    ...conProceso(evidencia, proceso),
+    // Cada pestaña del registro y de la evidencia, en UNA superficie con su cabecera adentro (antes el h2 y su línea flotaban
+    // sobre el fondo y la tabla iba en otra caja). Los Antecedentes ya traen su tarjeta, con la cabecera adentro.
+    ...conProceso(evidencia, proceso).map((p) => ({ ...p, contenido: <SuperficiePestana>{p.contenido}</SuperficiePestana> })),
   ];
 
   return (

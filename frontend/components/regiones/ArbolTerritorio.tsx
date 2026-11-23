@@ -202,6 +202,8 @@ function Arbol({
     if (abiertas.has(p.id)) for (const t of q && coinciden.length ? coinciden : p.distritos) filas.push({ lugar: t, padre: p });
   }
   const contratosDe = (z: ZonaRegion) => `${rutaContratos}&ubigeo=${z.ubigeo}`;
+  // La barra de contratos de cada fila se mide contra la provincia con más.
+  const tope = Math.max(1, ...provincias.map((p) => p.zona?.total ?? 0));
   const detalles: DetalleFila[] = filas.map(({ lugar, padre }) => detalleDe(lugar, padre, nombre, contratosDe));
 
   const alternar = (id: string) =>
@@ -275,7 +277,7 @@ function Arbol({
                         <span className="w-11 shrink-0" aria-hidden />
                       )}
                       <BotonFila id={p.id} etiqueta={`Ver la provincia de ${p.nombre}`} className={cn(REJILLA, FILA)}>
-                        <CeldasLugar lugar={p} meta={<Dato tipo="lugar" nombre="Distritos">{plural(p.distritos.length, "distrito", "distritos")}</Dato>} />
+                        <CeldasLugar lugar={p} tope={tope} meta={<Dato tipo="lugar" nombre="Distritos">{plural(p.distritos.length, "distrito", "distritos")}</Dato>} />
                       </BotonFila>
                     </div>
                     {abierta && (
@@ -287,7 +289,7 @@ function Arbol({
                               <span className="absolute inset-y-0 left-1/2 w-px bg-line" />
                             </span>
                             <BotonFila id={t.id} etiqueta={`Ver el distrito de ${t.nombre}, provincia de ${p.nombre}`} className={cn(REJILLA, FILA)}>
-                              <CeldasLugar lugar={t} sangria meta={<Dato tipo="lugar" nombre="Provincia">Provincia de {p.nombre}</Dato>} />
+                              <CeldasLugar lugar={t} tope={tope} sangria meta={<Dato tipo="lugar" nombre="Provincia">Provincia de {p.nombre}</Dato>} />
                             </BotonFila>
                           </li>
                         ))}
@@ -297,14 +299,15 @@ function Arbol({
                 );
               })}
             </ul>
+            {/* La fuente, al pie de la tarjeta: antes iba suelta debajo, sobre el fondo de la página. */}
+            <p className="border-t border-line px-4 py-2.5 text-rotulo text-mute">
+              Fuente: <EnlaceFuente href={INFOGOB_JNE}>JNE</EnlaceFuente>, elecciones municipales de 2014, 2018 y 2022 (mandatos 2015 a 2026). Contratos:{" "}
+              <EnlaceFuente href={CONTRATACIONES_ABIERTAS}>SEACE</EnlaceFuente> y <EnlaceFuente href={CONOSCE_BUSCADOR}>CONOSCE</EnlaceFuente> (OECE).
+              {!conMunicipalidades && " No pudimos traer las fichas de las municipalidades: vuelve a intentarlo en un momento."}
+            </p>
           </div>
         </ProveedorDetalle>
       )}
-      <p className="text-rotulo text-mute">
-        Fuente: <EnlaceFuente href={INFOGOB_JNE}>JNE</EnlaceFuente>, elecciones municipales de 2014, 2018 y 2022 (mandatos 2015 a 2026). Contratos:{" "}
-        <EnlaceFuente href={CONTRATACIONES_ABIERTAS}>SEACE</EnlaceFuente> y <EnlaceFuente href={CONOSCE_BUSCADOR}>CONOSCE</EnlaceFuente> (OECE).
-        {!conMunicipalidades && " No pudimos traer las fichas de las municipalidades: vuelve a intentarlo en un momento."}
-      </p>
     </div>
   );
 }
@@ -313,7 +316,7 @@ function Arbol({
 const contratosTexto = (l: Lugar) => (l.zona ? numero(l.zona.total) : l.sinContratos ? "Ninguno" : "Sin dato");
 
 /** Las celdas de una fila: el lugar (con su contexto), su alcalde y partido de hoy, los partidos de antes y sus contratos. */
-function CeldasLugar({ lugar, meta, sangria = false }: { lugar: Lugar; meta: ReactNode; sangria?: boolean }) {
+function CeldasLugar({ lugar, meta, tope, sangria = false }: { lugar: Lugar; meta: ReactNode; tope: number; sangria?: boolean }) {
   const [actual, g2018, g2014] = [2022, 2018, 2014].map((a) => lugar.gobiernos.find((g) => g.anio === a) ?? null);
   return (
     <>
@@ -351,6 +354,11 @@ function CeldasLugar({ lugar, meta, sangria = false }: { lugar: Lugar; meta: Rea
       <span className="hidden min-w-0 truncate text-meta text-inkSoft xl:block" title={g2014?.partido}>{g2014 ? g2014.partido : <span className="text-mute">Sin dato</span>}</span>
       <span className="hidden text-right font-mono text-meta tabular-nums md:block">
         {lugar.zona ? <span className="text-ink">{numero(lugar.zona.total)}</span> : <span className="font-sans text-mute">{contratosTexto(lugar)}</span>}
+        {lugar.zona && lugar.zona.total > 0 ? (
+          <span aria-hidden className="ml-auto mt-1 block h-1.5 w-full max-w-20 overflow-hidden rounded-full bg-paperDeep">
+            <span className="block h-full rounded-full bg-granate" style={{ width: `${Math.max(3, Math.round((100 * lugar.zona.total) / tope))}%` }} />
+          </span>
+        ) : null}
       </span>
     </>
   );

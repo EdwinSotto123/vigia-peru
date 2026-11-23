@@ -34,7 +34,8 @@ export const SECCIONES_PATRONES = {
 export type SeccionPatrones = keyof typeof SECCIONES_PATRONES;
 
 /** Filas por página: el mismo tamaño en las cuatro listas. */
-export const TAM_PATRONES = 25;
+/** Diez por página, como todas las listas (2026-11-23: 25 filas eran tres pantallas). */
+export const TAM_PATRONES = 10;
 /** Las tarjetas de un patrón en la ficha de una entidad, por página (25 tarjetas eran ocho pantallas). */
 export const TAM_FICHA = 10;
 

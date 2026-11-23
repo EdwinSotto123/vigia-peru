@@ -121,7 +121,7 @@ export function EnQueGasta({ gasto }: { gasto: GastoEntidad | null }) {
   return (
     <div className="space-y-3 rounded-2xl border border-line bg-paper p-4 sm:p-5">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <h3 className="flex items-center gap-1.5 text-destacado font-semibold text-ink">
+        <h3 className="flex flex-wrap items-center gap-1.5 font-display text-bloque font-bold text-ink">
           En qué gasta en {gasto.anio}
           {deTodo && <span className="text-meta font-normal text-amberTexto">(todo el gobierno regional)</span>}
           {ultimoDeLaUnidad && <span className="text-meta font-normal text-inkSoft">(su último año en el MEF)</span>}

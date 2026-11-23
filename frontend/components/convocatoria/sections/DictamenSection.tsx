@@ -53,10 +53,10 @@ const PROSA = cn(
   "[&_h3]:font-display [&_h4]:font-display [&_h5]:font-display [&_h6]:font-display",
   "[&_h3]:font-bold [&_h4]:font-bold [&_h5]:font-bold [&_h6]:font-bold [&_h3]:tracking-tight [&_h4]:tracking-tight",
   "[&_h3]:text-ink [&_h4]:text-ink [&_h5]:text-ink [&_h6]:text-ink",
-  "[&_h3]:text-2xl [&_h3]:mt-0 [&_h3]:mb-3 [&_h3]:pb-2 [&_h3]:border-b [&_h3]:border-line",
-  "[&_h4]:text-xl [&_h4]:mt-10 [&_h4]:mb-3 [&_h4]:pb-1.5 [&_h4]:border-b [&_h4]:border-line",
-  "[&_h5]:text-base [&_h5]:mt-7 [&_h5]:mb-2",
-  "[&_h6]:text-sm [&_h6]:mt-5 [&_h6]:mb-1.5",
+  "[&_h3]:text-seccion [&_h3]:mt-0 [&_h3]:mb-3 [&_h3]:leading-tight",
+  "[&_h4]:text-bloque [&_h4]:mt-8 [&_h4]:mb-3",
+  "[&_h5]:text-cuerpo [&_h5]:mt-6 [&_h5]:mb-2",
+  "[&_h6]:text-dato [&_h6]:mt-5 [&_h6]:mb-1.5",
   "prose-p:text-ink prose-p:leading-[1.7] prose-p:my-3.5",
   "prose-strong:text-ink prose-strong:font-bold",
   "prose-em:text-inkSoft prose-em:italic",
@@ -67,7 +67,7 @@ const PROSA = cn(
   "prose-a:break-words",
   "prose-code:bg-paperDeep prose-code:px-1 prose-code:py-0.5 prose-code:rounded prose-code:text-ink prose-code:text-[0.85em] prose-code:font-mono prose-code:before:content-none prose-code:after:content-none",
   "prose-blockquote:border-l-2 prose-blockquote:border-line prose-blockquote:bg-paperSoft prose-blockquote:py-2 prose-blockquote:px-4 prose-blockquote:my-4 prose-blockquote:rounded-r-xl prose-blockquote:text-inkSoft prose-blockquote:not-italic",
-  "prose-table:text-xs prose-table:w-full prose-table:border-collapse",
+  "prose-table:text-meta prose-table:w-full prose-table:border-collapse",
   "prose-th:bg-paperDeep prose-th:text-ink prose-th:font-semibold prose-th:text-rotulo prose-th:px-3 prose-th:py-2 prose-th:border prose-th:border-line",
   "prose-td:text-ink prose-td:px-3 prose-td:py-2 prose-td:border prose-td:border-line prose-td:align-top",
   "prose-hr:my-6 prose-hr:border-line",
@@ -125,6 +125,58 @@ const Md = ({ texto }: { texto: string }) => (
   </ReactMarkdown>
 );
 
+type Capitulo = { titulo: string | null; cuerpo: string };
+
+/**
+ * El dictamen en capítulos: lo que va antes del primer «## » (el título del dictamen) y un capítulo por cada «## »
+ * (Resumen ejecutivo, Hechos clave, Precios…). Fuera de un bloque de código. Sin ningún «## », un solo bloque.
+ */
+function enCapitulos(md: string): Capitulo[] {
+  const out: Capitulo[] = [];
+  let actual: { titulo: string | null; lineas: string[] } = { titulo: null, lineas: [] };
+  let enCodigo = false;
+  for (const linea of md.split("\n")) {
+    if (/^\s*```/.test(linea)) enCodigo = !enCodigo;
+    const m = enCodigo ? null : /^##\s+(.+?)\s*#*\s*$/.exec(linea);
+    if (m) {
+      out.push({ titulo: actual.titulo, cuerpo: actual.lineas.join("\n") });
+      actual = { titulo: m[1].replace(/[*_`]/g, "").trim(), lineas: [] };
+    } else actual.lineas.push(linea);
+  }
+  out.push({ titulo: actual.titulo, cuerpo: actual.lineas.join("\n") });
+  return out.filter((c) => c.titulo || c.cuerpo.trim());
+}
+
+/**
+ * Los capítulos del dictamen, plegables (2026-11-23, el usuario: «esta mierda es texto plano»): antes eran 7 000 px de
+ * prosa seguida. El primero (el resumen ejecutivo) va abierto; los demás, cerrados con su título a la vista, para elegir
+ * qué leer. El texto de adentro no cambia.
+ */
+function Capitulos({ texto, abrirPrimero }: { texto: string; abrirPrimero: boolean }) {
+  const capitulos = enCapitulos(texto);
+  let primero = abrirPrimero;
+  return (
+    <>
+      {capitulos.map((c, i) => {
+        if (!c.titulo) return <Md key={i} texto={c.cuerpo} />;
+        const abierto = primero;
+        primero = false;
+        return (
+          <details key={i} open={abierto} className="group/cap border-t border-line">
+            <summary className="flex min-h-12 cursor-pointer list-none items-center justify-between gap-3 py-3 [&::-webkit-details-marker]:hidden">
+              <h4 className="!my-0 font-display text-bloque font-bold leading-snug text-ink">{redactChildren(c.titulo)}</h4>
+              <ChevronDown size={18} className="shrink-0 text-mute transition-transform duration-rapido group-open/cap:rotate-180" aria-hidden />
+            </summary>
+            <div className="pb-5 [&>:first-child]:mt-0">
+              <Md texto={c.cuerpo} />
+            </div>
+          </details>
+        );
+      })}
+    </>
+  );
+}
+
 export function DictamenSection({
   dictamen,
   nombresPrivados,
@@ -156,7 +208,7 @@ export function DictamenSection({
     <section className="overflow-hidden rounded-2xl border border-line bg-paper">
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line bg-paperSoft px-5 py-3">
         <div>
-          <h2 className="font-display text-xl font-bold text-ink">Dictamen</h2>
+          <h2 className="font-display text-bloque font-bold text-ink">Dictamen</h2>
           <div className="mt-0.5 inline-flex items-center gap-1.5 text-rotulo text-mute">
             <FileText size={12} aria-hidden />
             Redactado automáticamente{modelo ? ` (${modelo})` : ""} con la evidencia del análisis. Los datos personales van tapados.
@@ -181,7 +233,7 @@ export function DictamenSection({
         </button>
       </div>
       <article className={PROSA}>
-        <Md texto={partes.antes} />
+        <Capitulos texto={partes.antes} abrirPrimero />
         {partes.limites && (
           <details className="group my-8 rounded-xl border border-line bg-paperSoft">
             <summary className="flex cursor-pointer list-none items-start gap-2.5 px-4 py-3 [&::-webkit-details-marker]:hidden">
@@ -199,7 +251,7 @@ export function DictamenSection({
             </div>
           </details>
         )}
-        {partes.despues.trim() && <Md texto={partes.despues} />}
+        {partes.despues.trim() && <Capitulos texto={partes.despues} abrirPrimero={false} />}
       </article>
     </section>
   );

@@ -5,6 +5,7 @@ import { Ayuda, AyudaTermino, CabeceraPestana, EncabezadoPagina, Migas, Pagina, 
 import { ListaPlanilla, P_PLANILLA } from "@/components/personas/ListaPlanilla";
 import { ListaPlazas, P_PLAZAS } from "@/components/personas/ListaPlazas";
 import { Aviso } from "@/components/partidos/AvisoPartido";
+import { SuperficiePestana } from "@/components/fichas/SuperficiePestana";
 import { ListaPersonas } from "@/components/personas/ListaPersonas";
 import { REGION_UBIGEO } from "@/components/mapa/region-match";
 import type { FiltroSecundario } from "@/components/listado";
@@ -92,13 +93,13 @@ export default async function PersonasPage({ searchParams }: { searchParams?: Re
             etiqueta: "Por órdenes de servicio",
             conteo: ordenes?.resumen?.filas ?? null,
             contenido: (
-              <div className="space-y-4">
+              <SuperficiePestana className="space-y-4">
                 {/* Una ⓘ por cabecera y una línea que no repite la bajada: dice lo que sólo esta pestaña tiene. */}
                 <CabeceraPestana ayuda={<AyudaTermino clave="orden-servicio" />}>
                   Locadores, asesores y profesionales que cobran por orden. Una fila por persona y entidad.
                 </CabeceraPestana>
                 <ListaPersonas alcance={{ dep, entidad }} sp={searchParams} P={PARAMS_SOLOS} ruta={ruta} base={{ dep, entidad }} visiblesExtra={[region]} conIndicadores />
-              </div>
+              </SuperficiePestana>
             ),
           },
           {
@@ -106,12 +107,12 @@ export default async function PersonasPage({ searchParams }: { searchParams?: Re
             etiqueta: "En planilla",
             conteo: planilla?.resumen?.personas ?? null,
             contenido: (
-              <div className="space-y-4">
+              <SuperficiePestana className="space-y-4">
                 <CabeceraPestana ayuda={<AyudaTermino clave="pte" />}>
                   El personal que cada entidad publica en su Portal de Transparencia, con lo que cobra cada mes.
                 </CabeceraPestana>
                 <ListaPlanilla alcance={{ dep, entidad }} sp={searchParams} ruta={ruta} base={{ dep, entidad, seccion: "planilla" }} visiblesExtra={[region]} />
-              </div>
+              </SuperficiePestana>
             ),
           },
           {
@@ -119,12 +120,12 @@ export default async function PersonasPage({ searchParams }: { searchParams?: Re
             etiqueta: "Plazas CAS",
             conteo: plazas?.resumen?.plazas ?? null,
             contenido: (
-              <div className="space-y-4">
+              <SuperficiePestana className="space-y-4">
                 <CabeceraPestana ayuda={<AyudaTermino clave="cas" />}>
                   Las convocatorias publicadas en SERVIR Talento Perú, con lo que piden y lo que pagan.
                 </CabeceraPestana>
                 <ListaPlazas alcance={{ dep, entidad }} sp={searchParams} ruta={ruta} base={{ dep, entidad, seccion: "plazas" }} visiblesExtra={[region]} />
-              </div>
+              </SuperficiePestana>
             ),
           },
         ]}

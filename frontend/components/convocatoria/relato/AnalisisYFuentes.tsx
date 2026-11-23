@@ -176,8 +176,11 @@ export function LoQueDice({
       )}
 
       <div className="px-4 py-3.5 sm:px-5">
-        <p className="text-rotulo font-semibold uppercase tracking-wide text-mute">En corto</p>
-        <p className="mt-1 max-w-[68ch] break-words text-dato leading-relaxed text-ink text-pretty">{redactDnis(corto.join(" "))}</p>
+        {/* «En corto» abre la frase, en negrita: antes era un rótulo en mayúsculas encima del párrafo. */}
+        <p className="max-w-[68ch] break-words text-dato leading-relaxed text-ink text-pretty">
+          <strong className="font-semibold">En corto: </strong>
+          {redactDnis(corto.join(" "))}
+        </p>
 
         {resto.length > 0 && (
           <div className="mt-3">

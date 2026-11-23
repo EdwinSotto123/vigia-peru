@@ -3,7 +3,7 @@ import { getEntityBudget } from "@/lib/mef-cache";
 import { getGastoEntidad } from "@/lib/api-client";
 import type { GastoEntidad } from "@/lib/mef";
 import { EnQueGasta } from "@/components/EnQueGasta";
-import { AlertCircle, Database, ExternalLink, WifiOff } from "lucide-react";
+import { AlertCircle, ChevronDown, Database, ExternalLink, TableProperties, WifiOff } from "lucide-react";
 import { Ayuda, AyudaTermino, FuenteDato, Nota } from "@/components/patrones";
 import { CeldaNumero, CeldaPrincipal, IndicadoresSkeleton, Tabla, TablaSkeleton, type Columna, type Fila } from "@/components/listado";
 import { listaY, numero, porcentaje, soles, solesCompacto } from "@/lib/formato";
@@ -237,25 +237,41 @@ function EjecucionView({ data, gasto }: { data: MefBudgetSummary; gasto: GastoEn
       {/* En qué gasta: lo que la gente pregunta después de "cuánto". */}
       <EnQueGasta gasto={gasto} />
 
-      <section aria-labelledby="mef-por-anio" className="space-y-3">
-        <h3 id="mef-por-anio" className="text-cuerpo font-semibold text-ink">
+      {/* Año por año en su tarjeta, con el título adentro (2026-11-23: antes el título, la línea y la serie flotaban sobre el
+          fondo y debajo iba una tabla de 18 filas). La serie se ve; la tabla con cada cifra, plegada. */}
+      <section aria-labelledby="mef-por-anio" className="tarjeta rounded-2xl border border-line bg-paper p-4 sm:p-5">
+        <h3 id="mef-por-anio" className="mb-2 font-display text-bloque font-bold text-ink">
           Año por año
         </h3>
-        {/* Con tres años o más, la serie a la vista; la tabla de abajo tiene cada cifra. */}
         {years.length >= 3 && <SerieAnios years={years} anioActual={anioActual} gastado={gastado} />}
-        <Tabla columnas={columnas(etes)} filas={filas} etiqueta="Presupuesto y ejecución por año, en soles" />
-      </section>
-
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-rotulo text-mute">
+        {years.length >= 3 ? (
+          <details className="group/anios mt-4 rounded-xl border border-line">
+            <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 px-3.5 text-dato font-semibold text-ink hover:text-granate [&::-webkit-details-marker]:hidden">
+              <span className="inline-flex items-center gap-2">
+                <TableProperties size={15} aria-hidden className="text-mute" />
+                Cada cifra, año por año
+                <span className="rounded-full bg-paperDeep px-1.5 text-rotulo font-semibold tabular-nums text-inkSoft">{numero(years.length)}</span>
+              </span>
+              <ChevronDown size={16} aria-hidden className="shrink-0 text-mute transition-transform duration-rapido group-open/anios:rotate-180" />
+            </summary>
+            <div className="tarjeta border-t border-line">
+              <Tabla columnas={columnas(etes)} filas={filas} etiqueta="Presupuesto y ejecución por año, en soles" />
+            </div>
+          </details>
+        ) : (
+          <Tabla columnas={columnas(etes)} filas={filas} etiqueta="Presupuesto y ejecución por año, en soles" />
+        )}
         {/* La Consulta Amigable recorre el SIAF: las OPD y las empresas municipales no están en ella. */}
-        <FuenteDato
-          fuente={FUENTE_MEF[data.origen ?? "siaf"]}
-          fecha={data.fechaDescarga}
-          href={DATASET_MEF}
-          enlaces={[(data.origen ?? "siaf") === "siaf" && { texto: "Consulta Amigable (MEF)", href: CONSULTA_AMIGABLE }]}
-        />
-        {!data.fechaDescarga && <span>La copia no registró su fecha de descarga.</span>}
-      </div>
+        <div className="mt-4 border-t border-line pt-3">
+          <FuenteDato
+            fuente={FUENTE_MEF[data.origen ?? "siaf"]}
+            fecha={data.fechaDescarga}
+            href={DATASET_MEF}
+            enlaces={[(data.origen ?? "siaf") === "siaf" && { texto: "Consulta Amigable (MEF)", href: CONSULTA_AMIGABLE }]}
+          />
+          {!data.fechaDescarga && <p className="mt-1 text-rotulo text-mute">La copia no registró su fecha de descarga.</p>}
+        </div>
+      </section>
     </div>
   );
 }
@@ -475,7 +491,7 @@ function BarraAnio({ row, growth, alerta, etes }: { row: MefBudgetRow; growth: n
   return (
     <section aria-labelledby="mef-anio" className="rounded-2xl border border-line bg-paper px-4 py-4 sm:px-5">
       <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-        <h3 id="mef-anio" className="flex items-center gap-1.5 text-cuerpo font-semibold text-ink">
+        <h3 id="mef-anio" className="flex items-center gap-1.5 font-display text-bloque font-bold text-ink">
           Presupuesto {row.year}
           {etes ? (
             <Ayuda titulo="¿Qué son PIA, PIM y ejecutado?">

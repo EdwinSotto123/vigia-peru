@@ -5,7 +5,7 @@ import { DatosClave } from "@/components/patrones/Detalle";
 import { FuenteDato } from "@/components/patrones/Estructura";
 import { Indicadores, type Indicador } from "@/components/listado";
 import { Skeleton } from "@/components/ui/Skeleton";
-import { EmpresasLigadas, FUENTE_GOBIERNO, TIPOS_CAPTURA, datosQuienGobierna } from "@/components/entidad/CapturaEntidad";
+import { EmpresasLigadas, FUENTE_GOBIERNO, GobiernaTarjeta, TIPOS_CAPTURA, datosQuienGobierna } from "@/components/entidad/CapturaEntidad";
 import { AyudaQuienDecide, ListaFuncionarios, datosQuienDecide, otrosFuncionarios } from "@/components/entidad/QuienDecide";
 import { getEstructuraEntidad, getGastoEntidad, type ConteosEntidad, type NepotismoEntidad } from "@/lib/api-client";
 import { getCorrupcionEntidad } from "@/lib/corrupcion";
@@ -155,7 +155,8 @@ async function Resumen({
     hallazgosObras(obras, ruta),
   ]);
 
-  const gobierna = [...datosQuienGobierna(poder), ...datosQuienDecide(estructura)];
+  const decide = datosQuienDecide(estructura);
+  const gobierna = [...datosQuienGobierna(poder), ...decide];
   const otros = otrosFuncionarios(estructura);
 
   // «Ver más»: cada pestaña con la cifra que la resume, y en un panel lo que no tiene pestaña propia.
@@ -331,8 +332,10 @@ async function Resumen({
             ayuda={<AyudaQuienDecide corte={estructura?.corte} />}
             enlace={{ href: enSeccion("organizacion"), texto: "Su organización" }}
           >
-            <DatosClave items={gobierna} />
-            {poder?.partido && <FuenteDato fuente={FUENTE_GOBIERNO.fuente} href={FUENTE_GOBIERNO.href} className="mt-2" />}
+            {/* El partido y su autoridad con su forma; quién aprueba los contratos, como dato. */}
+            <GobiernaTarjeta poder={poder} />
+            {decide.length > 0 && <DatosClave items={decide} className={poder?.partido ? "mt-3" : undefined} />}
+            {poder?.partido && <FuenteDato fuente={FUENTE_GOBIERNO.fuente} href={FUENTE_GOBIERNO.href} className="mt-3 border-t border-line pt-2.5" />}
           </CajaResumen>
         )}
       </RejillaResumen>

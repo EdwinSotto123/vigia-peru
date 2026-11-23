@@ -187,7 +187,7 @@ export function BotonFila({
       aria-expanded={sel}
       aria-current={sel || undefined}
       aria-label={etiqueta}
-      className={cn("cursor-pointer", className, sel && (claseAbierta ?? "bg-granate-50 shadow-[inset_3px_0_0_0_theme(colors.granate.DEFAULT)] hover:bg-granate-50"))}
+      className={cn("cursor-pointer", className, sel && (claseAbierta ?? "bg-granate-50 hover:bg-granate-50"))}
     >
       {children}
     </button>

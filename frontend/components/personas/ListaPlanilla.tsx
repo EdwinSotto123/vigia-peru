@@ -44,7 +44,8 @@ import {
 import { SenalesPlanillaLista } from "./SenalesPlanilla";
 import { uno } from "@/lib/utils";
 
-const TAM = 20;
+// Listas de 10 (páginas cortas: el usuario no quiere bajar y bajar); el paginador lleva al resto.
+const TAM = 10;
 type Busqueda = Record<string, string | string[] | undefined> | undefined;
 
 /** Los filtros de la planilla en la URL: con `l` delante (no chocan con los de los contratos ni los de las personas). */

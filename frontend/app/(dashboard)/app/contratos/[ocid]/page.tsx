@@ -195,8 +195,9 @@ export default async function ContratoPage({
         {contenido}
       </VistasContrato>
       {/* Al pie, una vez para las tres vistas (antes el aviso iba arriba en la ficha y abajo en el dictamen). */}
-      <div className="space-y-3 border-t border-line pt-4">
-        <DisclaimerBanner />
+      {/* El aviso en su caja, como la nota de privacidad de abajo (antes era una línea suelta sobre el fondo). */}
+      <div className="space-y-3">
+        <DisclaimerBanner className="rounded-xl border border-line bg-paperSoft/70 px-3.5 py-3" />
         <NotaPrivacidad />
       </div>
     </Pagina>

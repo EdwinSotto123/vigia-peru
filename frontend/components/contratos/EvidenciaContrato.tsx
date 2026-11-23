@@ -265,7 +265,7 @@ function SeccionPostores({ c, enRevision }: { c: Detalle; enRevision: boolean })
   // La comparación con la referencia solo existe si al menos un postor tiene contra qué compararse.
   const hayReferencia = !enRevision && postores.some((p) => p.montoOferta != null && referenciaDe(p, c) != null);
   const columnas: Columna[] = [
-    { clave: "estado", titulo: "Estado", ancho: "116px" },
+    { clave: "estado", titulo: "Estado", ancho: "104px" },
     { clave: "postor", titulo: "Postor", ancho: "minmax(0,1fr)" },
     ...(conItem ? [{ clave: "item", titulo: "Ítem", ancho: "56px", desde: "md" } satisfies Columna] : []),
     {
@@ -296,13 +296,8 @@ function SeccionPostores({ c, enRevision }: { c: Detalle; enRevision: boolean })
         </Ayuda>
       ),
     } satisfies Columna] : []),
-    {
-      clave: "fuente",
-      titulo: "Fuente",
-      ancho: "88px",
-      desde: "lg",
-      ayuda: <Ayuda titulo="¿Qué abre la fuente?">La página del acta o del cuadro comparativo donde se leyó la oferta.</Ayuda>,
-    },
+    // La página del acta va bajo el nombre del postor, no en una columna propia: en la columna angosta de la ficha esa
+    // columna dejaba el nombre en «BIOMEDIC…».
   ];
   const ordenados = [...postores].sort((a, b) => Number(b.esGanador) - Number(a.esGanador) || (a.ordenPrelacion ?? 99) - (b.ordenPrelacion ?? 99));
   // Si la buena pro pasó a otro postor (OCDS + CONOSCE), el "ganador" del acta no es con quien se contrató.
@@ -400,6 +395,7 @@ function SeccionPostores({ c, enRevision }: { c: Detalle; enRevision: boolean })
                     </Dato>
                   ),
                   oferta && <Dato key="oferta" icono={Coins} nombre="Oferta" className="md:hidden">{oferta}</Dato>,
+                  p.citas[0] && <CitaPagina key="cita" ocid={c.ocid} cita={p.citas[0]} corto />,
                 ]}
               />
             }
@@ -421,7 +417,6 @@ function SeccionPostores({ c, enRevision }: { c: Detalle; enRevision: boolean })
             {pts((p.puntajeFinal ?? p.puntajeTotal)!)}
           </CeldaNumero>
         ) : undefined,
-        fuente: p.citas[0] ? <CitaPagina ocid={c.ocid} cita={p.citas[0]} corto /> : <span className="text-rotulo text-mute">Sin cita</span>,
       },
       // Una persona natural no se busca por su nombre ni por su RUC (docs/PRIVACIDAD.md): sólo por su estado.
       buscable: [esPersonaNatural(p.ruc) ? null : p.razonSocial, esPersonaNatural(p.ruc) ? null : p.ruc, estado, motivoDe(p)].filter(Boolean).join(" "),

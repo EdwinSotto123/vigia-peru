@@ -171,13 +171,25 @@ export function Seccion({
       </details>
     );
   }
+  // Una sección es una superficie con su título ADENTRO (2026-11-23, el usuario: «secciones que son solo texto sin fondo o
+  // forma»): antes el h2 flotaba sobre el fondo de la página y el contenido iba suelto o en otra caja. Es `.tarjeta`: las
+  // tablas, franjas de cifras y listas de adentro van sin su marco (ver Tabla, CifrasEnFila, DatosClave). Dentro de otra
+  // tarjeta o de un panel lateral no se vuelve a enmarcar: caja dentro de caja.
   return (
-    <section id={id} aria-labelledby={id ? `${id}-titulo` : undefined} className={cn("scroll-mt-24", className)}>
-      <div className="mb-3 flex flex-wrap items-end justify-between gap-3">
+    <section
+      id={id}
+      aria-labelledby={id ? `${id}-titulo` : undefined}
+      className={cn(
+        "tarjeta scroll-mt-24 rounded-2xl border border-line bg-paper",
+        "[.tarjeta_&]:rounded-none [.tarjeta_&]:border-0 [.tarjeta_&]:bg-transparent [[role=dialog]_&]:rounded-none [[role=dialog]_&]:border-0 [[role=dialog]_&]:bg-transparent",
+        className,
+      )}
+    >
+      <div className="flex flex-wrap items-end justify-between gap-3 px-4 pt-4 sm:px-5 sm:pt-5 [.tarjeta_.tarjeta_&]:px-0 [.tarjeta_.tarjeta_&]:pt-0 [[role=dialog]_&]:px-0 [[role=dialog]_&]:pt-0">
         {cabecera}
         {acciones && <div className="flex flex-wrap items-center gap-2">{acciones}</div>}
       </div>
-      {children}
+      <div className="px-4 pb-4 pt-3 sm:px-5 sm:pb-5 [.tarjeta_.tarjeta_&]:px-0 [.tarjeta_.tarjeta_&]:pb-0 [[role=dialog]_&]:px-0 [[role=dialog]_&]:pb-0">{children}</div>
     </section>
   );
 }

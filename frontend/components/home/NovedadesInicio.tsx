@@ -64,7 +64,9 @@ export async function NovedadesInicio() {
   const candidatas: (Cifra & { n: number })[] = [
     {
       valor: numero(graves),
-      etiqueta: graves === 1 ? "contrato con un antecedente grave" : "contratos con un antecedente grave",
+      // «contratos graves», como la gráfica de al lado: «contratos con un antecedente grave» eran cuatro renglones en la
+      // media columna del celular (2026-11-23). Qué es grave, en el ⓘ y en Lo nuevo.
+      etiqueta: graves === 1 ? "contrato grave" : "contratos graves",
       // «de N buenas pro» al comienzo: la cifra dibuja su barra con el porcentaje (CifrasEnFila lo lee del contexto). Qué
       // semana es, en el ⓘ: en el contexto eran cinco renglones en el celular.
       contexto: `${d.resumen.buenasPro ? `de ${numero(d.resumen.buenasPro)} buenas pro, ` : ""}semana ${rangoSemana(d.semana.desde, d.semana.hasta)}`,

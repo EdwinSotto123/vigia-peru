@@ -116,7 +116,7 @@ function TarjetaDueno({ p, id, className }: { p: PatronDueno; id: string; classN
       <div className="pointer-events-none relative z-[1] grid gap-3 p-4 sm:grid-cols-[minmax(0,1fr)_minmax(9rem,auto)_auto] sm:items-center sm:gap-5 sm:p-5">
         <div className="min-w-0">
           <p className="flex items-center gap-3">
-            <span aria-hidden className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-ink text-paper">
+            <span aria-hidden className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-granate-50 text-granate ring-1 ring-granate/25">
               <UserRound size={19} strokeWidth={2} />
             </span>
             <span className="min-w-0 flex-1">

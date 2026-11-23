@@ -297,7 +297,8 @@ export function SusDatos({ e }: { e: FichaEmpresa["empresa"] }) {
     },
   ];
   return (
-    <div className="tarjeta grid gap-x-6 gap-y-5 rounded-2xl border border-line bg-paper p-4 sm:p-5 lg:grid-cols-2 xl:grid-cols-1">
+    // Dentro de la sección «Sus datos» (otra tarjeta) va sin su marco: era una caja dentro de la caja.
+    <div className="tarjeta grid gap-x-6 gap-y-5 rounded-2xl border border-line bg-paper p-4 sm:p-5 lg:grid-cols-2 xl:grid-cols-1 [.tarjeta_&]:rounded-none [.tarjeta_&]:border-0 [.tarjeta_&]:bg-transparent [.tarjeta_&]:p-0">
       <section aria-labelledby="datos-sunat" className="min-w-0 space-y-1">
         <h3 id="datos-sunat" className="font-display text-cuerpo font-bold text-ink">En la SUNAT</h3>
         <DatosClave items={sunat} />

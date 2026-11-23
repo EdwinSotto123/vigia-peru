@@ -39,6 +39,7 @@ import { pestanasContratada } from "@/components/personas/ficha/contratada";
 import { PestanaSueldo, SenalesDePlanilla, prepararPlanilla, type PlanillaPreparada } from "@/components/personas/ficha/planilla";
 import { PestanaFamilia } from "@/components/personas/ficha/familia";
 import { RedPersona } from "@/components/personas/ficha/RedPersona";
+import { SuperficiePestana } from "@/components/fichas/SuperficiePestana";
 import { redDePersona } from "@/lib/redPersona";
 
 export const revalidate = 600;
@@ -47,6 +48,13 @@ export async function generateMetadata({ params }: { params: { codigo: string } 
   const f = await getFichaFuncionario(params.codigo);
   return { title: f?.persona.nombre ? `${f.persona.nombre}, persona con cargo público` : "Persona con cargo público", robots: { index: false } };
 }
+
+/**
+ * Cada bloque de una pestaña en su tarjeta, con el título adentro (2026-11-23, «secciones que son solo texto sin fondo o
+ * forma»): antes «En la planilla del Estado» o «Lo que declaró a la Contraloría» eran un h2 y una línea sueltos sobre el
+ * fondo. Es `.tarjeta`: la tabla y los datos clave de adentro van sin su marco.
+ */
+const BLOQUE = "tarjeta space-y-3 rounded-2xl border border-line bg-paper p-4 sm:p-5";
 
 const MESES = ["ene.", "feb.", "mar.", "abr.", "may.", "jun.", "jul.", "ago.", "set.", "oct.", "nov.", "dic."];
 /** «2026-06» → «jun. 2026». */
@@ -254,7 +262,7 @@ export default async function FuncionarioPage({ params, searchParams }: { params
             conteo: f.planilla.reduce((s, x) => s + Math.max(1, x.cargos?.length ?? 0), 0) + f.cargos.length,
             contenido: (
               <div className="space-y-6">
-                <section className="space-y-3" data-bloque>
+                <section className={BLOQUE} data-bloque>
                   <CabeceraPestana
                     titulo="En la planilla del Estado"
                     ayuda={
@@ -279,7 +287,7 @@ export default async function FuncionarioPage({ params, searchParams }: { params
                   </CabeceraPestana>
                   {f.planilla.length > 0 && <Tabla columnas={COLUMNAS_PLANILLA} filas={f.planilla.flatMap(filasPlanilla)} etiqueta="Planillas en que figura o figuró" />}
                 </section>
-                <section className="space-y-3" data-bloque>
+                <section className={BLOQUE} data-bloque>
                   <CabeceraPestana
                     titulo="Lo que declaró a la Contraloría"
                     ayuda={
@@ -304,7 +312,7 @@ export default async function FuncionarioPage({ params, searchParams }: { params
                   )}
                 </section>
                 {(f.empleos ?? []).length > 0 && (
-                  <section className="space-y-3" data-bloque>
+                  <section className={BLOQUE} data-bloque>
                     <CabeceraPestana
                       titulo="Los trabajos que declaró"
                       ayuda={
@@ -374,7 +382,7 @@ export default async function FuncionarioPage({ params, searchParams }: { params
                     <div className="space-y-6">
                       <CobradoPlanilla filas={cobrado} ruta={ruta} />
                       {planilla && dPl ? (
-                        <section className="space-y-3" data-bloque>
+                        <section className={BLOQUE} data-bloque>
                           <CabeceraPestana titulo="Mes a mes en su planilla de hoy">
                             El detalle de cada mes publicado en {dPl.entidad}.
                           </CabeceraPestana>
@@ -428,7 +436,7 @@ export default async function FuncionarioPage({ params, searchParams }: { params
                     <div className="space-y-6">
                       {senalesContratada ? <section data-bloque>{senalesContratada.contenido}</section> : null}
                       {dPl ? (
-                        <section className="space-y-3" data-bloque>
+                        <section className={BLOQUE} data-bloque>
                           <CabeceraPestana titulo={senalesContratada ? `En su planilla de ${dPl.entidad}` : undefined}>
                             {dPl.nSenales
                               ? `${plural(dPl.nSenales, "señal", "señales")} en ${dPl.entidad}, de la más grave a la más leve.`
@@ -460,7 +468,7 @@ export default async function FuncionarioPage({ params, searchParams }: { params
             titulo: "Las visitas que hizo a entidades del Estado",
             conteo: f.visitas.total,
             contenido: (
-              <div className="space-y-3">
+              <SuperficiePestana className="space-y-3">
                 <CabeceraPestana
                   ayuda={
                     <Ayuda titulo="¿De dónde salen las visitas?">
@@ -485,11 +493,11 @@ export default async function FuncionarioPage({ params, searchParams }: { params
                     filas={f.visitas.filas.map(filaVisita)}
                     etiqueta="Entidades que visitó"
                     nombre="entidades"
-                    tam={20}
+                    tam={10}
                     buscar={{ placeholder: "Buscar por entidad u organización…", etiqueta: "Buscar en las entidades que visitó" }}
                   />
                 ) : null}
-              </div>
+              </SuperficiePestana>
             ),
           },
           {
@@ -507,7 +515,7 @@ export default async function FuncionarioPage({ params, searchParams }: { params
             titulo: "Las empresas en que es socia o representante",
             conteo: f.empresas.length,
             contenido: (
-              <div className="space-y-3">
+              <SuperficiePestana className="space-y-3">
                 <CabeceraPestana
                   ayuda={
                     <Ayuda titulo="¿De dónde salen?">
@@ -523,7 +531,7 @@ export default async function FuncionarioPage({ params, searchParams }: { params
                     : "No figura como socia, representante ni directiva de ninguna empresa del Registro Nacional de Proveedores."}
                 </CabeceraPestana>
                 {f.empresas.length > 0 && <Tabla columnas={COLUMNAS_EMPRESAS} filas={f.empresas.map(filaEmpresa)} etiqueta="Empresas de la persona" />}
-              </div>
+              </SuperficiePestana>
             ),
           },
           {
@@ -546,16 +554,17 @@ export default async function FuncionarioPage({ params, searchParams }: { params
         {mp?.fichaContratada?.via === "planilla" ? " Sus órdenes se unieron a esta ficha porque la planilla de su entidad trae el mismo nombre completo que quien las recibe." : ""}
         {mp?.fichaContratada?.via === "nombre" ? " Sus órdenes se unieron a esta ficha porque una sola persona de todo el registro de órdenes lleva su nombre completo." : ""}
         {mp && !mp.fichaContratada && mp.homonimos > 1 ? ` Hay ${numero(mp.homonimos)} personas con órdenes y este mismo nombre completo: no se unió ninguna (están en Otros registros).` : ""}
+        {/* Las fichas de antes, dentro de la nota (antes una línea gris suelta al pie de la página). */}
+        {contratada || planilla ? (
+          <span className="mt-1.5 block">
+            Esta ficha reúne lo que antes estaba en fichas separadas.{" "}
+            {codContratada ? <Link href={`${rutaPersona(codContratada)}?directo=1`} prefetch={false} className="font-medium text-granate underline underline-offset-2">Ver sólo su ficha de persona contratada</Link> : null}
+            {codContratada && fichaPl ? ", " : ""}
+            {fichaPl ? <Link href={`${rutaPlanilla(fichaPl)}?directo=1`} prefetch={false} className="font-medium text-granate underline underline-offset-2">ver sólo su ficha de planilla</Link> : null}
+            .
+          </span>
+        ) : null}
       </Nota>
-      {contratada || planilla ? (
-        <p className="text-rotulo text-mute">
-          Esta ficha reúne lo que antes estaba en fichas separadas.{" "}
-          {codContratada ? <Link href={`${rutaPersona(codContratada)}?directo=1`} prefetch={false} className="underline underline-offset-2 hover:text-granate">Ver sólo su ficha de persona contratada</Link> : null}
-          {codContratada && fichaPl ? ", " : ""}
-          {fichaPl ? <Link href={`${rutaPlanilla(fichaPl)}?directo=1`} prefetch={false} className="underline underline-offset-2 hover:text-granate">ver sólo su ficha de planilla</Link> : null}
-          .
-        </p>
-      ) : null}
     </Pagina>
   );
 }
@@ -1079,7 +1088,7 @@ function CobradoPlanilla({ filas, ruta }: { filas: CobradoEnPlanilla[]; ruta: st
       filas: [...g.anios].sort((a, b) => b.anio - a.anio).map(filaCobrado),
     }));
   return (
-    <section className="space-y-3" data-bloque>
+    <section className={BLOQUE} data-bloque>
       <CabeceraPestana
         titulo="Por entidad y año"
         ayuda={
@@ -1100,7 +1109,7 @@ function CobradoPlanilla({ filas, ruta }: { filas: CobradoEnPlanilla[]; ruta: st
           : "No hay meses de planilla cargados para esta persona."}
       </CabeceraPestana>
       {filas.length > 0 && (
-        <section aria-labelledby="como-cobro-planilla" className="tarjeta space-y-3 rounded-2xl border border-line bg-paper p-4 sm:p-5">
+        <section aria-labelledby="como-cobro-planilla" className="tarjeta space-y-3 rounded-2xl border border-line bg-paper p-4 sm:p-5 [.tarjeta_&]:rounded-none [.tarjeta_&]:border-x-0 [.tarjeta_&]:border-b-0 [.tarjeta_&]:px-0 [.tarjeta_&]:pb-0">
           <h3 id="como-cobro-planilla" className="font-display text-bloque font-bold text-ink">Cómo cobró</h3>
           <DatosClave
             items={[
@@ -1505,7 +1514,7 @@ function OtrosRegistros({ f }: { f: FichaFuncionario }) {
   return (
     <div className="space-y-6">
       {candidaturas.length > 0 && (
-        <section className="space-y-2" data-bloque>
+        <section className={BLOQUE} data-bloque>
           <CabeceraPestana
             titulo="Candidaturas"
             ayuda={
@@ -1532,7 +1541,7 @@ function OtrosRegistros({ f }: { f: FichaFuncionario }) {
         </section>
       )}
       {f.ordenes.length > 0 && (
-        <section className="space-y-3" data-bloque>
+        <section className={BLOQUE} data-bloque>
           <CabeceraPestana titulo="Órdenes de servicio">
             Recibió órdenes de servicio como persona natural de {plural(f.ordenes.length, "entidad", "entidades")}. Cada fila abre su ficha de persona
             contratada.
@@ -1541,7 +1550,7 @@ function OtrosRegistros({ f }: { f: FichaFuncionario }) {
         </section>
       )}
       {f.informes.length > 0 && (
-        <section className="space-y-3" data-bloque>
+        <section className={BLOQUE} data-bloque>
           <CabeceraPestana
             titulo="Informes de control"
             ayuda={
@@ -1564,7 +1573,7 @@ function OtrosRegistros({ f }: { f: FichaFuncionario }) {
         </section>
       )}
       {f.aportes.length > 0 && (
-        <section className="space-y-2" data-bloque>
+        <section className={BLOQUE} data-bloque>
           <CabeceraPestana titulo="Aportes de campaña">Lo que aportó a organizaciones políticas, según la ONPE.</CabeceraPestana>
           <DatosClave
             items={f.aportes.map((a, i) => ({
@@ -1575,7 +1584,7 @@ function OtrosRegistros({ f }: { f: FichaFuncionario }) {
         </section>
       )}
       {f.expuesta.length > 0 && (
-        <section className="space-y-2" data-bloque>
+        <section className={BLOQUE} data-bloque>
           <CabeceraPestana titulo="Persona expuesta políticamente">Los cargos por los que figura en esa lista.</CabeceraPestana>
           <DatosClave
             items={f.expuesta.map((x, i) => ({

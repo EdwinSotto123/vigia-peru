@@ -244,7 +244,11 @@ export function PatronesVista({ activa, inicial, etiquetas }: { activa?: string;
           icono: <FlaskConical size={15} aria-hidden />,
           contenido: <ListaObservacion inicial={de("observacion")} />,
         },
-      ]}
+        // Cada lista del país en su tarjeta, con su título adentro (2026-11-23, el usuario: «secciones que son solo texto sin
+        // fondo o forma»): antes el h2 de la pestaña, sus cifras y su tabla flotaban sobre el fondo de la página. Es
+        // `.tarjeta`: la franja de cifras y la tabla de adentro van sin su marco. La ficha de una entidad o empresa no pasa
+        // por aquí (usa `ListaDePatron`).
+      ].map((p) => ({ ...p, contenido: <div className="tarjeta rounded-2xl border border-line bg-paper p-4 sm:p-5">{p.contenido}</div> }))}
     />
   );
 }
@@ -544,7 +548,7 @@ const columnasSenal = (alcance: AlcancePatron): Columna[] => [
     ),
   },
   { clave: "monto", titulo: "Monto", ancho: "6.5rem", alinear: "der", desde: "lg", apilar: "con-rotulo" },
-  { clave: "ejemplos", titulo: "Contratos de ejemplo", ancho: "minmax(0,1fr)", desde: "xl", apilar: true },
+  { clave: "ejemplos", titulo: "Contratos de ejemplo", ancho: "minmax(12rem,1fr)", desde: "xl", apilar: true },
 ];
 
 /**

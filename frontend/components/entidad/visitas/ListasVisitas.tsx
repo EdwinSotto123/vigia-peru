@@ -71,8 +71,9 @@ async function Lista<L extends ListaVisitas>({ ruc, sp, cfg, cabecera }: { ruc: 
   const { api, parametros, actual, filtrada } = leer(sp, cfg.que);
   const paginaP = getListaVisitas(ruc, cfg.que, { ...api, page: actual > 1 ? actual : undefined });
   const P = P_VISITAS[cfg.que];
+  // La lista en su superficie, con el título adentro: antes el título y su línea flotaban sobre el fondo de la página.
   return (
-    <div>
+    <div className="tarjeta rounded-2xl border border-line bg-paper p-4 sm:p-5">
       <CabeceraPestana
         titulo={cabecera.titulo}
         ayuda={cabecera.ayuda}

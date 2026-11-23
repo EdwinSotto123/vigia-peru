@@ -322,7 +322,7 @@ export default async function EntidadProfile({
       // Cada compra una vez (procesos, catálogo, menores y órdenes sin concurso juntos, sin repetidas).
       conteo: sinCompras ? 0 : n.compras,
       contenido: sinCompras ? (
-        <PestanaVacia titulo="No registra compras" ayuda={<AyudaCompras />} accion={!sinMef ? accion(enlace("presupuesto"), "Ver cuánto gasta") : undefined}>
+        <PestanaVacia titulo="No registra compras" icono={<FileText size={22} />} ayuda={<AyudaCompras />} accion={!sinMef ? accion(enlace("presupuesto"), "Ver cuánto gasta") : undefined}>
           Ni el OECE, ni el SEACE ni Perú Compras tienen compras con su RUC: ni convocatorias desde 2015, ni órdenes de compra o de
           servicio desde 2018, ni contratos menores, ni compras por catálogo.
         </PestanaVacia>
@@ -351,6 +351,7 @@ export default async function EntidadProfile({
       contenido: vacias.has("personas") ? (
         <PestanaVacia
           titulo="No registra órdenes de servicio a personas"
+          icono={<Users size={22} />}
           ayuda={<AyudaPersonas />}
           accion={n.planilla ? accion(enlace("planilla"), "Ver su planilla") : n.ordenes !== 0 ? accion(enlace("contratos", { vista: "ordenes" }), "Ver sus órdenes") : undefined}
         >
@@ -369,7 +370,7 @@ export default async function EntidadProfile({
       etiqueta: "Planilla",
       conteo: n.planilla,
       contenido: vacias.has("planilla") ? (
-        <PestanaVacia titulo="Sin planilla publicada" ayuda={<AyudaPlanilla />} accion={n.personas ? accion(enlace("personas"), "Ver a las personas que contrató") : undefined}>
+        <PestanaVacia titulo="Sin planilla publicada" icono={<IdCard size={22} />} ayuda={<AyudaPlanilla />} accion={n.personas ? accion(enlace("personas"), "Ver a las personas que contrató") : undefined}>
           La entidad no publicó su personal en el Portal de Transparencia en los meses cargados, o aún no lo encontramos.
         </PestanaVacia>
       ) : (
@@ -408,7 +409,7 @@ export default async function EntidadProfile({
             Sus oficinas, de quién depende cada una y por qué, quién las encabeza y cuánta gente tienen.
           </CabeceraPestana>
           <Suspense fallback={<Cargando texto="Armando su organización…" />}>
-            <OrganizacionEntidad ruc={e.ruc} ruta={ruta} entidad={String(e.nombre ?? nombre)} />
+            <OrganizacionEntidad ruc={e.ruc} ruta={ruta} entidad={String(e.nombre ?? nombre)} vista={uno(searchParams?.ov)} />
           </Suspense>
         </div>
       ),
@@ -420,11 +421,11 @@ export default async function EntidadProfile({
       conteo: n.plazas,
       contenido: vacias.has("plazas") ? (
         empresaDelEstado ? (
-          <PestanaVacia titulo="Las empresas del Estado no convocan plazas CAS" ayuda={<AyudaPlazas />} accion={n.planilla ? accion(enlace("planilla"), "Ver su planilla") : undefined}>
+          <PestanaVacia titulo="Las empresas del Estado no convocan plazas CAS" icono={<Ruler size={22} />} ayuda={<AyudaPlazas />} accion={n.planilla ? accion(enlace("planilla"), "Ver su planilla") : undefined}>
             El régimen CAS (D. Leg. 1057) no se aplica a las empresas del Estado: su personal está en el régimen laboral privado.
           </PestanaVacia>
         ) : (
-          <PestanaVacia titulo="Sin plazas CAS publicadas" ayuda={<AyudaPlazas />} accion={n.planilla ? accion(enlace("planilla"), "Ver su planilla") : undefined}>
+          <PestanaVacia titulo="Sin plazas CAS publicadas" icono={<Ruler size={22} />} ayuda={<AyudaPlazas />} accion={n.planilla ? accion(enlace("planilla"), "Ver su planilla") : undefined}>
             No encontramos convocatorias CAS de esta entidad en SERVIR Talento Perú
             {conteos?.plazasDesde ? ` desde el ${fecha(conteos.plazasDesde)}, cuando Vigía empezó a guardarlas` : " desde que Vigía empezó a guardarlas"}.
           </PestanaVacia>
@@ -444,7 +445,7 @@ export default async function EntidadProfile({
       etiqueta: "Visitas",
       conteo: n.visitas,
       contenido: vacias.has("visitas") ? (
-        <PestanaVacia titulo="Sin visitas registradas" ayuda={<AyudaVisitas />}>
+        <PestanaVacia titulo="Sin visitas registradas" icono={<DoorOpen size={22} />} ayuda={<AyudaVisitas />}>
           No tenemos su registro de visitas: la plataforma de la PCM no se puede consultar de forma automática y esta entidad no
           está en los reportes que cargamos (los que publicó en datos abiertos, una exportación del portal y el registro del Congreso).
         </PestanaVacia>
@@ -463,13 +464,13 @@ export default async function EntidadProfile({
       etiqueta: "Cuánto gasta",
       contenido: sinMef ? (
         empresaDelEstado || fueraSiaf ? (
-          <PestanaVacia titulo={empresaDelEstado ? "Las empresas del Estado no están en el presupuesto del MEF" : "Esta entidad no está en el presupuesto público del MEF"}>
+          <PestanaVacia titulo={empresaDelEstado ? "Las empresas del Estado no están en el presupuesto del MEF" : "Esta entidad no está en el presupuesto público del MEF"} icono={<Wallet size={22} />}>
             {fueraSiaf
               ? "El registro de entidades de la OECE la marca fuera del SIAF, el sistema con el que el MEF registra el gasto público (pasa con las empresas de FONAFE, EsSalud y las EPS de agua): su presupuesto no sale en los datos abiertos del MEF."
               : "Su presupuesto no es parte del presupuesto público que el MEF publica por unidad ejecutora."}
           </PestanaVacia>
         ) : (
-          <PestanaVacia titulo="No encontramos su presupuesto en el MEF" accion={externa(CONSULTA_AMIGABLE, "Buscarla en la Consulta Amigable")}>
+          <PestanaVacia titulo="No encontramos su presupuesto en el MEF" icono={<Wallet size={22} />} accion={externa(CONSULTA_AMIGABLE, "Buscarla en la Consulta Amigable")}>
             No coincidió con ninguna unidad ejecutora del presupuesto público: puede figurar con otro nombre en el MEF o no
             ejecutar presupuesto propio.
           </PestanaVacia>
@@ -496,6 +497,7 @@ export default async function EntidadProfile({
         <>
           <PestanaVacia
             titulo="Sin informes de control"
+            icono={<FileSearch size={22} />}
             ayuda={<AyudaControl />}
             accion={
               <Acciones>

@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { ChevronDown } from "lucide-react";
+import { ChevronDown, FileText, Flag, HeartHandshake, HelpCircle, MessageSquareWarning, type LucideIcon } from "lucide-react";
 import { Seccion } from "@/components/patrones";
 
 export interface PreguntaFAQ {
@@ -29,12 +29,26 @@ export interface TemaFAQ {
  * Las preguntas no son títulos: el `<summary>` es un botón y un h3 adentro se
  * aplana para los lectores de pantalla. La jerarquía queda h1 (página) → h2 (tema).
  */
+/** El ícono de cada tema, junto a su título (2026-11-23): los cuatro títulos eran texto suelto, iguales entre sí. */
+const ICONO_TEMA: Record<string, LucideIcon> = { senales: Flag, contratos: FileText, financiar: HeartHandshake, denuncias: MessageSquareWarning };
+
 export function TemaPreguntas({ tema }: { tema: TemaFAQ }) {
+  const Icono = ICONO_TEMA[tema.id] ?? HelpCircle;
   return (
-    <Seccion id={`tema-${tema.id}`} titulo={tema.titulo}>
-      {/* overflow-hidden: el fondo del hover no asoma por las esquinas redondeadas.
-          El foco va por dentro del resumen (outline-offset negativo), así no se recorta. */}
-      <ul className="divide-y divide-line overflow-hidden rounded-2xl border border-line bg-paper">
+    <Seccion
+      id={`tema-${tema.id}`}
+      titulo={
+        <span className="inline-flex items-center gap-2.5">
+          <span aria-hidden className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-granate-50 text-granate">
+            <Icono size={18} strokeWidth={1.9} />
+          </span>
+          {tema.titulo}
+        </span>
+      }
+    >
+      {/* Las preguntas de borde a borde dentro de la tarjeta del tema (sin otra caja adentro). overflow-hidden: el fondo del
+          hover no asoma por las esquinas redondeadas. El foco va por dentro del resumen (outline-offset negativo). */}
+      <ul className="-mx-4 -mb-4 divide-y divide-line overflow-hidden rounded-b-2xl border-t border-line sm:-mx-5 sm:-mb-5">
         {tema.preguntas.map((p) => (
           <li key={p.slug}>
             <details id={p.slug} className="group/pregunta scroll-mt-20">

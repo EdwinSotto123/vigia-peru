@@ -243,9 +243,9 @@ export default async function PreguntasPage() {
         </ul>
       </nav>
 
-      <div className="grid items-start gap-8 xl:grid-cols-2 xl:gap-10">
+      <div className="grid items-start gap-6 xl:grid-cols-2">
         {COLUMNAS.map((columna, i) => (
-          <div key={i} className="min-w-0 space-y-8">
+          <div key={i} className="min-w-0 space-y-6">
             {columna.map((t) => (
               <TemaPreguntas key={t.id} tema={t} />
             ))}

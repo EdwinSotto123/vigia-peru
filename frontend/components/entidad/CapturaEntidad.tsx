@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Network } from "lucide-react";
+import { Landmark, Network, UserRound } from "lucide-react";
 import { tituloNatural } from "@/lib/landing";
 import { numero, oracion, plural, soles, solesCompacto } from "@/lib/formato";
 import type { GrafoCaptura, PoderEntidad } from "@/lib/poder";
@@ -253,6 +253,62 @@ export function datosQuienGobierna(poder: PoderEntidad | null): DatoClave[] {
       ) : null,
     },
   ];
+}
+
+/**
+ * Quién la gobierna en el Inicio, con forma (2026-11-23, el usuario: «secciones que son solo texto»): antes eran dos pares
+ * rótulo y valor («Partido / Yo Arequipa», «Gobernador regional / …»). Ahora el partido y la autoridad van cada uno con su
+ * ícono, y el mandato es una barra que dice cuánto lleva (el tramo lleno es lo que ya pasó).
+ */
+export function GobiernaTarjeta({ poder }: { poder: PoderEntidad | null }) {
+  if (!poder?.partido) return null;
+  const desde = mesAnio(poder.periodoInicio);
+  const hasta = mesAnio(poder.periodoFin);
+  const ini = poder.periodoInicio ? Date.parse(`${poder.periodoInicio.slice(0, 10)}T12:00:00-05:00`) : NaN;
+  const fin = poder.periodoFin ? Date.parse(`${poder.periodoFin.slice(0, 10)}T12:00:00-05:00`) : NaN;
+  const avance = Number.isFinite(ini) && Number.isFinite(fin) && fin > ini ? Math.max(0, Math.min(1, (Date.now() - ini) / (fin - ini))) : null;
+  return (
+    <div className="space-y-3.5">
+      <p className="flex items-center gap-3">
+        <span aria-hidden className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-granate-50 text-granate ring-1 ring-granate/25">
+          <Landmark size={18} />
+        </span>
+        <span className="min-w-0">
+          <Link href={rutaPartido(poder.partido, poder.periodoInicio)} prefetch={false} className="block font-display text-bloque font-bold leading-tight text-ink underline decoration-line underline-offset-[3px] hover:text-granate hover:decoration-granate">
+            {tituloNatural(poder.partido)}
+          </Link>
+          <span className="mt-0.5 block text-meta text-inkSoft">el partido que la gobierna</span>
+        </span>
+      </p>
+      {poder.autoridad && (
+        <p className="flex items-center gap-3">
+          <span aria-hidden className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-paperDeep text-inkSoft">
+            <UserRound size={18} />
+          </span>
+          <span className="min-w-0">
+            <span className="block text-dato font-semibold leading-snug text-ink">{tituloNatural(poder.autoridad)}</span>
+            <span className="block text-meta text-inkSoft">{poder.cargo_gob ? oracion(poder.cargo_gob) : "Autoridad electa"}</span>
+          </span>
+        </p>
+      )}
+      {avance != null && desde && hasta && (
+        <div>
+          <span
+            role="img"
+            aria-label={`Mandato de ${desde} a ${hasta}: lleva el ${Math.round(avance * 100)} %`}
+            className="block h-2 overflow-hidden rounded-full bg-paperDeep"
+          >
+            <span className="block h-full rounded-full bg-granate" style={{ width: `${Math.max(2, Math.round(avance * 100))}%` }} />
+          </span>
+          <span className="mt-1 flex justify-between gap-3 text-rotulo tabular-nums text-mute">
+            <span>{desde}</span>
+            <span className="font-semibold text-inkSoft">{avance >= 1 ? "Mandato cumplido" : `${Math.round(avance * 100)} % del mandato`}</span>
+            <span>{hasta}</span>
+          </span>
+        </div>
+      )}
+    </div>
+  );
 }
 
 /** De dónde sale quién gobierna: el JNE (sus datos abiertos de autoridades vigentes e Infogob). */

@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { CloudOff } from "lucide-react";
 import { ColumnasAnio } from "@/components/charts/ColumnasAnio";
 import { Ayuda, CapitulosRelato, EncabezadoPagina, EnUnaFrase, FuenteDato, Migas, Pagina, type CapituloRelato } from "@/components/patrones";
+import { Indicadores } from "@/components/listado";
 import { CronologiaCaso } from "@/components/patrones/caso/CronologiaCaso";
 import { EvidenciaCaso } from "@/components/patrones/caso/EvidenciaCaso";
 import { RedCaso } from "@/components/patrones/caso/RedCaso";
@@ -162,16 +163,18 @@ export default async function CasoPatronPagina({ params }: { params: { tipo: str
         }
       />
       <EnUnaFrase tono={c.severidad}>{c.frase}</EnUnaFrase>
-      <ul className="grid grid-cols-2 gap-2 lg:grid-cols-4" aria-label="Cifras del caso">
-        {c.cifras.map((x) => (
-          <li key={x.etiqueta} className="rounded-xl border border-line bg-paper px-3 py-2.5">
-            <span className="block text-meta font-medium text-inkSoft">{x.etiqueta}</span>
-            <span className="mt-0.5 block font-display text-seccion font-bold tabular-nums text-ink">{x.valor}</span>
-            {x.contexto && <span className="block text-rotulo text-mute">{x.contexto}</span>}
-          </li>
-        ))}
-      </ul>
-      <CapitulosRelato capitulos={capitulos} etiqueta="Capítulos del caso" />
+      {/* Las cifras del caso en una franja (2026-11-23): eran cuatro cajitas sueltas con la etiqueta encima del número. */}
+      <Indicadores
+        franja
+        items={c.cifras.map((x) => ({ valor: x.valor, etiqueta: x.etiqueta, contexto: x.contexto ?? undefined }))}
+      />
+      {/* Cada capítulo abierto en su tarjeta, con su título adentro (el usuario: «secciones que son solo texto sin fondo o
+          forma»): antes el título del capítulo, su gráfico y su cronología iban sueltos sobre el fondo de la página. Se hace
+          desde aquí, sin tocar CapitulosRelato: el panel es la `section` hija de su raíz. `.tarjeta` quita el marco de las
+          tablas de adentro. */}
+      <div className="tarjeta [&>div>section]:mt-3 [&>div>section]:rounded-2xl [&>div>section]:border [&>div>section]:border-line [&>div>section]:bg-paper [&>div>section]:p-4 sm:[&>div>section]:p-5">
+        <CapitulosRelato capitulos={capitulos} etiqueta="Capítulos del caso" />
+      </div>
     </Pagina>
   );
 }

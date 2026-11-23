@@ -16,7 +16,8 @@ import { P_INV, P_OBRA, getInversiones, getObras, parametrosDe, parseInversiones
  * el Inicio de la entidad: una sola regla, en la base (migración 160).
  */
 
-export const TAM_OBRAS = 25;
+/** Diez por página: 25 filas eran tres pantallas (2026-11-23). */
+export const TAM_OBRAS = 10;
 export const VISTAS_OBRAS = ["obras", "inversiones"] as const;
 export type VistaObras = (typeof VISTAS_OBRAS)[number];
 
@@ -95,6 +96,7 @@ export function ObrasEntidad({
   const pestanas: Pestana[] = orden.map((v) => ({
     clave: v,
     etiqueta: v === "obras" ? "Obras (INFOBRAS)" : "Inversiones (Invierte.pe)",
+    pista: v === "obras" ? "Lo que construye y cuánto avanza" : "Lo que se aprobó y cuánto se gastó",
     conteo: conteo[v],
     contenido: v === activa ? cuerpo(v) : (
       <Suspense fallback={<TablaSkeleton columnas={[{ clave: "a", titulo: v === "obras" ? "Obra" : "Inversión", ancho: "1fr" }]} filas={8} />}>

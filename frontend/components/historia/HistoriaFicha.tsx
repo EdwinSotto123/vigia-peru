@@ -2,8 +2,10 @@ import { Building2, CalendarRange, CloudOff, History, List, Siren } from "lucide
 import Link from "next/link";
 import { Fragment } from "react";
 import { CeldaNumero, CeldaPrincipal, TablaFiltrable, type Columna, type FilaFiltrable } from "@/components/listado";
-import { FuenteDato, Nota, Pestanas, type Pestana } from "@/components/patrones";
+import { Nota, Pestanas, type Pestana } from "@/components/patrones";
+import { PieFuentes } from "@/components/entidad/PieFuentes";
 import { Dato } from "@/components/ui/Dato";
+import { Severidad } from "@/components/ui/Severidad";
 import { VacioEnLinea } from "@/components/ui/VacioEnLinea";
 import { fechaConAnio, numero, solesCompacto } from "@/lib/formato";
 import { getHistoria, type Carril, type Historia } from "@/lib/historia";
@@ -127,13 +129,14 @@ export async function HistoriaFicha({
             conteo: hilos.length,
             icono: <Building2 size={15} aria-hidden />,
             contenido: (
-              <div className="space-y-2">
-                <p className="max-w-prose text-meta text-inkSoft">
+              <section aria-labelledby="hilos-titulo" className="rounded-2xl border border-line bg-paper p-4 sm:p-5">
+                <h3 id="hilos-titulo" className="font-display text-bloque font-bold text-ink">Lo que pasó con cada empresa</h3>
+                <p className="mb-3 mt-0.5 max-w-prose text-meta text-inkSoft">
                   Cada fila une, en el tiempo, lo que pasó entre una misma empresa y la entidad: las visitas de su gente, lo que le
                   dieron, sus banderas, sus obras y sus sanciones.
                 </p>
                 <HilosHistoria hilos={hilos} desde={h.desde} hasta={h.hasta} marcas={h.marcas} gestiones={h.eventos.filter((e) => e.carril === "gobierno" && !!e.hasta)} />
-              </div>
+              </section>
             ),
           },
         ]
@@ -157,7 +160,7 @@ export async function HistoriaFicha({
       <section aria-label="Sus hechos" className="space-y-2">
         <Pestanas param="hv" variante="segunda" etiqueta="Cómo ver sus hechos" activa={vista} pestanas={formas} />
       </section>
-      <FuenteDato fuente="Las fuentes oficiales de cada hecho (en su detalle)" enlaces={h.fuentes} />
+      <PieFuentes fuente="Las fuentes oficiales de cada hecho (en su detalle)" enlaces={h.fuentes} />
     </div>
   );
 }
@@ -179,6 +182,7 @@ function ListaHechos({ h, titulo }: { h: Historia; titulo: (c: Carril) => string
             meta={[
               <Dato key="f" tipo="fecha" nombre="Cuándo">{`${fechaConAnio(s.pasos[0].fecha)} a ${fechaConAnio(s.pasos[s.pasos.length - 1].fecha)}`}</Dato>,
               <Dato key="c" tipo="tipo" nombre="Renglón">Una cosa lleva a otra</Dato>,
+              sev(s.severidad) ? <Severidad key="s" bandera={s.severidad as "alta" | "media" | "baja"} /> : null,
             ]}
           />
         ),
@@ -226,7 +230,8 @@ function ListaHechos({ h, titulo }: { h: Historia; titulo: (c: Carril) => string
               ) : null,
               <Dato key="f" tipo="fecha" nombre="Cuándo">{e.hasta ? `${fechaConAnio(e.fecha)} a ${fechaConAnio(e.hasta)}` : fechaConAnio(e.fecha)}</Dato>,
               <Dato key="c" tipo="tipo" nombre="Renglón">{titulo(e.carril)}</Dato>,
-              sev(e.severidad) && e.carril !== "gobierno" ? <Dato key="s" tipo="tipo" nombre="Gravedad">{sev(e.severidad)}</Dato> : null,
+              // La gravedad en su pastilla con ícono: era una palabra más entre los datos y la lista era puro texto.
+              sev(e.severidad) && e.carril !== "gobierno" ? <Severidad key="s" bandera={e.severidad as "alta" | "media" | "baja"} /> : null,
             ]}
           />
         ),
@@ -245,13 +250,14 @@ function ListaHechos({ h, titulo }: { h: Historia; titulo: (c: Carril) => string
     })),
   ];
   const carriles = [...new Set(filas.map((f) => String(f.valores?.carril)))];
+  // En su tarjeta: antes el buscador, los filtros y la tabla iban sueltos sobre el fondo.
   return (
-    <section aria-label="Todos los hechos" className="space-y-2">
+    <section aria-label="Todos los hechos" className="tarjeta rounded-2xl border border-line bg-paper p-4 sm:p-5">
       <TablaFiltrable
         columnas={columnas}
         filas={filas}
         etiqueta="Hechos de su historia (toca uno para ver su fuente)"
-        tam={20}
+        tam={10}
         nombre="hechos"
         descargar={{ archivo: `historia-${h.sujeto.tipo}-${h.sujeto.id}` }}
         buscar={{ placeholder: "Buscar un hecho, una entidad, una fuente…", etiqueta: "Buscar entre los hechos" }}

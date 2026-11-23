@@ -43,7 +43,8 @@ const COLUMNAS: Columna[] = [
   },
   { clave: "proceso", titulo: "Contrato", ancho: "minmax(0,1.6fr)" },
   {
-    clave: "cruces", titulo: "Antecedentes", ancho: "minmax(0,1fr)", desde: "md", apilar: true,
+    // Un piso de 11 rem: más angosta, la pastilla partía la palabra («Inhabilit / ación temporal»).
+    clave: "cruces", titulo: "Antecedentes", ancho: "minmax(11rem,1fr)", desde: "md", apilar: true,
     ayuda: (
       <Ayuda titulo="¿Qué son los antecedentes del ganador?">
         Datos oficiales donde aparece quien ganó (o sus socios y representantes): aportes y gastos de campaña, candidaturas,

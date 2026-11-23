@@ -252,10 +252,16 @@ export default async function AuditoriaPage({
 
       {lectura && !hayFiltros && <LecturaTotalPanel datos={lectura} />}
 
-      <h2 className="font-display text-bloque font-bold text-ink">Financiados por aportes, uno por uno</h2>
       <ResumenAuditoria initial={resumen} ritmoInicial={ritmo} pollMs={5000}>
         <div className="space-y-6">
-          <EstadoAuditoria />
+          {/* El título y sus cifras en una tarjeta (2026-11-23, el usuario: «secciones que son solo texto sin fondo o forma»):
+              antes el h2 flotaba solo sobre el fondo de la página. */}
+          <section aria-labelledby="financiados-t" className="tarjeta space-y-4 rounded-2xl border border-line bg-paper p-4 sm:p-5">
+            <h2 id="financiados-t" className="font-display text-seccion font-bold leading-tight text-ink">
+              Financiados por aportes, uno por uno
+            </h2>
+            <EstadoAuditoria />
+          </section>
 
           <Listado
             ruta="/app/auditoria"
@@ -389,7 +395,8 @@ export default async function AuditoriaPage({
                       </PestanaAPedido>
                     ),
                   },
-                ]}
+                  // Cada pestaña en su tarjeta, con su título adentro: antes su h2 y su lista iban sueltos sobre el fondo.
+                ].map((p) => ({ ...p, contenido: <div className="tarjeta rounded-2xl border border-line bg-paper p-4 sm:p-5">{p.contenido}</div> }))}
               />
             </div>
           </Listado>

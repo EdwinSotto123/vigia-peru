@@ -73,7 +73,8 @@ export function PanelPais({
       </h2>
       {cifras.length > 0 && (
         <div className="mt-3" aria-live="polite">
-          <CifrasEnFila items={cifras} apilado chico />
+          {/* Con tres cifras en dos columnas, la tercera a todo el ancho: quedaba sola en media fila junto a un hueco gris. */}
+          <CifrasEnFila items={cifras} apilado chico className="[@container(max-width:36rem)]:[&_dl>div:last-child:nth-child(odd)]:col-span-2" />
         </div>
       )}
       {/* El ranking con su título (antes una oración gris hacía de título) y, aparte, cómo se usa. */}

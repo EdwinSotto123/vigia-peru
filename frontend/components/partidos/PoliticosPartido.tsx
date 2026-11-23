@@ -39,7 +39,6 @@ import {
   P_POLITICOS,
   SENALES_POLITICO,
   SENAL_POLITICO,
-  TAM_POLITICOS,
   filtrosPoliticosDeUrl,
   getPoliticos,
   papelTexto,
@@ -52,6 +51,9 @@ import { peorSeveridad } from "@/lib/severidad";
 import { CrucesDelPolitico } from "./DetallePolitico";
 
 type Busqueda = Record<string, string | string[] | undefined> | undefined;
+
+/** De a 10 filas (páginas cortas, pedido del usuario): eran 20 filas de dos o tres renglones cada una. */
+const TAM = 10;
 
 /**
  * La pestaña «Políticos» de la ficha de un partido (pedido del dueño del 2026-11-16): sus candidatos que ganaron, los
@@ -70,7 +72,7 @@ type Busqueda = Record<string, string | string[] | undefined> | undefined;
  */
 export function PoliticosPartido({ clave, partido, sp, ruta, base }: { clave: string; partido: string; sp: Busqueda; ruta: string; base: Parametros }) {
   const f = filtrosPoliticosDeUrl(sp);
-  const paginaP = getPoliticos(clave, f);
+  const paginaP = getPoliticos(clave, f, TAM);
   const parametros: Parametros = { ...base, ...parametrosPoliticos(f) };
   const filtrada = !!(f.papel || f.cruces || f.senal || f.dji || f.eleccion || f.q);
   return (
@@ -314,7 +316,8 @@ const COLUMNAS: Columna[] = [
   {
     clave: "cruces",
     titulo: "Cruces",
-    ancho: "minmax(0,1fr)",
+    // Un piso de 13 rem: más angosta, «Recibió órdenes de gobiernos del partido» iba en tres renglones.
+    ancho: "minmax(13rem,1fr)",
     desde: "md",
     apilar: true,
     igual: false,
@@ -382,7 +385,7 @@ async function Resultados({
       actual={actual}
       paginas={paginas}
       total={pagina.total}
-      tam={pagina.size || TAM_POLITICOS}
+      tam={pagina.size || TAM}
       navegacion="url"
       hrefBase={ruta}
       query={parametros}

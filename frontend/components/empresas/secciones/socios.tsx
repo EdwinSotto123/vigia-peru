@@ -28,6 +28,14 @@ import { rutaPersona } from "@/lib/personas";
 import { lugarDelCargo } from "./casoAntecedente";
 import { NoCargo } from "./comun";
 import { P_ANTECEDENTES } from "./antecedentes";
+import { cn } from "@/lib/utils";
+
+/**
+ * Cada bloque de «Su gente» en su tarjeta, con el título adentro (2026-11-23, «secciones que son solo texto sin fondo o
+ * forma»): antes el h3, su párrafo y la fuente flotaban sobre el fondo. Es `.tarjeta`: las cifras y la tabla de adentro
+ * van sin su marco.
+ */
+const CAJA = "tarjeta rounded-2xl border border-line bg-paper p-4 sm:p-5";
 
 /** La pestaña Socios: sus socios y representantes y las empresas vinculadas por ellos. (Partido de SeccionesEmpresa.tsx, 2026-10-22.) */
 
@@ -421,7 +429,7 @@ export async function SociosEmpresa({
   return (
     <div className="space-y-6">
       {(personas.length > 0 || filasEmpresas.length > 0) && (
-        <section className="space-y-3" aria-labelledby="quienes-estan-detras">
+        <section className={cn(CAJA, "space-y-3")} aria-labelledby="quienes-estan-detras">
           <div className="space-y-1">
             <h3 id="quienes-estan-detras" className="font-display text-bloque font-bold text-ink">Quiénes están detrás</h3>
             <p className="max-w-prose text-meta text-inkSoft">
@@ -492,7 +500,7 @@ export async function SociosEmpresa({
       )}
       {(d.declaradaDji?.length ?? 0) > 0 && <DeclaradaDji filas={d.declaradaDji!} />}
       {d.sociaDe.length > 0 && (
-        <section className="space-y-2">
+        <section className={cn(CAJA, "space-y-2")}>
           <h3 className="font-display text-bloque font-bold text-ink">Es socia de</h3>
           <ul className="flex flex-wrap gap-2">
             {d.sociaDe.map((s) => (
@@ -507,7 +515,7 @@ export async function SociosEmpresa({
         </section>
       )}
       {filasVinculadas.length > 0 && (
-        <section id="empresas-vinculadas" className="scroll-mt-24 space-y-2">
+        <section id="empresas-vinculadas" className={cn(CAJA, "scroll-mt-24 space-y-2")}>
           <h3 className="font-display text-bloque font-bold text-ink">Empresas vinculadas</h3>
           <p className="max-w-prose text-meta text-inkSoft">
             Otras empresas con alguien de su gente. Si compitieron en un mismo proceso, figura en sus antecedentes.
@@ -557,7 +565,7 @@ function DeclaradaDji({ filas }: { filas: DeclaracionDji[] }) {
     .map((f) => ({ texto: `Las declaraciones juradas de ${tituloNatural(f.entidad ?? f.entidadRuc)}`, href: djiEntidad(f.entidadRuc) }))
     .filter((x) => x.href !== DJI_CONSULTA);
   return (
-    <section className="space-y-2">
+    <section className={cn(CAJA, "space-y-2")}>
       <h3 className="font-display text-bloque font-bold text-ink">Lo que declararon funcionarios</h3>
       <p className="max-w-prose text-meta text-inkSoft">
         {`${plural(filas.length, "declaración", "declaraciones")} en Declaraciones Juradas de Intereses de funcionarios`}

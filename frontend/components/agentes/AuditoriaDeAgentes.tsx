@@ -141,7 +141,10 @@ export function AuditoriaDeAgentes({
   const pasoSel = agente ? pasoDeClave(agente) : null;
 
   // Cuando ninguna señal trae cotejo, veinte sellos "sin cotejo" no informan: lo dice la leyenda.
-  const columnas = conteo.conCotejo > 0 ? [COLUMNA_SEVERIDAD, COLUMNA_SENAL, COLUMNA_COTEJO] : [COLUMNA_SEVERIDAD, COLUMNA_SENAL];
+  // Con todas cotejadas, el sello decía lo mismo en cada fila y la leyenda de arriba ya lo dice («6 de 6 cotejadas»): la
+  // columna se va y su ancho pasa a la evidencia, que en la columna angosta del informe se partía en renglones de 4 palabras.
+  const todasCotejadas = conteo.total > 0 && conteo.verificadas === conteo.total;
+  const columnas = conteo.conCotejo > 0 && !todasCotejadas ? [COLUMNA_SEVERIDAD, COLUMNA_SENAL, COLUMNA_COTEJO] : [COLUMNA_SEVERIDAD, COLUMNA_SENAL];
   // La misma sanción por dos reglas («Sanción vigente en el OECE» y «Proveedor con sanción OSCE/OECE») va en UNA fila, la
   // más grave, que dice que otra regla marca lo mismo: como en el índice de señales (auditoría del 2026-11-05). Después
   // del filtro por agente: si cada regla la encontró un agente distinto, el de la que se quita sigue viendo la suya.

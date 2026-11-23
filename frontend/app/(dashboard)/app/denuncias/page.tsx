@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { ArrowRight, BadgeCheck, Camera, EyeOff, Map as MapIcon, MapPin, MessageSquareText, MessageSquareWarning, Tag } from "lucide-react";
-import { Ayuda, EncabezadoPagina, Franja, Migas, Pagina } from "@/components/patrones";
+import { Ayuda, EncabezadoPagina, Migas, Pagina } from "@/components/patrones";
 import { BarraFiltros, Indicadores, Listado, ZonaResultados, type FiltroSecundario, type Indicador, type OpcionFaceta } from "@/components/listado";
 import { ListaDenuncias, hrefDenuncias } from "@/components/denuncias/ListaDenuncias";
 import { getReportesPagina, type ApiReporte, type ReportesPagina } from "@/lib/api-client";
@@ -196,9 +196,8 @@ export default async function DenunciasPage({
           )
         }
         acciones={
-          sinNinguna ? (
-            <BotonDenunciar>Denunciar</BotonDenunciar>
-          ) : (
+          // Sin denuncias, el botón va en el aviso de abajo, junto a «Todavía no hay»: uno solo.
+          sinNinguna ? undefined : (
             <>
               {!fallo && (
                 <Link href={hrefMapa} className={BOTON_SECUNDARIO}>
@@ -216,9 +215,25 @@ export default async function DenunciasPage({
         // En el celular, primero lo que pasa con una denuncia y qué se puede denunciar; el registro de obras por región va
         // al final y plegado (antes sus 25 barras abiertas empujaban «Cómo funciona» varias pantallas abajo).
         <div className="space-y-4">
-          <Franja titulo="Todavía no hay denuncias de vecinos publicadas" className="sm:w-full">
-            Cuando alguien reporte una obra, aparece aquí con su foto y el lugar donde la vio.
-          </Franja>
+          {/* La lista vacía con forma (2026-11-23): era una caja con dos líneas de texto. Ahora dibuja lo que va a haber (una
+              foto en un lugar) y lleva la acción para ser el primero. */}
+          <section aria-labelledby="sin-denuncias" className="flex flex-col gap-4 rounded-2xl border border-dashed border-granate/40 bg-paper p-4 sm:flex-row sm:items-center sm:p-5">
+            <span aria-hidden className="relative grid h-16 w-16 shrink-0 place-items-center rounded-2xl bg-granate-50 text-granate">
+              <Camera size={28} strokeWidth={1.8} />
+              <span className="absolute -bottom-1.5 -right-1.5 grid h-7 w-7 place-items-center rounded-full border-2 border-paper bg-granate text-paper">
+                <MapPin size={14} />
+              </span>
+            </span>
+            <div className="min-w-0 flex-1">
+              <h2 id="sin-denuncias" className="font-display text-seccion font-bold leading-tight text-ink">
+                Todavía no hay denuncias de vecinos publicadas
+              </h2>
+              <p className="mt-1 text-dato leading-snug text-inkSoft">
+                Cuando alguien reporte una obra, aparece aquí con su foto y el lugar donde la vio. La primera puede ser la tuya.
+              </p>
+            </div>
+            <BotonDenunciar className="shrink-0 self-start sm:self-center">Denunciar una obra</BotonDenunciar>
+          </section>
           <div className="grid gap-4 lg:grid-cols-2 lg:items-start">
             <section aria-labelledby="como-denunciar" className="rounded-2xl border border-line bg-paper px-4 py-3.5 sm:px-5">
               <h2 id="como-denunciar" className="font-display text-bloque font-bold text-ink">Cómo funciona una denuncia</h2>
@@ -227,9 +242,13 @@ export default async function DenunciasPage({
                   { icono: <Camera size={16} />, titulo: "Se publica al instante", texto: "Con su foto y su lugar, tal como llegó, en esta lista y en el mapa. Nadie la revisa antes." },
                   { icono: <BadgeCheck size={16} />, titulo: "Se confirma entre varios", texto: "Figura como confirmada cuando la respaldan dos o más reportes independientes del mismo lugar." },
                   { icono: <EyeOff size={16} />, titulo: "Sin tu nombre", texto: "No se publica tu DNI ni tu nombre." },
-                ].map((p) => (
+                ].map((p, i) => (
                   <li key={p.titulo} className="flex items-start gap-3">
-                    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-paperDeep text-granate" aria-hidden>{p.icono}</span>
+                    {/* El paso, numerado: es un orden (llega, se confirma), no tres datos sueltos. */}
+                    <span className="relative flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-paperDeep text-granate" aria-hidden>
+                      {p.icono}
+                      <span className="absolute -right-1.5 -top-1.5 grid h-4 w-4 place-items-center rounded-full bg-granate font-mono text-micro font-bold text-paper">{i + 1}</span>
+                    </span>
                     <span className="min-w-0">
                       <span className="block text-dato font-semibold leading-snug text-ink">{p.titulo}</span>
                       <span className="mt-0.5 block text-meta leading-snug text-mute">{p.texto}</span>

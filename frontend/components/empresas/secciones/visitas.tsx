@@ -237,7 +237,7 @@ export async function VisitasEmpresa({
         columnas={COLUMNAS_VISITAS}
         filas={filas}
         etiqueta="Visitas registradas de su gente"
-        tam={20}
+        tam={10}
         nombre="visitas"
         buscar={{ placeholder: "Buscar entidad, cargo o motivo…", etiqueta: "Buscar en sus visitas", inicial: buscar && /^\d{11}$/.test(buscar) ? buscar : undefined }}
         filtros={[

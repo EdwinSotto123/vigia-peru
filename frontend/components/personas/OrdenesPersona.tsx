@@ -23,8 +23,8 @@ import { CONOSCE_BUSCADOR } from "@/lib/fuentes";
 import { tituloNatural } from "@/lib/landing";
 import { tipoContratacion, type FichaPersona, type OrdenesPersona, type filtrosOrdenesDeUrl } from "@/lib/personas";
 
-/** Cuántas órdenes por página en la pestaña Órdenes de una persona. */
-export const TAM_ORDENES = 20;
+/** Cuántas órdenes por página en la pestaña Órdenes de una persona: 10, páginas cortas (pedido del usuario del 2026-11-23). */
+export const TAM_ORDENES = 10;
 
 type FiltrosOrdenes = ReturnType<typeof filtrosOrdenesDeUrl>;
 

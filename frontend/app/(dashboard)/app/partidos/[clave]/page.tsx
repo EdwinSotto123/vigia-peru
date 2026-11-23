@@ -29,6 +29,7 @@ import {
 } from "@/components/listado";
 import { filtrosVisibles } from "@/components/contratos/filtros";
 import { InicioPartido } from "@/components/inicio/InicioPartido";
+import { SuperficiePestana } from "@/components/fichas/SuperficiePestana";
 import { SinRespuesta } from "@/components/inicio/BloquesInicio";
 import { ListaPersonas } from "@/components/personas/ListaPersonas";
 import { PARAMS_EN_FICHA } from "@/lib/personas";
@@ -67,7 +68,8 @@ export async function generateMetadata({ params, searchParams }: { params: { cla
 }
 
 const NIVEL: Record<string, string> = { regional: "Gobierno regional", provincial: "Municipalidad provincial", distrital: "Municipalidad distrital" };
-const TAM = 20;
+// Listas de 10 (páginas cortas: el usuario no quiere bajar y bajar); el paginador lleva al resto.
+const TAM = 10;
 /** Las vistas de la pestaña Contratos (`?vista=`). «Por mes» y «Lo que leyó Vigía» eran pestañas aparte. */
 const VISTAS_CONTRATOS = ["lista", "meses", "vigia"] as const;
 
@@ -240,7 +242,7 @@ export default async function PartidoPage({ params, searchParams }: { params: { 
             etiqueta: "Contratos",
             conteo: h?.procesos ?? null,
             contenido: (
-              <div className="space-y-4">
+              <SuperficiePestana className="space-y-4">
                 <CabeceraPestana
                   ayuda={
                     <Ayuda titulo="¿De dónde salen estos contratos?">
@@ -306,14 +308,14 @@ export default async function PartidoPage({ params, searchParams }: { params: { 
                       : []),
                   ]}
                 />
-              </div>
+              </SuperficiePestana>
             ),
           },
           {
             clave: "personas",
             etiqueta: "Personas contratadas",
             contenido: (
-              <div className="space-y-4">
+              <SuperficiePestana className="space-y-4">
                 <CabeceraPestana
                   ayuda={
                     <Ayuda titulo="¿Quiénes son?">
@@ -338,7 +340,7 @@ export default async function PartidoPage({ params, searchParams }: { params: { 
                   base={{ anio: String(anio), seccion: "personas" }}
                   conIndicadores
                 />
-              </div>
+              </SuperficiePestana>
             ),
           },
           {
@@ -347,7 +349,7 @@ export default async function PartidoPage({ params, searchParams }: { params: { 
             etiqueta: "Políticos",
             titulo: "Candidatos y aportantes del partido",
             contenido: (
-              <div className="space-y-4">
+              <SuperficiePestana className="space-y-4">
                 <CabeceraPestana
                   ayuda={
                     <Ayuda titulo="¿Quiénes son y qué se cruza?">
@@ -373,7 +375,7 @@ export default async function PartidoPage({ params, searchParams }: { params: { 
                 ) : (
                   <PoliticosPartido clave={params.clave} partido={partido.nombre} sp={searchParams} ruta={ruta} base={{ anio: String(anio), seccion: "politicos" }} />
                 )}
-              </div>
+              </SuperficiePestana>
             ),
           },
           {
@@ -381,7 +383,7 @@ export default async function PartidoPage({ params, searchParams }: { params: { 
             etiqueta: "Gobiernos",
             conteo: gobiernos.length || totalGobiernos,
             contenido: (
-              <div className="space-y-4">
+              <SuperficiePestana className="space-y-4">
                 <CabeceraPestana
                   ayuda={
                     <Ayuda titulo="¿Qué hay en cada fila?">
@@ -408,7 +410,7 @@ export default async function PartidoPage({ params, searchParams }: { params: { 
                 ) : (
                   <SinRespuesta href={`${ruta}?anio=${anio}&seccion=gobiernos`}>Sus gobiernos no respondieron ahora.</SinRespuesta>
                 )}
-              </div>
+              </SuperficiePestana>
             ),
           },
           {
@@ -416,7 +418,7 @@ export default async function PartidoPage({ params, searchParams }: { params: { 
             etiqueta: "Control",
             titulo: "Informes de la Contraloría",
             contenido: (
-              <div className="space-y-4">
+              <SuperficiePestana className="space-y-4">
                 <CabeceraPestana
                   ayuda={
                     <Ayuda titulo="¿Qué es un informe de control?">
@@ -431,7 +433,7 @@ export default async function PartidoPage({ params, searchParams }: { params: { 
                 <Suspense fallback={<TablaSkeleton columnas={[{ clave: "a", titulo: "Informe", ancho: "1fr" }]} filas={6} />}>
                   <ControlPartido clave={params.clave} anio={anio} ruta={ruta} />
                 </Suspense>
-              </div>
+              </SuperficiePestana>
             ),
           },
         ]}

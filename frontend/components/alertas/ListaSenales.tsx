@@ -1,8 +1,9 @@
 import { rutaContrato } from "@/lib/rutas";
 import type { ReactNode } from "react";
 import Link from "next/link";
-import { ExternalLink, FileText } from "lucide-react";
+import { Ban, CalendarPlus, ExternalLink, FileSearch, FileText, Footprints, GitFork, Newspaper, Ruler, Scale, Scissors, UserRound, type LucideIcon } from "lucide-react";
 import { Severidad } from "@/components/ui/Severidad";
+import { IconoBandera } from "@/components/ui/IconoBandera";
 import { Dato } from "@/components/ui/Dato";
 import { Partes, Separador } from "@/components/ui/Partes";
 import { Ayuda, EstadoError, EstadoVacio } from "@/components/patrones";
@@ -85,6 +86,34 @@ interface Props {
 }
 
 const RUTA = "/app/hallazgos";
+
+/**
+ * El ícono de una regla de los agentes, por lo que mira (las de cruce ya tienen el suyo en IconoBandera; las de lectura
+ * del proceso caían todas en la bandera genérica).
+ */
+const ICONO_REGLA: [RegExp, LucideIcon][] = [
+  [/postor|admitid|competencia/, UserRound],
+  [/^ruc_|recien|nuev|fundad/, CalendarPlus],
+  [/referencial|precio|sobreprecio|monto_|oferta/, Ruler],
+  [/visita/, Footprints],
+  [/prensa|web|cobertura|antecedentes_proveedor/, Newspaper],
+  [/sancion|inhabil/, Ban],
+  [/fraccion|uit|partid/, Scissors],
+  [/procedimiento/, Scale],
+  [/vinculad|socio|domicilio/, GitFork],
+  [/documental|documento|expediente|objeto|requisit|marca|fecha/, FileSearch],
+];
+function IconoRegla({ regla }: { regla: string }) {
+  const Icono = ICONO_REGLA.find(([re]) => re.test(regla))?.[1];
+  return Icono ? <Icono size={15} strokeWidth={1.9} /> : <IconoBandera tipo={regla} size={15} />;
+}
+
+/** La placa del ícono de cada señal, por su gravedad. */
+const PLACA_SEVERIDAD: Record<string, string> = {
+  alta: "bg-crimson-soft text-crimsonTexto",
+  media: "bg-amber-soft text-amberTexto",
+  baja: "bg-paperDeep text-inkSoft",
+};
 
 export function ListaSenales({ senales, total, query, fallo, contratosSinDetalle, paginador, paginadorAbajo, paginaVacia = false, reintentar = RUTA }: Props) {
   const filtrado = hayFiltrosSenales(query);
@@ -274,8 +303,15 @@ function filaDe(s: Senal, tambien: Senal | null = null): Fila {
     textos: { severidad: severidadDeBandera(s.severidad).etiqueta, cotejo: textoCotejo(s.verificada) },
     celdas: {
       severidad: <Severidad bandera={s.severidad} />,
+      // Cada señal con el ícono de su regla, teñido por su gravedad (2026-11-23): las filas eran título y evidencia, puro
+      // texto, una debajo de otra.
       senal: (
+        <span className="flex min-w-0 items-start gap-2.5">
+          <span aria-hidden className={`mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-lg ${PLACA_SEVERIDAD[s.severidad] ?? PLACA_SEVERIDAD.baja}`}>
+            <IconoRegla regla={s.regla} />
+          </span>
         <CeldaPrincipal
+          className="min-w-0 flex-1"
           titulo={
             tambien ? (
               <>
@@ -288,6 +324,7 @@ function filaDe(s: Senal, tambien: Senal | null = null): Fila {
           textoCompleto={otraRegla ? `${s.etiqueta}. ${otraRegla}.` : s.etiqueta}
           meta={s.evidencia ? <ResumenEvidencia texto={s.evidencia} nombres={s.personasPrivadas} /> : "Sin evidencia registrada"}
         />
+        </span>
       ),
       cotejo: <SelloCotejo verificada={s.verificada} />,
     },

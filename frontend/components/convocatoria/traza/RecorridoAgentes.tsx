@@ -10,7 +10,7 @@
 import { useState } from "react";
 import { AlignLeft, Share2 } from "lucide-react";
 import { Ayuda } from "@/components/patrones/Ayuda";
-import { numero, plural } from "@/lib/formato";
+import { numero } from "@/lib/formato";
 import { cn } from "@/lib/utils";
 import type { ApiResult } from "../types";
 import { GrafoRecorrido } from "./GrafoRecorrido";
@@ -18,6 +18,7 @@ import type { Recorrido } from "./modelo";
 import { TextoRecorrido } from "./TextoRecorrido";
 
 type Modo = "grafo" | "texto";
+const PASTILLA = "inline-flex min-h-9 items-baseline gap-1.5 rounded-full border border-line bg-paper px-3.5 py-1";
 const PARAM_MODO = "modo";
 
 export function RecorridoAgentes({ recorrido, result }: { recorrido: Recorrido; result: ApiResult }) {
@@ -42,25 +43,27 @@ export function RecorridoAgentes({ recorrido, result }: { recorrido: Recorrido; 
     <div className="space-y-4">
       <h2 className="sr-only">Recorrido de los agentes</h2>
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <p className="flex flex-wrap items-center gap-x-4 gap-y-1 text-meta text-inkSoft">
-          <span>
-            <strong className="font-semibold tabular-nums text-ink">
+        {/* Cada cifra en su pastilla, con el número en grande (antes una línea de texto gris suelta sobre el fondo). */}
+        <p className="flex flex-wrap items-center gap-2 text-meta text-inkSoft">
+          <span className={PASTILLA}>
+            <strong className="font-display text-bloque font-bold tabular-nums text-ink">
               {numero(recorrido.agentesCorrieron)} de {numero(recorrido.totalAgentes)}
-            </strong>{" "}
+            </strong>
             agentes de IA corrieron
           </span>
-          <span>
-            <strong className="font-semibold tabular-nums text-ink">{numero(recorrido.consultas)}</strong>{" "}
+          <span className={PASTILLA}>
+            <strong className="font-display text-bloque font-bold tabular-nums text-ink">{numero(recorrido.consultas)}</strong>
             {recorrido.consultas === 1 ? "consulta a herramientas y fuentes" : "consultas a herramientas y fuentes"}
           </span>
           {recorrido.consultasFallidas > 0 && (
-            <span className="text-crimsonTexto">
-              <strong className="font-semibold tabular-nums">{numero(recorrido.consultasFallidas)}</strong>{" "}
+            <span className={cn(PASTILLA, "border-crimson/30 bg-crimson-soft text-crimsonTexto")}>
+              <strong className="font-display text-bloque font-bold tabular-nums">{numero(recorrido.consultasFallidas)}</strong>
               {recorrido.consultasFallidas === 1 ? "falló" : "fallaron"}
             </span>
           )}
-          <span className="inline-flex items-center">
-            {plural(recorrido.eventos, "evento en la traza", "eventos en la traza")}
+          <span className={PASTILLA}>
+            <strong className="font-display text-bloque font-bold tabular-nums text-ink">{numero(recorrido.eventos)}</strong>
+            {recorrido.eventos === 1 ? "evento en la traza" : "eventos en la traza"}
             <Ayuda titulo="¿Qué es la traza?">
               El registro que deja cada paso del análisis: a quién llamó el coordinador, qué consultó cada agente y qué le
               respondieron. No guarda la hora de cada paso, así que el orden que se muestra es el del plan del análisis.

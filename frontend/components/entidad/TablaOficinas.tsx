@@ -36,7 +36,7 @@ const columnas: Columna[] = [
   { clave: "jefe", titulo: "Quién la encabeza", corto: "Jefatura", ancho: "minmax(0,1.2fr)", desde: "md", apilar: "con-rotulo" },
   { clave: "depende", titulo: "Depende de", ancho: "minmax(0,1fr)", desde: "lg", apilar: "con-rotulo" },
   { clave: "personas", titulo: "Personas", ancho: "6.5rem", alinear: "der" },
-  { clave: "senales", titulo: "Con señales", ancho: "7rem", alinear: "der", desde: "md", apilar: "con-rotulo" },
+  { clave: "senales", titulo: "Con señales", ancho: "9.5rem", alinear: "der", desde: "md", apilar: "con-rotulo" },
 ];
 
 /**
@@ -84,7 +84,7 @@ export function TablaOficinas({ oficinas }: { oficinas: OficinaFila[] }) {
       senales: x.conSenales ? (
         <span className="inline-flex items-center justify-end gap-1.5 text-meta tabular-nums text-ink">
           {numero(x.conSenales)}
-          {x.altas > 0 && <Severidad bandera="alta" />}
+          {x.altas > 0 && <Severidad bandera="alta" className="whitespace-nowrap" />}
         </span>
       ) : (
         <span className="text-meta text-mute">Ninguna</span>
@@ -96,7 +96,7 @@ export function TablaOficinas({ oficinas }: { oficinas: OficinaFila[] }) {
       columnas={columnas}
       filas={filas}
       etiqueta="Oficinas de la entidad (toca una para ver a su gente)"
-      tam={20}
+      tam={10}
       nombre="oficinas"
       buscar={{ placeholder: "Buscar una oficina, una sigla o un cargo…", etiqueta: "Buscar entre las oficinas" }}
       filtros={[

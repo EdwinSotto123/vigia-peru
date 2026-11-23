@@ -99,7 +99,8 @@ const COLUMNAS: Columna[] = [
   },
   { clave: "contrato", titulo: "Contrato", ancho: "minmax(0,1.6fr)" },
   {
-    clave: "cruces", titulo: "Antecedentes del ganador", corto: "Antecedentes", ancho: "minmax(0,1fr)", desde: "md", apilar: "con-rotulo",
+    // Un piso de 11 rem: más angosta, la pastilla partía su nombre en dos o tres renglones («Pasan 8 / UIT»).
+    clave: "cruces", titulo: "Antecedentes del ganador", corto: "Antecedentes", ancho: "minmax(11rem,1fr)", desde: "md", apilar: "con-rotulo",
     igual: { frases: { "Sin ganador aún": "Ninguno tiene ganador todavía", "Sin antecedentes": "Ningún ganador con antecedentes" } },
     ayuda: (
       <Ayuda titulo="¿Qué son estos antecedentes?">

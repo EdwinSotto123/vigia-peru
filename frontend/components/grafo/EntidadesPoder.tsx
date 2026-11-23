@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
+import { SuperficiePestana } from "@/components/fichas/SuperficiePestana";
 import { CabeceraPestana, Nota } from "@/components/patrones";
 import { CeldaNumero, CeldaPrincipal, TablaFiltrable, type Columna, type FilaFiltrable, type FiltroLocal, type OrdenLocal } from "@/components/listado";
 import { Dato } from "@/components/ui/Dato";
@@ -24,7 +25,8 @@ const COLUMNAS: Columna[] = [
   { clave: "contratos", titulo: "Contratos con indicio", ancho: "8.5rem", alinear: "der", desde: "md", apilar: "con-rotulo", corto: "Contratos" },
   { clave: "monto", titulo: "Monto", ancho: "7rem", alinear: "der", desde: "lg", apilar: "con-rotulo" },
   // Debajo de xl, bajo el nombre (`apilar`): antes en el celular no se veía ningún indicio.
-  { clave: "indicios", titulo: "Indicios, en contratos", ancho: "minmax(0,1.1fr)", desde: "xl", apilar: true, ayuda: <AyudaIndicios /> },
+  // Un piso de 14 rem: más angosta, «Socio en la entidad 177» se partía en tres renglones.
+  { clave: "indicios", titulo: "Indicios, en contratos", ancho: "minmax(14rem,1.1fr)", desde: "xl", apilar: true, ayuda: <AyudaIndicios /> },
 ];
 
 const ORDENES: OrdenLocal[] = [
@@ -57,14 +59,14 @@ export const entidadLigera = (e: PoderEntidad): EntidadPoderLigera => ({
 export function EntidadesPoder({ total }: { total: number }) {
   const carga = usePoder<{ data: PoderEntidad[] }>("/poder/entidades");
   return (
-    <div className="space-y-4">
+    <SuperficiePestana className="space-y-4">
       <CabeceraPestana ayuda={<AyudaIndicios titulo="¿Qué cuenta «con indicio»?" />}>
         Las alcaldías y gobiernos regionales con más contratos ganados por empresas ligadas al partido que las gobierna.
       </CabeceraPestana>
       <EstadoCarga carga={carga} columnas={COLUMNAS}>
         {(d) => <Lista entidades={d.data ?? []} total={total} />}
       </EstadoCarga>
-    </div>
+    </SuperficiePestana>
   );
 }
 

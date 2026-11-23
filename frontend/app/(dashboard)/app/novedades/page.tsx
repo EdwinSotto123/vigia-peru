@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import { canonica } from "@/lib/seo";
 import type { ReactNode } from "react";
 import Link from "next/link";
-import { Clock, ExternalLink, FileWarning, Gavel, ShieldAlert } from "lucide-react";
-import { CeldaNumero, CeldaPrincipal, Indicadores, TablaFiltrable, type Columna, type FilaFiltrable, type Indicador } from "@/components/listado";
+import { Banknote, Building2, ChevronRight, Clock, ExternalLink, FileWarning, Gavel, ShieldAlert } from "lucide-react";
+import { CeldaNumero, CeldaPrincipal, TablaFiltrable, type Columna, type FilaFiltrable, type Indicador } from "@/components/listado";
 import { BotonCsv, ConCsv } from "@/components/listado/Paginado";
 import { CrucesCelda } from "@/components/contratos/CrucesCelda";
 import { BarraPartes } from "@/components/inicio/BarraPartes";
@@ -24,6 +24,7 @@ import { regionDe } from "@/lib/regiones";
 import { rutaContrato } from "@/lib/rutas";
 import { diaLargo, diasDesde, rangoSemana } from "@/lib/semanas";
 import { VistasSenales } from "@/components/sitio/VistasSeccion";
+import { cn } from "@/lib/utils";
 
 export const metadata: Metadata = {
   title: "Lo nuevo",
@@ -217,7 +218,7 @@ export default async function NovedadesPage({ searchParams }: { searchParams?: R
                   Semana {rangoSemana(d.semana.desde)}
                   {enCurso && <span className="ml-1.5 text-meta font-semibold text-mute">(en curso)</span>}
                 </h3>
-                <Indicadores items={cifras(d, enlace)} className="mt-2" />
+                <CifrasSemana items={cifras(d, enlace)} />
               </aside>
             </div>
           </Seccion>
@@ -235,7 +236,11 @@ export default async function NovedadesPage({ searchParams }: { searchParams?: R
                 conteo: d.resumen.graves,
                 icono: <ShieldAlert size={15} aria-hidden />,
                 titulo: "Contratos con un antecedente grave del ganador",
-                contenido: <Contratos d={d} />,
+                contenido: (
+                  <PanelLista>
+                    <Contratos d={d} />
+                  </PanelLista>
+                ),
               },
               {
                 clave: "informes",
@@ -243,7 +248,11 @@ export default async function NovedadesPage({ searchParams }: { searchParams?: R
                 conteo: d.informes.length,
                 icono: <FileWarning size={15} aria-hidden />,
                 titulo: "Informes de control de la Contraloría",
-                contenido: <Informes d={d} />,
+                contenido: (
+                  <PanelLista>
+                    <Informes d={d} />
+                  </PanelLista>
+                ),
               },
               {
                 clave: "sanciones",
@@ -251,19 +260,89 @@ export default async function NovedadesPage({ searchParams }: { searchParams?: R
                 conteo: d.sanciones.length,
                 icono: <Gavel size={15} aria-hidden />,
                 titulo: "Sanciones del Tribunal de Contrataciones",
-                contenido: <Sanciones d={d} />,
+                contenido: (
+                  <PanelLista>
+                    <Sanciones d={d} />
+                  </PanelLista>
+                ),
               },
             ]}
           />
+          {/* La fuente va dentro de la nota: antes era un renglón gris suelto al pie de la página. */}
           <Nota>
             Un antecedente es un dato oficial que coincide con quien ganó (una sanción, un vínculo, una visita, un sobrecosto): no
             prueba una irregularidad. La fecha de un contrato es la de su buena pro; la de un informe, la de su emisión; la de una
-            sanción, la de su resolución.
+            sanción, la de su resolución. <b className="font-semibold text-ink">Fuente:</b> OECE (SEACE y CONOSCE), Tribunal de
+            Contrataciones y Contraloría.
           </Nota>
-          <FuenteDato fuente="OECE (SEACE y CONOSCE), Tribunal de Contrataciones y Contraloría" />
         </>
       )}
     </Pagina>
+  );
+}
+
+/**
+ * El panel de una pestaña, en su tarjeta con el título adentro (2026-11-23, el usuario: «secciones que son solo texto sin
+ * fondo o forma»): antes el h2 de la pestaña y su lista flotaban sobre el fondo de la página. Es `.tarjeta`: la tabla de
+ * adentro va sin su marco.
+ */
+function PanelLista({ children }: { children: ReactNode }) {
+  return <div className="tarjeta rounded-2xl border border-line bg-paper p-4 sm:p-5">{children}</div>;
+}
+
+const TONO_CIFRA: Record<NonNullable<Indicador["tono"]>, { cifra: string; placa: string; barra: string }> = {
+  neutro: { cifra: "text-ink", placa: "bg-paperDeep text-inkSoft", barra: "bg-ink" },
+  alta: { cifra: "text-rust", placa: "bg-crimson-soft text-rust", barra: "bg-rust" },
+  media: { cifra: "text-amberTexto", placa: "bg-amber-soft text-amberTexto", barra: "bg-amber" },
+  positivo: { cifra: "text-mossTexto", placa: "bg-granate-50 text-granate", barra: "bg-moss" },
+};
+const ICONO_CIFRA = [ShieldAlert, Banknote, Building2, FileWarning];
+
+/**
+ * Las cifras de la semana elegida, una por renglón (2026-11-23): en la columna de al lado de la gráfica, cuatro cifras en
+ * franja se leían una palabra por renglón («contra / con / un / antec…»). Ahora cada una es una fila: su ícono, el número
+ * grande con qué es al lado y su contexto debajo; la de contratos graves lleva la barra de su parte. Las que tienen enlace
+ * abren su pestaña.
+ */
+function CifrasSemana({ items }: { items: (Indicador & { parteBarra?: number | null })[] }) {
+  return (
+    // De a dos en el celular y la tableta (el costado va a todo el ancho); una por renglón desde lg, en la columna angosta.
+    <dl className="mt-3 grid grid-cols-2 gap-px overflow-hidden rounded-xl border border-line bg-line lg:grid-cols-1">
+      {items.map((it, i) => {
+        const t = TONO_CIFRA[it.tono ?? "neutro"];
+        const Icono = ICONO_CIFRA[i] ?? FileWarning;
+        const cuerpo = (
+          <>
+            <span aria-hidden className={cn("hidden h-9 w-9 shrink-0 place-items-center rounded-xl lg:grid", t.placa)}>
+              <Icono size={17} strokeWidth={1.9} />
+            </span>
+            <div className="min-w-0 flex-1">
+              <dt className="sr-only">{it.etiqueta}</dt>
+              <dd className="flex flex-wrap items-baseline gap-x-2">
+                <span className={cn("font-display text-cifra font-extrabold leading-none tabular-nums", t.cifra)}>{it.valor}</span>
+                <span className="text-dato font-semibold leading-snug text-ink">{it.etiqueta}</span>
+              </dd>
+              {it.contexto && <dd className="mt-1 text-meta leading-snug text-inkSoft">{it.contexto}</dd>}
+              {it.parteBarra != null && (
+                <dd aria-hidden className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-paperDeep">
+                  <span className={cn("gs-barra-crece block h-full rounded-full", t.barra)} style={{ width: `${Math.max(3, Math.round(it.parteBarra * 100))}%` }} />
+                </dd>
+              )}
+            </div>
+            {it.href && <ChevronRight size={17} aria-hidden className="mt-2 hidden shrink-0 text-mute lg:block transition-transform duration-rapido group-hover:translate-x-0.5 group-hover:text-granate" />}
+          </>
+        );
+        return it.href ? (
+          <Link key={it.etiqueta} href={it.href} scroll={false} className="group flex items-start gap-3 bg-paper px-3.5 py-3 transition-colors duration-rapido hover:bg-paperSoft">
+            {cuerpo}
+          </Link>
+        ) : (
+          <div key={it.etiqueta} className="flex items-start gap-3 bg-paper px-3.5 py-3">
+            {cuerpo}
+          </div>
+        );
+      })}
+    </dl>
   );
 }
 
@@ -298,7 +377,7 @@ function Frescura({ d }: { d: Semana }) {
 }
 
 /** Las cuatro cifras de la semana, cada una con su denominador; la de informes lleva a su pestaña. */
-function cifras(d: Semana, enlace: (c: { ver?: string | null }) => string): Indicador[] {
+function cifras(d: Semana, enlace: (c: { ver?: string | null }) => string): (Indicador & { parteBarra?: number | null })[] {
   const r = d.resumen;
   const regiones = r.porRegion.filter((x) => x.clave !== "sin_dato").length;
   const parte = r.buenasPro ? (r.graves / r.buenasPro) * 100 : null;
@@ -314,10 +393,11 @@ function cifras(d: Semana, enlace: (c: { ver?: string | null }) => string): Indi
         : `buena pro en la semana${hastaHoy}`,
       tono: r.graves ? "alta" : "neutro",
       href: enlace({ ver: "contratos" }),
+      parteBarra: parte != null ? parte / 100 : null,
     },
     {
       valor: solesCompacto(r.monto),
-      etiqueta: "lo que suman esos contratos",
+      etiqueta: "suman esos contratos",
       contexto: obras && r.monto > 0 ? `${porcentaje((obras.monto / r.monto) * 100)} en ${plural(obras.n, "obra", "obras")}` : "el monto adjudicado de esos contratos",
     },
     {
@@ -345,7 +425,7 @@ function quienGano(k: ContratoNuevo): string {
 function Contratos({ d }: { d: Semana }) {
   const columnas: Columna[] = [
     { clave: "contrato", titulo: "Contrato", ancho: "minmax(0,1.6fr)" },
-    { clave: "antecedentes", titulo: "Antecedentes del ganador", corto: "Antecedentes", ancho: "minmax(0,1fr)", desde: "md", apilar: true },
+    { clave: "antecedentes", titulo: "Antecedentes del ganador", corto: "Antecedentes", ancho: "minmax(10.5rem,1fr)", desde: "md", apilar: true },
     { clave: "monto", titulo: "Monto", ancho: "7.5rem", alinear: "der", desde: "md", apilar: "con-rotulo" },
   ];
   const filas: FilaFiltrable[] = d.contratos.map((k) => {
@@ -506,7 +586,7 @@ function Informes({ d }: { d: Semana }) {
       ) : (
         <>
           {porResp.size > 0 && (
-            <div className="rounded-2xl border border-line bg-paper p-4 sm:p-5">
+            <div className="rounded-xl bg-paperSoft p-4">
               <h3 className="font-display text-bloque font-bold leading-tight text-ink">Qué responsabilidad señalan</h3>
               <p className="mt-0.5 text-meta leading-snug text-mute">
                 Presunta, según el informe: la decide después un juez, la entidad o la propia Contraloría. Un informe puede señalar varias.

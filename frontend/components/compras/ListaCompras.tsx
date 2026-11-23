@@ -31,7 +31,7 @@ import { CLASE_ACCION_LISTA, claseAccion } from "@/components/ui/EnlaceAccion";
 import { esPersonaNatural, type ContratoResumen } from "@/lib/contratos";
 import { motivoDudoso } from "@/lib/datoDudoso";
 import { OBJETO_TEXTO, type ContratoEmpresa } from "@/lib/empresas";
-import { fechaConAnio, numero, oracion, plural, porcentaje, soles } from "@/lib/formato";
+import { fechaConAnio, numero, oracion, plural, porcentaje, soles, solesCompacto } from "@/lib/formato";
 import { CONOSCE_BUSCADOR, enlacesProceso } from "@/lib/fuentes";
 import { tituloNatural } from "@/lib/landing";
 import { montoOrden } from "@/lib/ordenes";
@@ -479,9 +479,12 @@ export async function ListaCompras({
     <div className="space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
         {pagina.resumen ? (
-          <Dato icono={Landmark} nombre="Sus compras">
-            {`${plural(pagina.resumen.compras, "compra", "compras")} por ${soles(pagina.resumen.monto)}`}
-          </Dato>
+          // El total como cifra (antes una línea gris con un ícono chico): cuánto y en cuántas compras.
+          <p className="flex flex-wrap items-baseline gap-x-1.5 text-meta text-inkSoft" title={soles(pagina.resumen.monto)}>
+            <Landmark size={15} className="shrink-0 self-center text-mute" aria-hidden />
+            <span className="font-display text-bloque font-bold tabular-nums text-ink">{solesCompacto(pagina.resumen.monto)}</span>
+            {`en ${plural(pagina.resumen.compras, "compra", "compras")}`}
+          </p>
         ) : (
           <span />
         )}

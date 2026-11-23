@@ -52,10 +52,11 @@ export const metadata = {
 };
 
 // Las tres vistas de la página paginan igual. Con 50 contratos, la lista era 10 pantallas en el celular (cada fila apila
-// su monto y su fecha con el rótulo); con 25, la mitad, y nada se pierde: el paginador de abajo sube al inicio.
-const SIZE = 25;
-const SIZE_ORD = 25;
-const SIZE_MEN = 25;
+// su monto y su fecha con el rótulo); con 25, la mitad; desde el 2026-11-23, de a 10 (páginas cortas, pedido del
+// usuario): nada se pierde, el paginador de abajo sube al inicio.
+const SIZE = 10;
+const SIZE_ORD = 10;
+const SIZE_MEN = 10;
 const RUTA = "/app/contratos";
 
 /**

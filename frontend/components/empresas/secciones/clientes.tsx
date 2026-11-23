@@ -123,7 +123,7 @@ export async function ClientesEmpresa({ datos, ruc }: { datos: Promise<{ total: 
       columnas={COLUMNAS_CLIENTES}
       filas={filas}
       etiqueta="Entidades que le adjudicaron o le compraron"
-      tam={20}
+      tam={10}
       nombre="entidades"
       buscar={{ placeholder: "Buscar entidad o RUC…", etiqueta: "Buscar en sus clientes" }}
       filtros={[

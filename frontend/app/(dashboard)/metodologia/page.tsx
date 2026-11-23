@@ -1,7 +1,24 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ListChecks, Scale, ShieldCheck, Sigma, TriangleAlert } from "lucide-react";
-import { EncabezadoPagina, Migas, Nota, Pagina, Pestanas } from "@/components/patrones";
+import {
+  BarChart3,
+  BookOpen,
+  CircleSlash,
+  Database,
+  Gauge,
+  Gavel,
+  ListChecks,
+  Lock,
+  Map as MapaIcono,
+  PencilLine,
+  Scale,
+  ShieldCheck,
+  Sigma,
+  TriangleAlert,
+  UsersRound,
+  type LucideIcon,
+} from "lucide-react";
+import { EncabezadoPagina, Migas, Nota, Pagina, Pestanas, Seccion } from "@/components/patrones";
 import { AhoraMismo } from "@/components/comotrabaja/AhoraMismo";
 import { CuantoCuesta } from "@/components/comotrabaja/CuantoCuesta";
 import { RegistroADictamen } from "@/components/comotrabaja/RegistroADictamen";
@@ -38,20 +55,21 @@ const PASOS: { titulo: string; texto: string }[] = [
   { titulo: "Se redacta y se controla el dictamen", texto: "El informe pasa por controles automáticos. Si no los pasa queda «En revisión» y no se publican su puntaje ni sus señales." },
 ];
 
-const NO_PRUEBA: { titulo: string; texto: string }[] = [
-  { titulo: "No prueba un delito", texto: "Describe un hecho que conviene revisar con el expediente en la mano. No es una infracción ni una acusación." },
-  { titulo: "Un puntaje alto no es un veredicto", texto: "Dice que se juntaron varias señales, no que el contrato sea irregular." },
-  { titulo: "Sin señales no es «aprobado»", texto: "El contrato puede no haberse leído todavía o no tener documentos publicados." },
-  { titulo: "No vale para todo el Estado", texto: "Los contratos con dictamen son una parte de los publicados: sus porcentajes no se pueden proyectar." },
-  { titulo: "Un cruce por nombre puede ser un homónimo", texto: "Sin número de documento, confírmalo en la fuente antes de darlo por cierto." },
+// Cada límite y cada destino con su ícono (2026-11-23): eran cajas de puro texto, todas iguales.
+const NO_PRUEBA: { icono: LucideIcon; titulo: string; texto: string }[] = [
+  { icono: Gavel, titulo: "No prueba un delito", texto: "Describe un hecho que conviene revisar con el expediente en la mano. No es una infracción ni una acusación." },
+  { icono: Gauge, titulo: "Un puntaje alto no es un veredicto", texto: "Dice que se juntaron varias señales, no que el contrato sea irregular." },
+  { icono: CircleSlash, titulo: "Sin señales no es «aprobado»", texto: "El contrato puede no haberse leído todavía o no tener documentos publicados." },
+  { icono: MapaIcono, titulo: "No vale para todo el Estado", texto: "Los contratos con dictamen son una parte de los publicados: sus porcentajes no se pueden proyectar." },
+  { icono: UsersRound, titulo: "Un cruce por nombre puede ser un homónimo", texto: "Sin número de documento, confírmalo en la fuente antes de darlo por cierto." },
 ];
 
-const DONDE: { titulo: string; texto: string; href: string; enlace: string }[] = [
-  { titulo: "Las fuentes", texto: "Cada registro, con la fecha hasta la que llega hoy.", href: "/fuentes", enlace: "Ver las fuentes" },
-  { titulo: "Las métricas", texto: "Cuánto aciertan los agentes, cuánto se equivocan y cuánto cuesta, con fecha.", href: "/metricas", enlace: "Ver las métricas" },
-  { titulo: "La privacidad", texto: "Sin DNI, con un apellido tapado y sin el RUC de una persona.", href: "/privacidad", enlace: "Ver la política" },
-  { titulo: "Las correcciones", texto: "Si un dato sobre ti es incorrecto, pídelo desde el formulario.", href: "/privacidad#pedido", enlace: "Pedir una corrección" },
-  { titulo: "Los términos", texto: "Cada palabra que usa Vigía, explicada en simple.", href: "/glosario", enlace: "Abrir el glosario" },
+const DONDE: { icono: LucideIcon; titulo: string; texto: string; href: string; enlace: string }[] = [
+  { icono: Database, titulo: "Las fuentes", texto: "Cada registro, con la fecha hasta la que llega hoy.", href: "/fuentes", enlace: "Ver las fuentes" },
+  { icono: BarChart3, titulo: "Las métricas", texto: "Cuánto aciertan los agentes, cuánto se equivocan y cuánto cuesta, con fecha.", href: "/metricas", enlace: "Ver las métricas" },
+  { icono: Lock, titulo: "La privacidad", texto: "Sin DNI, con un apellido tapado y sin el RUC de una persona.", href: "/privacidad", enlace: "Ver la política" },
+  { icono: PencilLine, titulo: "Las correcciones", texto: "Si un dato sobre ti es incorrecto, pídelo desde el formulario.", href: "/privacidad#pedido", enlace: "Pedir una corrección" },
+  { icono: BookOpen, titulo: "Los términos", texto: "Cada palabra que usa Vigía, explicada en simple.", href: "/glosario", enlace: "Abrir el glosario" },
 ];
 
 function Pasos() {
@@ -146,16 +164,22 @@ function Puntaje() {
   );
 }
 
-function Tarjetas({ items }: { items: { titulo: string; texto: string; href?: string; enlace?: string }[] }) {
+/** Cajas con su ícono en una placa, su título y su texto; `tono` pinta la placa (ámbar para lo que no prueba). */
+function Tarjetas({ items, tono = "marca" }: { items: { icono: LucideIcon; titulo: string; texto: string; href?: string; enlace?: string }[]; tono?: "marca" | "aviso" }) {
   return (
     <ul className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-      {items.map((x) => (
-        <li key={x.titulo} className={CAJA}>
-          <p className="text-dato font-semibold text-ink">{x.titulo}</p>
-          <p className="mt-1 text-meta leading-relaxed text-inkSoft">{x.texto}</p>
-          {x.href && (
-            <Link href={x.href} className={`${ENLACE} mt-2 inline-block text-meta`}>{x.enlace}</Link>
-          )}
+      {items.map(({ icono: Icono, ...x }) => (
+        <li key={x.titulo} className={`${CAJA} flex gap-3`}>
+          <span aria-hidden className={`grid h-10 w-10 shrink-0 place-items-center rounded-xl ${tono === "aviso" ? "bg-amber-soft text-amberTexto" : "bg-granate-50 text-granate"}`}>
+            <Icono size={19} strokeWidth={1.9} />
+          </span>
+          <div className="min-w-0">
+            <p className="text-dato font-semibold leading-snug text-ink">{x.titulo}</p>
+            <p className="mt-1 text-meta leading-relaxed text-inkSoft">{x.texto}</p>
+            {x.href && (
+              <Link href={x.href} className={`${ENLACE} mt-2 inline-block text-meta`}>{x.enlace}</Link>
+            )}
+          </div>
         </li>
       ))}
     </ul>
@@ -185,25 +209,23 @@ export default async function MetodologiaPage({ searchParams }: { searchParams?:
 
       <AhoraMismo inicial={ahora} />
 
-      <section aria-labelledby="recorrido-titulo" className="space-y-3">
-        <div>
-          <h2 id="recorrido-titulo" className="font-display text-bloque font-bold text-ink">Del registro al dictamen</h2>
-          <p className="mt-1 max-w-[70ch] text-dato leading-relaxed text-inkSoft">
-            Todo lo que muestra Vigía es de una de estas cuatro clases. Cada una dice qué la sostiene, y cuanto más a la derecha, más
-            interpretación lleva.
-          </p>
-        </div>
+      {/* En su tarjeta, con el título adentro (2026-11-23, el usuario: «secciones que son solo texto sin fondo o forma»): el
+          recorrido y su título iban sueltos sobre el fondo de la página. */}
+      <Seccion
+        id="recorrido"
+        titulo="Del registro al dictamen"
+        descripcion="Todo lo que muestra Vigía es de una de estas cuatro clases: cada una dice qué la sostiene, y cuanto más a la derecha, más interpretación lleva."
+      >
         <RegistroADictamen />
-      </section>
+      </Seccion>
 
-      <section aria-labelledby="gasto-titulo" className="space-y-3 rounded-2xl border border-line bg-paper px-4 py-5 sm:px-6">
-        <h2 id="gasto-titulo" className="font-display text-bloque font-bold text-ink">Cuánto cuesta vigilar</h2>
+      <Seccion id="gasto" titulo="Cuánto cuesta vigilar">
         {gasto ? (
           <CuantoCuesta g={gasto} compacto />
         ) : (
           <p className="text-dato text-inkSoft">No pudimos leer el gasto en este momento. Los libros siguen guardados; vuelve a intentar en unos minutos.</p>
         )}
-      </section>
+      </Seccion>
 
       <Nota icono={<ShieldCheck size={15} aria-hidden />}>
         Una señal es un indicio para revisar, no una acusación. Vigía no determina responsabilidades: eso le corresponde a
@@ -217,7 +239,7 @@ export default async function MetodologiaPage({ searchParams }: { searchParams?:
         pestanas={[
           { clave: "pasos", etiqueta: "Del registro a la señal", conteo: PASOS.length, icono: <ListChecks size={15} aria-hidden />, contenido: <Pasos /> },
           { clave: "puntaje", etiqueta: "El puntaje", icono: <Sigma size={15} aria-hidden />, contenido: <Puntaje /> },
-          { clave: "limites", etiqueta: "Lo que no prueba", conteo: NO_PRUEBA.length, icono: <TriangleAlert size={15} aria-hidden />, contenido: <Tarjetas items={NO_PRUEBA} /> },
+          { clave: "limites", etiqueta: "Lo que no prueba", conteo: NO_PRUEBA.length, icono: <TriangleAlert size={15} aria-hidden />, contenido: <Tarjetas items={NO_PRUEBA} tono="aviso" /> },
           { clave: "mas", etiqueta: "Fuentes y correcciones", icono: <Scale size={15} aria-hidden />, contenido: <Tarjetas items={DONDE} /> },
         ]}
       />

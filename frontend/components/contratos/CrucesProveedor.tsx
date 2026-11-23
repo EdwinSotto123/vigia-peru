@@ -1790,8 +1790,10 @@ export function CrucesProveedor({ cruces: todos, varios, gobierna }: { cruces: C
   const { antecedentes, delProceso, datosProv, posteriores, enObservacion } = clasificarCruces(todos);
   const titulo = varios ? "Antecedentes de quienes ganaron" : "Antecedentes de quien ganó";
 
+  // La cabecera va DENTRO de la tarjeta de los antecedentes (antes flotaba sobre el fondo, encima de la caja).
   return (
-    <div>
+    <section aria-label={titulo} className="tarjeta rounded-2xl border border-line bg-paper">
+      <div className="px-4 pt-4 sm:px-5 sm:pt-5 [&>div]:mb-2">
       <CabeceraPestana
         titulo={titulo}
         ayuda={
@@ -1805,7 +1807,7 @@ export function CrucesProveedor({ cruces: todos, varios, gobierna }: { cruces: C
       >
         Lo que los registros públicos ya decían de {varios ? "quienes ganaron" : "quien ganó"} cuando se convocó este proceso: datos para revisar, no pruebas.
       </CabeceraPestana>
-      <section aria-label={titulo} className="tarjeta rounded-2xl border border-line bg-paper">
+      </div>
         {!antecedentes.length && (
           <p className="px-4 py-3 text-meta leading-relaxed text-inkSoft">
             Cuando se convocó este proceso, {varios ? "quienes ganaron no tenían" : "quien ganó no tenía"} antecedentes ligados a esta entidad.
@@ -1856,21 +1858,21 @@ export function CrucesProveedor({ cruces: todos, varios, gobierna }: { cruces: C
             <GruposCruces lista={posteriores} gobierna={gobierna} />
           </Plegado>
         )}
-      </section>
-    </div>
+    </section>
   );
 }
 
 /** Un renglón por tipo con su severidad y cuántos; cada uno abre la pestaña «Antecedentes» en ese grupo. */
 function RenglonesGrupos({ grupos }: { grupos: CruceProveedor[][] }) {
   return (
-    <ul className="divide-y divide-line/70 rounded-xl border border-line">
+    // Dentro de la tarjeta del Resumen, sin su marco: sólo el filete de arriba (caja dentro de caja, no).
+    <ul className="divide-y divide-line/70 rounded-xl border border-line [.tarjeta_&]:-mx-4 [.tarjeta_&]:rounded-none [.tarjeta_&]:border-x-0 [.tarjeta_&]:border-b-0 sm:[.tarjeta_&]:-mx-5">
       {grupos.map((g) => (
         <li key={g[0].tipo}>
           <BotonPestana
             clave="antecedentes"
             ancla={anclaDe(g[0].tipo)}
-            className="flex min-h-11 w-full items-start justify-between gap-3 px-3.5 py-2.5 text-left transition-colors duration-rapido hover:bg-granate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-granate"
+            className="flex min-h-11 w-full items-start justify-between gap-3 px-3.5 py-2.5 text-left transition-colors duration-rapido hover:bg-granate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-granate [.tarjeta_&]:px-4 sm:[.tarjeta_&]:px-5"
           >
             <span className="flex min-w-0 items-start gap-2">
               <span className="mt-0.5 shrink-0"><SeveridadCruce s={peorSeveridad(g) ?? g[0].severidad} /></span>
@@ -1902,7 +1904,8 @@ export function ResumenAntecedentes({ cruces, varios }: { cruces: CruceProveedor
   const gruposObra = agrupar(delProceso.filter((c) => esTipoObra(c.tipo)));
   const titulo = varios ? "Antecedentes de quienes ganaron" : "Antecedentes de quien ganó";
   return (
-    <section aria-labelledby="resumen-antecedentes" className="space-y-2">
+    // Una tarjeta con su título adentro (antes el h2 y su párrafo flotaban sobre el fondo, sobre una lista en otra caja).
+    <section aria-labelledby="resumen-antecedentes" className="tarjeta space-y-2 rounded-2xl border border-line bg-paper p-4 sm:p-5">
       <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
         <h2 id="resumen-antecedentes" className="font-display text-bloque font-bold text-ink">
           {titulo}

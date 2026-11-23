@@ -1,9 +1,9 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import Link from "next/link";
-import { ArrowRight, Banknote, ChevronRight, Eye, FileSearch, FileText, GitCompare, ListChecks, ScanText, ShieldCheck, UserCheck } from "lucide-react";
+import { ArrowRight, Banknote, BookOpen, ChevronRight, Eye, FileSearch, FileText, GitCompare, ListChecks, ScanText, ShieldCheck, UserCheck } from "lucide-react";
 import { canonica } from "@/lib/seo";
-import { Ayuda, CapitulosRelato, EnUnaFrase, EncabezadoPagina, EstadoError, FuenteDato, Migas, Nota, Pagina, type CapituloRelato } from "@/components/patrones";
+import { Ayuda, CapitulosRelato, EnUnaFrase, EncabezadoPagina, EstadoError, Migas, Nota, Pagina, type CapituloRelato } from "@/components/patrones";
 import { BarraPartes } from "@/components/inicio/BarraPartes";
 import { MuestraSerie, colorSerie } from "@/components/charts/BarraSegmentada";
 import { CifrasEnFila } from "@/components/ui/CifrasEnFila";
@@ -145,9 +145,18 @@ function Relato({ r }: { r: ResumenIa }) {
         cuadra. Casi todas sus señales salen sólo si dos lecturas coinciden.
       </EnUnaFrase>
 
-      <CapitulosRelato capitulos={capitulos} etiqueta="Capítulos de lo que hizo la IA" />
+      {/* Cada capítulo abierto en su tarjeta, con su título adentro (2026-11-23, el usuario: «secciones que son solo texto
+          sin fondo o forma»): la bajada del capítulo y su contenido iban sueltos sobre el fondo. Se hace desde aquí, sin
+          tocar CapitulosRelato: el panel es la `section` hija de su raíz. */}
+      <div className="tarjeta [&>div>section]:mt-3 [&>div>section]:rounded-2xl [&>div>section]:border [&>div>section]:border-line [&>div>section]:bg-paper [&>div>section]:p-4 sm:[&>div>section]:p-5">
+        <CapitulosRelato capitulos={capitulos} etiqueta="Capítulos de lo que hizo la IA" />
+      </div>
 
-      <FuenteDato fuente="Lecturas de Vigía sobre los documentos que las entidades publican en el SEACE" fecha={r.ultimaLectura} />
+      {/* La fuente en su nota con ícono: era un renglón gris suelto al pie de la página. */}
+      <Nota icono={<BookOpen size={15} aria-hidden />}>
+        <b className="font-semibold text-ink">Fuente:</b> lecturas de Vigía sobre los documentos que las entidades publican en el
+        SEACE{r.ultimaLectura ? `, ${fechaConAnio(r.ultimaLectura)}` : ""}.
+      </Nota>
     </>
   );
 }
@@ -195,7 +204,7 @@ function CapituloQueLee({ r, dictamenes, conHallazgo }: { r: ResumenIa; dictamen
           ]}
         />
 
-        <div className="rounded-2xl border border-line bg-paper px-4 py-4 sm:px-5">
+        <div className="rounded-xl bg-paperSoft px-4 py-4 sm:px-5">
           <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-2">
             <h3 className="font-display text-bloque font-bold leading-tight text-ink">Cuánto leyó de cada documento</h3>
             <ul className="flex flex-wrap gap-x-4 gap-y-1 text-rotulo text-inkSoft" aria-label="Leyenda">
@@ -266,7 +275,7 @@ function CapituloDictamenes({ r }: { r: ResumenIa }) {
   return (
     <>
       <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
-        <div className="space-y-3 rounded-2xl border border-line bg-paper px-4 py-4">
+        <div className="space-y-3 rounded-xl bg-paperSoft px-4 py-4">
           <h3 className="font-display text-bloque font-bold leading-tight text-ink">Publicados, por peso del riesgo</h3>
           <BarraPartes
             etiqueta="Dictámenes publicados por peso del riesgo"
@@ -354,7 +363,7 @@ function CapituloMenores({ r }: { r: ResumenIa }) {
         </figure>
 
         <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
-          <div className="space-y-3 rounded-2xl border border-line bg-paper px-4 py-4">
+          <div className="space-y-3 rounded-xl bg-paperSoft px-4 py-4">
             <h3 className="font-display text-bloque font-bold leading-tight text-ink">Lo que no cuadró</h3>
             <Barras
               etiqueta="Contratos menores por lo que no cuadró"
@@ -444,7 +453,7 @@ function CapituloProcesos({ r }: { r: ResumenIa }) {
         </ol>
 
         <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
-          <div className="space-y-3 rounded-2xl border border-line bg-paper px-4 py-4">
+          <div className="space-y-3 rounded-xl bg-paperSoft px-4 py-4">
             <h3 className="font-display text-bloque font-bold leading-tight text-ink">Lo que encontró</h3>
             <Barras
               etiqueta="Procesos por lo que encontró en sus documentos"

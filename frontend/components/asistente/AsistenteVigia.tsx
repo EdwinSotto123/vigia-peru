@@ -310,7 +310,7 @@ export function AsistenteVigia() {
             rows={1}
             maxLength={4000}
             disabled={loading}
-            placeholder={user || loading ? "Escribe tu pregunta…" : "Escribe tu pregunta y entra para enviarla…"}
+            placeholder="Escribe tu pregunta…"
             className="max-h-40 min-h-11 w-full flex-1 resize-none rounded-xl bg-transparent px-2.5 py-2.5 text-destacado leading-snug text-ink placeholder:text-mute focus:outline-none lg:border lg:border-line lg:bg-paper lg:focus:border-granate/50"
           />
           {corriendo ? (

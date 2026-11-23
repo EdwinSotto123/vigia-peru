@@ -23,7 +23,8 @@ import { PersonasPorNombre } from "./PersonasPorNombre";
 import { PersonasConCargo } from "./PersonasConCargo";
 import { getPersonasEncontradas, type PersonasEncontradas } from "@/lib/funcionarios";
 
-const TAM = 20;
+// Listas de 10 (páginas cortas: el usuario no quiere bajar y bajar); el paginador lleva al resto.
+const TAM = 10;
 /** Desplegables a la vista, como mucho (BarraFiltros v2): los que sobran van dentro de «Filtros». */
 const MAX_VISIBLES = 3;
 

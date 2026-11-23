@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { ShieldAlert } from "lucide-react";
+import { ScanSearch, ShieldAlert } from "lucide-react";
 import { BuscadorControl } from "@/components/control/BuscadorControl";
 import { MapaObservado } from "@/components/control/MapaObservado";
 import { Ayuda, EnlaceFuente, EncabezadoPagina, Migas, Nota, Pagina } from "@/components/patrones";
@@ -47,7 +47,24 @@ export default async function ContraloriaPage({ searchParams }: { searchParams?:
         }
       />
 
-      <BuscadorControl inicial={q} enUrl ejemplos />
+      {/* El buscador en su tarjeta, con su título adentro (2026-11-23, el usuario: «secciones que son solo texto sin fondo o
+          forma»): antes el campo, las pistas y «Qué trae cada resultado» iban sueltos sobre el fondo de la página. */}
+      <section aria-labelledby="buscar-control-t" className="tarjeta space-y-4 rounded-2xl border border-line bg-paper p-4 sm:p-5">
+        <div className="flex items-start gap-3">
+          <span aria-hidden className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-granate-50 text-granate">
+            <ScanSearch size={19} strokeWidth={1.9} />
+          </span>
+          <div className="min-w-0">
+            <h2 id="buscar-control-t" className="font-display text-seccion font-bold leading-tight text-ink">
+              Busca en sus observaciones
+            </h2>
+            <p className="mt-0.5 text-dato leading-snug text-inkSoft">
+              De los informes de control ya leídos, en todo el país. Cada resultado abre su informe.
+            </p>
+          </div>
+        </div>
+        <BuscadorControl inicial={q} enUrl ejemplos />
+      </section>
 
       <MapaObservado datos={resumen} />
 

@@ -156,9 +156,10 @@ function Marcadas({ c, titulo, icono: Icono, items }: {
   if (!items.length) return null;
   return (
     <BloqueDetalle titulo={titulo}>
-      <ul className="grid gap-2 sm:grid-cols-2">
+      {/* Una lista con filetes, a todo el ancho: en dos columnas de cajitas cada exigencia se partía en diez renglones. */}
+      <ul className="divide-y divide-line/70 rounded-xl border border-line">
         {items.map((x, i) => (
-          <li key={i} className="flex items-start gap-2.5 rounded-xl border border-line bg-paper px-3 py-2.5">
+          <li key={i} className="flex items-start gap-2.5 px-3.5 py-2.5">
             <Icono size={16} className="mt-0.5 shrink-0 text-mossTexto" aria-hidden />
             <span className="min-w-0 flex-1">
               <span className="block text-dato leading-snug text-ink">{x.texto}</span>
@@ -311,13 +312,14 @@ export function SeccionPerfil({ c }: { c: Detalle }) {
   const { pasos } = cadenaDePlazos(p);
   const entrega = pasos.find((s) => s.clave === "entrega")?.x ?? null;
   const nExigencias = p.exigencias.length + p.marcas.length + p.personalClave.length + p.equipamiento.length;
-  const frase = [
+  // Con mayúscula: sin experiencia exigida empezaba en «con 5 exigencias particulares…».
+  const frase = oracion([
     exp && `Pedían una experiencia de ${cantidadDe(exp)}${expMype ? ` (${cantidadDe(expMype)} a las micro y pequeñas empresas)` : ""}`,
     p.exigencias.length > 0 && `con ${plural(p.exigencias.length, "exigencia particular", "exigencias particulares")}`,
     p.marcas.length > 0 && `con ${plural(p.marcas.length, "marca nombrada", "marcas nombradas")}`,
     precio?.puntajeMaximo != null && totalFactores > 0 && `el precio daba ${numero(precio.puntajeMaximo)} de ${numero(totalFactores)} puntos`,
     entrega?.dias != null && `la entrega era en ${plural(entrega.dias, "día", "días")}`,
-  ].filter(Boolean).join(", ");
+  ].filter(Boolean).join(", "));
 
   const cifras = [
     exp && {
@@ -372,7 +374,8 @@ export function SeccionPerfil({ c }: { c: Detalle }) {
       </CabeceraPestana>
 
       <div className="space-y-6">
-        {frase && <EnUnaFrase>{frase}.</EnUnaFrase>}
+        {/* La frase sólo sin cifras: con ellas repetía lo mismo dos veces («5 exigencias, entrega en 5 días» y sus dos cajas). */}
+        {frase && cifras.length === 0 && <EnUnaFrase>{frase}.</EnUnaFrase>}
         {cifras.length > 0 && <Indicadores items={cifras} tarjetas />}
 
         <div className="grid gap-6 lg:grid-cols-2">

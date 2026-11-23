@@ -31,7 +31,8 @@ import { SENAL_PLAZA, TIPOS_PLAZA, TRAMOS_PLAZA, getPlazas, rutaPlaza, type Pagi
 import { peorSeveridad } from "@/lib/severidad";
 import { uno } from "@/lib/utils";
 
-const TAM = 20;
+// Listas de 10 (páginas cortas: el usuario no quiere bajar y bajar); el paginador lleva al resto.
+const TAM = 10;
 type Busqueda = Record<string, string | string[] | undefined> | undefined;
 
 /** Los filtros de las plazas en la URL, con `z` delante. */

@@ -5,7 +5,7 @@ import Link from "next/link";
 import { CeldaNumero, CeldaPrincipal, Tabla, TablaPaginada, TablaSkeleton, type Columna, type Fila } from "@/components/listado";
 import { Ayuda } from "@/components/patrones/Ayuda";
 import { DatosClave } from "@/components/patrones/Detalle";
-import { EnlaceFuente } from "@/components/patrones/Estructura";
+import { EnlaceFuente, FuenteDato, Seccion } from "@/components/patrones/Estructura";
 import { BarraPartes, type ParteBarra } from "@/components/inicio/BarraPartes";
 import { CajaResumen } from "@/components/inicio/ResumenFicha";
 import { Skeleton } from "@/components/ui/Skeleton";
@@ -152,14 +152,31 @@ export function HistoriaGobiernos({ ubigeo, nombre }: { ubigeo: string; nombre: 
     };
   });
 
-  const celda = (v: { prov: number; dist: number; region: boolean } | undefined) =>
-    !v ? <span className="text-meta text-mute">Ninguno</span> : (
-      <span className="block text-right text-meta leading-snug text-inkSoft">
-        {v.region && <span className="block font-semibold text-ink">La región</span>}
-        {v.prov > 0 && <span className="block">{numero(v.prov)} {v.prov === 1 ? "provincia" : "provincias"}</span>}
-        {v.dist > 0 && <span className="block">{numero(v.dist)} {v.dist === 1 ? "distrito" : "distritos"}</span>}
+  // Cada período en una celda con forma (2026-11-23: antes eran tres renglones de texto, «La región / 2 provincias / 19
+  // distritos»): cuántas municipalidades ganó, con una barra frente a la que más ganó en la tabla, y la región en pastilla.
+  // Cuántas son provincias y cuántas distritos, en una línea chica debajo.
+  const tope = Math.max(1, ...porPartido.flatMap((e) => ANIOS.map((a) => (e.por[a]?.prov ?? 0) + (e.por[a]?.dist ?? 0))));
+  const celda = (v: { prov: number; dist: number; region: boolean } | undefined) => {
+    if (!v) return <span className="block text-right text-meta text-mute">Ninguno</span>;
+    const munis = v.prov + v.dist;
+    const partes = [v.prov > 0 && plural(v.prov, "prov.", "prov."), v.dist > 0 && plural(v.dist, "dist.", "dist.")].filter(Boolean).join(" y ");
+    return (
+      <span className="block text-right">
+        <span className="flex flex-wrap items-center justify-end gap-x-1.5 gap-y-1">
+          {v.region && <span className="pill border-granate/40 bg-granate-50 font-semibold text-ink">La región</span>}
+          {munis > 0 && <b className="font-display text-dato font-bold tabular-nums text-ink">{numero(munis)}</b>}
+        </span>
+        {munis > 0 && (
+          <>
+            <span aria-hidden className="ml-auto mt-1 block h-1.5 w-full max-w-24 overflow-hidden rounded-full bg-paperDeep">
+              <span className="block h-full rounded-full bg-granate" style={{ width: `${Math.max(4, Math.round((100 * munis) / tope))}%` }} />
+            </span>
+            <span className="mt-0.5 block text-rotulo text-mute">{partes}</span>
+          </>
+        )}
       </span>
     );
+  };
   const filasPartidos: Fila[] = porPartido.map((e) => ({
     id: e.clave,
     href: `/app/partidos/${e.clave}?anio=2022`,
@@ -173,32 +190,35 @@ export function HistoriaGobiernos({ ubigeo, nombre }: { ubigeo: string; nombre: 
   }));
 
   return (
-    <div className="space-y-6">
-      <section className="space-y-2">
-        <h3 className="font-display text-bloque font-bold text-ink">Quién gobernó {nombre}</h3>
+    <div className="space-y-4">
+      {/* Cada lista en su tarjeta con el título adentro: antes los dos títulos y la fuente flotaban sobre el fondo. */}
+      <Seccion titulo={`Quién gobernó ${nombre}`} descripcion="Su gobernador en cada período, con su partido y sus votos.">
         <Tabla columnas={COLS_GOB} filas={filasGob} etiqueta={`Gobernadores de ${nombre}`} />
-      </section>
-      <section className="space-y-2">
-        <div className="flex items-center gap-1.5">
-          <h3 className="font-display text-bloque font-bold text-ink">Qué partidos gobernaron sus provincias y distritos</h3>
+      </Seccion>
+      <Seccion
+        titulo="Qué partidos gobernaron sus provincias y distritos"
+        descripcion="Cuántas municipalidades ganó cada uno en cada período."
+        ayuda={
           <Ayuda titulo="¿Qué cuenta cada columna?">
-            Lo que ganó cada organización en cada período: la región, cuántas provincias y cuántos distritos. La fila abre su
-            ficha con los contratos de sus gobiernos.
+            Lo que ganó cada organización en cada período: la región, cuántas provincias y cuántos distritos. La barra compara con
+            el que más municipalidades ganó en un período. La fila abre su ficha con los contratos de sus gobiernos.
           </Ayuda>
-        </div>
+        }
+      >
         <TablaPaginada
           columnas={COLS_PARTIDOS}
           filas={filasPartidos}
           etiqueta={`Partidos que gobernaron en ${nombre}`}
           nombre="partidos"
-          tam={15}
+          tam={10}
           buscar={{ placeholder: "Buscar un partido o movimiento…", etiqueta: `Buscar en los partidos de ${nombre}` }}
         />
-      </section>
-      <p className="text-rotulo text-mute">
-        Fuente: <EnlaceFuente href={INFOGOB_JNE}>JNE</EnlaceFuente>, resultados de las elecciones regionales y municipales de 2014, 2018 y 2022. Las de
-        2026 aún no tienen resultados.
-      </p>
+        <FuenteDato
+          fuente="Resultados de las elecciones regionales y municipales de 2014, 2018 y 2022 (las de 2026 aún no tienen resultados)"
+          enlaces={[{ texto: "Infogob (JNE)", href: INFOGOB_JNE }]}
+          className="mt-3 border-t border-line pt-3"
+        />
+      </Seccion>
     </div>
   );
 }
@@ -214,7 +234,7 @@ const COLS_GOB: Columna[] = [
 
 const COLS_PARTIDOS: Columna[] = [
   { clave: "partido", titulo: "Partido u organización", ancho: "minmax(0,1.4fr)" },
-  { clave: "p2022", titulo: "2023 a 2026", ancho: "112px", alinear: "der" },
-  { clave: "p2018", titulo: "2019 a 2022", ancho: "112px", alinear: "der", desde: "md" },
-  { clave: "p2014", titulo: "2015 a 2018", ancho: "112px", alinear: "der", desde: "md" },
+  { clave: "p2022", titulo: "2023 a 2026", ancho: "120px", alinear: "der" },
+  { clave: "p2018", titulo: "2019 a 2022", ancho: "120px", alinear: "der", desde: "md" },
+  { clave: "p2014", titulo: "2015 a 2018", ancho: "120px", alinear: "der", desde: "md" },
 ];

@@ -32,7 +32,8 @@ import { GastoDetalle } from "@/components/inicio/GastoGobiernos";
 
 /** Los parámetros de esta lista en la URL: con su prefijo, para no chocar con los de la lista de contratos. */
 export const P_GOB = { q: "gq", nivel: "gnivel", region: "greg", orden: "gord", page: "gpag", vista: "gvista" } as const;
-const TAM = 20;
+// Listas de 10 (páginas cortas, pedido del usuario del 2026-11-23): en el celular cada gobierno apila cuatro cifras.
+const TAM = 10;
 const NIVEL: Record<string, string> = { regional: "Gobierno regional", provincial: "Municipalidad provincial", distrital: "Municipalidad distrital" };
 const NIVELES = [
   { valor: "regional", etiqueta: "Regiones" },

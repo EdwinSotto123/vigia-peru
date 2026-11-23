@@ -142,14 +142,15 @@ export function LineaProceso({ pasos, ctx, perfil }: { pasos: PasoProceso[]; ctx
 
               {/* El paso, en su caja. */}
               <div className={cn("mb-4 min-w-0 rounded-2xl border bg-paper px-4 py-3", p.falta ? "border-dashed border-line" : CAJA[peor ?? "neutro"], ultimo && "mb-0")}>
-                <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5">
-                  <p className="text-rotulo font-semibold uppercase tracking-wide text-mute">{etapa.nombre}</p>
-                  <p className="text-rotulo sm:hidden">
-                    <span className={cn("font-mono tabular-nums", p.fecha ? "font-semibold text-ink" : "text-mute")}>{cuando}</span>
-                    {despues && <span className="text-inkSoft">, {despues}</span>}
-                  </p>
-                </div>
-                <div className={cn("mt-0.5 text-dato font-semibold leading-snug text-pretty", p.falta ? "text-mute" : "text-ink")}>{p.titulo}</div>
+                {/* Sin rótulo en mayúsculas encima del título (antes «CONVOCATORIA» sobre «El hospital publicó la convocatoria»): el
+                    ícono del riel dice la etapa y el título la cuenta. Para el lector de pantalla, la etapa va escondida. En el
+                    celular la fecha va debajo del título, no encima. */}
+                <span className="sr-only">{etapa.nombre}: </span>
+                <div className={cn("text-cuerpo font-semibold leading-snug text-pretty", p.falta ? "text-mute" : "text-ink")}>{p.titulo}</div>
+                <p className="mt-0.5 text-rotulo sm:hidden">
+                  <span className={cn("font-mono tabular-nums", p.fecha ? "font-semibold text-ink" : "text-mute")}>{cuando}</span>
+                  {despues && <span className="text-inkSoft">, {despues}</span>}
+                </p>
                 {p.detalle && <div className="mt-1 text-meta leading-snug text-inkSoft text-pretty">{p.detalle}</div>}
                 {p.chips && p.chips.length > 0 && (
                   <div className="mt-2.5 border-t border-line/70 pt-2.5">

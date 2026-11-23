@@ -339,7 +339,7 @@ export function Tabla({
                 {g.rotuloFilas}
               </p>
             )}
-            <ul className={jerarquia ? "ml-4 mr-3 overflow-hidden rounded-xl border border-line border-l-[3px] border-l-granate/50 bg-paperSoft/50 sm:ml-7 sm:mr-4" : undefined}>
+            <ul className={jerarquia ? "ml-4 mr-3 overflow-hidden rounded-xl border border-line bg-paperSoft/50 sm:ml-7 sm:mr-4" : undefined}>
               {g.filas.map((f) => (
                 <li key={f.id} className="border-b border-line/70 last:border-b-0">
                   <FilaTabla fila={f} columnas={columnas} conAccion={conAccion} medida={medida} densidad={densidad} maximos={maximos} />
@@ -519,7 +519,7 @@ function FilaTabla({
         ))}
     </>
   );
-  const clase = cn(k.grid, densidad === "compacta" ? FILA_COMPACTA : FILA, "group w-full", fila.resaltada && "bg-granate-50 shadow-[inset_3px_0_0_0_theme(colors.granate.DEFAULT)]");
+  const clase = cn(k.grid, densidad === "compacta" ? FILA_COMPACTA : FILA, "group w-full", fila.resaltada && "bg-granate-50");
   if (capa) {
     // La fila es un `div` y su acción (enlace o botón) una capa vacía que la cubre entera, DEBAJO de las celdas: así su
     // fondo de elegida (el del panel abierto) se ve a través de ellas. No el «enlace estirado» por encima: taparía las

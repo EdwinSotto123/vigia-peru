@@ -17,6 +17,7 @@ import { VacioEnLinea } from "@/components/ui/VacioEnLinea";
 import { Ayuda, EnlaceFuente, Nota } from "@/components/patrones";
 import { CeldaTasa } from "@/components/grafo/indicios";
 import { Paginacion } from "@/components/ui/Paginacion";
+import { SuperficiePestana } from "@/components/fichas/SuperficiePestana";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { listaY, numero, porcentaje, solesCompacto } from "@/lib/formato";
 import { CONTRATACIONES_ABIERTAS, INFOGOB_JNE } from "@/lib/fuentes";
@@ -82,7 +83,8 @@ export interface IndicioDeUnPartido {
   ruta: string;
 }
 
-const TAM = 25;
+// Listas de 10 (páginas cortas, pedido del usuario del 2026-11-23); el paginador lleva al resto.
+const TAM = 10;
 
 /** El orden de la tabla de partidos (`?orden=`). «indicio» sólo con los datos del mapa de poder (período vigente). */
 const ORDENES_PARTIDOS = [
@@ -319,8 +321,10 @@ export function DirectorioGobiernos({
       {/* Qué mirar: la decisión principal, en granate. Debajo, lo que la acota (período y nivel, o el orden), un escalón
           abajo y con su rótulo también en el celular; la fila se parte en renglones si no entra. El período, una sola vez
           en la página (también en el mapa: antes el mapa tenía su propio selector de elección debajo de éste). */}
-      <div className="space-y-2.5">
-        <Vistas vistas={vistas} etiqueta="Qué mirar" />
+      <Vistas vistas={vistas} etiqueta="Qué mirar" />
+      {/* El período, el nivel y la tabla en UNA tarjeta (2026-11-23, «secciones sin fondo ni forma»): antes los selectores, el
+          reparto, el buscador y la tabla flotaban cada uno por su lado sobre el fondo. El mapa trae su propio marco. */}
+      <Marco conMarco={vista !== "mapa"}>
         <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
           <ConRotulo rotulo="Gobiernos de">
             <Vistas vistas={vistasPeriodo} etiqueta="Período de gobierno" variante="secundaria" />
@@ -336,7 +340,6 @@ export function DirectorioGobiernos({
             </ConRotulo>
           )}
         </div>
-      </div>
 
       {(vista === "gobiernos" || vista === "partidos") && (
         <>
@@ -363,8 +366,14 @@ export function DirectorioGobiernos({
       )}
 
       {vista === "mapa" && mapaNode}
+      </Marco>
     </div>
   );
+}
+
+/** La tarjeta de la vista (`SuperficiePestana`); con el mapa, sin marco: el mapa trae el suyo. */
+function Marco({ conMarco, children }: { conMarco: boolean; children: ReactNode }) {
+  return conMarco ? <SuperficiePestana className="space-y-4">{children}</SuperficiePestana> : <div className="space-y-4">{children}</div>;
 }
 
 type Resumen = {
@@ -661,7 +670,11 @@ function RepartoDelPoder({
   const resto = enEsteNivel.slice(PALETA_ORG.length).reduce((s, [, n]) => s + n, 0);
   const etiqueta = NIVELES.find((n) => n.id === nivel)?.plural;
   return (
-    <section aria-label={`Reparto de ${etiqueta} entre organizaciones`} className="rounded-2xl border border-line bg-paper p-3 sm:p-4">
+    <section
+      aria-label={`Reparto de ${etiqueta} entre organizaciones`}
+      // Dentro de la tarjeta de la vista, en su franja hundida y sin borde (no una caja dentro de la caja).
+      className="rounded-2xl border border-line bg-paper p-3 sm:p-4 [.tarjeta_&]:rounded-xl [.tarjeta_&]:border-0 [.tarjeta_&]:bg-paperSoft"
+    >
       <div className="flex h-3.5 w-full gap-px overflow-hidden rounded-full bg-paperDeep" role="group" aria-label="Tramos por organización">
         {grandes.map(([i, n]) => (
           <button

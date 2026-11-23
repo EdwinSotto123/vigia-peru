@@ -11,7 +11,7 @@ import { P_OBRA, getObras, parametrosDe, parseObrasQuery, type ObrasPagina } fro
  * adicionales) y su contrato en Vigía. La causa de una paralización o de un atraso puede ser de la entidad.
  */
 
-export const TAM_OBRAS_EMPRESA = 25;
+export const TAM_OBRAS_EMPRESA = 10;
 
 type Busqueda = Record<string, string | string[] | undefined> | undefined;
 

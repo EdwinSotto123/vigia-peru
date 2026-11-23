@@ -1,7 +1,7 @@
 import { unstable_noStore as noStore } from "next/cache";
 import Link from "next/link";
-import { ArrowRight, CalendarCheck, CalendarClock, Database, EyeOff, ListOrdered, Radio, ScanSearch, Server, ShieldAlert } from "lucide-react";
-import { Beneficios, Franja, FuenteDato, Seccion, type Beneficio } from "@/components/patrones";
+import { ArrowRight, BookOpen, CalendarCheck, CalendarClock, Database, EyeOff, ListOrdered, Radio, ScanSearch, Server, ShieldAlert } from "lucide-react";
+import { Beneficios, EnlaceFuente, Franja, Nota, Seccion, type Beneficio } from "@/components/patrones";
 import { EnlaceAccion } from "@/components/ui/EnlaceAccion";
 import { AporteVigilancia, type ParaAporte } from "@/components/financiar/AporteVigilancia";
 import { DeCadaCien } from "@/components/financiar/DeCadaCien";
@@ -78,7 +78,8 @@ export async function SeccionAportar({ para: paraPedido }: { para?: string }) {
 
       <div className="min-w-0 space-y-5 lg:col-start-1">
         <Seccion id="independencia" titulo="Lo que tu aporte no compra" descripcion="Aportes de cualquier tamaño, con las mismas reglas.">
-          <Beneficios items={NO_COMPRA} columnas={2} />
+          {/* Dentro de la tarjeta de la sección, cada regla en un recuadro hundido y no en otra caja con borde. */}
+          <Beneficios items={NO_COMPRA} columnas={2} className="[&>li]:border-transparent [&>li]:bg-paperSoft" />
         </Seccion>
 
         <Franja
@@ -94,10 +95,13 @@ export async function SeccionAportar({ para: paraPedido }: { para?: string }) {
           uno puedes aportar con él como destino sugerido: tu aporte va igual al fondo común.
         </Franja>
 
-        <FuenteDato
-          fuente="Contraloría General de la República (estimación de 2023), lo que el equipo calcula que cuesta mantenerla, factura de AWS, tarifa de Cloudflare, costo medido en cada lectura y tipo de cambio del BCRP"
-          href={CONTRALORIA_CORRUPCION.url}
-        />
+        {/* La fuente en su nota con ícono: era un renglón gris suelto al pie de la columna. */}
+        <Nota icono={<BookOpen size={15} aria-hidden />}>
+          <b className="font-semibold text-ink">Fuente:</b>{" "}
+          <EnlaceFuente href={CONTRALORIA_CORRUPCION.url}>Contraloría General de la República (estimación de 2023)</EnlaceFuente>, lo
+          que el equipo calcula que cuesta mantenerla, factura de AWS, tarifa de Cloudflare, costo medido en cada lectura y tipo de
+          cambio del BCRP.
+        </Nota>
       </div>
     </div>
   );
@@ -128,7 +132,12 @@ function PorQue({ piso }: { piso: number | null }) {
             </Link>
           </div>
         </div>
-        <DeCadaCien claro horizontal className="border-t border-line pt-5" />
+        {/* Apilada y con los dos montos lado a lado: al costado de los cuadros (`horizontal`), en esta columna de ~520 px, los
+            montos se leían de a una palabra por renglón (2026-11-23). */}
+        <DeCadaCien
+          claro
+          className="border-t border-line pt-5 [&>div:last-child>ul]:grid [&>div:last-child>ul]:gap-3.5 [&>div:last-child>ul]:space-y-0 sm:[&>div:last-child>ul]:grid-cols-2"
+        />
       </div>
     </section>
   );
@@ -152,8 +161,10 @@ function LoQuePusimos({ v }: { v: ResumenVigilancia | null }) {
               pagamos todos: con tu aporte, vigilarlos no depende de unos pocos.
             </p>
         </div>
-        <div className="grid gap-4 xl:grid-cols-2 xl:items-start">
-          <ul aria-label="En qué se fue" className="grid gap-2 sm:grid-cols-2 xl:grid-cols-1">
+        {/* El comprobante a todo el ancho de la caja hasta 2xl: al lado de la lista, en media columna, «Órdenes de compra y
+            servicio cruzadas con…» se partía en seis renglones (2026-11-23). */}
+        <div className="grid gap-4 2xl:grid-cols-2 2xl:items-start">
+          <ul aria-label="En qué se fue" className="grid gap-2 sm:grid-cols-2 2xl:grid-cols-1">
             {PUSIMOS_EN.map(({ icono: Icono, texto }) => (
               <li key={texto} className="flex items-center gap-3 rounded-xl border border-line px-3 py-2">
                 <span aria-hidden className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-paperDeep text-granate">

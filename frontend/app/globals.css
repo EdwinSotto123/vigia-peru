@@ -1393,3 +1393,13 @@ html[data-modo="dia"] [data-producto="vigia"] [data-intencion="participar"] {
 @keyframes gs-barra-crece { from { transform: scaleX(0); } }
 .gs-barra-crece { transform-origin: left; animation: gs-barra-crece 700ms steps(10, end) 150ms backwards; }
 @media (prefers-reduced-motion: reduce) { .gs-barra-crece { animation: none; } }
+
+/* Las cifras en franja miran el ancho de SU caja, no el de la pantalla: en una columna angosta (un costado de 20 rem)
+   cuatro cifras en fila se leían una palabra por renglón. Bajo 36 rem van de a dos; bajo 18 rem, una por fila. */
+.cifras-franja-caja { container-type: inline-size; }
+@container (max-width: 36rem) {
+  .cifras-franja { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
+  /* La última de un número impar ocupa la fila entera: sin el hueco gris a su lado. */
+  .cifras-franja > div:last-child:nth-child(odd) { grid-column: span 2; }
+}
+@container (max-width: 18rem) { .cifras-franja { grid-template-columns: minmax(0, 1fr) !important; } .cifras-franja > div:last-child:nth-child(odd) { grid-column: auto; } }

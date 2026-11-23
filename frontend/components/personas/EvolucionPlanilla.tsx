@@ -68,7 +68,7 @@ function Grafico({ d }: { d: PlanillaMensual }) {
   });
   const marca = (m: Mes, i: number) => i === 0 || m.mes.endsWith("-01");
   return (
-    <section aria-labelledby="planilla-mes-a-mes" className="tarjeta space-y-3 rounded-2xl border border-line bg-paper p-4 sm:p-5" data-lista="grafico">
+    <section aria-labelledby="planilla-mes-a-mes" className="tarjeta space-y-3 rounded-2xl border border-line bg-paper p-4 sm:p-5 [.tarjeta_&]:rounded-none [.tarjeta_&]:border-0 [.tarjeta_&]:bg-transparent [.tarjeta_&]:px-0" data-lista="grafico">
       <h3 id="planilla-mes-a-mes" className="font-display text-bloque font-bold text-ink">Su planilla mes a mes</h3>
       <p className="text-meta leading-snug text-inkSoft">
         En <b className="text-ink">{mesCorto(ultimo.mes)}</b> tenía <b className="font-mono tabular-nums text-ink">{numero(ultimo.personas)}</b>{" "}

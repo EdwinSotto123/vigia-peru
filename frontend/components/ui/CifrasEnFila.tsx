@@ -210,10 +210,12 @@ const COLUMNAS_FRANJA: Record<number, string> = { 1: "sm:grid-cols-1", 2: "sm:gr
 
 function Franja({ items, pie, className }: { items: Cifra[]; pie?: ReactNode; className?: string }) {
   return (
-    <div className={cn("space-y-2", className)}>
+    <div className={cn("cifras-franja-caja space-y-2", className)}>
       {/* Una caja y, dentro, una celda por cifra separada por una raya (el hueco de 1 px deja ver el fondo `line`). Antes
-          era una línea de texto corrido («4,161 contratos leídos de 60,972…»): no se leía como cifras (2026-11-13). */}
-      <dl className={cn("grid grid-cols-2 gap-px overflow-hidden rounded-xl border border-line bg-line [.tarjeta_&]:border-0", COLUMNAS_FRANJA[items.length] ?? "lg:grid-cols-4")}>
+          era una línea de texto corrido («4,161 contratos leídos de 60,972…»): no se leía como cifras (2026-11-13). Las
+          columnas también miran el ancho de la caja (globals.css, `.cifras-franja`): en una columna angosta cuatro cifras
+          lado a lado se leían una palabra por renglón (Lo nuevo, 2026-11-23). */}
+      <dl className={cn("cifras-franja grid grid-cols-2 gap-px overflow-hidden rounded-xl border border-line bg-line [.tarjeta_&]:border-0", COLUMNAS_FRANJA[items.length] ?? "lg:grid-cols-4")}>
         {items.map((it) => {
           const icono = iconoDe(it);
           const parte = it.valor == null ? null : parteDe(it);

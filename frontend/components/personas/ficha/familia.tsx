@@ -156,7 +156,7 @@ export function PestanaFamilia({ familia: f }: { familia: FamiliaDeLaPersona | n
           filas={filas}
           etiqueta="Lo que obtuvo del Estado cada familiar declarado"
           nombre="filas"
-          tam={20}
+          tam={10}
           buscar={{ placeholder: "Buscar por entidad, empresa o parentesco…", etiqueta: "Buscar en su red de familia" }}
         />
       ) : null}

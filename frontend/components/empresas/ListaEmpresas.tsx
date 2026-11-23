@@ -34,7 +34,8 @@ import {
 } from "@/lib/empresas";
 import { TablaEmpresas, TablaEmpresasSkeleton } from "./TablaEmpresas";
 
-const TAM = 20;
+// Listas de 10 (páginas cortas: el usuario no quiere bajar y bajar); el paginador lleva al resto.
+const TAM = 10;
 
 type Busqueda = Record<string, string | string[] | undefined> | undefined;
 
@@ -173,7 +174,12 @@ function Barra({ resumen: r, f, entidad }: { resumen: ResumenEmpresas | null; f:
 async function Cifras({ pagina, ruta, f }: { pagina: Promise<PaginaEmpresas | null>; ruta: string; f: FiltrosEmpresas }) {
   const r = (await pagina)?.resumen;
   if (!r) return null;
-  return <Indicadores franja items={cifras(r, ruta, f)} pie={<RepartoAntecedentes r={r} />} />;
+  // Las cifras y el reparto por antecedente en UNA tarjeta (antes la barra quedaba suelta sobre el fondo, bajo la caja).
+  return (
+    <section aria-label="Las empresas en cifras" className="tarjeta rounded-2xl border border-line bg-paper p-3 sm:p-4">
+      <Indicadores franja items={cifras(r, ruta, f)} pie={<RepartoAntecedentes r={r} />} />
+    </section>
+  );
 }
 
 /**

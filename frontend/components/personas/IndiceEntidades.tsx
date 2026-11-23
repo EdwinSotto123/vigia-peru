@@ -100,8 +100,9 @@ export function IndiceEntidades({
 
   return (
     <div className="lg:grid lg:grid-cols-[17rem_minmax(0,1fr)] lg:items-start lg:gap-6">
-      <div className="mb-4 lg:sticky lg:top-20 lg:mb-0">
-        <p id={`${id}-titulo`} className="mb-1.5 px-3 text-meta font-semibold text-inkSoft">
+      {/* El índice en su superficie (antes una lista suelta sobre el fondo, al lado del panel con borde). */}
+      <div className="mb-4 rounded-2xl border border-line bg-paper p-2 lg:sticky lg:top-20 lg:mb-0">
+        <p id={`${id}-titulo`} className="mb-1.5 px-3 pt-1.5 text-meta font-semibold text-inkSoft">
           {titulo}
         </p>
         <div role="tablist" aria-orientation="vertical" aria-labelledby={`${id}-titulo`} className="flex flex-col gap-1">

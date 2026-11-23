@@ -1,6 +1,7 @@
 import { Building2, CloudOff, DoorOpen, Handshake, Landmark, ListOrdered, Users } from "lucide-react";
 import { Indicadores, type Indicador } from "@/components/listado";
-import { AyudaTermino, FuenteDato, Pestanas, type Pestana } from "@/components/patrones";
+import { AyudaTermino, Pestanas, type Pestana } from "@/components/patrones";
+import { PieFuentes } from "./PieFuentes";
 import { VacioEnLinea } from "@/components/ui/VacioEnLinea";
 import { fechaConAnio, numero, porcentaje } from "@/lib/formato";
 import { uno } from "@/lib/utils";
@@ -116,7 +117,7 @@ export async function VisitasEntidad({ ruc, sp }: { ruc: string; sp?: Busqueda }
       <Indicadores items={cifras} />
       <ResumenVisitas d={d} />
       <Pestanas param={P_VISITAS.sub} variante="segunda" etiqueta="Listas de sus visitas" activa={activa} pestanas={pestanas} />
-      <FuenteDato fuente="El registro de visitas de cada entidad" enlaces={d.fuentes ?? []} />
+      <PieFuentes fuente="El registro de visitas de cada entidad" enlaces={d.fuentes ?? []} />
     </div>
   );
 }

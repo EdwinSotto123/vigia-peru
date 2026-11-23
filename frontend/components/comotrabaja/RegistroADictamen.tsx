@@ -102,8 +102,10 @@ export function RegistroADictamen() {
         ))}
       </ol>
 
-      <div className="grid gap-4 lg:grid-cols-4">
-        <section className="rounded-2xl border border-line bg-paperSoft px-4 py-4 sm:px-5 lg:col-span-2 lg:col-start-2">
+      {/* Las dos notas del recorrido lado a lado y como recuadros hundidos (van dentro de la tarjeta de la sección): antes la
+          de observación iba sola en el centro y la de trazabilidad, otra caja con borde debajo. */}
+      <div className="grid gap-4 lg:grid-cols-2">
+        <section className="rounded-xl bg-paperSoft px-4 py-4 sm:px-5">
           <h3 className="flex items-center gap-2 text-cuerpo font-semibold text-ink">
             <FlaskConical size={16} className="shrink-0 text-granate" aria-hidden />
             Una señal nueva nace en observación
@@ -115,7 +117,7 @@ export function RegistroADictamen() {
           </p>
           <ol className="mt-3 grid grid-cols-3 gap-2 text-center text-rotulo leading-snug" aria-label="Cómo pasa una señal a puntuar">
             {["Se muestra con su evidencia", "40 casos revisados a mano", "Puntúa si acierta"].map((paso, i) => (
-              <li key={paso} className={cn("rounded-xl border px-2 py-2", i === 2 ? "border-granate/40 bg-paper text-ink" : "border-line bg-paper text-inkSoft")}>
+              <li key={paso} className={cn("rounded-lg border px-2 py-2", i === 2 ? "border-granate/40 bg-paper text-ink" : "border-line bg-paper text-inkSoft")}>
                 {paso}
               </li>
             ))}
@@ -124,10 +126,9 @@ export function RegistroADictamen() {
             Ver los indicadores en observación
           </Link>
         </section>
-      </div>
 
-      <section className="rounded-2xl border border-line bg-paper px-4 py-4 sm:px-5">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+      <section className="rounded-xl bg-paperSoft px-4 py-4 sm:px-5">
+        <div className="flex flex-col gap-3">
           <div className="min-w-0">
             <h3 className="flex items-center gap-2 text-cuerpo font-semibold text-ink">
               <Route size={16} className="shrink-0 text-granate" aria-hidden />
@@ -139,11 +140,12 @@ export function RegistroADictamen() {
               ahora, en la auditoría en vivo.
             </p>
           </div>
-          <Link href="/app/auditoria" prefetch={false} className={`${ENLACE} shrink-0 text-meta`}>
+          <Link href="/app/auditoria" prefetch={false} className={`${ENLACE} shrink-0 self-start text-meta`}>
             Ir a la auditoría en vivo
           </Link>
         </div>
       </section>
+      </div>
     </div>
   );
 }

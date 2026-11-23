@@ -1,11 +1,12 @@
 import Link from "next/link";
+import { cn } from "@/lib/utils";
 import type { ReactNode } from "react";
 import { ExternalLink, FileText, HardHat, MapPin, Store } from "lucide-react";
-import { Ayuda, AyudaTermino, BloqueDetalle, ChipsDetalle, CuerpoDetalle, DatosClave, EnlaceFuente, EstadoError, EstadoVacio, FuenteDato, type DatoClave } from "@/components/patrones";
+import { Ayuda, AyudaTermino, BloqueDetalle, ChipsDetalle, CuerpoDetalle, DatosClave, EnlaceFuente, EstadoError, EstadoVacio, FuenteDato, Nota, type DatoClave } from "@/components/patrones";
 import { BarraFiltros, CeldaFecha, CeldaNumero, CeldaPrincipal, Tabla, type Columna, type FiltroSecundario, type Fila, type Parametros } from "@/components/listado";
 import { enSeccion } from "@/components/contratos/filtros";
 import { ChipsCruces, CrucesCelda } from "@/components/contratos/CrucesCelda";
-import { EstadoCompra, ListaCargando, opcionesDe } from "@/components/ordenes/ListaOrdenes";
+import { ListaCargando, opcionesDe } from "@/components/ordenes/ListaOrdenes";
 import { AvisoDato, BanderaDato } from "@/components/ui/BanderaDato";
 import { CifrasEnFila, type Cifra } from "@/components/ui/CifrasEnFila";
 import { Dato } from "@/components/ui/Dato";
@@ -264,7 +265,7 @@ function BloqueContratos({ o }: { o: Obra }) {
 /** La fila de una obra con su panel. `conEntidad`: la lista no es de una entidad (la de una empresa): se dice cuál. */
 function filaObra(o: Obra, { conEntidad, empresaRuc }: { conEntidad: boolean; empresaRuc?: string }): Fila {
   const costo = costoDe(o);
-  const estado = <EstadoCompra estado={o.estado ? ESTADO_TEXTO[o.estado] ?? o.estado : null} />;
+  const estado = <EstadoObra estado={o.estado} />;
   const dudoso = o.dudoso.map(motivoDudoso).find((m) => !!m) ?? null;
   const lugar = [o.lugar.distrito, o.lugar.provincia].filter(Boolean).map((x) => tituloNatural(x!)).join(", ");
   const quien = nombreQuien(o.ejecutor);
@@ -405,13 +406,37 @@ export async function ListaObras({
       <Tabla columnas={COLUMNAS} filas={filas} etiqueta="Obras públicas de INFOBRAS" />
       <div className="flex justify-end">{pag(true)}</div>
       {pagina.alDia && (
-        <p className="text-rotulo text-mute">
+        <Nota icono={<FileText size={15} aria-hidden />}>
           <EnlaceFuente href={INFOBRAS}>{FUENTE_OBRA}</EnlaceFuente>, archivo del {fechaLarga(pagina.alDia)}. Lo registra cada entidad: una obra que
           no se actualiza queda como la dejó.
-        </p>
+        </Nota>
       )}
     </div>
   );
 }
 
 export { SIN_OBRAS };
+
+/**
+ * El estado de una obra con su color (2026-11-23: los cuatro estados eran la misma pastilla gris y la columna se leía
+ * como texto): paralizada en rojo, en ejecución en el verde de la marca, finalizada en musgo, sin empezar en gris. El
+ * punto repite el estado sin depender sólo del color (la palabra va siempre).
+ */
+function EstadoObra({ estado }: { estado: string | null | undefined }) {
+  const texto = estado ? ESTADO_TEXTO[estado] ?? oracion(estado) : "Sin estado";
+  const tono =
+    estado === "Paralizada"
+      ? "border-crimson/30 bg-crimson/10 text-crimsonTexto"
+      : estado === "En Ejecución"
+        ? "border-granate/30 bg-granate-50 text-granate"
+        : estado === "Finalizado"
+          ? "border-moss/30 bg-moss/10 text-mossTexto"
+          : "border-line bg-paperSoft text-inkSoft";
+  const punto = estado === "Paralizada" ? "bg-crimson" : estado === "En Ejecución" ? "bg-granate" : estado === "Finalizado" ? "bg-moss" : "bg-mute";
+  return (
+    <span className={cn("pill max-w-full gap-1.5", tono)}>
+      <span aria-hidden className={cn("h-1.5 w-1.5 shrink-0 rounded-full", punto)} />
+      <span className="truncate">{texto}</span>
+    </span>
+  );
+}

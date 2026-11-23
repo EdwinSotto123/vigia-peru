@@ -90,29 +90,33 @@ export default async function FichaPlazaPage({ params }: { params: { aviso: stri
               <Dato tipo="entidad">{entidad}</Dato>
             )}
             {p.ubicacion && <Dato tipo="lugar">{tituloNatural(p.ubicacion)}</Dato>}
-            <Dato tipo="codigo" nombre="Aviso" mono>{`Aviso ${p.aviso}`}</Dato>
+            {/* El ⓘ pegado al último dato: como `ayuda` del encabezado caía solo en un renglón. */}
+            <span className="inline-flex items-center gap-1">
+              <Dato tipo="codigo" nombre="Aviso" mono>{`Aviso ${p.aviso}`}</Dato>
+              <Ayuda titulo="¿Qué es una plaza CAS?">
+                <span className="block">
+                  Un puesto del Estado con Contrato Administrativo de Servicios: temporal, con concurso público y con menos beneficios
+                  que un puesto de planta. Las entidades los publican en SERVIR Talento Perú; Vigía los guarda mientras están
+                  publicados y les busca señales de plaza a la medida.
+                </span>
+              </Ayuda>
+            </span>
           </span>
         }
         banderas={banderas.length ? <BanderasFicha etiqueta="Banderas de esta plaza" banderas={banderas} /> : undefined}
-        ayuda={
-          <Ayuda titulo="¿Qué es una plaza CAS?">
-            <span className="block">
-              Un puesto del Estado con Contrato Administrativo de Servicios: temporal, con concurso público y con menos beneficios
-              que un puesto de planta. Las entidades los publican en SERVIR Talento Perú; Vigía los guarda mientras están
-              publicados y les busca señales de plaza a la medida.
-            </span>
-          </Ayuda>
-        }
       />
       <Indicadores items={indicadores(f)} />
 
       <Seccion titulo="Lo que se encontró" id="senales" descripcion={p.senales.length ? `${plural(p.senales.length, "señal", "señales")} en esta plaza.` : undefined}>
         {p.senales.length ? (
-          <ul className="divide-y divide-line/70 rounded-2xl border border-line bg-paper px-4 sm:px-5">
+          // Sin caja propia (ya va en la tarjeta de la sección); la gravedad en su pastilla DEBAJO del título, nunca encima.
+          <ul className="divide-y divide-line/70">
             {p.senales.map((s) => (
-              <li key={s.tipo} className="space-y-1.5 py-4">
-                <Severidad bandera={s.severidad} formato="linea" />
-                <p className="text-dato font-semibold leading-snug text-ink">{SENAL_PLAZA[s.tipo]?.titulo ?? s.tipo}</p>
+              <li key={s.tipo} className="space-y-1.5 py-4 first:pt-0 last:pb-0">
+                <p className="text-cuerpo font-semibold leading-snug text-ink">{SENAL_PLAZA[s.tipo]?.titulo ?? s.tipo}</p>
+                <div>
+                  <Severidad bandera={s.severidad} />
+                </div>
                 {SENAL_PLAZA[s.tipo]?.explica && <p className="text-meta leading-snug text-inkSoft">{SENAL_PLAZA[s.tipo].explica}</p>}
                 <DetallePlaza tipo={s.tipo} d={s.detalle} />
               </li>
@@ -128,6 +132,8 @@ export default async function FichaPlazaPage({ params }: { params: { aviso: stri
 
       <Seccion titulo="Lo que pide">
         <DatosClave items={requisitos} />
+        {/* La fuente de la plaza, aquí adentro (antes una línea suelta al pie de la página). */}
+        <FuenteDato fuente={`SERVIR, Talento Perú (aviso ${p.aviso})`} href={p.detalleUrl ?? TALENTO_PERU} className="mt-3" />
       </Seccion>
 
       {f.enOtras && f.enOtras.mediana != null && p.remuneracion != null && (
@@ -188,8 +194,6 @@ export default async function FichaPlazaPage({ params }: { params: { aviso: stri
           </EnlaceAccion>
         )}
       </div>
-      {/* La convocatoria en SERVIR; si no se guardó su enlace, el buscador de ofertas de Talento Perú. */}
-      <FuenteDato fuente={`SERVIR, Talento Perú (aviso ${p.aviso})`} href={p.detalleUrl ?? TALENTO_PERU} />
       <Aviso tono="neutro">
         Una señal no es una acusación: dice qué registro público coincide con esta plaza. Quién la ganó no está en los datos de
         SERVIR.

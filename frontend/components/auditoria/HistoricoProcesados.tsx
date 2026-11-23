@@ -28,7 +28,8 @@ import { numero, plural } from "@/lib/formato";
 import { estadoVisible, type Procesamiento, type ProcesamientosPagina } from "@/lib/auditoria";
 import { CeldaContrato, CeldaValor, EstadoProcesamiento, columnasHistorico, hrefProcesamiento } from "./CeldasProcesamiento";
 
-export const TAM_HISTORICO = 24;
+// De a 10 (2026-11-23, el usuario: listas cortas): 24 filas eran dos pantallas de la misma fila.
+export const TAM_HISTORICO = 10;
 
 /** Los filtros de /app/auditoria, ya validados (tipo, no interfaz: se pasa como `Record` a Paginacion). */
 export type FiltrosAuditoria = {

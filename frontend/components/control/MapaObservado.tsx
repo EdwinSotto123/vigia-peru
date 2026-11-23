@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { Coins, FileSearch, ScanSearch } from "lucide-react";
 import { Ayuda, Seccion } from "@/components/patrones";
-import { CeldaBarra, CeldaNumero, CeldaPrincipal, CeldaTexto, CLASE_ENLACE_CELDA, Indicadores, Tabla, type Columna, type Fila } from "@/components/listado";
+import { CeldaBarra, CeldaNumero, CeldaPrincipal, CeldaTexto, CLASE_ENLACE_CELDA, Indicadores, TablaPaginada, type Columna, type Fila } from "@/components/listado";
 import { VacioEnLinea } from "@/components/ui/VacioEnLinea";
 import type { ResumenControl } from "@/lib/corrupcion";
 import { numero, plural, solesCompacto } from "@/lib/formato";
@@ -44,6 +44,7 @@ export function MapaObservado({ datos }: { datos: ResumenControl | null }) {
   const maximo = Math.max(1, ...datos.entidades.map((e) => e.perjuicioPen));
   const filas: Fila[] = datos.entidades.map((e, i) => ({
     id: `ent-${e.ruc}`,
+    buscable: `${e.entidad ?? ""} ${e.departamento ?? ""} ${e.temaPrincipalTexto ?? ""}`,
     celdas: {
       entidad: (
         <CeldaPrincipal
@@ -121,7 +122,16 @@ export function MapaObservado({ datos }: { datos: ResumenControl | null }) {
             {temaActivo ? `Las ${filas.length} entidades con más perjuicio señalado en ${temaActivo.temaTexto.toLocaleLowerCase("es")}` : `Las ${filas.length} entidades con más perjuicio señalado`}
           </h3>
           {filas.length > 0 ? (
-            <Tabla columnas={COLUMNAS} filas={filas} etiqueta="Entidades con más perjuicio señalado por la Contraloría" />
+            // De a 10 (2026-11-23): las 30 de una vez eran tres pantallas de filas iguales.
+            <TablaPaginada
+              columnas={COLUMNAS}
+              filas={filas}
+              etiqueta="Entidades con más perjuicio señalado por la Contraloría"
+              nombre="entidades"
+              tam={10}
+              controles="abajo"
+              buscar={{ placeholder: "Buscar una entidad o una región…", etiqueta: "Buscar entre las entidades con más perjuicio" }}
+            />
           ) : (
             <VacioEnLinea>Ninguna observación leída de ese tema cuantifica un perjuicio.</VacioEnLinea>
           )}

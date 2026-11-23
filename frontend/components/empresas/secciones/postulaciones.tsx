@@ -13,7 +13,7 @@ import {
 } from "@/components/listado";
 import { Badge } from "@/components/ui/Badge";
 import { Dato } from "@/components/ui/Dato";
-import { fecha, numero, oracion, plural, soles, solesCompacto } from "@/lib/formato";
+import { fecha, numero, oracion, plural, porcentaje, soles, solesCompacto } from "@/lib/formato";
 import { tituloNatural } from "@/lib/landing";
 import { rutaContrato } from "@/lib/rutas";
 import {
@@ -152,9 +152,13 @@ export async function PostulacionesEmpresa({ pagina: p, ruta, parametros, actual
         resultado: x.gano ? (
           <Badge variant="marca">Ganó</Badge>
         ) : otros.length ? (
-          <span className="text-meta text-inkSoft">
-            Ganó <b className="font-semibold text-ink">{otros[0].nombre ?? otros[0].ruc}</b>
-            {otros.length > 1 ? ` y ${otros.length - 1} más` : ""}
+          // Perdió: su pastilla y, debajo, quién le ganó (antes sólo «Ganó X», que a primera vista parecía que ganó ella).
+          <span className="flex min-w-0 flex-col items-start gap-0.5">
+            <Badge variant="neutral">Ganó otro</Badge>
+            <span className="line-clamp-2 text-meta text-inkSoft">
+              <b className="font-semibold text-ink">{otros[0].nombre ?? otros[0].ruc}</b>
+              {otros.length > 1 ? ` y ${otros.length - 1} más` : ""}
+            </span>
           </span>
         ) : (
           <span className="text-meta text-mute">Sin adjudicación publicada</span>
@@ -165,8 +169,18 @@ export async function PostulacionesEmpresa({ pagina: p, ruta, parametros, actual
   });
   return (
     <div className="space-y-3">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="text-meta text-inkSoft">{`${plural(pagina.total, "postulación", "postulaciones")}, ${numero(pagina.ganadas)} ganadas`}</p>
+      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+        {/* Cuántas ganó, con su barra (antes una línea gris: «122 postulaciones, 34 ganadas»). */}
+        <div className="min-w-[min(100%,16rem)] flex-1 space-y-1.5">
+          <p className="flex flex-wrap items-baseline gap-x-1.5 text-meta text-inkSoft">
+            Ganó <span className="font-display text-bloque font-bold tabular-nums text-ink">{numero(pagina.ganadas)}</span>
+            de {plural(pagina.total, "postulación", "postulaciones")}
+            <span className="font-mono text-rotulo font-semibold tabular-nums text-granate">{porcentaje((pagina.ganadas / pagina.total) * 100)}</span>
+          </p>
+          <div className="h-1.5 max-w-sm overflow-hidden rounded-full bg-paperDeep" aria-hidden>
+            <div className="h-full rounded-full bg-granate" style={{ width: `${Math.min(100, (pagina.ganadas / pagina.total) * 100)}%` }} />
+          </div>
+        </div>
         <Paginas total={pagina.total} size={pagina.size} actual={actual} ruta={ruta} parametros={parametros} param={P_POSTULACIONES.page} nombre="postulaciones" />
       </div>
       <Tabla columnas={COLUMNAS_POSTULACIONES} filas={filas} etiqueta="Procesos en que fue postor" />

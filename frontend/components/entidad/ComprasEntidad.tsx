@@ -12,8 +12,8 @@ import { CLASES_COMPRA, P_COMPRAS, getCompras, parametrosCompras, type FiltrosCo
  * lib/compras.ts los traduce a los filtros de esta lista.
  */
 
-/** Filas por página. */
-export const TAM = 20;
+/** Filas por página: diez (páginas cortas; con veinte la pestaña medía dos pantallas de tabla). */
+export const TAM = 10;
 
 export function ComprasEntidad({ ruc, ruta, filtros }: { ruc: string; ruta: string; filtros: FiltrosCompras }) {
   const parametros: Parametros = { seccion: "contratos", ...parametrosCompras(filtros) };

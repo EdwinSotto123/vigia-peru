@@ -408,7 +408,7 @@ function BotonZoom({ etiqueta, onClick, children }: { etiqueta: string; onClick:
 function Leyenda() {
   return (
     <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5">
-      <span className="text-rotulo font-semibold uppercase tracking-wide text-mute">Cómo leerlo</span>
+      <span className="text-meta font-semibold text-ink">Cómo leerlo</span>
       <ChipLeyenda tono="granate">Quién decide (alta dirección)</ChipLeyenda>
       <ChipLeyenda tono="amber">Quién compra</ChipLeyenda>
       <ChipLeyenda tono="anil">Quién paga y arma el presupuesto</ChipLeyenda>
@@ -476,7 +476,7 @@ export function DetalleOficina({
         </p>
       )}
       <section className="space-y-1">
-        <h5 className="text-rotulo font-semibold uppercase tracking-wide text-mute">Depende de</h5>
+        <h5 className="font-display text-dato font-bold text-ink">Depende de</h5>
         {padre ? (
           <p className="text-ink">
             {alElegir ? (
@@ -499,7 +499,7 @@ export function DetalleOficina({
       </section>
       {n.jefes.length > 0 && (
         <section className="space-y-1.5">
-          <h5 className="text-rotulo font-semibold uppercase tracking-wide text-mute">Quién la encabeza</h5>
+          <h5 className="font-display text-dato font-bold text-ink">Quién la encabeza</h5>
           <ul className="space-y-2">
             {n.jefes.slice(0, 4).map((j) => (
               <li key={`${j.nombre}-${j.cargo}`} className="space-y-0.5">
@@ -525,7 +525,7 @@ export function DetalleOficina({
         </p>
       )}
       <section className="space-y-1.5">
-        <h5 className="text-rotulo font-semibold uppercase tracking-wide text-mute">De dónde sale</h5>
+        <h5 className="font-display text-dato font-bold text-ink">De dónde sale</h5>
         <ul className="space-y-1.5">
           {n.evidencias.map((e, i) => (
             <li key={i} className="text-inkSoft">

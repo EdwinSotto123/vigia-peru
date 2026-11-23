@@ -1,7 +1,7 @@
 import { unstable_noStore as noStore } from "next/cache";
 import type { ReactNode } from "react";
-import { Calculator, CalendarClock, CircleDollarSign, Info, Receipt } from "lucide-react";
-import { FuenteDato, Nota, Seccion } from "@/components/patrones";
+import { BookOpen, Calculator, CalendarClock, CircleDollarSign, Info, Receipt } from "lucide-react";
+import { Nota, Seccion } from "@/components/patrones";
 import { CeldaBarra, CeldaNumero, CeldaPrincipal, CeldaTexto, Tabla, type Columna, type Fila } from "@/components/listado";
 import { VacioEnLinea } from "@/components/ui/VacioEnLinea";
 import { MetaDelMes } from "@/components/financiar/MetaDelMes";
@@ -37,7 +37,7 @@ export async function SeccionCostos() {
           <MetaDelMes v={v} conEnlace={false} />
           <LecturaIA v={v} />
           <Seccion titulo="Lo que no está en estas cifras">
-            <ul className="divide-y divide-line rounded-2xl border border-line bg-paper text-meta leading-snug text-inkSoft">
+            <ul className="divide-y divide-line rounded-2xl border border-line bg-paper text-meta leading-snug text-inkSoft [.tarjeta_&]:rounded-none [.tarjeta_&]:border-0 [.tarjeta_&]:bg-transparent">
               <li className="flex gap-2 px-3.5 py-2.5">
                 <Info size={15} aria-hidden className="mt-0.5 shrink-0 text-mute" />
                 Hoy AWS lo cubren créditos promocionales: las cifras de AWS son lo que costará cuando se acaben, no lo que se paga hoy.
@@ -54,7 +54,11 @@ export async function SeccionCostos() {
           </Seccion>
         </div>
       </div>
-      <FuenteDato fuente={`Factura de AWS (Cost Explorer), tarifa de Cloudflare, costo medido en cada lectura y ${v.tipoCambio.fuente}`} />
+      {/* La fuente en su nota con ícono: era un renglón gris suelto al pie de la página. */}
+      <Nota icono={<BookOpen size={15} aria-hidden />}>
+        <b className="font-semibold text-ink">Fuente:</b> factura de AWS (Cost Explorer), tarifa de Cloudflare, costo medido en cada
+        lectura y {v.tipoCambio.fuente}.
+      </Nota>
     </div>
   );
 }

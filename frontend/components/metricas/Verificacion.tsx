@@ -1,4 +1,4 @@
-import { BadgeCheck, BellRing, FileCheck2, ShieldQuestion } from "lucide-react";
+import { BadgeCheck, BellRing, ChevronDown, FileCheck2, ShieldQuestion } from "lucide-react";
 import { BarraSegmentada, MuestraSerie } from "@/components/charts/BarraSegmentada";
 import { Nota } from "@/components/patrones";
 import { numero, plural, porcentaje } from "@/lib/formato";
@@ -72,6 +72,21 @@ const NOMBRE_HECHO: Record<string, string> = {
  * migración 323). Nació de un error del 2026-11-16: un monto de experiencia exigida se presentó como la cuantía de un
  * proceso. Desde entonces cada dato dice qué es y contra qué se midió, y aquí se ve cuánto falta por comprobar.
  */
+/** Cuántos datos leídos se ven antes de «Ver los N datos más». */
+const VISIBLES_HECHOS = 10;
+
+/** Un dato leído: qué parte se comprobó, en su barra, y cuántas lecturas no coinciden o no tienen contra qué medirse. */
+function RenglonHecho({ h }: { h: HechosLeidos }) {
+  return (
+    <RenglonMedidor
+      nombre={NOMBRE_HECHO[`${h.tipo}|${h.clase}`]}
+      parte={h.total ? h.comprobados / h.total : null}
+      texto={porcentaje(h.total ? (h.comprobados / h.total) * 100 : 0, { decimales: 1 })}
+      sub={`${plural(h.total, "lectura", "lecturas")}${h.contradicen ? `; ${numero(h.contradicen)} no coinciden con el registro` : ""}${h.sinComprobar ? `; ${numero(h.sinComprobar)} sin contra qué medir` : ""}`}
+    />
+  );
+}
+
 function DatosComprobados({ hechos }: { hechos: HechosLeidos[] }) {
   const vistos = hechos.filter((h) => NOMBRE_HECHO[`${h.tipo}|${h.clase}`] && h.total >= 100);
   if (!vistos.length) return null;
@@ -85,17 +100,28 @@ function DatosComprobados({ hechos }: { hechos: HechosLeidos[] }) {
       fecha={vistos.map((h) => h.hasta).filter(Boolean).sort().pop()}
       fuente="Tabla hecho_documento: cada dato de las bases, el acta, el contrato, el pliego de consultas y los reportes del SEACE, con su tipo y su comprobación."
     >
+      {/* Los primeros VISIBLES_HECHOS a la vista y el resto plegado (2026-11-23): eran 30 barras seguidas, la caja medía
+          dos pantallas y empujaba todo lo demás. */}
       <ul className="space-y-2.5">
-        {vistos.map((h) => (
-          <RenglonMedidor
-            key={`${h.tipo}|${h.clase}`}
-            nombre={NOMBRE_HECHO[`${h.tipo}|${h.clase}`]}
-            parte={h.total ? h.comprobados / h.total : null}
-            texto={porcentaje(h.total ? (h.comprobados / h.total) * 100 : 0, { decimales: 1 })}
-            sub={`${plural(h.total, "lectura", "lecturas")}${h.contradicen ? `; ${numero(h.contradicen)} no coinciden con el registro` : ""}${h.sinComprobar ? `; ${numero(h.sinComprobar)} sin contra qué medir` : ""}`}
-          />
+        {/* recorte: se ven los más leídos; los demás, en «Ver los N datos más», abajo */}
+        {vistos.slice(0, VISIBLES_HECHOS).map((h) => (
+          <RenglonHecho key={`${h.tipo}|${h.clase}`} h={h} />
         ))}
       </ul>
+      {vistos.length > VISIBLES_HECHOS && (
+        <details className="group/mas">
+          <summary className="flex min-h-9 cursor-pointer list-none items-center gap-1.5 text-dato font-semibold text-granate [&::-webkit-details-marker]:hidden">
+            <ChevronDown size={16} className="transition-transform duration-rapido group-open/mas:rotate-180" aria-hidden />
+            <span className="group-open/mas:hidden">Ver los {numero(vistos.length - VISIBLES_HECHOS)} datos más</span>
+            <span className="hidden group-open/mas:inline">Ver menos</span>
+          </summary>
+          <ul className="mt-2.5 space-y-2.5">
+            {vistos.slice(VISIBLES_HECHOS).map((h) => (
+              <RenglonHecho key={`${h.tipo}|${h.clase}`} h={h} />
+            ))}
+          </ul>
+        </details>
+      )}
       <MideNoMide
         mide="De cada dato que un lector sacó de un documento, si coincide con el registro oficial del proceso (el referencial, lo adjudicado, los postores), si la frase que copió del documento trae ese mismo valor, o si dos lecturas independientes dan lo mismo."
         noMide="Que el dato esté bien cuando no hay contra qué medirlo: el plazo, los adelantos y las penalidades todavía no traen su cita. «No coincide» puede ser un error de lectura o una diferencia real entre el documento y el registro."

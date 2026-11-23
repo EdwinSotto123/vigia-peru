@@ -134,7 +134,7 @@ export default async function DenunciaDetallePage({ params }: { params: { id: st
           {convergencia && (
             // Sección de dato sobre tinta: acento maíz y `sobre-oscuro` para que el foco se vea.
             <section className="sobre-oscuro rounded-2xl bg-ink p-6 text-paper">
-              <h2 className="flex items-start gap-2 font-display text-xl font-bold leading-tight sm:text-2xl">
+              <h2 className="flex items-start gap-2 font-display text-seccion font-bold leading-tight sm:text-cifra">
                 <GitMerge size={20} className="mt-1 shrink-0 text-maiz" aria-hidden />
                 Esta denuncia coincide con un contrato que tiene señales
               </h2>

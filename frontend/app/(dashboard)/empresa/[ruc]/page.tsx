@@ -70,6 +70,7 @@ import { parseCatalogoQuery, P_CAT } from "@/lib/catalogo";
 import { P_COMPRAS, getCompras, parametrosCompras, parseCompras } from "@/lib/compras";
 import { BarraCompras, ListaCompras, ListaComprasCargando } from "@/components/compras/ListaCompras";
 import { ObrasEmpresa, obrasDeEmpresa } from "@/components/obras/ObrasEmpresa";
+import { SuperficiePestana } from "@/components/fichas/SuperficiePestana";
 import { uno } from "@/lib/utils";
 
 export const revalidate = 600;
@@ -93,7 +94,8 @@ export async function generateMetadata({ params }: { params: { ruc: string } }):
 
 type Busqueda = Record<string, string | string[] | undefined> | undefined;
 
-const TAM = 20;
+// Listas de 10 (páginas cortas: el usuario no quiere bajar y bajar); el paginador lleva al resto.
+const TAM = 10;
 const texto = (v: string | string[] | undefined) => {
   const t = uno(v)?.slice(0, 80);
   return t && t.length >= 2 ? t : undefined;
@@ -363,7 +365,7 @@ export default async function EmpresaPage({ params, searchParams: sp }: { params
             etiqueta: "Ventas al Estado",
             icono: <HandCoins size={15} aria-hidden />,
             contenido: seccion !== "ventas" ? aPedido("ventas", "Venta") : (
-              <div>
+              <SuperficiePestana>
                 {/* Una línea y una sola ⓘ (pedido del usuario del 2026-11-05): antes, un párrafo suelto con tres ⓘ de glosario
                     que contaba qué entra en la lista; eso va ahora en la ⓘ, con el enlace al glosario. */}
                 <CabeceraPestana
@@ -398,7 +400,7 @@ export default async function EmpresaPage({ params, searchParams: sp }: { params
                     </Suspense>
                   </ZonaResultados>
                 </Listado>
-              </div>
+              </SuperficiePestana>
             ),
           },
           {
@@ -407,12 +409,12 @@ export default async function EmpresaPage({ params, searchParams: sp }: { params
             icono: <Building2 size={15} aria-hidden />,
             conteo: e.entidades,
             contenido: seccion !== "clientes" ? aPedido("clientes", "Entidad") : (
-              <div className="space-y-4">
+              <SuperficiePestana className="space-y-4">
                 <CabeceraPestana>Las entidades que le adjudicaron un proceso o le compraron por órdenes.</CabeceraPestana>
                 <Suspense fallback={<TablaSkeleton columnas={[{ clave: "a", titulo: "Entidad", ancho: "1fr" }]} filas={8} />}>
                   <ClientesEmpresa datos={clientesP} ruc={e.ruc} />
                 </Suspense>
-              </div>
+              </SuperficiePestana>
             ),
           },
           {
@@ -421,7 +423,7 @@ export default async function EmpresaPage({ params, searchParams: sp }: { params
             icono: <ClipboardList size={15} aria-hidden />,
             conteo: e.postulaciones,
             contenido: seccion !== "postulaciones" ? aPedido("postulaciones", "Proceso") : (
-              <div className="space-y-4">
+              <SuperficiePestana className="space-y-4">
                 <CabeceraPestana>Los procesos en que fue postor, sola o en consorcio, y quién ganó cada uno.</CabeceraPestana>
                 <Listado ruta={ruta} parametros={pp} paramPagina={P_POSTULACIONES.page} conservar={SIN_CONSERVAR}>
                   <Suspense fallback={<BarraPostulaciones facetas={null} />}>
@@ -433,7 +435,7 @@ export default async function EmpresaPage({ params, searchParams: sp }: { params
                     </Suspense>
                   </ZonaResultados>
                 </Listado>
-              </div>
+              </SuperficiePestana>
             ),
           },
           {

@@ -151,7 +151,7 @@ export function pestanasContratada({ f, codigo, ruta, nombre, sent, filtrosOrden
                         filas={procesos.map(filaProceso)}
                         etiqueta="Procesos de selección que ganó"
                         nombre="procesos"
-                        tam={20}
+                        tam={10}
                         buscar={{ placeholder: "Buscar por objeto, entidad o código…", etiqueta: "Buscar en los procesos que ganó" }}
                       />
                     </div>
@@ -215,7 +215,7 @@ export function pestanasContratada({ f, codigo, ruta, nombre, sent, filtrosOrden
                   filas={filasEntidades(f, cuenta, ruta)}
                   etiqueta="Entidades que lo contrataron"
                   nombre="entidades"
-                  tam={20}
+                  tam={10}
                   buscar={{ placeholder: "Buscar por entidad, servicio o región…", etiqueta: "Buscar en sus entidades" }}
                 />
               </div>

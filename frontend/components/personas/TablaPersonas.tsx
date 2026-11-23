@@ -66,7 +66,8 @@ const columnas = (deEntidad: boolean): Columna[] => [
     ),
   },
   {
-    clave: "senales", titulo: "Señal más grave", ancho: "minmax(0,1fr)", desde: "lg", apilar: true,
+    // Un piso de 12 rem: dentro de la tarjeta de la pestaña la columna quedaba en 7 rem y la señal se cortaba («Posible nepotis…»).
+    clave: "senales", titulo: "Señal más grave", ancho: "minmax(12rem,1fr)", desde: "lg", apilar: true,
     igual: { frases: { "Sin señales": "Ninguna tiene señales" } },
     ayuda: (
       <Ayuda titulo="¿Qué son estas señales?">

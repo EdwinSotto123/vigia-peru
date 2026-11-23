@@ -300,7 +300,7 @@ function ResumenTab({
   const inicio = (
     <>
       <InicioRegion ubigeo={ubigeo} nombre={nombre} mefDept={mefDept} />
-      <h3 className="pt-2 text-cuerpo font-semibold text-ink">La cola de lectura de {nombre}</h3>
+      <h3 className="pt-2 font-display text-bloque font-bold text-ink">La cola de lectura de {nombre}</h3>
     </>
   );
 

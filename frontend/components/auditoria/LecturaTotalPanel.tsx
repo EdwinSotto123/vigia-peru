@@ -1,6 +1,7 @@
 import { CifrasEnFila, type Cifra } from "@/components/ui/CifrasEnFila";
 import { BarraSegmentada, Medidor, MuestraSerie } from "@/components/charts/BarraSegmentada";
-import { Ayuda } from "@/components/patrones";
+import { RotateCcw } from "lucide-react";
+import { Ayuda, Nota } from "@/components/patrones";
 import { fechaCorta, numero, relativo } from "@/lib/formato";
 import type { LecturaTotal } from "@/lib/auditoria";
 
@@ -93,9 +94,11 @@ export function LecturaTotalPanel({ datos }: { datos: LecturaTotal }) {
   const conLectura = dias.filter((d) => d.n > 0);
 
   return (
-    <section aria-labelledby="lectura-total-titulo" className="space-y-3">
+    // En su tarjeta, con el título adentro (2026-11-23, el usuario: «secciones que son solo texto sin fondo o forma»): antes
+    // el h2, las cifras, las dos gráficas y la nota de las fallidas iban sueltos sobre el fondo de la página.
+    <section aria-labelledby="lectura-total-titulo" className="tarjeta space-y-4 rounded-2xl border border-line bg-paper p-4 sm:p-5">
       <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1">
-        <h2 id="lectura-total-titulo" className="font-display text-bloque font-bold text-ink">
+        <h2 id="lectura-total-titulo" className="font-display text-seccion font-bold leading-tight text-ink">
           Todo lo que Vigía ya leyó
         </h2>
         {m.primero && <p className="text-meta text-inkSoft">Análisis masivo desde el {fechaCorta(m.primero)}</p>}
@@ -104,7 +107,7 @@ export function LecturaTotalPanel({ datos }: { datos: LecturaTotal }) {
 
       <div className="grid gap-3 lg:grid-cols-2">
         {redes.length > 0 && (
-          <div className="rounded-xl border border-line bg-paper p-4">
+          <div className="rounded-xl bg-paperSoft p-4">
             <h3 className="text-cuerpo font-semibold text-ink">En qué tipo de contrato se fue el gasto</h3>
             <BarraSegmentada
               className="mt-3"
@@ -128,7 +131,7 @@ export function LecturaTotalPanel({ datos }: { datos: LecturaTotal }) {
         )}
 
         {conLectura.length > 0 && (
-          <div className="rounded-xl border border-line bg-paper p-4">
+          <div className="rounded-xl bg-paperSoft p-4">
             <h3 className="text-cuerpo font-semibold text-ink">Contratos leídos por día</h3>
             <p className="text-meta text-inkSoft">Últimos {dias.length} días, hora de Lima</p>
             <ol
@@ -155,10 +158,11 @@ export function LecturaTotalPanel({ datos }: { datos: LecturaTotal }) {
       </div>
 
       {m.fallidos > 0 && (
-        <p className="text-meta text-inkSoft">
-          {numero(m.fallidos)} lecturas no terminaron (el modelo o un documento fallaron). Se les carga un costo estimado,{" "}
-          {usd(m.costoFallidos)} en total, que ya está en el gasto; cada contrato se reintenta hasta dos veces.
-        </p>
+        <Nota icono={<RotateCcw size={15} aria-hidden />}>
+          <b className="font-semibold text-ink">{numero(m.fallidos)} lecturas no terminaron</b> (el modelo o un documento fallaron).
+          Se les carga un costo estimado, {usd(m.costoFallidos)} en total, que ya está en el gasto; cada contrato se reintenta
+          hasta dos veces.
+        </Nota>
       )}
     </section>
   );

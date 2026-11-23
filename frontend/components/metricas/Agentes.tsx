@@ -1,4 +1,4 @@
-import { Crosshair, Gauge, ListChecks, Scale, Target } from "lucide-react";
+import { Crosshair, Gauge, History, ListChecks, Scale, Target } from "lucide-react";
 import { ColumnasSerie } from "@/components/charts/ColumnasSerie";
 import { Medidor } from "@/components/charts/BarraSegmentada";
 import { CeldaNumero, CeldaPrincipal, CeldaTexto, Tabla, TablaFiltrable, type Columna, type FilaFiltrable } from "@/components/listado";
@@ -187,7 +187,8 @@ export function Agentes({ agentes }: { agentes: Transparencia["agentes"] }) {
           </Caja>
         </li>
       </ul>
-      <PieDato fecha={agentes.fecha} fuente={FUENTE_ORO} className="border-t-0 pt-0" />
+      {/* El pie de la rejilla en su recuadro: era un renglón gris suelto entre dos bloques (2026-11-23). */}
+      <PieDato fecha={agentes.fecha} fuente={FUENTE_ORO} className="rounded-xl border border-line bg-paperSoft/70 px-3.5 py-2.5" />
 
       {agentes.legal.length > 0 && (
         <Caja
@@ -201,8 +202,8 @@ export function Agentes({ agentes }: { agentes: Transparencia["agentes"] }) {
         </Caja>
       )}
 
-      <section className="space-y-3">
-        <h3 className="font-display text-cuerpo font-bold text-ink">Todas las corridas de validación</h3>
+      {/* En su caja, con el título adentro: antes el título, el buscador y la tabla iban sueltos sobre el fondo. */}
+      <Caja titulo="Todas las corridas de validación" icono={<History size={16} aria-hidden />} fecha={agentes.fecha} fuente={FUENTE_ORO} className="tarjeta">
         <TablaFiltrable
           etiqueta="Corridas de las pruebas de oro, de la más reciente a la más antigua"
           nombre="corridas"
@@ -213,8 +214,7 @@ export function Agentes({ agentes }: { agentes: Transparencia["agentes"] }) {
           buscar={{ placeholder: "Buscar por red, versión o qué cambió…", etiqueta: "Buscar en las corridas" }}
           filtros={[{ clave: "red", etiqueta: "Red de agentes", corta: "Red", opciones: agentes.redes.map((r) => ({ valor: r.clave, etiqueta: r.nombre })) }]}
         />
-        <PieDato fecha={agentes.fecha} fuente={FUENTE_ORO} />
-      </section>
+      </Caja>
     </div>
   );
 }

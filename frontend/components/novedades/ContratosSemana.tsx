@@ -84,7 +84,7 @@ export function ContratosSemana({
           pantalla); en la tableta, una al lado de la otra encima de la lista. */}
       <aside
         aria-label="Filtrar los contratos de la semana"
-        className="grid grid-cols-[minmax(0,1fr)] gap-x-6 gap-y-4 rounded-2xl border border-line bg-paper p-4 sm:grid-cols-2 lg:sticky lg:top-[calc(var(--alto-barra-fija,0px)_+_1rem)] lg:block lg:max-h-[calc(100vh_-_var(--alto-barra-fija,0px)_-_2rem)] lg:space-y-5 lg:overflow-y-auto"
+        className="grid grid-cols-[minmax(0,1fr)] gap-x-6 gap-y-4 rounded-2xl border border-line bg-paper p-4 [.tarjeta_&]:rounded-xl [.tarjeta_&]:border-0 [.tarjeta_&]:bg-paperSoft sm:grid-cols-2 lg:sticky lg:top-[calc(var(--alto-barra-fija,0px)_+_1rem)] lg:block lg:max-h-[calc(100vh_-_var(--alto-barra-fija,0px)_-_2rem)] lg:space-y-5 lg:overflow-y-auto"
       >
         <BarrasFaceta
           id="nuevo-por-tipo"

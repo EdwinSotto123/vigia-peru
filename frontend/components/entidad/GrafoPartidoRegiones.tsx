@@ -31,7 +31,8 @@ const COLUMNAS: Columna[] = [
   { clave: "contratos", titulo: "Contratos con indicio", ancho: "8.5rem", alinear: "der", desde: "md", apilar: "con-rotulo", corto: "Contratos" },
   { clave: "monto", titulo: "Monto", ancho: "7rem", alinear: "der", desde: "lg", apilar: "con-rotulo" },
   // Debajo de xl, bajo el nombre (`apilar`): antes en el celular no se veía ningún indicio.
-  { clave: "indicios", titulo: "Indicios, en contratos", ancho: "minmax(0,1fr)", desde: "xl", apilar: true, ayuda: <AyudaIndicios /> },
+  // Un piso de 14 rem: más angosta, «Socio en la entidad 177» se partía en tres renglones.
+  { clave: "indicios", titulo: "Indicios, en contratos", ancho: "minmax(14rem,1fr)", desde: "xl", apilar: true, ayuda: <AyudaIndicios /> },
 ];
 
 const conIndicio = (e: PoderEntidad) => (e.n_captura ?? 0) > 0;

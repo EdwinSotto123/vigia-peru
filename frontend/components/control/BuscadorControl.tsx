@@ -310,9 +310,11 @@ export function BuscadorControl({
 /** Antes de buscar (la página de todo el país): qué trae cada resultado. */
 function Inicio() {
   return (
-    <div className="space-y-2">
-      <h2 className="font-display text-bloque font-bold leading-tight text-ink">Qué trae cada resultado</h2>
+    // Dentro de la tarjeta del buscador (/app/contraloria): un recuadro hundido, sin caja por beneficio (caja dentro de caja).
+    <div className="rounded-xl bg-paperSoft px-3.5 py-3">
+      <h3 className="text-cuerpo font-semibold text-ink">Qué trae cada resultado</h3>
       <Beneficios
+        className="mt-2 [&>li]:border-0 [&>li]:bg-transparent [&>li]:px-0 [&>li]:py-1"
         items={[
           { icono: <ListChecks size={16} aria-hidden />, titulo: "Lo que encontró", texto: "Cada observación del informe, con su tema y el perjuicio que señala." },
           { icono: <UsersRound size={16} aria-hidden />, titulo: "A quiénes comprende", texto: "Los funcionarios, con un apellido tapado y su responsabilidad presunta." },

@@ -54,7 +54,11 @@ export function PanoramaPersonas({
   return (
     <div className="space-y-3">
       <Conclusion r={r} porPersona={porPersona} P={P} href={href} />
-      <section aria-label="Cuánto les pagó, cada año y por tipo de servicio" className="tarjeta rounded-2xl border border-line bg-paper p-4 sm:p-5">
+      {/* Dentro de la tarjeta de la pestaña, sin su propio marco: es parte de esa superficie, no otra caja adentro. */}
+      <section
+        aria-label="Cuánto les pagó, cada año y por tipo de servicio"
+        className="tarjeta rounded-2xl border border-line bg-paper p-4 sm:p-5 [.tarjeta_&]:rounded-none [.tarjeta_&]:border-0 [.tarjeta_&]:bg-transparent [.tarjeta_&]:px-0 [.tarjeta_&]:pb-1"
+      >
         {/* Desde lg, dos columnas: a la izquierda las cifras y el reparto por servicio; a la derecha, cada año. */}
         <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)] lg:gap-x-8 lg:gap-y-5">
           <Indicadores items={cifras(r, deEntidad)} className="lg:col-start-1 lg:row-start-1" />
