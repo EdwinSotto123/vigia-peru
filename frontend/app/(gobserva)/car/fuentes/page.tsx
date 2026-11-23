@@ -6,9 +6,7 @@ import { CONSULTAS } from "@/components/car/consultas";
 import { rutaEn, urlCanonica } from "@/lib/gobserva";
 import { baseProducto } from "@/lib/gobserva-servidor";
 import { fechaCorta, numero } from "@/lib/gobserva-salud";
-import datos from "@/data/car/citv.json";
-import licencia from "@/data/car/licencia.json";
-import gas from "@/data/car/gas.json";
+import { datosCar } from "@/lib/car-datos";
 
 export const metadata: Metadata = {
   title: "Fuentes",
@@ -16,9 +14,13 @@ export const metadata: Metadata = {
   alternates: { canonical: urlCanonica("car", "/fuentes") },
 };
 
+// Las cifras y las fechas salen de las listas del MTC, que la fuente mtc_car vuelve a bajar cada lunes (lib/car-datos.ts).
+export const revalidate = 3600;
+
 /** De dónde sale cada cosa (Gobserva Car): lo que cargamos, con su fecha, y lo que sólo enlazamos porque pide captcha. */
-export default function FuentesCar() {
+export default async function FuentesCar() {
   const base = baseProducto("car");
+  const [datos, licencia, gas] = await Promise.all([datosCar("citv"), datosCar("licencia"), datosCar("gas")]);
   const d = datos as { fuente: string; url: string; generadoAl: string | null; centros: unknown[] };
   // Las listas del MTC que cargamos (Excel sin captcha): cuántos locales, qué traen y la fecha del archivo.
   const cargadas: { nombre: string; url: string; generadoAl: string | null; n: number; trae: string; ruta: string }[] = [
@@ -44,8 +46,8 @@ export default function FuentesCar() {
           <Database size={18} aria-hidden className="text-granate" /> Lo que cargamos
         </h2>
         <p className="mt-1 max-w-[70ch] text-meta text-inkSoft">
-          Listas que el MTC publica en Excel, sin captcha. Las bajamos tal cual y les tapamos los celulares; no guardamos el RUC, los correos ni el
-          nombre de una persona natural con negocio.
+          Listas que el MTC publica en Excel, sin captcha. Las volvemos a bajar solas cada lunes, tal cual, y les tapamos los celulares; no guardamos
+          el RUC, los correos ni el nombre de una persona natural con negocio.
         </p>
         <ul className="mt-3 grid gap-3 md:grid-cols-2">
           {cargadas.map((c) => (

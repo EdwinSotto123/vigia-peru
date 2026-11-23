@@ -16,7 +16,7 @@ import Link from "next/link";
 import { rutaEn, urlCanonica } from "@/lib/gobserva";
 import { baseProducto } from "@/lib/gobserva-servidor";
 import { numero } from "@/lib/gobserva-salud";
-import datos from "@/data/car/citv.json";
+import { datosCar } from "@/lib/car-datos";
 
 export function generateMetadata({ searchParams }: { searchParams?: Params }): Metadata {
   const f = filtrosDeUrl(searchParams);
@@ -46,7 +46,6 @@ interface Centro {
 }
 
 type CentroLocal = Centro & Local;
-const CENTROS: CentroLocal[] = (datos as { centros: Centro[] }).centros.map((c) => ({ ...c, nombre: c.razonSocial }));
 const DIAS = ["LU", "MA", "MI", "JU", "VI", "SA", "DO"];
 const NOMBRE_DIA: Record<string, string> = { LU: "Lun", MA: "Mar", MI: "Mié", JU: "Jue", VI: "Vie", SA: "Sáb", DO: "Dom" };
 const conAviso = (c: Centro) => (c.diasSinTransmitir ?? 0) > 0 || !!c.sancion;
@@ -116,10 +115,12 @@ const TIPOS_LINEA = ["MIXTO", "COMBINADO", "MENOR", "LIVIANO", "PESADO"];
 
 /**
  * Los centros de revisión técnica autorizados por el MTC (Gobserva Car, 2026-11-22): la lista que publica el MTC (Excel sin
- * captcha, data/car/citv.json, scripts/car/citv.py) en casillas, con la barra de filtros de Salud (región, provincia,
+ * captcha; la fuente mtc_car la vuelve a bajar cada lunes: lib/car-datos.ts) en casillas, con la barra de filtros de Salud (región, provincia,
  * distrito, tipo de línea, con aviso). Al lado, la consulta oficial de la revisión técnica de una placa.
  */
-export default function RevisionTecnica({ searchParams }: { searchParams?: Params }) {
+export default async function RevisionTecnica({ searchParams }: { searchParams?: Params }) {
+  const d = (await datosCar("citv")) as { url: string; generadoAl: string | null; fuente: string; centros: Centro[] };
+  const CENTROS: CentroLocal[] = d.centros.map((c) => ({ ...c, nombre: c.razonSocial }));
   const base = baseProducto("car");
   const ruta = rutaEn(base, "/revision-tecnica");
   const f = filtrosDeUrl(searchParams);
@@ -141,7 +142,6 @@ export default function RevisionTecnica({ searchParams }: { searchParams?: Param
   // Cuántos hay de cada línea con los demás filtros puestos.
   const porLinea = (t: string) => enLugar.filter((c) => lineas(c.tipoLineas).some((l) => l.clave === t)).length;
   const consultaPlaca = CONSULTAS.find((c) => c.clave === "revision")!;
-  const d = datos as { url: string; generadoAl: string | null; fuente: string };
 
   const filtros: FiltroBarra[] = [
     ...filtrosLugar([CENTROS], f),

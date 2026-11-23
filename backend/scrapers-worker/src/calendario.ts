@@ -68,6 +68,10 @@
  *                      modificadas, con el texto de su PDF, y el ZIP de precios del Observatorio cuando sale uno nuevo
  *                      (src/fuentes/digemid.ts). Con el mismo sha256 no recarga el catálogo.
  *
+ *   mtc_car            lunes 08:00: Gobserva Car, las listas de autorizados del MTC (CITV, centros médicos y de evaluación,
+ *                      escuelas de conductores, talleres y certificadoras de GNV/GLP, cilindros) → R2 vigia-peru-reportes,
+ *                      datos/car/*.json, de donde las lee la web (src/fuentes/mtc_car.ts). Antes, a mano.
+ *
  *   oece_fichas        lunes 08:00: la ficha del proveedor en el OECE de las empresas sancionadas (migración 337), por el relay
  *                      de Lima, hasta 700 por semana; corrige «sanción vigente» cuando el Tribunal sustituyó una sanción.
  *
@@ -114,7 +118,7 @@ export function fuentesDelCron(cron: string, ms: number): string[] {
   const dia = lima.getUTCDate();
   const out: string[] = [];
   if (lima.getUTCDay() === 0) out.push("pnda_sancionados", "osce_penalidades", "conosce_ordenes");
-  if (lima.getUTCDay() === 1) out.push("mef_presupuesto", "oece_fichas");
+  if (lima.getUTCDay() === 1) out.push("mef_presupuesto", "oece_fichas", "mtc_car");
   if (lima.getUTCDay() === 2) out.push("mef_opds_etes", "sunat_padron");
   if (lima.getUTCDay() === 3) out.push("onpe_claridad", "onpe_gastos");
   if (lima.getUTCDay() === 4) out.push("congreso_visitas", "servir_convocatorias", "infobras");

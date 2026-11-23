@@ -8,6 +8,10 @@ Excel sin captcha (`arExportToExcel`). Este script la baja (o lee un .xlsx ya ba
     python frontend/scripts/car/citv.py                 # la baja del MTC
     python frontend/scripts/car/citv.py archivo.xlsx    # usa un archivo ya bajado
 
+Desde el 2026-11-22 lo hace solo, cada lunes, la fuente `mtc_car` del worker de scrapers
+(backend/scrapers-worker/src/fuentes/mtc_car.ts, mismas salidas), que las publica en R2 y la web las lee de ahí
+(frontend/lib/car-datos.ts). Este script queda para regenerar a mano el respaldo de frontend/data/car.
+
 Privacidad, como en el resto de Gobserva: los celulares (9 cifras que empiezan con 9) se tapan; los fijos quedan.
 """
 import html

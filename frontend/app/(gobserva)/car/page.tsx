@@ -8,14 +8,15 @@ import { FormPlaca } from "@/components/car/Placa";
 import { rutaEn } from "@/lib/gobserva";
 import { baseProducto } from "@/lib/gobserva-servidor";
 import { numero } from "@/lib/gobserva-salud";
-import datos from "@/data/car/citv.json";
-import licencia from "@/data/car/licencia.json";
-import gas from "@/data/car/gas.json";
+import { datosCar } from "@/lib/car-datos";
 
 export const metadata: Metadata = {
   title: { absolute: "Gobserva Car: verifica un auto antes de comprarlo o de subirte" },
   alternates: { canonical: "https://car.gobserva.cloud/" },
 };
+
+// Las cifras de las puertas salen de las listas del MTC, que la fuente mtc_car vuelve a bajar cada lunes (lib/car-datos.ts).
+export const revalidate = 3600;
 
 /**
  * La portada de Gobserva Car (car.gobserva.cloud, 2026-11-22): la placa para escribir, arriba y grande; cuatro puertas con
@@ -23,8 +24,9 @@ export const metadata: Metadata = {
  * auto a gas) y el recorrido de una placa en tres pasos. Las consultas por placa piden captcha: no las leemos, las
  * enlazamos con la placa lista.
  */
-export default function PortadaCar() {
+export default async function PortadaCar() {
   const base = baseProducto("car");
+  const [datos, licencia, gas] = await Promise.all([datosCar("citv"), datosCar("licencia"), datosCar("gas")]);
   const centros = (datos as { centros: { diasSinTransmitir: number | null; sancion: string | null }[] }).centros;
   const conAviso = centros.filter((c) => (c.diasSinTransmitir ?? 0) > 0 || c.sancion).length;
   const puertas: { ruta: string; titulo: string; cifra: string; texto: string; sprite: NombreSprite }[] = [

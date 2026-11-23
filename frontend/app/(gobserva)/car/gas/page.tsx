@@ -12,10 +12,10 @@ import { CabeceraLista } from "@/components/salud/portada/Piezas";
 import { rutaEn, urlCanonica } from "@/lib/gobserva";
 import { baseProducto } from "@/lib/gobserva-servidor";
 import { numero } from "@/lib/gobserva-salud";
-import datos from "@/data/car/gas.json";
+import { datosCar } from "@/lib/car-datos";
 
 type Fuente = { nombre: string; url: string; generadoAl: string | null };
-const D = datos as { fuentes: Record<"talleres" | "certificadoras" | "cilindros", Fuente>; talleres: Local[]; certificadoras: Local[]; cilindros: Local[] };
+type Datos = { fuentes: Record<"talleres" | "certificadoras" | "cilindros", Fuente>; talleres: Local[]; certificadoras: Local[]; cilindros: Local[] };
 
 const URL_CERTIFICADORAS = "https://www.gob.pe/12141-conocer-las-entidades-certificadoras-de-gnv-a-nivel-nacional";
 const NOMBRE_GAS: Record<string, string> = { GNV: "Gas natural (GNV)", GLP: "Gas licuado (GLP)" };
@@ -54,7 +54,9 @@ function Gases({ l }: { l: Local }) {
  * cilindros, de sus listas en Excel sin captcha: scripts/car/mtc.py) en pestañas, con la barra de filtros de Salud y el
  * tipo de gas. Lo de la inspección anual y el chip, de gob.pe (orientación 12141), leído el 22-11-2026.
  */
-export default function Gas({ searchParams }: { searchParams?: Params }) {
+export default async function Gas({ searchParams }: { searchParams?: Params }) {
+  // Las listas del MTC, que la fuente mtc_car vuelve a bajar cada lunes (lib/car-datos.ts).
+  const D = (await datosCar("gas")) as Datos;
   const base = baseProducto("car");
   const ruta = rutaEn(base, "/gas");
   const f = filtrosDeUrl(searchParams);

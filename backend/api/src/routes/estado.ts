@@ -168,8 +168,9 @@ export const FUENTES: FuentePublica[] = [
 ];
 
 /** Claves del catálogo que no son un registro para el público: una prueba, una tabla de cruce, crudos sin cargar, un relleno ya hecho y un legado. */
-// Las de Gobserva Salud (susalud, susalud_detalle, digemid) tienen su propia página de fuentes: salud.gobserva.cloud/fuentes.
-export const INTERNAS = ["salud_lima", "oece_entidades", "pnda_oece", "oece_historico", "portal_visitas_manual", "oece_fichas", "susalud", "susalud_detalle", "digemid"];
+// Las de Gobserva Salud (susalud, susalud_detalle, digemid) tienen su propia página de fuentes: salud.gobserva.cloud/fuentes;
+// la de Gobserva Car (mtc_car), car.gobserva.cloud/fuentes.
+export const INTERNAS = ["salud_lima", "oece_entidades", "pnda_oece", "oece_historico", "portal_visitas_manual", "oece_fichas", "susalud", "susalud_detalle", "digemid", "mtc_car"];
 
 export type EstadoPublico = "al_dia" | "atrasada" | "error" | "manual" | "fuente_vieja";
 

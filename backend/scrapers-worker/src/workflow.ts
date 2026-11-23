@@ -40,6 +40,7 @@ import { correrOeceFichas } from "./fuentes/oece_fichas.ts";
 import { correrSusalud } from "./fuentes/susalud.ts";
 import { correrSusaludDetalle } from "./fuentes/susalud_detalle.ts";
 import { correrDigemid } from "./fuentes/digemid.ts";
+import { correrMtcCar } from "./fuentes/mtc_car.ts";
 import { conDb } from "./db.ts";
 import { registrar } from "./registro.ts";
 
@@ -73,6 +74,7 @@ export const FUENTES: Record<string, Corredor> = {
   susalud: correrSusalud,
   susalud_detalle: correrSusaludDetalle,
   digemid: correrDigemid,
+  mtc_car: correrMtcCar,
   onpe_gastos: correrGastos,
   onpe_claridad: correrOnpe,
   contraloria_informes: correrContraloria,

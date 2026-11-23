@@ -10,10 +10,10 @@ import { CabeceraLista } from "@/components/salud/portada/Piezas";
 import { rutaEn, urlCanonica } from "@/lib/gobserva";
 import { baseProducto } from "@/lib/gobserva-servidor";
 import { numero } from "@/lib/gobserva-salud";
-import datos from "@/data/car/licencia.json";
+import { datosCar } from "@/lib/car-datos";
 
 type Fuente = { nombre: string; url: string; generadoAl: string | null };
-const D = datos as { fuentes: Record<"medicos" | "evaluacion" | "escuelas", Fuente>; medicos: Local[]; evaluacion: Local[]; escuelas: Local[] };
+type Datos = { fuentes: Record<"medicos" | "evaluacion" | "escuelas", Fuente>; medicos: Local[]; evaluacion: Local[]; escuelas: Local[] };
 
 const URL_SIMULADOR = "https://sierdgtt.mtc.gob.pe/";
 const URL_TRAMITE = "https://www.gob.pe/23030-obtener-primera-licencia-de-conducir-a-1";
@@ -40,7 +40,9 @@ const SECCIONES = ["medicos", "evaluacion", "escuelas"] as const;
  * sus listas en Excel sin captcha: scripts/car/mtc.py) en pestañas, con la misma barra de filtros de Salud (región,
  * provincia, distrito). Los requisitos vienen de gob.pe (trámite 23030 y servicio 195), leídos el 22-11-2026.
  */
-export default function Licencia({ searchParams }: { searchParams?: Params }) {
+export default async function Licencia({ searchParams }: { searchParams?: Params }) {
+  // Las listas del MTC, que la fuente mtc_car vuelve a bajar cada lunes (lib/car-datos.ts).
+  const D = (await datosCar("licencia")) as Datos;
   const base = baseProducto("car");
   const ruta = rutaEn(base, "/licencia");
   const f = filtrosDeUrl(searchParams);

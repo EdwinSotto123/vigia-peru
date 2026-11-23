@@ -18,7 +18,9 @@
   "r2_buckets": [
     { "binding": "CRUDOS", "bucket_name": "vigia-peru-crudos" },
     // Los documentos de los expedientes (fuente `documentos`): la misma réplica que leen los agentes (vigia-r2-sync).
-    { "binding": "DOCUMENTOS", "bucket_name": "vigia-peru-batch" }
+    { "binding": "DOCUMENTOS", "bucket_name": "vigia-peru-batch" },
+    // Las listas del MTC de Gobserva Car (src/fuentes/mtc_car.ts → datos/car/*.json), donde las lee la web.
+    { "binding": "MEDIOS", "bucket_name": "vigia-peru-reportes" }
   ],
   // La API OCDS del OECE solo responde desde Zúrich o Buenos Aires: el relay corre fijo en Zúrich.
   "services": [{ "binding": "RELAY", "service": "vigia-relay" }, { "binding": "LLM", "service": "vigia-llm" }],

@@ -12,6 +12,10 @@ El MTC publica cada lista en rec.mtc.gob.pe y la deja bajar en Excel sin captcha
     python frontend/scripts/car/mtc.py                    # las baja del MTC
     python frontend/scripts/car/mtc.py carpeta/           # usa los .xlsx ya bajados (mismos nombres que CLAVES)
 
+Desde el 2026-11-22 lo hace solo, cada lunes, la fuente `mtc_car` del worker de scrapers
+(backend/scrapers-worker/src/fuentes/mtc_car.ts, mismas salidas), que las publica en R2 y la web las lee de ahí
+(frontend/lib/car-datos.ts). Este script queda para regenerar a mano el respaldo de frontend/data/car.
+
 Privacidad, como en el resto de Gobserva: no se guarda el RUC; el nombre de una persona natural (RUC 10) no se guarda;
 los celulares se tapan; los correos no se guardan.
 """

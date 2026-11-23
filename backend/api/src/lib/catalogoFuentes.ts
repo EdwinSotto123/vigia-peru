@@ -112,6 +112,8 @@ export const CATALOGO: FuenteCatalogo[] = [
     que: "Gobserva Salud: servicios, especialidades, documentos y categorización de ~1 200 IPRESS por noche, lo más abierto primero (src/fuentes/susalud_detalle.ts)." },
   { fuente: "digemid", nombre: "DIGEMID: alertas y precios de medicamentos", donde: "cloudflare", agenda: "Diario, 08:00", cadaDias: 2,
     que: "Gobserva Salud: las alertas DIGEMID nuevas o modificadas (con el texto de su PDF) y el Indicador de precios del Observatorio cuando sale un mes nuevo (src/fuentes/digemid.ts)." },
+  { fuente: "mtc_car", nombre: "MTC: locales autorizados para autos (CITV, licencias, gas)", donde: "cloudflare", agenda: "Lunes, 08:00", cadaDias: 9,
+    que: "Gobserva Car: las listas en Excel del MTC (revisión técnica, centros médicos y de evaluación, escuelas de conductores, talleres y certificadoras de GNV/GLP, cilindros), publicadas en medios.gobserva.cloud/datos/car (src/fuentes/mtc_car.ts); por la salida de Lima: el MTC da 403 fuera del Perú." },
   { fuente: "salud_lima", nombre: "Salida peruana (tu PC)", donde: "lima", agenda: "Diario, 12:40", cadaDias: 2,
     que: "Prueba diaria de la salida con IP del Perú (backend/scrapers-pc/salida_peru): que responda y llegue a la Contraloría, INFOBRAS y SERVIR." },
   { fuente: "oece_fichas", nombre: "Ficha del proveedor en el OECE (sanciones vigentes)", donde: "lima", agenda: "Lunes, 08:00 (hasta 700 empresas)", cadaDias: 8,

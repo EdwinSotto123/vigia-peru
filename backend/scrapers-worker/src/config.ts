@@ -35,6 +35,11 @@ export interface Env {
   CRUDOS: R2Bucket;
   /** R2 `vigia-peru-batch`: los documentos de los expedientes (fuente `documentos`), donde los leen los agentes. */
   DOCUMENTOS: R2Bucket;
+  /**
+   * R2 `vigia-peru-reportes` (público en medios.gobserva.cloud): las listas del MTC de Gobserva Car, en datos/car/
+   * (src/fuentes/mtc_car.ts), de donde las lee la web. Sólo producción: en dev no está y mtc_car no publica.
+   */
+  MEDIOS?: R2Bucket;
   /** Worker `vigia-relay` (Zúrich): la API OCDS del OECE responde 403 desde EE.UU. */
   RELAY: Fetcher;
   /**
