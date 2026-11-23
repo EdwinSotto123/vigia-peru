@@ -18,6 +18,8 @@
  *                      sus refrescos no se crucen)     │
  *   onpe_claridad      miércoles 08:00 (semanal mien-  │
  *   onpe_gastos        tras dure la rendición de ERM2026; antes era manual)
+ *   oece_directas      lunes 08:00 (las directas que   │
+ *                      faltan en convocatorias)        │
  *   conosce            sábados 08:00 (CONOSCE regenera │
  *                      los reportes los viernes)       │
  *   conosce_ordenes    domingos 08:00: desde el 23-oct ┘
@@ -118,7 +120,9 @@ export function fuentesDelCron(cron: string, ms: number): string[] {
   const dia = lima.getUTCDate();
   const out: string[] = [];
   if (lima.getUTCDay() === 0) out.push("pnda_sancionados", "osce_penalidades", "conosce_ordenes");
-  if (lima.getUTCDay() === 1) out.push("mef_presupuesto", "oece_fichas", "mtc_car");
+  // oece_directas: las contrataciones directas que CONOSCE trajo el sábado y la carga diaria no ve (sin periodo de
+  // convocatoria); lo adjudicado en los últimos 120 días (src/fuentes/oece_directas.ts).
+  if (lima.getUTCDay() === 1) out.push("mef_presupuesto", "oece_fichas", "mtc_car", "oece_directas");
   if (lima.getUTCDay() === 2) out.push("mef_opds_etes", "sunat_padron");
   if (lima.getUTCDay() === 3) out.push("onpe_claridad", "onpe_gastos");
   if (lima.getUTCDay() === 4) out.push("congreso_visitas", "servir_convocatorias", "infobras");

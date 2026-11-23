@@ -295,7 +295,7 @@ export function siNoEsViejo(col: string, nuevo = `EXCLUDED.${col}`): string {
 }
 
 /** Upsert de entidades y convocatorias (mismo SQL que load() de Python, en tandas de 500). */
-async function cargar(db: Db, filas: Fila[]): Promise<{ convocatorias: number; entidades: number }> {
+export async function cargar(db: Db, filas: Fila[]): Promise<{ convocatorias: number; entidades: number }> {
   const ents = new Map<string, Fila>();
   for (const f of filas) ents.set(f.entidad_ruc, f);
   await db.transaccion(async () => {
@@ -439,7 +439,7 @@ export function dias(desde: string, hasta: string): string[] {
   return out;
 }
 
-async function leerZonas(env: Env): Promise<FilaZona[]> {
+export async function leerZonas(env: Env): Promise<FilaZona[]> {
   return conDb(env.HYPERDRIVE, (db) => db.filas<FilaZona>("SELECT ubigeo, nivel, nombre, padre_ubigeo FROM zonas"));
 }
 
