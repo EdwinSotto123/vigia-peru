@@ -1,8 +1,9 @@
 "use client";
 
-import { Fragment, useEffect, useId, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
+import { useEffect, useId, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import { useSearchParams } from "next/navigation";
-import { MuestraSerie, colorSerie } from "@/components/charts/BarraSegmentada";
+import { Check } from "lucide-react";
+import { MuestraSerie } from "@/components/charts/BarraSegmentada";
 import { Severidad } from "@/components/ui/Severidad";
 import { numero } from "@/lib/formato";
 import { cn } from "@/lib/utils";
@@ -101,8 +102,6 @@ export function IndiceAntecedentes({
   }, [actual, tipos]);
 
   if (!tipos.length) return null;
-  // La barra de cada fila se mide contra la mayor del índice: se comparan de un vistazo.
-  const mayor = Math.max(1, ...tipos.map((t) => t.n));
 
   const elegir = (clave: string, enfocar = false) => {
     setActual(clave);
@@ -139,79 +138,82 @@ export function IndiceAntecedentes({
     elegir(tipos[destino].clave, true);
   };
 
+  // Los grupos (familias) en su orden, con sus entradas: en el escritorio cada familia es una fila de filtros.
+  const grupos: { nombre?: string; serie?: number; items: { t: TipoDelIndice; i: number }[] }[] = [];
+  tipos.forEach((t, i) => {
+    const ultimo = grupos[grupos.length - 1];
+    if (ultimo && ultimo.nombre === t.grupo) ultimo.items.push({ t, i });
+    else grupos.push({ nombre: t.grupo, serie: t.serie, items: [{ t, i }] });
+  });
+  const boton = (t: TipoDelIndice, i: number) => {
+    const sel = t.clave === actual;
+    return (
+      <button
+        key={t.clave}
+        ref={(el) => {
+          botones.current[i] = el;
+        }}
+        type="button"
+        role="tab"
+        id={`${id}-tab-${i}`}
+        aria-selected={sel}
+        aria-controls={sel ? `${id}-panel` : undefined}
+        tabIndex={sel ? 0 : -1}
+        onClick={() => elegir(t.clave)}
+        onKeyDown={(ev) => alTeclado(ev, i)}
+        title={t.resumen}
+        className={cn(
+          "inline-flex min-h-10 shrink-0 items-center gap-2 rounded-full border py-1.5 pl-3 pr-1.5 text-left transition-colors duration-rapido",
+          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-granate focus-visible:ring-offset-1",
+          sel ? "border-granate bg-granate-50 font-semibold text-ink" : "border-line bg-paper font-medium text-inkSoft hover:border-granate/40 hover:text-ink",
+        )}
+      >
+        {sel ? <Check size={15} strokeWidth={2.5} aria-hidden className="shrink-0 text-granate" /> : <Severidad bandera={t.severidad} formato="punto" className="shrink-0" />}
+        <span className="whitespace-nowrap text-dato lg:hidden">{t.corto}</span>
+        <span className="hidden whitespace-nowrap text-dato lg:inline">{t.nombre}</span>
+        <span className={cn("rounded-full px-2 py-0.5 text-rotulo font-semibold tabular-nums", sel ? "bg-granate text-paper" : "bg-paperDeep text-inkSoft")}>{numero(t.n)}</span>
+        <span className="sr-only">: {t.resumen}</span>
+      </button>
+    );
+  };
+
+  /*
+   * Un FILTRO arriba, no un índice al costado (2026-11-23, el usuario: «este orden de acá al costado no tiene sentido…
+   * debería ser un filtro, no lo colocamos como texto y línea de color sin sentido»). Cada entrada es un botón con su
+   * gravedad, su nombre y cuántos casos tiene; la elegida, marcada con ✓ y rellena. En el escritorio, una fila por
+   * familia con su color; en el celular, una fila que se desliza. Lo elegido ocupa todo el ancho debajo.
+   */
   return (
-    <div className="lg:grid lg:grid-cols-[15rem_minmax(0,1fr)] lg:items-start lg:gap-5 xl:grid-cols-[17rem_minmax(0,1fr)] xl:gap-6">
-      {/* El índice: fijo al bajar en el escritorio (bajo la barra de pestañas fija) y con su propio scroll si no entra. */}
-      <div className="mb-3 min-w-0 lg:sticky lg:top-[calc(var(--alto-barra-fija,0px)_+_0.75rem)] lg:mb-0 lg:max-h-[calc(100dvh_-_var(--alto-barra-fija,0px)_-_1.5rem)] lg:overflow-y-auto lg:overscroll-contain">
-        <p id={`${id}-titulo`} className="mb-1.5 text-meta font-semibold text-inkSoft lg:mb-1 lg:px-2.5">
-          {titulo}
-        </p>
-        {/* Qué es cada columna del índice (escritorio): el nombre a la izquierda, la cifra a la derecha. */}
-        <p aria-hidden className="hidden items-baseline justify-between gap-2 border-b border-line px-2.5 pb-1 text-rotulo font-medium text-mute lg:flex">
-          <span>{que}</span>
-          <span>{columna}</span>
+    <div className="min-w-0 max-w-full space-y-4">
+      <div className="min-w-0 max-w-full overflow-hidden rounded-2xl border border-line bg-paper p-3 sm:p-4">
+        <p id={`${id}-titulo`} className="mb-2.5 flex items-baseline justify-between gap-3 text-meta font-semibold text-ink">
+          <span>Filtrar por {que.toLowerCase()}</span>
+          <span className="font-normal text-mute">{titulo}</span>
         </p>
         <div
           ref={lista}
           role="tablist"
           aria-labelledby={`${id}-titulo`}
-          className="relative -mx-1 flex gap-1.5 overflow-x-auto px-1 pb-1.5 lg:mx-0 lg:mt-1 lg:flex-col lg:gap-0.5 lg:overflow-visible lg:px-0 lg:pb-0"
+          className="relative -mx-1 flex gap-2 overflow-x-auto px-1 pb-1 [scrollbar-width:none] lg:mx-0 lg:block lg:space-y-2.5 lg:overflow-visible lg:px-0 lg:pb-0 [&::-webkit-scrollbar]:hidden"
         >
-          {tipos.map((t, i) => {
-            const sel = t.clave === actual;
-            const abreGrupo = !!t.grupo && t.grupo !== tipos[i - 1]?.grupo;
-            const parte = t.n / mayor;
-            return (
-              <Fragment key={t.clave}>
-              {abreGrupo ? (
-                <p role="presentation" className={cn("hidden items-center gap-2 px-2.5 pb-1 text-meta font-semibold leading-snug text-ink lg:flex", i > 0 ? "pt-5" : "pt-2")}>
-                  {t.serie != null && <MuestraSerie i={t.serie} />}
-                  <span className="min-w-0">{t.grupo}</span>
-                </p>
+          {grupos.map((g, k) => (
+            <div
+              key={g.nombre ?? k}
+              role="presentation"
+              className={cn("contents", g.nombre ? "lg:grid lg:grid-cols-[13rem_minmax(0,1fr)] lg:items-start lg:gap-3" : "lg:block", k > 0 && "lg:border-t lg:border-line lg:pt-2.5")}
+            >
+              {g.nombre ? (
+                <span role="presentation" className="hidden min-h-10 items-center gap-2 text-meta font-semibold leading-snug text-ink lg:flex">
+                  {g.serie != null && <MuestraSerie i={g.serie} />}
+                  <span className="min-w-0">{g.nombre}</span>
+                  <span className="ml-auto shrink-0 tabular-nums text-mute">{numero(g.items.reduce((s, x) => s + x.t.n, 0))}</span>
+                </span>
               ) : null}
-              <button
-                ref={(el) => {
-                  botones.current[i] = el;
-                }}
-                type="button"
-                role="tab"
-                id={`${id}-tab-${i}`}
-                aria-selected={sel}
-                aria-controls={sel ? `${id}-panel` : undefined}
-                tabIndex={sel ? 0 : -1}
-                onClick={() => elegir(t.clave)}
-                onKeyDown={(ev) => alTeclado(ev, i)}
-                title={t.resumen}
-                className={cn(
-                  // Celular: un chip de una línea. Escritorio: una fila (ícono, nombre, cifra) con su barra debajo.
-                  "flex min-h-10 shrink-0 items-center gap-1.5 rounded-full border px-3 py-1.5 text-left transition-colors duration-rapido",
-                  "lg:grid lg:min-h-0 lg:w-full lg:shrink lg:grid-cols-[auto_minmax(0,1fr)_auto] lg:items-start lg:gap-x-2 lg:gap-y-1 lg:rounded-lg lg:px-2.5 lg:py-1.5",
-                  // Por dentro: la fila de chips y el índice del escritorio se deslizan (overflow) y recortarían el anillo de afuera.
-                  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-granate",
-                  // La elegida, rellena (2026-11-23: la raya de 3 px a la izquierda y el borde no la separaban de las demás).
-                  sel
-                    ? "border-granate bg-paper lg:border-transparent lg:bg-granate-50"
-                    : "border-line bg-paper hover:border-granate/30 lg:border-transparent lg:bg-transparent lg:hover:bg-paperSoft",
-                )}
-              >
-                <Severidad bandera={t.severidad} formato="punto" className="shrink-0 lg:mt-[3px]" />
-                <span className={cn("whitespace-nowrap text-meta lg:hidden", sel ? "font-semibold text-granate" : "font-medium text-ink")}>
-                  {t.corto} <span className="tabular-nums text-mute">{numero(t.n)}</span>
-                </span>
-                <span className={cn("hidden min-w-0 break-words text-dato leading-snug text-ink text-pretty lg:block", sel ? "font-semibold" : "font-medium")}>{t.nombre}</span>
-                <span className={cn("hidden font-display text-dato font-bold tabular-nums lg:block", sel ? "text-granate" : "text-ink")}>{numero(t.n)}</span>
-                {/* La barra: su parte frente a la mayor del índice, del color de su familia. */}
-                <span aria-hidden className="col-start-2 col-end-4 hidden h-1.5 w-full overflow-hidden rounded-full bg-ink/[0.06] lg:block">
-                  <span
-                    className={cn("block h-full rounded-full", t.serie == null && "bg-inkSoft/70")}
-                    style={{ width: `${Math.max(2, parte * 100)}%`, background: t.serie != null ? colorSerie(t.serie) : undefined }}
-                  />
-                </span>
-                <span className="sr-only">: {t.resumen}</span>
-              </button>
-              </Fragment>
-            );
-          })}
+              <div role="presentation" className="contents lg:flex lg:flex-wrap lg:gap-2">
+                {g.items.map(({ t, i }) => boton(t, i))}
+              </div>
+            </div>
+          ))}
         </div>
       </div>
       <div ref={detalle} className="min-w-0 scroll-mt-[calc(var(--alto-barra-fija,3.5rem)_+_1rem)]">

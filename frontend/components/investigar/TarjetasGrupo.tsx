@@ -42,7 +42,7 @@ export function TarjetasGrupo({ filas }: { filas: PatronGrupo[] }) {
   const ocultas = todas ? 0 : Math.max(0, filas.length - EN_CELULAR);
   return (
     <ProveedorDetalle detalles={detalles} nombre="Grupos de proveedores">
-      <ul aria-label="Grupos de proveedores por dueño o familia en esta entidad" className="space-y-3">
+      <ul aria-label="Grupos de proveedores por dueño o familia en esta entidad" className="space-y-3 xl:grid xl:grid-cols-2 xl:items-start xl:gap-3 xl:space-y-0">
         {filas.map((p, i) => (
           <TarjetaGrupo key={`grupo-${i}`} id={`grupo-${i}`} p={p} className={cn(!todas && i >= EN_CELULAR && "max-sm:hidden")} />
         ))}

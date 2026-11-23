@@ -15,7 +15,6 @@ import {
   FAMILIAS_PATRON,
   PATRON_LISTA,
   familiaDeCruce,
-  familiasDeEntradas,
   indicePorFamilia,
   primeraOracion,
   seriesDeFamilias,
@@ -25,7 +24,7 @@ import {
 } from "@/lib/patronesEntidad";
 import { etiquetaRegla, getCatalogoReglas, type CatalogoReglas } from "@/lib/revision";
 import { AntecedenteEnEntidad } from "./AntecedenteEnEntidad";
-import { EnIndice, RepartoFamilias } from "./FamiliasDePatron";
+import { EnIndice } from "./FamiliasDePatron";
 
 /**
  * La pestaña «Antecedentes y patrones» de la ficha de una entidad (pedidos del usuario del 2026-11-18). Son DOS
@@ -39,7 +38,8 @@ import { EnIndice, RepartoFamilias } from "./FamiliasDePatron";
  *     adjudicó (postor único, sanción vigente, socio común entre postores…): sus cifras, año por año, quiénes lo tienen
  *     y TODOS sus contratos, con buscador (`AntecedenteEnEntidad`, que se pide al elegirlo).
  *
- * Cada subpestaña abre con cómo se reparten sus casos por familia (`RepartoFamilias`: una barra a todo el ancho y una
+ * Cada subpestaña abre con un FILTRO (IndiceAntecedentes: un botón por patrón o antecedente, agrupados por familia con su
+ * total; el 2026-11-23 reemplazó al reparto por familia y al índice del costado, que decían lo mismo dos veces). Antes: (`RepartoFamilias`: una barra a todo el ancho y una
  * celda por familia con sus casos y lo grave; antes, cinco cajitas que sólo decían «2 patrones con casos») y sigue con el
  * índice (ícono de severidad, cifra y barra, agrupado por familia con su color) y la ficha del elegido. Las banderas de la
  * cabecera enlazan a su patrón (`?seccion=patrones&patron=`).
@@ -261,16 +261,6 @@ export async function PatronesEntidad({
   // Un enlace de antes del 2026-11-18 nombraba el antecedente como `patron=c-<tipo>`: abre su subpestaña y lo elige.
   const viejo = patron?.startsWith("c-") ? patron.slice(2) : undefined;
   const activa = sub === "patrones" || sub === "antecedentes" ? sub : viejo ? "antecedentes" : tiposPatron.length ? "patrones" : "antecedentes";
-  const ayudaReparto = (que: string, nota?: string) => (
-    <Ayuda titulo="¿Cómo se cuentan?">
-      <span className="block">
-        Cada familia junta {que} parecidos. La barra reparte sus casos entre las familias; cada celda dice cuántos tiene, qué parte del total es y
-        cuánto de eso es grave. Tócala para abrir la primera de esa familia en el índice.
-      </span>
-      {nota ? <span className="mt-1.5 block">{nota}</span> : null}
-    </Ayuda>
-  );
-
   return (
     <div className="space-y-4">
       {/* El nombre de la pestaña ya está en la barra: aquí no se repite a la vista (2026-11-23, «no tiene forma ni
@@ -292,15 +282,6 @@ export async function PatronesEntidad({
               <div className="space-y-4">
                 {tiposPatron.length ? (
                   <>
-                    <RepartoFamilias
-                      familias={familiasDeEntradas(patrones, { uno: "patrón", varios: "patrones", casoAcaso: false })}
-                      param="patron"
-                      inicial={tiposPatron[0]?.clave}
-                      unidad={["caso", "casos"]}
-                      entradas={["patrón", "patrones"]}
-                      etiqueta="Casos de patrones en esta entidad, por familia"
-                      ayuda={ayudaReparto("patrones", "Lo grave se cuenta por patrón: cada uno tiene su severidad, y sus casos se ordenan de lo grave a lo leve en su lista.")}
-                    />
                     <IndiceAntecedentes
                       tipos={tiposPatron}
                       param="patron"
@@ -355,15 +336,6 @@ export async function PatronesEntidad({
             icono: <FileWarning size={15} aria-hidden />,
             contenido: tiposAntecedente.length ? (
               <div className="space-y-4">
-                <RepartoFamilias
-                  familias={familiasDeEntradas(antecedentes, { uno: "antecedente", varios: "antecedentes", casoAcaso: true })}
-                  param="antecedente"
-                  inicial={viejo ?? tiposAntecedente[0]?.clave}
-                  unidad={["caso", "casos"]}
-                  entradas={["antecedente", "antecedentes"]}
-                  etiqueta="Casos de antecedentes en los contratos de esta entidad, por familia"
-                  ayuda={ayudaReparto("antecedentes", "Un caso es un contrato con ese antecedente: un contrato con dos antecedentes cuenta en los dos.")}
-                />
                 <IndiceAntecedentes
                   tipos={tiposAntecedente}
                   param="antecedente"
