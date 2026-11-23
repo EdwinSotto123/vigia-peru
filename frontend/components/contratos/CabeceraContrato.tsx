@@ -83,7 +83,10 @@ export function CabeceraContrato({
     <ul className="flex flex-wrap items-center gap-1.5" aria-label="Tipo, etapa y estado de la lectura">
       <li><span className="pill border-transparent bg-paperDeep text-ink">{tipoLabel(c.tipo) ?? "Tipo sin clasificar"}</span></li>
       <li><span className="pill border-line text-inkSoft">{etapaLabel(c.etapa) ?? "Etapa sin clasificar"}</span></li>
-      {c.modalidad && <li><span className="pill border-line text-inkSoft">{c.modalidad}</span></li>}
+      {/* La modalidad sólo si dice algo más que el tipo: en una directa, «Contratación Directa» repetía el chip de al lado. */}
+      {c.modalidad && c.modalidad.toLocaleLowerCase("es") !== (tipoLabel(c.tipo) ?? "").toLocaleLowerCase("es") && (
+        <li><span className="pill border-line text-inkSoft">{c.modalidad}</span></li>
+      )}
       <li>{enRevision ? <EstadoPill estado="revision" /> : <EstadoContratoPill estado={c.estadoProcesamiento} operativo={c.estadoOperativo} />}</li>
       {lectura && <li><ChipRiesgo lectura={lectura} /></li>}
       {motivoDudoso(c.datoDudoso?.motivo) && <li><BanderaDato motivo={motivoDudoso(c.datoDudoso?.motivo)!} fuente="oece_ocds" /></li>}
