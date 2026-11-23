@@ -131,7 +131,7 @@ export async function NovedadesInicio() {
                   <span className="line-clamp-2 text-dato font-semibold leading-snug text-ink sm:line-clamp-1">
                     {c.objeto ? `${c.objeto.charAt(0).toUpperCase()}${c.objeto.slice(1).toLowerCase()}` : "Contrato sin objeto registrado"}
                   </span>
-                  <span className="mt-0.5 block truncate text-meta text-mute">
+                  <span className="mt-0.5 line-clamp-2 text-meta text-mute sm:line-clamp-1">
                     <Partes
                       partes={[
                         <Dato key="e" tipo="entidad" nombre="Entidad">{c.entidad ? tituloNatural(c.entidad) : "Sin entidad"}</Dato>,

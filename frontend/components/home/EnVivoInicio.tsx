@@ -209,7 +209,7 @@ export function EnVivoInicio({ inicial }: { inicial: FotoVivo }) {
                 <span className="flex items-start gap-3">
                   <span className="min-w-0 flex-1">
                     <span className="line-clamp-2 text-dato font-semibold leading-snug text-ink sm:line-clamp-1">{tituloDe(f.titulo)}</span>
-                    <span className="mt-0.5 block truncate text-meta text-mute">
+                    <span className="mt-0.5 line-clamp-2 text-meta text-mute sm:line-clamp-1">
                       <Partes partes={[<span key="fase">{faseDe(f)}</span>, f.zona && <Dato key="lugar" tipo="lugar">{f.zona}</Dato>]} />
                     </span>
                     <span aria-hidden className="mt-2 block h-1.5 overflow-hidden rounded-full bg-paperDeep">
@@ -237,7 +237,7 @@ export function EnVivoInicio({ inicial }: { inicial: FotoVivo }) {
                 <span className="flex items-start gap-3">
                   <span className="min-w-0 flex-1">
                     <span className="line-clamp-2 text-dato font-semibold leading-snug text-ink sm:line-clamp-1">{tituloDe(f.titulo)}</span>
-                    <span className="mt-0.5 block truncate text-meta text-mute">
+                    <span className="mt-0.5 line-clamp-2 text-meta text-mute sm:line-clamp-1">
                       <Partes
                         partes={[
                           f.entidad && <Dato key="entidad" tipo="entidad">{tituloNatural(f.entidad)}</Dato>,
