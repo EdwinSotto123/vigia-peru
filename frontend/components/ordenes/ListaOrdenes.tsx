@@ -47,7 +47,8 @@ import { motivoDudoso } from "@/lib/datoDudoso";
 import { P_COMPRAS } from "@/lib/compras";
 import { enlaceProveedor, rutaEmpresa } from "@/lib/empresas";
 import { decimal, fecha as fechaLarga, fechaConAnio, hoyLima, numero, oracion, plural, porcentaje, soles } from "@/lib/formato";
-import { CLARIDAD_ONPE, CONOSCE_BUSCADOR, DATASET_SANCIONADOS, PLATAFORMA_JNE, busquedaOece, djiEntidad, fichaRnp } from "@/lib/fuentes";
+import { CLARIDAD_ONPE, CONOSCE_BUSCADOR, DATASET_SANCIONADOS, PLATAFORMA_JNE, djiEntidad, fichaRnp, procesoOece } from "@/lib/fuentes";
+import { DocumentosProceso } from "./DocumentosProceso";
 import { tituloNatural } from "@/lib/landing";
 import { P_ANTECEDENTES } from "@/lib/parametrosEmpresa";
 import { SENAL, rutaPersona, tipoContratacion } from "@/lib/personas";
@@ -1558,9 +1559,9 @@ function EnlaceProceso({ c }: { c: ProcesoCandidato }) {
       {nombre}
     </Link>
   ) : (
-    // Sin su OCID en Vigía, su búsqueda por código en Contrataciones Abiertas (lib/fuentes.ts: con el código solo, el
-    // proceso no abre).
-    <EnlaceFuente href={busquedaOece(c.codigo)} className="break-all font-mono">
+    // Sin su OCID en Vigía, su registro en Contrataciones Abiertas con el OCID armado del código (ocidDe; antes una
+    // búsqueda: con el código solo, el proceso no abre).
+    <EnlaceFuente href={procesoOece(c.codigo)} className="break-all font-mono">
       {nombre}
     </EnlaceFuente>
   );
@@ -1807,7 +1808,7 @@ function DatosCompactos({ items }: { items: (Par | null | false | undefined)[] }
 }
 
 /** Un proceso que la orden puede estar pagando: su nomenclatura (a su ficha), de qué trata, su buena pro y lo adjudicado. */
-function FilaProcesoCandidato({ c }: { c: ProcesoCandidato }) {
+function FilaProcesoCandidato({ c, documentos = false }: { c: ProcesoCandidato; documentos?: boolean }) {
   return (
     <li className="space-y-1 px-3 py-2.5">
       <p className="text-meta">
@@ -1827,6 +1828,13 @@ function FilaProcesoCandidato({ c }: { c: ProcesoCandidato }) {
         </Dato>
         {c.mismoMonto && <span className="pill border-line bg-paperSoft font-semibold text-ink">Mismo monto que la orden</span>}
       </p>
+      {/* Sin el proceso en Vigía, sus PDF del registro del OECE (2026-11-23: «¿por qué no trae documentos?»). Sólo el más
+          cercano a la orden: uno por panel, para no pedir ocho registros al OECE. */}
+      {documentos && !c.ocid && (
+        <div className="pt-1.5">
+          <DocumentosProceso codigo={c.codigo} />
+        </div>
+      )}
     </li>
   );
 }
@@ -1842,6 +1850,9 @@ function FilaProcesoCandidato({ c }: { c: ProcesoCandidato }) {
 function ProcesoPagado({ o, p }: { o: OrdenGeneral; p: ProcesosPago }) {
   const empresa = esEmpresa(o.rucContratista) ? o.rucContratista : null;
   const quien = empresa ? "esta empresa" : "este proveedor";
+  // Una orden de una contratación directa (desde 2026-11-23 el API también le busca su proceso): sin concurso, pero con
+  // su proceso publicado en el SEACE, con su sustento y su contrato.
+  const directa = /directa|exoneraci/i.test(o.tipoContratacion ?? "");
   const todos = empresa && o.entidadRuc && p.total > p.lista.length
     ? `/entidad/${o.entidadRuc}?${new URLSearchParams({ seccion: "contratos", [P_COMPRAS.con]: empresa, [P_COMPRAS.como]: "proceso" })}`
     : null;
@@ -1849,8 +1860,8 @@ function ProcesoPagado({ o, p }: { o: OrdenGeneral; p: ProcesosPago }) {
     <div>
       {p.total === 0 ? (
         <p className="text-inkSoft">
-          La orden dice que paga un proceso de selección, pero {quien} no figura ganando ninguno en la entidad en los 3 años
-          anteriores: puede ser de antes de 2018, de un consorcio o un error de registro.
+          {directa ? "La orden viene de una contratación directa" : "La orden dice que paga un proceso de selección"}, pero {quien} no
+          figura ganando ninguno en la entidad en los 3 años anteriores: puede ser de antes de 2018, de un consorcio o un error de registro.
         </p>
       ) : (
         <>
@@ -1862,8 +1873,8 @@ function ProcesoPagado({ o, p }: { o: OrdenGeneral; p: ProcesosPago }) {
                 }, por monto y por fecha de la buena pro.`}
           </p>
           <ol className="mt-2 divide-y divide-line/70 rounded-xl border border-line" aria-label="Los procesos que puede pagar">
-            {p.lista.map((c) => (
-              <FilaProcesoCandidato key={c.codigo} c={c} />
+            {p.lista.map((c, i) => (
+              <FilaProcesoCandidato key={c.codigo} c={c} documentos={i === 0} />
             ))}
           </ol>
           {p.total > p.lista.length &&

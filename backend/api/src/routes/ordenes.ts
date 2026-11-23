@@ -219,8 +219,12 @@ const ADJUDICADO_SOLES = `sum(a.monto_adjudicado) FILTER (WHERE a.moneda IN ('So
  * pro más reciente. Los 8 primeros, con su OCID para la ficha. Una orden que se juntó con un catálogo o un contrato menor
  * (compra_vinculo) no es pago de un proceso: null. Va por el índice (ruc_proveedor, entidad_ruc) de las adjudicaciones y
  * sólo en las órdenes de pago (~6 %): una página de 20 órdenes de pago de EsSalud, 64 ms en caliente (medido 2026-11-05).
+ *
+ * Desde el 2026-11-23 también las de una contratación directa («Contratación Directa», «exoneración»): CONOSCE las escribe
+ * sin «Deviene de» y se quedaban sin su proceso, que el SEACE sí publica con su sustento y su contrato (el alquiler de
+ * oficinas de la Municipalidad de Lima, S/ 1.92 M al año, venía de la directa DIRECTA-PROC-3-2023-MML de S/ 5.76 M).
  */
-const PROCESOS_PAGO = `CASE WHEN o.tipo_contratacion ~* '^deviene de'
+const PROCESOS_PAGO = `CASE WHEN o.tipo_contratacion ~* '^deviene de|directa|exoneraci'
            AND NOT EXISTS (SELECT 1 FROM compra_vinculo v WHERE v.entidad_ruc = o.entidad_ruc AND v.orden = o.orden
                              AND v.fecha_emision = o.fecha_emision AND v.clase <> 'proceso')
           THEN (SELECT jsonb_build_object('total', COALESCE(max(t.total), 0), 'lista', COALESCE(jsonb_agg(jsonb_build_object(
