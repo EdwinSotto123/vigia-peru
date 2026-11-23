@@ -697,11 +697,12 @@ function RepartoDelPoder({
               type="button"
               onClick={() => onElegir(i)}
               aria-pressed={orgIndice === i}
-              className={cn("inline-flex max-w-[16rem] items-center gap-1.5 rounded-full py-0.5 pr-1 text-inkSoft hover:text-ink", orgIndice === i && "font-semibold text-ink")}
+              className={cn("inline-flex max-w-[16rem] items-start gap-1.5 rounded-lg py-0.5 pr-1 text-left leading-snug text-inkSoft hover:text-ink", orgIndice === i && "font-semibold text-ink")}
             >
-              <span aria-hidden className="h-2.5 w-2.5 shrink-0 rounded-sm" style={{ backgroundColor: colores.get(i) ?? otrasReparto }} />
-              <span className="truncate">{orgDe(datos, i).n}</span>
-              <span className="font-mono tabular-nums text-mute">{numero(n)}</span>
+              <span aria-hidden className="mt-1 h-2.5 w-2.5 shrink-0 rounded-sm" style={{ backgroundColor: colores.get(i) ?? otrasReparto }} />
+              {/* El nombre entero, en dos renglones si no entra («Alianza Gobierno Unidad y Acci…», 2026-11-23). */}
+              <span className="min-w-0">{orgDe(datos, i).n}</span>
+              <span className="shrink-0 self-start font-mono tabular-nums text-mute">{numero(n)}</span>
             </button>
           </li>
         ))}

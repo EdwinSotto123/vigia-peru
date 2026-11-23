@@ -24,6 +24,41 @@ import { ORDEN_SEVERIDAD, type SenalAgente } from "./senales";
 const MAX_RESUMEN = 160;
 
 /**
+ * El análisis guarda hasta 500 caracteres por hallazgo (backend/agent/tools/persistence/shared.py). Uno de ese largo que
+ * no termina en un cierre quedó cortado al guardarlo, a media palabra («…que no habría acreditado los»; 2026-11-23,
+ * contrato 1238560). Se muestra hasta su última palabra entera, con «…», y se dice dónde leer el resto.
+ */
+const TOPE_GUARDADO = 500;
+export function cortadaAlGuardar(bruto: string | null | undefined): boolean {
+  const t = (bruto ?? "").trimEnd();
+  return t.length >= TOPE_GUARDADO - 6 && !/[.!?»"”)\]]$/.test(t);
+}
+function hastaPalabraEntera(t: string): string {
+  const sinFin = t.trimEnd().replace(/[\s,;:(«"“-]+$/, "");
+  const esp = sinFin.lastIndexOf(" ");
+  return `${esp > sinFin.length * 0.7 ? sinFin.slice(0, esp).replace(/[\s,;:(«"“-]+$/, "") : sinFin}…`;
+}
+
+/** ¿La fuente es un registro del Estado? Una nota de prensa o una web no es una «fuente oficial». */
+function esFuenteOficial(url: string): boolean {
+  try {
+    const h = new URL(url).hostname;
+    // Todo registro del Estado peruano vive bajo gob.pe (OECE, SEACE, SUNAT, Contraloría, MEF, JNE, ONPE…).
+    return /(^|\.)gob\.pe$/i.test(h);
+  } catch {
+    return false;
+  }
+}
+/** El sitio de una URL, sin «www.»: «rcrperu.com». */
+function sitioDe(url: string): string | null {
+  try {
+    return new URL(url).hostname.replace(/^www\./, "");
+  } catch {
+    return null;
+  }
+}
+
+/**
  * La palabra que `PersonName` tapa de cada persona privada: en orden SUNAT el materno (2.ª
  * palabra), con el nombre primero la última. Es la misma en los dos órdenes, salvo con dos
  * palabras, donde cada orden tapa una distinta: van las dos. Las de una o dos letras ("DE",
@@ -114,7 +149,8 @@ export function resumenSinDatosPersonales(texto: string, nombres: NombreConocido
   const t = maskDnis(limpiarEvidencia(texto.normalize("NFC")));
   const tapar = apellidosPrivados(nombres);
   const limpio = tapar.size ? t.replace(/\p{L}+/gu, (w) => (tapar.has(sinTildes(w)) ? "•".repeat(Math.min(Math.max(w.length, 3), 8)) : w)) : t;
-  if (limpio.length <= max) return limpio;
+  // Cortada al guardarla: hasta su última palabra entera y «…», nunca «…acreditado los».
+  if (limpio.length <= max) return cortadaAlGuardar(texto) ? hastaPalabraEntera(limpio) : limpio;
   const corte = limpio.slice(0, max);
   // Con más lugar (las filas del dictamen), se corta en el final de una oración si lo hay: nunca a media frase.
   if (max > MAX_RESUMEN) {
@@ -127,7 +163,7 @@ export function resumenSinDatosPersonales(texto: string, nombres: NombreConocido
 
 /** ¿El resumen de la fila dejó parte de la evidencia afuera? (para decir «sigue en el panel» sólo cuando es cierto). */
 export function evidenciaRecortada(texto: string, max: number = MAX_RESUMEN): boolean {
-  return maskDnis(limpiarEvidencia(texto.normalize("NFC"))).length > max;
+  return maskDnis(limpiarEvidencia(texto.normalize("NFC"))).length > max || cortadaAlGuardar(texto);
 }
 
 /**
@@ -202,6 +238,8 @@ export function DetalleSenal({
   const agente = pasoDeClave(senal.agente);
   // «Heurística — …» no es una norma sino un criterio de Vigía, y la URL cruda que algunas reglas pegan a la norma se quita.
   const norma = normaLegible(senal.norma);
+  const oficial = !!senal.fuenteUrl && esFuenteOficial(senal.fuenteUrl);
+  const cortada = cortadaAlGuardar(senal.evidencia);
   const datos: DatoClave[] = [
     {
       etiqueta: "La encontró",
@@ -211,13 +249,14 @@ export function DetalleSenal({
     ...(agente ? [{ etiqueta: "Carril", valor: agente.carrilLabel }] : []),
     ...(agente && agente.fuentes.length > 0 ? [{ etiqueta: "Coteja contra", valor: agente.fuentes.join(", ") }] : []),
     ...(!agente && senal.agenteBruto ? [{ etiqueta: "Identificador del agente", valor: senal.agenteBruto, mono: true }] : []),
+    // Una nota de prensa o una web no es «fuente oficial» (la señal de prensa enlazaba a rcrperu.com con ese nombre).
     ...(senal.fuenteUrl
       ? [
           {
-            etiqueta: "Fuente oficial",
+            etiqueta: oficial ? "Fuente oficial" : "Fuente",
             valor: (
               <a href={senal.fuenteUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 font-medium text-granate hover:underline">
-                Ver la fuente oficial <ExternalLink size={12} aria-hidden />
+                {oficial ? "Ver la fuente oficial" : `Ver la nota en ${sitioDe(senal.fuenteUrl) ?? "su sitio"}`} <ExternalLink size={12} aria-hidden />
               </a>
             ),
           },
@@ -227,8 +266,10 @@ export function DetalleSenal({
 
   return (
     <CuerpoDetalle>
+      {/* La gravedad ya está en la cabecera del panel («Señal media, la encontró Prensa»): aquí iba otra vez. Sólo
+          dentro de un panel con varios hallazgos, donde cada uno puede tener la suya. */}
       <ChipsDetalle>
-        <Severidad bandera={senal.severidad} />
+        {sinGenerales && <Severidad bandera={senal.severidad} />}
         <SelloVerificada verificada={senal.verificada} />
       </ChipsDetalle>
 
@@ -236,7 +277,23 @@ export function DetalleSenal({
 
       <BloqueDetalle titulo="Qué se encontró">
         {/* Sin las formas de máquina de la regla (el campo de origen, «sanción(es)», fechas ISO), como en la fila. */}
-        {senal.evidencia ? <p>{redactDnis(limpiarEvidencia(senal.evidencia))}</p> : <p className="text-mute">El análisis no guardó el texto de esta señal.</p>}
+        {senal.evidencia ? (
+          <p>{redactDnis(cortada ? hastaPalabraEntera(limpiarEvidencia(senal.evidencia)) : limpiarEvidencia(senal.evidencia))}</p>
+        ) : (
+          <p className="text-mute">El análisis no guardó el texto de esta señal.</p>
+        )}
+        {cortada && (
+          <p className="mt-1.5 text-meta text-mute">
+            El análisis guardó sólo el comienzo de este hallazgo.{" "}
+            {senal.fuenteUrl ? (
+              <a href={senal.fuenteUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-0.5 font-medium text-granate hover:underline">
+                Leer el resto en {oficial ? "la fuente oficial" : sitioDe(senal.fuenteUrl) ?? "la fuente"} <ExternalLink size={11} aria-hidden />
+              </a>
+            ) : (
+              "El resto está en la fuente."
+            )}
+          </p>
+        )}
         {senal.item && <p className="mt-1 text-meta text-mute">Sobre el ítem {senal.item}.</p>}
         {senal.evidenciaTextual && (
           <div className="mt-2">

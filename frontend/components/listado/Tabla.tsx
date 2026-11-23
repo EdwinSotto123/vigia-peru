@@ -309,7 +309,8 @@ export function Tabla({
       <div className={cn(k.grid, "border-b border-line bg-paperSoft px-4 text-rotulo font-medium text-mute", densidad === "compacta" ? "py-1.5" : "py-2.5", jerarquia && "sr-only")}>
         {columnas.map((c) => (
           <span key={c.clave} className={cn("min-w-0 items-center gap-1", claseVisible(c, k), c.alinear === "der" && "justify-end")}>
-            <span className="truncate">{c.titulo}</span>
+            {/* El rótulo de la columna entero, en dos renglones si no entra («Perjuicio que cuantif…», 2026-11-23). */}
+            <span className={cn("leading-tight", c.alinear === "der" && "text-right")}>{c.titulo}</span>
             {c.ayuda}
           </span>
         ))}
@@ -619,16 +620,20 @@ export function CeldaPrincipal({
         <span className="line-clamp-2 text-dato font-semibold leading-snug text-ink sm:line-clamp-1 sm:shrink-0 sm:max-w-[70%]" title={tooltip}>
           {titulo}
         </span>
-        {lineaMeta && <span className="mt-0.5 block truncate text-meta text-mute sm:mt-0 sm:min-w-0">{lineaMeta}</span>}
+        {lineaMeta && <span className="mt-0.5 block text-meta text-mute sm:mt-0 sm:line-clamp-1 sm:min-w-0">{lineaMeta}</span>}
       </span>
     );
   }
   return (
     <span className={cn("block w-full min-w-0", className)}>
-      <span className={cn("text-dato font-semibold leading-snug text-ink", dosLineas ? "line-clamp-2" : "line-clamp-2 lg:line-clamp-1")} title={tooltip}>
+      {/* recorte: tres renglones en el celular (antes dos: «Contratación del servicio de mantenimiento correctivo del
+          cuarto de má…»); desde lg, uno o dos. El entero, en su title y en su ficha. */}
+      <span className={cn("text-dato font-semibold leading-snug text-ink", dosLineas ? "line-clamp-3 lg:line-clamp-2" : "line-clamp-3 lg:line-clamp-1")} title={tooltip}>
         {titulo}
       </span>
-      {lineaMeta && <span className={cn("mt-0.5 block text-meta text-mute", metaEnVarias ? "whitespace-normal" : "truncate")}>{lineaMeta}</span>}
+      {/* recorte: entera en el celular (2026-11-23, «hay textos sin verse todo»: la línea de contexto se cortaba en una,
+          «RUC 20131369124, FF. AA. o Policía, Li…»); en una desde lg, donde cabe. */}
+      {lineaMeta && <span className={cn("mt-0.5 block text-meta text-mute", metaEnVarias ? "whitespace-normal" : "lg:line-clamp-1")}>{lineaMeta}</span>}
     </span>
   );
 }
@@ -692,8 +697,10 @@ export function CeldaNumero({ children, sub }: { children: ReactNode; sub?: Reac
 export function CeldaTexto({ children, sub }: { children: ReactNode; sub?: ReactNode }) {
   return (
     <span className="block w-full min-w-0">
-      <span className="block truncate text-meta text-inkSoft">{children}</span>
-      {sub && <span className="block truncate text-rotulo text-mute">{sub}</span>}
+      {/* recorte: entero en el celular, donde la columna es angosta («Ejecución contractual u o…» en 95 px, 2026-11-23);
+          desde lg, en dos renglones. */}
+      <span className="break-words text-meta leading-snug text-inkSoft lg:line-clamp-2">{children}</span>
+      {sub && <span className="break-words text-rotulo text-mute lg:line-clamp-2">{sub}</span>}
     </span>
   );
 }

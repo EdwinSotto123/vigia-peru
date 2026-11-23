@@ -70,7 +70,9 @@ export function CrucesCelda({
             ) : (
               <span className={`inline-flex max-w-full items-center gap-1 rounded-full border bg-paper px-2 py-0.5 text-rotulo font-semibold leading-tight text-ink ${BORDE_FILA[x.severidad]}`}>
                 <Icono size={12} className={`shrink-0 ${ICONO_FILA[x.severidad]}`} aria-hidden />
-                <span className={`min-w-0 ${truncar ? "truncate" : "break-words"}`}>{corto(x.tipo)}</span>
+                {/* recorte: con «…» sólo desde lg, donde la fila es de una línea; en el celular el nombre entero, en dos renglones
+                    si hace falta («También en pla…», «Posible nepo…» en /app/personas, 2026-11-23). */}
+                <span className={`min-w-0 ${truncar ? "break-words lg:truncate" : "break-words"}`}>{corto(x.tipo)}</span>
               </span>
             )}
           </li>
