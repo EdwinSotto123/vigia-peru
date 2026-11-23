@@ -199,9 +199,13 @@ const TOPE_ORDEN = `(CASE WHEN o.tipo_contratacion ~ 'hasta [0-9]+ UIT'
 /**
  * La orden quedó entre el 95 % y el 100 % de su tope: una de las que sostienen «al borde del tope». De una persona, sus
  * órdenes de servicio (179); de una empresa, de compra o de servicio (migración 207). Sólo en soles: el tope es en soles
- * y una orden de 42 mil dólares no está «al borde» de 44 mil soles.
+ * y una orden de 42 mil dólares no está «al borde» de 44 mil soles. Sólo las de «hasta N UIT» (o sin el dato): una que paga
+ * un proceso o una contratación directa no tiene ese tope, y se marcaba «al borde» si su monto caía cerca de 8 UIT
+ * (auditoría del 2026-11-23).
  */
-const EN_EL_BORDE = `${EN_SOLES} AND (o.ruc_contratista LIKE '20%' OR o.tipo_orden = 'Orden de Servicio') AND o.monto >= 0.95 * ${TOPE_ORDEN} AND o.monto < ${TOPE_ORDEN}`;
+const EN_EL_BORDE = `${EN_SOLES} AND (o.ruc_contratista LIKE '20%' OR o.tipo_orden = 'Orden de Servicio')
+  AND (o.tipo_contratacion IS NULL OR o.tipo_contratacion ~* '^contrataciones hasta')
+  AND o.monto >= 0.95 * ${TOPE_ORDEN} AND o.monto < ${TOPE_ORDEN}`;
 /** Los pares entidad-proveedor al borde del tope: las personas (persona_senal, 179) y las empresas (empresa_borde_tope, 207). */
 const PARES_BORDE = `(SELECT entidad_ruc, ruc, tipo FROM persona_senal WHERE tipo = 'al_borde_del_tope'
                        UNION ALL SELECT entidad_ruc, ruc, 'al_borde_del_tope' FROM empresa_borde_tope)`;
@@ -219,12 +223,12 @@ const ADJUDICADO_SOLES = `sum(a.monto_adjudicado) FILTER (WHERE a.moneda IN ('So
  * pro más reciente. Los 8 primeros, con su OCID para la ficha. Una orden que se juntó con un catálogo o un contrato menor
  * (compra_vinculo) no es pago de un proceso: null. Va por el índice (ruc_proveedor, entidad_ruc) de las adjudicaciones y
  * sólo en las órdenes de pago (~6 %): una página de 20 órdenes de pago de EsSalud, 64 ms en caliente (medido 2026-11-05).
- *
- * Desde el 2026-11-23 también las de una contratación directa («Contratación Directa», «exoneración»): CONOSCE las escribe
- * sin «Deviene de» y se quedaban sin su proceso, que el SEACE sí publica con su sustento y su contrato (el alquiler de
- * oficinas de la Municipalidad de Lima, S/ 1.92 M al año, venía de la directa DIRECTA-PROC-3-2023-MML de S/ 5.76 M).
+ * Cubre también las de contratación directa: CONOSCE las escribe «Deviene de Exoneraciones / Contratación Directa». Lo que
+ * les faltaba (2026-11-23) era el proceso mismo: las directas no entran a `convocatorias` (no tienen periodo de
+ * convocatoria y la carga del OCDS pide por él), así que salen sin OCID; el panel muestra sus documentos del OECE
+ * (frontend/components/ordenes/DocumentosProceso.tsx).
  */
-const PROCESOS_PAGO = `CASE WHEN o.tipo_contratacion ~* '^deviene de|directa|exoneraci'
+const PROCESOS_PAGO = `CASE WHEN o.tipo_contratacion ~* '^deviene de'
            AND NOT EXISTS (SELECT 1 FROM compra_vinculo v WHERE v.entidad_ruc = o.entidad_ruc AND v.orden = o.orden
                              AND v.fecha_emision = o.fecha_emision AND v.clase <> 'proceso')
           THEN (SELECT jsonb_build_object('total', COALESCE(max(t.total), 0), 'lista', COALESCE(jsonb_agg(jsonb_build_object(
