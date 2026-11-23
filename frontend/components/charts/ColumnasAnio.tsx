@@ -37,6 +37,7 @@ export function ColumnasAnio({
   etiquetaB,
   formato: tipo = "soles",
   etiqueta,
+  bajo = false,
   className,
 }: {
   anios: AnioColumna[];
@@ -47,6 +48,8 @@ export function ColumnasAnio({
   formato?: "soles" | "numero";
   /** El nombre del gráfico para el lector de pantalla. */
   etiqueta: string;
+  /** Más bajo (128 a 144 px en vez de 176 a 208): dentro de una ficha que ya tiene cifras arriba y una lista abajo. */
+  bajo?: boolean;
   className?: string;
 }) {
   const formato = (n: number) => (tipo === "soles" ? solesCompacto(n) : numero(n));
@@ -69,16 +72,18 @@ export function ColumnasAnio({
   };
   return (
     <figure className={cn("min-w-0", className)} aria-label={etiqueta}>
-      <div className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-2">
+      {/* Aire arriba: la marca más alta del eje (centrada en la línea) y el rótulo de la columna mayor salían por encima
+          del gráfico y se montaban sobre el título de su bloque («Año por año» tapado por un «20», 2026-11-23). */}
+      <div className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-2 pt-4">
         {/* El eje: tres marcas redondas, en tinta tenue. */}
-        <div className="relative h-44 w-14 sm:h-52" aria-hidden>
+        <div className={cn("relative w-14", bajo ? "h-32 sm:h-36" : "h-44 sm:h-52")} aria-hidden>
           {marcas.map((m) => (
             <span key={m} className="absolute right-0 -translate-y-1/2 font-mono text-rotulo tabular-nums text-mute" style={{ bottom: `${(m / tope) * 100}%` }}>
               {m === 0 ? "0" : marca(m)}
             </span>
           ))}
         </div>
-        <div className="relative h-44 sm:h-52" onMouseLeave={() => setActivo(null)}>
+        <div className={cn("relative", bajo ? "h-32 sm:h-36" : "h-44 sm:h-52")} onMouseLeave={() => setActivo(null)}>
           {marcas.map((m) => (
             <span key={m} className={cn("absolute inset-x-0 h-px", m === 0 ? "bg-paperEdge" : "bg-line")} style={{ bottom: `${(m / tope) * 100}%` }} aria-hidden />
           ))}

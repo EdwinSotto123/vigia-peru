@@ -1,12 +1,11 @@
 import type { ReactElement } from "react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
-import { RepartoFamilias } from "@/components/entidad/FamiliasDePatron";
 import { Nota } from "@/components/patrones";
 import { Badge } from "@/components/ui/Badge";
 import { plural } from "@/lib/formato";
 import type { PatronesDeEntidad, SeccionPatrones } from "@/lib/patrones";
-import { FAMILIAS_PATRON, PATRON_EMPRESA, P_PATRON_EMPRESA, familiasDeEntradas, indicePorFamilia, type EntradaConFamilia } from "@/lib/patronesEntidad";
+import { FAMILIAS_PATRON, PATRON_EMPRESA, P_PATRON_EMPRESA, indicePorFamilia, type EntradaConFamilia } from "@/lib/patronesEntidad";
 import { etiquetaRegla, type CatalogoReglas } from "@/lib/revision";
 import { IndiceAntecedentes, type TipoDelIndice } from "./IndiceAntecedentes";
 
@@ -63,14 +62,6 @@ export function vistaDePatrones(listas: PatronesDeEntidad["listas"], ruc: string
     n: tipos.length,
     vista: (
       <div className="space-y-4">
-        <RepartoFamilias
-          familias={familiasDeEntradas(patrones, { uno: "patrón", varios: "patrones", casoAcaso: false })}
-          param={P_PATRON_EMPRESA}
-          inicial={tipos[0].clave}
-          unidad={["caso", "casos"]}
-          entradas={["patrón", "patrones"]}
-          etiqueta="Casos de los patrones en que aparece, por familia"
-        />
         <IndiceAntecedentes tipos={tipos} param={P_PATRON_EMPRESA} que="Patrón" columna="Casos" titulo={plural(tipos.length, "patrón en que aparece", "patrones en que aparece")} />
       </div>
     ),

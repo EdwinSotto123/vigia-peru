@@ -24,6 +24,8 @@ export interface TipoDelIndice {
   resumen: string;
   /** La familia a la que pertenece (los patrones de una entidad): un rótulo en el índice del escritorio al cambiar. */
   grupo?: string;
+  /** El nombre corto de su familia («Concertación»): el botón de la familia en el filtro. */
+  grupoCorto?: string;
   /** El color de su familia (su lugar en el reparto de arriba): la muestra de su rótulo y su barra. Sin él, gris. */
   serie?: number;
   contenido: ReactNode;
@@ -34,6 +36,9 @@ export interface TipoDelIndice {
  * TODO Y YA, cuando podemos crear un layout adecuado»). Antes los 16 tipos iban apilados, cada uno con su buscador, dos
  * paginadores y cinco filas: 11 pantallas en el escritorio y 30 en el celular para MEDIFARMA. Ahora, como «Lo que llama
  * la atención» (historia/Destacados.tsx) y las entidades de una persona (personas/IndiceEntidades.tsx):
+ *
+ * Hoy (2026-11-23) el índice es un FILTRO de dos filas arriba del detalle: las familias y, debajo, los tipos de la
+ * elegida (ver el comentario del render). Lo que sigue es su historia.
  *
  * - Escritorio (lg): a la izquierda, fijo al bajar, el índice de tipos (ícono de severidad, nombre y cuántas veces), lo
  *   más grave primero; a la derecha, sólo los casos del elegido.
@@ -79,6 +84,7 @@ export function IndiceAntecedentes({
   const lista = useRef<HTMLDivElement>(null);
   const botones = useRef<(HTMLButtonElement | null)[]>([]);
   const detalle = useRef<HTMLDivElement>(null);
+  const familias = useRef<HTMLDivElement>(null);
 
   // Una bandera de la cabecera de la ficha (`?seccion=antecedentes&atipo=…`) cambia el tipo de la URL sin rehacer este
   // índice: se elige ése. Lo que se elige aquí también pasa por acá (ya elegido: no cambia nada).
@@ -89,16 +95,12 @@ export function IndiceAntecedentes({
     setActual(enUrl ?? primera);
   }, [enUrl, primera]);
 
-  // En el celular, el chip elegido a la vista dentro de su fila (llegar con `?atipo=` del noveno tipo lo dejaba fuera).
-  // Sólo se mueve la fila, nunca la página: `scrollIntoView` bajaba hasta la pestaña al cargar la ficha.
+  // Lo elegido a la vista dentro de su fila, cuando la fila se desliza (celular): el tipo y su familia. Sólo se mueve la
+  // fila, nunca la página: `scrollIntoView` bajaba hasta la pestaña al cargar la ficha.
   useEffect(() => {
-    const l = lista.current;
-    const b = botones.current[tipos.findIndex((t) => t.clave === actual)];
-    if (!l || !b || l.scrollWidth <= l.clientWidth) return;
-    const izquierda = b.offsetLeft - 8;
-    const derecha = b.offsetLeft + b.offsetWidth - l.clientWidth + 8;
-    if (l.scrollLeft > izquierda) l.scrollLeft = izquierda;
-    else if (l.scrollLeft < derecha) l.scrollLeft = derecha;
+    const i = tipos.findIndex((t) => t.clave === actual);
+    enSuFila(lista.current, botones.current[i]);
+    enSuFila(familias.current, familias.current?.querySelector<HTMLElement>("[aria-pressed=true]") ?? null);
   }, [actual, tipos]);
 
   if (!tipos.length) return null;
@@ -121,8 +123,9 @@ export function IndiceAntecedentes({
     });
   };
 
-  const alTeclado = (e: KeyboardEvent, i: number) => {
-    const n = tipos.length;
+  // Las flechas recorren los tipos a la vista (los de la familia elegida).
+  const alTeclado = (e: KeyboardEvent, i: number, vista: { t: TipoDelIndice }[]) => {
+    const n = vista.length;
     const destino =
       e.key === "ArrowDown" || e.key === "ArrowRight"
         ? (i + 1) % n
@@ -135,17 +138,23 @@ export function IndiceAntecedentes({
               : -1;
     if (destino < 0) return;
     e.preventDefault();
-    elegir(tipos[destino].clave, true);
+    elegir(vista[destino].t.clave, true);
   };
 
-  // Los grupos (familias) en su orden, con sus entradas: en el escritorio cada familia es una fila de filtros.
-  const grupos: { nombre?: string; serie?: number; items: { t: TipoDelIndice; i: number }[] }[] = [];
+  // Las familias en su orden, con sus entradas. Se ve UNA a la vez: la del elegido.
+  const grupos: { nombre?: string; corto?: string; serie?: number; total: number; items: { t: TipoDelIndice; i: number }[] }[] = [];
   tipos.forEach((t, i) => {
     const ultimo = grupos[grupos.length - 1];
-    if (ultimo && ultimo.nombre === t.grupo) ultimo.items.push({ t, i });
-    else grupos.push({ nombre: t.grupo, serie: t.serie, items: [{ t, i }] });
+    if (ultimo && ultimo.nombre === t.grupo) {
+      ultimo.items.push({ t, i });
+      ultimo.total += t.n;
+    } else grupos.push({ nombre: t.grupo, corto: t.grupoCorto, serie: t.serie, total: t.n, items: [{ t, i }] });
   });
-  const boton = (t: TipoDelIndice, i: number) => {
+  const conFamilias = grupos.length > 1;
+  const suya = grupos.find((g) => g.items.some((x) => x.t.clave === actual)) ?? grupos[0];
+  const vista = conFamilias ? suya.items : tipos.map((t, i) => ({ t, i }));
+
+  const boton = ({ t, i }: { t: TipoDelIndice; i: number }, k: number) => {
     const sel = t.clave === actual;
     return (
       <button
@@ -158,62 +167,76 @@ export function IndiceAntecedentes({
         id={`${id}-tab-${i}`}
         aria-selected={sel}
         aria-controls={sel ? `${id}-panel` : undefined}
+        aria-label={`${t.nombre}: ${t.resumen}`}
         tabIndex={sel ? 0 : -1}
         onClick={() => elegir(t.clave)}
-        onKeyDown={(ev) => alTeclado(ev, i)}
-        title={t.resumen}
+        onKeyDown={(ev) => alTeclado(ev, k, vista)}
+        title={`${t.nombre}: ${t.resumen}`}
         className={cn(
-          "inline-flex min-h-10 shrink-0 items-center gap-2 rounded-full border py-1.5 pl-3 pr-1.5 text-left transition-colors duration-rapido",
+          "inline-flex h-9 shrink-0 items-center gap-1.5 rounded-full border pl-2.5 pr-1 text-meta transition-colors duration-rapido",
           "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-granate focus-visible:ring-offset-1",
           sel ? "border-granate bg-granate-50 font-semibold text-ink" : "border-line bg-paper font-medium text-inkSoft hover:border-granate/40 hover:text-ink",
         )}
       >
-        {sel ? <Check size={15} strokeWidth={2.5} aria-hidden className="shrink-0 text-granate" /> : <Severidad bandera={t.severidad} formato="punto" className="shrink-0" />}
-        <span className="whitespace-nowrap text-dato lg:hidden">{t.corto}</span>
-        <span className="hidden whitespace-nowrap text-dato lg:inline">{t.nombre}</span>
-        <span className={cn("rounded-full px-2 py-0.5 text-rotulo font-semibold tabular-nums", sel ? "bg-granate text-paper" : "bg-paperDeep text-inkSoft")}>{numero(t.n)}</span>
-        <span className="sr-only">: {t.resumen}</span>
+        {sel ? <Check size={14} strokeWidth={2.5} aria-hidden className="shrink-0 text-granate" /> : <Severidad bandera={t.severidad} formato="punto" className="shrink-0" />}
+        <span className="whitespace-nowrap">{t.corto}</span>
+        <span className={cn("min-w-7 rounded-full px-1.5 py-0.5 text-center text-rotulo font-semibold tabular-nums", sel ? "bg-granate text-paper" : "bg-paperDeep text-inkSoft")}>
+          {numero(t.n)}
+        </span>
       </button>
     );
   };
 
   /*
-   * Un FILTRO arriba, no un índice al costado (2026-11-23, el usuario: «este orden de acá al costado no tiene sentido…
-   * debería ser un filtro, no lo colocamos como texto y línea de color sin sentido»). Cada entrada es un botón con su
-   * gravedad, su nombre y cuántos casos tiene; la elegida, marcada con ✓ y rellena. En el escritorio, una fila por
-   * familia con su color; en el celular, una fila que se desliza. Lo elegido ocupa todo el ancho debajo.
+   * Un filtro de DOS filas (2026-11-23, el usuario: «demasiado scroll, demasiado grandes»). La versión anterior ponía
+   * todos los tipos con su nombre entero, en filas por familia: los 53 antecedentes de una entidad medían 1 750 px antes
+   * del primer caso. Ahora, arriba, las familias como un control segmentado (su color, su nombre corto y cuántos casos
+   * suman: hace de reparto, que ya no va aparte); debajo, sólo los tipos de la familia elegida, en chips cortos. El
+   * nombre entero del tipo es el título de su detalle. Elegir una familia abre su primer tipo (el más grave).
    */
   return (
-    <div className="min-w-0 max-w-full space-y-4">
-      <div className="min-w-0 max-w-full overflow-hidden rounded-2xl border border-line bg-paper p-3 sm:p-4">
-        <p id={`${id}-titulo`} className="mb-2.5 flex items-baseline justify-between gap-3 text-meta font-semibold text-ink">
-          <span>Filtrar por {que.toLowerCase()}</span>
-          <span className="font-normal text-mute">{titulo}</span>
-        </p>
+    <div className="min-w-0 max-w-full space-y-3">
+      <div className="min-w-0 max-w-full space-y-2.5 rounded-2xl border border-line bg-paper p-2.5 sm:p-3">
+        {conFamilias && (
+          <div
+            ref={familias}
+            role="group"
+            aria-label={`Familias: ${titulo}`}
+            className={cn(
+              "relative flex gap-1 overflow-x-auto rounded-xl bg-paperDeep p-1 [scrollbar-width:none] sm:grid sm:overflow-visible [&::-webkit-scrollbar]:hidden",
+              COLUMNAS[grupos.length] ?? "sm:grid-cols-3",
+            )}
+          >
+            {grupos.map((g) => {
+              const sel = g === suya;
+              return (
+                <button
+                  key={g.nombre ?? "sin"}
+                  type="button"
+                  aria-pressed={sel}
+                  title={g.nombre}
+                  onClick={() => !sel && elegir(g.items[0].t.clave)}
+                  className={cn(
+                    "flex min-h-9 min-w-0 shrink-0 items-center gap-2 rounded-lg px-3 py-1.5 text-left text-meta transition-colors duration-rapido",
+                    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-granate",
+                    sel ? "bg-paper font-semibold text-ink shadow-sm ring-1 ring-line" : "font-medium text-inkSoft hover:bg-paper/60 hover:text-ink",
+                  )}
+                >
+                  {g.serie != null && <MuestraSerie i={g.serie} />}
+                  <span className="min-w-0 whitespace-nowrap sm:truncate">{g.corto ?? g.nombre}</span>
+                  <span className={cn("ml-auto shrink-0 pl-1 tabular-nums", sel ? "text-ink" : "text-mute")}>{numero(g.total)}</span>
+                </button>
+              );
+            })}
+          </div>
+        )}
         <div
           ref={lista}
           role="tablist"
-          aria-labelledby={`${id}-titulo`}
-          className="relative -mx-1 flex gap-2 overflow-x-auto px-1 pb-1 [scrollbar-width:none] lg:mx-0 lg:block lg:space-y-2.5 lg:overflow-visible lg:px-0 lg:pb-0 [&::-webkit-scrollbar]:hidden"
+          aria-label={titulo}
+          className="relative -mx-0.5 flex gap-1.5 overflow-x-auto px-0.5 [scrollbar-width:none] sm:flex-wrap sm:overflow-visible [&::-webkit-scrollbar]:hidden"
         >
-          {grupos.map((g, k) => (
-            <div
-              key={g.nombre ?? k}
-              role="presentation"
-              className={cn("contents", g.nombre ? "lg:grid lg:grid-cols-[13rem_minmax(0,1fr)] lg:items-start lg:gap-3" : "lg:block", k > 0 && "lg:border-t lg:border-line lg:pt-2.5")}
-            >
-              {g.nombre ? (
-                <span role="presentation" className="hidden min-h-10 items-center gap-2 text-meta font-semibold leading-snug text-ink lg:flex">
-                  {g.serie != null && <MuestraSerie i={g.serie} />}
-                  <span className="min-w-0">{g.nombre}</span>
-                  <span className="ml-auto shrink-0 tabular-nums text-mute">{numero(g.items.reduce((s, x) => s + x.t.n, 0))}</span>
-                </span>
-              ) : null}
-              <div role="presentation" className="contents lg:flex lg:flex-wrap lg:gap-2">
-                {g.items.map(({ t, i }) => boton(t, i))}
-              </div>
-            </div>
-          ))}
+          {vista.map((x, k) => boton(x, k))}
         </div>
       </div>
       <div ref={detalle} className="min-w-0 scroll-mt-[calc(var(--alto-barra-fija,3.5rem)_+_1rem)]">
@@ -227,4 +250,19 @@ export function IndiceAntecedentes({
       </div>
     </div>
   );
+}
+
+/**
+ * Las columnas de la fila de familias desde sm, por cuántas hay (clases literales para Tailwind): hasta cuatro en una
+ * fila; cinco o seis, de a tres (en una sola fila se cortaban sus nombres: «Concerta…», «Compr…»).
+ */
+const COLUMNAS: Record<number, string> = { 2: "sm:grid-cols-2", 3: "sm:grid-cols-3", 4: "sm:grid-cols-2 lg:grid-cols-4" };
+
+/** Deja a la vista un botón dentro de su fila si la fila se desliza de costado; nunca mueve la página. */
+function enSuFila(fila: HTMLElement | null, el: HTMLElement | null | undefined) {
+  if (!fila || !el || fila.scrollWidth <= fila.clientWidth) return;
+  const izquierda = el.offsetLeft - 8;
+  const derecha = el.offsetLeft + el.offsetWidth - fila.clientWidth + 8;
+  if (fila.scrollLeft > izquierda) fila.scrollLeft = izquierda;
+  else if (fila.scrollLeft < derecha) fila.scrollLeft = derecha;
 }

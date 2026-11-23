@@ -41,31 +41,37 @@ export function AntecedenteEnEntidad({ ruc, tipo, nombre, contratos, graves }: {
   // Una lista a la vez (2026-11-18: apiladas, «quiénes» y «sus contratos» hacían 3 pantallas). Estado local: cambiar de lista
   // con un enlace volvía a pedir al servidor la ficha entera de la entidad.
   const [lista, setLista] = useState<"quienes" | "contratos">("quienes");
+  // El conmutador va EN la cabecera de la tarjeta de la lista, en lugar de su título (2026-11-23, «demasiado scroll»:
+  // arriba el conmutador decía «Quiénes ganaron esos contratos 18» y debajo la tarjeta lo repetía como título).
+  const selector = (empresas: number | null) => (
+    <ElegirLista
+      actual={lista}
+      alElegir={setLista}
+      opciones={[
+        { clave: "quienes", etiqueta: "Quiénes los ganaron", conteo: empresas },
+        { clave: "contratos", etiqueta: "Sus contratos", conteo: contratos },
+      ]}
+    />
+  );
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <EstadoCarga carga={carga} columnas={COLUMNAS_PROVEEDORES}>
         {(d) => (
           <>
             <AnioPorAnio d={d} nombre={nombre} />
-            <ElegirLista
-              actual={lista}
-              alElegir={setLista}
-              opciones={[
-                { clave: "quienes", etiqueta: "Quiénes ganaron esos contratos", conteo: d.empresas },
-                { clave: "contratos", etiqueta: "Sus contratos", conteo: contratos },
-              ]}
-            />
-            {lista === "quienes" && <QuienesLoTienen d={d} nombre={nombre} />}
+            {lista === "quienes" && <QuienesLoTienen d={d} nombre={nombre} selector={selector(d.empresas)} />}
           </>
         )}
       </EstadoCarga>
-      {lista === "contratos" && <SusContratos ruc={ruc} tipo={tipo} nombre={nombre} contratos={contratos} graves={graves} />}
+      {lista === "contratos" && (
+        <SusContratos ruc={ruc} tipo={tipo} nombre={nombre} contratos={contratos} graves={graves} selector={selector(carga.datos?.empresas ?? null)} />
+      )}
     </div>
   );
 }
 
 /** El conmutador de la lista que se ve (mismo aspecto que `Vistas` secundaria, sin navegar). */
-function ElegirLista<T extends string>({ actual, alElegir, opciones }: { actual: T; alElegir: (v: T) => void; opciones: { clave: T; etiqueta: string; conteo: number }[] }) {
+function ElegirLista<T extends string>({ actual, alElegir, opciones }: { actual: T; alElegir: (v: T) => void; opciones: { clave: T; etiqueta: string; conteo: number | null }[] }) {
   return (
     <div role="tablist" aria-label="Qué lista ver" className="flex max-w-full gap-1 overflow-x-auto rounded-full border border-line bg-paperSoft p-1 [scrollbar-width:none]">
       {opciones.map((o) => {
@@ -83,7 +89,7 @@ function ElegirLista<T extends string>({ actual, alElegir, opciones }: { actual:
             )}
           >
             {o.etiqueta}
-            <span className="font-mono tabular-nums text-mute">{numero(o.conteo)}</span>
+            {o.conteo != null && <span className="font-mono tabular-nums text-mute">{numero(o.conteo)}</span>}
           </button>
         );
       })}
@@ -92,15 +98,18 @@ function ElegirLista<T extends string>({ actual, alElegir, opciones }: { actual:
 }
 
 /** Un bloque de la ficha: su título (h4) con su conteo en pastilla, lo de la derecha (leyenda, contexto) y su contenido. */
-function Bloque({ titulo, cuenta, extra, children }: { titulo: string; cuenta?: number; extra?: ReactNode; children: ReactNode }) {
+function Bloque({ titulo, cuenta, extra, selector, children }: { titulo: string; cuenta?: number; extra?: ReactNode; selector?: ReactNode; children: ReactNode }) {
   const id = useId();
   return (
-    <section aria-labelledby={id} className="space-y-2.5">
+    // En su tarjeta (2026-11-23): suelto, el título y el gráfico flotaban sobre el fondo de la página.
+    <section aria-labelledby={id} className="tarjeta space-y-2.5 rounded-2xl border border-line bg-paper p-4 sm:p-5">
       <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-        <h4 id={id} className="flex items-center gap-2 text-cuerpo font-semibold text-ink">
+        {/* Con conmutador, él hace de título a la vista: el h4 queda para el lector de pantalla. */}
+        <h4 id={id} className={selector ? "sr-only" : "flex items-center gap-2 text-cuerpo font-semibold text-ink"}>
           {titulo}
           {cuenta != null && <CuentaGrupo>{numero(cuenta)}</CuentaGrupo>}
         </h4>
+        {selector}
         {extra}
       </div>
       {children}
@@ -143,6 +152,7 @@ function AnioPorAnio({ d, nombre }: { d: AntecedenteDeEntidad; nombre: string })
         etiquetaA="De señal alta"
         etiquetaB="Media o baja"
         formato="numero"
+        bajo
         etiqueta={`Contratos con «${nombre}» por año de la buena pro`}
       />
       {d.sinFecha > 0 && (
@@ -167,7 +177,7 @@ const COLUMNAS_PROVEEDORES: Columna[] = [
 /** Sólo un RUC 20 se enlaza y se busca: una persona natural llega tapada (sin RUC a la vista ni nombre buscable). */
 const esEmpresa = (ruc: string | null | undefined) => !!ruc && /^20\d{9}$/.test(ruc);
 
-function QuienesLoTienen({ d, nombre }: { d: AntecedenteDeEntidad; nombre: string }) {
+function QuienesLoTienen({ d, nombre, selector }: { d: AntecedenteDeEntidad; nombre: string; selector?: ReactNode }) {
   const proveedores = d.proveedores ?? [];
   const repiten = proveedores.filter((x) => x.contratos > 1).length;
   const filas = useMemo<Fila[]>(
@@ -205,6 +215,7 @@ function QuienesLoTienen({ d, nombre }: { d: AntecedenteDeEntidad; nombre: strin
     <Bloque
       titulo="Quiénes ganaron esos contratos"
       cuenta={d.empresas || proveedores.length}
+      selector={selector}
       extra={
         <p className="text-rotulo tabular-nums text-mute">
           {repiten > 0 ? `${numero(repiten)} lo ${repiten === 1 ? "repite" : "repiten"}: dos contratos o más` : "Cada uno con un contrato"}
@@ -267,7 +278,7 @@ function filaContrato(x: ContratoDelAntecedente): Fila {
   };
 }
 
-function SusContratos({ ruc, tipo, nombre, contratos, graves }: { ruc: string; tipo: string; nombre: string; contratos: number; graves: number }) {
+function SusContratos({ ruc, tipo, nombre, contratos, graves, selector }: { ruc: string; tipo: string; nombre: string; contratos: number; graves: number; selector?: ReactNode }) {
   const [q, setQ] = useState("");
   const [altas, setAltas] = useState(false);
   const [page, setPage] = useState(1);
@@ -287,6 +298,7 @@ function SusContratos({ ruc, tipo, nombre, contratos, graves }: { ruc: string; t
     <Bloque
       titulo="Sus contratos"
       cuenta={contratos}
+      selector={selector}
       extra={<p className="text-rotulo text-mute">Lo grave primero y, dentro, lo de más monto</p>}
     >
       <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">

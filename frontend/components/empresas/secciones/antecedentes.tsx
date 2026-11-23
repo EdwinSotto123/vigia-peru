@@ -23,7 +23,6 @@ import {
 import { Ayuda, BloqueDetalle, CuerpoDetalle, DatosClave, EstadoVacio, FuenteDato, PestanaAPedido, PieDetalle } from "@/components/patrones";
 import { EsqueletoPestana } from "@/components/entidad/PestanasEntidad";
 import { ListaPaginada } from "@/components/listado";
-import { RepartoFamilias } from "@/components/entidad/FamiliasDePatron";
 import { BotonFila, ProveedorDetalle, type DetalleFila } from "@/components/listado/DetalleFilas";
 import { recortar } from "@/components/contratos/recortar";
 import { Dato } from "@/components/ui/Dato";
@@ -54,7 +53,7 @@ import { CORTO_EMPRESA, rutaEmpresa, type AntecedenteEmpresa, type ClienteEmpres
 import { P_CONTRATOS } from "@/lib/parametrosEmpresa";
 import { peorSeveridad } from "@/lib/severidad";
 import { getPatronesDeEmpresa } from "@/lib/patrones";
-import { familiaDeCruce, familiasDeEntradas, indicePorFamilia, type EntradaConFamilia } from "@/lib/patronesEntidad";
+import { familiaDeCruce, indicePorFamilia, type EntradaConFamilia } from "@/lib/patronesEntidad";
 import { getCatalogoReglas, type CatalogoReglas } from "@/lib/revision";
 import { cn, txtONumero } from "@/lib/utils";
 import { NoCargo, paraClave } from "./comun";
@@ -476,7 +475,7 @@ function CasosDelTipo({ tipo, casos, ruc, rucDe }: { tipo: string; casos: Antece
  *
  * Desde el 2026-11-18, como la ficha de una entidad: los antecedentes (lo que dicen de ella otros registros) y los
  * patrones en que aparece van en dos subpestañas, nunca en el mismo índice (`SubpestanasAntecedentes`); cada una abre con
- * cómo se reparten sus casos por familia (`RepartoFamilias`) y su índice agrupado por familia, con la cifra y su barra.
+ * un filtro de dos filas (`IndiceAntecedentes`: sus familias y, debajo, los tipos de la elegida).
  */
 export async function AntecedentesEmpresa({
   datos,
@@ -547,14 +546,7 @@ export async function AntecedentesEmpresa({
   const indice: TipoDelIndice[] = indicePorFamilia(entradas.map(({ casos: _c, ...x }) => x));
   const vistaAntecedentes = (
     <div className="space-y-4">
-      <RepartoFamilias
-        familias={familiasDeEntradas(entradas, { uno: "tipo", varios: "tipos", casoAcaso: true })}
-        param={P_ANTECEDENTES.tipo}
-        inicial={abierto}
-        unidad={["vez", "veces"]}
-        entradas={["tipo de registro", "tipos de registro"]}
-        etiqueta="Lo que dicen de ella otros registros, por familia"
-      />
+      {/* Sin el reparto por familia encima (2026-11-23, «demasiado scroll»): la fila de familias del filtro lo dice. */}
       <IndiceAntecedentes
         tipos={indice}
         param={P_ANTECEDENTES.tipo}

@@ -7,7 +7,6 @@
  * panel por caso) y los antecedentes de quienes ganaron sus contratos, por tipo (`casos_cruce`; su nombre y su
  * explicación salen de lib/cruces.ts, aquí sólo su familia).
  */
-import { numero } from "@/lib/formato";
 import type { SeccionPatrones } from "@/lib/patrones";
 
 export type FamiliaPatron = "concertacion" | "compras" | "familia" | "impedimento" | "agentes" | "otros";
@@ -242,26 +241,6 @@ export interface EntradaConFamilia {
   graves?: number;
 }
 
-/**
- * Una familia con casos, como la dibuja el reparto de arriba del índice (`RepartoFamilias`): cuántos casos, qué parte de
- * ellos es grave y cuál de sus entradas abre al tocarla. `serie` es su color: su lugar entre las familias presentes, el
- * mismo en el reparto, en el rótulo del índice y en las barras de sus entradas.
- */
-export interface FamiliaConCasos {
-  clave: FamiliaPatron;
-  corto: string;
-  nombre: string;
-  explica: string;
-  serie: number;
-  /** Cuántas entradas del índice son de esta familia. */
-  entradas: number;
-  casos: number;
-  /** La línea de gravedad («2 patrones, todos graves», «523 de señal alta») y la severidad más alta de sus entradas (el ícono). */
-  gravedad: string;
-  peor: "alta" | "media" | "baja";
-  /** Sus entradas, en el orden del índice: la primera abre al tocar la familia; con ellas se sabe si la elegida es suya. */
-  claves: string[];
-}
 
 const ORDEN_FAMILIA = new Map(FAMILIAS_PATRON.map((f, i) => [f.clave, i]));
 const PESO_SEVERIDAD = { alta: 0, media: 1, baja: 2 } as const;
@@ -277,11 +256,12 @@ export function ordenarPorFamilia<T extends EntradaConFamilia>(entradas: T[]): T
  * Las entradas como las lee el índice (`IndiceAntecedentes`): por familia, con el nombre de su familia como rótulo
  * (`grupo`) y su color (`serie`), sin lo que el índice no usa.
  */
-export function indicePorFamilia<T extends EntradaConFamilia>(entradas: T[]): (Omit<T, "familia" | "graves"> & { grupo?: string; serie?: number })[] {
+export function indicePorFamilia<T extends EntradaConFamilia>(entradas: T[]): (Omit<T, "familia" | "graves"> & { grupo?: string; grupoCorto?: string; serie?: number })[] {
   const series = seriesDeFamilias(entradas);
   return ordenarPorFamilia(entradas).map(({ familia, graves: _graves, ...resto }) => ({
     ...resto,
     grupo: FAMILIAS_PATRON.find((f) => f.clave === familia)?.nombre,
+    grupoCorto: FAMILIAS_PATRON.find((f) => f.clave === familia)?.corto,
     serie: series.get(familia),
   }));
 }
@@ -292,32 +272,6 @@ export function seriesDeFamilias(entradas: EntradaConFamilia[]): Map<FamiliaPatr
   return new Map(presentes.map((f, i) => [f.clave, i]));
 }
 
-/**
- * Las familias con entradas, en su orden. `por` dice cómo se cuenta lo grave: en los patrones, cuántos de ellos son de
- * señal alta (sus casos no traen severidad acá); en los antecedentes, cuántos casos lo son.
- */
-export function familiasDeEntradas(
-  entradas: EntradaConFamilia[],
-  por: { uno: string; varios: string; casoAcaso: boolean },
-): FamiliaConCasos[] {
-  const series = seriesDeFamilias(entradas);
-  return FAMILIAS_PATRON.flatMap((f) => {
-    const suyas = ordenarPorFamilia(entradas.filter((e) => e.familia === f.clave));
-    if (!suyas.length) return [];
-    const casos = suyas.reduce((s, e) => s + e.n, 0);
-    let gravedad: string;
-    if (por.casoAcaso) {
-      const g = suyas.reduce((s, e) => s + (e.graves ?? 0), 0);
-      gravedad = g > 0 ? `${numero(g)} de señal alta` : "ninguno de señal alta";
-    } else {
-      const g = suyas.filter((e) => e.severidad === "alta").length;
-      const n = suyas.length;
-      const cuantos = `${numero(n)} ${n === 1 ? por.uno : por.varios}`;
-      gravedad = g === 0 ? `${cuantos}, ninguno grave` : g === n ? (n === 1 ? `${cuantos}, grave` : `${cuantos}, todos graves`) : `${cuantos}, ${numero(g)} ${g === 1 ? "grave" : "graves"}`;
-    }
-    return [{ clave: f.clave, corto: f.corto, nombre: f.nombre, explica: f.explica, serie: series.get(f.clave) ?? 0, entradas: suyas.length, casos, gravedad, peor: suyas[0].severidad, claves: suyas.map((e) => e.clave) }];
-  });
-}
 
 /**
  * La primera oración de una explicación larga, si es corta (la bajada de una ficha: una línea, ≤ 140 caracteres); el resto
