@@ -283,7 +283,7 @@ function Barra({ resumen: r }: { resumen: ResumenPoliticos | null }) {
   return (
     <BarraFiltros
       busqueda={{ param: P_POLITICOS.q, placeholder: "Buscar por apellido, cargo o lugar…", etiqueta: "Buscar en los políticos del partido", min: 3 }}
-      faceta={{
+      faceta={{ enBotones: true,
         param: P_POLITICOS.papel,
         etiqueta: "Papel en el partido",
         todas: "Todos",

@@ -261,7 +261,7 @@ export function ListaEmpresasVisita({ ruc, sp }: { ruc: string; sp: Busqueda }) 
         barra: (p) => (
           <BarraFiltros
             busqueda={{ param: P.q, placeholder: "Buscar una empresa o su RUC…", etiqueta: "Buscar entre las empresas que ganaron algo después", min: 2 }}
-            faceta={{
+            faceta={{ enBotones: true,
               param: P.antes,
               etiqueta: "Antes de la visita",
               todas: "Todas",
@@ -323,7 +323,7 @@ export function ListaOrganizacionesVisita({ ruc, sp }: { ruc: string; sp: Busque
         barra: (p) => (
           <BarraFiltros
             busqueda={{ param: P.q, placeholder: "Buscar una empresa, una organización o un RUC…", etiqueta: "Buscar entre quienes la visitan", min: 2 }}
-            faceta={{
+            faceta={{ enBotones: true,
               param: P.despues,
               etiqueta: "Ganó algo después",
               todas: "Todas",
@@ -372,7 +372,7 @@ export function ListaAreasVisita({ ruc, sp }: { ruc: string; sp: Busqueda }) {
         barra: (p) => (
           <BarraFiltros
             busqueda={{ param: P.q, placeholder: "Buscar una oficina o un cargo…", etiqueta: "Buscar entre las oficinas", min: 2 }}
-            faceta={{
+            faceta={{ enBotones: true,
               param: P.decisor,
               etiqueta: "Decide las compras",
               todas: "Todas",
@@ -415,7 +415,7 @@ export function ListaParientesVisita({ ruc, sp }: { ruc: string; sp: Busqueda })
         barra: (p) => (
           <BarraFiltros
             busqueda={{ param: P.q, placeholder: "Buscar un parentesco, un cargo o una oficina…", etiqueta: "Buscar entre las visitas de familiares", min: 2 }}
-            faceta={{
+            faceta={{ enBotones: true,
               param: P.proveedor,
               etiqueta: "También le vende",
               todas: "Todas",
@@ -465,7 +465,7 @@ export function ListaTodasVisitas({ ruc, sp, parientes }: { ruc: string; sp: Bus
           return (
             <BarraFiltros
               busqueda={{ param: P.q, placeholder: "Buscar la organización de quien visita…", etiqueta: "Buscar visitas por la organización de quien visita", min: 3 }}
-              faceta={{
+              faceta={{ enBotones: true,
                 param: P.tipo,
                 etiqueta: "Quién visita",
                 todas: "Todas",

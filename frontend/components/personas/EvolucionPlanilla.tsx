@@ -1,3 +1,4 @@
+import { cn } from "@/lib/utils";
 import { FuenteDato } from "@/components/patrones";
 import { mesCorto } from "@/lib/partidosApi";
 import { numero, plural, solesCompacto } from "@/lib/formato";
@@ -92,12 +93,14 @@ function Grafico({ d }: { d: PlanillaMensual }) {
             </span>
           ))}
       </p>
-      <div role="img" aria-label={`Personas con sueldo en la planilla mes a mes: de ${numero(primero.personas)} en ${mesCorto(primero.mes)} a ${numero(ultimo.personas)} en ${mesCorto(ultimo.mes)}`}>
-        <div className="flex h-32 items-end gap-[3px] border-b border-line">
+      {/* Con muchos meses, el aire entre barras se achica y todo se recorta en la caja: a 390 px, cien meses con 3 px de
+          aire medían más que la pantalla y corrían la página 65 px (2026-11-23). */}
+      <div className="overflow-hidden" role="img" aria-label={`Personas con sueldo en la planilla mes a mes: de ${numero(primero.personas)} en ${mesCorto(primero.mes)} a ${numero(ultimo.personas)} en ${mesCorto(ultimo.mes)}`}>
+        <div className={cn("flex h-32 items-end border-b border-line", meses.length > 40 ? "gap-px" : "gap-[3px]")}>
           {meses.map((m) => (
             <div
               key={m.mes}
-              className="relative flex h-full max-w-8 flex-1 flex-col justify-end"
+              className="relative flex h-full min-w-0 max-w-8 flex-1 flex-col justify-end"
               title={
                 m.hueco
                   ? `${mesCorto(m.mes)}: la entidad no publicó su planilla`
@@ -127,7 +130,7 @@ function Grafico({ d }: { d: PlanillaMensual }) {
             return (
               <div
                 key={m.mes}
-                className="relative flex h-full max-w-8 flex-1 flex-col"
+                className="relative flex h-full min-w-0 max-w-8 flex-1 flex-col"
                 title={m.hueco || m.altas == null ? `${mesCorto(m.mes)}: sin comparar` : `${mesCorto(m.mes)}: entraron ${numero(alta)} y salieron ${numero(baja)}`}
               >
                 {cambio.has(m.mes) && <RayaCambio />}
@@ -141,9 +144,9 @@ function Grafico({ d }: { d: PlanillaMensual }) {
             );
           })}
         </div>
-        <div className="flex gap-[3px] pt-1" aria-hidden>
+        <div className={cn("flex pt-1", meses.length > 40 ? "gap-px" : "gap-[3px]")} aria-hidden>
           {meses.map((m, i) => (
-            <div key={m.mes} className="relative h-4 max-w-8 flex-1">
+            <div key={m.mes} className="relative h-4 min-w-0 max-w-8 flex-1">
               {marca(m, i) && (
                 <span className="absolute left-0 whitespace-nowrap font-mono text-micro text-mute">{m.mes.endsWith("-01") ? m.mes.slice(0, 4) : mesCorto(m.mes)}</span>
               )}

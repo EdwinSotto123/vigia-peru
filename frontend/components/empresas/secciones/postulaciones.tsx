@@ -47,7 +47,7 @@ export function BarraPostulaciones({ facetas: f }: { facetas: FacetasPostulacion
   return (
     <BarraFiltros
       busqueda={{ param: P_POSTULACIONES.q, placeholder: "Buscar por objeto, entidad o código…", etiqueta: "Buscar en sus postulaciones", min: 3 }}
-      faceta={{
+      faceta={{ enBotones: true,
         param: P_POSTULACIONES.resultado,
         etiqueta: "Resultado",
         todas: "Todas",

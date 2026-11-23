@@ -226,7 +226,7 @@ export async function GobiernosPartido({
     <Listado ruta={ruta} parametros={parametros} paramPagina={P_GOB.page}>
       <BarraFiltros
         busqueda={{ param: P_GOB.q, placeholder: "Buscar un lugar, una autoridad o una entidad…", etiqueta: "Buscar en sus gobiernos", min: 2 }}
-        faceta={{ param: P_GOB.nivel, etiqueta: "Nivel", todas: "Todos", conteoTodas: todos.filter((g) => pasa(g, "nivel")).length, opciones: opcionesNivel, nombreEnChip: false }}
+        faceta={{ enBotones: true, param: P_GOB.nivel, etiqueta: "Nivel", todas: "Todos", conteoTodas: todos.filter((g) => pasa(g, "nivel")).length, opciones: opcionesNivel, nombreEnChip: false }}
         visibles={
           regiones.size > 1 || f.region
             ? [{

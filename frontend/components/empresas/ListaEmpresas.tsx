@@ -148,7 +148,7 @@ function Barra({ resumen: r, f, entidad }: { resumen: ResumenEmpresas | null; f:
   return (
     <BarraFiltros
       busqueda={{ param: "q", placeholder: "Buscar por nombre o RUC…", etiqueta: "Buscar empresas por nombre o RUC", min: 3 }}
-      faceta={{
+      faceta={{ enBotones: true,
         param: "antecedentes",
         etiqueta: "Antecedentes",
         todas: "Todas",

@@ -5,7 +5,7 @@ import { useState } from "react";
 import { Info, ListChecks } from "lucide-react";
 import { Ayuda } from "@/components/patrones/Ayuda";
 import { AyudaTermino } from "@/components/patrones/AyudaTermino";
-import { EnlaceFuente } from "@/components/patrones/Estructura";
+import { EnlaceFuente, Nota } from "@/components/patrones/Estructura";
 import { CeldaFecha, CeldaPrincipal, CodigoFila, Indicadores, Tabla, type Columna, type Fila, type Indicador } from "@/components/listado";
 import { Buscador } from "@/components/listado/BarraFiltros";
 import { Dato } from "@/components/ui/Dato";
@@ -464,7 +464,8 @@ function Contraloria({
               )}
             </>
           )}
-          <p className="text-rotulo leading-relaxed text-mute">
+          {/* En su caja con ícono (2026-11-23): era un párrafo gris suelto bajo la tabla. */}
+          <Nota>
             {conEntidad
               ? "Cada fila abre lo que encontró la Contraloría y a quiénes comprende, y la entidad lleva a su ficha en Vigía. "
               : "Cada fila abre lo que encontró la Contraloría y a quiénes comprende, con la Ficha Resumen y el informe completo. "}
@@ -473,7 +474,7 @@ function Contraloria({
               buscar en lo que encontró en todo el país
             </Link>
             .
-          </p>
+          </Nota>
         </div>
       )}
     </section>

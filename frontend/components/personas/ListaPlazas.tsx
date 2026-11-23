@@ -157,7 +157,7 @@ function Barra({ r, visiblesExtra, entidad }: { r: PaginaPlazas["resumen"] | nul
   return (
     <BarraFiltros
       busqueda={{ param: P.q, placeholder: "Buscar por puesto, entidad o lugar…", etiqueta: "Buscar en las plazas CAS", min: 3 }}
-      faceta={{
+      faceta={{ enBotones: true,
         param: P.severidad,
         etiqueta: "Señales",
         todas: "Todas",

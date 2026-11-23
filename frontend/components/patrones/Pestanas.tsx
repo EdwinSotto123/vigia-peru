@@ -72,7 +72,11 @@ export interface Destacado {
   observacion?: boolean;
 }
 
-const PanelActual = createContext<{ titulo: string; nivel: 2 | 3; conGuia?: boolean; destacado?: Destacado } | null>(null);
+/**
+ * `repite`: el título del panel es el mismo nombre que ya se lee en la barra de pestañas fija de una ficha («Historia»,
+ * «Compras»): no se repite a la vista (2026-11-23, auditoría: era un h2 suelto sobre el fondo en cada pestaña).
+ */
+const PanelActual = createContext<{ titulo: string; nivel: 2 | 3; conGuia?: boolean; destacado?: Destacado; repite?: boolean } | null>(null);
 
 /** `useLayoutEffect` sin el aviso del render en el servidor. */
 const useEfectoDeMedida = typeof window !== "undefined" ? useLayoutEffect : useEffect;
@@ -300,7 +304,7 @@ export function Pestanas({
           tabIndex={0}
           className={cn(segunda ? "pt-4" : "pt-5", "rounded-lg focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-granate")}
         >
-          <PanelActual.Provider value={{ titulo: p.titulo ?? p.etiqueta, nivel: segunda ? 3 : 2, conGuia: !!p.guia }}>
+          <PanelActual.Provider value={{ titulo: p.titulo ?? p.etiqueta, nivel: segunda ? 3 : 2, conGuia: !!p.guia, repite: fija && !segunda && !p.titulo }}>
             {visitadas.has(p.clave) ? (
               <>
                 {p.guia && <GuiaPestana guia={p.guia} />}
@@ -351,6 +355,24 @@ export function CabeceraPestana({ titulo, children, ayuda, acciones }: { titulo?
   const nombre = titulo ?? panel?.titulo;
   const Titulo = panel?.nivel === 3 ? "h3" : "h2";
   const d = panel?.destacado;
+  // En la pestaña de una ficha, el título repite el de la barra: queda para el lector de pantalla y lo que explica va en
+  // una línea con su ⓘ (con las acciones, si las hay, a la derecha).
+  if (panel?.repite && !titulo && !d) {
+    return (
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+        <Titulo className="sr-only">{nombre}</Titulo>
+        {children && !panel.conGuia ? (
+          <p className="min-w-0 max-w-[80ch] flex-1 text-dato leading-snug text-inkSoft text-pretty">
+            {children}
+            {ayuda ? <> {ayuda}</> : null}
+          </p>
+        ) : ayuda ? (
+          <p className="flex items-center gap-1.5 text-meta text-mute">Qué hay en esta pestaña {ayuda}</p>
+        ) : null}
+        {acciones && <div className="flex min-w-0 max-w-full flex-wrap items-center gap-2">{acciones}</div>}
+      </div>
+    );
+  }
   // La ficha de lo elegido (2026-11-23, el usuario: «no tiene forma ni jerarquía»): antes el nombre del patrón era un h3
   // de 18 px bajo una pastilla con su familia, del mismo peso que todo lo demás. Ahora es lo más grande de la columna.
   if (d && nombre) {

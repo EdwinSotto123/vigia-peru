@@ -74,7 +74,7 @@ export async function SeccionAliados({ pagina, orden: ordenPedido, periodo: peri
           {conFiltros && (
             <BarraFiltros
               busqueda={{ param: "q", placeholder: "Buscar un aliado por su nombre…", etiqueta: "Buscar un aliado", min: 2 }}
-              faceta={{
+              faceta={{ enBotones: true,
                 param: "periodo",
                 etiqueta: "Periodo",
                 todas: PERIODO_LABEL.todo,

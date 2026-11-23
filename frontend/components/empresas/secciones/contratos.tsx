@@ -117,7 +117,7 @@ export function BarraContratos({ facetas: f }: { facetas: FacetasContratos | nul
   return (
     <BarraFiltros
       busqueda={{ param: P_CONTRATOS.q, placeholder: "Buscar por objeto, entidad o código…", etiqueta: "Buscar en sus contratos", min: 3 }}
-      faceta={{
+      faceta={{ enBotones: true,
         param: P_CONTRATOS.bandera,
         etiqueta: "Sanción del Tribunal",
         todas: "Todos",

@@ -266,7 +266,7 @@ function Barra({
   return (
     <BarraFiltros
       busqueda={{ param: P.q, placeholder: "Buscar por nombre, entidad o servicio…", etiqueta: "Buscar en las personas contratadas", min: 3 }}
-      faceta={{
+      faceta={{ enBotones: true,
         param: P.severidad,
         etiqueta: "Señales",
         todas: "Todas",

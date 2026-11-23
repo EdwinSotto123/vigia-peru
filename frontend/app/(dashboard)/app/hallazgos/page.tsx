@@ -423,7 +423,7 @@ async function VistaPublicadasRespaldo({ query }: { query: SenalesQuery }) {
 
       <Listado ruta={RUTA} parametros={params}>
         <BarraFiltros
-          faceta={{
+          faceta={{ enBotones: true,
             param: "severidad",
             etiqueta: "Severidad",
             todas: "Todas",

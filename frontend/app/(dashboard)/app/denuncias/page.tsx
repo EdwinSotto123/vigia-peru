@@ -301,7 +301,7 @@ export default async function DenunciasPage({
           <Listado ruta="/app/denuncias" parametros={parametros}>
             <BarraFiltros
               busqueda={{ param: "q", placeholder: "Buscar por relato, región o código…", etiqueta: "Buscar denuncias por relato, región o código" }}
-              faceta={{ param: "categoria", etiqueta: "Categoría", todas: "Todas", conteoTodas, opciones: opcionesCategoria }}
+              faceta={{ enBotones: true, param: "categoria", etiqueta: "Categoría", todas: "Todas", conteoTodas, opciones: opcionesCategoria }}
               filtros={filtros}
             />
             <ZonaResultados>

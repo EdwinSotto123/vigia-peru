@@ -17,6 +17,7 @@ import { esRucEmpresa, rutaEmpresa } from "@/lib/empresas";
 import { CONSULTA_RUC_SUNAT, fichaRnp } from "@/lib/fuentes";
 import { Severidad } from "@/components/ui/Severidad";
 import { CrucesCelda } from "./CrucesCelda";
+import { EvidenciaParticipante } from "./EvidenciaParticipante";
 import { CORTO_EMPRESA } from "@/lib/empresas";
 import { fecha, listaY, numero, oracion, plural, soles } from "@/lib/formato";
 import { tituloNatural } from "@/lib/landing";
@@ -113,6 +114,8 @@ export function DetalleParticipante({
   // Cada antecedente abre sus casos en la ficha de la empresa (pestaña Antecedentes, filtrada por ese tipo): ahí está la
   // evidencia de cada uno. Sólo una empresa (RUC 20): una persona natural no tiene ficha pública.
   const rucEmpresa = rucVisibleDe(p);
+  // El contrato que se está viendo (de la ruta de esta pestaña): sus casos van primero.
+  const ocidAqui = aqui?.match(/\/contratos\/([^/?#]+)/)?.[1] ?? null;
   const alAntecedente = (tipo: string) =>
     rucEmpresa && esRucEmpresa(rucEmpresa) ? conDesde(rutaEmpresa(rucEmpresa, "antecedentes", { [P_ANTECEDENTES.tipo]: tipo }), aqui) : null;
   return (
@@ -194,7 +197,7 @@ export function DetalleParticipante({
                   const href = alAntecedente(a.tipo);
                   return (
                     <li key={a.tipo} className="flex gap-2">
-                      <Severidad bandera={a.severidad} formato="punto" className="mt-0.5 shrink-0" />
+                      <Severidad bandera={a.severidad} formato="punto" className="mt-0.5 shrink-0 self-start" />
                       <span className="min-w-0">
                         <span className="block text-dato font-semibold leading-snug text-ink">
                           {href ? (
@@ -207,6 +210,8 @@ export function DetalleParticipante({
                           {a.n > 1 && <span className="ml-1.5 font-normal tabular-nums text-mute">{plural(a.n, "registro", "registros")}</span>}
                         </span>
                         {explicaBandera(a.tipo) && <span className="mt-0.5 block text-meta leading-snug text-inkSoft">{explicaBandera(a.tipo)}</span>}
+                        {/* Sus casos, con quién, dónde, cuándo y la fuente: la explicación del tipo sola no decía qué socio. */}
+                        {rucEmpresa && esRucEmpresa(rucEmpresa) && <EvidenciaParticipante ruc={rucEmpresa} tipo={a.tipo} ocid={ocidAqui} href={href} />}
                       </span>
                     </li>
                   );

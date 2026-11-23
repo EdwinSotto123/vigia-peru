@@ -67,7 +67,7 @@ export async function Bitacora({ tipo: tipoPedido, q: qPedida, pagina }: { tipo?
       <div className="space-y-3">
         <BarraFiltros
           busqueda={{ param: "q", placeholder: "Buscar una fuente, una red, un refresco o un resultado…", etiqueta: "Buscar en la bitácora", min: 2 }}
-          faceta={{
+          faceta={{ enBotones: true,
             param: "tipo",
             etiqueta: "Tipo de registro",
             todas: "Todo",

@@ -71,7 +71,7 @@ import { CON_EVIDENCIA, ValorCaso, VisitasDelCaso } from "./PanelAntecedente";
 
 // ─── Antecedentes ─────────────────────────────────────────────────────────────
 
-const FUENTE: Record<string, string> = {
+export const FUENTE: Record<string, string> = {
   onpe_aportantes: "Claridad de la ONPE",
   onpe_candidatos: "Claridad de la ONPE",
   jne_autoridades: "Autoridades electas del JNE",
@@ -104,7 +104,7 @@ const FUENTE: Record<string, string> = {
  * La consulta de cada fuente: el enlace del pie de un tipo cuyos casos van a registros distintos (el de cada caso va en
  * su panel). Si todos van al mismo (la ficha de la empresa en el RNP), el pie lleva a ése.
  */
-const PORTADA: Record<string, string> = {
+export const PORTADA: Record<string, string> = {
   onpe_aportantes: CLARIDAD_ONPE,
   onpe_candidatos: CLARIDAD_ONPE,
   onpe_gastos_proveedores: CLARIDAD_ONPE,
