@@ -192,7 +192,7 @@ export default async function Establecimientos({ searchParams }: Props) {
 
   return (
     <div className="container-page pb-10 pt-4 sm:pb-14 sm:pt-5">
-      <Ruta items={[{ etiqueta: "Inicio", href: rutaEn(base, "/") }, { etiqueta: "Establecimientos" }]} />
+      <Ruta items={[{ etiqueta: "Inicio", href: rutaEn(base, "/inicio") }, { etiqueta: "Establecimientos" }]} />
       <ProveedorFiltros ruta={lista} params={params} dependientes={{ departamento: ["provincia", "distrito", "provinciaDe"], provincia: ["distrito"] }}>
         <CabeceraLista
           className="mt-2"

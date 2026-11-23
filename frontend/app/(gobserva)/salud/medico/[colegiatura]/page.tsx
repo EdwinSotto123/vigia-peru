@@ -243,7 +243,7 @@ export default async function ResultadoMedico({ params, searchParams }: Props) {
       <AnotarVisto tipo="medico" codigo={m.colegiatura} nombre={`Colegiatura N.° ${m.colegiatura}`} detalle={m.colegio ?? null} />
       <Migas
         items={[
-          { etiqueta: "Inicio", href: rutaEn(base, "/") },
+          { etiqueta: "Inicio", href: rutaEn(base, "/inicio") },
           { etiqueta: "Verificar a un médico", href: rutaEn(base, "/medico") },
           { etiqueta: `Colegiatura N.° ${m.colegiatura}` },
         ]}
@@ -365,7 +365,7 @@ export default async function ResultadoMedico({ params, searchParams }: Props) {
 function SinRespuesta({ n, base }: { n: string; base: string }) {
   return (
     <div className="container-page pb-6 pt-5 sm:pt-8">
-      <Migas items={[{ etiqueta: "Inicio", href: rutaEn(base, "/") }, { etiqueta: "Verificar a un médico", href: rutaEn(base, "/medico") }, { etiqueta: `Colegiatura N.° ${n}` }]} />
+      <Migas items={[{ etiqueta: "Inicio", href: rutaEn(base, "/inicio") }, { etiqueta: "Verificar a un médico", href: rutaEn(base, "/medico") }, { etiqueta: `Colegiatura N.° ${n}` }]} />
       <h1 className="mt-4 font-display text-cifra font-bold leading-tight tracking-tight text-ink sm:text-titulo">
         Colegiatura N.° <span className="font-mono">{n}</span>
       </h1>

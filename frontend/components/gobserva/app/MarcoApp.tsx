@@ -48,7 +48,8 @@ export function MarcoApp({
   const p = PRODUCTOS[producto];
   const abierta = PRODUCTOS_APP_ABIERTA.includes(producto);
   const buscador = BUSCADOR[producto] ?? BUSCADOR.licitaciones!;
-  const inicio = rutaEn(base, abierta ? "/" : "/cuenta");
+  // La app abierta (Salud) tiene su inicio en /inicio: «/» es la landing (2026-11-22).
+  const inicio = rutaEn(base, abierta ? "/inicio" : "/cuenta");
   return (
     <ProveedorApp producto={producto}>
       <ProveedorAvisos>

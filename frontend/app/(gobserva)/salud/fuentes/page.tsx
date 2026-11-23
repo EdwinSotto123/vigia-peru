@@ -86,7 +86,7 @@ export default async function Fuentes() {
 
   return (
     <div className="container-page pb-10 pt-5 sm:pb-14 sm:pt-6">
-      <Ruta items={[{ etiqueta: "Inicio", href: ruta("/") }, { etiqueta: "Fuentes y método" }]} />
+      <Ruta items={[{ etiqueta: "Inicio", href: ruta("/inicio") }, { etiqueta: "Fuentes y método" }]} />
       <Encabezado figura="documento"
         className="mt-2"
         titulo="Fuentes y método"

@@ -26,7 +26,7 @@ export default async function CercaDeTi({ searchParams }: { searchParams: { ubic
   const r = await getResumenSalud();
   return (
     <div className="container-page pb-10 pt-5 sm:pt-8">
-      <Migas items={[{ etiqueta: "Inicio", href: rutaEn(base, "/") }, { etiqueta: "Cerca de mí" }]} />
+      <Migas items={[{ etiqueta: "Inicio", href: rutaEn(base, "/inicio") }, { etiqueta: "Cerca de mí" }]} />
 
       <div className="mt-4">
         <div className="min-w-0">

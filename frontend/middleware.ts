@@ -9,9 +9,9 @@ import { COOKIE_SESION, PRODUCTO_POR_HOST, PRODUCTOS, hostLimpio, type Producto 
  *     nada de Vigía (la app, el panel) se sirve desde un producto: su ruta reescrita no existe y da 404. Desde
  *     vigia.gobserva.cloud, `/empleo/…` lleva al subdominio; en DEV (sin subdominio propio) se navega por la ruta.
  *     Cada producto tiene su robots.txt y su sitemap.xml.
- *   · Con la sesión de Gobserva abierta (la marca COOKIE_SESION, que pone la cabecera), la portada de un producto lleva
- *     a la cuenta y «Para ti» a su sección de la cuenta: quien ya entró va a la app, no a la página para visitantes.
- *     `?portada` deja ver la portada igual.
+ *   · Con la sesión de Gobserva abierta (la marca COOKIE_SESION, que pone la cabecera), «Para ti» y las listas para
+ *     visitantes llevan a su lugar en la app. La portada NO (2026-11-22, el usuario: «falta landing page… debe haber un
+ *     botón de entrar»): se ve siempre como landing, con «Ir a la app» en la cabecera. `?portada` sigue sirviendo.
  *   · Protege /admin/*: sin la cookie de sesión admin (httpOnly, la pone /api/admin/login tras validar el token contra
  *     el API) redirige al login. La validez real del token la verifica el API en cada request proxeado.
  */
@@ -81,6 +81,15 @@ export function middleware(req: NextRequest) {
       if (pathname === `/${p}` || pathname.startsWith(`/${p}/`)) {
         return NextResponse.redirect(`https://${PRODUCTOS[p].host}${pathname.slice(p.length + 1) || "/"}${search}`, 308);
       }
+    }
+  }
+
+  // En DEV, la ruta del producto también va en la cabecera (el marco decide con ella si es landing o app).
+  for (const p of PRODUCTOS_CON_RUTA) {
+    if (pathname === `/${p}` || pathname.startsWith(`/${p}/`)) {
+      const cabeceras = new Headers(req.headers);
+      cabeceras.set("x-gobserva-ruta", `${pathname.slice(p.length + 1) || "/"}${search}`);
+      return NextResponse.next({ request: { headers: cabeceras } });
     }
   }
 
@@ -167,7 +176,6 @@ function aLaAppEmpleo(ruta: string, search: string): string | null {
 function destinoConSesion(producto: Producto, ruta: string): string | null {
   // Salud y Car son abiertos: su portada es el inicio para todos, con cuenta o sin ella.
   if (producto === "salud" || producto === "car") return null;
-  if (ruta === "/") return "/cuenta";
   if (producto === "licitaciones" && ruta === "/para-ti") return "/cuenta?tab=para-ti";
   if (producto === "empleo" && ruta === "/para-ti") return "/app/para-ti";
   return null;

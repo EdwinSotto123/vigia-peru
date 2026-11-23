@@ -74,7 +74,7 @@ export default async function Alertas({ searchParams }: Props) {
 
   return (
     <div className="container-page pb-10 pt-4 sm:pb-14 sm:pt-5">
-      <Ruta items={[{ etiqueta: "Inicio", href: rutaEn(base, "/") }, { etiqueta: "Medicamentos", href: rutaEn(base, "/medicamentos") }, { etiqueta: "Alertas de DIGEMID" }]} />
+      <Ruta items={[{ etiqueta: "Inicio", href: rutaEn(base, "/inicio") }, { etiqueta: "Medicamentos", href: rutaEn(base, "/medicamentos") }, { etiqueta: "Alertas de DIGEMID" }]} />
       <ProveedorFiltros ruta={lista} params={params}>
         <CabeceraLista
           className="mt-2"

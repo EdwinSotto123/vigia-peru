@@ -370,7 +370,7 @@ export default async function FichaMedicamentoPagina({ params, searchParams }: P
       <AnotarVisto tipo="medicamento" codigo={String(p.codigo)} nombre={nombre} detalle={[nombreMed(p.forma), p.registro ? `R.S. ${p.registro}` : null].filter(Boolean).join(", ")} />
       <Migas
         items={[
-          { etiqueta: "Inicio", href: rutaEn(base, "/") },
+          { etiqueta: "Inicio", href: rutaEn(base, "/inicio") },
           { etiqueta: "Medicamentos", href: rutaEn(base, "/medicamentos") },
           { etiqueta: nombre },
         ]}

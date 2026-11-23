@@ -57,7 +57,7 @@ export default async function Buscar({ searchParams }: Props) {
 
   return (
     <div className="container-page pb-10 pt-5 sm:pb-14 sm:pt-6">
-      <Ruta items={[{ etiqueta: "Inicio", href: ruta("/") }, { etiqueta: "Verificar" }]} />
+      <Ruta items={[{ etiqueta: "Inicio", href: ruta("/inicio") }, { etiqueta: "Verificar" }]} />
       <Encabezado figura="vecina"
         className="mt-2"
         titulo={q ? <>Resultados para «{q}»</> : "Verifica un establecimiento, un médico o un medicamento"}

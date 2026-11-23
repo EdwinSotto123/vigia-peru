@@ -16,7 +16,7 @@ import { marcarSesion, useSesion } from "./comun";
  */
 export function MenuCuenta({ base, compacto = false, entrarConTexto = false }: { base: string; compacto?: boolean; entrarConTexto?: boolean }) {
   const { user, loading, conCuenta } = useSesion();
-  // La marca para el middleware: con sesión, la portada lleva a la cuenta (está en todas las páginas del producto).
+  // La marca para el middleware: con sesión, «Para ti» y las listas llevan a la app (está en todas las páginas del producto).
   useEffect(() => {
     if (loading) return;
     marcarSesion(conCuenta);
@@ -52,7 +52,8 @@ export function MenuCuenta({ base, compacto = false, entrarConTexto = false }: {
       <span aria-hidden className="grid h-8 w-8 place-items-center rounded-full bg-granate text-meta font-bold text-paper">
         {inicial || <UserRound size={15} />}
       </span>
-      <span className={cn(compacto && "sr-only")}>Mi cuenta</span>
+      {/* En la landing es la puerta a la app (2026-11-22, «debe haber un botón de entrar»). */}
+      <span className={cn(compacto && "sr-only")}>Ir a la app</span>
     </Link>
   );
 }

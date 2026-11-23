@@ -111,7 +111,7 @@ export default async function Sanciones({ searchParams }: Props) {
 
   return (
     <div className="container-page pb-10 pt-4 sm:pb-14 sm:pt-5">
-      <Ruta items={[{ etiqueta: "Inicio", href: rutaEn(base, "/") }, { etiqueta: "Sanciones" }]} />
+      <Ruta items={[{ etiqueta: "Inicio", href: rutaEn(base, "/inicio") }, { etiqueta: "Sanciones" }]} />
       <ProveedorFiltros ruta={lista} params={params} dependientes={{ departamento: ["provincia", "distrito"], provincia: ["distrito"] }}>
         <CabeceraLista
           className="mt-2"

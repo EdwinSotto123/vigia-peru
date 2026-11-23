@@ -336,7 +336,7 @@ export default async function Medicamentos({ searchParams }: Props) {
 
   return (
     <div className="container-page pb-10 pt-5 sm:pb-14 sm:pt-6">
-      <Ruta items={[{ etiqueta: "Inicio", href: rutaEn(base, "/") }, { etiqueta: "Medicamentos" }]} />
+      <Ruta items={[{ etiqueta: "Inicio", href: rutaEn(base, "/inicio") }, { etiqueta: "Medicamentos" }]} />
       {q ? (
         <>
         <CabeceraLista

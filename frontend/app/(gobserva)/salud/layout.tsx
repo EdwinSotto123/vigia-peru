@@ -42,7 +42,7 @@ export default function LayoutSalud({ children }: { children: ReactNode }) {
         { ruta: "/asistente", etiqueta: "Asistente" },
         { ruta: "/fuentes", etiqueta: "Fuentes" },
       ]}
-      accion={{ ruta: "/buscar", etiqueta: "Verificar" }}
+      accion={{ ruta: "/inicio", etiqueta: "Abrir la app" }}
       fuentes={FUENTES}
     >
       {children}

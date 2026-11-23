@@ -15,7 +15,7 @@ export default function Cuenta() {
   const base = baseProducto("salud");
   return (
     <div className="container-page pb-10 pt-5 sm:pb-14 sm:pt-6">
-      <Ruta items={[{ etiqueta: "Inicio", href: rutaEn(base, "/") }, { etiqueta: "Guardados y vistos" }]} />
+      <Ruta items={[{ etiqueta: "Inicio", href: rutaEn(base, "/inicio") }, { etiqueta: "Guardados y vistos" }]} />
       <Encabezado
         className="mt-2"
         titulo="Guardados y vistos"

@@ -150,7 +150,7 @@ export default async function FichaEstablecimiento({ params, searchParams }: Pro
       <AnotarVisto tipo="establecimiento" codigo={f.codigo} nombre={nombre} detalle={[f.categoria ?? "Sin categoría", lugarIpress(f)].join(", ")} />
       <Migas
         items={[
-          { etiqueta: "Inicio", href: rutaEn(base, "/") },
+          { etiqueta: "Inicio", href: rutaEn(base, "/inicio") },
           { etiqueta: "Establecimientos", href: rutaEn(base, "/establecimientos") },
           { etiqueta: nombre },
         ]}

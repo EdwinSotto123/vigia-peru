@@ -39,7 +39,7 @@ export default function VerificarMedico() {
   const base = baseProducto("salud");
   return (
     <div className="container-page pb-6 pt-5 sm:pt-8">
-      <Migas items={[{ etiqueta: "Inicio", href: rutaEn(base, "/") }, { etiqueta: "Verificar a un médico" }]} />
+      <Migas items={[{ etiqueta: "Inicio", href: rutaEn(base, "/inicio") }, { etiqueta: "Verificar a un médico" }]} />
 
       <div className="mt-4 grid gap-x-10 gap-y-8 lg:grid-cols-[minmax(0,1fr)_24rem] lg:items-start">
         <div className="min-w-0">

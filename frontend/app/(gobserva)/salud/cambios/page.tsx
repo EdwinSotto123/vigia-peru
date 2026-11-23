@@ -84,7 +84,7 @@ export default async function Cambios({ searchParams }: Props) {
 
   return (
     <div className="container-page pb-10 pt-4 sm:pb-14 sm:pt-5">
-      <Ruta items={[{ etiqueta: "Inicio", href: rutaEn(base, "/") }, { etiqueta: "Fuentes", href: rutaEn(base, "/fuentes") }, { etiqueta: "Cambios en RENIPRESS" }]} />
+      <Ruta items={[{ etiqueta: "Inicio", href: rutaEn(base, "/inicio") }, { etiqueta: "Fuentes", href: rutaEn(base, "/fuentes") }, { etiqueta: "Cambios en RENIPRESS" }]} />
       <ProveedorFiltros ruta={lista} params={campo ? { campo } : {}}>
       <CabeceraLista
         className="mt-2"

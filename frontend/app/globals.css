@@ -1387,3 +1387,8 @@ html[data-modo="dia"] [data-producto="vigia"] [data-intencion="participar"] {
 @keyframes gs-auto-llega { 0% { translate: -70% 0; } 80% { translate: 4% 0; } 100% { translate: 0 0; } }
 .gs-auto-llega { animation: gs-auto-llega 900ms steps(9, end) 200ms backwards; }
 @media (prefers-reduced-motion: reduce) { .gs-auto-llega { animation: none; } }
+
+/* Una barra de monto crece a pasos desde la izquierda (las fichas de obras). */
+@keyframes gs-barra-crece { from { transform: scaleX(0); } }
+.gs-barra-crece { transform-origin: left; animation: gs-barra-crece 700ms steps(10, end) 150ms backwards; }
+@media (prefers-reduced-motion: reduce) { .gs-barra-crece { animation: none; } }

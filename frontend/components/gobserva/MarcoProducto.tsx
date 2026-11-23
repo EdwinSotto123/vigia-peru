@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import type { ReactNode } from "react";
 import { ArrowUpRight } from "lucide-react";
 import { BotonModo } from "@/components/ui/BotonModo";
@@ -21,9 +21,13 @@ export type { EnlaceProducto };
  *
  * `base`: la raíz del producto en este host (lib/gobserva-servidor.ts → baseProducto): los enlaces se arman con ella.
  *
- * Con la sesión abierta (la marca COOKIE_SESION) y si el producto tiene app (NavApp, hoy Licitaciones), el marco es el
- * de la app (MarcoApp: barra lateral, sin la cabecera ni el pie para visitantes).
+ * Con la sesión abierta (la marca COOKIE_SESION) y si el producto tiene app (NavApp: Empleo, Licitaciones), o si su app
+ * es abierta (Salud), el marco es el de la app (MarcoApp: barra lateral, sin la cabecera ni el pie para visitantes).
+ * Menos en las páginas de LANDING (RUTAS_LANDING: la portada, los planes, el MCP), que se ven siempre con este marco y
+ * su botón para entrar a la app (2026-11-22, el usuario: «falta landing page… debe haber un botón de entrar»). La ruta
+ * la pone el middleware en `x-gobserva-ruta`; sin ella, como antes.
  */
+const RUTAS_LANDING = ["/", "/planes", "/mcp"];
 export function MarcoProducto({
   producto,
   base,
@@ -42,7 +46,9 @@ export function MarcoProducto({
   children: ReactNode;
 }) {
   // Salud se ve como app para todos (PRODUCTOS_APP_ABIERTA); Empleo y Licitaciones, sólo con la sesión abierta.
-  if (PRODUCTOS_APP_ABIERTA.includes(producto) || (PRODUCTOS_CON_APP.includes(producto) && cookies().get(COOKIE_SESION)?.value === "1")) {
+  const ruta = headers().get("x-gobserva-ruta")?.split("?")[0] ?? null;
+  const landing = ruta != null && RUTAS_LANDING.includes(ruta.replace(/\/+$/, "") || "/");
+  if (!landing && (PRODUCTOS_APP_ABIERTA.includes(producto) || (PRODUCTOS_CON_APP.includes(producto) && cookies().get(COOKIE_SESION)?.value === "1"))) {
     return (
       <MarcoApp producto={producto} base={base}>
         {children}

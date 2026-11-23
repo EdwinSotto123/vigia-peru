@@ -106,7 +106,7 @@ const APP: Partial<Record<Producto, { grupos: GrupoApp[]; cuenta: ItemApp[] }>> 
         // 2026-11-22 (auditoría: «el menú agrupa por la entidad que publica, no por lo que la gente verifica»): un grupo por
         // cosa que se verifica, con el mismo nombre que en la barra de abajo del celular. Entra entero en 768 px de alto.
         items: [
-          { ruta: "/", etiqueta: "Inicio", Icono: House, abajo: true, exacta: true },
+          { ruta: "/inicio", etiqueta: "Inicio", Icono: House, abajo: true, exacta: true },
           { ruta: "/cuenta", etiqueta: "Guardados y vistos", Icono: Bookmark },
           { ruta: "/asistente", etiqueta: "Pregúntale al asistente", Icono: Bot },
         ],

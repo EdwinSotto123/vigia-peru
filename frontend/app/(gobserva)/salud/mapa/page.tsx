@@ -40,7 +40,7 @@ export default async function MapaPagina({ searchParams }: Props) {
   };
   return (
     <div className="container-page pb-10 pt-5 sm:pb-14 sm:pt-6">
-      <Ruta items={[{ etiqueta: "Inicio", href: rutaEn(base, "/") }, { etiqueta: "Mapa" }]} />
+      <Ruta items={[{ etiqueta: "Inicio", href: rutaEn(base, "/inicio") }, { etiqueta: "Mapa" }]} />
       <Encabezado figura="alfiler"
         className="mt-2"
         titulo="Mapa de establecimientos de salud"
