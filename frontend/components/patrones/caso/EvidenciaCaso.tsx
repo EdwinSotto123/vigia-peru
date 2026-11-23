@@ -56,7 +56,7 @@ export function EvidenciaCaso({ filas, nodos, nombre, unidad = "órdenes" }: { f
       columnas={columnas}
       filas={datos}
       etiqueta={`${unidad.charAt(0).toUpperCase() + unidad.slice(1)} del caso (toca una fila para abrirla)`}
-      tam={15}
+      tam={10}
       nombre={unidad}
       descargar={{ archivo: nombre }}
       buscar={{ placeholder: "Buscar por código, objeto o nombre…", etiqueta: `Buscar entre ${unidad === "ventas" ? "las" : unidad === "órdenes" ? "las" : "los"} ${unidad} del caso` }}

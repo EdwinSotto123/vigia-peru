@@ -205,7 +205,7 @@ function SeccionItems({ c }: { c: Detalle }) {
           filas={filas}
           etiqueta="Ítems del proceso según el registro OCDS"
           nombre="ítems"
-          tam={20}
+          tam={10}
           buscar={{ placeholder: "Buscar en los ítems por descripción o CUBSO…", etiqueta: "Buscar en los ítems del proceso" }}
         />
       ) : (
@@ -434,7 +434,7 @@ function SeccionPostores({ c, enRevision }: { c: Detalle; enRevision: boolean })
         filas={filas}
         etiqueta="Postores con su oferta económica, leídos de las actas del expediente"
         nombre="postores"
-        tam={20}
+        tam={10}
         buscar={{ placeholder: "Buscar un postor por razón social, RUC o estado…", etiqueta: "Buscar en los postores" }}
       />
       <FuenteDato fuente="actas y cuadros comparativos del expediente" enlaces={enlacesProceso(c.ocid, { codigo: c.codigo })} className="mt-2" />
@@ -523,7 +523,7 @@ function SeccionPrecios({ c, items }: { c: Detalle; items: ReturnType<typeof ite
         filas={filas}
         etiqueta="Ítems con su precio unitario ofertado o contratado frente al valor referencial"
         nombre="ítems"
-        tam={20}
+        tam={10}
         buscar={{ placeholder: "Buscar en los ítems por descripción o marca…", etiqueta: "Buscar en los precios por ítem" }}
       />
       <FuenteDato fuente="registro OCDS (referencia), CONOSCE (contratado) y el expediente leído" enlaces={enlacesProceso(c.ocid, { codigo: c.codigo, conosce: true })} className="mt-2" />
@@ -650,7 +650,7 @@ function SeccionDocumentos({ c }: { c: Detalle }) {
           filas={filas}
           etiqueta="Documentos oficiales del proceso"
           nombre="documentos"
-          tam={20}
+          tam={10}
           buscar={{ placeholder: "Buscar un documento por nombre o tipo…", etiqueta: "Buscar en los documentos del proceso" }}
         />
       ) : (

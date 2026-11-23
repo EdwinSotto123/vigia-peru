@@ -628,7 +628,7 @@ function Comprendidos({ v, cargando }: { v: Vista; cargando: boolean }) {
           </div>
           <ListaPaginada
             nombre="funcionarios comprendidos"
-            tam={12}
+            tam={10}
             controles="abajo"
             className="divide-y divide-line/70 overflow-hidden rounded-xl border border-line"
             items={imp.map((p, i) => ({

@@ -95,7 +95,7 @@ function Lista({ entidades, total }: { entidades: PoderEntidad[]; total: number 
         filas={filas}
         etiqueta="Entidades con contratos con indicio"
         nombre="entidades"
-        tam={25}
+        tam={10}
         densidad="compacta"
         buscar={{ placeholder: "Buscar una entidad, partido, autoridad o lugar…", etiqueta: "Buscar una entidad" }}
         filtros={filtros}

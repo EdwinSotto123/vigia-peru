@@ -231,7 +231,7 @@ function pestanasEntidad(d: EntidadFinanciableDetalle): Pestana[] {
             <TablaPaginada
               columnas={COLUMNAS_COLA}
               filas={filasCola(d)}
-              tam={15}
+              tam={10}
               nombre="contratos en cola"
               etiqueta={`Contratos de ${nombre} en cola`}
               buscar={{ placeholder: "Buscar qué se compra o el código del proceso…", etiqueta: "Buscar en los contratos en cola" }}

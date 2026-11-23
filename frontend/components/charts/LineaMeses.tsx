@@ -117,7 +117,9 @@ export function LineaMeses({
   }
   const conExtra = meses.some((m) => (m.extra ?? 0) > 0);
 
-  const marca = (m: Mes, i: number) => i === 0 || m.mes.endsWith("-01");
+  // El primer mes se rotula sólo si el primer enero queda lejos: «nov. 2023» y «2024» dos barras después se encimaban.
+  const primerEnero = meses.findIndex((m) => m.mes.endsWith("-01"));
+  const marca = (m: Mes, i: number) => (i === 0 ? primerEnero === -1 || primerEnero >= 4 : m.mes.endsWith("-01"));
 
   return (
     // data-lista="grafico": la tabla plegada de abajo son los datos del gráfico (su versión accesible), no una lista

@@ -30,7 +30,7 @@ import { PASOS, nombreDeAgente, pasoDeClave, pasosDelPerfil, TOTAL_PASOS, type P
 import { CarrilesAgentes } from "./CarrilesAgentes";
 import { EjeAgentes, rangoDelAnalisis, ventanaDe } from "./EjeAgentes";
 import { FiltrosSenales, type GravedadFiltro } from "./FiltrosSenales";
-import { DetalleSenal, ResumenEvidencia, evidenciaRecortada, sinRepetidas } from "./ListaSenales";
+import { DetalleSenal, ResumenEvidencia, deOtroProceso, evidenciaRecortada, sinRepetidas } from "./ListaSenales";
 import { MatrizReglas } from "./MatrizReglas";
 import { LeyendaCotejo } from "./SelloVerificada";
 import { agruparPorAgente, contar, ORDEN_SEVERIDAD, SIN_AGENTE, type SenalAgente } from "./senales";
@@ -173,6 +173,9 @@ export function AuditoriaDeAgentes({
             metaEnVarias
             meta={
               <span className="block max-w-prose text-pretty leading-relaxed text-inkSoft">
+                {deOtroProceso(s.evidencia) && (
+                  <span className="mb-1 mr-1.5 inline-flex rounded-full bg-amber-soft px-2 py-0.5 text-rotulo font-semibold text-amberTexto">De otro proceso</span>
+                )}
                 {(temaDe || s.item) && (
                   <span className="mb-0.5 block text-rotulo text-mute">
                     {temaDe?.(s.regla).titulo}

@@ -250,7 +250,7 @@ function Barras({ filas, total }: { filas: DatoGasto[]; total: number }) {
   return (
     <div className="py-2">
       <ListaPaginada
-        tam={12}
+        tam={10}
         nombre="rubros"
         className="space-y-3 px-2"
         buscar={filas.length > 12 ? { placeholder: "Buscar un rubro…", etiqueta: "Buscar en los rubros del gasto" } : undefined}

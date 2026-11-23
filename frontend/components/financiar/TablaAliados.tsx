@@ -59,7 +59,7 @@ export function TablaAliados({ aliados, etiqueta }: { aliados: AliadoFila[]; eti
       columnas={COLUMNAS}
       filas={filas}
       etiqueta={etiqueta}
-      tam={15}
+      tam={10}
       nombre="aliados"
       buscar={{ placeholder: "Buscar un aliado por su nombre…", etiqueta: "Buscar un aliado" }}
     />

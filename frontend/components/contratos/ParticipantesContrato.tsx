@@ -143,7 +143,7 @@ export function SeccionParticipantes({ c }: { c: Detalle }) {
         filas={filas}
         etiqueta="Participantes del proceso: quién se registró, quién ofertó y quién ganó"
         nombre="participantes"
-        tam={20}
+        tam={10}
         medida="contenedor"
         buscar={{ placeholder: "Buscar un participante por razón social o RUC…", etiqueta: "Buscar en los participantes" }}
       />

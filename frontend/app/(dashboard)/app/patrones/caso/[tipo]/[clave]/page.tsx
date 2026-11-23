@@ -79,8 +79,8 @@ export default async function CasoPatronPagina({ params }: { params: { tipo: str
                   {c.serie.etiquetaB}
                 </span>
               </p>
-              {/* El rótulo de arriba del eje se dibuja por encima de la caja del gráfico: aire para que no pise la leyenda. */}
-              <div className="pt-5">
+              {/* El aire de arriba del eje ya lo trae el gráfico (ColumnasAnio, 2026-11-23). */}
+              <div>
                 <ColumnasAnio anios={c.serie.anios} etiquetaA={c.serie.etiquetaA} etiquetaB={c.serie.etiquetaB} etiqueta={c.serie.titulo} />
               </div>
             </section>

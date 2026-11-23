@@ -139,7 +139,7 @@ export function EnRevision({ items, total = null }: { items: AnalisisEnRevision[
         columnas={COLUMNAS}
         filas={filas}
         etiqueta="Financiados en revisión"
-        tam={20}
+        tam={10}
         nombre="contratos en revisión"
         buscar={{ placeholder: "Buscar un contrato, una entidad, una zona o un motivo…", etiqueta: "Buscar en los financiados en revisión" }}
       />

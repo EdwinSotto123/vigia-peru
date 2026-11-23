@@ -109,7 +109,7 @@ function Instituciones({ datos, red }: { datos: Datos; red: boolean }) {
         filas={filas}
         etiqueta="Instituciones que más contratan, por rama"
         nombre="instituciones"
-        tam={25}
+        tam={10}
         densidad="compacta"
         buscar={{ placeholder: "Buscar una institución, región o partido…", etiqueta: "Buscar una institución" }}
         filtros={filtros}

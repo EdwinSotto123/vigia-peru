@@ -108,7 +108,7 @@ export function ListaZonas({
         columnas={columnas()}
         filas={filas(zonas)}
         etiqueta={etiqueta}
-        tam={15}
+        tam={10}
         nombre="zonas"
         buscar={{ placeholder: buscar, etiqueta: `Buscar en ${etiqueta.toLowerCase()}` }}
         densidad="compacta"

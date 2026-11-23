@@ -524,7 +524,7 @@ export async function SociosEmpresa({
             columnas={COLUMNAS_VINCULADAS}
             filas={filasVinculadas}
             etiqueta="Empresas vinculadas"
-            tam={15}
+            tam={10}
             nombre="empresas"
             buscar={{ placeholder: "Buscar empresa por nombre o RUC…", etiqueta: "Buscar en las empresas vinculadas" }}
             filtros={[

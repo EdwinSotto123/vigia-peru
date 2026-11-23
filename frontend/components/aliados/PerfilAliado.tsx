@@ -130,7 +130,7 @@ export function RegionesDeAliado({
         columnas={COLUMNAS_REGIONES}
         filas={filas}
         etiqueta="Zonas donde cayeron sus contratos"
-        tam={15}
+        tam={10}
         nombre="zonas"
         buscar={{ placeholder: "Buscar una zona…", etiqueta: "Buscar en sus zonas" }}
       />
@@ -234,7 +234,7 @@ export function TablaSenales({
       columnas={COLUMNAS_SENALES}
       filas={filas}
       etiqueta={`Contratos con señales financiados por ${nombre}`}
-      tam={15}
+      tam={10}
       nombre="contratos con señales"
       buscar={{ placeholder: "Buscar un contrato, una entidad o una zona…", etiqueta: "Buscar en sus señales" }}
     />

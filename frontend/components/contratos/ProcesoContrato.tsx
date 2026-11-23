@@ -642,7 +642,7 @@ function TablaContratos({ firmados, c }: { firmados: ContratoFirmado[]; c: Detal
       columnas={columnas}
       filas={filas}
       etiqueta="Contratos firmados del proceso"
-      tam={25}
+      tam={10}
       nombre="contratos"
       buscar={{ placeholder: "Buscar por número, código o contratista…", etiqueta: "Buscar entre los contratos firmados" }}
       medida="contenedor"
@@ -779,7 +779,8 @@ function SeccionCronograma({ c }: { c: Detalle }) {
         ),
         fuente: (
           <span className="block min-w-0">
-            {h.fuentes.map((f) => <span key={f} className="block truncate text-meta text-inkSoft">{FUENTE_HITO[f]}</span>)}
+            {/* La fuente entera, en dos renglones si hace falta (se cortaba: «Documentos del SE…»). */}
+            {h.fuentes.map((f) => <span key={f} className="block text-meta leading-snug text-inkSoft">{FUENTE_HITO[f]}</span>)}
           </span>
         ),
       },
@@ -806,7 +807,7 @@ function SeccionCronograma({ c }: { c: Detalle }) {
         filas={filas}
         etiqueta="Hitos del proceso con su fecha y su fuente"
         nombre="hitos"
-        tam={25}
+        tam={10}
         medida="contenedor"
         buscar={{ placeholder: "Buscar un hito o un documento…", etiqueta: "Buscar en el cronograma" }}
       />

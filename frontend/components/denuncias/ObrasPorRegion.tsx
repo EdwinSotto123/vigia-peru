@@ -57,7 +57,7 @@ export function ObrasPorRegion({ zonas }: { zonas: ContratoZona[] }) {
         filas={filas}
         etiqueta="Contratos de obras por región (cada una abre su región en el mapa)"
         densidad="compacta"
-        tam={25}
+        tam={10}
         nombre="regiones"
         buscar={{ placeholder: "Buscar una región…", etiqueta: "Buscar una región" }}
         ordenes={[

@@ -9,7 +9,7 @@
  * AuditoriaDeAgentes en el informe y components/alertas/ListaSenales en el índice.
  */
 
-import { ExternalLink, FileText } from "lucide-react";
+import { ExternalLink, FileText, Shuffle } from "lucide-react";
 import { Ayuda } from "@/components/patrones/Ayuda";
 import { BloqueDetalle, ChipsDetalle, CitaDetalle, CuerpoDetalle, DatosClave, type DatoClave } from "@/components/patrones/Detalle";
 import { Severidad } from "@/components/ui/Severidad";
@@ -37,6 +37,15 @@ function hastaPalabraEntera(t: string): string {
   const sinFin = t.trimEnd().replace(/[\s,;:(«"“-]+$/, "");
   const esp = sinFin.lastIndexOf(" ");
   return `${esp > sinFin.length * 0.7 ? sinFin.slice(0, esp).replace(/[\s,;:(«"“-]+$/, "") : sinFin}…`;
+}
+
+/**
+ * ¿El hallazgo es de OTRO proceso? Los agentes de prensa y de la web a veces traen un antecedente de la entidad o del
+ * proveedor y lo dicen en la evidencia («proceso distinto al analizado», «no al contrato del camión volquete»; contrato
+ * 1238560, 2026-11-23). Se avisa en el panel y en la fila: es un antecedente, no un hecho de este contrato.
+ */
+export function deOtroProceso(evidencia: string | null | undefined): boolean {
+  return /proceso distinto al (?:analizado|evaluado)|distinto (?:al|del) (?:proceso|contrato) (?:analizado|evaluado)|\bno (?:corresponde )?al (?:contrato|proceso) (?:analizado|evaluado|del\b)|\bno al contrato\b/i.test(evidencia ?? "");
 }
 
 /** ¿La fuente es un registro del Estado? Una nota de prensa o una web no es una «fuente oficial». */
@@ -240,6 +249,7 @@ export function DetalleSenal({
   const norma = normaLegible(senal.norma);
   const oficial = !!senal.fuenteUrl && esFuenteOficial(senal.fuenteUrl);
   const cortada = cortadaAlGuardar(senal.evidencia);
+  const otroProceso = deOtroProceso(senal.evidencia);
   const datos: DatoClave[] = [
     {
       etiqueta: "La encontró",
@@ -274,6 +284,16 @@ export function DetalleSenal({
       </ChipsDetalle>
 
       {contexto}
+
+      {otroProceso && (
+        <p className="flex items-start gap-2 rounded-xl border border-amber/30 bg-amber-soft px-3 py-2.5 text-meta leading-snug text-amberTexto">
+          <Shuffle size={15} className="mt-0.5 shrink-0" aria-hidden />
+          <span>
+            <strong className="font-semibold">Es de otro proceso.</strong> El propio hallazgo dice que no es sobre este contrato: sirve como
+            antecedente de la entidad o del proveedor, no como un hecho de esta compra.
+          </span>
+        </p>
+      )}
 
       <BloqueDetalle titulo="Qué se encontró">
         {/* Sin las formas de máquina de la regla (el campo de origen, «sanción(es)», fechas ISO), como en la fila. */}

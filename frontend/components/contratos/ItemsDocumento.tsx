@@ -202,7 +202,7 @@ export function DesgloseItems({ c }: { c: Detalle }) {
         filas={filas}
         etiqueta="Renglones de lo que se compró según las bases y el contrato"
         nombre="renglones"
-        tam={20}
+        tam={10}
         buscar={{ placeholder: "Buscar en los renglones por producto o marca…", etiqueta: "Buscar en los renglones" }}
       />
       <FuenteDato

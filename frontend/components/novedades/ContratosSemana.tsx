@@ -138,7 +138,7 @@ export function ContratosSemana({
             columnas={columnas}
             filas={vistas}
             etiqueta={`${plural(vistas.length, "contrato", "contratos")} (toca uno para ver su evidencia)`}
-            tam={15}
+            tam={10}
             nombre="contratos"
             buscar={{ placeholder: "Buscar una entidad, una empresa, qué se compró…", etiqueta: "Buscar entre los contratos de la semana" }}
             filtros={filtros}

@@ -308,7 +308,7 @@ export default async function FuncionarioPage({ params, searchParams }: { params
                       : "No presentó declaraciones juradas de intereses a la Contraloría."}
                   </CabeceraPestana>
                   {f.cargos.length > 0 && (
-                    <TablaPaginada columnas={COLUMNAS_CARGOS} filas={f.cargos.map(filaCargo)} etiqueta="Cargos declarados a la Contraloría" nombre="cargos" tam={15} />
+                    <TablaPaginada columnas={COLUMNAS_CARGOS} filas={f.cargos.map(filaCargo)} etiqueta="Cargos declarados a la Contraloría" nombre="cargos" tam={10} />
                   )}
                 </section>
                 {(f.empleos ?? []).length > 0 && (
@@ -330,7 +330,7 @@ export default async function FuncionarioPage({ params, searchParams }: { params
                     >
                       {resumenEmpleos(f.empleos ?? [])}
                     </CabeceraPestana>
-                    <TablaPaginada columnas={COLUMNAS_EMPLEOS} filas={(f.empleos ?? []).map(filaEmpleo)} etiqueta="Trabajos que declaró" nombre="empleos" tam={15} />
+                    <TablaPaginada columnas={COLUMNAS_EMPLEOS} filas={(f.empleos ?? []).map(filaEmpleo)} etiqueta="Trabajos que declaró" nombre="empleos" tam={10} />
                   </section>
                 )}
               </div>
@@ -1355,7 +1355,7 @@ function VisitasRecibidas({ r }: { r: FichaFuncionario["recibidas"] }) {
           filas={r.filas.map(filaRecibida)}
           etiqueta="Empresas cuya gente la visitó"
           nombre="empresas"
-          tam={20}
+          tam={10}
           buscar={{ placeholder: "Buscar por empresa o entidad…", etiqueta: "Buscar en las empresas que la visitaron" }}
         />
       ) : null}
