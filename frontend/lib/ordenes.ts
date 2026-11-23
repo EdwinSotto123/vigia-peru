@@ -64,6 +64,9 @@ export interface ProcesoCandidato {
   adjudicado: number | null;
   /** Lo adjudicado es el monto de la orden (±S/ 1): el más probable. */
   mismoMonto: boolean;
+  /** Las banderas del proceso para ese proveedor (casos_cruce), si Vigía lo tiene: la gravedad mayor y cada tipo. */
+  severidad?: "alta" | "media" | "baja" | null;
+  cruces?: { tipo: string; severidad: "alta" | "media" | "baja"; n?: number }[] | null;
 }
 
 /** Los procesos que una orden de pago puede estar pagando: cuántos son y los más cercanos (hasta 8). */

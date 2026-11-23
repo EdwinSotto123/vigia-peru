@@ -1828,6 +1828,12 @@ function FilaProcesoCandidato({ c, documentos = false }: { c: ProcesoCandidato; 
         </Dato>
         {c.mismoMonto && <span className="pill border-line bg-paperSoft font-semibold text-ink">Mismo monto que la orden</span>}
       </p>
+      {/* Las banderas del proceso, que la orden paga: antes el panel de la orden no decía si su proceso tenía antecedentes. */}
+      {c.cruces && c.cruces.length > 0 && (
+        <div className="pt-1">
+          <CrucesCelda cruces={c.cruces} max={4} etiquetaLista="Antecedentes del proceso que paga" />
+        </div>
+      )}
       {/* Sin el proceso en Vigía, sus PDF del registro del OECE (2026-11-23: «¿por qué no trae documentos?»). Sólo el más
           cercano a la orden: uno por panel, para no pedir ocho registros al OECE. */}
       {documentos && !c.ocid && (

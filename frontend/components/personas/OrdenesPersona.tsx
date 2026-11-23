@@ -20,6 +20,7 @@ import { Dato } from "@/components/ui/Dato";
 import { Paginacion } from "@/components/ui/Paginacion";
 import { motivoDudoso } from "@/lib/datoDudoso";
 import { fechaConAnio, oracion, soles } from "@/lib/formato";
+import { CrucesCelda } from "@/components/contratos/CrucesCelda";
 import { DocumentosProceso } from "@/components/ordenes/DocumentosProceso";
 import { CONOSCE_BUSCADOR, enlacesProceso } from "@/lib/fuentes";
 import { tituloNatural } from "@/lib/landing";
@@ -142,6 +143,8 @@ function BloqueProceso({ p, otros }: { p: ProcesoGanado; otros: number }) {
           probable, no un dato publicado.
         </Ayuda>
       </h3>
+      {/* Sus banderas en Vigía (casos_cruce), si las tiene: la orden las hereda. */}
+      {p.cruces && p.cruces.length > 0 && <CrucesCelda cruces={p.cruces} max={4} etiquetaLista="Antecedentes del proceso" />}
       <DatosClave
         items={[
           { etiqueta: "Proceso", valor: p.nomenclatura ?? `Código ${p.codigo}`, mono: true },

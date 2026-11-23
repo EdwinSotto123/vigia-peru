@@ -234,7 +234,11 @@ const PROCESOS_PAGO = `CASE WHEN o.tipo_contratacion ~* '^deviene de'
           THEN (SELECT jsonb_build_object('total', COALESCE(max(t.total), 0), 'lista', COALESCE(jsonb_agg(jsonb_build_object(
                          'codigo', t.codigo, 'nomenclatura', t.nomenclatura, 'descripcion', t.descripcion,
                          'buenaPro', to_char(t.f, 'YYYY-MM-DD'), 'adjudicado', t.adjudicado::float, 'mismoMonto', t.mismo,
-                         'ocid', (SELECT c.ocid FROM convocatorias c WHERE c.codigo = t.codigo ORDER BY c.ocid LIMIT 1)) ORDER BY t.rn), '[]'::jsonb))
+                         'ocid', cv.ocid,
+                         -- Las banderas del proceso para este proveedor (casos_cruce): la orden las hereda a la vista
+                         -- (2026-11-23, «capaz ni hay banderas en esas órdenes»). Sin el proceso en Vigía, null.
+                         'severidad', (SELECT k.severidad FROM casos_cruce k WHERE k.ocid = cv.ocid AND k.ruc = o.ruc_contratista LIMIT 1),
+                         'cruces', (SELECT k.cruces FROM casos_cruce k WHERE k.ocid = cv.ocid AND k.ruc = o.ruc_contratista LIMIT 1)) ORDER BY t.rn), '[]'::jsonb))
                   FROM (SELECT p.*, count(*) OVER () AS total,
                                row_number() OVER (ORDER BY p.mismo DESC, p.alcanza DESC, p.f DESC, p.codigo) AS rn
                           FROM (SELECT a.codigo_convocatoria AS codigo, max(a.nomenclatura) AS nomenclatura,
@@ -252,7 +256,9 @@ const PROCESOS_PAGO = `CASE WHEN o.tipo_contratacion ~* '^deviene de'
                                          ORDER BY a.codigo_convocatoria, a.n_item, a.anio DESC) a
                                  GROUP BY a.codigo_convocatoria
                                 HAVING min(a.fecha_buenapro) >= o.fecha_emision - 1095) p
-                         ORDER BY rn LIMIT 8) t) END`;
+                         ORDER BY rn LIMIT 8) t
+                  -- El OCID sólo de los 8 que se muestran (con él, su ficha y sus banderas).
+                  LEFT JOIN LATERAL (SELECT c.ocid FROM convocatorias c WHERE c.codigo = t.codigo ORDER BY c.ocid LIMIT 1) cv ON true) END`;
 
 const COLS = `to_char(o.fecha_emision, 'YYYY-MM-DD') AS fecha, o.entidad, o.entidad_ruc AS "entidadRuc", o.departamento,
               o.nro_orden AS numero, o.orden, o.tipo_orden AS "tipoOrden", o.descripcion, o.contratista,
