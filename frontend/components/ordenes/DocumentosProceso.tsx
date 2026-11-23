@@ -1,6 +1,6 @@
 import { ExternalLink, FileText, TriangleAlert } from "lucide-react";
 import { documentosOece } from "@/lib/documentosOece";
-import { busquedaOece, procesoOece } from "@/lib/fuentes";
+import { procesoOece } from "@/lib/fuentes";
 import { fechaConAnio } from "@/lib/formato";
 
 /**
@@ -48,13 +48,16 @@ export async function DocumentosProceso({ codigo, aviso = true }: { codigo: stri
           <p className="text-rotulo text-mute">Se descargan del SEACE: son los archivos que publicó la entidad.</p>
         </>
       )}
+      {/* Su ficha en Contrataciones Abiertas, con el OCID armado del código: abre en el navegador de quien lee, con sus
+          documentos. Es lo que queda cuando el servidor no pudo leer el registro (el OECE responde 403 a la IP de
+          Cloudflare; la carga diaria pasa por el relay, que no se usa para cada panel). */}
       <a
-        href={r ? procesoOece(codigo) : busquedaOece(codigo)}
+        href={procesoOece(codigo)}
         target="_blank"
         rel="noreferrer"
         className="inline-flex items-center gap-1 text-meta font-semibold text-granate underline-offset-2 hover:underline"
       >
-        {r ? "El proceso en Contrataciones Abiertas (OECE)" : `Buscar el proceso ${codigo} en Contrataciones Abiertas (OECE)`}
+        {docs.length > 0 ? "El proceso en Contrataciones Abiertas (OECE)" : "Sus documentos (bases, buena pro, contrato) en Contrataciones Abiertas (OECE)"}
         <ExternalLink size={12} aria-hidden />
       </a>
     </div>
