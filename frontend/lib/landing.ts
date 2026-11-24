@@ -64,9 +64,20 @@ const SIGLA = new RegExp(
   "i",
 );
 
+/**
+ * Las palabras de dos letras del castellano: las demás, en mayúsculas, son siglas («LABORATORIOS AC FARMA» salía
+ * «Laboratorios Ac Farma»; 2026-11-24).
+ */
+const DOS_LETRAS = new Set(["de", "la", "el", "en", "al", "su", "lo", "le", "mi", "tu", "no", "si", "sí", "ya", "un", "es", "se", "me", "te",
+  "ni", "os", "ha", "he", "va", "ve", "da", "di", "fe", "ir", "yo", "oh", "ay", "ex", "id"]);
+
 function palabra(p: string, enMayuscula: boolean): string {
   if (!p) return p;
   if (SIGLA.test(p.replace(/[(),.;:]+$/g, "")) || /\d/.test(p)) return p; // siglas y códigos: tal cual
+  const limpio = p.replace(/^[(]+|[(),;:]+$/g, "");
+  // Iniciales con punto («Y.I.», «CC.PP.») y siglas de dos letras («AC»): tal cual.
+  if (/^(\p{L}{1,2}\.){2,}$/u.test(limpio)) return p;
+  if (/^\p{Lu}{2}$/u.test(limpio) && !DOS_LETRAS.has(limpio.toLocaleLowerCase("es"))) return p;
   const baja = conTildes(p.toLocaleLowerCase("es"));
   if (enMayuscula) return baja.charAt(0).toLocaleUpperCase("es") + baja.slice(1);
   return baja;
