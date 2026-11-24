@@ -91,6 +91,18 @@ export function listaY(xs: string[]): string {
  * minúsculas se deja como viene (lo escribió alguien a mano). Las mismas palabras en todas las listas: contratos,
  * procesos, partidas del presupuesto.
  */
+/**
+ * Siglas que una oración no pasa a minúsculas («… redes asistenciales de essalud» → «de EsSalud» no: de ESSALUD, como lo
+ * escribe el registro). Sólo siglas que no son palabras del castellano.
+ */
+const SIGLAS_ORACION = new Set([
+  "essalud", "sunat", "sunarp", "sedapal", "osinergmin", "indecopi", "reniec", "inpe", "minsa", "minedu", "minam", "midagri", "mtc",
+  "mtpe", "mvcs", "midis", "minem", "mininter", "mindef", "minjus", "pcm", "sis", "ugel", "ugeles", "diresa", "geresa", "diris", "senamhi",
+  "senasa", "inei", "pnp", "fap", "ffaa", "provias", "foncodes", "pronabec", "pronied", "devida", "indeci", "cenepred", "sutran", "emape",
+  "sedalib", "epsel", "petroperu", "cofopri", "oece", "osce", "seace", "mef", "ruc", "cui", "uit", "igv", "iiee", "ie", "i.e.", "ii.ee.",
+  "eirl", "e.i.r.l.", "sac", "s.a.c.", "srl", "s.r.l.", "s.a.", "padomi", "covid", "covid-19", "tdr", "rnp", "ocds", "jne", "onpe",
+]);
+
 export function oracion(t: string): string {
   // Algunos objetos del SEACE traen el salto de línea escrito («Contratación de \nservicio…», con la barra y la n
   // literales): se vuelve un espacio.
@@ -101,7 +113,13 @@ export function oracion(t: string): string {
   // Escrito a mano: se respeta, pero empieza con mayúscula ("contratación de la obra…" → "Contratación de la obra…").
   if (letras.length === 0 || mayusculas / letras.length < 0.8) return s.charAt(0).toLocaleUpperCase("es") + s.slice(1);
   const b = conTildes(s.toLocaleLowerCase("es"));
-  return b.charAt(0).toLocaleUpperCase("es") + b.slice(1);
+  // Las siglas conocidas vuelven a como venían (palabra por palabra; pasar a minúsculas no cambia los espacios).
+  const orig = s.split(" ");
+  const bajas = b.split(" ");
+  const c = bajas.length === orig.length
+    ? bajas.map((w, i) => (SIGLAS_ORACION.has(w.replace(/^[("¿¡]+|[)",.;:!?]+$/g, "")) ? orig[i] : w)).join(" ")
+    : b;
+  return c.charAt(0).toLocaleUpperCase("es") + c.slice(1);
 }
 
 /** "1 contrato", "2 contratos". El número va formateado. */
