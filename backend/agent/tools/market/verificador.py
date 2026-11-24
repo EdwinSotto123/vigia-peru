@@ -26,6 +26,12 @@ _PCT_EXTREMO = float(os.getenv("PRECIO_PCT_EXTREMO", "300"))            # sobre 
 _MAX_ITEMS = int(os.getenv("PRECIO_VERIFICAR_MAX", "12"))
 
 
+def _soles(x) -> str:
+    """Precio unitario para el texto con los decimales que necesita (S/ 0.0205, no S/ 0.02: 2026-2543-197)."""
+    from .normalizar import _fmt_precio
+    return _fmt_precio(x)
+
+
 def _num(v):
     try:
         return float(v)
@@ -86,8 +92,8 @@ def guardas(f: dict, ma: dict | None = None) -> str | None:
     #    todos superaban 2 veces su propio valor referencial).
     ofertado, referencial = _num(f.get("precio_unitario_ofertado")), _num(f.get("precio_unitario_referencial"))
     if ofertado and referencial and ofertado > 2 * referencial:
-        return (f"el precio pactado (S/ {ofertado:,.2f}) es más del doble de su propio valor referencial "
-                f"(S/ {referencial:,.2f}): está mal tomado del documento")
+        return (f"el precio pactado (S/ {_soles(ofertado)}) es más del doble de su propio valor referencial "
+                f"(S/ {_soles(referencial)}): está mal tomado del documento")
     # El total con que se coteja es el mayor que haya (el del contrato o la cuantía): `total_ofertado` a veces suma sólo
     # los ítems analizados, y con 1,1 veces caía un sobreprecio cierto (1232055, tubo endotraqueal).
     cantidad = _num(f.get("cantidad"))
@@ -117,10 +123,10 @@ def guardas(f: dict, ma: dict | None = None) -> str | None:
             return "todas las compras de comparación son de un solo proceso"
         ps = [_num(r.get("precio_unitario")) for r in mismas]
         if min(ps) > 0 and max(ps) / min(ps) > _MAX_DISPERSION:
-            return (f"las otras compras del Estado van de S/ {min(ps):,.2f} a S/ {max(ps):,.2f}: son bienes distintos "
+            return (f"las otras compras del Estado van de S/ {_soles(min(ps))} a S/ {_soles(max(ps))}: son bienes distintos "
                     f"y su mediana no dice nada")
         if pactado and pactado <= max(ps):
-            return f"el precio pactado (S/ {pactado:,.2f}) está dentro de lo que pagaron otras entidades (hasta S/ {max(ps):,.2f})"
+            return f"el precio pactado (S/ {_soles(pactado)}) está dentro de lo que pagaron otras entidades (hasta S/ {_soles(max(ps))})"
         if 15 <= pct <= 22:
             return "una diferencia de 15 a 22 % contra otras compras puede ser sólo el IGV (unas lo incluyen y otras no)"
         return None
@@ -139,8 +145,8 @@ def guardas(f: dict, ma: dict | None = None) -> str | None:
         if n_decl < 10:
             return f"la referencia oficial tiene sólo {n_decl} declaraciones de precio: hacen falta al menos 10"
         if pactado and precios and pactado <= 1.15 * max(precios):
-            return (f"el precio pactado (S/ {pactado:,.2f}) no supera en 15 % al percentil 75 de los grifos "
-                    f"(S/ {max(precios):,.2f}): está dentro de lo que se cobra")
+            return (f"el precio pactado (S/ {_soles(pactado)}) no supera en 15 % al percentil 75 de los grifos "
+                    f"(S/ {_soles(max(precios))}): está dentro de lo que se cobra")
         return None
     # Perú Compras: una mediana sostenida por 5 entidades o más vale sola; su tope es el cuartil 3 y ya trae el IGV.
     respaldo = sum(int(_num(o.get("respaldo")) or 0) for o in obs)
@@ -152,12 +158,12 @@ def guardas(f: dict, ma: dict | None = None) -> str | None:
     if not oficial and len(tiendas) < 2:
         return "todos los precios de comparación son de una sola tienda"
     if min(precios) > 0 and max(precios) / min(precios) > _MAX_DISPERSION:
-        return (f"los precios de comparación van de S/ {min(precios):,.2f} a S/ {max(precios):,.2f}: son productos "
+        return (f"los precios de comparación van de S/ {_soles(min(precios))} a S/ {_soles(max(precios))}: son productos "
                 f"distintos y su mediana no dice nada")
     # La mediana contra el propio rango: si el precio pactado cae dentro de lo observado, no es sobreprecio.
     if pactado and pactado <= max(precios + topes):
-        return (f"el precio pactado (S/ {pactado:,.2f}) está dentro del rango de los precios observados "
-                f"(hasta S/ {max(precios + topes):,.2f})")
+        return (f"el precio pactado (S/ {_soles(pactado)}) está dentro del rango de los precios observados "
+                f"(hasta S/ {_soles(max(precios + topes))})")
     if oficial and not solo_catalogo and 15 <= pct <= 22:
         return "una diferencia de 15 a 22 % contra otras compras puede ser sólo el IGV (unas lo incluyen y otras no)"
     return None

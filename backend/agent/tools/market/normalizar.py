@@ -66,6 +66,30 @@ def _diff_pct(valor, mediana) -> float | None:
         return None
 
 
+def _precio_redondeado(x):
+    """Precio unitario para guardar: 2 decimales desde S/ 1; por debajo, 4 cifras significativas. Un medicamento de
+    S/ 0,0205 la tableta redondeado a 0,02 desvía el total de 51,9 millones de tabletas en S/ 26 000
+    (2026-2543-197, 2026-11-24): la mediana y los totales del lote se calculan con estos valores."""
+    if isinstance(x, bool) or not isinstance(x, (int, float)):
+        return x
+    v = float(x)
+    if v == 0 or abs(v) >= 1:
+        return round(v, 2)
+    import math
+    return round(v, 3 - math.floor(math.log10(abs(v))))
+
+
+def _fmt_precio(x) -> str:
+    """Precio unitario para un texto: «1,234.50», «0.36», «0.0205» (nunca «0.02» por 0,0205)."""
+    v = _precio_redondeado(x)
+    if not isinstance(v, (int, float)):
+        return str(x)
+    if v == 0 or abs(v) >= 1:
+        return f"{v:,.2f}"
+    s = f"{v:.10f}".rstrip("0")
+    return s if len(s.split(".")[1]) >= 2 else f"{v:.2f}"
+
+
 def _veredicto(diff_pct) -> str:
     """|Δ| < 15 alineado · 15 ≤ Δ < 50 elevado · Δ ≥ 50 muy_elevado · Δ ≤ −15 barato."""
     if not isinstance(diff_pct, (int, float)):
@@ -154,6 +178,12 @@ _OBJ_STOP = {
     "und", "pulgadas", "pulg", "plan", "programa", "ejecucion", "mantenimiento", "recuperacion",
     "reposicion", "puesto", "obra", "almacen", "entidad", "sede", "nuevo", "nueva", "anio", "fiscal",
     "in", "cm", "mm", "kg", "gal", "m2", "m3", "und", "unid", "pza", "bolsa", "saco", "rollo",
+    # Unidades y formas farmacéuticas: no dicen QUÉ se compra. Con «iny» en común la hidroxocobalamina daba 0,5 de
+    # solape con la enoxaparina y la tomaba de referencia (2026-2543-197, 2026-11-24).
+    "mcg", "unidades", "gramo", "gramos", "kilogramo", "kilogramos", "litro", "litros", "mililitro", "mililitros",
+    "miligramo", "miligramos", "galon", "galones", "tab", "tabs", "tableta", "tabletas", "comprimido", "comprimidos",
+    "cap", "caps", "capsula", "capsulas", "iny", "inyectable", "inyect", "amp", "ampolla", "ampollas", "jbe", "susp",
+    "fco",
 }
 # Comodines: objetos genéricos que no dicen qué se compra (todo ítem "coincide").
 _OBJ_COMODINES = ("bien", "material", "insumo", "producto", "articulo", "mercader", "equipamient", "divers")
@@ -231,6 +261,96 @@ def _solape_raices(item_texto: str, otro_texto: str) -> float:
         return 0.0
     n = sum(1 for a in ri if any(_raices_coinciden(a, b) for b in ro))
     return n / len(ri)
+
+
+# ── Firma de un medicamento: principio(s) activo(s) + concentración ──
+# El solape de palabras no distingue presentaciones de un medicamento: «VALSARTAN 80 mg TAB» y «VALSARTAN 160 mg TAB»
+# comparten todas sus palabras, y «SACUBITRILO + VALSARTAN 24 mg / 26 mg» entró como referencia del valsartán por el
+# CUBSO (2026-2543-197, 2026-11-24). Para un medicamento la referencia tiene que ser el mismo principio activo con la
+# misma concentración y presentación.
+_DOSIS_RE = re.compile(
+    r"(\d+(?:[.,]\d+)?)\s*(mcg|µg|ug|mg|gr|g|ui|meq|mmol|%|ml|lt|l)(?![a-z])"
+    r"(?:\s*/\s*(\d+(?:[.,]\d+)?)?\s*(ml|lt|l)(?![a-z]))?", re.IGNORECASE)
+_DOSIS_MASA = {"mcg": ("mg", 0.001), "µg": ("mg", 0.001), "ug": ("mg", 0.001), "mg": ("mg", 1.0),
+               "g": ("mg", 1000.0), "gr": ("mg", 1000.0), "ui": ("ui", 1.0), "meq": ("meq", 1.0),
+               "mmol": ("mmol", 1.0)}
+_DOSIS_VOL = {"ml": 1.0, "l": 1000.0, "lt": 1000.0}
+# Unidades que por sí solas dicen «medicamento»; g, mL y % solo junto a una forma farmacéutica.
+_UNIDADES_FARMACO = {"mcg", "µg", "ug", "mg", "ui", "meq", "mmol"}
+_FORMAS_FARMACO = {
+    "tab", "tabs", "tableta", "tabletas", "tb", "comprimido", "comprimidos", "cap", "caps", "capsula", "capsulas",
+    "gragea", "iny", "inyectable", "inyect", "amp", "ampolla", "ampollas", "vial", "jbe", "jarabe", "sus", "susp",
+    "suspension", "aer", "aerosol", "inh", "oft", "gts", "gotas", "plv", "ovulo", "ovu", "supositorio",
+}
+# Palabras que no son el principio activo: forma, vía, envase, presentación, liberación y rótulos del proceso.
+_NO_PRINCIPIO = _FORMAS_FARMACO | {
+    "sol", "solucion", "oral", "via", "nasal", "otica", "oftalmica", "topico", "topica", "crema", "crm", "ung",
+    "unguento", "gel", "loc", "locion", "emulsion", "polvo", "liofilizado", "solvente", "diluyente", "concentrado",
+    "parche", "transdermico", "jeringa", "prellenada", "cartucho", "lapicero", "pluma", "sachet", "sobre", "env",
+    "envase", "frasco", "blister", "caja", "dosis", "inhalacion", "inhalador", "recubierta", "recubierto",
+    "dispersable", "efervescente", "masticable", "sublingual", "vaginal", "rectal", "producto", "productos",
+    "farmaceutico", "farmaceuticos", "medicamento", "medicamentos", "petitorio", "pnume", "equiv", "equivalente",
+    "lib", "liberacion", "ret", "retard", "retardada", "pro", "prol", "prolongada", "mod", "modificada", "sostenida",
+    "extendida", "controlada", "anhidro", "anhidra", "monohidrato", "dihidrato", "trihidrato", "hemihidrato",
+}
+_LIBERACION_MODIFICADA_RE = re.compile(
+    r"\blib(?:eraci[oó]n)?\.?\s*(?:ret|pro|prol|mod|prolongada|retardada|modificada|sostenida|extendida|controlada)"
+    r"|\b(?:lm|lp|xr|sr|retard)\b", re.IGNORECASE)
+
+
+def _num_dosis(s: str) -> float:
+    return float(s.replace(",", "."))
+
+
+def _firma_medicamento(texto: str) -> tuple | None:
+    """(principios activos, dosis, liberación modificada) de una descripción de medicamento, o None si no lo es (sin
+    dosis con mg/mcg/UI/mEq, ni g/mL/% junto a una forma farmacéutica). Las dosis se llevan a una sola escala: mg (o UI,
+    mEq, mmol) absolutos —una concentración por mL × el volumen: «100 mg/mL INY 0.6 mL» = «60 mg INY 0,6 mL»—, el
+    volumen en mL y el %. Lo entre paréntesis sin cifras (sinónimos) y los «equivalente a…» no cuentan."""
+    t = _sin_tildes(texto or "").lower()
+    if not t:
+        return None
+    t = re.sub(r"\(?\s*equiv[^)]*\)?", " ", t)
+    dosis = list(_DOSIS_RE.finditer(t))
+    if not dosis:
+        return None
+    palabras = set(re.split(r"[^a-z]+", _DOSIS_RE.sub(" ", t)))
+    unidades = {m.group(2).lower() for m in dosis}
+    if not (unidades & _UNIDADES_FARMACO or any(m.group(4) for m in dosis) or palabras & _FORMAS_FARMACO):
+        return None
+    masas, concs, vols = set(), set(), set()
+    for m in dosis:
+        v, u, por_n, por_u = _num_dosis(m.group(1)), m.group(2).lower(), m.group(3), m.group(4)
+        if u == "%":
+            # «0,9 %» es 9 mg/mL (p/v): «0,9 % INY 100 mL» = «900 mg/100 mL INY 100 mL».
+            concs.add(("mg", v * 10.0))
+        elif u in _DOSIS_VOL:
+            vols.add(v * _DOSIS_VOL[u])
+        elif por_u:
+            fam, f = _DOSIS_MASA[u]
+            por = (_num_dosis(por_n) if por_n else 1.0) * _DOSIS_VOL[por_u.lower()]
+            concs.add((fam, v * f / por))
+        else:
+            fam, f = _DOSIS_MASA[u]
+            masas.add((fam, v * f))
+    firma = {(fam, round(x, 6)) for fam, x in masas}
+    for fam, c in concs:
+        firma |= {(fam, round(c * v, 6)) for v in vols} if vols else {(fam + "/ml", round(c, 6))}
+    firma |= {("ml", round(v, 6)) for v in vols}
+    sin_parentesis = re.sub(r"\([^)0-9]*\)", " ", _DOSIS_RE.sub(" ", t))
+    principios = frozenset(_raiz(w) for w in re.split(r"[^a-z]+", sin_parentesis)
+                           if len(w) >= 3 and w not in _OBJ_STOP and w not in _NO_PRINCIPIO)
+    return principios, frozenset(firma), bool(_LIBERACION_MODIFICADA_RE.search(t))
+
+
+def _mismo_medicamento(firma_item: tuple | None, firma_ref: tuple | None) -> bool:
+    """La referencia es el mismo medicamento que el ítem: sus principios activos están todos en el ítem (el ítem puede
+    traer la descripción larga del parser; una referencia con un principio de más —«SACUBITRILO + VALSARTAN» para el
+    valsartán— no pasa), misma dosis y misma liberación (normal o modificada)."""
+    if firma_item is None or firma_ref is None:
+        return False
+    return bool(firma_ref[0]) and firma_ref[0] <= firma_item[0] and firma_ref[1] == firma_item[1] \
+        and firma_ref[2] == firma_item[2]
 
 
 def _coincide_objeto_fallback(objeto: str, items) -> bool:

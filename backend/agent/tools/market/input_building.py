@@ -465,14 +465,36 @@ def build_market_input(ocid: str, tool_context: ToolContext) -> dict:
         items_para_market.append(it)
     items_finales = items_para_market
 
+    em = _safe_parse_json(state.get("estudio_mercado")) or {}
+    cf = _safe_parse_json(state.get("contrato_final")) or {}
+    ocds_state = state.get("ocds") or {}
+
+    # ── Ítems desiertos, nulos, cancelados o sin adjudicar ──
+    # No tienen precio ofertado ni contrato: no se comparan con el mercado ni suman a los totales (sus sub-ítems y
+    # hermanos tampoco). 2026-2543-197 (EsSalud, 13 medicamentos, 2026-11-24): la cafeína y la hidroxocobalamina
+    # quedaron DESIERTAS y aun así se compararon —con el precio adjudicado del ácido fólico y del valsartán— y
+    # entraron al total del lote.
+    sin_adjudicar = _items_sin_adjudicar_ocds(ocds_state, sql_items_by_num, ofertas_by_num)
+    items_no_adjudicados: list[dict] = []
+    if sin_adjudicar:
+        excl = {_normalize_id(n) for n in sin_adjudicar}
+
+        def _de_item_excluido(it: dict) -> bool:
+            return any(it.get(k) is not None and _normalize_id(it.get(k)) in excl
+                       for k in ("numero", "padre_ocds_item", "hermano_de_ocds_item"))
+        items_finales = [it for it in items_finales if not _de_item_excluido(it)]
+        padres_info = [p for p in padres_info if _normalize_id(p.get("numero")) not in excl]
+        for n, info in sin_adjudicar.items():
+            s = sql_items_by_num.get(n) or {}
+            items_no_adjudicados.append({"numero": n, "descripcion": (s.get("descripcion_corta") or "")[:200],
+                                         "cantidad": s.get("cantidad"),
+                                         "cuantia_referencial_item": s.get("cuantia_referencial_item"), **info})
+
     # ── Precio OFERTADO por ítem (nunca el referencial etiquetado como ofertado) ──
     # Prioridad: parser R4 (`precio_unitario_ofertado`/`origen_precio`) > `items_contratados[]`
     # (R4) > ítems del contrato/OC en `items_otros_documentos` (hoy llegan con el precio pactado en
     # `precio_unitario_referencial`, 1225416/1225450) > oferta ganadora en BD > awards[].items[]
     # del OCDS > prorrateo del contrato cuando todos los ítems comparten unidad de medida.
-    em = _safe_parse_json(state.get("estudio_mercado")) or {}
-    cf = _safe_parse_json(state.get("contrato_final")) or {}
-    ocds_state = state.get("ocds") or {}
     contratados = _items_contratados_del_state(state, doc_llm)
     award_items = _award_items_ocds(ocds_state)
     cuantia_referencial_total = sum((v.get("cuantia_referencial_item") or 0) for v in sql_items_by_num.values())
@@ -508,6 +530,12 @@ def build_market_input(ocid: str, tool_context: ToolContext) -> dict:
         "Bases). Trabaja con descripcion_corta y declara `estado: 'no_verificable'` en los "
         "findings cuyo producto hallado no pueda contrastarse con el requerimiento."
     )
+    if items_no_adjudicados:
+        mensaje_base += (
+            f" Se excluyeron {len(items_no_adjudicados)} ítem(s) desierto(s), nulo(s) o sin adjudicar (no se "
+            f"comparan con el mercado ni suman al total): "
+            + "; ".join(f"{x['numero']} {x['descripcion'][:60]} ({x['motivo']})" for x in items_no_adjudicados[:10]) + "."
+        )
     mensaje_lote = ""
     if padres_info:
         p = padres_info[0]
@@ -518,6 +546,22 @@ def build_market_input(ocid: str, tool_context: ToolContext) -> dict:
             f"por cada sub-ítem; la suma cantidad × mediana y la comparación contra el lote las "
             f"calcula el código, no tú."
         )
+
+    # Cuantía referencial del proceso (fallback explícito, nunca se etiqueta como "ofertado").
+    if not cuantia_referencial_total:
+        try:
+            cuantia_referencial_total = float(((ocds_state.get("tender") or {}).get("value") or {}).get("amount") or 0)
+        except (TypeError, ValueError):
+            cuantia_referencial_total = 0.0
+    # Referencial de lo que se compara: sin los ítems desiertos o sin adjudicar.
+    cuantia_ref_comparada = ((sum((v.get("cuantia_referencial_item") or 0) for k, v in sql_items_by_num.items()
+                                  if k not in sin_adjudicar) or None) if sin_adjudicar
+                             else (cuantia_referencial_total or None))
+    total_ofertado, total_ofertado_base = _total_ofertado_proceso(items_finales, contratados, cf, ocds_state,
+                                                                  cuantia_ref_comparada)
+    # El contrato leído de los documentos no es el total del proceso cuando hay varios ganadores o contratos
+    # (`_total_ofertado_proceso` no lo tomó): 2026-2543-197 tiene 8 contratos y se leyó el de la enoxaparina.
+    contrato_parcial = bool(_market_to_num(cf.get("precio_final_total"))) and total_ofertado_base != "contrato"
 
     # ── Anclas de precio OFICIALES (ruteo incremental) ──
     # Además de las búsquedas web, el market_agent recibe el valor referencial del
@@ -531,34 +575,37 @@ def build_market_input(ocid: str, tool_context: ToolContext) -> dict:
             f"{em.get('comparacion_precio_historico') or '—'}. Usá esto como ANCLA: si tus "
             f"precios web difieren mucho del referencial oficial, explicá por qué."
         )
-    if cf.get("precio_final_total"):
+    if cf.get("precio_final_total") and contrato_parcial:
+        mensaje_ancla += (
+            f"\n\n💵 CONTRATO LEÍDO: {cf.get('precio_final_total')} {cf.get('moneda') or ''}. Es UNO de los "
+            f"contratos del proceso (varios ganadores o contratos), NO el total: el total es {total_ofertado} "
+            f"({total_ofertado_base}). Compará precio por ítem."
+        )
+    elif cf.get("precio_final_total"):
         mensaje_ancla += (
             f"\n\n💵 PRECIO FINAL CONTRATADO (Orden de Compra): {cf.get('precio_final_total')} "
             f"{cf.get('moneda') or ''}. Compará el precio FINAL contra tu mediana de mercado, "
             f"no solo contra el referencial."
         )
     precio_final_vs_ref = None
-    try:
-        _vr, _pf = em.get("valor_referencial"), cf.get("precio_final_total")
-        if _vr and _pf and float(_vr) > 0:
-            precio_final_vs_ref = round((float(_pf) - float(_vr)) / float(_vr) * 100, 1)
-    except Exception:
-        precio_final_vs_ref = None
-
-    # Cuantía referencial del proceso (fallback explícito, nunca se etiqueta como "ofertado").
-    if not cuantia_referencial_total:
+    if contrato_parcial:
+        # Un contrato de varios contra el referencial del proceso entero no dice nada (2026-2543-197 daba −93,6 %):
+        # se compara el total del proceso con el referencial de los mismos ítems.
+        if total_ofertado and total_ofertado_base != "referencial" and cuantia_ref_comparada:
+            precio_final_vs_ref = round((float(total_ofertado) - cuantia_ref_comparada) / cuantia_ref_comparada * 100, 1)
+    else:
         try:
-            cuantia_referencial_total = float(((ocds_state.get("tender") or {}).get("value") or {}).get("amount") or 0)
-        except (TypeError, ValueError):
-            cuantia_referencial_total = 0.0
-    if precio_final_vs_ref is None and cf.get("precio_final_total") and cuantia_referencial_total:
-        try:
-            precio_final_vs_ref = round((float(cf["precio_final_total"]) - cuantia_referencial_total)
-                                        / cuantia_referencial_total * 100, 1)
-        except (TypeError, ValueError):
+            _vr, _pf = em.get("valor_referencial"), cf.get("precio_final_total")
+            if _vr and _pf and float(_vr) > 0:
+                precio_final_vs_ref = round((float(_pf) - float(_vr)) / float(_vr) * 100, 1)
+        except Exception:
             precio_final_vs_ref = None
-    total_ofertado, total_ofertado_base = _total_ofertado_proceso(items_finales, contratados, cf, ocds_state,
-                                                                  cuantia_referencial_total)
+        if precio_final_vs_ref is None and cf.get("precio_final_total") and cuantia_referencial_total:
+            try:
+                precio_final_vs_ref = round((float(cf["precio_final_total"]) - cuantia_referencial_total)
+                                            / cuantia_referencial_total * 100, 1)
+            except (TypeError, ValueError):
+                precio_final_vs_ref = None
 
     out = {
         "ocid": ocid,
@@ -577,6 +624,9 @@ def build_market_input(ocid: str, tool_context: ToolContext) -> dict:
         "total_ofertado": total_ofertado,
         "total_ofertado_base": total_ofertado_base,
         "total_ofertado_es_referencial": total_ofertado_base == "referencial",
+        "contrato_final_parcial": contrato_parcial,
+        "items_no_adjudicados": items_no_adjudicados,
+        "n_items_no_adjudicados": len(items_no_adjudicados),
         "items_contratados": contratados[:40],
         "tiene_requerimiento": n_con_req > 0,
         "estudio_mercado": em or None,
@@ -703,14 +753,123 @@ def _items_contratados_del_state(state: dict, doc_llm: dict | None = None) -> li
     return out
 
 
+_ESTADOS_SIN_ADJUDICAR = ("unsuccessful", "cancelled")
+_DETALLE_SIN_ADJUDICAR_RE = re.compile(r"DESIERT|\bNUL[OA]\b|CANCELAD", re.IGNORECASE)
+
+
+def _estado_sin_adjudicar(x: dict) -> str | None:
+    """El estado OCDS (statusDetails o status) si el ítem, la adjudicación o el contrato quedó desierto, nulo o
+    cancelado; si no, None."""
+    st = str(x.get("status") or "").strip().lower()
+    det = str(x.get("statusDetails") or "").strip()
+    if st in _ESTADOS_SIN_ADJUDICAR or _DETALLE_SIN_ADJUDICAR_RE.search(det):
+        return det or st
+    return None
+
+
+def _items_tender(ocds: dict) -> list[dict]:
+    """tender.items[] con el mismo índice que usa tools/ocds.py para `convocatoria_items.numero_item` (i + 1)."""
+    its = (((ocds or {}).get("tender") or {}).get("items"))
+    return [it if isinstance(it, dict) else {} for it in its] if isinstance(its, list) else []
+
+
+def _clave_descr(s) -> str:
+    return " ".join(str(s or "").split()).upper()[:200]
+
+
+def _numero_de_item_ocds(ref: dict, tender_items: list[dict]) -> str | None:
+    """`numero_item` del registro (índice 1..N en tender.items[]) del ítem que cita `ref` (un awards[].items[]): por
+    el id OCDS y, si no trae id o no calza, por descripción (y cantidad) cuando un solo ítem coincide. Nunca por
+    `position`: es el número oficial del ítem, no su lugar en el arreglo. 2026-2543-197 (2026-11-24): tender.items[0]
+    es la cafeína (position 5); el ítem 1 del registro recibía el precio adjudicado del ácido fólico (position 1) y
+    el 13 —la hidroxocobalamina, desierta— el del valsartán (position 13)."""
+    rid = ref.get("id")
+    if rid is not None:
+        for i, ti in enumerate(tender_items, start=1):
+            if ti.get("id") is not None and str(ti.get("id")) == str(rid):
+                return str(i)
+    d = _clave_descr(ref.get("description"))
+    if not d:
+        return None
+    cands = [i for i, ti in enumerate(tender_items, start=1) if _clave_descr(ti.get("description")) == d]
+    if len(cands) > 1:
+        q = _market_to_num(ref.get("quantity"))
+        cands = [i for i in cands if q and _market_to_num(tender_items[i - 1].get("quantity")) == q]
+    return str(cands[0]) if len(cands) == 1 else None
+
+
+def _item_tender_del_registro(num: str, sql_it: dict, tender_items: list[dict]) -> dict | None:
+    """El ítem de tender.items[] que es el ítem `num` de `convocatoria_items`: el de ese índice si es el mismo bien
+    (misma descripción); si no, el único con esa descripción y cantidad."""
+    d = _clave_descr(sql_it.get("descripcion_corta"))
+    try:
+        i = int(str(num))
+    except (TypeError, ValueError):
+        i = 0
+    if 1 <= i <= len(tender_items) and (not d or _clave_descr(tender_items[i - 1].get("description")) == d):
+        return tender_items[i - 1]
+    n = _numero_de_item_ocds({"description": sql_it.get("descripcion_corta"), "quantity": sql_it.get("cantidad")},
+                             tender_items)
+    return tender_items[int(n) - 1] if n else None
+
+
+def _numeros_adjudicados_ocds(ocds: dict, tender_items: list[dict]) -> set[str] | None:
+    """Números del registro que alguna adjudicación vigente cubre. None si no se puede saber: sin adjudicaciones
+    (proceso aún en convocatoria), una adjudicación sin ítems, o un ítem adjudicado que no se ubica en el tender."""
+    awards = [a for a in ((ocds or {}).get("awards") or []) if isinstance(a, dict) and not _estado_sin_adjudicar(a)]
+    if not awards or not tender_items:
+        return None
+    nums: set[str] = set()
+    for a in awards:
+        ais = [ai for ai in (a.get("items") or []) if isinstance(ai, dict)]
+        if not ais:
+            return None
+        for ai in ais:
+            if _estado_sin_adjudicar(ai):
+                continue
+            n = _numero_de_item_ocds(ai, tender_items)
+            if n is None:
+                return None
+            nums.add(n)
+    return nums
+
+
+def _items_sin_adjudicar_ocds(ocds: dict, sql_items_by_num: dict, ofertas_by_num: dict) -> dict[str, dict]:
+    """{numero_item: {motivo, estado_ocds}} de los ítems del registro que no tienen precio adjudicado que comparar:
+    desiertos, nulos o cancelados en el OCDS (tender.items[].status / statusDetails) o, cuando las adjudicaciones
+    dicen qué ítems cubren, los que ninguna cubre y no tienen oferta ganadora en la BD."""
+    tender_items = _items_tender(ocds)
+    if not tender_items or not sql_items_by_num:
+        return {}
+    out: dict[str, dict] = {}
+    for num, sql_it in sql_items_by_num.items():
+        ti = _item_tender_del_registro(num, sql_it, tender_items)
+        est = _estado_sin_adjudicar(ti) if ti else None
+        if est:
+            e = est.upper()
+            out[num] = {"motivo": "desierto" if "DESIERT" in e else "nulo" if re.search(r"\bNUL[OA]\b", e) else "cancelado",
+                        "estado_ocds": est}
+    adjudicados = _numeros_adjudicados_ocds(ocds, tender_items)
+    if adjudicados is not None:
+        for num, sql_it in sql_items_by_num.items():
+            if num in out or num in adjudicados or ofertas_by_num.get(num):
+                continue
+            ti = _item_tender_del_registro(num, sql_it, tender_items) or {}
+            out[num] = {"motivo": "sin_adjudicacion",
+                        "estado_ocds": (ti.get("statusDetails") or ti.get("status") or None)}
+    return out
+
+
 def _award_items_ocds(ocds: dict) -> dict[str, float]:
-    """{numero_item (position o id): precio unitario adjudicado} desde awards[].items[].totalValue."""
+    """{numero_item del registro (índice en tender.items[], ver `_numero_de_item_ocds`): precio unitario adjudicado}
+    desde awards[].items[].totalValue. Sin las adjudicaciones o ítems adjudicados desiertos/cancelados."""
+    tender_items = _items_tender(ocds)
     out: dict[str, float] = {}
     for a in (ocds.get("awards") or []):
-        if not isinstance(a, dict):
+        if not isinstance(a, dict) or _estado_sin_adjudicar(a):
             continue
         for ai in (a.get("items") or []):
-            if not isinstance(ai, dict):
+            if not isinstance(ai, dict) or _estado_sin_adjudicar(ai):
                 continue
             try:
                 qty = float(ai.get("quantity") or 0)
@@ -718,9 +877,9 @@ def _award_items_ocds(ocds: dict) -> dict[str, float]:
             except (TypeError, ValueError):
                 continue
             if qty > 0 and amt > 0:
-                for k in (ai.get("position"), ai.get("id")):
-                    if k is not None and str(k) not in out:
-                        out[str(k)] = round(amt / qty, 4)
+                num = _numero_de_item_ocds(ai, tender_items)
+                if num and num not in out:
+                    out[num] = round(amt / qty, 4)
     return out
 
 
@@ -826,27 +985,53 @@ def _enriquecer_precio_ofertado(items: list[dict], contratados: list[dict], ofer
                 it["origen_precio"] = "prorrateo_contrato_misma_unidad"
 
 
+def _montos_vigentes_ocds(ocds: dict, clave: str) -> list[float]:
+    """Montos de awards[] o contracts[] (`clave`) que no quedaron desiertos ni cancelados; cada id una vez."""
+    out: list[float] = []
+    vistos: set[str] = set()
+    for x in ((ocds or {}).get(clave) or []):
+        if not isinstance(x, dict) or _estado_sin_adjudicar(x):
+            continue
+        amt = _market_to_num(((x.get("value") or {}).get("amount")))
+        if not amt:
+            continue
+        if x.get("id") is not None:
+            if str(x["id"]) in vistos:
+                continue
+            vistos.add(str(x["id"]))
+        out.append(amt)
+    return out
+
+
 def _total_ofertado_proceso(items: list[dict], contratados: list[dict], cf: dict, ocds: dict,
                             cuantia_referencial_total: float | None) -> tuple[float | None, str | None]:
-    """(total, base): contrato (precio_final_total) > Σ items_contratados > awards[].value (OCDS) >
-    Σ ofertado_i × cantidad_i (todos los ítems con precio) > cuantía referencial (`referencial`)."""
+    """(total, base): contrato (precio_final_total) > Σ items_contratados > Σ awards[].value (OCDS) >
+    Σ contracts[].value > Σ ofertado_i × cantidad_i (todos los ítems con precio) > cuantía referencial
+    (`referencial`).
+
+    Con varias adjudicaciones o contratos, el contrato leído de los documentos es UNO de ellos: cuenta como total
+    solo si coincide (±1 %) con la suma de lo adjudicado o de lo contratado. 2026-2543-197 (2026-11-24): 11 ítems
+    adjudicados a 8 ganadores con 8 contratos, y el total del proceso salía S/ 3 272 119,05 —el contrato de la
+    enoxaparina— en vez de los S/ 16,6 millones adjudicados."""
+    adjudicado = _montos_vigentes_ocds(ocds, "awards")
+    contratado = _montos_vigentes_ocds(ocds, "contracts")
+    varios = len(adjudicado) > 1 or len(contratado) > 1
+    totales = [t for t in (sum(adjudicado), sum(contratado)) if t > 0]
+
+    def _es_el_proceso(x: float) -> bool:
+        return not varios or any(abs(x - t) <= 0.01 * t for t in totales)
+
     total = _market_to_num(cf.get("precio_final_total")) if isinstance(cf, dict) else None
-    if total:
+    if total and _es_el_proceso(total):
         return total, "contrato"
     if contratados and all(c.get("cantidad") for c in contratados):
         s = sum(c["precio_unitario_contratado"] * float(c["cantidad"]) for c in contratados)
-        if s > 0:
+        if s > 0 and _es_el_proceso(s):
             return round(s, 2), "contrato_items"
-    for a in (ocds.get("awards") or []):
-        if isinstance(a, dict):
-            amt = _market_to_num(((a.get("value") or {}).get("amount")))
-            if amt:
-                return amt, "adjudicado"
-    for c in (ocds.get("contracts") or []):
-        if isinstance(c, dict):
-            amt = _market_to_num(((c.get("value") or {}).get("amount")))
-            if amt:
-                return amt, "contratado_ocds"
+    if adjudicado:
+        return round(sum(adjudicado), 2), "adjudicado"
+    if contratado:
+        return round(sum(contratado), 2), "contratado_ocds"
     if items and all(it.get("precio_unitario_ofertado") and isinstance(it.get("cantidad"), (int, float)) for it in items):
         s = sum(float(it["precio_unitario_ofertado"]) * float(it["cantidad"]) for it in items)
         if s > 0:

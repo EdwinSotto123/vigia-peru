@@ -2,9 +2,9 @@
 
 from tools._core import *  # noqa: F401,F403
 from .config import (MARKET_ANCLA_LIMIT, MARKET_ANCLA_MARGEN, MARKET_ANCLA_MESES,
-    MARKET_ANCLA_MIN_PAIS, MARKET_ANCLA_MIN_REGION, MARKET_ANCLA_SOLAPE, OECE_PROCESO_URL)
-from .normalizar import (_UNIDADES_MEDIDA, _diff_pct, _filtrar_outliers, _mediana,
-    _solape_raices, _unidad_canon, _veredicto)
+    MARKET_ANCLA_MIN_PAIS, MARKET_ANCLA_MIN_REGION, MARKET_ANCLA_SOLAPE, MARKET_MIN_PRECIOS, OECE_PROCESO_URL)
+from .normalizar import (_UNIDADES_MEDIDA, _diff_pct, _filtrar_outliers, _firma_medicamento, _mediana,
+    _mismo_medicamento, _precio_redondeado, _solape_raices, _unidad_canon, _veredicto)
 
 def _consultar_referencias_internas(ocid: str, cubsos: list[str], descripcion: str, *, meses: int = MARKET_ANCLA_MESES,
                                     limit: int = MARKET_ANCLA_LIMIT) -> list[dict]:
@@ -90,10 +90,12 @@ def _consultar_referencias_internas(ocid: str, cubsos: list[str], descripcion: s
 
 def _ancla_regional_item(it: dict, refs: list[dict], base_val, ctx: dict) -> tuple[dict, list[dict]]:
     """Filtra las referencias internas al mismo bien (CUBSO exacto o solape de raíces ≥ umbral) y
-    misma dimensión de unidad (convirtiendo factor), y decide el ámbito: departamento (≥ 2) →
-    país (≥ 3) → insuficiente. Devuelve (ancla, referencias_usables)."""
+    misma dimensión de unidad (convirtiendo factor), y decide el ámbito: departamento → país → insuficiente,
+    siempre con ≥ MARKET_MIN_PRECIOS referencias. Un medicamento solo toma referencias del mismo principio activo
+    con la misma dosis (`_mismo_medicamento`). Devuelve (ancla, referencias_usables)."""
     descr = it.get("descripcion_corta") or it.get("descripcion") or ""
     dim, f_item = ctx.get("dim"), ctx.get("factor") or 1.0
+    firma = _firma_medicamento(descr)
     usables = []
     for r in refs:
         cu = _unidad_canon(r.get("unidad"), item=True)
@@ -110,7 +112,12 @@ def _ancla_regional_item(it: dict, refs: list[dict], base_val, ctx: dict) -> tup
         # cualquier ítem del proceso: unos guantes aceptaban como referencia las mascarillas del mismo proceso y su
         # rango silenciaba un «muy elevado» (auditoría 2026-11-13).
         propio = bool(it.get("cubso")) and str(r.get("cubso") or "") == str(it.get("cubso"))
-        if not (propio or solape >= MARKET_ANCLA_SOLAPE):
+        if firma is not None:
+            # Medicamento: ni el CUBSO ni el solape alcanzan (2026-2543-197, 2026-11-24: «VALSARTAN 160 mg» y
+            # «SACUBITRILO + VALSARTAN» eran referencias del valsartán de 80 mg; la enoxaparina, de la hidroxocobalamina).
+            if not _mismo_medicamento(firma, _firma_medicamento(r.get("descripcion") or "")):
+                continue
+        elif not (propio or solape >= MARKET_ANCLA_SOLAPE):
             continue
         pu = r.get("precio_unitario_adjudicado") or r.get("precio_unitario_referencial")
         if not pu:
@@ -123,9 +130,11 @@ def _ancla_regional_item(it: dict, refs: list[dict], base_val, ctx: dict) -> tup
     n_outliers = len(drop)
     usables = [r for r in usables if r["precio_unitario"] in keep] if drop else usables
     region = [r for r in usables if r.get("misma_region")]
-    if len(region) >= MARKET_ANCLA_MIN_REGION:
+    # Un veredicto por ítem no descansa en menos de MARKET_MIN_PRECIOS referencias, como el de tiendas: con 2 compras
+    # del departamento el valsartán salía «barato −96 %» (2026-2543-197). Con menos, el ancla queda como contexto.
+    if len(region) >= max(MARKET_ANCLA_MIN_REGION, MARKET_MIN_PRECIOS):
         grupo, ambito = region, "departamento"
-    elif len(usables) >= MARKET_ANCLA_MIN_PAIS:
+    elif len(usables) >= max(MARKET_ANCLA_MIN_PAIS, MARKET_MIN_PRECIOS):
         grupo, ambito = usables, "nacional"
     else:
         return ({"estado": "insuficiente", "ambito": None, "n": len(usables), "n_region": len(region),
@@ -143,7 +152,8 @@ def _ancla_regional_item(it: dict, refs: list[dict], base_val, ctx: dict) -> tup
     else:
         pos = "bajo_rango"
     return ({"estado": "hallado", "ambito": ambito, "n": len(grupo), "n_region": len(region), "n_outliers": n_outliers,
-             "rango_min": round(p_min, 2), "rango_max": round(p_max, 2), "mediana": round(med, 2),
+             "rango_min": _precio_redondeado(p_min), "rango_max": _precio_redondeado(p_max),
+             "mediana": _precio_redondeado(med),
              "margen": MARKET_ANCLA_MARGEN, "posicion": pos, "diff_vs_mediana_pct": diff,
              "veredicto_regional": ("alineado_regional" if pos == "dentro_rango" else _veredicto(diff) if diff is not None else "sin_dato"),
              "ocids": [r["ocid"] for r in grupo][:12]}, usables)

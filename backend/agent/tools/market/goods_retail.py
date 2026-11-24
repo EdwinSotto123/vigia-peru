@@ -4,12 +4,12 @@ from tools._core import *  # noqa: F401,F403
 from tools.costo_llm import etiquetas
 from .ancla_regional import _ancla_regional_item, _consultar_referencias_internas
 from .config import (MARKET_CHUNK_SIZE, MARKET_CHUNK_SIZE_ESTIMACION, MARKET_COBERTURA_LOTE,
-    MARKET_DELTA_IMPLAUSIBLE, MARKET_ESTIMACION_DESDE, MARKET_MAX_WORKERS, MARKET_MIN_PRECIOS,
+    MARKET_DELTA_IMPLAUSIBLE, MARKET_DELTA_IMPLAUSIBLE_BAJO, MARKET_ESTIMACION_DESDE, MARKET_MAX_WORKERS, MARKET_MIN_PRECIOS,
     MARKET_RETRY, MARKET_TIMEOUT_S, MARKET_UMBRAL_ELEVADO, MARKET_USD_PEN, MARKET_WORKER_MODEL)
 from .historico_seace import _cubsos_del_record
 from .state_io import read_market_input
 from .normalizar import (_StateCtx, _contexto_unidad_item, _diff_pct, _filtrar_outliers,
-    _finding_vacio, _market_to_num, _mediana, _norm_num, _normalizar_precio_observado,
+    _finding_vacio, _fmt_precio, _market_to_num, _mediana, _norm_num, _normalizar_precio_observado, _precio_redondeado,
     _publicar_grounding, _registrar_descarte, _registrar_recorte, _veredicto)
 from .prompts import _MARKET_WORKER_INSTRUCCIONES, _ESTIMACION_INSTRUCCIONES
 
@@ -259,7 +259,7 @@ def _parsear_worker_estimacion(text: str, items_chunk: list) -> dict:
         moneda = "USD" if m.group("moneda").upper().replace(".", "") in ("USD", "US$", "$") else "PEN"
         valor = precio * MARKET_USD_PEN if moneda == "USD" else precio
         estimaciones[num] = {
-            "precio_estimado": round(valor, 2),
+            "precio_estimado": _precio_redondeado(valor),
             "unidad": (m.group("unidad") or "Unidad").strip()[:60],
             "confianza": m.group("confianza").lower(),
             "justificacion": m.group("justif").strip()[:300],
@@ -386,12 +386,42 @@ def _valor_item(it: dict, f: dict | None = None) -> float | None:
     return None
 
 
+def _mediana_de_lote(f: dict) -> float | None:
+    """Mediana que el ítem aporta al total de mercado del lote: solo si la sostienen ≥ MARKET_MIN_PRECIOS precios.
+    La de comparación cuenta por las compras del Estado del ancla regional cuando de ahí salió (diff_fuente o
+    fuente_mediana = ancla_regional); la de tiendas, por sus precios (o las entidades detrás de una mediana de
+    Perú Compras), y nada si se descartaron (`retail_descartado`). Si la de comparación no alcanza, vale la de
+    tiendas con respaldo propio. 2026-2543-197 (2026-11-24): el valsartán entró al total con S/ 2,01 por tableta
+    —dos compras de otras entidades y ningún precio de tienda— y el lote de S/ 12,9 M salió −81 % «barato»
+    contra S/ 68 M de «mercado»."""
+    if f.get("veredicto") == "no_verificable":
+        return None
+    ancla = f.get("ancla_regional") or {}
+    n_ancla = int(ancla.get("n") or 0) if ancla.get("estado") == "hallado" else 0
+    n_retail = 0 if f.get("retail_descartado") else max(int(f.get("n_precios") or 0), int(f.get("respaldo_precios") or 0))
+    med_cmp, med_ret = f.get("precio_mediana_comparacion"), f.get("precio_mediana_mercado")
+    de_ancla = f.get("diff_fuente") == "ancla_regional" or f.get("fuente_mediana") == "ancla_regional"
+    if isinstance(med_cmp, (int, float)) and med_cmp > 0 and (n_ancla if de_ancla else n_retail) >= MARKET_MIN_PRECIOS:
+        return float(med_cmp)
+    if (isinstance(med_ret, (int, float)) and med_ret > 0 and (f.get("fuente_mediana") or "retail") == "retail"
+            and n_retail >= MARKET_MIN_PRECIOS):
+        return float(med_ret)
+    return None
+
+
 def _mercado_goods_retail(state: dict) -> dict:
     mi = state.get("market_input")
     if not (isinstance(mi, dict) and mi.get("items")):
         mi = read_market_input(tool_context=_StateCtx(state))
     items = [it for it in ((mi or {}).get("items") or []) if isinstance(it, dict)]
+    excluidos = [x for x in ((mi or {}).get("items_no_adjudicados") or []) if isinstance(x, dict)]
+    contrato_parcial = bool((mi or {}).get("contrato_final_parcial"))
     if not items:
+        if excluidos:
+            return {"estado": "sin_dato", "motivo": "todos_los_items_desiertos_o_sin_adjudicar", "findings": [],
+                    "items_no_adjudicados": excluidos,
+                    "observaciones_clave": [f"Los {len(excluidos)} ítem(s) del proceso quedaron desiertos, nulos o sin "
+                                            f"adjudicar: no hay precio ofertado que comparar contra mercado."]}
         return {"estado": "sin_dato", "motivo": "sin_items_para_preciar", "findings": [],
                 "observaciones_clave": ["Sin ítems con cantidad/unidad para comparar contra mercado."]}
 
@@ -537,10 +567,10 @@ def _mercado_goods_retail(state: dict) -> dict:
                           "diff_base": base, "diff_fuente": "ancla_regional", "estado": "hallado",
                           "es_estimacion": False, "motivo_estimacion": None,
                           "precio_mediana_comparacion": ancla.get("mediana"),
-                          "evidencia": [{"url": r["url"], "cita": f"{r['descripcion'][:150]} · S/ {r['precio_unitario']:.2f}/{it.get('unidad') or 'u'} ({r['precio_base']})"[:240]}
+                          "evidencia": [{"url": r["url"], "cita": f"{r['descripcion'][:150]} · S/ {_fmt_precio(r['precio_unitario'])}/{it.get('unidad') or 'u'} ({r['precio_base']})"[:240]}
                                         for r in refs_usables][:20],
                           "comentario": (f"Sin precios retail con fuente; {ancla['n']} referencia(s) interna(s) "
-                                         f"({ancla['ambito']}) en la BD SEACE propia: rango S/ {ancla['rango_min']:,.2f}-{ancla['rango_max']:,.2f} "
+                                         f"({ancla['ambito']}) en la BD SEACE propia: rango S/ {_fmt_precio(ancla['rango_min'])}-{_fmt_precio(ancla['rango_max'])} "
                                          f"por {it.get('unidad') or 'unidad'}; el precio {base} queda {ancla['posicion'].replace('_', ' ')}.")})
                 # Mismo guardarraíl que con retail (abajo): las referencias ya vienen sin outliers (×5), así que un Δ
                 # implausible es el ítem el que no es comparable: el lote entero cargado como una unidad (1225718).
@@ -551,6 +581,13 @@ def _mercado_goods_retail(state: dict) -> dict:
                     _registrar_descarte(state, f"market.goods_retail.item_{num}", "delta_implausible",
                                         f"Δ {_d:+.0f} % contra {ancla['n']} compra(s) del Estado: ¿el ítem es el lote "
                                         f"entero con cantidad {it.get('cantidad')}?")
+                # Simétrico hacia abajo: menos de 1/5 de lo que pagaron otras entidades no es «barato».
+                elif f.get("veredicto") == "barato" and isinstance(_d, (int, float)) and _d < MARKET_DELTA_IMPLAUSIBLE_BAJO:
+                    f.update({"veredicto": "no_verificable", "estado": "no_verificable", "es_estimacion": True,
+                              "motivo_estimacion": "delta_implausible_bajo_compras_del_estado"})
+                    _registrar_descarte(state, f"market.goods_retail.item_{num}", "delta_implausible_bajo",
+                                        f"Δ {_d:+.0f} % contra {ancla['n']} compra(s) del Estado: ¿otra presentación o "
+                                        f"unidad, o el precio pactado está mal asignado?")
             # Ítem fuera del presupuesto de búsqueda (lote grande): estimación IA desde
             # conocimiento previo, SIN grounding. Va en campos `*_estimacion_ia` propios —
             # nunca toca precio_mediana_mercado/diff_pct/veredicto, así que jamás puede
@@ -565,7 +602,7 @@ def _mercado_goods_retail(state: dict) -> dict:
                           "confianza_estimacion_ia": estimacion["confianza"],
                           "diff_pct_estimacion_ia": diff_est,
                           "comentario": (f"Sin precio verificado con fuente (fuera del presupuesto de búsqueda de este "
-                                         f"lote). El modelo ESTIMÓ S/ {estimacion['precio_estimado']:.2f} por "
+                                         f"lote). El modelo ESTIMÓ S/ {_fmt_precio(estimacion['precio_estimado'])} por "
                                          f"{estimacion['unidad']} desde su conocimiento previo — confianza "
                                          f"{estimacion['confianza']}, NO es una búsqueda en vivo ni evidencia "
                                          f"verificada: {estimacion['justificacion']}")})
@@ -578,8 +615,8 @@ def _mercado_goods_retail(state: dict) -> dict:
             f0 = p["fuentes"][0]
             norm, info = _normalizar_precio_observado(valor, p.get("unidad"), p.get("producto"), ctx)
             fila = {
-                "producto": p["producto"], "precio": round(norm, 2) if norm is not None else None,
-                "precio_publicado": round(valor, 2), "unidad": p["unidad"],
+                "producto": p["producto"], "precio": _precio_redondeado(norm) if norm is not None else None,
+                "precio_publicado": _precio_redondeado(valor), "unidad": p["unidad"],
                 "unidad_item": it.get("unidad"), "normalizacion": info,
                 "url": f0["uri"], "fecha": None, "proveedor": p["proveedor"],
                 "moneda_origen": p["moneda_origen"],
@@ -589,7 +626,7 @@ def _mercado_goods_retail(state: dict) -> dict:
                 "origen": p.get("origen"),          # osinergmin | emmsa | catalogo_tienda | conosce | perucompras | None (búsqueda web)
                 "respaldo": p.get("respaldo"), "tope_referencia": p.get("tope_referencia"),
                 # compat frontend (columna `valor`)
-                "valor": round(norm, 2) if norm is not None else None,
+                "valor": _precio_redondeado(norm) if norm is not None else None,
             }
             if norm is None:
                 descartados.append(fila)
@@ -644,11 +681,15 @@ def _mercado_goods_retail(state: dict) -> dict:
         # Las tiendas dan un Δ implausible (no era el producto o la unidad) pero hay compras de otras entidades por el
         # mismo bien: la comparación es contra esas compras, y los precios de tiendas quedan descartados. Antes el ítem
         # salía «no verificable» teniendo la respuesta (1256664: S/ 36,68 contra S/ 25,3 de 12 compras, +45 %).
+        # Lo mismo hacia abajo: una botica cobra por tableta varias veces lo que paga una compra institucional; con
+        # compras del Estado por el mismo medicamento, la comparación es contra ellas.
         retail_descartado = False
-        if (isinstance(diff, (int, float)) and diff > MARKET_DELTA_IMPLAUSIBLE and n_norm < MARKET_MIN_PRECIOS
-                and diff_fuente == "retail" and ancla.get("estado") == "hallado" and base_val is not None):
+        _alto = isinstance(diff, (int, float)) and diff > MARKET_DELTA_IMPLAUSIBLE and n_norm < MARKET_MIN_PRECIOS
+        _bajo = isinstance(diff, (int, float)) and diff < MARKET_DELTA_IMPLAUSIBLE_BAJO
+        if (_alto or _bajo) and diff_fuente == "retail" and ancla.get("estado") == "hallado" and base_val is not None:
             _registrar_descarte(state, f"market.goods_retail.item_{num}", "retail_descartado",
-                                f"Δ {diff:+.0f} % contra tiendas sin unidad confirmada: se compara con {ancla.get('n')} compras del Estado")
+                                f"Δ {diff:+.0f} % contra tiendas" + (" sin unidad confirmada" if _alto else "")
+                                + f": se compara con {ancla.get('n')} compras del Estado")
             retail_descartado = True
             veredicto, diff, diff_fuente = ancla["veredicto_regional"], ancla.get("diff_vs_mediana_pct"), "ancla_regional"
             med_comparacion, motivo = ancla.get("mediana"), None
@@ -662,6 +703,16 @@ def _mercado_goods_retail(state: dict) -> dict:
                                                    else "delta_implausible_contra_compras_del_estado_posible_lote")
             _registrar_descarte(state, f"market.goods_retail.item_{num}", "delta_implausible",
                                 f"Δ {diff:+.0f} % con {n_norm} precio(s) de unidad confirmada (< {MARKET_MIN_PRECIOS})")
+        # Simétrico hacia abajo (MARKET_DELTA_IMPLAUSIBLE_BAJO): pagar menos de 1/5 de la referencia no es «barato», es
+        # otra presentación o unidad (caja contra tableta) o un precio pactado mal asignado (2026-2543-197: la cafeína
+        # desierta con el precio del ácido fólico salía −99,6 %). A diferencia del alza, no se sostiene ni con unidades
+        # confirmadas: «barato» no levanta bandera y sí arrastraba el Δ del lote.
+        if veredicto == "barato" and isinstance(diff, (int, float)) and diff < MARKET_DELTA_IMPLAUSIBLE_BAJO:
+            veredicto, motivo = "no_verificable", ("delta_implausible_bajo_mercado" if diff_fuente == "retail"
+                                                   else "delta_implausible_bajo_compras_del_estado")
+            _registrar_descarte(state, f"market.goods_retail.item_{num}", "delta_implausible_bajo",
+                                f"Δ {diff:+.0f} % (< {MARKET_DELTA_IMPLAUSIBLE_BAJO:.0f} %): ¿otra presentación o unidad, "
+                                f"o el precio pactado está mal asignado?")
         proveedores = []
         vistos = set()
         # De precios descartados no salen «proveedores potenciales» (EMMSA aparecía como proveedor de una bolsa médica).
@@ -683,13 +734,13 @@ def _mercado_goods_retail(state: dict) -> dict:
             "precios_descartados": descartados[:10],
             "proveedores_potenciales": proveedores[:6],
             "caracteristicas_solicitadas_clave": [],
-            "precio_mediana_mercado": round(mediana, 2) if mediana is not None else None,
+            "precio_mediana_mercado": _precio_redondeado(mediana) if mediana is not None else None,
             "fuente_mediana": "retail",
             "precio_mediana_regional": ancla.get("mediana") if ancla.get("estado") == "hallado" else None,
             "n_referencias_internas": ancla.get("n") if ancla.get("estado") == "hallado" else 0,
-            "precio_mediana_comparacion": round(med_comparacion, 2) if isinstance(med_comparacion, (int, float)) else None,
-            "rango_min": round(min(keep), 2) if keep else None,
-            "rango_max": round(max(keep), 2) if keep else None,
+            "precio_mediana_comparacion": _precio_redondeado(med_comparacion) if isinstance(med_comparacion, (int, float)) else None,
+            "rango_min": _precio_redondeado(min(keep)) if keep else None,
+            "rango_max": _precio_redondeado(max(keep)) if keep else None,
             "n_precios": n, "n_precios_normalizados": n_norm, "respaldo_precios": respaldo,
             "diff_pct": diff, "diff_base": base if diff is not None else None,
             "diff_fuente": diff_fuente if (diff is not None or veredicto == "alineado_regional") else None,
@@ -699,8 +750,8 @@ def _mercado_goods_retail(state: dict) -> dict:
             "es_estimacion": veredicto in ("sin_dato", "no_verificable"),
             "motivo_estimacion": motivo,
             "estado": "hallado" if veredicto != "no_verificable" else "no_verificable",
-            "evidencia": ([{"url": x["url"], "cita": f"{x['producto'][:150]} · S/ {x['precio']:.2f}/{it.get('unidad') or 'u'}"[:240]} for x in precios_obs]
-                          + [{"url": r["url"], "cita": f"SEACE {r['ocid']}: {r['descripcion'][:120]} · S/ {r['precio_unitario']:.2f} ({r['precio_base']})"[:240]}
+            "evidencia": ([{"url": x["url"], "cita": f"{x['producto'][:150]} · S/ {_fmt_precio(x['precio'])}/{it.get('unidad') or 'u'}"[:240]} for x in precios_obs]
+                          + [{"url": r["url"], "cita": f"SEACE {r['ocid']}: {r['descripcion'][:120]} · S/ {_fmt_precio(r['precio_unitario'])} ({r['precio_base']})"[:240]}
                              for r in refs_usables])[:20],
             "referencias_internas": refs_pub,
             "ancla_regional": ancla,
@@ -716,12 +767,10 @@ def _mercado_goods_retail(state: dict) -> dict:
     by_num = {_norm_num(it.get("numero")): it for it in items}
     con_mediana = [f for f in findings if isinstance(f.get("precio_mediana_comparacion"), (int, float))
                    or isinstance(f.get("precio_mediana_mercado"), (int, float))]
-    # Respaldado: mediana con ≥ MIN precios (o ancla regional) y sin guardarraíl disparado. Un ítem
-    # sin precio base propio (lote tipo canasta) igual aporta su mediana × cantidad al total.
-    respaldados = [f for f in findings if f.get("veredicto") != "no_verificable"
-                   and isinstance(f.get("precio_mediana_comparacion") or f.get("precio_mediana_mercado"), (int, float))
-                   and (f.get("n_precios", 0) >= MARKET_MIN_PRECIOS or (f.get("respaldo_precios") or 0) >= MARKET_MIN_PRECIOS
-                        or (f.get("ancla_regional") or {}).get("estado") == "hallado")]
+    # Respaldado: la mediana que suma al total la sostienen ≥ MIN precios (tiendas o compras del Estado del ancla)
+    # y sin guardarraíl disparado (`_mediana_de_lote`). Un ítem sin precio base propio (lote tipo canasta) igual
+    # aporta su mediana × cantidad al total.
+    respaldados = [f for f in findings if _mediana_de_lote(f) is not None]
     valores_all = {_norm_num(f.get("item_numero")): _valor_item(by_num.get(_norm_num(f.get("item_numero")), {}), f) for f in findings}
     resp_nums = {_norm_num(f.get("item_numero")) for f in respaldados}
     suma_all = sum(v for v in valores_all.values() if v)
@@ -734,9 +783,7 @@ def _mercado_goods_retail(state: dict) -> dict:
     else:
         cobertura = cobertura_conteo
 
-    def _med(f):
-        return float(f.get("precio_mediana_comparacion") or f.get("precio_mediana_mercado"))
-    total_mercado_resp = sum(_med(f) * f["cantidad"] for f in respaldados if isinstance(f.get("cantidad"), (int, float)))
+    total_mercado_resp = sum(_mediana_de_lote(f) * f["cantidad"] for f in respaldados if isinstance(f.get("cantidad"), (int, float)))
 
     total_ofertado = mi.get("total_ofertado")
     total_ofertado_base = mi.get("total_ofertado_base")
@@ -803,8 +850,12 @@ def _mercado_goods_retail(state: dict) -> dict:
                 sobreprecio_pct = None
 
     obs = [f"Preciados {len(con_mediana)}/{n_total} ítems; {len(respaldados)} respaldado(s) (≥{MARKET_MIN_PRECIOS} precios "
-           f"con fuente de grounding normalizados a la unidad del ítem, o ancla regional) · cobertura por valor "
-           f"{cobertura*100:.0f} % vía {n_chunks} worker(s)."]
+           f"con fuente de grounding normalizados a la unidad del ítem, o ancla regional con ≥{MARKET_MIN_PRECIOS} "
+           f"compras) · cobertura por valor {cobertura*100:.0f} % vía {n_chunks} worker(s)."]
+    if excluidos:
+        obs.append(f"{len(excluidos)} ítem(s) desierto(s), nulo(s) o sin adjudicar excluido(s) de la comparación y de "
+                   f"los totales: " + "; ".join(f"{x.get('numero')} {str(x.get('descripcion') or '')[:50]} "
+                                                f"({x.get('motivo')})" for x in excluidos[:10]) + ".")
     if n_retry:
         obs.append(f"2º pase recuperó {n_retry} ítem(s).")
     n_estimados_ia = sum(1 for f in findings if f.get("precio_estimado_ia") is not None)
@@ -817,6 +868,8 @@ def _mercado_goods_retail(state: dict) -> dict:
         obs.append(f"{n_ancla} ítem(s) con ancla regional en la BD SEACE propia (referencias_internas).")
     if total_ofertado_base:
         obs.append(f"Total ofertado tomado de: {total_ofertado_base}" + (" (cuantía referencial, no precio ofertado)." if es_referencial else "."))
+    if contrato_parcial:
+        obs.append("El contrato leído es uno de los varios del proceso (varios ganadores o contratos): no se usa como total.")
     if n_total < 2:
         obs.append("Un solo ítem: no se emite bandera de lote (misma evidencia que la bandera por ítem).")
     elif lote.get("motivo"):
@@ -845,8 +898,13 @@ def _mercado_goods_retail(state: dict) -> dict:
         "confianza_global": ("alta" if cobertura >= 0.8 else "media" if cobertura >= 0.5 else "baja"),
         "requerimiento_disponible_para_analisis": bool(mi.get("tiene_requerimiento")),
         "valor_referencial_oficial": ((mi or {}).get("estudio_mercado") or {}).get("valor_referencial"),
-        "precio_final_contrato": ((mi or {}).get("contrato_final") or {}).get("precio_final_total"),
+        # Con varios contratos, el leído no es «el precio final» del proceso (2026-2543-197): no se publica como tal.
+        "precio_final_contrato": (None if contrato_parcial
+                                  else ((mi or {}).get("contrato_final") or {}).get("precio_final_total")),
+        "contrato_final_parcial": contrato_parcial,
         "precio_final_vs_referencial": (mi or {}).get("precio_final_vs_referencial"),
+        "items_no_adjudicados": excluidos,
+        "n_items_no_adjudicados": len(excluidos),
         "observaciones_clave": obs,
         "grounding_urls": [c["uri"] for c in chunks if c.get("uri")],
         "_modo": "sharded_fanout_grounded",

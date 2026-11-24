@@ -75,4 +75,7 @@ MARKET_ANCLA_SOLAPE = float(os.getenv("MARKET_ANCLA_SOLAPE", "0.5"))
 MARKET_ANCLA_LIMIT = int(os.getenv("MARKET_ANCLA_LIMIT", "80"))
 # Guardarraíl: Δ implausible sin base suficiente → no_verificable (1225450: +7 162 %).
 MARKET_DELTA_IMPLAUSIBLE = float(os.getenv("MARKET_DELTA_IMPLAUSIBLE", "300"))
+# Simétrico hacia abajo: un precio pactado menos de 1/5 del de referencia (Δ < −80 %, el mismo ×5 del filtro de
+# outliers) no es «barato», es otra unidad o presentación, o un precio mal asignado (2026-2543-197: −96 % y −99 %).
+MARKET_DELTA_IMPLAUSIBLE_BAJO = float(os.getenv("MARKET_DELTA_IMPLAUSIBLE_BAJO", "-80"))
 MARKET_COBERTURA_LOTE = float(os.getenv("MARKET_COBERTURA_LOTE", "0.7"))

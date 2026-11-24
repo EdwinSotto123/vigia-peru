@@ -407,8 +407,11 @@ def test_1225030_un_solo_item_sin_lote_y_alineado_regional(monkeypatch):
     f = res["findings"][0]
     assert f["veredicto_retail"] == "muy_elevado" and f["diff_pct_retail"] == pytest.approx(89.67, abs=0.1)
     assert f["veredicto"] == "alineado_regional" and f["diff_fuente"] == "ancla_regional"
-    assert f["ancla_regional"]["ambito"] == "departamento" and f["ancla_regional"]["ocids"] == ["1231226", "1227961"]
-    assert f["ancla_regional"]["rango_min"] == 83.0 and f["ancla_regional"]["rango_max"] == 155.0
+    # Las 2 compras de Cusco solas ya no deciden (un veredicto pide ≥ MARKET_MIN_PRECIOS referencias, 2026-2543-197):
+    # decide el ámbito nacional con 3, y la oferta sigue dentro del rango.
+    assert f["ancla_regional"]["ambito"] == "nacional" and f["ancla_regional"]["n_region"] == 2
+    assert f["ancla_regional"]["ocids"] == ["1231226", "1227961", "1241824"]
+    assert f["ancla_regional"]["rango_min"] == 19.85 and f["ancla_regional"]["rango_max"] == 155.0
     assert {r["ocid"] for r in f["referencias_internas"]} == {"1231226", "1227961", "1241824"}
     assert f["nota_base"] and "valor referencial" in f["nota_base"]     # oferta = 98.96 % del VR
     # Un solo ítem: nada que permita recalcular un "sobreprecio de lote".
@@ -490,9 +493,12 @@ def test_coincide_objeto_usa_helper_de_compliance_si_existe(monkeypatch):
 
 
 def test_award_items_y_total_ofertado_desde_ocds():
-    ocds = {"awards": [{"id": "a", "value": {"amount": 121839.0},
+    # El precio adjudicado se indexa por el número del registro (índice en tender.items[], resuelto por el id OCDS),
+    # nunca por `position` ni por el id suelto (2026-2543-197).
+    ocds = {"tender": {"items": [{"id": "21307628", "position": "1", "description": "DIESEL B5 S-50", "quantity": 5000}]},
+            "awards": [{"id": "a", "value": {"amount": 121839.0},
                         "items": [{"id": "21307628", "position": "1", "quantity": 5000.0, "totalValue": {"amount": 121839.0}}]}]}
-    assert mk._award_items_ocds(ocds) == {"1": 24.3678, "21307628": 24.3678}
+    assert mk._award_items_ocds(ocds) == {"1": 24.3678}
     assert mk._total_ofertado_proceso([], [], {}, ocds, 139950.0) == (121839.0, "adjudicado")
     assert mk._total_ofertado_proceso([], [], {}, {}, 139950.0) == (139950.0, "referencial")
     assert mk._total_ofertado_proceso([], [], {"precio_final_total": "S/ 121,839.00"}, ocds, None) == (121839.0, "contrato")
