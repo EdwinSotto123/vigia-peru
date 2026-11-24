@@ -1,5 +1,5 @@
 import type { Plan } from "@/components/gobserva/Planes";
-import { rutaEn } from "@/lib/gobserva";
+import { APP_EN_CONSTRUCCION, rutaEn } from "@/lib/gobserva";
 import { entero, precioDe, precioHoy, type PlanesServidor } from "@/lib/gobserva-planes";
 
 /**
@@ -120,7 +120,8 @@ function enPausa(planes: Plan[], cat: PlanesServidor, alertas: (n: number) => st
         `${alertas(a.alertas)} cada mañana, ${cat.correoActivo ? "por correo" : "en tu cuenta"} y en tu celular`,
         `Guarda hasta ${entero(a.guardados)} procesos y marca si preparas, presentaste o ganaste`,
         `Descarga en Excel de cualquier búsqueda, hasta ${entero(a.filasCsv)} filas`,
-        `${entero(a.mcp ?? 1500)} créditos al mes para el asistente y tu MCP: pregúntale desde ChatGPT, Cursor u otra IA`,
+        // Con la app en construcción (lib/gobserva.ts), el asistente de la app no está: sólo el MCP.
+        `${entero(a.mcp ?? 1500)} créditos al mes para ${APP_EN_CONSTRUCCION ? "" : "el asistente y "}tu MCP: pregúntale desde ChatGPT, Cursor u otra IA`,
       ],
     };
   });

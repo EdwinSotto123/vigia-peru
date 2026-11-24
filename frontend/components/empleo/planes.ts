@@ -1,6 +1,6 @@
 import type { Plan } from "@/components/gobserva/Planes";
 import { canalAlertas } from "@/lib/empleo";
-import { rutaEn } from "@/lib/gobserva";
+import { APP_EN_CONSTRUCCION, rutaEn } from "@/lib/gobserva";
 import { entero, precioCorto, precioDe, precioHoy, type PlanesServidor } from "@/lib/gobserva-planes";
 
 /**
@@ -88,12 +88,13 @@ function enPausa(planes: Plan[], cat: PlanesServidor): Plan[] {
       para: "Todo lo que ya funciona, gratis con tu cuenta y tu correo confirmado.",
       destacado: true,
       incluye: [
-        ...p.incluye.slice(0, 3),
+        // «Para ti» y el asistente son de la app: con la app en construcción (lib/gobserva.ts), no van.
+        ...p.incluye.slice(0, 3).filter((x) => !(APP_EN_CONSTRUCCION && x.startsWith("«Para ti»"))),
         `Hasta ${a.alertas} alertas, cada mañana o cada semana, ${canalAlertas(cat.correoActivo)}`,
         `Guarda hasta ${entero(a.guardados)} plazas y lleva tus postulaciones en un tablero`,
         "Recordatorio 2 días antes de que cierre una plaza guardada",
         `Descarga tus búsquedas en Excel, hasta ${entero(a.filasCsv)} filas`,
-        `${entero(a.mcp ?? 300)} créditos al mes para el asistente y tu MCP: pregúntale por plazas desde ChatGPT, Cursor u otra IA`,
+        `${entero(a.mcp ?? 300)} créditos al mes para ${APP_EN_CONSTRUCCION ? "" : "el asistente y "}tu MCP: pregúntale por plazas desde ChatGPT, Cursor u otra IA`,
       ],
     };
   });

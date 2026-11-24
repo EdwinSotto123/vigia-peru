@@ -42,7 +42,7 @@ export default async function PlanesLicitaciones() {
             <h1 className="text-balance font-display text-titulo font-bold leading-tight text-ink sm:text-vitrina">Hoy, todo gratis con tu cuenta</h1>
             <p className="mt-3 text-pretty text-bloque leading-relaxed text-inkSoft">
               Licitaciones, contratos menores abiertos y obras que se vienen, en una sola cuenta. Créala con tu correo, confírmalo y tienes lo nuevo cada
-              mañana, tus procesos guardados con su estado, descargas en Excel, el asistente y tu MCP, sin pagar nada. Los planes de pago llegan pronto.
+              mañana, tus procesos guardados con su estado, descargas en Excel y tu MCP para preguntarle a tu IA, sin pagar nada. Los planes de pago llegan pronto.
             </p>
           </>
         ) : (
