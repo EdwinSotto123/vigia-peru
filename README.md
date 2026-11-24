@@ -9,6 +9,14 @@ Un proyecto de [Gobserva](https://gobserva.cloud)
 [![Sitio](https://img.shields.io/badge/sitio-vigia.gobserva.cloud-1B7A2E?style=flat-square)](https://vigia.gobserva.cloud)
 [![Open source](https://img.shields.io/badge/open_source-uso_personal_y_sin_fines_de_lucro-1B7A2E?style=flat-square)](#licencia)
 [![Licencia](https://img.shields.io/badge/licencia-PolyForm_Noncommercial_1.0.0-1B7A2E?style=flat-square)](LICENSE)
+[![MCP](https://img.shields.io/badge/conector-MCP-1B7A2E?style=flat-square)](#conector-mcp)
+
+**[Abrir Vigía](https://vigia.gobserva.cloud)** &nbsp;|&nbsp;
+**[Cómo se lee un contrato](#cómo-se-lee-un-contrato)** &nbsp;|&nbsp;
+**[Señales](#qué-señales-busca)** &nbsp;|&nbsp;
+**[Datos](#datos)** &nbsp;|&nbsp;
+**[Correrlo](#correrlo-en-tu-máquina)** &nbsp;|&nbsp;
+**[Licencia](#licencia)**
 
 <img src="docs/img/vigia-portada.png" alt="Portada de Vigía: ¿En qué se gasta el dinero de tu región?" width="100%">
 
@@ -22,9 +30,19 @@ Un proyecto de [Gobserva](https://gobserva.cloud)
 
 ## Por qué existe
 
-En 2026 el Estado publicó más de 66 mil contratos y casi nadie los lee. Revisar uno solo puede tomarle días a una
-periodista: bases escaneadas de 80 páginas, actas en archivos RAR, datos repartidos en una docena de portales que no se
-hablan. Vigía hace esa lectura con agentes de inteligencia artificial y señala qué contratos merecen una segunda mirada.
+Revisar un solo contrato del Estado puede tomarle días a una periodista: bases escaneadas de 80 páginas, actas dentro de
+archivos RAR, datos repartidos en una docena de portales que no se hablan. Multiplicado por decenas de miles de
+contratos al año, la vigilancia ciudadana se vuelve imposible. Vigía hace esa lectura con agentes de inteligencia
+artificial y señala qué contratos merecen una segunda mirada.
+
+| Al 24 de noviembre de 2026 | |
+|---|---|
+| Contratos publicados por el Estado en 2026 | **66 060**, por más de S/ 74 mil millones |
+| Contratos de 2026 que Vigía ya leyó | **12 406** |
+| Leídos con riesgo medio o alto | **7 163** |
+
+Las cifras al día están en el [mapa](https://vigia.gobserva.cloud/app/mapa), y lo que cuesta cada lectura, en la
+[auditoría en vivo](https://vigia.gobserva.cloud/app/auditoria).
 
 > [!IMPORTANT]
 > **Vigía no acusa a nadie.** Una señal es un motivo para revisar un contrato, nunca una acusación contra una empresa,
@@ -36,8 +54,9 @@ hablan. Vigía hace esa lectura con agentes de inteligencia artificial y señala
 |---|---|
 | **Ver tu región** | Un mapa con lo que se contrata en cada departamento, cuánto se leyó y qué se encontró. |
 | **Leer un contrato** | La historia del proceso paso a paso, las señales con su norma y su evidencia, los ítems con sus precios frente a otras entidades, quién ganó y con quién está vinculado. |
-| **Seguir a una entidad o empresa** | Sus contratos, sus proveedores, sus sanciones y lo que ya observó la Contraloría. |
-| **Preguntarle a tu asistente de IA** | Un conector [MCP](https://modelcontextprotocol.io) de solo lectura lleva los datos y los dictámenes a cualquier asistente compatible, con el enlace oficial de cada dato. Se conecta con una cuenta de Gobserva. |
+| **Seguir a una entidad o empresa** | Sus contratos, sus proveedores, sus sanciones, quién la visitó y lo que ya observó la Contraloría. |
+| **Ver los patrones** | Señales que se repiten en una entidad o un proveedor, y postores que solo aparecen para hacer número. |
+| **Preguntarle a tu asistente de IA** | Con el [conector MCP](#conector-mcp), tu asistente consulta Vigía y responde con el enlace oficial de cada dato. |
 
 <div align="center">
 <img src="docs/img/vigia-dictamen.png" alt="El dictamen de un contrato: señales, puntaje de riesgo y 65 ítems leídos" width="49%">
@@ -58,15 +77,48 @@ flowchart LR
     G --> H["Web, API<br/>y conector MCP"]
 ```
 
-1. **Ingesta.** Cada día entran los contratos nuevos del OECE (estándar OCDS) y sus documentos: PDF, Word, Excel, ZIP y RAR.
-2. **Lectura previa.** Antes de analizar, se lee todo: el texto de cada documento, las páginas escaneadas con OCR abierto
-   ([Docling](https://github.com/docling-project/docling)) y las tablas de ítems. Un contrato no se analiza hasta que sus
-   documentos están completos; lo que falta queda anotado y se vuelve a pedir.
-3. **Análisis.** Un perfil por tipo de contrato (bienes, servicios, obras, consultoría y contrataciones directas) corre
-   siempre los mismos pasos, en un orden fijado en el código: reglas de cumplimiento, lectura de las bases y las actas,
-   análisis legal, precios de mercado, prensa, red de personas y empresas, y el dictamen final.
-4. **Publicación.** Cada señal se publica con la norma que cita y el documento oficial del que sale. Sin enlace
-   verificable, no se publica.
+1. **Ingesta.** Cada día entran los contratos nuevos del OECE (estándar OCDS) y sus documentos: PDF, Word, Excel, ZIP y
+   RAR.
+2. **Lectura previa.** Antes de analizar se lee todo: el texto de cada documento, las páginas escaneadas con OCR abierto
+   ([Docling](https://github.com/docling-project/docling)) y las tablas de ítems. Un contrato no se analiza hasta que
+   sus documentos están completos; lo que falta queda anotado y se vuelve a pedir.
+3. **Análisis.** Cada tipo de contrato (bienes, servicios, obras, consultoría y contrataciones directas) tiene su
+   perfil, y los pasos corren siempre en el mismo orden, fijado en el código y no decidido por un modelo:
+
+   | Paso | Qué hace |
+   |---|---|
+   | Reglas | 28 reglas que no usan IA: competencia, proveedor, vínculos, plazos y montos |
+   | Documentos | Lee bases, actas y contrato: ítems, cantidades, postores, ofertas y firmantes |
+   | Norma | Contrasta el proceso con la ley vigente en su fecha y con las opiniones del OECE |
+   | Mercado | Compara cada precio con lo que pagaron otras entidades por lo mismo |
+   | Prensa y web | Busca lo publicado sobre el proveedor y la entidad |
+   | Red | Socios, representantes, funcionarios, visitas a la entidad y aportes de campaña |
+   | Dictamen | Redacta el resultado: cada señal con su norma, su evidencia y su peso |
+
+4. **Publicación.** Cada señal sale con la norma que cita y el documento oficial del que viene. Sin enlace verificable,
+   no se publica.
+
+Leer un contrato completo cuesta en promedio unos **US$ 0.20** en modelos de lenguaje, y el OCR, menos de un décimo de
+centavo por página.
+
+## Qué señales busca
+
+<details>
+<summary><b>Las 28 reglas</b>, agrupadas</summary>
+
+<br>
+
+| Grupo | Qué mira |
+|---|---|
+| **Competencia** | Un solo postor con una oferta cercana al valor referencial; ofertas iguales al valor referencial; ofertas casi idénticas entre sí; una sola oferta válida; la oferta más barata que no gana; un ganador que no estaba entre los invitados; un mismo postor en casi todos los ítems |
+| **Proveedor** | Sanción vigente; RUC con meses de vida; un giro que no tiene que ver con lo que vende; demasiadas buenas pro con la misma entidad; contrataciones directas que se repiten; la misma persona detrás de varias empresas ganadoras |
+| **Vínculos** | Un firmante de la entidad vinculado al ganador o socio de una proveedora; postores con los mismos socios; visitas del ganador a la entidad antes de la convocatoria; personal clave vinculado en servicios |
+| **Proceso** | Plazos de convocatoria cortos; un tipo de proceso que no corresponde al monto; contratación directa sin causal; procesos no competitivos; compras partidas para no licitar |
+| **Documentos y ejecución** | Lo que dicen los documentos no cuadra con lo publicado; fechas incoherentes; adicionales de obra acumulados; ampliaciones denegadas con penalidad |
+
+Sobre las reglas, el análisis de mercado, el legal y el de la red de personas suman sus propias señales.
+
+</details>
 
 ## Principios
 
@@ -76,7 +128,8 @@ flowchart LR
 3. **No reemplazamos a nadie.** Ni a la Contraloría, ni a la Fiscalía, ni al periodismo: detectamos y priorizamos.
 4. **Todo con evidencia.** Cada hallazgo enlaza a su fuente oficial y a la norma que aplica.
 5. **Modelos abiertos.** El OCR y los modelos de lenguaje que leen los contratos son abiertos.
-6. **Sin anuncios.** Vigía se sostiene con aportes de la gente.
+6. **Cuentas claras.** Lo que se gasta en leer contratos se publica en la auditoría en vivo.
+7. **Sin anuncios.** Vigía se sostiene con aportes de la gente.
 
 ## Datos
 
@@ -97,13 +150,30 @@ pesados y algunos traen datos personales que no publicamos.
 
 Más detalle en [`docs/DATA.md`](docs/DATA.md).
 
+## Conector MCP
+
+`https://mcp.gobserva.cloud/mcp` es un servidor [Model Context Protocol](https://modelcontextprotocol.io) de solo
+lectura con más de 50 herramientas: buscar contratos, entidades y empresas, leer un dictamen, seguir la red de una
+empresa, ver los patrones de una entidad, buscar informes de control y resoluciones del Tribunal, comparar precios y
+más. Cada resultado trae su código (OCID, RUC, CUI), su enlace en Vigía y la fuente oficial. Se conecta con una cuenta
+de Gobserva y un plan vigente.
+
+```text
+> ¿Qué contratos de riesgo alto hay en Ayacucho este año?
+
+  cada resultado trae:
+    la señal y la norma que cita
+    el documento oficial
+    el enlace al dictamen en Vigía
+```
+
 ## Arquitectura
 
 | Pieza | Qué hace | Dónde corre |
 |---|---|---|
-| `frontend` (vigia-web) | El sitio: Next.js 14 con OpenNext | Cloudflare Workers |
+| `frontend` (vigia-web) | El sitio, con Next.js 14 y OpenNext | Cloudflare Workers |
 | `backend/api` (vigia-api) | API de lectura y escritura con Hono | Cloudflare Workers con Hyperdrive |
-| `backend/mcp-worker` (vigia-mcp) | Conector MCP de solo lectura | Cloudflare Workers |
+| `backend/mcp-worker` (vigia-mcp) | El conector MCP | Cloudflare Workers |
 | `backend/scrapers-worker` (vigia-scrapers) | Ingesta de contratos, documentos y fuentes públicas | Cloudflare Workflows |
 | `backend/ocr-worker` (vigia-ocr) | OCR abierto: Docling con RapidOCR y TableFormer | Cloudflare Containers |
 | `backend/llm-worker` (vigia-llm) | Puerta única a los modelos de lenguaje abiertos | Workers AI |
@@ -154,6 +224,19 @@ cd backend && pip install -r scrapers/requirements.txt && python -m pytest scrap
 
 Las credenciales viven en variables de entorno o en el gestor de secretos, nunca en el repositorio.
 
+## Parte de Gobserva
+
+Vigía comparte código y datos con las otras apps de Gobserva, que viven en este mismo repositorio:
+
+| App | Para qué |
+|---|---|
+| [Vigía](https://vigia.gobserva.cloud) | Vigilar los contratos del Estado |
+| [Salud](https://salud.gobserva.cloud) | Verificar médicos, medicamentos y establecimientos de salud |
+| [Empleo](https://empleo.gobserva.cloud) | Encontrar plazas CAS en el Estado |
+| [Licitaciones](https://licitaciones.gobserva.cloud) | Encontrar procesos para venderle al Estado |
+| [Obras](https://obras.gobserva.cloud) | Seguir las obras públicas |
+| [Car](https://car.gobserva.cloud) | Consultar los registros del MTC: revisiones técnicas, licencias y conversiones a gas |
+
 ## Licencia
 
 Vigía es **open source para uso personal y sin fines de lucro**: el código se publica bajo la
@@ -174,7 +257,8 @@ noviembre de 2026 el código se publicó bajo la licencia MIT; las copias obteni
 ## Súmate
 
 - **Aporta** en [vigia.gobserva.cloud](https://vigia.gobserva.cloud): con los aportes ciudadanos se pagan las lecturas.
-- **Avísanos de un error** en un dato o en un dictamen escribiéndonos a [hello@gobserva.cloud](mailto:hello@gobserva.cloud).
+- **Avísanos de un error** en un dato o en un dictamen abriendo un issue o escribiéndonos a
+  [hello@gobserva.cloud](mailto:hello@gobserva.cloud).
 - **Úsalo** en tu universidad, tu colectivo o tu medio sin fines de lucro, y cuéntanos qué encontraste.
 
 <div align="center">
