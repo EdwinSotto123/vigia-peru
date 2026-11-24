@@ -442,6 +442,13 @@ export interface ContratoDetalle extends ContratoResumen, ProcesoContrato {
   evaluacion?: EvaluacionLeida | null;
   /** Lo que Claude leyó en el acta, el contrato firmado y el pliego de consultas (backend/lector, migración 245). */
   lecturaIA?: LecturaIA | null;
+  /**
+   * El camino al dictamen de los agentes: qué se leyó de lo que necesitan (el acta y las bases, más el contrato o las
+   * consultas), si lo están analizando ahora y si el análisis masivo corrió en las últimas 6 h. Una API anterior no lo trae.
+   */
+  rutaDictamen?: {
+    acta: boolean; bases: boolean; contrato: boolean; consultas: boolean; enAnalisis: boolean; masivoActivo: boolean;
+  } | null;
   /** Cada dato leído de un documento, con qué es y si se comprobó sin modelo (migración 323). Una API anterior no lo trae. */
   hechosDocumentos?: HechoDocumento[];
   /** Las apelaciones que resolvió el Tribunal de Contrataciones sobre este proceso (migración 402). Una API anterior no lo trae. */

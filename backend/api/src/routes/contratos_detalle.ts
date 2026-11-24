@@ -214,6 +214,12 @@ contratosDetalleRouter.get("/:ocid", async (c) => {
   ]);
   // Lo que Claude leyó en el acta, el contrato y las consultas (migración 245; backend/lector). Sin la tabla, nada.
   const lecturas = await lecturasDe(row.ocid).catch(() => [] as FilaLectura[]);
+  // El camino al dictamen de los agentes (backend/scripts/masivo_agentes.py): si lo están analizando ahora y si el masivo
+  // corrió en las últimas 6 h. Sin las tablas (migraciones 272 y 274), null.
+  const masivo = await pool.query<{ enAnalisis: boolean; activo: boolean }>(
+    `SELECT EXISTS (SELECT 1 FROM agente_masivo WHERE ocid = $1 AND estado = 'en_vuelo') AS "enAnalisis",
+            EXISTS (SELECT 1 FROM agente_masivo_tanda WHERE inicio > now() - interval '6 hours') AS activo`, [row.ocid])
+    .then((q) => q.rows[0] ?? null).catch(() => null);
   // Los datos de esos documentos como hechos con tipo y con su comprobación (migración 323). Sin la tabla, nada.
   const hechos = await hechosDe(row.ocid).catch(() => [] as HechoDocumento[]);
   // Lo que el Tribunal de Contrataciones resolvió sobre este proceso (migración 402). Sin la tabla, nada.
@@ -409,6 +415,14 @@ contratosDetalleRouter.get("/:ocid", async (c) => {
     // Lo que Claude leyó en los documentos (backend/lector): de dónde salió cada cosa y, del contrato y las consultas,
     // los hechos. Sus banderas van en `cruces` (migración 246), con su evidencia.
     lecturaIA: lecturaIA(lecturas, postoresAgentes.length > 0),
+    // Lo que el dictamen de los agentes necesita (el acta y las bases leídas, más el contrato o las consultas), qué ya se
+    // leyó y si el masivo lo está analizando o corre estos días: la ficha decía «la lectura de contratación directa no
+    // está activa» mientras el masivo ya las tomaba (pedido del usuario del 2026-11-24).
+    rutaDictamen: masivo ? {
+      acta: lecturas.some((l) => l.clase === "buena_pro"), bases: lecturas.some((l) => l.clase === "bases"),
+      contrato: lecturas.some((l) => l.clase === "contrato"), consultas: lecturas.some((l) => l.clase === "consultas"),
+      enAnalisis: masivo.enAnalisis, masivoActivo: masivo.activo,
+    } : null,
     // Cada dato leído de un documento, con qué es y si se pudo comprobar sin modelo (contra un registro oficial, contra
     // su propia cita o contra una segunda lectura).
     hechosDocumentos: hechos,

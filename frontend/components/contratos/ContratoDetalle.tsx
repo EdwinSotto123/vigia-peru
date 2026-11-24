@@ -20,7 +20,7 @@
 import Link from "next/link";
 import { rutaApoyar, rutaContrato } from "@/lib/rutas";
 import { Suspense, type ReactNode } from "react";
-import { CalendarRange, Clock, FileCheck, FileText, History, Hourglass, Package } from "lucide-react";
+import { BookOpenCheck, CalendarRange, Check, Circle, Clock, FileCheck, FileText, History, Hourglass, Package, Sparkles } from "lucide-react";
 import { ContratoEnVivo } from "@/components/auditoria/ContratoEnVivo";
 import { ResultadoAnalisis } from "@/components/auditoria/ResultadoAnalisis";
 import { PersonName, Ruc } from "@/components/Redact";
@@ -447,6 +447,71 @@ function accionesRegistro(c: Detalle, conCronograma: boolean): ReactNode[] {
   return out;
 }
 
+/** Lo que el dictamen necesita leído, en el orden en que se lee: una marca por documento. */
+function LeidoParaDictamen({ ruta }: { ruta: NonNullable<Detalle["rutaDictamen"]> }) {
+  const docs = [
+    { clave: "acta", nombre: "El acta de buena pro", ok: ruta.acta },
+    { clave: "bases", nombre: "Las bases", ok: ruta.bases },
+    { clave: "contrato", nombre: ruta.contrato || !ruta.consultas ? "El contrato" : "Las consultas", ok: ruta.contrato || ruta.consultas },
+  ];
+  return (
+    <span className="mt-2 flex flex-wrap gap-1.5" aria-label="Lo que el dictamen necesita leído">
+      {docs.map((d) => (
+        <span
+          key={d.clave}
+          className={cn(
+            "inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-meta",
+            d.ok ? "border-moss/30 bg-moss/10 font-medium text-mossTexto" : "border-line bg-paperSoft text-mute",
+          )}
+        >
+          {d.ok ? <Check size={13} aria-hidden /> : <Circle size={11} aria-hidden />}
+          {d.nombre}
+          <span className="sr-only">{d.ok ? ": leído" : ": falta leerlo"}</span>
+        </span>
+      ))}
+    </span>
+  );
+}
+
+/**
+ * La franja de un contrato que va camino al dictamen de los agentes (masivo_agentes.py): lo están analizando, ya tiene
+ * lo que necesita leído y espera la próxima tanda, o se están leyendo sus documentos.
+ */
+function FranjaDictamen({ ruta, falta, pasos, registro }: {
+  ruta: NonNullable<Detalle["rutaDictamen"]>; falta: ReactNode; pasos: ReactNode; registro: ReactNode[];
+}) {
+  const listo = ruta.acta && ruta.bases && (ruta.contrato || ruta.consultas);
+  const ayuda = (
+    <Ayuda titulo="¿Cómo llega al dictamen?">
+      Vigía baja sus documentos del SEACE y los lee por tandas. Con el acta, las bases y el contrato (o las consultas)
+      leídos, los agentes escriben el dictamen: cada señal con su norma y su evidencia. Lo más riesgoso va primero.
+    </Ayuda>
+  );
+  if (ruta.enAnalisis) {
+    return (
+      <FranjaEstado icono={<Sparkles size={18} className="text-granate" aria-hidden />} titulo="Los agentes lo están analizando" ayuda={ayuda} pasos={pasos} acciones={registro}>
+        Su dictamen sale en unos minutos.
+      </FranjaEstado>
+    );
+  }
+  return (
+    <FranjaEstado
+      icono={listo ? <FileCheck size={18} className="text-mossTexto" aria-hidden /> : <BookOpenCheck size={18} aria-hidden />}
+      titulo={listo ? "Listo para el dictamen" : "Leyendo sus documentos"}
+      ayuda={ayuda}
+      nota={falta}
+      acciones={registro}
+    >
+      {listo
+        ? ruta.masivoActivo
+          ? "Ya se leyó lo que necesita: entra en la próxima tanda de los agentes, que corre cada 3 horas."
+          : "Ya se leyó lo que necesita: entra cuando se reanude el análisis de los agentes."
+        : "Cuando estén leídos estos tres, los agentes escriben su dictamen."}
+      <LeidoParaDictamen ruta={ruta} />
+    </FranjaEstado>
+  );
+}
+
 function AnalisisCard({ c, lectura, alcance, conCronograma }: { c: Detalle; lectura: LecturaContrato | null; alcance: AlcanceActivo | null; conCronograma: boolean }) {
   const estado = c.estadoProcesamiento;
   const registro = accionesRegistro(c, conCronograma);
@@ -536,7 +601,13 @@ function AnalisisCard({ c, lectura, alcance, conCronograma }: { c: Detalle; lect
     );
   }
 
-  // Migración 19: tipo/etapa fuera del alcance activo → decir qué hay, sin CTA de financiar.
+  // Migración 19: tipo/etapa fuera del alcance activo → decir qué hay, sin CTA de financiar. Pero si sus documentos ya se
+  // están leyendo, el masivo de los agentes lo toma igual (2026-11-24: la ficha de una directa decía «no está activa»
+  // mientras se leían su acta y sus bases): lo que se leyó y lo que falta para el dictamen.
+  const ruta = c.rutaDictamen;
+  if (c.estadoOperativo && c.estadoOperativo !== "en_cola" && ruta && (ruta.enAnalisis || ruta.acta || ruta.bases || ruta.contrato || ruta.consultas)) {
+    return <FranjaDictamen ruta={ruta} falta={falta} pasos={pasos} registro={registro} />;
+  }
   if (c.estadoOperativo && c.estadoOperativo !== "en_cola") {
     const listo = c.estadoOperativo === "documentos_listos";
     const tipo = tipoLabel(c.tipo)?.toLowerCase() ?? "este tipo de contratación";
