@@ -104,10 +104,16 @@ export function ComparacionOfertas({ c }: { c: Detalle }) {
     <section aria-labelledby="comparacion-ofertas" className="rounded-2xl border border-line bg-paper px-4 py-4 sm:px-5 [.tarjeta_&]:rounded-none [.tarjeta_&]:border-x-0 [.tarjeta_&]:border-b-0 [.tarjeta_&]:bg-transparent [.tarjeta_&]:px-0 [.tarjeta_&]:pb-0">
       <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
         <h3 id="comparacion-ofertas" className="font-display text-bloque font-bold text-ink">
-          Las {numero(ofertas.length)} ofertas, de la más baja a la más alta{variosItems && !conItem ? ", de distintos ítems" : ""}
+          Las {numero(todas.length)} ofertas, de la más baja a la más alta{variosItems && !conItem ? ", de distintos ítems" : ""}
         </h3>
         <span className="text-rotulo text-mute">la barra es el monto ofertado{conPuntaje ? "; a la derecha, el puntaje" : ""}</span>
       </div>
+      {todas.length > ofertas.length && (
+        <p className="mt-1 text-rotulo text-mute">
+          {todas.length - ofertas.length === 1 ? "Una, al final, con un monto dudoso" : `${numero(todas.length - ofertas.length)}, al final, con un monto dudoso`}: más de tres veces el
+          valor referencial del proceso o igual a la cantidad de un ítem, probablemente mal leído del acta. No entran en la comparación.
+        </p>
+      )}
       {variosItems && (
         <p className="mt-1 text-rotulo text-mute">
           {conItem
