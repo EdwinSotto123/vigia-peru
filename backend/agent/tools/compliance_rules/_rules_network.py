@@ -311,7 +311,8 @@ def check_testaferro_multi_ruc_rule(ocid: str, tool_context: ToolContext,
                 "ganador_ruc": g_ruc,
                 "evidencia": (
                     f"Un {otras[0]['papel']} del ganador (RUC {g_ruc}) figura también como socio o representante legal de "
-                    f"{len(otras)} empresas más que ganaron buenas pro del Estado en los últimos 12 meses: {lista}"
+                    + ("1 empresa más que ganó buenas pro" if len(otras) == 1 else f"{len(otras)} empresas más que ganaron buenas pro")
+                    + f" del Estado en los últimos 12 meses: {lista}"
                     + (f" y {len(otras) - 5} más" if len(otras) > 5 else "") + ". "
                     + ("Al menos una ganó en esta misma entidad. " if misma else "")
                     + "Varias empresas de una misma persona no son una falta: hay que revisar si compiten entre sí, si se "
@@ -585,7 +586,8 @@ def check_lobby_visits_rule(ocid: str, tool_context: ToolContext,
                 + (f", para reunirse con {v0['cargo_funcionario']}" if v0.get("cargo_funcionario") else "")
                 + (f" ({v0['area_funcionario']})" if v0.get("area_funcionario") else "")
                 + (f"; motivo: «{v0['motivo']}»" if v0.get("motivo") else "") + "."
-                + (f" Otras {otras} visitas de la gente del ganador en los 180 días previos." if otras > 0 else "")
+                + ((" Otra visita de la gente del ganador en los 180 días previos." if otras == 1
+                    else f" Otras {otras} visitas de la gente del ganador en los 180 días previos.") if otras > 0 else "")
                 + " Una visita no prueba un acuerdo: es un hecho registrado que el dictamen debe consignar."
             ),
             "norma": "Ley 28024 (Gestión de Intereses) — registro de visitas obligatorio para detectar lobby.",
@@ -593,8 +595,9 @@ def check_lobby_visits_rule(ocid: str, tool_context: ToolContext,
         state.setdefault("pending_flags", []).append(result)
     elif visitas:
         result["severidad"] = "media"
-        result["evidencia"] = (f"{len(visitas)} visitas de socios o representantes de otros postores (no el ganador) a la "
-                               f"entidad en los 180 días previos a la convocatoria.")
+        result["evidencia"] = (("1 visita" if len(visitas) == 1 else f"{len(visitas)} visitas")
+                               + " de socios o representantes de otros postores (no el ganador) a la "
+                               "entidad en los 180 días previos a la convocatoria.")
     return result
 
 

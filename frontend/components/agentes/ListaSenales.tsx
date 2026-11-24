@@ -145,6 +145,10 @@ export function limpiarEvidencia(texto: string): string {
       .replace(/persona con documento (20\d{9})(?!\d)/g, "la empresa con RUC $1")
       .replace(CAMPO_ORIGEN, "")
       .replace(CAMPO_GENERICO, "")
+      // Concordancia de frases del agente anteriores al 2026-11-24 («Otras 1 visitas de la gente del ganador», 1187092).
+      .replace(/\bOtras 1 visitas\b/g, "Otra visita")
+      .replace(/\b1 visitas\b/g, "1 visita")
+      .replace(/\b1 empresas más que ganaron\b/g, "1 empresa más que ganó")
       // «VIGENTE(S)» → «vigente(s)»: una palabra entera en mayúsculas con su plural a medias es énfasis, no una sigla.
       .replace(/(?<!\p{L})(\p{Lu}{2,})\(([eE]?[sS])\)/gu, (_, w: string, s: string) => `${w.toLocaleLowerCase("es")}(${s.toLowerCase()})`)
       // «2 sanción(es) vigente(s)» → «2 sanciones vigentes»; «1 sanción(es)» → «1 sanción».

@@ -73,7 +73,10 @@ export function BanderasAgrupadas({
   const sujetoDe = useMemo(() => {
     if (ganadores.length < 2) return undefined;
     return (s: SenalAgente) => {
-      if (temaDeRegla(s.regla) !== "proveedor") return null;
+      // Las del proveedor y las de vínculos (la visita del representante de UN ganador, 1187092): la que nombra a un
+      // solo ganador dice cuál, en vez de «Vínculos entre personas».
+      const tema = temaDeRegla(s.regla);
+      if (tema !== "proveedor" && tema !== "vinculos") return null;
       // El RUC que la regla guardó en la señal (desde el 2026-11-16) y, si no, el que nombra su evidencia.
       const g = (s.ganadorRuc ? ganadores.find((x) => x.ruc === s.ganadorRuc) : null)
         ?? ganadorDeLaSenal([s.evidencia, s.evidenciaTextual].filter(Boolean).join(" "), ganadores);
