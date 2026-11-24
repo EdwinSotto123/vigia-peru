@@ -10,6 +10,7 @@ import { PersonName, Ruc, esPersonaNatural } from "../../Redact";
 import { fechaDossier, montoDossier } from "../dossier";
 import type { ApiResult } from "../types";
 import { mismoNombre } from "./historia";
+import { nombreLegibleEmpresa } from "@/lib/nombreEmpresa";
 
 const esRucEmpresa = (ruc: unknown) => /^20\d{9}$/.test(String(ruc ?? ""));
 
@@ -19,15 +20,26 @@ const esRucEmpresa = (ruc: unknown) => /^20\d{9}$/.test(String(ruc ?? ""));
  */
 export function NombreProveedor({ nombre, ruc, className }: { nombre: string; ruc?: string | null; className?: string }) {
   if (esPersonaNatural(ruc)) return <PersonName name={nombre} orden="sunat" />;
+  // Como en la cabecera de la ficha («Laboratorios AC Farma S.A.», no «LABORATORIOS AC FARMA S.A.»).
+  const { texto, completo } = nombreLegibleEmpresa(nombre);
   if (esRucEmpresa(ruc)) {
     return (
-      <Link href={`/empresa/${ruc}`} prefetch={false} className={cn("font-semibold text-granate hover:underline", className)}>
-        {nombre}
+      <Link href={`/empresa/${ruc}`} prefetch={false} title={completo} className={cn("font-semibold text-granate hover:underline", className)}>
+        {texto}
       </Link>
     );
   }
-  return <span className={className}>{nombre}</span>;
+  return <span className={className} title={completo}>{texto}</span>;
 }
+
+/** Lo que ganó cada uno según la ficha (`ganadores_ficha`: las adjudicaciones vigentes y el CONOSCE), por RUC. */
+type GanadoFicha = { ruc: string; monto: number; items: number[] };
+
+/** «ítem 7», «ítems 2 y 6». */
+const losItems = (xs: number[]) => {
+  const ys = [...new Set(xs)].sort((a, b) => a - b);
+  return ys.length === 0 ? "" : ys.length === 1 ? `ítem ${ys[0]}` : `ítems ${listaY(ys.map(String))}`;
+};
 
 interface Hecho {
   icono: LucideIcon;
@@ -56,6 +68,10 @@ export function QuienGano({ result, ganador, ganadores, nPostores }: { result: A
   const delActa: any[] = Array.isArray(acta?.postores) ? acta.postores.filter((p: any) => p?.nombre) : [];
   const delRegistro: any[] = ((result.postores || []) as any[]).filter((p) => p?.nombre);
   const postores = unirPostores(delRegistro, delActa);
+  const fichaGanadores: GanadoFicha[] = Array.isArray((result as any).ganadores_ficha) ? (result as any).ganadores_ficha : [];
+  const oficiales = new Map(fichaGanadores.filter((g) => g?.ruc).map((g) => [g.ruc, g]));
+  const suParte = ganador?.ruc && otrosGanadores.length > 0 ? oficiales.get(ganador.ruc) : undefined;
+  const referencial = Number((result as any).convocatoria?.cuantia_total) || null;
 
   return (
     <div className="space-y-3">
@@ -70,6 +86,12 @@ export function QuienGano({ result, ganador, ganadores, nPostores }: { result: A
             {ganador.ruc && (
               <span className="font-mono text-meta text-mute">
                 RUC <Ruc value={ganador.ruc} />
+              </span>
+            )}
+            {/* Con varios ganadores, qué parte es la suya: el resto del capítulo es su análisis. */}
+            {suParte && suParte.monto > 0 && (
+              <span className="text-meta text-inkSoft">
+                {losItems(suParte.items) ? `${losItems(suParte.items)}, ` : ""}por {montoDossier(suParte.monto)}
               </span>
             )}
           </p>
@@ -116,7 +138,7 @@ export function QuienGano({ result, ganador, ganadores, nPostores }: { result: A
         )}
       </div>
 
-      <Competidores postores={postores} conActa={delActa.length > 0} nPostores={nPostores} />
+      <Competidores postores={postores} conActa={delActa.length > 0} nPostores={nPostores} oficiales={oficiales} referencial={referencial} />
     </div>
   );
 }
@@ -247,7 +269,19 @@ function unirPostores(registro: any[], acta: any[]): any[] {
  * Con quién compitió: todos los que se presentaron (sin recorte: suelen ser pocos, y si no, son la evidencia), el ganador
  * marcado, y su oferta, puntaje y por qué quedó fuera si el acta se leyó. Con uno solo, una línea que lo dice.
  */
-function Competidores({ postores, conActa, nPostores }: { postores: any[]; conActa: boolean; nPostores: number | null }) {
+function Competidores({
+  postores,
+  conActa,
+  nPostores,
+  oficiales,
+  referencial,
+}: {
+  postores: any[];
+  conActa: boolean;
+  nPostores: number | null;
+  oficiales: Map<string, GanadoFicha>;
+  referencial: number | null;
+}) {
   const n = Math.max(postores.length, nPostores ?? 0);
   if (n <= 1) {
     return (
@@ -268,10 +302,23 @@ function Competidores({ postores, conActa, nPostores }: { postores: any[]; conAc
       <ul className="mt-2 divide-y divide-line/70">
         {postores.map((p, i) => {
           const gano = p.ganador === true || p.es_ganador === true;
+          // Quien ganó, con lo que ganó según la ficha (sus ítems y su monto): el acta leída puede traer su oferta de OTRO
+          // ítem (Jobal «ofertó S/ 1,168,500» en el ítem 1, que perdió, y ganó el 7 por S/ 1,293,011; 2026-2543-197).
+          const suyo = gano && p.ruc ? oficiales.get(p.ruc) : undefined;
+          const oferta = Number(p.monto_ofertado);
+          // Una oferta de más de tres veces el valor referencial del proceso está mal leída del acta (S/ 509 M en uno de S/ 51 M).
+          const dudosa = referencial != null && oferta > 3 * referencial;
           const datos = [
-            Number(p.monto_ofertado) > 0 ? `ofertó ${montoDossier(p.monto_ofertado)}` : null,
-            // Los puntos de la evaluación del comité (acta), no el puntaje de riesgo de Vigía (0 a 100).
-            p.puntaje != null && Number.isFinite(Number(p.puntaje)) ? `${numero(Number(p.puntaje))} puntos en la evaluación` : null,
+            suyo && suyo.monto > 0
+              ? `${losItems(suyo.items) ? `${losItems(suyo.items)}, ` : ""}por ${montoDossier(suyo.monto)}`
+              : oferta > 0
+                ? dudosa
+                  ? "su oferta no se lee bien en el acta"
+                  : `ofertó ${montoDossier(oferta)}`
+                : null,
+            // Los puntos de la evaluación del comité (acta), no el puntaje de riesgo de Vigía (0 a 100). Si la línea dice lo
+            // que ganó según la ficha, los puntos del acta pueden ser de otro ítem: no van.
+            !suyo && p.puntaje != null && Number.isFinite(Number(p.puntaje)) ? `${numero(Number(p.puntaje))} puntos en la evaluación` : null,
             p.admitida === false ? "oferta no admitida" : null,
             p.motivo_fuera ? `quedó fuera: ${String(p.motivo_fuera)}` : null,
           ].filter((x): x is string => Boolean(x));
