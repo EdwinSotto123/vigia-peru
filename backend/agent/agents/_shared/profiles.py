@@ -112,7 +112,7 @@ _BIENES = Profile(
         "bases integradas", "bases", "especificaciones tecnicas", "acta", "cuadro comparativo",
         "contrato", "orden de compra", "adenda", "absolucion",
     ),
-    parse_max_docs=12,
+    parse_max_docs=40,   # con la lectura previa todo viene de la caché (era 12: 1218237 dejaba 20 sin leer)
 )
 
 _SERVICIOS = Profile(
@@ -134,7 +134,7 @@ _SERVICIOS = Profile(
         "terminos de referencia", "bases integradas", "bases", "acta", "cuadro comparativo",
         "contrato", "orden de servicio", "adenda", "absolucion",
     ),
-    parse_max_docs=12,
+    parse_max_docs=40,   # con la lectura previa todo viene de la caché (era 12: 1218237 dejaba 20 sin leer)
 )
 
 _OBRAS = Profile(
@@ -155,7 +155,7 @@ _OBRAS = Profile(
         "expediente tecnico", "presupuesto", "bases integradas", "bases", "contrato",
         "adenda", "adicional", "valorizacion", "acta",
     ),
-    parse_max_docs=12,
+    parse_max_docs=40,   # con la lectura previa todo viene de la caché (era 12: 1218237 dejaba 20 sin leer)
 )
 
 _OTROS = Profile(
@@ -186,7 +186,7 @@ _OTROS = Profile(
         "informe tecnico", "informe legal", "informe", "resolucion", "acto resolutivo",
         "cotizacion", "contrato", "convenio", "orden de",
     ),
-    parse_max_docs=12,
+    parse_max_docs=40,   # con la lectura previa todo viene de la caché (era 12: 1218237 dejaba 20 sin leer)
 )
 
 _CONSULTORIA = Profile(
@@ -210,7 +210,7 @@ _CONSULTORIA = Profile(
         "terminos de referencia", "bases integradas", "bases", "acta", "cuadro comparativo",
         "contrato", "adenda", "absolucion", "informe",
     ),
-    parse_max_docs=12,
+    parse_max_docs=40,   # con la lectura previa todo viene de la caché (era 12: 1218237 dejaba 20 sin leer)
 )
 
 PROFILES: dict[str, Profile] = {p.nombre: p for p in (_BIENES, _SERVICIOS, _OBRAS, _CONSULTORIA, _OTROS)}

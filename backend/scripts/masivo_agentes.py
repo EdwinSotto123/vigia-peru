@@ -147,6 +147,12 @@ _PENDIENTE = """
          WHERE cv.procesable AND lower(cv.tipo_contratacion) = ANY(%s)
            AND NOT EXISTS (SELECT 1 FROM alertas a WHERE a.codigo = 'OECE-' || cv.ocid)
            AND NOT COALESCE(m.tomado, false) AND COALESCE(m.fallas, 0) < 2"""
+# Sólo lo que ya se leyó ENTERO antes (backend/scripts/lectura_previa.py, migración 444): el análisis no hace OCR ni
+# extracción con apuro. En 7 días, 4 143 de 4 684 análisis habían perdido parte de sus documentos (2026-11-24).
+# MASIVO_SIN_LECTURA_PREVIA=1 lo salta (sólo para pruebas).
+if os.getenv("MASIVO_SIN_LECTURA_PREVIA", "0") != "1":
+    _PENDIENTE += """
+           AND EXISTS (SELECT 1 FROM lectura_previa lp WHERE lp.ocid = cv.ocid AND lp.completo)"""
 
 
 def candidatos(cu, redes: list[str]) -> list[tuple[str, str]]:

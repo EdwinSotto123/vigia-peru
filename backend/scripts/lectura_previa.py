@@ -261,13 +261,70 @@ def leer_contrato(ocid: str, rehacer: bool, rehacer_texto: bool = False) -> dict
     bloque, prio, mx = _perfil_params(state)
     elegidos, omitidos = seleccionar_documentos(ocid, state["ocds"], doc_urls, prio, mx)
     t0 = time.monotonic()
+    usd0 = costo_llm.resumen()["costo_usd"]
+    # Lo que el registro publica y no está en el almacén (p. ej. las bases en RAR o Word que el descargador no bajaba hasta
+    # el 2026-11-24): no se puede leer; queda como falta y se pide su descarga.
+    sin_copia = [d for d in elegidos if not d.get("gs")]
     res = parse_documentos_lote(state, elegidos, parser_bloque=bloque, prioridad=prio)
-    faltas = [r for r in state["recortes"] if isinstance(r, dict)
+    faltas = [f"{r.get('donde')}: {r.get('limite')}" for r in state["recortes"] if isinstance(r, dict)
               and (str(r.get("donde", "")).split(":")[0] in _INCOMPLETO or r.get("limite") in _INCOMPLETO_LIMITE)]
+    faltas += [f"sin copia en el almacén: {d.get('titulo')} [{d.get('formato')}]" for d in sin_copia
+               if not any(str(d.get("titulo")) in f for f in faltas)]
     items = (state.get("parser_raw_consolidated") or {}).get("items_consolidados") or []
-    return {"estado": "completo" if not faltas else "falta", "red": red, "docs": len(elegidos), "omitidos": len(omitidos),
-            "ok": res.get("n_ok"), "items": len(items), "segundos": round(time.monotonic() - t0),
-            "faltas": [f"{r.get('donde')}: {r.get('limite')}" for r in faltas][:5]}
+    r = {"estado": "completo" if not faltas else "falta", "red": red, "docs": len(elegidos), "omitidos": len(omitidos),
+         "ok": res.get("n_ok"), "items": len(items), "segundos": round(time.monotonic() - t0),
+         "usd": round(costo_llm.resumen()["costo_usd"] - usd0, 4), "faltas": faltas[:8]}
+    cn = _pg()
+    try:
+        cur = cn.cursor()
+        cur.execute("""INSERT INTO lectura_previa (ocid, completo, documentos, omitidos, items, faltas, costo_usd, segundos, actualizado_at)
+                       VALUES (%s, %s, %s, %s, %s, %s::jsonb, %s, %s, now())
+                       ON CONFLICT (ocid) DO UPDATE SET completo = EXCLUDED.completo, documentos = EXCLUDED.documentos,
+                         omitidos = EXCLUDED.omitidos, items = EXCLUDED.items, faltas = EXCLUDED.faltas,
+                         costo_usd = EXCLUDED.costo_usd, segundos = EXCLUDED.segundos, actualizado_at = now()""",
+                    (ocid, not faltas, len(elegidos), len(omitidos), len(items), json.dumps(faltas, ensure_ascii=False), r["usd"], r["segundos"]))
+        if sin_copia:
+            cur.execute("""INSERT INTO pedidos_descarga (ocid, motivo) SELECT %s, 'lectura'
+                            WHERE NOT EXISTS (SELECT 1 FROM pedidos_descarga WHERE ocid_corto(ocid) = ocid_corto(%s)
+                                                AND estado IN ('pendiente', 'descargando'))""", (ocid, ocid))
+            r["pedido_descarga"] = True
+        cn.commit()
+    finally:
+        cn.close()
+    return r
+
+
+# Lo que el masivo tomaría (backend/scripts/masivo_agentes.py `candidatos`) y todavía no tiene su lectura previa completa.
+CANDIDATOS_SQL = """
+  WITH leidos AS (
+    SELECT ocid, count(DISTINCT clase) FILTER (WHERE estado = 'ok' AND clase <> 'comite') AS docs,
+           bool_or(clase = 'contrato' AND estado = 'ok') OR bool_or(clase = 'consultas' AND estado = 'ok') AS rico
+      FROM documento_lectura GROUP BY ocid
+    HAVING bool_or(clase = 'buena_pro' AND estado = 'ok') AND bool_or(clase = 'bases' AND estado = 'ok')),
+  libro AS (
+    SELECT ocid, bool_or(estado IN ('ok', 'en_vuelo')) AS tomado, count(*) FILTER (WHERE estado = 'error') AS fallas
+      FROM agente_masivo WHERE ocid IS NOT NULL GROUP BY ocid)
+  SELECT cv.ocid
+    FROM convocatorias cv JOIN leidos l ON l.ocid = cv.ocid AND l.rico
+    LEFT JOIN libro m ON m.ocid = cv.ocid
+    LEFT JOIN lectura_previa lp ON lp.ocid = cv.ocid
+   WHERE cv.procesable AND lower(cv.tipo_contratacion) = ANY(%s)
+     AND NOT EXISTS (SELECT 1 FROM alertas a WHERE a.codigo = 'OECE-' || cv.ocid)
+     AND NOT COALESCE(m.tomado, false) AND COALESCE(m.fallas, 0) < 2
+     AND (lp.ocid IS NULL OR (NOT lp.completo AND lp.actualizado_at < now() - interval '1 day'))
+   ORDER BY l.docs DESC, riesgo_contrato(cv.ocid) DESC NULLS LAST, cv.cuantia_referencial DESC NULLS LAST
+   LIMIT %s"""
+
+
+def candidatos(n: int, redes: list[str]) -> list[str]:
+    tipos = [t for r in redes for t in TIPOS[r]]
+    cn = _pg()
+    try:
+        cur = cn.cursor()
+        cur.execute(CANDIDATOS_SQL, (tipos, n))
+        return [f[0] for f in cur.fetchall()]
+    finally:
+        cn.close()
 
 
 def main() -> None:
@@ -278,10 +335,15 @@ def main() -> None:
     ap.add_argument("--tope-usd", type=float, default=5.0)
     ap.add_argument("--rehacer", action="store_true", help="descarta la extracción guardada y la vuelve a hacer")
     ap.add_argument("--rehacer-texto", action="store_true", help="también vuelve a leer el texto (OCR) de sus documentos")
+    ap.add_argument("--candidatos", type=int, default=0, help="toma los N próximos contratos del masivo sin lectura previa completa")
+    ap.add_argument("--redes", default="bienes,servicios,obras,consultoria,otros", help="redes para --candidatos")
     a = ap.parse_args()
     sys.stdout.reconfigure(encoding="utf-8")
     ocids = list(dict.fromkeys(a.ocids + ([x.strip() for x in Path(a.archivo).read_text(encoding="utf-8").splitlines() if x.strip()]
                                           if a.archivo else [])))
+    if a.candidatos:
+        ocids += [o for o in candidatos(a.candidatos, [r.strip() for r in a.redes.split(",") if r.strip()]) if o not in ocids]
+        log(f"{len(ocids)} contratos para la lectura previa")
     costo_llm.iniciar()
     completos = 0
     try:

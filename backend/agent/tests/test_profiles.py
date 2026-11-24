@@ -73,7 +73,7 @@ def test_contenido_por_perfil_segun_auditoria():
     # market corre en TODOS los perfiles (ya no se omite a ciegas para no-bienes)
     for p in (b, s, o, x):
         assert "market" in p.agentes
-        assert p.parse_max_docs == 12
+        assert p.parse_max_docs == 40   # con la lectura previa, todo de la caché (era 12)
         assert "Recortes y datos no verificables" in p.dictamen_secciones
         assert p.doc_prioridad and p.legal_vectores == p.nombre
     assert x.agentes == ("compliance", "document_parser", "document_legal_analyst", "market",
