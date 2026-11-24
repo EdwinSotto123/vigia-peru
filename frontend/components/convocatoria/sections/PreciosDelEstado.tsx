@@ -17,6 +17,7 @@ import { Ayuda } from "@/components/patrones/Ayuda";
 import { numero, plural, porcentaje } from "@/lib/formato";
 import { cn } from "@/lib/utils";
 import { montoDossier } from "../dossier";
+import { cantidadYUnidad } from "@/lib/unidad";
 
 /** Qué dice cada veredicto del agente, con el rango del que habla. El veredicto no se recalcula aquí. */
 const VEREDICTO: Record<string, { texto: string; clase: string; explica: (r: Ref) => string }> = {
@@ -125,7 +126,7 @@ function ItemEstado({ x }: { x: any }) {
         <p className="text-dato font-semibold leading-snug text-ink">{x.descripcion || `Ítem ${x.item}`}</p>
         <p className="mt-0.5 text-rotulo text-mute">
           Ítem {x.item}
-          {x.cantidad ? `, ${numero(x.cantidad)} ${String(x.unidad ?? "").toLowerCase()}` : x.unidad ? `, ${String(x.unidad).toLowerCase()}` : ""}
+          {x.cantidad ? `, ${cantidadYUnidad(Number(x.cantidad), x.unidad, { minusculas: true })}` : x.unidad ? `, ${String(x.unidad).toLowerCase()}` : ""}
         </p>
       </div>
 

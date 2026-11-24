@@ -4,6 +4,7 @@ import { AlertTriangle, CheckCircle2, ExternalLink } from "lucide-react";
 import { numero } from "@/lib/formato";
 import { cn } from "@/lib/utils";
 import { ICONO_SEVERIDAD, type FilaPrecio } from "./mercado";
+import { cantidadYUnidad } from "@/lib/unidad";
 
 /**
  * El detalle de un ítem del gráfico de precios, y la tabla completa que le
@@ -49,7 +50,7 @@ export function DetallePrecioItem({ fila, fmtMoney }: { fila: FilaPrecio; fmtMon
     : [];
   const proveedores: any[] = Array.isArray(f.proveedores_potenciales) ? f.proveedores_potenciales : [];
   const queries: string[] = Array.isArray(f.queries_realizadas) ? f.queries_realizadas : [];
-  const porUnidad = fila.cantidad !== null ? `${numero(fila.cantidad)} ${fila.unidad}` : null;
+  const porUnidad = fila.cantidad !== null ? cantidadYUnidad(fila.cantidad, fila.unidad) : null;
   // Lo que pagaron otras entidades por el mismo bien (compras del SEACE): la mediana regional si la hay; si no, la de las
   // referencias (desde 3). Es la comparación que se entiende y la que va arriba (2026-11-13: el bloque «arrimaba datos»
   // y mostraba como «mediana de mercado» un precio que el propio análisis había descartado).

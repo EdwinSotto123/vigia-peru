@@ -9,6 +9,8 @@ from __future__ import annotations
 
 import re
 
+from tools.market.normalizar import _fmt_precio
+
 _FUENTE = {
     "osinergmin": "precios que los grifos declaran a Osinergmin",
     "emmsa": "precios mayoristas de EMMSA",
@@ -31,6 +33,12 @@ def _n(v) -> float | None:
 
 def _s(v: float) -> str:
     return f"S/ {v:,.2f}"
+
+
+def _p(v: float) -> str:
+    """Un precio unitario: por debajo de S/ 1, con sus cifras («S/ 0.0375»). Con dos decimales, el enalapril de
+    2026-2543-197 decía «Se pagó S/ 0.04; la referencia es S/ 0.03 (de S/ 0.03 a S/ 0.03)» por un +25 %."""
+    return f"S/ {_fmt_precio(v)}"
 
 
 def _fuentes(f: dict, de_ancla: bool) -> str:
@@ -68,7 +76,7 @@ def justificar(f: dict) -> tuple[str, dict]:
     hi = _n(ancla.get("rango_max") if de_ancla else f.get("rango_max"))
     nums: dict = {"precio_pagado": pagado, "precio_referencia": ref}
     verbo = "El valor referencial es" if es_ref else "Se pagó"
-    partes = [f"{verbo} {_s(pagado)} por {unidad}; la referencia es {_s(ref)}"]
+    partes = [f"{verbo} {_p(pagado)} por {unidad}; la referencia es {_p(ref)}"]
     det = []
     # Perú Compras: la referencia es lo que pagaron N entidades, no «N precios».
     resp = 0 if de_ancla else sum(int(_n(x.get("respaldo")) or 0) for x in (f.get("precios_observados") or []) if isinstance(x, dict))
@@ -85,8 +93,8 @@ def justificar(f: dict) -> tuple[str, dict]:
     elif n:
         det.append(f"mediana de {n} precio{'s' if n != 1 else ''}")
         nums["n_precios_referencia"] = n
-    if lo and hi and hi > lo:
-        det.append(f"de {_s(lo)} a {_s(hi)}")
+    if lo and hi and hi > lo and _p(lo) != _p(hi):
+        det.append(f"de {_p(lo)} a {_p(hi)}")
         nums.update({"referencia_min": lo, "referencia_max": hi})
     det.append(_fuentes(f, de_ancla))
     partes[0] += " (" + "; ".join(det) + ")."

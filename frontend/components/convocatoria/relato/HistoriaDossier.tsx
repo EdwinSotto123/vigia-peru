@@ -188,7 +188,7 @@ function pasosDelProceso({
   const obra = (result as any).obra_ejecucion;
   const hayObra = ((sup?.enlazada && sup.obras) || (obra?.enlazada && obra.obras) || []).length > 0;
   const entidad = conv.entidad ? conArticulo(tituloNatural(String(conv.entidad).replace(/\s+/g, " ").trim())) : "la entidad";
-  const { referencial, adjudicado, variacion, deAdjudicados } = cifrasDelProceso(conv, ganador);
+  const { referencial, referencialTotal, adjudicado, variacion, deAdjudicados } = cifrasDelProceso(conv, ganador);
   const objetivos = new Set(senales.map((s) => pasoDeRegla(s.regla)));
   const pasos: PasoProceso[] = [];
   const oraciones = (xs: (string | null | undefined | false)[]) => {
@@ -215,7 +215,7 @@ function pasosDelProceso({
     cuando: conv.fecha_publicacion ? undefined : "Sin fecha en el registro",
     titulo: `${mayusculaInicial(entidad)} publicó la convocatoria`,
     detalle: oraciones([
-      [conv.tipo_proceso, referencial !== null && `valor referencial de ${montoDossier(referencial)}`, nItems && plural(nItems, "ítem", "ítems")]
+      [conv.tipo_proceso, referencialTotal !== null && `valor referencial de ${montoDossier(referencialTotal)}`, nItems && plural(nItems, "ítem", "ítems")]
         .filter(Boolean)
         .join(", "),
       causal?.match && `Contratación directa, literal ${String(causal.causal_letra ?? "").toUpperCase()}: ${causal.descripcion ?? "sin descripción"}`,
@@ -307,21 +307,35 @@ function pasosDelProceso({
 
   // La firma del contrato: el número, el monto y el plazo, si se leyó el contrato. Con varios ganadores el contrato
   // leído es UNO de ellos (el registro trae uno por ítem): se dice, para que su monto no se lea como el total.
-  const fechaFirma: string | null = conv.fecha_contrato ?? contrato?.fecha_suscripcion ?? null;
-  const varios = ganadores.length > 1;
+  // Con varios contratos en la ficha (`contratos_ficha`): cuántos, por cuánto y desde la primera firma hasta la última.
+  const firmas = conv.contratos_ficha as { n: number; monto: number | null; primera: string | null; ultima: string | null } | undefined;
+  const fechaFirma: string | null = firmas?.primera ?? conv.fecha_contrato ?? contrato?.fecha_suscripcion ?? null;
+  const varios = ganadores.length > 1 || (firmas?.n ?? 0) > 1;
   if (fechaFirma) {
     pasos.push({
       clave: "firma",
       fecha: fechaFirma,
-      titulo: varios ? "Se firmaron los contratos" : "Se firmó el contrato",
+      titulo: firmas ? `Se firmaron ${firmas.n} contratos` : varios ? "Se firmaron los contratos" : "Se firmó el contrato",
       detalle: oraciones([
-        [
-          contrato?.numero_contrato && `${varios ? "Uno de ellos, el contrato" : "Contrato"} ${contrato.numero_contrato}`,
-          Number(contrato?.monto_contratado) > 0 && `por ${montoDossier(contrato.monto_contratado)}`,
-          Number(contrato?.plazo_dias) > 0 && `con ${plural(Number(contrato.plazo_dias), "día", "días")} de plazo`,
-        ]
-          .filter(Boolean)
-          .join(", "),
+        firmas
+          ? [
+              // Lo firmado puede no ser lo adjudicado (un contrato menor o uno que falta): se dice al lado, no se esconde.
+              firmas.monto != null &&
+                firmas.monto > 0 &&
+                `Por ${montoDossier(firmas.monto)} entre todos${
+                  adjudicado !== null && Math.abs(firmas.monto - adjudicado) / adjudicado > 0.01 ? `, frente a ${montoDossier(adjudicado)} adjudicados` : ""
+                }`,
+              firmas.ultima && firmas.ultima !== firmas.primera && `el último, el ${fechaDossier(firmas.ultima)}`,
+            ]
+              .filter(Boolean)
+              .join("; ")
+          : [
+              contrato?.numero_contrato && `${varios ? "Uno de ellos, el contrato" : "Contrato"} ${contrato.numero_contrato}`,
+              Number(contrato?.monto_contratado) > 0 && `por ${montoDossier(contrato.monto_contratado)}`,
+              Number(contrato?.plazo_dias) > 0 && `con ${plural(Number(contrato.plazo_dias), "día", "días")} de plazo`,
+            ]
+              .filter(Boolean)
+              .join(", "),
         // Una firma anterior a la convocatoria no se ordena por fecha (rompería el relato): se dice en su paso.
         conv.fecha_publicacion && fechaFirma.slice(0, 10) < String(conv.fecha_publicacion).slice(0, 10) && "Según el registro, la firma es anterior a la convocatoria",
       ]),

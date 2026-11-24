@@ -1135,13 +1135,49 @@ export function referencialAdjudicable(c: Pick<ContratoDetalle, "items" | "monto
   return { referencial: resto > 0 ? resto : total, desiertos: sin.length, nItems };
 }
 
+/** La línea del agente sobre los ítems que el mercado dejó fuera (se reescribe con `fraseExcluidos`). */
+const RX_OBS_EXCLUIDOS = /ítem\(s\) desierto\(s\)|Se excluyeron \d+ ítem\(s\)|ítem\(s\) del proceso quedaron desiertos/;
+
+const MOTIVO_EXCLUIDO: Record<string, [string, string]> = {
+  desierto: ["desierto", "desiertos"],
+  nulo: ["nulo", "nulos"],
+  cancelado: ["cancelado", "cancelados"],
+  sin_adjudicacion: ["sin adjudicar", "sin adjudicar"],
+};
+
+/**
+ * «Los ítems 5 (CAFEINA…) y 9 (HIDROXOCOBALAMINA…) quedaron desiertos: no entran en la comparación con el mercado ni
+ * en los totales.» Con motivos distintos, cada uno con el suyo.
+ */
+export function fraseExcluidos(xs: { numero?: unknown; descripcion?: unknown; motivo?: unknown }[]): string {
+  const motivos = [...new Set(xs.map((x) => String(x.motivo ?? "sin_adjudicacion")))];
+  const uno = motivos.length === 1 ? (MOTIVO_EXCLUIDO[motivos[0]] ?? MOTIVO_EXCLUIDO.sin_adjudicacion) : null;
+  const partes = xs.slice(0, 10).map((x) => {
+    const d = String(x.descripcion ?? "").trim();
+    const m = MOTIVO_EXCLUIDO[String(x.motivo ?? "")]?.[0] ?? "sin adjudicar";
+    return `${x.numero ?? "?"}${d || !uno ? ` (${[d, uno ? null : m].filter(Boolean).join(", ")})` : ""}`;
+  });
+  const lista = partes.length > 1 ? `${partes.slice(0, -1).join(", ")} y ${partes[partes.length - 1]}` : partes[0];
+  const mas = xs.length > 10 ? ` y ${xs.length - 10} más` : "";
+  const fuera = "no entran en la comparación con el mercado ni en los totales";
+  if (uno) {
+    return xs.length === 1
+      ? `El ítem ${lista} quedó ${uno[0]}: ${fuera.replace("no entran", "no entra")}.`
+      : `Los ítems ${lista}${mas} quedaron ${uno[1]}: ${fuera}.`;
+  }
+  return `Quedan fuera de la comparación con el mercado y de los totales los ítems ${lista}${mas}.`;
+}
+
 /**
  * El informe del dictamen con las cifras de la buena pro de la ficha: lo adjudicado (las adjudicaciones vigentes), el
  * referencial de los ítems que sí se adjudicaron y lo que ganó cada uno. El agente guarda las suyas al analizar y, con
  * varios ganadores, no cuadraban con la ficha (2026-2543-197: el dictamen decía S/ 14.1 M y «72.3 % bajo el
  * referencial»; la ficha, S/ 16.6 M y 33 %). Pedido del usuario del 2026-11-24.
  */
-export function informeConCifrasDeLaFicha<T extends Record<string, any> | null>(informe: T, c: Pick<ContratoDetalle, "adjudicaciones" | "items" | "montoPen" | "contratadoConosce" | "proveedorRuc">): T {
+export function informeConCifrasDeLaFicha<T extends Record<string, any> | null>(
+  informe: T,
+  c: Pick<ContratoDetalle, "adjudicaciones" | "items" | "montoPen" | "contratadoConosce" | "proveedorRuc" | "contrato" | "cronograma">,
+): T {
   if (!informe) return informe;
   const vigentes = adjudicacionesVigentes(c);
   const adjudicado = vigentes.reduce((t, a) => t + (a.montoPen ?? 0), 0) || null;
@@ -1153,6 +1189,20 @@ export function informeConCifrasDeLaFicha<T extends Record<string, any> | null>(
   if (desiertos && referencial) {
     conv.cuantia_adjudicada = referencial;
     conv.n_desiertos = desiertos;
+  }
+  // Con varios contratos (uno por ganador), cuántos, por cuánto y entre qué fechas: la historia decía «Uno de ellos, el
+  // contrato 4600061258, por S/ 88,038» de un proceso de S/ 16.6 M con 8 contratos (2026-2543-197).
+  const firmados = c.contrato?.firmados ?? [];
+  const nFirmados = c.contrato?.firmadosTotal ?? firmados.length;
+  if (nFirmados > 1) {
+    const suma = firmados.reduce((t, f) => t + (f.monto ?? 0), 0);
+    const fechas = [...new Set((c.cronograma ?? []).filter((h) => h.clave === "contrato").map((h) => String(h.fecha).slice(0, 10)))].sort();
+    conv.contratos_ficha = {
+      n: nFirmados,
+      monto: c.contrato?.montoFirmados ?? (suma > 0 && firmados.length === nFirmados ? suma : null),
+      primera: fechas[0] ?? null,
+      ultima: fechas[fechas.length - 1] ?? null,
+    };
   }
   // Quien tuvo una buena pro que se reemplazó (la adjudicación dejó de estar vigente) ya no es ganador (1220581: la
   // historia decía «Buena pro para Jemar y 1 ganador más» y la buena pro había pasado al consorcio).
@@ -1193,6 +1243,16 @@ export function informeConCifrasDeLaFicha<T extends Record<string, any> | null>(
       : xs;
   const mercado = (informe as any).market_analysis;
   const docs = (informe as any).document_analysis;
+  // Los ítems desiertos que el mercado dejó fuera, con su número oficial y en una frase legible: el agente escribía
+  // «2 ítem(s) desierto(s), nulo(s) o sin adjudicar excluido(s)…: 1 CAFEINA…; 13 HIDROXOCOBALAMINA…» con el lugar
+  // en el arreglo del OCDS (la cafeína es el ítem 5 y la hidroxocobalamina el 9; 2026-2543-197).
+  const excluidos = renumerar(mercado?.items_no_adjudicados, "numero", ["descripcion"]);
+  const observaciones = Array.isArray(mercado?.observaciones_clave)
+    ? [
+        ...mercado.observaciones_clave.filter((o: unknown) => !(typeof o === "string" && RX_OBS_EXCLUIDOS.test(o))),
+        ...(Array.isArray(excluidos) && excluidos.length ? [fraseExcluidos(excluidos)] : []),
+      ]
+    : mercado?.observaciones_clave;
   return {
     ...informe,
     convocatoria: conv,
@@ -1200,7 +1260,16 @@ export function informeConCifrasDeLaFicha<T extends Record<string, any> | null>(
     ganadores_ficha,
     // El ganador que nombra la cabecera de la ficha: el dictamen nombra al mismo (con varios, el de mayor monto según la API).
     ganador_ficha_ruc: cambioDeGanador(c)?.queda[0]?.proveedorRuc ?? c.proveedorRuc ?? null,
-    ...(mercado ? { market_analysis: { ...mercado, findings: renumerar(mercado.findings, "item_numero", ["item_descripcion"]) } } : {}),
+    ...(mercado
+      ? {
+          market_analysis: {
+            ...mercado,
+            findings: renumerar(mercado.findings, "item_numero", ["item_descripcion"]),
+            ...(Array.isArray(excluidos) ? { items_no_adjudicados: excluidos } : {}),
+            observaciones_clave: observaciones,
+          },
+        }
+      : {}),
     ...(docs ? { document_analysis: { ...docs, items_consolidados: renumerar(docs.items_consolidados, "numero", ["descripcion_corta", "descripcion"]) } } : {}),
   };
 }

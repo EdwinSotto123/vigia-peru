@@ -73,3 +73,16 @@ def test_los_numeros_van_en_la_bandera_para_la_verificacion():
     txt, nums = justificar(DIESEL)
     bandera = {"regla": "sobreprecio_elevado", "evidencia": txt, **nums}
     assert {18.5, 13.03, 222000.0, 65640.0, 12.4, 13.9} <= V._numeros_de_la_regla(bandera)
+
+
+def test_precios_de_centimos_con_sus_cifras():
+    """Una tableta de S/ 0.0375 contra S/ 0.03 es +25 %: con dos decimales decía «S/ 0.04 … de S/ 0.03 a S/ 0.03»."""
+    f = {"item_numero": "7", "item_descripcion": "ENALAPRIL 10 mg TAB", "unidad": "Unidad",
+         "precio_unitario_ofertado": 0.0375, "precio_mediana_comparacion": 0.03, "rango_min": 0.029, "rango_max": 0.0312,
+         "n_precios": 4, "diff_pct": 25.0, "diff_base": "ofertado", "diff_fuente": "conosce", "veredicto": "elevado",
+         "precios_observados": [{"origen": "conosce", "precio": 0.03}] * 4}
+    txt, _ = justificar(f)
+    assert txt.startswith("Se pagó S/ 0.0375 por unidad; la referencia es S/ 0.03 (mediana de 4 precios; de S/ 0.029 a S/ 0.0312;")
+    # Un rango que redondeado es un solo precio no se escribe «de S/ 0.03 a S/ 0.03».
+    txt2, _ = justificar({**f, "rango_min": 0.03, "rango_max": 0.030000001})
+    assert "de S/ 0.03 a S/ 0.03" not in txt2

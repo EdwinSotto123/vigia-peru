@@ -10,6 +10,7 @@ import { Ayuda } from "@/components/patrones/Ayuda";
 import { BloqueDetalle, CuerpoDetalle } from "@/components/patrones/Detalle";
 import { numero, plural } from "@/lib/formato";
 import { rutaContrato } from "@/lib/rutas";
+import { cantidadYUnidad } from "@/lib/unidad";
 
 /**
  * Ofertado contra mercado, ítem por ítem.
@@ -98,7 +99,7 @@ export function ItemsConMarketPrice({
       {padreLote && (
         <p className="border-l-2 border-line pl-3 text-rotulo text-mute">
           <strong className="font-semibold text-ink">Lote OCDS {padreLote.numero}:</strong>{" "}
-          {padreLote.cantidad !== null ? `${numero(padreLote.cantidad)} ${padreLote.unidad}` : padreLote.unidad}{" "}
+          {padreLote.cantidad !== null ? cantidadYUnidad(padreLote.cantidad, padreLote.unidad) : padreLote.unidad}{" "}
           por {padreLote.cuantia !== null ? fmtMoney(padreLote.cuantia) : "cuantía no publicada"}, desglosado acá en{" "}
           {plural(filas.length, "sub-ítem", "sub-ítems")}. {String(padreLote.descripcion).slice(0, 120)}
         </p>
@@ -196,7 +197,7 @@ export function ItemsConMarketPrice({
                         </div>
                         <div className="mt-0.5 flex flex-wrap gap-x-3 text-rotulo text-mute">
                           <span>
-                            {f.cantidad !== null ? `${numero(f.cantidad)} ${f.unidad}` : "sin cantidad en el expediente"}
+                            {f.cantidad !== null ? cantidadYUnidad(f.cantidad, f.unidad) : "sin cantidad en el expediente"}
                           </span>
                           <span>{f.motivo ?? f.veredicto.etiqueta.toLowerCase()}</span>
                         </div>

@@ -6,6 +6,7 @@ import { Revelar } from "@/components/ui/Revelar";
 import { numero } from "@/lib/formato";
 import { cn } from "@/lib/utils";
 import { ICONO_SEVERIDAD, type FilaPrecio } from "./mercado";
+import { cantidadYUnidad } from "@/lib/unidad";
 
 /**
  * Range plot (dumbbell) de ofertado contra mercado, un renglón por ítem.
@@ -363,7 +364,7 @@ function Renglon({
           <span className="truncate text-rotulo font-medium leading-tight text-ink">{fila.descripcion}</span>
         </div>
         <div className="truncate text-micro tabular-nums text-mute">
-          {fila.cantidad !== null ? `${numero(fila.cantidad)} ${fila.unidad}` : "Sin cantidad"}
+          {fila.cantidad !== null ? cantidadYUnidad(fila.cantidad, fila.unidad) : "Sin cantidad"}
           {fila.ofertadoUnit !== null && `, ${fmtMoney(fila.ofertadoUnit)} c/u`}
           {fila.referenciaUnit !== null &&
             `, mercado ${fila.tipoReferencia === "mediana" ? "" : "≈ "}${fmtMoney(fila.referenciaUnit)} c/u`}

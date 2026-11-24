@@ -9,7 +9,7 @@ import { Ayuda } from "@/components/patrones/Ayuda";
 import { BloqueDetalle, CuerpoDetalle } from "@/components/patrones/Detalle";
 import { decimal, numero, plural, soles } from "@/lib/formato";
 import { cn } from "@/lib/utils";
-import { mismaUnidad } from "@/lib/unidad";
+import { mismaUnidad, cantidadYUnidad } from "@/lib/unidad";
 
 /**
  * El laboratorio de precios, renglón por renglón (GET /contratos/:ocid/precios-mercado; backend/api/src/lib/laboratorioPrecios.ts).
@@ -197,7 +197,7 @@ function FilaRenglon({ r }: { r: Renglon }) {
             {producto}
           </p>
           <p className="mt-0.5 text-rotulo text-mute">
-            {r.cantidad != null ? `${numero(r.cantidad)} ${(r.unidad ?? "").toLowerCase()}`.trim() : "sin cantidad"}
+            {r.cantidad != null ? cantidadYUnidad(r.cantidad, r.unidad, { minusculas: true }) : "sin cantidad"}
             {r.pagado != null && <> a {soles(r.pagado)} cada uno</>}
           </p>
         </div>
