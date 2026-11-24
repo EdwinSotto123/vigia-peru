@@ -78,6 +78,8 @@ function palabra(p: string, enMayuscula: boolean): string {
   // Iniciales con punto («Y.I.», «CC.PP.») y siglas de dos letras («AC»): tal cual.
   if (/^(\p{L}{1,2}\.){2,}$/u.test(limpio)) return p;
   if (/^\p{Lu}{2}$/u.test(limpio) && !DOS_LETRAS.has(limpio.toLocaleLowerCase("es"))) return p;
+  // Números romanos de tres letras o más («XVIII Juegos Panamericanos», «XXI»): salían «Xviii».
+  if (limpio.length >= 3 && /^(?=[MDCLXVI])M{0,3}(C[MD]|D?C{0,3})(X[CL]|L?X{0,3})(I[XV]|V?I{0,3})$/.test(limpio)) return p;
   const baja = conTildes(p.toLocaleLowerCase("es"));
   if (enMayuscula) return baja.charAt(0).toLocaleUpperCase("es") + baja.slice(1);
   return baja;

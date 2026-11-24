@@ -619,30 +619,33 @@ function AnalisisCard({ c, lectura, alcance, conCronograma }: { c: Detalle; lect
   }
   if (c.estadoOperativo && c.estadoOperativo !== "en_cola") {
     const listo = c.estadoOperativo === "documentos_listos";
-    const tipo = tipoLabel(c.tipo)?.toLowerCase() ?? "este tipo de contratación";
+    const anio = c.fecha ? Number(String(c.fecha).slice(0, 4)) || null : null;
     // El alcance de hoy sale de la API (`procesamientoActivo`), no de una frase escrita a mano.
     const hoy = alcanceTexto(alcance);
     return (
       <FranjaEstado
         icono={listo ? <FileCheck size={18} className="text-mossTexto" aria-hidden /> : <Clock size={18} aria-hidden />}
-        titulo={listo ? "Documentos listos para leerse" : "Lectura en preparación"}
+        titulo={anio && anio < 2026 ? "Sin lectura de los agentes" : listo ? "Documentos listos para leerse" : "Lectura en preparación"}
         nota={falta}
         pasos={pasos}
         acciones={registro}
         ayuda={
-          <Ayuda titulo="¿Qué se analiza hoy?">
-            {listo && (
-              <span className="block">
-                Sus documentos ya están descargados y clasificados: cuando se active la lectura de {tipo} en esta etapa,
-                entrará a la cola de lectura, donde lo más grave va primero.
-              </span>
-            )}
-            {hoy && <span className={cn("block", listo && "mt-2")}>{hoy}</span>}
-            {!listo && !hoy && <span className="block">Cuando se active, entrará a la cola de lectura, donde lo más grave va primero.</span>}
+          <Ayuda titulo="¿Cómo se lee?">
+            <span className="block">
+              Vigía baja los documentos del SEACE y los lee por tandas. Con el acta, las bases y el contrato (o las consultas)
+              leídos, sus agentes escriben el dictamen. Hoy se leen los contratos desde 2026, lo de más monto primero.
+            </span>
+            {hoy && <span className="mt-2 block">{hoy}</span>}
           </Ayuda>
         }
       >
-        La lectura de {tipo} en esta etapa todavía no está activa.
+        {/* «La lectura de contratación directa en esta etapa todavía no está activa» ya no era cierto: el análisis masivo
+            lee todos los tipos desde 2026 (2026-11-24). Un contrato anterior lo dice con su año. */}
+        {anio && anio < 2026
+          ? `Vigía lee con sus agentes los contratos desde 2026; este es de ${anio}. Sus datos y los antecedentes de quien ganó sí están.`
+          : listo
+            ? "Sus documentos ya están en Vigía: se leen por tandas, lo de más monto primero."
+            : "Todavía no se bajaron sus documentos del SEACE: se piden por tandas, lo de más monto primero."}
       </FranjaEstado>
     );
   }

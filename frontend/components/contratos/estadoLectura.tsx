@@ -203,14 +203,16 @@ export function EstadoContratoPill({ estado, operativo }: { estado: EstadoContra
     return (
       <span
         className={PILDORA_SIN_LEER}
+        // «Sin documentos» junto a una pestaña con 5 documentos oficiales se leía como que el proceso no tenía ninguno: es
+        // que Vigía todavía no los bajó (2026-11-24).
         title={
           listo
-            ? "Documentos descargados; el análisis de este tipo de contratación aún no está activo"
-            : "Este tipo de contratación aún no está activo y sus documentos no se han descargado"
+            ? "Sus documentos ya están en Vigía: se leen por tandas, lo de más monto primero"
+            : "Vigía todavía no bajó sus documentos (están en el SEACE): se piden por tandas"
         }
       >
         <PuntoLectura estado={listo ? "documentos_listos" : "sin_analizar"} />
-        {listo ? "Docs listos" : "Sin documentos"}
+        {listo ? "Docs listos" : "Sin leer"}
       </span>
     );
   }
