@@ -69,6 +69,9 @@ export function ItemsConMarketPrice({
   const conMedicion = filas.filter((f) => f.medido).length;
   const sobreRango = filas.filter((f) => f.sobreElRango).length;
   const estimados = filas.filter((f) => f.tipoReferencia === "estimacion_ia" && f.referenciaUnit !== null).length;
+  // Los ítems del proceso (el registro) pueden ser más que los desglosados del expediente: cada conteo con su denominador
+  // (2026-2543-197 decía «4 de 4 se compararon con el Estado» arriba de «4 de 13 ítems con referencia»).
+  const nTotal = Math.max(items.length, filas.length);
 
   if (filas.length === 0) {
     return (
@@ -104,7 +107,8 @@ export function ItemsConMarketPrice({
       <p className="text-meta leading-snug text-ink">
         <strong className="font-semibold">
           {conMedicion} de {filas.length} ítems
-        </strong>{" "}
+        </strong>
+        {filas.length < nTotal ? ` desglosados del expediente (el proceso tiene ${nTotal})` : ""}{" "}
         tienen precio de mercado medido con fuentes verificables
         {sobreRango > 0 ? (
           <>
@@ -120,7 +124,7 @@ export function ItemsConMarketPrice({
           <>
             {" "}
             <strong className="font-semibold">
-              {conEstado} de {filas.length}
+              {conEstado} de {nTotal}
             </strong>{" "}
             sí {conEstado === 1 ? "se comparó" : "se compararon"} con lo que pagó el Estado por el mismo bien: esa comparación está arriba.
           </>
