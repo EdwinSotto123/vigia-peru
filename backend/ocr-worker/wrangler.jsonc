@@ -1,0 +1,22 @@
+// Vigía Perú · OCR abierto (Docling) en un Cloudflare Container. Secreto: OCR_TOKEN (SSM /vigia/ocr/token).
+// El agente (tools/documentos/ocr_texto.py) y la lectura previa (backend/scripts/lectura_previa.py) lo llaman con OCR_URL.
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "vigia-ocr",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-09-01",
+  "workers_dev": true,
+  "observability": { "enabled": true },
+  "containers": [
+    {
+      "class_name": "LectorOcr",
+      "image": "./contenedor/Dockerfile",
+      "instance_type": "standard-4",
+      // Tope de gasto: 6 instancias a la vez son ~US$ 2.4 por hora con todas ocupadas.
+      "max_instances": 6
+    }
+  ],
+  "durable_objects": { "bindings": [{ "name": "LECTOR", "class_name": "LectorOcr" }] },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["LectorOcr"] }],
+  "vars": { "INSTANCIAS": "4" }
+}

@@ -98,6 +98,11 @@ def _ocr_con_paciencia(rendered: list[tuple[int, bytes]], fin: float) -> list[st
     sin leer: en tres días, 277 de 500 análisis perdieron páginas escaneadas, casi todas por 429 (2026-11-24; 1231921:
     el requerimiento con ~40 ítems estaba escaneado dentro del Word y el análisis vio uno solo)."""
     import time as _time
+    # Con el servicio abierto (vigia-ocr: Docling en un Cloudflare Container) el OCR no usa el modelo de visión ni su
+    # límite de uso; el modelo queda, si OCR_RESPALDO_LLM=1, para las páginas que el servicio marca dudosas.
+    from . import ocr_servicio
+    if ocr_servicio.disponible():
+        return ocr_servicio.ocr_paginas(rendered, fin, respaldo=_ocr_paginas_gemini)
     espera = 5.0
     while True:
         try:

@@ -29,7 +29,7 @@ trap 'rm -rf "$TMP"' EXIT
 (
   export PGUSER_V="vigia_$ROL" PGPASSWORD_V="$(ssm "/vigia/vigia-db/password-$ROL")" LLM_T="$(ssm /vigia/llm/token)" \
          R2_T="$(ssm /vigia/r2/lector-token)" AG_T="$(ssm /vigia/agente/token)" CH_K="$(ssm /vigia/chroma/api-key)" \
-         TV_K="$(ssm /vigia/tavily/api-key)" PR_T="$(ssm /vigia/precios/token)"
+         TV_K="$(ssm /vigia/tavily/api-key)" PR_T="$(ssm /vigia/precios/token)" OC_T="$(ssm /vigia/ocr/token 2>/dev/null || true)"
   # `export X="$(…)"` no corta el guion si el comando falla (`set -e` mira el `export`): sin esto, un SSM caído dejaba la
   # función desplegada con el token vacío (auditoría del 2026-11-17).
   [ "${#AG_T}" -ge 32 ] && [ -n "$PGPASSWORD_V" ] || { echo "No se pudo leer el token del agente o la clave de la base (SSM): no se despliega." >&2; exit 1; }
@@ -60,6 +60,10 @@ e = {
     "PRECIOS_URL": "https://vigia-precios.vigiaperu.workers.dev",
     "PRECIOS_TOKEN": os.environ["PR_T"],
 }
+# OCR abierto (vigia-ocr: Docling en un Cloudflare Container) para las páginas escaneadas, sin el modelo de visión ni su
+# límite de uso (2026-11-24). Sin su token en SSM, el OCR sigue con el modelo.
+if len(os.environ.get("OC_T", "")) >= 32:
+    e.update({"OCR_URL": "https://vigia-ocr.vigiaperu.workers.dev", "OCR_TOKEN": os.environ["OC_T"]})
 if len(sys.argv) > 2 and sys.argv[2]:
     e.update({k: str(v) for k, v in json.load(open(sys.argv[2], encoding="utf-8")).items()})
 json.dump({"Variables": e}, open(sys.argv[1], "w", encoding="utf-8"))

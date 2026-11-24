@@ -47,3 +47,24 @@ def test_png_con_transparencia_pasa_a_jpeg():
     pix.clear_with(255)
     b = _bloque_imagen(pix.tobytes("png"), "image/png")
     assert b["image_url"]["url"].startswith("data:image/jpeg;base64,")
+
+
+def test_con_el_servicio_abierto_no_usa_el_modelo(monkeypatch):
+    """Con OCR_URL el OCR va a vigia-ocr; las dudosas se releen con el modelo sólo si OCR_RESPALDO_LLM=1."""
+    from tools.documentos import ocr_servicio as S
+    monkeypatch.setenv("OCR_URL", "https://ocr.prueba")
+    llamadas = {"modelo": 0}
+
+    def modelo(lote):
+        llamadas["modelo"] += 1
+        return ["del modelo"] * len(lote)
+
+    monkeypatch.setattr(O, "_ocr_paginas_gemini", modelo)
+    monkeypatch.setattr(S, "_pedir", lambda pngs, fin: [{"markdown": "| 01 | FILTRO | 04 |", "dudosa": False},
+                                                          {"markdown": "| 01 | a |\n| 90 | b |", "dudosa": True}][:len(pngs)])
+    monkeypatch.delenv("OCR_RESPALDO_LLM", raising=False)
+    assert O._ocr_con_paciencia([(0, b"a"), (1, b"b")], time.monotonic() + 300) == ["| 01 | FILTRO | 04 |", "| 01 | a |\n| 90 | b |"]
+    assert llamadas["modelo"] == 0
+    monkeypatch.setenv("OCR_RESPALDO_LLM", "1")
+    assert O._ocr_con_paciencia([(0, b"a"), (1, b"b")], time.monotonic() + 300) == ["| 01 | FILTRO | 04 |", "del modelo"]
+    assert llamadas["modelo"] == 1

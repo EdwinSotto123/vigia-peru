@@ -1,0 +1,6 @@
+# Las versiones probadas en la PC con las páginas de 1231921 (2026-11-24). torch va aparte (CPU, en el Dockerfile).
+docling==2.152.0
+rapidocr==3.10.0
+onnxruntime==1.29.0
+fastapi==0.141.1
+uvicorn==0.54.0
