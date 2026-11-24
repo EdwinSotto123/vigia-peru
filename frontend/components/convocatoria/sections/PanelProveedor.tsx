@@ -22,6 +22,8 @@ import Link from "next/link";
 import { Building2, Landmark, Vote } from "lucide-react";
 import { CapitulosRelato, type CapituloRelato } from "@/components/patrones";
 import { rutaEmpresa } from "@/lib/empresas";
+import { itemsGanados, type GanadorDeItems } from "@/lib/ganadorDeSenal";
+import { nombreLegibleEmpresa } from "@/lib/nombreEmpresa";
 import { setRedactNames } from "../../Redact";
 import { montoDossier } from "../dossier";
 import type { PanelDossierProps } from "./PanelesDossier";
@@ -74,11 +76,29 @@ export function PanelProveedor({ result, conv, ganador, banderasArr, nombresPriv
 
   const agente = escritoDelAgente(web, person, sunatEnBase);
 
+  // Con varios ganadores (uno por ítem), esta pestaña habla del que analizó el agente: se dice cuál y se listan todos.
+  // 2026-2543-197: «Quién es» mostraba sólo a Hamuq Farma (ítem 3) y la cabecera nombraba a otro de los 8.
+  const ganadoresFicha: GanadorDeItems[] = Array.isArray(r.ganadores_ficha) ? r.ganadores_ficha : [];
+  const varios = ganadoresFicha.length > 1;
+  const analizado = varios ? ganadoresFicha.find((g) => g.ruc === rucProveedor) ?? null : null;
+  const nombreAnalizado = analizado?.nombre ? nombreLegibleEmpresa(analizado.nombre).texto : null;
+
   const capitulos = [
+    varios && {
+      id: "proveedor-ganadores",
+      titulo: "Quiénes ganaron",
+      conteo: ganadoresFicha.length,
+      bajada: nombreAnalizado
+        ? `Cada ítem tuvo su ganador. El resto de esta pestaña es el análisis de ${nombreAnalizado}, que ${itemsGanados(analizado!.items) || "ganó uno de ellos"}; los demás tienen su propia ficha.`
+        : "Cada ítem tuvo su ganador; cada uno tiene su propia ficha.",
+      contenido: <ListaGanadores ganadores={ganadoresFicha} analizado={analizado?.ruc ?? null} />,
+    },
     hayQuien && {
       id: "proveedor-quien",
       titulo: "Quién es",
-      bajada: "Lo que dicen los registros públicos: el padrón de la SUNAT, el RNP, el OECE y el CONOSCE.",
+      bajada: nombreAnalizado
+        ? `${nombreAnalizado}, uno de los ${ganadoresFicha.length} que ganaron: lo que dicen el padrón de la SUNAT, el RNP, el OECE y el CONOSCE.`
+        : "Lo que dicen los registros públicos: el padrón de la SUNAT, el RNP, el OECE y el CONOSCE.",
       contenido: (
         <SeccionSegura nombre="la ficha del proveedor">
           {exp ? (
@@ -213,5 +233,33 @@ export function PanelProveedor({ result, conv, ganador, banderasArr, nombresPriv
       )}
       <CapitulosRelato capitulos={capitulos} etiqueta="Capítulos del proveedor" />
     </div>
+  );
+}
+
+/** Los ganadores del proceso, del de mayor monto al de menor: su nombre (a su ficha), sus ítems y lo que ganó. */
+function ListaGanadores({ ganadores, analizado }: { ganadores: (GanadorDeItems & { monto?: number })[]; analizado: string | null }) {
+  return (
+    <ul className="divide-y divide-line overflow-hidden rounded-xl border border-line bg-paper" aria-label="Los que ganaron">
+      {ganadores.map((g) => {
+        const nombre = g.nombre ? nombreLegibleEmpresa(g.nombre).texto : g.ruc ?? "Sin nombre";
+        const ficha = g.ruc && /^20\d{9}$/.test(g.ruc) ? rutaEmpresa(g.ruc) : null;
+        return (
+          <li key={g.ruc ?? nombre} className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-0.5 px-3 py-2">
+            <span className="min-w-0">
+              {ficha ? (
+                <Link href={ficha} prefetch={false} className="font-semibold text-granate underline-offset-2 hover:underline" title={g.nombre ?? undefined}>
+                  {nombre}
+                </Link>
+              ) : (
+                <span className="font-semibold text-ink">{nombre}</span>
+              )}
+              {g.ruc === analizado && <span className="ml-2 pill border-line bg-paperDeep px-2 py-0 text-micro text-inkSoft">El que analizó el agente</span>}
+              <span className="block text-meta text-mute">{itemsGanados(g.items) ? itemsGanados(g.items).replace(/^ganó/, "Ganó") : "Sin ítems registrados"}</span>
+            </span>
+            {typeof g.monto === "number" && g.monto > 0 && <span className="font-mono text-meta tabular-nums text-ink">{montoDossier(g.monto)}</span>}
+          </li>
+        );
+      })}
+    </ul>
   );
 }

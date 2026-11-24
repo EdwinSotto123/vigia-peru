@@ -209,7 +209,15 @@ function construirFila(ocdsItem: any, f: any, key: string): FilaPrecio {
   const rangoMaxUnit = mediana !== null ? positivo(tiendasFuera ? f?.ancla_regional?.rango_max : f?.rango_max) : null;
 
   const esEstimacionIA = f?.estado === "estimado_ia" || (mediana === null && estimacionIA !== null);
-  const veredicto = veredictoMercado(esEstimacionIA ? "estimado_ia" : enRangoDelJuez(f) ? "en_rango" : f?.veredicto);
+  // Una mediana con menos de 3 precios detrás no mide nada: el valsartán de 2026-2543-197 salía «Bajo el mercado» por
+  // −S/ 47 M con la mediana de 2 compras de la región (S/ 2.01 contra S/ 0.07). Cuenta el mayor respaldo que tenga: sus
+  // precios con fuente o, si la mediana es la del ancla regional, las compras de esa ancla.
+  const respaldo = Math.max(
+    num(f?.n_precios) ?? (Array.isArray(f?.precios_observados) ? f.precios_observados.length : 0),
+    f?.fuente_mediana === "ancla_regional" ? num(f?.ancla_regional?.n) ?? 0 : 0,
+  );
+  const pocoRespaldo = !esEstimacionIA && mediana !== null && respaldo < 3;
+  const veredicto = veredictoMercado(esEstimacionIA ? "estimado_ia" : pocoRespaldo ? "sin_dato" : enRangoDelJuez(f) ? "en_rango" : f?.veredicto);
   const medido = veredicto.medido && mediana !== null;
 
   const linea = (v: number | null) => (v !== null && cantidad !== null ? v * cantidad : null);
@@ -258,7 +266,7 @@ function construirFila(ocdsItem: any, f: any, key: string): FilaPrecio {
     sobreElRango: Boolean(
       medido && diffMonto !== null && diffMonto > 0 && ofertado !== null && rangoMax !== null && ofertado > rangoMax,
     ),
-    motivo: motivoItemLegible(f?.motivo_no_verificable || f?.motivo_estimacion),
+    motivo: pocoRespaldo ? MOTIVOS_ITEM.precios_insuficientes : motivoItemLegible(f?.motivo_no_verificable || f?.motivo_estimacion),
     nPrecios,
     nFuentes,
     enGrafico: cantidad !== null && referencia !== null && referencia > 0,

@@ -429,6 +429,8 @@ export interface ContratoDetalle extends ContratoResumen, ProcesoContrato {
   }[];
   /** El código de ficha del ganador si es una persona natural (nunca su RUC). */
   proveedorPersona?: string | null;
+  /** Lo que CONOSCE registra adjudicado o contratado por ítem (su número oficial) y a quién. Una API anterior no lo trae. */
+  contratadoConosce?: { item: number; ruc: string | null; proveedor: string | null; montoPen: number | null; estado: string | null }[] | null;
   /** Cruces de los ganadores con ONPE, JNE, visitas, penalidades y sanciones. Falta en una API anterior. */
   cruces?: CruceProveedor[];
   /** Misma forma que `resultado` en auditoría (señales, mercado, documentos leídos); `estado` = 'revision' si la autoevaluación la bloqueó.
@@ -1137,7 +1139,7 @@ export function referencialAdjudicable(c: Pick<ContratoDetalle, "items" | "monto
  * varios ganadores, no cuadraban con la ficha (2026-2543-197: el dictamen decía S/ 14.1 M y «72.3 % bajo el
  * referencial»; la ficha, S/ 16.6 M y 33 %). Pedido del usuario del 2026-11-24.
  */
-export function informeConCifrasDeLaFicha<T extends Record<string, any> | null>(informe: T, c: Pick<ContratoDetalle, "adjudicaciones" | "items" | "montoPen">): T {
+export function informeConCifrasDeLaFicha<T extends Record<string, any> | null>(informe: T, c: Pick<ContratoDetalle, "adjudicaciones" | "items" | "montoPen" | "contratadoConosce">): T {
   if (!informe) return informe;
   const vigentes = adjudicacionesVigentes(c);
   const adjudicado = vigentes.reduce((t, a) => t + (a.montoPen ?? 0), 0) || null;
@@ -1165,6 +1167,11 @@ export function informeConCifrasDeLaFicha<T extends Record<string, any> | null>(
       if (n != null && !g.items.includes(n)) g.items.push(n);
     }
     ganadores.set(a.proveedorRuc, g);
+  }
+  // Los ítems de cada uno también por CONOSCE (número oficial por proveedor): el OCDS no siempre los trae en la buena pro.
+  for (const k of c.contratadoConosce ?? []) {
+    const g = k.ruc ? ganadores.get(k.ruc) : undefined;
+    if (g && !g.items.includes(k.item)) g.items.push(k.item);
   }
   const ganadores_ficha = [...ganadores.values()].sort((a, b) => b.monto - a.monto);
   // El número de cada ítem del análisis, el oficial: el agente numera por el orden de la lista del OCDS (la atorvastatina

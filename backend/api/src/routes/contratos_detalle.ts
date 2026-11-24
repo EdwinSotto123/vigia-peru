@@ -7,6 +7,7 @@
  * Se monta al final de contratosRouter (las rutas fijas /resumen y /geo van antes que `/:ocid`).
  */
 
+import { posicionPorDescripcion } from "../lib/numeroDeItem.js";
 import { COL_GOBIERNO, gobiernoDeFila } from "../lib/gobiernoFila.js";
 import { Hono } from "hono";
 import { publicar } from "../lib/privacidad.js";
@@ -348,8 +349,11 @@ contratosDetalleRouter.get("/:ocid", async (c) => {
   // no trae montos ni factores, y diría «0 ofertas».
   const evaluacion = fichaEvaluacion?.modelo === "plantilla" ? null : enriquecido.evaluacion;
   const itemsAnalizados = ((expediente?.items ?? []) as any[]).map((it, i) => {
-    const num = String(it?.numero ?? i + 1);
-    const ocds = items.find((x) => x.id === num || String(x.posicion) === num);
+    // El número del agente puede ser el orden en la lista del OCDS y no el oficial (2026-2543-197: la atorvastatina
+    // 10 mg salía como ítem 9 —es el 4— con el referencial de la hidroxocobalamina): por su descripción, si coincide clara.
+    const pos = items.length > 1 ? posicionPorDescripcion(it?.descripcion_corta ?? it?.descripcion, items) : null;
+    const num = pos != null ? String(pos) : String(it?.numero ?? i + 1);
+    const ocds = items.find((x) => (pos != null ? x.posicion === pos : x.id === num || String(x.posicion) === num));
     return {
       numero: num, descripcion: it?.descripcion_corta ?? it?.descripcion ?? null, unidad: it?.unidad ?? null,
       cantidad: typeof it?.cantidad === "number" ? it.cantidad : null,
