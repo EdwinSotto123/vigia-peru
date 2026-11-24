@@ -7,6 +7,7 @@
 Un proyecto de [Gobserva](https://gobserva.cloud)
 
 [![Sitio](https://img.shields.io/badge/sitio-vigia.gobserva.cloud-1B7A2E?style=flat-square)](https://vigia.gobserva.cloud)
+[![Open source](https://img.shields.io/badge/open_source-uso_personal_y_sin_fines_de_lucro-1B7A2E?style=flat-square)](#licencia)
 [![Licencia](https://img.shields.io/badge/licencia-PolyForm_Noncommercial_1.0.0-1B7A2E?style=flat-square)](LICENSE)
 
 <img src="docs/img/vigia-portada.png" alt="Portada de Vigía: ¿En qué se gasta el dinero de tu región?" width="100%">
@@ -155,8 +156,8 @@ Las credenciales viven en variables de entorno o en el gestor de secretos, nunca
 
 ## Licencia
 
-El código se publica bajo la **[PolyForm Noncommercial License 1.0.0](LICENSE)**. En palabras simples (el texto legal es
-el que vale):
+Vigía es **open source para uso personal y sin fines de lucro**: el código se publica bajo la
+**[PolyForm Noncommercial License 1.0.0](LICENSE)**. En palabras simples (el texto legal es el que vale):
 
 - **Puedes** usarlo, estudiarlo, modificarlo y compartirlo para cualquier fin no comercial: investigación, docencia,
   activismo, vigilancia ciudadana y proyectos personales.
