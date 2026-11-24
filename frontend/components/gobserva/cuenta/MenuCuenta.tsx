@@ -23,7 +23,8 @@ export function MenuCuenta({ base, compacto = false, entrarConTexto = false }: {
     // Dentro de la app sin sesión (venció, o era la cuenta de antes, cuando las apps compartían cuenta): a entrar, con
     // la vuelta a donde estaba.
     const camino = window.location.pathname;
-    if (!conCuenta && /\/app\//.test(camino)) {
+    // Con la app en construcción, /app/* es la página de «en construcción»: se ve sin cuenta.
+    if (!APP_EN_CONSTRUCCION && !conCuenta && /\/app\//.test(camino)) {
       const aqui = (base && camino.startsWith(base) ? camino.slice(base.length) : camino) + window.location.search;
       window.location.replace(rutaEn(base, `/entrar?next=${encodeURIComponent(aqui)}`));
     }
