@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { adjudicacionesVigentes, ganadoresSoloConosce } from "../src/routes/contratos_detalle.js";
+import { adjudicacionesVigentes, ganadorPrincipal, ganadoresSoloConosce } from "../src/routes/contratos_detalle.js";
 
 // Caso real 1228396: el OCDS trae la buena pro de UNILENE (1.º del acta) y la de MULTIMEDICAL (2.º) sobre los mismos
 // dos ítems; CONOSCE registra a MULTIMEDICAL como contratado.
@@ -61,4 +61,17 @@ test("ganadores que sólo registra CONOSCE: uno por código, con su monto sumado
     k(4, null, null, null),                   // ítem desierto
   ]);
   assert.deepEqual(r, [{ proveedorRuc: "1843000", proveedor: "X", fecha: "2026-01-09", montoPen: 50 }]);
+});
+
+// Caso real 2026-2543-197 (EsSalud, 8 ganadores en 11 ítems): el registro nombra primero a Medifarma (S/ 1.06 M) y el de
+// mayor monto es AC Farma (tres ítems, S/ 8.34 M). La cabecera y el dictamen tienen que nombrar al mismo.
+test("ganadorPrincipal: con varios ganadores, el de mayor monto sumado por CONOSCE; con uno solo, null", () => {
+  const k = (item: number, ruc: string, proveedor: string, montoPen: number) => ({ item, ruc, proveedor, cantidad: 1, montoPen, estado: "Contratado" });
+  const conosce = [k(1, "20100018625", "MEDIFARMA S A", 1064634.7), k(4, "20347268683", "LABORATORIOS AC FARMA S.A.", 1528000),
+    k(8, "20600413571", "FARMA MIAVIDA", 3272119.05), k(10, "20347268683", "LABORATORIOS AC FARMA S.A.", 5024000),
+    k(13, "20347268683", "LABORATORIOS AC FARMA S.A.", 1790000)];
+  assert.deepEqual(ganadorPrincipal(conosce, []), { ruc: "20347268683", nombre: "LABORATORIOS AC FARMA S.A." });
+  assert.equal(ganadorPrincipal([k(1, "20100018625", "MEDIFARMA S A", 10), k(2, "20100018625", "MEDIFARMA S A", 5)], []), null);
+  // Sin CONOSCE, las adjudicaciones del OCDS.
+  assert.equal(ganadorPrincipal([], [{ proveedorRuc: "20000000001", proveedor: "A", montoPen: 5 }, { proveedorRuc: "20000000002", proveedor: "B", montoPen: 9 }])?.ruc, "20000000002");
 });

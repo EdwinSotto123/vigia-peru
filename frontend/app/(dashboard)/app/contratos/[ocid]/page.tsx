@@ -20,7 +20,7 @@ import { canonica } from "@/lib/seo";
 import { limpiarObjeto, recortar as corto } from "@/components/contratos/recortar";
 import { EstadoError, Nota, Pagina } from "@/components/patrones";
 import { leerDesde, migasConDesde } from "@/lib/desde";
-import { getContratos, getResumenContratos, getResumenVivo, resolverContrato } from "@/lib/contratos";
+import { getContratos, getResumenContratos, getResumenVivo, informeConCifrasDeLaFicha, resolverContrato } from "@/lib/contratos";
 import { getCatalogoReglas, type CatalogoReglas } from "@/lib/revision";
 import { soles } from "@/lib/formato";
 import { OG_BASE, TWITTER_BASE } from "@/lib/compartir";
@@ -112,7 +112,8 @@ export default async function ContratoPage({
     publicada ? cargarDossier(base.ocid) : Promise.resolve(null),
     vista === "vivo" ? getProcesamiento(base.ocid) : Promise.resolve(null),
   ]);
-  const informe = carga?.estado === "ok" ? carga.result : null;
+  // Las cifras de la buena pro (lo adjudicado, el referencial de lo adjudicado, lo de cada ganador), las de la ficha.
+  const informe = carga?.estado === "ok" ? informeConCifrasDeLaFicha(carga.result, base) : null;
   const lectura = lecturaDelContrato(base, informe);
   const c = fichaConSenalesQueCuentan(base, informe);
 

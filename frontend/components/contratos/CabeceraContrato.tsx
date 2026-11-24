@@ -34,7 +34,7 @@ import { UBIGEO_REGION } from "@/components/mapa/region-match";
 import { fechaConAnio, listaY, numero, oracion, plural } from "@/lib/formato";
 import { cn } from "@/lib/utils";
 import {
-  adjudicacionesVigentes, cambioDeGanador, esCodigoConsorcio, esPersonaNatural, etapaLabel, tipoLabel,
+  adjudicacionesVigentes, cambioDeGanador, esCodigoConsorcio, esPersonaNatural, etapaLabel, referencialAdjudicable, tipoLabel,
   type ContratoDetalle as Detalle,
 } from "@/lib/contratos";
 import { EstadoContratoPill } from "./ContratosLista";
@@ -285,7 +285,9 @@ function cifrasDe(c: Detalle, lectura: LecturaContrato | null): { items: Cifra[]
   const adjudicado = vigentes.reduce((s, a) => s + (a.montoPen ?? 0), 0) || null;
   const reemplazadas = (c.adjudicaciones ?? []).length - vigentes.length;
   const nItems = c.items.length;
-  const ref = c.montoPen || null;
+  // Con ítems desiertos, lo adjudicado se compara con el referencial de los ítems que sí se adjudicaron.
+  const { referencial: refAdj, desiertos } = referencialAdjudicable(c);
+  const ref = refAdj;
 
   // 1. Cuánto: lo adjudicado frente al referencial (una sola cifra si son iguales).
   if (adjudicado) {
@@ -296,11 +298,12 @@ function cifrasDe(c: Detalle, lectura: LecturaContrato | null): { items: Cifra[]
       igual
         ? "igual al valor referencial"
         : pct != null
-          ? `${pct > 100 ? `${pct} % ` : ""}de ${monto(ref!, c.moneda)} de valor referencial`
+          ? `${pct > 100 ? `${pct} % ` : ""}de ${monto(ref!, c.moneda)} de valor referencial${desiertos ? ` de los ${numero(nItems - desiertos)} ítems adjudicados` : ""}`
           : ref
             ? `valor referencial: ${monto(ref, c.moneda)}`
             : null,
-      nItems > 1 ? `en ${numero(nItems)} ítems` : null,
+      nItems > 1 && !desiertos ? `en ${numero(nItems)} ítems` : null,
+      desiertos ? `${plural(desiertos, "ítem desierto", "ítems desiertos")}` : null,
       vigentes.length > 1 ? `${numero(vigentes.length)} adjudicaciones` : null,
       reemplazadas > 0 ? `sin ${plural(reemplazadas, "buena pro reemplazada", "buenas pro reemplazadas")}` : null,
     ].filter(Boolean);

@@ -188,7 +188,7 @@ function pasosDelProceso({
   const obra = (result as any).obra_ejecucion;
   const hayObra = ((sup?.enlazada && sup.obras) || (obra?.enlazada && obra.obras) || []).length > 0;
   const entidad = conv.entidad ? conArticulo(tituloNatural(String(conv.entidad).replace(/\s+/g, " ").trim())) : "la entidad";
-  const { referencial, adjudicado, variacion } = cifrasDelProceso(conv, ganador);
+  const { referencial, adjudicado, variacion, deAdjudicados } = cifrasDelProceso(conv, ganador);
   const objetivos = new Set(senales.map((s) => pasoDeRegla(s.regla)));
   const pasos: PasoProceso[] = [];
   const oraciones = (xs: (string | null | undefined | false)[]) => {
@@ -281,7 +281,7 @@ function pasosDelProceso({
         ? null
         : Math.abs(variacion) < 0.1
           ? "igual al valor referencial"
-          : `${porcentaje(Math.abs(variacion), { decimales: 1 })} ${variacion > 0 ? "sobre" : "bajo"} el valor referencial`;
+          : `${porcentaje(Math.abs(variacion), { decimales: 1 })} ${variacion > 0 ? "sobre" : "bajo"} el valor referencial${deAdjudicados ? " de los ítems adjudicados" : ""}`;
     pasos.push({
       clave: "buena_pro",
       fecha: conv.fecha_buena_pro ?? null,

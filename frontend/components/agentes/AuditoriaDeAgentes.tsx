@@ -56,6 +56,8 @@ interface Props {
    * dice. Lo da quien conoce el relato del dictamen (convocatoria/relato/historia); sin él, sólo se filtra por gravedad.
    */
   temaDe?: (regla: string) => { clave: string; titulo: string };
+  /** De quién habla la señal, si se sabe (con varios ganadores, cuál de ellos): va después de su tema. */
+  sujetoDe?: (s: SenalAgente) => string | null;
   /** Sobre quién es cada señal (el ganador, la entidad, las empresas que nombra): va arriba en su panel lateral. */
   contextoDeSenal?: (s: SenalAgente) => React.ReactNode;
 }
@@ -86,6 +88,7 @@ export function AuditoriaDeAgentes({
   nombresPrivados,
   anexo,
   temaDe,
+  sujetoDe,
   contextoDeSenal,
 }: Props) {
   const [agente, setAgente] = useState<string | null>(null);
@@ -178,7 +181,7 @@ export function AuditoriaDeAgentes({
                 )}
                 {(temaDe || s.item) && (
                   <span className="mb-0.5 block text-rotulo text-mute">
-                    {temaDe?.(s.regla).titulo}
+                    {sujetoDe?.(s) ?? temaDe?.(s.regla).titulo}
                     {temaDe && s.item ? ", " : ""}
                     {s.item && <span className="font-mono">ítem {s.item}</span>}
                   </span>

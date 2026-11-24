@@ -144,6 +144,7 @@ function PanelResumen({ result, banderasArr, noVerificables, contexto, corrida, 
               contexto={contexto}
               nombresPrivados={nombresPrivados}
               ctxSenales={ctxSenales}
+              ganadores={Array.isArray((result as any).ganadores_ficha) ? (result as any).ganadores_ficha : []}
             />
           </SeccionSegura>
         ) : corrida.completa ? (

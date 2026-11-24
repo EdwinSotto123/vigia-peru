@@ -309,12 +309,15 @@ export function senalesPorPaso(senales: readonly SenalRelato[], presentes: Reado
  * Referencial, adjudicado y cuánto se aparta uno del otro: la misma lectura que tenían las cifras de la cabecera
  * (`indicadoresDossier`), para que la frase y la cronología digan lo mismo. Sin dato no se inventa un cero.
  */
-export function cifrasDelProceso(conv: any, ganador: any): { referencial: number | null; adjudicado: number | null; variacion: number | null } {
-  const referencial = Number(conv?.cuantia_total) > 0 ? Number(conv.cuantia_total) : null;
+export function cifrasDelProceso(conv: any, ganador: any): { referencial: number | null; adjudicado: number | null; variacion: number | null; deAdjudicados: boolean } {
+  // Con ítems desiertos, la ficha manda el referencial de los ítems que sí se adjudicaron (`cuantia_adjudicada`): contra
+  // el total, lo adjudicado salía «72.3 % bajo el valor referencial» con S/ 4.6 M de ítems desiertos dentro.
+  const deAdjudicados = Number(conv?.cuantia_adjudicada) > 0;
+  const referencial = deAdjudicados ? Number(conv.cuantia_adjudicada) : Number(conv?.cuantia_total) > 0 ? Number(conv.cuantia_total) : null;
   const adjudicado =
     Number(conv?.monto_adjudicado) > 0 ? Number(conv.monto_adjudicado) : Number(ganador?.monto_ganado) > 0 ? Number(ganador.monto_ganado) : null;
   const variacion = adjudicado !== null && referencial !== null ? ((adjudicado - referencial) / referencial) * 100 : null;
-  return { referencial, adjudicado, variacion };
+  return { referencial, adjudicado, variacion, deAdjudicados };
 }
 
 /** Dos nombres de la misma persona o empresa, sin mirar mayúsculas, tildes ni puntuación («S.A.C.» = «SAC»). */

@@ -45,7 +45,7 @@ export function FraseDossier({
 }) {
   const entidad = conv.entidad ? conArticulo(tituloNatural(String(conv.entidad).replace(/\s+/g, " ").trim())) : "la entidad";
   const { verbo, que } = queSeContrato(conv.objeto, perfil);
-  const { referencial, adjudicado, variacion } = cifrasDelProceso(conv, ganador);
+  const { referencial, adjudicado, variacion, deAdjudicados } = cifrasDelProceso(conv, ganador);
   const nPostores = typeof conv.n_postores === "number" && conv.n_postores > 0 ? conv.n_postores : null;
   const natural = esPersonaNatural(ganador?.ruc);
   // La persona natural va en vidrio (su apellido), como en la identidad.
@@ -61,7 +61,7 @@ export function FraseDossier({
       ? ""
       : Math.abs(variacion) < 0.1
         ? ": justo el valor referencial"
-        : `, ${porcentaje(Math.abs(variacion), { decimales: 1 })} ${variacion > 0 ? "sobre" : "bajo"} el valor referencial`;
+        : `, ${porcentaje(Math.abs(variacion), { decimales: 1 })} ${variacion > 0 ? "sobre" : "bajo"} el valor referencial${deAdjudicados ? " de los ítems adjudicados" : ""}`;
   // Lo que sigue al nombre del ganador: el inciso de los postores cierra con coma sólo si después viene el monto.
   const cola =
     otros + postores + (adjudicado !== null ? `${postores ? "," : ""} por ${montoDossier(adjudicado)}${frenteAlReferencial}` : "");

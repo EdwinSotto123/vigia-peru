@@ -8,6 +8,7 @@
  */
 
 import { API_BASE } from "./api-client";
+import { posicionPorDescripcion } from "./numeroDeItem";
 import { fechaCorta, numero, soles } from "./formato";
 import { nivelDeScore } from "./severidad";
 import { esRucPersonaNatural } from "./privacidad";
@@ -1112,6 +1113,81 @@ const MOTIVO: Record<string, string> = {
   planificacion: "El proceso está en planificación: no hay bases ni postores",
 };
 export const motivoLabel = (m: string | null | undefined) => (m ? MOTIVO[m] ?? m.replace(/_/g, " ") : "Pendiente de procesamiento");
+
+/** Un ítem que no se adjudicó: desierto, cancelado o declarado nulo (su estado en el registro). */
+export const itemSinAdjudicar = (estado: string | null | undefined) => /desiert|cancelad|anulad|nul[oa]/i.test(estado ?? "");
+
+/**
+ * El valor referencial de lo que sí se adjudicó: el total menos los ítems desiertos o cancelados (con su valor en el
+ * registro). 2026-2543-197: S/ 16.6 M adjudicados contra S/ 51 M de referencial daban «33 %», con S/ 4.6 M de dos ítems
+ * desiertos dentro; contra los 11 ítems adjudicados es el 36 %.
+ */
+export function referencialAdjudicable(c: Pick<ContratoDetalle, "items" | "montoPen">): { referencial: number | null; desiertos: number; nItems: number } {
+  const nItems = c.items.length;
+  const sin = c.items.filter((it) => itemSinAdjudicar(it.estado));
+  const total = c.montoPen || null;
+  if (!sin.length || !total || sin.some((it) => it.montoPen == null)) return { referencial: total, desiertos: sin.length, nItems };
+  const resto = total - sin.reduce((t, it) => t + (it.montoPen ?? 0), 0);
+  return { referencial: resto > 0 ? resto : total, desiertos: sin.length, nItems };
+}
+
+/**
+ * El informe del dictamen con las cifras de la buena pro de la ficha: lo adjudicado (las adjudicaciones vigentes), el
+ * referencial de los ítems que sí se adjudicaron y lo que ganó cada uno. El agente guarda las suyas al analizar y, con
+ * varios ganadores, no cuadraban con la ficha (2026-2543-197: el dictamen decía S/ 14.1 M y «72.3 % bajo el
+ * referencial»; la ficha, S/ 16.6 M y 33 %). Pedido del usuario del 2026-11-24.
+ */
+export function informeConCifrasDeLaFicha<T extends Record<string, any> | null>(informe: T, c: Pick<ContratoDetalle, "adjudicaciones" | "items" | "montoPen">): T {
+  if (!informe) return informe;
+  const vigentes = adjudicacionesVigentes(c);
+  const adjudicado = vigentes.reduce((t, a) => t + (a.montoPen ?? 0), 0) || null;
+  const { referencial, desiertos } = referencialAdjudicable(c);
+  const porRuc = new Map<string, number>();
+  for (const a of vigentes) if (a.proveedorRuc && a.montoPen != null) porRuc.set(a.proveedorRuc, (porRuc.get(a.proveedorRuc) ?? 0) + a.montoPen);
+  const conv = { ...((informe as any).convocatoria ?? {}) };
+  if (adjudicado) conv.monto_adjudicado = adjudicado;
+  if (desiertos && referencial) {
+    conv.cuantia_adjudicada = referencial;
+    conv.n_desiertos = desiertos;
+  }
+  const postores = Array.isArray((informe as any).postores)
+    ? (informe as any).postores.map((p: any) => (p?.es_ganador && porRuc.has(p?.ruc) ? { ...p, monto_ganado: porRuc.get(p.ruc) } : p))
+    : (informe as any).postores;
+  // Cada ganador con los ítems que ganó (su posición en el registro): la lista de señales dice de cuál habla cada una.
+  const posicion = new Map(c.items.map((it) => [it.id, it.posicion]));
+  const ganadores = new Map<string, { ruc: string; nombre: string | null; monto: number; items: number[] }>();
+  for (const a of vigentes) {
+    if (!a.proveedorRuc) continue;
+    const g = ganadores.get(a.proveedorRuc) ?? { ruc: a.proveedorRuc, nombre: a.proveedor, monto: 0, items: [] };
+    g.monto += a.montoPen ?? 0;
+    for (const id of a.items ?? []) {
+      const n = posicion.get(id);
+      if (n != null && !g.items.includes(n)) g.items.push(n);
+    }
+    ganadores.set(a.proveedorRuc, g);
+  }
+  const ganadores_ficha = [...ganadores.values()].sort((a, b) => b.monto - a.monto);
+  // El número de cada ítem del análisis, el oficial: el agente numera por el orden de la lista del OCDS (la atorvastatina
+  // de 10 mg salía como ítem 9 y es el 4). Por su descripción, sólo con una coincidencia clara (lib/numeroDeItem).
+  const renumerar = (xs: unknown, campoNum: string, campoDesc: string[]) =>
+    Array.isArray(xs) && c.items.length > 1
+      ? xs.map((x: any) => {
+          const desc = campoDesc.map((k) => x?.[k]).find((d) => typeof d === "string" && d.trim());
+          const pos = posicionPorDescripcion(desc, c.items);
+          return pos != null ? { ...x, [campoNum]: String(pos) } : x;
+        })
+      : xs;
+  const mercado = (informe as any).market_analysis;
+  const docs = (informe as any).document_analysis;
+  return {
+    ...informe,
+    convocatoria: conv,
+    postores,
+    ganadores_ficha,
+    ...(mercado ? { market_analysis: { ...mercado, findings: renumerar(mercado.findings, "item_numero", ["item_descripcion"]) } } : {}),
+    ...(docs ? { document_analysis: { ...docs, items_consolidados: renumerar(docs.items_consolidados, "numero", ["descripcion_corta", "descripcion"]) } } : {}),
+  };
+}
 
 /** Las adjudicaciones que cuentan: las vigentes (con la API vieja, todas). */
 export const adjudicacionesVigentes = (c: Pick<ContratoDetalle, "adjudicaciones">) =>

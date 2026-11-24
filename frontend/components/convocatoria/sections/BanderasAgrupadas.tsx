@@ -22,6 +22,8 @@ import { AuditoriaDeAgentes } from "@/components/agentes/AuditoriaDeAgentes";
 import type { SenalAgente } from "@/components/agentes/senales";
 import type { Bandera } from "../types";
 import { TITULO_TEMA, temaDeRegla } from "../relato/historia";
+import { ganadorDeLaSenal, itemsGanados, type GanadorDeItems } from "@/lib/ganadorDeSenal";
+import { nombreLegibleEmpresa } from "@/lib/nombreEmpresa";
 import type { ContextoSenal } from "../senal/directorio";
 import { senalDeBandera } from "../senal/normalizar";
 import { SobreQuien } from "../senal/SobreQuien";
@@ -42,6 +44,7 @@ export function BanderasAgrupadas({
   contexto = [],
   nombresPrivados,
   ctxSenales,
+  ganadores = [],
 }: {
   banderas: Bandera[];
   /** Solo si el análisis lo trae: no se supone un número. */
@@ -63,7 +66,22 @@ export function BanderasAgrupadas({
   nombresPrivados?: NombreConocido[];
   /** De quién habla cada señal (el ganador, la entidad y las empresas del dictamen): va en el panel de cada una. */
   ctxSenales?: ContextoSenal | null;
+  /** Los ganadores del proceso con sus ítems (la ficha): con dos o más, cada señal del proveedor dice de cuál habla. */
+  ganadores?: GanadorDeItems[];
 }) {
+  // Con varios ganadores, «El proveedor que ganó» no decía cuál: el que nombra la señal (por RUC o nombre) y sus ítems.
+  const sujetoDe = useMemo(() => {
+    if (ganadores.length < 2) return undefined;
+    return (s: SenalAgente) => {
+      if (temaDeRegla(s.regla) !== "proveedor") return null;
+      // El RUC que la regla guardó en la señal (desde el 2026-11-16) y, si no, el que nombra su evidencia.
+      const g = (s.ganadorRuc ? ganadores.find((x) => x.ruc === s.ganadorRuc) : null)
+        ?? ganadorDeLaSenal([s.evidencia, s.evidenciaTextual].filter(Boolean).join(" "), ganadores);
+      if (!g?.nombre) return null;
+      const items = itemsGanados(g.items);
+      return `${nombreLegibleEmpresa(g.nombre).texto}${items ? `, que ${items}` : ""}`;
+    };
+  }, [ganadores]);
   const senales = useMemo(() => (banderas ?? []).map(senalDeBandera), [banderas]);
   const contextoDeSenal = useMemo(
     () =>
@@ -90,6 +108,7 @@ export function BanderasAgrupadas({
       nombresPrivados={nombresPrivados}
       anexo={apartadas}
       temaDe={temaDe}
+      sujetoDe={sujetoDe}
       contextoDeSenal={contextoDeSenal}
     />
   );

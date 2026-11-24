@@ -469,9 +469,38 @@ export function mercadoMedido(market: any): boolean {
   );
 }
 
+/**
+ * ¿El porcentaje del lote cuadra con sus ítems? Lo ofertado y la mediana de los ítems con al menos 3 precios, sumados
+ * por su cantidad, tienen que dar un porcentaje del mismo signo y a menos de 25 puntos del que publicó el agente. No se
+ * publica un porcentaje propio: sólo se deja de publicar uno que se contradice con sus ítems. 2026-2543-197: el agente
+ * dijo −81 % comparando lo de un solo ganador contra el mercado de 12 ítems (con el valsartán a precio de farmacia); sus
+ * ítems medidos dan −34 %.
+ */
+export function loteCuadra(market: any, pct: number | null): boolean {
+  if (pct === null) return true;
+  let ofertado = 0;
+  let mercado = 0;
+  let n = 0;
+  for (const f of (market?.findings || []) as any[]) {
+    const pu = positivo(f?.precio_unitario_ofertado);
+    const med = positivo(f?.precio_mediana_mercado);
+    const cant = positivo(f?.cantidad);
+    if (pu === null || med === null || cant === null || (num(f?.n_precios) ?? 0) < 3) continue;
+    ofertado += pu * cant;
+    mercado += med * cant;
+    n++;
+  }
+  if (n < 2 || mercado <= 0) return true;
+  const propio = ((ofertado - mercado) / mercado) * 100;
+  return Math.sign(propio) === Math.sign(pct) && Math.abs(propio - pct) <= 25;
+}
+
 export function resumenLote(market: any): ResumenLote {
   const findings: any[] = market?.findings || [];
-  const pct = num(market?.sobreprecio_pct) ?? pctItemUnico(market);
+  const pctAgente = num(market?.sobreprecio_pct) ?? pctItemUnico(market);
+  // Un porcentaje que no cuadra con sus propios ítems no se publica (queda «no se pudo determinar», con su motivo).
+  const cuadra = loteCuadra(market, pctAgente);
+  const pct = cuadra ? pctAgente : null;
   const comparable = pct !== null;
 
   const totalOfertado = positivo(market?.total_ofertado) ?? positivo(market?.padre_lote?.cuantia_total);
@@ -515,11 +544,14 @@ export function resumenLote(market: any): ResumenLote {
     nConMediana: num(market?.n_con_mediana),
     nEstimadosIA: num(market?.n_items_estimados_ia) ?? 0,
     cobertura: num(market?.cobertura_mercado),
-    motivo: market?.motivo_no_verificable
-      ? String(market.motivo_no_verificable)
-      : motivoLoteLegible(lote?.motivo),
+    motivo: !cuadra
+      ? "el total del lote no cuadra con los ítems que se pudieron medir: se revisa antes de publicarse"
+      : market?.motivo_no_verificable
+        ? String(market.motivo_no_verificable)
+        : motivoLoteLegible(lote?.motivo),
     estimadoVsMercadoPct: num(market?.estimado_vs_mercado_pct),
     rango: conMediana > 0 && hi > lo ? { lo, hi } : null,
-    veredicto: veredictoMercado(market?.veredicto_global),
+    // Sin porcentaje publicable, tampoco su veredicto («Bajo el mercado» junto a «no se pudo determinar» se contradecía).
+    veredicto: veredictoMercado(cuadra ? market?.veredicto_global : null),
   };
 }
