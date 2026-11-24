@@ -26,6 +26,7 @@ import { CitaPagina } from "./CitaPagina";
 import { TextoRedactado } from "./TextoRedactado";
 import { etiquetaRegla, type CatalogoReglas } from "@/lib/revision";
 import { decimal, fecha, numero, porcentaje, soles, oracion } from "@/lib/formato";
+import { cantidadYUnidad } from "@/lib/unidad";
 import {
   cambioDeGanador, esPersonaNatural, formatoDoc, humanizarCodigo, ordenNombrePostor, personasNaturalesDe, tipoDocLabel,
   type CitaDocumento, type ContratoDetalle as Detalle, type ContratoDocumento, type PostorContrato,
@@ -156,15 +157,17 @@ function SeccionItems({ c }: { c: Detalle }) {
       } satisfies Columna,
     ] : []),
   ];
-  const filas: Fila[] = c.items.map((it) => {
-    const cantidad = it.cantidad != null ? `${numero(it.cantidad)}${it.unidad ? ` ${it.unidad}` : ""}` : null;
+  // Por su número oficial (el registro los trae en otro orden: «Ítem 5, 13, 3, 12…» en 2026-2543-197).
+  const ordenItems = [...c.items].sort((a, b) => (a.posicion ?? Infinity) - (b.posicion ?? Infinity));
+  const filas: Fila[] = ordenItems.map((it) => {
+    const cantidad = it.cantidad != null ? cantidadYUnidad(it.cantidad, it.unidad, { minusculas: true }) : null;
     return {
       id: it.id,
       celdas: {
         estado: it.estado ? <Chip>{humanizarCodigo(it.estado)}</Chip> : undefined,
         item: (
           <CeldaPrincipal
-            titulo={it.descripcion ?? "Sin descripción"}
+            titulo={it.descripcion ? oracion(it.descripcion) : "Sin descripción"}
             meta={
               <Partes
                 partes={[
@@ -496,7 +499,7 @@ function SeccionPrecios({ c, items }: { c: Detalle; items: ReturnType<typeof ite
       celdas: {
         item: (
           <CeldaPrincipal
-            titulo={it.descripcion ?? "Sin descripción"}
+            titulo={it.descripcion ? oracion(it.descripcion) : "Sin descripción"}
             meta={
               <Partes
                 partes={[
