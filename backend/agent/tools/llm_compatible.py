@@ -291,7 +291,11 @@ def _llamar(mensajes: list[dict], tope: int, config, intentos: int = 3) -> tuple
     if os.getenv("WORKERS_AI_SIN_RESPALDO", "1").strip().lower() not in ("0", "false", "no", "off"):
         headers["x-vigia-respaldo"] = "nunca"
     espera = 2.0
-    for i in range(intentos):
+    # El límite de uso (429) se espera con más paciencia que un error: en 7 días, 3 243 contratos perdieron la extracción
+    # de algún documento porque el 429 se reintentaba 3 veces en 6 s (2026-11-24). Hasta 6 intentos, de 3 a 30 s.
+    intentos_429 = max(intentos, int(os.getenv("LLM_COMPAT_INTENTOS_429", "6")))
+    n_errores = 0
+    for i in range(intentos_429):
         try:
             r = requests.post(_url(), headers=headers, json=cuerpo, timeout=float(os.getenv("LLM_COMPAT_TIMEOUT_S", "180")))
         except requests.RequestException as e:
@@ -315,7 +319,14 @@ def _llamar(mensajes: list[dict], tope: int, config, intentos: int = 3) -> tuple
             if r.status_code < 400:
                 d = r.json()
                 return (((d.get("choices") or [{}])[0]).get("message") or {}).get("content") or "", d
-        if r.status_code not in (429, 500, 502, 503, 504) or i == intentos - 1:
+        if r.status_code == 429:
+            if i == intentos_429 - 1:
+                raise RuntimeError(f"LLM compatible HTTP {r.status_code}: {r.text[:300]}")
+            time.sleep(min(30.0, max(3.0, espera)) + random.uniform(0, 2))
+            espera = min(espera * 2, 30.0)
+            continue
+        n_errores += 1
+        if r.status_code not in (500, 502, 503, 504) or n_errores >= intentos:
             raise RuntimeError(f"LLM compatible HTTP {r.status_code}: {r.text[:300]}")
         time.sleep(espera + random.uniform(0, 1))
         espera *= 2

@@ -10,6 +10,7 @@ pymupdf>=1.24,<2
 python-docx>=1.1
 rarfile>=4.2
 openpyxl>=3.1           # WS D: .xls/.xlsx dentro de ZIP/RAR
+xlrd>=2.0               # .xls (Excel 97-2003): sin él, «formato_no_soportado: xlrd no instalado» (2026-11-24)
 
 # ─── Arize AI · observabilidad LLM ──────────────────────────────
 # Traces de cada call a Gemini + cada sub-agente ADK exportadas a
