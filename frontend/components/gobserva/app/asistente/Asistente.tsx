@@ -11,9 +11,11 @@ import { Respuesta } from "@/components/admin/chat/Respuesta";
 import { Descargas } from "@/components/admin/chat/Descargas";
 import type { MensajeAsistente, PasoHerramienta } from "@/components/admin/chat/conversacion";
 import { IsotipoGobserva } from "@/components/gobserva/MarcaGobserva";
+import { BotonesVerificacion, NotaVerificacion, useVerificacion } from "@/components/gobserva/cuenta/Verificacion";
 import { claseAccion } from "@/components/ui/EnlaceAccion";
 import { rutaEn } from "@/lib/gobserva";
 import { cargarConversaciones, cargarUsoMcp, fechaLarga, renombrarConversacion } from "@/lib/gobserva-cuenta";
+import { COBROS_EN_PAUSA, LIMITES_ABIERTO } from "@/lib/gobserva-planes";
 import { cn } from "@/lib/utils";
 import { Historial } from "./Historial";
 import { MODOS, MODOS_DE, useAsistente, type AppAsistente } from "./useAsistente";
@@ -53,7 +55,7 @@ const NUM = new Intl.NumberFormat("es-PE");
  * El asistente de cada app (2026-11-08): un espacio de trabajo como los de Claude o ChatGPT, con el historial de
  * conversaciones a un lado (en el celular, en una hoja), la conversación con su título editable y el campo abajo. Usa el
  * perfil de la cuenta, cobra de los créditos del plan y guarda cada conversación en la cuenta (migración 269). Sin plan,
- * ofrece los planes.
+ * ofrece los planes; con los cobros en pausa (COBROS_EN_PAUSA), lo que falta es confirmar el correo y lo pide ahí mismo.
  */
 export function Asistente({ app, base }: { app: AppAsistente; base: string }) {
   const uso = useSWR(["gobserva-mcp", app], () => cargarUsoMcp(app), { revalidateOnFocus: false });
@@ -63,6 +65,8 @@ export function Asistente({ app, base }: { app: AppAsistente; base: string }) {
     void lista.mutate();
   }, [uso, lista]);
   const a = useAsistente(app, refrescar);
+  // Con los cobros en pausa, sin créditos es porque falta confirmar el correo: se confirma aquí y se vuelven a leer.
+  const verif = useVerificacion(() => void uso.mutate());
   const [texto, setTexto] = useState("");
   const [historialAbierto, setHistorialAbierto] = useState(false);
   const campo = useRef<HTMLTextAreaElement>(null);
@@ -144,12 +148,28 @@ export function Asistente({ app, base }: { app: AppAsistente; base: string }) {
           <span aria-hidden className="mx-auto grid h-12 w-12 place-items-center rounded-full border border-line bg-paper">
             <IsotipoGobserva tamano={24} />
           </span>
-          <h1 className="mt-4 font-display text-seccion font-bold text-ink">El asistente viene con los planes de pago</h1>
-          <p className="mx-auto mt-2 max-w-[48ch] text-dato leading-relaxed text-inkSoft">
-            Con un plan, cada mes tienes créditos para preguntarle aquí y a tu IA por el MCP.{" "}
-            {app === "empleo" ? "Con el plan Alertas son 300: cada pregunta usa 5." : "Con Inicia son 1,500: una pregunta rápida usa 5."}
-          </p>
-          <Link href={rutaEn(base, "/planes")} className={claseAccion("primario", "mt-5")}>Ver los planes</Link>
+          {COBROS_EN_PAUSA ? (
+            <>
+              <h1 className="mt-4 font-display text-seccion font-bold text-ink">El asistente es gratis con tu cuenta</h1>
+              <p className="mx-auto mt-2 max-w-[48ch] text-dato leading-relaxed text-inkSoft">
+                Confirma tu correo y cada mes tienes {NUM.format(LIMITES_ABIERTO[app].mcp ?? 0)} créditos para preguntarle aquí y a tu IA por el MCP.{" "}
+                {app === "empleo" ? "Cada pregunta usa 5." : "Una pregunta rápida usa 5."}
+                <NotaVerificacion estado={verif.estado} />
+              </p>
+              <div className="mt-5 flex justify-center">
+                <BotonesVerificacion estado={verif.estado} reenviar={() => void verif.reenviar()} yaVerifique={() => void verif.yaVerifique()} />
+              </div>
+            </>
+          ) : (
+            <>
+              <h1 className="mt-4 font-display text-seccion font-bold text-ink">El asistente viene con los planes de pago</h1>
+              <p className="mx-auto mt-2 max-w-[48ch] text-dato leading-relaxed text-inkSoft">
+                Con un plan, cada mes tienes créditos para preguntarle aquí y a tu IA por el MCP.{" "}
+                {app === "empleo" ? "Con el plan Alertas son 300: cada pregunta usa 5." : "Con Inicia son 1,500: una pregunta rápida usa 5."}
+              </p>
+              <Link href={rutaEn(base, "/planes")} className={claseAccion("primario", "mt-5")}>Ver los planes</Link>
+            </>
+          )}
         </div>
       </div>
     );
@@ -219,9 +239,13 @@ export function Asistente({ app, base }: { app: AppAsistente; base: string }) {
               <p role="alert" className="mb-2.5 flex flex-wrap items-center gap-x-3 gap-y-1.5 rounded-xl border border-crimson/30 bg-crimson-soft px-3.5 py-2.5 text-dato text-crimsonTexto">
                 <AlertTriangle size={15} aria-hidden className="shrink-0" />
                 <span className="min-w-0 flex-1">{a.aviso.texto}</span>
-                {(a.aviso.codigo === "sin_plan" || a.aviso.codigo === "sin_creditos") && (
-                  <Link href={rutaEn(base, "/planes")} className="font-semibold underline underline-offset-2">Ver los planes</Link>
-                )}
+                {COBROS_EN_PAUSA
+                  ? a.aviso.codigo === "sin_plan" && (
+                      <Link href={rutaEn(base, "/cuenta")} className="font-semibold underline underline-offset-2">Confirmar mi correo</Link>
+                    )
+                  : (a.aviso.codigo === "sin_plan" || a.aviso.codigo === "sin_creditos") && (
+                      <Link href={rutaEn(base, "/planes")} className="font-semibold underline underline-offset-2">Ver los planes</Link>
+                    )}
               </p>
             )}
             <form

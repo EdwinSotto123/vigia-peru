@@ -18,6 +18,7 @@ import {
   agregarCarrera, agregarPalabrasEmpleo, carrerasParaContar, conQueBuscar, esAlertaDePerfil, igualEmpleo, nombrePerfilEmpleo, paramsCalce, perfilDesdeCv, puestosSugeridos, respondidasPorCv,
   siguienteEmpleo, textoRespuestaEmpleo, textosMotivo, variantesDe, type PerfilEmpleo, type PreguntaEmpleo,
 } from "@/lib/empleo-app/entrevista";
+import { COBROS_EN_PAUSA } from "@/lib/gobserva-planes";
 import { cn } from "@/lib/utils";
 import { pedirCalce, usePerfilEmpleo, type CalceEmpleo } from "./usePerfilEmpleo";
 import { RUTA_PARA_TI } from "@/lib/empleo";
@@ -443,7 +444,7 @@ export function EntrevistaEmpleo({ base }: { base: string }) {
         return (
           <Respuestas etiqueta="Avisos">
             <div className="flex flex-wrap gap-2">
-              <Opcion disabled={!conDiaria} onClick={() => responder("avisos", { alerta: true, frecuencia: "diaria" })} icono={<CalendarClock size={15} aria-hidden className="text-inkSoft" />} detalle={!conDiaria ? "con un plan" : undefined}>
+              <Opcion disabled={!conDiaria} onClick={() => responder("avisos", { alerta: true, frecuencia: "diaria" })} icono={<CalendarClock size={15} aria-hidden className="text-inkSoft" />} detalle={!conDiaria ? (COBROS_EN_PAUSA ? "confirma tu correo" : "con un plan") : undefined}>
                 Sí, cada mañana
               </Opcion>
               <Opcion onClick={() => responder("avisos", { alerta: true, frecuencia: "semanal" })} icono={<Bell size={15} aria-hidden className="text-inkSoft" />}>

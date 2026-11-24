@@ -13,7 +13,8 @@ import { cn } from "@/lib/utils";
  */
 type MedioPago = { Icono: typeof CreditCard; titulo: string; marcas?: ReactNode; texto: string };
 
-export function ComoFunciona({ pasos, cat, className }: { pasos: { titulo: string; texto: string }[]; cat: PlanesServidor; className?: string }) {
+/** `sinPagos`: con los cobros en pausa (2026-11-24) no hay medios de pago que mostrar: la cuenta es gratis. */
+export function ComoFunciona({ pasos, cat, className, sinPagos = false }: { pasos: { titulo: string; texto: string }[]; cat: PlanesServidor; className?: string; sinPagos?: boolean }) {
   const medios = ([
     cat.medios.tarjeta && {
       Icono: CreditCard,
@@ -65,8 +66,16 @@ export function ComoFunciona({ pasos, cat, className }: { pasos: { titulo: strin
       </div>
 
       <div className="min-w-0 rounded-3xl border border-line bg-paper p-5 sm:p-7">
-        <h2 className="font-display text-bloque font-bold leading-tight text-ink">Cómo pagas</h2>
-        <ul className="mt-5 space-y-4">
+        <h2 className="font-display text-bloque font-bold leading-tight text-ink">{sinPagos ? "Sin pagos, por ahora" : "Cómo pagas"}</h2>
+        {sinPagos && (
+          <p className="mt-3 flex items-start gap-3 text-dato leading-relaxed text-inkSoft">
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-granate-50 text-granate">
+              <ShieldCheck size={18} aria-hidden />
+            </span>
+            <span>Tu cuenta es gratis y no te pedimos tarjeta ni datos de pago. Los planes de pago llegan pronto.</span>
+          </p>
+        )}
+        <ul className="mt-5 space-y-4" hidden={sinPagos}>
           {medios.map(({ Icono, titulo, marcas, texto }) => (
             <li key={titulo} className="flex gap-3">
               <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-granate-50 text-granate">

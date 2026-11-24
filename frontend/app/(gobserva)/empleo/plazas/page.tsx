@@ -15,7 +15,7 @@ import { claseAccion } from "@/components/ui/EnlaceAccion";
 import { NIVEL, canalAlertas, claveDeSlug, entidadNombre, esAlertable, filtrosDeUrl, getPlazasEmpleo, nombreRegion, qsEmpleo, type FiltrosEmpleo } from "@/lib/empleo";
 import { numero, soles } from "@/lib/formato";
 import { rutaEn, urlCanonica } from "@/lib/gobserva";
-import { planesServidor } from "@/lib/gobserva-planes";
+import { COBROS_EN_PAUSA, planesServidor } from "@/lib/gobserva-planes";
 import { baseProducto } from "@/lib/gobserva-servidor";
 import { SENAL_PLAZA } from "@/lib/planilla";
 
@@ -228,11 +228,18 @@ export default async function PlazasEmpleo({ searchParams }: Props) {
                   Que te avisen de las nuevas
                 </h2>
                 <p className="mt-1.5 max-w-[65ch] text-dato leading-relaxed text-inkSoft">
-                  Guarda esta búsqueda como alerta y te avisamos {canal} cuando se publique una plaza que calce. Gratis una vez por semana; cada mañana con el{" "}
-                  <Link href={rutaEn(base, "/planes")} className="font-semibold text-granate underline-offset-4 hover:underline">
-                    plan Alertas
-                  </Link>
-                  .
+                  Guarda esta búsqueda como alerta y te avisamos {canal} cuando se publique una plaza que calce.
+                  {COBROS_EN_PAUSA ? (
+                    " Cada mañana y gratis con tu cuenta."
+                  ) : (
+                    <>
+                      {" "}Gratis una vez por semana; cada mañana con el{" "}
+                      <Link href={rutaEn(base, "/planes")} className="font-semibold text-granate underline-offset-4 hover:underline">
+                        plan Alertas
+                      </Link>
+                      .
+                    </>
+                  )}
                 </p>
                 {/* Sin su caja (`barra`): ya va dentro de este bloque. Con su «Con: …», que dice qué guarda la alerta. */}
                 <Suspense fallback={<div aria-hidden className="mt-4 h-11 w-72 max-w-full animate-pulse rounded-full bg-paperDeep" />}>

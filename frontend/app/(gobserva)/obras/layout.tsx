@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import { MarcoProducto } from "@/components/gobserva/MarcoProducto";
 import { urlCanonica } from "@/lib/gobserva";
 import { PRODUCTOS } from "@/lib/gobserva";
+import { COBROS_EN_PAUSA } from "@/lib/gobserva-planes";
 import { CONTRATACIONES_ABIERTAS, INFOBRAS, SEGUIMIENTO_INVERSIONES } from "@/lib/fuentes";
 import { baseProducto } from "@/lib/gobserva-servidor";
 import { metadatosApp } from "@/lib/gobserva-pwa";
@@ -29,7 +30,8 @@ export default function LayoutObras({ children }: { children: ReactNode }) {
         { ruta: urlCanonica("licitaciones", "/planes"), etiqueta: "Planes" },
         { ruta: "/mcp", etiqueta: "API y MCP" },
       ]}
-      accion={{ ruta: urlCanonica("licitaciones", "/planes"), etiqueta: "Recibir alertas" }}
+      // Con los cobros en pausa, las alertas vienen gratis con la cuenta (la de Licitaciones): la acción lleva a crearla.
+      accion={{ ruta: COBROS_EN_PAUSA ? "/entrar?crear=1" : urlCanonica("licitaciones", "/planes"), etiqueta: "Recibir alertas" }}
       fuentes={[
         { nombre: "Invierte.pe, seguimiento de inversiones del MEF", url: SEGUIMIENTO_INVERSIONES },
         { nombre: "INFOBRAS, obras públicas de la Contraloría", url: INFOBRAS },

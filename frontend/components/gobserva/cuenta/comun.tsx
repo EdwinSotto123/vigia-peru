@@ -4,7 +4,8 @@ import type { ReactNode } from "react";
 import useSWR from "swr";
 import { AlertTriangle, CheckCircle2, Info } from "lucide-react";
 import { useAuth } from "@/components/auth/AuthProvider";
-import { cargarMe, type Me } from "@/lib/gobserva-cuenta";
+import { cargarMe, type Limites, type Me } from "@/lib/gobserva-cuenta";
+import { LIMITES_ABIERTO } from "@/lib/gobserva-planes";
 import { COOKIE_SESION, type Producto } from "@/lib/gobserva";
 import { NIVEL, NIVELES_ORDEN, REGIONES_EMPLEO, nombreRegion as nombreRegionEmpleo, slugRegion } from "@/lib/empleo";
 import { carrerasDeAlerta } from "@/lib/empleo-app/entrevista";
@@ -66,6 +67,13 @@ export function useMe(producto: Producto) {
   });
   return { ...r, me: r.data ?? null };
 }
+
+/**
+ * Lo que trae hoy, gratis, una cuenta con el correo confirmado en este producto, mientras los cobros están en pausa
+ * (COBROS_EN_PAUSA, lib/gobserva-planes.ts). null en Salud y Car, que no tienen planes.
+ */
+export const abiertoDe = (producto: Producto): Limites | null =>
+  producto === "empleo" || producto === "licitaciones" || producto === "obras" ? LIMITES_ABIERTO[producto] : null;
 
 /** Un bloque gris mientras carga. */
 export function Esqueleto({ className }: { className?: string }) {

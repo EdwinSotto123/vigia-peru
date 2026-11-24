@@ -60,6 +60,7 @@ import {
   type ProcesoSeace,
   type QuienObra,
 } from "@/lib/gobserva-obras";
+import { COBROS_EN_PAUSA } from "@/lib/gobserva-planes";
 import { baseProducto } from "@/lib/gobserva-servidor";
 import { limpiar, nombreRegion } from "@/lib/licitaciones";
 import { cn } from "@/lib/utils";
@@ -375,7 +376,9 @@ export default async function FichaProyecto({ params }: Props) {
     <div className="rounded-3xl border border-line bg-paper p-5">
       <h2 className="font-display text-bloque font-bold leading-tight text-ink">Sigue este proyecto</h2>
       <p className="mt-1 text-meta leading-relaxed text-inkSoft">
-        {aviso ? `${aviso} Con la cuenta gratis, cada semana; con Pro, cada mañana.` : "Guárdalo en tu cuenta con una nota y su estado, o recibe los proyectos nuevos que se le parecen."}
+        {aviso
+          ? `${aviso} ${COBROS_EN_PAUSA ? "Cada mañana, gratis con tu cuenta." : "Con la cuenta gratis, cada semana; con Pro, cada mañana."}`
+          : "Guárdalo en tu cuenta con una nota y su estado, o recibe los proyectos nuevos que se le parecen."}
       </p>
       {aviso && (
         <Link href={alertaCui} prefetch={false} className={claseAccion("primario", "mt-4 min-h-11 w-full")}>

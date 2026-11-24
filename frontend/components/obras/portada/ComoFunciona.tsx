@@ -4,12 +4,14 @@ import { ArrowRight, BellRing, Building2, Landmark } from "lucide-react";
 import { PestanasVivas } from "@/components/gobserva/portada/PestanasVivas";
 import { Pixel } from "@/components/pixel/Pixel";
 import { claseAccion } from "@/components/ui/EnlaceAccion";
+import { COBROS_EN_PAUSA } from "@/lib/gobserva-planes";
 
 /**
  * «Cómo funciona» en la portada de Gobserva Obras (2026-11-22): los tres pasos, cada uno con su viñeta de píxeles, en
  * pestañas que avanzan solas mientras se ven (la franja se llena hasta el siguiente paso; al tocar se quedan quietas).
  * Debajo, las dos puertas: la cuenta gratis y los planes (Obras viene incluido en los de Gobserva Licitaciones; antes
- * las tarjetas de los planes ocupaban 1,300 px de la portada). Server-safe.
+ * las tarjetas de los planes ocupaban 1,300 px de la portada). Con los cobros en pausa (2026-11-24), todo viene gratis con la
+ * cuenta y el correo confirmado, y el segundo botón dice lo que incluye. Server-safe.
  */
 export function ComoFunciona({ correo, crear, planes }: { correo: boolean; crear: string; planes: string }) {
   const pasos: { pestana: string; titulo: string; Icono: typeof Landmark; texto: string; ilustracion: ReactNode }[] = [
@@ -29,7 +31,9 @@ export function ComoFunciona({ correo, crear, planes }: { correo: boolean; crear
       pestana: "Te avisamos",
       titulo: "Te llega lo nuevo",
       Icono: BellRing,
-      texto: `Los proyectos que se declaran viables, los que aprueban su expediente técnico y los que pasan a licitación, ${correo ? "en tu correo" : "en tu cuenta"}: cada semana con la cuenta gratis, cada mañana con un plan.`,
+      texto: `Los proyectos que se declaran viables, los que aprueban su expediente técnico y los que pasan a licitación, ${correo ? "en tu correo" : "en tu cuenta"}${
+        COBROS_EN_PAUSA ? ", cada mañana: gratis con tu cuenta." : ": cada semana con la cuenta gratis, cada mañana con un plan."
+      }`,
       ilustracion: (
         <>
           <Pixel nombre="obrero" escala={4} retardo={1200} />
@@ -79,15 +83,17 @@ export function ComoFunciona({ correo, crear, planes }: { correo: boolean; crear
       </PestanasVivas>
       <div className="mt-6 flex flex-col gap-3 rounded-3xl border border-line bg-paper p-5 sm:flex-row sm:items-center sm:justify-between sm:p-6">
         <p className="max-w-[58ch] text-pretty text-dato leading-relaxed text-inkSoft">
-          <b className="font-semibold text-ink">Buscar y leer las fichas es gratis.</b> Obras viene incluido en los planes de Gobserva Licitaciones: con uno,
-          te avisamos cada mañana y bajas tus búsquedas en Excel.
+          <b className="font-semibold text-ink">Buscar y leer las fichas es gratis.</b>{" "}
+          {COBROS_EN_PAUSA
+            ? "Lo demás, también: crea tu cuenta de Gobserva Licitaciones, que trae Obras, confirma tu correo y te avisamos cada mañana y bajas tus búsquedas en Excel."
+            : "Obras viene incluido en los planes de Gobserva Licitaciones: con uno, te avisamos cada mañana y bajas tus búsquedas en Excel."}
         </p>
         <div className="flex shrink-0 flex-wrap gap-2">
           <Link href={crear} className={claseAccion("primario", "min-h-11")}>
             Crear mi cuenta gratis <ArrowRight size={16} aria-hidden />
           </Link>
           <Link href={planes} className={claseAccion("secundario", "min-h-11")}>
-            Ver los planes
+            {COBROS_EN_PAUSA ? "Lo que incluye tu cuenta" : "Ver los planes"}
           </Link>
         </div>
       </div>

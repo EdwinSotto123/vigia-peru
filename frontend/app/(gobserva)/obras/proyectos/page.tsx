@@ -26,6 +26,7 @@ import {
   type FiltrosObras,
   type Pestana,
 } from "@/lib/gobserva-obras";
+import { COBROS_EN_PAUSA } from "@/lib/gobserva-planes";
 import { baseProducto } from "@/lib/gobserva-servidor";
 import { nombreRegion } from "@/lib/licitaciones";
 import { cn } from "@/lib/utils";
@@ -253,7 +254,8 @@ export default async function Proyectos({ searchParams }: Props) {
                 </div>
                 {d.total > POR_PAGINA * 50 && (
                   <Nota className="mx-auto mt-4 max-w-2xl">
-                    Se muestran las primeras 50 páginas, ordenadas como elegiste. Afina con los filtros para llegar al resto, o descárgalos en Excel con el plan Pro.
+                    Se muestran las primeras 50 páginas, ordenadas como elegiste. Afina con los filtros para llegar al resto, o descárgalos en Excel
+                    {COBROS_EN_PAUSA ? ", gratis con tu cuenta." : " con el plan Pro."}
                   </Nota>
                 )}
               </>
@@ -267,7 +269,8 @@ export default async function Proyectos({ searchParams }: Props) {
           <h2 className="text-balance font-display text-seccion font-bold leading-tight text-ink">Que estos proyectos te lleguen solos</h2>
           <p className="mt-3 text-cuerpo leading-relaxed text-inkSoft">
             Guarda esta búsqueda como alerta: te avisamos de los proyectos nuevos que calzan contigo y de los que cambian de fase (cuando aprueban
-            su expediente técnico, pasan a licitación o se paralizan). Con la cuenta gratis llegan cada semana; con Pro, cada mañana.
+            su expediente técnico, pasan a licitación o se paralizan).{" "}
+            {COBROS_EN_PAUSA ? "Llegan cada mañana, gratis con tu cuenta." : "Con la cuenta gratis llegan cada semana; con Pro, cada mañana."}
           </p>
         </div>
         <div className="flex flex-col justify-center gap-3 sm:flex-row sm:items-center lg:justify-end">
@@ -275,7 +278,7 @@ export default async function Proyectos({ searchParams }: Props) {
             <BellRing size={17} aria-hidden /> Crear alerta con esta búsqueda
           </a>
           <Link href={rutaEn(base, "/planes")} className={claseAccion("secundario", "", "md")}>
-            Ver los planes
+            {COBROS_EN_PAUSA ? "Lo que incluye tu cuenta" : "Ver los planes"}
           </Link>
         </div>
       </div>

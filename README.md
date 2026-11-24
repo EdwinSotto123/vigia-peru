@@ -155,8 +155,8 @@ Más detalle en [`docs/DATA.md`](docs/DATA.md).
 `https://mcp.gobserva.cloud/mcp` es un servidor [Model Context Protocol](https://modelcontextprotocol.io) de solo
 lectura con más de 50 herramientas: buscar contratos, entidades y empresas, leer un dictamen, seguir la red de una
 empresa, ver los patrones de una entidad, buscar informes de control y resoluciones del Tribunal, comparar precios y
-más. Cada resultado trae su código (OCID, RUC, CUI), su enlace en Vigía y la fuente oficial. Se conecta con una cuenta
-de Gobserva y un plan vigente.
+más. Cada resultado trae su código (OCID, RUC, CUI), su enlace en Vigía y la fuente oficial. **Es gratis**: se conecta
+con una cuenta de Gobserva que tenga el correo confirmado.
 
 ```text
 > ¿Qué contratos de riesgo alto hay en Ayacucho este año?

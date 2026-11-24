@@ -65,6 +65,26 @@ interface PlanBase {
 
 export const LIMITES_GRATIS: Limites = { alertas: 1, frecuencias: ["semanal"], guardados: 30, csv: false, filasCsv: 0, recordatorios: true, lineas: 1, paraTi: 10, mcp: 0 };
 
+/**
+ * Los cobros en pausa (2026-11-24, el usuario: «las suscripciones a Gobserva, frena; por ahora próximamente, como
+ * freemium: pueden usar el MCP y demás sólo si se crean cuenta con correo y se autentican»). Mientras tanto, toda cuenta
+ * con correo verificado tiene el acceso abierto de cada producto (`LIMITES_ABIERTO`), como un plan sin cobro ni
+ * vencimiento (`planVigente`); los planes ya pagados siguen como estaban. GOBSERVA_COBROS=activos vuelve a vender.
+ */
+export const cobrosEnPausa = () => (process.env.GOBSERVA_COBROS ?? "").trim().toLowerCase() !== "activos";
+export const PLAN_ABIERTO = "abierto";
+const ABIERTO_PROVEEDOR: Limites = {
+  alertas: 5, frecuencias: ["diaria", "semanal"], guardados: 500, csv: true, filasCsv: 1000, recordatorios: true, lineas: 3, paraTi: 50, mcp: 1500,
+};
+export const LIMITES_ABIERTO: Record<ProductoPago, Limites> = {
+  empleo: { alertas: 5, frecuencias: ["diaria", "semanal"], guardados: 300, csv: true, filasCsv: 500, recordatorios: true, lineas: 1, paraTi: 50, mcp: 300 },
+  licitaciones: ABIERTO_PROVEEDOR,
+  obras: ABIERTO_PROVEEDOR,
+};
+/** Uno por producto que se vendía (Obras va con Licitaciones: sus créditos del MCP no se suman dos veces). */
+export const codigoAbierto = (producto: ProductoPago) => `ABIERTO-${producto === "obras" ? "LICITACIONES" : producto.toUpperCase()}`;
+export const esAbierto = (codigo: string | null | undefined) => !!codigo?.startsWith("ABIERTO-");
+
 const PRO = (alertas: number, guardados: number, filasCsv: number, mcp: number, lineas = 1): Limites => ({
   alertas, frecuencias: ["diaria", "semanal"], guardados, csv: true, filasCsv, recordatorios: true, lineas, paraTi: 50, mcp,
 });
@@ -214,6 +234,7 @@ export const round2 = (n: number) => Math.round(n * 100) / 100;
 /** Los límites de una persona en un producto según su plan vigente (o los del plan gratis). */
 export async function limitesDe(producto: ProductoPago, plan: string | null): Promise<Limites> {
   if (!plan) return LIMITES_GRATIS;
+  if (plan === PLAN_ABIERTO) return LIMITES_ABIERTO[producto];
   return (await planDe(producto, plan))?.limites ?? LIMITES_GRATIS;
 }
 
@@ -245,11 +266,35 @@ export function esEquipo(uid: string, correoVerificado?: string | null): Promise
 /** El correo de la sesión, si quien la abrió lo verificó (para `planVigente` y `esEquipo`). */
 export const correoVerificado = (u: { email: string | null; emailVerificado: boolean }) => (u.emailVerificado ? u.email : null);
 
+/** Un correo real (no el sintético de una cuenta de Vigía, «…@vigia.local»). */
+const correoReal = (correo: string | null | undefined) => !!correo && !/@vigia\.local$/i.test(correo);
+
+/**
+ * ¿La cuenta tiene un correo real verificado? El de la sesión si se pasó (null: no lo verificó); si no se pasó (las
+ * alertas, que sólo tienen el uid), el que guardó la cuenta.
+ */
+async function conCorreoVerificado(uid: string, correo: string | null | undefined): Promise<boolean> {
+  if (correo !== undefined) return correoReal(correo);
+  const r = await pool.query<{ email: string | null }>(
+    `SELECT email FROM gobserva_cuentas WHERE firebase_uid = $1 AND email_verificado AND baja_at IS NULL`, [uid]);
+  return correoReal(r.rows[0]?.email);
+}
+
 /**
  * El plan vigente de una persona en un producto: activo y pagado (con 3 días de gracia: un cobro mensual puede llegar
- * un poco tarde). null = gratis. El equipo (`esEquipo`) tiene siempre el más alto, sin fila ni vencimiento.
+ * un poco tarde). null = gratis. El equipo (`esEquipo`) tiene siempre el más alto, sin fila ni vencimiento. Con los cobros
+ * en pausa (`cobrosEnPausa`), una cuenta con correo verificado y sin plan pagado tiene el abierto (`PLAN_ABIERTO`).
  */
 export async function planVigente(uid: string, producto: ProductoPago, correo?: string | null): Promise<{ codigo: string; plan: string; vigenteHasta: string | null } | null> {
+  const pagado = await planPagado(uid, producto, correo);
+  if (pagado) return pagado;
+  if (cobrosEnPausa() && (await conCorreoVerificado(uid, correo).catch(() => false))) {
+    return { codigo: codigoAbierto(producto), plan: PLAN_ABIERTO, vigenteHasta: null };
+  }
+  return null;
+}
+
+async function planPagado(uid: string, producto: ProductoPago, correo?: string | null): Promise<{ codigo: string; plan: string; vigenteHasta: string | null } | null> {
   if (await esEquipo(uid, correo).catch(() => false)) return { codigo: codigoEquipo(producto), plan: PLAN_EQUIPO[producto], vigenteHasta: null };
   // Obras viene con Licitaciones (2026-11-07): un plan de cualquiera de los dos vale para Obras.
   const productos = producto === "obras" ? ["obras", "licitaciones"] : [producto];

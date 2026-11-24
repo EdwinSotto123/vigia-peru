@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { BadgeCheck, Bot, CalendarX2, CircleHelp, Footprints, Handshake, Sparkles, Table2 } from "lucide-react";
+import { BadgeCheck, Bot, CalendarX2, CircleHelp, CreditCard, Footprints, Handshake, MailCheck, Sparkles, Table2 } from "lucide-react";
 import { BloqueMCP } from "@/components/gobserva/BloqueMCP";
 import { AvisoPlanes, ComoFunciona } from "@/components/gobserva/ComoFunciona";
 import { Planes } from "@/components/gobserva/Planes";
@@ -8,13 +8,15 @@ import { AnclaEnPestana } from "@/components/licitaciones/AnclaEnPestana";
 import { ComparaPlanes } from "@/components/licitaciones/ComparaPlanes";
 import { Faq } from "@/components/licitaciones/Faq";
 import { planesLicitaciones } from "@/components/licitaciones/planes";
-import { urlCanonica } from "@/lib/gobserva";
-import { planesServidor } from "@/lib/gobserva-planes";
+import { rutaEn, urlCanonica } from "@/lib/gobserva";
+import { COBROS_EN_PAUSA, entero, planesServidor } from "@/lib/gobserva-planes";
 import { baseProducto } from "@/lib/gobserva-servidor";
 
 export const metadata: Metadata = {
   title: "Planes",
-  description: "Alertas diarias de licitaciones por rubro y región, procesos guardados con su estado, descarga en Excel y MCP. Con precio de fundador para las primeras 50 empresas.",
+  description: COBROS_EN_PAUSA
+    ? "Alertas diarias de licitaciones por rubro y región, procesos guardados con su estado, descarga en Excel y MCP: gratis con tu cuenta y tu correo confirmado. Los planes de pago llegan pronto."
+    : "Alertas diarias de licitaciones por rubro y región, procesos guardados con su estado, descarga en Excel y MCP. Con precio de fundador para las primeras 50 empresas.",
   alternates: { canonical: urlCanonica("licitaciones", "/planes") },
 };
 
@@ -29,16 +31,30 @@ export default async function PlanesLicitaciones() {
   const base = baseProducto("licitaciones");
   const cat = await planesServidor("licitaciones");
   const cupo = cat.planes.find((p) => p.id === "crece")?.fundador?.cupo;
+  // Con los cobros en pausa (2026-11-24): todo gratis con la cuenta verificada y los planes de pago «próximamente».
+  const pausa = cat.enPausa && cat.abierto;
 
   return (
     <div className="container-page space-y-16 py-10 sm:py-14">
       <header className="max-w-3xl">
-        <h1 className="text-balance font-display text-titulo font-bold leading-tight text-ink sm:text-vitrina">Elige tu plan para venderle al Estado</h1>
-        <p className="mt-3 text-pretty text-bloque leading-relaxed text-inkSoft">
-          Licitaciones, contratos menores abiertos y obras que se vienen, en una sola cuenta. Buscar, leer las fichas y medir tu mercado es gratis; los
-          planes de pago te traen lo nuevo cada mañana, guardan tus procesos con su estado y bajan cualquier búsqueda en Excel.
-        </p>
-        <AvisoPlanes texto={cat.aviso} className="mt-5" />
+        {pausa ? (
+          <>
+            <h1 className="text-balance font-display text-titulo font-bold leading-tight text-ink sm:text-vitrina">Hoy, todo gratis con tu cuenta</h1>
+            <p className="mt-3 text-pretty text-bloque leading-relaxed text-inkSoft">
+              Licitaciones, contratos menores abiertos y obras que se vienen, en una sola cuenta. Créala con tu correo, confírmalo y tienes lo nuevo cada
+              mañana, tus procesos guardados con su estado, descargas en Excel, el asistente y tu MCP, sin pagar nada. Los planes de pago llegan pronto.
+            </p>
+          </>
+        ) : (
+          <>
+            <h1 className="text-balance font-display text-titulo font-bold leading-tight text-ink sm:text-vitrina">Elige tu plan para venderle al Estado</h1>
+            <p className="mt-3 text-pretty text-bloque leading-relaxed text-inkSoft">
+              Licitaciones, contratos menores abiertos y obras que se vienen, en una sola cuenta. Buscar, leer las fichas y medir tu mercado es gratis; los
+              planes de pago te traen lo nuevo cada mañana, guardan tus procesos con su estado y bajan cualquier búsqueda en Excel.
+            </p>
+            <AvisoPlanes texto={cat.aviso} className="mt-5" />
+          </>
+        )}
       </header>
 
       <div className="space-y-6">
@@ -48,8 +64,15 @@ export default async function PlanesLicitaciones() {
           className="max-md:-mx-4 max-md:flex max-md:snap-x max-md:snap-mandatory max-md:overflow-x-auto max-md:px-4 max-md:pb-3 max-md:[scrollbar-width:none] max-md:[&::-webkit-scrollbar]:hidden max-md:[&>li]:w-[84%] max-md:[&>li]:shrink-0 max-md:[&>li]:snap-start max-md:[&>li]:scroll-ml-4"
         />
         <ul className="-mx-4 flex snap-x gap-3 overflow-x-auto px-4 pb-2 [scrollbar-width:none] md:mx-0 md:grid md:grid-cols-3 md:overflow-visible md:px-0 md:pb-0 [&::-webkit-scrollbar]:hidden">
-          <Garantia Icono={CalendarX2} titulo="Sin permanencia" texto="Cancelas desde tu cuenta cuando quieras y sigues con tu plan hasta el final del mes pagado." />
-          {cupo ? (
+          {pausa ? (
+            <>
+              <Garantia Icono={CreditCard} titulo="Sin tarjeta" texto="No te pedimos tarjeta ni datos de pago: tu cuenta es gratis." />
+              <Garantia Icono={MailCheck} titulo="Solo tu correo" texto="Confírmalo con el enlace que te enviamos, o entra con Google, y se abre todo." />
+            </>
+          ) : (
+            <Garantia Icono={CalendarX2} titulo="Sin permanencia" texto="Cancelas desde tu cuenta cuando quieras y sigues con tu plan hasta el final del mes pagado." />
+          )}
+          {pausa ? null : cupo ? (
             <Garantia Icono={Sparkles} titulo="Tu precio se queda" texto={`Las primeras ${cupo} empresas conservan el precio de fundador mientras mantengan su plan.`} />
           ) : (
             <Garantia Icono={Handshake} titulo="Sin comisiones" texto="Pagas el plan y nada más: nunca cobramos un porcentaje de lo que ganes." />
@@ -65,32 +88,39 @@ export default async function PlanesLicitaciones() {
         {/* La portada enlaza a /planes#comparar y /planes#mcp: si el ancla cae en una pestaña cerrada, la abre. */}
         <AnclaEnPestana />
         <PestanasVivas
-          etiqueta="La tabla de los planes, cómo empiezas y pagas, el MCP y las preguntas frecuentes"
+          etiqueta={pausa ? "Cómo empiezas, el MCP y las preguntas frecuentes" : "La tabla de los planes, cómo empiezas y pagas, el MCP y las preguntas frecuentes"}
           className="mt-3"
           pestanas={[
-            { titulo: "Compara los planes", icono: <Table2 size={16} aria-hidden /> },
-            { titulo: "Cómo empiezas y pagas", icono: <Footprints size={16} aria-hidden /> },
+            ...(pausa ? [] : [{ titulo: "Compara los planes", icono: <Table2 size={16} aria-hidden /> }]),
+            { titulo: pausa ? "Cómo empiezas" : "Cómo empiezas y pagas", icono: <Footprints size={16} aria-hidden /> },
             { titulo: "API y MCP", icono: <Bot size={16} aria-hidden /> },
             { titulo: "Preguntas", icono: <CircleHelp size={16} aria-hidden /> },
           ]}
         >
-          <ComparaPlanes cat={cat} />
+          {pausa ? null : <ComparaPlanes cat={cat} />}
           <ComoFunciona
             cat={cat}
+            sinPagos={!!pausa}
             pasos={[
               { titulo: "Crea tu cuenta", texto: "Con Google o con tu correo, gratis y en un minuto." },
               { titulo: "Busca lo que vendes", texto: "Filtra las convocatorias por palabras, región, tipo y monto, y guarda la búsqueda como alerta." },
               {
                 titulo: "Te llega lo nuevo",
-                texto: "Las convocatorias nuevas de tu búsqueda (cada semana gratis; cada mañana con un plan de pago), con el plazo de consultas de cada una y el enlace a sus bases.",
+                texto: pausa
+                  ? "Con tu correo confirmado, las convocatorias nuevas de tu búsqueda cada mañana, con el plazo de consultas de cada una y el enlace a sus bases."
+                  : "Las convocatorias nuevas de tu búsqueda (cada semana gratis; cada mañana con un plan de pago), con el plazo de consultas de cada una y el enlace a sus bases.",
               },
             ]}
           />
           <BloqueMCP
             titulo="API y MCP para tu equipo"
-            bajada="Cualquier plan de pago trae tu MCP: conecta tu asistente de IA y pregunta por las licitaciones del día, las obras, tu mercado o una entidad. El plan Pro sumará una API para tu CRM y el Institucional, límites altos y soporte."
+            bajada={
+              pausa
+                ? `Tu cuenta gratis trae tu MCP, con ${entero(cat.abierto?.mcp ?? 1500)} créditos al mes: conecta tu asistente de IA y pregunta por las licitaciones del día, las obras, tu mercado o una entidad. La API para tu CRM llega con los planes de pago.`
+                : "Cualquier plan de pago trae tu MCP: conecta tu asistente de IA y pregunta por las licitaciones del día, las obras, tu mercado o una entidad. El plan Pro sumará una API para tu CRM y el Institucional, límites altos y soporte."
+            }
             cuenta="Gobserva Licitaciones"
-            planes="#comparar"
+            planes={pausa ? rutaEn(base, "/entrar?crear=1") : "#comparar"}
             ejemplos={[
               "Resume las convocatorias de señalización vial de esta semana con su valor referencial.",
               "¿Qué entidades de Arequipa compran más medicamentos y a quién le compran?",
@@ -102,7 +132,25 @@ export default async function PlanesLicitaciones() {
             ]}
           />
           <Faq
-            preguntas={[
+            preguntas={pausa ? [
+              {
+                p: "¿De verdad es gratis?",
+                r: "Sí. Los planes de pago llegan pronto; mientras tanto, con tu cuenta y tu correo confirmado usas todo lo que ya funciona sin pagar nada y sin dejar una tarjeta.",
+              },
+              {
+                p: "¿Por qué piden confirmar el correo?",
+                r: "Para que las alertas te lleguen a ti y para cuidar el servicio de robots. Sin confirmarlo tienes 1 alerta semanal y 30 guardados; al confirmarlo se abre todo.",
+              },
+              {
+                p: "¿Cómo llegan las alertas?",
+                r: cat.correoActivo
+                  ? "Por correo y, si lo activas en tu cuenta, como notificación en tu celular o tu computadora: cada mañana, con las convocatorias nuevas de tu búsqueda y el plazo de consultas de cada una."
+                  : "Por ahora en tu cuenta («Lo último que te avisamos») y, si lo activas, como notificación en tu celular o tu computadora; los correos salen en los próximos días.",
+              },
+              { p: "¿Reemplaza al SEACE?", r: "No. Las ofertas se presentan en el SEACE. Gobserva te avisa a tiempo y te da contexto; cada ficha enlaza al proceso oficial y a sus bases." },
+              { p: "¿Es legal?", r: "Sí: son datos públicos que el Estado publica por ley (transparencia y datos abiertos). Gobserva no vende datos personales ni nombra a personas naturales." },
+              { p: "¿Tienen relación con Vigía?", r: "Vigía es el proyecto cívico y gratuito de Gobserva que vigila las compras del Estado. Gobserva Licitaciones usa los mismos datos públicos para ayudar a las empresas a competir." },
+            ] : [
               {
                 p: "¿Cómo llegan las alertas?",
                 r: cat.correoActivo

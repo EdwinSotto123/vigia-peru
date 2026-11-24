@@ -63,6 +63,10 @@ export interface Catalogo {
   correoActivo: boolean;
   /** Lo que trae una cuenta gratis. */
   gratis?: Limites;
+  /** Los cobros en pausa (2026-11-24): los planes salen como «próximamente». */
+  enPausa?: boolean;
+  /** Lo que trae hoy, gratis, una cuenta con el correo confirmado (mientras los cobros están en pausa). */
+  abierto?: Limites;
 }
 
 export interface Cuenta {
@@ -121,8 +125,13 @@ export interface Me {
     limites: Limites;
     usados: { alertas: number; guardados: number };
     alertas: boolean;
+    /** Con los cobros en pausa: tiene todo gratis (correo confirmado). */
+    abierto?: boolean;
+    /** Con los cobros en pausa: le falta confirmar el correo para tenerlo todo. */
+    porVerificar?: boolean;
   } | null;
   correoActivo: boolean;
+  cobrosEnPausa?: boolean;
 }
 
 export interface Cobro {

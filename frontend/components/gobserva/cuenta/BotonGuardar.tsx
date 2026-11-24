@@ -8,6 +8,7 @@ import { Bookmark, BookmarkCheck, Loader2 } from "lucide-react";
 import { claseAccion } from "@/components/ui/EnlaceAccion";
 import { rutaEn, type Producto } from "@/lib/gobserva";
 import { ErrorCuenta, cargarGuardados, guardar, quitarGuardado, type Guardado, type TipoGuardado } from "@/lib/gobserva-cuenta";
+import { COBROS_EN_PAUSA } from "@/lib/gobserva-planes";
 import { cn } from "@/lib/utils";
 import { useSesion } from "./comun";
 
@@ -77,7 +78,12 @@ export function BotonGuardar({
       )}
       {error && (
         <p role="alert" className="text-meta text-crimsonTexto">
-          {error} {/limite/.test(error) || error.includes("plan") ? <Link href={rutaEn(base, "/planes")} className="font-semibold underline">Ver los planes</Link> : null}
+          {error}{" "}
+          {COBROS_EN_PAUSA ? (
+            /confirma/i.test(error) ? <Link href={rutaEn(base, "/cuenta")} className="font-semibold underline">Confirmar mi correo</Link> : null
+          ) : /limite/.test(error) || error.includes("plan") ? (
+            <Link href={rutaEn(base, "/planes")} className="font-semibold underline">Ver los planes</Link>
+          ) : null}
         </p>
       )}
     </div>

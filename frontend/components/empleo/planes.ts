@@ -71,5 +71,30 @@ export function planesEmpleo(base: string, cat: PlanesServidor): Plan[] {
       accion: { href: pagar("institucional"), etiqueta: "Contratar el plan" },
     });
   }
-  return planes;
+  return enPausa(planes, cat);
+}
+
+/**
+ * Con los cobros en pausa (2026-11-24): la tarjeta gratis trae todo lo que hoy da una cuenta con el correo confirmado
+ * (`cat.abierto`) y los planes de pago quedan «próximamente», con lo que vendrá.
+ */
+function enPausa(planes: Plan[], cat: PlanesServidor): Plan[] {
+  const a = cat.enPausa ? cat.abierto : null;
+  if (!a) return planes;
+  return planes.map((p): Plan => {
+    if (p.id !== "gratis") return { ...p, proximamente: true, destacado: false, incluye: [], periodo: undefined, antes: undefined, nota: undefined };
+    return {
+      ...p,
+      para: "Todo lo que ya funciona, gratis con tu cuenta y tu correo confirmado.",
+      destacado: true,
+      incluye: [
+        ...p.incluye.slice(0, 3),
+        `Hasta ${a.alertas} alertas, cada mañana o cada semana, ${canalAlertas(cat.correoActivo)}`,
+        `Guarda hasta ${entero(a.guardados)} plazas y lleva tus postulaciones en un tablero`,
+        "Recordatorio 2 días antes de que cierre una plaza guardada",
+        `Descarga tus búsquedas en Excel, hasta ${entero(a.filasCsv)} filas`,
+        `${entero(a.mcp ?? 300)} créditos al mes para el asistente y tu MCP: pregúntale por plazas desde ChatGPT, Cursor u otra IA`,
+      ],
+    };
+  });
 }

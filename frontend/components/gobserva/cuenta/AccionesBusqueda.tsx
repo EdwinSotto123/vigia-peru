@@ -7,12 +7,14 @@ import { BellPlus, CheckCircle2, Download, Loader2, Lock } from "lucide-react";
 import { claseAccion } from "@/components/ui/EnlaceAccion";
 import { rutaEn, type Producto } from "@/lib/gobserva";
 import { ErrorCuenta, crearAlerta, descargarCsv, type Frecuencia } from "@/lib/gobserva-cuenta";
+import { COBROS_EN_PAUSA } from "@/lib/gobserva-planes";
 import { cn } from "@/lib/utils";
 import { Aviso, CAMPO, ETIQUETA, chipsFiltros, filtrosDeBusqueda, nombreSugerido, useMe, useSesion } from "./comun";
 
 /**
  * Lo que se hace con una búsqueda de la lista de un producto: guardarla como alerta (lo nuevo llega cada mañana o cada
- * semana) y bajarla en Excel (CSV, planes de pago). Sin cuenta, los dos llevan a crearla y vuelven aquí.
+ * semana) y bajarla en Excel (CSV, planes de pago; con los cobros en pausa, gratis con el correo confirmado). Sin cuenta,
+ * los dos llevan a crearla y vuelven aquí.
  *
  * `variante="barra"` deja sólo los botones, sin la caja (para la cabecera de los resultados); `resumen={false}` quita el
  * «Con: …» cuando la página ya muestra los filtros puestos en chips.
@@ -44,6 +46,8 @@ export function AccionesBusqueda({
 
   const aqui = `${base && ruta.startsWith(base) ? ruta.slice(base.length) || "/" : ruta}${sp.size ? `?${sp}` : ""}`;
   const entrar = rutaEn(base, `/entrar?crear=1&next=${encodeURIComponent(aqui)}`);
+  // Con los cobros en pausa, lo que falta para tener todo gratis es confirmar el correo: eso se hace en el inicio de la cuenta.
+  const confirmar = rutaEn(base, "/cuenta");
   const lim = me?.producto?.limites;
   const diaria = !!lim?.frecuencias.includes("diaria");
   const frec: Frecuencia = frecuencia ?? (diaria ? "diaria" : "semanal");
@@ -105,6 +109,25 @@ export function AccionesBusqueda({
             <span className="sm:hidden">Excel (CSV)</span>
             <span className="hidden sm:inline">Descargar en Excel (CSV)</span>
           </button>
+        ) : COBROS_EN_PAUSA ? (
+          conCuenta ? (
+            <button
+              type="button"
+              onClick={() => setMensaje({ tono: "nota", texto: "La descarga en Excel es gratis con tu cuenta: confirma tu correo para usarla." })}
+              className={claseAccion("fantasma", "min-h-11")}
+              title="Confirma tu correo para descargar"
+            >
+              <Lock size={15} aria-hidden />
+              <span className="sm:hidden">Excel</span>
+              <span className="hidden sm:inline">Descargar en Excel</span>
+            </button>
+          ) : (
+            <Link href={entrar} className={claseAccion("fantasma", "min-h-11")} title="Gratis con tu cuenta">
+              <Download size={15} aria-hidden />
+              <span className="sm:hidden">Excel</span>
+              <span className="hidden sm:inline">Descargar en Excel</span>
+            </Link>
+          )
         ) : (
           <Link href={conCuenta ? rutaEn(base, "/planes") : entrar} className={claseAccion("fantasma", "min-h-11")} title="La descarga es de los planes de pago">
             <Lock size={15} aria-hidden />
@@ -135,7 +158,11 @@ export function AccionesBusqueda({
               {estado === "guardando" && <Loader2 size={15} aria-hidden className="animate-spin" />} Guardar la alerta
             </button>
             <button type="button" onClick={() => setAbierto(false)} className={claseAccion("fantasma")}>Cancelar</button>
-            {!diaria && <span className="text-meta text-mute">Cada mañana es de los planes de pago.</span>}
+            {!diaria && (
+              <span className="text-meta text-mute">
+                {COBROS_EN_PAUSA ? "Confirma tu correo para recibirlas cada mañana." : "Cada mañana es de los planes de pago."}
+              </span>
+            )}
           </div>
 
         </div>
@@ -143,9 +170,13 @@ export function AccionesBusqueda({
       {mensaje && (
         <Aviso tono={mensaje.tono} className="mt-3">
           {mensaje.texto}{" "}
-          {mensaje.tono === "error" && /plan|alertas/i.test(mensaje.texto) && (
-            <Link href={rutaEn(base, "/planes")} className="font-semibold underline">Ver los planes</Link>
-          )}
+          {COBROS_EN_PAUSA
+            ? mensaje.tono !== "ok" && /confirma/i.test(mensaje.texto) && (
+                <Link href={confirmar} className="font-semibold underline">Confirmar mi correo</Link>
+              )
+            : mensaje.tono === "error" && /plan|alertas/i.test(mensaje.texto) && (
+                <Link href={rutaEn(base, "/planes")} className="font-semibold underline">Ver los planes</Link>
+              )}
         </Aviso>
       )}
     </div>

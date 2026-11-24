@@ -98,5 +98,30 @@ export function planesLicitaciones(base: string, cat: PlanesServidor): Plan[] {
     pronto: ["MCP con límites altos y soporte", "API completa con todo el histórico", "Reportes por sector y región"],
     accion: { href: "mailto:hello@gobserva.cloud?subject=Gobserva%20Licitaciones%20institucional", etiqueta: "Conversemos" },
   });
-  return planes;
+  return enPausa(planes, cat, alertas);
+}
+
+/**
+ * Con los cobros en pausa (2026-11-24): la tarjeta gratis trae todo lo que hoy da una cuenta con el correo confirmado
+ * (`cat.abierto`) y los planes de pago quedan «próximamente», con lo que vendrá. Institucional se sigue conversando.
+ */
+function enPausa(planes: Plan[], cat: PlanesServidor, alertas: (n: number) => string): Plan[] {
+  const a = cat.enPausa ? cat.abierto : null;
+  if (!a) return planes;
+  return planes.map((p): Plan => {
+    if (p.id === "institucional") return p;
+    if (p.id !== "gratis") return { ...p, proximamente: true, destacado: false, incluye: [], periodo: undefined, antes: undefined, nota: undefined };
+    return {
+      ...p,
+      para: "Todo lo que ya funciona, gratis con tu cuenta y tu correo confirmado.",
+      destacado: true,
+      incluye: [
+        ...p.incluye.slice(0, 4),
+        `${alertas(a.alertas)} cada mañana, ${cat.correoActivo ? "por correo" : "en tu cuenta"} y en tu celular`,
+        `Guarda hasta ${entero(a.guardados)} procesos y marca si preparas, presentaste o ganaste`,
+        `Descarga en Excel de cualquier búsqueda, hasta ${entero(a.filasCsv)} filas`,
+        `${entero(a.mcp ?? 1500)} créditos al mes para el asistente y tu MCP: pregúntale desde ChatGPT, Cursor u otra IA`,
+      ],
+    };
+  });
 }

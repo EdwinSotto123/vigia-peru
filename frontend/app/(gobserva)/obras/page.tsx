@@ -17,7 +17,7 @@ import { claseAccion } from "@/components/ui/EnlaceAccion";
 import { fechaCorta, numero } from "@/lib/formato";
 import { rutaEn, urlCanonica } from "@/lib/gobserva";
 import { BUSQUEDAS_EJEMPLO, getResumenObras } from "@/lib/gobserva-obras";
-import { planesServidor } from "@/lib/gobserva-planes";
+import { COBROS_EN_PAUSA, LIMITES_ABIERTO, planesServidor } from "@/lib/gobserva-planes";
 import { baseProducto } from "@/lib/gobserva-servidor";
 
 export const metadata: Metadata = {
@@ -157,7 +157,11 @@ export default async function InicioObras() {
             <Faq titulo="Lo que más nos preguntan" preguntas={PREGUNTAS} />
             <BloqueAsistente
               titulo="Pregúntale a tu asistente"
-              bajada="Con un plan de Licitaciones, que trae Obras, un asistente con IA te dice qué obras se vienen, cuánto cuestan, cómo avanzan y quién las gana. Le preguntas como a un colega."
+              bajada={
+                COBROS_EN_PAUSA
+                  ? "Gratis con tu cuenta de Licitaciones, que trae Obras: un asistente con IA te dice qué obras se vienen, cuánto cuestan, cómo avanzan y quién las gana. Le preguntas como a un colega."
+                  : "Con un plan de Licitaciones, que trae Obras, un asistente con IA te dice qué obras se vienen, cuánto cuestan, cómo avanzan y quién las gana. Le preguntas como a un colega."
+              }
               pregunta="¿Qué obras de agua potable de más de S/ 5 millones se vienen en Puno?"
               respuesta="Hay 3 con expediente técnico que todavía no se licitan:"
               filas={[
@@ -165,9 +169,12 @@ export default async function InicioObras() {
                 { titulo: "Mejoramiento del servicio de agua", quien: "Una municipalidad distrital", cifra: "S/ 7.9 M", nota: "Con expediente" },
                 { titulo: "Saneamiento rural", quien: "Un gobierno regional", cifra: "S/ 5.6 M", nota: "Viable" },
               ]}
-              creditos="1,500 créditos al mes con Inicia"
+              creditos={
+                COBROS_EN_PAUSA ? `${(LIMITES_ABIERTO.obras.mcp ?? 0).toLocaleString("es-PE")} créditos al mes` : "1,500 créditos al mes con Inicia"
+              }
               descargas
               planes={ruta("/planes")}
+              crear={ruta("/entrar?crear=1")}
             />
             <FranjaMCP que="obras, licitaciones y tu mercado" href={ruta("/mcp")} />
           </PestanasVivas>
@@ -196,8 +203,13 @@ const PREGUNTAS = [
   },
   { p: "¿Reemplaza al SEACE?", r: "No. Las ofertas se presentan en el SEACE, como siempre. Gobserva Obras te avisa antes y te da contexto para decidir; cada proyecto enlaza a sus procesos y a sus fichas oficiales." },
   { p: "¿Es legal usar esta información?", r: "Sí. Son datos públicos que el Estado publica por ley (transparencia y datos abiertos). Gobserva los ordena y los cruza; no vende datos personales ni nombra a personas naturales." },
-  {
-    p: "¿Cómo pago un plan?",
-    r: "Con tarjeta de crédito o débito por Mercado Pago, que se cobra cada mes, o con Yape o Plin por 1, 3, 6 o 12 meses. Cada pago queda en tu cuenta con su comprobante; si necesitas factura para tu empresa, escríbenos.",
-  },
+  COBROS_EN_PAUSA
+    ? {
+        p: "¿Cuánto cuesta?",
+        r: "Nada. Obras usa tu cuenta de Gobserva Licitaciones: con ella y tu correo confirmado tienes todo gratis, con alertas cada mañana, la descarga en Excel, el asistente y el MCP. Los planes de pago, con más alertas y más créditos, llegarán más adelante.",
+      }
+    : {
+        p: "¿Cómo pago un plan?",
+        r: "Con tarjeta de crédito o débito por Mercado Pago, que se cobra cada mes, o con Yape o Plin por 1, 3, 6 o 12 meses. Cada pago queda en tu cuenta con su comprobante; si necesitas factura para tu empresa, escríbenos.",
+      },
 ];

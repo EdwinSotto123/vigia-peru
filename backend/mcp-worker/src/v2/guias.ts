@@ -25,8 +25,8 @@ export const INSTRUCCIONES = [
   "Lo que resolvió el Tribunal de Contrataciones: buscar_resoluciones_tribunal (precedentes por palabras del motivo, y la historia",
   "de una empresa o de una entidad ante el Tribunal: buenas pro revocadas, nulidades y sancionadores ordenados).",
   "Por privacidad no hay DNI, las personas naturales salen con un apellido tapado y un RUC 10 nunca se muestra ni se busca.",
-  "Todas las herramientas piden conectar una cuenta de Gobserva con un plan de pago vigente: las de plazas CAS, el plan de Empleo; las de licitaciones, obras y mercado, el de Licitaciones; las demás, cualquier plan.",
-  "Cada llamada descuenta créditos del mes de ese plan: 1 las búsquedas y fichas, 3 los análisis, 10 consultar_datos y documentos_zip; mi_cupo dice cuántos quedan. Pide solo lo necesario y reutiliza lo que ya trajiste.",
+  "Todas las herramientas piden conectar una cuenta gratis de Gobserva con el correo confirmado.",
+  "Cada llamada descuenta créditos del mes de la cuenta: 1 las búsquedas y fichas, 3 los análisis, 10 consultar_datos y documentos_zip; mi_cupo dice cuántos quedan. Pide solo lo necesario y reutiliza lo que ya trajiste.",
 ].join(" ");
 
 /** /mcp/empleo: las plazas CAS para quien busca trabajo en el Estado. */

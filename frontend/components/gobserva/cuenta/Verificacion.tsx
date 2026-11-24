@@ -3,9 +3,13 @@
 import { useState, type ReactNode } from "react";
 import { Loader2, MailWarning } from "lucide-react";
 import { claseAccion } from "@/components/ui/EnlaceAccion";
+import { COBROS_EN_PAUSA } from "@/lib/gobserva-planes";
 import { cn } from "@/lib/utils";
 
-/** Sin el correo verificado no salen correos: la franja para verificarlo (y el botón para cuando ya lo hizo). */
+/**
+ * Sin el correo verificado no salen correos: la franja para verificarlo (y el botón para cuando ya lo hizo). Con los
+ * cobros en pausa, además es lo que falta para tenerlo todo gratis.
+ */
 export function VerificarCorreo({ email, onListo, className }: { email: string; onListo: () => void; className?: string }) {
   const { estado, reenviar, yaVerifique } = useVerificacion(onListo);
   return (
@@ -13,7 +17,15 @@ export function VerificarCorreo({ email, onListo, className }: { email: string; 
       <p className="flex min-w-0 flex-[1_1_18rem] items-start gap-2.5 text-dato text-amberTexto">
         <MailWarning size={18} aria-hidden className="mt-0.5 shrink-0" />
         <span className="min-w-0 [overflow-wrap:anywhere]">
-          Verifica tu correo para recibir alertas y recibos en <b>{email}</b>.
+          {COBROS_EN_PAUSA ? (
+            <>
+              Confirma tu correo y tienes todo gratis: alertas cada mañana, Excel y el asistente. Te mandamos el enlace a <b>{email}</b>.
+            </>
+          ) : (
+            <>
+              Verifica tu correo para recibir alertas y recibos en <b>{email}</b>.
+            </>
+          )}
           <NotaVerificacion estado={estado} />
         </span>
       </p>

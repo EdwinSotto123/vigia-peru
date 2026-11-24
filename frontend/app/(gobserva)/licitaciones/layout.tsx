@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import { MarcoProducto } from "@/components/gobserva/MarcoProducto";
 import { PRODUCTOS, urlCanonica } from "@/lib/gobserva";
+import { COBROS_EN_PAUSA } from "@/lib/gobserva-planes";
 import { baseProducto } from "@/lib/gobserva-servidor";
 import { metadatosApp } from "@/lib/gobserva-pwa";
 
@@ -31,7 +32,12 @@ export default function LayoutLicitaciones({ children }: { children: ReactNode }
         { ruta: "/mercado", etiqueta: "Mercado" },
         { ruta: "/#mcp", etiqueta: "API y MCP" },
       ]}
-      accion={{ ruta: "/planes", etiqueta: "Ver planes" }}
+      // Con los cobros en pausa, todo viene gratis con la cuenta: la acción lleva a crearla (y vuelve a «Para ti»).
+      accion={
+        COBROS_EN_PAUSA
+          ? { ruta: `/entrar?crear=1&next=${encodeURIComponent("/cuenta?tab=para-ti")}`, etiqueta: "Crear cuenta" }
+          : { ruta: "/planes", etiqueta: "Ver planes" }
+      }
       fuentes={[
         { nombre: "Contrataciones abiertas del OECE (OCDS)", url: "https://contratacionesabiertas.oece.gob.pe/" },
         { nombre: "CONOSCE, buscador del OECE", url: "https://conosce.oece.gob.pe/buscador/" },

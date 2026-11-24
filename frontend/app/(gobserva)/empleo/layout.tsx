@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import { MarcoProducto } from "@/components/gobserva/MarcoProducto";
 import { PRODUCTOS } from "@/lib/gobserva";
+import { COBROS_EN_PAUSA } from "@/lib/gobserva-planes";
 import { baseProducto } from "@/lib/gobserva-servidor";
 import { metadatosApp } from "@/lib/gobserva-pwa";
 
@@ -25,7 +26,8 @@ export default function LayoutEmpleo({ children }: { children: ReactNode }) {
         { ruta: "/planes", etiqueta: "Planes" },
         { ruta: "/mcp", etiqueta: "Con tu IA (MCP)" },
       ]}
-      accion={{ ruta: "/planes", etiqueta: "Recibir alertas" }}
+      // Con los cobros en pausa, las alertas vienen gratis con la cuenta: la acción lleva a crearla.
+      accion={{ ruta: COBROS_EN_PAUSA ? "/entrar?crear=1" : "/planes", etiqueta: "Recibir alertas" }}
       fuentes={[{ nombre: "SERVIR, ofertas laborales del Estado", url: "https://app.servir.gob.pe/DifusionOfertasExterno/faces/consultas/ofertas_laborales.xhtml" }]}
     >
       {children}

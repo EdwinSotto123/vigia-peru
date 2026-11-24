@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Loader2, Star } from "lucide-react";
 import { ESTADOS } from "@/components/gobserva/cuenta/PanelGuardados";
 import { ErrorCuenta, type EstadoGuardado } from "@/lib/gobserva-cuenta";
+import { COBROS_EN_PAUSA } from "@/lib/gobserva-planes";
 import { useSeguimiento, type TipoSeguido } from "@/lib/licitaciones-app/useSeguimiento";
 import { cn } from "@/lib/utils";
 import { useAvisos } from "@/components/gobserva/ui/Avisos";
@@ -37,7 +38,13 @@ export function EstrellaSeguir({ id, codigo, titulo, tipo = "oportunidad" }: Dat
         avisar({ tono: "ok", texto: `Sigues ${nombre}: está en tu tablero y su plazo, en tu calendario.`, accion: { etiqueta: "Ver mi tablero", href: "/cuenta?tab=seguimiento" } });
       }
     } catch (e) {
-      avisar({ tono: "error", texto: mensaje(e), accion: { etiqueta: "Ver los planes", href: "/planes" } });
+      const texto = mensaje(e);
+      // Con los cobros en pausa, el tope sube al confirmar el correo: el aviso lleva ahí (y no a los planes).
+      avisar(
+        COBROS_EN_PAUSA
+          ? { tono: "error", texto, ...(/confirma/i.test(texto) ? { accion: { etiqueta: "Confirmar mi correo", href: "/cuenta" } } : {}) }
+          : { tono: "error", texto, accion: { etiqueta: "Ver los planes", href: "/planes" } },
+      );
     }
   }
   return (

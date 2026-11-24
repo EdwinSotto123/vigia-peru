@@ -7,6 +7,7 @@ import {
 import { claseAccion } from "@/components/ui/EnlaceAccion";
 import { PRODUCTOS, rutaEn, urlCanonica, type Producto } from "@/lib/gobserva";
 import { NOMBRE_APP, appDelProducto } from "@/lib/apps-gobserva";
+import { COBROS_EN_PAUSA } from "@/lib/gobserva-planes";
 import { confirmarCuenta, crearCuentaConCorreo, elegirClave, entrarConCorreo, mensajeAuth, recuperarClave, reenviarCodigo, tipoError } from "@/lib/gobserva-auth";
 import { cn } from "@/lib/utils";
 import { Aviso, CAMPO, ETIQUETA, marcarSesion, useSesion } from "./comun";
@@ -49,7 +50,7 @@ const GANAS: Record<Producto, { titulo: string; puntos: Promesa[]; ejemplo: { as
     puntos: [
       { Icono: BellRing, titulo: "Alertas de proyectos nuevos", texto: "De tu región y tu sector." },
       { Icono: Bookmark, titulo: "Sigue su avance", texto: "Guarda proyectos y mira cuándo cambian de fase." },
-      { Icono: Download, titulo: "En Excel", texto: "Con un plan de pago, descargas tus búsquedas." },
+      { Icono: Download, titulo: "En Excel", texto: COBROS_EN_PAUSA ? "Gratis con tu cuenta: descargas tus búsquedas." : "Con un plan de pago, descargas tus búsquedas." },
     ],
     ejemplo: { asunto: "2 proyectos nuevos de agua potable en Puno", lineas: ["Mejoramiento del servicio de agua potable", "Pasó a ejecución"] },
   },
@@ -202,8 +203,12 @@ export function Entrar({ producto, base, next, crear }: { producto: Producto; ba
   const bajada = {
     crear: esSalud
       ? "Para guardar lo que verificas. Es gratis, sin planes ni tarjeta."
-      : `Es sólo para ${app === "empleo" ? "Empleo" : producto === "obras" ? "Obras y Licitaciones" : "Licitaciones"}. Es gratis y no pide tarjeta.`,
-    entrar: esSalud ? "Tus clínicas, médicos y medicamentos guardados." : `Tus alertas, tus guardados y tu plan de ${p.titulo}.`,
+      : `Es sólo para ${app === "empleo" ? "Empleo" : producto === "obras" ? "Obras y Licitaciones" : "Licitaciones"}. ${
+          COBROS_EN_PAUSA ? "Es gratis, no pide tarjeta y trae todo: alertas cada mañana, Excel y el asistente." : "Es gratis y no pide tarjeta."
+        }`,
+    entrar: esSalud
+      ? "Tus clínicas, médicos y medicamentos guardados."
+      : `Tus alertas, tus guardados y tu ${COBROS_EN_PAUSA ? "asistente" : "plan"} de ${p.titulo}.`,
     codigo: "Escribe el código que te mandamos para terminar de crear tu cuenta.",
     recuperar: "Escribe tu correo y te mandamos un código para elegir una nueva.",
     nueva: "Escribe el código que te llegó y tu contraseña nueva.",

@@ -22,6 +22,7 @@ import {
   type Pregunta, type Rubro,
 } from "@/lib/licitaciones-app/entrevista";
 import { tituloNatural } from "@/lib/landing";
+import { COBROS_EN_PAUSA } from "@/lib/gobserva-planes";
 import { cn } from "@/lib/utils";
 
 /** Lo que devuelve GET /licitaciones/bandeja/calce. */
@@ -345,7 +346,7 @@ export function Entrevista({ base }: { base: string }) {
         return (
           <Respuestas etiqueta="Avisos">
             <div className="flex flex-wrap gap-2">
-              <Opcion disabled={!conDiaria} onClick={() => responder("avisos", { alerta: true, frecuencia: "diaria" })} icono={<CalendarClock size={15} aria-hidden className="text-inkSoft" />} detalle={!conDiaria ? "con un plan" : undefined}>
+              <Opcion disabled={!conDiaria} onClick={() => responder("avisos", { alerta: true, frecuencia: "diaria" })} icono={<CalendarClock size={15} aria-hidden className="text-inkSoft" />} detalle={!conDiaria ? (COBROS_EN_PAUSA ? "confirma tu correo" : "con un plan") : undefined}>
                 Sí, cada mañana
               </Opcion>
               <Opcion onClick={() => responder("avisos", { alerta: true, frecuencia: "semanal" })} icono={<Bell size={15} aria-hidden className="text-inkSoft" />}>

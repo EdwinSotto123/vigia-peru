@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useEffect, useId, useState } from "react";
 import useSWR from "swr";
 import { CalendarClock, ChevronRight, Hourglass, LogIn, Pencil, Plus, Search, Sparkles, Trash2 } from "lucide-react";
-import { Aviso, CAMPO, ETIQUETA, Esqueleto, useSesion } from "@/components/gobserva/cuenta/comun";
+import { Aviso, CAMPO, ETIQUETA, Esqueleto, useMe, useSesion } from "@/components/gobserva/cuenta/comun";
 import { Dato } from "@/components/ui/Dato";
 import { claseAccion } from "@/components/ui/EnlaceAccion";
 import { fechaCorta, solesCompacto } from "@/lib/formato";
@@ -21,6 +21,7 @@ import {
   type OportunidadParaTi,
   type TipoLinea,
 } from "@/lib/gobserva-cuenta";
+import { COBROS_EN_PAUSA } from "@/lib/gobserva-planes";
 import { tituloNatural } from "@/lib/landing";
 import { REGIONES_UBIGEO, TIPOS, cierreMenor, limpiar, nombreRegion, nombreTipo } from "@/lib/licitaciones";
 import { cn } from "@/lib/utils";
@@ -86,6 +87,9 @@ export function ParaTi({ base }: { base: string }) {
 
 function ConCuenta({ base }: { base: string }) {
   const lineas = useSWR("gobserva-lineas", cargarLineas, { revalidateOnFocus: false });
+  // Con los cobros en pausa, más líneas vienen gratis al confirmar el correo.
+  const { me } = useMe("licitaciones");
+  const porVerificar = !!me?.producto?.porVerificar;
   const [elegida, setElegida] = useState<number | null>(null);
   const [editando, setEditando] = useState<Linea | "nueva" | null>(null);
   const lista = lineas.data?.data ?? [];
@@ -133,6 +137,12 @@ function ConCuenta({ base }: { base: string }) {
               <button type="button" onClick={() => setEditando("nueva")} className={claseAccion("secundario", "min-h-9 px-4")}>
                 <Plus size={14} aria-hidden /> Otra línea
               </button>
+            ) : COBROS_EN_PAUSA ? (
+              porVerificar && (
+                <Link href={rutaEn(base, "/cuenta")} className={CLASE_ENLACE_PIE}>
+                  Más líneas: confirma tu correo
+                </Link>
+              )
             ) : (
               <Link href={rutaEn(base, "/planes")} className={CLASE_ENLACE_PIE}>
                 Más líneas con un plan
@@ -207,11 +217,11 @@ function Resultados({ base, linea }: { base: string; linea: Linea }) {
         <div className="flex flex-col gap-2 py-1 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
           <p className="text-meta leading-snug text-mute">
             El puntaje dice cuánto se parece lo que se compra a lo que vendes, de 0 a 100; no es la probabilidad de ganar.
-            {tope ? " Con un plan ves hasta 50 por línea y sumas más líneas." : ""}
+            {tope ? (COBROS_EN_PAUSA ? " Confirma tu correo y ves hasta 50 por línea, gratis, y sumas más líneas." : " Con un plan ves hasta 50 por línea y sumas más líneas.") : ""}
           </p>
           {tope && (
-            <Link href={rutaEn(base, "/planes")} className={claseAccion("secundario", "shrink-0")}>
-              Ver los planes
+            <Link href={rutaEn(base, COBROS_EN_PAUSA ? "/cuenta" : "/planes")} className={claseAccion("secundario", "shrink-0")}>
+              {COBROS_EN_PAUSA ? "Confirmar mi correo" : "Ver los planes"}
             </Link>
           )}
         </div>

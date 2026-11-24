@@ -13,7 +13,7 @@ import { CLASE_ACCION_LISTA, claseAccion } from "@/components/ui/EnlaceAccion";
 import { paginasVisibles } from "@/lib/paginas";
 import { numero, soles, solesCompacto } from "@/lib/formato";
 import { rutaEn, urlCanonica } from "@/lib/gobserva";
-import { planesServidor } from "@/lib/gobserva-planes";
+import { COBROS_EN_PAUSA, planesServidor } from "@/lib/gobserva-planes";
 import { baseProducto, enLaApp } from "@/lib/gobserva-servidor";
 import { tituloNatural } from "@/lib/landing";
 import { TIPOS, getOportunidades, nombreRegion, nombreTipo } from "@/lib/licitaciones";
@@ -383,7 +383,9 @@ export default async function Oportunidades({ searchParams }: { searchParams?: P
           <ul className="mt-3 space-y-2 text-dato leading-snug text-inkSoft">
             <li className="flex gap-2.5">
               <BellRing size={16} aria-hidden className="mt-0.5 shrink-0 text-granate" />
-              <span>Lo nuevo de esta búsqueda: gratis cada semana; con Pro, cada mañana.</span>
+              <span>
+                {COBROS_EN_PAUSA ? "Lo nuevo de esta búsqueda, cada mañana: gratis con tu cuenta." : "Lo nuevo de esta búsqueda: gratis cada semana; con Pro, cada mañana."}
+              </span>
             </li>
             <li className="flex gap-2.5">
               <MessageSquareWarning size={16} aria-hidden className="mt-0.5 shrink-0 text-granate" />
@@ -404,7 +406,7 @@ export default async function Oportunidades({ searchParams }: { searchParams?: P
             <BellRing size={16} aria-hidden /> Crear alerta con esta búsqueda
           </a>
           <Link href={rutaEn(base, "/planes")} className={claseAccion("secundario", "", "md")}>
-            Ver los planes
+            {COBROS_EN_PAUSA ? "Lo que incluye tu cuenta" : "Ver los planes"}
           </Link>
         </div>
       </section>

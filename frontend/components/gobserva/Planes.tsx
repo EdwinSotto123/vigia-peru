@@ -22,6 +22,8 @@ export interface Plan {
   /** Lo prometido que todavía no funciona (se marca «Pronto»). */
   pronto?: string[];
   accion: { href: string; etiqueta: string };
+  /** Con los cobros en pausa (2026-11-24): sin precio ni botón de compra, con la marca «Próximamente». */
+  proximamente?: boolean;
 }
 
 /**
@@ -49,6 +51,13 @@ export function Planes({ planes, className }: { planes: Plan[]; className?: stri
           )}
           <h3 className="font-display text-bloque font-bold leading-tight text-ink">{p.nombre}</h3>
           <p className="mt-1 text-meta leading-snug text-mute">{p.para}</p>
+          {p.proximamente ? (
+            <p className="mt-4">
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-paperDeep px-3 py-1 text-dato font-semibold text-inkSoft">
+                <Clock3 size={14} aria-hidden /> Próximamente
+              </span>
+            </p>
+          ) : (
           <p className="mt-4 flex flex-wrap items-baseline gap-x-2">
             <span className="font-display text-cifra font-bold leading-none tracking-tight tabular-nums text-ink">{p.precio}</span>
             {p.periodo && <span className="text-dato text-inkSoft">{p.periodo}</span>}
@@ -59,6 +68,7 @@ export function Planes({ planes, className }: { planes: Plan[]; className?: stri
               </span>
             )}
           </p>
+          )}
           {p.nota && <p className="mt-1.5 text-pretty text-meta font-medium text-granate">{p.nota}</p>}
           <ul className="mt-5 flex-1 space-y-2.5 text-dato">
             {p.incluye.map((x) => (
@@ -76,10 +86,14 @@ export function Planes({ planes, className }: { planes: Plan[]; className?: stri
               </li>
             ))}
           </ul>
-          {/* La acción de la tarjeta, de 48 px: se toca con el pulgar en el celular. */}
-          <Link href={p.accion.href} className={claseAccion(p.destacado ? "primario" : "secundario", "mt-6 w-full text-center", "md")}>
-            {p.accion.etiqueta}
-          </Link>
+          {/* La acción de la tarjeta, de 48 px: se toca con el pulgar en el celular. Un plan «próximamente» no se compra. */}
+          {p.proximamente ? (
+            <p className="mt-6 text-pretty text-meta leading-snug text-mute">Por ahora, lo de este plan que ya funciona viene gratis con tu cuenta.</p>
+          ) : (
+            <Link href={p.accion.href} className={claseAccion(p.destacado ? "primario" : "secundario", "mt-6 w-full text-center", "md")}>
+              {p.accion.etiqueta}
+            </Link>
+          )}
         </li>
       ))}
     </ol>

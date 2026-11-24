@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Sparkles } from "lucide-react";
+import { Clock3, Sparkles } from "lucide-react";
 import type { Plan } from "@/components/gobserva/Planes";
 import { claseAccion } from "@/components/ui/EnlaceAccion";
 import { cn } from "@/lib/utils";
@@ -36,6 +36,13 @@ export function PlanesCortos({ planes, className }: { planes: Plan[]; className?
           )}
           <h3 className="font-display text-bloque font-bold leading-tight text-paper">{p.nombre}</h3>
           <p className="mt-1 text-meta leading-snug text-paper/70">{p.para}</p>
+          {p.proximamente ? (
+            <p className="mt-3">
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-paper/[0.12] px-2.5 py-1 text-meta font-semibold text-paper/85">
+                <Clock3 size={13} aria-hidden /> Próximamente
+              </span>
+            </p>
+          ) : (
           <p className="mt-3 flex flex-wrap items-baseline gap-x-1.5">
             <span className="font-display text-cifra font-bold leading-none tracking-tight tabular-nums text-paper">{p.precio}</span>
             {p.periodo && <span className="text-meta text-paper/75">{p.periodo}</span>}
@@ -46,11 +53,14 @@ export function PlanesCortos({ planes, className }: { planes: Plan[]; className?
               </span>
             )}
           </p>
+          )}
           {p.nota && <p className="mt-1 text-pretty text-rotulo font-medium text-maiz">{p.nota}</p>}
           <span aria-hidden className="min-h-4 flex-1" />
-          <Link href={p.accion.href} className={claseAccion(p.destacado ? "oscuro" : "contornoOscuro", "w-full text-center")}>
-            {p.accion.etiqueta}
-          </Link>
+          {!p.proximamente && (
+            <Link href={p.accion.href} className={claseAccion(p.destacado ? "oscuro" : "contornoOscuro", "w-full text-center")}>
+              {p.accion.etiqueta}
+            </Link>
+          )}
         </li>
       ))}
     </ol>

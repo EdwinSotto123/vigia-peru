@@ -4,18 +4,22 @@ import { Building, Search } from "lucide-react";
 import { BloqueMCP } from "@/components/gobserva/BloqueMCP";
 import { Franja } from "@/components/patrones/Franja";
 import { claseAccion } from "@/components/ui/EnlaceAccion";
-import { rutaEn, urlCanonica } from "@/lib/gobserva";
+import { CORREO_GOBSERVA, rutaEn, urlCanonica } from "@/lib/gobserva";
+import { COBROS_EN_PAUSA } from "@/lib/gobserva-planes";
 import { baseProducto } from "@/lib/gobserva-servidor";
 
 export const metadata: Metadata = {
   title: "Busca trabajo con tu IA (MCP)",
-  description: "Conecta Claude, ChatGPT o Cursor a Gobserva Empleo por MCP y pregúntale por plazas CAS abiertas en tus palabras. Viene con los planes de pago.",
+  description: COBROS_EN_PAUSA
+    ? "Conecta ChatGPT, Cursor u otra IA a Gobserva Empleo por MCP y pregúntale por plazas CAS abiertas en tus palabras. Gratis con tu cuenta."
+    : "Conecta Claude, ChatGPT o Cursor a Gobserva Empleo por MCP y pregúntale por plazas CAS abiertas en tus palabras. Viene con los planes de pago.",
   alternates: { canonical: urlCanonica("empleo", "/mcp") },
 };
 
 /**
  * Gobserva Empleo con tu asistente de IA: el servidor MCP explicado, con sus pasos, ejemplos y herramientas. Al final, las
- * dos salidas: buscar en la web sin asistente y el plan para instituciones.
+ * dos salidas: buscar en la web sin asistente y el plan para instituciones (con los cobros en pausa, «llega pronto» y el
+ * correo para escribirnos).
  */
 export default function McpEmpleo() {
   const base = baseProducto("empleo");
@@ -31,9 +35,14 @@ export default function McpEmpleo() {
       <BloqueMCP
         id="mcp"
         titulo="Conéctalo en un minuto"
-        bajada="MCP (Model Context Protocol) es el estándar abierto con el que los asistentes de IA consultan fuentes de datos. El de Gobserva viene con los planes de pago: adquieres uno y conectas tu asistente con tu cuenta."
+        bajada={
+          COBROS_EN_PAUSA
+            ? "MCP (Model Context Protocol) es el estándar abierto con el que los asistentes de IA consultan fuentes de datos. El de Gobserva es gratis con tu cuenta: la creas, confirmas tu correo y conectas tu asistente."
+            : "MCP (Model Context Protocol) es el estándar abierto con el que los asistentes de IA consultan fuentes de datos. El de Gobserva viene con los planes de pago: adquieres uno y conectas tu asistente con tu cuenta."
+        }
         cuenta="Gobserva Empleo"
         planes={rutaEn(base, "/planes")}
+        crear={rutaEn(base, "/entrar?crear=1")}
         ejemplos={[
           "¿Qué plazas CAS de abogado hay abiertas en Cusco que paguen más de S/ 4,000?",
           "Soy técnica en enfermería con un año de experiencia: ¿a qué puedo postular esta semana en Lima?",
@@ -65,12 +74,20 @@ export default function McpEmpleo() {
           titulo="¿Es para tu bolsa de trabajo o instituto?"
           className="sm:w-full"
           accion={
-            <Link href={rutaEn(base, "/planes#plan-institucional")} className={claseAccion("primario", "min-h-11")}>
-              Ver el plan para instituciones
-            </Link>
+            COBROS_EN_PAUSA ? (
+              <a href={`mailto:${CORREO_GOBSERVA}`} className={claseAccion("primario", "min-h-11")}>
+                Escríbenos
+              </a>
+            ) : (
+              <Link href={rutaEn(base, "/planes#plan-institucional")} className={claseAccion("primario", "min-h-11")}>
+                Ver el plan para instituciones
+              </Link>
+            )
           }
         >
-          Más alertas y descargas en el plan para instituciones; la API, más consultas por MCP y un widget con tu marca llegan pronto.
+          {COBROS_EN_PAUSA
+            ? "El plan para instituciones, con más alertas y descargas, la API, más consultas por MCP y un widget con tu marca, llega pronto. Escríbenos y te avisamos."
+            : "Más alertas y descargas en el plan para instituciones; la API, más consultas por MCP y un widget con tu marca llegan pronto."}
         </Franja>
       </div>
     </div>

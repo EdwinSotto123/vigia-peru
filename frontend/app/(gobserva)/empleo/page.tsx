@@ -18,7 +18,7 @@ import { claseAccion } from "@/components/ui/EnlaceAccion";
 import { canalAlertas, getResumenEmpleo, nombreRegion } from "@/lib/empleo";
 import { numero } from "@/lib/formato";
 import { rutaEn, urlCanonica } from "@/lib/gobserva";
-import { planesServidor } from "@/lib/gobserva-planes";
+import { COBROS_EN_PAUSA, planesServidor } from "@/lib/gobserva-planes";
 import { baseProducto } from "@/lib/gobserva-servidor";
 
 export const metadata: Metadata = {
@@ -226,8 +226,9 @@ export default async function InicioEmpleo() {
               quieres trabajar: en «Para ti» quedan sólo las plazas abiertas que puedes postular.
             </Ayuda>
             <Ayuda titulo="Te avisamos antes de que cierren" maqueta={<MaquetaAviso correo={cat.correoActivo} />}>
-              Una convocatoria CAS recibe postulaciones por pocos días. Cuando sale una plaza que calza contigo te llega {canalAlertas(cat.correoActivo)}:
-              cada semana con la cuenta gratis, cada mañana con un plan. Y 2 días antes de que cierre una que guardaste, te lo recordamos.
+              Una convocatoria CAS recibe postulaciones por pocos días. Cuando sale una plaza que calza contigo te llega {canalAlertas(cat.correoActivo)}
+              {COBROS_EN_PAUSA ? " cada mañana, gratis con tu cuenta." : ": cada semana con la cuenta gratis, cada mañana con un plan."} Y 2 días antes de que
+              cierre una que guardaste, te lo recordamos.
             </Ayuda>
             <Ayuda titulo="Postulas sabiendo lo que nadie te dice" maqueta={<MaquetaFicha />}>
               Cada plaza te dice si cumples sus requisitos, cuánto pagan otras entidades por el mismo puesto y si pide experiencia en la misma entidad
@@ -251,7 +252,7 @@ export default async function InicioEmpleo() {
               titulo="Pregúntale en tus palabras"
               maqueta={<MaquetaAsistente />}
               enlaces={[
-                { href: ruta("/planes"), texto: "Viene con el plan Alertas" },
+                COBROS_EN_PAUSA ? { href: crear, texto: "Gratis con tu cuenta" } : { href: ruta("/planes"), texto: "Viene con el plan Alertas" },
                 { href: ruta("/mcp"), texto: "O conecta tu propia IA" },
               ]}
             >
@@ -265,9 +266,13 @@ export default async function InicioEmpleo() {
         <section aria-labelledby="planes-t">
           <Cabecera
             id="planes-t"
-            titulo="Buscar es gratis. Que te avisen, casi."
-            bajada="Las plazas, sus requisitos y lo que nadie te dice son gratis. Con un plan, te avisamos cada mañana."
-            accion={{ href: ruta("/planes"), texto: "Todo lo que incluye cada plan" }}
+            titulo={COBROS_EN_PAUSA ? "Buscar es gratis. Que te avisen, también." : "Buscar es gratis. Que te avisen, casi."}
+            bajada={
+              COBROS_EN_PAUSA
+                ? "Crea tu cuenta gratis y confirma tu correo: te avisamos cada mañana, guardas tus plazas y las bajas en Excel."
+                : "Las plazas, sus requisitos y lo que nadie te dice son gratis. Con un plan, te avisamos cada mañana."
+            }
+            accion={{ href: ruta("/planes"), texto: COBROS_EN_PAUSA ? "Todo lo que incluye tu cuenta" : "Todo lo que incluye cada plan" }}
           />
           <PlanesCortos className="mt-5 sm:mt-6" planes={planesEmpleo(base, cat)} />
         </section>

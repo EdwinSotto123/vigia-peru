@@ -15,6 +15,7 @@ import { Insignia } from "@/components/gobserva/ui/Insignia";
 import { aniosCorto, diasParaCierre, entidadNombre, fechaDia, lugar, puesto, tipoContrato } from "@/lib/empleo";
 import { numero, soles } from "@/lib/formato";
 import { palabrasClave, rutaEn } from "@/lib/gobserva";
+import { COBROS_EN_PAUSA } from "@/lib/gobserva-planes";
 import { baseProducto } from "@/lib/gobserva-servidor";
 import { SENAL_PLAZA, getFichaPlaza } from "@/lib/planilla";
 import { cn } from "@/lib/utils";
@@ -225,7 +226,7 @@ export default async function DetallePlaza({ params, searchParams }: Props) {
             clave: "asistente" as const,
             titulo: "Asistente",
             contenido: (
-              <Caja id="asistente" titulo="Pregúntale al asistente" descripcion="Conoce esta plaza y tu perfil. Cada pregunta usa 5 créditos de tu plan.">
+              <Caja id="asistente" titulo="Pregúntale al asistente" descripcion={`Conoce esta plaza y tu perfil. Cada pregunta usa 5 créditos de tu ${COBROS_EN_PAUSA ? "cuenta" : "plan"}.`}>
                 <ul className="grid gap-3 lg:grid-cols-3">
                   {[
                     `¿Cumplo con la plaza ${p.aviso}? Revisa sus requisitos contra mi perfil y dime qué me falta.`,

@@ -72,8 +72,8 @@ function paginaConsentimiento(env: EnvV2, d: ConsentDescription, handle: string,
 <p>${quien} pide acceso a Gobserva con tu cuenta. El acceso irá a <strong>${escapar(d.redirectHost)}</strong>.</p>
 ${d.redirectIsLoopback ? '<p class="alerta"><strong>El acceso va a una aplicación de tu computadora.</strong> Sigue solo si acabas de pedir conectar desde ahí (por ejemplo Claude Code).</p>' : ""}
 <div class="caja" id="entrar">
-  <p style="margin-top:0"><strong>1. Entra con la cuenta donde tienes tu plan</strong></p>
-  <p class="suave" style="margin:.25rem 0 0">El MCP viene con los planes de pago de Gobserva.</p>
+  <p style="margin-top:0"><strong>1. Entra con tu cuenta de Gobserva</strong></p>
+  <p class="suave" style="margin:.25rem 0 0">El MCP es gratis con una cuenta que tenga el correo confirmado.</p>
   <div class="apps" role="radiogroup" aria-label="Tu cuenta">
     <label><input type="radio" name="app" value="licitaciones"${preferida === "licitaciones" ? " checked" : ""}> Gobserva Licitaciones (y Obras)</label>
     <label><input type="radio" name="app" value="empleo"${preferida === "empleo" ? " checked" : ""}> Gobserva Empleo</label>
@@ -159,8 +159,17 @@ $("correoVigia").addEventListener("submit", async (ev) => {
   return pagina("Conectar Gobserva", cuerpo, script);
 }
 
-/** La cuenta no tiene plan: no se conecta (el MCP es de los planes de pago) y se dice dónde se adquiere. */
-function paginaSinPlan(app: AppCuenta | null): Response {
+/**
+ * La cuenta no tiene plan: no se conecta. Con los cobros en pausa (freemium) es porque falta confirmar el correo; si no, se
+ * dice dónde se adquiere un plan.
+ */
+function paginaSinPlan(app: AppCuenta | null, enPausa: boolean): Response {
+  if (enPausa) {
+    return new Response(
+      pagina("Confirma tu correo", `<h1>Falta confirmar tu correo</h1><p>El MCP de Gobserva es gratis, pero tu cuenta todavía no tiene el correo confirmado. Ábrelo con el enlace que te enviamos (o entra con Google) y vuelve a conectar desde tu asistente.</p>`),
+      { status: 402, headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store" } },
+    );
+  }
   const donde = app
     ? `<p>Tu cuenta de ${escapar(NOMBRE_APP[app])} no tiene un plan vigente. <a href="${PLANES[app]}">Adquiere uno aquí</a> y vuelve a conectar desde tu asistente.</p>`
     : `<p>Esa cuenta de Vigía no tiene un plan. Adquiere uno en <a href="${PLANES.licitaciones}">Gobserva Licitaciones</a> o en <a href="${PLANES.empleo}">Gobserva Empleo</a> y conecta con esa cuenta.</p>`;
@@ -206,8 +215,8 @@ async function autorizar(request: Request, env: EnvV2): Promise<Response> {
     // renueva su acceso. Quitándolo del formulario, la concesión guardaba el plan de hoy y lo seguía dando hasta 90 días
     // después de vencido (auditoría del 2026-11-17).
     if (refresco.length < 20) return paginaError("No pudimos mantener tu sesión de Gobserva. Vuelve a entrar y conecta de nuevo.");
-    const { planes, mcp } = await planesDe(env, idToken);
-    if (!planes.length) return paginaSinPlan(grupo?.app ?? null);
+    const { planes, mcp, enPausa } = await planesDe(env, idToken);
+    if (!planes.length) return paginaSinPlan(grupo?.app ?? null, enPausa);
     const elegidos = form.getAll("scope").map(String).filter((s) => SCOPES.includes(s));
     const aprobado = await oauth.approveConsent(request, handle, { scope: elegidos.length ? elegidos : ["datos"] });
     const props: PropsCuenta = grupo
@@ -234,8 +243,8 @@ function inicio(env: EnvV2): Response {
   const url = `${env.MCP_URL}/mcp`;
   const cuerpo = `<h1>El MCP de Gobserva</h1>
 <p>Conecta Claude, ChatGPT o Cursor con los datos públicos del Estado peruano: plazas CAS, licitaciones, obras, contratos, empresas, entidades y presupuesto.</p>
-<div class="caja"><p style="margin-top:0"><strong>Viene con los planes de pago</strong></p>
-<p>Adquiere un plan en <a href="${PLANES.empleo}">Gobserva Empleo</a> o en <a href="${PLANES.licitaciones}">Gobserva Licitaciones</a> y conecta tu IA con esa cuenta.</p></div>
+<div class="caja"><p style="margin-top:0"><strong>Gratis con tu cuenta</strong></p>
+<p>Crea tu cuenta con tu correo en <a href="https://empleo.gobserva.cloud/cuenta">Gobserva Empleo</a> o en <a href="https://licitaciones.gobserva.cloud/cuenta">Gobserva Licitaciones</a> (o usa tu cuenta de Vigía), confirma tu correo y conecta tu IA con esa cuenta.</p></div>
 <div class="caja"><p style="margin-top:0"><strong>En claude.ai</strong></p><ol>
 <li>Abre <strong>Customize &gt; Connectors</strong> y elige <strong>Add custom connector</strong>.</li>
 <li>Pega la dirección de tu producto y pulsa <strong>Connect</strong>: entras con tu cuenta de Gobserva.</li>

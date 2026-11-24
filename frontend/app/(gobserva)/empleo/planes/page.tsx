@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { BellRing, Briefcase, GraduationCap, HandCoins, Sparkles, Timer } from "lucide-react";
+import { COBROS_EN_PAUSA } from "@/lib/gobserva-planes";
 import { AvisoPlanes, ComoFunciona } from "@/components/gobserva/ComoFunciona";
 import { Odometro } from "@/components/gobserva/portada/Odometro";
 import { Planes } from "@/components/gobserva/Planes";
@@ -14,7 +15,9 @@ import { baseProducto } from "@/lib/gobserva-servidor";
 
 export const metadata: Metadata = {
   title: "Planes y alertas",
-  description: "Gobserva Empleo es gratis para buscar plazas CAS. Con el plan Alertas te llegan cada mañana las plazas nuevas que buscas, desde S/ 4.90 al mes.",
+  description: COBROS_EN_PAUSA
+    ? "Gobserva Empleo es gratis: busca plazas CAS y, con tu cuenta y tu correo confirmado, recibe cada mañana las plazas nuevas que buscas. Los planes de pago llegan pronto."
+    : "Gobserva Empleo es gratis para buscar plazas CAS. Con el plan Alertas te llegan cada mañana las plazas nuevas que buscas, desde S/ 4.90 al mes.",
   alternates: { canonical: urlCanonica("empleo", "/planes") },
 };
 
@@ -30,14 +33,19 @@ export default async function PlanesEmpleo() {
   const base = baseProducto("empleo");
   const [cat, r] = await Promise.all([planesServidor("empleo"), getResumenEmpleo()]);
   const planes = planesEmpleo(base, cat);
+  // Con los cobros en pausa (2026-11-24): las alertas de cada mañana vienen gratis con el correo confirmado.
+  const pausa = cat.enPausa && !!cat.abierto;
 
   return (
     <div className="container-page space-y-14 py-10 sm:space-y-16 sm:py-14">
       <header className="max-w-3xl">
-        <h1 className="text-balance font-display text-titulo font-bold leading-tight text-ink sm:text-vitrina">Buscar es gratis. Que te avisen, casi.</h1>
+        <h1 className="text-balance font-display text-titulo font-bold leading-tight text-ink sm:text-vitrina">
+          {pausa ? "Buscar es gratis. Que te avisen, también." : "Buscar es gratis. Que te avisen, casi."}
+        </h1>
         <p className="mt-4 text-pretty text-cuerpo leading-relaxed text-inkSoft sm:text-bloque">
-          Todas las plazas CAS del Perú, con sus requisitos y lo que nadie te dice, son gratis y lo seguirán siendo. Con tu cuenta gratis te avisamos una vez por
-          semana; con Alertas, cada mañana, para que postules antes que nadie.
+          {pausa
+            ? "Todas las plazas CAS del Perú, con sus requisitos y lo que nadie te dice, son gratis y lo seguirán siendo. Crea tu cuenta, confirma tu correo y te avisamos cada mañana, para que postules antes que nadie. Los planes de pago llegan pronto."
+            : "Todas las plazas CAS del Perú, con sus requisitos y lo que nadie te dice, son gratis y lo seguirán siendo. Con tu cuenta gratis te avisamos una vez por semana; con Alertas, cada mañana, para que postules antes que nadie."}
         </p>
         {r && (
           <ul className="mt-6 flex flex-col gap-2.5 sm:flex-row sm:flex-wrap sm:gap-x-7" aria-label="Lo que se publica en SERVIR">
@@ -46,11 +54,11 @@ export default async function PlanesEmpleo() {
             {r.cierran2dias > 0 && <Hoy icono={<Timer size={16} aria-hidden />} n={r.cierran2dias} texto="cierran en los próximos 2 días" urgente />}
           </ul>
         )}
-        <AvisoPlanes texto={cat.aviso} className="mt-6" />
+        {!pausa && <AvisoPlanes texto={cat.aviso} className="mt-6" />}
       </header>
 
       {/* En el celular, el plan destacado primero: el orden de la página (gratis primero) queda igual en la computadora. */}
-      <Planes planes={planes} className="max-md:[&>#plan-alertas]:order-first" />
+      <Planes planes={planes} className={pausa ? undefined : "max-md:[&>#plan-alertas]:order-first"} />
 
       <section aria-labelledby="por-que-t">
         <h2 id="por-que-t" className="text-balance font-display text-seccion font-bold leading-tight text-ink sm:text-titulo">
@@ -68,6 +76,7 @@ export default async function PlanesEmpleo() {
 
       <ComoFunciona
         cat={cat}
+        sinPagos={pausa}
         pasos={[
           { titulo: "Crea tu cuenta", texto: "Con Google o con tu correo, gratis y en un minuto." },
           { titulo: "Guarda tu búsqueda como alerta", texto: "Filtra las plazas por puesto, región y sueldo, y toca «Crear alerta con esta búsqueda»." },
@@ -77,18 +86,31 @@ export default async function PlanesEmpleo() {
 
       <Preguntas
         items={[
-          {
-            p: "¿Cuándo empiezan las alertas?",
-            r: "Hoy mismo. Crea tu cuenta, guarda una búsqueda como alerta y desde mañana te llega lo nuevo: una vez por semana con la cuenta gratis, cada mañana con Alertas.",
-          },
-          {
-            p: "¿Cómo pago?",
-            r: "Con tarjeta de crédito o débito por Mercado Pago, que se cobra cada mes, o con Yape o Plin por 1, 3, 6 o 12 meses de una vez.",
-          },
-          {
-            p: "¿Puedo cancelar?",
-            r: "Sí, desde tu cuenta y cuando quieras. No se vuelve a cobrar y sigues con tu plan hasta el final de lo que pagaste.",
-          },
+          ...(pausa
+            ? [
+                {
+                  p: "¿Cuándo empiezan las alertas?",
+                  r: "Hoy mismo. Crea tu cuenta, confirma tu correo, guarda una búsqueda como alerta y desde mañana te llega lo nuevo cada mañana.",
+                },
+                {
+                  p: "¿De verdad es gratis?",
+                  r: "Sí. Los planes de pago llegan pronto; mientras tanto, con tu cuenta y tu correo confirmado usas todo lo que ya funciona sin pagar nada y sin dejar una tarjeta.",
+                },
+              ]
+            : [
+                {
+                  p: "¿Cuándo empiezan las alertas?",
+                  r: "Hoy mismo. Crea tu cuenta, guarda una búsqueda como alerta y desde mañana te llega lo nuevo: una vez por semana con la cuenta gratis, cada mañana con Alertas.",
+                },
+                {
+                  p: "¿Cómo pago?",
+                  r: "Con tarjeta de crédito o débito por Mercado Pago, que se cobra cada mes, o con Yape o Plin por 1, 3, 6 o 12 meses de una vez.",
+                },
+                {
+                  p: "¿Puedo cancelar?",
+                  r: "Sí, desde tu cuenta y cuando quieras. No se vuelve a cobrar y sigues con tu plan hasta el final de lo que pagaste.",
+                },
+              ]),
           {
             p: "¿Qué es una plaza CAS?",
             r: "Un puesto en el Estado con Contrato Administrativo de Servicios: sueldo mensual, vacaciones, aguinaldo y seguro. Se gana por concurso público: evaluación curricular, examen y entrevista.",

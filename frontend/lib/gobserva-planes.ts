@@ -18,6 +18,22 @@ export const precioCorto = (n: number) => (Number.isInteger(n) ? `S/\u00a0${n}` 
 export const entero = (n: number) => ENTERO.format(n);
 
 export const LIMITES_GRATIS: Limites = { alertas: 1, frecuencias: ["semanal"], guardados: 30, csv: false, filasCsv: 0, recordatorios: true };
+
+/**
+ * Los cobros en pausa (2026-11-24, el usuario: «las suscripciones a Gobserva, frena; por ahora próximamente, como
+ * freemium: pueden usar el MCP y demás sólo si se crean cuenta con correo y se autentican»). El mismo interruptor que
+ * GOBSERVA_COBROS en la API (backend/api/src/lib/gobservaPlanes.ts): mientras sea true, los planes salen como
+ * «próximamente» y los textos dicen que todo viene gratis con una cuenta con el correo confirmado.
+ */
+export const COBROS_EN_PAUSA = true;
+
+/** Lo que trae hoy, gratis, una cuenta con el correo confirmado (LIMITES_ABIERTO de la API). */
+const ABIERTO_PROVEEDOR: Limites = { alertas: 5, frecuencias: ["diaria", "semanal"], guardados: 500, csv: true, filasCsv: 1000, recordatorios: true, mcp: 1500 };
+export const LIMITES_ABIERTO: Record<"empleo" | "licitaciones" | "obras", Limites> = {
+  empleo: { alertas: 5, frecuencias: ["diaria", "semanal"], guardados: 300, csv: true, filasCsv: 500, recordatorios: true, mcp: 300 },
+  licitaciones: ABIERTO_PROVEEDOR,
+  obras: ABIERTO_PROVEEDOR,
+};
 const PRO = (alertas: number, guardados: number, filasCsv: number, mcp: number): Limites => ({
   alertas, frecuencias: ["diaria", "semanal"], guardados, csv: true, filasCsv, recordatorios: true, mcp,
 });
@@ -44,6 +60,9 @@ const RESPALDO: Record<Producto, PlanCatalogo[]> = {
 export interface PlanesServidor {
   /** Los planes en venta. */
   planes: PlanCatalogo[];
+  /** Los cobros en pausa: los planes salen como «próximamente» y `abierto` es lo que trae hoy una cuenta verificada. */
+  enPausa: boolean;
+  abierto: Limites | null;
   /** Lo que trae una cuenta gratis. */
   gratis: Limites;
   /** El aviso del panel («Precio de fundador hasta el 30 de noviembre»). */
@@ -65,9 +84,17 @@ export async function planesServidor(producto: Producto): Promise<PlanesServidor
   } catch {
     // Sale con el catálogo por defecto.
   }
-  if (!c) return { planes: RESPALDO[producto], gratis: LIMITES_GRATIS, aviso: null, correoActivo: true, ruc: null, medios: { tarjeta: true, qr: true, yape: true, plin: true } };
+  const abierto = producto === "empleo" || producto === "licitaciones" || producto === "obras" ? LIMITES_ABIERTO[producto] : null;
+  if (!c) {
+    return {
+      planes: RESPALDO[producto], enPausa: COBROS_EN_PAUSA, abierto, gratis: LIMITES_GRATIS, aviso: null, correoActivo: true, ruc: null,
+      medios: { tarjeta: true, qr: true, yape: true, plin: true },
+    };
+  }
   return {
     planes: c.planes,
+    enPausa: c.enPausa ?? COBROS_EN_PAUSA,
+    abierto: c.abierto ?? abierto,
     gratis: c.gratis ?? LIMITES_GRATIS,
     aviso: c.aviso,
     correoActivo: c.correoActivo,

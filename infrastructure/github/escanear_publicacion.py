@@ -28,6 +28,12 @@ PATRONES = {
 }
 # Valores de ejemplo conocidos que no son secretos ni personas (tests y docs usan 0000…, 1234…, 4396…).
 FALSOS = re.compile(r"\b(?:0{8}|12345678|87654321|10000000000|10123456789|10\d{0,1}0{8,9})\b")
+# DNI inventados de los tests del agente (2026-11-24): 0000NNNN y los de forma 4XXXXXXX que se ven a simple vista.
+DNI_DE_PRUEBA = re.compile(r"\b(?:0000\d{4}|40000001|41234567|47654321|40111222|40333444)\b")
+# Códigos de documento del SEACE (fileCode=…, con forma de UUID) que empiezan con «cfa»: no son tokens de Cloudflare.
+UUID = re.compile(r"[0-9a-f]{3,8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}")
+# Una URL de base de datos a la propia máquina (tests que esperan que la conexión falle) no es una contraseña real.
+LOCAL = re.compile(r"@(?:127\.0\.0\.1|localhost)\b")
 
 out = subprocess.run(["git", "-C", repo, "log", "-p", "--no-color", "--format=COMMIT %h", f"{desde}..{hasta}"],
                      capture_output=True, text=True, encoding="utf-8", errors="replace").stdout
@@ -49,6 +55,12 @@ for linea in out.splitlines():
     for nombre, pat in PATRONES.items():
         for m in pat.finditer(texto):
             if nombre in ("DNI en campo", "RUC 10") and FALSOS.search(m.group(0)):
+                continue
+            if nombre == "DNI en campo" and DNI_DE_PRUEBA.search(m.group(0)):
+                continue
+            if nombre == "token Cloudflare cfa" and UUID.match(m.group(0)):
+                continue
+            if nombre == "contraseña en URL" and LOCAL.search(texto[m.end() - 1:m.end() + 12]):
                 continue
             # Una RUC 10 en código o docs puede ser un ejemplo: sólo cuenta en archivos de datos.
             if nombre == "RUC 10" and not re.search(r"\.(csv|tsv|json|jsonl|txt|sql)$", archivo):

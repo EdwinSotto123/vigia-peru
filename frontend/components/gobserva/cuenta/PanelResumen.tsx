@@ -9,9 +9,10 @@ import { PRODUCTOS, rutaEn, type Producto } from "@/lib/gobserva";
 import {
   ESTADO_PLAN, NOMBRE_MEDIO, cargarBandeja, cargarLineas, cargarUsoMcp, enviarOperacion, fechaLarga, precioCorto, type Me, type PlanCliente,
 } from "@/lib/gobserva-cuenta";
+import { COBROS_EN_PAUSA } from "@/lib/gobserva-planes";
 import { cn } from "@/lib/utils";
 import { usePerfilEmpleo } from "@/components/empleo-app/usePerfilEmpleo";
-import { Aviso, COSAS, ETIQUETA, CAMPO } from "./comun";
+import { Aviso, COSAS, ETIQUETA, CAMPO, abiertoDe } from "./comun";
 import { CLASE_ENLACE_PIE, Caja, VacioCaja } from "../app/Caja";
 import type { Seccion } from "./Cuenta";
 import { BotonesVerificacion, NotaVerificacion, useVerificacion } from "./Verificacion";
@@ -98,7 +99,8 @@ export function PagosPorConfirmar({ producto, me, onCambio }: { producto: Produc
 
 /**
  * Tu plan en una caja: cuál es (o «Gratis» y el paso a uno de pago) y cuánto usas de él. `angosta`: en la columna de
- * Inicio, el uso va debajo del plan y no al lado.
+ * Inicio, el uso va debajo del plan y no al lado. Con los cobros en pausa (COBROS_EN_PAUSA), sin plan pagado es «Tu
+ * cuenta»: con el correo confirmado (`abierto`) lo tiene todo gratis; sin él (`porVerificar`), dice que lo confirme.
  */
 export function CajaPlan({ producto, base, me, irA, angosta = false }: { producto: Producto; base: string; me: Me; irA: Ir; angosta?: boolean }) {
   const plan = me.planes.find((p) => p.producto === producto && p.estado === "activa") ?? null;
@@ -106,17 +108,20 @@ export function CajaPlan({ producto, base, me, irA, angosta = false }: { product
   const lim = me.producto?.limites;
   const usados = me.producto?.usados ?? { alertas: 0, guardados: 0 };
   const cosas = COSAS[producto];
-  // Los créditos del MCP del mes (sólo con un plan que los trae).
-  const mcp = useSWR(plan && lim?.mcp ? ["gobserva-mcp", producto] : null, () => cargarUsoMcp(producto));
+  const abierto = !!me.producto?.abierto;
+  const porVerificar = !!me.producto?.porVerificar;
+  const tope = abiertoDe(producto);
+  // Los créditos del MCP del mes (con un plan que los trae o, con los cobros en pausa, con la cuenta abierta).
+  const mcp = useSWR((plan || abierto) && lim?.mcp ? ["gobserva-mcp", producto] : null, () => cargarUsoMcp(producto));
   return (
     <Caja
       id="plan"
-      titulo="Tu plan"
+      titulo={COBROS_EN_PAUSA && !plan ? "Tu cuenta" : "Tu plan"}
       accion={
         plan ? (
           <button type="button" onClick={() => irA("pagos")} className={CLASE_ENLACE_PIE}>Pagos y recibos</button>
         ) : (
-          <Link href={rutaEn(base, "/planes")} className={CLASE_ENLACE_PIE}>Comparar planes</Link>
+          <Link href={rutaEn(base, "/planes")} className={CLASE_ENLACE_PIE}>{COBROS_EN_PAUSA ? "Lo que incluye" : "Comparar planes"}</Link>
         )
       }
     >
@@ -155,7 +160,16 @@ export function CajaPlan({ producto, base, me, irA, angosta = false }: { product
               {!plan.renovar && plan.medio === "tarjeta" && (
                 <Aviso className="mt-3">Cancelaste la renovación: tu plan sigue hasta el {fechaLarga(plan.vigenteHasta)} y no se vuelve a cobrar.</Aviso>
               )}
-              <Link href={rutaEn(base, "/planes")} className={claseAccion("secundario", "mt-4")}>Cambiar de plan</Link>
+              {!COBROS_EN_PAUSA && <Link href={rutaEn(base, "/planes")} className={claseAccion("secundario", "mt-4")}>Cambiar de plan</Link>}
+            </>
+          ) : COBROS_EN_PAUSA ? (
+            <>
+              <p className="font-display text-seccion font-bold leading-tight text-ink">{abierto ? "Gratis, con todo" : "Gratis"}</p>
+              <p className="mt-1.5 max-w-[52ch] text-dato leading-relaxed text-inkSoft">
+                {abierto
+                  ? `Tu correo está confirmado: tus alertas llegan cada mañana, guardas más ${cosas.varias}, descargas en Excel y usas el asistente y el MCP. Sin pagar nada.`
+                  : `Te avisamos una vez por semana. Confirma tu correo y tienes todo gratis: alertas cada mañana, hasta ${(tope?.guardados ?? 0).toLocaleString("es-PE")} guardados, Excel y el asistente.`}
+              </p>
             </>
           ) : (
             <>
@@ -177,17 +191,27 @@ export function CajaPlan({ producto, base, me, irA, angosta = false }: { product
             <ul className="space-y-2">
               <li className="flex items-start gap-2 text-meta leading-relaxed text-inkSoft">
                 <CalendarClock size={15} aria-hidden className="mt-0.5 shrink-0 text-granate" />
-                {lim.frecuencias.includes("diaria") ? "Tus alertas llegan cada mañana, a las 7:00." : "Tus alertas llegan una vez por semana."}
+                {lim.frecuencias.includes("diaria")
+                  ? "Tus alertas llegan cada mañana, a las 7:00."
+                  : COBROS_EN_PAUSA && porVerificar
+                    ? "Tus alertas llegan una vez por semana. Confirma tu correo y llegan cada mañana."
+                    : "Tus alertas llegan una vez por semana."}
               </li>
               <li className="flex items-start gap-2 text-meta leading-relaxed text-inkSoft">
                 <Download size={15} aria-hidden className="mt-0.5 shrink-0 text-granate" />
-                {lim.csv ? `Descargas en Excel hasta ${lim.filasCsv.toLocaleString("es-PE")} filas por búsqueda.` : "La descarga en Excel viene con un plan de pago."}
+                {lim.csv
+                  ? `Descargas en Excel hasta ${lim.filasCsv.toLocaleString("es-PE")} filas por búsqueda.`
+                  : COBROS_EN_PAUSA
+                    ? "Confirma tu correo y descargas tus búsquedas en Excel, gratis."
+                    : "La descarga en Excel viene con un plan de pago."}
               </li>
               <li className="flex items-start gap-2 text-meta leading-relaxed text-inkSoft">
                 <Bot size={15} aria-hidden className="mt-0.5 shrink-0 text-granate" />
                 {lim.mcp
-                  ? `Tu plan trae ${lim.mcp.toLocaleString("es-PE")} créditos al mes${mcp.data ? `, se renuevan el ${fechaLarga(mcp.data.renueva)}` : ""}: una pregunta rápida al asistente usa 5; en el MCP, una búsqueda usa 1.`
-                  : "El asistente y el MCP para preguntarle a tu IA vienen con un plan de pago."}
+                  ? `${plan ? "Tu plan" : "Tu cuenta"} trae ${lim.mcp.toLocaleString("es-PE")} créditos al mes${mcp.data ? `, se renuevan el ${fechaLarga(mcp.data.renueva)}` : ""}: una pregunta rápida al asistente usa 5; en el MCP, una búsqueda usa 1.`
+                  : COBROS_EN_PAUSA
+                    ? "Confirma tu correo y usas gratis el asistente y el MCP para preguntarle a tu IA."
+                    : "El asistente y el MCP para preguntarle a tu IA vienen con un plan de pago."}
               </li>
             </ul>
           </div>
@@ -284,7 +308,10 @@ export function ParaEmpezar({ producto, base, me, onCambio, irA }: { producto: P
       titulo: "Verifica tu correo",
       texto: (
         <>
-          Sin eso no te llegan alertas ni recibos a <span className="font-semibold text-ink [overflow-wrap:anywhere]">{me.cuenta.email}</span>.
+          {COBROS_EN_PAUSA
+            ? "Con tu correo confirmado tienes todo gratis: alertas cada mañana, Excel y el asistente. Te mandamos el enlace a "
+            : "Sin eso no te llegan alertas ni recibos a "}
+          <span className="font-semibold text-ink [overflow-wrap:anywhere]">{me.cuenta.email}</span>.
           <NotaVerificacion estado={verif.estado} />
         </>
       ),

@@ -11,8 +11,9 @@ import {
   ErrorCuenta, borrarAlerta, cambiarAlerta, cargarAlertas, cargarBandeja, crearAlerta, enviarAlertaAhora, probarAlerta,
   type Alerta, type Frecuencia, type ItemAviso, type Me,
 } from "@/lib/gobserva-cuenta";
+import { COBROS_EN_PAUSA } from "@/lib/gobserva-planes";
 import { cn } from "@/lib/utils";
-import { Aviso, CAMPO, COSAS, ETIQUETA, FILTROS, chipsFiltros, nombreSugerido } from "./comun";
+import { Aviso, CAMPO, COSAS, ETIQUETA, FILTROS, abiertoDe, chipsFiltros, nombreSugerido } from "./comun";
 import { Notificaciones } from "./Notificaciones";
 import { RUTA_PARA_TI } from "@/lib/empleo";
 
@@ -24,6 +25,8 @@ export function PanelAlertas({ producto, base, me, onCambio }: { producto: Produ
   const lim = me.producto?.limites;
   const alertas = data?.data ?? [];
   const lleno = !!lim && alertas.length >= lim.alertas;
+  // Con los cobros en pausa, confirmar el correo sube el tope (LIMITES_ABIERTO) y trae las alertas de cada mañana.
+  const topeAbierto = abiertoDe(producto)?.alertas ?? 0;
   const refrescar = () => {
     void mutate();
     void bandeja.mutate();
@@ -43,7 +46,9 @@ export function PanelAlertas({ producto, base, me, onCambio }: { producto: Produ
           me.correoActivo
             ? me.cuenta.emailVerificado
               ? `Te escribimos a ${me.cuenta.email} con lo nuevo, a las 7:00 de la mañana.`
-              : "Verifica tu correo para recibirlas por correo. Mientras tanto quedan en «Avisos recibidos», aquí abajo."
+              : COBROS_EN_PAUSA
+                ? "Confirma tu correo y te llegan ahí cada mañana. Mientras tanto quedan en «Avisos recibidos», aquí abajo."
+                : "Verifica tu correo para recibirlas por correo. Mientras tanto quedan en «Avisos recibidos», aquí abajo."
             : "Lo nuevo de cada alerta queda en «Avisos recibidos», aquí abajo, y en tus notificaciones si las activas."
         }
         accion={
@@ -61,9 +66,14 @@ export function PanelAlertas({ producto, base, me, onCambio }: { producto: Produ
             <p className="flex flex-wrap items-center gap-x-2 text-meta text-mute">
               <Mail size={14} aria-hidden className="text-granate" />
               Usas {alertas.length} de {lim.alertas} {lim.alertas === 1 ? "alerta" : "alertas"}.
-              {lleno && (
-                <Link href={rutaEn(base, "/planes")} className="font-semibold text-granate hover:underline">Con un plan de pago tienes más.</Link>
-              )}
+              {lleno &&
+                (COBROS_EN_PAUSA ? (
+                  me.producto?.porVerificar && topeAbierto > lim.alertas && (
+                    <span className="font-semibold text-ink">Confirma tu correo y tienes hasta {topeAbierto}, cada mañana.</span>
+                  )
+                ) : (
+                  <Link href={rutaEn(base, "/planes")} className="font-semibold text-granate hover:underline">Con un plan de pago tienes más.</Link>
+                ))}
             </p>
           ) : undefined
         }
@@ -353,11 +363,14 @@ export function FormAlerta({
             );
           })}
         </div>
-        {!diariaPermitida && (
-          <p className="mt-2 text-meta text-mute">
-            Cada mañana es de los planes de pago. <Link href={rutaEn(base, "/planes")} className="font-semibold text-granate hover:underline">Ver los planes</Link>
-          </p>
-        )}
+        {!diariaPermitida &&
+          (COBROS_EN_PAUSA ? (
+            <p className="mt-2 text-meta text-mute">Confirma tu correo para recibirlas cada mañana.</p>
+          ) : (
+            <p className="mt-2 text-meta text-mute">
+              Cada mañana es de los planes de pago. <Link href={rutaEn(base, "/planes")} className="font-semibold text-granate hover:underline">Ver los planes</Link>
+            </p>
+          ))}
       </fieldset>
 
       {previa && (

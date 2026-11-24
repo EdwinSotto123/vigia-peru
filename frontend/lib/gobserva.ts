@@ -131,7 +131,10 @@ export function urlCanonica(producto: Producto, ruta = "/"): string {
 export const otrosProductos = (p: Producto): InfoProducto[] => Object.values(PRODUCTOS).filter((x) => x.clave !== p);
 
 /** El servidor MCP público de Gobserva (backend/mcp-worker): lo que se pega en Claude, ChatGPT o Cursor. */
-/** El MCP de Gobserva (backend/mcp-worker/src/v2): viene con los planes de pago desde 2026-11-08. */
+/**
+ * El MCP de Gobserva (backend/mcp-worker/src/v2): vino con los planes de pago desde 2026-11-08; con los cobros en pausa
+ * (2026-11-24, COBROS_EN_PAUSA), es gratis con una cuenta con el correo confirmado.
+ */
 export const URL_MCP = "https://mcp.gobserva.cloud/mcp";
 /** Una dirección por producto, con sus herramientas (las de Obras van en la de Licitaciones). */
 export const URL_MCP_EMPLEO = `${URL_MCP}/empleo`;

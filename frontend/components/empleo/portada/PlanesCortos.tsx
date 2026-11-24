@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Check } from "lucide-react";
+import { Check, Clock3 } from "lucide-react";
 import type { Plan } from "@/components/gobserva/Planes";
 import { claseAccion } from "@/components/ui/EnlaceAccion";
 import { cn } from "@/lib/utils";
@@ -28,11 +28,19 @@ export function PlanesCortos({ planes, className }: { planes: Plan[]; className?
             >
               <p className="font-display text-bloque font-bold text-ink">{p.nombre}</p>
               <p className="mt-1 text-dato leading-snug text-inkSoft">{p.para}</p>
+              {p.proximamente ? (
+                <p className="mt-4">
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-paperDeep px-3 py-1 text-dato font-semibold text-inkSoft">
+                    <Clock3 size={14} aria-hidden /> Próximamente
+                  </span>
+                </p>
+              ) : (
               <p className="mt-4 flex flex-wrap items-baseline gap-x-2">
                 <span className="font-display text-cifra font-bold leading-none tracking-[-0.02em] text-ink">{p.precio}</span>
                 {p.periodo && <span className="text-dato text-mute">{p.periodo}</span>}
                 {p.antes && <s className="text-dato text-mute">{p.antes}</s>}
               </p>
+              )}
               {p.nota && <p className="mt-1.5 text-meta font-semibold text-granate">{p.nota}</p>}
               <ul className="mt-4 space-y-2 border-t border-line pt-4">
                 {/* recorte: en la portada, lo primero que incluye cada plan; todo, en /planes (enlace en la cabecera) */}
@@ -42,12 +50,21 @@ export function PlanesCortos({ planes, className }: { planes: Plan[]; className?
                     <span>{x}</span>
                   </li>
                 ))}
+                {/* Un plan «próximamente» no trae nada hoy: lo que vendrá. */}
+                {p.proximamente && (p.pronto ?? []).slice(0, 3).map((x) => (
+                  <li key={x} className="flex items-start gap-2 text-dato leading-snug text-inkSoft">
+                    <Clock3 size={15} aria-hidden className="mt-0.5 shrink-0 text-mute" />
+                    <span>{x}</span>
+                  </li>
+                ))}
               </ul>
-              <div className="mt-auto pt-5">
-                <Link href={p.accion.href} className={claseAccion(p.destacado ? "primario" : "secundario", "min-h-11 w-full")}>
-                  {p.accion.etiqueta}
-                </Link>
-              </div>
+              {!p.proximamente && (
+                <div className="mt-auto pt-5">
+                  <Link href={p.accion.href} className={claseAccion(p.destacado ? "primario" : "secundario", "min-h-11 w-full")}>
+                    {p.accion.etiqueta}
+                  </Link>
+                </div>
+              )}
             </li>
           );
         })}

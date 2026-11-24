@@ -1,6 +1,7 @@
 "use client";
 
 import type { PlanesServidor } from "@/lib/gobserva-planes";
+import { COBROS_EN_PAUSA } from "@/lib/gobserva-planes";
 import { useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
@@ -53,7 +54,10 @@ const SECCIONES: InfoSeccion[] = [
   },
   { clave: "alertas", etiqueta: "Mis alertas", Icono: Bell, bajada: "Te avisamos de lo nuevo que calza con tus búsquedas. Créalas aquí o desde la bandeja, con los filtros que estés viendo." },
   { clave: "guardados", etiqueta: "Guardados", Icono: Bookmark, menos: ["licitaciones", "empleo"], bajada: "Lo que sigues, con su estado y su fecha de cierre." },
-  { clave: "pagos", etiqueta: "Plan y pagos", Icono: CreditCard, bajada: "Tu plan, tus pagos y tus comprobantes." },
+  {
+    clave: "pagos", etiqueta: "Plan y pagos", Icono: CreditCard,
+    bajada: COBROS_EN_PAUSA ? "Lo que incluye tu cuenta, tus pagos y tus comprobantes." : "Tu plan, tus pagos y tus comprobantes.",
+  },
   { clave: "perfil", etiqueta: "Perfil", Icono: UserRound, bajada: "Tus datos, los de tu empresa para el comprobante y tu cuenta." },
 ];
 
@@ -234,7 +238,10 @@ function Lateral({
   const [saliendo, setSaliendo] = useState(false);
   const lim = me.producto?.limites;
   const usados = me.producto?.usados ?? { alertas: 0, guardados: 0 };
-  const pagado = !!me.producto?.plan;
+  // Con los cobros en pausa, la cuenta abierta (correo confirmado) trae un plan sin cobro: no es de pago.
+  const abierto = !!me.producto?.abierto;
+  const porVerificar = !!me.producto?.porVerificar;
+  const pagado = !!me.producto?.plan && !abierto;
   const plan = me.producto?.nombrePlan ?? "Gratis";
   const inicial = nombre.trim().charAt(0).toUpperCase() || "?";
   const cuenta: Partial<Record<Seccion, string>> = lim
@@ -258,9 +265,18 @@ function Lateral({
           <p className="truncate text-meta text-mute">{me.cuenta.email}</p>
         </div>
         {/* En el celular, el plan va al lado del nombre; desde lg, en su propia línea debajo. */}
-        <PlanChip base={base} pagado={pagado} plan={plan} className="lg:hidden" onPagos={() => ir("pagos")} />
+        <PlanChip base={base} pagado={pagado} abierto={abierto} porVerificar={porVerificar} plan={plan} className="lg:hidden" onPagos={() => ir("pagos")} onVerificar={() => ir("resumen")} />
       </div>
-      <PlanChip base={base} pagado={pagado} plan={plan} className="mt-3 hidden lg:inline-flex" onPagos={() => ir("pagos")} />
+      <PlanChip
+        base={base}
+        pagado={pagado}
+        abierto={abierto}
+        porVerificar={porVerificar}
+        plan={plan}
+        className="mt-3 hidden lg:inline-flex"
+        onPagos={() => ir("pagos")}
+        onVerificar={() => ir("resumen")}
+      />
 
       <nav aria-label="Secciones de tu cuenta" className="mt-5 lg:mt-6">
         <ul className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 [scrollbar-width:none] lg:mx-0 lg:flex-col lg:gap-0.5 lg:overflow-visible lg:px-0 lg:pb-0 [&::-webkit-scrollbar]:hidden">
@@ -296,7 +312,14 @@ function Lateral({
       </nav>
 
       <div className="mt-6 hidden space-y-4 border-t border-line pt-5 lg:block">
-        {!pagado && (
+        {/* Con los cobros en pausa, sólo a quien le falta confirmar el correo: con él tiene todo gratis. */}
+        {COBROS_EN_PAUSA && porVerificar && (
+          <div className="rounded-2xl bg-paperSoft p-4">
+            <p className="text-dato font-bold text-ink">Confirma tu correo</p>
+            <p className="mt-1 text-meta leading-relaxed text-inkSoft">Y tienes todo gratis: alertas cada mañana, más guardados, Excel y el asistente.</p>
+          </div>
+        )}
+        {!COBROS_EN_PAUSA && !pagado && (
           <div className="rounded-2xl bg-paperSoft p-4">
             <p className="text-dato font-bold text-ink">Que te avisen cada mañana</p>
             <p className="mt-1 text-meta leading-relaxed text-inkSoft">
@@ -324,11 +347,25 @@ function otrosProductos(producto: Producto): string {
   return otros.join(" y ");
 }
 
-/** El plan como chip: el de pago lleva a sus pagos; el gratis, a los planes. */
-function PlanChip({ base, pagado, plan, className, onPagos }: { base: string; pagado: boolean; plan: string; className?: string; onPagos: () => void }) {
+/**
+ * El plan como chip: el de pago lleva a sus pagos; el gratis, a los planes. Con los cobros en pausa, la cuenta abierta
+ * dice que lo tiene todo y a la que le falta el correo la lleva al inicio, donde se confirma.
+ */
+function PlanChip({
+  base, pagado, abierto, porVerificar, plan, className, onPagos, onVerificar,
+}: {
+  base: string;
+  pagado: boolean;
+  abierto: boolean;
+  porVerificar: boolean;
+  plan: string;
+  className?: string;
+  onPagos: () => void;
+  onVerificar: () => void;
+}) {
   const clase = cn(
     "inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-full px-3 text-meta font-semibold",
-    pagado ? "bg-granate-50 text-ink" : "border border-line bg-paper text-inkSoft hover:border-granate/40 hover:text-ink",
+    pagado || (COBROS_EN_PAUSA && abierto) ? "bg-granate-50 text-ink" : "border border-line bg-paper text-inkSoft hover:border-granate/40 hover:text-ink",
     className,
   );
   if (pagado) {
@@ -336,6 +373,20 @@ function PlanChip({ base, pagado, plan, className, onPagos }: { base: string; pa
       <button type="button" onClick={onPagos} className={clase}>
         <Sparkles size={14} aria-hidden className="text-granate" /> Plan {plan}
       </button>
+    );
+  }
+  if (COBROS_EN_PAUSA) {
+    if (porVerificar) {
+      return (
+        <button type="button" onClick={onVerificar} className={clase}>
+          <span className="text-granate">Confirma tu correo</span>
+        </button>
+      );
+    }
+    return (
+      <span className={clase}>
+        {abierto && <Sparkles size={14} aria-hidden className="text-granate" />} {abierto ? "Gratis, con todo" : "Cuenta gratis"}
+      </span>
     );
   }
   return (
@@ -357,7 +408,9 @@ function SinSesion({ producto, base, esVigia }: { producto: Producto; base: stri
         <p className="mt-2 text-cuerpo leading-relaxed text-inkSoft">
           {esVigia
             ? "Para Gobserva entra con tu correo o con Google: ahí llegan tus alertas y tus recibos."
-            : `Tus alertas, tus guardados y tu plan de ${PRODUCTOS[producto].titulo} están en tu cuenta.`}
+            : COBROS_EN_PAUSA
+              ? `Tus alertas, tus guardados y tu asistente de ${PRODUCTOS[producto].titulo}, gratis con tu cuenta.`
+              : `Tus alertas, tus guardados y tu plan de ${PRODUCTOS[producto].titulo} están en tu cuenta.`}
         </p>
         <div className="mt-6 flex flex-wrap justify-center gap-3">
           <Link href={rutaEn(base, "/entrar?next=/cuenta")} className={claseAccion("primario", "", "md")}>Entrar</Link>

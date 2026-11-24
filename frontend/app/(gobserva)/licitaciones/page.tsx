@@ -18,7 +18,7 @@ import type { NombreSprite } from "@/components/pixel/sprites";
 import { claseAccion } from "@/components/ui/EnlaceAccion";
 import { fechaCorta, numero, solesCompacto } from "@/lib/formato";
 import { rutaEn, urlCanonica } from "@/lib/gobserva";
-import { planesServidor } from "@/lib/gobserva-planes";
+import { COBROS_EN_PAUSA, planesServidor } from "@/lib/gobserva-planes";
 import { baseProducto } from "@/lib/gobserva-servidor";
 import { tituloNatural } from "@/lib/landing";
 import { limpiar } from "@/lib/licitaciones";
@@ -76,7 +76,7 @@ export default async function InicioLicitaciones() {
     },
     {
       sprite: "obra",
-      titulo: "Obras, incluidas en tu plan",
+      titulo: COBROS_EN_PAUSA ? "Obras, incluidas en tu cuenta" : "Obras, incluidas en tu plan",
       texto: "Las inversiones que se vienen, para llegar antes de que se liciten.",
       accion: "Ver las obras",
       href: urlCanonica("obras", "/"),
@@ -92,9 +92,9 @@ export default async function InicioLicitaciones() {
     {
       sprite: "documento",
       titulo: "Tu asistente con IA",
-      texto: "Le preguntas como a un colega: «¿Qué licitaciones de uniformes hay esta semana en Cusco?». Viene con los planes.",
-      accion: "Ver lo que incluye cada plan",
-      href: ruta("/planes#comparar"),
+      texto: `Le preguntas como a un colega: «¿Qué licitaciones de uniformes hay esta semana en Cusco?». ${COBROS_EN_PAUSA ? "Gratis con tu cuenta." : "Viene con los planes."}`,
+      accion: COBROS_EN_PAUSA ? "Crear mi cuenta gratis" : "Ver lo que incluye cada plan",
+      href: COBROS_EN_PAUSA ? crear : ruta("/planes#comparar"),
     },
   ];
 
@@ -131,10 +131,14 @@ export default async function InicioLicitaciones() {
                 Crear mi cuenta gratis <ArrowRight size={18} aria-hidden />
               </Link>
               <Link href={ruta("/planes")} className="inline-flex min-h-11 items-center text-dato font-semibold text-paper/85 underline-offset-4 hover:text-paper hover:underline">
-                Ver planes
+                {COBROS_EN_PAUSA ? "Lo que incluye tu cuenta" : "Ver planes"}
               </Link>
             </div>
-            <p className="mt-3 text-meta text-paper/65">Gratis y sin tarjeta. Datos oficiales del SEACE y el OECE. Obras incluidas en tu plan.</p>
+            <p className="mt-3 text-meta text-paper/65">
+              {COBROS_EN_PAUSA
+                ? "Gratis y sin tarjeta: confirma tu correo y tienes todo. Datos oficiales del SEACE y el OECE. Obras incluidas."
+                : "Gratis y sin tarjeta. Datos oficiales del SEACE y el OECE. Obras incluidas en tu plan."}
+            </p>
           </div>
         </div>
       </section>
@@ -171,8 +175,9 @@ export default async function InicioLicitaciones() {
               maqueta={<MaquetaAviso correo={cat.correoActivo} />}
               hoy="Los contratos menores reciben cotizaciones por pocos días, a veces por horas: si no lo ves a tiempo, ya cerró."
             >
-              Lo nuevo llega {cat.correoActivo ? "a tu correo" : "a tu cuenta"} y como notificación a tu celular: con la cuenta gratis, cada semana; con un plan,
-              cada mañana. Y te recordamos lo que guardaste 2 días antes de que cierre.
+              Lo nuevo llega {cat.correoActivo ? "a tu correo" : "a tu cuenta"} y como notificación a tu celular
+              {COBROS_EN_PAUSA ? ", cada mañana, gratis con tu cuenta." : ": con la cuenta gratis, cada semana; con un plan, cada mañana."} Y te recordamos lo
+              que guardaste 2 días antes de que cierre.
             </Panel>
             <Panel
               titulo="Pones tu precio sabiendo"
@@ -197,7 +202,7 @@ export default async function InicioLicitaciones() {
 
         {/* ── Todo en una sola cuenta ────────────────────────────────────────── */}
         <section aria-labelledby="todo-t">
-          <Cabecera id="todo-t" titulo="Todo en una sola cuenta" bajada="Bienes, servicios, consultorías y obras: lo que compra el Estado, en una suscripción." />
+          <Cabecera id="todo-t" titulo="Todo en una sola cuenta" bajada={`Bienes, servicios, consultorías y obras: lo que compra el Estado, en ${COBROS_EN_PAUSA ? "una cuenta gratis" : "una suscripción"}.`} />
           <TodoEnUnaCuenta className="mt-6" puestos={puestos} />
         </section>
 
@@ -219,7 +224,12 @@ export default async function InicioLicitaciones() {
             { p: "¿Qué es el puntaje de afinidad?", r: "Un número de 0 a 100 que dice cuánto se parece lo que se compra a lo que vende tu empresa, según tu línea de negocio. No es la probabilidad de ganar: te ayuda a ver primero lo que más te conviene revisar." },
             { p: "¿Reemplaza al SEACE?", r: "No. Las ofertas y cotizaciones se presentan en el SEACE, como siempre. Gobserva te avisa a tiempo y te da contexto para decidir; el cronograma oficial y las bases están en el SEACE y enlazamos cada proceso." },
             { p: "¿Es legal usar esta información?", r: "Sí. Son datos públicos que el Estado publica por ley (transparencia y datos abiertos). Gobserva los ordena y los cruza; no vende datos personales ni nombra a personas naturales." },
-            { p: "¿Cómo pago un plan?", r: "Con tarjeta de crédito o débito por Mercado Pago, que se cobra cada mes, o con Yape o Plin por 1, 3, 6 o 12 meses. Cada pago queda en tu cuenta con su comprobante; si necesitas factura para tu empresa, escríbenos." },
+            COBROS_EN_PAUSA
+              ? {
+                  p: "¿Cuánto cuesta?",
+                  r: "Nada. Con tu cuenta gratis y tu correo confirmado tienes todo: alertas cada mañana, «Para ti», tu seguimiento, la descarga en Excel, el asistente y el MCP. Los planes de pago, con más alertas y más créditos, llegarán más adelante.",
+                }
+              : { p: "¿Cómo pago un plan?", r: "Con tarjeta de crédito o débito por Mercado Pago, que se cobra cada mes, o con Yape o Plin por 1, 3, 6 o 12 meses. Cada pago queda en tu cuenta con su comprobante; si necesitas factura para tu empresa, escríbenos." },
             { p: "¿Qué hacen con mis datos?", r: "Los usamos sólo para tu cuenta y tus alertas. Nunca los vendemos, y puedes borrar tu cuenta tú mismo desde tu perfil." },
           ]}
         />
@@ -233,11 +243,23 @@ export default async function InicioLicitaciones() {
                 Que la próxima compra de tu rubro te encuentre a ti
               </h2>
               <p className="mt-3 max-w-[60ch] text-pretty text-cuerpo leading-relaxed text-paper/80">
-                Buscar, leer las fichas y ver «Para ti» es gratis, y con tu cuenta te avisamos cada semana. Los planes te avisan cada mañana, guardan más y
-                bajan tus búsquedas en Excel.{" "}
-                <Link href={ruta("/planes#comparar")} className="whitespace-nowrap font-semibold text-maiz underline-offset-4 hover:underline">
-                  Comparar lo que incluye cada plan
-                </Link>
+                {COBROS_EN_PAUSA ? (
+                  <>
+                    Buscar, leer las fichas y ver «Para ti» es gratis. Crea tu cuenta y confirma tu correo: te avisamos cada mañana, sigues tus procesos y bajas
+                    tus búsquedas en Excel, sin pagar nada.{" "}
+                    <Link href={ruta("/planes")} className="whitespace-nowrap font-semibold text-maiz underline-offset-4 hover:underline">
+                      Lo que incluye tu cuenta
+                    </Link>
+                  </>
+                ) : (
+                  <>
+                    Buscar, leer las fichas y ver «Para ti» es gratis, y con tu cuenta te avisamos cada semana. Los planes te avisan cada mañana, guardan más y
+                    bajan tus búsquedas en Excel.{" "}
+                    <Link href={ruta("/planes#comparar")} className="whitespace-nowrap font-semibold text-maiz underline-offset-4 hover:underline">
+                      Comparar lo que incluye cada plan
+                    </Link>
+                  </>
+                )}
               </p>
             </div>
             <div aria-hidden className="flex items-end gap-3 max-sm:hidden">

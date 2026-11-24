@@ -29,6 +29,7 @@ import { claseAccion } from "@/components/ui/EnlaceAccion";
 import { fechaConAnio, numero, porcentaje, solesCompacto } from "@/lib/formato";
 import { fichaEmpresaVigia, rutaEn, urlCanonica } from "@/lib/gobserva";
 import { SECTORES, TAMANOS, getMercadoObras, nombreEmpresa, nombreLugar, nombreProyecto, nombreSector, type Ranking } from "@/lib/gobserva-obras";
+import { COBROS_EN_PAUSA } from "@/lib/gobserva-planes";
 import { baseProducto } from "@/lib/gobserva-servidor";
 import { REGIONES_UBIGEO, nombreRegion } from "@/lib/licitaciones";
 
@@ -405,7 +406,10 @@ export default async function MercadoObras({ searchParams }: Props) {
                 ¿Quieres que te avisemos de cada proyecto nuevo{sector ? ` de ${nombreSector(sector).toLocaleLowerCase("es-PE")}` : ""}
                 {region ? ` en ${nombreRegion(region)}` : ""}?
               </p>
-              <p className="mt-1 text-dato text-inkSoft">Cuando se declara viable, cuando aprueba su expediente técnico y cuando se licita: guarda la búsqueda como alerta, gratis cada semana.</p>
+              <p className="mt-1 text-dato text-inkSoft">
+                Cuando se declara viable, cuando aprueba su expediente técnico y cuando se licita: guarda la búsqueda como alerta,
+                {COBROS_EN_PAUSA ? " gratis con tu cuenta y cada mañana si confirmas tu correo." : " gratis cada semana."}
+              </p>
             </div>
             <Link
               href={`${ruta("/proyectos")}?pestana=todos${sector ? `&sector=${encodeURIComponent(sector)}` : ""}${region ? `&region=${region}` : ""}#crear-alerta`}

@@ -9,7 +9,7 @@ import { PRODUCTOS, rutaEn, type Producto } from "@/lib/gobserva";
 import {
   ESTADO_PLAN, ErrorCuenta, NOMBRE_MEDIO, cancelarPlan, cargarCobros, fechaLarga, precioCorto, soles2, type Me, type PlanCliente,
 } from "@/lib/gobserva-cuenta";
-import type { PlanesServidor } from "@/lib/gobserva-planes";
+import { COBROS_EN_PAUSA, type PlanesServidor } from "@/lib/gobserva-planes";
 import { cn } from "@/lib/utils";
 import { Caja, ESPACIO_CAJAS, VacioCaja } from "@/components/gobserva/app/Caja";
 import { ComparaPlanes } from "@/components/licitaciones/ComparaPlanes";
@@ -25,7 +25,8 @@ const ESTADO_COBRO = { pendiente: "Por confirmar", pagado: "Pagado", rechazado: 
 /**
  * Plan y pagos, en cajas: tu plan con lo que usas (CajaPlan), tus suscripciones con su medio y cómo cancelar la
  * renovación, la tabla que compara los planes con los límites reales del catálogo (con «Tu plan» marcado) y tus pagos con
- * sus recibos.
+ * sus recibos. Con los cobros en pausa (COBROS_EN_PAUSA), en lugar de la tabla, que los planes de pago llegan más adelante y
+ * que hoy todo viene gratis con la cuenta.
  */
 export function PanelPagos({ producto, base, me, onCambio, irA, catalogo }: { producto: Producto; base: string; me: Me; onCambio: () => void; irA: Ir; catalogo?: PlanesServidor }) {
   const { data, mutate, isLoading } = useSWR("gobserva-cobros", () => cargarCobros());
@@ -45,7 +46,18 @@ export function PanelPagos({ producto, base, me, onCambio, irA, catalogo }: { pr
         </Caja>
       )}
 
-      {catalogo && (
+      {COBROS_EN_PAUSA && (
+        <Caja
+          id="comparar"
+          titulo="Planes de pago"
+          accion={<Link href={rutaEn(base, "/planes")} className={claseAccion("secundario", "min-h-10")}>Lo que incluye tu cuenta</Link>}
+        >
+          <p className="text-dato leading-relaxed text-inkSoft">
+            Llegan más adelante. Por ahora no cobramos: todo viene gratis con tu cuenta y tu correo confirmado.
+          </p>
+        </Caja>
+      )}
+      {!COBROS_EN_PAUSA && catalogo && (
         <Caja
           id="comparar"
           titulo="Compara los planes"
@@ -66,7 +78,11 @@ export function PanelPagos({ producto, base, me, onCambio, irA, catalogo }: { pr
         {isLoading ? (
           <div aria-hidden className="h-24 animate-pulse rounded-xl bg-ink/[0.05]" />
         ) : cobros.length === 0 ? (
-          <VacioCaja Icono={Receipt} titulo="Todavía no hay pagos" texto="Cuando pagues un plan, aquí verás cada cobro con su estado y su recibo." />
+          <VacioCaja
+            Icono={Receipt}
+            titulo="Todavía no hay pagos"
+            texto={COBROS_EN_PAUSA ? "Por ahora todo es gratis: no hay nada que pagar." : "Cuando pagues un plan, aquí verás cada cobro con su estado y su recibo."}
+          />
         ) : (
           <div className="relative overflow-x-auto">
             <table className="w-full min-w-[560px] text-left text-dato">

@@ -7,7 +7,7 @@ import { exigirCaptcha, limiteEscritura } from "../lib/antibots.js";
 import { SIN_CACHE, cachePublico } from "../lib/http.js";
 import { mpPublicKey } from "../lib/mercadopago.js";
 import { correoAbierto } from "../lib/correo.js";
-import { LIMITES_GRATIS, cupoFundadorLibre, esProductoPago, leerConfig, planesDe } from "../lib/gobservaPlanes.js";
+import { LIMITES_ABIERTO, LIMITES_GRATIS, cobrosEnPausa, cupoFundadorLibre, esProductoPago, leerConfig, planesDe } from "../lib/gobservaPlanes.js";
 import { pausarPorToken } from "../lib/gobservaAlertas.js";
 import { getPagosConfig } from "./contribuciones.js";
 
@@ -115,6 +115,10 @@ gobservaRouter.get("/planes", async (c) => {
     producto,
     planes: conCupo,
     gratis: LIMITES_GRATIS,
+    // Con los cobros en pausa (2026-11-24) la página muestra los planes como «próximamente» y lo que trae hoy una cuenta
+    // con correo verificado, gratis.
+    enPausa: cobrosEnPausa(),
+    abierto: LIMITES_ABIERTO[producto],
     medios: {
       tarjeta: config.medios.tarjeta && mpPublicKey() ? { publicKey: mpPublicKey() } : null,
       yape: config.medios.yape && pagos.yape ? { numero: pagos.yape.numero, titular: pagos.yape.titular, qrUrl: pagos.yape.qrUrl } : null,

@@ -12,7 +12,7 @@ import { Dato } from "@/components/ui/Dato";
 import { CLASE_ACCION_LISTA, claseAccion } from "@/components/ui/EnlaceAccion";
 import { decimal, fechaCorta, numero, porcentaje, solesCompacto } from "@/lib/formato";
 import { fichaEmpresaVigia, rutaEn, urlCanonica } from "@/lib/gobserva";
-import { planesServidor } from "@/lib/gobserva-planes";
+import { COBROS_EN_PAUSA, planesServidor } from "@/lib/gobserva-planes";
 import { baseProducto, enLaApp } from "@/lib/gobserva-servidor";
 import { tituloNatural } from "@/lib/landing";
 import { RUBROS_EJEMPLO, getMercado, limpiar } from "@/lib/licitaciones";
@@ -358,7 +358,11 @@ export default async function Mercado({ searchParams }: { searchParams?: { q?: s
               <ul className="mt-3 space-y-2 text-dato leading-snug text-inkSoft">
                 <li className="flex gap-2.5">
                   <BellRing size={16} aria-hidden className="mt-0.5 shrink-0 text-granate" />
-                  <span>Guarda la búsqueda como alerta: gratis cada semana; con Pro, cada mañana.</span>
+                  <span>
+                    {COBROS_EN_PAUSA
+                      ? "Guarda la búsqueda como alerta: te llega cada mañana, gratis con tu cuenta."
+                      : "Guarda la búsqueda como alerta: gratis cada semana; con Pro, cada mañana."}
+                  </span>
                 </li>
                 <li className="flex gap-2.5">
                   <Inbox size={16} aria-hidden className="mt-0.5 shrink-0 text-granate" />

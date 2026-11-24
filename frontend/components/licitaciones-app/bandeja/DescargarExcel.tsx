@@ -4,13 +4,15 @@ import { useState } from "react";
 import { Download, Loader2, Lock } from "lucide-react";
 import { useMe } from "@/components/gobserva/cuenta/comun";
 import { ErrorCuenta, descargarCsv } from "@/lib/gobserva-cuenta";
+import { COBROS_EN_PAUSA } from "@/lib/gobserva-planes";
 import { aParams } from "@/lib/licitaciones-app/filtros";
 import { useLista } from "@/lib/licitaciones-app/useListaUrl";
 import { useAvisos } from "@/components/gobserva/ui/Avisos";
 
 /**
  * Baja en Excel (CSV) la búsqueda que estás viendo, con su orden, hasta el tope de tu plan. Con el plan gratis el botón
- * lleva candado y, al tocarlo, dice que viene con un plan de pago y lleva a los planes.
+ * lleva candado y, al tocarlo, dice que viene con un plan de pago y lleva a los planes (con los cobros en pausa, que es
+ * gratis con el correo confirmado, y lleva a confirmarlo).
  */
 export function DescargarExcel() {
   const { filtros } = useLista();
@@ -21,7 +23,11 @@ export function DescargarExcel() {
 
   async function bajar() {
     if (!conCsv) {
-      avisar({ tono: "error", texto: "La descarga en Excel viene con un plan de pago.", accion: { etiqueta: "Ver los planes", href: "/planes" } });
+      avisar(
+        COBROS_EN_PAUSA
+          ? { tono: "error", texto: "La descarga en Excel es gratis con tu cuenta: confirma tu correo para usarla.", accion: { etiqueta: "Confirmar mi correo", href: "/cuenta" } }
+          : { tono: "error", texto: "La descarga en Excel viene con un plan de pago.", accion: { etiqueta: "Ver los planes", href: "/planes" } },
+      );
       return;
     }
     setBajando(true);
@@ -44,7 +50,7 @@ export function DescargarExcel() {
     >
       {bajando ? <Loader2 size={15} aria-hidden className="animate-spin" /> : conCsv ? <Download size={15} aria-hidden /> : <Lock size={15} aria-hidden />}
       Excel
-      <span className="sr-only">{conCsv ? ": descargar esta búsqueda" : ": viene con un plan de pago"}</span>
+      <span className="sr-only">{conCsv ? ": descargar esta búsqueda" : COBROS_EN_PAUSA ? ": gratis al confirmar tu correo" : ": viene con un plan de pago"}</span>
     </button>
   );
 }

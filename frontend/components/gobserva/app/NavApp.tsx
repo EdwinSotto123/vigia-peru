@@ -5,7 +5,7 @@ import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import useSWR from "swr";
 import {
-  ArrowUpRight, Bell, BellPlus, Bot, BriefcaseBusiness, CalendarDays, Inbox, LifeBuoy, ChartNoAxesColumn, ChevronsUpDown, CreditCard, GraduationCap, HardHat, House, KanbanSquare, Loader2, LogOut, Menu,
+  ArrowUpRight, Bell, BellPlus, Bot, BriefcaseBusiness, CalendarDays, Inbox, LifeBuoy, ChartNoAxesColumn, ChevronsUpDown, CreditCard, GraduationCap, HardHat, House, KanbanSquare, Loader2, LogOut, MailCheck, Menu,
   Sparkles, Timer, UserRound, X, Hospital, Stethoscope, Pill, MapPin, Map as IconoMapa, Gavel, TriangleAlert, History, Database, Bookmark, LogIn, UserPlus,
 } from "lucide-react";
 import { CORREO_GOBSERVA, PRODUCTOS_APP_ABIERTA, rutaEn, urlCanonica, type Producto } from "@/lib/gobserva";
@@ -13,6 +13,7 @@ import { cn } from "@/lib/utils";
 import { BotonModo } from "@/components/ui/BotonModo";
 import { useMe, useSesion } from "../cuenta/comun";
 import { cargarUsoMcp } from "@/lib/gobserva-cuenta";
+import { COBROS_EN_PAUSA } from "@/lib/gobserva-planes";
 
 interface ItemApp {
   /** Ruta dentro del producto ("/oportunidades", "/cuenta?tab=para-ti") o URL absoluta (otro producto). */
@@ -239,11 +240,14 @@ function Ayuda({ className }: { className?: string }) {
 
 /**
  * El plan en la barra lateral: con un plan de pago, los créditos del mes (del asistente y el MCP) que quedan; con el
- * gratis, los guardados y el paso a uno de pago. Cada cifra dice qué cuenta.
+ * gratis, los guardados y el paso a uno de pago. Cada cifra dice qué cuenta. Con los cobros en pausa, la cuenta abierta
+ * (correo confirmado) muestra sus créditos como un plan, y a la que le falta el correo la lleva a confirmarlo.
  */
 function PlanLateral({ producto, base }: { producto: Producto; base: string }) {
   const { me } = useMe(producto);
   const pagado = !!me?.producto?.plan;
+  const abierto = COBROS_EN_PAUSA && !!me?.producto?.abierto;
+  const porVerificar = COBROS_EN_PAUSA && !!me?.producto?.porVerificar;
   const mcp = useSWR(pagado ? ["gobserva-mcp", producto] : null, () => cargarUsoMcp(producto), { revalidateOnFocus: false });
   if (!me) return <span aria-hidden className="block h-[5.5rem] animate-pulse rounded-xl bg-ink/[0.05]" />;
   const lim = me.producto?.limites;
@@ -256,7 +260,9 @@ function PlanLateral({ producto, base }: { producto: Producto; base: string }) {
   const alerta = conCreditos ? pct <= 10 : pct >= 100;
   return (
     <div className="rounded-xl border border-line bg-lienzo/70 p-3">
-      <p className="text-meta font-bold text-ink">Plan {me.producto?.nombrePlan ?? "Gratis"}</p>
+      <p className="text-meta font-bold text-ink">
+        {abierto ? "Gratis, con todo" : COBROS_EN_PAUSA && !pagado ? "Cuenta gratis" : `Plan ${me.producto?.nombrePlan ?? "Gratis"}`}
+      </p>
       {(conCreditos || lim) && (
         <>
           <p className="mt-1.5 flex items-baseline justify-between gap-2 text-rotulo text-mute">
@@ -266,15 +272,24 @@ function PlanLateral({ producto, base }: { producto: Producto; base: string }) {
               {conCreditos && <span className="sr-only"> créditos este mes</span>}
             </span>
           </p>
-          <div className="mt-1.5 h-1 overflow-hidden rounded-full bg-ink/10" role="progressbar" aria-valuenow={valor} aria-valuemin={0} aria-valuemax={tope} aria-label={conCreditos ? "Créditos que te quedan este mes" : "Guardados de tu plan"}>
+          <div className="mt-1.5 h-1 overflow-hidden rounded-full bg-ink/10" role="progressbar" aria-valuenow={valor} aria-valuemin={0} aria-valuemax={tope} aria-label={conCreditos ? "Créditos que te quedan este mes" : COBROS_EN_PAUSA ? "Guardados de tu cuenta" : "Guardados de tu plan"}>
             <div className={cn("h-full rounded-full", alerta ? "bg-crimson" : "bg-granate")} style={{ width: `${pct}%` }} />
           </div>
         </>
       )}
       {pagado ? (
         <Link href={rutaEn(base, "/cuenta?tab=pagos#uso")} className="mt-2.5 inline-flex min-h-8 items-center text-meta font-semibold text-granate underline-offset-4 hover:underline">
-          Tu plan y tu uso
+          {abierto ? "Tu cuenta y tu uso" : "Tu plan y tu uso"}
         </Link>
+      ) : COBROS_EN_PAUSA ? (
+        porVerificar && (
+          <Link
+            href={rutaEn(base, "/cuenta")}
+            className="mt-3 flex min-h-9 w-full items-center justify-center gap-1.5 rounded-lg bg-granate px-3 text-meta font-semibold text-paper transition-colors duration-rapido hover:bg-granate-deep"
+          >
+            <MailCheck size={14} aria-hidden /> Confirma tu correo
+          </Link>
+        )
       ) : (
         <Link
           href={rutaEn(base, "/planes")}

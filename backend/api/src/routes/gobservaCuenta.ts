@@ -11,8 +11,8 @@ import { mpConfigurado } from "../lib/mercadopago.js";
 import { correoAbierto } from "../lib/correo.js";
 import { getPagosConfig } from "./contribuciones.js";
 import {
-  HOST_PRODUCTO, LIMITES_GRATIS, NOMBRE_PRODUCTO, PLAN_EQUIPO, PRODUCTOS_PAGO, codigoEquipo, correoVerificado, esEquipo, esProductoPago, leerConfig,
-  limitesDe, planDe, planVigente, type ProductoPago,
+  HOST_PRODUCTO, LIMITES_ABIERTO, LIMITES_GRATIS, NOMBRE_PRODUCTO, PLAN_EQUIPO, PRODUCTOS_PAGO, cobrosEnPausa, codigoEquipo, correoVerificado, esAbierto,
+  esEquipo, esProductoPago, leerConfig, limitesDe, planDe, planVigente, type ProductoPago,
 } from "../lib/gobservaPlanes.js";
 import { ErrorCobro, cancelarPlan, checkoutManual, checkoutTarjeta, registrarOperacion } from "../lib/gobservaCobros.js";
 import { enviarAlertas, exportarCsv, probarAlerta, productoConAlertas, validarFiltros } from "../lib/gobservaAlertas.js";
@@ -168,7 +168,13 @@ gobservaCuentaRouter.get("/me", async (c) => {
       `SELECT (SELECT count(*) FROM gobserva_alertas WHERE firebase_uid = $1 AND producto = $2)::int AS alertas,
               (SELECT count(*) FROM gobserva_guardados WHERE firebase_uid = $1 AND producto = $2)::int AS guardados`,
       [u.uid, producto])).rows[0];
-    delProducto = { clave: producto, plan: vigente?.plan ?? null, nombrePlan: vigente ? nombres[`${producto}:${vigente.plan}`] ?? vigente.plan : "Gratis", limites, usados, alertas: productoConAlertas(producto) };
+    delProducto = {
+      clave: producto, plan: vigente?.plan ?? null,
+      nombrePlan: vigente && !esAbierto(vigente.codigo) ? nombres[`${producto}:${vigente.plan}`] ?? vigente.plan : "Gratis",
+      // Con los cobros en pausa: `abierto` si ya tiene todo gratis; `porVerificar` si le falta confirmar su correo para eso.
+      abierto: esAbierto(vigente?.codigo), porVerificar: cobrosEnPausa() && !vigente && !correoVerificado(u),
+      limites, usados, alertas: productoConAlertas(producto),
+    };
   }
   return c.json({
     cuenta: cuenta.rows[0],
@@ -176,6 +182,7 @@ gobservaCuentaRouter.get("/me", async (c) => {
     pendientes: pendientes.rows,
     producto: delProducto,
     correoActivo: await correoAbierto(),
+    cobrosEnPausa: cobrosEnPausa(),
   });
 });
 
@@ -187,7 +194,7 @@ gobservaCuentaRouter.get("/me", async (c) => {
  * cuenta sin plan recibe la lista vacía.
  */
 /** Los créditos del MCP de una cuenta: los de sus planes vigentes, sumados (Obras sale del plan de Licitaciones: una vez). */
-async function topesDeCuenta(u: AuthedUser): Promise<{ planes: { producto: ProductoPago; plan: string; vigenteHasta: string | null }[]; mcp: TopesMcp }> {
+async function topesDeCuenta(u: AuthedUser): Promise<{ planes: { producto: ProductoPago; plan: string; vigenteHasta: string | null }[]; mcp: TopesMcp; enPausa: boolean }> {
   const vigentes = await Promise.all(PRODUCTOS_PAGO.map(async (producto) => ({ producto, v: await planVigente(u.uid, producto, correoVerificado(u)) })));
   const contados = new Set<string>();
   let creditos = 0;
@@ -199,6 +206,8 @@ async function topesDeCuenta(u: AuthedUser): Promise<{ planes: { producto: Produ
   return {
     planes: vigentes.flatMap(({ producto, v }) => (v ? [{ producto, plan: v.plan, vigenteHasta: v.vigenteHasta }] : [])),
     mcp: topesMcp(creditos),
+    // El MCP lo usa para decir qué falta: con los cobros en pausa, sólo verificar el correo.
+    enPausa: cobrosEnPausa(),
   };
 }
 
@@ -234,7 +243,12 @@ gobservaCuentaRouter.post("/chat", async (c) => {
   const app = producto === "empleo" ? "empleo" : "licitaciones";
   if (!MODOS_APP[app].includes(modo)) return c.json({ error: "modo_no_disponible", detail: "Ese modo no está en este asistente." }, 400);
   if (!(await planVigente(u.uid, producto, correoVerificado(u)))) {
-    return c.json({ error: "sin_plan", detail: "El asistente viene con los planes de pago: adquiere uno para preguntarle." }, 402);
+    return c.json({
+      error: "sin_plan",
+      detail: cobrosEnPausa()
+        ? "El asistente es gratis con tu cuenta: confirma tu correo con el enlace que te enviamos y vuelve a preguntar."
+        : "El asistente viene con los planes de pago: adquiere uno para preguntarle.",
+    }, 402);
   }
   const { mcp: topes } = await topesDeCuenta(u);
   const lim = ambitoPedido.getStore()?.limitador?.();
@@ -250,8 +264,8 @@ gobservaCuentaRouter.post("/chat", async (c) => {
     return c.json({
       error: "sin_creditos",
       detail: quedan
-        ? `Esta pregunta puede usar hasta ${reserva} créditos y te quedan ${NUM_PE.format(quedan)}. Prueba el modo rápido o sube de plan.`
-        : `Usaste los ${NUM_PE.format(topes.creditos)} créditos de este mes. Se renuevan el 1 del mes que viene; para más, sube de plan.`,
+        ? `Esta pregunta puede usar hasta ${reserva} créditos y te quedan ${NUM_PE.format(quedan)}. Prueba el modo rápido${cobrosEnPausa() ? "" : " o sube de plan"}.`
+        : `Usaste los ${NUM_PE.format(topes.creditos)} créditos de este mes. Se renuevan el 1 del mes que viene${cobrosEnPausa() ? "" : "; para más, sube de plan"}.`,
     }, 402);
   }
   if (uso && uso.dia + reserva > topes.topeDia) {
@@ -441,6 +455,7 @@ const TarjetaBody = z.object({
 });
 
 gobservaCuentaRouter.post("/checkout/tarjeta", limiteEscritura, async (c) => {
+  if (cobrosEnPausa()) return cobrosCerrados(c);
   const u = c.get("user");
   const malo = sinCorreoReal(c, u);
   if (malo) return malo;
@@ -457,6 +472,10 @@ gobservaCuentaRouter.post("/checkout/tarjeta", limiteEscritura, async (c) => {
   }
 });
 
+/** Con los cobros en pausa no se vende nada: todo lo de los planes viene gratis con el correo verificado. */
+const cobrosCerrados = (c: Context) =>
+  c.json({ error: "cobros_en_pausa", detail: "Los planes de pago llegan pronto. Por ahora todo es gratis con tu cuenta y tu correo verificado." }, 409);
+
 const ManualBody = z.object({
   producto: Producto,
   plan: z.string().regex(/^[a-z]{3,15}$/),
@@ -465,6 +484,7 @@ const ManualBody = z.object({
 });
 
 gobservaCuentaRouter.post("/checkout/manual", limiteEscritura, async (c) => {
+  if (cobrosEnPausa()) return cobrosCerrados(c);
   const u = c.get("user");
   const malo = sinCorreoReal(c, u);
   if (malo) return malo;
@@ -550,12 +570,22 @@ async function revisarLimites(u: AuthedUser, producto: ProductoPago, frecuencia:
   const vigente = await planVigente(u.uid, producto, correoVerificado(u));
   const limites = vigente ? await limitesDe(producto, vigente.plan) : LIMITES_GRATIS;
   if (frecuencia && !limites.frecuencias.includes(frecuencia)) {
-    return { error: "plan_requerido", detail: "Las alertas diarias son de los planes de pago. Con el plan gratis llegan una vez por semana." };
+    return {
+      error: "plan_requerido",
+      detail: cobrosEnPausa()
+        ? "Confirma tu correo y tus alertas pueden llegar cada mañana. Mientras tanto, llegan una vez por semana."
+        : "Las alertas diarias son de los planes de pago. Con el plan gratis llegan una vez por semana.",
+    };
   }
   if (nueva) {
     const n = (await pool.query<{ n: number }>(`SELECT count(*)::int AS n FROM gobserva_alertas WHERE firebase_uid = $1 AND producto = $2`, [u.uid, producto])).rows[0].n;
     if (n >= limites.alertas) {
-      return { error: "limite_alertas", detail: vigente ? `Tu plan permite ${limites.alertas} alertas en este producto.` : "El plan gratis permite 1 alerta. Con un plan de pago tienes más, y cada mañana." };
+      const detail = vigente
+        ? `${esAbierto(vigente.codigo) ? "Tu cuenta" : "Tu plan"} permite ${limites.alertas} alertas en este producto.`
+        : cobrosEnPausa()
+          ? `Sin confirmar tu correo tienes 1 alerta. Confírmalo y tienes hasta ${LIMITES_ABIERTO[producto].alertas}, cada mañana.`
+          : "El plan gratis permite 1 alerta. Con un plan de pago tienes más, y cada mañana.";
+      return { error: "limite_alertas", detail };
     }
   }
   return null;
@@ -669,7 +699,11 @@ async function guardarLinea(c: Context, id: number | null): Promise<Response> {
     const lim = await limitesLineas(u);
     const n = (await pool.query<{ n: number }>(`SELECT count(*)::int AS n FROM gobserva_lineas WHERE firebase_uid = $1`, [u.uid])).rows[0].n;
     if (n >= lim.lineas) {
-      return c.json({ error: "limite", detail: `Tu plan permite ${lim.lineas === 1 ? "1 línea de negocio" : `${lim.lineas} líneas de negocio`}. Con un plan mayor puedes sumar más.` }, 402);
+      const cuantas = lim.lineas === 1 ? "1 línea de negocio" : `${lim.lineas} líneas de negocio`;
+      const mas = cobrosEnPausa()
+        ? (lim.lineas < LIMITES_ABIERTO.licitaciones.lineas ? ` Confirma tu correo y tienes hasta ${LIMITES_ABIERTO.licitaciones.lineas}.` : "")
+        : " Con un plan mayor puedes sumar más.";
+      return c.json({ error: "limite", detail: `Tu cuenta permite ${cuantas}.${mas}` }, 402);
     }
   }
   const emb = await embeberLinea(ia, b).catch(() => null);
@@ -968,7 +1002,10 @@ gobservaCuentaRouter.put("/guardados", limiteEscritura, async (c) => {
     const limites = await limitesDe(b.producto, vigente?.plan ?? null);
     const n = (await pool.query<{ n: number }>(`SELECT count(*)::int AS n FROM gobserva_guardados WHERE firebase_uid = $1 AND producto = $2`, [u.uid, b.producto])).rows[0].n;
     if (n >= limites.guardados) {
-      return c.json({ error: "limite_guardados", detail: `Tu plan permite guardar ${limites.guardados}. Con un plan de pago guardas muchos más.` }, 402);
+      const mas = cobrosEnPausa()
+        ? (limites.guardados < LIMITES_ABIERTO[b.producto].guardados ? ` Confirma tu correo y guardas hasta ${LIMITES_ABIERTO[b.producto].guardados}.` : "")
+        : " Con un plan de pago guardas muchos más.";
+      return c.json({ error: "limite_guardados", detail: `Tu cuenta permite guardar ${limites.guardados}.${mas}` }, 402);
     }
   }
   await pool.query(
@@ -1001,7 +1038,12 @@ gobservaCuentaRouter.get("/exportar", async (c) => {
   if (!producto) return c.json({ error: "invalid_query" }, 400);
   const vigente = await planVigente(u.uid, producto, correoVerificado(u));
   const limites = await limitesDe(producto, vigente?.plan ?? null);
-  if (!limites.csv) return c.json({ error: "plan_requerido", detail: "La descarga en CSV es de los planes de pago." }, 402);
+  if (!limites.csv) {
+    return c.json({
+      error: "plan_requerido",
+      detail: cobrosEnPausa() ? "La descarga en Excel es gratis con tu cuenta: confirma tu correo para usarla." : "La descarga en CSV es de los planes de pago.",
+    }, 402);
+  }
   const { producto: _p, ...filtros } = c.req.query();
   const r = await exportarCsv(producto, filtros, limites.filasCsv);
   if (!r) return c.json({ error: "filtros_invalidos" }, 400);

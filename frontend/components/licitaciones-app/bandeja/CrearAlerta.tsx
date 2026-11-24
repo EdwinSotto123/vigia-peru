@@ -5,6 +5,7 @@ import { BellPlus, Loader2 } from "lucide-react";
 import { nombreRegion, nombreTipo } from "@/lib/licitaciones";
 import { ErrorCuenta, crearAlerta } from "@/lib/gobserva-cuenta";
 import { useMe } from "@/components/gobserva/cuenta/comun";
+import { COBROS_EN_PAUSA } from "@/lib/gobserva-planes";
 import { aParams, filtrosActivos, type FiltrosBandeja } from "@/lib/licitaciones-app/filtros";
 import { useLista } from "@/lib/licitaciones-app/useListaUrl";
 import { cn } from "@/lib/utils";
@@ -22,7 +23,8 @@ export function nombreSugerido(f: FiltrosBandeja): string {
 
 /**
  * «Crear alerta con esta búsqueda»: guarda los filtros que estás viendo (los de la bandeja, con su marca) como una alerta
- * de tu cuenta; lo nuevo te llega al correo y a tus notificaciones. Con el plan gratis, una alerta semanal.
+ * de tu cuenta; lo nuevo te llega al correo y a tus notificaciones. Con el plan gratis, una alerta semanal (con los cobros
+ * en pausa, cada mañana al confirmar el correo).
  */
 export function CrearAlerta() {
   const { filtros } = useLista();
@@ -96,7 +98,9 @@ function Formulario({ filtros, diaria, cerrar, avisar }: { filtros: FiltrosBande
             );
           })}
         </div>
-        {!diaria && <p className="mt-1.5 text-meta text-mute">Cada mañana viene con un plan de pago.</p>}
+        {!diaria && (
+          <p className="mt-1.5 text-meta text-mute">{COBROS_EN_PAUSA ? "Confirma tu correo para recibirlas cada mañana." : "Cada mañana viene con un plan de pago."}</p>
+        )}
       </fieldset>
       {error && (
         <p role="alert" className="mt-3 text-meta font-medium text-crimsonTexto">

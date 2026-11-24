@@ -2,12 +2,14 @@ import Link from "next/link";
 import { ArrowRight, BadgeCheck, Bot, Coins, Download, Link2, MessageSquareText } from "lucide-react";
 import { IsotipoGobserva } from "@/components/gobserva/MarcaGobserva";
 import { Ejemplo } from "@/components/licitaciones/portada/Maquetas";
+import { COBROS_EN_PAUSA } from "@/lib/gobserva-planes";
 import { cn } from "@/lib/utils";
 
 /**
  * «Pregúntale a tu asistente» en las portadas (2026-11-08): el asistente que viene dentro de la app con los planes de pago
- * (/app/asistente, components/gobserva/app/asistente). A la izquierda qué hace y cuánto usa; a la derecha una maqueta del
- * chat marcada «Ejemplo» (entidades genéricas, ningún aviso ni proceso real). Server-safe.
+ * (con los cobros en pausa, desde 2026-11-24, gratis con la cuenta y el correo confirmado; /app/asistente,
+ * components/gobserva/app/asistente). A la izquierda qué hace y cuánto usa; a la derecha una maqueta del chat marcada
+ * «Ejemplo» (entidades genéricas, ningún aviso ni proceso real). Server-safe.
  */
 export interface FilaEjemplo {
   titulo: string;
@@ -26,6 +28,7 @@ export function BloqueAsistente({
   creditos,
   descargas = false,
   planes,
+  crear,
   className,
 }: {
   id?: string;
@@ -42,6 +45,8 @@ export function BloqueAsistente({
   descargas?: boolean;
   /** La página de planes del producto. */
   planes: string;
+  /** Crear la cuenta: con los cobros en pausa, el enlace de abajo lleva aquí (sin ella, a `planes`). */
+  crear?: string;
   className?: string;
 }) {
   const puntos = [
@@ -50,7 +55,12 @@ export function BloqueAsistente({
     descargas
       ? { Icono: Download, texto: "Cada respuesta se baja en Word, PDF o Excel, lista para tu equipo." }
       : { Icono: MessageSquareText, texto: "Sigue la conversación: pídele que filtre, compare o te explique un requisito." },
-    { Icono: Coins, texto: `Viene con los planes de pago: ${creditos}. Una pregunta rápida usa 5.` },
+    {
+      Icono: Coins,
+      texto: COBROS_EN_PAUSA
+        ? `Gratis con tu cuenta y tu correo confirmado: ${creditos}. Una pregunta rápida usa 5.`
+        : `Viene con los planes de pago: ${creditos}. Una pregunta rápida usa 5.`,
+    },
   ];
   return (
     <section id={id} aria-labelledby={`${id}-t`} className={cn("scroll-mt-20", className)}>
@@ -70,8 +80,11 @@ export function BloqueAsistente({
               </li>
             ))}
           </ul>
-          <Link href={planes} className="mt-6 inline-flex min-h-11 items-center gap-1 text-dato font-semibold text-granate underline-offset-4 hover:underline">
-            Ver los planes <ArrowRight size={15} aria-hidden />
+          <Link
+            href={COBROS_EN_PAUSA ? (crear ?? planes) : planes}
+            className="mt-6 inline-flex min-h-11 items-center gap-1 text-dato font-semibold text-granate underline-offset-4 hover:underline"
+          >
+            {COBROS_EN_PAUSA ? (crear ? "Crear mi cuenta gratis" : "Lo que incluye tu cuenta") : "Ver los planes"} <ArrowRight size={15} aria-hidden />
           </Link>
         </div>
 

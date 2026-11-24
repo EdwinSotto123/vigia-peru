@@ -24,10 +24,10 @@ async function conCuenta(request: Request, env: EnvV2, ctx: ExecutionContext): P
 /** `ruta`: la dirección pedida (/mcp, /mcp/empleo…): sus metadatos dicen que ella es el recurso. */
 function desafio(env: EnvV2, ruta = "/mcp"): Response {
   const cabecera =
-    `Bearer error="invalid_token", error_description="This server needs a Gobserva account with an active plan", ` +
+    `Bearer error="invalid_token", error_description="This server needs a Gobserva account with a verified email", ` +
     `resource_metadata="${env.MCP_URL}/.well-known/oauth-protected-resource${ruta}", scope="${SCOPES.join(" ")}"`;
   return Response.json(
-    { error: "invalid_token", error_description: "El MCP de Gobserva viene con los planes de pago: conecta tu cuenta de Gobserva." },
+    { error: "invalid_token", error_description: "El MCP de Gobserva es gratis con una cuenta verificada: conecta tu cuenta de Gobserva." },
     { status: 401, headers: { "WWW-Authenticate": cabecera, "Cache-Control": "no-store" } },
   );
 }
