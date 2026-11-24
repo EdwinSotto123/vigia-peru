@@ -35,7 +35,7 @@ import { Partes } from "@/components/ui/Partes";
 import { VacioEnLinea } from "@/components/ui/VacioEnLinea";
 import { DesgloseItems } from "./ItemsDocumento";
 import { SeccionPerfil, cuentaPerfil } from "./PerfilContratista";
-import { AvisoMasBaja, ComparacionOfertas, detallePostor } from "./ComparacionOfertas";
+import { AvisoMasBaja, ComparacionOfertas, detallePostor, ganoSegunRegistro } from "./ComparacionOfertas";
 
 export const OCDS = "registro OCDS del OECE (SEACE)";
 
@@ -258,7 +258,8 @@ function FrenteOtras({ p }: { p: NonNullable<Detalle["items"][number]["precio"]>
 
 /** Postores y ofertas, leídos de las actas del expediente. El ganador va primero y resaltado. */
 function SeccionPostores({ c, enRevision }: { c: Detalle; enRevision: boolean }) {
-  const postores = c.postoresDetalle ?? [];
+  // «Ganador» sólo si el registro lo confirma (ganoSegunRegistro): el acta daba por ganador de un ítem desierto.
+  const postores = (c.postoresDetalle ?? []).map((p) => (p.esGanador && !ganoSegunRegistro(p, c) ? { ...p, esGanador: false } : p));
   const conItem = c.items.length > 1;
   // Con el acta o cuadro leído por pieza (lector «evaluacion»): el puntaje con su desglose.
   const conPuntaje = postores.some((p) => p.puntajeFinal != null || p.puntajeTotal != null);

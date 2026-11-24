@@ -25,6 +25,7 @@ import { monto, OCDS } from "./EvidenciaContrato";
 import { fecha, fechaConAnio, listaY, numero, oracion, plural, porcentaje, soles, solesCompacto } from "@/lib/formato";
 import { adjudicacionesVigentes, esPersonaNatural, humanizarCodigo, type ContratoDetalle as Detalle, type HechoDocumento } from "@/lib/contratos";
 import { enlaceProveedor } from "@/lib/empresas";
+import { nombreLegibleEmpresa } from "@/lib/nombreEmpresa";
 import { FUENTE_HITO, numeroContrato, tituloContrato, type ContratoFirmado, type HitoProceso, type ItemAdjudicado, type PersonaProceso } from "@/lib/procesoContrato";
 import { ObrasDelContrato } from "@/components/obras/ObraContrato";
 import { nombreModelo } from "@/lib/modelos";
@@ -60,12 +61,14 @@ function Nombre({ p, enlace = false }: { p: PersonaProceso | null; enlace?: bool
   if (!p?.nombre) return <>{p ? "Sin razón social" : "Sin dato"}</>;
   if (esPersonaNatural(p.ruc)) return <PersonName name={p.nombre} orden="sunat" />;
   const ficha = enlace ? enlaceProveedor(p.ruc) : null;
+  // Como en la cabecera («Laboratorios AC Farma S.A.»), no «MEDIFARMA S A» en mayúsculas; la razón social entera, al pasar.
+  const { texto, completo } = nombreLegibleEmpresa(p.nombre);
   return ficha ? (
-    <Link href={ficha} prefetch={false} className="font-medium text-granate underline-offset-2 hover:underline">
-      {p.nombre}
+    <Link href={ficha} prefetch={false} title={completo} className="font-medium text-granate underline-offset-2 hover:underline">
+      {texto}
     </Link>
   ) : (
-    <>{p.nombre}</>
+    <span title={completo}>{texto}</span>
   );
 }
 

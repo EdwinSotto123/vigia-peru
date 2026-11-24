@@ -103,12 +103,17 @@ const SIGLAS_ORACION = new Set([
   "eirl", "e.i.r.l.", "sac", "s.a.c.", "srl", "s.r.l.", "s.a.", "padomi", "covid", "covid-19", "tdr", "rnp", "ocds", "jne", "onpe",
 ]);
 
+/** Unidades de medida que el SEACE escribe en minúsculas dentro de un texto en mayúsculas («500 mcg», «0,6 mL»). */
+const UNIDAD_MEDIDA = /^(mcg|ug|mg|g|kg|ml|l|cm|mm|m|cc|ui|meq|mmol|h)$/i;
+
 export function oracion(t: string): string {
   // Algunos objetos del SEACE traen el salto de línea escrito («Contratación de \nservicio…», con la barra y la n
   // literales): se vuelve un espacio.
   const s = t.replace(/\\[nrt]/g, " ").replace(/\s+/g, " ").trim();
-  // "Casi todo en mayúsculas" también cuenta ("DERIVADA DE LA SUBASTA… Nº 001-2026-ítems"): 80 % de las letras.
-  const letras = s.match(/\p{L}/gu) ?? [];
+  // "Casi todo en mayúsculas" también cuenta ("DERIVADA DE LA SUBASTA… Nº 001-2026-ítems"): 80 % de las letras. Las
+  // unidades de medida en minúsculas no cuentan: «ACIDO FOLICO 500 mcg (0.5 mg) TAB» quedaba en mayúsculas al lado de
+  // «Amlodipino 5 mg tab» (2026-2543-197).
+  const letras = (s.match(/\p{L}+/gu) ?? []).filter((w) => !(UNIDAD_MEDIDA.test(w) && w !== w.toLocaleUpperCase("es"))).join("").split("");
   const mayusculas = letras.filter((c) => c !== c.toLocaleLowerCase("es")).length;
   // Escrito a mano: se respeta, pero empieza con mayúscula ("contratación de la obra…" → "Contratación de la obra…").
   if (letras.length === 0 || mayusculas / letras.length < 0.8) return s.charAt(0).toLocaleUpperCase("es") + s.slice(1);

@@ -122,6 +122,7 @@ velásquez virú viáticos volcánica volcánico volumétrico volumétricos vulc
 víbora víctimas víctor vísceras vívelo víveres yanchalá zoológico ácidas ácido álamo álvarez ámbito ámbitos áncash
 ángel ángeles ángulos árabes árboles área áreas énfasis épocas ética éxito índice índices ítem ítems ómnibus óptica
 ópticas óptico ópticos órgano órganos ósea última únic única únicas único únicos útil útiles
+cafeína fólico ascórbico acetilsalicílico hialurónico tranexámico potásico potásica cálcico cálcica fenitoína
 `;
 
 /** "adquisicion" → "adquisición". La clave es la palabra sin tilde ni diéresis (la ñ se conserva). */

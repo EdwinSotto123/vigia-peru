@@ -16,6 +16,7 @@ import { DatosClave, EnUnaFrase, type DatoClave } from "@/components/patrones";
 import { colorSerie, MuestraSerie } from "@/components/charts/BarraSegmentada";
 import { EnlaceAccion } from "@/components/ui/EnlaceAccion";
 import { enlaceProveedor } from "@/lib/empresas";
+import { nombreLegibleEmpresa } from "@/lib/nombreEmpresa";
 import { decimal, fecha, numero, oracion, porcentaje, soles } from "@/lib/formato";
 import { esPersonaNatural, type ContratoDetalle as Detalle, type PostorContrato } from "@/lib/contratos";
 import { CitaPagina } from "./CitaPagina";
@@ -30,7 +31,10 @@ const otrosDe = (p: PostorContrato) =>
 function Nombre({ p }: { p: { ruc: string | null; razonSocial?: string | null; nombre?: string | null } }) {
   const n = p.razonSocial ?? p.nombre ?? null;
   if (!n) return <>Un postor</>;
-  return esPersonaNatural(p.ruc) ? <PersonName name={n} /> : <>{n}</>;
+  if (esPersonaNatural(p.ruc)) return <PersonName name={n} />;
+  // Como en la cabecera («Medifarma S.A.», no «MEDIFARMA S.A»); la razón social entera, al pasar.
+  const { texto, completo } = nombreLegibleEmpresa(n);
+  return <span title={completo}>{texto}</span>;
 }
 
 // ─── El aviso ────────────────────────────────────────────────────────────────────────────────────
@@ -76,6 +80,21 @@ export function montoOfertaDudoso(monto: number, c: Pick<Detalle, "montoPen" | "
   return c.items.some((it) => it.cantidad != null && it.cantidad >= 1000 && Math.abs(it.cantidad - monto) < 0.5);
 }
 
+/**
+ * ¿Ganó, según el registro? El acta leída dice quién ganó cada ítem; con varios ítems y lo que registra el CONOSCE a la
+ * mano, «ganó» sólo si el CONOSCE tiene ese ítem adjudicado a ese RUC: el acta de 2026-2543-197 daba por ganador del
+ * ítem 9 a quien no aparece en el CONOSCE, y el ítem 9 quedó desierto. Sin número de ítem, se cree al acta.
+ */
+export function ganoSegunRegistro(p: PostorContrato, c: Pick<Detalle, "contratadoConosce" | "items">): boolean {
+  if (!p.esGanador) return false;
+  const oficial = c.contratadoConosce ?? [];
+  if (!oficial.length || c.items.length <= 1) return true;
+  const n = p.item != null && /^\d+$/.test(String(p.item).trim()) ? Number(p.item) : null;
+  if (n == null) return true;
+  const o = oficial.find((k) => Number(k.item) === n);
+  return !!o && (!o.ruc || !p.ruc || o.ruc === p.ruc);
+}
+
 export function ComparacionOfertas({ c }: { c: Detalle }) {
   const todas = (c.postoresDetalle ?? []).filter((p) => p.montoOferta != null && p.montoOferta > 0);
   const dudosa = (p: PostorContrato) => montoOfertaDudoso(p.montoOferta!, c);
@@ -92,14 +111,31 @@ export function ComparacionOfertas({ c }: { c: Detalle }) {
   // ítem, no se comparan (2026-2543-194, 8 ítems: «+5,508 %» contra la oferta más baja de otro ítem).
   const variosItems = c.items.length > 1 || new Set(ofertas.filter((p) => p.esGanador).map((p) => p.ruc ?? p.razonSocial)).size > 1;
   const conItem = ofertas.every((p) => !!p.item);
+  // Lo que el CONOSCE registra de cada ítem (su número oficial): quién ganó y por cuánto. El acta leída no siempre trae la
+  // oferta ganadora: en 2026-2543-197 decía «AC Farma, la más baja del ítem 2» con S/ 324,158, y el ítem 2 lo ganó P & G
+  // con S/ 155,845. La oferta que ganó cuenta para «la más baja» y para el porcentaje de las demás de su ítem.
+  const oficial = new Map<number, { ruc: string | null; monto: number | null }>();
+  for (const k of c.contratadoConosce ?? []) if (k.item != null) oficial.set(Number(k.item), { ruc: k.ruc, monto: k.montoPen });
+  const delRegistro = (p: PostorContrato) => (p.item != null && /^\d+$/.test(String(p.item).trim()) ? oficial.get(Number(p.item)) : undefined);
+  const gano = (p: PostorContrato) => ganoSegunRegistro(p, c);
+  const montosDelItem = (p: PostorContrato): number[] => {
+    const xs = ofertas.filter((x) => x.item === p.item).map((x) => x.montoOferta!);
+    const o = delRegistro(p);
+    // La ganadora del registro, si no está ya entre las del acta (Medifarma, ítem 1, viene en las dos).
+    if (o?.monto && o.monto > 0 && !xs.some((m) => Math.abs(m - o.monto!) < 0.5)) xs.push(o.monto);
+    return xs;
+  };
   const minimoDe = (p: PostorContrato): number | null => {
     if (!variosItems) return minimo;
     if (!conItem) return null;
-    const del = ofertas.filter((x) => x.item === p.item).map((x) => x.montoOferta!);
+    const del = montosDelItem(p);
     return del.length > 1 ? Math.min(...del) : null;
   };
-  const esMasBaja = (p: PostorContrato, i: number) =>
-    variosItems ? minimoDe(p) != null && p.montoOferta === minimoDe(p) && ofertas.filter((x) => x.item === p.item).length > 1 : i === 0;
+  const esMasBaja = (p: PostorContrato, i: number) => {
+    if (!variosItems) return i === 0;
+    const base = minimoDe(p);
+    return base != null && Math.abs(p.montoOferta! - base) < 0.5;
+  };
   return (
     <section aria-labelledby="comparacion-ofertas" className="rounded-2xl border border-line bg-paper px-4 py-4 sm:px-5 [.tarjeta_&]:rounded-none [.tarjeta_&]:border-x-0 [.tarjeta_&]:border-b-0 [.tarjeta_&]:bg-transparent [.tarjeta_&]:px-0 [.tarjeta_&]:pb-0">
       <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
@@ -117,7 +153,9 @@ export function ComparacionOfertas({ c }: { c: Detalle }) {
       {variosItems && (
         <p className="mt-1 text-rotulo text-mute">
           {conItem
-            ? "Cada oferta compite en su ítem: el porcentaje es sobre la más baja de ese mismo ítem."
+            ? oficial.size > 0
+              ? "Cada oferta compite en su ítem: el porcentaje es sobre la más baja de ese mismo ítem, contando la que ganó según el CONOSCE aunque el acta no la traiga."
+              : "Cada oferta compite en su ítem: el porcentaje es sobre la más baja de ese mismo ítem."
             : "Cada oferta compite en su ítem y el registro no dice en cuál: no se comparan entre sí. El ítem de cada una está en la tabla, si el acta lo trae."}
         </p>
       )}
@@ -134,10 +172,10 @@ export function ComparacionOfertas({ c }: { c: Detalle }) {
             { k: "bonificacion", v: p.bonificacion, i: SEG.bonificacion },
           ].filter((s) => s.v != null && s.v > 0);
           return (
-            <li key={`o-${i}`} className={`rounded-xl px-2.5 py-2 ${p.esGanador ? "bg-granate-50" : ""}`}>
+            <li key={`o-${i}`} className={`rounded-xl px-2.5 py-2 ${gano(p) ? "bg-granate-50" : ""}`}>
               <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
                 <span className="min-w-0 truncate text-dato font-semibold text-ink"><Nombre p={p} /></span>
-                {p.esGanador && (
+                {gano(p) && (
                   <span className="pill border-granate/30 bg-paper font-semibold text-granate"><Award size={12} aria-hidden /> Ganó</span>
                 )}
                 {masBaja && (
@@ -159,7 +197,7 @@ export function ComparacionOfertas({ c }: { c: Detalle }) {
                   <span className="block h-3 flex-1 overflow-hidden rounded-full bg-paperEdge" aria-hidden>
                     <span
                       className="block h-full rounded-full"
-                      style={{ width: `${Math.min(100, (100 * p.montoOferta!) / maximo)}%`, background: dudoso ? "rgb(var(--mute) / 0.35)" : p.esGanador ? "rgb(var(--granate))" : "rgb(var(--mute))" }}
+                      style={{ width: `${Math.min(100, (100 * p.montoOferta!) / maximo)}%`, background: dudoso ? "rgb(var(--mute) / 0.35)" : gano(p) ? "rgb(var(--granate))" : "rgb(var(--mute))" }}
                     />
                   </span>
                   <span className="w-36 shrink-0 text-right tabular-nums">
