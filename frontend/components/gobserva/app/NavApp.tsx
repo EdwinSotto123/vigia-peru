@@ -6,7 +6,7 @@ import { usePathname, useSearchParams } from "next/navigation";
 import useSWR from "swr";
 import {
   ArrowUpRight, Bell, BellPlus, Bot, BriefcaseBusiness, CalendarDays, Inbox, LifeBuoy, ChartNoAxesColumn, ChevronsUpDown, CreditCard, GraduationCap, HardHat, House, KanbanSquare, Loader2, LogOut, MailCheck, Menu,
-  Sparkles, Timer, UserRound, X, Hospital, Stethoscope, Pill, MapPin, Map as IconoMapa, Gavel, TriangleAlert, History, Database, Bookmark, LogIn, UserPlus,
+  Sparkles, Timer, UserRound, X, Cable, Hospital, Stethoscope, Pill, MapPin, Map as IconoMapa, Gavel, TriangleAlert, History, Database, Bookmark, LogIn, UserPlus,
 } from "lucide-react";
 import { CORREO_GOBSERVA, PRODUCTOS_APP_ABIERTA, rutaEn, urlCanonica, type Producto } from "@/lib/gobserva";
 import { cn } from "@/lib/utils";
@@ -110,6 +110,8 @@ const APP: Partial<Record<Producto, { grupos: GrupoApp[]; cuenta: ItemApp[] }>> 
           { ruta: "/inicio", etiqueta: "Inicio", Icono: House, abajo: true, exacta: true },
           { ruta: "/cuenta", etiqueta: "Guardados y vistos", Icono: Bookmark },
           { ruta: "/asistente", etiqueta: "Pregúntale al asistente", Icono: Bot },
+          // El MCP abierto de Salud (2026-11-24, el usuario: «falta una sección que diga MCP»).
+          { ruta: "/mcp", etiqueta: "Conecta tu IA (MCP)", Icono: Cable },
         ],
       },
       {

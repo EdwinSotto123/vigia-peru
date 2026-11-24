@@ -26,7 +26,7 @@ const FUENTES = [
   { nombre: "Grados y títulos de SUNEDU", url: URL_SUNEDU },
 ];
 
-/** Gobserva Salud (salud.gobserva.cloud): abierto y sin cuenta (MarcoProducto no muestra «Entrar»). */
+/** Gobserva Salud (salud.gobserva.cloud): abierta, con una cuenta gratis para guardar lo que verificas y el MCP abierto. */
 export default function LayoutSalud({ children }: { children: ReactNode }) {
   const base = baseProducto("salud");
   return (
@@ -34,12 +34,15 @@ export default function LayoutSalud({ children }: { children: ReactNode }) {
       producto="salud"
       base={base}
       menu={[
+        // 2026-11-24 (el usuario: «falta una sección que diga MCP»): lo que se verifica con los nombres de la barra de la
+        // app (Clínicas, Médicos, Medicinas) y el MCP; el mapa sigue en la app y en «Cerca de mí».
+        { ruta: "/establecimientos", etiqueta: "Clínicas" },
+        { ruta: "/medico", etiqueta: "Médicos" },
+        { ruta: "/medicamentos", etiqueta: "Medicinas" },
         { ruta: "/cerca", etiqueta: "Cerca de mí" },
-        { ruta: "/medico", etiqueta: "Verificar médico" },
-        { ruta: "/establecimientos", etiqueta: "Establecimientos" },
-        { ruta: "/mapa", etiqueta: "Mapa" },
         { ruta: "/sanciones", etiqueta: "Sanciones" },
         { ruta: "/asistente", etiqueta: "Asistente" },
+        { ruta: "/mcp", etiqueta: "Tu IA (MCP)" },
         { ruta: "/fuentes", etiqueta: "Fuentes" },
       ]}
       accion={{ ruta: "/inicio", etiqueta: "Abrir la app" }}

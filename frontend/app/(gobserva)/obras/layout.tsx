@@ -31,7 +31,11 @@ export default function LayoutObras({ children }: { children: ReactNode }) {
         { ruta: "/mcp", etiqueta: "API y MCP" },
       ]}
       // Con los cobros en pausa, las alertas vienen gratis con la cuenta (la de Licitaciones): la acción lleva a crearla.
-      accion={{ ruta: COBROS_EN_PAUSA ? "/entrar?crear=1" : urlCanonica("licitaciones", "/planes"), etiqueta: "Recibir alertas" }}
+      accion={
+        COBROS_EN_PAUSA
+          ? { ruta: `/entrar?crear=1&next=${encodeURIComponent("/cuenta")}`, etiqueta: "Crear cuenta" }
+          : { ruta: urlCanonica("licitaciones", "/planes"), etiqueta: "Recibir alertas" }
+      }
       fuentes={[
         { nombre: "Invierte.pe, seguimiento de inversiones del MEF", url: SEGUIMIENTO_INVERSIONES },
         { nombre: "INFOBRAS, obras públicas de la Contraloría", url: INFOBRAS },

@@ -59,6 +59,12 @@ export function MarcoProducto({
   }
   const p = PRODUCTOS[producto];
   const otros = otrosProductos(producto);
+  // Con la sesión abierta, una acción para crear la cuenta («Crear cuenta», «Recibir alertas» → /entrar) sobra: la
+  // cabecera ya dice «Mi cuenta».
+  const conSesion = cookies().get(COOKIE_SESION)?.value === "1";
+  const accionVisible = conSesion && accion.ruta.startsWith("/entrar") ? null : accion;
+  // Un menú de seis secciones o más (Licitaciones, Salud) no entra junto a la marca hasta los 1280 px (medido a 1024).
+  const largo = menu.length > 5;
   return (
     <div data-producto={producto} className="flex min-h-screen flex-col">
       <ProgresoNavegacion />
@@ -74,7 +80,7 @@ export function MarcoProducto({
             <MarcaGobserva producto={producto} tamano="sm" className="sm:hidden" />
             <MarcaGobserva producto={producto} className="hidden sm:inline-flex" />
           </Link>
-          <MenuProducto base={base} menu={menu} titulo={p.titulo} />
+          <MenuProducto base={base} menu={menu} titulo={p.titulo} largo={largo} />
           <div className="flex shrink-0 items-center gap-2">
             <BotonModo />
             {/* Gobserva Salud es abierto: sin cuenta, no hay «Entrar». */}
@@ -90,15 +96,17 @@ export function MarcoProducto({
               </>
             )}
             {/* En el celular no entra junto a la marca: va primera en la fila del menú, abajo. */}
-            <Link href={rutaEn(base, accion.ruta)} className={claseAccion("primario", "hidden whitespace-nowrap sm:inline-flex")}>
-              {accion.etiqueta}
-            </Link>
+            {accionVisible && (
+              <Link href={rutaEn(base, accionVisible.ruta)} className={claseAccion("primario", "hidden whitespace-nowrap sm:inline-flex")}>
+                {accionVisible.etiqueta}
+              </Link>
+            )}
           </div>
         </div>
         {/* En el celular, el menú en una fila que se desliza (son pocas secciones) y se esconde al bajar. */}
-        <RielProducto base={base} menu={menu} accion={accion} titulo={p.titulo} />
+        <RielProducto base={base} menu={menu} accion={accionVisible} titulo={p.titulo} largo={largo} />
       </header>
-      <div aria-hidden className="h-11 md:hidden" />
+      <div aria-hidden className={cn("h-11", largo ? "xl:hidden" : "lg:hidden")} />
 
       <main id="contenido" tabIndex={-1} className="flex-1 focus:outline-none">
         {children}

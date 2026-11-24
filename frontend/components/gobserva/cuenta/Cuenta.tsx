@@ -409,7 +409,7 @@ function SinSesion({ producto, base, esVigia }: { producto: Producto; base: stri
           {esVigia
             ? "Para Gobserva entra con tu correo o con Google: ahí llegan tus alertas y tus recibos."
             : COBROS_EN_PAUSA
-              ? `Tus alertas, tus guardados y tu asistente de ${PRODUCTOS[producto].titulo}, gratis con tu cuenta.`
+              ? `Tus alertas, tus guardados y el MCP para tu IA de ${PRODUCTOS[producto].titulo}, gratis con tu cuenta y tu correo confirmado.`
               : `Tus alertas, tus guardados y tu plan de ${PRODUCTOS[producto].titulo} están en tu cuenta.`}
         </p>
         <div className="mt-6 flex flex-wrap justify-center gap-3">

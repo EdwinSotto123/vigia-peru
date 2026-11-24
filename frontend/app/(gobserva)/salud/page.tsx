@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { LocateFixed, Search } from "lucide-react";
+import { FranjaMCP } from "@/components/gobserva/BloqueMCP";
 import { EscribeSolo } from "@/components/gobserva/portada/EscribeSolo";
 import { Odometro } from "@/components/gobserva/portada/Odometro";
 import { AlVer, RuedaAlVer } from "@/components/gobserva/portada/RuedaAlVer";
@@ -273,6 +274,13 @@ export default async function InicioSalud() {
             </div>
           </section>
         )}
+
+        {/* ── 4. Con tu IA: una fila hacia /mcp (2026-11-24, el usuario: «falta una sección que diga MCP»). ── */}
+        <FranjaMCP
+          que="clínicas"
+          href={ruta("/mcp")}
+          bajada="Gratis y sin cuenta: conecta tu IA a Gobserva Salud y pregúntale por una clínica, sus sanciones, cómo verificar a un médico o qué dice la norma, con la fuente y la fecha de cada dato."
+        />
       </div>
     </>
   );

@@ -154,7 +154,7 @@ export function FichaPlaza({ barra, pestanas, inicial, publica = false }: { barr
       <div
         className={cn(
           "z-20 border-b border-line backdrop-blur-xl",
-          publica ? "bg-fondo/95 md:sticky md:top-16" : "sticky top-16 -mx-4 bg-lienzo/95 px-4 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8",
+          publica ? "bg-fondo/95 lg:sticky lg:top-16" : "sticky top-16 -mx-4 bg-lienzo/95 px-4 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8",
         )}
       >
         {barra}

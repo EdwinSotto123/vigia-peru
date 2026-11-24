@@ -29,11 +29,14 @@ function esActual(camino: string | null, href: string): boolean {
   return camino === href || camino.startsWith(`${href}/`);
 }
 
-/** El menú de la cabecera en la computadora, con la sección en que estás marcada. */
-export function MenuProducto({ base, menu, titulo }: { base: string; menu: EnlaceProducto[]; titulo: string }) {
+/**
+ * El menú de la cabecera en la computadora, con la sección en que estás marcada. Desde 1024 px (antes, 768: en la tableta
+ * se cortaban las puntas del menú); uno `largo` (seis secciones o más: Licitaciones, Salud), desde 1280. Más angosto, va la fila de abajo.
+ */
+export function MenuProducto({ base, menu, titulo, largo }: { base: string; menu: EnlaceProducto[]; titulo: string; largo?: boolean }) {
   const camino = useCaminoActual();
   return (
-    <nav aria-label={`Secciones de ${titulo}`} className="hidden min-w-0 flex-1 items-center justify-center gap-1 md:flex">
+    <nav aria-label={`Secciones de ${titulo}`} className={cn("hidden min-w-0 flex-1 items-center justify-center gap-0.5", largo ? "xl:flex" : "lg:flex")}>
       {menu.map((m) => {
         const href = rutaEn(base, m.ruta);
         const actual = esActual(camino, href);
@@ -43,7 +46,7 @@ export function MenuProducto({ base, menu, titulo }: { base: string; menu: Enlac
             href={href}
             aria-current={actual ? "page" : undefined}
             className={cn(
-              "whitespace-nowrap rounded-full px-3 py-2 text-dato transition-colors duration-rapido hover:bg-granate-50 hover:text-ink",
+              "whitespace-nowrap rounded-full px-2.5 py-2 text-dato transition-colors duration-rapido hover:bg-granate-50 hover:text-ink",
               actual ? "bg-granate-50 font-semibold text-ink" : "font-medium text-inkSoft",
             )}
           >
@@ -74,7 +77,7 @@ const MASCARA: Record<string, string> = {
  * bajar, para leer con 44 px más de pantalla; vuelve apenas subes. Como no cambia el alto de la cabecera, la página no
  * salta al esconderse.
  */
-export function RielProducto({ base, menu, accion, titulo }: { base: string; menu: EnlaceProducto[]; accion: EnlaceProducto; titulo: string }) {
+export function RielProducto({ base, menu, accion, titulo, largo }: { base: string; menu: EnlaceProducto[]; accion: EnlaceProducto | null; titulo: string; largo?: boolean }) {
   const camino = useCaminoActual();
   const [oculto, setOculto] = useState(false);
   useEffect(() => {
@@ -127,7 +130,8 @@ export function RielProducto({ base, menu, accion, titulo }: { base: string; men
     <nav
       aria-label={`Secciones de ${titulo}`}
       className={cn(
-        "absolute inset-x-0 top-full h-11 border-y border-line bg-paper/95 backdrop-blur-xl transition-[opacity,transform,visibility] duration-rapido md:hidden",
+        "absolute inset-x-0 top-full h-11 border-y border-line bg-paper/95 backdrop-blur-xl transition-[opacity,transform,visibility] duration-rapido",
+        largo ? "xl:hidden" : "lg:hidden",
         oculto && "pointer-events-none invisible -translate-y-1 opacity-0",
       )}
     >
@@ -139,12 +143,14 @@ export function RielProducto({ base, menu, accion, titulo }: { base: string; men
           MASCARA[`${desborde.izq}-${desborde.der}`],
         )}
       >
-        <Link
-          href={rutaEn(base, accion.ruta)}
-          className="inline-flex min-h-9 shrink-0 items-center whitespace-nowrap rounded-full bg-granate px-3.5 text-meta font-semibold text-paper hover:bg-granate-deep"
-        >
-          {accion.etiqueta}
-        </Link>
+        {accion && (
+          <Link
+            href={rutaEn(base, accion.ruta)}
+            className="inline-flex min-h-9 shrink-0 items-center whitespace-nowrap rounded-full bg-granate px-3.5 text-meta font-semibold text-paper hover:bg-granate-deep sm:hidden"
+          >
+            {accion.etiqueta}
+          </Link>
+        )}
         {menu.map((m) => {
           const href = rutaEn(base, m.ruta);
           const actual = esActual(camino, href);
