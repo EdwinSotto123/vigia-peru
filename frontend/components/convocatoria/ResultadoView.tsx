@@ -142,7 +142,11 @@ export function ResultadoView({
   const score = typeof compl.score === "number" && banderasArr.length > 0 ? puntajeVisible(compl.score) : null;
 
   const ganadores = ((result.postores || []) as any[]).filter((p) => p?.es_ganador);
-  const ganador = [...ganadores].sort((a, b) => (Number(b?.monto_ganado) || 0) - (Number(a?.monto_ganado) || 0))[0];
+  // El mismo que nombra la cabecera de la ficha (`ganador_ficha_ruc`); sin él, el de mayor monto. 1219816 y 2026-20002-59:
+  // la cabecera nombraba a una persona natural y la historia a otra empresa.
+  const ganador =
+    ganadores.find((p) => p?.ruc && p.ruc === (result as any).ganador_ficha_ruc) ??
+    [...ganadores].sort((a, b) => (Number(b?.monto_ganado) || 0) - (Number(a?.monto_ganado) || 0))[0];
 
   // Contadores para las pestañas
   const nItems = Math.max(

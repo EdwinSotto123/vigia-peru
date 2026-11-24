@@ -66,26 +66,62 @@ export function AvisoMasBaja({ c }: { c: Detalle }) {
 
 const SEG = { precio: 0, otros: 2, bonificacion: 4 } as const;
 
+/**
+ * Un monto de oferta que no puede ser (mal leído del acta): más de tres veces el valor referencial de todo el proceso, o
+ * igual a la cantidad de un ítem. 2026-2543-197: S/ 455,949,264 en un proceso de S/ 51 M, y «S/ 5,377,000», que es la
+ * cantidad de unidades del ítem 9. Se muestra marcado y no entra en ninguna comparación.
+ */
+export function montoOfertaDudoso(monto: number, c: Pick<Detalle, "montoPen" | "items">): boolean {
+  if (c.montoPen && monto > 3 * c.montoPen) return true;
+  return c.items.some((it) => it.cantidad != null && it.cantidad >= 1000 && Math.abs(it.cantidad - monto) < 0.5);
+}
+
 export function ComparacionOfertas({ c }: { c: Detalle }) {
-  const ofertas = (c.postoresDetalle ?? []).filter((p) => p.montoOferta != null && p.montoOferta > 0);
+  const todas = (c.postoresDetalle ?? []).filter((p) => p.montoOferta != null && p.montoOferta > 0);
+  const dudosa = (p: PostorContrato) => montoOfertaDudoso(p.montoOferta!, c);
+  const ofertas = todas.filter((p) => !dudosa(p));
   if (ofertas.length < 2) return null;
-  const orden = [...ofertas].sort((a, b) => a.montoOferta! - b.montoOferta!);
-  const minimo = orden[0].montoOferta!;
-  const maximo = orden[orden.length - 1].montoOferta!;
+  // Las dudosas van al final, marcadas, fuera de la escala y de los porcentajes.
+  const orden = [...[...ofertas].sort((a, b) => a.montoOferta! - b.montoOferta!), ...todas.filter(dudosa)];
+  const minimo = Math.min(...ofertas.map((p) => p.montoOferta!));
+  const maximo = Math.max(...ofertas.map((p) => p.montoOferta!));
   const conPuntaje = orden.some((p) => p.puntajeFinal != null || p.puntajeTotal != null);
   const escala = Math.max(100, ...orden.map((p) => p.puntajeFinal ?? p.puntajeTotal ?? 0));
   const conBonif = orden.some((p) => (p.bonificacion ?? 0) > 0);
+  // Con varios ítems cada oferta compite en el suyo: se compara con la más baja de SU ítem, y si las ofertas no dicen su
+  // ítem, no se comparan (2026-2543-194, 8 ítems: «+5,508 %» contra la oferta más baja de otro ítem).
+  const variosItems = c.items.length > 1 || new Set(ofertas.filter((p) => p.esGanador).map((p) => p.ruc ?? p.razonSocial)).size > 1;
+  const conItem = ofertas.every((p) => !!p.item);
+  const minimoDe = (p: PostorContrato): number | null => {
+    if (!variosItems) return minimo;
+    if (!conItem) return null;
+    const del = ofertas.filter((x) => x.item === p.item).map((x) => x.montoOferta!);
+    return del.length > 1 ? Math.min(...del) : null;
+  };
+  const esMasBaja = (p: PostorContrato, i: number) =>
+    variosItems ? minimoDe(p) != null && p.montoOferta === minimoDe(p) && ofertas.filter((x) => x.item === p.item).length > 1 : i === 0;
   return (
     <section aria-labelledby="comparacion-ofertas" className="rounded-2xl border border-line bg-paper px-4 py-4 sm:px-5 [.tarjeta_&]:rounded-none [.tarjeta_&]:border-x-0 [.tarjeta_&]:border-b-0 [.tarjeta_&]:bg-transparent [.tarjeta_&]:px-0 [.tarjeta_&]:pb-0">
       <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
-        <h3 id="comparacion-ofertas" className="font-display text-bloque font-bold text-ink">Las {numero(ofertas.length)} ofertas, de la más baja a la más alta</h3>
+        <h3 id="comparacion-ofertas" className="font-display text-bloque font-bold text-ink">
+          Las {numero(ofertas.length)} ofertas, de la más baja a la más alta{variosItems && !conItem ? ", de distintos ítems" : ""}
+        </h3>
         <span className="text-rotulo text-mute">la barra es el monto ofertado{conPuntaje ? "; a la derecha, el puntaje" : ""}</span>
       </div>
+      {variosItems && (
+        <p className="mt-1 text-rotulo text-mute">
+          {conItem
+            ? "Cada oferta compite en su ítem: el porcentaje es sobre la más baja de ese mismo ítem."
+            : "Cada oferta compite en su ítem y el registro no dice en cuál: no se comparan entre sí. El ítem de cada una está en la tabla, si el acta lo trae."}
+        </p>
+      )}
       <ol className="mt-4 space-y-3.5">
         {orden.map((p, i) => {
           const final = p.puntajeFinal ?? p.puntajeTotal;
           const otros = otrosDe(p);
-          const masBaja = i === 0;
+          const dudoso = dudosa(p);
+          const masBaja = !dudoso && esMasBaja(p, i);
+          const base = dudoso ? null : minimoDe(p);
           const segs = [
             { k: "precio", v: p.puntajePrecio, i: SEG.precio },
             { k: "otros", v: otros, i: SEG.otros },
@@ -99,7 +135,14 @@ export function ComparacionOfertas({ c }: { c: Detalle }) {
                   <span className="pill border-granate/30 bg-paper font-semibold text-granate"><Award size={12} aria-hidden /> Ganó</span>
                 )}
                 {masBaja && (
-                  <span className="pill border-line bg-paperSoft text-inkSoft"><ArrowDownWideNarrow size={12} aria-hidden /> La más baja</span>
+                  <span className="pill border-line bg-paperSoft text-inkSoft">
+                    <ArrowDownWideNarrow size={12} aria-hidden /> {variosItems ? `La más baja del ítem ${p.item}` : "La más baja"}
+                  </span>
+                )}
+                {dudoso && (
+                  <span className="pill border-amber/30 bg-amber-soft text-amberTexto" title="Más de tres veces el valor referencial del proceso, o igual a la cantidad de un ítem: probablemente mal leído del acta">
+                    Monto dudoso
+                  </span>
                 )}
                 {p.admitida === false && <span className="pill border-line bg-paperSoft text-inkSoft">No admitida</span>}
                 {p.admitida !== false && p.calificada === false && <span className="pill border-line bg-paperSoft text-inkSoft">No calificó</span>}
@@ -110,12 +153,14 @@ export function ComparacionOfertas({ c }: { c: Detalle }) {
                   <span className="block h-3 flex-1 overflow-hidden rounded-full bg-paperEdge" aria-hidden>
                     <span
                       className="block h-full rounded-full"
-                      style={{ width: `${(100 * p.montoOferta!) / maximo}%`, background: p.esGanador ? "rgb(var(--granate))" : "rgb(var(--mute))" }}
+                      style={{ width: `${Math.min(100, (100 * p.montoOferta!) / maximo)}%`, background: dudoso ? "rgb(var(--mute) / 0.35)" : p.esGanador ? "rgb(var(--granate))" : "rgb(var(--mute))" }}
                     />
                   </span>
                   <span className="w-36 shrink-0 text-right tabular-nums">
                     <b className="text-dato text-ink">{soles(p.montoOferta!)}</b>
-                    {!masBaja && <span className="ml-1.5 text-rotulo text-mute">+{porcentaje(((p.montoOferta! - minimo) / minimo) * 100, { decimales: 1 })}</span>}
+                    {!masBaja && base != null && base > 0 && p.montoOferta! > base && (
+                      <span className="ml-1.5 text-rotulo text-mute">+{porcentaje(((p.montoOferta! - base) / base) * 100, { decimales: 1 })}</span>
+                    )}
                   </span>
                 </div>
                 {/* El puntaje partido: precio, demás factores y bonificación, en la escala del mayor. */}

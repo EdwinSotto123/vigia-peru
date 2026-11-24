@@ -1141,7 +1141,7 @@ export function referencialAdjudicable(c: Pick<ContratoDetalle, "items" | "monto
  * varios ganadores, no cuadraban con la ficha (2026-2543-197: el dictamen decía S/ 14.1 M y «72.3 % bajo el
  * referencial»; la ficha, S/ 16.6 M y 33 %). Pedido del usuario del 2026-11-24.
  */
-export function informeConCifrasDeLaFicha<T extends Record<string, any> | null>(informe: T, c: Pick<ContratoDetalle, "adjudicaciones" | "items" | "montoPen" | "contratadoConosce">): T {
+export function informeConCifrasDeLaFicha<T extends Record<string, any> | null>(informe: T, c: Pick<ContratoDetalle, "adjudicaciones" | "items" | "montoPen" | "contratadoConosce" | "proveedorRuc">): T {
   if (!informe) return informe;
   const vigentes = adjudicacionesVigentes(c);
   const adjudicado = vigentes.reduce((t, a) => t + (a.montoPen ?? 0), 0) || null;
@@ -1193,6 +1193,8 @@ export function informeConCifrasDeLaFicha<T extends Record<string, any> | null>(
     convocatoria: conv,
     postores,
     ganadores_ficha,
+    // El ganador que nombra la cabecera de la ficha: el dictamen nombra al mismo (con varios, el de mayor monto según la API).
+    ganador_ficha_ruc: c.proveedorRuc ?? null,
     ...(mercado ? { market_analysis: { ...mercado, findings: renumerar(mercado.findings, "item_numero", ["item_descripcion"]) } } : {}),
     ...(docs ? { document_analysis: { ...docs, items_consolidados: renumerar(docs.items_consolidados, "numero", ["descripcion_corta", "descripcion"]) } } : {}),
   };
