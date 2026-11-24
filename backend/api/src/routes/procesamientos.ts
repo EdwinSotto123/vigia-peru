@@ -381,29 +381,45 @@ procesamientosRouter.get("/ritmo", async (c) => {
 // TODO lo que Vigía leyó y lo que costó leerlo: los financiados por aportes son una parte chica (320); el análisis
 // masivo (libro `agente_masivo`, migraciones 272 y 274) es el resto y no salía en la auditoría (pedido 2026-11-14).
 // El costo es el del modelo, en dólares, medido por cada corrida. Sin datos personales: sólo cuentas.
+// Los reanálisis (dictámenes que se rehacen tras un arreglo del agente) van en el libro como `externo` con su OCID y el
+// motivo «reanálisis: …» (en vuelo mientras corren): se cuentan aparte de lo leído por primera vez y de las pruebas de
+// calidad, y entran en «leyéndose ahora», en el día y en lo de hoy. Lo que cuesta leer los documentos (documento_lectura)
+// va aparte del presupuesto de los agentes (2026-11-24: la auditoría decía «leyéndose ahora: 0» con ocho en curso).
 const LECTURA_SQL = `WITH hoy AS (SELECT (now() AT TIME ZONE 'America/Lima')::date AS d),
   dias AS (SELECT generate_series(hoy.d - 13, hoy.d, interval '1 day')::date AS dia FROM hoy),
   por_dia AS (SELECT (terminado_en AT TIME ZONE 'America/Lima')::date AS dia, count(*) FILTER (WHERE estado = 'ok')::int AS n,
+                     count(*) FILTER (WHERE estado = 'externo' AND ocid IS NOT NULL AND motivo ILIKE 'reanálisis%')::int AS r,
                      COALESCE(sum(costo), 0)::float AS costo
                 FROM agente_masivo, hoy
-               WHERE terminado_en >= ((hoy.d - 13)::timestamp AT TIME ZONE 'America/Lima') AND estado IN ('ok', 'error')
+               WHERE terminado_en >= ((hoy.d - 13)::timestamp AT TIME ZONE 'America/Lima') AND estado IN ('ok', 'error', 'externo')
                GROUP BY 1)
 SELECT
   (SELECT json_build_object(
             'leidos', count(*) FILTER (WHERE estado = 'ok')::int,
-            'fallidos', count(*) FILTER (WHERE estado = 'error')::int,
+            'fallidos', count(*) FILTER (WHERE estado = 'error' AND (motivo IS NULL OR motivo NOT ILIKE 'reanálisis%'))::int,
             'enCurso', count(*) FILTER (WHERE estado = 'en_vuelo' AND creado_en > now() - interval '30 minutes')::int,
+            'enCursoReanalisis', count(*) FILTER (WHERE estado = 'en_vuelo' AND creado_en > now() - interval '30 minutes'
+                                                     AND motivo ILIKE 'reanálisis%')::int,
             'costo', COALESCE(sum(costo), 0)::float,
             'costoLeidos', COALESCE(sum(costo) FILTER (WHERE estado = 'ok'), 0)::float,
-            'costoFallidos', COALESCE(sum(costo) FILTER (WHERE estado = 'error'), 0)::float,
-            'costoPruebas', COALESCE(sum(costo) FILTER (WHERE estado = 'externo'), 0)::float,
+            'costoFallidos', COALESCE(sum(costo) FILTER (WHERE estado = 'error' AND (motivo IS NULL OR motivo NOT ILIKE 'reanálisis%')), 0)::float,
+            'costoReanalisis', COALESCE(sum(costo) FILTER (WHERE estado IN ('externo', 'error') AND motivo ILIKE 'reanálisis%'), 0)::float,
+            'reanalizados', count(*) FILTER (WHERE estado = 'externo' AND ocid IS NOT NULL AND motivo ILIKE 'reanálisis%')::int,
+            'costoPruebas', COALESCE(sum(costo) FILTER (WHERE estado = 'externo' AND (motivo IS NULL OR motivo NOT ILIKE 'reanálisis%')), 0)::float,
+            'costoHoy', COALESCE(sum(costo) FILTER (WHERE terminado_en >= ((SELECT d FROM hoy)::timestamp AT TIME ZONE 'America/Lima')), 0)::float,
             'segundos', (avg(segundos) FILTER (WHERE estado = 'ok'))::float,
-            'primero', min(creado_en), 'ultimo', max(terminado_en) FILTER (WHERE estado = 'ok'))
+            'primero', min(creado_en),
+            'ultimo', max(terminado_en) FILTER (WHERE estado = 'ok' OR (estado = 'externo' AND ocid IS NOT NULL)))
      FROM agente_masivo) AS masivo,
+  (SELECT json_build_object('lecturas', count(*)::int, 'costo', COALESCE(sum(costo_usd), 0)::float,
+                            'costoHoy', COALESCE(sum(costo_usd) FILTER (WHERE leido_at >= ((SELECT d FROM hoy)::timestamp AT TIME ZONE 'America/Lima')), 0)::float,
+                            'hoy', count(*) FILTER (WHERE leido_at >= ((SELECT d FROM hoy)::timestamp AT TIME ZONE 'America/Lima'))::int)
+     FROM documento_lectura) AS documentos,
   (SELECT COALESCE(json_agg(x), '[]'::json) FROM (
      SELECT red, count(*) FILTER (WHERE estado = 'ok')::int AS leidos, COALESCE(sum(costo), 0)::float AS costo
        FROM agente_masivo WHERE estado IN ('ok', 'error') AND red IS NOT NULL GROUP BY red ORDER BY 2 DESC) x) AS "porRed",
-  (SELECT json_agg(json_build_object('dia', to_char(dias.dia, 'YYYY-MM-DD'), 'n', COALESCE(p.n, 0), 'costo', COALESCE(p.costo, 0)) ORDER BY dias.dia)
+  (SELECT json_agg(json_build_object('dia', to_char(dias.dia, 'YYYY-MM-DD'), 'n', COALESCE(p.n, 0), 'r', COALESCE(p.r, 0),
+                                     'costo', COALESCE(p.costo, 0)) ORDER BY dias.dia)
      FROM dias LEFT JOIN por_dia p USING (dia)) AS "porDia",
   (SELECT json_build_object('analizados', count(*)::int,
                             'conDictamen', count(*) FILTER (WHERE dictamen_markdown IS NOT NULL AND dictamen_markdown <> '')::int,
@@ -424,7 +440,8 @@ procesamientosRouter.get("/lectura", (c) =>
       tope = null;
     }
     const x = r.rows[0];
-    return { masivo: x.masivo, porRed: x.porRed, porDia: x.porDia ?? [], alertas: x.alertas, financiados: x.financiados, tope };
+    return { masivo: x.masivo, porRed: x.porRed, porDia: x.porDia ?? [], alertas: x.alertas, financiados: x.financiados, tope,
+             documentos: x.documentos ?? null };
   }, cachePublico(120, { maxAge: 60 })));
 
 // ─── GET /financiamiento/procesamientos/reglas?perfil=bienes ─────────────────────────────

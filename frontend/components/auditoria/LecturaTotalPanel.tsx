@@ -31,6 +31,11 @@ export function LecturaTotalPanel({ datos }: { datos: LecturaTotal }) {
   // Lo leído antes de que existiera el libro del análisis masivo (las primeras lecturas del año).
   const anteriores = Math.max(0, leidos - m.leidos - datos.financiados);
   const usado = datos.tope && datos.tope > 0 ? Math.min(1, m.costo / datos.tope) : null;
+  const docs = datos.documentos ?? null;
+  const rehechos = m.reanalizados ?? 0;
+  const enReanalisis = m.enCursoReanalisis ?? 0;
+  // Lo gastado hoy: los agentes (lecturas, reanálisis, pruebas) y la lectura de documentos.
+  const hoy = (m.costoHoy ?? 0) + (docs?.costoHoy ?? 0);
 
   const cifras: Cifra[] = [
     {
@@ -40,7 +45,7 @@ export function LecturaTotalPanel({ datos }: { datos: LecturaTotal }) {
         `${numero(m.leidos)} del análisis masivo`,
         `${numero(datos.financiados)} financiados por aportes`,
         ...(anteriores > 0 ? [`${numero(anteriores)} de lecturas anteriores`] : []),
-      ].join(", "),
+      ].join(", ") + (rehechos > 0 ? `; además, ${numero(rehechos)} ${rehechos === 1 ? "dictamen rehecho" : "dictámenes rehechos"} tras un arreglo` : ""),
       ayuda: (
         <Ayuda titulo="¿Qué cuenta como leído?">
           <span className="block">Un contrato que los agentes analizaron de principio a fin, tenga o no señales.</span>
@@ -53,15 +58,20 @@ export function LecturaTotalPanel({ datos }: { datos: LecturaTotal }) {
     {
       valor: usd(m.costo),
       etiqueta: "gastado en leerlos",
-      contexto:
-        usado != null ? (
-          <span className="block">
-            <Medidor parte={usado} etiqueta={`Gastado ${usd(m.costo)} de ${usd(datos.tope!)}`} className="mb-1.5 mt-1" />
-            de {usd(datos.tope!)} presupuestados
-          </span>
-        ) : (
-          "costo del modelo que lee, medido en cada lectura"
-        ),
+      contexto: (
+        <span className="block">
+          {usado != null ? (
+            <>
+              <Medidor parte={usado} etiqueta={`Gastado ${usd(m.costo)} de ${usd(datos.tope!)}`} className="mb-1.5 mt-1" />
+              de {usd(datos.tope!)} presupuestados
+            </>
+          ) : (
+            "costo del modelo que lee, medido en cada lectura"
+          )}
+          {hoy > 0 && <span className="block">hoy, {usd(hoy)}</span>}
+          {docs && docs.costo > 0 && <span className="block">y {usd(docs.costo)} en leer sus documentos</span>}
+        </span>
+      ),
       ayuda: (
         <Ayuda titulo="¿Qué incluye este gasto?">
           <span className="block">
@@ -69,9 +79,16 @@ export function LecturaTotalPanel({ datos }: { datos: LecturaTotal }) {
             abiertos.
           </span>
           <span className="mt-2 block text-mute">
-            {usd(m.costoLeidos)} en lecturas terminadas, {usd(m.costoFallidos)} en lecturas que fallaron y {usd(m.costoPruebas)} en
-            pruebas de calidad. No incluye servidores ni base de datos.
+            {usd(m.costoLeidos)} en lecturas terminadas, {usd(m.costoFallidos)} en lecturas que fallaron
+            {m.costoReanalisis != null && m.costoReanalisis > 0 && <>, {usd(m.costoReanalisis)} en rehacer dictámenes tras un arreglo del agente</>} y{" "}
+            {usd(m.costoPruebas)} en pruebas de calidad. No incluye servidores ni base de datos.
           </span>
+          {docs && docs.costo > 0 && (
+            <span className="mt-2 block text-mute">
+              Aparte, leer los documentos de cada contrato (bases, actas, contratos) costó {usd(docs.costo)} en{" "}
+              {numero(docs.lecturas)} lecturas{docs.costoHoy > 0 ? `, ${usd(docs.costoHoy)} de ellas hoy` : ""}.
+            </span>
+          )}
         </Ayuda>
       ),
     },
@@ -83,15 +100,25 @@ export function LecturaTotalPanel({ datos }: { datos: LecturaTotal }) {
     {
       valor: numero(m.enCurso),
       etiqueta: "leyéndose ahora",
-      contexto: m.ultimo ? `última lectura ${relativo(m.ultimo)}` : undefined,
+      contexto:
+        enReanalisis > 0
+          ? enReanalisis === m.enCurso
+            ? `${enReanalisis === 1 ? "es un dictamen que se rehace" : "son dictámenes que se rehacen"} tras un arreglo del agente`
+            : `${numero(enReanalisis)} de ellos, dictámenes que se rehacen tras un arreglo`
+          : m.ultimo
+            ? `última lectura ${relativo(m.ultimo)}`
+            : undefined,
       tono: m.enCurso > 0 ? "positivo" : "neutro",
     },
   ];
 
   const redes = datos.porRed.filter((r) => r.costo > 0 || r.leidos > 0);
   const dias = datos.porDia;
-  const maxDia = Math.max(1, ...dias.map((d) => d.n));
-  const conLectura = dias.filter((d) => d.n > 0);
+  // Cada día, lo leído por primera vez y los dictámenes rehechos, apilados.
+  const total = (d: { n: number; r?: number }) => d.n + (d.r ?? 0);
+  const maxDia = Math.max(1, ...dias.map(total));
+  const conLectura = dias.filter((d) => total(d) > 0);
+  const conRehechos = dias.some((d) => (d.r ?? 0) > 0);
 
   return (
     // En su tarjeta, con el título adentro (2026-11-23, el usuario: «secciones que son solo texto sin fondo o forma»): antes
@@ -136,19 +163,42 @@ export function LecturaTotalPanel({ datos }: { datos: LecturaTotal }) {
             <p className="text-meta text-inkSoft">Últimos {dias.length} días, hora de Lima</p>
             <ol
               className="mt-3 flex h-32 items-end gap-1"
-              aria-label={`Contratos leídos por día: ${conLectura.map((d) => `${fechaCorta(d.dia)}, ${numero(d.n)}`).join("; ")}`}
+              aria-label={`Contratos leídos por día: ${conLectura
+                .map((d) => `${fechaCorta(d.dia)}, ${numero(d.n)}${d.r ? ` y ${numero(d.r)} rehechos` : ""}`)
+                .join("; ")}`}
             >
               {dias.map((d) => (
-                <li key={d.dia} className="flex h-full min-w-0 flex-1 flex-col justify-end" title={`${fechaCorta(d.dia)}: ${numero(d.n)} leídos, ${usd(d.costo)}`}>
-                  {d.n === maxDia && <span className="mb-1 text-center font-mono text-meta tabular-nums text-ink">{numero(d.n)}</span>}
+                <li
+                  key={d.dia}
+                  className="flex h-full min-w-0 flex-1 flex-col justify-end"
+                  title={`${fechaCorta(d.dia)}: ${numero(d.n)} leídos${d.r ? `, ${numero(d.r)} rehechos` : ""}, ${usd(d.costo)}`}
+                >
+                  {total(d) === maxDia && <span className="mb-1 text-center font-mono text-meta tabular-nums text-ink">{numero(total(d))}</span>}
+                  {/* Los rehechos arriba, en el segundo color; lo leído por primera vez abajo. */}
+                  {(d.r ?? 0) > 0 && (
+                    <span
+                      aria-hidden
+                      className="block w-full rounded-t"
+                      style={{ height: `${Math.max(3, ((d.r ?? 0) / maxDia) * 82)}%`, background: "rgb(var(--serie-2))" }}
+                    />
+                  )}
                   <span
                     aria-hidden
-                    className="block w-full rounded-t"
-                    style={{ height: `${Math.max(d.n > 0 ? 4 : 1, (d.n / maxDia) * 82)}%`, background: d.n > 0 ? "rgb(var(--serie-1))" : "rgb(var(--serie-otros) / 0.4)" }}
+                    className={`block w-full ${(d.r ?? 0) > 0 ? "" : "rounded-t"}`}
+                    style={{
+                      height: `${Math.max(d.n > 0 ? 4 : (d.r ?? 0) > 0 ? 0 : 1, (d.n / maxDia) * 82)}%`,
+                      background: d.n > 0 ? "rgb(var(--serie-1))" : "rgb(var(--serie-otros) / 0.4)",
+                    }}
                   />
                 </li>
               ))}
             </ol>
+            {conRehechos && (
+              <p className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-rotulo text-mute">
+                <span className="inline-flex items-center gap-1.5"><MuestraSerie i={0} /> Leídos por primera vez</span>
+                <span className="inline-flex items-center gap-1.5"><MuestraSerie i={1} /> Dictámenes rehechos tras un arreglo</span>
+              </p>
+            )}
             <p className="mt-1.5 flex justify-between font-mono text-meta tabular-nums text-mute">
               <span>{fechaCorta(dias[0].dia)}</span>
               <span>{fechaCorta(dias[dias.length - 1].dia)}</span>

@@ -12,7 +12,13 @@ masivo no sirve para esto: salta los contratos que ya tienen alerta. El gasto se
 
 `--guiones`: la lista sale de la base (los dictámenes de OCID con guiones hechos antes del arreglo de e267f269 que tenían
 lecturas; los ya rehechos quedan fuera): cada corrida retoma donde quedó la anterior, como el job `tarea:reanalisis` del CI.
-`--minutos`: deja de lanzar al llegar y espera a los que están en vuelo. El gasto se anota en el libro cada 25 análisis.
+`--minutos`: deja de lanzar al llegar y espera a los que están en vuelo.
+
+El libro: cada contrato entra a `agente_masivo` como «en vuelo» al lanzarse (la auditoría lo cuenta en «leyéndose ahora») y
+queda como `externo` con su OCID, su costo y su motivo «reanálisis: …» al terminar (o `error`); la corrida abre su fila en
+`agente_masivo_tanda` con `--presupuesto` (el tope acumulado del libro, por defecto MASIVO_TOPE), que es el «presupuestado»
+de la auditoría. Antes se anotaba un total cada 25 análisis y la auditoría decía «leyéndose ahora: 0» con ocho en curso y
+llamaba «pruebas de calidad» a los reanálisis (2026-11-24).
 
 La red sale del tipo de contratación de la convocatoria (como en masivo_agentes.py). Workers AI admite ≤ 9 análisis a la
 vez en total y el masivo puede estar corriendo: por defecto 2 hilos.
@@ -20,6 +26,8 @@ vez en total y el masivo puede estar corriendo: por defecto 2 hilos.
 from __future__ import annotations
 
 import argparse
+import json
+import os
 import sys
 import threading
 import time
@@ -53,6 +61,8 @@ def main() -> None:
     ap.add_argument("--hilos", type=int, default=2)
     ap.add_argument("--guiones", action="store_true", help="la lista de los dictámenes de OCID con guiones hechos sin sus lecturas")
     ap.add_argument("--minutos", type=float, default=None, help="deja de lanzar análisis pasados estos minutos")
+    ap.add_argument("--presupuesto", type=float, default=float(os.environ["MASIVO_TOPE"]) if os.getenv("MASIVO_TOPE") else None,
+                    help="tope acumulado del libro (US$) que muestra la auditoría; por defecto MASIVO_TOPE")
     a = ap.parse_args()
     sys.stdout.reconfigure(encoding="utf-8")
     M._db["entorno"] = a.entorno
@@ -84,14 +94,53 @@ def main() -> None:
             continue
         trabajos.append((o, r))
     M.log(f"{len(trabajos)} contratos para reanalizar, {a.hilos} a la vez")
-    hecho = {"ok": 0, "error": 0, "usd": 0.0, "anotado": 0.0, "desde_nota": 0}
+    hecho = {"ok": 0, "error": 0, "usd": 0.0, "anotado": 0.0, "desde_nota": 0, "en_libro": 0.0}
+    origen = f"reanalisis-{os.environ['CI_JOB_ID']}" if os.getenv("CI_JOB_ID") else f"reanalisis-pc-{time.strftime('%Y%m%d-%H%M')}"
+    motivo = f"reanálisis: {a.motivo}"[:300]
+
+    def abrir_tanda(cu):
+        g, _ = M.gasto(cu)
+        cu.execute("""INSERT INTO agente_masivo_tanda (origen, tope, plan, filtro, pendientes, sin_info, gastado_al_inicio)
+                      VALUES (%s, %s, %s, %s, %s::jsonb, '{}'::jsonb, %s) ON CONFLICT (origen) DO NOTHING""",
+                   (origen, a.presupuesto, motivo[:200], f"{len(trabajos)} dictámenes",
+                    json.dumps({r: sum(1 for _, x in trabajos if x == r) for r in {x for _, x in trabajos}}), g))
+
+    def reservar(o: str, r: str) -> int | None:
+        """Su fila en el libro, «en vuelo» (si el masivo ya lo tiene en vuelo, sin fila: se anota en el total)."""
+        def ins(cu):
+            cu.execute("""INSERT INTO agente_masivo (ocid, red, origen, motivo) VALUES (%s, %s, %s, %s)
+                          ON CONFLICT (ocid) WHERE estado = 'en_vuelo' DO NOTHING RETURNING id""", (o, r, origen, motivo))
+            f = cu.fetchone()
+            return f[0] if f else None
+        try:
+            return M.base(ins)
+        except Exception as e:  # noqa: BLE001
+            M.log(f"[EXC] sin fila en el libro para {o}: {str(e)[:120]}")
+            return None
+
+    def cerrar(rid: int, ok: bool, costo: float, medido: bool, segundos, score, error) -> bool:
+        try:
+            M.base(lambda cu: cu.execute(
+                """UPDATE agente_masivo SET estado = %s, costo = %s, costo_medido = %s, segundos = %s, score = %s, error = %s,
+                          terminado_en = now() WHERE id = %s""",
+                ("externo" if ok else "error", costo, medido, segundos, score, (str(error)[:300] if error else None), rid)))
+            return True
+        except Exception as e:  # noqa: BLE001
+            M.log(f"[EXC] no pude cerrar la fila {rid}: {str(e)[:120]}")
+            return False
+
+    try:
+        M.base(abrir_tanda)
+    except Exception as e:  # noqa: BLE001
+        M.log(f"[EXC] no pude abrir la tanda: {str(e)[:150]}")
     hasta = time.time() + a.minutos * 60 if a.minutos else None
 
     def anotar(final: bool = False) -> None:
         """Lo gastado desde la última nota, al libro del masivo (cada 25 análisis y al final: si la corrida se corta, sólo se
         pierde la cuenta de lo último)."""
         with _lock:
-            nuevo = round(hecho["usd"] - hecho["anotado"], 4)
+            # Lo que ya quedó en su fila del libro no se vuelve a anotar.
+            nuevo = round(hecho["usd"] - hecho["en_libro"] - hecho["anotado"], 4)
             if nuevo <= 0 or (not final and hecho["desde_nota"] < 25):
                 return
             hecho["anotado"] += nuevo
@@ -107,6 +156,7 @@ def main() -> None:
                 M.log(f"[--] {o}: tope de US$ {a.tope} alcanzado")
                 return
             hecho["usd"] += M.COSTO_SUPUESTO   # reserva; se ajusta al costo medido
+        rid = reservar(o, r)
         cuerpo = M.base(lambda cu: M.ab_modelos.cuerpo(cu, o))
         res = {}
         for _ in range(3):
@@ -117,11 +167,15 @@ def main() -> None:
         st = (res.get("final") or {}).get("state") or {}
         costo = (st.get("llm_metrics") or {}).get("cost_usd")
         ok = bool(res.get("final")) and not res.get("error")
+        medido = costo is not None
         costo = float(costo) if costo is not None else (0.0 if (res.get("segundos") or 0) < 15 else M.COSTO_SUPUESTO)
+        en_fila = rid is not None and cerrar(rid, ok, costo, medido, res.get("segundos"), st.get("score"), res.get("error"))
         with _lock:
             hecho["usd"] += costo - M.COSTO_SUPUESTO
             hecho["ok" if ok else "error"] += 1
             hecho["desde_nota"] += 1
+            if en_fila:
+                hecho["en_libro"] += costo
         anotar()
         M.log(f"[{'ok ' if ok else 'ERR'}] {o} {r} {res.get('segundos')}s USD {costo:.4f} score {st.get('score')} "
               f"{str(res.get('error') or '')[:120]}")
@@ -130,6 +184,11 @@ def main() -> None:
         with ThreadPoolExecutor(max(1, a.hilos)) as ex:
             list(ex.map(uno, trabajos))
         anotar(final=True)
+        try:
+            M.base(lambda cu: cu.execute("UPDATE agente_masivo_tanda SET fin = now(), ok = %s, errores = %s, costo = %s WHERE origen = %s",
+                                         (hecho["ok"], hecho["error"], round(hecho["usd"], 4), origen)))
+        except Exception as e:  # noqa: BLE001
+            M.log(f"[EXC] no pude cerrar la tanda: {str(e)[:150]}")
         M.log(f"fin: {hecho['ok']} ok, {hecho['error']} con error, USD {hecho['usd']:.2f} (anotado en el libro del masivo)")
     finally:
         # El túnel se cierra aquí: al apagarse el intérprete ya no puede (y quedaba la sesión de SSM abierta).

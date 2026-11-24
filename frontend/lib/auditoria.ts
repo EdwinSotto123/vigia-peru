@@ -429,12 +429,17 @@ export interface LecturaTotal {
   masivo: {
     leidos: number; fallidos: number; enCurso: number; costo: number; costoLeidos: number; costoFallidos: number;
     costoPruebas: number; segundos: number | null; primero: string | null; ultimo: string | null;
+    /** Desde el 2026-11-24 (una API anterior no los manda): los dictámenes rehechos tras un arreglo del agente y lo de hoy. */
+    enCursoReanalisis?: number; costoReanalisis?: number; reanalizados?: number; costoHoy?: number;
   };
   porRed: { red: string; leidos: number; costo: number }[];
-  porDia: { dia: string; n: number; costo: number }[];
+  /** `r`: dictámenes rehechos ese día (desde el 2026-11-24). */
+  porDia: { dia: string; n: number; r?: number; costo: number }[];
   alertas: { analizados: number; conDictamen: number; ultimo: string | null };
   financiados: number;
   tope: number | null;
+  /** Lo que cuesta leer los documentos (bases, actas, contratos), aparte de los agentes. Falta en una API anterior. */
+  documentos?: { lecturas: number; costo: number; costoHoy: number; hoy: number } | null;
 }
 
 export async function getLecturaTotal(): Promise<LecturaTotal | null> {
