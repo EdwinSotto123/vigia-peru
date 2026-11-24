@@ -79,6 +79,7 @@ def check_concentracion_entidad_rule(ocid: str, tool_context: ToolContext,
         nombre = tapar_nombre(quien) if str(c["ruc"]).startswith("10") else quien
         result.update({
             "triggered": True,
+            "ganador_ruc": c["ruc"],
             "severidad": "media",
             "evidencia": (
                 f"{nombre} tiene {c['n_misma']} buenas pro con {entidad_nombre or 'esta entidad'} de {c['n_total']} "
@@ -452,7 +453,7 @@ def check_directa_recurrente_rule(ocid: str, tool_context: ToolContext,
               "_nota_alcance": "Conteos sobre procesos ingestados en la base de Vigía.", "triggered": False}
     if len(procesos) >= 3:
         result.update({
-            "triggered": True, "severidad": "media",
+            "triggered": True, "severidad": "media", "ganador_ruc": prov_ruc,
             "evidencia": (f"{prov_nombre or 'El proveedor'} (RUC {prov_ruc}) acumula {len(procesos)} contrataciones "
                           f"directas en los 12 meses previos ({', '.join(p['ocid'] for p in procesos[:4])}), "
                           f"además de la presente. Recurrencia en procedimientos no competitivos."),
@@ -560,6 +561,7 @@ def check_lobby_visits_rule(ocid: str, tool_context: ToolContext,
                  else f"{v0['empresa']} (ganador)")
         otras = len(ganadoras) - 1
         result.update({
+            "ganador_ruc": v0.get("ruc_empresa"),
             "severidad": "alta" if v0.get("decisor") else "media",
             "evidencia": (
                 f"{v0['visitante']} ({v0['rol_en_empresa'] or 'persona vinculada'} de {quien}) visitó {entidad_nombre} el "

@@ -31,8 +31,132 @@ _MISMO_HECHO_PUNTAJE: tuple[tuple[str, str], ...] = (("unico_postor_alto", "ofer
                                                      ("proveedor_sancionado_osce", "sancion_vigente_oece"))
 
 
+# ── El RUC nuevo del ganador es UN hecho ──────────────────────────────
+# 2026-2543-197 (2026-11-24): que HAMUQ FARMA inició actividades el 6-dic-2024 (615 días a la buena pro) salió en tres
+# banderas: la regla `ruc_ganador_muy_nuevo` (alta), la web «empresa recién fundada con alto volumen contractual»
+# (`antecedente_proveedor_web`, alta) y el juicio `capacidad_operativa_cuestionable` (media) apoyado solo en esa fecha
+# y el monto; con dos notas de prensa de la entidad, el puntaje llegó a 100. Queda la regla más específica (la
+# determinista; entre las dos de edad, `ruc_ultra_nuevo`); las otras no se publican si no traen otro hecho.
+_RUC_NUEVO = ("ruc_ultra_nuevo", "ruc_ganador_muy_nuevo")
+_RE_EDAD_EMPRESA = re.compile(
+    r"reci[eé]n\s+(?:fundad|cread|constituid)|inici[oó]\s+(?:sus\s+)?actividades|inicio\s+de\s+(?:sus\s+)?actividades|"
+    r"fecha\s+de\s+(?:inicio|constituci[oó]n|alta)|antig[uü]edad|empresa\s+(?:nueva|joven)|nueva\s+empresa|"
+    r"reciente\s+(?:creaci[oó]n|constituci[oó]n)|(?:cread|constituid|fundad)a\s+(?:el|en|hace)", re.I)
+# Lo que la web puede decir ADEMÁS de la edad: eso sí es otro hecho y la bandera se queda.
+_RE_OTRO_HECHO_WEB = re.compile(
+    r"sanci[oó]n|sancionad|inhabilit|impedid|fraude|denuncia|fiscal[ií]a|investigad|procesad|penalidad|multa|"
+    r"incumpl|resoluci[oó]n\s+del?\s+contrato|lavado|corrupci|falsa|adulterad", re.I)
+# La capacidad operativa con base propia (no solo «empresa nueva + monto alto»): datos que la edad no dice.
+_RE_BASE_PROPIA_CAPACIDAD = re.compile(
+    r"trabajador|planilla|persona\s+natural|domicilio|vivienda|capital\s+social|no\s+habido|"
+    r"sin\s+(?:registro\s+sanitario|local|almac[eé]n|planta|licencia)|subcontrat", re.I)
+_RE_RUC_EN_TEXTO = re.compile(r"\bRUC\s*:?\s*(\d{11})\b", re.I)
+
+
+def ruc_de_bandera(b: dict) -> str | None:
+    """RUC del ganador del que trata la bandera: `ganador_ruc` (en la bandera o, ya leída de la base, en
+    `verificacion`); si no, el «RUC …» de la evidencia."""
+    if not isinstance(b, dict):
+        return None
+    ver = b.get("verificacion") if isinstance(b.get("verificacion"), dict) else {}
+    r = b.get("ganador_ruc") or ver.get("ganador_ruc")
+    if r:
+        return str(r)
+    m = _RE_RUC_EN_TEXTO.search(str(b.get("evidencia") or ""))
+    return m.group(1) if m else None
+
+
+def _es_del_ganador(b: dict) -> bool:
+    """`ruc_ultra_nuevo` también evalúa a los postores que perdieron: solo cuenta la del adjudicatario."""
+    if b.get("regla") != "ruc_ultra_nuevo":
+        return True
+    if b.get("postor_ruc") and not b.get("ganador_ruc"):
+        return False
+    return bool(b.get("ganador_ruc")) or "adjudicatario" in str(b.get("evidencia") or "").lower() \
+        or b.get("severidad") == "alta"
+
+
+def mismo_hecho_que(b: dict, banderas: list[dict]) -> str | None:
+    """La regla de `banderas` que ya cuenta el hecho de `b` (el RUC nuevo del mismo ganador), o None si `b` dice algo
+    más. Sin RUC en alguna de las dos se asume el mismo ganador (la investigación web es de uno solo)."""
+    if not isinstance(b, dict):
+        return None
+    regla = b.get("regla")
+    if regla not in ("ruc_ganador_muy_nuevo", "antecedente_proveedor_web", "capacidad_operativa_cuestionable"):
+        return None
+    rb = ruc_de_bandera(b)
+    anclas = [o for o in banderas if isinstance(o, dict) and o is not b and o.get("regla") in _RUC_NUEVO
+              and _es_del_ganador(o) and (not rb or not ruc_de_bandera(o) or ruc_de_bandera(o) == rb)]
+    if regla == "ruc_ganador_muy_nuevo":
+        return next((o["regla"] for o in anclas if o["regla"] == "ruc_ultra_nuevo"), None)
+    if not anclas:
+        return None
+    ancla = min(anclas, key=lambda o: _RUC_NUEVO.index(o["regla"]))["regla"]
+    texto = str(b.get("evidencia") or "")
+    if regla == "antecedente_proveedor_web":
+        titulo = str(b.get("titulo") or texto.split(":", 1)[0])
+        if _RE_EDAD_EMPRESA.search(titulo) and not _RE_OTRO_HECHO_WEB.search(texto):
+            return ancla
+        return None
+    return None if _RE_BASE_PROPIA_CAPACIDAD.search(texto) else ancla
+
+
+def sin_mismo_hecho(banderas: list[dict], state: dict | None, donde: str, contexto: list[dict] | None = None) -> list[dict]:
+    """`banderas` sin las que repiten un hecho ya contado por otra (de la misma lista o de `contexto`, las que la
+    alerta ya tiene). Cada una que sale queda en state['descartes'] con la regla que la cubre."""
+    universo = list(banderas) + [c for c in (contexto or []) if isinstance(c, dict)]
+    out = []
+    for b in banderas:
+        ancla = mismo_hecho_que(b, universo)
+        if not ancla:
+            out.append(b)
+            continue
+        if isinstance(state, dict):
+            state.setdefault("descartes", []).append({
+                "donde": donde, "agente": b.get("agente_origen"), "regla": b.get("regla"),
+                "motivo": f"mismo_hecho_que_{ancla}", "evidencia": str(b.get("evidencia") or "")[:240]})
+    return out
+
+
+# Reglas que hablan de UN proveedor ganador: cada bandera dice de cuál (`ganador_ruc`). Las que pueden ser de un postor
+# que perdió (`ruc_ultra_nuevo`, `firmante_con_empresa_rnp`) traen `postor_ruc` en ese caso.
+REGLAS_DE_PROVEEDOR = frozenset({
+    "proveedor_sancionado_osce", "ruc_ganador_muy_nuevo", "ruc_ultra_nuevo", "ciiu_vs_objeto", "rubro_ciiu_incongruente",
+    "concentracion_entidad", "firmante_vinculado_ganador", "testaferro_multi_ruc", "personal_clave_vinculado",
+    "directa_recurrente", "lobby_visits_pre_convocatoria", "fraccionamiento", "firmante_con_empresa_rnp",
+    "capacidad_operativa_cuestionable", "conflicto_interes_funcionario_empresa", "antecedente_proveedor_web",
+    "cobertura_prensa_adversa", "vinculo_red_personas", "sancion_vigente_oece", "sancion_historica_oece",
+    "penalidades_oece_historicas",
+})
+
+
+def con_ganador_principal(banderas: list[dict], state: dict) -> list[dict]:
+    """Pone `ganador_ruc` (el ganador que investigó el análisis) a las banderas de proveedor que no lo traen: las de
+    juicio y las señales del expediente (`add_contextual_flag`) salen de ese ganador."""
+    principal = ruc_ganador_principal(state)
+    for b in banderas:
+        if (principal and isinstance(b, dict) and not b.get("ganador_ruc") and not b.get("postor_ruc")
+                and (b.get("regla") in REGLAS_DE_PROVEEDOR or b.get("_source") == "orchestrator_paso_7.7")):
+            b["ganador_ruc"] = principal
+    return banderas
+
+
+def ruc_ganador_principal(state: dict) -> str | None:
+    """RUC del ganador que investigó el análisis (el del expediente; si no, el de la red de personas o la web)."""
+    st = state if isinstance(state, dict) else {}
+    cands = [(st.get("expediente_proveedor") or {}).get("ruc") if isinstance(st.get("expediente_proveedor"), dict) else None,
+             ((st.get("person_network_context") or {}).get("ganador") or {}).get("ruc")
+             if isinstance(st.get("person_network_context"), dict) else None]
+    web = _safe_parse_json(st.get("web_research")) if not isinstance(st.get("web_research"), dict) else st["web_research"]
+    if isinstance(web, dict) and isinstance(web.get("empresa"), dict):
+        cands.append(web["empresa"].get("ruc"))
+    return next((str(c) for c in cands if c and re.fullmatch(r"\d{11}", str(c))), None)
+
+
 def puntaje_de(banderas: list[dict]) -> int:
-    """min(100, Σ peso) de las banderas que puntúan, con el mismo hecho contado una vez y media (no dos)."""
+    """min(100, Σ peso) de las banderas que puntúan, con el mismo hecho contado una vez y media (no dos). Una bandera
+    que repite el RUC nuevo de otra (`mismo_hecho_que`) no suma, aunque haya quedado en la base de una corrida vieja."""
+    banderas = [b for b in banderas if not mismo_hecho_que(b, banderas)]
     pesos = [(b.get("regla"), _peso(b.get("agente_origen"), b.get("severidad"))) for b in banderas if b.get("puntua", True)]
     total = float(sum(p for _, p in pesos))
     for a, b in _MISMO_HECHO_PUNTAJE:
@@ -89,7 +213,7 @@ _INSERT_BANDERA_SQL = """INSERT INTO banderas (alerta_id, regla, severidad, evid
 
 def _insert_bandera(cur, alerta_id, regla, severidad, evidencia, norma, fuente_url,
                     agente_origen, verificacion, puntua: bool = True, regla_version: str | None = None,
-                    identidad: str | None = None) -> None:
+                    identidad: str | None = None, ganador_ruc: str | None = None) -> None:
     # La evidencia se guarda sin DNI ni RUC de persona natural (310 banderas lo llevaban en PROD el 2026-11-13: la API
     # los tapa al publicar, pero no tienen por qué quedar escritos).
     try:
@@ -97,6 +221,14 @@ def _insert_bandera(cur, alerta_id, regla, severidad, evidencia, norma, fuente_u
         evidencia = sin_datos_personales(evidencia or "")
     except Exception:  # noqa: BLE001
         pass
+    # De qué ganador trata la bandera (con varios ganadores, la alerta nombra a uno: 2026-2543-197 tiene 8). Va en
+    # `verificacion` (la única columna JSON de la bandera); un RUC de persona natural no se escribe.
+    if ganador_ruc and re.fullmatch(r"\d{11}", str(ganador_ruc)):
+        verificacion = dict(verificacion or {})
+        if str(ganador_ruc).startswith("10"):
+            verificacion["ganador_persona_natural"] = True
+        else:
+            verificacion["ganador_ruc"] = str(ganador_ruc)
     cur.execute(
         _INSERT_BANDERA_SQL,
         (alerta_id, (regla or "sin_regla")[:80], severidad if severidad in ("alta", "media", "baja") else "media",
@@ -118,7 +250,8 @@ def _leer_banderas(cur, alerta_id) -> list[dict]:
             ver = _safe_parse_json(ver)
         out.append({"regla": r[0], "severidad": r[1], "evidencia": r[2], "norma": r[3],
                     "fuente_url": r[4], "agente_origen": r[5], "verificacion": ver,
-                    "puntua": True if r[7] is None else bool(r[7])})
+                    "puntua": True if r[7] is None else bool(r[7]),
+                    "ganador_ruc": (ver or {}).get("ganador_ruc") if isinstance(ver, dict) else None})
     return out
 
 

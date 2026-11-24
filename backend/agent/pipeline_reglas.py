@@ -62,6 +62,10 @@ def _linea(nombre: str, r) -> str:
     if "triggered" not in r:
         ev = str(r.get("evidencia") or "")[:260]
         return f"· {nombre}: {ev}" if ev else f"· {nombre}: sin resultado"
+    if r.get("triggered") and r.get("puntua") is False:
+        # Un hecho de contexto (p. ej. el tipo «Contratación Directa») no es una regla que disparó como señal.
+        ev = str(r.get("evidencia") or r.get("motivo") or "")[:220]
+        return f"· {nombre}: hecho de contexto, no suma al puntaje{' — ' + ev if ev else ''}"
     if r.get("triggered"):
         ev = str(r.get("evidencia") or r.get("detalle") or r.get("motivo") or "")[:220]
         return f"· {nombre}: DISPARÓ ({r.get('severidad') or 'sin severidad'}){' — ' + ev if ev else ''}"

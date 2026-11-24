@@ -294,9 +294,11 @@ def test_ruc_ultra_nuevo_evalua_perdedores_1225266(monkeypatch):
     r = cr.check_ruc_ultra_nuevo_rule(OCID, _Ctx(st))
     assert r["n_evaluados"] == 2 and r["triggered"] is True and r["severidad"] == "media"
     assert "no ganador" in r["evidencia"] and rival in r["evidencia"]
+    assert r["postor_ruc"] == rival and "ganador_ruc" not in r          # de un postor que perdió, no del ganador
     st2 = {"ocds": _ocds(), "sunat_profiles": {RUC_G: {"fecha_inicio_actividades": "2026-05-20"}}}
     r2 = cr.check_ruc_ultra_nuevo_rule(OCID, _Ctx(st2))
     assert r2["severidad"] == "alta" and "adjudicatario" in r2["evidencia"]
+    assert r2["ganador_ruc"] == RUC_G
 
 
 def test_tipo_proceso_vs_monto_ley_32069(monkeypatch):
@@ -331,6 +333,7 @@ def test_ciiu_vs_objeto_categoriza_equipos_y_alquiler_1225392(monkeypatch):
           "sunat_profiles": {ruc: {"ciiu_principal": "7710 - ALQUILER Y ARRENDAMIENTO DE VEHICULOS AUTOMOTORES"}}}
     r = cr.check_ciiu_vs_objeto_rule(OCID, _Ctx(st))
     assert r["objeto_categoria"] == "equipos" and r["ciiu_categoria"] == "alquiler" and r["triggered"] is True
+    assert r["ganador_ruc"] == ruc
     # 1225058: arroz vs venta de alimentos → coherente
     monkeypatch.setattr(cr._rules_provider, "_pg", lambda: _FakeConn({
         "select c.objeto, e.ruc, e.razon_social": ("ADQUISICION DE ARROZ SUPERIOR", "20523905679", "COMERCIAL DELBUENO"),
@@ -345,6 +348,7 @@ def test_procedimiento_no_competitivo_lee_modalidad_y_ocds(monkeypatch):
     monkeypatch.setattr(cr._rules_bidder, "_pg", lambda: _FakeConn({"select coalesce(tipo_proceso, modalidad)": ("Contratación Directa",)}))
     r = cr.check_non_competitive_process_rule(OCID, _Ctx({"ocds": {"tender": {}}}))
     assert r["triggered"] is True and r["tipo_proceso"] == "Contratación Directa"
+    assert r["puntua"] is False                                           # por construcción: contexto, no señal
 
 
 # ─── T12 · reglas nuevas ───────────────────────────────────────────────────────

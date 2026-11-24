@@ -94,6 +94,8 @@ def check_sanctioned_provider_rule(ocid: str, tool_context: ToolContext,
                 ev = (f"{principal['empresa_ganadora']} es ganadora; su {principal['rol_en_empresa']} "
                       f"{principal['socio_sancionado']} (RUC {principal['ruc_socio']}) tiene sanción "
                       f"{principal['tipo_sancion']} VIGENTE — patrón 'inhabilitado vía consorcio' (C7).")
+            # Con varios ganadores, de cuál trata la bandera (2026-2543-197: 8 ganadores, la alerta nombra a uno).
+            result["ganador_ruc"] = principal.get("ruc") if directas else principal.get("ruc_empresa")
             result.update({
                 "severidad": "alta",
                 "evidencia": ev,
@@ -194,6 +196,7 @@ def check_edad_ruc_ganador_rule(ocid: str, tool_context: ToolContext,
             quien = tapar_nombre(quien)
         quien += f" (RUC {principal['ruc']})" + (f", integrante de {principal['consorcio']}," if principal.get("consorcio") else "")
         result.update({
+            "ganador_ruc": principal["ruc"],
             "severidad": "alta",
             "evidencia": (
                 f"{quien} inició actividades el {principal['fecha_inicio']}: tenía {principal['edad_dias']} días "
@@ -310,6 +313,7 @@ def check_ciiu_vs_objeto_rule(ocid: str, tool_context: ToolContext,
         rubro = "un servicio de consultoría" if es_consultoria else f"'{cat_objeto}'"
         result.update({
             "triggered": True,
+            "ganador_ruc": c["ruc"],
             "severidad": "media",
             "evidencia": (
                 f"{quien} declara ante SUNAT la actividad '{str(c['ciiu_principal'] or '')[:80]}' "
@@ -556,6 +560,7 @@ def check_ruc_ultra_nuevo_rule(ocid: str, tool_context: ToolContext,
                   f"días desde el alta del RUC a la fecha de la buena pro ({p['fecha_buena_pro']}). Señal de "
                   f"riesgo de competencia aparente (postor de acompañamiento); requiere verificación.")
         result.update({
+            **({"ganador_ruc": p["ruc"]} if p["es_ganador"] else {"postor_ruc": p["ruc"]}),
             "severidad": sev, "evidencia": ev,
             "norma": norma["impedimentos"] + " + Opinión OECE 056-2023",
             "fuente_url": f"https://e-consultaruc.sunat.gob.pe/cl-ti-itmrconsruc/jcrS00Alias?accion=consPorRuc&nroRuc={p['ruc']}",

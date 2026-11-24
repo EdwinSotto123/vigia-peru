@@ -5,7 +5,7 @@ hasta que `persist_alert_from_flags` crea/actualiza la fila en `alertas`."""
 from tools._core import *  # noqa: F401,F403
 from tools.persistence.shared import (
     _advisory_lock, _insert_bandera, _limpiar_banderas_agente, _montos_alerta,
-    _peso, _recalcular_score, _verificar_o_descartar,
+    _peso, _recalcular_score, _verificar_o_descartar, con_ganador_principal, sin_mismo_hecho,
 )
 from tools.fuentes import proceso_oece  # noqa: E402
 
@@ -93,6 +93,9 @@ def persist_alert_from_flags(ocid: str, tool_context: ToolContext) -> dict:
     # Verificación determinista ANTES de tocar la BD: lo no respaldado se descarta.
     banderas = [b for b in banderas
                 if _verificar_o_descartar(b, state, "persist_alert_from_flags", "compliance_agent")]
+    # De qué ganador trata cada bandera de proveedor, y el RUC nuevo del ganador contado una sola vez: sin la web ni la
+    # capacidad operativa que solo repiten la fecha de inicio y el monto (2026-2543-197).
+    banderas = sin_mismo_hecho(con_ganador_principal(banderas, state), state, "persist_alert_from_flags")
     n_descartadas = len(_vistas) - len(banderas)
     if not banderas:
         lim = _limpiar_banderas_agente(f"OECE-{_short_ocid(ocid)}", "compliance_agent", state)
@@ -183,7 +186,8 @@ def persist_alert_from_flags(ocid: str, tool_context: ToolContext) -> dict:
                             b.get("evidencia", ""), b.get("norma", ""),
                             b.get("fuente_url") or _fuente_default, "compliance_agent",
                             b.get("verificacion"), puntua=b.get("puntua", True),
-                            regla_version=b.get("regla_version"), identidad=b.get("identidad"))
+                            regla_version=b.get("regla_version"), identidad=b.get("identidad"),
+                            ganador_ruc=b.get("ganador_ruc"))
         # Score con TODAS las banderas de la alerta (compliance + legal + market + …).
         score, todas = _recalcular_score(cur, alerta_id, state)
         conn.commit()

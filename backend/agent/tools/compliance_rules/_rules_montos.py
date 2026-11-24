@@ -455,7 +455,7 @@ def check_fraccionamiento_rule(ocid: str, tool_context: ToolContext,
         _grave = umbral_cruzado is not None and umbral_cruzado >= _TOPES_LEY_32069["licitacion_publica_min_soles"]
         _es_natural = len(str(prov_ruc)) == 11 and str(prov_ruc).startswith("10")
         result.update({
-            "umbral_cruzado_soles": umbral_cruzado,
+            "umbral_cruzado_soles": umbral_cruzado, "ganador_ruc": prov_ruc,
             "triggered": True, "severidad": "alta" if (excede or _grave) else "media",
             "suma_soles": round(suma, 2), "suma_uit": round(suma / UIT, 1), "tope_uit_modalidad": tope,
             "evidencia": (f"{prov_nombre or 'El proveedor'}{'' if _es_natural else f' (RUC {prov_ruc})'} obtuvo {len(relacionados)} proceso(s) "

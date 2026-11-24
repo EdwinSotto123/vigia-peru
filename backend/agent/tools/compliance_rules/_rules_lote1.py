@@ -428,6 +428,7 @@ def check_firmante_con_empresa_rnp_rule(ocid: str, tool_context: ToolContext,
           "participación ni fecha de fin: dato para revisar, no una conclusión.")
     result["regla_version"] = REGLA_FIRMANTE_RNP_VERSION
     result["identidad"] = "dni_confirmada"
+    result["ganador_ruc" if h["es_ganadora"] else "postor_ruc"] = h["ruc_empresa"]
     return _flag(state, result, "alta", ev, _norma_state(state)["impedimentos"] + " / Ley 27815 (Código de Ética)",
                  f"https://apps.oece.gob.pe/perfilprov-ui/ficha/{h['ruc_empresa']}")
 

@@ -7,8 +7,8 @@ from tools._core import *  # noqa: F401,F403
 import time as _time
 from tools import verify as _verify
 from tools.persistence.shared import (
-    _advisory_lock, _insert_bandera, _montos_alerta, _norma,
-    _normalizar_red_flag, _recalcular_score, _verificar_o_descartar,
+    _advisory_lock, _insert_bandera, _leer_banderas, _montos_alerta, _norma,
+    _normalizar_red_flag, _recalcular_score, _verificar_o_descartar, ruc_ganador_principal, sin_mismo_hecho,
 )
 from tools.fuentes import proceso_oece  # noqa: E402
 
@@ -410,12 +410,18 @@ def persist_analysis_outputs(alerta_codigo: str, tool_context: ToolContext) -> d
             alerta_id = _r[0]
             cur.execute("DELETE FROM banderas WHERE alerta_id=%s AND agente_origen IN "
                         "('person_network_agent','web_research_agent','news_research_agent')", (alerta_id,))
+            # La web que solo repite la fecha de inicio del ganador ya la cuenta `ruc_ganador_muy_nuevo` (2026-2543-197).
+            _n_cand = len(candidatas)
+            candidatas = sin_mismo_hecho(candidatas, state, "persist_analysis_outputs(investigacion)",
+                                         contexto=_leer_banderas(cur, alerta_id))
+            n_red_descartadas += _n_cand - len(candidatas)
             for b in candidatas:
                 if not _verificar_o_descartar(b, state, "persist_analysis_outputs(investigacion)", b["agente_origen"]):
                     n_red_descartadas += 1
                     continue
                 _insert_bandera(cur, alerta_id, b["regla"], b["severidad"], b["evidencia"], b["norma"],
-                                b["fuente_url"], b["agente_origen"], b.get("verificacion"))
+                                b["fuente_url"], b["agente_origen"], b.get("verificacion"),
+                                puntua=b.get("puntua", True), ganador_ruc=b.get("ganador_ruc"))
                 n_red_inserted += 1
             score_final, banderas_final = _recalcular_score(cur, alerta_id, state)
             # T5: `compliance_summary` con el conteo REAL (el texto del agente se conserva).
@@ -530,9 +536,12 @@ def _sanciones_en_registro(state: dict) -> bool:
 
 def _banderas_investigacion(state: dict) -> list[dict]:
     """Candidatas a bandera desde los agentes de investigación. Exige: evidencia con cita,
-    URL respaldada y confianza alta (o `estado` hallado con URL respaldada)."""
+    URL respaldada y confianza alta (o `estado` hallado con URL respaldada). Una nota de prensa que no nombra al
+    proveedor (ni a su gente) queda como hecho de contexto, sin puntaje (`_nombra_al_proveedor`)."""
     out: list[dict] = []
     hay_sanciones = _sanciones_en_registro(state)
+    principal = ruc_ganador_principal(state)
+    proveedores, personas = _identidad_proveedor(state)
     for clave, lista, agente in _AGENTES_INVESTIGACION:
         obj = _safe_parse_json(state.get(clave))
         if not isinstance(obj, dict):
@@ -584,13 +593,119 @@ def _banderas_investigacion(state: dict) -> list[dict]:
                          "sancionados del OECE; falta leer qué resolvió. " + descr)
             if titulo and titulo.lower() not in descr.lower():
                 descr = f"{titulo}: {descr}" if descr else titulo
+            puntua, ganador_ruc = True, principal
+            if clave == "news_research":
+                # La prensa es del PROVEEDOR solo si lo nombra (RUC, razón social sin forma societaria o una de sus
+                # personas). 2026-2543-197: dos notas de EsSalud —un informe de la Contraloría de 2025 y un desvío de
+                # Osmolite— salieron como «prensa adversa» del proveedor (media + media), y el propio agente escribió
+                # que no lo mencionaban. Quedan como contexto de la entidad, sin puntaje.
+                # Se busca en lo que dice la fuente (titular, citas literales y URL), no en la descripción del agente:
+                # en este mismo caso decía «no menciona a HAMUQ FARMA ni este proceso».
+                nota = " ".join([regla_libre, " ".join(citas), " ".join(urls)])
+                ganador_ruc = _nombra_al_proveedor(nota, proveedores, personas)
+                if not ganador_ruc:
+                    puntua = False
+                    descr = "Contexto, no del proveedor (la nota no lo nombra): " + descr
             texto = (descr + (f" Evidencia: {citas[0][:200]}" if citas else "")).strip()
             if not texto:
                 continue
             out.append({"regla": regla, "severidad": sev, "evidencia": texto[:500],
                         "norma": str(b.get("norma") or b.get("norma_citada") or _norma(state, "integridad"))[:300],
-                        "fuente_url": url_ok, "agente_origen": agente, "confianza": conf or estado})
+                        "fuente_url": url_ok, "agente_origen": agente, "confianza": conf or estado,
+                        "titulo": titulo, "puntua": puntua, "ganador_ruc": ganador_ruc if puntua else None})
     return out
+
+
+# Palabras que no distinguen a una empresa: con un núcleo así no se busca por nombre (solo por RUC o por sus personas).
+_NOMBRE_GENERICO = {"CONSORCIO", "CORPORACION", "EMPRESA", "GRUPO", "INVERSIONES", "SERVICIOS", "SERVICIO", "PERU",
+                    "DEL", "DE", "LA", "LOS", "LAS", "Y", "EL", "GENERAL", "GENERALES", "NEGOCIOS", "COMERCIAL",
+                    "DISTRIBUIDORA", "INDUSTRIAL", "INTERNACIONAL", "CONSTRUCTORA", "CONTRATISTAS", "SOCIEDAD",
+                    "ANONIMA", "CERRADA", "LIMITADA", "RESPONSABILIDAD", "INDIVIDUAL", "SA", "SAC", "SRL", "EIRL"}
+
+
+_FORMA_SOCIETARIA = {"S", "A", "C", "R", "L", "E", "I", "SA", "SAC", "SAA", "SRL", "EIRL", "SCRL", "LTDA", "SOCIEDAD",
+                     "ANONIMA", "CERRADA", "ABIERTA", "COMERCIAL", "RESPONSABILIDAD", "LIMITADA", "EMPRESA",
+                     "INDIVIDUAL", "DE"}
+
+
+def _nucleo_razon(nombre: str) -> str:
+    """«HAMUQ FARMA E.I.R.L.» → «HAMUQ FARMA»; «MEDIFARMA S A» → «MEDIFARMA»; «YARGO INTERNACIONAL E.I.R.L. - Y.I.
+    E.I.R.L.» → «YARGO INTERNACIONAL»: sin la forma societaria del final ni la sigla tras « - »."""
+    from tools.compliance_rules import _norm_razon_cr
+    toks = _norm_razon_cr(re.split(r"\s+-\s+", str(nombre or ""))[0]).split()
+    while toks and toks[-1] in _FORMA_SOCIETARIA:
+        toks.pop()
+    return " ".join(toks)
+
+
+def _texto_comparable(s) -> str:
+    from tools.compliance_rules import _sin_tildes
+    return " " + " ".join(re.sub(r"[^A-Z0-9]+", " ", _sin_tildes(str(s or "")).upper()).split()) + " "
+
+
+def _identidad_proveedor(state: dict) -> tuple[list[dict], list[tuple[str, list[str]]]]:
+    """(proveedores, personas) que una nota debe nombrar para ser del proveedor: los ganadores evaluados (los del
+    CONOSCE de `ganadores_evaluables`, los del OCDS y la empresa que investigó la web) y las personas que la base ya le
+    ata (socios, representantes y órganos de administración del RNP)."""
+    st = state if isinstance(state, dict) else {}
+    provs: dict[str, dict] = {}
+
+    def _add(ruc, nombre):
+        r = "".join(ch for ch in str(ruc or "") if ch.isdigit())
+        if len(r) == 11:
+            d = provs.setdefault(r, {"ruc": r, "nombres": set()})
+            if nombre:
+                d["nombres"].add(str(nombre))
+    for g in ((st.get("_ganadores_eval") or {}).get("lista") or []) if isinstance(st.get("_ganadores_eval"), dict) else []:
+        if isinstance(g, dict):
+            _add(g.get("ruc"), g.get("nombre"))
+    ocds = st.get("ocds") or st.get("ocds_preloaded") or {}
+    for a in (ocds.get("awards") or []) if isinstance(ocds, dict) else []:
+        for sup in (a.get("suppliers") or []) if isinstance(a, dict) else []:
+            if isinstance(sup, dict):
+                _add(sup.get("id"), sup.get("name"))
+    web = st.get("web_research") if isinstance(st.get("web_research"), dict) else _safe_parse_json(st.get("web_research"))
+    emp = (web or {}).get("empresa") if isinstance(web, dict) else None
+    if isinstance(emp, dict):
+        _add(emp.get("ruc"), emp.get("razon_social"))
+    pnc = st.get("person_network_context") if isinstance(st.get("person_network_context"), dict) else {}
+    gan = pnc.get("ganador") if isinstance(pnc.get("ganador"), dict) else {}
+    _add(gan.get("ruc"), gan.get("razon_social"))
+    exp = st.get("expediente_proveedor") if isinstance(st.get("expediente_proveedor"), dict) else {}
+    _add(exp.get("ruc"), (exp.get("sunat") or {}).get("razon_social") if isinstance(exp.get("sunat"), dict) else None)
+    personas: list[tuple[str, list[str]]] = []
+    rnp = pnc.get("rnp_proveedor") if isinstance(pnc.get("rnp_proveedor"), dict) else {}
+    ruc_rnp = rnp.get("ruc") or gan.get("ruc")
+    nombres_p = [x.get("nombre") for k in ("socios", "representantes_legales", "organos_administracion", "representantes")
+                 for x in (rnp.get(k) or []) if isinstance(x, dict)]
+    nombres_p += [x.get("nombre") for x in (exp.get("rnp") or []) if isinstance(x, dict)]
+    for n in nombres_p:
+        # Tapados («GAMARRA ••• OSCAR PAUL») sólo con las palabras visibles.
+        toks = [t for t in _texto_comparable(str(n or "").replace("•", " ")).split() if len(t) >= 3]
+        if len(toks) >= 2 and not any(t == toks for _, t in personas):
+            personas.append((str(ruc_rnp or ""), toks))
+    return list(provs.values()), personas
+
+
+def _nombra_al_proveedor(texto: str, proveedores: list[dict], personas: list[tuple[str, list[str]]]) -> str | None:
+    """RUC del proveedor que la nota nombra: por su RUC, por el núcleo de su razón social (sin la forma societaria ni
+    palabras genéricas) o por una de sus personas (primer apellido y un nombre). None si no nombra a ninguno."""
+    t = _texto_comparable(texto)
+    digitos = re.sub(r"\D+", " ", str(texto or ""))
+    for p in proveedores:
+        if re.search(rf"(?<!\d){p['ruc']}(?!\d)", digitos):
+            return p["ruc"]
+    for p in proveedores:
+        for nombre in p["nombres"]:
+            nucleo = _nucleo_razon(nombre)
+            propias = [w for w in nucleo.split() if w not in _NOMBRE_GENERICO]
+            if propias and len("".join(propias)) >= 5 and f" {nucleo} " in t:
+                return p["ruc"]
+    for ruc, toks in personas:
+        apellido, nombres = toks[0], (toks[2:] if len(toks) >= 4 else toks[1:])
+        if f" {apellido} " in t and any(f" {n} " in t for n in nombres):
+            return ruc or None
+    return None
 
 # ── FunctionTool wrappers ──
 persist_analysis_outputs_tool = FunctionTool(func=persist_analysis_outputs)

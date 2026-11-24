@@ -178,9 +178,16 @@ def check_non_competitive_process_rule(ocid: str, tool_context: ToolContext,
             "triggered": no_competitive,
         }
         if no_competitive:
+            # Hecho de contexto, no señal: se dispara por el tipo de proceso, así que TODA contratación directa,
+            # exoneración o emergencia lo tenía, y sumaba 18 puntos por construcción (1213369 llegó a 100/100 con él;
+            # 2026-11-24, antes del masivo de ~1 200 directas). En 40 000 procesos de PROD ningún tipo competitivo trae
+            # `procurementMethod` directo, así que no hay caso en que sea otra cosa. Las señales de una directa son
+            # directa_sin_fundamento, directa_causal_imprecisa y directa_emergencia_sin_acto_resolutivo.
             result.update({
-                "severidad": "media",
-                "evidencia": f"Tipo de proceso: {tipo}. Invocó una causal de excepción que limita la competencia abierta.",
+                "severidad": "baja",
+                "puntua": False,
+                "evidencia": (f"Tipo de proceso: {tipo}. Selección no competitiva prevista por la ley (hecho de contexto, "
+                              f"no suma al puntaje): lo que se revisa es si la causal está fundada y acreditada."),
                 "norma": "Art. 55.1 Ley 32069 — supuestos de selección no competitiva",
                 "fuente_url": proceso_oece(ocid),
             })
