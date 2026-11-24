@@ -183,6 +183,8 @@ export interface Cruce {
   entidadRuc?: string | null;
   /** fraccionamiento: cada día con sus órdenes (número, descripción, monto, estado), de ordenes_fraccionadas. */
   ordenesDias?: DiaFraccionado[];
+  /** Cuántos días fraccionados tiene en total (`ordenesDias` trae hasta 120, los más recientes). */
+  ordenesDiasTotal?: number | null;
   /** Los registros oficiales que sostienen el cruce (lib/evidencia.ts): sin DNI ni nombres de personas naturales. */
   evidencia?: Evidencia[];
   /**
@@ -469,15 +471,26 @@ export async function crucesDeProceso(ocid: string, ganadores: Ganador[]): Promi
   const catalogo = await catalogoSenales();
   // Fraccionamiento: los días y sus órdenes, de la entidad de ESTE proceso (el cruce sólo trae cuántos y cuánto).
   const fracc = new Map<string, DiaFraccionado[]>();
+  const fraccTotal = new Map<string, number>();
   const conFracc = [...new Set(cruces.filter((c) => c.tipo === "fraccionamiento").map((c) => c.rucProveedor))];
   if (conFracc.length) {
+    // Hasta 120 días por proveedor, los más recientes, y cuántos son en total: con un solo LIMIT 500 para todos, en un
+    // proceso con 7 ganadores fraccionados a cada uno le tocaba una parte cualquiera («886 órdenes en 247 días» en el
+    // texto y «Ver las 226 órdenes de los 59 días» debajo; 2026-2543-197).
     const f = await pool.query(
-      `SELECT f.* FROM ordenes_fraccionadas f
-        WHERE f.ruc_contratista = ANY($1::text[]) AND f.entidad_ruc = (SELECT entidad_ruc FROM convocatorias WHERE ocid = $2)
-          -- Sólo los días anteriores a la convocatoria, como el cruce (migración 83).
-          AND f.fecha < COALESCE((SELECT fecha_convocatoria FROM convocatorias WHERE ocid = $2), 'infinity'::date)
-        ORDER BY f.fecha DESC, f.total DESC LIMIT 500`, [conFracc, ocid]).catch(() => null);
-    for (const r of f?.rows ?? []) fracc.set(r.ruc_contratista, [...(fracc.get(r.ruc_contratista) ?? []), aDia(r)]);
+      `SELECT * FROM (
+         SELECT f.*, row_number() OVER (PARTITION BY f.ruc_contratista ORDER BY f.fecha DESC, f.total DESC) AS rn_dia,
+                count(*) OVER (PARTITION BY f.ruc_contratista)::int AS total_dias
+           FROM ordenes_fraccionadas f
+          WHERE f.ruc_contratista = ANY($1::text[]) AND f.entidad_ruc = (SELECT entidad_ruc FROM convocatorias WHERE ocid = $2)
+            -- Sólo los días anteriores a la convocatoria, como el cruce (migración 83).
+            AND f.fecha < COALESCE((SELECT fecha_convocatoria FROM convocatorias WHERE ocid = $2), 'infinity'::date)) x
+        WHERE rn_dia <= 120
+        ORDER BY ruc_contratista, fecha DESC, total DESC`, [conFracc, ocid]).catch(() => null);
+    for (const r of f?.rows ?? []) {
+      fracc.set(r.ruc_contratista, [...(fracc.get(r.ruc_contratista) ?? []), aDia(r)]);
+      fraccTotal.set(r.ruc_contratista, Number(r.total_dias) || 0);
+    }
   }
   // La evidencia de cada cruce: los registros de la fuente (gastos y aportes de campaña, cargos, penalidades,
   // sanciones, los otros procesos que ganó). Necesita la entidad, el código y la fecha de este proceso.
@@ -532,7 +545,7 @@ export async function crucesDeProceso(ocid: string, ganadores: Ganador[]): Promi
       ...(catalogo.observacion.has(c.tipo) ? { observacion: true } : {}),
       ...(catalogo.tasas.has(c.tipo) ? { tasaBase: catalogo.tasas.get(c.tipo) } : {}),
       ...(catalogo.confiabilidad.has(c.tipo) ? { confiabilidad: catalogo.confiabilidad.get(c.tipo) } : {}),
-      ...(c.tipo === "fraccionamiento" ? { ordenesDias: fracc.get(c.rucProveedor) ?? [] } : {}),
+      ...(c.tipo === "fraccionamiento" ? { ordenesDias: fracc.get(c.rucProveedor) ?? [], ordenesDiasTotal: fraccTotal.get(c.rucProveedor) ?? null } : {}),
       ...(evidencias[i]?.length ? { evidencia: marcarPosteriores(evidencias[i], proceso.fecha) } : {}),
       ...anteriores,
       ...(posterior ? { posterior: true, etiqueta: ETIQUETA_POSTERIOR[c.tipo] ?? c.etiqueta } : {}),

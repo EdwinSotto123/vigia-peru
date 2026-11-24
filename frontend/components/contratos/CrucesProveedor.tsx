@@ -1575,7 +1575,7 @@ function FilaContenido({ c, gobierna }: { c: CruceProveedor; gobierna?: Gobierno
           FUENTE[c.fuente] ?? c.fuente
         )}
       </span>
-      {c.tipo === "fraccionamiento" && c.ordenesDias && c.ordenesDias.length > 0 && <OrdenesFraccionadas dias={c.ordenesDias} />}
+      {c.tipo === "fraccionamiento" && c.ordenesDias && c.ordenesDias.length > 0 && <OrdenesFraccionadas dias={c.ordenesDias} totalDias={c.ordenesDiasTotal ?? null} />}
       {c.evidencia && c.evidencia.length > 0 && <EvidenciaDelCruce evidencia={c.evidencia} />}
     </>
   );

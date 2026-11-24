@@ -70,7 +70,9 @@ export function EvidenciaDelCruce({ evidencia }: { evidencia: EvidenciaCruce[] }
  * suman contra el tope (una barra con la marca del tope) y sus órdenes: descripción, número, estado y monto. Con más
  * de cuatro días, paginado.
  */
-export function OrdenesFraccionadas({ dias }: { dias: DiaFraccionado[] }) {
+export function OrdenesFraccionadas({ dias, totalDias = null }: { dias: DiaFraccionado[]; totalDias?: number | null }) {
+  // Si la API trajo sólo los más recientes, se dice: «de los 120 días más recientes, de 247».
+  const parcial = totalDias != null && totalDias > dias.length;
   const total = dias.reduce((s, d) => s + d.ordenes, 0);
   const bloques = dias.map((d, i) => ({
     id: `${d.fecha}-${i}`,
@@ -81,7 +83,7 @@ export function OrdenesFraccionadas({ dias }: { dias: DiaFraccionado[] }) {
     <details className="group/ord mt-1">
       <summary className={RESUMEN}>
         Ver {total === 1 ? "la orden" : `las ${numero(total)} órdenes`}
-        {dias.length === 1 ? ` del ${fechaCorta(dias[0].fecha)}` : ` de los ${numero(dias.length)} días`}
+        {dias.length === 1 ? ` del ${fechaCorta(dias[0].fecha)}` : ` de los ${numero(dias.length)} días${parcial ? ` más recientes (de ${numero(totalDias!)})` : ""}`}
         <ChevronDown size={14} aria-hidden className="shrink-0 transition-transform duration-rapido group-open/ord:rotate-180" />
       </summary>
       <div className="mt-2 space-y-3">

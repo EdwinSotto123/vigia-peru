@@ -343,6 +343,8 @@ export interface CruceProveedor {
   consorcio?: { codigo: string; nombre: string | null } | null;
   /** fraccionamiento: cada día con sus órdenes. Falta en la API vieja. */
   ordenesDias?: DiaFraccionado[];
+  /** Cuántos días fraccionados tiene en total (`ordenesDias` trae los más recientes). Falta en la API vieja. */
+  ordenesDiasTotal?: number | null;
   /** Los registros oficiales que sostienen el cruce (sin DNI ni nombres de personas). Falta en la API vieja. */
   evidencia?: EvidenciaCruce[];
   /** Pasó después de que se convocó este proceso: no era un antecedente (migración 83). Sólo en la ficha. */
