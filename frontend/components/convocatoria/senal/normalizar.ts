@@ -78,7 +78,8 @@ export function senalDeBandera(b: Bandera): SenalAgente {
         }
       : null,
     citas: [],
-    ganadorRuc: txt((b as { ganador_ruc?: unknown }).ganador_ruc),
+    // En la señal o, desde el 2026-11-24, dentro de su `verificacion` (la tabla de banderas no tiene la columna).
+    ganadorRuc: txt((b as { ganador_ruc?: unknown }).ganador_ruc) ?? txt((b as { verificacion?: { ganador_ruc?: unknown } }).verificacion?.ganador_ruc),
     otrasEmpresas: otrasEmpresasDe(b),
   };
 }

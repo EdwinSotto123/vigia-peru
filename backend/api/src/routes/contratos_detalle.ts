@@ -378,7 +378,7 @@ contratosDetalleRouter.get("/:ocid", async (c) => {
   // Con varios ganadores, el que se nombra primero es el de mayor monto adjudicado (lo mismo que el dictamen): la
   // columna de la convocatoria guarda el primero del registro y la cabecera decía «Ganó Medifarma» mientras el dictamen
   // decía «Buena pro para AC Farma» (2026-2543-197, 8 ganadores en 11 ítems; pedido del usuario del 2026-11-24).
-  const lider = ganadorPrincipal(conosce, adjudicaciones);
+  const lider = ganadorPrincipal(conosce, adjudicaciones, resumen.proveedorRuc ?? null);
   if (lider && lider.ruc !== resumen.proveedorRuc) {
     resumen.proveedorRuc = lider.ruc;
     resumen.proveedor = lider.nombre ?? resumen.proveedor;
@@ -641,19 +641,25 @@ export function ganadoresSoloConosce(aws: { proveedorRuc: string | null }[], con
 
 /**
  * Con dos o más ganadores, el de mayor monto adjudicado: por CONOSCE (suma de sus ítems) o, sin CONOSCE, por las
- * adjudicaciones vigentes del OCDS. null con un solo ganador (se queda el del registro).
+ * adjudicaciones vigentes del OCDS. null con un solo ganador que ya es el del registro (`actual`).
  */
-export function ganadorPrincipal(conosce: FilaConosce[], adjudicaciones: { proveedorRuc: string | null; proveedor: string | null; montoPen?: number | null }[]): { ruc: string; nombre: string | null } | null {
+export function ganadorPrincipal(
+  conosce: FilaConosce[],
+  adjudicaciones: { proveedorRuc: string | null; proveedor: string | null; montoPen?: number | null; vigente?: boolean }[],
+  actual: string | null = null,
+): { ruc: string; nombre: string | null } | null {
   const suma = new Map<string, { nombre: string | null; monto: number }>();
   const fuente = conosce.some((k) => k.ruc && k.montoPen) ? conosce.map((k) => ({ ruc: k.ruc, nombre: k.proveedor, monto: k.montoPen }))
-    : adjudicaciones.map((a) => ({ ruc: a.proveedorRuc, nombre: a.proveedor, monto: a.montoPen ?? null }));
+    : adjudicaciones.filter((a) => a.vigente !== false).map((a) => ({ ruc: a.proveedorRuc, nombre: a.proveedor, monto: a.montoPen ?? null }));
   for (const x of fuente) {
     if (!x.ruc) continue;
     const g = suma.get(x.ruc) ?? { nombre: x.nombre, monto: 0 };
     g.monto += x.monto ?? 0;
     suma.set(x.ruc, g);
   }
-  if (suma.size < 2) return null;
+  // Un solo ganador: se queda el del registro, salvo que la buena pro haya pasado a otro (1220581: el OCDS nombra primero
+  // a Jemar y CONOSCE registra contratado al consorcio).
+  if (!suma.size || (suma.size < 2 && (!actual || suma.has(actual)))) return null;
   const [ruc, g] = [...suma.entries()].sort((a, b) => b[1].monto - a[1].monto || a[0].localeCompare(b[0]))[0];
   return { ruc, nombre: g.nombre };
 }

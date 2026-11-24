@@ -75,3 +75,10 @@ test("ganadorPrincipal: con varios ganadores, el de mayor monto sumado por CONOS
   // Sin CONOSCE, las adjudicaciones del OCDS.
   assert.equal(ganadorPrincipal([], [{ proveedorRuc: "20000000001", proveedor: "A", montoPen: 5 }, { proveedorRuc: "20000000002", proveedor: "B", montoPen: 9 }])?.ruc, "20000000002");
 });
+
+// Caso real 1220581: el OCDS nombra primero a Jemar (buena pro reemplazada) y CONOSCE registra contratado al consorcio.
+test("ganadorPrincipal: un solo ganador en CONOSCE distinto del registro, ése", () => {
+  const k = { item: 1, ruc: "1807502", proveedor: "CONSORCIO TECNISAN - METROPOLITAN", cantidad: 1, montoPen: 1487000, estado: "Contratado" };
+  assert.deepEqual(ganadorPrincipal([k], [], "20601052084"), { ruc: "1807502", nombre: "CONSORCIO TECNISAN - METROPOLITAN" });
+  assert.equal(ganadorPrincipal([k], [], "1807502"), null);
+});

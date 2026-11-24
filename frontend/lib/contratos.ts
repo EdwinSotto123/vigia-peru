@@ -1154,8 +1154,13 @@ export function informeConCifrasDeLaFicha<T extends Record<string, any> | null>(
     conv.cuantia_adjudicada = referencial;
     conv.n_desiertos = desiertos;
   }
+  // Quien tuvo una buena pro que se reemplazó (la adjudicación dejó de estar vigente) ya no es ganador (1220581: la
+  // historia decía «Buena pro para Jemar y 1 ganador más» y la buena pro había pasado al consorcio).
+  const reemplazados = new Set((c.adjudicaciones ?? []).filter((a) => a.vigente === false && a.proveedorRuc && !porRuc.has(a.proveedorRuc)).map((a) => a.proveedorRuc));
   const postores = Array.isArray((informe as any).postores)
-    ? (informe as any).postores.map((p: any) => (p?.es_ganador && porRuc.has(p?.ruc) ? { ...p, monto_ganado: porRuc.get(p.ruc) } : p))
+    ? (informe as any).postores.map((p: any) =>
+        p?.es_ganador && reemplazados.has(p?.ruc) ? { ...p, es_ganador: false, monto_ganado: null, buena_pro_reemplazada: true }
+          : p?.es_ganador && porRuc.has(p?.ruc) ? { ...p, monto_ganado: porRuc.get(p.ruc) } : p)
     : (informe as any).postores;
   // Cada ganador con los ítems que ganó (su posición en el registro): la lista de señales dice de cuál habla cada una.
   const posicion = new Map(c.items.map((it) => [it.id, it.posicion]));
@@ -1194,7 +1199,7 @@ export function informeConCifrasDeLaFicha<T extends Record<string, any> | null>(
     postores,
     ganadores_ficha,
     // El ganador que nombra la cabecera de la ficha: el dictamen nombra al mismo (con varios, el de mayor monto según la API).
-    ganador_ficha_ruc: c.proveedorRuc ?? null,
+    ganador_ficha_ruc: cambioDeGanador(c)?.queda[0]?.proveedorRuc ?? c.proveedorRuc ?? null,
     ...(mercado ? { market_analysis: { ...mercado, findings: renumerar(mercado.findings, "item_numero", ["item_descripcion"]) } } : {}),
     ...(docs ? { document_analysis: { ...docs, items_consolidados: renumerar(docs.items_consolidados, "numero", ["descripcion_corta", "descripcion"]) } } : {}),
   };
