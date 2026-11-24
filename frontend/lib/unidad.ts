@@ -40,12 +40,16 @@ const PLURAL_UNIDAD: Record<string, string> = {
  * entera conocida (las abreviaturas, «UND» o «KG», quedan como vienen). Decía «51,933,400 unidad» (2026-2543-197).
  */
 export function cantidadYUnidad(n: number, unidad: string | null | undefined, opciones: { minusculas?: boolean } = {}): string {
+  const u = unidadParaCantidad(n, unidad, opciones);
+  return u ? `${numero(n)} ${u}` : numero(n);
+}
+
+/** La unidad sola, en plural si la cantidad lo pide («unidades» bajo «20,000» en una columna de cantidades). */
+export function unidadParaCantidad(n: number, unidad: string | null | undefined, opciones: { minusculas?: boolean } = {}): string {
   const original = String(unidad ?? "").trim();
   const u = opciones.minusculas ? original.toLowerCase() : original;
-  const cifra = numero(n);
-  if (!u) return cifra;
+  if (!u) return "";
   const plural = n !== 1 ? PLURAL_UNIDAD[original.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase()] : undefined;
-  if (!plural) return `${cifra} ${u}`;
-  const texto = u === u.toUpperCase() ? plural.toUpperCase() : /^\p{Lu}/u.test(u) ? plural.charAt(0).toUpperCase() + plural.slice(1) : plural;
-  return `${cifra} ${texto}`;
+  if (!plural) return u;
+  return u === u.toUpperCase() ? plural.toUpperCase() : /^\p{Lu}/u.test(u) ? plural.charAt(0).toUpperCase() + plural.slice(1) : plural;
 }

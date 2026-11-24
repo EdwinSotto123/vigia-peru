@@ -107,14 +107,15 @@ export function ItemsConMarketPrice({
 
       <p className="text-meta leading-snug text-ink">
         <strong className="font-semibold">
-          {conMedicion} de {filas.length} ítems
+          {conMedicion} de {filas.length} {filas.length === 1 ? "ítem" : "ítems"}
         </strong>
-        {filas.length < nTotal ? ` desglosados del expediente (el proceso tiene ${nTotal})` : ""}{" "}
-        tienen precio de mercado medido con fuentes verificables
+        {filas.length < nTotal ? ` ${filas.length === 1 ? "desglosado" : "desglosados"} del expediente (el proceso tiene ${nTotal})` : ""}{" "}
+        {conMedicion === 1 ? "tiene" : "tienen"} precio de mercado medido con fuentes verificables
         {sobreRango > 0 ? (
           <>
-            , y <strong className="font-semibold">{sobreRango}</strong> de esos {conMedicion} quedan por
-            encima del techo del rango que se observó en el mercado.
+            , y <strong className="font-semibold">{sobreRango}</strong>
+            {conMedicion === 1 ? " queda" : ` de esos ${conMedicion} ${sobreRango === 1 ? "queda" : "quedan"}`} por encima del techo del rango que se
+            observó en el mercado.
           </>
         ) : conMedicion > 0 ? (
           ", y ninguno supera el techo del rango observado en el mercado."
@@ -162,11 +163,11 @@ export function ItemsConMarketPrice({
           detalle={<TablaPrecios filas={filas} fmtMoney={fmtMoney} />}
           ancho="xl"
           className="w-auto"
-          etiqueta={`Ver la tabla completa de los ${filas.length} ítems con sus precios`}
+          etiqueta={filas.length === 1 ? "Ver la tabla completa del ítem con sus precios" : `Ver la tabla completa de los ${filas.length} ítems con sus precios`}
         >
           <span className="inline-flex min-h-[32px] items-center gap-1.5 rounded-full border border-line bg-paper px-3 py-1 text-rotulo font-semibold text-ink transition-colors duration-rapido group-hover:bg-paperSoft">
             <Table2 size={12} aria-hidden />
-            Ver la tabla completa ({filas.length} ítems)
+            Ver la tabla completa ({plural(filas.length, "ítem", "ítems")})
           </span>
         </Revelar>
 

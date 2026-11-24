@@ -347,5 +347,19 @@ const BITACORA_RX =
 
 export function observacionesLegibles(obs: unknown): string[] {
   if (!Array.isArray(obs)) return [];
-  return obs.filter((o): o is string => typeof o === "string" && !!o.trim() && !BITACORA_RX.test(o));
+  return obs.filter((o): o is string => typeof o === "string" && !!o.trim() && !BITACORA_RX.test(o)).map(sinPluralEntreParentesis);
+}
+
+/**
+ * «60 comparable(s)» → «60 comparables»; «1 ítem(s)» → «1 ítem»; «excluido(s)» → «excluidos». El agente escribe así sus
+ * observaciones; en pantalla se leía «Histórico SEACE: 60 comparable(s)».
+ */
+export function sinPluralEntreParentesis(t: string): string {
+  // Tras un número, esa palabra y las que siguen con «(s)» concuerdan con él («1 ítem(s) desierto(s)» → «1 ítem desierto»).
+  return t
+    .replace(/\b(\d[\d,.]*)((?:,?\s+\p{L}+\((?:e?s)\))+)/gu, (_, n: string, cola: string) => {
+      const uno = Number(n.replace(/,/g, "")) === 1;
+      return n + cola.replace(/(\p{L})\((e?s)\)/gu, (__: string, l: string, suf: string) => (uno ? l : l + suf));
+    })
+    .replace(/(\p{L})\((e?s)\)/gu, (_, l: string, suf: string) => l + suf);
 }

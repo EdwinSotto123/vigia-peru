@@ -26,7 +26,7 @@ import { CitaPagina } from "./CitaPagina";
 import { TextoRedactado } from "./TextoRedactado";
 import { etiquetaRegla, type CatalogoReglas } from "@/lib/revision";
 import { decimal, fecha, numero, porcentaje, soles, oracion } from "@/lib/formato";
-import { cantidadYUnidad } from "@/lib/unidad";
+import { cantidadYUnidad, unidadParaCantidad } from "@/lib/unidad";
 import {
   cambioDeGanador, esPersonaNatural, formatoDoc, humanizarCodigo, ordenNombrePostor, personasNaturalesDe, tipoDocLabel,
   type CitaDocumento, type ContratoDetalle as Detalle, type ContratoDocumento, type PostorContrato,
@@ -182,7 +182,7 @@ function SeccionItems({ c }: { c: Detalle }) {
             }
           />
         ),
-        cantidad: it.cantidad != null ? <CeldaNumero sub={it.unidad ?? undefined}>{numero(it.cantidad)}</CeldaNumero> : undefined,
+        cantidad: it.cantidad != null ? <CeldaNumero sub={unidadParaCantidad(it.cantidad, it.unidad, { minusculas: true }) || undefined}>{numero(it.cantidad)}</CeldaNumero> : undefined,
         monto: it.montoPen ? <CeldaNumero>{monto(it.montoPen, c.moneda)}</CeldaNumero> : undefined,
         unitario: it.precio ? <PrecioUnidad p={it.precio} unidad={it.unidad} /> : undefined,
         frente: paquete && it.precio

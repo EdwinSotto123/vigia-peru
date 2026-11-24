@@ -93,7 +93,7 @@ export function MarketVerdictCard({ market, fmtMoney, estado = null }: { market:
   const Icono = ICONO_SEVERIDAD[r.veredicto.ui.icono];
   const cobertura = r.cobertura !== null ? Math.round(r.cobertura * 100) : null;
   const conteo =
-    r.nItems !== null && r.nConMediana !== null ? `${r.nConMediana} de ${r.nItems} ítems con precio de mercado` : null;
+    r.nItems !== null && r.nConMediana !== null ? `${r.nConMediana} de ${r.nItems} ${r.nItems === 1 ? "ítem" : "ítems"} con precio de mercado` : null;
   // Las líneas de bitácora del backend ("fan-out de 10 workers", "chunk(s) excedieron
   // el timeout") no son hallazgos: se quedan fuera.
   const observaciones = observacionesLegibles(market?.observaciones_clave);
