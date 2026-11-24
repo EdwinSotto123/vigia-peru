@@ -91,7 +91,7 @@ export const RESULTADO_SQL = `SELECT a.id, a.codigo, a.score, a.estado, a.analiz
     'items', (SELECT COALESCE(json_agg(json_build_object(
                 'item', f->>'item_descripcion', 'unidad', f->>'unidad', 'veredicto', f->>'veredicto',
                 'ofertado', (f->>'precio_unitario_ofertado')::float, 'mediana', (f->>'precio_mediana_mercado')::float,
-                'diffPct', (f->>'diff_pct')::float, 'nPrecios', (f->>'n_precios')::int)), '[]'::json)
+                'diffPct', (f->>'diff_pct')::float, 'nPrecios', (f->>'n_precios')::int, 'cantidad', (f->>'cantidad')::float)), '[]'::json)
               FROM (SELECT f FROM jsonb_array_elements(${LISTA_JSON("a.analisis_full->'market_analysis'->'findings'")}) f LIMIT 12) x)
   ) ELSE NULL END AS mercado,
   CASE WHEN jsonb_typeof(a.analisis_full->'document_analysis'->'documentos') = 'array' THEN (

@@ -37,6 +37,7 @@ import { BloqueDetalle, ChipsDetalle, CuerpoDetalle } from "@/components/patrone
 import { ConteoSenales } from "@/components/convocatoria/sections/ConteoSenales";
 import { EvidenciaRedactada } from "./EvidenciaRedactada";
 import { ScoreGauge } from "./ScoreGauge";
+import { loteCuadra } from "@/components/charts/mercado";
 import { ReglasEvaluadas } from "./ReglasEvaluadas";
 
 interface Props {
@@ -260,7 +261,13 @@ function Mercado({ mercado, compacto }: { mercado: NonNullable<Resultado["mercad
         (it): it is MercadoItem & { mediana: number; ofertado: number; diffPct: number } =>
           it.mediana != null && it.ofertado != null && it.diffPct != null && !SIN_COMPARACION.has(it.veredicto ?? ""),
       );
-  const loteComparable = !globalNoVerificable && mercado.sobreprecioPct != null && mercado.totalMercado != null && mercado.totalOfertado != null;
+  // El porcentaje del lote sólo si cuadra con sus ítems medidos (charts/mercado.loteCuadra): 2026-2543-197 decía −81 %
+  // comparando lo de un solo ganador contra el mercado de 12 ítems.
+  const cuadra = loteCuadra(
+    { findings: (mercado.items ?? []).map((i) => ({ precio_unitario_ofertado: i.ofertado, precio_mediana_mercado: i.mediana, cantidad: i.cantidad, n_precios: i.nPrecios })) },
+    mercado.sobreprecioPct ?? null,
+  );
+  const loteComparable = cuadra && !globalNoVerificable && mercado.sobreprecioPct != null && mercado.totalMercado != null && mercado.totalOfertado != null;
   const itemsLeidos = `${nItems} ${nItems === 1 ? "ítem leído" : "ítems leídos"}`;
 
   return (

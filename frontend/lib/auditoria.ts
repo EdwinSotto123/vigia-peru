@@ -94,6 +94,8 @@ export interface MercadoItem {
   mediana: number | null;
   diffPct: number | null;
   nPrecios: number | null;
+  /** Para comprobar que el porcentaje del lote cuadra con sus ítems. Una API anterior no la manda. */
+  cantidad?: number | null;
 }
 
 /** Resumen liviano del análisis (GET /financiamiento/procesamientos/:ocid → resultado; GET /contratos/:ocid → alerta). */
