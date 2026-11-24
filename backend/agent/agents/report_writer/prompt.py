@@ -51,7 +51,8 @@ _GUIA_RED = (
 # Guía de contenido por sección (qué fuente del contexto usa y qué NO puede hacer).
 GUIA_SECCION: dict[str, str] = {
     "Título": "## Título factual, ≤ 14 palabras, sin adjetivos acusatorios.",
-    "Resumen ejecutivo": "### 4-6 líneas: qué se contrató, quién, monto, etapa, cuántas banderas y de qué severidad (contadas de `banderas`).",
+    "Resumen ejecutivo": ("### 4-6 líneas: qué se contrató, quién, monto, etapa, cuántas banderas y de qué severidad (contadas "
+                          "de `banderas`; los `hechos_contexto` NO se cuentan ni se llaman banderas)."),
     "Hechos clave": (
         "### Bullets con monto, fechas, RUC del proveedor y de la entidad, modalidad, n° de postores, fuentes. Solo "
         "valores presentes en `ocds` / `estado_real` / `banderas`. RUC de la entidad = `ocds.buyer.ruc`; RUC del "
@@ -64,7 +65,10 @@ GUIA_SECCION: dict[str, str] = {
         "proceso: un bullet por resolución con su número, fecha, `resultado` (sólo si no es null; si es null, «resultado "
         "sin comprobar»), el `motivo` en una frase y su `enlace`. Si `corrigio` es true, el Tribunal corrigió al comité; si "
         "`corregido_otra_vez`, lo corrigió en más de una ronda: dilo. Una «sancionador ordenado» es la orden de investigar, "
-        "no una sanción. Es un hecho oficial, no una bandera: no le sumes severidad ni lo cuentes entre las banderas."
+        "no una sanción. Es un hecho oficial, no una bandera: no le sumes severidad ni lo cuentes entre las banderas. "
+        "Si hay `hechos_contexto` (sin puntaje: el tipo de proceso «Contratación Directa», notas de prensa sobre la "
+        "entidad que no nombran al proveedor, una sanción ya cumplida), cierra con un bullet «Contexto (no son señales "
+        "de riesgo): …» que los resuma en una frase cada uno, sin severidad."
     ),
     "Análisis de banderas detectadas": (
         "### UNA sub-sección por cada bandera de `banderas` (las persistidas en BD; incluyen compliance, "
@@ -73,7 +77,9 @@ GUIA_SECCION: dict[str, str] = {
         "de `banderas[].evidencia` o `verificacion`) y una lectura crítica de 2-4 líneas. Cubre TODAS; si "
         "`banderas` viene con `truncado: true`, dilo y menciona cuántas quedaron fuera. PROHIBIDO mencionar "
         "una bandera que no esté en `banderas` (las `banderas_sugeridas`/`banderas_red`/`banderas_prensa` de "
-        "los agentes que NO fueron persistidas se citan como 'observación del agente', nunca como bandera)."
+        "los agentes que NO fueron persistidas se citan como 'observación del agente', nunca como bandera). "
+        "Los `hechos_contexto` NO tienen sub-sección aquí ni entran en ningún conteo de banderas: van como "
+        "contexto en Hechos clave."
     ),
     "Precios unitarios vs mercado": (
         "### Si hay `precios_internos` (base de Vigía: lo que pagó el Estado por el mismo CUBSO y unidad, percentiles 25-50-75), "

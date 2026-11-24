@@ -1,7 +1,7 @@
 """compliance_rules._rules_network — reglas de red/relaciones: concentración, firmantes, testaferros."""
 
 from tools._core import *  # noqa: F401,F403
-from tools.compliance_rules._base import _as_tool, _fecha_convocatoria_state, _ganador_ocds, _ganador_ruc, _norm_razon_cr, _norma_state, _perfil_reglas, _postores_parser, _regla_omitida, _sin_tildes, _to_date, ganadores_evaluables  # noqa: F401
+from tools.compliance_rules._base import _as_tool, _fecha_convocatoria_state, _ganador_ocds, _ganador_ruc, _norm_razon_cr, _norma_state, _perfil_reglas, _postores_parser, _regla_omitida, _sin_tildes, _to_date, ganadores_evaluables, ganadores_para_regla  # noqa: F401
 from tools.privacidad import tapar_nombre
 from tools.fuentes import proceso_oece  # noqa: E402
 
@@ -241,53 +241,62 @@ def check_testaferro_multi_ruc_rule(ocid: str, tool_context: ToolContext,
     if om:
         return om
     state = tool_context.state
-    g_ruc, _ = _ganador_ruc(ocid, state)
-    if not g_ruc or not str(g_ruc).startswith("20"):
-        return {"regla": "testaferro_multi_ruc", "triggered": False, "motivo": "el ganador no es una empresa con RUC 20"}
-
     conn = _pg()
     try:
         cur = conn.cursor()
+        # Con varios ganadores, cada uno con RUC 20 (el principal primero), no uno cualquiera.
+        candidatos = [r for r, _n in ganadores_para_regla(ocid, state, cur) if re.fullmatch(r"20\d{9}", r)]
+        if not candidatos:
+            return {"regla": "testaferro_multi_ruc", "triggered": False, "motivo": "el ganador no es una empresa con RUC 20"}
         # La entidad de este contrato, por su OCID tal como llega o sin el prefijo del OCDS.
         from tools.lecturas import ocid_corto
         cur.execute("SELECT c.entidad_ruc::text FROM convocatorias c WHERE c.ocid IN (%s, %s) LIMIT 1", (ocid, ocid_corto(ocid)))
         entidad_ruc = ((cur.fetchone() or [None])[0] or "").strip()
-        cur.execute(
-            """WITH gente AS (
-                 SELECT DISTINCT r.numero_documento AS doc
-                   FROM rnp_conformacion_juridica r
-                  WHERE r.ruc_empresa = %s AND r.tipo_documento LIKE 'DOC. NACIONAL%%'
-                    AND r.tipo_rol IN ('SOCIO_ACCIONISTA_TITULAR', 'REPRESENTANTE_LEGAL')
-               ), pocas AS (   -- quien figura en decenas de empresas no es el dueño de ninguna
-                 SELECT r.numero_documento AS doc
-                   FROM rnp_conformacion_juridica r JOIN gente g ON g.doc = r.numero_documento
-                  WHERE r.tipo_rol IN ('SOCIO_ACCIONISTA_TITULAR', 'REPRESENTANTE_LEGAL')
-                  GROUP BY 1 HAVING count(DISTINCT r.ruc_empresa) BETWEEN 3 AND 6
-               )
-               SELECT r.numero_documento, r.ruc_empresa::text, max(e.razon_social),
-                      bool_or(r.tipo_rol = 'SOCIO_ACCIONISTA_TITULAR') AS socio,
-                      count(DISTINCT a.codigo_convocatoria)::int, sum(a.monto_adjudicado)::float,
-                      bool_or(a.entidad_ruc::text = %s) AS misma_entidad
-                 FROM rnp_conformacion_juridica r
-                 JOIN pocas p ON p.doc = r.numero_documento
-                 JOIN conosce_adjudicaciones a ON a.ruc_proveedor = r.ruc_empresa AND a.monto_adjudicado > 0
-                                              AND a.fecha_buenapro >= current_date - 365
-                 LEFT JOIN empresas e ON e.ruc = r.ruc_empresa
-                WHERE r.tipo_rol IN ('SOCIO_ACCIONISTA_TITULAR', 'REPRESENTANTE_LEGAL')
-                  AND r.ruc_empresa <> %s AND r.ruc_empresa LIKE '20%%'
-                GROUP BY 1, 2""",
-            (g_ruc, entidad_ruc, g_ruc),
-        )
-        por_persona: dict[str, list[dict]] = {}
-        for doc, ruc, nombre, socio, procesos, monto, misma in cur.fetchall():
-            por_persona.setdefault(doc, []).append({
-                "ruc": ruc, "nombre": nombre or ruc, "papel": "socio" if socio else "representante legal",
-                "procesos": int(procesos or 0), "monto": round(float(monto or 0), 2), "misma_entidad": bool(misma)})
-        # Con el ganador son tres o más empresas ganadoras de la misma persona.
-        casos = sorted((v for v in por_persona.values() if len(v) >= 2), key=lambda v: (-len(v), -sum(x["monto"] for x in v)))
+        mejor = None
+        n_personas = 0
+        for g_ruc in candidatos:
+            cur.execute(
+                """WITH gente AS (
+                     SELECT DISTINCT r.numero_documento AS doc
+                       FROM rnp_conformacion_juridica r
+                      WHERE r.ruc_empresa = %s AND r.tipo_documento LIKE 'DOC. NACIONAL%%'
+                        AND r.tipo_rol IN ('SOCIO_ACCIONISTA_TITULAR', 'REPRESENTANTE_LEGAL')
+                   ), pocas AS (   -- quien figura en decenas de empresas no es el dueño de ninguna
+                     SELECT r.numero_documento AS doc
+                       FROM rnp_conformacion_juridica r JOIN gente g ON g.doc = r.numero_documento
+                      WHERE r.tipo_rol IN ('SOCIO_ACCIONISTA_TITULAR', 'REPRESENTANTE_LEGAL')
+                      GROUP BY 1 HAVING count(DISTINCT r.ruc_empresa) BETWEEN 3 AND 6
+                   )
+                   SELECT r.numero_documento, r.ruc_empresa::text, max(e.razon_social),
+                          bool_or(r.tipo_rol = 'SOCIO_ACCIONISTA_TITULAR') AS socio,
+                          count(DISTINCT a.codigo_convocatoria)::int, sum(a.monto_adjudicado)::float,
+                          bool_or(a.entidad_ruc::text = %s) AS misma_entidad
+                     FROM rnp_conformacion_juridica r
+                     JOIN pocas p ON p.doc = r.numero_documento
+                     JOIN conosce_adjudicaciones a ON a.ruc_proveedor = r.ruc_empresa AND a.monto_adjudicado > 0
+                                                  AND a.fecha_buenapro >= current_date - 365
+                     LEFT JOIN empresas e ON e.ruc = r.ruc_empresa
+                    WHERE r.tipo_rol IN ('SOCIO_ACCIONISTA_TITULAR', 'REPRESENTANTE_LEGAL')
+                      AND r.ruc_empresa <> %s AND r.ruc_empresa LIKE '20%%'
+                    GROUP BY 1, 2""",
+                (g_ruc, entidad_ruc, g_ruc),
+            )
+            por_persona: dict[str, list[dict]] = {}
+            for doc, ruc, nombre, socio, procesos, monto, misma in cur.fetchall():
+                por_persona.setdefault(doc, []).append({
+                    "ruc": ruc, "nombre": nombre or ruc, "papel": "socio" if socio else "representante legal",
+                    "procesos": int(procesos or 0), "monto": round(float(monto or 0), 2), "misma_entidad": bool(misma)})
+            n_personas += len(por_persona)
+            # Con el ganador son tres o más empresas ganadoras de la misma persona.
+            casos_g = sorted((v for v in por_persona.values() if len(v) >= 2), key=lambda v: (-len(v), -sum(x["monto"] for x in v)))
+            clave = (any(x["misma_entidad"] for x in casos_g[0]), len(casos_g[0])) if casos_g else None
+            if casos_g and (mejor is None or clave > mejor[0]):
+                mejor = (clave, g_ruc, casos_g)
+        g_ruc, casos = (mejor[1], mejor[2]) if mejor else (candidatos[0], [])
         result = {
             "regla": "testaferro_multi_ruc",
-            "n_personas_evaluadas": len(por_persona),
+            "n_ganadores_evaluados": len(candidatos),
+            "n_personas_evaluadas": n_personas,
             "n_triggered": len(casos),
             # Sin el documento de la persona: sólo las empresas, que son públicas.
             "detalle": [{"otras_empresas": sorted(v, key=lambda x: -x["monto"])[:10]} for v in casos[:3]],
@@ -417,38 +426,45 @@ def check_directa_recurrente_rule(ocid: str, tool_context: ToolContext,
         cur.execute("SELECT fecha_convocatoria, tipo_proceso FROM convocatorias WHERE ocid=%s", (ocid,))
         row = cur.fetchone()
         fecha = (row and row[0]) or None
-        prov_ruc, prov_nombre = _ganador_ruc(ocid, state, cur)
-        if not prov_ruc:
+        # Con varios ganadores, cada uno (el principal primero); se informa el que más directas acumula.
+        candidatos = ganadores_para_regla(ocid, state, cur)
+        if not candidatos:
             return {"regla": "directa_recurrente", "triggered": False, "estado": "sin_dato",
                     "motivo": "sin proveedor adjudicado identificable"}
-        if fecha:
-            cur.execute(
-                """SELECT DISTINCT c.ocid, c.entidad_ruc, c.fecha_convocatoria, c.cuantia_referencial
-                     FROM convocatorias c
-                     LEFT JOIN postores p ON p.ocid=c.ocid AND p.empresa_ruc=%s
-                     LEFT JOIN ofertas o ON o.postor_id=p.id AND o.ganadora
-                    WHERE c.ocid<>%s AND (c.proveedor_ruc=%s OR o.id IS NOT NULL)
-                      AND (c.tipo_contratacion = 'directa'
-                           OR UPPER(COALESCE(c.tipo_proceso, c.modalidad, '')) LIKE '%%DIRECTA%%')
-                      AND c.fecha_convocatoria BETWEEN %s::date - INTERVAL '12 months' AND %s::date""",
-                (prov_ruc, ocid, prov_ruc, fecha, fecha))
-        else:
-            cur.execute(
-                """SELECT DISTINCT c.ocid, c.entidad_ruc, c.fecha_convocatoria, c.cuantia_referencial
-                     FROM convocatorias c
-                     LEFT JOIN postores p ON p.ocid=c.ocid AND p.empresa_ruc=%s
-                     LEFT JOIN ofertas o ON o.postor_id=p.id AND o.ganadora
-                    WHERE c.ocid<>%s AND (c.proveedor_ruc=%s OR o.id IS NOT NULL)
-                      AND (c.tipo_contratacion = 'directa'
-                           OR UPPER(COALESCE(c.tipo_proceso, c.modalidad, '')) LIKE '%%DIRECTA%%')
-                      AND c.fecha_convocatoria >= NOW() - INTERVAL '12 months'""",
-                (prov_ruc, ocid, prov_ruc))
-        rows = cur.fetchall()
+        mejor = None
+        for prov_ruc, prov_nombre in candidatos:
+            if fecha:
+                cur.execute(
+                    """SELECT DISTINCT c.ocid, c.entidad_ruc, c.fecha_convocatoria, c.cuantia_referencial
+                         FROM convocatorias c
+                         LEFT JOIN postores p ON p.ocid=c.ocid AND p.empresa_ruc=%s
+                         LEFT JOIN ofertas o ON o.postor_id=p.id AND o.ganadora
+                        WHERE c.ocid<>%s AND (c.proveedor_ruc=%s OR o.id IS NOT NULL)
+                          AND (c.tipo_contratacion = 'directa'
+                               OR UPPER(COALESCE(c.tipo_proceso, c.modalidad, '')) LIKE '%%DIRECTA%%')
+                          AND c.fecha_convocatoria BETWEEN %s::date - INTERVAL '12 months' AND %s::date""",
+                    (prov_ruc, ocid, prov_ruc, fecha, fecha))
+            else:
+                cur.execute(
+                    """SELECT DISTINCT c.ocid, c.entidad_ruc, c.fecha_convocatoria, c.cuantia_referencial
+                         FROM convocatorias c
+                         LEFT JOIN postores p ON p.ocid=c.ocid AND p.empresa_ruc=%s
+                         LEFT JOIN ofertas o ON o.postor_id=p.id AND o.ganadora
+                        WHERE c.ocid<>%s AND (c.proveedor_ruc=%s OR o.id IS NOT NULL)
+                          AND (c.tipo_contratacion = 'directa'
+                               OR UPPER(COALESCE(c.tipo_proceso, c.modalidad, '')) LIKE '%%DIRECTA%%')
+                          AND c.fecha_convocatoria >= NOW() - INTERVAL '12 months'""",
+                    (prov_ruc, ocid, prov_ruc))
+            filas = cur.fetchall()
+            if mejor is None or len(filas) > len(mejor[2]):
+                mejor = (prov_ruc, prov_nombre, filas)
+        prov_ruc, prov_nombre, rows = mejor
     finally:
         conn.close()
     procesos = [{"ocid": r[0], "entidad_ruc": r[1], "fecha": str(r[2])[:10], "cuantia": float(r[3] or 0)}
                 for r in rows]
-    result = {"regla": "directa_recurrente", "proveedor_ruc": prov_ruc, "n_directas_12m": len(procesos),
+    result = {"regla": "directa_recurrente", "proveedor_ruc": prov_ruc, "n_ganadores_evaluados": len(candidatos),
+              "n_directas_12m": len(procesos),
               "procesos": procesos[:10], "estado": "hallado" if procesos else "sin_dato",
               "_nota_alcance": "Conteos sobre procesos ingestados en la base de Vigía.", "triggered": False}
     if len(procesos) >= 3:

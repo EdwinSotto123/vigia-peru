@@ -126,16 +126,22 @@ def get_ganador(ocid: str, tool_context: ToolContext) -> dict:
         return {"error": "no_ocds_en_state", "hint": "Llamá fetch_ocds_record primero."}
 
     parties = ocds.get("parties") or []
-    awards = ocds.get("awards") or []
     tender = ocds.get("tender") or {}
 
-    # Map RUC → suppliers/awards
-    winning_rucs: dict[str, float] = {}
-    for a in awards:
-        for s in (a.get("suppliers") or []):
-            sid = (s.get("id") or "").replace("PE-RUC-", "")
-            if sid:
-                winning_rucs[sid] = winning_rucs.get(sid, 0) + float(a.get("value", {}).get("amount") or 0)
+    # Ganadores: los que QUEDARON (CONOSCE o, sin CONOSCE, las adjudicaciones vigentes del OCDS), no quien tuvo una
+    # buena pro que se reemplazó (1220581: el OCDS nombra primero a JEMAR y CONOSCE registra contratado al consorcio).
+    # El ganador que se nombra es el de MAYOR monto, empate por RUC (`ganador_principal`), el mismo de la alerta y de las
+    # reglas. Antes era el primero de `parties[]` (2026-2543-197: HAMUQ, el tercero por monto de 8 ganadores).
+    from tools.compliance_rules._base import _ganadores_ocds, ganador_principal, rucs_ganadores_vigentes
+    _ocid = ocid or ocds.get("ocid") or ""
+    vigentes = rucs_ganadores_vigentes(_ocid, state)
+    winning_rucs: dict[str, float] = {r: m for r, _n, m in _ganadores_ocds(ocds, vigentes)}
+    for r in vigentes:
+        winning_rucs.setdefault(r, 0.0)
+    gp = ganador_principal(_ocid, state)
+
+    def _sin_prefijo(x) -> str:
+        return "".join(ch for ch in str(x or "") if ch.isdigit())
 
     todos_postores: list[dict] = []
     ganador: dict | None = None
@@ -146,13 +152,18 @@ def get_ganador(ocid: str, tool_context: ToolContext) -> dict:
         ident = p.get("identifier") or {}
         ruc = ident.get("id") if ident.get("scheme") == "PE-RUC" else (p.get("id") or "").replace("PE-RUC-", "")
         razon_social = p.get("name") or ident.get("legalName") or ""
-        es_ganador = ruc in winning_rucs
+        es_ganador = _sin_prefijo(ruc) in winning_rucs
         item = {"ruc": ruc, "razon_social": razon_social, "es_ganador": es_ganador}
         if es_ganador:
-            item["monto_ganado"] = winning_rucs.get(ruc, 0)
-            if not ganador:
+            item["monto_ganado"] = winning_rucs.get(_sin_prefijo(ruc), 0)
+            if gp and _sin_prefijo(ruc) == gp["ruc"] and not ganador:
                 ganador = item.copy()
         todos_postores.append(item)
+    if gp and not ganador:
+        # Ganador que el OCDS no trae entre sus partes (sólo en CONOSCE).
+        ganador = {"ruc": gp["ruc"], "razon_social": gp.get("nombre") or "", "es_ganador": True}
+    if ganador and gp:
+        ganador["monto_ganado"] = gp.get("monto") or ganador.get("monto_ganado") or 0
 
     # Entidad contratante
     entidad = {}

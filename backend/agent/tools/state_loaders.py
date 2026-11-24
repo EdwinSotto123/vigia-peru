@@ -220,7 +220,9 @@ def _banderas_para_dictamen(state) -> list[dict] | None:
         if pend:
             return [{"regla": x.get("regla"), "severidad": x.get("severidad"), "evidencia": x.get("evidencia"),
                      "norma": x.get("norma"), "fuente_url": x.get("fuente_url"),
-                     "agente_origen": x.get("agente_origen") or x.get("_source")} for x in pend]
+                     "agente_origen": x.get("agente_origen") or x.get("_source"),
+                     "puntua": x.get("puntua", True) is not False and x.get("_puntua", True) is not False}
+                    for x in pend]
     if codigo:
         try:
             conn = _pg()
@@ -231,7 +233,7 @@ def _banderas_para_dictamen(state) -> list[dict] | None:
                 con_ver = cur.fetchone() is not None
                 cur.execute(
                     "SELECT b.regla, b.severidad, b.evidencia, b.norma, b.fuente_url, b.agente_origen"
-                    + (", b.verificacion" if con_ver else ", NULL") +
+                    + (", b.verificacion" if con_ver else ", NULL") + ", b.puntua"
                     " FROM banderas b JOIN alertas a ON a.id=b.alerta_id WHERE a.codigo=%s "
                     "ORDER BY CASE b.severidad WHEN 'alta' THEN 1 WHEN 'media' THEN 2 ELSE 3 END, b.id",
                     (codigo,))
@@ -243,7 +245,8 @@ def _banderas_para_dictamen(state) -> list[dict] | None:
                         if isinstance(ver, str):
                             ver = _safe_parse_json(ver)
                         out.append({"regla": r[0], "severidad": r[1], "evidencia": r[2], "norma": r[3],
-                                    "fuente_url": r[4], "agente_origen": r[5], "verificacion": ver})
+                                    "fuente_url": r[4], "agente_origen": r[5], "verificacion": ver,
+                                    "puntua": True if len(r) < 8 or r[7] is None else bool(r[7])})
                     return out
             finally:
                 conn.close()
@@ -432,13 +435,20 @@ def get_dictamen_context(tool_context: ToolContext) -> dict:
     out["salidas_no_verificables"] = degradadas
     out["oece_perfil"] = _oece_perfil_para_dictamen(state)
     out["rnp_firmantes_resultados"] = _rnp_firmantes_para_dictamen(state)
-    out["banderas"] = _banderas_para_dictamen(state)
+    todas = _banderas_para_dictamen(state)
+    # Los hechos de contexto (puntua=false: el tipo «Contratación Directa», la prensa de la entidad, una sanción
+    # histórica) van aparte: el dictamen los presenta como contexto, no como señales, y no los cuenta entre las
+    # banderas (2026-11-24; antes «Se detectaron 5 banderas» contaba dos notas de EsSalud que no nombraban al proveedor).
+    out["banderas"] = [b for b in todas if b.get("puntua", True) is not False] if todas is not None else None
+    out["hechos_contexto"] = [b for b in (todas or []) if b.get("puntua", True) is False]
     # Sin `reglas_evaluadas` (= pending_flags): repetía las banderas, y el dictamen solo puede
     # citar las persistidas en `banderas`.
     out["n_banderas"] = len(out["banderas"] or [])
+    out["n_hechos_contexto"] = len(out["hechos_contexto"])
     out["market_analysis"] = _compact_market_analysis(out.get("market_analysis"))
     out = compactar_errores(out)
-    out["_nota"] = ("Solo se pueden citar banderas presentes en `banderas`. Las secciones con "
+    out["_nota"] = ("Solo se pueden citar banderas presentes en `banderas`. `hechos_contexto` son hechos de contexto "
+                    "sin puntaje (no señales): se mencionan como contexto, nunca como bandera ni en el conteo. Las secciones con "
                     "`_truncado: true` fueron paginadas; `_omitidos` dice cuántos elementos no se "
                     "muestran. `recortes`/`descartes`/`validaciones_pendientes` deben listarse en "
                     "la sección 'Recortes y datos no verificables'. Las salidas listadas en "

@@ -141,6 +141,29 @@ def con_ganador_principal(banderas: list[dict], state: dict) -> list[dict]:
     return banderas
 
 
+def proveedor_ruc_alerta(ocid: str, state: dict, cur) -> tuple[str | None, bool]:
+    """(RUC para `alertas.proveedor_ruc`, decidido). Es el ganador principal (`ganador_principal`: mayor monto
+    adjudicado, empate por RUC), no la primera oferta ganadora de un `LIMIT 1` sin orden (2026-2543-197 guardó a HAMUQ,
+    tercera por monto; 1220581 a JEMAR, cuya buena pro se reemplazó). La columna es CHAR(11) con FK a `empresas`: un
+    consorcio (código del SEACE, sin RUC) queda en NULL —la API lo nombra por CONOSCE— y un ganador que sólo trae
+    CONOSCE se da de alta en `empresas` con su razón social. `decidido` = se sabe quién ganó (pisa el valor anterior)."""
+    from tools.compliance_rules import ganador_principal
+    g = ganador_principal(ocid, state, cur)
+    if not g or not g.get("ruc"):
+        return None, False
+    ruc = str(g["ruc"]).strip()
+    if not re.fullmatch(r"\d{11}", ruc):
+        return None, True
+    cur.execute("SELECT 1 FROM empresas WHERE ruc=%s", (ruc,))
+    if cur.fetchone():
+        return ruc, True
+    if g.get("nombre"):
+        cur.execute("INSERT INTO empresas (ruc, razon_social) VALUES (%s, %s) ON CONFLICT (ruc) DO NOTHING",
+                    (ruc, str(g["nombre"])[:200]))
+        return ruc, True
+    return None, True
+
+
 def ruc_ganador_principal(state: dict) -> str | None:
     """RUC del ganador que investigó el análisis (el del expediente; si no, el de la red de personas o la web)."""
     st = state if isinstance(state, dict) else {}
@@ -263,7 +286,9 @@ def _recalcular_score(cur, alerta_id, state=None) -> tuple[int, list[dict]]:
     banderas = _leer_banderas(cur, alerta_id)
     # Los hechos neutros (puntua=false) se muestran pero no suman: no son riesgo, son contexto.
     score = puntaje_de(banderas)
-    reglas = sorted({b["regla"] for b in banderas if b.get("regla")})
+    # Sólo las reglas que puntúan: un hecho de contexto (puntua=false, p. ej. «Contratación Directa» o la prensa de la
+    # entidad) no es una regla disparada (2026-11-24). Van aparte en `compliance_resumen_det.reglas_contexto`.
+    reglas = sorted({b["regla"] for b in banderas if b.get("regla") and b.get("puntua", True)})
     cur.execute("UPDATE alertas SET score=%s, reglas_disparadas=%s, updated_at=NOW() WHERE id=%s",
                 (score, reglas, alerta_id))
     if state is not None:

@@ -192,14 +192,172 @@ def _monto_adjudicado_ocds(ocds: dict):
     return None, None
 
 
+# ── El ganador principal: el mismo en todo el análisis ─────────────────
+# Con varios ganadores, el que se nombra es el de MAYOR monto adjudicado (suma de sus ítems en CONOSCE o, sin CONOSCE,
+# de sus adjudicaciones vigentes del OCDS), empate por RUC: la misma regla que la API (`ganadorPrincipal`,
+# contratos_detalle.ts). Antes cada lugar elegía a su modo (2026-11-24): `get_ganador` el primero de `parties[]`
+# (2026-2543-197: HAMUQ, tercero por monto), la alerta un `LIMIT 1` sin orden y las reglas el primer award con RUC.
+_ESTADOS_AWARD_CAIDO = ("cancelled", "unsuccessful")
+
+
+def _id_proveedor(sup) -> str:
+    return "".join(ch for ch in str((sup or {}).get("id") or "") if ch.isdigit()) if isinstance(sup, dict) else ""
+
+
+def _awards_vigentes(ocds: dict, en_conosce: set | frozenset = frozenset()) -> list[dict]:
+    """awards[] del OCDS que siguen vigentes (port de `adjudicacionesVigentes` de la API). Varias adjudicaciones sobre
+    los MISMOS ítems son una buena pro que pasó a otro postor, o un reparto:
+      · con CONOSCE, quedan las de los proveedores que CONOSCE registra (1220581: el OCDS nombra primero a JEMAR, cuya
+        buena pro se reemplazó; CONOSCE registra contratado al CONSORCIO TECNISAN - METROPOLITAN);
+      · sin CONOSCE, si juntas no pasan el referencial de sus ítems (+10 %) es un reparto y quedan todas; si lo pasan
+        son alternativas: queda la que tiene contrato (contracts[].awardID) o, sin contrato, la primera."""
+    ocds = ocds if isinstance(ocds, dict) else {}
+    aws = [a for a in (ocds.get("awards") or []) if isinstance(a, dict)
+           and str(a.get("status") or "").lower() not in _ESTADOS_AWARD_CAIDO]
+    if len(aws) < 2:
+        return aws
+    items = [{str(ai.get("id")) for ai in (a.get("items") or []) if isinstance(ai, dict) and ai.get("id") is not None}
+             for a in aws]
+    grupo = list(range(len(aws)))
+
+    def raiz(i):
+        while grupo[i] != i:
+            i = grupo[i]
+        return i
+    for i in range(len(aws)):
+        for j in range(i + 1, len(aws)):
+            if items[i] & items[j]:
+                grupo[raiz(j)] = raiz(i)
+    miembros: dict[int, list[int]] = {}
+    for i in range(len(aws)):
+        miembros.setdefault(raiz(i), []).append(i)
+    ref_item = {str(it.get("id")): _f((it.get("totalValue") or {}).get("amount")) or 0.0
+                for it in ((ocds.get("tender") or {}).get("items") or []) if isinstance(it, dict)}
+    con_contrato = {str(c.get("awardID")) for c in (ocds.get("contracts") or []) if isinstance(c, dict) and c.get("awardID")}
+    vigente = [True] * len(aws)
+    for ids in miembros.values():
+        if len(ids) < 2:
+            continue
+        confirmados = [i for i in ids if any(_id_proveedor(sp) in en_conosce for sp in (aws[i].get("suppliers") or []))]
+        if confirmados:
+            for i in ids:
+                vigente[i] = i in confirmados
+            continue
+        ref = sum(ref_item.get(x, 0.0) for x in set().union(*(items[i] for i in ids)))   # cada ítem una vez
+        suma = sum(_f((aws[i].get("value") or {}).get("amount")) or 0.0 for i in ids)
+        if ref > 0 and suma <= ref * 1.1:
+            continue
+        contratados = [i for i in ids if str(aws[i].get("id")) in con_contrato]
+        queda = contratados or ids[:1]
+        for i in ids:
+            vigente[i] = i in queda
+    return [a for a, v in zip(aws, vigente) if v]
+
+
+def _ganadores_ocds(ocds: dict, en_conosce: set | frozenset = frozenset()) -> list[tuple[str, str | None, float]]:
+    """[(id del proveedor, nombre, monto)] de las adjudicaciones vigentes, de mayor a menor monto y por id."""
+    suma: dict[str, list] = {}
+    for a in _awards_vigentes(ocds, en_conosce):
+        monto = _f((a.get("value") or {}).get("amount")) or 0.0
+        sups = [sp for sp in (a.get("suppliers") or []) if _id_proveedor(sp)]
+        for sp in sups:
+            g = suma.setdefault(_id_proveedor(sp), [sp.get("name"), 0.0])
+            g[1] += monto / len(sups)
+    return sorted(((r, n, m) for r, (n, m) in suma.items()), key=lambda x: (-x[2], x[0]))
+
+
 def _ganador_ocds(ocds: dict) -> tuple[str | None, str | None]:
-    for a in ((ocds or {}).get("awards") or []):
-        for sup in (a.get("suppliers") or []):
-            pid = str(sup.get("id") or "")
-            digits = "".join(ch for ch in pid if ch.isdigit())
-            if len(digits) == 11:
-                return digits, sup.get("name")
+    """(RUC, nombre) del ganador según el OCDS solo: el de mayor monto entre las adjudicaciones vigentes (empate por
+    RUC). Solo RUC de 11 dígitos (un consorcio con código del SEACE no lo tiene)."""
+    for ruc, nombre, _m in _ganadores_ocds(ocds):
+        if len(ruc) == 11:
+            return ruc, nombre
     return None, None
+
+
+def _adjudicaciones_conosce(ocid: str, state: dict, cur=None) -> list[tuple[str, str | None, float, object]]:
+    """[(ruc_proveedor, proveedor, monto, buena pro)] del proceso en CONOSCE (por código y entidad), sumado por
+    proveedor, de mayor a menor monto y por RUC. Un consorcio va con su código del SEACE. Vacío sin base o sin filas.
+    Se guarda en state["_conosce_adj"]."""
+    st = state if isinstance(state, dict) else {}
+    ocid = _short_ocid(str(ocid or ""))          # `convocatorias.ocid` es el corto
+    ya = st.get("_conosce_adj")
+    if isinstance(ya, dict) and ya.get("ocid") == str(ocid):
+        return ya["filas"]
+    filas: list[tuple] = []
+    conn = None
+    try:
+        if cur is None:
+            conn = _pg()
+            cur = conn.cursor()
+        cur.execute("SELECT codigo, entidad_ruc::text FROM convocatorias WHERE ocid = %s", (str(ocid),))
+        fila = cur.fetchone()
+        if fila and fila[0]:
+            cur.execute("""SELECT ruc_proveedor, max(proveedor), sum(monto_adjudicado)::float, min(fecha_buenapro)
+                             FROM conosce_adjudicaciones
+                            WHERE codigo_convocatoria = %s AND (%s::text IS NULL OR entidad_ruc::text = %s::text)
+                            GROUP BY 1""", (fila[0], fila[1], fila[1]))
+            filas = [(str(r or "").strip(), n, float(m or 0), f) for r, n, m, f in cur.fetchall() if str(r or "").strip()]
+            filas.sort(key=lambda x: (-x[2], x[0]))
+    except Exception:  # noqa: BLE001 — sin base: el OCDS
+        filas = []
+    finally:
+        if conn is not None:
+            try:
+                conn.close()
+            except Exception:  # noqa: BLE001
+                pass
+    if isinstance(state, dict):
+        state["_conosce_adj"] = {"ocid": str(ocid), "filas": filas}
+    return filas
+
+
+def ganador_principal(ocid: str, state: dict, cur=None) -> dict | None:
+    """{ruc, nombre, monto, fuente} del ganador del proceso: el de mayor monto adjudicado en CONOSCE (suma de sus ítems)
+    o, sin CONOSCE, en las adjudicaciones vigentes del OCDS; empate por RUC. `ruc` puede ser el código del SEACE de un
+    consorcio (no tiene RUC). None sin adjudicación. Es el que nombran `get_ganador`, la alerta y las reglas."""
+    st = state if isinstance(state, dict) else {}
+    ocid = _short_ocid(str(ocid or ""))
+    ya = st.get("_ganador_principal")
+    if isinstance(ya, dict) and ya.get("ocid") == str(ocid):
+        return ya["ganador"]
+    conosce = [f for f in _adjudicaciones_conosce(ocid, st, cur) if f[2] > 0]
+    if conosce:
+        ruc, nombre, monto, _ = conosce[0]
+        g = {"ruc": ruc, "nombre": nombre, "monto": monto, "fuente": "conosce"}
+    else:
+        ocds = st.get("ocds") or st.get("ocds_preloaded") or {}
+        lista = _ganadores_ocds(ocds)
+        g = ({"ruc": lista[0][0], "nombre": lista[0][1], "monto": lista[0][2], "fuente": "ocds"} if lista else None)
+    if isinstance(state, dict):
+        state["_ganador_principal"] = {"ocid": str(ocid), "ganador": g}
+    return g
+
+
+def ganadores_para_regla(ocid: str, state: dict, cur=None) -> list[tuple[str, str | None]]:
+    """[(id, nombre)] a evaluar en una regla sobre «el» ganador cuando hay varios: el principal primero y después los
+    demás de `ganadores_evaluables` (integrantes de consorcio incluidos), hasta 5, sin repetir. Antes esas reglas
+    miraban a uno solo, el de un `LIMIT 1` sin orden (2026-2543-197: 8 ganadores)."""
+    out: list[tuple[str, str | None]] = []
+    g = ganador_principal(ocid, state, cur)
+    if g and g.get("ruc"):
+        out.append((str(g["ruc"]), g.get("nombre")))
+    try:
+        for x in ganadores_evaluables(ocid, state, cur):
+            if x.get("ruc") and all(str(x["ruc"]) != r for r, _ in out):
+                out.append((str(x["ruc"]), x.get("nombre")))
+    except Exception:  # noqa: BLE001
+        pass
+    return out[:5]
+
+
+def rucs_ganadores_vigentes(ocid: str, state: dict, cur=None) -> set[str]:
+    """Ids de quienes quedaron como ganadores (CONOSCE o, sin CONOSCE, adjudicaciones vigentes del OCDS)."""
+    conosce = {f[0] for f in _adjudicaciones_conosce(ocid, state, cur) if f[2] > 0}
+    if conosce:
+        return conosce
+    ocds = (state or {}).get("ocds") or (state or {}).get("ocds_preloaded") or {}
+    return {r for r, _n, _m in _ganadores_ocds(ocds)}
 
 
 def _f(v):
@@ -396,29 +554,10 @@ def _as_tool(fn):
     return FunctionTool(func=_w)
 
 def _ganador_ruc(ocid: str, state: dict, cur=None) -> tuple[str | None, str | None]:
-    """(ruc, razon_social) del ganador: BD (ofertas ganadora) → OCDS awards.suppliers."""
-    ruc, nombre = None, None
-    if cur is not None:
-        try:
-            cur.execute(
-                """SELECT e.ruc, e.razon_social FROM postores p
-                     JOIN ofertas o ON o.postor_id=p.id AND o.ganadora
-                     JOIN empresas e ON e.ruc=p.empresa_ruc
-                    WHERE p.ocid=%s LIMIT 1""", (ocid,))
-            row = cur.fetchone()
-            if row:
-                ruc, nombre = row[0], row[1]
-        except Exception:
-            ruc = None
-    if not ruc:
-        ocds = state.get("ocds") or state.get("ocds_preloaded") or {}
-        for a in (ocds.get("awards") or []):
-            for sup in (a.get("suppliers") or []):
-                pid = str(sup.get("id") or "")
-                digits = "".join(ch for ch in pid if ch.isdigit())
-                if len(digits) == 11:
-                    return digits, sup.get("name")
-    return ruc, nombre
+    """(ruc, razon_social) del ganador principal (`ganador_principal`: mayor monto adjudicado, empate por RUC). Antes era
+    la primera oferta ganadora de la base con un `LIMIT 1` sin orden: con varios ganadores, uno cualquiera."""
+    g = ganador_principal(ocid, state, cur)
+    return (g["ruc"], g.get("nombre")) if g else (None, None)
 
 
 # ─── Prueba de oro de las redes (2026-11-04): IGV exonerado, honorario fijo y consorciados ───
@@ -504,23 +643,16 @@ def ganadores_evaluables(ocid: str, state: dict, cur=None) -> list[dict]:
         if cur is None:
             conn = _pg()
             cur = conn.cursor()
-        cur.execute("SELECT codigo, entidad_ruc::text FROM convocatorias WHERE ocid = %s", (str(ocid),))
-        fila = cur.fetchone()
-        if fila and fila[0]:
-            cur.execute("""SELECT ruc_proveedor, max(proveedor), sum(monto_adjudicado)::float, min(fecha_buenapro)
-                             FROM conosce_adjudicaciones
-                            WHERE codigo_convocatoria = %s AND (%s::text IS NULL OR entidad_ruc::text = %s::text)
-                            GROUP BY 1 ORDER BY 3 DESC NULLS LAST LIMIT 5""", (fila[0], fila[1], fila[1]))
-            for ruc, nombre, monto, fbp in cur.fetchall():
-                ruc = str(ruc or "").strip()
-                if re.fullmatch(r"(10|15|17|20)\d{9}", ruc):
-                    out.append({"ruc": ruc, "nombre": nombre, "consorcio": None, "monto": monto, "fecha_buena_pro": fbp})
-                    continue
-                cur.execute("""SELECT DISTINCT ruc_miembro, miembro FROM conosce_consorcios
-                                WHERE ruc_consorcio = %s AND ruc_miembro ~ '^(10|15|17|20)[0-9]{9}$'
-                                ORDER BY 1 LIMIT 5""", (ruc,))
-                for mr, mn in cur.fetchall():
-                    out.append({"ruc": mr, "nombre": mn, "consorcio": nombre or ruc, "monto": monto, "fecha_buena_pro": fbp})
+        # Los 5 de mayor monto, empate por RUC (`_adjudicaciones_conosce`).
+        for ruc, nombre, monto, fbp in _adjudicaciones_conosce(ocid, st, cur)[:5]:
+            if re.fullmatch(r"(10|15|17|20)\d{9}", ruc):
+                out.append({"ruc": ruc, "nombre": nombre, "consorcio": None, "monto": monto, "fecha_buena_pro": fbp})
+                continue
+            cur.execute("""SELECT DISTINCT ruc_miembro, miembro FROM conosce_consorcios
+                            WHERE ruc_consorcio = %s AND ruc_miembro ~ '^(10|15|17|20)[0-9]{9}$'
+                            ORDER BY 1 LIMIT 5""", (ruc,))
+            for mr, mn in cur.fetchall():
+                out.append({"ruc": mr, "nombre": mn, "consorcio": nombre or ruc, "monto": monto, "fecha_buena_pro": fbp})
     except Exception:  # noqa: BLE001 — sin base, el OCDS
         out = []
     finally:
@@ -530,15 +662,12 @@ def ganadores_evaluables(ocid: str, state: dict, cur=None) -> list[dict]:
             except Exception:  # noqa: BLE001
                 pass
     if not out:
+        # Sin CONOSCE: las adjudicaciones VIGENTES del OCDS (no la buena pro que se reemplazó), por monto.
         ocds = st.get("ocds") or st.get("ocds_preloaded") or {}
-        monto = _monto_adjudicado_ocds(ocds)[0] if isinstance(ocds, dict) else None
         fbp = _to_date(((ocds.get("awards") or [{}])[0] or {}).get("date")) if isinstance(ocds, dict) else None
-        for a in (ocds.get("awards") or []) if isinstance(ocds, dict) else []:
-            for sup in (a.get("suppliers") or []) if isinstance(a, dict) else []:
-                d = "".join(ch for ch in str((sup or {}).get("id") or "") if ch.isdigit())
-                if len(d) == 11 and not any(x["ruc"] == d for x in out):
-                    out.append({"ruc": d, "nombre": (sup or {}).get("name"), "consorcio": None, "monto": monto,
-                                "fecha_buena_pro": fbp})
+        for d, nombre, monto in _ganadores_ocds(ocds)[:5]:
+            if len(d) == 11:
+                out.append({"ruc": d, "nombre": nombre, "consorcio": None, "monto": monto or None, "fecha_buena_pro": fbp})
     if isinstance(state, dict):
         state["_ganadores_eval"] = {"ocid": str(ocid), "lista": out}
     return out

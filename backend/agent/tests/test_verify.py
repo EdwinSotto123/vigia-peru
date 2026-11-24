@@ -229,6 +229,8 @@ class _FakeCursor:
             return
         if "from convocatorias where ocid" in s:
             return                                   # convocatoria no registrada → fallback OCDS
+        if "from conosce_adjudicaciones" in s or "from empresas where ruc" in s or s.startswith("insert into empresas"):
+            return                                   # ganador principal: sin CONOSCE, el OCDS
         if s.startswith("insert into alertas"):
             codigo = p[0]
             self.db.alertas.setdefault(codigo, {"id": "A1", "score": 0, "codigo": codigo})

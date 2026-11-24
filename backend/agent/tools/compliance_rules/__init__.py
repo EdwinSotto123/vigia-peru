@@ -39,7 +39,10 @@ from tools.compliance_rules._base import (  # noqa: F401
     _postores_parser,
     _sin_tildes,
     _as_tool,
-    _ganador_ruc,)
+    _ganador_ruc,
+    ganador_principal,
+    ganadores_para_regla,
+    rucs_ganadores_vigentes,)
 from tools.compliance_rules._object_matching import (  # noqa: F401
     _STOP_OBJETO,
     _COMODIN_OBJETO,

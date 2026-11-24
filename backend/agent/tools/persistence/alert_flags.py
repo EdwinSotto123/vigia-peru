@@ -5,7 +5,7 @@ hasta que `persist_alert_from_flags` crea/actualiza la fila en `alertas`."""
 from tools._core import *  # noqa: F401,F403
 from tools.persistence.shared import (
     _advisory_lock, _insert_bandera, _limpiar_banderas_agente, _montos_alerta,
-    _peso, _recalcular_score, _verificar_o_descartar, con_ganador_principal, sin_mismo_hecho,
+    _peso, _recalcular_score, _verificar_o_descartar, con_ganador_principal, proveedor_ruc_alerta, sin_mismo_hecho,
 )
 from tools.fuentes import proceso_oece  # noqa: E402
 
@@ -110,10 +110,7 @@ def persist_alert_from_flags(ocid: str, tool_context: ToolContext) -> dict:
         cur = conn.cursor()
         _advisory_lock(cur, codigo)
         cur.execute(
-            """SELECT entidad_ruc, region, fecha_buena_pro, objeto, cuantia_referencial,
-                      (SELECT empresa_ruc FROM postores p
-                         JOIN ofertas o ON o.postor_id=p.id AND o.ganadora
-                        WHERE p.ocid=convocatorias.ocid LIMIT 1)
+            """SELECT entidad_ruc, region, fecha_buena_pro, objeto, cuantia_referencial
                  FROM convocatorias WHERE ocid=%s""",
             (ocid,),
         )
@@ -144,13 +141,11 @@ def persist_alert_from_flags(ocid: str, tool_context: ToolContext) -> dict:
             fbp = None
             objeto = tender.get("description") or tender.get("title") or ""
             cuantia = tender.get("value", {}).get("amount") if isinstance(tender.get("value"), dict) else None
-            prov_ruc = None
         else:
-            ent_ruc, region, fbp, objeto, cuantia, prov_ruc = row
+            ent_ruc, region, fbp, objeto, cuantia = row
         monto_adj, monto_ref, _fuente_monto = _montos_alerta(state, cuantia)
-        if not prov_ruc:
-            from tools.compliance_rules import _ganador_ocds
-            prov_ruc, _ = _ganador_ocds(state.get("ocds") or state.get("ocds_preloaded") or {})
+        # El ganador principal (mayor monto adjudicado, empate por RUC): el mismo de get_ganador y de las reglas.
+        prov_ruc, prov_decidido = proveedor_ruc_alerta(ocid, state, cur)
         cur.execute(
             """INSERT INTO alertas (codigo, ocid, entidad_ruc, proveedor_ruc, monto_adjudicado,
                                    monto_referencial, fecha_buena_pro, region, score, reglas_disparadas,
@@ -160,13 +155,14 @@ def persist_alert_from_flags(ocid: str, tool_context: ToolContext) -> dict:
                  reglas_disparadas=EXCLUDED.reglas_disparadas,
                  monto_adjudicado=COALESCE(EXCLUDED.monto_adjudicado, alertas.monto_adjudicado),
                  monto_referencial=COALESCE(EXCLUDED.monto_referencial, alertas.monto_referencial),
-                 proveedor_ruc=COALESCE(EXCLUDED.proveedor_ruc, alertas.proveedor_ruc),
+                 proveedor_ruc=CASE WHEN %s THEN EXCLUDED.proveedor_ruc
+                                    ELSE COALESCE(EXCLUDED.proveedor_ruc, alertas.proveedor_ruc) END,
                  analizado_en=NOW(),
                  updated_at=NOW()
                RETURNING id""",
             (codigo, ocid, ent_ruc, prov_ruc, monto_adj, monto_ref, fbp, region, score,
-             [b["regla"] for b in banderas], (objeto or "")[:500],
-             _short_ocid(ocid), proceso_oece(ocid)),
+             [b["regla"] for b in banderas if b.get("puntua", True)], (objeto or "")[:500],
+             _short_ocid(ocid), proceso_oece(ocid), prov_decidido),
         )
         alerta_id = cur.fetchone()[0]
         state["montos_alerta"] = {"monto_adjudicado": monto_adj, "monto_referencial": monto_ref, "fuente": _fuente_monto}

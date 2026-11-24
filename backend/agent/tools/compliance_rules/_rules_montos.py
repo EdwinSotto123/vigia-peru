@@ -1,7 +1,7 @@
 """compliance_rules._rules_montos — reglas de plazos, montos/tipo de proceso y fraccionamiento."""
 
 from tools._core import *  # noqa: F401,F403
-from tools.compliance_rules._base import _as_tool, _es_comparacion_precios, _fecha_convocatoria_state, _ganador_ruc, _montos_ocds, _norma_state, _perfil_reglas, _perfil_topes, _procurement_method, _regla_omitida, _sin_tildes, _to_date, norma_aplicable  # noqa: F401
+from tools.compliance_rules._base import _as_tool, _es_comparacion_precios, _fecha_convocatoria_state, _ganador_ruc, _montos_ocds, _norma_state, _perfil_reglas, _perfil_topes, _procurement_method, _regla_omitida, _sin_tildes, _to_date, ganadores_para_regla, norma_aplicable  # noqa: F401
 from tools.fuentes import proceso_oece  # noqa: E402
 
 
@@ -378,46 +378,43 @@ def check_fraccionamiento_rule(ocid: str, tool_context: ToolContext,
             return {"regla": "fraccionamiento", "triggered": False, "estado": "sin_dato",
                     "motivo": "convocatoria sin entidad/fecha en BD"}
         entidad_ruc, objeto, fecha, cuantia, tipo = row
-        prov_ruc, prov_nombre = _ganador_ruc(ocid, state, cur)
-        if not prov_ruc:
-            # Un consorcio: su código del SEACE es el `proveedor_ruc` de sus otros procesos con la entidad.
-            _o = state.get("ocds") or state.get("ocds_preloaded") or {}
-            for _a in (_o.get("awards") or []):
-                for _s in (_a.get("suppliers") or []):
-                    _d = "".join(ch for ch in str(_s.get("id") or "") if ch.isdigit())
-                    if _d and not prov_ruc:
-                        prov_ruc, prov_nombre = _d, _s.get("name")
-        if not prov_ruc:
+        # Con varios ganadores, cada uno (el principal primero; un consorcio con su código del SEACE, que es el
+        # `proveedor_ruc` de sus otros procesos con la entidad). Se sigue con el de más procesos parecidos.
+        candidatos = ganadores_para_regla(ocid, state, cur)
+        if not candidatos:
             return {"regla": "fraccionamiento", "triggered": False, "estado": "sin_dato",
                     "motivo": "sin proveedor adjudicado identificable"}
-        if len(str(prov_ruc)) == 11 and str(prov_ruc).startswith("10"):
-            from tools.privacidad import tapar_nombre
-            prov_nombre = tapar_nombre(prov_nombre)
-        cur.execute(
-            """SELECT DISTINCT c.ocid, c.objeto, c.fecha_convocatoria, c.cuantia_referencial, c.tipo_proceso
-                 FROM convocatorias c
-                 LEFT JOIN postores p ON p.ocid=c.ocid AND p.empresa_ruc=%s
-                 LEFT JOIN ofertas o ON o.postor_id=p.id AND o.ganadora
-                WHERE c.ocid<>%s AND c.entidad_ruc=%s
-                  AND (c.proveedor_ruc=%s OR o.id IS NOT NULL)
-                  AND c.fecha_convocatoria BETWEEN %s::date - INTERVAL '90 days' AND %s::date + INTERVAL '90 days'""",
-            (prov_ruc, ocid, entidad_ruc, prov_ruc, fecha, fecha))
-        rows = cur.fetchall()
+        base = _tokens_objeto(objeto or "")
+        mejor = None
+        for prov_ruc, prov_nombre in candidatos:
+            cur.execute(
+                """SELECT DISTINCT c.ocid, c.objeto, c.fecha_convocatoria, c.cuantia_referencial, c.tipo_proceso
+                     FROM convocatorias c
+                     LEFT JOIN postores p ON p.ocid=c.ocid AND p.empresa_ruc=%s
+                     LEFT JOIN ofertas o ON o.postor_id=p.id AND o.ganadora
+                    WHERE c.ocid<>%s AND c.entidad_ruc=%s
+                      AND (c.proveedor_ruc=%s OR o.id IS NOT NULL)
+                      AND c.fecha_convocatoria BETWEEN %s::date - INTERVAL '90 days' AND %s::date + INTERVAL '90 days'""",
+                (prov_ruc, ocid, entidad_ruc, prov_ruc, fecha, fecha))
+            rel = []
+            for r in cur.fetchall():
+                toks = _tokens_objeto(r[1] or "")
+                if not base or not toks:
+                    continue
+                sim = len(base & toks) / len(base | toks)
+                if sim >= 0.5:
+                    rel.append({"ocid": r[0], "objeto": (r[1] or "")[:120],
+                                "fecha": str(r[2])[:10], "cuantia": float(r[3] or 0),
+                                "tipo_proceso": r[4], "similitud": round(sim, 2)})
+            if mejor is None or len(rel) > len(mejor[2]):
+                mejor = (prov_ruc, prov_nombre, rel)
+        prov_ruc, prov_nombre, relacionados = mejor
     finally:
         conn.close()
-
-    base = _tokens_objeto(objeto or "")
-    relacionados = []
-    for r in rows:
-        toks = _tokens_objeto(r[1] or "")
-        if not base or not toks:
-            continue
-        sim = len(base & toks) / len(base | toks)
-        if sim >= 0.5:
-            relacionados.append({"ocid": r[0], "objeto": (r[1] or "")[:120],
-                                 "fecha": str(r[2])[:10], "cuantia": float(r[3] or 0),
-                                 "tipo_proceso": r[4], "similitud": round(sim, 2)})
-    result = {"regla": "fraccionamiento", "proveedor_ruc": prov_ruc,
+    if len(str(prov_ruc)) == 11 and str(prov_ruc).startswith("10"):
+        from tools.privacidad import tapar_nombre
+        prov_nombre = tapar_nombre(prov_nombre)
+    result = {"regla": "fraccionamiento", "proveedor_ruc": prov_ruc, "n_ganadores_evaluados": len(candidatos),
               "procesos_relacionados": relacionados[:10], "estado": "hallado" if relacionados else "sin_dato",
               "_nota_alcance": "Conteos sobre procesos ingestados en la base de Vigía.", "triggered": False}
     # Fraccionar es partir una compra para no llegar al procedimiento que le tocaba: sólo es señal si la SUMA cruza un

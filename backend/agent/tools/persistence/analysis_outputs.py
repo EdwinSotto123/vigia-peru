@@ -8,7 +8,8 @@ import time as _time
 from tools import verify as _verify
 from tools.persistence.shared import (
     _advisory_lock, _insert_bandera, _leer_banderas, _montos_alerta, _norma,
-    _normalizar_red_flag, _recalcular_score, _verificar_o_descartar, ruc_ganador_principal, sin_mismo_hecho,
+    _normalizar_red_flag, _recalcular_score, _verificar_o_descartar, proveedor_ruc_alerta, ruc_ganador_principal,
+    sin_mismo_hecho,
 )
 from tools.fuentes import proceso_oece  # noqa: E402
 
@@ -266,16 +267,13 @@ def persist_analysis_outputs(alerta_codigo: str, tool_context: ToolContext) -> d
         _stub_created = False
         if not row and ocid:
             cur.execute(
-                """SELECT entidad_ruc, region, fecha_buena_pro, objeto, cuantia_referencial,
-                          (SELECT empresa_ruc FROM postores p
-                             JOIN ofertas o ON o.postor_id=p.id AND o.ganadora
-                            WHERE p.ocid=convocatorias.ocid LIMIT 1)
+                """SELECT entidad_ruc, region, fecha_buena_pro, objeto, cuantia_referencial
                      FROM convocatorias WHERE ocid=%s""",
                 (ocid,),
             )
             conv = cur.fetchone()
             if conv:
-                ent_ruc, region, fbp, objeto, cuantia, prov_ruc = conv
+                ent_ruc, region, fbp, objeto, cuantia = conv
             else:
                 # Fallback al OCDS en state (mejor algo que nada).
                 ocds_state = state.get("ocds") or state.get("ocds_preloaded") or {}
@@ -303,11 +301,9 @@ def persist_analysis_outputs(alerta_codigo: str, tool_context: ToolContext) -> d
                 objeto = tender.get("description") or tender.get("title") or ""
                 v = tender.get("value")
                 cuantia = (v.get("amount") if isinstance(v, dict) else None)
-                prov_ruc = None
             monto_adj, monto_ref, _fuente_monto = _montos_alerta(state, cuantia)
-            if not prov_ruc:
-                from tools.compliance_rules import _ganador_ocds
-                prov_ruc, _ = _ganador_ocds(state.get("ocds") or state.get("ocds_preloaded") or {})
+            # El ganador principal (mayor monto adjudicado, empate por RUC), como en persist_alert_from_flags.
+            prov_ruc, _ = proveedor_ruc_alerta(ocid, state, cur)
             cur.execute(
                 """INSERT INTO alertas
                      (codigo, ocid, entidad_ruc, proveedor_ruc, monto_adjudicado, monto_referencial,
@@ -430,15 +426,24 @@ def persist_analysis_outputs(alerta_codigo: str, tool_context: ToolContext) -> d
                 _por_agente[b.get("agente_origen") or "?"] = _por_agente.get(b.get("agente_origen") or "?", 0) + 1
             _texto_llm = state.get("compliance_result")
             _texto_llm = _texto_llm if isinstance(_texto_llm, str) else (json.dumps(_texto_llm, ensure_ascii=False, default=str) if _texto_llm else "")
-            _cab = (f"RESULTADO DETERMINISTA (todas las fuentes): {len(banderas_final)} bandera(s) persistida(s) · "
-                    f"score {score_final} · reglas: {', '.join(sorted({b.get('regla') or '' for b in banderas_final})) or 'ninguna'} · "
-                    f"por agente: {', '.join(f'{k}={v}' for k, v in sorted(_por_agente.items())) or '—'}. "
+            # Las señales (puntúan) y los hechos de contexto (puntua=false) por separado: el contexto no se cuenta como
+            # bandera ni va en `reglas` (2026-11-24).
+            _senales = [b for b in banderas_final if b.get("puntua", True)]
+            _contexto = [b for b in banderas_final if not b.get("puntua", True)]
+            _reglas_ctx = sorted({b.get("regla") or "" for b in _contexto} - {b.get("regla") or "" for b in _senales})
+            _cab = (f"RESULTADO DETERMINISTA (todas las fuentes): {len(_senales)} bandera(s) que puntúan · "
+                    f"score {score_final} · reglas: {', '.join(sorted({b.get('regla') or '' for b in _senales})) or 'ninguna'} · "
+                    + (f"{len(_contexto)} hecho(s) de contexto sin puntaje "
+                       f"({', '.join(sorted({b.get('regla') or '' for b in _contexto}))}) · " if _contexto else "")
+                    + f"por agente: {', '.join(f'{k}={v}' for k, v in sorted(_por_agente.items())) or '—'}. "
                     f"El resumen del agente de compliance (abajo) se redactó antes de las reglas extendidas, "
                     f"el análisis legal y el mercado; prevalece el conteo determinista.")
             analisis["compliance_summary"] = _cab + ("\n\n" + _texto_llm if _texto_llm else "")
-            analisis["compliance_resumen_det"] = {"n_banderas": len(banderas_final), "score": score_final,
+            analisis["compliance_resumen_det"] = {"n_banderas": len(_senales), "score": score_final,
                                                   "por_agente": _por_agente,
-                                                  "reglas": sorted({b.get("regla") or "" for b in banderas_final})}
+                                                  "reglas": sorted({b.get("regla") or "" for b in _senales}),
+                                                  "n_hechos_contexto": len(_contexto),
+                                                  "reglas_contexto": _reglas_ctx}
         tiempos["investigacion_s"] = round(_time.monotonic() - _t0, 3)
         analisis["descartes"] = state.get("descartes") or []
         blob = json.dumps(analisis, ensure_ascii=False, default=str)

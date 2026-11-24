@@ -606,8 +606,14 @@ class _DB:
                 assert not s.startswith("alter table"), "T13: sin ALTER TABLE en el persist"
                 if "pg_advisory_xact_lock" in s or s.startswith("insert into entidades"):
                     return
+                if "from conosce_adjudicaciones" in s or s.startswith("insert into empresas"):
+                    return
+                if "from empresas where ruc" in s:
+                    self._rows = [(1,)]
+                    return
                 if "from convocatorias where ocid" in s:
-                    self._rows = [(RUC_ENT, "Cusco", None, "PERFILERIA", 99690.0, None)]
+                    # Sin la subconsulta del ganador: lo da `ganador_principal` (2026-11-24).
+                    self._rows = [(RUC_ENT, "Cusco", None, "PERFILERIA", 99690.0)]
                     return
                 if s.startswith("insert into alertas"):
                     db.inserts_alertas.append(p)

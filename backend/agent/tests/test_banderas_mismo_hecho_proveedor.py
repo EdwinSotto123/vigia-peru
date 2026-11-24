@@ -139,7 +139,9 @@ class _Cur:
     def fetchone(self):
         s = self.sql[-1]
         if "from convocatorias" in s:
-            return ("20131257750", "LIMA", dt.date(2026, 8, 13), "PRODUCTOS FARMACEUTICOS", 50957933.71, HAMUQ)
+            return ("20131257750", "LIMA", dt.date(2026, 8, 13), "PRODUCTOS FARMACEUTICOS", 50957933.71)
+        if "from empresas" in s:
+            return (1,)
         if "insert into alertas" in s:
             return ("00000000-0000-0000-0000-000000000001",)
         return None
