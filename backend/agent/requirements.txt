@@ -1,6 +1,6 @@
 functions-framework==3.*
-google-adk==1.19.0      # pin: cada deploy resolvía otra versión (thinking via planner, output_schema+tools)
-google-genai==1.52.0    # pin: ThinkingConfig.thinking_level, thought signatures, grounding_metadata
+google-adk==1.39.1      # pin: cada deploy resolvía otra versión (thinking via planner, output_schema+tools)
+google-genai==1.75.0    # pin: ThinkingConfig.thinking_level, thought signatures, grounding_metadata
 litellm>=1.50          # solo si USAR_WORKERS_AI=1 (agents/_shared/models.py: resolver_modelo)
 google-cloud-storage>=2.18
 google-cloud-documentai>=2.20
