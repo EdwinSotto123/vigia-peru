@@ -199,7 +199,7 @@ def _procesar_doc_texto(doc, state, bloque, ocds_ctx, out, label, sha, tx, blob,
             out["error"] = "sin_contenido_procesable"
             return out
         # Tope de OCR por DOCUMENTO: `OCR_BUDGET_S` es por PDF, y un ZIP con 16 PDF escaneados sumaba 380 s.
-        _fin_ocr = time.monotonic() + float(os.getenv("OCR_DOC_BUDGET_S", "150"))
+        _fin_ocr = time.monotonic() + float(os.getenv("OCR_DOC_BUDGET_S", "240"))
         _r = _restante(state)
         if _r is not None:
             _fin_ocr = min(_fin_ocr, time.monotonic() + max(0.0, _r - _GRACIA_S))

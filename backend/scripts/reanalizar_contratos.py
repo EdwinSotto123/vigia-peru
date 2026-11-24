@@ -61,6 +61,9 @@ def main() -> None:
     ap.add_argument("--hilos", type=int, default=2)
     ap.add_argument("--guiones", action="store_true", help="la lista de los dictámenes de OCID con guiones hechos sin sus lecturas")
     ap.add_argument("--minutos", type=float, default=None, help="deja de lanzar análisis pasados estos minutos")
+    ap.add_argument("--reintentos", default=None,
+                    help="archivo donde quedan los OCID cuyo dictamen salió con páginas escaneadas sin leer (por defecto, "
+                         "<archivo>.ocr.txt o reintentos_ocr.txt)")
     ap.add_argument("--presupuesto", type=float, default=float(os.environ["MASIVO_TOPE"]) if os.getenv("MASIVO_TOPE") else None,
                     help="tope acumulado del libro (US$) que muestra la auditoría; por defecto MASIVO_TOPE")
     a = ap.parse_args()
@@ -94,7 +97,8 @@ def main() -> None:
             continue
         trabajos.append((o, r))
     M.log(f"{len(trabajos)} contratos para reanalizar, {a.hilos} a la vez")
-    hecho = {"ok": 0, "error": 0, "usd": 0.0, "anotado": 0.0, "desde_nota": 0, "en_libro": 0.0}
+    hecho = {"ok": 0, "error": 0, "usd": 0.0, "anotado": 0.0, "desde_nota": 0, "en_libro": 0.0, "ocr": []}
+    reintentos = a.reintentos or (f"{a.archivo}.ocr.txt" if a.archivo else "reintentos_ocr.txt")
     origen = f"reanalisis-{os.environ['CI_JOB_ID']}" if os.getenv("CI_JOB_ID") else f"reanalisis-pc-{time.strftime('%Y%m%d-%H%M')}"
     motivo = f"reanálisis: {a.motivo}"[:300]
 
@@ -170,6 +174,14 @@ def main() -> None:
         medido = costo is not None
         costo = float(costo) if costo is not None else (0.0 if (res.get("segundos") or 0) < 15 else M.COSTO_SUPUESTO)
         en_fila = rid is not None and cerrar(rid, ok, costo, medido, res.get("segundos"), st.get("score"), res.get("error"))
+        # Un dictamen con páginas escaneadas sin leer (el OCR falló: casi siempre el límite de uso) no se da por hecho:
+        # queda en la lista de reintentos (2026-11-24: 155 de 203 reanálisis del día salieron así).
+        if ok and any(isinstance(x, dict) and x.get("donde") == "ocr_gemini_vision" for x in (st.get("recortes") or [])):
+            with _lock:
+                hecho["ocr"].append(o)
+                with Path(reintentos).open("a", encoding="utf-8") as f:
+                    f.write(o + "\n")
+            M.log(f"[OCR] {o}: quedaron páginas escaneadas sin leer; va a {reintentos}")
         with _lock:
             hecho["usd"] += costo - M.COSTO_SUPUESTO
             hecho["ok" if ok else "error"] += 1
@@ -189,7 +201,8 @@ def main() -> None:
                                          (hecho["ok"], hecho["error"], round(hecho["usd"], 4), origen)))
         except Exception as e:  # noqa: BLE001
             M.log(f"[EXC] no pude cerrar la tanda: {str(e)[:150]}")
-        M.log(f"fin: {hecho['ok']} ok, {hecho['error']} con error, USD {hecho['usd']:.2f} (anotado en el libro del masivo)")
+        M.log(f"fin: {hecho['ok']} ok ({len(hecho['ocr'])} con páginas escaneadas sin leer, en {reintentos}), "
+              f"{hecho['error']} con error, USD {hecho['usd']:.2f} (anotado en el libro del masivo)")
     finally:
         # El túnel se cierra aquí: al apagarse el intérprete ya no puede (y quedaba la sesión de SSM abierta).
         if M._db.get("cm") is not None:

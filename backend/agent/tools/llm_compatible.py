@@ -92,7 +92,11 @@ def _bloque_imagen(datos: bytes, mime: str) -> dict:
     if mime != "image/jpeg":
         import fitz  # PyMuPDF
         pix = fitz.Pixmap(datos)
-        if pix.alpha or pix.n > 3:
+        # Sin el canal alfa primero (un PNG con transparencia): pasarlo a RGB lo conservaba y el JPEG fallaba con
+        # «cannot have alpha» (las imágenes de un Word, 2026-11-24).
+        if pix.alpha:
+            pix = fitz.Pixmap(pix, 0)
+        if pix.n > 3:
             pix = fitz.Pixmap(fitz.csRGB, pix)
         datos = pix.tobytes(output="jpeg", jpg_quality=int(os.getenv("OCR_JPEG_CALIDAD", "72")))
     return {"type": "image_url", "image_url": {"url": "data:image/jpeg;base64," + base64.b64encode(datos).decode()}}

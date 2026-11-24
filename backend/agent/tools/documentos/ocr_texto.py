@@ -1,6 +1,8 @@
 """Texto por página: Document AI o PyMuPDF (+ Gemini Vision para páginas rasterizadas),
 caché de unidades en memoria y caché de texto en BD (documentos_texto)."""
 
+import random
+
 from tools._core import *  # noqa: F401,F403
 from tools.costo_llm import etiquetas
 from collections import OrderedDict as _OrderedDict
@@ -47,12 +49,12 @@ def _paginas_pymupdf(pdf: bytes, page_offset: int, fin: float | None = None) -> 
             leido = False
             _tam = max(1, int(os.getenv("OCR_LOTE", "4")))
             lotes = [rendered[k:k + _tam] for k in range(0, len(rendered), _tam)]
-            _fin = _time.monotonic() + float(os.getenv("OCR_BUDGET_S", "150"))
+            _fin = _time.monotonic() + float(os.getenv("OCR_BUDGET_S", "240"))
             if fin is not None:
                 _fin = min(_fin, fin)
-            ex = _cf.ThreadPoolExecutor(max_workers=max(1, int(os.getenv("OCR_PARALELO", "3"))))
+            ex = _cf.ThreadPoolExecutor(max_workers=max(1, int(os.getenv("OCR_PARALELO", "2"))))
             try:
-                futs = {ex.submit(_ocr_paginas_gemini, lote): lote for lote in lotes}
+                futs = {ex.submit(_ocr_con_paciencia, lote, _fin): lote for lote in lotes}
                 pendientes = set(futs)
                 while pendientes:
                     hechos, pendientes = _cf.wait(pendientes, timeout=max(0.0, _fin - _time.monotonic()),
@@ -84,6 +86,28 @@ def _paginas_pymupdf(pdf: bytes, page_offset: int, fin: float | None = None) -> 
             recortes.append({"donde": "ocr_gemini_vision", "limite": "fallo",
                              "omitido": f"páginas rasterizadas {[page_offset + i + 1 for i in need][:30]} ({str(e)[:80]})"})
     return paginas, recortes
+
+
+_TRANSITORIO = ("429", "rate limit", "RESOURCE_EXHAUSTED", "503", "502", "504", "UNAVAILABLE", "timeout", "Timeout",
+                "sin conexión", "sin respuesta")
+
+
+def _ocr_con_paciencia(rendered: list[tuple[int, bytes]], fin: float) -> list[str]:
+    """`_ocr_paginas_gemini` que no se rinde ante el límite de uso: un 429 (o un 5xx o un corte) se reintenta con espera
+    creciente (5, 10, 20, 30 s…) mientras quede tiempo de OCR. El cliente reintentaba 3 veces en 6 s y la página quedaba
+    sin leer: en tres días, 277 de 500 análisis perdieron páginas escaneadas, casi todas por 429 (2026-11-24; 1231921:
+    el requerimiento con ~40 ítems estaba escaneado dentro del Word y el análisis vio uno solo)."""
+    import time as _time
+    espera = 5.0
+    while True:
+        try:
+            return _ocr_paginas_gemini(rendered)
+        except Exception as e:  # noqa: BLE001
+            msg = str(e)
+            if not any(t in msg for t in _TRANSITORIO) or _time.monotonic() + espera + 20 > fin:
+                raise
+            _time.sleep(espera + random.uniform(0, 2))
+            espera = min(espera * 2, 30.0)
 
 
 def _ocr_paginas_gemini(rendered: list[tuple[int, bytes]]) -> list[str]:
