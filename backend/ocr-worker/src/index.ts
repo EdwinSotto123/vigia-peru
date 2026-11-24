@@ -9,7 +9,7 @@
  *   GET  /salud                          sin token
  *   POST /ocr  {"paginas": [base64…]}    Bearer OCR_TOKEN → {"paginas": [{markdown, dudosa, segundos}], "segundos"}
  *
- * Cada pedido va a una de INSTANCIAS instancias al azar (standard-4: 4 vCPU, 12 GiB); una instancia sin pedidos se
+ * Cada pedido va a una de INSTANCIAS instancias al azar (standard-4: 4 vCPU, 12 GiB; cada una lee de a una página); una instancia sin pedidos se
  * apaga a los 10 minutos (se cobra la memoria mientras está prendida).
  */
 import { Container, getRandom } from "@cloudflare/containers";
@@ -23,6 +23,9 @@ interface Env {
 export class LectorOcr extends Container<Env> {
   defaultPort = 8080;
   sleepAfter = "10m";
+  // Sin agrandar la página otra vez (el agente ya la rasteriza a 200 dpi): en 1231921, 5-6 s por página en vez de 7-9 y
+  // la tabla igual o mejor (la cantidad de la fila 01 en su columna, «½» bien leído).
+  envVars = { OCR_ESCALA: "1.0" };
 }
 
 export default {

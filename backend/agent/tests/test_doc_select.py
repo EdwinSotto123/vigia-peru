@@ -55,10 +55,11 @@ def test_prioridad_bienes_ordena_bases_integradas_primero():
         _doc("d4", "Anexo fotográfico", "otro", SEACE + "fotos"),
     ])
     elegidos, omitidos = seleccionar_documentos("1", ocds, {}, PRIO_BIENES, 12, gcs_rows=[])
-    assert [d["id"] for d in elegidos] == ["d3", "d2", "d1", "d4"]
+    # Las administrativas (d2) no se leen: las integradas (d3) las reemplazan (2026-11-24).
+    assert [d["id"] for d in elegidos] == ["d3", "d1", "d4"]
     assert elegidos[0]["categoria"] == "bases_integradas"
-    assert elegidos[3]["categoria"] is None       # sin match → al final, pero NO se pierde
-    assert omitidos == []
+    assert elegidos[2]["categoria"] is None       # sin match → al final, pero NO se pierde
+    assert [(o["id"], o["motivo"]) for o in omitidos] == [("d2", "reemplazado_por_integradas")]
 
 
 # ── 2. Servicios: el TDR gana a las bases; títulos con tildes ─────────────────────────
@@ -207,3 +208,23 @@ def test_rank_sin_prioridad_devuelve_orden_estable():
 ])
 def test_categorias_titulos_seace(titulo, tipo, esperado):
     assert esperado in categorias_de(titulo, tipo)
+
+
+def test_las_bases_integradas_reemplazan_a_las_administrativas():
+    """Leer las dos era leer dos veces lo mismo (2026-11-24: 530 mil caracteres cada una)."""
+    from tools.doc_select import seleccionar_documentos
+    filas = [
+        {"gcs_id": 1, "tipo": "biddingDocuments", "titulo": "Bases Administrativas", "seccion": "tender",
+         "url_gcs": "gs://b/a.zip", "sha256": "a" * 64, "url_origen": "https://x/a", "formato": "zip", "bytes": 1},
+        {"gcs_id": 2, "tipo": "biddingDocuments", "titulo": "Bases Integradas", "seccion": "tender",
+         "url_gcs": "gs://b/b.zip", "sha256": "b" * 64, "url_origen": "https://x/b", "formato": "zip", "bytes": 1},
+        {"gcs_id": 3, "tipo": "awardNotice", "titulo": "Documentos de Otorgamiento de Buena Pro", "seccion": "tender",
+         "url_gcs": "gs://b/c.zip", "sha256": "c" * 64, "url_origen": "https://x/c", "formato": "zip", "bytes": 1},
+    ]
+    elegidos, omitidos = seleccionar_documentos("1", None, None, gcs_rows=filas)
+    titulos = [e["titulo"] for e in elegidos]
+    assert "Bases Integradas" in titulos and "Bases Administrativas" not in titulos
+    assert any(o["motivo"] == "reemplazado_por_integradas" for o in omitidos)
+    # Sin integradas, las administrativas se leen.
+    elegidos, _ = seleccionar_documentos("1", None, None, gcs_rows=[filas[0], filas[2]])
+    assert "Bases Administrativas" in [e["titulo"] for e in elegidos]

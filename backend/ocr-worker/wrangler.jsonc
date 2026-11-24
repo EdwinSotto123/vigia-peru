@@ -12,11 +12,12 @@
       "class_name": "LectorOcr",
       "image": "./contenedor/Dockerfile",
       "instance_type": "standard-4",
-      // Tope de gasto: 6 instancias a la vez son ~US$ 2.4 por hora con todas ocupadas.
-      "max_instances": 6
+      // Tope de gasto: 12 instancias a la vez son ~US$ 4.7 por hora con todas ocupadas (el costo por página no cambia:
+      // más instancias leen más páginas a la vez; una lectura previa de 20 contratos esperaba en cola con 4).
+      "max_instances": 12
     }
   ],
   "durable_objects": { "bindings": [{ "name": "LECTOR", "class_name": "LectorOcr" }] },
   "migrations": [{ "tag": "v1", "new_sqlite_classes": ["LectorOcr"] }],
-  "vars": { "INSTANCIAS": "4" }
+  "vars": { "INSTANCIAS": "10" }
 }

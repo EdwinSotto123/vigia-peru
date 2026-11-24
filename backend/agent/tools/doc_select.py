@@ -355,6 +355,18 @@ def seleccionar_documentos(
             vistos_sha[sha] = ref
         unicos.append(ref)
 
+    # ── 2b. Las Bases Integradas reemplazan a las Administrativas ─────────────
+    # Las integradas son las administrativas con las consultas y observaciones ya incorporadas: leer las dos era leer
+    # dos veces lo mismo (2026-11-24: 530 mil caracteres cada una en un contrato, con el modelo cobrando las dos).
+    if any(_es_bases_integradas(r) for r in unicos):
+        quedan = []
+        for ref in unicos:
+            if _es_bases_administrativas(ref):
+                omitidos.append(_omitido(ref, "reemplazado_por_integradas"))
+                continue
+            quedan.append(ref)
+        unicos = quedan
+
     # ── 3. Restricción por doc_ids (body) ──────────────────────────────────────
     if doc_ids:
         quiere = {str(x).strip() for x in doc_ids if str(x or "").strip()}
@@ -380,6 +392,21 @@ def seleccionar_documentos(
     for ref in ordenados[max_docs:]:
         omitidos.append(_omitido(ref, "tope_docs"))
     return elegidos, omitidos
+
+
+def _titulo_norm(ref: DocRef) -> str:
+    import unicodedata
+    t = unicodedata.normalize("NFD", str(ref.get("titulo") or "")).encode("ascii", "ignore").decode().lower()
+    return re.sub(r"\s+", " ", t).strip()
+
+
+def _es_bases_integradas(ref: DocRef) -> bool:
+    return "bases integradas" in _titulo_norm(ref)
+
+
+def _es_bases_administrativas(ref: DocRef) -> bool:
+    t = _titulo_norm(ref)
+    return t in ("bases", "bases administrativas") or t.startswith("bases administrativas")
 
 
 def _omitido(ref: DocRef, motivo: str) -> dict:
