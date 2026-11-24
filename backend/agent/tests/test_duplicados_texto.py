@@ -36,3 +36,19 @@ def test_documentos_distintos_o_de_otro_contrato_no_son_duplicados():
     assert O._duplicado_de("999", "a" * 64, _tx(ACTA), "Acta") is None
     # Con menos de 3 páginas con texto no se decide.
     assert O._duplicado_de("999", "e" * 64, _tx(ACTA[:2]), "Hoja suelta") is None
+
+
+def test_las_plantillas_vacias_no_van_al_modelo(monkeypatch):
+    """Las páginas de formatos sin llenar («[CONSIGNAR…]») no llevan datos: no se mandan al modelo (2026-11-24)."""
+    from tools.documentos import extractor as E
+    vistos = []
+    monkeypatch.setattr(E, "_extraer_rango", lambda paginas, a, b, *r, **k: vistos.append([p["n"] for p in paginas if a <= p["n"] <= b]) or {"items": []})
+    tx = {"chars": 3000, "paginas": [
+        {"n": 1, "texto": "CAPÍTULO III REQUERIMIENTO | 01 | FILTRO | 04 |", "chars": 900},
+        {"n": 2, "texto": "Señores [CONSIGNAR NOMBRE DE LA ENTIDAD] El que suscribe [NOMBRE DEL POSTOR] [RAZÓN SOCIAL]", "chars": 900},
+        {"n": 3, "texto": "DECLARACIÓN JURADA El que suscribe JUAN PÉREZ, con RUC 20123456789", "chars": 900},
+    ]}
+    res = E._extraer_documento(tx, "Bases", None, {}, None)
+    assert vistos and 2 not in sum(vistos, [])
+    assert 1 in sum(vistos, []) and 3 in sum(vistos, [])
+    assert any(r["limite"] == "plantilla_vacia" for r in res["_recortes"])

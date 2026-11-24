@@ -352,6 +352,9 @@ def _extraer_rango(paginas: list[dict], a: int, b: int, label: str, bloque: str 
     return data
 
 
+_PLANTILLA = re.compile(r"\[(CONSIGNAR|INDICAR|NOMBRE|RAZ[ÓO]N SOCIAL|N[ÚU]MERO|FECHA|COMPLETAR)[^\]]{0,120}\]", re.I)
+
+
 def _extraer_documento(tx: dict, label: str, bloque: str | None, ocds_ctx: dict, tipo_hint: str | None) -> dict:
     """Extracción estructurada de TODO el documento: se parte por páginas en llamadas de ≤
     PARSE_MAX_CHARS_POR_LLAMADA chars (nada se omite) y se fusiona. Devuelve la extracción con
@@ -362,6 +365,13 @@ def _extraer_documento(tx: dict, label: str, bloque: str | None, ocds_ctx: dict,
     if not paginas:
         return {"_truncado": True, "_recortes": [{"donde": f"extraccion:{label[:80]}", "limite": "sin_texto", "omitido": label}],
                 "_usos": [], "items": [], "resumen": "Documento sin texto extraíble"}
+    # Las plantillas vacías de las bases («[CONSIGNAR NOMBRE…]», «[INDICAR…]») no llevan datos: no van al modelo (en
+    # 1226674 eran 44 páginas, el 6 % del texto; 2026-11-24). Una declaración ya llenada sí va (no trae los corchetes).
+    vacias = [p["n"] for p in paginas if len(_PLANTILLA.findall(p.get("texto") or "")) >= 2]
+    if vacias and len(vacias) < len(paginas):
+        paginas = [p for p in paginas if p["n"] not in set(vacias)]
+        recortes.append({"donde": f"extraccion:{label[:80]}", "limite": "plantilla_vacia",
+                         "omitido": f"{len(vacias)} páginas de formatos sin llenar: {vacias[:20]}"})
     # Rangos por chars
     rangos: list[tuple[int, int]] = []
     a = paginas[0]["n"]
