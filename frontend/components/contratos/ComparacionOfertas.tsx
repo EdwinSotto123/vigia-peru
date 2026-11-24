@@ -83,14 +83,15 @@ export function montoOfertaDudoso(monto: number, c: Pick<Detalle, "montoPen" | "
 /**
  * ¿Ganó, según el registro? El acta leída dice quién ganó cada ítem; con varios ítems y lo que registra el CONOSCE a la
  * mano, «ganó» sólo si el CONOSCE tiene ese ítem adjudicado a ese RUC: el acta de 2026-2543-197 daba por ganador del
- * ítem 9 a quien no aparece en el CONOSCE, y el ítem 9 quedó desierto. Sin número de ítem, se cree al acta.
+ * ítem 9 a quien no aparece en el CONOSCE, y el ítem 9 quedó desierto.
  */
 export function ganoSegunRegistro(p: PostorContrato, c: Pick<Detalle, "contratadoConosce" | "items">): boolean {
   if (!p.esGanador) return false;
   const oficial = c.contratadoConosce ?? [];
   if (!oficial.length || c.items.length <= 1) return true;
   const n = p.item != null && /^\d+$/.test(String(p.item).trim()) ? Number(p.item) : null;
-  if (n == null) return true;
+  // Sin número de ítem en el acta: que su RUC esté entre los que ganaron algo (sin RUC leído, se cree al acta).
+  if (n == null) return !p.ruc || oficial.some((k) => k.ruc === p.ruc);
   const o = oficial.find((k) => Number(k.item) === n);
   return !!o && (!o.ruc || !p.ruc || o.ruc === p.ruc);
 }
