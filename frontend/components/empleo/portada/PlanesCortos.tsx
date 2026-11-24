@@ -50,7 +50,7 @@ export function PlanesCortos({ planes, className }: { planes: Plan[]; className?
                     <span>{x}</span>
                   </li>
                 ))}
-                {/* Un plan «próximamente» no trae nada hoy: lo que vendrá. */}
+                {/* recorte: un plan «próximamente» no trae nada hoy; en la portada, lo primero que vendrá (todo, en /planes) */}
                 {p.proximamente && (p.pronto ?? []).slice(0, 3).map((x) => (
                   <li key={x} className="flex items-start gap-2 text-dato leading-snug text-inkSoft">
                     <Clock3 size={15} aria-hidden className="mt-0.5 shrink-0 text-mute" />
