@@ -33,6 +33,10 @@ def parse_documentos_lote(state: dict, docs: list[dict], *, parser_bloque: str |
     state['perfil'] (defaults de bienes). Devuelve un resumen compacto (conteos, por documento,
     recortes, tiempos) apto para el trace."""
     t_ini = time.monotonic()
+    # Las huellas de documentos casi idénticos (orquestacion._duplicado_de) valen para ESTA lectura del contrato.
+    from .orquestacion import _HUELLAS, _HUELLAS_LOCK
+    with _HUELLAS_LOCK:
+        _HUELLAS.pop(state.get("ocid") or state.get("ocid_preloaded") or "", None)
     bloque, prio, _mx = _perfil_params(state, parser_bloque, prioridad)
     ocds_ctx = _ocds_ctx(state)
     state.setdefault("recortes", [])

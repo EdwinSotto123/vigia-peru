@@ -213,6 +213,16 @@ def _procesar_doc_texto(doc, state, bloque, ocds_ctx, out, label, sha, tx, blob,
         print(f"[lote] OCR · {label[:60]} · {len(unidades)} unidad(es) · {tx['n_paginas']} págs · {tx['chars']:,} chars · "
               f"{tx['motor']} · {out['tiempos']['ocr_s']}s", flush=True)
     out["tx"] = tx
+    # ── documentos casi idénticos (la misma acta publicada como «Otorgamiento» y como «Calificación»): se extrae uno ──
+    dup = _duplicado_de(state.get("ocid") or state.get("ocid_preloaded"), sha, tx, label)
+    if dup:
+        out["recortes"].append({"donde": f"extraccion:{label[:80]}", "limite": "duplicado_texto",
+                                "omitido": f"{label} tiene las mismas páginas que «{dup}»: se extrae una sola vez"})
+        out["ext"] = {"items": [], "_duplicado_de": dup}
+        out["cache"]["duplicado"] = True
+        out["tiempos"]["total_s"] = round(time.monotonic() - t0, 1)
+        print(f"[lote] duplicado · {label[:60]} = {dup[:60]}: sin extracción", flush=True)
+        return out
     # ── extracción (cacheada por bloque + versión de schema + modelo QUE RESPONDE) ──
     # Con LLM_BACKEND=compatible el nombre pedido sigue siendo el de Gemini, pero responde vigia-llm: con ese nombre en
     # la clave, Haiku reusaba las extracciones que Gemini hizo en octubre (2026-11-05: 314 de 382 dictámenes).
@@ -255,3 +265,39 @@ def _procesar_doc_texto(doc, state, bloque, ocds_ctx, out, label, sha, tx, blob,
     if doc.get("url") and sha and not doc.get("_sha_desde_documentos"):
         _sha_por_url_put(state.get("ocid") or state.get("ocid_preloaded"), doc["url"], sha, doc)
     return out
+
+
+# ── Documentos casi idénticos dentro de un contrato ──
+# En 1226674 «Documentos de Otorgamiento de Buena Pro» y «Documentos de Calificación y Evaluación» eran la misma acta
+# (667 mil caracteres cada una, un tercio del expediente) y el modelo extraía las dos (2026-11-24). La huella de un
+# documento son sus páginas con texto (≥ 200 caracteres), sin espacios ni mayúsculas; si el 90 % de ellas ya está en otro
+# documento del mismo contrato, es un duplicado. El primero que termina su texto se queda con la extracción.
+_HUELLAS: dict[str, dict[str, tuple[str, set]]] = {}
+_HUELLAS_LOCK = threading.Lock()
+_HUELLAS_TOPE = 200          # contratos recordados (una Lambda caliente procesa varios)
+_PAGINA_HUELLA_MIN = 200
+_PARECIDO = 0.9
+
+
+def _huellas(tx: dict) -> set:
+    import hashlib
+    return {hashlib.md5(re.sub(r"\s+", "", (p.get("texto") or "").lower()).encode("utf-8")).hexdigest()
+            for p in (tx.get("paginas") or []) if len(p.get("texto") or "") >= _PAGINA_HUELLA_MIN}
+
+
+def _duplicado_de(ocid: str | None, sha: str | None, tx: dict, label: str) -> str | None:
+    """El título del documento del mismo contrato con las mismas páginas, o None (y éste queda registrado)."""
+    if not ocid or not sha:
+        return None
+    h = _huellas(tx)
+    if len(h) < 3:
+        return None
+    with _HUELLAS_LOCK:
+        reg = _HUELLAS.setdefault(ocid, {})
+        for otro_sha, (otro_label, otro_h) in reg.items():
+            if otro_sha != sha and len(h & otro_h) >= _PARECIDO * len(h):
+                return otro_label
+        reg[sha] = (label, h)
+        while len(_HUELLAS) > _HUELLAS_TOPE:
+            _HUELLAS.pop(next(iter(_HUELLAS)))
+    return None
