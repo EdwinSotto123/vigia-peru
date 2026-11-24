@@ -135,6 +135,17 @@ export const otrosProductos = (p: Producto): InfoProducto[] => Object.values(PRO
  * El MCP de Gobserva (backend/mcp-worker/src/v2): vino con los planes de pago desde 2026-11-08; con los cobros en pausa
  * (2026-11-24, COBROS_EN_PAUSA), es gratis con una cuenta con el correo confirmado.
  */
+/**
+ * La app de Empleo y de Licitaciones en construcción (2026-11-24, el usuario: «solo habilitemos el MCP… ocultemos el botón
+ * de la APP de licitación y empleo… dejémoslo como En construcción, ve usando nuestro MCP por mientras»). Mientras sea
+ * true: /app/* muestra «en construcción» con el MCP (middleware.ts la reescribe a /en-construccion), con la sesión abierta
+ * las páginas públicas no saltan a la app, el marco es siempre el de la portada, la cabecera dice «Mi cuenta» y los
+ * enlaces de la cuenta van a las fichas públicas (`rutaApp`). La cuenta (crearla, confirmar el correo) sigue: el MCP la pide.
+ */
+export const APP_EN_CONSTRUCCION = true;
+/** Una ruta de la app o, mientras está en construcción, su equivalente público. */
+export const rutaApp = (app: string, publica: string) => (APP_EN_CONSTRUCCION ? publica : app);
+
 export const URL_MCP = "https://mcp.gobserva.cloud/mcp";
 /** Una dirección por producto, con sus herramientas (las de Obras van en la de Licitaciones). */
 export const URL_MCP_EMPLEO = `${URL_MCP}/empleo`;

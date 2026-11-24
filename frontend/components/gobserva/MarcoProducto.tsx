@@ -4,7 +4,7 @@ import type { ReactNode } from "react";
 import { ArrowUpRight } from "lucide-react";
 import { BotonModo } from "@/components/ui/BotonModo";
 import { claseAccion } from "@/components/ui/EnlaceAccion";
-import { COOKIE_SESION, CORREO_GOBSERVA, PRODUCTOS, PRODUCTOS_APP_ABIERTA, PRODUCTOS_CON_APP, PRODUCTOS_SIN_CUENTA, otrosProductos, rutaEn, type Producto } from "@/lib/gobserva";
+import { COOKIE_SESION, CORREO_GOBSERVA, PRODUCTOS, PRODUCTOS_APP_ABIERTA, PRODUCTOS_CON_APP, PRODUCTOS_SIN_CUENTA, otrosProductos, rutaEn, type Producto, APP_EN_CONSTRUCCION } from "@/lib/gobserva";
 import { cn } from "@/lib/utils";
 import { MarcaGobserva } from "./MarcaGobserva";
 import { MarcoApp } from "./app/MarcoApp";
@@ -48,7 +48,9 @@ export function MarcoProducto({
   // Salud se ve como app para todos (PRODUCTOS_APP_ABIERTA); Empleo y Licitaciones, sólo con la sesión abierta.
   const ruta = headers().get("x-gobserva-ruta")?.split("?")[0] ?? null;
   const landing = ruta != null && RUTAS_LANDING.includes(ruta.replace(/\/+$/, "") || "/");
-  if (!landing && (PRODUCTOS_APP_ABIERTA.includes(producto) || (PRODUCTOS_CON_APP.includes(producto) && cookies().get(COOKIE_SESION)?.value === "1"))) {
+  // Con la app en construcción (lib/gobserva.ts), Empleo y Licitaciones se ven siempre con el marco de la portada.
+  const conApp = !APP_EN_CONSTRUCCION && PRODUCTOS_CON_APP.includes(producto) && cookies().get(COOKIE_SESION)?.value === "1";
+  if (!landing && (PRODUCTOS_APP_ABIERTA.includes(producto) || conApp)) {
     return (
       <MarcoApp producto={producto} base={base}>
         {children}

@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { COOKIE_SESION, PRODUCTO_POR_HOST, PRODUCTOS, hostLimpio, type Producto } from "@/lib/gobserva";
+import { APP_EN_CONSTRUCCION, COOKIE_SESION, PRODUCTO_POR_HOST, PRODUCTOS, hostLimpio, type Producto } from "@/lib/gobserva";
 
 /**
  * Dos trabajos:
@@ -22,11 +22,13 @@ export function middleware(req: NextRequest) {
   const host = hostLimpio(req.headers.get("host"));
   const producto = PRODUCTO_POR_HOST[host];
 
-  const aLaApp = req.cookies.get(COOKIE_SESION)?.value === "1" && !req.nextUrl.searchParams.has("portada");
+  // Con la app en construcción (lib/gobserva.ts), nada salta a la app: se quedan las páginas públicas.
+  const aLaApp = !APP_EN_CONSTRUCCION && req.cookies.get(COOKIE_SESION)?.value === "1" && !req.nextUrl.searchParams.has("portada");
 
   if (producto) {
     // La app (/app/*) es sólo con sesión: sin la marca, a entrar con la vuelta (307 de verdad, no una redirección del
     // navegador a mitad de la página).
+    if (enConstruccion(producto, pathname)) return aEnConstruccion(req, `/${producto}`, pathname + search);
     if (esApp(pathname) && !conSesion(req)) return aEntrar(req, "", pathname + search);
     if (aLaApp) {
       const bandeja = producto === "licitaciones" ? aLaBandeja(pathname, req.nextUrl.searchParams) : producto === "empleo" ? aLaAppEmpleo(pathname, search) : null;
@@ -54,6 +56,7 @@ export function middleware(req: NextRequest) {
   // En DEV (sin subdominio) los productos van por ruta: /licitaciones, /licitaciones/para-ti.
   for (const p of PRODUCTOS_CON_RUTA) {
     const resto = pathname.startsWith(`/${p}/`) ? pathname.slice(p.length + 1) : null;
+    if (resto && enConstruccion(p, resto)) return aEnConstruccion(req, `/${p}`, resto + search);
     if (resto && esApp(resto) && !conSesion(req)) return aEntrar(req, `/${p}`, resto + search);
   }
   if (aLaApp) {
@@ -107,6 +110,18 @@ export function middleware(req: NextRequest) {
 
 const esApp = (ruta: string) => ruta === "/app" || ruta.startsWith("/app/");
 const conSesion = (req: NextRequest) => req.cookies.get(COOKIE_SESION)?.value === "1";
+/** La app de Empleo o de Licitaciones mientras está en construcción (con o sin sesión). */
+const enConstruccion = (p: Producto, ruta: string) => APP_EN_CONSTRUCCION && (p === "empleo" || p === "licitaciones") && esApp(ruta);
+
+/** /app/* en construcción: se reescribe a /en-construccion (la ruta que se ve no cambia), con la ruta pedida en la cabecera. */
+function aEnConstruccion(req: NextRequest, prefijo: string, ruta: string) {
+  const url = req.nextUrl.clone();
+  url.pathname = `${prefijo}/en-construccion`;
+  url.search = "";
+  const cabeceras = new Headers(req.headers);
+  cabeceras.set("x-gobserva-ruta", ruta);
+  return NextResponse.rewrite(url, { request: { headers: cabeceras } });
+}
 
 /** A entrar, con `next` a la ruta de la app que se pidió (dentro del producto, sin el prefijo de DEV). */
 function aEntrar(req: NextRequest, prefijo: string, siguiente: string) {

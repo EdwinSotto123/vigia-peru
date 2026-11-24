@@ -5,7 +5,7 @@ import {
   ArrowLeft, BellRing, Bookmark, Check, ChevronRight, Download, Eye, EyeOff, KeyRound, Loader2, Mail, MailCheck, ShieldCheck, Sparkles,
 } from "lucide-react";
 import { claseAccion } from "@/components/ui/EnlaceAccion";
-import { PRODUCTOS, rutaEn, urlCanonica, type Producto } from "@/lib/gobserva";
+import { PRODUCTOS, rutaEn, urlCanonica, type Producto, APP_EN_CONSTRUCCION } from "@/lib/gobserva";
 import { NOMBRE_APP, appDelProducto } from "@/lib/apps-gobserva";
 import { COBROS_EN_PAUSA } from "@/lib/gobserva-planes";
 import { confirmarCuenta, crearCuentaConCorreo, elegirClave, entrarConCorreo, mensajeAuth, recuperarClave, reenviarCodigo, tipoError } from "@/lib/gobserva-auth";
@@ -121,7 +121,8 @@ export function Entrar({ producto, base, next, crear }: { producto: Producto; ba
   useEffect(() => {
     if (!loading && conCuenta) {
       marcarSesion(true);
-      window.location.replace((producto === "licitaciones" || producto === "empleo") && recienCreada ? rutaEn(base, "/app/bienvenida") : volver);
+      // La bienvenida es de la app: con la app en construcción, se vuelve a donde se iba (la cuenta, por omisión).
+      window.location.replace(!APP_EN_CONSTRUCCION && (producto === "licitaciones" || producto === "empleo") && recienCreada ? rutaEn(base, "/app/bienvenida") : volver);
     }
   }, [loading, conCuenta, volver, producto, recienCreada, base]);
 

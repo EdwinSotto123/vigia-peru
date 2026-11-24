@@ -6,7 +6,7 @@ import useSWR from "swr";
 import { ArrowRight, CalendarClock, CalendarDays, Coins, KanbanSquare, Sparkles, Target } from "lucide-react";
 import { claseAccion } from "@/components/ui/EnlaceAccion";
 import { FilaParaTi } from "@/components/licitaciones/ParaTi";
-import { rutaEn } from "@/lib/gobserva";
+import { rutaEn, APP_EN_CONSTRUCCION } from "@/lib/gobserva";
 import { PUNTAJE_CALZA, cargarLineas, cargarParaTi, cargarSeguimiento, type Me } from "@/lib/gobserva-cuenta";
 import { numero, solesCompacto } from "@/lib/formato";
 import { cn } from "@/lib/utils";
@@ -58,9 +58,15 @@ export function PanelInicio({ base, me, onCambio, irA }: { base: string; me: Me;
             titulo="Dinos qué vende tu empresa"
             texto="Con eso te mostramos aquí cuántas oportunidades calzan contigo, cuáles cierran esta semana y cuánto hay en juego."
             accion={
-              <Link href={rutaEn(base, "/app/bienvenida")} className={claseAccion("primario")}>
-                <Sparkles size={15} aria-hidden /> Armar mi perfil (2 minutos)
-              </Link>
+              APP_EN_CONSTRUCCION ? (
+                <Link href={rutaEn(base, "/en-construccion")} className={claseAccion("primario")}>
+                  <Sparkles size={15} aria-hidden /> Pregúntale a tu IA con el MCP
+                </Link>
+              ) : (
+                <Link href={rutaEn(base, "/app/bienvenida")} className={claseAccion("primario")}>
+                  <Sparkles size={15} aria-hidden /> Armar mi perfil (2 minutos)
+                </Link>
+              )
             }
           />
         </Caja>

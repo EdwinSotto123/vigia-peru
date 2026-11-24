@@ -5,7 +5,7 @@ import Link from "next/link";
 import useSWR, { useSWRConfig } from "swr";
 import { CalendarClock, ChevronLeft, ChevronRight, KanbanSquare, Loader2, Search, StickyNote, Trash2 } from "lucide-react";
 import { claseAccion } from "@/components/ui/EnlaceAccion";
-import { rutaEn } from "@/lib/gobserva";
+import { rutaEn, APP_EN_CONSTRUCCION, rutaApp } from "@/lib/gobserva";
 import { ErrorCuenta, cargarSeguimiento, claveSeguimiento, guardar, quitarGuardado, type EstadoGuardado, type ItemSeguimiento, type ProductoSeguido } from "@/lib/gobserva-cuenta";
 import { numero, soles, solesCompacto } from "@/lib/formato";
 import { nombreRegion as regionEmpleo } from "@/lib/empleo";
@@ -101,8 +101,10 @@ export function PanelSeguimiento({ base, producto = "licitaciones" }: { base: st
           }
           accion={
             <div className="flex flex-wrap justify-center gap-2">
-              <Link href={rutaEn(base, empleo ? "/app/para-ti" : "/cuenta?tab=para-ti")} className={claseAccion("primario")}>Ver «Para ti»</Link>
-              <Link href={rutaEn(base, empleo ? "/app/plazas" : "/menores")} className={claseAccion("secundario")}>{empleo ? "Buscar plazas" : "Contratos menores"}</Link>
+              {!(empleo && APP_EN_CONSTRUCCION) && (
+                <Link href={rutaEn(base, empleo ? "/app/para-ti" : "/cuenta?tab=para-ti")} className={claseAccion("primario")}>Ver «Para ti»</Link>
+              )}
+              <Link href={rutaEn(base, empleo ? rutaApp("/app/plazas", "/plazas") : "/menores")} className={claseAccion("secundario")}>{empleo ? "Buscar plazas" : "Contratos menores"}</Link>
             </div>
           }
         />

@@ -4,6 +4,7 @@
  */
 import type { ItemSeguimiento, Plazo } from "@/lib/gobserva-cuenta";
 
+import { APP_EN_CONSTRUCCION } from "@/lib/gobserva";
 const ZONA = "America/Lima";
 const DIA = 86_400_000;
 
@@ -38,8 +39,10 @@ export function fechaHora(fecha: string): string {
 
 /** La ruta de la ficha de algo que se sigue. */
 export function rutaItem(i: Pick<ItemSeguimiento, "tipo" | "ref">): string {
-  if (i.tipo === "plaza") return `/app/plaza/${encodeURIComponent(i.ref)}`;
-  return i.tipo === "menor" ? `/app/menor/${i.ref}` : `/app/oportunidad/${encodeURIComponent(i.ref)}`;
+  // Con la app en construcción (lib/gobserva.ts), la ficha pública: /plaza, /menor, /oportunidad.
+  const app = APP_EN_CONSTRUCCION ? "" : "/app";
+  if (i.tipo === "plaza") return `${app}/plaza/${encodeURIComponent(i.ref)}`;
+  return i.tipo === "menor" ? `${app}/menor/${i.ref}` : `${app}/oportunidad/${encodeURIComponent(i.ref)}`;
 }
 
 export interface Evento {

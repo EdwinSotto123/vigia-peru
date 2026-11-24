@@ -5,7 +5,7 @@ import Link from "next/link";
 import useSWR from "swr";
 import { ArrowRight, ArrowUpRight, Bell, Bookmark, Bot, CalendarClock, Check, Download, Inbox, Loader2, QrCode, Sparkles } from "lucide-react";
 import { claseAccion } from "@/components/ui/EnlaceAccion";
-import { PRODUCTOS, rutaEn, type Producto } from "@/lib/gobserva";
+import { PRODUCTOS, rutaEn, type Producto, APP_EN_CONSTRUCCION } from "@/lib/gobserva";
 import {
   ESTADO_PLAN, NOMBRE_MEDIO, cargarBandeja, cargarLineas, cargarUsoMcp, enviarOperacion, fechaLarga, precioCorto, type Me, type PlanCliente,
 } from "@/lib/gobserva-cuenta";
@@ -319,7 +319,8 @@ export function ParaEmpezar({ producto, base, me, onCambio, irA }: { producto: P
     },
   ];
   if (conLineas) {
-    pasos.push({
+    // El perfil se arma en la app: con la app en construcción, ese paso no va.
+    if (!APP_EN_CONSTRUCCION) pasos.push({
       clave: "linea",
       listo: (lineas?.data.length ?? 0) > 0,
       titulo: "Dinos qué vende tu empresa",
@@ -332,7 +333,7 @@ export function ParaEmpezar({ producto, base, me, onCambio, irA }: { producto: P
     });
   }
   if (producto === "empleo") {
-    pasos.push({
+    if (!APP_EN_CONSTRUCCION) pasos.push({
       clave: "perfil",
       listo: !!perfilEmpleo.perfil,
       titulo: "Dinos qué trabajo buscas",

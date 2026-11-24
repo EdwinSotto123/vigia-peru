@@ -9,7 +9,7 @@ import { Bell, Bookmark, CalendarDays, CreditCard, House, KanbanSquare, Loader2,
 import { claseAccion } from "@/components/ui/EnlaceAccion";
 import { ParaTi } from "@/components/licitaciones/ParaTi";
 import { InicioEmpleo } from "@/components/empleo-app/InicioEmpleo";
-import { PRODUCTOS, rutaEn, type Producto } from "@/lib/gobserva";
+import { PRODUCTOS, rutaEn, type Producto, rutaApp } from "@/lib/gobserva";
 import { seguidoDe, type Me } from "@/lib/gobserva-cuenta";
 import { cn } from "@/lib/utils";
 import { Aviso, Esqueleto, useMe, useSesion } from "./comun";
@@ -206,7 +206,7 @@ function AccionesPagina({ tab, base, ir, producto }: { tab: Seccion; base: strin
   if (tab === "resumen" || tab === "seguimiento" || tab === "calendario") {
     return (
       <>
-        <Link href={rutaEn(base, producto === "empleo" ? "/app/plazas" : "/oportunidades")} className={claseAccion("secundario")}>
+        <Link href={rutaEn(base, producto === "empleo" ? rutaApp("/app/plazas", "/plazas") : "/oportunidades")} className={claseAccion("secundario")}>
           <Search size={15} aria-hidden /> {producto === "empleo" ? "Buscar plazas" : "Buscar oportunidades"}
         </Link>
         {tab === "resumen" && (

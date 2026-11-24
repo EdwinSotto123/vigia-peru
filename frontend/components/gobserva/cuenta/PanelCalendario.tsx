@@ -5,7 +5,7 @@ import Link from "next/link";
 import useSWR from "swr";
 import { CalendarDays, CalendarPlus, ChevronLeft, ChevronRight } from "lucide-react";
 import { claseAccion } from "@/components/ui/EnlaceAccion";
-import { rutaEn } from "@/lib/gobserva";
+import { rutaEn, APP_EN_CONSTRUCCION } from "@/lib/gobserva";
 import { cargarSeguimiento, claveSeguimiento, type ClavePlazo, type ProductoSeguido } from "@/lib/gobserva-cuenta";
 import { tituloNatural } from "@/lib/landing";
 import { cn } from "@/lib/utils";
@@ -62,7 +62,11 @@ export function PanelCalendario({ base, irA, producto = "licitaciones" }: { base
           Icono={CalendarDays}
           titulo="Todavía no hay plazos"
           texto={empleo ? "Guarda una plaza y aquí verás el día en que cierra su postulación." : "Guarda una licitación o un contrato menor y aquí verás su fin de consultas, su cierre y su buena pro."}
-          accion={<Link href={rutaEn(base, empleo ? "/app/para-ti" : "/cuenta?tab=para-ti")} className={claseAccion("primario")}>Ver «Para ti»</Link>}
+          accion={
+            empleo && APP_EN_CONSTRUCCION
+              ? <Link href={rutaEn(base, "/plazas")} className={claseAccion("primario")}>Buscar plazas</Link>
+              : <Link href={rutaEn(base, empleo ? "/app/para-ti" : "/cuenta?tab=para-ti")} className={claseAccion("primario")}>Ver «Para ti»</Link>
+          }
         />
       </Caja>
     );

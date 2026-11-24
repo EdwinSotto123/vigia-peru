@@ -3,7 +3,7 @@
 import { useEffect } from "react";
 import Link from "next/link";
 import { LogIn, UserRound } from "lucide-react";
-import { rutaEn } from "@/lib/gobserva";
+import { rutaEn, APP_EN_CONSTRUCCION } from "@/lib/gobserva";
 import { cn } from "@/lib/utils";
 import { marcarSesion, useSesion } from "./comun";
 
@@ -52,8 +52,8 @@ export function MenuCuenta({ base, compacto = false, entrarConTexto = false }: {
       <span aria-hidden className="grid h-8 w-8 place-items-center rounded-full bg-granate text-meta font-bold text-paper">
         {inicial || <UserRound size={15} />}
       </span>
-      {/* En la landing es la puerta a la app (2026-11-22, «debe haber un botón de entrar»). */}
-      <span className={cn(compacto && "sr-only")}>Ir a la app</span>
+      {/* En la landing es la puerta a la app (2026-11-22, «debe haber un botón de entrar»); con la app en construcción, a tu cuenta. */}
+      <span className={cn(compacto && "sr-only")}>{APP_EN_CONSTRUCCION ? "Mi cuenta" : "Ir a la app"}</span>
     </Link>
   );
 }

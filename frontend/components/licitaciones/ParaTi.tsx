@@ -8,7 +8,7 @@ import { Aviso, CAMPO, ETIQUETA, Esqueleto, useMe, useSesion } from "@/component
 import { Dato } from "@/components/ui/Dato";
 import { claseAccion } from "@/components/ui/EnlaceAccion";
 import { fechaCorta, solesCompacto } from "@/lib/formato";
-import { rutaEn } from "@/lib/gobserva";
+import { rutaEn, APP_EN_CONSTRUCCION } from "@/lib/gobserva";
 import {
   borrarLinea,
   cambiarLinea,
@@ -253,7 +253,9 @@ function consultasCerradas(hasta: string): boolean {
 }
 
 export function FilaParaTi({ o, base }: { o: OportunidadParaTi; base: string }) {
-  const href = o.fuente === "menor" ? rutaEn(base, `/app/menor/${o.id}`) : rutaEn(base, `/app/oportunidad/${encodeURIComponent(o.id)}`);
+  // Con la app en construcción (lib/gobserva.ts), la ficha pública.
+  const app = APP_EN_CONSTRUCCION ? "" : "/app";
+  const href = o.fuente === "menor" ? rutaEn(base, `${app}/menor/${o.id}`) : rutaEn(base, `${app}/oportunidad/${encodeURIComponent(o.id)}`);
   const c = o.fuente === "menor" ? cierreMenor(o.cierra) : null;
   return (
     <Link
