@@ -49,7 +49,14 @@ export function LineaTiempoProceso({ c, idTitulo = "linea-tiempo" }: { c: Contra
   const HITO: Partial<Record<NonNullable<ContratoDetalle["cronograma"]>[number]["clave"], string>> = {
     ofertas: "Ofertas", consentimiento: "Consentimiento", contrato: "Contrato firmado",
   };
-  for (const h of c.cronograma ?? []) if (HITO[h.clave]) agregar(h.fecha, HITO[h.clave]!);
+  for (const h of c.cronograma ?? []) if (HITO[h.clave] && h.clave !== "contrato") agregar(h.fecha, HITO[h.clave]!);
+  // Con varios contratos (uno por ganador), el primero y el último: 2026-2543-197 dibujaba seis «Contrato firmado» seguidos.
+  const firmas = [...new Set((c.cronograma ?? []).filter((h) => h.clave === "contrato").map((h) => dia(h.fecha)).filter((f): f is string => !!f))].sort();
+  if (firmas.length === 1) agregar(firmas[0], "Contrato firmado");
+  else if (firmas.length > 1) {
+    agregar(firmas[0], "Primer contrato firmado");
+    agregar(firmas[firmas.length - 1], "Último contrato firmado");
+  }
   if (c.alerta && c.alerta.estado !== "revision") agregar(c.alerta.analizadoEn, "Leído por Vigía", true);
 
   // Un hito por día, con sus textos sin repetir.

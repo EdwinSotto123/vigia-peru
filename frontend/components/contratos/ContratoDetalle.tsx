@@ -45,7 +45,7 @@ import { FASES } from "@/lib/auditoria";
 import type { CatalogoReglas } from "@/lib/revision";
 import { fecha, fechaCorta, numero, oracion } from "@/lib/formato";
 import {
-  cambioDeGanador, esCodigoConsorcio, esPersonaNatural, etapaLabel, motivoLabel, tipoLabel,
+  adjudicacionesVigentes, cambioDeGanador, esCodigoConsorcio, esPersonaNatural, etapaLabel, motivoLabel, tipoLabel,
   type ContratoDetalle as Detalle,
 } from "@/lib/contratos";
 import { cn } from "@/lib/utils";
@@ -261,6 +261,7 @@ function DatosProceso({ c, idTitulo }: { c: Detalle; idTitulo: string }) {
   const integrantes = codigoConsorcio ? (c.participantes ?? []).find((p) => p.ruc === codigoConsorcio)?.integrantes ?? [] : [];
   const descripcion = c.descripcion && c.descripcion !== c.titulo ? c.descripcion : null;
   const objeto = objetoLargo(c);
+  const nGanadores = new Set(adjudicacionesVigentes(c).map((a) => a.proveedorRuc ?? a.proveedor).filter(Boolean)).size;
   return (
     <div className="rounded-2xl border border-line bg-paper">
       <h2 id={idTitulo} className="px-4 pt-3.5 font-display text-bloque font-bold text-ink">
@@ -274,7 +275,15 @@ function DatosProceso({ c, idTitulo }: { c: Detalle; idTitulo: string }) {
         )}
         {/* Una empresa: su RUC (el nombre, con su ficha, va en la cabecera). Una persona natural: nada (su RUC lleva el
             DNI). */}
-        {proveedor && !natural && !codigoConsorcio && proveedorRuc && (
+        {/* Varios ganadores (uno por ítem): cuántos, y dónde está cada uno. Un solo RUC aquí era el de uno de ellos. */}
+        {nGanadores > 1 && (
+          <Dato k="Quiénes ganaron">
+            <span className="text-meta">
+              {numero(nGanadores)} ganadores, uno por ítem o por grupo de ítems: cada uno con su RUC y su monto en «Adjudicación y contrato».
+            </span>
+          </Dato>
+        )}
+        {nGanadores <= 1 && proveedor && !natural && !codigoConsorcio && proveedorRuc && (
           <Dato k="RUC de quien ganó">
             <span className="font-mono text-meta">
               <Ruc value={proveedorRuc} />
