@@ -90,10 +90,35 @@ export function documentosDe(rel: Dict): Doc[] {
   return out.filter((d) => (vistos.has(d.url) ? false : (vistos.add(d.url), true)));
 }
 
+const MIME_EXTENSION = {
+  "application/pdf": "pdf",
+  "application/zip": "zip",
+  "application/x-zip-compressed": "zip",
+  "application/x-rar-compressed": "rar",
+  "application/vnd.rar": "rar",
+  "application/rar": "rar",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document": "docx",
+  "application/msword": "doc",
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": "xlsx",
+  "application/vnd.ms-excel": "xls",
+};
+
+/**
+ * Los formatos que se bajan en un pedido `lectura`: lo que el agente sabe abrir (tools/documentos/contenedores.py). Hasta
+ * el 2026-11-24 eran sólo PDF y ZIP, y las bases en RAR o Word nunca llegaban al almacén: el agente las pedía al OECE en
+ * vivo y recibía 403 (en 7 días, 807 contratos analizados sin sus bases; «Bases Integradas [rar]» y «[docx]» encabezaban).
+ */
+export const FORMATOS_LECTURA = new Set(["pdf", "zip", "rar", "docx", "doc", "xlsx", "xls"]);
+
+/** ¿Este documento se baja en un pedido `lectura`? Su tipo es de los que se leen y su formato se sabe abrir. */
+export function seBajaEnLectura(d: { tipo: string | null; formato: string | null }): boolean {
+  return TIPOS_LECTURA.has(d.tipo ?? "") && FORMATOS_LECTURA.has(extension(d.formato));
+}
+
 /** format OCDS (mime o extensión) → extensión corta: application/pdf → pdf (extension_de de Python). */
 export function extension(formato: string | null): string {
   const f = (formato ?? "").toLowerCase().trim().replace(/^\./, "");
-  const e = ({ "application/pdf": "pdf", "application/zip": "zip" } as Record<string, string>)[f] ?? f;
+  const e = (MIME_EXTENSION as Record<string, string>)[f] ?? f;
   return /^[a-z0-9]{1,6}$/.test(e) ? e : "bin";
 }
 
@@ -211,7 +236,7 @@ export async function correrDocumentos(env: Env, p: ParamsCorrida, step: Workflo
       const todos = documentosDe(rel);
       const lectura = ped.motivo === "lectura";
       const docs = lectura
-        ? todos.filter((d) => TIPOS_LECTURA.has(d.tipo ?? "") && ["pdf", "zip"].includes(extension(d.formato)))
+        ? todos.filter(seBajaEnLectura)
         : todos;
       const aa = corto.slice(-2).padStart(2, "0");
       const estado = { seguidos403: 0 };

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { CRON_DOCUMENTOS, fuentesDelCron } from "../src/calendario.ts";
-import { documentosDe, extension } from "../src/fuentes/documentos.ts";
+import { documentosDe, extension, seBajaEnLectura } from "../src/fuentes/documentos.ts";
 
 test("documentosDe: tender, awards y contracts, sin repetir la misma URL", () => {
   const rel = {
@@ -23,4 +23,16 @@ test("extension: mime u OCDS → extensión corta", () => {
 
 test("el cron de documentos corre cada hora", () => {
   assert.deepEqual(fuentesDelCron(CRON_DOCUMENTOS, Date.parse("2026-10-19T05:40:00Z")), ["documentos", "seace_cotizaciones"]);
+});
+
+test("un pedido de lectura baja las bases en RAR, Word y Excel (no sólo PDF y ZIP)", () => {
+  // 2026-11-24: «Bases Integradas [rar]» y «[docx]» nunca llegaban al almacén y el agente recibía 403 del OECE.
+  assert.equal(seBajaEnLectura({ tipo: "biddingDocuments", formato: "rar" }), true);
+  assert.equal(seBajaEnLectura({ tipo: "biddingDocuments", formato: "docx" }), true);
+  assert.equal(seBajaEnLectura({ tipo: "biddingDocuments", formato: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" }), true);
+  assert.equal(seBajaEnLectura({ tipo: "awardNotice", formato: "application/x-rar-compressed" }), true);
+  assert.equal(seBajaEnLectura({ tipo: "biddingDocuments", formato: "pdf" }), true);
+  assert.equal(seBajaEnLectura({ tipo: "biddingDocuments", formato: "dwg" }), false);
+  assert.equal(seBajaEnLectura({ tipo: "tenderNotice", formato: "pdf" }), false);
+  assert.equal(extension("application/msword"), "doc");
 });
