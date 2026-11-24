@@ -223,7 +223,12 @@ function filaProcesoEntidad(c: ContratoResumen, compra: Compra): Fila {
         />
       ),
       banderas: <CrucesCelda cruces={c.cruces} sinGanador={!c.proveedor} />,
-      monto: <CeldaNumero sub={compra.adjudicado != null ? "adjudicado" : "valor referencial"}>{montoTexto ?? <span className="font-sans text-mute">Sin dato</span>}</CeldaNumero>,
+      // Un proceso recién convocado puede no traer monto todavía: se dice eso, sin «valor referencial» debajo de un vacío.
+      monto: montoTexto ? (
+        <CeldaNumero sub={compra.adjudicado != null ? "adjudicado" : "valor referencial"}>{montoTexto}</CeldaNumero>
+      ) : (
+        <span className="text-meta text-mute">Sin monto publicado</span>
+      ),
       fecha: <CeldaFecha fecha={c.fecha?.slice(0, 10)} />,
     },
     detalle: {
