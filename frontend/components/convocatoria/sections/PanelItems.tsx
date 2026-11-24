@@ -2,9 +2,9 @@
 
 /** Pestaña "Ítems y mercado" del informe, cargada con `next/dynamic` al abrirla (PanelesDossier). */
 
-import { Package } from "lucide-react";
+import { Package, ScanText } from "lucide-react";
 import { setRedactNames } from "../../Redact";
-import { montoDossier } from "../dossier";
+import { montoDossier, paginasSinLeer } from "../dossier";
 import type { PanelDossierProps } from "./PanelesDossier";
 import { AvisoSeccion } from "./AvisoSeccion";
 import { ItemsConMarketPrice } from "./ItemsConMarketPrice";
@@ -28,6 +28,17 @@ export function PanelItems({ result, corrida, nItems, nombresPrivados, postoresC
   const hayPrecios = (precios?.items || []).length > 0 && !!estado;
   // El laboratorio de precios (renglón por renglón, tiendas y compras del Estado) va primero y aparece aunque el agente
   // de precios no haya desglosado ítems: lo lee de su propio servicio, no de este análisis.
+  // Páginas escaneadas que el análisis no pudo leer: el requerimiento puede estar ahí. Se dice arriba de todo.
+  const sinLeer = paginasSinLeer((result as any).ocr_sin_leer);
+  const avisoEscaneadas = sinLeer > 0 && (
+    <AvisoSeccion
+      titulo={`${sinLeer === 1 ? "Una página escaneada no se pudo leer" : `${sinLeer} páginas escaneadas no se pudieron leer`}`}
+      icono={<ScanText size={16} aria-hidden />}
+    >
+      Son imágenes dentro de los documentos (a veces, el requerimiento entero con su lista de ítems). Mientras no se lean, la
+      lista de ítems y la comparación de precios pueden estar incompletas. Vigía vuelve a leerlas y rehace este análisis.
+    </AvisoSeccion>
+  );
   const laboratorio = (
     <SeccionSegura nombre="el laboratorio de precios">
       <LaboratorioPrecios ocid={ocidContrato ?? postoresContrato?.ocid ?? null} />
@@ -36,6 +47,7 @@ export function PanelItems({ result, corrida, nItems, nombresPrivados, postoresC
   if (!hayItems && !hayVeredicto && !hayPrecios) {
     return (
       <div className="space-y-4">
+        {avisoEscaneadas}
         {laboratorio}
         <AvisoSeccion titulo="No hay ítems ni comparación de mercado para este contrato" icono={<Package size={16} aria-hidden />}>
           {result.market_analysis_raw && !result.market_analysis
@@ -52,6 +64,7 @@ export function PanelItems({ result, corrida, nItems, nombresPrivados, postoresC
   // en la ficha del contrato y en «Proveedor» (el usuario: «¿por qué aparece una vez más?»).
   return (
     <div className="space-y-4">
+      {avisoEscaneadas}
       {hayVeredicto && (
         <SeccionSegura nombre="el veredicto de mercado">
           <MarketVerdictCard market={result.market_analysis} fmtMoney={montoDossier} estado={estado} />

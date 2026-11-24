@@ -217,6 +217,8 @@ export async function dossierCompleto(row: FilaDossier, opts: { sinTraza?: boole
     expediente_proveedor: an.expediente_proveedor ?? (await fichaProveedorBase(row.proveedor_ruc, row.entidad_ruc)),
     lecturas_documentos: an.lecturas_documentos ?? null,
     precios_internos: an.precios_internos ?? null,
+    // Las páginas escaneadas que el OCR no pudo leer (sólo esos recortes): la pestaña de ítems lo avisa (2026-11-24, 1231921).
+    ocr_sin_leer: Array.isArray(an.recortes) ? an.recortes.filter((r: any) => r?.donde === "ocr_gemini_vision").slice(0, 40) : [],
     // Redes de obras y consultoría: la obra en INFOBRAS e Invierte.pe y el vínculo del supervisor con el contratista.
     obra_ejecucion: an.obra_ejecucion ?? null,
     supervision_obra: an.supervision_obra ?? null,

@@ -167,6 +167,7 @@ export function adaptLoadedToUi(loaded: any) {
     expediente_proveedor: loaded.expediente_proveedor ?? null,
     lecturas_documentos:  loaded.lecturas_documentos ?? null,
     precios_internos:     loaded.precios_internos ?? null,
+    ocr_sin_leer:         loaded.ocr_sin_leer ?? [],
     obra_ejecucion:       loaded.obra_ejecucion ?? null,
     supervision_obra:     loaded.supervision_obra ?? null,
     doc_parser_raw: "",

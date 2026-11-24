@@ -345,6 +345,22 @@ export function separarBanderas(result: ApiResult): {
 const BITACORA_RX =
   /fan-out|workers?\b|chunk|timeout|grounding|referencias_internas|BD SEACE|tomad[oa] de:|calculad[oa]s? en c[oó]digo|\d+\s*[ºª°]\s*pase|ronda\b|^Preciados\s+\d|no se emite bandera|person_network|esta corrida|\b[a-z]+_[a-z_]+\b/i;
 
+/**
+ * Las páginas escaneadas que el análisis NO pudo leer (el OCR falló o se acabó su tiempo), contadas desde `recortes`:
+ * «páginas escaneadas [1, 2, 3]» / «páginas rasterizadas [44, …]». En 1231921 el requerimiento con ~40 ítems estaba
+ * escaneado dentro del Word y la pestaña mostraba un solo ítem sin decir que faltaba leer (2026-11-24).
+ */
+export function paginasSinLeer(recortes: unknown): number {
+  if (!Array.isArray(recortes)) return 0;
+  let n = 0;
+  for (const r of recortes) {
+    if (!r || typeof r !== "object" || (r as any).donde !== "ocr_gemini_vision") continue;
+    const m = String((r as any).omitido ?? "").match(/\[([\d,\s]+)\]/);
+    n += m ? m[1].split(",").filter((x) => x.trim()).length : 1;
+  }
+  return n;
+}
+
 export function observacionesLegibles(obs: unknown): string[] {
   if (!Array.isArray(obs)) return [];
   return obs.filter((o): o is string => typeof o === "string" && !!o.trim() && !BITACORA_RX.test(o)).map(sinPluralEntreParentesis);
