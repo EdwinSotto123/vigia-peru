@@ -33,6 +33,21 @@ const CONCURRENCIA = 4;
 const TOPE = 40_000;
 /** La ventana por omisión (la corrida semanal, después de `conosce`): lo adjudicado en los últimos 120 días. */
 const VENTANA_DIAS = 120;
+/**
+ * Lo más que se espera un record (relay y cuerpo) y lo más que trabaja un lote. El 2026-11-23 el lote 148 (directas de
+ * oct-dic 2020, que el OECE no publica) se colgó tres veces hasta el tope de 30 min del paso («Promise will never
+ * complete»): un record que no llega cuenta como «sin record» y, pasado el plazo del lote, lo que falta queda pendiente
+ * para la próxima corrida (no se cargó, así que vuelve a salir en SQL_PENDIENTES).
+ */
+const ESPERA_RECORD_MS = 150_000;
+const PLAZO_LOTE_MS = 20 * 60_000;
+
+/** La promesa, o null si no termina en `ms` (con un temporizador propio: el paso no queda esperando para siempre). */
+export function conPlazo<T>(p: Promise<T>, ms: number): Promise<T | null> {
+  let t: ReturnType<typeof setTimeout> | undefined;
+  const tope = new Promise<null>((res) => { t = setTimeout(() => res(null), ms); });
+  return Promise.race([p, tope]).finally(() => clearTimeout(t));
+}
 
 /**
  * La directa de CONOSCE: `mef_norm(tipo_proceso)` empieza con «CONTRATACION DIRECTA» (como mcp_adjudicacion, migración
@@ -62,6 +77,8 @@ export interface ResumenDirectas {
   pendientes: number;
   pedidos: number;
   sin_record: number;
+  /** Códigos que quedaron sin pedir porque el lote llegó a su plazo: siguen pendientes. */
+  sin_tiempo?: number;
   convocatorias: number;
   cargadas?: number;
   refresh_s?: number;
@@ -82,36 +99,46 @@ export async function correrDirectas(env: Env, p: ParamsCorrida, step: WorkflowS
   let sinRecord = 0;
   let convocatorias = 0;
   let cargadas = 0;
+  let sinTiempo = 0;
   for (let i = 0; i < pendientes.length; i += LOTE) {
     const lote = pendientes.slice(i, i + LOTE);
     const n = i / LOTE + 1;
     const r = await step.do(`lote ${n}`, { retries: { limit: 3, delay: "1 minute", backoff: "exponential" }, timeout: "30 minutes" }, async () => {
       const filas: Fila[] = [];
       let sin = 0;
+      let sinTiempo = 0;
+      const t0 = Date.now();
       for (let k = 0; k < lote.length; k += CONCURRENCIA) {
+        if (Date.now() - t0 > PLAZO_LOTE_MS) {
+          sinTiempo = lote.length - k;
+          break;
+        }
         const tanda = lote.slice(k, k + CONCURRENCIA);
-        // Un record que no responde (tras los reintentos de obtenerJson) cuenta como «sin record»: no tumba el lote.
+        // Un record que no responde (tras los reintentos de obtenerJson, o pasado su plazo) cuenta como «sin record».
         const rels = await Promise.all(tanda.map((codigo) =>
-          obtenerJson(env, `${BASE}/record/${OCID_PREFIJO}${codigo}`).then(releaseDeRecord, () => null)));
+          conPlazo(obtenerJson(env, `${BASE}/record/${OCID_PREFIJO}${codigo}`).then(releaseDeRecord, () => null), ESPERA_RECORD_MS)));
         for (const rel of rels) {
           const f = rel ? normalizarRelease(rel, ix) : null;
           if (f) filas.push(f);
           else sin++;
         }
       }
-      if (p.seco || !filas.length) return { pedidos: lote.length, sin, filas: filas.length, cargadas: 0 };
+      if (p.seco || !filas.length) return { pedidos: lote.length, sin, sinTiempo, filas: filas.length, cargadas: 0 };
       await env.CRUDOS.put(`raw/oece_directas/${hoy}/${id}/lote-${n}.ndjson`, filas.map((f) => JSON.stringify(f)).join("\n") + "\n",
         { httpMetadata: { contentType: "application/x-ndjson" } });
       const c = await conDb(env.HYPERDRIVE, (db) => cargar(db, filas));
-      return { pedidos: lote.length, sin, filas: filas.length, cargadas: c.convocatorias };
+      return { pedidos: lote.length, sin, sinTiempo, filas: filas.length, cargadas: c.convocatorias };
     });
     pedidos += r.pedidos;
     sinRecord += r.sin;
+    sinTiempo += r.sinTiempo ?? 0;
     convocatorias += r.filas;
     cargadas += r.cargadas;
-    registrar("INFO", `   lote ${n}: ${r.pedidos} pedidos · ${r.filas} convocatorias · ${r.sin} sin record`, { fuente: "oece_directas", instancia: id });
+    registrar("INFO", `   lote ${n}: ${r.pedidos} pedidos · ${r.filas} convocatorias · ${r.sin} sin record`
+      + (r.sinTiempo ? ` · ${r.sinTiempo} sin tiempo (quedan pendientes)` : ""), { fuente: "oece_directas", instancia: id });
   }
-  const resumen: ResumenDirectas = { ventana: `${desde} → ${hasta}`, pendientes: pendientes.length, pedidos, sin_record: sinRecord, convocatorias };
+  const resumen: ResumenDirectas = { ventana: `${desde} → ${hasta}`, pendientes: pendientes.length, pedidos, sin_record: sinRecord,
+    ...(sinTiempo ? { sin_tiempo: sinTiempo } : {}), convocatorias };
   if (p.seco) return resumen;
   resumen.cargadas = cargadas;
   if (!cargadas || p.relleno) return resumen;

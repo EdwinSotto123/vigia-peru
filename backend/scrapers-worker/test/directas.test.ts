@@ -6,7 +6,7 @@
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { SQL_PENDIENTES, releaseDeRecord } from "../src/fuentes/oece_directas.ts";
+import { SQL_PENDIENTES, conPlazo, releaseDeRecord } from "../src/fuentes/oece_directas.ts";
 import { normalizarRelease } from "../src/fuentes/oece_ocds.ts";
 import type { Dict } from "../src/py.ts";
 import { ZonaIndex } from "../src/ubigeo.ts";
@@ -76,4 +76,9 @@ test("los pendientes son directas de CONOSCE con código del SEACE v3 que no est
   assert.match(SQL_PENDIENTES, /mef_norm\(a\.tipo_proceso\) LIKE 'CONTRATACION DIRECTA%'/);
   assert.match(SQL_PENDIENTES, /NOT EXISTS \(SELECT 1 FROM convocatorias c WHERE c\.codigo = a\.codigo_convocatoria OR c\.ocid = a\.codigo_convocatoria\)/);
   assert.match(SQL_PENDIENTES, /LIMIT \$3/);
+});
+
+test("conPlazo: lo que termina a tiempo pasa; lo que no termina nunca da null y no cuelga el lote", async () => {
+  assert.equal(await conPlazo(Promise.resolve(7), 1000), 7);
+  assert.equal(await conPlazo(new Promise<number>(() => {}), 20), null);
 });
