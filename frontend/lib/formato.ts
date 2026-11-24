@@ -17,6 +17,8 @@ const ZONA_LIMA = "America/Lima";
 const NUM = new Intl.NumberFormat("es-PE");
 const NUM_1 = new Intl.NumberFormat("es-PE", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
 const NUM_2 = new Intl.NumberFormat("es-PE", { maximumFractionDigits: 2 });
+/** Menos de un sol (el precio por unidad de una tableta): 3 cifras significativas, no 2 decimales (S/ 0.0205, no 0.02). */
+const NUM_CENTIMOS = new Intl.NumberFormat("es-PE", { maximumSignificantDigits: 3 });
 
 const esNumero = (n: unknown): n is number => typeof n === "number" && Number.isFinite(n);
 
@@ -30,10 +32,15 @@ export function numero(n: number | null | undefined): string {
   return esNumero(n) ? NUM.format(Math.round(n)) : "Sin dato";
 }
 
-/** Soles completos, para tablas y textos: S/ 45,000 (≥ 1 000 sin decimales; < 1 000 hasta 2). */
+/**
+ * Soles completos, para tablas y textos: S/ 45,000 (≥ 1 000 sin decimales; < 1 000 hasta 2; menos de un sol, con 3 cifras
+ * significativas: el precio por unidad de una tableta de S/ 0.0205 salía «S/ 0.02», y por 51 M de unidades esa diferencia
+ * es S/ 26 mil; 2026-2543-197).
+ */
 export function soles(n: number | null | undefined): string {
   if (!esNumero(n)) return "Sin dato";
-  return `S/${NBSP}${Math.abs(n) >= 1000 ? NUM.format(Math.round(n)) : NUM_2.format(n)}`;
+  const a = Math.abs(n);
+  return `S/${NBSP}${a >= 1000 ? NUM.format(Math.round(n)) : a > 0 && a < 1 ? NUM_CENTIMOS.format(n) : NUM_2.format(n)}`;
 }
 
 /**
