@@ -281,6 +281,9 @@ def main() -> None:
     ap.add_argument("--modelo", default=None, help="con --motor workers: el modelo (@cf/…)")
     ap.add_argument("--rehacer-grandes", action="store_true",
                     help="vuelve a leer los que quedaron como «grande» (ahora por tramos o recortados)")
+    ap.add_argument("--tipo", default="",
+                    help="sólo los contratos de estos tipos de contratación (convocatorias.tipo_contratacion, separados por "
+                         "comas; p. ej. «directa»): para leer primero las contrataciones directas recién cargadas")
     a = ap.parse_args()
     lector = importlib.import_module(f"lector.{a.clase}")
     version_base = lector.VERSION
@@ -295,9 +298,16 @@ def main() -> None:
     if a.rehacer_grandes:
         consulta = consulta.replace("AND l.estado <> 'error')", "AND l.estado NOT IN ('error', 'grande'))", 1)
         assert "'grande'" in consulta
+    tipos_contratacion = [t.strip().lower() for t in a.tipo.split(",") if t.strip()]
+    if tipos_contratacion:
+        consulta = consulta.replace(
+            " GROUP BY d.ocid",
+            "   AND EXISTS (SELECT 1 FROM convocatorias cv WHERE cv.ocid = d.ocid"
+            " AND lower(cv.tipo_contratacion) = ANY(%(tipo_contratacion)s::text[]))\n GROUP BY d.ocid", 1)
     base = Base(a.entorno)
     pendientes = base.hacer(lambda cur: (cur.execute(consulta, {"tipos": lector.TIPOS_DOC, "clase": lector.CLASE,
                                                                 "version": lector.VERSION, "version_base": version_base,
+                                                                "tipo_contratacion": tipos_contratacion,
                                                                 # Las banderas que la segunda lectura confirma (las que
                                                                 # se publican); sin la lista, cualquiera.
                                                                 "confirmar": list(getattr(lector, "BANDERAS_A_CONFIRMAR",

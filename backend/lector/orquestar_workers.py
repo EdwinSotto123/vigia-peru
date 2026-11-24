@@ -41,6 +41,7 @@ def main() -> None:
     ap.add_argument("--clases", default="", help="sólo estas clases, separadas por comas")
     ap.add_argument("--modelo", default="", help="el modelo de Workers AI (@cf/…); cada modelo tiene su propio tope por minuto")
     ap.add_argument("--sin-publicar", action="store_true", help="sin publicar al final (la cadena diaria lo hace igual)")
+    ap.add_argument("--tipo", default="", help="sólo estos tipos de contratación (leer.py --tipo), p. ej. «directa»")
     a = ap.parse_args()
     t0 = time.time()
     clases = {c.strip() for c in a.clases.split(",") if c.strip()}
@@ -48,7 +49,7 @@ def main() -> None:
         if clases and clase not in clases:
             continue
         cmd =[sys.executable, "-X", "utf8", LEER, a.entorno, "--clase", clase, "--motor", "workers",
-               "--hilos", str(a.hilos), "--tope-usd", str(round(tope * a.factor, 2)), *extra, *(["--modelo", a.modelo] if a.modelo else [])]
+               "--hilos", str(a.hilos), "--tope-usd", str(round(tope * a.factor, 2)), *extra, *(["--modelo", a.modelo] if a.modelo else []), *(["--tipo", a.tipo] if a.tipo else [])]
         print(f"\n== {clase} {' '.join(extra)} (tope USD {round(tope * a.factor, 2)}) {time.strftime('%H:%M')}", flush=True)
         r = subprocess.run(cmd)
         print(f"== fin {clase} {' '.join(extra)}: código {r.returncode}, {round((time.time() - t0) / 60)} min", flush=True)
