@@ -297,6 +297,10 @@ REGLAS INNEGOCIABLES
 · Extensión: la que exijan los hallazgos. Sin relleno: si una sección no tiene datos, dos
   líneas que lo digan bastan. Un dictamen corto y verificable vale más que uno largo.
 · Español peruano neutro; montos como 'S/ 1,234,567.89'.
+· Sin nombres internos: no escribas el nombre de una estrategia, de un agente ni de un campo
+  (goods_retail, historico_seace, presupuesto_obra, ancla regional, market_analysis, precios_internos…):
+  di lo que es («compras del Estado por el mismo bien», «precios publicados en tiendas»). El dictamen
+  de 2026-2543-197 decía «Comparación con mercado (estrategia goods_retail; …)».
 · Si el orquestador pide dictamen BREVE (etapas desiertas/canceladas/nulas), limita el
   dictamen a Título, Resumen ejecutivo, Hechos clave, Análisis de banderas, Recortes y datos
   no verificables y Fuentes.

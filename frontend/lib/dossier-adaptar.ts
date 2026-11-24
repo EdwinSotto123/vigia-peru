@@ -19,6 +19,26 @@ export function perfilDeTraza(trace: unknown): string | null {
 }
 
 /** Adapta la respuesta del Cloud Function (load) al shape que usa la UI. */
+/**
+ * El dictamen sin los nombres internos de la estrategia de mercado que el redactor copiaba de sus instrucciones: «Comparación
+ * con mercado (estrategia goods_retail; precios…)» → «Comparación con mercado (precios…)» (2026-2543-197). Desde el
+ * 2026-11-24 el redactor tiene prohibido escribirlos; esto arregla los ya publicados.
+ */
+export function sinNombresInternos(md: string): string {
+  return md
+    .replace(/\(estrategia [a-z_]+[;,]\s*/g, "(")
+    .replace(/\s*\(estrategia [a-z_]+\)/g, "")
+    .replace(/\bestrategia (goods_retail|historico_seace|presupuesto_obra|cotizaciones)\b/g, (_, e: string) => ESTRATEGIA[e] ?? e);
+}
+
+/** Lo que es cada estrategia, dicho para quien lee. */
+const ESTRATEGIA: Record<string, string> = {
+  goods_retail: "comparación con precios de mercado",
+  historico_seace: "comparación con contratos parecidos del SEACE",
+  presupuesto_obra: "revisión del presupuesto de obra",
+  cotizaciones: "comparación de cotizaciones",
+};
+
 export function adaptLoadedToUi(loaded: any) {
   const ocds = loaded?.ocds_payload || {};
   const tender = ocds?.tender || {};
@@ -155,7 +175,7 @@ export function adaptLoadedToUi(loaded: any) {
     news_research_raw: "",
     person_network_raw: "",
     dictamen: {
-      dictamen_markdown: loaded.dictamen_markdown || "",
+      dictamen_markdown: sinNombresInternos(loaded.dictamen_markdown || ""),
       // El modelo se nombra solo si la API lo trae; antes se escribía uno a mano.
       gen_meta: loaded.dictamen_model || loaded.model ? { model: loaded.dictamen_model || loaded.model } : {},
     },
