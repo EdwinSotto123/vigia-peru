@@ -364,7 +364,10 @@ def get_dictamen_context(tool_context: ToolContext) -> dict:
 
     Incluye (WS V · auditoría #6 y §6.1-4):
       · `banderas`: las PERSISTIDAS en BD por todos los agentes (compliance, legal,
-        market), con `verificacion`. El dictamen solo puede citar estas.
+        market), con `verificacion`. El dictamen solo puede citar estas. Los hechos de
+        contexto (puntua=false) van aparte en `hechos_contexto`.
+      · `adjudicacion`: ganadores del proceso (ítems y monto), ganador principal, ítems
+        desiertos, total adjudicado y referencial de lo adjudicado (`adjudicacion_del_proceso`).
       · `reglas_evaluadas`: pending_flags (resultado de las reglas deterministas).
       · `entity_personnel`, `estado_real`, `analisis_postores`,
         `causal_directa_invocada`, `acto_resolutivo_directa`, `sunat_decolecta`.
@@ -445,10 +448,24 @@ def get_dictamen_context(tool_context: ToolContext) -> dict:
     # citar las persistidas en `banderas`.
     out["n_banderas"] = len(out["banderas"] or [])
     out["n_hechos_contexto"] = len(out["hechos_contexto"])
+    # La adjudicación de TODO el proceso: con varios ganadores el dictamen hablaba de uno solo como «el ganador», sumaba
+    # un contrato como monto adjudicado y comparaba contra el referencial con los ítems desiertos (2026-2543-197: 8
+    # ganadores, ítems 5 y 9 desiertos). Cada ganador con sus ítems y su monto, el principal (de quien es el análisis
+    # del proveedor), los desiertos, el total del proceso y el referencial de lo adjudicado.
+    try:
+        from tools.compliance_rules import adjudicacion_del_proceso
+        _o = state.get("ocds") or state.get("ocds_preloaded") or {}
+        _o = _safe_parse_json(_o) if isinstance(_o, str) else _o
+        _ocid = state.get("ocid") or (_o.get("ocid") if isinstance(_o, dict) else None) or ""
+        out["adjudicacion"] = adjudicacion_del_proceso(_ocid, state) if _ocid or _o else None
+    except Exception:  # noqa: BLE001 — sin adjudicación legible, el writer sigue con `ocds`
+        out["adjudicacion"] = None
     out["market_analysis"] = _compact_market_analysis(out.get("market_analysis"))
     out = compactar_errores(out)
     out["_nota"] = ("Solo se pueden citar banderas presentes en `banderas`. `hechos_contexto` son hechos de contexto "
-                    "sin puntaje (no señales): se mencionan como contexto, nunca como bandera ni en el conteo. Las secciones con "
+                    "sin puntaje (no señales): se mencionan como contexto, nunca como bandera ni en el conteo. `adjudicacion` "
+                    "(ganadores, ítems desiertos, total del proceso y referencial de lo adjudicado) manda sobre "
+                    "`ocds.awards`/`contracts` y `contrato_final` para el monto y los ganadores. Las secciones con "
                     "`_truncado: true` fueron paginadas; `_omitidos` dice cuántos elementos no se "
                     "muestran. `recortes`/`descartes`/`validaciones_pendientes` deben listarse en "
                     "la sección 'Recortes y datos no verificables'. Las salidas listadas en "

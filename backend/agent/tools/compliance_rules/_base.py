@@ -334,6 +334,157 @@ def ganador_principal(ocid: str, state: dict, cur=None) -> dict | None:
     return g
 
 
+def _items_conosce(ocid: str, state: dict, cur=None) -> list[tuple]:
+    """[(n_item, ruc_proveedor, proveedor, monto, monto_referencial, estado)] del proceso en CONOSCE, una fila por ítem
+    y proveedor (n_item = número oficial del ítem). CONOSCE no trae los ítems desiertos. Se guarda en
+    state["_conosce_items"]; vacío sin base."""
+    st = state if isinstance(state, dict) else {}
+    ocid = _short_ocid(str(ocid or ""))
+    ya = st.get("_conosce_items")
+    if isinstance(ya, dict) and ya.get("ocid") == ocid:
+        return ya["filas"]
+    filas: list[tuple] = []
+    conn = None
+    try:
+        if cur is None:
+            conn = _pg()
+            cur = conn.cursor()
+        cur.execute("SELECT codigo, entidad_ruc::text FROM convocatorias WHERE ocid = %s", (ocid,))
+        fila = cur.fetchone()
+        if fila and fila[0]:
+            cur.execute("""SELECT n_item, ruc_proveedor, proveedor, monto_adjudicado::float, monto_referencial::float,
+                                  estado_item
+                             FROM conosce_adjudicaciones
+                            WHERE codigo_convocatoria = %s AND (%s::text IS NULL OR entidad_ruc::text = %s::text)
+                            ORDER BY n_item, ruc_proveedor""", (fila[0], fila[1], fila[1]))
+            filas = [tuple(r) for r in cur.fetchall()]
+    except Exception:  # noqa: BLE001 — sin base: el OCDS
+        filas = []
+    finally:
+        if conn is not None:
+            try:
+                conn.close()
+            except Exception:  # noqa: BLE001
+                pass
+    if isinstance(state, dict):
+        state["_conosce_items"] = {"ocid": ocid, "filas": filas}
+    return filas
+
+
+_DETALLE_SIN_ADJUDICAR_RE = re.compile(r"DESIERT|\bNUL[OA]\b|CANCELAD", re.I)
+
+
+def adjudicacion_del_proceso(ocid: str, state: dict, cur=None) -> dict | None:
+    """La adjudicación de TODO el proceso para el dictamen: cada ganador (de mayor a menor monto, empate por RUC) con sus
+    ítems (números oficiales: `n_item` de CONOSCE o `position` del OCDS) y su monto; el ganador principal (el de
+    `ganador_principal`, del que es el análisis del proveedor); los ítems desiertos o sin adjudicar; el total adjudicado
+    del proceso y el referencial de los ítems adjudicados (sin los desiertos). Fuente: CONOSCE o, sin CONOSCE, las
+    adjudicaciones vigentes del OCDS. Un RUC de persona natural nunca sale: «persona natural» y el nombre tapado.
+
+    2026-2543-197 (2026-11-24): 13 ítems, 8 ganadores y los ítems 5 y 9 desiertos; el dictamen hablaba de un solo
+    proveedor como «el ganador». None sin adjudicación."""
+    st = state if isinstance(state, dict) else {}
+    ocid = _short_ocid(str(ocid or ""))
+    ya = st.get("_adjudicacion")
+    if isinstance(ya, dict) and ya.get("ocid") == ocid:
+        return ya["adjudicacion"]
+    ocds = st.get("ocds") or st.get("ocds_preloaded") or {}
+    ocds = _safe_parse_json(ocds) if isinstance(ocds, str) else ocds
+    ocds = ocds if isinstance(ocds, dict) else {}
+    tender = ocds.get("tender") or {}
+    titems = [it for it in (tender.get("items") or []) if isinstance(it, dict)]
+
+    def _numero(it, i):
+        pos = str(it.get("position") or "").strip()
+        return int(pos) if pos.isdigit() else i
+    item_de_num = {_numero(it, i): it for i, it in enumerate(titems, start=1)}
+    num_de_id = {str(it.get("id")): _numero(it, i) for i, it in enumerate(titems, start=1) if it.get("id") is not None}
+
+    por: dict[str, dict] = {}
+    ref_por_item: dict[int, float] = {}
+    filas = [f for f in _items_conosce(ocid, st, cur) if f[1] and (f[3] or 0) > 0]
+    if filas:
+        fuente = "conosce"
+        for n, ruc, nombre, monto, mref, _est in filas:
+            g = por.setdefault(str(ruc).strip(), {"nombre": nombre, "items": set(), "monto": 0.0})
+            g["monto"] += float(monto or 0)
+            if n is not None:
+                g["items"].add(int(n))
+                if mref:
+                    ref_por_item[int(n)] = max(ref_por_item.get(int(n), 0.0), float(mref))
+    else:
+        fuente = "ocds"
+        for a in _awards_vigentes(ocds):
+            sups = [sp for sp in (a.get("suppliers") or []) if _id_proveedor(sp)]
+            nums = set()
+            for ai in (a.get("items") or []):
+                if not isinstance(ai, dict):
+                    continue
+                n = num_de_id.get(str(ai.get("id")))
+                if n is None and str(ai.get("position") or "").isdigit():
+                    n = int(ai["position"])
+                if n is not None:
+                    nums.add(n)
+            monto = _f((a.get("value") or {}).get("amount")) or 0.0
+            for sp in sups:
+                g = por.setdefault(_id_proveedor(sp), {"nombre": sp.get("name"), "items": set(), "monto": 0.0})
+                g["items"] |= nums
+                g["monto"] += monto / len(sups)
+    if not por:
+        if isinstance(state, dict):
+            state["_adjudicacion"] = {"ocid": ocid, "adjudicacion": None}
+        return None
+    adjudicados = {n for g in por.values() for n in g["items"]}
+    if not ref_por_item:
+        ref_por_item = {n: _f(((item_de_num.get(n) or {}).get("totalValue") or {}).get("amount")) or 0.0 for n in adjudicados}
+
+    from tools.privacidad import tapar_nombre
+
+    def _ficha(ruc: str, g: dict) -> dict:
+        natural = len(ruc) == 11 and ruc.startswith("10")
+        return {"ruc": ruc if (len(ruc) == 11 and not natural) else None,
+                **({"codigo_seace": ruc} if len(ruc) != 11 else {}),
+                "persona_natural": natural,
+                "nombre": tapar_nombre(g["nombre"]) if natural else g["nombre"],
+                "items": sorted(g["items"]), "monto": round(g["monto"], 2)}
+    orden = sorted(por.items(), key=lambda kv: (-kv[1]["monto"], kv[0]))
+    ganadores = [_ficha(r, g) for r, g in orden]
+    gp = ganador_principal(ocid, st, cur)
+    i_principal = next((i for i, (r, _g) in enumerate(orden) if gp and r == str(gp.get("ruc"))), 0)
+
+    desiertos = []
+    for n in sorted(item_de_num):
+        it = item_de_num[n]
+        det = str(it.get("statusDetails") or "")
+        st_it = str(it.get("status") or "").lower()
+        if st_it in _ESTADOS_AWARD_CAIDO or _DETALLE_SIN_ADJUDICAR_RE.search(det):
+            motivo = ("desierto" if "DESIERT" in det.upper() else "nulo" if re.search(r"\bNUL[OA]\b", det, re.I)
+                      else "cancelado" if "CANCEL" in (det.upper() + st_it.upper()) else "sin_adjudicacion")
+        elif adjudicados and n not in adjudicados:
+            motivo = "sin_adjudicacion"
+        else:
+            continue
+        desiertos.append({"item": n, "descripcion": str(it.get("description") or "")[:120], "motivo": motivo})
+
+    total = round(sum(g["monto"] for g in por.values()), 2)
+    ref_adj = round(sum(v for k, v in ref_por_item.items() if k in adjudicados), 2) or None
+    out = {
+        "fuente": fuente,
+        "n_ganadores": len(ganadores),
+        "ganadores": ganadores[:30],
+        "ganador_principal": ganadores[i_principal],
+        "monto_adjudicado_total": total,
+        "n_items": len(item_de_num) or None,
+        "items_desiertos": desiertos,
+        "referencial_total": _f((tender.get("value") or {}).get("amount")),
+        "referencial_items_adjudicados": ref_adj,
+        "adjudicado_vs_referencial_pct": round((total - ref_adj) / ref_adj * 100, 1) if ref_adj else None,
+    }
+    if isinstance(state, dict):
+        state["_adjudicacion"] = {"ocid": ocid, "adjudicacion": out}
+    return out
+
+
 def ganadores_para_regla(ocid: str, state: dict, cur=None) -> list[tuple[str, str | None]]:
     """[(id, nombre)] a evaluar en una regla sobre «el» ganador cuando hay varios: el principal primero y después los
     demás de `ganadores_evaluables` (integrantes de consorcio incluidos), hasta 5, sin repetir. Antes esas reglas

@@ -40,6 +40,7 @@ from tools.compliance_rules._base import (  # noqa: F401
     _sin_tildes,
     _as_tool,
     _ganador_ruc,
+    adjudicacion_del_proceso,
     ganador_principal,
     ganadores_para_regla,
     rucs_ganadores_vigentes,)

@@ -50,9 +50,12 @@ _GUIA_RED = (
 
 # Guía de contenido por sección (qué fuente del contexto usa y qué NO puede hacer).
 GUIA_SECCION: dict[str, str] = {
-    "Título": "## Título factual, ≤ 14 palabras, sin adjetivos acusatorios.",
+    "Título": ("## Título factual, ≤ 14 palabras, sin adjetivos acusatorios. Con `adjudicacion.n_ganadores` ≥ 2 no "
+              "nombres a un solo proveedor como ganador (p. ej. «8 ganadores en 13 ítems»)."),
     "Resumen ejecutivo": ("### 4-6 líneas: qué se contrató, quién, monto, etapa, cuántas banderas y de qué severidad (contadas "
-                          "de `banderas`; los `hechos_contexto` NO se cuentan ni se llaman banderas)."),
+                          "de `banderas`; los `hechos_contexto` NO se cuentan ni se llaman banderas). Con "
+                          "`adjudicacion.n_ganadores` ≥ 2, «quién» son N ganadores (nombra al principal, el de mayor monto) "
+                          "y el monto es `adjudicacion.monto_adjudicado_total`, el del proceso entero."),
     "Hechos clave": (
         "### Bullets con monto, fechas, RUC del proveedor y de la entidad, modalidad, n° de postores, fuentes. Solo "
         "valores presentes en `ocds` / `estado_real` / `banderas`. RUC de la entidad = `ocds.buyer.ruc`; RUC del "
@@ -66,6 +69,16 @@ GUIA_SECCION: dict[str, str] = {
         "sin comprobar»), el `motivo` en una frase y su `enlace`. Si `corrigio` es true, el Tribunal corrigió al comité; si "
         "`corregido_otra_vez`, lo corrigió en más de una ronda: dilo. Una «sancionador ordenado» es la orden de investigar, "
         "no una sanción. Es un hecho oficial, no una bandera: no le sumes severidad ni lo cuentes entre las banderas. "
+        "ADJUDICACIÓN (`adjudicacion`, calculada por el código): el monto adjudicado del proceso es "
+        "`adjudicacion.monto_adjudicado_total` (la suma de TODOS los ganadores), nunca el de un ganador ni el de "
+        "`contrato_final`, que con varios ganadores es UNO de los contratos; compáralo con "
+        "`adjudicacion.referencial_items_adjudicados` (el referencial SIN los ítems desiertos: "
+        "`adjudicacion.adjudicado_vs_referencial_pct`), no con el referencial total. Con `adjudicacion.n_ganadores` ≥ 2: "
+        "un bullet con cuántos ganadores hay y los 5 de mayor monto (nombre, RUC o «persona natural», ítems y monto), "
+        "más «y N más» si hay otros; un bullet con los ítems desiertos o sin adjudicar (`adjudicacion.items_desiertos`, "
+        "por su número de ítem); y deja claro que el análisis del proveedor (antecedentes, red de personas, "
+        "investigación web) es del ganador principal (`adjudicacion.ganador_principal`), el de mayor monto. Nunca "
+        "escribas «el ganador» en singular para el proceso. Una persona natural nunca lleva RUC: «persona natural». "
         "Si hay `hechos_contexto` (sin puntaje: el tipo de proceso «Contratación Directa», notas de prensa sobre la "
         "entidad que no nombran al proveedor, una sanción ya cumplida), cierra con un bullet «Contexto (no son señales "
         "de riesgo): …» que los resuma en una frase cada uno, sin severidad."
@@ -199,10 +212,12 @@ GUIA_SECCION: dict[str, str] = {
         "registradas en OECE'; una sanción con `vigente: false` o multa pagada es antecedente histórico, no sanción "
         "vigente), otros contratos con el Estado (solo los que traen evidencia con URL de página concreta), relación "
         "previa con la entidad. Si `oece_perfil` es null y la regla de sancionados no corrió, escribe 'sanciones: no "
-        "verificado'. `sin_dato` se declara, no se rellena."
+        "verificado'. `sin_dato` se declara, no se rellena. " "Con `adjudicacion.n_ganadores` ≥ 2, empieza diciendo que esta sección es del ganador principal (`adjudicacion.ganador_principal`: el de mayor monto adjudicado), no de los demás ganadores."
     ),
-    "Personas clave y red empresarial": _GUIA_RED,
-    "Cobertura periodística": "### De `news_research`: timeline (3-8 notas más relevantes: fecha, medio, título, URL, 1 línea), conteo por severidad. Sin noticias: decirlo y aclarar que la ausencia no implica ausencia de riesgo.",
+    "Personas clave y red empresarial": _GUIA_RED + " " + "Con `adjudicacion.n_ganadores` ≥ 2, empieza diciendo que esta sección es del ganador principal (`adjudicacion.ganador_principal`: el de mayor monto adjudicado), no de los demás ganadores. ",
+    "Cobertura periodística": ("### De `news_research`: timeline (3-8 notas más relevantes: fecha, medio, título, URL, 1 línea), "
+                               "conteo por severidad. Sin noticias: decirlo y aclarar que la ausencia no implica ausencia de "
+                               "riesgo. " + "Con `adjudicacion.n_ganadores` ≥ 2, empieza diciendo que esta sección es del ganador principal (`adjudicacion.ganador_principal`: el de mayor monto adjudicado), no de los demás ganadores. "),
     "Lecturas alternativas": "### Qué explicación benigna podría tener cada señal relevante (mercado especializado, emergencia real, error de registro, etc.).",
     "Recortes y datos no verificables": (
         "### SIEMPRE presente, con dos sub-bloques. **Lo que no se pudo verificar**: (a) las salidas de "
