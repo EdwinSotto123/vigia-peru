@@ -116,13 +116,28 @@ function enPlural(palabra: string, sufijo: string): string {
 }
 
 /**
+ * Los nombres de campo que el agente deja en la evidencia («fecha_inicio_actividades = 6 dic. 2024, condicion HABIDO,
+ * edad_dias 615»), en castellano; uno que no está en la lista, con espacios en vez de guiones bajos. 2026-2543-197.
+ */
+const CAMPOS_EVIDENCIA: Record<string, string> = {
+  fecha_inicio_actividades: "inicio de actividades", fecha_inicio: "inicio", edad_dias: "días de antigüedad",
+  edad_ruc_dias: "días de antigüedad del RUC", condicion: "condición", estado_contribuyente: "estado", monto_adjudicado: "monto adjudicado",
+  razon_social: "razón social", ruc_ganador: "RUC del ganador", n_procesos: "procesos", n_contratos: "contratos",
+  monto_total: "monto total", fecha_buena_pro: "buena pro", valor_referencial: "valor referencial", ciiu: "CIIU",
+};
+// No dentro de una dirección («…/nota_del_dia.html»): sólo una palabra suelta.
+const CAMPO_CON_GUION = /(?<![/.=?&#\-\w])([a-z]{2,})((?:_[a-z0-9]{2,})+)\b(?![/.]\w)/g;
+const camposLegibles = (t: string) =>
+  t.replace(CAMPO_CON_GUION, (m: string) => CAMPOS_EVIDENCIA[m] ?? m.replace(/_/g, " ")).replace(/\s=\s/g, ": ");
+
+/**
  * La evidencia como la escribe el análisis, sin sus formas de máquina (pedido del usuario del 2026-11-05: «Un solo postor
  * registrado (ocds: numberOfTenderers/tenderers)», «2 sanción(es) VIGENTE(S) … (2026-07-31)»): sin el campo de origen,
  * con el plural según el número («1 sanción vigente», «2 sanciones vigentes»; sin número, en plural), las mayúsculas de
  * énfasis en minúsculas, las fechas como «31 jul. 2026» y sin el «·» de separador. Cambia la forma, nunca el dato.
  */
 export function limpiarEvidencia(texto: string): string {
-  return (
+  return camposLegibles(
     texto
       // Los análisis anteriores al 2026-11-16 llamaban «persona» a un socio que es una empresa («Persona con documento
       // 20100027292 figura como representante…»): un documento de 11 cifras que empieza en 20 es un RUC de empresa.
@@ -145,7 +160,7 @@ export function limpiarEvidencia(texto: string): string {
       .replace(/\s+·\s+/g, "; ")
       .replace(/\s+([.,;:])/g, "$1")
       .replace(/\s{2,}/g, " ")
-      .trim()
+      .trim(),
   );
 }
 
