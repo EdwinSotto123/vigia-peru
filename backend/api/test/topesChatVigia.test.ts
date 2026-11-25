@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { Hono } from "hono";
 import { ambitoPedido, fijarPlataforma, type AmbitoPedido, type Plataforma } from "../src/lib/plataforma.js";
 import { cuentasRouter } from "../src/routes/cuentas.js";
+import { saludRouter, TOPES_ASISTENTE_SALUD } from "../src/routes/gobservaSalud.js";
 import { FALTAS_PARA_BLOQUEO, TOPE_CUENTA_DIA, TOPE_CUENTA_MINUTO, TOPE_IP_DIA, TOPE_SIN_VERIFICAR_DIA } from "../src/lib/chatVigia.js";
 
 /**
@@ -46,6 +47,7 @@ fijarPlataforma({
 
 const app = new Hono();
 app.route("/cuentas", cuentasRouter);
+app.route("/salud", saludRouter);
 
 async function preguntar(token: string, ip: string): Promise<{ status: number; error?: string; detail?: string }> {
   const ambito = { limitador: () => limitador, seguir: () => {} } as unknown as AmbitoPedido;
@@ -151,4 +153,32 @@ test("sin token, no hay asistente", async () => {
     app.request("/cuentas/me/chat", { method: "POST", headers: { "content-type": "application/json" }, body: "{}" }),
   );
   assert.equal(r.status, 401);
+});
+
+// El asistente de Gobserva Salud no pide cuenta: sus topes son por conexión (sin Turnstile en la prueba: sin secreto).
+async function preguntarSalud(ip: string): Promise<{ status: number; error?: string }> {
+  return ambitoPedido.run({ limitador: () => limitador, seguir: () => {} } as unknown as AmbitoPedido, async () => {
+    const r = await app.request("/salud/asistente", {
+      method: "POST",
+      headers: { "content-type": "application/json", "cf-connecting-ip": ip },
+      body: JSON.stringify({ mensajes: [{ rol: "usuario", texto: "¿El Hospital Loayza tiene sanciones?" }] }),
+    });
+    const texto = await r.text();
+    return r.status === 200 ? { status: 200 } : { status: r.status, error: (JSON.parse(texto) as { error?: string }).error };
+  });
+}
+
+test("Salud: 25 preguntas al día por conexión; insistir después no bloquea", async () => {
+  const T = TOPES_ASISTENTE_SALUD;
+  const ip = "179.9.9.9";
+  let bien = 0;
+  for (let i = 0; i < T.ipDia; i++) {
+    if (i > 0 && i % T.ipMinuto === 0) adelantar(61);
+    if ((await preguntarSalud(ip)).status === 200) bien++;
+  }
+  assert.equal(bien, T.ipDia);
+  adelantar(61);
+  for (let i = 0; i < T.faltasBloqueo + 5; i++) assert.equal((await preguntarSalud(ip)).error, "tope_dia");
+  adelantar(24 * 60 * 60);
+  assert.equal((await preguntarSalud(ip)).status, 200);
 });

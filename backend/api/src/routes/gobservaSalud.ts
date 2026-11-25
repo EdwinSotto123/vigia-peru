@@ -1344,6 +1344,11 @@ async function protegerFoto(c: Context): Promise<Response | null> {
   }
   if ((await cuantasEn(`fotosalud|bloqueo|${huella}`, DIA_S, true)) > 0) return no(403, "bloqueado", "La lectura de fotos no está disponible para esta conexión por un uso fuera de lo normal.");
   const T = TOPES_FOTO_SALUD;
+  const topeDia = () => no(429, "tope_dia", `Desde esta conexión ya se leyeron ${T.ipDia} fotos en las últimas 24 horas. Vuelve mañana o escribe el registro y el lote.`);
+  const topeTotal = () => no(429, "tope_total", "La lectura de fotos llegó a su límite de hoy. Escribe el registro y el lote: el buscador sigue abierto.");
+  // Primero, sin anotar, los topes del día: insistir después de llegar no suma faltas (como el asistente).
+  if ((await cuantasEn(`fotosalud|dia|${huella}`, DIA_S, true)) >= T.ipDia) return topeDia();
+  if ((await cuantasEn("fotosalud|total", DIA_S, true)) >= T.totalDia) return topeTotal();
   if (!(await dentroDeTope(`fotosalud|min|${huella}`, T.ipMinuto, 60))) {
     if (!(await dentroDeTope(`fotosalud|faltas|${huella}`, T.faltasBloqueo, 60 * 60, true))) {
       await dentroDeTope(`fotosalud|bloqueo|${huella}`, 1, DIA_S, true);
@@ -1351,12 +1356,8 @@ async function protegerFoto(c: Context): Promise<Response | null> {
     }
     return no(429, "muy_seguido", "Mandaste varias fotos seguidas. Espera un minuto.");
   }
-  if (!(await dentroDeTope(`fotosalud|dia|${huella}`, T.ipDia, DIA_S, true))) {
-    return no(429, "tope_dia", `Desde esta conexión ya se leyeron ${T.ipDia} fotos en las últimas 24 horas. Vuelve mañana o escribe el registro y el lote.`);
-  }
-  if (!(await dentroDeTope("fotosalud|total", T.totalDia, DIA_S, true))) {
-    return no(429, "tope_total", "La lectura de fotos llegó a su límite de hoy. Escribe el registro y el lote: el buscador sigue abierto.");
-  }
+  if (!(await dentroDeTope(`fotosalud|dia|${huella}`, T.ipDia, DIA_S, true))) return topeDia();
+  if (!(await dentroDeTope("fotosalud|total", T.totalDia, DIA_S, true))) return topeTotal();
   return null;
 }
 
@@ -1414,6 +1415,12 @@ async function protegerAsistente(c: Context): Promise<Response | null> {
   if (enListaFija(process.env.CHAT_BLOQUEO, ip, huella, "")) return no(403, "bloqueado", "El asistente no está disponible para esta conexión.");
   if ((await cuantasEn(`chatsalud|bloqueo|${huella}`, DIA_S, true)) > 0) return no(403, "bloqueado", "El asistente no está disponible para esta conexión por un uso fuera de lo normal.");
   const T = TOPES_ASISTENTE_SALUD;
+  const topeDia = () => no(429, "tope_dia", `Desde esta conexión ya se hicieron ${T.ipDia} preguntas en las últimas 24 horas. Vuelve mañana.`);
+  const topeTotal = () => no(429, "tope_total", "El asistente llegó a su límite de hoy. Vuelve mañana; mientras, el buscador y las fichas siguen abiertos.");
+  // Primero, sin anotar, los topes del día (2026-11-24, como el asistente de Vigía): quien ya llegó lee el aviso del día,
+  // no «espera un minuto», y no suma faltas al insistir (antes, insistir terminaba en un bloqueo de 24 horas).
+  if ((await cuantasEn(`chatsalud|dia|${huella}`, DIA_S, true)) >= T.ipDia) return topeDia();
+  if ((await cuantasEn("chatsalud|total", DIA_S, true)) >= T.totalDia) return topeTotal();
   if (!(await dentroDeTope(`chatsalud|min|${huella}`, T.ipMinuto, 60))) {
     if (!(await dentroDeTope(`chatsalud|faltas|${huella}`, T.faltasBloqueo, 60 * 60, true))) {
       await dentroDeTope(`chatsalud|bloqueo|${huella}`, 1, DIA_S, true);
@@ -1421,12 +1428,8 @@ async function protegerAsistente(c: Context): Promise<Response | null> {
     }
     return no(429, "muy_seguido", "Hiciste varias preguntas seguidas. Espera un minuto.");
   }
-  if (!(await dentroDeTope(`chatsalud|dia|${huella}`, T.ipDia, DIA_S, true))) {
-    return no(429, "tope_dia", `Desde esta conexión ya se hicieron ${T.ipDia} preguntas en las últimas 24 horas. Vuelve mañana.`);
-  }
-  if (!(await dentroDeTope("chatsalud|total", T.totalDia, DIA_S, true))) {
-    return no(429, "tope_total", "El asistente llegó a su límite de hoy. Vuelve mañana; mientras, el buscador y las fichas siguen abiertos.");
-  }
+  if (!(await dentroDeTope(`chatsalud|dia|${huella}`, T.ipDia, DIA_S, true))) return topeDia();
+  if (!(await dentroDeTope("chatsalud|total", T.totalDia, DIA_S, true))) return topeTotal();
   return null;
 }
 
