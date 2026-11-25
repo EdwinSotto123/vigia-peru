@@ -5,7 +5,7 @@ import { CeldaBarra, CeldaNumero, CeldaPrincipal, CeldaTexto, Indicadores, Tabla
 import { Nota } from "@/components/patrones";
 import { fechaConAnio, numero, plural, porcentaje } from "@/lib/formato";
 import { diaCorto, dolares, mesLargo, tamano, type Transparencia } from "@/lib/transparencia";
-import { Caja, NoMedido, RenglonMedidor } from "./piezas";
+import { Caja, NoMedido, NoRespondio, RenglonMedidor } from "./piezas";
 
 type Costos = Transparencia["costos"];
 
@@ -268,14 +268,30 @@ const CATEGORIA: Record<string, string> = {
 };
 
 /** Lo que no se mide en la base: facturas de la nube (las carga un script cada mes) y lo que el equipo declara a mano. */
+/** El mes de hoy en Lima, «AAAA-MM». */
+const mesDeHoy = () => new Intl.DateTimeFormat("en-CA", { timeZone: "America/Lima", year: "numeric", month: "2-digit" }).format(new Date()).slice(0, 7);
+
 function Facturas({ facturas, declarados }: { facturas: Costos["facturas"]; declarados: Costos["declarados"] }) {
-  const filasFactura = (facturas?.filas ?? []).map((f, i) => ({
+  // El mes siguiente lo deja proyectado costos_mes.py (para la meta de aportes): aquí va como proyección y al final, no
+  // como un mes «sin cerrar» que todavía no empezó (2026-11-25: «dic. 2026» salía primero en noviembre).
+  const hoy = mesDeHoy();
+  const proyectado = (mes: string) => mes.slice(0, 7) > hoy;
+  const ordenadas = [...(facturas?.filas ?? [])].sort((a, b) => Number(proyectado(a.mes)) - Number(proyectado(b.mes)));
+  const filasFactura = ordenadas.map((f, i) => ({
     id: `f-${i}`,
-    buscable: `${mesLargo(f.mes)} ${f.titulo} ${f.proveedor ?? ""}`,
+    buscable: `${mesLargo(f.mes)} ${f.titulo} ${f.proveedor ?? ""}${proyectado(f.mes) ? " proyección" : ""}`,
     celdas: {
-      que: <CeldaPrincipal titulo={f.titulo} meta={`${mesLargo(f.mes)}${f.proveedor ? `, ${f.proveedor}` : ""}`} />,
-      monto: <CeldaNumero sub={f.parcial ? "mes sin cerrar" : undefined}>{dolares(f.montoUsd)}</CeldaNumero>,
-      fuente: <CeldaTexto>{f.fuente === "factura" ? `Factura del proveedor${f.al ? `, al ${fechaConAnio(f.al)}` : ""}` : "Estimado, sin factura todavía"}</CeldaTexto>,
+      que: <CeldaPrincipal titulo={f.titulo} meta={`${mesLargo(f.mes)}${proyectado(f.mes) ? " (proyección)" : ""}${f.proveedor ? `, ${f.proveedor}` : ""}`} />,
+      monto: <CeldaNumero sub={proyectado(f.mes) ? "proyección" : f.parcial ? "mes en curso" : undefined}>{dolares(f.montoUsd)}</CeldaNumero>,
+      fuente: (
+        <CeldaTexto>
+          {proyectado(f.mes)
+            ? "Proyección con el gasto de los últimos días, hasta que llegue su factura"
+            : f.fuente === "factura"
+              ? `Factura del proveedor${f.al ? `, al ${fechaConAnio(f.al)}` : ""}`
+              : "Estimado, sin factura todavía"}
+        </CeldaTexto>
+      ),
     },
   }));
   const filasDeclaradas = (declarados ?? []).map((d, i) => ({
@@ -327,17 +343,19 @@ function Facturas({ facturas, declarados }: { facturas: Costos["facturas"]; decl
  * cada gasto en su caja (análisis, validación, lectura de documentos, masivo, almacenamiento) y, al final, lo que no se
  * puede medir desde aquí (las facturas).
  */
-export function CostosVolumen({ costos, generado }: { costos: Costos; generado: string }) {
+export function CostosVolumen({ costos, generado, sinRespuesta = [] }: { costos: Costos; generado: string; sinRespuesta?: string[] }) {
   const { analizados, analisis, validacion, lectores, masivo, almacenamiento } = costos;
+  /** Este bloque se mide pero no respondió esta vez (no es «no medido»). */
+  const cayo = (nombre: string) => sinRespuesta.includes(nombre);
   const total = analizados?.total ?? analisis?.n ?? null;
   return (
     <div className="space-y-5">
       <Indicadores
         items={[
           { valor: total == null ? null : numero(total), etiqueta: "contratos analizados", contexto: analizados?.porMes.length ? `desde ${mesLargo(analizados.porMes[0].mes)}` : undefined },
-          { valor: analisis ? dolares(analisis.usd) : null, etiqueta: "costo de esos análisis", contexto: analisis ? `medido en ${numero(analisis.conCosto)} de ${numero(analisis.n)}` : "no medido todavía", icono: <Banknote size={15} aria-hidden />, parte: null },
+          { valor: analisis ? dolares(analisis.usd) : null, etiqueta: "costo de esos análisis", contexto: analisis ? `medido en ${numero(analisis.conCosto)} de ${numero(analisis.n)}` : cayo("costoAnalisis") ? "no respondió, recarga" : "no medido todavía", icono: <Banknote size={15} aria-hidden />, parte: null },
           { valor: analisis?.medioUsd != null ? dolares(analisis.medioUsd, 3) : null, etiqueta: "costo medio por contrato", contexto: "sólo la IA del análisis", icono: <Banknote size={15} aria-hidden /> },
-          { valor: validacion ? dolares(validacion.usd) : null, etiqueta: "gastado en validar", contexto: validacion ? `${plural(validacion.corridas, "corrida", "corridas")} de las pruebas de oro` : "sin corridas registradas", icono: <Target size={15} aria-hidden /> },
+          { valor: validacion ? dolares(validacion.usd) : null, etiqueta: "gastado en validar", contexto: validacion ? `${plural(validacion.corridas, "corrida", "corridas")} de las pruebas de oro` : cayo("validacion") ? "no respondió, recarga" : "sin corridas registradas", icono: <Target size={15} aria-hidden /> },
         ]}
       />
 
@@ -349,6 +367,8 @@ export function CostosVolumen({ costos, generado }: { costos: Costos; generado: 
       <div className="grid gap-4 lg:grid-cols-2">
         {analisis ? (
           <Analisis analisis={analisis} />
+        ) : cayo("costoAnalisis") ? (
+          <NoRespondio titulo="Costo de los análisis por mes y por red" />
         ) : (
           <NoMedido titulo="Costo de los análisis por mes y por red">
             Cada análisis guarda su costo, pero el resumen que lo suma (tabla transparencia_analisis, migración 300) todavía no está en la base.
@@ -385,14 +405,16 @@ export function CostosVolumen({ costos, generado }: { costos: Costos; generado: 
               Las corridas anteriores al {fechaConAnio(validacion.desde)} no se guardaron en la base y no están en esta suma.
             </p>
           </Caja>
+        ) : cayo("validacion") ? (
+          <NoRespondio titulo="Gasto en validación" />
         ) : (
           <NoMedido titulo="Gasto en validación">Todavía no hay corridas de las pruebas de oro con su costo en la base.</NoMedido>
         )}
 
-        {lectores ? <Lectores lectores={lectores} /> : <NoMedido titulo="Lectura de documentos">La tabla de lecturas no respondió.</NoMedido>}
-        {masivo ? <Masivo masivo={masivo} /> : <NoMedido titulo="Análisis masivo">El libro del masivo no respondió.</NoMedido>}
-        {almacenamiento ? <Almacenamiento alm={almacenamiento} generado={generado} /> : <NoMedido titulo="Almacenamiento">La base no informó su tamaño.</NoMedido>}
-        <Facturas facturas={costos.facturas} declarados={costos.declarados} />
+        {lectores ? <Lectores lectores={lectores} /> : cayo("lectores") ? <NoRespondio titulo="Lectura de documentos" /> : <NoMedido titulo="Lectura de documentos">La tabla de lecturas no está en la base.</NoMedido>}
+        {masivo ? <Masivo masivo={masivo} /> : cayo("masivo") ? <NoRespondio titulo="Análisis masivo" /> : <NoMedido titulo="Análisis masivo">El libro del masivo no está en la base.</NoMedido>}
+        {almacenamiento ? <Almacenamiento alm={almacenamiento} generado={generado} /> : cayo("almacenamiento") ? <NoRespondio titulo="Almacenamiento" /> : <NoMedido titulo="Almacenamiento">La base no informó su tamaño.</NoMedido>}
+        {cayo("facturas") && !costos.facturas ? <NoRespondio titulo="Lo que se paga fuera de la base" /> : <Facturas facturas={costos.facturas} declarados={costos.declarados} />}
       </div>
     </div>
   );

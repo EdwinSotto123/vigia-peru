@@ -25,6 +25,7 @@ import { EnlaceAccion } from "@/components/ui/EnlaceAccion";
 import { CabeceraPestana, EstadoError, EstadoVacio } from "@/components/patrones";
 import { CeldaFecha, CeldaNumero, CeldaTexto, Tabla, type Fila } from "@/components/listado";
 import { numero, plural } from "@/lib/formato";
+import { rutaContrato } from "@/lib/rutas";
 import { estadoVisible, type Procesamiento, type ProcesamientosPagina } from "@/lib/auditoria";
 import { CeldaContrato, CeldaValor, EstadoProcesamiento, columnasHistorico, hrefProcesamiento } from "./CeldasProcesamiento";
 
@@ -113,7 +114,7 @@ export function HistoricoProcesados({
             Prueba quitando el último filtro que agregaste.
           </EstadoVacio>
         ) : (
-          <EstadoVacio titulo="Todavía no se leyó ningún contrato financiado">
+          <EstadoVacio titulo="Todavía no se leyó ningún contrato">
             Cuando termine el primer análisis, aparece aquí con lo que encontró y quién lo pagó.
           </EstadoVacio>
         )}
@@ -138,13 +139,19 @@ export function HistoricoProcesados({
 
   const filas: Fila[] = items.map((p) => ({
     id: p.ocid,
-    href: hrefProcesamiento(p.ocid),
+    // Lo del masivo no pasó por la lectura en vivo: su lugar es la ficha del contrato, con su dictamen.
+    href: p.origen === "masivo" ? rutaContrato(p.ocid) : hrefProcesamiento(p.ocid),
     celdas: {
       estado: <EstadoProcesamiento p={p} />,
       contrato: <CeldaContrato p={p} />,
       senales: celdaSenales(p),
       valor: <CeldaValor p={p} />,
-      pago: <CeldaTexto sub={<span className="font-mono">{p.contribucionCodigo}</span>}>{p.financiador}</CeldaTexto>,
+      pago:
+        p.origen === "masivo" ? (
+          <CeldaTexto sub="análisis masivo">Vigía</CeldaTexto>
+        ) : (
+          <CeldaTexto sub={<span className="font-mono">{p.contribucionCodigo}</span>}>{p.financiador}</CeldaTexto>
+        ),
       leido: <CeldaFecha fecha={p.finalizadoAt} />,
     },
   }));
@@ -166,7 +173,7 @@ export function HistoricoProcesados({
   return (
     <div>
       {linea(pag)}
-      <Tabla columnas={columnasHistorico(conFinanciador)} filas={filas} etiqueta="Contratos financiados ya leídos" />
+      <Tabla columnas={columnasHistorico(conFinanciador)} filas={filas} etiqueta="Contratos ya leídos" />
       {paginas > 1 && <div className="mt-3 flex justify-end">{pag}</div>}
     </div>
   );

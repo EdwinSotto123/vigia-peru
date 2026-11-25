@@ -54,6 +54,8 @@ export interface Procesamiento {
   fases?: FasesMap | null;
   /** alertas.estado: 'revision' = bloqueada por la autoevaluación, no publicada. */
   alertaEstado?: string | null;
+  /** De dónde viene la lectura (con `origen=todos`): un aporte o el análisis masivo de Vigía. Una API anterior no lo trae. */
+  origen?: "financiado" | "masivo";
 }
 
 export interface EventoFase {
@@ -306,6 +308,8 @@ export interface ProcesamientosQuery {
   hasta?: string;
   limit?: number;
   offset?: number;
+  /** Con `estado=procesado`: `todos` suma lo que leyó el análisis masivo; por omisión, sólo los financiados. */
+  origen?: "financiados" | "todos";
 }
 
 export function procesamientosQueryString(q: ProcesamientosQuery = {}): string {

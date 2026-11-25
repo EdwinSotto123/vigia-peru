@@ -160,6 +160,10 @@ export interface Transparencia {
     } | null;
     declarados: { mes: string; concepto: string; categoria: string; monto: number; moneda: "USD" | "PEN"; fuente: string; nota: string | null; registrado: string }[] | null;
   };
+  /** Bloques que no respondieron esta vez (la API responde 203 y sin caché): «no respondió», no «no medido». */
+  sinRespuesta?: string[];
+  /** Bloques que no respondieron y van con su último valor bueno. */
+  anteriores?: string[];
 }
 
 export const TIPOS_BITACORA = ["validacion", "rag", "masivo", "refresco", "carga"] as const;

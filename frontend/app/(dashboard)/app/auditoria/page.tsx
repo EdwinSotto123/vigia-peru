@@ -141,7 +141,8 @@ export default async function AuditoriaPage({
     // El tablero en vivo obedece los mismos filtros que lo ya leído (zona, fecha, quién pagó), y sólo
     // trae lo que no terminó: lo leído vive en su pestaña (antes viajaban ~380 KB de filas sin dibujar).
     getProcesamientos({ ...filtros, estado: "activos", limit: LIMITE_VIVO }),
-    getProcesamientosPaginado({ ...histQuery, limit: TAM_HISTORICO, offset: (paginaActual - 1) * TAM_HISTORICO }),
+    // Ya leídos: los financiados y lo que leyó el análisis masivo (2026-11-25: sólo salían los 320 financiados).
+    getProcesamientosPaginado({ ...histQuery, origen: "todos", limit: TAM_HISTORICO, offset: (paginaActual - 1) * TAM_HISTORICO }),
     getFinanciadoresProcesamientos(),
     // El último análisis terminado CON LOS FILTROS PUESTOS: es lo que se muestra cuando no
     // hay nada en análisis, que es el estado normal de esta pantalla. Su detalle (con la
@@ -340,14 +341,14 @@ export default async function AuditoriaPage({
                             pagina={historico}
                             paginaActual={paginaActual}
                             filtros={filtros}
-                            conFinanciador={conPatrocinador}
+                            conFinanciador
                             seccion="leidos"
                             cabecera={{
-                              texto: "Cada contrato financiado cuyo análisis terminó.",
+                              texto: "Cada contrato cuyo análisis terminó: los financiados con aportes y los del análisis masivo de Vigía.",
                               ayuda: (
                                 <Ayuda titulo="¿Qué entra aquí?">
-                                  Con su resultado y quién pagó esa lectura. Incluye los que están en revisión: se leyeron enteros, pero su
-                                  dictamen todavía no se publica.
+                                  Con su resultado y quién pagó esa lectura: un aporte o el análisis masivo, que Vigía paga por su cuenta.
+                                  Incluye los que están en revisión: se leyeron enteros, pero su dictamen todavía no se publica.
                                 </Ayuda>
                               ),
                             }}

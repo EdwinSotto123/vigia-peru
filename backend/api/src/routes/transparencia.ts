@@ -19,7 +19,7 @@
  *     transparencia_costo (300), documento_lectura, menor_lectura, agente_masivo* (274), costos_mes (206),
  *     refresco_cola (260) y corridas_fuente.
  */
-import { Hono } from "hono";
+import { Hono, type Context } from "hono";
 import { z } from "zod";
 import { esErrorPg, escaparLike, pool } from "../lib/db.js";
 import { Memo, type ControlMemo } from "../lib/cache.js";
@@ -72,16 +72,40 @@ const num = (v: unknown): number | null => {
 const obj = (v: unknown): Record<string, unknown> => (v && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>) : {});
 
 /** Corre un bloque: si su tabla no existe (migración sin aplicar) da `null`; si falla por otra cosa, `null` y sin guardar. */
-async function bloque<T>(nombre: string, ctl: ControlMemo, fn: () => Promise<T>): Promise<T | null> {
+/**
+ * El último valor bueno de cada bloque en este isolate (2026-11-25): la página de Métricas salía entera en «Sin dato»
+ * cuando la base tardaba un momento (una consulta pesada al lado, un despliegue), y la web guardaba esa respuesta 15
+ * minutos. Ahora un bloque que falla devuelve lo último que respondió bien (y lo dice en `anteriores`); si nunca
+ * respondió, va en `sinRespuesta` y la respuesta sale con 203 y sin caché (la web sólo guarda las 200).
+ */
+const ultimoBueno = new Map<string, unknown>();
+export interface Faltas { sinRespuesta: string[]; anteriores: string[] }
+
+async function bloque<T>(nombre: string, ctl: ControlMemo, fn: () => Promise<T>, faltas?: Faltas): Promise<T | null> {
   try {
-    return await fn();
+    const v = await fn();
+    ultimoBueno.set(nombre, v);
+    return v;
   } catch (e) {
     if (!esErrorPg(e, "42P01", "42883", "42703")) {
       ctl.noGuardar();
       console.warn(`[transparencia] ${nombre}: ${(e as Error).message}`);
+      if (ultimoBueno.has(nombre)) {
+        faltas?.anteriores.push(nombre);
+        return ultimoBueno.get(nombre) as T;
+      }
+      faltas?.sinRespuesta.push(nombre);
     }
     return null;
   }
+}
+
+/** Sin caché y con 203 si algún bloque no respondió: ni el borde ni la web guardan una respuesta a medias. */
+function cabecerasSegun(c: Context, cuerpo: { sinRespuesta?: string[] }, cache: string) {
+  if (cuerpo.sinRespuesta?.length) {
+    c.header("Cache-Control", "no-store");
+    c.status(203);
+  } else c.header("Cache-Control", cache);
 }
 
 // ─── 1. Precisión de los agentes ──────────────────────────────────────────────────────────────────────────────────
@@ -405,12 +429,14 @@ const declarados = () =>
 
 transparenciaRouter.get("/", async (c) => {
   const cuerpo = await memo.obtener("todo", async (ctl) => {
+    const faltas: Faltas = { sinRespuesta: [], anteriores: [] };
+    const b = <T,>(nombre: string, fn: () => Promise<T>) => bloque(nombre, ctl, fn, faltas);
     const [filas, corp, ctr, sen, dict, anal, costo, valid, lect, mas, alm, fact, decl, hech] = await Promise.all([
-      bloque("corridas", ctl, corridas), bloque("corpus", ctl, corpus), bloque("contraloria", ctl, contraloria),
-      bloque("senales", ctl, senales), bloque("dictamenes", ctl, dictamenes),
-      bloque("analizados", ctl, analizados), bloque("costoAnalisis", ctl, costoAnalisis), bloque("validacion", ctl, validacion),
-      bloque("lectores", ctl, lectores), bloque("masivo", ctl, masivo), bloque("almacenamiento", ctl, almacenamiento),
-      bloque("facturas", ctl, facturas), bloque("declarados", ctl, declarados), bloque("hechos", ctl, hechosLeidos),
+      b("corridas", corridas), b("corpus", corpus), b("contraloria", contraloria),
+      b("senales", senales), b("dictamenes", dictamenes),
+      b("analizados", analizados), b("costoAnalisis", costoAnalisis), b("validacion", validacion),
+      b("lectores", lectores), b("masivo", masivo), b("almacenamiento", almacenamiento),
+      b("facturas", facturas), b("declarados", declarados), b("hechos", hechosLeidos),
     ]);
     const serieRag = filas ? armarRagSerie(filas) : [];
     return {
@@ -421,9 +447,12 @@ transparenciaRouter.get("/", async (c) => {
         : null,
       verificacion: { senales: sen, dictamenes: dict, hechos: hech },
       costos: { analizados: anal, analisis: costo, validacion: valid, lectores: lect, masivo: mas, almacenamiento: alm, facturas: fact, declarados: decl },
+      // Lo que no respondió esta vez: sin valor (la página dice «no respondió», no «no medido») o con el último bueno.
+      ...(faltas.sinRespuesta.length ? { sinRespuesta: faltas.sinRespuesta } : {}),
+      ...(faltas.anteriores.length ? { anteriores: faltas.anteriores } : {}),
     };
   });
-  c.header("Cache-Control", CACHE);
+  cabecerasSegun(c, cuerpo as { sinRespuesta?: string[] }, CACHE);
   return c.json(cuerpo);
 });
 
@@ -643,25 +672,28 @@ const memoGasto = new Memo<Record<string, unknown>>({ nombre: "transparencia:gas
 
 transparenciaRouter.get("/gasto", async (c) => {
   const cuerpo = await memoGasto.obtener("gasto", async (ctl) => {
+    const faltas: Faltas = { sinRespuesta: [], anteriores: [] };
     const hoy = (await pool.query<{ hoy: string }>(`SELECT to_char(now() AT TIME ZONE '${LIMA}', 'YYYY-MM-DD') AS hoy`)).rows[0].hoy;
     const partes = await Promise.all(LIBROS.map((l) => bloque(`gasto:${l.componente}`, ctl, () =>
       pool.query<{ dia: string; componente?: string; proveedor: string; usd: number; n: number }>(l.sql).then((r) =>
         r.rows.map((x): FilaGasto => ({
           dia: x.dia, componente: (l.componente === "piezas" ? x.componente : l.componente) as ClaveGasto,
           proveedor: x.proveedor === "anthropic" ? "anthropic" : "workers_ai", usd: Number(x.usd) || 0, n: Number(x.n) || 0,
-        }))))));
+        }))), faltas)));
     const factura = await bloque("gasto:factura", ctl, () => pool.query<{ dia: string; usd: number; medida: string | null }>(
       `SELECT to_char(dia, 'YYYY-MM-DD') AS dia, sum(usd)::float AS usd, to_char(max(medido_at) AT TIME ZONE '${LIMA}', ${MINUTO}) AS medida
-         FROM gasto_ia_dia WHERE proveedor = 'workers_ai' AND dia >= (now() AT TIME ZONE '${LIMA}')::date - 31 GROUP BY 1`).then((r) => r.rows));
+         FROM gasto_ia_dia WHERE proveedor = 'workers_ai' AND dia >= (now() AT TIME ZONE '${LIMA}')::date - 31 GROUP BY 1`).then((r) => r.rows), faltas);
     const medida = factura?.map((f) => f.medida).filter((x): x is string => !!x).sort().pop() ?? null;
     return {
       generado: new Date().toISOString(),
       ...armarGasto(partes.flatMap((p) => p ?? []), hoy, factura ? factura.map((f) => ({ dia: f.dia, usd: Number(f.usd) || 0 })) : null, medida),
       // Libros que no respondieron (o cuya tabla falta): la página lo dice en vez de sumar de menos en silencio.
       sinLibro: [...new Set(LIBROS.filter((_, i) => partes[i] == null).map((l) => l.componente))],
+      ...(faltas.sinRespuesta.length ? { sinRespuesta: faltas.sinRespuesta } : {}),
+      ...(faltas.anteriores.length ? { anteriores: faltas.anteriores } : {}),
     };
   });
-  c.header("Cache-Control", CACHE_GASTO);
+  cabecerasSegun(c, cuerpo as { sinRespuesta?: string[] }, CACHE_GASTO);
   return c.json(cuerpo);
 });
 

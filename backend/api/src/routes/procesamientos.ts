@@ -51,6 +51,30 @@ export const COLS = `ocid, estado, fase_actual AS "faseActual", fase_index AS "f
   alerta_codigo AS "alertaCodigo", ${procScoreSql()} AS score, ${procBanderasSql()} AS banderas, fases,
   alerta_estado AS "alertaEstado", COALESCE(alerta_estado = 'revision', false) AS "enRevision"`;
 
+/**
+ * «Ya leídos» con `?estado=procesado&origen=todos` (2026-11-25, el usuario: «hemos procesado varios pero sale 320»): los
+ * financiados que terminaron (procesamientos_publico) MÁS los contratos que leyó el análisis masivo (alertas analizadas
+ * que nunca pasaron por la cola de financiados), con las mismas columnas. `origen` dice de cuál viene cada fila; los del
+ * masivo no tienen financiador, fases ni contribución, y su zona es el departamento de la entidad.
+ */
+const LEIDOS_TODOS = `(
+  SELECT v.ocid, v.estado, v.fase_actual, v.fase_index, v.iniciado_at, v.finalizado_at, v.encolado_at, v.intentos,
+         v.contribucion_codigo, v.financiador, v.financiador_visible, v.ubigeo, v.zona, v.titulo, v.entidad, v.monto_pen,
+         v.alerta_codigo, v.score, v.banderas, v.fases, v.alerta_estado, v.alerta_id, 'financiado'::text AS origen
+    FROM procesamientos_publico v WHERE v.estado = 'procesado'
+  UNION ALL
+  SELECT a.ocid, 'procesado', NULL::text, NULL::int, NULL::timestamptz, a.analizado_en, a.analizado_en, 0,
+         NULL::text, NULL::text, NULL::boolean, btrim(e.ubigeo)::text, COALESCE(z.nombre, e.region, a.region),
+         a.objeto, e.nombre, a.monto_referencial, a.codigo, a.score, COALESCE(bc.n, 0), NULL::jsonb, a.estado, a.id, 'masivo'::text
+    FROM alertas a
+    LEFT JOIN entidades e ON e.ruc = a.entidad_ruc
+    LEFT JOIN zonas z ON z.ubigeo = left(btrim(e.ubigeo), 2)
+    -- Uniones agregadas, no subconsultas por fila: la primera página sin filtros bajó de 5 s a 0.3 s (medido en prod).
+    LEFT JOIN (SELECT alerta_id, count(*) AS n FROM banderas GROUP BY 1) bc ON bc.alerta_id = a.id
+   WHERE a.analizado_en IS NOT NULL
+     AND NOT EXISTS (SELECT 1 FROM procesamientos p WHERE ocid_corto(p.ocid) = ocid_corto(a.ocid))
+) leidos`;
+
 /** Estados "activos" (aún no terminaron bien) para `?estado=activos`, el orden por defecto y `porDepartamento`. */
 const ESTADOS_ACTIVOS = ["esperando_documentos", "pendiente_de_procesamiento", "encolado", "procesando", "error"] as const;
 
@@ -151,6 +175,8 @@ const Q = z.object({
   hasta: fechaIso().optional(),
   limit: z.coerce.number().int().min(1).max(300).default(100),
   offset: z.coerce.number().int().min(0).default(0),
+  // Con `estado=procesado`: `todos` suma lo que leyó el análisis masivo (LEIDOS_TODOS); sin él, sólo los financiados.
+  origen: z.enum(["financiados", "todos"]).optional(),
 });
 
 // Lista del tablero (sondeada): 3 s por combinación de parámetros. El texto libre del financiador
@@ -169,6 +195,8 @@ procesamientosRouter.get("/", async (c) => {
 
 async function listaProcesamientos(q: z.infer<typeof Q>) {
   const { ubigeo, codigo, estado, alerta, financiador, desde, hasta, limit, offset, q: texto } = q;
+  const todos = q.origen === "todos" && estado === "procesado";
+  const fuente = todos ? LEIDOS_TODOS : "procesamientos_publico";
   const vals: unknown[] = [];
   const w: string[] = [];
   if (ubigeo) { vals.push(ubigeo); w.push(`ubigeo LIKE $${vals.length} || '%'`); }
@@ -192,9 +220,9 @@ async function listaProcesamientos(q: z.infer<typeof Q>) {
   const totalVals = [...vals];
   vals.push(limit, offset);
   const [r, total] = await Promise.all([
-    pool.query(`SELECT ${COLS}, alerta_id::text AS "_alertaId" FROM procesamientos_publico ${whereSql} ${ORDER}
+    pool.query(`SELECT ${COLS}, ${todos ? "origen" : "'financiado'"} AS origen, alerta_id::text AS "_alertaId" FROM ${fuente} ${whereSql} ${ORDER}
                 LIMIT $${vals.length - 1} OFFSET $${vals.length}`, vals),
-    pool.query(`SELECT count(*)::int AS n FROM procesamientos_publico ${whereSql}`, totalVals),
+    pool.query(`SELECT count(*)::int AS n FROM ${fuente} ${whereSql}`, totalVals),
   ]);
   // Con `alerta=revision`: los motivos de cada fila en UNA consulta (antes el frontend pedía
   // /alertas/:id/revision una vez por alerta). Sólo con ese filtro: leer la autoevaluación saca

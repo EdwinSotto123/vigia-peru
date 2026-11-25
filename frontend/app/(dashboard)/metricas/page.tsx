@@ -130,7 +130,7 @@ export default async function MetricasPage({ searchParams }: { searchParams?: Re
               { clave: "agentes", etiqueta: "Los agentes", conteo: redes.length || null, icono: <Target size={15} aria-hidden />, contenido: <Agentes agentes={datos.agentes} /> },
               { clave: "rag", etiqueta: "RAG normativo", icono: <BookOpenText size={15} aria-hidden />, contenido: <Rag rag={datos.rag} /> },
               { clave: "verificacion", etiqueta: "Verificación", icono: <ShieldCheck size={15} aria-hidden />, contenido: <Verificacion verificacion={datos.verificacion} agentes={datos.agentes} generado={generado} /> },
-              { clave: "costos", etiqueta: "Costos y volumen", icono: <Banknote size={15} aria-hidden />, contenido: <CostosVolumen costos={datos.costos} generado={generado ?? datos.generado} /> },
+              { clave: "costos", etiqueta: "Costos y volumen", icono: <Banknote size={15} aria-hidden />, contenido: <CostosVolumen costos={datos.costos} generado={generado ?? datos.generado} sinRespuesta={datos.sinRespuesta} /> },
               {
                 clave: "bitacora",
                 etiqueta: "Bitácora",

@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { CalendarDays, CircleSlash, Database, Ruler } from "lucide-react";
+import { CalendarDays, CircleSlash, Database, RefreshCw, Ruler } from "lucide-react";
 import { Medidor } from "@/components/charts/BarraSegmentada";
 import { fechaConAnio, numero, porcentaje } from "@/lib/formato";
 import { diaDe, horaDe } from "@/lib/transparencia";
@@ -146,6 +146,24 @@ export function RenglonMedidor({ nombre, parte, texto, sub }: { nombre: string; 
       {parte != null && <Medidor parte={parte} etiqueta={`${nombre}: ${texto}`} className="col-span-2" />}
       {sub && <span className="col-span-2 text-rotulo text-mute">{sub}</span>}
     </li>
+  );
+}
+
+/**
+ * Un bloque que SÍ se mide pero esta vez la base no respondió a tiempo (2026-11-25: la página entera salía «no medido»
+ * por un momento de base lenta, y eso decía que Vigía no mide lo que sí mide).
+ */
+export function NoRespondio({ titulo }: { titulo: string }) {
+  return (
+    <section role="note" className="rounded-2xl border border-dashed border-line bg-paperSoft p-4 sm:p-5">
+      <h3 className="flex items-center gap-2 font-display text-cuerpo font-bold text-ink">
+        <RefreshCw size={16} className="shrink-0 text-mute" aria-hidden />
+        {titulo}: no respondió a tiempo
+      </h3>
+      <p className="mt-1 text-meta leading-relaxed text-inkSoft">
+        Se mide, pero la base tardó en responder esta vez. Vuelve a cargar la página en un momento: no guardamos esta respuesta a medias.
+      </p>
+    </section>
   );
 }
 
