@@ -14,6 +14,16 @@ import {
 const siteverify = (success: boolean, codigos: string[] = []) =>
   (async () => new Response(JSON.stringify({ success, "error-codes": codigos }))) as unknown as typeof fetch;
 
+test("limitarEnMemoria: un pedido de un minuto no borra los contadores de un día", () => {
+  const t0 = 5_000_000_000_000;
+  const DIA = 24 * 60 * 60 * 1000;
+  for (let i = 0; i < 10; i++) assert.equal(limitarEnMemoria("chat|dia|cuenta-x", 10, DIA, t0 + i * 1000), true);
+  // Diez minutos después, un pedido con ventana de un minuto dispara la limpieza.
+  assert.equal(limitarEnMemoria("chat|min|otra", 3, 60_000, t0 + 10 * 60_000), true);
+  assert.equal(limitarEnMemoria("chat|dia|cuenta-x", 10, DIA, t0 + 11 * 60_000), false);
+  assert.equal(limitarEnMemoria("chat|dia|cuenta-x", 10, DIA, t0 + DIA + 10_000), true);
+});
+
 test("limitarEnMemoria: 10 por ventana y por clave; la ventana se desliza", () => {
   const t0 = 1_000_000;
   for (let i = 0; i < 10; i++) assert.equal(limitarEnMemoria("ip-a|POST|/x", 10, 60_000, t0 + i), true);

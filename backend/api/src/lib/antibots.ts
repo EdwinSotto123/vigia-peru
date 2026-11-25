@@ -138,10 +138,17 @@ function demasiados(c: Context): Response {
 /** Ventana deslizante en memoria (Cloud Run / local): por instancia, que es lo que hay sin binding. */
 const ventanas = new Map<string, number[]>();
 let ultimaLimpieza = 0;
+/**
+ * La limpieza sólo borra las claves quietas por más que la ventana más larga en uso (los topes de un día: el chat de
+ * Vigía, la tarjeta). Antes borraba con la ventana del pedido que la disparaba: uno de un minuto se llevaba los
+ * contadores del día y, sin Durable Object, el tope de preguntas por día no frenaba (2026-11-24).
+ */
+const VENTANA_MAS_LARGA_MS = 24 * 60 * 60 * 1000;
 
 export function limitarEnMemoria(clave: string, limite = LIMITE_ESCRITURAS, ventanaMs = VENTANA_S * 1000, ahora = Date.now()): boolean {
   if (ahora - ultimaLimpieza > ventanaMs) {
-    for (const [k, ts] of ventanas) if (!ts.length || ahora - ts[ts.length - 1]! > ventanaMs) ventanas.delete(k);
+    const quieta = Math.max(ventanaMs, VENTANA_MAS_LARGA_MS);
+    for (const [k, ts] of ventanas) if (!ts.length || ahora - ts[ts.length - 1]! > quieta) ventanas.delete(k);
     ultimaLimpieza = ahora;
   }
   const ts = (ventanas.get(clave) ?? []).filter((t) => ahora - t < ventanaMs);

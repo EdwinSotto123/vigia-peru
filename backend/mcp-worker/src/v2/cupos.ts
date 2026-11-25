@@ -105,6 +105,8 @@ const contadorDe = (env: EnvV2, uid: string) =>
   env.LIMITADOR!.get(env.LIMITADOR!.idFromName(`mcp2|u|${uid}|creditos`)) as unknown as ContadorCreditos;
 
 const planesUrl = (u: Usuario) => (u.app === "empleo" ? "https://empleo.gobserva.cloud/planes" : "https://licitaciones.gobserva.cloud/planes");
+/** «Para más, sube de plan»: no mientras los cobros están en pausa (2026-11-24: todo gratis, los planes «próximamente»). */
+const paraMas = (u: Usuario, enPausa: boolean) => (enPausa ? "" : `; para más, sube de plan en ${planesUrl(u)}`);
 
 /** Cuántas filas trajo una respuesta: los largos de sus listas de primer nivel (lo que sirve para copiarse la base). */
 export function filasDe(r: unknown): number {
@@ -113,7 +115,7 @@ export function filasDe(r: unknown): number {
 }
 
 /** null si la llamada entra; si no, el mensaje que verá quien pregunta. `mcp`: los créditos de su plan. */
-export async function pasarCupo(env: EnvV2, ip: string | null, usuario: Usuario | null, herramienta: string, mcp?: TopesMcp | null): Promise<string | null> {
+export async function pasarCupo(env: EnvV2, ip: string | null, usuario: Usuario | null, herramienta: string, mcp?: TopesMcp | null, enPausa = false): Promise<string | null> {
   if (!usuario) {
     if (esDeAnthropic(ip)) {
       return (await contar(env, "mcp2|anthropic", CUPOS.anonimoAnthropicPorMinuto, MINUTO))
@@ -141,8 +143,8 @@ export async function pasarCupo(env: EnvV2, ip: string | null, usuario: Usuario 
   const quedan = Math.max(0, mcp.creditos - uso.mes);
   if (peso > quedan) {
     return quedan > 0
-      ? `Esta consulta usa ${peso} créditos del MCP y te quedan ${NUM.format(quedan)} de ${NUM.format(mcp.creditos)} este mes. Se renuevan ${renuevan()}; para más, sube de plan en ${planesUrl(usuario)}.`
-      : `Usaste los ${NUM.format(mcp.creditos)} créditos del MCP de este mes. Se renuevan ${renuevan()}; para más, sube de plan en ${planesUrl(usuario)}.`;
+      ? `Esta consulta usa ${peso} créditos del MCP y te quedan ${NUM.format(quedan)} de ${NUM.format(mcp.creditos)} este mes. Se renuevan ${renuevan()}${paraMas(usuario, enPausa)}.`
+      : `Usaste los ${NUM.format(mcp.creditos)} créditos del MCP de este mes. Se renuevan ${renuevan()}${paraMas(usuario, enPausa)}.`;
   }
   if (uso.dia + peso > mcp.topeDia) {
     return `Hoy ya usaste ${NUM.format(uso.dia)} créditos del MCP: en un día se puede usar hasta la quinta parte del mes (${NUM.format(mcp.topeDia)}). Mañana sigues.`;

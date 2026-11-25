@@ -445,7 +445,8 @@ cuentasRouter.post("/me/chat", async (c) => {
 });
 
 /**
- * Los topes y bloqueos del asistente, en orden: la lista fija (`CHAT_BLOQUEO`), el bloqueo automático, los topes por
+ * Los topes y bloqueos del asistente, en orden: la lista fija (`CHAT_BLOQUEO`), el bloqueo automático, los topes del día
+ * sin anotar (la cuenta, la IP y el total: quien ya llegó no gasta nada más), los topes por
  * minuto y por día (primero los de la cuenta, después los de la IP) y el techo de todos. Una falta es un rechazo por
  * ráfaga (el tope por minuto) y es SÓLO de quien la causó: la de la cuenta no cuenta contra la IP, porque detrás de una
  * IP hay una universidad o una operadora entera y una sola persona la dejaba bloqueada un día (auditoría 2026-11-13).
@@ -476,25 +477,33 @@ async function protegerChat(c: Context, uid: string, verificado: boolean, correo
     return c.json({ error, detail }, 429);
   };
   const seguido = "Hiciste varias preguntas seguidas. Espera un minuto.";
-  // Primero la cuenta: quien ya gastó lo suyo no le quita cupo a los demás de su misma conexión.
-  if (!(await dentroDeTope(`chatvigia|min|${uid}`, TOPE_CUENTA_MINUTO, 60))) return tope("muy_seguido", seguido, `c:${uid}`);
   const diario = topeDiaCuenta(verificado, correo);
-  if (!(await dentroDeTope(`chatvigia|dia|${uid}`, diario, DIA_S, true))) {
-    return tope(
+  const topeDia = () =>
+    tope(
       "tope_dia",
       diario === TOPE_CUENTA_DIA
         ? `Ya hiciste las ${diario} preguntas de este día. En 24 horas puedes seguir.`
         : `Ya hiciste las ${diario} preguntas de este día. Verifica tu correo desde tu cuenta para tener más cada día.`,
     );
-  }
-  if (huella && !(await dentroDeTope(`chatvigia|ipmin|${huella}`, TOPE_IP_MINUTO, 60))) return tope("muy_seguido", seguido, `ip:${huella}`);
-  if (huella && !(await dentroDeTope(`chatvigia|ipdia|${huella}`, TOPE_IP_DIA, DIA_S, true))) {
-    return tope("tope_ip", "Desde esta conexión ya se hicieron muchas preguntas en las últimas 24 horas. Prueba más tarde.");
-  }
-  if (!(await dentroDeTope("chatvigia|total", TOPE_TOTAL_DIA, DIA_S, true))) {
+  const topeIp = () => tope("tope_ip", "Desde esta conexión ya se hicieron muchas preguntas en las últimas 24 horas. Prueba más tarde.");
+  const topeTotal = () => {
     c.header("Cache-Control", SIN_CACHE);
     return c.json({ error: "tope_total", detail: "El asistente llegó a su límite de hoy para todos. Vuelve mañana." }, 429);
-  }
+  };
+  // Primero, sin anotar nada, los topes del día (2026-11-24, test/topesChatVigia.test.ts): quien ya usó sus preguntas
+  // recibe el aviso del día y no «espera un minuto», no gasta el tope por minuto ni suma faltas al insistir (antes, a la
+  // 13.ª insistencia en una hora quedaba bloqueado 24 horas), y un rechazo de la conexión o del total no le gasta una de
+  // las suyas.
+  if ((await cuantasEn(`chatvigia|dia|${uid}`, DIA_S, true)) >= diario) return topeDia();
+  if (huella && (await cuantasEn(`chatvigia|ipdia|${huella}`, DIA_S, true)) >= TOPE_IP_DIA) return topeIp();
+  if ((await cuantasEn("chatvigia|total", DIA_S, true)) >= TOPE_TOTAL_DIA) return topeTotal();
+  // Las ráfagas (por minuto) y, después, se anota la pregunta en cada tope del día. Primero la cuenta: quien ya gastó
+  // lo suyo no le quita cupo a los demás de su misma conexión.
+  if (!(await dentroDeTope(`chatvigia|min|${uid}`, TOPE_CUENTA_MINUTO, 60))) return tope("muy_seguido", seguido, `c:${uid}`);
+  if (huella && !(await dentroDeTope(`chatvigia|ipmin|${huella}`, TOPE_IP_MINUTO, 60))) return tope("muy_seguido", seguido, `ip:${huella}`);
+  if (!(await dentroDeTope(`chatvigia|dia|${uid}`, diario, DIA_S, true))) return topeDia();
+  if (huella && !(await dentroDeTope(`chatvigia|ipdia|${huella}`, TOPE_IP_DIA, DIA_S, true))) return topeIp();
+  if (!(await dentroDeTope("chatvigia|total", TOPE_TOTAL_DIA, DIA_S, true))) return topeTotal();
   return null;
 }
 

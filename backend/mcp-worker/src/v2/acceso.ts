@@ -67,13 +67,13 @@ const PLANES_LICITACIONES = "https://licitaciones.gobserva.cloud/planes";
  * `{ mcp }` (sus créditos) si puede; si no, `{ error }`: lo que verá quien pregunta (qué plan le falta, dónde se
  * adquiere y con qué cuenta conectar).
  */
-export async function revisarPlan(env: EnvV2, u: Usuario | null, producto: "empleo" | "licitaciones" | undefined): Promise<{ error: string } | { mcp: TopesMcp | null }> {
+export async function revisarPlan(env: EnvV2, u: Usuario | null, producto: "empleo" | "licitaciones" | undefined): Promise<{ error: string } | { mcp: TopesMcp | null; enPausa: boolean }> {
   const no = (error: string) => ({ error });
   if (!u) {
     return no("El MCP de Gobserva es gratis con una cuenta verificada: conecta tu cuenta de Gobserva (Empleo, Licitaciones o Vigía) en la configuración del conector. Si no tienes una, créala con tu correo y confírmalo.");
   }
   const c = await vigente(env, u, producto);
-  if (tienePlanPara(c.planes, producto)) return { mcp: c.mcp };
+  if (tienePlanPara(c.planes, producto)) return { mcp: c.mcp, enPausa: c.enPausa };
   if (c.enPausa) {
     return no("Tu cuenta todavía no tiene el correo confirmado. Ábrelo con el enlace que te enviamos (o entra con Google) y vuelve a preguntar: el MCP es gratis con una cuenta verificada.");
   }

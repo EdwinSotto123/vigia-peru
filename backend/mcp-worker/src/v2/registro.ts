@@ -80,7 +80,7 @@ export function registrar(server: McpServer, h: Herramienta, cx: Contexto): void
         }
         const acceso = await revisarPlan(cx.env, cx.usuario, h.producto);
         if ("error" in acceso) return fallo(acceso.error);
-        const sinCupo = await pasarCupo(cx.env, cx.ip, cx.usuario, h.nombre, acceso.mcp);
+        const sinCupo = await pasarCupo(cx.env, cx.ip, cx.usuario, h.nombre, acceso.mcp, acceso.enPausa);
         if (sinCupo) return fallo(sinCupo);
         const r = await h.ejecutar(args as never, cx);
         ok = true;
