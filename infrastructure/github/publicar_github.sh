@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Publica `main` en el GitHub público (EdwinSotto123/vigia-peru) SIN lo que no puede ser público:
+# Publica `main` en el GitHub público (Gobserva-Cloud/vigia-peru) SIN lo que no puede ser público:
 #   · backend/scripts/ab_out$R/ y backend/scripts/dji_fixtures/golden_20.json: DNI de funcionarios, representantes y
 #     familiares (entraron el 2026-10-25, salieron de main el 27).
 #   · backend/scrapers-worker/dji_targets/: nombres completos de funcionarios de la DJI (el CI de GitLab los usa).
@@ -15,7 +15,7 @@
 set -euo pipefail
 
 BASE=f3ba0c5
-REMOTO=https://github.com/EdwinSotto123/vigia-peru.git
+REMOTO=https://github.com/Gobserva-Cloud/vigia-peru.git
 RAIZ=$(git rev-parse --show-toplevel)
 TMP=$(mktemp -d)
 trap 'rm -rf "$TMP"' EXIT

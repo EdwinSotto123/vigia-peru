@@ -43,7 +43,7 @@ export function ExpansionSection() {
         </ul>
         <a
           // TODO(contacto): reemplazar por el correo del equipo cuando exista; vigiaperu.org no resuelve.
-          href="https://github.com/EdwinSotto123/vigia-peru/issues"
+          href="https://github.com/Gobserva-Cloud/vigia-peru/issues"
           target="_blank"
           rel="noreferrer"
           className="inline-flex min-h-10 items-center gap-1 text-dato font-semibold text-granate underline-offset-4 hover:underline"

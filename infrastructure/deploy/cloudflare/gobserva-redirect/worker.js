@@ -289,7 +289,7 @@ const PRINCIPIOS = [
   ["institucion", "Sólo datos oficiales", "Lo que el propio Estado publica, tal como lo publica cada institución y con la fecha de cada carga.", [`${VIGIA}/fuentes`, "Ver las fuentes"]],
   ["bandera", "Indicios, no acusaciones", "Una señal es una razón para mirar de nuevo, no una prueba. Aparecer en Gobserva no significa haber hecho algo malo.", [`${VIGIA}/glosario`, "Qué significa cada señal"]],
   ["escudo", "Las personas, protegidas", "Nunca publicamos un DNI, y de quien no es autoridad electa tapamos un apellido. Puedes pedir que corrijamos un dato.", [`${VIGIA}/privacidad`, "Cómo cuidamos tus datos"]],
-  ["codigo", "Abierto y con cuentas claras", "Cualquiera puede revisar cómo se calcula cada señal, y publicamos cuánto cuesta mantener Vigía.", ["https://github.com/EdwinSotto123/vigia-peru", "Ver el código"]],
+  ["codigo", "Abierto y con cuentas claras", "Cualquiera puede revisar cómo se calcula cada señal, y publicamos cuánto cuesta mantener Vigía.", ["https://github.com/Gobserva-Cloud/vigia-peru", "Ver el código"]],
 ];
 
 // Lo que mide el radar: [valor, nombre, pie, institución]. El mapa es siempre verde, como la pantalla de un radar; cada
@@ -1016,7 +1016,7 @@ function portada(datos) {
         <li><a href="${VIGIA}/glosario">Glosario</a></li>
         <li><a href="${VIGIA}/privacidad">Privacidad</a></li>
         <li><a href="${VIGIA}/app/cuanto-cuesta">Cuánto cuesta Vigía</a></li>
-        <li><a href="https://github.com/EdwinSotto123/vigia-peru">Código abierto</a></li>
+        <li><a href="https://github.com/Gobserva-Cloud/vigia-peru">Código abierto</a></li>
       </ul>
     </nav>
     <nav aria-labelledby="pie-gobserva">

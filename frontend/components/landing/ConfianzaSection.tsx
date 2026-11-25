@@ -56,7 +56,7 @@ export function ConfianzaSection({ enRevision }: { enRevision: number | null }) 
       Icono: Code2,
       t: "El código es público.",
       d: "Cualquiera puede revisar cómo funciona por dentro. Una herramienta de transparencia cerrada sería una contradicción.",
-      enlace: { href: "https://github.com/EdwinSotto123/vigia-peru", texto: "Ver el código", externo: true },
+      enlace: { href: "https://github.com/Gobserva-Cloud/vigia-peru", texto: "Ver el código", externo: true },
     },
   ];
 

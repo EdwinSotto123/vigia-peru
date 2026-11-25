@@ -15,7 +15,7 @@ export const metadata: Metadata = {
   alternates: canonica("/preguntas"),
 };
 
-const REPO = "https://github.com/EdwinSotto123/vigia-peru";
+const REPO = "https://github.com/Gobserva-Cloud/vigia-peru";
 // TODO(contacto): reemplazar cuando exista un correo del equipo
 const CONTACTO = `${REPO}/issues`;
 

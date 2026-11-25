@@ -67,7 +67,7 @@ La tecnología es la linterna. Los protagonistas son quienes deciden mirar: veci
 Todo el código está abierto (MIT): se puede revisar, criticar y mejorar.
 
 Mira cómo funciona: https://vigia-web.vigiaperu.workers.dev
-El código: https://github.com/EdwinSotto123/vigia-peru
+El código: https://github.com/Gobserva-Cloud/vigia-peru
 
 #CivicTech #Transparencia #CódigoAbierto #Perú #IA
 ```
@@ -144,12 +144,12 @@ Vigía Perú tiene hoy tres maneras de sumar.
 No prometemos resultados que todavía no existen: hoy hemos leído 265 de 19.653 contratos publicados. Lo que sí prometemos es la regla: lo que se encuentra se publica, aunque incomode a quien aportó.
 
 Aporta: https://vigia-web.vigiaperu.workers.dev/app/financiar
-Súmate: https://github.com/EdwinSotto123/vigia-peru
+Súmate: https://github.com/Gobserva-Cloud/vigia-peru
 
 #CivicTech #Alianzas #Transparencia #Perú #ImpactoSocial
 ```
 
-**CTA.** Aporta o súmate: `https://vigia-web.vigiaperu.workers.dev/app/financiar` y `https://github.com/EdwinSotto123/vigia-peru`
+**CTA.** Aporta o súmate: `https://vigia-web.vigiaperu.workers.dev/app/financiar` y `https://github.com/Gobserva-Cloud/vigia-peru`
 
 **Texto dentro de la imagen (máximo 8 palabras).** `Tres formas de sumar.`
 
@@ -167,7 +167,7 @@ Súmate: https://github.com/EdwinSotto123/vigia-peru
 
 Comprobado el 11 de octubre de 2026 con `curl`, la API pública y lectura del código de `frontend/` y del repositorio.
 
-- **Enlaces con respuesta 200:** `vigia-web.vigiaperu.workers.dev`, `/app/financiar` y `github.com/EdwinSotto123/vigia-peru`. El repositorio es público, tiene licencia MIT y la sección de temas habilitada (API de GitHub), que es el canal de contacto.
+- **Enlaces con respuesta 200:** `vigia-web.vigiaperu.workers.dev`, `/app/financiar` y `github.com/Gobserva-Cloud/vigia-peru`. El repositorio es público, tiene licencia MIT y la sección de temas habilitada (API de GitHub), que es el canal de contacto.
 - **19.653 publicados, 265 leídos (1,3 %), 4.006 financiables, S/ 3 por lectura:** `GET /contratos/resumen` y `GET /financiamiento/estado`.
 - **Cada señal cita la norma y el documento:** `components/contratos/DetalleContrato.tsx`.
 - **Mapa con tres lecturas, financiar por zona, entidad o partido y período:** `components/partidos/PartidosExplorador.tsx` y la ruta `/app/financiar` (vías por zona, por entidad y por partido).

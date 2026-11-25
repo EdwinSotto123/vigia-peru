@@ -32,7 +32,7 @@ Tres reglas que no negociamos:
 3. Nadie elige qué se lee, ni quien financia la lectura.
 
 Míralo tú mismo: vigia-web.vigiaperu.workers.dev
-Código abierto: github.com/EdwinSotto123/vigia-peru
+Código abierto: github.com/Gobserva-Cloud/vigia-peru
 
 #CivicTech #Transparencia #Peru #ContratacionPublica
 ```

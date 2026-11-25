@@ -99,7 +99,7 @@ export function PantallaError({
               vuelve a pasar en el mismo lugar,{" "}
               {/* TODO(contacto): reemplazar cuando exista un correo del equipo */}
               <a
-                href="https://github.com/EdwinSotto123/vigia-peru/issues"
+                href="https://github.com/Gobserva-Cloud/vigia-peru/issues"
                 target="_blank"
                 rel="noreferrer"
                 className="font-medium text-granate underline underline-offset-2 hover:text-granate-deep"

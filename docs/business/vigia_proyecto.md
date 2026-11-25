@@ -2,7 +2,7 @@
 
 > Documento vivo, 2026-09-17. Todas las cifras marcadas como "real" salen de una consulta a
 > producción el día de hoy (Cloud SQL `vigia-db`, código del repo) — no son estimaciones.
-> Repo: `github.com/EdwinSotto123/vigia-peru` (MIT, código abierto) · Demo:
+> Repo: `github.com/Gobserva-Cloud/vigia-peru` (MIT, código abierto) · Demo:
 > `https://vigia-peru-frontend-36169102688.us-central1.run.app`.
 
 ---
@@ -330,7 +330,7 @@ un segmento "anunciante" ni "comprador de datos"** — el modelo excluye monetiz
 ## 14. Enlaces
 
 - Demo en vivo: `https://vigia-peru-frontend-36169102688.us-central1.run.app`
-- Repositorio (MIT): `github.com/EdwinSotto123/vigia-peru`
+- Repositorio (MIT): `github.com/Gobserva-Cloud/vigia-peru`
 - Observabilidad (Arize Phoenix): proyecto `vigia-peru`
 - Documentación técnica interna: `docs/design/` (arquitectura, RAG, datasets, cuentas),
   `backend/cloud_functions/README.md` (scrapers en la nube), `docs/hackathon/SUBMISSION.md`

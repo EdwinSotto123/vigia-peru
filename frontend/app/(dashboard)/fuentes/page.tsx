@@ -46,7 +46,7 @@ export const metadata: Metadata = {
   alternates: canonica("/fuentes"),
 };
 
-const REPO = "https://github.com/EdwinSotto123/vigia-peru";
+const REPO = "https://github.com/Gobserva-Cloud/vigia-peru";
 
 /**
  * Una fuente: nombre, qué aporta, su escala (al corte, aproximada) y dónde verla en el portal oficial (los enlaces de

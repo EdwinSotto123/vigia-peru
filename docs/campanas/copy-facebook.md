@@ -138,7 +138,7 @@ Hoy 4.006 contratos ya pueden financiarse y esperan lectura.
 También hacen falta manos: si trabajas en datos, derecho, periodismo o diseño, abre un tema en nuestro repositorio abierto.
 
 Aporta: https://vigia-web.vigiaperu.workers.dev/app/financiar
-Súmate: https://github.com/EdwinSotto123/vigia-peru
+Súmate: https://github.com/Gobserva-Cloud/vigia-peru
 
 #VigíaPerú #ApoyaLoQueVigila
 ```
@@ -161,7 +161,7 @@ Súmate: https://github.com/EdwinSotto123/vigia-peru
 
 Comprobado el 11 de octubre de 2026 con `curl`, la API pública y lectura del código de `frontend/`.
 
-- **Enlaces con respuesta 200:** `vigia-web.vigiaperu.workers.dev`, `/app/mapa`, `/app/financiar`, `/reporte/nuevo` y `github.com/EdwinSotto123/vigia-peru`.
+- **Enlaces con respuesta 200:** `vigia-web.vigiaperu.workers.dev`, `/app/mapa`, `/app/financiar`, `/reporte/nuevo` y `github.com/Gobserva-Cloud/vigia-peru`.
 - **19.653 publicados y 265 leídos:** `GET /contratos/resumen` (`total` 19.653; `sin_analizar` 19.388; 19.653 menos 19.388 son 265).
 - **4.006 financiables y S/ 3 por lectura:** `GET /financiamiento/estado` (`colaGlobal` 4.006; `tarifa.precioPen` 3).
 - **El mapa muestra quién gobierna, cuánto se contrata y qué tanto se vigila:** el explorador de `components/partidos/PartidosExplorador.tsx` y la portada, con las tres lecturas.

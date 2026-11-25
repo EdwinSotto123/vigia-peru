@@ -46,7 +46,7 @@ const SOBRE_VIGIA: Enlace[] = [
   { href: "/privacidad", label: "Privacidad y tus datos" },
   // TODO(contacto): reemplazar cuando exista un correo del equipo.
   // Antes decía "Escríbenos": los issues de GitHub son públicos, no un buzón privado.
-  { href: "https://github.com/EdwinSotto123/vigia-peru/issues", label: "Sugerencias y errores", externo: true },
+  { href: "https://github.com/Gobserva-Cloud/vigia-peru/issues", label: "Sugerencias y errores", externo: true },
 ];
 
 /**
@@ -73,7 +73,7 @@ const FUENTES: Enlace[] = FUENTES_FLUJO.filter((f) => f.estado === "en_uso" && f
   externo: true,
 }));
 
-const REPO = "https://github.com/EdwinSotto123/vigia-peru";
+const REPO = "https://github.com/Gobserva-Cloud/vigia-peru";
 
 export function Footer() {
   const year = new Date().getFullYear();
