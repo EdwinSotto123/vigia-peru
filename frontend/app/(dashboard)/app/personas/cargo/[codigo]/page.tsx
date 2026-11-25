@@ -456,7 +456,7 @@ export default async function FuncionarioPage({ params, searchParams }: { params
             etiqueta: "Familia",
             titulo: "Su familia declarada y el Estado",
             conteo: fam ? fam.parientes.length + fam.masParientes : null,
-            contenido: <PestanaFamilia familia={fam} />,
+            contenido: <PestanaFamilia familia={fam} declaracion={f.declaracionFamilia ?? null} />,
           },
           // Lo de su ficha de persona contratada: sus órdenes, lo que cobró, sus entidades, sus procesos y su recorrido.
           ...deContratada.filter((x) => x.clave === "ordenes"),

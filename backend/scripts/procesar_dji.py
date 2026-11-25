@@ -17,6 +17,7 @@ import csv
 import re
 import subprocess
 import sys
+import unicodedata
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
 from concurrent.futures.process import BrokenProcessPool
 from pathlib import Path
@@ -30,6 +31,15 @@ import pdfplumber                               # noqa: E402
 from psycopg2.extras import execute_values      # noqa: E402
 
 _norm = lambda s: " ".join((s or "").split()).upper()
+
+
+def mef(s: str | None) -> str:
+    """Como `mef_norm` de la base (migración 47): mayúsculas sin tildes ni signos, un espacio entre palabras. Es la forma
+    del listado de la Contraloría (dji_funcionarios.nombre_norm) y de todos los cruces: con `_norm`, «MUÑOZ» no empataba
+    con «MUNOZ» y 6,352 personas quedaban sin sus familiares leídos (migración 446, 2026-11-25)."""
+    t = unicodedata.normalize("NFD", (s or "").upper())
+    t = "".join(c for c in t if unicodedata.category(c) != "Mn")
+    return " ".join(re.sub(r"[^A-Z0-9 ]+", " ", t).split())
 R2_BUCKET = "vigia-peru-batch"
 WR = Path(r"C:\Users\usuario\Desktop\PROYECTOS\vigia-peru\backend\scrapers-worker")
 
@@ -192,20 +202,29 @@ def main() -> None:
             # (antes del 2026-10-27 todo iba a nombre del dueño del archivo).
             del_archivo = _norm(f"{ape} {nom}")
             hay_otros = any(f.get("declarante") and not es_el_mismo(f["declarante"], del_archivo) for f in fams)
-            lote_borrar.append((ruc, del_archivo))
+            # Se borra lo de antes con las dos formas del nombre: la de `_norm` (lo guardado hasta el 2026-11-25) y la de
+            # `mef` (la de ahora).
+            for k in {(ruc, del_archivo), (ruc, mef(del_archivo))}:
+                if k not in lote_borrar:
+                    lote_borrar.append(k)
             vistos = set()
             for f in fams:
                 decl = declarante(f.get("declarante"), del_archivo, hay_otros)
-                if decl is None or (decl, f["doc"]) in vistos:
+                if decl is None:
                     continue
-                vistos.add((decl, f["doc"]))
-                if decl != del_archivo and (ruc, decl) not in lote_borrar:
-                    lote_borrar.append((ruc, decl))
-                lote_vinc.append((decl, ruc, f["doc"], _norm(f.get("nombre")), f.get("parentesco"), f.get("grado")))
+                # El nombre como lo escribe el listado (dji_funcionarios.nombre_norm): sin tildes ni signos.
+                decl_m = mef(decl)
+                if (decl_m, f["doc"]) in vistos:
+                    continue
+                vistos.add((decl_m, f["doc"]))
+                for k in {(ruc, decl), (ruc, decl_m)}:
+                    if k not in lote_borrar:
+                        lote_borrar.append(k)
+                lote_vinc.append((decl_m, ruc, f["doc"], _norm(f.get("nombre")), f.get("parentesco"), f.get("grado")))
             key = f"dji/pdfs/{pdf.name}"
             if subir:
                 subidas.append(subir.submit(subir_r2, pdf, key))
-            propios = sum(1 for k in vistos if k[0] == del_archivo)
+            propios = sum(1 for k in vistos if k[0] == mef(del_archivo))
             lote_ledger.append((ruc, ape, parse_estado, propios, key if a.r2 else None))
             v += len(vistos)
             ok += 1

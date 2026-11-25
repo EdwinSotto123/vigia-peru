@@ -303,12 +303,30 @@ export interface FamiliaDeLaPersona {
   masParientes: number;
 }
 
+/**
+ * En qué quedó su declaración jurada de intereses (API, migración 445): por qué no hay familiares leídos, o cuántos trae
+ * su última declaración según el dato abierto de la Contraloría (sólo el total, sin parentesco).
+ */
+export interface DeclaracionFamilia {
+  estado: "leida" | "sin_familiares" | "ilegible" | "no_entregada" | "por_leer" | "sin_declaracion";
+  declaraciones: number;
+  /** Presentación de su última declaración (AAAA-MM-DD). */
+  ultima: string | null;
+  /** Familiares leídos con documento. */
+  leidos: number;
+  /** Familiares de su última declaración cubierta por el dato abierto; null si es más nueva que el archivo. */
+  declarados: number | null;
+  declaradosDe: string | null;
+}
+
 export interface FichaFuncionario {
   codigo: string;
   /** Sus otras fichas. Una API anterior no las trae. */
   mismaPersona?: FichasDeLaPersona | null;
-  /** Su red de familia; null: no declaró familiares (o una API anterior). */
+  /** Su red de familia; null: no hay familiares leídos (o una API anterior). */
   familia?: FamiliaDeLaPersona | null;
+  /** Por qué no hay familiares leídos, o cuántos faltan. null o ausente: una API anterior (o sin el estado calculado). */
+  declaracionFamilia?: DeclaracionFamilia | null;
   persona: {
     nombre: string; cargo: string | null; entidad: string | null; entidadRuc: string | null; cargoDe: "planilla" | "dji" | null;
     declaraciones: number; entidades: number; primera: string | null; ultima: string | null;

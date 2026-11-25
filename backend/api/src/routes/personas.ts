@@ -846,7 +846,7 @@ personasRouter.get("/cargo/:codigo", async (c) => {
     // se asume que sí), la familia sale con las reservas de un nombre público (lib/familiaFuncionario.ts).
     const posibleElecto = esCargoDeEleccion(f.cargo) || cargos.rows.some((x) => esCargoDeEleccion(x.cargo))
       || candidaturas === null || candidaturas.some((x) => String(x.resultado ?? "").toLowerCase() === "electo");
-    const [fichas, familia, doble, empleos, cargosPlanilla, cobrado, comprasFamiliar, exAutoridad] = await Promise.all([
+    const [fichas, familia, doble, empleos, cargosPlanilla, cobrado, comprasFamiliar, exAutoridad, estadoDji] = await Promise.all([
       fichasPorNombre(f.nombreNorm),
       familiaDelFuncionario(codigo, posibleElecto).catch((e) => { console.warn(`[cargo] familia: ${(e as Error).message}`); return undefined; }),
       // Cobra por dos lados (migración 352): en la planilla de una entidad y, esos mismos meses, con órdenes de servicio de otra.
@@ -865,6 +865,13 @@ personasRouter.get("/cargo/:codigo", async (c) => {
       comprasYFamilia(codigo, posibleElecto).catch((e) => { console.warn(`[cargo] compras y familia: ${(e as Error).message}`); return []; }),
       // Es una autoridad electa que dejó de figurar en una empresa que le vendió a su entidad (migración 367).
       ventasComoExsocio(f.nombreNorm).catch((e) => { console.warn(`[cargo] autoridad ex socia: ${(e as Error).message}`); return []; }),
+      // En qué quedó su declaración jurada (migración 445): leída, sin familiares, por leer y por qué. Sólo el total de
+      // familiares que trae, nunca el parentesco. Sin la tabla (o sin fila), la ficha dice lo de antes.
+      pool.query<{ estado: string; declaraciones: number; ultima: string | null; leidos: number; declarados: number | null; declaradosDe: string | null }>(
+        `SELECT e.estado, e.declaraciones, to_char(e.ultima, 'YYYY-MM-DD') AS ultima, e.leidos, e.declarados,
+                to_char(e.declarados_de, 'YYYY-MM-DD') AS "declaradosDe"
+           FROM funcionario_dji_estado e WHERE e.codigo = $1`, [codigo])
+        .then((r) => r.rows[0] ?? null).catch(() => null),
     ]);
     // Cada planilla con los cargos que tuvo en ella, si fueron más de uno (uno solo ya lo dice la fila).
     const planillaConCargos = planillaFilas.map((x) => {
@@ -891,8 +898,11 @@ personasRouter.get("/cargo/:codigo", async (c) => {
       parecidos,
       // Sus otras fichas (persona contratada, planilla): la ficha de cargo las reúne (lib/identidadPersona.ts).
       mismaPersona: fichas,
-      // Lo que obtuvo del Estado cada familiar que declaró (migración 351); null: no declaró familiares.
+      // Lo que obtuvo del Estado cada familiar que declaró (migración 351); null: no hay familiares leídos.
       familia: familia ?? null,
+      // Por qué no hay (o cuántos faltan): el estado de su declaración jurada (migración 445). Quien no presentó ninguna
+      // (sólo figura en una planilla) no tiene fila: `sin_declaracion`.
+      declaracionFamilia: estadoDji ?? (f.declaraciones > 0 ? null : { estado: "sin_declaracion", declaraciones: 0, ultima: null, leidos: 0, declarados: null, declaradosDe: null }),
       cargos: cargosConPuesto,
       // Los trabajos que escribió en sus declaraciones (sólo empleadores con RUC 20), del vigente al más antiguo.
       empleos: empleos ?? [],

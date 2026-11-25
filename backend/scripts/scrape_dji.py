@@ -1,6 +1,10 @@
 #!/usr/bin/env python3
 """Scraper de las Declaraciones Juradas de Intereses del portal público DJIC (Contraloría), con Playwright.
 
+EN PAUSA desde el 2026-11-25: escribe solo la respuesta del captcha del portal, y la regla del proyecto es no saltarse
+captchas. No se relanza (ni orquestar_dji.py) sin una decisión explícita. Lo que sí se usa sin el portal: el dato abierto
+de familiares (cargar_dji_parentesco.py, sin nombres) y los PDFs ya bajados (procesar_dji.py).
+
 El portal es ASP.NET WebForms y el captcha es de juguete: su respuesta viaja en claro en el campo oculto
 `#hdnCaptchaImg`, así que NO hace falta OCR — se lee del DOM. Flujo por decisor (RUC de entidad + apellidos):
 busca → lista declaraciones (con codigo_ddjj) → marca → escribe el captcha → descarga el PDF (SeccionSegunda).

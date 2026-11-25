@@ -3,8 +3,8 @@ import { Building2, HeartHandshake, Receipt, UsersRound } from "lucide-react";
 import { Ayuda, CabeceraPestana, EstadoVacio, Nota } from "@/components/patrones";
 import { CeldaNumero, CeldaPrincipal, CeldaTexto, CLASE_ENLACE_CELDA, Indicadores, TablaPaginada, type Columna, type Fila } from "@/components/listado";
 import { Badge } from "@/components/ui/Badge";
-import { numero, plural, solesCompacto } from "@/lib/formato";
-import type { FamiliaDeLaPersona, ItemFamiliar } from "@/lib/funcionarios";
+import { fecha, numero, plural, solesCompacto } from "@/lib/formato";
+import type { DeclaracionFamilia, FamiliaDeLaPersona, ItemFamiliar } from "@/lib/funcionarios";
 import { tituloNatural } from "@/lib/landing";
 
 /**
@@ -101,7 +101,48 @@ function fila(n: number, parentesco: string, cercano: boolean, x: ItemFamiliar, 
   };
 }
 
-export function PestanaFamilia({ familia: f }: { familia: FamiliaDeLaPersona | null | undefined }) {
+const familiares = (n: number) => plural(n, "familiar", "familiares");
+
+/**
+ * Por qué no hay familiares leídos, en palabras (migración 445; pedido del usuario del 2026-11-25: «debería decir "No
+ * hemos leído su declaración jurada aún" o "Se leyó y no declara familiares"»). Antes, todos esos casos decían «No
+ * declaró familiares», también de quien todavía no habíamos leído.
+ */
+export function textoDeclaracion(d: DeclaracionFamilia): { titulo: string; texto: string } {
+  const cuantos = d.declarados
+    ? ` Según el registro abierto de la Contraloría, su declaración del ${fecha(d.declaradosDe)} trae ${familiares(d.declarados)}.`
+    : "";
+  switch (d.estado) {
+    case "sin_declaracion":
+      return {
+        titulo: "No presentó declaración jurada de intereses",
+        texto: "La presentan quienes tienen un cargo con poder de decisión. Quien sólo figura en una planilla no la presenta, así que no hay familiares declarados.",
+      };
+    case "sin_familiares":
+      return {
+        titulo: "Su declaración jurada no declara familiares",
+        texto: `${d.declaradosDe ? `Su declaración del ${fecha(d.declaradosDe)}` : "Su última declaración"} no trae familiares en la sección de parientes.`,
+      };
+    case "ilegible":
+      return {
+        titulo: "Bajamos su declaración jurada, pero no pudimos leerla",
+        texto: `Es un documento escaneado o con un formato que el lector no entiende, así que todavía no cruzamos a sus familiares con las órdenes y empresas del Estado.${cuantos}`,
+      };
+    case "no_entregada":
+      return {
+        titulo: "El portal de la Contraloría no nos entregó su declaración jurada",
+        texto: `La pedimos y el portal no la devolvió, así que todavía no cruzamos a sus familiares con las órdenes y empresas del Estado.${cuantos}`,
+      };
+    case "por_leer":
+    case "leida":
+      return {
+        titulo: "Aún no hemos leído su declaración jurada",
+        texto: `Todavía no cruzamos a sus familiares con las órdenes y empresas del Estado.${cuantos}`,
+      };
+  }
+}
+
+export function PestanaFamilia({ familia: f, declaracion }: { familia: FamiliaDeLaPersona | null | undefined; declaracion?: DeclaracionFamilia | null }) {
   const ayuda = (
     <Ayuda titulo="¿De dónde sale su familia?">
       <span className="block">
@@ -115,16 +156,23 @@ export function PestanaFamilia({ familia: f }: { familia: FamiliaDeLaPersona | n
     </Ayuda>
   );
   if (!f) {
+    const t = declaracion ? textoDeclaracion(declaracion) : null;
     return (
       <div className="space-y-3">
         <CabeceraPestana ayuda={ayuda}>Lo que obtuvo del Estado cada familiar que declaró a la Contraloría.</CabeceraPestana>
-        <EstadoVacio titulo="No declaró familiares con documento">
-          No hay una declaración jurada de intereses suya leída con familiares, o no presentó ninguna. Quien sólo figura en una planilla no declara
-          a su familia.
-        </EstadoVacio>
+        {t ? (
+          <EstadoVacio titulo={t.titulo}>{t.texto}</EstadoVacio>
+        ) : (
+          <EstadoVacio titulo="No hay familiares leídos">
+            No hay una declaración jurada de intereses suya leída con familiares, o no presentó ninguna. Quien sólo figura en una planilla no declara
+            a su familia.
+          </EstadoVacio>
+        )}
       </div>
     );
   }
+  // Leímos menos familiares de los que trae su última declaración (los demás no traen documento, o son de otra).
+  const faltan = declaracion?.declarados && declaracion.declarados > f.declarados ? declaracion.declarados : null;
   const filas = f.parientes.flatMap((p) => p.items.map((x, i) => fila(p.n, p.parentesco, p.cercano === true, x, i)));
   const conAlgo = f.parientes.length + f.masParientes;
   return (
@@ -161,6 +209,12 @@ export function PestanaFamilia({ familia: f }: { familia: FamiliaDeLaPersona | n
         />
       ) : null}
       {f.masParientes > 0 && <Nota>Hay {plural(f.masParientes, "familiar más", "familiares más")} con algo del Estado que no entraron en esta lista.</Nota>}
+      {faltan && (
+        <Nota>
+          Según el registro abierto de la Contraloría, su declaración del {fecha(declaracion?.declaradosDe)} trae {familiares(faltan)}; aquí están los{" "}
+          {numero(f.declarados)} que leímos con documento.
+        </Nota>
+      )}
       <Nota>
         Que un familiar le venda al Estado no es una falta. En la entidad donde esta persona tiene cargo es un indicio para revisar: la ley impide
         contratar a ciertos parientes según el cargo (artículo 30 de la Ley 32069), y no prueba que ella haya intervenido en la compra.
