@@ -1,0 +1,28 @@
+cff-version: 1.2.0
+message: "Si usas Vigía en una investigación, un artículo o una clase, cítalo así."
+title: "Vigía Perú: lectura abierta de la contratación pública del Perú"
+abstract: >-
+  Vigía, de Gobserva, lee los contratos del Estado peruano (bases, actas y contratos del SEACE), los cruza con registros
+  oficiales y marca señales para revisar, con la norma y el documento detrás de cada hallazgo. Usa agentes de IA con
+  modelos abiertos y OCR abierto, y ofrece sus datos por un conector MCP.
+type: software
+authors:
+  - given-names: Edwin
+    family-names: Soto
+  - name: Gobserva
+    website: "https://gobserva.cloud"
+    email: hello@gobserva.cloud
+repository-code: "https://github.com/Gobserva-Cloud/vigia-peru"
+url: "https://vigia.gobserva.cloud"
+license: PolyForm-Noncommercial-1.0.0
+version: 0.1.0
+date-released: "2026-11-25"
+keywords:
+  - contratación pública
+  - transparencia
+  - anticorrupción
+  - Perú
+  - SEACE
+  - govtech
+  - inteligencia artificial
+  - MCP

@@ -1,0 +1,6 @@
+# Quién revisa cada PR (GitHub lo pide solo). El repositorio es el espejo público de uno privado: ver CONTRIBUTING.md.
+*                                   @EdwinSotto123
+# Lo que decide qué se publica de las personas y las señales: siempre con revisión.
+/backend/api/src/lib/privacidad.ts  @EdwinSotto123
+/backend/api/src/lib/publicacion.ts @EdwinSotto123
+/backend/db/migrations/             @EdwinSotto123

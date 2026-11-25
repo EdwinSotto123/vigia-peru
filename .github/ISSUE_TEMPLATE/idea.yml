@@ -1,0 +1,23 @@
+name: Idea o fuente nueva
+description: Una función, una señal o una fuente pública de datos que Vigía debería leer.
+title: "[Idea] "
+labels: ["idea"]
+body:
+  - type: textarea
+    id: idea
+    attributes:
+      label: Qué propones
+      description: Qué problema resuelve y para quién (periodistas, estudiantes, veedores, funcionarios…).
+    validations:
+      required: true
+  - type: input
+    id: fuente
+    attributes:
+      label: Fuente de datos (si aplica)
+      description: Debe ser pública y oficial. Vigía no salta captchas, logins ni límites de los portales.
+      placeholder: https://www.datosabiertos.gob.pe/...
+  - type: textarea
+    id: uso
+    attributes:
+      label: Cómo la usarías
+      description: Un caso concreto ayuda mucho a decidir qué hacer primero.

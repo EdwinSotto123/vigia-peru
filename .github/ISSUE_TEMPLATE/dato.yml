@@ -1,0 +1,35 @@
+name: Un dato no cuadra
+description: Una cifra, una señal, un dictamen o una ficha que no coincide con la fuente oficial.
+title: "[Dato] "
+labels: ["datos"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Gracias por revisar. **No escribas DNI, RUC de personas naturales ni datos personales**: con el enlace a la ficha basta.
+  - type: input
+    id: enlace
+    attributes:
+      label: Enlace a la ficha en Vigía
+      placeholder: https://vigia.gobserva.cloud/app/contratos/...
+    validations:
+      required: true
+  - type: textarea
+    id: que
+    attributes:
+      label: Qué dice Vigía y qué dice la fuente
+      description: Copia la cifra o la frase de Vigía y la de la fuente oficial (SEACE, MEF, SUNAT, Contraloría…).
+    validations:
+      required: true
+  - type: input
+    id: fuente
+    attributes:
+      label: Enlace a la fuente oficial
+      placeholder: https://...
+  - type: checkboxes
+    id: privacidad
+    attributes:
+      label: Antes de enviar
+      options:
+        - label: No incluí DNI, RUC 10 ni otros datos personales.
+          required: true

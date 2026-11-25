@@ -1,0 +1,30 @@
+name: Algo no funciona
+description: Una página que falla, un botón que no responde, un error en la API o en el conector MCP.
+title: "[Error] "
+labels: ["error"]
+body:
+  - type: input
+    id: donde
+    attributes:
+      label: Dónde pasa
+      description: El enlace de la página, la ruta de la API o la herramienta del MCP.
+      placeholder: https://vigia.gobserva.cloud/...
+    validations:
+      required: true
+  - type: textarea
+    id: pasos
+    attributes:
+      label: Qué hiciste y qué pasó
+      description: Los pasos para que nos pase lo mismo, lo que esperabas y lo que viste.
+    validations:
+      required: true
+  - type: input
+    id: equipo
+    attributes:
+      label: Navegador y equipo
+      placeholder: Chrome en Android, Firefox en Windows…
+  - type: textarea
+    id: captura
+    attributes:
+      label: Captura o mensaje de error
+      description: Puedes pegar una imagen. Tapa cualquier dato personal que aparezca.

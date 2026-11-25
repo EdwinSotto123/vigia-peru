@@ -1,0 +1,108 @@
+# El tráfico del repositorio, guardado cada día (GitHub sólo muestra los últimos 14 días y sólo a quien administra el
+# repo). Pide visitas y clones por día, las páginas más vistas y los sitios que traen gente, y los suma a CSV en la rama
+# `datos-trafico` (no en `main`: `main` la escribe sólo el espejo, ver CONTRIBUTING.md).
+#
+# Necesita el secreto TRAFICO_TOKEN: un token fine-grained con acceso a este repositorio y el permiso
+# «Administration: Read-only» (el GITHUB_TOKEN de las Actions no puede leer el tráfico). Sin él, el flujo no hace nada.
+name: Tráfico del repositorio
+
+on:
+  schedule:
+    - cron: "17 6 * * *"   # 01:17 en Lima
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: trafico
+  cancel-in-progress: false
+
+jobs:
+  guardar:
+    if: github.repository == 'Gobserva-Cloud/vigia-peru'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      TOKEN: ${{ secrets.TRAFICO_TOKEN }}
+    steps:
+      - name: ¿Hay token?
+        id: token
+        run: |
+          if [ -z "$TOKEN" ]; then
+            echo "Falta el secreto TRAFICO_TOKEN (token con «Administration: Read-only» sobre este repositorio)."
+            echo "hay=no" >> "$GITHUB_OUTPUT"
+          else
+            echo "hay=si" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/checkout@v4
+        if: steps.token.outputs.hay == 'si'
+        with:
+          fetch-depth: 1
+
+      - name: Rama de datos
+        if: steps.token.outputs.hay == 'si'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if git ls-remote --exit-code --heads origin datos-trafico >/dev/null; then
+            git fetch --depth=1 origin datos-trafico
+            git switch datos-trafico
+          else
+            git switch --orphan datos-trafico
+            git rm -rf --quiet . || true
+            printf '# Tráfico de Gobserva-Cloud/vigia-peru\n\nLo escribe .github/workflows/trafico.yml cada día. Fechas en UTC.\n' > README.md
+          fi
+
+      - name: Pedir y guardar
+        if: steps.token.outputs.hay == 'si'
+        shell: python
+        run: |
+          import csv, datetime, json, os, urllib.request
+
+          REPO = os.environ["GITHUB_REPOSITORY"]
+          def api(ruta):
+              pedido = urllib.request.Request(f"https://api.github.com/repos/{REPO}/traffic/{ruta}", headers={
+                  "Authorization": f"Bearer {os.environ['TOKEN']}", "Accept": "application/vnd.github+json",
+                  "X-GitHub-Api-Version": "2022-11-28", "User-Agent": "trafico-gobserva"})
+              with urllib.request.urlopen(pedido, timeout=30) as r:
+                  return json.load(r)
+
+          def leer(archivo, clave):
+              if not os.path.exists(archivo):
+                  return {}
+              with open(archivo, encoding="utf-8") as f:
+                  return {tuple(fila[k] for k in clave): fila for fila in csv.DictReader(f)}
+
+          def escribir(archivo, campos, filas):
+              with open(archivo, "w", encoding="utf-8", newline="") as f:
+                  w = csv.DictWriter(f, fieldnames=campos)
+                  w.writeheader()
+                  w.writerows(sorted(filas.values(), key=lambda x: tuple(x[c] for c in campos)))
+
+          # Visitas y clones por día: el último dato de cada día manda (el de hoy todavía crece).
+          for ruta, clave_api, archivo in (("views?per=day", "views", "vistas.csv"), ("clones?per=day", "clones", "clones.csv")):
+              filas = leer(archivo, ("fecha",))
+              for x in api(ruta).get(clave_api, []):
+                  fecha = x["timestamp"][:10]
+                  filas[(fecha,)] = {"fecha": fecha, "total": x["count"], "unicos": x["uniques"]}
+              escribir(archivo, ["fecha", "total", "unicos"], filas)
+
+          # Lo más visto y de dónde llega la gente: una foto por día (de los últimos 14 días, como lo da GitHub).
+          hoy = datetime.date.today().isoformat()
+          for ruta, archivo, nombre in (("popular/paths", "contenido.csv", "path"), ("popular/referrers", "referentes.csv", "referrer")):
+              filas = leer(archivo, ("dia", "que"))
+              filas = {k: v for k, v in filas.items() if k[0] != hoy}
+              for x in api(ruta):
+                  filas[(hoy, x[nombre])] = {"dia": hoy, "que": x[nombre], "total": x["count"], "unicos": x["uniques"]}
+              escribir(archivo, ["dia", "que", "total", "unicos"], filas)
+          print("ok")
+
+      - name: Subir
+        if: steps.token.outputs.hay == 'si'
+        run: |
+          git add -A
+          if git diff --cached --quiet; then echo "Sin cambios."; exit 0; fi
+          git commit -q -m "Tráfico del $(date -u +%F)"
+          git push -q origin datos-trafico

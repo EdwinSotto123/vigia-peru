@@ -10,12 +10,16 @@ Un proyecto de [Gobserva](https://gobserva.cloud)
 [![Open source](https://img.shields.io/badge/open_source-uso_personal_y_sin_fines_de_lucro-1B7A2E?style=flat-square)](#licencia)
 [![Licencia](https://img.shields.io/badge/licencia-PolyForm_Noncommercial_1.0.0-1B7A2E?style=flat-square)](LICENSE)
 [![MCP](https://img.shields.io/badge/conector-MCP-1B7A2E?style=flat-square)](#conector-mcp)
+[![Pruebas](https://github.com/Gobserva-Cloud/vigia-peru/actions/workflows/pruebas.yml/badge.svg)](https://github.com/Gobserva-Cloud/vigia-peru/actions/workflows/pruebas.yml)
+[![Último commit](https://img.shields.io/github/last-commit/Gobserva-Cloud/vigia-peru?style=flat-square&color=1B7A2E&label=%C3%BAltimo%20commit)](https://github.com/Gobserva-Cloud/vigia-peru/commits/main)
+[![Commits al mes](https://img.shields.io/github/commit-activity/m/Gobserva-Cloud/vigia-peru?style=flat-square&color=1B7A2E&label=commits%20al%20mes)](https://github.com/Gobserva-Cloud/vigia-peru/graphs/commit-activity)
 
 **[Abrir Vigía](https://vigia.gobserva.cloud)** &nbsp;|&nbsp;
 **[Cómo se lee un contrato](#cómo-se-lee-un-contrato)** &nbsp;|&nbsp;
 **[Señales](#qué-señales-busca)** &nbsp;|&nbsp;
 **[Datos](#datos)** &nbsp;|&nbsp;
 **[Correrlo](#correrlo-en-tu-máquina)** &nbsp;|&nbsp;
+**[Colabora](#súmate)** &nbsp;|&nbsp;
 **[Licencia](#licencia)**
 
 <img src="docs/img/vigia-portada.png" alt="Portada de Vigía: ¿En qué se gasta el dinero de tu región?" width="100%">
@@ -256,10 +260,18 @@ noviembre de 2026 el código se publicó bajo la licencia MIT; las copias obteni
 
 ## Súmate
 
-- **Aporta** en [vigia.gobserva.cloud](https://vigia.gobserva.cloud): con los aportes ciudadanos se pagan las lecturas.
-- **Avísanos de un error** en un dato o en un dictamen abriendo un issue o escribiéndonos a
-  [hello@gobserva.cloud](mailto:hello@gobserva.cloud).
-- **Úsalo** en tu universidad, tu colectivo o tu medio sin fines de lucro, y cuéntanos qué encontraste.
+- **Dale una estrella** a este repositorio y síguenos en [LinkedIn](https://www.linkedin.com/company/145318379/): que
+  más gente lo vea es lo que más ayuda hoy.
+- **Cuéntanos cómo usarías Vigía** en [Discussions](https://github.com/Gobserva-Cloud/vigia-peru/discussions): en tu
+  universidad, tu colectivo, tu medio o tu región.
+- **Aporta** en [vigia.gobserva.cloud/app/apoyar](https://vigia.gobserva.cloud/app/apoyar): con los aportes ciudadanos
+  se pagan las lecturas de los contratos.
+- **Avísanos de un error** en un dato o en un dictamen con un [issue](https://github.com/Gobserva-Cloud/vigia-peru/issues/new/choose)
+  o escribiéndonos a [hello@gobserva.cloud](mailto:hello@gobserva.cloud).
+- **Escribe código o documentación**: empieza por los issues marcados
+  [`good first issue`](https://github.com/Gobserva-Cloud/vigia-peru/labels/good%20first%20issue) y lee
+  [CONTRIBUTING.md](CONTRIBUTING.md). Las vulnerabilidades, en privado ([SECURITY.md](SECURITY.md)).
+- **Cítalo** en tu investigación: el botón «Cite this repository» usa [CITATION.cff](CITATION.cff).
 
 <div align="center">
 

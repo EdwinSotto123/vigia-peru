@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Preguntas y cómo usarías Vigía
+    url: https://github.com/Gobserva-Cloud/vigia-peru/discussions
+    about: Las dudas, las ideas a medio pensar y los casos de uso van en Discussions.
+  - name: Reportar una vulnerabilidad
+    url: https://github.com/Gobserva-Cloud/vigia-peru/security/advisories/new
+    about: En privado, nunca en un issue público (ver SECURITY.md).
+  - name: Abrir Vigía
+    url: https://vigia.gobserva.cloud
+    about: El sitio, gratis y sin cuenta para buscar.
