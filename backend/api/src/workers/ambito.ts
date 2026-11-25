@@ -65,9 +65,13 @@ class Ambito implements AmbitoPedido {
     const ns = this.env.LIMITADOR;
     if (!ns) return undefined;
     return {
-      contar: (clave: string, tope: number, ventanaS: number, persistente = false) =>
-        ns.get(ns.idFromName(clave)).contar(tope, ventanaS * 1000, persistente),
+      contar: (clave: string, tope: number, ventanaS: number, persistente = false, n = 1) =>
+        ns.get(ns.idFromName(clave)).contar(tope, ventanaS * 1000, persistente, n),
       cuantas: (clave: string, ventanaS: number, persistente = false) => ns.get(ns.idFromName(clave)).cuantas(ventanaS * 1000, persistente),
+      marcas: (clave: string, ventanaS: number, persistente = false) =>
+        ns.get(ns.idFromName(clave)).marcasVigentes(ventanaS * 1000, persistente),
+      devolver: (clave: string, n: number, ventanaS: number, persistente = false) =>
+        ns.get(ns.idFromName(clave)).devolver(n, ventanaS * 1000, persistente),
       // La misma clave que usa el MCP (backend/mcp-worker/src/v2/cupos.ts).
       usoMcp: (uid: string, mes: string, dia: string) => ns.get(ns.idFromName(`mcp2|u|${uid}|creditos`)).creditos(mes, dia),
       gastarMcp: (uid: string, mes: string, dia: string, creditos: number, filas: number) =>

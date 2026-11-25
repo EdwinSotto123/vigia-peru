@@ -145,18 +145,18 @@ let ultimaLimpieza = 0;
  */
 const VENTANA_MAS_LARGA_MS = 24 * 60 * 60 * 1000;
 
-export function limitarEnMemoria(clave: string, limite = LIMITE_ESCRITURAS, ventanaMs = VENTANA_S * 1000, ahora = Date.now()): boolean {
+export function limitarEnMemoria(clave: string, limite = LIMITE_ESCRITURAS, ventanaMs = VENTANA_S * 1000, ahora = Date.now(), n = 1): boolean {
   if (ahora - ultimaLimpieza > ventanaMs) {
     const quieta = Math.max(ventanaMs, VENTANA_MAS_LARGA_MS);
     for (const [k, ts] of ventanas) if (!ts.length || ahora - ts[ts.length - 1]! > quieta) ventanas.delete(k);
     ultimaLimpieza = ahora;
   }
   const ts = (ventanas.get(clave) ?? []).filter((t) => ahora - t < ventanaMs);
-  if (ts.length >= limite) {
+  if (ts.length + n > limite) {
     ventanas.set(clave, ts);
     return false;
   }
-  ts.push(ahora);
+  for (let i = 0; i < n; i++) ts.push(ahora);
   ventanas.set(clave, ts);
   return true;
 }
@@ -186,16 +186,16 @@ export const limiteEscritura: MiddlewareHandler = async (c, next) => {
  * Un tope propio (los de la tarjeta, routes/pagos.ts): true si entra; cuenta este pedido. `persistente` guarda las marcas
  * en disco del Durable Object, para ventanas de minutos u horas. Sin Durable Object, en memoria (por instancia).
  */
-export async function dentroDeTope(clave: string, tope: number, ventanaS: number, persistente = false): Promise<boolean> {
+export async function dentroDeTope(clave: string, tope: number, ventanaS: number, persistente = false, n = 1): Promise<boolean> {
   const limitador = ambitoPedido.getStore()?.limitador?.();
   if (limitador) {
     try {
-      return await limitador.contar(clave, tope, ventanaS, persistente);
+      return await limitador.contar(clave, tope, ventanaS, persistente, n);
     } catch (e) {
       registrar("WARNING", `[antibots] el limitador de Workers falló, se usa el de memoria: ${(e as Error).message}`);
     }
   }
-  return limitarEnMemoria(clave, tope, ventanaS * 1000);
+  return limitarEnMemoria(clave, tope, ventanaS * 1000, Date.now(), n);
 }
 
 /** Cuántos pedidos contó `clave` en la ventana, sin sumar este (el corte general de la tarjeta). */
@@ -210,6 +210,40 @@ export async function cuantasEn(clave: string, ventanaS: number, persistente = f
   }
   const ahora = Date.now();
   return (ventanas.get(clave) ?? []).filter((t) => ahora - t < ventanaS * 1000).length;
+}
+
+/** Las marcas vigentes de `clave` (ms), de la más vieja a la más nueva: cuándo se libera la próxima. */
+export async function marcasEn(clave: string, ventanaS: number, persistente = false): Promise<number[]> {
+  const limitador = ambitoPedido.getStore()?.limitador?.();
+  if (limitador?.marcas) {
+    try {
+      return await limitador.marcas(clave, ventanaS, persistente);
+    } catch (e) {
+      registrar("WARNING", `[antibots] el limitador de Workers falló, se usa el de memoria: ${(e as Error).message}`);
+    }
+  } else if (limitador) {
+    // Un limitador sin la lista: sólo se sabe cuántas hay, no cuándo se liberan.
+    return Array(await cuantasEn(clave, ventanaS, persistente)).fill(Date.now());
+  }
+  const ahora = Date.now();
+  return (ventanas.get(clave) ?? []).filter((t) => ahora - t < ventanaS * 1000);
+}
+
+/** Quita las `n` marcas más nuevas de `clave` (un pedido que al final no se cobra). */
+export async function devolverEn(clave: string, n: number, ventanaS: number, persistente = false): Promise<void> {
+  if (n <= 0) return;
+  const limitador = ambitoPedido.getStore()?.limitador?.();
+  if (limitador?.devolver) {
+    try {
+      await limitador.devolver(clave, n, ventanaS, persistente);
+      return;
+    } catch (e) {
+      registrar("WARNING", `[antibots] el limitador de Workers falló al devolver: ${(e as Error).message}`);
+    }
+  }
+  if (limitador) return;
+  const ts = ventanas.get(clave);
+  if (ts) ts.splice(Math.max(0, ts.length - n), n);
 }
 
 /**

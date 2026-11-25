@@ -28,6 +28,10 @@ export default function AsistentePage() {
               modelo de lenguaje, así que puede equivocarse: cada dato lleva su enlace para comprobarlo.
             </span>
             <span className="mt-1.5 block">
+              Rápido responde en segundos; Profundo cruza más fuentes y verifica cada cifra, y usa 3 de tus preguntas del
+              día. Tus conversaciones se guardan sólo en este navegador.
+            </span>
+            <span className="mt-1.5 block">
               No muestra DNI, tapa un apellido de las personas naturales y no saca conclusiones sobre delitos.
             </span>
           </Ayuda>

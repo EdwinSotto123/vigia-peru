@@ -95,8 +95,13 @@ export interface AmbitoPedido {
    */
   almacen?(bucket: string): Almacen | undefined;
   limitador?(): {
-    contar(clave: string, tope: number, ventanaS: number, persistente?: boolean): Promise<boolean>;
+    /** `n`: el pedido vale por varios (entra sólo si caben todos). */
+    contar(clave: string, tope: number, ventanaS: number, persistente?: boolean, n?: number): Promise<boolean>;
     cuantas(clave: string, ventanaS: number, persistente?: boolean): Promise<number>;
+    /** Las marcas vigentes (ms), de la más vieja a la más nueva. */
+    marcas?(clave: string, ventanaS: number, persistente?: boolean): Promise<number[]>;
+    /** Quita las `n` marcas más nuevas; devuelve cuántas quedan. */
+    devolver?(clave: string, n: number, ventanaS: number, persistente?: boolean): Promise<number>;
     /** Lo usado del MCP por una cuenta en el mes y el día de Lima (workers/limitador.ts). */
     usoMcp?(uid: string, mes: string, dia: string): Promise<{ mes: number; dia: number; filas: number }>;
     /** Suma créditos (y filas) a la cuenta: lo usa el chat de cada app (routes/gobservaCuenta.ts). */

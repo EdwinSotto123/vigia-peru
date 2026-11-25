@@ -4,14 +4,19 @@ import { Hono } from "hono";
 import { ambitoPedido, fijarPlataforma, type AmbitoPedido, type Plataforma } from "../src/lib/plataforma.js";
 import { cuentasRouter } from "../src/routes/cuentas.js";
 import { saludRouter, TOPES_ASISTENTE_SALUD } from "../src/routes/gobservaSalud.js";
-import { FALTAS_PARA_BLOQUEO, TOPE_CUENTA_DIA, TOPE_CUENTA_MINUTO, TOPE_IP_DIA, TOPE_SIN_VERIFICAR_DIA } from "../src/lib/chatVigia.js";
+import {
+  COSTO_MODO, FALTAS_PARA_BLOQUEO, TOPE_CUENTA_DIA, TOPE_CUENTA_MINUTO, TOPE_IP_DIA, TOPE_PROFUNDO_TOTAL_DIA, TOPE_SIN_VERIFICAR_DIA,
+} from "../src/lib/chatVigia.js";
 
 /**
  * Los topes del asistente de Vigía (2026-11-24, el usuario: «verifica que funcionen los límites… en Vigía, que es gratis,
  * damos 10 consultas al día con IA»), de punta a punta por la ruta POST /cuentas/me/chat: la cuenta, el token, la IP y el
  * limitador. El limitador es un doble del Durable Object (workers/limitador.ts: ventana deslizante por clave, el pedido
- * rechazado no se anota) con un reloj que se adelanta a mano. Sin modelo ni MCP: la respuesta sale como evento de error,
- * pero el tope ya se contó (se cuenta antes de preguntar).
+ * rechazado no se anota) con un reloj que se adelanta a mano. El modelo y el MCP son dobles: el modelo contesta un texto
+ * fijo (o falla, con `modeloFalla`: entonces la pregunta se devuelve) y el MCP no tiene herramientas.
+ *
+ * 2026-11-25: los modos (Rápido gasta 1, Profundo 3), el cupo que ve quien pregunta (GET /cuentas/me/chat/cupo y el
+ * evento `cupo` del stream) y la devolución de la pregunta que el modelo no llegó a responder.
  */
 
 let reloj = Date.UTC(2026, 10, 24, 15, 0, 0);
@@ -21,18 +26,46 @@ const adelantar = (s: number) => {
 const marcas = new Map<string, number[]>();
 const vigentes = (clave: string, ventanaS: number) => (marcas.get(clave) ?? []).filter((t) => reloj - t < ventanaS * 1000);
 const limitador = {
-  async contar(clave: string, tope: number, ventanaS: number) {
+  async contar(clave: string, tope: number, ventanaS: number, _persistente = false, n = 1) {
     const m = vigentes(clave, ventanaS);
-    if (m.length >= tope) {
+    if (m.length + n > tope) {
       marcas.set(clave, m);
       return false;
     }
-    m.push(reloj);
+    for (let i = 0; i < n; i++) m.push(reloj);
     marcas.set(clave, m);
     return true;
   },
   async cuantas(clave: string, ventanaS: number) {
     return vigentes(clave, ventanaS).length;
+  },
+  async marcas(clave: string, ventanaS: number) {
+    return [...vigentes(clave, ventanaS)];
+  },
+  async devolver(clave: string, n: number, ventanaS: number) {
+    const m = vigentes(clave, ventanaS);
+    m.splice(Math.max(0, m.length - n), n);
+    marcas.set(clave, m);
+    return m.length;
+  },
+};
+
+// El modelo y el MCP de mentira: el modelo contesta sin herramientas; con `modeloFalla`, responde 500.
+let modeloFalla = false;
+const ENV = {
+  LLM_TOKEN: "x",
+  MCP_INTERNO_TOKEN: "x",
+  MCP_INTERNO_URL: "https://mcp.interno/mcp",
+  LLM: {
+    async fetch() {
+      if (modeloFalla) return new Response("caído", { status: 500 });
+      return Response.json({ content: [{ type: "text", text: "Según Vigía, la entidad tiene 3 contratos." }], stop_reason: "end_turn", usage: {} });
+    },
+  },
+  MCP: {
+    async fetch() {
+      return Response.json({ jsonrpc: "2.0", id: 1, result: { tools: [] } });
+    },
   },
 };
 
@@ -49,18 +82,36 @@ const app = new Hono();
 app.route("/cuentas", cuentasRouter);
 app.route("/salud", saludRouter);
 
-async function preguntar(token: string, ip: string): Promise<{ status: number; error?: string; detail?: string }> {
-  const ambito = { limitador: () => limitador, seguir: () => {} } as unknown as AmbitoPedido;
-  return ambitoPedido.run(ambito, async () => {
-    const r = await app.request("/cuentas/me/chat", {
-      method: "POST",
-      headers: { authorization: `Bearer ${token}`, "content-type": "application/json", "cf-connecting-ip": ip },
-      body: JSON.stringify({ mensajes: [{ rol: "usuario", texto: "¿Qué contratos tiene la municipalidad de Puno?" }] }),
-    });
+type Evento = { tipo: string; [k: string]: unknown };
+const ambito = () => ({ limitador: () => limitador, seguir: () => {} }) as unknown as AmbitoPedido;
+
+async function preguntar(
+  token: string,
+  ip: string,
+  modo?: "rapido" | "profundo",
+): Promise<{ status: number; error?: string; detail?: string; eventos?: Evento[] }> {
+  return ambitoPedido.run(ambito(), async () => {
+    const r = await app.request(
+      "/cuentas/me/chat",
+      {
+        method: "POST",
+        headers: { authorization: `Bearer ${token}`, "content-type": "application/json", "cf-connecting-ip": ip },
+        body: JSON.stringify({ mensajes: [{ rol: "usuario", texto: "¿Qué contratos tiene la municipalidad de Puno?" }], ...(modo ? { modo } : {}) }),
+      },
+      ENV,
+    );
     const texto = await r.text();
-    if (r.status === 200) return { status: 200 };
+    if (r.status === 200) return { status: 200, eventos: texto.split("\n").filter(Boolean).map((l) => JSON.parse(l) as Evento) };
     const d = JSON.parse(texto) as { error?: string; detail?: string };
     return { status: r.status, error: d.error, detail: d.detail };
+  });
+}
+
+async function cupo(token: string): Promise<{ tope: number; usadas: number; quedan: number; proxima: string | null; verificado: boolean }> {
+  return ambitoPedido.run(ambito(), async () => {
+    const r = await app.request("/cuentas/me/chat/cupo", { headers: { authorization: `Bearer ${token}` } }, ENV);
+    assert.equal(r.status, 200);
+    return r.json();
   });
 }
 
@@ -149,15 +200,81 @@ test("cuentas desechables desde una misma conexión: 40 preguntas al día entre 
 });
 
 test("sin token, no hay asistente", async () => {
-  const r = await ambitoPedido.run({ limitador: () => limitador, seguir: () => {} } as unknown as AmbitoPedido, () =>
+  const r = await ambitoPedido.run(ambito(), () =>
     app.request("/cuentas/me/chat", { method: "POST", headers: { "content-type": "application/json" }, body: "{}" }),
   );
   assert.equal(r.status, 401);
 });
 
+test("Profundo gasta 3 preguntas: tres profundas, y la cuarta pide Rápido sin gastar nada", async () => {
+  assert.equal(COSTO_MODO.profundo, 3);
+  const token = "fio|1|fio@correo.pe";
+  const ip = "190.10.10.10";
+  for (let i = 0; i < 3; i++) assert.equal((await preguntar(token, ip, "profundo")).status, 200);
+  adelantar(61);
+  const cuarta = await preguntar(token, ip, "profundo");
+  assert.equal(cuarta.status, 429);
+  assert.equal(cuarta.error, "tope_modo");
+  assert.match(cuarta.detail ?? "", /te queda 1\. Pregunta en modo Rápido/);
+  assert.equal((await cupo(token)).quedan, 1);
+  assert.equal((await preguntar(token, ip, "rapido")).status, 200);
+  assert.equal((await preguntar(token, ip)).error, "tope_dia");
+});
+
+test("el cupo: cuántas quedan y cuándo se libera la próxima; el stream lo trae al empezar", async () => {
+  const token = "gus|1|gus@correo.pe";
+  const antes = await cupo(token);
+  assert.deepEqual([antes.tope, antes.usadas, antes.quedan, antes.proxima, antes.verificado], [10, 0, 10, null, true]);
+  const t0 = reloj;
+  const r = await preguntar(token, "190.11.11.11");
+  const primero = r.eventos?.[0];
+  assert.equal(primero?.tipo, "cupo");
+  assert.equal(primero?.quedan, 9);
+  assert.ok(r.eventos?.some((e) => e.tipo === "respuesta"));
+  adelantar(60 * 60);
+  await preguntar(token, "190.11.11.11", "profundo");
+  const despues = await cupo(token);
+  assert.equal(despues.usadas, 4);
+  assert.equal(despues.quedan, 6);
+  assert.equal(despues.proxima, new Date(t0 + 24 * 60 * 60 * 1000).toISOString());
+  // Sin correo confirmado: 3 al día, y así lo dice.
+  const sin = await cupo("hugo|0|hugo@correo.pe");
+  assert.deepEqual([sin.tope, sin.quedan, sin.verificado], [TOPE_SIN_VERIFICAR_DIA, TOPE_SIN_VERIFICAR_DIA, false]);
+});
+
+test("si el modelo no llega a responder, la pregunta no se cobra", async () => {
+  const token = "ines|1|ines@correo.pe";
+  adelantar(61);
+  modeloFalla = true;
+  try {
+    const r = await preguntar(token, "190.12.12.12", "profundo");
+    assert.equal(r.status, 200);
+    assert.ok(r.eventos?.some((e) => e.tipo === "error"));
+    const ultimo = [...(r.eventos ?? [])].reverse().find((e) => e.tipo === "cupo");
+    assert.equal(ultimo?.quedan, 10);
+  } finally {
+    modeloFalla = false;
+  }
+  assert.equal((await cupo(token)).usadas, 0);
+  assert.equal((await preguntar(token, "190.12.12.12")).status, 200);
+  assert.equal((await cupo(token)).usadas, 1);
+});
+
+test("Profundo tiene su techo para todos; al llegar, Rápido sigue y el rechazo no gasta", async () => {
+  adelantar(24 * 60 * 60);
+  for (let k = 0; k < TOPE_PROFUNDO_TOTAL_DIA; k++) {
+    assert.equal((await preguntar(`p${k}|1|p${k}@correo.pe`, `200.20.${k >> 8}.${k & 255}`, "profundo")).status, 200);
+  }
+  const token = "zoe|1|zoe@correo.pe";
+  const r = await preguntar(token, "200.30.0.1", "profundo");
+  assert.equal(r.error, "tope_profundo");
+  assert.equal((await cupo(token)).usadas, 0);
+  assert.equal((await preguntar(token, "200.30.0.1", "rapido")).status, 200);
+});
+
 // El asistente de Gobserva Salud no pide cuenta: sus topes son por conexión (sin Turnstile en la prueba: sin secreto).
 async function preguntarSalud(ip: string): Promise<{ status: number; error?: string }> {
-  return ambitoPedido.run({ limitador: () => limitador, seguir: () => {} } as unknown as AmbitoPedido, async () => {
+  return ambitoPedido.run(ambito(), async () => {
     const r = await app.request("/salud/asistente", {
       method: "POST",
       headers: { "content-type": "application/json", "cf-connecting-ip": ip },
@@ -169,6 +286,7 @@ async function preguntarSalud(ip: string): Promise<{ status: number; error?: str
 }
 
 test("Salud: 25 preguntas al día por conexión; insistir después no bloquea", async () => {
+  adelantar(24 * 60 * 60);
   const T = TOPES_ASISTENTE_SALUD;
   const ip = "179.9.9.9";
   let bien = 0;

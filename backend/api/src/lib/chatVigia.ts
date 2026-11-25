@@ -5,8 +5,8 @@
  *
  *   · las instrucciones: le habla a un ciudadano o a un periodista, no al equipo; cierra con fuentes, límites y qué mirar
  *     después, y nunca concluye que hubo un delito;
- *   · los topes: sólo el modelo rápido, pocas vueltas, y un número de preguntas por día por cuenta y en total (el modelo
- *     lo pagamos nosotros y la cuenta es gratis);
+ *   · los topes: pocas vueltas y un número de preguntas por día por cuenta y en total (el modelo lo pagamos nosotros y
+ *     la cuenta es gratis); el modo «profundo» gasta más preguntas (`COSTO_MODO`) y tiene su propio techo;
  *   · lo que sale al navegador: ni el nombre interno del modelo ni el costo de la respuesta (`eventoPublico`).
  */
 
@@ -104,13 +104,37 @@ Límites que no se negocian:
 - Si te piden algo fuera de la contratación pública del Perú, dilo en una línea y ofrece lo que sí puedes revisar.`;
 }
 
-/** Con qué se llama al motor: todas las herramientas del MCP (ruta «»), el modelo rápido y topes cortos. */
-export function pedidoVigia(): { ruta: string; sistema: string; vueltas: number; max: number; sin: string[] } {
+// ─── Modos (2026-11-25, el usuario: «selección de modelo, créditos restantes por día, historial») ─────────────────
+// Los dos son modelos abiertos (vigia-llm los sirve con Workers AI: NATIVO_MODELOS en backend/llm-worker/wrangler.jsonc).
+// «Rápido» es el de siempre; «Profundo» usa el modelo grande del motor, con más vueltas y el método de verificación, y
+// gasta más preguntas del día porque cuesta más.
+
+export type ModoVigia = "rapido" | "profundo";
+/** Cuántas preguntas del día gasta cada modo. */
+export const COSTO_MODO: Record<ModoVigia, number> = { rapido: 1, profundo: 3 };
+/** Preguntas en modo profundo de todas las cuentas en 24 horas: su propio techo de gasto, aparte del total. */
+export const TOPE_PROFUNDO_TOTAL_DIA = 60;
+/** El modelo del motor (lib/chatInvestigacion.ts) de cada modo. */
+export const MODELO_MODO = { rapido: "rapido", profundo: "fino" } as const satisfies Record<ModoVigia, "rapido" | "fino">;
+
+const METODO_PROFUNDO = `
+
+Modo profundo (quien pregunta lo eligió y le cuesta más preguntas: que se note):
+- Antes de la primera consulta escribe un plan breve, de 3 a 5 pasos, con lo que vas a revisar.
+- Cruza todas las fuentes que apliquen: gasto, compras, proveedores, señales, informes de control, obras e historia.
+- Verifica cada cifra principal con una segunda consulta cuando se pueda y di si coinciden.
+- Si dices que algo es «alto» o «raro», compáralo con entidades o proveedores parecidos.
+- Antes de responder, revisa que cada afirmación tenga su cifra y su enlace; lo que no, va a «Lo que no pude verificar».`;
+
+/** Con qué se llama al motor: todas las herramientas del MCP (ruta «») y topes cortos; el modo profundo, más holgados. */
+export function pedidoVigia(modo: ModoVigia = "rapido"): { ruta: string; sistema: string; vueltas: number; max: number; sin: string[] } {
   // El chat de las cuentas entra al MCP como equipo interno (sin créditos): por eso lo que no debe hacer se quita aquí, en
   // el servidor, y no sólo en el texto del sistema. `rastro_persona` busca a cualquier persona por su nombre COMPLETO (con
   // el apellido que Vigía tapa) y devuelve el código de su ficha: desde una cuenta gratuita ataba un nombre entero a una
   // ficha tapada (auditoría del 2026-11-17). La búsqueda pública de personas sólo usa las palabras visibles.
-  return { ruta: "", sistema: sistemaVigia(), vueltas: 10, max: 6000, sin: ["rastro_persona"] };
+  const sin = ["rastro_persona"];
+  if (modo === "profundo") return { ruta: "", sistema: sistemaVigia() + METODO_PROFUNDO, vueltas: 16, max: 9000, sin };
+  return { ruta: "", sistema: sistemaVigia(), vueltas: 10, max: 6000, sin };
 }
 
 /**

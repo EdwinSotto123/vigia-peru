@@ -286,7 +286,8 @@ function leerPaso(x: unknown): Paso | null {
   return { tipo: "herramienta", id: p.id, herramienta, titulo: str(p.titulo) ?? herramienta, entrada: obj(p.entrada), estado, caracteres: num(p.caracteres), resumen: str(p.resumen) };
 }
 
-function leerMensaje(x: unknown): Mensaje | null {
+/** Un mensaje guardado (sessionStorage del panel, historial del asistente de Vigía), validado; null si no se entiende. */
+export function leerMensaje(x: unknown): Mensaje | null {
   const m = obj(x);
   if (!m || typeof m.id !== "string") return null;
   if (m.rol === "usuario") return typeof m.texto === "string" ? { id: m.id, rol: "usuario", texto: m.texto } : null;

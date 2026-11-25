@@ -38,11 +38,11 @@ import { entidadDeAporteSql, partidoDeAporteSql, marcarConflictoDeInteres } from
 import { LOGO_PROPIO } from "./contribuciones.js";
 import { COLUMNA_SEGUIDO, TOPE_SEGUIDOS, empresasSeguidas, errorSeguido, novedadesSeguidas, partidosSeguidos } from "../lib/seguidos.js";
 import { stream } from "hono/streaming";
-import { dentroDeTope } from "../lib/antibots.js";
+import { dentroDeTope, devolverEn, marcasEn } from "../lib/antibots.js";
 import { correrChat, type EnvChat } from "../lib/chatInvestigacion.js";
 import {
-  BLOQUEO_S, FALTAS_PARA_BLOQUEO, LARGO_CONVERSACION, TOPE_CUENTA_DIA, TOPE_CUENTA_MINUTO, TOPE_IP_DIA, TOPE_IP_MINUTO, TOPE_TOTAL_DIA, enListaFija, eventoPublico,
-  huellaIp, pedidoVigia, topeDiaCuenta,
+  BLOQUEO_S, COSTO_MODO, FALTAS_PARA_BLOQUEO, LARGO_CONVERSACION, MODELO_MODO, TOPE_CUENTA_DIA, TOPE_CUENTA_MINUTO, TOPE_IP_DIA, TOPE_IP_MINUTO,
+  TOPE_PROFUNDO_TOTAL_DIA, TOPE_TOTAL_DIA, enListaFija, eventoPublico, huellaIp, pedidoVigia, topeDiaCuenta, type ModoVigia,
 } from "../lib/chatVigia.js";
 import { registrarConsumo } from "../lib/consumo.js";
 import { registrar } from "../lib/registro.js";
@@ -413,8 +413,34 @@ cuentasRouter.post("/me/reclamar", limiteEscritura, async (c) => {
 // ─── POST /cuentas/me/chat ────────────────────────────────────────────────────────────────────────────
 const ChatVigiaBody = z.object({
   mensajes: z.array(z.object({ rol: z.enum(["usuario", "asistente"]), texto: z.string().trim().min(1).max(6000) })).min(1).max(20),
+  modo: z.enum(["rapido", "profundo"]).default("rapido"),
 });
 const DIA_S = 24 * 60 * 60;
+
+/**
+ * Las preguntas del día de una cuenta: el tope que le toca, cuántas usó en las últimas 24 horas, cuántas le quedan y
+ * cuándo se libera la próxima (24 horas después de la más vieja). Lo pinta el asistente («Te quedan 7 de 10»).
+ */
+async function cupoChat(uid: string, verificado: boolean, correo: string | null) {
+  const tope = topeDiaCuenta(verificado, correo);
+  const marcas = (await marcasEn(`chatvigia|dia|${uid}`, DIA_S, true)).sort((a, b) => a - b);
+  const usadas = Math.min(marcas.length, tope);
+  return {
+    tope,
+    usadas,
+    quedan: tope - usadas,
+    proxima: marcas.length ? new Date(marcas[0] + DIA_S * 1000).toISOString() : null,
+    verificado: tope === TOPE_CUENTA_DIA,
+    modos: (Object.keys(COSTO_MODO) as ModoVigia[]).map((id) => ({ id, costo: COSTO_MODO[id] })),
+  };
+}
+
+// ─── GET /cuentas/me/chat/cupo ───────────────────────────────────────────────────────────────────────
+cuentasRouter.get("/me/chat/cupo", async (c) => {
+  const u = c.get("user");
+  c.header("Cache-Control", SIN_CACHE);
+  return c.json(await cupoChat(u.uid, u.emailVerificado, u.email));
+});
 
 /**
  * El asistente de investigación de Vigía (lib/chatVigia.ts): NDJSON en vivo con los eventos del chat del panel, sin el
@@ -425,21 +451,29 @@ cuentasRouter.post("/me/chat", async (c) => {
   const u = c.get("user");
   const b = ChatVigiaBody.safeParse(await c.req.json().catch(() => null));
   if (!b.success) return c.json({ error: "invalid_body", detail: "Manda { mensajes }." }, 400);
-  const { mensajes } = b.data;
+  const { mensajes, modo } = b.data;
   if (mensajes[mensajes.length - 1].rol !== "usuario") return c.json({ error: "invalid_body", detail: "El último mensaje tiene que ser tuyo." }, 400);
   if (mensajes.reduce((n, m) => n + m.texto.length, 0) > LARGO_CONVERSACION) {
     return c.json({ error: "conversacion_larga", detail: "La conversación ya es muy larga: empieza una nueva." }, 413);
   }
-  const rechazo = await protegerChat(c, u.uid, u.emailVerificado, u.email);
-  if (rechazo) return rechazo;
+  const paso = await protegerChat(c, u.uid, u.emailVerificado, u.email, modo);
+  if (paso instanceof Response) return paso;
   const env = (c.env ?? {}) as EnvChat;
   c.header("Content-Type", "application/x-ndjson; charset=utf-8");
   c.header("Cache-Control", "no-store");
   return stream(c, async (s) => {
     const escribir = (o: Record<string, unknown>) => s.write(`${JSON.stringify(eventoPublico(o))}
 `);
-    const fin = await correrChat(env, { mensajes, modelo: "rapido", actor: `vigia:${u.uid.slice(0, 8)}`, app: pedidoVigia() }, escribir);
-    await registrarConsumo({ uid: u.uid, canal: "asistente", detalle: "rapido", app: "vigia", creditos: 0, costoUsd: fin.costo })
+    // Primero, lo que le queda del día (ya con esta pregunta descontada): el contador se mueve al preguntar.
+    await escribir({ tipo: "cupo", ...(await cupoChat(u.uid, u.emailVerificado, u.email)) });
+    const fin = await correrChat(env, { mensajes, modelo: MODELO_MODO[modo], actor: `vigia:${u.uid.slice(0, 8)}`, app: pedidoVigia(modo) }, escribir);
+    if (!fin.ok) {
+      // El modelo no llegó a responder: la pregunta no se cobra (a la cuenta ni a la conexión). El techo de todos sí
+      // queda anotado: es el límite de gasto del día y una falla repetida también gasta.
+      for (const [clave, n] of paso.devolver) await devolverEn(clave, n, DIA_S, true);
+      await escribir({ tipo: "cupo", ...(await cupoChat(u.uid, u.emailVerificado, u.email)) });
+    }
+    await registrarConsumo({ uid: u.uid, canal: "asistente", detalle: modo, app: "vigia", creditos: 0, costoUsd: fin.costo })
       .catch((e) => registrar("WARNING", `[chat vigia] consumo sin guardar: ${(e as Error).message}`));
   });
 });
@@ -451,9 +485,15 @@ cuentasRouter.post("/me/chat", async (c) => {
  * ráfaga (el tope por minuto) y es SÓLO de quien la causó: la de la cuenta no cuenta contra la IP, porque detrás de una
  * IP hay una universidad o una operadora entera y una sola persona la dejaba bloqueada un día (auditoría 2026-11-13).
  * Con `FALTAS_PARA_BLOQUEO` en una hora queda bloqueado `BLOQUEO_S`. Insistir contra el tope del día no es falta: ya no
- * cuesta nada. Devuelve la respuesta de rechazo o null si puede preguntar. Un pedido interno sólo cuenta por cuenta.
+ * cuesta nada. Un pedido interno sólo cuenta por cuenta.
+ *
+ * El modo «profundo» gasta `COSTO_MODO.profundo` preguntas del día de la cuenta, de la conexión y del total, y tiene su
+ * propio techo para todos (`TOPE_PROFUNDO_TOTAL_DIA`). Devuelve la respuesta de rechazo, o lo anotado en los topes que se
+ * devuelven si el modelo no llega a responder.
  */
-async function protegerChat(c: Context, uid: string, verificado: boolean, correo: string | null): Promise<Response | null> {
+async function protegerChat(
+  c: Context, uid: string, verificado: boolean, correo: string | null, modo: ModoVigia = "rapido",
+): Promise<Response | { devolver: [string, number][] }> {
   const ip = pedidoInterno(c) ? null : claveIp(ipCliente(c));
   const huella = ip ? huellaIp(ip) : null;
   const cerrado = () => {
@@ -486,25 +526,56 @@ async function protegerChat(c: Context, uid: string, verificado: boolean, correo
         : `Ya hiciste las ${diario} preguntas de este día. Verifica tu correo desde tu cuenta para tener más cada día.`,
     );
   const topeIp = () => tope("tope_ip", "Desde esta conexión ya se hicieron muchas preguntas en las últimas 24 horas. Prueba más tarde.");
-  const topeTotal = () => {
+  const sinFalta = (error: string, detail: string) => {
     c.header("Cache-Control", SIN_CACHE);
-    return c.json({ error: "tope_total", detail: "El asistente llegó a su límite de hoy para todos. Vuelve mañana." }, 429);
+    return c.json({ error, detail }, 429);
   };
+  const topeTotal = () => sinFalta("tope_total", "El asistente llegó a su límite de hoy para todos. Vuelve mañana.");
+  const costo = COSTO_MODO[modo];
+  const profundo = modo === "profundo";
+  const topeProfundo = () => sinFalta("tope_profundo", "El modo Profundo llegó a su límite de hoy para todos. Pregunta en modo Rápido.");
   // Primero, sin anotar nada, los topes del día (2026-11-24, test/topesChatVigia.test.ts): quien ya usó sus preguntas
   // recibe el aviso del día y no «espera un minuto», no gasta el tope por minuto ni suma faltas al insistir (antes, a la
   // 13.ª insistencia en una hora quedaba bloqueado 24 horas), y un rechazo de la conexión o del total no le gasta una de
   // las suyas.
-  if ((await cuantasEn(`chatvigia|dia|${uid}`, DIA_S, true)) >= diario) return topeDia();
-  if (huella && (await cuantasEn(`chatvigia|ipdia|${huella}`, DIA_S, true)) >= TOPE_IP_DIA) return topeIp();
-  if ((await cuantasEn("chatvigia|total", DIA_S, true)) >= TOPE_TOTAL_DIA) return topeTotal();
+  const usadas = await cuantasEn(`chatvigia|dia|${uid}`, DIA_S, true);
+  if (usadas >= diario) return topeDia();
+  // Le quedan preguntas, pero no las que pide este modo: que pregunte en Rápido (no es falta).
+  if (usadas + costo > diario) {
+    const quedan = diario - usadas;
+    return sinFalta("tope_modo", `El modo Profundo usa ${costo} preguntas y te ${quedan === 1 ? "queda 1" : `quedan ${quedan}`}. Pregunta en modo Rápido.`);
+  }
+  if (huella && (await cuantasEn(`chatvigia|ipdia|${huella}`, DIA_S, true)) + costo > TOPE_IP_DIA) return topeIp();
+  if ((await cuantasEn("chatvigia|total", DIA_S, true)) + costo > TOPE_TOTAL_DIA) return topeTotal();
+  if (profundo && (await cuantasEn("chatvigia|profundo", DIA_S, true)) >= TOPE_PROFUNDO_TOTAL_DIA) return topeProfundo();
   // Las ráfagas (por minuto) y, después, se anota la pregunta en cada tope del día. Primero la cuenta: quien ya gastó
   // lo suyo no le quita cupo a los demás de su misma conexión.
   if (!(await dentroDeTope(`chatvigia|min|${uid}`, TOPE_CUENTA_MINUTO, 60))) return tope("muy_seguido", seguido, `c:${uid}`);
   if (huella && !(await dentroDeTope(`chatvigia|ipmin|${huella}`, TOPE_IP_MINUTO, 60))) return tope("muy_seguido", seguido, `ip:${huella}`);
-  if (!(await dentroDeTope(`chatvigia|dia|${uid}`, diario, DIA_S, true))) return topeDia();
-  if (huella && !(await dentroDeTope(`chatvigia|ipdia|${huella}`, TOPE_IP_DIA, DIA_S, true))) return topeIp();
-  if (!(await dentroDeTope("chatvigia|total", TOPE_TOTAL_DIA, DIA_S, true))) return topeTotal();
-  return null;
+  // Se anota cada tope del día; si uno no entra, lo ya anotado se devuelve (un rechazo no gasta preguntas).
+  const devolver: [string, number][] = [];
+  const deshacer = async () => {
+    for (const [clave, n] of devolver) await devolverEn(clave, n, DIA_S, true);
+  };
+  if (!(await dentroDeTope(`chatvigia|dia|${uid}`, diario, DIA_S, true, costo))) return topeDia();
+  devolver.push([`chatvigia|dia|${uid}`, costo]);
+  if (huella) {
+    if (!(await dentroDeTope(`chatvigia|ipdia|${huella}`, TOPE_IP_DIA, DIA_S, true, costo))) {
+      await deshacer();
+      return topeIp();
+    }
+    devolver.push([`chatvigia|ipdia|${huella}`, costo]);
+  }
+  if (!(await dentroDeTope("chatvigia|total", TOPE_TOTAL_DIA, DIA_S, true, costo))) {
+    await deshacer();
+    return topeTotal();
+  }
+  if (profundo && !(await dentroDeTope("chatvigia|profundo", TOPE_PROFUNDO_TOTAL_DIA, DIA_S, true))) {
+    await deshacer();
+    await devolverEn("chatvigia|total", costo, DIA_S, true);
+    return topeProfundo();
+  }
+  return { devolver };
 }
 
 // ─── GET /cuentas/me/exportar ────────────────────────────────────────────────

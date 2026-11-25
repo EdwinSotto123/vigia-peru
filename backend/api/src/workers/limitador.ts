@@ -44,10 +44,12 @@ export class Limitador extends DurableObject {
    * true si el pedido entra: hubo menos de `tope` en los últimos `ventanaMs`. `persistente`: las marcas se guardan en
    * disco (ventanas que deben sobrevivir a que el objeto se descarte).
    */
-  async contar(tope: number, ventanaMs: number, persistente = false): Promise<boolean> {
+  async contar(tope: number, ventanaMs: number, persistente = false, n = 1): Promise<boolean> {
     const marcas = await this.vigentes(ventanaMs, persistente);
-    if (marcas.length >= tope) return false;
-    marcas.push(Date.now());
+    // `n`: un pedido que vale por varios (la pregunta «profunda» del asistente de Vigía gasta 3 del día).
+    if (marcas.length + n > tope) return false;
+    const ahora = Date.now();
+    for (let i = 0; i < n; i++) marcas.push(ahora);
     if (persistente) await this.ctx.storage.put("marcas", marcas);
     return true;
   }
@@ -55,6 +57,19 @@ export class Limitador extends DurableObject {
   /** Cuántos hubo en los últimos `ventanaMs`, sin contar uno más (el corte general de la tarjeta). */
   async cuantas(ventanaMs: number, persistente = false): Promise<number> {
     return (await this.vigentes(ventanaMs, persistente)).length;
+  }
+
+  /** Las marcas vigentes (ms), de la más vieja a la más nueva: cuándo se libera la próxima. */
+  async marcasVigentes(ventanaMs: number, persistente = false): Promise<number[]> {
+    return [...(await this.vigentes(ventanaMs, persistente))];
+  }
+
+  /** Quita las `n` marcas más nuevas (una pregunta que el modelo no llegó a responder no se cobra). */
+  async devolver(n: number, ventanaMs: number, persistente = false): Promise<number> {
+    const marcas = await this.vigentes(ventanaMs, persistente);
+    marcas.splice(Math.max(0, marcas.length - n), n);
+    if (persistente) await this.ctx.storage.put("marcas", marcas);
+    return marcas.length;
   }
 
   /** Como `contar`, pero primero mira el veto de la trampa. */
