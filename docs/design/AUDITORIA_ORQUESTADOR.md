@@ -1,5 +1,7 @@
 # Auditoría del orquestador de agentes (`backend/agent/`)
 
+> Documento histórico (septiembre de 2026): describe la versión que corría en Google Cloud. Lo vigente está en [ARQUITECTURA.md](../../ARQUITECTURA.md).
+
 Fecha: 2026-09-15 · Alcance: `main.py`, `deterministic.py`, `agents/**`, `tools/**` (≈15 200 líneas) · Método: lectura completa del código; no se ejecutó nada contra producción. Todo hallazgo lleva `archivo:línea` (rutas relativas a `backend/agent/` salvo que se indique otra cosa). Lo que no se pudo determinar leyendo el código está marcado como **[no verificable en código]**.
 
 Contexto de producción asumido (env del servicio `agent-orchestrator-adk`): `GEMINI_MODEL=gemini-2.5-flash`, `GEMINI_MODEL_SMART=gemini-2.5-flash`, `GEMINI_MODEL_FAST=gemini-2.5-flash-lite`, `DETERMINISTIC_PIPELINE=1`, `PARALLEL_RESEARCH=1`, `GOOGLE_GENAI_USE_VERTEXAI=true`, `GOOGLE_CLOUD_LOCATION=global`. Nota: `infrastructure/terraform/cloud_run.tf:57-59` declara `GEMINI_MODEL_SMART=gemini-2.5-pro`; hay deriva entre Terraform y el servicio real.

@@ -1,5 +1,8 @@
 # Vigía Perú
 
+> Documento histórico (septiembre de 2026): cuenta Vigía como era entonces, cuando cada lectura se financiaba a S/ 3 por
+> contrato. Lo vigente está en el [README](README.md) y en [ARQUITECTURA.md](ARQUITECTURA.md).
+
 *Qué es, cómo funciona y de dónde saca lo que dice.*
 
 ---

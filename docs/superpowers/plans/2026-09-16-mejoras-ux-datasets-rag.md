@@ -1,5 +1,7 @@
 # Plan 2026-09-16 — Tres frentes: UX/UI (5 iteraciones), datasets y pipelines nuevos, RAG normativo en GCP
 
+> Documento histórico (septiembre de 2026): un plan de trabajo de cuando Vigía corría en Google Cloud. Lo vigente está en [ARQUITECTURA.md](../../../ARQUITECTURA.md).
+
 > **For agentic workers:** REQUIRED SUB-SKILL: superpowers:subagent-driven-development o superpowers:executing-plans. Checkboxes (`- [ ]`) para seguimiento. Tres workstreams con archivos disjuntos: **U** (frontend + API de lectura), **D** (scrapers + migraciones de datos + jobs), **R** (RAG: GCS + Vertex AI + `tools/legal.py`).
 
 **Estado de partida (hechos, 2026-09-16):** 20 contratos de bienes financiados por Vigía Perú y procesados (VIG-2026-00004/00005), 4 servicios Cloud Run por tipo, cola financiable = bienes con adjudicación/contrato (4 207), 18 394 contratos con record completo, 550 con documentos listos, ranking y muro de aliados sobre vistas materializadas, self-eval bloqueante (`alertas.estado='revision'`), scrapers probados: `oece_ocds`, `pnda_sancionados`, `pnda_visitas`; esqueletos: `onpe_claridad`, `jne_infogob`; RAG legal: 721 opiniones OECE en Vertex AI Search (`tools/legal.py`, `LEGAL_RAG_BACKEND=vertex`), sin normas primarias ni jurisprudencia.

@@ -1,5 +1,7 @@
 # U1 + U4 · recorrido en navegador (2026-09-16)
 
+> Documento histórico (septiembre de 2026): un recorrido de la versión que corría en Google Cloud. Lo vigente está en [ARQUITECTURA.md](../../../../ARQUITECTURA.md).
+
 Plan: `docs/superpowers/plans/2026-09-16-mejoras-ux-datasets-rag.md` (§ U1 "El mapa y las cifras dicen la verdad" y § U4 "Admin que sirve para operar"). Dos pasadas navegador → ajuste → deploy. Capturas `NN-*.png` en esta carpeta (`-v1` = primera pasada, `-v2` = después de los ajustes).
 
 ## Lo que se veía mal y por qué

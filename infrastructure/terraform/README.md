@@ -1,5 +1,8 @@
 # Terraform de la plataforma
 
+> Legado: declara la plataforma en GCP, que está sin facturación. Hoy Vigía corre en Cloudflare y AWS
+> (`docs/PROVEEDORES.md`), y la base, AWS RDS, se declara en `cloud_sql/terraform`.
+
 Declara la base de la plataforma en un proyecto de GCP:
 
 - APIs, agentes de servicio de Vertex y cuentas propias (`vigia-agentes`, `vigia-jobs`, `vigia-pgbouncer`) con sus roles;

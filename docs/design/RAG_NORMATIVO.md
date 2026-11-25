@@ -1,5 +1,7 @@
 # RAG normativo en GCP (Frente R · plan 2026-09-16 §3)
 
+> Documento histórico (septiembre de 2026): el RAG normativo en Google Cloud. Lo reemplazó [RAG_NORMATIVO_V2.md](RAG_NORMATIVO_V2.md); lo vigente está en [ARQUITECTURA.md](../../ARQUITECTURA.md).
+
 **Qué es.** El agente legal y el evaluador de cumplimiento de Vigía Perú citaban solo las 721
 opiniones OECE (Vertex AI Search) y el marco normativo "de memoria" del modelo. Este frente carga
 las normas primarias (Ley 32069 + D.S. 009-2025-EF; TUO Ley 30225 + D.S. 344-2018-EF), los

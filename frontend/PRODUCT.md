@@ -34,9 +34,9 @@ Esa última parte es la que no se puede copiar sin renunciar al modelo de negoci
 ## Operating Context
 
 - **Escena de uso dominante:** celular, en la calle o en casa, con conexión irregular, luz de día. El escritorio es la escena del periodista y del auditor, no la del ciudadano.
-- **Pipeline:** determinista, corre en código (`deterministic.py`), no lo dirige un LLM orquestador. 4 servicios Cloud Run separados por tipo de contrato (bienes / servicios / obras / otros) vía `PIPELINE_PROFILE`.
+- **Pipeline:** determinista, corre en código (`deterministic.py`), no lo dirige un LLM orquestador. 5 Lambdas de AWS, una por red de contrato (bienes, servicios, obras, consultoría y directas), vía `PIPELINE_PROFILE`. Sólo modelos abiertos de Workers AI, por el Worker `vigia-llm`.
 - **Asignación de trabajo:** FIFO por antigüedad en SQL. El pipeline no sabe quién financió.
-- **Fuentes:** API OCDS del OECE, SEACE, PNDA (sanciones, visitas, declaraciones juradas), MEF, Infogob, ONPE/Claridad. Varias bloquean IPs de GCP: hay un relay residencial en Lima para alcanzarlas.
+- **Fuentes:** API OCDS del OECE, SEACE, PNDA (sanciones, visitas, declaraciones juradas), MEF, Infogob, ONPE/Claridad. Varias bloquean las IPs de nube: hay una salida por Lima para alcanzarlas.
 - **Latencia real del análisis:** ~10 minutos por contrato tras paralelizar web∥news∥entity. No es instantáneo y la interfaz no debe fingir que lo es.
 - **Datos personales:** DNI y último apellido de personas naturales van redactados tras vidrio esmerilado revelable al clic. Empresas y funcionarios públicos NO se censuran.
 
@@ -54,9 +54,9 @@ Capacidades confirmadas y en producción:
 
 Restricciones técnicas vinculantes:
 
-- Next.js 14.2.5 App Router. Server Components async por defecto. **Un Server Component no puede pasar una función como prop a un Client Component: rompe solo en producción, ni `tsc` ni `next build` lo detectan.** Ya ocurrió dos veces en este repo.
-- No hay librería de animación (framer-motion, GSAP) ni de charts (d3, recharts, visx). Todo es CSS y SVG propio, deliberadamente.
-- Despliegue en Cloud Run por Buildpacks; el peso del bundle se paga en cold start.
+- Next.js 14.2.35 App Router. Server Components async por defecto. **Un Server Component no puede pasar una función como prop a un Client Component: rompe solo en producción, ni `tsc` ni `next build` lo detectan.** Ya ocurrió dos veces en este repo.
+- La única librería de animación es GSAP, diferida y sólo en las escenas de la portada (`lib/gsap.ts`): con movimiento reducido no se descarga. No hay framer-motion ni librerías de charts (recharts, visx); el mapa usa `d3-geo` sólo para la proyección. Lo demás es CSS y SVG propio, deliberadamente.
+- Despliegue en Cloudflare Workers con OpenNext (el Worker `vigia-web`); el peso del bundle cuenta contra el tope de tamaño del Worker.
 - El backend expone endpoints que el frontend a veces no llama, y `mock-data.ts` sigue sirviendo pantallas que parecen reales. Cualquier visualización nueva debe declarar de qué lado vive.
 
 Terminología del producto (es la que ve el usuario, no se traduce ni se adorna):
@@ -77,7 +77,7 @@ Terminología del producto (es la que ve el usuario, no se traduce ni se adorna)
 
 - Datos reales en producción: 18 000+ contratos OCDS, 25 regiones, dossiers ya procesados con traza completa de agentes, contribuciones y aliados reales.
 - Observabilidad real: spans y evaluaciones en Arize Phoenix, self-eval inline con 4 jueces por corrida, costo y duración por agente.
-- **Ausencias que no se deben inventar:** no hay pasarela de pagos en vivo (Mercado Pago pendiente), no hay envío de correos, y varias pantallas siguen leyendo `mock-data.ts`. Ninguna cifra, testimonio, logo de aliado o caso de éxito puede fabricarse: este producto acusa de falta de transparencia, y un dato inventado en su propia interfaz lo destruye.
+- **Ausencias que no se deben inventar:** los cobros de Gobserva están en pausa (Mercado Pago está integrado, pero los planes salen como «próximamente»), y varias pantallas siguen leyendo `mock-data.ts`. Ninguna cifra, testimonio, logo de aliado o caso de éxito puede fabricarse: este producto acusa de falta de transparencia, y un dato inventado en su propia interfaz lo destruye.
 
 ## Product Principles
 

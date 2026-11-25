@@ -72,6 +72,9 @@ Vigía es un producto de Gobserva. El dominio `gobserva.cloud` (comprado en IONO
   `publico/`, que Cloudflare sirve antes de llegar al Worker (`assets` en `wrangler.jsonc`, encabezados en
   `publico/_headers`). Todo eso lo escribe `marca/generar_marca.py`: no editarlo a mano (`--og` rehace sólo `og.png`, que
   dibuja el mapa en la pantalla del radar, como la portada).
+- Los productos no pasan por este Worker: `empleo`, `licitaciones`, `obras`, `salud` y `car` `.gobserva.cloud` los
+  sirve el mismo Worker que Vigía (`vigia-web`), y `frontend/middleware.ts` lleva cada subdominio a su ruta
+  (`frontend/lib/gobserva.ts`).
 - `www.gobserva.cloud` → 301 a `gobserva.cloud`; cualquier otra ruta → 302 a la misma en `vigia.gobserva.cloud` (los
   enlaces viejos siguen andando; 302 porque un 301 queda guardado en el navegador). Antes (29 al 31-oct) la raíz
   redirigía entera a Vigía.
@@ -104,7 +107,7 @@ Vigía es un producto de Gobserva. El dominio `gobserva.cloud` (comprado en IONO
 
 ## Estado (2026-10-29)
 
-- Zona `gobserva.cloud` creada en Cloudflare (id `1324ec9688788a6080a56e529bd5fe53`), con los 7 registros del correo.
+- Zona `gobserva.cloud` creada en Cloudflare, con los 7 registros del correo.
   Nameservers: `ainsley.ns.cloudflare.com` y `syeef.ns.cloudflare.com` (los mismos de simplia.store). DNSSEC apagado en IONOS.
 - `vigia.gobserva.cloud` es custom domain de `vigia-web`, creado por la API (`PUT /accounts/:id/workers/domains`), NO
   en `frontend/wrangler.jsonc`: así el deploy del CI no necesita permisos sobre la zona. Si un deploy lo borrara,

@@ -1,5 +1,8 @@
 # Snapshot y restauración de la base
 
+> Legado: es el procedimiento de Cloud SQL, y esa instancia se borró en octubre de 2026, cuando la base pasó a AWS RDS.
+> Hoy la copia y el traslado de datos están en `cloud_sql/README.md` (`cloud_sql/archivos/migrar.sh`).
+
 Cómo sacar una copia completa de `vigia` y levantarla en otra instancia o en otro proyecto. Es lo que se usó para mudar la base de `vivid-spot-480905-a4` a `project-a974c6e5-0cdf-4b11-a86` el 29/09/2026: estructura, filas, dueños y permisos quedaron idénticos.
 
 **La copia tiene datos personales (DNI, nombres). Nunca va al repositorio ni a un bucket público.**

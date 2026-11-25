@@ -1,6 +1,11 @@
 # vigia-precios
 
-Precios de referencia propios para el análisis de mercado de bienes (`backend/agent/tools/market/catalogos.py`).
+Precios de referencia propios para el análisis de mercado de bienes. Es el Worker `vigia-precios`, en Cloudflare
+Workers, con una base D1 (`vigia-precios`, esquema en `schema.sql`). URL: `https://vigia-precios.vigiaperu.workers.dev`.
+
+Lo usan los agentes (`backend/agent/tools/market/catalogos.py`, con `PRECIOS_URL` y `PRECIOS_TOKEN`, que pone
+`infrastructure/deploy/aws/agentes.sh`) y el laboratorio de precios (`vigia-precios-lab`, por service binding).
+Sin esas variables, el agente consulta las tiendas directo y no usa Osinergmin ni EMMSA.
 
 | Fuente | Qué es | Cómo se usa |
 |---|---|---|
@@ -10,11 +15,12 @@ Precios de referencia propios para el análisis de mercado de bienes (`backend/a
 | Ripley (solo búsquedas) | Página `simple.ripley.com.pe/search/<término>` (Next.js, 3-4 MB): `findabilityProps.data.products`, sin patrocinados (`sponsored`) ni agotados; vendedor del marketplace (`shop.shopName`). | Igual. |
 | Hiraoka (solo búsquedas, tecnología) | GraphQL de Magento (`POST /graphql`, `products(search:)`), sin agotados. | Igual. |
 | Tai Loy (solo búsquedas, útiles de oficina) | HTML de Magento `/catalogsearch/result/?q=` (`data-price-amount`, precio final y anterior). Su buscador es flojo fuera de papelería. | Igual. |
+| Osinergmin, Registro de Precios de Distribuidores Minoristas (SCOP) | Reporte diario oficial y abierto (`CL-Registro-precios-DMIN.csv`, UTF-8, `;`). | Cron diario; el agente recibe p25, mediana y p75 por departamento (o nacional si hay menos de 3 declaraciones). |
+| EMMSA, Gran Mercado Mayorista de Lima (`src/mayorista.ts`) | Precio diario por kilo (mínimo, máximo y promedio) de unas 110 variedades de hortalizas, tubérculos y frutas, del reporte que publica su web. | Cron diario (ayer y hoy) y un relleno del historial hasta 2014 (tabla `mayorista`). |
 
 Cada producto de `/tiendas/buscar` trae `tienda, producto, marca, sku, precio, precio_lista, unidad_medida, multiplicador,
 vendedor, url, patrocinado` (`patrocinado` siempre false: se descartan al leer). Una respuesta sin la forma esperada
 (desafío anti-bots, página de error) cuenta como fallo y no va a la caché; una página válida sin resultados, sí.
-| Osinergmin · Registro de Precios de Distribuidores Minoristas (SCOP) | Reporte diario oficial y abierto (`CL-Registro-precios-DMIN.csv`, UTF-8, `;`). | Cron diario; el agente recibe p25, mediana y p75 por departamento (o nacional si hay < 3 declaraciones). |
 
 ## Rutas (Bearer `PRECIOS_TOKEN`, SSM `/vigia/precios/token`)
 
@@ -22,18 +28,27 @@ vendedor, url, patrocinado` (`patrocinado` siempre false: se descartan al leer).
 - `GET /tiendas/buscar?q=<término>&n=4[&tiendas=ripley.com.pe,hiraoka.com.pe]` (`n` hasta 10; `tiendas`: los `id` de `src/tiendas.ts`)
 - `GET /combustible?producto=<texto>&departamento=<depto>&dias=120`
 - `GET /historial?q=<término>&dias=180`: precios vistos (índice propio).
-- `POST /admin/actualizar?que=combustible|canasta`
+- `GET /mayorista?q=<producto>&dias=30[&hasta=AAAA-MM-DD]`: EMMSA, precio por kilo de cada variedad en los días previos.
+- `POST /admin/actualizar?que=combustible|canasta|mayorista[&desde=&hasta=]`: corre ya lo que hace el cron.
 
-## Operación
+## Crons (`wrangler.jsonc`)
+
+| Cron (UTC) | Hora de Lima | Qué hace |
+|---|---|---|
+| `0 12 * * *` | 07:00, a diario | Osinergmin y EMMSA (ayer y hoy) |
+| `0 13 * * 1` | 08:00, los lunes | la canasta semanal de las tiendas (índice propio) |
+| `*/3 * * * *` | cada 3 min | rellena el historial de EMMSA hacia atrás hasta 2014; después no hace nada |
+
+## Probar y desplegar
 
 ```bash
-npm install && npm test && npm run typecheck
-npx wrangler d1 execute vigia-precios --remote --file schema.sql   # una vez
-npx wrangler deploy
+cd backend/precios-worker
+npm ci && npm test && npm run typecheck
+npx wrangler d1 execute vigia-precios --remote --file schema.sql   # sólo si cambió el esquema
+bash infrastructure/deploy/cloudflare/worker.sh precios             # desde la raíz del repo
 ```
 
-En la Lambda del agente: `PRECIOS_URL=https://vigia-precios.vigiaperu.workers.dev` y `PRECIOS_TOKEN`.
-Sin esas variables, el agente consulta las tiendas directo y no usa Osinergmin.
+`worker.sh` se niega si la carpeta tiene cambios sin commitear. Secreto: `PRECIOS_TOKEN` (`npx wrangler secret put`).
 
 ## Fuentes evaluadas y descartadas (2026-10-18)
 

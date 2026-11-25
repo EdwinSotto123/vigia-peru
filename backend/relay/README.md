@@ -1,5 +1,8 @@
 # Vigía — Servicio local de descarga (puente residencial PE) · RETIRADO
 
+> Legado: retirado el 30 de septiembre de 2026. Lo reemplazó el Worker `vigia-relay` (`backend/relay-worker`), en Zúrich;
+> para las fuentes que sólo responden a IPs del Perú está `backend/relay-lima`.
+
 > **Retirado el 30/09/2026.** El VPS de Lima que lo corría ya no existe. Lo reemplaza el Worker
 > `vigia-relay` (`backend/relay-worker`, misma API `/health`, `/fetch`, `/download`), que corre en
 > Zúrich por `placement`: OECE y SEACE filtran por la IP de salida y aceptan la de ese punto de

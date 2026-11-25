@@ -1,5 +1,8 @@
 # Firebase Hosting delante de Vigía Perú
 
+> Legado: el sitio ya no pasa por Firebase Hosting ni por Cloud Run. Es el Worker `vigia-web` en `vigia.gobserva.cloud`
+> (`frontend/CLOUDFLARE.md`); aquí queda la configuración vieja y la de pausa, que manda `vigia-peru.web.app` al dominio.
+
 `https://vigia-peru.web.app` es la entrada pública con CDN (auditoría 2026-09-25, hallazgo A7): Hosting
 reenvía todo a Cloud Run y su CDN guarda lo que las respuestas marcan `public, s-maxage=N`
 (páginas ISR del frontend y GET públicos de la API). Lo `private, no-store` no se guarda.

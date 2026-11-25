@@ -1,5 +1,10 @@
 # backend/scrapers/
 
+> Hoy: los pipelines automáticos corren desde el 2026-10-14 en el Worker `vigia-scrapers` (`backend/scrapers-worker`). Este
+> paquete sigue en uso desde una PC: los modos manuales (`pnda_visitas --xlsx`, `jne_infogob --root`), como librería de
+> scripts de `backend/scripts` (por ejemplo `cargar_visitas_nacional.py`) y como referencia de las pruebas de paridad del
+> Worker. Lo que dice abajo de Cloud Run, Cloud Scheduler, GCS y el VPS de Lima es historia.
+
 Pipelines de ingesta automática: **descargar → versionar el crudo → normalizar → cargar a Postgres**.
 Reemplazan las descargas manuales con las que se armó `dataset/` durante el hackathon.
 

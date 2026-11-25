@@ -25,7 +25,8 @@ la portada.
 
 - Next.js 14.2 (App Router), React 18 y TypeScript estricto.
 - Tailwind con tokens en `app/globals.css`: colores RGB por variable, modo día y noche con `html[data-modo]`.
-- lucide-react como único set de íconos, SWR y Firebase Auth (cuentas de Gobserva).
+- lucide-react como único set de íconos y SWR. Cuentas: AWS Cognito para las apps de Gobserva (desde el 2026-11-07, ver
+  «Cuentas separadas por app») y Firebase Auth para Vigía.
 - API propia en Cloudflare Workers (`backend/api`, Hono y Postgres en RDS).
 - Despliegue de la web por GitLab CI (`deploy:web:prod`) a Cloudflare.
 - Sin prettier. La guardia de estilo es `npm run auditar:estilo`.
@@ -206,7 +207,7 @@ En producción y probado de punta a punta con usuarios desechables:
   borra también sus líneas, búsquedas y checklist. La migración está aplicada en PROD y en DEV.
 - **Asistente del proceso** (pestaña «Asistente», `POST /gobserva/cuenta/asistente`, `lib/asistente.ts`). Responde
   en tus palabras con los datos de la ficha: ítems, plazos (comparados con la fecha de hoy), el comprador, precios de
-  compras parecidas y señales. Usa Haiku 5.5 por vigia-llm. Lo que está sólo en las bases (requisitos, experiencia,
+  compras parecidas y señales. Usa DeepSeek V4.1 Flash de Workers AI por vigia-llm (`/nativo`). Lo que está sólo en las bases (requisitos, experiencia,
   ofertas) lo dice y manda al SEACE. No lee el PDF: de las 5.150 convocatorias abiertas, ninguna tiene el texto de sus
   documentos indexado. Indexar las bases de lo abierto es el paso siguiente para que responda sobre requisitos.
 - **Contratos menores y Mercado** con la misma estructura que la bandeja. La lista en la URL es una sola pieza
@@ -282,7 +283,7 @@ palabra «arquitecto» se buscaba como texto suelto en el título y en la formac
   nivel, con tildes y sin repetir. Las de Arquitectura se llaman «especialista en infraestructura» o «en catastro», casi
   nunca «arquitecto». Los puestos del CV quedan marcados, pero la pregunta se hace igual.
 
-**CV** (`backend/api/src/lib/cv.ts`): la entrevista empieza ofreciendo leerlo. Haiku 5.5 (por vigia-llm, `/nativo`) lee
+**CV** (`backend/api/src/lib/cv.ts`): la entrevista empieza ofreciendo leerlo. DeepSeek V4.1 Flash (Workers AI, por vigia-llm, `/nativo`) lee
 el PDF o la foto y devuelve sólo carreras, grado, años de experiencia (total y en el Estado), puestos y región. El archivo
 no se guarda ni se registra; el modelo tiene prohibido devolver datos personales y la API descarta lo que parezca un DNI
 o un correo. Las preguntas que el CV respondió quedan como respuestas con «Cambiar».

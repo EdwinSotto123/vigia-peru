@@ -1,5 +1,8 @@
 # Mudar Vigía a otro proyecto de GCP
 
+> Legado: GCP está sin facturación y Vigía corre en Cloudflare y AWS (`docs/PROVEEDORES.md`). La base se mudó a AWS RDS
+> el 2026-10-12 (`cloud_sql/README.md`).
+
 La receta completa para llevar la plataforma a un proyecto nuevo (por ejemplo, uno más grande y financiado), probada en la mudanza `vivid-spot-480905-a4` → `project-a974c6e5-0cdf-4b11-a86` del 29/09/2026.
 
 Cómo terminó esa mudanza:

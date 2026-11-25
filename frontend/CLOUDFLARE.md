@@ -1,84 +1,115 @@
-# Réplica en Cloudflare Workers
+# vigia-web en Cloudflare Workers
 
-El mismo frontend (Next.js 14.2) corre también como worker `vigia-web`
-(`https://vigia-web.vigiaperu.workers.dev`) con OpenNext. Cloud Run no cambia:
-`infrastructure/deploy/gcp/frontend.sh` sigue siendo el deploy de siempre.
+El sitio (`frontend/`, Next.js 14.2) corre como el Worker `vigia-web` con OpenNext. Es su único despliegue: Cloud Run y
+Firebase Hosting quedaron como legado (`infrastructure/hosting/README.md`). El dominio público es
+`vigia.gobserva.cloud`; lo que entra por `vigia-web.vigiaperu.workers.dev` se redirige ahí.
 
-- Adaptador: `@opennextjs/cloudflare` **1.15.1**, fijo. Es el último que acepta Next 14
-  (desde 1.16 exige Next 15). No subirlo sin migrar Next.
-- Archivos: `wrangler.jsonc`, `open-next.config.ts`.
+- Adaptador: `@opennextjs/cloudflare` **1.15.1**, fijo. Es el último que acepta Next 14 (desde 1.16 exige Next 15). No
+  subirlo sin migrar Next.
+- Archivos: `wrangler.jsonc`, `open-next.config.ts` y las entradas del Worker: `worker-prod.js` (producción),
+  `worker-dev.js` (DEV) y `worker-comun.js` (lo que comparten).
+
+## La entrada de producción (`worker-prod.js`)
+
+Envuelve el build de OpenNext sin cambiar el código de la web:
+
+- Redirige `vigia-web.vigiaperu.workers.dev` al dominio: en `*.workers.dev` no hay WAF ni límites de la zona.
+- Reenvía `/v1/…` a la API con la IP de quien pide (`x-vigia-ip`). La API sólo atiende a nuestros Workers.
+- Cuenta 300 páginas por minuto por IP con el Durable Object `Limitador` de `vigia-api` (binding `LIMITADOR`). Los
+  prefetch de Next no cuentan.
+- Veta una hora a la IP que pide la trampa: un enlace escondido a una ruta que `robots.txt` prohíbe.
+- No deja que `/cdn-cgi/…` llegue al build de OpenNext.
+
+Los productos de Gobserva entran por sus subdominios al mismo Worker; los reparte `middleware.ts`.
 
 ## Comandos
 
 ```bash
-npm run cf:build     # next build + bundle del worker en .open-next/
-npm run cf:preview   # el worker en local (workerd): http://localhost:8788
+npm run cf:build     # next build + el Worker en .open-next/
+npm run cf:preview   # el Worker en local (workerd): http://localhost:8788
 npm run cf:deploy    # build + deploy (necesita `wrangler login` o CLOUDFLARE_API_TOKEN)
 ```
 
-`cf:build` usa `.env.production` (los `NEXT_PUBLIC_*` de Firebase), igual que Cloud Run.
-En Windows funciona (OpenNext avisa que prefiere Linux); para producción, mejor Linux o CI.
+Producción se despliega desde GitLab: el job manual `deploy:web:prod` arma el Worker con `scripts/fetch-build.cjs` y la
+variable secreta `VIGIA_BUILD_TOKEN` (así prerenderiza con datos) y corre `opennextjs-cloudflare deploy`. Desde la PC,
+`bash infrastructure/deploy/cloudflare/web.sh` hace un build local; no lo corras con un `next dev` abierto, porque
+comparten `.next`.
 
-## Variables
+`cf:build` toma los `NEXT_PUBLIC_*` de Firebase de `.env.production` en la PC; en el CI, de las variables del proyecto.
+En Windows funciona (OpenNext avisa que prefiere Linux).
 
-En `wrangler.jsonc` (`vars`, no son secretas): `VIGIA_API_URL`, `VIGIA_AGENT_URL`,
-`GOOGLE_CLOUD_PROJECT`, `DOCS_BUCKET`, `REPORTES_BUCKET`, `GCS_BUCKET_PRIVADO`,
-`OECE_RELAY_URL`. Opcional: `AGENT_ID_TOKEN`. Bucket R2: `vigia-web-cache` (binding `NEXT_INC_CACHE_R2_BUCKET`).
+## Bindings y variables (`wrangler.jsonc`)
 
-Secretos, una vez por cuenta (`npx wrangler secret put NOMBRE`):
+| Binding | Qué es |
+|---|---|
+| `ASSETS` | los estáticos de `.open-next/assets` |
+| `IMAGES` | `/_next/image` con Cloudflare Images |
+| `NEXT_INC_CACHE_R2_BUCKET` | la caché de páginas en R2 (`vigia-web-cache`) |
+| `MEDIOS` | R2 `vigia-peru-reportes`: lo público, servido en `medios.gobserva.cloud` |
+| `PRIVADO` | R2 `vigia-peru-privado`: los comprobantes |
+| `DOCUMENTOS` | R2 `vigia-peru-documentos`: lo que sube «Analizar» del panel |
+| `WORKER_SELF_REFERENCE` | la revalidación ISR: el Worker se pide a sí mismo la página vencida |
+| `LIMITE_SUBIDAS` | 10 subidas por IP cada 60 s en `/api/upload` |
+| `LIMITADOR` | el Durable Object de `vigia-api` que cuenta las páginas por IP |
+
+`placement` es `aws:us-east-2`, junto a la API y la base.
+
+Variables (`vars`, no son secretas):
+
+- `VIGIA_API_URL`: la API.
+- `AGENT_URL_BIENES`, `_SERVICIOS`, `_OBRAS`, `_CONSULTORIA` y `_OTROS`: las Lambdas de agentes, una por red. Las usa
+  «Analizar» del panel (`app/api/agent/_orquestador.ts`).
+- `OECE_RELAY_URL`: el relay hacia el OECE.
+- `DOCS_BUCKET`, `REPORTES_BUCKET` y `GCS_BUCKET_PRIVADO`: nombres de bucket que `lib/gcs.ts` traduce a su binding de R2.
+- Legado: `VIGIA_AGENT_URL` y `GOOGLE_CLOUD_PROJECT` (el orquestador de Cloud Run). Sólo se usan si no hay Lambdas.
+
+Secretos, una vez por entorno (`npx wrangler secret put NOMBRE`):
 
 | Secreto | Qué es |
 |---|---|
-| `ADMIN_TOKEN` | el mismo de Cloud Run (`admin-token`) |
-| `ADMIN_EMAILS` | el mismo de Cloud Run (`admin-emails`) |
-| `ADMIN_SESSION_SECRET` | el mismo de Cloud Run (`admin-session-secret`) |
-| `GCP_SA_KEY` | llave JSON de `vigia-frontend@…`: firma los ID tokens del orquestador y los tokens de Cloud Storage |
+| `ADMIN_TOKEN` | el token de servicio del panel hacia la API |
+| `ADMIN_EMAILS` | los administradores principales |
+| `ADMIN_SESSION_SECRET` | la llave que firma la cookie de sesión del panel |
+| `TURNSTILE_SECRET_KEY` | el captcha de los formularios |
+| `AGENTE_TOKEN` | la llave para llamar a las Lambdas de agentes |
 
-En Workers no hay servidor de metadatos ni credenciales por defecto de Google: sin
-`GCP_SA_KEY`, las subidas a GCS fallan y el orquestador (IAM-only) responde 403. La cuenta
-necesita los mismos permisos que en Cloud Run (`run.invoker` en los agentes, escritura en
-los buckets).
+`GCP_SA_KEY` es legado: firmaba los tokens de Cloud Run y de Cloud Storage. Con las Lambdas y R2 no hace falta.
 
-Del build (se fijan al compilar, van al navegador):
+Del build (se fijan al compilar y van al navegador):
 
-- `NEXT_PUBLIC_SITE_URL=https://vigia-web.vigiaperu.workers.dev`: URLs de Open Graph.
-- `NEXT_PUBLIC_VIGIA_API_URL`: la API que llama el navegador. Sin ella, el navegador sigue
-  usando la API de Cloud Run (la URL fija de `lib/api-client.ts`).
+- `NEXT_PUBLIC_SITE_URL=https://vigia.gobserva.cloud`: enlaces para compartir e imágenes Open Graph.
+- `NEXT_PUBLIC_VIGIA_API_URL`: la API.
+- `NEXT_PUBLIC_TURNSTILE_SITE_KEY` y los `NEXT_PUBLIC_FIREBASE_*`: claves públicas de cliente.
 
-```bash
-NEXT_PUBLIC_SITE_URL=https://vigia-web.vigiaperu.workers.dev \
-NEXT_PUBLIC_VIGIA_API_URL=https://vigia-api.vigiaperu.workers.dev npm run cf:build
-```
+En local, `.dev.vars` (ignorado por git) pisa variables y pone secretos de prueba para `cf:preview`.
 
-En local, `.dev.vars` (ignorado por git) pisa variables y pone secretos de prueba, por
-ejemplo `VIGIA_API_URL` apuntando a la API de Cloud Run. `STORAGE_EMULATOR_HOST` apunta
-GCS a un emulador, como en `@google-cloud/storage`.
+## Qué cambia respecto de Node
 
-## Qué cambia respecto de Cloud Run
-
-- **Credenciales de Google**: `lib/cuenta-google.ts` (JWT RS256 con WebCrypto). Lo usan
-  `app/api/agent/_orquestador.ts` y `lib/gcs.ts` sólo en Workers (`lib/entorno.ts`).
-- **Cloud Storage**: en Workers, API JSON por `fetch`; en Node, `@google-cloud/storage`.
-  `undici` y `@google-cloud/storage` quedan fuera del worker (`next.config.js`).
-- **Caché de páginas**: en R2 (`vigia-web-cache`), compartida por todas las instancias, con una capa
-  regional (Cache API de cada punto) delante. `cf:deploy` sube lo prerenderizado. ISR: el worker se
-  pide a sí mismo la página vencida.
-- **Compresión**: el borde de Cloudflare comprime; las rutas que gzipeaban a mano no lo
-  hacen en Workers (saldría gzip dentro de gzip).
-- **Imágenes**: `/_next/image` usa el binding `IMAGES` (Cloudflare Images).
-- **Ícono y tarjetas Open Graph**: runtime Node (OpenNext no corre rutas `edge`). Con
-  `next dev` o `next start` en Windows se sirve el logo fijo (`lib/imagen-fija-windows.ts`): bug de
-  `next/og` con las rutas de Windows. En Linux (Cloud Run, Workers) se dibujan igual que antes.
+- **Archivos**: en Workers van a R2 por binding (`lib/gcs.ts`). Fuera de Workers queda el camino viejo de Cloud Storage,
+  que ya no responde (GCP está sin facturación).
+- **Caché de páginas**: en R2 (`vigia-web-cache`), compartida por todas las instancias, con una capa regional (Cache API
+  de cada punto) delante. Va por build: un despliegue nuevo no sirve páginas del anterior. `cf:deploy` sube lo
+  prerenderizado.
+- **Compresión**: la hace el borde de Cloudflare; las rutas que comprimían a mano no lo hacen en Workers (saldría gzip
+  dentro de gzip).
+- **Imágenes**: `/_next/image` usa el binding `IMAGES`.
+- **Ícono y tarjetas Open Graph**: runtime Node (OpenNext no corre rutas `edge`). Con `next dev` o `next start` en
+  Windows se sirve el logo fijo (`lib/imagen-fija-windows.ts`), por un bug de `next/og` con las rutas de Windows.
 
 ## Límites
 
 - Tamaño: ~2,5 MB comprimido (tope 3 MB en el plan gratis, 10 MB en el pago).
 - CPU: renderizar Next pasa los 10 ms por pedido del plan gratis; hace falta el plan pago.
-- `/api/agent/analyze` (sin stream) espera la respuesta entera del orquestador; la UI usa
-  `/api/agent/analyze/stream`, que manda bytes mientras corre.
+- `/api/agent/analyze` (sin stream) espera la respuesta entera del agente; la UI usa `/api/agent/analyze/stream`, que
+  manda bytes mientras corre.
 
-## Sin memoria para el build
+## DEV
 
-`bash infrastructure/deploy/cloudflare/web.sh` hace el `next build` en Cloud Build (`frontend/cloudbuild-cf.yaml`) y despliega desde la PC con una carpeta mínima (solo el adaptador y wrangler). No toca el `.next` de `next dev`.
+`env.dev` de `wrangler.jsonc` es el Worker `vigia-web-dev`: entra por `worker-dev.js` (usuario y clave, noindex y una
+franja DEV), habla con `vigia-api-dev` y tiene su propia caché (`vigia-web-cache-dev`). Los buckets `MEDIOS` y
+`PRIVADO` son los mismos de producción. Detalle en `docs/DEV.md`.
 
-El build de Cloud Build importa `.wasm` con rutas absolutas `/workspace/frontend/...`; el script las reescribe antes de `opennextjs-cloudflare deploy`. Así se desplegó el 29/09/2026, con 0,9 GB libres en la PC.
+## Legado: build en Cloud Build
+
+`USAR_CLOUD_BUILD=1 bash infrastructure/deploy/cloudflare/web.sh` hacía el `next build` en Cloud Build
+(`frontend/cloudbuild-cf.yaml`) y desplegaba desde la PC. No anda mientras GCP siga sin facturación.

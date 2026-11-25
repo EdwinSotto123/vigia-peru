@@ -1,5 +1,8 @@
 # MCP de Vigía (Cloud Run)
 
+> Legado: no corre. El MCP vigente es `backend/mcp-worker` (https://mcp.gobserva.cloud/mcp), y desde el 2026-11-06 GCP
+> está sin facturación. Sólo lo usa la prueba de paridad del servidor de antes (`backend/mcp-worker/scripts/mcp_python_local.py`).
+
 Servidor MCP en Python con 3 herramientas de solo lectura: `buscar_alertas`, `riesgo_convocatoria` y `empresa_sancionada`. Su réplica en Cloudflare es `backend/mcp-worker`.
 
 - **Desplegar:** `bash infrastructure/deploy/gcp/mcp.sh`, en el proyecto de la entrada (`ENTRADA_PROJECT_ID`).

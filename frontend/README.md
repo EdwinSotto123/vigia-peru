@@ -1,157 +1,114 @@
-# Vigía Perú — Frontend
+# Vigía: el sitio
 
-Next.js 14 (App Router) + TypeScript + Tailwind + d3-geo + Magic UI.
+El sitio de Vigía y de los productos de Gobserva. Next.js 14 (App Router), React 18, TypeScript estricto y Tailwind.
+Corre en Cloudflare Workers con OpenNext: es el Worker `vigia-web`, con el dominio público `vigia.gobserva.cloud`.
+
+## Qué sirve
+
+- **Vigía**: la portada, la app (`/app`), las fichas de contratos, entidades y empresas, y el panel (`/admin`).
+- **Los productos de Gobserva** (empleo, licitaciones, obras, salud y car), como rutas del mismo sitio. Cada uno tiene
+  su subdominio (`salud.gobserva.cloud`, `car.gobserva.cloud`…): `middleware.ts` lo reescribe a su ruta
+  (`app/(gobserva)/salud`…) según `lib/gobserva.ts`.
+- La portada de `gobserva.cloud` no vive aquí: es el Worker `gobserva-redirect`
+  (`infrastructure/deploy/cloudflare/gobserva-redirect/`).
+
+Los datos salen de la API (`backend/api`, Hono en Workers). El servidor de la web le pide directo; el navegador le pide
+por `/v1` del mismo dominio y `worker-prod.js` lo reenvía, porque la API sólo atiende a nuestros Workers.
 
 ## Cómo correrlo
 
-```powershell
-# 1. Bajar la geometría real del Perú (una sola vez)
-python ..\scripts\fetch_peru_geo.py
-
-# 2. Instalar dependencias y arrancar
+```bash
 cd frontend
 npm install
-npm run dev
+npx next dev -p 3100
 ```
 
-Abre <http://localhost:3000>. El paso 1 deja `public/peru-departments.json`,
-con el cual el choropleth se dibuja. Si saltás ese paso, el mapa muestra una
-tarjeta con instrucciones para correr el script.
+Abre <http://localhost:3100>. Sin más, las páginas salen sin datos: la API de producción rechaza a `next dev`. Hay dos
+formas de tener datos.
 
-## Stack
+**Con una API local.** Levanta `backend/api` (`npm run dev`, puerto 8080, con su `.env`) y apunta la web a ella:
 
-| Capa | Elección |
-|---|---|
-| Framework | Next.js 14 (App Router) |
-| Lenguaje | TypeScript estricto |
-| Estilos | Tailwind CSS con tokens semánticos |
-| Mapa | **d3-geo** (proyección geoMercator + geoPath) sobre SVG nativo |
-| Datos del mapa | **geoBoundaries ADM1** vía `backend/scripts/fetch_peru_geo.py` |
-| Animaciones de UI | **Magic UI** (NumberTicker, BorderBeam, Marquee) — open source MIT |
-| Íconos | `lucide-react` |
-| Fuentes | Inter (sans), Source Serif Pro (display), JetBrains Mono (números) |
+```bash
+VIGIA_API_URL=http://localhost:8080 npx next dev -p 3100
+```
 
-## Por qué d3-geo en vez de Leaflet/react-simple-maps
+**Con los datos de producción, sólo lectura.** Hace falta el encabezado del build: `scripts/fetch-build.cjs` manda
+`x-vigia-build` con `VIGIA_BUILD_TOKEN` a `VIGIA_API_URL`, y la API deja leer.
 
-- **Leaflet** sirve mapas tile-based (terreno, calles). Nuestro caso no necesita eso.
-- **react-simple-maps** envuelve d3-geo, pero ha tenido problemas de compatibilidad con React 18.
-- **d3-geo** es el estándar de facto para proyecciones cartográficas: 12KB gzip, sin peer deps,
-  sólo matemática. Renderizamos `<path>` SVG directo y tenemos control total de estilos.
+```bash
+VIGIA_BUILD_TOKEN=<el secreto> \
+VIGIA_API_URL=https://vigia-api.vigiaperu.workers.dev \
+NODE_OPTIONS="--require ./scripts/fetch-build.cjs" \
+npx next dev -p 3100
+```
 
-## Por qué Magic UI
+`VIGIA_BUILD_TOKEN` es secreto: es una variable enmascarada del CI de GitLab. No la escribas en un archivo del repo ni
+en un comando que quede guardado. Sólo vale para lo que pide el servidor: lo que pide el navegador (`/v1`) va sin el
+encabezado, así que las listas que se cargan en el navegador salen vacías.
 
-Magic UI es una librería de componentes copy-paste (estilo shadcn), MIT, ampliamente usada
-y bien mantenida. Tomé tres componentes representativos:
+En `next dev` las subidas de archivos no andan: en Workers van a R2 por binding (`lib/gcs.ts`), y fuera de Workers
+queda el camino viejo de Cloud Storage, que ya no responde.
 
-- **NumberTicker** — anima los KPIs del hero al entrar al viewport (intersection observer + RAF).
-- **BorderBeam** — haz de luz girando alrededor del contenedor del mapa, en dos
-  capas con colores invertidos para efecto continuo.
-- **Marquee** — ticker horizontal de alertas debajo del header del dashboard.
+## Pruebas
 
-Implementados como vanilla TS, sin framer-motion ni dependencias extra. Animaciones
-declaradas en `tailwind.config.ts` (`marquee`, `border-beam`, `shimmer`).
+```bash
+npx tsc --noEmit -p .
+npm test                 # node --test (Node 22.18 corre TypeScript)
+npm run auditar:estilo   # la guardia de estilo: node scripts/auditar-estilo.mjs
+npm run auditar:limite   # un Server Component que usa una función de un módulo «use client»
+```
+
+GitLab corre las cuatro en el job `verificar:web` con cada push a `main` o `dev` que toque `frontend/`.
+
+## Desplegar
+
+- **Producción**: push a `main` en GitLab y ▶ en el job `deploy:web:prod`, que es manual. Arma el Worker con
+  `npm run cf:build` (con `fetch-build.cjs`, para prerenderizar con datos) y lo sube con `opennextjs-cloudflare deploy`.
+  Ese job fija `NEXT_PUBLIC_SITE_URL=https://vigia.gobserva.cloud`.
+- **DEV**: un push a `dev` despliega solo `vigia-web-dev` (`deploy:web:dev`). Para probar la copia de trabajo sin
+  commitear: `bash infrastructure/deploy/dev.sh web` (`docs/DEV.md`).
+- Bindings, variables y secretos del Worker: [`CLOUDFLARE.md`](CLOUDFLARE.md).
 
 ## Estructura
 
 ```
 frontend/
-├── app/                            # Next App Router
-│   ├── page.tsx                    # Home (hero · métricas · cómo funciona · agentes · mapa · alertas · CTAs)
-│   ├── alerta/[id]/page.tsx        # Detalle de alerta
-│   ├── reporte/nuevo/page.tsx      # Form ciudadano
-│   ├── noticia/page.tsx            # Generador de borrador de noticia con IA (mock)
-│   ├── preguntas/page.tsx          # FAQ
-│   ├── layout.tsx
-│   └── globals.css
-├── components/
-│   ├── PeruChoropleth.tsx          # SVG + d3-geo · fetch a /peru-departments.json
-│   ├── MapaWrapper.tsx             # Shell BI: switcher, marquee, BorderBeam, panel
-│   ├── RegionDetailPanel.tsx       # Drilldown · sparkline · mini-barras · top casos
-│   ├── AgentsRibbon.tsx            # Ribbon en vivo de los 5 agentes IA + AgentsStrip
-│   ├── MetricsHero.tsx             # 4 KPIs con NumberTicker
-│   ├── TopAlertasList.tsx
-│   ├── HowItWorks.tsx              # 3 pasos (vuelto a poner claro)
-│   ├── CallToActionsRow.tsx        # 3 CTAs: denunciar / generar noticia / FAQ
-│   ├── Header.tsx / Footer.tsx / DisclaimerBanner.tsx
-│   ├── magicui/                    # Magic UI (copy-paste, MIT)
-│   │   ├── NumberTicker.tsx
-│   │   ├── BorderBeam.tsx
-│   │   └── Marquee.tsx
-│   ├── charts/
-│   │   ├── Sparkline.tsx           # SVG puro
-│   │   └── MiniBars.tsx            # SVG puro
-│   └── ui/                         # Primitives propios (Badge, Button, Card)
-├── lib/
-│   ├── mock-data.ts                # Alertas, reportes, convergencias (frontend-only)
-│   ├── peru-data.ts                # Datos por región/provincia + helpers
-│   └── utils.ts                    # cn() + normalizeRegionId()
-├── public/
-│   └── peru-departments.json       # ← generado por backend/scripts/fetch_peru_geo.py
-└── types/
+├── app/
+│   ├── (public)/        portada, ingreso, aliados, impacto y auditoría en vivo
+│   ├── (dashboard)/     la app de Vigía (/app), fichas, metodología, preguntas
+│   ├── (gobserva)/      los productos: empleo, licitaciones, obras, salud y car
+│   ├── admin/           el panel, con sesión
+│   └── api/             rutas del servidor: agentes, subidas, panel y MEF
+├── components/          piezas por tema; las comunes, en components/KIT.md
+├── lib/                 lógica, cliente de la API, cuentas y datos de cada producto
+├── middleware.ts        subdominios de Gobserva y protección de /admin
+├── worker-prod.js       entrada del Worker en producción: dominio, límites y /v1
+├── worker-dev.js        entrada en DEV: usuario y clave, noindex y franja DEV
+├── worker-comun.js      lo que comparten las dos entradas
+├── wrangler.jsonc       el Worker vigia-web y su entorno dev
+└── scripts/             fetch-build.cjs, guardias de estilo y auditoría de la UI
 ```
 
-## El motor: 5 agentes de IA (Google ADK)
+Cuentas: Vigía usa Firebase Auth (`lib/firebase.ts`); cada app de Gobserva tiene su grupo de AWS Cognito
+(`lib/cognito.ts`, `infrastructure/aws/cognito_gobserva.py`).
 
-La home menciona explícitamente que detrás del análisis hay **cinco agentes de IA**
-orquestados con Google ADK, cada uno con un rol acotado:
-
-1. `compliance_agent` — aplica las 8 reglas duras de cumplimiento normativo.
-2. `network_agent` — mapea socios, representantes y miembros de consorcio.
-3. `citizen_match_agent` — cruza reportes ciudadanos con alertas automáticas.
-4. `web_research_agent` — busca en SUNAT, JNE, ONPE, Poder Judicial, El Peruano.
-5. `report_writer_agent` — redacta el dictamen final citando opiniones OECE.
-
-Detalle completo en `../MANUAL.md`. Visualmente el `AgentsRibbon` muestra
-actividad en vivo encima del mapa.
-
-## Conectar al backend real
-
-Todo el contenido sale de `lib/mock-data.ts` y `lib/peru-data.ts` mientras el
-backend FastAPI no esté arriba. Para conectar:
-
-1. Crear `lib/api.ts` con `fetchAlertas()`, `fetchReportes()`, `postReporte()`.
-2. Reemplazar imports en `MapaWrapper`, `MetricsHero`, `TopAlertasList`,
-   `app/alerta/[id]/page.tsx`.
-3. `POST /reportes` ya simula con `setTimeout` — cambiar por `fetch`.
-4. El generador de noticia llama `buildMockNoticia` localmente. En real va a
-   `POST /caso/{id}/noticia` → invoca `report_writer_agent` (ver `MANUAL.md` §3.6).
-
-## Decisiones de UX
-
-- **El mapa es la home.** No un anexo: quien entra ve el problema inmediatamente.
-- **El disclaimer ("no acusamos a nadie") está en cada página relevante.**
-  No es letra chica del footer.
-- **Los agentes IA narrados con autoridad.** Una sección dedicada explicando los 5
-  agentes con nombre, rol y herramientas. La cinta en vivo refuerza que algo
-  está pasando ahora.
-- **Denunciar es 5 pasos numerados.** Foto obligatoria; sin ella no se publica.
-- **Generar noticia muestra el proceso.** "Cruzando con SEACE… buscando opiniones
-  OECE… redactando…" — la transparencia del modelo es parte de la confianza.
-- **FAQ contesta las preguntas duras**: ¿la IA decide?, ¿reemplazan a Contraloría?,
-  ¿quién financia esto?, etc.
-
-## Cambiar de proyecto
-
-La web llama a un solo agente (`VIGIA_AGENT_URL`, el de bienes) y lee los buckets con `GOOGLE_CLOUD_PROJECT` (el proyecto de los buckets).
-
-- **Cloud Run** (`infrastructure/deploy/gcp/frontend.sh`, en `ENTRADA_PROJECT_ID`): toma la URL del agente de `PROJECT_ID`.
-- **Cloudflare** (`wrangler.jsonc`): cambiar `VIGIA_AGENT_URL` y volver a construir y desplegar (`CLOUDFLARE.md`). La cuenta de `GCP_SA_KEY` necesita `run.invoker` en el agente.
-
-Guía: `infrastructure/deploy/gcp/migracion/README.md`.
+Diseño: `DESIGN_SYSTEM.md`, `DIRECCION.md`, `PRODUCT.md` y `components/KIT.md`.
 
 ## La app de Gobserva Licitaciones
 
 La app para proveedores (licitaciones.gobserva.cloud con sesión) está documentada en `docs/PLAN.md`: rutas, contrato de
 datos, decisiones y estado. Lo esencial:
 
-- `lib/licitaciones-app/`: la lógica pura, probada con `npm test` (`node --test`; Node 22.18 corre TypeScript):
+- `lib/licitaciones-app/`: la lógica pura, probada con `npm test`:
   - filtros en la URL, fechas de Lima y señales;
   - adaptadores de datos (`fuente-gobserva` en vivo y `fuente-demo` con la muestra);
   - onboarding, notificaciones e .ics.
-- `components/licitaciones-app/`: la bandeja, el detalle, el onboarding, las notificaciones y las piezas comunes
-  (`TablaDatos`, `Paginacion`, `Insignia`, `Estados`, `Desplegable` y `Avisos`).
+- `components/licitaciones-app/`: la bandeja, el detalle, los menores, el mercado, el onboarding, las notificaciones y
+  el seguimiento.
+- `components/gobserva/ui/`: las piezas comunes (`TablaDatos`, `Paginacion`, `Insignia`, `Estados`, `Desplegable` y
+  `Avisos`).
 - `components/gobserva/app/`: el marco (`MarcoApp`, `NavApp`) y las piezas de página (`Caja`, `CabeceraPagina`).
 - En desarrollo la bandeja usa la muestra (`LICITACIONES_FUENTE=demo`, por defecto fuera de producción). Para probar con
   datos en vivo, `LICITACIONES_FUENTE=gobserva` y una API alcanzable.
 
-Antes de publicar: `npx tsc --noEmit -p .`, `npm test`, `npm run auditar:estilo` y `npx next build`.
+Antes de publicar: las pruebas de arriba y `npx next build`.

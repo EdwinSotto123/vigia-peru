@@ -1,87 +1,81 @@
-# vigia-peru-api
+# vigia-api
 
-CRUD y endpoints para Vigía Perú. Corre en **Cloud Run** + Postgres en Cloud
-SQL + buckets GCS para uploads.
+La API de Vigía y de las apps de Gobserva (Empleo, Licitaciones, Obras y Salud). Es una app de Hono que corre en
+Cloudflare Workers: el Worker `vigia-api`, con entrada en `src/worker.ts` y las rutas en `src/app.ts`.
 
-## Rutas
+La base es PostgreSQL 16 en AWS RDS (con PostGIS, pgvector y pg_trgm). El Worker llega a ella por Hyperdrive.
 
-```
-GET    /                       health
-GET    /health                 health + ping postgres
+Bindings, variables, secretos y desarrollo local: [CLOUDFLARE.md](CLOUDFLARE.md).
 
-GET    /alertas?region=&estado=&scoreMin=&limit=&offset=
-GET    /alertas/:id            (uuid o codigo)
-POST   /alertas                crear alerta + banderas (auth servicio)
+## Quién la usa
 
-GET    /entidades?q=&region=&tipo=&limit=
-GET    /entidades/:ruc         perfil entidad + cache MEF + alertas
+La API no atiende a internet. Sólo responde a nuestros Workers (`lib/antibots.ts`, `cerradaAlPublico`):
 
-GET    /reportes?region=&categoria=&bbox=...
-GET    /reportes/:id
+- la web (`frontend`), desde su servidor;
+- el MCP (`backend/mcp-worker`), por service binding;
+- el build de la web en el CI, con la cabecera `x-vigia-build` (secreto `BUILD_TOKEN`);
+- sus propios crons.
 
-POST   /upload/sign            (auth) → {uploadUrl, blobUrl}
-```
+Siempre abiertas: `/`, `/health`, `/livez` y el aviso de Mercado Pago (`POST /pagos/mercadopago/webhook`, que exige
+su firma). Lo demás desde internet responde 403 (`api_privada`). Con `API_PUBLICA=si` se vuelve a abrir.
 
-## Dev local
+Las rutas existen sin prefijo y bajo `/v1`.
+
+## Qué hace
+
+- **Datos de Vigía:** contratos, entidades, empresas, personas, señales, órdenes, planillas, visitas, informes de
+  control, normas y lo demás (`src/routes`).
+- **Cuentas:** tokens de Firebase (cuentas de Vigía) y de AWS Cognito (cuentas de las apps de Gobserva), verificados
+  con `jose` (`lib/auth.ts`, `lib/cognito.ts`).
+- **Gobserva:** planes, alertas, recordatorios y créditos del MCP (`lib/gobservaPlanes.ts`, `lib/creditosMcp.ts`).
+  Los cobros están en pausa desde el 24 de noviembre de 2026: toda cuenta con el correo verificado tiene el acceso
+  abierto (`cobrosEnPausa`). `GOBSERVA_COBROS=activos` vuelve a vender.
+- **Límites por IP:** el Durable Object `Limitador` (`src/workers/limitador.ts`), uno por clave. Lo comparten la web
+  y el MCP.
+- **Chat de investigación:** cada informe corre en el Durable Object `ChatInforme` (`src/workers/chatInforme.ts`) y
+  sigue aunque se cierre la pestaña.
+- **Panel:** rutas `/admin/*`, con `x-admin-token` (`ADMIN_TOKEN`).
+- **Caché del borde:** las lecturas públicas se guardan en la caché de Cloudflare según su `s-maxage`
+  (`src/workers/cdn.ts`).
+
+## Crons (`wrangler.jsonc`)
+
+| Cron (UTC) | Hora de Lima | Qué hace |
+|---|---|---|
+| `*/10 * * * *` | cada 10 min | reasigna aportes abiertos y refresca el financiamiento (`/admin/asignar`) |
+| `0 12 * * *` | 07:00 | tareas de Gobserva: alertas, recordatorios y vencimientos (`/admin/gobserva/tareas`) |
+| `*/20 5-10 * * *` | 00:00 a 05:40 | recolector de bases de las plazas CAS (`/admin/empleo/noche`) |
+
+## Probar
 
 ```bash
-cd api
-npm install
-cp .env.example .env
-# editá .env con el password de Cloud SQL
-
-# Necesitás el Cloud SQL Auth Proxy corriendo aparte:
-# https://cloud.google.com/sql/docs/postgres/connect-auth-proxy
-cloud-sql-proxy --port 5432 vivid-spot-480905-a4:us-central1:vigia-db
-
-# y en otra terminal:
-npm run dev
+cd backend/api
+npm ci
+npm test                    # node --import tsx --test test/*.test.ts
+npx tsc --noEmit            # tipos (lo mismo que corre el CI)
+npm run typecheck:worker    # tipos del Worker (tsconfig.worker.json)
+npm run build:worker        # arma el bundle sin desplegar (.wrangler-dist)
 ```
 
-## Deploy a Cloud Run
+El job `verificar:api` de `.gitlab-ci.yml` corre `npx tsc --noEmit` y `npm test` en cada push a `main` o `dev` que
+toca `backend/api`.
 
-```bash
-# Build + push + deploy en un solo comando (Cloud Build hace lo demás)
-gcloud run deploy vigia-peru-api \
-  --source . \
-  --region us-central1 \
-  --allow-unauthenticated \
-  --add-cloudsql-instances vivid-spot-480905-a4:us-central1:vigia-db \
-  --set-env-vars "PGHOST=/cloudsql/vivid-spot-480905-a4:us-central1:vigia-db,PGUSER=postgres,PGDATABASE=vigia,FIREBASE_PROJECT_ID=simplia-project,GCS_PROJECT_ID=vivid-spot-480905-a4,GCS_BUCKET_DOCUMENTOS=vigia-peru-documentos,GCS_BUCKET_REPORTES=vigia-peru-reportes,ALLOWED_ORIGINS=http://localhost:3000" \
-  --set-secrets "PGPASSWORD=cloudsql-password:latest"
-```
+Para probar con datos reales antes del commit está DEV: `bash infrastructure/deploy/dev.sh api` despliega la copia de
+trabajo en `vigia-api-dev`, contra la base `vigia-db-dev` (`docs/DEV.md`).
 
-Antes de deployar, crear el secret:
-```bash
-gcloud secrets create cloudsql-password --data-file=.cloudsql-password
-```
+## Desplegar
 
-## Réplica en Cloudflare Workers
+- **Desde la PC:** `bash infrastructure/deploy/cloudflare/worker.sh api`. Se niega si `backend/api` tiene cambios sin
+  commitear. Sube una versión y la activa al 100 %. Para volver a la anterior: `npx wrangler versions deploy <id>@100% -y`
+  desde `backend/api`.
+- **Desde GitLab:** el job manual `deploy:api:prod` en `main` (`wrangler deploy`). En `dev`, `deploy:api:dev` despliega
+  `vigia-api-dev` solo con cada push.
 
-La misma app corre también como Worker (`vigia-api`, entrada `src/worker.ts`, Postgres por
-Hyperdrive). Variables, secretos, desarrollo local y diferencias: [CLOUDFLARE.md](CLOUDFLARE.md).
+## Lo que queda de Google Cloud
 
-## Auth con Firebase
+Antes la API corría en Cloud Run. Quedan rastros en el código:
 
-El frontend manda en cada request:
-```
-Authorization: Bearer <ID token de firebase>
-```
-
-El middleware `requireAuth` lo valida vía Firebase Admin SDK (en Workers, con jose y los mismos
-chequeos) contra el proyecto `simplia-project` (que es donde están los user-ids del login del demo).
-
-## Cambiar de proyecto
-
-**Cloud Run.** `bash infrastructure/deploy/gcp/api.sh` despliega en `ENTRADA_PROJECT_ID`, pero se conecta a la base de `PROJECT_ID`:
-
-- `PGHOST=/cloudsql/<PROJECT_ID>:us-central1:vigia-db`. La cuenta `vigia-api@` necesita `roles/cloudsql.client` en `PROJECT_ID`.
-- Las URLs de los agentes se arman con `AGENT_HOST_SUFFIX` (`<número de PROJECT_ID>.<región>.run.app`; `sufijo_run` en `_common.sh`).
-
-**Worker de Cloudflare** (`wrangler.jsonc`):
-
-- `AGENT_HOST_SUFFIX` y `GCS_PROJECT_ID` (el proyecto de los buckets).
-- Secretos: `GCP_SA_KEY` (su cuenta necesita `run.invoker` en los agentes y lectura en los buckets) y `ADMIN_TOKEN`.
-- La base llega por Hyperdrive y el túnel `vigia-db`, que siguen a la VM de PgBouncer: al mudarse no se tocan.
-
-Guía completa: `infrastructure/deploy/gcp/migracion/README.md`.
+- `src/index.ts`, `src/node/` y el `Dockerfile`: la entrada de Node (`npm run dev`, `npm start`). No se despliega.
+- `GCP_SA_KEY` y las variables `GCS_*`, `AGENT_HOST_SUFFIX`, `DISPATCHER_REGION` y `DISPATCHER_JOB`: sirven para leer
+  GCS y llamar a Cloud Run. Desde el 2026-11-06 GCP está sin facturación: los comprobantes y el bucket viejo de
+  documentos se leen de R2 (`PRIVADO`, `DOCUMENTOS_VIEJOS`), y el dispatcher se llama por service binding.

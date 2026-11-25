@@ -1,26 +1,48 @@
-# Relay de descargas en Cloudflare (`vigia-relay`)
+# vigia-relay
 
-Réplica de `backend/relay/app.py` (el puente de Lima) como Worker: misma API (`/health`, `/fetch`, `/download`)
-y mismo formato de respuesta. URL: `https://vigia-relay.vigiaperu.workers.dev`.
+El relay de descargas de Zúrich. Es el Worker `vigia-relay`, en Cloudflare Workers:
+`https://vigia-relay.vigiaperu.workers.dev`.
 
-- Solo acepta URLs de `*.gob.pe` y exige token (`X-Vigia-Token` o `Authorization: Bearer`).
-- `/download` sube a `gs://vigia-peru-documentos/convocatorias/<ocid>/<archivo>` con la cuenta `vigia-downloader`.
-- `POST /raw {url}` devuelve los bytes tal cual (para descargar en la nube sin pasar por el bucket).
-- **Dónde corre:** `placement` en la región `gcp:europe-west6` → siempre en Zúrich. OECE y SEACE filtran por la
-  IP de salida del punto de Cloudflare (no se reenvía la de quien llama). Medido el 30/09/2026 con sondas
-  llamadas desde GCP us-central1: Zúrich y Buenos Aires 200; Chicago, Dallas, Santiago, São Paulo y Fráncfort 403.
-  Desde GCP verificado: `/fetch` del OCDS 200, `/download` de un PDF de prod1 (4,8 MB) al bucket, `/raw` de prod4.
-- Reemplaza al VPS de Lima (ya no existe): los agentes y la API lo usan como `LOCAL_DOWNLOADER_URL`, con el
-  token del secreto `local-downloader-token` (copia de `relay-cloudflare-token`).
-- **Si Zúrich empezara a dar 403:** probar otra región en `placement` (o `"host": "www.bcrp.gob.pe:443"`, que
-  Cloudflare ubicó en Buenos Aires o Zúrich según el momento) y volver a medir con una sonda de URLs fijas.
+El OECE y el SEACE filtran por la IP de salida, y la de un Worker es la del punto de Cloudflare donde corre. Con
+`"placement": { "mode": "targeted", "region": "gcp:europe-west6" }` este Worker corre siempre en Zúrich, llame quien
+llame, y ahí responden. Medido el 30 de septiembre de 2026: Zúrich y Buenos Aires dan 200; Chicago, Dallas, Santiago,
+São Paulo y Fráncfort, 403.
 
-Secretos (`npx wrangler secret put`): `VIGIA_DL_TOKEN` (copia en Secret Manager: `relay-cloudflare-token`) y
-`GCP_SA_KEY` (llave JSON de `vigia-downloader`). Despliegue: `npm install && npx wrangler deploy`.
+Reemplazó el 30 de septiembre de 2026 al relay que corría en un VPS de Lima (`backend/relay`, ya retirado).
 
-## Cambiar de proyecto
+## Rutas
 
-- `GCP_PROJECT` (en `wrangler.jsonc`): el proyecto de los buckets, `BUCKETS_PROJECT_ID`.
-- `GCP_SA_KEY`: una cuenta con escritura en el bucket de documentos.
+| Ruta | Qué hace |
+|---|---|
+| `GET /health` | `{ok, bucket, project, protected}` |
+| `POST /raw {url}` | los bytes tal cual, con el status del origen |
+| `POST /fetch {url}` | `{ok, status, content_type, body}` (metadatos del OCDS) |
+| `POST /download {url, ocid, filename}` | baja el archivo y lo sube a GCS (`gs://vigia-peru-documentos/convocatorias/<ocid>/…`) |
 
-Mientras los buckets sigan en `vivid-spot-480905-a4`, no cambia nada. Guía: `infrastructure/deploy/gcp/migracion/README.md`.
+- Exige token: `X-Vigia-Token` o `Authorization: Bearer`. Sin token configurado no atiende.
+- Sólo acepta URLs de `*.gob.pe` y la ficha de empresas de `www.universidadperu.com` (respaldo de SUNAT).
+- `/download` escribe en GCS, que desde el 2026-11-06 está sin facturación.
+
+## Quién lo usa
+
+- `vigia-scrapers`, por service binding (`RELAY`, `POST /raw`): la API OCDS del OECE, los documentos de los expedientes
+  y las contrataciones menores del SEACE.
+- Scripts de `backend/scripts` por su URL, como `menores_detalle.py` (`/fetch`) y `cargar_seace_menores.py`.
+- La API lo sondea para el panel de salud (`LOCAL_DOWNLOADER_URL`, en `lib/salud.ts`).
+
+Para las páginas con sesión del SEACE está `vigia-seace-zrh` (`backend/seace-zrh-worker`), también en Zúrich. Para
+las fuentes que sólo responden a IPs del Perú, el relay de Lima (`backend/relay-lima`).
+
+**Si Zúrich empezara a dar 403:** probar otra región en `placement` y volver a medir con URLs fijas.
+
+## Variables y secretos (`wrangler.jsonc`)
+
+- Variables: `GCS_BUCKET`, `GCP_PROJECT` (sólo para `/download`) y `MAX_BYTES` (tope de cada descarga).
+- Secretos (`npx wrangler secret put`): `VIGIA_DL_TOKEN`, el token de los clientes (copia en SSM `/vigia/relay/token`;
+  en `vigia-scrapers` se llama `RELAY_TOKEN`), y `GCP_SA_KEY`, la cuenta de Google que escribe en el bucket (sólo
+  `/download`).
+
+## Desplegar
+
+`bash infrastructure/deploy/cloudflare/worker.sh relay`, desde la raíz del repo. Se niega si la carpeta tiene cambios
+sin commitear. Para revisar tipos: `npm ci && npm run typecheck`. No hay pruebas automáticas.

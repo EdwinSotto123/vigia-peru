@@ -1,5 +1,7 @@
 # Correcciones tras la revisión manual del lote 1 (10 contratos de bienes, Vigía Perú · VIG-2026-00004)
 
+> Documento histórico (septiembre de 2026): un plan de trabajo de cuando Vigía corría en Google Cloud. Lo vigente está en [ARQUITECTURA.md](../../../ARQUITECTURA.md).
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development or superpowers:executing-plans. Steps use checkbox (`- [ ]`) syntax.
 
 **Goal:** Eliminar los falsos positivos sistemáticos y recuperar los falsos negativos encontrados en `docs/design/revision_contratos/*.md` (10 revisiones independientes, una por contrato, con lectura manual de los expedientes), sin perder la trazabilidad ni la verificación determinista.

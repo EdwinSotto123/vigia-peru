@@ -153,7 +153,7 @@ de servicio de control y las observaciones numeradas.
 
 | Pieza | Dónde |
 |---|---|
-| Fichas y su lectura | `informe_control_ficha` (migración 304): el texto y `campos` (objetivo, montos, observaciones, recomendaciones); la lectura con GLM 5.3 flash agrega a cada observación su tema, el perjuicio y las referencias (obras, contratos, procesos, empresas) |
+| Fichas y su lectura | `informe_control_ficha` (migración 304): el texto y `campos` (objetivo, montos, observaciones, recomendaciones); la lectura con DeepSeek V4.1 Flash de Workers AI (hasta el 2026-11-20, GLM 5.3 flash) agrega a cada observación su tema, el perjuicio y las referencias (obras, contratos, procesos, empresas) |
 | Buscador | `informe_control_fragmento` + `buscar_informe_control()` (migración 305, palabras y vectores bge-m3); `GET /informes-control/buscar`, `/app/contraloria` en la web y `buscar_informes_control` en el MCP |
 | Funcionarios comprendidos | `informe_control_persona` (302, con DNI, restringida) y la vista sin documento `informe_control_implicado`; en la web, con un apellido tapado y siempre «responsabilidad presunta» |
 | Señales | `socio_con_informe_control` (contratos; 303 y 307), `ordenes_tras_informe` (personas; 308), `observado_por_contraloria` (contratos; 313) y `gano_tras_observacion` (contratos posteriores del mismo proveedor en la misma entidad; 315) |

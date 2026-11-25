@@ -22,8 +22,8 @@ público, dónde se aplica y cómo se pide una corrección (Ley 29733). Vigente 
 - **La referencia** es un HMAC-SHA256 del documento con la clave `PRIVACIDAD_CLAVE` (30 bits, base 32
   de Crockford). La misma persona lleva la misma ref en todo Vigía (el grafo y los paneles cruzan
   registros con ella) y sin la clave no se vuelve al DNI. El repo es público: con una clave conocida
-  bastaría recorrer los 10⁸ DNI, por eso es un secreto (`privacidad-clave` en Secret Manager de
-  vivid-spot, y el mismo valor como secreto del Worker `vigia-api`). Sin la clave, cada instancia
+  bastaría recorrer los 10⁸ DNI, por eso es un secreto del Worker `vigia-api` (antes también
+  estaba en Secret Manager de GCP, que quedó sin uso). Sin la clave, cada instancia
   usa una al azar: nada se filtra, pero las refs no coinciden entre instancias.
 - **Qué apellido:** el materno. La última palabra si el nombre va primero; la segunda en orden
   SUNAT/RNP (apellidos primero); con coma ("PEREZ QUISPE, JUAN"), el último antes de la coma. El orden
@@ -58,8 +58,8 @@ público, dónde se aplica y cómo se pide una corrección (Ley 29733). Vigente 
   como marca fija (`Tapado`, sin clic). El vidrio revelable al clic queda para el panel admin, que
   recibe los datos completos: es la única forma de "desenmascarar".
 - **Cachés** al cambiar la regla: subir `VERSION_CACHE` en `backend/api/src/workers/cdn.ts` (borde de
-  Cloudflare) y desplegar el frontend (sus cachés en memoria y la CDN de Firebase Hosting se vacían
-  con el despliegue).
+  Cloudflare) y desplegar la web: su caché de páginas en R2 va por build, así que un despliegue nuevo
+  no sirve páginas viejas.
 
 ## Pedidos de las personas (Ley 29733)
 

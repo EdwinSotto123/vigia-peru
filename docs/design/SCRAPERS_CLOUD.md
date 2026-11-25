@@ -1,5 +1,7 @@
 # Scrapers en la nube — qué se construyó y por qué (2026-09-16)
 
+> Documento histórico (septiembre de 2026): describe la versión que corría en Google Cloud. Lo vigente está en [ARQUITECTURA.md](../../ARQUITECTURA.md).
+
 **Lo que pediste:** "crea N carpetas para cada tipo de scrapeo, así luego los configuro con
 Cloud Scheduler — la idea es descargar con scrapers, CSV, etc." Esto es la explicación de lo
 que hay ahora en `backend/cloud_functions/` y qué tan cierto es "ya lo configuré con Cloud

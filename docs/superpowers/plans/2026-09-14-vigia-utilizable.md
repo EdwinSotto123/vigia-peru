@@ -1,5 +1,7 @@
 # Vigía utilizable — cola real, procesamiento en vivo, mapa como interfaz, acto social
 
+> Documento histórico (septiembre de 2026): un plan de trabajo de cuando Vigía corría en Google Cloud. Lo vigente está en [ARQUITECTURA.md](../../../ARQUITECTURA.md).
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Convertir Vigía en un producto que una persona real pueda usar sin explicaciones: elige una zona en el mapa, ve cuántos contratos esperan auditoría, financia, y **ve en vivo** cómo se procesan; las herramientas técnicas (análisis a demanda, sorteo, generador editorial) pasan al admin; quienes aportan reciben reconocimiento público.

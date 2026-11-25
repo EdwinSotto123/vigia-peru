@@ -1,121 +1,116 @@
-# vigia-peru-api en Cloudflare Workers (réplica)
+# vigia-api en Cloudflare Workers
 
-El mismo código corre en dos lados; Cloud Run sigue igual que siempre.
+El detalle del Worker `vigia-api`: cómo atiende, sus bindings, variables y secretos, y cómo correrlo en tu PC. Qué hace
+la API y cómo se despliega: [README.md](README.md).
 
-| | Cloud Run (Node) | Workers (`vigia-api`) |
+## Cómo atiende un pedido
+
+1. `src/worker.ts` corta lo que viene de internet sin permiso (`cerradaAlPublico`, en `lib/antibots.ts`).
+2. Las lecturas públicas salen de la caché del borde si están (`src/workers/cdn.ts`). La cabecera `X-Vigia-Cdn` dice
+   `HIT`, `STALE` o `MISS`.
+3. Cada pedido corre en su ámbito (`src/workers/ambito.ts`): abre sus pools de Postgres al primer uso, sobre
+   `HYPERDRIVE` o `HYPERDRIVE_ADMIN`, y los cierra con `ctx.waitUntil` cuando ya respondió.
+4. Lo propio de Workers se registra en `src/workers/plataforma.ts`. Por ejemplo, los tokens de Firebase se verifican
+   con `jose` (`src/workers/firebase.ts`).
+
+El Worker corre junto a la base (`"placement": { "region": "aws:us-east-2" }`). Medido el 2026-10-20: unos 17 ms por
+consulta, frente a unos 177 ms con la ubicación anterior.
+
+## La base
+
+PostgreSQL en AWS RDS (us-east-2). No acepta conexiones de internet. El Worker llega por Hyperdrive, que pasa por un
+servicio de Workers VPC y un túnel de Cloudflare hasta PgBouncer, en el proxy de EC2, y de ahí a RDS.
+
+| Binding | Rol | Límite por sentencia |
 |---|---|---|
-| Entrada | `src/index.ts` (@hono/node-server, SIGTERM) | `src/worker.ts` (`export default { fetch }`) |
-| App | `src/app.ts` | `src/app.ts` |
-| Postgres | 2 pools por proceso (`lib/db.ts`) | pools **por pedido** sobre Hyperdrive (`workers/ambito.ts`) |
-| ID tokens de Firebase | firebase-admin | jose + llaves de securetoken, mismos chequeos (`workers/firebase.ts`) |
-| GCS | @google-cloud/storage | API JSON + firma v4 local (`workers/gcs.ts`) |
-| Credenciales de Google | servidor de metadatos | cuenta de servicio de `GCP_SA_KEY` (`workers/google.ts`) |
-| gzip | `hono/compress` | lo hace Cloudflare en el borde |
+| `HYPERDRIVE` | `vigia_api` (rutas públicas) | 10 s |
+| `HYPERDRIVE_ADMIN` | `vigia_api_admin` (panel y crons) | 120 s |
 
-Lo que cambia entre los dos se registra en `lib/plataforma.ts` desde cada entrada
-(`node/plataforma.ts`, `workers/plataforma.ts`): firebase-admin y el SDK de GCS nunca entran en el
-bundle del Worker. Las rutas no cambian: `pool`/`poolAdmin` son, en Workers, delegados al pool del
-pedido en curso (AsyncLocalStorage), que se abre al primer uso y se cierra con `ctx.waitUntil` al
-terminar (esperando antes los refrescos de caché y sondeos en segundo plano).
+- Las dos configuraciones de Hyperdrive tienen el caché de consultas apagado: la API ya tiene sus cachés, y el panel lee
+  lo que acaba de escribir.
+- Hyperdrive reparte en modo transacción, como PgBouncer: el código no usa estado de sesión. El `statement_timeout` sale
+  del rol.
+- El entorno `dev` usa otras dos configuraciones, contra la base `vigia-db-dev`.
 
-## Recursos (los crea quien despliega)
+## Bindings (`wrangler.jsonc`)
 
-Dos configuraciones de Hyperdrive sobre la **misma** base de Cloud SQL, una por rol (migración 37):
+| Binding | Qué es | Para qué |
+|---|---|---|
+| `DOCUMENTOS` | R2 `vigia-peru-batch` | documentos de los expedientes y requerimientos de los contratos menores (`routes/menores.ts`) |
+| `PRIVADO` | R2 `vigia-peru-privado` | comprobantes de aportes y pagos; sólo el panel |
+| `DOCUMENTOS_VIEJOS` | R2 `vigia-peru-documentos` | comprobantes guardados con la ruta de antes |
+| `DISPATCHER` | Worker `vigia-dispatcher` | «correr el dispatcher ahora» (`lib/dispatcher.ts`) |
+| `SEACE_ZRH` | Worker `vigia-seace-zrh` | el expediente SIAF de una orden, a pedido (`routes/ordenes.ts`) |
+| `LLM` | Worker `vigia-llm` | los modelos (chat, asistente, lectura de bases de plazas) |
+| `MCP` | Worker `vigia-mcp` | las herramientas del MCP para el chat del panel (`routes/admin_chat.ts`) |
+| `PRECIOS_LAB` | Worker `vigia-precios-lab` | el laboratorio de precios del panel (`routes/admin_precios.ts`) |
+| `RELAY_LIMA` | servicio de Workers VPC | salida con IP peruana (`backend/relay-lima`): bases del Poder Judicial (`lib/basesPlaza.ts`) |
+| `LIMITADOR` | Durable Object `Limitador` | límites por IP y créditos del MCP (`src/workers/limitador.ts`) |
+| `CHAT_INFORME` | Durable Object `ChatInforme` | un informe del chat de investigación (`src/workers/chatInforme.ts`) |
+| `AI` | Workers AI | embeddings de `@cf/baai/bge-m3` para el RAG de documentos (`lib/rag.ts`) |
 
-| Binding | Rol | Límite en el rol | Id en `wrangler.jsonc` |
-|---|---|---|---|
-| `HYPERDRIVE` | `vigia_api` | 10 s | `PENDIENTE_HYPERDRIVE_API` |
-| `HYPERDRIVE_ADMIN` | `vigia_api_admin` | 120 s | `PENDIENTE_HYPERDRIVE_ADMIN` |
+Un Worker no puede llamar por su URL pública a otro `workers.dev` de la misma cuenta (error 1042). Por eso el
+dispatcher, el MCP y los demás van por service binding.
 
-```bash
-npx wrangler hyperdrive create vigia-api       --caching-disabled --connection-string "postgres://vigia_api:<clave>@<host>:5432/vigia"
-npx wrangler hyperdrive create vigia-api-admin --caching-disabled --connection-string "postgres://vigia_api_admin:<clave>@<host>:5432/vigia"
-```
-
-- **Caché de consultas apagado** (`--caching-disabled`): Hyperdrive guarda los SELECT 60 s por
-  defecto; la API ya tiene sus cachés y ETags, y el panel lee lo que acaba de escribir.
-- Hyperdrive reparte en modo transacción, como PgBouncer: el código ya no manda `options` ni usa
-  estado de sesión. El `statement_timeout` sale del rol; `query_timeout` corta del lado del cliente.
-- `<host>` tiene que ser alcanzable desde Cloudflare (IP pública de Cloud SQL con SSL o Cloudflare Tunnel).
+La web (`frontend/wrangler.jsonc`) y el MCP usan la misma clase `Limitador` con `script_name: "vigia-api"`.
 
 ## Variables (`vars` en `wrangler.jsonc`)
 
-Las de `infrastructure/deploy/gcp/api.sh`, sin las de conexión (`PGHOST`, `PGUSER`, `PGUSER_ADMIN`,
-`PGDATABASE`, `PG_POOLER`), que reemplaza Hyperdrive:
-
-| Variable | Valor |
+| Variable | Para qué |
 |---|---|
-| `FIREBASE_PROJECT_ID` | `simplia-project` |
-| `GCS_PROJECT_ID` | `vivid-spot-480905-a4` (también es el proyecto del dispatcher) |
-| `GCS_BUCKET_DOCUMENTOS` | `vigia-peru-documentos` |
-| `GCS_BUCKET_REPORTES` | `vigia-peru-reportes` |
-| `ALLOWED_ORIGINS` | los orígenes de api.sh (sumar el del frontend que llame a esta réplica) |
-| `LOCAL_DOWNLOADER_URL` | `https://vigia-relay.vigiaperu.workers.dev` (el Worker `vigia-relay`) |
+| `ALLOWED_ORIGINS` | orígenes permitidos por CORS |
+| `WORKERS_PROPIOS` | zonas de nuestros Workers (cabecera `CF-Worker`): sus pedidos pasan y no cuentan en el límite por IP |
+| `TURNSTILE_HOSTS` | dónde se resuelve el captcha; con `TURNSTILE_HOSTS_ESTRICTO=si`, otro host se rechaza |
+| `FIREBASE_PROJECT_ID` | el proyecto de Firebase de las cuentas de Vigía |
+| `COGNITO_GOBSERVA` | los grupos de Cognito de cada app: `app\|grupo\|cliente,…` (ids públicos) |
+| `GOBSERVA_CUENTAS_VIGIA` | qué puede pedir una cuenta de Vigía en `/gobserva/cuenta` |
+| `MCP_INTERNO_URL` | la URL del MCP que se pide por el binding `MCP` |
+| `DISPATCHER_URL` | respaldo del binding `DISPATCHER` |
+| `LOCAL_DOWNLOADER_URL` | el relay de descargas, `vigia-relay` (`backend/relay-worker`) |
+| `VAPID_PUBLIC_KEY` | la llave pública de las notificaciones push |
+| `GCS_*`, `AGENT_HOST_SUFFIX` | de cuando la API corría en Google Cloud (ver README.md) |
 
-Opcionales con el mismo valor por defecto que en Cloud Run: `GCS_BUCKET_PRIVADO`,
-`DISPATCHER_REGION`, `DISPATCHER_JOB`, `AGENT_HOST_SUFFIX`, `AGENT_URL_BIENES|SERVICIOS|OBRAS|OTROS`,
-`GOOGLE_CLOUD_PROJECT`. Llegan a `process.env` (nodejs_compat, compatibility_date ≥ 2025-04-01),
-que es lo que lee el código compartido, también en el nivel superior de los módulos.
+Llegan además a `process.env` (con `nodejs_compat`), que es lo que lee el código compartido.
 
-## Secretos (`npx wrangler secret put <NOMBRE>`, nunca en el repo)
+`GOBSERVA_COBROS` no está en `wrangler.jsonc`: sin ella, los cobros siguen en pausa.
 
-| Secreto | Qué es |
+## Secretos
+
+Se cargan con `npx wrangler secret put <NOMBRE>` (y `--env dev` para DEV). Nunca van al repo.
+
+| Secreto | Para qué |
 |---|---|
-| `ADMIN_TOKEN` | el mismo valor que `admin-token` de Secret Manager (lo manda el proxy del panel) |
-| `GCP_SA_KEY` | llave JSON de una cuenta de servicio de Google |
-| `PRIVACIDAD_CLAVE` | clave de las referencias opacas de DNI y RUC 10 (`lib/privacidad.ts`): el mismo valor que `privacidad-clave` de Secret Manager, para que las dos APIs den la misma ref a la misma persona |
+| `ADMIN_TOKEN` | el panel y los crons (`x-admin-token`) |
+| `BUILD_TOKEN` | el build de la web en el CI (`x-vigia-build`) |
+| `PRIVACIDAD_CLAVE` | las referencias opacas de DNI y RUC 10 (`lib/privacidad.ts`) |
+| `TURNSTILE_SECRET_KEY` | el captcha de las escrituras públicas |
+| `LLM_TOKEN` | el token de `vigia-llm` |
+| `MCP_INTERNO_TOKEN` | la cabecera con que el MCP acepta al equipo en el chat del panel |
+| `DISPATCHER_TOKEN` | `POST /ejecutar` de `vigia-dispatcher` |
+| `SEACE_ZRH_TOKEN` | el token de `vigia-seace-zrh` |
+| `RELAY_LIMA_TOKEN` | el token del relay de Lima |
+| `VAPID_PRIVATE_KEY` | la llave privada de las notificaciones push |
+| `RESEND_API_KEY` | el correo; sin él, va por la Lambda de correo (`CORREO_URL`, `CORREO_TOKEN`) |
+| `MP_ACCESS_TOKEN`, `MP_PUBLIC_KEY`, `MP_WEBHOOK_SECRET` | Mercado Pago (en DEV, los de la cuenta de prueba) |
+| `GCP_SA_KEY` | sólo para leer GCS o llamar a Cloud Run (legado) |
 
-`GCP_SA_KEY` necesita los permisos que hoy tiene la cuenta de servicio de la API en Cloud Run:
-leer los buckets de documentos, lotes y el privado (comprobantes); crear objetos en
-`vigia-peru-documentos`/`vigia-peru-reportes` (las URLs firmadas de subida valen con los permisos
-de quien firma); `roles/run.invoker` en los 4 servicios de agentes; ejecutar el job
-`vigia-dispatcher`. Si la política de la organización prohíbe crear llaves
-(`iam.disableServiceAccountKeyCreation`), hay que habilitarla para esa cuenta.
-
-No hacen falta en Workers: `PGPASSWORD`, `PGPASSWORD_ADMIN` (van en la config de Hyperdrive) ni
-`GOOGLE_APPLICATION_CREDENTIALS_JSON` (sólo lo usa firebase-admin en Node). `AGENT_ID_TOKEN` sigue
-existiendo como atajo de desarrollo.
-
-Sin `GCP_SA_KEY`: las URLs firmadas y el comprobante responden 500 (`internal`, detalle en el log con
-el requestId), `POST /admin/dispatcher/run` 502 con el motivo, y los sondeos a los agentes van sin
-`Authorization` con un aviso único en el log. El resto de la API no la usa.
-
-## Desarrollo local
+## En tu PC
 
 ```bash
-cp .dev.vars.example .dev.vars     # ADMIN_TOKEN (y GCP_SA_KEY si hace falta); .dev.vars no se sube
-export CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_HYPERDRIVE="postgresql://usuario:clave@127.0.0.1:5432/vigia?sslmode=disable"
+cd backend/api
+cp .dev.vars.example .dev.vars      # ADMIN_TOKEN de desarrollo; .dev.vars no se sube
+python infrastructure/aws/tunel_rds.py dev     # en otra terminal, desde la raíz: la base DEV en 127.0.0.1:15433
+export CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_HYPERDRIVE="postgresql://<usuario>:<clave>@127.0.0.1:15433/vigia?sslmode=require"
 export CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_HYPERDRIVE_ADMIN="$CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_HYPERDRIVE"
-npm run dev:worker                 # wrangler dev en :8802
+npm run dev:worker                  # wrangler dev en el puerto 8802
 ```
 
-| Script | |
-|---|---|
-| `npm run typecheck` / `typecheck:worker` | tipos de Node / de Workers |
-| `npm test` | pruebas de firma y tokens (`test/`), sin red |
-| `npm run build:worker` | `wrangler deploy --dry-run --outdir .wrangler-dist` (bundle, no despliega) |
+`wrangler` no está entre las dependencias: se usa con `npx`. El CI fija la versión (`wrangler@4.151.0`).
 
-Wrangler no está entre las dependencias (el build de Cloud Run no lo necesita): se usa con `npx wrangler` (4.141 o más nuevo).
+## Cosas que conviene saber
 
-## Diferencias con Cloud Run
-
-- **Relay**: desde el 30/09/2026 es el Worker `vigia-relay` (un nombre DNS), así que el sondeo de
-  `/admin/operacion` y `/admin/salud` funciona igual en Workers y en Cloud Run. (Con la IP pelada del
-  VPS de Lima, Workers daba error 1003.)
-- **Cachés en memoria**: una por isolate, con más isolates y más cortos que las instancias de Cloud
-  Run. La invalidación entre instancias (`ajustes.cache_gen`) funciona igual.
-- **Conexiones**: hasta 3 (público) + 2 (panel) por pedido; Workers deja 6 abiertas a la vez contando
-  los fetch. Las consultas en paralelo de un mismo pedido por encima de eso esperan turno.
-- **Respuestas sin cuerpo** (204 de CORS, 304 por ETag): sin `Content-Type` (Node agrega `text/plain`).
-- **CPU**: el plan gratuito da 10 ms de CPU por pedido; las listas grandes (serializar cientos de KB)
-  lo pasan. Hace falta el plan pago (30 s por defecto, `limits.cpu_ms` para subirlo).
-- **Latencia**: cada consulta viaja del borde a us-central1. Smart Placement (`"placement": { "mode": "smart" }`)
-  acerca el Worker a la base; no está activado.
-
-## Correr el dispatcher ahora
-
-`POST /v1/admin/dispatcher/run` y los lotes del panel (`procesar-lote`) llaman a `POST /ejecutar` del Worker `vigia-dispatcher`.
-
-- En Cloudflare va por el service binding `DISPATCHER`: por URL pública, otro workers.dev de la misma cuenta responde 1042.
-- En Cloud Run va por `DISPATCHER_URL`.
-- Las dos formas usan el secreto `DISPATCHER_TOKEN` (en GCP, `dispatcher-cloudflare-token`).
+- **Cachés en memoria:** una por isolate. La invalidación entre isolates va por `ajustes.cache_gen`.
+- **Respuestas sin cuerpo** (204 de CORS, 304 por ETag): salen sin `Content-Type`.
+- **CPU:** las listas grandes necesitan el plan pago de Workers.
+- **Crons:** los dispara `scheduled` en `src/worker.ts`, con un pedido interno a `/admin/*` y el `ADMIN_TOKEN`. En
+  `dev` no hay crons.

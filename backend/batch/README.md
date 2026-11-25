@@ -1,5 +1,8 @@
 # backend/batch — descarga nocturna del SEACE por lotes y subida a GCP
 
+> Legado: quedó pausado con GCP en octubre de 2026. Desde el 2026-10-19 los documentos de los expedientes los baja la fuente
+> `documentos` del Worker `vigia-scrapers` (`backend/scrapers-worker/src/fuentes/documentos.ts`), directo a R2.
+
 Ingesta progresiva de **todo** el SEACE (histórico + actualizaciones) sin re-descargar:
 la laptop o el VPS de Lima (IP peruana: la API OCDS y `prod1.seace.gob.pe` responden 403
 a GCP) baja releases → records → documentos, los sube a `gs://vigia-peru-batch` y un

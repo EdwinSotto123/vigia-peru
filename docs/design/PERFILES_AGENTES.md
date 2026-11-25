@@ -1,5 +1,7 @@
 # Perfiles de agentes por tipo de contratación · modelos 3.6 · cuatro servicios
 
+> Documento histórico (septiembre de 2026): describe la versión que corría en Google Cloud. Lo vigente está en [ARQUITECTURA.md](../../ARQUITECTURA.md).
+
 Fecha: 2026-09-15 · Workstream P del plan `docs/superpowers/plans/2026-09-15-orquestador-por-tipo.md` ·
 Base: `docs/design/AUDITORIA_ORQUESTADOR.md` (§3.3 tiers, §4.2 qué cambia por tipo, §4.3 separación en servicios, §6.3/6.4).
 

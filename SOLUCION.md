@@ -1,5 +1,9 @@
 # Vigía Perú — Cómo funciona la solución
 
+> Documento histórico (junio de 2026): cuenta cómo funcionaba Vigía en el hackathon, en Google Cloud, con Gemini,
+> Document AI, Vertex AI Search, Cloud SQL y Arize. Cómo se lee hoy un contrato está en el
+> [README](README.md#cómo-se-lee-un-contrato), y la arquitectura vigente, en [ARQUITECTURA.md](ARQUITECTURA.md).
+
 > Documento de visión técnica para entender **qué hace** Vigía Perú, **cómo fluyen los
 > datos** y **cómo está construido**. Para el detalle de infraestructura ver
 > [`ARQUITECTURA.md`](ARQUITECTURA.md); para el dataset local, [`docs/DATA.md`](docs/DATA.md);

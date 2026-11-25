@@ -1,5 +1,8 @@
 # Correo de Gobserva (Lambda `vigia-gobserva-correo`)
 
+> Respaldo desde el 2026-11-08: AWS no sacó a SES del sandbox y el correo pasó a Resend. La API usa Resend si tiene el
+> secreto `RESEND_API_KEY` (`infrastructure/deploy/correo_resend.py`); sin él, vuelve a esta Lambda.
+
 La API (Worker de Cloudflare) no tiene llaves de AWS. Para mandar un correo, llama a esta Lambda por su URL con un token.
 El rol de la Lambda solo puede enviar desde `@gobserva.cloud` por Amazon SES (us-east-2) y leer el estado de la cuenta
 de SES.
@@ -10,8 +13,8 @@ Worker de la API ──POST {para, asunto, html, texto, baja}──▶ Lambda �
 ```
 
 - **Código**: `index.mjs`, que usa el SDK v3 que trae el runtime `nodejs22.x`.
-- **Desplegar o actualizar**: `python infrastructure/aws/correo_gobserva/desplegar.py`, con el perfil `founder.edwin`
-  (vigia-operador). Ese perfil puede crear roles `vigia*`, no usuarios IAM ni llaves de acceso.
+- **Desplegar o actualizar**: `python infrastructure/aws/correo_gobserva/desplegar.py`. El script usa el perfil de AWS
+  del operador (`vigia-operador`, fijo en el script), que puede crear roles `vigia*`, no usuarios IAM ni llaves de acceso.
 - **Rotar el token**: el mismo comando con `--rotar`. Vuelve a cargar `CORREO_TOKEN` y `CORREO_URL` en el Worker, en
   producción y en dev.
 - **Dónde quedan el token y la URL**: en SSM, `/vigia/gobserva/correo-token` y `/vigia/gobserva/correo-url`.

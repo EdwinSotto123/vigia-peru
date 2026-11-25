@@ -1,5 +1,7 @@
 # GUION_VIDEO.md — Vigía Perú · Kit de pitch
 
+> Documento histórico (junio de 2026): el material del hackathon, cuando Vigía corría en Google Cloud. Lo vigente está en [ARQUITECTURA.md](../../ARQUITECTURA.md).
+
 Documento de pitch para el video de submission y la presentación en vivo. Contiene:
 
 1. **Guion de 3 minutos** (el oficial para el video) — palabra por palabra + qué se ve.

@@ -1,5 +1,14 @@
 # Propuesta de flujo de trabajo, ambientes y despliegue
 
+> Propuesta histórica (23 de septiembre de 2026). Se adoptó, con otra forma: dos ambientes con las ramas `dev` y `main`,
+> pero en Cloudflare y AWS en vez de dos proyectos de GCP ([docs/DEV.md](docs/DEV.md)); la base sin IP pública, con
+> acceso por túnel; los despliegues desde un pipeline de GitLab (privado), manuales para producción y sin llaves guardadas
+> hacia AWS (OIDC); Terraform para la base (`cloud_sql/terraform`); y el código público en la organización Gobserva-Cloud
+> de GitHub, como espejo con `main` protegida, pruebas y plantilla en cada PR ([CONTRIBUTING.md](CONTRIBUTING.md)). No se
+> adoptó: los proyectos `vigia-dev`, `vigia-prod` y `vigia-ops`, el despliegue con GitHub Actions, un ambiente por PR ni
+> Jira, que no deja rastro en el repositorio. Los grupos de acceso no se pueden comprobar desde aquí. Lo vigente está en
+> [ARQUITECTURA.md](ARQUITECTURA.md).
+
 **Proyecto:** Vigía Perú
 **Fecha:** 23 de septiembre de 2026
 **Alcance:** cómo organizar GitHub, GCP y Jira ahora que se suman 3 personas al equipo (4 en total), para que cada cambio pase por revisión, se pruebe en un ambiente aislado y llegue a producción de forma automática, reversible y trazable.

@@ -1,5 +1,8 @@
 # Propuesta: agentes ADK más resistentes, que razonen mejor y que recuerden
 
+> Documento histórico (octubre de 2026): se escribió cuando los agentes corrían en Cloud Run con Gemini. Hoy corren en
+> AWS Lambda con modelos abiertos de Workers AI (`backend/llm-worker`); lo vigente está en [ARQUITECTURA.md](../ARQUITECTURA.md).
+
 Estado: propuesta para decisión, no implementada. Medido contra la base de producción (solo lectura) y el código de `backend/agent/` el 11 de octubre de 2026.
 
 > **Resumen en cinco líneas**

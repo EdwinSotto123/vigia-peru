@@ -1,56 +1,48 @@
-# RAG normativo (Chroma Cloud · antes Vertex RAG Engine)
+# RAG normativo
 
-**Backend actual: Chroma Cloud** (`chroma_rag.py`, 2026-10-12). Colecciones `vigia_<corpus>` en la base `simplia-vect` (compartida con
-otros proyectos: solo se tocan las que empiezan con `vigia_`). Embeddings Qwen3-Embedding-0.6B calculados por Chroma Cloud, con una
-instrucción de consulta legal en español. Cada chunk lleva en su metadata la ficha del catálogo, así que no depende de GCS.
+Las normas y criterios que consulta el agente legal (`backend/agent/tools/legal.py`, `query_legal_rag`). Hoy el índice
+vive en Chroma Cloud (`chroma_rag.py`, desde el 2026-10-12). Antes vivía en Vertex AI RAG Engine (más abajo, legado).
+
+## Chroma Cloud
+
+- Cuatro colecciones: `vigia_normas-vigentes`, `vigia_normas-historicas`, `vigia_criterios-vinculantes` y
+  `vigia_control-cgr`. La base de Chroma la comparten otros proyectos: sólo se tocan las colecciones con prefijo `vigia_`.
+- Los embeddings los calcula Chroma Cloud (Qwen3-Embedding-0.6B), con una instrucción de consulta legal en español.
+- Cada fragmento lleva en sus metadatos la ficha del catálogo (documento, número, régimen, URL oficial, artículo,
+  página), así que la consulta no depende de ningún bucket.
+- Credenciales: `CHROMA_API_KEY`, `CHROMA_TENANT` y `CHROMA_DATABASE` (secretos, nunca en el repo).
 
 ```bash
-gcloud storage cp -r gs://vigia-rag-753067078557 <dir>        # copia local del bucket (hay una en C:/Users/usuario/vigia-respaldo)
-python -m backend.rag.chroma_rag construir --origen <dir>/vigia-rag-753067078557 [--solo <corpus>] [--vaciar]
+python -m backend.rag.chroma_rag construir --origen <copia local de las fuentes> [--solo <corpus>] [--vaciar]
 python -m backend.rag.chroma_rag estado
-python -m backend.rag.evaluar --backend chroma --k 5          # 2026-10-12: recall@5 0,93 (68/73), MRR 0,80; ~2,8 s por consulta
+python -m backend.rag.chroma_rag consultar "plazo entre convocatoria y ofertas en licitación pública" --regimen 32069
+python -m backend.rag.evaluar --backend chroma --k 5      # 2026-10-12: recall@5 0,93 (68/73), MRR 0,80
 ```
 
-Estado 2026-10-12: normas-vigentes 4.341 chunks · normas-historicas 1.456 · criterios-vinculantes 1.006 · control-cgr 662.
-El agente lo usa con `LEGAL_RAG_BACKEND=chroma` (por defecto si hay `CHROMA_API_KEY`; respaldo: pgvector) y `CHROMA_TENANT`/`CHROMA_DATABASE`.
-Lo de abajo describe el backend anterior (RAG Engine), que sigue disponible con `LEGAL_RAG_BACKEND=rag_engine`.
+`construir` lee las fuentes, el `catalogo.json` y el `corpus.json` desde una copia local del bucket de GCS del RAG
+(`RAG_BUCKET`). Ojo: desde el 2026-11-06 GCP está sin facturación.
 
-# RAG normativo (RAG Engine)
+Estado al 2026-10-12: normas-vigentes 4 341 fragmentos, normas-historicas 1 456, criterios-vinculantes 1 006 y
+control-cgr 662.
 
-4 corpus serverless con normativa y criterios:
+## Cómo lo usa el agente
 
-- `normas-vigentes`
-- `normas-historicas`
-- `criterios-vinculantes`
-- `control-cgr`
+La Lambda tiene `LEGAL_RAG_BACKEND=chroma` (`infrastructure/deploy/aws/agentes.sh`). Si Chroma falla o no trae nada,
+el respaldo es pgvector en la base.
 
-Las fuentes, `catalogo.json` y `corpus.json` viven en el bucket `RAG_BUCKET`. Diseño y evaluación: `docs/design/RAG_NORMATIVO.md`.
+Con `LEGAL_RAG_BACKEND=vigia` (o `normas`), primero pregunta al RAG normativo propio en la base
+(`backend/agent/tools/normas_rag.py`, tablas `norma` y `norma_fragmento`, migración 284): filtra por la fecha de la
+convocatoria y ordena por jerarquía. Si no trae nada, sigue con Chroma.
 
-## Cambiar de proyecto
+## Vertex AI RAG Engine (legado)
 
-Variables (`_comun.py`); ninguna tiene un proyecto fijo:
-
-| Variable | Valor |
-|---|---|
-| `VERTEX_PROJECT` / `GOOGLE_CLOUD_PROJECT` | Sin ellas: el de las credenciales |
-| `RAG_BUCKET` | Hoy `vigia-rag-753067078557` |
-| `RAG_LOCATION` | `us-central1` |
-
-Pasos (la fase `ia` de `infrastructure/deploy/gcp/migracion/migrar-proyecto.sh` los hace todos):
+`corpus.py`, `_comun.py` y `requirements.txt` (con `google-cloud-aiplatform`) son del índice anterior en RAG Engine,
+que sigue en el código con `LEGAL_RAG_BACKEND=rag_engine`. Necesita un proyecto de GCP con facturación, y hoy no lo hay.
+Diseño y evaluación: `docs/design/RAG_NORMATIVO.md`.
 
 ```bash
-gcloud storage rsync -r gs://<bucket-viejo> gs://<bucket-nuevo> --exclude "_import/.*"
-python infrastructure/deploy/gcp/migracion/herramientas.py catalogo-rag --proyecto <p> --bucket-viejo <b> --bucket-nuevo <b2>
-export VERTEX_PROJECT=<p> RAG_BUCKET=<b2>
 python -m backend.rag.corpus config --serverless   # crea el agente de servicio de RAG Engine
 python -m backend.rag.corpus crear                 # imprime los RAG_CORPUS_* para los agentes
 python -m backend.rag.corpus importar --rpm 60 --no-esperar
-python -m backend.rag.corpus estado                # ~1 h hasta 1.923 de 1.923
+python -m backend.rag.corpus estado
 ```
-
-Requisitos de un proyecto nuevo:
-
-- los agentes de servicio `gcp-sa-vertex-rag` (`roles/aiplatform.ragServiceAgent`) y `gcp-sa-vectorsearch` (`roles/vectorsearch.serviceAgent`);
-- escritura del agente del RAG en el bucket, porque deja los resultados del import en `_import/`.
-
-El catálogo guarda las URIs con el nombre del bucket, por eso hay que reescribirlo al copiarlo.

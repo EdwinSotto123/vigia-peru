@@ -1,5 +1,7 @@
 # Matriz tipo × etapa × agentes
 
+> Documento histórico (septiembre de 2026): describe la versión que corría en Google Cloud. Lo vigente está en [ARQUITECTURA.md](../../ARQUITECTURA.md).
+
 Qué agentes del pipeline corren para cada contrato del SEACE según **qué es** (tipo de
 contratación) y **en qué punto está** (etapa). Lo implementa `backend/core/clasificacion.py`;
 se persiste en `convocatorias` (migración 13) y lo respetan el dispatcher

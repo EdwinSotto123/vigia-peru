@@ -1,5 +1,7 @@
 # A/B de modelos · 20261012-064917
 
+> Documento histórico (12 de octubre de 2026): informe de una prueba de cuando los agentes corrían en Google Cloud. Hoy sólo se usan modelos abiertos: ver [ARQUITECTURA.md](../../ARQUITECTURA.md).
+
 Base: **gemini** · contratos: 20
 
 ## Resumen por variante

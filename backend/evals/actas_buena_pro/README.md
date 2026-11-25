@@ -16,14 +16,18 @@ quedó fuera y por qué, quién ganó y por cuánto), antes de leer las ~3 700 a
 
 ```bash
 python -X utf8 backend/evals/actas_buena_pro/armar_casos.py              # una vez (o --solo-oficial)
-python -X utf8 backend/evals/actas_buena_pro/correr.py --etiqueta v2-haiku-bajo --esfuerzo low
-python -X utf8 backend/evals/actas_buena_pro/calificar.py v2-haiku-bajo v2-haiku-medio
+python -X utf8 backend/evals/actas_buena_pro/correr.py --etiqueta <etiqueta-bajo> --esfuerzo low
+python -X utf8 backend/evals/actas_buena_pro/calificar.py <etiqueta-bajo> <etiqueta-medio>
 ```
 
-Las llamadas van por el Worker `vigia-llm` (`/nativo`, la API de Anthropic con la clave de respaldo) y los documentos por
-`vigia-r2-sync`. Las dos llaves salen de SSM.
+Las llamadas van por el Worker `vigia-llm` (`/nativo`) y los documentos por `vigia-r2-sync`. Las dos llaves salen de SSM.
+Hoy `vigia-llm` responde `/nativo` sólo con modelos abiertos de Workers AI: `--modelo` es un alias interno que traduce
+`NATIVO_MODELOS`, y con el de defecto responde DeepSeek V4.1 Flash.
 
-## Resultado (2026-11-03, Claude Haiku 5.5)
+## Resultado del 2026-11-03
+
+Medido con el modelo comercial que `/nativo` usaba entonces, antes de pasar a modelos abiertos. Con los de hoy no hay
+medición en este set: `informe.md` sólo tiene las corridas de entonces.
 
 | | Esfuerzo bajo | Esfuerzo medio |
 |---|---|---|
@@ -40,4 +44,5 @@ Las llamadas van por el Worker `vigia-llm` (`/nativo`, la API de Anthropic con l
 - **Observaciones que elige el modelo** (requisito a la medida, fechas irregulares, otra irregularidad): coinciden sólo
   0,29-0,47 entre corridas. No van como bandera sin una segunda lectura que las confirme.
 
-Opus 5.5 (piloto de 14 actas) cuesta ~30 veces más por acta y no acertó más en ganador ni postores. Detalle: `informe.md`.
+Un modelo más grande del mismo proveedor (piloto de 14 actas) costaba unas 30 veces más por acta y no acertó más en
+ganador ni postores. Detalle: `informe.md`.

@@ -2,18 +2,18 @@
 
 Laboratorio de exploración de precios (2026-11-12). Dado un producto, o el ítem de un contrato, busca su precio de mercado
 en el Perú, juzga si cada oferta es el mismo producto y lo compara con lo que pagó el Estado. Se usa desde el panel:
-**Admin → Laboratorio de precios** (`/admin/precios`, solo admin).
+**Laboratorio de precios** (`/admin/precios`, sólo admin). Es el Worker `vigia-precios-lab`, sin dirección pública.
 
 ## Cómo funciona
 
 | Paso | Qué hace | Con qué |
 |---|---|---|
-| entender | Arma la ficha: nombre, atributos obligatorios, unidad de comparación y búsquedas | GLM 5.3 flash (vigia-llm) |
+| entender | Arma la ficha: nombre, atributos obligatorios, unidad de comparación y búsquedas | DeepSeek V4.1 Flash (vigia-llm) |
 | tiendas | Busca en 15 tiendas peruanas con precio estructurado | vigia-precios (service binding) |
-| buscadores | Pregunta al buscador propio de las tiendas del **directorio** (`directorio.ts`) que venden el rubro del producto: la API pública de su plataforma (WooCommerce, Shopify, VTEX, Magento) o, si se arman con JavaScript, su página de resultados con Crawl4AI (los productos salen del JSON-LD del listado o GLM los copia del Markdown) | `fetch`, Crawl4AI en contenedor, GLM |
+| buscadores | Pregunta al buscador propio de las tiendas del **directorio** (`directorio.ts`) que venden el rubro del producto: la API pública de su plataforma (WooCommerce, Shopify, VTEX, Magento) o, si se arman con JavaScript, su página de resultados con Crawl4AI (los productos salen del JSON-LD del listado o el modelo los copia del Markdown) | `fetch`, Crawl4AI en contenedor, el modelo |
 | web | Las páginas que pegó quien investiga | — |
-| leer | Lee cada página: robots.txt, turno por dominio, schema.org; si falta, Crawl4AI (Browser Run de respaldo) y luego GLM | `fetch`, Crawl4AI, GLM |
-| emparejar | Reglas, parecido (bge-m3) y juicio de GLM: ¿mismo producto?, ¿cuántas unidades trae? | Workers AI |
+| leer | Lee cada página: robots.txt, turno por dominio, schema.org; si falta, Crawl4AI (Browser Run de respaldo) y luego el modelo | `fetch`, Crawl4AI, el modelo |
+| emparejar | Reglas, parecido (bge-m3) y juicio del modelo: ¿mismo producto?, ¿cuántas unidades trae? | Workers AI |
 | resumir | Valida (moneda, unidades, precio visto en la página, extremos) y compara con la referencia | código |
 
 La orquestación es un **Cloudflare Workflow** (`flujo.ts`). Cada paso se reintenta solo y, si el Worker se reinicia,
@@ -59,7 +59,7 @@ el pedido desde un contrato (`ocid` + `item`) y suma lo que pagó el Estado por 
 
 **Contrato entero** (`/admin/precios-lab/contrato`, 2026-11-12): investiga todos los ítems de un contrato (hasta 12 por
 tanda, sin servicios ni montos globales), uno cada 40 s (`espera` en `POST /research`, un `step.sleep` del Workflow: no
-abren a la vez las mismas tiendas, el contenedor ni GLM), y suma lo pagado frente a la mediana de las tiendas en los ítems
+abren a la vez las mismas tiendas, el contenedor ni el modelo), y suma lo pagado frente a la mediana de las tiendas en los ítems
 con 3 o más ofertas válidas. El precio adjudicado de cada ítem se empata con `precio_item` por descripción o CUBSO, nunca
 por número: `precio_item` numera como el OCDS y `convocatoria_items` como el SEACE (el arroz de 2026-988-2 tomaba el
 precio de los fideos). Si la referencia es casi 6, 12, 24, 50 o 100 veces la mediana, el resumen avisa que puede ser una
@@ -77,6 +77,9 @@ npm test && npx tsc --noEmit
 
 ## Costo
 
-Unos US$ 0,005 a 0,02 por investigación: GLM 5.3 flash (US$ 0,15 y 0,50 por millón de tokens de entrada y salida) más el contenedor mientras corre (standard-1: ~US$ 0,00002 por segundo; Workers
-Paid incluye 25 GiB-hora de memoria al mes, unas 6 horas de este contenedor). Las búsquedas por API de las tiendas no
+El modelo es DeepSeek V4.1 Flash por `vigia-llm` (`MODELO` en `wrangler.jsonc`; GLM 5.3 Flash, el de antes, lo retiró
+Workers AI el 2026-11-20). Su tarifa en `backend/agent/tools/costo_llm.py` es de US$ 0,30 y 1,20 por millón de tokens
+de entrada y salida. El costo que guarda cada investigación todavía se calcula con la de GLM 5.3 Flash (US$ 0,15 y 0,50:
+`PRECIO` en `src/modelo.ts`), así que se queda corto. A eso se suma el contenedor mientras corre (standard-1: ~US$
+0,00002 por segundo; Workers Paid incluye 25 GiB-hora de memoria al mes, unas 6 horas de este contenedor). Las búsquedas por API de las tiendas no
 cuestan nada; Crawl4AI arma los buscadores sin API y hasta 8 páginas pegadas por investigación.

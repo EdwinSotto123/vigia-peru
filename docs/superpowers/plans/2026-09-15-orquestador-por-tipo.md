@@ -1,5 +1,7 @@
 # Orquestador por tipo de contratación — bienes / servicios / obras / otros, sin pérdida de información ni alucinación
 
+> Documento histórico (septiembre de 2026): un plan de trabajo de cuando Vigía corría en Google Cloud. Lo vigente está en [ARQUITECTURA.md](../../../ARQUITECTURA.md).
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Dejar el servicio actual (`agent-orchestrator-adk`) dedicado a **BIENES**, desplegar tres servicios Cloud Run más del mismo código con perfil **SERVICIOS**, **OBRAS** y **OTROS** (consultoría/convenio/directa), enrutar desde el dispatcher por `tipo_contratacion`, capturar los documentos **en lote por id desde GCS** con texto persistido por sha256 y citas de página, migrar a **`gemini-3.6-flash`** (thinking) y corregir las causas de pérdida de información y alucinación halladas en `docs/design/AUDITORIA_ORQUESTADOR.md`.

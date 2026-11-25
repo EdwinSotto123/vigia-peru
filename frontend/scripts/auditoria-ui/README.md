@@ -8,11 +8,14 @@ primera pantalla y tablas ralas**. Usa el CLI [`agent-browser`](https://github.c
 ## Repetir la auditoría
 
 ```bash
-# 1. Un frontend corriendo (el mismo código que quieres medir). Sin tocar el :3000 de nadie:
+# 1. Un frontend corriendo (el mismo código que quieres medir), en su propia carpeta de build y su puerto.
+#    La API de producción sólo atiende a nuestros Workers: para medir con datos, el encabezado del build
+#    (VIGIA_BUILD_TOKEN es secreto, del CI de GitLab; ver frontend/README.md).
 cd frontend
 NEXT_DIST_DIR=.next-auditoria \
+VIGIA_BUILD_TOKEN=<el secreto> \
 VIGIA_API_URL=https://vigia-api.vigiaperu.workers.dev \
-NEXT_PUBLIC_VIGIA_API_URL=https://vigia-api.vigiaperu.workers.dev \
+NODE_OPTIONS="--require ./scripts/fetch-build.cjs" \
 npx next dev -p 3300
 
 # 2. Auditar todo y comparar con la línea base
@@ -88,5 +91,8 @@ una credencial.
   comando no termina. La herramienta redirige a archivos. Si el navegador se queda colgado:
   `agent-browser close --all` y, si hace falta, `taskkill /F /IM agent-browser-win32-x64.exe` en Windows.
 - En `next dev` la primera visita a cada ruta compila (hasta 20 s). La herramienta precalienta antes de medir.
-- Los datos salen de la API pública en vivo: dos corridas pueden diferir si cambian los datos.
+- Los datos salen de la API de producción en vivo: dos corridas pueden diferir si cambian los datos. Lo que la página
+  pide desde el navegador (`/v1`) va sin el encabezado del build y sale vacío.
+- `auditar.mjs` pide los ids reales a la API sin ese encabezado: si la API lo rechaza, usa los de respaldo de
+  `rutas.mjs`.
 - Rutas que piden cuenta (`/app/mi-impacto`, `/app/configuracion`) se miden con lo que ve alguien sin sesión.

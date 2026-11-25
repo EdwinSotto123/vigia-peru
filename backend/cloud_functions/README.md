@@ -1,5 +1,7 @@
 # backend/cloud_functions/ — un Cloud Run Job por scraper, agendado con Cloud Scheduler
 
+> Legado: no corre desde el 2026-10-14. Lo reemplazó el Worker `vigia-scrapers` (`backend/scrapers-worker`).
+
 > **Pausado desde el 2026-10-14.** Los scrapers automáticos corren en Cloudflare: Worker `vigia-scrapers`,
 > en **`backend/scrapers-worker/`**. Los Schedulers `scraper-*` del proyecto de agentes quedaron pausados y no
 > hay que reanudarlos mientras el Worker esté activo (`SCRAPERS_ACTIVO=1`), porque sería trabajo doble. Esto

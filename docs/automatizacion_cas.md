@@ -21,7 +21,7 @@ Primero para lo que miran los usuarios que pagan.
 | **No resolver ni saltar captchas.** El Ministerio Público (`portal.mpfn.gob.pe`, 350 plazas) tiene captcha: queda fuera, con su enlace. | Decisión del dueño. |
 | **No postular por nadie ni usar credenciales de usuarios.** Gobserva informa y guía; postular es siempre en la entidad. | Decisión del dueño. |
 | **Sin secretos en el código.** El repo es público (a GitHub sólo por `publicar_github.sh`). | Seguridad. |
-| **Los modelos van por el Worker `vigia-llm` (ruta `/nativo`), modelo «respaldo» = Haiku 5.5.** Nunca Bedrock. | Costo y arquitectura. |
+| **Los modelos van por el Worker `vigia-llm`: sólo modelos abiertos de Workers AI (DeepSeek V4.1 Flash y GLM 5.3).** La ruta `/nativo` también la responde Workers AI. Nunca Bedrock. | Costo y arquitectura. |
 | **SERVIR sólo responde a IP del Perú** (Imperva: 403 desde Cloudflare y desde Zúrich). Se sale por el relay de Lima (`pedirLima` en `backend/scrapers-worker/src/http.ts`) o desde la PC del dueño (`backend/scrapers-pc`). Varias webs de entidades bloquean a Cloudflare también (Poder Judicial, DRELM): mismo camino. | Medido. |
 | **Cortesía con cada sitio:** 1 pedido por segundo por dominio como máximo, de madrugada para las lecturas grandes, con el `UA` de `http.ts` (sin correos personales). Cachear y no volver a bajar un PDF cuyo hash ya tenemos. | Son webs chicas del Estado. |
 | **Migraciones primero en DEV y después en PROD.** Despliegue por GitLab (`deploy:*`); no empujar otro commit mientras corre un pipeline. `git add` con rutas explícitas. | Flujo del repo. |
@@ -32,7 +32,7 @@ Primero para lo que miran los usuarios que pagan.
 |---|---|---|
 | Scraper de SERVIR «Ofertas laborales» | `backend/scrapers-worker/src/fuentes/servir_convocatorias.ts` (respaldo: `backend/scripts/cargar_servir_convocatorias.py`) | JSF + PrimeFaces con sesión y ViewState, paginador por «Sig.», detalle por «¡Ver más!». Diario incremental (huella de la fila), completo los jueves. Escribe `servir_convocatoria` (migr. 93). |
 | Buscador de bases | `backend/api/src/lib/basesPlaza.ts` (`buscarBases`) | Abre `detalle_url`, busca el enlace del proceso por su número («…-108» = «CAS N° 108»), entra a la página del proceso y toma sus PDF. Recorre las hojas de las colecciones de gob.pe. Hasta 9 pedidos. |
-| Lector de bases | `basesPlaza.ts` (`leerBases`) + `resumenPlaza.ts` | Haiku lee los PDF con herramienta forzada: `corresponde`, funciones, requisitos extra, cronograma, evaluación, documentos, cómo postular, condiciones y «ojo» (lo que deja fuera). |
+| Lector de bases | `basesPlaza.ts` (`leerBases`) + `resumenPlaza.ts` | DeepSeek V4.1 Flash (Workers AI, por `vigia-llm`) lee los PDF con herramienta forzada: `corresponde`, funciones, requisitos extra, cronograma, evaluación, documentos, cómo postular, condiciones y «ojo» (lo que deja fuera). |
 | Caché de bases y lecturas | tabla `servir_resumen` (migr. 270): `bases jsonb`, `bases_estado` (`encontradas`, `no_encontradas`, `error`), `bases_at` | Hoy se llena **sólo cuando alguien abre la ficha** (a pedido). |
 | Copias de documentos | R2, servidas en `GET /v1/empleo/bases/:clave` (24 hex) | El visor de la ficha muestra el PDF desde nuestra copia. |
 | Ficha en la app | `frontend/components/empleo/` (`LasBases`, `QueHacer`, `usePlaza`, `BarraPlaza`) | Muestra documentos, cronograma, «Aquí postulas», documentos para marcar. |
@@ -237,7 +237,7 @@ relay. Anota en el registro cuál es cuál.
 |---|---|---|
 | **Documentos**: bases, perfil o TDR, anexos (formatos de DJ), cronograma, comunicados, fe de erratas, **resultados de cada etapa** (sólo el aviso, ver reglas) | La página del proceso en la web de la entidad | Parcial (`buscarBases`) |
 | Copia de cada documento en R2, con hash (para saber si cambió) | Nosotros | Sí (bases) |
-| Lectura: funciones, requisitos (y los que las bases suman a SERVIR), cronograma, evaluación con puntajes, documentos a presentar, cómo postular, condiciones, lo que deja fuera | Haiku sobre los PDF | Sí (`leerBases`) |
+| Lectura: funciones, requisitos (y los que las bases suman a SERVIR), cronograma, evaluación con puntajes, documentos a presentar, cómo postular, condiciones, lo que deja fuera | El modelo abierto sobre los PDF | Sí (`leerBases`) |
 | **Cambios**: documento nuevo, cronograma distinto, comunicado, resultado publicado | Comparar contra la lectura anterior | **No** |
 
 ### Por entidad o plataforma (casi no cambia): la guía para postular
@@ -286,7 +286,7 @@ historia.
    determinística.
 2. **Recolector** (diario, de madrugada): por cada fuente activa, lee la lista, empata cada proceso con su aviso de
    SERVIR (por número, puesto y fechas), baja los documentos nuevos a R2 (por hash) y escribe `empleo_documento`.
-3. **Lector** (cuando hay un documento nuevo): Haiku lee bases y anexos (`leerBases`, extendido para prácticas) y, de
+3. **Lector** (cuando hay un documento nuevo): el modelo abierto lee bases y anexos (`leerBases`, extendido para prácticas) y, de
    los manuales y páginas de trámite, la guía de la entidad. Una lectura por PDF distinto, aunque sirva a varias plazas.
 4. **Vigía de cambios** (diario, sólo plazas abiertas o guardadas): compara documentos y cronograma contra lo anterior y
    escribe `empleo_evento`. Si es un resultado, sólo la etapa, la fecha y el enlace.
@@ -299,7 +299,7 @@ historia.
   cuando el sitio lo pide.
 - La PC del dueño (`backend/scrapers-pc`): lo que no pasa por el relay o es muy pesado.
 - Jobs `tarea:*` de GitLab CI (con túnel SSM): rellenos grandes.
-- Lecturas por `vigia-llm` (`/nativo`, Haiku 5.5). Referencia de costo: los lectores de actas costaron ~USD 0,02 por
+- Lecturas por `vigia-llm`, con modelos abiertos de Workers AI. Referencia de costo: los lectores de actas costaron ~USD 0,02 por
   documento; con bases compartidas entre plazas, calcula ~USD 0,02 a 0,04 por plaza nueva y mídelo en la fase 1.
 
 ---
@@ -363,8 +363,9 @@ Tablas: `gobserva_planes_cliente` (plan vigente: `producto = 'empleo'`, `estado`
 
 El recolector (`lib/empleoRecolector.ts`, cron de la madrugada y `POST /admin/empleo/recolectar`) prueba primero el
 adaptador del sitio (`lib/empleoAdaptadores.ts` y `lib/adaptadores/*.ts`, 85 dominios) y, si no, el buscador genérico.
-Baja hasta 3 PDF por plaza (25 MB cada uno, 35 MB por plaza), los copia a R2 y los lee GLM 5.3 flash: el texto, o las
-páginas escaneadas como imágenes (también JPEG guardados con Flate). Haiku sólo de respaldo y con tope.
+Baja hasta 3 PDF por plaza (25 MB cada uno, 35 MB por plaza), los copia a R2 y los lee el modelo abierto (GLM 5.3 flash en esa fecha;
+desde el 2026-11-20, DeepSeek V4.1 Flash): el texto, o las páginas escaneadas como imágenes (también JPEG guardados con
+Flate). La segunda vía, con el PDF entero y tope diario, también la responde Workers AI.
 
 **Con adaptador probado** (bases de la plaza correcta, sin listas de resultados):
 

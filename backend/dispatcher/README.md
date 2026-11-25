@@ -1,5 +1,8 @@
 # backend/dispatcher
 
+> Legado: el job de Cloud Run no corre desde el 2026-09-27, cuando se pausó su Scheduler. Lo reemplazó el Worker
+> `vigia-dispatcher` (`backend/dispatcher-worker`); este código queda como referencia de sus pruebas de paridad.
+
 Procesa **solo** los contratos que ya están asignados a una contribución pagada
 (`asignaciones` → trigger → `procesamientos`, migración 12). Nunca elige contratos:
 la asignación es `asignar_contribucion()` (FIFO en SQL).

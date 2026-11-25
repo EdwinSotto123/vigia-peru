@@ -1,5 +1,7 @@
 # Pruebas A/B de modelos (Gemini vs Cloudflare Workers AI)
 
+> Documento histórico (octubre de 2026): la prueba que comparó Gemini con un modelo abierto de Workers AI, cuando los agentes corrían en Google Cloud. Hoy sólo se usan modelos abiertos: ver [ARQUITECTURA.md](../../ARQUITECTURA.md).
+
 Mismo pipeline real de agentes, mismos contratos y mismas entradas (OCDS, documentos, clasificación), con un rol de base
 de **solo lectura** para que la prueba no pise análisis reales.
 

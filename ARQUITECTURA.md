@@ -1,169 +1,150 @@
-# Vigía Perú · Arquitectura (as-built)
+# Arquitectura de Vigía
 
-> Arquitectura **realmente construida** de Vigía Perú — qué servicios existen, qué hace cada uno
-> y cómo se conectan. Compañera de [`OBSERVABILITY.md`](OBSERVABILITY.md) (track de Arize) y
-> [`SOLUCION.md`](SOLUCION.md) (flujo de datos end-to-end).
->
-> **Contexto:** Google Cloud Rapid Agent Hackathon · track de observabilidad **Arize**.
-> Lo que sigue es lo desplegado y funcionando, no un diseño futuro (el roadmap está al final, §8).
+Cómo está hecho Vigía al 25 de noviembre de 2026: qué hace cada pieza, dónde corre, cómo pasa un contrato de la fuente
+oficial al dictamen y cómo se despliega. Lo que corría antes en Google Cloud está al final, en
+[Lo que quedó atrás](#lo-que-quedó-atrás). Para correrlo en tu máquina, mira el [README](README.md#correrlo-en-tu-máquina).
 
----
+## Las piezas
 
-## 1. Vista de servicios (lo construido)
+Vigía corre en Cloudflare (la web, la API, el MCP, la captura de datos, los modelos y el OCR) y en AWS (los agentes y la
+base de datos). Los productos de Gobserva viven en este mismo repositorio y comparten la web, la API y la base.
 
-```
-                 ┌─────────────────────────────┐
-   Browser ─────▶│ vigia-peru-frontend         │──REST──▶ vigia-peru-api ──read──▶ Cloud SQL
-   (mapa,        │ Next.js 14 · Cloud Run      │         (Hono/TS · Cloud Run        (PostgreSQL
-   dossiers,     │ mapa · dossiers · denuncias │          · cache + gzip)             + PostGIS)
-   denuncias)    └──────────────┬──────────────┘                                          ▲
-                        POST /analyze (stream NDJSON)                                      │ write
-                                 ▼                                                         │
-                 ┌─────────────────────────────────────────────────────────┐             │
-                 │ agent-orchestrator-adk · Cloud Run (Cloud Functions gen2) │─────────────┘
-                 │ Python + Google ADK · 11 agentes · maxInst 5 · conc 1     │
-                 └───┬─────────┬──────────┬───────────┬──────────┬───────────┘
-                     ▼         ▼          ▼           ▼          ▼
-              Vertex AI   Document AI  Vertex AI   Cloud       relay (Lima) ──▶ OECE/SEACE
-              Gemini 2.5   OCR         Search       Storage    + Cloudflare      SUNAT·INFOBRAS
-              Flash/Lite               (RAG 721                 Worker           ONPE·JNE·MEF
-              (global)                  opiniones OECE)
-                     │
-                     ▼  spans OTEL (OpenInference)
-              Arize AX + Phoenix Cloud   ·   Secret Manager inyecta credenciales
+| Pieza | Qué hace | Dónde corre |
+|---|---|---|
+| `frontend` (Worker `vigia-web`) | El sitio de Vigía y de los productos de Gobserva, con Next.js 14 y OpenNext. Cada producto se sirve desde su subdominio de `gobserva.cloud`: vigia, salud, empleo, licitaciones, obras y car | Cloudflare Workers |
+| `infrastructure/deploy/cloudflare/gobserva-redirect` (Worker `gobserva-redirect`) | La portada de `gobserva.cloud` | Cloudflare Workers |
+| `backend/api` (Worker `vigia-api`) | La API con Hono, de lectura y escritura. Decide qué se publica y qué se tapa de las personas. Cuenta los límites por IP con un Durable Object (`Limitador`) | Cloudflare Workers, con Hyperdrive hacia la base |
+| `backend/mcp-worker` (Worker `vigia-mcp`) | El conector MCP en `https://mcp.gobserva.cloud/mcp`. Se entra con la cuenta de Gobserva (OAuth) y los datos los pide a la API | Cloudflare Workers |
+| `backend/scrapers-worker` (Worker `vigia-scrapers`) | La captura de datos públicos: los contratos del OECE cada día y las demás fuentes en su calendario, una corrida por fuente | Cloudflare Workflows |
+| `backend/dispatcher-worker` (Worker `vigia-dispatcher`) | Cada 5 minutos toma la cola de análisis (`procesamientos`) y llama a la Lambda de la red que corresponde | Cloudflare Workers y Workflows |
+| `backend/agent` | Los agentes que leen cada contrato, en Python, con Google ADK como librería. Una Lambda por red: bienes, servicios, obras, consultoría y directas | AWS Lambda, con imagen de contenedor |
+| `backend/llm-worker` (Worker `vigia-llm`) | La única puerta a los modelos de lenguaje. Sólo deja pasar los modelos abiertos de su lista blanca | Cloudflare Workers AI |
+| `backend/ocr-worker` (Worker `vigia-ocr`) | OCR abierto: Docling con RapidOCR y TableFormer | Cloudflare Containers |
+| `backend/scripts` y `backend/lector` | La lectura previa de los documentos, la lectura por piezas, el análisis masivo y los reanálisis | Tareas de GitLab CI o una PC |
+| PostgreSQL | Una sola base: contratos, señales, dictámenes, fuentes, cuentas y métricas | AWS RDS, sin acceso público |
+| Archivos | Bases, actas, contratos, descargas crudas, fotos de denuncias y comprobantes | Cloudflare R2 |
+| Cuentas | Firebase Authentication para Vigía. Amazon Cognito para Empleo, Licitaciones (con Obras) y Salud | Firebase y AWS |
 
-   vigia-mcp · Cloud Run (MCP) ──read──▶ Cloud SQL   →   clientes LLM externos (periodista/fiscal)
-```
+Piezas más chicas:
 
----
-
-## 2. Componentes construidos
-
-| Servicio | Runtime | Qué hace | Estado |
-|---|---|---|---|
-| **vigia-peru-frontend** | Cloud Run · Next.js 14 | Mapa interactivo, dossiers, formulario de denuncias; dispara análisis (stream NDJSON) y lee dossiers vía la API | ✅ |
-| **vigia-peru-api** | Cloud Run · Hono/TS | API de **lectura** (dossiers/alertas/entidades/reportes) con cache + gzip; descarga al orquestador | ✅ |
-| **agent-orchestrator-adk** | Cloud Run (Cloud Functions gen2) · Python + ADK | Pipeline de **11 agentes**; único servicio de escritura; `maxInstances=5`, `concurrency=1` | ✅ |
-| **vigia-mcp** | Cloud Run · MCP | Expone alertas + evidencia como tools read-only a clientes LLM externos | ✅ |
-| **relay (downloader)** | VPS Lima · FastAPI | IP residencial PE para leer portales `.gob.pe` (dan 403 a IPs de nube); stagea PDFs a GCS | ✅ |
-| **oece-relay** | Cloudflare Worker | Proxy de fallback que bypassa el WAF del OECE | ✅ |
-| **Vertex AI (Gemini 2.5)** | Servicio GCP | Razonamiento de los agentes: **Flash** (principal) + **Flash-Lite** (extracción), endpoint **global** | ✅ |
-| **Document AI** | Servicio GCP | OCR de los PDFs del expediente (per-use, imageless) | ✅ |
-| **Vertex AI Search** | Servicio GCP | RAG sobre **721 opiniones normativas del OECE** (con fallback a pgvector) | ✅ |
-| **Cloud SQL (PostgreSQL + PostGIS)** | Datastore GCP | Ciclo de vida, alertas, banderas, red empresarial, pines geo | ✅ |
-| **Cloud Storage** | Datastore GCP | Staging de documentos y fotos de reportes | ✅ |
-| **Secret Manager** | GCP | 4 secretos (Cloud SQL, Google API, Phoenix, Pinecone) — sin claves en texto plano | ✅ |
-| **Firebase Authentication** | GCP | Login de la demo | ✅ |
-| **Arize AX + Phoenix Cloud** | SaaS | Recibe spans OTEL (OpenInference) del orquestador — track de observabilidad del hackathon | ✅ |
-
----
-
-## 3. Decisiones técnicas clave (y por qué)
-
-- **Gemini vía Vertex AI endpoint `global`.** Los proyectos nuevos sufren 429 agresivos por región;
-  el endpoint global enruta entre regiones y permite que las convocatorias doc-pesadas completen.
-- **Document AI en vez de Gemini Vision página por página.** Se hace OCR del documento completo
-  (imageless, chunks de ≤30 págs) y se concatena el texto → **una sola llamada a Gemini por
-  documento**. Más rápido, más barato, sin truncar (detalle en §7).
-- **RAG legal con Vertex AI Search.** Las 721 opiniones del OECE indexadas → cada bandera cita la
-  opinión normativa exacta (regla #6). Fallback a pgvector vía `LEGAL_RAG_BACKEND`.
-- **Observabilidad (track Arize).** OpenInference instrumenta **Gemini (`GoogleGenAIInstrumentor`)
-  y el Runner ADK (`GoogleADKInstrumentor`** — transfers entre agentes) → dual-export a **Arize AX
-  + Phoenix Cloud**. El dossier linkea a su traza vía `phoenix_trace_id`. Self-eval inline: 6
-  evaluadores (4 LLM-as-judge + 2 deterministas).
-- **Persistencia resiliente.** El `analisis_full` se persiste en un **checkpoint ANTES del
-  dictamen** (el paso más largo) → un timeout ya no deja el dossier vacío.
-- **Relay de descargas.** El Worker `vigia-relay` (`LOCAL_DOWNLOADER_URL`, ubicado en Zúrich: OECE y SEACE
-  filtran por la IP de salida y aceptan la de ese punto de Cloudflare; el VPS de Lima ya no existe) baja OCDS + PDFs;
-  Cloudflare Worker como fallback. Sin esto, la capa máquina queda ciega.
-- **Lectura ≠ escritura.** Los dossiers cacheados se sirven por `vigia-peru-api` (barato); el
-  orquestador (caro) solo corre análisis **nuevos**.
-- **Escala para demo.** Orquestador `maxInstances=5`, `concurrency=1` → varios análisis en paralelo
-  (jurados) sin abortarse entre sí.
-- **Optimizaciones de costo/latencia.** Caché de parseo por URL (no re-OCR del mismo PDF en un run)
-  y dedup semántico de ítems (no tasar el mismo ítem dos veces contra el mercado).
-
----
-
-## 4. Costos (medidos)
-
-| Concepto | Valor |
+| Pieza | Para qué |
 |---|---|
-| **Por análisis completo** | **≈ 1 sol (US$0.30)** · ≈ 12 llamadas Gemini · ≈ 245K tokens |
-| OCR (Document AI) | per-use, ~$1.50/1000 págs (free tier 1M págs/mes); ≤200 págs/análisis ≈ $0.30 |
-| Vertex AI Search | **~$0/mes** (free tier 10 GiB + 10k queries; 721 docs ≈ 0.15 GiB) |
-| Compute (Cloud Run × 4 servicios) | dentro del free tier / créditos en escala piloto |
+| `backend/relay-worker` (`vigia-relay`) | Bajar del OECE y del SEACE, que filtran por la IP de salida. El Worker corre en Zúrich, donde sí responden |
+| `backend/seace-zrh-worker` (`vigia-seace-zrh`) | Los reportes del SEACE con su expediente SIAF, también desde Zúrich |
+| `backend/relay-lima` | Una salida con IP del Perú, por un túnel de Cloudflare, para las fuentes que sólo responden dentro del país |
+| `backend/precios-worker` (`vigia-precios`) | Precios de referencia propios: tiendas en línea, combustibles y el mercado mayorista |
+| `backend/precios-lab-worker` (`vigia-precios-lab`) | La investigación de precios del panel, con Crawl4AI en un contenedor |
+| `backend/r2-sync-worker` (`vigia-r2-sync`) | Copia a R2 los buckets que quedaron en Google Cloud Storage |
 
-> El número que importa: **vigilar un contrato del Estado cuesta lo mismo que un café**.
+## Cómo pasa un contrato de la fuente al dictamen
 
----
-
-## 5. El servidor Vigía MCP
-
-MCP **remoto (HTTP)** en **Cloud Run** que expone, a cualquier cliente LLM (Gemini/Cursor/etc.),
-tools **read-only** sobre los datos de Vigía:
-
-- `buscar_alertas(region, severidad_min)` → alertas de riesgo por zona.
-- `riesgo_convocatoria(ocid)` → score + banderas de una convocatoria.
-- `empresa_sancionada(ruc)` → estado en OSCE/sanciones.
-
-Solo lectura, sin datos personales de ciudadanos (regla innegociable #2), password vía Secret
-Manager. Distinto del **Phoenix MCP** (que introspecciona *nuestras* trazas): acá Vigía es el
-**servidor** — un periodista pregunta desde su propio agente *"dame las alertas rojas de Áncash"*
-y las recibe con su evidencia oficial. **Estado: ✅ desplegado.**
-
----
-
-## 6. Flujo de datos del análisis
-
-Detalle end-to-end en [`SOLUCION.md`](SOLUCION.md). En resumen, al pegar un código:
-OCDS (vía relay) → reglas duras (compliance) → Document AI OCR + Gemini → precios vs mercado →
-red empresarial + personas → RAG legal (Vertex AI Search) → **checkpoint de persistencia** →
-dictamen. Todo trazado en Arize/Phoenix.
-
----
-
-## 7. Document AI (OCR) — el flujo del parser
-
-**El problema que resolvía.** El cuello de botella en runs doc-pesados era rasterizar cada página
-a PNG y mandarla a Gemini Vision, shard por shard (un doc de 85 págs → ~7 llamadas multimodales
-lentas, muchos tokens de imagen) — podía tardar ~60 min y chocar el wall de Cloud Run.
-
-**El flujo construido (per-use, pago por página):**
-
-```
-PDF (cualquier tamaño)
-   ├─▶ Document AI · OCR (imageless, chunks de ≤30 págs)  →  texto de alta fidelidad
-   │       (concatena los chunks → documento completo en texto)
-   └─▶ Gemini (1 llamada de TEXTO con schema)  →  ítems, specs, banderas → state['document_analysis']
-   (fallback automático al render PNG + Gemini Vision si Document AI falla)
+```text
+  OECE (OCDS) y otras fuentes públicas
+        │  algunas, por los relays de Zúrich y de Lima
+        ▼
+  vigia-scrapers ──────────▶ PostgreSQL: el registro de cada proceso
+        │
+        ▼
+  R2: bases, actas y contratos (PDF, Word, Excel, ZIP, RAR)
+        │
+        ▼
+  lectura previa: texto, OCR (vigia-ocr) y extracción ──▶ PostgreSQL
+        │
+        ▼
+  dispatcher (la cola) o análisis masivo (GitLab CI)
+        │
+        ▼
+  Lambda de la red ◀──────▶ vigia-llm (Workers AI)
+        │  reglas, documentos, norma, mercado, prensa y web, red, dictamen
+        ▼
+  PostgreSQL: alerta, señales y dictamen
+        │
+        ▼
+  vigia-api ──────▶ vigia-web y vigia-mcp
 ```
 
-**Implementación:**
-- `tools/docai.py::extract_text_docai(pdf_bytes)` — OCR del PDF (chunks de 30 págs, concatenación).
-- `tools/documentos.py::_parse_single_pdf_with_gemini` — intenta Document AI primero; si hay texto
-  lo manda como `Part.from_text` y **omite el render de PNGs**; si falla, fallback al render.
-- **Caché por URL** + **dedup semántico de ítems** evitan re-OCR y doble tasación.
+1. **Captura.** `vigia-scrapers` trae cada día, a las 6:00 de Lima, las convocatorias nuevas del OECE (estándar OCDS). En
+   su calendario carga las demás fuentes: datos abiertos (PNDA), CONOSCE, MEF, JNE e Infogob, ONPE y el personal del
+   Portal de Transparencia. Los documentos de cada proceso y lo crudo de cada descarga se guardan en R2. Las cargas más
+   pesadas corren como tareas de GitLab CI: el RNP cada mes, las órdenes de cada entidad y el detalle de los contratos
+   menores.
+2. **Lectura previa.** Antes de analizar se lee el expediente entero (`backend/scripts/lectura_previa.py`): se abren los
+   ZIP, RAR y Word, se saca el texto de cada página, las páginas escaneadas pasan por el OCR abierto (`vigia-ocr`) y un
+   modelo ordena el texto en ítems, montos y bloques. Todo queda en la base. El análisis masivo sólo toma contratos cuya
+   lectura previa quedó completa (tabla `lectura_previa`). Aparte, `backend/lector` lee los documentos por piezas
+   (actas, contratos, bases) para las fichas y los precios.
+3. **Agentes.** El `dispatcher` toma cada 5 minutos la cola `procesamientos`: los contratos financiados y los reanálisis
+   pedidos desde el panel. El análisis masivo (`backend/scripts/masivo_agentes.py`) y los reanálisis por lote corren
+   como tareas de GitLab CI, con un tope de gasto que se cuenta en la base. Todos llaman a la Lambda de la red del
+   contrato. Ahí los pasos corren siempre en el mismo orden, fijado en el código (`backend/agent/deterministic.py`), no
+   decidido por un modelo.
+4. **Señales y dictamen.** Las 28 reglas corren en código, sin IA. Los agentes suman las suyas, y cada señal se coteja con
+   el expediente y los registros antes de guardarse: si no se puede comprobar, se descarta. La norma sale del RAG
+   normativo de la propia base, según la fecha de la convocatoria ([RAG_NORMATIVO_V2.md](docs/design/RAG_NORMATIVO_V2.md)).
+   Al final, una autoevaluación revisa respaldo, citas, precios y tono. Si no pasa sus umbrales, el dictamen queda en
+   revisión humana y no se publica hasta que alguien lo apruebe en el panel.
+5. **Publicación.** Sólo la API publica, con una sola regla para todo lo que sale y lo que se tapa de las personas
+   (`backend/api/src/lib/publicacion.ts` y `privacidad.ts`). La web la lee desde su servidor. Cada señal sale con su
+   norma y su documento oficial.
+6. **MCP.** `vigia-mcp` ofrece más de 50 herramientas de sólo lectura. Los datos de Vigía se los pide a la API por un
+   service binding, así que rige la misma regla de privacidad. Se entra con una cuenta de Gobserva con el correo
+   confirmado.
 
-**Config (env):** `DOCAI_PROCESSOR_ID`, `DOCAI_LOCATION=us`. SA del orquestador con
-`roles/documentai.apiUser`. **Por qué Gemini sigue:** Document AI hace el OCR; la estructuración
-inteligente (qué es ítem, qué specs son decisivas, qué patrón es bandera) la hace Gemini sobre el
-texto — OCR gestionado + razonamiento del LLM, en menos llamadas.
+## Los modelos
 
----
+- Sólo modelos abiertos, servidos por Workers AI a través de `vigia-llm` (`backend/llm-worker/wrangler.jsonc`).
+- DeepSeek V4.1 Flash hace casi todo. GLM 5.3 atiende a los agentes de juicio más complejo: el redactor del dictamen, el
+  analista legal y la red de personas.
+- Si un modelo llega a su tope por minuto, el pedido pasa a otro modelo abierto (Gemma 4 o Qwen 3.8).
+- Los vectores para buscar normas y documentos por sentido salen de bge-m3, también en Workers AI.
+- El OCR es Docling, abierto, en un contenedor propio.
+- Cada llamada anota su costo. Lo que cuesta leer los contratos se publica en `/metricas` (ver
+  [OBSERVABILITY.md](OBSERVABILITY.md)).
 
-## 8. Roadmap (no construido — futuro)
+## Dónde se guardan los datos
 
-Lo de abajo **no está implementado**; es la dirección a producción:
+- **PostgreSQL 16 en AWS RDS**, con PostGIS (mapas), pgvector (búsqueda por sentido), pg_trgm y unaccent (búsqueda por
+  nombre) y pg_cron (refrescos). Cada componente entra con su propio rol: la API, el panel, los agentes, el dispatcher,
+  el MCP, la captura y el CI. El esquema son migraciones SQL numeradas en `backend/db/migrations/`.
+- **Cloudflare R2**: los documentos de los expedientes, lo crudo de cada descarga, las fotos públicas, los comprobantes
+  de los aportes (privados), la caché de páginas de la web y las evidencias del laboratorio de precios.
+- **Fuera de la base**: el OAuth del MCP en KV (los tokens, como hash) y los contadores de límites en un Durable Object.
+- **Secretos**: en los secretos de cada Worker y en AWS SSM Parameter Store. Nunca en el repositorio.
 
-| Próximo paso | Resuelve |
-|---|---|
-| **Cloud Scheduler + Pub/Sub + Eventarc** | Ingesta diaria SEACE/OECE + convergencia automática alerta↔reporte ciudadano |
-| **GCP Workflows** | Orquestación determinista de los cruces C1→C8 (Gemini solo extrae/redacta) |
-| **BigQuery** | Cruces pesados sobre el dataset completo (2.5M + 1.44M filas) |
-| **Vertex AI Agent Engine** | Runtime gestionado para ADK (sesiones, escalado, Memory Bank) — migración a producción |
-| **Cloud Armor + Load Balancer** | WAF / anti-DDoS delante del mapa público |
-| **Grounding con Google Search** | Reemplazar el scraping ad-hoc del `web_research_agent` |
+La base no es pública. Se llega así:
 
-Y a nivel producto: cruces C3–C8 completos, cobertura nacional, moderación de reportes (2 reportes
-independientes en ≤30 días) y hand-off formal a periodistas / Contraloría / Fiscalía.
+```text
+Workers ──▶ Hyperdrive ──▶ túnel de Cloudflare ──▶ PgBouncer (EC2) ──▶ RDS
+Lambdas de agentes, dentro de la VPC ──── TLS verificado ────────────▶ RDS
+Una PC o el CI ──▶ Session Manager, por el mismo proxy ──────────────▶ RDS
+```
+
+## Cómo se despliega
+
+- El repositorio de trabajo es privado, en GitLab, con su CI (`.gitlab-ci.yml`). Tiene dos ramas largas: `dev` y `main`.
+- Cada push a `dev` o `main` que toca la API o la web corre tipos, pruebas y la guardia de estilo (`verificar:api`,
+  `verificar:web`).
+- Un push a `dev` despliega solo la API y la web de DEV, con su propia base. Ver [docs/DEV.md](docs/DEV.md).
+- En `main`, los despliegues a producción son manuales, con el botón del pipeline: `deploy:api:prod`, `deploy:web:prod`
+  y `deploy:agentes:prod`.
+- Los agentes: `build:agente` arma la imagen (una base con las dependencias más una capa con `backend/agent`) y la sube
+  a ECR. `deploy:agentes:prod` la pone en las cinco Lambdas. El CI entra a AWS con un token OIDC, sin llaves guardadas.
+- Los demás Workers se despliegan desde una PC con `bash infrastructure/deploy/cloudflare/worker.sh <nombre>`, que sólo
+  sube lo commiteado. Los que no están en ese script, con `npx wrangler deploy` desde su carpeta. Las migraciones de la
+  base también se aplican desde una PC, por el túnel.
+- Las tareas largas (análisis masivo, reanálisis, lectura por piezas, RNP, órdenes y contratos menores) son jobs de
+  GitLab CI, manuales o con horario.
+- **Espejo público.** `main` se publica en GitHub,
+  [Gobserva-Cloud/vigia-peru](https://github.com/Gobserva-Cloud/vigia-peru), con
+  `infrastructure/github/publicar_github.sh`: quita lo que no puede ser público, busca secretos y DNI antes de empujar y
+  no reescribe lo ya publicado. El push directo a GitHub está desactivado. Allá `main` está protegida, las pruebas corren
+  en cada PR y lo aprobado se integra en el repositorio de trabajo con la autoría de quien lo hizo
+  ([CONTRIBUTING.md](CONTRIBUTING.md)).
+
+## Lo que quedó atrás
+
+Hasta octubre de 2026 Vigía corrió en Google Cloud: Cloud Run, Cloud SQL, Gemini en Vertex AI, Document AI, Vertex AI
+Search, Cloud Storage y trazas en Arize. En octubre la base pasó a AWS RDS y la captura a Cloudflare. Desde el 4 de
+noviembre los agentes corren en AWS Lambda, y desde el 10 de noviembre sólo con modelos abiertos. De Google queda Firebase
+Authentication. El código viejo sigue en el repositorio y se elige por componente en `infrastructure/proveedores.env`
+([docs/PROVEEDORES.md](docs/PROVEEDORES.md)). La versión del hackathon está en [docs/hackathon/](docs/hackathon/).

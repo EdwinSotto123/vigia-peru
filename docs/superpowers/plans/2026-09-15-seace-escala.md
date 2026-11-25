@@ -1,5 +1,7 @@
 # SEACE a escala — clasificación tipo×etapa, descarga por lotes, contratos en mapa y lista, procesamiento en vivo
 
+> Documento histórico (septiembre de 2026): un plan de trabajo de cuando Vigía corría en Google Cloud. Lo vigente está en [ARQUITECTURA.md](../../../ARQUITECTURA.md).
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Que Vigía pueda ingerir progresivamente TODO el SEACE (histórico + actualizaciones) sin re-descargar, clasificar cada contrato por **tipo × etapa** y aplicar solo los agentes que corresponden (o marcarlo *pendiente de procesamiento*), mostrar **cada contrato** en el mapa y en una lista paginada con filtros conectados, y ver el procesamiento **en tiempo real** de forma compacta.

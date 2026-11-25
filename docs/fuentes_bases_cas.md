@@ -517,7 +517,7 @@ MTPE, SERNANP y PRONIED ya están en la lista de sitios con adaptador (arriba).
 - Sin captchas, sin cuentas y sin postular por nadie.
 - Como mucho un pedido por segundo por sitio, intercalando sitios, y las lecturas grandes de madrugada.
 - De los resultados (aptos, puntajes, ganadores) sólo el enlace: nunca se bajan ni se leen, porque traen nombres y DNI.
-- Los modelos se usan por vigia-llm: GLM 5.3 flash de Workers AI y Haiku sólo de respaldo, con tope diario.
+- Los modelos se usan por vigia-llm, y son sólo los abiertos de Workers AI: DeepSeek V4.1 Flash desde el 2026-11-20 (antes, GLM 5.3 flash). La segunda vía, con el PDF entero, tiene tope diario.
 
 ---
 

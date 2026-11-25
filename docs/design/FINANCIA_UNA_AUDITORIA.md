@@ -1,5 +1,7 @@
 # Financia una auditoría — concepto, integración y plan
 
+> Documento histórico (septiembre de 2026): el diseño de «S/ 3 por contrato», de cuando Vigía corría en Google Cloud. Desde el 29 de octubre de 2026 los aportes van a un fondo común. Lo vigente está en [ARQUITECTURA.md](../../ARQUITECTURA.md).
+
 > Estado: **propuesta de diseño** (2026-09-14). Nada de esto está implementado.
 > Decisiones tomadas con el equipo: financiadores **empresas y ciudadanos desde el
 > inicio**; mapa con drill-down **departamento → provincia → distrito**; Vigía

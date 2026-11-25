@@ -1,5 +1,7 @@
 # U2 + U3 + U5 · recorrido en navegador (2026-09-16)
 
+> Documento histórico (septiembre de 2026): un recorrido de la versión que corría en Google Cloud. Lo vigente está en [ARQUITECTURA.md](../../../../ARQUITECTURA.md).
+
 Plan: `docs/superpowers/plans/2026-09-16-mejoras-ux-datasets-rag.md` (§ U2 "Menos fricción para financiar y denunciar", § U3 "Cuenta, perfil y configuración", § U5 "Pulido de auditoría en vivo, detalle de contrato, responsive y accesibilidad"). Tres pasadas navegador → ajuste → deploy (Playwright por CLI, viewports 375×812 y 1280×900; los servidores MCP de Playwright/chrome-devtools no estaban disponibles en la sesión). Capturas `NN-*-vN.png` en esta carpeta (`-v1` = primer deploy, `-v2` = tras los ajustes, `-local` = comprobaciones intermedias contra `next dev` apuntando a la API de producción).
 
 ## Lo que se veía mal y por qué

@@ -1,5 +1,7 @@
 # Vigía Perú — Devpost Submission
 
+> Documento histórico (junio de 2026): el material del hackathon, cuando Vigía corría en Google Cloud. Lo vigente está en [ARQUITECTURA.md](../../ARQUITECTURA.md).
+
 > Copy-paste guide for the hackathon submission form. Fields are in **English**
 > (international Arize + Google Cloud judges). The 3-minute video script lives in
 > [`GUION_VIDEO.md`](GUION_VIDEO.md) (Spanish, for the live demo); a real analyzed

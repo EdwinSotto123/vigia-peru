@@ -1,5 +1,7 @@
 # Volumen real del SEACE — medición, extrapolación y costo de almacenamiento
 
+> Documento histórico (septiembre de 2026): describe la versión que corría en Google Cloud. Lo vigente está en [ARQUITECTURA.md](../../ARQUITECTURA.md).
+
 > Estado: **medido el 2026-09-15** desde IP peruana con `python -m backend.batch.muestreo`.
 > Datos crudos: [`volumen_muestra.json`](volumen_muestra.json) (302 records, 1 157 documentos
 > con tamaño, 27 meses contados página a página). Todo lo que no salió de una medición está

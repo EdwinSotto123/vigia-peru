@@ -1,20 +1,24 @@
 # Entorno DEV
 
-Una copia de Vigía para probar cambios con datos reales antes de que lleguen a producción. Nada de lo que pasa en DEV
-se ve en producción: tiene su propia base, sus propios Workers y sus propios secretos.
+Una copia de Vigía para probar cambios con datos reales antes de que lleguen a producción. Tiene su propia base, sus
+propios Workers y sus propios secretos. Comparte con producción el login (Firebase) y algunos buckets de R2 (ver «Lo que
+DEV no hace»).
 
 | Pieza | Producción | DEV |
 |---|---|---|
-| Web | `vigia-web.vigiaperu.workers.dev` | `vigia-web-dev.vigiaperu.workers.dev` (pide usuario y clave) |
+| Web | `vigia.gobserva.cloud` (Worker `vigia-web`) | `vigia-web-dev.vigiaperu.workers.dev` (pide usuario y clave) |
+| Productos de Gobserva | `empleo.gobserva.cloud`, `salud.gobserva.cloud`… | `empleo-dev.gobserva.cloud`, `salud-dev.gobserva.cloud`…, o por ruta (`/empleo`) |
 | API | `vigia-api.vigiaperu.workers.dev` | `vigia-api-dev.vigiaperu.workers.dev` |
+| MCP | `vigia-mcp` | `vigia-mcp-dev` |
 | Scrapers | `vigia-scrapers` (con crons) | `vigia-scrapers-dev` (sin crons: sólo a mano) |
 | Base | RDS `vigia-db` (db.t4g.large, 8 GB) | RDS `vigia-db-dev` (db.t4g.micro), un clon de producción |
 | Roles de la base | `vigia_api`, `vigia_api_admin`, `vigia_jobs` | `dev_api`, `dev_api_admin`, `dev_jobs` (sólo existen en `vigia-db-dev`) |
 | Hyperdrive | `vigia-api`, `vigia-api-admin`, `vigia-jobs` | `vigia-dev-api`, `vigia-dev-api-admin`, `vigia-dev-jobs` |
 | R2 | `vigia-web-cache`, `vigia-peru-crudos`, `vigia-peru-batch` | los mismos con `-dev` |
-| Secretos | Workers y Secret Manager | Workers `-dev`, guardados en SSM `/vigia/dev/` |
+| Secretos | Workers y SSM (`/vigia/`) | Workers `-dev`, guardados en SSM `/vigia/dev/` |
 
-Los Workers DEV están en `env.dev` de cada `wrangler.jsonc` (`backend/api`, `frontend`, `backend/scrapers-worker`).
+Los Workers DEV están en `env.dev` de cada `wrangler.jsonc` (`backend/api`, `frontend`, `backend/scrapers-worker`,
+`backend/mcp-worker`).
 
 ## El día a día
 
@@ -23,25 +27,35 @@ Los Workers DEV están en `env.dev` de cada `wrangler.jsonc` (`backend/api`, `fr
 # 2. Si hay una migración nueva, aplicarla primero en DEV:
 bash infrastructure/deploy/dev.sh migrar backend/db/migrations/84_precio_item.sql
 bash infrastructure/deploy/dev.sh sql "SELECT refrescar_precio_item()"
-# 3. Desplegar la copia de trabajo a DEV (la API en segundos, la web en ~10 min):
+# 3. Desplegar la copia de trabajo a DEV (la API en segundos; la web, con un build local de OpenNext):
 bash infrastructure/deploy/dev.sh api
 bash infrastructure/deploy/dev.sh web
 # 4. Mirarlo en https://vigia-web-dev.vigiaperu.workers.dev (usuario `vigia`, clave en SSM /vigia/dev/web-clave).
-# 5. Si está bien: commit y desplegar a producción como siempre (migración en RDS, wrangler deploy, web-cloudflare-remoto.sh).
+# 5. Si está bien: la migración en producción por el túnel, commit y push a `main`, y ▶ en los jobs manuales
+#    `deploy:api:prod` y `deploy:web:prod` del pipeline de GitLab.
 ```
 
-A diferencia de producción, que empaqueta el último commit (`git archive HEAD`), DEV despliega **la copia de trabajo**,
-con lo que no está commiteado.
+`dev.sh web` arma la web en la PC: no lo corras con un `next dev` abierto, porque comparten `frontend/.next`. Con
+`VIGIA_BUILD_TOKEN` en el entorno (secreto, el mismo del CI), el build prerenderiza con datos; sin él, las páginas
+estáticas salen vacías. `SIN_BUILD=1` despliega el último build (cuando sólo cambió `worker-dev.js` o `wrangler.jsonc`).
+
+A diferencia de producción, que sale de lo commiteado, `dev.sh` despliega **la copia de trabajo**, con lo que no está
+commiteado. Un push a la rama `dev` también despliega la API y la web DEV, solas (`deploy:api:dev` y `deploy:web:dev`
+de `.gitlab-ci.yml`).
 
 Otros comandos:
 
 ```bash
 bash infrastructure/deploy/dev.sh scrapers                                   # desplegar vigia-scrapers-dev
+bash infrastructure/deploy/dev.sh mcp                                        # desplegar vigia-mcp-dev
+bash infrastructure/deploy/dev.sh todo                                       # API, web y scrapers
 bash infrastructure/deploy/dev.sh correr '{"fuente":"oece_ocds","seco":true}' # una corrida a mano contra la base DEV
 bash infrastructure/deploy/dev.sh estado                                     # base, API y web DEV
 bash infrastructure/deploy/dev.sh detener                                    # apagar la base DEV (sólo se paga el disco)
 bash infrastructure/deploy/dev.sh encender
 bash infrastructure/deploy/dev.sh clonar                                     # traer de nuevo los datos de producción (~40 min)
+bash infrastructure/deploy/dev.sh base                                       # roles, PgBouncer e Hyperdrive de DEV
+bash infrastructure/deploy/dev.sh secretos                                   # secretos de los Workers DEV, desde SSM
 ```
 
 ## Por qué DEV es más lento que producción
@@ -55,12 +69,14 @@ bash infrastructure/deploy/dev.sh clonar                                     # t
 
 ## Lo que DEV no hace (a propósito)
 
-- **No escribe en producción.** Los roles `dev_*` sólo existen en `vigia-db-dev`: aunque se filtraran, no entran a la base
-  de producción. La API DEV no tiene dispatcher ni acceso a Cloud Storage.
+- **No escribe en la base de producción.** Los roles `dev_*` sólo existen en `vigia-db-dev`: aunque se filtraran, no
+  entran a la base de producción. La API DEV no tiene dispatcher.
 - **No corre solo.** Sin crons en la API ni en los scrapers: los datos de DEV son los del último `clonar`.
-- **No sube archivos.** Las subidas de la web (comprobantes, fotos de denuncias) van a Cloud Storage con una cuenta de
-  servicio que DEV no tiene: en DEV fallan.
-- **No lee contratos con agentes.** Para probar agentes contra DEV, apuntar una Lambda de evaluación a `vigia-db-dev`.
+- **Ojo con las subidas.** Las subidas de la web (comprobantes, fotos de denuncias) van a R2, a los **mismos buckets que
+  producción** (`vigia-peru-reportes` y `vigia-peru-privado`, bindings `MEDIOS` y `PRIVADO` de `env.dev`). Lo que subas
+  en DEV queda junto a lo de producción.
+- **No lee contratos con agentes.** La web DEV no tiene las Lambdas de agentes. Para probar agentes contra DEV, apuntar
+  una Lambda de evaluación a `vigia-db-dev`.
 - **Captcha de prueba.** Usa las claves de prueba de Cloudflare Turnstile, que siempre pasan.
 - **Login.** Usa el mismo proyecto de Firebase y los mismos administradores que producción. El dominio DEV está en los
   dominios autorizados de Firebase.
@@ -69,9 +85,10 @@ bash infrastructure/deploy/dev.sh clonar                                     # t
 
 - `vigia-db-dev` es un restore *point in time* de `vigia-db`, en la misma VPC, subred y grupo de seguridad, con el mismo
   grupo de parámetros. No es pública (como producción, desde el 2026-10-21): `dev.py` entra por un túnel de Session
-  Manager a través del proxy (`infrastructure/aws/tunel_rds.py`, requiere `session-manager-plugin` en el PATH). Tiene su propia clave maestra (SSM `/vigia/dev/db-admin`). Cuesta unos US$15 al mes encendida.
-  AWS la vuelve a encender sola a los 7 días de detenida.
-- Los Workers llegan a ella por el mismo camino que a producción: Hyperdrive → túnel → PgBouncer en `vigia-db-proxy`.
+  Manager a través del proxy (`infrastructure/aws/tunel_rds.py`, requiere `session-manager-plugin` en el PATH). Tiene su
+  propia clave maestra (SSM `/vigia/dev/db-admin`). Cuesta unos US$15 al mes encendida. AWS la vuelve a encender sola a
+  los 7 días de detenida.
+- Los Workers llegan a ella por el mismo camino que a producción: Hyperdrive, túnel y PgBouncer en `vigia-db-proxy`.
   PgBouncer tiene una base más, `vigia_dev`, que apunta a `vigia-db-dev`.
 - **Si se recrea el proxy** (un `terraform apply` que cambie su `user_data` lo reemplaza), la base `vigia_dev` desaparece de
   PgBouncer: correr `bash infrastructure/deploy/dev.sh base`, que la vuelve a agregar. A propósito no está en

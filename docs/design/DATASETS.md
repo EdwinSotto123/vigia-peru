@@ -1,5 +1,7 @@
 # Datasets externos — qué hay cargado, de dónde sale y con qué regla se cruza
 
+> Documento histórico (septiembre de 2026): describe la versión que corría en Google Cloud. Lo vigente está en [ARQUITECTURA.md](../../ARQUITECTURA.md).
+
 > Frente D del plan `docs/superpowers/plans/2026-09-16-mejoras-ux-datasets-rag.md`. Todas las cifras
 > de este documento salen de `backend/scripts/datasets_resumen.py` (consultas reales a Cloud SQL) y
 > llevan la fecha en que se ejecutó. Para refrescarlas: `cd backend/scrapers && PYTHONPATH=. python ../scripts/datasets_resumen.py`.

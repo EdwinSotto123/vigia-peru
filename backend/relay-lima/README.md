@@ -8,6 +8,9 @@ La salida con IP peruana de los scrapers. Algunas fuentes del Estado sólo respo
 por el relay de Zúrich, dan 522 o 403. Este relay corre en una instancia EC2 de la **Local Zone de AWS en Lima**
 (`us-east-1-lim-1a`), cuya IP ubican en Lima ipinfo e ip-api, y los Workers lo usan como cualquier otra salida.
 
+Lo usan `vigia-scrapers` (Contraloría, INFOBRAS, SERVIR y la ficha del OECE) y `vigia-api` (las bases del Poder
+Judicial, `backend/api/src/lib/basesPlaza.ts`), los dos con el binding `RELAY_LIMA` y el secreto `RELAY_LIMA_TOKEN`.
+
 ```
 Worker vigia-scrapers ──binding RELAY_LIMA (Workers VPC)──▶ túnel vigia-lima ──▶ cloudflared ──▶ relay.py 127.0.0.1:8080 ──▶ *.gob.pe
                                                               (sólo salida)        └──────── EC2 t3.medium en Lima ────────┘
@@ -41,8 +44,8 @@ nueva dirección, puede ir directo o por aquí.
 ## ¿Y sólo con Cloudflare?
 
 Probado el 2026-10-31 con Workers de prueba. Un Worker sale a internet con IPs de Cloudflare que se ubican en el país del
-centro de datos donde corre: desde Buenos Aires salió con 104.23.237.16 (Argentina) y desde Miami con 104.22.86.131 (EE.
-UU.). Cloudflare tiene un centro de datos en Lima, pero no hay forma de hacer correr ahí un Worker:
+centro de datos donde corre: desde Buenos Aires salió con una IP de Argentina y desde Miami con una de EE. UU.
+Cloudflare tiene un centro de datos en Lima, pero no hay forma de hacer correr ahí un Worker:
 
 | Intento | Resultado |
 |---|---|
@@ -61,13 +64,13 @@ corren en cualquier Linux con IP del Perú (un VPS peruano o una mini PC), con `
 
 ```bash
 # Todo lo que falte (idempotente): subred, grupo de seguridad, rol, secretos, túnel, servicio VPC, IP e instancia
-AWS_PROFILE=founder.edwin python infrastructure/deploy/aws/relay_lima.py crear
+AWS_PROFILE=<perfil> python infrastructure/deploy/aws/relay_lima.py crear
 # Subir un relay.py nuevo y reiniciarlo (--cloudflared: también el cloudflared más nuevo)
-AWS_PROFILE=founder.edwin python infrastructure/deploy/aws/relay_lima.py actualizar
+AWS_PROFILE=<perfil> python infrastructure/deploy/aws/relay_lima.py actualizar
 # Instancia, túnel, servicios y /health
-AWS_PROFILE=founder.edwin python infrastructure/deploy/aws/relay_lima.py estado
+AWS_PROFILE=<perfil> python infrastructure/deploy/aws/relay_lima.py estado
 # Un comando en la instancia (por SSM)
-AWS_PROFILE=founder.edwin python infrastructure/deploy/aws/relay_lima.py ejecutar 'journalctl -u vigia-relay -n 50 --no-pager'
+AWS_PROFILE=<perfil> python infrastructure/deploy/aws/relay_lima.py ejecutar 'journalctl -u vigia-relay -n 50 --no-pager'
 ```
 
 Desde el Worker: `obtener(env, url, { relay: "lima" })` (src/http.ts). Diagnóstico:
@@ -96,5 +99,5 @@ disco e IP elástica) deja el costo en cero, pero sin respaldo.
   que la permita, o liberar la IP elástica y pedir otra.
 - **Rotar el token:** un valor nuevo en SSM (`aws ssm put-parameter --region us-east-2 --name /vigia/relay-lima/token
   --type SecureString --overwrite …`), `relay_lima.py actualizar` (lo vuelve a leer de SSM) y el mismo valor en
-  `wrangler secret put RELAY_LIMA_TOKEN` de vigia-scrapers y de su `--env dev` (con una tubería desde
+  `wrangler secret put RELAY_LIMA_TOKEN` de vigia-scrapers y de vigia-api, y en los `--env dev` que lo usen (con una tubería desde
   `aws ssm get-parameter`, sin que pase por la pantalla).
