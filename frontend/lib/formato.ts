@@ -11,7 +11,7 @@
  * Todo es puro (sin React): sirve en server y client components.
  */
 
-import { conTildes } from "./tildes";
+import { conTildes } from "./tildes.ts";
 
 const ZONA_LIMA = "America/Lima";
 const NUM = new Intl.NumberFormat("es-PE");
